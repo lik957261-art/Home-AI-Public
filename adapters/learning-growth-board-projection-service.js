@@ -3,6 +3,12 @@
 const {
   normalizeLearningCardRewardPolicy,
 } = require("./learning-card-reward-policy-service");
+const {
+  learningGrowthRewardDecayState,
+} = require("./learning-growth-reward-decay-service");
+const {
+  displayTitleForLearningGrowthTask,
+} = require("./learning-growth-title-service");
 
 function cleanString(value, limit = 1000) {
   const text = String(value ?? "").trim();
@@ -50,6 +56,51 @@ function latestForTask(records = [], taskCardId = "", field = "updatedAt") {
     if (currentTime > latestTime) latest = record;
   }
   return latest;
+}
+
+function countForTask(records = [], taskCardId = "") {
+  const id = cleanString(taskCardId);
+  if (!id) return 0;
+  return arrayValue(records).filter((record) => cleanString(record?.taskCardId) === id).length;
+}
+
+function latestRewardSettlementForTask(records = [], taskCardId = "", evaluationId = "") {
+  const id = cleanString(taskCardId);
+  const evalId = cleanString(evaluationId);
+  if (!id && !evalId) return null;
+  let latest = null;
+  for (const record of arrayValue(records)) {
+    const matchesTask = id && cleanString(record?.taskCardId) === id;
+    const matchesEvaluation = evalId && cleanString(record?.evaluationId) === evalId;
+    if (!matchesTask && !matchesEvaluation) continue;
+    const currentTime = cleanString(record?.settledAt || record?.updatedAt || record?.createdAt);
+    const latestTime = cleanString(latest?.settledAt || latest?.updatedAt || latest?.createdAt);
+    if (!latest || currentTime > latestTime) latest = record;
+  }
+  return latest;
+}
+
+function publicRewardSettlementSummary(settlement = null) {
+  if (!settlement) return null;
+  return {
+    rewardSettlementId: cleanString(settlement.rewardSettlementId || settlement.id),
+    taskCardId: cleanString(settlement.taskCardId),
+    evaluationId: cleanString(settlement.evaluationId),
+    status: cleanString(settlement.status),
+    coinAmount: numberValue(settlement.coinAmount),
+    reason: cleanString(settlement.reason, 160),
+    settledAt: cleanString(settlement.settledAt),
+    updatedAt: cleanString(settlement.updatedAt),
+    createdAt: cleanString(settlement.createdAt),
+  };
+}
+
+function firstPositiveNumber(...values) {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.round(parsed);
+  }
+  return 0;
 }
 
 function publicArtifactPreview(artifact) {
@@ -103,7 +154,7 @@ function taskStatus(task = {}, latest = {}, context = {}) {
   if (reflectionStatus === "accepted") return "complete";
   const evaluationStatus = cleanString(latest.evaluation?.status);
   if (evaluationStatus === "reflection_required") return "spoken_reflection";
-  if (evaluationStatus === "needs_repair" || evaluationStatus === "needs_revision") return "revise";
+  if (evaluationStatus === "needs_repair" || evaluationStatus === "needs_revision" || evaluationStatus === "draft_feedback") return "revise";
   if (latest.evaluation?.passed) return "complete";
   if (cleanString(latest.submission?.status)) return "waiting_feedback";
   return "submit";
@@ -156,6 +207,10 @@ function sequenceGroupForTask(task = {}) {
   return taskCardId ? `task:${taskCardId}` : "task:unknown";
 }
 
+function displayTitleForTask(task = {}, sequenceIndex = 1) {
+  return displayTitleForLearningGrowthTask(task, Math.max(0, sequenceIndex - 1));
+}
+
 function taskComplete(card = {}) {
   return card.laneId === "completed_recent" || card.nextAction === "complete";
 }
@@ -199,6 +254,22 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
     evaluation: task.latestEvaluation || latestForTask(context.evaluations, taskCardId, "createdAt"),
     reflection: task.latestReflection || latestForTask(context.reflections, taskCardId, "submittedAt"),
   };
+  const submissionCount = firstPositiveNumber(
+    task.totalSubmissionCount,
+    task.submissionCount,
+    latest.submission?.totalSubmissionCount,
+    latest.submission?.submissionCount,
+    countForTask(context.submissions, taskCardId),
+    latest.submission ? 1 : 0,
+  );
+  const evaluationCount = firstPositiveNumber(
+    task.totalEvaluationCount,
+    task.evaluationCount,
+    latest.evaluation?.totalEvaluationCount,
+    latest.evaluation?.evaluationCount,
+    countForTask(context.evaluations, taskCardId),
+    latest.evaluation ? 1 : 0,
+  );
   const artifacts = arrayValue(context.artifacts)
     .filter((artifact) => cleanString(artifact?.taskCardId) === taskCardId)
     .map(publicArtifactPreview);
@@ -206,19 +277,47 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
   const action = taskStatus(task, latest, context);
   const laneId = laneForTask(task, latest, context.today, context);
   const actions = actionModel(laneId, action);
+  const sequenceIndex = sequenceIndexForTask(task, index);
   const nextCompletionAllowedAt = cleanString(task.nextCompletionAllowedAt || task.learningGrowthUnlockAt || task.unlockAt || task.availableAt || task.notBefore);
+  const sequenceMode = cleanString(
+    task.sequenceMode
+      || task.learningGrowthSequenceMode
+      || task.learningGrowthJitGeneration?.sequenceMode
+      || task.taskModel?.sequenceMode
+      || task.taskModel?.jitGeneration?.sequenceMode,
+  );
+  const rewardDecay = learningGrowthRewardDecayState(Object.assign({}, task, {
+    openedAt,
+    generatedAt: openedAt,
+    rewardCapCoins: rewardPolicy.maxCoins,
+    rewardPolicy,
+    sequenceGroupId: sequenceGroupForTask(task),
+    sequenceMode,
+    status: cleanString(task.status || task.executionStatus),
+    nextAction: action,
+    laneId,
+  }), {
+    now: context.nowIso,
+    rewardPolicy,
+  });
+  const latestSettlement = latestRewardSettlementForTask(
+    context.rewardSettlements,
+    taskCardId,
+    latest.evaluation?.evaluationId,
+  );
   return {
     taskCardId,
     todoId: cleanString(task.todoId || task.kanbanCardId),
-    source: cleanString(task.source),
+    source: cleanString(task.source) || "learning-growth",
     legacySource: cleanString(task.legacySource),
     readOnly: Boolean(task.readOnly),
     workspaceId: cleanString(task.workspaceId || task.learnerId || task.assignee),
     programId: cleanString(task.programId || task.learningProgramId || task.learning_program_id),
     draftId: cleanString(task.draftId || task.learningDraftId || task.learning_draft_id),
     sequenceGroupId: sequenceGroupForTask(task),
-    sequenceIndex: sequenceIndexForTask(task, index),
-    title: cleanString(task.title, 180) || taskCardId,
+    sequenceMode,
+    sequenceIndex,
+    title: displayTitleForTask(task, sequenceIndex) || taskCardId,
     instructionPreview: cleanString(
       task.learnerInstruction
         || task.instruction
@@ -230,6 +329,18 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
     ),
     domain: cleanString(task.domain),
     activityType: cleanString(task.activityType || task.taskModel?.activityType || task.taskModel?.skillId || task.taskCardType),
+    cardRole: cleanString(task.cardRole),
+    completionPolicy: task.completionPolicy || null,
+    masteryEvidenceWeight: numberValue(task.masteryEvidenceWeight),
+    capabilityClusterId: cleanString(task.capabilityClusterId),
+    defaultRewardCoins: numberValue(task.defaultRewardCoins),
+    configuredRewardCoins: numberValue(task.configuredRewardCoins),
+    expectedDurationMinutes: task.expectedDurationMinutes || null,
+    stageAssessment: task.stageAssessment || null,
+    stageAssessmentCycleId: cleanString(task.stageAssessmentCycleId),
+    activationState: cleanString(task.activationState),
+    teachingFlow: task.teachingFlow || null,
+    experienceSummary: task.experienceSummary || null,
     plannedDate: cleanString(task.plannedDate),
     openedAt,
     generatedAt: openedAt,
@@ -239,15 +350,27 @@ function publicBoardCard(task = {}, context = {}, index = 0) {
     nextCompletionAllowedAt,
     nextAction: action,
     laneId,
-    latestSubmission: latest.submission || null,
-    latestEvaluation: latest.evaluation || null,
+    submissionCount,
+    totalSubmissionCount: submissionCount,
+    evaluationCount,
+    totalEvaluationCount: evaluationCount,
+    latestSubmission: latest.submission ? Object.assign({}, latest.submission, {
+      submissionCount,
+      totalSubmissionCount: submissionCount,
+    }) : null,
+    latestEvaluation: latest.evaluation ? Object.assign({}, latest.evaluation, {
+      evaluationCount,
+      totalEvaluationCount: evaluationCount,
+    }) : null,
     latestReflection: latest.reflection || null,
     artifactCount,
     artifactPreview: artifacts.slice(0, 3),
     artifactDirectoryPath: cardArtifactDirectoryPath(task, artifacts, latest, context, artifactCount),
     rewardState: cleanString(latest.evaluation?.passed ? "eligible_after_reflection" : ""),
+    latestRewardSettlement: publicRewardSettlementSummary(latestSettlement),
     rewardPolicy,
     rewardCapCoins: rewardPolicy.maxCoins,
+    rewardDecay,
     primaryAction: actions.primaryAction,
     actions,
   };
@@ -349,6 +472,7 @@ function buildLearningGrowthBoard(input = {}) {
     evaluations: arrayValue(programs.evaluations),
     reflections: arrayValue(programs.taskReflections),
     artifacts: arrayValue(programs.taskArtifacts),
+    rewardSettlements: arrayValue(programs.rewardSettlements),
   };
   const allCards = mergeTasks(programs).map((task, index) => publicBoardCard(task, context, index));
   const sequence = visibleSequenceCards(allCards);

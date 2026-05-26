@@ -3,7 +3,9 @@ param(
     [string]$WslUser = "",
     [string]$HermesHome = "",
     [string]$RuntimeRoot = "/opt/hermes-gateway-runtime",
+    [string]$DispatcherScript = "",
     [int]$IntervalSeconds = 60,
+    [int]$DispatchTimeoutSeconds = 0,
     [string]$LogPath = "",
     [switch]$Once
 )
@@ -16,6 +18,8 @@ if (-not $WslUser) { $WslUser = $env:HERMES_WEB_WSL_USER }
 if (-not $WslUser) { $WslUser = "xuxin" }
 if (-not $HermesHome) { $HermesHome = $env:HERMES_WEB_HERMES_HOME }
 if (-not $HermesHome) { $HermesHome = "/home/$WslUser/.hermes" }
+if (-not $DispatcherScript) { $DispatcherScript = Join-Path $PSScriptRoot "hermes-mobile-cron-dispatcher.py" }
+$DispatcherScript = [System.IO.Path]::GetFullPath($DispatcherScript)
 if (-not $LogPath) { $LogPath = $env:HERMES_MOBILE_CRON_TICK_LOG_PATH }
 if (-not $LogPath) {
     $dataRoot = $env:HERMES_WEB_DATA_DIR
@@ -23,6 +27,14 @@ if (-not $LogPath) {
     $LogPath = Join-Path (Join-Path $dataRoot "logs") "cron-tick-sidecar.log"
 }
 if ($IntervalSeconds -lt 10) { $IntervalSeconds = 10 }
+if ($DispatchTimeoutSeconds -le 0 -and $env:HERMES_MOBILE_CRON_DISPATCH_TIMEOUT_SECONDS) {
+    $parsedDispatchTimeout = 0
+    if ([int]::TryParse($env:HERMES_MOBILE_CRON_DISPATCH_TIMEOUT_SECONDS, [ref]$parsedDispatchTimeout)) {
+        $DispatchTimeoutSeconds = $parsedDispatchTimeout
+    }
+}
+if ($DispatchTimeoutSeconds -le 0) { $DispatchTimeoutSeconds = 60 }
+if ($DispatchTimeoutSeconds -lt 15) { $DispatchTimeoutSeconds = 15 }
 
 function Write-CronTickLog {
     param([string]$Message)
@@ -39,6 +51,18 @@ function Write-CronTickLog {
 function Invoke-CronTick {
     $pythonPath = "$RuntimeRoot/official-clean"
     $pythonExe = "$RuntimeRoot/venv/bin/python"
+    $dispatcherWslPath = ""
+    if ($DispatcherScript -match '^([A-Za-z]):\\(.*)$') {
+        $drive = $Matches[1].ToLowerInvariant()
+        $tail = $Matches[2].Replace("\", "/")
+        $dispatcherWslPath = "/mnt/$drive/$tail"
+    } else {
+        $dispatcherWslPath = (& wsl.exe -d $DistroName -u $WslUser -- wslpath -a $DispatcherScript 2>$null | Select-Object -First 1)
+    }
+    if (-not $dispatcherWslPath) {
+        Write-CronTickLog "dispatcher path conversion failed: $DispatcherScript"
+        return
+    }
     $wslArgs = @(
         "-d", $DistroName,
         "-u", $WslUser,
@@ -48,23 +72,51 @@ function Invoke-CronTick {
         "PYTHONPATH=$pythonPath",
         "HERMES_ACCEPT_HOOKS=1",
         $pythonExe,
-        "-m", "hermes_cli.main",
-        "cron", "tick",
-        "--accept-hooks"
+        $dispatcherWslPath,
+        "--dispatch"
     )
 
     $started = Get-Date
-    Write-CronTickLog "tick start distro=$DistroName user=$WslUser hermes_home=$HermesHome"
+    Write-CronTickLog "dispatch start dispatcher=$dispatcherWslPath distro=$DistroName user=$WslUser hermes_home=$HermesHome dispatch_timeout_seconds=$DispatchTimeoutSeconds"
     $output = @()
+    $timedOut = $false
     try {
-        $output = & wsl.exe @wslArgs 2>&1 | ForEach-Object { $_.ToString() }
-        $exitCode = $LASTEXITCODE
+        $stdoutPath = [System.IO.Path]::GetTempFileName()
+        $stderrPath = [System.IO.Path]::GetTempFileName()
+        try {
+            $process = Start-Process -FilePath "wsl.exe" -ArgumentList $wslArgs -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
+            if (-not $process.WaitForExit($DispatchTimeoutSeconds * 1000)) {
+                $timedOut = $true
+                $exitCode = 124
+                Write-CronTickLog "dispatch timeout pid=$($process.Id) dispatch_timeout_seconds=$DispatchTimeoutSeconds"
+                try { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue } catch {}
+                try {
+                    $cleanupArgs = @(
+                        "-d", $DistroName,
+                        "-u", $WslUser,
+                        "--",
+                        "bash",
+                        "-lc",
+                        "pkill -f 'hermes-mobile-cron-dispatcher.py --dispatch' 2>/dev/null || true"
+                    )
+                    & wsl.exe @cleanupArgs | Out-Null
+                } catch {}
+            } else {
+                $process.Refresh()
+                $exitCode = if ($null -eq $process.ExitCode) { 0 } else { $process.ExitCode }
+            }
+            $stdout = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -ErrorAction SilentlyContinue } else { @() }
+            $stderr = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -ErrorAction SilentlyContinue } else { @() }
+            $output = @($stdout) + @($stderr)
+        } finally {
+            Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+        }
     } catch {
         $output = @($_.Exception.Message)
         $exitCode = 1
     }
     $elapsedMs = [int]((Get-Date) - $started).TotalMilliseconds
-    Write-CronTickLog "tick exit=$exitCode elapsed_ms=$elapsedMs"
+    Write-CronTickLog "dispatch exit=$exitCode elapsed_ms=$elapsedMs timed_out=$timedOut"
     if ($output.Count -gt 0) {
         $maxLines = 80
         $lines = if ($output.Count -le $maxLines) {
@@ -73,12 +125,12 @@ function Invoke-CronTick {
             @("[cron tick output truncated: $($output.Count) lines]") + ($output | Select-Object -Last $maxLines)
         }
         foreach ($line in $lines) {
-            if ($line) { Write-CronTickLog "tick output: $line" }
+            if ($line) { Write-CronTickLog "dispatch output: $line" }
         }
     }
 }
 
-Write-CronTickLog "sidecar start interval_seconds=$IntervalSeconds once=$($Once.IsPresent)"
+Write-CronTickLog "sidecar start interval_seconds=$IntervalSeconds dispatch_timeout_seconds=$DispatchTimeoutSeconds once=$($Once.IsPresent)"
 while ($true) {
     $loopStart = Get-Date
     Invoke-CronTick

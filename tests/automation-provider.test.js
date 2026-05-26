@@ -77,6 +77,7 @@ async function run() {
   assert.equal(firstList.source.cache, "miss");
   assert.deepEqual(calls.at(-1), {
     action: "list",
+    detail: "full",
     include_disabled: true,
     limit: 0,
     owner_principal_id: "",
@@ -94,8 +95,18 @@ async function run() {
   await provider.listJobs({ includeDisabled: false, limit: 25 });
   assert.deepEqual(calls.at(-1), {
     action: "list",
+    detail: "full",
     include_disabled: false,
     limit: 25,
+    owner_principal_id: "",
+  });
+
+  await provider.listJobs({ includeDisabled: true, bypassCache: true, limit: 5, detail: "summary" });
+  assert.deepEqual(calls.at(-1), {
+    action: "list",
+    detail: "summary",
+    include_disabled: true,
+    limit: 5,
     owner_principal_id: "",
   });
 

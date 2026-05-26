@@ -20,6 +20,10 @@ function cleanList(value) {
     .filter(Boolean);
 }
 
+function forbidToolsFromArgs() {
+  return cleanList(argValue("--forbid", ""));
+}
+
 function cleanToolDescriptionChecks(value) {
   return cleanList(value).map((item) => {
     const index = item.indexOf(":");
@@ -121,7 +125,7 @@ function workerTargets(manifest) {
   return first ? [first] : [];
 }
 
-async function smokeWorker(worker, requiredTools, requiredDescriptionChecks, options) {
+async function smokeWorker(worker, requiredTools, forbiddenTools, requiredDescriptionChecks, options) {
   const marker = `hermes-mobile-tool-schema-smoke-${worker.profile || worker.name}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const port = Number(worker.port || 0);
   if (!port) throw new Error(`worker ${worker.name || worker.profile || "unknown"} has no port`);
@@ -162,6 +166,10 @@ async function smokeWorker(worker, requiredTools, requiredDescriptionChecks, opt
   if (missing.length) {
     throw new Error(`worker ${worker.profile || worker.name} missing tools in live session schema: ${missing.join(", ")}; got ${tools.join(", ")}`);
   }
+  const forbiddenPresent = forbiddenTools.filter((tool) => tools.includes(tool));
+  if (forbiddenPresent.length) {
+    throw new Error(`worker ${worker.profile || worker.name} has forbidden tools in live session schema: ${forbiddenPresent.join(", ")}; got ${tools.join(", ")}`);
+  }
   for (const check of requiredDescriptionChecks) {
     const tool = toolDefinitions.find((definition) => (
       (definition?.function?.name || definition?.name || "") === check.tool
@@ -184,6 +192,7 @@ async function main() {
     "--require",
     "http_request,weather,mobile_web_search,mobile_web_extract,image_generate,chatgpt_image_edit,chatgpt_image_erase,docx_extract_text,audio_transcribe",
   ));
+  const forbiddenTools = forbidToolsFromArgs();
   const requiredDescriptionChecks = cleanToolDescriptionChecks(argValue("--require-tool-description", ""));
   const options = {
     telemetryRoot: argValue("--telemetry-root", "C:/ProgramData/HermesMobile/gateway-worker/telemetry/profiles"),
@@ -191,12 +200,13 @@ async function main() {
   };
   const results = [];
   for (const worker of targets) {
-    results.push(await smokeWorker(worker, requiredTools, requiredDescriptionChecks, options));
+    results.push(await smokeWorker(worker, requiredTools, forbiddenTools, requiredDescriptionChecks, options));
   }
   console.log(JSON.stringify({
     ok: true,
     manifestPath,
     requiredTools,
+    forbiddenTools,
     workers: results.map((result) => ({
       worker: result.worker,
       sessionPath: result.sessionPath,

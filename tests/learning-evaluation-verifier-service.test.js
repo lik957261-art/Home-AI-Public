@@ -64,6 +64,24 @@ function testModelAssistedGrowthTaskEvaluationSettlesWithoutParentReview() {
   assert.equal(result.rewardEligible, true);
 }
 
+function testOwnerManualPassCanSettleWithoutSourceBasis() {
+  const result = verifier().verifyEvaluation({
+    task: { domain: "math", skillIds: ["math_reasoning"] },
+    evaluation: {
+      score: 80,
+      confidence: 1,
+      passed: true,
+      verificationMethod: "owner_manual_pass",
+      evidenceRefs: ["owner-manual-pass:v1", "task:math-card"],
+      summary: "summary only",
+    },
+  });
+  assert.equal(result.method, "owner_manual_pass");
+  assert.equal(result.status, "verified");
+  assert.equal(result.parentReviewRequired, false);
+  assert.equal(result.rewardEligible, true);
+}
+
 function testPythonExecutionRequiresEvidence() {
   const staticOnly = verifier().verifyEvaluation({
     task: { domain: "programming", sourceBasisRefs: ["goal:python"], skillIds: ["python_basics"] },
@@ -100,6 +118,7 @@ function testPrivatePayloadRejected() {
 testVerifiedObjectiveEvaluation();
 testModelOnlyEnglishRequiresReview();
 testModelAssistedGrowthTaskEvaluationSettlesWithoutParentReview();
+testOwnerManualPassCanSettleWithoutSourceBasis();
 testPythonExecutionRequiresEvidence();
 testPrivatePayloadRejected();
 console.log("learning evaluation verifier service tests passed");

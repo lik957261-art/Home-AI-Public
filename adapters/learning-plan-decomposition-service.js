@@ -431,6 +431,62 @@ function buildModelDraftPrompt(input = {}) {
   ].join("\n\n");
 }
 
+function buildModelDraftRepairPrompt(input = {}) {
+  const program = input.program || {};
+  const seedDraft = input.seedDraft || {};
+  const templates = input.templates || [];
+  const sources = input.sources || [];
+  const previousOutput = compactText(input.previousOutput, 5000);
+  const payload = {
+    program: {
+      programId: cleanString(program.programId),
+      learnerId: cleanString(program.learnerId),
+      workspaceId: cleanString(program.workspaceId),
+      title: compactText(program.title, 160),
+      domain: cleanString(program.domain) || "english",
+      goalSummary: compactText(program.goalSummary, 600),
+      requirements: compactText(program.requirements, 900),
+      focusAreas: uniqueStrings(program.focusAreas),
+      startDate: cleanString(program.startDate),
+      daysPerWeek: clampInt(program.daysPerWeek, 1, 7, 5),
+      minutesPerDay: clampInt(program.minutesPerDay, 10, 90, 25),
+    },
+    availableTemplates: templates.map((template) => ({
+      templateId: template.id,
+      domain: template.domain,
+      skillIds: uniqueStrings(template.skillIds),
+      activityType: template.activityType,
+      taskCardType: template.taskCardType,
+    })),
+    recentLearningState: {
+      privacyLevel: "summary_only",
+      sources: safeSourceSummaries(sources),
+    },
+    seedSchedule: {
+      weekStart: seedDraft.weekStart,
+      weekEnd: seedDraft.weekEnd,
+      days: (seedDraft.dailyPlans || []).map((day) => ({
+        date: day.date,
+        dayIndex: day.dayIndex,
+        plannedMinutes: day.plannedMinutes,
+        taskCount: (day.tasks || []).length,
+      })),
+    },
+    previousModelOutput: previousOutput,
+    repairReason: compactText(input.reason || "Initial model output was not valid for the required plan schema.", 300),
+  };
+  return [
+    "Repair the previous Growth weekly learning plan into strict JSON only.",
+    "Do not add deterministic fallback content. Use the same program, dates, supported skill ids, and privacy limits.",
+    "Return a dailyPlans array matching the seed schedule day count and each day's seed task count.",
+    "Use only supported skill ids from availableTemplates or seedSchedule. Do not invent templates or skills.",
+    "Use Chinese for teacher-facing planning rationale and concise learner-facing instructions unless the learner output itself must be English.",
+    "Do not include raw prompts, full learner answers, full transcripts, full questions, answer keys, endpoints, local paths, secrets, or copied copyrighted questions.",
+    "Return schema: {\"dailyPlans\":[{\"date\":\"YYYY-MM-DD\",\"plannedMinutes\":25,\"tasks\":[{\"skillId\":\"english_short_writing\",\"title\":\"...\",\"learnerInstruction\":\"...\",\"plannedMinutes\":15,\"deliverables\":[\"...\"],\"acceptance\":[\"...\"],\"teacherRationale\":\"...\"}]}],\"rationale\":\"...\",\"riskFlags\":[\"model_repair\"]}",
+    JSON.stringify(payload),
+  ].join("\n\n");
+}
+
 function findTemplateSkill(modelTask = {}, fallbackTask = {}) {
   const candidates = uniqueStrings([
     modelTask.skillId,
@@ -440,9 +496,34 @@ function findTemplateSkill(modelTask = {}, fallbackTask = {}) {
   return candidates.find((skillId) => /^english_[a-z0-9_]+$/.test(skillId)) || uniqueStrings(fallbackTask.skillIds)[0] || "english_reading_comprehension";
 }
 
+function modelDailyPlansFromParsed(parsed = {}) {
+  if (Array.isArray(parsed)) return parsed;
+  const source = parsed && typeof parsed === "object" ? parsed : {};
+  if (Array.isArray(source.dailyPlans)) return source.dailyPlans;
+  if (Array.isArray(source.daily_plans)) return source.daily_plans;
+  if (Array.isArray(source.days)) return source.days;
+  if (Array.isArray(source.schedule)) return source.schedule;
+  if (Array.isArray(source.plan?.dailyPlans)) return source.plan.dailyPlans;
+  if (Array.isArray(source.plan?.days)) return source.plan.days;
+  if (Array.isArray(source.weeklyPlan?.dailyPlans)) return source.weeklyPlan.dailyPlans;
+  if (Array.isArray(source.weeklyPlan?.days)) return source.weeklyPlan.days;
+  if (Array.isArray(source.weekly_plan?.dailyPlans)) return source.weekly_plan.dailyPlans;
+  if (Array.isArray(source.weekly_plan?.days)) return source.weekly_plan.days;
+  return [];
+}
+
+function modelPlanMetadataFromParsed(parsed = {}) {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+  if (parsed.plan && typeof parsed.plan === "object" && !Array.isArray(parsed.plan)) return parsed.plan;
+  if (parsed.weeklyPlan && typeof parsed.weeklyPlan === "object" && !Array.isArray(parsed.weeklyPlan)) return parsed.weeklyPlan;
+  if (parsed.weekly_plan && typeof parsed.weekly_plan === "object" && !Array.isArray(parsed.weekly_plan)) return parsed.weekly_plan;
+  return parsed;
+}
+
 function normalizeModelDraft(parsed = {}, seedDraft = {}, program = {}, options = {}) {
   const templates = options.templates || [];
-  const modelDays = Array.isArray(parsed?.dailyPlans) ? parsed.dailyPlans : [];
+  const modelDays = modelDailyPlansFromParsed(parsed);
+  const metadata = modelPlanMetadataFromParsed(parsed);
   if (!modelDays.length) return null;
   const dailyPlans = (seedDraft.dailyPlans || []).map((seedDay, dayIndex) => {
     const modelDay = modelDays[dayIndex] || {};
@@ -496,9 +577,17 @@ function normalizeModelDraft(parsed = {}, seedDraft = {}, program = {}, options 
       noRawChildContent: true,
       privacyLevel: "summary_only",
       modelStatus: "completed",
-      rationale: compactText(parsed.rationale, 500),
-      riskFlags: uniqueStrings(parsed.riskFlags).slice(0, 8),
+      rationale: compactText(metadata.rationale || metadata.reasoning || metadata.summary, 500),
+      riskFlags: uniqueStrings(metadata.riskFlags || metadata.risk_flags).slice(0, 8),
     },
+  });
+}
+
+function markDraftRepaired(draft = {}) {
+  return Object.assign({}, draft, {
+    generationPolicy: Object.assign({}, draft.generationPolicy || {}, {
+      modelRepairApplied: true,
+    }),
   });
 }
 
@@ -511,7 +600,7 @@ function createLearningPlanDecompositionService(options = {}) {
   const sanitizePolicy = typeof options.sanitizePolicy === "function" ? options.sanitizePolicy : (policy) => policy || {};
   const findWorkspace = typeof options.findWorkspace === "function" ? options.findWorkspace : () => null;
   const model = cleanString(options.model || options.automationCreateModel || "automation-create");
-  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 120000) || 120000);
+  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 600000) || 600000);
   const requireModel = options.requireModel === true;
 
   async function buildDraft(program = {}) {
@@ -533,7 +622,7 @@ function createLearningPlanDecompositionService(options = {}) {
     try {
       const output = await hermesModelText({
         input: buildModelDraftPrompt({ program, seedDraft, templates, sources }),
-        stream: false,
+        stream: true,
         store: false,
         model,
         reasoning_effort: "medium",
@@ -544,6 +633,26 @@ function createLearningPlanDecompositionService(options = {}) {
       const parsed = extractJsonObject(output || "");
       const draft = normalizeModelDraft(parsed, seedDraft, program, { templates });
       if (draft) return draft;
+      const repairOutput = await hermesModelText({
+        input: buildModelDraftRepairPrompt({
+          program,
+          seedDraft,
+          templates,
+          sources,
+          previousOutput: output || "",
+          reason: parsed ? "Parsed JSON did not match the required dailyPlans schema." : "Initial model output was not valid JSON.",
+        }),
+        stream: true,
+        store: false,
+        model,
+        reasoning_effort: "medium",
+        conversation: `learning_growth_plan_repair_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`,
+        instructions: "Return strict JSON only for a repaired Growth weekly plan draft.",
+        access_policy_context: sanitizePolicy(findWorkspace(program.workspaceId || "owner")?.policy || {}),
+      }, timeoutMs);
+      const repairedParsed = extractJsonObject(repairOutput || "");
+      const repairedDraft = normalizeModelDraft(repairedParsed, seedDraft, program, { templates });
+      if (repairedDraft) return markDraftRepaired(repairedDraft);
     } catch (err) {
       if (requireModel) {
         const wrapped = new Error(`Learning plan model decomposition failed: ${err.message || err}`);

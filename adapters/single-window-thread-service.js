@@ -178,12 +178,44 @@ function createSingleWindowThreadService(deps = {}) {
     return thread;
   }
 
+  function groupThreadMessageCount(thread) {
+    return (thread?.messages || []).filter((message) => String(message?.taskGroupId || "") === singleWindowGroupChatTaskGroupId).length;
+  }
+
   function findGroupChatThreadForWorkspace(workspaceId) {
     const id = String(workspaceId || "").trim();
     if (!id) return null;
     return (stateObject().threads || [])
       .filter((thread) => thread?.singleWindow && !isKanbanCaseTopicThread(thread) && chatGroupMemberWorkspaceIds(thread).includes(id))
-      .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0] || null;
+      .sort((a, b) => (
+        groupThreadMessageCount(b) - groupThreadMessageCount(a)
+        || String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""))
+      ))[0] || null;
+  }
+
+  function ensureGroupChatThreadForWorkspace(workspaceId, memberWorkspaceIds = []) {
+    const id = String(workspaceId || "").trim();
+    if (!id) return null;
+    const current = stateObject();
+    const existing = findGroupChatThreadForWorkspace(id);
+    if (existing) return existing;
+    const now = nowIso();
+    const members = [...new Set([id, ...memberWorkspaceIds].map((item) => String(item || "").trim()).filter(Boolean))];
+    const thread = createSingleWindowThread(id, {
+      title: "Group Chat",
+      chatGroup: normalizeChatGroup({
+        enabled: true,
+        memberWorkspaceIds: members,
+        createdAt: now,
+        updatedAt: now,
+      }, id),
+      messages: [],
+      taskGroupMeta: {},
+      updatedAt: now,
+    });
+    current.threads.unshift(thread);
+    saveState();
+    return thread;
   }
 
   function caseTopicThreadVisibleForWorkspace(auth, thread, workspaceId) {
@@ -205,6 +237,7 @@ function createSingleWindowThreadService(deps = {}) {
 
   return Object.freeze({
     createSingleWindowThread,
+    ensureGroupChatThreadForWorkspace,
     ensureSingleWindowThread,
     ensureWeixinSingleWindowThread,
     findGroupChatThreadForWorkspace,

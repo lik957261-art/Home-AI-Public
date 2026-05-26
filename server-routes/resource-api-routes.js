@@ -68,11 +68,10 @@ const RESOURCE_API_ROUTE_SPECS = Object.freeze([
     group: "skill",
     moduleKey: "resource",
     handlerKey: "skillAnalysisFix",
-    summary: "Apply an Owner-approved deterministic fix to a local skill.",
-    riskLevel: "owner",
-    authMode: "owner",
+    summary: "Apply a creator-approved deterministic fix to a local skill.",
+    riskLevel: "high",
+    authMode: "access-key",
     authRequired: true,
-    ownerOnly: true,
     resourceTypes: ["skill"],
     tags: ["skill", "analysis", "fix"],
   },
@@ -99,7 +98,6 @@ function errorMessage(err) {
 function createResourceApiRoutes(deps = {}) {
   requireFunctions(deps, [
     "requireWorkspaceAccess",
-    "requireOwner",
     "readBody",
     "sendJson",
     "compactText",
@@ -122,7 +120,6 @@ function createResourceApiRoutes(deps = {}) {
 
   const {
     readBody,
-    requireOwner,
     requireWorkspaceAccess,
     sendJson,
     sharedDirectoryProjectionService,
@@ -149,14 +146,14 @@ function createResourceApiRoutes(deps = {}) {
     sendJson(res, 200, { ok: true, data: directories });
   }
 
-  async function handleSkillDetail(res, url) {
+  async function handleSkillDetail(res, url, auth) {
     const skill = String(url?.searchParams?.get("skill") || "").trim();
     if (!skill) {
       sendJson(res, 400, { error: "Skill is required" });
       return;
     }
     try {
-      const detail = await skillDetailProvider.detail(skill);
+      const detail = await skillDetailProvider.detail(skill, { auth });
       sendJson(res, 200, { data: detail });
     } catch (err) {
       sendJson(res, statusCode(err), {
@@ -166,14 +163,14 @@ function createResourceApiRoutes(deps = {}) {
     }
   }
 
-  async function handleSkillAnalysis(res, url) {
+  async function handleSkillAnalysis(res, url, auth) {
     const skill = String(url?.searchParams?.get("skill") || "").trim();
     if (!skill) {
       sendJson(res, 400, { error: "Skill is required" });
       return;
     }
     try {
-      const analysis = await skillDetailProvider.analyze(skill);
+      const analysis = await skillDetailProvider.analyze(skill, { auth });
       sendJson(res, 200, { data: analysis });
     } catch (err) {
       sendJson(res, statusCode(err), {
@@ -183,9 +180,12 @@ function createResourceApiRoutes(deps = {}) {
     }
   }
 
-  async function handleSkillAnalysisFix(req, res) {
-    const ownerAuth = requireOwner(req, res);
-    if (!ownerAuth) return;
+  async function handleSkillAnalysisFix(req, res, auth) {
+    const actorAuth = auth || req.hermesRequestContext?.actor || null;
+    if (!actorAuth?.ok && !actorAuth?.authenticated && !actorAuth?.isOwner) {
+      sendJson(res, 401, { error: "Unauthorized" });
+      return;
+    }
     let body = {};
     try {
       body = await readBody(req);
@@ -200,7 +200,7 @@ function createResourceApiRoutes(deps = {}) {
       return;
     }
     try {
-      const result = await skillDetailProvider.applyFix(skill, fixId);
+      const result = await skillDetailProvider.applyFix(skill, fixId, { auth: actorAuth });
       sendJson(res, 200, { data: result });
     } catch (err) {
       sendJson(res, statusCode(err), {
@@ -219,9 +219,9 @@ function createResourceApiRoutes(deps = {}) {
 
     if (route.id === "projects-list") await handleProjects(req, res, url);
     else if (route.id === "directories-shared-list") await handleSharedDirectories(req, res, url);
-    else if (route.id === "skills-detail") await handleSkillDetail(res, url);
-    else if (route.id === "skills-analysis") await handleSkillAnalysis(res, url);
-    else if (route.id === "skills-analysis-fix") await handleSkillAnalysisFix(req, res);
+    else if (route.id === "skills-detail") await handleSkillDetail(res, url, context.auth);
+    else if (route.id === "skills-analysis") await handleSkillAnalysis(res, url, context.auth);
+    else if (route.id === "skills-analysis-fix") await handleSkillAnalysisFix(req, res, context.auth);
     else return { handled: false };
 
     return {

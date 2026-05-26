@@ -9,6 +9,24 @@ deployment-specific secrets, runtime data, generated reports, logs, uploads,
 tokens, push endpoints, and adapter configuration outside the source
 checkout.
 
+## Documentation Map
+
+For non-trivial development, debugging, deployment, or production repair, start
+with [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md). The index points to the current
+architecture, product rules, module docs, runbooks, route/auth reference,
+frontend state map, data dictionary, Gateway manifest reference, installation
+checklist, screenshot debug map, and test matrix.
+
+High-value entry points:
+
+- Route/auth ownership: [docs/API_ROUTE_REFERENCE.md](docs/API_ROUTE_REFERENCE.md)
+- Frontend file map: [docs/FRONTEND_STATE_MAP.md](docs/FRONTEND_STATE_MAP.md)
+- SQLite tables: [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md)
+- Gateway Pool manifest: [docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md](docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md)
+- Public install checks: [docs/PUBLIC_INSTALLATION_CHECKLIST.md](docs/PUBLIC_INSTALLATION_CHECKLIST.md)
+- Screenshot triage: [docs/SCREENSHOT_DEBUG_MAP.md](docs/SCREENSHOT_DEBUG_MAP.md)
+- Focused tests: [docs/TEST_MATRIX.md](docs/TEST_MATRIX.md)
+
 ## 1.0 Scope
 
 - Mobile chat, task list, directory, todo, automation, and group chat views.
@@ -23,75 +41,6 @@ checkout.
   Markdown export/share actions.
 - Installable PWA shell with static version checks, distinct app icons, and local
   font-size preferences.
-
-## 2026-05-21 Public Update
-
-This public export corresponds to private source commit
-`26a57d99c8e02a9d20081f9d06488898f889f56d`. It rolls forward the Hermes Mobile
-Growth, chat, Grok routing, and workspace-access work that has been validated in
-the private production source tree.
-
-### Main Changes
-
-- Growth now uses a native learning board and native task records as the visible
-  learning surface, while official Kanban remains available as a separate
-  compatibility boundary.
-- Learning task sequences support evergreen just-in-time card generation. New
-  learning cards are generated through the model path and can emit bounded
-  decision reports for review.
-- Growth reading-retell, math, and writing cards have task-specific execution
-  surfaces, including audio-based retell/reflection flows and structured math
-  answers with local draft autosave.
-- Growth deliverables use persisted series-level directories, so future cards in
-  the same learning series reuse a stable deliverable folder.
-- The mobile Growth UI was tightened for board-first use: compact task cards,
-  smaller deliverable icons, clearer task-detail typography, and simplified
-  settings entry points.
-- Chat loading and workspace switching were hardened to avoid stale async
-  responses overwriting the current chat view.
-- Grok/xAI routing and profile storage were tightened so credentials are kept in
-  the intended Gateway profile store instead of drifting across runtime restarts.
-- Workspace accounts can now be granted explicit access to additional
-  workspaces through `accessible_workspace_ids`, without granting Owner-only
-  administration rights.
-
-### Configuration Impact
-
-- To grant a restricted account access to another workspace, add an allowlist to
-  the account policy, for example:
-
-```json
-{
-  "principal_id": "weixin_example",
-  "accessible_workspace_ids": ["weixin_stephen"]
-}
-```
-
-- Growth reward limits, task-series settings, and AI recommendation features are
-  service-owned configuration surfaces. Do not store production learner content,
-  full transcripts, answers, Access Keys, OAuth tokens, or generated reports in
-  this source checkout.
-- Grok/xAI OAuth state should be stored in the configured Gateway profile
-  location. Deployments should keep profile directories and credential stores
-  outside Git.
-
-### Validation Scope
-
-- `npm test`
-- `npm run productization:check`
-- `git diff --check`
-- `npm run privacy:scan`
-- public export privacy scan over all exported files
-
-### Known Limitations
-
-- The public tree does not include production data, private learner records,
-  OAuth credentials, push endpoints, local Gateway profile state, or runtime
-  SQLite databases.
-- Real Growth task generation quality depends on the deployment's configured
-  model route and available learning summaries.
-- Cross-workspace access grants workspace-scoped visibility only. Owner-only
-  management actions remain gated by Owner authentication.
 
 ## 2026-05-12 Public Update
 
@@ -113,9 +62,9 @@ Pool 部署可以由另一个 Agent 按公开文档完成。
   - 创建 `HermesMobileWorker`。
   - 准备 `C:\ProgramData\HermesMobile\app` / `data` / `gateway-worker`。
   - 安装 runtime package。
-  - 启动 WSL `HermesGatewayWorker` lowgw pool。
+  - 启动 WSL `HermesGatewayWorker` lowgw pool 和可选 `grokgw1`。
   - 启动 Hermes Mobile listener。
-  - 检查 `/api/status`、真实 callable schema、auth realpath、SQLite integrity。
+  - 检查 `/api/status`、真实 callable schema、Grok/xAI worker、auth realpath、SQLite integrity。
 - 看板卡片详情支持回执/过程、Markdown HTML preview、响应式回执字体和更均衡的 Worker 分配。
 - Weixin / Mobile ingress 启动脚本同步到 public，但仍要求部署方自己提供账号、密钥和唯一 poller 边界。
 
@@ -177,7 +126,8 @@ Quick Start below is only for a minimal single-Gateway listener or local smoke
 test. It does not create `HermesMobileWorker`, does not prepare the
 `gateway-worker` directory, does not start `lowgw1..10`, and does not build a
 Gateway Pool manifest. A clean install that only follows Quick Start can log in
-to Hermes Mobile but will not have production workers.
+to Hermes Mobile but will not have production workers or the dedicated
+`@Grok4.3` worker unless the single Gateway was already configured for xAI.
 
 ## Quick Start
 
@@ -252,6 +202,30 @@ HERMES_WEB_MAX_ACTIVE_RUNS_PER_WORKSPACE=3
 See `examples/gateway-pool-manifest.example.json` and
 `docs/GATEWAY_POOL_ARCHITECTURE.md`. Do not commit real worker API keys or
 worker manifests containing secrets.
+
+For Windows production, copy the script entrypoints from this repo into the
+runtime app/gateway-worker directories as described in the deployment runbook.
+The operational restart paths are script-owned: use `start-worker-host.ps1`
+with `-ReplaceExisting` for the listener/bridge host, `start-gateway-pool.ps1`
+or the `Hermes Mobile Gateway Pool` scheduled task for Gateway workers, and
+`start-cron-tick-sidecar.ps1` with `-ReplaceExisting` for the cron dispatcher
+sidecar.
+Do not restart production by killing arbitrary `node`, `python`, or `wsl`
+processes without first checking active runs.
+
+### Grok / xAI Worker
+
+Hermes Mobile supports `@Grok4.3` by routing those runs to an official Hermes
+Gateway profile whose provider is `xai-oauth`. In the Windows production
+runbook, that worker is `grokgw1` on port `18761` by default.
+
+This repository does not include xAI OAuth state, Codex auth, API keys, or any
+other credential seed. A production Gateway Pool manifest must include a worker
+such as `profile=grokgw1`, `provider=xai-oauth`, and `securityLevel=user`; the
+target machine must also complete the official Hermes/xAI OAuth setup for that
+profile. If `@Grok4.3` is visible but calls fail with authentication errors, fix
+the `grokgw1` Gateway profile/auth store and restart the Gateway Pool; do not
+work around it by routing Grok requests to ordinary lowgw workers.
 
 ## Runtime Data
 

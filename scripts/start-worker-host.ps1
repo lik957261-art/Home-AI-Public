@@ -200,7 +200,9 @@ function Set-BridgeHostEnvironment {
     $env:HERMES_WEB_BRIDGE_HOST_URL = $bridgeUrl
     $env:HERMES_MOBILE_BRIDGE_HOST_KEY_PATH = $KeyPath
     $env:HERMES_WEB_BRIDGE_HOST_KEY_PATH = $KeyPath
-    $env:HERMES_MOBILE_BRIDGE_HOST = "127.0.0.1"
+    if (-not $env:HERMES_MOBILE_BRIDGE_HOST) {
+        $env:HERMES_MOBILE_BRIDGE_HOST = "0.0.0.0"
+    }
     $env:HERMES_MOBILE_BRIDGE_HOST_PORT = [string]$ListenPort
     $resolvedWslUser = $WslUser
     if (-not $resolvedWslUser) { $resolvedWslUser = $env:HERMES_WEB_WSL_USER }

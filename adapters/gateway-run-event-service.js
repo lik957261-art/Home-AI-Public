@@ -10,6 +10,13 @@ function cleanString(value) {
   return String(value || "").trim();
 }
 
+const DEFAULT_RESPONSE_SKILL = Object.freeze({
+  id: "response-grounding-baseline",
+  label: "response-grounding-baseline",
+  path: "response-grounding-baseline",
+  namespace: "",
+});
+
 function compactFallback(value) {
   return value;
 }
@@ -125,6 +132,56 @@ function mergeLoadedSkills(...sources) {
   return [...byPath.values()];
 }
 
+function normalizeToolName(value) {
+  const parsed = parseJsonObject(value);
+  const raw = parsed
+    ? (parsed.name || parsed.tool || parsed.function || parsed.functionName || parsed.function_name || "")
+    : value;
+  const text = cleanString(raw);
+  if (!text || !/^[A-Za-z0-9_.:-]+$/.test(text)) return "";
+  const lower = text.toLowerCase();
+  if (["message", "function_call", "function_call_output", "skill_view"].includes(lower)) return "";
+  return text.slice(0, 96);
+}
+
+function toolEntryFromName(value) {
+  const name = normalizeToolName(value);
+  if (!name) return null;
+  return { id: name.toLowerCase(), name, label: name };
+}
+
+function loadedToolFromRunEvent(event = {}) {
+  const tool = cleanString(event.tool).toLowerCase();
+  if (tool !== "function_call" && tool !== "function_call_output") return null;
+  return toolEntryFromName(event.preview || event.arguments || event.input || event.text || "");
+}
+
+function loadedToolFromOutputItem(item = {}) {
+  const type = cleanString(item.type).toLowerCase();
+  if (!type || type === "message") return null;
+  const name = outputItemFunctionName(item)
+    || item.name
+    || item.tool
+    || item.tool_name
+    || (type.includes("search") || type.includes("tool") || (type.endsWith("_call") && type !== "function_call") ? type : "");
+  if (cleanString(name).toLowerCase() === "skill_view") return null;
+  return toolEntryFromName(name);
+}
+
+function mergeLoadedTools(...sources) {
+  const byName = new Map();
+  for (const source of sources) {
+    const tools = Array.isArray(source) ? source : [source];
+    for (const tool of tools) {
+      const entry = toolEntryFromName(typeof tool === "object" ? (tool.name || tool.label || tool.id || "") : tool);
+      if (!entry) continue;
+      const key = entry.id;
+      if (!byName.has(key)) byName.set(key, Object.assign({}, entry, typeof tool === "object" ? tool : null, { name: entry.name, label: entry.label }));
+    }
+  }
+  return [...byName.values()];
+}
+
 function outputItemToolName(item = {}) {
   const type = cleanString(item.type).toLowerCase();
   if (outputItemFunctionName(item) === "skill_view") return "skill_view";
@@ -221,6 +278,34 @@ function loadedSkillsFromCompletedResponse(event = {}) {
   return mergeLoadedSkills(skills);
 }
 
+function loadedToolsForRun(thread = {}, runIds = "") {
+  const ids = new Set(uniqueCleanStrings(Array.isArray(runIds) ? runIds : [runIds]));
+  if (!ids.size) return [];
+  const tools = [];
+  for (const event of Array.isArray(thread.events) ? thread.events : []) {
+    const eventRunId = cleanString(event?.runId || event?.run_id);
+    if (!eventRunId || !ids.has(eventRunId)) continue;
+    const tool = loadedToolFromRunEvent(event);
+    if (tool) tools.push(tool);
+  }
+  return mergeLoadedTools(tools);
+}
+
+function loadedToolsFromCompletedResponse(event = {}) {
+  const response = event.response || {};
+  const tools = [];
+  for (const item of Array.isArray(response.output) ? response.output : []) {
+    const type = cleanString(item.type).toLowerCase();
+    const tool = cleanString(outputItemToolName(item)).toLowerCase();
+    if (tool === "skill_view") continue;
+    const preview = outputItemPreview(item);
+    const entry = loadedToolFromRunEvent({ tool: "function_call", preview })
+      || loadedToolFromOutputItem(item);
+    if (entry) tools.push(entry);
+  }
+  return mergeLoadedTools(tools);
+}
+
 function usageWithRunMetadata(usage, event = {}, message = {}) {
   const next = Object.assign({}, usage || {});
   const runOptions = message?.runOptions && typeof message.runOptions === "object" ? message.runOptions : {};
@@ -301,6 +386,7 @@ function createGatewayRunEventService(options = {}) {
       console.error(err);
     } catch (_) {}
   });
+  const topicContextCompactionService = options.topicContextCompactionService || null;
   const broadcast = typeof options.broadcast === "function" ? options.broadcast : (() => {});
   const compactMessage = typeof options.compactMessage === "function" ? options.compactMessage : compactFallback;
   const threadSummary = typeof options.threadSummary === "function" ? options.threadSummary : compactFallback;
@@ -401,6 +487,17 @@ function createGatewayRunEventService(options = {}) {
     if (streamingSaveTimer && typeof streamingSaveTimer.unref === "function") streamingSaveTimer.unref();
   }
 
+  function compactTerminalTopicContext(thread, message, reason) {
+    if (!topicContextCompactionService || typeof topicContextCompactionService.compactTaskGroup !== "function") return null;
+    if (!message?.taskGroupId) return null;
+    try {
+      return topicContextCompactionService.compactTaskGroup(thread, message.taskGroupId, { reason });
+    } catch (err) {
+      logError(`Hermes Mobile topic context compaction failed: ${err.message || String(err)}`);
+      return { changed: false, error: err.message || String(err) };
+    }
+  }
+
   function markResponseCreated(context) {
     const { thread, message, runId, responseRunId, stream } = context;
     if (responseRunId && responseRunId !== runId) {
@@ -409,6 +506,8 @@ function createGatewayRunEventService(options = {}) {
         aliasStream.realRunId = responseRunId;
         activeStreams.set(responseRunId, aliasStream);
       }
+      if (!message.originalRunId) message.originalRunId = runId;
+      message.responseRunId = responseRunId;
       message.runId = responseRunId;
       replaceThreadActiveRun(thread, runId, responseRunId);
     }
@@ -462,6 +561,8 @@ function createGatewayRunEventService(options = {}) {
     });
     const loadedSkill = loadedSkillFromRunEvent({ tool, preview });
     if (loadedSkill) message.loadedSkills = mergeLoadedSkills(message.loadedSkills, loadedSkill);
+    const loadedTool = loadedToolFromRunEvent({ tool, preview }) || loadedToolFromOutputItem(item);
+    if (loadedTool) message.loadedTools = mergeLoadedTools(message.loadedTools, loadedTool);
     saveState();
     broadcast({ type: "run.event", threadId: thread.id, runId: eventRunId || runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
     return { action: "output_item" };
@@ -483,6 +584,7 @@ function createGatewayRunEventService(options = {}) {
       message,
     );
     message.loadedSkills = mergeLoadedSkills(
+      DEFAULT_RESPONSE_SKILL,
       message.loadedSkills,
       loadedSkillsForRun(thread, [
         runId,
@@ -492,6 +594,17 @@ function createGatewayRunEventService(options = {}) {
         stream?.realRunId,
       ]),
       loadedSkillsFromCompletedResponse(event),
+    );
+    message.loadedTools = mergeLoadedTools(
+      message.loadedTools,
+      loadedToolsForRun(thread, [
+        runId,
+        originalRunId,
+        responseRunId,
+        message.runId,
+        stream?.realRunId,
+      ]),
+      loadedToolsFromCompletedResponse(event),
     );
     if (validApprovalRequest) {
       message.elevationRequired = true;
@@ -511,6 +624,7 @@ function createGatewayRunEventService(options = {}) {
     enqueueExternalDeliveryForTerminalMessage(thread, message, "done");
     removeThreadActiveRun(thread, runId, "idle");
     thread.updatedAt = completedAt;
+    compactTerminalTopicContext(thread, message, "run-completed");
     saveState();
     broadcast({ type: "run.completed", threadId: thread.id, runId, message: compactMessage(message), thread: threadSummary(thread) });
     notifyTaskTerminal(thread, message, "done");
@@ -533,6 +647,7 @@ function createGatewayRunEventService(options = {}) {
     enqueueExternalDeliveryForTerminalMessage(thread, message, "failed");
     removeThreadActiveRun(thread, runId, "failed");
     thread.updatedAt = failedAt;
+    compactTerminalTopicContext(thread, message, "run-failed");
     saveState();
     broadcast({ type: "run.failed", threadId, runId, message: compactMessage(message), thread: threadSummary(thread) });
     notifyTaskTerminal(thread, message, "failed");
@@ -553,6 +668,7 @@ function createGatewayRunEventService(options = {}) {
     message.updatedAt = cancelledAt;
     removeThreadActiveRun(thread, runId, "idle");
     thread.updatedAt = cancelledAt;
+    compactTerminalTopicContext(thread, message, "run-cancelled");
     saveState();
     broadcast({ type: "run.cancelled", threadId, runId, message: compactMessage(message), thread: threadSummary(thread) });
     scheduleNextQueuedRunForTaskGroup(thread, message.taskGroupId);

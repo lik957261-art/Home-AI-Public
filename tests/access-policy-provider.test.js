@@ -39,6 +39,7 @@ function testRestrictedPolicyMergesRootsAndDelivery() {
     "web",
     "todo",
     "search",
+    "x_search",
     "http",
     "weather",
     "browser",
@@ -91,6 +92,7 @@ function testRestrictedPolicyAddsWebSearchByDefault() {
   assert.deepEqual(policy.allowed_toolsets, [
     "web",
     "search",
+    "x_search",
     "http",
     "weather",
     "browser",

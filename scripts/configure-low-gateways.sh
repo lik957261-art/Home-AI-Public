@@ -5,10 +5,30 @@ worker_user="${HERMES_LOW_GATEWAY_USER:-hermes}"
 worker_home="/home/$worker_user"
 worker_home_dir="$worker_home/.hermes"
 gateway_worker_root="${HERMES_GATEWAY_WORKER_ROOT:-/mnt/c/ProgramData/HermesMobile/gateway-worker}"
+gateway_pool_manifest_path="${HERMES_GATEWAY_POOL_MANIFEST_PATH:-/mnt/c/ProgramData/HermesMobile/data/gateway-pool-manifest.json}"
 telemetry_profiles_root="${HERMES_LOW_GATEWAY_TELEMETRY_PROFILES_ROOT:-$gateway_worker_root/telemetry/profiles}"
 profile_auth_seed_root="${HERMES_LOW_GATEWAY_PROFILE_AUTH_ROOT:-$gateway_worker_root/profile-auth}"
-low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-10}"
+manifest_low_gateway_count() {
+  python3 - "$gateway_pool_manifest_path" <<'PY' 2>/dev/null || echo 10
+import json, re, sys
+try:
+    data = json.load(open(sys.argv[1], encoding="utf-8"))
+except Exception:
+    print(10)
+    raise SystemExit(0)
+count = 0
+for worker in data.get("workers") or []:
+    text = str(worker.get("profile") or worker.get("name") or "")
+    match = re.match(r"^lowgw(\d+)$", text, re.I)
+    if match:
+        count = max(count, int(match.group(1)))
+print(count or 10)
+PY
+}
+low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-$(manifest_low_gateway_count)}"
 grok_gateway_count="${HERMES_GROK_GATEWAY_COUNT:-1}"
+low_gateway_base_port="${HERMES_LOW_GATEWAY_BASE_PORT:-18750}"
+grok_gateway_base_port="${HERMES_GROK_GATEWAY_BASE_PORT:-$((low_gateway_base_port + low_gateway_count))}"
 shared_auth_mode="${HERMES_LOW_GATEWAY_SHARED_AUTH_MODE:-shared-root}"
 shared_auth_default_root="${HERMES_LOW_GATEWAY_SHARED_AUTH_ROOT:-$telemetry_profiles_root/shared-auth}"
 shared_auth_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_PATH:-$shared_auth_default_root/auth.json}"
@@ -35,8 +55,11 @@ image_plugin_source="${HERMES_MOBILE_IMAGE_PLUGIN_SOURCE:-$mobile_app_root/gatew
 image_plugin_target="$worker_home_dir/plugins/hermes-mobile-image"
 video_plugin_source="${HERMES_MOBILE_VIDEO_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-video}"
 video_plugin_target="$worker_home_dir/plugins/hermes-mobile-video"
+cronjob_plugin_source="${HERMES_MOBILE_CRONJOB_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-cronjob}"
+cronjob_plugin_target="$worker_home_dir/plugins/hermes-mobile-cronjob"
 owner_connector_profiles="${HERMES_MOBILE_OWNER_CONNECTOR_PROFILES:-lowgw1 lowgw2 lowgw3 lowgw4 lowgw10}"
 outlook_graph_mcp_path="${HERMES_MOBILE_OUTLOOK_GRAPH_MCP_PATH:-$worker_home_dir/scripts/outlook_graph_mcp.py}"
+owner_skill_store="${HERMES_MOBILE_OWNER_SKILL_STORE:-/mnt/c/ProgramData/HermesMobile/data/skill-profiles/owner-full/skills}"
 
 shared_auth_enabled=0
 case "${shared_auth_mode,,}" in
@@ -107,6 +130,25 @@ is_owner_connector_profile() {
   return 1
 }
 
+ensure_low_gateway_skill_link() {
+  local skill_dir="$1"
+  local parent
+  parent="$(dirname "$skill_dir")"
+  install -d -m 700 "$owner_skill_store"
+  if [ -L "$skill_dir" ] && [ "$(readlink -f "$skill_dir")" = "$(readlink -f "$owner_skill_store")" ]; then
+    return 0
+  fi
+  if [ -e "$skill_dir" ] || [ -L "$skill_dir" ]; then
+    local stamp
+    local backup_root
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    backup_root="$parent/skill-store-backups"
+    install -d -m 700 "$backup_root"
+    mv "$skill_dir" "$backup_root/skills-before-owner-link-${stamp}"
+  fi
+  ln -s "$owner_skill_store" "$skill_dir"
+}
+
 quarantine_sqlite_files() {
   local db_path="$1"
   local backup_dir="$2"
@@ -137,7 +179,7 @@ repair_low_gateway_sqlite() {
   stamp="$(date +%Y%m%d-%H%M%S)"
 
   if ! sqlite_integrity_ok "$db_path"; then
-    local backup_dir="${profile_dir}/sqlite-quarantine-${stamp}/${db_name}"
+    local backup_dir="${profile_dir}/sqlite-quarantine-${stamp}"
     echo "WARNING: quarantining malformed low Gateway sqlite DB for ${profile}: ${db_name}" >&2
     quarantine_sqlite_files "$db_path" "$backup_dir" 1
     return 0
@@ -150,7 +192,7 @@ repair_low_gateway_sqlite() {
   wal_size="$(file_size_or_zero "$wal_path")"
   shm_size="$(file_size_or_zero "$shm_path")"
   if [ -e "$shm_path" ] && [ "$shm_size" -gt 0 ] && [ "$shm_size" -lt 32768 ] && [ "$wal_size" -eq 0 ]; then
-    local backup_dir="${profile_dir}/sqlite-sidecar-quarantine-${stamp}/${db_name}"
+    local backup_dir="${profile_dir}/sqlite-sidecar-quarantine-${stamp}"
     echo "WARNING: quarantining invalid low Gateway sqlite sidecars for ${profile}: ${db_name}" >&2
     quarantine_sqlite_files "$db_path" "$backup_dir" 0
   fi
@@ -238,7 +280,6 @@ if [ "$grok_gateway_count" -gt 0 ] && [ ! -e "$grok_auth_lock_path" ]; then
   chown "$worker_user:$worker_user" "$grok_auth_lock_path" 2>/dev/null || true
   chmod 600 "$grok_auth_lock_path" 2>/dev/null || true
 fi
-
 if [ "$shared_auth_enabled" = "1" ]; then
   shared_auth_real="$(readlink -f "$shared_auth_path" 2>/dev/null || echo "$shared_auth_path")"
   legacy_auth_real="$(readlink -f "$legacy_shared_auth_path" 2>/dev/null || echo "$legacy_shared_auth_path")"
@@ -274,6 +315,7 @@ docx_plugin_enabled=0
 audio_plugin_enabled=0
 image_plugin_enabled=0
 video_plugin_enabled=0
+cronjob_plugin_enabled=0
 
 if [ -f "$weather_plugin_source/plugin.yaml" ] && [ -f "$weather_plugin_source/__init__.py" ]; then
   rm -rf "$weather_plugin_target"
@@ -337,6 +379,14 @@ if [ -f "$video_plugin_source/plugin.yaml" ] && [ -f "$video_plugin_source/__ini
 else
   echo "Video plugin source not found: $video_plugin_source" >&2
 fi
+if [ -f "$cronjob_plugin_source/plugin.yaml" ] && [ -f "$cronjob_plugin_source/__init__.py" ]; then
+  rm -rf "$cronjob_plugin_target"
+  cp -a "$cronjob_plugin_source" "$cronjob_plugin_target"
+  chown -R "$worker_user:$worker_user" "$cronjob_plugin_target"
+  cronjob_plugin_enabled=1
+else
+  echo "Mobile cronjob plugin source not found: $cronjob_plugin_source" >&2
+fi
 
 if [ "$shared_auth_enabled" = "1" ] && [ ! -s "$shared_auth_path" ]; then
   echo "Missing shared low Gateway Codex auth at $shared_auth_path" >&2
@@ -348,6 +398,8 @@ weather_toolset_block=""
 weather_api_toolset_block=""
 http_toolset_block=""
 http_api_toolset_block=""
+cronjob_mobile_toolset_block=""
+cronjob_mobile_api_toolset_block=""
 plugin_enabled_lines=""
 if [ "$weather_plugin_enabled" = "1" ]; then
   weather_toolset_block="  - weather"
@@ -370,6 +422,11 @@ if [ "$audio_plugin_enabled" = "1" ]; then
 fi
 if [ "$image_plugin_enabled" = "1" ]; then
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-image"$'\n'
+fi
+if [ "$cronjob_plugin_enabled" = "1" ]; then
+  cronjob_mobile_toolset_block="  - cronjob_mobile"
+  cronjob_mobile_api_toolset_block="    - cronjob_mobile"
+  plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-cronjob"$'\n'
 fi
 plugin_block="  enabled: []"
 if [ -n "$plugin_enabled_lines" ]; then
@@ -402,6 +459,7 @@ toolsets:
   - clarify
 ${weather_toolset_block}
 ${http_toolset_block}
+${cronjob_mobile_toolset_block}
 platform_toolsets:
   api_server:
     - web
@@ -423,6 +481,7 @@ platform_toolsets:
     - clarify
 ${weather_api_toolset_block}
 ${http_api_toolset_block}
+${cronjob_mobile_api_toolset_block}
 agent:
   max_turns: 60
   reasoning_effort: medium
@@ -434,7 +493,7 @@ chown "$worker_user:$worker_user" "$worker_home_dir/config.yaml" || true
 
 for idx in $(seq 1 "$low_gateway_count"); do
   profile="lowgw${idx}"
-  port=$((18750 + idx))
+  port=$((low_gateway_base_port + idx))
   profile_link="$worker_home_dir/profiles/${profile}"
   profile_dir="${telemetry_profiles_root}/${profile}"
   profile_seed="$profile_auth_seed_root/${profile}/auth.json"
@@ -444,6 +503,7 @@ for idx in $(seq 1 "$low_gateway_count"); do
   repair_low_gateway_sqlite "$profile" "$profile_dir" "state.db"
   repair_low_gateway_sqlite "$profile" "$profile_dir" "response_store.db"
   ln -s "$profile_dir" "$profile_link"
+  ensure_low_gateway_skill_link "$profile_dir/skills"
   if [ "$weather_plugin_enabled" = "1" ]; then
     install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
     rm -rf "$profile_dir/plugins/hermes-mobile-weather"
@@ -480,10 +540,18 @@ for idx in $(seq 1 "$low_gateway_count"); do
     cp -a "$image_plugin_target" "$profile_dir/plugins/hermes-mobile-image"
     chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-image"
   fi
+  if [ "$cronjob_plugin_enabled" = "1" ]; then
+    install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
+    rm -rf "$profile_dir/plugins/hermes-mobile-cronjob"
+    cp -a "$cronjob_plugin_target" "$profile_dir/plugins/hermes-mobile-cronjob"
+    chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-cronjob"
+  fi
   weather_toolset_block=""
   weather_api_toolset_block=""
   http_toolset_block=""
   http_api_toolset_block=""
+  cronjob_mobile_toolset_block=""
+  cronjob_mobile_api_toolset_block=""
   plugin_enabled_lines=""
   if [ "$weather_plugin_enabled" = "1" ]; then
     weather_toolset_block="  - weather"
@@ -506,6 +574,11 @@ for idx in $(seq 1 "$low_gateway_count"); do
   fi
   if [ "$image_plugin_enabled" = "1" ]; then
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-image"$'\n'
+  fi
+  if [ "$cronjob_plugin_enabled" = "1" ]; then
+    cronjob_mobile_toolset_block="  - cronjob_mobile"
+    cronjob_mobile_api_toolset_block="    - cronjob_mobile"
+    plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-cronjob"$'\n'
   fi
   plugin_block="  enabled: []"
   if [ -n "$plugin_enabled_lines" ]; then
@@ -555,6 +628,7 @@ toolsets:
   - clarify
 ${weather_toolset_block}
 ${http_toolset_block}
+${cronjob_mobile_toolset_block}
 ${outlook_toolset_block}
 platform_toolsets:
   api_server:
@@ -577,6 +651,7 @@ platform_toolsets:
     - clarify
 ${weather_api_toolset_block}
 ${http_api_toolset_block}
+${cronjob_mobile_api_toolset_block}
 ${outlook_api_toolset_block}
 agent:
   max_turns: 60
@@ -624,7 +699,7 @@ done
 if [ "$grok_gateway_count" -gt 0 ]; then
   for idx in $(seq 1 "$grok_gateway_count"); do
     profile="grokgw${idx}"
-    port=$((18760 + idx))
+    port=$((grok_gateway_base_port + idx))
     profile_link="$worker_home_dir/profiles/${profile}"
     profile_dir="${telemetry_profiles_root}/${profile}"
     profile_seed="$profile_auth_seed_root/${profile}/auth.json"
@@ -634,6 +709,7 @@ if [ "$grok_gateway_count" -gt 0 ]; then
     repair_low_gateway_sqlite "$profile" "$profile_dir" "state.db"
     repair_low_gateway_sqlite "$profile" "$profile_dir" "response_store.db"
     ln -s "$profile_dir" "$profile_link"
+    ensure_low_gateway_skill_link "$profile_dir/skills"
     grok_plugin_block="  enabled: []"
     if [ "$video_plugin_enabled" = "1" ]; then
       install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"

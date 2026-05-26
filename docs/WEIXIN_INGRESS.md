@@ -105,6 +105,11 @@ iLink. It must replace the legacy direct `hermes gateway run --replace`
 Weixin poller for the same account; the starter fails its health check when
 that legacy direct poller is still running.
 
+The legacy-poller cleanup must be scoped to the top-level Weixin `HERMES_HOME`
+process only. It must not match Gateway Pool profiles such as
+`officialclean1`, `officialclean2`, `lowgw*`, or any process with
+`HERMES_PROFILE` set or `HERMES_HOME` under `.hermes/profiles/`.
+
 Deployment-specific iLink wrappers may still be used, but they should wrap
 this Mobile ingress boundary rather than modifying `server.js` or official
 Hermes Gateway source.

@@ -85,6 +85,45 @@ function testFindsGroupAndCaseTopicThreads() {
   assert.deepEqual(service.kanbanCaseTopicThreadsForWorkspace({ isOwner: false, workspaceId: "owner" }, "owner").map((thread) => thread.id), []);
 }
 
+function testGroupThreadPrefersNonEmptyGroupMessages() {
+  const { service } = makeService({
+    state: {
+      threads: [
+        {
+          id: "empty-new",
+          workspaceId: "owner",
+          singleWindow: true,
+          updatedAt: "2026-01-05",
+          chatGroup: { enabled: true, memberWorkspaceIds: ["owner"] },
+          messages: [],
+        },
+        {
+          id: "active-old",
+          workspaceId: "owner",
+          singleWindow: true,
+          updatedAt: "2026-01-01",
+          chatGroup: { enabled: true, memberWorkspaceIds: ["owner"] },
+          messages: [{ id: "m1", taskGroupId: "group-chat", content: "group" }],
+        },
+      ],
+    },
+  });
+  assert.equal(service.findGroupChatThreadForWorkspace("owner").id, "active-old");
+}
+
+function testEnsureGroupChatCreatesDedicatedEmptyThread() {
+  const { service, state, saves } = makeService();
+  const thread = service.ensureGroupChatThreadForWorkspace("owner", ["child"]);
+  assert.equal(thread.singleWindow, true);
+  assert.equal(thread.title, "Group Chat");
+  assert.equal(thread.chatGroup.enabled, true);
+  assert.deepEqual(thread.chatGroup.memberWorkspaceIds, ["owner", "child"]);
+  assert.deepEqual(thread.messages, []);
+  assert.deepEqual(thread.taskGroupMeta, {});
+  assert.equal(state.threads[0], thread);
+  assert.equal(saves.length, 1);
+}
+
 function testEnsuresWeixinThreadAndPublicIngress() {
   const { service, state, saves } = makeService();
   const thread = service.ensureWeixinSingleWindowThread("owner", { accountId: "a", chatId: "c", senderLabel: "Sender" });
@@ -106,6 +145,8 @@ function testEnsuresWeixinThreadAndPublicIngress() {
 function run() {
   testCreatesPrivateThread();
   testFindsGroupAndCaseTopicThreads();
+  testGroupThreadPrefersNonEmptyGroupMessages();
+  testEnsureGroupChatCreatesDedicatedEmptyThread();
   testEnsuresWeixinThreadAndPublicIngress();
   console.log("single-window-thread-service tests passed");
 }

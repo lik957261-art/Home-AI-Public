@@ -531,6 +531,11 @@ function directoryEntryHref(entry) {
   return artifactHref({ url: entry?.url, name: entry?.name, mime: entry?.mime, size: entry?.size });
 }
 
+function directoryEntryDocumentAttrs(entry) {
+  if (entry?.type === "directory") return "";
+  return ` data-task-doc data-artifact-name="${escapeHtml(entry?.name || "item")}" data-artifact-mime="${escapeHtml(entry?.mime || "")}"`;
+}
+
 function directoryEntryMeta(entry) {
   if (entry?.type === "directory") return formatTime(entry?.mtime);
   return [formatBytes(entry?.size), formatTime(entry?.mtime)].filter(Boolean).join(" | ");

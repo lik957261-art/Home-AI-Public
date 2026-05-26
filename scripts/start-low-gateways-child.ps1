@@ -1,6 +1,13 @@
+param(
+  [string]$DistroName = ""
+)
+
 $ErrorActionPreference = "Stop"
 
-$distroName = "HermesGatewayWorker"
+$distroName = $DistroName
+if (-not $distroName) { $distroName = $env:HERMES_LOW_GATEWAY_DISTRO_NAME }
+if (-not $distroName) { $distroName = $env:HERMES_WEB_WSL_DISTRO }
+if (-not $distroName) { $distroName = "Ubuntu-24.04" }
 $scriptPath = "C:\ProgramData\HermesMobile\gateway-worker\start-low-gateways.sh"
 
 if (-not (Test-Path -LiteralPath $scriptPath)) {

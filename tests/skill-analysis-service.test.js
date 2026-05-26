@@ -132,7 +132,7 @@ Use this skill for explicit X/Twitter monitoring and briefs.
   assert.equal(analysis.skill.path, "social-media/x-social-monitoring-and-briefs");
   assert.equal(analysis.analysisMethod, "model_assisted");
   assert.equal(analysis.modelStatus, "completed");
-  assert.equal(modelTimeoutMs, 90000);
+  assert.equal(modelTimeoutMs, 60000);
   assert.equal(modelCalls.length, 1);
   assert(modelRequest.input.includes("Scheduled X brief hardening"));
   assert(analysis.summary.includes("x-bridge/x-cli/xurl"));

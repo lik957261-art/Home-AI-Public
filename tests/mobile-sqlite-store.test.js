@@ -459,10 +459,116 @@ function testAuditStoresDecisionPayload() {
   store.close();
 }
 
+function testTopicContextCrud() {
+  const dir = tempDir();
+  const store = createMobileSqliteStore({ dbPath: path.join(dir, "topic-context.sqlite3") });
+  store.migrate();
+  assert.equal(store.getMeta("schemaVersion"), CURRENT_SCHEMA_VERSION);
+  store.upsertTopicContextSummary({
+    topicId: "thread_1",
+    taskGroupId: "chat",
+    workspaceId: "owner",
+    summaryVersion: 1,
+    lastCompactedMessageId: "m2",
+    summary: {
+      summaryVersion: 1,
+      objective: "Keep context compact.",
+      currentState: "Summary stored.",
+      sourceRefs: ["message:m1", "message:m2"],
+    },
+  });
+  store.upsertTopicWorkingState({
+    topicId: "thread_1",
+    taskGroupId: "chat",
+    workspaceId: "owner",
+    stateVersion: 1,
+    status: "active",
+    state: {
+      stateVersion: 1,
+      status: "active",
+      currentStep: "Run tests.",
+    },
+  });
+  store.replaceTopicContextRefs({
+    topicId: "thread_1",
+    taskGroupId: "chat",
+    workspaceId: "owner",
+    refs: [
+      { refId: "message:m1", refType: "message", targetId: "m1", role: "user", preview: "request", createdAt: "2026-05-22T00:00:00.000Z" },
+      { refId: "message:m2", refType: "message", targetId: "m2", role: "assistant", preview: "answer", createdAt: "2026-05-22T00:01:00.000Z" },
+    ],
+  });
+  assert.equal(store.getTopicContextSummary("thread_1", "chat").lastCompactedMessageId, "m2");
+  assert.equal(store.getTopicWorkingState("thread_1", "chat").status, "active");
+  assert.deepEqual(store.listTopicContextRefs({ topicId: "thread_1", taskGroupId: "chat" }).map((ref) => ref.refId), [
+    "message:m1",
+    "message:m2",
+  ]);
+  store.close();
+}
+
+function testActionInboxCrud() {
+  const dir = tempDir();
+  const store = createMobileSqliteStore({ dbPath: path.join(dir, "action-inbox.sqlite3") });
+  store.migrate();
+  const first = store.upsertActionInboxItem({
+    workspaceId: "child",
+    sourceType: "automation",
+    sourceId: "job-1",
+    itemType: "delivery",
+    status: "open",
+    priority: "high",
+    title: "Automation delivery",
+    summary: "Report is ready.",
+    deepLink: "/?view=automation&workspaceId=child&automationId=job-1",
+    dedupeKey: "automation:job-1:sig-a",
+    sourceRef: { automationId: "job-1" },
+    createdAt: "2026-05-26T00:00:00.000Z",
+    updatedAt: "2026-05-26T00:00:00.000Z",
+  });
+  assert.equal(first.workspaceId, "child");
+  assert.equal(first.sourceRef.automationId, "job-1");
+  assert.equal(first.priority, "high");
+  const second = store.upsertActionInboxItem({
+    workspaceId: "child",
+    sourceType: "automation",
+    sourceId: "job-1",
+    itemType: "delivery",
+    status: "open",
+    title: "Automation delivery updated",
+    summary: "Report is ready again.",
+    dedupeKey: "automation:job-1:sig-a",
+    updatedAt: "2026-05-26T00:01:00.000Z",
+  });
+  assert.equal(second.id, first.id);
+  assert.equal(second.title, "Automation delivery updated");
+  const event = store.addActionInboxEvent({
+    itemId: first.id,
+    eventType: "source_updated",
+    actorWorkspaceId: "owner",
+    payload: { reason: "push" },
+    createdAt: "2026-05-26T00:02:00.000Z",
+  });
+  assert.equal(event.eventType, "source_updated");
+  assert.deepEqual(store.listActionInboxEvents(first.id).map((item) => item.id), [event.id]);
+  assert.deepEqual(store.listActionInboxItems({ workspaceId: "child" }).map((item) => item.id), [first.id]);
+  assert.equal(store.actionInboxCounts("child").byStatus.open, 1);
+  const done = store.updateActionInboxItem(first.id, {
+    status: "done",
+    completedAt: "2026-05-26T00:03:00.000Z",
+  });
+  assert.equal(done.status, "done");
+  assert.deepEqual(store.listActionInboxItems({ workspaceId: "child" }), []);
+  assert.deepEqual(store.listActionInboxItems({ workspaceId: "child", includeDone: true }).map((item) => item.id), [first.id]);
+  store.close();
+}
+
 testImportAndIntegrity();
 testWorkspaceInferenceFallback();
 testServiceLayerLocalRows();
 testKanbanCaseShareCrud();
 testRuntimeStateRoundTrip();
 testAuditStoresDecisionPayload();
+testTopicContextCrud();
+testActionInboxCrud();
 console.log("mobile-sqlite-store tests passed");

@@ -10,8 +10,12 @@ const {
   clampLearningCardRewardAmount,
   normalizeLearningCardRewardPolicy,
 } = require("./learning-card-reward-policy-service");
+const {
+  applyLearningGrowthRewardDecayPolicy,
+} = require("./learning-growth-reward-decay-service");
 
 const DEFAULT_AUTO_REWARD_LIMIT = 100;
+const DEFAULT_REQUIRE_LARGE_REWARD_REVIEW = false;
 const DEFAULT_REWARD_REASON = "Learning growth evaluation reward";
 
 function cleanString(value) {
@@ -30,6 +34,15 @@ function positiveInteger(value, fallback = 0) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.max(1, Math.round(parsed));
+}
+
+function booleanOption(value, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (value === undefined || value === null || value === "") return fallback;
+  const normalized = cleanString(value).toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
 }
 
 function rewardAmountForEvaluation(evaluation = {}, input = {}) {
@@ -80,6 +93,7 @@ function createLearningRewardSettlementService(options = {}) {
   const learningCoinService = options.learningCoinService || null;
   const parentReviewRequestService = options.parentReviewRequestService || null;
   const maxAutoCoins = positiveInteger(options.maxAutoCoins, DEFAULT_AUTO_REWARD_LIMIT);
+  const requireLargeRewardReview = booleanOption(options.requireLargeRewardReview, DEFAULT_REQUIRE_LARGE_REWARD_REVIEW);
   const now = typeof options.now === "function" ? options.now : () => new Date();
 
   if (!repository || typeof repository.saveRewardSettlement !== "function") {
@@ -89,7 +103,9 @@ function createLearningRewardSettlementService(options = {}) {
   function baseSettlement(evaluation, input = {}) {
     const card = repository.getTaskCard ? repository.getTaskCard(evaluation.taskCardId) : null;
     const rewardPolicy = normalizeLearningCardRewardPolicy(input.rewardPolicy || card?.rewardPolicy || evaluation.rewardPolicy || { rewardCapCoins: card?.rewardCapCoins });
-    const coinAmount = rewardAmountForEvaluation(evaluation, Object.assign({}, input, { card, rewardPolicy }));
+    const rewardDecayResult = applyLearningGrowthRewardDecayPolicy(card || {}, rewardPolicy, { now: now() });
+    const effectiveRewardPolicy = rewardDecayResult.rewardPolicy;
+    const coinAmount = rewardAmountForEvaluation(evaluation, Object.assign({}, input, { card, rewardPolicy: effectiveRewardPolicy }));
     const idempotencyKey = cleanString(input.idempotencyKey) || rewardSettlementKey(evaluation.evaluationId);
     const existingForEvaluation = repository.listRewardSettlements({ evaluationId: evaluation.evaluationId, limit: 1 })[0] || null;
     if (existingForEvaluation) return existingForEvaluation;
@@ -106,6 +122,7 @@ function createLearningRewardSettlementService(options = {}) {
       evaluationId: evaluation.evaluationId,
       status: "ready",
       coinAmount,
+      rewardDecay: rewardDecayResult.decay,
       reason: compactLearningSummary(input.reason || evaluation.rewardPolicy?.reason || DEFAULT_REWARD_REASON, 200),
       sourceType: "learning-growth-evaluation",
       sourceId: evaluation.evaluationId,
@@ -195,7 +212,7 @@ function createLearningRewardSettlementService(options = {}) {
       const review = ensureReviewRequest(settlement, evaluation, "evaluation_review_required_before_reward", evaluation.verification?.riskFlags || []);
       return saveBlocked(settlement, "evaluation_review_required_before_reward", review);
     }
-    if (settlement.coinAmount > maxAutoCoins && !hasApprovedReview(repository, {
+    if (requireLargeRewardReview && settlement.coinAmount > maxAutoCoins && !hasApprovedReview(repository, {
       requestType: "reward_settlement_review",
       resourceType: "reward_settlement",
       resourceId: settlement.rewardSettlementId,
@@ -221,6 +238,7 @@ function createLearningRewardSettlementService(options = {}) {
         verificationStatus: evaluation.verification?.status || "unknown",
         score: Number(evaluation.score || 0),
         confidence: Number(evaluation.confidence || 0),
+        rewardDecay: settlement.rewardDecay || null,
       },
     });
     const at = now().toISOString();
@@ -249,6 +267,7 @@ function createLearningRewardSettlementService(options = {}) {
 
 module.exports = {
   DEFAULT_AUTO_REWARD_LIMIT,
+  DEFAULT_REQUIRE_LARGE_REWARD_REVIEW,
   createLearningRewardSettlementService,
   rewardAmountForEvaluation,
   rewardSettlementKey,

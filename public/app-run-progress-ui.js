@@ -2,6 +2,13 @@
 
 const RUN_EVENT_PREVIEW_MAX_CHARS = 180;
 const RUN_PROGRESS_RENDER_THROTTLE_MS = 750;
+const RUN_PROGRESS_START_EVENT_REVEAL_MS = 1000;
+const RUN_PROGRESS_TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"]);
+const RUN_PROGRESS_START_EVENTS = new Set([
+  "run.context_ready",
+  "run.gateway_selected",
+  "run.request_sent",
+]);
 
 function boundedRunEventPreview(value) {
   const text = String(value || "");
@@ -106,6 +113,9 @@ function runEventTitle(event) {
   if (name === "response.output_item.added") return tool ? `\u5f00\u59cb ${tool}` : "\u5f00\u59cb\u5904\u7406";
   if (name === "response.output_item.done") return tool ? `\u5b8c\u6210 ${tool}` : "\u9636\u6bb5\u5b8c\u6210";
   if (name === "response.output_text.done") return "\u751f\u6210\u56de\u590d";
+  if (name === "run.context_ready") return "\u4e0a\u4e0b\u6587\u5df2\u6574\u7406";
+  if (name === "run.gateway_selected") return "Gateway \u5df2\u9009\u62e9";
+  if (name === "run.request_sent") return "\u8bf7\u6c42\u5df2\u53d1\u9001";
   if (name === "response.completed" || name === "run.completed") return "\u5904\u7406\u5b8c\u6210";
   if (name === "response.failed" || name === "run.failed") return "\u5904\u7406\u5931\u8d25";
   return tool ? `${tool} · ${name.replace(/^response\./, "")}` : name.replace(/^response\./, "");
@@ -125,14 +135,34 @@ function runProgressEvents(thread, runIds) {
   if (!thread || !runSet.size) return [];
   return (Array.isArray(thread.events) ? thread.events : [])
     .map((event) => normalizeRunEvent(event))
-    .filter((event) => !event.runId || runSet.has(String(event.runId)))
-    .slice(-4);
+    .filter((event) => !event.runId || runSet.has(String(event.runId)));
+}
+
+function isRunProgressStartEvent(event) {
+  return RUN_PROGRESS_START_EVENTS.has(String(event?.event || ""));
+}
+
+function runProgressVisibleEvents(events = [], startMs = 0, now = Date.now()) {
+  let startEventIndex = 0;
+  return (Array.isArray(events) ? events : []).filter((event) => {
+    if (!isRunProgressStartEvent(event)) return true;
+    const revealAt = startMs + (startEventIndex * RUN_PROGRESS_START_EVENT_REVEAL_MS);
+    startEventIndex += 1;
+    return now >= revealAt;
+  });
+}
+
+function runProgressDisplayEvents(events = [], startMs = 0) {
+  const visible = runProgressVisibleEvents(events, startMs);
+  const startEvents = visible.filter(isRunProgressStartEvent);
+  const runtimeEvents = visible.filter((event) => !isRunProgressStartEvent(event)).slice(-3);
+  return [...startEvents, ...runtimeEvents];
 }
 
 function runProgressActiveMessages(thread, runIds) {
   const runSet = new Set((runIds || []).map(String).filter(Boolean));
   return (thread?.messages || [])
-    .filter((message) => ["queued", "running"].includes(String(message?.status || "")))
+    .filter((message) => ["queued", "running", "done", "failed", "cancelled"].includes(String(message?.status || "")))
     .filter((message) => !runSet.size || runSet.has(String(message?.runId || "")));
 }
 
@@ -176,6 +206,13 @@ function runEventTimeLabel(event, startMs) {
   return runProgressOffsetLabel(startMs, runProgressTimestampMs(event?.timestamp));
 }
 
+function runProgressTerminalMs(message = {}) {
+  const values = [message.completedAt, message.failedAt, message.cancelledAt, message.updatedAt]
+    .map(runProgressTimestampMs)
+    .filter(Boolean);
+  return values.length ? Math.max(...values) : 0;
+}
+
 function runProgressAgeLabel(timestampMs, now = Date.now()) {
   if (!timestampMs) return "";
   return `${runProgressDurationLabel(timestampMs, now)}\u524d`;
@@ -185,7 +222,7 @@ function renderRunProgressWaitingRow(startMs) {
   return `<div class="run-progress-row run-progress-waiting">
     <span class="run-progress-dot" aria-hidden="true"></span>
     <span class="run-progress-main">\u8bf7\u6c42\u5df2\u53d1\u9001</span>
-    <span class="run-progress-time">${escapeHtml(runProgressOffsetLabel(startMs, startMs))}</span>
+    <span class="run-progress-time" data-run-progress-offset="${escapeHtml(String(startMs))}">${escapeHtml(runProgressOffsetLabel(startMs, Date.now()))}</span>
     <span class="run-progress-preview">\u7b49\u5f85\u6a21\u578b\u6216\u5de5\u5177\u8fd4\u56de</span>
   </div>`;
 }
@@ -203,13 +240,14 @@ function renderRunProgressQuietRow(lastEventMs, startMs) {
 function renderRunProgressPanel(thread, runIds, options = {}) {
   const ids = (runIds || []).filter(Boolean);
   if (!ids.length) return "";
-  const events = runProgressEvents(thread, ids);
-  const startMs = runProgressStartMs(thread, ids, events);
-  const eventTimes = events.map((event) => runProgressTimestampMs(event.timestamp)).filter(Boolean);
+  const allEvents = runProgressEvents(thread, ids);
+  const startMs = runProgressStartMs(thread, ids, allEvents);
+  const events = runProgressDisplayEvents(allEvents, startMs);
+  const eventTimes = allEvents.map((event) => runProgressTimestampMs(event.timestamp)).filter(Boolean);
   const lastEventMs = eventTimes.length ? Math.max(...eventTimes) : 0;
   const quietRow = renderRunProgressQuietRow(lastEventMs, startMs);
   const rows = events.length
-    ? `${quietRow}${events.slice().reverse().slice(0, 3).map((event) => {
+    ? `${quietRow}${events.map((event) => {
       const preview = runEventPreviewLabel(event);
       return `
       <div class="run-progress-row${event.error ? " error" : ""}">
@@ -220,11 +258,14 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
       </div>`;
     }).join("")}`
     : renderRunProgressWaitingRow(startMs);
-  return `<aside class="run-progress-panel${options.inline ? " inline" : ""}" aria-live="polite">
+  const elapsedLabel = options.terminal
+    ? runProgressDurationLabel(startMs, options.terminalMs || Date.now())
+    : runProgressDurationLabel(startMs);
+  const elapsedAttr = options.terminal ? "" : ` data-run-progress-elapsed="${escapeHtml(String(startMs))}"`;
+  return `<aside class="run-progress-panel${options.inline ? " inline" : ""}${options.terminal ? " terminal" : ""}" aria-live="polite">
     <div class="run-progress-head">
-      <span>\u8fd0\u884c\u4e2d</span>
-      <span data-run-progress-elapsed="${escapeHtml(String(startMs))}">${escapeHtml(runProgressDurationLabel(startMs))}</span>
-      <span>${escapeHtml(ids.length > 1 ? `${ids.length} runs` : shortTaskDisplayId(ids[0]))}</span>
+      <span>${options.terminal ? "\u8fd0\u884c\u8bb0\u5f55" : "\u8fd0\u884c\u4e2d"}</span>
+      <span${elapsedAttr}>${escapeHtml(elapsedLabel)}</span>
     </div>
     <div class="run-progress-rows">${rows}</div>
   </aside>`;
@@ -232,10 +273,20 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
 
 function renderMessageRunProgress(thread, message = {}) {
   if (message?.role !== "assistant") return "";
-  if (!["queued", "running"].includes(String(message.status || ""))) return "";
-  const runId = String(message.runId || thread?.activeRunId || "").trim();
-  if (!runId) return "";
-  return renderRunProgressPanel(thread, [runId], { inline: true });
+  const status = String(message.status || "");
+  if (!["queued", "running", "done", "failed", "cancelled"].includes(status)) return "";
+  if (RUN_PROGRESS_TERMINAL_STATUSES.has(status)) return "";
+  const runIds = [
+    message.originalRunId,
+    message.responseRunId,
+    message.runId,
+    thread?.activeRunId,
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+  if (!runIds.length) return "";
+  return renderRunProgressPanel(thread, runIds, {
+    inline: true,
+    terminal: false,
+  });
 }
 
 function messageForRunProgress(thread, runId) {
@@ -243,8 +294,13 @@ function messageForRunProgress(thread, runId) {
   if (!thread || !id) return null;
   return (thread.messages || []).find((message) => (
     message?.role === "assistant"
-    && ["queued", "running"].includes(String(message.status || ""))
-    && String(message.runId || thread.activeRunId || "").trim() === id
+    && ["queued", "running", "done", "failed", "cancelled"].includes(String(message.status || ""))
+    && [
+      message.runId,
+      message.originalRunId,
+      message.responseRunId,
+      thread.activeRunId,
+    ].map((value) => String(value || "").trim()).includes(id)
   )) || null;
 }
 
@@ -302,6 +358,10 @@ function updateRunProgressTicker(root = document) {
     const timestampMs = Number(item.dataset.runProgressAge || 0);
     if (timestampMs) item.textContent = runProgressAgeLabel(timestampMs);
   });
+  root?.querySelectorAll?.("[data-run-progress-offset]").forEach((item) => {
+    const startMs = Number(item.dataset.runProgressOffset || 0);
+    if (startMs) item.textContent = runProgressOffsetLabel(startMs, Date.now());
+  });
 }
 
 function syncRunProgressTicker(root = document) {
@@ -323,5 +383,5 @@ function syncRunProgressTicker(root = document) {
       return;
     }
     updateRunProgressTicker(conversation);
-  }, 5000);
+  }, 1000);
 }

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 import os
 import re
 import tempfile
@@ -672,18 +673,14 @@ def status_label(job: dict[str, Any]) -> str:
     return state or "scheduled"
 
 
-def public_job(job: dict[str, Any]) -> dict[str, Any]:
+def public_job(job: dict[str, Any], detail: str = "full") -> dict[str, Any]:
     schedule = schedule_info(job)
     skills = canonical_skills(job)
     job_id = str(job.get("id") or "")
-    return {
+    payload = {
         "id": job_id,
         "name": compact_text(job.get("name") or job.get("id") or "Cron job", 120),
-        "prompt": compact_text(job.get("prompt"), 4000),
         "promptPreview": compact_text(job.get("prompt"), 220),
-        "skills": skills,
-        "model": compact_text(job.get("model"), 80),
-        "provider": compact_text(job.get("provider"), 80),
         "schedule": schedule["display"],
         "scheduleText": schedule_edit_text(job),
         "scheduleKind": schedule["kind"],
@@ -698,12 +695,24 @@ def public_job(job: dict[str, Any]) -> dict[str, Any]:
         "lastDeliveryError": compact_text(job.get("last_delivery_error"), 400),
         "deliver": delivery_label(job.get("deliver")),
         "ownerPrincipalId": compact_text(job.get("owner_principal_id"), 120),
+    }
+    if str(detail or "").lower() in {"summary", "list", "light"}:
+        payload["detailLevel"] = "summary"
+        return payload
+    payload.update({
+        "prompt": compact_text(job.get("prompt"), 4000),
+        "skills": skills,
+        "enabledToolsets": normalize_string_list(job.get("enabled_toolsets") or job.get("enabledToolsets")),
+        "model": compact_text(job.get("model"), 80),
+        "provider": compact_text(job.get("provider"), 80),
         "workdir": compact_text(job.get("workdir"), 600),
         "hasScript": bool(job.get("script")),
         "hasWorkdir": bool(job.get("workdir")),
         "hasContextFrom": bool(job.get("context_from")),
         "outputDocuments": output_documents(job_id),
-    }
+        "detailLevel": "full",
+    })
+    return payload
 
 
 def timestamp_score(value: Any) -> float:
@@ -927,7 +936,17 @@ def try_native_create_job(payload: dict[str, Any]) -> dict[str, Any] | None:
         "access_policy_context": payload.get("access_policy_context"),
     }
     try:
-        return create_job(**kwargs)
+        signature = inspect.signature(create_job)
+        supported = {
+            key: value
+            for key, value in kwargs.items()
+            if key in signature.parameters
+        }
+        return create_job(**supported)
+    except TypeError as exc:
+        if "unexpected keyword argument" in str(exc):
+            return None
+        raise
     except Exception as exc:
         if "croniter" in str(exc).lower():
             return None
@@ -1136,6 +1155,47 @@ def mutate_job_from_request(request: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def run_job_from_request(request: dict[str, Any]) -> dict[str, Any]:
+    job_id = str(request.get("job_id") or request.get("jobId") or "").strip()
+    owner_principal_id = request.get("owner_principal_id") or request.get("ownerPrincipalId")
+    dry_run = bool(request.get("dry_run") or request.get("dryRun"))
+    if not job_id:
+        return {"ok": False, "status": 400, "error": "job_id is required"}
+
+    jobs, source, warning, path, document = load_jobs_document()
+    _index, job = find_owned_job(jobs, job_id, owner_principal_id)
+    if job is None:
+        return {"ok": False, "status": 404, "error": "Automation job was not found for this workspace"}
+
+    now = datetime.now().astimezone()
+    job["enabled"] = True
+    job["state"] = "scheduled"
+    job["paused_at"] = None
+    job["paused_reason"] = None
+    job["next_run_at"] = (now - timedelta(seconds=1)).isoformat()
+    job["manual_run_requested_at"] = now.isoformat()
+    job["updated_at"] = now.isoformat()
+
+    if not dry_run:
+        write_path = path or jobs_path_for_write()
+        document = document if isinstance(document, dict) else {"jobs": jobs}
+        save_jobs_document(write_path, document)
+
+    payload = {
+        "ok": True,
+        "job": public_job(job),
+        "source": {
+            **source,
+            "action": "run",
+            "dryRun": dry_run,
+            "runMode": "next_tick",
+        },
+    }
+    if warning:
+        payload["warning"] = warning
+    return payload
+
+
 def main() -> None:
     request = read_request()
     action = str(request.get("action") or "list").strip().lower()
@@ -1143,6 +1203,9 @@ def main() -> None:
         json_response(create_job_from_request(request))
     if action in {"delete", "pause", "resume", "update"}:
         result = mutate_job_from_request(request)
+        json_response(result, 0 if result.get("ok") else 2)
+    if action == "run":
+        result = run_job_from_request(request)
         json_response(result, 0 if result.get("ok") else 2)
     if action == "read_output":
         result = read_output_file_from_request(request)
@@ -1159,10 +1222,16 @@ def main() -> None:
     jobs, source, warning = load_jobs_file()
     if owner_principal_id:
         jobs = [job for job in jobs if job_matches_owner(job, owner_principal_id)]
-    public_jobs = [public_job(job) for job in jobs]
+    detail = str(request.get("detail") or request.get("fields") or "full").strip().lower()
+    summary_mode = detail in {"summary", "list", "light"}
+    public_jobs = [public_job(job, "summary" if summary_mode else "full") for job in jobs]
     if not include_disabled:
         public_jobs = [job for job in public_jobs if job.get("enabled")]
-    public_jobs.sort(key=sort_key)
+    public_jobs.sort(key=(lambda job: (
+        0 if timestamp_score(job.get("nextRunAt")) else 1,
+        timestamp_score(job.get("nextRunAt")) or float("inf"),
+        str(job.get("name") or job.get("id") or ""),
+    )) if summary_mode else sort_key)
     if limit > 0:
         public_jobs = public_jobs[:limit]
     payload = {

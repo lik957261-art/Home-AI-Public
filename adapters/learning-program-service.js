@@ -200,6 +200,7 @@ function createLearningProgramService(options = {}) {
     repository,
     learningCoinService: options.learningCoinService || null,
     parentReviewRequestService,
+    requireLargeRewardReview: options.requireLargeRewardReview,
   });
   const foundationImportService = options.foundationImportService || createLearningFoundationImportService({
     repository,
@@ -640,8 +641,44 @@ function createLearningProgramService(options = {}) {
     return typeof repository.listTaskSubmissions === "function" ? repository.listTaskSubmissions(filters) : [];
   }
 
+  function getTaskSubmission(submissionId) {
+    return typeof repository.getTaskSubmission === "function" ? repository.getTaskSubmission(submissionId) : null;
+  }
+
+  function saveGrowthEvaluationJob(job = {}) {
+    return typeof repository.saveGrowthEvaluationJob === "function" ? repository.saveGrowthEvaluationJob(job) : null;
+  }
+
+  function listGrowthEvaluationJobs(filters = {}) {
+    return typeof repository.listGrowthEvaluationJobs === "function" ? repository.listGrowthEvaluationJobs(filters) : [];
+  }
+
+  function getGrowthEvaluationJob(jobId) {
+    return typeof repository.getGrowthEvaluationJob === "function" ? repository.getGrowthEvaluationJob(jobId) : null;
+  }
+
+  function getGrowthEvaluationJobForSubmission(submissionId) {
+    return typeof repository.getGrowthEvaluationJobForSubmission === "function" ? repository.getGrowthEvaluationJobForSubmission(submissionId) : null;
+  }
+
+  function claimGrowthEvaluationJob(jobId, input = {}) {
+    return typeof repository.claimGrowthEvaluationJob === "function" ? repository.claimGrowthEvaluationJob(jobId, input) : null;
+  }
+
+  function completeGrowthEvaluationJob(jobId, input = {}) {
+    return typeof repository.completeGrowthEvaluationJob === "function" ? repository.completeGrowthEvaluationJob(jobId, input) : null;
+  }
+
+  function failGrowthEvaluationJob(jobId, input = {}) {
+    return typeof repository.failGrowthEvaluationJob === "function" ? repository.failGrowthEvaluationJob(jobId, input) : null;
+  }
+
   function listTaskReflections(filters = {}) {
     return typeof repository.listTaskReflections === "function" ? repository.listTaskReflections(filters) : [];
+  }
+
+  function getTaskReflection(reflectionId) {
+    return typeof repository.getTaskReflection === "function" ? repository.getTaskReflection(reflectionId) : null;
   }
 
   function listTaskArtifacts(filters = {}) {
@@ -680,6 +717,10 @@ function createLearningProgramService(options = {}) {
     return taskSeriesRecommendationService.recommendTaskSeries(input);
   }
 
+  function latestTaskSeriesRecommendation(input = {}) {
+    return taskSeriesRecommendationService.latestTaskSeriesRecommendation(input);
+  }
+
   async function createRecommendedTaskSeriesDraft(input = {}) {
     const programInput = taskSeriesRecommendationService.programInputFromRecommendation(input);
     const program = createProgram(programInput);
@@ -694,6 +735,7 @@ function createLearningProgramService(options = {}) {
     decideParentReviewRequest,
     decideReview,
     draftPlan,
+    latestTaskSeriesRecommendation,
     rebuildDraftPlan,
     recommendTaskSeries,
     generateParentReport,
@@ -703,9 +745,12 @@ function createLearningProgramService(options = {}) {
     getRewardSettlement,
     getTaskCard,
     getTaskCardForKanbanCard,
+    getGrowthEvaluationJob,
+    getGrowthEvaluationJobForSubmission,
     importFoundationData,
     importSourceDirectory,
     listEvaluations,
+    listGrowthEvaluationJobs,
     listExecutorTaskQueue,
     listInteractionSessions,
     listParentReviewRequests,
@@ -713,7 +758,9 @@ function createLearningProgramService(options = {}) {
     listRewardSettlements,
     listTaskArtifacts,
     listTaskReflections,
+    getTaskReflection,
     listTaskSubmissions,
+    getTaskSubmission,
     listGoals,
     listSourceDirectories,
     listSources,
@@ -724,6 +771,10 @@ function createLearningProgramService(options = {}) {
     rebuildLearnerProfile,
     updateTaskRewardPolicy,
     recordEvaluation,
+    saveGrowthEvaluationJob,
+    claimGrowthEvaluationJob,
+    completeGrowthEvaluationJob,
+    failGrowthEvaluationJob,
     settleEvaluationReward,
     repository,
     reviewQueue: reviewQueueList,

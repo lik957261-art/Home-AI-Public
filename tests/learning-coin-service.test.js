@@ -225,6 +225,7 @@ function testSummaryIncludesDerivedGrowthProfile() {
     assert.equal(summary.growth.level.next.level, 3);
     assert.equal(summary.growth.level.toNextLevelCoins, 290);
     assert.equal(summary.growth.sevenDayCoins, 210);
+    assert.equal(summary.growth.thirtyDayCoins, 210);
     assert.equal(summary.growth.activeDaysInLast7, 2);
     assert.equal(summary.growth.streakDays, 2);
     assert.deepEqual(summary.growth.recentDays.slice(-2), [
@@ -242,6 +243,57 @@ function testSummaryIncludesDerivedGrowthProfile() {
     });
     assert.equal(summary.growth.bestRewardProgress.id, "book");
     assert.equal(summary.growth.sourceBreakdown[0].sourceType, "reading_quiz");
+  } finally {
+    store.cleanup();
+  }
+}
+
+function testSummaryIncludesThirtyDayGrowthCoins() {
+  const store = tempStore();
+  try {
+    const { service } = makeService(store, {
+      nowIso() {
+        return "2026-05-16T12:00:00Z";
+      },
+    });
+    service.grantCoins({
+      studentId: "fanfan",
+      workspaceId: "owner",
+      coinAmount: 10,
+      reason: "today",
+      idempotencyKey: "today",
+      createdAt: "2026-05-16T08:00:00Z",
+    });
+    service.grantCoins({
+      studentId: "fanfan",
+      workspaceId: "owner",
+      coinAmount: 20,
+      reason: "seven-day-window",
+      idempotencyKey: "seven-day-window",
+      createdAt: "2026-05-10T08:00:00Z",
+    });
+    service.grantCoins({
+      studentId: "fanfan",
+      workspaceId: "owner",
+      coinAmount: 30,
+      reason: "thirty-day-window",
+      idempotencyKey: "thirty-day-window",
+      createdAt: "2026-05-09T08:00:00Z",
+    });
+    service.grantCoins({
+      studentId: "fanfan",
+      workspaceId: "owner",
+      coinAmount: 40,
+      reason: "outside-thirty-day-window",
+      idempotencyKey: "outside-thirty-day-window",
+      createdAt: "2026-04-15T08:00:00Z",
+    });
+
+    const summary = service.summary({ studentId: "fanfan", workspaceId: "owner" });
+
+    assert.equal(summary.growth.sevenDayCoins, 30);
+    assert.equal(summary.growth.thirtyDayCoins, 60);
+    assert.equal(summary.growth.totalEarnedCoins, 100);
   } finally {
     store.cleanup();
   }
@@ -280,5 +332,6 @@ testApproveAndSettleKeepCoinsReserved();
 testInsufficientCoinsCannotRedeem();
 testRedemptionIdempotencyIsScoped();
 testSummaryIncludesDerivedGrowthProfile();
+testSummaryIncludesThirtyDayGrowthCoins();
 testGrowthProfileIgnoresRedemptionAndInactiveRewards();
 console.log("learning coin service tests passed");

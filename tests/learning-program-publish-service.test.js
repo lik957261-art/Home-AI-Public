@@ -131,6 +131,24 @@ async function run() {
         skillTargets: ["english_grammar_in_expression"],
         deliverables: ["grammar repair answer"],
         acceptance: ["answer explains the grammar reason"],
+        teachingFlow: {
+          learningTarget: "Repair one tense agreement mistake.",
+          microLesson: {
+            learnerFacingText: "Use the verb tense that matches the time word.",
+            summary: "Tense agreement repair.",
+          },
+          workedExample: {
+            steps: [{ label: "Example", text: "Yesterday he walked, not walk." }],
+          },
+          guidedPractice: {
+            instruction: "Fix one similar sentence with a hint.",
+            hints: ["Find the time word."],
+          },
+          quickCheck: {
+            instruction: "Fix: Last week she play tennis.",
+            completionCriteria: ["uses the past-tense verb"],
+          },
+        },
       });
     },
     nowIso: () => "2026-05-20T03:00:00.000Z",
@@ -190,9 +208,15 @@ async function run() {
               version: "learning-task-model-v1",
               skillId: "english_grammar_in_expression",
               activityType: "grammar",
-              learnerInstruction: "PREGENERATED FUTURE MODEL QUESTION SHOULD NOT LEAK",
+            learnerInstruction: "PREGENERATED FUTURE MODEL QUESTION SHOULD NOT LEAK",
+            teachingFlow: {
+              microLesson: { learnerFacingText: "PREGENERATED FUTURE TEACHING FLOW SHOULD NOT LEAK" },
             },
           },
+          teachingFlow: {
+            microLesson: { learnerFacingText: "PREGENERATED FUTURE TOP LEVEL FLOW SHOULD NOT LEAK" },
+          },
+        },
         ],
       }],
     },
@@ -209,13 +233,20 @@ async function run() {
   assert.match(jitCard.description, /tense agreement/);
   assert.equal(jitCard.taskModel.jitGeneration.status, "ready");
   assert.equal(jitCard.taskModel.jitGeneration.modelStatus, "completed");
+  assert.equal(jitCard.taskModel.jitGeneration.teachingFlowStatus, "model_generated");
   assert.equal(jitCard.taskModel.jitGeneration.reasoningEffort, "xhigh");
   assert.deepEqual(jitCard.taskModel.jitGeneration.sourceRefs, ["progress:grammar-1"]);
+  assert.equal(jitCard.taskModel.teachingFlow.generationSource, "model_generated_jit");
+  assert.equal(jitCard.teachingFlow.generationSource, "model_generated_jit");
+  assert.equal(jitCard.teachingFlow.lesson.explanation, "Use the verb tense that matches the time word.");
+  assert.equal(jitCard.teachingFlow.guidedPractice.instruction, "Fix one similar sentence with a hint.");
+  assert.equal(jitCard.teachingFlow.quickCheck.instruction, "Fix: Last week she play tennis.");
   const futureCard = jitPublishCalls[0].input.cards[1];
   assert.equal(futureCard.learningGrowthJitPending, true);
   assert.equal(futureCard.learningGrowthSequenceVisibility, "locked_future");
-  assert.doesNotMatch(futureCard.description, /PREGENERATED FUTURE/);
+  assert.doesNotMatch(JSON.stringify(futureCard), /PREGENERATED FUTURE/);
   assert.equal(futureCard.taskModel.jitGeneration, undefined);
+  assert.equal(futureCard.taskModel.teachingFlow, undefined);
   assert.equal(jitResult.draft.dailyPlans[0].tasks[0].taskModel.jitGeneration.ready, true);
   assert.equal(jitResult.draft.dailyPlans[0].tasks[1].learningGrowthJitPending, true);
   assert.doesNotMatch(JSON.stringify(jitCard), /must-not-leak|rawPrompt|answerKey|fullTranscript|localPath/);

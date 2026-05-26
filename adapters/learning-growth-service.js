@@ -2,6 +2,7 @@
 
 const { createLearningV1ReadinessService } = require("./learning-v1-readiness-service");
 const { buildLearningLaunchOperations } = require("./learning-launch-operations-service");
+const { displayTitleForLearningGrowthTask } = require("./learning-growth-title-service");
 
 const LEARNING_GROWTH_MODULE_ID = "fanfan-growth";
 
@@ -86,6 +87,12 @@ function projectTaskCardForExecutor(task) {
     "domain",
     "plannedDate",
     "plannedMinutes",
+    "sequenceGroupId",
+    "sequenceIndex",
+    "sequenceTotal",
+    "sequenceMode",
+    "learningGrowthSequenceMode",
+    "learningGrowthSequenceVisibility",
     "skillIds",
     "templateId",
     "deliverableDirectoryPath",
@@ -171,6 +178,11 @@ function projectEvaluationForExecutor(evaluation) {
     "passed",
     "summary",
     "skillId",
+    "revisionRequirements",
+    "feedbackSections",
+    "feedbackMethod",
+    "aiFeedbackStatus",
+    "nextStep",
     "createdAt",
   ]);
 }
@@ -187,6 +199,8 @@ function projectTaskSubmissionForExecutor(submission) {
     "attemptNo",
     "status",
     "summary",
+    "displayText",
+    "structuredResponses",
     "textDigest",
     "textChars",
     "textWords",
@@ -242,13 +256,20 @@ function latestForTask(items = [], taskCardId = "", timeField = "updatedAt") {
     .sort((a, b) => String(b?.[timeField] || b?.createdAt || "").localeCompare(String(a?.[timeField] || a?.createdAt || "")))[0] || null;
 }
 
+function withLearningGrowthDisplayTitle(task = {}) {
+  const title = displayTitleForLearningGrowthTask(task);
+  return title && title !== task.title ? Object.assign({}, task, { title }) : task;
+}
+
 function attachNativeTaskState(programs = {}) {
   if (!programs || typeof programs !== "object") return programs;
   const submissions = arrayValue(programs.taskSubmissions);
   const evaluations = arrayValue(programs.evaluations);
   const reflections = arrayValue(programs.taskReflections);
   const artifacts = arrayValue(programs.taskArtifacts);
-  const executableTasks = arrayValue(programs.executableTasks).map((task) => {
+  const taskCards = arrayValue(programs.taskCards).map(withLearningGrowthDisplayTitle);
+  const executableTasks = arrayValue(programs.executableTasks).map((rawTask) => {
+    const task = withLearningGrowthDisplayTitle(rawTask);
     const taskCardId = cleanString(task.taskCardId);
     const latestSubmission = latestForTask(submissions, taskCardId, "submittedAt");
     const latestEvaluation = latestForTask(evaluations, taskCardId, "createdAt");
@@ -259,7 +280,7 @@ function attachNativeTaskState(programs = {}) {
     const submissionStatus = cleanString(latestSubmission?.status);
     const nextAction = evaluationStatus === "reflection_required"
       ? "spoken_reflection"
-      : (evaluationStatus === "needs_repair" || evaluationStatus === "needs_revision" ? "revise" : (latestEvaluation?.passed ? "complete" : (submissionStatus ? "waiting_feedback" : "submit")));
+      : (evaluationStatus === "needs_repair" || evaluationStatus === "needs_revision" || evaluationStatus === "draft_feedback" ? "revise" : (latestEvaluation?.passed ? "complete" : (submissionStatus ? "waiting_feedback" : "submit")));
     return Object.assign({}, task, {
       nativeState: {
         status: evaluationStatus || submissionStatus || cleanString(task.executionStatus || task.status),
@@ -275,7 +296,7 @@ function attachNativeTaskState(programs = {}) {
       artifactCount: taskArtifacts.length,
     });
   });
-  return Object.assign({}, programs, { executableTasks });
+  return Object.assign({}, programs, { taskCards, executableTasks });
 }
 
 function projectSkillStateForExecutor(skill) {
@@ -355,6 +376,7 @@ function coinMetric(coins = {}) {
     heldCoins: numberValue(balances.heldCoins),
     spentCoins: numberValue(balances.spentCoins),
     sevenDayCoins: numberValue(growth.sevenDayCoins),
+    thirtyDayCoins: numberValue(growth.thirtyDayCoins),
     activeDaysInLast7: numberValue(growth.activeDaysInLast7),
     pendingRedemptions: redemptions.filter((item) => item && item.status === "requested").length,
   };

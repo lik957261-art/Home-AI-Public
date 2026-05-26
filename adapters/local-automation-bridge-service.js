@@ -53,16 +53,12 @@ function createLocalAutomationBridgeService(options = {}) {
     return job.status || "scheduled";
   }
 
-  function publicJob(job) {
+  function publicJob(job, detail = "full") {
     const schedule = scheduleText(job || {});
-    return {
+    const payload = {
       id: String(job?.id || ""),
       name: compactText(job?.name || job?.id || "Automation", 120),
-      prompt: compactText(job?.prompt || "", 4000),
       promptPreview: compactText(job?.prompt || "", 220),
-      skills: normalizeSkills(job?.skills),
-      model: compactText(job?.model || "", 80),
-      provider: compactText(job?.provider || "", 80),
       schedule,
       scheduleText: schedule,
       scheduleKind: String(job?.scheduleKind || "local"),
@@ -77,12 +73,24 @@ function createLocalAutomationBridgeService(options = {}) {
       lastDeliveryError: compactText(job?.lastDeliveryError || "", 400),
       deliver: compactText(job?.deliver || "local", 160),
       ownerPrincipalId: compactText(job?.ownerPrincipalId || "owner", 120),
+    };
+    if (String(detail || "").toLowerCase() === "summary") {
+      payload.detailLevel = "summary";
+      return payload;
+    }
+    Object.assign(payload, {
+      prompt: compactText(job?.prompt || "", 4000),
+      skills: normalizeSkills(job?.skills),
+      model: compactText(job?.model || "", 80),
+      provider: compactText(job?.provider || "", 80),
       workdir: compactText(job?.workdir || "", 600),
       hasScript: false,
       hasWorkdir: Boolean(job?.workdir),
       hasContextFrom: false,
       outputDocuments: Array.isArray(job?.outputDocuments) ? job.outputDocuments : [],
-    };
+      detailLevel: "full",
+    });
+    return payload;
   }
 
   function draftJob(payload = {}, pathKind = "local") {
@@ -149,10 +157,11 @@ function createLocalAutomationBridgeService(options = {}) {
 
     if (action === "list") {
       const includeDisabled = Boolean(payload.include_disabled);
+      const detail = String(payload.detail || payload.fields || "").toLowerCase() === "summary" ? "summary" : "full";
       let jobs = store.listAutomationJobs({
         ownerPrincipalId: payload.owner_principal_id || "owner",
         includeDisabled,
-      }).map(publicJob);
+      }).map((job) => publicJob(job, detail));
       if (sortJobs) jobs = jobs.sort(sortJobs);
       return {
         ok: true,
@@ -173,7 +182,7 @@ function createLocalAutomationBridgeService(options = {}) {
 
     const jobId = String(payload.job_id || "").trim();
     const job = store.getAutomationJob(jobId);
-    if (["delete", "pause", "resume", "update"].includes(action) && !job) {
+    if (["delete", "pause", "resume", "run", "update"].includes(action) && !job) {
       return { ok: false, error: "Automation job not found" };
     }
     if (job && String(job.ownerPrincipalId || "owner") !== String(payload.owner_principal_id || "owner")) {
@@ -200,6 +209,20 @@ function createLocalAutomationBridgeService(options = {}) {
         source: source("sqlite_automations", "sqlite"),
       };
     }
+    if (action === "run") {
+      job.enabled = true;
+      job.state = "scheduled";
+      job.status = "scheduled";
+      job.nextRunAt = nowIso();
+      job.manualRunRequestedAt = nowIso();
+      job.updatedAt = nowIso();
+      if (!payload.dry_run) store.importAutomationJob(job);
+      return {
+        ok: true,
+        job: publicJob(job),
+        source: source("sqlite_automations", "sqlite", { action: "run", runMode: "next_tick" }),
+      };
+    }
     if (action === "update") {
       updateJobFields(job, payload.patch && typeof payload.patch === "object" ? payload.patch : {});
       if (!payload.dry_run) store.importAutomationJob(job);
@@ -219,7 +242,8 @@ function createLocalAutomationBridgeService(options = {}) {
 
     if (action === "list") {
       const includeDisabled = Boolean(payload.include_disabled);
-      let jobs = store.jobs.map(publicJob);
+      const detail = String(payload.detail || payload.fields || "").toLowerCase() === "summary" ? "summary" : "full";
+      let jobs = store.jobs.map((job) => publicJob(job, detail));
       if (!includeDisabled) jobs = jobs.filter((job) => job.enabled);
       return {
         ok: true,
@@ -244,7 +268,7 @@ function createLocalAutomationBridgeService(options = {}) {
     const jobId = String(payload.job_id || "").trim();
     const index = store.jobs.findIndex((job) => String(job.id || "") === jobId);
     const job = index >= 0 ? store.jobs[index] : null;
-    if (["delete", "pause", "resume", "update"].includes(action) && !job) {
+    if (["delete", "pause", "resume", "run", "update"].includes(action) && !job) {
       return { ok: false, error: "Automation job not found" };
     }
     if (job && String(job.ownerPrincipalId || "owner") !== String(payload.owner_principal_id || "owner")) {
@@ -272,6 +296,20 @@ function createLocalAutomationBridgeService(options = {}) {
         ok: true,
         job: publicJob(job),
         source: source("local_automations", "local"),
+      };
+    }
+    if (action === "run") {
+      job.enabled = true;
+      job.state = "scheduled";
+      job.status = "scheduled";
+      job.nextRunAt = nowIso();
+      job.manualRunRequestedAt = nowIso();
+      job.updatedAt = nowIso();
+      if (!payload.dry_run) saveLocalAutomationStore(store);
+      return {
+        ok: true,
+        job: publicJob(job),
+        source: source("local_automations", "local", { action: "run", runMode: "next_tick" }),
       };
     }
     if (action === "update") {

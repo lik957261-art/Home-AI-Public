@@ -256,6 +256,8 @@ function testAutomationTickInitializesOldDeliveriesAndSendsRecentOnes() {
       assert.equal(result.deliveries.length, 1);
       assert.equal(result.deliveries[0].jobId, "recent-job");
       assert.equal(calls.sends[0].payload.data.automationId, "recent-job");
+      assert.equal(calls.sends[0].payload.data.url, "/?view=automation&workspaceId=owner&automationId=recent-job");
+      assert.notEqual(calls.sends[0].payload.data.url, "/recent");
       assert.equal(Boolean(state.automationPushMarks["old-job"]), true);
       assert.equal(Boolean(state.automationPushMarks["recent-job"]), true);
     });
@@ -294,7 +296,8 @@ function testTaskTerminalAndGroupMentionNotifications() {
 
     return service.notifyTaskTerminal(thread, message, "done").then(() => {
       assert.equal(calls.sends.at(-1).payload.data.viewMode, "tasks");
-      assert.equal(calls.sends.at(-1).payload.data.url, "/?view=tasks&workspaceId=child&taskGroupId=task-1&messageId=a1");
+      assert.equal(calls.sends.at(-1).payload.data.url, "/?view=tasks&workspaceId=child&taskGroupId=task-1&messageId=u1");
+      assert.equal(calls.sends.at(-1).payload.data.messageId, "u1");
       assert.equal(calls.sends.at(-1).payload.data.messageType, "task_completed");
 
       const weixinThread = Object.assign({}, thread, {
@@ -331,6 +334,261 @@ function testTaskTerminalAndGroupMentionNotifications() {
   });
 }
 
+function testTaskTerminalPushDoesNotCreateInboxItemForActiveChatReceipt() {
+  withTempDir((root) => {
+    const inboxCalls = [];
+    const { calls, service } = createHarness(root, {
+      serviceOptions: {
+        actionInboxService: {
+          upsertSourceItem(input) {
+            inboxCalls.push(input);
+            return { ok: true, item: { id: "ainb_task_1", workspaceId: input.workspaceId } };
+          },
+        },
+      },
+    });
+    service.savePushSubscription({
+      endpoint: "https://push.example/task-inbox",
+      keys: { p256dh: "p256dh", auth: "auth" },
+    }, { workspaceId: "child" });
+    const thread = {
+      id: "thread-1",
+      title: "Thread title",
+      workspaceId: "child",
+      singleWindow: false,
+      messages: [
+        { id: "u1", role: "user", content: "Prompt text", taskGroupId: "task-1" },
+      ],
+    };
+    const message = {
+      id: "a1",
+      role: "assistant",
+      content: "Task result",
+      runId: "run-1",
+      taskGroupId: "task-1",
+    };
+    return service.notifyTaskTerminal(thread, message, "done").then((result) => {
+      assert.equal(result.sent, 1);
+      assert.equal(inboxCalls.length, 0);
+      const payload = calls.sends[0].payload;
+      assert.equal(payload.data.viewMode, "tasks");
+      assert.equal(Object.prototype.hasOwnProperty.call(payload.data, "inboxItemId"), false);
+      assert.equal(payload.data.url, "/?view=tasks&workspaceId=child&taskGroupId=task-1&messageId=u1");
+      assert.equal(payload.data.messageType, "task_completed");
+    });
+  });
+}
+
+function testLearningGrowthEvaluationPushRoutesToTaskCard() {
+  withTempDir((root) => {
+    const { calls, service, state } = createHarness(root);
+    service.savePushSubscription({
+      endpoint: "https://push.example/learning",
+      keys: { p256dh: "p256dh", auth: "auth" },
+    }, { workspaceId: "child" });
+    return service.notifyLearningGrowthEvaluationComplete({
+      workspaceId: "child",
+      taskCardId: "ltask_science_001",
+      submissionId: "lsub_001",
+      evaluation: { evaluationId: "leval_001", status: "needs_repair", score: 72 },
+    }).then((result) => {
+      assert.equal(result.sent, 1);
+      assert.equal(calls.sends.length, 1);
+      const payload = calls.sends[0].payload;
+      assert.equal(payload.data.viewMode, "learning");
+      assert.equal(payload.data.workspaceId, "child");
+      assert.equal(payload.data.principalId, "child-principal");
+      assert.equal(payload.data.taskCardId, "ltask_science_001");
+      assert.equal(payload.data.evaluationId, "leval_001");
+      assert.equal(payload.data.submissionId, "lsub_001");
+      assert.equal(payload.data.url, "/?view=learning&workspaceId=child&taskCardId=ltask_science_001");
+      assert.equal(state.pushDeliveries.length, 1);
+    });
+  });
+}
+
+function testLearningGrowthEvaluationPushCanRouteThroughInboxItem() {
+  withTempDir((root) => {
+    const inboxCalls = [];
+    const { calls, service } = createHarness(root, {
+      serviceOptions: {
+        actionInboxService: {
+          upsertSourceItem(input) {
+            inboxCalls.push(input);
+            return { ok: true, item: { id: "ainb_1", workspaceId: input.workspaceId } };
+          },
+        },
+      },
+    });
+    service.savePushSubscription({
+      endpoint: "https://push.example/learning-inbox",
+      keys: { p256dh: "p256dh", auth: "auth" },
+    }, { workspaceId: "child" });
+    return service.notifyLearningGrowthEvaluationComplete({
+      workspaceId: "child",
+      taskCardId: "ltask_science_001",
+      submissionId: "lsub_001",
+      evaluation: { evaluationId: "leval_001", status: "needs_repair", score: 72 },
+    }).then((result) => {
+      assert.equal(result.sent, 1);
+      assert.equal(inboxCalls.length, 1);
+      assert.equal(inboxCalls[0].sourceType, "growth");
+      assert.equal(inboxCalls[0].deepLink, "/?view=learning&workspaceId=child&taskCardId=ltask_science_001");
+      const payload = calls.sends[0].payload;
+      assert.equal(payload.data.viewMode, "inbox");
+      assert.equal(payload.data.inboxItemId, "ainb_1");
+      assert.equal(payload.data.originalUrl, "/?view=learning&workspaceId=child&taskCardId=ltask_science_001");
+      assert.equal(payload.data.url, "/?view=inbox&workspaceId=child&inboxItemId=ainb_1");
+    });
+  });
+}
+
+function testLearningGrowthCompletionNotifiesAuthorizedWorkspaceInboxItems() {
+  withTempDir((root) => {
+    const inboxCalls = [];
+    const { calls, service } = createHarness(root, {
+      serviceOptions: {
+        actionInboxService: {
+          upsertSourceItem(input) {
+            inboxCalls.push(input);
+            return { ok: true, item: { id: `ainb_${input.workspaceId}`, workspaceId: input.workspaceId } };
+          },
+        },
+        findWorkspace: (workspaceId) => ({
+          owner: { id: "owner", label: "Owner", policy: { principal_id: "owner" } },
+          child: { id: "child", label: "Child", policy: { principal_id: "child-principal" } },
+          coach: { id: "coach", label: "Coach", policy: { principal_id: "coach-principal", accessible_workspace_ids: ["child"] } },
+          unrelated: { id: "unrelated", label: "Unrelated", policy: { principal_id: "unrelated-principal" } },
+        })[workspaceId] || null,
+        loadCatalog: () => ({
+          workspaces: [
+            { id: "owner", label: "Owner", policy: { principal_id: "owner" } },
+            { id: "child", label: "Child", policy: { principal_id: "child-principal" } },
+            { id: "coach", label: "Coach", policy: { principal_id: "coach-principal", accessible_workspace_ids: ["child"] } },
+            { id: "unrelated", label: "Unrelated", policy: { principal_id: "unrelated-principal" } },
+          ],
+        }),
+        workspaceIdForPrincipal: (principalId) => ({
+          owner: "owner",
+          "child-principal": "child",
+          "coach-principal": "coach",
+          "unrelated-principal": "unrelated",
+        })[principalId] || "owner",
+        workspacePrincipal: (workspaceId) => ({
+          owner: "owner",
+          child: "child-principal",
+          coach: "coach-principal",
+          unrelated: "unrelated-principal",
+        })[workspaceId] || "owner",
+      },
+    });
+    for (const workspaceId of ["owner", "child", "coach", "unrelated"]) {
+      service.savePushSubscription({
+        endpoint: `https://push.example/${workspaceId}`,
+        keys: { p256dh: "p256dh", auth: "auth" },
+      }, { workspaceId });
+    }
+    return service.notifyLearningGrowthTaskComplete({
+      workspaceId: "child",
+      taskCardId: "task-growth-complete",
+      taskTitle: "Grammar task",
+      evaluation: { evaluationId: "eval-complete", status: "completed", score: 91 },
+      reward: { status: "settled", coinAmount: 30 },
+      reflection: { reflectionId: "reflection-1", status: "accepted" },
+    }).then((result) => {
+      assert.deepEqual(result.recipients.sort(), ["child", "coach", "owner"]);
+      assert.deepEqual(inboxCalls.map((item) => item.workspaceId).sort(), ["child", "coach", "owner"]);
+      assert.equal(inboxCalls.some((item) => item.workspaceId === "unrelated"), false);
+      assert.equal(inboxCalls.every((item) => item.sourceType === "growth"), true);
+      assert.equal(inboxCalls.every((item) => item.itemType === "info"), true);
+      assert.equal(inboxCalls.every((item) => item.sourceRef.taskWorkspaceId === "child"), true);
+      assert.equal(inboxCalls.every((item) => item.deepLink === "/?view=learning&workspaceId=child&taskCardId=task-growth-complete"), true);
+      assert.equal(calls.sends.length, 3);
+      assert.equal(calls.sends.some((send) => send.subscription.endpoint === "https://push.example/unrelated"), false);
+      assert.equal(calls.sends.every((send) => send.payload.data.messageType === "learning_growth_task_completed"), true);
+      const ownerPayload = calls.sends.find((send) => send.subscription.endpoint === "https://push.example/owner").payload;
+      assert.equal(ownerPayload.data.viewMode, "inbox");
+      assert.equal(ownerPayload.data.workspaceId, "owner");
+      assert.equal(ownerPayload.data.taskWorkspaceId, "child");
+      assert.equal(ownerPayload.data.principalId, "owner");
+      assert.equal(ownerPayload.data.inboxItemId, "ainb_owner");
+      assert.equal(ownerPayload.data.originalUrl, "/?view=learning&workspaceId=child&taskCardId=task-growth-complete");
+      assert.equal(ownerPayload.data.url, "/?view=inbox&workspaceId=owner&inboxItemId=ainb_owner");
+      const childPayload = calls.sends.find((send) => send.subscription.endpoint === "https://push.example/child").payload;
+      assert.equal(childPayload.data.principalId, "child-principal");
+      const coachPayload = calls.sends.find((send) => send.subscription.endpoint === "https://push.example/coach").payload;
+      assert.equal(coachPayload.data.principalId, "coach-principal");
+    });
+  });
+}
+
+function testLearningGrowthCompletionFallsBackWhenInboxUpsertFails() {
+  withTempDir((root) => {
+    const { calls, service } = createHarness(root, {
+      serviceOptions: {
+        logger: { warn() {} },
+        actionInboxService: {
+          upsertSourceItem() {
+            throw new Error("inbox unavailable");
+          },
+        },
+      },
+    });
+    for (const workspaceId of ["owner", "child"]) {
+      service.savePushSubscription({
+        endpoint: `https://push.example/${workspaceId}`,
+        keys: { p256dh: "p256dh", auth: "auth" },
+      }, { workspaceId });
+    }
+    return service.notifyLearningGrowthTaskComplete({
+      workspaceId: "child",
+      taskCardId: "task-growth-fallback",
+      taskTitle: "Fallback grammar task",
+      evaluation: { evaluationId: "eval-fallback", status: "completed", score: 88 },
+      reward: { status: "settled", coinAmount: 20 },
+    }).then((result) => {
+      assert.equal(result.inboxItems.length, 0);
+      assert.equal(calls.sends.length, 2);
+      for (const send of calls.sends) {
+        assert.equal(send.payload.data.viewMode, "learning");
+        assert.equal(send.payload.data.originalUrl, "/?view=learning&workspaceId=child&taskCardId=task-growth-fallback");
+        assert.equal(send.payload.data.url, "/?view=learning&workspaceId=child&taskCardId=task-growth-fallback");
+        assert.equal(Object.prototype.hasOwnProperty.call(send.payload.data, "inboxItemId"), false);
+        assert.equal(send.payload.data.messageType, "learning_growth_task_completed");
+      }
+    });
+  });
+}
+
+function testAutomationListSortUsesLatestActivity() {
+  withTempDir((root) => {
+    const { service } = createHarness(root);
+    const jobs = [
+      {
+        id: "old-delivery",
+        name: "Old delivery",
+        outputDocuments: [{ updatedAt: "2026-05-24T08:00:00Z" }],
+        nextRunAt: "2026-05-27T08:00:00Z",
+      },
+      {
+        id: "recent-failure",
+        name: "Recent failure",
+        lastRunAt: "2026-05-26T08:00:00Z",
+        lastStatus: "error",
+        outputDocuments: [],
+      },
+      {
+        id: "future-only",
+        name: "Future only",
+        nextRunAt: "2026-05-26T10:00:00Z",
+        outputDocuments: [],
+      },
+    ];
+    jobs.sort(service.automationListSortByLatestDeliverable);
+    assert.deepEqual(jobs.map((job) => job.id), ["recent-failure", "old-delivery", "future-only"]);
+  });
+}
+
 Promise.resolve()
   .then(testVapidLifecycleAndPublicStatus)
   .then(testSubscriptionSendAndRemoval)
@@ -338,6 +596,12 @@ Promise.resolve()
   .then(testTodoTickReconcilesAndDeliversPendingEvents)
   .then(testAutomationTickInitializesOldDeliveriesAndSendsRecentOnes)
   .then(testTaskTerminalAndGroupMentionNotifications)
+  .then(testTaskTerminalPushDoesNotCreateInboxItemForActiveChatReceipt)
+  .then(testLearningGrowthEvaluationPushRoutesToTaskCard)
+  .then(testLearningGrowthEvaluationPushCanRouteThroughInboxItem)
+  .then(testLearningGrowthCompletionNotifiesAuthorizedWorkspaceInboxItems)
+  .then(testLearningGrowthCompletionFallsBackWhenInboxUpsertFails)
+  .then(testAutomationListSortUsesLatestActivity)
   .then(() => {
     console.log("web-push-delivery-service tests passed");
   });

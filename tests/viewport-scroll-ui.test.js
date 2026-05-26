@@ -13,7 +13,7 @@ const clientVersion = indexHtml.match(/data-client-version="([^"]+)"/)?.[1] || "
 const escapedClientVersion = clientVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 assert.match(appJs, /conversationPinnedToBottom/);
-assert.match(appJs, /function handleViewportLayoutChange\(\)/);
+assert.match(appJs, /function handleViewportLayoutChange\(/);
 assert.match(appJs, /function updateMobileBottomNavReservation\(\)/);
 assert.match(appJs, /--mobile-bottom-nav-reserved-height-runtime/);
 assert.match(appJs, /function scheduleConversationBottomStick\(\)/);
@@ -22,7 +22,8 @@ assert.match(appJs, /window\.visualViewport\?\.addEventListener\("resize", handl
 assert.match(appJs, /window\.addEventListener\("orientationchange", handleViewportLayoutChange\)/);
 assert.match(appJs, /window\.screen\?\.orientation\?\.addEventListener\?\.\("change", handleViewportLayoutChange\)/);
 assert.match(appJs, /updateMobileBottomNavReservation\(\)/);
-assert.match(appJs, /if \(!state\.conversationPinnedToBottom && !isNearBottom\(160\)\) return;/);
+assert.match(appJs, /if \(!shouldStickConversationOnViewportChange\(\)\) return;/);
+assert.match(appJs, /if \(!shouldFollowConversationBottomDuringViewport\(\)\) return;/);
 
 assert.ok(clientVersion);
 assert.match(indexHtml, new RegExp(`app\\.js\\?v=${escapedClientVersion}`));

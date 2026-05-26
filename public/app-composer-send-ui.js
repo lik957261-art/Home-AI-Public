@@ -5,6 +5,11 @@ function showError(err) {
 }
 
 function handleSendMessageResult(result, createsNewTask, consumedPendingDirectory) {
+  state.forceChatStickToBottomUntil = Date.now() + 12000;
+  state.conversationViewportBottomFollowUntil = Date.now() + 5000;
+  state.conversationViewportSettleUntil = Date.now() + 900;
+  state.suppressChatAutoBottomUntil = 0;
+  state.conversationPinnedToBottom = true;
   state.pendingArtifacts = [];
   if (createsNewTask) {
     state.pendingTaskDirectory = null;
@@ -22,6 +27,7 @@ function handleSendMessageResult(result, createsNewTask, consumedPendingDirector
   }
   renderThreads();
   renderCurrentThread({ stickToBottom: true });
+  if (isSingleWindowChatView()) scheduleConversationBottomStick();
   suppressComposerAutoFocus(1200);
   blurComposerInput();
 }

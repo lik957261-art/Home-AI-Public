@@ -433,7 +433,7 @@ function createSkillAnalysisService(options = {}) {
   const sanitizePolicy = typeof options.sanitizePolicy === "function" ? options.sanitizePolicy : (policy) => policy || {};
   const findWorkspace = typeof options.findWorkspace === "function" ? options.findWorkspace : () => null;
   const model = cleanText(options.model || options.automationCreateModel || "automation-create");
-  const analysisTimeoutMs = Math.max(15000, Number(options.analysisTimeoutMs || options.skillAnalysisTimeoutMs || 90000));
+  const analysisTimeoutMs = Math.max(15000, Number(options.analysisTimeoutMs || options.skillAnalysisTimeoutMs || 60000));
   const rewriteTimeoutMs = Math.max(
     analysisTimeoutMs,
     Number(options.rewriteTimeoutMs || options.skillRewriteTimeoutMs || options.skillAnalysisRewriteTimeoutMs || 240000),

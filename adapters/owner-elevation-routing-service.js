@@ -18,9 +18,33 @@ function createOwnerElevationRoutingService(options = {}) {
     : (() => false);
   const gatewaySkillProfileRouting = String(options.gatewaySkillProfileRouting || "auto").trim().toLowerCase() || "auto";
   const permissionApprovalMarker = String(options.permissionApprovalMarker || "HERMES_PERMISSION_APPROVAL_REQUIRED");
+  const chatGptProProfiles = Array.isArray(options.chatGptProProfiles) && options.chatGptProProfiles.length
+    ? options.chatGptProProfiles.map((item) => String(item || "").trim()).filter(Boolean)
+    : ["officialclean1", "officialclean2"];
+
+  function routeRequestsChatGptPro(routeOptions = {}) {
+    return Boolean(
+      routeOptions.chatGptProGenerate
+      || routeOptions.chatgpt_pro_generate
+      || routeOptions.chatgptProGenerate
+      || routeOptions.chatgpt_pro
+      || routeOptions.requiredTool === "chatgpt_pro_generate"
+      || routeOptions.required_tool === "chatgpt_pro_generate"
+      || routeOptions.elevationScope === "chatgpt_pro_generate"
+      || routeOptions.elevation_scope === "chatgpt_pro_generate"
+    );
+  }
 
   function mentionSearchText(value) {
     return String(value || "").toLowerCase().replace(/\s+/g, "");
+  }
+
+  function textRequestsChatGptPro(text) {
+    const compact = mentionSearchText(text);
+    if (!compact) return false;
+    return compact.includes("@chatgptpro")
+      || compact.includes("chatgptpro")
+      || String(text || "").toLowerCase().includes("chatgpt-pro");
   }
 
   function workspaceMentionCandidates(workspace = {}) {
@@ -93,13 +117,19 @@ function createOwnerElevationRoutingService(options = {}) {
 
   function gatewayRoutingForModelRun(auth, text, routeOptions = {}) {
     const explicitMaintenance = Boolean(routeOptions.maintenanceMode || routeOptions.maintenance_mode);
+    const chatGptProIntent = routeRequestsChatGptPro(routeOptions) || textRequestsChatGptPro(text);
     if (explicitMaintenance) {
       const onceToken = routeOptions.ownerElevationOnceToken || routeOptions.owner_elevation_once_token || "";
       if (consumeOwnerElevationOnce(auth, onceToken) || isOwnerElevationActive(auth)) {
+        const chatGptPro = chatGptProIntent;
         return {
           securityLevel: "owner-maintenance",
           maintenance: true,
-          maintenanceCategory: routeOptions.elevationScope || routeOptions.elevation_scope || "owner_high_privilege",
+          maintenanceCategory: chatGptPro ? "chatgpt_pro_generate" : (routeOptions.elevationScope || routeOptions.elevation_scope || "owner_high_privilege"),
+          ...(chatGptPro ? {
+            preferred_worker_profiles: chatGptProProfiles,
+            requiredTool: "chatgpt_pro_generate",
+          } : {}),
         };
       }
       const err = new Error("Owner high-privilege authorization is not active. Use the Owner navigation permission control before running this request.");
@@ -110,17 +140,16 @@ function createOwnerElevationRoutingService(options = {}) {
       err.elevationScope = routeOptions.elevationScope || routeOptions.elevation_scope || "owner_high_privilege";
       throw err;
     }
-    const classification = securityBoundaryProvider.classifyMaintenanceIntent?.(text)
-      || classifyAutomationAdminIntentForRun(text, routeOptions)
-      || securityBoundaryProvider.classifySharedSkillWriteIntent?.(text);
-    if (!classification) return { securityLevel: "user", maintenance: false };
-    const err = new Error(classification.message);
-    err.status = isOwnerAuth(auth) ? 409 : 403;
-    err.code = classification.category;
-    err.operatorRequired = true;
-    err.elevationRequired = Boolean(isOwnerAuth(auth) && classification.elevationRequired);
-    err.elevationScope = classification.elevationScope || classification.category;
-    throw err;
+    if (chatGptProIntent) {
+      const err = new Error("ChatGPT Pro requires Owner high-privilege approval before routing to the Owner maintenance Gateway.");
+      err.status = isOwnerAuth(auth) ? 409 : 403;
+      err.code = "owner_high_privilege_required";
+      err.operatorRequired = true;
+      err.elevationRequired = Boolean(isOwnerAuth(auth));
+      err.elevationScope = "chatgpt_pro_generate";
+      throw err;
+    }
+    return { securityLevel: "user", maintenance: false };
   }
 
   function sharedSkillElevationInstructions(routeOptions = {}) {
@@ -136,6 +165,14 @@ function createOwnerElevationRoutingService(options = {}) {
 
   function ownerElevationInstructions(routeOptions = {}) {
     const scope = String(routeOptions.elevationScope || routeOptions.elevation_scope || "").trim();
+    if (routeRequestsChatGptPro(routeOptions)) {
+      return [
+        "APPROVED CHATGPT PRO TOOL RUN: this run is routed to an Owner maintenance Gateway because the Owner explicitly authorized ChatGPT Pro tool execution for the latest message.",
+        "Use `chatgpt_pro_generate` when the user asks for ChatGPT Pro generation, document drafting, rewriting, or Pro-model synthesis. Do not claim ChatGPT Pro succeeded unless the tool returns ok=true.",
+        "Keep the tool request narrow: pass the current user requirement, bounded source summary, language, output format, and delivery mode. Do not pass secrets, raw local paths, browser cookies, or unrelated conversation history.",
+        "If the tool returns ok=false or is unavailable, report the failure clearly instead of falling back to an ordinary model answer and presenting it as ChatGPT Pro output.",
+      ].join("\n");
+    }
     if (scope === "owner_high_privilege") {
       return [
         "APPROVED OWNER HIGH-PRIVILEGE RUN: this run is routed to an Owner maintenance Gateway because the Owner explicitly authorized high-privilege execution in Hermes Mobile.",
@@ -274,6 +311,8 @@ function createOwnerElevationRoutingService(options = {}) {
     precedingUserMessageForAssistant,
     sanitizeElevationScope,
     sharedSkillElevationInstructions,
+    routeRequestsChatGptPro,
+    textRequestsChatGptPro,
     stripPermissionApprovalMarkers,
     textLooksLikeAutomationWrite,
     workspaceMentionCandidates,

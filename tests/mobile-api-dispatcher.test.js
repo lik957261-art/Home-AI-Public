@@ -252,6 +252,40 @@ async function testAuthenticatedWeixinRouteUsesBrowserAuthContext() {
   assert.equal(routeCalls(calls).at(-1).auth, auth);
 }
 
+async function testGrowthCardRoutesPrecedeProgramCatchAllRoutes() {
+  const { deps, calls } = makeDeps({
+    routeBehaviors: {
+      learningGrowthCardApiRoutes: ({ url }) => ({
+        handled: url.pathname === "/api/learning-growth/stage-assessments/challenge",
+        status: 201,
+        writeJson: { ok: true, route: "growth-card" },
+      }),
+      learningProgramApiRoutes: () => ({
+        handled: true,
+        status: 404,
+        writeJson: { ok: false, route: "program-catch-all" },
+      }),
+    },
+  });
+  const dispatcher = createMobileApiDispatcher(deps);
+  const res = makeResponse();
+
+  await dispatcher.handleApi({
+    method: "POST",
+    url: "/api/learning-growth/stage-assessments/challenge",
+    headers: {},
+    authResult: { ok: true, workspaceId: "weixin_test_1" },
+  }, res);
+
+  assert.equal(res.statusCode, 201);
+  assert.deepEqual(JSON.parse(res.body), { ok: true, route: "growth-card" });
+  assert.equal(routeCalls(calls).some((call) => call.key === "learningProgramApiRoutes"), false);
+  assert.ok(
+    MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE.findIndex((entry) => entry.key === "learningGrowthCardApiRoutes")
+    < MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE.findIndex((entry) => entry.key === "learningProgramApiRoutes"),
+  );
+}
+
 function testDependencyValidation() {
   assert.throws(() => createMobileApiDispatcher({}), /requires getUrl/);
 
@@ -273,6 +307,7 @@ async function run() {
   await testUnauthorizedRequestStopsAfterAuthFailure();
   await testAuthenticatedPipelineOrderAndRequestContext();
   await testAuthenticatedWeixinRouteUsesBrowserAuthContext();
+  await testGrowthCardRoutesPrecedeProgramCatchAllRoutes();
   testDependencyValidation();
   console.log("mobile api dispatcher tests passed");
 }

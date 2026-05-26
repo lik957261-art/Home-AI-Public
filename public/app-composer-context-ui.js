@@ -68,8 +68,7 @@ function composerModelLabel() {
 function composerSearchSourceLabel() {
   if (isChatSearchMode()) return null;
   if (state.viewMode !== "single" && state.viewMode !== "tasks") return null;
-  const info = selectedComposerSearchSourceInfo(getComposerText());
-  const activeInfo = info && info.source !== "local" ? info : activeRunSearchSourceInfo();
+  const activeInfo = activeRunSearchSourceInfo();
   if (!activeInfo || activeInfo.source === "local") return null;
   return { label: `\u4fe1\u6e90 ${activeInfo.label}`, tone: "active" };
 }
@@ -209,8 +208,8 @@ function updateMobileBottomNavReservation() {
   const contentHeight = Math.ceil(nav.scrollHeight || 0);
   const compact = isMobileLandscapeCompactLayout();
   const reserve = compact
-    ? Math.max(62, rectHeight + 8, contentHeight + 8)
-    : Math.max(96, rectHeight + 12, contentHeight + 12);
+    ? Math.max(58, rectHeight + 8, contentHeight + 8)
+    : Math.max(76, rectHeight + 10, contentHeight + 10);
   root.style.setProperty("--mobile-bottom-nav-reserved-height-runtime", `${reserve}px`);
 }
 
@@ -277,7 +276,6 @@ function shouldShowComposerContext(items, counts) {
     || composerHasDraft()
     || state.pendingArtifacts.length
     || Boolean(composerModelLabel()?.label)
-    || selectedComposerSearchSourceInfo(getComposerText()).source !== "local"
     || Boolean(activeRunSearchSourceInfo())
     || state.quotedReply
     || state.pendingTaskDirectory?.projectId

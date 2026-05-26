@@ -186,7 +186,7 @@ function createThreadMessageCreateService(options = {}) {
     return { ok: true, replyToMessageId, quotedMessage };
   }
 
-  function resolveTaskGroup(thread, body, singleWindowMode, quotedMessage) {
+  function resolveTaskGroup(thread, body, singleWindowMode, quotedMessage, auth = {}) {
     const bodyTaskGroupId = body.taskGroupId ? sanitizeTaskGroupId(body.taskGroupId) : "";
     const quotedTaskGroupId = quotedMessage?.taskGroupId ? sanitizeTaskGroupId(quotedMessage.taskGroupId) : "";
     if (bodyTaskGroupId && quotedTaskGroupId && bodyTaskGroupId !== quotedTaskGroupId) {
@@ -206,7 +206,9 @@ function createThreadMessageCreateService(options = {}) {
       ? (
         requestedCaseTopicChat
           ? requestedTaskGroupId
-          : (singleWindowMode === "chat" ? singleWindowChatTaskGroupId(requestedTaskGroupId) : (requestedTaskGroupId || makeId("task")))
+          : (singleWindowMode === "chat"
+            ? singleWindowChatTaskGroupId(requestedTaskGroupId)
+            : (requestedTaskGroupId || makeId("task")))
       )
       : "";
 
@@ -493,7 +495,7 @@ function createThreadMessageCreateService(options = {}) {
     const quoted = resolveQuotedMessage(thread, body, normalized.singleWindowMode);
     if (!quoted.ok) return quoted;
 
-    const taskGroup = resolveTaskGroup(thread, body, normalized.singleWindowMode, quoted.quotedMessage);
+    const taskGroup = resolveTaskGroup(thread, body, normalized.singleWindowMode, quoted.quotedMessage, auth);
     if (!taskGroup.ok) return taskGroup;
 
     const groupChat = resolveGroupChat(thread, normalized.singleWindowMode, taskGroup.taskGroupId, taskGroup.requestedCaseTopicChat);
@@ -518,7 +520,7 @@ function createThreadMessageCreateService(options = {}) {
 
     const messageKind = resolveMessageKind(body, groupChat.isGroupChatMessage, groupChat.isCaseTopicChatMessage);
     const searchSource = resolveSearchSourceForMessage(body, normalized.text);
-    const modelRoute = resolveGatewayModelRoute(body);
+    const modelRoute = resolveGatewayModelRoute(Object.assign({}, body, { text: normalized.text }));
     if (!modelRoute.ok) {
       return errorResult(modelRoute.status || 400, modelRoute.error || "Invalid model route", {
         code: modelRoute.code || "invalid_model_route",

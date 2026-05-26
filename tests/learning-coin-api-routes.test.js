@@ -59,6 +59,7 @@ function makeLearningCoinService() {
           level: { current: { level: 1, title: "New" }, next: { level: 2, title: "Next" }, progressPct: 50, toNextLevelCoins: 100 },
           recentDays: [],
           sevenDayCoins: 100,
+          thirtyDayCoins: 300,
           activeDaysInLast7: 1,
           streakDays: 1,
           rewardProgress: [],
@@ -211,6 +212,7 @@ async function testSummaryAndLedgerAreWorkspaceScoped() {
   assert.equal(summary.body.workspaceId, "child");
   assert.equal(summary.body.growth.totalEarnedCoins, 100);
   assert.equal(summary.body.growth.level.toNextLevelCoins, 100);
+  assert.equal(summary.body.growth.thirtyDayCoins, 300);
   assert.deepEqual(calls.workspaceAccess, ["child", "child"]);
 
   const denied = await request(routes, "GET", "/api/learning-coins/ledger?workspaceId=child&studentId=other", {

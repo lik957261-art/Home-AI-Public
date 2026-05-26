@@ -47,6 +47,12 @@ function seedSummaries(ownerDriveRoot) {
     "Vocabulary task completed: score 88/100; next practice is concrete examples.",
     "This is summary-only progress data.",
   ].join("\n"));
+  writeUtf8(path.join(root, "\u0030\u0031_Python\u7f16\u7a0b", ".hermes-cleaned", "summary.md"), [
+    "# Python programming cleaned summary",
+    "Lesson 41 reached requests plus BeautifulSoup full crawl flow.",
+    "Current weak signals: pagination loops, CSV headers, container-first extraction, and missing-field handling.",
+    "Stable signals: encoding repair, CSV newline handling, and end-to-end verification.",
+  ].join("\n"));
   writeUtf8(path.join(root, "\u0030\u0035_\u5b66\u4e1a\u5347\u5b66", "english-growth.md"), [
     "# profile signal",
     "Fanfan is Grade 7 / G7 and the English language level is 5.5-6.",
@@ -62,18 +68,19 @@ function testDefaultFanfanBindingImportsParentCleanedSummaries() {
   const bindings = service.listBindings({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
   assert.equal(bindings.length, 1);
   assert.equal(bindings[0].directoryLabel, LEARNING_MATERIALS_LABEL);
-  assert.equal(bindings[0].availableSummaryCount, 3);
+  assert.equal(bindings[0].availableSummaryCount, 4);
   assert.equal(bindings[0].policy, "summary_only_cleaned_data");
   assert.doesNotMatch(JSON.stringify(bindings), /ProgramData|owner-drive|\\\\|C:/);
 
   const dryRun = service.importSummaries({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen", dryRun: true });
   assert.equal(dryRun.ok, true);
   assert.equal(dryRun.dryRun, true);
-  assert.equal(dryRun.counts.sources, 4);
+  assert.equal(dryRun.counts.sources, 5);
   assert.equal(repository.listSources({ learnerId: "weixin_stephen" }).length, 0);
   assert.ok(dryRun.sources.every((source) => source.sourceId.startsWith("lsource_dir_") || source.sourceId.startsWith("lsource_signal_")));
   assert.ok(dryRun.sources.some((source) => source.sourceType === "learner_profile_signal"));
   assert.ok(dryRun.sources.some((source) => source.refs[0].includes("learning_growth_progress_signals")));
+  assert.ok(dryRun.sources.some((source) => source.refs[0].includes("python_programming_cleaned_summary")));
   const signal = dryRun.sources.find((source) => source.sourceType === "learner_profile_signal");
   assert.match(signal.summary, /gradeBand=grade7/);
   assert.match(signal.summary, /languageLevel=5\.5-6/);
@@ -81,11 +88,12 @@ function testDefaultFanfanBindingImportsParentCleanedSummaries() {
   assert.doesNotMatch(JSON.stringify(dryRun.sources), /owner-drive|C:/);
 
   const imported = service.importSummaries({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
-  assert.equal(imported.counts.sources, 4);
-  assert.equal(imported.counts.importedSources, 4);
+  assert.equal(imported.counts.sources, 5);
+  assert.equal(imported.counts.importedSources, 5);
   const saved = repository.listSources({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
-  assert.equal(saved.length, 4);
+  assert.equal(saved.length, 5);
   assert.ok(saved.every((source) => source.tags.includes("learning_materials")));
+  assert.ok(saved.some((source) => source.tags.includes("python_programming")));
   assert.ok(saved.some((source) => source.tags.includes("grade7") && source.tags.includes("language_level_5_5_6")));
   assert.ok(saved.every((source) => source.summary.length > 20 && source.summary.length <= 1200));
   repository.close();

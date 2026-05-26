@@ -102,13 +102,8 @@ function selectedComposerSearchSourceInfo(text = getComposerText()) {
 }
 
 function composerSearchSourceBodyFields(text = getComposerText()) {
-  const info = selectedComposerSearchSourceInfo(text);
-  if (info.source === COMPOSER_SEARCH_SOURCE_LOCAL) return null;
-  return {
-    search_source: info.source,
-    source_intent: info.sourceIntent,
-    source_mode: info.sourceMode,
-  };
+  void text;
+  return null;
 }
 
 function composerSearchSourceIconHtml(source) {

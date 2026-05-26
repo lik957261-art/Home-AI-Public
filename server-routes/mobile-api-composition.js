@@ -1,6 +1,7 @@
 "use strict";
 
 const { createAccessKeyApiRoutes } = require("./access-key-api-routes");
+const { createActionInboxApiRoutes } = require("./action-inbox-api-routes");
 const { createAutomationApiRoutes } = require("./automation-api-routes");
 const { createDirectoryBrowserApiRoutes } = require("./directory-browser-api-routes");
 const { createDirectoryMutationApiRoutes } = require("./directory-mutation-api-routes");
@@ -12,6 +13,7 @@ const { createKanbanLearningGuidanceApiRoutes } = require("./kanban-learning-gui
 const { createKanbanStudyApiRoutes } = require("./kanban-study-api-routes");
 const { createLearningApiRoutes } = require("./learning-api-routes");
 const { createLearningCoinApiRoutes } = require("./learning-coin-api-routes");
+const { createLearningGrowthCardApiRoutes } = require("./learning-growth-card-api-routes");
 const { createLearningParentReviewApiRoutes } = require("./learning-parent-review-api-routes");
 const { createLearningProgramApiRoutes } = require("./learning-program-api-routes");
 const { createLearningGrowthService } = require("../adapters/learning-growth-service");
@@ -20,15 +22,20 @@ const { createLearningGrowthDirectoryMaterializationService } = require("../adap
 const { createLearningGrowthKanbanTaskService } = require("../adapters/learning-growth-kanban-task-service");
 const { createLearningGrowthJitTaskService } = require("../adapters/learning-growth-jit-task-service");
 const { createLearningGrowthJitDecisionReportService } = require("../adapters/learning-growth-jit-decision-report-service");
+const { createLearningGrowthMasteryProfileService } = require("../adapters/learning-growth-mastery-profile-service");
 const { createLearningGrowthSequenceService } = require("../adapters/learning-growth-sequence-service");
 const { createLearningGrowthTaskEvaluationService } = require("../adapters/learning-growth-task-evaluation-service");
 const { createLearningGrowthTaskFeedbackService } = require("../adapters/learning-growth-task-feedback-service");
 const { createLearningGrowthReflectionService } = require("../adapters/learning-growth-reflection-service");
+const { createLearningGrowthExperienceSignalService } = require("../adapters/learning-growth-experience-signal-service");
+const { createLearningGrowthStageAssessmentService } = require("../adapters/learning-growth-stage-assessment-service");
+const { createLearningGrowthTeachingCheckService } = require("../adapters/learning-growth-teaching-check-service");
 const { createLearningGrowthSubmissionService } = require("../adapters/learning-growth-submission-service");
 const { createLearningParentReviewRequestService } = require("../adapters/learning-parent-review-request-service");
 const { createLearningProgramPublishService } = require("../adapters/learning-program-publish-service");
 const { createLearningProgramRepository } = require("../adapters/learning-program-repository");
 const { createLearningProgramService } = require("../adapters/learning-program-service");
+const { createActionInboxService } = require("../adapters/action-inbox-service");
 const { createKanbanCaseTopicDeliveryService } = require("../adapters/kanban-case-topic-delivery-service");
 const { createMobileApiDispatcher } = require("./mobile-api-dispatcher");
 const { createOwnerElevationApiRoutes } = require("./owner-elevation-api-routes");
@@ -47,6 +54,15 @@ const { createWorkspaceApiRoutes } = require("./workspace-api-routes");
 
 function callBootTrace(deps, label) {
   if (typeof deps.bootTrace === "function") deps.bootTrace(label);
+}
+
+function boolEnabled(value, fallback = false) {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value === "boolean") return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
 }
 
 function createMobileApiComposition(deps = {}) {
@@ -340,6 +356,7 @@ function createMobileApiComposition(deps = {}) {
     compactMessage: deps.compactMessage,
     compactThread: deps.compactThread,
     compactThreadWithMessagePage: deps.compactThreadWithMessagePage,
+    ensureGroupChatThreadForWorkspace: (...args) => deps.getSingleWindowThreadService().ensureGroupChatThreadForWorkspace(...args),
     ensureSingleWindowThread: (...args) => deps.getSingleWindowThreadService().ensureSingleWindowThread(...args),
     ensureWeixinSingleWindowThread: (...args) => deps.getSingleWindowThreadService().ensureWeixinSingleWindowThread(...args),
     findGroupChatThreadForWorkspace: (...args) => deps.getSingleWindowThreadService().findGroupChatThreadForWorkspace(...args),
@@ -376,7 +393,23 @@ function createMobileApiComposition(deps = {}) {
     handleThreadMessageOwnerElevation: (...args) => deps.getThreadMessageRunRouteService().handleThreadMessageOwnerElevation(...args),
   });
 
+  const actionInboxService = deps.actionInboxService || createActionInboxService({
+    compactText: deps.compactText,
+    makeId: deps.makeId,
+    nowIso: deps.nowIso,
+    store: deps.mobileSqliteStore,
+  });
+  const actionInboxApiRoutes = createActionInboxApiRoutes({
+    actionInboxService,
+    broadcast: deps.broadcast,
+    readBody: deps.readBody,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "action inbox api routes ready");
+
   const todoApiRoutes = createTodoApiRoutes({
+    actionInboxService,
     boolParam: deps.boolParam,
     broadcast: deps.broadcast,
     clearKanbanCardListCache: deps.clearKanbanCardListCache,
@@ -431,10 +464,16 @@ function createMobileApiComposition(deps = {}) {
     saveAudioUpload: (...args) => deps.kanbanReadingWorkflowService.saveKanbanReadingAudioUpload(...args),
     transcribeAudio: (...args) => deps.kanbanReadingWorkflowService.transcribeKanbanReadingAudio(...args),
   });
+  let learningGrowthMasteryProfileService = null;
+  const learningGrowthMasteryProfileBridge = {
+    recordTaskEvidence: (...args) => learningGrowthMasteryProfileService?.recordTaskEvidence?.(...args),
+    projectForNextCard: (...args) => learningGrowthMasteryProfileService?.projectForNextCard?.(...args),
+  };
   const learningGrowthSequenceService = createLearningGrowthSequenceService({
     decisionReportService: learningGrowthJitDecisionReportService,
     getJitTaskService: () => learningGrowthJitTaskService,
     getLearningProgramService: () => learningProgramService,
+    masteryProfileService: learningGrowthMasteryProfileBridge,
     nowIso: deps.nowIso,
     reportDirectoryForCard: (workspaceId, taskCardId, task) => learningGrowthDirectoryMaterializationService.reportDirectoryForCard(workspaceId, taskCardId, task),
   });
@@ -446,11 +485,15 @@ function createMobileApiComposition(deps = {}) {
     kanbanCardProvider: deps.kanbanCardProvider,
     getLearningProgramService: () => learningProgramService,
     learningCoinService: deps.learningCoinService,
+    notifyEvaluationComplete: deps.webPushDeliveryService.notifyLearningGrowthEvaluationComplete,
+    notifyTaskComplete: deps.webPushDeliveryService.notifyLearningGrowthTaskComplete,
+    masteryProfileService: learningGrowthMasteryProfileBridge,
     reflectionService: learningGrowthReflectionService,
     saveSubmissionAudioUpload: (...args) => deps.kanbanReadingWorkflowService.saveKanbanReadingAudioUpload(...args),
     sequenceService: learningGrowthSequenceService,
     transcribeSubmissionAudio: (...args) => deps.kanbanReadingWorkflowService.transcribeKanbanReadingAudio(...args),
   });
+  learningGrowthSubmissionService.scheduleEvaluationQueue();
   const kanbanCaseTopicDeliveryService = createKanbanCaseTopicDeliveryService({
     broadcast: deps.broadcast,
     makeId: deps.makeId,
@@ -546,6 +589,9 @@ function createMobileApiComposition(deps = {}) {
     dataDir: deps.dataDir,
     dbPath: deps.learningProgramDbPath,
   });
+  learningGrowthMasteryProfileService = createLearningGrowthMasteryProfileService({
+    repository: learningProgramRepository,
+  });
   const learningGrowthJitTaskService = createLearningGrowthJitTaskService({
     extractJsonObject: deps.extractJsonObject,
     findWorkspace: deps.findWorkspace,
@@ -575,12 +621,25 @@ function createMobileApiComposition(deps = {}) {
     parentReviewRequestService: learningParentReviewRequestService,
     publishService: learningProgramPublishService,
     repository: learningProgramRepository,
+    requireLargeRewardReview: boolEnabled(deps.env?.HERMES_MOBILE_LEARNING_REQUIRE_LARGE_REWARD_REVIEW || deps.env?.HERMES_WEB_LEARNING_REQUIRE_LARGE_REWARD_REVIEW, false),
     requireModelForPlanDecomposition: true,
     requireModelForTaskSeriesRecommendation: true,
     sanitizePolicy: deps.sanitizePolicy,
   });
   const learningGrowthLegacyTodoTaskService = createLearningGrowthLegacyTodoTaskService({
     mobileStore: deps.mobileSqliteStore,
+  });
+  const learningGrowthExperienceSignalService = createLearningGrowthExperienceSignalService({
+    repository: learningProgramRepository,
+  });
+  const learningGrowthTeachingCheckService = createLearningGrowthTeachingCheckService({
+    experienceSignalService: learningGrowthExperienceSignalService,
+    learningProgramService,
+    repository: learningProgramRepository,
+  });
+  const learningGrowthStageAssessmentService = createLearningGrowthStageAssessmentService({
+    learningProgramService,
+    repository: learningProgramRepository,
   });
 
   const learningApiRoutes = createLearningApiRoutes({
@@ -599,6 +658,7 @@ function createMobileApiComposition(deps = {}) {
 
   const learningProgramApiRoutes = createLearningProgramApiRoutes({
     isOwnerAuth: deps.isOwnerAuth,
+    learningGrowthMasteryProfileService,
     learningGrowthSubmissionService,
     learningProgramService,
     maxUploadBytes: deps.maxUploadBytes,
@@ -608,6 +668,20 @@ function createMobileApiComposition(deps = {}) {
     sendJson: deps.sendJson,
   });
   callBootTrace(deps, "learning program api routes ready");
+
+  const learningGrowthCardApiRoutes = createLearningGrowthCardApiRoutes({
+    authCanAccessWorkspace: deps.authCanAccessWorkspace,
+    isOwnerAuth: deps.isOwnerAuth,
+    learningGrowthExperienceSignalService,
+    learningGrowthStageAssessmentService,
+    learningGrowthTeachingCheckService,
+    learningProgramService,
+    readBody: deps.readBody,
+    requireOwner: deps.requireOwner,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "learning growth card api routes ready");
 
   const learningParentReviewApiRoutes = createLearningParentReviewApiRoutes({
     learningParentReviewRequestService,
@@ -657,6 +731,7 @@ function createMobileApiComposition(deps = {}) {
 
   const mobileApiDispatcher = createMobileApiDispatcher({
     accessKeyApiRoutes,
+    actionInboxApiRoutes,
     attachClientVersionHeaders: deps.attachClientVersionHeaders,
     authenticateRequest: deps.authenticateRequest,
     automationApiRoutes,
@@ -671,6 +746,7 @@ function createMobileApiComposition(deps = {}) {
     kanbanStudyApiRoutes,
     learningApiRoutes,
     learningCoinApiRoutes,
+    learningGrowthCardApiRoutes,
     learningParentReviewApiRoutes,
     learningProgramApiRoutes,
     ownerElevationApiRoutes,
@@ -694,8 +770,16 @@ function createMobileApiComposition(deps = {}) {
   return {
     eventStreamApiRoutes,
     mobileApiDispatcher,
+    services: {
+      actionInboxService,
+      learningGrowthSubmissionService,
+      learningGrowthTeachingCheckService,
+      learningGrowthExperienceSignalService,
+      learningGrowthStageAssessmentService,
+    },
     routes: {
       accessKeyApiRoutes,
+      actionInboxApiRoutes,
       automationApiRoutes,
       directoryBrowserApiRoutes,
       directoryMutationApiRoutes,
@@ -706,6 +790,7 @@ function createMobileApiComposition(deps = {}) {
       kanbanStudyApiRoutes,
       learningApiRoutes,
       learningCoinApiRoutes,
+      learningGrowthCardApiRoutes,
       learningParentReviewApiRoutes,
       learningProgramApiRoutes,
       ownerElevationApiRoutes,

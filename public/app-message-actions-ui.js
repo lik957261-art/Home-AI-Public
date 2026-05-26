@@ -9,9 +9,26 @@ function isNearBottom(threshold = 96) {
   return conversationBottomOffset() < threshold;
 }
 
-function shouldStickConversationOnViewportChange() {
+function shouldForceChatStickToBottom() {
+  return isSingleWindowChatView()
+    && Date.now() >= Number(state.suppressChatAutoBottomUntil || 0)
+    && Date.now() < Number(state.forceChatStickToBottomUntil || 0);
+}
+
+function conversationViewportRefreshApplies() {
   if (isChatSearchMode()) return false;
   return isSingleWindowChatView() || isTaskDetailView();
+}
+
+function shouldStickConversationOnViewportChange() {
+  return conversationViewportRefreshApplies();
+}
+
+function shouldFollowConversationBottomDuringViewport() {
+  return shouldForceChatStickToBottom()
+    || Date.now() < Number(state.conversationViewportBottomFollowUntil || 0)
+    || state.conversationPinnedToBottom
+    || isNearBottom(180);
 }
 
 function scrollConversationToBottom() {
@@ -33,6 +50,98 @@ function scrollConversationToBottomSmooth() {
   }
   state.conversationPinnedToBottom = true;
   window.setTimeout(updateConversationJumpBottomButton, prefersReducedMotion() ? 0 : 260);
+}
+
+function repaintConversationAfterViewportChange(conversation) {
+  if (!conversation) return;
+  conversation.style.transform = "translateZ(0)";
+  void conversation.offsetHeight;
+  requestAnimationFrame(() => {
+    if (document.body.contains(conversation)) conversation.style.transform = "";
+  });
+}
+
+function resetConversationScrollLayer(conversation, pinned) {
+  if (!conversation || Date.now() > Number(state.conversationViewportLayerResetUntil || 0)) return;
+  if (conversation.dataset.viewportLayerResetting === "1") return;
+  const restoreTop = pinned
+    ? conversation.scrollHeight
+    : Math.max(0, Math.min(
+      Math.max(0, conversation.scrollHeight - conversation.clientHeight),
+      conversation.scrollTop
+    ));
+  conversation.dataset.viewportLayerResetting = "1";
+  conversation.classList.add("conversation-layer-reset");
+  conversation.style.webkitOverflowScrolling = "auto";
+  conversation.style.overflowY = "hidden";
+  conversation.scrollTop = restoreTop;
+  void conversation.offsetHeight;
+  requestAnimationFrame(() => {
+    if (!document.body.contains(conversation)) {
+      delete conversation.dataset.viewportLayerResetting;
+      return;
+    }
+    const maxTop = Math.max(0, conversation.scrollHeight - conversation.clientHeight);
+    const nudgedTop = pinned ? conversation.scrollHeight : Math.min(maxTop, restoreTop + 1);
+    conversation.scrollTop = nudgedTop;
+    void conversation.offsetHeight;
+    requestAnimationFrame(() => {
+      conversation.classList.remove("conversation-layer-reset");
+      conversation.style.webkitOverflowScrolling = "";
+      conversation.style.overflowY = "";
+      conversation.scrollTop = pinned ? conversation.scrollHeight : restoreTop;
+      delete conversation.dataset.viewportLayerResetting;
+      updateConversationJumpBottomButton();
+    });
+  });
+}
+
+function clearConversationViewportRefreshTimers() {
+  for (const timer of state.conversationViewportRefreshTimers || []) window.clearTimeout(timer);
+  state.conversationViewportRefreshTimers = [];
+  window.clearTimeout(state.conversationViewportRefreshTimer);
+  state.conversationViewportRefreshTimer = 0;
+}
+
+function scheduleConversationViewportRefresh(conversation = $("conversation"), options = {}) {
+  if (!conversation || !conversationViewportRefreshApplies()) return;
+  if (!conversation.querySelector("[data-message-id], .chat-history-pager, .empty-state")) return;
+  if (options.resetTimers !== false) clearConversationViewportRefreshTimers();
+  const orientationSettle = Boolean(options.orientationSettle);
+  const refresh = () => {
+    if (!conversationViewportRefreshApplies() || !document.body.contains(conversation)) return;
+    const top = conversation.scrollTop;
+    const maxTop = Math.max(0, conversation.scrollHeight - conversation.clientHeight);
+    const pinned = shouldFollowConversationBottomDuringViewport();
+    conversation.style.overflowAnchor = "none";
+    void conversation.offsetHeight;
+    if (pinned) {
+      conversation.scrollTop = conversation.scrollHeight;
+      state.conversationPinnedToBottom = true;
+    } else if (maxTop > 0) {
+      const clampedTop = Math.max(0, Math.min(maxTop, top));
+      conversation.scrollTop = Math.min(maxTop, clampedTop + 1);
+      conversation.scrollTop = clampedTop;
+    } else {
+      conversation.scrollTop = 0;
+    }
+    repaintConversationAfterViewportChange(conversation);
+    if (orientationSettle && Date.now() > Number(state.conversationViewportLayerResetDoneUntil || 0)) {
+      state.conversationViewportLayerResetDoneUntil = Date.now() + 1800;
+      resetConversationScrollLayer(conversation, pinned);
+    }
+    requestAnimationFrame(() => {
+      conversation.style.overflowAnchor = "";
+      updateConversationJumpBottomButton();
+    });
+  };
+  if (orientationSettle) {
+    state.conversationViewportRefreshTimers.push(window.setTimeout(refresh, 260));
+    state.conversationViewportRefreshTimers.push(window.setTimeout(refresh, 720));
+    return;
+  }
+  window.clearTimeout(state.conversationViewportRefreshTimer);
+  state.conversationViewportRefreshTimer = window.setTimeout(refresh, 160);
 }
 
 function conversationJumpBottomApplies() {
@@ -67,6 +176,7 @@ function wireConversationJumpBottomButton() {
 }
 
 function scheduleConversationBottomStick() {
+  if (Date.now() < Number(state.suppressChatAutoBottomUntil || 0)) return;
   window.clearTimeout(state.conversationBottomStickTimer);
   state.suppressConversationPinUntil = Date.now() + 700;
   const stick = () => {
@@ -82,6 +192,10 @@ function scheduleConversationBottomStick() {
 }
 
 function handleConversationScrollState() {
+  if (Date.now() < Number(state.conversationViewportSettleUntil || 0)) {
+    updateConversationJumpBottomButton();
+    return;
+  }
   if (Date.now() < state.suppressConversationPinUntil) return;
   state.conversationPinnedToBottom = isNearBottom();
   maybeLoadOlderChatMessages();
@@ -91,6 +205,7 @@ function handleConversationScrollState() {
 function maybeLoadOlderChatMessages() {
   const conversation = $("conversation");
   if (!conversation || !isSingleWindowChatView() || isChatSearchMode()) return;
+  if (shouldForceChatStickToBottom()) return;
   if (state.olderChatMessagesLoading) return;
   const page = state.currentThread?.messagesPage || {};
   if (page.hasMoreBefore === false) return;
@@ -117,15 +232,24 @@ async function loadOlderChatMessages() {
   }
 }
 
-function handleViewportLayoutChange() {
+function handleViewportLayoutChange(event = null) {
+  const type = String(event?.type || "");
+  const orientationEvent = type === "orientationchange" || type === "change";
+  if (orientationEvent && conversationViewportRefreshApplies()) {
+    state.conversationViewportSettleUntil = Date.now() + 900;
+    state.conversationViewportBottomFollowUntil = Date.now() + 1100;
+    state.conversationViewportLayerResetUntil = Date.now() + 1100;
+    state.conversationPinnedToBottom = true;
+  }
   updateKeyboardViewportMetrics();
   updateMobileBottomNavReservation();
   updateNavigationControls();
   refreshComposerContextSoon(0);
   scheduleMessageScrollButtonVisibility($("conversation"));
   updateConversationJumpBottomButton();
+  scheduleConversationViewportRefresh($("conversation"), { resetTimers: orientationEvent, orientationSettle: orientationEvent });
   if (!shouldStickConversationOnViewportChange()) return;
-  if (!state.conversationPinnedToBottom && !isNearBottom(160)) return;
+  if (!shouldFollowConversationBottomDuringViewport()) return;
   scheduleConversationBottomStick();
 }
 
@@ -168,6 +292,9 @@ function scrollMessageIntoView(messageId, position = "start") {
   const conversation = $("conversation");
   const target = messageElementById(messageId);
   if (!conversation || !target) return;
+  state.suppressChatAutoBottomUntil = Date.now() + 5000;
+  state.conversationPinnedToBottom = false;
+  window.clearTimeout(state.conversationBottomStickTimer);
   const conversationRect = conversation.getBoundingClientRect();
   const targetRect = target.getBoundingClientRect();
   const maxTop = Math.max(0, conversation.scrollHeight - conversation.clientHeight);
@@ -176,6 +303,7 @@ function scrollMessageIntoView(messageId, position = "start") {
     : conversation.scrollTop + targetRect.top - conversationRect.top - 8;
   const top = Math.max(0, Math.min(maxTop, rawTop));
   conversation.scrollTo({ top, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  window.setTimeout(updateConversationJumpBottomButton, prefersReducedMotion() ? 0 : 260);
 }
 
 function renderMessageScrollButton(message, position) {
@@ -291,6 +419,24 @@ function activateTopNavButton() {
   }
   if (isAutomationDetailView()) {
     openAutomationList();
+    return;
+  }
+  if (typeof automationSecondaryReturnActive === "function" && automationSecondaryReturnActive()) {
+    closeAutomationSecondarySurface();
+    return;
+  }
+  if (isActionInboxDetailView() || isActionInboxCreateView()) {
+    openActionInboxOverview();
+    return;
+  }
+  if (state.viewMode === "learning" && state.learningGrowthSettingsOpen) {
+    closeLearningGrowthSettingsPage();
+    return;
+  }
+  if (state.viewMode === "learning" && state.selectedLearningTaskCardId) {
+    state.selectedLearningTaskCardId = "";
+    state.learningGrowthSettingsOpen = false;
+    renderLearningCoinsView();
     return;
   }
   if (state.viewMode === "projects" && directoryActivePath()) {
@@ -438,9 +584,9 @@ function wireArtifactWeixinButtons(root) {
   });
 }
 
-function positionUsagePanel(details) {
+function positionMessageFooterPanel(details, panelSelector) {
   if (!details?.open) return;
-  const panel = details.querySelector(".usage-details");
+  const panel = details.querySelector(panelSelector);
   if (!panel) return;
   panel.style.setProperty("--usage-panel-shift", "0px");
   requestAnimationFrame(() => {
@@ -456,30 +602,62 @@ function positionUsagePanel(details) {
   });
 }
 
+function positionUsagePanel(details) {
+  positionMessageFooterPanel(details, ".usage-details");
+}
+
+function positionMessageSkillPanel(details) {
+  positionMessageFooterPanel(details, ".message-skill-details");
+}
+
 function closeOpenUsagePanels(root = document) {
   root.querySelectorAll?.(".usage[open]")?.forEach((details) => {
     details.open = false;
   });
 }
 
-function wireUsageOutsideDismiss() {
-  if (document.documentElement.dataset.usageOutsideDismissBound) return;
-  document.documentElement.dataset.usageOutsideDismissBound = "1";
+function closeOpenMessageSkillPanels(root = document) {
+  root.querySelectorAll?.(".message-skills[open]")?.forEach((details) => {
+    details.open = false;
+  });
+}
+
+function wireMessageFooterPopupDismiss() {
+  if (document.documentElement.dataset.messageFooterPopupDismissBound) return;
+  document.documentElement.dataset.messageFooterPopupDismissBound = "1";
   document.addEventListener("pointerdown", (event) => {
-    if (event.target?.closest?.(".usage")) return;
+    if (event.target?.closest?.(".usage, .message-skills")) return;
     closeOpenUsagePanels();
+    closeOpenMessageSkillPanels();
   }, { capture: true });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeOpenUsagePanels();
+    if (event.key !== "Escape") return;
+    closeOpenUsagePanels();
+    closeOpenMessageSkillPanels();
   });
 }
 
 function wireUsagePanels(root) {
-  wireUsageOutsideDismiss();
+  wireMessageFooterPopupDismiss();
   root?.querySelectorAll?.(".usage").forEach((details) => {
     if (details.dataset.boundUsagePanel) return;
     details.dataset.boundUsagePanel = "1";
-    details.addEventListener("toggle", () => positionUsagePanel(details));
+    details.addEventListener("toggle", () => {
+      if (details.open) closeOpenMessageSkillPanels();
+      positionUsagePanel(details);
+    });
+  });
+}
+
+function wireMessageSkillPanels(root) {
+  wireMessageFooterPopupDismiss();
+  root?.querySelectorAll?.(".message-skills").forEach((details) => {
+    if (details.dataset.boundSkillPanel) return;
+    details.dataset.boundSkillPanel = "1";
+    details.addEventListener("toggle", () => {
+      if (details.open) closeOpenUsagePanels();
+      positionMessageSkillPanel(details);
+    });
   });
 }
 
@@ -490,7 +668,7 @@ function updateMessageScrollButtonVisibility(root) {
   root.querySelectorAll(".message[data-message-id]").forEach((article) => {
     const messageHeight = article.getBoundingClientRect().height || article.offsetHeight || 0;
     const wasShown = article.dataset.messageScrollButtonVisible === "1";
-    const hasRunProgress = Boolean(article.querySelector(".run-progress-panel.inline"));
+    const hasRunProgress = Boolean(article.querySelector(".run-progress-panel.inline:not(.terminal)"));
     const showThreshold = Math.max(420, viewportHeight - 28);
     const hideThreshold = Math.max(360, viewportHeight - 140);
     const shouldShow = viewportHeight > 0 && !hasRunProgress && (

@@ -69,6 +69,35 @@ function service(options = {}) {
 }
 
 {
+  const topicContextService = {
+    readTopicContext() {
+      return {
+        summary: { summaryVersion: 2, objective: "Keep durable topic context.", currentState: "Summary exists.", sourceRefs: ["message:m1"] },
+        workingState: { status: "active", activeTask: "Context assembly", currentStep: "Build layered history.", sourceRefs: ["message:m2"] },
+        refs: [],
+      };
+    },
+  };
+  const history = service({ contextAssemblyMode: "layered", topicContextService, contextAssemblyNormalRecentMessages: 2 });
+  const thread = {
+    singleWindow: true,
+    messages: [
+      { id: "m1", role: "user", taskGroupId: "chat-main", senderLabel: "A", content: "first" },
+      { id: "m2", role: "assistant", taskGroupId: "chat-main", content: "second" },
+      { id: "m3", role: "user", taskGroupId: "chat-main", content: "latest" },
+    ],
+  };
+  const out = history.buildConversationHistory(thread, "m3", {});
+  assert.match(out[0].content, /Hermes topic summary/);
+  assert.match(out[1].content, /Hermes working state/);
+  assert.deepEqual(out.slice(-2), [
+    { role: "user", content: "A: first" },
+    { role: "assistant", content: "second" },
+  ]);
+  assert.equal(history.contextAssemblyDebug().summaryVersion, 2);
+}
+
+{
   const history = service();
   const thread = {
     singleWindow: false,

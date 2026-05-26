@@ -67,6 +67,7 @@ function stripFutureGeneratedInstruction(task = {}, sequenceIndex = 0) {
     delete taskModel.learnerInstruction;
     delete taskModel.instruction;
     delete taskModel.jitGeneration;
+    delete taskModel.teachingFlow;
   }
   const stripped = Object.assign({}, task, {
     sequenceIndex,
@@ -80,6 +81,7 @@ function stripFutureGeneratedInstruction(task = {}, sequenceIndex = 0) {
   delete stripped.prompt;
   delete stripped.taskPrompt;
   delete stripped.instructions;
+  delete stripped.teachingFlow;
   return stripped;
 }
 
@@ -144,6 +146,16 @@ async function learningGrowthKanbanCards(program = {}, draft = {}, options = {})
         taskCardType: cleanString(task.taskCardType),
         interactionStateMachine: asArray(task.interactionStateMachine).map(cleanString).filter(Boolean),
         taskModel: task.taskModel && typeof task.taskModel === "object" ? task.taskModel : null,
+        cardRole: cleanString(task.cardRole),
+        completionPolicy: task.completionPolicy && typeof task.completionPolicy === "object" ? task.completionPolicy : null,
+        masteryEvidenceWeight: Number(task.masteryEvidenceWeight || 0) || 0,
+        capabilityClusterId: cleanString(task.capabilityClusterId),
+        defaultRewardCoins: Number(task.defaultRewardCoins || 0) || 0,
+        configuredRewardCoins: Number(task.configuredRewardCoins || 0) || 0,
+        expectedDurationMinutes: task.expectedDurationMinutes && typeof task.expectedDurationMinutes === "object" ? task.expectedDurationMinutes : null,
+        stageAssessment: task.stageAssessment && typeof task.stageAssessment === "object" ? task.stageAssessment : null,
+        teachingFlow: task.teachingFlow && typeof task.teachingFlow === "object" ? task.teachingFlow : null,
+        experienceSummary: task.experienceSummary && typeof task.experienceSummary === "object" ? task.experienceSummary : null,
         cardCreationSkillId: cleanString(task.cardCreationSkillId) || LEARNING_GROWTH_CARD_CREATION_SKILL_ID,
         title,
         day: Number(day.dayIndex || dayOffset + 1) || dayOffset + 1,

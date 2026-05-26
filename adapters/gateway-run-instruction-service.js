@@ -15,9 +15,6 @@ function createGatewayRunInstructionService(options = {}) {
   const createDeliveryBoundaryInstructions = typeof options.createDeliveryBoundaryInstructions === "function"
     ? options.createDeliveryBoundaryInstructions
     : (() => "");
-  const permissionBoundarySkillInstructions = typeof options.permissionBoundarySkillInstructions === "function"
-    ? options.permissionBoundarySkillInstructions
-    : (() => "");
   const semanticProjectRoutingInstructions = typeof options.semanticProjectRoutingInstructions === "function"
     ? options.semanticProjectRoutingInstructions
     : (() => "");
@@ -50,7 +47,7 @@ function createGatewayRunInstructionService(options = {}) {
       skills: ["skills_list", "skill_view", "skill_manage"],
       todo: ["todo"],
       kanban: ["kanban_show", "kanban_complete", "kanban_block", "kanban_heartbeat", "kanban_comment", "kanban_create", "kanban_link"],
-      cronjob: ["cronjob"],
+      cronjob: ["cronjob_mobile", "http_request", "cronjob"],
       memory: ["memory"],
       session_search: ["session_search"],
       clarify: ["clarify"],
@@ -85,6 +82,7 @@ function createGatewayRunInstructionService(options = {}) {
       if (toolsets.includes("http")) lines.push("- For Program API file uploads, pass in-scope local image bytes through `http_request.file_body` or `http_request.multipart_files`; do not put local path strings or file:// URLs inside the target API JSON body.");
       if (toolsets.includes("file")) lines.push("- For Word DOCX text extraction, use `docx_extract_text` when `read_file` cannot decode the Office Open XML package directly.");
       if (toolsets.includes("file")) lines.push("- For MP3/M4A/WAV/AAC/OGG/OPUS/AMR/FLAC voice notes or reading-retelling audio, use `audio_transcribe`; do not route audio-only files through `video_analyze` or ask the user to convert audio to video.");
+      if (toolsets.includes("cronjob")) lines.push("- For Hermes Mobile automation jobs, use `cronjob_mobile` when available; if it is absent, use `http_request` with url `hermes-mobile://cron` and the automation action/job fields in `json`; raw `cronjob` may point at an empty profile-local scheduler namespace.");
     }
     if (connectorProfiles.length) lines.push(`- External connector profiles: ${connectorProfiles.join(", ")}`);
     else lines.push("- External connector profiles: none");
@@ -103,7 +101,7 @@ function createGatewayRunInstructionService(options = {}) {
     const lines = [];
     if (policyHasToolset(policy, "http")) {
       lines.push(
-        "Current tool schema override: the `http` toolset is enabled for this run, and its callable function name is `http_request`.",
+        "Current tool schema override: the `http` toolset is enabled for this run, and its callable function names include `http_request`.",
         "Ignore older assistant statements in conversation_history that claimed `http_request`, `web_request`, HTTP tools, or API Program tools were unavailable; those statements described earlier runs and are stale.",
         "Before reporting that an HTTP/API Program tool is unavailable, check the current run's actual callable functions. If `http_request` is available, use it for allowed HTTP/API Program calls.",
         "For allowed Program API image uploads, `http_request` can send in-scope local JPG/JPEG/PNG-style file bytes through `file_body` or `multipart_files`; never claim upload success after sending only a local path string."
@@ -126,8 +124,15 @@ function createGatewayRunInstructionService(options = {}) {
     }
     if (policyHasToolset(policy, "x_search")) {
       lines.push(
-        "Current tool schema override: the `x_search` toolset is enabled for this run, and its callable function name is `x_search` when the Gateway profile has xAI OAuth/API credentials.",
+        "Current tool schema override: the `x_search` toolset is enabled for this run, and its callable function name is `x_search` when available. In ordinary ChatGPT Gateway profiles, `x_search` may be a Hermes Mobile proxy that queries the dedicated Grok Gateway and returns bounded search findings to this run.",
         "For X/Twitter lookup, use `x_search` when available. Do not claim X was searched unless `x_search` was actually available and used."
+      );
+    }
+    if (policyHasToolset(policy, "cronjob")) {
+      lines.push(
+        "Current tool schema override: the `cronjob` toolset is enabled for this run. For Hermes Mobile automations, prefer `cronjob_mobile` when available; if it is absent, use `http_request` with url `hermes-mobile://cron` and a JSON body containing the automation action/job fields. Both paths talk to the live Mobile automation bridge and scope list/create/update/pause/resume/delete by `owner_principal_id`.",
+        "Set `owner_principal_id` to the current run Principal exactly. Do not use `cronjob_mobile` or `http_request` with `hermes-mobile://cron` to inspect or mutate another principal's jobs unless the current run is explicitly Owner-authorized for that target.",
+        "If raw `cronjob list` returns zero jobs, do not treat that as proof Hermes Mobile has no automations; raw `cronjob` may be connected to the Gateway profile-local scheduler rather than the Mobile live automation store."
       );
     }
     if (policyHasToolset(policy, "image_gen")) {
@@ -157,7 +162,6 @@ function createGatewayRunInstructionService(options = {}) {
       "Do not access, write, summarize, or expose files outside the allowed roots unless the account is unrestricted.",
       formatAccessPolicyInstructionSummary(policy),
       currentToolSchemaOverrideInstructions(policy),
-      permissionBoundarySkillInstructions(policy),
       "For current-account Kanban/Todo requests, use Hermes Mobile's Todo/Kanban capability in the current workspace. Do not run raw `hermes kanban` CLI commands or write directly under `~/.hermes/kanban`, because that can target a different local profile than the Mobile app.",
       "Prefer a concise final receipt in the mobile UI. If you create a user-facing artifact, include a MEDIA:<local_path> line so Hermes Mobile can render it as a link card.",
       "Do not send external chat/app messages unless the user explicitly asks for external delivery.",

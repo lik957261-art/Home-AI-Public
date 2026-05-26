@@ -7,6 +7,13 @@ const {
   findRunTargetInState,
 } = require("../adapters/gateway-run-event-service");
 
+const DEFAULT_RESPONSE_SKILL = {
+  id: "response-grounding-baseline",
+  label: "response-grounding-baseline",
+  path: "response-grounding-baseline",
+  namespace: "",
+};
+
 function makeHarness(overrides = {}) {
   const thread = {
     id: "thread_1",
@@ -42,6 +49,7 @@ function makeHarness(overrides = {}) {
   const calls = {
     broadcasts: [],
     enqueued: [],
+    compacted: [],
     notified: [],
     scheduled: [],
     saved: 0,
@@ -79,6 +87,9 @@ function makeHarness(overrides = {}) {
     enqueueExternalDeliveryForTerminalMessage: (item, message, status) => calls.enqueued.push({ threadId: item.id, messageId: message.id, status }),
     notifyTaskTerminal: (item, message, status) => calls.notified.push({ threadId: item.id, messageId: message.id, status }),
     scheduleNextQueuedRunForTaskGroup: (item, taskGroupId) => calls.scheduled.push({ threadId: item.id, taskGroupId }),
+    topicContextCompactionService: {
+      compactTaskGroup: (item, taskGroupId, options) => calls.compacted.push({ threadId: item.id, taskGroupId, reason: options.reason }),
+    },
   }, overrides));
   return { activeStreams, calls, message: thread.messages[1], service, state, thread };
 }
@@ -112,6 +123,8 @@ function testResponseCreatedAliasesRunAndBroadcasts() {
 
   assert.equal(result.action, "response_created");
   assert.equal(message.runId, "real_response");
+  assert.equal(message.originalRunId, "public_run");
+  assert.equal(message.responseRunId, "real_response");
   assert.equal(thread.activeRunId, "real_response");
   assert.deepEqual(thread.activeRunIds, ["real_response"]);
   assert.equal(activeStreams.get("real_response"), activeStreams.get("public_run"));
@@ -187,6 +200,7 @@ function testCompletedRunMutatesTerminalStateAndSchedulesQueue() {
   assert.deepEqual(calls.enqueued, [{ threadId: "thread_1", messageId: "assistant_1", status: "done" }]);
   assert.deepEqual(calls.notified, [{ threadId: "thread_1", messageId: "assistant_1", status: "done" }]);
   assert.deepEqual(calls.scheduled, [{ threadId: "thread_1", taskGroupId: "chat" }]);
+  assert.deepEqual(calls.compacted, [{ threadId: "thread_1", taskGroupId: "chat", reason: "run-completed" }]);
   assert.equal(calls.broadcasts.some((payload) => payload.type === "run.completed"), true);
 }
 
@@ -218,7 +232,7 @@ function testCompletedRunPersistsLoadedSkillReferences() {
   });
 
   assert.equal(result.action, "completed");
-  assert.deepEqual(message.loadedSkills, [{
+  assert.deepEqual(message.loadedSkills, [DEFAULT_RESPONSE_SKILL, {
     id: "write",
     label: "write",
     path: "productivity/write",
@@ -253,7 +267,7 @@ function testOutputItemSkillPersistsBeforeCompletionAndSurvivesEventTrim() {
     output: "Final",
   });
 
-  assert.deepEqual(message.loadedSkills, [{
+  assert.deepEqual(message.loadedSkills, [DEFAULT_RESPONSE_SKILL, {
     id: "write",
     label: "write",
     path: "productivity/write",
@@ -277,12 +291,67 @@ function testCompletedResponseOutputBackfillsLoadedSkillReferences() {
     },
   });
 
-  assert.deepEqual(message.loadedSkills, [{
+  assert.deepEqual(message.loadedSkills, [DEFAULT_RESPONSE_SKILL, {
     id: "english-weekly-challenge",
     label: "english-weekly-challenge",
     path: "study-templates/english-weekly-challenge",
     namespace: "study-templates",
   }]);
+}
+
+function testCompletedRunBackfillsDefaultResponseSkillAndTools() {
+  const { message, service } = makeHarness();
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: {
+      type: "function_call",
+      name: "x_search",
+      call_id: "call_1",
+    },
+  });
+  service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      usage: { input_tokens: 1, output_tokens: 2 },
+      output: [
+        { type: "function_call", name: "x_search", call_id: "call_1" },
+        { type: "message", content: [{ type: "output_text", text: "Final" }] },
+      ],
+    },
+  });
+
+  assert.deepEqual(message.loadedSkills, [DEFAULT_RESPONSE_SKILL]);
+  assert.deepEqual(message.loadedTools, [{ id: "x_search", name: "x_search", label: "x_search" }]);
+}
+
+function testHostedSearchOutputItemBackfillsToolTag() {
+  const { message, service } = makeHarness();
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: {
+      type: "web_search_call",
+      id: "search_1",
+    },
+  });
+  service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      usage: { input_tokens: 1, output_tokens: 2 },
+      output: [
+        { type: "web_search_call", id: "search_1" },
+        { type: "message", content: [{ type: "output_text", text: "Final" }] },
+      ],
+    },
+  });
+
+  assert.deepEqual(message.loadedSkills, [DEFAULT_RESPONSE_SKILL]);
+  assert.deepEqual(message.loadedTools, [{ id: "web_search_call", name: "web_search_call", label: "web_search_call" }]);
 }
 
 function testCompletedRunUsageKeepsRequestedModelMetadata() {
@@ -461,6 +530,8 @@ testCompletedRunMutatesTerminalStateAndSchedulesQueue();
 testCompletedRunPersistsLoadedSkillReferences();
 testOutputItemSkillPersistsBeforeCompletionAndSurvivesEventTrim();
 testCompletedResponseOutputBackfillsLoadedSkillReferences();
+testCompletedRunBackfillsDefaultResponseSkillAndTools();
+testHostedSearchOutputItemBackfillsToolTag();
 testCompletedRunUsageKeepsRequestedModelMetadata();
 testOutputItemEventsStoreReadableSummariesOnly();
 testOutputItemEventsUseAliasedResponseRunId();

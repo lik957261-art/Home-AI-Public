@@ -66,6 +66,16 @@ async function testStreamResponsesPreservesEvents() {
   ]);
 }
 
+async function testStreamResponsesEmitsJsonResponse() {
+  const events = [];
+  const runner = createGatewayRunner({
+    apiBase: "http://gateway.example.test",
+    fetchImpl: async () => jsonResponse({ output_text: "{\"ok\":true}" }),
+  });
+  await runner.streamResponses({ input: "hello", stream: false }, { onEvent: (event) => events.push(event) });
+  assert.deepEqual(events, [{ output_text: "{\"ok\":true}" }]);
+}
+
 async function testRunOperationsUseGatewayOverride() {
   const urls = [];
   const auth = [];
@@ -98,6 +108,7 @@ function testParseSseFrame() {
   await testRequestAddsAuthAndJsonBody();
   await testStatusToleratesMissingCapabilities();
   await testStreamResponsesPreservesEvents();
+  await testStreamResponsesEmitsJsonResponse();
   await testRunOperationsUseGatewayOverride();
   console.log("gateway-runner tests passed");
 })().catch((err) => {

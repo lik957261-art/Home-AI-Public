@@ -295,6 +295,7 @@ async function main() {
       "mail",
       "web",
       "search",
+      "x_search",
       "http",
       "weather",
       "browser",

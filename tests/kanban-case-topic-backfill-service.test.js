@@ -38,6 +38,7 @@ async function testBackfillsMissingAssessmentPlanTopicAndDeliveries() {
 
   const result = await service.backfillCaseTopics({
     workspaceId: "learner",
+    caseModes: ["assessment-plan"],
     cards: [
       {
         id: "card-1",
@@ -99,6 +100,7 @@ async function testExistingTopicOnlySyncsCompletedCards() {
 
   const result = await service.backfillCaseTopics({
     workspaceId: "learner",
+    caseModes: ["study-plan"],
     cards: [{
       id: "card-1",
       content: "Writing",
@@ -143,6 +145,7 @@ async function testDryRunDoesNotMutate() {
 
   const result = await service.backfillCaseTopics({
     workspaceId: "learner",
+    caseModes: ["study-plan"],
     dryRun: true,
     cards: [{
       id: "card-1",
@@ -164,6 +167,33 @@ async function testDryRunDoesNotMutate() {
   assert.deepEqual(calls.delivery, []);
 }
 
+async function testDefaultDoesNotBackfillCaseTopics() {
+  const calls = { ensureTopic: [] };
+  const service = createKanbanCaseTopicBackfillService({
+    ensureKanbanCaseTopicThread(...args) {
+      calls.ensureTopic.push(args);
+      return { thread: { id: "thread" }, taskGroupId: "case_case" };
+    },
+  });
+
+  const result = await service.backfillCaseTopics({
+    workspaceId: "learner",
+    cards: [{
+      id: "card-1",
+      kanbanCaseId: "case-1",
+      kanbanCaseMode: "study-plan",
+      kanbanCaseSummary: "Learner A: Reading",
+      kanbanCaseCardId: "c1",
+      kanbanCaseCardIndex: 1,
+      kanbanCaseCardCount: 1,
+    }],
+  });
+
+  assert.equal(result.caseCount, 0);
+  assert.equal(result.patchedCardCount, 0);
+  assert.deepEqual(calls.ensureTopic, []);
+}
+
 assert.deepEqual(splitLearnerTitle("Learner A: AMC 8"), {
   learnerName: "Learner A",
   contentTitle: "AMC 8",
@@ -173,4 +203,5 @@ Promise.resolve()
   .then(testBackfillsMissingAssessmentPlanTopicAndDeliveries)
   .then(testExistingTopicOnlySyncsCompletedCards)
   .then(testDryRunDoesNotMutate)
+  .then(testDefaultDoesNotBackfillCaseTopics)
   .then(() => console.log("kanban-case-topic-backfill-service tests passed"));

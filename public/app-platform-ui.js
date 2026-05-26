@@ -13,7 +13,6 @@ const hermesApiClient = AppApiClient.createApiClient({
 async function api(path, options = {}) {
   return hermesApiClient(path, options);
 }
-
 function clearStoredAccessKey() {
   state.key = "";
   localStorage.removeItem("hermesWebKey");
@@ -26,6 +25,16 @@ function storeAccessKey(key) {
   state.key = value;
   localStorage.setItem("hermesWebKey", value);
   document.cookie = `hermes_web_key=${encodeURIComponent(value)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+}
+
+function logoutCurrentAccount() {
+  if (!window.confirm("\u9000\u51fa\u5f53\u524d\u8d26\u53f7\uff1f\u672c\u673a\u5c06\u6e05\u9664\u5df2\u4fdd\u5b58\u7684 Access Key\uff0c\u4e0d\u4f1a\u64a4\u9500\u670d\u52a1\u5668\u4e0a\u7684 key\u3002")) return;
+  closeTopMoreMenu?.();
+  closeSidebar?.();
+  state.settingsOpen = false;
+  state.auth = null; state.workspaces = [];
+  clearStoredAccessKey();
+  showLogin("\u5df2\u9000\u51fa\u8d26\u53f7\uff0c\u8bf7\u91cd\u65b0\u8f93\u5165 Access Key\u3002");
 }
 
 function handleClientVersionFromResponse(response) {
@@ -52,7 +61,6 @@ function showBootSplash(message = "正在载入工作区") {
 function hideBootSplash() {
   $("bootSplash")?.classList.add("hidden");
 }
-
 async function hasCookieSession() {
   const res = await fetch("/api/status", { cache: "no-store" });
   return res.status !== 401;
@@ -89,8 +97,7 @@ function renderSetup() {
   if (error) error.textContent = state.setupError || "";
   const result = $("setupResult");
   const key = $("setupKey");
-  if (result) result.hidden = !state.setupOwnerKey;
-  if (key) key.textContent = state.setupOwnerKey || "";
+  if (result) result.hidden = !state.setupOwnerKey; if (key) key.textContent = state.setupOwnerKey || "";
   const submit = $("setupSubmit");
   if (submit) submit.hidden = Boolean(state.setupOwnerKey);
 }
@@ -154,6 +161,7 @@ async function bootstrap() {
 
 function normalizedRouteView(value, fallback = "") {
   const view = String(value || "").trim().toLowerCase();
+  if (view === "inbox" || view === "action-inbox" || view === "actions") return "inbox";
   if (view === "automation" || view === "automations" || view === "cron") return "automation";
   if (view === "learning" || view === "coins" || view === "rewards" || view === "redeem") return "learning";
   if (view === "todo" || view === "todos") return "todos";
@@ -173,9 +181,8 @@ function sameOriginRouteUrl(value) {
 }
 
 function applyRouteParams(params) {
-  const automationId = String(params.get("automationId") || "").trim();
-  const todoId = String(params.get("todoId") || "").trim();
-  const taskCardId = String(params.get("taskCardId") || "").trim();
+  const automationId = String(params.get("automationId") || "").trim(); const inboxItemId = String(params.get("inboxItemId") || params.get("actionInboxItemId") || "").trim();
+  const todoId = String(params.get("todoId") || "").trim(); const taskCardId = String(params.get("taskCardId") || "").trim();
   const taskGroupId = String(params.get("taskGroupId") || params.get("taskId") || "").trim();
   const messageId = String(params.get("messageId") || "").trim();
   const projectId = String(params.get("projectId") || "").trim();
@@ -186,7 +193,7 @@ function applyRouteParams(params) {
   const assessmentExamRequested = ["1", "true", "yes"].includes(String(params.get("assessmentExam") || params.get("assessment_exam") || "").trim().toLowerCase());
   const weixinChatRequested = ["1", "true", "yes"].includes(String(params.get("weixinChat") || params.get("weixin_chat") || "").trim().toLowerCase());
   const groupChatRequested = ["1", "true", "yes"].includes(String(params.get("groupChat") || params.get("group_chat") || "").trim().toLowerCase());
-  let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), automationId ? "automation" : taskCardId ? "learning" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : "");
+  let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), inboxItemId ? "inbox" : automationId ? "automation" : taskCardId ? "learning" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : "");
   const workspaceId = String(params.get("workspaceId") || "").trim();
   if (workspaceId && routeView === "learning" && taskCardId) {
     setLearningGrowthLearnerWorkspaceId(workspaceId);
@@ -198,14 +205,13 @@ function applyRouteParams(params) {
   if (routeView) {
     state.viewMode = routeView;
     localStorage.setItem("hermesWebViewMode", routeView);
-    state.currentTaskGroupId = "";
-    state.currentThread = null;
-    state.currentThreadId = "";
+    Object.assign(state, { currentTaskGroupId: "", currentThread: null, currentThreadId: "" });
   }
   if (routeView === "automation" && automationId) {
-    state.selectedAutomationId = automationId;
-    state.automationOutputHistoryOpen = false;
+    Object.assign(state, { selectedAutomationId: automationId, automationRouteTargetId: automationId, automationRouteTargetPending: true, automationOutputHistoryOpen: false, automationCreateOpen: false, automationEditOpen: false, automationEditJobId: "" });
+    if ($("threadSearch")) $("threadSearch").value = "";
   }
+  if (routeView === "inbox" && inboxItemId) { Object.assign(state, { selectedActionInboxItemId: inboxItemId, actionInboxDetail: null }); if ($("threadSearch")) $("threadSearch").value = ""; }
   if (routeView === "todos" && todoId) {
     state.selectedTodoId = todoId;
     state.todoRouteMissingTargetId = "";
@@ -260,7 +266,7 @@ function applyRouteParams(params) {
       localStorage.setItem("hermesWebWeixinChatOpen", "0");
     }
   }
-  return Boolean(routeView || automationId || todoId || taskGroupId || groupChatRequested || weixinChatRequested || readingQuizRequested || assessmentExamRequested);
+  return Boolean(routeView || inboxItemId || automationId || todoId || taskGroupId || groupChatRequested || weixinChatRequested || readingQuizRequested || assessmentExamRequested);
 }
 
 function applyRouteFromUrl(value) {
@@ -296,6 +302,9 @@ async function openNotificationRoute(value) {
   if (!applyRouteParams(new URLSearchParams(parsed.search || ""))) return;
   suppressComposerAutoFocus(1200);
   blurComposerInput();
+  try {
+    window.TaskDocumentPreviewUi?.closeArtifactPreviewOverlays?.();
+  } catch (_) {}
   closeSidebar();
   closeTopMoreMenu();
   try {
@@ -676,7 +685,7 @@ async function activateOwnerElevationOnce(options = {}) {
   if (options.confirm !== false) {
     const ok = await openOwnerElevationApprovalDialog({
       title: "Owner Approval",
-      message: "Approve high-privilege Gateway routing for this message only? The approval is consumed after this send.",
+      message: options.message || "Approve high-privilege Gateway routing for this message only? The approval is consumed after this send.",
     });
     if (!ok) return false;
   }

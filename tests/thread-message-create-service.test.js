@@ -417,6 +417,27 @@ function testGrokModelRouteRequiresXaiGatewayProvider() {
   assert.equal(calls.gatewayRouting[0].body.provider, "xai-oauth");
 }
 
+function testNaturalLanguageGrokRouteOverridesDefaultChatGptModel() {
+  const { calls, service } = makeHarness();
+  const plan = service.prepareThreadMessageCreate({
+    thread: baseThread(),
+    body: {
+      text: "请使用 Grok 回答这个问题",
+      model: "gpt-5.5",
+      provider: "openai-codex",
+    },
+    auth: { owner: true, workspaces: ["owner"] },
+  });
+
+  assert.equal(plan.nextAction, "start-run");
+  assert.equal(plan.runOptions.model, "grok-4.3");
+  assert.equal(plan.runOptions.provider, "xai-oauth");
+  assert.equal(plan.runOptions.gatewayRouting.provider, "xai-oauth");
+  assert.deepEqual(plan.runOptions.gatewayRouting.preferred_worker_profiles, ["grokgw1"]);
+  assert.equal(calls.gatewayRouting[0].body.model, "grok-4.3");
+  assert.equal(calls.gatewayRouting[0].body.provider, "xai-oauth");
+}
+
 function testSearchSourceRunOptions() {
   const { calls, service } = makeHarness();
   const plan = service.prepareThreadMessageCreate({
@@ -444,9 +465,28 @@ function testSearchSourceRunOptions() {
   assert.equal(plan.runOptions.sourceIntent, "x_search");
   assert.equal(plan.runOptions.sourceMode, "manual");
   assert.match(plan.runOptions.instructions, /Source selected.*X search/);
+  assert.equal(plan.runOptions.provider || "", "");
+  assert.equal(plan.runOptions.gatewayRouting.provider || "", "");
   assert.equal(calls.gatewayRouting[0].body.searchSource, "x");
   assert.equal(calls.gatewayRouting[0].body.sourceIntent, "x_search");
   assert.equal(calls.gatewayRouting[0].body.sourceMode, "manual");
+
+  const natural = service.prepareThreadMessageCreate({
+    thread: baseThread(),
+    body: {
+      text: "\u8bf7\u5728 X \u4e0a\u641c\u6700\u65b0\u8ba8\u8bba",
+      model: "gpt-5.5",
+      provider: "openai-codex",
+    },
+    auth: {},
+  });
+  assert.equal(natural.ok, true);
+  assert.equal(natural.searchSource.source, "x");
+  assert.equal(natural.searchSource.sourceMode, "auto");
+  assert.equal(natural.runOptions.model, "gpt-5.5");
+  assert.equal(natural.runOptions.provider, "openai-codex");
+  assert.equal(natural.runOptions.gatewayRouting.provider, "openai-codex");
+  assert.match(natural.runOptions.instructions, /Hermes Mobile proxy/);
 }
 
 async function testQueuedChatRunSkipsConcurrencyAndStart() {
@@ -503,6 +543,7 @@ function testConcurrencyErrorBeforeStateMutation() {
   testDirectCreateRoutingAndPayloads();
   await testRunOptionsAndDispatchHooks();
   testGrokModelRouteRequiresXaiGatewayProvider();
+  testNaturalLanguageGrokRouteOverridesDefaultChatGptModel();
   testSearchSourceRunOptions();
   await testQueuedChatRunSkipsConcurrencyAndStart();
   testConcurrencyErrorBeforeStateMutation();

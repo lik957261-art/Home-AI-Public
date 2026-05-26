@@ -53,12 +53,20 @@ async function run() {
   try {
     const skillDir = path.join(root, "study-templates", "demo-skill");
     fs.mkdirSync(skillDir, { recursive: true });
-    fs.writeFileSync(path.join(skillDir, "SKILL.md"), "# Demo Skill\n\nBody", "utf8");
+    fs.writeFileSync(path.join(skillDir, "SKILL.md"), `---
+creatorWorkspaceId: owner
+---
+
+# Demo Skill
+
+Body`, "utf8");
     const direct = createDirectSkillResolver({ skillRoots: [root] });
-    const directDetail = direct.detail("study-templates/demo-skill");
+    const directDetail = direct.detail("study-templates/demo-skill", { auth: { ok: true, workspaceId: "owner", principalId: "owner", isOwner: true } });
     assert.equal(directDetail.path, "study-templates/demo-skill");
     assert.equal(directDetail.namespace, "study-templates");
-    assert.equal(directDetail.content, "# Demo Skill\n\nBody");
+    assert.match(directDetail.content, /# Demo Skill\n\nBody/);
+    assert.equal(directDetail.access.canWrite, true);
+    assert.equal(directDetail.access.ownership.creatorWorkspaceId, "owner");
 
     const fallbackProvider = createSkillDetailProvider({
       skillRoots: [root],
@@ -91,11 +99,14 @@ async function run() {
     fs.writeFileSync(path.join(xSkillDir, "SKILL.md"), `---
 name: x-social-monitoring-and-briefs
 description: Use when a task needs social-media briefs.
+creatorWorkspaceId: owner
 ---
 
 # X Social
 `, "utf8");
-    const fixed = await directFirstProvider.applyFix("x-social-monitoring-and-briefs", "narrow-x-search-invocation");
+    const fixed = await directFirstProvider.applyFix("x-social-monitoring-and-briefs", "narrow-x-search-invocation", {
+      auth: { ok: true, workspaceId: "owner", principalId: "owner", isOwner: true },
+    });
     assert.equal(fixed.changed, true);
     assert.equal(fixed.detail.path, "social-media/x-social-monitoring-and-briefs");
     assert(fixed.analysis.fixes.some((item) => item.id === "narrow-x-search-invocation"));
@@ -123,10 +134,51 @@ description: Use when a task needs social-media briefs.
         throw new Error("bridge should not run for direct local skill modification");
       },
     });
-    const modelFixed = await modelRewriteProvider.applyFix("x-social-monitoring-and-briefs", "model-suggested-skill-rewrite");
+    const modelFixed = await modelRewriteProvider.applyFix("x-social-monitoring-and-briefs", "model-suggested-skill-rewrite", {
+      auth: { ok: true, workspaceId: "owner", principalId: "owner", isOwner: true },
+    });
     assert.equal(modelFixed.changed, true);
     assert.equal(postApplyAnalyzeCalls, 0);
     assert.match(fs.readFileSync(path.join(xSkillDir, "SKILL.md"), "utf8"), /Updated body/);
+
+    const childRoot = path.join(root, "data", "skill-profiles", "child", "skills");
+    const childSkillDir = path.join(childRoot, "custom", "owned-skill");
+    fs.mkdirSync(childSkillDir, { recursive: true });
+    fs.writeFileSync(path.join(childSkillDir, "SKILL.md"), `---
+name: owned-skill
+creatorWorkspaceId: child
+---
+
+# Owned Skill
+`, "utf8");
+    const childProvider = createSkillDetailProvider({
+      skillRoots: [childRoot],
+      skillAnalysisService: {
+        async analyze(detail) {
+          return { skill: { path: detail.path }, fixes: [] };
+        },
+        async applyFix(detail) {
+          return { changed: true, fix: { id: "model-suggested-skill-rewrite" }, content: `${detail.content}\nUpdated.\n`, analysis: { skill: { path: detail.path }, fixes: [] } };
+        },
+      },
+      async runBridge() {
+        throw new Error("bridge should not run");
+      },
+    });
+    const childDetail = await childProvider.detail("owned-skill", {
+      auth: { ok: true, workspaceId: "child", principalId: "child" },
+    });
+    assert.equal(childDetail.access.canWrite, true);
+    const sharedReadOnlyDetail = await childProvider.detail("owned-skill", {
+      auth: { ok: true, workspaceId: "other", principalId: "other" },
+    });
+    assert.equal(sharedReadOnlyDetail.access.canWrite, false);
+    await assert.rejects(
+      () => childProvider.applyFix("owned-skill", "model-suggested-skill-rewrite", {
+        auth: { ok: true, workspaceId: "other", principalId: "other" },
+      }),
+      (err) => err.status === 403 && /Skill write access/.test(err.message),
+    );
 
     const boundedRoot = path.join(root, "bounded");
     const boundedSkillDir = path.join(boundedRoot, "level-a", "level-b", "bounded-skill");

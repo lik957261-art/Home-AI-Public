@@ -9,6 +9,8 @@
 - Windows 管理员 PowerShell：用于创建/配置 `HermesMobileWorker`、设置 `C:\ProgramData\HermesMobile` 运行目录、ACL、凭据和宿主启动进程。
 - WSL bootstrap 权限：部署 Agent 可以通过 `wsl -d <distro> -u root` 进入目标 distro，或使用已有可 `sudo` 的 Linux 用户。低权限 Linux worker 用户、profile 目录、启动脚本、依赖和 official Hermes runtime 边界应由部署流程创建/配置，不要求用户提前手工建好。
 
+如果目标机器已经安装最新版 official Hermes，这是有利前提，但不等于 Hermes Mobile 生产部署已完成。Agent 仍需创建 Hermes Mobile 的 ProgramData 目录、listener 环境、Gateway Pool manifest、低权限 worker 启动链路，以及需要的 profile-local 认证状态。官方 Hermes runtime 应复用并验证，不应重新打补丁或把 Hermes Mobile 逻辑写进 official Hermes 源码。
+
 如果部署 Agent 没有 Windows 管理员权限，或无法在 WSL 内取得 root/sudo bootstrap 权限，不要宣称已经完成生产 Worker Pool 部署；最多只能完成 Quick Start 的最小 single-Gateway listener，并应明确回报“Worker Pool 未部署”。
 
 ## 现场部署踩坑清单
@@ -126,6 +128,7 @@ New-NetFirewallRule -DisplayName "Hermes Mobile 8797" `
   - source：`/opt/hermes-gateway-runtime/official-clean`
   - python：`/opt/hermes-gateway-runtime/venv/bin/python`
 - official Hermes 的 Codex/OAuth 登录已经由部署者完成，或部署者能提供安全的 auth seed 文件。
+- 如需 `@Grok4.3`，official Hermes 必须能使用 `xai-oauth` provider。Hermes Mobile 只负责把 Grok 请求路由到 `grokgw1`，不随仓库分发 xAI OAuth token。
 
 如果路径不同，Agent 应通过环境变量或脚本参数覆盖，不要硬编码个人路径。
 
@@ -142,6 +145,7 @@ New-NetFirewallRule -DisplayName "Hermes Mobile 8797" `
 - official Hermes runtime source/python 路径。
 - 是否启用 Gateway Pool；生产建议启用。
 - lowgw worker 数量，默认 `10`。
+- 是否启用 Grok/xAI worker；默认生产拓扑启用 `grokgw1`，端口 `18761`。
 - 是否启用 owner-maintenance Gateway，启用时需要部署者指定 WSL user/profile/ports。
 - 对外访问方式：localhost、内网、或 HTTPS reverse proxy。
 
@@ -184,7 +188,24 @@ WSL 低权限 Gateway：
 - Hermes Mobile listener：`8797`
 - Bridge host：`8798`
 - lowgw1..10：`18751..18760`
+- Grok/xAI worker `grokgw1`：`18761`
 - owner-maintenance 示例：`18651..18652`
+
+部署时要把运行脚本和重启入口一起放到生产目录。至少包括：
+
+```text
+C:\ProgramData\HermesMobile\app\scripts\start-worker-host.ps1
+C:\ProgramData\HermesMobile\app\scripts\start-cron-tick-sidecar.ps1
+C:\ProgramData\HermesMobile\app\scripts\run-cron-tick-sidecar.ps1
+C:\ProgramData\HermesMobile\app\scripts\hermes-mobile-cron-dispatcher.py
+C:\ProgramData\HermesMobile\gateway-worker\start-gateway-pool.ps1
+C:\ProgramData\HermesMobile\gateway-worker\start-low-gateways-child.ps1
+C:\ProgramData\HermesMobile\gateway-worker\run-as-worker.ps1
+C:\ProgramData\HermesMobile\gateway-worker\start-low-gateways.sh
+C:\ProgramData\HermesMobile\gateway-worker\configure-low-gateways.sh
+```
+
+如果部署启用 Weixin/iLink 或 disaster recovery，再同步对应脚本；没有启用的 sidecar 不应被计划任务误启动。
 
 ## 1. 检查源码
 
@@ -277,7 +298,59 @@ C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json
 - `api_key` 与 `low-gateway-api-key.secret` 内容一致，但 manifest 文件本身必须当作 secret 保护。
 - `telemetryStateDbPath` / `telemetryResponseStoreDbPath` 指向对应 profile DB。
 
-## 6.1 多账号 worker / Skill profile 路由规则
+如需 Grok/xAI，在同一个 manifest 中增加独立 worker：
+
+```json
+{
+  "id": "grokgw1",
+  "name": "grokgw1",
+  "profile": "grokgw1",
+  "host": "127.0.0.1",
+  "port": 18761,
+  "securityLevel": "user",
+  "provider": "xai-oauth",
+  "allowedWorkspaceIds": ["*"],
+  "skillProfile": "owner-full",
+  "skillWorkspaceIds": ["owner"],
+  "api_key": "<read-from-secret-file>"
+}
+```
+
+`provider=xai-oauth` 是必需字段。Hermes Mobile 的 Grok 路由会按 provider hint 查找 worker；如果 manifest 里只有 `profile=grokgw1` 但没有 `provider=xai-oauth`，`@Grok4.3` 可能找不到匹配 worker 或落入不可用状态。Grok worker 可以根据部署策略限制 `allowedWorkspaceIds`，但不要把 Grok 请求伪装成普通 lowgw 请求。
+
+## 6.1 Grok/xAI profile 与认证
+
+生产脚本默认会准备并启动一个 Grok Gateway：
+
+```powershell
+$env:HERMES_GROK_GATEWAY_COUNT = "1"
+```
+
+默认 profile/端口：
+
+```text
+profile: grokgw1
+port: 18761
+provider: xai-oauth
+model.default: grok-4.3
+```
+
+`scripts/configure-low-gateways.sh` 会为 `grokgw1` 写入官方 Gateway profile config，并把 auth 文件链接到 profile-local auth store。可选覆盖项：
+
+```powershell
+$env:HERMES_GROK_GATEWAY_AUTH_PATH = "C:\ProgramData\HermesMobile\gateway-worker\telemetry\shared-auth-grok\auth.json"
+$env:HERMES_GROK_GATEWAY_AUTH_LOCK_PATH = "C:\ProgramData\HermesMobile\gateway-worker\telemetry\shared-auth-grok\auth.lock"
+```
+
+这些文件是认证状态，不属于 Git，不应打印内容。如果 `grokgw1` 启动健康但 `@Grok4.3` 调用失败，先区分三类问题：
+
+1. manifest 缺少 `provider=xai-oauth`：补 manifest，重启 Gateway Pool。
+2. `grokgw1` 未监听 `18761` 或 `/api/status` 无该 worker：检查 `HERMES_GROK_GATEWAY_COUNT`、端口、防火墙、Gateway Pool 启动日志。
+3. Gateway 返回 xAI/OAuth 认证失败：不要改 Hermes Mobile 路由；让 Codex 在目标机上按 official Hermes 的 xAI OAuth 流程修复 `grokgw1` 使用的 auth store，然后重启 Gateway Pool 并重新 smoke。
+
+Grok 认证失败时，正确交付状态是“Gateway worker 存在，但 xAI OAuth 未完成/已失效”。不要报告为 Hermes Mobile 部署完成，也不要把其他 provider worker 当作 Grok worker 使用。
+
+## 6.2 多账号 worker / Skill profile 路由规则
 
 生产多账号部署不能把所有普通 lowgw 作为无差别共享池。普通 lowgw 可以共享物理机器和调度池，但每个 workspace/account 必须在 manifest 中有明确 profile 边界，否则 Skill、memory、connector credential、session state 和授权根目录会串。
 
@@ -395,13 +468,15 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\HermesMo
 该脚本会：
 
 - 使用 `run-as-worker.ps1` 切到 `HermesMobileWorker`。
-- 在 `HermesGatewayWorker` WSL distro 中启动 lowgw。
+- 在 `HermesGatewayWorker` WSL distro 中启动 lowgw 和配置的 `grokgw`。
 - 调用 `configure-low-gateways.sh` 写 base/profile config。
 - 安装 `hermes-mobile-weather` 和 `hermes-mobile-http` 插件。
 - 配置 shared-auth 同文件系统路径。
 - 检查并隔离损坏的 profile SQLite DB/sidecar。
 - 停掉旧 lowgw 后再启动新 lowgw。
 - 检查 lowgw auth fingerprint。
+
+日常修复或配置变更后的 Gateway Pool 重启也使用同一个入口。优先触发计划任务 `Hermes Mobile Gateway Pool`；没有计划任务时再直接运行 `start-gateway-pool.ps1`。不要只杀某个 `python` 进程后手动拉起单个 Gateway，因为这样容易绕过 shared-auth、profile config、plugin 同步、SQLite sidecar 修复和 `grokgw1` 配置。
 
 ## 9. 启动 Hermes Mobile listener
 
@@ -424,6 +499,56 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\HermesMo
 
 Agent 创建计划任务前必须让部署者确认触发条件和运行账户。
 
+## 9.1 运行态重启入口
+
+部署交付时必须把以下运维入口写进本机 README 或交付说明，方便后续 Codex 复查和修复：
+
+### Listener / bridge host
+
+服务端代码、route/provider、bridge-host、ChatGPT Pro bridge、Web Push 服务端逻辑变更后，重启 listener/bridge host：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\HermesMobile\app\scripts\start-worker-host.ps1" `
+  -CredentialPath "C:\ProgramData\HermesMobile\worker-credential.xml" `
+  -LauncherPath "C:\ProgramData\HermesMobile\start-hermes-mobile-production.ps1" `
+  -WorkingDirectory "C:\ProgramData\HermesMobile\app" `
+  -Port 8797 `
+  -BridgeHostPort 8798 `
+  -ReplaceExisting
+```
+
+重启前先查 `/api/status?detail=1`。如果 `activeGlobal` 非 0，应等待、停止对应任务，或让部署者确认中断；不要直接重启。
+
+### Gateway Pool
+
+Gateway profile、plugin、worker manifest、Grok/xAI auth store、owner-maintenance、Gateway worker 脚本变更后，重启 Gateway Pool：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\HermesMobile\gateway-worker\start-gateway-pool.ps1" `
+  -GatewayWorkerRoot "C:\ProgramData\HermesMobile\gateway-worker" `
+  -ManifestPath "C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json"
+```
+
+若已创建计划任务，优先用 `Start-ScheduledTask -TaskName "Hermes Mobile Gateway Pool"`，然后检查任务结果、`start-gateway-pool.log`、端口和 `/api/status` worker 健康。Gateway Pool 重启通常不需要 listener 重启，除非 manifest 路径、listener 环境或 server routing code 也变了。
+
+### Cron dispatcher sidecar
+
+如果启用官方 cron 自动化，listener 启动会按配置确保 cron sidecar。单独修复 cron sidecar 时使用：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\HermesMobile\app\scripts\start-cron-tick-sidecar.ps1" `
+  -DistroName "<owner-or-cron-distro>" `
+  -WslUser "<owner-or-cron-user>" `
+  -HermesHome "/home/<user>/.hermes" `
+  -ReplaceExisting
+```
+
+该 sidecar 调用 `hermes-mobile-cron-dispatcher.py --dispatch`，只负责快速派发 due jobs；长任务应在 detached runner 中继续跑。不要把它改回直接同步调用 `hermes cron tick`，否则长任务会阻塞后续 tick。
+
+### Static-only 更新
+
+只改 `public/` 静态文件和对应 tests 时，通常只需同步文件并验证 client version，不需要重启 listener 或 Gateway Pool。只要改到 `server-routes/`、`adapters/`、`mobile-server-runtime.js`、bridge host、Gateway plugin/profile/schema/startup script，就按上面的 listener 或 Gateway Pool 规则重启。
+
 ## 10. 验证
 
 基础验证：
@@ -445,10 +570,12 @@ Invoke-WebRequest -UseBasicParsing -Headers @{ "X-Hermes-Web-Key" = $key } http:
 - `health=ok`
 - Gateway Pool workers healthy。
 - lowgw ports `18751..18760` listening。
+- 如果启用 Grok，`grokgw1` port `18761` listening，`/api/status.gatewayPool.workers` 中该 worker 为 `healthy=true`，并且 worker metadata/manifest 中保留 `provider=xai-oauth`。
 - 每个已创建 workspace 都能在 `/api/status.gatewayPool.workers` 中找到匹配的 `securityLevel=user` worker，并且该 worker 的 `allowedWorkspaceIds` 或 `skillWorkspaceIds` 包含该 workspace。
 - 生产强隔离部署中，`HERMES_MOBILE_GATEWAY_SKILL_PROFILE_ROUTING=on`，缺少 workspace/profile 映射时应 fail closed，而不是落到其他用户 worker。
 - lowgw profile config 包含 `weather` 和 `http`。
 - 实际 session schema 包含 `weather` 和 `http_request`。
+- 如果启用 Grok，用 Owner 或目标 workspace 发起一次 `@Grok4.3` smoke。成功标准不是只看到模型选项，而是实际返回由 `provider=xai-oauth` / `profile=grokgw1` 执行的响应；若返回 OAuth/auth 错误，按“Grok/xAI profile 与认证”修复 auth store。
 - `state.db` / `response_store.db` integrity 为 `ok`。
 
 如果要求同构高权限维护能力，还必须确认：

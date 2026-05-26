@@ -118,6 +118,17 @@ function makeRoutes(overrides = {}) {
         recommendedSeries: [{ recommendationId: "rec-1", templateId: "english-speaking-retell-v1", skillId: "english_speaking_retell" }],
       };
     },
+    latestTaskSeriesRecommendation(input) {
+      calls.push(["latestTaskSeriesRecommendation", input]);
+      return {
+        ok: true,
+        privacyLevel: "summary_only",
+        recommendationRunId: "run-1",
+        workspaceId: input.workspaceId,
+        learnerId: input.learnerId,
+        recommendedSeries: [{ recommendationId: "rec-1", templateId: "english-speaking-retell-v1", skillId: "english_speaking_retell" }],
+      };
+    },
     async createRecommendedTaskSeriesDraft(input) {
       calls.push(["createRecommendedTaskSeriesDraft", input]);
       return {
@@ -177,6 +188,16 @@ function makeRoutes(overrides = {}) {
       calls.push(["getTaskCard", taskCardId]);
       return { taskCardId, kanbanCardId: "kanban-1", workspaceId: "weixin_stephen", learnerId: "weixin_stephen", status: "published" };
     },
+    getTaskSubmission(submissionId) {
+      calls.push(["getTaskSubmission", submissionId]);
+      return {
+        submissionId,
+        taskCardId: "task-1",
+        workspaceId: "weixin_stephen",
+        learnerId: "weixin_stephen",
+        audio: { kind: "audio", name: "missing-audio.ogg", mime: "audio/ogg" },
+      };
+    },
     updateTaskRewardPolicy(taskCardId, input) {
       calls.push(["updateTaskRewardPolicy", taskCardId, input]);
       return { taskCardId, workspaceId: "weixin_stephen", learnerId: "weixin_stephen", status: "published", rewardCapCoins: input.rewardCapCoins || input.maxCoins };
@@ -223,6 +244,16 @@ function makeRoutes(overrides = {}) {
       return Boolean(auth?.isOwner);
     },
     learningProgramService: service,
+    learningGrowthMasteryProfileService: {
+      getMasteryProfile(input) {
+        calls.push(["getGrowthMasteryProfile", input]);
+        return {
+          learnerId: input.learnerId,
+          workspaceId: input.workspaceId,
+          states: [{ skillId: "english.writing.claim_reason_example", masteryStatus: "practicing" }],
+        };
+      },
+    },
     learningGrowthSubmissionService: {
       async submitTask(input) {
         calls.push(["submitGrowthTask", input]);
@@ -235,6 +266,10 @@ function makeRoutes(overrides = {}) {
       async submitReflection(input) {
         calls.push(["submitGrowthReflection", input]);
         return { ok: true, status: "completed", reflection: { status: "accepted" } };
+      },
+      async manualPassTask(input) {
+        calls.push(["manualPassGrowthTask", input]);
+        return { ok: true, status: "completed", taskCardId: input.taskCardId, rewardSettlement: { status: "settled" } };
       },
     },
     async readBody(req) {
@@ -268,15 +303,17 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testMetadata() {
-  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 39);
+  assert.equal(LEARNING_PROGRAM_API_ROUTE_SPECS.length, 44);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/learning/programs" }).id, "learning-programs-list");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sources" }).id, "learning-sources-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/source-directory/import" }).id, "learning-source-directory-import");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/source-directory/bootstrap" }).id, "learning-source-directory-bootstrap");
+  assert.equal(routes.match({ method: "GET", path: "/api/learning/growth/mastery-profile" }).id, "learning-growth-mastery-profile");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/profile" }).id, "learning-profile-read");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/foundation-import" }).id, "learning-foundation-import");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reports/parent" }).id, "learning-parent-report-read");
+  assert.equal(routes.match({ method: "GET", path: "/api/learning/recommendations/task-series" }).id, "learning-task-series-recommendations-read");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/recommendations/task-series" }).id, "learning-task-series-recommendations-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/recommendations/task-series/draft" }).id, "learning-task-series-recommendation-draft-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/programs/program-1/draft-plan" }).id, "learning-program-draft-plan");
@@ -285,14 +322,17 @@ async function testMetadata() {
   assert.equal(routes.match({ method: "PATCH", path: "/api/learning/task-cards/task-1/reward-policy" }).id, "learning-task-card-reward-policy-update");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/task-execution-queue" }).id, "learning-task-execution-queue");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/daily-plan" }).id, "learning-daily-plan");
+  assert.equal(routes.match({ method: "GET", path: "/api/learning/task-submissions/lsub-1/audio" }).id, "learning-task-submission-audio-read");
+  assert.equal(routes.match({ method: "GET", path: "/api/learning/task-reflections/lrefl-1/audio" }).id, "learning-task-reflection-audio-read");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/sessions" }).id, "learning-task-card-session-start");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/growth-submission" }).id, "learning-task-card-growth-submission");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/growth-submission/withdraw" }).id, "learning-task-card-growth-submission-withdraw");
+  assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/manual-pass" }).id, "learning-task-card-growth-manual-pass");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/task-cards/task-1/growth-reflection" }).id, "learning-task-card-growth-reflection");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/sessions/session-1/evaluations" }).id, "learning-session-evaluation-create");
   assert.equal(routes.match({ method: "POST", path: "/api/learning/evaluations/eval-1/reward-settlement" }).id, "learning-evaluation-reward-settle");
   assert.equal(routes.match({ method: "GET", path: "/api/learning/reward-settlements/settle-1" }).id, "learning-reward-settlement-read");
-  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 39);
+  assert.equal(routes.summary({ public: true }).byModule["learning-program"], 44);
 }
 
 async function testCreateAndDraftRequireOwner() {
@@ -335,6 +375,7 @@ async function testStudentCannotReadManagementSurfaces() {
     "/api/learning/sources?workspaceId=weixin_stephen&learnerId=weixin_stephen",
     "/api/learning/goals?workspaceId=weixin_stephen&learnerId=weixin_stephen",
     "/api/learning/profile?workspaceId=weixin_stephen&learnerId=weixin_stephen",
+    "/api/learning/growth/mastery-profile?workspaceId=weixin_stephen&learnerId=weixin_stephen",
     "/api/learning/curriculum-references?domain=english",
     "/api/learning/task-cards?workspaceId=weixin_stephen&learnerId=weixin_stephen",
     "/api/learning/reward-settlements?workspaceId=weixin_stephen&learnerId=weixin_stephen",
@@ -396,6 +437,12 @@ async function testFoundationRoutes() {
   assert.equal(refs.res.statusCode, 200);
   assert.equal(refs.body.curriculumReferences[0].referenceId, "cefr-a2-b1-english-growth");
 
+  const mastery = await request(routes, "GET", "/api/learning/growth/mastery-profile?workspaceId=weixin_stephen&learnerId=weixin_stephen&domain=english");
+  assert.equal(mastery.res.statusCode, 200);
+  assert.equal(mastery.body.masteryProfile.states[0].skillId, "english.writing.claim_reason_example");
+  assert.equal(calls.at(-1)[0], "getGrowthMasteryProfile");
+  assert.equal(calls.at(-1)[1].domain, "english");
+
   const imported = await request(routes, "POST", "/api/learning/foundation-import", {
     body: {
       workspaceId: "weixin_stephen",
@@ -450,6 +497,12 @@ async function testAiRecommendationRoutesRequireOwnerAndCreateDraft() {
   assert.equal(recommendation.res.statusCode, 200);
   assert.equal(recommendation.body.privacyLevel, "summary_only");
   assert.equal(calls.at(-1)[0], "recommendTaskSeries");
+  assert.equal(calls.at(-1)[1].workspaceId, "weixin_stephen");
+
+  const latest = await request(routes, "GET", "/api/learning/recommendations/task-series?workspaceId=weixin_stephen&learnerId=weixin_stephen&domain=english");
+  assert.equal(latest.res.statusCode, 200);
+  assert.equal(latest.body.recommendationRunId, "run-1");
+  assert.equal(calls.at(-1)[0], "latestTaskSeriesRecommendation");
   assert.equal(calls.at(-1)[1].workspaceId, "weixin_stephen");
 
   const draft = await request(routes, "POST", "/api/learning/recommendations/task-series/draft", {
@@ -547,6 +600,22 @@ async function testTaskSessionEvaluationRoutes() {
   assert.equal(growthReflection.res.statusCode, 200);
   assert.equal(calls.at(-1)[0], "submitGrowthReflection");
 
+  const manualPassDenied = await request(routes, "POST", "/api/learning/task-cards/task-1/manual-pass", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+    body: { reason: "manual" },
+  });
+  assert.equal(manualPassDenied.res.statusCode, 403);
+
+  const manualPass = await request(routes, "POST", "/api/learning/task-cards/task-1/manual-pass", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "owner", isOwner: true },
+    body: { reason: "summary only manual pass" },
+  });
+  assert.equal(manualPass.res.statusCode, 200);
+  assert.equal(calls.at(-1)[0], "manualPassGrowthTask");
+  assert.equal(calls.at(-1)[1].taskCardId, "task-1");
+  assert.equal(calls.at(-1)[1].cardId, "kanban-1");
+  assert.equal(calls.at(-1)[1].author, "owner");
+
   const advanced = await request(routes, "POST", "/api/learning/sessions/session-1/advance", {
     auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
     body: { step: "learner_attempt", summary: "summary only" },
@@ -579,6 +648,35 @@ async function testTaskSessionEvaluationRoutes() {
   assert.equal(rewardRead.res.statusCode, 200);
   assert.ok(calls.some((call) => call[0] === "recordEvaluation"));
   assert.ok(calls.some((call) => call[0] === "settleEvaluationReward"));
+}
+
+async function testSharedWorkspaceMemberCanReadGrowthTaskDetail() {
+  const { routes, calls } = makeRoutes({
+    deps: {
+      requireWorkspaceAccess(req, res, workspaceId) {
+        const target = String(workspaceId || "owner");
+        const allowed = new Set([req.auth?.workspaceId].concat(req.auth?.workspaceIds || []));
+        if (!allowed.has(target)) {
+          sendJson(res, 403, { error: "Workspace access is not allowed" });
+          return "";
+        }
+        return target;
+      },
+    },
+  });
+  const response = await request(routes, "GET", "/api/learning/task-cards/task-1", {
+    auth: {
+      ok: true,
+      workspaceId: "weixin_wuping",
+      workspaceIds: ["weixin_wuping", "weixin_stephen"],
+      principalId: "weixin_wuping",
+      isOwner: false,
+    },
+  });
+  assert.equal(response.res.statusCode, 200);
+  assert.equal(response.body.taskCard.taskCardId, "task-1");
+  assert.equal(response.body.taskCard.workspaceId, "weixin_stephen");
+  assert.equal(calls.some((call) => call[0] === "getTaskCard"), true);
 }
 
 async function testExecutorCannotStartUnpublishedTask() {
@@ -706,6 +804,29 @@ async function testExecutorCannotReadUnpublishedTaskDetail() {
   assert.equal(response.body.error, "Learning task is not executable");
 }
 
+async function testTaskSubmissionAudioRouteIsScopedAndBounded() {
+  const { routes, calls } = makeRoutes({
+    service: {
+      getTaskCard(taskCardId) {
+        calls.push(["getTaskCard", taskCardId]);
+        return {
+          taskCardId,
+          workspaceId: "weixin_stephen",
+          learnerId: "weixin_stephen",
+          status: "published",
+          artifactDirectoryPath: "C:\\missing-learning-audio-dir",
+        };
+      },
+    },
+  });
+  const response = await request(routes, "GET", "/api/learning/task-submissions/lsub-1/audio", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+  });
+  assert.equal(response.res.statusCode, 404);
+  assert.equal(response.body.error, "Learning task submission audio file not found");
+  assert.deepEqual(calls.slice(-2).map((call) => call[0]), ["getTaskSubmission", "getTaskCard"]);
+}
+
 async function testExecutorCannotEvaluateOtherLearnerSession() {
   const { routes, calls } = makeRoutes({
     service: {
@@ -732,8 +853,10 @@ async function testExecutorCannotEvaluateOtherLearnerSession() {
   await testFoundationRoutes();
   await testAiRecommendationRoutesRequireOwnerAndCreateDraft();
   await testTaskSessionEvaluationRoutes();
+  await testSharedWorkspaceMemberCanReadGrowthTaskDetail();
   await testExecutorTaskReadUsesSummaryProjectionOnly();
   await testExecutorCannotReadUnpublishedTaskDetail();
+  await testTaskSubmissionAudioRouteIsScopedAndBounded();
   await testExecutorCannotStartUnpublishedTask();
   await testNativeGrowthSubmissionDoesNotRequireKanbanLink();
   await testNativeGrowthSubmissionUsesUploadSizedBodyLimit();

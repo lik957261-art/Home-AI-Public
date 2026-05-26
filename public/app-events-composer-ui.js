@@ -15,7 +15,7 @@ function scheduleRenderCurrentThread() {
   if (state.renderScheduled) return;
   const conversation = $("conversation");
   if (!conversation) return;
-  state.shouldStickToBottom = isNearBottom();
+  state.shouldStickToBottom = shouldForceChatStickToBottom() || isNearBottom();
   state.preservedBottomOffset = conversation.scrollHeight - conversation.scrollTop;
   state.renderScheduled = true;
   requestAnimationFrame(() => {
@@ -31,7 +31,7 @@ function renderStreamingMessageContent(message) {
   const body = article?.querySelector?.(".message-body");
   const content = body?.querySelector?.(".text-content");
   if (!article || !body || !content || message.revokedAt) return false;
-  const shouldStick = isNearBottom();
+  const shouldStick = shouldForceChatStickToBottom() || isNearBottom();
   try {
     if (["queued", "running"].includes(String(message.status || ""))) {
       content.className = "text-content plain-text";
@@ -48,6 +48,7 @@ function renderStreamingMessageContent(message) {
     const conversation = $("conversation");
     conversation.scrollTop = conversation.scrollHeight;
     state.conversationPinnedToBottom = true;
+    if (isSingleWindowChatView()) scheduleConversationBottomStick();
   } else {
     state.conversationPinnedToBottom = false;
   }
@@ -210,8 +211,8 @@ async function refreshCurrentThreadFromServer(options = {}) {
   state.currentThreadRefreshInFlight = true;
   state.currentThreadRefreshPending = false;
   const stickToBottom = Object.prototype.hasOwnProperty.call(options, "stickToBottom")
-    ? Boolean(options.stickToBottom)
-    : isNearBottom();
+    ? Boolean(options.stickToBottom || shouldForceChatStickToBottom())
+    : (shouldForceChatStickToBottom() || isNearBottom());
   try {
     const params = isSingleWindowChatView()
       ? `?${chatMessagePageParams({ limit: CHAT_MESSAGE_INITIAL_LIMIT })}`

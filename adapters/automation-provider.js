@@ -59,7 +59,8 @@ function createAutomationProvider(options = {}) {
     const includeDisabled = Boolean(args.includeDisabled);
     const bypassCache = Boolean(args.bypassCache) || cacheTtlMs <= 0;
     const ownerPrincipalId = String(args.ownerPrincipalId || args.owner_principal_id || "").trim();
-    const cacheKey = `${includeDisabled ? "includeDisabled" : "enabledOnly"}:${ownerPrincipalId || "*"}`;
+    const detail = String(args.detail || args.fields || "full").toLowerCase() === "summary" ? "summary" : "full";
+    const cacheKey = `${includeDisabled ? "includeDisabled" : "enabledOnly"}:${ownerPrincipalId || "*"}:${detail}`;
     const now = Date.now();
     const cached = listCache.get(cacheKey);
 
@@ -77,6 +78,7 @@ function createAutomationProvider(options = {}) {
 
     const promise = runBridge({
       action: "list",
+      detail,
       include_disabled: includeDisabled,
       limit: positiveNumber(args.limit, 0),
       owner_principal_id: ownerPrincipalId,

@@ -36,7 +36,7 @@ const AUTOMATION_API_ROUTE_SPECS = Object.freeze([
   {
     id: "automations-action",
     method: "POST",
-    pathRegex: /^\/api\/automations\/[^/]+\/(?:delete|pause|resume|update)$/,
+    pathRegex: /^\/api\/automations\/[^/]+\/(?:delete|pause|resume|run|update)$/,
     group: "automation",
     moduleKey: "automation",
     handlerKey: "mutateAutomation",
@@ -136,12 +136,29 @@ function compactError(deps, err) {
 }
 
 function automationActionFromPath(pathname) {
-  const match = String(pathname || "").match(/^\/api\/automations\/([^/]+)\/(delete|pause|resume|update)$/);
+  const match = String(pathname || "").match(/^\/api\/automations\/([^/]+)\/(delete|pause|resume|run|update)$/);
   if (!match) return null;
   return {
     jobId: decodeURIComponent(match[1] || ""),
     action: match[2],
   };
+}
+
+function automationListDetailLevel(url) {
+  const raw = String(url?.searchParams?.get("detail") || url?.searchParams?.get("fields") || "full")
+    .trim()
+    .toLowerCase();
+  return ["summary", "list", "light"].includes(raw) ? "summary" : "full";
+}
+
+function automationSummarySort(left, right) {
+  const leftNext = Date.parse(left?.nextRunAt || "");
+  const rightNext = Date.parse(right?.nextRunAt || "");
+  const leftHasNext = Number.isFinite(leftNext);
+  const rightHasNext = Number.isFinite(rightNext);
+  if (leftHasNext !== rightHasNext) return leftHasNext ? -1 : 1;
+  if (leftHasNext && rightHasNext && leftNext !== rightNext) return leftNext - rightNext;
+  return String(left?.name || left?.id || "").localeCompare(String(right?.name || right?.id || ""));
 }
 
 function createAutomationApiRoutes(deps = {}) {
@@ -186,9 +203,10 @@ function createAutomationApiRoutes(deps = {}) {
     const requestedLimit = Number(url.searchParams.get("limit") || "200");
     const includeDisabled = deps.boolParam(url.searchParams.get("includeDisabled") || "1");
     const bypassCache = deps.boolParam(url.searchParams.get("refresh") || url.searchParams.get("fresh"));
+    const detail = automationListDetailLevel(url);
     let result;
     try {
-      result = await deps.runCronListBridgeCached({ includeDisabled, bypassCache, ownerPrincipalId });
+      result = await deps.runCronListBridgeCached({ includeDisabled, bypassCache, ownerPrincipalId, detail });
     } catch (err) {
       deps.sendJson(res, 200, {
         data: [],
@@ -210,14 +228,21 @@ function createAutomationApiRoutes(deps = {}) {
       return;
     }
     const search = String(url.searchParams.get("search") || "").trim().toLowerCase();
-    let jobs = (result.jobs || [])
-      .filter((job) => deps.cronJobMatchesOwner(job, ownerPrincipalId))
+    const routeAutomationId = String(url.searchParams.get("automationId") || "").trim();
+    const ownerJobs = (result.jobs || [])
+      .filter((job) => deps.cronJobMatchesOwner(job, ownerPrincipalId));
+    let jobs = ownerJobs
       .filter((job) => deps.cronJobMatchesSearch(job, search))
-      .sort(deps.automationListSortByLatestDeliverable);
+      .sort(detail === "summary" ? automationSummarySort : deps.automationListSortByLatestDeliverable);
+    if (routeAutomationId && !jobs.some((job) => String(job?.id || "") === routeAutomationId)) {
+      const targetJob = ownerJobs.find((job) => String(job?.id || "") === routeAutomationId);
+      if (targetJob) jobs.unshift(targetJob);
+    }
     if (requestedLimit > 0) jobs = jobs.slice(0, requestedLimit);
     deps.sendJson(res, 200, {
       data: jobs,
       source: Object.assign({}, result.source || { name: "hermes_cron", available: true }, {
+        detailLevel: detail,
         jobCount: jobs.length,
         totalJobCount: result.source?.jobCount ?? (result.jobs || []).length,
         workspaceId,

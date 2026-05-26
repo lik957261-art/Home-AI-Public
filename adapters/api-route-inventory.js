@@ -213,6 +213,25 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["skill"],
   })),
 
+  exact("action-inbox-list", "GET", "/api/action-inbox", "action-inbox", routeOptions("action-inbox", {
+    workspaceScoped: true,
+    resourceTypes: ["action-inbox"],
+  })),
+  exact("action-inbox-create", "POST", "/api/action-inbox", "action-inbox", routeOptions("action-inbox", {
+    workspaceScoped: true,
+    resourceTypes: ["action-inbox"],
+    riskLevel: "medium",
+  })),
+  regex("action-inbox-detail", "GET", /^\/api\/action-inbox\/[^/]+$/, "action-inbox", routeOptions("action-inbox", {
+    workspaceScoped: true,
+    resourceTypes: ["action-inbox"],
+  })),
+  regex("action-inbox-action", "POST", /^\/api\/action-inbox\/[^/]+\/(?:complete|dismiss|snooze)$/, "action-inbox", routeOptions("action-inbox", {
+    workspaceScoped: true,
+    resourceTypes: ["action-inbox"],
+    riskLevel: "medium",
+  })),
+
   exact("automations-list", "GET", "/api/automations", "automation", routeOptions("automation", {
     workspaceScoped: true,
     resourceTypes: ["automation"],
@@ -371,6 +390,18 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     ownerOnly: true,
     resourceTypes: ["learning-report", "learning-task-card", "learning-evaluation", "learning-reward-settlement"],
   })),
+  exact("learning-growth-mastery-profile", "GET", "/api/learning/growth/mastery-profile", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-growth-mastery", "learning-growth-trajectory"],
+  })),
+  exact("learning-task-series-recommendations-read", "GET", "/api/learning/recommendations/task-series", "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-recommendation", "learning-template", "learning-program"],
+  })),
   exact("learning-task-series-recommendations-create", "POST", "/api/learning/recommendations/task-series", "learning-program", routeOptions("learning-program", {
     riskLevel: "owner",
     ownerOnly: true,
@@ -430,6 +461,20 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     workspaceScoped: true,
     resourceTypes: ["learning-task-card"],
   })),
+  regex("learning-task-submission-audio-read", "GET", /^\/api\/learning\/task-submissions\/[^/]+\/audio$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-submission", "audio"],
+  })),
+  regex("learning-task-reflection-audio-read", "GET", /^\/api\/learning\/task-reflections\/[^/]+\/audio$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-reflection", "audio"],
+  })),
   regex("learning-task-card-reward-policy-update", "PATCH", /^\/api\/learning\/task-cards\/[^/]+\/reward-policy$/, "learning-program", routeOptions("learning-program", {
     riskLevel: "owner",
     ownerOnly: true,
@@ -463,6 +508,12 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     authRequired: true,
     workspaceScoped: true,
     resourceTypes: ["learning-task-card", "learning-growth-reflection"],
+  })),
+  regex("learning-task-card-growth-manual-pass", "POST", /^\/api\/learning\/task-cards\/[^/]+\/manual-pass$/, "learning-program", routeOptions("learning-program", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card", "learning-evaluation", "learning-reward-settlement"],
   })),
   exact("learning-sessions-list", "GET", "/api/learning/sessions", "learning-program", routeOptions("learning-program", {
     riskLevel: "low",

@@ -153,6 +153,15 @@ function wireUi() {
     state.currentTaskGroupId = "";
     await loadSelectedView();
   });
+  $("bottomInboxMode")?.addEventListener("click", async () => {
+    clearQuotedReply({ render: false });
+    state.viewMode = "inbox";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    state.currentThread = null;
+    state.currentThreadId = "";
+    await loadSelectedView();
+  });
   $("singleMode").addEventListener("click", async () => {
     clearQuotedReply({ render: false });
     state.viewMode = "single";
@@ -200,6 +209,7 @@ function wireUi() {
     clearQuotedReply({ render: false });
     state.viewMode = "automation";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.automationReturnRoute = "";
     state.currentTaskGroupId = "";
     state.currentThread = null;
     state.currentThreadId = "";
@@ -209,6 +219,7 @@ function wireUi() {
     clearQuotedReply({ render: false });
     state.viewMode = "automation";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.automationReturnRoute = "";
     state.currentTaskGroupId = "";
     state.currentThread = null;
     state.currentThreadId = "";
@@ -309,8 +320,34 @@ function wireUi() {
     closeTopMoreMenu();
     openTodoCreate();
   });
+  $("topNewActionInbox")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    openActionInboxCreate();
+  });
+  $("topOpenActionInboxItem")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    openCurrentActionInboxItemLink().catch(showError);
+  });
+  $("topCompleteActionInboxItem")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    mutateActionInboxItem("complete").catch(showError);
+  });
+  $("topSnoozeActionInboxItem")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    mutateActionInboxItem("snooze", { availableAt: new Date(Date.now() + 60 * 60 * 1000).toISOString() }).catch(showError);
+  });
+  $("topDismissActionInboxItem")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    mutateActionInboxItem("dismiss").catch(showError);
+  });
+  $("topOpenAutomation")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    openAutomationSurface({ returnTo: state.viewMode === "inbox" ? "inbox" : "" }).catch(showError);
+  });
   $("topNewAutomation")?.addEventListener("click", () => {
-    openAutomationCreate();
+    closeTopMoreMenu();
+    if (state.viewMode === "automation") openAutomationCreate();
+    else openAutomationSurface({ create: true, returnTo: state.viewMode === "inbox" ? "inbox" : "" }).catch(showError);
   });
   $("topEditAutomation")?.addEventListener("click", () => {
     openAutomationEdit();
@@ -324,6 +361,11 @@ function wireUi() {
   $("topLearningSettings")?.addEventListener("click", () => {
     closeTopMoreMenu();
     openLearningGrowthSettingsPage();
+  });
+  $("topLearningGrowthHistory")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    const taskCardId = String(state.selectedLearningTaskCardId || "").trim();
+    if (taskCardId) openLearningGrowthHistory(taskCardId, learningGrowthLearnerWorkspaceId()).catch(showError);
   });
   $("topDeleteTodo")?.addEventListener("click", () => {
     deleteTodo(state.selectedTodoId).catch(showError);

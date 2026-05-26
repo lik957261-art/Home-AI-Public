@@ -7,6 +7,7 @@ function defaultDedupe(values) {
 const DEFAULT_LOW_PERMISSION_TOOLSETS = Object.freeze([
   "web",
   "search",
+  "x_search",
   "http",
   "weather",
   "browser",

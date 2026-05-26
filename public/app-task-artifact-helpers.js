@@ -156,7 +156,7 @@
 
   function isTaskListPrimaryDocument(artifact) {
     const kind = artifactKind(artifact);
-    if (kind === "pdf" || kind === "word") return true;
+    if (kind === "pdf" || kind === "word" || kind === "spreadsheet") return true;
     const name = String(artifact?.name || artifact?.id || "").toLowerCase();
     return name.endsWith(".md") || name.endsWith(".txt");
   }
@@ -254,6 +254,15 @@
     ) {
       return "word";
     }
+    if (
+      mime.includes("spreadsheet") ||
+      mime.includes("excel") ||
+      mime.includes("vnd.ms-excel") ||
+      name.endsWith(".xls") ||
+      name.endsWith(".xlsx")
+    ) {
+      return "spreadsheet";
+    }
     if (mime.includes("markdown") || name.endsWith(".md")) return "markdown";
     if (
       mime.startsWith("text/") ||
@@ -278,7 +287,7 @@
     const kind = artifactKind(artifact);
     if (kind === "markdown") return 0;
     if (kind === "text") return 1;
-    if (kind === "pdf" || kind === "word") return 2;
+    if (kind === "pdf" || kind === "word" || kind === "spreadsheet") return 2;
     return 3;
   }
 
@@ -288,7 +297,7 @@
     return items
       .filter((artifact) => {
         const kind = artifactKind(artifact);
-        if ((kind === "pdf" || kind === "word") && markdownStems.has(artifactStem(artifact))) return false;
+        if ((kind === "pdf" || kind === "word" || kind === "spreadsheet") && markdownStems.has(artifactStem(artifact))) return false;
         return true;
       })
       .sort((a, b) => (

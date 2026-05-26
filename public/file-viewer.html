@@ -53,6 +53,11 @@
       display: none;
     }
 
+    body.embedded-viewer .viewer-more-button,
+    body.embedded-viewer .viewer-done-button {
+      display: none;
+    }
+
     .back {
       display: inline-grid;
       place-items: center;
@@ -804,6 +809,8 @@
     const mime = params.get("mime") || "file";
     const size = Number(params.get("size") || 0);
     const returnUrl = params.get("return") || "";
+    const embedded = params.get("embed") === "1";
+    document.body.classList.toggle("embedded-viewer", embedded);
     const previewStatus = document.getElementById("previewStatus");
     const toast = document.getElementById("toast");
     let toastTimer = 0;
@@ -893,6 +900,8 @@
       const lower = String(name || "").toLowerCase();
       const type = String(mime || "").toLowerCase();
       if (type.includes("word") || lower.endsWith(".doc") || lower.endsWith(".docx")) return "DOC";
+      if (type.includes("spreadsheet") || type.includes("excel") || lower.endsWith(".xls") || lower.endsWith(".xlsx")) return "SHEET";
+      if (type.includes("presentation") || type.includes("powerpoint") || lower.endsWith(".ppt") || lower.endsWith(".pptx")) return "SLIDE";
       if (type.includes("image") || /\.(png|jpe?g|webp|gif)$/i.test(lower)) return "IMG";
       if (type.includes("html") || /\.(html?|xhtml)$/i.test(lower)) return "HTML";
       if (type.includes("markdown") || lower.endsWith(".md")) return "MD";
@@ -1025,6 +1034,14 @@
 
     function navigateBack(event) {
       event?.preventDefault?.();
+      if (embedded) {
+        try {
+          if (window.parent && window.parent !== window && window.parent.TaskDocumentPreviewUi?.closeActivePreviewFromUser) {
+            window.parent.TaskDocumentPreviewUi.closeActivePreviewFromUser();
+            return;
+          }
+        } catch (_) {}
+      }
       location.assign(fallbackReturnUrl());
     }
 
@@ -1648,7 +1665,7 @@ window.addEventListener("load", function () {
     if (internalReturnUrl) document.getElementById("back").href = internalReturnUrl;
     document.getElementById("back").addEventListener("click", navigateBack);
     document.getElementById("done").addEventListener("click", navigateBack);
-    wireViewerBackGuard();
+    if (!embedded) wireViewerBackGuard();
     wireViewerBackSwipe(document.querySelector(".shell"));
     wireMarkdownShareSheet();
     document.getElementById("open").href = originalUrlFor(src);
@@ -1686,6 +1703,8 @@ window.addEventListener("load", function () {
       loadTextPreview("Text preview").catch((err) => {
         setStatus(err.message || "Text preview failed.");
       });
+    } else if (src && (kind === "SHEET" || kind === "SLIDE")) {
+      setStatus("This Office format opens inside Hermes Mobile. Use the menu when you need sharing or the original file.");
     }
   </script>
 </body>

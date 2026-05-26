@@ -310,7 +310,7 @@ async function analyzeSkillDetail() {
   });
   renderSkillDetailPanel();
   try {
-    const result = await api(`/api/skills/analysis?skill=${encodeURIComponent(skill.path)}`, { timeoutMs: 90000 });
+    const result = await api(`/api/skills/analysis?skill=${encodeURIComponent(skill.path)}`, { timeoutMs: 130000 });
     if (!state.skillDetail || state.skillDetail.path !== skill.path) return;
     state.skillDetail = Object.assign({}, state.skillDetail, {
       analysis: { loading: false, error: "", data: result.data || null },
@@ -382,11 +382,12 @@ function renderSkillAnalysisList(title, items) {
   </div>`;
 }
 
-function renderSkillAnalysisFixes(fixes, applyingFixId = "") {
+function renderSkillAnalysisFixes(fixes, applyingFixId = "", canWrite = false) {
   const values = Array.isArray(fixes) ? fixes.filter((item) => item?.id) : [];
   if (!values.length) return "";
   return `<div class="skill-analysis-section skill-analysis-fixes">
     <h3>\u53ef\u4fee\u6539 Skill</h3>
+    ${canWrite ? "" : `<p class="learning-growth-muted">当前账号只有只读权限，只有 Skill 创建者可以修改；系统共享 Skill 由 Owner 修改。</p>`}
     ${values.map((fix) => {
       const busy = applyingFixId && applyingFixId === fix.id;
       const actionLabel = fix.modelAssisted ? "\u4fee\u6539" : "\u4fee\u6b63";
@@ -395,7 +396,7 @@ function renderSkillAnalysisFixes(fixes, applyingFixId = "") {
           <strong>${escapeHtml(fix.label || fix.id)}</strong>
           <p>${escapeHtml(fix.description || "")}</p>
         </div>
-        <button type="button" data-skill-fix-id="${escapeHtml(fix.id)}"${busy ? " disabled" : ""}>${busy ? "\u4fee\u6539\u4e2d" : actionLabel}</button>
+        ${canWrite ? `<button type="button" data-skill-fix-id="${escapeHtml(fix.id)}"${busy ? " disabled" : ""}>${busy ? "\u4fee\u6539\u4e2d" : actionLabel}</button>` : ""}
       </div>`;
     }).join("")}
   </div>`;
@@ -418,7 +419,7 @@ function renderSkillAnalysisPanel(skill) {
     ${renderSkillAnalysisList("\u4e0d\u8981\u8c03\u7528", data.nonInvocationConditions)}
     ${renderSkillAnalysisList("\u8f93\u5165 / \u8f93\u51fa / \u5de5\u5177\u8fb9\u754c", data.inputsOutputs)}
     ${renderSkillAnalysisList("\u4fee\u6539\u5173\u6ce8\u70b9", data.modificationNotes)}
-    ${renderSkillAnalysisFixes(data.fixes, analysis.applyingFixId)}
+    ${renderSkillAnalysisFixes(data.fixes, analysis.applyingFixId, Boolean(skill.access?.canWrite))}
     <div class="skill-analysis-source">\u6765\u6e90\uff1a${escapeHtml((source.sectionTitles || []).slice(0, 5).join(" / ") || "SKILL.md")}${source.truncated ? "\uff08\u5185\u5bb9\u5df2\u622a\u65ad\uff09" : ""}</div>
     ${error}
   </section>`;
@@ -445,13 +446,12 @@ function renderSkillDetailPanel(options = {}) {
       <div class="skill-detail-head">
         <span class="task-skill-icon skill-detail-icon" aria-hidden="true">S</span>
         <div>
-          <div class="skill-detail-eyebrow">Skill</div>
+          <div class="skill-detail-title-row">
+            <div class="skill-detail-eyebrow">Skill</div>
+            <button class="skill-detail-analyze" type="button" data-skill-analysis${analyzeDisabled ? " disabled" : ""}>\u5206\u6790</button>
+          </div>
           <h2>${escapeHtml(title)}</h2>
           <div class="skill-detail-path">${escapeHtml(skill.path || "")}</div>
-        </div>
-        <div class="skill-detail-actions">
-          <button class="skill-detail-analyze" type="button" data-skill-analysis${analyzeDisabled ? " disabled" : ""}>\u5206\u6790</button>
-          <button class="skill-detail-close" type="button" data-close-skill-detail aria-label="Close Skill">\u5173\u95ed</button>
         </div>
       </div>
       ${renderSkillAnalysisPanel(skill)}
@@ -460,11 +460,6 @@ function renderSkillDetailPanel(options = {}) {
     </article>
   </section>`;
   updateNavigationControls();
-  conversation.querySelector("[data-close-skill-detail]")?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    closeSkillDetail();
-  });
   conversation.querySelector("[data-skill-analysis]")?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -546,6 +541,8 @@ function artifactHref(artifact) {
   const url = String(artifact?.url || "#");
   if (!url || url === "#") return url;
   const kind = artifactKind(artifact);
+  const mime = String(artifact?.mime || "").toLowerCase();
+  if (kind === "html" || mime.startsWith("image/")) return url;
   const query = new URLSearchParams({
     src: url,
     name: artifact?.name || artifact?.id || "document",
@@ -555,7 +552,7 @@ function artifactHref(artifact) {
   });
   if (state.selectedWorkspaceId) query.set("workspaceId", state.selectedWorkspaceId);
   if (state.currentThreadId) query.set("threadId", state.currentThreadId);
-  if (kind === "html") return url;
+  if (kind === "markdown") return `/markdown-viewer.html?${query.toString()}`;
   if (kind === "pdf") return `/pdf-viewer.html?${query.toString()}`;
   return `/file-viewer.html?${query.toString()}`;
 }

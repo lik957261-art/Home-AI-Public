@@ -89,8 +89,11 @@ successful UI extraction round.
 
 ## Product Module Boundary
 
-Hermes Mobile is the platform layer for workspace, Chat, topic, Kanban, file
-delivery, Gateway Pool, Web Push, and access-control capabilities. Vertical
+Hermes Mobile is the platform layer for workspace, Chat, topic, Action Inbox,
+file delivery, Gateway Pool, Web Push, and access-control capabilities. Official
+Hermes Kanban may be used for legacy compatibility or official-agent workflows,
+but new Hermes Mobile user-participation behavior should use local product
+services instead of making official Kanban the primary mobile state store. Vertical
 products such as the Fanfan learning/growth system must use those platform
 capabilities through focused services and API contracts instead of copying the
 platform or growing `public/app.js` into a second product shell.

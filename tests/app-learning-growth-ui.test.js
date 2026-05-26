@@ -3,12 +3,13 @@
 const assert = require("node:assert/strict");
 const CoinsUi = require("../public/app-learning-coins-ui");
 const GrowthUi = require("../public/app-learning-growth-ui");
+const GrowthTaskUi = require("../public/app-learning-growth-task-ui");
 const ProgramUi = require("../public/app-learning-program-ui");
 
 const overview = {
   module: { title: "凡凡成长系统", currentEntry: "金币标签" },
   learner: { id: "weixin_stephen", displayName: "凡凡" },
-  metrics: { sevenDayCoins: 70, pendingRedemptions: 1 },
+  metrics: { sevenDayCoins: 70, thirtyDayCoins: 900, pendingRedemptions: 1 },
   board: {
     learner: { id: "weixin_stephen", workspaceId: "weixin_stephen", displayName: "Fanfan" },
     summary: { cardCount: 2 },
@@ -17,8 +18,8 @@ const overview = {
       { id: "waiting_ai", title: "Waiting for AI", count: 1, cards: ["task-2"] },
     ],
     cards: [
-      { taskCardId: "task-1", title: "Native board task", instructionPreview: "Write a short answer with a clear revision target.", activityType: "short_writing", plannedDate: "2026-05-20", openedAt: "2026-05-20T09:30:00", primaryAction: "submit", nextAction: "submit", artifactCount: 0, rewardCapCoins: 120 },
-      { taskCardId: "task-2", title: "Waiting task", activityType: "reading", primaryAction: "wait", nextAction: "waiting_feedback", artifactCount: 1, artifactDirectoryPath: "C:\\Deliverables\\task-2" },
+      { taskCardId: "task-1", title: "Native board task", instructionPreview: "Write a short answer with a clear revision target.", activityType: "short_writing", plannedDate: "2026-05-20", openedAt: "2026-05-20T09:30:00", primaryAction: "submit", nextAction: "submit", artifactCount: 0, rewardCapCoins: 120, sequenceGroupId: "series-english-retell", templateId: "english-speaking-retell-v1" },
+      { taskCardId: "task-2", title: "Waiting task", activityType: "reading", primaryAction: "wait", nextAction: "waiting_feedback", artifactCount: 1, artifactDirectoryPath: "C:\\Deliverables\\task-2", sequenceGroupId: "series-english-retell", templateId: "english-speaking-retell-v1", latestEvaluation: { score: 88 } },
     ],
   },
   capabilities: [
@@ -54,6 +55,7 @@ const overview = {
     growth: {
       totalEarnedCoins: 70,
       sevenDayCoins: 70,
+      thirtyDayCoins: 900,
       activeDaysInLast7: 2,
       streakDays: 2,
       level: { current: { level: 1, title: "新手" }, progressPct: 35, toNextLevelCoins: 130 },
@@ -132,15 +134,19 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.doesNotMatch(html, /learning-growth-board-lane-head/);
   assert.match(html, /Native board task/);
   assert.doesNotMatch(html, /<small>历史累计<\/small>/);
+  assert.match(html, /<article class="learning-growth-board-card"[^>]+data-learning-open-growth-task="task-1"/);
   assert.match(html, /data-learning-open-growth-task="task-1"/);
   assert.match(html, /learning-growth-board-card-preview/);
   assert.match(html, /data-learning-open-growth-task="task-1"/);
   assert.match(html, /奖励 120 金币/);
-  assert.match(html, /开放 2026-05-20 09:30/);
+  assert.match(html, /2026-05-20 09:30/);
+  assert.doesNotMatch(html, /开放 2026-05-20 09:30/);
   assert.match(html, /data-directory-path-open/);
   assert.match(html, /data-learning-growth-artifact-link/);
   assert.match(html, /learning-growth-board-artifact-icon/);
   assert.match(html, /data-directory-path="C:\\Deliverables\\task-2"/);
+  assert.match(html, /data-learning-open-growth-history="task-1"/);
+  assert.match(html, /data-learning-open-growth-history="task-2"/);
   assert.doesNotMatch(html, /上限 120 金币|任务概览|学习任务/);
   assert.doesNotMatch(html, /提交作答|learning-growth-board-card-actions/);
   assert.doesNotMatch(html, /data-learning-growth-tabs/);
@@ -152,10 +158,13 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.doesNotMatch(html, /data-learning-growth-tab="system"/);
   assert.match(html, /执行者/);
   assert.match(html, /累计金币/);
-  assert.match(html, /七日均值/);
+  assert.match(html, /7日均值/);
+  assert.match(html, /30日均值/);
+  assert.doesNotMatch(html, /七日均值|三十日均值/);
   assert.match(html, />凡凡</);
   assert.match(html, />70</);
   assert.match(html, />10</);
+  assert.match(html, />30</);
   assert.doesNotMatch(html, /70 金币|10 金币|历史累计/);
   assert.match(html, /aria-label="成长概览"/);
   assert.doesNotMatch(html, /凡凡成长系统|凡凡成长|成长看板/);
@@ -174,6 +183,198 @@ function testGrowthRendererContainsProductShellAndNestedCoins() {
   assert.doesNotMatch(html, /data-learning-evaluation-settle/);
   assert.doesNotMatch(html, /Owner|家长|后台与平台能力|learningRewardForm|人民币/);
   assert.doesNotMatch(html, /学习档案与目标录入/);
+}
+
+function testGrowthHistoryPageShowsRelatedSeriesCardsOnly() {
+  const html = GrowthUi.renderLearningGrowthView({
+    overview,
+    coinsUi: CoinsUi,
+    programUi: ProgramUi,
+    state: { auth: { isOwner: false }, learningGrowthHistoryTaskCardId: "task-1" },
+  });
+  assert.match(html, /data-learning-growth-history-page="task-1"/);
+  assert.match(html, /data-learning-growth-history-back/);
+  assert.match(html, /data-learning-open-growth-task="task-1"/);
+  assert.match(html, /data-learning-open-growth-task="task-2"/);
+  assert.match(html, /Native board task/);
+  assert.match(html, /Waiting task/);
+  assert.match(html, /88 \u5206/);
+  assert.doesNotMatch(html, /Write a short answer with a clear revision target/);
+  assert.doesNotMatch(html, /data-learning-growth-board/);
+}
+
+function testGrowthBoardShowsEvergreenRewardDecayAndAge() {
+  const html = GrowthUi.renderLearningGrowthBoard({
+    lanes: [{ id: "today", title: "Today", count: 1, cards: ["evergreen-yellow"] }],
+    cards: [{
+      taskCardId: "evergreen-yellow",
+      title: "Evergreen math",
+      activityType: "math_reasoning",
+      openedAt: "2026-05-20T08:00:00.000Z",
+      rewardCapCoins: 100,
+      rewardDecay: {
+        applies: true,
+        severity: "warning",
+        ageLabel: "2d 1h",
+        rewardCapCoins: 100,
+        effectiveRewardCapCoins: 95,
+        dailyPenaltyPercent: 5,
+      },
+    }],
+  });
+  assert.match(html, /learning-growth-board-card is-reward-warning/);
+  assert.match(html, /\u5df2\u53d1\u5e03 2d 1h/);
+  assert.match(html, /learning-growth-board-decay-rule is-warning/);
+  assert.match(html, /\u53d1\u5e03 48 \u5c0f\u65f6\u540e\u6bcf\u65e5\u6263 5%/);
+  assert.doesNotMatch(html, /\u5f00\u653e 2026-05-20/);
+  assert.doesNotMatch(html, /95\/100/);
+}
+
+function testGrowthBoardShowsSettledCoinsOnCompletedCards() {
+  const html = GrowthUi.renderLearningGrowthBoard({
+    lanes: [{ id: "completed_recent", title: "Completed", count: 1, cards: ["done-card"] }],
+    cards: [{
+      taskCardId: "done-card",
+      title: "Completed math",
+      status: "completed",
+      openedAt: "2026-05-20T08:00:00.000Z",
+      rewardDecay: { ageLabel: "2d 1h" },
+      latestRewardSettlement: {
+        status: "settled",
+        coinAmount: 88,
+      },
+    }],
+  });
+  assert.match(html, /data-learning-growth-board-card-reward="done-card"/);
+  assert.match(html, /\u5df2\u5f97 88 \u91d1\u5e01/);
+  assert.doesNotMatch(html, /\u5956\u52b1 100 \u91d1\u5e01/);
+  assert.doesNotMatch(html, /2026-05-20 08:00/);
+  assert.doesNotMatch(html, /\u5df2\u53d1\u5e03 2d 1h/);
+}
+
+function testGrowthRendererCanOpenBoardOnlyRevisionTask() {
+  const boardOnlyOverview = JSON.parse(JSON.stringify(overview));
+  boardOnlyOverview.board.lanes = [{ id: "needs_revision", title: "Needs revision", count: 1, cards: ["task-revise"] }];
+  boardOnlyOverview.board.cards = [{
+    taskCardId: "task-revise",
+    title: "Revision only board task",
+    instructionPreview: "Revise the first answer.",
+    activityType: "math_reasoning",
+    nextAction: "revise",
+    laneId: "needs_revision",
+    rewardCapCoins: 100,
+    latestSubmission: {
+      submissionId: "sub-revise",
+      taskCardId: "task-revise",
+      status: "submitted",
+      submittedAt: "2026-05-21T09:00:00.000Z",
+      displayText: "Q1: B because ratios match.",
+      structuredResponses: [
+        { questionId: "q1", type: "multiple_choice", title: "Question 1", choice: "B", reason: "The ratios match." },
+        { questionId: "q3", type: "written", title: "Question 3", response: "I compare the favorable cases." },
+      ],
+    },
+    latestEvaluation: {
+      evaluationId: "eval-revise",
+      taskCardId: "task-revise",
+      status: "needs_repair",
+      score: 68,
+      summary: "Revise the explanation.",
+      revisionRequirements: ["Add one complete reason."],
+      feedbackSections: {
+        focusAreas: ["Reason is too short."],
+        rewriteChecklist: ["Explain q1 in one full sentence."],
+        criterionFeedback: [{ dimension: "reasoning", observation: "The answer is too brief.", action: "Add the comparison." }],
+      },
+      createdAt: "2026-05-21T10:00:00.000Z",
+    },
+  }];
+  boardOnlyOverview.programs.taskCards = [];
+  boardOnlyOverview.programs.executableTasks = [];
+  const html = GrowthUi.renderLearningGrowthView({
+    overview: boardOnlyOverview,
+    coinsUi: CoinsUi,
+    growthTaskUi: GrowthTaskUi,
+    programUi: ProgramUi,
+    state: { auth: { isOwner: false }, selectedLearningTaskCardId: "task-revise" },
+  });
+  assert.match(html, /data-learning-growth-task-focus="task-revise"/);
+  assert.match(html, /data-learning-growth-answer-card/);
+  assert.match(html, /Revision only board task/);
+  assert.match(html, /\u6700\u8fd1\u6279\u6539/);
+  assert.match(html, /data-learning-growth-previous-submission/);
+  assert.match(html, /The ratios match/);
+  assert.match(html, /I compare the favorable cases/);
+  assert.match(html, /data-learning-growth-feedback-detail/);
+  assert.match(html, /Add one complete reason/);
+  assert.match(html, /Explain q1 in one full sentence/);
+  assert.match(html, /\u9700\u8981\u4fee\u6539\u540e\u518d\u63d0\u4ea4/);
+  assert.doesNotMatch(html, /\u5df2\u63d0\u4ea4\uff0c\u7b49\u5f85 AI \u6279\u6539/);
+  assert.match(html, /data-learning-growth-task-prompt-collapsed/);
+  assert.doesNotMatch(html, /data-learning-native-growth-submission-form="task-revise"/);
+  assert.doesNotMatch(html, /\u8fd9\u5f20\u4efb\u52a1\u5361\u5df2\u66f4\u65b0/);
+}
+
+function testGrowthSelectedTaskMergesBoardLatestEvaluation() {
+  const mergedOverview = JSON.parse(JSON.stringify(overview));
+  mergedOverview.programs.taskCards = [{
+    taskCardId: "task-merge",
+    title: "Merged task definition",
+    status: "published",
+    learnerInstruction: "Keep the full instruction from the task definition.",
+    taskModel: {
+      activityType: "math_reasoning",
+      questionItems: [{ id: "q1", type: "written", prompt: "Show the long reasoning." }],
+    },
+  }];
+  mergedOverview.programs.executableTasks = [{
+    taskCardId: "task-merge",
+    source: "learning-growth",
+    status: "published",
+    nativeState: { nextAction: "submit" },
+  }];
+  mergedOverview.board.lanes = [{ id: "needs_revision", title: "Needs revision", count: 1, cards: ["task-merge"] }];
+  mergedOverview.board.cards = [{
+    taskCardId: "task-merge",
+    title: "Merged board task",
+    laneId: "needs_revision",
+    nextAction: "revise",
+    primaryAction: "revise",
+    latestSubmission: {
+      submissionId: "sub-merge",
+      taskCardId: "task-merge",
+      status: "submitted",
+      submittedAt: "2026-05-23T09:26:00.000Z",
+      displayText: "summary only answer",
+    },
+    latestEvaluation: {
+      evaluationId: "eval-merge",
+      taskCardId: "task-merge",
+      status: "needs_repair",
+      score: 68,
+      summary: "summary only feedback",
+      revisionRequirements: ["Board latest repair requirement"],
+      feedbackSections: {
+        focusAreas: ["Board latest focus area"],
+      },
+      createdAt: "2026-05-23T09:28:00.000Z",
+    },
+  }];
+  const html = GrowthUi.renderLearningGrowthView({
+    overview: mergedOverview,
+    coinsUi: CoinsUi,
+    growthTaskUi: GrowthTaskUi,
+    programUi: ProgramUi,
+    state: { auth: { isOwner: false }, selectedLearningTaskCardId: "task-merge" },
+  });
+  assert.match(html, /Keep the full instruction from the task definition/);
+  assert.match(html, /Board latest repair requirement/);
+  assert.match(html, /Board latest focus area/);
+  assert.match(html, /data-learning-growth-previous-submission/);
+  assert.match(html, /\u9700\u8981\u4fee\u6539\u540e\u518d\u63d0\u4ea4/);
+  assert.match(html, /data-learning-growth-task-prompt-collapsed/);
+  assert.doesNotMatch(html, /data-learning-native-growth-question="q1"/);
+  assert.doesNotMatch(html, /\u5df2\u63d0\u4ea4\uff0c\u7b49\u5f85 AI \u6279\u6539/);
 }
 
 function testGrowthRendererContainsProgramSubsystem() {
@@ -196,13 +397,60 @@ function testGrowthRendererShowsStandaloneTaskCardWhenSelected() {
     state: { auth: { isOwner: false }, selectedLearningTaskCardId: "task-1" },
   });
   assert.match(html, /data-learning-growth-task-focus="task-1"/);
-  assert.match(html, /data-learning-close-growth-task/);
+  assert.doesNotMatch(html, /data-learning-close-growth-task/);
+  assert.doesNotMatch(html, /\u8fd4\u56de\u770b\u677f/);
   assert.match(html, /data-learning-growth-answer-card/);
   assert.match(html, /data-learning-native-growth-submission-form="task-1"/);
   assert.match(html, /Task status/);
   assert.doesNotMatch(html, /data-learning-growth-board/);
+  assert.doesNotMatch(html, /data-learning-growth-board-summary/);
   assert.doesNotMatch(html, /data-learning-growth-tabs/);
+  assert.doesNotMatch(html, /data-learning-growth-tab=/);
+  assert.doesNotMatch(html, /data-learning-settings-task-back/);
+  assert.doesNotMatch(html, /class="learning-settings-back"/);
   assert.doesNotMatch(html, /data-learning-growth-module="coins"/);
+}
+
+function testGrowthRendererUsesTeachingFlowForTeachingCard() {
+  const teachingOverview = JSON.parse(JSON.stringify(overview));
+  teachingOverview.programs.taskCards = [{
+    taskCardId: "teach-1",
+    title: "Teaching task",
+    cardRole: "teaching",
+    status: "published",
+    plannedDate: "2026-05-26",
+    workspaceId: "weixin_stephen",
+    rewardPolicy: { maxCoins: 100 },
+    expectedDurationMinutes: { min: 10, max: 15 },
+    teachingFlow: {
+      lesson: { title: "Main idea", explanation: "Read the explanation first." },
+      guidedPractice: { prompt: "Try one guided step." },
+      quickCheck: { prompt: "Write one check." },
+    },
+  }];
+  teachingOverview.board.cards = [{
+    taskCardId: "teach-1",
+    title: "Teaching task",
+    cardRole: "teaching",
+    primaryAction: "open",
+    nextAction: "open",
+  }];
+  const html = GrowthUi.renderLearningGrowthView({
+    overview: teachingOverview,
+    coinsUi: CoinsUi,
+    growthTaskUi: GrowthTaskUi,
+    programUi: ProgramUi,
+    state: { auth: { isOwner: false }, selectedLearningTaskCardId: "teach-1" },
+  });
+  assert.match(html, /data-learning-growth-teaching-card="teach-1"/);
+  assert.match(html, /data-learning-growth-card-role="teaching"/);
+  assert.match(html, /data-learning-growth-teaching-step="teach-1"/);
+  assert.doesNotMatch(html, /data-learning-open-growth-history="teach-1"/);
+  assert.doesNotMatch(html, /data-learning-settings-task-back/);
+  assert.doesNotMatch(html, /class="learning-settings-back"/);
+  assert.doesNotMatch(html, /data-learning-growth-board-summary/);
+  assert.doesNotMatch(html, /data-learning-growth-tab=/);
+  assert.doesNotMatch(html, /data-learning-native-growth-submission-form="teach-1"/);
 }
 
 function testGrowthRendererOpensLegacyTodoAsReadOnlyTask() {
@@ -278,11 +526,12 @@ function testOwnerRendererShowsIndependentSettingsPage() {
     overview,
     coinsUi: CoinsUi,
     programUi: ProgramUi,
-    state: { auth: { isOwner: true }, learningGrowthSettingsOpen: true, learningGrowthActiveTab: "ai-summary", learningAiSummary },
+    state: { auth: { isOwner: true }, learningGrowthSettingsOpen: true, learningGrowthActiveTab: "ai-analysis", learningAiSummary },
   });
   assert.match(html, /data-learning-role="owner"/);
   assert.match(html, /data-learning-growth-settings-page/);
-  assert.match(html, /data-learning-growth-close-settings/);
+  assert.doesNotMatch(html, /data-learning-growth-close-settings/);
+  assert.doesNotMatch(html, /\u8fd4\u56de\u770b\u677f/);
   assert.match(html, /data-learning-task-reward-policy-settings/);
   assert.match(html, /data-learning-task-reward-policy-series-form=/);
   assert.doesNotMatch(html, /data-learning-task-reward-policy-form="task-1"/);
@@ -291,28 +540,154 @@ function testOwnerRendererShowsIndependentSettingsPage() {
   assert.doesNotMatch(html, /data-learning-growth-owner-menu/);
   assert.doesNotMatch(html, /data-learning-growth-owner-tools/);
   assert.match(html, /data-learning-growth-tabs/);
-  assert.match(html, /data-learning-growth-tab="settings"/);
-  assert.match(html, /data-learning-growth-tab="ai-summary"/);
-  assert.match(html, /data-learning-growth-tab="ai-summary" aria-selected="true" class="active"/);
-  assert.match(html, /data-learning-growth-tab-panel="settings" role="tabpanel" hidden/);
-  assert.match(html, /data-learning-growth-tab-panel="ai-summary" role="tabpanel">\s*<section/);
+  assert.match(html, /data-learning-growth-tab="overview"/);
+  assert.match(html, /data-learning-growth-tab="mastery"/);
+  assert.match(html, /data-learning-growth-tab="tasks"/);
+  assert.match(html, /data-learning-growth-tab="rewards"/);
+  assert.match(html, /data-learning-growth-tab="ai-analysis"/);
+  assert.match(html, /data-learning-growth-tab="ai-analysis" aria-selected="true" class="active"/);
+  assert.match(html, /data-learning-growth-tab-panel="overview" role="tabpanel" hidden/);
+  assert.match(html, /data-learning-growth-tab-panel="ai-analysis" role="tabpanel">\s*<section/);
+  const overviewPanel = html.match(/data-learning-growth-tab-panel="overview"[\s\S]*?data-learning-growth-tab-panel="tasks"/)?.[0] || "";
+  assert.match(overviewPanel, /is-owner-settings-summary/);
+  assert.match(overviewPanel, /learning-launch-queue-compact/);
+  assert.doesNotMatch(overviewPanel, /data-learning-growth-module="coins"/);
   assert.match(html, /data-learning-ai-summary-recommendations/);
   assert.match(html, /data-learning-ai-summary-refresh/);
   assert.match(html, /data-learning-ai-recommendation-draft="rec-1"/);
   assert.match(html, /english-speaking-retell-v1/);
   assert.match(html, /12/);
-  assert.match(html, /data-learning-growth-tab="new-task"/);
-  assert.match(html, /data-learning-growth-tab="reward-settlement"/);
+  assert.match(html, /data-learning-settings-task-list/);
+  assert.match(html, /data-learning-settings-task-create/);
+  const tasksPanel = html.match(/data-learning-growth-tab-panel="tasks"[\s\S]*?data-learning-growth-tab-panel="rewards"/)?.[0] || "";
+  assert.match(tasksPanel, /data-learning-settings-fold/);
+  assert.doesNotMatch(tasksPanel, /data-learning-ai-summary-recommendations/);
+  assert.doesNotMatch(tasksPanel, /data-learning-growth-category="execution"/);
+  const rewardsPanel = html.match(/data-learning-growth-tab-panel="rewards"[\s\S]*?data-learning-growth-tab-panel="ai-analysis"/)?.[0] || "";
+  assert.match(rewardsPanel, /data-learning-settings-reward-stats/);
+  assert.doesNotMatch(rewardsPanel, /data-learning-growth-module="coins"/);
   assert.match(html, /data-learning-growth-category="parent-admin"/);
   assert.match(html, /data-learning-program-create/);
   assert.match(html, /data-learning-launch-operations/);
   assert.match(html, /data-learning-launch-next-action="settle-learning-rewards"/);
-  assert.match(html, /data-learning-evaluation-settle="eval-1"/);
   assert.match(html, /data-learning-reward-settlement-id="settle-1"/);
+  assert.match(html, /data-learning-settings-reward-stats/);
   assert.doesNotMatch(html, /data-learning-growth-tab="system"/);
   assert.doesNotMatch(html, /data-learning-growth-category="owner-system"/);
   assert.doesNotMatch(html, /data-learning-operational-readiness/);
   assert.doesNotMatch(html, /\u51e1\u51e1\u6210\u957f\u7cfb\u7edf|\u51e1\u51e1\u6210\u957f|\u6210\u957f\u770b\u677f|<small>7d<\/small>/);
+}
+
+function testOwnerSettingsWithoutLearnerShowsEmptyState() {
+  const html = GrowthUi.renderLearningGrowthView({
+    overview: { programs: {}, board: null, coins: {} },
+    coinsUi: CoinsUi,
+    programUi: ProgramUi,
+    state: { auth: { isOwner: true }, learningGrowthSettingsOpen: true },
+    learnerId: "",
+  });
+  assert.match(html, /data-learning-settings-no-learner/);
+  assert.match(html, /\u672a\u9009\u62e9\u6267\u884c\u8005/);
+  assert.match(html, /\u8bf7\u5148\u521b\u5efa\u6216\u9009\u62e9\u6267\u884c\u8005\u5de5\u4f5c\u533a/);
+  assert.doesNotMatch(html, /\u51e1\u51e1|Fanfan|weixin_stephen/);
+  assert.doesNotMatch(html, /data-learning-growth-tab=/);
+  assert.doesNotMatch(html, /data-learning-settings-task-create|data-learning-program-create|learningRewardForm/);
+}
+
+function testOwnerSettingsShowsMasteryProfileTab() {
+  const masteryProfile = {
+    ok: true,
+    masteryProfile: {
+      taxonomyVersion: "taxonomy-v1",
+      skillStates: [
+        {
+          skillId: "english.writing.claim_reason_example",
+          displayName: "Claim, reason, example writing",
+          summary: "Builds a clear opinion, reason, and example.",
+          domain: "english",
+          strand: "writing",
+          status: "mastered",
+          confidence: 0.88,
+          evidenceCount: 4,
+          strengths: ["Claim, reason, example writing"],
+          nextRecommendation: { strategy: "stretch" },
+        },
+        {
+          skillId: "english.speaking.retell_structure",
+          domain: "english",
+          strand: "speaking",
+          status: "needs_repair",
+          confidence: 0.86,
+          evidenceCount: 3,
+          weaknesses: ["Retell structure"],
+          nextRecommendation: { strategy: "repair" },
+        },
+        {
+          skillId: "science.practices.explanation_from_evidence",
+          displayName: "Scientific explanation from evidence",
+          summary: "Connects observations to a scientific claim.",
+          domain: "science",
+          strand: "practices",
+          status: "not_observed",
+          confidence: 0,
+          evidenceCount: 0,
+          nextRecommendation: { strategy: "observe" },
+        },
+      ],
+      domainSummary: [
+        { domain: "english", total: 2, observed: 2, mastered: 1, needsRepair: 1 },
+        { domain: "science", total: 1, observed: 0, mastered: 0, needsRepair: 0 },
+      ],
+      strengths: [{ skillId: "english.writing.claim_reason_example" }],
+      weaknesses: [{ skillId: "english.speaking.retell_structure" }],
+    },
+    trajectory: [{ sequenceGroupId: "series-1" }],
+  };
+  const html = GrowthUi.renderLearningGrowthView({
+    overview,
+    coinsUi: CoinsUi,
+    programUi: ProgramUi,
+    masteryProfile,
+    state: { auth: { isOwner: true }, learningGrowthSettingsOpen: true, learningGrowthActiveTab: "mastery" },
+  });
+  assert.match(html, /data-learning-growth-tab="mastery" aria-selected="true" class="active"/);
+  assert.match(html, /data-learning-growth-tab-panel="mastery" role="tabpanel">\s*<section class="learning-coin-panel learning-mastery-profile-panel"/);
+  assert.match(html, /data-learning-mastery-profile-panel/);
+  assert.match(html, /data-learning-mastery-domain-switcher/);
+  assert.match(html, /data-learning-mastery-domain-tabs/);
+  assert.match(html, /data-learning-mastery-domain-tab="english"/);
+  assert.match(html, /data-learning-mastery-domain-tab="science"/);
+  assert.match(html, /learning-mastery-domain-radio" type="radio" name="learning-mastery-domain" id="learning-mastery-domain-0" checked/);
+  assert.match(html, /data-learning-mastery-domain-index="0"/);
+  assert.match(html, /data-learning-mastery-domain="english"/);
+  assert.match(html, /data-learning-mastery-domain="science"/);
+  assert.match(html, /Scientific explanation from evidence/);
+  assert.match(html, /未观察/);
+  assert.match(html, /data-learning-mastery-skill="english\.writing\.claim_reason_example"/);
+  assert.match(html, /data-learning-mastery-status="needs_repair"/);
+  assert.match(html, /taxonomy-v1/);
+}
+
+function testOwnerSettingsTaskDetailStaysInsideSettingsPage() {
+  const html = GrowthUi.renderLearningGrowthView({
+    overview,
+    coinsUi: CoinsUi,
+    programUi: ProgramUi,
+    state: {
+      auth: { isOwner: true },
+      learningGrowthSettingsOpen: true,
+      learningGrowthActiveTab: "tasks",
+      learningGrowthSettingsTaskId: "task-1",
+    },
+  });
+  assert.match(html, /data-learning-growth-settings-page/);
+  assert.match(html, /data-learning-settings-task-detail/);
+  assert.match(html, /data-learning-settings-task-back/);
+  assert.match(html, /Task status/);
+  assert.match(html, /已生成/);
+  assert.match(html, /后续建议/);
+  assert.doesNotMatch(html, /data-learning-growth-task-focus/);
+  assert.doesNotMatch(html, /data-learning-open-growth-task="task-1"/);
 }
 
 function testReadinessPanelRenderer() {
@@ -325,11 +700,20 @@ function testReadinessPanelRenderer() {
 testCoinSubsystemRendererIsStandalone();
 testExecutorCoinSubsystemHidesOwnerSettlementDetails();
 testGrowthRendererContainsProductShellAndNestedCoins();
+testGrowthHistoryPageShowsRelatedSeriesCardsOnly();
+testGrowthBoardShowsEvergreenRewardDecayAndAge();
+testGrowthBoardShowsSettledCoinsOnCompletedCards();
+testGrowthRendererCanOpenBoardOnlyRevisionTask();
+testGrowthSelectedTaskMergesBoardLatestEvaluation();
 testGrowthRendererContainsProgramSubsystem();
 testGrowthRendererShowsStandaloneTaskCardWhenSelected();
+testGrowthRendererUsesTeachingFlowForTeachingCard();
 testGrowthRendererOpensLegacyTodoAsReadOnlyTask();
 testOwnerRendererKeepsBoardSeparateFromManagementSections();
 testOwnerRendererShowsIndependentSettingsPage();
+testOwnerSettingsWithoutLearnerShowsEmptyState();
+testOwnerSettingsShowsMasteryProfileTab();
+testOwnerSettingsTaskDetailStaysInsideSettingsPage();
 testReadinessPanelRenderer();
 
 console.log("app learning growth ui tests passed");

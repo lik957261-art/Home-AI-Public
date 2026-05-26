@@ -118,11 +118,27 @@ resolve_mobile_base_url() {
 mobile_base_url="`$(resolve_mobile_base_url "`$mobile_base_url")"
 
 legacy_gateway_pid() {
-  python3 - <<'PY'
+  python3 - "`$hermes_home" <<'PY'
 import re
+import sys
 from pathlib import Path
 
+target_home = sys.argv[1].replace("\\", "/").rstrip("/")
 pattern = re.compile(r"(?:^| )(?:\S*/python(?:3)?|\S*/python(?:3)?\.\d+|\S*/hermes|hermes)(?: -m hermes_cli\.main| \S*/hermes_cli/main\.py)? gateway run --replace$")
+
+def read_environ(proc):
+    try:
+        raw = (proc / "environ").read_bytes()
+    except OSError:
+        return {}
+    values = {}
+    for item in raw.split(b"\0"):
+        if not item or b"=" not in item:
+            continue
+        key, value = item.split(b"=", 1)
+        values[key.decode("utf-8", "replace")] = value.decode("utf-8", "replace")
+    return values
+
 for proc in Path("/proc").iterdir():
     if not proc.name.isdigit():
         continue
@@ -135,9 +151,17 @@ for proc in Path("/proc").iterdir():
     cmd = raw.replace(b"\0", b" ").decode("utf-8", "replace").strip()
     if " -p " in cmd:
         continue
-    if pattern.search(cmd):
-        print(proc.name)
-        raise SystemExit(0)
+    if not pattern.search(cmd):
+        continue
+    env = read_environ(proc)
+    profile = env.get("HERMES_PROFILE", "").strip()
+    hermes_home = env.get("HERMES_HOME", "").replace("\\", "/").rstrip("/")
+    if profile or "/.hermes/profiles/" in hermes_home:
+        continue
+    if target_home and hermes_home != target_home:
+        continue
+    print(proc.name)
+    raise SystemExit(0)
 raise SystemExit(1)
 PY
 }

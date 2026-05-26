@@ -7,6 +7,7 @@ import mimetypes
 import os
 import re
 import secrets
+import base64
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -21,9 +22,11 @@ DEFAULT_ALLOWED_ORIGINS = (
 DEFAULT_CREDENTIAL_ROOTS = (
     "/mnt/c/ProgramData/HermesMobile/data/drive/users",
 )
+DEFAULT_SAVE_ROOT = "/mnt/c/ProgramData/HermesMobile/data/artifacts/http-request"
 TOKEN_RE = re.compile(r"\bwd_live_[A-Za-z0-9._-]{12,}\b")
 MAX_RESPONSE_BYTES = 1024 * 1024
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+MAX_SAVE_BYTES = 20 * 1024 * 1024
 UPLOAD_ALLOWED_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif"}
 UPLOAD_CONTENT_TYPES = {
     ".jpg": "image/jpeg",
@@ -42,6 +45,8 @@ HTTP_REQUEST_SCHEMA = {
         "Make a scoped HTTP(S) request to a documented current-workspace Program API. "
         "Use this for low-permission workspace APIs such as the wardrobe manifest/bundle "
         "when the endpoint and credential are documented in an allowed workspace file. "
+        "For Hermes Mobile automation jobs, set url to hermes-mobile://cron and put "
+        "action, owner_principal_id, and job fields in json; this routes through the live Mobile bridge. "
         "Do not pass raw Authorization headers; pass credential_path so the tool can load "
         "and redact the Bearer token internally."
     ),
@@ -50,7 +55,7 @@ HTTP_REQUEST_SCHEMA = {
         "properties": {
             "url": {
                 "type": "string",
-                "description": "Full http:// or https:// URL. The origin must be on the Hermes Mobile HTTP allowlist.",
+                "description": "Full http:// or https:// URL on the Hermes Mobile HTTP allowlist, or hermes-mobile://cron for live Mobile automation jobs.",
             },
             "method": {
                 "type": "string",
@@ -155,8 +160,71 @@ HTTP_REQUEST_SCHEMA = {
                 "maximum": MAX_RESPONSE_BYTES,
                 "default": 262144,
             },
+            "save_base64": {
+                "type": "object",
+                "description": (
+                    "Optional save-as rule for a base64 image returned by the response. "
+                    "Set json_path to a top-level or dotted JSON field containing base64 or a data URL. "
+                    "The file is saved under the Hermes Mobile HTTP artifact root and returned as saved_file."
+                ),
+                "properties": {
+                    "json_path": {"type": "string", "description": "Dotted JSON path to the base64 value, for example image.dataBase64."},
+                    "filename": {"type": "string", "description": "Output image filename such as wardrobe-photo.png."},
+                    "content_type": {"type": "string", "description": "Image MIME type. Inferred from data URL or filename when omitted."},
+                },
+            },
+            "save_as": {
+                "type": "object",
+                "description": (
+                    "Optional save-as rule for a binary HTTP response such as image/jpeg, application/pdf, or audio. "
+                    "The response body is saved under the Hermes Mobile HTTP artifact root and returned as saved_file."
+                ),
+                "properties": {
+                    "filename": {"type": "string", "description": "Output filename such as wardrobe-photo.jpeg or report.pdf."},
+                    "content_type": {"type": "string", "description": "Expected MIME type. Inferred from response or filename when omitted."},
+                },
+            },
         },
         "required": ["url"],
+    },
+}
+
+
+CRONJOB_MOBILE_SCHEMA = {
+    "name": "cronjob_mobile",
+    "description": (
+        "Manage current-principal Hermes Mobile automations through the live Mobile bridge host. "
+        "Use this instead of raw profile-local cronjob for Hermes Mobile automation jobs. "
+        "owner_principal_id is required and must match the current run Principal."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "action": {
+                "type": "string",
+                "enum": ["list", "create", "update", "pause", "resume", "run", "delete", "read_output", "read_deliverable"],
+                "default": "list",
+            },
+            "owner_principal_id": {"type": "string"},
+            "job_id": {"type": "string"},
+            "name": {"type": "string"},
+            "prompt": {"type": "string"},
+            "schedule": {"type": "string"},
+            "skills": {"type": "array", "items": {"type": "string"}},
+            "enabled_toolsets": {"type": "array", "items": {"type": "string"}},
+            "model": {"type": "string"},
+            "provider": {"type": "string"},
+            "deliver": {"type": "string"},
+            "workdir": {"type": "string"},
+            "reason": {"type": "string"},
+            "dry_run": {"type": "boolean", "default": False},
+            "include_disabled": {"type": "boolean", "default": False},
+            "limit": {"type": "integer", "default": 100},
+            "file": {"type": "string"},
+            "run": {"type": "string"},
+            "index": {"type": "integer"},
+        },
+        "required": ["action", "owner_principal_id"],
     },
 }
 
@@ -168,6 +236,153 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def _json(payload: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False)
+
+
+def _bridge_host_url() -> str:
+    return (
+        os.environ.get("HERMES_MOBILE_BRIDGE_HOST_URL")
+        or os.environ.get("HERMES_WEB_BRIDGE_HOST_URL")
+        or "http://127.0.0.1:8798"
+    ).rstrip("/")
+
+
+def _bridge_host_key() -> str:
+    raw = os.environ.get("HERMES_MOBILE_BRIDGE_HOST_KEY") or os.environ.get("HERMES_WEB_BRIDGE_HOST_KEY")
+    if raw:
+        return raw.strip()
+    path = (
+        os.environ.get("HERMES_MOBILE_BRIDGE_HOST_KEY_PATH")
+        or os.environ.get("HERMES_WEB_BRIDGE_HOST_KEY_PATH")
+        or "/mnt/c/ProgramData/HermesMobile/data/secrets/bridge-host.secret"
+    )
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return handle.read().strip()
+    except OSError:
+        return ""
+
+
+def _string_list(value: Any, limit: int = 12) -> list[str]:
+    raw = value if isinstance(value, list) else ([value] if value else [])
+    out: list[str] = []
+    for item in raw:
+        text = str(item or "").strip()
+        if text and text not in out:
+            out.append(text)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _cronjob_mobile_payload(args: dict[str, Any]) -> dict[str, Any]:
+    action = str(args.get("action") or "list").strip().lower()
+    owner = str(args.get("owner_principal_id") or args.get("ownerPrincipalId") or "").strip()
+    if not owner:
+        raise ValueError("owner_principal_id is required")
+    payload: dict[str, Any] = {"action": action, "owner_principal_id": owner}
+    if args.get("dry_run") or args.get("dryRun"):
+        payload["dry_run"] = True
+    if action == "list":
+        payload["include_disabled"] = bool(args.get("include_disabled") or args.get("includeDisabled"))
+        payload["limit"] = int(args.get("limit") or 100)
+        return payload
+    if action in {"update", "pause", "resume", "run", "delete", "read_output", "read_deliverable"}:
+        job_id = str(args.get("job_id") or args.get("jobId") or "").strip()
+        if not job_id:
+            raise ValueError("job_id is required")
+        payload["job_id"] = job_id
+    if action == "create":
+        prompt = str(args.get("prompt") or "").strip()
+        schedule = str(args.get("schedule") or "").strip()
+        if not prompt:
+            raise ValueError("prompt is required")
+        if not schedule:
+            raise ValueError("schedule is required")
+        payload["job"] = {
+            "name": str(args.get("name") or "Hermes Mobile automation").strip()[:120],
+            "prompt": prompt,
+            "schedule": schedule,
+            "skills": _string_list(args.get("skills")),
+            "enabled_toolsets": _string_list(args.get("enabled_toolsets") or args.get("enabledToolsets")),
+            "model": str(args.get("model") or "").strip() or None,
+            "provider": str(args.get("provider") or "").strip() or None,
+            "deliver": str(args.get("deliver") or "local").strip() or "local",
+            "workdir": str(args.get("workdir") or "").strip() or None,
+        }
+        return payload
+    if action == "update":
+        patch: dict[str, Any] = {}
+        for key in ["name", "prompt", "schedule", "model", "provider", "deliver", "workdir"]:
+            if key in args:
+                patch[key] = args.get(key)
+        if "skills" in args:
+            patch["skills"] = _string_list(args.get("skills"))
+        if "enabled_toolsets" in args or "enabledToolsets" in args:
+            patch["enabled_toolsets"] = _string_list(args.get("enabled_toolsets") or args.get("enabledToolsets"))
+        if not patch:
+            raise ValueError("update requires at least one patch field")
+        payload["patch"] = patch
+        return payload
+    if action == "pause":
+        payload["reason"] = str(args.get("reason") or "cronjob_mobile").strip() or "cronjob_mobile"
+        return payload
+    if action == "read_output":
+        payload["file"] = str(args.get("file") or "").strip()
+        return payload
+    if action == "read_deliverable":
+        payload["run"] = str(args.get("run") or "").strip()
+        payload["index"] = int(args.get("index") or 0)
+        return payload
+    if action in {"resume", "run", "delete"}:
+        return payload
+    raise ValueError(f"Unsupported cronjob_mobile action: {action}")
+
+
+def _cronjob_mobile_handler(args: dict[str, Any], **_: Any) -> str:
+    try:
+        payload = _cronjob_mobile_payload(args if isinstance(args, dict) else {})
+        key = _bridge_host_key()
+        if not key:
+            return _json({"ok": False, "status": 503, "error": "Hermes Mobile bridge host key is not configured"})
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            f"{_bridge_host_url()}/bridge/cron",
+            data=body,
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=20) as response:
+            data = response.read(2 * 1024 * 1024)
+        parsed = json.loads(data.decode("utf-8") or "{}")
+        return _json(parsed if isinstance(parsed, dict) else {"ok": False, "error": "Invalid bridge response"})
+    except urllib.error.HTTPError as error:
+        try:
+            parsed = json.loads(error.read(1024 * 1024).decode("utf-8") or "{}")
+        except Exception:
+            parsed = {}
+        if isinstance(parsed, dict) and parsed:
+            parsed.setdefault("status", error.code)
+            return _json(parsed)
+        return _json({"ok": False, "status": error.code, "error": "Mobile cron bridge HTTP error"})
+    except Exception as error:
+        return _json({"ok": False, "status": 400, "error": str(error)})
+
+
+def _split_words(value: Any) -> set[str]:
+    return {item.strip() for item in re.split(r"[\s,;]+", str(value or "")) if item.strip()}
+
+
+def _current_profile_name() -> str:
+    return str(
+        os.environ.get("HERMES_PROFILE")
+        or os.environ.get("HERMES_PROFILE_NAME")
+        or os.environ.get("HERMES_LOW_GATEWAY_PROFILE")
+        or ""
+    ).strip()
 
 
 def _split_env_list(name: str, defaults: tuple[str, ...]) -> list[str]:
@@ -231,6 +446,11 @@ def _file_roots() -> list[Path]:
         except Exception:
             continue
     return roots
+
+
+def _save_root() -> Path:
+    root = os.environ.get("HERMES_MOBILE_HTTP_SAVE_ROOT") or DEFAULT_SAVE_ROOT
+    return Path(_windows_to_wsl_path(root)).resolve()
 
 
 def _inside_roots(path: Path, roots: list[Path]) -> bool:
@@ -332,6 +552,144 @@ def _safe_filename(value: Any, fallback: str) -> str:
     if not name:
         name = fallback
     return name[:160]
+
+
+def _safe_saved_image_filename(value: Any, content_type: str = "") -> str:
+    name = _safe_filename(value, "http-image.png")
+    suffix = Path(name).suffix.lower()
+    inferred = {
+        "image/jpeg": ".jpg",
+        "image/jpg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+        "image/gif": ".gif",
+    }.get(str(content_type or "").split(";", 1)[0].strip().lower(), "")
+    if suffix not in UPLOAD_ALLOWED_SUFFIXES:
+        name = f"{Path(name).stem or 'http-image'}{inferred or '.png'}"
+    return name
+
+
+def _safe_saved_response_filename(value: Any, content_type: str = "") -> str:
+    mime = str(content_type or "").split(";", 1)[0].strip().lower()
+    fallback_suffix = {
+        "image/jpeg": ".jpg",
+        "image/jpg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+        "image/gif": ".gif",
+        "application/pdf": ".pdf",
+        "audio/mpeg": ".mp3",
+        "audio/mp3": ".mp3",
+        "audio/mp4": ".m4a",
+        "audio/x-m4a": ".m4a",
+        "audio/wav": ".wav",
+        "audio/x-wav": ".wav",
+        "audio/ogg": ".ogg",
+        "audio/opus": ".opus",
+        "video/mp4": ".mp4",
+        "text/plain": ".txt",
+        "text/markdown": ".md",
+        "application/json": ".json",
+    }.get(mime, ".bin")
+    name = _safe_filename(value, f"http-response{fallback_suffix}")
+    if not Path(name).suffix:
+        name = f"{name}{fallback_suffix}"
+    return name
+
+
+def _json_path_value(value: Any, path_value: Any) -> Any:
+    if not path_value:
+        return value
+    current = value
+    for part in str(path_value or "").strip().split("."):
+        key = part.strip()
+        if not key:
+            continue
+        if isinstance(current, dict):
+            current = current.get(key)
+        elif isinstance(current, list) and key.isdigit():
+            index = int(key)
+            current = current[index] if 0 <= index < len(current) else None
+        else:
+            return None
+    return current
+
+
+def _decode_base64_image(value: Any, content_type: str = "") -> tuple[bytes, str]:
+    text = str(value or "").strip()
+    mime = str(content_type or "").split(";", 1)[0].strip().lower()
+    match = re.match(r"^data:([^;,]+);base64,(.+)$", text, re.I | re.S)
+    if match:
+        mime = match.group(1).strip().lower()
+        text = match.group(2).strip()
+    if not text:
+        raise ValueError("save_base64_value_missing")
+    data = base64.b64decode(re.sub(r"\s+", "", text), validate=True)
+    if len(data) > MAX_SAVE_BYTES:
+        raise ValueError("save_base64_too_large")
+    if not mime:
+        if data.startswith(b"\x89PNG\r\n\x1a\n"):
+            mime = "image/png"
+        elif data.startswith(b"\xff\xd8\xff"):
+            mime = "image/jpeg"
+        elif data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+            mime = "image/webp"
+        elif data.startswith(b"GIF8"):
+            mime = "image/gif"
+    if mime not in {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"}:
+        raise ValueError("save_base64_unsupported_image_type")
+    return data, ("image/jpeg" if mime == "image/jpg" else mime)
+
+
+def _save_base64_from_payload(parsed_payload: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
+    spec = args.get("save_base64")
+    if not isinstance(spec, dict):
+        return {}
+    json_payload = parsed_payload.get("json")
+    source = json_payload if json_payload is not None else parsed_payload.get("text", "")
+    raw_value = _json_path_value(source, spec.get("json_path"))
+    data, mime = _decode_base64_image(raw_value, str(spec.get("content_type") or ""))
+    root = _save_root()
+    filename = _safe_saved_image_filename(spec.get("filename"), mime)
+    root.mkdir(parents=True, exist_ok=True)
+    output_path = (root / filename).resolve()
+    output_path.relative_to(root)
+    output_path.write_bytes(data)
+    return {
+        "saved_file": {
+            "path": str(output_path),
+            "name": output_path.name,
+            "mime": mime,
+            "bytes": len(data),
+        }
+    }
+
+
+def _save_response_body(raw: bytes, args: dict[str, Any], content_type: str) -> dict[str, Any]:
+    spec = args.get("save_as")
+    if not isinstance(spec, dict):
+        return {}
+    if not raw:
+        raise ValueError("save_as_empty_response")
+    if len(raw) > MAX_SAVE_BYTES:
+        raise ValueError("save_as_too_large")
+    mime = str(spec.get("content_type") or content_type or "").split(";", 1)[0].strip().lower()
+    if not mime:
+        mime = mimetypes.guess_type(str(spec.get("filename") or ""))[0] or "application/octet-stream"
+    root = _save_root()
+    filename = _safe_saved_response_filename(spec.get("filename"), mime)
+    root.mkdir(parents=True, exist_ok=True)
+    output_path = (root / filename).resolve()
+    output_path.relative_to(root)
+    output_path.write_bytes(raw)
+    return {
+        "saved_file": {
+            "path": str(output_path),
+            "name": output_path.name,
+            "mime": mime,
+            "bytes": len(raw),
+        }
+    }
 
 
 def _upload_content_type(path: Path, supplied: Any) -> str:
@@ -472,8 +830,16 @@ def _body(args: dict[str, Any], headers: dict[str, str]) -> tuple[bytes | None, 
 
 
 def _parse_response(data: bytes, content_type: str) -> dict[str, Any]:
+    content_type_lower = content_type.lower()
+    if not (
+        "json" in content_type_lower
+        or "text/" in content_type_lower
+        or "xml" in content_type_lower
+        or "javascript" in content_type_lower
+    ):
+        return {"body_omitted": "binary_response"}
     text = data.decode("utf-8", errors="replace")
-    if "json" in content_type.lower():
+    if "json" in content_type_lower:
         try:
             return {"json": json.loads(text)}
         except Exception:
@@ -492,6 +858,9 @@ def _http_request_handler(args: dict[str, Any], **_: Any) -> str:
     method = str(args.get("method") or "GET").strip().upper() or "GET"
     if method not in {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"}:
         return _json({"ok": False, "error": "method_not_allowed", "method": method})
+    if url == "hermes-mobile://cron":
+        cron_args = args.get("json") if isinstance(args.get("json"), dict) else args
+        return _cronjob_mobile_handler(cron_args if isinstance(cron_args, dict) else {})
     try:
         origin = _check_allowed_url(url)
         headers = _clean_headers(args.get("headers"))
@@ -506,9 +875,13 @@ def _http_request_handler(args: dict[str, Any], **_: Any) -> str:
         limit = _max_bytes(args.get("max_bytes"))
         try:
             with opener.open(request, timeout=_timeout(args.get("timeout_seconds"))) as response:
-                raw = response.read(limit + 1)
+                read_limit = MAX_SAVE_BYTES if isinstance(args.get("save_as"), dict) else limit
+                raw = response.read(read_limit + 1)
                 truncated = len(raw) > limit
-                raw = raw[:limit]
+                save_truncated = len(raw) > read_limit
+                if save_truncated and isinstance(args.get("save_as"), dict):
+                    raise ValueError("save_as_too_large")
+                raw = raw[:read_limit]
                 content_type = response.headers.get("content-type", "")
                 payload = {
                     "ok": 200 <= int(response.status) < 300,
@@ -519,17 +892,24 @@ def _http_request_handler(args: dict[str, Any], **_: Any) -> str:
                     "content_type": content_type,
                     "bytes": len(raw),
                     "truncated": truncated,
+                    "save_truncated": save_truncated,
                     "credential_loaded": bool(token),
                     "credential_path": credential_path or "",
                 }
                 payload.update(request_meta)
                 if method != "HEAD":
                     payload.update(_parse_response(raw, content_type))
+                    payload.update(_save_response_body(raw, args, content_type))
+                    payload.update(_save_base64_from_payload(payload, args))
                 return _json(payload)
         except urllib.error.HTTPError as error:
-            raw = error.read(limit + 1)
+            read_limit = MAX_SAVE_BYTES if isinstance(args.get("save_as"), dict) else limit
+            raw = error.read(read_limit + 1)
             truncated = len(raw) > limit
-            raw = raw[:limit]
+            save_truncated = len(raw) > read_limit
+            if save_truncated and isinstance(args.get("save_as"), dict):
+                raise ValueError("save_as_too_large")
+            raw = raw[:read_limit]
             content_type = error.headers.get("content-type", "")
             payload = {
                 "ok": False,
@@ -540,11 +920,14 @@ def _http_request_handler(args: dict[str, Any], **_: Any) -> str:
                 "content_type": content_type,
                 "bytes": len(raw),
                 "truncated": truncated,
+                "save_truncated": save_truncated,
                 "credential_loaded": bool(token),
                 "credential_path": credential_path or "",
             }
             payload.update(request_meta)
             payload.update(_parse_response(raw, content_type))
+            payload.update(_save_response_body(raw, args, content_type))
+            payload.update(_save_base64_from_payload(payload, args))
             return _json(payload)
     except Exception as error:
         return _json({
@@ -560,6 +943,22 @@ def register(ctx) -> None:
         toolset="http",
         schema=HTTP_REQUEST_SCHEMA,
         handler=_http_request_handler,
-        description="Scoped HTTP request for documented Hermes Mobile workspace Program APIs.",
+        description=(
+            "Scoped HTTP request for documented Hermes Mobile workspace Program APIs. "
+            "Use hermes-mobile://cron for live Hermes Mobile automation jobs."
+        ),
         emoji="http",
     )
+    ctx.register_tool(
+        name="cronjob_mobile",
+        toolset="http",
+        schema=CRONJOB_MOBILE_SCHEMA,
+        handler=_cronjob_mobile_handler,
+        description="Scoped Hermes Mobile automation management through the live Mobile bridge.",
+        emoji="automation",
+    )
+    try:
+        from model_tools import _tool_defs_cache
+        _tool_defs_cache.clear()
+    except Exception:
+        pass

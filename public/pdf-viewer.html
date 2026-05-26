@@ -20,28 +20,29 @@
     .pdf-scroll {
       width: 100vw;
       height: 100dvh;
-      overflow-x: hidden;
+      overflow-x: auto;
       overflow-y: auto;
       overscroll-behavior-y: contain;
       -webkit-overflow-scrolling: touch;
-      touch-action: pan-y;
+      touch-action: pan-x pan-y;
       background: #f5efe4;
     }
 
     .pages {
-      width: 100vw;
+      width: max-content;
+      min-width: 100vw;
       min-height: 100dvh;
       background: #f5efe4;
-      touch-action: pan-y;
+      touch-action: pan-x pan-y;
     }
 
     canvas {
       display: block;
-      width: 100vw;
       height: auto;
       margin: 0;
+      max-width: none;
       background: #f7f1e7;
-      touch-action: pan-y;
+      touch-action: pan-x pan-y;
       pointer-events: auto;
     }
 
@@ -123,6 +124,11 @@
       display: none !important;
     }
 
+    body.embedded-viewer .share-button,
+    body.embedded-viewer .back-button {
+      display: none !important;
+    }
+
     .fallback {
       min-height: 100dvh;
       display: grid;
@@ -178,6 +184,8 @@
     const name = params.get("name") || "document.pdf";
     const key = localStorage.getItem("hermesWebKey") || "";
     const returnUrl = params.get("return") || "";
+    const embedded = params.get("embed") === "1";
+    document.body.classList.toggle("embedded-viewer", embedded);
     let pdfDocument = null;
     let renderSerial = 0;
     let resizeTimer = 0;
@@ -187,6 +195,7 @@
     let renderObjectUrl = "";
     let handlingViewerBack = false;
     const isAndroid = /Android/i.test(navigator.userAgent || "");
+    const EDGE_BACK_SWIPE_PX = 38;
 
     function setStatus(message) {
       status.textContent = message;
@@ -303,6 +312,14 @@
 
     function navigateBack(event) {
       event?.preventDefault?.();
+      if (embedded) {
+        try {
+          if (window.parent && window.parent !== window && window.parent.TaskDocumentPreviewUi?.closeActivePreviewFromUser) {
+            window.parent.TaskDocumentPreviewUi.closeActivePreviewFromUser();
+            return;
+          }
+        } catch (_) {}
+      }
       location.assign(fallbackReturnUrl());
     }
 
@@ -335,7 +352,15 @@
       surface.dataset.viewerBackSwipeBound = "1";
       let swipe = null;
       surface.addEventListener("touchstart", (event) => {
-        if (event.touches.length !== 1 || event.target?.closest?.("button, a, input, select, textarea, [contenteditable='true']")) {
+        if (event.touches.length !== 1) {
+          swipe = null;
+          return;
+        }
+        const point = event.touches[0];
+        if (
+          point.clientX > EDGE_BACK_SWIPE_PX
+          || event.target?.closest?.("button, a, input, select, textarea, [contenteditable='true']")
+        ) {
           swipe = null;
           return;
         }
@@ -499,12 +524,38 @@
     }
 
     function viewportWidth() {
-      return Math.max(320, Math.floor(window.visualViewport?.width || document.documentElement.clientWidth || window.innerWidth || 0));
+      const scrollWidth = Math.floor(document.getElementById("pdfScroll")?.clientWidth || 0);
+      const layoutWidth = Math.floor(document.documentElement.clientWidth || window.innerWidth || 0);
+      const visualWidth = Math.floor(window.visualViewport?.width || 0);
+      return Math.max(320, scrollWidth || layoutWidth || visualWidth || 0);
+    }
+
+    function pdfDeviceClass(width = viewportWidth()) {
+      const coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches;
+      if (coarsePointer && width <= 540) return "phone";
+      if (coarsePointer && width <= 900) return "tablet";
+      return "desktop";
+    }
+
+    function readablePdfCssWidth(page, width) {
+      const unitViewport = page.getViewport({ scale: 1 });
+      const portrait = unitViewport.height >= unitViewport.width;
+      const deviceClass = pdfDeviceClass(width);
+      if (embedded && deviceClass === "phone") return width;
+      if (deviceClass === "phone") {
+        const multiplier = portrait ? (width <= 430 ? 1.46 : 1.38) : 1.16;
+        return Math.min(860, Math.round(width * multiplier));
+      }
+      if (deviceClass === "tablet") {
+        return Math.min(980, Math.round(width * 1.12));
+      }
+      return width;
     }
 
     function renderMetricsForPage(page, width) {
       const unitViewport = page.getViewport({ scale: 1 });
-      const cssScale = width / unitViewport.width;
+      const readableWidth = readablePdfCssWidth(page, width);
+      const cssScale = readableWidth / unitViewport.width;
       const cssViewport = page.getViewport({ scale: cssScale });
       const targetPixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), isAndroid ? 2 : 3);
       const maxPixels = isAndroid ? 5000000 : 12000000;
@@ -584,7 +635,7 @@
     document.getElementById("weixinButton").addEventListener("click", () => {
       forwardPdfToWeixin().catch((err) => setTransientStatus(err.message || "Weixin forwarding failed."));
     });
-    wireViewerBackGuard();
+    if (!embedded) wireViewerBackGuard();
     wireViewerBackSwipe(document.getElementById("pdfScroll"));
     window.addEventListener("beforeunload", () => {
       if (renderObjectUrl) URL.revokeObjectURL(renderObjectUrl);

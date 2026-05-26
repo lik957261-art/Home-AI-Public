@@ -1,6 +1,13 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const {
+  CARD_ROLES,
+  inferCardRole,
+} = require("./learning-growth-card-role-service");
+const {
+  normalizeTeachingFlow,
+} = require("./learning-growth-teaching-card-contract-service");
 
 const VERSION = "learning-growth-jit-task-v1";
 
@@ -91,6 +98,14 @@ function baseInstruction(task = {}) {
   );
 }
 
+function isTeachingFlowRole(task = {}) {
+  return inferCardRole(task) !== CARD_ROLES.STAGE_ASSESSMENT;
+}
+
+function explicitTeachingFlow(value) {
+  return Boolean(value && typeof value === "object" && Object.keys(value).length);
+}
+
 function defaultExtractJsonObject(text) {
   const raw = cleanString(text);
   if (!raw) return null;
@@ -114,6 +129,8 @@ function deterministicSeed(input = {}) {
   const program = input.program || {};
   const task = input.task || {};
   const state = input.recentLearningState || {};
+  const nextCardStrategy = state.nextCardStrategy && typeof state.nextCardStrategy === "object" ? state.nextCardStrategy : {};
+  const masteryProfile = state.masteryProfile && typeof state.masteryProfile === "object" ? state.masteryProfile : {};
   const ranked = asArray(state.sources)
     .map((source) => Object.assign({}, source, { score: scoreSource(source, program, task) }))
     .sort((a, b) => b.score - a.score)
@@ -122,9 +139,11 @@ function deterministicSeed(input = {}) {
   return {
     baseInstruction: baseInstruction(task),
     sourceRefs: uniqueStrings(ranked.map((source) => source.sourceRef), 6),
-    focusSignals: signals,
-    skillTargets: uniqueStrings(task.skillIds || task.taskModel?.skillId || task.taskModel?.skillIds, 5),
-    difficultyBand: difficultyBand(signals),
+    focusSignals: uniqueStrings(asArray(nextCardStrategy.targetSkillIds).concat(signals), 8),
+    skillTargets: uniqueStrings(asArray(nextCardStrategy.targetSkillIds).concat(task.skillIds || task.taskModel?.skillId || task.taskModel?.skillIds), 5),
+    difficultyBand: cleanString(nextCardStrategy.difficultyBand || difficultyBand(signals)),
+    strategy: cleanString(nextCardStrategy.strategy),
+    masteryProfileVersion: cleanString(masteryProfile.taxonomyVersion),
   };
 }
 
@@ -147,6 +166,7 @@ function buildModelPrompt(input = {}, seed = {}) {
     },
     card: {
       title: compactText(task.title, 120),
+      cardRole: inferCardRole(task),
       skillIds: uniqueStrings(task.skillIds || task.taskModel?.skillId || task.taskModel?.skillIds, 8),
       activityType: compactText(task.taskModel?.activityType, 80),
       taskCardType: compactText(task.taskCardType || task.taskModel?.taskCardType, 80),
@@ -160,6 +180,19 @@ function buildModelPrompt(input = {}, seed = {}) {
       sources: safeSources,
       deterministicFocusSignals: seed.focusSignals,
       deterministicDifficultyBand: seed.difficultyBand,
+      masteryProfile: state.masteryProfile ? {
+        taxonomyVersion: compactText(state.masteryProfile.taxonomyVersion, 80),
+        strengths: asArray(state.masteryProfile.strengths).slice(0, 8),
+        weaknesses: asArray(state.masteryProfile.weaknesses).slice(0, 8),
+        reviewDue: asArray(state.masteryProfile.reviewDue).slice(0, 8),
+      } : null,
+      nextCardStrategy: state.nextCardStrategy || null,
+      recentTrajectory: asArray(state.recentTrajectory).slice(0, 8).map((item) => ({
+        taskCardId: compactText(item.taskCardId, 80),
+        strategy: compactText(item.strategy, 40),
+        difficultyBand: compactText(item.difficultyBand, 40),
+        performanceSummary: compactText(item.performanceSummary, 180),
+      })),
     },
   };
   return [
@@ -168,15 +201,19 @@ function buildModelPrompt(input = {}, seed = {}) {
     "Use Chinese for explanations/instructions unless the learner output itself must be English.",
     "Do not include raw prompts, answer keys, full transcripts, full learner history, endpoints, local paths, secrets, or copied copyrighted questions.",
     "If you create an exercise, make it original and bounded to this card. Do not provide the hidden answer key.",
+    "For teaching, practice, and integration_practice cards, teachingFlow is required and must be model-authored. It must include a micro-lesson, worked example, guided practice, and quick check. Use instruction, not prompt, for learner-facing cues.",
+    "For stage_assessment cards, teachingFlow may be null; use questionItems for the independent assessment.",
     "If the card needs structured questions, return questionItems with stem, choices, and answerFormat. Use stem, not prompt/question/questionText. Do not include answers.",
     "For english-short-writing-v1 / english_short_writing, generate only the current first-draft submission prompt. Do not include rewrite, AI feedback, or spoken reflection as questionItems; those are later workflow states.",
-    "Return schema: {\"learnerInstruction\":\"...\",\"focusSignals\":[\"...\"],\"difficultyBand\":\"repair|steady|stretch\",\"skillTargets\":[\"...\"],\"deliverables\":[\"...\"],\"acceptance\":[\"...\"],\"questionItems\":[{\"id\":\"q1\",\"type\":\"multiple_choice|written\",\"stem\":\"...\",\"choices\":[{\"id\":\"A\",\"text\":\"...\"}],\"answerFormat\":\"...\"}],\"teacherRationale\":\"...\"}",
+    "Use nextCardStrategy as the main generation constraint when present. Grade is reference only; allow above-grade stretch when strategy says so.",
+    "Return schema: {\"cardRole\":\"teaching|practice|integration_practice|stage_assessment\",\"learnerInstruction\":\"...\",\"focusSignals\":[\"...\"],\"difficultyBand\":\"repair|steady|stretch\",\"strategy\":\"repair|stabilize|transfer|stretch|integrate|review|reflect\",\"skillTargets\":[\"...\"],\"deliverables\":[\"...\"],\"acceptance\":[\"...\"],\"teachingFlow\":{\"learningTarget\":\"...\",\"whyItMatters\":\"...\",\"prerequisites\":[{\"id\":\"...\",\"label\":\"...\",\"evidence\":\"observed|weak|unknown\"}],\"microLesson\":{\"format\":\"text\",\"summary\":\"...\",\"learnerFacingText\":\"...\",\"keyPoints\":[\"...\"]},\"workedExample\":{\"instruction\":\"...\",\"steps\":[{\"label\":\"...\",\"text\":\"...\"}]},\"guidedPractice\":{\"mode\":\"modify_code|choose|fill_blank|explain|short_answer\",\"instruction\":\"...\",\"hints\":[\"...\"]},\"quickCheck\":{\"mode\":\"short_answer|choose|code_snippet|explain\",\"instruction\":\"...\",\"expectedEvidence\":[\"...\"],\"completionCriteria\":[\"...\"]},\"tooHardFallback\":{\"action\":\"prerequisite_repair|make_easier\",\"reason\":\"...\"}},\"questionItems\":[{\"id\":\"q1\",\"type\":\"multiple_choice|written\",\"stem\":\"...\",\"choices\":[{\"id\":\"A\",\"text\":\"...\"}],\"answerFormat\":\"...\"}],\"teacherRationale\":\"...\"}",
     JSON.stringify(payload),
   ].join("\n\n");
 }
 
 function normalizeModelOutput(parsed = {}, seed = {}, task = {}) {
   const safe = parsed && typeof parsed === "object" ? parsed : {};
+  const cardRole = inferCardRole(Object.assign({}, task, { cardRole: safe.cardRole || task.cardRole }));
   const learnerInstruction = compactText(safe.learnerInstruction || safe.instruction || seed.baseInstruction, 1400);
   const focusSignals = uniqueStrings(safe.focusSignals || seed.focusSignals, 5).map((item) => compactText(item, 180));
   const difficulty = cleanString(safe.difficultyBand || seed.difficultyBand).toLowerCase();
@@ -185,14 +222,33 @@ function normalizeModelOutput(parsed = {}, seed = {}, task = {}) {
   const deliverables = uniqueStrings(safe.deliverables || task.deliverables || task.taskModel?.deliverables, 8);
   const acceptance = uniqueStrings(safe.acceptance || task.acceptance || task.taskModel?.acceptance, 8);
   const questionItems = normalizeQuestionItems(safe.questionItems || safe.structuredQuestionItems || task.questionItems || task.taskModel?.questionItems);
+  const teachingFlowInput = safe.teachingFlow || safe.teaching_flow;
+  const teachingFlow = explicitTeachingFlow(teachingFlowInput)
+    ? normalizeTeachingFlow(Object.assign({}, teachingFlowInput, {
+        cardRole,
+        generationSource: "model_generated_jit",
+      }), Object.assign({}, task, {
+        cardRole,
+        learnerInstruction,
+        instruction: learnerInstruction,
+        focusSignals,
+        deliverables,
+        acceptance,
+        questionItems,
+      }))
+    : null;
   return {
+    cardRole,
     learnerInstruction,
     focusSignals,
     difficultyBand: difficultyBandValue,
+    strategy: compactText(safe.strategy || seed.strategy, 60),
     skillTargets,
     deliverables,
     acceptance,
     questionItems,
+    teachingFlow,
+    modelTeachingFlowGenerated: Boolean(teachingFlow),
     teacherRationale: compactText(safe.teacherRationale || safe.rationale, 360),
   };
 }
@@ -256,7 +312,7 @@ function createLearningGrowthJitTaskService(options = {}) {
   const model = cleanString(options.model || options.automationCreateModel || "gpt-5.5") || "gpt-5.5";
   const requestedReasoningEffort = cleanString(options.reasoningEffort || options.reasoning_effort || "xhigh").toLowerCase();
   const reasoningEffort = ["low", "medium", "high", "xhigh"].includes(requestedReasoningEffort) ? requestedReasoningEffort : "xhigh";
-  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 120000) || 120000);
+  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 600000) || 600000);
   const requireModel = options.requireModel === true;
 
   function recentLearningState(input = {}) {
@@ -301,12 +357,13 @@ function createLearningGrowthJitTaskService(options = {}) {
     let modelOutput = null;
     let modelStatus = "not_configured";
     let modelError = "";
+    const requiresTeachingFlow = isTeachingFlowRole(task);
     if (hermesModelText) {
       try {
         const workspaceId = cleanString(input.workspaceId || program.workspaceId || state.workspaceId || "owner") || "owner";
         const output = await hermesModelText({
           input: buildModelPrompt({ program, task, recentLearningState: state }, seed),
-          stream: false,
+          stream: true,
           store: false,
           model,
           reasoning_effort: reasoningEffort,
@@ -315,7 +372,12 @@ function createLearningGrowthJitTaskService(options = {}) {
           access_policy_context: sanitizePolicy(findWorkspace(workspaceId)?.policy || {}),
         }, timeoutMs);
         modelOutput = normalizeModelOutput(extractJsonObject(output || ""), seed, task);
-        modelStatus = modelOutput.learnerInstruction ? "completed" : "parse_error";
+        if (requiresTeachingFlow && !modelOutput.modelTeachingFlowGenerated) {
+          modelStatus = "parse_error";
+          modelError = "Growth JIT model output must include teachingFlow for teaching cards";
+        } else {
+          modelStatus = modelOutput.learnerInstruction ? "completed" : "parse_error";
+        }
       } catch (err) {
         modelStatus = "error";
         modelError = compactText(err.message || err, 240);
@@ -338,6 +400,8 @@ function createLearningGrowthJitTaskService(options = {}) {
       focusSignals: normalized.focusSignals,
       skillTargets: normalized.skillTargets,
       difficultyBand: normalized.difficultyBand,
+      strategy: normalized.strategy || seed.strategy,
+      masteryProfileVersion: seed.masteryProfileVersion || "",
       modelStatus,
       model,
       reasoningEffort,
@@ -345,15 +409,18 @@ function createLearningGrowthJitTaskService(options = {}) {
       materialPolicy: "bounded_instruction_summary_only",
       sequenceIndex: Number(input.sequenceIndex || 0) || 0,
       teacherRationale: normalized.teacherRationale,
+      teachingFlowStatus: normalized.modelTeachingFlowGenerated ? "model_generated" : "missing",
     };
     const taskModel = task.taskModel && typeof task.taskModel === "object" ? task.taskModel : {};
     const questionItems = currentStageQuestionItems(normalized.questionItems, task);
     return Object.assign({}, task, {
+      cardRole: normalized.cardRole || task.cardRole,
       learnerInstruction,
       instruction: learnerInstruction,
       deliverables: normalized.deliverables,
       acceptance: normalized.acceptance,
       questionItems: questionItems.length ? questionItems : task.questionItems,
+      teachingFlow: normalized.teachingFlow || task.teachingFlow || null,
       summary: compactText(`${cleanString(task.title) || "Growth task"}. JIT-ready card instruction generated from summary-only recent learning state.`, 260),
       learningGrowthJitGeneration: jitGeneration,
       taskModel: Object.assign({}, taskModel, {
@@ -361,6 +428,7 @@ function createLearningGrowthJitTaskService(options = {}) {
         deliverables: normalized.deliverables,
         acceptance: normalized.acceptance,
         questionItems: questionItems.length ? questionItems : taskModel.questionItems,
+        teachingFlow: normalized.teachingFlow || taskModel.teachingFlow || null,
         jitGeneration,
       }),
     });

@@ -11,6 +11,7 @@ function makeHarness(overrides = {}) {
   const calls = {
     broadcasts: [],
     concurrency: [],
+    events: [],
     gatewayRouting: [],
     hermesInstructions: [],
     mkdirs: [],
@@ -23,6 +24,12 @@ function makeHarness(overrides = {}) {
     groupChatTaskGroupId: "group-chat",
     toolSchemaEpoch: "epoch-test",
     nowIso: () => "2026-05-15T01:02:03.000Z",
+    nowMs: () => 1778806923000,
+    addThreadEvent: (thread, event) => {
+      thread.events = thread.events || [];
+      thread.events.push(event);
+      calls.events.push(event);
+    },
     assertRunConcurrencyCapacity: (workspaceId) => calls.concurrency.push(workspaceId),
     accessPolicyHardeningOptionsForGatewayRouting: (routing) => ({
       allowMaintenanceTools: Boolean(routing.maintenance),
@@ -69,6 +76,28 @@ function makeHarness(overrides = {}) {
     buildHermesInstructions: (thread, policy, project, latestText, taskDirectory, buildOptions) => {
       calls.hermesInstructions.push({ thread, policy, project, latestText, taskDirectory, buildOptions });
       return `instructions:${thread.workspaceId}:${project.id}`;
+    },
+    routeRunToolsets: ({ policy, userMessage, runOptions }) => {
+      const text = String(userMessage?.content || "");
+      if (/plain chat/i.test(text)) {
+        return {
+          policy: Object.assign({}, policy, {
+            allowed_toolsets: ["web", "search", "x_search", "http", "clarify"],
+            toolset_routing: { mode: "minimal", reason: "plain_chat_light_tools" },
+          }),
+          routing: { mode: "minimal", reason: "plain_chat_light_tools" },
+        };
+      }
+      if (runOptions.searchSource === "x") {
+        return {
+          policy: Object.assign({}, policy, {
+            allowed_toolsets: (policy.allowed_toolsets || []).filter((item) => ["x_search", "web", "search"].includes(item)),
+            toolset_routing: { mode: "intent", reason: "matched_intent" },
+          }),
+          routing: { mode: "intent", reason: "matched_intent" },
+        };
+      }
+      return { policy, routing: { mode: "compatible", reason: "test_default" } };
     },
     makePublicTaskId: () => "web_test_1",
     gatewaySkillRoutingForWorkspace: (workspaceId) => ({ skillWorkspaceId: workspaceId, requireSkillProfile: true }),
@@ -198,12 +227,25 @@ async function testStartRunBuildsGatewayRequestAndMutatesStartState() {
   assert.equal(assistant.reasoningEffort, "medium");
   assert.equal(assistant.runOptions.existing, true);
   assert.equal(assistant.runOptions.gatewayConversation, "session_1:user_1:file,terminal,http");
+  assert.deepEqual(assistant.runOptions.toolsetRouting, { mode: "compatible", reason: "test_default" });
   assert.equal(assistant.runOptions.toolSchemaEpoch, "epoch-test");
   assert.equal(assistant.runOptions.access_policy_context.connector_profiles.extra.type, "profile");
   assert.equal(thread.status, "running");
   assert.deepEqual(thread.activeRunIds, ["web_test_1"]);
-  assert.equal(calls.saved, 1);
+  assert.equal(calls.saved, 2);
+  assert.equal(calls.events.length, 3);
+  assert.deepEqual(calls.events.map((event) => event.event), [
+    "run.context_ready",
+    "run.gateway_selected",
+    "run.request_sent",
+  ]);
+  assert.equal(calls.events[0].runId, "web_test_1");
+  assert.equal(calls.events[0].preview, "上下文 1 条，约 0 字");
+  assert.match(calls.events[1].preview, /lowgw1/);
+  assert.match(calls.events[1].preview, /gpt-test/);
+  assert.equal(calls.events[2].preview, "等待模型或工具返回");
   assert.equal(calls.broadcasts[0].type, "message.updated");
+  assert.deepEqual(calls.broadcasts.slice(1, 4).map((item) => item.type), ["run.event", "run.event", "run.event"]);
   assert.equal(calls.streams.length, 1);
   assert.equal(calls.streams[0].runId, "web_test_1");
   assert.equal(calls.streams[0].body.input, "Do the task");
@@ -288,7 +330,23 @@ async function testStartRunPreservesSearchSourceRouting() {
   assert.equal(assistant.runOptions.searchSource, "x");
   assert.equal(assistant.runOptions.sourceIntent, "x_search");
   assert.equal(assistant.runOptions.sourceMode, "manual");
-  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["file", "x_search", "web", "search"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["x_search", "web", "search"]);
+  assert.deepEqual(assistant.runOptions.toolsetRouting, { mode: "intent", reason: "matched_intent" });
+}
+
+function testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions() {
+  const { calls, service } = makeHarness();
+  const request = service.buildRunRequest(
+    baseThread(),
+    baseUserMessage({ content: "plain chat" }),
+    baseAssistantMessage(),
+    {},
+  );
+
+  assert.deepEqual(request.runPolicy.allowed_toolsets, ["web", "search", "x_search", "http", "clarify"]);
+  assert.deepEqual(request.toolsetRouting, { mode: "minimal", reason: "plain_chat_light_tools" });
+  assert.deepEqual(calls.hermesInstructions[0].policy.allowed_toolsets, ["web", "search", "x_search", "http", "clarify"]);
+  assert.equal(request.body.access_policy_context.toolset_routing.mode, "minimal");
 }
 
 async function testStartRunUsesSelectedGatewayProviderFallback() {
@@ -307,6 +365,20 @@ async function testStartRunUsesSelectedGatewayProviderFallback() {
   await service.startRunForThread(baseThread(), baseUserMessage(), assistant, {});
 
   assert.equal(assistant.modelProvider, "openai-codex");
+}
+
+async function testChatGptProRunExtendsStreamWaits() {
+  const { calls, service } = makeHarness();
+
+  await service.startRunForThread(baseThread(), baseUserMessage(), baseAssistantMessage(), {
+    requiredTool: "chatgpt_pro_generate",
+    elevationScope: "chatgpt_pro_generate",
+  });
+
+  assert.equal(calls.streams.length, 1);
+  assert.equal(calls.streams[0].options.runStartTimeoutMs, 30 * 60 * 1000);
+  assert.equal(calls.streams[0].options.runLivenessCheckAfterMs, 30 * 60 * 1000);
+  assert.equal(calls.streams[0].options.runLivenessStaleAfterMs, 0);
 }
 
 async function testConcurrencyErrorStopsBeforeGatewaySelection() {
@@ -349,7 +421,9 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testStartRunBuildsGatewayRequestAndMutatesStartState();
   testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext();
   await testStartRunPreservesSearchSourceRouting();
+  testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions();
   await testStartRunUsesSelectedGatewayProviderFallback();
+  await testChatGptProRunExtendsStreamWaits();
   await testConcurrencyErrorStopsBeforeGatewaySelection();
   testMarkStartFailedUsesInjectedHooks();
   console.log("gateway-run-start-service tests passed");

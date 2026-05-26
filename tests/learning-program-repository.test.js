@@ -85,6 +85,42 @@ function testMigrationAndPersistence() {
   });
   assert.equal(taskCard.taskCardId, "task-1");
   assert.equal(taskCard.learnerAnswer, "[redacted]");
+  assert.equal(taskCard.cardRole, "teaching");
+  assert.equal(taskCard.completionPolicy.mode, "lightweight_teaching_check");
+  assert.equal(taskCard.rewardPolicy.maxCoins, 100);
+  assert.deepEqual(taskCard.expectedDurationMinutes, { min: 10, max: 15 });
+  assert.ok(taskCard.teachingFlow.lesson.explanation);
+
+  const signal = repository.saveExperienceSignal({
+    signalId: "signal-1",
+    taskCardId: "task-1",
+    programId: "program-1",
+    learnerId: "weixin_stephen",
+    learnerWorkspaceId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    cardRole: "teaching",
+    capabilityClusterId: taskCard.capabilityClusterId,
+    signalType: "too_hard",
+    intensity: 1,
+    summary: "summary only",
+    rawAnswer: "must not be exposed",
+  });
+  assert.equal(signal.signalId, "signal-1");
+  assert.equal(signal.rawAnswer, "[redacted]");
+  assert.equal(repository.summarizeExperienceSignals({ taskCardId: "task-1" }).counts.too_hard, 1);
+
+  const cycle = repository.upsertStageAssessmentCycle({
+    cycleId: "cycle-1",
+    learnerId: "weixin_stephen",
+    learnerWorkspaceId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    programId: "program-1",
+    capabilityClusterId: taskCard.capabilityClusterId,
+    status: "scheduled",
+    triggerType: "system",
+  });
+  assert.equal(cycle.cycleId, "cycle-1");
+  assert.equal(repository.listStageAssessmentCycles({ learnerId: "weixin_stephen" }).length, 1);
 
   const session = repository.saveInteractionSession({
     sessionId: "session-1",
@@ -120,6 +156,19 @@ function testMigrationAndPersistence() {
   });
   assert.equal(evaluation.evaluationId, "eval-1");
   assert.equal(evaluation.questionText, "[redacted]");
+  const refreshedEvaluation = repository.saveEvaluation(Object.assign({}, evaluation, {
+    status: "needs_repair",
+    score: 68,
+    passed: false,
+    confidence: 0.86,
+    summary: "updated summary only",
+    createdAt: "2026-05-16T10:05:00.000Z",
+  }));
+  assert.equal(refreshedEvaluation.evaluationId, "eval-1");
+  assert.equal(refreshedEvaluation.createdAt, "2026-05-16T10:05:00.000Z");
+  assert.equal(refreshedEvaluation.score, 68);
+  assert.equal(repository.listEvaluations({ taskCardId: "task-1", limit: 1 })[0].createdAt, "2026-05-16T10:05:00.000Z");
+  assert.equal(repository.listEvaluations({ taskCardId: "task-1" }).length, 1);
 
   const submission = repository.saveTaskSubmission({
     submissionId: "submission-1",
@@ -140,10 +189,12 @@ function testMigrationAndPersistence() {
     kanbanCommentRef: "comment-1",
     submittedAt: "2026-05-16T10:00:00.000Z",
     submissionText: "must not be exposed",
+    audio: { name: "attempt.webm", mime: "audio/webm", size: 1234 },
   });
   assert.equal(submission.submissionId, "submission-1");
   assert.equal(submission.submissionText, "[redacted]");
   assert.equal(submission.textChars, 320);
+  assert.equal(submission.audio.url, "/api/learning/task-submissions/submission-1/audio");
 
   const reflection = repository.saveTaskReflection({
     reflectionId: "reflection-1",
@@ -349,6 +400,19 @@ function testMigrationAndPersistence() {
   assert.equal(repository.listReviewRequests({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.listRewardSettlements({ learnerId: "weixin_stephen" }).length, 1);
   assert.equal(repository.getRewardSettlement("settle-1").coinAmount, 15);
+  const aiRecommendation = repository.saveTaskSeriesRecommendation({
+    recommendationRunId: "ai-rec-1",
+    learnerId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    domain: "english",
+    modelStatus: "completed",
+    analysisSummary: "summary-only analysis",
+    recommendedSeries: [{ templateId: "english-speaking-retell-v1", skillId: "english_speaking_retell" }],
+    learnerAnswer: "must not be exposed",
+  });
+  assert.equal(aiRecommendation.recommendationRunId, "ai-rec-1");
+  assert.equal(aiRecommendation.learnerAnswer, "[redacted]");
+  assert.equal(repository.latestTaskSeriesRecommendation({ learnerId: "weixin_stephen", workspaceId: "weixin_stephen", domain: "english" }).recommendationRunId, "ai-rec-1");
   assert.equal(repository.latestDraftForProgram("program-1").draftId, "draft-1");
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).sources, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).goals, 1);
@@ -362,6 +426,7 @@ function testMigrationAndPersistence() {
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).taskArtifacts, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).reviewRequests, 1);
   assert.equal(repository.counts({ learnerId: "weixin_stephen" }).rewardSettlements, 1);
+  assert.equal(repository.counts({ learnerId: "weixin_stephen" }).taskSeriesRecommendations, 1);
   repository.close();
   fs.rmSync(root, { recursive: true, force: true });
 }

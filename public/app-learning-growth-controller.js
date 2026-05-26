@@ -3,31 +3,25 @@
 function learningGrowthLearnerWorkspaceId() {
   const selected = String(state.selectedWorkspaceId || "").trim();
   const authWorkspace = String(state.auth?.workspaceId || "").trim();
+  const listedWorkspaceIds = Array.isArray(state.workspaces) ? state.workspaces.map((item) => String(item?.id || "").trim()).filter(Boolean) : [];
   const accessibleWorkspaceIds = Array.isArray(state.auth?.workspaceIds) && state.auth.workspaceIds.length
-    ? state.auth.workspaceIds
+    ? state.auth.workspaceIds.map((item) => String(item || "").trim()).filter(Boolean)
     : (authWorkspace ? [authWorkspace] : []);
   if (state.auth && !state.auth.isOwner) {
-    if (selected && accessibleWorkspaceIds.includes(selected)) return selected;
+    if (selected && (accessibleWorkspaceIds.includes(selected) || listedWorkspaceIds.includes(selected))) return selected;
     return authWorkspace || selected;
   }
   const scoped = String(state.learningGrowthWorkspaceId || "").trim();
   if (state.auth?.isOwner && scoped && (!selected || selected === "owner")) return scoped;
-  if (state.auth?.isOwner && (!selected || selected === "owner")) {
-    return LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID;
-  }
+  if (state.auth?.isOwner && (!selected || selected === "owner")) return listedWorkspaceIds.includes(LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID) ? LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID : "";
   return selected || authWorkspace || LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID;
 }
 
-function setLearningGrowthLearnerWorkspaceId(workspaceId) {
-  const target = String(workspaceId || "").trim();
-  if (!target || !state.auth?.isOwner) return;
-  state.learningGrowthWorkspaceId = target;
-}
-
-function learningCoinStudentId() {
-  return learningGrowthLearnerWorkspaceId();
-}
-
+function setLearningGrowthLearnerWorkspaceId(workspaceId) { const target = String(workspaceId || "").trim(); if (target && state.auth?.isOwner) state.learningGrowthWorkspaceId = target; }
+function learningCoinStudentId() { return learningGrowthLearnerWorkspaceId(); }
+function learningCoinCurrentScopeKey() { return `${learningGrowthLearnerWorkspaceId()}:${learningCoinStudentId()}`; }
+function learningGrowthLearnerLabel() { const id = learningGrowthLearnerWorkspaceId(); const workspace = (Array.isArray(state.workspaces) ? state.workspaces : []).find((item) => String(item?.id || "") === id); return String(workspace?.label || workspace?.displayName || id || "").trim(); }
+function isLearningGrowthViewActive() { return state.viewMode === "learning"; }
 function learningCoinRequestParams(options = {}) {
   const params = new URLSearchParams();
   params.set("workspaceId", learningGrowthLearnerWorkspaceId());
@@ -35,29 +29,23 @@ function learningCoinRequestParams(options = {}) {
   params.set("limit", String(options.limit || 30));
   return params;
 }
-
-function learningCoinCurrentScopeKey() {
-  return `${learningGrowthLearnerWorkspaceId()}:${learningCoinStudentId()}`;
+function learningGrowthMasteryRequestParams(options = {}) {
+  const params = new URLSearchParams();
+  params.set("workspaceId", learningGrowthLearnerWorkspaceId());
+  params.set("learnerId", learningCoinStudentId());
+  params.set("limit", String(options.limit || 80));
+  return params;
 }
-
-function isLearningGrowthViewActive() {
-  return state.viewMode === "learning";
-}
-
 function resetLearningCoinsState() {
   state.learningCoinRequestSeq += 1;
-  state.learningGrowth = null;
-  state.learningGrowthBoardLane = "";
-  state.selectedLearningTaskCardId = "";
+  state.learningGrowth = null; state.learningGrowthBoardLane = "";
+  state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsTaskId = "";
+  state.learningGrowthHistoryTaskCardId = "";
+  state.learningGrowthTeachingStepByCardId = {}; state.learningGrowthTeachingDrafts = {}; state.learningGrowthExperienceSignalBusy = {}; state.learningGrowthExperienceSignalSubmitted = {}; state.learningGrowthTeachingCheckBusy = {}; state.learningGrowthStageAssessmentActivating = {};
   state.learningGrowthSettingsOpen = false;
-  state.learningCoins = null;
-  state.learningCoinsError = "";
-  state.learningParentReport = null;
-  state.learningParentReportError = "";
-  state.learningParentReportLoading = false;
-  state.learningCoinScopeKey = learningCoinCurrentScopeKey();
+  state.learningCoins = null; state.learningCoinsError = "";
+  state.learningGrowthMasteryProfile = null; state.learningGrowthMasteryError = ""; state.learningGrowthMasteryLoading = false; state.learningParentReport = null; state.learningParentReportError = ""; state.learningParentReportLoading = false; state.learningCoinScopeKey = learningCoinCurrentScopeKey();
 }
-
 function renderLearningCoinsView() {
   if (!isLearningGrowthViewActive()) return;
   state.currentThread = null;
@@ -76,7 +64,7 @@ function renderLearningCoinsView() {
     return;
   }
   if (list) list.innerHTML = `<div class="empty-state small">\u5b66\u4e60\u4efb\u52a1\u5165\u53e3\u3002</div>`;
-  $("threadTitle").textContent = "\u4efb\u52a1";
+  $("threadTitle").textContent = state.learningGrowthSettingsOpen ? "\u8bbe\u7f6e" : (state.learningGrowthHistoryTaskCardId ? "\u5386\u53f2" : "\u4efb\u52a1");
   $("threadMeta").textContent = "";
   $("interruptRun").disabled = true;
   configureComposer({ enabled: false, placeholder: "\u5b66\u4e60\u4efb\u52a1" });
@@ -96,14 +84,15 @@ function renderLearningCoinsView() {
     parentReport: state.learningParentReport,
     parentReportLoading: state.learningParentReportLoading,
     parentReportError: state.learningParentReportError,
+    masteryProfile: state.learningGrowthMasteryProfile,
+    masteryProfileLoading: state.learningGrowthMasteryLoading,
+    masteryProfileError: state.learningGrowthMasteryError,
     aiSummary: state.learningAiSummary, aiSummaryLoading: state.learningAiSummaryLoading, aiSummaryError: state.learningAiSummaryError,
   });
   wireLearningCoinsView();
   updateNavigationControls();
   ensureVerticalScrollAffordance();
-  return;
 }
-
 function selectLearningGrowthTab(tabId) {
   const id = String(tabId || "").trim();
   const root = $("conversation");
@@ -119,8 +108,9 @@ function selectLearningGrowthTab(tabId) {
     panel.classList.toggle("active", active);
     panel.hidden = !active;
   });
+  if (id === "ai-analysis") window.HermesLearningGrowthAiController?.loadLatestLearningAiSummary?.({ force: true }).catch(showError);
+  if (id === "mastery") loadLearningGrowthMasteryProfile({ limit: 80 }).catch(showError);
 }
-
 function selectLearningGrowthBoardLane(laneId) {
   const root = $("conversation"), id = String(laneId || "").trim();
   if (!root || !id) return;
@@ -139,22 +129,24 @@ function selectLearningGrowthBoardLane(laneId) {
     panel.dataset.growthBoardActiveLane = id;
   });
 }
-
 function openLearningGrowthSettingsPage() {
-  state.learningGrowthSettingsOpen = true;
-  state.learningGrowthActiveTab = state.learningGrowthActiveTab || "settings";
-  state.selectedLearningTaskCardId = "";
+  state.learningGrowthSettingsOpen = true; state.learningGrowthActiveTab = state.learningGrowthActiveTab || "overview";
+  state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsTaskId = "";
+  state.learningGrowthHistoryTaskCardId = "";
   renderLearningCoinsView();
+  const conversation = $("conversation");
+  if (conversation) conversation.scrollTop = 0;
+  window.HermesLearningGrowthAiController?.loadLatestLearningAiSummary?.({ force: true }).catch(showError);
+  loadLearningGrowthMasteryProfile({ limit: 80 }).catch(showError);
 }
-
 function closeLearningGrowthSettingsPage() {
-  state.learningGrowthSettingsOpen = false;
+  state.learningGrowthSettingsOpen = false; state.learningGrowthSettingsTaskId = "";
   renderLearningCoinsView();
 }
-
 async function loadLearningCoins(options = {}) {
   const seq = ++state.learningCoinRequestSeq;
   const scopeKey = learningCoinCurrentScopeKey();
+  if (!learningGrowthLearnerWorkspaceId()) { state.learningGrowth = null; state.learningCoins = null; state.learningCoinsLoading = false; state.learningCoinsError = ""; state.learningCoinScopeKey = scopeKey; renderLearningCoinsView(); return; }
   if (state.learningCoinScopeKey !== scopeKey) {
     state.learningGrowth = null; state.learningCoins = null;
     state.learningCoinScopeKey = scopeKey;
@@ -167,6 +159,7 @@ async function loadLearningCoins(options = {}) {
     if (seq !== state.learningCoinRequestSeq || scopeKey !== learningCoinCurrentScopeKey()) return;
     state.learningGrowth = result;
     state.learningCoins = result?.coins || result?.coinSummary || {};
+    if (state.auth?.isOwner && state.learningGrowthSettingsOpen) loadLearningGrowthMasteryProfile({ limit: 80 }).catch(showError);
   } catch (err) {
     if (seq !== state.learningCoinRequestSeq || scopeKey !== learningCoinCurrentScopeKey()) return;
     state.learningCoinsError = err.message || String(err);
@@ -177,7 +170,29 @@ async function loadLearningCoins(options = {}) {
     }
   }
 }
-
+async function loadLearningGrowthMasteryProfile(options = {}) {
+  if (!state.auth?.isOwner) return;
+  if (!learningGrowthLearnerWorkspaceId()) { state.learningGrowthMasteryProfile = null; state.learningGrowthMasteryLoading = false; state.learningGrowthMasteryError = ""; renderLearningCoinsView(); return; }
+  const seq = (state.learningGrowthMasteryRequestSeq || 0) + 1;
+  state.learningGrowthMasteryRequestSeq = seq;
+  const scopeKey = learningCoinCurrentScopeKey();
+  state.learningGrowthMasteryLoading = true;
+  state.learningGrowthMasteryError = "";
+  renderLearningCoinsView();
+  try {
+    const result = await api(`/api/learning/growth/mastery-profile?${learningGrowthMasteryRequestParams(options)}`);
+    if (seq !== state.learningGrowthMasteryRequestSeq || scopeKey !== learningCoinCurrentScopeKey()) return;
+    state.learningGrowthMasteryProfile = result;
+  } catch (err) {
+    if (seq !== state.learningGrowthMasteryRequestSeq || scopeKey !== learningCoinCurrentScopeKey()) return;
+    state.learningGrowthMasteryError = err.message || String(err);
+  } finally {
+    if (seq === state.learningGrowthMasteryRequestSeq) {
+      state.learningGrowthMasteryLoading = false;
+      if (scopeKey === learningCoinCurrentScopeKey()) renderLearningCoinsView();
+    }
+  }
+}
 async function openLearningGrowthTask(taskCardId, workspaceId = "") {
   const id = String(taskCardId || "").trim();
   if (!id) return;
@@ -191,16 +206,27 @@ async function openLearningGrowthTask(taskCardId, workspaceId = "") {
   state.viewMode = "learning";
   localStorage.setItem("hermesWebViewMode", "learning");
   state.learningGrowthSettingsOpen = false;
+  state.learningGrowthHistoryTaskCardId = "";
   state.selectedLearningTaskCardId = id;
   state.selectedTodoId = "";
   state.todoRouteMissingTargetId = "";
   state.pendingReadingQuizTodoId = "";
   state.pendingAssessmentExamTodoId = "";
-  await loadProjects();
+  renderLearningCoinsView();
+  loadProjects().catch((err) => console.warn("Learning Growth project refresh failed", err));
   await loadLearningCoins({ limit: 80 });
   const boardCard = state.learningGrowth?.board?.cards?.find((card) => String(card.taskCardId || "") === id);
   if (boardCard?.laneId) state.learningGrowthBoardLane = boardCard.laneId;
 }
+async function openLearningGrowthHistory(taskCardId, workspaceId = "") {
+  const id = String(taskCardId || "").trim(); if (!id) return;
+  const targetWorkspaceId = String(workspaceId || learningGrowthLearnerWorkspaceId()).trim() || learningGrowthLearnerWorkspaceId();
+  setLearningGrowthLearnerWorkspaceId(targetWorkspaceId); state.viewMode = "learning"; localStorage.setItem("hermesWebViewMode", "learning");
+  state.learningGrowthSettingsOpen = false; state.selectedLearningTaskCardId = ""; state.learningGrowthHistoryTaskCardId = id; state.selectedTodoId = "";
+  renderLearningCoinsView(); await loadLearningCoins({ limit: 80 });
+}
+
+function closeLearningGrowthHistory() { state.learningGrowthHistoryTaskCardId = ""; renderLearningCoinsView(); }
 
 async function openLearningKanbanCard(todoId, workspaceId = "") {
   const id = String(todoId || "").trim(); if (!id) return;
@@ -242,14 +268,12 @@ async function submitLearningTaskRewardPolicyForm(event, taskCardId) {
 }
 
 function learningProgramFormBody() {
-  const focusAreas = [...document.querySelectorAll("input[name='learningProgramFocus']:checked")]
-    .map((input) => input.value)
-    .filter(Boolean);
+  const focusAreas = [...document.querySelectorAll("input[name='learningProgramFocus']:checked")].map((input) => input.value).filter(Boolean);
   const sourceBasisRefs = learningInputList("learningProgramSourceRefs");
   return {
     workspaceId: learningGrowthLearnerWorkspaceId(),
     learnerId: learningCoinStudentId(),
-    learnerName: "凡凡",
+    learnerName: learningGrowthLearnerLabel(),
     title: $("learningProgramTitle")?.value?.trim() || "",
     domain: $("learningProgramDomain")?.value || "english",
     focusAreas,
@@ -264,12 +288,7 @@ function learningProgramFormBody() {
   };
 }
 
-function learningInputList(id) {
-  return ($(`${id}`)?.value || "")
-    .split(/\r?\n|[,;]+/)
-    .map((value) => value.trim())
-    .filter(Boolean);
-}
+function learningInputList(id) { return ($(`${id}`)?.value || "").split(/\r?\n|[,;]+/).map((value) => value.trim()).filter(Boolean); }
 
 function learningSplitLines(id) {
   return ($(`${id}`)?.value || "")
@@ -311,7 +330,7 @@ function learningFoundationImportBody() {
   return Object.assign({}, scope, {
     sources,
     goals,
-    profile: profileSummary ? { profileSummary, displayName: "Fanfan" } : null,
+    profile: profileSummary ? { profileSummary, displayName: learningGrowthLearnerLabel() || scope.learnerId } : null,
   });
 }
 
@@ -319,7 +338,7 @@ function learningLearnerBody() {
   return {
     workspaceId: learningGrowthLearnerWorkspaceId(),
     learnerId: learningCoinStudentId(),
-    learnerName: "Fanfan",
+    learnerName: learningGrowthLearnerLabel(),
   };
 }
 
@@ -470,14 +489,16 @@ async function decideLearningParentReviewRequest(reviewRequestId, decision) {
 
 async function settleLearningEvaluationReward(evaluationId) {
   if (!evaluationId) return;
-  await api(`/api/learning/evaluations/${encodeURIComponent(evaluationId)}/reward-settlement`, {
-    method: "POST",
-    body: JSON.stringify({ reason: "owner_learning_growth_settlement" }),
-  });
-  showPushToast("\u5b66\u4e60\u5956\u52b1\u7ed3\u7b97\u5df2\u5904\u7406", "success");
-  await loadLearningCoins({ limit: 30 });
+  await api(`/api/learning/evaluations/${encodeURIComponent(evaluationId)}/reward-settlement`, { method: "POST", body: JSON.stringify({ reason: "owner_learning_growth_settlement" }) });
+  showPushToast("\u5b66\u4e60\u5956\u52b1\u7ed3\u7b97\u5df2\u5904\u7406", "success"); await loadLearningCoins({ limit: 30 });
 }
-
+async function manualPassLearningGrowthTask(taskCardId) {
+  const id = String(taskCardId || "").trim();
+  if (!id || (window.confirm && !window.confirm("\u786e\u8ba4\u624b\u5de5\u901a\u8fc7\u8fd9\u5f20\u6210\u957f\u5361\u7247\uff1f\u7cfb\u7edf\u4f1a\u8bb0\u5f55 Owner \u624b\u5de5\u901a\u8fc7\uff0c\u5e76\u8fdb\u5165\u5956\u52b1\u7ed3\u7b97\u901a\u9053\u3002"))) return;
+  await api(`/api/learning/task-cards/${encodeURIComponent(id)}/manual-pass`, { method: "POST", body: JSON.stringify(Object.assign(learningLearnerBody(), { reason: "owner_manual_pass_from_task_menu" })) });
+  delete (state.learningNativeGrowthAnswerEditing = state.learningNativeGrowthAnswerEditing || {})[id]; state.selectedLearningTaskCardId = ""; state.learningGrowthBoardLane = "completed_recent";
+  showPushToast("\u5df2\u624b\u5de5\u901a\u8fc7\u5e76\u5237\u65b0\u5df2\u5b8c\u6210\u5217\u8868", "success"); await loadLearningCoins({ limit: 80 });
+}
 async function submitLearningRewardForm(event) {
   event?.preventDefault?.();
   const title = $("learningRewardTitle")?.value?.trim() || "";
@@ -553,15 +574,24 @@ async function submitLearningEvaluationForm(event, sessionId) {
 }
 
 function wireLearningCoinsView() {
-  if (typeof wireDirectoryProjectLinks === "function") wireDirectoryProjectLinks($("conversation"));
-  $("conversation")?.querySelectorAll("[data-learning-growth-tab]").forEach((button) => {
-    button.addEventListener("click", () => selectLearningGrowthTab(button.dataset.learningGrowthTab));
-  });
-  $("conversation")?.querySelector("[data-learning-growth-close-settings]")?.addEventListener("click", closeLearningGrowthSettingsPage);
-  $("conversation")?.querySelectorAll("[data-learning-growth-board-filter]").forEach((button) => {
-    button.addEventListener("click", () => selectLearningGrowthBoardLane(button.dataset.learningGrowthBoardFilter));
-  });
-  $("conversation")?.querySelector("[data-learning-close-growth-task]")?.addEventListener("click", () => { state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsOpen = false; renderLearningCoinsView(); });
+  const root = $("conversation");
+  const onClickAll = (selector, handler) => $("conversation")?.querySelectorAll(selector).forEach((button) => button.addEventListener("click", () => handler(button)));
+  const onSubmitAll = (selector, handler) => $("conversation")?.querySelectorAll(selector).forEach((form) => form.addEventListener("submit", (event) => handler(event, form)));
+  if (typeof wireDirectoryProjectLinks === "function") wireDirectoryProjectLinks(root);
+  if (root && !root.dataset.learningGrowthOpenDelegated) { root.dataset.learningGrowthOpenDelegated = "1"; root.addEventListener("click", (event) => {
+    const growth = event.target?.closest?.("[data-learning-open-growth-task]"), history = event.target?.closest?.("[data-learning-open-growth-history]"), historyBack = event.target?.closest?.("[data-learning-growth-history-back]"), kanban = event.target?.closest?.("[data-learning-open-kanban-card]"), edit = event.target?.closest?.("[data-learning-native-growth-edit-answer]"), manualPass = event.target?.closest?.("[data-learning-growth-manual-pass]");
+    if (event.target?.closest?.("[data-directory-path-open]")) return;
+    if (manualPass && root.contains(manualPass)) { event.preventDefault(); event.stopPropagation(); manualPassLearningGrowthTask(manualPass.dataset.learningGrowthManualPass).catch(showError); return; }
+    if (edit && root.contains(edit)) { event.preventDefault(); event.stopPropagation(); const taskCardId = String(edit.dataset.learningNativeGrowthEditAnswer || "").trim(); if (taskCardId) { state.learningNativeGrowthAnswerEditing = state.learningNativeGrowthAnswerEditing || {}; state.learningNativeGrowthAnswerEditing[taskCardId] = true; renderLearningCoinsView(); } return; }
+    if (historyBack && root.contains(historyBack)) { event.preventDefault(); event.stopPropagation(); closeLearningGrowthHistory(); return; }
+    if (history && root.contains(history)) { event.preventDefault(); event.stopPropagation(); openLearningGrowthHistory(history.dataset.learningOpenGrowthHistory, history.dataset.workspaceId).catch(showError); return; }
+    if (growth && root.contains(growth)) { event.preventDefault(); event.stopPropagation(); openLearningGrowthTask(growth.dataset.learningOpenGrowthTask, growth.dataset.workspaceId).catch(showError); return; }
+    if (kanban && root.contains(kanban)) { event.preventDefault(); event.stopPropagation(); openLearningKanbanCard(kanban.dataset.learningOpenKanbanCard, kanban.dataset.workspaceId).catch(showError); }
+  }); }
+  onClickAll("[data-learning-growth-tab]", (button) => selectLearningGrowthTab(button.dataset.learningGrowthTab));
+  onClickAll("[data-learning-growth-board-filter]", (button) => selectLearningGrowthBoardLane(button.dataset.learningGrowthBoardFilter));
+  $("conversation")?.querySelector("[data-learning-settings-task-back]")?.addEventListener("click", () => window.HermesLearningGrowthSettingsController?.closeSettingsTask?.());
+  window.HermesLearningGrowthSettingsController?.wireSettingsTaskSwipe?.($("conversation"));
   window.HermesLearningGrowthAiController?.wireLearningGrowthAi?.();
   $("learningProgramForm")?.addEventListener("submit", (event) => {
     submitLearningProgramForm(event).catch(showError);
@@ -575,39 +605,22 @@ function wireLearningCoinsView() {
   $("learningFoundationImportForm")?.addEventListener("submit", (event) => {
     submitLearningFoundationImportForm(event).catch(showError);
   });
-  $("conversation")?.querySelectorAll("[data-learning-source-directory-import]").forEach((button) => {
-    button.addEventListener("click", () => importLearningSourceDirectory(button.dataset.learningSourceDirectoryImport).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-source-directory-bootstrap]").forEach((button) => {
-    button.addEventListener("click", () => bootstrapLearningSourceDirectory(button.dataset.learningSourceDirectoryBootstrap).catch(showError));
-  });
+  onClickAll("[data-learning-source-directory-import]", (button) => importLearningSourceDirectory(button.dataset.learningSourceDirectoryImport).catch(showError));
+  onClickAll("[data-learning-source-directory-bootstrap]", (button) => bootstrapLearningSourceDirectory(button.dataset.learningSourceDirectoryBootstrap).catch(showError));
   $("conversation")?.querySelector("[data-learning-profile-rebuild]")?.addEventListener("click", () => {
     rebuildLearningProfile().catch(showError);
   });
   $("conversation")?.querySelector("[data-learning-parent-report-refresh]")?.addEventListener("click", () => {
     loadLearningParentReport().catch(showError);
   });
-  $("conversation")?.querySelectorAll("[data-learning-program-draft-action]").forEach((button) => {
-    button.addEventListener("click", () => draftLearningProgram(button.dataset.learningProgramDraftAction).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-program-rebuild-draft]").forEach((button) => {
-    button.addEventListener("click", () => rebuildLearningProgramDraft(button.dataset.learningProgramRebuildDraft).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-program-publish]").forEach((button) => {
-    button.addEventListener("click", () => publishLearningProgram(button.dataset.learningProgramPublish).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-review-decision]").forEach((button) => {
-    button.addEventListener("click", () => decideLearningReview(button.dataset.learningReviewDecision, button.dataset.decision).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-parent-review-decision]").forEach((button) => {
-    button.addEventListener("click", () => decideLearningParentReviewRequest(button.dataset.learningParentReviewDecision, button.dataset.decision).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-evaluation-settle]").forEach((button) => {
-    button.addEventListener("click", () => settleLearningEvaluationReward(button.dataset.learningEvaluationSettle).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-task-start]").forEach((button) => {
-    button.addEventListener("click", () => startLearningTaskSession(button.dataset.learningTaskStart).catch(showError));
-  });
+  onClickAll("[data-learning-program-draft-action]", (button) => draftLearningProgram(button.dataset.learningProgramDraftAction).catch(showError));
+  onClickAll("[data-learning-program-rebuild-draft]", (button) => rebuildLearningProgramDraft(button.dataset.learningProgramRebuildDraft).catch(showError));
+  onClickAll("[data-learning-program-publish]", (button) => publishLearningProgram(button.dataset.learningProgramPublish).catch(showError));
+  onClickAll("[data-learning-review-decision]", (button) => decideLearningReview(button.dataset.learningReviewDecision, button.dataset.decision).catch(showError));
+  onClickAll("[data-learning-parent-review-decision]", (button) => decideLearningParentReviewRequest(button.dataset.learningParentReviewDecision, button.dataset.decision).catch(showError));
+  onClickAll("[data-learning-evaluation-settle]", (button) => settleLearningEvaluationReward(button.dataset.learningEvaluationSettle).catch(showError));
+  onClickAll("[data-learning-task-start]", (button) => startLearningTaskSession(button.dataset.learningTaskStart).catch(showError));
+  window.HermesLearningGrowthTeachingController?.wireTeachingCards?.($("conversation"));
   $("conversation")?.querySelectorAll("[data-learning-native-growth-submission-form]").forEach((form) => {
     const taskCardId = form.dataset.taskCardId || form.dataset.learningNativeGrowthSubmissionForm;
     restoreNativeGrowthSubmissionDraft(form, taskCardId);
@@ -672,27 +685,10 @@ function wireLearningCoinsView() {
     });
   });
   window.HermesLearningGrowthRewardController?.wireLearningGrowthRewardPolicy?.();
-  $("conversation")?.querySelectorAll("[data-learning-open-growth-task]").forEach((button) => {
-    button.addEventListener("click", () => openLearningGrowthTask(
-      button.dataset.learningOpenGrowthTask,
-      button.dataset.workspaceId,
-    ).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-open-kanban-card]").forEach((button) => {
-    button.addEventListener("click", () => openLearningKanbanCard(
-      button.dataset.learningOpenKanbanCard,
-      button.dataset.workspaceId,
-    ).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-session-advance]").forEach((button) => {
-    button.addEventListener("click", () => advanceLearningSession(button.dataset.learningSessionAdvance).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-evaluation-form]").forEach((form) => {
-    form.addEventListener("submit", (event) => submitLearningEvaluationForm(event, form.dataset.learningEvaluationForm).catch(showError));
-  });
-  $("conversation")?.querySelectorAll("[data-learning-redeem]").forEach((button) => {
-    button.addEventListener("click", () => requestLearningCoinRedemption(button.dataset.learningRedeem).catch(showError));
-  });
+  onClickAll("[data-learning-open-settings-task]", (button) => window.HermesLearningGrowthSettingsController?.openSettingsTask?.(button.dataset.learningOpenSettingsTask));
+  onClickAll("[data-learning-session-advance]", (button) => advanceLearningSession(button.dataset.learningSessionAdvance).catch(showError));
+  onSubmitAll("[data-learning-evaluation-form]", (event, form) => submitLearningEvaluationForm(event, form.dataset.learningEvaluationForm).catch(showError));
+  onClickAll("[data-learning-redeem]", (button) => requestLearningCoinRedemption(button.dataset.learningRedeem).catch(showError));
   $("learningRewardForm")?.addEventListener("submit", (event) => {
     submitLearningRewardForm(event).catch(showError);
   });

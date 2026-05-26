@@ -108,6 +108,12 @@
     return `${Number.isFinite(amount) ? amount : 0} \u91d1\u5e01`;
   }
 
+  function averageCoinsForWindow(coins = {}, metrics = {}, days = 7) {
+    const totalField = days === 30 ? "thirtyDayCoins" : "sevenDayCoins";
+    const total = Number(metrics?.[totalField] ?? coins?.growth?.[totalField] ?? 0);
+    return Number.isFinite(total) ? Math.round(total / days) : 0;
+  }
+
   function renderGrowthWorkflow(options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const steps = [
@@ -154,6 +160,16 @@
     return Number.isFinite(value) && value > 0 ? Math.round(value) : 100;
   }
 
+  function cardRewardText(card = {}) {
+    const settlement = card.latestRewardSettlement || card.rewardSettlement || null;
+    const coinAmount = Number(settlement?.coinAmount || 0);
+    const amount = Number.isFinite(coinAmount) && coinAmount > 0 ? Math.round(coinAmount) : 0;
+    const status = String(settlement?.status || "");
+    if (amount && status === "settled") return `\u5df2\u5f97 ${amount} \u91d1\u5e01`;
+    if (amount && (status === "ready" || status === "pending_review")) return `\u5f85\u7ed3\u7b97 ${amount} \u91d1\u5e01`;
+    return `\u5956\u52b1 ${taskRewardCapCoins(card)} \u91d1\u5e01`;
+  }
+
   function cardOpenTimeText(card = {}) {
     const value = String(card.openedAt || card.generatedAt || card.availableAt || card.createdAt || card.plannedDate || "").trim();
     if (!value) return "";
@@ -167,10 +183,65 @@
     return normalized.length > 16 ? normalized.slice(0, 16) : normalized;
   }
 
+  function cardPublishedAgeText(card = {}) {
+    const decay = card.rewardDecay || {};
+    if (decay.ageLabel) return decay.ageLabel;
+    const value = String(card.openedAt || card.generatedAt || card.availableAt || card.createdAt || card.plannedDate || "").trim();
+    const ms = Date.parse(value);
+    if (!Number.isFinite(ms)) return "";
+    const hours = Math.max(0, Math.floor((Date.now() - ms) / (60 * 60 * 1000)));
+    if (hours < 48) return `${hours}h`;
+    const days = Math.floor(hours / 24);
+    const remainder = hours % 24;
+    return remainder ? `${days}d ${remainder}h` : `${days}d`;
+  }
+
+  function isCompletedBoardCard(card = {}) {
+    const status = String(card.status || card.executionStatus || card.laneId || card.nextAction || card.primaryAction || "").trim().toLowerCase();
+    return ["completed", "complete", "done", "settled", "completed_recent"].includes(status);
+  }
+
+  function rewardDecayClass(card = {}) {
+    const severity = String(card.rewardDecay?.severity || "");
+    if (severity === "warning") return " is-reward-warning";
+    if (severity === "danger") return " is-reward-danger";
+    return "";
+  }
+
+  function rewardDecayText(card = {}) {
+    const decay = card.rewardDecay || {};
+    if (!decay.applies) return "";
+    if (decay.severity === "warning" || decay.severity === "danger") {
+      const rate = Number(decay.dailyPenaltyPercent || 0);
+      const current = Number(decay.effectiveRewardCapCoins || 0);
+      const total = Number(decay.rewardCapCoins || taskRewardCapCoins(card));
+      return `已发布 ${cardPublishedAgeText(card)} · 每日 -${rate}% · 当前 ${current}/${total}`;
+    }
+    return "规则 48h 黄 -5%/日，72h 红 -10%/日";
+  }
+
+  function boardRewardDecayRule(board = {}) {
+    const cards = Array.isArray(board.cards) ? board.cards : [];
+    if (!cards.some((card) => card?.rewardDecay?.applies)) return "";
+    const hasDanger = cards.some((card) => String(card?.rewardDecay?.severity || "") === "danger");
+    const hasWarning = cards.some((card) => String(card?.rewardDecay?.severity || "") === "warning");
+    const severityClass = hasDanger ? " is-danger" : hasWarning ? " is-warning" : "";
+    return `<div class="learning-growth-board-decay-rule${severityClass}">
+      <strong>超时规则</strong>
+      <span>发布 48 小时后每日扣 5%，72 小时后每日扣 10%。</span>
+    </div>`;
+  }
+
   function renderArtifactCountPill(card = {}, artifacts = 0, escapeHtml = defaultEscapeHtml) {
     const directoryPath = String(card.artifactDirectoryPath || "").trim();
     if (!artifacts || !directoryPath) return "";
     return `<button type="button" class="learning-growth-board-artifact-link" data-learning-growth-artifact-link data-directory-path-open data-directory-path="${escapeHtml(directoryPath)}" data-directory-label="${escapeHtml(card.title || "\u4ea4\u4ed8\u76ee\u5f55")}" aria-label="\u6253\u5f00\u4ea4\u4ed8\u76ee\u5f55" title="\u6253\u5f00\u4ea4\u4ed8\u76ee\u5f55"><span class="learning-growth-board-artifact-icon" aria-hidden="true"></span></button>`;
+  }
+
+  function renderHistoryPill(card = {}, escapeHtml = defaultEscapeHtml) {
+    const taskCardId = String(card.taskCardId || card.id || "").trim();
+    if (!taskCardId) return "";
+    return `<button type="button" class="learning-growth-board-history-link" data-learning-open-growth-history="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(card.workspaceId || "")}" aria-label="\u67e5\u770b\u540c\u7cfb\u5217\u5386\u53f2\u5361\u7247" title="\u67e5\u770b\u540c\u7cfb\u5217\u5386\u53f2\u5361\u7247"><span aria-hidden="true"></span></button>`;
   }
 
   function renderBoardCard(card = {}, options = {}) {
@@ -181,20 +252,24 @@
     const score = Number(evaluation.score);
     const scoreText = Number.isFinite(score) && score > 0 ? `${Math.round(score)} \u5206` : "";
     const artifacts = Number(card.artifactCount || 0);
-    return `<article class="learning-growth-board-card" data-learning-executable-task-id="${escapeHtml(taskCardId)}">
+    const completed = isCompletedBoardCard(card);
+    const openTime = completed ? "" : cardOpenTimeText(card);
+    const ageText = completed ? "" : cardPublishedAgeText(card);
+    return `<article class="learning-growth-board-card${rewardDecayClass(card)}" data-learning-executable-task-id="${escapeHtml(taskCardId)}" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">
       <div class="learning-growth-board-card-head">
         <button type="button" class="learning-growth-board-card-title" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">
           <strong>${escapeHtml(card.title || taskCardId || "\u5b66\u4e60\u4efb\u52a1")}</strong>
-          <small>\u5956\u52b1 ${escapeHtml(String(taskRewardCapCoins(card)))} \u91d1\u5e01</small>
+          <small data-learning-growth-board-card-reward="${escapeHtml(taskCardId)}">${escapeHtml(cardRewardText(card))}</small>
         </button>
         <span>${escapeHtml(boardStatusText(card))}</span>
       </div>
       ${card.instructionPreview ? `<p class="learning-growth-board-card-preview">${escapeHtml(card.instructionPreview)}</p>` : ""}
       <div class="learning-growth-board-card-meta">
         ${card.activityType ? `<small>${escapeHtml(card.activityType)}</small>` : ""}
-        ${cardOpenTimeText(card) ? `<small>\u5f00\u653e ${escapeHtml(cardOpenTimeText(card))}</small>` : ""}
+        ${openTime ? `<small>${escapeHtml(openTime)}${ageText ? ` · \u5df2\u53d1\u5e03 ${escapeHtml(ageText)}` : ""}</small>` : ""}
         ${scoreText ? `<small>${escapeHtml(scoreText)}</small>` : ""}
         ${renderArtifactCountPill(card, artifacts, escapeHtml)}
+        ${renderHistoryPill(card, escapeHtml)}
       </div>
     </article>`;
   }
@@ -230,6 +305,7 @@
           </button>`;
         }).join("")}
       </div>
+      ${boardRewardDecayRule(board)}
       <div class="learning-growth-board-lanes" data-growth-board-active-lane="${escapeHtml(activeLaneId)}">
         ${displayLaneModels.map((lane) => {
           const active = lane.id === activeLaneId;
@@ -325,7 +401,9 @@
     const visible = tabs.filter((tab) => tab && tab.html);
     if (!visible.length) return "";
     const first = visible[0].id;
-    const requested = String(options.activeTab || options.state?.learningGrowthActiveTab || "").trim();
+    const requestedRaw = String(options.activeTab || options.state?.learningGrowthActiveTab || "").trim();
+    const aliases = { settings: "overview", "new-task": "tasks", "reward-settlement": "rewards", "ai-summary": "ai-analysis" };
+    const requested = aliases[requestedRaw] || requestedRaw;
     const activeId = visible.some((tab) => tab.id === requested) ? requested : first;
     return `<section class="learning-growth-tabs" data-learning-growth-tabs>
       <div class="learning-growth-tab-list" role="tablist" aria-label="\u590d\u7528\u7684\u5e73\u53f0\u80fd\u529b">
@@ -337,6 +415,340 @@
     </section>`;
   }
 
+  function renderOwnerSettingsOverview(programUi, coinsHtml, overview = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const data = overview.programs || {};
+    const programOptions = Object.assign({}, options, {
+      programs: data,
+      launchOperations: overview.launchOperations,
+      learnerId: overview.learner?.id || options.learnerId,
+    });
+    const coins = options.coins || overview.coins || {};
+    const growth = coins.growth || {};
+    const counts = data.launchOperations?.counts || {};
+    const cards = asArray(overview.board?.cards);
+    const completed = cards.filter((card) => /complete|completed|done/i.test(String(card?.status || card?.nextAction || ""))).length;
+    const activeTasks = cards.filter((card) => !/complete|completed|done/i.test(String(card?.status || card?.nextAction || ""))).length;
+    const earned = Number(growth.totalEarnedCoins || coins.balances?.earnedCoins || 0);
+    const sevenDayAverage = averageCoinsForWindow(coins, overview.metrics || {}, 7);
+    const thirtyDayAverage = averageCoinsForWindow(coins, overview.metrics || {}, 30);
+    return `<section class="learning-settings-overview" data-learning-settings-overview>
+      <div class="learning-settings-kpi-grid">
+        <span><small>执行者</small><strong>${escapeHtml(overview.learner?.displayName || overview.learner?.id || options.learnerId || "执行者")}</strong></span>
+        <span><small>当前任务</small><strong>${escapeHtml(String(activeTasks))}</strong></span>
+        <span><small>已完成</small><strong>${escapeHtml(String(completed || counts.completedTasks || 0))}</strong></span>
+        <span><small>累计金币</small><strong>${escapeHtml(String(Math.round(earned || 0)))}</strong></span>
+        <span><small>7日均值</small><strong>${escapeHtml(String(sevenDayAverage))}</strong></span>
+        <span><small>30日均值</small><strong>${escapeHtml(String(thirtyDayAverage))}</strong></span>
+        <span><small>待结算</small><strong>${escapeHtml(String(counts.pendingRewardSettlements || 0))}</strong></span>
+      </div>
+      ${programUi.renderLaunchOperationsPanel(data.launchOperations || overview.launchOperations || {}, Object.assign({}, programOptions, { compactOwnerSettings: true }))}
+    </section>`;
+  }
+
+  function renderOwnerSettingsFold(title, meta, html, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    if (!html) return "";
+    return `<details class="learning-settings-fold" data-learning-settings-fold>
+      <summary><strong>${escapeHtml(title)}</strong>${meta ? `<span>${escapeHtml(meta)}</span>` : ""}</summary>
+      <div class="learning-settings-fold-body">${html}</div>
+    </details>`;
+  }
+
+  function renderOwnerTaskList(overview = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const tasks = uniqueRewardTasks(overview).slice(0, 80);
+    if (!tasks.length) return `<div class="learning-coin-empty">暂无任务。</div>`;
+    return `<section class="learning-coin-panel learning-settings-task-list" data-learning-settings-task-list>
+      <div class="learning-section-heading">
+        <h3>当前任务</h3>
+        <span>${escapeHtml(String(tasks.length))}</span>
+      </div>
+      <div class="learning-settings-task-rows">
+        ${tasks.map((task) => {
+          const taskCardId = String(task.taskCardId || task.id || "");
+          const workspaceId = String(task.workspaceId || overview.learner?.workspaceId || options.workspaceId || "");
+          const generated = cardOpenTimeText(task);
+          return `<button type="button" class="learning-settings-task-row" data-learning-open-settings-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">
+            <span>
+              <strong>${escapeHtml(task.title || taskCardId)}</strong>
+              <small>${escapeHtml([task.templateId || task.taskModel?.templateId || "", task.status || task.nextAction || "", generated ? `开放 ${generated}` : ""].filter(Boolean).join(" / "))}</small>
+            </span>
+            <em>查看</em>
+          </button>`;
+        }).join("")}
+      </div>
+    </section>`;
+  }
+
+  function ownerSettingsTaskById(overview = {}, taskCardId = "") {
+    const id = String(taskCardId || "");
+    if (!id) return null;
+    return uniqueRewardTasks(overview).find((task) => String(task.taskCardId || task.id || "") === id) || null;
+  }
+
+  function ownerSettingsTaskSeries(overview = {}, task = {}) {
+    const key = taskSeriesKey(task);
+    return uniqueRewardTasks(overview)
+      .filter((item) => taskSeriesKey(item) === key)
+      .sort((left, right) => {
+        const leftTime = Date.parse(left.completedAt || left.updatedAt || left.createdAt || left.openedAt || "") || 0;
+        const rightTime = Date.parse(right.completedAt || right.updatedAt || right.createdAt || right.openedAt || "") || 0;
+        return rightTime - leftTime;
+      });
+  }
+
+  function renderOwnerSettingsTaskDetail(overview = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const taskId = String(options.state?.learningGrowthSettingsTaskId || "");
+    const task = ownerSettingsTaskById(overview, taskId);
+    if (!task) {
+      return `<section class="learning-coin-panel learning-settings-task-detail" data-learning-settings-task-detail>
+        <button type="button" class="learning-settings-back" data-learning-settings-task-back>返回任务列表</button>
+        <div class="learning-coin-empty">这项任务已更新或不在当前列表里。</div>
+      </section>`;
+    }
+    const series = ownerSettingsTaskSeries(overview, task);
+    const completed = series.filter((item) => /complete|completed|done/i.test(String(item.status || item.nextAction || "")));
+    const latest = series.slice(0, 6);
+    const instruction = task.learnerInstruction || task.instruction || task.taskModel?.learnerInstruction || task.summary || task.description || "";
+    const goal = task.goalSummary || task.taskModel?.goalSummary || task.acceptance?.[0] || task.taskModel?.acceptance?.[0] || instruction;
+    const nextSuggestion = task.learningGrowthGenerationReport?.goal
+      || task.learningGrowthJitGeneration?.goal
+      || task.learningGrowthJitGeneration?.decision
+      || task.nextRecommendation
+      || "建议在 AI分析 标签刷新学习总结后，再决定下一张卡的方向。";
+    return `<section class="learning-coin-panel learning-settings-task-detail" data-learning-settings-task-detail>
+      <button type="button" class="learning-settings-back" data-learning-settings-task-back>返回任务列表</button>
+      <div class="learning-section-heading">
+        <h3>${escapeHtml(task.title || taskId)}</h3>
+        <span>${escapeHtml(task.status || task.nextAction || "未定")}</span>
+      </div>
+      <div class="learning-settings-task-detail-grid">
+        <span><small>系列</small><strong>${escapeHtml(taskSeriesLabel({ title: task.title, templateId: task.templateId || task.taskModel?.templateId, skillId: task.skillId }))}</strong></span>
+        <span><small>已生成</small><strong>${escapeHtml(String(series.length))}</strong></span>
+        <span><small>已完成</small><strong>${escapeHtml(String(completed.length))}</strong></span>
+        <span><small>奖励</small><strong>${escapeHtml(String(taskRewardCapCoins(task)))}</strong></span>
+      </div>
+      <div class="learning-settings-task-detail-block">
+        <h4>目标</h4>
+        <p>${escapeHtml(goal || "暂无目标摘要。")}</p>
+      </div>
+      <div class="learning-settings-task-detail-block">
+        <h4>当前状态</h4>
+        <p>${escapeHtml([task.activityType || "", task.skillId || "", cardOpenTimeText(task) ? `开放 ${cardOpenTimeText(task)}` : ""].filter(Boolean).join(" / ") || "暂无状态摘要。")}</p>
+      </div>
+      <div class="learning-settings-task-detail-block">
+        <h4>已生成卡片</h4>
+        ${latest.length ? latest.map((item) => `<p>${escapeHtml([item.title || item.taskCardId || item.id, item.status || item.nextAction || "", cardOpenTimeText(item) ? `开放 ${cardOpenTimeText(item)}` : ""].filter(Boolean).join(" / "))}</p>`).join("") : `<p>暂无卡片记录。</p>`}
+      </div>
+      <div class="learning-settings-task-detail-block">
+        <h4>后续建议</h4>
+        <p>${escapeHtml(nextSuggestion)}</p>
+      </div>
+    </section>`;
+  }
+
+  function renderOwnerTaskManagement(programUi, overview = {}, options = {}) {
+    const data = overview.programs || {};
+    const programOptions = Object.assign({}, options, {
+      programs: data,
+      launchOperations: overview.launchOperations,
+      learnerId: overview.learner?.id || options.learnerId,
+    });
+    if (options.state?.learningGrowthSettingsTaskId) {
+      return renderOwnerSettingsTaskDetail(overview, options);
+    }
+    const scopeHtml = renderOwnerSettingsFold("\u5b66\u4e60\u8303\u56f4", "\u76ee\u6807 / \u5185\u5bb9", programUi.renderProgramForm(data, programOptions), options);
+    return [
+      `<section class="learning-coin-panel learning-settings-task-create is-settings-tab-intro" data-learning-settings-task-create>
+        <div class="learning-section-heading">
+          <h3>任务管理</h3>
+          <span>范围 / 列表</span>
+        </div>
+        <p class="learning-growth-muted">学习范围与当前任务列表。</p>
+      </section>`,
+      scopeHtml,
+      renderOwnerTaskList(overview, options),
+    ].join("");
+  }
+
+  function renderOwnerRewardDashboard(programUi, coinsHtml, overview = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const data = overview.programs || {};
+    const programOptions = Object.assign({}, options, {
+      programs: data,
+      learnerId: overview.learner?.id || options.learnerId,
+    });
+    const coins = options.coins || overview.coins || {};
+    const growth = coins.growth || {};
+    const balances = coins.balances || {};
+    const settlements = asArray(data.rewardSettlements);
+    const settled = settlements.filter((item) => String(item.status || "") === "settled");
+    const settledCoins = settled.reduce((sum, item) => sum + (Number(item.coinAmount) || 0), 0);
+    const averageSettled = settled.length ? Math.round(settledCoins / settled.length) : 0;
+    const sevenDayAverage = averageCoinsForWindow(coins, overview.metrics || {}, 7);
+    const thirtyDayAverage = averageCoinsForWindow(coins, overview.metrics || {}, 30);
+    const policyHtml = renderOwnerSettingsFold("奖励规则", "按系列", renderOwnerRewardPolicySettings(overview, options), options);
+    const settlementsHtml = renderOwnerSettingsFold("结算记录", String(settlements.length), programUi.renderRewardSettlements(data.rewardSettlements || [], programOptions), options);
+    const stats = `<section class="learning-coin-panel learning-settings-reward-stats" data-learning-settings-reward-stats>
+      <div class="learning-section-heading">
+        <h3>奖励统计</h3>
+        <span>执行者</span>
+      </div>
+      <div class="learning-settings-reward-rows">
+        <span><small>累计金币</small><strong>${escapeHtml(String(Math.round(Number(growth.totalEarnedCoins || balances.earnedCoins || 0) || 0)))}</strong></span>
+        <span><small>7日均值</small><strong>${escapeHtml(String(sevenDayAverage))}</strong></span>
+        <span><small>30日均值</small><strong>${escapeHtml(String(thirtyDayAverage))}</strong></span>
+        <span><small>已结算次数</small><strong>${escapeHtml(String(settled.length))}</strong></span>
+        <span><small>平均每次</small><strong>${escapeHtml(String(averageSettled))}</strong></span>
+      </div>
+    </section>`;
+    return [
+      stats,
+      policyHtml,
+      settlementsHtml,
+    ].join("");
+  }
+
+  function masteryStatusText(status = "") {
+    const key = String(status || "").trim();
+    if (key === "mastered") return "\u5df2\u638c\u63e1";
+    if (key === "practicing") return "\u7ec3\u4e60\u4e2d";
+    if (key === "needs_repair") return "\u9700\u4fee\u590d";
+    if (key === "emerging") return "\u521a\u51fa\u73b0";
+    if (key === "not_observed") return "\u672a\u89c2\u5bdf";
+    return key || "\u672a\u5b9a";
+  }
+
+  function masteryStrategyText(strategy = "") {
+    const key = String(strategy || "").trim();
+    if (key === "repair") return "\u4fee\u590d";
+    if (key === "stretch") return "\u62d3\u5c55";
+    if (key === "stabilize") return "\u5de9\u56fa";
+    if (key === "review") return "\u590d\u4e60";
+    if (key === "observe") return "\u89c2\u5bdf";
+    return key || "\u5f85\u5b9a";
+  }
+
+  function masteryDomainText(domain = "") {
+    const key = String(domain || "").trim();
+    if (key === "english") return "\u82f1\u8bed";
+    if (key === "math") return "\u6570\u5b66";
+    if (key === "science") return "\u79d1\u5b66";
+    if (key === "computer_science") return "\u8ba1\u7b97\u673a\u79d1\u5b66";
+    if (key === "learning_habit") return "\u5b66\u4e60\u4e60\u60ef";
+    return key || "\u7efc\u5408";
+  }
+
+  function renderMasteryRows(states = [], options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const rows = asArray(states);
+    if (!rows.length) return `<div class="learning-coin-empty">\u6682\u65e0\u53ef\u5ba1\u8ba1\u7684\u80fd\u529b\u753b\u50cf\u8bb0\u5f55\u3002</div>`;
+    return `<div class="learning-mastery-state-list">
+      ${rows.map((state) => {
+        const confidence = Math.round((Number(state.confidence) || 0) * 100);
+        const evidence = Number(state.evidenceCount || 0) || 0;
+        const strategy = masteryStrategyText(state.nextRecommendation?.strategy || "");
+        const meta = [
+          state.strand || "",
+          state.externalLevelReference || "",
+          evidence ? `${evidence} \u6761\u8bc1\u636e` : "\u6682\u65e0\u8bc1\u636e",
+          confidence ? `${confidence}%` : "",
+        ].filter(Boolean).join(" / ");
+        const weakness = asArray(state.weaknesses).find(Boolean);
+        const strength = asArray(state.strengths).find(Boolean);
+        const evidenceSummary = asArray(state.evidenceSummary).map((item) => item?.summary || "").find(Boolean);
+        const description = strength || weakness || evidenceSummary || state.summary || "";
+        return `<article class="learning-mastery-state-row" data-learning-mastery-skill="${escapeHtml(state.skillId || "")}" data-learning-mastery-status="${escapeHtml(state.status || "")}">
+          <div>
+            <strong>${escapeHtml(state.displayName || state.skillId || state.microSkillId || "\u80fd\u529b\u70b9")}</strong>
+            <small>${escapeHtml(meta)}</small>
+            ${description ? `<p>${escapeHtml(description)}</p>` : ""}
+          </div>
+          <span>
+            <em>${escapeHtml(masteryStatusText(state.status))}</em>
+            <small>${escapeHtml(strategy)}</small>
+          </span>
+        </article>`;
+      }).join("")}
+    </div>`;
+  }
+
+  function renderMasteryDomainSections(states = [], domainSummary = [], options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const rows = asArray(states);
+    if (!rows.length) return renderMasteryRows(rows, options);
+    const order = ["english", "math", "science", "computer_science", "learning_habit"];
+    const grouped = rows.reduce((acc, state) => {
+      const key = String(state.domain || "general").trim() || "general";
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(state);
+      return acc;
+    }, {});
+    const summaryByDomain = new Map(asArray(domainSummary).map((item) => [String(item.domain || "").trim(), item]));
+    const domains = Object.keys(grouped).sort((a, b) => {
+      const ia = order.indexOf(a), ib = order.indexOf(b);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib) || a.localeCompare(b);
+    });
+    return `<div class="learning-mastery-domain-switcher" data-learning-mastery-domain-switcher>
+      ${domains.map((domain, index) => `<input class="learning-mastery-domain-radio" type="radio" name="learning-mastery-domain" id="learning-mastery-domain-${index}"${index === 0 ? " checked" : ""}>`).join("")}
+      <div class="learning-mastery-domain-tabs" data-learning-mastery-domain-tabs aria-label="\u79d1\u76ee\u753b\u50cf">
+        ${domains.map((domain, index) => {
+          const summary = summaryByDomain.get(domain) || {};
+          const observed = Number(summary.observed || grouped[domain].filter((state) => state.evidenceCount > 0).length) || 0;
+          const total = Number(summary.total || grouped[domain].length) || grouped[domain].length;
+          return `<label class="learning-mastery-domain-tab" data-learning-mastery-domain-tab="${escapeHtml(domain)}" for="learning-mastery-domain-${index}">
+            <span>${escapeHtml(masteryDomainText(domain))}</span>
+            <small>${escapeHtml(String(observed))}/${escapeHtml(String(total))}</small>
+          </label>`;
+        }).join("")}
+      </div>
+      <div class="learning-mastery-domain-panel-list">
+      ${domains.map((domain, index) => {
+        const summary = summaryByDomain.get(domain) || {};
+        const observed = Number(summary.observed || grouped[domain].filter((state) => state.evidenceCount > 0).length) || 0;
+        const total = Number(summary.total || grouped[domain].length) || grouped[domain].length;
+        return `<section class="learning-mastery-domain-section" data-learning-mastery-domain="${escapeHtml(domain)}" data-learning-mastery-domain-index="${escapeHtml(String(index))}">
+          <div class="learning-mastery-domain-heading">
+            <strong>${escapeHtml(masteryDomainText(domain))}</strong>
+            <span>${escapeHtml(String(observed))}/${escapeHtml(String(total))} \u5df2\u89c2\u5bdf</span>
+          </div>
+          ${renderMasteryRows(grouped[domain], options)}
+        </section>`;
+      }).join("")}
+      </div>
+    </div>`;
+  }
+
+  function renderOwnerMasteryProfile(overview = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const payload = options.masteryProfile || overview.masteryProfile || {};
+    const profile = payload.masteryProfile || payload.profile || payload || {};
+    const trajectory = asArray(payload.trajectory || overview.masteryTrajectory);
+    const states = asArray(profile.skillStates || profile.states);
+    const strengths = asArray(profile.strengths);
+    const weaknesses = asArray(profile.weaknesses);
+    const domainSummary = asArray(profile.domainSummary);
+    const loading = Boolean(options.masteryProfileLoading);
+    const error = String(options.masteryProfileError || "");
+    return `<section class="learning-coin-panel learning-mastery-profile-panel" data-learning-mastery-profile-panel>
+      <div class="learning-section-heading">
+        <h3>\u5b66\u4e60\u753b\u50cf</h3>
+        <span>${escapeHtml(profile.taxonomyVersion || "\u80fd\u529b\u8bc1\u636e")}</span>
+      </div>
+      <div class="learning-settings-kpi-grid learning-mastery-kpi-grid">
+        <span><small>\u80fd\u529b\u70b9</small><strong>${escapeHtml(String(states.length))}</strong></span>
+        <span><small>\u4f18\u52bf</small><strong>${escapeHtml(String(strengths.length))}</strong></span>
+        <span><small>\u9700\u4fee\u590d</small><strong>${escapeHtml(String(weaknesses.length))}</strong></span>
+        <span><small>\u8f68\u8ff9</small><strong>${escapeHtml(String(trajectory.length))}</strong></span>
+      </div>
+      ${loading ? `<div class="learning-growth-muted">\u6b63\u5728\u5237\u65b0\u753b\u50cf...</div>` : ""}
+      ${error ? `<div class="learning-error">${escapeHtml(error)}</div>` : ""}
+      ${renderMasteryDomainSections(states, domainSummary, options)}
+    </section>`;
+  }
+
   function renderOwnerProgramTabs(programUi, coinsHtml, overview = {}, options = {}) {
     const data = overview.programs || {};
     const programOptions = Object.assign({}, options, {
@@ -344,35 +756,13 @@
       launchOperations: overview.launchOperations,
       learnerId: overview.learner?.id || options.learnerId,
     });
-    const execution = programUi.renderExecutionOverview(data, programOptions);
-    const guidance = programUi.renderGuidancePanel(data, programOptions);
-    const rewardPolicy = renderOwnerRewardPolicySettings(overview, options);
-    const config = [
-      rewardPolicy,
-      programUi.renderFoundationPanel(data, programOptions),
-      programUi.renderProgramForm(data, programOptions),
-    ].join("");
-    const review = [
-      programUi.renderLaunchOperationsPanel(data.launchOperations || overview.launchOperations || {}, programOptions),
-      programUi.renderParentReportPanel(data, programOptions),
-      programUi.renderReviewQueue(data.reviewItems || [], programOptions),
-      programUi.renderParentReviewRequests(data.parentReviewRequests || [], programOptions),
-    ].join("");
-    const rewards = [
-      guidance,
-      coinsHtml,
-      programUi.renderRewardSettlements(data.rewardSettlements || [], programOptions),
-    ].join("");
-    const taskManagement = [
-      execution,
-      review,
-    ].join("");
-    return `<section class="learning-program-section learning-program-parent-admin" data-learning-growth-module="programs" data-learning-growth-category="parent-admin" data-learning-growth-owner-management>
+    return `<section class="learning-program-section learning-program-parent-admin learning-growth-settings-tabs" data-learning-growth-module="programs" data-learning-growth-category="parent-admin" data-learning-growth-owner-management>
       ${renderLearningGrowthTabs([
-        { id: "settings", label: "\u8bbe\u7f6e", html: config },
-        { id: "ai-summary", label: "AI 总结", html: renderOwnerAiSummaryRecommendationsPanel(data, programOptions) },
-        { id: "new-task", label: "\u65b0\u5efa\u4efb\u52a1", html: taskManagement },
-        { id: "reward-settlement", label: "\u5956\u52b1\u7ed3\u7b97", html: rewards },
+        { id: "overview", label: "总览", html: renderOwnerSettingsOverview(programUi, coinsHtml, overview, options) },
+        { id: "mastery", label: "\u753b\u50cf", html: renderOwnerMasteryProfile(overview, options) },
+        { id: "tasks", label: "任务", html: renderOwnerTaskManagement(programUi, overview, options) },
+        { id: "rewards", label: "奖励", html: renderOwnerRewardDashboard(programUi, coinsHtml, overview, options) },
+        { id: "ai-analysis", label: "AI分析", html: renderOwnerAiSummaryRecommendationsPanel(data, programOptions) },
       ], options)}
     </section>`;
   }
@@ -477,7 +867,9 @@
     const result = options.aiSummary || pageState.learningAiSummary || null;
     const loading = Boolean(options.aiSummaryLoading || pageState.learningAiSummaryLoading);
     const error = options.aiSummaryError || pageState.learningAiSummaryError || "";
+    const progress = pageState.learningAiSummaryProgress || "";
     const series = asArray(result?.recommendedSeries);
+    const buttonText = result?.recommendationRunId || result?.generatedAt ? "重新生成 AI 总结" : "生成 AI 总结";
     const creatingId = String(pageState.learningAiDraftCreatingId || "");
     return `<section class="learning-coin-panel learning-ai-summary-panel" data-learning-ai-summary-recommendations>
       <div class="learning-section-heading">
@@ -486,8 +878,9 @@
       </div>
       <p class="learning-growth-muted">基于学习记录摘要和当前任务模板推荐任务系列。推荐只生成可审核草稿，不直接发布。</p>
       <div class="learning-program-report-actions">
-        <button type="button" data-learning-ai-summary-refresh ${loading ? "disabled" : ""}>${loading ? "分析中..." : "生成 AI 总结"}</button>
+        <button type="button" data-learning-ai-summary-refresh ${loading ? "disabled" : ""}>${loading ? "分析中..." : buttonText}</button>
       </div>
+      ${loading ? `<div class="learning-ai-progress" role="status" aria-live="polite"><span></span><p>${escapeHtml(progress || "\u6b63\u5728\u8bf7\u6a21\u578b\u5206\u6790...")}</p></div>` : ""}
       ${error ? `<div class="learning-error">${escapeHtml(error)}</div>` : ""}
       ${result?.analysisSummary ? `<p class="learning-ai-summary-text">${escapeHtml(result.analysisSummary)}</p>` : ""}
       ${asArray(result?.weakSignals).length ? `<div class="learning-program-chip-row">${asArray(result.weakSignals).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
@@ -518,25 +911,25 @@
 
   function renderOwnerSettingsPage(programUi, coinsUi, overview = {}, options = {}) {
     if (!isOwner(options) || !programUi || typeof renderOwnerProgramTabs !== "function") return "";
-    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const coins = options.coins || overview.coins || {};
     const learnerId = overview.learner?.id || options.learnerId;
-    const learnerLabel = overview.learner?.displayName
-      || (learnerId === "weixin_stephen" ? "鍑″嚒" : learnerId)
-      || "\u6267\u884c\u8005";
+    if (!learnerId) {
+      return `<div class="learning-growth-view learning-growth-settings-page" data-learning-role="owner" data-learning-growth-settings-page>
+        <section class="learning-coin-panel learning-settings-empty" data-learning-settings-no-learner>
+          <div class="learning-section-heading">
+            <h3>成长设置</h3>
+            <span>未选择执行者</span>
+          </div>
+          <p class="learning-growth-muted">当前还没有可用于成长计划的执行者。请先创建或选择执行者工作区，再配置学习范围、任务和奖励规则。</p>
+        </section>
+      </div>`;
+    }
     const coinsHtml = coinsUi && typeof coinsUi.renderCoinsSubsystem === "function"
       ? coinsUi.renderCoinsSubsystem({ summary: coins, learnerId, state: options.state || {}, escapeHtml: optionFn(options, "escapeHtml", defaultEscapeHtml) })
       : "";
     const adminHtml = renderOwnerProgramTabs(programUi, coinsHtml, overview, options);
     if (!adminHtml) return "";
     return `<div class="learning-growth-view learning-growth-settings-page" data-learning-product="fanfan-growth" data-learning-role="owner" data-learning-growth-settings-page>
-      <div class="learning-growth-settings-head">
-        <button type="button" data-learning-growth-close-settings>\u8fd4\u56de\u770b\u677f</button>
-        <div>
-          <strong>\u8bbe\u7f6e</strong>
-          <span>${escapeHtml(learnerLabel)}</span>
-        </div>
-      </div>
       ${adminHtml}
     </div>`;
   }
@@ -556,21 +949,94 @@
     return full || executable || null;
   }
 
+  function mergeSelectedGrowthTask(primary = null, boardTask = null) {
+    if (!primary) return boardTask;
+    if (!boardTask) return primary;
+    return Object.assign({}, boardTask, primary, {
+      nativeState: Object.assign({}, boardTask.nativeState || {}, primary.nativeState || {}, {
+        nextAction: boardTask.nativeState?.nextAction || boardTask.nextAction || primary.nativeState?.nextAction || primary.nextAction || "",
+      }),
+      latestSubmission: primary.latestSubmission || boardTask.latestSubmission || null,
+      latestEvaluation: primary.latestEvaluation || boardTask.latestEvaluation || null,
+      latestReflection: primary.latestReflection || boardTask.latestReflection || null,
+      latestRewardSettlement: primary.latestRewardSettlement || boardTask.latestRewardSettlement || null,
+      artifactCount: primary.artifactCount ?? boardTask.artifactCount,
+      laneId: primary.laneId || boardTask.laneId || "",
+      nextAction: boardTask.nextAction || primary.nextAction || "",
+      primaryAction: boardTask.primaryAction || primary.primaryAction || "",
+    });
+  }
+
   function renderSelectedGrowthTaskView(overview = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const programUi = options.programUi || ProgramUi;
+    const growthTaskUi = options.growthTaskUi || null;
     const programs = overview.programs || {};
     const taskCardId = String(options.selectedGrowthTaskCardId || options.state?.selectedLearningTaskCardId || "");
-    const task = findSelectedGrowthTask(programs, taskCardId);
-    const detail = task && programUi && typeof programUi.renderNativeGrowthTaskDetail === "function"
-      ? programUi.renderNativeGrowthTaskDetail(task, programs, options)
+    const boardFallback = { taskCards: Array.isArray(overview.board?.cards) ? overview.board.cards : [] };
+    const task = mergeSelectedGrowthTask(
+      findSelectedGrowthTask(programs, taskCardId),
+      findSelectedGrowthTask(boardFallback, taskCardId),
+    );
+    const role = task && growthTaskUi && typeof growthTaskUi.growthCardRole === "function" ? growthTaskUi.growthCardRole(task) : "";
+    const useTeachingDetail = task && growthTaskUi && typeof growthTaskUi.isTeachingCardRole === "function" && growthTaskUi.isTeachingCardRole(role) && typeof growthTaskUi.renderTeachingCardDetail === "function";
+    const detail = useTeachingDetail
+      ? growthTaskUi.renderTeachingCardDetail(task, options)
+      : task && programUi && typeof programUi.renderNativeGrowthTaskDetail === "function"
+        ? programUi.renderNativeGrowthTaskDetail(task, programs, options)
       : `<div class="learning-coin-empty">\u8fd9\u5f20\u4efb\u52a1\u5361\u5df2\u66f4\u65b0\u6216\u4e0d\u5728\u5f53\u524d\u72b6\u6001\u91cc\u3002</div>`;
     return `<div class="learning-growth-view learning-growth-task-focus" data-learning-product="fanfan-growth" data-learning-growth-task-focus="${escapeHtml(taskCardId)}">
-      <div class="learning-growth-task-focus-head">
-        <button type="button" data-learning-close-growth-task>\u8fd4\u56de\u770b\u677f</button>
-        <span>\u5355\u5f20\u4efb\u52a1</span>
-      </div>
       ${detail}
+    </div>`;
+  }
+
+  function findGrowthHistorySeed(overview = {}, taskCardId = "") {
+    const id = String(taskCardId || "");
+    if (!id) return null;
+    return uniqueRewardTasks(overview).find((task) => String(task.taskCardId || task.id || "") === id) || null;
+  }
+
+  function relatedGrowthHistoryCards(overview = {}, seed = {}) {
+    const key = taskSeriesKey(seed);
+    if (!key) return [];
+    return uniqueRewardTasks(overview)
+      .filter((task) => taskSeriesKey(task) === key)
+      .sort((left, right) => {
+        const leftTime = Date.parse(left.completedAt || left.updatedAt || left.createdAt || left.openedAt || left.generatedAt || "") || 0;
+        const rightTime = Date.parse(right.completedAt || right.updatedAt || right.createdAt || right.openedAt || right.generatedAt || "") || 0;
+        return rightTime - leftTime;
+      });
+  }
+
+  function renderGrowthHistoryPage(overview = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const taskCardId = String(options.state?.learningGrowthHistoryTaskCardId || options.historyTaskCardId || "");
+    const seed = findGrowthHistorySeed(overview, taskCardId);
+    const cards = seed ? relatedGrowthHistoryCards(overview, seed) : [];
+    const workspaceId = String(seed?.workspaceId || overview.learner?.workspaceId || options.workspaceId || "");
+    return `<div class="learning-growth-view learning-growth-history-page" data-learning-growth-history-page="${escapeHtml(taskCardId)}">
+      <section class="learning-coin-panel learning-growth-history-panel">
+        <button type="button" class="learning-settings-back" data-learning-growth-history-back>\u8fd4\u56de\u4efb\u52a1</button>
+        <div class="learning-section-heading">
+          <h3>${escapeHtml(seed ? taskSeriesLabel({ title: seed.title, templateId: seed.templateId || seed.taskModel?.templateId, skillId: seed.skillId }) : "\u5386\u53f2\u5361\u7247")}</h3>
+          <span>${escapeHtml(String(cards.length))}</span>
+        </div>
+        <div class="learning-growth-history-list">
+          ${cards.length ? cards.map((card) => {
+            const id = String(card.taskCardId || card.id || "");
+            const score = Number(card.latestEvaluation?.score);
+            const scoreText = Number.isFinite(score) && score > 0 ? `${Math.round(score)} \u5206` : "";
+            const timeText = cardOpenTimeText(card);
+            return `<button type="button" class="learning-growth-history-row" data-learning-open-growth-task="${escapeHtml(id)}" data-workspace-id="${escapeHtml(card.workspaceId || workspaceId)}">
+              <span>
+                <strong>${escapeHtml(card.title || id || "\u5b66\u4e60\u4efb\u52a1")}</strong>
+                <small>${escapeHtml([card.status || card.nextAction || "", timeText, scoreText].filter(Boolean).join(" / "))}</small>
+              </span>
+              <em>${escapeHtml(boardStatusText(card))}</em>
+            </button>`;
+          }).join("") : `<div class="learning-coin-empty">\u6682\u65e0\u540c\u7cfb\u5217\u5386\u53f2\u5361\u7247\u3002</div>`}
+        </div>
+      </section>
     </div>`;
   }
 
@@ -581,11 +1047,14 @@
     const learner = overview.learner || {};
     const metrics = overview.metrics || {};
     const learnerLabel = learner.displayName
-      || (options.learnerId === "weixin_stephen" ? "凡凡" : options.learnerId)
+      || options.learnerId
       || learner.id
       || "Learner";
     const coins = options.coins || overview.coins || {};
     const owner = isOwner(options);
+    if (options.state?.learningGrowthHistoryTaskCardId || options.historyTaskCardId) {
+      return renderGrowthHistoryPage(overview, options);
+    }
     if (options.selectedGrowthTaskCardId || options.state?.selectedLearningTaskCardId) {
       return renderSelectedGrowthTaskView(overview, options);
     }
@@ -600,8 +1069,8 @@
       || availableCoins
       || 0);
     const coinText = String(Number.isFinite(historicalCoins) ? Math.round(historicalCoins) : 0);
-    const sevenDayCoins = Number(metrics.sevenDayCoins || coins.growth?.sevenDayCoins || 0);
-    const sevenDayAverage = Number.isFinite(sevenDayCoins) ? Math.round(sevenDayCoins / 7) : 0;
+    const sevenDayAverage = averageCoinsForWindow(coins, metrics, 7);
+    const thirtyDayAverage = averageCoinsForWindow(coins, metrics, 30);
     const coinsUi = options.coinsUi || CoinsUi;
     if (owner && options.state?.learningGrowthSettingsOpen) {
       return renderOwnerSettingsPage(programUi, coinsUi, overview, options);
@@ -611,7 +1080,8 @@
         <div class="learning-growth-board-summary-metrics" aria-label="\u6210\u957f\u6982\u89c8">
           <span><small>\u6267\u884c\u8005</small><b>${escapeHtml(learnerLabel)}</b></span>
           <span><small>\u7d2f\u8ba1\u91d1\u5e01</small><b>${escapeHtml(coinText)}</b></span>
-          <span><small>\u4e03\u65e5\u5747\u503c</small><b>${escapeHtml(String(sevenDayAverage))}</b></span>
+          <span><small>7\u65e5\u5747\u503c</small><b>${escapeHtml(String(sevenDayAverage))}</b></span>
+          <span><small>30\u65e5\u5747\u503c</small><b>${escapeHtml(String(thirtyDayAverage))}</b></span>
         </div>
       </section>
       ${boardHtml}

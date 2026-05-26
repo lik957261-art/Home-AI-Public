@@ -340,6 +340,11 @@ function renderSettingsOverlay() {
       <div class="default-model-options" role="group" aria-label="\u9ed8\u8ba4\u6a21\u578b">
         ${modelOptions}
       </div>
+      <div class="settings-row-title">\u8d26\u53f7</div>
+      <div class="settings-account-actions">
+        <button class="settings-logout-button" type="button" data-settings-logout>\u9000\u51fa\u8d26\u53f7</button>
+        <span>\u53ea\u6e05\u9664\u5f53\u524d\u8bbe\u5907\u4fdd\u5b58\u7684 Access Key\uff0c\u670d\u52a1\u5668\u4e0a\u7684 key \u4e0d\u4f1a\u88ab\u64a4\u9500\u3002</span>
+      </div>
       <div class="settings-preview">
         <div class="settings-preview-title">Hermes Mobile</div>
         <div class="settings-preview-body">聊天、话题、目录、看板、Markdown 阅读和自动化页面会使用这个显示偏好。</div>
@@ -362,6 +367,7 @@ function renderSettingsOverlay() {
   overlay.querySelectorAll("[data-default-model-option]").forEach((button) => {
     button.addEventListener("click", () => setDefaultComposerModelPreference(button.dataset.defaultModelOption || DEFAULT_COMPOSER_MODEL_ID));
   });
+  overlay.querySelector("[data-settings-logout]")?.addEventListener("click", logoutCurrentAccount);
 }
 
 function openSettings() {
@@ -627,6 +633,8 @@ handleForegroundPushMessage = function handleForegroundPushMessageWithBusinessTo
   const messageType = data.messageType || nestedData.messageType;
   const pushThreadId = String(data.threadId || nestedData.threadId || "").trim();
   const pushWorkspaceId = String(data.workspaceId || nestedData.workspaceId || "").trim();
+  if (typeof refreshAutomationAfterPush === "function") refreshAutomationAfterPush(eventData).catch(showError);
+  if (typeof refreshActionInboxAfterPush === "function") refreshActionInboxAfterPush(eventData).catch(showError);
   if (
     ["task_completed", "task_failed"].includes(messageType)
     && (

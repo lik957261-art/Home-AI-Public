@@ -12,6 +12,7 @@ const FANFAN_DISPLAY_NAME = "\u51e1\u51e1";
 const LEARNING_MATERIALS_LABEL = "\u5b66\u4e60\u8d44\u6599";
 const OWNER_ROOT_LABEL = "owner-learning-materials";
 const FANFAN_OWNER_RELATIVE_PARTS = ["Hermes-\u5f90\u6b23", "\u51e1\u51e1"];
+const PYTHON_PROGRAMMING_DIR = "\u0030\u0031_Python\u7f16\u7a0b";
 const LEARNING_PLAN_DIR = "\u5b66\u4e60\u8ba1\u5212";
 const ACADEMIC_PLANNING_DIR = "\u0030\u0035_\u5b66\u4e1a\u5347\u5b66";
 const PROFILE_SIGNAL_ROLE = "learner_profile_signal";
@@ -82,6 +83,14 @@ function defaultLearningSourceDirectoryBindings() {
         sourceType: "cleaned_history",
         title: `${FANFAN_DISPLAY_NAME} ${LEARNING_MATERIALS_LABEL} \u7d2f\u8ba1\u6e05\u6d17\u6458\u8981`,
         tags: ["learning_materials", "cumulative_cleaned", "owner_parent_directory"],
+      },
+      {
+        role: "python_programming_cleaned_summary",
+        relativePath: `${ownerRelativePath}/${PYTHON_PROGRAMMING_DIR}/.hermes-cleaned/summary.md`,
+        sourceType: "cleaned_history",
+        title: `${FANFAN_DISPLAY_NAME} Python \u7f16\u7a0b\u6e05\u6d17\u6458\u8981`,
+        tags: ["learning_materials", "python_programming", "cleaned_summary"],
+        optional: true,
       },
       {
         role: "learning_plan_cleaned_summary",
@@ -210,6 +219,7 @@ function profileSignalAllowedPrefixes(binding) {
   const base = String(binding.ownerRelativePath || "").replace(/\\/g, "/").replace(/\/+$/, "");
   return [
     `${base}/${LEARNING_MATERIALS_LABEL}/`,
+    `${base}/${PYTHON_PROGRAMMING_DIR}/`,
     `${base}/${LEARNING_PLAN_DIR}/`,
     `${base}/${ACADEMIC_PLANNING_DIR}/`,
   ];

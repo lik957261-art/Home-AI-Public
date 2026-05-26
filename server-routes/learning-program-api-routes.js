@@ -1,5 +1,8 @@
 "use strict";
 
+const fs = require("node:fs");
+const path = require("node:path");
+const childProcess = require("node:child_process");
 const { createApiRouteRegistry } = require("../adapters/api-route-registry");
 const { executionQueueSummary } = require("../adapters/learning-task-card-service");
 
@@ -113,6 +116,22 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     workspaceScoped: true,
     resourceTypes: ["learning-source", "learning-goal", "learning-program", "learner-profile"],
     tags: ["learning", "source", "bootstrap", "owner", "sqlite"],
+  },
+  {
+    id: "learning-growth-mastery-profile",
+    method: "GET",
+    path: "/api/learning/growth/mastery-profile",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "getGrowthMasteryProfile",
+    summary: "Owner reads summary-only Growth mastery states and trajectory for next-card planning.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-growth-mastery", "learning-growth-trajectory"],
+    tags: ["learning", "growth", "mastery", "profile", "sqlite"],
   },
   {
     id: "learning-goals-list",
@@ -236,6 +255,22 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     ownerOnly: true,
     resourceTypes: ["learning-report", "learning-task-card", "learning-evaluation", "learning-reward-settlement"],
     tags: ["learning", "report", "parent", "summary-only", "owner"],
+  },
+  {
+    id: "learning-task-series-recommendations-read",
+    method: "GET",
+    path: "/api/learning/recommendations/task-series",
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "latestTaskSeriesRecommendation",
+    summary: "Owner reads the latest persisted summary-only learning task series recommendation.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-recommendation", "learning-template", "learning-program"],
+    tags: ["learning", "recommendation", "template", "owner", "summary-only"],
   },
   {
     id: "learning-task-series-recommendations-create",
@@ -391,6 +426,36 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     tags: ["learning", "task-card"],
   },
   {
+    id: "learning-task-submission-audio-read",
+    method: "GET",
+    pathRegex: /^\/api\/learning\/task-submissions\/[^/]+\/audio$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "readTaskSubmissionAudio",
+    summary: "Stream authorized Growth task submission audio evidence.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-submission", "audio"],
+    tags: ["learning", "task-submission", "audio"],
+  },
+  {
+    id: "learning-task-reflection-audio-read",
+    method: "GET",
+    pathRegex: /^\/api\/learning\/task-reflections\/[^/]+\/audio$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "readTaskReflectionAudio",
+    summary: "Stream authorized Growth task reflection audio evidence.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-reflection", "audio"],
+    tags: ["learning", "task-reflection", "audio"],
+  },
+  {
     id: "learning-task-card-reward-policy-update",
     method: "PATCH",
     pathRegex: /^\/api\/learning\/task-cards\/[^/]+\/reward-policy$/,
@@ -450,6 +515,22 @@ const LEARNING_PROGRAM_API_ROUTE_SPECS = Object.freeze([
     workspaceScoped: true,
     resourceTypes: ["learning-task-card", "learning-growth-submission"],
     tags: ["learning", "growth", "task-card", "submission", "withdraw"],
+  },
+  {
+    id: "learning-task-card-growth-manual-pass",
+    method: "POST",
+    pathRegex: /^\/api\/learning\/task-cards\/[^/]+\/manual-pass$/,
+    group: "learning-program",
+    moduleKey: "learning-program",
+    handlerKey: "manualPassGrowthTask",
+    summary: "Owner manually completes a Growth learning task through the reward settlement path.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    workspaceScoped: true,
+    resourceTypes: ["learning-task-card", "learning-evaluation", "learning-reward-settlement"],
+    tags: ["learning", "growth", "task-card", "owner", "manual-pass"],
   },
   {
     id: "learning-task-card-growth-reflection",
@@ -620,6 +701,165 @@ function pathId(pathname, pattern) {
   return match ? decodeURIComponent(match[1] || "") : "";
 }
 
+function safeHeaderValue(value) {
+  return String(value || "").replace(/[\r\n"]/g, "_");
+}
+
+function audioEvidenceFromSubmission(submission = {}) {
+  const nested = submission.raw?.raw?.audio || submission.raw?.audio || null;
+  if (submission.audio && nested && typeof submission.audio === "object" && typeof nested === "object") {
+    return Object.assign({}, nested, submission.audio);
+  }
+  return submission.audio || nested || null;
+}
+
+function audioEvidenceFromReflection(reflection = {}) {
+  const nested = reflection.raw?.raw?.audio || reflection.raw?.audio || null;
+  if (reflection.audio && nested && typeof reflection.audio === "object" && typeof nested === "object") {
+    return Object.assign({}, nested, reflection.audio);
+  }
+  return reflection.audio || nested || null;
+}
+
+function learningAudioCandidates(record = {}, taskCard = {}, audio = {}) {
+  const candidates = [];
+  const audioPath = cleanString(audio?.path || audio?.filePath || audio?.absolutePath);
+  if (audioPath) candidates.push(audioPath);
+  const fileName = path.basename(cleanString(audio?.name || audio?.fileName || audio?.filename));
+  if (!fileName) return candidates;
+  for (const dir of [
+    taskCard.artifactDirectoryPath,
+    taskCard.deliverableDirectoryPath,
+    taskCard.reportDirectoryPath,
+    taskCard.directoryPath,
+  ]) {
+    const baseDir = cleanString(dir);
+    if (!baseDir) continue;
+    candidates.push(path.join(baseDir, fileName));
+    try {
+      for (const entry of fs.readdirSync(baseDir, { withFileTypes: true })) {
+        if (entry.isFile() && entry.name.endsWith(fileName)) candidates.push(path.join(baseDir, entry.name));
+      }
+    } catch (_) {
+      // Missing directories are reported as not found below.
+    }
+  }
+  const dataRoot = dataRootFromTaskCard(taskCard);
+  const workspaceId = cleanString(record.workspaceId || taskCard.workspaceId);
+  if (dataRoot && workspaceId) {
+    const baseDir = path.join(dataRoot, "artifacts", "kanban-reading", workspaceId);
+    candidates.push(...findSubmissionAudioFiles(baseDir, fileName, cleanString(taskCard.taskCardId || record.taskCardId)));
+  }
+  return [...new Set(candidates)];
+}
+
+function submissionAudioCandidates(submission = {}, taskCard = {}) {
+  return learningAudioCandidates(submission, taskCard, audioEvidenceFromSubmission(submission));
+}
+
+function reflectionAudioCandidates(reflection = {}, taskCard = {}) {
+  return learningAudioCandidates(reflection, taskCard, audioEvidenceFromReflection(reflection));
+}
+
+function dataRootFromTaskCard(taskCard = {}) {
+  for (const dir of [taskCard.artifactDirectoryPath, taskCard.deliverableDirectoryPath, taskCard.reportDirectoryPath]) {
+    const value = cleanString(dir);
+    const marker = `${path.sep}drive${path.sep}`;
+    const index = value.indexOf(marker);
+    if (index > 0) return value.slice(0, index);
+  }
+  return "";
+}
+
+function findSubmissionAudioFiles(baseDir, fileName, taskCardId, depth = 0) {
+  if (!baseDir || !fileName || depth > 4) return [];
+  const found = [];
+  let entries = [];
+  try {
+    entries = fs.readdirSync(baseDir, { withFileTypes: true });
+  } catch (_) {
+    return found;
+  }
+  for (const entry of entries) {
+    const fullPath = path.join(baseDir, entry.name);
+    if (entry.isFile() && entry.name.endsWith(fileName) && (!taskCardId || fullPath.includes(taskCardId))) {
+      found.push(fullPath);
+    } else if (entry.isDirectory()) {
+      found.push(...findSubmissionAudioFiles(fullPath, fileName, taskCardId, depth + 1));
+    }
+  }
+  return found;
+}
+
+function audioMimeForPlayback(audio = {}, filePath = "") {
+  const ext = path.extname(filePath || cleanString(audio.name || audio.fileName || audio.filename)).toLowerCase();
+  if (ext === ".mp3") return "audio/mpeg";
+  if (ext === ".m4a" || ext === ".aac") return "audio/mp4";
+  if (ext === ".wav") return "audio/wav";
+  if (ext === ".ogg" || ext === ".opus") return "audio/ogg";
+  return cleanString(audio.mime || audio.type) || "application/octet-stream";
+}
+
+function wantsMp3Playback(url) {
+  return /^(mp3|mpeg)$/i.test(cleanString(url?.searchParams?.get("format") || url?.searchParams?.get("playback")));
+}
+
+function ffmpegPath() {
+  return cleanString(process.env.HERMES_MOBILE_FFMPEG_PATH)
+    || cleanString(process.env.FFMPEG_PATH)
+    || "C:\\ffmpeg\\bin\\ffmpeg.exe";
+}
+
+function mp3CachePathForAudio(sourceFile, recordId, taskCard = {}) {
+  const dataRoot = dataRootFromTaskCard(taskCard) || path.resolve(sourceFile, "..", "..", "..", "..", "..");
+  const stat = fs.statSync(sourceFile);
+  const suffix = `${stat.size}-${Math.floor(stat.mtimeMs)}`;
+  return path.join(dataRoot, "cache", "learning-audio", `${safeHeaderValue(recordId || path.basename(sourceFile))}-${suffix}.mp3`);
+}
+
+function playableAudioFile(found, recordId, taskCard, url) {
+  if (!wantsMp3Playback(url)) return Object.assign({}, found, { contentType: null });
+  const cachePath = mp3CachePathForAudio(found.filePath, recordId, taskCard);
+  try {
+    const cached = fs.statSync(cachePath);
+    if (cached.isFile() && cached.size > 0) return { filePath: cachePath, stat: cached, contentType: "audio/mpeg" };
+  } catch (_) {
+    // Cache miss; transcode below.
+  }
+  fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+  const result = childProcess.spawnSync(ffmpegPath(), [
+    "-y",
+    "-i", found.filePath,
+    "-vn",
+    "-codec:a", "libmp3lame",
+    "-b:a", "96k",
+    cachePath,
+  ], {
+    encoding: "utf8",
+    timeout: 60000,
+    windowsHide: true,
+  });
+  if (result.status !== 0) {
+    const err = new Error("Unable to prepare playable learning audio");
+    err.status = 502;
+    throw err;
+  }
+  const stat = fs.statSync(cachePath);
+  return { filePath: cachePath, stat, contentType: "audio/mpeg" };
+}
+
+function firstReadableFile(paths = []) {
+  for (const candidate of paths) {
+    try {
+      const stat = fs.statSync(candidate);
+      if (stat.isFile()) return { filePath: candidate, stat };
+    } catch (_) {
+      // Try the next bounded candidate.
+    }
+  }
+  return null;
+}
+
 function sendRouteError(deps, res, err) {
   deps.sendJson(res, err.status || 500, { ok: false, error: err.message || String(err) });
 }
@@ -650,8 +890,10 @@ function createLearningProgramApiRoutes(deps = {}) {
     Math.ceil(Math.max(0, Number(deps.maxUploadBytes || 0)) * 1.4) + 8192,
   );
 
-  function canAccessLearnerWorkspace(auth, learnerWorkspaceId) {
+  function canAccessLearnerWorkspace(auth, learnerWorkspaceId, authorizedWorkspaceId = "") {
     if (deps.isOwnerAuth(auth)) return true;
+    const authorized = cleanString(authorizedWorkspaceId);
+    if (cleanString(learnerWorkspaceId) && authorized && authorized !== "owner" && cleanString(learnerWorkspaceId) === authorized) return true;
     if (typeof deps.authCanAccessWorkspace === "function") {
       return deps.authCanAccessWorkspace(auth, learnerWorkspaceId);
     }
@@ -662,7 +904,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(url, deps.isOwnerAuth(auth) ? "weixin_stephen" : auth?.workspaceId));
     if (!workspaceId) return null;
     const learnerId = requestedLearnerId(url, workspaceId);
-    if (!deps.isOwnerAuth(auth) && !canAccessLearnerWorkspace(auth, learnerId)) {
+    if (!deps.isOwnerAuth(auth) && !canAccessLearnerWorkspace(auth, learnerId, workspaceId)) {
       const err = new Error("Learner access is not allowed");
       err.status = 403;
       throw err;
@@ -723,6 +965,53 @@ function createLearningProgramApiRoutes(deps = {}) {
         source: service.saveSource(Object.assign({}, body, {
           createdByPrincipalId: auth?.principalId || owner.principalId || "owner",
         })),
+      });
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
+  async function handleGrowthMasteryProfile(req, res, url, auth) {
+    if (!deps.requireOwner(req, res)) return;
+    let query;
+    try {
+      query = authorizeQuery(req, res, url, auth);
+    } catch (err) {
+      sendRouteError(deps, res, err);
+      return;
+    }
+    if (!query) return;
+    const masteryProfileService = deps.learningGrowthMasteryProfileService || null;
+    const repository = service.repository || null;
+    try {
+      const domain = cleanString(url.searchParams.get("domain"));
+      const sequenceGroupId = cleanString(url.searchParams.get("sequenceGroupId"));
+      const profile = masteryProfileService && typeof masteryProfileService.getMasteryProfile === "function"
+        ? masteryProfileService.getMasteryProfile({
+          learnerId: query.learnerId,
+          workspaceId: query.workspaceId,
+          domain,
+          limit: query.limit || 80,
+        })
+        : {
+          learnerId: query.learnerId,
+          workspaceId: query.workspaceId,
+          states: repository && typeof repository.listMasteryStates === "function"
+            ? repository.listMasteryStates({ learnerId: query.learnerId, workspaceId: query.workspaceId, domain, limit: query.limit || 80 })
+            : [],
+        };
+      const trajectory = repository && typeof repository.listCardTrajectories === "function"
+        ? repository.listCardTrajectories({
+          learnerId: query.learnerId,
+          workspaceId: query.workspaceId,
+          sequenceGroupId,
+          limit: query.limit || 30,
+        })
+        : [];
+      deps.sendJson(res, 200, {
+        ok: true,
+        masteryProfile: profile,
+        trajectory,
       });
     } catch (err) {
       sendRouteError(deps, res, err);
@@ -897,6 +1186,23 @@ function createLearningProgramApiRoutes(deps = {}) {
   async function handleTaskSeriesRecommendations(req, res, url) {
     const owner = deps.requireOwner(req, res);
     if (!owner) return;
+    if (req.method === "GET") {
+      try {
+        const workspaceId = requestedWorkspaceId(url, "weixin_stephen");
+        const learnerId = cleanString(url.searchParams.get("learnerId") || url.searchParams.get("studentId")) || workspaceId;
+        const allowed = deps.requireWorkspaceAccess(req, res, workspaceId);
+        if (!allowed) return;
+        deps.sendJson(res, 200, service.latestTaskSeriesRecommendation({
+          workspaceId,
+          learnerId,
+          domain: cleanString(url.searchParams.get("domain")) || "english",
+          requestedByPrincipalId: owner.principalId || "owner",
+        }));
+      } catch (err) {
+        sendRouteError(deps, res, err);
+      }
+      return;
+    }
     const body = await deps.readBody(req, 120000).catch((err) => ({ __error: err }));
     if (body.__error) {
       deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
@@ -968,7 +1274,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     }
     const allowed = deps.requireWorkspaceAccess(req, res, program.workspaceId);
     if (!allowed) return;
-    if (!deps.isOwnerAuth(auth) && !canAccessLearnerWorkspace(auth, program.learnerId)) {
+    if (!deps.isOwnerAuth(auth) && !canAccessLearnerWorkspace(auth, program.learnerId, allowed || program.workspaceId)) {
       deps.sendJson(res, 403, { ok: false, error: "Learner access is not allowed" });
       return;
     }
@@ -982,7 +1288,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     }
     const allowed = deps.requireWorkspaceAccess(req, res, record.workspaceId);
     if (!allowed) return false;
-    if (!deps.isOwnerAuth(auth) && !canAccessLearnerWorkspace(auth, record.learnerId)) {
+    if (!deps.isOwnerAuth(auth) && !canAccessLearnerWorkspace(auth, record.learnerId, allowed || record.workspaceId)) {
       deps.sendJson(res, 403, { ok: false, error: "Learner access is not allowed" });
       return false;
     }
@@ -1115,6 +1421,78 @@ function createLearningProgramApiRoutes(deps = {}) {
     deps.sendJson(res, 200, { ok: true, taskCard: deps.isOwnerAuth(auth) ? taskCard : executionQueueSummary(taskCard) });
   }
 
+  async function handleTaskSubmissionAudioRead(req, res, url, auth) {
+    const submissionId = pathId(url.pathname, /^\/api\/learning\/task-submissions\/([^/]+)\/audio$/);
+    const submission = service.getTaskSubmission(submissionId);
+    if (!authorizeRecord(req, res, auth, submission, "Learning task submission not found")) return;
+    const taskCard = service.getTaskCard(submission.taskCardId);
+    if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
+    const audio = audioEvidenceFromSubmission(submission);
+    if (!audio?.name && !audio?.path && !audio?.filePath && !audio?.absolutePath) {
+      deps.sendJson(res, 404, { ok: false, error: "Learning task submission audio not found" });
+      return;
+    }
+    const found = firstReadableFile(submissionAudioCandidates(submission, taskCard));
+    if (!found) {
+      deps.sendJson(res, 404, { ok: false, error: "Learning task submission audio file not found" });
+      return;
+    }
+    let playable = found;
+    try {
+      playable = playableAudioFile(found, submission.submissionId || submissionId, taskCard, url);
+    } catch (err) {
+      deps.sendJson(res, err.status || 502, { ok: false, error: err.message || "Unable to prepare learning task submission audio" });
+      return;
+    }
+    const fileName = path.basename(cleanString(audio.name || audio.fileName || audio.filename) || found.filePath);
+    res.writeHead(200, {
+      "Content-Type": playable.contentType || audioMimeForPlayback(audio, playable.filePath),
+      "Content-Length": playable.stat.size,
+      "Content-Disposition": `inline; filename="${safeHeaderValue(fileName)}"`,
+      "Cache-Control": "private, max-age=60",
+    });
+    fs.createReadStream(playable.filePath).on("error", () => {
+      if (!res.headersSent) deps.sendJson(res, 500, { ok: false, error: "Unable to read learning task submission audio" });
+      else res.end();
+    }).pipe(res);
+  }
+
+  async function handleTaskReflectionAudioRead(req, res, url, auth) {
+    const reflectionId = pathId(url.pathname, /^\/api\/learning\/task-reflections\/([^/]+)\/audio$/);
+    const reflection = service.getTaskReflection(reflectionId);
+    if (!authorizeRecord(req, res, auth, reflection, "Learning task reflection not found")) return;
+    const taskCard = service.getTaskCard(reflection.taskCardId);
+    if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
+    const audio = audioEvidenceFromReflection(reflection);
+    if (!audio?.name && !audio?.path && !audio?.filePath && !audio?.absolutePath) {
+      deps.sendJson(res, 404, { ok: false, error: "Learning task reflection audio not found" });
+      return;
+    }
+    const found = firstReadableFile(reflectionAudioCandidates(reflection, taskCard));
+    if (!found) {
+      deps.sendJson(res, 404, { ok: false, error: "Learning task reflection audio file not found" });
+      return;
+    }
+    let playable = found;
+    try {
+      playable = playableAudioFile(found, reflection.reflectionId || reflectionId, taskCard, url);
+    } catch (err) {
+      deps.sendJson(res, err.status || 502, { ok: false, error: err.message || "Unable to prepare learning task reflection audio" });
+      return;
+    }
+    const fileName = path.basename(cleanString(audio.name || audio.fileName || audio.filename) || found.filePath);
+    res.writeHead(200, {
+      "Content-Type": playable.contentType || audioMimeForPlayback(audio, playable.filePath),
+      "Content-Length": playable.stat.size,
+      "Content-Disposition": `inline; filename="${safeHeaderValue(fileName)}"`,
+      "Cache-Control": "private, max-age=60",
+    });
+    fs.createReadStream(playable.filePath).on("error", () => {
+      if (!res.headersSent) deps.sendJson(res, 500, { ok: false, error: "Unable to read learning task reflection audio" });
+      else res.end();
+    }).pipe(res);
+  }
+
   async function handleTaskRewardPolicyUpdate(req, res, url, auth) {
     const owner = deps.requireOwner(req, res);
     if (!owner) return;
@@ -1165,13 +1543,17 @@ function createLearningProgramApiRoutes(deps = {}) {
       return;
     }
     try {
-      const result = await getGrowthSubmissionService().submitTask(Object.assign({}, body, {
+      const growthService = getGrowthSubmissionService();
+      const submit = typeof growthService.submitTaskAsync === "function"
+        ? growthService.submitTaskAsync
+        : growthService.submitTask;
+      const result = await submit.call(growthService, Object.assign({}, body, {
         workspaceId: taskCard.workspaceId,
         cardId: taskCard.kanbanCardId || "",
         taskCardId,
         author: actorFromAuth(auth),
       }));
-      deps.sendJson(res, result?.ok ? 200 : (result?.status || 502), Object.assign({}, result, {
+      deps.sendJson(res, result?.ok && result?.async ? 202 : (result?.ok ? 200 : (result?.status || 502)), Object.assign({}, result, {
         taskCardId,
         kanbanCardId: taskCard.kanbanCardId || "",
       }));
@@ -1196,6 +1578,38 @@ function createLearningProgramApiRoutes(deps = {}) {
         cardId: taskCard.kanbanCardId || "",
         taskCardId,
         author: actorFromAuth(auth),
+      }));
+      deps.sendJson(res, result?.ok ? 200 : (result?.status || 502), Object.assign({}, result, {
+        taskCardId,
+        kanbanCardId: taskCard.kanbanCardId || "",
+      }));
+    } catch (err) {
+      sendRouteError(deps, res, err);
+    }
+  }
+
+  async function handleGrowthManualPass(req, res, url, auth) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    const taskCardId = pathId(url.pathname, /^\/api\/learning\/task-cards\/([^/]+)\/manual-pass$/);
+    const taskCard = service.getTaskCard(taskCardId);
+    if (!authorizeRecord(req, res, auth, taskCard, "Learning task card not found")) return;
+    const body = await deps.readBody(req, 120000).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, 400, { ok: false, error: body.__error.message || "Invalid request body" });
+      return;
+    }
+    try {
+      const growthService = getGrowthSubmissionService();
+      if (typeof growthService.manualPassTask !== "function") {
+        deps.sendJson(res, 503, { ok: false, error: "Growth manual pass service is not available" });
+        return;
+      }
+      const result = await growthService.manualPassTask(Object.assign({}, body, {
+        workspaceId: taskCard.workspaceId,
+        cardId: taskCard.kanbanCardId || "",
+        taskCardId,
+        author: owner.principalId || actorFromAuth(auth),
       }));
       deps.sendJson(res, result?.ok ? 200 : (result?.status || 502), Object.assign({}, result, {
         taskCardId,
@@ -1384,6 +1798,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-sources-create") await handleSourceCreate(req, res, auth);
     else if (route.id === "learning-source-directory-import") await handleSourceDirectoryImport(req, res, url, auth);
     else if (route.id === "learning-source-directory-bootstrap") await handleSourceDirectoryBootstrap(req, res, url, auth);
+    else if (route.id === "learning-growth-mastery-profile") await handleGrowthMasteryProfile(req, res, url, auth);
     else if (route.id === "learning-goals-list") await handleGoalList(req, res, url, auth);
     else if (route.id === "learning-goals-create") await handleGoalCreate(req, res, auth);
     else if (route.id === "learning-goal-update") await handleGoalUpdate(req, res, url);
@@ -1392,7 +1807,7 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-curriculum-references-list") await handleCurriculumReferences(req, res, url);
     else if (route.id === "learning-foundation-import") await handleFoundationImport(req, res, url);
     else if (route.id === "learning-parent-report-read") await handleParentReport(req, res, url);
-    else if (route.id === "learning-task-series-recommendations-create") await handleTaskSeriesRecommendations(req, res, url);
+    else if (route.id === "learning-task-series-recommendations-read" || route.id === "learning-task-series-recommendations-create") await handleTaskSeriesRecommendations(req, res, url);
     else if (route.id === "learning-task-series-recommendation-draft-create") await handleTaskSeriesRecommendationDraft(req, res, url);
     else if (route.id === "learning-program-update") await handleUpdate(req, res, url);
     else if (route.id === "learning-program-draft-plan") await handleDraft(req, res, url);
@@ -1402,10 +1817,13 @@ function createLearningProgramApiRoutes(deps = {}) {
     else if (route.id === "learning-task-execution-queue") await handleTaskExecutionQueue(req, res, url, auth);
     else if (route.id === "learning-daily-plan") await handleDailyPlan(req, res, url, auth);
     else if (route.id === "learning-task-card-read") await handleTaskCardRead(req, res, url, auth);
+    else if (route.id === "learning-task-submission-audio-read") await handleTaskSubmissionAudioRead(req, res, url, auth);
+    else if (route.id === "learning-task-reflection-audio-read") await handleTaskReflectionAudioRead(req, res, url, auth);
     else if (route.id === "learning-task-card-reward-policy-update") await handleTaskRewardPolicyUpdate(req, res, url, auth);
     else if (route.id === "learning-task-card-session-start") await handleTaskSessionStart(req, res, url, auth);
     else if (route.id === "learning-task-card-growth-submission") await handleGrowthSubmission(req, res, url, auth);
     else if (route.id === "learning-task-card-growth-submission-withdraw") await handleGrowthSubmissionWithdraw(req, res, url, auth);
+    else if (route.id === "learning-task-card-growth-manual-pass") await handleGrowthManualPass(req, res, url, auth);
     else if (route.id === "learning-task-card-growth-reflection") await handleGrowthReflection(req, res, url, auth);
     else if (route.id === "learning-sessions-list") await handleSessionsList(req, res, url, auth);
     else if (route.id === "learning-session-advance") await handleSessionAdvance(req, res, url, auth);

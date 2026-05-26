@@ -8,8 +8,8 @@ async function testEnglishPlanIncludesExtensibleSkillCards() {
   const modelCalls = [];
   const service = createLearningPlanDecompositionService({
     extractJsonObject: (text) => JSON.parse(text),
-    hermesModelText: async (body) => {
-      modelCalls.push(body);
+    hermesModelText: async (body, timeoutMs) => {
+      modelCalls.push({ body, timeoutMs });
       return JSON.stringify({
         dailyPlans: [
           {
@@ -57,7 +57,8 @@ async function testEnglishPlanIncludesExtensibleSkillCards() {
 
   const tasks = draft.dailyPlans.flatMap((day) => day.tasks);
   assert.equal(modelCalls.length, 1);
-  assert.match(modelCalls[0].input, /summary-only learning state/i);
+  assert.equal(modelCalls[0].body.stream, true);
+  assert.match(modelCalls[0].body.input, /summary-only learning state/i);
   assert.equal(draft.weekStart, "2026-05-16");
   assert.equal(draft.weekEnd, "2026-05-20");
   assert.equal(draft.generationPolicy.mode, "model_assisted_summary_plan_decomposition");
@@ -99,9 +100,102 @@ async function testEnglishPlanIncludesExtensibleSkillCards() {
   assert.doesNotMatch(JSON.stringify(draft), /rawPrompt|answerKey|fullTranscript|localPath|must-not-leak/);
 }
 
-testEnglishPlanIncludesExtensibleSkillCards().then(() => {
-  console.log("learning plan decomposition service tests passed");
-}).catch((err) => {
-  console.error(err);
-  process.exitCode = 1;
-});
+async function testModelInvalidJsonUsesRepairPass() {
+  const modelCalls = [];
+  const service = createLearningPlanDecompositionService({
+    hermesModelText: async (body, timeoutMs) => {
+      modelCalls.push({ body, timeoutMs });
+      if (modelCalls.length === 1) return "not json";
+      return JSON.stringify({
+        dailyPlans: [
+          {
+            date: "2026-05-16",
+            plannedMinutes: 15,
+            tasks: [
+              {
+                skillId: "english_short_writing",
+                title: "Repair-pass short writing card",
+                learnerInstruction: "Write six short sentences with one clear reason and one example.",
+                plannedMinutes: 15,
+                deliverables: ["short draft"],
+                acceptance: ["draft includes a reason and example"],
+              },
+            ],
+          },
+        ],
+        rationale: "Repair pass produced strict JSON.",
+        riskFlags: ["model_repair"],
+      });
+    },
+    requireModel: true,
+    templateRegistry: createLearningTemplateRegistryService(),
+    now: () => new Date("2026-05-16T00:00:00.000Z"),
+  });
+  const draft = await service.buildDraft({
+    programId: "program-repair",
+    domain: "english",
+    startDate: "2026-05-16",
+    daysPerWeek: 5,
+    minutesPerDay: 15,
+    focusAreas: ["english_short_writing"],
+    sourceBasisRefs: ["parent_config:program-repair"],
+    curriculumRefs: ["cefr-a2-b1-growth-track"],
+  });
+
+  assert.equal(modelCalls.length, 2);
+  assert.equal(modelCalls[0].timeoutMs, 600000);
+  assert.equal(modelCalls[1].timeoutMs, 600000);
+  assert.equal(modelCalls[0].body.stream, true);
+  assert.equal(modelCalls[1].body.stream, true);
+  assert.match(modelCalls[1].body.input, /Repair the previous Growth weekly learning plan/);
+  assert.equal(draft.generationPolicy.mode, "model_assisted_summary_plan_decomposition");
+  assert.equal(draft.generationPolicy.modelRepairApplied, true);
+  assert.ok(draft.dailyPlans.flatMap((day) => day.tasks).some((task) => /Repair-pass/.test(task.title)));
+}
+
+async function testModelCanReturnTopLevelDailyPlanArray() {
+  const service = createLearningPlanDecompositionService({
+    hermesModelText: async () => JSON.stringify([
+      {
+        date: "2026-05-16",
+        plannedMinutes: 15,
+        tasks: [
+          {
+            skillId: "english_short_writing",
+            title: "Array-shaped short writing card",
+            learnerInstruction: "Write a short paragraph with one opinion and one reason.",
+            plannedMinutes: 15,
+            deliverables: ["short paragraph"],
+            acceptance: ["paragraph includes one reason"],
+          },
+        ],
+      },
+    ]),
+    requireModel: true,
+    templateRegistry: createLearningTemplateRegistryService(),
+    now: () => new Date("2026-05-16T00:00:00.000Z"),
+  });
+  const draft = await service.buildDraft({
+    programId: "program-array",
+    domain: "english",
+    startDate: "2026-05-16",
+    daysPerWeek: 5,
+    minutesPerDay: 15,
+    focusAreas: ["english_short_writing"],
+    sourceBasisRefs: ["parent_config:program-array"],
+    curriculumRefs: ["cefr-a2-b1-growth-track"],
+  });
+
+  assert.equal(draft.generationPolicy.mode, "model_assisted_summary_plan_decomposition");
+  assert.ok(draft.dailyPlans.flatMap((day) => day.tasks).some((task) => /Array-shaped/.test(task.title)));
+}
+
+testEnglishPlanIncludesExtensibleSkillCards()
+  .then(testModelInvalidJsonUsesRepairPass)
+  .then(testModelCanReturnTopLevelDailyPlanArray)
+  .then(() => {
+    console.log("learning plan decomposition service tests passed");
+  }).catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  });

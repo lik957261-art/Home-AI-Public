@@ -16,14 +16,18 @@ function overview() {
       executableTasks: [
         { taskCardId: "task-ready", title: "Ready", status: "published", plannedDate: "2026-05-20", createdAt: "2026-05-20T07:30:00.000Z", taskModel: { skillId: "english_short_writing" } },
         { taskCardId: "task-ai", title: "Waiting", status: "published" },
+        { taskCardId: "task-draft-feedback", title: "Draft feedback", status: "published" },
         { taskCardId: "task-reflect", title: "Reflect", status: "published", artifactDirectoryPath: "C:\\Deliverables\\task-reflect" },
         { taskCardId: "task-done", title: "Done", status: "completed" },
       ],
       taskSubmissions: [
         { submissionId: "sub-ai", taskCardId: "task-ai", status: "submitted", textDigest: "digest", submittedAt: "2026-05-20T08:00:00.000Z" },
+        { submissionId: "sub-ai-2", taskCardId: "task-ai", status: "submitted", textDigest: "digest-2", submittedAt: "2026-05-20T08:05:00.000Z" },
       ],
       evaluations: [
+        { evaluationId: "eval-reflect-old", taskCardId: "task-reflect", status: "needs_repair", score: 62, passed: false, summary: "old summary", createdAt: "2026-05-20T07:59:00.000Z" },
         { evaluationId: "eval-reflect", taskCardId: "task-reflect", status: "reflection_required", score: 84, passed: true, summary: "summary", createdAt: "2026-05-20T08:01:00.000Z" },
+        { evaluationId: "eval-draft-feedback", taskCardId: "task-draft-feedback", status: "draft_feedback", nextStep: "rewrite_and_reflect", score: 90, passed: false, summary: "draft feedback ready", createdAt: "2026-05-20T08:01:30.000Z" },
         { evaluationId: "eval-done", taskCardId: "task-done", status: "passed", score: 91, passed: true, summary: "summary", createdAt: "2026-05-20T08:02:00.000Z" },
       ],
       taskReflections: [
@@ -35,7 +39,15 @@ function overview() {
       learnerProfile: { profileSummary: "profile summary" },
       skillStates: [{ skillId: "grammar", confidence: 0.42, summary: "weak" }],
       parentReviewRequests: [{ reviewRequestId: "review-1" }],
-      rewardSettlements: [{ rewardSettlementId: "settle-1" }],
+      rewardSettlements: [{
+        rewardSettlementId: "settle-1",
+        taskCardId: "task-done",
+        evaluationId: "eval-done",
+        status: "settled",
+        coinAmount: 88,
+        reason: "owner_manual_pass",
+        settledAt: "2026-05-20T08:04:00.000Z",
+      }],
       reviewItems: [{ reviewId: "item-1" }],
     },
   };
@@ -46,15 +58,32 @@ function testBoardClassifiesNativeTasksIntoLanes() {
   const laneById = new Map(board.lanes.map((lane) => [lane.id, lane]));
   assert.ok(laneById.get("today").cards.includes("task-ready"));
   assert.ok(laneById.get("waiting_ai").cards.includes("task-ai"));
+  assert.ok(laneById.get("needs_revision").cards.includes("task-draft-feedback"));
   assert.ok(laneById.get("reflection_required").cards.includes("task-reflect"));
   assert.ok(laneById.get("completed_recent").cards.includes("task-done"));
   const reflectCard = board.cards.find((card) => card.taskCardId === "task-reflect");
+  assert.equal(reflectCard.source, "learning-growth");
   assert.equal(reflectCard.primaryAction, "reflect");
   assert.equal(reflectCard.actions.canReflect, true);
+  assert.equal(reflectCard.evaluationCount, 2);
+  assert.equal(reflectCard.totalEvaluationCount, 2);
+  assert.equal(reflectCard.latestEvaluation.evaluationId, "eval-reflect");
+  assert.equal(reflectCard.latestEvaluation.totalEvaluationCount, 2);
   assert.equal(reflectCard.artifactPreview[0].name, "report.md");
   assert.equal(reflectCard.artifactDirectoryPath, "C:\\Deliverables\\task-reflect");
+  const waitingCard = board.cards.find((card) => card.taskCardId === "task-ai");
+  assert.equal(waitingCard.submissionCount, 2);
+  assert.equal(waitingCard.latestSubmission.submissionId, "sub-ai-2");
+  assert.equal(waitingCard.latestSubmission.totalSubmissionCount, 2);
+  const draftFeedbackCard = board.cards.find((card) => card.taskCardId === "task-draft-feedback");
+  assert.equal(draftFeedbackCard.nextAction, "revise");
+  assert.equal(draftFeedbackCard.primaryAction, "revise");
+  assert.equal(draftFeedbackCard.actions.canSubmit, true);
   assert.equal(board.cards.find((card) => card.taskCardId === "task-ready").rewardCapCoins, 100);
   assert.equal(board.cards.find((card) => card.taskCardId === "task-ready").openedAt, "2026-05-20T07:30:00.000Z");
+  const doneCard = board.cards.find((card) => card.taskCardId === "task-done");
+  assert.equal(doneCard.latestRewardSettlement.status, "settled");
+  assert.equal(doneCard.latestRewardSettlement.coinAmount, 88);
   assert.equal(JSON.stringify(board).includes("refDigest"), false);
 }
 
@@ -145,7 +174,7 @@ function testServiceUsesOverviewWithoutKanbanProvider() {
     clock: { now: () => Date.parse("2026-05-20T09:00:00.000Z") },
   });
   const result = service.board({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen", limit: 5 });
-  assert.equal(result.board.summary.cardCount, 4);
+  assert.equal(result.board.summary.cardCount, 5);
   assert.equal(inputs[0].limit, 80);
 }
 
@@ -207,12 +236,59 @@ function testBoardPrefersFullNativeTaskMetadataOverExecutorSummary() {
   const board = buildLearningGrowthBoard({ overview: sequenceOverview, today: "2026-05-20" });
   assert.equal(board.cards.length, 1);
   assert.equal(board.cards[0].taskCardId, "native-retell-1");
-  assert.equal(board.cards[0].title, "Full native retell");
+  assert.equal(board.cards[0].title, "Full native retell \u00b7 \u7b2c1\u5f20\u5361");
   assert.equal(board.cards[0].sequenceGroupId, "evergreen:english-random-reading-retell");
   assert.equal(board.cards[0].sequenceIndex, 1);
   assert.equal(board.cards[0].rewardCapCoins, 100);
   assert.equal(board.cards[0].openedAt, "2026-05-20T09:00:00.000Z");
   assert.match(board.cards[0].instructionPreview, /short passage/);
+}
+
+function testBoardMarksEvergreenRewardDecayAfterThresholds() {
+  const sequenceOverview = Object.assign({}, overview(), {
+    programs: Object.assign({}, overview().programs, {
+      taskCards: [
+        {
+          taskCardId: "evergreen-yellow",
+          sequenceGroupId: "evergreen:math",
+          sequenceMode: "evergreen_jit",
+          sequenceIndex: 1,
+          title: "Math current",
+          status: "published",
+          createdAt: "2026-05-20T08:00:00.000Z",
+          plannedDate: "2026-05-20",
+          rewardCapCoins: 100,
+          rewardPolicy: { maxCoins: 100 },
+        },
+      ],
+      executableTasks: [],
+      taskSubmissions: [],
+      evaluations: [],
+      taskReflections: [],
+      taskArtifacts: [],
+    }),
+  });
+  const yellowBoard = buildLearningGrowthBoard({
+    overview: sequenceOverview,
+    today: "2026-05-22",
+    nowIso: "2026-05-22T09:00:00.000Z",
+  });
+  const yellow = yellowBoard.cards[0].rewardDecay;
+  assert.equal(yellow.severity, "warning");
+  assert.equal(yellow.ageHours, 49);
+  assert.equal(yellow.dailyPenaltyPercent, 5);
+  assert.equal(yellow.effectiveRewardCapCoins, 95);
+
+  const redBoard = buildLearningGrowthBoard({
+    overview: sequenceOverview,
+    today: "2026-05-23",
+    nowIso: "2026-05-23T09:00:00.000Z",
+  });
+  const red = redBoard.cards[0].rewardDecay;
+  assert.equal(red.severity, "danger");
+  assert.equal(red.ageHours, 73);
+  assert.equal(red.dailyPenaltyPercent, 10);
+  assert.equal(red.effectiveRewardCapCoins, 90);
 }
 
 function testBoardGroupsDuplicateDraftsByProgram() {
@@ -327,11 +403,63 @@ function testBoardShowsLockedCurrentCardBeforeCompletionWindow() {
   });
   const card = board.cards[0];
   assert.equal(card.laneId, "locked_until");
+  assert.equal(card.title, "Tomorrow task");
   assert.equal(card.nextAction, "locked_until");
   assert.equal(card.primaryAction, "locked");
   assert.equal(card.actions.canSubmit, false);
   assert.equal(card.nextCompletionAllowedAt, "2026-05-21T08:00:00.000Z");
   assert.ok(board.lanes.find((lane) => lane.id === "locked_until").cards.includes("seq-locked"));
+}
+
+function testBoardAppendsEvergreenSequenceIndexToRepeatedTitles() {
+  const sequenceOverview = Object.assign({}, overview(), {
+    programs: Object.assign({}, overview().programs, {
+      executableTasks: [
+        {
+          taskCardId: "seq-evergreen-2",
+          programId: "program-1",
+          sequenceGroupId: "evergreen:math",
+          sequenceMode: "evergreen_jit",
+          sequenceIndex: 2,
+          title: "Math reasoning 1",
+          status: "published",
+          plannedDate: "2026-05-20",
+        },
+      ],
+      taskSubmissions: [],
+      evaluations: [],
+      taskReflections: [],
+      taskArtifacts: [],
+    }),
+  });
+  const board = buildLearningGrowthBoard({ overview: sequenceOverview, today: "2026-05-20" });
+  assert.equal(board.cards[0].sequenceIndex, 2);
+  assert.equal(board.cards[0].title, "Math reasoning \u00b7 \u7b2c2\u5f20\u5361");
+}
+
+function testBoardShowsFirstEvergreenCardNumberWithoutStoredOrdinal() {
+  const sequenceOverview = Object.assign({}, overview(), {
+    programs: Object.assign({}, overview().programs, {
+      executableTasks: [
+        {
+          taskCardId: "seq-evergreen-1",
+          programId: "program-1",
+          sequenceGroupId: "evergreen:english-retell",
+          sequenceMode: "evergreen_jit",
+          sequenceIndex: 1,
+          title: "Evergreen English Random Reading Retell 001",
+          status: "published",
+          plannedDate: "2026-05-20",
+        },
+      ],
+      taskSubmissions: [],
+      evaluations: [],
+      taskReflections: [],
+      taskArtifacts: [],
+    }),
+  });
+  const board = buildLearningGrowthBoard({ overview: sequenceOverview, today: "2026-05-20" });
+  assert.equal(board.cards[0].title, "Evergreen English Random Reading Retell \u00b7 \u7b2c1\u5f20\u5361");
 }
 
 function testBoardFiltersRetiredAndCancelledTasks() {
@@ -362,8 +490,11 @@ testBoardKeepsOwnerPanelOwnerOnly();
 testServiceUsesOverviewWithoutKanbanProvider();
 testBoardShowsOnlyCurrentFutureSequenceTask();
 testBoardPrefersFullNativeTaskMetadataOverExecutorSummary();
+testBoardMarksEvergreenRewardDecayAfterThresholds();
 testBoardGroupsDuplicateDraftsByProgram();
 testBoardProjectsLegacyTodosAsReadOnlyOpenTasks();
 testBoardShowsLockedCurrentCardBeforeCompletionWindow();
+testBoardAppendsEvergreenSequenceIndexToRepeatedTitles();
+testBoardShowsFirstEvergreenCardNumberWithoutStoredOrdinal();
 testBoardFiltersRetiredAndCancelledTasks();
 console.log("learning growth board projection service tests passed");

@@ -40,6 +40,7 @@ function makeRoutes(overrides = {}) {
     broadcast: [],
     cacheClear: [],
     error: [],
+    inbox: [],
     list: [],
     mutate: [],
     notify: [],
@@ -64,6 +65,12 @@ function makeRoutes(overrides = {}) {
     },
     notifyTodoCreated(result, principalId) {
       calls.notify.push({ id: result.id, principalId });
+    },
+    actionInboxService: {
+      upsertSourceItem(input) {
+        calls.inbox.push(input);
+        return { ok: true, item: { id: "ainb-todo-new", workspaceId: input.workspaceId } };
+      },
     },
     publicTodo(result) {
       return { id: result.id, title: result.content || result.title || "" };
@@ -220,7 +227,17 @@ async function testCreateBroadcastsAndNotifies() {
     recurrenceUntil: "2026-06-01",
   }]);
   assert.deepEqual(calls.cacheClear, ["child"]);
-  assert.deepEqual(calls.broadcast, [{ type: "todos.updated", workspaceId: "child" }]);
+  assert.deepEqual(calls.broadcast, [
+    { type: "todos.updated", workspaceId: "child" },
+    { type: "actionInbox.updated", workspaceId: "child", itemId: "ainb-todo-new" },
+  ]);
+  assert.equal(calls.inbox.length, 1);
+  assert.equal(calls.inbox[0].workspaceId, "child");
+  assert.equal(calls.inbox[0].sourceType, "manual");
+  assert.equal(calls.inbox[0].sourceId, "todo-new");
+  assert.equal(calls.inbox[0].itemType, "todo");
+  assert.equal(calls.inbox[0].title, "Read chapter 1");
+  assert.equal(calls.inbox[0].dedupeKey, "todo:todo-new");
   assert.deepEqual(calls.notify, [{ id: "todo-new", principalId: "principal-child" }]);
   assert.deepEqual(got.body.todo, { id: "todo-new", title: "Read chapter 1" });
 }

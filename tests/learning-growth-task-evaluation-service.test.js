@@ -151,6 +151,96 @@ async function testHighScoreFinalModelRevisionDoesNotLoop() {
   assert.ok(evaluation.evidenceRefs.includes("pass-policy:model-score-consistency"));
 }
 
+async function testThirdSeriousAttemptCompletesCurrentCardWithCarryForwardWeaknesses() {
+  let prompt = "";
+  const service = createLearningGrowthTaskEvaluationService({
+    extractJsonObject: (text) => JSON.parse(text),
+    hermesModelText: async (body) => {
+      prompt = body;
+      return JSON.stringify({
+        score: 73,
+        passed: false,
+        completionDecision: "complete_current_card",
+        status: "needs_revision",
+        confidence: 0.82,
+        summary: "The third serious attempt improved the reasoning, but future practice should keep one weakness.",
+        remainingWeaknesses: ["continue checking the last calculation step"],
+        revisionRequirements: ["do another rewrite"],
+        strengths: ["visible repair"],
+        focusAreas: ["calculation check"],
+      });
+    },
+    now: () => new Date("2026-05-23T09:00:00.000Z"),
+  });
+  const evaluation = await service.evaluate({
+    cardId: "t_third_attempt",
+    stage: "final",
+    attemptNo: 3,
+    completionPolicy: {
+      attemptNo: 3,
+      seriousSubmission: true,
+      threeSeriousSubmissionsComplete: true,
+    },
+    previousEvaluation: {
+      status: "needs_repair",
+      score: 68,
+      revisionRequirements: ["show the missing reasoning step"],
+    },
+    text: [
+      "First, I corrected the missing calculation because the earlier answer skipped the middle step.",
+      "Then I compared the old method with the new method and wrote the check line.",
+      "Finally, I explained what I still need to practice next time.",
+    ].join("\n"),
+    card: {
+      id: "t_third_attempt",
+      kanbanCaseTemplate: "learning-growth",
+      learningTaskModel: {
+        version: "learning-task-model-v1",
+        activityType: "math_reasoning",
+        skillId: "math_reasoning",
+      },
+    },
+  });
+  assert.match(prompt.input || "", /attemptContext/);
+  assert.equal(evaluation.status, "completed");
+  assert.equal(evaluation.passed, true);
+  assert.equal(evaluation.score, 73);
+  assert.equal(evaluation.completionDecision, "complete_current_card");
+  assert.deepEqual(evaluation.remainingWeaknesses, ["continue checking the last calculation step"]);
+  assert.deepEqual(evaluation.revisionRequirements, ["continue checking the last calculation step"]);
+}
+
+async function testThirdSeriousAttemptAllowsNonHardAtLeastRevision() {
+  const service = createLearningGrowthTaskEvaluationService();
+  const evaluation = await service.evaluate({
+    card: {
+      title: "English reading retell",
+      domain: "english",
+      learningTaskModel: {
+        version: "learning-task-model-v1",
+        activityType: "speaking",
+        skillId: "english_speaking_retell",
+        learnerInstruction: "Retell the reading with beginning, middle, ending, and one corrected detail.",
+      },
+    },
+    stage: "final",
+    attemptNo: 3,
+    completionPolicy: {
+      attemptNo: 3,
+      seriousSubmission: true,
+      threeSeriousSubmissionsComplete: true,
+    },
+    text: [
+      "I retell the reading with the beginning, middle, ending, character, problem, and corrected detail in one clear response because I fixed the missing sequence from last time.",
+    ].join(" "),
+  });
+  assert.equal(evaluation.passed, true);
+  assert.equal(evaluation.status, "completed");
+  assert.equal(evaluation.completionDecision, "complete_current_card");
+  assert.equal(evaluation.evidenceRefs.includes("completion-policy:three-serious-submissions"), true);
+  assert.equal(evaluation.revisionRequirements.some((item) => item.includes("Include at least")), true);
+}
+
 async function testHardSafetyBlockStillPreventsHighScorePass() {
   const service = createLearningGrowthTaskEvaluationService({
     extractJsonObject: (text) => JSON.parse(text),
@@ -268,6 +358,8 @@ async function testWritingUsesModelMainEvaluation() {
   await testVocabularyDraftRequiresRevisionWithoutRawAnswerLeak();
   await testGenericFinalPassSettlesRewardRange();
   await testHighScoreFinalModelRevisionDoesNotLoop();
+  await testThirdSeriousAttemptCompletesCurrentCardWithCarryForwardWeaknesses();
+  await testThirdSeriousAttemptAllowsNonHardAtLeastRevision();
   await testHardSafetyBlockStillPreventsHighScorePass();
   testTooShortGenericAnswerBlocksFinalPass();
   testRewriteAndWeeklyChallengeHaveSpecificRuntimeContracts();

@@ -170,11 +170,43 @@
     const status = String(evaluation.status || "").trim();
     const nextStep = String(evaluation.nextStep || interactionState.nextStep || "").trim();
     const passLine = Number(evaluation.finalPassingScore || evaluation.passingScore || interactionState.finalPassingScore || 80) || 80;
-    if (nextStep === "spoken_reflection_required" || status === "reflection_required" || interactionState.requiresReflection || interactionState.canSubmitReflection) return { kind: "reflection", title: "\u6700\u7ec8\u8bc4\u5206\u5df2\u8fbe\u6807\uff0c\u5f85\u5f55\u97f3\u590d\u76d8", body: `\u6700\u7ec8\u5206\u6570\u5df2\u8fbe\u5230 ${passLine} \u5206\u7ebf\uff0c\u8bf7\u5148\u770b\u6700\u65b0 Markdown \u6279\u6539\uff0c\u518d\u7528\u5f55\u97f3\u8bf4\u660e\u9519\u8bef\u3001\u539f\u56e0\u548c\u4e0b\u6b21\u6539\u8fdb\u3002\u590d\u76d8\u901a\u8fc7\u540e\u518d\u7ed3\u7b97\u5206\u6570\u548c\u91d1\u5e01\u3002` };
-    if (evaluation.passed || nextStep === "completed" || status === "completed") return { kind: "passed", title: "\u672c\u6b21\u5df2\u901a\u8fc7", body: "\u67e5\u770b\u6700\u65b0\u6279\u6539\u6587\u4ef6\uff0c\u6309\u8981\u6c42\u5b8c\u6210\u540e\u7eed\u590d\u76d8\u6216\u7ed3\u7b97\u3002" };
-    if (nextStep === "rewrite_and_reflect" || nextStep === "revise_and_resubmit" || status === "needs_revision" || status === "draft_feedback") return { kind: "revision", title: "\u672c\u6b21\u672a\u901a\u8fc7\uff0c\u9700\u8981\u7ee7\u7eed\u4fee\u6539", body: "\u5148\u6253\u5f00\u6700\u65b0\u6279\u6539\u6587\u4ef6\uff0c\u6309\u91cd\u70b9\u4fee\u6539\u540e\u518d\u63d0\u4ea4\u3002\u4e0b\u65b9\u4fdd\u7559\u4e86\u6bcf\u4e00\u6b21\u6279\u6539\u8bb0\u5f55\u3002" };
+    const score = Number(evaluation.score);
+    const scoreReachedPassLine = Number.isFinite(score) && score >= passLine;
+    const completionPolicy = Object.assign({}, interactionState.completionPolicy || {}, evaluation.completionPolicy || {});
+    const completionDecision = String(evaluation.completionDecision || interactionState.completionDecision || "").trim();
+    const completedBySeriousAttempts = completionPolicy.threeSeriousSubmissionsComplete === true
+      || (completionDecision === "complete_current_card" && Number(completionPolicy.attemptNo || 0) >= 3);
+    if (nextStep === "spoken_reflection_required" || status === "reflection_required" || interactionState.requiresReflection || interactionState.canSubmitReflection) {
+      if (completedBySeriousAttempts || !scoreReachedPassLine) {
+        return {
+          kind: "reflection",
+          title: "\u4e09\u6b21\u8ba4\u771f\u63d0\u4ea4\u5df2\u5b8c\u6210\uff0c\u5f85\u5f55\u97f3\u590d\u76d8",
+          body: "\u672c\u5361\u6309\u4e09\u6b21\u8ba4\u771f\u63d0\u4ea4\u673a\u5236\u8fdb\u5165\u590d\u76d8\uff1b\u786e\u5b9a\u5206\u6570\u4ecd\u4fdd\u7559\u4e3a\u672c\u9875\u663e\u793a\u7684\u771f\u5b9e\u5206\u3002\u5f55\u97f3\u590d\u76d8\u63d0\u4ea4\u540e\u5b8c\u6210\u7ed3\u7b97\uff0c\u8584\u5f31\u70b9\u4f1a\u8fdb\u5165\u540e\u7eed\u7ec3\u4e60\u3002",
+        };
+      }
+      return { kind: "reflection", title: "\u6700\u7ec8\u8bc4\u5206\u5df2\u8fbe\u6807\uff0c\u5f85\u5f55\u97f3\u590d\u76d8", body: `\u6700\u7ec8\u5206\u6570\u5df2\u8fbe\u5230 ${passLine} \u5206\u7ebf\uff0c\u5148\u770b\u672c\u9875\u6700\u8fd1\u6279\u6539\u548c\u590d\u76d8\u63d0\u793a\uff0c\u518d\u7528\u5f55\u97f3\u8bf4\u660e\u9519\u8bef\u3001\u539f\u56e0\u548c\u4e0b\u6b21\u6539\u8fdb\u3002\u590d\u76d8\u901a\u8fc7\u540e\u518d\u7ed3\u7b97\u5206\u6570\u548c\u91d1\u5e01\u3002` };
+    }
+    if (evaluation.passed || nextStep === "completed" || status === "completed") return { kind: "passed", title: "\u672c\u6b21\u5df2\u901a\u8fc7", body: "\u6309\u672c\u9875\u6700\u8fd1\u6279\u6539\u7684\u8981\u70b9\u5b8c\u6210\u540e\u7eed\u590d\u76d8\u6216\u7ed3\u7b97\u3002" };
+    if ((nextStep === "rewrite_and_reflect" || status === "draft_feedback") && scoreReachedPassLine) {
+      return {
+        kind: "reflection",
+        title: "\u521d\u7a3f\u6279\u6539\u5df2\u8fbe\u6807\uff0c\u5f85\u53cd\u601d\u548c\u4fee\u6539\u590d\u76d8",
+        body: `\u8fd9\u4e2a ${scoreReachedPassLine ? `${passLine} \u5206\u7ebf` : "\u9636\u6bb5"} \u5df2\u8fbe\u5230\uff0c\u4f46\u672c\u5361\u8fd8\u6ca1\u6709\u6700\u7ec8\u5b8c\u6210\u3002\u4e0b\u4e00\u6b65\u9700\u8981\u5148\u770b AI \u6279\u6539\uff0c\u518d\u6309\u63d0\u793a\u505a\u4fee\u6539\u548c\u53cd\u601d\uff1b\u590d\u76d8\u5b8c\u6210\u540e\uff0c\u7cfb\u7edf\u624d\u4f1a\u8fdb\u5165\u6700\u7ec8\u5b8c\u6210\u548c\u7ed3\u7b97\u3002`,
+      };
+    }
+    if (nextStep === "rewrite_and_reflect" || nextStep === "revise_and_resubmit" || status === "needs_revision" || status === "draft_feedback") return { kind: "revision", title: "\u672c\u6b21\u8fd8\u9700\u8981\u4fee\u6539", body: "\u5148\u770b\u672c\u9875\u4e0b\u65b9\u7684\u8be6\u7ec6\u6279\u6539\u4fe1\u606f\uff0c\u6309\u91cd\u70b9\u4fee\u6539\u540e\u518d\u63d0\u4ea4\u3002\u6279\u6539\u5386\u53f2\u4f1a\u7ee7\u7eed\u4fdd\u7559\u5728\u4ea4\u4ed8\u76ee\u5f55\u4e2d\u3002" };
     if (status === "pending") return { kind: "pending", title: "\u6b63\u5728\u7b49\u5f85 AI \u6279\u6539", body: "\u4f5c\u7b54\u5df2\u4fdd\u5b58\uff0c\u8bf7\u7b49\u5f85\u672c\u6b21\u6279\u6539\u5b8c\u6210\u3002" };
     return { kind: "review", title: "\u6279\u6539\u7ed3\u679c", body: "\u67e5\u770b\u672c\u6b21\u6279\u6539\u548c\u5386\u53f2\u8bb0\u5f55\uff0c\u518d\u6309\u4e0b\u4e00\u6b65\u63d0\u4ea4\u3002" };
+  }
+
+  function deterministicScoreText(evaluation = {}) {
+    const score = Number(evaluation.score);
+    if (!Number.isFinite(score)) return "\u672a\u8fd4\u56de\u786e\u5b9a\u5206\u6570";
+    const maxScore = Number(evaluation.maxScore || evaluation.totalScore || 100);
+    const boundedMax = Number.isFinite(maxScore) && maxScore > 0 ? maxScore : 100;
+    const cleanScore = Number.isInteger(score) ? String(score) : score.toFixed(1).replace(/\.0$/, "");
+    const cleanMax = Number.isInteger(boundedMax) ? String(boundedMax) : boundedMax.toFixed(1).replace(/\.0$/, "");
+    return `\u786e\u5b9a\u5206\u6570 ${cleanScore}/${cleanMax}`;
   }
 
   function renderFeedbackHistory(todo = {}, evaluation = {}) {
@@ -183,13 +215,191 @@
     const renderer = typeof globalThis !== "undefined" && typeof globalThis.renderKanbanOutputLinks === "function" ? globalThis.renderKanbanOutputLinks : null;
     const links = history.length ? (renderer ? renderer(history, "todo-detail-outputs compact todo-learning-growth-report-history-links") : `<div class="todo-detail-outputs compact todo-learning-growth-report-history-links">${history.map((item) => `<span>${escapeHtmlLocal(item.name || "\u6279\u6539\u6587\u4ef6")}</span>`).join("")}</div>`) : "";
     const count = history.length ? `<span>${escapeHtmlLocal(`${history.length} \u6b21\u6279\u6539`)}</span>` : "";
-    return `<div class="todo-learning-growth-outcome is-${escapeHtmlLocal(outcome.kind)}"><strong>${escapeHtmlLocal(outcome.title)}</strong><p>${escapeHtmlLocal(outcome.body)}</p></div>${history.length ? `<div class="todo-learning-growth-report-history"><div class="todo-learning-growth-report-history-head"><strong>${escapeHtmlLocal("\u6279\u6539\u5386\u53f2")}</strong>${count}</div>${links}</div>` : ""}`;
+    const score = deterministicScoreText(evaluation);
+    return `<div class="todo-learning-growth-outcome is-${escapeHtmlLocal(outcome.kind)}"><div class="todo-learning-growth-outcome-head"><strong>${escapeHtmlLocal(outcome.title)}</strong><span class="todo-learning-growth-score-pill" data-learning-growth-feedback-score>${escapeHtmlLocal(score)}</span></div><p>${escapeHtmlLocal(outcome.body)}</p></div>${history.length ? `<div class="todo-learning-growth-report-history"><div class="todo-learning-growth-report-history-head"><strong>${escapeHtmlLocal("\u6279\u6539\u5386\u53f2")}</strong>${count}</div>${links}</div>` : ""}`;
+  }
+
+  function growthCardRole(task = {}) {
+    const role = String(task.cardRole || task.card_role || task.learningGrowthCardRole || "").trim().toLowerCase().replace(/[-\s]+/g, "_");
+    if (role === "teaching" || role === "practice" || role === "integration_practice" || role === "stage_assessment") return role;
+    const type = String(task.taskCardType || task.task_card_type || task.taskModel?.taskCardType || "").trim().toLowerCase();
+    const activity = String(task.activityType || task.taskModel?.activityType || "").trim().toLowerCase();
+    if (type === "challenge_card" || activity === "weekly_challenge") return "stage_assessment";
+    return "stage_assessment";
+  }
+
+  function isTeachingCardRole(role) {
+    return role === "teaching" || role === "practice" || role === "integration_practice";
+  }
+
+  function growthCardRoleLabel(role) {
+    if (role === "teaching") return "教学卡";
+    if (role === "practice") return "练习卡";
+    if (role === "integration_practice") return "综合练习";
+    if (role === "stage_assessment") return "能力测验";
+    return "成长卡";
+  }
+
+  function teachingFlow(task = {}) {
+    const flow = task.teachingFlow && typeof task.teachingFlow === "object" ? task.teachingFlow : {};
+    const model = task.taskModel && typeof task.taskModel === "object" ? task.taskModel : {};
+    const lesson = flow.lesson && typeof flow.lesson === "object" ? flow.lesson : {};
+    const microLesson = flow.microLesson && typeof flow.microLesson === "object" ? flow.microLesson : {};
+    const workedExample = flow.workedExample && typeof flow.workedExample === "object" ? flow.workedExample : {};
+    const guided = flow.guidedPractice && typeof flow.guidedPractice === "object" ? flow.guidedPractice : {};
+    const quick = flow.quickCheck && typeof flow.quickCheck === "object" ? flow.quickCheck : {};
+    const workedSteps = Array.isArray(workedExample.steps) ? workedExample.steps : [];
+    const examples = Array.isArray(lesson.examples) && lesson.examples.length
+      ? lesson.examples
+      : workedSteps.length
+        ? workedSteps.map((step) => [step?.label, step?.text].filter(Boolean).join(": "))
+        : (Array.isArray(task.deliverables) ? task.deliverables : (Array.isArray(model.deliverables) ? model.deliverables : []));
+    const criteria = Array.isArray(quick.completionCriteria) && quick.completionCriteria.length
+      ? quick.completionCriteria
+      : (Array.isArray(task.acceptance) ? task.acceptance : (Array.isArray(model.acceptance) ? model.acceptance : []));
+    return {
+      lesson: {
+        title: lesson.title || task.title || "学习重点",
+        explanation: lesson.explanation || task.learnerInstruction || task.instruction || model.learnerInstruction || task.summary || "先看讲解，再做一个很小的检查。",
+        whyItMatters: flow.whyItMatters || flow.why || "",
+        keyPoints: Array.isArray(microLesson.keyPoints) ? microLesson.keyPoints.slice(0, 5) : [],
+        examples: examples.slice(0, 4),
+        workedExample: {
+          instruction: workedExample.instruction || "",
+          steps: workedSteps.slice(0, 5),
+        },
+      },
+      guidedPractice: {
+        instruction: guided.instruction || guided.prompt || task.guidedPracticePrompt || "照着讲解做一小步，不需要一次写得很完整。",
+        hints: Array.isArray(guided.hints) ? guided.hints.slice(0, 4) : [],
+      },
+      quickCheck: {
+        instruction: quick.instruction || quick.prompt || "用 1-3 句话说明你刚才学会了什么，或者写一个最小答案。",
+        completionCriteria: criteria.slice(0, 5),
+      },
+    };
+  }
+
+  function renderGrowthCardRoleBadge(role) {
+    return `<span class="learning-growth-role-badge is-${escapeHtmlLocal(role)}">${escapeHtmlLocal(growthCardRoleLabel(role))}</span>`;
+  }
+
+  function renderTeachingStepper(cardId, currentStep) {
+    const steps = [
+      ["lesson", "讲解"],
+      ["guided_practice", "跟做"],
+      ["quick_check", "检查"],
+    ];
+    return `<div class="learning-growth-teaching-stepper" role="tablist">
+      ${steps.map(([step, label]) => `<button type="button" class="${step === currentStep ? "active" : ""}" data-learning-growth-teaching-step="${escapeHtmlLocal(cardId)}" data-step="${escapeHtmlLocal(step)}" aria-selected="${step === currentStep ? "true" : "false"}">${escapeHtmlLocal(label)}</button>`).join("")}
+    </div>`;
+  }
+
+  function renderTeachingLessonSection(flow) {
+    return `<section class="learning-growth-teaching-section" data-learning-growth-teaching-section="lesson">
+      <h4>${escapeHtmlLocal(flow.lesson.title)}</h4>
+      ${flow.lesson.whyItMatters ? `<p class="learning-growth-teaching-why">${escapeHtmlLocal(flow.lesson.whyItMatters)}</p>` : ""}
+      <p>${escapeHtmlLocal(flow.lesson.explanation)}</p>
+      ${flow.lesson.keyPoints.length ? `<ul>${flow.lesson.keyPoints.map((item) => `<li>${escapeHtmlLocal(item)}</li>`).join("")}</ul>` : ""}
+      ${flow.lesson.workedExample.steps.length ? `<div class="learning-growth-teaching-worked-example">
+        ${flow.lesson.workedExample.instruction ? `<strong>${escapeHtmlLocal(flow.lesson.workedExample.instruction)}</strong>` : ""}
+        ${flow.lesson.workedExample.steps.map((step) => `<article><b>${escapeHtmlLocal(step.label || "")}</b><p>${escapeHtmlLocal(step.text || "")}</p></article>`).join("")}
+      </div>` : ""}
+      ${flow.lesson.examples.length ? `<ul>${flow.lesson.examples.map((item) => `<li>${escapeHtmlLocal(item)}</li>`).join("")}</ul>` : ""}
+    </section>`;
+  }
+
+  function renderTeachingGuidedPracticeSection(task, flow, draft = {}) {
+    const cardId = String(task.taskCardId || task.id || "");
+    return `<section class="learning-growth-teaching-section" data-learning-growth-teaching-section="guided_practice">
+      <h4>跟着做一小步</h4>
+      <p>${escapeHtmlLocal(flow.guidedPractice.instruction)}</p>
+      ${flow.guidedPractice.hints.length ? `<div class="learning-growth-teaching-hints">${flow.guidedPractice.hints.map((item) => `<span>${escapeHtmlLocal(item)}</span>`).join("")}</div>` : ""}
+      <textarea class="input learning-growth-teaching-input" rows="4" maxlength="3000" data-learning-growth-teaching-draft="${escapeHtmlLocal(cardId)}" data-field="guidedPracticeText" placeholder="写下跟做过程，简短也可以。">${escapeHtmlLocal(draft.guidedPracticeText || "")}</textarea>
+    </section>`;
+  }
+
+  function renderTeachingQuickCheckSection(task, flow, draft = {}, options = {}) {
+    const cardId = String(task.taskCardId || task.id || "");
+    const busy = Boolean(options.busy);
+    const completed = String(task.status || "").trim().toLowerCase() === "completed";
+    return `<form class="learning-growth-teaching-check-form" data-learning-growth-teaching-check-form="${escapeHtmlLocal(cardId)}">
+      <section class="learning-growth-teaching-section" data-learning-growth-teaching-section="quick_check">
+        <h4>最后确认一下</h4>
+        <p>${escapeHtmlLocal(flow.quickCheck.instruction)}</p>
+        ${flow.quickCheck.completionCriteria.length ? `<ul>${flow.quickCheck.completionCriteria.map((item) => `<li>${escapeHtmlLocal(item)}</li>`).join("")}</ul>` : ""}
+        <textarea class="input learning-growth-teaching-input" rows="4" maxlength="3000" data-learning-growth-teaching-draft="${escapeHtmlLocal(cardId)}" data-field="quickCheckText" placeholder="写一句你确认掌握的内容，或者写下哪里还卡住。">${escapeHtmlLocal(draft.quickCheckText || "")}</textarea>
+        <div class="learning-growth-teaching-actions">
+          <button type="submit" ${busy || completed ? "disabled" : ""}>${completed ? "已完成" : (busy ? "提交中" : "完成本卡")}</button>
+        </div>
+      </section>
+    </form>`;
+  }
+
+  function renderTeachingFeedbackSection(task = {}) {
+    const summary = task.experienceSummary || {};
+    const reward = Number(task.learningGrowthRewardCoins || task.latestRewardSettlement?.coinAmount || task.rewardPolicy?.maxCoins || 0) || 0;
+    if (String(task.status || "").trim().toLowerCase() !== "completed" && !summary.latestAt && !summary.lastCompletionAt) return "";
+    return `<section class="learning-growth-teaching-feedback" data-learning-growth-teaching-feedback>
+      <strong>${escapeHtmlLocal(String(task.status || "").trim().toLowerCase() === "completed" ? "本卡已完成" : "学习反馈已记录")}</strong>
+      <p>${escapeHtmlLocal(reward ? `奖励 ${reward} 金币；这张卡只作为低压力学习证据，不当作正式能力测验。` : "这张卡只作为低压力学习证据，不当作正式能力测验。")}</p>
+    </section>`;
+  }
+
+  function renderExperienceSignalActions(task = {}, state = {}) {
+    const cardId = String(task.taskCardId || task.id || "");
+    const summary = task.experienceSummary && typeof task.experienceSummary === "object" ? task.experienceSummary : {};
+    const submitted = state.learningGrowthExperienceSignalSubmitted?.[cardId] || "";
+    const busy = state.learningGrowthExperienceSignalBusy?.[cardId] || "";
+    const selected = String(summary.latestSignalType || submitted || "").trim();
+    const locked = Boolean(selected || busy);
+    const actions = [
+      ["too_easy", "太简单"],
+      ["right_level", "正合适"],
+      ["too_hard", "有点难"],
+    ];
+    return `<div class="learning-growth-experience-actions" data-learning-growth-experience-actions="${escapeHtmlLocal(cardId)}">
+      ${actions.map(([type, label]) => {
+        const isPending = busy === type;
+        const isSelected = selected === type || isPending;
+        return `<button type="button" class="${isSelected ? "is-selected" : ""}${isPending ? " is-pending" : ""}" data-learning-growth-experience-signal="${escapeHtmlLocal(cardId)}" data-signal-type="${escapeHtmlLocal(type)}" aria-pressed="${isSelected ? "true" : "false"}" ${locked ? "disabled" : ""}>${escapeHtmlLocal(isPending ? "记录中" : label)}</button>`;
+      }).join("")}
+    </div>`;
+  }
+
+  function renderTeachingCardDetail(task = {}, options = {}) {
+    const cardId = String(task.taskCardId || task.id || "");
+    const role = growthCardRole(task);
+    const flow = teachingFlow(task);
+    const state = options.state || {};
+    const draft = Object.assign({}, state.learningGrowthTeachingDrafts?.[cardId] || {});
+    const step = state.learningGrowthTeachingStepByCardId?.[cardId]
+      || (String(task.status || "").trim().toLowerCase() === "completed" ? "quick_check" : "lesson");
+    const busy = Boolean(state.learningGrowthTeachingCheckBusy?.[cardId]);
+    const duration = task.expectedDurationMinutes || {};
+    const reward = Number(task.rewardPolicy?.maxCoins || task.configuredRewardCoins || task.defaultRewardCoins || 100) || 100;
+    return `<section class="learning-growth-answer-card learning-growth-teaching-card" data-learning-growth-answer-card data-learning-growth-teaching-card="${escapeHtmlLocal(cardId)}" data-learning-growth-card-role="${escapeHtmlLocal(role)}" data-learning-executable-task-id="${escapeHtmlLocal(cardId)}">
+      <div class="learning-growth-teaching-head">
+        <div>${renderGrowthCardRoleBadge(role)}<span>${escapeHtmlLocal(`约 ${duration.min || 10}-${duration.max || 15} 分钟`)}</span><span>${escapeHtmlLocal(`${reward} 金币`)}</span></div>
+      </div>
+      <h3>${escapeHtmlLocal(task.title || "学习卡")}</h3>
+      ${renderTeachingStepper(cardId, step)}
+      ${step === "lesson" ? renderTeachingLessonSection(flow) : ""}
+      ${step === "guided_practice" ? renderTeachingGuidedPracticeSection(task, flow, draft) : ""}
+      ${step === "quick_check" ? renderTeachingGuidedPracticeSection(task, flow, draft) + renderTeachingQuickCheckSection(task, flow, draft, { busy }) : ""}
+      ${renderTeachingFeedbackSection(task)}
+      ${renderExperienceSignalActions(task, state)}
+    </section>`;
   }
 
   return {
     activityLabel,
     canWithdrawSubmission,
+    growthCardRole,
+    isTeachingCardRole,
     renderFeedbackHistory,
+    renderGrowthCardRoleBadge,
+    renderTeachingCardDetail,
     reportHistory,
     nextActionLabel,
     submissionGuard,

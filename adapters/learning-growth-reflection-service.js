@@ -313,6 +313,7 @@ function createLearningGrowthReflectionService(options = {}) {
     const card = input.card || {};
     const workspaceId = cleanString(input.workspaceId || cardField(card, "workspaceId", "workspace_id") || "owner");
     const cardId = cleanString(input.cardId || cardField(card, "id", "todo_id", "todoId"));
+    const acceptRegardlessOfScore = input.acceptRegardlessOfScore === true;
     let audio = null;
     const dataBase64 = String(input.dataBase64 || input.data_base64 || input.audioDataBase64 || "").trim();
     if (dataBase64 && saveAudioUpload) {
@@ -340,7 +341,7 @@ function createLearningGrowthReflectionService(options = {}) {
         return { ok: false, status: Number(err?.status || 502) || 502, error: cleanString(err?.message || err || "Unable to transcribe spoken reflection audio", 300) };
       }
     }
-    if (textStats(transcript).chars < minTranscriptChars) {
+    if (textStats(transcript).chars < minTranscriptChars && !acceptRegardlessOfScore) {
       return {
         ok: false,
         status: 400,
@@ -352,7 +353,7 @@ function createLearningGrowthReflectionService(options = {}) {
       maxTranscriptChars,
       minTranscriptChars,
     });
-    if (!hermesModelText && requireModel) {
+    if (!hermesModelText && requireModel && !acceptRegardlessOfScore) {
       return { ok: false, status: 503, error: "Growth spoken reflection requires model assistance" };
     }
     if (hermesModelText) {
@@ -369,15 +370,26 @@ function createLearningGrowthReflectionService(options = {}) {
         }, timeoutMs);
         const parsed = extractJsonObject(output || "");
         if (!parsed || typeof parsed !== "object") {
-          if (requireModel) return { ok: false, status: 502, error: "Growth spoken reflection model returned invalid JSON" };
+          if (requireModel && !acceptRegardlessOfScore) return { ok: false, status: 502, error: "Growth spoken reflection model returned invalid JSON" };
         } else {
           assessed = normalizeModelReflection(parsed, assessed, { acceptScore: options.acceptScore });
         }
       } catch (err) {
-        if (requireModel) {
+        if (requireModel && !acceptRegardlessOfScore) {
           return { ok: false, status: Number(err?.status || 502) || 502, error: cleanString(err?.message || err || "Growth spoken reflection model failed", 300) };
         }
       }
+    }
+    if (acceptRegardlessOfScore) {
+      const acceptScore = positiveNumber(options.acceptScore, 70);
+      assessed = Object.assign({}, assessed, {
+        accepted: true,
+        score: Math.max(Number(assessed.score || 0) || 0, acceptScore),
+        summary: assessed.summary || "Spoken reflection was recorded and accepted by the three-serious-attempt completion policy.",
+        checks: Object.assign({}, assessed.checks || {}, {
+          completionPolicyAccepted: true,
+        }),
+      });
     }
     const publicAudio = audio ? publicAudioEvidence(audio, input) : null;
     const reflection = publicReflection({

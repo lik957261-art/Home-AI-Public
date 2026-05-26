@@ -57,6 +57,11 @@ async function sendMessage(event) {
   }
   const aiMention = composerAiMentionInfo(text);
   const searchSourceFields = composerSearchSourceBodyFields(text);
+  const chatGptProRequested = Boolean(aiMention.chatGptPro);
+  if (chatGptProRequested && !ownerElevationComposerAvailable() && !ownerElevationActive()) {
+    showError(new Error("ChatGPT Pro requires Owner high-privilege approval."));
+    return;
+  }
   if (isDraftThread(state.currentThread)) await materializeCurrentThread();
   if (!state.currentThreadId) {
     if (ownerElevationOnceTag) clearOwnerElevationOnce();
@@ -68,6 +73,16 @@ async function sendMessage(event) {
     if (!ok) return;
     ownerElevationOnceRequested = true;
   }
+  let chatGptProOnceApproved = false;
+  if (chatGptProRequested && !ownerElevationActive() && !ownerElevationOnceTag) {
+    clearOwnerElevationOnce();
+    const ok = await activateOwnerElevationOnce({
+      message: "Approve ChatGPT Pro tool routing for this message only? This sends the run to the Owner maintenance Gateway and exposes only the ChatGPT Pro tool for the approved request.",
+    });
+    if (!ok) return;
+    ownerElevationOnceRequested = true;
+    chatGptProOnceApproved = true;
+  }
   closeGroupMentionMenu();
   $("sendMessage").disabled = true;
   let requestBody = null;
@@ -76,13 +91,18 @@ async function sendMessage(event) {
   try {
     const body = { text, artifacts: state.pendingArtifacts, workspaceId: state.selectedWorkspaceId };
     if (searchSourceFields) Object.assign(body, searchSourceFields);
-    if (ownerElevationActive() || ownerElevationOnceTag) {
+    if (ownerElevationActive() || ownerElevationOnceTag || chatGptProOnceApproved) {
       body.maintenanceMode = true;
       body.maintenance_mode = true;
-      body.elevationScope = "owner_high_privilege";
-      if (ownerElevationOnceTag) {
+      body.elevationScope = chatGptProRequested ? "chatgpt_pro_generate" : "owner_high_privilege";
+      if (ownerElevationOnceTag || chatGptProOnceApproved) {
         body.ownerElevationOnceToken = state.ownerElevationOnceToken;
       }
+    }
+    if (chatGptProRequested) {
+      body.chatGptProGenerate = true;
+      body.chatgpt_pro_generate = true;
+      body.requiredTool = "chatgpt_pro_generate";
     }
     if (state.viewMode === "single") {
       body.singleWindowMode = state.singleWindowMode === "chat" ? "chat" : "task";
@@ -128,6 +148,7 @@ async function sendMessage(event) {
       return;
     }
     setComposerText("");
+    lockComposerSendToBottom();
     const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages`, {
       method: "POST",
       body: serializedBody,
@@ -154,6 +175,9 @@ async function sendMessage(event) {
             maintenance_mode: true,
             elevationScope: err.elevationScope || err.code || "shared_skill_write",
           });
+          if (requestBody.chatGptProGenerate || requestBody.chatgpt_pro_generate) {
+            elevatedBody.elevationScope = "chatgpt_pro_generate";
+          }
           if (onceToken) elevatedBody.ownerElevationOnceToken = onceToken;
           const serializedElevatedBody = JSON.stringify(elevatedBody);
           const elevatedSizeError = composerRequestSizeError(elevatedBody.text || "", serializedElevatedBody);
@@ -181,6 +205,20 @@ async function sendMessage(event) {
     $("sendMessage").disabled = false;
     updateComposerAction();
   }
+}
+
+function lockComposerSendToBottom() {
+  if (!conversationViewportRefreshApplies()) return;
+  state.forceChatStickToBottomUntil = Date.now() + 12000;
+  state.conversationViewportBottomFollowUntil = Date.now() + 5000;
+  state.conversationViewportSettleUntil = Date.now() + 900;
+  state.suppressChatAutoBottomUntil = 0;
+  state.suppressConversationPinUntil = Date.now() + 700;
+  state.conversationPinnedToBottom = true;
+  requestAnimationFrame(() => {
+    scrollConversationToBottom();
+    requestAnimationFrame(scrollConversationToBottom);
+  });
 }
 
 async function uploadFiles(files) {

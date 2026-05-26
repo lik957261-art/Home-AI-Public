@@ -103,6 +103,32 @@
     return `${Number.isFinite(amount) ? amount : 0} \u91d1\u5e01`;
   }
 
+  function rewardSettlementTime(settlement = {}) {
+    return String(settlement.settledAt || settlement.updatedAt || settlement.createdAt || "").trim();
+  }
+
+  function latestRewardSettlementForTask(rewardSettlements = [], task = {}) {
+    const taskCardId = String(task?.taskCardId || "").trim();
+    const evaluationId = String(task?.latestEvaluation?.evaluationId || "").trim();
+    let latest = null;
+    asArray(rewardSettlements).forEach((item) => {
+      const matchesTask = taskCardId && String(item?.taskCardId || "").trim() === taskCardId;
+      const matchesEvaluation = evaluationId && String(item?.evaluationId || "").trim() === evaluationId;
+      if (!matchesTask && !matchesEvaluation) return;
+      if (!latest || rewardSettlementTime(item) > rewardSettlementTime(latest)) latest = item;
+    });
+    return latest;
+  }
+
+  function rewardSettlementDisplayText(settlement = null) {
+    const coinAmount = Number(settlement?.coinAmount || 0);
+    const amount = Number.isFinite(coinAmount) && coinAmount > 0 ? Math.round(coinAmount) : 0;
+    const status = String(settlement?.status || "");
+    if (amount && status === "settled") return `\u5df2\u5f97 ${amount} \u91d1\u5e01`;
+    if (amount && (status === "ready" || status === "pending_review")) return `\u5f85\u7ed3\u7b97 ${amount} \u91d1\u5e01`;
+    return "";
+  }
+
   function compactRiskFlags(flags = []) {
     return asArray(flags).map((flag) => (flag && typeof flag === "object" ? (flag.code || flag.reason || "") : flag)).filter(Boolean).join(" / ");
   }
@@ -207,7 +233,7 @@
       ? "5.5-6 / B1 \u8fc7\u6e21"
       : "\u5f85\u786e\u8ba4";
     return {
-      displayName: profile.displayName || profile.learnerId || "\u51e1\u51e1",
+      displayName: profile.displayName || profile.learnerId || "\u5b66\u4e60\u8005",
       grade,
       level,
       sourceCount: sources.length,
@@ -596,6 +622,285 @@
     return `\u81f3\u5c11 ${Number(guard.minWords || 0)} \u4e2a\u82f1\u6587\u8bcd / ${Number(guard.minChars || 0)} \u4e2a\u6709\u6548\u5b57\u7b26`;
   }
 
+  function nativeGrowthDeterministicScoreText(evaluation = {}) {
+    const score = Number(evaluation.score);
+    if (!Number.isFinite(score)) return "";
+    const maxScore = Number(evaluation.maxScore || evaluation.totalScore || 100);
+    const boundedMax = Number.isFinite(maxScore) && maxScore > 0 ? maxScore : 100;
+    const cleanScore = Number.isInteger(score) ? String(score) : score.toFixed(1).replace(/\.0$/, "");
+    const cleanMax = Number.isInteger(boundedMax) ? String(boundedMax) : boundedMax.toFixed(1).replace(/\.0$/, "");
+    return `\u786e\u5b9a\u5206\u6570 ${cleanScore}/${cleanMax}`;
+  }
+
+  function nativeGrowthFeedbackHistory(task = {}, evaluation = {}, options = {}) {
+    const helper = growthTaskUi(options);
+    if (helper && typeof helper.renderFeedbackHistory === "function") {
+      return helper.renderFeedbackHistory(task, evaluation);
+    }
+    const status = evaluation.status || (evaluation.passed ? "passed" : "needs_revision");
+    const scoreText = nativeGrowthDeterministicScoreText(evaluation);
+    const summary = evaluation.summary || evaluation.feedbackSummary || evaluation.resultSummary || "";
+    return `<div class="todo-learning-growth-outcome is-${defaultEscapeHtml(status)}">
+      <strong>${defaultEscapeHtml(scoreText || status || "\u5f85\u4fee\u8ba2")}</strong>
+      ${summary ? `<p>${defaultEscapeHtml(summary)}</p>` : ""}
+    </div>`;
+  }
+
+  function nativeGrowthTimeLabel(value, options = {}) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const formatTime = optionFn(options, "formatTime", null);
+    if (formatTime) {
+      const formatted = String(formatTime(raw) || "").trim();
+      if (formatted) return formatted;
+    }
+    const date = new Date(raw);
+    if (Number.isNaN(date.getTime())) return raw;
+    return date.toLocaleString([], { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function renderLearningGrowthSectionHead(title, rightHtml = "", escapeHtml = defaultEscapeHtml) {
+    return `<div class="learning-growth-section-head">
+      <h4>${escapeHtml(title)}</h4>
+      ${rightHtml ? `<div class="learning-growth-section-head-actions">${rightHtml}</div>` : ""}
+    </div>`;
+  }
+
+  function nativeGrowthEvaluationCount(task = {}, evaluation = {}) {
+    const candidates = [
+      task.totalEvaluationCount,
+      task.evaluationCount,
+      evaluation.totalEvaluationCount,
+      evaluation.evaluationCount,
+      Array.isArray(evaluation.reportHistory) ? evaluation.reportHistory.length : 0,
+      Array.isArray(task.learningGrowthReportHistory) ? task.learningGrowthReportHistory.length : 0,
+    ];
+    const count = candidates.map((value) => Number(value)).find((value) => Number.isFinite(value) && value > 0);
+    return Math.max(1, Math.round(count || 1));
+  }
+
+  function nativeGrowthArtifactDirectoryPath(task = {}, evaluation = {}) {
+    return String(task.artifactDirectoryPath
+      || task.reportDirectoryPath
+      || task.deliverableDirectoryPath
+      || evaluation.artifactDirectoryPath
+      || evaluation.reportDirectoryPath
+      || "").trim();
+  }
+
+  function renderNativeGrowthFeedbackHead(task = {}, evaluation = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const evaluationCount = nativeGrowthEvaluationCount(task, evaluation);
+    const directoryPath = nativeGrowthArtifactDirectoryPath(task, evaluation);
+    const label = `\u6279\u6539\uff1a${evaluationCount}\u6b21`;
+    const evaluatedAt = nativeGrowthTimeLabel(evaluation.createdAt || evaluation.completedAt || evaluation.updatedAt || "", options);
+    const directoryHtml = directoryPath
+      ? `<button type="button" class="learning-growth-board-artifact-link learning-growth-feedback-directory-link" data-learning-growth-feedback-directory-link data-directory-path-open data-directory-path="${escapeHtml(directoryPath)}" data-directory-label="${escapeHtml(task.title || "\u6279\u6539\u76ee\u5f55")}" aria-label="\u6253\u5f00\u6279\u6539\u76ee\u5f55" title="\u6253\u5f00\u6279\u6539\u76ee\u5f55"><span class="learning-growth-board-artifact-icon" aria-hidden="true"></span></button>`
+      : "";
+    const countHtml = `<span class="learning-growth-feedback-meta"><span class="learning-growth-feedback-count" data-learning-growth-feedback-count>${escapeHtml(label)}</span>${directoryHtml}</span>`;
+    const right = `${evaluatedAt ? `<span class="learning-growth-feedback-time" data-learning-growth-feedback-time>${escapeHtml(evaluatedAt)}</span>` : ""}${countHtml}`;
+    return renderLearningGrowthSectionHead("\u6700\u8fd1\u6279\u6539", right, escapeHtml);
+  }
+
+  function nativeGrowthSubmissionAudio(submission = {}) {
+    const audio = submission.audio || submission.raw?.audio || null;
+    if (!audio || typeof audio !== "object") return null;
+    const url = learningGrowthPlayableAudioUrl(String(audio.url || audio.href || "").trim());
+    if (!url) return null;
+    return {
+      url,
+      name: String(audio.name || "\u539f\u59cb\u5f55\u97f3").trim(),
+      mime: String(audio.mime || "audio/webm").trim(),
+      size: Number(audio.size || 0) || 0,
+    };
+  }
+
+  function nativeGrowthReflectionAudio(reflection = {}) {
+    const audio = reflection.audio || reflection.raw?.audio || null;
+    if (!audio || typeof audio !== "object") return null;
+    const url = learningGrowthPlayableAudioUrl(String(audio.url || audio.href || "").trim());
+    if (!url) return null;
+    return {
+      url,
+      name: String(audio.name || "\u590d\u76d8\u5f55\u97f3").trim(),
+      mime: String(audio.mime || "audio/webm").trim(),
+      size: Number(audio.size || 0) || 0,
+    };
+  }
+
+  function renderNativeGrowthReflectionResult(reflection = {}, options = {}) {
+    const status = String(reflection?.status || "").trim().toLowerCase();
+    if (!status || status === "accepted") return "";
+    if (!["rejected", "failed", "error"].includes(status)) return "";
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const score = Number(reflection.score);
+    const maxScore = Number(reflection.maxScore || reflection.max_score || 100) || 100;
+    const scoreLabel = Number.isFinite(score) && score > 0 ? `${Math.round(score)}/${Math.round(maxScore)}` : "";
+    const submittedAt = nativeGrowthTimeLabel(reflection.submittedAt || reflection.createdAt || reflection.updatedAt || "", options);
+    const meta = [scoreLabel ? `\u590d\u76d8\u5f97\u5206 ${scoreLabel}` : "", submittedAt ? `\u63d0\u4ea4 ${submittedAt}` : ""].filter(Boolean);
+    const summary = String(reflection.summary || reflection.feedbackSummary || reflection.reason || "").trim().slice(0, 240);
+    const title = status === "rejected" ? "\u4e0a\u6b21\u590d\u76d8\u672a\u901a\u8fc7" : "\u590d\u76d8\u5904\u7406\u5931\u8d25";
+    const fallback = status === "rejected"
+      ? "\u8bf7\u91cd\u65b0\u5f55\u4e00\u6bb5\u590d\u76d8\uff1a\u8bf4\u6e05\u672c\u6b21\u4e3b\u8981\u9519\u8bef\u3001\u4fee\u6539\u539f\u56e0\uff0c\u4ee5\u53ca\u4e0b\u6b21\u7ec3\u4e60\u8981\u6ce8\u610f\u4ec0\u4e48\u3002"
+      : "\u672c\u6b21\u590d\u76d8\u6ca1\u6709\u5f97\u5230\u53ef\u7528\u7ed3\u679c\uff0c\u53ef\u91cd\u65b0\u5f55\u97f3\u540e\u518d\u63d0\u4ea4\u3002";
+    return `<div class="learning-native-growth-reflection-result is-${escapeHtml(status)}" data-learning-native-growth-reflection-result>
+      <strong>${escapeHtml(title)}</strong>
+      ${meta.length ? `<small>${escapeHtml(meta.join(" / "))}</small>` : ""}
+      <p>${escapeHtml(summary || fallback)}</p>
+    </div>`;
+  }
+
+  function learningGrowthPlayableAudioUrl(url) {
+    const raw = String(url || "").trim();
+    if (!raw) return "";
+    if (/([?&])format=mp3(?:&|$)/i.test(raw)) return raw;
+    const separator = raw.includes("?") ? "&" : "?";
+    return `${raw}${separator}format=mp3`;
+  }
+
+  function nativeGrowthSubmissionEvidence(task = {}, data = {}) {
+    const taskCardId = String(task?.taskCardId || "");
+    const latest = task.latestSubmission || latestRecordForTask(data.taskSubmissions || [], taskCardId, "submittedAt");
+    if (!latest) return null;
+    const structuredResponses = asArray(latest.structuredResponses);
+    const displayText = String(latest.displayText || latest.text || "").trim();
+    return Object.assign({}, latest, { audio: nativeGrowthSubmissionAudio(latest), displayText, structuredResponses });
+  }
+
+  function recordsForTask(records = [], taskCardId = "", field = "submittedAt") {
+    const id = String(taskCardId || "");
+    return asArray(records)
+      .filter((record) => String(record?.taskCardId || "") === id)
+      .slice()
+      .sort((a, b) => String(b?.[field] || b?.updatedAt || b?.createdAt || "").localeCompare(String(a?.[field] || a?.updatedAt || a?.createdAt || "")));
+  }
+
+  function structuredResponseMap(submission = {}) {
+    const map = new Map();
+    asArray(submission.structuredResponses).forEach((item, index) => {
+      const key = String(item?.questionId || item?.id || `q${index + 1}`).trim();
+      if (key) map.set(key, item);
+    });
+    return map;
+  }
+
+  function renderNativeGrowthPreviousSubmission(submission = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const responses = asArray(submission.structuredResponses);
+    const displayText = String(submission.displayText || "").trim();
+    const audio = nativeGrowthSubmissionAudio(submission);
+    const submittedAt = nativeGrowthTimeLabel(submission.submittedAt || submission.createdAt || submission.updatedAt || "", options);
+    const head = renderLearningGrowthSectionHead("\u4e0a\u6b21\u63d0\u4ea4", submittedAt ? `<span class="learning-growth-submission-time" data-learning-growth-submission-time>${escapeHtml(`\u63d0\u4ea4 ${submittedAt}`)}</span>` : "", escapeHtml);
+    if (!responses.length && !displayText && !audio) {
+      return `<section class="learning-growth-answer-submission" data-learning-growth-previous-submission>
+        ${head}
+        <p>\u5df2\u6709\u63d0\u4ea4\u8bb0\u5f55\uff0c\u4f46\u6b64\u6b21\u65e9\u671f\u8bb0\u5f55\u672a\u4fdd\u7559\u53ef\u56de\u663e\u7684\u7ed3\u6784\u5316\u4f5c\u7b54\u3002</p>
+      </section>`;
+    }
+    return `<section class="learning-growth-answer-submission" data-learning-growth-previous-submission>
+      ${head}
+      ${audio ? `<div class="learning-growth-submission-audio" data-learning-growth-submission-audio>
+        <strong>${escapeHtml(audio.name)}</strong>
+        <audio controls preload="metadata" src="${escapeHtml(audio.url)}"></audio>
+      </div>` : ""}
+      ${responses.length ? `<div class="learning-growth-previous-responses">
+        ${responses.map((item, index) => {
+          const title = item.title || item.questionId || `Q${index + 1}`;
+          const choice = item.choice ? `<b>${escapeHtml(item.choice)}</b>` : "";
+          const body = item.response || item.reason || "";
+          return `<article class="learning-growth-previous-response">
+            <strong>${escapeHtml(title)}</strong>
+            ${choice ? `<p>${choice}</p>` : ""}
+            ${body ? `<p>${escapeHtml(body)}</p>` : ""}
+          </article>`;
+        }).join("")}
+      </div>` : ""}
+      ${displayText && !responses.length ? `<details class="learning-growth-submission-transcript" ${audio ? "" : "open"}><summary>\u67e5\u770b\u8f6c\u5199\u5185\u5bb9</summary><p>${escapeHtml(displayText)}</p></details>` : ""}
+    </section>`;
+  }
+
+  function renderNativeGrowthAudioEvidence(task = {}, data = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const taskCardId = String(task?.taskCardId || "");
+    if (!taskCardId) return "";
+    const submissionItems = recordsForTask(data.taskSubmissions || [], taskCardId, "submittedAt")
+      .map((submission) => Object.assign({}, submission, { audio: nativeGrowthSubmissionAudio(submission), evidenceType: "submission" }))
+      .filter((item) => item.audio);
+    const reflectionItems = recordsForTask(data.taskReflections || [], taskCardId, "submittedAt")
+      .map((reflection) => Object.assign({}, reflection, { audio: nativeGrowthReflectionAudio(reflection), evidenceType: "reflection" }))
+      .filter((item) => item.audio);
+    const items = submissionItems.concat(reflectionItems)
+      .sort((a, b) => String(b.submittedAt || b.updatedAt || b.createdAt || "").localeCompare(String(a.submittedAt || a.updatedAt || a.createdAt || "")));
+    if (!items.length) return "";
+    const label = (item, index) => {
+      if (item.evidenceType === "reflection") return `\u590d\u76d8\u5f55\u97f3 ${reflectionItems.length - reflectionItems.indexOf(item)}`;
+      const attempt = Number(item.attemptNo || 0);
+      return attempt ? `\u7b2c ${attempt} \u6b21\u63d0\u4ea4\u5f55\u97f3` : `\u63d0\u4ea4\u5f55\u97f3 ${index + 1}`;
+    };
+    return `<section class="learning-growth-audio-evidence" data-learning-growth-audio-evidence>
+      ${renderLearningGrowthSectionHead("\u5f55\u97f3\u8bc1\u636e", `<span>${escapeHtml(String(items.length))}</span>`, escapeHtml)}
+      <div class="learning-growth-audio-evidence-list">
+        ${items.map((item, index) => {
+          const submittedAt = nativeGrowthTimeLabel(item.submittedAt || item.createdAt || item.updatedAt || "", options);
+          return `<article class="learning-growth-audio-evidence-item" data-learning-growth-audio-evidence-item="${escapeHtml(item.submissionId || item.reflectionId || String(index + 1))}">
+            <div>
+              <strong>${escapeHtml(label(item, index))}</strong>
+              <small>${escapeHtml([submittedAt, item.status || ""].filter(Boolean).join(" / "))}</small>
+            </div>
+            <audio controls preload="metadata" src="${escapeHtml(item.audio.url)}"></audio>
+          </article>`;
+        }).join("")}
+      </div>
+    </section>`;
+  }
+
+  function renderNativeGrowthEvaluationDetails(evaluation = {}, task = {}, options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const sections = evaluation.feedbackSections || {};
+    const revisionRequirements = asArray(evaluation.revisionRequirements);
+    const strengths = asArray(sections.strengths);
+    const focusAreas = asArray(sections.focusAreas);
+    const rewriteChecklist = asArray(sections.rewriteChecklist);
+    const reflectionPrompts = asArray(sections.reflectionPrompts);
+    const criterionFeedback = asArray(sections.criterionFeedback);
+    const sentenceFeedback = asArray(sections.sentenceFeedback);
+    const finalConclusion = String(sections.finalConclusion || evaluation.finalConclusion || "").trim();
+    const nextPractice = String(sections.nextPractice || evaluation.nextPractice || "").trim();
+    const parentNote = String(sections.parentNote || evaluation.parentNote || "").trim();
+    if (!revisionRequirements.length && !strengths.length && !focusAreas.length && !rewriteChecklist.length && !reflectionPrompts.length && !criterionFeedback.length && !sentenceFeedback.length && !finalConclusion && !nextPractice && !parentNote) {
+      return "";
+    }
+    const list = (title, items) => items.length ? `<div class="learning-growth-feedback-detail-list"><h5>${escapeHtml(title)}</h5><ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : "";
+    const note = (title, value) => value ? `<article class="learning-growth-feedback-detail-note"><strong>${escapeHtml(title)}</strong><p>${escapeHtml(value)}</p></article>` : "";
+    return `<div class="learning-growth-answer-feedback-detail" data-learning-growth-feedback-detail>
+      <h4>\u8be6\u7ec6\u6279\u6539</h4>
+      ${note("\u603b\u7ed3", finalConclusion)}
+      ${list("\u9700\u4fee\u8ba2", revisionRequirements)}
+      ${list("\u5df2\u505a\u5230", strengths)}
+      ${list("\u9700\u8981\u5173\u6ce8", focusAreas)}
+      ${list("\u4fee\u6539\u6e05\u5355", rewriteChecklist)}
+      ${criterionFeedback.length ? `<div class="learning-growth-feedback-criteria">
+        ${criterionFeedback.map((item) => `<article>
+          <strong>${escapeHtml(item.dimension || "\u6279\u6539\u7ef4\u5ea6")}</strong>
+          ${item.observation ? `<p><b>\u89c2\u5bdf</b>${escapeHtml(` ${item.observation}`)}</p>` : ""}
+          ${item.action ? `<p><b>\u4fee\u6539</b>${escapeHtml(` ${item.action}`)}</p>` : ""}
+        </article>`).join("")}
+      </div>` : ""}
+      ${sentenceFeedback.length ? `<div class="learning-growth-feedback-criteria">
+        ${sentenceFeedback.map((item) => `<article>
+          <strong>${escapeHtml(item.evidence || item.issue || "\u7ec6\u8282\u53cd\u9988")}</strong>
+          ${item.issue ? `<p><b>\u95ee\u9898</b>${escapeHtml(` ${item.issue}`)}</p>` : ""}
+          ${item.whyItMatters ? `<p><b>\u539f\u56e0</b>${escapeHtml(` ${item.whyItMatters}`)}</p>` : ""}
+          ${item.fix ? `<p><b>\u4fee\u6539</b>${escapeHtml(` ${item.fix}`)}</p>` : ""}
+          ${item.example ? `<p><b>\u793a\u4f8b</b>${escapeHtml(` ${item.example}`)}</p>` : ""}
+        </article>`).join("")}
+      </div>` : ""}
+      ${list("\u590d\u76d8\u63d0\u793a", reflectionPrompts)}
+      ${note("\u4e0b\u4e00\u6b65\u7ec3\u4e60", nextPractice)}
+      ${note("\u5bb6\u957f\u5907\u6ce8", parentNote)}
+    </div>`;
+  }
+
   function nativeGrowthRequiresAudio(task = {}) {
     const model = task.taskModel || task.learningTaskModel || {};
     const activityType = String(model.activityType || "").toLowerCase();
@@ -696,19 +1001,22 @@
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const questions = structuredQuestionItems(task);
     if (!questions.length) return "";
+    const previousResponses = structuredResponseMap(task.latestSubmission || {});
     return `<div class="learning-native-growth-questions" data-learning-native-growth-questions>
       ${questions.map((item, index) => {
         const questionId = String(item.id || `q${index + 1}`);
         const type = String(item.type || "written");
         const title = String(item.title || `第 ${index + 1} 题`);
         const prompt = String(item.stem || item.body || item.prompt || item.question || "");
+        const previous = previousResponses.get(questionId) || {};
         if (type === "multiple_choice") {
           const choices = asArray(item.choices).map((choice, choiceIndex) => {
             const value = String(choice?.id || choice?.value || String.fromCharCode(65 + choiceIndex));
             const label = String(choice?.label || value);
             const text = String(choice?.text || choice?.content || choice?.label || value);
+            const checked = String(previous.choice || "") === value ? " checked" : "";
             return `<label class="learning-native-growth-choice">
-              <input type="radio" name="learning-growth-${escapeHtml(questionId)}" value="${escapeHtml(value)}" data-learning-native-growth-question-choice="${escapeHtml(questionId)}">
+              <input type="radio" name="learning-growth-${escapeHtml(questionId)}" value="${escapeHtml(value)}" data-learning-native-growth-question-choice="${escapeHtml(questionId)}"${checked}>
               <span><b>${escapeHtml(label)}</b>${escapeHtml(text === label ? "" : ` ${text}`)}</span>
             </label>`;
           }).join("");
@@ -718,14 +1026,14 @@
             <div class="learning-native-growth-choice-list">${choices}</div>
             <label class="learning-native-growth-reason-label">
               <span>${escapeHtml(item.reasonLabel || "简短理由")}</span>
-              <textarea class="input learning-native-growth-question-reason" rows="2" maxlength="1200" data-learning-native-growth-question-reason="${escapeHtml(questionId)}" placeholder="${escapeHtml(item.reasonPlaceholder || "写 1-2 句理由")}"></textarea>
+              <textarea class="input learning-native-growth-question-reason" rows="2" maxlength="1200" data-learning-native-growth-question-reason="${escapeHtml(questionId)}" placeholder="${escapeHtml(item.reasonPlaceholder || "写 1-2 句理由")}">${escapeHtml(previous.reason || "")}</textarea>
             </label>
           </fieldset>`;
         }
         return `<fieldset class="learning-native-growth-question" data-learning-native-growth-question="${escapeHtml(questionId)}" data-question-type="written" data-question-title="${escapeHtml(title)}">
           <legend>${escapeHtml(title)}</legend>
           ${prompt ? `<p>${escapeHtml(prompt)}</p>` : ""}
-          <textarea class="input learning-native-growth-question-response" rows="5" maxlength="5000" data-learning-native-growth-question-response="${escapeHtml(questionId)}" placeholder="${escapeHtml(item.responsePlaceholder || "写出关键推理过程")}"></textarea>
+          <textarea class="input learning-native-growth-question-response" rows="5" maxlength="5000" data-learning-native-growth-question-response="${escapeHtml(questionId)}" placeholder="${escapeHtml(item.responsePlaceholder || "写出关键推理过程")}">${escapeHtml(previous.response || "")}</textarea>
         </fieldset>`;
       }).join("")}
     </div>`;
@@ -742,19 +1050,44 @@
     const workspaceId = String(task?.workspaceId || "");
     const nativeState = task?.nativeState || {};
     const nextAction = String(nativeState.nextAction || "");
+    const previousText = String(task?.latestSubmission?.displayText || "").trim();
+    const submittingRecord = options.state?.learningNativeGrowthSubmissionSubmitting?.[taskCardId];
+    const submittingStartedAt = Number(submittingRecord?.startedAtMs || 0);
+    const submittingLockMs = requiresAudio ? 5 * 60 * 1000 : 15 * 1000;
+    const submitting = Boolean(submittingRecord && (!submittingStartedAt || Date.now() - submittingStartedAt < submittingLockMs));
+    if (submittingRecord && !submitting && options.state?.learningNativeGrowthSubmissionSubmitting) {
+      delete options.state.learningNativeGrowthSubmissionSubmitting[taskCardId];
+    }
+    const editing = Boolean(options.state?.learningNativeGrowthAnswerEditing?.[taskCardId]);
+    const latestEvaluationStatus = String(task?.latestEvaluation?.status || "").trim();
+    const hasGradedResult = Boolean(task?.latestEvaluation && latestEvaluationStatus && latestEvaluationStatus !== "pending");
+    const latestReflection = task?.latestReflection || task?.nativeState?.latestReflection || null;
+    const latestReflectionStatus = String(latestReflection?.status || "").trim().toLowerCase();
+    const latestReflectionRejected = latestReflectionStatus === "rejected";
     const detailButton = options.hideNativeGrowthDetailButton ? "" : `<button type="button" data-learning-open-growth-task="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}">\u67e5\u770b\u4efb\u52a1\u8be6\u60c5</button>`;
-    const stateLabel = {
+    const stateLabel = submitting ? (requiresAudio
+      ? "\u6b63\u5728\u53d1\u9001\u5f55\u97f3\uff0c\u670d\u52a1\u7aef\u786e\u8ba4\u524d\u5c1a\u672a\u4fdd\u5b58\uff1b\u8bf7\u4fdd\u6301\u672c\u9875\u9762\u6253\u5f00\u3002"
+      : "\u6b63\u5728\u53d1\u9001\u4f5c\u7b54\uff0c\u670d\u52a1\u7aef\u786e\u8ba4\u524d\u5c1a\u672a\u4fdd\u5b58\uff1b\u8bf7\u4fdd\u6301\u672c\u9875\u9762\u6253\u5f00\u3002")
+      : (nextAction === "spoken_reflection" && latestReflectionRejected ? "\u4e0a\u6b21\u590d\u76d8\u672a\u901a\u8fc7\uff0c\u9700\u8981\u91cd\u65b0\u5f55\u97f3\u590d\u76d8" : ({
       submit: "\u5f85\u4f5c\u7b54",
       waiting_feedback: "\u5df2\u63d0\u4ea4\uff0c\u7b49\u5f85 AI \u6279\u6539",
       revise: "\u9700\u8981\u4fee\u6539\u540e\u518d\u63d0\u4ea4",
       spoken_reflection: "\u9700\u8981\u5f55\u97f3\u6216\u6587\u5b57\u590d\u76d8",
       complete: "\u5df2\u5b8c\u6210",
-    }[nextAction] || "";
+    }[nextAction] || ""));
     if (nextAction === "complete") {
       return `<div class="learning-native-growth-submission-state is-ready">${escapeHtml(stateLabel || "\u5df2\u5b8c\u6210")}</div>`;
     }
+    if (nextAction === "revise" && hasGradedResult && !editing && !submitting) {
+      return `<div class="learning-native-growth-revision-collapsed" data-learning-native-growth-revision-collapsed="${escapeHtml(taskCardId)}">
+        <p>${escapeHtml(stateLabel || "\u9700\u8981\u4fee\u6539\u540e\u518d\u63d0\u4ea4")}</p>
+        <button type="button" data-learning-native-growth-edit-answer="${escapeHtml(taskCardId)}">\u4fee\u6539\u7b54\u6848</button>
+        ${detailButton}
+      </div>`;
+    }
     if (nextAction === "spoken_reflection") {
       return `<form class="learning-native-growth-submission-form" data-learning-native-growth-reflection-form="${escapeHtml(taskCardId)}" data-task-card-id="${escapeHtml(taskCardId)}">
+        ${renderNativeGrowthReflectionResult(latestReflection, options)}
         <p class="learning-native-growth-prompt">\u9605\u8bfb AI \u53cd\u9988\u540e\uff0c\u7528\u81ea\u5df1\u7684\u8bdd\u8bf4\u660e\u672c\u6b21\u4e3b\u8981\u9519\u8bef\u3001\u4fee\u6539\u539f\u56e0\u548c\u4e0b\u6b21\u7ec3\u4e60\u65b9\u5411\u3002</p>
         ${renderNativeGrowthReflectionRecorder(task, options)}
         <div class="learning-native-growth-submission-state" data-learning-native-growth-reflection-state="${escapeHtml(taskCardId)}">${escapeHtml(stateLabel)}</div>
@@ -767,10 +1100,10 @@
     return `<form class="learning-native-growth-submission-form" data-learning-native-growth-submission-form="${escapeHtml(taskCardId)}" data-task-card-id="${escapeHtml(taskCardId)}" data-workspace-id="${escapeHtml(workspaceId)}" data-min-words="${escapeHtml(String(guard.minWords || 0))}" data-min-chars="${escapeHtml(String(guard.minChars || 0))}" data-requires-audio="${requiresAudio ? "1" : "0"}">
       <p class="learning-native-growth-prompt">${escapeHtml(nativeGrowthSubmissionPrompt(task, options))}</p>
       ${stateLabel ? `<div class="learning-native-growth-submission-state">${escapeHtml(stateLabel)}</div>` : ""}
-      ${requiresAudio ? renderNativeGrowthAudioRecorder(task, options) : structuredQuestions || `<textarea class="input learning-native-growth-submission-input" name="text" rows="4" maxlength="12000" data-learning-native-growth-submission-input="${escapeHtml(taskCardId)}" placeholder="\u5728\u8fd9\u91cc\u76f4\u63a5\u5199\u4f5c\u7b54\uff0c\u63d0\u4ea4\u540e\u7b49\u5f85 AI \u6279\u6539"></textarea>
+      ${requiresAudio ? renderNativeGrowthAudioRecorder(task, options) : structuredQuestions || `<textarea class="input learning-native-growth-submission-input" name="text" rows="4" maxlength="12000" data-learning-native-growth-submission-input="${escapeHtml(taskCardId)}" placeholder="\u5728\u8fd9\u91cc\u76f4\u63a5\u5199\u4f5c\u7b54\uff0c\u63d0\u4ea4\u540e\u7b49\u5f85 AI \u6279\u6539">${escapeHtml(previousText)}</textarea>
       <div class="todo-learning-growth-submit-requirement" data-learning-native-growth-submission-count="${escapeHtml(taskCardId)}">${escapeHtml(nativeGrowthRequirementLabel(guard, options))}</div>`}
       <div class="learning-program-task-actions">
-        <button type="submit" data-learning-submit-native-growth="${escapeHtml(taskCardId)}">${requiresAudio ? "\u63d0\u4ea4\u5f55\u97f3\u7ed9 AI \u6279\u6539" : "\u63d0\u4ea4\u7ed9 AI \u6279\u6539"}</button>
+        <button type="submit" data-learning-submit-native-growth="${escapeHtml(taskCardId)}" ${submitting ? "disabled" : ""}>${requiresAudio ? "\u63d0\u4ea4\u5f55\u97f3\u7ed9 AI \u6279\u6539" : "\u63d0\u4ea4\u7ed9 AI \u6279\u6539"}</button>
         ${detailButton}
       </div>
       <div class="learning-native-growth-submission-state" data-learning-native-growth-submission-state="${escapeHtml(taskCardId)}" aria-live="polite"></div>
@@ -778,35 +1111,146 @@
   }
 
   function taskActionFromRecords(task = {}, data = {}) {
-    const nativeAction = String(task?.nativeState?.nextAction || "");
-    if (nativeAction) return nativeAction;
     const taskCardId = String(task?.taskCardId || "");
-    const reflection = latestRecordForTask(data.taskReflections || [], taskCardId, "submittedAt");
-    const evaluation = latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
-    const submission = latestRecordForTask(data.taskSubmissions || [], taskCardId, "submittedAt");
+    const reflection = task.latestReflection || latestRecordForTask(data.taskReflections || [], taskCardId, "submittedAt");
+    const evaluation = task.latestEvaluation || latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
+    const submission = task.latestSubmission || latestRecordForTask(data.taskSubmissions || [], taskCardId, "submittedAt");
     if (String(task.status || "").toLowerCase() === "completed" || String(reflection?.status || "") === "accepted") return "complete";
-    if (String(evaluation?.status || "") === "reflection_required") return "spoken_reflection";
+    if (nativeGrowthEvaluationNeedsReflection(evaluation)) return "spoken_reflection";
     if (["needs_repair", "needs_revision"].includes(String(evaluation?.status || ""))) return "revise";
+    if (evaluation?.passed || ["passed", "completed", "complete"].includes(String(evaluation?.status || ""))) return "complete";
+    const nativeAction = String(task?.nativeState?.nextAction || "");
+    if (nativeAction && nativeAction !== "submit") return nativeAction;
     if (String(submission?.status || "")) return "waiting_feedback";
-    return "submit";
+    return nativeAction || "submit";
+  }
+
+  function nativeGrowthEvaluationNeedsReflection(evaluation = {}) {
+    const status = String(evaluation?.status || "").trim().toLowerCase();
+    const nextStep = String(evaluation?.nextStep || evaluation?.reflectionGate?.nextStep || "").trim().toLowerCase();
+    if (status === "reflection_required" || nextStep === "spoken_reflection_required" || evaluation?.reflectionRequired === true) {
+      return true;
+    }
+    if (status !== "draft_feedback" && nextStep !== "rewrite_and_reflect") return false;
+    const score = Number(evaluation?.score);
+    const passLine = Number(evaluation?.finalPassingScore || evaluation?.passingScore || 80) || 80;
+    return Number.isFinite(score) && score >= passLine;
   }
 
   function renderTaskRewardPolicy(task = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const policy = taskRewardPolicy(task);
+    const settlementText = rewardSettlementDisplayText(task.latestRewardSettlement || task.rewardSettlement || null);
     return `<section class="learning-growth-answer-reward" data-learning-task-reward-policy>
       <div class="learning-growth-answer-reward-head">
         <h4>\u5956\u52b1\u673a\u5236</h4>
-        <strong>\u5956\u52b1 ${escapeHtml(String(policy.maxCoins))} \u91d1\u5e01</strong>
+        <strong>${settlementText ? escapeHtml(settlementText) : `\u5956\u52b1 ${escapeHtml(String(policy.maxCoins))} \u91d1\u5e01`}</strong>
       </div>
+      ${settlementText ? `<p class="learning-growth-answer-reward-settlement" data-learning-task-reward-settlement>${escapeHtml(settlementText)}</p>` : ""}
       <div class="learning-growth-answer-reward-grid">
-        <span><b>${escapeHtml(String(policy.minCoins))}</b><small>\u901a\u8fc7\u57fa\u7840</small></span>
-        <span><b>${escapeHtml(String(policy.accuracyBonusMax))}</b><small>\u51c6\u786e\u5ea6\u52a0\u6210</small></span>
-        <span><b>${escapeHtml(String(policy.timelinessBonusMax))}</b><small>\u6309\u65f6\u52a0\u6210</small></span>
-        <span><b>${escapeHtml(String(policy.interactionBonusMax))}</b><small>\u4fee\u6539\u4e92\u52a8\u52a0\u6210</small></span>
+        <span><b>${escapeHtml(String(policy.minCoins))}%</b><small>\u901a\u8fc7\u57fa\u7840\u6743\u91cd</small></span>
+        <span><b>${escapeHtml(String(policy.accuracyBonusMax))}%</b><small>\u51c6\u786e\u5ea6\u6743\u91cd</small></span>
+        <span><b>${escapeHtml(String(policy.timelinessBonusMax))}%</b><small>\u6309\u65f6\u6743\u91cd</small></span>
+        <span><b>${escapeHtml(String(policy.interactionBonusMax))}%</b><small>\u4fee\u6539\u4e92\u52a8\u6743\u91cd</small></span>
       </div>
-      <p>\u5956\u52b1\u5728 AI \u8bc4\u4ef7\u901a\u8fc7\u3001\u5b8c\u6210\u5fc5\u8981\u590d\u76d8\u540e\u8fdb\u5165\u7ed3\u7b97\uff1b\u8d85\u51fa\u81ea\u52a8\u7ed3\u7b97\u9608\u503c\u6216\u8bc1\u636e\u4e0d\u8db3\u65f6\u9700\u8981 Owner \u590d\u6838\u3002</p>
+      <p>\u4e0a\u9762\u6570\u5b57\u662f\u5956\u52b1\u6bd4\u4f8b\uff0c\u6700\u7ec8\u91d1\u5e01\u6570\u6309\u672c\u5361\u4e0a\u9650\u6298\u7b97\uff1b\u8bc1\u636e\u4e0d\u8db3\u6216\u8d85\u51fa\u81ea\u52a8\u7ed3\u7b97\u9608\u503c\u65f6\u9700\u8981 Owner \u590d\u6838\u3002</p>
     </section>`;
+  }
+
+  function renderNativeGrowthSequenceDecision(task = {}, options = {}) {
+    const decision = task.learningGrowthSequenceDecision || task.sequenceDecision || null;
+    if (!decision || typeof decision !== "object") return "";
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const strategyLabels = {
+      repair: "\u4fee\u8865",
+      stabilize: "\u5de9\u56fa",
+      stretch: "\u62d3\u5c55",
+      transfer: "\u8fc1\u79fb",
+    };
+    const strategy = String(decision.strategy || "").trim();
+    const skills = compactFocus(decision.targetSkillIds || []).slice(0, 140);
+    const reason = String(decision.reason || "").trim();
+    const meta = [
+      strategyLabels[strategy] || strategy,
+      decision.difficultyBand,
+      decision.gradeReference,
+      skills,
+    ].filter(Boolean);
+    if (!meta.length && !reason) return "";
+    return `<section class="learning-growth-answer-reward" data-learning-growth-sequence-decision>
+      <div class="learning-growth-answer-reward-head">
+        <h4>\u4e0b\u4e00\u5361\u7b56\u7565</h4>
+        <strong>${escapeHtml(strategyLabels[strategy] || strategy || "\u6309\u80fd\u529b\u753b\u50cf\u63a8\u8fdb")}</strong>
+      </div>
+      ${meta.length ? `<div class="learning-growth-answer-card-meta">${meta.map((item) => `<span>${escapeHtml(String(item))}</span>`).join("")}</div>` : ""}
+      ${reason ? `<p>${escapeHtml(reason)}</p>` : ""}
+    </section>`;
+  }
+
+  function renderNativeGrowthInstruction(task = {}, instruction = "", options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    if (!instruction) return "";
+    if (task.latestEvaluation) {
+      return `<details class="learning-growth-answer-instruction learning-growth-answer-instruction-collapsed" data-learning-growth-task-prompt-collapsed>
+        <summary>\u67e5\u770b\u9898\u76ee\u8981\u6c42</summary>
+        <p>${escapeHtml(instruction)}</p>
+      </details>`;
+    }
+    return `<section class="learning-growth-answer-instruction"><h4>\u4efb\u52a1\u8981\u6c42</h4><p>${escapeHtml(instruction)}</p></section>`;
+  }
+
+  function nativeGrowthReadingMaterial(task = {}) {
+    const model = task.taskModel || task.learningTaskModel || {};
+    const material = model.readingMaterial || task.readingMaterial || {};
+    let passage = String(material.passage || material.text || material.content || "").trim();
+    let title = String(material.title || "\u539f\u59cb\u9605\u8bfb\u6750\u6599").trim();
+    if (!passage) {
+      const instruction = String(task.learnerInstruction || task.instruction || model.learnerInstruction || "").trim();
+      const match = instruction.match(/(?:Reading material|Reading passage|Passage|Article)\s*:\s*([\s\S]+)$/i);
+      if (match) {
+        passage = String(match[1] || "").trim();
+        const firstLineEnd = passage.indexOf("\n");
+        const firstLine = firstLineEnd >= 0 ? passage.slice(0, firstLineEnd).trim() : "";
+        if (firstLine && firstLine.length <= 120) {
+          title = firstLine;
+          passage = passage.slice(firstLineEnd + 1).trim();
+        }
+      }
+    }
+    if (!passage) return null;
+    return {
+      title,
+      passage,
+      meta: [material.cefr, material.wordCount ? `${material.wordCount} words` : "", material.estimatedReadingMinutes ? `${material.estimatedReadingMinutes} min` : ""].filter(Boolean),
+    };
+  }
+
+  function renderNativeGrowthReadingMaterial(task = {}, options = {}) {
+    const material = nativeGrowthReadingMaterial(task);
+    if (!material) return "";
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    return `<details class="learning-growth-answer-instruction learning-growth-reading-material" data-learning-growth-reading-material>
+      <summary>\u67e5\u770b\u539f\u59cb\u9605\u8bfb\u6750\u6599</summary>
+      <article>
+        <h4>${escapeHtml(material.title)}</h4>
+        ${material.meta.length ? `<div class="learning-growth-reading-material-meta">${material.meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
+        <p>${escapeHtml(material.passage)}</p>
+      </article>
+    </details>`;
+  }
+
+  function renderNativeGrowthOwnerMenu(task = {}, options = {}) {
+    if (!isOwner(options)) return "";
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const taskCardId = String(task?.taskCardId || "");
+    const status = String(task?.status || "").toLowerCase();
+    if (!taskCardId || ["completed", "archived", "blocked"].includes(status)) return "";
+    return `<details class="learning-growth-owner-menu" data-learning-growth-owner-menu>
+      <summary aria-label="\u66f4\u591a\u64cd\u4f5c" title="\u66f4\u591a\u64cd\u4f5c">&#8942;</summary>
+      <div class="learning-growth-owner-menu-panel">
+        <button type="button" data-learning-growth-manual-pass="${escapeHtml(taskCardId)}">\u624b\u5de5\u901a\u8fc7</button>
+      </div>
+    </details>`;
   }
 
   function renderNativeGrowthTaskDetail(task = {}, data = {}, options = {}) {
@@ -815,11 +1259,26 @@
     if (!taskCardId) return `<div class="learning-coin-empty">\u672a\u627e\u5230\u8fd9\u5f20\u5b66\u4e60\u5361\u3002</div>`;
     const model = task.taskModel || task.learningTaskModel || {};
     const skills = compactFocus(task.skillIds || model.skillTargets || []).slice(0, 120);
-    const latestEvaluation = latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
+    const latestSubmission = nativeGrowthSubmissionEvidence(task, data);
+    const latestEvaluation = task.latestEvaluation || latestRecordForTask(data.evaluations || [], taskCardId, "createdAt");
+    const latestReflection = task.latestReflection || latestRecordForTask(data.taskReflections || [], taskCardId, "submittedAt");
+    const latestRewardSettlement = task.latestRewardSettlement || latestRewardSettlementForTask(data.rewardSettlements || [], {
+      taskCardId,
+      latestEvaluation,
+    });
+    const taskSubmissionCount = asArray(data.taskSubmissions).filter((item) => String(item?.taskCardId || "") === taskCardId).length;
+    const taskEvaluationCount = asArray(data.evaluations).filter((item) => String(item?.taskCardId || "") === taskCardId).length;
     const meta = [task.plannedDate, task.plannedMinutes ? `${task.plannedMinutes} min` : "", skills].filter(Boolean);
     const instruction = task.learnerInstruction || task.instruction || model.learnerInstruction || task.instructionPreview || task.summary || "";
-    const taskForForm = Object.assign({ source: "learning-growth" }, task, {
+    const taskForForm = Object.assign({}, task, {
+      source: String(task.source || "").trim() || "learning-growth",
       nativeState: Object.assign({}, task.nativeState || {}, { nextAction: taskActionFromRecords(task, data) }),
+      latestSubmission,
+      latestEvaluation,
+      latestReflection,
+      latestRewardSettlement,
+      totalSubmissionCount: Number(task.totalSubmissionCount || 0) || taskSubmissionCount || undefined,
+      totalEvaluationCount: Number(task.totalEvaluationCount || 0) || taskEvaluationCount || undefined,
     });
     return `<section class="learning-growth-answer-card" data-learning-growth-answer-card data-learning-executable-task-id="${escapeHtml(taskCardId)}">
       <div class="learning-growth-answer-card-head">
@@ -827,12 +1286,19 @@
           <span>\u7b54\u9898\u5361</span>
           <h3>${escapeHtml(task.title || taskCardId || "\u5b66\u4e60\u4efb\u52a1")}</h3>
         </div>
-        <strong>${escapeHtml(taskStatusText(task.status, options))}</strong>
+        <div class="learning-growth-answer-card-status">
+          <strong>${escapeHtml(taskStatusText(task.status, options))}</strong>
+          ${renderNativeGrowthOwnerMenu(taskForForm, options)}
+        </div>
       </div>
       ${meta.length ? `<div class="learning-growth-answer-card-meta">${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
-      ${instruction ? `<section class="learning-growth-answer-instruction"><h4>\u4efb\u52a1\u8981\u6c42</h4><p>${escapeHtml(instruction)}</p></section>` : ""}
       ${renderTaskRewardPolicy(taskForForm, options)}
-      ${latestEvaluation ? `<section class="learning-growth-answer-feedback"><h4>\u6700\u8fd1\u6279\u6539</h4>${renderFeedbackHistory(taskForForm, latestEvaluation)}</section>` : ""}
+      ${renderNativeGrowthSequenceDecision(taskForForm, options)}
+      ${renderNativeGrowthReadingMaterial(taskForForm, options)}
+      ${latestSubmission ? renderNativeGrowthPreviousSubmission(latestSubmission, options) : ""}
+      ${renderNativeGrowthAudioEvidence(taskForForm, data, options)}
+      ${latestEvaluation ? `<section class="learning-growth-answer-feedback">${renderNativeGrowthFeedbackHead(taskForForm, latestEvaluation, options)}${nativeGrowthFeedbackHistory(taskForForm, latestEvaluation, options)}${renderNativeGrowthEvaluationDetails(latestEvaluation, taskForForm, options)}</section>` : ""}
+      ${renderNativeGrowthInstruction(taskForForm, instruction, options)}
       ${renderTaskAction(taskForForm, null, Object.assign({}, options, { hideNativeGrowthDetailButton: true }))}
     </section>`;
   }
@@ -1088,19 +1554,28 @@
 
   function renderLaunchQueue(title, items = [], options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
-    const list = asArray(items).slice(0, 4);
+    const sourceItems = asArray(items);
+    const compact = Boolean(options.compactOwnerSettings);
+    const list = sourceItems.slice(0, compact ? 3 : 4);
     if (!list.length) return "";
+    const body = `<div class="learning-program-review-list">
+      ${list.map((item) => `<article class="learning-program-review-item" data-learning-launch-operation-item="${escapeHtml(item.resourceType || item.type || "")}:${escapeHtml(item.resourceId || "")}">
+        <div>
+          <strong>${escapeHtml(item.title || item.resourceId || item.resourceType || "")}</strong>
+          <p>${escapeHtml(operationReasonText(item.reasonCode))}</p>
+        </div>
+        <span class="learning-program-status-chip">${escapeHtml(item.priority || item.status || "normal")}</span>
+      </article>`).join("")}
+    </div>`;
+    if (compact) {
+      return `<details class="learning-launch-queue learning-launch-queue-compact">
+        <summary><strong>${escapeHtml(title)}</strong><span>${escapeHtml(String(sourceItems.length))}</span></summary>
+        ${body}
+      </details>`;
+    }
     return `<div class="learning-launch-queue">
       <strong>${escapeHtml(title)}</strong>
-      <div class="learning-program-review-list">
-        ${list.map((item) => `<article class="learning-program-review-item" data-learning-launch-operation-item="${escapeHtml(item.resourceType || item.type || "")}:${escapeHtml(item.resourceId || "")}">
-          <div>
-            <strong>${escapeHtml(item.title || item.resourceId || item.resourceType || "")}</strong>
-            <p>${escapeHtml(operationReasonText(item.reasonCode))}</p>
-          </div>
-          <span class="learning-program-status-chip">${escapeHtml(item.priority || item.status || "normal")}</span>
-        </article>`).join("")}
-      </div>
+      ${body}
     </div>`;
   }
 
@@ -1109,10 +1584,11 @@
     if (!isOwner(options) || !launchOperations || typeof launchOperations !== "object") return "";
     const counts = launchOperations.counts || {};
     const queues = launchOperations.queues || {};
-    const nextActions = asArray(launchOperations.nextActions).slice(0, 5);
-    return `<section class="learning-coin-panel learning-launch-operations-panel" data-learning-launch-operations data-launch-status="${escapeHtml(launchOperations.status || "")}">
+    const nextActions = asArray(launchOperations.nextActions).slice(0, options.compactOwnerSettings ? 3 : 5);
+    const compact = Boolean(options.compactOwnerSettings);
+    return `<section class="learning-coin-panel learning-launch-operations-panel${compact ? " is-owner-settings-summary" : ""}" data-learning-launch-operations data-launch-status="${escapeHtml(launchOperations.status || "")}">
       <div class="learning-section-heading">
-        <h3>4. \u751f\u6210\u8ba1\u5212\u5e76\u5ba1\u6838</h3>
+        <h3>${compact ? "\u5f85\u5904\u7406" : "4. \u751f\u6210\u8ba1\u5212\u5e76\u5ba1\u6838"}</h3>
         <span>${escapeHtml(launchStatusText(launchOperations.status))}</span>
       </div>
       <div class="learning-program-report-grid">

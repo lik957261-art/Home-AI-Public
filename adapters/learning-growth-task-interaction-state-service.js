@@ -25,7 +25,7 @@ function normalizeGrowthEvaluationStatus(value) {
   const text = cleanString(value).toLowerCase();
   if (["done", "complete", "completed", "passed"].includes(text)) return "completed";
   if (["draft_feedback", "first_feedback", "feedback_ready"].includes(text)) return "draft_feedback";
-  if (["needs_revision", "revision_required", "revise", "failed"].includes(text)) return "needs_revision";
+  if (["needs_revision", "needs_repair", "revision_required", "revise", "failed"].includes(text)) return "needs_revision";
   if (["reflection_required", "spoken_reflection_required", "reflection_retry_required"].includes(text)) return "reflection_required";
   if (["review_required", "requires_review"].includes(text)) return "review_required";
   if (["pending_review", "waiting_review"].includes(text)) return "pending_review";

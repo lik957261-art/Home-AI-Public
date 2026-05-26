@@ -33,6 +33,45 @@ function openAutomationList() {
   renderAutomationView();
 }
 
+function automationSecondaryReturnActive() {
+  return state.viewMode === "automation" && !isAutomationDetailView() && String(state.automationReturnRoute || "") === "inbox";
+}
+
+function closeAutomationSecondarySurface() {
+  state.automationReturnRoute = "";
+  state.selectedAutomationId = "";
+  state.automationCreateOpen = false;
+  state.automationEditOpen = false;
+  state.automationEditJobId = "";
+  state.automationOutputHistoryOpen = false;
+  openActionInboxOverview();
+}
+
+async function openAutomationSurface(options = {}) {
+  closeTopMoreMenu();
+  clearQuotedReply({ render: false });
+  const returnRoute = String(options.returnTo || "").trim();
+  state.viewMode = "automation";
+  localStorage.setItem("hermesWebViewMode", state.viewMode);
+  state.automationReturnRoute = returnRoute === "inbox" ? "inbox" : "";
+  state.currentTaskGroupId = "";
+  state.currentThread = null;
+  state.currentThreadId = "";
+  state.skillDetail = null;
+  state.selectedAutomationId = "";
+  state.automationEditOpen = false;
+  state.automationEditJobId = "";
+  state.automationOutputHistoryOpen = false;
+  state.automationCreateOpen = false;
+  await loadSelectedView();
+  if (options.create) openAutomationCreate();
+}
+
+function openActionInboxOverview() {
+  state.skillDetail = null;
+  openActionInboxList();
+}
+
 function resetSidebarScroll() {
   const sidebar = $("sidebar");
   const threadList = $("threadList");
@@ -58,6 +97,11 @@ function sidebarBackToMenu() {
   }
   if (isAutomationDetailView()) {
     openAutomationList();
+    closeSidebar();
+    return;
+  }
+  if (isActionInboxDetailView()) {
+    openActionInboxOverview();
     closeSidebar();
     return;
   }
@@ -108,6 +152,8 @@ function handleAppForegrounded() {
   suppressComposerAutoFocus(900);
   blurComposerInput();
   if (state.viewMode === "todos") scheduleTodoAutoRefresh();
+  if (state.viewMode === "inbox") loadActionInbox({ silent: true, preserveScroll: true }).catch(showError);
+  scheduleConversationViewportRefresh();
 }
 
 function focusComposerSoon(options = {}) {
@@ -149,6 +195,18 @@ function isAutomationDetailView() {
   return state.viewMode === "automation" && Boolean(state.selectedAutomationId);
 }
 
+function isActionInboxView() {
+  return state.viewMode === "inbox";
+}
+
+function isActionInboxDetailView() {
+  return state.viewMode === "inbox" && Boolean(state.selectedActionInboxItemId);
+}
+
+function isActionInboxCreateView() {
+  return state.viewMode === "inbox" && Boolean(state.actionInboxCreateOpen);
+}
+
 function isSingleWindowView() {
   return state.viewMode === "single" && Boolean(state.currentThread?.singleWindow);
 }
@@ -169,6 +227,10 @@ function selectedWorkspaceInThreadGroup(thread = state.currentThread) {
   return isThreadGroupChat(thread) && threadGroupMemberIds(thread).includes(state.selectedWorkspaceId);
 }
 
+function currentUserCanUseGroupChatThread(thread = state.currentThread) {
+  return selectedWorkspaceInThreadGroup(thread) || Boolean(state.auth?.isOwner && isThreadGroupChat(thread));
+}
+
 function isThreadWeixinChat(thread = state.currentThread) {
   return Boolean(thread?.singleWindow && thread?.externalIngress?.source === "weixin");
 }
@@ -178,7 +240,7 @@ function isWeixinChatView() {
 }
 
 function isGroupChatView() {
-  return isSingleWindowChatView() && !isWeixinChatView() && state.groupChatOpen && selectedWorkspaceInThreadGroup(state.currentThread);
+  return isSingleWindowChatView() && !isWeixinChatView() && state.groupChatOpen && currentUserCanUseGroupChatThread(state.currentThread);
 }
 
 function groupChatSelectable(thread = state.currentThread) {
@@ -194,9 +256,15 @@ function mergeChatScopeThread(existingThread, incomingThread) {
   if (!existingThread || existingThread.id !== incomingThread.id) return incomingThread;
   const existingPage = existingThread.messagesPage || null;
   const incomingPage = incomingThread.messagesPage || null;
+  const incomingMessages = Array.isArray(incomingThread.messages) ? incomingThread.messages : [];
+  const existingThreadMessages = existingThread.messages || [];
+  if (incomingPage && !incomingMessages.length && existingThreadMessages.length) {
+    const messagesPage = mergeMessagesPage(existingPage, incomingPage, chatMessagesForThread(existingThread, incomingPage.taskGroupId || activeChatTaskGroupId()));
+    return Object.assign({}, existingThread, incomingThread, { messages: existingThreadMessages, messagesPage });
+  }
   const existingMessages = new Map((existingThread.messages || []).map((message) => [message.id, message]));
   const incomingIds = new Set();
-  const messages = (incomingThread.messages || []).map((message) => {
+  const messages = incomingMessages.map((message) => {
     incomingIds.add(message.id);
     return mergeServerMessage(existingMessages.get(message.id), message);
   });
@@ -206,8 +274,11 @@ function mergeChatScopeThread(existingThread, incomingThread) {
     }
   }
   const sortedMessages = sortedThreadMessages(messages);
+  const pageMessages = incomingPage?.mode === "chat" || existingPage?.mode === "chat"
+    ? sortedMessages.filter((message) => String(message?.taskGroupId || "") === String((incomingPage || existingPage)?.taskGroupId || activeChatTaskGroupId()))
+    : sortedMessages;
   const messagesPage = incomingPage || existingPage
-    ? mergeMessagesPage(existingPage, incomingPage, sortedMessages)
+    ? mergeMessagesPage(existingPage, incomingPage, pageMessages)
     : null;
   return Object.assign({}, existingThread, incomingThread, { messages: sortedMessages, messagesPage });
 }
@@ -426,6 +497,15 @@ function composerModelOptionForMention(primary, secondary = "") {
   const primaryKey = normalizeMentionSearch(primary);
   const secondaryKey = normalizeMentionSearch(secondary);
   if (!primaryKey) return null;
+  const proOption = chatGptProMentionOption();
+  const specialOptions = [proOption];
+  if (secondaryKey) {
+    const combinedKey = `${primaryKey}${secondaryKey}`;
+    const combinedSpecial = specialOptions.find((option) => composerModelMentionAliases(option).has(combinedKey));
+    if (combinedSpecial) return combinedSpecial;
+  }
+  const special = specialOptions.find((option) => composerModelMentionAliases(option).has(primaryKey));
+  if (special) return special;
   const options = composerModelOptions();
   if (secondaryKey) {
     const combinedKey = `${primaryKey}${secondaryKey}`;
@@ -433,6 +513,23 @@ function composerModelOptionForMention(primary, secondary = "") {
     if (combined) return combined;
   }
   return options.find((option) => composerModelMentionAliases(option).has(primaryKey)) || null;
+}
+
+function chatGptProMentionOption() {
+  return {
+    id: "chatgpt-pro",
+    workspaceId: "assistant-chatgpt-pro",
+    label: "ChatGPT Pro",
+    virtual: true,
+    mentionText: "@ChatGPT Pro",
+    aliases: ["chatgptpro", "chatgpt-pro", "pro"],
+    description: "Owner approval / maintenance Gateway",
+    model: "",
+    provider: "openai-codex",
+    modelExplicit: true,
+    chatGptPro: true,
+    ownerElevationRequired: true,
+  };
 }
 
 function composerAiMentionOptions() {
@@ -463,7 +560,7 @@ function composerAiMentionOptions() {
       provider: option.provider || "",
       modelExplicit: true,
     }));
-  return [chatGptXhigh, ...grokOptions].slice(0, 2);
+  return [chatGptProMentionOption(), chatGptXhigh, ...grokOptions].slice(0, 3);
 }
 
 function assistantMentionAliases() {
@@ -500,6 +597,8 @@ function composerAiMentionInfo(text) {
   let model = "";
   let provider = "";
   let modelExplicit = false;
+  let chatGptPro = false;
+  let ownerElevationRequired = false;
   let match;
   while ((match = pattern.exec(normalized)) !== null) {
     const modelOption = composerModelOptionForMention(match[2], match[3] || "");
@@ -508,10 +607,12 @@ function composerAiMentionInfo(text) {
     model = modelOption.model || "";
     provider = modelOption.provider || "";
     modelExplicit = true;
+    chatGptPro = Boolean(modelOption.chatGptPro);
+    ownerElevationRequired = Boolean(modelOption.ownerElevationRequired);
     const effort = reasoningEffortFromAiAlias(match[3] || "");
     if (effort) reasoningEffort = effort;
   }
-  return { mentionsAi, reasoningEffort, model, provider, modelExplicit };
+  return { mentionsAi, reasoningEffort, model, provider, modelExplicit, chatGptPro, ownerElevationRequired };
 }
 
 function selectedComposerModel(text = getComposerText()) {

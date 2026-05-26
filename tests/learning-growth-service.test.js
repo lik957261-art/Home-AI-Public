@@ -17,7 +17,7 @@ function makeCoinService() {
         studentId: input.studentId,
         workspaceId: input.workspaceId,
         balances: { availableCoins: 70, heldCoins: 10, earnedCoins: 90, spentCoins: 20 },
-        growth: { sevenDayCoins: 45, activeDaysInLast7: 3 },
+        growth: { sevenDayCoins: 45, thirtyDayCoins: 300, activeDaysInLast7: 3 },
         redemptions: [
           { id: "r1", status: "requested" },
           { id: "r2", status: "approved" },
@@ -90,6 +90,50 @@ function makeProgramService() {
   };
 }
 
+function makeEvergreenProgramService() {
+  const base = makeProgramService();
+  return {
+    overview() {
+      const overview = base.overview();
+      const evergreen = {
+        sequenceGroupId: "evergreen:english-short-writing",
+        sequenceMode: "evergreen_jit",
+        sequenceIndex: 1,
+        title: "English short writing 1",
+      };
+      overview.taskCards = [Object.assign({}, overview.taskCards[0], evergreen)];
+      overview.executableTasks = [Object.assign({}, overview.executableTasks[0], evergreen)];
+      return overview;
+    },
+  };
+}
+
+function makeDraftFeedbackProgramService() {
+  const base = makeProgramService();
+  return {
+    overview() {
+      const overview = base.overview();
+      overview.taskSubmissions = [{
+        submissionId: "sub-1",
+        taskCardId: "task-1",
+        status: "submitted",
+        submittedAt: "2026-05-20T08:00:00.000Z",
+      }];
+      overview.evaluations = [{
+        evaluationId: "eval-draft",
+        taskCardId: "task-1",
+        status: "draft_feedback",
+        nextStep: "rewrite_and_reflect",
+        score: 90,
+        passed: false,
+        summary: "draft feedback ready",
+        createdAt: "2026-05-20T08:05:00.000Z",
+      }];
+      return overview;
+    },
+  };
+}
+
 function testRequestNormalizationKeepsExecutorAccountId() {
   assert.deepEqual(normalizeLearningGrowthRequest({
     workspaceId: "weixin_stephen",
@@ -120,6 +164,7 @@ function testOverviewContainsGrowthShellAndCoinsSubsystem() {
   assert.equal(overview.learner.studentId, "weixin_stephen");
   assert.equal(overview.coins.studentId, "weixin_stephen");
   assert.equal(overview.metrics.availableCoins, 70);
+  assert.equal(overview.metrics.thirtyDayCoins, 300);
   assert.equal(overview.metrics.pendingRedemptions, 1);
   assert.ok(overview.capabilities.some((item) => item.id === "curriculum-reference"));
   assert.ok(overview.capabilities.some((item) => item.id === "ai-reliability-guard"));
@@ -166,6 +211,27 @@ function testOverviewMergesLegacyTodoTasks() {
   assert.equal(overview.programs.executableTasks[0].source, "learning-growth");
   assert.equal(overview.programs.executableTasks[1].source, "official_kanban_migrated");
   assert.equal(overview.programs.executableTasks[1].readOnly, true);
+}
+
+function testOverviewFormatsEvergreenTaskTitles() {
+  const service = createLearningGrowthService({
+    learningCoinService: makeCoinService(),
+    learningProgramService: makeEvergreenProgramService(),
+  });
+  const overview = service.overview({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
+  assert.equal(overview.programs.taskCards[0].title, "English short writing \u00b7 \u7b2c1\u5f20\u5361");
+  assert.equal(overview.programs.executableTasks[0].title, "English short writing \u00b7 \u7b2c1\u5f20\u5361");
+}
+
+function testDraftFeedbackOverridesSubmittedWaitingState() {
+  const service = createLearningGrowthService({
+    learningCoinService: makeCoinService(),
+    learningProgramService: makeDraftFeedbackProgramService(),
+  });
+  const overview = service.overview({ workspaceId: "weixin_stephen", learnerId: "weixin_stephen" });
+  assert.equal(overview.programs.executableTasks[0].nativeState.nextAction, "revise");
+  assert.equal(overview.programs.executableTasks[0].latestEvaluation.status, "draft_feedback");
+  assert.equal(overview.programs.executableTasks[0].latestSubmission.status, "submitted");
 }
 
 function testExecutorOverviewStripsOwnerManagementData() {
@@ -231,6 +297,8 @@ function testOverviewCanRenderWithoutCoinService() {
 testRequestNormalizationKeepsExecutorAccountId();
 testOverviewContainsGrowthShellAndCoinsSubsystem();
 testOverviewMergesLegacyTodoTasks();
+testOverviewFormatsEvergreenTaskTitles();
+testDraftFeedbackOverridesSubmittedWaitingState();
 testExecutorOverviewStripsOwnerManagementData();
 testOverviewCanRenderWithoutCoinService();
 

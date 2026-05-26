@@ -5,10 +5,21 @@ function automationRequestParams(options = {}) {
   params.set("workspaceId", state.selectedWorkspaceId || "owner");
   params.set("includeDisabled", "1");
   params.set("limit", "200");
-  const search = currentSearchText();
+  params.set("detail", options.detail === "summary" ? "summary" : "full");
+  const search = options.ignoreSearch ? "" : currentSearchText();
   if (search) params.set("search", search);
+  const routeAutomationId = options.routeTarget && state.selectedAutomationId ? String(state.selectedAutomationId).trim() : "";
+  if (routeAutomationId) params.set("automationId", routeAutomationId);
   if (options.refresh) params.set("refresh", "1");
   return params;
+}
+
+function automationFullStorageKey(params) {
+  const copy = new URLSearchParams(params);
+  copy.delete("refresh");
+  copy.delete("fresh");
+  copy.set("detail", "full");
+  return `hermes:automation:full:${CLIENT_VERSION}:${copy.toString()}`;
 }
 
 function automationRequestCacheKey(params) {
@@ -18,23 +29,164 @@ function automationRequestCacheKey(params) {
   return copy.toString();
 }
 
+function automationSummaryCacheKey(params) {
+  const copy = new URLSearchParams(params);
+  copy.delete("refresh");
+  copy.delete("fresh");
+  copy.set("detail", "summary");
+  return copy.toString();
+}
+
+function readAutomationFullCache(params) {
+  try {
+    const raw = window.localStorage?.getItem(automationFullStorageKey(params));
+    if (!raw) return null;
+    const payload = JSON.parse(raw);
+    return Array.isArray(payload?.data) ? payload : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeAutomationFullCache(params, result = {}) {
+  if ((params?.get("detail") || "") !== "full" || !Array.isArray(result.data)) return;
+  try {
+    window.localStorage?.setItem(automationFullStorageKey(params), JSON.stringify({
+      savedAt: new Date().toISOString(),
+      data: result.data,
+      source: result.source || {},
+      warning: result.warning || "",
+    }));
+  } catch (_) {}
+}
+
+function clearAutomationFullCaches() {
+  try {
+    const prefix = `hermes:automation:full:${CLIENT_VERSION}:`;
+    for (let index = (window.localStorage?.length || 0) - 1; index >= 0; index -= 1) {
+      const key = window.localStorage.key(index);
+      if (key && key.startsWith(prefix)) window.localStorage.removeItem(key);
+    }
+  } catch (_) {}
+}
+
+function invalidateAutomationListCache() {
+  Object.assign(state, { automationCacheKey: "", automationFullCacheKey: "", automationLastLoadedAt: 0 });
+  clearAutomationFullCaches();
+}
+
+function automationIsSummaryJob(job) {
+  return String(job?.detailLevel || "").toLowerCase() === "summary";
+}
+
+function mergeAutomationJobs(existing = [], incoming = [], options = {}) {
+  if (options.replaceMissing) {
+    const existingById = new Map((existing || []).map((job) => [String(job?.id || ""), job]));
+    return (incoming || []).map((job) => Object.assign({}, existingById.get(String(job?.id || "")) || {}, job));
+  }
+  if (options.preferIncomingOrder) {
+    const existingById = new Map((existing || []).map((job) => [String(job?.id || ""), job]));
+    const seen = new Set();
+    const merged = (incoming || []).map((job) => {
+      const id = String(job?.id || "");
+      seen.add(id);
+      return Object.assign({}, existingById.get(id) || {}, job);
+    });
+    for (const job of existing || []) {
+      const id = String(job?.id || "");
+      if (id && !seen.has(id)) merged.push(job);
+    }
+    return merged;
+  }
+  const fullById = new Map();
+  for (const job of incoming || []) {
+    if (job?.id) fullById.set(String(job.id), job);
+  }
+  const merged = (existing || []).map((job) => {
+    const full = fullById.get(String(job?.id || ""));
+    return full ? Object.assign({}, job, full) : job;
+  });
+  const seen = new Set(merged.map((job) => String(job?.id || "")));
+  for (const job of incoming || []) {
+    const id = String(job?.id || "");
+    if (id && !seen.has(id)) merged.push(job);
+  }
+  return merged;
+}
+
+function scheduleAutomationDetailHydration(cacheKey) {
+  if (!cacheKey || state.automationFullCacheKey === cacheKey || state.automationDetailLoading) return;
+  const hydrate = () => {
+    if (state.viewMode !== "automation" || state.automationFullCacheKey === cacheKey) return;
+    hydrateAutomationDetails({ cacheKey, silent: true }).catch(showError);
+  };
+  if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(hydrate, { timeout: 1500 });
+  else window.setTimeout(hydrate, 250);
+}
+
+async function hydrateAutomationDetails(options = {}) {
+  const params = automationRequestParams({ detail: "full" });
+  const cacheKey = options.cacheKey || automationSummaryCacheKey(params);
+  if (state.automationFullCacheKey === cacheKey && !options.refresh) return;
+  const seq = ++state.automationDetailRequestSeq;
+  state.automationDetailLoading = !options.silent;
+  if (!options.silent) renderAutomationView();
+  try {
+    const result = await api(`/api/automations?${params}`);
+    if (seq !== state.automationDetailRequestSeq || state.viewMode !== "automation") return;
+    state.automations = mergeAutomationJobs(state.automations, result.data || [], { replaceMissing: true });
+    state.automationSource = Object.assign({}, state.automationSource || {}, result.source || {}, { warning: result.warning || "" });
+    state.automationFullCacheKey = cacheKey;
+  } finally {
+    if (seq === state.automationDetailRequestSeq && state.viewMode === "automation") {
+      state.automationDetailLoading = false;
+      renderAutomationView();
+    }
+  }
+}
+
 async function loadAutomations(options = {}) {
   const params = automationRequestParams(options);
+  const detail = params.get("detail") || "summary";
   const cacheKey = automationRequestCacheKey(params);
+  const summaryCacheKey = automationSummaryCacheKey(params);
+  const routeTargetId = String(state.automationRouteTargetId || state.selectedAutomationId || "").trim();
+  const routeTargetPending = Boolean(state.automationRouteTargetPending && routeTargetId);
+  if (!options.refresh && params.get("detail") === "full") {
+    const cached = readAutomationFullCache(params);
+    if (cached?.data?.length) {
+      const cachedHasRouteTarget = !routeTargetPending || cached.data.some((job) => String(job?.id || "") === routeTargetId);
+      if (!cachedHasRouteTarget) {
+        state.automationFullCacheKey = "";
+      } else {
+        state.automations = cached.data;
+        state.automationSource = Object.assign({}, cached.source || {}, { warning: cached.warning || "", cached: true });
+        state.automationCacheKey = cacheKey;
+        state.automationFullCacheKey = summaryCacheKey;
+        state.automationLastLoadedAt = Date.now();
+        state.automationLoading = false;
+        renderAutomationView();
+        window.setTimeout(() => loadAutomations({ detail: "full", refresh: true, silent: true }).catch(showError), 0);
+        setComposerEnabled(false);
+        return;
+      }
+    }
+  }
   const cacheFresh = state.automationCacheKey === cacheKey
     && state.automationLastLoadedAt
     && Date.now() - state.automationLastLoadedAt < 10000;
-  if (!options.refresh && cacheFresh) {
+  if (!options.refresh && cacheFresh && !routeTargetPending) {
     renderAutomationView();
+    if (params.get("detail") !== "full") scheduleAutomationDetailHydration(summaryCacheKey);
     setComposerEnabled(false);
     return;
   }
   const seq = ++state.automationRequestSeq;
-  state.automationLoading = true;
-  if (state.automations.length) {
+  state.automationLoading = !options.silent;
+  if (!options.silent && state.automations.length) {
     $("connectionState").textContent = "刷新 CRON";
   }
-  renderAutomationView();
+  if (!options.silent || detail === "full") renderAutomationView({ preserveScroll: Boolean(options.silent) });
   let result;
   try {
     result = await api(`/api/automations?${params}`);
@@ -46,25 +198,50 @@ async function loadAutomations(options = {}) {
     throw err;
   }
   if (seq !== state.automationRequestSeq) return;
-  state.automations = result.data || [];
+  state.automations = detail === "full" ? mergeAutomationJobs(state.automations, result.data || [], { replaceMissing: Boolean(options.refresh) }) : (result.data || []);
+  if (detail === "full") writeAutomationFullCache(params, result);
   state.automationSource = Object.assign({}, result.source || {}, { warning: result.warning || "" });
   state.automationCacheKey = cacheKey;
+  if (detail === "full") {
+    state.automationFullCacheKey = summaryCacheKey;
+    state.automationDetailLoading = false;
+  }
   state.automationLastLoadedAt = Date.now();
   state.automationLoading = false;
   state.currentThread = null;
   state.currentThreadId = "";
   state.currentTaskGroupId = "";
   state.threads = [];
-  if (state.selectedAutomationId && !state.automations.some((job) => job.id === state.selectedAutomationId)) {
+  const selectedJobPresent = state.selectedAutomationId && state.automations.some((job) => job.id === state.selectedAutomationId);
+  if (selectedJobPresent) {
+    state.automationRouteTargetPending = false;
+    state.automationRouteTargetId = "";
+  } else if (state.selectedAutomationId && !state.automationRouteTargetPending) {
     state.selectedAutomationId = "";
     state.automationEditOpen = false;
     state.automationEditJobId = "";
     state.automationOutputHistoryOpen = false;
   }
   updateSearchButton();
-  renderAutomationView();
+  if (!options.silent || detail === "full") renderAutomationView({ preserveScroll: Boolean(options.silent) });
+  if (detail !== "full") scheduleAutomationDetailHydration(summaryCacheKey);
   setComposerEnabled(false);
   $("connectionState").textContent = "Hermes OK";
+}
+
+async function refreshAutomationAfterPush(eventData = {}) {
+  const payload = eventData.payload || {};
+  const data = payload?.data && typeof payload.data === "object" ? payload.data : {};
+  const nestedData = data?.data && typeof data.data === "object" ? data.data : {};
+  const messageType = String(data.messageType || nestedData.messageType || "").trim();
+  const workspaceId = String(data.workspaceId || nestedData.workspaceId || "").trim();
+  const automationId = String(data.automationId || nestedData.automationId || "").trim();
+  if (!automationId && !messageType.startsWith("automation_")) return false;
+  if (workspaceId && state.selectedWorkspaceId && workspaceId !== state.selectedWorkspaceId) return false;
+  invalidateAutomationListCache();
+  if (state.viewMode !== "automation") return true;
+  await loadAutomations({ detail: "full", refresh: true, silent: true });
+  return true;
 }
 
 function automationStatusLabel(job) {
@@ -75,30 +252,34 @@ function automationStatusLabel(job) {
   return "scheduled";
 }
 
-function automationStatusDotTone(job, status = automationStatusLabel(job)) {
+function automationStatusTone(job, status = automationStatusLabel(job)) {
   const current = String(status || "").toLowerCase();
   const last = String(job?.lastStatus || job?.last_status || "").toLowerCase();
-  if (
-    current === "error" ||
-    last === "error" ||
-    last === "failed" ||
-    last === "failure" ||
-    job?.lastError ||
-    job?.lastDeliveryError
-  ) {
-    return "error";
-  }
+  if (current === "error" || ["error", "failed", "failure"].includes(last) || job?.lastError || job?.lastDeliveryError) return "error";
   const normalCurrent = ["scheduled", "running", "ok", "done", "completed", "success", "succeeded"];
   const normalLast = ["", "ok", "done", "completed", "success", "succeeded"];
   if (normalCurrent.includes(current) && normalLast.includes(last)) return "ok";
   return "info";
 }
 
+function automationStatusText(job, status = automationStatusLabel(job)) {
+  const tone = automationStatusTone(job, status);
+  if (tone === "error") return "\u5931\u8d25";
+  if (status === "paused") return "\u6682\u505c";
+  if (status === "done" || String(job?.lastStatus || "").toLowerCase() === "ok") return "\u5b8c\u6210";
+  if (status === "running") return "\u8fd0\u884c\u4e2d";
+  return "\u8ba1\u5212\u4e2d";
+}
+
 function renderAutomationStatusSummary(job, status = automationStatusLabel(job)) {
-  const tone = automationStatusDotTone(job, status);
+  const tone = automationStatusTone(job, status);
+  const text = automationStatusText(job, status);
   const lastRun = formatTime(job?.lastRunAt) || "--";
-  const label = `${status} | ${lastRun}`;
+  const latestDoc = automationLatestDocument(job);
+  const docTime = latestDoc ? formatTime(latestDoc.runOutputUpdatedAt || latestDoc.updatedAt) : "";
+  const label = `${text} | ${lastRun}${docTime ? ` | \u4ea4\u4ed8 ${docTime}` : ""}`;
   return `<span class="automation-state automation-state-summary ${escapeHtml(tone)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">
+    <span class="automation-state-result">${escapeHtml(text)}</span>
     <span class="automation-state-time">${escapeHtml(lastRun)}</span>
     <span class="automation-state-dot ${escapeHtml(tone)}" aria-hidden="true"></span>
   </span>`;
@@ -108,9 +289,7 @@ function currentAutomation() {
   return state.automations.find((job) => job.id === state.selectedAutomationId) || null;
 }
 
-function automationTitle(job) {
-  return compactDisplayText(job?.name || job?.id || "Cron job", 120);
-}
+function automationTitle(job) { return compactDisplayText(job?.name || job?.id || "Cron job", 120); }
 
 function automationGoalLine(job, max = 190) {
   const goal = compactDisplayText(
@@ -145,10 +324,7 @@ function automationSourceLine() {
   return `Hermes CRON | ${count} job${count === 1 ? "" : "s"}`;
 }
 
-function automationLatestDocument(job) {
-  const docs = Array.isArray(job?.outputDocuments) ? job.outputDocuments : [];
-  return docs[0] || null;
-}
+function automationLatestDocument(job) { return (Array.isArray(job?.outputDocuments) ? job.outputDocuments : [])[0] || null; }
 
 function automationOutputHref(doc) {
   try {
@@ -162,10 +338,16 @@ function automationOutputHref(doc) {
   }
 }
 
+function automationDocumentMime(doc) {
+  return doc?.mime || doc?.contentType || doc?.content_type || "";
+}
+
 function renderAutomationDocumentPreview(doc, options = {}) {
   if (!doc) return "";
   const kind = artifactKind(doc);
   const name = doc.name || "document";
+  const href = automationOutputHref(doc);
+  const mime = automationDocumentMime(doc);
   const meta = [formatBytes(doc.size), formatTime(doc.updatedAt)].filter(Boolean).join(" | ");
   const classes = [
     "automation-doc-preview",
@@ -173,7 +355,7 @@ function renderAutomationDocumentPreview(doc, options = {}) {
     options.compact ? "compact" : "",
     options.history ? "history" : "",
   ].filter(Boolean).join(" ");
-  return `<a class="${escapeHtml(classes)}" href="${escapeHtml(automationOutputHref(doc))}" target="_self" aria-label="${escapeHtml(`预览 ${name}`)}">
+  return `<a class="${escapeHtml(classes)}" href="${escapeHtml(href)}" target="_self" data-task-doc data-artifact-name="${escapeHtml(name)}" data-artifact-mime="${escapeHtml(mime)}" aria-label="${escapeHtml(`预览 ${name}`)}">
     <span class="automation-doc-icon" aria-hidden="true"></span>
     <span class="automation-doc-copy">
       <span class="automation-doc-label">${escapeHtml(options.label || "最后交付")}</span>
@@ -190,25 +372,18 @@ function renderAutomationLoading(message = "正在刷新 Hermes CRON") {
   </div>`;
 }
 
-function renderAutomationList() {
-  const list = $("threadList");
-  if (!list) return;
-  list.innerHTML = "";
-  return;
-}
+function renderAutomationList() { const list = $("threadList"); if (list) list.innerHTML = ""; }
 
-function renderAutomationView() {
+function renderAutomationView(options = {}) {
   applyViewMode();
-  state.currentThread = null;
-  state.currentThreadId = "";
-  state.currentTaskGroupId = "";
-  state.threads = [];
+  Object.assign(state, { currentThread: null, currentThreadId: "", currentTaskGroupId: "", threads: [] });
   renderAutomationList();
-  renderAutomationPanel();
+  renderAutomationPanel(options);
 }
 
-function renderAutomationPanel() {
+function renderAutomationPanel(options = {}) {
   const conversation = $("conversation");
+  const previousScrollTop = conversation?.scrollTop || 0;
   const selected = currentAutomation();
   $("threadTitle").textContent = "Hermes CRON";
   $("threadMeta").textContent = selected ? automationSourceLine() : "";
@@ -219,23 +394,34 @@ function renderAutomationPanel() {
     ? `<div class="automation-warning">${escapeHtml(state.automationSource?.warning || "Hermes CRON source is unavailable.")}</div>`
     : "";
   const loading = state.automationLoading ? renderAutomationLoading(selected ? "正在刷新任务状态" : "正在刷新自动化列表") : "";
+  const routeTargetLoading = !selected && state.selectedAutomationId && state.automationRouteTargetPending
+    ? `<div class="automation-loading compact" role="status" aria-live="polite">
+        <span class="automation-loading-spinner" aria-hidden="true"></span>
+        <span>${"\u6b63\u5728\u6253\u5f00\u81ea\u52a8\u5316\u4efb\u52a1"} ${escapeHtml(state.selectedAutomationId)}</span>
+      </div>`
+    : "";
   conversation.innerHTML = `
     <section class="automation-shell">
       ${warning}
       ${loading}
-      ${selected ? "" : renderAutomationCreatePanel()}
+      ${routeTargetLoading}
+      ${selected || state.automationRouteTargetPending ? "" : renderAutomationCreatePanel()}
       ${selected && state.automationEditOpen && state.automationEditJobId === selected.id ? renderAutomationEditPanel(selected) : ""}
-      ${selected ? renderAutomationDetail(selected) : renderAutomationSections()}
+      ${selected ? renderAutomationDetail(selected) : state.automationRouteTargetPending ? "" : renderAutomationSections()}
     </section>
   `;
+  if (typeof wireTaskDocumentLinks === "function") wireTaskDocumentLinks(conversation);
   conversation.querySelectorAll("[data-automation-id]").forEach((button) => {
     button.addEventListener("click", () => {
       const nextId = button.dataset.automationId || "";
       if (state.selectedAutomationId !== nextId) state.automationOutputHistoryOpen = false;
       state.selectedAutomationId = nextId;
+      state.automationRouteTargetId = "";
+      state.automationRouteTargetPending = false;
       state.automationEditOpen = false;
       state.automationEditJobId = "";
       renderAutomationView();
+      if (automationIsSummaryJob(currentAutomation())) hydrateAutomationDetails().catch(showError);
     });
   });
   conversation.querySelector("[data-toggle-automation-output-history]")?.addEventListener("click", () => {
@@ -260,7 +446,11 @@ function renderAutomationPanel() {
     updateAutomationFromForm(conversation).catch(showError);
   });
   ensureVerticalScrollAffordance(conversation);
-  conversation.scrollTop = 0;
+  if (options.preserveScroll) {
+    conversation.scrollTop = Math.min(previousScrollTop, Math.max(0, conversation.scrollHeight - conversation.clientHeight));
+  } else {
+    conversation.scrollTop = 0;
+  }
 }
 
 function renderAutomationCreatePanel() {
@@ -338,49 +528,10 @@ function renderAutomationOutputLinks(job) {
   </section>`;
 }
 
-function renderAutomationDetailLegacy(job) {
-  const status = automationStatusLabel(job);
-  const rows = [
-    ["任务 ID", job.id],
-    ["状态", status],
-    ["计划", automationScheduleLine(job)],
-    ["上次执行", job.lastRunAt ? formatTime(job.lastRunAt) : ""],
-    ["下次执行", job.nextRunAt ? formatTime(job.nextRunAt) : ""],
-    ["上次结果", job.lastStatus || ""],
-    ["投递", job.deliver || ""],
-    ["负责人", job.ownerPrincipalId || ""],
-    ["模型", [job.provider, job.model].filter(Boolean).join(" / ")],
-    ["技能", Array.isArray(job.skills) ? job.skills.join(", ") : ""],
-  ].filter((row) => row[1]);
-  const flags = [
-    job.hasScript ? "script" : "",
-    job.hasWorkdir ? "workdir" : "",
-    job.hasContextFrom ? "context chain" : "",
-  ].filter(Boolean);
-  return `<article class="automation-detail-card ${escapeHtml(status)}">
-    <div class="automation-detail-head">
-      <div>
-        <div class="automation-detail-id">${escapeHtml(job.id)}</div>
-        <h2>${escapeHtml(automationTitle(job))}</h2>
-      </div>
-      <span class="automation-state">${escapeHtml(status)}</span>
-    </div>
-    <div class="automation-run-times">
-      ${automationTimeParts(job).map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div>`).join("") || `<div><strong>执行时间</strong><span>暂无执行记录</span></div>`}
-    </div>
-    <div class="automation-detail-grid">
-      ${rows.map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div>`).join("")}
-    </div>
-    ${renderAutomationOutputLinks(job)}
-    ${flags.length ? `<div class="automation-flags">${flags.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
-    ${job.promptPreview ? `<div class="automation-preview">${escapeHtml(job.promptPreview)}</div>` : ""}
-    ${job.lastError ? `<div class="automation-error">Agent error recorded: ${escapeHtml(job.lastError)}</div>` : ""}
-    ${job.lastDeliveryError ? `<div class="automation-error">Delivery error recorded: ${escapeHtml(job.lastDeliveryError)}</div>` : ""}
-  </article>`;
-}
-
 function renderAutomationDetail(job) {
   const status = automationStatusLabel(job);
+  const statusTone = automationStatusTone(job, status);
+  const statusText = automationStatusText(job, status);
   const meta = [
     automationScheduleLine(job),
     job.ownerPrincipalId ? `Owner ${job.ownerPrincipalId}` : "",
@@ -389,7 +540,7 @@ function renderAutomationDetail(job) {
   const timeRows = [
     ["\u4e0a\u6b21\u6267\u884c", job.lastRunAt ? formatTime(job.lastRunAt) : "\u6682\u65e0"],
     ["\u4e0b\u6b21\u6267\u884c", job.nextRunAt ? formatTime(job.nextRunAt) : "\u6682\u65e0"],
-    ["\u4e0a\u6b21\u7ed3\u679c", job.lastStatus || status],
+    ["\u4e0a\u6b21\u7ed3\u679c", statusText],
   ];
   const detailRows = [
     ["ID", job.id],
@@ -401,6 +552,13 @@ function renderAutomationDetail(job) {
     job.hasWorkdir ? "workdir" : "",
     job.hasContextFrom ? "context chain" : "",
   ].filter(Boolean);
+  const detailLoading = automationIsSummaryJob(job) || state.automationDetailLoading;
+  const detailLoadingBlock = detailLoading
+    ? `<div class="automation-loading compact" role="status" aria-live="polite">
+      <span class="automation-loading-spinner" aria-hidden="true"></span>
+      <span>${"\u6b63\u5728\u540e\u53f0\u52a0\u8f7d\u8be6\u60c5\u548c\u4ea4\u4ed8\u6587\u4ef6"}</span>
+    </div>`
+    : "";
   return `<article class="automation-detail-card ${escapeHtml(status)}">
     <div class="automation-detail-head">
       <div>
@@ -408,11 +566,12 @@ function renderAutomationDetail(job) {
         <h2>${escapeHtml(automationTitle(job))}</h2>
         ${meta ? `<div class="automation-detail-meta">${escapeHtml(meta)}</div>` : ""}
       </div>
-      <span class="automation-state">${escapeHtml(status)}</span>
+      <span class="automation-state ${escapeHtml(statusTone)}">${escapeHtml(statusText)}</span>
     </div>
     <div class="automation-run-times">
       ${timeRows.map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div>`).join("")}
     </div>
+    ${detailLoadingBlock}
     ${renderAutomationOutputLinks(job)}
     ${detailRows.length ? `<div class="automation-detail-grid">
       ${detailRows.map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div>`).join("")}
@@ -424,19 +583,11 @@ function renderAutomationDetail(job) {
   </article>`;
 }
 
-function focusAutomationCreateSoon() {
-  setTimeout(() => {
-    $("automationNaturalText")?.focus();
-  }, 40);
-}
+function focusAutomationCreateSoon() { setTimeout(() => $("automationNaturalText")?.focus(), 40); }
 
 function openAutomationCreate() {
   closeTopMoreMenu();
-  state.selectedAutomationId = "";
-  state.automationEditOpen = false;
-  state.automationEditJobId = "";
-  state.automationOutputHistoryOpen = false;
-  state.automationCreateOpen = true;
+  Object.assign(state, { selectedAutomationId: "", automationRouteTargetId: "", automationRouteTargetPending: false, automationEditOpen: false, automationEditJobId: "", automationOutputHistoryOpen: false, automationCreateOpen: true });
   renderAutomationView();
   focusAutomationCreateSoon();
 }
@@ -458,18 +609,16 @@ async function createAutomationFromForm(root) {
     });
     state.automationCreateOpen = false;
     state.selectedAutomationId = result?.job?.id || result?.data?.id || "";
-    await loadAutomations();
+    state.automationRouteTargetId = "";
+    state.automationRouteTargetPending = false;
+    await loadAutomations({ detail: "full", refresh: true });
     $("connectionState").textContent = "Hermes OK";
   } finally {
     if (submit) submit.disabled = false;
   }
 }
 
-function focusAutomationEditSoon() {
-  setTimeout(() => {
-    $("automationEditName")?.focus();
-  }, 40);
-}
+function focusAutomationEditSoon() { setTimeout(() => $("automationEditName")?.focus(), 40); }
 
 function openAutomationEdit() {
   const job = currentAutomation();
@@ -505,7 +654,9 @@ async function toggleAutomationPause() {
   const action = automationStatusLabel(job) === "paused" ? "resume" : "pause";
   await postAutomationAction(job.id, action);
   state.selectedAutomationId = job.id;
-  await loadAutomations();
+  state.automationRouteTargetId = "";
+  state.automationRouteTargetPending = false;
+  await loadAutomations({ detail: "full", refresh: true });
 }
 
 async function deleteAutomationJob() {
@@ -514,10 +665,12 @@ async function deleteAutomationJob() {
   closeTopMoreMenu();
   await postAutomationAction(job.id, "delete");
   state.selectedAutomationId = "";
+  state.automationRouteTargetId = "";
+  state.automationRouteTargetPending = false;
   state.automationEditOpen = false;
   state.automationEditJobId = "";
   state.automationOutputHistoryOpen = false;
-  await loadAutomations();
+  await loadAutomations({ detail: "full", refresh: true });
 }
 
 async function updateAutomationFromForm(root) {
@@ -537,7 +690,9 @@ async function updateAutomationFromForm(root) {
     state.automationEditOpen = false;
     state.automationEditJobId = "";
     state.selectedAutomationId = result?.job?.id || jobId;
-    await loadAutomations();
+    state.automationRouteTargetId = "";
+    state.automationRouteTargetPending = false;
+    await loadAutomations({ detail: "full", refresh: true });
   } finally {
     if (submit) submit.disabled = false;
   }

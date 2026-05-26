@@ -120,8 +120,73 @@ except Exception as exc:
   assert.equal(result.error, "file_path_outside_allowed_roots");
 }
 
+function testSaveBase64ImagePayload() {
+  fs.mkdirSync(scratchRoot, { recursive: true });
+  const saveDir = fs.mkdtempSync(path.join(scratchRoot, "save-"));
+  const relativeSaveDir = path.relative(repoRoot, saveDir);
+  const script = `
+import importlib.util, json, os
+spec = importlib.util.spec_from_file_location("hermes_mobile_http", ${JSON.stringify(pluginPath)})
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+payload = {"json": {"image": {"dataBase64": "iVBORw0KGgo="}}}
+result = module._save_base64_from_payload(payload, {
+    "save_base64": {
+        "json_path": "image.dataBase64",
+        "filename": "wardrobe-photo.png",
+    }
+})
+saved = result["saved_file"]["path"]
+print(json.dumps({
+    "name": result["saved_file"]["name"],
+    "mime": result["saved_file"]["mime"],
+    "bytes": result["saved_file"]["bytes"],
+    "exists": os.path.isfile(saved),
+}, ensure_ascii=False))
+`;
+  const result = JSON.parse(runPython(script, { HERMES_MOBILE_HTTP_SAVE_ROOT: relativeSaveDir }));
+  assert.equal(result.name, "wardrobe-photo.png");
+  assert.equal(result.mime, "image/png");
+  assert.equal(result.bytes, 8);
+  assert.equal(result.exists, true);
+}
+
+function testSaveBinaryHttpResponsePayload() {
+  fs.mkdirSync(scratchRoot, { recursive: true });
+  const saveDir = fs.mkdtempSync(path.join(scratchRoot, "binary-save-"));
+  const relativeSaveDir = path.relative(repoRoot, saveDir);
+  const script = `
+import importlib.util, json, os
+spec = importlib.util.spec_from_file_location("hermes_mobile_http", ${JSON.stringify(pluginPath)})
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+result = module._save_response_body(b"\\xff\\xd8\\xff\\xd9", {
+    "save_as": {
+        "filename": "IMG_4321.jpeg",
+    }
+}, "image/jpeg")
+saved = result["saved_file"]["path"]
+parsed = module._parse_response(b"\\xff\\xd8\\xff\\xd9", "image/jpeg")
+print(json.dumps({
+    "name": result["saved_file"]["name"],
+    "mime": result["saved_file"]["mime"],
+    "bytes": result["saved_file"]["bytes"],
+    "exists": os.path.isfile(saved),
+    "body_omitted": parsed.get("body_omitted"),
+}, ensure_ascii=False))
+`;
+  const result = JSON.parse(runPython(script, { HERMES_MOBILE_HTTP_SAVE_ROOT: relativeSaveDir }));
+  assert.equal(result.name, "IMG_4321.jpeg");
+  assert.equal(result.mime, "image/jpeg");
+  assert.equal(result.bytes, 4);
+  assert.equal(result.exists, true);
+  assert.equal(result.body_omitted, "binary_response");
+}
+
 testFileBodyLoadsAllowedImageBytes();
 testMultipartLoadsAllowedImageBytes();
 testRejectsOutOfScopeUploadPath();
+testSaveBase64ImagePayload();
+testSaveBinaryHttpResponsePayload();
 
 console.log("hermes-mobile-http-plugin tests passed");

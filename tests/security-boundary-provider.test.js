@@ -176,7 +176,10 @@ function run() {
   assert.match(permissionInstructions, /Messaging requested by the current account is ordinary low-permission work/);
   assert.match(permissionInstructions, /Text-to-speech requested by the current account is ordinary low-permission work/);
   assert.match(permissionInstructions, /documented Program API operations are ordinary low-permission work/);
-  assert.match(permissionInstructions, /profile-local Skill read\/create\/update operations are ordinary low-permission work/);
+  assert.match(permissionInstructions, /Owner low Gateway runs may read\/create\/update Owner Skills/);
+  assert.match(permissionInstructions, /Non-Owner workspace runs may read shared linked Skills/);
+  assert.match(permissionInstructions, /Even if a shared linked Skill path is inside allowed_roots and is filesystem-writable/);
+  assert.match(permissionInstructions, /Non-Owner runs must not directly create\/update\/delete\/install\/publish\/write-test shared or Owner Skills/);
   assert.match(permissionInstructions, /Kanban\/Todo operations are ordinary low-permission work/);
   assert.match(permissionInstructions, /Automation\/CRON job operations are ordinary low-permission work/);
   assert.match(permissionInstructions, /HERMES_PERMISSION_APPROVAL_REQUIRED/);
@@ -203,7 +206,10 @@ function run() {
   assert.match(fs.readFileSync(skillPath, "utf8"), /Messaging requested by the current account is \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Text-to-speech requested by the current account is \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /documented Program API reads and writes are \*\*Allowed\*\*/);
-  assert.match(fs.readFileSync(skillPath, "utf8"), /profile-local Skill read, creation, and update operations are \*\*Allowed\*\*/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /Owner low Gateway runs may read, create, and update Owner Skills/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /Non-Owner workspace runs may read shared linked Skills/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /Even if a shared linked Skill path is inside `allowed_roots` and is filesystem-writable/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /Non-Owner runs must not directly create, update, delete, install, publish, or write-test shared Skills/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Automation\/CRON list, job creation, update, pause, resume, and manual run operations are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Do not search a broad drive/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Do not run a raw `hermes kanban` CLI command/);

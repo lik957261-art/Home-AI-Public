@@ -9,7 +9,7 @@ const webpush = require("web-push");
 const assessmentExamService = require("./adapters/assessment-exam-service");
 const { assessmentConfigLine, createAssessmentExamWorkflowService } = require("./adapters/assessment-exam-workflow-service");
 const studyAssessmentService = require("./adapters/study-assessment-service");
-const { createConversationHistoryService } = require("./adapters/conversation-history-service");
+const { createConversationHistoryService } = require("./adapters/conversation-history-service"); const { createTopicContextCompactionService } = require("./adapters/topic-context-compaction-service");
 const { createDocumentPreviewService } = require("./adapters/document-preview-service");
 const { createDirectKanbanCreateService } = require("./adapters/direct-kanban-create-service");
 const { createDirectoryBrowserBoundaryService } = require("./adapters/directory-browser-boundary-service");
@@ -21,7 +21,7 @@ const { createExternalIntegrationProvider } = require("./adapters/external-integ
 const { createArtifactTextRegistrationService } = require("./adapters/artifact-text-registration-service");
 const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider");
 const { createGatewayRunner } = require("./adapters/gateway-runner");
-const { createGatewayRunInstructionService } = require("./adapters/gateway-run-instruction-service");
+const { createGatewayRunInstructionService } = require("./adapters/gateway-run-instruction-service"); const { createGatewayRunToolsetRoutingService } = require("./adapters/gateway-run-toolset-routing-service");
 const { createGatewayRuntimeCompositionService } = require("./adapters/gateway-runtime-composition-service");
 const { gatewayPoolStatusHealthy } = require("./adapters/gateway-status-projection");
 const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
@@ -49,7 +49,7 @@ const {
 } = require("./adapters/kanban-story-provider");
 const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
 const { createLocalBridgeRuntimeService } = require("./adapters/local-bridge-runtime-service");
-const { createLocalWorkspaceStoreService } = require("./adapters/local-workspace-store-service");
+const { createLocalWorkspaceStoreService } = require("./adapters/local-workspace-store-service"); const { createGatewayWorkspaceProvisioningService } = require("./adapters/gateway-workspace-provisioning-service");
 const { createMobileHttpRuntimeService } = require("./adapters/mobile-http-runtime-service");
 const { createMobileRuntimeCoreProviders } = require("./adapters/mobile-runtime-core-providers");
 const { createOwnerElevationRoutingService } = require("./adapters/owner-elevation-routing-service");
@@ -72,7 +72,7 @@ const { createTodoProvider } = require("./adapters/todo-provider");
 const { createTodoPublicProjectionService } = require("./adapters/todo-public-projection-service");
 const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
 const { createWeixinRuntimeCompositionService } = require("./adapters/weixin-runtime-composition-service");
-const { createWebPushDeliveryService } = require("./adapters/web-push-delivery-service");
+const { createWebPushDeliveryService } = require("./adapters/web-push-delivery-service"); const { createActionInboxService } = require("./adapters/action-inbox-service");
 const { createMobileApiComposition } = require("./server-routes/mobile-api-composition");
 const { createMobileRuntimeEnvironment } = require("./adapters/mobile-runtime-environment-service");
 const runtimeEnv = createMobileRuntimeEnvironment({ toolRoot: __dirname });
@@ -85,7 +85,7 @@ const { DISABLE_AUTH, AUTH_KEY_PATH, ACCESS_KEYS_PATH, PERMISSION_APPROVAL_MARKE
 const { STATE_PATH, STATE_BACKUP_DIR, MAX_STATE_BACKUPS, STATE_BACKUP_MIN_INTERVAL_MS, AUDIT_EVENT_LOG_PATH, RUNTIME_CONFIG_PATH, SERVICE_STORE_BACKEND, MOBILE_SQLITE_DB_PATH } = runtimeEnv;
 const { SHARED_DIRECTORIES_PATH, LOCAL_WORKSPACES_PATH, WORKSPACE_USERS_PATHS, WORKSPACE_ROUTE_MAP_PATHS, PROJECT_MAP_PATHS, WORKSPACE_UPLOAD_DIR_NAME, WORKSPACE_UPLOAD_SUBDIR } = runtimeEnv;
 const { GROUP_DELIVERIES_DIR, WEIXIN_INGRESS_KEY_PATHS, WEIXIN_INGRESS_DEFAULT_WORKSPACE, ENABLE_LEGACY_WEIXIN_COMPAT, WEIXIN_FORWARD_MARKDOWN_MAX_BYTES, WEIXIN_DELIVERY_RETRY_LIMIT, WEIXIN_DELIVERY_RETRY_BASE_MS, WEIXIN_DELIVERY_RETRY_MAX_MS, WEIXIN_INGRESS_ATTACHMENT_CONTEXT_WINDOW_MS } = runtimeEnv;
-const { MAX_BODY_BYTES, MAX_HISTORY_MESSAGES, CHAT_CONTEXT_MAX_MESSAGES, CHAT_CONTEXT_MAX_CHARS, MAX_MESSAGE_CHARS, MAX_API_TEXT_CHARS, THREAD_MESSAGE_INITIAL_LIMIT, THREAD_MESSAGE_PAGE_LIMIT, THREAD_MESSAGE_SEARCH_LIMIT, MAX_EVENT_PREVIEW_CHARS, MAX_STORED_EVENTS_PER_THREAD, MAX_UPLOAD_BYTES, MAX_FILE_PREVIEW_CHARS, SOURCE_MARKDOWN_SEARCH_LIMIT } = runtimeEnv;
+const { MAX_BODY_BYTES, MAX_HISTORY_MESSAGES, CHAT_CONTEXT_MAX_MESSAGES, CHAT_CONTEXT_MAX_CHARS, CONTEXT_ASSEMBLY_MODE, CONTEXT_COMPACTION_ENABLED, MAX_MESSAGE_CHARS, MAX_API_TEXT_CHARS, THREAD_MESSAGE_INITIAL_LIMIT, THREAD_MESSAGE_PAGE_LIMIT, THREAD_MESSAGE_SEARCH_LIMIT, MAX_EVENT_PREVIEW_CHARS, MAX_STORED_EVENTS_PER_THREAD, MAX_UPLOAD_BYTES, MAX_FILE_PREVIEW_CHARS, SOURCE_MARKDOWN_SEARCH_LIMIT } = runtimeEnv;
 const { TODO_BRIDGE_TIMEOUT_MS, KANBAN_BRIDGE_TIMEOUT_MS, CRON_BRIDGE_TIMEOUT_MS, CRON_BRIDGE_STDOUT_LIMIT_BYTES, CRON_LIST_CACHE_TTL_MS, AUTOMATION_CREATE_TIMEOUT_MS, AUTOMATION_CREATE_MODEL, LEARNING_GROWTH_JIT_MODEL, LEARNING_GROWTH_JIT_REASONING_EFFORT, DIRECTORY_BRIDGE_TIMEOUT_MS, SKILL_BRIDGE_TIMEOUT_MS } = runtimeEnv;
 const { CRON_OUTPUT_ROOT, CRON_RUN_LOG_ROOT, TODO_BACKEND, AUTOMATION_BACKEND, LOCAL_TODO_STORE_PATH, LOCAL_AUTOMATION_STORE_PATH, DIRECT_TODO_CREATE_SETTING } = runtimeEnv;
 const { KANBAN_COMMAND, KANBAN_COMMAND_ARGS, KANBAN_TODO_META_PATH, KANBAN_CARD_LIST_CACHE_PATH, KANBAN_CASE_SHARE_PATH, KANBAN_WORKSPACE_PATH_STYLE, KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS, KANBAN_CARD_LIST_CACHE_TTL_MS, KANBAN_BLOCKED_PUSH_DELAY_MINUTES } = runtimeEnv;
@@ -163,7 +163,7 @@ function getGatewayRuntimeCompositionService() {
       appendBounded, assertRunConcurrencyCapacity, buildAccessPolicy, buildConversationHistory, buildHermesInstructions,
       broadcast, chooseGatewayRunTarget, compactFullContent, compactMessage, dedupe, effectiveProjectForThread,
       ensureGroupChatSharedArtifactCopies, enqueueExternalDeliveryForTerminalMessage, findWorkspace, gatewayConversationId,
-      gatewayPool, gatewaySkillRoutingForWorkspace,
+      gatewayPool, gatewaySkillRoutingForWorkspace, routeRunToolsets: (...args) => gatewayRunToolsetRoutingService.routePolicy(...args),
       gatewayUrlForRun: (...args) => getRuntimeStateThreadService().storedGatewayUrlForRun(...args),
       groupChatDeliveryRootForThread, groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
       isOrdinaryToolSchemaElevationRequest, logger: console, makePublicTaskId, maxMessageChars: MAX_MESSAGE_CHARS,
@@ -176,7 +176,7 @@ function getGatewayRuntimeCompositionService() {
       runStartTimeoutMs: RUN_START_TIMEOUT_MS, sanitizePolicy, saveState, singleGatewayRunner, streamingSaveThrottleMs: RUN_STREAMING_SAVE_THROTTLE_MS,
       singleWindowProjectId: SINGLE_WINDOW_PROJECT_ID, state: () => state, stripPermissionApprovalMarkers, supplementGatewayUsage,
       taskDirectoryAttachmentForMessage: (...args) => getSemanticDirectoryAttachmentService().taskDirectoryAttachmentForMessage(...args),
-      threadSummary, toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH, windowsPathToWsl,
+      threadSummary, toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH, topicContextCompactionService: CONTEXT_COMPACTION_ENABLED ? topicContextCompactionService : null, windowsPathToWsl,
     });
   }
   return gatewayRuntimeCompositionService;
@@ -233,9 +233,9 @@ const runtimeConfigProvider = createRuntimeConfigProvider({
   storagePath: () => RUNTIME_CONFIG_PATH, ensureDataDir, nowIso, defaultHermesApiBase: () => HERMES_API_BASE,
   apiKeyPaths: () => HERMES_API_KEY_PATHS, envPaths: () => HERMES_ENV_PATHS,
   defaultWebPushSubject: () => WEB_PUSH_SUBJECT, defaultWebPushVapidPath: () => WEB_PUSH_VAPID_PATH,
-});
+}); const actionInboxService = createActionInboxService({ compactText, makeId, nowIso, store: mobileSqliteStore });
 webPushDeliveryService = createWebPushDeliveryService({
-  appRouteUrl, automationProvider: () => automationProvider, chatGroupMemberWorkspaceIds, compactText, dedupe,
+  actionInboxService: () => actionInboxService, appRouteUrl, automationProvider: () => automationProvider, chatGroupMemberWorkspaceIds, compactText, dedupe,
   effectiveWebPushSubject, effectiveWebPushVapidPath, hashValue, findWorkspace,
   isWeixinSingleWindowThread: (...args) => getSingleWindowThreadService().isWeixinSingleWindowThread(...args),
   loadCatalog, loadRuntimeConfig, logger: console, makeId, maybeReconcileKanbanDependencyBlocks, normalizeStringList,
@@ -504,9 +504,7 @@ function localWorkspaceDefaults(input = {}, previous = {}) {
 function localWorkspaceRecords() {
   return getLocalWorkspaceStoreService().localWorkspaceRecords();
 }
-function upsertLocalWorkspace(input, actor = "owner") {
-  return getLocalWorkspaceStoreService().upsertLocalWorkspace(input, actor);
-}
+function upsertLocalWorkspace(input, actor = "owner") { const record = getLocalWorkspaceStoreService().upsertLocalWorkspace(input, actor); record.gatewayProvisioning = createGatewayWorkspaceProvisioningService({ fs, path, manifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS, nowIso }).ensureWorkspaceGateway({ workspaceId: record.id }); return record; }
 function deleteLocalWorkspace(workspaceId) {
   return getLocalWorkspaceStoreService().deleteLocalWorkspace(workspaceId);
 }
@@ -933,7 +931,7 @@ function useKanbanTodoBackend() {
 function directTodoCreateEnabled() {
   if (/^(0|false|no|off)$/i.test(DIRECT_TODO_CREATE_SETTING)) return false;
   if (/^(1|true|yes|on)$/i.test(DIRECT_TODO_CREATE_SETTING)) return true;
-  return false;
+  return true;
 }
 function useLocalAutomationBackend() {
   return backendIsLocal(AUTOMATION_BACKEND, ["bridge", "cron", "hermes", "hermes_cron"]);
@@ -1787,7 +1785,7 @@ const gatewayRunInstructionService = createGatewayRunInstructionService({
   semanticProjectRoutingInstructions: (...args) => getSemanticDirectoryAttachmentService().semanticProjectRoutingInstructions(...args),
   isKanbanCaseTopicThread: (...args) => getSingleWindowThreadService().isKanbanCaseTopicThread(...args),
 });
-const conversationHistoryService = createConversationHistoryService({
+const gatewayRunToolsetRoutingService = createGatewayRunToolsetRoutingService({ dedupe }); const topicContextCompactionService = createTopicContextCompactionService({ store: { getTopicContextSummary: (...args) => mobileSqliteStore().getTopicContextSummary(...args), getTopicWorkingState: (...args) => mobileSqliteStore().getTopicWorkingState(...args), listTopicContextRefs: (...args) => mobileSqliteStore().listTopicContextRefs(...args), upsertTopicContextSummary: (...args) => mobileSqliteStore().upsertTopicContextSummary(...args), upsertTopicWorkingState: (...args) => mobileSqliteStore().upsertTopicWorkingState(...args), replaceTopicContextRefs: (...args) => mobileSqliteStore().replaceTopicContextRefs(...args) }, nowIso }); const conversationHistoryService = createConversationHistoryService({
   policyHasToolset,
   compactText,
   isSingleWindowConversationTaskGroupId,
@@ -1795,6 +1793,8 @@ const conversationHistoryService = createConversationHistoryService({
   chatContextMaxMessages: CHAT_CONTEXT_MAX_MESSAGES,
   chatContextMaxChars: CHAT_CONTEXT_MAX_CHARS,
   maxApiTextChars: MAX_API_TEXT_CHARS,
+  contextAssemblyMode: CONTEXT_ASSEMBLY_MODE,
+  topicContextService: topicContextCompactionService,
 });
 function gatewayConversationId(thread, userMessage, runPolicy = {}) {
   return gatewayRunInstructionService.gatewayConversationId(thread, userMessage, runPolicy);
@@ -2353,7 +2353,7 @@ function getThreadRuntimeCompositionService() {
     threadRuntimeCompositionService = createThreadRuntimeCompositionService({
       attachUploadedArtifactsToMessage,
       authCanAccessWorkspace,
-      authenticateRequest,
+      authenticateRequest, actionInboxService,
       broadcast,
       buildUserMessageContent: (...args) => getRuntimeStateThreadService().buildUserMessageContent(...args),
       chatGroupMemberWorkspaceIds,
@@ -2419,8 +2419,8 @@ const getThreadOwnerElevationRetryService = (...args) => getThreadRuntimeComposi
 const getThreadMessageCreateService = (...args) => getThreadRuntimeCompositionService().getThreadMessageCreateService(...args);
 const getThreadDirectCreateExecutionService = (...args) => getThreadRuntimeCompositionService().getThreadDirectCreateExecutionService(...args);
 const getThreadMessageRunRouteService = (...args) => getThreadRuntimeCompositionService().getThreadMessageRunRouteService(...args);
-const { eventStreamApiRoutes, mobileApiDispatcher } = createMobileApiComposition({
-  accessToken: null, activeStreams: () => activeStreams, ackWeixinOutboundDelivery, appRouteUrl, appUpdateStatus,
+const { eventStreamApiRoutes, mobileApiDispatcher, services: mobileApiServices = {} } = createMobileApiComposition({
+  accessToken: null, actionInboxService, activeStreams: () => activeStreams, ackWeixinOutboundDelivery, appRouteUrl, appUpdateStatus,
   applyAppUpdate, attachClientVersionHeaders, authCanAccessWorkspace, authenticateRequest, authProvider,
   automationCreateModel: AUTOMATION_CREATE_MODEL, learningGrowthJitModel: LEARNING_GROWTH_JIT_MODEL, learningGrowthJitReasoningEffort: LEARNING_GROWTH_JIT_REASONING_EFFORT, automationProvider, basename: (value) => path.basename(value), boolParam, bootTrace, broadcast,
   buildRequestContext, canRevokeGroupChatMessage, chatGroupMemberWorkspaceIds, clearCronListCache, clearDynamicProjectCache: () => getRuntimeWorkspaceCatalogService().clearDynamicProjectCache(),
@@ -2494,6 +2494,6 @@ server.listen(PORT, HOST, () => {
   if (!DISABLE_AUTH && authProvider.ownerKeySource() !== "env") {
     console.log("Current process login key is not printed; use the configured Owner key file or HERMES_WEB_KEY.");
   }
-  webPushDeliveryService.startTodoWebPushDispatcher();
-  webPushDeliveryService.startAutomationWebPushDispatcher();
+  webPushDeliveryService.startTodoWebPushDispatcher(); webPushDeliveryService.startAutomationWebPushDispatcher();
+  mobileApiServices.learningGrowthSubmissionService?.scheduleEvaluationQueue?.();
 });

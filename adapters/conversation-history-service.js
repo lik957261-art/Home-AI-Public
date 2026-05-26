@@ -1,5 +1,7 @@
 "use strict";
 
+const { createContextAssemblyService } = require("./context-assembly-service");
+
 function defaultCompactText(value, maxChars) {
   const text = String(value || "");
   const limit = Math.max(0, Number(maxChars || 0) || 0);
@@ -124,7 +126,7 @@ function createConversationHistoryService(options = {}) {
     return result.reverse();
   }
 
-  function buildConversationHistory(thread, latestUserMessageId, policy = {}) {
+  function legacyBuildConversationHistory(thread, latestUserMessageId, policy = {}) {
     const allMessages = Array.isArray(thread?.messages) ? thread.messages : [];
     const latestIndex = allMessages.findIndex((msg) => msg.id === latestUserMessageId);
     const latest = latestIndex >= 0 ? allMessages[latestIndex] : null;
@@ -143,6 +145,21 @@ function createConversationHistoryService(options = {}) {
     }));
   }
 
+  const contextAssemblyService = createContextAssemblyService({
+    mode: options.contextAssemblyMode || "legacy",
+    compactText,
+    maxApiTextChars,
+    topicContextService: options.topicContextService,
+    legacyBuildConversationHistory,
+    normalRecentMessages: options.contextAssemblyNormalRecentMessages,
+    toolDenseRecentMessages: options.contextAssemblyToolDenseRecentMessages,
+    historicalEvidenceRefs: options.contextAssemblyHistoricalEvidenceRefs,
+  });
+
+  function buildConversationHistory(thread, latestUserMessageId, policy = {}) {
+    return contextAssemblyService.buildConversationHistory(thread, latestUserMessageId, policy);
+  }
+
   function deriveTitle(text) {
     const cleaned = String(text || "").replace(/\s+/g, " ").trim();
     if (!cleaned) return "New thread";
@@ -158,7 +175,9 @@ function createConversationHistoryService(options = {}) {
     stripDirectoryAliasLinesForChatHistory,
     conversationHistoryContentForMessage,
     compactConversationHistory,
+    legacyBuildConversationHistory,
     buildConversationHistory,
+    contextAssemblyDebug: contextAssemblyService.lastAssemblyDebug,
     deriveTitle,
   });
 }

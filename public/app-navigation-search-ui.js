@@ -173,16 +173,22 @@ function updateNavigationControls() {
   const todoDetail = isTodoDetailView();
   const todoCreate = kanbanComposerOpen();
   const automationDetail = isAutomationDetailView();
+  const automationSecondary = typeof automationSecondaryReturnActive === "function" && automationSecondaryReturnActive();
+  const actionInboxDetail = isActionInboxDetailView();
+  const actionInboxCreate = isActionInboxCreateView();
   const skillDetail = isSkillDetailView();
   const taskList = isTaskListView();
   const directoryBack = state.viewMode === "projects" && Boolean(directoryActivePath());
-  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || skillDetail || directoryBack;
+  const learningGrowthDetail = state.viewMode === "learning" && Boolean(state.selectedLearningTaskCardId);
+  const learningGrowthSettings = state.viewMode === "learning" && Boolean(state.learningGrowthSettingsOpen);
+  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || automationSecondary || actionInboxDetail || actionInboxCreate || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings;
   const minimalWindow = isMinimalWindowView();
   const centeredTopTitle = (
     (state.viewMode === "single" && state.singleWindowMode === "chat")
     || (state.viewMode === "tasks" && !state.currentTaskGroupId)
     || (state.viewMode === "projects")
     || (state.viewMode === "todos" && !todoDetail)
+    || (state.viewMode === "inbox" && !actionInboxDetail && !actionInboxCreate)
     || (state.viewMode === "automation" && !automationDetail)
     || state.viewMode === "learning"
   );
@@ -191,9 +197,12 @@ function updateNavigationControls() {
   app?.classList.toggle("todo-detail-mode", todoDetail);
   app?.classList.toggle("todo-create-mode", todoCreate);
   app?.classList.toggle("automation-detail-mode", automationDetail);
+  app?.classList.toggle("action-inbox-detail-mode", actionInboxDetail);
+  app?.classList.toggle("action-inbox-create-mode", actionInboxCreate);
   app?.classList.toggle("skill-detail-mode", skillDetail);
   app?.classList.toggle("task-list-mode", taskList);
   app?.classList.toggle("learning-mode", state.viewMode === "learning");
+  app?.classList.toggle("learning-settings-mode", learningGrowthSettings);
   app?.classList.toggle("centered-top-title-mode", centeredTopTitle);
   app?.classList.toggle("main-back-visible", mainBack);
   app?.classList.toggle("reading-fullscreen-mode", state.readingFullscreen);
@@ -209,7 +218,14 @@ function updateNavigationControls() {
   }
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
-  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"].forEach((id) => { const node = $(id); if (node) { node.hidden = false; node.disabled = false; } });
+  const hiddenBottomTabs = new Set(["bottomAutomationMode"]);
+  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"].forEach((id) => {
+    const node = $(id);
+    if (node) {
+      node.hidden = hiddenBottomTabs.has(id);
+      node.disabled = false;
+    }
+  });
   updateTopMoreControls();
 }
 
@@ -225,9 +241,13 @@ function updateTopMoreControls() {
   const todoCreate = kanbanComposerOpen();
   const todoList = state.viewMode === "todos" && !todoDetail && !todoCreate;
   const learningView = state.viewMode === "learning";
+  const learningGrowthDetail = learningView && Boolean(state.selectedLearningTaskCardId);
+  const actionInboxDetail = isActionInboxDetailView();
+  const actionInboxCreate = isActionInboxCreateView();
+  const inboxView = state.viewMode === "inbox" && !actionInboxDetail && !actionInboxCreate;
   const automationDetail = isAutomationDetailView();
   const automationList = state.viewMode === "automation" && !automationDetail;
-  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || learningView || automationList || automationDetail;
+  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || inboxView || actionInboxDetail || learningView || automationList || automationDetail;
   wrap.classList.toggle("hidden", !showTopMenu);
   interrupt.classList.toggle("hidden", showTopMenu || chatView);
   if (!showTopMenu) {
@@ -268,16 +288,54 @@ function updateTopMoreControls() {
     newTodo.disabled = !todoList;
     newTodo.textContent = "\u65b0\u589e\u4efb\u52a1";
   }
+  const newActionInbox = $("topNewActionInbox");
+  if (newActionInbox) {
+    newActionInbox.hidden = !inboxView;
+    newActionInbox.disabled = !inboxView;
+  }
   const learningOwnerAction = learningView && Boolean(state.auth?.isOwner);
   const learningSettings = $("topLearningSettings");
   if (learningSettings) {
     learningSettings.hidden = !learningOwnerAction;
     learningSettings.disabled = !learningOwnerAction;
   }
+  const learningHistory = $("topLearningGrowthHistory");
+  if (learningHistory) {
+    learningHistory.hidden = !learningGrowthDetail;
+    learningHistory.disabled = !learningGrowthDetail;
+  }
+  const openAutomation = $("topOpenAutomation");
+  if (openAutomation) {
+    openAutomation.hidden = !inboxView;
+    openAutomation.disabled = !inboxView;
+  }
   const newAutomation = $("topNewAutomation");
   if (newAutomation) {
-    newAutomation.hidden = !automationList;
-    newAutomation.disabled = !automationList;
+    newAutomation.hidden = !(automationList || inboxView);
+    newAutomation.disabled = !(automationList || inboxView);
+  }
+  const selectedInboxItem = typeof currentActionInboxItem === "function" ? currentActionInboxItem() : null;
+  const inboxItemTerminal = !selectedInboxItem || ["done", "dismissed", "archived"].includes(String(selectedInboxItem.status || "").toLowerCase());
+  const openInboxItem = $("topOpenActionInboxItem");
+  if (openInboxItem) {
+    openInboxItem.hidden = !actionInboxDetail || !selectedInboxItem?.deepLink;
+    openInboxItem.disabled = !actionInboxDetail || !selectedInboxItem?.deepLink;
+    openInboxItem.textContent = selectedInboxItem?.actionLabel || "\u6253\u5f00";
+  }
+  const completeInboxItem = $("topCompleteActionInboxItem");
+  if (completeInboxItem) {
+    completeInboxItem.hidden = !actionInboxDetail || inboxItemTerminal;
+    completeInboxItem.disabled = !actionInboxDetail || inboxItemTerminal;
+  }
+  const snoozeInboxItem = $("topSnoozeActionInboxItem");
+  if (snoozeInboxItem) {
+    snoozeInboxItem.hidden = !actionInboxDetail || inboxItemTerminal;
+    snoozeInboxItem.disabled = !actionInboxDetail || inboxItemTerminal;
+  }
+  const dismissInboxItem = $("topDismissActionInboxItem");
+  if (dismissInboxItem) {
+    dismissInboxItem.hidden = !actionInboxDetail || inboxItemTerminal;
+    dismissInboxItem.disabled = !actionInboxDetail || inboxItemTerminal;
   }
   const selectedAutomation = currentAutomation();
   const editAutomation = $("topEditAutomation");

@@ -70,27 +70,24 @@ function closeSidebar() {
   $("sidebarOverlay")?.classList.remove("open");
   restoreTransientProjectRoute();
 }
-
 function backSwipeTarget() {
   if (isSkillDetailView()) return "skill";
   if (isTaskDetailView()) return "task";
-  if (isTodoDetailView()) return "todo";
-  if (state.viewMode === "learning" && state.selectedLearningTaskCardId) return "learning-growth-task";
+  if (isTodoDetailView() || kanbanComposerOpen()) return isTodoDetailView() ? "todo" : "todo-create";
+  if (state.viewMode === "learning" && (state.learningGrowthSettingsOpen || state.selectedLearningTaskCardId)) return state.learningGrowthSettingsOpen ? "learning-growth-settings" : "learning-growth-task";
   if (isAutomationDetailView()) return "automation";
+  if (typeof automationSecondaryReturnActive === "function" && automationSecondaryReturnActive()) return "automation-secondary";
+  if (isActionInboxDetailView() || isActionInboxCreateView()) return isActionInboxCreateView() ? "action-inbox-create" : "action-inbox";
   if (state.viewMode === "projects" && directoryActivePath()) return "directory";
   return "";
 }
 
-function backSwipeSurface(target) {
-  if (target === "directory") return document.querySelector(".directory-shell");
-  return document.querySelector(".main");
-}
+function backSwipeSurface(target) { return document.querySelector(target === "directory" ? ".directory-shell" : ".main"); }
 
 function clearBackSwipeSurface(surface) {
   if (!surface) return;
   surface.classList.remove("page-back-dragging", "page-back-settling");
-  surface.style.transform = "";
-  surface.style.opacity = "";
+  surface.style.transform = ""; surface.style.opacity = "";
 }
 
 function applyBackSwipeDrag(swipe, dx) {
@@ -108,14 +105,17 @@ function applyBackSwipeDrag(swipe, dx) {
 function performBackSwipeAction(target) {
   if (target === "skill") closeSkillDetail();
   else if (target === "task") openTaskList();
-  else if (target === "todo") openTodoList();
+  else if (target === "todo" || target === "todo-create") openTodoList();
+  else if (target === "learning-growth-settings") closeLearningGrowthSettingsPage();
   else if (target === "learning-growth-task") {
     state.selectedLearningTaskCardId = "";
     state.learningGrowthSettingsOpen = false;
     renderLearningCoinsView();
   }
-  else if (target === "directory") navigateDirectoryUp({ animateEntry: true }).catch(showError);
+  else if (target === "directory") state.directoryReturnRoute ? restoreDirectoryReturnRoute() : navigateDirectoryUp({ animateEntry: true }).catch(showError);
   else if (target === "automation") openAutomationList();
+  else if (target === "automation-secondary") closeAutomationSecondarySurface();
+  else if (target === "action-inbox" || target === "action-inbox-create") openActionInboxOverview();
 }
 
 async function handleInAppBackNavigation(options = {}) {
@@ -125,11 +125,8 @@ async function handleInAppBackNavigation(options = {}) {
   }
   const target = backSwipeTarget();
   if (!target) return false;
-  if (target === "directory") {
-    await navigateDirectoryUp({ animateEntry: Boolean(options.animateEntry) });
-  } else {
-    performBackSwipeAction(target);
-  }
+  if (target === "directory") state.directoryReturnRoute ? restoreDirectoryReturnRoute() : await navigateDirectoryUp({ animateEntry: Boolean(options.animateEntry) });
+  else performBackSwipeAction(target);
   return true;
 }
 
@@ -246,6 +243,7 @@ function captureDirectoryReturnRoute() {
     threads: state.threads,
     selectedTodoId: state.selectedTodoId,
     selectedAutomationId: state.selectedAutomationId,
+    automationReturnRoute: state.automationReturnRoute,
     automationEditOpen: state.automationEditOpen,
     automationEditJobId: state.automationEditJobId,
     automationOutputHistoryOpen: state.automationOutputHistoryOpen,
@@ -273,6 +271,7 @@ function restoreDirectoryReturnRoute() {
   state.threads = route.threads || state.threads || [];
   state.selectedTodoId = route.selectedTodoId || "";
   state.selectedAutomationId = route.selectedAutomationId || "";
+  state.automationReturnRoute = route.automationReturnRoute || "";
   state.automationEditOpen = Boolean(route.automationEditOpen);
   state.automationEditJobId = route.automationEditJobId || "";
   state.automationOutputHistoryOpen = Boolean(route.automationOutputHistoryOpen);
@@ -552,6 +551,10 @@ function openTaskDocumentLink(link) {
   const href = link?.href || link?.getAttribute?.("href") || "";
   if (!href) return;
   closeTaskSwipeRows(document);
+  const previews = window.TaskDocumentPreviewUi || {};
+  if (previews.isImagePreviewLink?.(link) && previews.openImagePreviewOverlay?.(link)) return;
+  if (previews.isMarkdownPreviewLink?.(link) && previews.openMarkdownPreviewOverlay?.(link)) return;
+  if (previews.isDocumentPreviewLink?.(link) && previews.openDocumentPreviewOverlay?.(link)) return;
   if (isMobileLayout()) {
     window.location.assign(href);
     return;
@@ -567,10 +570,7 @@ function wireTaskDocumentLinks(root) {
     let lastTouchOpen = 0;
     link.addEventListener("touchstart", (event) => {
       if (!event.touches?.length) return;
-      touchStart = {
-        x: event.touches[0].clientX,
-        y: event.touches[0].clientY,
-      };
+      touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
     }, { passive: true });
     link.addEventListener("touchend", (event) => {
       const touch = event.changedTouches?.[0];

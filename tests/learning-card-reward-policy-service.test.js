@@ -53,6 +53,8 @@ function testFailedCardHasNoReward() {
 function testExplicitClampUsesCardLimits() {
   assert.equal(clampLearningCardRewardAmount(10), 40);
   assert.equal(clampLearningCardRewardAmount(120), 100);
+  assert.equal(clampLearningCardRewardAmount(10, { maxCoins: 200 }), 80);
+  assert.equal(clampLearningCardRewardAmount(240, { maxCoins: 200 }), 200);
 }
 
 function testMissingDueDateUsesNeutralTimeliness() {
@@ -61,9 +63,23 @@ function testMissingDueDateUsesNeutralTimeliness() {
   assert.ok(timeliness.coins > 0);
 }
 
+function testRewardWeightsScaleWithCardCap() {
+  const reward = calculateLearningCardReward({
+    score: 73,
+    passed: true,
+    completedAt: "2026-05-23T13:52:36.000Z",
+  }, { maxCoins: 200 });
+  assert.equal(reward.coinAmount, 116);
+  assert.equal(reward.minCoins, 80);
+  assert.equal(reward.breakdown.totalWeightPercent, 58);
+  assert.equal(reward.breakdown.baseCoins, 80);
+  assert.equal(reward.breakdown.accuracyCoins, 6);
+}
+
 testPassedCardRewardIsBetweenFortyAndOneHundred();
 testLateAndLowInteractionRewardIsLower();
 testFailedCardHasNoReward();
 testExplicitClampUsesCardLimits();
 testMissingDueDateUsesNeutralTimeliness();
+testRewardWeightsScaleWithCardCap();
 console.log("learning card reward policy service tests passed");

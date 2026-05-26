@@ -138,8 +138,24 @@ function createGatewayRunner(options = {}) {
 
   async function streamResponses(body, streamOptions = {}) {
     const response = await createResponseStream(body, streamOptions);
-    if (!response?.body?.getReader) return response;
     const onEvent = typeof streamOptions.onEvent === "function" ? streamOptions.onEvent : () => {};
+    if (!response?.body?.getReader) {
+      if (response && typeof response === "object") onEvent(response);
+      else if (response != null) onEvent({ output_text: String(response) });
+      return response;
+    }
+    const contentType = String(response.headers?.get?.("content-type") || "");
+    if (!/text\/event-stream/i.test(contentType)) {
+      const text = await response.text();
+      const trimmed = String(text || "").trim();
+      if (!trimmed) return response;
+      try {
+        onEvent(JSON.parse(trimmed));
+      } catch (_) {
+        onEvent({ output_text: trimmed });
+      }
+      return response;
+    }
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";

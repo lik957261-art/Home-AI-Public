@@ -80,6 +80,7 @@ function createSingleWindowGroupChatApiRoutes(deps = {}) {
     "compactMessage",
     "compactThread",
     "compactThreadWithMessagePage",
+    "ensureGroupChatThreadForWorkspace",
     "ensureSingleWindowThread",
     "ensureWeixinSingleWindowThread",
     "findGroupChatThreadForWorkspace",
@@ -113,6 +114,15 @@ function createSingleWindowGroupChatApiRoutes(deps = {}) {
   const groupAiReplyRevokedText = String(deps.groupAiReplyRevokedText || "Associated AI reply revoked");
   const groupChatTaskGroupId = String(deps.groupChatTaskGroupId || "group-chat");
 
+  function isOwnerAuth(auth) {
+    return Boolean(auth?.isOwner || auth?.owner || auth?.role === "owner" || auth?.workspaceId === "owner");
+  }
+
+  function threadHasPrivateContent(thread) {
+    if ((thread?.messages || []).some((message) => String(message?.taskGroupId || "") !== groupChatTaskGroupId)) return true;
+    return Object.keys(thread?.taskGroupMeta || {}).some((key) => key && key !== groupChatTaskGroupId);
+  }
+
   async function handleSingleWindow(req, res, _url, context = {}) {
     const body = await deps.readBody(req);
     const auth = context.auth || deps.authenticateRequest(req);
@@ -123,7 +133,10 @@ function createSingleWindowGroupChatApiRoutes(deps = {}) {
       ? deps.ensureWeixinSingleWindowThread(workspaceId)
       : deps.findWeixinSingleWindowThreadForWorkspace(workspaceId);
     const groupRequested = !weixinRequested && Boolean(body.groupChat || body.group_chat);
-    const availableGroupThread = deps.findGroupChatThreadForWorkspace(workspaceId);
+    let availableGroupThread = deps.findGroupChatThreadForWorkspace(workspaceId);
+    if (groupRequested && (!availableGroupThread || !deps.threadAccessibleToAuth(auth, availableGroupThread)) && isOwnerAuth(auth)) {
+      availableGroupThread = deps.ensureGroupChatThreadForWorkspace(workspaceId, [workspaceId]);
+    }
     const groupChatAvailable = Boolean(availableGroupThread && deps.threadAccessibleToAuth(auth, availableGroupThread));
     const groupThread = groupRequested && groupChatAvailable ? availableGroupThread : null;
     const thread = weixinRequested
@@ -200,7 +213,12 @@ function createSingleWindowGroupChatApiRoutes(deps = {}) {
     const body = await deps.readBody(req).catch(() => ({}));
     const enabled = body.enabled !== false;
     const now = deps.nowIso();
+    const wasEnabled = Boolean(thread.chatGroup && thread.chatGroup.enabled !== false);
     const current = deps.normalizeChatGroup(thread.chatGroup || {}, thread.workspaceId);
+    if (enabled && !wasEnabled && threadHasPrivateContent(thread)) {
+      deps.sendJson(res, 409, { error: "Cannot convert an existing private task thread into group chat" });
+      return;
+    }
     const memberWorkspaceIds = deps.normalizeStringList(
       body.memberWorkspaceIds || body.member_workspace_ids || body.members || current.memberWorkspaceIds,
     ).filter((workspaceId) => deps.findWorkspace(workspaceId));

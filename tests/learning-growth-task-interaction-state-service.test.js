@@ -34,6 +34,7 @@ function run() {
 
   assert.equal(normalizeGrowthEvaluationStatus("done"), "completed");
   assert.equal(normalizeGrowthEvaluationStatus("feedback_ready"), "draft_feedback");
+  assert.equal(normalizeGrowthEvaluationStatus("needs_repair"), "needs_revision");
   assert.equal(normalizeGrowthEvaluationStatus("revision_required"), "needs_revision");
   assert.equal(normalizeGrowthEvaluationStatus("reflection_retry_required"), "reflection_required");
   assert.equal(normalizeGrowthNextStep("", { status: "draft_feedback" }), "rewrite_and_reflect");

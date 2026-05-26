@@ -62,6 +62,7 @@ function createGatewayRuntimeCompositionService(deps = {}) {
     if (!startService) {
       startService = createGatewayRunStartService({
         accessPolicyHardeningOptionsForGatewayRouting: deps.accessPolicyHardeningOptionsForGatewayRouting,
+        addThreadEvent: deps.addThreadEvent,
         addThreadActiveRun,
         assertRunConcurrencyCapacity: deps.assertRunConcurrencyCapacity,
         buildAccessPolicy: deps.buildAccessPolicy,
@@ -80,8 +81,10 @@ function createGatewayRuntimeCompositionService(deps = {}) {
         mergeAccessPolicyOverride: deps.mergeAccessPolicyOverride,
         mkdirSync: deps.mkdirSync,
         nowIso: deps.nowIso,
+        nowMs: deps.nowMs,
         projectForTaskDirectoryAttachment: deps.projectForTaskDirectoryAttachment,
         removeThreadActiveRun,
+        routeRunToolsets: deps.routeRunToolsets,
         sanitizePolicy: deps.sanitizePolicy,
         saveState: deps.saveState,
         singleWindowProjectId: deps.singleWindowProjectId,
@@ -179,6 +182,7 @@ function createGatewayRuntimeCompositionService(deps = {}) {
         stripPermissionApprovalMarkers: deps.stripPermissionApprovalMarkers,
         supplementGatewayUsage: deps.supplementGatewayUsage,
         threadSummary: deps.threadSummary,
+        topicContextCompactionService: deps.topicContextCompactionService,
       });
     }
     return eventService;

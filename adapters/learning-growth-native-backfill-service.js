@@ -215,6 +215,7 @@ function createLearningGrowthNativeBackfillService(options = {}) {
               status: cardField(card, "learningGrowthSubmissionStatus", "learning_growth_submission_status") || "submitted",
               summary: "Backfilled Growth learner attempt from Kanban compatibility metadata.",
               text: submissionText,
+              storeDisplayText: false,
               stats: submissionStats(submissionText),
               submittedAt: cardField(card, "learningGrowthSubmissionAt", "learning_growth_submission_at"),
             });

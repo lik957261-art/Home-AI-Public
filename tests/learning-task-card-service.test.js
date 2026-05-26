@@ -53,6 +53,14 @@ function seed(repository) {
         sourceBasisRefs: ["parent_config:program-1"],
         curriculumRefs: ["cefr-a2-b1-english-growth"],
         confidence: 0.8,
+        cardRole: "teaching",
+        teachingFlow: {
+          learningTarget: "Retell with the main idea first.",
+          microLesson: { learnerFacingText: "Say the main idea before details." },
+          workedExample: { steps: [{ label: "Example", text: "This passage is mainly about a school rule changing lunch habits." }] },
+          guidedPractice: { instruction: "Fill the retell frame first." },
+          quickCheck: { instruction: "Write one main idea sentence." },
+        },
       }],
     }],
     reliability: { publishBlocked: false, parentReviewRequired: true, guardLevel: "test" },
@@ -80,6 +88,11 @@ function testMaterializeDraft() {
   assert.equal(cards[0].taskModel.submissionContract.firstSubmissionKind, "speaking_retell");
   assert.equal(cards[0].rewardCapCoins, 100);
   assert.equal(cards[0].rewardPolicy.maxCoins, 100);
+  assert.equal(cards[0].teachingFlow.generationSource, "");
+  assert.equal(cards[0].teachingFlow.lesson.title, "Retell with the main idea first.");
+  assert.equal(cards[0].teachingFlow.guidedPractice.instruction, "Fill the retell frame first.");
+  assert.equal(cards[0].teachingFlow.quickCheck.instruction, "Write one main idea sentence.");
+  assert.equal(service.get(cards[0].taskCardId).teachingFlow.lesson.title, "Retell with the main idea first.");
   assert.equal(cards[0].deliverableDirectoryPath, path.join(root, "learning-plan", "weixin_stephen", "series", "program-1", "deliverables"));
   assert.equal(service.get(cards[0].taskCardId).artifactDirectoryPath, cards[0].deliverableDirectoryPath);
   assert.equal(service.list({ learnerId: "weixin_stephen" }).length, 1);
