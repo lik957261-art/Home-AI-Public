@@ -405,6 +405,7 @@ function createMobileApiComposition(deps = {}) {
   callBootTrace(deps, "action inbox api routes ready");
 
   const todoApiRoutes = createTodoApiRoutes({
+    actionInboxService,
     boolParam: deps.boolParam,
     broadcast: deps.broadcast,
     clearKanbanCardListCache: deps.clearKanbanCardListCache,

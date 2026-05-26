@@ -64,6 +64,8 @@ Every state-changing operation should append an audit event so the UI state can 
 
 Manual todos create first-class Action Inbox items. They do not need official Kanban boards, worker assignment, or multi-agent state.
 
+The legacy `POST /api/todos` compatibility route may still create a Todo/Kanban record while the old surface is being retired, but it must also upsert a summary-only `sourceType=manual`, `itemType=todo` Action Inbox item for the selected workspace. This keeps existing callers from silently bypassing the Inbox.
+
 ### Automation
 
 Automation remains a background job engine. A successful run that creates a user-facing delivery should upsert a `delivery` Inbox item. A failed run should upsert an `error` item with a short failure summary and a deep link to the relevant job detail or output history.
@@ -84,6 +86,8 @@ The item must link back to the Growth card/detail. It must not store full learne
 ### Chat And Mentions
 
 Chat remains the message source of truth. Later integration may create Inbox items for direct mentions, approvals, or requested follow-ups. Group/chat message bodies should stay in the chat thread, not be copied into Inbox.
+
+Ordinary task terminal receipts create summary-only `sourceType=chat` Inbox items for completion or failure, with the original task/single-window route preserved as the item deep link. The Inbox stores only title, bounded summary, status, and route identifiers.
 
 ## Official Kanban Cutover
 

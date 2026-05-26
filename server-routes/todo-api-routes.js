@@ -107,6 +107,38 @@ function createTodoApiRoutes(deps = {}) {
     return url?.searchParams?.get("workspaceId") || "owner";
   }
 
+  async function upsertCreatedTodoInboxItem(workspaceId, result, body = {}) {
+    const service = deps.actionInboxService;
+    if (!service || typeof service.upsertSourceItem !== "function") return null;
+    const todo = deps.publicTodo(result) || {};
+    const todoId = String(todo.id || result?.id || result?.todoId || "").trim();
+    const content = String(todo.content || todo.title || result?.content || body.content || "").trim();
+    if (!todoId && !content) return null;
+    try {
+      const inboxResult = await Promise.resolve(service.upsertSourceItem({
+        workspaceId,
+        assigneeWorkspaceId: workspaceId,
+        sourceType: "manual",
+        sourceId: todoId || `todo:${content.slice(0, 80)}`,
+        itemType: "todo",
+        status: "open",
+        priority: "normal",
+        title: content || todoId || "Todo",
+        summary: String(todo.summary || result?.summary || body.summary || "").trim(),
+        actionLabel: "\u5904\u7406",
+        sourceRef: {
+          todoId,
+          compatibilityRoute: "/api/todos",
+        },
+        dedupeKey: todoId ? `todo:${todoId}` : "",
+        reopen: true,
+      }));
+      return inboxResult?.ok ? inboxResult.item : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   async function handleList(req, res, url) {
     const workspaceId = deps.requireWorkspaceAccess(req, res, workspaceFromUrl(url));
     if (!workspaceId) return;
@@ -156,6 +188,8 @@ function createTodoApiRoutes(deps = {}) {
     }
     deps.clearKanbanCardListCache(workspaceId);
     deps.broadcast({ type: "todos.updated", workspaceId });
+    const inboxItem = await upsertCreatedTodoInboxItem(workspaceId, result, body);
+    if (inboxItem?.id) deps.broadcast({ type: "actionInbox.updated", workspaceId, itemId: inboxItem.id });
     deps.notifyTodoCreated(result, deps.workspacePrincipal(workspaceId));
     deps.sendJson(res, 201, { todo: deps.publicTodo(result), result });
   }
