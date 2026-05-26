@@ -575,7 +575,7 @@ function createLearningPlanDecompositionService(options = {}) {
   const sanitizePolicy = typeof options.sanitizePolicy === "function" ? options.sanitizePolicy : (policy) => policy || {};
   const findWorkspace = typeof options.findWorkspace === "function" ? options.findWorkspace : () => null;
   const model = cleanString(options.model || options.automationCreateModel || "automation-create");
-  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 120000) || 120000);
+  const timeoutMs = Math.max(10000, Number(options.timeoutMs || 600000) || 600000);
   const requireModel = options.requireModel === true;
 
   async function buildDraft(program = {}) {
