@@ -9,6 +9,11 @@ const {
   DEFAULT_MAX_CARD_COINS,
   normalizeLearningCardRewardPolicy,
 } = require("./learning-card-reward-policy-service");
+const {
+  defaultDurationRangeForRole,
+  defaultRewardCoinsForRole,
+  inferCardRole,
+} = require("./learning-growth-card-role-service");
 
 function cleanString(value) {
   return String(value ?? "").trim();
@@ -57,6 +62,18 @@ function executionQueueSummary(task = {}) {
     skillIds: task.skillIds,
     templateId: task.templateId,
     taskModel,
+    cardRole: task.cardRole || "",
+    completionPolicy: task.completionPolicy || null,
+    masteryEvidenceWeight: Number(task.masteryEvidenceWeight || 0),
+    capabilityClusterId: cleanString(task.capabilityClusterId),
+    defaultRewardCoins: Number(task.defaultRewardCoins || 0) || 0,
+    configuredRewardCoins: Number(task.configuredRewardCoins || 0) || 0,
+    expectedDurationMinutes: task.expectedDurationMinutes || null,
+    stageAssessment: task.stageAssessment || null,
+    stageAssessmentCycleId: cleanString(task.stageAssessmentCycleId),
+    activationState: cleanString(task.activationState),
+    teachingFlow: task.teachingFlow || null,
+    experienceSummary: task.experienceSummary || null,
     privacyLevel: "summary_only",
     learnerInstruction: cleanString(task.learnerInstruction),
     instruction: cleanString(task.instruction),
@@ -112,12 +129,16 @@ function materializeTask(program = {}, draft = {}, day = {}, task = {}, options 
   const interactionStateMachine = asArray(task.interactionStateMachine).length
     ? asArray(task.interactionStateMachine).map(cleanString).filter(Boolean)
     : asArray(taskModel.interactionStateMachine).map(cleanString).filter(Boolean);
+  const cardRole = inferCardRole(task);
+  const durationRange = defaultDurationRangeForRole(cardRole);
+  const plannedMinutes = Math.max(durationRange.min, Math.min(durationRange.max, Number(task.plannedMinutes || durationRange.min) || durationRange.min));
+  const defaultRewardCoins = defaultRewardCoinsForRole(cardRole);
   const rewardPolicy = normalizeLearningCardRewardPolicy(
     task.rewardPolicy
       || task.learningRewardPolicy
       || draft.rewardPolicy
       || program.rewardPolicy
-      || { rewardCapCoins: task.rewardCapCoins || DEFAULT_MAX_CARD_COINS },
+      || { rewardCapCoins: task.rewardCapCoins || defaultRewardCoins || DEFAULT_MAX_CARD_COINS },
   );
   const card = {
     taskCardId: stableTaskCardId(draft.draftId, task.taskId),
@@ -129,9 +150,10 @@ function materializeTask(program = {}, draft = {}, day = {}, task = {}, options 
     title: cleanString(task.title) || "Learning task",
     domain: cleanString(task.domain || program.domain) || "english",
     taskCardType: cleanString(task.taskCardType) || cleanString(taskModel.taskCardType) || "single_subject",
+    cardRole,
     status: draftStatusToTaskStatus(draft.status),
     plannedDate: cleanString(day.date || draft.weekStart),
-    plannedMinutes: Number(task.plannedMinutes || 0),
+    plannedMinutes,
     skillIds: asArray(task.skillIds).map(cleanString).filter(Boolean),
     templateId: cleanString(task.templateId),
     interactionStateMachine,
@@ -139,6 +161,8 @@ function materializeTask(program = {}, draft = {}, day = {}, task = {}, options 
     curriculumRefs,
     privacyLevel: cleanString(task.privacyLevel) || "summary_only",
     rewardCapCoins: rewardPolicy.maxCoins,
+    defaultRewardCoins,
+    configuredRewardCoins: rewardPolicy.maxCoins,
     rewardPolicy,
     reliability: {
       confidence: Number(task.confidence || 0),

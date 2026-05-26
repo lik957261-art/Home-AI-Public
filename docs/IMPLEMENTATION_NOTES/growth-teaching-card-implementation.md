@@ -13,6 +13,18 @@ The implementation must preserve these rules:
 - Learner signals such as `too_hard`, `not_learned`, and `explain_first` repair the learning path; they are not formal mastery failures.
 - Public projections, Action Inbox items, logs, docs, and handoffs stay summary-only. Do not store full learner answers, transcripts, full questions, answer keys, raw prompts, or model raw responses.
 
+## Implementation Status - 2026-05-26
+
+V1 is implemented as native Growth behavior rather than a Kanban compatibility layer:
+
+- `adapters/learning-program-repository.js` schema version `11` adds role, reward, duration, activation, `teaching_flow_json`, and `experience_summary_json` fields to `learning_task_cards`, plus native `learning_growth_experience_signals` and `learning_growth_stage_assessment_cycles` tables.
+- `adapters/learning-growth-card-role-service.js` owns role defaults: ordinary cards default to 100 coins and 10-15 minutes; stage assessments default to 300 coins and 25-30 minutes.
+- `adapters/learning-growth-teaching-card-contract-service.js` normalizes persisted teaching flow. Persisted learner-facing cue fields use `instruction`, not `prompt`, because the privacy guard treats any stored key named `prompt` as a raw-prompt risk.
+- `adapters/learning-growth-teaching-check-service.js` completes teaching/practice cards by recording summary-only evaluation evidence and then settling rewards through the existing evaluation -> reward settlement -> coin ledger boundary.
+- `adapters/learning-growth-stage-assessment-service.js` creates or activates formal `stage_assessment` cards for Owner/manual and executor challenge activation.
+- `server-routes/learning-growth-card-api-routes.js` exposes the native V1 routes.
+- Frontend branching is in `public/app-learning-growth-ui.js`, `public/app-learning-growth-task-ui.js`, and `public/app-learning-growth-teaching-controller.js`. Teaching/practice cards render a lesson -> guided practice -> quick check flow; `stage_assessment` continues using the existing formal native submission UI.
+
 ## V1 Fixed Decisions
 
 These decisions are fixed for the first implementation. Do not leave them to implementation-time judgment.
@@ -71,7 +83,7 @@ Public board/detail projections should expose these normalized fields:
       learnerFacingText: "..."
     },
     workedExample: {
-      prompt: "Read this short example.",
+      instruction: "Read this short example.",
       steps: [
         { label: "Code", text: "for n in range(3): print(n)" },
         { label: "What happens", text: "Python prints 0, 1, then 2." }
@@ -79,12 +91,12 @@ Public board/detail projections should expose these normalized fields:
     },
     guidedPractice: {
       mode: "modify_code" | "choose" | "fill_blank" | "explain" | "short_answer",
-      prompt: "Change the loop so it prints five numbers.",
+      instruction: "Change the loop so it prints five numbers.",
       hints: ["range(5) gives five values."]
     },
     quickCheck: {
       mode: "short_answer" | "choose" | "code_snippet" | "explain",
-      prompt: "What will this loop print?",
+      instruction: "What will this loop print?",
       expectedEvidence: ["mentions repeated output", "does not require hidden knowledge"]
     },
     tooHardFallback: {
@@ -111,7 +123,7 @@ Public board/detail projections should expose these normalized fields:
 }
 ```
 
-For non-teaching cards, `teachingFlow` can be `null` or a limited practice prompt projection. For `stage_assessment`, `completionPolicy` must be `formal_assessment`.
+For non-teaching cards, `teachingFlow` can be `null` or a limited practice cue projection. For `stage_assessment`, `completionPolicy` must be `formal_assessment`.
 
 ### Native Columns
 
@@ -121,8 +133,8 @@ Recommended query-critical fields:
 
 ```js
 card_role: "teaching",
-completion_policy: "teaching_check",
-mastery_evidence_weight: "low",
+completion_policy_json: { mode: "lightweight_teaching_check" },
+mastery_evidence_weight: 0.12,
 capability_cluster_id: "python-basics-loops",
 default_reward_coins: 100,
 configured_reward_coins: 100,
@@ -167,7 +179,7 @@ Add these tables in the first backend implementation slice. They are part of the
 | `capability_id` | specific skill when known |
 | `capability_cluster_id` | broader cluster for scheduling |
 | `card_id` | related task/card id |
-| `signal_type` | `too_hard`, `not_learned`, `explain_first`, `low_confidence`, `abandoned`, `fatigue`, `interest`, `flow` |
+| `signal_type` | V1 enum: `too_easy`, `right_level`, `too_hard`, `not_learned`, `confusing`, `interesting`, `challenge_ready`, `completed` |
 | `signal_value` | bounded enum, such as `reported`, `observed`, `dismissed`, `completed_smoothly` |
 | `payload_json` | bounded summary-only payload |
 | `created_at` | ISO timestamp |
@@ -484,7 +496,7 @@ Request:
 
 ```js
 {
-  signalType: "too_hard" | "not_learned" | "explain_first" | "low_confidence" | "fatigue" | "interest" | "flow",
+  signalType: "too_easy" | "right_level" | "too_hard" | "not_learned" | "confusing" | "interesting" | "challenge_ready" | "completed",
   signalValue: "reported",
   step: "lesson" | "guided_practice" | "quick_check",
   summary: "bounded optional summary"
@@ -746,9 +758,9 @@ Model output must match:
     { capabilityId: "python-range", label: "range()", required: true, evidenceAssumption: "weak" }
   ],
   microLesson: { learnerFacingText: "...", keyPoints: ["..."] },
-  workedExample: { prompt: "...", steps: [{ label: "...", text: "..." }] },
-  guidedPractice: { mode: "modify_code", prompt: "...", hints: ["..."] },
-  quickCheck: { mode: "short_answer", prompt: "...", expectedEvidence: ["..."] },
+  workedExample: { instruction: "...", steps: [{ label: "...", text: "..." }] },
+  guidedPractice: { mode: "modify_code", instruction: "...", hints: ["..."] },
+  quickCheck: { mode: "short_answer", instruction: "...", expectedEvidence: ["..."] },
   expectedTimeMinutes: 12,
   rewardPolicy: { defaultCoins: 100 },
   difficultyBasis: "Prerequisite range() is weak, so this teaches before asking independent code.",
@@ -816,7 +828,7 @@ Regression cases:
 
 1. Commit native Growth schema/contracts/tests with no official Kanban dependency for the new flow.
 2. Add native projection fields with default role inference for old readable cards only.
-3. Enable teaching-card generation for native Growth cards behind a config flag, for example `HERMES_MOBILE_GROWTH_TEACHING_CARDS=1`.
+3. Teaching-card generation is now the native Growth default for ordinary new cards; keep rollback at the route/service/static deployment level rather than adding official Kanban compatibility.
 4. Use test workspace `weixin_test_1` and create one Python teaching card, one Science prerequisite-repair card, and one executor-triggered stage assessment challenge.
 5. Verify frontend flow on mobile viewport:
    - role badge visible;

@@ -219,10 +219,161 @@
     return `<div class="todo-learning-growth-outcome is-${escapeHtmlLocal(outcome.kind)}"><div class="todo-learning-growth-outcome-head"><strong>${escapeHtmlLocal(outcome.title)}</strong><span class="todo-learning-growth-score-pill" data-learning-growth-feedback-score>${escapeHtmlLocal(score)}</span></div><p>${escapeHtmlLocal(outcome.body)}</p></div>${history.length ? `<div class="todo-learning-growth-report-history"><div class="todo-learning-growth-report-history-head"><strong>${escapeHtmlLocal("\u6279\u6539\u5386\u53f2")}</strong>${count}</div>${links}</div>` : ""}`;
   }
 
+  function growthCardRole(task = {}) {
+    const role = String(task.cardRole || task.card_role || task.learningGrowthCardRole || "").trim().toLowerCase().replace(/[-\s]+/g, "_");
+    if (role === "teaching" || role === "practice" || role === "integration_practice" || role === "stage_assessment") return role;
+    const type = String(task.taskCardType || task.task_card_type || task.taskModel?.taskCardType || "").trim().toLowerCase();
+    const activity = String(task.activityType || task.taskModel?.activityType || "").trim().toLowerCase();
+    if (type === "challenge_card" || activity === "weekly_challenge") return "stage_assessment";
+    return "stage_assessment";
+  }
+
+  function isTeachingCardRole(role) {
+    return role === "teaching" || role === "practice" || role === "integration_practice";
+  }
+
+  function growthCardRoleLabel(role) {
+    if (role === "teaching") return "教学卡";
+    if (role === "practice") return "练习卡";
+    if (role === "integration_practice") return "综合练习";
+    if (role === "stage_assessment") return "能力测验";
+    return "成长卡";
+  }
+
+  function teachingFlow(task = {}) {
+    const flow = task.teachingFlow && typeof task.teachingFlow === "object" ? task.teachingFlow : {};
+    const model = task.taskModel && typeof task.taskModel === "object" ? task.taskModel : {};
+    const lesson = flow.lesson && typeof flow.lesson === "object" ? flow.lesson : {};
+    const guided = flow.guidedPractice && typeof flow.guidedPractice === "object" ? flow.guidedPractice : {};
+    const quick = flow.quickCheck && typeof flow.quickCheck === "object" ? flow.quickCheck : {};
+    const examples = Array.isArray(lesson.examples) && lesson.examples.length
+      ? lesson.examples
+      : (Array.isArray(task.deliverables) ? task.deliverables : (Array.isArray(model.deliverables) ? model.deliverables : []));
+    const criteria = Array.isArray(quick.completionCriteria) && quick.completionCriteria.length
+      ? quick.completionCriteria
+      : (Array.isArray(task.acceptance) ? task.acceptance : (Array.isArray(model.acceptance) ? model.acceptance : []));
+    return {
+      lesson: {
+        title: lesson.title || task.title || "学习重点",
+        explanation: lesson.explanation || task.learnerInstruction || task.instruction || model.learnerInstruction || task.summary || "先看讲解，再做一个很小的检查。",
+        examples: examples.slice(0, 4),
+      },
+      guidedPractice: {
+        instruction: guided.instruction || guided.prompt || task.guidedPracticePrompt || "照着讲解做一小步，不需要一次写得很完整。",
+        hints: Array.isArray(guided.hints) ? guided.hints.slice(0, 4) : [],
+      },
+      quickCheck: {
+        instruction: quick.instruction || quick.prompt || "用 1-3 句话说明你刚才学会了什么，或者写一个最小答案。",
+        completionCriteria: criteria.slice(0, 5),
+      },
+    };
+  }
+
+  function renderGrowthCardRoleBadge(role) {
+    return `<span class="learning-growth-role-badge is-${escapeHtmlLocal(role)}">${escapeHtmlLocal(growthCardRoleLabel(role))}</span>`;
+  }
+
+  function renderTeachingStepper(cardId, currentStep) {
+    const steps = [
+      ["lesson", "讲解"],
+      ["guided_practice", "跟做"],
+      ["quick_check", "检查"],
+    ];
+    return `<div class="learning-growth-teaching-stepper" role="tablist">
+      ${steps.map(([step, label]) => `<button type="button" class="${step === currentStep ? "active" : ""}" data-learning-growth-teaching-step="${escapeHtmlLocal(cardId)}" data-step="${escapeHtmlLocal(step)}" aria-selected="${step === currentStep ? "true" : "false"}">${escapeHtmlLocal(label)}</button>`).join("")}
+    </div>`;
+  }
+
+  function renderTeachingLessonSection(flow) {
+    return `<section class="learning-growth-teaching-section" data-learning-growth-teaching-section="lesson">
+      <h4>${escapeHtmlLocal(flow.lesson.title)}</h4>
+      <p>${escapeHtmlLocal(flow.lesson.explanation)}</p>
+      ${flow.lesson.examples.length ? `<ul>${flow.lesson.examples.map((item) => `<li>${escapeHtmlLocal(item)}</li>`).join("")}</ul>` : ""}
+    </section>`;
+  }
+
+  function renderTeachingGuidedPracticeSection(task, flow, draft = {}) {
+    const cardId = String(task.taskCardId || task.id || "");
+    return `<section class="learning-growth-teaching-section" data-learning-growth-teaching-section="guided_practice">
+      <h4>跟着做一小步</h4>
+      <p>${escapeHtmlLocal(flow.guidedPractice.instruction)}</p>
+      ${flow.guidedPractice.hints.length ? `<div class="learning-growth-teaching-hints">${flow.guidedPractice.hints.map((item) => `<span>${escapeHtmlLocal(item)}</span>`).join("")}</div>` : ""}
+      <textarea class="input learning-growth-teaching-input" rows="4" maxlength="3000" data-learning-growth-teaching-draft="${escapeHtmlLocal(cardId)}" data-field="guidedPracticeText" placeholder="写下跟做过程，简短也可以。">${escapeHtmlLocal(draft.guidedPracticeText || "")}</textarea>
+    </section>`;
+  }
+
+  function renderTeachingQuickCheckSection(task, flow, draft = {}, options = {}) {
+    const cardId = String(task.taskCardId || task.id || "");
+    const busy = Boolean(options.busy);
+    const completed = String(task.status || "").trim().toLowerCase() === "completed";
+    return `<form class="learning-growth-teaching-check-form" data-learning-growth-teaching-check-form="${escapeHtmlLocal(cardId)}">
+      <section class="learning-growth-teaching-section" data-learning-growth-teaching-section="quick_check">
+        <h4>最后确认一下</h4>
+        <p>${escapeHtmlLocal(flow.quickCheck.instruction)}</p>
+        ${flow.quickCheck.completionCriteria.length ? `<ul>${flow.quickCheck.completionCriteria.map((item) => `<li>${escapeHtmlLocal(item)}</li>`).join("")}</ul>` : ""}
+        <textarea class="input learning-growth-teaching-input" rows="4" maxlength="3000" data-learning-growth-teaching-draft="${escapeHtmlLocal(cardId)}" data-field="quickCheckText" placeholder="写一句你确认掌握的内容，或者写下哪里还卡住。">${escapeHtmlLocal(draft.quickCheckText || "")}</textarea>
+        <div class="learning-growth-teaching-actions">
+          <button type="submit" ${busy || completed ? "disabled" : ""}>${completed ? "已完成" : (busy ? "提交中" : "完成本卡")}</button>
+        </div>
+      </section>
+    </form>`;
+  }
+
+  function renderTeachingFeedbackSection(task = {}) {
+    const summary = task.experienceSummary || {};
+    const reward = Number(task.learningGrowthRewardCoins || task.latestRewardSettlement?.coinAmount || task.rewardPolicy?.maxCoins || 0) || 0;
+    if (String(task.status || "").trim().toLowerCase() !== "completed" && !summary.latestAt && !summary.lastCompletionAt) return "";
+    return `<section class="learning-growth-teaching-feedback" data-learning-growth-teaching-feedback>
+      <strong>${escapeHtmlLocal(String(task.status || "").trim().toLowerCase() === "completed" ? "本卡已完成" : "学习反馈已记录")}</strong>
+      <p>${escapeHtmlLocal(reward ? `奖励 ${reward} 金币；这张卡只作为低压力学习证据，不当作正式能力测验。` : "这张卡只作为低压力学习证据，不当作正式能力测验。")}</p>
+    </section>`;
+  }
+
+  function renderExperienceSignalActions(task = {}) {
+    const cardId = String(task.taskCardId || task.id || "");
+    return `<div class="learning-growth-experience-actions" data-learning-growth-experience-actions="${escapeHtmlLocal(cardId)}">
+      <button type="button" data-learning-growth-experience-signal="${escapeHtmlLocal(cardId)}" data-signal-type="too_easy">太简单</button>
+      <button type="button" data-learning-growth-experience-signal="${escapeHtmlLocal(cardId)}" data-signal-type="right_level">正合适</button>
+      <button type="button" data-learning-growth-experience-signal="${escapeHtmlLocal(cardId)}" data-signal-type="too_hard">有点难</button>
+      <button type="button" data-learning-growth-experience-signal="${escapeHtmlLocal(cardId)}" data-signal-type="not_learned">没学过</button>
+      <button type="button" data-learning-growth-stage-assessment-challenge="${escapeHtmlLocal(cardId)}">挑战测验</button>
+    </div>`;
+  }
+
+  function renderTeachingCardDetail(task = {}, options = {}) {
+    const cardId = String(task.taskCardId || task.id || "");
+    const role = growthCardRole(task);
+    const flow = teachingFlow(task);
+    const state = options.state || {};
+    const draft = Object.assign({}, state.learningGrowthTeachingDrafts?.[cardId] || {});
+    const step = state.learningGrowthTeachingStepByCardId?.[cardId]
+      || (String(task.status || "").trim().toLowerCase() === "completed" ? "quick_check" : "lesson");
+    const busy = Boolean(state.learningGrowthTeachingCheckBusy?.[cardId]);
+    const duration = task.expectedDurationMinutes || {};
+    const reward = Number(task.rewardPolicy?.maxCoins || task.configuredRewardCoins || task.defaultRewardCoins || 100) || 100;
+    return `<section class="learning-growth-answer-card learning-growth-teaching-card" data-learning-growth-answer-card data-learning-growth-teaching-card="${escapeHtmlLocal(cardId)}" data-learning-growth-card-role="${escapeHtmlLocal(role)}" data-learning-executable-task-id="${escapeHtmlLocal(cardId)}">
+      <div class="learning-growth-teaching-head">
+        <div>${renderGrowthCardRoleBadge(role)}<span>${escapeHtmlLocal(`约 ${duration.min || 10}-${duration.max || 15} 分钟`)}</span><span>${escapeHtmlLocal(`${reward} 金币`)}</span></div>
+        <button type="button" data-learning-open-growth-history="${escapeHtmlLocal(cardId)}" data-workspace-id="${escapeHtmlLocal(task.workspaceId || "")}">历史</button>
+      </div>
+      <h3>${escapeHtmlLocal(task.title || "学习卡")}</h3>
+      ${renderTeachingStepper(cardId, step)}
+      ${step === "lesson" ? renderTeachingLessonSection(flow) : ""}
+      ${step === "guided_practice" ? renderTeachingGuidedPracticeSection(task, flow, draft) : ""}
+      ${step === "quick_check" ? renderTeachingGuidedPracticeSection(task, flow, draft) + renderTeachingQuickCheckSection(task, flow, draft, { busy }) : ""}
+      ${renderTeachingFeedbackSection(task)}
+      ${renderExperienceSignalActions(task)}
+    </section>`;
+  }
+
   return {
     activityLabel,
     canWithdrawSubmission,
+    growthCardRole,
+    isTeachingCardRole,
     renderFeedbackHistory,
+    renderGrowthCardRoleBadge,
+    renderTeachingCardDetail,
     reportHistory,
     nextActionLabel,
     submissionGuard,

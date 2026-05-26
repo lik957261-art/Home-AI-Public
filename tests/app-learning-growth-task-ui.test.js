@@ -114,6 +114,35 @@ function testFeedbackHistoryDistinguishesThreeSeriousAttemptCompletion() {
   assert.doesNotMatch(html, /\u6700\u7ec8\u8bc4\u5206\u5df2\u8fbe\u6807/);
 }
 
+function testTeachingCardDetailRendersLessonPracticeAndCheck() {
+  const task = {
+    taskCardId: "teach-1",
+    cardRole: "teaching",
+    title: "\u5206\u6bb5\u9605\u8bfb",
+    status: "published",
+    rewardPolicy: { maxCoins: 100 },
+    expectedDurationMinutes: { min: 10, max: 15 },
+    teachingFlow: {
+      lesson: { title: "\u4e3b\u65e8", explanation: "\u5148\u6293\u4e3b\u65e8\uff0c\u518d\u770b\u7ec6\u8282\u3002", examples: ["topic sentence"] },
+      guidedPractice: { prompt: "\u627e\u5230\u4e00\u53e5\u4e3b\u65e8\u53e5\u3002" },
+      quickCheck: { prompt: "\u7528\u4e00\u53e5\u8bdd\u8bf4\u660e\u4e3b\u65e8\u3002", completionCriteria: ["\u5199\u51fa\u4e3b\u65e8"] },
+    },
+  };
+  const html = TaskUi.renderTeachingCardDetail(task, {
+    state: {
+      learningGrowthTeachingStepByCardId: { "teach-1": "quick_check" },
+      learningGrowthTeachingDrafts: { "teach-1": { guidedPracticeText: "draft", quickCheckText: "check" } },
+    },
+  });
+  assert.match(html, /data-learning-growth-teaching-card="teach-1"/);
+  assert.match(html, /\u6559\u5b66\u5361/);
+  assert.match(html, /\u5206\u6bb5\u9605\u8bfb/);
+  assert.match(html, /data-learning-growth-teaching-check-form="teach-1"/);
+  assert.match(html, /data-learning-growth-experience-signal="teach-1"/);
+  assert.match(html, /data-learning-growth-stage-assessment-challenge="teach-1"/);
+  assert.doesNotMatch(html, /data-learning-native-growth-submission-form/);
+}
+
 testNewEnglishTemplateActivityLabels();
 testNewEnglishTemplateSubmissionPrompts();
 testSpokenReflectionActionLabel();
@@ -123,4 +152,5 @@ testFeedbackHistoryRendersOutcomeAndReports();
 testDraftFeedbackReachedScoreLineNeedsReflectionNotFailure();
 testFeedbackHistoryPrioritizesReflectionGate();
 testFeedbackHistoryDistinguishesThreeSeriousAttemptCompletion();
+testTeachingCardDetailRendersLessonPracticeAndCheck();
 console.log("app learning growth task UI tests passed");

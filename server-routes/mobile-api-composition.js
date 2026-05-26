@@ -13,6 +13,7 @@ const { createKanbanLearningGuidanceApiRoutes } = require("./kanban-learning-gui
 const { createKanbanStudyApiRoutes } = require("./kanban-study-api-routes");
 const { createLearningApiRoutes } = require("./learning-api-routes");
 const { createLearningCoinApiRoutes } = require("./learning-coin-api-routes");
+const { createLearningGrowthCardApiRoutes } = require("./learning-growth-card-api-routes");
 const { createLearningParentReviewApiRoutes } = require("./learning-parent-review-api-routes");
 const { createLearningProgramApiRoutes } = require("./learning-program-api-routes");
 const { createLearningGrowthService } = require("../adapters/learning-growth-service");
@@ -26,6 +27,9 @@ const { createLearningGrowthSequenceService } = require("../adapters/learning-gr
 const { createLearningGrowthTaskEvaluationService } = require("../adapters/learning-growth-task-evaluation-service");
 const { createLearningGrowthTaskFeedbackService } = require("../adapters/learning-growth-task-feedback-service");
 const { createLearningGrowthReflectionService } = require("../adapters/learning-growth-reflection-service");
+const { createLearningGrowthExperienceSignalService } = require("../adapters/learning-growth-experience-signal-service");
+const { createLearningGrowthStageAssessmentService } = require("../adapters/learning-growth-stage-assessment-service");
+const { createLearningGrowthTeachingCheckService } = require("../adapters/learning-growth-teaching-check-service");
 const { createLearningGrowthSubmissionService } = require("../adapters/learning-growth-submission-service");
 const { createLearningParentReviewRequestService } = require("../adapters/learning-parent-review-request-service");
 const { createLearningProgramPublishService } = require("../adapters/learning-program-publish-service");
@@ -624,6 +628,18 @@ function createMobileApiComposition(deps = {}) {
   const learningGrowthLegacyTodoTaskService = createLearningGrowthLegacyTodoTaskService({
     mobileStore: deps.mobileSqliteStore,
   });
+  const learningGrowthExperienceSignalService = createLearningGrowthExperienceSignalService({
+    repository: learningProgramRepository,
+  });
+  const learningGrowthTeachingCheckService = createLearningGrowthTeachingCheckService({
+    experienceSignalService: learningGrowthExperienceSignalService,
+    learningProgramService,
+    repository: learningProgramRepository,
+  });
+  const learningGrowthStageAssessmentService = createLearningGrowthStageAssessmentService({
+    learningProgramService,
+    repository: learningProgramRepository,
+  });
 
   const learningApiRoutes = createLearningApiRoutes({
     isOwnerAuth: deps.isOwnerAuth,
@@ -651,6 +667,20 @@ function createMobileApiComposition(deps = {}) {
     sendJson: deps.sendJson,
   });
   callBootTrace(deps, "learning program api routes ready");
+
+  const learningGrowthCardApiRoutes = createLearningGrowthCardApiRoutes({
+    authCanAccessWorkspace: deps.authCanAccessWorkspace,
+    isOwnerAuth: deps.isOwnerAuth,
+    learningGrowthExperienceSignalService,
+    learningGrowthStageAssessmentService,
+    learningGrowthTeachingCheckService,
+    learningProgramService,
+    readBody: deps.readBody,
+    requireOwner: deps.requireOwner,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "learning growth card api routes ready");
 
   const learningParentReviewApiRoutes = createLearningParentReviewApiRoutes({
     learningParentReviewRequestService,
@@ -715,6 +745,7 @@ function createMobileApiComposition(deps = {}) {
     kanbanStudyApiRoutes,
     learningApiRoutes,
     learningCoinApiRoutes,
+    learningGrowthCardApiRoutes,
     learningParentReviewApiRoutes,
     learningProgramApiRoutes,
     ownerElevationApiRoutes,
@@ -741,6 +772,9 @@ function createMobileApiComposition(deps = {}) {
     services: {
       actionInboxService,
       learningGrowthSubmissionService,
+      learningGrowthTeachingCheckService,
+      learningGrowthExperienceSignalService,
+      learningGrowthStageAssessmentService,
     },
     routes: {
       accessKeyApiRoutes,
@@ -755,6 +789,7 @@ function createMobileApiComposition(deps = {}) {
       kanbanStudyApiRoutes,
       learningApiRoutes,
       learningCoinApiRoutes,
+      learningGrowthCardApiRoutes,
       learningParentReviewApiRoutes,
       learningProgramApiRoutes,
       ownerElevationApiRoutes,

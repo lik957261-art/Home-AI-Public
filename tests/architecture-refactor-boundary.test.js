@@ -142,6 +142,7 @@ const kanbanLearningGuidanceApiRoutes = require("../server-routes/kanban-learnin
 const kanbanStudyApiRoutes = require("../server-routes/kanban-study-api-routes");
 const learningApiRoutes = require("../server-routes/learning-api-routes");
 const learningCoinApiRoutes = require("../server-routes/learning-coin-api-routes");
+const learningGrowthCardApiRoutes = require("../server-routes/learning-growth-card-api-routes");
 const learningParentReviewApiRoutes = require("../server-routes/learning-parent-review-api-routes");
 const learningProgramApiRoutes = require("../server-routes/learning-program-api-routes");
 const mobileApiDispatcher = require("../server-routes/mobile-api-dispatcher");
@@ -381,6 +382,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof kanbanStudyApiRoutes.createKanbanStudyApiRoutes, "function");
   assert.equal(typeof learningApiRoutes.createLearningApiRoutes, "function");
   assert.equal(typeof learningCoinApiRoutes.createLearningCoinApiRoutes, "function");
+  assert.equal(typeof learningGrowthCardApiRoutes.createLearningGrowthCardApiRoutes, "function");
   assert.equal(typeof learningParentReviewApiRoutes.createLearningParentReviewApiRoutes, "function");
   assert.equal(typeof learningProgramApiRoutes.createLearningProgramApiRoutes, "function");
   assert.equal(typeof mobileApiComposition.createMobileApiComposition, "function");
@@ -551,6 +553,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(mobileComposition, /createLearningProgramRepository/);
   assert.match(mobileComposition, /learningCoinService: deps\.learningCoinService/);
   assert.match(dispatcher, /key: "learningProgramApiRoutes"/);
+  assert.match(mobileComposition, /createLearningGrowthCardApiRoutes/);
+  assert.match(mobileComposition, /createLearningGrowthTeachingCheckService/);
+  assert.match(dispatcher, /key: "learningGrowthCardApiRoutes"/);
   assert.match(mobileComposition, /createLearningParentReviewApiRoutes/);
   assert.match(mobileComposition, /createLearningParentReviewRequestService/);
   assert.match(dispatcher, /key: "learningParentReviewApiRoutes"/);
@@ -711,6 +716,7 @@ function testServiceFirstArchitectureContract() {
     "public/app-shared-directory-ui.js",
     "public/app-automation-ui.js",
     "public/app-learning-native-growth-submission-controller.js",
+    "public/app-learning-growth-teaching-controller.js",
     "public/app-learning-growth-controller.js",
     "public/app-learning-growth-task-ui.js",
     "public/app-automation-controller-ui.js",

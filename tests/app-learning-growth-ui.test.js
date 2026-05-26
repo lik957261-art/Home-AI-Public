@@ -407,6 +407,43 @@ function testGrowthRendererShowsStandaloneTaskCardWhenSelected() {
   assert.doesNotMatch(html, /data-learning-growth-module="coins"/);
 }
 
+function testGrowthRendererUsesTeachingFlowForTeachingCard() {
+  const teachingOverview = JSON.parse(JSON.stringify(overview));
+  teachingOverview.programs.taskCards = [{
+    taskCardId: "teach-1",
+    title: "Teaching task",
+    cardRole: "teaching",
+    status: "published",
+    plannedDate: "2026-05-26",
+    workspaceId: "weixin_stephen",
+    rewardPolicy: { maxCoins: 100 },
+    expectedDurationMinutes: { min: 10, max: 15 },
+    teachingFlow: {
+      lesson: { title: "Main idea", explanation: "Read the explanation first." },
+      guidedPractice: { prompt: "Try one guided step." },
+      quickCheck: { prompt: "Write one check." },
+    },
+  }];
+  teachingOverview.board.cards = [{
+    taskCardId: "teach-1",
+    title: "Teaching task",
+    cardRole: "teaching",
+    primaryAction: "open",
+    nextAction: "open",
+  }];
+  const html = GrowthUi.renderLearningGrowthView({
+    overview: teachingOverview,
+    coinsUi: CoinsUi,
+    growthTaskUi: GrowthTaskUi,
+    programUi: ProgramUi,
+    state: { auth: { isOwner: false }, selectedLearningTaskCardId: "teach-1" },
+  });
+  assert.match(html, /data-learning-growth-teaching-card="teach-1"/);
+  assert.match(html, /data-learning-growth-card-role="teaching"/);
+  assert.match(html, /data-learning-growth-teaching-step="teach-1"/);
+  assert.doesNotMatch(html, /data-learning-native-growth-submission-form="teach-1"/);
+}
+
 function testGrowthRendererOpensLegacyTodoAsReadOnlyTask() {
   const legacyOverview = JSON.parse(JSON.stringify(overview));
   legacyOverview.programs.executableTasks = [{
@@ -645,6 +682,7 @@ testGrowthRendererCanOpenBoardOnlyRevisionTask();
 testGrowthSelectedTaskMergesBoardLatestEvaluation();
 testGrowthRendererContainsProgramSubsystem();
 testGrowthRendererShowsStandaloneTaskCardWhenSelected();
+testGrowthRendererUsesTeachingFlowForTeachingCard();
 testGrowthRendererOpensLegacyTodoAsReadOnlyTask();
 testOwnerRendererKeepsBoardSeparateFromManagementSections();
 testOwnerRendererShowsIndependentSettingsPage();

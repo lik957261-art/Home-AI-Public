@@ -40,11 +40,10 @@ function resetLearningCoinsState() {
   state.learningGrowth = null; state.learningGrowthBoardLane = "";
   state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsTaskId = "";
   state.learningGrowthHistoryTaskCardId = "";
+  state.learningGrowthTeachingStepByCardId = {}; state.learningGrowthTeachingDrafts = {}; state.learningGrowthExperienceSignalBusy = {}; state.learningGrowthTeachingCheckBusy = {}; state.learningGrowthStageAssessmentActivating = {};
   state.learningGrowthSettingsOpen = false;
   state.learningCoins = null; state.learningCoinsError = "";
-  state.learningGrowthMasteryProfile = null; state.learningGrowthMasteryError = ""; state.learningGrowthMasteryLoading = false;
-  state.learningParentReport = null; state.learningParentReportError = "";
-  state.learningParentReportLoading = false; state.learningCoinScopeKey = learningCoinCurrentScopeKey();
+  state.learningGrowthMasteryProfile = null; state.learningGrowthMasteryError = ""; state.learningGrowthMasteryLoading = false; state.learningParentReport = null; state.learningParentReportError = ""; state.learningParentReportLoading = false; state.learningCoinScopeKey = learningCoinCurrentScopeKey();
 }
 function renderLearningCoinsView() {
   if (!isLearningGrowthViewActive()) return;
@@ -625,6 +624,7 @@ function wireLearningCoinsView() {
   onClickAll("[data-learning-parent-review-decision]", (button) => decideLearningParentReviewRequest(button.dataset.learningParentReviewDecision, button.dataset.decision).catch(showError));
   onClickAll("[data-learning-evaluation-settle]", (button) => settleLearningEvaluationReward(button.dataset.learningEvaluationSettle).catch(showError));
   onClickAll("[data-learning-task-start]", (button) => startLearningTaskSession(button.dataset.learningTaskStart).catch(showError));
+  window.HermesLearningGrowthTeachingController?.wireTeachingCards?.($("conversation"));
   $("conversation")?.querySelectorAll("[data-learning-native-growth-submission-form]").forEach((form) => {
     const taskCardId = form.dataset.taskCardId || form.dataset.learningNativeGrowthSubmissionForm;
     restoreNativeGrowthSubmissionDraft(form, taskCardId);

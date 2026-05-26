@@ -85,6 +85,42 @@ function testMigrationAndPersistence() {
   });
   assert.equal(taskCard.taskCardId, "task-1");
   assert.equal(taskCard.learnerAnswer, "[redacted]");
+  assert.equal(taskCard.cardRole, "teaching");
+  assert.equal(taskCard.completionPolicy.mode, "lightweight_teaching_check");
+  assert.equal(taskCard.rewardPolicy.maxCoins, 100);
+  assert.deepEqual(taskCard.expectedDurationMinutes, { min: 10, max: 15 });
+  assert.ok(taskCard.teachingFlow.lesson.explanation);
+
+  const signal = repository.saveExperienceSignal({
+    signalId: "signal-1",
+    taskCardId: "task-1",
+    programId: "program-1",
+    learnerId: "weixin_stephen",
+    learnerWorkspaceId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    cardRole: "teaching",
+    capabilityClusterId: taskCard.capabilityClusterId,
+    signalType: "too_hard",
+    intensity: 1,
+    summary: "summary only",
+    rawAnswer: "must not be exposed",
+  });
+  assert.equal(signal.signalId, "signal-1");
+  assert.equal(signal.rawAnswer, "[redacted]");
+  assert.equal(repository.summarizeExperienceSignals({ taskCardId: "task-1" }).counts.too_hard, 1);
+
+  const cycle = repository.upsertStageAssessmentCycle({
+    cycleId: "cycle-1",
+    learnerId: "weixin_stephen",
+    learnerWorkspaceId: "weixin_stephen",
+    workspaceId: "weixin_stephen",
+    programId: "program-1",
+    capabilityClusterId: taskCard.capabilityClusterId,
+    status: "scheduled",
+    triggerType: "system",
+  });
+  assert.equal(cycle.cycleId, "cycle-1");
+  assert.equal(repository.listStageAssessmentCycles({ learnerId: "weixin_stephen" }).length, 1);
 
   const session = repository.saveInteractionSession({
     sessionId: "session-1",

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260526-bottom-topic-v252";
+const CLIENT_VERSION = "20260526-growth-teaching-v254";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -94,12 +94,14 @@ const appLearningGrowthControllerJs = fs.readFileSync(path.join(repoRoot, "publi
 const appLearningGrowthAiControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-ai-controller.js"), "utf8");
 const appLearningGrowthRewardControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reward-controller.js"), "utf8");
 const appLearningGrowthSettingsControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-settings-controller.js"), "utf8");
+const appLearningGrowthTeachingControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-teaching-controller.js"), "utf8");
 const appLearningNativeGrowthSubmissionControllerJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-native-growth-submission-controller.js"), "utf8");
 const appApiClientJs = fs.readFileSync(path.join(repoRoot, "public", "app-api-client.js"), "utf8");
 const appMessageActionsUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-message-actions-ui.js"), "utf8");
 const appThreadCardMessageUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-thread-card-message-ui.js"), "utf8");
 const appThreadDirectoryUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-thread-directory-ui.js"), "utf8");
 const learningProgramApiRoutesJs = fs.readFileSync(path.join(repoRoot, "server-routes", "learning-program-api-routes.js"), "utf8");
+const learningGrowthCardApiRoutesJs = fs.readFileSync(path.join(repoRoot, "server-routes", "learning-growth-card-api-routes.js"), "utf8");
 
 assert.match(appJs, /function taskGroupsForThread\(thread\)/);
 assert.match(appJs, /const TaskArtifactHelpers = window\.HermesTaskArtifactHelpers \|\| \{\};/);
@@ -372,9 +374,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260526-bottom-topic-v252/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260526-bottom-topic-v252/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260526-bottom-topic-v252/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260526-growth-teaching-v254/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260526-growth-teaching-v254/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260526-growth-teaching-v254/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -989,6 +991,15 @@ assert.match(appLearningProgramUiJs, /format=mp3/);
 assert.match(learningProgramApiRoutesJs, /learning-task-reflection-audio-read/);
 assert.match(learningProgramApiRoutesJs, /function playableAudioFile\(found, recordId, taskCard, url\)/);
 assert.match(learningProgramApiRoutesJs, /"Content-Type": playable\.contentType \|\| audioMimeForPlayback/);
+assert.match(learningGrowthCardApiRoutesJs, /learning-growth-card-teaching-check/);
+assert.match(learningGrowthCardApiRoutesJs, /\/api\/learning-growth\/stage-assessments\/challenge/);
+assert.match(appLearningGrowthTaskUiJs, /function renderTeachingCardDetail/);
+assert.match(appLearningGrowthTaskUiJs, /data-learning-growth-teaching-check-form/);
+assert.match(appLearningGrowthUiJs, /renderTeachingCardDetail\(task, options\)/);
+assert.match(appLearningGrowthControllerJs, /HermesLearningGrowthTeachingController/);
+assert.match(appLearningGrowthTeachingControllerJs, /learningGrowthTeachingStepByCardId/);
+assert.match(appLearningGrowthTeachingControllerJs, /\/api\/learning-growth\/cards\/\$\{encodeURIComponent\(taskCardId\)\}\/teaching-check/);
+assert.match(appLearningGrowthTeachingControllerJs, /\/api\/learning-growth\/stage-assessments\/challenge/);
 assert.match(appJs, /function parseWorkspaceIdList\(value\)/);
 assert.match(appJs, /data-kanban-study-viewer-workspace/);
 assert.match(appJs, /kanban-study-share-list/);

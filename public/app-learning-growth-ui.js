@@ -959,6 +959,7 @@
   function renderSelectedGrowthTaskView(overview = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const programUi = options.programUi || ProgramUi;
+    const growthTaskUi = options.growthTaskUi || null;
     const programs = overview.programs || {};
     const taskCardId = String(options.selectedGrowthTaskCardId || options.state?.selectedLearningTaskCardId || "");
     const boardFallback = { taskCards: Array.isArray(overview.board?.cards) ? overview.board.cards : [] };
@@ -966,8 +967,12 @@
       findSelectedGrowthTask(programs, taskCardId),
       findSelectedGrowthTask(boardFallback, taskCardId),
     );
-    const detail = task && programUi && typeof programUi.renderNativeGrowthTaskDetail === "function"
-      ? programUi.renderNativeGrowthTaskDetail(task, programs, options)
+    const role = task && growthTaskUi && typeof growthTaskUi.growthCardRole === "function" ? growthTaskUi.growthCardRole(task) : "";
+    const useTeachingDetail = task && growthTaskUi && typeof growthTaskUi.isTeachingCardRole === "function" && growthTaskUi.isTeachingCardRole(role) && typeof growthTaskUi.renderTeachingCardDetail === "function";
+    const detail = useTeachingDetail
+      ? growthTaskUi.renderTeachingCardDetail(task, options)
+      : task && programUi && typeof programUi.renderNativeGrowthTaskDetail === "function"
+        ? programUi.renderNativeGrowthTaskDetail(task, programs, options)
       : `<div class="learning-coin-empty">\u8fd9\u5f20\u4efb\u52a1\u5361\u5df2\u66f4\u65b0\u6216\u4e0d\u5728\u5f53\u524d\u72b6\u6001\u91cc\u3002</div>`;
     return `<div class="learning-growth-view learning-growth-task-focus" data-learning-product="fanfan-growth" data-learning-growth-task-focus="${escapeHtml(taskCardId)}">
       ${detail}

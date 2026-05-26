@@ -17,27 +17,25 @@ Growth Learning owns learner programs, evergreen task cards, submissions, async 
 - `adapters/learning-growth-mastery-profile-service.js`
 - `adapters/learning-growth-next-card-strategy-service.js`
 - `adapters/learning-growth-board-projection-service.js`
-- `server-routes/learning-program-api-routes.js`
-- `public/app-learning-growth-ui.js`
-- `public/app-learning-growth-controller.js`
-- `public/app-learning-program-ui.js`
-
-Planned V1 teaching-card implementation files:
-
 - `adapters/learning-growth-card-role-service.js`
 - `adapters/learning-growth-teaching-card-contract-service.js`
 - `adapters/learning-growth-experience-signal-service.js`
+- `adapters/learning-growth-teaching-check-service.js`
 - `adapters/learning-growth-stage-assessment-service.js`
-- `server-routes/learning-growth-card-api-routes.js` or native route additions in `server-routes/learning-api-routes.js`
-- `public/app-learning-growth-teaching-card-ui.js` if the teaching-card renderer is too large for `public/app-learning-growth-task-ui.js`
+- `server-routes/learning-growth-card-api-routes.js`
+- `server-routes/learning-program-api-routes.js`
+- `public/app-learning-growth-ui.js`
+- `public/app-learning-growth-controller.js`
+- `public/app-learning-growth-teaching-controller.js`
+- `public/app-learning-program-ui.js`
 
 ## Key Routes
 
 - `GET /api/learning-growth/board`
-- `POST /api/learning-growth/cards/:cardId/teaching-check` (planned V1 native teaching-card route)
-- `POST /api/learning-growth/cards/:cardId/experience-signal` (planned V1 native teaching-card route)
-- `POST /api/learning-growth/stage-assessments/:cycleId/activate` (planned V1 Owner manual activation)
-- `POST /api/learning-growth/stage-assessments/challenge` (planned V1 executor challenge activation)
+- `POST /api/learning-growth/cards/:cardId/teaching-check`
+- `POST /api/learning-growth/cards/:cardId/experience-signal`
+- `POST /api/learning-growth/stage-assessments/:cycleId/activate`
+- `POST /api/learning-growth/stage-assessments/challenge`
 - `POST /api/kanban/cards/:cardId/learning-growth-submission` (current legacy/formal compatibility route)
 - `POST /api/kanban/cards/:cardId/learning-growth-reflection` (current legacy/formal compatibility route)
 - `GET /api/learning/growth/mastery-profile`
@@ -58,8 +56,8 @@ Important tables include:
 - `learning_reward_settlements`
 - `learning_growth_mastery_states`
 - `learning_growth_card_trajectories`
-- `learning_growth_experience_signals` (planned V1)
-- `learning_growth_stage_assessment_cycles` (planned V1)
+- `learning_growth_experience_signals`
+- `learning_growth_stage_assessment_cycles`
 
 ## State Semantics
 
@@ -103,8 +101,8 @@ Reward/time defaults:
 
 Learning experience signals:
 
-- `too_hard`, `not_learned`, and `explain_first` are safe learner feedback actions, not punishment triggers.
-- `abandoned`, `fatigue`, `interest`, and `flow` should influence scheduling and next-card style.
+- V1 supports `too_easy`, `right_level`, `too_hard`, `not_learned`, `confusing`, `interesting`, `challenge_ready`, and `completed`.
+- `too_hard`, `not_learned`, and `confusing` are safe learner feedback actions, not punishment triggers.
 - These signals are summary-only and should store bounded enums, timestamps, card ids, capability ids, and short safe summaries rather than full learner text.
 
 ## Validation
@@ -113,8 +111,11 @@ Learning experience signals:
 - `node tests\learning-growth-board-projection-service.test.js`
 - `node tests\learning-growth-mastery-profile-service.test.js`
 - `node tests\learning-program-api-routes.test.js`
+- `node tests\learning-growth-teaching-card-services.test.js`
+- `node tests\learning-growth-card-api-routes.test.js`
 - `node tests\app-learning-growth-ui.test.js`
 - `node tests\app-learning-program-ui.test.js`
+- `node tests\app-learning-growth-task-ui.test.js`
 - `node tests\task-list-ui.test.js`
 - `node tests\architecture-refactor-boundary.test.js` for server/service boundary changes.
 
