@@ -606,13 +606,9 @@ function positionMessageFooterPanel(details, panelSelector) {
   });
 }
 
-function positionUsagePanel(details) {
-  positionMessageFooterPanel(details, ".usage-details");
-}
+function positionUsagePanel(details) { positionMessageFooterPanel(details, ".usage-details"); }
 
-function positionMessageSkillPanel(details) {
-  positionMessageFooterPanel(details, ".message-skill-details");
-}
+function positionMessageSkillPanel(details) { positionMessageFooterPanel(details, ".message-skill-details"); }
 
 function closeOpenUsagePanels(root = document) {
   root.querySelectorAll?.(".usage[open]")?.forEach((details) => {

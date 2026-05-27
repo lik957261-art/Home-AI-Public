@@ -68,6 +68,11 @@ select `wardrobe` with `vision`/`file` for image-backed writeback and readback
 verification. A run that has a wardrobe-capable Gateway profile but lacks
 `wardrobe` in `access_policy_context.allowed_toolsets` should be treated as a
 Mobile policy/routing regression, not as a missing Gateway MCP.
+If a topic is already bound to a wardrobe/closet directory, every AI run in
+that topic must keep authorized `wardrobe` in the suggested model-selection
+catalog by default, even when the latest message is semantically light. This is
+still a policy-bounded suggestion: the router must not grant `wardrobe` if the
+run policy did not already authorize it.
 
 The selector is an internal JSON-only preflight. Tests must assert that selector
 requests disable tool calls, that live selector probes do not contain tool-role

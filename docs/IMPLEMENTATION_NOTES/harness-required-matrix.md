@@ -223,6 +223,13 @@ Required harness dimensions:
   catalog when the selected Gateway profile exposes Wardrobe MCP; otherwise the
   model cannot choose the correct MCP path and may over-use generic web/http/file
   tooling.
+- Harness scenarios must also cover topic-bound wardrobe directories. If the
+  current topic has a directory route whose project id, label, path, or root
+  identifies it as a wardrobe/closet directory, every AI run in that topic must
+  suggest authorized `wardrobe` to the model-side selector by default, even when
+  the latest message is a short follow-up. The routing layer must still preserve
+  policy boundaries and must not grant `wardrobe` when it is absent from the
+  authorized toolset list.
 - Plain-chat probes in an existing conversation must prefer the lightweight
   suggested set over `clarify` alone, so bounded conversation context cannot
   force an immediate avoidable toolset-escalation response.

@@ -30,7 +30,7 @@ const TOOLSET_KEYWORDS = Object.freeze([
     pattern: /(?:\bHTTP\b|\bAPI\b|\brequest\b|\bendpoint\b|\bbase64\b|\bcodex(?:\s*mobile)?\b|\bmux\b|\u63a5\u53e3|\u8bf7\u6c42|\u4fdd\u5b58\s*base64|\u534f\u4f5c\u6d41|\u5bf9\u63a5\s*Codex)/i,
   },
   {
-    toolsets: ["wardrobe", "vision", "file", "http"],
+    toolsets: ["wardrobe", "vision", "file"],
     pattern: /(?:\bwardrobe\b|\bcloset\b|\boutfit\b|\bwear\s*count\b|\bwearcount\b|\bLoro\s+Piana\b|\bLP\b.{0,24}(?:item|product|wardrobe|closet|outfit)|(?:\u5546\u54c1|\u8863\u6a71|\u5165\u5e93).{0,24}\bLP\b|\u8863\u6a71|\u7a7f\u642d|\u5355\u54c1|\u5165\u5e93|\u7a7f\u7740\u5386\u53f2|\u642d\u914d|\u5957\u88c5|\u8863\u670d|\u978b|\u8155\u8868|\u5546\u54c1\u7167|\u8d2d\u7269\u5355)/i,
   },
   {
@@ -80,6 +80,17 @@ function hasAttachmentSignal(userMessage = {}) {
     userMessage.files,
     userMessage.uploads,
   ].some((value) => Array.isArray(value) && value.length > 0);
+}
+
+function taskDirectoryLooksWardrobe(taskDirectory = {}) {
+  const text = [
+    taskDirectory.projectId,
+    taskDirectory.subprojectId,
+    taskDirectory.label,
+    taskDirectory.path,
+    taskDirectory.root,
+  ].map(cleanString).join(" ");
+  return /(?:\bwardrobe\b|\bcloset\b|\boutfit\b|\u8863\u6a71|\u7a7f\u642d)/i.test(text);
 }
 
 function requestedToolsetsFromOptions(runOptions = {}) {
@@ -188,6 +199,7 @@ function createGatewayRunToolsetRoutingService(options = {}) {
         if (matched[i] === "web" || matched[i] === "search") matched.splice(i, 1);
       }
     }
+    if (taskDirectoryLooksWardrobe(context.taskDirectory)) matched.push("wardrobe", "file");
     if (hasAttachmentSignal(context.userMessage)) matched.push("file", "vision");
     if (context.taskDirectory?.path) matched.push("file");
     if (context.groupChat?.groupChatDeliveryRoot) matched.push("file");

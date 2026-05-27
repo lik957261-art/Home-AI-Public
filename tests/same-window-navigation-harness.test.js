@@ -62,7 +62,10 @@ assert.ok(
   "index.html must run the mobile browser-shell preflight before app bundles load.",
 );
 
-const pwaPushUi = read("public/app-pwa-settings-push-ui.js");
+const pwaPushUi = [
+  read("public/app-pwa-settings-push-ui.js"),
+  read("public/app-pwa-push-ui.js"),
+].join("\n");
 assert.match(pwaPushUi, /function currentDisplayMode\(\)/);
 assert.match(pwaPushUi, /function pushClientContext\(\)/);
 assert.match(pwaPushUi, /function hermesBrowserShellNavigationBlocked\(\)/);
@@ -108,7 +111,10 @@ assert.match(platformUi, /data-mobile-browser-shell-copy/);
 assert.match(platformUi, /copyNavigationDiagnostics\(\)\.catch/);
 
 const actionInboxUi = read("public/app-action-inbox-ui.js");
-const chatComposerUi = read("public/app-chat-composer-ui.js");
+const chatComposerUi = [
+  read("public/app-navigation-view-ui.js"),
+  read("public/app-chat-composer-ui.js"),
+].join("\n");
 const automationControllerUi = read("public/app-automation-controller-ui.js");
 assert.match(actionInboxUi, /data-action-inbox-open-source-id/);
 assert.match(actionInboxUi, /function openActionInboxItemSource\(item\) \{[\s\S]*?openHermesInternalRoute\(link\)/);

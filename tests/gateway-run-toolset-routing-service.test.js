@@ -98,7 +98,26 @@ function testWardrobeIngestionSuggestsWardrobeMcpAndInputTools() {
 
   assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
   assert.equal(result.routing.suggested_mode, "intent");
-  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "http"]);
+  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file"]);
+}
+
+function testWardrobeBoundTopicDefaultsToWardrobeMcp() {
+  const service = createService();
+  const result = service.routePolicy({
+    policy: policy(),
+    userMessage: { content: "\u8fd9\u4e2a\u600e\u4e48\u5904\u7406\uff1f", taskGroupId: "wardrobe-topic" },
+    taskDirectory: {
+      projectId: "family-wardrobe",
+      label: "Wardrobe / WuPing",
+      path: "D:\\Wardrobe\\WuPing",
+      root: "D:\\Wardrobe\\WuPing",
+    },
+    runOptions: {},
+  });
+
+  assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
+  assert.equal(result.routing.suggested_mode, "intent");
+  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "file"]);
 }
 
 function testRetryUsesRecentToolsetEscalationContext() {
@@ -143,7 +162,7 @@ function testRetryUsesRecentTaskTextWhenNoEscalationMetadataExists() {
   });
 
   assert.equal(result.routing.suggested_mode, "intent");
-  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "http", "weather"]);
+  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "weather"]);
 }
 
 function testRetryUsesSameTaskGroupContextBeyondGlobalTail() {
@@ -168,7 +187,7 @@ function testRetryUsesSameTaskGroupContextBeyondGlobalTail() {
   });
 
   assert.equal(result.routing.suggested_mode, "intent");
-  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "http", "weather"]);
+  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "weather"]);
 }
 
 function testAmbiguousRequestFailsOpenToBaseToolsets() {
@@ -203,6 +222,7 @@ testExplicitXSearchKeepsOnlyXSearchWhenAllowed();
 testSearchSourceOptionsAddXSearch();
 testFileAndSkillIntentCanCombine();
 testWardrobeIngestionSuggestsWardrobeMcpAndInputTools();
+testWardrobeBoundTopicDefaultsToWardrobeMcp();
 testRetryUsesRecentToolsetEscalationContext();
 testRetryUsesRecentTaskTextWhenNoEscalationMetadataExists();
 testRetryUsesSameTaskGroupContextBeyondGlobalTail();

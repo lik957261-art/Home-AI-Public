@@ -214,9 +214,15 @@ Current runtime behavior:
 - Product-specific MCP toolsets that are ordinary current-workspace capabilities
   must be present in the Mobile run policy before the selector can choose them.
   Profile registration alone is not enough. For wardrobe tasks, `wardrobe` must
-  be included in the authorized catalog so the selector can choose Wardrobe MCP
-  for writeback, readback verification, and main image / field checks before
-  falling back to generic `http`.
+  be included in the authorized catalog so the selector chooses Wardrobe MCP
+  for writeback, readback verification, and main image / field checks. If the
+  `wardrobe` MCP toolset is missing for a wardrobe run, treat it as a toolset
+  routing gap; do not satisfy the wardrobe run with generic `http`.
+- Topic-bound wardrobe directories are an explicit routing signal. When a topic
+  carries a directory route whose project id, label, path, or root identifies it
+  as a wardrobe/closet directory, Mobile suggests authorized `wardrobe` for all
+  AI runs in that topic by default. This does not grant new permission; it only
+  keeps an already-authorized MCP capability visible to the model-side selector.
 - For plain chat probes in an existing conversation, the selector should prefer
   the existing suggested lightweight set over `clarify` alone, because the
   execution round still receives bounded conversation context and may otherwise

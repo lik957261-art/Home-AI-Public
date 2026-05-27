@@ -162,7 +162,7 @@ assert.doesNotMatch(appJs, /function renderRunProgressPanel\(thread, runIds(?:, 
 assert.match(appJs, /function runProgressOffsetLabel\(startMs, eventMs\)/);
 assert.match(appJs, /runEventTimeLabel\(event, startMs\)/);
 assert.doesNotMatch(appJs, /toLocaleTimeString/);
-assert.match(appJs, /function renderMessageRunProgress\(thread, message = \{\}\)/);
+assert.match(appJs, /function renderMessageRunProgress\(thread, message = \{\}(?:, options = \{\})?\)/);
 assert.match(appJs, /renderMessageRunProgress\(state\.currentThread, message\)/);
 assert.match(appJs, /runProgressRenderScheduled: new Set\(\)/);
 assert.match(appJs, /function scheduleRunProgressRenderForRun\(runId\)/);
