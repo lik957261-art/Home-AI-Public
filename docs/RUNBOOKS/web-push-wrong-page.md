@@ -19,8 +19,9 @@
 - A secondary page, document preview, or internal link used `window.open` or `target=_blank`, which created a browser window instead of reusing the current app window.
 - Payload lacks the target id, such as `automationId` or task/evaluation id.
 - Frontend route handler preserves stale search state or clears the selected target too early.
-- The push subscription was created from iOS Safari/browser mode instead of the installed Hermes Mobile PWA. Old subscriptions without standalone metadata can still deliver a notification that opens in a browser shell.
-- The user is already operating Hermes inside iOS Safari/browser mode. Same-window routing then stays in that browser shell; JavaScript cannot convert that session into a standalone PWA window.
+- The push subscription was created from a mobile browser mode instead of the installed Hermes Mobile PWA. Old subscriptions without standalone metadata can still deliver a notification that opens in a browser shell.
+- The user is already operating Hermes inside mobile Safari/browser mode. Same-window routing then stays in that browser shell; JavaScript cannot convert that session into a standalone PWA window.
+- The browser shell may restore an already-selected detail state, such as `viewMode=automation` with `selectedAutomationId`, without passing through a URL route parser.
 - Static client cache is old.
 
 ## Repair
@@ -29,8 +30,8 @@
 - Keep Hermes-owned links and previews in the current app window. Replace `window.open`, `target=_blank`, and Markdown `linkTarget="_blank"` with same-window navigation, authenticated overlays, or in-place download/share behavior.
 - Require iOS subscriptions to be created from the installed PWA and include `clientContext.displayMode`, `clientContext.standalone`, and `clientContext.clientVersion`.
 - Filter legacy iOS browser subscriptions during delivery. If the user needs iPhone push again, re-enable notification from the installed Hermes Mobile app after the new client version is active.
-- Gate internal notification/source-detail navigation on iOS when the client is not PWA standalone. The route should stop and prompt the user to reopen the installed Hermes Mobile app instead of showing a detail page inside a browser frame.
-- Apply the gate to both click-time routing and startup URL routing. If the app starts with `?view=automation&automationId=...` inside a browser shell, startup route parsing must stop before rendering the detail page.
+- Gate internal notification/source-detail navigation on mobile browser shells when the client is not PWA standalone. The route should stop and prompt the user to reopen the installed Hermes Mobile app instead of showing a detail page inside a browser frame.
+- Apply the gate to click-time routing, startup URL routing, and selected-detail state restoration. If the app starts with `?view=automation&automationId=...` inside a browser shell, or restores a selected Automation detail before `loadSelectedView()`, it must stop before rendering the detail page.
 - Add stable ids to the payload producer.
 - Make the target module force an authenticated fetch that includes the target even if search/limit would otherwise hide it.
 - Bump static client/cache version when service worker or route JS changes.

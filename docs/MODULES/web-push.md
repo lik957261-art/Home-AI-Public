@@ -32,8 +32,8 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 - If the payload points at a viewer shell, route back to the app route or viewer `return` route instead of opening the viewer shell as the primary app.
 - Hermes-owned navigation must stay in the same app window. App code, second-level pages, file previews, and internal links must not use `window.open`, `target=_blank`, or Markdown `linkTarget="_blank"` for product navigation.
 - `clients.openWindow(targetWindowRoute)` is allowed only as the service-worker fallback when no same-origin top-level client is available; when an app shell client exists, notification click must post the route to that client and focus it.
-- On iOS, Hermes-owned notification/deep-link navigation must not continue inside Safari/browser mode. If the current client is not the installed PWA standalone window, the app must stop internal detail navigation and prompt the user to reopen from the Home Screen Hermes Mobile app.
-- The iOS PWA guard must run both on click-time routing (`openNotificationRoute`) and startup URL routing (`applyRouteFromUrl`), because a browser shell may be launched directly with `automationId`, `inboxItemId`, or another detail query parameter.
+- On mobile browser shells, Hermes-owned notification/deep-link navigation must not continue inside Safari/browser mode. If the current mobile/touch client is not the installed PWA standalone window, the app must stop internal detail navigation and prompt the user to reopen from the Home Screen Hermes Mobile app.
+- The PWA guard must run on click-time routing (`openNotificationRoute`), startup URL routing (`applyRouteFromUrl`), and restored selected detail state before `loadSelectedView()` renders a second-level page. A browser shell may be launched directly with `automationId`, or may already hold `state.viewMode=automation` plus `selectedAutomationId`.
 
 ## Subscription Window Rules
 

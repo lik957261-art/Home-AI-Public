@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const repoRoot = path.resolve(__dirname, "..");
 
@@ -46,15 +47,87 @@ assert.match(pwaPushUi, /function currentDisplayMode\(\)/);
 assert.match(pwaPushUi, /function pushClientContext\(\)/);
 assert.match(pwaPushUi, /function hermesBrowserShellNavigationBlocked\(\)/);
 assert.match(pwaPushUi, /function requireHermesAppWindowForNavigation\(\)/);
-assert.match(pwaPushUi, /isIosPushClient\(\) && !isStandalonePwa\(\)/);
+assert.match(pwaPushUi, /function mobileBrowserShellClient\(\)/);
+assert.match(pwaPushUi, /mobileBrowserShellClient\(\) && !isStandalonePwa\(\)/);
 assert.match(pwaPushUi, /clientContext,[\s\S]*displayMode: clientContext\.displayMode,[\s\S]*standalone: clientContext\.standalone/);
 
 const platformUi = read("public/app-platform-ui.js");
 assert.match(platformUi, /function sameOriginRouteUrl\(value\)/);
 assert.match(platformUi, /function routeParamsHaveHermesOwnedDetailTarget\(params\)/);
 assert.match(platformUi, /function requireHermesAppWindowForRoute\(params\)/);
+assert.match(platformUi, /function hermesRouteMobileBrowserShell\(\)/);
+assert.match(platformUi, /function guardHermesOwnedSelectedDetailNavigation\(\)/);
+assert.match(platformUi, /function clearHermesOwnedDetailStateAfterBrowserShellBlock\(\)/);
+assert.match(platformUi, /if \(hermesRouteMobileBrowserShell\(\)\) \{[\s\S]*?replaceBlockedBrowserShellRoute\(\);[\s\S]*?return false;/);
+assert.match(platformUi, /state\.viewMode === "automation"[\s\S]*?state\.selectedAutomationId/);
+assert.match(platformUi, /selectedAutomationId: ""[\s\S]*?automationRouteTargetPending: false/);
+const automationUi = read("public/app-automation-ui.js");
+assert.match(automationUi, /function loadSelectedView\(\) \{[\s\S]*?guardHermesOwnedSelectedDetailNavigation\(\);/);
 assert.match(platformUi, /function applyRouteFromUrl\(value\) \{[\s\S]*?const params = new URLSearchParams\(parsed\.search \|\| ""\);[\s\S]*?if \(!requireHermesAppWindowForRoute\(params\)\) return false;[\s\S]*?return applyRouteParams\(params\);/);
 assert.match(platformUi, /function openNotificationRoute\(value\) \{[\s\S]*?const params = new URLSearchParams\(parsed\.search \|\| ""\);[\s\S]*?if \(!requireHermesAppWindowForRoute\(params\)\) return;[\s\S]*?if \(!applyRouteParams\(params\)\) return;/);
+
+{
+  const toasts = [];
+  const alerts = [];
+  const storage = new Map();
+  const sandbox = {
+    URL,
+    URLSearchParams,
+    AppApiClient: { createApiClient: () => () => Promise.resolve({}) },
+    document: { cookie: "" },
+    localStorage: {
+      setItem: (key, value) => storage.set(key, String(value)),
+      getItem: (key) => storage.get(key) || "",
+      removeItem: (key) => storage.delete(key),
+    },
+    navigator: {
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148 Safari/604.1",
+      maxTouchPoints: 5,
+      standalone: false,
+    },
+    window: {
+      innerWidth: 390,
+      screen: { width: 390 },
+      location: { origin: "https://example.test" },
+      matchMedia: () => ({ matches: false }),
+      history: {
+        state: {},
+        replacedUrl: "",
+        replaceState(state, _title, url) {
+          this.state = state;
+          this.replacedUrl = url;
+        },
+      },
+      alert: (message) => alerts.push(message),
+    },
+    state: {
+      key: "",
+      clientVersion: "test",
+      viewMode: "automation",
+      selectedAutomationId: "job-1",
+      automationReturnRoute: "inbox",
+      automationReturnScope: "detail",
+      automationReturnInboxItemId: "inbox-1",
+      automationRouteTargetId: "job-1",
+      automationRouteTargetPending: true,
+      automationEditOpen: true,
+      automationEditJobId: "job-1",
+      automationOutputHistoryOpen: true,
+    },
+    $: () => ({ textContent: "" }),
+    showPushToast: (message, tone) => toasts.push({ message, tone }),
+    hermesAppWindowRequiredText: () => "open from PWA",
+  };
+  vm.runInNewContext(platformUi, sandbox);
+  assert.equal(sandbox.guardHermesOwnedSelectedDetailNavigation(), false);
+  assert.equal(sandbox.state.viewMode, "inbox");
+  assert.equal(sandbox.state.selectedAutomationId, "");
+  assert.equal(sandbox.state.automationRouteTargetPending, false);
+  assert.equal(storage.get("hermesWebViewMode"), "inbox");
+  assert.equal(sandbox.window.history.replacedUrl, "/?source=pwa");
+  assert.equal(alerts[0], "open from PWA");
+  assert.deepEqual(toasts[0], { message: "open from PWA", tone: "error" });
+}
 
 const pushApiRoutes = read("server-routes/push-api-routes.js");
 assert.match(pushApiRoutes, /const clientContext = body\.clientContext/);

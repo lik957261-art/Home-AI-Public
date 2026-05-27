@@ -63,6 +63,9 @@ async function loadSelectedView() {
   const viewLoadId = (state.viewLoadSeq || 0) + 1;
   state.viewLoadSeq = viewLoadId;
   const currentViewStillSelected = () => state.viewLoadSeq === viewLoadId;
+  if (typeof guardHermesOwnedSelectedDetailNavigation === "function") {
+    guardHermesOwnedSelectedDetailNavigation();
+  }
   if (state.viewMode !== "projects") state.directoryReturnRoute = null;
   if (state.viewMode !== "todos") clearTodoAutoRefresh();
   const leavingSkillDetail = Boolean(state.skillDetail && (state.viewMode !== "tasks" || !state.currentTaskGroupId));

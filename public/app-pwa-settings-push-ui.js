@@ -113,6 +113,16 @@ function isIosPushClient() {
     || (/Macintosh/i.test(ua) && /Mobile\/\S+.*Safari/i.test(ua));
 }
 
+function mobileBrowserShellClient() {
+  const ua = navigator.userAgent || "";
+  const mobileUa = /iPad|iPhone|iPod|Android|Mobile/i.test(ua)
+    || (/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1);
+  const touchViewport = (navigator.maxTouchPoints || 0) > 0
+    && Math.min(window.innerWidth || 0, window.screen?.width || 0) > 0
+    && Math.min(window.innerWidth || 0, window.screen?.width || 0) <= 1024;
+  return Boolean(mobileUa || touchViewport);
+}
+
 function pushClientContext() {
   return {
     displayMode: currentDisplayMode(),
@@ -124,7 +134,7 @@ function pushClientContext() {
 }
 
 function hermesBrowserShellNavigationBlocked() {
-  return isIosPushClient() && !isStandalonePwa();
+  return mobileBrowserShellClient() && !isStandalonePwa();
 }
 
 function hermesAppWindowRequiredText() {

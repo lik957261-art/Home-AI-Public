@@ -180,6 +180,41 @@ function sameOriginRouteUrl(value) {
   }
 }
 
+function hermesRouteStandaloneAppWindow() {
+  return Boolean(
+    window.matchMedia?.("(display-mode: standalone)")?.matches
+    || window.matchMedia?.("(display-mode: fullscreen)")?.matches
+    || navigator.standalone === true,
+  );
+}
+
+function hermesRouteMobileBrowserShell() {
+  if (hermesRouteStandaloneAppWindow()) return false;
+  const ua = navigator.userAgent || "";
+  const mobileUa = /iPad|iPhone|iPod|Android|Mobile/i.test(ua)
+    || (/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1);
+  const touchViewport = (navigator.maxTouchPoints || 0) > 0
+    && Math.min(window.innerWidth || 0, window.screen?.width || 0) > 0
+    && Math.min(window.innerWidth || 0, window.screen?.width || 0) <= 1024;
+  return Boolean(mobileUa || touchViewport);
+}
+
+function showHermesAppWindowRequiredMessage() {
+  const message = typeof hermesAppWindowRequiredText === "function"
+    ? hermesAppWindowRequiredText()
+    : "Please reopen Hermes Mobile from the Home Screen app before opening internal detail pages.";
+  try {
+    const connectionState = $("connectionState");
+    if (connectionState) connectionState.textContent = message;
+  } catch (_) {}
+  try {
+    if (typeof showPushToast === "function") showPushToast(message, "error");
+  } catch (_) {}
+  try {
+    window.alert(message);
+  } catch (_) {}
+}
+
 function routeParamsHaveHermesOwnedDetailTarget(params) {
   if (!params) return false;
   const targetKeys = [
@@ -209,12 +244,74 @@ function replaceBlockedBrowserShellRoute() {
 
 function requireHermesAppWindowForRoute(params) {
   if (!routeParamsHaveHermesOwnedDetailTarget(params)) return true;
+  if (hermesRouteMobileBrowserShell()) {
+    showHermesAppWindowRequiredMessage();
+    replaceBlockedBrowserShellRoute();
+    return false;
+  }
   if (typeof requireHermesAppWindowForNavigation === "function") {
     const allowed = requireHermesAppWindowForNavigation();
     if (!allowed) replaceBlockedBrowserShellRoute();
     return allowed;
   }
   return true;
+}
+
+function currentHermesOwnedDetailRouteParams() {
+  const params = new URLSearchParams();
+  if (state.viewMode === "automation" && state.selectedAutomationId) {
+    params.set("view", "automation");
+    params.set("automationId", state.selectedAutomationId);
+  } else if (state.viewMode === "inbox" && state.selectedActionInboxItemId) {
+    params.set("view", "inbox");
+    params.set("inboxItemId", state.selectedActionInboxItemId);
+  } else if (state.viewMode === "todos" && state.selectedTodoId) {
+    params.set("view", "todos");
+    params.set("todoId", state.selectedTodoId);
+  } else if (state.viewMode === "learning" && state.selectedLearningTaskCardId) {
+    params.set("view", "learning");
+    params.set("taskCardId", state.selectedLearningTaskCardId);
+  } else if (state.viewMode === "tasks" && state.currentTaskGroupId) {
+    params.set("view", "tasks");
+    params.set("taskGroupId", state.currentTaskGroupId);
+  }
+  return routeParamsHaveHermesOwnedDetailTarget(params) ? params : null;
+}
+
+function clearHermesOwnedDetailStateAfterBrowserShellBlock() {
+  const returnToInbox = state.viewMode === "automation"
+    && (state.automationReturnRoute === "inbox" || state.automationReturnInboxItemId);
+  if (state.viewMode === "automation") {
+    Object.assign(state, {
+      selectedAutomationId: "",
+      automationRouteTargetId: "",
+      automationRouteTargetPending: false,
+      automationEditOpen: false,
+      automationEditJobId: "",
+      automationOutputHistoryOpen: false,
+    });
+    if (returnToInbox) state.viewMode = "inbox";
+  } else if (state.viewMode === "inbox") {
+    state.selectedActionInboxItemId = "";
+  } else if (state.viewMode === "todos") {
+    state.selectedTodoId = "";
+  } else if (state.viewMode === "learning") {
+    state.selectedLearningTaskCardId = "";
+  } else if (state.viewMode === "tasks") {
+    Object.assign(state, { currentTaskGroupId: "", currentThread: null, currentThreadId: "" });
+  }
+  state.automationReturnRoute = "";
+  state.automationReturnScope = "";
+  state.automationReturnInboxItemId = "";
+  localStorage.setItem("hermesWebViewMode", state.viewMode || "single");
+}
+
+function guardHermesOwnedSelectedDetailNavigation() {
+  const params = currentHermesOwnedDetailRouteParams();
+  if (!params) return true;
+  if (requireHermesAppWindowForRoute(params)) return true;
+  clearHermesOwnedDetailStateAfterBrowserShellBlock();
+  return false;
 }
 
 function applyRouteParams(params) {

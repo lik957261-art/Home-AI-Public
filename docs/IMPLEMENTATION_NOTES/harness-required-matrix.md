@@ -217,6 +217,9 @@ Required harness dimensions:
   `openNotificationRoute()` applies route params.
 - The same guard must also apply before startup URL routing calls
   `applyRouteParams()`, because browser shells can load detail URLs directly.
+- The same guard must also apply before selected-detail state is rendered by
+  `loadSelectedView()`, because browser shells can already hold or restore
+  `viewMode=automation` plus `selectedAutomationId` without a URL route parse.
 - Old client/service-worker version behavior fails safely.
 
 Primary docs:
