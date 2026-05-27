@@ -30,6 +30,7 @@
 - Require iOS subscriptions to be created from the installed PWA and include `clientContext.displayMode`, `clientContext.standalone`, and `clientContext.clientVersion`.
 - Filter legacy iOS browser subscriptions during delivery. If the user needs iPhone push again, re-enable notification from the installed Hermes Mobile app after the new client version is active.
 - Gate internal notification/source-detail navigation on iOS when the client is not PWA standalone. The route should stop and prompt the user to reopen the installed Hermes Mobile app instead of showing a detail page inside a browser frame.
+- Apply the gate to both click-time routing and startup URL routing. If the app starts with `?view=automation&automationId=...` inside a browser shell, startup route parsing must stop before rendering the detail page.
 - Add stable ids to the payload producer.
 - Make the target module force an authenticated fetch that includes the target even if search/limit would otherwise hide it.
 - Bump static client/cache version when service worker or route JS changes.

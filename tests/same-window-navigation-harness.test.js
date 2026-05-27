@@ -51,7 +51,10 @@ assert.match(pwaPushUi, /clientContext,[\s\S]*displayMode: clientContext\.displa
 
 const platformUi = read("public/app-platform-ui.js");
 assert.match(platformUi, /function sameOriginRouteUrl\(value\)/);
-assert.match(platformUi, /typeof requireHermesAppWindowForNavigation === "function"[\s\S]*!requireHermesAppWindowForNavigation\(\)/);
+assert.match(platformUi, /function routeParamsHaveHermesOwnedDetailTarget\(params\)/);
+assert.match(platformUi, /function requireHermesAppWindowForRoute\(params\)/);
+assert.match(platformUi, /function applyRouteFromUrl\(value\) \{[\s\S]*?const params = new URLSearchParams\(parsed\.search \|\| ""\);[\s\S]*?if \(!requireHermesAppWindowForRoute\(params\)\) return false;[\s\S]*?return applyRouteParams\(params\);/);
+assert.match(platformUi, /function openNotificationRoute\(value\) \{[\s\S]*?const params = new URLSearchParams\(parsed\.search \|\| ""\);[\s\S]*?if \(!requireHermesAppWindowForRoute\(params\)\) return;[\s\S]*?if \(!applyRouteParams\(params\)\) return;/);
 
 const pushApiRoutes = read("server-routes/push-api-routes.js");
 assert.match(pushApiRoutes, /const clientContext = body\.clientContext/);

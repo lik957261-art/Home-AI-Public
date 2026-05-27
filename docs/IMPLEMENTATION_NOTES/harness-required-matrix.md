@@ -215,6 +215,8 @@ Required harness dimensions:
 - iOS browser-shell clients must not continue Hermes-owned notification/source
   detail navigation. The harness must assert a PWA standalone guard before
   `openNotificationRoute()` applies route params.
+- The same guard must also apply before startup URL routing calls
+  `applyRouteParams()`, because browser shells can load detail URLs directly.
 - Old client/service-worker version behavior fails safely.
 
 Primary docs:

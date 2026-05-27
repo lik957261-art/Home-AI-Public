@@ -180,6 +180,43 @@ function sameOriginRouteUrl(value) {
   }
 }
 
+function routeParamsHaveHermesOwnedDetailTarget(params) {
+  if (!params) return false;
+  const targetKeys = [
+    "automationId",
+    "inboxItemId",
+    "actionInboxItemId",
+    "sourceInboxItemId",
+    "todoId",
+    "taskCardId",
+    "taskGroupId",
+    "taskId",
+    "messageId",
+    "projectId",
+    "subprojectId",
+    "directoryPath",
+    "directoryRoot",
+  ];
+  return targetKeys.some((key) => String(params.get(key) || "").trim());
+}
+
+function replaceBlockedBrowserShellRoute() {
+  try {
+    const nextState = Object.assign({}, window.history.state || {}, { hermesWebBase: true });
+    window.history.replaceState(nextState, "", "/?source=pwa");
+  } catch (_) {}
+}
+
+function requireHermesAppWindowForRoute(params) {
+  if (!routeParamsHaveHermesOwnedDetailTarget(params)) return true;
+  if (typeof requireHermesAppWindowForNavigation === "function") {
+    const allowed = requireHermesAppWindowForNavigation();
+    if (!allowed) replaceBlockedBrowserShellRoute();
+    return allowed;
+  }
+  return true;
+}
+
 function applyRouteParams(params) {
   const automationId = String(params.get("automationId") || "").trim(); const inboxItemId = String(params.get("inboxItemId") || params.get("actionInboxItemId") || "").trim();
   const automationReturnTo = String(params.get("returnTo") || params.get("return_route") || "").trim().toLowerCase();
@@ -276,7 +313,9 @@ function applyRouteParams(params) {
 function applyRouteFromUrl(value) {
   const parsed = sameOriginRouteUrl(value);
   if (!parsed) return false;
-  return applyRouteParams(new URLSearchParams(parsed.search || ""));
+  const params = new URLSearchParams(parsed.search || "");
+  if (!requireHermesAppWindowForRoute(params)) return false;
+  return applyRouteParams(params);
 }
 
 function applyInitialRouteFromUrl() {
@@ -303,11 +342,9 @@ function replaceTodoDetailRouteFlag(todoId, flagName) {
 async function openNotificationRoute(value) {
   const parsed = sameOriginRouteUrl(value);
   if (!parsed) return;
-  if (
-    typeof requireHermesAppWindowForNavigation === "function"
-    && !requireHermesAppWindowForNavigation()
-  ) return;
-  if (!applyRouteParams(new URLSearchParams(parsed.search || ""))) return;
+  const params = new URLSearchParams(parsed.search || "");
+  if (!requireHermesAppWindowForRoute(params)) return;
+  if (!applyRouteParams(params)) return;
   suppressComposerAutoFocus(1200);
   blurComposerInput();
   try {
