@@ -50,14 +50,23 @@ function Write-WeixinIngressBridgeLog {
 
 function Invoke-WeixinIngressBridgeBash {
     param([string]$Script)
-    $encoded = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($Script))
-    $command = "printf '%s' '$encoded' | base64 -d | bash"
-    $output = & wsl.exe -d $DistroName -u $WslUser -- bash -lc $command 2>&1 | ForEach-Object { $_.ToString() }
-    $exitCode = $LASTEXITCODE
-    foreach ($line in $output) { Write-WeixinIngressBridgeLog ("wsl: {0}" -f $line) }
-    return [pscustomobject]@{
-        ExitCode = $exitCode
-        Output = $output
+    $tmpScript = Join-Path ([System.IO.Path]::GetTempPath()) ("hermes-weixin-ingress-bridge-{0}.sh" -f ([Guid]::NewGuid().ToString("N")))
+    $encoding = New-Object System.Text.UTF8Encoding($false)
+    try {
+        [System.IO.File]::WriteAllText($tmpScript, $Script, $encoding)
+        $wslScript = & wsl.exe -d $DistroName -u $WslUser -- wslpath -a $tmpScript 2>&1 | Select-Object -First 1
+        if ($LASTEXITCODE -ne 0 -or -not $wslScript) {
+            throw "Failed to convert Weixin ingress bridge script path for WSL."
+        }
+        $output = & wsl.exe -d $DistroName -u $WslUser -- bash $wslScript 2>&1 | ForEach-Object { $_.ToString() }
+        $exitCode = $LASTEXITCODE
+        foreach ($line in $output) { Write-WeixinIngressBridgeLog ("wsl: {0}" -f $line) }
+        return [pscustomobject]@{
+            ExitCode = $exitCode
+            Output = $output
+        }
+    } finally {
+        Remove-Item -LiteralPath $tmpScript -Force -ErrorAction SilentlyContinue
     }
 }
 

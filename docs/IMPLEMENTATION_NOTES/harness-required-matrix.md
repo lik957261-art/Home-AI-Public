@@ -1,6 +1,6 @@
 # Harness Required Matrix
 
-Last updated: 2026-05-26.
+Last updated: 2026-05-27.
 
 This document defines when Hermes Mobile changes must add or run a workflow
 harness instead of relying only on unit tests, focused UI tests, or manual
@@ -149,6 +149,33 @@ Primary docs:
 - `docs/MODULES/automation.md`
 - `docs/MODULES/grok-gateway.md`
 - `docs/RUNBOOKS/grok-gateway-auth.md`
+
+### Cross-Shell Production Operations
+
+Applies to PowerShell-driven WSL operations, Gateway Pool startup and repair,
+production hotfix scripts, backup scripts, connector provisioning, and runbook
+commands that cross the Windows/WSL boundary.
+
+Required harness dimensions:
+
+- PowerShell must not pass inline or multi-line Bash through `bash -lc` or
+  `bash -c`.
+- Multi-line Bash must be written to a UTF-8 no-BOM script file, converted with
+  `wslpath`, and executed as `bash <script-path>`.
+- Secrets must be passed through existing secret files or environment variables,
+  not interpolated into generated script text or logs.
+- Generated operational scripts must have stable names, be logged by metadata
+  only, and be removed when they are one-off temporary scripts.
+- PowerShell parse checks and shell syntax checks must cover touched startup or
+  production-operation scripts.
+- The repository scan must reject new inline PowerShell-to-Bash quoting patterns.
+
+Primary docs and tests:
+
+- `docs/MODULES/gateway-pool.md`
+- `docs/RUNBOOKS/codex-responses-stream-output-none.md`
+- `node tests\cross-shell-command-harness.test.js`
+- `node tests\startup-scripts.test.js`
 
 ### Web Push Click And Route Workflow
 

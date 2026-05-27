@@ -315,11 +315,12 @@ function updateTopMoreControls() {
     newAutomation.disabled = !(automationList || inboxView);
   }
   const selectedInboxItem = typeof currentActionInboxItem === "function" ? currentActionInboxItem() : null;
+  const selectedInboxItemLink = typeof actionInboxSourceDeepLink === "function" ? actionInboxSourceDeepLink(selectedInboxItem) : (selectedInboxItem?.deepLink || "");
   const inboxItemTerminal = !selectedInboxItem || ["done", "dismissed", "archived"].includes(String(selectedInboxItem.status || "").toLowerCase());
   const openInboxItem = $("topOpenActionInboxItem");
   if (openInboxItem) {
-    openInboxItem.hidden = !actionInboxDetail || !selectedInboxItem?.deepLink;
-    openInboxItem.disabled = !actionInboxDetail || !selectedInboxItem?.deepLink;
+    openInboxItem.hidden = !actionInboxDetail || !selectedInboxItemLink;
+    openInboxItem.disabled = !actionInboxDetail || !selectedInboxItemLink;
     openInboxItem.textContent = selectedInboxItem?.actionLabel || "\u6253\u5f00";
   }
   const completeInboxItem = $("topCompleteActionInboxItem");

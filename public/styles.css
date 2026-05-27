@@ -11334,6 +11334,17 @@ body.task-markdown-preview-open {
   line-height: 1.5;
 }
 
+.action-inbox-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.action-inbox-detail-actions .secondary-button {
+  min-height: 34px;
+}
+
 .action-inbox-events {
   display: grid;
   gap: 6px;
@@ -11916,6 +11927,10 @@ body.task-markdown-preview-open {
   color: var(--danger);
   background: rgba(164, 61, 53, 0.07);
   border-color: rgba(164, 61, 53, 0.2);
+}
+
+.automation-error-context {
+  font-size: 13px;
 }
 
 .composer {

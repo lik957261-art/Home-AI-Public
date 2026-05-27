@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260526-growth-feedback-complete-v263";
+const CLIENT_VERSION = "20260527-inbox-automation-link-v264";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -154,6 +154,10 @@ assert.match(appJs, /taskDocumentPreviewOverlay/);
 assert.match(stylesCss, /\.task-document-preview-overlay/);
 assert.match(stylesCss, /\.task-document-preview-frame \{[\s\S]*?border: 0;/);
 assert.match(appJs, /function automationDocumentMime\(doc\)/);
+assert.match(appJs, /function automationFailureHasNoFreshDeliverable\(job, latestDoc = automationLatestDocument\(job\)\)/);
+assert.match(appJs, /function renderAutomationFailureContext\(job, latestDoc = automationLatestDocument\(job\)\)/);
+assert.match(appJs, /renderAutomationFailureContext\(job, latestDoc\)/);
+assert.match(stylesCss, /\.automation-error-context \{[\s\S]*?font-size: 13px;/);
 assert.match(appJs, /params\.set\("detail", options\.detail === "summary" \? "summary" : "full"\)/);
 assert.match(appJs, /options\.ignoreSearch \? "" : currentSearchText\(\)/);
 assert.match(appJs, /if \(routeAutomationId\) params\.set\("automationId", routeAutomationId\)/);
@@ -214,9 +218,16 @@ assert.match(appJs, /openAutomationSurface\(\{ returnTo: state\.viewMode === "in
 assert.match(appJs, /openAutomationSurface\(\{ create: true, returnTo: state\.viewMode === "inbox" \? "inbox" : "" \}\)\.catch\(showError\)/);
 assert.match(appJs, /function openActionInboxCreate\(\)/);
 assert.match(appJs, /function openCurrentActionInboxItemLink\(\)/);
+assert.match(appJs, /function actionInboxSourceDeepLink\(item = \{\}\)/);
+assert.match(appJs, /sourceRef\.automationId \|\| sourceRef\.automation_id \|\| item\?\.sourceId \|\| item\?\.source_id/);
+assert.match(appJs, /data-action-inbox-open-source/);
+assert.match(appJs, /openCurrentActionInboxItemLink\(\)\.catch\(showError\)/);
+assert.match(appJs, /const link = actionInboxSourceDeepLink\(item\)/);
+assert.match(stylesCss, /\.action-inbox-detail-actions \{[\s\S]*?display: flex;[\s\S]*?gap: 8px;/);
 assert.match(appJs, /\$\("threadTitle"\)\.textContent = creating \? "\\u65b0\\u589e\\u4e8b\\u9879" : \(item \? "\\u6536\\u4ef6\\u8be6\\u60c5" : "\\u6536\\u4ef6\\u7bb1"\)/);
 assert.match(appJs, /conversation\.innerHTML = `<section class="action-inbox-shell\$\{creating \|\| item \? " action-inbox-secondary" : ""\}">/);
-assert.match(appJs, /openInboxItem\.hidden = !actionInboxDetail \|\| !selectedInboxItem\?\.deepLink/);
+assert.match(appJs, /const selectedInboxItemLink = typeof actionInboxSourceDeepLink === "function" \? actionInboxSourceDeepLink\(selectedInboxItem\) : \(selectedInboxItem\?\.deepLink \|\| ""\)/);
+assert.match(appJs, /openInboxItem\.hidden = !actionInboxDetail \|\| !selectedInboxItemLink/);
 assert.match(appJs, /completeInboxItem\.hidden = !actionInboxDetail \|\| inboxItemTerminal/);
 assert.match(appJs, /\$\("topNewActionInbox"\)\?\.addEventListener\("click", \(\) => \{\s+closeTopMoreMenu\(\);\s+openActionInboxCreate\(\);/);
 assert.match(appJs, /\$\("topOpenActionInboxItem"\)\?\.addEventListener\("click", \(\) => \{\s+closeTopMoreMenu\(\);\s+openCurrentActionInboxItemLink\(\)\.catch\(showError\);/);
@@ -379,9 +390,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260526-growth-feedback-complete-v263/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260526-growth-feedback-complete-v263/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260526-growth-feedback-complete-v263/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260527-inbox-automation-link-v264/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260527-inbox-automation-link-v264/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260527-inbox-automation-link-v264/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);

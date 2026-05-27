@@ -71,6 +71,28 @@ function actionInboxCountsText() {
   return `${"\u5f85\u5904\u7406"} ${open} · ${"\u7a0d\u540e"} ${waiting} · ${"\u5df2\u5b8c\u6210"} ${done}`;
 }
 
+function actionInboxSourceDeepLink(item = {}) {
+  const explicit = String(item?.deepLink || item?.deep_link || "").trim();
+  if (explicit) return explicit;
+  const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
+  const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
+  const workspaceId = String(item?.workspaceId || item?.assigneeWorkspaceId || state.selectedWorkspaceId || "owner").trim() || "owner";
+  if (sourceType === "automation") {
+    const automationId = String(sourceRef.automationId || sourceRef.automation_id || item?.sourceId || item?.source_id || "").trim();
+    if (automationId) {
+      const params = new URLSearchParams({ view: "automation", workspaceId, automationId });
+      return `/?${params.toString()}`;
+    }
+  }
+  return "";
+}
+
+function actionInboxSourceActionLabel(item = {}) {
+  const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
+  if (sourceType === "automation") return "\u6253\u5f00\u81ea\u52a8\u5316\u4efb\u52a1";
+  return "\u6253\u5f00\u6765\u6e90";
+}
+
 async function loadActionInbox(options = {}) {
   const seq = (state.actionInboxRequestSeq || 0) + 1;
   state.actionInboxRequestSeq = seq;
@@ -169,6 +191,7 @@ function renderActionInboxDetail() {
   const item = currentActionInboxItem();
   if (!item) return "";
   const events = Array.isArray(state.actionInboxDetail?.events) ? state.actionInboxDetail.events : [];
+  const sourceLink = actionInboxSourceDeepLink(item);
   return `<section class="action-inbox-detail" aria-label="${"\u6536\u4ef6\u8be6\u60c5"}">
     <h3>${escapeHtml(item.title || item.id || "\u6536\u4ef6")}</h3>
     ${item.summary ? `<p>${escapeHtml(item.summary)}</p>` : ""}
@@ -178,6 +201,7 @@ function renderActionInboxDetail() {
       <span class="action-inbox-status ${escapeHtml(actionInboxStatusTone(item.status))}">${escapeHtml(actionInboxStatusLabel(item.status))}</span>
       <span>${"\u66f4\u65b0\uff1a"}${escapeHtml(formatTime(item.updatedAt || item.createdAt) || item.updatedAt || item.createdAt || "")}</span>
     </div>
+    ${sourceLink ? `<div class="action-inbox-detail-actions"><button class="secondary-button compact" type="button" data-action-inbox-open-source>${escapeHtml(actionInboxSourceActionLabel(item))}</button></div>` : ""}
     ${events.length ? `<div class="action-inbox-events">
       ${events.slice(0, 8).map((event) => `<div class="action-inbox-event">
         <span>${escapeHtml(event.eventType || "event")}</span>
@@ -252,11 +276,15 @@ function wireActionInboxView(root) {
       loadActionInboxItem(button.dataset.actionInboxId).catch(showError);
     });
   });
+  root.querySelector("[data-action-inbox-open-source]")?.addEventListener("click", () => {
+    openCurrentActionInboxItemLink().catch(showError);
+  });
 }
 
 function openCurrentActionInboxItemLink() {
   const item = currentActionInboxItem();
-  if (item?.deepLink && typeof openNotificationRoute === "function") return openNotificationRoute(item.deepLink);
+  const link = actionInboxSourceDeepLink(item);
+  if (link && typeof openNotificationRoute === "function") return openNotificationRoute(link);
   return Promise.resolve(null);
 }
 

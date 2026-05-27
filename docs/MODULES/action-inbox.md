@@ -138,4 +138,5 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
 - Keep source modules canonical; Inbox only stores summary/action projection and audit events.
 - Dedupe by stable source references so repeated refreshes or Web Push deliveries do not create duplicate items.
 - Web Push should deep-link to Inbox when the user's next action is best represented there.
+- Inbox detail must expose a clear source action when `deepLink` or a safe `sourceRef` route exists. Automation items should open the matching Automation detail by `automationId`, not only the Automation list.
 - Do not store raw secrets, access keys, push endpoints, raw prompts, full learner answers, full transcripts, or long automation outputs in Inbox records.

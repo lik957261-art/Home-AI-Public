@@ -271,6 +271,25 @@ function automationStatusText(job, status = automationStatusLabel(job)) {
   return "\u8ba1\u5212\u4e2d";
 }
 
+function automationRunTimeMs(value) {
+  const ms = Date.parse(String(value || ""));
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function automationFailureHasNoFreshDeliverable(job, latestDoc = automationLatestDocument(job)) {
+  if (automationStatusTone(job) !== "error") return false;
+  const lastRunMs = automationRunTimeMs(job?.lastRunAt);
+  if (!lastRunMs) return false;
+  const docMs = automationRunTimeMs(latestDoc?.runOutputUpdatedAt || latestDoc?.updatedAt || latestDoc?.createdAt);
+  return !docMs || docMs + 1000 < lastRunMs;
+}
+
+function renderAutomationFailureContext(job, latestDoc = automationLatestDocument(job)) {
+  if (!automationFailureHasNoFreshDeliverable(job, latestDoc)) return "";
+  const previous = latestDoc?.name ? `\u4e0b\u65b9\u4ecd\u4fdd\u7559\u7684\u662f\u4e0a\u4e00\u6b21\u4ea4\u4ed8\uff1a${latestDoc.name}` : "\u672c\u4efb\u52a1\u6682\u65e0\u53ef\u7528\u5386\u53f2\u4ea4\u4ed8\u3002";
+  return `<div class="automation-error automation-error-context">${"\u672c\u6b21\u6267\u884c\u5931\u8d25\uff0c\u6ca1\u6709\u4ea7\u751f\u65b0\u4ea4\u4ed8\u6587\u4ef6\u3002"}${escapeHtml(previous)}</div>`;
+}
+
 function renderAutomationStatusSummary(job, status = automationStatusLabel(job)) {
   const tone = automationStatusTone(job, status);
   const text = automationStatusText(job, status);
@@ -532,6 +551,7 @@ function renderAutomationDetail(job) {
   const status = automationStatusLabel(job);
   const statusTone = automationStatusTone(job, status);
   const statusText = automationStatusText(job, status);
+  const latestDoc = automationLatestDocument(job);
   const meta = [
     automationScheduleLine(job),
     job.ownerPrincipalId ? `Owner ${job.ownerPrincipalId}` : "",
@@ -572,6 +592,7 @@ function renderAutomationDetail(job) {
       ${timeRows.map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div>`).join("")}
     </div>
     ${detailLoadingBlock}
+    ${renderAutomationFailureContext(job, latestDoc)}
     ${renderAutomationOutputLinks(job)}
     ${detailRows.length ? `<div class="automation-detail-grid">
       ${detailRows.map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div>`).join("")}

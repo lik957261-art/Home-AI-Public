@@ -1,6 +1,6 @@
 # Hermes Mobile Test Matrix
 
-Last updated: 2026-05-26.
+Last updated: 2026-05-27.
 
 Use this matrix to pick focused tests before broader gates. Always add syntax checks for touched JS/Python/PowerShell files.
 
@@ -28,8 +28,8 @@ Before implementing non-trivial workflow changes, classify the change with
   scroll, or service-worker behavior.
 
 H1 includes Growth learning cards, Action Inbox passive notifications,
-Automation/Cron execution, Web Push click routing, permission/workspace
-boundaries, and Public Export/Release.
+Automation/Cron execution, cross-shell production operations, Web Push click
+routing, permission/workspace boundaries, and Public Export/Release.
 
 ## CodeGraph-Assisted Test Selection
 
@@ -63,7 +63,7 @@ matrix.
 | Auth/workspace/access keys | `node tests\auth-provider.test.js`, `node tests\access-key-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\workspace-public-projection-service.test.js` |
 | Gateway run lifecycle | `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-stream-service.test.js`, `node tests\gateway-run-lifecycle-service.test.js`, `node tests\gateway-run-queue-service.test.js`, `node tests\run-liveness.test.js` |
 | Chat context/compaction | `node tests\conversation-history-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\topic-context-compaction-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\mobile-sqlite-store.test.js` |
-| Gateway Pool/scripts | `node tests\gateway-pool-provider.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js` |
+| Gateway Pool/scripts | `node tests\gateway-pool-provider.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\cross-shell-command-harness.test.js` |
 | ChatGPT Pro | `node tests\chatgpt-pro-codex-bridge-service.test.js`, `node tests\owner-elevation-routing-service.test.js`, `node tests\thread-message-create-service.test.js` |
 | Grok/model routing | `node tests\gateway-model-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js` |
 | Web Push | `node tests\web-push-delivery-service.test.js`, `node tests\push-api-routes.test.js`, `node tests\task-list-ui.test.js` |

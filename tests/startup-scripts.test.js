@@ -124,7 +124,8 @@ assert.match(startGatewayPool, /function Add-OwnerMaintenanceSharedMemoryCommand
 assert.match(startGatewayPool, /stop-low-gateways\.sh/);
 assert.match(startGatewayPool, /pkill -u hermes -f 'hermes_cli\\\.main \.\*gateway run'/);
 assert.match(startGatewayPool, /Stopping legacy official-distro low gateway processes before pool start/);
-assert.match(startGatewayPool, /wsl\.exe -d \$OfficialDistro -u root -- bash -lc \$legacyStopScript/);
+assert.match(startGatewayPool, /stop-legacy-official-low-gateways\.sh/);
+assert.match(startGatewayPool, /Invoke-GatewayPoolWslBashFile -Distro \$OfficialDistro -User "root" -ScriptPath \$legacyStopShell/);
 assert.match(startGatewayPool, /legacy-lowgw-stop:/);
 assert.match(startGatewayPool, /Stop-LowGateways\s*\r?\n\s*Write-GatewayPoolLog "Starting low gateway pool\."/);
 assert.match(startGatewayPool, /provision-worker-external-connectors\.ps1/);
@@ -162,6 +163,8 @@ assert.match(startGatewayPool, /Invoke-GatewayPoolPhase -Name "install-owner-mai
 assert.match(startGatewayPool, /Invoke-GatewayPoolPhase -Name "start-owner-maintenance-gateways"/);
 assert.match(startGatewayPool, /\$env:API_SERVER_KEY = \$apiKey/);
 assert.match(startGatewayPool, /\$env:WSLENV = "API_SERVER_KEY\/u"/);
+assert.match(startGatewayPool, /start-owner-maintenance-gateways\.sh/);
+assert.match(startGatewayPool, /Invoke-GatewayPoolWslBashFile -Distro \$OfficialDistro -User \$OfficialUser -ScriptPath \$ownerMaintenanceStartShell/);
 assert.match(startGatewayPool, /PYTHONPATH=\$officialCleanRoot/);
 assert.match(startGatewayPool, /HERMES_HOME=\$profileRoot/);
 assert.match(startGatewayPool, /HERMES_PROFILE=\$profile/);
@@ -207,6 +210,7 @@ assert.doesNotMatch(startGatewayPool, /ln -sfn .*\/home\/\$OfficialUser\/\.herme
 assert.doesNotMatch(startGatewayPool, /\/home\/\$OfficialUser\/\.local\/bin\/hermes/);
 assert.match(startGatewayPool, /Gateway pool startup OK; healthy ports/);
 assert.doesNotMatch(startGatewayPool, /Write-GatewayPoolLog .*apiKey/i);
+assert.doesNotMatch(startGatewayPool, /bash\s+-lc/);
 
 assert.match(runAsWorker, /\[Parameter\(Mandatory = \$true\)\]/);
 assert.match(runAsWorker, /worker-credential\.xml/);
@@ -416,6 +420,8 @@ assert.match(startWeixinFrontGateway, /ensure-weixin-todo-dispatcher\.sh/);
 assert.match(startWeixinFrontGateway, /ensure-weixin-delivery-queue-dispatcher\.sh/);
 assert.match(startWeixinFrontGateway, /WEIXIN_FRONT_GATEWAY_OK/);
 assert.doesNotMatch(startWeixinFrontGateway, /Hermes Gateway WSL/);
+assert.match(startWeixinFrontGateway, /wslpath -a \$tmpScript/);
+assert.doesNotMatch(startWeixinFrontGateway, /bash\s+-lc/);
 
 assert.match(startWeixinMobileIngressBridge, /weixin-mobile-ingress-bridge\.py/);
 assert.match(startWeixinMobileIngressBridge, /HERMES_MOBILE_WEIXIN_INGRESS_KEY_FILE/);
@@ -428,6 +434,8 @@ assert.match(startWeixinMobileIngressBridge, /ensure-weixin-reminder-dispatcher\
 assert.match(startWeixinMobileIngressBridge, /ensure-weixin-todo-dispatcher\.sh/);
 assert.match(startWeixinMobileIngressBridge, /ensure-weixin-delivery-queue-dispatcher\.sh/);
 assert.doesNotMatch(startWeixinMobileIngressBridge, /hermes_cli\.main gateway run --replace/);
+assert.match(startWeixinMobileIngressBridge, /wslpath -a \$tmpScript/);
+assert.doesNotMatch(startWeixinMobileIngressBridge, /bash\s+-lc/);
 assert.match(weixinMobileIngressBridge, /class MobileIngressBridge/);
 assert.match(weixinMobileIngressBridge, /class MobileIngressWeixinAdapter/);
 assert.match(weixinMobileIngressBridge, /post_inbound_event/);

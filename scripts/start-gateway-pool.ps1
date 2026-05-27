@@ -27,6 +27,35 @@ function Write-GatewayPoolLog {
   Add-Content -LiteralPath $logPath -Value $line -Encoding UTF8
 }
 
+function Convert-GatewayPoolWindowsPathToWslPath {
+  param(
+    [string]$Distro,
+    [string]$User,
+    [string]$WindowsPath
+  )
+  $resolved = (Resolve-Path -LiteralPath $WindowsPath).Path
+  $portable = $resolved.Replace([string][char]92, "/")
+  $output = & wsl.exe -d $Distro -u $User -- wslpath -a $portable 2>&1 | ForEach-Object { $_.ToString() }
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to convert Windows path to WSL path: $resolved"
+  }
+  return ($output | Select-Object -First 1)
+}
+
+function Invoke-GatewayPoolWslBashFile {
+  param(
+    [string]$Distro,
+    [string]$User,
+    [string]$ScriptPath
+  )
+  $wslScriptPath = Convert-GatewayPoolWindowsPathToWslPath -Distro $Distro -User $User -WindowsPath $ScriptPath
+  $output = & wsl.exe -d $Distro -u $User -- bash $wslScriptPath 2>&1 | ForEach-Object { $_.ToString() }
+  return [pscustomobject]@{
+    ExitCode = $LASTEXITCODE
+    Output = @($output)
+  }
+}
+
 function Invoke-GatewayPoolPhase {
   param(
     [string]$Name,
@@ -475,15 +504,17 @@ if command -v pkill >/dev/null 2>&1; then
 fi
 sleep 1
 
-if command -v pkill >/dev/null 2>&1; then
-  pkill -9 -u hermes -f 'hermes_cli\.main .*gateway run' || true
-fi
+  if command -v pkill >/dev/null 2>&1; then
+    pkill -9 -u hermes -f 'hermes_cli\.main .*gateway run' || true
+  fi
 '@
+  $legacyStopShell = Join-Path $GatewayWorkerRoot "stop-legacy-official-low-gateways.sh"
+  [System.IO.File]::WriteAllText($legacyStopShell, $legacyStopScript, $encoding)
 
   Write-GatewayPoolLog "Stopping legacy official-distro low gateway processes before pool start."
-  $legacyOutput = & wsl.exe -d $OfficialDistro -u root -- bash -lc $legacyStopScript 2>&1
-  foreach ($line in $legacyOutput) { Write-GatewayPoolLog ("legacy-lowgw-stop: {0}" -f $line) }
-  if ($LASTEXITCODE -ne 0) { throw "Legacy official-distro low gateway stop failed with exit code $LASTEXITCODE" }
+  $legacyResult = Invoke-GatewayPoolWslBashFile -Distro $OfficialDistro -User "root" -ScriptPath $legacyStopShell
+  foreach ($line in $legacyResult.Output) { Write-GatewayPoolLog ("legacy-lowgw-stop: {0}" -f $line) }
+  if ($legacyResult.ExitCode -ne 0) { throw "Legacy official-distro low gateway stop failed with exit code $($legacyResult.ExitCode)" }
 }
 
 function Start-LowGateways {
@@ -636,14 +667,18 @@ function Start-OwnerMaintenanceGateways {
     }
     [void]$commands.Add("setsid -f env HOME=/home/$OfficialUser HERMES_HOME=$profileRoot HERMES_PROFILE=$profile PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 HERMES_MOBILE_CHATGPT_PRO_BRIDGE_URL=`"`$mobile_bridge_host_url/bridge/chatgpt-pro`" HERMES_WEB_CHATGPT_PRO_BRIDGE_URL=`"`$mobile_bridge_host_url/bridge/chatgpt-pro`" HERMES_MOBILE_CHATGPT_PRO_BRIDGE_KEY_PATH=$bridgeKeyPath HERMES_WEB_CHATGPT_PRO_BRIDGE_KEY_PATH=$bridgeKeyPath HERMES_MOBILE_CHATGPT_PRO_TIMEOUT_SECONDS=1800 HERMES_WEB_CHATGPT_PRO_TIMEOUT_SECONDS=1800 $officialPython -m hermes_cli.main gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1")
   }
-  $bash = $commands -join "; "
+  $ownerMaintenanceStartShell = Join-Path $GatewayWorkerRoot "start-owner-maintenance-gateways.sh"
+  $bash = "set -euo pipefail`n" + ($commands -join "`n") + "`n"
+  $encoding = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllText($ownerMaintenanceStartShell, $bash, $encoding)
 
   Write-GatewayPoolLog "Starting owner-maintenance gateway pool."
   $env:API_SERVER_KEY = $apiKey
   $env:WSLENV = "API_SERVER_KEY/u"
   try {
-    & wsl.exe -d $OfficialDistro -u $OfficialUser -- bash -lc $bash
-    if ($LASTEXITCODE -ne 0) { throw "Owner-maintenance gateway start failed with exit code $LASTEXITCODE" }
+    $ownerMaintenanceResult = Invoke-GatewayPoolWslBashFile -Distro $OfficialDistro -User $OfficialUser -ScriptPath $ownerMaintenanceStartShell
+    foreach ($line in $ownerMaintenanceResult.Output) { Write-GatewayPoolLog ("owner-maintenance-start: {0}" -f $line) }
+    if ($ownerMaintenanceResult.ExitCode -ne 0) { throw "Owner-maintenance gateway start failed with exit code $($ownerMaintenanceResult.ExitCode)" }
   } finally {
     Remove-Item Env:\API_SERVER_KEY -ErrorAction SilentlyContinue
     Remove-Item Env:\WSLENV -ErrorAction SilentlyContinue

@@ -49,6 +49,25 @@ leaving the UI in `running` indefinitely.
 ChatGPT Pro bridge runs may still set a stream-specific longer start/liveness
 window because those jobs can be intentionally long-running.
 
+## Codex Responses Stream Compatibility
+
+If `openai-codex` workers fail across unrelated chat or Automation runs with
+`TypeError: 'NoneType' object is not iterable` and `HTTP None`, check
+`docs/RUNBOOKS/codex-responses-stream-output-none.md` before blaming the
+Automation job, XSearch, Grok routing, or task prompt. The known 2026-05-27
+failure class is a `chatgpt.com/backend-api/codex` streaming response whose
+terminal `response.output` is `None`; the Gateway runtime must fall back to the
+raw stream path and backfill output from streamed items.
+
+## Cross-Shell Operation Rule
+
+Gateway Pool operations often cross from Windows PowerShell into WSL. Do not
+pass inline or multi-line Bash through `bash -lc` or `bash -c` from PowerShell.
+Write the Bash body to a UTF-8 no-BOM script file, convert the Windows path with
+`wslpath`, and execute `bash <script-path>`. This rule is enforced by
+`node tests\cross-shell-command-harness.test.js` so production hotfixes and
+startup scripts do not fail because of PowerShell/Bash quote expansion.
+
 ## Profile MCP Registration
 
 - Low Gateway profile MCP servers are generated into each profile `config.yaml` by `C:\ProgramData\HermesMobile\gateway-worker\configure-low-gateways.sh`.
@@ -75,6 +94,7 @@ It must not replace a maintenance worker during a long tool call merely because 
 ## Validation
 
 - `node tests\startup-scripts.test.js`
+- `node tests\cross-shell-command-harness.test.js`
 - PowerShell parse check for `scripts\start-gateway-pool.ps1`
 - `/api/status?detail=1` should report expected worker count and healthy workers.
 
