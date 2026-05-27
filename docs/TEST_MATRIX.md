@@ -31,6 +31,12 @@ H1 includes Growth learning cards, Action Inbox passive notifications,
 Automation/Cron execution, cross-shell production operations, Web Push click
 routing, permission/workspace boundaries, and Public Export/Release.
 
+For same-window navigation and browser-frame bugs, the required harness must
+cover both root-mounted and prefix-mounted app-shell paths. If the issue is
+reported through an external reverse-proxy/PWA URL, validation must include
+that exact external entry path and the changed route-helper JavaScript from the
+same origin/path; local root smoke alone is insufficient.
+
 ## CodeGraph-Assisted Test Selection
 
 Use CodeGraph for structural test selection, not as a replacement for the test

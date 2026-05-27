@@ -35,6 +35,9 @@ for (const file of walk("public", [".js", ".html"])) {
   assert.doesNotMatch(text, /(?:\b(?:global|self|globalThis|window)\s*\.\s*)?open\s*\([^)]*["']_blank["']/, `${file} must not open a new browser window through open(..., "_blank"); use same-window routing, an in-app overlay, iframe, or download fallback.`);
   assert.doesNotMatch(text, /target=["']_blank["']/i, `${file} must not use target=_blank for Hermes-owned navigation.`);
   assert.doesNotMatch(text, /linkTarget:\s*["_']_blank["_']/, `${file} must not render Markdown links into new browser windows.`);
+  assert.doesNotMatch(text, /return\s+`\/\?\$\{params\.toString\(\)\}`/, `${file} must not hardcode root app-shell routes; preserve the current app shell path.`);
+  assert.doesNotMatch(text, /`\/\?\$\{params/, `${file} must not build Hermes-owned routes from a hardcoded root prefix.`);
+  assert.doesNotMatch(text, /["']\/\?view=/, `${file} must not hardcode root second-level view routes; use an app-shell route helper.`);
 }
 
 const serviceWorker = read("public/service-worker.js");
@@ -281,8 +284,23 @@ const webPushDoc = read("docs/MODULES/web-push.md");
 assert.match(webPushDoc, /same app window/i);
 assert.match(webPushDoc, /must not use `window\.open`/);
 assert.match(webPushDoc, /iOS Web Push/i);
+assert.match(webPushDoc, /exact external app entry/i);
+assert.match(webPushDoc, /derive the app-shell path/i);
+
+const wrongPageRunbook = read("docs/RUNBOOKS/web-push-wrong-page.md");
+assert.match(wrongPageRunbook, /Diagnosis Record: 2026-05-27 Scoped App-Shell Route/);
+assert.match(wrongPageRunbook, /root `\/\?\.\.\.` routes/);
+assert.match(wrongPageRunbook, /exact external URL\/path/i);
+assert.match(wrongPageRunbook, /route\/scope problem/i);
 
 const harnessDoc = read("docs/IMPLEMENTATION_NOTES/harness-required-matrix.md");
 assert.match(harnessDoc, /same-window\s+navigation/);
 assert.match(harnessDoc, /(?:no|not call) `window\.open`/);
 assert.match(harnessDoc, /PWA standalone/);
+assert.match(harnessDoc, /root-mounted and prefix-mounted app shell/);
+assert.match(harnessDoc, /exact external entry path/);
+assert.match(harnessDoc, /return ids for Inbox-to-Automation navigation/);
+
+const testMatrixDoc = read("docs/TEST_MATRIX.md");
+assert.match(testMatrixDoc, /root-mounted and prefix-mounted app-shell paths/);
+assert.match(testMatrixDoc, /local root smoke alone is insufficient/);

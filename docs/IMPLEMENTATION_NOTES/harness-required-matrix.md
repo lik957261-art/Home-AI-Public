@@ -219,6 +219,13 @@ Required harness dimensions:
   app shell path instead of hardcoding root `/?...`. A deployment mounted under
   a prefix such as `/hermes-mobile/` must route to that same prefix, while root
   deployments keep `/`.
+- The harness must exercise both root-mounted and prefix-mounted app shell
+  routes. A localhost/root smoke is not enough to close an externally reported
+  browser-frame failure.
+- If the symptom is visible only through a reverse proxy, Synology domain,
+  installed PWA, or mobile browser container, production verification must use
+  the exact external entry path reported by the user and must verify the served
+  client version plus changed route-helper JavaScript from that same path.
 - iOS Web Push subscription requires PWA standalone evidence. The harness must
   cover frontend `clientContext.displayMode` / `standalone`, subscribe-route
   forwarding, and delivery-side filtering of legacy iOS browser subscriptions.
@@ -324,6 +331,12 @@ Required contract dimensions:
 - Direct source navigation must also preserve the current app shell path. The
   harness must cover a prefixed deployment path such as `/hermes-mobile/`
   without hardcoding any domain.
+- The harness must assert direct second-level source navigation returns a
+  prefixed route when `window.location.pathname` is prefixed, and a root route
+  only when the current app shell is root-mounted.
+- The route's return context must keep the source surface, for example Inbox
+  return ids for Inbox-to-Automation navigation, so an in-app back action
+  returns to the originating surface rather than a generic Automation list.
 - Preview fallbacks follow the in-app overlay/iframe/download pattern used by
   Markdown, image, and document previews; `about:blank` print windows and
   `open(..., "_blank")` are not allowed workarounds.

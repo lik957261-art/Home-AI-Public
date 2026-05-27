@@ -57,3 +57,7 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 ## Debug Pointers
 
 When a push opens the wrong page, check three layers in order: payload route fields, service worker client selection, and frontend route handling in `app-platform-ui.js`. Do not start by changing the destination URL to a raw viewer URL.
+
+For browser-frame reports, first separate Web Push click handling from ordinary in-app second-level navigation. Inbox row to Automation detail is not itself a Web Push path, even if the Inbox item was originally created from an automation push. It still uses the same Hermes-owned internal route contract and must preserve the current app-shell path.
+
+Use the exact external app entry reported by the user for smoke verification. A root-mounted local check can miss a prefixed deployment bug where `/hermes-mobile/?source=pwa` is the real entry but an internal helper emits `/?view=...`. Do not hardcode the operator's domain or prefix in code; derive the app-shell path from `window.location.pathname` or the focused service-worker client URL.

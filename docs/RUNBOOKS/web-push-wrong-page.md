@@ -5,13 +5,43 @@
 - Tapping a Web Push opens the app inside a file/PDF/Markdown preview.
 - Tapping a notification opens the list instead of a specific task, automation, Growth card, or group chat.
 - The app opens, but stale search/filter state hides the target item.
+- Tapping an in-app Inbox source row opens a Hermes-owned second-level page inside an outer mobile browser frame.
+
+## Diagnosis Record: 2026-05-27 Scoped App-Shell Route
+
+Incident:
+
+- Action Inbox Automation receipts could be opened and linked to the right Automation detail, but the detail appeared inside an outer iOS/Synology browser frame.
+- The user refreshed the installed app, killed and reopened the page, and other static UI changes took effect immediately. That made a stale static cache unlikely.
+- The failing path was not only Web Push. Direct in-app navigation from Inbox to Automation detail reproduced the same class of browser-frame issue.
+
+Evidence:
+
+- The exact external HTTPS entry used by the phone was a prefixed app shell path such as `/hermes-mobile/?source=pwa`, not only root `/`.
+- External smoke showed the expected new static version and updated JavaScript were being served from that prefixed entry.
+- Earlier root-only checks could pass while the phone still failed, because the route helper generated root `/?...` routes and did not preserve the mounted app-shell prefix.
+
+Root cause:
+
+- Hermes-owned internal route helpers hardcoded root `/?...` for second-level routes.
+- When the app was mounted under a prefix such as `/hermes-mobile/`, those generated routes could leave the current app-shell scope. On iOS/Synology mobile containers this surfaced as the domain bar and bottom browser toolbar.
+- Browser-shell blocking, Web Push subscription filtering, and diagnostic logging were useful supporting controls, but they were not the root fix for this direct Inbox-to-Automation path.
+
+Durable fix:
+
+- Route helpers must derive the app shell path from the current page or from the existing service-worker client URL.
+- Root deployments should still generate `/?...`; prefixed deployments should generate `/hermes-mobile/?...` or the matching current prefix.
+- Do not hardcode the operator's domain or deployment path. The prefix must be inferred from runtime location/client URL.
 
 ## First Checks
 
 1. Confirm the phone has refreshed to the expected static client version.
-2. Inspect the push payload shape without printing endpoints or secrets.
-3. Check `public/service-worker.js` client-selection logic.
-4. Check frontend route handling in `public/app-platform-ui.js` and the target module UI.
+2. Reproduce against the exact external URL/path the phone uses, including any reverse-proxy or app-shell prefix. Do not rely only on `127.0.0.1` or root `/` smoke.
+3. Inspect the push payload shape without printing endpoints or secrets.
+4. Check `public/service-worker.js` client-selection logic.
+5. Check frontend route handling in `public/app-platform-ui.js` and the target module UI.
+6. Inspect generated Hermes-owned route strings. `/?view=...` is valid only for a root-mounted app; a prefixed shell must keep its current prefix.
+7. If other static changes refresh correctly but the browser-frame symptom does not change, treat this as a route/scope problem before continuing cache workarounds.
 
 ## Likely Causes
 
@@ -51,3 +81,4 @@
 - `node tests\task-list-ui.test.js`
 - `git diff --check`
 - Production smoke `/api/client-version?clientVersion=<version>`.
+- For externally reported browser-frame failures, also smoke the exact external app-shell entry and the changed JavaScript files through that same origin/path. Verify the served client version and that internal route helpers preserve the external app-shell prefix.
