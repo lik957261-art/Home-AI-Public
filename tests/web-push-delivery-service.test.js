@@ -264,6 +264,92 @@ function testAutomationTickInitializesOldDeliveriesAndSendsRecentOnes() {
   });
 }
 
+function testAutomationTickSendsFailedRunWithoutDeliverableToInbox() {
+  withTempDir((root) => {
+    const runAt = new Date().toISOString();
+    const inboxCalls = [];
+    const automationProvider = {
+      async listJobs() {
+        return {
+          ok: true,
+          jobs: [
+            {
+              id: "failed-job",
+              ownerPrincipalId: "owner",
+              lastRunAt: runAt,
+              lastStatus: "error",
+              lastError: "RuntimeError: mailbox unavailable",
+              outputDocuments: [],
+            },
+          ],
+        };
+      },
+    };
+    const { calls, service, state } = createHarness(root, {
+      automationProvider,
+      serviceOptions: {
+        actionInboxService: {
+          upsertSourceItem(input) {
+            inboxCalls.push(input);
+            return { ok: true, item: { id: "ainb_failed_job", workspaceId: input.workspaceId } };
+          },
+        },
+      },
+    });
+    state.pushSubscriptions.push({ subscription: { endpoint: "owner-endpoint" }, principalIds: ["owner"], workspaceIds: ["owner"] });
+    return service.runAutomationWebPushTick().then((result) => {
+      assert.equal(result.initialized.length, 0);
+      assert.equal(result.deliveries.length, 1);
+      assert.equal(result.deliveries[0].jobId, "failed-job");
+      assert.equal(inboxCalls.length, 1);
+      assert.equal(inboxCalls[0].sourceType, "automation");
+      assert.equal(inboxCalls[0].itemType, "error");
+      assert.equal(inboxCalls[0].sourceId, "failed-job");
+      assert.equal(inboxCalls[0].deepLink, "/?view=automation&workspaceId=owner&automationId=failed-job");
+      assert.match(inboxCalls[0].dedupeKey, /^automation:failed-job:/);
+      const payload = calls.sends[0].payload;
+      assert.equal(payload.data.messageType, "automation_failed");
+      assert.equal(payload.data.viewMode, "inbox");
+      assert.equal(payload.data.inboxItemId, "ainb_failed_job");
+      assert.equal(payload.data.originalUrl, "/?view=automation&workspaceId=owner&automationId=failed-job");
+      assert.equal(payload.data.url, "/?view=inbox&workspaceId=owner&inboxItemId=ainb_failed_job");
+      assert.equal(Boolean(state.automationPushMarks["failed-job"]), true);
+    });
+  });
+}
+
+function testAutomationTickInitializesOldFailedRunWithoutDeliverable() {
+  withTempDir((root) => {
+    const oldRunAt = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    const automationProvider = {
+      async listJobs() {
+        return {
+          ok: true,
+          jobs: [
+            {
+              id: "old-failed-job",
+              ownerPrincipalId: "owner",
+              lastRunAt: oldRunAt,
+              lastStatus: "error",
+              lastError: "RuntimeError: historical failure",
+              outputDocuments: [],
+            },
+          ],
+        };
+      },
+    };
+    const { calls, service, state } = createHarness(root, { automationProvider });
+    state.pushSubscriptions.push({ subscription: { endpoint: "owner-endpoint" }, principalIds: ["owner"], workspaceIds: ["owner"] });
+    return service.runAutomationWebPushTick().then((result) => {
+      assert.equal(result.initialized.length, 1);
+      assert.equal(result.initialized[0].jobId, "old-failed-job");
+      assert.equal(result.deliveries.length, 0);
+      assert.equal(calls.sends.length, 0);
+      assert.equal(Boolean(state.automationPushMarks["old-failed-job"]), true);
+    });
+  });
+}
+
 function testTaskTerminalAndGroupMentionNotifications() {
   withTempDir((root) => {
     const { calls, service, state } = createHarness(root);
@@ -595,6 +681,8 @@ Promise.resolve()
   .then(testReceiptMarksTodoWithoutCountingAttempt)
   .then(testTodoTickReconcilesAndDeliversPendingEvents)
   .then(testAutomationTickInitializesOldDeliveriesAndSendsRecentOnes)
+  .then(testAutomationTickSendsFailedRunWithoutDeliverableToInbox)
+  .then(testAutomationTickInitializesOldFailedRunWithoutDeliverable)
   .then(testTaskTerminalAndGroupMentionNotifications)
   .then(testTaskTerminalPushDoesNotCreateInboxItemForActiveChatReceipt)
   .then(testLearningGrowthEvaluationPushRoutesToTaskCard)

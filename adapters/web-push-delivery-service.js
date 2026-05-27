@@ -735,6 +735,23 @@ function createWebPushDeliveryService(options = {}) {
     );
   }
 
+  function automationRunFailed(job) {
+    return /error|fail/i.test(String(job?.lastStatus || job?.status || ""))
+      || Boolean(job?.lastError || job?.lastDeliveryError);
+  }
+
+  function automationFailureSummary(job) {
+    return compactText(
+      job?.lastError
+      || job?.lastDeliveryError
+      || job?.error
+      || job?.lastStatus
+      || job?.status
+      || "Automation run failed",
+      160,
+    ).replace(/\s+/g, " ").trim();
+  }
+
   function automationListSortByLatestDeliverable(left, right) {
     const leftActivity = automationActivityTimeMs(left);
     const rightActivity = automationActivityTimeMs(right);
@@ -809,6 +826,13 @@ function createWebPushDeliveryService(options = {}) {
     return Date.now() - docTimeMs <= Math.max(0, automationInitialLookbackMs);
   }
 
+  function isRecentInitialAutomationEvent(job, latestDoc = null) {
+    if (latestDoc) return isRecentInitialAutomationDeliverable(latestDoc);
+    const runMs = automationTimeMs(job?.lastRunAt);
+    if (!runMs) return false;
+    return Date.now() - runMs <= Math.max(0, automationInitialLookbackMs);
+  }
+
   function setAutomationPushMark(job, signature, latestDoc = null) {
     const store = currentState();
     store.automationPushMarks = store.automationPushMarks || {};
@@ -827,14 +851,15 @@ function createWebPushDeliveryService(options = {}) {
   function automationPushEventForJob(job, latestDoc, signature) {
     const jobId = String(job?.id || "").trim();
     if (!jobId || !String(job?.lastRunAt || "").trim()) return null;
-    if (!latestDoc) return null;
     const principalId = automationOwnerPrincipal(job);
     const workspaceId = workspaceIdForPrincipal(principalId);
-    const failed = /error|fail/i.test(String(job?.lastStatus || job?.status || "")) || Boolean(job?.lastError || job?.lastDeliveryError);
+    const failed = automationRunFailed(job);
+    if (!latestDoc && !failed) return null;
     const title = failed ? "\u81ea\u52a8\u5316\u4efb\u52a1\u5931\u8d25" : "\u81ea\u52a8\u5316\u4efb\u52a1\u5b8c\u6210";
     const body = compactText([
       automationTitleForPush(job),
-      `\u4ea4\u4ed8\u6587\u4ef6: ${latestDoc.name}`,
+      latestDoc ? `\u4ea4\u4ed8\u6587\u4ef6: ${latestDoc.name}` : "",
+      failed ? `\u9519\u8bef: ${automationFailureSummary(job)}` : "",
     ].filter(Boolean).join("\n"), 220);
     const params = new URLSearchParams({ view: "automation", workspaceId, automationId: jobId });
     return {
@@ -890,15 +915,16 @@ function createWebPushDeliveryService(options = {}) {
       const principalId = automationOwnerPrincipal(job);
       if (!jobId || !principalSet.has(principalId)) continue;
       const existingMark = store.automationPushMarks[jobId];
+      const failed = automationRunFailed(job);
       const latestDoc = automationLatestDeliverableForPush(job, existingMark);
-      if (!latestDoc) continue;
+      if (!latestDoc && !failed) continue;
       const signature = automationPushSignature(job, latestDoc);
       if (!signature) continue;
       const existing = automationPushMarkSignature(existingMark);
       if (existing === signature) continue;
       const event = automationPushEventForJob(job, latestDoc, signature);
       if (!event) continue;
-      if (!existing && !opts.includeInitial && !isRecentInitialAutomationDeliverable(latestDoc)) {
+      if (!existing && !opts.includeInitial && !isRecentInitialAutomationEvent(job, latestDoc)) {
         initialized.push({ jobId, principalId, signature });
         if (!opts.dryRun) {
           setAutomationPushMark(job, signature, latestDoc);
