@@ -1,11 +1,11 @@
 ---
 name: hermes-mobile-permission-boundary-check
-description: Pre-flight permission check for Hermes Mobile low-permission Gateway runs. Use before filesystem, Skill, automation, account, integration, or delivery-path operations to decide whether the current run has permission, should ask for Owner elevation, or must fail closed.
+description: Model-side permission check for Hermes Mobile low-permission Gateway runs. Use before filesystem, Skill, automation, account, integration, or delivery-path tool use to decide whether the current run has permission, should ask for Owner elevation, or must fail closed.
 ---
 
 # Hermes Mobile Permission Boundary Check
 
-This Skill is mandatory for Hermes Mobile restricted or low-permission Gateway runs before using tools or changing state.
+This Skill is mandatory inside Hermes Mobile restricted or low-permission Gateway model runs before using tools or changing state. It is not a server-side natural-language route classifier.
 
 ## Authority
 
@@ -19,7 +19,7 @@ Use these fields as the boundary:
 - `allowed_skills` and `blocked_skills`: Skill scope limits if present.
 - `principal_id` and workspace/account metadata: the identity whose data this run may act on.
 
-## Required Pre-Flight Decision
+## Required Model-Side Decision
 
 Before any tool call, broad search, file write, Skill write, automation edit, account edit, or external integration action, decide one of these:
 

@@ -58,9 +58,10 @@ toolsets before the model has judged the task.
 
 Required flow:
 
-1. First round: send the model a compact capability catalog plus the authorized
-   policy summary. This round chooses the toolsets needed for the task; it does
-   not receive every expanded callable schema by default.
+1. First round: send a ChatGPT low-cost model a compact capability catalog plus
+   the authorized policy summary. This round makes the model-side permission
+   decision and chooses the toolsets needed for the task; it does not receive
+   every expanded callable schema by default.
 2. Execution round: expose only the selected authorized toolsets and their
    callable schema.
 3. Escalation: if the model determines an additional authorized toolset is
@@ -81,18 +82,19 @@ Current runtime behavior:
 - `adapters/gateway-run-model-toolset-selection-service.js` runs a bounded
   selector request before execution. The selector receives only a compact
   authorized-toolset catalog and an empty callable `allowed_toolsets` list.
-- This selector is a short-budget optimization, not a hard prerequisite. The
-  reference pattern is the existing permission-boundary model judgment:
-  `HERMES_PERMISSION_APPROVAL_REQUIRED` is emitted inside the normal model run
-  and parsed locally instead of adding a long blocking preflight. Toolset
-  selection must move toward that marker-style contract when deeper schema
-  reduction is needed.
+- This selector is the combined model-side permission and toolset preflight. It
+  may return either selected authorized toolsets or a permission-elevation
+  decision using `HERMES_PERMISSION_APPROVAL_REQUIRED` semantics.
+- Hermes Mobile must not route or block ordinary model runs through
+  natural-language permission guesses before this model-side preflight. Server
+  code may still construct the access policy and honor explicit Owner
+  maintenance approval routes.
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION` /
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION` disable the selector when
   set to `0`, `false`, `no`, or `off`; default is enabled.
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS` /
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS` controls the
-  selector timeout; default is `4000`.
+  selector timeout; default is `45000`.
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_MODEL` /
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_MODEL` controls the compact
   selector model; default is `gpt-5.4-mini`. The provider and reasoning effort
@@ -101,13 +103,40 @@ Current runtime behavior:
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_STOP_TIMEOUT_MS` /
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_STOP_TIMEOUT_MS` controls
   the best-effort stop request for a selector run id that was observed before a
-  selector failure; default is `1000`.
+  selector failure; default is `2000`.
 - If selection fails, times out, or returns no authorized toolsets, Hermes
   Mobile falls back to the full originally authorized toolset list and records
   `run.toolset_selection_failed`.
+- If model-side preflight returns a permission-elevation decision, Hermes Mobile
+  marks the assistant message as requiring Owner approval and does not start the
+  execution round.
 - If selection succeeds, execution receives only the selected authorized
   toolsets, and the prompt includes `HERMES_TOOLSET_ESCALATION_REQUIRED` as the
   explicit path for requesting omitted authorized toolsets.
+- The selector is an internal JSON-only preflight. It must not browse, search,
+  call tools, or load Skills while selecting permission/toolsets; the selector
+  request should disable tool calls and live probes should verify no tool-role
+  messages appear in the selector session.
+- Responses streams can repeat the same JSON decision across delta/done/final
+  events. Selector parsing must scan JSON candidates and accept a valid final
+  decision instead of treating duplicated JSON text as an `invalid_json`
+  failure.
+- Treat the request body's `model` value as configuration intent only. When
+  validating latency/cost, inspect the Gateway session or worker log for the
+  actual model because a worker profile default can override what the envelope
+  reports.
+
+2026-05-27 selector probe findings:
+
+- Before the selector was made internal JSON-only, a live X Search selector
+  probe completed in about 31s but loaded Skills/tools and produced duplicated
+  JSON in the stream, which surfaced as `invalid_json`.
+- After disabling selector tool calls and hardening JSON-candidate parsing, a
+  live low Gateway selector probe returned the expected `x_search` selection in
+  about 9.2s with no tool-role messages in the selector session.
+- The same live evidence showed the worker's actual session model was its
+  profile default, not necessarily the `body.model` request value, so future
+  selector-model tuning must validate the actual worker profile/runtime path.
 
 ## Codex Responses Stream Compatibility
 

@@ -61,7 +61,6 @@ function createWeixinIngressEventService(options = {}) {
   const findWorkspace = typeof options.findWorkspace === "function" ? options.findWorkspace : (() => null);
   const findExistingIngressEvent = typeof options.findExistingIngressEvent === "function" ? options.findExistingIngressEvent : (() => null);
   const wakeOutboundForInbound = typeof options.wakeOutboundForInbound === "function" ? options.wakeOutboundForInbound : (() => ({ count: 0, deliveryIds: [] }));
-  const classifyMaintenanceIntent = typeof options.classifyMaintenanceIntent === "function" ? options.classifyMaintenanceIntent : (() => null);
   const ensureThreadForEvent = typeof options.ensureThreadForEvent === "function" ? options.ensureThreadForEvent : (() => null);
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : (() => new Date().toISOString());
   const makeId = typeof options.makeId === "function" ? options.makeId : ((prefix) => `${prefix}_${Date.now().toString(36)}`);
@@ -189,16 +188,6 @@ function createWeixinIngressEventService(options = {}) {
 
     const awakenedOutbound = wakeOutboundForInbound(event, workspaceId);
     const attachmentOnly = isAttachmentOnlyWeixinEvent(event);
-    if (!attachmentOnly) {
-      const maintenanceIntent = classifyMaintenanceIntent(messageContentForWeixinIngress(event));
-      if (maintenanceIntent) {
-        const err = new Error(maintenanceIntent.message);
-        err.status = 403;
-        err.result = { code: maintenanceIntent.category, operatorRequired: true };
-        throw err;
-      }
-    }
-
     const thread = ensureThreadForEvent(event, workspaceId);
     const createdAt = nowIso();
     const senderInfo = senderInfoForWorkspace(workspaceId);

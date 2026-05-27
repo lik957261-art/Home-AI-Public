@@ -10,6 +10,7 @@ const RUN_PROGRESS_START_EVENTS = new Set([
   "run.toolset_selection_started",
   "run.toolset_selection_done",
   "run.toolset_selection_failed",
+  "run.permission_required",
   "run.request_sent",
 ]);
 
@@ -123,6 +124,7 @@ function runEventTitle(event) {
   if (name === "run.toolset_selection_started") return "\u6b63\u5728\u9009\u62e9\u5de5\u5177\u96c6";
   if (name === "run.toolset_selection_done") return "\u5de5\u5177\u96c6\u5df2\u9009\u62e9";
   if (name === "run.toolset_selection_failed") return "\u5de5\u5177\u96c6\u9009\u62e9\u56de\u9000";
+  if (name === "run.permission_required") return "\u9700\u8981 Owner \u6388\u6743";
   if (name === "run.request_sent") return "\u8bf7\u6c42\u5df2\u53d1\u9001";
   if (name === "response.completed" || name === "run.completed") return "\u5904\u7406\u5b8c\u6210";
   if (name === "response.failed" || name === "run.failed") return "\u5904\u7406\u5931\u8d25";

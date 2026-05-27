@@ -30,6 +30,12 @@ Related route/provider boundaries:
 - Request body fields such as `workspaceId`, `actorWorkspaceId`, or `principalId` are hints only. Server-side auth must clamp or reject them according to the authenticated principal.
 - Group chat and shared directories are explicit exceptions; they still require membership/share ACL checks.
 - Owner ordinary chat still uses low-permission workers unless an explicit Owner-maintenance path is requested.
+- Hermes Mobile should not use natural-language text classifiers to pre-route
+  ordinary AI messages into permission/elevation blocks before the model runs.
+  Server-side code constructs the access policy and honors explicit
+  Owner-maintenance approvals; model-side permission decisions are handled by
+  the `productivity/hermes-mobile-permission-boundary-check` Skill together
+  with Gateway toolset selection.
 
 ## Access Key Handling
 

@@ -183,7 +183,7 @@ function run() {
   assert.match(permissionInstructions, /Kanban\/Todo operations are ordinary low-permission work/);
   assert.match(permissionInstructions, /Automation\/CRON job operations are ordinary low-permission work/);
   assert.match(permissionInstructions, /HERMES_PERMISSION_APPROVAL_REQUIRED/);
-  assert.match(provider.permissionBoundarySkillInstructions({ access_mode: "restricted" }), /mandatory pre-flight/);
+  assert.match(provider.permissionBoundarySkillInstructions({ access_mode: "restricted" }), /model-side permission check/);
   assert.strictEqual(permissionBoundarySkillInstructions({ access_mode: "unrestricted" }), "");
 
   const skillPath = path.join(__dirname, "..", "skills", "productivity", "hermes-mobile-permission-boundary-check", "SKILL.md");

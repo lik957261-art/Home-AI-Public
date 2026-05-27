@@ -46,6 +46,8 @@ const TOOLSET_LABELS = Object.freeze({
   web: "Open or fetch public web pages.",
   x_search: "Search X/Twitter content.",
 });
+const PERMISSION_BOUNDARY_SKILL = "productivity/hermes-mobile-permission-boundary-check";
+const PERMISSION_APPROVAL_MARKER = "HERMES_PERMISSION_APPROVAL_REQUIRED";
 
 function boundedText(value, maxChars = 1600) {
   const text = cleanString(value);
@@ -116,20 +118,116 @@ function extractJsonCandidate(text) {
   return value;
 }
 
-function parseSelectionJson(text) {
-  const candidate = extractJsonCandidate(text);
-  if (!candidate) return null;
-  try {
-    const parsed = JSON.parse(candidate);
-    return objectValue(parsed, null);
-  } catch (_) {
-    return null;
+function extractBalancedJsonCandidates(text) {
+  const value = cleanString(text);
+  const out = [];
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === "\\") {
+        escaped = true;
+      } else if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+    if (char === "{") {
+      if (depth === 0) start = index;
+      depth += 1;
+      continue;
+    }
+    if (char === "}" && depth > 0) {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        out.push(value.slice(start, index + 1));
+        start = -1;
+      }
+    }
   }
+  return out;
+}
+
+function parseSelectionJson(text) {
+  const candidates = extractBalancedJsonCandidates(text);
+  const fallback = extractJsonCandidate(text);
+  if (fallback && !candidates.includes(fallback)) candidates.unshift(fallback);
+  for (let index = candidates.length - 1; index >= 0; index -= 1) {
+    try {
+      const parsed = JSON.parse(candidates[index]);
+      return objectValue(parsed, null);
+    } catch (_) {}
+  }
+  return null;
+}
+
+function parsePermissionApprovalMarker(text) {
+  const lines = String(text || "").split(/\r?\n/);
+  for (const line of lines) {
+    const markerIndex = line.indexOf(PERMISSION_APPROVAL_MARKER);
+    if (markerIndex < 0) continue;
+    const trailing = line.slice(markerIndex + PERMISSION_APPROVAL_MARKER.length).trim();
+    let parsed = {};
+    if (trailing.startsWith("{")) {
+      try {
+        parsed = JSON.parse(trailing);
+      } catch (_) {
+        parsed = {};
+      }
+    }
+    return {
+      elevationRequired: true,
+      elevationScope: cleanString(parsed.scope || parsed.elevationScope) || "owner_high_privilege",
+      elevationReason: boundedText(parsed.reason || parsed.message || "Model permission boundary requested Owner approval.", 240),
+      elevationSource: "model_toolset_permission_selector",
+    };
+  }
+  return null;
+}
+
+function parsePermissionDecision(parsed, originalText = "") {
+  const marker = parsePermissionApprovalMarker(originalText);
+  if (marker) return marker;
+  const source = objectValue(parsed?.permission || parsed, null);
+  if (!source) return null;
+  const decision = cleanString(source.decision || source.permissionDecision || source.permission_decision || source.status).toLowerCase();
+  const needsElevation = [
+    "needs_elevation",
+    "needs_owner",
+    "owner_elevation",
+    "permission_required",
+    "requires_permission",
+  ].includes(decision);
+  if (!needsElevation) return null;
+  return {
+    elevationRequired: true,
+    elevationScope: cleanString(source.scope || source.elevationScope || source.elevation_scope) || "owner_high_privilege",
+    elevationReason: boundedText(source.reason || source.message || "Model permission boundary requested Owner approval.", 240),
+    elevationSource: "model_toolset_permission_selector",
+  };
 }
 
 function parseToolsetSelectionText(text, allowedToolsets = [], dedupe = defaultDedupe) {
   const allowed = new Set(dedupe(allowedToolsets));
   const parsed = parseSelectionJson(text);
+  const permission = parsePermissionDecision(parsed, text);
+  if (permission) {
+    return Object.assign({
+      ok: false,
+      reason: "permission_approval_required",
+      selectedToolsets: [],
+      rejectedToolsets: [],
+    }, permission);
+  }
   if (!parsed) {
     return { ok: false, reason: "invalid_json", selectedToolsets: [], rejectedToolsets: [] };
   }
@@ -158,18 +256,32 @@ function parseToolsetSelectionText(text, allowedToolsets = [], dedupe = defaultD
 function buildSelectorInstructions({ allowedToolsets = [], request = {} } = {}) {
   const catalog = buildCapabilityCatalog(allowedToolsets);
   const routing = objectValue(request.gatewayRouting);
+  const policy = objectValue(request.runPolicy || request.body?.access_policy_context);
   const summary = {
+    access_policy: {
+      access_mode: cleanString(policy.access_mode || policy.accessMode || "restricted"),
+      principal_id: cleanString(policy.principal_id || policy.principalId),
+      default_workspace: cleanString(policy.default_workspace || policy.defaultWorkspace),
+      allowed_roots: Array.isArray(policy.allowed_roots || policy.allowedRoots) ? (policy.allowed_roots || policy.allowedRoots).slice(0, 8) : [],
+      authorized_toolsets: allowedToolsets,
+      blocked_toolsets: Array.isArray(policy.blocked_toolsets || policy.blockedToolsets) ? (policy.blocked_toolsets || policy.blockedToolsets).slice(0, 20) : [],
+    },
     authorized_toolsets: catalog,
     search_source: cleanString(routing.searchSource),
     source_intent: cleanString(routing.sourceIntent),
     source_mode: cleanString(routing.sourceMode),
-    rule: "Select execution toolsets only. Do not perform the user task. If uncertain, select every authorized toolset.",
+    rule: "First decide permission, then choose execution toolsets. Do not perform the user task. If permission is allowed but tool need is uncertain, select every authorized toolset.",
   };
   return [
-    "You are selecting toolsets for a Hermes Mobile run.",
-    "Return only compact JSON with this shape: {\"toolsets\":[\"toolset_id\"],\"reason\":\"short reason\"}.",
+    "You are doing the model-side permission and toolset preflight for a Hermes Mobile run.",
+    "This is an internal preflight, not a user-facing answer. Do not browse, search, call tools, or load skills.",
+    `Apply the embedded Hermes Mobile permission-boundary Skill rules (${PERMISSION_BOUNDARY_SKILL}) from the access-policy summary before selecting tools.`,
+    "Return only compact JSON in one of these shapes:",
+    "{\"decision\":\"allowed\",\"toolsets\":[\"toolset_id\"],\"reason\":\"short reason\"}",
+    "{\"decision\":\"needs_elevation\",\"scope\":\"owner_high_privilege\",\"reason\":\"short reason\"}",
     "Use only toolset ids from authorized_toolsets. Do not request blocked developer, shell, source, process, broad MCP, or cross-workspace tools.",
-    "If the task may need a toolset and you are not sure, include it. If the task is ambiguous, select every authorized toolset.",
+    `If and only if the permission decision needs Owner elevation, you may alternatively output ${PERMISSION_APPROVAL_MARKER} with compact JSON.`,
+    "If the task may need a toolset and you are not sure, include it. If the permission is allowed but the task is ambiguous, select every authorized toolset.",
     JSON.stringify(summary),
   ].join("\n");
 }
@@ -188,6 +300,8 @@ function buildSelectionBody({
     conversation: `${cleanString(request.body?.conversation) || "hermes"}:toolset-selection`,
     conversation_history: [],
     instructions: buildSelectorInstructions({ allowedToolsets, request }),
+    tool_choice: "none",
+    parallel_tool_calls: false,
     access_policy_context: {
       toolset_selection_only: true,
       allowed_toolsets: [],
@@ -223,8 +337,8 @@ function stopSelectorRun({ runner, gatewayTarget = {}, selectorRunId = "", stopT
 function createGatewayRunModelToolsetSelectionService(options = {}) {
   const dedupe = typeof options.dedupe === "function" ? options.dedupe : defaultDedupe;
   const enabled = normalizeBoolean(options.enabled, true);
-  const timeoutMs = Math.max(500, Number(options.timeoutMs || 4000) || 4000);
-  const stopTimeoutMs = Math.max(500, Number(options.stopTimeoutMs || 1000) || 1000);
+  const timeoutMs = Math.max(1000, Number(options.timeoutMs || 45000) || 45000);
+  const stopTimeoutMs = Math.max(500, Number(options.stopTimeoutMs || 2000) || 2000);
   const nowMs = typeof options.nowMs === "function" ? options.nowMs : (() => Date.now());
   const selectorModel = cleanString(options.selectorModel) || "gpt-5.4-mini";
   const selectorProvider = cleanString(options.selectorProvider);

@@ -30,8 +30,12 @@ assert.match(harnessMatrix, /Gateway Toolset Selection And Run Telemetry/);
 assert.match(harnessMatrix, /must not hard-prune callable toolsets before the model/);
 assert.match(harnessMatrix, /compact capability\s+catalog/);
 assert.match(harnessMatrix, /explicit escalation path/);
-assert.match(harnessMatrix, /short bounded budget/);
+assert.match(harnessMatrix, /same model-side preflight/);
 assert.match(harnessMatrix, /HERMES_PERMISSION_APPROVAL_REQUIRED/);
+assert.match(harnessMatrix, /internal JSON-only preflight/);
+assert.match(harnessMatrix, /no tool-role messages/);
+assert.match(harnessMatrix, /repeated or duplicated JSON candidates/);
+assert.match(harnessMatrix, /actual Gateway session or worker log/);
 assert.match(harnessMatrix, /final-message start\/end/);
 
 assert.match(testMatrix, /CodeGraph-First Read Budget/);
@@ -43,7 +47,11 @@ assert.match(testMatrix, /model-first\s+contract/);
 assert.match(testMatrix, /Do not hard-prune callable toolsets/);
 assert.match(testMatrix, /selected narrow execution/);
 assert.match(testMatrix, /best-effort cancellation/);
-assert.match(testMatrix, /permission-boundary marker flow/);
+assert.match(testMatrix, /local natural-language permission routing/);
+assert.match(testMatrix, /internal JSON-only preflight/);
+assert.match(testMatrix, /live selector probes do not contain tool-role/);
+assert.match(testMatrix, /repeated JSON candidates/);
+assert.match(testMatrix, /actual Gateway session or worker log model/);
 assert.match(testMatrix, /final-message start\/end/);
 
 if (fs.existsSync(userSkill)) {
@@ -55,8 +63,12 @@ if (fs.existsSync(userSkill)) {
   assert.match(skillText, /80-120 lines/);
   assert.match(skillText, /model-first toolset selection/);
   assert.match(skillText, /Do not\s+hard-prune callable toolsets/);
-  assert.match(skillText, /non-blocking/);
+  assert.match(skillText, /same model-side\s+preflight/);
   assert.match(skillText, /HERMES_PERMISSION_APPROVAL_REQUIRED/);
+  assert.match(skillText, /internal JSON-only preflight/);
+  assert.match(skillText, /live selector sessions contain no tool-role/);
+  assert.match(skillText, /repeated streamed JSON candidates/);
+  assert.match(skillText, /Gateway session\/log evidence/);
   assert.match(skillText, /explicit escalation path/);
   assert.match(skillText, /final-message start\/end/);
 }

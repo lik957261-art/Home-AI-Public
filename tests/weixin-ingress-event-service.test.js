@@ -150,18 +150,13 @@ async function testAttachmentOnlyWaitsThenNextTextConsumesAndStartsRun() {
   assert.ok(broadcasts.some((payload) => payload.type === "message.updated"));
 }
 
-async function testMaintenanceIntentAndConcurrencyFailure() {
+async function testMaintenanceIntentDoesNotPreemptModelRunAndConcurrencyFailure() {
   const maintenance = makeHarness({
     classifyMaintenanceIntent: () => ({ message: "needs owner", category: "owner_high_privilege" }),
   });
-  await assert.rejects(
-    () => maintenance.service.start({ eventId: "m1", workspaceId: "owner", text: "restart system" }),
-    (err) => {
-      assert.equal(err.status, 403);
-      assert.deepEqual(err.result, { code: "owner_high_privilege", operatorRequired: true });
-      return true;
-    },
-  );
+  const started = await maintenance.service.start({ eventId: "m1", workspaceId: "owner", text: "restart system" });
+  assert.equal(started.run.status, "started");
+  assert.equal(maintenance.starts.length, 1);
 
   const concurrency = makeHarness({
     runConcurrencyError: () => {
@@ -212,7 +207,7 @@ async function testStartFailureUsesSanitizedUserFacingError() {
 async function run() {
   await testHeartbeatDuplicateAndUnmatchedDoNotStartRuns();
   await testAttachmentOnlyWaitsThenNextTextConsumesAndStartsRun();
-  await testMaintenanceIntentAndConcurrencyFailure();
+  await testMaintenanceIntentDoesNotPreemptModelRunAndConcurrencyFailure();
   await testQueueBehindActiveRunAndStartFailure();
   await testStartFailureUsesSanitizedUserFacingError();
   console.log("weixin ingress event service tests passed");

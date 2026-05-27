@@ -148,7 +148,7 @@ function permissionBoundarySkillInstructions(policy = {}) {
   const accessMode = String(policy?.access_mode || policy?.accessMode || "").trim().toLowerCase();
   if (accessMode === "unrestricted") return "";
   return [
-    `Use Skill: ${PERMISSION_BOUNDARY_SKILL} as a mandatory pre-flight check before any filesystem, Skill, automation, account, integration, or delivery-path operation.`,
+    `Use Skill: ${PERMISSION_BOUNDARY_SKILL} as the model-side permission check before any filesystem, Skill, automation, account, integration, or delivery-path operation.`,
     "Treat the supplied access_policy_context as the source of truth for what this Gateway run can and cannot access.",
     "Web Search is ordinary low-permission work when the run has the web toolset; do not ask for Owner elevation just to search or extract public web information.",
     "Search-only public web lookup is ordinary low-permission work when the run has the search toolset.",

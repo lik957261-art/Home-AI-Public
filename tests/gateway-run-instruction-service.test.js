@@ -10,6 +10,10 @@ function createService() {
     createDeliveryBoundaryInstructions: (options = {}) => options.deliveryTarget
       ? `DELIVERY:${options.deliveryTarget}`
       : "",
+    permissionBoundarySkillInstructions: () => [
+      "Use Skill: productivity/hermes-mobile-permission-boundary-check as the model-side permission check before tool use.",
+      "When the decision is Needs elevation, emit HERMES_PERMISSION_APPROVAL_REQUIRED.",
+    ].join("\n"),
     semanticProjectRoutingInstructions: () => "SEMANTIC_ROUTE",
     isKanbanCaseTopicThread: (thread) => Boolean(thread && thread.caseTopic),
   });
@@ -110,7 +114,8 @@ function testBuildHermesInstructionsPreservesChatAndAttachmentGuidance() {
     },
   );
 
-  assert.doesNotMatch(text, /PERMISSION_BOUNDARY|hermes-mobile-permission-boundary-check|mandatory pre-flight/);
+  assert.match(text, /hermes-mobile-permission-boundary-check/);
+  assert.match(text, /HERMES_PERMISSION_APPROVAL_REQUIRED/);
   assert.match(text, /DELIVERY:the group delivery directory: C:\/group-delivery/);
   assert.match(text, /Attached task directory: Attached => C:\/project\/data/);
   assert.match(text, /single-window chat mode/);

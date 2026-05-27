@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260527-model-toolset-selection-v277";
+const CLIENT_VERSION = "20260527-permission-toolset-preflight-v279";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -410,9 +410,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260527-model-toolset-selection-v277/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260527-model-toolset-selection-v277/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260527-model-toolset-selection-v277/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260527-permission-toolset-preflight-v279/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260527-permission-toolset-preflight-v279/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260527-permission-toolset-preflight-v279/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -542,6 +542,7 @@ assert.match(appJs, /function runProgressDisplayEvents\(events = \[\], startMs =
 assert.match(appJs, /"run\.toolset_selection_started"/);
 assert.match(appJs, /"run\.toolset_selection_done"/);
 assert.match(appJs, /"run\.toolset_selection_failed"/);
+assert.match(appJs, /"run\.permission_required"/);
 assert.match(appJs, /run\.final_message_started/);
 assert.match(appJs, /run\.final_message_done/);
 assert.match(appJs, /function runProgressTerminalMs\(message = \{\}\)/);
@@ -721,6 +722,7 @@ assert.match(weixinOutboundDeliveryServiceJs, /internal_tool_schema_failure_not_
 assert.match(gatewayRunStartServiceJs, /const conversationHistory = buildConversationHistory\(thread, userMessage\?\.id, runPolicy\)/);
 assert.match(gatewayRunStartServiceJs, /conversation_history: conversationHistory/);
 assert.match(gatewayRunStartServiceJs, /appendRunStartEvent\(thread, assistantMessage, "run\.context_ready"/);
+assert.match(gatewayRunStartServiceJs, /appendRunStartEvent\(thread, assistantMessage, "run\.permission_required"/);
 assert.match(gatewayRunStartServiceJs, /appendRunStartEvent\(thread, assistantMessage, "run\.request_sent"/);
 assert.match(serverJs, /function ensureGroupChatSharedArtifactCopies\(thread, latestUserMessage, deliveryRoot\)/);
 assert.match(gatewayRunInstructionServiceJs, /Group-chat shared attachments authorized for this run/);

@@ -40,13 +40,23 @@ model must have an explicit escalation path for additional authorized toolsets.
 The harness must cover selected narrow execution, allowed escalation, denied
 blocked-toolset escalation, invalid selection fallback, and telemetry for
 model-selection start/end, tool-call start/end, and final-message start/end.
-Selector failure is explicitly non-blocking: timeout, invalid JSON, missing
+Selector failure is explicitly recoverable: timeout, invalid JSON, missing
 runner, or unauthorized selections must fall back to the originally authorized
-toolset list. The selector budget must remain short, use a lightweight model by
-default, and attempt best-effort cancellation when a selector run id is known.
-Use the existing permission-boundary marker flow as the reference pattern for
-future non-blocking model judgments; do not add long synchronous preflight
-model calls as a harness-approved optimization.
+toolset list. Permission and toolset choice must share the same model-side
+preflight. The selector should use a ChatGPT low-cost model, a bounded timeout
+large enough for reliable completion, and best-effort cancellation when a
+selector run id is known. Do not add local natural-language permission routing
+before the model. If the model-side preflight returns a
+`HERMES_PERMISSION_APPROVAL_REQUIRED`-style decision, execution must not start
+until Owner approval.
+
+The selector is an internal JSON-only preflight. Tests must assert that selector
+requests disable tool calls, that live selector probes do not contain tool-role
+messages, and that repeated JSON candidates from streamed Responses events are
+parsed as a valid final decision rather than `invalid_json`. Tens-of-seconds
+latency is acceptable if the selector reliably returns; latency/cost claims must
+verify the actual Gateway session or worker log model instead of trusting only
+the request body's `model` field.
 
 For same-window navigation and browser-frame bugs, the required harness must
 cover both root-mounted and prefix-mounted app-shell paths. If the issue is

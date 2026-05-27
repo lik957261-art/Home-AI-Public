@@ -407,6 +407,38 @@ async function testStartRunFallsBackWhenModelFirstSelectionFails() {
   assert.equal(JSON.parse(calls.events[3].preview).reason, "selector_error");
 }
 
+async function testStartRunStopsBeforeExecutionWhenModelPermissionRequiresElevation() {
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      access_mode: "restricted",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "weather", "x_search", "web"],
+    }),
+    selectRunToolsetsWithModel: async () => ({
+      enabled: true,
+      ok: false,
+      reason: "permission_approval_required",
+      elevationRequired: true,
+      elevationScope: "owner_high_privilege",
+      elevationReason: "outside current workspace",
+      elevationSource: "model_toolset_permission_selector",
+      durationMs: 3000,
+    }),
+  });
+  const assistant = baseAssistantMessage();
+
+  const result = await service.startRunForThread(baseThread(), baseUserMessage(), assistant, {});
+
+  assert.equal(result.status, "needs_elevation");
+  assert.equal(calls.streams.length, 0);
+  assert.equal(assistant.status, "done");
+  assert.equal(assistant.elevationRequired, true);
+  assert.equal(assistant.elevationScope, "owner_high_privilege");
+  assert.match(assistant.content, /Owner 授权/);
+  assert.ok(calls.events.some((event) => event.event === "run.permission_required"));
+}
+
 function testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions() {
   const { calls, service } = makeHarness();
   const request = service.buildRunRequest(
@@ -496,6 +528,7 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testStartRunPreservesSearchSourceRouting();
   await testStartRunUsesModelFirstSelectionBeforeExecution();
   await testStartRunFallsBackWhenModelFirstSelectionFails();
+  await testStartRunStopsBeforeExecutionWhenModelPermissionRequiresElevation();
   testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions();
   await testStartRunUsesSelectedGatewayProviderFallback();
   await testChatGptProRunExtendsStreamWaits();

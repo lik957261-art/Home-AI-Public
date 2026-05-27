@@ -191,15 +191,27 @@ Required harness dimensions:
 - Runtime selector code must keep failure non-blocking: invalid JSON, timeout,
   missing Gateway runner, or an empty/unauthorized selection must fall back to
   the original authorized toolsets rather than failing the user run.
-- Selector latency is part of the contract. The first-round selector must use a
-  short bounded budget, default to a lightweight model, and attempt a
-  best-effort stop when a selector run id is known after failure. It must not
-  hold the user's real run behind a long model preflight.
-- The permission-boundary flow is the reference design: the model emits
-  `HERMES_PERMISSION_APPROVAL_REQUIRED` during the normal run and Hermes parses
-  the marker locally. Toolset selection should follow the same marker-style
-  contract for future non-blocking expansion/escalation work instead of adding
-  another long synchronous pre-run decision.
+- Selector latency is part of the contract. The first-round selector uses a
+  ChatGPT low-cost model with a bounded timeout large enough for reliable
+  completion, defaults to 45000ms, and attempts a best-effort stop when a
+  selector run id is known after failure.
+- Tens-of-seconds selector latency is acceptable when it reliably returns a
+  decision. The timeout must be set for reliability rather than micro-latency,
+  and timeout/error fallback must still allow the original authorized toolsets.
+- Permission and toolset choice must enter the same model-side preflight. Do
+  not add a local natural-language permission classifier before the model run.
+  The model may return either selected authorized toolsets or a
+  `HERMES_PERMISSION_APPROVAL_REQUIRED`-style Owner-elevation decision.
+- The selector is an internal JSON-only preflight, not a user-facing task run.
+  It must not browse, search, call tools, or load Skills. Harness coverage must
+  assert the selector request disables tool calls and, for live probes, that the
+  Gateway selector session contains no tool-role messages.
+- Selector parsing must tolerate repeated or duplicated JSON candidates from
+  streamed Responses events and choose a valid final candidate instead of
+  failing the user run as `invalid_json`.
+- Latency and cost claims must verify the actual Gateway session or worker log
+  model. A request body's `model` field is configuration intent, not proof that
+  the worker did not use its profile default.
 - Run telemetry must record model-selection start/end, selected toolsets,
   expanded callable count, tool-call start/end, final-message start/end, and
   terminal status without storing raw prompts, raw model responses, secrets, or

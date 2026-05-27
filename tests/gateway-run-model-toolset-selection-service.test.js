@@ -27,13 +27,44 @@ function baseRequest() {
 
 function testParsesJsonAndFiltersUnauthorizedToolsets() {
   const parsed = parseToolsetSelectionText(
-    "```json\n{\"toolsets\":[\"weather\",\"shell\",\"file\"],\"reason\":\"needs weather\"}\n```",
+    "```json\n{\"decision\":\"allowed\",\"toolsets\":[\"weather\",\"shell\",\"file\"],\"reason\":\"needs weather\"}\n```",
     ["file", "weather"],
   );
 
   assert.equal(parsed.ok, true);
   assert.deepEqual(parsed.selectedToolsets, ["weather", "file"]);
   assert.deepEqual(parsed.rejectedToolsets, ["shell"]);
+}
+
+function testParsesPermissionDecisionBeforeToolsets() {
+  const parsed = parseToolsetSelectionText(
+    "{\"decision\":\"needs_elevation\",\"scope\":\"owner_high_privilege\",\"reason\":\"outside current workspace\"}",
+    ["file", "weather"],
+  );
+
+  assert.equal(parsed.ok, false);
+  assert.equal(parsed.reason, "permission_approval_required");
+  assert.equal(parsed.elevationRequired, true);
+  assert.equal(parsed.elevationScope, "owner_high_privilege");
+  assert.equal(parsed.elevationReason, "outside current workspace");
+
+  const marker = parseToolsetSelectionText(
+    "HERMES_PERMISSION_APPROVAL_REQUIRED {\"scope\":\"owner_high_privilege\",\"reason\":\"needs owner\"}",
+    ["file"],
+  );
+  assert.equal(marker.elevationRequired, true);
+  assert.equal(marker.elevationReason, "needs owner");
+}
+
+function testParsesLastBalancedJsonWhenStreamRepeatsOutput() {
+  const repeated = [
+    "{\"decision\":\"allowed\",\"toolsets\":[\"weather\"],\"reason\":\"delta\"}",
+    "{\"decision\":\"allowed\",\"toolsets\":[\"file\"],\"reason\":\"done\"}",
+  ].join("");
+  const parsed = parseToolsetSelectionText(repeated, ["file", "weather"]);
+  assert.equal(parsed.ok, true);
+  assert.deepEqual(parsed.selectedToolsets, ["file"]);
+  assert.equal(parsed.reason, "done");
 }
 
 function testInvalidSelectionFallsBack() {
@@ -55,10 +86,15 @@ function testBuildsCompactSelectorBodyWithoutCallableToolsets() {
   assert.equal(body.model, "gpt-test");
   assert.equal(body.provider, "openai-codex");
   assert.equal(body.conversation, "conv_1:toolset-selection");
+  assert.equal(body.tool_choice, "none");
+  assert.equal(body.parallel_tool_calls, false);
   assert.deepEqual(body.access_policy_context.allowed_toolsets, []);
   assert.deepEqual(body.access_policy_context.authorized_toolsets, ["file", "weather"]);
-  assert.match(body.instructions, /Return only compact JSON/);
-  assert.match(body.instructions, /If uncertain, select every authorized toolset/);
+  assert.match(body.instructions, /permission and toolset preflight/);
+  assert.match(body.instructions, /hermes-mobile-permission-boundary-check/);
+  assert.match(body.instructions, /Do not browse, search, call tools, or load skills/);
+  assert.match(body.instructions, /"decision":"needs_elevation"/);
+  assert.match(body.instructions, /If the permission is allowed but the task is ambiguous, select every authorized toolset/);
 }
 
 function testSelectorModelOverrideUsesLightweightModel() {
@@ -109,7 +145,7 @@ async function testStreamsSelectorAndReturnsAuthorizedSelection() {
   assert.deepEqual(result.selectedToolsets, ["weather", "file"]);
   assert.deepEqual(result.authorizedToolsets, ["file", "weather", "x_search", "web"]);
   assert.equal(calls[1].options.gatewayUrl, "http://worker");
-  assert.equal(calls[1].options.timeoutMs, 4000);
+  assert.equal(calls[1].options.timeoutMs, 45000);
   assert.equal(calls[1].body.model, "gpt-5.4-mini");
   assert.equal(calls[1].body.provider, "openai-codex");
   assert.deepEqual(calls[1].body.access_policy_context.allowed_toolsets, []);
@@ -177,6 +213,8 @@ assert.deepEqual(buildCapabilityCatalog(["file"])[0], {
   summary: "Read permitted workspace files and document attachments.",
 });
 testParsesJsonAndFiltersUnauthorizedToolsets();
+testParsesPermissionDecisionBeforeToolsets();
+testParsesLastBalancedJsonWhenStreamRepeatsOutput();
 testInvalidSelectionFallsBack();
 testBuildsCompactSelectorBodyWithoutCallableToolsets();
 testSelectorModelOverrideUsesLightweightModel();
