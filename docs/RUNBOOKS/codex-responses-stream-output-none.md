@@ -63,7 +63,44 @@ symptom, but it is not the `NoneType` production-wide chat/Automation failure.
    `response.completed` but the terminal response has `output=None`, treat it
    as this runbook.
 
-## Hotfix Applied On 2026-05-27
+## Official Runtime Cutover On 2026-05-27
+
+The first production recovery was a local `run_agent.py` hotfix. That local
+patch is now superseded by an official upstream `main` cutover.
+
+Official source state used for the cutover:
+
+- Latest formal upstream release/tag observed: `v2026.5.16`.
+- Production runtime commit after cutover:
+  `febc4cfec0a79b175a430304765473c97e10622f`
+  (`v2026.5.16-1128-gfebc4cfec`).
+- Relevant upstream fix: `cb38ce28c`, which dropped the SDK
+  `responses.stream()` helper in Codex runtime and consumes stream events
+  directly from `responses.create(stream=True)`.
+
+The official fix matches this incident class because it reconstructs output
+from streamed `response.output_item.*` / `response.output_text.*` events
+instead of trusting the terminal `response.output` field to be iterable.
+
+Production runtime trees that must be updated together:
+
+- Owner-maintenance runtime in the owner WSL distro:
+  `/opt/hermes-gateway-runtime/official-clean`
+- Low Gateway runtime in the Windows `HermesMobileWorker` account's
+  `HermesGatewayWorker` WSL distro:
+  `/opt/hermes-gateway-runtime/official-clean`
+
+2026-05-27 cutover backups:
+
+- Owner-maintenance distro:
+  `/opt/hermes-gateway-runtime/backups/pre-official-main-20260527-160752`
+- Worker low-gateway distro:
+  `/opt/hermes-gateway-runtime/backups/pre-official-main-worker-20260527-162250`
+
+After replacing either runtime tree, restart the affected worker group so
+already-running Python processes reload the new `agent/codex_runtime.py`.
+
+## Superseded Local Hotfix
 
 Runtime path:
 
@@ -86,17 +123,20 @@ The same patch must be present in both runtime trees:
 - Owner-maintenance runtime under the normal owner WSL distro.
 - Low Gateway worker runtime under the `HermesMobileWorker` managed WSL distro.
 
-After patching, restart Gateway Pool or the affected worker group so already
-running Python processes reload `run_agent.py`.
+Do not reapply this local patch after the official-main cutover unless a future
+upstream regression is proven and explicitly approved.
 
 ## Validation
 
 Required checks:
 
 - `python -m py_compile /opt/hermes-gateway-runtime/official-clean/run_agent.py`
+- `python -m py_compile /opt/hermes-gateway-runtime/official-clean/agent/codex_runtime.py`
 - Minimal `AIAgent._run_codex_stream()` probe returns `status=completed`.
 - Direct low Gateway `/v1/responses` smoke returns `response.completed` and no
   `run.error` or `NoneType`.
+- Hermes Mobile production smoke through Gateway Pool returns a completed
+  assistant message with a non-secret worker label.
 - Authenticated `/api/status?detail=1` reports all expected workers healthy.
 
 Do not store raw Authorization headers, access tokens, API keys, prompt bodies,

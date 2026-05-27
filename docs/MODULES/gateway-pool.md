@@ -21,6 +21,11 @@ Gateway Pool owns official-clean Hermes worker startup, health checks, routing t
 - Gateway worker root: `C:\ProgramData\HermesMobile\gateway-worker`
 - Owner-maintenance profiles: `/home/<owner>/.hermes/profiles/officialclean1`, `/home/<owner>/.hermes/profiles/officialclean2`
 - Low Gateway profiles: `C:\ProgramData\HermesMobile\gateway-worker\telemetry\profiles\lowgw*`
+- Owner-maintenance runtime tree: `/opt/hermes-gateway-runtime/official-clean`
+  in the owner WSL distro.
+- Low Gateway runtime tree: `/opt/hermes-gateway-runtime/official-clean` inside
+  the Windows `HermesMobileWorker` account's `HermesGatewayWorker` WSL distro.
+  Operator-user `wsl.exe -l` does not show that worker distro.
 
 ## Worker Roles
 
@@ -147,6 +152,21 @@ Automation job, XSearch, Grok routing, or task prompt. The known 2026-05-27
 failure class is a `chatgpt.com/backend-api/codex` streaming response whose
 terminal `response.output` is `None`; the Gateway runtime must fall back to the
 raw stream path and backfill output from streamed items.
+
+As of 2026-05-27, both owner-maintenance and low-gateway production runtimes
+track upstream official `main` commit
+`febc4cfec0a79b175a430304765473c97e10622f`
+(`v2026.5.16-1128-gfebc4cfec`) because the latest formal upstream release tag
+was still `v2026.5.16` while the Codex streaming fix had already landed on
+`main`. Runtime updates for this issue must cut over both distro copies; moving
+only the owner distro leaves ordinary lowgw workers on the old code.
+
+When `start-low-gateways.sh` is invoked through the Windows worker wrapper, the
+wrapper process can remain attached even after detached Gateway Python
+processes are healthy. Do not treat the wrapper exit alone as the source of
+truth. Verify the worker-distro `official-clean` commit, lowgw listening ports,
+process start times, `/api/status?detail=1`, and a Gateway Pool production
+smoke; then clean up only the stale wrapper processes if they remain attached.
 
 ## Cross-Shell Operation Rule
 
