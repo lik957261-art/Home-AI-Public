@@ -26,12 +26,21 @@ assert.match(harnessMatrix, /Open no more than four source files/);
 assert.match(harnessMatrix, /80-120 surrounding lines/);
 assert.match(harnessMatrix, /route-first query/);
 assert.match(harnessMatrix, /one targeted `rg` pass/);
+assert.match(harnessMatrix, /Gateway Toolset Selection And Run Telemetry/);
+assert.match(harnessMatrix, /must not hard-prune callable toolsets before the model/);
+assert.match(harnessMatrix, /compact capability\s+catalog/);
+assert.match(harnessMatrix, /explicit escalation path/);
+assert.match(harnessMatrix, /final-message start\/end/);
 
 assert.match(testMatrix, /CodeGraph-First Read Budget/);
 assert.match(testMatrix, /three CodeGraph structural queries/);
 assert.match(testMatrix, /four source files/);
 assert.match(testMatrix, /80-120 lines/);
 assert.match(testMatrix, /targeted `rg`/);
+assert.match(testMatrix, /model-first\s+contract/);
+assert.match(testMatrix, /Do not hard-prune callable toolsets/);
+assert.match(testMatrix, /selected narrow execution/);
+assert.match(testMatrix, /final-message start\/end/);
 
 if (fs.existsSync(userSkill)) {
   const skillText = fs.readFileSync(userSkill, "utf8");
@@ -40,4 +49,8 @@ if (fs.existsSync(userSkill)) {
   assert.match(skillText, /no more than four source files/);
   assert.match(skillText, /route-first/);
   assert.match(skillText, /80-120 lines/);
+  assert.match(skillText, /model-first toolset selection/);
+  assert.match(skillText, /Do not\s+hard-prune callable toolsets/);
+  assert.match(skillText, /explicit escalation path/);
+  assert.match(skillText, /final-message start\/end/);
 }

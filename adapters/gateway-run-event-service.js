@@ -565,7 +565,35 @@ function createGatewayRunEventService(options = {}) {
     if (loadedTool) message.loadedTools = mergeLoadedTools(message.loadedTools, loadedTool);
     saveState();
     broadcast({ type: "run.event", threadId: thread.id, runId: eventRunId || runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
+    if (eventName === "response.output_item.added" && cleanString(tool).toLowerCase() === "message") {
+      addThreadEvent(thread, {
+        event: "run.final_message_started",
+        timestamp: nowMs() / 1000,
+        runId: eventRunId || runId,
+        tool: "message",
+        preview: "",
+        error: false,
+      });
+      saveState();
+      broadcast({ type: "run.event", threadId: thread.id, runId: eventRunId || runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
+    }
     return { action: "output_item" };
+  }
+
+  function recordFinalMessageDoneEvent(context) {
+    const { thread, runId, message, responseRunId, stream } = context;
+    const eventRunId = cleanString(message?.runId || responseRunId || stream?.realRunId || runId);
+    addThreadEvent(thread, {
+      event: "run.final_message_done",
+      timestamp: nowMs() / 1000,
+      runId: eventRunId || runId,
+      tool: "message",
+      preview: "",
+      error: false,
+    });
+    saveState();
+    broadcast({ type: "run.event", threadId: thread.id, runId: eventRunId || runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
+    return { action: "final_message_done" };
   }
 
   function markRunCompleted(context, event) {
@@ -685,6 +713,7 @@ function createGatewayRunEventService(options = {}) {
     if (eventName === "response.output_item.added" || eventName === "response.output_item.done") {
       return recordOutputItemEvent(context, event);
     }
+    if (eventName === "response.output_text.done") return recordFinalMessageDoneEvent(context);
 
     addThreadEvent(thread, event);
 

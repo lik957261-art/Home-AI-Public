@@ -18,6 +18,7 @@ const {
 
 function testEventNameNormalizationAndTerminalStatus() {
   assert.equal(normalizeGatewayRunEventName({ type: " RESPONSE_OUTPUT_TEXT_DELTA " }), "response.output_text.delta");
+  assert.equal(normalizeGatewayRunEventName({ type: " RESPONSE_OUTPUT_TEXT_DONE " }), "response.output_text.done");
   assert.equal(normalizeGatewayRunEventName("run.canceled"), "run.cancelled");
   assert.equal(terminalStatusForGatewayRunEvent({ event: "response.completed" }), "done");
   assert.equal(terminalStatusForGatewayRunEvent({ event: "run.failed" }), "failed");

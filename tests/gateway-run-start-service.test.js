@@ -334,6 +334,79 @@ async function testStartRunPreservesSearchSourceRouting() {
   assert.deepEqual(assistant.runOptions.toolsetRouting, { mode: "intent", reason: "matched_intent" });
 }
 
+async function testStartRunUsesModelFirstSelectionBeforeExecution() {
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "weather", "x_search", "web"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+    selectRunToolsetsWithModel: async ({ request, gatewayTarget }) => {
+      assert.deepEqual(request.runPolicy.allowed_toolsets, ["file", "weather", "x_search", "web"]);
+      assert.equal(gatewayTarget.profile, "lowgw1");
+      return {
+        enabled: true,
+        ok: true,
+        reason: "wardrobe_weather",
+        selectedToolsets: ["weather", "file"],
+        authorizedToolsets: ["file", "weather", "x_search", "web"],
+        durationMs: 120,
+      };
+    },
+  });
+  const assistant = baseAssistantMessage();
+
+  await service.startRunForThread(baseThread(), baseUserMessage(), assistant, {});
+
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["weather", "file"]);
+  assert.equal(calls.streams[0].body.access_policy_context.toolset_routing.mode, "model_first");
+  assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.selected_toolsets, ["weather", "file"]);
+  assert.match(calls.streams[0].body.instructions, /HERMES_TOOLSET_ESCALATION_REQUIRED/);
+  assert.match(calls.streams[0].body.instructions, /Omitted authorized toolsets: x_search, web/);
+  assert.equal(assistant.runOptions.toolsetRouting.mode, "model_first");
+  assert.deepEqual(assistant.runOptions.access_policy_context.allowed_toolsets, ["weather", "file"]);
+  assert.deepEqual(calls.events.map((event) => event.event), [
+    "run.context_ready",
+    "run.gateway_selected",
+    "run.toolset_selection_started",
+    "run.toolset_selection_done",
+    "run.request_sent",
+  ]);
+  assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["weather", "file"]);
+}
+
+async function testStartRunFallsBackWhenModelFirstSelectionFails() {
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "weather", "x_search", "web"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+    selectRunToolsetsWithModel: async () => ({
+      enabled: true,
+      ok: false,
+      reason: "selector_error",
+      selectedToolsets: ["file", "weather", "x_search", "web"],
+      authorizedToolsets: ["file", "weather", "x_search", "web"],
+      durationMs: 15000,
+    }),
+  });
+
+  await service.startRunForThread(baseThread(), baseUserMessage(), baseAssistantMessage(), {});
+
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["file", "weather", "x_search", "web"]);
+  assert.deepEqual(calls.events.map((event) => event.event), [
+    "run.context_ready",
+    "run.gateway_selected",
+    "run.toolset_selection_started",
+    "run.toolset_selection_failed",
+    "run.request_sent",
+  ]);
+  assert.equal(JSON.parse(calls.events[3].preview).reason, "selector_error");
+}
+
 function testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions() {
   const { calls, service } = makeHarness();
   const request = service.buildRunRequest(
@@ -421,6 +494,8 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testStartRunBuildsGatewayRequestAndMutatesStartState();
   testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext();
   await testStartRunPreservesSearchSourceRouting();
+  await testStartRunUsesModelFirstSelectionBeforeExecution();
+  await testStartRunFallsBackWhenModelFirstSelectionFails();
   testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions();
   await testStartRunUsesSelectedGatewayProviderFallback();
   await testChatGptProRunExtendsStreamWaits();

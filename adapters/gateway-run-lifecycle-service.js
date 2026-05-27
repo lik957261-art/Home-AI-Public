@@ -22,6 +22,7 @@ function normalizeGatewayRunEventName(value) {
     : value;
   const name = cleanString(raw).toLowerCase().replace(/_/g, ".");
   if (name === "response.output.text.delta") return "response.output_text.delta";
+  if (name === "response.output.text.done") return "response.output_text.done";
   if (name === "response.output.item.added") return "response.output_item.added";
   if (name === "response.output.item.done") return "response.output_item.done";
   if (name === "run.canceled") return "run.cancelled";

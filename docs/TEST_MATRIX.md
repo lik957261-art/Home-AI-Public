@@ -28,8 +28,21 @@ Before implementing non-trivial workflow changes, classify the change with
   scroll, or service-worker behavior.
 
 H1 includes Growth learning cards, Action Inbox passive notifications,
-Automation/Cron execution, cross-shell production operations, Web Push click
-routing, permission/workspace boundaries, and Public Export/Release.
+Automation/Cron execution, Gateway toolset selection/run telemetry,
+cross-shell production operations, Web Push click routing,
+permission/workspace boundaries, and Public Export/Release.
+
+For Gateway toolset selection, the harness must preserve the model-first
+contract. Do not hard-prune callable toolsets before a first-round model
+selection. A first round may use a compact capability catalog, and the
+execution round may expand only the selected authorized toolsets, but the
+model must have an explicit escalation path for additional authorized toolsets.
+The harness must cover selected narrow execution, allowed escalation, denied
+blocked-toolset escalation, invalid selection fallback, and telemetry for
+model-selection start/end, tool-call start/end, and final-message start/end.
+Selector failure is explicitly non-blocking: timeout, invalid JSON, missing
+runner, or unauthorized selections must fall back to the originally authorized
+toolset list.
 
 For same-window navigation and browser-frame bugs, the required harness must
 cover both root-mounted and prefix-mounted app-shell paths. If the issue is
@@ -96,7 +109,7 @@ The guard test is:
 | API registry/dispatcher | `node tests\api-route-registry.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js` |
 | Multi-user/task platform | `node tests\auth-provider.test.js`, `node tests\access-key-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\conversation-history-service.test.js`, `node tests\action-inbox-service.test.js`, `node tests\web-push-delivery-service.test.js` |
 | Auth/workspace/access keys | `node tests\auth-provider.test.js`, `node tests\access-key-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\workspace-public-projection-service.test.js` |
-| Gateway run lifecycle | `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-stream-service.test.js`, `node tests\gateway-run-lifecycle-service.test.js`, `node tests\gateway-run-queue-service.test.js`, `node tests\run-liveness.test.js` |
+| Gateway run lifecycle | `node tests\gateway-run-model-toolset-selection-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\gateway-run-stream-service.test.js`, `node tests\gateway-run-lifecycle-service.test.js`, `node tests\gateway-run-queue-service.test.js`, `node tests\run-liveness.test.js` |
 | Chat context/compaction | `node tests\conversation-history-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\topic-context-compaction-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\mobile-sqlite-store.test.js` |
 | Gateway Pool/scripts | `node tests\gateway-pool-provider.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\cross-shell-command-harness.test.js` |
 | ChatGPT Pro | `node tests\chatgpt-pro-codex-bridge-service.test.js`, `node tests\owner-elevation-routing-service.test.js`, `node tests\thread-message-create-service.test.js` |

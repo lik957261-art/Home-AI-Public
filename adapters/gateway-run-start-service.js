@@ -103,6 +103,7 @@ function createGatewayRunStartService(options = {}) {
   const compactMessage = maybeCall(options.compactMessage, (message) => message);
   const threadSummary = maybeCall(options.threadSummary, (thread) => thread);
   const streamResponse = maybeCall(options.streamResponse, () => null);
+  const selectRunToolsetsWithModel = typeof options.selectRunToolsetsWithModel === "function" ? options.selectRunToolsetsWithModel : null;
   const nowMs = maybeCall(options.nowMs, () => Date.now());
 
   function buildGroupChatRunContext(thread, userMessage, policy) {
@@ -164,6 +165,18 @@ function createGatewayRunStartService(options = {}) {
       policyHardeningOptions,
     }) || {};
     runPolicy = sanitizePolicy(objectValue(routedPolicy.policy, runPolicy), policyHardeningOptions);
+    const modelFirstSelection = objectValue(runOptions.modelFirstToolsetSelection, null);
+    const modelFirstToolsets = dedupe(modelFirstSelection?.selectedToolsets || modelFirstSelection?.selected_toolsets || []);
+    if (modelFirstToolsets.length) {
+      runPolicy = sanitizePolicy(Object.assign({}, runPolicy, {
+        allowed_toolsets: modelFirstToolsets,
+        toolset_routing: modelFirstSelection.routing || {
+          mode: "model_first",
+          reason: "model_selected",
+          selected_toolsets: modelFirstToolsets,
+        },
+      }), policyHardeningOptions);
+    }
     const conversation = gatewayConversationId(thread, userMessage, runPolicy);
     const instructions = [
       buildHermesInstructions(
@@ -216,7 +229,7 @@ function createGatewayRunStartService(options = {}) {
       policyThread,
       project,
       requestedGatewayRouting,
-      toolsetRouting: routedPolicy.routing || runPolicy.toolset_routing || null,
+      toolsetRouting: runPolicy.toolset_routing || routedPolicy.routing || null,
       runPolicy,
       taskDirectory,
       toolSchemaEpoch,
@@ -269,6 +282,60 @@ function createGatewayRunStartService(options = {}) {
     return parts.join(" · ");
   }
 
+  function toolsetSelectionRouting(selection = {}, selectedToolsets = []) {
+    return {
+      mode: "model_first",
+      reason: cleanString(selection.reason) || "model_selected",
+      selected_toolsets: dedupe(selectedToolsets),
+      authorized_toolset_count: Math.max(0, Number(selection.authorizedToolsets?.length || 0) || 0),
+      duration_ms: Math.max(0, Number(selection.durationMs || 0) || 0),
+    };
+  }
+
+  function toolsetSelectionPreview(selection = {}, selectedToolsets = []) {
+    return JSON.stringify({
+      selected_toolsets: dedupe(selectedToolsets),
+      duration_ms: Math.max(0, Number(selection.durationMs || 0) || 0),
+      reason: cleanString(selection.reason) || "model_selected",
+    });
+  }
+
+  function toolsetSelectionFallbackPreview(selection = {}) {
+    return JSON.stringify({
+      reason: cleanString(selection.reason) || "fallback_full_toolsets",
+      duration_ms: Math.max(0, Number(selection.durationMs || 0) || 0),
+    });
+  }
+
+  function appendToolsetEscalationInstructions(request = {}, selection = {}, selectedToolsets = []) {
+    const selected = dedupe(selectedToolsets);
+    const authorized = dedupe(selection.authorizedToolsets || []);
+    const omitted = authorized.filter((item) => !selected.includes(item));
+    if (!selected.length || !omitted.length) return request;
+    request.body.instructions = [
+      request.body.instructions || "",
+      [
+        "Toolset routing: a model-first selector chose the enabled execution toolsets listed below.",
+        `Enabled toolsets: ${selected.join(", ")}`,
+        "If the task requires an omitted authorized toolset, stop and reply with HERMES_TOOLSET_ESCALATION_REQUIRED plus compact JSON: {\"toolsets\":[\"toolset_id\"],\"reason\":\"short reason\"}.",
+        `Omitted authorized toolsets: ${omitted.join(", ")}`,
+      ].join("\n"),
+    ].filter(Boolean).join("\n\n");
+    return request;
+  }
+
+  function applyAssistantRunOptions(assistantMessage, request, sourceRunOptions = {}) {
+    assistantMessage.runOptions = Object.assign({}, assistantMessage.runOptions || {}, {
+      access_policy_context: request.runPolicy,
+      gatewayConversation: request.body.conversation,
+      toolSchemaEpoch,
+    });
+    if (request.toolsetRouting) assistantMessage.runOptions.toolsetRouting = request.toolsetRouting;
+    if (sourceRunOptions.searchSource) assistantMessage.runOptions.searchSource = cleanString(sourceRunOptions.searchSource);
+    if (sourceRunOptions.sourceIntent) assistantMessage.runOptions.sourceIntent = cleanString(sourceRunOptions.sourceIntent);
+    if (sourceRunOptions.sourceMode) assistantMessage.runOptions.sourceMode = cleanString(sourceRunOptions.sourceMode);
+  }
+
   function applyStartedRunState(thread, assistantMessage, taskId, gatewayTarget, startedAt = nowIso()) {
     const gatewayUrl = cleanString(gatewayTarget?.apiBase);
     assistantMessage.runId = taskId;
@@ -300,17 +367,9 @@ function createGatewayRunStartService(options = {}) {
     assertRunConcurrencyCapacity(actorWorkspaceId);
     assistantMessage.actorWorkspaceId = actorWorkspaceId;
 
-    const request = buildRunRequest(thread, userMessage, assistantMessage, runOptions);
+    let request = buildRunRequest(thread, userMessage, assistantMessage, runOptions);
     const taskId = makePublicTaskId("web");
-    assistantMessage.runOptions = Object.assign({}, assistantMessage.runOptions || {}, {
-      access_policy_context: request.runPolicy,
-      gatewayConversation: request.body.conversation,
-      toolSchemaEpoch,
-    });
-    if (request.toolsetRouting) assistantMessage.runOptions.toolsetRouting = request.toolsetRouting;
-    if (runOptions.searchSource) assistantMessage.runOptions.searchSource = cleanString(runOptions.searchSource);
-    if (runOptions.sourceIntent) assistantMessage.runOptions.sourceIntent = cleanString(runOptions.sourceIntent);
-    if (runOptions.sourceMode) assistantMessage.runOptions.sourceMode = cleanString(runOptions.sourceMode);
+    applyAssistantRunOptions(assistantMessage, request, runOptions);
 
     const gatewayTarget = await chooseGatewayRunTarget(request.gatewayRouting);
     const { gatewayUrl } = applyStartedRunState(thread, assistantMessage, taskId, gatewayTarget, nowIso());
@@ -334,6 +393,42 @@ function createGatewayRunStartService(options = {}) {
       streamOptions.runStartTimeoutMs = CHATGPT_PRO_MIN_WAIT_MS;
       streamOptions.runLivenessCheckAfterMs = CHATGPT_PRO_MIN_WAIT_MS;
       streamOptions.runLivenessStaleAfterMs = 0;
+    }
+    if (selectRunToolsetsWithModel && !isChatGptProRunOptions(runOptions)) {
+      appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_started", "");
+      let selection = null;
+      try {
+        selection = await selectRunToolsetsWithModel({
+          thread,
+          userMessage,
+          assistantMessage,
+          runOptions,
+          request,
+          gatewayTarget,
+          taskId,
+        });
+      } catch (err) {
+        selection = { enabled: true, ok: false, reason: "selector_exception", error: cleanString(err?.message || err) };
+      }
+      const selectedToolsets = dedupe(selection?.selectedToolsets || selection?.selected_toolsets || []);
+      if (selection?.enabled && selection.ok && selectedToolsets.length) {
+        const routing = toolsetSelectionRouting(selection, selectedToolsets);
+        const selectedRunOptions = Object.assign({}, runOptions, {
+          modelFirstToolsetSelection: {
+            selectedToolsets,
+            routing,
+          },
+        });
+        request = appendToolsetEscalationInstructions(
+          buildRunRequest(thread, userMessage, assistantMessage, selectedRunOptions),
+          selection,
+          selectedToolsets,
+        );
+        applyAssistantRunOptions(assistantMessage, request, runOptions);
+        appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_done", toolsetSelectionPreview(selection, selectedToolsets));
+      } else if (selection?.enabled) {
+        appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_failed", toolsetSelectionFallbackPreview(selection || {}));
+      }
     }
     appendRunStartEvent(thread, assistantMessage, "run.request_sent", "等待模型或工具返回");
     saveState();

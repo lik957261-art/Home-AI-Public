@@ -165,6 +165,54 @@ Primary docs:
 - `docs/MODULES/grok-gateway.md`
 - `docs/RUNBOOKS/grok-gateway-auth.md`
 
+### Gateway Toolset Selection And Run Telemetry
+
+Applies to Gateway run creation, toolset routing, callable schema exposure,
+run-event streaming, liveness, and user-visible status timing for model-driven
+tasks.
+
+Required harness dimensions:
+
+- The system must not hard-prune callable toolsets before the model has had a
+  first-round chance to choose the task's needed capability set.
+- A first-round model toolset-selection step may receive a compact capability
+  catalog and the authorized policy summary, but not the full expanded schema
+  for every ordinary tool.
+- The execution round may expand only the model-selected toolsets, but it must
+  support an explicit escalation path when the model determines that an
+  additional authorized toolset is needed.
+- Security boundaries still apply before and after model selection: developer,
+  shell, source, process, broad MCP, and cross-workspace toolsets remain blocked
+  by policy/profile unless the request enters an explicit Owner maintenance
+  path.
+- Harness scenarios must cover model-selected narrow execution, model-requested
+  toolset escalation, denied escalation for blocked toolsets, and fallback when
+  the model cannot produce a valid toolset selection.
+- Runtime selector code must keep failure non-blocking: invalid JSON, timeout,
+  missing Gateway runner, or an empty/unauthorized selection must fall back to
+  the original authorized toolsets rather than failing the user run.
+- Run telemetry must record model-selection start/end, selected toolsets,
+  expanded callable count, tool-call start/end, final-message start/end, and
+  terminal status without storing raw prompts, raw model responses, secrets, or
+  user private content.
+- UI/status projection must distinguish at least: waiting for model selection,
+  waiting for tool result, generating final message, completed, failed, and
+  stale/liveness-failed.
+
+Primary docs and tests:
+
+- `docs/MODULES/gateway-pool.md`
+- `docs/GATEWAY_POOL_ARCHITECTURE.md`
+- `docs/LOW_GATEWAY_TOOLSET_POLICY.zh-CN.md`
+- `node tests\gateway-run-model-toolset-selection-service.test.js`
+- `node tests\gateway-run-toolset-routing-service.test.js`
+- `node tests\gateway-run-start-service.test.js`
+- `node tests\gateway-run-event-service.test.js`
+- `node tests\gateway-run-stream-service.test.js`
+- `node tests\gateway-run-lifecycle-service.test.js`
+- `node tests\task-list-ui.test.js`
+- `node tests\run-liveness.test.js`
+
 ### Cross-Shell Production Operations
 
 Applies to PowerShell-driven WSL operations, Gateway Pool startup and repair,

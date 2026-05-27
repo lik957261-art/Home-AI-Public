@@ -7,6 +7,9 @@ const RUN_PROGRESS_TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"]);
 const RUN_PROGRESS_START_EVENTS = new Set([
   "run.context_ready",
   "run.gateway_selected",
+  "run.toolset_selection_started",
+  "run.toolset_selection_done",
+  "run.toolset_selection_failed",
   "run.request_sent",
 ]);
 
@@ -113,8 +116,13 @@ function runEventTitle(event) {
   if (name === "response.output_item.added") return tool ? `\u5f00\u59cb ${tool}` : "\u5f00\u59cb\u5904\u7406";
   if (name === "response.output_item.done") return tool ? `\u5b8c\u6210 ${tool}` : "\u9636\u6bb5\u5b8c\u6210";
   if (name === "response.output_text.done") return "\u751f\u6210\u56de\u590d";
+  if (name === "run.final_message_started") return "\u5f00\u59cb\u751f\u6210\u56de\u590d";
+  if (name === "run.final_message_done") return "\u56de\u590d\u5df2\u751f\u6210";
   if (name === "run.context_ready") return "\u4e0a\u4e0b\u6587\u5df2\u6574\u7406";
   if (name === "run.gateway_selected") return "Gateway \u5df2\u9009\u62e9";
+  if (name === "run.toolset_selection_started") return "\u6b63\u5728\u9009\u62e9\u5de5\u5177\u96c6";
+  if (name === "run.toolset_selection_done") return "\u5de5\u5177\u96c6\u5df2\u9009\u62e9";
+  if (name === "run.toolset_selection_failed") return "\u5de5\u5177\u96c6\u9009\u62e9\u56de\u9000";
   if (name === "run.request_sent") return "\u8bf7\u6c42\u5df2\u53d1\u9001";
   if (name === "response.completed" || name === "run.completed") return "\u5904\u7406\u5b8c\u6210";
   if (name === "response.failed" || name === "run.failed") return "\u5904\u7406\u5931\u8d25";

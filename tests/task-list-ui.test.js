@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260527-automation-return-race-v276";
+const CLIENT_VERSION = "20260527-model-toolset-selection-v277";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -410,9 +410,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260527-automation-return-race-v276/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260527-automation-return-race-v276/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260527-automation-return-race-v276/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260527-model-toolset-selection-v277/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260527-model-toolset-selection-v277/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260527-model-toolset-selection-v277/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -539,6 +539,11 @@ assert.match(appJs, /RUN_PROGRESS_START_EVENT_REVEAL_MS = 1000/);
 assert.match(appJs, /RUN_PROGRESS_TERMINAL_STATUSES = new Set\(\["done", "failed", "cancelled"\]\)/);
 assert.match(appJs, /function runProgressVisibleEvents\(events = \[\], startMs = 0, now = Date\.now\(\)\)/);
 assert.match(appJs, /function runProgressDisplayEvents\(events = \[\], startMs = 0\)/);
+assert.match(appJs, /"run\.toolset_selection_started"/);
+assert.match(appJs, /"run\.toolset_selection_done"/);
+assert.match(appJs, /"run\.toolset_selection_failed"/);
+assert.match(appJs, /run\.final_message_started/);
+assert.match(appJs, /run\.final_message_done/);
 assert.match(appJs, /function runProgressTerminalMs\(message = \{\}\)/);
 assert.match(appJs, /const startEvents = visible\.filter\(isRunProgressStartEvent\)/);
 assert.match(appJs, /const runtimeEvents = visible\.filter\(\(event\) => !isRunProgressStartEvent\(event\)\)\.slice\(-3\)/);

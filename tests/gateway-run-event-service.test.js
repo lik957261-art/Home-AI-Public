@@ -461,6 +461,32 @@ function testOutputItemEventsUseAliasedResponseRunId() {
   assert.equal(calls.broadcasts.at(-1).runId, "real_response");
 }
 
+function testFinalMessageTelemetryDoesNotStoreResponseText() {
+  const { service, thread } = makeHarness();
+
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: { type: "message", content: [{ type: "output_text", text: "private draft" }] },
+  });
+  assert.equal(thread.events.at(-2).event, "response.output_item.added");
+  assert.equal(thread.events.at(-2).tool, "message");
+  assert.equal(thread.events.at(-1).event, "run.final_message_started");
+  assert.equal(thread.events.at(-1).preview, "");
+
+  const result = service.applyHermesRunEvent({
+    event: "response.output_text.done",
+    run_id: "public_run",
+    text: "private final response",
+  });
+
+  assert.equal(result.action, "final_message_done");
+  assert.equal(thread.events.at(-1).event, "run.final_message_done");
+  assert.equal(thread.events.at(-1).tool, "message");
+  assert.equal(thread.events.at(-1).preview, "");
+  assert.equal(thread.events.some((event) => /private/.test(event.preview || "")), false);
+}
+
 function testFailedAndCancelledRunsUseTerminalHelpers() {
   let harness = makeHarness();
   let result = harness.service.applyHermesRunEvent({ event: "run.failed", run_id: "public_run", error: { message: "gateway failed" } });
@@ -535,6 +561,7 @@ testHostedSearchOutputItemBackfillsToolTag();
 testCompletedRunUsageKeepsRequestedModelMetadata();
 testOutputItemEventsStoreReadableSummariesOnly();
 testOutputItemEventsUseAliasedResponseRunId();
+testFinalMessageTelemetryDoesNotStoreResponseText();
 testFailedAndCancelledRunsUseTerminalHelpers();
 testApprovalMarkersAreHiddenButValidRequestIsStored();
 testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued();

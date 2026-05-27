@@ -85,6 +85,7 @@ function createGatewayRuntimeCompositionService(deps = {}) {
         projectForTaskDirectoryAttachment: deps.projectForTaskDirectoryAttachment,
         removeThreadActiveRun,
         routeRunToolsets: deps.routeRunToolsets,
+        selectRunToolsetsWithModel: deps.selectRunToolsetsWithModel,
         sanitizePolicy: deps.sanitizePolicy,
         saveState: deps.saveState,
         singleWindowProjectId: deps.singleWindowProjectId,
