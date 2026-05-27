@@ -212,6 +212,9 @@ Required harness dimensions:
 - iOS Web Push subscription requires PWA standalone evidence. The harness must
   cover frontend `clientContext.displayMode` / `standalone`, subscribe-route
   forwarding, and delivery-side filtering of legacy iOS browser subscriptions.
+- iOS browser-shell clients must not continue Hermes-owned notification/source
+  detail navigation. The harness must assert a PWA standalone guard before
+  `openNotificationRoute()` applies route params.
 - Old client/service-worker version behavior fails safely.
 
 Primary docs:

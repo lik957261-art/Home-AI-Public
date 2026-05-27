@@ -123,6 +123,30 @@ function pushClientContext() {
   };
 }
 
+function hermesBrowserShellNavigationBlocked() {
+  return isIosPushClient() && !isStandalonePwa();
+}
+
+function hermesAppWindowRequiredText() {
+  return "\u8bf7\u4ece\u4e3b\u5c4f\u5e55\u7684 Hermes Mobile \u5e94\u7528\u6253\u5f00\u540e\u518d\u8fdb\u5165\u8be6\u60c5\uff0c\u4e0d\u8981\u5728 Safari/\u6d4f\u89c8\u5668\u6846\u4e2d\u6253\u5f00\u5185\u90e8\u9875\u9762\u3002";
+}
+
+function requireHermesAppWindowForNavigation() {
+  if (!hermesBrowserShellNavigationBlocked()) return true;
+  const message = hermesAppWindowRequiredText();
+  try {
+    const connectionState = $("connectionState");
+    if (connectionState) connectionState.textContent = message;
+  } catch (_) {}
+  try {
+    showPushToast(message, "error");
+  } catch (_) {}
+  try {
+    window.alert(message);
+  } catch (_) {}
+  return false;
+}
+
 function pwaPlatformHint() {
   const ua = navigator.userAgent || "";
   if (/iPad|iPhone|iPod/i.test(ua)) {
@@ -419,7 +443,7 @@ function pushUnavailableReason() {
   if (!("serviceWorker" in navigator)) return "当前浏览器不支持 Service Worker。";
   if (!("PushManager" in window)) return "当前浏览器或安装方式不支持 Web Push。iOS 需要从 Safari 添加到主屏幕后使用。";
   if (!("Notification" in window)) return "当前浏览器不支持通知权限。";
-  if (isIosPushClient() && !isStandalonePwa()) return "\u8bf7\u5148\u4ece\u4e3b\u5c4f\u5e55\u7684 Hermes Mobile \u5e94\u7528\u6253\u5f00\uff0c\u4e0d\u8981\u5728 Safari/\u6d4f\u89c8\u5668\u4e2d\u542f\u7528 Web Push\u3002";
+  if (isIosPushClient() && !isStandalonePwa()) return hermesAppWindowRequiredText();
   if (state.pushStatus && (!state.pushStatus.enabled || !state.pushStatus.publicKey)) return "服务端 Web Push 尚未配置。";
   if (Notification.permission === "denied") return "通知权限已被系统拒绝，需要在浏览器或 iOS 设置里重新允许。";
   return "";

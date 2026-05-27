@@ -32,6 +32,7 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 - If the payload points at a viewer shell, route back to the app route or viewer `return` route instead of opening the viewer shell as the primary app.
 - Hermes-owned navigation must stay in the same app window. App code, second-level pages, file previews, and internal links must not use `window.open`, `target=_blank`, or Markdown `linkTarget="_blank"` for product navigation.
 - `clients.openWindow(targetWindowRoute)` is allowed only as the service-worker fallback when no same-origin top-level client is available; when an app shell client exists, notification click must post the route to that client and focus it.
+- On iOS, Hermes-owned notification/deep-link navigation must not continue inside Safari/browser mode. If the current client is not the installed PWA standalone window, the app must stop internal detail navigation and prompt the user to reopen from the Home Screen Hermes Mobile app.
 
 ## Subscription Window Rules
 

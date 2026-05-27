@@ -44,8 +44,14 @@ assert.doesNotMatch(serviceWorker, /self\.clients\.openWindow\(targetUrl\)/);
 const pwaPushUi = read("public/app-pwa-settings-push-ui.js");
 assert.match(pwaPushUi, /function currentDisplayMode\(\)/);
 assert.match(pwaPushUi, /function pushClientContext\(\)/);
+assert.match(pwaPushUi, /function hermesBrowserShellNavigationBlocked\(\)/);
+assert.match(pwaPushUi, /function requireHermesAppWindowForNavigation\(\)/);
 assert.match(pwaPushUi, /isIosPushClient\(\) && !isStandalonePwa\(\)/);
 assert.match(pwaPushUi, /clientContext,[\s\S]*displayMode: clientContext\.displayMode,[\s\S]*standalone: clientContext\.standalone/);
+
+const platformUi = read("public/app-platform-ui.js");
+assert.match(platformUi, /function sameOriginRouteUrl\(value\)/);
+assert.match(platformUi, /typeof requireHermesAppWindowForNavigation === "function"[\s\S]*!requireHermesAppWindowForNavigation\(\)/);
 
 const pushApiRoutes = read("server-routes/push-api-routes.js");
 assert.match(pushApiRoutes, /const clientContext = body\.clientContext/);

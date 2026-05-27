@@ -303,6 +303,10 @@ function replaceTodoDetailRouteFlag(todoId, flagName) {
 async function openNotificationRoute(value) {
   const parsed = sameOriginRouteUrl(value);
   if (!parsed) return;
+  if (
+    typeof requireHermesAppWindowForNavigation === "function"
+    && !requireHermesAppWindowForNavigation()
+  ) return;
   if (!applyRouteParams(new URLSearchParams(parsed.search || ""))) return;
   suppressComposerAutoFocus(1200);
   blurComposerInput();
