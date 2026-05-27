@@ -33,6 +33,15 @@ function openAutomationList() {
   renderAutomationView();
 }
 
+function cancelAutomationViewLoads() {
+  state.automationRequestSeq = (state.automationRequestSeq || 0) + 1;
+  state.automationDetailRequestSeq = (state.automationDetailRequestSeq || 0) + 1;
+  state.automationLoading = false;
+  state.automationDetailLoading = false;
+  state.automationRouteTargetPending = false;
+  state.automationRouteTargetId = "";
+}
+
 function automationSecondaryReturnActive() {
   return state.viewMode === "automation" && !isAutomationDetailView() && String(state.automationReturnRoute || "") === "inbox";
 }

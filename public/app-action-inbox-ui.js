@@ -214,6 +214,10 @@ async function loadActionInboxItem(itemId, options = {}) {
 }
 
 function openActionInboxList() {
+  const previousViewMode = state.viewMode;
+  if (previousViewMode === "automation" && typeof cancelAutomationViewLoads === "function") cancelAutomationViewLoads();
+  state.viewMode = "inbox";
+  localStorage.setItem("hermesWebViewMode", state.viewMode);
   state.skillDetail = null;
   state.selectedActionInboxItemId = "";
   state.actionInboxDetail = null;

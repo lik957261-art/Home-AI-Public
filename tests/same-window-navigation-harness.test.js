@@ -108,11 +108,16 @@ assert.match(platformUi, /data-mobile-browser-shell-copy/);
 assert.match(platformUi, /copyNavigationDiagnostics\(\)\.catch/);
 
 const actionInboxUi = read("public/app-action-inbox-ui.js");
+const chatComposerUi = read("public/app-chat-composer-ui.js");
+const automationControllerUi = read("public/app-automation-controller-ui.js");
 assert.match(actionInboxUi, /data-action-inbox-open-source-id/);
 assert.match(actionInboxUi, /function openActionInboxItemSource\(item\) \{[\s\S]*?openHermesInternalRoute\(link\)/);
 assert.match(actionInboxUi, /recordNavigationDiagnostic\("action_inbox_open_source"/);
 assert.match(actionInboxUi, /actionInboxAppShellRouteForParams\(params\)/);
+assert.match(actionInboxUi, /function openActionInboxList\(\) \{[\s\S]*?state\.viewMode = "inbox";[\s\S]*?localStorage\.setItem\("hermesWebViewMode", state\.viewMode\);/);
 assert.doesNotMatch(actionInboxUi, /openNotificationRoute\(link\)/);
+assert.match(chatComposerUi, /function cancelAutomationViewLoads\(\) \{[\s\S]*?state\.automationRequestSeq = \(state\.automationRequestSeq \|\| 0\) \+ 1;[\s\S]*?state\.automationRouteTargetPending = false;/);
+assert.match(automationControllerUi, /if \(seq !== state\.automationRequestSeq \|\| state\.viewMode !== "automation"\) return;/);
 const navigationSearchUi = read("public/app-navigation-search-ui.js");
 assert.match(navigationSearchUi, /topCopyNavigationDiagnostics/);
 const wireStartUi = read("public/app-wire-start-ui.js");
@@ -270,6 +275,46 @@ assert.match(wireStartUi, /copyNavigationDiagnostics\(\)\.catch\(showError\)/);
   assert.deepEqual(routeCalls, ["/hermes-mobile/?view=automation&workspaceId=owner&automationId=job-1&returnTo=inbox&returnScope=detail&sourceInboxItemId=inbox-1&source=pwa"]);
 }
 
+{
+  const storage = new Map();
+  const renderCalls = [];
+  const sandbox = {
+    state: {
+      viewMode: "automation",
+      selectedAutomationId: "job-1",
+      automationReturnRoute: "inbox",
+      automationReturnScope: "detail",
+      automationReturnInboxItemId: "inbox-1",
+      automationRouteTargetId: "job-1",
+      automationRouteTargetPending: true,
+      automationRequestSeq: 3,
+      automationDetailRequestSeq: 7,
+      automationLoading: true,
+      automationDetailLoading: true,
+      automationCreateOpen: false,
+      automationEditOpen: true,
+      automationEditJobId: "job-1",
+      automationOutputHistoryOpen: true,
+    },
+    localStorage: {
+      setItem: (key, value) => storage.set(key, String(value)),
+      getItem: (key) => storage.get(key) || "",
+    },
+    renderActionInboxView: () => renderCalls.push({ viewMode: sandbox.state.viewMode }),
+  };
+  vm.runInNewContext(`${chatComposerUi}\n${actionInboxUi}`, sandbox);
+  sandbox.renderActionInboxView = () => renderCalls.push({ viewMode: sandbox.state.viewMode });
+  sandbox.closeAutomationSecondarySurface();
+  assert.equal(sandbox.state.viewMode, "inbox");
+  assert.equal(storage.get("hermesWebViewMode"), "inbox");
+  assert.equal(sandbox.state.automationRequestSeq, 4);
+  assert.equal(sandbox.state.automationDetailRequestSeq, 8);
+  assert.equal(sandbox.state.automationLoading, false);
+  assert.equal(sandbox.state.automationDetailLoading, false);
+  assert.equal(sandbox.state.automationRouteTargetPending, false);
+  assert.deepEqual(renderCalls, [{ viewMode: "inbox" }]);
+}
+
 const pushApiRoutes = read("server-routes/push-api-routes.js");
 assert.match(pushApiRoutes, /const clientContext = body\.clientContext/);
 assert.match(pushApiRoutes, /displayMode: body\.displayMode \|\| clientContext\.displayMode/);
@@ -304,3 +349,50 @@ assert.match(harnessDoc, /return ids for Inbox-to-Automation navigation/);
 const testMatrixDoc = read("docs/TEST_MATRIX.md");
 assert.match(testMatrixDoc, /root-mounted and prefix-mounted app-shell paths/);
 assert.match(testMatrixDoc, /local root smoke alone is insufficient/);
+
+Promise.resolve().then(async () => {
+  const renderCalls = [];
+  const sandbox = {
+    URLSearchParams,
+    state: {
+      viewMode: "automation",
+      selectedAutomationId: "job-1",
+      automationRouteTargetId: "job-1",
+      automationRouteTargetPending: true,
+      automationRequestSeq: 0,
+      automationDetailRequestSeq: 0,
+      automations: [],
+      automationLoading: false,
+      automationLastLoadedAt: 0,
+      automationCacheKey: "",
+      automationFullCacheKey: "",
+    },
+    currentSearchText: () => "",
+    automationRequestCacheKey: (params) => params.toString(),
+    automationSummaryCacheKey: (params) => params.toString(),
+    readAutomationFullCache: () => null,
+    renderAutomationView: () => renderCalls.push(sandbox.state.viewMode),
+    api: async () => {
+      sandbox.state.viewMode = "inbox";
+      return { data: [{ id: "job-1" }], source: {} };
+    },
+    mergeAutomationJobs: () => {
+      throw new Error("stale Automation load must not merge after returning to Inbox.");
+    },
+    writeAutomationFullCache: () => {
+      throw new Error("stale Automation load must not write cache after returning to Inbox.");
+    },
+    updateSearchButton: () => {},
+    scheduleAutomationDetailHydration: () => {},
+    setComposerEnabled: () => {},
+    $: () => ({ textContent: "" }),
+  };
+  vm.runInNewContext(automationControllerUi, sandbox);
+  sandbox.renderAutomationView = () => renderCalls.push(sandbox.state.viewMode);
+  await sandbox.loadAutomations({ detail: "full", refresh: true, routeTarget: true });
+  assert.deepEqual(renderCalls, ["automation"]);
+  assert.deepEqual(sandbox.state.automations, []);
+}).catch((err) => {
+  console.error(err);
+  process.exitCode = 1;
+});

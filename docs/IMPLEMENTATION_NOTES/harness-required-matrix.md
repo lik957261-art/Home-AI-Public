@@ -337,6 +337,10 @@ Required contract dimensions:
 - The route's return context must keep the source surface, for example Inbox
   return ids for Inbox-to-Automation navigation, so an in-app back action
   returns to the originating surface rather than a generic Automation list.
+- Return actions from a secondary source surface must cancel stale async loads
+  from the surface being left. For example, an Automation API response that
+  finishes after returning to Inbox must not repaint an empty `Hermes CRON`
+  root shell over the Inbox.
 - Preview fallbacks follow the in-app overlay/iframe/download pattern used by
   Markdown, image, and document previews; `about:blank` print windows and
   `open(..., "_blank")` are not allowed workarounds.

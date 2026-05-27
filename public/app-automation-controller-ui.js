@@ -191,13 +191,13 @@ async function loadAutomations(options = {}) {
   try {
     result = await api(`/api/automations?${params}`);
   } catch (err) {
-    if (seq === state.automationRequestSeq) {
+    if (seq === state.automationRequestSeq && state.viewMode === "automation") {
       state.automationLoading = false;
       renderAutomationView();
     }
     throw err;
   }
-  if (seq !== state.automationRequestSeq) return;
+  if (seq !== state.automationRequestSeq || state.viewMode !== "automation") return;
   state.automations = detail === "full" ? mergeAutomationJobs(state.automations, result.data || [], { replaceMissing: Boolean(options.refresh) }) : (result.data || []);
   if (detail === "full") writeAutomationFullCache(params, result);
   state.automationSource = Object.assign({}, result.source || {}, { warning: result.warning || "" });

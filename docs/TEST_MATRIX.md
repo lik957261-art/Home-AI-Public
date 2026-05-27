@@ -37,6 +37,10 @@ reported through an external reverse-proxy/PWA URL, validation must include
 that exact external entry path and the changed route-helper JavaScript from the
 same origin/path; local root smoke alone is insufficient.
 
+For secondary-page return bugs, the harness must also cover async race
+conditions: a late response from the page being left must not repaint that page
+after the return target has already been restored.
+
 ## CodeGraph-Assisted Test Selection
 
 Use CodeGraph for structural test selection, not as a replacement for the test
