@@ -41,10 +41,28 @@ assert.match(serviceWorker, /postNotificationOpenToClient\(client, targetUrl, no
 assert.match(serviceWorker, /self\.clients\.openWindow\(targetWindowRoute\)/);
 assert.doesNotMatch(serviceWorker, /self\.clients\.openWindow\(targetUrl\)/);
 
+const pwaPushUi = read("public/app-pwa-settings-push-ui.js");
+assert.match(pwaPushUi, /function currentDisplayMode\(\)/);
+assert.match(pwaPushUi, /function pushClientContext\(\)/);
+assert.match(pwaPushUi, /isIosPushClient\(\) && !isStandalonePwa\(\)/);
+assert.match(pwaPushUi, /clientContext,[\s\S]*displayMode: clientContext\.displayMode,[\s\S]*standalone: clientContext\.standalone/);
+
+const pushApiRoutes = read("server-routes/push-api-routes.js");
+assert.match(pushApiRoutes, /const clientContext = body\.clientContext/);
+assert.match(pushApiRoutes, /displayMode: body\.displayMode \|\| clientContext\.displayMode/);
+assert.match(pushApiRoutes, /standalone: body\.standalone \?\? clientContext\.standalone/);
+
+const webPushDeliveryService = read("adapters/web-push-delivery-service.js");
+assert.match(webPushDeliveryService, /function assertPushSubscriptionClientAllowed/);
+assert.match(webPushDeliveryService, /ios_pwa_standalone_required/);
+assert.match(webPushDeliveryService, /function shouldSkipPushSubscriptionForClient/);
+
 const webPushDoc = read("docs/MODULES/web-push.md");
 assert.match(webPushDoc, /same app window/i);
 assert.match(webPushDoc, /must not use `window\.open`/);
+assert.match(webPushDoc, /iOS Web Push/i);
 
 const harnessDoc = read("docs/IMPLEMENTATION_NOTES/harness-required-matrix.md");
 assert.match(harnessDoc, /same-window navigation/);
 assert.match(harnessDoc, /no `window\.open`/);
+assert.match(harnessDoc, /PWA standalone/);

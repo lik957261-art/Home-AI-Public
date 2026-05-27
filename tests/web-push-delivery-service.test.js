@@ -152,6 +152,51 @@ function testSubscriptionSendAndRemoval() {
   });
 }
 
+function testIosBrowserSubscriptionsAreRejectedAndSkipped() {
+  withTempDir((root) => {
+    const { calls, service, state } = createHarness(root);
+    const iosSafariUa = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3 Mobile/15E148 Safari/604.1";
+    assert.throws(() => service.savePushSubscription({
+      endpoint: "endpoint-ios-browser",
+      keys: { p256dh: "p", auth: "a" },
+    }, {
+      workspaceId: "owner",
+      principalId: "owner",
+      userAgent: iosSafariUa,
+      clientContext: { displayMode: "browser", standalone: false, clientVersion: "client-browser" },
+    }), /installed Hermes Mobile app/);
+
+    state.pushSubscriptions.push({
+      id: "push_ios_legacy",
+      endpointHash: "hash-ios-legacy",
+      subscription: { endpoint: "endpoint-ios-legacy", keys: { p256dh: "p", auth: "a" } },
+      userAgent: iosSafariUa,
+      principalIds: ["owner"],
+      workspaceIds: ["owner"],
+    });
+    state.pushSubscriptions.push({
+      id: "push_ios_standalone",
+      endpointHash: "hash-ios-standalone",
+      subscription: { endpoint: "endpoint-ios-standalone", keys: { p256dh: "p", auth: "a" } },
+      userAgent: iosSafariUa,
+      clientContext: { displayMode: "standalone", standalone: true, clientVersion: "client-pwa" },
+      principalIds: ["owner"],
+      workspaceIds: ["owner"],
+    });
+    assert.equal(service.publicPushStatus().subscriptionCount, 1);
+
+    return service.sendPushNotification({ title: "Hello", data: { workspaceId: "owner", url: "/?view=inbox" } }, {
+      principalId: "owner",
+    }).then((result) => {
+      assert.deepEqual(result, { enabled: true, attempted: 1, sent: 1, failed: 0, removed: 0, skipped: 1 });
+      assert.equal(calls.sends.length, 1);
+      assert.equal(calls.sends[0].subscription.endpoint, "endpoint-ios-standalone");
+      assert.equal(state.pushSubscriptions[0].lastError, "ios_pwa_standalone_required");
+      assert.equal(state.pushDeliveries[0].skipped, 1);
+    });
+  });
+}
+
 function testReceiptMarksTodoWithoutCountingAttempt() {
   withTempDir((root) => {
     const { calls, service, state } = createHarness(root);
@@ -678,6 +723,7 @@ function testAutomationListSortUsesLatestActivity() {
 Promise.resolve()
   .then(testVapidLifecycleAndPublicStatus)
   .then(testSubscriptionSendAndRemoval)
+  .then(testIosBrowserSubscriptionsAreRejectedAndSkipped)
   .then(testReceiptMarksTodoWithoutCountingAttempt)
   .then(testTodoTickReconcilesAndDeliversPendingEvents)
   .then(testAutomationTickInitializesOldDeliveriesAndSendsRecentOnes)

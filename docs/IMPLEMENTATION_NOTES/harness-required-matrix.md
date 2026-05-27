@@ -209,6 +209,9 @@ Required harness dimensions:
 - Product-owned second-level pages, file previews, and internal links follow a
   same-window navigation contract: no `window.open`, no `target=_blank`, and no
   Markdown `linkTarget="_blank"` for Hermes-owned navigation.
+- iOS Web Push subscription requires PWA standalone evidence. The harness must
+  cover frontend `clientContext.displayMode` / `standalone`, subscribe-route
+  forwarding, and delivery-side filtering of legacy iOS browser subscriptions.
 - Old client/service-worker version behavior fails safely.
 
 Primary docs:

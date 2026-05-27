@@ -211,12 +211,20 @@ async function testSubscribeRequiresConfiguredPushAndWorkspaceAccess() {
     body: {
       workspaceId: "owner",
       deviceLabel: "phone",
+      clientContext: { displayMode: "standalone", standalone: true, clientVersion: "client-test", platform: "iPhone" },
       subscription: { endpoint: "https://push.example.invalid/secret-token", keys: { p256dh: "p", auth: "a" } },
     },
   }, ok, makeUrl("/api/push/subscribe"));
   assert.equal(ok.statusCode, 201);
   assert.equal(calls.saved.length, 1);
   assert.equal(calls.saved[0].meta.userAgent, "UnitTest/1");
+  assert.deepEqual(calls.saved[0].meta.clientContext, {
+    displayMode: "standalone",
+    standalone: true,
+    clientVersion: "client-test",
+    platform: "iPhone",
+    userAgent: "UnitTest/1",
+  });
   assert.equal(calls.saved[0].meta.workspaceId, "child");
   assert.equal(calls.saved[0].meta.principalId, "principal_child");
 

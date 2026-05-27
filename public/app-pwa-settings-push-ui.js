@@ -100,6 +100,29 @@ function isStandalonePwa() {
   );
 }
 
+function currentDisplayMode() {
+  if (window.matchMedia?.("(display-mode: standalone)")?.matches || navigator.standalone === true) return "standalone";
+  if (window.matchMedia?.("(display-mode: fullscreen)")?.matches) return "fullscreen";
+  if (window.matchMedia?.("(display-mode: minimal-ui)")?.matches) return "minimal-ui";
+  return "browser";
+}
+
+function isIosPushClient() {
+  const ua = navigator.userAgent || "";
+  return /iPad|iPhone|iPod/i.test(ua)
+    || (/Macintosh/i.test(ua) && /Mobile\/\S+.*Safari/i.test(ua));
+}
+
+function pushClientContext() {
+  return {
+    displayMode: currentDisplayMode(),
+    standalone: isStandalonePwa(),
+    clientVersion: state.clientVersion || document.documentElement?.dataset?.clientVersion || "",
+    platform: navigator.platform || "",
+    userAgent: navigator.userAgent || "",
+  };
+}
+
 function pwaPlatformHint() {
   const ua = navigator.userAgent || "";
   if (/iPad|iPhone|iPod/i.test(ua)) {
@@ -396,6 +419,7 @@ function pushUnavailableReason() {
   if (!("serviceWorker" in navigator)) return "当前浏览器不支持 Service Worker。";
   if (!("PushManager" in window)) return "当前浏览器或安装方式不支持 Web Push。iOS 需要从 Safari 添加到主屏幕后使用。";
   if (!("Notification" in window)) return "当前浏览器不支持通知权限。";
+  if (isIosPushClient() && !isStandalonePwa()) return "\u8bf7\u5148\u4ece\u4e3b\u5c4f\u5e55\u7684 Hermes Mobile \u5e94\u7528\u6253\u5f00\uff0c\u4e0d\u8981\u5728 Safari/\u6d4f\u89c8\u5668\u4e2d\u542f\u7528 Web Push\u3002";
   if (state.pushStatus && (!state.pushStatus.enabled || !state.pushStatus.publicKey)) return "服务端 Web Push 尚未配置。";
   if (Notification.permission === "denied") return "通知权限已被系统拒绝，需要在浏览器或 iOS 设置里重新允许。";
   return "";
@@ -469,12 +493,19 @@ async function syncPushSubscriptionContext() {
   if (!pushSupported()) return null;
   if (!state.pushSubscription || Notification.permission !== "granted") return null;
   if (!state.pushStatus?.enabled || !state.pushStatus.publicKey) return null;
+  const clientContext = pushClientContext();
   const result = await withTimeout(api("/api/push/subscribe", {
     method: "POST",
     body: JSON.stringify({
       subscription: state.pushSubscription.toJSON(),
       deviceLabel: navigator.platform || navigator.userAgent || "device",
       workspaceId: state.selectedWorkspaceId || "owner",
+      clientContext,
+      displayMode: clientContext.displayMode,
+      standalone: clientContext.standalone,
+      clientVersion: clientContext.clientVersion,
+      platform: clientContext.platform,
+      userAgent: clientContext.userAgent,
     }),
   }), 8000, "同步通知订阅超时");
   state.pushStatus = result.push || state.pushStatus;
@@ -512,6 +543,8 @@ async function enablePushNotifications(options = {}) {
   const forceRenew = Boolean(options.forceRenew);
   const progress = options.onProgress || (() => {});
   if (!pushSupported()) throw new Error("Web Push requires HTTPS, Service Worker, PushManager, and Notification support.");
+  const unavailableReason = pushUnavailableReason();
+  if (unavailableReason) throw new Error(unavailableReason);
   progress("正在检查通知权限");
   const permission = Notification.permission === "granted"
     ? "granted"

@@ -33,10 +33,18 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 - Hermes-owned navigation must stay in the same app window. App code, second-level pages, file previews, and internal links must not use `window.open`, `target=_blank`, or Markdown `linkTarget="_blank"` for product navigation.
 - `clients.openWindow(targetWindowRoute)` is allowed only as the service-worker fallback when no same-origin top-level client is available; when an app shell client exists, notification click must post the route to that client and focus it.
 
+## Subscription Window Rules
+
+- iOS Web Push must be registered from the installed Hermes Mobile PWA window, not from Safari/browser mode. The frontend must send `clientContext.displayMode`, `clientContext.standalone`, and `clientContext.clientVersion` when posting `/api/push/subscribe`.
+- The subscribe route must forward this client context into `savePushSubscription`, and the Web Push delivery service must reject new iOS browser-mode subscriptions.
+- Delivery must skip legacy iOS subscriptions that lack PWA standalone evidence, so old Safari/browser subscriptions cannot keep opening Hermes inside a browser shell.
+
 ## Validation
 
 - `node --check public\service-worker.js`
+- `node --check public\app-pwa-settings-push-ui.js`
 - `node tests\web-push-delivery-service.test.js`
+- `node tests\push-api-routes.test.js`
 - `node tests\same-window-navigation-harness.test.js`
 - `node tests\task-list-ui.test.js`
 - `git diff --check`

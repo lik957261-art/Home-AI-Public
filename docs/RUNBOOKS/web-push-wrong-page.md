@@ -19,12 +19,15 @@
 - A secondary page, document preview, or internal link used `window.open` or `target=_blank`, which created a browser window instead of reusing the current app window.
 - Payload lacks the target id, such as `automationId` or task/evaluation id.
 - Frontend route handler preserves stale search state or clears the selected target too early.
+- The push subscription was created from iOS Safari/browser mode instead of the installed Hermes Mobile PWA. Old subscriptions without standalone metadata can still deliver a notification that opens in a browser shell.
 - Static client cache is old.
 
 ## Repair
 
 - Keep service worker navigation limited to top-level app clients.
 - Keep Hermes-owned links and previews in the current app window. Replace `window.open`, `target=_blank`, and Markdown `linkTarget="_blank"` with same-window navigation, authenticated overlays, or in-place download/share behavior.
+- Require iOS subscriptions to be created from the installed PWA and include `clientContext.displayMode`, `clientContext.standalone`, and `clientContext.clientVersion`.
+- Filter legacy iOS browser subscriptions during delivery. If the user needs iPhone push again, re-enable notification from the installed Hermes Mobile app after the new client version is active.
 - Add stable ids to the payload producer.
 - Make the target module force an authenticated fetch that includes the target even if search/limit would otherwise hide it.
 - Bump static client/cache version when service worker or route JS changes.
@@ -32,8 +35,10 @@
 ## Validation
 
 - `node --check public\service-worker.js`
+- `node --check public\app-pwa-settings-push-ui.js`
 - `node tests\same-window-navigation-harness.test.js`
 - `node tests\web-push-delivery-service.test.js`
+- `node tests\push-api-routes.test.js`
 - `node tests\task-list-ui.test.js`
 - `git diff --check`
 - Production smoke `/api/client-version?clientVersion=<version>`.

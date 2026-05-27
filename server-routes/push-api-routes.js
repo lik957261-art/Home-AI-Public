@@ -214,9 +214,22 @@ function createPushApiRoutes(deps = {}) {
         const workspaceId = requireWorkspaceAccess(req, res, body.workspaceId || body.workspace_id || "owner");
         if (!workspaceId) return { handled: true, route };
         const pushWorkspaceId = pushWorkspaceForAuth(authenticateRequest(req), workspaceId);
+        const clientContext = body.clientContext && typeof body.clientContext === "object" ? body.clientContext : {};
+        const userAgent = String(req.headers?.["user-agent"] || body.userAgent || clientContext.userAgent || "");
         const saved = savePushSubscription(subscription, {
           deviceLabel: body.deviceLabel || body.label || "",
-          userAgent: req.headers?.["user-agent"] || "",
+          userAgent,
+          clientContext: Object.assign({}, clientContext, {
+            userAgent,
+            displayMode: body.displayMode || clientContext.displayMode || "",
+            standalone: body.standalone ?? clientContext.standalone,
+            clientVersion: body.clientVersion || clientContext.clientVersion || "",
+            platform: body.platform || clientContext.platform || "",
+          }),
+          displayMode: body.displayMode || clientContext.displayMode || "",
+          standalone: body.standalone ?? clientContext.standalone,
+          clientVersion: body.clientVersion || clientContext.clientVersion || "",
+          platform: body.platform || clientContext.platform || "",
           workspaceId: pushWorkspaceId,
           principalId: workspacePrincipal(pushWorkspaceId),
         });

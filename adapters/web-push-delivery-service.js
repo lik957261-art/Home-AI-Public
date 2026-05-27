@@ -226,6 +226,7 @@ function createWebPushDeliveryService(options = {}) {
       sent: Number(result.sent || item.sent || 0),
       failed: Number(result.failed || item.failed || 0),
       removed: Number(result.removed || item.removed || 0),
+      skipped: Number(result.skipped || item.skipped || 0),
     };
   }
 
@@ -276,6 +277,7 @@ function createWebPushDeliveryService(options = {}) {
       lastSuccessAt: item.lastSuccessAt || null,
       lastError: item.lastError || null,
       disabledAt: item.disabledAt || null,
+      clientContext: normalizePushClientContext(item),
     };
   }
 
@@ -391,7 +393,7 @@ function createWebPushDeliveryService(options = {}) {
   }
 
   function pushSubscriptionCount() {
-    return (currentState().pushSubscriptions || []).filter((item) => item && !item.disabledAt).length;
+    return (currentState().pushSubscriptions || []).filter((item) => item && !item.disabledAt && !shouldSkipPushSubscriptionForClient(item)).length;
   }
 
   function publicPushStatus() {
@@ -401,6 +403,50 @@ function createWebPushDeliveryService(options = {}) {
       subject: webPushConfig?.subject || "",
       subscriptionCount: pushSubscriptionCount(),
     };
+  }
+
+  function normalizePushClientContext(item = {}) {
+    const source = item && typeof item === "object" ? item : {};
+    const nested = source.clientContext && typeof source.clientContext === "object" ? source.clientContext : {};
+    const standaloneValue = source.standalone ?? nested.standalone;
+    const standalone = standaloneValue === true || standaloneValue === "true" || standaloneValue === "1";
+    return {
+      displayMode: String(source.displayMode || nested.displayMode || "").trim().toLowerCase().slice(0, 40),
+      standalone,
+      clientVersion: String(source.clientVersion || nested.clientVersion || "").trim().slice(0, 80),
+      platform: String(source.platform || nested.platform || source.deviceLabel || "").trim().slice(0, 120),
+      userAgent: String(source.userAgent || nested.userAgent || "").trim().slice(0, 240),
+    };
+  }
+
+  function isIosUserAgent(value = "") {
+    const ua = String(value || "");
+    return /iPad|iPhone|iPod/i.test(ua)
+      || (/Macintosh/i.test(ua) && /Mobile\/\S+.*Safari/i.test(ua));
+  }
+
+  function isStandalonePushClient(context = {}) {
+    const mode = String(context.displayMode || "").trim().toLowerCase();
+    return context.standalone === true || mode === "standalone" || mode === "fullscreen";
+  }
+
+  function assertPushSubscriptionClientAllowed(meta = {}) {
+    const context = normalizePushClientContext(meta);
+    const userAgent = context.userAgent || String(meta.userAgent || "");
+    if (isIosUserAgent(userAgent) && !isStandalonePushClient(context)) {
+      const err = new Error("iOS Web Push must be registered from the installed Hermes Mobile app.");
+      err.code = "ios_pwa_standalone_required";
+      err.status = 400;
+      throw err;
+    }
+    return context;
+  }
+
+  function shouldSkipPushSubscriptionForClient(item) {
+    if (!item || typeof item !== "object") return false;
+    const context = normalizePushClientContext(item);
+    const userAgent = context.userAgent || String(item.userAgent || "");
+    return isIosUserAgent(userAgent) && !isStandalonePushClient(context);
   }
 
   function recordPushReceipt(body = {}) {
@@ -431,10 +477,16 @@ function createWebPushDeliveryService(options = {}) {
   function savePushSubscription(subscription, meta = {}) {
     const workspaceId = String(meta.workspaceId || "").trim();
     const principalId = String(meta.principalId || (workspaceId ? workspacePrincipal(workspaceId) : "") || "").trim();
+    const clientContext = assertPushSubscriptionClientAllowed(meta);
     const normalized = normalizePushSubscription({
       subscription,
       deviceLabel: meta.deviceLabel,
       userAgent: meta.userAgent,
+      clientContext,
+      displayMode: clientContext.displayMode,
+      standalone: clientContext.standalone,
+      clientVersion: clientContext.clientVersion,
+      platform: clientContext.platform,
       workspaceIds: workspaceId ? [workspaceId] : [],
       principalIds: principalId ? [principalId] : [],
     });
@@ -494,6 +546,11 @@ function createWebPushDeliveryService(options = {}) {
     const now = nowIso();
     const body = JSON.stringify(payload);
     for (const item of subscriptions) {
+      if (shouldSkipPushSubscriptionForClient(item)) {
+        item.lastError = "ios_pwa_standalone_required";
+        item.updatedAt = now;
+        continue;
+      }
       try {
         await webpush.sendNotification(item.subscription, body, {
           TTL: opts.ttl || 60 * 60,
@@ -513,7 +570,10 @@ function createWebPushDeliveryService(options = {}) {
         }
       }
     }
-    const result = { enabled: true, attempted: subscriptions.length, sent, failed, removed };
+    const attempted = sent + failed;
+    const skipped = Math.max(0, subscriptions.length - attempted);
+    const result = { enabled: true, attempted, sent, failed, removed };
+    if (skipped) result.skipped = skipped;
     store.pushDeliveries = [...(store.pushDeliveries || []), normalizePushDelivery({
       id: makeId("pushdel"),
       sentAt: now,
