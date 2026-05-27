@@ -54,6 +54,31 @@ matrix.
 - If `codegraph impact` and `rg` disagree on tests, run the union of relevant
   focused tests unless the difference is clearly unrelated.
 
+## CodeGraph-First Read Budget
+
+For H1/H2 changes, especially navigation, route, passive notification, Web
+Push, Automation, Growth, Gateway, or workflow bugs, keep initial context
+loading bounded:
+
+- Use MCP CodeGraph first when available; CLI `codegraph` is a fallback because
+  each CLI call starts a process.
+- Run up to three CodeGraph structural queries before opening source files:
+  `codegraph_context`, then a targeted `codegraph_search`/`codegraph_callers`
+  or `codegraph_trace`/`codegraph_impact` depending on the question.
+- Open no more than four source files in the first triage pass, and read only
+  the symbol body or about 80-120 lines around each relevant symbol.
+- For frontend closure-local functions, DOM strings, `data-*` attributes, URL
+  query parameters, static versions, and tests, run one targeted `rg` pass after
+  CodeGraph identifies the likely files.
+- For `.agent-context/HANDOFF.md` and long docs, search headings or keywords
+  first with `Select-String`/`rg`; do not read long tails by default.
+- If more context is needed, state the missing fact and widen the read scope
+  deliberately.
+
+The guard test is:
+
+- `node tests\codegraph-harness-discipline.test.js`
+
 ## Module Focused Tests
 
 | Area | Focused Tests |
@@ -66,8 +91,8 @@ matrix.
 | Gateway Pool/scripts | `node tests\gateway-pool-provider.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\cross-shell-command-harness.test.js` |
 | ChatGPT Pro | `node tests\chatgpt-pro-codex-bridge-service.test.js`, `node tests\owner-elevation-routing-service.test.js`, `node tests\thread-message-create-service.test.js` |
 | Grok/model routing | `node tests\gateway-model-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js` |
-| Web Push | `node tests\web-push-delivery-service.test.js`, `node tests\push-api-routes.test.js`, `node tests\task-list-ui.test.js` |
-| Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js` |
+| Web Push | `node tests\web-push-delivery-service.test.js`, `node tests\push-api-routes.test.js`, `node tests\task-list-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
+| Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js` |
 | Directory/files/artifacts | `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js` |
 | Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\link-skill-profile-store.test.js` |

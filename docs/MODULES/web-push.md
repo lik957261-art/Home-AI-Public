@@ -30,11 +30,14 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 - Notification click handling must target top-level application windows only.
 - Same-origin embedded preview iframes can appear as window clients. The service worker must not navigate `file-viewer.html`, `pdf-viewer.html`, or `markdown-viewer.html` clients as if they were the app shell.
 - If the payload points at a viewer shell, route back to the app route or viewer `return` route instead of opening the viewer shell as the primary app.
+- Hermes-owned navigation must stay in the same app window. App code, second-level pages, file previews, and internal links must not use `window.open`, `target=_blank`, or Markdown `linkTarget="_blank"` for product navigation.
+- `clients.openWindow(targetWindowRoute)` is allowed only as the service-worker fallback when no same-origin top-level client is available; when an app shell client exists, notification click must post the route to that client and focus it.
 
 ## Validation
 
 - `node --check public\service-worker.js`
 - `node tests\web-push-delivery-service.test.js`
+- `node tests\same-window-navigation-harness.test.js`
 - `node tests\task-list-ui.test.js`
 - `git diff --check`
 - Production smoke: `/api/status?detail=1` and `/api/client-version?clientVersion=<version>` for static changes.

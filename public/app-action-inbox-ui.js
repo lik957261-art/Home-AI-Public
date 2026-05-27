@@ -111,19 +111,47 @@ function actionInboxCountsText() {
 }
 
 function actionInboxSourceDeepLink(item = {}) {
-  const explicit = String(item?.deepLink || item?.deep_link || "").trim();
-  if (explicit) return explicit;
   const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
+  const explicit = String(item?.deepLink || item?.deep_link || "").trim();
+  if (explicit) return actionInboxAutomationInboxReturnLink(explicit, item, sourceType);
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
   const workspaceId = String(item?.workspaceId || item?.assigneeWorkspaceId || state.selectedWorkspaceId || "owner").trim() || "owner";
   if (sourceType === "automation") {
     const automationId = String(sourceRef.automationId || sourceRef.automation_id || item?.sourceId || item?.source_id || "").trim();
     if (automationId) {
       const params = new URLSearchParams({ view: "automation", workspaceId, automationId });
+      params.set("returnTo", "inbox");
+      params.set("returnScope", "detail");
+      const inboxItemId = String(item?.id || "").trim();
+      if (inboxItemId) params.set("sourceInboxItemId", inboxItemId);
       return `/?${params.toString()}`;
     }
   }
   return "";
+}
+
+function actionInboxAutomationInboxReturnLink(link, item = {}, sourceType = "") {
+  const normalizedSourceType = String(sourceType || item?.sourceType || item?.source_type || "").trim().toLowerCase();
+  if (normalizedSourceType !== "automation" || !link) return link || "";
+  const inboxItemId = String(item?.id || "").trim();
+  try {
+    const base = (typeof window !== "undefined" && window.location?.origin) ? window.location.origin : "http://localhost";
+    const parsed = new URL(link, base);
+    parsed.searchParams.set("returnTo", "inbox");
+    parsed.searchParams.set("returnScope", "detail");
+    if (inboxItemId) parsed.searchParams.set("sourceInboxItemId", inboxItemId);
+    if (/^[a-z][a-z0-9+.-]*:/i.test(link)) return parsed.toString();
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch (_) {
+    const extra = new URLSearchParams({ returnTo: "inbox", returnScope: "detail" });
+    if (inboxItemId) extra.set("sourceInboxItemId", inboxItemId);
+    return `${link}${link.includes("?") ? "&" : "?"}${extra.toString()}`;
+  }
+}
+
+function actionInboxOpensSourceDirectly(item = {}) {
+  const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
+  return sourceType === "automation" && Boolean(actionInboxSourceDeepLink(item));
 }
 
 function actionInboxSourceActionLabel(item = {}) {
@@ -209,10 +237,14 @@ function renderActionInboxItem(item) {
   const displayTime = dueText ? `${"\u622a\u6b62"} ${dueText}` : (actionInboxCompactTime(time) || time || "");
   const title = actionInboxDisplayTitle(item);
   const summary = actionInboxDisplaySummary(item);
+  const directSource = actionInboxOpensSourceDirectly(item);
+  const itemActionAttr = directSource
+    ? `data-action-inbox-open-source-id="${escapeHtml(item.id || "")}"`
+    : `data-action-inbox-id="${escapeHtml(item.id || "")}"`;
   return `<article class="action-inbox-item${active}${swipeClass}" data-action-inbox-item-card="${escapeHtml(item.id || "")}"${swipeAttrs}>
     ${terminal ? "" : `<button class="task-swipe-delete action-inbox-swipe-complete" type="button" data-complete-swipe="${escapeHtml(item.id || "")}" aria-label="${"\u6807\u8bb0\u4e3a\u5df2\u8bfb"}">${"\u5df2\u8bfb"}</button>`}
     <div class="${terminal ? "action-inbox-item-static" : "task-swipe-content action-inbox-swipe-content"}"${terminal ? "" : " data-swipe-content"}>
-    <button class="action-inbox-item-main" type="button" data-action-inbox-id="${escapeHtml(item.id || "")}">
+    <button class="action-inbox-item-main" type="button" ${itemActionAttr}>
       <span class="action-inbox-source-row">
         <span class="action-inbox-source-badge ${escapeHtml(actionInboxSourceTone(item.sourceType))}">${"\u6765\u6e90\uff1a"}${escapeHtml(actionInboxSourceLabel(item.sourceType))}</span>
         <span class="action-inbox-type-badge">${"\u7c7b\u578b\uff1a"}${escapeHtml(actionInboxTypeLabel(item.itemType))}</span>
@@ -329,17 +361,31 @@ function wireActionInboxView(root) {
       loadActionInboxItem(button.dataset.actionInboxId).catch(showError);
     });
   });
+  root.querySelectorAll("[data-action-inbox-open-source-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openActionInboxItemSourceById(button.dataset.actionInboxOpenSourceId).catch(showError);
+    });
+  });
   root.querySelector("[data-action-inbox-open-source]")?.addEventListener("click", () => {
     openCurrentActionInboxItemLink().catch(showError);
   });
   if (typeof wireTaskSwipeActions === "function") wireTaskSwipeActions(root);
 }
 
-function openCurrentActionInboxItemLink() {
-  const item = currentActionInboxItem();
+function openActionInboxItemSource(item) {
   const link = actionInboxSourceDeepLink(item);
   if (link && typeof openNotificationRoute === "function") return openNotificationRoute(link);
   return Promise.resolve(null);
+}
+
+function openActionInboxItemSourceById(itemId) {
+  const id = String(itemId || "").trim();
+  const item = state.actionInboxItems.find((candidate) => candidate.id === id) || null;
+  return openActionInboxItemSource(item);
+}
+
+function openCurrentActionInboxItemLink() {
+  return openActionInboxItemSource(currentActionInboxItem());
 }
 
 async function createActionInboxManualItem(root) {

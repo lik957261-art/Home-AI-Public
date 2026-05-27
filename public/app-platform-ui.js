@@ -182,6 +182,9 @@ function sameOriginRouteUrl(value) {
 
 function applyRouteParams(params) {
   const automationId = String(params.get("automationId") || "").trim(); const inboxItemId = String(params.get("inboxItemId") || params.get("actionInboxItemId") || "").trim();
+  const automationReturnTo = String(params.get("returnTo") || params.get("return_route") || "").trim().toLowerCase();
+  const automationReturnScope = String(params.get("returnScope") || params.get("return_scope") || "").trim().toLowerCase();
+  const automationReturnInboxItemId = String(params.get("sourceInboxItemId") || params.get("source_inbox_item_id") || "").trim();
   const todoId = String(params.get("todoId") || "").trim(); const taskCardId = String(params.get("taskCardId") || "").trim();
   const taskGroupId = String(params.get("taskGroupId") || params.get("taskId") || "").trim();
   const messageId = String(params.get("messageId") || "").trim();
@@ -208,7 +211,8 @@ function applyRouteParams(params) {
     Object.assign(state, { currentTaskGroupId: "", currentThread: null, currentThreadId: "" });
   }
   if (routeView === "automation" && automationId) {
-    Object.assign(state, { selectedAutomationId: automationId, automationRouteTargetId: automationId, automationRouteTargetPending: true, automationOutputHistoryOpen: false, automationCreateOpen: false, automationEditOpen: false, automationEditJobId: "" });
+    const returnRoute = automationReturnTo === "inbox" ? "inbox" : "";
+    Object.assign(state, { selectedAutomationId: automationId, automationReturnRoute: returnRoute, automationReturnScope: returnRoute && automationReturnScope === "detail" ? "detail" : "", automationReturnInboxItemId: returnRoute ? automationReturnInboxItemId : "", automationRouteTargetId: automationId, automationRouteTargetPending: true, automationOutputHistoryOpen: false, automationCreateOpen: false, automationEditOpen: false, automationEditJobId: "" });
     if ($("threadSearch")) $("threadSearch").value = "";
   }
   if (routeView === "inbox" && inboxItemId) { Object.assign(state, { selectedActionInboxItemId: inboxItemId, actionInboxDetail: null }); if ($("threadSearch")) $("threadSearch").value = ""; }

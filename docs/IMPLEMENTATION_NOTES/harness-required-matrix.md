@@ -49,12 +49,27 @@ Current benchmark on 2026-05-26 for this workspace:
 Required practice:
 
 - Prefer CodeGraph MCP over CodeGraph CLI when the MCP tools are loaded.
+- For H1/H2 work, start with a bounded context-read budget before opening
+  source files:
+  - Run no more than three CodeGraph structural queries before the first source
+    read unless a result is ambiguous.
+  - Open no more than four source files during the initial triage pass.
+  - Read only the symbol body or about 80-120 surrounding lines for each
+    source file during triage.
+  - Use `Select-String`/`rg` on `.agent-context/HANDOFF.md` and large docs
+    first, then read only the matching small section.
 - For backend service/provider/route changes, run at least one structural query
   before editing:
   - `codegraph_context` for broad task context.
   - `codegraph_search` plus `codegraph_callers`/`codegraph_callees` for a known
     symbol.
   - `codegraph_impact` for blast radius and focused test candidates.
+- For navigation, route, and cross-surface UI bugs, use a route-first query
+  sequence instead of broad file reading:
+  - `codegraph_context` for the user-visible flow.
+  - `codegraph_search`/`codegraph_callers` for the known route or opener symbol.
+  - one targeted `rg` pass for `data-*`, URL query keys, static version strings,
+    and test assertions.
 - Treat `codegraph_impact` as advisory test selection evidence, not as the only
   validation gate.
 - Do not rely on `codegraph affected` alone. It may miss UI tests and closure or
@@ -191,6 +206,9 @@ Required harness dimensions:
 - Original task/detail route is preserved as a deep link when the primary route
   is Inbox.
 - Existing app window, no app window, PWA, and browser-tab cases are covered.
+- Product-owned second-level pages, file previews, and internal links follow a
+  same-window navigation contract: no `window.open`, no `target=_blank`, and no
+  Markdown `linkTarget="_blank"` for Hermes-owned navigation.
 - Old client/service-worker version behavior fails safely.
 
 Primary docs:
@@ -198,6 +216,7 @@ Primary docs:
 - `docs/IMPLEMENTATION_NOTES/web-push-deeplink-routing.md`
 - `docs/RUNBOOKS/web-push-wrong-page.md`
 - `docs/MODULES/web-push.md`
+- `node tests\same-window-navigation-harness.test.js`
 
 ### Permissions And Workspace Boundary Workflow
 
@@ -268,6 +287,9 @@ Required contract dimensions:
   the top-right overflow menu.
 - Bottom navigation remains stable and includes required top-level tabs such as
   Topics and Inbox.
+- Second-level pages and file preview subviews must reuse the same app window.
+  Opening a browser window with `window.open`, `target=_blank`, or Markdown
+  `linkTarget="_blank"` is not allowed for Hermes-owned navigation.
 
 Primary docs:
 

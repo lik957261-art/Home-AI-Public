@@ -9,6 +9,7 @@ const repoRoot = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(repoRoot, "public", "app-action-inbox-ui.js"), "utf8");
 
 const sandbox = {
+  URL,
   URLSearchParams,
   state: {
     actionInboxStatusFilter: "open",
@@ -34,6 +35,8 @@ vm.runInNewContext(`${source}
 this.ActionInboxUiTest = {
   actionInboxDisplaySummary,
   actionInboxDisplayTitle,
+  actionInboxOpensSourceDirectly,
+  actionInboxSourceDeepLink,
   actionInboxTodoDueText,
   renderActionInboxItem,
 };`, sandbox);
@@ -53,6 +56,8 @@ const openTodo = {
 const openTodoHtml = ui.renderActionInboxItem(openTodo);
 assert.match(openTodoHtml, /data-swipe-kind="action-inbox"/);
 assert.match(openTodoHtml, /data-complete-swipe="ainb-todo-1"/);
+assert.match(openTodoHtml, /data-action-inbox-id="ainb-todo-1"/);
+assert.doesNotMatch(openTodoHtml, /data-action-inbox-open-source-id="ainb-todo-1"/);
 assert.match(openTodoHtml, /标记为已读/);
 assert.match(openTodoHtml, /已读/);
 assert.match(openTodoHtml, /截止 05\/27 16:00/);
@@ -70,5 +75,30 @@ assert.equal(ui.actionInboxDisplayTitle(legacyTitle), "吃药 05/27 16:00");
 const doneTodoHtml = ui.renderActionInboxItem(Object.assign({}, openTodo, { status: "done" }));
 assert.doesNotMatch(doneTodoHtml, /data-complete-swipe/);
 assert.doesNotMatch(doneTodoHtml, /data-swipe-kind="action-inbox"/);
+
+const automationReceipt = {
+  id: "ainb-auto-1",
+  sourceType: "automation",
+  itemType: "error",
+  status: "open",
+  title: "XSearch failed",
+  summary: "Automation failed",
+  sourceRef: { automationId: "auto-job-1" },
+  workspaceId: "owner",
+  updatedAt: "2026-05-27T01:01:10.226Z",
+};
+
+const automationLink = ui.actionInboxSourceDeepLink(automationReceipt);
+assert.match(automationLink, /^\/\?/);
+assert.match(automationLink, /view=automation/);
+assert.match(automationLink, /automationId=auto-job-1/);
+assert.match(automationLink, /returnTo=inbox/);
+assert.match(automationLink, /returnScope=detail/);
+assert.match(automationLink, /sourceInboxItemId=ainb-auto-1/);
+assert.equal(ui.actionInboxOpensSourceDirectly(automationReceipt), true);
+
+const automationHtml = ui.renderActionInboxItem(automationReceipt);
+assert.match(automationHtml, /data-action-inbox-open-source-id="ainb-auto-1"/);
+assert.doesNotMatch(automationHtml, /data-action-inbox-id="ainb-auto-1"/);
 
 console.log("app-action-inbox-ui tests passed");

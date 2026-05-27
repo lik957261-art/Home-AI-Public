@@ -4,7 +4,7 @@ function renderTaskCard(group) {
   const sharedTopic = Boolean(group.sharedTopic || group.sourceThreadId);
   const latestArtifact = sharedTopic ? null : latestTaskListDocument(group);
   const artifactChips = latestArtifact ? `<span class="task-doc-item">
-    <a class="task-doc-icon doc-${escapeHtml(artifactKind(latestArtifact))}" href="${escapeHtml(artifactHref(latestArtifact))}" target="_blank" rel="noopener" data-task-doc data-artifact-mime="${escapeHtml(latestArtifact?.mime || "")}" data-artifact-name="${escapeHtml(artifactDisplayName(latestArtifact))}" title="${escapeHtml(artifactDisplayName(latestArtifact))}" aria-label="${escapeHtml(artifactDisplayName(latestArtifact))}">
+    <a class="task-doc-icon doc-${escapeHtml(artifactKind(latestArtifact))}" href="${escapeHtml(artifactHref(latestArtifact))}" target="_self" data-task-doc data-artifact-mime="${escapeHtml(latestArtifact?.mime || "")}" data-artifact-name="${escapeHtml(artifactDisplayName(latestArtifact))}" title="${escapeHtml(artifactDisplayName(latestArtifact))}" aria-label="${escapeHtml(artifactDisplayName(latestArtifact))}">
       ${escapeHtml(iconForArtifact(latestArtifact))}
     </a>
     ${renderArtifactDirectoryButton(latestArtifact, { compact: true })}

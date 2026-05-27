@@ -37,8 +37,17 @@ function automationSecondaryReturnActive() {
   return state.viewMode === "automation" && !isAutomationDetailView() && String(state.automationReturnRoute || "") === "inbox";
 }
 
+function automationDetailInboxReturnActive() {
+  return state.viewMode === "automation"
+    && isAutomationDetailView()
+    && String(state.automationReturnRoute || "") === "inbox"
+    && String(state.automationReturnScope || "") === "detail";
+}
+
 function closeAutomationSecondarySurface() {
   state.automationReturnRoute = "";
+  state.automationReturnScope = "";
+  state.automationReturnInboxItemId = "";
   state.selectedAutomationId = "";
   state.automationCreateOpen = false;
   state.automationEditOpen = false;
@@ -51,9 +60,12 @@ async function openAutomationSurface(options = {}) {
   closeTopMoreMenu();
   clearQuotedReply({ render: false });
   const returnRoute = String(options.returnTo || "").trim();
+  const returnScope = String(options.returnScope || "").trim();
   state.viewMode = "automation";
   localStorage.setItem("hermesWebViewMode", state.viewMode);
   state.automationReturnRoute = returnRoute === "inbox" ? "inbox" : "";
+  state.automationReturnScope = state.automationReturnRoute && returnScope === "detail" ? "detail" : "";
+  state.automationReturnInboxItemId = state.automationReturnRoute ? String(options.inboxItemId || "").trim() : "";
   state.currentTaskGroupId = "";
   state.currentThread = null;
   state.currentThreadId = "";
@@ -92,6 +104,11 @@ function sidebarBackToMenu() {
   }
   if (kanbanComposerOpen()) {
     openTodoList();
+    closeSidebar();
+    return;
+  }
+  if (typeof automationDetailInboxReturnActive === "function" && automationDetailInboxReturnActive()) {
+    closeAutomationSecondarySurface();
     closeSidebar();
     return;
   }

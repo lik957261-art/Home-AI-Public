@@ -338,10 +338,14 @@ async function copyImageBlobToClipboard(blob) {
 
 function openImageBlobPreview(blob) {
   const url = URL.createObjectURL(blob);
-  const opened = window.open(url, "_blank", "noopener");
-  window.setTimeout(() => URL.revokeObjectURL(url), 120000);
-  if (!opened) throw new Error("Could not open image preview");
-  showPushToast("\u5df2\u751f\u6210\u56fe\u7247\u9884\u89c8", "success");
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `hermes-reply-${Date.now().toString(36)}.png`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+  showPushToast("\u5df2\u751f\u6210\u56fe\u7247\u6587\u4ef6", "success");
 }
 
 async function shareMessageImage(messageId) {

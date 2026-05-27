@@ -247,6 +247,17 @@
       return `${url.pathname}${url.search}${url.hash}`;
     }
 
+    function downloadBlob(blob, filename) {
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename || "document.pdf";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+    }
+
     function absoluteUrlFor(value) {
       try {
         return new URL(value || "#", location.href).href;
@@ -494,10 +505,8 @@
           setTransientStatus("");
           return;
         }
-        const cachedUrl = URL.createObjectURL(cachedPdfBlob);
-        window.open(cachedUrl, "_blank", "noopener");
-        window.setTimeout(() => URL.revokeObjectURL(cachedUrl), 30000);
-        setTransientStatus("此浏览器不支持系统分享，已尝试打开 PDF。");
+        downloadBlob(cachedPdfBlob, name);
+        setTransientStatus("此浏览器不支持系统分享，已保存 PDF。");
         return;
       } catch (err) {
         if (isUserCancelledShare(err)) return;
@@ -514,10 +523,8 @@
           setTransientStatus("");
           return;
         }
-        const objectUrl = URL.createObjectURL(blob);
-        window.open(objectUrl, "_blank", "noopener");
-        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
-        setTransientStatus("此浏览器不支持系统分享，已尝试打开 PDF。");
+        downloadBlob(blob, name);
+        setTransientStatus("此浏览器不支持系统分享，已保存 PDF。");
       } catch (err) {
         setTransientStatus(err.message || "无法分享此 PDF。");
       }

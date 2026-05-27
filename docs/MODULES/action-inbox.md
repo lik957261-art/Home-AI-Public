@@ -138,7 +138,8 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
 - Keep source modules canonical; Inbox only stores summary/action projection and audit events.
 - Dedupe by stable source references so repeated refreshes or Web Push deliveries do not create duplicate items.
 - Web Push should deep-link to Inbox when the user's next action is best represented there.
-- Inbox detail must expose a clear source action when `deepLink` or a safe `sourceRef` route exists. Automation items should open the matching Automation detail by `automationId`, not only the Automation list.
+- Inbox detail must expose a clear source action when `deepLink` or a safe `sourceRef` route exists.
+- Automation receipt rows are direct-source rows: tapping the Inbox list row should open the matching Automation detail by `automationId` immediately, without first showing an intermediate Inbox detail. The generated route must carry Inbox return context (`returnTo=inbox`, direct detail scope, and the safe source Inbox item id) so the top-left back button and right-swipe return to the Inbox list instead of the Automation list.
 - Inbox list rows may expose a left-swipe `已读` action for non-terminal items. The action must call the existing complete transition and project the item as `done`; terminal rows must not keep an active swipe-complete affordance.
 - Manual Todo Inbox rows should display due time from `dueAt`/`sourceRef.dueAt` when available. Legacy summaries that only contain raw ISO text such as `截止：2026-...Z` should be normalized in the UI to the same compact local time format and must not expose raw UTC ISO text in the list.
 - Inbox root status filters should use the same mobile control typography scale as other compact app filters: stable 14px labels with explicit line-height, not browser-default button text.

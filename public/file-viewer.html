@@ -789,7 +789,7 @@
       </div>
       <iframe id="preview" class="preview hidden" title="File preview"></iframe>
       <div class="actions">
-        <a id="open" class="button" href="#" target="_blank" rel="noopener">Open Original</a>
+        <a id="open" class="button" href="#" target="_self">Open Original</a>
         <a id="download" class="button secondary" href="#" download>Download</a>
         <button id="forwardWeixin" class="button secondary" type="button">转发微信</button>
       </div>
@@ -1200,7 +1200,6 @@
     function renderMarkdownDocument(text) {
       return markdownRenderer.renderMarkdownDocument(text, {
         fontScale: currentViewerPreferences().markdownSize.id,
-        linkTarget: "_blank",
         taskListCompatibility: true,
       });
     }
@@ -1494,33 +1493,28 @@ window.addEventListener("load", function () {
       setTransientStatus("Generated file saved for sharing.");
     }
 
-    function openMarkdownPrintWindow() {
-      const printWindow = window.open("about:blank", "_blank");
-      if (!printWindow) return null;
-      const prefs = currentViewerPreferences();
-      const loadingFontSize = cssPx(18 * prefs.fontSize.scale);
-      try {
-        printWindow.document.open();
-        printWindow.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Preparing PDF</title><style>body{margin:0;background:#f7f1e8;color:#17222b;font:${loadingFontSize}/1.7 ${prefs.fontFamily.family};}main{padding:28px 22px;}</style></head><body><main>Preparing PDF preview...</main></body></html>`);
-        printWindow.document.close();
-      } catch (_) {}
-      return printWindow;
-    }
-
     async function printMarkdownAsPdf() {
-      const printWindow = openMarkdownPrintWindow();
       await ensureMarkdownPreviewText();
       const html = markdownExportHtml({ autoPrint: true });
       const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-      if (!printWindow) {
-        downloadGeneratedBlob(blob, markdownBaseName("html"));
-        setTransientStatus("Popup was blocked; saved HTML instead.");
-        return;
-      }
       const objectUrl = URL.createObjectURL(blob);
-      printWindow.location.href = objectUrl;
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120000);
-      setTransientStatus("Opened print page.");
+      const iframe = document.createElement("iframe");
+      iframe.hidden = true;
+      iframe.src = objectUrl;
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus?.();
+          iframe.contentWindow?.print?.();
+        } catch (_) {
+          downloadGeneratedBlob(blob, markdownBaseName("html"));
+        }
+        window.setTimeout(() => {
+          iframe.remove();
+          URL.revokeObjectURL(objectUrl);
+        }, 120000);
+      };
+      document.body.append(iframe);
+      setTransientStatus("Print preview opened in this window.");
     }
 
     async function copyMarkdownText() {
@@ -1620,10 +1614,8 @@ window.addEventListener("load", function () {
           setTransientStatus("");
           return;
         }
-        const cachedUrl = URL.createObjectURL(cachedShareBlob);
-        window.open(cachedUrl, "_blank", "noopener");
-        window.setTimeout(() => URL.revokeObjectURL(cachedUrl), 30000);
-        setTransientStatus("\u6b64\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u7cfb\u7edf\u5206\u4eab\uff0c\u5df2\u5c1d\u8bd5\u6253\u5f00\u6587\u4ef6\u3002");
+        downloadGeneratedBlob(cachedShareBlob, name);
+        setTransientStatus("\u6b64\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u7cfb\u7edf\u5206\u4eab\uff0c\u5df2\u4fdd\u5b58\u6587\u4ef6\u3002");
         return;
       } catch (err) {
         if (isUserCancelledShare(err)) return;
@@ -1640,10 +1632,8 @@ window.addEventListener("load", function () {
           setTransientStatus("");
           return;
         }
-        const objectUrl = URL.createObjectURL(blob);
-        window.open(objectUrl, "_blank", "noopener");
-        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
-        setTransientStatus("\u6b64\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u7cfb\u7edf\u5206\u4eab\uff0c\u5df2\u5c1d\u8bd5\u6253\u5f00\u6587\u4ef6\u3002");
+        downloadGeneratedBlob(blob, name);
+        setTransientStatus("\u6b64\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u7cfb\u7edf\u5206\u4eab\uff0c\u5df2\u4fdd\u5b58\u6587\u4ef6\u3002");
       } catch (err) {
         setTransientStatus(err.message || "\u65e0\u6cd5\u5206\u4eab\u6b64\u6587\u4ef6\u3002");
       }

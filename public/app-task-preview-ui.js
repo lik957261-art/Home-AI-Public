@@ -563,7 +563,6 @@
     if (typeof renderer.renderMarkdownDocument === "function") {
       return renderer.renderMarkdownDocument(String(markdown || ""), {
         fontScale: "large",
-        linkTarget: "_blank",
         taskListCompatibility: true,
       });
     }

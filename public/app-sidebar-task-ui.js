@@ -75,6 +75,7 @@ function backSwipeTarget() {
   if (isTaskDetailView()) return "task";
   if (isTodoDetailView() || kanbanComposerOpen()) return isTodoDetailView() ? "todo" : "todo-create";
   if (state.viewMode === "learning" && (state.learningGrowthSettingsOpen || state.selectedLearningTaskCardId)) return state.learningGrowthSettingsOpen ? "learning-growth-settings" : "learning-growth-task";
+  if (typeof automationDetailInboxReturnActive === "function" && automationDetailInboxReturnActive()) return "automation-secondary";
   if (isAutomationDetailView()) return "automation";
   if (typeof automationSecondaryReturnActive === "function" && automationSecondaryReturnActive()) return "automation-secondary";
   if (isActionInboxDetailView() || isActionInboxCreateView()) return isActionInboxCreateView() ? "action-inbox-create" : "action-inbox";
@@ -554,7 +555,7 @@ function openTaskDocumentLink(link) {
     window.location.assign(href);
     return;
   }
-  window.open(href, link.getAttribute("target") || "_blank", "noopener");
+  window.location.assign(href);
 }
 
 function wireTaskDocumentLinks(root) {
