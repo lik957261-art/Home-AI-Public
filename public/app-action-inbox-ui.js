@@ -374,7 +374,24 @@ function wireActionInboxView(root) {
 
 function openActionInboxItemSource(item) {
   const link = actionInboxSourceDeepLink(item);
+  if (typeof recordNavigationDiagnostic === "function") {
+    recordNavigationDiagnostic("action_inbox_open_source", {
+      itemId: String(item?.id || "").slice(0, 120),
+      sourceType: String(item?.sourceType || item?.source_type || "").slice(0, 40),
+      itemType: String(item?.itemType || item?.item_type || "").slice(0, 40),
+      hasDeepLink: Boolean(item?.deepLink || item?.deep_link),
+      sourceId: String(item?.sourceId || item?.source_id || "").slice(0, 120),
+      sourceAutomationId: String(item?.sourceRef?.automationId || item?.sourceRef?.automation_id || "").slice(0, 120),
+      route: String(link || "").slice(0, 240),
+    });
+  }
   if (link && typeof openHermesInternalRoute === "function") return openHermesInternalRoute(link);
+  if (typeof recordNavigationDiagnostic === "function") {
+    recordNavigationDiagnostic("action_inbox_open_source_no_route", {
+      itemId: String(item?.id || "").slice(0, 120),
+      hasInternalRouteHelper: typeof openHermesInternalRoute === "function",
+    });
+  }
   return Promise.resolve(null);
 }
 

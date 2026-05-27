@@ -186,6 +186,48 @@ function sameOriginRouteUrl(value) {
   }
 }
 
+function recordNavigationDiagnostic(eventName, fields = {}) {
+  try {
+    const key = "hermesNavigationDiagnostics";
+    const entry = Object.assign({
+      at: new Date().toISOString(),
+      event: String(eventName || "").slice(0, 80),
+      clientVersion: state.clientVersion || document.documentElement?.dataset?.clientVersion || "",
+      viewMode: state.viewMode || "",
+      standalone: hermesRouteStandaloneAppWindow(),
+      browserShell: hermesRouteMobileBrowserShell(),
+      preflightBlocked: window.__hermesMobileBrowserShellBlocked === true,
+      width: Math.round(Number(window.innerWidth || window.visualViewport?.width || window.screen?.width || 0) || 0),
+      touch: Number(navigator.maxTouchPoints || 0) || 0,
+    }, fields || {});
+    const existing = JSON.parse(localStorage.getItem(key) || "[]");
+    const rows = Array.isArray(existing) ? existing : [];
+    rows.push(entry);
+    localStorage.setItem(key, JSON.stringify(rows.slice(-40)));
+  } catch (_) {}
+}
+
+function navigationDiagnosticSummary() {
+  try {
+    const raw = localStorage.getItem("hermesNavigationDiagnostics") || "[]";
+    const rows = JSON.parse(raw);
+    return Array.isArray(rows) ? rows : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+async function copyNavigationDiagnostics() {
+  const rows = navigationDiagnosticSummary();
+  const text = JSON.stringify(rows, null, 2);
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    showPushToast?.("导航诊断已复制", "success");
+    return;
+  }
+  window.prompt("复制导航诊断", text);
+}
+
 function hermesRouteStandaloneAppWindow() {
   return Boolean(
     window.matchMedia?.("(display-mode: standalone)")?.matches
@@ -212,7 +254,7 @@ function hermesRouteMobileBrowserShell() {
 }
 
 function shouldBlockMobileBrowserShellApp() {
-  return hermesRouteMobileBrowserShell();
+  return window.__hermesMobileBrowserShellBlocked === true || hermesRouteMobileBrowserShell();
 }
 
 function mobileBrowserShellBlockedTitle() {
@@ -232,8 +274,11 @@ function mobileBrowserShellDiagnosticText() {
 
 function showMobileBrowserShellBlocked() {
   state.mobileBrowserShellBlocked = true;
+  recordNavigationDiagnostic("mobile_browser_shell_blocked", { source: window.__hermesMobileBrowserShellBlocked === true ? "index_preflight" : "app_router" });
   replaceBlockedBrowserShellRoute();
   hideBootSplash();
+  document.body?.classList?.remove?.("preflight-mobile-browser-shell");
+  document.getElementById("mobileBrowserShellPreflight")?.remove?.();
   $("setup")?.classList.add("hidden");
   $("login")?.classList.add("hidden");
   const app = $("app");
@@ -259,10 +304,14 @@ function showMobileBrowserShellBlocked() {
           <p>${escapeHtml(mobileBrowserShellBlockedMessage())}</p>
           <code class="mobile-browser-shell-block-diagnostic">${escapeHtml(mobileBrowserShellDiagnosticText())}</code>
           <div class="mobile-browser-shell-block-actions">
+            <button class="secondary-small" type="button" data-mobile-browser-shell-copy>${"\u590d\u5236\u8bca\u65ad"}</button>
             <button class="secondary-small" type="button" data-mobile-browser-shell-close>${"\u5173\u95ed\u6b64\u6d4f\u89c8\u5668\u7a97\u53e3"}</button>
           </div>
         </section>
       `;
+      conversation.querySelector("[data-mobile-browser-shell-copy]")?.addEventListener("click", () => {
+        copyNavigationDiagnostics().catch(() => {});
+      });
       conversation.querySelector("[data-mobile-browser-shell-close]")?.addEventListener("click", () => {
         try { window.close(); } catch (_) {}
         showHermesAppWindowRequiredMessage();
@@ -275,6 +324,7 @@ function showMobileBrowserShellBlocked() {
 
 function blockMobileBrowserShellAppLaunch() {
   if (!shouldBlockMobileBrowserShellApp()) return false;
+  recordNavigationDiagnostic("block_mobile_browser_shell_app_launch", {});
   clearHermesOwnedDetailStateAfterBrowserShellBlock();
   showMobileBrowserShellBlocked();
   return true;
@@ -519,11 +569,21 @@ function replaceTodoDetailRouteFlag(todoId, flagName) {
 }
 
 async function openHermesInternalRoute(value) {
+  recordNavigationDiagnostic("open_hermes_internal_route_start", { route: String(value || "").slice(0, 240) });
   const parsed = sameOriginRouteUrl(value);
-  if (!parsed) return;
+  if (!parsed) {
+    recordNavigationDiagnostic("open_hermes_internal_route_reject", { reason: "not_same_origin", route: String(value || "").slice(0, 240) });
+    return;
+  }
   const params = new URLSearchParams(parsed.search || "");
-  if (!requireHermesAppWindowForRoute(params)) return;
-  if (!applyRouteParams(params)) return;
+  if (!requireHermesAppWindowForRoute(params)) {
+    recordNavigationDiagnostic("open_hermes_internal_route_blocked", { route: `${parsed.pathname}${parsed.search}${parsed.hash}` });
+    return;
+  }
+  if (!applyRouteParams(params)) {
+    recordNavigationDiagnostic("open_hermes_internal_route_noop", { route: `${parsed.pathname}${parsed.search}${parsed.hash}` });
+    return;
+  }
   suppressComposerAutoFocus(1200);
   blurComposerInput();
   try {
@@ -537,6 +597,13 @@ async function openHermesInternalRoute(value) {
   } catch (_) {
     // Route state is already applied; URL replacement is only for reload/back consistency.
   }
+  recordNavigationDiagnostic("open_hermes_internal_route_applied", {
+    route: `${parsed.pathname}${parsed.search}${parsed.hash}`,
+    nextViewMode: state.viewMode || "",
+    selectedAutomationId: state.selectedAutomationId || "",
+    selectedActionInboxItemId: state.selectedActionInboxItemId || "",
+    automationReturnRoute: state.automationReturnRoute || "",
+  });
   await loadSelectedView();
 }
 

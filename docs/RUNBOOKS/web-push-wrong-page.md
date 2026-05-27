@@ -32,6 +32,7 @@
 - Require iOS subscriptions to be created from the installed PWA and include `clientContext.displayMode`, `clientContext.standalone`, and `clientContext.clientVersion`.
 - Filter legacy iOS browser subscriptions during delivery. If the user needs iPhone push again, re-enable notification from the installed Hermes Mobile app after the new client version is active.
 - Gate mobile browser-shell launches before the authenticated app loads. The browser shell should show only a blocker, not Inbox, Automation, Directory, Growth, or file preview UI.
+- Put the mobile browser-shell blocker in `index.html` preflight as well as the app router. A stale browser-shell page may not execute the latest app bootstrap before it renders cached Inbox/Automation UI.
 - Gate internal notification/source-detail navigation on mobile browser shells when the client is not PWA standalone. The route should stop and prompt the user to reopen the installed Hermes Mobile app instead of showing a detail page inside a browser frame.
 - Apply the gate to click-time routing, startup URL routing, and selected-detail state restoration. If the app starts with `?view=automation&automationId=...` inside a browser shell, or restores a selected Automation detail before `loadSelectedView()`, it must stop before rendering the detail page.
 - Add stable ids to the payload producer.

@@ -43,6 +43,18 @@ assert.match(serviceWorker, /postNotificationOpenToClient\(client, targetUrl, no
 assert.match(serviceWorker, /self\.clients\.openWindow\(targetWindowRoute\)/);
 assert.doesNotMatch(serviceWorker, /self\.clients\.openWindow\(targetUrl\)/);
 
+const indexHtml = read("public/index.html");
+assert.match(indexHtml, /window\.__hermesMobileBrowserShellBlocked = true/);
+assert.match(indexHtml, /preflight\.id = "mobileBrowserShellPreflight"/);
+assert.match(indexHtml, /mode=preflight-browser/);
+assert.match(indexHtml, /index_mobile_browser_shell_preflight/);
+assert.match(indexHtml, /data-mobile-browser-shell-copy/);
+assert.ok(
+  indexHtml.indexOf("__hermesMobileBrowserShellBlocked") > 0
+    && indexHtml.indexOf("__hermesMobileBrowserShellBlocked") < indexHtml.indexOf("/app.js?"),
+  "index.html must run the mobile browser-shell preflight before app bundles load.",
+);
+
 const pwaPushUi = read("public/app-pwa-settings-push-ui.js");
 assert.match(pwaPushUi, /function currentDisplayMode\(\)/);
 assert.match(pwaPushUi, /function pushClientContext\(\)/);
@@ -59,6 +71,8 @@ assert.match(platformUi, /function requireHermesAppWindowForRoute\(params\)/);
 assert.match(platformUi, /function hermesRouteMobileBrowserShell\(\)/);
 assert.match(platformUi, /function showMobileBrowserShellBlocked\(\)/);
 assert.match(platformUi, /function blockMobileBrowserShellAppLaunch\(\)/);
+assert.match(platformUi, /window\.__hermesMobileBrowserShellBlocked === true \|\| hermesRouteMobileBrowserShell\(\)/);
+assert.match(platformUi, /getElementById\("mobileBrowserShellPreflight"\)\?\.remove/);
 assert.match(platformUi, /function guardHermesOwnedSelectedDetailNavigation\(\)/);
 assert.match(platformUi, /function clearHermesOwnedDetailStateAfterBrowserShellBlock\(\)/);
 assert.match(platformUi, /function showApp\(\) \{[\s\S]*?shouldBlockMobileBrowserShellApp\(\)[\s\S]*?showMobileBrowserShellBlocked\(\);[\s\S]*?return;/);
@@ -69,13 +83,28 @@ assert.match(platformUi, /selectedAutomationId: ""[\s\S]*?automationRouteTargetP
 const automationUi = read("public/app-automation-ui.js");
 assert.match(automationUi, /function loadSelectedView\(\) \{[\s\S]*?guardHermesOwnedSelectedDetailNavigation\(\);/);
 assert.match(platformUi, /function applyRouteFromUrl\(value\) \{[\s\S]*?const params = new URLSearchParams\(parsed\.search \|\| ""\);[\s\S]*?if \(!requireHermesAppWindowForRoute\(params\)\) return false;[\s\S]*?return applyRouteParams\(params\);/);
-assert.match(platformUi, /async function openHermesInternalRoute\(value\) \{[\s\S]*?const params = new URLSearchParams\(parsed\.search \|\| ""\);[\s\S]*?if \(!requireHermesAppWindowForRoute\(params\)\) return;[\s\S]*?if \(!applyRouteParams\(params\)\) return;/);
+assert.match(platformUi, /async function openHermesInternalRoute\(value\) \{/);
+assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_route_start"/);
+assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_route_blocked"/);
+assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_route_noop"/);
+assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_route_applied"/);
+assert.match(platformUi, /await loadSelectedView\(\);/);
 assert.match(platformUi, /async function openNotificationRoute\(value\) \{[\s\S]*?return openHermesInternalRoute\(value\);[\s\S]*?\}/);
+assert.match(platformUi, /function recordNavigationDiagnostic\(eventName, fields = \{\}\)/);
+assert.match(platformUi, /hermesNavigationDiagnostics/);
+assert.match(platformUi, /async function copyNavigationDiagnostics\(\)/);
+assert.match(platformUi, /data-mobile-browser-shell-copy/);
+assert.match(platformUi, /copyNavigationDiagnostics\(\)\.catch/);
 
 const actionInboxUi = read("public/app-action-inbox-ui.js");
 assert.match(actionInboxUi, /data-action-inbox-open-source-id/);
 assert.match(actionInboxUi, /function openActionInboxItemSource\(item\) \{[\s\S]*?openHermesInternalRoute\(link\)/);
+assert.match(actionInboxUi, /recordNavigationDiagnostic\("action_inbox_open_source"/);
 assert.doesNotMatch(actionInboxUi, /openNotificationRoute\(link\)/);
+const navigationSearchUi = read("public/app-navigation-search-ui.js");
+assert.match(navigationSearchUi, /topCopyNavigationDiagnostics/);
+const wireStartUi = read("public/app-wire-start-ui.js");
+assert.match(wireStartUi, /copyNavigationDiagnostics\(\)\.catch\(showError\)/);
 
 {
   const toasts = [];
@@ -104,7 +133,11 @@ assert.doesNotMatch(actionInboxUi, /openNotificationRoute\(link\)/);
     URL,
     URLSearchParams,
     AppApiClient: { createApiClient: () => () => Promise.resolve({}) },
-    document: { cookie: "" },
+    document: {
+      cookie: "",
+      body: { classList: { remove: () => {} } },
+      getElementById: (id) => element(id),
+    },
     localStorage: {
       setItem: (key, value) => storage.set(key, String(value)),
       getItem: (key) => storage.get(key) || "",

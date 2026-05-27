@@ -12454,6 +12454,19 @@ body.task-markdown-preview-open {
   padding: 24px 18px;
 }
 
+.preflight-mobile-browser-shell {
+  min-height: 100dvh;
+  background: var(--page-bg, #f7f8f7);
+}
+
+.mobile-browser-shell-preflight {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) 18px max(28px, env(safe-area-inset-bottom));
+  background: var(--page-bg, #f7f8f7);
+}
+
 .mobile-browser-shell-block {
   width: min(100%, 420px);
   padding: 22px 18px;

@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en" data-client-version="20260527-browser-shell-preview-parity-v273">
+<html lang="en" data-client-version="20260527-index-browser-shell-preflight-v274">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Hermes Mobile</title>
-  <meta name="hermes-web-client-version" content="20260527-browser-shell-preview-parity-v273">
+  <meta name="hermes-web-client-version" content="20260527-index-browser-shell-preflight-v274">
   <meta name="application-name" content="Hermes Mobile">
   <meta name="theme-color" content="#f7f8f7">
   <meta name="mobile-web-app-capable" content="yes">
@@ -36,7 +36,7 @@
       }
     }());
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260527-browser-shell-preview-parity-v273">
+  <link rel="stylesheet" href="/styles.css?v=20260527-index-browser-shell-preflight-v274">
 </head>
 <body>
   <main id="bootSplash" class="boot-splash" role="status" aria-live="polite">
@@ -47,6 +47,92 @@
     </div>
     <div class="boot-splash-bar" aria-hidden="true"><span></span></div>
   </main>
+
+  <script>
+    (function () {
+      function isStandaloneAppWindow() {
+        return Boolean(
+          window.matchMedia?.("(display-mode: standalone)")?.matches
+          || window.matchMedia?.("(display-mode: fullscreen)")?.matches
+          || navigator.standalone === true
+        );
+      }
+      function isMobileBrowserShell() {
+        if (isStandaloneAppWindow()) return false;
+        var ua = navigator.userAgent || "";
+        var mobileUa = /iPad|iPhone|iPod|Android|Mobile/i.test(ua)
+          || (/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1);
+        var coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches || false;
+        var touchCapable = (navigator.maxTouchPoints || 0) > 0 || "ontouchstart" in window;
+        var rawWidths = [
+          window.innerWidth,
+          window.visualViewport?.width,
+          window.screen?.width,
+          window.screen?.availWidth
+        ];
+        var widths = rawWidths
+          .map(function (value) { return Number(value); })
+          .filter(function (value) { return Number.isFinite(value) && value > 0; });
+        var narrowViewport = widths.length ? Math.min.apply(Math, widths) <= 900 : false;
+        return Boolean(mobileUa || coarsePointer || touchCapable || narrowViewport);
+      }
+      if (!isMobileBrowserShell()) return;
+      window.__hermesMobileBrowserShellBlocked = true;
+      document.body.classList.add("preflight-mobile-browser-shell");
+      var boot = document.getElementById("bootSplash");
+      if (boot) boot.classList.add("hidden");
+      var version = document.documentElement?.dataset?.clientVersion || "";
+      var width = Math.round(Number(window.innerWidth || window.visualViewport?.width || window.screen?.width || 0) || 0);
+      var touch = Number(navigator.maxTouchPoints || 0) || 0;
+      var diagnostic = {
+        at: new Date().toISOString(),
+        event: "index_mobile_browser_shell_preflight",
+        clientVersion: version,
+        viewMode: "preflight",
+        standalone: false,
+        browserShell: true,
+        preflightBlocked: true,
+        width: width,
+        touch: touch,
+      };
+      try {
+        var key = "hermesNavigationDiagnostics";
+        var rows = JSON.parse(localStorage.getItem(key) || "[]");
+        if (!Array.isArray(rows)) rows = [];
+        rows.push(diagnostic);
+        localStorage.setItem(key, JSON.stringify(rows.slice(-40)));
+      } catch (_) {}
+      var preflight = document.createElement("main");
+      preflight.id = "mobileBrowserShellPreflight";
+      preflight.className = "mobile-browser-shell-preflight";
+      preflight.innerHTML = '<section class="mobile-browser-shell-block" role="alert">'
+        + '<div class="mobile-browser-shell-block-mark">H</div>'
+        + '<h1>' + "\u8bf7\u4ece\u4e3b\u5c4f\u5e55\u5e94\u7528\u6253\u5f00" + '</h1>'
+        + '<p>' + "\u5f53\u524d\u9875\u9762\u6b63\u5728\u79fb\u52a8\u6d4f\u89c8\u5668\u58f3\u4e2d\u8fd0\u884c\u3002Hermes Mobile \u4e0d\u5728\u8fd9\u4e2a\u58f3\u91cc\u663e\u793a\u6536\u4ef6\u7bb1\u3001\u81ea\u52a8\u5316\u8be6\u60c5\u6216\u6587\u4ef6\u9884\u89c8\uff1b\u8bf7\u70b9\u5de6\u4e0a\u89d2\u5173\u95ed\uff0c\u7136\u540e\u4ece\u4e3b\u5c4f\u5e55 Hermes Mobile \u56fe\u6807\u6253\u5f00\u3002" + '</p>'
+        + '<code class="mobile-browser-shell-block-diagnostic">client=' + version + ' mode=preflight-browser width=' + width + ' touch=' + touch + '</code>'
+        + '<div class="mobile-browser-shell-block-actions"><button class="secondary-small" type="button" data-mobile-browser-shell-copy>'
+        + "\u590d\u5236\u8bca\u65ad"
+        + '</button><button class="secondary-small" type="button" data-mobile-browser-shell-close>'
+        + "\u5173\u95ed\u6b64\u6d4f\u89c8\u5668\u7a97\u53e3"
+        + '</button></div>'
+        + '</section>';
+      document.body.insertBefore(preflight, document.body.firstChild);
+      preflight.querySelector("[data-mobile-browser-shell-copy]")?.addEventListener("click", function () {
+        try {
+          var rows = JSON.parse(localStorage.getItem("hermesNavigationDiagnostics") || "[]");
+          var text = JSON.stringify(Array.isArray(rows) ? rows : [diagnostic], null, 2);
+          if (navigator.clipboard?.writeText) {
+            navigator.clipboard.writeText(text).catch(function () { window.prompt("\u590d\u5236\u5bfc\u822a\u8bca\u65ad", text); });
+          } else {
+            window.prompt("\u590d\u5236\u5bfc\u822a\u8bca\u65ad", text);
+          }
+        } catch (_) {}
+      });
+      preflight.querySelector("[data-mobile-browser-shell-close]")?.addEventListener("click", function () {
+        try { window.close(); } catch (_) {}
+      });
+    }());
+  </script>
 
   <main id="login" class="login hidden">
     <form id="loginForm" class="login-panel">
@@ -196,6 +282,7 @@
               <button id="topCompleteActionInboxItem" class="top-more-action" type="button" hidden>完成</button>
               <button id="topSnoozeActionInboxItem" class="top-more-action" type="button" hidden>稍后</button>
               <button id="topDismissActionInboxItem" class="top-more-action" type="button" hidden>忽略</button>
+              <button id="topCopyNavigationDiagnostics" class="top-more-action" type="button" hidden>复制导航诊断</button>
               <button id="topOpenAutomation" class="top-more-action" type="button" hidden>自动化列表</button>
               <button id="topNewAutomation" class="top-more-action" type="button" hidden>新建自动化</button>
               <button id="topLearningGrowthHistory" class="top-more-action" type="button" hidden>历史卡片</button>
@@ -248,71 +335,71 @@
   </div>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/markdown-renderer-client.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-task-artifact-helpers.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-kanban-story-helpers.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-learning-reading-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-learning-coins-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-learning-program-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-learning-growth-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-learning-growth-task-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-learning-growth-reflection-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-api-client.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-shell-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-task-groups-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-chat-composer-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-composer-source-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-composer-context-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-run-progress-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-navigation-search-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-task-preview-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-sidebar-task-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-message-skill-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-message-actions-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-platform-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-pwa-settings-push-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-workspace-admin-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-access-key-manager-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-share-image-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-draft-thread-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-directory-automation-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-shared-directory-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-action-inbox-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-automation-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-learning-native-growth-submission-controller.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-learning-growth-ai-controller.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-learning-growth-reward-controller.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-learning-growth-settings-controller.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-learning-growth-teaching-controller.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-learning-growth-controller.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-automation-controller-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-thread-state-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-group-topic-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-kanban-core-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-kanban-story-core-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-kanban-todo-core-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-kanban-render-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-kanban-list-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-kanban-learning-panel-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-kanban-recorder-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-todo-detail-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-kanban-actions-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-kanban-composer-actions-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-kanban-card-actions-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-kanban-study-actions-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-thread-message-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-thread-list-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-thread-directory-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-thread-card-message-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-long-message-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-rich-text-directory-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-message-usage-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-events-composer-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-event-stream-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-upload-sidebar-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-composer-send-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-wire-start-ui.js?v=20260527-browser-shell-preview-parity-v273"></script>
-  <script src="/app-start.js?v=20260527-browser-shell-preview-parity-v273"></script>
+  <script src="/markdown-renderer-client.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-task-artifact-helpers.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-kanban-story-helpers.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-learning-reading-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-learning-coins-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-learning-program-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-learning-growth-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-learning-growth-task-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-learning-growth-reflection-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-api-client.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-shell-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-task-groups-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-chat-composer-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-composer-source-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-composer-context-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-run-progress-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-navigation-search-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-task-preview-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-sidebar-task-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-message-skill-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-message-actions-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-platform-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-pwa-settings-push-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-workspace-admin-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-access-key-manager-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-share-image-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-draft-thread-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-directory-automation-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-shared-directory-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-action-inbox-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-automation-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-learning-native-growth-submission-controller.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-learning-growth-ai-controller.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-learning-growth-reward-controller.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-learning-growth-settings-controller.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-learning-growth-teaching-controller.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-learning-growth-controller.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-automation-controller-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-thread-state-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-group-topic-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-kanban-core-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-kanban-story-core-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-kanban-todo-core-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-kanban-render-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-kanban-list-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-kanban-learning-panel-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-kanban-recorder-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-todo-detail-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-kanban-actions-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-kanban-composer-actions-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-kanban-card-actions-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-kanban-study-actions-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-thread-message-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-thread-list-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-thread-directory-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-thread-card-message-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-long-message-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-rich-text-directory-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-message-usage-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-events-composer-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-event-stream-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-upload-sidebar-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-composer-send-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-wire-start-ui.js?v=20260527-index-browser-shell-preflight-v274"></script>
+  <script src="/app-start.js?v=20260527-index-browser-shell-preflight-v274"></script>
 </body>
 </html>

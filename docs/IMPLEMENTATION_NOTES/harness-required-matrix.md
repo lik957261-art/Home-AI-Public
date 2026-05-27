@@ -212,6 +212,9 @@ Required harness dimensions:
 - Mobile browser shells must not render the full authenticated Hermes Mobile
   app. They should show only a blocker that tells the user to close the browser
   shell and reopen the installed PWA.
+- The browser-shell blocker must have a preflight in `index.html` before app
+  bundles load, not only an app-bootstrap guard. This covers stale or long-lived
+  browser-shell sessions that have not yet run the latest app router.
 - iOS Web Push subscription requires PWA standalone evidence. The harness must
   cover frontend `clientContext.displayMode` / `standalone`, subscribe-route
   forwarding, and delivery-side filtering of legacy iOS browser subscriptions.
@@ -226,6 +229,8 @@ Required harness dimensions:
 - The harness must execute a mobile browser-shell case, not only inspect route
   parser text. It should verify that the browser shell enters blocked state and
   does not leave Inbox/Automation UI rendered behind the outer browser frame.
+- The harness must assert the `index.html` preflight runs before app bundles and
+  sets a global browser-shell blocked flag consumed by the app router.
 - Old client/service-worker version behavior fails safely.
 
 Primary docs:

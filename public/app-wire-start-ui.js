@@ -340,6 +340,10 @@ function wireUi() {
     closeTopMoreMenu();
     mutateActionInboxItem("dismiss").catch(showError);
   });
+  $("topCopyNavigationDiagnostics")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    copyNavigationDiagnostics().catch(showError);
+  });
   $("topOpenAutomation")?.addEventListener("click", () => {
     closeTopMoreMenu();
     openAutomationSurface({ returnTo: state.viewMode === "inbox" ? "inbox" : "" }).catch(showError);

@@ -338,6 +338,11 @@ function updateTopMoreControls() {
     dismissInboxItem.hidden = !actionInboxDetail || inboxItemTerminal;
     dismissInboxItem.disabled = !actionInboxDetail || inboxItemTerminal;
   }
+  const copyNavDiagnostics = $("topCopyNavigationDiagnostics");
+  if (copyNavDiagnostics) {
+    copyNavDiagnostics.hidden = !actionInboxDetail && !automationDetail;
+    copyNavDiagnostics.disabled = false;
+  }
   const selectedAutomation = currentAutomation();
   const editAutomation = $("topEditAutomation");
   if (editAutomation) {
