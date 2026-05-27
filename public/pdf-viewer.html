@@ -290,6 +290,19 @@
       }
     }
 
+    function appShellRouteForParams(params) {
+      const nextParams = new URLSearchParams(params || "");
+      if (!nextParams.has("source")) nextParams.set("source", "pwa");
+      let shellPath = "/";
+      try {
+        const referrer = new URL(document.referrer || "/", location.origin);
+        if (referrer.origin === location.origin && referrer.pathname && !referrer.pathname.includes(".")) {
+          shellPath = referrer.pathname.endsWith("/") ? referrer.pathname : `${referrer.pathname}/`;
+        }
+      } catch (_) {}
+      return `${shellPath}${nextParams.toString() ? `?${nextParams.toString()}` : ""}`;
+    }
+
     function inferredReturnUrlFromSource() {
       const url = sameOriginUrl(raw);
       if (!url) return "";
@@ -298,7 +311,7 @@
         const jobId = String(url.searchParams.get("jobId") || "").trim();
         const params = new URLSearchParams({ view: "automation", workspaceId });
         if (jobId) params.set("automationId", jobId);
-        return `/?${params.toString()}`;
+        return appShellRouteForParams(params);
       }
       return "";
     }

@@ -95,6 +95,7 @@ assert.match(automationLink, /automationId=auto-job-1/);
 assert.match(automationLink, /returnTo=inbox/);
 assert.match(automationLink, /returnScope=detail/);
 assert.match(automationLink, /sourceInboxItemId=ainb-auto-1/);
+assert.match(automationLink, /source=pwa/);
 assert.equal(ui.actionInboxOpensSourceDirectly(automationReceipt), true);
 
 const automationHtml = ui.renderActionInboxItem(automationReceipt);

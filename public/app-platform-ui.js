@@ -186,6 +186,36 @@ function sameOriginRouteUrl(value) {
   }
 }
 
+function normalizeHermesAppShellPath(pathname = "") {
+  const value = String(pathname || "/").trim() || "/";
+  if (value === "/" || value === "/index.html") return "/";
+  const clean = value.split(/[?#]/)[0] || "/";
+  if (clean.includes(".")) return "/";
+  return clean.endsWith("/") ? clean : `${clean}/`;
+}
+
+function hermesAppShellPath(pathname = "") {
+  const current = normalizeHermesAppShellPath(window.location?.pathname || "/");
+  const requestedValue = String(pathname || "").trim();
+  if (!requestedValue || requestedValue === "/" || requestedValue === "/index.html") return current;
+  const requested = normalizeHermesAppShellPath(requestedValue);
+  return requested === "/" && current !== "/" ? current : requested;
+}
+
+function hermesAppShellRouteForParams(params, options = {}) {
+  const nextParams = new URLSearchParams(params || "");
+  if (!nextParams.has("source")) nextParams.set("source", "pwa");
+  const search = nextParams.toString();
+  return `${hermesAppShellPath(options.pathname)}${search ? `?${search}` : ""}`;
+}
+
+function hermesAppShellRouteForUrl(value) {
+  const parsed = value instanceof URL ? value : sameOriginRouteUrl(value);
+  if (!parsed) return hermesAppShellRouteForParams(new URLSearchParams());
+  const params = new URLSearchParams(parsed.search || "");
+  return `${hermesAppShellRouteForParams(params, { pathname: parsed.pathname })}${parsed.hash || ""}`;
+}
+
 function recordNavigationDiagnostic(eventName, fields = {}) {
   try {
     const key = "hermesNavigationDiagnostics";
@@ -369,7 +399,7 @@ function routeParamsHaveHermesOwnedDetailTarget(params) {
 function replaceBlockedBrowserShellRoute() {
   try {
     const nextState = Object.assign({}, window.history.state || {}, { hermesWebBase: true });
-    window.history.replaceState(nextState, "", "/?source=pwa");
+    window.history.replaceState(nextState, "", hermesAppShellRouteForParams(new URLSearchParams()));
   } catch (_) {}
 }
 
@@ -564,7 +594,7 @@ function replaceTodoDetailRouteFlag(todoId, flagName) {
     if (flag === "readingQuiz") params.delete("assessmentExam");
     params.set(flag, "1");
     const nextState = Object.assign({}, window.history.state || {}, { hermesWebBase: true });
-    window.history.replaceState(nextState, "", `/?${params.toString()}`);
+    window.history.replaceState(nextState, "", hermesAppShellRouteForParams(params));
   } catch (_) {}
 }
 
@@ -591,14 +621,15 @@ async function openHermesInternalRoute(value) {
   } catch (_) {}
   closeSidebar();
   closeTopMoreMenu();
+  const nextRoute = hermesAppShellRouteForUrl(parsed);
   try {
     const nextState = Object.assign({}, window.history.state || {}, { hermesWebBase: true });
-    window.history.replaceState(nextState, "", `${parsed.pathname}${parsed.search}${parsed.hash}`);
+    window.history.replaceState(nextState, "", nextRoute);
   } catch (_) {
     // Route state is already applied; URL replacement is only for reload/back consistency.
   }
   recordNavigationDiagnostic("open_hermes_internal_route_applied", {
-    route: `${parsed.pathname}${parsed.search}${parsed.hash}`,
+    route: nextRoute,
     nextViewMode: state.viewMode || "",
     selectedAutomationId: state.selectedAutomationId || "",
     selectedActionInboxItemId: state.selectedActionInboxItemId || "",

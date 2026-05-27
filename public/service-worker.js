@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260527-index-browser-shell-preflight-v274";
+const HERMES_SW_VERSION = "20260527-scoped-app-shell-route-v275";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,75 +8,75 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260527-index-browser-shell-preflight-v274",
-  "/markdown-viewer.html?v=20260527-index-browser-shell-preflight-v274",
-  "/app-task-artifact-helpers.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-kanban-story-helpers.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-learning-reading-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-learning-coins-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-learning-program-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-learning-growth-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-learning-growth-task-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-learning-growth-reflection-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-api-client.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-shell-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-task-groups-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-chat-composer-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-composer-source-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-composer-context-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-run-progress-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-navigation-search-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-task-preview-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-sidebar-task-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-message-skill-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-message-actions-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-platform-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-pwa-settings-push-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-workspace-admin-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-access-key-manager-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-share-image-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-draft-thread-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-directory-automation-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-shared-directory-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-action-inbox-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-automation-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-learning-native-growth-submission-controller.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-learning-growth-ai-controller.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-learning-growth-reward-controller.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-learning-growth-settings-controller.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-learning-growth-teaching-controller.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-learning-growth-controller.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-automation-controller-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-thread-state-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-group-topic-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-kanban-core-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-kanban-story-core-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-kanban-todo-core-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-kanban-render-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-kanban-list-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-kanban-learning-panel-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-kanban-recorder-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-todo-detail-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-kanban-actions-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-kanban-composer-actions-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-kanban-card-actions-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-kanban-study-actions-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-thread-message-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-thread-list-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-thread-directory-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-thread-card-message-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-long-message-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-rich-text-directory-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-message-usage-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-events-composer-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-event-stream-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-upload-sidebar-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-composer-send-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-wire-start-ui.js?v=20260527-index-browser-shell-preflight-v274",
-  "/app-start.js?v=20260527-index-browser-shell-preflight-v274",
+  "/styles.css?v=20260527-scoped-app-shell-route-v275",
+  "/markdown-viewer.html?v=20260527-scoped-app-shell-route-v275",
+  "/app-task-artifact-helpers.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-kanban-story-helpers.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-learning-reading-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-learning-coins-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-learning-program-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-learning-growth-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-learning-growth-task-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-learning-growth-reflection-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-api-client.js?v=20260527-scoped-app-shell-route-v275",
+  "/app.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-shell-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-task-groups-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-chat-composer-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-composer-source-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-composer-context-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-run-progress-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-navigation-search-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-task-preview-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-sidebar-task-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-message-skill-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-message-actions-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-platform-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-pwa-settings-push-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-workspace-admin-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-access-key-manager-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-share-image-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-draft-thread-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-directory-automation-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-shared-directory-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-action-inbox-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-automation-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-learning-native-growth-submission-controller.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-learning-growth-ai-controller.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-learning-growth-reward-controller.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-learning-growth-settings-controller.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-learning-growth-teaching-controller.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-learning-growth-controller.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-automation-controller-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-thread-state-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-group-topic-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-kanban-core-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-kanban-story-core-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-kanban-todo-core-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-kanban-render-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-kanban-list-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-kanban-learning-panel-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-kanban-recorder-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-todo-detail-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-kanban-actions-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-kanban-composer-actions-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-kanban-card-actions-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-kanban-study-actions-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-thread-message-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-thread-list-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-thread-directory-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-thread-card-message-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-long-message-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-rich-text-directory-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-message-usage-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-events-composer-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-event-stream-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-upload-sidebar-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-composer-send-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-wire-start-ui.js?v=20260527-scoped-app-shell-route-v275",
+  "/app-start.js?v=20260527-scoped-app-shell-route-v275",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260527-index-browser-shell-preflight-v274",
+  "/markdown-renderer-client.js?v=20260527-scoped-app-shell-route-v275",
   "/file-viewer.html",
   "/pdf-viewer.html",
   "/manifest.json",
@@ -283,19 +283,19 @@ function routeUrlForNotificationData(rawData = {}) {
     params.set("view", "inbox");
     params.set("workspaceId", workspaceId);
     params.set("inboxItemId", String(data.inboxItemId));
-    return `/?${params.toString()}`;
+    return appShellRouteForParams(params);
   }
   if (data.automationId) {
     params.set("view", "automation");
     params.set("workspaceId", workspaceId);
     params.set("automationId", String(data.automationId));
-    return `/?${params.toString()}`;
+    return appShellRouteForParams(params);
   }
   if (data.todoId) {
     params.set("view", "todos");
     params.set("workspaceId", workspaceId);
     params.set("todoId", String(data.todoId));
-    return `/?${params.toString()}`;
+    return appShellRouteForParams(params);
   }
   if (data.taskCardId) {
     params.set("view", "learning");
@@ -303,21 +303,36 @@ function routeUrlForNotificationData(rawData = {}) {
     params.set("taskCardId", String(data.taskCardId));
     if (data.evaluationId) params.set("evaluationId", String(data.evaluationId));
     if (data.submissionId) params.set("submissionId", String(data.submissionId));
-    return `/?${params.toString()}`;
+    return appShellRouteForParams(params);
   }
   if (data.taskGroupId) {
     params.set("view", "tasks");
     params.set("workspaceId", workspaceId);
     params.set("taskGroupId", String(data.taskGroupId));
     if (data.messageId) params.set("messageId", String(data.messageId));
-    return `/?${params.toString()}`;
+    return appShellRouteForParams(params);
   }
   if (data.viewMode || data.view) {
     params.set("view", String(data.viewMode || data.view));
     params.set("workspaceId", workspaceId);
-    return `/?${params.toString()}`;
+    return appShellRouteForParams(params);
   }
   return explicitUrl || "/";
+}
+
+function normalizeAppShellPath(pathname = "") {
+  const value = String(pathname || "/").trim() || "/";
+  if (value === "/" || value === "/index.html") return "/";
+  const clean = value.split(/[?#]/)[0] || "/";
+  if (clean.includes(".")) return "/";
+  return clean.endsWith("/") ? clean : `${clean}/`;
+}
+
+function appShellRouteForParams(params, shellPath = "/") {
+  const nextParams = new URLSearchParams(params || "");
+  if (!nextParams.has("source")) nextParams.set("source", "pwa");
+  const search = nextParams.toString();
+  return `${normalizeAppShellPath(shellPath)}${search ? `?${search}` : ""}`;
 }
 
 function postNotificationOpenToClient(client, targetUrl, notificationData) {
@@ -334,21 +349,26 @@ function postNotificationOpenToClient(client, targetUrl, notificationData) {
   }
 }
 
-function appWindowRouteForUrl(url) {
+function appWindowRouteForUrl(url, client = null) {
   try {
     const parsed = url instanceof URL ? url : new URL(url || "/", self.location.origin);
     if (parsed.origin !== self.location.origin) return "/";
+    let clientShellPath = "";
+    try {
+      clientShellPath = client?.url ? new URL(client.url, self.location.origin).pathname : "";
+    } catch (_) {
+      clientShellPath = "";
+    }
+    const shellPath = clientShellPath ? normalizeAppShellPath(clientShellPath) : normalizeAppShellPath(parsed.pathname);
     if (isViewerShellRequest(parsed)) {
       const returnUrl = parsed.searchParams.get("return") || "";
-      if (returnUrl) return appWindowRouteForUrl(new URL(returnUrl, self.location.origin));
-      return "/?source=pwa";
+      if (returnUrl) return appWindowRouteForUrl(new URL(returnUrl, self.location.origin), client);
+      return appShellRouteForParams(new URLSearchParams(), shellPath);
     }
     const params = new URLSearchParams(parsed.search || "");
-    if (!params.has("source")) params.set("source", "pwa");
-    const search = params.toString();
-    return `${parsed.pathname || "/"}${search ? `?${search}` : ""}${parsed.hash || ""}`;
+    return `${appShellRouteForParams(params, shellPath)}${parsed.hash || ""}`;
   } catch (_) {
-    return "/?source=pwa";
+    return appShellRouteForParams(new URLSearchParams());
   }
 }
 
@@ -427,7 +447,6 @@ self.addEventListener("notificationclick", (event) => {
   const rawTargetUrl = routeUrlForNotificationData(notificationData);
   const parsedTargetUrl = new URL(rawTargetUrl, self.location.origin);
   const targetUrl = parsedTargetUrl.origin === self.location.origin ? parsedTargetUrl.href : `${self.location.origin}/`;
-  const targetWindowRoute = appWindowRouteForUrl(parsedTargetUrl);
   event.waitUntil((async () => {
     const windowClients = await sameOriginWindowClients();
     const topLevelClients = windowClients.filter(isTopLevelWindowClient);
@@ -438,6 +457,7 @@ self.addEventListener("notificationclick", (event) => {
     }
     for (const client of topLevelClients) {
       let targetClient = client;
+      const targetWindowRoute = appWindowRouteForUrl(parsedTargetUrl, client);
       if ("navigate" in client) {
         try {
           targetClient = await client.navigate(targetWindowRoute) || client;
@@ -449,6 +469,7 @@ self.addEventListener("notificationclick", (event) => {
       await targetClient.focus();
       return;
     }
+    const targetWindowRoute = appWindowRouteForUrl(parsedTargetUrl);
     await self.clients.openWindow(targetWindowRoute);
   })());
 });

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260527-index-browser-shell-preflight-v274";
+const CLIENT_VERSION = "20260527-scoped-app-shell-route-v275";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -410,9 +410,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260527-index-browser-shell-preflight-v274/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260527-index-browser-shell-preflight-v274/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260527-index-browser-shell-preflight-v274/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260527-scoped-app-shell-route-v275/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260527-scoped-app-shell-route-v275/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260527-scoped-app-shell-route-v275/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -1746,10 +1746,12 @@ assert.ok(indexHtml.includes(CLIENT_VERSION));
 assert.ok(serviceWorkerJs.includes(CLIENT_VERSION));
 assert.match(serviceWorkerJs, /function isTopLevelWindowClient\(client\) \{[\s\S]*?frameType === "top-level"[\s\S]*?frameType === "auxiliary"/);
 assert.match(serviceWorkerJs, /function isAppShellClient\(client\) \{[\s\S]*?if \(!isTopLevelWindowClient\(client\)\) return false;[\s\S]*?url\.pathname === "\/"[\s\S]*?url\.pathname === "\/hermes-mobile\/"/);
-assert.match(serviceWorkerJs, /function appWindowRouteForUrl\(url\) \{[\s\S]*?if \(isViewerShellRequest\(parsed\)\) \{[\s\S]*?return appWindowRouteForUrl\(new URL\(returnUrl, self\.location\.origin\)\);[\s\S]*?return "\/\?source=pwa";[\s\S]*?if \(!params\.has\("source"\)\) params\.set\("source", "pwa"\);/);
-assert.match(serviceWorkerJs, /return "\/\?source=pwa";/);
+assert.match(serviceWorkerJs, /function normalizeAppShellPath\(pathname = ""\)/);
+assert.match(serviceWorkerJs, /function appShellRouteForParams\(params, shellPath = "\/"\)/);
+assert.match(serviceWorkerJs, /function appWindowRouteForUrl\(url, client = null\) \{[\s\S]*?const shellPath = clientShellPath \? normalizeAppShellPath\(clientShellPath\) : normalizeAppShellPath\(parsed\.pathname\);[\s\S]*?return appShellRouteForParams\(new URLSearchParams\(\), shellPath\);[\s\S]*?return `\$\{appShellRouteForParams\(params, shellPath\)\}\$\{parsed\.hash \|\| ""\}`;/);
 assert.match(serviceWorkerJs, /"\/manifest\.json"/);
 assert.match(serviceWorkerJs, /const rawTargetUrl = routeUrlForNotificationData\(notificationData\);/);
+assert.match(serviceWorkerJs, /const targetWindowRoute = appWindowRouteForUrl\(parsedTargetUrl, client\);/);
 assert.match(serviceWorkerJs, /const targetWindowRoute = appWindowRouteForUrl\(parsedTargetUrl\);/);
 assert.match(serviceWorkerJs, /const topLevelClients = windowClients\.filter\(isTopLevelWindowClient\);/);
 assert.match(serviceWorkerJs, /for \(const client of topLevelClients\.filter\(isAppShellClient\)\) \{[\s\S]*?postNotificationOpenToClient\(client, targetUrl, notificationData\);[\s\S]*?await client\.focus\(\);[\s\S]*?return;/);

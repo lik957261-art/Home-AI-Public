@@ -660,6 +660,7 @@ async function runLocalNotificationProbe(result) {
   const registration = await getServiceWorkerRegistration();
   const workspaceId = result?.target?.workspaceId || state.selectedWorkspaceId || "owner";
   const testId = result?.target?.testId || `local_${Date.now()}`;
+  const routeParams = new URLSearchParams({ view: "tasks", workspaceId });
   await registration.showNotification("\u672c\u673a\u901a\u77e5\u6d4b\u8bd5", {
     body: "如果这条只在下拉菜单里，请把 Android 通知类别设为提醒/弹出，而不是静默。",
     tag: `hermes-web-local-probe-${testId}`,
@@ -671,7 +672,9 @@ async function runLocalNotificationProbe(result) {
     data: {
       messageType: "local-probe",
       workspaceId,
-      url: `/?view=tasks&workspaceId=${encodeURIComponent(workspaceId)}`,
+      url: typeof hermesAppShellRouteForParams === "function"
+        ? hermesAppShellRouteForParams(routeParams)
+        : `?${routeParams.toString()}`,
     },
   });
   return { shown: true };

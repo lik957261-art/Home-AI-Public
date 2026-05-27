@@ -534,7 +534,15 @@ function currentViewerReturnUrl() {
   } else {
     return `${location.pathname}${location.search}`;
   }
-  return `/?${params.toString()}`;
+  if (typeof hermesAppShellRouteForParams === "function") return hermesAppShellRouteForParams(params);
+  const pathname = String(location.pathname || "/").trim() || "/";
+  const shellPath = pathname === "/" || pathname === "/index.html" || pathname.includes(".")
+    ? "/"
+    : pathname.endsWith("/")
+      ? pathname
+      : `${pathname}/`;
+  if (!params.has("source")) params.set("source", "pwa");
+  return `${shellPath}?${params.toString()}`;
 }
 
 function artifactHref(artifact) {

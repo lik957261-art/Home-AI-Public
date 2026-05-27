@@ -215,6 +215,10 @@ Required harness dimensions:
 - The browser-shell blocker must have a preflight in `index.html` before app
   bundles load, not only an app-bootstrap guard. This covers stale or long-lived
   browser-shell sessions that have not yet run the latest app router.
+- Hermes-owned notification and second-level routes must preserve the current
+  app shell path instead of hardcoding root `/?...`. A deployment mounted under
+  a prefix such as `/hermes-mobile/` must route to that same prefix, while root
+  deployments keep `/`.
 - iOS Web Push subscription requires PWA standalone evidence. The harness must
   cover frontend `clientContext.displayMode` / `standalone`, subscribe-route
   forwarding, and delivery-side filtering of legacy iOS browser subscriptions.
@@ -317,6 +321,9 @@ Required contract dimensions:
   UI path, not a Web Push-only path. The row must be a button-driven internal
   route that reuses the current app runtime, carries Inbox return context, and
   does not call `window.open`, `target=_blank`, or a location-level page open.
+- Direct source navigation must also preserve the current app shell path. The
+  harness must cover a prefixed deployment path such as `/hermes-mobile/`
+  without hardcoding any domain.
 - Preview fallbacks follow the in-app overlay/iframe/download pattern used by
   Markdown, image, and document previews; `about:blank` print windows and
   `open(..., "_blank")` are not allowed workarounds.

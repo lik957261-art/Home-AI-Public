@@ -41,7 +41,11 @@ const serviceWorker = read("public/service-worker.js");
 assert.match(serviceWorker, /for \(const client of topLevelClients\.filter\(isAppShellClient\)\)/);
 assert.match(serviceWorker, /postNotificationOpenToClient\(client, targetUrl, notificationData\);[\s\S]*?await client\.focus\(\);[\s\S]*?return;/);
 assert.match(serviceWorker, /self\.clients\.openWindow\(targetWindowRoute\)/);
+assert.match(serviceWorker, /function normalizeAppShellPath\(pathname = ""\)/);
+assert.match(serviceWorker, /function appShellRouteForParams\(params, shellPath = "\/"\)/);
+assert.match(serviceWorker, /appWindowRouteForUrl\(parsedTargetUrl, client\)/);
 assert.doesNotMatch(serviceWorker, /self\.clients\.openWindow\(targetUrl\)/);
+assert.doesNotMatch(serviceWorker, /return `\/\?\$\{params\.toString\(\)\}`/);
 
 const indexHtml = read("public/index.html");
 assert.match(indexHtml, /window\.__hermesMobileBrowserShellBlocked = true/);
@@ -66,6 +70,9 @@ assert.match(pwaPushUi, /clientContext,[\s\S]*displayMode: clientContext\.displa
 
 const platformUi = read("public/app-platform-ui.js");
 assert.match(platformUi, /function sameOriginRouteUrl\(value\)/);
+assert.match(platformUi, /function normalizeHermesAppShellPath\(pathname = ""\)/);
+assert.match(platformUi, /function hermesAppShellRouteForParams\(params, options = \{\}\)/);
+assert.match(platformUi, /function hermesAppShellRouteForUrl\(value\)/);
 assert.match(platformUi, /function routeParamsHaveHermesOwnedDetailTarget\(params\)/);
 assert.match(platformUi, /function requireHermesAppWindowForRoute\(params\)/);
 assert.match(platformUi, /function hermesRouteMobileBrowserShell\(\)/);
@@ -88,6 +95,7 @@ assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_rout
 assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_route_blocked"/);
 assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_route_noop"/);
 assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_route_applied"/);
+assert.match(platformUi, /const nextRoute = hermesAppShellRouteForUrl\(parsed\)/);
 assert.match(platformUi, /await loadSelectedView\(\);/);
 assert.match(platformUi, /async function openNotificationRoute\(value\) \{[\s\S]*?return openHermesInternalRoute\(value\);[\s\S]*?\}/);
 assert.match(platformUi, /function recordNavigationDiagnostic\(eventName, fields = \{\}\)/);
@@ -100,6 +108,7 @@ const actionInboxUi = read("public/app-action-inbox-ui.js");
 assert.match(actionInboxUi, /data-action-inbox-open-source-id/);
 assert.match(actionInboxUi, /function openActionInboxItemSource\(item\) \{[\s\S]*?openHermesInternalRoute\(link\)/);
 assert.match(actionInboxUi, /recordNavigationDiagnostic\("action_inbox_open_source"/);
+assert.match(actionInboxUi, /actionInboxAppShellRouteForParams\(params\)/);
 assert.doesNotMatch(actionInboxUi, /openNotificationRoute\(link\)/);
 const navigationSearchUi = read("public/app-navigation-search-ui.js");
 assert.match(navigationSearchUi, /topCopyNavigationDiagnostics/);
@@ -151,7 +160,7 @@ assert.match(wireStartUi, /copyNavigationDiagnostics\(\)\.catch\(showError\)/);
     window: {
       innerWidth: 390,
       screen: { width: 390 },
-      location: { origin: "https://example.test" },
+      location: { origin: "https://example.test", pathname: "/hermes-mobile/" },
       matchMedia: () => ({ matches: false }),
       history: {
         state: {},
@@ -195,7 +204,7 @@ assert.match(wireStartUi, /copyNavigationDiagnostics\(\)\.catch\(showError\)/);
   assert.equal(sandbox.state.selectedAutomationId, "");
   assert.equal(sandbox.state.automationRouteTargetPending, false);
   assert.equal(storage.get("hermesWebViewMode"), "inbox");
-  assert.equal(sandbox.window.history.replacedUrl, "/?source=pwa");
+  assert.equal(sandbox.window.history.replacedUrl, "/hermes-mobile/?source=pwa");
   assert.equal(alerts[0], "open from PWA");
   assert.deepEqual(toasts[0], { message: "open from PWA", tone: "error" });
   assert.equal(element("app").classList.contains("mobile-browser-shell-blocked"), true);
@@ -231,7 +240,7 @@ assert.match(wireStartUi, /copyNavigationDiagnostics\(\)\.catch\(showError\)/);
       selectedActionInboxItemId: "",
     },
     window: {
-      location: { origin: "https://example.test" },
+      location: { origin: "https://example.test", pathname: "/hermes-mobile/" },
       open: () => { throw new Error("Action Inbox source navigation must not open a browser window."); },
     },
     formatTime: () => "",
@@ -255,7 +264,7 @@ assert.match(wireStartUi, /copyNavigationDiagnostics\(\)\.catch\(showError\)/);
   assert.match(rowHtml, /<button class="action-inbox-item-main" type="button" data-action-inbox-open-source-id="inbox-1">/);
   assert.doesNotMatch(rowHtml, /href=/);
   sandbox.openActionInboxItemSourceById("inbox-1");
-  assert.deepEqual(routeCalls, ["/?view=automation&workspaceId=owner&automationId=job-1&returnTo=inbox&returnScope=detail&sourceInboxItemId=inbox-1"]);
+  assert.deepEqual(routeCalls, ["/hermes-mobile/?view=automation&workspaceId=owner&automationId=job-1&returnTo=inbox&returnScope=detail&sourceInboxItemId=inbox-1&source=pwa"]);
 }
 
 const pushApiRoutes = read("server-routes/push-api-routes.js");

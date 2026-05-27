@@ -124,10 +124,25 @@ function actionInboxSourceDeepLink(item = {}) {
       params.set("returnScope", "detail");
       const inboxItemId = String(item?.id || "").trim();
       if (inboxItemId) params.set("sourceInboxItemId", inboxItemId);
-      return `/?${params.toString()}`;
+      return actionInboxAppShellRouteForParams(params);
     }
   }
   return "";
+}
+
+function actionInboxAppShellRouteForParams(params) {
+  if (typeof hermesAppShellRouteForParams === "function") return hermesAppShellRouteForParams(params);
+  const nextParams = new URLSearchParams(params || "");
+  if (!nextParams.has("source")) nextParams.set("source", "pwa");
+  const pathname = String((typeof window !== "undefined" && window.location?.pathname) || "/").trim() || "/";
+  const shellPath = pathname === "/" || pathname === "/index.html"
+    ? "/"
+    : pathname.includes(".")
+      ? "/"
+      : pathname.endsWith("/")
+        ? pathname
+        : `${pathname}/`;
+  return `${shellPath}?${nextParams.toString()}`;
 }
 
 function actionInboxAutomationInboxReturnLink(link, item = {}, sourceType = "") {
