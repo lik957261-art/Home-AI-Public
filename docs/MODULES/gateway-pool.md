@@ -81,12 +81,27 @@ Current runtime behavior:
 - `adapters/gateway-run-model-toolset-selection-service.js` runs a bounded
   selector request before execution. The selector receives only a compact
   authorized-toolset catalog and an empty callable `allowed_toolsets` list.
+- This selector is a short-budget optimization, not a hard prerequisite. The
+  reference pattern is the existing permission-boundary model judgment:
+  `HERMES_PERMISSION_APPROVAL_REQUIRED` is emitted inside the normal model run
+  and parsed locally instead of adding a long blocking preflight. Toolset
+  selection must move toward that marker-style contract when deeper schema
+  reduction is needed.
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION` /
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION` disable the selector when
   set to `0`, `false`, `no`, or `off`; default is enabled.
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS` /
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS` controls the
-  selector timeout; default is `15000`.
+  selector timeout; default is `4000`.
+- `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_MODEL` /
+  `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_MODEL` controls the compact
+  selector model; default is `gpt-5.4-mini`. The provider and reasoning effort
+  can be overridden with the matching `_PROVIDER` and `_REASONING_EFFORT`
+  environment variables.
+- `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_STOP_TIMEOUT_MS` /
+  `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_STOP_TIMEOUT_MS` controls
+  the best-effort stop request for a selector run id that was observed before a
+  selector failure; default is `1000`.
 - If selection fails, times out, or returns no authorized toolsets, Hermes
   Mobile falls back to the full originally authorized toolset list and records
   `run.toolset_selection_failed`.

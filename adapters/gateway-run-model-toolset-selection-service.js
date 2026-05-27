@@ -174,7 +174,13 @@ function buildSelectorInstructions({ allowedToolsets = [], request = {} } = {}) 
   ].join("\n");
 }
 
-function buildSelectionBody({ request = {}, allowedToolsets = [], selectorReasoningEffort = "low" } = {}) {
+function buildSelectionBody({
+  request = {},
+  allowedToolsets = [],
+  selectorModel = "",
+  selectorProvider = "",
+  selectorReasoningEffort = "low",
+} = {}) {
   const body = {
     input: boundedText(request.body?.input, 2000),
     stream: true,
@@ -189,17 +195,39 @@ function buildSelectionBody({ request = {}, allowedToolsets = [], selectorReason
       toolset_routing: { mode: "model_first_selector" },
     },
   };
-  if (request.body?.model) body.model = request.body.model;
-  if (request.body?.provider) body.provider = request.body.provider;
+  const model = cleanString(selectorModel) || cleanString(request.body?.model);
+  const provider = cleanString(selectorProvider) || cleanString(request.body?.provider);
+  if (model) body.model = model;
+  if (provider) body.provider = provider;
   body.reasoning_effort = selectorReasoningEffort;
   return body;
+}
+
+function selectorRunIdFromEvent(event = {}) {
+  return cleanString(event.response?.id || event.response_id || event.responseId || event.id);
+}
+
+function stopSelectorRun({ runner, gatewayTarget = {}, selectorRunId = "", stopTimeoutMs = 1000 } = {}) {
+  const runId = cleanString(selectorRunId);
+  if (!runId || !runner || typeof runner.stopRun !== "function") return;
+  try {
+    const pending = runner.stopRun(runId, {
+      apiBase: gatewayTarget.apiBase,
+      apiKey: gatewayTarget.apiKey,
+      timeoutMs: stopTimeoutMs,
+    });
+    if (pending && typeof pending.catch === "function") void pending.catch(() => {});
+  } catch (_) {}
 }
 
 function createGatewayRunModelToolsetSelectionService(options = {}) {
   const dedupe = typeof options.dedupe === "function" ? options.dedupe : defaultDedupe;
   const enabled = normalizeBoolean(options.enabled, true);
-  const timeoutMs = Math.max(1000, Number(options.timeoutMs || 15000) || 15000);
+  const timeoutMs = Math.max(500, Number(options.timeoutMs || 4000) || 4000);
+  const stopTimeoutMs = Math.max(500, Number(options.stopTimeoutMs || 1000) || 1000);
   const nowMs = typeof options.nowMs === "function" ? options.nowMs : (() => Date.now());
+  const selectorModel = cleanString(options.selectorModel) || "gpt-5.4-mini";
+  const selectorProvider = cleanString(options.selectorProvider);
   const selectorReasoningEffort = cleanString(options.selectorReasoningEffort) || "low";
 
   function gatewayPool() {
@@ -211,6 +239,8 @@ function createGatewayRunModelToolsetSelectionService(options = {}) {
     const gatewayTarget = objectValue(context.gatewayTarget);
     const allowedToolsets = allowedToolsetsFromPolicy(request.runPolicy || request.body?.access_policy_context, dedupe);
     const startedAt = nowMs();
+    let runner = null;
+    let selectorRunId = "";
     if (!enabled) {
       return { enabled: false, ok: false, reason: "disabled", selectedToolsets: allowedToolsets, durationMs: 0 };
     }
@@ -222,13 +252,24 @@ function createGatewayRunModelToolsetSelectionService(options = {}) {
       if (!pool || typeof pool.runnerFor !== "function") {
         return { enabled: true, ok: false, reason: "missing_gateway_pool", selectedToolsets: allowedToolsets, durationMs: nowMs() - startedAt };
       }
-      const body = buildSelectionBody({ request, allowedToolsets, selectorReasoningEffort });
+      const body = buildSelectionBody({
+        request,
+        allowedToolsets,
+        selectorModel,
+        selectorProvider,
+        selectorReasoningEffort,
+      });
       const chunks = [];
-      await pool.runnerFor(gatewayTarget).streamResponses(body, {
+      runner = pool.runnerFor(gatewayTarget);
+      if (!runner || typeof runner.streamResponses !== "function") {
+        return { enabled: true, ok: false, reason: "missing_gateway_runner", selectedToolsets: allowedToolsets, durationMs: nowMs() - startedAt };
+      }
+      await runner.streamResponses(body, {
         gatewayUrl: gatewayTarget.apiBase,
         apiKey: gatewayTarget.apiKey,
         timeoutMs,
         onEvent: (event) => {
+          selectorRunId = selectorRunId || selectorRunIdFromEvent(event);
           const text = selectorTextFromEvent(event);
           if (text) chunks.push(text);
         },
@@ -241,6 +282,7 @@ function createGatewayRunModelToolsetSelectionService(options = {}) {
         durationMs: nowMs() - startedAt,
       });
     } catch (err) {
+      stopSelectorRun({ runner, gatewayTarget, selectorRunId, stopTimeoutMs });
       return {
         enabled: true,
         ok: false,

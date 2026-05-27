@@ -42,7 +42,11 @@ blocked-toolset escalation, invalid selection fallback, and telemetry for
 model-selection start/end, tool-call start/end, and final-message start/end.
 Selector failure is explicitly non-blocking: timeout, invalid JSON, missing
 runner, or unauthorized selections must fall back to the originally authorized
-toolset list.
+toolset list. The selector budget must remain short, use a lightweight model by
+default, and attempt best-effort cancellation when a selector run id is known.
+Use the existing permission-boundary marker flow as the reference pattern for
+future non-blocking model judgments; do not add long synchronous preflight
+model calls as a harness-approved optimization.
 
 For same-window navigation and browser-frame bugs, the required harness must
 cover both root-mounted and prefix-mounted app-shell paths. If the issue is

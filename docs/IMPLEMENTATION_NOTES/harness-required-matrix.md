@@ -191,6 +191,15 @@ Required harness dimensions:
 - Runtime selector code must keep failure non-blocking: invalid JSON, timeout,
   missing Gateway runner, or an empty/unauthorized selection must fall back to
   the original authorized toolsets rather than failing the user run.
+- Selector latency is part of the contract. The first-round selector must use a
+  short bounded budget, default to a lightweight model, and attempt a
+  best-effort stop when a selector run id is known after failure. It must not
+  hold the user's real run behind a long model preflight.
+- The permission-boundary flow is the reference design: the model emits
+  `HERMES_PERMISSION_APPROVAL_REQUIRED` during the normal run and Hermes parses
+  the marker locally. Toolset selection should follow the same marker-style
+  contract for future non-blocking expansion/escalation work instead of adding
+  another long synchronous pre-run decision.
 - Run telemetry must record model-selection start/end, selected toolsets,
   expanded callable count, tool-call start/end, final-message start/end, and
   terminal status without storing raw prompts, raw model responses, secrets, or

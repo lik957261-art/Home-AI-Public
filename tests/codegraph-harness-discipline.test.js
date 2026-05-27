@@ -30,6 +30,8 @@ assert.match(harnessMatrix, /Gateway Toolset Selection And Run Telemetry/);
 assert.match(harnessMatrix, /must not hard-prune callable toolsets before the model/);
 assert.match(harnessMatrix, /compact capability\s+catalog/);
 assert.match(harnessMatrix, /explicit escalation path/);
+assert.match(harnessMatrix, /short bounded budget/);
+assert.match(harnessMatrix, /HERMES_PERMISSION_APPROVAL_REQUIRED/);
 assert.match(harnessMatrix, /final-message start\/end/);
 
 assert.match(testMatrix, /CodeGraph-First Read Budget/);
@@ -40,6 +42,8 @@ assert.match(testMatrix, /targeted `rg`/);
 assert.match(testMatrix, /model-first\s+contract/);
 assert.match(testMatrix, /Do not hard-prune callable toolsets/);
 assert.match(testMatrix, /selected narrow execution/);
+assert.match(testMatrix, /best-effort cancellation/);
+assert.match(testMatrix, /permission-boundary marker flow/);
 assert.match(testMatrix, /final-message start\/end/);
 
 if (fs.existsSync(userSkill)) {
@@ -51,6 +55,8 @@ if (fs.existsSync(userSkill)) {
   assert.match(skillText, /80-120 lines/);
   assert.match(skillText, /model-first toolset selection/);
   assert.match(skillText, /Do not\s+hard-prune callable toolsets/);
+  assert.match(skillText, /non-blocking/);
+  assert.match(skillText, /HERMES_PERMISSION_APPROVAL_REQUIRED/);
   assert.match(skillText, /explicit escalation path/);
   assert.match(skillText, /final-message start\/end/);
 }

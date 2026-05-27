@@ -52,11 +52,27 @@ function testBuildsCompactSelectorBodyWithoutCallableToolsets() {
 
   assert.equal(body.store, false);
   assert.equal(body.stream, true);
+  assert.equal(body.model, "gpt-test");
+  assert.equal(body.provider, "openai-codex");
   assert.equal(body.conversation, "conv_1:toolset-selection");
   assert.deepEqual(body.access_policy_context.allowed_toolsets, []);
   assert.deepEqual(body.access_policy_context.authorized_toolsets, ["file", "weather"]);
   assert.match(body.instructions, /Return only compact JSON/);
   assert.match(body.instructions, /If uncertain, select every authorized toolset/);
+}
+
+function testSelectorModelOverrideUsesLightweightModel() {
+  const body = buildSelectionBody({
+    request: baseRequest(),
+    allowedToolsets: ["file", "weather"],
+    selectorModel: "gpt-selector-mini",
+    selectorProvider: "openai-codex",
+    selectorReasoningEffort: "minimal",
+  });
+
+  assert.equal(body.model, "gpt-selector-mini");
+  assert.equal(body.provider, "openai-codex");
+  assert.equal(body.reasoning_effort, "minimal");
 }
 
 async function testStreamsSelectorAndReturnsAuthorizedSelection() {
@@ -93,7 +109,9 @@ async function testStreamsSelectorAndReturnsAuthorizedSelection() {
   assert.deepEqual(result.selectedToolsets, ["weather", "file"]);
   assert.deepEqual(result.authorizedToolsets, ["file", "weather", "x_search", "web"]);
   assert.equal(calls[1].options.gatewayUrl, "http://worker");
-  assert.equal(calls[1].options.timeoutMs, 15000);
+  assert.equal(calls[1].options.timeoutMs, 4000);
+  assert.equal(calls[1].body.model, "gpt-5.4-mini");
+  assert.equal(calls[1].body.provider, "openai-codex");
   assert.deepEqual(calls[1].body.access_policy_context.allowed_toolsets, []);
 }
 
@@ -121,6 +139,39 @@ async function testSelectorErrorsReturnFullFallbackMetadata() {
   assert.match(result.error, /timeout/);
 }
 
+async function testSelectorErrorStopsKnownSelectorRun() {
+  const calls = [];
+  const service = createGatewayRunModelToolsetSelectionService({
+    stopTimeoutMs: 750,
+    gatewayPool: {
+      runnerFor() {
+        return {
+          async streamResponses(_body, options) {
+            options.onEvent({ event: "response.created", response: { id: "resp_selector_1" } });
+            throw new Error("selector aborted");
+          },
+          stopRun(runId, options) {
+            calls.push({ runId, options });
+            return Promise.resolve({ ok: true });
+          },
+        };
+      },
+    },
+  });
+
+  const result = await service.selectToolsetsForRun({
+    request: baseRequest(),
+    gatewayTarget: { apiBase: "http://worker", apiKey: "secret" },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "selector_error");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].runId, "resp_selector_1");
+  assert.equal(calls[0].options.apiBase, "http://worker");
+  assert.equal(calls[0].options.timeoutMs, 750);
+}
+
 assert.deepEqual(buildCapabilityCatalog(["file"])[0], {
   id: "file",
   summary: "Read permitted workspace files and document attachments.",
@@ -128,8 +179,10 @@ assert.deepEqual(buildCapabilityCatalog(["file"])[0], {
 testParsesJsonAndFiltersUnauthorizedToolsets();
 testInvalidSelectionFallsBack();
 testBuildsCompactSelectorBodyWithoutCallableToolsets();
+testSelectorModelOverrideUsesLightweightModel();
 testStreamsSelectorAndReturnsAuthorizedSelection()
   .then(testSelectorErrorsReturnFullFallbackMetadata)
+  .then(testSelectorErrorStopsKnownSelectorRun)
   .then(() => console.log("gateway-run-model-toolset-selection-service tests passed"))
   .catch((err) => {
     console.error(err);
