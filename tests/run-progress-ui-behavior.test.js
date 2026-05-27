@@ -157,6 +157,20 @@ const thread = {
     {
       runId: "resp_current",
       event: "response.output_item.added",
+      tool: "skill_view",
+      timestamp: "2026-05-27T12:32:24.423Z",
+      preview: JSON.stringify({ name: "productivity/status-check" }),
+    },
+    {
+      runId: "resp_current",
+      event: "response.output_item.done",
+      tool: "skill_view",
+      timestamp: "2026-05-27T12:32:26.423Z",
+      preview: JSON.stringify({ name: "productivity/status-check" }),
+    },
+    {
+      runId: "resp_current",
+      event: "response.output_item.added",
       tool: "function_call",
       timestamp: "2026-05-27T12:32:28.423Z",
       preview: JSON.stringify({ name: "search_files" }),
@@ -204,13 +218,17 @@ assert.strictEqual(messageForRunProgress(fallbackThread, "resp_pending")?.id, "m
 assert.strictEqual(messageForRunProgress(fallbackThread, "resp_missing"), null);
 
 const currentRunEvents = runProgressEvents(thread, ["web_current", "resp_current"]);
-assert.strictEqual(currentRunEvents.length, 7);
+assert.strictEqual(currentRunEvents.length, 9);
 
 const html = renderMessageRunProgress(thread, thread.messages[1]);
+assert.match(html, /Skill productivity\/status-check/);
 assert.match(html, /Function search_files/);
-assert.match(html, /Function result search_files/);
 assert.match(html, /Function image_edit/);
-assert.match(html, /Function result image_edit/);
+assert.doesNotMatch(html, /Function result search_files/);
+assert.doesNotMatch(html, /Function result image_edit/);
+assert.match(html, /完成 · 2秒/);
+assert.match(html, /完成 · 1秒/);
+assert.match(html, /run-progress-operation-done/);
 assert.match(html, /\u8bf7\u6c42\u5df2\u53d1\u9001/);
 assert.match(html, /\u6a21\u578b\u6d41\u5df2\u8fde\u63a5/);
 assert.ok(html.indexOf("\u8bf7\u6c42\u5df2\u53d1\u9001") < html.indexOf("\u6a21\u578b\u6d41\u5df2\u8fde\u63a5"));

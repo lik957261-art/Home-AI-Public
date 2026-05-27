@@ -1905,6 +1905,30 @@ button {
   color: var(--danger);
 }
 
+.run-progress-row.run-progress-operation {
+  border-left: 2px solid rgba(65, 91, 86, 0.22);
+  padding-left: 8px;
+}
+
+.run-progress-row.run-progress-operation-active .run-progress-dot {
+  background: #b1843a;
+  box-shadow: 0 0 0 4px rgba(177, 132, 58, 0.12);
+}
+
+.run-progress-row.run-progress-operation-done .run-progress-dot {
+  background: #3f7f68;
+  box-shadow: 0 0 0 4px rgba(63, 127, 104, 0.12);
+}
+
+.run-progress-row.run-progress-operation-error .run-progress-dot {
+  background: var(--danger);
+  box-shadow: 0 0 0 4px rgba(194, 65, 65, 0.12);
+}
+
+.run-progress-row.run-progress-operation-done .run-progress-time {
+  color: #3f7f68;
+}
+
 .run-progress-row.run-progress-quiet .run-progress-dot {
   background: #b1843a;
   box-shadow: 0 0 0 4px rgba(177, 132, 58, 0.12);

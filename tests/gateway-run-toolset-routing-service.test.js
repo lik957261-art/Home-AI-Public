@@ -130,7 +130,7 @@ function testWardrobeBoundTopicDefaultsToWardrobeMcp() {
 
   assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
   assert.equal(result.routing.suggested_mode, "intent");
-  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "file"]);
+  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file"]);
 }
 
 function testRetryUsesRecentToolsetEscalationContext() {

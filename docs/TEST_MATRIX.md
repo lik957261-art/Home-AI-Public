@@ -72,10 +72,10 @@ Wardrobe-bound directory projects must first add `wardrobe` in the access
 policy catalog; selector routing alone is insufficient because it cannot grant
 toolsets absent from `allowed_toolsets`.
 If a topic is already bound to a wardrobe/closet directory, every AI run in
-that topic must keep authorized `wardrobe` in the suggested model-selection
-catalog by default, even when the latest message is semantically light. This is
-still a policy-bounded suggestion: the router must not grant `wardrobe` if the
-run policy did not already authorize it.
+that topic must keep authorized `wardrobe`, `vision`, and `file` in the
+suggested model-selection catalog by default, even when the latest message is
+semantically light. This is still a policy-bounded suggestion: the router must
+not grant toolsets that the run policy did not already authorize.
 
 The selector is an internal JSON-only preflight. Tests must assert that selector
 requests disable tool calls, that live selector probes do not contain tool-role
@@ -120,7 +120,9 @@ cannot inherit another active chat run's elapsed time or events, and bottom
 visibility when the inline status panel grows while the conversation is already
 following the run. Function-call UI tests must also assert that object-shaped
 previews and paired `callId` result events display the concrete function name
-when available.
+when available, and that paired Skill/function start and done events render as
+one compact operation row with a status/duration label rather than adjacent
+duplicate start/result rows.
 
 For same-window navigation and browser-frame bugs, the required harness must
 cover both root-mounted and prefix-mounted app-shell paths. If the issue is

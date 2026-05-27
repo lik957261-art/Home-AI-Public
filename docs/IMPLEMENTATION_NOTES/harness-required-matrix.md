@@ -226,10 +226,10 @@ Required harness dimensions:
 - Harness scenarios must also cover topic-bound wardrobe directories. If the
   current topic has a directory route whose project id, label, path, or root
   identifies it as a wardrobe/closet directory, every AI run in that topic must
-  suggest authorized `wardrobe` to the model-side selector by default, even when
-  the latest message is a short follow-up. The routing layer must still preserve
-  policy boundaries and must not grant `wardrobe` when it is absent from the
-  authorized toolset list.
+  suggest authorized `wardrobe`, `vision`, and `file` to the model-side selector
+  by default, even when the latest message is a short follow-up. The routing
+  layer must still preserve policy boundaries and must not grant any of those
+  toolsets when absent from the authorized toolset list.
 - The negative case is also required: a single-window chat or topic with no
   resolved directory binding must not crash while reading the directory route.
   It should continue through the normal lightweight chat suggestion path.

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260527-full-public-v293";
+const CLIENT_VERSION = "20260527-run-progress-compact-v294";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -413,9 +413,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260527-full-public-v293/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260527-full-public-v293/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260527-full-public-v293/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260527-run-progress-compact-v294/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260527-run-progress-compact-v294/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260527-run-progress-compact-v294/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -570,7 +570,9 @@ assert.match(appJs, /function boundedRunEventPreview\(value\)/);
 assert.match(appJs, /JSON\.stringify\(value\)/);
 assert.match(appJs, /function runEventPreviewField\(event, fields = \[\]\)/);
 assert.match(appJs, /function runProgressEventsWithFunctionNames\(events = \[\]\)/);
-assert.match(appJs, /runProgressDisplayEvents\(runProgressEventsWithFunctionNames\(allEvents\), startMs\)/);
+assert.match(appJs, /function runProgressCompactOperationEvents\(events = \[\]\)/);
+assert.match(appJs, /runProgressCompactOperationEvents\(runProgressEventsWithFunctionNames\(allEvents\)\)/);
+assert.match(appJs, /run-progress-operation-\$\{event\.operationStatus \|\| "active"\}/);
 assert.match(appJs, /Function result \$\{functionName\}/);
 assert.match(appJs, /function messageOwnRunIds\(message = \{\}\)/);
 assert.match(appJs, /message\.taskId/);

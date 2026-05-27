@@ -34,6 +34,10 @@ Use this file to locate the responsible frontend files before debugging a screen
     event preview, tool field, or paired `callId` makes it available. Generic
     `Function call` / `Function result` labels are only acceptable when the
     Gateway event does not expose enough metadata to identify the function.
+  - Paired Skill/function start and done events should render as one compact
+    operation row with status and elapsed operation time. The frontend should
+    preserve raw event order internally but avoid adjacent duplicate visible
+    rows such as `开始 Skill` followed immediately by `完成 Skill`.
 - Static shell/cache: `public/index.html`, `public/service-worker.js`, `public/directory-viewer.html`
 
 ## Chat And Topics

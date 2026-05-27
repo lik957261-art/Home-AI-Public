@@ -90,6 +90,11 @@ Hermes Mobile also projects stream wait states into the run-progress panel:
   previews from live SSE payloads, the tool field, and paired `callId` metadata
   so `Function result` rows can inherit the matching function name instead of
   staying generic.
+- The run-progress panel should not show separate adjacent start and done rows
+  for the same Skill or function operation. The client keeps the raw event log
+  unchanged, but visually folds a paired start/done operation into one row with
+  a status tone and elapsed operation duration such as `完成 · 2秒`; an unpaired
+  operation remains visible as `运行中`.
 
 ChatGPT Pro bridge runs may still set a stream-specific longer start/liveness
 window because those jobs can be intentionally long-running.
@@ -224,9 +229,10 @@ Current runtime behavior:
   current run's authorized toolset catalog before model-side selection.
 - Topic-bound wardrobe directories are an explicit routing signal. When a topic
   carries a directory route whose project id, label, path, or root identifies it
-  as a wardrobe/closet directory, Mobile suggests authorized `wardrobe` for all
-  AI runs in that topic by default. This does not grant new permission; it only
-  keeps an already-authorized MCP capability visible to the model-side selector.
+  as a wardrobe/closet directory, Mobile suggests authorized `wardrobe`,
+  `vision`, and `file` for all AI runs in that topic by default. This does not
+  grant new permission; it only keeps already-authorized MCP/input capabilities
+  visible to the model-side selector.
 - Missing or unresolved topic directory bindings are valid. Single-window chat
   and topics without a concrete directory route must fall back to ordinary chat
   routing or the effective default workspace policy; they must not fail during

@@ -200,7 +200,7 @@ function createGatewayRunToolsetRoutingService(options = {}) {
         if (matched[i] === "web" || matched[i] === "search") matched.splice(i, 1);
       }
     }
-    if (taskDirectoryLooksWardrobe(context.taskDirectory)) matched.push("wardrobe", "file");
+    if (taskDirectoryLooksWardrobe(context.taskDirectory)) matched.push("wardrobe", "vision", "file");
     if (hasAttachmentSignal(context.userMessage)) matched.push("file", "vision");
     if (context.taskDirectory?.path) matched.push("file");
     if (context.groupChat?.groupChatDeliveryRoot) matched.push("file");

@@ -180,6 +180,84 @@ function runProgressEventsWithFunctionNames(events = []) {
   });
 }
 
+function runEventOperationKind(event) {
+  const tool = String(event?.tool || "").trim().toLowerCase();
+  if (tool === "skill_view") return "skill";
+  if (tool === "function_call" || tool === "function_call_output") return "function";
+  if (isFunctionRunEvent(event)) return "function";
+  return "";
+}
+
+function runEventOperationName(event) {
+  const kind = runEventOperationKind(event);
+  if (kind === "skill") return runEventSkillName(event) || "Skill";
+  if (kind === "function") return runEventFunctionName(event) || "Function";
+  return "";
+}
+
+function runEventOperationKey(event) {
+  const kind = runEventOperationKind(event);
+  if (!kind) return "";
+  const callId = kind === "function" ? runEventFunctionCallId(event) : "";
+  const name = runEventOperationName(event);
+  return [kind, callId || name || String(event?.tool || "")].join("|");
+}
+
+function isRunOperationStartEvent(event) {
+  const name = String(event?.event || "");
+  if (name !== "response.output_item.added") return false;
+  return Boolean(runEventOperationKind(event));
+}
+
+function isRunOperationDoneEvent(event) {
+  const name = String(event?.event || "");
+  if (name !== "response.output_item.done") return false;
+  return Boolean(runEventOperationKind(event));
+}
+
+function runProgressCompactOperationEvents(events = []) {
+  const out = [];
+  const openByKey = new Map();
+  for (const event of Array.isArray(events) ? events : []) {
+    if (isRunOperationStartEvent(event)) {
+      const key = runEventOperationKey(event);
+      const row = Object.assign({}, event, {
+        operationKind: runEventOperationKind(event),
+        operationName: runEventOperationName(event),
+        operationStartedAt: event.timestamp,
+        operationDoneAt: null,
+        operationStatus: "active",
+      });
+      out.push(row);
+      if (key) openByKey.set(key, row);
+      continue;
+    }
+    if (isRunOperationDoneEvent(event)) {
+      const key = runEventOperationKey(event);
+      const fallbackKey = [runEventOperationKind(event), runEventOperationName(event)].join("|");
+      const row = (key ? openByKey.get(key) : null) || (fallbackKey ? openByKey.get(fallbackKey) : null);
+      if (row) {
+        row.operationDoneAt = event.timestamp;
+        row.operationStatus = event.error ? "error" : "done";
+        row.error = Boolean(row.error || event.error);
+        if (!row.preview && event.preview) row.preview = event.preview;
+        openByKey.delete(key);
+      } else {
+        out.push(Object.assign({}, event, {
+          operationKind: runEventOperationKind(event),
+          operationName: runEventOperationName(event),
+          operationStartedAt: null,
+          operationDoneAt: event.timestamp,
+          operationStatus: event.error ? "error" : "done",
+        }));
+      }
+      continue;
+    }
+    out.push(event);
+  }
+  return out;
+}
+
 function runEventToolLabel(event) {
   const tool = String(event?.tool || "").trim();
   const lower = tool.toLowerCase();
@@ -200,6 +278,10 @@ function runEventToolLabel(event) {
 }
 
 function runEventTitle(event) {
+  if (event?.operationKind) {
+    const prefix = event.operationKind === "skill" ? "Skill" : "Function";
+    return `${prefix} ${event.operationName || ""}`.trim();
+  }
   const name = String(event?.event || "event");
   const tool = runEventToolLabel(event);
   if (name === "response.output_item.added") return tool ? `\u5f00\u59cb ${tool}` : "\u5f00\u59cb\u5904\u7406";
@@ -226,6 +308,26 @@ function runEventTitle(event) {
   if (name === "response.completed" || name === "run.completed") return "\u5904\u7406\u5b8c\u6210";
   if (name === "response.failed" || name === "run.failed") return "\u5904\u7406\u5931\u8d25";
   return tool ? `${tool} · ${name.replace(/^response\./, "")}` : name.replace(/^response\./, "");
+}
+
+function runEventStatusLabel(event, startMs) {
+  if (!event?.operationKind) return runEventTimeLabel(event, startMs);
+  const start = runProgressTimestampMs(event.operationStartedAt || event.timestamp);
+  const done = runProgressTimestampMs(event.operationDoneAt);
+  if (event.operationStatus === "done" && start && done) {
+    return `完成 · ${runProgressDurationText((done - start) / 1000, { allowZero: true })}`;
+  }
+  if (event.operationStatus === "error") {
+    return done && start ? `失败 · ${runProgressDurationText((done - start) / 1000, { allowZero: true })}` : "失败";
+  }
+  return start ? `运行中 · ${runProgressDurationLabel(start)}` : "运行中";
+}
+
+function runEventRowClass(event) {
+  const classes = ["run-progress-row"];
+  if (event?.error || event?.operationStatus === "error") classes.push("error");
+  if (event?.operationKind) classes.push("run-progress-operation", `run-progress-operation-${event.operationStatus || "active"}`);
+  return classes.join(" ");
 }
 
 function runEventPreviewLabel(event) {
@@ -412,7 +514,7 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
   if (!ids.length) return "";
   const allEvents = runProgressEvents(thread, ids);
   const startMs = runProgressStartMs(thread, ids, allEvents);
-  const events = runProgressDisplayEvents(runProgressEventsWithFunctionNames(allEvents), startMs);
+  const events = runProgressDisplayEvents(runProgressCompactOperationEvents(runProgressEventsWithFunctionNames(allEvents)), startMs);
   const eventTimes = allEvents.map((event) => runProgressTimestampMs(event.timestamp)).filter(Boolean);
   const lastEventMs = eventTimes.length ? Math.max(...eventTimes) : 0;
   const quietRow = renderRunProgressQuietRow(lastEventMs, startMs);
@@ -420,10 +522,10 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
     ? `${quietRow}${events.map((event) => {
       const preview = runEventPreviewLabel(event);
       return `
-      <div class="run-progress-row${event.error ? " error" : ""}">
+      <div class="${escapeHtml(runEventRowClass(event))}">
         <span class="run-progress-dot" aria-hidden="true"></span>
         <span class="run-progress-main">${escapeHtml(runEventTitle(event))}</span>
-        <span class="run-progress-time">${escapeHtml(runEventTimeLabel(event, startMs))}</span>
+        <span class="run-progress-time">${escapeHtml(runEventStatusLabel(event, startMs))}</span>
         ${preview ? `<span class="run-progress-preview">${escapeHtml(preview)}</span>` : ""}
       </div>`;
     }).join("")}`
