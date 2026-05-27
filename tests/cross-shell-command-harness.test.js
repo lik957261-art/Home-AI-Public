@@ -54,10 +54,18 @@ assert.match(startGatewayPool, /start-owner-maintenance-gateways\.sh/);
 
 const startWeixinFrontGateway = read("scripts/start-weixin-front-gateway.ps1");
 assert.match(startWeixinFrontGateway, /WriteAllText\(\$tmpScript, \$Script, \$encoding\)/);
-assert.match(startWeixinFrontGateway, /wslpath -a \$tmpScript/);
+assert.match(startWeixinFrontGateway, /\$portableTmpScript = \$tmpScript\.Replace\(\[string\]\[char\]92, "\/"\)/);
+assert.match(startWeixinFrontGateway, /\$wslPathOutput = .*wslpath -a \$portableTmpScript/);
+assert.match(startWeixinFrontGateway, /\$wslScript = \$wslPathOutput \| Where-Object \{ \$_ -match "\^\/" \}/);
+assert.match(startWeixinFrontGateway, /wslpath -a \$portableTmpScript/);
+assert.doesNotMatch(startWeixinFrontGateway, /wslpath -a \$portableTmpScript 2>&1 \| Select-Object -First 1/);
 assert.match(startWeixinFrontGateway, /-- bash \$wslScript/);
 
 const startWeixinMobileIngressBridge = read("scripts/start-weixin-mobile-ingress-bridge.ps1");
 assert.match(startWeixinMobileIngressBridge, /WriteAllText\(\$tmpScript, \$Script, \$encoding\)/);
-assert.match(startWeixinMobileIngressBridge, /wslpath -a \$tmpScript/);
+assert.match(startWeixinMobileIngressBridge, /\$portableTmpScript = \$tmpScript\.Replace\(\[string\]\[char\]92, "\/"\)/);
+assert.match(startWeixinMobileIngressBridge, /\$wslPathOutput = .*wslpath -a \$portableTmpScript/);
+assert.match(startWeixinMobileIngressBridge, /\$wslScript = \$wslPathOutput \| Where-Object \{ \$_ -match "\^\/" \}/);
+assert.match(startWeixinMobileIngressBridge, /wslpath -a \$portableTmpScript/);
+assert.doesNotMatch(startWeixinMobileIngressBridge, /wslpath -a \$portableTmpScript 2>&1 \| Select-Object -First 1/);
 assert.match(startWeixinMobileIngressBridge, /-- bash \$wslScript/);

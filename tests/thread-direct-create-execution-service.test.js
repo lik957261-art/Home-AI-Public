@@ -226,6 +226,8 @@ async function testDirectTodoSuccessFinalizesAndBroadcasts() {
   assert.equal(calls.inbox[0].title, "read chapter");
   assert.equal(calls.inbox[0].workspaceId, "workspace:child-principal");
   assert.equal(calls.inbox[0].deepLink, "/?view=todos&workspaceId=workspace%3Achild-principal&todoId=todo-1");
+  assert.equal(calls.inbox[0].dueAt, "2026-05-16 09:00");
+  assert.equal(calls.inbox[0].sourceRef.dueAt, "2026-05-16 09:00");
   assert.equal(plan.assistantMessage.status, "done");
   assert.equal(plan.assistantMessage.content, "\u5df2\u65b0\u589e\u5f85\u529e\uff1aChild | 2026-05-16 09:00 | read chapter");
   assert.equal(plan.assistantMessage.error, null);

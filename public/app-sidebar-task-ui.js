@@ -492,11 +492,10 @@ function commitSwipeDelete(row, kind, itemId) {
   const content = taskSwipeContent(row);
   if (content) content.style.transform = `translate3d(${-Math.max(taskSwipeCommitDistance(row), row.clientWidth || 0)}px, 0, 0)`;
   window.setTimeout(() => {
-    const action = kind === "todo"
-      ? deleteTodoDirect(itemId)
-      : (kind === "kanban-story"
-        ? deleteKanbanStoryCase(itemId)
-        : deleteTaskGroup(itemId, { confirm: false }));
+    const action = kind === "todo" ? deleteTodoDirect(itemId)
+      : kind === "kanban-story" ? deleteKanbanStoryCase(itemId)
+        : kind === "action-inbox" ? (typeof completeActionInboxItemFromSwipe === "function" ? completeActionInboxItemFromSwipe(itemId) : Promise.reject(new Error("Action Inbox swipe handler unavailable")))
+          : deleteTaskGroup(itemId, { confirm: false });
     action.then((deleted) => {
       if (kind === "kanban-story" && deleted === false) resetTaskSwipeRow(row);
     }).catch((err) => {
@@ -504,10 +503,6 @@ function commitSwipeDelete(row, kind, itemId) {
       showError(err);
     });
   }, prefersReducedMotion() ? 0 : 150);
-}
-
-function commitTaskSwipeDelete(row, taskGroupId) {
-  commitSwipeDelete(row, "task", taskGroupId);
 }
 
 function openTaskGroupFromList(taskGroupId) {
@@ -543,7 +538,7 @@ async function openSharedTaskGroupFromList(threadId, taskGroupId) {
 
 function isTaskSwipeInteractiveTarget(target) {
   return Boolean(target?.closest?.(
-    "[data-delete-swipe], [data-delete-task], [data-task-card-menu], [data-rename-task], .task-card-menu, [data-task-doc], [data-open-task], [data-directory-path-open], .task-skill-chip, .directory-alias-chip, input, select, textarea, [contenteditable='true']"
+    "[data-delete-swipe], [data-delete-task], [data-complete-swipe], [data-task-card-menu], [data-rename-task], .task-card-menu, [data-task-doc], [data-open-task], [data-directory-path-open], .task-skill-chip, .directory-alias-chip, input, select, textarea, [contenteditable='true']"
   ));
 }
 
@@ -601,13 +596,13 @@ function wireTaskSwipeActions(root) {
     row.dataset.taskSwipeBound = "1";
     const itemKind = row.dataset.swipeKind || "task";
     const itemId = row.dataset.swipeId || row.dataset.taskId || "";
-    row.querySelector("[data-delete-swipe], [data-delete-task]")?.addEventListener("click", (event) => {
+    row.querySelector("[data-delete-swipe], [data-delete-task], [data-complete-swipe]")?.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       commitSwipeDelete(row, itemKind, itemId);
     });
     row.addEventListener("click", (event) => {
-      if (event.target?.closest?.("[data-delete-swipe], [data-delete-task], [data-task-card-menu], [data-rename-task], .task-card-menu")) return;
+      if (event.target?.closest?.("[data-delete-swipe], [data-delete-task], [data-complete-swipe], [data-task-card-menu], [data-rename-task], .task-card-menu")) return;
       if (event.target?.closest?.("[data-task-doc], [data-directory-path-open], .task-skill-chip, .directory-alias-chip")) return;
       if (row.dataset.taskSwipeMoved) {
         event.preventDefault();
@@ -632,7 +627,7 @@ function wireTaskSwipeActions(root) {
     }
     row.addEventListener("touchstart", (event) => {
       if (!isMobileLayout() || event.touches.length !== 1) return;
-      if (event.target?.closest?.("[data-delete-swipe], [data-delete-task], [data-task-card-menu], [data-rename-task], .task-card-menu, [data-task-doc], [data-directory-path-open], .task-skill-chip, .directory-alias-chip, input, select, textarea, [contenteditable='true']")) return;
+      if (event.target?.closest?.("[data-delete-swipe], [data-delete-task], [data-complete-swipe], [data-task-card-menu], [data-rename-task], .task-card-menu, [data-task-doc], [data-directory-path-open], .task-skill-chip, .directory-alias-chip, input, select, textarea, [contenteditable='true']")) return;
       const content = taskSwipeContent(row);
       if (!content) return;
       closeTaskSwipeRows(document, row);

@@ -237,7 +237,9 @@ async function testCreateBroadcastsAndNotifies() {
   assert.equal(calls.inbox[0].sourceId, "todo-new");
   assert.equal(calls.inbox[0].itemType, "todo");
   assert.equal(calls.inbox[0].title, "Read chapter 1");
+  assert.equal(calls.inbox[0].dueAt, "21:00");
   assert.equal(calls.inbox[0].dedupeKey, "todo:todo-new");
+  assert.equal(calls.inbox[0].sourceRef.dueAt, "21:00");
   assert.deepEqual(calls.notify, [{ id: "todo-new", principalId: "principal-child" }]);
   assert.deepEqual(got.body.todo, { id: "todo-new", title: "Read chapter 1" });
 }

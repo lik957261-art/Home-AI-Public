@@ -190,6 +190,7 @@ function createThreadDirectCreateExecutionService(options = {}) {
     if (!todoId && !content) return null;
     const assigneeWorkspaceId = workspaceIdForPrincipal(intent.assignee || "") || plan?.thread?.workspaceId || "owner";
     const dueAt = String(todo.dueAt || todo.due_at || todo.dueTime || todo.due_time || intent.dueTime || "").trim();
+    const dueLocal = String(todo.dueLocal || todo.due_local || "").trim();
     try {
       const inboxResult = await Promise.resolve(actionInboxService.upsertSourceItem({
         workspaceId: assigneeWorkspaceId,
@@ -200,7 +201,7 @@ function createThreadDirectCreateExecutionService(options = {}) {
         status: "open",
         priority: "normal",
         title: content || todoId || "Todo",
-        summary: dueAt ? `\u622a\u6b62\uff1a${dueAt}` : "",
+        summary: dueLocal || dueAt ? `\u622a\u6b62\uff1a${dueLocal || dueAt}` : "",
         actionLabel: "\u5904\u7406",
         deepLink: todoId ? `/?view=todos&workspaceId=${encodeURIComponent(assigneeWorkspaceId)}&todoId=${encodeURIComponent(todoId)}` : "",
         sourceRef: {
@@ -208,9 +209,11 @@ function createThreadDirectCreateExecutionService(options = {}) {
           threadId: plan?.thread?.id || "",
           assigneeWorkspaceId,
           dueAt,
+          dueLocal,
           directCreate: true,
         },
         dedupeKey: todoId ? `todo:${todoId}` : "",
+        dueAt,
         reopen: true,
       }));
       if (inboxResult?.item?.id) {

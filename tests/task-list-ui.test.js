@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260527-inbox-automation-link-v264";
+const CLIENT_VERSION = "20260527-inbox-swipe-read-v265";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -183,6 +183,8 @@ assert.match(appJs, /function renderActionInboxView\(options = \{\}\)/);
 assert.match(appJs, /refreshActionInboxAfterPush\(eventData\)\.catch\(showError\)/);
 assert.match(appJs, /state\.viewMode === "inbox"[\s\S]*?await loadActionInbox\(\)/);
 assert.match(appJs, /function actionInboxSourceTone\(sourceType\)/);
+assert.match(appJs, /function actionInboxTodoDueText\(item = \{\}\)/);
+assert.match(appJs, /function actionInboxDisplaySummary\(item = \{\}\)/);
 assert.match(appJs, /if \(value === "chat"\) return "\\u4efb\\u52a1\\u56de\\u6267"/);
 assert.match(appJs, /if \(value === "weixin"\) return "\\u5fae\\u4fe1"/);
 assert.match(appJs, /if \(value === "directory"\) return "\\u76ee\\u5f55"/);
@@ -193,8 +195,14 @@ assert.match(appJs, /if \(value === "info"\) return "\\u901a\\u77e5"/);
 assert.match(appJs, /action-inbox-source-row/);
 assert.match(appJs, /action-inbox-source-badge \$\{escapeHtml\(actionInboxSourceTone\(item\.sourceType\)\)\}/);
 assert.match(appJs, /action-inbox-type-badge/);
+assert.match(appJs, /data-swipe-kind="action-inbox"/);
+assert.match(appJs, /data-complete-swipe="\$\{escapeHtml\(item\.id \|\| ""\)\}"/);
+assert.match(appJs, /function completeActionInboxItemFromSwipe\(itemId\)/);
+assert.match(appJs, /wireTaskSwipeActions\(root\)/);
 assert.match(stylesCss, /\.action-inbox-source-row \{[\s\S]*?display: flex;[\s\S]*?flex-wrap: wrap;/);
 assert.match(stylesCss, /\.action-inbox-source-badge,[\s\S]*?\.action-inbox-type-badge \{[\s\S]*?overflow: hidden;[\s\S]*?text-overflow: ellipsis;[\s\S]*?white-space: nowrap;/);
+assert.match(stylesCss, /\.action-inbox-filter \{[\s\S]*?font-size: 14px;[\s\S]*?line-height: 1\.2;/);
+assert.match(stylesCss, /\.action-inbox-swipe-complete \{[\s\S]*?background: #4f745d;/);
 assert.match(stylesCss, /\.action-inbox-source-badge\.source-automation/);
 assert.match(stylesCss, /\.action-inbox-source-badge\.source-growth/);
 assert.match(indexHtml, /id="topOpenAutomation"/);
@@ -390,9 +398,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260527-inbox-automation-link-v264/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260527-inbox-automation-link-v264/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260527-inbox-automation-link-v264/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260527-inbox-swipe-read-v265/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260527-inbox-swipe-read-v265/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260527-inbox-swipe-read-v265/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);

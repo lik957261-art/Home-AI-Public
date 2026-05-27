@@ -42,8 +42,10 @@ function Invoke-WeixinFrontGatewayBash {
     $encoding = New-Object System.Text.UTF8Encoding($false)
     try {
         [System.IO.File]::WriteAllText($tmpScript, $Script, $encoding)
-        $wslScript = & wsl.exe -d $DistroName -u $WslUser -- wslpath -a $tmpScript 2>&1 | Select-Object -First 1
-        if ($LASTEXITCODE -ne 0 -or -not $wslScript) {
+        $portableTmpScript = $tmpScript.Replace([string][char]92, "/")
+        $wslPathOutput = & wsl.exe -d $DistroName -u $WslUser -- wslpath -a $portableTmpScript 2>&1 | ForEach-Object { $_.ToString() }
+        $wslScript = $wslPathOutput | Where-Object { $_ -match "^/" } | Select-Object -First 1
+        if (-not $wslScript) {
             throw "Failed to convert Weixin front gateway script path for WSL."
         }
         $output = & wsl.exe -d $DistroName -u $WslUser -- bash $wslScript 2>&1 | ForEach-Object { $_.ToString() }

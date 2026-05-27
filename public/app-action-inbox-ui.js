@@ -51,6 +51,45 @@ function actionInboxStatusTone(status) {
   return "open";
 }
 
+function actionInboxIsTerminalStatus(status) {
+  return ["done", "dismissed", "archived"].includes(String(status || "").toLowerCase());
+}
+
+function actionInboxCompactTime(value) {
+  const formatted = formatTime(value);
+  return formatted ? formatted.replace(/,\s*/g, " ") : "";
+}
+
+function actionInboxTodoDueAt(item = {}) {
+  const explicit = String(item?.dueAt || item?.due_at || "").trim();
+  if (explicit) return explicit;
+  const summary = String(item?.summary || "");
+  const match = summary.match(/(?:截止|到期|时间)\s*[:：]\s*([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.+-]+Z?)/i);
+  return match ? match[1] : "";
+}
+
+function actionInboxTodoDueText(item = {}) {
+  if (String(item?.sourceType || item?.source_type || "").toLowerCase() !== "manual") return "";
+  if (String(item?.itemType || item?.item_type || "").toLowerCase() !== "todo") return "";
+  const dueAt = actionInboxTodoDueAt(item);
+  return dueAt ? actionInboxCompactTime(dueAt) : "";
+}
+
+function actionInboxDisplayTitle(item = {}) {
+  const dueAt = actionInboxTodoDueAt(item);
+  const dueText = dueAt ? actionInboxCompactTime(dueAt) : "";
+  return String(item?.title || item?.summary || item?.id || "\u6536\u4ef6")
+    .replace(/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.+-]+Z?/g, dueText || "");
+}
+
+function actionInboxDisplaySummary(item = {}) {
+  const summary = String(item?.summary || "");
+  const dueText = actionInboxTodoDueText(item);
+  if (!dueText) return summary;
+  const normalized = summary.replace(/(?:截止|到期|时间)\s*[:：]\s*([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.+-]+Z?)/ig, `\u622a\u6b62 ${dueText}`);
+  return normalized === `\u622a\u6b62 ${dueText}` ? "" : normalized;
+}
+
 function actionInboxFilterQuery() {
   const filter = String(state.actionInboxStatusFilter || "open");
   const params = new URLSearchParams({ workspaceId: state.selectedWorkspaceId || "owner", limit: "120" });
@@ -163,19 +202,29 @@ function renderActionInboxItem(item) {
   const active = item.id === state.selectedActionInboxItemId ? " active" : "";
   const tone = actionInboxStatusTone(item.status);
   const time = item.updatedAt || item.lastEventAt || item.createdAt || "";
-  return `<article class="action-inbox-item${active}" data-action-inbox-item-card="${escapeHtml(item.id || "")}">
+  const terminal = actionInboxIsTerminalStatus(item.status);
+  const swipeClass = terminal ? "" : " task-swipe-row action-inbox-swipe-row";
+  const swipeAttrs = terminal ? "" : ` data-swipe-row data-swipe-kind="action-inbox" data-swipe-id="${escapeHtml(item.id || "")}"`;
+  const dueText = actionInboxTodoDueText(item);
+  const displayTime = dueText ? `${"\u622a\u6b62"} ${dueText}` : (actionInboxCompactTime(time) || time || "");
+  const title = actionInboxDisplayTitle(item);
+  const summary = actionInboxDisplaySummary(item);
+  return `<article class="action-inbox-item${active}${swipeClass}" data-action-inbox-item-card="${escapeHtml(item.id || "")}"${swipeAttrs}>
+    ${terminal ? "" : `<button class="task-swipe-delete action-inbox-swipe-complete" type="button" data-complete-swipe="${escapeHtml(item.id || "")}" aria-label="${"\u6807\u8bb0\u4e3a\u5df2\u8bfb"}">${"\u5df2\u8bfb"}</button>`}
+    <div class="${terminal ? "action-inbox-item-static" : "task-swipe-content action-inbox-swipe-content"}"${terminal ? "" : " data-swipe-content"}>
     <button class="action-inbox-item-main" type="button" data-action-inbox-id="${escapeHtml(item.id || "")}">
       <span class="action-inbox-source-row">
         <span class="action-inbox-source-badge ${escapeHtml(actionInboxSourceTone(item.sourceType))}">${"\u6765\u6e90\uff1a"}${escapeHtml(actionInboxSourceLabel(item.sourceType))}</span>
         <span class="action-inbox-type-badge">${"\u7c7b\u578b\uff1a"}${escapeHtml(actionInboxTypeLabel(item.itemType))}</span>
-        <span class="action-inbox-item-time">${escapeHtml(formatTime(time) || time || "")}</span>
+        <span class="action-inbox-item-time">${escapeHtml(displayTime)}</span>
       </span>
       <span class="action-inbox-item-head">
-        <strong>${escapeHtml(item.title || item.summary || item.id || "\u6536\u4ef6")}</strong>
+        <strong>${escapeHtml(title)}</strong>
         <span class="action-inbox-status ${escapeHtml(tone)}">${escapeHtml(actionInboxStatusLabel(item.status))}</span>
       </span>
-      <span class="action-inbox-item-summary">${escapeHtml(item.summary || "")}</span>
+      <span class="action-inbox-item-summary">${escapeHtml(summary)}</span>
     </button>
+    </div>
   </article>`;
 }
 
@@ -192,13 +241,17 @@ function renderActionInboxDetail() {
   if (!item) return "";
   const events = Array.isArray(state.actionInboxDetail?.events) ? state.actionInboxDetail.events : [];
   const sourceLink = actionInboxSourceDeepLink(item);
+  const title = actionInboxDisplayTitle(item);
+  const summary = actionInboxDisplaySummary(item);
+  const dueText = actionInboxTodoDueText(item);
   return `<section class="action-inbox-detail" aria-label="${"\u6536\u4ef6\u8be6\u60c5"}">
-    <h3>${escapeHtml(item.title || item.id || "\u6536\u4ef6")}</h3>
-    ${item.summary ? `<p>${escapeHtml(item.summary)}</p>` : ""}
+    <h3>${escapeHtml(title || item.id || "\u6536\u4ef6")}</h3>
+    ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
     <div class="action-inbox-detail-meta">
       <span class="action-inbox-source-badge ${escapeHtml(actionInboxSourceTone(item.sourceType))}">${"\u6765\u6e90\uff1a"}${escapeHtml(actionInboxSourceLabel(item.sourceType))}</span>
       <span class="action-inbox-type-badge">${"\u7c7b\u578b\uff1a"}${escapeHtml(actionInboxTypeLabel(item.itemType))}</span>
       <span class="action-inbox-status ${escapeHtml(actionInboxStatusTone(item.status))}">${escapeHtml(actionInboxStatusLabel(item.status))}</span>
+      ${dueText ? `<span>${"\u622a\u6b62\uff1a"}${escapeHtml(dueText)}</span>` : ""}
       <span>${"\u66f4\u65b0\uff1a"}${escapeHtml(formatTime(item.updatedAt || item.createdAt) || item.updatedAt || item.createdAt || "")}</span>
     </div>
     ${sourceLink ? `<div class="action-inbox-detail-actions"><button class="secondary-button compact" type="button" data-action-inbox-open-source>${escapeHtml(actionInboxSourceActionLabel(item))}</button></div>` : ""}
@@ -279,6 +332,7 @@ function wireActionInboxView(root) {
   root.querySelector("[data-action-inbox-open-source]")?.addEventListener("click", () => {
     openCurrentActionInboxItemLink().catch(showError);
   });
+  if (typeof wireTaskSwipeActions === "function") wireTaskSwipeActions(root);
 }
 
 function openCurrentActionInboxItemLink() {
@@ -311,15 +365,32 @@ async function createActionInboxManualItem(root) {
   }
 }
 
-async function mutateActionInboxItem(action, body = {}) {
-  const item = currentActionInboxItem();
-  if (!item?.id) return;
-  const result = await api(`/api/action-inbox/${encodeURIComponent(item.id)}/${action}`, {
+async function mutateActionInboxItemById(itemId, action, body = {}) {
+  const id = String(itemId || "").trim();
+  if (!id) return null;
+  const item = state.actionInboxItems.find((candidate) => candidate.id === id)
+    || (currentActionInboxItem()?.id === id ? currentActionInboxItem() : null)
+    || { id, workspaceId: state.selectedWorkspaceId || "owner" };
+  const result = await api(`/api/action-inbox/${encodeURIComponent(id)}/${action}`, {
     method: "POST",
     body: JSON.stringify(Object.assign({ workspaceId: item.workspaceId || state.selectedWorkspaceId || "owner" }, body)),
   });
-  state.actionInboxDetail = { item: result.item, events: state.actionInboxDetail?.events || [] };
+  if (state.selectedActionInboxItemId === id) {
+    state.actionInboxDetail = { item: result.item, events: state.actionInboxDetail?.events || [] };
+  }
   await loadActionInbox({ preserveScroll: true });
+  return result;
+}
+
+async function mutateActionInboxItem(action, body = {}) {
+  const item = currentActionInboxItem();
+  if (!item?.id) return;
+  await mutateActionInboxItemById(item.id, action, body);
+}
+
+async function completeActionInboxItemFromSwipe(itemId) {
+  await mutateActionInboxItemById(itemId, "complete");
+  return true;
 }
 
 async function refreshActionInboxAfterPush(eventData = {}) {

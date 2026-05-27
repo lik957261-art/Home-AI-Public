@@ -11132,13 +11132,15 @@ body.task-markdown-preview-open {
 
 .action-inbox-filter {
   flex: 0 0 auto;
-  min-height: 30px;
-  padding: 0 11px;
+  min-height: 34px;
+  padding: 0 12px;
   border: 1px solid var(--ui-hairline);
   border-radius: 999px;
   background: var(--ui-surface);
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .action-inbox-filter.active {
@@ -11205,6 +11207,15 @@ body.task-markdown-preview-open {
 .action-inbox-item.active {
   border-color: rgba(95, 139, 148, 0.32);
   background: rgba(247, 250, 249, 0.8);
+}
+
+.action-inbox-swipe-row .task-swipe-content {
+  border-radius: inherit;
+  background: var(--ui-surface);
+}
+
+.action-inbox-swipe-complete {
+  background: #4f745d;
 }
 
 .action-inbox-item-head {
@@ -13408,6 +13419,7 @@ body.task-markdown-preview-open {
 :root[data-font-size] .learning-program-actions button,
 :root[data-font-size] .learning-program-review-item > button,
 :root[data-font-size] .learning-program-task-actions button,
+:root[data-font-size] .action-inbox-filter,
 :root[data-font-size] .learning-evaluation-inline-form button {
   font-size: calc(14px * var(--app-font-scale));
 }

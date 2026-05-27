@@ -420,7 +420,7 @@ assert.match(startWeixinFrontGateway, /ensure-weixin-todo-dispatcher\.sh/);
 assert.match(startWeixinFrontGateway, /ensure-weixin-delivery-queue-dispatcher\.sh/);
 assert.match(startWeixinFrontGateway, /WEIXIN_FRONT_GATEWAY_OK/);
 assert.doesNotMatch(startWeixinFrontGateway, /Hermes Gateway WSL/);
-assert.match(startWeixinFrontGateway, /wslpath -a \$tmpScript/);
+assert.match(startWeixinFrontGateway, /wslpath -a \$portableTmpScript/);
 assert.doesNotMatch(startWeixinFrontGateway, /bash\s+-lc/);
 
 assert.match(startWeixinMobileIngressBridge, /weixin-mobile-ingress-bridge\.py/);
@@ -434,7 +434,7 @@ assert.match(startWeixinMobileIngressBridge, /ensure-weixin-reminder-dispatcher\
 assert.match(startWeixinMobileIngressBridge, /ensure-weixin-todo-dispatcher\.sh/);
 assert.match(startWeixinMobileIngressBridge, /ensure-weixin-delivery-queue-dispatcher\.sh/);
 assert.doesNotMatch(startWeixinMobileIngressBridge, /hermes_cli\.main gateway run --replace/);
-assert.match(startWeixinMobileIngressBridge, /wslpath -a \$tmpScript/);
+assert.match(startWeixinMobileIngressBridge, /wslpath -a \$portableTmpScript/);
 assert.doesNotMatch(startWeixinMobileIngressBridge, /bash\s+-lc/);
 assert.match(weixinMobileIngressBridge, /class MobileIngressBridge/);
 assert.match(weixinMobileIngressBridge, /class MobileIngressWeixinAdapter/);

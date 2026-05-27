@@ -113,6 +113,8 @@ function createTodoApiRoutes(deps = {}) {
     const todo = deps.publicTodo(result) || {};
     const todoId = String(todo.id || result?.id || result?.todoId || "").trim();
     const content = String(todo.content || todo.title || result?.content || body.content || "").trim();
+    const dueAt = String(todo.dueAt || todo.due_at || result?.dueAt || result?.due_at || result?.dueTime || result?.due_time || body.dueAt || body.due_at || body.dueTime || body.due_time || "").trim();
+    const dueLocal = String(todo.dueLocal || todo.due_local || result?.dueLocal || result?.due_local || "").trim();
     if (!todoId && !content) return null;
     try {
       const inboxResult = await Promise.resolve(service.upsertSourceItem({
@@ -124,13 +126,16 @@ function createTodoApiRoutes(deps = {}) {
         status: "open",
         priority: "normal",
         title: content || todoId || "Todo",
-        summary: String(todo.summary || result?.summary || body.summary || "").trim(),
+        summary: String(todo.summary || result?.summary || body.summary || (dueLocal || dueAt ? `\u622a\u6b62\uff1a${dueLocal || dueAt}` : "")).trim(),
         actionLabel: "\u5904\u7406",
         sourceRef: {
           todoId,
           compatibilityRoute: "/api/todos",
+          dueAt,
+          dueLocal,
         },
         dedupeKey: todoId ? `todo:${todoId}` : "",
+        dueAt,
         reopen: true,
       }));
       return inboxResult?.ok ? inboxResult.item : null;
