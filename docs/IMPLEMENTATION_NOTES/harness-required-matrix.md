@@ -230,6 +230,9 @@ Required harness dimensions:
   the latest message is a short follow-up. The routing layer must still preserve
   policy boundaries and must not grant `wardrobe` when it is absent from the
   authorized toolset list.
+- The negative case is also required: a single-window chat or topic with no
+  resolved directory binding must not crash while reading the directory route.
+  It should continue through the normal lightweight chat suggestion path.
 - Plain-chat probes in an existing conversation must prefer the lightweight
   suggested set over `clarify` alone, so bounded conversation context cannot
   force an immediate avoidable toolset-escalation response.

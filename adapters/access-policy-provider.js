@@ -26,6 +26,20 @@ const DEFAULT_LOW_PERMISSION_TOOLSETS = Object.freeze([
   "clarify",
 ]);
 
+function projectLooksWardrobe(project = {}) {
+  if (!project || typeof project !== "object") return false;
+  const text = [
+    project.id,
+    project.projectId,
+    project.subprojectId,
+    project.label,
+    project.name,
+    project.path,
+    project.root,
+  ].map((value) => String(value || "").trim()).join(" ");
+  return /(?:\bwardrobe\b|\bcloset\b|\boutfit\b|\u8863\u6a71|\u7a7f\u642d)/i.test(text);
+}
+
 function createAccessPolicyProvider(options = {}) {
   const dedupe = options.dedupe || defaultDedupe;
   const uploadCacheRoot = () => String(
@@ -94,6 +108,7 @@ function createAccessPolicyProvider(options = {}) {
     policy.allowed_toolsets = dedupe([
       ...(policy.allowed_toolsets || []),
       ...DEFAULT_LOW_PERMISSION_TOOLSETS,
+      ...(projectLooksWardrobe(project) ? ["wardrobe"] : []),
     ]);
     if (project && project.root) {
       policy.default_workspace = project.root;

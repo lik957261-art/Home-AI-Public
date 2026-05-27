@@ -45,6 +45,19 @@ function testPlainChatUsesMinimalToolsets() {
   assert.equal(result.routing.suggested_reason, "plain_chat_light_tools");
 }
 
+function testPlainChatWithoutTopicDirectoryDoesNotCrash() {
+  const service = createService();
+  const result = service.routePolicy({
+    policy: policy(),
+    userMessage: { content: "\u6d4b\u8bd5", taskGroupId: "chat" },
+    taskDirectory: null,
+    runOptions: {},
+  });
+
+  assert.equal(result.routing.suggested_mode, "minimal");
+  assert.deepEqual(result.routing.suggested_toolsets, ["web", "search", "x_search", "http", "clarify"]);
+}
+
 function testExplicitXSearchKeepsOnlyXSearchWhenAllowed() {
   const service = createService();
   const result = service.routePolicy({
@@ -218,6 +231,7 @@ function testNeverGrantsToolsetsNotAlreadyAllowed() {
 }
 
 testPlainChatUsesMinimalToolsets();
+testPlainChatWithoutTopicDirectoryDoesNotCrash();
 testExplicitXSearchKeepsOnlyXSearchWhenAllowed();
 testSearchSourceOptionsAddXSearch();
 testFileAndSkillIntentCanCombine();

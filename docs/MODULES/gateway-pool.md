@@ -218,11 +218,19 @@ Current runtime behavior:
   for writeback, readback verification, and main image / field checks. If the
   `wardrobe` MCP toolset is missing for a wardrobe run, treat it as a toolset
   routing gap; do not satisfy the wardrobe run with generic `http`.
+- Wardrobe directory authorization starts in `access-policy-provider`, not only
+  in the routing selector. A project or directory route whose id, label, path,
+  or root identifies a wardrobe/closet/outfit space adds `wardrobe` to the
+  current run's authorized toolset catalog before model-side selection.
 - Topic-bound wardrobe directories are an explicit routing signal. When a topic
   carries a directory route whose project id, label, path, or root identifies it
   as a wardrobe/closet directory, Mobile suggests authorized `wardrobe` for all
   AI runs in that topic by default. This does not grant new permission; it only
   keeps an already-authorized MCP capability visible to the model-side selector.
+- Missing or unresolved topic directory bindings are valid. Single-window chat
+  and topics without a concrete directory route must fall back to ordinary chat
+  routing or the effective default workspace policy; they must not fail during
+  toolset routing because `taskDirectory` or `project` is null.
 - For plain chat probes in an existing conversation, the selector should prefer
   the existing suggested lightweight set over `clarify` alone, because the
   execution round still receives bounded conversation context and may otherwise

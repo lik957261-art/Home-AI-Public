@@ -83,12 +83,13 @@ function hasAttachmentSignal(userMessage = {}) {
 }
 
 function taskDirectoryLooksWardrobe(taskDirectory = {}) {
+  const directory = taskDirectory && typeof taskDirectory === "object" ? taskDirectory : {};
   const text = [
-    taskDirectory.projectId,
-    taskDirectory.subprojectId,
-    taskDirectory.label,
-    taskDirectory.path,
-    taskDirectory.root,
+    directory.projectId,
+    directory.subprojectId,
+    directory.label,
+    directory.path,
+    directory.root,
   ].map(cleanString).join(" ");
   return /(?:\bwardrobe\b|\bcloset\b|\boutfit\b|\u8863\u6a71|\u7a7f\u642d)/i.test(text);
 }

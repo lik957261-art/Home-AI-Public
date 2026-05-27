@@ -112,6 +112,22 @@ function testRestrictedPolicyAddsWebSearchByDefault() {
   ]);
 }
 
+function testWardrobeProjectAuthorizesWardrobeToolset() {
+  const provider = createAccessPolicyProvider();
+  const policy = provider.build({
+    principal_id: "alice",
+    access_mode: "restricted",
+    default_workspace: "/workspace/a",
+  }, {}, {
+    id: "xuxin-luxury-root",
+    subprojectId: "xuxin-wardrobe",
+    label: "\u5962\u4f88\u54c1 / \u8863\u6a71",
+    root: "/workspace/a/\u5962\u4f88\u54c1/\u8863\u6a71",
+  });
+
+  assert.ok(policy.allowed_toolsets.includes("wardrobe"));
+}
+
 function testSanitizeTypes() {
   const provider = createAccessPolicyProvider();
   const policy = provider.sanitize({
@@ -134,5 +150,6 @@ function testSanitizeTypes() {
 testRestrictedPolicyMergesRootsAndDelivery();
 testOwnerPolicyStaysUnrestricted();
 testRestrictedPolicyAddsWebSearchByDefault();
+testWardrobeProjectAuthorizesWardrobeToolset();
 testSanitizeTypes();
 console.log("access-policy-provider tests passed");
