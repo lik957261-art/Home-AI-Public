@@ -12423,6 +12423,89 @@ body.task-markdown-preview-open {
   display: grid;
 }
 
+.app.mobile-browser-shell-blocked {
+  grid-template-columns: 1fr;
+  padding-bottom: 0;
+}
+
+.app.mobile-browser-shell-blocked .sidebar,
+.app.mobile-browser-shell-blocked .sidebar-overlay,
+.app.mobile-browser-shell-blocked .edge-swipe-zone,
+.app.mobile-browser-shell-blocked .bottom-nav,
+.app.mobile-browser-shell-blocked .composer,
+.app.mobile-browser-shell-blocked .top-actions,
+.app.mobile-browser-shell-blocked .top-nav-button,
+.app.mobile-browser-shell-blocked .task-detail-toolbar {
+  display: none !important;
+}
+
+.app.mobile-browser-shell-blocked .main {
+  grid-column: 1;
+}
+
+.app.mobile-browser-shell-blocked .topbar {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+}
+
+.app.mobile-browser-shell-blocked .conversation {
+  display: grid;
+  place-items: center;
+  padding: 24px 18px;
+}
+
+.mobile-browser-shell-block {
+  width: min(100%, 420px);
+  padding: 22px 18px;
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
+  background: var(--ui-surface);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.mobile-browser-shell-block-mark {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 12px;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent-ink);
+  font-weight: 700;
+}
+
+.mobile-browser-shell-block h1 {
+  margin: 0 0 10px;
+  font-size: 19px;
+  line-height: 1.3;
+}
+
+.mobile-browser-shell-block p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.mobile-browser-shell-block-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.task-preview-print-frame {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  right: 0;
+  bottom: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 @media (max-width: 1099px) {
   .app {
     grid-template-columns: 1fr;

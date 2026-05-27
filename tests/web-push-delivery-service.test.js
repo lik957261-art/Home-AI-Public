@@ -132,6 +132,7 @@ function testSubscriptionSendAndRemoval() {
       principalId: "child-principal",
       deviceLabel: "iPad",
       userAgent: "ua",
+      clientContext: { displayMode: "standalone", standalone: true, clientVersion: "client-pwa" },
     });
     assert.equal(saved.endpointHash, "hash-endpoint-a");
     assert.deepEqual(saved.principalIds, ["child-principal"]);
@@ -165,6 +166,14 @@ function testIosBrowserSubscriptionsAreRejectedAndSkipped() {
       userAgent: iosSafariUa,
       clientContext: { displayMode: "browser", standalone: false, clientVersion: "client-browser" },
     }), /installed Hermes Mobile app/);
+    assert.throws(() => service.savePushSubscription({
+      endpoint: "endpoint-mobile-browser",
+      keys: { p256dh: "p", auth: "a" },
+    }, {
+      workspaceId: "owner",
+      principalId: "owner",
+      clientContext: { displayMode: "browser", standalone: false, clientVersion: "client-browser", platform: "iPhone" },
+    }), /installed Hermes Mobile app/);
 
     state.pushSubscriptions.push({
       id: "push_ios_legacy",
@@ -183,16 +192,25 @@ function testIosBrowserSubscriptionsAreRejectedAndSkipped() {
       principalIds: ["owner"],
       workspaceIds: ["owner"],
     });
+    state.pushSubscriptions.push({
+      id: "push_mobile_browser_context",
+      endpointHash: "hash-mobile-browser-context",
+      subscription: { endpoint: "endpoint-mobile-browser-context", keys: { p256dh: "p", auth: "a" } },
+      clientContext: { displayMode: "browser", standalone: false, clientVersion: "client-browser", platform: "iPhone" },
+      principalIds: ["owner"],
+      workspaceIds: ["owner"],
+    });
     assert.equal(service.publicPushStatus().subscriptionCount, 1);
 
     return service.sendPushNotification({ title: "Hello", data: { workspaceId: "owner", url: "/?view=inbox" } }, {
       principalId: "owner",
     }).then((result) => {
-      assert.deepEqual(result, { enabled: true, attempted: 1, sent: 1, failed: 0, removed: 0, skipped: 1 });
+      assert.deepEqual(result, { enabled: true, attempted: 1, sent: 1, failed: 0, removed: 0, skipped: 2 });
       assert.equal(calls.sends.length, 1);
       assert.equal(calls.sends[0].subscription.endpoint, "endpoint-ios-standalone");
       assert.equal(state.pushSubscriptions[0].lastError, "ios_pwa_standalone_required");
-      assert.equal(state.pushDeliveries[0].skipped, 1);
+      assert.equal(state.pushSubscriptions[2].lastError, "ios_pwa_standalone_required");
+      assert.equal(state.pushDeliveries[0].skipped, 2);
     });
   });
 }

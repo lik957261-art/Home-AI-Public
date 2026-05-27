@@ -75,10 +75,15 @@ function showLogin(message = "") {
 }
 
 function showApp() {
+  if (state.mobileBrowserShellBlocked || shouldBlockMobileBrowserShellApp()) {
+    showMobileBrowserShellBlocked();
+    return;
+  }
   hideBootSplash();
   $("setup")?.classList.add("hidden");
   $("login").classList.add("hidden");
   $("app").classList.remove("hidden");
+  $("app").classList.remove("mobile-browser-shell-blocked");
   updateMobileBottomNavReservation();
   restoreVisibleAppScroll();
 }
@@ -123,7 +128,7 @@ async function enterAfterSetup() {
   if (!state.setupOwnerKey) return;
   showBootSplash("正在打开 Hermes Mobile");
   await bootstrap();
-  showApp();
+  if (!state.mobileBrowserShellBlocked) showApp();
 }
 
 async function login(key) {
@@ -138,7 +143,7 @@ async function login(key) {
   showBootSplash("正在打开 Hermes Mobile");
   try {
     await bootstrap();
-    showApp();
+    if (!state.mobileBrowserShellBlocked) showApp();
   } catch (err) {
     showLogin(err.message || String(err));
   }
@@ -150,6 +155,7 @@ async function bootstrap() {
   await checkClientVersion("bootstrap").catch(() => {});
   checkAppUpdate("login").catch(() => {});
   await loadPushStatus().catch(() => updatePushButton());
+  if (blockMobileBrowserShellAppLaunch()) return;
   await loadWorkspaces();
   if (!applyInitialRouteFromUrl()) applyDefaultLaunchView();
   await syncPushSubscriptionContext().catch(() => {});
@@ -193,10 +199,85 @@ function hermesRouteMobileBrowserShell() {
   const ua = navigator.userAgent || "";
   const mobileUa = /iPad|iPhone|iPod|Android|Mobile/i.test(ua)
     || (/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1);
-  const touchViewport = (navigator.maxTouchPoints || 0) > 0
-    && Math.min(window.innerWidth || 0, window.screen?.width || 0) > 0
-    && Math.min(window.innerWidth || 0, window.screen?.width || 0) <= 1024;
-  return Boolean(mobileUa || touchViewport);
+  const coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches || false;
+  const touchCapable = (navigator.maxTouchPoints || 0) > 0 || "ontouchstart" in window;
+  const widths = [
+    window.innerWidth,
+    window.visualViewport?.width,
+    window.screen?.width,
+    window.screen?.availWidth,
+  ].map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0);
+  const narrowViewport = widths.length ? Math.min(...widths) <= 900 : false;
+  return Boolean(mobileUa || coarsePointer || touchCapable || narrowViewport);
+}
+
+function shouldBlockMobileBrowserShellApp() {
+  return hermesRouteMobileBrowserShell();
+}
+
+function mobileBrowserShellBlockedTitle() {
+  return "\u8bf7\u4ece\u4e3b\u5c4f\u5e55\u5e94\u7528\u6253\u5f00";
+}
+
+function mobileBrowserShellBlockedMessage() {
+  return "\u5f53\u524d\u9875\u9762\u6b63\u5728\u79fb\u52a8\u6d4f\u89c8\u5668\u58f3\u4e2d\u8fd0\u884c\u3002Hermes Mobile \u4e0d\u5728\u8fd9\u4e2a\u58f3\u91cc\u663e\u793a\u6536\u4ef6\u7bb1\u3001\u81ea\u52a8\u5316\u8be6\u60c5\u6216\u6587\u4ef6\u9884\u89c8\uff1b\u8bf7\u70b9\u5de6\u4e0a\u89d2\u5173\u95ed\uff0c\u7136\u540e\u4ece\u4e3b\u5c4f\u5e55 Hermes Mobile \u56fe\u6807\u6253\u5f00\u3002";
+}
+
+function mobileBrowserShellDiagnosticText() {
+  const mode = hermesRouteStandaloneAppWindow() ? "standalone" : "browser";
+  const width = Math.round(Number(window.innerWidth || window.visualViewport?.width || window.screen?.width || 0) || 0);
+  const touch = Number(navigator.maxTouchPoints || 0) || 0;
+  return `client=${state.clientVersion || ""} mode=${mode} width=${width} touch=${touch}`;
+}
+
+function showMobileBrowserShellBlocked() {
+  state.mobileBrowserShellBlocked = true;
+  replaceBlockedBrowserShellRoute();
+  hideBootSplash();
+  $("setup")?.classList.add("hidden");
+  $("login")?.classList.add("hidden");
+  const app = $("app");
+  if (app) {
+    app.classList?.remove?.("hidden");
+    app.classList?.add?.("mobile-browser-shell-blocked");
+  }
+  try {
+    const title = $("threadTitle");
+    const meta = $("threadMeta");
+    const list = $("threadList");
+    const conversation = $("conversation");
+    const connectionState = $("connectionState");
+    if (title) title.textContent = "Hermes Mobile";
+    if (meta) meta.textContent = mobileBrowserShellBlockedTitle();
+    if (list) list.innerHTML = "";
+    if (connectionState) connectionState.textContent = "\u6d4f\u89c8\u5668\u58f3\u5df2\u963b\u6b62";
+    if (conversation) {
+      conversation.innerHTML = `
+        <section class="mobile-browser-shell-block" role="alert">
+          <div class="mobile-browser-shell-block-mark">H</div>
+          <h1>${escapeHtml(mobileBrowserShellBlockedTitle())}</h1>
+          <p>${escapeHtml(mobileBrowserShellBlockedMessage())}</p>
+          <code class="mobile-browser-shell-block-diagnostic">${escapeHtml(mobileBrowserShellDiagnosticText())}</code>
+          <div class="mobile-browser-shell-block-actions">
+            <button class="secondary-small" type="button" data-mobile-browser-shell-close>${"\u5173\u95ed\u6b64\u6d4f\u89c8\u5668\u7a97\u53e3"}</button>
+          </div>
+        </section>
+      `;
+      conversation.querySelector("[data-mobile-browser-shell-close]")?.addEventListener("click", () => {
+        try { window.close(); } catch (_) {}
+        showHermesAppWindowRequiredMessage();
+      });
+      conversation.scrollTop = 0;
+    }
+    if (typeof configureComposer === "function") configureComposer({ enabled: false, placeholder: "Hermes Mobile" });
+  } catch (_) {}
+}
+
+function blockMobileBrowserShellAppLaunch() {
+  if (!shouldBlockMobileBrowserShellApp()) return false;
+  clearHermesOwnedDetailStateAfterBrowserShellBlock();
+  showMobileBrowserShellBlocked();
+  return true;
 }
 
 function showHermesAppWindowRequiredMessage() {
@@ -311,6 +392,7 @@ function guardHermesOwnedSelectedDetailNavigation() {
   if (!params) return true;
   if (requireHermesAppWindowForRoute(params)) return true;
   clearHermesOwnedDetailStateAfterBrowserShellBlock();
+  showMobileBrowserShellBlocked();
   return false;
 }
 
@@ -436,7 +518,7 @@ function replaceTodoDetailRouteFlag(todoId, flagName) {
   } catch (_) {}
 }
 
-async function openNotificationRoute(value) {
+async function openHermesInternalRoute(value) {
   const parsed = sameOriginRouteUrl(value);
   if (!parsed) return;
   const params = new URLSearchParams(parsed.search || "");
@@ -456,6 +538,10 @@ async function openNotificationRoute(value) {
     // Route state is already applied; URL replacement is only for reload/back consistency.
   }
   await loadSelectedView();
+}
+
+async function openNotificationRoute(value) {
+  return openHermesInternalRoute(value);
 }
 
 function applyDefaultLaunchView() { state.viewMode = "single";

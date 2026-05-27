@@ -374,7 +374,7 @@ function wireActionInboxView(root) {
 
 function openActionInboxItemSource(item) {
   const link = actionInboxSourceDeepLink(item);
-  if (link && typeof openNotificationRoute === "function") return openNotificationRoute(link);
+  if (link && typeof openHermesInternalRoute === "function") return openHermesInternalRoute(link);
   return Promise.resolve(null);
 }
 

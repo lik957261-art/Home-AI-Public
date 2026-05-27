@@ -350,7 +350,7 @@
       transientPreviewStatus(root, "已复制链接", "success");
     } else if (action === "open") {
       const url = previewShareUrl(sourceUrl);
-      if (url) global.open(url, "_blank", "noopener,noreferrer");
+      if (url) global.location.assign(url);
     }
   }
 
@@ -634,14 +634,28 @@ window.addEventListener("load", function () {
   async function printMarkdownAsPdf(markdown, title) {
     const html = markdownExportHtml(markdown, title, { autoPrint: true });
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    const printWindow = global.open("about:blank", "_blank");
-    if (!printWindow) {
-      downloadGeneratedBlob(blob, generatedBaseName(title, "html"));
-      return;
-    }
     const objectUrl = URL.createObjectURL(blob);
-    printWindow.location.href = objectUrl;
-    global.setTimeout(() => URL.revokeObjectURL(objectUrl), 120000);
+    const frame = document.createElement("iframe");
+    frame.className = "task-preview-print-frame";
+    frame.title = "Markdown print";
+    frame.setAttribute("aria-hidden", "true");
+    frame.addEventListener("load", () => {
+      global.setTimeout(() => {
+        try {
+          frame.contentWindow?.focus?.();
+          frame.contentWindow?.print?.();
+        } catch (_) {
+          downloadGeneratedBlob(blob, generatedBaseName(title, "html"));
+        } finally {
+          global.setTimeout(() => {
+            frame.remove();
+            URL.revokeObjectURL(objectUrl);
+          }, 120000);
+        }
+      }, 250);
+    }, { once: true });
+    frame.src = objectUrl;
+    document.body.appendChild(frame);
   }
 
   function openMarkdownPreviewOverlay(link) {
@@ -721,7 +735,7 @@ window.addEventListener("load", function () {
           transientPreviewStatus(overlay, "已复制链接", "success");
         } else if (action === "open") {
           const url = previewShareUrl(source);
-          if (url) global.open(url, "_blank", "noopener,noreferrer");
+          if (url) global.location.assign(url);
         }
       },
     });

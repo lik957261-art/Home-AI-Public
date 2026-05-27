@@ -425,6 +425,12 @@ function createWebPushDeliveryService(options = {}) {
       || (/Macintosh/i.test(ua) && /Mobile\/\S+.*Safari/i.test(ua));
   }
 
+  function isMobilePushClient(context = {}) {
+    const value = `${context.userAgent || ""} ${context.platform || ""}`;
+    return /iPad|iPhone|iPod|Android|Mobile/i.test(value)
+      || (/Macintosh/i.test(value) && /Mobile\/\S+.*Safari/i.test(value));
+  }
+
   function isStandalonePushClient(context = {}) {
     const mode = String(context.displayMode || "").trim().toLowerCase();
     return context.standalone === true || mode === "standalone" || mode === "fullscreen";
@@ -433,8 +439,8 @@ function createWebPushDeliveryService(options = {}) {
   function assertPushSubscriptionClientAllowed(meta = {}) {
     const context = normalizePushClientContext(meta);
     const userAgent = context.userAgent || String(meta.userAgent || "");
-    if (isIosUserAgent(userAgent) && !isStandalonePushClient(context)) {
-      const err = new Error("iOS Web Push must be registered from the installed Hermes Mobile app.");
+    if ((isIosUserAgent(userAgent) || isMobilePushClient(context)) && !isStandalonePushClient(context)) {
+      const err = new Error("Mobile Web Push must be registered from the installed Hermes Mobile app.");
       err.code = "ios_pwa_standalone_required";
       err.status = 400;
       throw err;
@@ -446,7 +452,7 @@ function createWebPushDeliveryService(options = {}) {
     if (!item || typeof item !== "object") return false;
     const context = normalizePushClientContext(item);
     const userAgent = context.userAgent || String(item.userAgent || "");
-    return isIosUserAgent(userAgent) && !isStandalonePushClient(context);
+    return (isIosUserAgent(userAgent) || isMobilePushClient(context)) && !isStandalonePushClient(context);
   }
 
   function recordPushReceipt(body = {}) {

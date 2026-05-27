@@ -117,10 +117,16 @@ function mobileBrowserShellClient() {
   const ua = navigator.userAgent || "";
   const mobileUa = /iPad|iPhone|iPod|Android|Mobile/i.test(ua)
     || (/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1);
-  const touchViewport = (navigator.maxTouchPoints || 0) > 0
-    && Math.min(window.innerWidth || 0, window.screen?.width || 0) > 0
-    && Math.min(window.innerWidth || 0, window.screen?.width || 0) <= 1024;
-  return Boolean(mobileUa || touchViewport);
+  const coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches || false;
+  const touchCapable = (navigator.maxTouchPoints || 0) > 0 || "ontouchstart" in window;
+  const widths = [
+    window.innerWidth,
+    window.visualViewport?.width,
+    window.screen?.width,
+    window.screen?.availWidth,
+  ].map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0);
+  const narrowViewport = widths.length ? Math.min(...widths) <= 900 : false;
+  return Boolean(mobileUa || coarsePointer || touchCapable || narrowViewport);
 }
 
 function pushClientContext() {

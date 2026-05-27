@@ -206,20 +206,26 @@ Required harness dimensions:
 - Original task/detail route is preserved as a deep link when the primary route
   is Inbox.
 - Existing app window, no app window, PWA, and browser-tab cases are covered.
-- Product-owned second-level pages, file previews, and internal links follow a
-  same-window navigation contract: no `window.open`, no `target=_blank`, and no
-  Markdown `linkTarget="_blank"` for Hermes-owned navigation.
+- Web Push may reuse the shared internal same-window route helper, but it does
+  not own all second-level navigation. Direct UI paths such as Inbox row to
+  Automation detail are covered by the H2 Secondary Page Navigation contract.
+- Mobile browser shells must not render the full authenticated Hermes Mobile
+  app. They should show only a blocker that tells the user to close the browser
+  shell and reopen the installed PWA.
 - iOS Web Push subscription requires PWA standalone evidence. The harness must
   cover frontend `clientContext.displayMode` / `standalone`, subscribe-route
   forwarding, and delivery-side filtering of legacy iOS browser subscriptions.
 - iOS browser-shell clients must not continue Hermes-owned notification/source
-  detail navigation. The harness must assert a PWA standalone guard before
-  `openNotificationRoute()` applies route params.
+  detail navigation. The harness must assert a PWA standalone guard before the
+  shared internal route helper applies route params.
 - The same guard must also apply before startup URL routing calls
   `applyRouteParams()`, because browser shells can load detail URLs directly.
 - The same guard must also apply before selected-detail state is rendered by
   `loadSelectedView()`, because browser shells can already hold or restore
   `viewMode=automation` plus `selectedAutomationId` without a URL route parse.
+- The harness must execute a mobile browser-shell case, not only inspect route
+  parser text. It should verify that the browser shell enters blocked state and
+  does not leave Inbox/Automation UI rendered behind the outer browser frame.
 - Old client/service-worker version behavior fails safely.
 
 Primary docs:
@@ -298,13 +304,24 @@ Required contract dimensions:
   the top-right overflow menu.
 - Bottom navigation remains stable and includes required top-level tabs such as
   Topics and Inbox.
-- Second-level pages and file preview subviews must reuse the same app window.
+- Second-level pages and file preview subviews must follow the same-window
+  navigation contract and reuse the same app window.
   Opening a browser window with `window.open`, `target=_blank`, or Markdown
   `linkTarget="_blank"` is not allowed for Hermes-owned navigation.
+- Direct source navigation from Inbox to Automation detail is a second-level
+  UI path, not a Web Push-only path. The row must be a button-driven internal
+  route that reuses the current app runtime, carries Inbox return context, and
+  does not call `window.open`, `target=_blank`, or a location-level page open.
+- Preview fallbacks follow the in-app overlay/iframe/download pattern used by
+  Markdown, image, and document previews; `about:blank` print windows and
+  `open(..., "_blank")` are not allowed workarounds.
 
 Primary docs:
 
 - `docs/FRONTEND_STATE_MAP.md`
+- `docs/MODULES/action-inbox.md`
+- `docs/MODULES/automation.md`
+- `node tests\same-window-navigation-harness.test.js`
 
 ### Chat Send And Scroll Stability
 

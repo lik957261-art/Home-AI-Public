@@ -308,6 +308,7 @@ const state = {
   setupError: "",
   clientVersion: CLIENT_VERSION,
   serverClientVersion: "",
+  mobileBrowserShellBlocked: false,
   appUpdate: null,
   appUpdateChecking: false,
   appUpdateApplying: false,
