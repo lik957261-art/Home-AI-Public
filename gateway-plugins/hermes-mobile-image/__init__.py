@@ -259,6 +259,27 @@ def _build_codex_client():
         return None
 
 
+def _event_value(value: Any, key: str, default: Any = None) -> Any:
+    if isinstance(value, dict):
+        return value.get(key, default)
+    return getattr(value, key, default)
+
+
+def _remember_image_generation_item(item: Any, image_b64: str | None, meta: dict[str, Any]) -> str | None:
+    if _event_value(item, "type") != "image_generation_call":
+        return image_b64
+    result = _event_value(item, "result")
+    if isinstance(result, str) and result:
+        image_b64 = result
+    revised = _event_value(item, "revised_prompt")
+    action = _event_value(item, "action")
+    if revised:
+        meta["revised_prompt"] = revised
+    if action:
+        meta["action"] = action
+    return image_b64
+
+
 def _collect_image_b64(client: Any, *, prompt: str, input_image: Path, quality: str, size: str) -> tuple[str | None, dict[str, Any]]:
     image_b64: str | None = None
     meta: dict[str, Any] = {}
@@ -284,7 +305,7 @@ def _collect_image_b64(client: Any, *, prompt: str, input_image: Path, quality: 
         {"type": "input_image", "image_url": _image_data_url(input_image)},
     ]
 
-    with client.responses.stream(
+    stream = client.responses.create(
         model=chat_model,
         store=False,
         instructions=instructions,
@@ -295,39 +316,27 @@ def _collect_image_b64(client: Any, *, prompt: str, input_image: Path, quality: 
             "mode": "required",
             "tools": [{"type": "image_generation"}],
         },
-    ) as stream:
+        stream=True,
+    )
+    try:
         for event in stream:
-            event_type = getattr(event, "type", "")
+            event_type = _event_value(event, "type", "")
             if event_type == "response.output_item.done":
-                item = getattr(event, "item", None)
-                if getattr(item, "type", None) == "image_generation_call":
-                    result = getattr(item, "result", None)
-                    if isinstance(result, str) and result:
-                        image_b64 = result
-                    revised = getattr(item, "revised_prompt", None)
-                    action = getattr(item, "action", None)
-                    if revised:
-                        meta["revised_prompt"] = revised
-                    if action:
-                        meta["action"] = action
+                image_b64 = _remember_image_generation_item(_event_value(event, "item"), image_b64, meta)
             elif event_type == "response.image_generation_call.partial_image":
-                partial = getattr(event, "partial_image_b64", None)
+                partial = _event_value(event, "partial_image_b64")
                 if isinstance(partial, str) and partial:
                     image_b64 = partial
-        final = stream.get_final_response()
-
-    for item in getattr(final, "output", None) or []:
-        if getattr(item, "type", None) != "image_generation_call":
-            continue
-        result = getattr(item, "result", None)
-        if isinstance(result, str) and result:
-            image_b64 = result
-        revised = getattr(item, "revised_prompt", None)
-        action = getattr(item, "action", None)
-        if revised:
-            meta["revised_prompt"] = revised
-        if action:
-            meta["action"] = action
+            elif event_type == "response.completed":
+                response = _event_value(event, "response")
+                output = _event_value(response, "output", [])
+                if isinstance(output, list):
+                    for item in output:
+                        image_b64 = _remember_image_generation_item(item, image_b64, meta)
+    finally:
+        close = getattr(stream, "close", None)
+        if callable(close):
+            close()
 
     return image_b64, meta
 

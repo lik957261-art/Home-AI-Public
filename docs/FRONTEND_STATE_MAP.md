@@ -1,6 +1,6 @@
 # Hermes Mobile Frontend State Map
 
-Last updated: 2026-05-26.
+Last updated: 2026-05-27.
 
 Use this file to locate the responsible frontend files before debugging a screenshot or mobile UI report.
 
@@ -11,6 +11,29 @@ Use this file to locate the responsible frontend files before debugging a screen
 - API wrapper: `public/app-api-client.js`
 - Event stream: `public/app-event-stream-ui.js`, `public/app-events-composer-ui.js`
 - Run progress/status panel: `public/app-run-progress-ui.js`, `public/app-thread-state-ui.js`
+  - Must render model stream states from `run.model_first_byte_retrying`,
+    `run.model_stream_started`, `run.model_output_started`,
+    `run.liveness_warning`, `run.liveness_stale`, `run.gateway_start_timeout`,
+    `run.stream_failed`, `run.tool_budget_exceeded`, and
+    `run.toolset_escalation_required`.
+  - Run progress rows should preserve chronological order and append newer
+    model, Skill, and function events downward. The panel may cap the number of
+    visible rows, but it must not reorder later function calls above earlier
+    startup rows.
+  - Event-driven refresh must bind a run event to the newest assistant message
+    whose own `runId`, `originalRunId`, `responseRunId`, or `taskId` matches
+    before falling back to thread active ids. Thread active ids are only a
+    fallback for still-active messages; they must not make old terminal
+    assistant messages steal the current run-progress update.
+  - When an inline run-progress panel grows because new rows arrive, the
+    conversation should remain pinned to the newest status area if the user was
+    already near/pinned to the bottom or inside the send/run follow window.
+    It must not pull the viewport back down after the user has intentionally
+    scrolled away.
+  - Function-call rows should show the concrete function name whenever the
+    event preview, tool field, or paired `callId` makes it available. Generic
+    `Function call` / `Function result` labels are only acceptable when the
+    Gateway event does not expose enough metadata to identify the function.
 - Static shell/cache: `public/index.html`, `public/service-worker.js`, `public/directory-viewer.html`
 
 ## Chat And Topics
@@ -83,5 +106,5 @@ Use this file to locate the responsible frontend files before debugging a screen
 - Route targets should be kept until the target module has fetched or rendered the requested resource.
 - Secondary screens should be represented by explicit detail/create state and wired into `updateNavigationControls()`, `activateTopNavButton()`, `backSwipeTarget()`, and `performBackSwipeAction()`. The content area should not duplicate the top bar title or page-level overflow actions.
 - A primary module can also be opened as a secondary surface when launched from another page-level overflow menu. Example: opening the Automation list from the Inbox overflow records `automationReturnRoute="inbox"`; the Automation list then uses the top-left shell back button and right-swipe back to return to Inbox. Bottom navigation into the same module remains a primary page and clears the return route.
-- Mobile safe-area, bottom nav, keyboard viewport, and back/right-swipe behavior must be tested when changing shell/navigation code.
-- After the composer sends a message in Chat or a task detail, the conversation must stay pinned to the newest run/status area through the immediate server response and follow-up viewport refreshes. Refresh/render helpers should extend the bottom-follow window and avoid restoring stale bottom offsets during this send/run-start interval.
+- Mobile OS status bar visibility, safe-area, bottom nav, keyboard viewport, and back/right-swipe behavior must be tested when changing shell/navigation code.
+- After the composer sends a message in Chat or a task detail, the conversation must stay pinned to the newest run/status area through the immediate server response, inline run-progress growth, and follow-up viewport refreshes. Refresh/render helpers should extend the bottom-follow window and avoid restoring stale bottom offsets during this send/run-start interval.

@@ -3,9 +3,11 @@
 const assert = require("node:assert/strict");
 const { createGatewayRunInstructionService } = require("../adapters/gateway-run-instruction-service");
 
-function createService() {
+function createService(options = {}) {
   return createGatewayRunInstructionService({
     dedupe: (values) => Array.from(new Set((values || []).filter(Boolean))),
+    explicitWebSearchMaxCalls: options.explicitWebSearchMaxCalls ?? 12,
+    webSearchMaxCalls: options.webSearchMaxCalls ?? 6,
     normalizeSingleWindowMode: (value) => String(value || "").trim().toLowerCase(),
     createDeliveryBoundaryInstructions: (options = {}) => options.deliveryTarget
       ? `DELIVERY:${options.deliveryTarget}`
@@ -59,6 +61,8 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /Word DOCX text extraction is available as `docx_extract_text`/);
   assert.match(text, /audio transcription.*`audio_transcribe`/);
   assert.match(text, /Prefer callable function names `mobile_web_search` and `mobile_web_extract`/);
+  assert.match(text, /Run Web-search budget: use at most 6 total Web search calls/);
+  assert.match(text, /Do not start a 7th Web search call/);
   assert.match(text, /`x_search` toolset is enabled/);
   assert.match(text, /Do not claim X was searched unless `x_search` was actually available and used/);
   assert.match(text, /`cronjob` toolset is enabled/);
@@ -70,6 +74,34 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /Do not request Owner elevation merely because an ordinary current-workspace image editing tool is missing/);
 }
 
+function testExplicitWebSearchPrioritizesQualityAndUsesLargerBudget() {
+  const service = createService();
+  const text = service.buildHermesInstructions(
+    { hermesSessionId: "s" },
+    { allowed_toolsets: ["web", "search"] },
+    { root: "C:/workspace" },
+    "请联网搜索这件事",
+    null,
+    { searchSource: "web", sourceIntent: "web_search", sourceMode: "auto" },
+  );
+
+  assert.match(text, /explicitly asks for web\/search-backed information/);
+  assert.match(text, /Optimize for source quality, meaningful coverage, and verifiable evidence/);
+  assert.match(text, /Use several focused query refinements when needed/);
+  assert.match(text, /Run Web-search budget: use at most 12 total Web search calls/);
+  assert.match(text, /Do not start a 13th Web search call/);
+}
+
+function testWebSearchBudgetInstructionCanBeDisabled() {
+  const service = createService({ webSearchMaxCalls: 0 });
+  const text = service.currentToolSchemaOverrideInstructions({
+    allowed_toolsets: ["web"],
+  });
+
+  assert.match(text, /Prefer callable function names `mobile_web_search` and `mobile_web_extract`/);
+  assert.doesNotMatch(text, /Run Web-search budget/);
+}
+
 function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
   const service = createService();
   const thread = { hermesSessionId: "session_a", singleWindow: true };
@@ -77,7 +109,7 @@ function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
 
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["file"] }),
-    "session_a_group_1_20260519-x-search-v1",
+    "session_a_group_1_20260527-explicit-search-quality-v1",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["memory"] }),
@@ -85,7 +117,7 @@ function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["x_search"] }),
-    "session_a_group_1_20260519-x-search-v1",
+    "session_a_group_1_20260527-explicit-search-quality-v1",
   );
 }
 
@@ -143,6 +175,8 @@ function testBuildHermesInstructionsIncludesSemanticRoutingForTaskStream() {
 
 testPolicySummaryIncludesCallableToolHints();
 testSchemaOverrideInstructionsCoverOrdinaryLowTools();
+testExplicitWebSearchPrioritizesQualityAndUsesLargerBudget();
+testWebSearchBudgetInstructionCanBeDisabled();
 testGatewayConversationIdEpochForSchemaSensitiveToolsets();
 testBuildHermesInstructionsPreservesChatAndAttachmentGuidance();
 testBuildHermesInstructionsIncludesSemanticRoutingForTaskStream();

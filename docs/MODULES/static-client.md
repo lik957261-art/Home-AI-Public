@@ -47,6 +47,7 @@ Gateway plugin/schema/profile changes:
 
 ## Constraints
 
-- Mobile UI must preserve safe areas, bottom navigation, stable action icons, and readable compact panels.
+- Mobile UI must preserve the OS status bar, safe areas, bottom navigation, stable action icons, and readable compact panels.
+- Top-level PWA shell changes must keep time, battery, and Wi-Fi indicators visible on mobile; browser-shell guards and full-viewport overlays need explicit status-bar/safe-area checks.
 - Do not expose raw local paths or sensitive metadata in normal UI.
 - Do not rely on cached clients receiving changes without a version bump.

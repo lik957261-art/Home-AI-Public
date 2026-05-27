@@ -503,6 +503,10 @@ function createThreadViewService(deps = {}) {
       elevationScope: message.elevationScope || "",
       elevationReason: message.elevationReason || "",
       elevationSource: message.elevationSource || "",
+      toolsetEscalationRequired: Boolean(message.toolsetEscalationRequired),
+      toolsetEscalationToolsets: Array.isArray(message.toolsetEscalationToolsets) ? message.toolsetEscalationToolsets : [],
+      toolsetEscalationReason: message.toolsetEscalationReason || "",
+      toolsetEscalationSource: message.toolsetEscalationSource || "",
       truncated: typeof message.content === "string" && message.content.length > maxApiTextChars,
     };
   }

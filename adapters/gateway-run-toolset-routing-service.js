@@ -30,6 +30,10 @@ const TOOLSET_KEYWORDS = Object.freeze([
     pattern: /(?:\bHTTP\b|\bAPI\b|\brequest\b|\bendpoint\b|\bbase64\b|\bcodex(?:\s*mobile)?\b|\bmux\b|\u63a5\u53e3|\u8bf7\u6c42|\u4fdd\u5b58\s*base64|\u534f\u4f5c\u6d41|\u5bf9\u63a5\s*Codex)/i,
   },
   {
+    toolsets: ["wardrobe", "vision", "file", "http"],
+    pattern: /(?:\bwardrobe\b|\bcloset\b|\boutfit\b|\bwear\s*count\b|\bwearcount\b|\bLoro\s+Piana\b|\bLP\b.{0,24}(?:item|product|wardrobe|closet|outfit)|(?:\u5546\u54c1|\u8863\u6a71|\u5165\u5e93).{0,24}\bLP\b|\u8863\u6a71|\u7a7f\u642d|\u5355\u54c1|\u5165\u5e93|\u7a7f\u7740\u5386\u53f2|\u642d\u914d|\u5957\u88c5|\u8863\u670d|\u978b|\u8155\u8868|\u5546\u54c1\u7167|\u8d2d\u7269\u5355)/i,
+  },
+  {
     toolsets: ["file"],
     pattern: /(?:\bfile\b|\bfolder\b|\bdirectory\b|\bpath\b|\bPDF\b|\bDOCX\b|\bMarkdown\b|\bMEDIA:|\bMP3\b|\bM4A\b|\bWAV\b|\u6587\u4ef6|\u76ee\u5f55|\u8def\u5f84|\u6253\u5f00|\u8bfb\u53d6|\u4fdd\u5b58|\u9644\u4ef6|\u4ea4\u4ed8|\u6587\u6863|\u5f55\u97f3|\u8f6c\u5199|\u56fe\u7247)/i,
   },
@@ -105,6 +109,60 @@ function looksLikePlainChat(text) {
   return !hasAction;
 }
 
+function looksLikeRetryMessage(text) {
+  return /^(?:retry|try\s+again|rerun|run\s+again|\u91cd\u8bd5|\u518d\u8bd5(?:\u4e00\u4e0b)?|\u91cd\u65b0\u8bd5(?:\u4e00\u4e0b)?)[\s\u3002\uff01!,.]*$/i.test(cleanString(text));
+}
+
+function messagesBefore(thread = {}, userMessage = {}, maxCount = 6) {
+  const messages = Array.isArray(thread.messages) ? thread.messages : [];
+  const currentId = cleanString(userMessage.id);
+  const index = currentId ? messages.findIndex((message) => cleanString(message.id) === currentId) : -1;
+  const end = index >= 0 ? index : messages.length;
+  const before = messages.slice(0, end);
+  const taskGroupId = cleanString(userMessage.taskGroupId);
+  const out = [];
+  const seen = new Set();
+  for (const message of taskGroupId
+    ? before.filter((item) => cleanString(item.taskGroupId) === taskGroupId).slice(-maxCount)
+    : []) {
+    const id = cleanString(message.id);
+    if (id && seen.has(id)) continue;
+    if (id) seen.add(id);
+    out.push(message);
+  }
+  for (const message of before.slice(-maxCount)) {
+    const id = cleanString(message.id);
+    if (id && seen.has(id)) continue;
+    if (id) seen.add(id);
+    out.push(message);
+  }
+  return out;
+}
+
+function retryContextText(context = {}, latestText = "") {
+  if (!looksLikeRetryMessage(latestText)) return "";
+  const chunks = [];
+  for (const message of messagesBefore(context.thread, context.userMessage, 8)) {
+    if (message?.toolsetEscalationRequired) {
+      chunks.push((message.toolsetEscalationToolsets || []).join(" "));
+      chunks.push(message.toolsetEscalationReason || "");
+    }
+    const content = cleanString(message?.content);
+    if (content) chunks.push(content);
+  }
+  return chunks.join("\n").slice(-2400);
+}
+
+function retryEscalationToolsets(context = {}, latestText = "") {
+  if (!looksLikeRetryMessage(latestText)) return [];
+  const out = [];
+  for (const message of messagesBefore(context.thread, context.userMessage, 8)) {
+    if (!message?.toolsetEscalationRequired) continue;
+    out.push(...(Array.isArray(message.toolsetEscalationToolsets) ? message.toolsetEscalationToolsets : []));
+  }
+  return defaultDedupe(out);
+}
+
 function createGatewayRunToolsetRoutingService(options = {}) {
   const dedupe = typeof options.dedupe === "function" ? options.dedupe : defaultDedupe;
 
@@ -117,13 +175,15 @@ function createGatewayRunToolsetRoutingService(options = {}) {
     const policy = context.policy && typeof context.policy === "object" ? context.policy : {};
     const baseAllowed = dedupe(policy.allowed_toolsets || policy.allowedToolsets || []);
     const text = cleanString(context.userMessage?.content || context.latestText || "");
-    const requested = requestedToolsetsFromOptions(context.runOptions || {});
+    const retryRequested = retryEscalationToolsets(context, text);
+    const intentText = [text, retryRequested.length ? "" : retryContextText(context, text)].filter(Boolean).join("\n");
+    const requested = [...requestedToolsetsFromOptions(context.runOptions || {}), ...retryRequested];
     const matched = [];
     for (const rule of TOOLSET_KEYWORDS) {
-      if (rule.pattern.test(text)) matched.push(...rule.toolsets);
+      if (rule.pattern.test(intentText)) matched.push(...rule.toolsets);
     }
     const hadIntentMatch = matched.length > 0;
-    if (matched.includes("x_search") && !hasExplicitWebIntent(text)) {
+    if (matched.includes("x_search") && !hasExplicitWebIntent(intentText)) {
       for (let i = matched.length - 1; i >= 0; i -= 1) {
         if (matched[i] === "web" || matched[i] === "search") matched.splice(i, 1);
       }

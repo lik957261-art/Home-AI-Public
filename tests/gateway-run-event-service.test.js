@@ -506,6 +506,25 @@ function testFailedAndCancelledRunsUseTerminalHelpers() {
   assert.equal(harness.calls.broadcasts[0].type, "run.cancelled");
 }
 
+function testSyntheticRunStatusDoesNotRefreshGatewayLastEventTime() {
+  const { activeStreams, calls, service, thread } = makeHarness();
+  const stream = activeStreams.get("public_run");
+  stream.lastEventAt = 1000;
+
+  const result = service.applyHermesRunEvent({
+    event: "run.model_first_byte_retrying",
+    run_id: "public_run",
+    preview: "模型连接已等待首个流式事件",
+    hermes_mobile_synthetic: true,
+  });
+
+  assert.equal(result.action, "event");
+  assert.equal(stream.lastEventAt, 1000);
+  assert.equal(thread.events.at(-1).event, "run.model_first_byte_retrying");
+  assert.equal(thread.events.at(-1).preview, "模型连接已等待首个流式事件");
+  assert.equal(calls.broadcasts.at(-1).type, "run.event");
+}
+
 function testApprovalMarkersAreHiddenButValidRequestIsStored() {
   const harness = makeHarness({
     modelPermissionApprovalRequest: () => ({
@@ -531,6 +550,31 @@ function testApprovalMarkersAreHiddenButValidRequestIsStored() {
   });
   stale.service.applyHermesRunEvent({ event: "run.completed", run_id: "public_run", output: "stale marker" });
   assert.equal(stale.message.elevationRequired, false);
+}
+
+function testToolsetEscalationMarkerIsHiddenAndStored() {
+  const harness = makeHarness();
+  harness.message.runOptions = {
+    toolsetRouting: {
+      mode: "model_first",
+      selected_toolsets: ["file"],
+      omitted_authorized_toolsets: ["weather", "wardrobe"],
+    },
+  };
+  const result = harness.service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    output: "HERMES_TOOLSET_ESCALATION_REQUIRED {\"toolsets\":[\"weather\",\"wardrobe\",\"terminal\"],\"reason\":\"needs current weather and closet state\"}",
+  });
+
+  assert.equal(result.action, "completed");
+  assert.equal(harness.message.status, "done");
+  assert.equal(harness.message.content.includes("HERMES_TOOLSET_ESCALATION_REQUIRED"), false);
+  assert.equal(harness.message.toolsetEscalationRequired, true);
+  assert.deepEqual(harness.message.toolsetEscalationToolsets, ["weather", "wardrobe"]);
+  assert.equal(harness.message.toolsetEscalationReason, "needs current weather and closet state");
+  assert.equal(harness.thread.events.at(-1).event, "run.toolset_escalation_required");
+  assert.deepEqual(JSON.parse(harness.thread.events.at(-1).preview).toolsets, ["weather", "wardrobe"]);
 }
 
 function testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued() {
@@ -563,7 +607,9 @@ testOutputItemEventsStoreReadableSummariesOnly();
 testOutputItemEventsUseAliasedResponseRunId();
 testFinalMessageTelemetryDoesNotStoreResponseText();
 testFailedAndCancelledRunsUseTerminalHelpers();
+testSyntheticRunStatusDoesNotRefreshGatewayLastEventTime();
 testApprovalMarkersAreHiddenButValidRequestIsStored();
+testToolsetEscalationMarkerIsHiddenAndStored();
 testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued();
 
 console.log("gateway-run-event-service tests passed");

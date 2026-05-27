@@ -54,14 +54,14 @@ function run() {
       "/Users/alice/HermesDrive",
       "/home/example/.hermes/run-logs",
     ],
-    allowed_toolsets: ["web", "git", "shell", "todo", "cronjob", "http", "weather", "browser", "video", "messaging", "tts"],
+    allowed_toolsets: ["web", "git", "shell", "todo", "cronjob", "http", "weather", "browser", "video", "messaging", "tts", "wardrobe"],
     allow_shell: true,
     can_delegate_codex: true,
   });
 
   assert.strictEqual(policy.access_mode, "restricted");
   assert.deepStrictEqual(policy.allowed_roots, ["/Users/alice/HermesDrive", "/home/example/.hermes/run-logs"]);
-  assert.deepStrictEqual(policy.allowed_toolsets, ["web", "todo", "cronjob", "http", "weather", "browser", "video", "messaging", "tts"]);
+  assert.deepStrictEqual(policy.allowed_toolsets, ["web", "todo", "cronjob", "http", "weather", "browser", "video", "messaging", "tts", "wardrobe"]);
   assert.strictEqual(policy.allow_shell, false);
   assert.strictEqual(policy.can_delegate_codex, false);
   assert.ok(policy.blocked_toolsets.includes("codex"));
@@ -93,6 +93,7 @@ function run() {
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("memory"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("session_search"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("clarify"));
+  assert.ok(defaultToolPolicy.allowed_toolsets.includes("wardrobe"));
   assert.ok(!defaultToolPolicy.allowed_toolsets.includes("terminal"));
   assert.ok(!defaultToolPolicy.allowed_toolsets.includes("code_execution"));
   assert.ok(!defaultToolPolicy.allowed_toolsets.includes("computer_use"));

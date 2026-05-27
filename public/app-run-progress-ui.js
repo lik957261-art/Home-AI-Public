@@ -3,6 +3,7 @@
 const RUN_EVENT_PREVIEW_MAX_CHARS = 180;
 const RUN_PROGRESS_RENDER_THROTTLE_MS = 750;
 const RUN_PROGRESS_START_EVENT_REVEAL_MS = 1000;
+const RUN_PROGRESS_MAX_VISIBLE_EVENTS = 12;
 const RUN_PROGRESS_TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"]);
 const RUN_PROGRESS_START_EVENTS = new Set([
   "run.context_ready",
@@ -10,16 +11,35 @@ const RUN_PROGRESS_START_EVENTS = new Set([
   "run.toolset_selection_started",
   "run.toolset_selection_done",
   "run.toolset_selection_failed",
+  "run.toolset_escalation_required",
   "run.permission_required",
   "run.request_sent",
+  "run.model_stream_started",
+  "run.model_first_byte_retrying",
+  "run.model_output_started",
+  "run.stream_failed",
+  "run.gateway_start_timeout",
+  "run.liveness_warning",
+  "run.liveness_stale",
+  "run.tool_budget_exceeded",
 ]);
 
 function boundedRunEventPreview(value) {
-  const text = String(value || "");
+  let text = "";
+  if (value && typeof value === "object") {
+    try {
+      text = JSON.stringify(value);
+    } catch (_err) {
+      text = String(value || "");
+    }
+  } else {
+    text = String(value || "");
+  }
   return text.length > RUN_EVENT_PREVIEW_MAX_CHARS ? text.slice(0, RUN_EVENT_PREVIEW_MAX_CHARS) : text;
 }
 
 function parseRunEventPreviewObject(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
   const text = String(value || "").trim();
   if (!text || !text.startsWith("{")) return null;
   try {
@@ -77,19 +97,87 @@ function appendRunEventToCurrentThread(payload) {
   if (!scheduleRunProgressRenderForRun(event.runId || payload.runId || "")) scheduleRenderCurrentThread();
 }
 
-function runEventSkillName(event) {
+function runEventPreviewField(event, fields = []) {
   const parsed = parseRunEventPreviewObject(event?.preview);
-  const value = parsed?.name || parsed?.path || parsed?.skill || parsed?.id || "";
-  return String(value || "").replace(/^skills\//i, "").replace(/\/SKILL\.md$/i, "").trim();
+  for (const field of fields) {
+    const value = parsed?.[field] || event?.[field];
+    if (value) return String(value).trim();
+  }
+  const text = String(event?.preview || "");
+  for (const field of fields) {
+    const pattern = new RegExp(`["']${field}["']\\s*:\\s*["']([^"']+)["']`, "i");
+    const match = text.match(pattern);
+    if (match?.[1]) return match[1].trim();
+  }
+  return "";
+}
+
+function runEventSkillName(event) {
+  return runEventPreviewField(event, ["name", "path", "skill", "id"])
+    .replace(/^skills\//i, "")
+    .replace(/\/SKILL\.md$/i, "")
+    .trim();
 }
 
 function runEventFunctionName(event) {
   const parsed = parseRunEventPreviewObject(event?.preview);
-  const fromPreview = parsed?.name || parsed?.function || parsed?.tool || "";
-  if (fromPreview) return String(fromPreview).trim();
+  const fromPreview = String(
+    parsed?.name
+    || parsed?.function
+    || parsed?.functionName
+    || parsed?.function_name
+    || parsed?.tool
+    || "",
+  ).trim();
+  if (fromPreview && !/^(function_call|function_call_output|message|skill_view)$/i.test(fromPreview)) return fromPreview;
   const tool = String(event?.tool || "").trim();
   if (!tool || /^(function_call|function_call_output|message|skill_view)$/i.test(tool)) return "";
   return tool;
+}
+
+function runEventFunctionCallId(event) {
+  return runEventPreviewField(event, ["callId", "call_id", "id"]);
+}
+
+function isFunctionRunEvent(event) {
+  const tool = String(event?.tool || "").trim().toLowerCase();
+  if (tool === "function_call") return true;
+  if (!String(event?.event || "").startsWith("response.output_item.")) return false;
+  return Boolean(tool && !["function_call_output", "message", "skill_view"].includes(tool));
+}
+
+function runEventWithFunctionName(event, name, callId = "") {
+  const functionName = String(name || "").trim();
+  if (!functionName || runEventFunctionName(event)) return event;
+  const parsed = parseRunEventPreviewObject(event?.preview) || {};
+  const preview = Object.assign({}, parsed, { name: functionName });
+  if (callId && !preview.callId && !preview.call_id) preview.callId = callId;
+  return Object.assign({}, event, { preview: JSON.stringify(preview) });
+}
+
+function runProgressEventsWithFunctionNames(events = []) {
+  const nameByCallId = new Map();
+  for (const event of Array.isArray(events) ? events : []) {
+    const name = runEventFunctionName(event);
+    const callId = runEventFunctionCallId(event);
+    if (name && callId) nameByCallId.set(callId, name);
+  }
+  let lastFunctionName = "";
+  return (Array.isArray(events) ? events : []).map((event) => {
+    const tool = String(event?.tool || "").trim().toLowerCase();
+    const name = runEventFunctionName(event);
+    const callId = runEventFunctionCallId(event);
+    if (isFunctionRunEvent(event) && name) {
+      lastFunctionName = name;
+      if (callId) nameByCallId.set(callId, name);
+      return event;
+    }
+    if (tool === "function_call_output" && !name) {
+      const fallback = (callId && nameByCallId.get(callId)) || lastFunctionName;
+      return runEventWithFunctionName(event, fallback, callId);
+    }
+    return event;
+  });
 }
 
 function runEventToolLabel(event) {
@@ -124,8 +212,17 @@ function runEventTitle(event) {
   if (name === "run.toolset_selection_started") return "\u6b63\u5728\u9009\u62e9\u5de5\u5177\u96c6";
   if (name === "run.toolset_selection_done") return "\u5de5\u5177\u96c6\u5df2\u9009\u62e9";
   if (name === "run.toolset_selection_failed") return "\u5de5\u5177\u96c6\u9009\u62e9\u56de\u9000";
+  if (name === "run.toolset_escalation_required") return "\u9700\u8981\u8ffd\u52a0\u5de5\u5177\u96c6";
   if (name === "run.permission_required") return "\u9700\u8981 Owner \u6388\u6743";
   if (name === "run.request_sent") return "\u8bf7\u6c42\u5df2\u53d1\u9001";
+  if (name === "run.model_stream_started") return "\u6a21\u578b\u6d41\u5df2\u8fde\u63a5";
+  if (name === "run.model_first_byte_retrying") return "\u6a21\u578b\u65e0\u9996\u5305\uff0c\u6b63\u5728\u91cd\u8bd5";
+  if (name === "run.model_output_started") return "\u6a21\u578b\u5df2\u5f00\u59cb\u8f93\u51fa";
+  if (name === "run.stream_failed") return "\u6a21\u578b\u6d41\u5f0f\u8fde\u63a5\u5931\u8d25";
+  if (name === "run.gateway_start_timeout") return "Gateway \u672a\u521b\u5efa\u8fd0\u884c";
+  if (name === "run.liveness_warning") return "Gateway \u72b6\u6001\u6682\u4e0d\u53ef\u89c1";
+  if (name === "run.liveness_stale") return "Gateway \u54cd\u5e94\u8d85\u65f6";
+  if (name === "run.tool_budget_exceeded") return "\u5de5\u5177\u8c03\u7528\u8d85\u9650";
   if (name === "response.completed" || name === "run.completed") return "\u5904\u7406\u5b8c\u6210";
   if (name === "response.failed" || name === "run.failed") return "\u5904\u7406\u5931\u8d25";
   return tool ? `${tool} · ${name.replace(/^response\./, "")}` : name.replace(/^response\./, "");
@@ -164,16 +261,79 @@ function runProgressVisibleEvents(events = [], startMs = 0, now = Date.now()) {
 
 function runProgressDisplayEvents(events = [], startMs = 0) {
   const visible = runProgressVisibleEvents(events, startMs);
-  const startEvents = visible.filter(isRunProgressStartEvent);
-  const runtimeEvents = visible.filter((event) => !isRunProgressStartEvent(event)).slice(-3);
-  return [...startEvents, ...runtimeEvents];
+  return visible.slice(-RUN_PROGRESS_MAX_VISIBLE_EVENTS);
+}
+
+function normalizeRunProgressId(value) {
+  return String(value || "").trim();
+}
+
+function uniqueRunProgressIds(values = []) {
+  return [...new Set((values || []).map(normalizeRunProgressId).filter(Boolean))];
+}
+
+function messageOwnRunIds(message = {}) {
+  return uniqueRunProgressIds([
+    message.originalRunId,
+    message.responseRunId,
+    message.runId,
+    message.taskId,
+  ]);
+}
+
+function threadActiveRunIds(thread = {}) {
+  return uniqueRunProgressIds([
+    thread?.activeRunId,
+    ...(Array.isArray(thread?.activeRunIds) ? thread.activeRunIds : []),
+  ]);
+}
+
+function messageStatusCanHaveRunProgress(message = {}) {
+  return ["queued", "running", "done", "failed", "cancelled"].includes(String(message?.status || ""));
+}
+
+function messageStatusIsActive(message = {}) {
+  return ["queued", "running"].includes(String(message?.status || ""));
+}
+
+function runProgressMessageKey(thread, message = {}) {
+  const threadId = normalizeRunProgressId(thread?.id);
+  const messageId = normalizeRunProgressId(message?.id);
+  return threadId && messageId ? `${threadId}:${messageId}` : "";
+}
+
+function runProgressExtraRunIdStore() {
+  if (!state.runProgressMessageExtraRunIds) state.runProgressMessageExtraRunIds = new Map();
+  return state.runProgressMessageExtraRunIds;
+}
+
+function rememberedMessageRunProgressIds(thread, message = {}) {
+  const key = runProgressMessageKey(thread, message);
+  if (!key || !state.runProgressMessageExtraRunIds) return [];
+  return uniqueRunProgressIds(state.runProgressMessageExtraRunIds.get(key) || []);
+}
+
+function rememberMessageRunProgressId(thread, message = {}, runId) {
+  const id = normalizeRunProgressId(runId);
+  const key = runProgressMessageKey(thread, message);
+  if (!id || !key || messageOwnRunIds(message).includes(id)) return;
+  const store = runProgressExtraRunIdStore();
+  store.set(key, uniqueRunProgressIds([...(store.get(key) || []), id]).slice(-4));
+}
+
+function messageRunProgressIds(thread, message = {}, options = {}) {
+  return uniqueRunProgressIds([
+    ...messageOwnRunIds(message),
+    ...rememberedMessageRunProgressIds(thread, message),
+    ...(Array.isArray(options.extraRunIds) ? options.extraRunIds : []),
+  ]);
 }
 
 function runProgressActiveMessages(thread, runIds) {
   const runSet = new Set((runIds || []).map(String).filter(Boolean));
   return (thread?.messages || [])
-    .filter((message) => ["queued", "running", "done", "failed", "cancelled"].includes(String(message?.status || "")))
-    .filter((message) => !runSet.size || runSet.has(String(message?.runId || "")));
+    .filter(messageStatusCanHaveRunProgress)
+    .filter((message) => !runSet.size || messageOwnRunIds(message).some((id) => runSet.has(id)));
 }
 
 function runProgressStartMs(thread, runIds, events) {
@@ -252,7 +412,7 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
   if (!ids.length) return "";
   const allEvents = runProgressEvents(thread, ids);
   const startMs = runProgressStartMs(thread, ids, allEvents);
-  const events = runProgressDisplayEvents(allEvents, startMs);
+  const events = runProgressDisplayEvents(runProgressEventsWithFunctionNames(allEvents), startMs);
   const eventTimes = allEvents.map((event) => runProgressTimestampMs(event.timestamp)).filter(Boolean);
   const lastEventMs = eventTimes.length ? Math.max(...eventTimes) : 0;
   const quietRow = renderRunProgressQuietRow(lastEventMs, startMs);
@@ -281,17 +441,12 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
   </aside>`;
 }
 
-function renderMessageRunProgress(thread, message = {}) {
+function renderMessageRunProgress(thread, message = {}, options = {}) {
   if (message?.role !== "assistant") return "";
   const status = String(message.status || "");
-  if (!["queued", "running", "done", "failed", "cancelled"].includes(status)) return "";
+  if (!messageStatusCanHaveRunProgress(message)) return "";
   if (RUN_PROGRESS_TERMINAL_STATUSES.has(status)) return "";
-  const runIds = [
-    message.originalRunId,
-    message.responseRunId,
-    message.runId,
-    thread?.activeRunId,
-  ].map((value) => String(value || "").trim()).filter(Boolean);
+  const runIds = messageRunProgressIds(thread, message, options);
   if (!runIds.length) return "";
   return renderRunProgressPanel(thread, runIds, {
     inline: true,
@@ -300,30 +455,79 @@ function renderMessageRunProgress(thread, message = {}) {
 }
 
 function messageForRunProgress(thread, runId) {
-  const id = String(runId || "").trim();
+  const id = normalizeRunProgressId(runId);
   if (!thread || !id) return null;
-  return (thread.messages || []).find((message) => (
+  const messages = Array.isArray(thread.messages) ? thread.messages : [];
+  const direct = [...messages].reverse().find((message) => (
     message?.role === "assistant"
-    && ["queued", "running", "done", "failed", "cancelled"].includes(String(message.status || ""))
-    && [
-      message.runId,
-      message.originalRunId,
-      message.responseRunId,
-      thread.activeRunId,
-    ].map((value) => String(value || "").trim()).includes(id)
+    && messageStatusCanHaveRunProgress(message)
+    && messageOwnRunIds(message).includes(id)
+  ));
+  if (direct) return direct;
+  const activeIds = new Set(threadActiveRunIds(thread));
+  if (!activeIds.has(id)) return null;
+  return [...messages].reverse().find((message) => (
+    message?.role === "assistant"
+    && messageStatusIsActive(message)
   )) || null;
 }
 
-function renderMessageRunProgressInPlace(thread, message = {}) {
+function shouldKeepRunProgressPinnedToBottom(conversation = $("conversation")) {
+  if (!conversation) return false;
+  if (typeof conversationViewportRefreshApplies === "function" && !conversationViewportRefreshApplies()) return false;
+  if (typeof shouldFollowConversationBottomDuringViewport === "function") {
+    return shouldFollowConversationBottomDuringViewport();
+  }
+  if (typeof shouldForceChatStickToBottom === "function" && shouldForceChatStickToBottom()) return true;
+  if (state.conversationPinnedToBottom) return true;
+  if (typeof isNearBottom === "function") return isNearBottom(220);
+  const bottomOffset = Math.max(0, conversation.scrollHeight - conversation.scrollTop - conversation.clientHeight);
+  return bottomOffset < 220;
+}
+
+function stickRunProgressToConversationBottom(conversation, shouldStick) {
+  if (!conversation || !shouldStick) return;
+  const now = Date.now();
+  state.conversationViewportBottomFollowUntil = Math.max(
+    Number(state.conversationViewportBottomFollowUntil || 0),
+    now + 2500
+  );
+  state.suppressConversationPinUntil = Math.max(
+    Number(state.suppressConversationPinUntil || 0),
+    now + 500
+  );
+  state.conversationPinnedToBottom = true;
+  const stick = () => {
+    if (typeof scrollConversationToBottom === "function") {
+      scrollConversationToBottom();
+    } else {
+      conversation.scrollTop = conversation.scrollHeight;
+      state.conversationPinnedToBottom = true;
+    }
+    if (typeof scheduleMessageScrollButtonVisibility === "function") {
+      scheduleMessageScrollButtonVisibility(conversation);
+    }
+  };
+  requestAnimationFrame(() => {
+    stick();
+    requestAnimationFrame(stick);
+  });
+  window.setTimeout(stick, 260);
+}
+
+function renderMessageRunProgressInPlace(thread, message = {}, options = {}) {
   if (!thread || !message?.id) return false;
   const article = messageElementById(message.id);
   const body = article?.querySelector?.(".message-body");
   if (!article || !body) return false;
+  const conversation = $("conversation");
+  const shouldStick = shouldKeepRunProgressPinnedToBottom(conversation);
   const existing = body.querySelector(".run-progress-panel.inline");
-  const html = renderMessageRunProgress(thread, message);
+  const html = renderMessageRunProgress(thread, message, options);
   if (!html) {
     existing?.remove?.();
-    syncRunProgressTicker($("conversation"));
+    syncRunProgressTicker(conversation);
+    stickRunProgressToConversationBottom(conversation, shouldStick);
     return true;
   }
   if (existing) {
@@ -333,7 +537,8 @@ function renderMessageRunProgressInPlace(thread, message = {}) {
     if (content) content.insertAdjacentHTML("afterend", html);
     else body.insertAdjacentHTML("afterbegin", html);
   }
-  syncRunProgressTicker($("conversation"));
+  syncRunProgressTicker(conversation);
+  stickRunProgressToConversationBottom(conversation, shouldStick);
   scheduleMessageScrollButtonVisibility(article);
   return true;
 }
@@ -343,6 +548,7 @@ function scheduleRunProgressRenderForRun(runId) {
   const thread = state.currentThread;
   const message = messageForRunProgress(thread, id);
   if (!id || !message?.id) return false;
+  rememberMessageRunProgressId(thread, message, id);
   const key = `${thread?.id || ""}:${message.id}:${id}`;
   if (state.runProgressRenderScheduled.has(key)) return true;
   state.runProgressRenderScheduled.add(key);
@@ -352,7 +558,7 @@ function scheduleRunProgressRenderForRun(runId) {
     state.runProgressRenderScheduled.delete(key);
     state.runProgressRenderLastAt.set(key, Date.now());
     if (state.currentThread?.id !== thread?.id) return;
-    if (!renderMessageRunProgressInPlace(thread, message)) scheduleRenderCurrentThread();
+    if (!renderMessageRunProgressInPlace(thread, message, { extraRunIds: [id] })) scheduleRenderCurrentThread();
   });
   if (delay) window.setTimeout(render, delay);
   else render();

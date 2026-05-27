@@ -1,6 +1,6 @@
 "use strict";
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260519-x-search-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260527-explicit-search-quality-v1";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
@@ -24,6 +24,8 @@ function createGatewayRunInstructionService(options = {}) {
   const isKanbanCaseTopicThread = typeof options.isKanbanCaseTopicThread === "function"
     ? options.isKanbanCaseTopicThread
     : (() => false);
+  const webSearchMaxCalls = Math.max(0, Math.floor(Number(options.webSearchMaxCalls) || 0));
+  const explicitWebSearchMaxCalls = Math.max(0, Math.floor(Number(options.explicitWebSearchMaxCalls) || 0));
 
   function policyToolsets(policy = {}) {
     return dedupe(policy.allowed_toolsets || policy.allowedToolsets || []);
@@ -100,7 +102,31 @@ function createGatewayRunInstructionService(options = {}) {
     return schemaSensitive ? `${base}_${toolSchemaEpoch}` : base;
   }
 
-  function currentToolSchemaOverrideInstructions(policy = {}) {
+  function explicitSearchContext(buildOptions = {}) {
+    const values = [
+      buildOptions.searchSource,
+      buildOptions.search_source,
+      buildOptions.sourceIntent,
+      buildOptions.source_intent,
+      buildOptions.sourceMode,
+      buildOptions.source_mode,
+    ].map((value) => String(value || "").trim().toLowerCase());
+    const text = values.join(" ");
+    return {
+      explicitWeb: /\b(web|web_search|search|x|x_search)\b/.test(text),
+      explicitX: /\b(x|x_search)\b/.test(text),
+    };
+  }
+
+  function webSearchBudgetForOptions(buildOptions = {}) {
+    const context = explicitSearchContext(buildOptions);
+    if ((context.explicitWeb || context.explicitX) && explicitWebSearchMaxCalls > 0) {
+      return explicitWebSearchMaxCalls;
+    }
+    return webSearchMaxCalls;
+  }
+
+  function currentToolSchemaOverrideInstructions(policy = {}, buildOptions = {}) {
     const lines = [];
     if (policyHasToolset(policy, "http")) {
       lines.push(
@@ -120,10 +146,25 @@ function createGatewayRunInstructionService(options = {}) {
       );
     }
     if (policyHasToolset(policy, "web") || policyHasToolset(policy, "search")) {
+      const budget = webSearchBudgetForOptions(buildOptions);
+      const searchContext = explicitSearchContext(buildOptions);
       lines.push(
         "Current tool schema override: the `web`/`search` toolsets are enabled for this run. Prefer callable function names `mobile_web_search` and `mobile_web_extract`; compatibility names `web_search` and `web_extract` may also be present.",
         "For public web lookup, use `mobile_web_search` when available. For public URL text extraction, use `mobile_web_extract` when available."
       );
+      if (searchContext.explicitWeb) {
+        lines.push(
+          "The newest user request explicitly asks for web/search-backed information. Optimize for source quality, meaningful coverage, and verifiable evidence over saving a small amount of time or tokens.",
+          "Use several focused query refinements when needed, compare independent sources, extract the most relevant pages, and clearly state evidence limits. Do not stop after a shallow first result when the task depends on current or hard-to-find public information."
+        );
+      }
+      if (budget > 0) {
+        lines.push(
+          `Run Web-search budget: use at most ${budget} total Web search calls in this run across \`mobile_web_search\`, \`web_search\`, and hosted \`web_search_call\`.`,
+          "Plan search queries before calling tools, combine related terms, use `mobile_web_extract` for known URLs instead of starting another search, and stop searching once enough evidence is available.",
+          `Do not start a ${budget + 1}th Web search call. If more search would be needed, return the best evidence-labeled partial answer or ask the user for approval to continue instead of continuing the search loop.`
+        );
+      }
     }
     if (policyHasToolset(policy, "x_search")) {
       lines.push(
@@ -165,7 +206,7 @@ function createGatewayRunInstructionService(options = {}) {
       "Do not access, write, summarize, or expose files outside the allowed roots unless the account is unrestricted.",
       formatAccessPolicyInstructionSummary(policy),
       permissionBoundarySkillInstructions(policy),
-      currentToolSchemaOverrideInstructions(policy),
+      currentToolSchemaOverrideInstructions(policy, buildOptions),
       "For current-account Kanban/Todo requests, use Hermes Mobile's Todo/Kanban capability in the current workspace. Do not run raw `hermes kanban` CLI commands or write directly under `~/.hermes/kanban`, because that can target a different local profile than the Mobile app.",
       "Prefer a concise final receipt in the mobile UI. If you create a user-facing artifact, include a MEDIA:<local_path> line so Hermes Mobile can render it as a link card.",
       "Do not send external chat/app messages unless the user explicitly asks for external delivery.",

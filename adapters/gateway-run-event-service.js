@@ -16,6 +16,7 @@ const DEFAULT_RESPONSE_SKILL = Object.freeze({
   path: "response-grounding-baseline",
   namespace: "",
 });
+const TOOLSET_ESCALATION_MARKER = "HERMES_TOOLSET_ESCALATION_REQUIRED";
 
 function compactFallback(value) {
   return value;
@@ -27,6 +28,10 @@ function defaultState() {
 
 function safeErrorMessage(err) {
   return err?.message || String(err || "");
+}
+
+function isSyntheticHermesMobileRunEvent(event = {}) {
+  return Boolean(event.hermes_mobile_synthetic || event.hermesMobileSynthetic);
 }
 
 function parseJsonObject(value) {
@@ -46,6 +51,59 @@ function parseJsonObject(value) {
       return null;
     }
   }
+}
+
+function boundedText(value, maxChars = 240) {
+  const text = cleanString(value);
+  return text.length > maxChars ? text.slice(0, maxChars) : text;
+}
+
+function routeToolsetMetadata(message = {}) {
+  const runOptions = message?.runOptions && typeof message.runOptions === "object" ? message.runOptions : {};
+  const policy = runOptions.access_policy_context && typeof runOptions.access_policy_context === "object"
+    ? runOptions.access_policy_context
+    : {};
+  return runOptions.toolsetRouting || policy.toolset_routing || policy.toolsetRouting || {};
+}
+
+function parseToolsetEscalationRequest(text, message = {}) {
+  const value = String(text || "");
+  const markerAt = value.indexOf(TOOLSET_ESCALATION_MARKER);
+  if (markerAt < 0) return null;
+  const tail = value.slice(markerAt + TOOLSET_ESCALATION_MARKER.length);
+  const parsed = parseJsonObject(tail) || parseJsonObject(value);
+  const requested = uniqueCleanStrings(
+    parsed?.toolsets
+    || parsed?.selected_toolsets
+    || parsed?.selectedToolsets
+    || parsed?.allowed_toolsets
+    || parsed?.allowedToolsets
+    || [],
+  );
+  const routing = routeToolsetMetadata(message);
+  const omitted = uniqueCleanStrings(
+    routing.omitted_authorized_toolsets
+    || routing.omittedAuthorizedToolsets
+    || routing.omitted_toolsets
+    || routing.omittedToolsets
+    || [],
+  );
+  const omittedSet = new Set(omitted);
+  const toolsets = omittedSet.size ? requested.filter((item) => omittedSet.has(item)) : requested;
+  if (!toolsets.length) return null;
+  return {
+    toolsets,
+    reason: boundedText(parsed?.reason || parsed?.message || "model_requested_toolset_expansion"),
+    source: "model_toolset_escalation",
+  };
+}
+
+function toolsetEscalationMessage(request = {}) {
+  const toolsets = uniqueCleanStrings(request.toolsets || []);
+  const reason = boundedText(request.reason || "");
+  const toolsetText = toolsets.length ? toolsets.join(", ") : "additional authorized toolsets";
+  const reasonText = reason ? `\n\nReason: ${reason}` : "";
+  return `当前执行工具集不足，需要重新开放工具集：${toolsetText}。Hermes Mobile 已拦截内部工具集升级标记，没有把原始标记作为答案继续展示。${reasonText}`;
 }
 
 function normalizeSkillReference(value) {
@@ -444,7 +502,7 @@ function createGatewayRunEventService(options = {}) {
       || activeStreams.get(ids.originalRunId)
       || activeStreams.get(ids.responseRunId)
       || null;
-    if (stream) stream.lastEventAt = nowMs();
+    if (stream && !isSyntheticHermesMobileRunEvent(event)) stream.lastEventAt = nowMs();
     const target = findRunTarget(ids.runId)
       || findRunTarget(ids.originalRunId)
       || findRunTarget(ids.responseRunId);
@@ -600,9 +658,12 @@ function createGatewayRunEventService(options = {}) {
     const { thread, message, runId, originalRunId, responseRunId, stream } = context;
     clearStreamingSaveTimer();
     const output = extractCompletedOutput(event) || String(message.content || "");
+    const toolsetEscalationRequest = parseToolsetEscalationRequest(output, message);
     const approvalRequest = modelPermissionApprovalRequest(output, message);
     const validApprovalRequest = isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message) ? null : approvalRequest;
-    const visibleOutput = approvalRequest ? stripPermissionApprovalMarkers(output) : output;
+    const visibleOutput = toolsetEscalationRequest
+      ? toolsetEscalationMessage(toolsetEscalationRequest)
+      : (approvalRequest ? stripPermissionApprovalMarkers(output) : output);
     const completedAt = nowIso();
     message.content = compactFullContent(visibleOutput || output);
     message.status = "done";
@@ -644,6 +705,28 @@ function createGatewayRunEventService(options = {}) {
       message.elevationScope = "";
       message.elevationReason = "";
       message.elevationSource = "";
+    }
+    if (toolsetEscalationRequest) {
+      message.toolsetEscalationRequired = true;
+      message.toolsetEscalationToolsets = toolsetEscalationRequest.toolsets;
+      message.toolsetEscalationReason = toolsetEscalationRequest.reason;
+      message.toolsetEscalationSource = toolsetEscalationRequest.source;
+      addThreadEvent(thread, {
+        event: "run.toolset_escalation_required",
+        timestamp: nowMs() / 1000,
+        runId: responseRunId || message.runId || runId,
+        tool: "toolset",
+        preview: JSON.stringify({
+          toolsets: toolsetEscalationRequest.toolsets,
+          reason: toolsetEscalationRequest.reason,
+        }),
+        error: false,
+      });
+    } else {
+      message.toolsetEscalationRequired = false;
+      message.toolsetEscalationToolsets = [];
+      message.toolsetEscalationReason = "";
+      message.toolsetEscalationSource = "";
     }
     if (!message.firstFeedbackAt && (visibleOutput || output)) message.firstFeedbackAt = completedAt;
     message.completedAt = completedAt;

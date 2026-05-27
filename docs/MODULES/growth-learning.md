@@ -29,6 +29,15 @@ Growth Learning owns learner programs, evergreen task cards, submissions, async 
 - `public/app-learning-growth-teaching-controller.js`
 - `public/app-learning-program-ui.js`
 
+Planned graph-guided card planning files are documented in
+`docs\IMPLEMENTATION_NOTES\growth-knowledge-graph-implementation.md`:
+
+- `adapters/learning-graph-node-service.js`
+- `adapters/learning-graph-repository.js`
+- `adapters/learning-graph-import-service.js`
+- `adapters/learning-graph-plan-service.js`
+- `adapters/learning-card-graph-binding-service.js`
+
 ## Key Routes
 
 - `GET /api/learning-growth/board`
@@ -59,6 +68,15 @@ Important tables include:
 - `learning_growth_experience_signals`
 - `learning_growth_stage_assessment_cycles`
 
+Planned graph-guided card planning tables:
+
+- `learning_graph_nodes`
+- `learning_graph_edges`
+- `learning_graph_domain_packs`
+- `learning_graph_imports`
+- `learning_graph_plans`
+- `learning_card_graph_bindings`
+
 ## State Semantics
 
 - `submitted` without completed evaluation means waiting for AI.
@@ -79,6 +97,10 @@ Important tables include:
 - V1 teaching/practice/integration cards default to 100 coins and 10-15 minutes. V1 stage assessment cards default to 300 coins, 25-30 minutes, and more tasks/questions than daily cards. Backend reward policy can override coin values.
 - New teaching-card behavior uses native Growth board persistence and native Growth SQLite tables. Do not build the new feature around official Kanban compatibility; existing Kanban-linked routes are legacy/current-flow compatibility only.
 - Model-generated cards must pass a structured card contract and validation rules. The model is not trusted to infer pedagogy policy from prose alone; invalid or unsupported output should be rejected, regenerated, downgraded to a repair card, or held for Owner review.
+- New formal model-generated cards should converge on a graph-guided planning contract before publication. The required pre-authoring object is `learningGraphPlan`, which declares target graph node, prerequisites, path, card role sequence, evidence requirements, and assessment coverage when applicable.
+- The native Growth graph layer is a planning and evidence target layer. It does not own canonical workflow state, async evaluation jobs, spoken reflection, reward settlement, Action Inbox, Web Push, or Owner manual pass.
+- The graph schema must support K12 curriculum seed packs while remaining domain-neutral for future packs such as programming, English skill bands, writing, wardrobe/personal workflows, or other Owner-approved learning domains.
+- Temporary graph nodes are allowed when no seed node exists, but they must still declare outcomes, prerequisites, evidence, domain, and summary-only source basis.
 - Model-assisted learning-plan decomposition uses a long-running model budget by default, accepts common structured `dailyPlans` shapes, and may make one model repair pass when the first response is not strict JSON or does not match the plan schema. With `requireModel=true`, deterministic fallback is still not allowed: if the model times out or the repair pass also fails, the draft fails closed.
 - Growth model calls may use either SSE or ordinary JSON responses from Gateway. New learning-plan decomposition and JIT card authoring should prefer streaming responses so `hermesModelText` receives incremental text deltas consistently; non-stream JSON responses must still be surfaced to avoid empty-output invalid JSON failures.
 - For `teaching`, `practice`, and `integration_practice` cards, production JIT generation must return an explicit model-authored `teachingFlow` with micro-lesson, worked example, guided practice, and quick check sections. If `requireModel=true` and the model output omits that structure, publishing fails closed instead of silently using a local split of the old instruction text. Deterministic teaching-flow fallback is only a compatibility/normalization aid for older stored cards, not the production authoring path for new cards.
@@ -91,6 +113,16 @@ Important tables include:
 The detailed design is in `docs\IMPLEMENTATION_NOTES\growth-teaching-card-flow.md`. The code-oriented implementation plan is in `docs\IMPLEMENTATION_NOTES\growth-teaching-card-implementation.md`.
 
 The workflow contract and harness design is in `docs\IMPLEMENTATION_NOTES\growth-learning-workflow-contract-harness.md`. Use it as the gate for changes that touch submission, evaluation, reflection, reward settlement, recovery, or learner-facing workflow projection.
+
+Graph-guided planning docs:
+
+- `docs\IMPLEMENTATION_NOTES\growth-knowledge-graph-requirements.md`
+- `docs\IMPLEMENTATION_NOTES\growth-knowledge-graph-architecture.md`
+- `docs\IMPLEMENTATION_NOTES\growth-knowledge-graph-design.md`
+- `docs\IMPLEMENTATION_NOTES\growth-knowledge-graph-implementation.md`
+
+These docs define the pre-authoring layer for future cards. They do not replace
+the workflow contract.
 
 Card roles:
 
@@ -127,6 +159,7 @@ Learning experience signals:
 - `node tests\app-learning-program-ui.test.js`
 - `node tests\app-learning-growth-task-ui.test.js`
 - `node tests\task-list-ui.test.js`
+- `node tests\learning-growth-knowledge-graph-docs.test.js` for the pre-coding graph contract.
 - `node tests\architecture-refactor-boundary.test.js` for server/service boundary changes.
 
 ## Constraints
@@ -136,3 +169,4 @@ Learning experience signals:
 - Async evaluation work must be durable across listener/Gateway restarts.
 - Mastery profile evidence must be idempotent and auditable by evidence id/source ref.
 - Production card skill ids must be normalized through the capability taxonomy aliases before evidence is recorded; do not drop legacy ids such as `english_reading_comprehension` or `math_ratio_proportional_reasoning`.
+- Future graph-guided card authoring must not publish formal cards from a free-form topic prompt alone; it must use a validated `learningGraphPlan` or an explicitly validated temporary graph node.

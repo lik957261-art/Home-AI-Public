@@ -19,6 +19,14 @@ fail quickly on `openai-codex` with:
 - Direct raw SSE inspection shows `response.completed` while
   `response.output` is `None`.
 
+The same root-cause class can affect Hermes Mobile-owned Gateway plugins that
+call the Codex backend directly. For `gateway-plugins/hermes-mobile-image`,
+`chatgpt_image_edit` may fail with the same `NoneType` error even though the
+tool was selected correctly and `gpt-image-2` was used. In that case, inspect
+the plugin first: it must collect image output from raw streamed
+`response.output_item.done` / partial-image events and must not call the SDK
+high-level `responses.stream()` helper or `get_final_response()`.
+
 ## Root Cause Class
 
 This is a provider/SDK streaming compatibility issue, not an Automation,
@@ -135,6 +143,9 @@ Required checks:
 - Minimal `AIAgent._run_codex_stream()` probe returns `status=completed`.
 - Direct low Gateway `/v1/responses` smoke returns `response.completed` and no
   `run.error` or `NoneType`.
+- For ChatGPT Image 2 editing, `node tests\hermes-mobile-image-plugin.test.js`
+  passes and a small direct low Gateway `chatgpt_image_edit` smoke returns
+  `ok=true` with a PNG output file.
 - Hermes Mobile production smoke through Gateway Pool returns a completed
   assistant message with a non-secret worker label.
 - Authenticated `/api/status?detail=1` reports all expected workers healthy.

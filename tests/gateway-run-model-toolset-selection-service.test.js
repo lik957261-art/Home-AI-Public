@@ -10,7 +10,7 @@ const {
 
 function baseRequest() {
   return {
-    runPolicy: { allowed_toolsets: ["file", "weather", "x_search", "web"] },
+    runPolicy: { allowed_toolsets: ["file", "weather", "x_search", "web", "search", "http", "clarify"] },
     body: {
       input: "Update wardrobe weather tags",
       conversation: "conv_1",
@@ -21,6 +21,10 @@ function baseRequest() {
       searchSource: "",
       sourceIntent: "",
       sourceMode: "",
+    },
+    toolsetRouting: {
+      suggested_toolsets: ["file", "weather"],
+      suggested_reason: "matched_intent",
     },
   };
 }
@@ -94,7 +98,10 @@ function testBuildsCompactSelectorBodyWithoutCallableToolsets() {
   assert.match(body.instructions, /hermes-mobile-permission-boundary-check/);
   assert.match(body.instructions, /Do not browse, search, call tools, or load skills/);
   assert.match(body.instructions, /"decision":"needs_elevation"/);
-  assert.match(body.instructions, /If the permission is allowed but the task is ambiguous, select every authorized toolset/);
+  assert.match(body.instructions, /do not select every authorized toolset merely because the task is ambiguous/i);
+  assert.match(body.instructions, /use suggested_toolsets when it is non-empty/i);
+  const summary = JSON.parse(body.instructions.split(/\n/).slice(-1)[0]);
+  assert.deepEqual(summary.suggested_toolsets, ["file", "weather"]);
 }
 
 function testSelectorModelOverrideUsesLightweightModel() {
@@ -143,12 +150,86 @@ async function testStreamsSelectorAndReturnsAuthorizedSelection() {
   assert.equal(result.ok, true);
   assert.equal(result.mode, "model_first");
   assert.deepEqual(result.selectedToolsets, ["weather", "file"]);
-  assert.deepEqual(result.authorizedToolsets, ["file", "weather", "x_search", "web"]);
+  assert.deepEqual(result.authorizedToolsets, ["file", "weather", "x_search", "web", "search", "http", "clarify"]);
   assert.equal(calls[1].options.gatewayUrl, "http://worker");
   assert.equal(calls[1].options.timeoutMs, 45000);
   assert.equal(calls[1].body.model, "gpt-5.4-mini");
   assert.equal(calls[1].body.provider, "openai-codex");
   assert.deepEqual(calls[1].body.access_policy_context.allowed_toolsets, []);
+}
+
+async function testUncertainAllToolsetsSelectionNarrowsToSuggestedToolsets() {
+  const request = baseRequest();
+  request.body.input = "测试";
+  request.toolsetRouting = {
+    suggested_toolsets: ["clarify"],
+    suggested_reason: "plain_chat_light_tools",
+  };
+  const service = createGatewayRunModelToolsetSelectionService({
+    gatewayPool: {
+      runnerFor() {
+        return {
+          async streamResponses(_body, options) {
+            options.onEvent({
+              event: "response.output_text.delta",
+              delta: JSON.stringify({
+                decision: "allowed",
+                toolsets: ["file", "weather", "x_search", "web", "search", "http", "clarify"],
+                reason: "具体工具需求不明确，选择全部已授权工具集",
+              }),
+            });
+          },
+        };
+      },
+    },
+  });
+
+  const result = await service.selectToolsetsForRun({
+    request,
+    gatewayTarget: { apiBase: "http://worker" },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.selectionConstrained, true);
+  assert.deepEqual(result.selectedToolsets, ["clarify"]);
+  assert.match(result.reason, /narrowed_to_suggested_toolsets/);
+}
+
+async function testPlainProbeClarifySelectionExpandsToSuggestedToolsets() {
+  const request = baseRequest();
+  request.body.input = "测试";
+  request.toolsetRouting = {
+    suggested_toolsets: ["web", "search", "x_search", "http", "clarify"],
+    suggested_reason: "plain_chat_light_tools",
+  };
+  const service = createGatewayRunModelToolsetSelectionService({
+    gatewayPool: {
+      runnerFor() {
+        return {
+          async streamResponses(_body, options) {
+            options.onEvent({
+              event: "response.output_text.delta",
+              delta: JSON.stringify({
+                decision: "allowed",
+                toolsets: ["clarify"],
+                reason: "plain test message",
+              }),
+            });
+          },
+        };
+      },
+    },
+  });
+
+  const result = await service.selectToolsetsForRun({
+    request,
+    gatewayTarget: { apiBase: "http://worker" },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.selectionConstrained, true);
+  assert.deepEqual(result.selectedToolsets, ["web", "search", "x_search", "http", "clarify"]);
+  assert.match(result.reason, /expanded_to_suggested_toolsets/);
 }
 
 async function testSelectorErrorsReturnFullFallbackMetadata() {
@@ -171,7 +252,7 @@ async function testSelectorErrorsReturnFullFallbackMetadata() {
 
   assert.equal(result.ok, false);
   assert.equal(result.reason, "selector_error");
-  assert.deepEqual(result.selectedToolsets, ["file", "weather", "x_search", "web"]);
+  assert.deepEqual(result.selectedToolsets, ["file", "weather", "x_search", "web", "search", "http", "clarify"]);
   assert.match(result.error, /timeout/);
 }
 
@@ -212,6 +293,10 @@ assert.deepEqual(buildCapabilityCatalog(["file"])[0], {
   id: "file",
   summary: "Read permitted workspace files and document attachments.",
 });
+assert.deepEqual(buildCapabilityCatalog(["wardrobe"])[0], {
+  id: "wardrobe",
+  summary: "Read, write, and verify the current workspace wardrobe database through the Wardrobe MCP.",
+});
 testParsesJsonAndFiltersUnauthorizedToolsets();
 testParsesPermissionDecisionBeforeToolsets();
 testParsesLastBalancedJsonWhenStreamRepeatsOutput();
@@ -219,6 +304,8 @@ testInvalidSelectionFallsBack();
 testBuildsCompactSelectorBodyWithoutCallableToolsets();
 testSelectorModelOverrideUsesLightweightModel();
 testStreamsSelectorAndReturnsAuthorizedSelection()
+  .then(testUncertainAllToolsetsSelectionNarrowsToSuggestedToolsets)
+  .then(testPlainProbeClarifySelectionExpandsToSuggestedToolsets)
   .then(testSelectorErrorsReturnFullFallbackMetadata)
   .then(testSelectorErrorStopsKnownSelectorRun)
   .then(() => console.log("gateway-run-model-toolset-selection-service tests passed"))

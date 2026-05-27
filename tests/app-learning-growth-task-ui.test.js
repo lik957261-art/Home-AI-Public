@@ -134,6 +134,16 @@ function testTeachingCardDetailRendersLessonPracticeAndCheck() {
       quickCheck: { prompt: "\u7528\u4e00\u53e5\u8bdd\u8bf4\u660e\u4e3b\u65e8\u3002", completionCriteria: ["\u5199\u51fa\u4e3b\u65e8"] },
     },
   };
+  const assertNoDifficultyActions = (rendered) => {
+    assert.doesNotMatch(rendered, /data-learning-growth-experience-actions/);
+    assert.doesNotMatch(rendered, /data-learning-growth-experience-signal="teach-1"/);
+    assert.doesNotMatch(rendered, /data-signal-type="too_easy"/);
+    assert.doesNotMatch(rendered, /data-signal-type="right_level"/);
+    assert.doesNotMatch(rendered, /data-signal-type="too_hard"/);
+    assert.doesNotMatch(rendered, /\u592a\u7b80\u5355/);
+    assert.doesNotMatch(rendered, /\u6b63\u5408\u9002/);
+    assert.doesNotMatch(rendered, /\u6709\u70b9\u96be/);
+  };
   const lessonHtml = TaskUi.renderTeachingCardDetail(task, {
     state: {
       learningGrowthTeachingStepByCardId: { "teach-1": "lesson" },
@@ -144,6 +154,15 @@ function testTeachingCardDetailRendersLessonPracticeAndCheck() {
   assert.match(lessonHtml, /\u5148\u8bf4\u4e3b\u65e8/);
   assert.match(lessonHtml, /\u5148\u770b\u4e00\u4e2a\u793a\u8303/);
   assert.match(lessonHtml, /\u8fd9\u6bb5\u4e3b\u8981\u5728\u8bb2/);
+  assertNoDifficultyActions(lessonHtml);
+  const guidedHtml = TaskUi.renderTeachingCardDetail(task, {
+    state: {
+      learningGrowthTeachingStepByCardId: { "teach-1": "guided_practice" },
+      learningGrowthTeachingDrafts: { "teach-1": { guidedPracticeText: "draft", quickCheckText: "check" } },
+    },
+  });
+  assert.match(guidedHtml, /\u627e\u5230\u4e00\u53e5\u4e3b\u65e8\u53e5/);
+  assertNoDifficultyActions(guidedHtml);
   const html = TaskUi.renderTeachingCardDetail(task, {
     state: {
       learningGrowthTeachingStepByCardId: { "teach-1": "quick_check" },
@@ -154,10 +173,7 @@ function testTeachingCardDetailRendersLessonPracticeAndCheck() {
   assert.match(html, /\u6559\u5b66\u5361/);
   assert.match(html, /\u5206\u6bb5\u9605\u8bfb/);
   assert.match(html, /data-learning-growth-teaching-check-form="teach-1"/);
-  assert.doesNotMatch(html, /data-learning-growth-experience-signal="teach-1"/);
-  assert.doesNotMatch(html, /data-signal-type="too_easy"/);
-  assert.doesNotMatch(html, /data-signal-type="right_level"/);
-  assert.doesNotMatch(html, /data-signal-type="too_hard"/);
+  assertNoDifficultyActions(html);
   assert.doesNotMatch(html, /data-signal-type="not_learned"/);
   assert.doesNotMatch(html, /data-learning-growth-stage-assessment-challenge="teach-1"/);
   assert.doesNotMatch(html, /data-learning-open-growth-history="teach-1"/);

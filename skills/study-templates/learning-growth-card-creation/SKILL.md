@@ -26,6 +26,31 @@ Create structured card data, not a generic Todo. Every executable Growth card mu
 
 For Fanfan, the current executor workspace/account id is `weixin_stephen` unless a service-level learner binding says otherwise.
 
+## Graph-Guided Planning Requirement
+
+Formal model-generated Growth cards should be planned from a graph node before
+publication. When the graph layer is available, every new formal card must
+include or reference:
+
+- `learningGraphPlanId`
+- `targetNodeId`
+- `prerequisiteNodeIds`
+- `pathNodeIds`
+- `cardRole`
+- `evidenceRequired`
+- `difficultyBand`
+- `assessmentCoverageNodeIds` for `stage_assessment` cards
+
+If no native graph node exists yet, create a validated temporary graph node
+instead of publishing from a free-form topic prompt alone. The temporary node
+must still declare domain, learning outcomes, prerequisites, evidence
+requirements, and source basis.
+
+Graph planning is a card-authoring constraint only. It must not bypass the
+Hermes Mobile Growth workflow services for state transitions, evaluation,
+reflection, reward settlement, mastery evidence, or Action Inbox/Web Push
+delivery.
+
 ## Prompt Requirements
 
 Do not create a card that says only "submit output" or "study output". The card must tell the learner what to do.

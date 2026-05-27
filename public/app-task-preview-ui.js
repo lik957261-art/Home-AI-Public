@@ -58,7 +58,7 @@
   }
 
   function canShareFiles(files) {
-    return Boolean(navigator.share && navigator.canShare && navigator.canShare({ files }));
+    return Boolean(navigator.share && (!navigator.canShare || navigator.canShare({ files })));
   }
 
   function isUserCancelledShare(err) {
@@ -106,6 +106,32 @@
       return true;
     }
     return copyPreviewLink(shareUrl);
+  }
+
+  async function fetchPreviewBlob(url) {
+    const sourceUrl = previewShareUrl(url);
+    if (!sourceUrl) throw new Error("没有可保存的图片地址");
+    const headers = {};
+    const key = global.localStorage?.getItem("hermesWebKey") || "";
+    if (key) headers["X-Hermes-Web-Key"] = key;
+    const res = await fetch(sourceUrl, { headers });
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    return res.blob();
+  }
+
+  async function savePreviewImageToAlbum(input = {}) {
+    const root = input.root;
+    const title = input.title || "image";
+    transientPreviewStatus(root, "正在准备图片...");
+    const blob = await fetchPreviewBlob(input.sourceUrl || "");
+    const file = new File([blob], title, { type: blob.type || input.mime || "image/*" });
+    if (canShareFiles([file])) {
+      await navigator.share({ files: [file], title });
+      transientPreviewStatus(root, "已打开系统保存面板", "success");
+      return;
+    }
+    downloadGeneratedBlob(blob, title);
+    transientPreviewStatus(root, "已请求保存图片；如未进入相册，请长按图片保存。", "success");
   }
 
   function closePreviewMenus(except) {
@@ -345,6 +371,8 @@
       transientPreviewStatus(root, "已转发到群", "success");
     } else if (action === "system") {
       await sharePreviewLink(sourceUrl, title);
+    } else if (action === "save-album") {
+      await savePreviewImageToAlbum(input);
     } else if (action === "copy") {
       await copyPreviewLink(previewShareUrl(sourceUrl));
       transientPreviewStatus(root, "已复制链接", "success");
@@ -371,6 +399,7 @@
           <div class="task-preview-more-menu" role="menu" hidden>
             <button type="button" role="menuitem" data-preview-action="weixin">分享到微信</button>
             <button type="button" role="menuitem" data-preview-action="group">分享到群</button>
+            <button type="button" role="menuitem" data-preview-action="save-album">保存到相册</button>
             <button type="button" role="menuitem" data-preview-action="system">系统分享</button>
             <button type="button" role="menuitem" data-preview-action="copy">复制链接</button>
             <button type="button" role="menuitem" data-preview-action="open">打开原始文件</button>

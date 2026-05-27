@@ -42,6 +42,9 @@ This file records durable product rules that implementation must preserve.
 - Ordinary teaching/practice cards should normally target 10-15 minutes. Stage assessment cards should normally target 25-30 minutes and include more tasks/questions than daily cards.
 - New teaching/practice/stage-assessment behavior belongs to the native Hermes Mobile Growth board and native Growth SQLite persistence, not official Kanban compatibility.
 - Model-generated Growth cards must follow structured teaching/practice/assessment contracts and validation rules; unsupported high-pressure tasks should not be published just because the model generated them.
+- Formal model-generated Growth cards should be graph-guided before publication. Card generation should start from a validated `learningGraphPlan` that declares the target node, prerequisite nodes, card role, evidence requirement, and stage-assessment coverage when applicable.
+- Growth knowledge graph data is a planning/evidence layer, not a replacement for card workflow state. Evaluation, reflection, reward settlement, and completion remain owned by the existing Growth workflow services.
+- Growth graph schema must support K12 seed packs without being hard-coded to K12. Future domain packs may describe programming, English skill bands, writing, personal workflows, or other Owner-approved learning domains.
 - Growth scoring is evidence-based. A score can reach the numeric line while the card is still incomplete if a revision/reflection gate remains.
 - AI evaluation must be asynchronous and durable when grading can take time. Restarting listener or Gateway should not lose accepted evaluation work.
 - Learning records must be summary-only. Do not expose full child answers, transcripts, questions, answer keys, or prompts in planning records, docs, or handoffs.
@@ -60,6 +63,7 @@ This file records durable product rules that implementation must preserve.
 - ChatGPT Pro long runs may take 20-30 minutes. Product timeouts and watchdogs must not terminate them early.
 - ChatGPT Pro generated files are temporary artifacts and should default under production data temp, not the source checkout or repo-level `outputs/`.
 - Gateway watchdogs may repair genuinely dead workers, but must not replace a busy maintenance worker merely because `/health` is slow during a long tool call.
+- When the newest user request explicitly asks to search the web or X, Hermes Mobile should optimize for useful, verifiable information quality over saving a small amount of time or token budget. Search-budget guards still prevent runaway loops, but they must allow several focused query refinements, independent-source comparison, extraction of relevant pages, and evidence-labeled limits before the run stops or asks for approval to continue.
 
 ## Automation And Web Push
 

@@ -32,6 +32,17 @@ Automation/Cron execution, Gateway toolset selection/run telemetry,
 cross-shell production operations, Web Push click routing,
 permission/workspace boundaries, and Public Export/Release.
 
+For graph-guided Growth card planning, the harness must preserve the
+graph-first authoring contract. Formal model-generated cards must require a
+validated `learningGraphPlan` or validated temporary graph node; prerequisites
+must exist and be acyclic; stage assessments must declare graph-node coverage;
+and learner difficulty feedback must update planning evidence without becoming
+formal mastery failure by itself. External seed graphs must be converted into
+native Hermes graph records before runtime use. Public curriculum foundation
+imports must be manifest-driven, must preserve URL/status/hash provenance, and
+must reject paid/restricted materials or learner-level mismatches such as using
+IGCSE/A Level nodes as direct current targets for a Primary learner.
+
 For Gateway toolset selection, the harness must preserve the model-first
 contract. Do not hard-prune callable toolsets before a first-round model
 selection. A first round may use a compact capability catalog, and the
@@ -50,6 +61,14 @@ before the model. If the model-side preflight returns a
 `HERMES_PERMISSION_APPROVAL_REQUIRED`-style decision, execution must not start
 until Owner approval.
 
+Product-specific MCP capabilities are part of the same H1 contract. Wardrobe
+ingestion/recommendation/writeback tests must assert that authorized
+wardrobe-capable runs keep `wardrobe` in the model-selection catalog and can
+select `wardrobe` with `vision`/`file` for image-backed writeback and readback
+verification. A run that has a wardrobe-capable Gateway profile but lacks
+`wardrobe` in `access_policy_context.allowed_toolsets` should be treated as a
+Mobile policy/routing regression, not as a missing Gateway MCP.
+
 The selector is an internal JSON-only preflight. Tests must assert that selector
 requests disable tool calls, that live selector probes do not contain tool-role
 messages, and that repeated JSON candidates from streamed Responses events are
@@ -57,6 +76,43 @@ parsed as a valid final decision rather than `invalid_json`. Tens-of-seconds
 latency is acceptable if the selector reliably returns; latency/cost claims must
 verify the actual Gateway session or worker log model instead of trusting only
 the request body's `model` field.
+
+Run status harnesses must cover no-first-byte visibility. If the execution
+stream receives no Gateway event after the configured warning window, the
+system must emit a user-visible status event without refreshing the real
+Gateway `lastEventAt` used by liveness/stale decisions. Harness coverage should
+also assert visible first-stream-event, first-text-output, liveness warning,
+liveness stale, and stream-failed statuses.
+
+Toolset escalation and retry harnesses must assert that
+`HERMES_TOOLSET_ESCALATION_REQUIRED` is stripped from visible chat content,
+stored as bounded `toolsetEscalationRequired` metadata, and projected as
+`run.toolset_escalation_required`. A later retry/rerun message should reuse
+recent task context or stored escalation metadata to suggest the needed
+authorized toolsets instead of treating retry as a plain probe, including when
+the relevant task context is in the same `taskGroupId` but no longer in the
+global message tail.
+
+Run tool-budget harnesses must prevent both extremes: runaway Web search loops
+must abort when the configured cap is exceeded, but the default cap must not
+kill an ordinary user-requested news/search run on the third search call. The
+instruction harness must also assert that web/search-enabled runs tell the model
+the configured Web-search budget before tool use.
+
+Explicit user-requested web/X search uses the higher explicit-search budget and
+quality-first instruction. Harness coverage must assert that explicit
+`web_search` / `x_search` runs tell the model to prioritize source quality,
+meaningful coverage, and verifiable evidence over small time/token savings,
+while ordinary incidental web-enabled runs keep the normal cap.
+
+Run-progress UI behavior tests must also assert chronological downward row
+ordering, public `web_...` plus response `resp_...` id merging for the same
+assistant message, isolation from unrelated thread active ids so a fast task
+cannot inherit another active chat run's elapsed time or events, and bottom
+visibility when the inline status panel grows while the conversation is already
+following the run. Function-call UI tests must also assert that object-shaped
+previews and paired `callId` result events display the concrete function name
+when available.
 
 For same-window navigation and browser-frame bugs, the required harness must
 cover both root-mounted and prefix-mounted app-shell paths. If the issue is
@@ -123,13 +179,13 @@ The guard test is:
 | API registry/dispatcher | `node tests\api-route-registry.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js` |
 | Multi-user/task platform | `node tests\auth-provider.test.js`, `node tests\access-key-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\conversation-history-service.test.js`, `node tests\action-inbox-service.test.js`, `node tests\web-push-delivery-service.test.js` |
 | Auth/workspace/access keys | `node tests\auth-provider.test.js`, `node tests\access-key-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\workspace-public-projection-service.test.js` |
-| Gateway run lifecycle | `node tests\gateway-run-model-toolset-selection-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\gateway-run-stream-service.test.js`, `node tests\gateway-run-lifecycle-service.test.js`, `node tests\gateway-run-queue-service.test.js`, `node tests\run-liveness.test.js` |
+| Gateway run lifecycle | `node tests\gateway-run-model-toolset-selection-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\gateway-run-stream-service.test.js`, `node tests\gateway-run-lifecycle-service.test.js`, `node tests\gateway-run-queue-service.test.js`, `node tests\run-liveness.test.js`, `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js` |
 | Chat context/compaction | `node tests\conversation-history-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\topic-context-compaction-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\mobile-sqlite-store.test.js` |
-| Gateway Pool/scripts | `node tests\gateway-pool-provider.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\cross-shell-command-harness.test.js` |
+| Gateway Pool/scripts | `node tests\gateway-pool-provider.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\cross-shell-command-harness.test.js`, `node tests\hermes-mobile-image-plugin.test.js` |
 | ChatGPT Pro | `node tests\chatgpt-pro-codex-bridge-service.test.js`, `node tests\owner-elevation-routing-service.test.js`, `node tests\thread-message-create-service.test.js` |
 | Grok/model routing | `node tests\gateway-model-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js` |
 | Web Push | `node tests\web-push-delivery-service.test.js`, `node tests\push-api-routes.test.js`, `node tests\task-list-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
-| Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
+| Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js` |
 | Directory/files/artifacts | `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js` |
 | Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\link-skill-profile-store.test.js` |
@@ -157,9 +213,28 @@ The workflow harness described in `docs\IMPLEMENTATION_NOTES\growth-learning-wor
 
 Until those harness tests exist, implementation agents must add the relevant scenario before claiming the workflow change is complete.
 
+## Planned Growth Knowledge Graph Gate
+
+The graph-guided planning docs in
+`docs\IMPLEMENTATION_NOTES\growth-knowledge-graph-*.md` are the required
+pre-coding gate for future graph-guided Growth card authoring. Current guard:
+
+- `node tests\learning-growth-knowledge-graph-docs.test.js`
+
+Once graph services are implemented, Growth changes that touch graph nodes,
+domain packs, seed import, card graph bindings, or graph-guided card publishing
+should run:
+
+- `node tests\learning-graph-node-service.test.js`
+- `node tests\learning-graph-import-service.test.js`
+- `node tests\learning-graph-plan-service.test.js`
+- `node tests\learning-card-graph-binding-service.test.js`
+- `node tests\learning-growth-knowledge-graph-harness.test.js`
+- the relevant Growth publish/JIT/projection/UI tests from the module table.
+
 ## Production Verification Tiers
 
 - Static-only change: sync static/test files, run syntax/focused UI tests in production app directory, smoke `/api/client-version`.
 - Listener code change: check `/api/status?detail=1` first, backup, sync, run focused tests, listener-only restart, smoke status.
-- Gateway plugin/profile/schema/startup change: backup, sync, run focused checks, restart Gateway Pool, smoke worker health.
+- Gateway plugin/profile/schema/startup change: backup, sync, run focused checks, restart Gateway Pool, smoke worker health. ChatGPT Image 2 plugin changes must also run `node tests\hermes-mobile-image-plugin.test.js` and a bounded direct low Gateway `chatgpt_image_edit` smoke.
 - Data repair: backup data first, apply bounded repair, verify metadata/API results, avoid restart unless runtime memory could overwrite the repair.

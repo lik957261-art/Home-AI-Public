@@ -71,8 +71,9 @@ function testAliasRegistrationAndCleanup() {
   assert.equal(stream.lastEventAt, 2000);
   assert.equal(activeStreams.get("public_run"), stream);
   assert.equal(activeStreams.get("real_response"), stream);
-  assert.equal(events.length, 1);
-  assert.equal(events[0].run_id, "public_run");
+  assert.deepEqual(events.map((event) => event.event), ["run.model_stream_started", "response.created"]);
+  assert.equal(events[0].run_id, "real_response");
+  assert.equal(events[1].run_id, "public_run");
 
   assert.equal(service.activeStreamCount(), 1);
   assert.equal(service.cleanupRunAliases("public_run"), 2);
@@ -237,9 +238,49 @@ async function testReadResponseEventsWrapsGatewayRunnerAndEventHook() {
   assert.equal(receivedOptions.apiKey, "worker-key");
   assert.equal(activeStreams.get("real_response"), stream);
   assert.equal(stream.realRunId, "real_response");
-  assert.deepEqual(events.map((event) => event.event), ["response.created", "message.delta"]);
-  assert.equal(events[0].run_id, "public_run");
-  assert.equal(events[1].run_id, "real_response");
+  assert.deepEqual(events.map((event) => event.event), [
+    "run.model_stream_started",
+    "response.created",
+    "run.model_output_started",
+    "message.delta",
+  ]);
+  assert.equal(events[0].run_id, "real_response");
+  assert.equal(events[1].run_id, "public_run");
+  assert.equal(events[2].run_id, "real_response");
+  assert.equal(events[3].run_id, "real_response");
+}
+
+function testNoFirstEventWarningIsVisibleButDoesNotResetGatewayEventTime() {
+  const activeStreams = new Map();
+  const events = [];
+  const timers = [];
+  const service = createGatewayRunStreamService({
+    activeStreams,
+    gatewayPool: createGatewayPool({
+      streamResponses: async () => new Promise(() => {}),
+    }),
+    nowMs: (() => {
+      let value = 1000;
+      return () => value;
+    })(),
+    onHermesRunEvent: (event) => events.push(event),
+    setTimeout: (fn, ms) => {
+      timers.push({ fn, ms });
+      return { unref() {} };
+    },
+    clearTimeout: () => {},
+    modelFirstByteWarningMs: 45000,
+  });
+
+  const stream = service.streamResponse("public_run", "thread_1", "message_1", { input: "hello" }, {});
+  assert.equal(timers[0].ms, 45000);
+  assert.equal(stream.lastEventAt, 1000);
+  timers[0].fn();
+
+  assert.equal(stream.lastEventAt, 1000);
+  assert.equal(events.at(-1).event, "run.model_first_byte_retrying");
+  assert.equal(events.at(-1).run_id, "public_run");
+  assert.match(events.at(-1).preview, /attempt=1/);
 }
 
 function testGatewayTargetLookup() {
@@ -266,6 +307,80 @@ function testGatewayTargetLookup() {
   });
 }
 
+function testWebSearchBudgetAbortsAfterConfiguredLimit() {
+  const activeStreams = new Map();
+  const controller = createController();
+  const stream = baseStream(controller);
+  const events = [];
+  const service = createGatewayRunStreamService({
+    activeStreams,
+    gatewayPool: createGatewayPool(),
+    nowMs: () => 2000,
+    onHermesRunEvent: (event) => events.push(event),
+    webSearchMaxCalls: 2,
+  });
+  service.registerActiveStream("public_run", stream);
+  service.recordGatewayEvent("public_run", { event: "response.created", response: { id: "real_response" } });
+
+  const first = service.recordGatewayEvent("public_run", {
+    event: "response.output_item.added",
+    response_id: "real_response",
+    item: { type: "function_call", name: "mobile_web_search", call_id: "search_1" },
+  });
+  const second = service.recordGatewayEvent("public_run", {
+    event: "response.output_item.added",
+    response_id: "real_response",
+    item: { type: "function_call", name: "mobile_web_search", call_id: "search_2" },
+  });
+  const third = service.recordGatewayEvent("public_run", {
+    event: "response.output_item.added",
+    response_id: "real_response",
+    item: { type: "function_call", name: "mobile_web_search", call_id: "search_3" },
+  });
+
+  assert.equal(first.toolBudget.action, "counted");
+  assert.equal(second.toolBudget.action, "counted");
+  assert.equal(third.toolBudget.action, "aborted");
+  assert.equal(third.toolBudget.count, 3);
+  assert.equal(third.toolBudget.limit, 2);
+  assert.equal(controller.abortCount, 1);
+  assert.match(stream.failureReason, /mobile_web_search exceeded the configured Web search limit \(3\/2\)/);
+  assert.equal(stream.toolBudgetCounters.webSearch, 3);
+  const budgetEvent = events.find((event) => event.event === "run.tool_budget_exceeded");
+  assert.ok(budgetEvent);
+  assert.equal(budgetEvent.run_id, "real_response");
+  assert.equal(budgetEvent.error, true);
+  assert.match(budgetEvent.preview, /tool=mobile_web_search/);
+  assert.match(budgetEvent.preview, /count=3/);
+  assert.match(budgetEvent.preview, /limit=2/);
+}
+
+function testHostedWebSearchBudgetUsesOutputItemType() {
+  const activeStreams = new Map();
+  const controller = createController();
+  const stream = baseStream(controller);
+  const service = createGatewayRunStreamService({
+    activeStreams,
+    gatewayPool: createGatewayPool(),
+    webSearchMaxCalls: 1,
+  });
+  service.registerActiveStream("public_run", stream);
+
+  const first = service.recordGatewayEvent("public_run", {
+    event: "response.output_item.added",
+    item: { type: "web_search_call", id: "hosted_search_1" },
+  });
+  const second = service.recordGatewayEvent("public_run", {
+    event: "response.output_item.added",
+    item: { type: "web_search_call", id: "hosted_search_2" },
+  });
+
+  assert.equal(first.toolBudget.action, "counted");
+  assert.equal(first.toolBudget.tool, "web_search_call");
+  assert.equal(second.toolBudget.action, "aborted");
+  assert.equal(controller.abortCount, 1);
+}
+
 (async () => {
   testAliasRegistrationAndCleanup();
   await testStopBehaviorUsesAbortThenGatewayStop();
@@ -273,7 +388,10 @@ function testGatewayTargetLookup() {
   await testLivenessStaleAbortWhenOptedIn();
   await testStreamSpecificLivenessOverrides();
   await testReadResponseEventsWrapsGatewayRunnerAndEventHook();
+  testNoFirstEventWarningIsVisibleButDoesNotResetGatewayEventTime();
   testGatewayTargetLookup();
+  testWebSearchBudgetAbortsAfterConfiguredLimit();
+  testHostedWebSearchBudgetUsesOutputItemType();
   console.log("gateway-run-stream-service tests passed");
 })().catch((err) => {
   console.error(err);

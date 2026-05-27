@@ -36,6 +36,22 @@ function isChatGptProRunOptions(runOptions = {}) {
   return text.includes("chatgpt_pro_generate");
 }
 
+function isExplicitWebSearchRunOptions(runOptions = {}) {
+  const text = [
+    runOptions.searchSource,
+    runOptions.search_source,
+    runOptions.sourceIntent,
+    runOptions.source_intent,
+  ].map((value) => cleanString(value).toLowerCase()).join(" ");
+  return /\b(web|web_search|search|x|x_search)\b/.test(text);
+}
+
+function isPlainProbeMessage(text = "") {
+  const value = cleanString(text);
+  if (!value || value.length > 40) return false;
+  return /^(?:test|testing|ping|pong|hi|hello|hey|ok|okay|\u6d4b\u8bd5|\u4f60\u597d|\u6536\u5230|\u597d|\u597d\u7684|\u8c22\u8c22)[\s.!?,\u3002\uff01\uff1f\uff0c]*$/i.test(value);
+}
+
 function maybeCall(fn, fallback) {
   return typeof fn === "function" ? fn : fallback;
 }
@@ -105,6 +121,8 @@ function createGatewayRunStartService(options = {}) {
   const streamResponse = maybeCall(options.streamResponse, () => null);
   const selectRunToolsetsWithModel = typeof options.selectRunToolsetsWithModel === "function" ? options.selectRunToolsetsWithModel : null;
   const nowMs = maybeCall(options.nowMs, () => Date.now());
+  const runWebSearchMaxCalls = Math.max(0, Math.floor(Number(options.runWebSearchMaxCalls) || 0));
+  const runExplicitWebSearchMaxCalls = Math.max(0, Math.floor(Number(options.runExplicitWebSearchMaxCalls) || 0));
 
   function buildGroupChatRunContext(thread, userMessage, policy) {
     const deliveryRoot = thread?.singleWindow && cleanString(userMessage?.taskGroupId) === groupChatTaskGroupId
@@ -190,6 +208,9 @@ function createGatewayRunStartService(options = {}) {
           groupChatAttachmentCopies: groupChat.groupChatAttachmentCopies,
         }),
       ),
+      isPlainProbeMessage(userMessage?.content)
+        ? "Latest-message override: the newest user message is only a ping, greeting, acknowledgement, or plain test. Answer it briefly from current state. Do not infer a previous tool/search intent from conversation history and do not call tools unless the newest message explicitly asks for a tool-backed action."
+        : "",
       runOptions.instructions || "",
     ].filter(Boolean).join("\n\n");
     const conversationHistory = buildConversationHistory(thread, userMessage?.id, runPolicy);
@@ -283,10 +304,14 @@ function createGatewayRunStartService(options = {}) {
   }
 
   function toolsetSelectionRouting(selection = {}, selectedToolsets = []) {
+    const selected = dedupe(selectedToolsets);
+    const authorized = dedupe(selection.authorizedToolsets || []);
+    const omitted = authorized.filter((item) => !selected.includes(item));
     return {
       mode: "model_first",
       reason: cleanString(selection.reason) || "model_selected",
-      selected_toolsets: dedupe(selectedToolsets),
+      selected_toolsets: selected,
+      omitted_authorized_toolsets: omitted,
       authorized_toolset_count: Math.max(0, Number(selection.authorizedToolsets?.length || 0) || 0),
       duration_ms: Math.max(0, Number(selection.durationMs || 0) || 0),
     };
@@ -418,10 +443,16 @@ function createGatewayRunStartService(options = {}) {
       gatewayProfile: gatewayTarget?.profile || "",
       gatewaySource: gatewayTarget?.source || "",
     };
+    if (runExplicitWebSearchMaxCalls > 0 && isExplicitWebSearchRunOptions(runOptions)) {
+      streamOptions.webSearchMaxCalls = runExplicitWebSearchMaxCalls;
+    } else if (runWebSearchMaxCalls > 0) {
+      streamOptions.webSearchMaxCalls = runWebSearchMaxCalls;
+    }
     if (isChatGptProRunOptions(runOptions)) {
       streamOptions.runStartTimeoutMs = CHATGPT_PRO_MIN_WAIT_MS;
       streamOptions.runLivenessCheckAfterMs = CHATGPT_PRO_MIN_WAIT_MS;
       streamOptions.runLivenessStaleAfterMs = 0;
+      streamOptions.modelFirstByteWarningMs = CHATGPT_PRO_MIN_WAIT_MS;
     }
     if (selectRunToolsetsWithModel && !isChatGptProRunOptions(runOptions)) {
       appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_started", "");
@@ -465,7 +496,10 @@ function createGatewayRunStartService(options = {}) {
           selection,
           selectedToolsets,
         );
-        applyAssistantRunOptions(assistantMessage, request, runOptions);
+        request.toolsetRouting = routing;
+        request.runPolicy = Object.assign({}, request.runPolicy || {}, { toolset_routing: routing });
+        request.body.access_policy_context = Object.assign({}, request.body.access_policy_context || {}, { toolset_routing: routing });
+        applyAssistantRunOptions(assistantMessage, request, selectedRunOptions);
         appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_done", toolsetSelectionPreview(selection, selectedToolsets));
       } else if (selection?.enabled) {
         appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_failed", toolsetSelectionFallbackPreview(selection || {}));

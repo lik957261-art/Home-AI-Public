@@ -45,14 +45,98 @@ run id through `/v1/runs/:id`.
 - `HERMES_WEB_RUN_LIVENESS_CHECK_AFTER_MS` defaults to `120000`.
 - `HERMES_WEB_RUN_LIVENESS_CHECK_INTERVAL_MS` defaults to `45000`.
 - `HERMES_WEB_RUN_LIVENESS_STALE_AFTER_MS` defaults to `600000`.
+- `HERMES_MOBILE_RUN_MODEL_FIRST_BYTE_WARNING_MS` /
+  `HERMES_WEB_RUN_MODEL_FIRST_BYTE_WARNING_MS` defaults to `45000`.
 
 Repeated Gateway 404 responses are tolerated only while the stream has recent
 events or remains inside the stale window. After the stale window expires,
 Hermes Mobile marks the Web task failed and releases the queue instead of
 leaving the UI in `running` indefinitely.
 
+Hermes Mobile also projects stream wait states into the run-progress panel:
+
+- `run.model_first_byte_retrying` is emitted when the execution stream has no
+  Gateway event after the first-byte warning window. This is a Mobile status
+  projection and must not reset the real Gateway `lastEventAt` used by liveness.
+- `run.model_stream_started` is emitted when the first Gateway stream event is
+  observed.
+- `run.model_output_started` is emitted when the first text delta is observed.
+- `run.liveness_warning`, `run.liveness_stale`, `run.gateway_start_timeout`,
+  and `run.stream_failed` make retry/stale/failure states visible before the
+  terminal message update.
+- The run-progress client must merge the public Mobile run id and the Gateway
+  response run id for the same assistant message. Startup events are often
+  stored under the public `web_...` id, while model, Skill, and function events
+  arrive under the `resp_...` id. Event-driven refresh should first match the
+  newest assistant message by its own run ids (`runId`, `originalRunId`,
+  `responseRunId`, `taskId`) and only use thread active ids as a fallback for a
+  still-active message.
+- Thread active ids are a targeting fallback, not a general render input.
+  A run-progress panel should render only the current message's own run ids and
+  any response run id that was explicitly remembered for that message through
+  event-driven fallback. This prevents a fast task panel from inheriting the
+  timer or events of a different active chat run in the same thread.
+- Visible run-progress rows should remain chronological. New model, Skill, and
+  function events append downward; the client may cap the visible event count,
+  but it must not move later function rows above earlier startup rows.
+- Inline run-progress refreshes should preserve bottom visibility while the
+  conversation is pinned, near the bottom, or inside the send/run follow window.
+  The client should capture that scroll intent before replacing the panel DOM
+  and then restick to the conversation bottom after the panel grows. If the user
+  has intentionally scrolled away, run-progress refreshes should not hijack the
+  viewport back to the bottom.
+- Function-call status rows should print the concrete function name when
+  available. The client must parse bounded JSON preview objects, object-shaped
+  previews from live SSE payloads, the tool field, and paired `callId` metadata
+  so `Function result` rows can inherit the matching function name instead of
+  staying generic.
+
 ChatGPT Pro bridge runs may still set a stream-specific longer start/liveness
 window because those jobs can be intentionally long-running.
+
+## Run Tool Budgets
+
+Hermes Mobile enforces selected tool budgets in the Gateway stream layer, not
+only through prompt wording. The stream service counts started
+`response.output_item.added` tool calls and aborts the active stream when a
+hard limit is exceeded.
+
+Current enforced budget:
+
+- `HERMES_MOBILE_RUN_WEB_SEARCH_MAX_CALLS` /
+  `HERMES_WEB_RUN_WEB_SEARCH_MAX_CALLS` defaults to `6`.
+- `HERMES_MOBILE_RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS` /
+  `HERMES_WEB_RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS` defaults to `12` for runs
+  whose newest message explicitly selects or asks for web/X search.
+- The counter covers `mobile_web_search`, `web_search`, and hosted
+  `web_search_call` output items.
+- `0` disables this specific cap for a controlled runtime.
+- When exceeded, Hermes Mobile emits `run.tool_budget_exceeded`, aborts the
+  stream, marks the assistant message failed, and releases the queue.
+- When the current run enables the `web` or `search` toolset, Hermes Mobile
+  also injects a model-facing instruction that states the configured search
+  budget, asks the model to plan/combine searches, prefer extraction for known
+  URLs, and return a partial answer or ask for approval instead of starting a
+  search beyond the cap.
+
+This guard exists because bounded official-source lookups can otherwise loop
+through repeated web/browser failures and consume very large token budgets
+without producing a better answer. Product-specific lookup policies may add
+narrower caps, but they should not rely on instructions alone.
+
+Explicit search quality rule:
+
+- If the newest user message explicitly asks for web search, online lookup,
+  public web verification, X/Twitter search, or a source selector marks the run
+  as `web_search` / `x_search`, search quality takes priority over small
+  latency/token savings.
+- The model-facing instruction must tell the worker to use focused query
+  refinements, compare independent sources, extract relevant pages, and report
+  evidence limits instead of stopping after the first shallow result.
+- The hard stream cap remains a safety stop. If the explicit-search cap is not
+  enough, the model should return the best evidence-labeled partial answer or
+  ask the user for approval to continue rather than silently weakening the
+  search.
 
 ## Model-First Toolset Selection
 
@@ -118,6 +202,34 @@ Current runtime behavior:
 - If selection succeeds, execution receives only the selected authorized
   toolsets, and the prompt includes `HERMES_TOOLSET_ESCALATION_REQUIRED` as the
   explicit path for requesting omitted authorized toolsets.
+- `HERMES_TOOLSET_ESCALATION_REQUIRED` is an internal control marker, not a
+  user-facing answer. Completion handling must strip the raw marker, persist
+  `toolsetEscalationRequired` metadata and `run.toolset_escalation_required`,
+  and show a controlled explanation with the requested toolset ids.
+- The selector must not select every authorized toolset merely because the task
+  is ambiguous, a ping, or a plain test message. If a selector response chooses
+  the full authorized set only due uncertainty, Hermes Mobile narrows it to the
+  existing suggested lightweight set before execution, preserving the later
+  escalation path instead of exposing broad schemas up front.
+- Product-specific MCP toolsets that are ordinary current-workspace capabilities
+  must be present in the Mobile run policy before the selector can choose them.
+  Profile registration alone is not enough. For wardrobe tasks, `wardrobe` must
+  be included in the authorized catalog so the selector can choose Wardrobe MCP
+  for writeback, readback verification, and main image / field checks before
+  falling back to generic `http`.
+- For plain chat probes in an existing conversation, the selector should prefer
+  the existing suggested lightweight set over `clarify` alone, because the
+  execution round still receives bounded conversation context and may otherwise
+  request an avoidable toolset escalation.
+- The execution prompt also includes a latest-message override for ping,
+  greeting, acknowledgement, and plain test messages. That override tells
+  the model not to inherit a previous tool/search intent from conversation
+  history unless the newest message explicitly asks for a tool-backed action.
+- A retry/rerun message is not a plain probe when recent task context or
+  toolset-escalation metadata exists. Toolset routing should use that recent
+  context, prioritizing the same `taskGroupId` before the global chat tail, so
+  retries after a narrowed execution can re-select toolsets such as `weather`
+  and `wardrobe` instead of looping with only `file`.
 - The selector is an internal JSON-only preflight. It must not browse, search,
   call tools, or load Skills while selecting permission/toolsets; the selector
   request should disable tool calls and live probes should verify no tool-role
@@ -142,6 +254,16 @@ Current runtime behavior:
 - The same live evidence showed the worker's actual session model was its
   profile default, not necessarily the `body.model` request value, so future
   selector-model tuning must validate the actual worker profile/runtime path.
+- A later live plain-chat probe showed the selector could still spend a model
+  call and then choose every authorized toolset because the prompt treated
+  ambiguity as a reason to fail open. That made the execution round expose
+  `skills`; the main model loaded mandatory Skills and a two-character test
+  reply used about 52k tokens. The selector contract now forbids all-toolset
+  selection solely due uncertainty and narrows that case to the lightweight
+  suggested set.
+- The same hotfix also records `model_first` routing metadata explicitly after
+  selection, because policy sanitization may strip `toolset_routing` from the
+  access policy while the run still needs auditable selected-toolset metadata.
 
 ## Codex Responses Stream Compatibility
 
@@ -184,6 +306,10 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
 - Wardrobe-capable profiles expose toolset `wardrobe` through `platform_toolsets.api_server`.
 - Owner wardrobe profiles bind `wardrobe` to the XuXin wardrobe workspace; WuPing profile `lowgw5` binds it to the WuPing wardrobe workspace.
 - Wardrobe MCP is launched with `--no-workspace-override`; a model call must not switch a Gateway profile to another owner's `.hermes-wardrobe/access-key.txt`.
+- Hermes Mobile access-policy hardening and toolset routing must also preserve
+  `wardrobe`. If a wardrobe ingestion or recommendation run reaches a
+  wardrobe-capable profile without `wardrobe` in `access_policy_context.allowed_toolsets`,
+  that is a Mobile policy/routing bug, not a Gateway MCP registration failure.
 - Profile config changes require a Gateway Pool restart before already-running Gateway processes expose the new callable tool schema.
 
 ## Weather Plugin
@@ -192,6 +318,14 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
 - China city queries should resolve through the plugin's local alias map first. Mapped Chinese names must not be sent directly to Open-Meteo geocoding because that upstream does not reliably support Chinese input.
 - For mapped China cities, the plugin uses `weather.cn` city data first. If that provider fails, it may fall back to Open-Meteo using the mapped English city query instead of the original Chinese input.
 - Unknown Chinese locations should fail closed with `chinese_location_not_mapped` until the alias map is extended.
+- Changes to this plugin require copying the updated plugin into production and restarting Gateway Pool so already-running lowgw profiles reload the callable implementation.
+
+## Image Plugin
+
+- `gateway-plugins/hermes-mobile-image` is a Hermes Mobile-owned profile-local Gateway plugin, not official Hermes runtime source.
+- `image_edit`, `image_erase`, `chatgpt_image_edit`, and `chatgpt_image_erase` call ChatGPT Image 2 through the Codex backend with scoped local input/output paths.
+- The plugin must consume Responses streaming at the event level with `responses.create(..., stream=True)`. It must not use the SDK high-level `responses.stream()` helper or `get_final_response()`, because Codex backend terminal responses may legally arrive with `response.output=None` while useful image output was already emitted in earlier output-item events.
+- Plugin tests must cover `response.output_item.done`, partial image events, and a `response.completed` event whose `response.output` is `None`.
 - Changes to this plugin require copying the updated plugin into production and restarting Gateway Pool so already-running lowgw profiles reload the callable implementation.
 
 ## Watchdog Rule
@@ -210,6 +344,7 @@ It must not replace a maintenance worker during a long tool call merely because 
 - `node tests\gateway-run-event-service.test.js`
 - `node tests\gateway-run-stream-service.test.js`
 - `node tests\gateway-run-lifecycle-service.test.js`
+- `node tests\hermes-mobile-image-plugin.test.js`
 - PowerShell parse check for `scripts\start-gateway-pool.ps1`
 - `/api/status?detail=1` should report expected worker count and healthy workers.
 

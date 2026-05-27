@@ -80,7 +80,7 @@ const { TOOL_ROOT, REPO_ROOT, PUBLIC_ROOT, INDEX_HTML_PATH, LOCAL_CONFIG_ROOT, H
 const { UPDATE_REMOTE_NAME, UPDATE_BRANCH, UPDATE_VERSION_URL, UPDATE_CHECK_TIMEOUT_MS, DEFAULT_TODO_BRIDGE_SCRIPT, DEFAULT_CRON_BRIDGE_SCRIPT, DEFAULT_DIRECTORY_BRIDGE_SCRIPT, DEFAULT_SKILL_BRIDGE_SCRIPT } = runtimeEnv;
 const { HERMES_API_BASE, HERMES_API_TIMEOUT_MS, HERMES_ENV_PATHS, HERMES_API_KEY_PATHS, HERMES_CONFIG_PATHS, EXPLICIT_HERMES_CONFIG_PATHS, ALLOW_WSL_REASONING_CONFIG_LOOKUP } = runtimeEnv;
 const { GATEWAY_POOL_ENABLED, GATEWAY_SKILL_PROFILE_ROUTING, GATEWAY_USAGE_TELEMETRY_ENABLED, GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS, GATEWAY_POOL_HEALTH_TIMEOUT_MS, GATEWAY_POOL_MANIFEST_PATHS } = runtimeEnv;
-const { RUN_START_TIMEOUT_MS, RUN_STREAMING_SAVE_THROTTLE_MS, RUN_LIVENESS_CHECK_AFTER_MS, RUN_LIVENESS_CHECK_INTERVAL_MS, RUN_LIVENESS_STALE_AFTER_MS, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_STOP_TIMEOUT_MS, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_MODEL, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_PROVIDER, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_REASONING_EFFORT, RUN_CONCURRENCY_MAX_GLOBAL, RUN_CONCURRENCY_MAX_PER_WORKSPACE } = runtimeEnv;
+const { RUN_START_TIMEOUT_MS, RUN_STREAMING_SAVE_THROTTLE_MS, RUN_LIVENESS_CHECK_AFTER_MS, RUN_LIVENESS_CHECK_INTERVAL_MS, RUN_LIVENESS_STALE_AFTER_MS, RUN_MODEL_FIRST_BYTE_WARNING_MS, RUN_WEB_SEARCH_MAX_CALLS, RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_STOP_TIMEOUT_MS, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_MODEL, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_PROVIDER, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_REASONING_EFFORT, RUN_CONCURRENCY_MAX_GLOBAL, RUN_CONCURRENCY_MAX_PER_WORKSPACE } = runtimeEnv;
 const { DISABLE_AUTH, AUTH_KEY_PATH, ACCESS_KEYS_PATH, PERMISSION_APPROVAL_MARKER, OWNER_MAINTENANCE_RUNS_ENABLED, OWNER_ELEVATION_DURATION_OPTIONS_MINUTES, OWNER_ELEVATION_DEFAULT_MINUTES, OWNER_ELEVATION_ONCE_TTL_MS } = runtimeEnv;
 const { STATE_PATH, STATE_BACKUP_DIR, MAX_STATE_BACKUPS, STATE_BACKUP_MIN_INTERVAL_MS, AUDIT_EVENT_LOG_PATH, RUNTIME_CONFIG_PATH, SERVICE_STORE_BACKEND, MOBILE_SQLITE_DB_PATH } = runtimeEnv;
 const { SHARED_DIRECTORIES_PATH, LOCAL_WORKSPACES_PATH, WORKSPACE_USERS_PATHS, WORKSPACE_ROUTE_MAP_PATHS, PROJECT_MAP_PATHS, WORKSPACE_UPLOAD_DIR_NAME, WORKSPACE_UPLOAD_SUBDIR } = runtimeEnv;
@@ -173,7 +173,7 @@ function getGatewayRuntimeCompositionService() {
       projectForTaskDirectoryAttachment: (...args) => getSemanticDirectoryAttachmentService().projectForTaskDirectoryAttachment(...args),
       registerArtifactsFromText, runLivenessCheckAfterMs: RUN_LIVENESS_CHECK_AFTER_MS,
       runLivenessCheckIntervalMs: RUN_LIVENESS_CHECK_INTERVAL_MS, runLivenessStaleAfterMs: RUN_LIVENESS_STALE_AFTER_MS,
-      runStartTimeoutMs: RUN_START_TIMEOUT_MS, sanitizePolicy, saveState, singleGatewayRunner, streamingSaveThrottleMs: RUN_STREAMING_SAVE_THROTTLE_MS,
+      modelFirstByteWarningMs: RUN_MODEL_FIRST_BYTE_WARNING_MS, runStartTimeoutMs: RUN_START_TIMEOUT_MS, runExplicitWebSearchMaxCalls: RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS, runWebSearchMaxCalls: RUN_WEB_SEARCH_MAX_CALLS, sanitizePolicy, saveState, singleGatewayRunner, streamingSaveThrottleMs: RUN_STREAMING_SAVE_THROTTLE_MS,
       singleWindowProjectId: SINGLE_WINDOW_PROJECT_ID, state: () => state, stripPermissionApprovalMarkers, supplementGatewayUsage,
       taskDirectoryAttachmentForMessage: (...args) => getSemanticDirectoryAttachmentService().taskDirectoryAttachmentForMessage(...args),
       threadSummary, toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH, topicContextCompactionService: CONTEXT_COMPACTION_ENABLED ? topicContextCompactionService : null, windowsPathToWsl,
@@ -1775,8 +1775,7 @@ function policyHasToolset(policy = {}, toolset = "") {
 function callableFunctionHintsForToolsets(toolsets = []) {
   return gatewayRunInstructionService.callableFunctionHintsForToolsets(toolsets);
 }
-const GATEWAY_TOOL_SCHEMA_EPOCH = "20260519-x-search-v1";
-const gatewayRunInstructionService = createGatewayRunInstructionService({
+const GATEWAY_TOOL_SCHEMA_EPOCH = "20260527-explicit-search-quality-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
   dedupe,
   toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH,
   normalizeSingleWindowMode,
@@ -1784,6 +1783,7 @@ const gatewayRunInstructionService = createGatewayRunInstructionService({
   permissionBoundarySkillInstructions: (policy) => securityBoundaryProvider.permissionBoundarySkillInstructions(policy),
   semanticProjectRoutingInstructions: (...args) => getSemanticDirectoryAttachmentService().semanticProjectRoutingInstructions(...args),
   isKanbanCaseTopicThread: (...args) => getSingleWindowThreadService().isKanbanCaseTopicThread(...args),
+  explicitWebSearchMaxCalls: RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS, webSearchMaxCalls: RUN_WEB_SEARCH_MAX_CALLS,
 });
 const gatewayRunToolsetRoutingService = createGatewayRunToolsetRoutingService({ dedupe }); const gatewayRunModelToolsetSelectionService = createGatewayRunModelToolsetSelectionService({ dedupe, enabled: GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED, gatewayPool: () => gatewayPool(), nowMs: () => Date.now(), selectorModel: GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_MODEL, selectorProvider: GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_PROVIDER, selectorReasoningEffort: GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_REASONING_EFFORT, stopTimeoutMs: GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_STOP_TIMEOUT_MS, timeoutMs: GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS }); const topicContextCompactionService = createTopicContextCompactionService({ store: { getTopicContextSummary: (...args) => mobileSqliteStore().getTopicContextSummary(...args), getTopicWorkingState: (...args) => mobileSqliteStore().getTopicWorkingState(...args), listTopicContextRefs: (...args) => mobileSqliteStore().listTopicContextRefs(...args), upsertTopicContextSummary: (...args) => mobileSqliteStore().upsertTopicContextSummary(...args), upsertTopicWorkingState: (...args) => mobileSqliteStore().upsertTopicWorkingState(...args), replaceTopicContextRefs: (...args) => mobileSqliteStore().replaceTopicContextRefs(...args) }, nowIso }); const conversationHistoryService = createConversationHistoryService({
   policyHasToolset,

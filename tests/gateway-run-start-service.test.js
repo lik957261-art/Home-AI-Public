@@ -312,7 +312,10 @@ function testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext() {
 }
 
 async function testStartRunPreservesSearchSourceRouting() {
-  const { calls, service } = makeHarness();
+  const { calls, service } = makeHarness({
+    runExplicitWebSearchMaxCalls: 12,
+    runWebSearchMaxCalls: 6,
+  });
   const thread = baseThread();
   const user = baseUserMessage();
   const assistant = baseAssistantMessage();
@@ -331,7 +334,19 @@ async function testStartRunPreservesSearchSourceRouting() {
   assert.equal(assistant.runOptions.sourceIntent, "x_search");
   assert.equal(assistant.runOptions.sourceMode, "manual");
   assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["x_search", "web", "search"]);
+  assert.equal(calls.streams[0].options.webSearchMaxCalls, 12);
   assert.deepEqual(assistant.runOptions.toolsetRouting, { mode: "intent", reason: "matched_intent" });
+}
+
+async function testOrdinaryRunUsesDefaultWebSearchBudgetWhenConfigured() {
+  const { calls, service } = makeHarness({
+    runExplicitWebSearchMaxCalls: 12,
+    runWebSearchMaxCalls: 6,
+  });
+
+  await service.startRunForThread(baseThread(), baseUserMessage(), baseAssistantMessage(), {});
+
+  assert.equal(calls.streams[0].options.webSearchMaxCalls, 6);
 }
 
 async function testStartRunUsesModelFirstSelectionBeforeExecution() {
@@ -374,6 +389,71 @@ async function testStartRunUsesModelFirstSelectionBeforeExecution() {
     "run.request_sent",
   ]);
   assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["weather", "file"]);
+}
+
+async function testModelFirstRoutingMetadataSurvivesPolicySanitizer() {
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "weather", "x_search", "web"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+    sanitizePolicy: (policy) => {
+      const copy = Object.assign({}, policy);
+      delete copy.toolset_routing;
+      return copy;
+    },
+    selectRunToolsetsWithModel: async () => ({
+      enabled: true,
+      ok: true,
+      reason: "wardrobe_weather",
+      selectedToolsets: ["weather", "file"],
+      authorizedToolsets: ["file", "weather", "x_search", "web"],
+      durationMs: 120,
+    }),
+  });
+  const assistant = baseAssistantMessage();
+
+  await service.startRunForThread(baseThread(), baseUserMessage(), assistant, {});
+
+  assert.equal(calls.streams[0].body.access_policy_context.toolset_routing.mode, "model_first");
+  assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.selected_toolsets, ["weather", "file"]);
+  assert.equal(assistant.runOptions.toolsetRouting.mode, "model_first");
+  assert.deepEqual(assistant.runOptions.toolsetRouting.selected_toolsets, ["weather", "file"]);
+}
+
+async function testStartRunCanExecuteWardrobeMcpSelection() {
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["wardrobe", "vision", "file", "http", "skills"],
+    }),
+    selectRunToolsetsWithModel: async ({ request }) => {
+      assert.ok(request.runPolicy.allowed_toolsets.includes("wardrobe"));
+      return {
+        enabled: true,
+        ok: true,
+        reason: "wardrobe MCP handles writeback and readback verification",
+        selectedToolsets: ["wardrobe", "vision", "file"],
+        authorizedToolsets: ["wardrobe", "vision", "file", "http", "skills"],
+        durationMs: 1000,
+      };
+    },
+  });
+
+  await service.startRunForThread(
+    baseThread(),
+    baseUserMessage({ content: "\u8fd9\u5f20 LP \u5546\u54c1\u7167\u9700\u8981\u5165\u5e93\u5230\u8863\u6a71" }),
+    baseAssistantMessage(),
+    {},
+  );
+
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["wardrobe", "vision", "file"]);
+  assert.match(calls.streams[0].body.instructions, /Enabled toolsets: wardrobe, vision, file/);
+  assert.match(calls.streams[0].body.instructions, /Omitted authorized toolsets: http, skills/);
+  assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["wardrobe", "vision", "file"]);
 }
 
 async function testStartRunFallsBackWhenModelFirstSelectionFails() {
@@ -454,6 +534,19 @@ function testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions() {
   assert.equal(request.body.access_policy_context.toolset_routing.mode, "minimal");
 }
 
+function testBuildRunRequestOverridesPlainProbeHistoryToolIntent() {
+  const { service } = makeHarness();
+  const request = service.buildRunRequest(
+    baseThread(),
+    baseUserMessage({ content: "test" }),
+    baseAssistantMessage(),
+    {},
+  );
+
+  assert.match(request.body.instructions, /Latest-message override/);
+  assert.match(request.body.instructions, /Do not infer a previous tool\/search intent/);
+}
+
 async function testStartRunUsesSelectedGatewayProviderFallback() {
   const { service } = makeHarness({
     chooseGatewayRunTarget: async () => ({
@@ -484,6 +577,7 @@ async function testChatGptProRunExtendsStreamWaits() {
   assert.equal(calls.streams[0].options.runStartTimeoutMs, 30 * 60 * 1000);
   assert.equal(calls.streams[0].options.runLivenessCheckAfterMs, 30 * 60 * 1000);
   assert.equal(calls.streams[0].options.runLivenessStaleAfterMs, 0);
+  assert.equal(calls.streams[0].options.modelFirstByteWarningMs, 30 * 60 * 1000);
 }
 
 async function testConcurrencyErrorStopsBeforeGatewaySelection() {
@@ -526,10 +620,14 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testStartRunBuildsGatewayRequestAndMutatesStartState();
   testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext();
   await testStartRunPreservesSearchSourceRouting();
+  await testOrdinaryRunUsesDefaultWebSearchBudgetWhenConfigured();
   await testStartRunUsesModelFirstSelectionBeforeExecution();
+  await testModelFirstRoutingMetadataSurvivesPolicySanitizer();
+  await testStartRunCanExecuteWardrobeMcpSelection();
   await testStartRunFallsBackWhenModelFirstSelectionFails();
   await testStartRunStopsBeforeExecutionWhenModelPermissionRequiresElevation();
   testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions();
+  testBuildRunRequestOverridesPlainProbeHistoryToolIntent();
   await testStartRunUsesSelectedGatewayProviderFallback();
   await testChatGptProRunExtendsStreamWaits();
   await testConcurrencyErrorStopsBeforeGatewaySelection();

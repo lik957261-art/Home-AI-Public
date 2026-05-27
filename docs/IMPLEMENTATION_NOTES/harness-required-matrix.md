@@ -92,6 +92,22 @@ profile updates, and Growth board status projection.
 
 Required harness dimensions:
 
+- Formal model-generated card authoring requires a validated `learningGraphPlan`
+  or an explicitly validated temporary graph node before publication.
+- Graph prerequisites must exist, must be acyclic, and must not cross domains
+  without an explicit bridge node.
+- Stage assessments must declare graph-node coverage instead of relying on
+  title text or free-form instructions.
+- Learner experience feedback such as `too_hard`, `not_learned`, or
+  `confusing` may update graph planning evidence but must not directly become a
+  high-confidence mastery failure.
+- Imported external seed nodes must be converted to native Hermes graph records;
+  runtime card workflow must not depend on external repository paths.
+- Public curriculum foundation imports must be manifest-driven. The harness
+  must reject source packs that lack URL/status/hash provenance, attempt to use
+  paid or restricted material as ordinary public seed data, or import IGCSE /
+  A Level nodes as direct current targets for a Primary learner without an
+  explicit bridge plan.
 - Card generation uses model-main behavior when production rules require it.
 - Published card transitions only through allowed events.
 - Submission creates durable evaluation work.
@@ -114,6 +130,10 @@ Primary docs:
 - `docs/IMPLEMENTATION_NOTES/growth-learning-workflow-contract-harness.md`
 - `docs/IMPLEMENTATION_NOTES/growth-teaching-card-flow.md`
 - `docs/IMPLEMENTATION_NOTES/growth-teaching-card-implementation.md`
+- `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-requirements.md`
+- `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-architecture.md`
+- `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-design.md`
+- `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-implementation.md`
 
 ### Action Inbox And Passive Notification Workflow
 
@@ -188,6 +208,33 @@ Required harness dimensions:
 - Harness scenarios must cover model-selected narrow execution, model-requested
   toolset escalation, denied escalation for blocked toolsets, and fallback when
   the model cannot produce a valid toolset selection.
+- Model-requested toolset escalation must not leak
+  `HERMES_TOOLSET_ESCALATION_REQUIRED` as visible chat content. Harness coverage
+  must assert the raw marker is stripped, metadata records only requested
+  authorized toolsets, and a `run.toolset_escalation_required` status event is
+  persisted.
+- Harness scenarios must also cover plain-chat or ping/test messages where the
+  selector is tempted to choose every authorized toolset due uncertainty. That
+  case must narrow to the lightweight suggested set and must not expose `skills`
+  merely because the request is ambiguous.
+- Harness scenarios must cover product-specific MCP toolsets that are ordinary
+  current-workspace capabilities. In particular, wardrobe ingestion and wardrobe
+  read/write/readback verification must keep `wardrobe` in the authorized
+  catalog when the selected Gateway profile exposes Wardrobe MCP; otherwise the
+  model cannot choose the correct MCP path and may over-use generic web/http/file
+  tooling.
+- Plain-chat probes in an existing conversation must prefer the lightweight
+  suggested set over `clarify` alone, so bounded conversation context cannot
+  force an immediate avoidable toolset-escalation response.
+- Execution prompts must include a latest-message override for ping, greeting,
+  acknowledgement, and plain test messages. That scenario must assert the
+  model is told not to reuse a prior tool/search intent from conversation
+  history unless the newest message explicitly requests it.
+- Retry/rerun messages must be tested separately from plain probes. When recent
+  task text or stored toolset-escalation metadata exists, routing should use
+  that context to suggest the needed authorized toolsets for the retry, and it
+  should prioritize same-`taskGroupId` context over unrelated global chat tail
+  messages.
 - Runtime selector code must keep failure non-blocking: invalid JSON, timeout,
   missing Gateway runner, or an empty/unauthorized selection must fall back to
   the original authorized toolsets rather than failing the user run.
@@ -216,9 +263,55 @@ Required harness dimensions:
   expanded callable count, tool-call start/end, final-message start/end, and
   terminal status without storing raw prompts, raw model responses, secrets, or
   user private content.
+- Stream-wait telemetry must make no-first-byte and liveness stalls visible:
+  no Gateway stream event after the configured warning window must emit a
+  user-visible status event, first stream event and first text output must be
+  distinguishable, and synthetic Mobile status events must not refresh the real
+  Gateway event timestamp used for stale/liveness decisions.
+- Run tool budgets must be enforced in the stream layer for bounded network
+  tools. At minimum, `mobile_web_search`, `web_search`, and hosted
+  `web_search_call` events must count toward the configured Web-search cap,
+  emit `run.tool_budget_exceeded`, abort the stream, mark the message failed,
+  and release the queue when exceeded. The default cap must allow ordinary
+  user-requested news/search tasks to perform several query refinements while
+  still stopping runaway loops well below historical multi-dozen-search
+  failures. The run instruction harness must also verify that web/search runs
+  tell the model the configured Web-search budget and require it to stop before
+  opening a search beyond the cap, returning a partial evidence-labeled answer
+  or asking for approval when more search is needed.
+- Explicit search quality is part of the same H1 contract. When the newest
+  user message or source selector explicitly asks for web/X search, the
+  instruction and stream-budget harness must use the explicit-search budget,
+  must tell the model that source quality, meaningful coverage, and verifiable
+  evidence outrank small time/token savings, and must still rely on the stream
+  cap to stop runaway loops. Harness coverage must distinguish explicit
+  search from incidental web-enabled runs.
 - UI/status projection must distinguish at least: waiting for model selection,
   waiting for tool result, generating final message, completed, failed, and
-  stale/liveness-failed.
+  stale/liveness-failed. Budget-exceeded failures must be visible in the run
+  status window instead of appearing as a generic silent stop.
+- Run status projection should keep the latest real tool/model event visible
+  without reordering later function events above earlier startup rows. Rows
+  should remain chronological and append downward, with a bounded visible row
+  count if needed.
+- Inline run-progress growth is part of the scroll contract. If the user is
+  pinned/near bottom or inside the send/run follow window, replacing a longer
+  status panel must restick to the newest status area after the DOM grows. If
+  the user has intentionally scrolled away, the refresh must not force the
+  viewport back to the bottom.
+- Function-call projection must expose the concrete function name whenever the
+  stream event contains it directly or through paired `callId` metadata. The
+  UI should avoid generic `Function call` / `Function result` labels when a
+  bounded preview object, parsed JSON field, tool field, or adjacent call/result
+  event identifies the function.
+- Run-progress event refresh must prefer newest-message own-id matching
+  (`runId`, `originalRunId`, `responseRunId`, `taskId`) before thread active-id
+  fallback, so response-run events cannot update an older terminal assistant
+  message while the current phone panel remains stuck on startup rows.
+- Thread active ids must be used only to target a fallback message and remember
+  that run id for the target message; they must not be merged into every panel
+  at render time, because concurrent or stale active runs can corrupt elapsed
+  time and visible function rows.
 
 Primary docs and tests:
 
@@ -431,6 +524,8 @@ Required contract dimensions:
 - Sending a message pins to the newest message/run-status area unless the user
   intentionally navigated away.
 - Run/status box insertion does not restore stale scroll offsets.
+- Run/status box growth from later model, Skill, or function events keeps the
+  bottom rows visible while the conversation is following the run.
 - SSE refreshes do not jump to old history after the run appears.
 - Keyboard viewport changes do not hide the composer or force a stale scroll
   restore.
@@ -455,6 +550,9 @@ Required contract dimensions:
 - Existing tabs do not disappear unintentionally.
 - Top-right menu availability follows the active view contract.
 - Stale clients are prompted to refresh through `/api/client-version`.
+- Mobile shell changes keep the OS status bar visible; time, battery, and
+  Wi-Fi indicators must not disappear behind browser-shell guards,
+  full-viewport overlays, or safe-area changes.
 
 Primary docs:
 

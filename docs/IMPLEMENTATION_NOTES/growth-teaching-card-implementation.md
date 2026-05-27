@@ -26,6 +26,22 @@ V1 is implemented as native Growth behavior rather than a Kanban compatibility l
 - `server-routes/learning-growth-card-api-routes.js` exposes the native V1 routes.
 - Frontend branching is in `public/app-learning-growth-ui.js`, `public/app-learning-growth-task-ui.js`, and `public/app-learning-growth-teaching-controller.js`. Teaching/practice cards render a lesson -> guided practice -> quick check flow; `stage_assessment` continues using the existing formal native submission UI.
 
+## Graph-Guided Pre-Authoring Status - 2026-05-27
+
+The next Growth card authoring layer should be graph-guided before model card
+content is generated. The pre-coding contract is documented in:
+
+- `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-requirements.md`
+- `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-architecture.md`
+- `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-design.md`
+- `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-implementation.md`
+
+Until native graph services exist, this is a planning/harness constraint rather
+than runtime behavior. Do not retrofit ad hoc graph fields into card metadata
+without the graph-plan harness. Once enabled, new formal model-generated cards
+must reference a validated `learningGraphPlan` or a validated temporary graph
+node before publication.
+
 ## V1 Fixed Decisions
 
 These decisions are fixed for the first implementation. Do not leave them to implementation-time judgment.

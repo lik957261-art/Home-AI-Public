@@ -12,6 +12,15 @@ The durable rule is:
 
 > Ordinary cards teach and practice. Stage assessment evergreen cards activate only when conditions are met or Owner activates them manually, and those assessments carry the formal mastery weight.
 
+Graph-guided planning is the pre-authoring layer for this flow. New formal
+model-generated cards should start from a validated `learningGraphPlan` that
+declares the target node, prerequisites, card role, evidence requirements, and
+assessment coverage when applicable. The detailed graph contract is defined in
+`docs\IMPLEMENTATION_NOTES\growth-knowledge-graph-requirements.md`,
+`docs\IMPLEMENTATION_NOTES\growth-knowledge-graph-architecture.md`,
+`docs\IMPLEMENTATION_NOTES\growth-knowledge-graph-design.md`, and
+`docs\IMPLEMENTATION_NOTES\growth-knowledge-graph-implementation.md`.
+
 ## Current Problem
 
 The existing card flow is assessment-oriented:

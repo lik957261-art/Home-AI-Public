@@ -60,6 +60,10 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Growth teaching cards and stage assessment flow: `docs/IMPLEMENTATION_NOTES/growth-teaching-card-flow.md`
 - Growth teaching card implementation plan: `docs/IMPLEMENTATION_NOTES/growth-teaching-card-implementation.md`
 - Growth learning workflow contract and harness: `docs/IMPLEMENTATION_NOTES/growth-learning-workflow-contract-harness.md`
+- Growth knowledge graph requirements: `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-requirements.md`
+- Growth knowledge graph architecture: `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-architecture.md`
+- Growth knowledge graph design: `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-design.md`
+- Growth knowledge graph implementation plan: `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-implementation.md`
 - Cross-module harness required matrix: `docs/IMPLEMENTATION_NOTES/harness-required-matrix.md`
 - Async Growth evaluation queue: `docs/IMPLEMENTATION_NOTES/async-growth-evaluation-queue.md`
 - Maintenance Gateway watchdog: `docs/IMPLEMENTATION_NOTES/maintenance-gateway-watchdog.md`

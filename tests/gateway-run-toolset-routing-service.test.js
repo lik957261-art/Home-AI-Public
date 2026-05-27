@@ -17,6 +17,8 @@ const allToolsets = [
   "memory",
   "session_search",
   "clarify",
+  "wardrobe",
+  "weather",
 ];
 
 function createService() {
@@ -83,6 +85,92 @@ function testFileAndSkillIntentCanCombine() {
   assert.deepEqual(result.routing.suggested_toolsets, ["file", "skills"]);
 }
 
+function testWardrobeIngestionSuggestsWardrobeMcpAndInputTools() {
+  const service = createService();
+  const result = service.routePolicy({
+    policy: policy(),
+    userMessage: {
+      content: "\u8fd9\u5f20 LP \u5546\u54c1\u7167\u9700\u8981\u5165\u5e93\u5230\u8863\u6a71",
+      attachments: [{ id: "upload_1", type: "image/jpeg" }],
+    },
+    runOptions: {},
+  });
+
+  assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
+  assert.equal(result.routing.suggested_mode, "intent");
+  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "http"]);
+}
+
+function testRetryUsesRecentToolsetEscalationContext() {
+  const service = createService();
+  const result = service.routePolicy({
+    policy: policy(),
+    thread: {
+      messages: [
+        { id: "user_1", role: "user", content: "Need outfit for event based on weather and wardrobe" },
+        {
+          id: "assistant_1",
+          role: "assistant",
+          content: "Need additional toolsets: weather, wardrobe",
+          toolsetEscalationRequired: true,
+          toolsetEscalationToolsets: ["weather", "wardrobe"],
+          toolsetEscalationReason: "needs current weather and closet state",
+        },
+        { id: "user_2", role: "user", content: "\u91cd\u8bd5" },
+      ],
+    },
+    userMessage: { id: "user_2", content: "\u91cd\u8bd5" },
+    runOptions: {},
+  });
+
+  assert.equal(result.routing.suggested_mode, "intent");
+  assert.deepEqual(result.routing.suggested_toolsets, ["weather", "wardrobe"]);
+}
+
+function testRetryUsesRecentTaskTextWhenNoEscalationMetadataExists() {
+  const service = createService();
+  const result = service.routePolicy({
+    policy: policy(),
+    thread: {
+      messages: [
+        { id: "user_1", role: "user", content: "Need event outfit with weather and wardrobe status" },
+        { id: "assistant_1", role: "assistant", content: "Current run only has file, cannot make a reliable outfit recommendation." },
+        { id: "user_2", role: "user", content: "\u91cd\u8bd5" },
+      ],
+    },
+    userMessage: { id: "user_2", content: "\u91cd\u8bd5" },
+    runOptions: {},
+  });
+
+  assert.equal(result.routing.suggested_mode, "intent");
+  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "http", "weather"]);
+}
+
+function testRetryUsesSameTaskGroupContextBeyondGlobalTail() {
+  const service = createService();
+  const thread = {
+    messages: [
+      { id: "task_user_1", role: "user", taskGroupId: "wardrobe-task", content: "Need Vacheron event outfit from wardrobe and forecast weather" },
+      ...Array.from({ length: 10 }, (_value, index) => ({
+        id: `chat_${index}`,
+        role: index % 2 ? "assistant" : "user",
+        taskGroupId: "chat",
+        content: "unrelated status",
+      })),
+      { id: "task_user_2", role: "user", taskGroupId: "wardrobe-task", content: "\u91cd\u8bd5" },
+    ],
+  };
+  const result = service.routePolicy({
+    policy: policy(),
+    thread,
+    userMessage: thread.messages[thread.messages.length - 1],
+    runOptions: {},
+  });
+
+  assert.equal(result.routing.suggested_mode, "intent");
+  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "http", "weather"]);
+}
+
 function testAmbiguousRequestFailsOpenToBaseToolsets() {
   const service = createService();
   const result = service.routePolicy({
@@ -114,6 +202,10 @@ testPlainChatUsesMinimalToolsets();
 testExplicitXSearchKeepsOnlyXSearchWhenAllowed();
 testSearchSourceOptionsAddXSearch();
 testFileAndSkillIntentCanCombine();
+testWardrobeIngestionSuggestsWardrobeMcpAndInputTools();
+testRetryUsesRecentToolsetEscalationContext();
+testRetryUsesRecentTaskTextWhenNoEscalationMetadataExists();
+testRetryUsesSameTaskGroupContextBeyondGlobalTail();
 testAmbiguousRequestFailsOpenToBaseToolsets();
 testNeverGrantsToolsetsNotAlreadyAllowed();
 

@@ -23,6 +23,7 @@
   --ui-accent-soft: rgba(144, 166, 170, 0.14);
   --ui-accent-active-soft: rgba(95, 139, 148, 0.18);
   --ui-accent-fill: rgba(144, 166, 170, 0.20);
+  --ui-status-bar: #17212a;
   --pdf: #a6423d;
   --pdf-soft: rgba(166, 66, 61, 0.1);
   --word: #356aa0;
@@ -12459,6 +12460,18 @@ body.task-markdown-preview-open {
   background: var(--page-bg, #f7f8f7);
 }
 
+.preflight-mobile-browser-shell::before {
+  content: "";
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: env(safe-area-inset-top);
+  background: var(--ui-status-bar);
+  pointer-events: none;
+  z-index: 2000;
+}
+
 .mobile-browser-shell-preflight {
   min-height: 100dvh;
   display: grid;
@@ -12520,6 +12533,18 @@ body.task-markdown-preview-open {
 }
 
 @media (max-width: 1099px) {
+  body::before {
+    content: "";
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: env(safe-area-inset-top);
+    background: var(--ui-status-bar);
+    pointer-events: none;
+    z-index: 2000;
+  }
+
   .app {
     grid-template-columns: 1fr;
     padding-bottom: var(--mobile-bottom-nav-reserved-height);

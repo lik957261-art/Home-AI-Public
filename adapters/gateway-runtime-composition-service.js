@@ -85,6 +85,8 @@ function createGatewayRuntimeCompositionService(deps = {}) {
         projectForTaskDirectoryAttachment: deps.projectForTaskDirectoryAttachment,
         removeThreadActiveRun,
         routeRunToolsets: deps.routeRunToolsets,
+        runExplicitWebSearchMaxCalls: deps.runExplicitWebSearchMaxCalls,
+        runWebSearchMaxCalls: deps.runWebSearchMaxCalls,
         selectRunToolsetsWithModel: deps.selectRunToolsetsWithModel,
         sanitizePolicy: deps.sanitizePolicy,
         saveState: deps.saveState,
@@ -119,11 +121,13 @@ function createGatewayRuntimeCompositionService(deps = {}) {
         markRunFailed,
         nowMs: deps.nowMs,
         onHermesRunEvent: applyHermesRunEvent,
+        modelFirstByteWarningMs: deps.modelFirstByteWarningMs,
         runLivenessCheckAfterMs: deps.runLivenessCheckAfterMs,
         runLivenessCheckIntervalMs: deps.runLivenessCheckIntervalMs,
         runLivenessStaleAfterMs: deps.runLivenessStaleAfterMs,
         runStartTimeoutMs: deps.runStartTimeoutMs,
         singleGatewayRunner: deps.singleGatewayRunner,
+        webSearchMaxCalls: deps.runWebSearchMaxCalls,
       });
     }
     return streamService;
