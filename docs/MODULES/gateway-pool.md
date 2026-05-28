@@ -61,6 +61,13 @@ Hermes Mobile also projects stream wait states into the run-progress panel:
 - `run.model_stream_started` is emitted when the first Gateway stream event is
   observed.
 - `run.model_output_started` is emitted when the first text delta is observed.
+- `run.stream_closed_without_terminal` is emitted when the response stream
+  closes without a terminal `response.completed` / `response.failed` event. If
+  text output has already arrived, Mobile synthesizes `response.completed` from
+  the streamed content so the run does not become a false failed Web Push. If no
+  model output arrived, Mobile releases the queue as cancelled instead of
+  surfacing the old raw `Hermes stream ended without a terminal completion
+  event` failure.
 - `run.liveness_warning`, `run.liveness_stale`, `run.gateway_start_timeout`,
   and `run.stream_failed` make retry/stale/failure states visible before the
   terminal message update.
@@ -216,9 +223,10 @@ Current runtime behavior:
   toolsets, and the prompt includes `HERMES_TOOLSET_ESCALATION_REQUIRED` as the
   explicit path for requesting omitted authorized toolsets.
 - `HERMES_TOOLSET_ESCALATION_REQUIRED` is an internal control marker, not a
-  user-facing answer. Completion handling must strip the raw marker, persist
-  `toolsetEscalationRequired` metadata and `run.toolset_escalation_required`,
-  and show a controlled explanation with the requested toolset ids.
+  user-facing answer. Streaming delta and completion handling must strip the raw
+  marker, persist `toolsetEscalationRequired` metadata and
+  `run.toolset_escalation_required`, and show a controlled explanation with the
+  requested toolset ids.
 - When the requested toolsets are in the omitted authorized set, Mobile must
   automatically retry the same assistant message with the previous selected
   toolsets plus the requested authorized toolsets. This retry bypasses the
@@ -226,6 +234,12 @@ Current runtime behavior:
   selector mistake. If the request is blocked, unauthorized, repeats without
   adding a new toolset, or exceeds the retry cap, Mobile keeps the controlled
   insufficient-toolset message instead of leaking the raw marker.
+- `web`, `search`, and `browser` are one common lightweight companion set. If
+  routing, selector output, or an escalation request includes any authorized
+  member of that set, execution should keep all authorized members together so a
+  run does not first retry for `web/search` and then immediately retry again for
+  `browser`. The policy boundary still wins: `browser` is not granted when it is
+  absent from the authorized catalog.
 - The selector must not select every authorized toolset merely because the task
   is ambiguous, a ping, or a plain test message. If a selector response chooses
   the full authorized set only due uncertainty, Hermes Mobile narrows it to the

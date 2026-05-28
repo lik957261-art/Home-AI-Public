@@ -12,6 +12,7 @@ function cleanString(value) {
 
 const TOOLSET_ESCALATION_MARKER = "HERMES_TOOLSET_ESCALATION_REQUIRED";
 const DEFAULT_MAX_TOOLSET_ESCALATION_RETRIES = 2;
+const COMMON_WEB_COMPANION_TOOLSETS = Object.freeze(["web", "search", "browser"]);
 
 function compactFallback(value) {
   return value;
@@ -117,7 +118,24 @@ function toolsetEscalationMessage(request = {}) {
   const reason = boundedText(request.reason || "");
   const toolsetText = toolsets.length ? toolsets.join(", ") : "additional authorized toolsets";
   const reasonText = reason ? `\n\nReason: ${reason}` : "";
-  return `当前执行工具集不足，需要重新开放工具集：${toolsetText}。Hermes Mobile 已拦截内部工具集升级标记，没有把原始标记作为答案继续展示。${reasonText}`;
+  return `\u5f53\u524d\u6267\u884c\u5de5\u5177\u96c6\u4e0d\u8db3\uff0c\u9700\u8981\u91cd\u65b0\u5f00\u653e\u5de5\u5177\u96c6\uff1a${toolsetText}\u3002Hermes Mobile \u5df2\u62e6\u622a\u5185\u90e8\u5de5\u5177\u96c6\u5347\u7ea7\u6807\u8bb0\uff0c\u6ca1\u6709\u628a\u539f\u59cb\u6807\u8bb0\u4f5c\u4e3a\u7b54\u6848\u7ee7\u7eed\u5c55\u793a\u3002${reasonText}`;
+}
+
+function sanitizeToolsetEscalationVisibleText(text = "") {
+  const value = String(text || "");
+  const markerAt = value.indexOf(TOOLSET_ESCALATION_MARKER);
+  if (markerAt < 0) return { text: value, found: false };
+  return { text: value.slice(0, markerAt).trimEnd(), found: true };
+}
+
+function expandCommonWebEscalationToolsets(selectedToolsets = [], authorizedToolsets = []) {
+  const selected = uniqueCleanStrings(selectedToolsets);
+  const authorized = new Set(uniqueCleanStrings(authorizedToolsets));
+  if (!selected.some((toolset) => COMMON_WEB_COMPANION_TOOLSETS.includes(toolset))) return selected;
+  return uniqueCleanStrings([
+    ...selected,
+    ...COMMON_WEB_COMPANION_TOOLSETS.filter((toolset) => authorized.has(toolset)),
+  ]);
 }
 
 function normalizeSkillReference(value) {
@@ -624,21 +642,37 @@ function createGatewayRunEventService(options = {}) {
     const delta = String(event.delta || event.text || "");
     if (!delta) return { action: "empty_delta" };
     const feedbackAt = nowIso();
-    message.content = appendBounded(message.content || "", delta, maxMessageChars);
+    const previousContent = String(message.content || "");
+    const combinedContent = appendBounded(previousContent, delta, maxMessageChars);
+    const sanitized = sanitizeToolsetEscalationVisibleText(combinedContent);
+    if (sanitized.found) {
+      const pendingRequest = parseToolsetEscalationRequest(combinedContent, message);
+      if (pendingRequest) message.pendingToolsetEscalationRequest = pendingRequest;
+      message.content = sanitized.text;
+    } else {
+      message.content = combinedContent;
+    }
     if (!message.firstFeedbackAt) message.firstFeedbackAt = feedbackAt;
     message.updatedAt = feedbackAt;
     thread.updatedAt = feedbackAt;
     scheduleStreamingStateSave();
+    const visibleDelta = sanitized.found && message.content.startsWith(previousContent)
+      ? message.content.slice(previousContent.length)
+      : delta;
+    if (sanitized.found && !visibleDelta) {
+      broadcastMessageUpdated(thread, message);
+      return { action: "delta_suppressed_toolset_escalation" };
+    }
     broadcast({
       type: "message.delta",
       threadId: thread.id,
       messageId: message.id,
-      delta,
+      delta: visibleDelta,
       firstFeedbackAt: message.firstFeedbackAt,
       updatedAt: message.updatedAt,
       thread: threadSummary(thread),
     });
-    return { action: "delta", delta };
+    return { action: sanitized.found ? "delta_sanitized_toolset_escalation" : "delta", delta: visibleDelta };
   }
 
   function recordOutputItemEvent(context, event) {
@@ -705,8 +739,15 @@ function createGatewayRunEventService(options = {}) {
     if (attempts >= maxToolsetEscalationRetries) return false;
     const userMessage = findEscalationUserMessage(thread, message);
     if (!userMessage) return false;
-    const selectedToolsets = uniqueCleanStrings([...routeSelectedToolsets(message), ...request.toolsets]);
-    const authorizedToolsets = uniqueCleanStrings([...selectedToolsets, ...routeOmittedAuthorizedToolsets(message)]);
+    const authorizedToolsets = uniqueCleanStrings([
+      ...routeSelectedToolsets(message),
+      ...request.toolsets,
+      ...routeOmittedAuthorizedToolsets(message),
+    ]);
+    const selectedToolsets = expandCommonWebEscalationToolsets(
+      uniqueCleanStrings([...routeSelectedToolsets(message), ...request.toolsets]),
+      authorizedToolsets,
+    );
     const omittedAfterRetry = authorizedToolsets.filter((toolset) => !selectedToolsets.includes(toolset));
     const retryRouting = {
       mode: "model_first",
@@ -789,7 +830,7 @@ function createGatewayRunEventService(options = {}) {
     const { thread, message, runId, originalRunId, responseRunId, stream } = context;
     clearStreamingSaveTimer();
     const output = extractCompletedOutput(event) || String(message.content || "");
-    const toolsetEscalationRequest = parseToolsetEscalationRequest(output, message);
+    const toolsetEscalationRequest = parseToolsetEscalationRequest(output, message) || message.pendingToolsetEscalationRequest || null;
     const approvalRequest = modelPermissionApprovalRequest(output, message);
     const validApprovalRequest = isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message) ? null : approvalRequest;
     const visibleOutput = toolsetEscalationRequest
@@ -837,6 +878,7 @@ function createGatewayRunEventService(options = {}) {
       message.elevationSource = "";
     }
     if (toolsetEscalationRequest) {
+      delete message.pendingToolsetEscalationRequest;
       message.toolsetEscalationRequired = true;
       message.toolsetEscalationToolsets = toolsetEscalationRequest.toolsets;
       message.toolsetEscalationReason = toolsetEscalationRequest.reason;
@@ -859,6 +901,7 @@ function createGatewayRunEventService(options = {}) {
         return { action: "toolset_escalation_retrying", toolsets: toolsetEscalationRequest.toolsets };
       }
     } else {
+      delete message.pendingToolsetEscalationRequest;
       message.toolsetEscalationRequired = false;
       message.toolsetEscalationToolsets = [];
       message.toolsetEscalationReason = "";

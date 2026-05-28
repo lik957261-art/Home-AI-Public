@@ -71,7 +71,8 @@ const TOOLSET_KEYWORDS = Object.freeze([
   },
 ]);
 
-const DEFAULT_LIGHT_CHAT_TOOLSETS = Object.freeze(["web", "search", "x_search", "http", "clarify"]);
+const COMMON_WEB_COMPANION_TOOLSETS = Object.freeze(["web", "search", "browser"]);
+const DEFAULT_LIGHT_CHAT_TOOLSETS = Object.freeze(["web", "search", "browser", "x_search", "http", "clarify"]);
 
 function hasAttachmentSignal(userMessage = {}) {
   return [
@@ -104,6 +105,12 @@ function requestedToolsetsFromOptions(runOptions = {}) {
   if (searchSource === "web" || sourceIntent === "web_search" || sourceIntent === "search") out.push("web", "search");
   if (/\bhttp\b|\bapi\b|\bcodex\b|\bmux\b/.test(source)) out.push("http");
   return out;
+}
+
+function addCommonWebCompanions(toolsets = []) {
+  const values = defaultDedupe(toolsets);
+  if (!values.some((item) => COMMON_WEB_COMPANION_TOOLSETS.includes(item))) return values;
+  return defaultDedupe([...values, ...COMMON_WEB_COMPANION_TOOLSETS]);
 }
 
 function hasExplicitWebIntent(text) {
@@ -205,7 +212,7 @@ function createGatewayRunToolsetRoutingService(options = {}) {
     if (context.taskDirectory?.path) matched.push("file");
     if (context.groupChat?.groupChatDeliveryRoot) matched.push("file");
 
-    const selected = keepAllowed([...requested, ...matched], baseAllowed);
+    const selected = keepAllowed(addCommonWebCompanions([...requested, ...matched]), baseAllowed);
     if (selected.length || requested.length || hadIntentMatch) {
       return {
         allowed_toolsets: selected,

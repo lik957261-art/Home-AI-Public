@@ -81,6 +81,10 @@ model-first narrowing. If the suggested set contains authorized
 `wardrobe`, `vision`, and `file`, a selector result of `wardrobe,file` must
 still execute with `wardrobe,vision,file`; otherwise the main run will be forced
 into an avoidable `HERMES_TOOLSET_ESCALATION_REQUIRED` loop.
+The common web companion set follows the same rule: `web`, `search`, and
+`browser` should be suggested, retained, and escalation-retried together when
+authorized, while the negative harness must prove `browser` is not granted if
+the run policy did not authorize it.
 
 The selector is an internal JSON-only preflight. Tests must assert that selector
 requests disable tool calls, that live selector probes do not contain tool-role
@@ -103,6 +107,12 @@ visible first-stream-event, first-text-output, liveness stale, and stream-failed
 statuses. Run-progress UI must not render `run.liveness_warning` as a visible
 row; only stale/start-timeout/stream-failed states should consume visible
 status space.
+Stream-closed-without-terminal coverage is required: if streamed text already
+arrived, Mobile must emit `run.stream_closed_without_terminal`, synthesize
+completion from the accumulated content, and avoid failed Web Push / failed
+external delivery. If no model output arrived, Mobile should release the queue
+without showing the raw `Hermes stream ended without a terminal completion
+event` string.
 Run-progress UI tests must also cover preflight burst stability: model-selected
 and toolset-selection events should update an existing panel in place, compact
 `run.toolset_selection_started` with the matching terminal result, and use only
@@ -166,6 +176,9 @@ recent task context or stored escalation metadata to suggest the needed
 authorized toolsets instead of treating retry as a plain probe, including when
 the relevant task context is in the same `taskGroupId` but no longer in the
 global message tail.
+Streaming-delta tests must also cover marker suppression before completion so
+the raw escalation marker cannot appear briefly in the visible receipt while the
+retry is being prepared.
 
 Run tool-budget harnesses must prevent both extremes: runaway Web search loops
 must abort when the configured cap is exceeded, but the default cap must not

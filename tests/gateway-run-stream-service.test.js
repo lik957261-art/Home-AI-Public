@@ -381,6 +381,78 @@ function testHostedWebSearchBudgetUsesOutputItemType() {
   assert.equal(controller.abortCount, 1);
 }
 
+function flushAsyncTurns() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+async function testStreamEndWithoutTerminalCompletesWhenOutputArrived() {
+  const activeStreams = new Map();
+  const controller = createController();
+  const events = [];
+  const failures = [];
+  const cancellations = [];
+  const service = createGatewayRunStreamService({
+    activeStreams,
+    gatewayPool: createGatewayPool({
+      streamResponses: async (_body, options) => {
+        options.onEvent({ event: "response.created", response: { id: "real_response" } });
+        options.onEvent({ event: "message.delta", delta: "partial output" });
+      },
+    }),
+    abortControllerFactory: () => controller,
+    onHermesRunEvent: (event) => events.push(event),
+    markRunFailed: (...args) => failures.push(args),
+    markRunCancelled: (...args) => cancellations.push(args),
+  });
+
+  service.streamResponse("public_run", "thread_1", "message_1", { input: "hello" }, {
+    gatewayUrl: "http://worker.gateway",
+    gatewayApiKey: "worker-key",
+  });
+  await flushAsyncTurns();
+  await flushAsyncTurns();
+
+  assert.deepEqual(failures, []);
+  assert.deepEqual(cancellations, []);
+  assert.ok(events.some((event) => event.event === "run.stream_closed_without_terminal" && event.run_id === "real_response"));
+  assert.ok(events.some((event) => event.event === "response.completed" && event.run_id === "real_response" && event.hermes_mobile_stream_recovery));
+  assert.equal(activeStreams.has("public_run"), false);
+  assert.equal(activeStreams.has("real_response"), false);
+}
+
+async function testStreamEndWithoutTerminalCancelsWithoutFailurePushWhenNoOutputArrived() {
+  const activeStreams = new Map();
+  const controller = createController();
+  const events = [];
+  const failures = [];
+  const cancellations = [];
+  const service = createGatewayRunStreamService({
+    activeStreams,
+    gatewayPool: createGatewayPool({
+      streamResponses: async () => {},
+    }),
+    abortControllerFactory: () => controller,
+    onHermesRunEvent: (event) => events.push(event),
+    markRunFailed: (...args) => failures.push(args),
+    markRunCancelled: (...args) => cancellations.push(args),
+  });
+
+  service.streamResponse("public_run", "thread_1", "message_1", { input: "hello" }, {
+    gatewayUrl: "http://worker.gateway",
+    gatewayApiKey: "worker-key",
+  });
+  await flushAsyncTurns();
+  await flushAsyncTurns();
+
+  assert.deepEqual(failures, []);
+  assert.equal(cancellations.length, 1);
+  assert.deepEqual(cancellations[0], ["thread_1", "message_1", "public_run"]);
+  const closedEvent = events.find((event) => event.event === "run.stream_closed_without_terminal");
+  assert.ok(closedEvent);
+  assert.equal(closedEvent.error, true);
+  assert.equal(activeStreams.has("public_run"), false);
+}
+
 (async () => {
   testAliasRegistrationAndCleanup();
   await testStopBehaviorUsesAbortThenGatewayStop();
@@ -392,6 +464,8 @@ function testHostedWebSearchBudgetUsesOutputItemType() {
   testGatewayTargetLookup();
   testWebSearchBudgetAbortsAfterConfiguredLimit();
   testHostedWebSearchBudgetUsesOutputItemType();
+  await testStreamEndWithoutTerminalCompletesWhenOutputArrived();
+  await testStreamEndWithoutTerminalCancelsWithoutFailurePushWhenNoOutputArrived();
   console.log("gateway-run-stream-service tests passed");
 })().catch((err) => {
   console.error(err);

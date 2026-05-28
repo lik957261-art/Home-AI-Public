@@ -244,9 +244,9 @@ Required harness dimensions:
   the model cannot produce a valid toolset selection.
 - Model-requested toolset escalation must not leak
   `HERMES_TOOLSET_ESCALATION_REQUIRED` as visible chat content. Harness coverage
-  must assert the raw marker is stripped, metadata records only requested
-  authorized toolsets, and a `run.toolset_escalation_required` status event is
-  persisted.
+  must assert the raw marker is stripped during both streamed deltas and
+  completion handling, metadata records only requested authorized toolsets, and
+  a `run.toolset_escalation_required` status event is persisted.
 - If the requested escalation toolsets are part of the omitted authorized set,
   harness coverage must assert Mobile retries the same assistant message with
   the previous selected toolsets plus the requested authorized toolsets, skips a
@@ -254,6 +254,10 @@ Required harness dimensions:
   and does not enqueue/notify a terminal successful answer before the retry
   finishes. Unauthorized, blocked, duplicate, or over-limit escalation requests
   must remain a controlled insufficient-toolset result.
+- Harness scenarios must cover the common lightweight web companion group:
+  `web`, `search`, and `browser` should be suggested/retained/retried together
+  when any authorized member is needed. The negative case is required: `browser`
+  must not be granted when absent from the authorized policy catalog.
 - Harness scenarios must also cover plain-chat or ping/test messages where the
   selector is tempted to choose every authorized toolset due uncertainty. That
   case must narrow to the lightweight suggested set and must not expose `skills`
@@ -324,6 +328,13 @@ Required harness dimensions:
   user-visible status event, first stream event and first text output must be
   distinguishable, and synthetic Mobile status events must not refresh the real
   Gateway event timestamp used for stale/liveness decisions.
+- A response stream that closes without a terminal event is not automatically a
+  user-visible failure. If streamed text output already arrived, harness
+  coverage must assert Mobile emits `run.stream_closed_without_terminal`,
+  synthesizes `response.completed` from the accumulated content, and does not
+  enqueue/send a failed Web Push. If no model output arrived, Mobile should
+  release the queue without surfacing the old raw terminal-completion error
+  string to the user.
 - Run tool budgets must be enforced in the stream layer for bounded network
   tools. At minimum, `mobile_web_search`, `web_search`, and hosted
   `web_search_call` events must count toward the configured Web-search cap,

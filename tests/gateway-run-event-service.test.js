@@ -584,6 +584,40 @@ function testToolsetEscalationMarkerIsHiddenAndStored() {
   assert.deepEqual(JSON.parse(harness.thread.events.at(-1).preview).toolsets, ["weather", "wardrobe"]);
 }
 
+function testStreamingToolsetEscalationMarkerIsSuppressedBeforeCompletion() {
+  const harness = makeHarness({ maxMessageChars: 600 });
+  harness.message.runOptions = {
+    toolsetRouting: {
+      mode: "model_first",
+      selected_toolsets: ["file"],
+      omitted_authorized_toolsets: ["web", "search"],
+    },
+  };
+  const rawMarker = "HERMES_TOOLSET_ESCALATION_REQUIRED {\"toolsets\":[\"web\"],\"reason\":\"needs public product page\"}";
+
+  const delta = harness.service.applyHermesRunEvent({
+    event: "message.delta",
+    run_id: "public_run",
+    delta: rawMarker,
+  });
+
+  assert.equal(delta.action, "delta_suppressed_toolset_escalation");
+  assert.equal(harness.message.content.includes("HERMES_TOOLSET_ESCALATION_REQUIRED"), false);
+  assert.equal(harness.message.pendingToolsetEscalationRequest.toolsets[0], "web");
+  assert.equal(harness.calls.broadcasts.some((payload) => payload.type === "message.delta" && /HERMES_TOOLSET_ESCALATION_REQUIRED/.test(payload.delta || "")), false);
+
+  const completed = harness.service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    output: "",
+  });
+
+  assert.equal(completed.action, "completed");
+  assert.equal(harness.message.content.includes("HERMES_TOOLSET_ESCALATION_REQUIRED"), false);
+  assert.equal(harness.message.toolsetEscalationRequired, true);
+  assert.deepEqual(harness.message.toolsetEscalationToolsets, ["web"]);
+}
+
 function testToolsetEscalationAutoRetriesWithExpandedAuthorizedToolsets() {
   const starts = [];
   const harness = makeHarness({
@@ -598,14 +632,14 @@ function testToolsetEscalationAutoRetriesWithExpandedAuthorizedToolsets() {
     toolsetRouting: {
       mode: "model_first",
       selected_toolsets: ["wardrobe", "file"],
-      omitted_authorized_toolsets: ["web", "search", "vision"],
+      omitted_authorized_toolsets: ["web", "search", "browser", "vision"],
     },
     access_policy_context: {
       allowed_toolsets: ["wardrobe", "file"],
       toolset_routing: {
         mode: "model_first",
         selected_toolsets: ["wardrobe", "file"],
-        omitted_authorized_toolsets: ["web", "search", "vision"],
+        omitted_authorized_toolsets: ["web", "search", "browser", "vision"],
       },
     },
   };
@@ -626,8 +660,8 @@ function testToolsetEscalationAutoRetriesWithExpandedAuthorizedToolsets() {
   assert.equal(starts[0].userMessage.id, "user_1");
   assert.equal(starts[0].assistantMessage.id, "assistant_1");
   assert.equal(starts[0].runOptions.skipModelFirstToolsetSelection, true);
-  assert.deepEqual(starts[0].runOptions.modelFirstToolsetSelection.selectedToolsets, ["wardrobe", "file", "web", "search"]);
-  assert.deepEqual(starts[0].runOptions.modelFirstToolsetSelection.authorizedToolsets, ["wardrobe", "file", "web", "search", "vision"]);
+  assert.deepEqual(starts[0].runOptions.modelFirstToolsetSelection.selectedToolsets, ["wardrobe", "file", "web", "search", "browser"]);
+  assert.deepEqual(starts[0].runOptions.modelFirstToolsetSelection.authorizedToolsets, ["wardrobe", "file", "web", "search", "browser", "vision"]);
   assert.deepEqual(
     starts[0].runOptions.modelFirstToolsetSelection.routing.omitted_authorized_toolsets,
     ["vision"],
@@ -672,6 +706,7 @@ testFailedAndCancelledRunsUseTerminalHelpers();
 testSyntheticRunStatusDoesNotRefreshGatewayLastEventTime();
 testApprovalMarkersAreHiddenButValidRequestIsStored();
 testToolsetEscalationMarkerIsHiddenAndStored();
+testStreamingToolsetEscalationMarkerIsSuppressedBeforeCompletion();
 testToolsetEscalationAutoRetriesWithExpandedAuthorizedToolsets();
 testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued();
 

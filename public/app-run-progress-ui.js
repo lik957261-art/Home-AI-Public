@@ -13,11 +13,13 @@ const RUN_PROGRESS_START_EVENTS = new Set([
   "run.toolset_selection_done",
   "run.toolset_selection_failed",
   "run.toolset_escalation_required",
+  "run.toolset_escalation_retrying",
   "run.permission_required",
   "run.request_sent",
   "run.model_stream_started",
   "run.model_first_byte_retrying",
   "run.model_output_started",
+  "run.stream_closed_without_terminal",
   "run.stream_failed",
   "run.gateway_start_timeout",
   "run.liveness_stale",
@@ -332,11 +334,13 @@ function runEventTitle(event) {
   if (name === "run.toolset_selection_done") return "\u6743\u9650\u4e0e\u5de5\u5177\u96c6\u5df2\u786e\u8ba4";
   if (name === "run.toolset_selection_failed") return "\u6743\u9650\u4e0e\u5de5\u5177\u96c6\u68c0\u67e5\u56de\u9000";
   if (name === "run.toolset_escalation_required") return "\u9700\u8981\u8ffd\u52a0\u5de5\u5177\u96c6";
+  if (name === "run.toolset_escalation_retrying") return "\u6b63\u5728\u8ffd\u52a0\u5de5\u5177\u5e76\u91cd\u65b0\u8fd0\u884c";
   if (name === "run.permission_required") return "\u9700\u8981 Owner \u6388\u6743";
   if (name === "run.request_sent") return "\u8bf7\u6c42\u5df2\u53d1\u9001";
   if (name === "run.model_stream_started") return "\u6a21\u578b\u6d41\u5df2\u8fde\u63a5";
   if (name === "run.model_first_byte_retrying") return "\u6a21\u578b\u65e0\u9996\u5305\uff0c\u6b63\u5728\u91cd\u8bd5";
   if (name === "run.model_output_started") return "\u6a21\u578b\u5df2\u5f00\u59cb\u8f93\u51fa";
+  if (name === "run.stream_closed_without_terminal") return "\u6d41\u5f0f\u7ed3\u675f\u5df2\u5904\u7406";
   if (name === "run.stream_failed") return "\u6a21\u578b\u6d41\u5f0f\u8fde\u63a5\u5931\u8d25";
   if (name === "run.gateway_start_timeout") return "Gateway \u672a\u521b\u5efa\u8fd0\u884c";
   if (name === "run.liveness_stale") return "Gateway \u54cd\u5e94\u8d85\u65f6";

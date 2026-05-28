@@ -58,14 +58,21 @@ function expandSelectedToolsetsWithCompanions(selectedToolsets = [], policy = {}
   const suggested = defaultDedupe(routing.suggested_toolsets || routing.suggestedToolsets || []);
   const allowed = new Set(defaultDedupe(policy.allowed_toolsets || policy.allowedToolsets || []));
   const selectedSet = new Set(selected);
-  const wardrobeCompanions = ["wardrobe", "vision", "file"];
-  const hasWardrobeCompanionSuggestion = wardrobeCompanions.every((toolset) => suggested.includes(toolset));
-  const selectedAnyWardrobeCompanion = wardrobeCompanions.some((toolset) => selectedSet.has(toolset));
-  if (!hasWardrobeCompanionSuggestion || !selectedAnyWardrobeCompanion) return selected;
-  const companionSet = new Set(wardrobeCompanions.filter((toolset) => allowed.has(toolset)));
-  const companionSelected = suggested.filter((toolset) => companionSet.has(toolset));
-  const restSelected = selected.filter((toolset) => !companionSet.has(toolset));
-  return defaultDedupe([...companionSelected, ...restSelected]);
+  const companionGroups = [
+    ["wardrobe", "vision", "file"],
+    ["web", "search", "browser"],
+  ];
+  let out = selected;
+  for (const companions of companionGroups) {
+    const hasCompanionSuggestion = companions.every((toolset) => suggested.includes(toolset));
+    const selectedAnyCompanion = companions.some((toolset) => selectedSet.has(toolset));
+    if (!hasCompanionSuggestion || !selectedAnyCompanion) continue;
+    const companionSet = new Set(companions.filter((toolset) => allowed.has(toolset)));
+    const companionSelected = suggested.filter((toolset) => companionSet.has(toolset));
+    const restSelected = out.filter((toolset) => !companionSet.has(toolset));
+    out = defaultDedupe([...companionSelected, ...restSelected]);
+  }
+  return out;
 }
 
 function maybeCall(fn, fallback) {

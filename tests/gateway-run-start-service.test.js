@@ -82,7 +82,7 @@ function makeHarness(overrides = {}) {
       if (/plain chat/i.test(text)) {
         return {
           policy: Object.assign({}, policy, {
-            allowed_toolsets: ["web", "search", "x_search", "http", "clarify"],
+            allowed_toolsets: ["web", "search", "browser", "x_search", "http", "clarify"],
             toolset_routing: { mode: "minimal", reason: "plain_chat_light_tools" },
           }),
           routing: { mode: "minimal", reason: "plain_chat_light_tools" },
@@ -429,7 +429,7 @@ async function testStartRunSkipsSelectorForForcedToolsetEscalationRetry() {
     buildAccessPolicy: (routePolicy, _user, project) => ({
       principal_id: routePolicy.principal_id || "unknown",
       allowed_roots: [project.root],
-      allowed_toolsets: ["wardrobe", "file", "web", "search", "vision"],
+      allowed_toolsets: ["wardrobe", "file", "web", "search", "browser", "vision"],
     }),
     selectRunToolsetsWithModel: async () => {
       selectorCalls += 1;
@@ -438,7 +438,7 @@ async function testStartRunSkipsSelectorForForcedToolsetEscalationRetry() {
         ok: true,
         reason: "should_not_run",
         selectedToolsets: ["wardrobe", "file"],
-        authorizedToolsets: ["wardrobe", "file", "web", "search", "vision"],
+        authorizedToolsets: ["wardrobe", "file", "web", "search", "browser", "vision"],
         durationMs: 1,
       };
     },
@@ -450,24 +450,24 @@ async function testStartRunSkipsSelectorForForcedToolsetEscalationRetry() {
     modelFirstToolsetSelection: {
       skipSelector: true,
       reason: "toolset_escalation_retry",
-      selectedToolsets: ["wardrobe", "file", "web", "search"],
-      authorizedToolsets: ["wardrobe", "file", "web", "search", "vision"],
+      selectedToolsets: ["wardrobe", "file", "web", "search", "browser"],
+      authorizedToolsets: ["wardrobe", "file", "web", "search", "browser", "vision"],
       durationMs: 0,
       routing: {
         mode: "model_first",
         reason: "toolset_escalation_retry",
-        selected_toolsets: ["wardrobe", "file", "web", "search"],
+        selected_toolsets: ["wardrobe", "file", "web", "search", "browser"],
         omitted_authorized_toolsets: ["vision"],
-        authorized_toolset_count: 5,
+        authorized_toolset_count: 6,
         duration_ms: 0,
       },
     },
   });
 
   assert.equal(selectorCalls, 0);
-  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["wardrobe", "file", "web", "search"]);
-  assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.selected_toolsets, ["wardrobe", "file", "web", "search"]);
-  assert.match(calls.streams[0].body.instructions, /Enabled toolsets: wardrobe, file, web, search/);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["wardrobe", "file", "web", "search", "browser"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.selected_toolsets, ["wardrobe", "file", "web", "search", "browser"]);
+  assert.match(calls.streams[0].body.instructions, /Enabled toolsets: wardrobe, file, web, search, browser/);
   assert.match(calls.streams[0].body.instructions, /Omitted authorized toolsets: vision/);
   assert.deepEqual(calls.events.map((event) => event.event), [
     "run.context_ready",
@@ -475,7 +475,7 @@ async function testStartRunSkipsSelectorForForcedToolsetEscalationRetry() {
     "run.toolset_selection_done",
     "run.request_sent",
   ]);
-  assert.deepEqual(JSON.parse(calls.events[2].preview).selected_toolsets, ["wardrobe", "file", "web", "search"]);
+  assert.deepEqual(JSON.parse(calls.events[2].preview).selected_toolsets, ["wardrobe", "file", "web", "search", "browser"]);
 }
 
 async function testStartRunCanExecuteWardrobeMcpSelection() {
@@ -606,6 +606,54 @@ async function testWardrobeSelectionKeepsFileWhenSelectorChoosesVisionOnly() {
   assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["wardrobe", "vision", "file"]);
 }
 
+async function testWebSelectionKeepsBrowserCompanionWhenSelectorNarrows() {
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["web", "search", "browser", "file"],
+    }),
+    routeRunToolsets: ({ policy }) => ({
+      policy: Object.assign({}, policy, {
+        allowed_toolsets: ["web", "search", "browser", "file"],
+        toolset_routing: {
+          mode: "disabled",
+          reason: "toolset_pruning_disabled",
+          suggested_toolsets: ["web", "search", "browser"],
+          suggested_mode: "intent",
+          suggested_reason: "matched_intent",
+        },
+      }),
+      routing: {
+        mode: "disabled",
+        reason: "toolset_pruning_disabled",
+        suggested_toolsets: ["web", "search", "browser"],
+      },
+    }),
+    selectRunToolsetsWithModel: async () => ({
+      enabled: true,
+      ok: true,
+      reason: "search first",
+      selectedToolsets: ["web", "search"],
+      authorizedToolsets: ["web", "search", "browser", "file"],
+      durationMs: 3000,
+    }),
+  });
+
+  await service.startRunForThread(
+    baseThread(),
+    baseUserMessage({ content: "search the web for current product details" }),
+    baseAssistantMessage(),
+    {},
+  );
+
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["web", "search", "browser"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.selected_toolsets, ["web", "search", "browser"]);
+  assert.match(calls.streams[0].body.instructions, /Enabled toolsets: web, search, browser/);
+  assert.doesNotMatch(calls.streams[0].body.instructions, /Omitted authorized toolsets: browser/);
+  assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["web", "search", "browser"]);
+}
+
 async function testStartRunFallsBackWhenModelFirstSelectionFails() {
   const { calls, service } = makeHarness({
     buildAccessPolicy: (routePolicy, _user, project) => ({
@@ -678,9 +726,9 @@ function testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions() {
     {},
   );
 
-  assert.deepEqual(request.runPolicy.allowed_toolsets, ["web", "search", "x_search", "http", "clarify"]);
+  assert.deepEqual(request.runPolicy.allowed_toolsets, ["web", "search", "browser", "x_search", "http", "clarify"]);
   assert.deepEqual(request.toolsetRouting, { mode: "minimal", reason: "plain_chat_light_tools" });
-  assert.deepEqual(calls.hermesInstructions[0].policy.allowed_toolsets, ["web", "search", "x_search", "http", "clarify"]);
+  assert.deepEqual(calls.hermesInstructions[0].policy.allowed_toolsets, ["web", "search", "browser", "x_search", "http", "clarify"]);
   assert.equal(request.body.access_policy_context.toolset_routing.mode, "minimal");
 }
 
@@ -777,6 +825,7 @@ function testMarkStartFailedUsesInjectedHooks() {
     await testStartRunCanExecuteWardrobeMcpSelection();
   await testWardrobeSelectionKeepsVisionCompanionWhenSelectorNarrows();
   await testWardrobeSelectionKeepsFileWhenSelectorChoosesVisionOnly();
+  await testWebSelectionKeepsBrowserCompanionWhenSelectorNarrows();
   await testStartRunFallsBackWhenModelFirstSelectionFails();
   await testStartRunStopsBeforeExecutionWhenModelPermissionRequiresElevation();
   testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions();

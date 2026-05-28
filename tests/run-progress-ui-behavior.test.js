@@ -164,6 +164,13 @@ const thread = {
       preview: "sent",
     },
     {
+      runId: "web_current",
+      event: "run.toolset_escalation_retrying",
+      tool: "toolset",
+      timestamp: "2026-05-27T12:32:19.200Z",
+      preview: JSON.stringify({ selected_toolsets: ["web", "search", "browser"] }),
+    },
+    {
       runId: "resp_current",
       event: "run.model_stream_started",
       tool: "hermes_mobile",
@@ -255,7 +262,7 @@ assert.strictEqual(messageForRunProgress(fallbackThread, "resp_pending")?.id, "m
 assert.strictEqual(messageForRunProgress(fallbackThread, "resp_missing"), null);
 
 const currentRunEvents = runProgressEvents(thread, ["web_current", "resp_current"]);
-assert.strictEqual(currentRunEvents.length, 12);
+assert.strictEqual(currentRunEvents.length, 13);
 
 const html = renderMessageRunProgress(thread, thread.messages[1]);
 assert.doesNotMatch(html, /\u7b49\u5f85\u6a21\u578b\u8fd4\u56de/);
@@ -271,6 +278,7 @@ assert.match(html, /完成 · 2秒/);
 assert.match(html, /完成 · 1秒/);
 assert.match(html, /run-progress-operation-done/);
 assert.match(html, /\u8bf7\u6c42\u5df2\u53d1\u9001/);
+assert.match(html, /\u6b63\u5728\u8ffd\u52a0\u5de5\u5177\u5e76\u91cd\u65b0\u8fd0\u884c/);
 assert.match(html, /\u6a21\u578b\u6d41\u5df2\u8fde\u63a5/);
 assert.doesNotMatch(html, /compact-after-output/);
 assert.ok(html.indexOf("\u8bf7\u6c42\u5df2\u53d1\u9001") < html.indexOf("\u6a21\u578b\u6d41\u5df2\u8fde\u63a5"));
@@ -313,11 +321,19 @@ const streamingOutputThread = {
       timestamp: "2026-05-27T13:00:03.000Z",
       preview: "",
     },
+    {
+      runId: "resp_streaming_output",
+      event: "run.stream_closed_without_terminal",
+      tool: "hermes_mobile",
+      timestamp: "2026-05-27T13:00:04.000Z",
+      preview: "",
+    },
   ],
 };
 const compactHtml = renderMessageRunProgress(streamingOutputThread, streamingOutputThread.messages[0]);
 assert.match(compactHtml, /compact-after-output/);
 assert.match(compactHtml, /\u6a21\u578b\u5df2\u5f00\u59cb\u8f93\u51fa/);
+assert.match(compactHtml, /\u6d41\u5f0f\u7ed3\u675f\u5df2\u5904\u7406/);
 
 const preflightCompacted = runProgressCompactPreflightEvents([
   { runId: "resp_preflight", event: "run.gateway_selected", timestamp: "2026-05-27T13:04:00.000Z" },

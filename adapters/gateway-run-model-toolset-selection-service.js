@@ -29,6 +29,7 @@ function normalizeBoolean(value, fallback = true) {
 }
 
 const TOOLSET_LABELS = Object.freeze({
+  browser: "Use browser-style page navigation for public web pages when search results need follow-up inspection.",
   clarify: "Ask clarifying questions without external data access.",
   cronjob: "Read or operate automation and scheduled jobs.",
   file: "Read permitted workspace files and document attachments.",

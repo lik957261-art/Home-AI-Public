@@ -6,6 +6,7 @@ const { createGatewayRunToolsetRoutingService } = require("../adapters/gateway-r
 const allToolsets = [
   "web",
   "search",
+  "browser",
   "x_search",
   "http",
   "file",
@@ -40,7 +41,7 @@ function testPlainChatUsesMinimalToolsets() {
   assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
   assert.equal(result.routing.mode, "disabled");
   assert.equal(result.routing.reason, "toolset_pruning_disabled");
-  assert.deepEqual(result.routing.suggested_toolsets, ["web", "search", "x_search", "http", "clarify"]);
+  assert.deepEqual(result.routing.suggested_toolsets, ["web", "search", "browser", "x_search", "http", "clarify"]);
   assert.equal(result.routing.suggested_mode, "minimal");
   assert.equal(result.routing.suggested_reason, "plain_chat_light_tools");
 }
@@ -55,7 +56,7 @@ function testPlainChatWithoutTopicDirectoryDoesNotCrash() {
   });
 
   assert.equal(result.routing.suggested_mode, "minimal");
-  assert.deepEqual(result.routing.suggested_toolsets, ["web", "search", "x_search", "http", "clarify"]);
+  assert.deepEqual(result.routing.suggested_toolsets, ["web", "search", "browser", "x_search", "http", "clarify"]);
 }
 
 function testExplicitXSearchKeepsOnlyXSearchWhenAllowed() {
@@ -84,6 +85,19 @@ function testSearchSourceOptionsAddXSearch() {
   assert.equal(result.routing.reason, "toolset_pruning_disabled");
   assert.deepEqual(result.routing.suggested_toolsets, ["x_search"]);
   assert.equal(result.routing.suggested_reason, "matched_intent");
+}
+
+function testExplicitWebSearchKeepsBrowserCompanionWhenAllowed() {
+  const service = createService();
+  const result = service.routePolicy({
+    policy: policy(),
+    userMessage: { content: "search the web for current product details" },
+    runOptions: {},
+  });
+
+  assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
+  assert.equal(result.routing.suggested_mode, "intent");
+  assert.deepEqual(result.routing.suggested_toolsets, ["web", "search", "browser"]);
 }
 
 function testFileAndSkillIntentCanCombine() {
@@ -230,10 +244,23 @@ function testNeverGrantsToolsetsNotAlreadyAllowed() {
   assert.deepEqual(result.routing.suggested_toolsets, []);
 }
 
+function testCommonWebCompanionHonorsAllowedPolicyBoundary() {
+  const service = createService();
+  const result = service.routePolicy({
+    policy: { allowed_toolsets: ["web", "search"] },
+    userMessage: { content: "search the web for current product details" },
+    runOptions: {},
+  });
+
+  assert.deepEqual(result.policy.allowed_toolsets, ["web", "search"]);
+  assert.deepEqual(result.routing.suggested_toolsets, ["web", "search"]);
+}
+
 testPlainChatUsesMinimalToolsets();
 testPlainChatWithoutTopicDirectoryDoesNotCrash();
 testExplicitXSearchKeepsOnlyXSearchWhenAllowed();
 testSearchSourceOptionsAddXSearch();
+testExplicitWebSearchKeepsBrowserCompanionWhenAllowed();
 testFileAndSkillIntentCanCombine();
 testWardrobeIngestionSuggestsWardrobeMcpAndInputTools();
 testWardrobeBoundTopicDefaultsToWardrobeMcp();
@@ -242,5 +269,6 @@ testRetryUsesRecentTaskTextWhenNoEscalationMetadataExists();
 testRetryUsesSameTaskGroupContextBeyondGlobalTail();
 testAmbiguousRequestFailsOpenToBaseToolsets();
 testNeverGrantsToolsetsNotAlreadyAllowed();
+testCommonWebCompanionHonorsAllowedPolicyBoundary();
 
 console.log("gateway-run-toolset-routing-service tests passed");
