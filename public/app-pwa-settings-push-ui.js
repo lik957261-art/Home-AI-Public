@@ -305,6 +305,25 @@ function normalizeFontFamilyPreference(value) {
   return FONT_FAMILY_OPTIONS.some((option) => option.id === id) ? id : DEFAULT_FONT_FAMILY;
 }
 
+function themeModeOption(value) {
+  const id = String(value || "").trim();
+  return THEME_MODE_OPTIONS.find((option) => option.id === id) || THEME_MODE_OPTIONS[0];
+}
+
+function normalizeThemePreference(value) {
+  return themeModeOption(value).id;
+}
+
+function applyThemePreference(value = state.themeMode) {
+  const option = themeModeOption(value);
+  state.themeMode = option.id;
+  if (window.hermesMobileTheme?.apply) {
+    window.hermesMobileTheme.apply(option.id);
+  } else {
+    document.documentElement.dataset.theme = option.id;
+  }
+}
+
 function applyFontSizePreference(value = state.fontSize) {
   const option = fontSizeOption(value);
   state.fontSize = option.id;
@@ -336,6 +355,14 @@ function setFontFamilyPreference(value) {
   renderSettingsOverlay();
 }
 
+function setThemePreference(value) {
+  const option = themeModeOption(value);
+  state.themeMode = option.id;
+  localStorage.setItem("hermesWebTheme", option.id);
+  applyThemePreference(option.id);
+  renderSettingsOverlay();
+}
+
 function setDefaultComposerModelPreference(value) {
   const option = composerModelOption(value);
   state.defaultComposerModelId = option.id;
@@ -349,6 +376,17 @@ function setDefaultComposerModelPreference(value) {
   if (typeof updateGroupMentionMenu === "function") updateGroupMentionMenu();
 }
 
+function startThemePreferenceWatcher() {
+  if (!window.matchMedia || state.themePreferenceWatcherStarted) return;
+  state.themePreferenceWatcherStarted = true;
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+  const onSystemThemeChange = () => {
+    if (normalizeThemePreference(state.themeMode) === "system") applyThemePreference("system");
+  };
+  if (media.addEventListener) media.addEventListener("change", onSystemThemeChange);
+  else if (media.addListener) media.addListener(onSystemThemeChange);
+}
+
 function renderSettingsOverlay() {
   const overlay = $("settingsOverlay");
   if (!overlay) return;
@@ -358,8 +396,16 @@ function renderSettingsOverlay() {
     return;
   }
   const current = normalizeFontSizePreference(state.fontSize);
+  const currentTheme = normalizeThemePreference(state.themeMode);
   const currentFamily = normalizeFontFamilyPreference(state.fontFamily);
   const currentModel = selectedDefaultComposerModelOption().id;
+  const themeOptions = THEME_MODE_OPTIONS.map((option) => {
+    const active = option.id === currentTheme;
+    return `<button class="theme-mode-option${active ? " active" : ""}" type="button" data-theme-mode-option="${escapeHtml(option.id)}">
+      <span class="theme-mode-option-name">${escapeHtml(option.label)}</span>
+      <span class="theme-mode-option-meta">${escapeHtml(option.description || "")}</span>
+    </button>`;
+  }).join("");
   const options = FONT_SIZE_OPTIONS.map((option) => {
     const active = option.id === current;
     return `<button class="font-size-option${active ? " active" : ""}" type="button" data-font-size-option="${escapeHtml(option.id)}" style="--font-preview-scale:${option.scale}">
@@ -391,6 +437,10 @@ function renderSettingsOverlay() {
       <button class="access-key-close" type="button" data-close-settings>完成</button>
     </header>
     <section class="settings-panel">
+      <div class="settings-row-title">外观</div>
+      <div class="theme-mode-options" role="group" aria-label="外观">
+        ${themeOptions}
+      </div>
       <div class="settings-row-title">字体大小</div>
       <div class="font-size-options" role="group" aria-label="字体大小">
         ${options}
@@ -421,6 +471,9 @@ function renderSettingsOverlay() {
     });
   }
   overlay.querySelector("[data-close-settings]")?.addEventListener("click", closeSettings);
+  overlay.querySelectorAll("[data-theme-mode-option]").forEach((button) => {
+    button.addEventListener("click", () => setThemePreference(button.dataset.themeModeOption || DEFAULT_THEME_MODE));
+  });
   overlay.querySelectorAll("[data-font-size-option]").forEach((button) => {
     button.addEventListener("click", () => setFontSizePreference(button.dataset.fontSizeOption || DEFAULT_FONT_SIZE));
   });

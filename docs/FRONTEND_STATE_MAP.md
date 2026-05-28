@@ -10,6 +10,14 @@ Use this file to locate the responsible frontend files before debugging a screen
 - Navigation and route handling: `public/app-platform-ui.js`, `public/app-sidebar-task-ui.js`
 - API wrapper: `public/app-api-client.js`
 - Event stream: `public/app-event-stream-ui.js`, `public/app-events-composer-ui.js`
+- Device-local display settings: `public/app-pwa-settings-push-ui.js`
+  - Theme mode is stored in `localStorage.hermesWebTheme` as `system`, `light`,
+    or `dark`.
+  - `public/index.html` applies `data-theme` before loading CSS and updates
+    `theme-color` plus `apple-mobile-web-app-status-bar-style` so mobile PWA
+    status bars remain readable.
+  - System color-scheme changes should affect the app only when the stored
+    preference is `system`.
 - Run progress/status panel: `public/app-run-progress-ui.js`, `public/app-thread-state-ui.js`
   - Must render model stream states from `run.model_first_byte_retrying`,
     `run.model_stream_started`, `run.model_output_started`,

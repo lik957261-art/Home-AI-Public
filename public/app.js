@@ -15,6 +15,12 @@ const FONT_SIZE_OPTIONS = Object.freeze([
   { id: "xxlarge", label: "超大", scale: 1.32 },
 ]);
 const DEFAULT_FONT_SIZE = "standard";
+const THEME_MODE_OPTIONS = Object.freeze([
+  { id: "system", label: "跟随系统", description: "跟随当前设备" },
+  { id: "light", label: "浅色", description: "白天阅读" },
+  { id: "dark", label: "深色", description: "夜间低亮度" },
+]);
+const DEFAULT_THEME_MODE = "system";
 const FONT_FAMILY_OPTIONS = Object.freeze([
   {
     id: "system",
@@ -88,6 +94,11 @@ const AppApiClient = window.HermesAppApiClient || {};
 function initialFontSizePreference(value) {
   const id = String(value || "").trim();
   return FONT_SIZE_OPTIONS.some((option) => option.id === id) ? id : DEFAULT_FONT_SIZE;
+}
+
+function initialThemePreference(value) {
+  const id = String(value || "").trim();
+  return THEME_MODE_OPTIONS.some((option) => option.id === id) ? id : DEFAULT_THEME_MODE;
 }
 
 function initialFontFamilyPreference(value) {
@@ -577,6 +588,8 @@ const state = {
   pwaServiceWorkerReady: false,
   pwaServiceWorkerError: "",
   settingsOpen: false,
+  themeMode: initialThemePreference(localStorage.getItem("hermesWebTheme") || DEFAULT_THEME_MODE),
+  themePreferenceWatcherStarted: false,
   fontSize: initialFontSizePreference(localStorage.getItem("hermesWebFontSize") || DEFAULT_FONT_SIZE),
   fontFamily: initialFontFamilyPreference(localStorage.getItem("hermesWebFontFamily") || DEFAULT_FONT_FAMILY),
   defaultComposerModelId: initialDefaultComposerModelPreference(localStorage.getItem("hermesDefaultComposerModel") || DEFAULT_COMPOSER_MODEL_ID),

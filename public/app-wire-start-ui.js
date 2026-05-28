@@ -536,6 +536,8 @@ function wireUi() {
 }
 
 async function start() {
+  applyThemePreference();
+  startThemePreferenceWatcher();
   applyFontFamilyPreference();
   applyFontSizePreference();
   wireUi();

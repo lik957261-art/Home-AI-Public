@@ -167,7 +167,9 @@ assert.match(appJs, /function renderMessageRunProgress\(thread, message = \{\}(?
 assert.match(appJs, /renderMessageRunProgress\(state\.currentThread, message\)/);
 assert.match(appJs, /runProgressRenderScheduled: new Set\(\)/);
 assert.match(appJs, /function scheduleRunProgressRenderForRun\(runId\)/);
-assert.match(appJs, /if \(!scheduleRunProgressRenderForRun\(event\.runId \|\| payload\.runId \|\| ""\)\) scheduleRenderCurrentThread\(\)/);
+assert.match(appJs, /function scheduleRunProgressFallbackThreadRefresh\(threadId = ""\)/);
+assert.match(appJs, /clearRunProgressFallbackThreadRefresh\(payload\.threadId\)/);
+assert.match(appJs, /scheduleRunProgressFallbackThreadRefresh\(payload\.threadId\)/);
 const appendRunEventBody = appJs.match(/function appendRunEventToCurrentThread\(payload\) \{[\s\S]*?\n\}/)?.[0] || "";
 assert.doesNotMatch(appendRunEventBody, /renderThreads\(\)/);
 assert.doesNotMatch(appendRunEventBody, /scheduleRenderCurrentThread\(\);\s*$/);

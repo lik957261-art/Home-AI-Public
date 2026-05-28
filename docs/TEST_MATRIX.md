@@ -109,6 +109,12 @@ one delayed fallback thread refresh when no target assistant message is visible.
 They must not call the generic whole-thread render path for each preflight
 event, because that produces visible mobile screen jitter.
 
+Static client UI tests must cover device-local theme settings when the settings
+sheet changes: `system` / `light` / `dark` options render in the settings menu,
+the selected mode is stored as `hermesWebTheme`, `index.html` applies
+`data-theme` before CSS load, and the app updates mobile `theme-color` plus
+`apple-mobile-web-app-status-bar-style` so the OS status bar stays readable.
+
 Action Inbox harnesses must cover the low-click delivery and Todo semantics:
 Automation delivery rows with `sourceRef.latestDeliverable` must render a
 direct same-window document preview file tag that reuses the Automation detail

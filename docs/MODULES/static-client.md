@@ -49,5 +49,10 @@ Gateway plugin/schema/profile changes:
 
 - Mobile UI must preserve the OS status bar, safe areas, bottom navigation, stable action icons, and readable compact panels.
 - Top-level PWA shell changes must keep time, battery, and Wi-Fi indicators visible on mobile; browser-shell guards and full-viewport overlays need explicit status-bar/safe-area checks.
+- The settings sheet owns device-local display preferences. Theme mode is a
+  three-state client preference: `system`, `light`, or `dark`. The shell must
+  set `data-theme` before loading CSS to avoid first-paint flashes, update
+  `theme-color` / `apple-mobile-web-app-status-bar-style`, and listen for system
+  color-scheme changes only while the selected mode is `system`.
 - Do not expose raw local paths or sensitive metadata in normal UI.
 - Do not rely on cached clients receiving changes without a version bump.
