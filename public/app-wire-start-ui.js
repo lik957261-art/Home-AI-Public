@@ -261,6 +261,15 @@ function wireUi() {
     state.currentThreadId = "";
     await loadSelectedView();
   });
+  $("bottomWardrobeMode")?.addEventListener("click", async () => {
+    clearQuotedReply({ render: false });
+    state.viewMode = "wardrobe";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    state.currentThread = null;
+    state.currentThreadId = "";
+    await loadSelectedView();
+  });
   $("threadSearch").addEventListener("input", () => {
     updateSearchButton();
     clearTimeout(state.searchTimer);
@@ -392,6 +401,12 @@ function wireUi() {
   });
   $("topToggleReadingFullscreen")?.addEventListener("click", () => {
     setReadingFullscreen(!state.readingFullscreen);
+  });
+  ["topWardrobeOverview", "topWardrobeWatches", "topWardrobeMaintenance", "topWardrobeWear", "topWardrobeLooks", "topWardrobeLog"].forEach((id) => {
+    $(id)?.addEventListener("click", (event) => {
+      const section = event.currentTarget?.dataset?.wardrobeSection || "overview";
+      setWardrobeSection(section);
+    });
   });
   $("readingFullscreenExit")?.addEventListener("click", () => {
     setReadingFullscreen(false);

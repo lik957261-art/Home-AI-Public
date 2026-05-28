@@ -33,6 +33,7 @@ async function loadProjects() {
   select.innerHTML = state.projects.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(projectDisplayLabel(project))}</option>`).join("");
   select.value = state.selectedProjectId;
   renderSubprojects();
+  if (typeof updateWardrobeNavigationAvailability === "function") updateWardrobeNavigationAvailability();
 }
 
 function currentProject() {

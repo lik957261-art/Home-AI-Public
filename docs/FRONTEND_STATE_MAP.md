@@ -125,6 +125,33 @@ Use this file to locate the responsible frontend files before debugging a screen
 - File/artifact preview helpers: `public/app-task-artifact-helpers.js`, `public/app-task-preview-ui.js`
 - Standalone viewer shells: `public/file-viewer.html`, `public/directory-viewer.html`
 
+## Wardrobe
+
+- Wardrobe tab/task launcher: `public/app-wardrobe-ui.js`
+- Bottom tab: `bottomWardrobeMode`; route aliases: `view=wardrobe`,
+  `view=closet`, `view=outfit`.
+- The tab is hidden by default and becomes visible only when the current
+  workspace/project tree exposes a wardrobe/closet/outfit route or an authorized
+  `wardrobe` toolset signal.
+- The tab homepage renders a deterministic entry overview from
+  `GET /api/wardrobe/overview`. That route invokes Wardrobe MCP stats tools
+  directly; the frontend must not start a model run, read cache files, or open a
+  browser window for the dashboard.
+- When `GET /api/hermes-plugins/wardrobe/manifest` returns an available
+  `embedded_app` manifest, the Wardrobe tab embeds the plugin entry URL in a
+  same-window iframe and hides the native section switcher.
+- The entry overview owns search, brand filter chips, filtered totals, brand
+  distribution, recent history, maintenance/data-quality summaries, and a
+  bounded item list.
+- The Wardrobe root menu exposes deterministic MCP sections for overview,
+  watches, maintenance, wear, featured looks, and log.
+- The Wardrobe tab must not show generic model task-launcher cards. If later
+  adding recommendation or writeback actions, they must be explicit product
+  actions rather than the default landing surface.
+- Full Wardrobe UI parity belongs to a future `embedded-app` plugin from the
+  Wardrobe project, not copied screens inside Hermes Mobile. The current native
+  tab is a minimal MCP overview/fallback.
+
 ## Growth
 
 - Growth overview/board: `public/app-learning-growth-ui.js`, `public/app-learning-growth-controller.js`

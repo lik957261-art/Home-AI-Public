@@ -26,12 +26,15 @@ function applyViewMode() {
   const inbox = state.viewMode === "inbox";
   const learning = state.viewMode === "learning";
   const todos = state.viewMode === "todos";
+  const wardrobe = state.viewMode === "wardrobe";
+  if (typeof updateWardrobeNavigationAvailability === "function") updateWardrobeNavigationAvailability();
   if (!(single && state.singleWindowMode === "chat")) renderChatScopeHeader(null);
   $("app")?.classList.toggle("todo-mode", todos);
   $("app")?.classList.toggle("inbox-mode", inbox);
   $("app")?.classList.toggle("automation-mode", automation);
   $("app")?.classList.toggle("learning-mode", learning);
   $("app")?.classList.toggle("projects-mode", directory);
+  $("app")?.classList.toggle("wardrobe-mode", wardrobe);
   $("chatManagementMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
   $("taskManagementMode")?.classList.toggle("active", tasks || (single && state.singleWindowMode === "task"));
   $("bottomChatMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
@@ -48,14 +51,15 @@ function applyViewMode() {
   $("bottomLearningMode")?.classList.toggle("active", learning);
   $("todosMode").classList.toggle("active", learning);
   $("bottomTodosMode")?.classList.toggle("active", learning);
+  $("bottomWardrobeMode")?.classList.toggle("active", wardrobe);
   $("taskModeControls")?.classList.add("hidden");
   $("routeFields").classList.add("hidden");
   $("directoryEntry")?.classList.add("hidden");
   $("directoryEntry")?.parentElement?.classList.add("hidden");
-  $("newThread").classList.toggle("hidden", single || tasks || automation || inbox || learning || directory || todos);
-  $("newThread").disabled = single || tasks || automation || inbox || learning || directory || todos;
+  $("newThread").classList.toggle("hidden", single || tasks || automation || inbox || learning || directory || todos || wardrobe);
+  $("newThread").disabled = single || tasks || automation || inbox || learning || directory || todos || wardrobe;
   $("newThread").textContent = todos ? "新建看板卡片" : "新建话题";
-  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : learning ? "Search growth" : "Search directories";
+  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : learning ? "Search growth" : wardrobe ? "Search wardrobe" : "Search directories";
   updateSearchButton();
 }
 
@@ -109,6 +113,9 @@ async function loadSelectedView() {
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "learning") {
     await loadLearningCoins();
+    if (!currentViewStillSelected()) return;
+  } else if (state.viewMode === "wardrobe") {
+    renderWardrobeView();
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "projects") {
     await loadDirectoryView();

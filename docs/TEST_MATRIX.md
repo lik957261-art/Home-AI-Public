@@ -87,6 +87,26 @@ that topic must keep authorized `wardrobe`, `vision`, and `file` in the
 suggested model-selection catalog by default, even when the latest message is
 semantically light. This is still a policy-bounded suggestion: the router must
 not grant toolsets that the run policy did not already authorize.
+Wardrobe root UI harnesses must assert shared centered page title, no repeated
+body hero title/directory pill, no visible disabled Stop button, and top-right
+three-dot section switching for overview, watches, maintenance, wear, featured
+looks, and log. Wardrobe stats tests must also cover currency-prefixed prices
+such as `¥4,787` so totals and average price do not undercount. Full Wardrobe
+UI parity must be tested as a future embedded-app plugin contract, not by
+copying Wardrobe detail/photo/settings screens into Hermes Mobile.
+Embedded Wardrobe plugin host tests must assert manifest-driven tab loading,
+same-window iframe navigation, no `target=_blank` browser handoff, a short-lived
+signed embed token with no raw keys in URLs, and a postMessage/back contract.
+The first NAS-backed registration uses
+`GET /api/hermes-plugins/wardrobe/manifest` as the Mobile-side contract and
+defaults the live source to
+`http://192.168.10.99:8765/api/v1/hermes/plugin/manifest`, with an environment
+override for later local/production source changes.
+Wardrobe dashboard binding tests must cover directory ambiguity: a configured
+wardrobe root with `.hermes-wardrobe/config.json` must win, child delivery
+folders such as `衣橱/交付` must not steal the root, and generic outfit output
+folders such as `穿搭建议` must not be treated as the deterministic dashboard
+workspace.
 The execution policy must also preserve the wardrobe companion set after
 model-first narrowing. If the suggested set contains authorized
 `wardrobe`, `vision`, and `file`, a selector result of `wardrobe,file` must
@@ -364,6 +384,7 @@ The guard test is:
 | Web Push | `node tests\web-push-delivery-service.test.js`, `node tests\push-api-routes.test.js`, `node tests\task-list-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js` |
+| Wardrobe MCP/plugin tab | `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\wardrobe-projection-service.test.js`, `node tests\wardrobe-api-routes.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js` |
 | Directory/files/artifacts | `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js` |
 | Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\link-skill-profile-store.test.js` |
 | Automation/Cron | `node tests\automation-api-routes.test.js`, `node tests\automation-provider.test.js`, `node tests\cron-bridge.test.js`, `node tests\local-automation-bridge-service.test.js` |

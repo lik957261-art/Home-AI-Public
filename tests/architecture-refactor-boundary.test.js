@@ -128,6 +128,7 @@ const weixinOutboundDeliveryService = require("../adapters/weixin-outbound-deliv
 const weixinRuntimeCompositionService = require("../adapters/weixin-runtime-composition-service");
 const weixinWindowMigrationService = require("../adapters/weixin-window-migration-service");
 const webPushDeliveryService = require("../adapters/web-push-delivery-service");
+const wardrobeProjectionService = require("../adapters/wardrobe-projection-service");
 const workspaceDisplayPathService = require("../adapters/workspace-display-path-service");
 const workspacePublicProjectionService = require("../adapters/workspace-public-projection-service");
 const sqliteStore = require("../adapters/mobile-sqlite-store");
@@ -160,6 +161,7 @@ const threadReadUploadApiRoutes = require("../server-routes/thread-read-upload-a
 const threadTaskApiRoutes = require("../server-routes/thread-task-api-routes");
 const todoApiRoutes = require("../server-routes/todo-api-routes");
 const todoPublicProjectionService = require("../adapters/todo-public-projection-service");
+const wardrobeApiRoutes = require("../server-routes/wardrobe-api-routes");
 const weixinApiRoutes = require("../server-routes/weixin-api-routes");
 const workspaceApiRoutes = require("../server-routes/workspace-api-routes");
 const appLearningCoinsUi = require("../public/app-learning-coins-ui");
@@ -356,6 +358,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof weixinRuntimeCompositionService.createWeixinRuntimeCompositionService, "function");
   assert.equal(typeof weixinWindowMigrationService.createWeixinWindowMigrationService, "function");
   assert.equal(typeof webPushDeliveryService.createWebPushDeliveryService, "function");
+  assert.equal(typeof wardrobeProjectionService.createWardrobeProjectionService, "function");
+  assert.equal(typeof wardrobeProjectionService.createWardrobeMcpClient, "function");
   assert.equal(typeof workspaceDisplayPathService.createWorkspaceDisplayPathService, "function");
   assert.equal(typeof workspacePublicProjectionService.createWorkspacePublicProjectionService, "function");
   assert.equal(sqliteStore.CURRENT_SCHEMA_VERSION >= 2, true);
@@ -378,6 +382,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof threadReadUploadApiRoutes.createThreadReadUploadApiRoutes, "function");
   assert.equal(typeof threadTaskApiRoutes.createThreadTaskApiRoutes, "function");
   assert.equal(typeof todoApiRoutes.createTodoApiRoutes, "function");
+  assert.equal(typeof wardrobeApiRoutes.createWardrobeApiRoutes, "function");
   assert.equal(typeof todoPublicProjectionService.createTodoPublicProjectionService, "function");
   assert.equal(typeof kanbanCardApiRoutes.createKanbanCardApiRoutes, "function");
   assert.equal(typeof kanbanLearningGuidanceApiRoutes.createKanbanLearningGuidanceApiRoutes, "function");
@@ -532,6 +537,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(dispatcher, /key: "threadTaskApiRoutes"/);
   assert.match(mobileComposition, /createTodoApiRoutes/);
   assert.match(dispatcher, /key: "todoApiRoutes"/);
+  assert.match(mobileComposition, /createWardrobeApiRoutes/);
+  assert.match(mobileComposition, /createWardrobeProjectionService/);
+  assert.match(dispatcher, /key: "wardrobeApiRoutes"/);
   assert.match(server, /createTodoPublicProjectionService/);
   assert.match(server, /getTodoPublicProjectionService\(\)\.publicTodo/);
   assert.match(mobileComposition, /createKanbanCardApiRoutes/);

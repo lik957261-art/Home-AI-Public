@@ -191,6 +191,7 @@ function updateNavigationControls() {
     || (state.viewMode === "inbox" && !actionInboxDetail && !actionInboxCreate)
     || (state.viewMode === "automation" && !automationDetail)
     || state.viewMode === "learning"
+    || state.viewMode === "wardrobe"
   );
   app?.classList.toggle("minimal-window-mode", minimalWindow);
   app?.classList.toggle("task-detail-mode", taskDetail);
@@ -219,13 +220,14 @@ function updateNavigationControls() {
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
   const hiddenBottomTabs = new Set(["bottomAutomationMode"]);
-  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomAutomationMode"].forEach((id) => {
+  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomAutomationMode"].forEach((id) => {
     const node = $(id);
     if (node) {
       node.hidden = hiddenBottomTabs.has(id);
       node.disabled = false;
     }
   });
+  if (typeof updateWardrobeNavigationAvailability === "function") updateWardrobeNavigationAvailability();
   updateTopMoreControls();
 }
 
@@ -247,7 +249,8 @@ function updateTopMoreControls() {
   const inboxView = state.viewMode === "inbox" && !actionInboxDetail && !actionInboxCreate;
   const automationDetail = isAutomationDetailView();
   const automationList = state.viewMode === "automation" && !automationDetail;
-  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || inboxView || actionInboxDetail || learningView || automationList || automationDetail;
+  const wardrobeView = state.viewMode === "wardrobe";
+  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || inboxView || actionInboxDetail || learningView || automationList || automationDetail || wardrobeView;
   wrap.classList.toggle("hidden", !showTopMenu);
   interrupt.classList.toggle("hidden", showTopMenu || chatView);
   if (!showTopMenu) {
@@ -397,10 +400,26 @@ function updateTopMoreControls() {
   }
   const readingFullscreen = $("topToggleReadingFullscreen");
   if (readingFullscreen) {
-    readingFullscreen.hidden = false;
-    readingFullscreen.disabled = false;
+    readingFullscreen.hidden = wardrobeView;
+    readingFullscreen.disabled = wardrobeView;
     readingFullscreen.textContent = state.readingFullscreen ? "\u9000\u51fa\u5168\u5c4f" : "\u5168\u5c4f\u9605\u8bfb";
   }
+  const wardrobePlugin = typeof wardrobePluginAvailable === "function" ? wardrobePluginAvailable() : false;
+  const wardrobeSection = typeof currentWardrobeSection === "function" ? currentWardrobeSection() : "overview";
+  ["Overview", "Watches", "Maintenance", "Wear", "Looks", "Log"].forEach((suffix) => {
+    const button = $(`topWardrobe${suffix}`);
+    if (!button) return;
+    const id = button.dataset.wardrobeSection || "overview";
+    const showWardrobeSection = wardrobeView && !wardrobePlugin;
+    button.hidden = !showWardrobeSection;
+    button.disabled = !showWardrobeSection;
+    button.classList.toggle("active", showWardrobeSection && id === wardrobeSection);
+    if (showWardrobeSection && id === wardrobeSection && !button.textContent.trim().startsWith("\u2713")) {
+      button.textContent = `\u2713 ${button.textContent.replace(/^\u2713\s*/, "")}`;
+    } else if (button.textContent.trim().startsWith("\u2713") && id !== wardrobeSection) {
+      button.textContent = button.textContent.replace(/^\u2713\s*/, "");
+    }
+  });
   const menu = $("topMoreMenu");
   const hasVisibleAction = Boolean(menu && [...menu.querySelectorAll(".top-more-action")].some((button) => !button.hidden));
   wrap.classList.toggle("hidden", !hasVisibleAction);

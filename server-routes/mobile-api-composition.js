@@ -8,6 +8,7 @@ const { createDirectoryMutationApiRoutes } = require("./directory-mutation-api-r
 const { createDirectoryShareApiRoutes } = require("./directory-share-api-routes");
 const { createEventStreamApiRoutes } = require("./event-stream-api-routes");
 const { createFileArtifactApiRoutes } = require("./file-artifact-api-routes");
+const { createHermesPluginApiRoutes } = require("./hermes-plugin-api-routes");
 const { createKanbanCardApiRoutes } = require("./kanban-card-api-routes");
 const { createKanbanLearningGuidanceApiRoutes } = require("./kanban-learning-guidance-api-routes");
 const { createKanbanStudyApiRoutes } = require("./kanban-study-api-routes");
@@ -49,8 +50,11 @@ const { createThreadMessageRunApiRoutes } = require("./thread-message-run-api-ro
 const { createThreadReadUploadApiRoutes } = require("./thread-read-upload-api-routes");
 const { createThreadTaskApiRoutes } = require("./thread-task-api-routes");
 const { createTodoApiRoutes } = require("./todo-api-routes");
+const { createWardrobeApiRoutes } = require("./wardrobe-api-routes");
 const { createWeixinApiRoutes } = require("./weixin-api-routes");
 const { createWorkspaceApiRoutes } = require("./workspace-api-routes");
+const { createHermesPluginService } = require("../adapters/hermes-plugin-service");
+const { createWardrobeProjectionService } = require("../adapters/wardrobe-projection-service");
 
 function callBootTrace(deps, label) {
   if (typeof deps.bootTrace === "function") deps.bootTrace(label);
@@ -197,6 +201,30 @@ function createMobileApiComposition(deps = {}) {
     },
     compactText: deps.compactText,
   });
+
+  const wardrobeProjectionService = deps.wardrobeProjectionService || createWardrobeProjectionService({
+    nowIso: deps.nowIso,
+  });
+  const hermesPluginService = deps.hermesPluginService || createHermesPluginService({
+    nowIso: deps.nowIso,
+  });
+  const hermesPluginApiRoutes = createHermesPluginApiRoutes({
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+    hermesPluginService,
+  });
+  callBootTrace(deps, "hermes plugin api routes ready");
+
+  const wardrobeApiRoutes = createWardrobeApiRoutes({
+    compactText: deps.compactText,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+    sharedDirectoryProjectionService: {
+      publicProjectsForWorkspace: (...args) => deps.getSharedDirectoryProjectionService().publicProjectsForWorkspace(...args),
+    },
+    wardrobeProjectionService,
+  });
+  callBootTrace(deps, "wardrobe api routes ready");
 
   const fileArtifactApiRoutes = createFileArtifactApiRoutes({
     contentDisposition: deps.contentDisposition,
@@ -740,6 +768,7 @@ function createMobileApiComposition(deps = {}) {
     directoryMutationApiRoutes,
     directoryShareApiRoutes,
     fileArtifactApiRoutes,
+    hermesPluginApiRoutes,
     getUrl: deps.getUrl,
     kanbanCardApiRoutes,
     kanbanLearningGuidanceApiRoutes,
@@ -762,6 +791,7 @@ function createMobileApiComposition(deps = {}) {
     threadReadUploadApiRoutes,
     threadTaskApiRoutes,
     todoApiRoutes,
+    wardrobeApiRoutes,
     weixinApiRoutes,
     workspaceApiRoutes,
   });
@@ -776,6 +806,8 @@ function createMobileApiComposition(deps = {}) {
       learningGrowthTeachingCheckService,
       learningGrowthExperienceSignalService,
       learningGrowthStageAssessmentService,
+      hermesPluginService,
+      wardrobeProjectionService,
     },
     routes: {
       accessKeyApiRoutes,
@@ -785,6 +817,7 @@ function createMobileApiComposition(deps = {}) {
       directoryMutationApiRoutes,
       directoryShareApiRoutes,
       fileArtifactApiRoutes,
+      hermesPluginApiRoutes,
       kanbanCardApiRoutes,
       kanbanLearningGuidanceApiRoutes,
       kanbanStudyApiRoutes,
@@ -804,6 +837,7 @@ function createMobileApiComposition(deps = {}) {
       threadReadUploadApiRoutes,
       threadTaskApiRoutes,
       todoApiRoutes,
+      wardrobeApiRoutes,
       weixinApiRoutes,
       workspaceApiRoutes,
     },

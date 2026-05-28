@@ -734,10 +734,67 @@ Required contract dimensions:
   Growth warning/danger cards, and settings/access-key sheets. The harness must
   combine focused CSS variable assertions with at least one screenshot or
   browser visual smoke so hard-coded pale panels cannot pass dark mode.
+- Conditional top-level tabs such as the Wardrobe MCP tab are H2 shell
+  projections. The harness must assert the tab is hidden by default, becomes
+  visible only from an authorized wardrobe directory/toolset signal, preserves
+  the static client-version contract, and opens existing in-app task composer
+  flows rather than `window.open`, `target=_blank`, direct Program API fallback,
+  or copied Wardrobe app code.
+- Deterministic Wardrobe tab dashboard changes are H2 service/projection
+  changes. The harness must assert `GET /api/wardrobe/overview` calls the
+  installed Wardrobe MCP stats tools directly and never reads Wardrobe
+  `.hermes-cache` JSON resources, SQLite data, or Program API directly from
+  Hermes Mobile. Missing or stale cache is handled by Wardrobe MCP, not by an
+  Hermes Mobile `cache_not_found` unavailable state. Because this route is
+  backend listener scope, deployment requires listener restart and route smoke,
+  not static-only sync.
+- Wardrobe dashboard directory binding must distinguish the real wardrobe root
+  from related delivery/output folders. Harness coverage must assert that a
+  directory containing `.hermes-wardrobe/config.json` wins, `衣橱/交付` does not
+  steal the binding from its parent, and generic outfit folders such as
+  `穿搭建议` are not treated as the dashboard root unless they are the configured
+  Wardrobe MCP workspace.
+- The Wardrobe tab landing surface is an entry overview, not a model task
+  launcher. UI harnesses must assert the default tab contains search/filter,
+  filtered totals, brand distribution, and item list surfaces, and does not show
+  generic action cards such as recommendation/search/writeback/wear-history
+  launchers.
+- The Wardrobe root header must use the shared centered root-page title. The
+  body must not repeat `我的衣橱` or expose the bound directory as a large
+  hero/status pill. The root action surface is the shared top-right three-dot
+  menu, with section switching for overview, watches, maintenance, wear,
+  featured looks, and log; the disabled Stop button must not be visible there.
+- Full Wardrobe UI parity must not be implemented by copying Wardrobe app
+  screens, detail pages, photo management, settings, import/export, or business
+  workflows into Hermes Mobile. The required direction is a generic
+  `embedded-app` plugin host: the Wardrobe project exports a manifest, owns the
+  UI, and Hermes Mobile embeds it in the same window with a signed short-lived
+  token and workspace context. Plugin host harnesses must cover manifest loading,
+  tab registration, same-window iframe navigation, no `window.open` or
+  `target=_blank`, no raw credentials in URLs, frame/CSP expectations, and a
+  postMessage/back contract.
+- Wardrobe plugin registration is H2 service/projection work. The Mobile route
+  `GET /api/hermes-plugins/wardrobe/manifest` must normalize only bounded
+  manifest metadata from the configured source, defaulting to the NAS manifest
+  URL for this installation and allowing environment override for future local
+  production sources. It must not expose `.hermes-wardrobe/access-key.txt`,
+  raw access keys, or plugin credentials to the browser.
+- The native Wardrobe MCP dashboard remains a bounded overview/fallback and
+  diagnostic surface. It may call Wardrobe MCP stats/search tools through Hermes
+  Mobile service/routes, but it must not read SQLite/cache files directly, fall
+  back to Program API, or grow into a duplicate Wardrobe application.
+- Wardrobe write workflows (`write_item`, `upload_photo`, `set_primary_photo`,
+  `write_history`) require explicit user action and dry-run-first coverage
+  before any commit path is exposed.
+- Wardrobe stats harnesses must cover currency-prefixed price strings such as
+  `¥4,787`, because item counts can be correct while amount and average-price
+  totals are silently undercounted if the MCP stats parser only accepts bare
+  numeric strings.
 
 Primary docs:
 
 - `docs/MODULES/static-client.md`
+- `docs/MODULES/wardrobe.md`
 - `docs/RUNBOOKS/static-client-cache-version.md`
 
 ## H3 Focused Tests Only
