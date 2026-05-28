@@ -41,6 +41,10 @@ Use this file to locate the responsible frontend files before debugging a screen
     bottom on every status refresh.
     It must not pull the viewport back down after the user has intentionally
     scrolled away.
+  - The completed run-status history popover on mobile should prefer the space
+    above the tapped status chip and remain scrollable within the viewport. It
+    must not default to a bottom-fixed sheet that covers the lower conversation
+    or composer area.
   - Function-call rows should show the concrete function name whenever the
     event preview, tool field, or paired `callId` makes it available. Generic
     `Function` labels are not useful; if the Gateway event does not expose

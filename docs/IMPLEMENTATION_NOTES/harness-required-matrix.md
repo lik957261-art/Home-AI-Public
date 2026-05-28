@@ -365,7 +365,9 @@ Required harness dimensions:
   into a small footer tag comparable to Usage/Skill, and expanding it should
   show historical rows from the first retained event, in chronological order,
   without a misleading "still running" quiet row. On portrait mobile, the
-  expanded history panel must stay inside the viewport and be scrollable.
+  expanded history panel must stay inside the viewport and be scrollable. It
+  should prefer the space above the tapped status chip instead of defaulting to a
+  bottom-fixed sheet that covers the lower conversation or composer area.
 - Skill footer tags must be evidence-based. Do not add a synthetic response or
   fallback Skill merely because an assistant response completed; render Skill
   only when a real loaded Skill or `skill_view` event is present.

@@ -3013,9 +3013,10 @@ button.directory-alias-chip {
     position: fixed;
     left: max(12px, env(safe-area-inset-left));
     right: max(12px, env(safe-area-inset-right));
-    bottom: calc(var(--mobile-bottom-nav-reserved-height) + 12px);
+    top: calc(var(--run-progress-history-top, 12px) + env(safe-area-inset-top));
+    bottom: var(--run-progress-history-bottom, calc(var(--mobile-bottom-nav-reserved-height) + 12px));
     width: auto;
-    max-height: min(420px, 58vh);
+    max-height: var(--run-progress-history-max-height, min(420px, 58vh));
     transform: none;
     overscroll-behavior: contain;
   }

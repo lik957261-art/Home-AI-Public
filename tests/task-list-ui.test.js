@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-runstatus-preflight-v309";
+const CLIENT_VERSION = "20260528-runstatus-history-top-v310";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -433,9 +433,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-runstatus-preflight-v309/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-runstatus-preflight-v309/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-runstatus-preflight-v309/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-runstatus-history-top-v310/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-runstatus-history-top-v310/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-runstatus-history-top-v310/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -541,10 +541,13 @@ assert.match(appJs, /if \(requested\) return "";/);
 assert.match(appJs, /function renderMessageRunProgressHistory\(thread, message = \{\}, options = \{\}\)/);
 assert.match(appJs, /const runProgressHistory = typeof renderMessageRunProgressHistory === "function"/);
 assert.match(appJs, /function wireRunProgressHistoryPanels\(root\)/);
+assert.match(appJs, /function positionRunProgressHistoryPanel\(details\)/);
+assert.match(appJs, /availableAboveAnchor >= 180 \? bottomAboveAnchor : margin/);
 assert.match(appJs, /MESSAGE_SKILL_HIDDEN_FALLBACKS = new Set\(\["response", "response-grounding-baseline"\]\)/);
 assert.match(stylesCss, /\.message-footer-row \.run-progress-history/);
 assert.match(stylesCss, /\.run-progress-history-details \{[\s\S]*?width: min\(520px, calc\(100vw - 24px\)\)/);
-assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.run-progress-history-details \{[\s\S]*?position: fixed;[\s\S]*?bottom: calc\(var\(--mobile-bottom-nav-reserved-height\) \+ 12px\);/);
+assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.run-progress-history-details \{[\s\S]*?position: fixed;[\s\S]*?top: calc\(var\(--run-progress-history-top, 12px\) \+ env\(safe-area-inset-top\)\);[\s\S]*?bottom: var\(--run-progress-history-bottom, calc\(var\(--mobile-bottom-nav-reserved-height\) \+ 12px\)\);/);
+assert.match(stylesCss, /max-height: var\(--run-progress-history-max-height, min\(420px, 58vh\)\)/);
 assert.match(appJs, /function handleAppForegrounded\(\)[\s\S]*scheduleConversationViewportRefresh\(\)/);
 assert.match(appJs, /function handleViewportLayoutChange\(event = null\)[\s\S]*scheduleConversationViewportRefresh/);
 assert.match(appJs, /orientationSettle: orientationEvent/);

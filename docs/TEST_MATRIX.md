@@ -173,9 +173,10 @@ labels such as `Function Function`.
 Terminal assistant receipts must collapse completed run-progress details into a
 footer tag similar to Usage/Skill; opening the tag shows historical rows from
 the first retained event, remains scrollable and inside the portrait viewport,
-while terminal history must not render an ongoing quiet/still-running row. Skill
-footer tests must assert no synthetic response fallback Skill is projected when
-no real Skill was loaded.
+prefers space above the tapped status chip instead of covering the lower
+conversation/composer area, and terminal history must not render an ongoing
+quiet/still-running row. Skill footer tests must assert no synthetic response
+fallback Skill is projected when no real Skill was loaded.
 
 For same-window navigation and browser-frame bugs, the required harness must
 cover both root-mounted and prefix-mounted app-shell paths. If the issue is

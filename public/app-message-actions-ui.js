@@ -630,7 +630,41 @@ function positionUsagePanel(details) { positionMessageFooterPanel(details, ".usa
 
 function positionMessageSkillPanel(details) { positionMessageFooterPanel(details, ".message-skill-details"); }
 
-function positionRunProgressHistoryPanel(details) { positionMessageFooterPanel(details, ".run-progress-history-details"); }
+function positionRunProgressHistoryPanel(details) {
+  if (!details?.open) return;
+  const panel = details.querySelector(".run-progress-history-details");
+  if (!panel) return;
+  panel.style.setProperty("--usage-panel-shift", "0px");
+  panel.style.removeProperty("--run-progress-history-top");
+  panel.style.removeProperty("--run-progress-history-bottom");
+  panel.style.removeProperty("--run-progress-history-max-height");
+  requestAnimationFrame(() => {
+    if (!details.open) return;
+    const viewportWidth = window.visualViewport?.width || window.innerWidth || document.documentElement.clientWidth || 0;
+    const viewportHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0;
+    if (!viewportWidth || !viewportHeight) return;
+    const margin = 12;
+    const mobile = viewportWidth <= 720;
+    if (mobile) {
+      const anchor = (details.querySelector("summary") || details).getBoundingClientRect();
+      const top = margin;
+      const bottomAboveAnchor = Math.max(margin, viewportHeight - Math.max(0, anchor.top) + 8);
+      const availableAboveAnchor = viewportHeight - top - bottomAboveAnchor;
+      const bottom = availableAboveAnchor >= 180 ? bottomAboveAnchor : margin;
+      const maxHeight = Math.max(160, viewportHeight - top - bottom);
+      panel.style.setProperty("--run-progress-history-top", `${Math.round(top)}px`);
+      panel.style.setProperty("--run-progress-history-bottom", `${Math.round(bottom)}px`);
+      panel.style.setProperty("--run-progress-history-max-height", `${Math.round(maxHeight)}px`);
+      return;
+    }
+    const rect = panel.getBoundingClientRect();
+    const marginDesktop = 10;
+    let shift = 0;
+    if (rect.right > viewportWidth - marginDesktop) shift -= rect.right - (viewportWidth - marginDesktop);
+    if (rect.left + shift < marginDesktop) shift += marginDesktop - (rect.left + shift);
+    panel.style.setProperty("--usage-panel-shift", `${Math.round(shift)}px`);
+  });
+}
 
 function closeOpenUsagePanels(root = document) {
   root.querySelectorAll?.(".usage[open]")?.forEach((details) => {
