@@ -643,6 +643,12 @@ Required contract dimensions:
 - Mobile shell changes keep the OS status bar visible; time, battery, and
   Wi-Fi indicators must not disappear behind browser-shell guards,
   full-viewport overlays, or safe-area changes.
+- Theme changes must verify actual shell and module surfaces in light, dark,
+  and system modes. Required surfaces include sidebar/top bar, composer,
+  user/assistant messages, topic cards, Action Inbox rows and deliverable tags,
+  Growth warning/danger cards, and settings/access-key sheets. The harness must
+  combine focused CSS variable assertions with at least one screenshot or
+  browser visual smoke so hard-coded pale panels cannot pass dark mode.
 
 Primary docs:
 

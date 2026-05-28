@@ -54,5 +54,11 @@ Gateway plugin/schema/profile changes:
   set `data-theme` before loading CSS to avoid first-paint flashes, update
   `theme-color` / `apple-mobile-web-app-status-bar-style`, and listen for system
   color-scheme changes only while the selected mode is `system`.
+- Theme changes must be verified against real app surfaces, not only root token
+  strings. At minimum, check sidebar/top bar, composer, user and assistant
+  messages, topic cards, Action Inbox rows and deliverable tags, Growth warning
+  or danger cards, and the settings/access-key sheet in light, dark, and system
+  mode. A dark-mode fix is incomplete if any of those surfaces still uses a
+  hard-coded pale background with low-contrast foreground text.
 - Do not expose raw local paths or sensitive metadata in normal UI.
 - Do not rely on cached clients receiving changes without a version bump.

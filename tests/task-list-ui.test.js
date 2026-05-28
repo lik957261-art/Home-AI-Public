@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-theme-system-v312";
+const CLIENT_VERSION = "20260528-theme-visual-v313";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -332,8 +332,10 @@ assert.match(indexHtml, /hermesWebTheme/);
 assert.match(indexHtml, /window\.hermesMobileTheme = \{ read: readTheme, apply: applyTheme, effective: effectiveTheme \}/);
 assert.match(stylesCss, /--ui-page: #f7f8f7;/);
 assert.match(stylesCss, /--ui-status-bar: #17212a;/);
+assert.match(stylesCss, /--ui-field-bg: rgba\(255, 255, 255, 0\.72\);/);
+assert.match(stylesCss, /--ui-surface-muted: rgba\(255, 255, 255, 0\.48\);/);
 assert.match(stylesCss, /--paper: #f8f8f6;/);
-assert.match(stylesCss, /:root\[data-theme="dark"\] \{[\s\S]*?color-scheme: dark;[\s\S]*?--ui-page: #101315;/);
+assert.match(stylesCss, /:root\[data-theme="dark"\] \{[\s\S]*?color-scheme: dark;[\s\S]*?--ui-page: #101315;[\s\S]*?--ui-field-bg: rgba\(255, 255, 255, 0\.08\);[\s\S]*?--ui-card-surface: rgba\(25, 29, 32, 0\.82\);/);
 assert.match(stylesCss, /@media \(prefers-color-scheme: dark\) \{[\s\S]*?:root\[data-theme="system"\]/);
 assert.doesNotMatch(stylesCss, /rgba\(255, 252, 246,/);
 assert.doesNotMatch(stylesCss, /rgba\(255, 250, 241,/);
@@ -343,6 +345,15 @@ assert.match(stylesCss, /--accent: #6b858c;/);
 assert.match(stylesCss, /html,[\s\S]*?body \{[\s\S]*?background: var\(--ui-page\);/);
 assert.match(stylesCss, /\.app \{[\s\S]*?background: var\(--ui-page\);/);
 assert.match(stylesCss, /\.main \{[\s\S]*?background: var\(--ui-page\);/);
+assert.match(stylesCss, /\.sidebar \{[\s\S]*?background: var\(--ui-chrome\);/);
+assert.match(stylesCss, /\.composer \{[\s\S]*?background: var\(--ui-chrome\);/);
+assert.match(stylesCss, /\.message\.assistant \{[\s\S]*?color: var\(--ink\);[\s\S]*?background: var\(--ui-surface\);/);
+assert.match(stylesCss, /\.task-card\.task-swipe-row \.task-swipe-content \{[\s\S]*?background: var\(--ui-card-surface\);/);
+assert.match(stylesCss, /\.learning-growth-board-card\.is-reward-warning \{[\s\S]*?background: var\(--ui-warning-surface\);/);
+assert.match(stylesCss, /\.learning-growth-board-card\.is-reward-danger \{[\s\S]*?background: var\(--ui-danger-surface\);/);
+assert.match(stylesCss, /\.access-key-sheet \{[\s\S]*?background: var\(--ui-sheet\);/);
+assert.match(stylesCss, /\.automation-doc-preview \{[\s\S]*?background: var\(--ui-surface-muted\);/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.app \{[\s\S]*?background: var\(--ui-page\);/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?body::before \{[\s\S]*?height: env\(safe-area-inset-top\);[\s\S]*?background: var\(--ui-status-bar\);/);
 assert.match(stylesCss, /\.boot-splash-mark \{[\s\S]*?background: var\(--ui-accent-fill\);[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /\.login-panel \{[\s\S]*?border-radius: 14px;[\s\S]*?box-shadow: 0 12px 30px rgba\(34, 28, 20, 0\.08\);/);
@@ -381,7 +392,7 @@ assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?:root\[data-font
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.chat-scope-segment \{[\s\S]*?min-height: 30px;[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.chat-scope-header-button \{[\s\S]*?min-height: 26px;[\s\S]*?font-size: 15px !important;[\s\S]*?font-weight: 650;/);
 assert.match(stylesCss, /\.chat-scope-header-button\.active \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-accent-fill\);[\s\S]*?box-shadow: none;/);
-assert.match(stylesCss, /\.composer \{[\s\S]*?border-top: 1px solid var\(--ui-hairline\);[\s\S]*?background: rgba\(248, 249, 248, 0\.86\);/);
+assert.match(stylesCss, /\.composer \{[\s\S]*?border-top: 1px solid var\(--ui-hairline\);[\s\S]*?background: var\(--ui-chrome\);/);
 assert.match(stylesCss, /#sendMessage \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-accent-fill\);[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /\.composer-context-chip \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-control-bg\);[\s\S]*?border: 1px solid var\(--ui-hairline\);/);
 assert.match(stylesCss, /\.top-more-menu \{[\s\S]*?border: 1px solid var\(--ui-hairline-strong\);[\s\S]*?box-shadow: 0 10px 24px rgba\(34, 28, 20, 0\.08\);/);
@@ -440,9 +451,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-theme-system-v312/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-theme-system-v312/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-theme-system-v312/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-theme-visual-v313/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-theme-visual-v313/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-theme-visual-v313/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);

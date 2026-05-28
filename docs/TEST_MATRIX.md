@@ -114,6 +114,13 @@ sheet changes: `system` / `light` / `dark` options render in the settings menu,
 the selected mode is stored as `hermesWebTheme`, `index.html` applies
 `data-theme` before CSS load, and the app updates mobile `theme-color` plus
 `apple-mobile-web-app-status-bar-style` so the OS status bar stays readable.
+Theme visual harnesses must also cover real dark-mode surfaces, not just root
+variables: sidebar/top bar, composer, user and assistant messages, topic cards,
+Action Inbox rows and deliverable file tags, Growth warning/danger cards, and
+settings/access-key sheets. A change that adds or modifies theme tokens must
+include a screenshot or browser visual smoke against those surfaces and focused
+assertions that the critical CSS rules consume theme variables instead of
+hard-coded pale surfaces.
 
 Action Inbox harnesses must cover the low-click delivery and Todo semantics:
 Automation delivery rows with `sourceRef.latestDeliverable` must render a

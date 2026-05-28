@@ -18,6 +18,10 @@ Use this file to locate the responsible frontend files before debugging a screen
     status bars remain readable.
   - System color-scheme changes should affect the app only when the stored
     preference is `system`.
+  - Theme QA must include visible app surfaces, not only the settings control:
+    sidebar/top bar, composer, user/assistant messages, topic cards, Inbox rows
+    and deliverable tags, Growth warning/danger cards, and the settings or
+    access-key sheet.
 - Run progress/status panel: `public/app-run-progress-ui.js`, `public/app-thread-state-ui.js`
   - Must render model stream states from `run.model_first_byte_retrying`,
     `run.model_stream_started`, `run.model_output_started`,

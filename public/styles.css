@@ -24,6 +24,22 @@
   --ui-accent-active-soft: rgba(95, 139, 148, 0.18);
   --ui-accent-fill: rgba(144, 166, 170, 0.20);
   --ui-status-bar: #17212a;
+  --text: var(--ink);
+  --border: var(--ui-hairline);
+  --surface: var(--ui-surface);
+  --surface-soft: var(--ui-control-bg);
+  --ui-field-bg: rgba(255, 255, 255, 0.72);
+  --ui-sheet: rgba(255, 255, 252, 0.98);
+  --ui-menu-bg: rgba(255, 255, 252, 0.98);
+  --ui-surface-muted: rgba(255, 255, 255, 0.48);
+  --ui-card-surface: rgba(248, 249, 248, 0.72);
+  --ui-thread-active: rgba(255, 255, 252, 0.86);
+  --ui-warning-ink: #7a5514;
+  --ui-warning-surface: rgba(255, 239, 190, 0.52);
+  --ui-danger-ink: #8f2f26;
+  --ui-danger-surface: rgba(255, 225, 220, 0.58);
+  --ui-success-ink: #426a5a;
+  --ui-success-surface: rgba(114, 168, 137, 0.16);
   --pdf: #a6423d;
   --pdf-soft: rgba(166, 66, 61, 0.1);
   --word: #356aa0;
@@ -66,6 +82,22 @@
   --ui-accent-active-soft: rgba(145, 180, 186, 0.22);
   --ui-accent-fill: rgba(145, 180, 186, 0.20);
   --ui-status-bar: #0f1315;
+  --text: var(--ink);
+  --border: var(--ui-hairline);
+  --surface: var(--ui-surface);
+  --surface-soft: var(--ui-control-bg);
+  --ui-field-bg: rgba(255, 255, 255, 0.08);
+  --ui-sheet: rgba(27, 32, 36, 0.98);
+  --ui-menu-bg: rgba(27, 32, 36, 0.98);
+  --ui-surface-muted: rgba(255, 255, 255, 0.08);
+  --ui-card-surface: rgba(25, 29, 32, 0.82);
+  --ui-thread-active: rgba(145, 180, 186, 0.13);
+  --ui-warning-ink: #e4bd72;
+  --ui-warning-surface: rgba(183, 139, 63, 0.18);
+  --ui-danger-ink: #f0a097;
+  --ui-danger-surface: rgba(240, 140, 130, 0.14);
+  --ui-success-ink: #97d0b2;
+  --ui-success-surface: rgba(116, 183, 146, 0.15);
   --pdf: #e18a82;
   --pdf-soft: rgba(225, 138, 130, 0.14);
   --word: #88b2d8;
@@ -102,6 +134,22 @@
     --ui-accent-active-soft: rgba(145, 180, 186, 0.22);
     --ui-accent-fill: rgba(145, 180, 186, 0.20);
     --ui-status-bar: #0f1315;
+    --text: var(--ink);
+    --border: var(--ui-hairline);
+    --surface: var(--ui-surface);
+    --surface-soft: var(--ui-control-bg);
+    --ui-field-bg: rgba(255, 255, 255, 0.08);
+    --ui-sheet: rgba(27, 32, 36, 0.98);
+    --ui-menu-bg: rgba(27, 32, 36, 0.98);
+    --ui-surface-muted: rgba(255, 255, 255, 0.08);
+    --ui-card-surface: rgba(25, 29, 32, 0.82);
+    --ui-thread-active: rgba(145, 180, 186, 0.13);
+    --ui-warning-ink: #e4bd72;
+    --ui-warning-surface: rgba(183, 139, 63, 0.18);
+    --ui-danger-ink: #f0a097;
+    --ui-danger-surface: rgba(240, 140, 130, 0.14);
+    --ui-success-ink: #97d0b2;
+    --ui-success-surface: rgba(116, 183, 146, 0.15);
     --pdf: #e18a82;
     --pdf-soft: rgba(225, 138, 130, 0.14);
     --word: #88b2d8;
@@ -294,7 +342,7 @@ button {
 .composer-editor {
   width: 100%;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--ui-field-bg);
   border: 1px solid var(--line-strong);
   border-radius: 14px;
   outline: none;
@@ -368,8 +416,8 @@ button {
   padding: 10px;
   overflow: auto;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(31, 43, 51, 0.1);
+  background: var(--ui-field-bg);
+  border: 1px solid var(--ui-hairline);
   border-radius: 10px;
   font-size: 12px;
   white-space: nowrap;
@@ -395,7 +443,7 @@ button {
   padding: 16px;
   font-size: 14px;
   border-right: 1px solid var(--ui-hairline);
-  background: rgba(248, 249, 248, 0.90);
+  background: var(--ui-chrome);
   backdrop-filter: blur(12px);
   overflow-x: hidden;
   overflow-y: scroll;
@@ -477,9 +525,9 @@ button {
 }
 
 .workspace-access-panel {
-  border: 1px solid rgba(31, 43, 51, 0.10);
+  border: 1px solid var(--ui-hairline);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.34);
+  background: var(--ui-surface-muted);
 }
 
 .workspace-access-panel summary {
@@ -500,7 +548,7 @@ button {
   display: grid;
   gap: 5px;
   padding: 2px 2px 11px;
-  border-bottom: 1px solid rgba(31, 43, 51, 0.10);
+  border-bottom: 1px solid var(--ui-hairline);
 }
 
 .workspace-access-row:last-child {
@@ -528,7 +576,7 @@ button {
 .workspace-access-line span,
 .workspace-access-label {
   margin-right: 5px;
-  color: rgba(31, 111, 98, 0.82);
+  color: var(--ui-accent-ink);
   font-weight: 600;
 }
 
@@ -568,8 +616,8 @@ button {
   padding: 2px 6px;
   border: 1px solid rgba(58, 128, 109, 0.18);
   border-radius: 999px;
-  color: #285f52;
-  background: rgba(222, 243, 237, 0.55);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
   font-size: 10.5px;
   line-height: 1.35;
   overflow-wrap: anywhere;
@@ -578,14 +626,14 @@ button {
 .workspace-permission-panel {
   margin: 0 10px 10px;
   padding: 10px;
-  border: 1px solid rgba(31, 43, 51, 0.10);
+  border: 1px solid var(--ui-hairline);
   border-radius: 10px;
-  background: rgba(248, 249, 248, 0.55);
+  background: var(--ui-surface-muted);
 }
 
 .workspace-permission-panel.active {
   border-color: rgba(151, 84, 38, 0.28);
-  background: rgba(255, 244, 226, 0.78);
+  background: var(--ui-warning-surface);
 }
 
 .workspace-permission-head {
@@ -613,15 +661,15 @@ button {
   padding: 2px 6px;
   border: 1px solid rgba(31, 111, 98, 0.16);
   border-radius: 8px;
-  color: #285f52;
-  background: rgba(222, 243, 237, 0.58);
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
   font-size: 10px;
   font-weight: 560;
 }
 
 .workspace-permission-panel.active .workspace-permission-badge {
-  color: #815126;
-  background: rgba(255, 232, 191, 0.78);
+  color: var(--ui-warning-ink);
+  background: var(--ui-warning-surface);
   border-color: rgba(151, 84, 38, 0.22);
 }
 
@@ -658,8 +706,8 @@ button {
 
 .workspace-permission-select {
   color: var(--ink);
-  background: rgba(255, 255, 252, 0.72);
-  border: 1px solid var(--line);
+  background: var(--ui-field-bg);
+  border: 1px solid var(--ui-hairline);
 }
 
 .workspace-permission-primary {
@@ -670,7 +718,7 @@ button {
 
 .workspace-permission-secondary {
   color: var(--danger);
-  background: rgba(255, 255, 255, 0.48);
+  background: var(--ui-danger-surface);
   border: 1px solid rgba(172, 78, 70, 0.22);
 }
 
@@ -1141,7 +1189,7 @@ button {
 
 .thread-card.active {
   border-color: rgba(144, 166, 170, 0.28);
-  background: rgba(255, 255, 252, 0.86);
+  background: var(--ui-thread-active);
   box-shadow: none;
 }
 
@@ -1355,8 +1403,8 @@ button {
 
 .topbar {
   padding: 10px 16px;
-  border-bottom: 1px solid var(--line);
-  background: rgba(247, 248, 247, 0.86);
+  border-bottom: 1px solid var(--ui-hairline);
+  background: var(--ui-chrome);
   backdrop-filter: blur(18px);
   position: relative;
   z-index: 20;
@@ -1394,7 +1442,7 @@ button {
   z-index: 30;
   min-width: 136px;
   padding: 6px;
-  background: rgba(255, 255, 252, 0.98);
+  background: var(--ui-menu-bg);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
@@ -1412,7 +1460,7 @@ button {
   max-width: min(520px, calc(100vw - 32px));
   padding: 10px 12px 10px 14px;
   color: var(--ink);
-  background: rgba(255, 255, 252, 0.98);
+  background: var(--ui-menu-bg);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
@@ -1456,7 +1504,7 @@ button {
   max-width: min(460px, calc(100vw - 32px));
   padding: 10px 14px;
   color: var(--ui-accent-ink);
-  background: rgba(255, 255, 252, 0.97);
+  background: var(--ui-menu-bg);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
@@ -1471,13 +1519,13 @@ button {
 .push-toast.success {
   color: var(--ui-accent-ink);
   border-color: rgba(144, 166, 170, 0.28);
-  background: rgba(255, 255, 252, 0.98);
+  background: var(--ui-menu-bg);
 }
 
 .push-toast.error {
   color: var(--danger);
   border-color: rgba(164, 61, 53, 0.24);
-  background: rgba(255, 248, 246, 0.98);
+  background: var(--ui-danger-surface);
 }
 
 .top-more-action {
@@ -1902,13 +1950,14 @@ button {
 }
 
 .message.user {
-  background: rgba(244, 248, 246, 0.72);
+  color: var(--ink);
+  background: var(--ui-card-surface);
   border-color: rgba(144, 166, 170, 0.20);
 }
 
 .message.assistant {
-  color: #142027;
-  background: rgba(255, 255, 252, 0.82);
+  color: var(--ink);
+  background: var(--ui-surface);
   border-color: rgba(154, 107, 47, 0.12);
 }
 
@@ -2080,9 +2129,9 @@ button {
 }
 
 .message.assistant .message-head {
-  color: #7f735f;
-  background: rgba(255, 255, 252, 0.36);
-  border-bottom-color: rgba(31, 43, 51, 0.055);
+  color: var(--muted);
+  background: var(--ui-surface-muted);
+  border-bottom-color: var(--ui-hairline);
 }
 
 .message-head-main-wrap {
@@ -2158,9 +2207,9 @@ button {
   padding: 0;
   display: inline-grid;
   place-items: center;
-  color: rgba(31, 111, 98, 0.58);
-  background: rgba(255, 255, 255, 0.28);
-  border: 1px solid rgba(31, 111, 98, 0.11);
+  color: var(--ui-accent-ink);
+  background: var(--ui-surface-muted);
+  border: 1px solid var(--ui-hairline);
   border-radius: 7px;
   font-size: 12px;
   font-weight: 600;
@@ -2169,8 +2218,8 @@ button {
 }
 
 .message-mini-action-button:active {
-  color: rgba(23, 77, 69, 0.82);
-  background: rgba(31, 111, 98, 0.08);
+  color: var(--ui-accent-active);
+  background: var(--ui-accent-soft);
 }
 
 .message-line-icon {
@@ -2231,7 +2280,7 @@ button {
 
 .message.assistant .message-body {
   padding: 18px 19px 20px;
-  color: #142027;
+  color: var(--ink);
   font-family: var(--app-font-family);
   font-size: 16.8px;
   line-height: 1.78;
@@ -2256,7 +2305,7 @@ button {
 }
 
 .message-prose p {
-  color: #182833;
+  color: var(--ink);
 }
 
 .message-prose.assistant-receipt {
@@ -2270,7 +2319,7 @@ button {
 }
 
 .assistant-receipt p:first-of-type {
-  color: #14252d;
+  color: var(--ink);
   font-weight: 520;
 }
 
@@ -2297,7 +2346,7 @@ button {
   grid-template-columns: 2px minmax(0, 1fr);
   gap: 7px;
   padding: 4px 2px 4px 6px;
-  color: #1a2b34;
+  color: var(--ink);
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -2318,14 +2367,14 @@ button {
 }
 
 .assistant-receipt-kicker {
-  color: #415f68;
+  color: var(--ui-accent-ink);
   font-size: 12px;
   font-weight: 680;
   line-height: 1.25;
 }
 
 .assistant-receipt-callout-body {
-  color: #1b2d35;
+  color: var(--ink);
   line-height: 1.5;
 }
 
@@ -3241,7 +3290,7 @@ button.directory-alias-chip {
   max-width: 128px;
   padding: 0 24px 0 9px;
   color: var(--accent);
-  background: rgba(248, 249, 248, 0.72);
+  background: var(--ui-field-bg);
   border: 1px solid rgba(31, 111, 98, 0.18);
   border-radius: 10px;
   font: inherit;
@@ -3253,7 +3302,7 @@ button.directory-alias-chip {
   min-height: 28px;
   padding: 0 10px;
   color: var(--accent);
-  background: rgba(248, 249, 248, 0.72);
+  background: var(--ui-field-bg);
   border: 1px solid rgba(31, 111, 98, 0.18);
   border-radius: 10px;
   font-weight: 600;
@@ -3328,10 +3377,10 @@ button.directory-alias-chip {
   gap: 10px;
   padding: 10px 12px;
   color: var(--ink);
-  background: rgba(248, 249, 248, 0.72);
-  border: 1px solid var(--line);
+  background: var(--ui-card-surface);
+  border: 1px solid var(--ui-hairline);
   border-radius: inherit;
-  box-shadow: 0 12px 32px rgba(34, 28, 20, 0.08);
+  box-shadow: none;
 }
 
 .task-card-menu-wrap {
@@ -3347,10 +3396,10 @@ button.directory-alias-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(31, 43, 51, 0.1);
+  border: 1px solid var(--ui-hairline);
   border-radius: 10px;
   color: var(--muted);
-  background: rgba(255, 255, 252, 0.82);
+  background: var(--ui-surface-muted);
 }
 
 .task-card-menu-wrap.open .task-card-menu-button,
@@ -3367,7 +3416,7 @@ button.directory-alias-chip {
   padding: 6px;
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
-  background: rgba(255, 255, 252, 0.98);
+  background: var(--ui-menu-bg);
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
 }
 
@@ -4923,7 +4972,7 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 12px;
   padding: 14px;
-  background: rgba(255, 255, 252, 0.98);
+  background: var(--ui-sheet);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
   box-shadow: 0 12px 30px rgba(34, 28, 20, 0.08);
@@ -4946,8 +4995,8 @@ body.task-markdown-preview-open {
 .owner-elevation-approval-detail {
   padding: 10px;
   color: var(--muted);
-  background: rgba(31, 43, 51, 0.04);
-  border: 1px solid rgba(31, 43, 51, 0.08);
+  background: var(--ui-surface-muted);
+  border: 1px solid var(--ui-hairline);
   border-radius: 8px;
   font-size: calc(12px * var(--app-font-scale));
   line-height: 1.42;
@@ -5270,13 +5319,19 @@ body.task-markdown-preview-open {
   justify-content: space-between;
   gap: 12px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.68);
-  border: 1px solid var(--line);
+  background: var(--ui-surface-muted);
+  border: 1px solid var(--ui-hairline);
   border-radius: 14px;
 }
 
 .access-key-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: flex-start;
+}
+
+.access-key-header > div {
+  min-width: 0;
 }
 
 .access-key-title {
@@ -5294,8 +5349,8 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 10px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.62);
-  border: 1px solid var(--line);
+  background: var(--ui-surface-muted);
+  border: 1px solid var(--ui-hairline);
   border-radius: 14px;
 }
 
@@ -5353,7 +5408,7 @@ body.task-markdown-preview-open {
   justify-content: center;
   padding: 0 9px;
   color: var(--muted);
-  background: rgba(31, 43, 51, 0.06);
+  background: var(--ui-control-bg);
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
@@ -5544,12 +5599,18 @@ body.task-markdown-preview-open {
   flex: 0 0 auto;
   min-height: 34px;
   padding: 0 13px;
-  border: 1px solid rgba(31, 43, 51, 0.12);
+  border: 1px solid var(--ui-hairline);
   border-radius: 10px;
-  background: rgba(232, 244, 235, 0.9);
-  color: var(--accent);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent-ink);
   font-size: 13px;
   font-weight: 560;
+}
+
+.access-key-close {
+  min-width: max-content;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .access-key-web button:disabled {
@@ -5652,7 +5713,7 @@ body.task-markdown-preview-open {
   min-height: 38px;
   padding: 0 10px;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--ui-field-bg);
   border: 1px solid var(--line-strong);
   border-radius: 10px;
   outline: none;
@@ -5668,7 +5729,7 @@ body.task-markdown-preview-open {
   width: 100%;
   padding: 9px 10px;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--ui-field-bg);
   border: 1px solid var(--line-strong);
   border-radius: 10px;
   outline: none;
@@ -6054,10 +6115,10 @@ body.task-markdown-preview-open {
 .todo-create-toggle,
 .todo-card,
 .todo-detail-card {
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-hairline);
   border-radius: 20px;
-  background: rgba(255, 255, 252, 0.84);
-  box-shadow: 0 12px 32px rgba(34, 28, 20, 0.08);
+  background: var(--ui-surface);
+  box-shadow: none;
 }
 
 .todo-create {
@@ -6070,7 +6131,7 @@ body.task-markdown-preview-open {
   min-height: 44px;
   padding: 0 14px;
   color: var(--accent);
-  background: rgba(255, 255, 252, 0.84);
+  background: var(--ui-surface);
   font-size: 15px;
   font-weight: 600;
   text-align: left;
@@ -6099,7 +6160,7 @@ body.task-markdown-preview-open {
   min-height: 38px;
   padding: 8px 10px;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--ui-field-bg);
   border: 1px solid var(--line-strong);
   border-radius: 13px;
   outline: none;
@@ -6159,7 +6220,7 @@ body.task-markdown-preview-open {
   max-height: 280px;
   padding: 12px;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.76);
+  background: var(--ui-field-bg);
   border: 1px solid var(--line-strong);
   border-radius: 14px;
   outline: none;
@@ -6223,7 +6284,7 @@ body.task-markdown-preview-open {
   padding: 9px;
   border: 1px solid rgba(20, 32, 39, 0.08);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--ui-surface-muted);
 }
 
 .kanban-document-source-list strong,
@@ -7630,8 +7691,8 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 4px;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.48);
-  border: 1px solid var(--line);
+  background: var(--ui-surface-muted);
+  border: 1px solid var(--ui-hairline);
   border-radius: 14px;
 }
 
@@ -7653,9 +7714,9 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 10px;
   padding: 10px;
-  border: 1px solid rgba(20, 32, 39, 0.08);
+  border: 1px solid var(--ui-hairline);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.28);
+  background: var(--ui-surface-muted);
 }
 
 .todo-detail-meta summary {
@@ -7684,9 +7745,9 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 8px;
   padding: 12px;
-  border: 1px solid rgba(31, 111, 98, 0.16);
+  border: 1px solid var(--ui-hairline);
   border-radius: 16px;
-  background: rgba(238, 251, 247, 0.74);
+  background: var(--ui-accent-soft);
 }
 
 .todo-detail-deliverables-head {
@@ -7724,9 +7785,9 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 10px;
   padding: 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--ui-hairline);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.42);
+  background: var(--ui-surface-muted);
 }
 
 .todo-detail-result-head {
@@ -8231,9 +8292,9 @@ body.task-markdown-preview-open {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   padding: 10px 12px;
-  border: 1px solid rgba(47, 75, 69, 0.12);
+  border: 1px solid var(--ui-hairline);
   border-radius: 8px;
-  background: rgba(255, 255, 252, 0.78);
+  background: var(--ui-surface);
 }
 
 .learning-growth-board-summary-metrics span {
@@ -8268,10 +8329,10 @@ body.task-markdown-preview-open {
   grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
   gap: 14px;
   padding: 14px;
-  border: 1px solid rgba(20, 32, 39, 0.10);
+  border: 1px solid var(--ui-hairline);
   border-radius: 8px;
-  background: rgba(250, 252, 250, 0.86);
-  box-shadow: 0 10px 24px rgba(20, 32, 39, 0.06);
+  background: var(--ui-surface);
+  box-shadow: none;
 }
 
 .learning-growth-hero-copy {
@@ -8596,12 +8657,12 @@ body.task-markdown-preview-open {
 
 .learning-growth-board-card.is-reward-warning {
   border-color: rgba(185, 129, 26, 0.36);
-  background: rgba(255, 248, 225, 0.7);
+  background: var(--ui-warning-surface);
 }
 
 .learning-growth-board-card.is-reward-danger {
   border-color: rgba(162, 72, 62, 0.42);
-  background: rgba(255, 243, 240, 0.76);
+  background: var(--ui-danger-surface);
 }
 
 .learning-growth-board-card-head strong {
@@ -8658,12 +8719,12 @@ body.task-markdown-preview-open {
   gap: 8px;
   margin: 8px 0 12px;
   padding: 8px 10px;
-  border: 1px solid rgba(122, 85, 20, 0.18);
+  border: 1px solid rgba(185, 129, 26, 0.28);
   border-radius: 10px;
-  color: #7a5514;
+  color: var(--ui-warning-ink);
   font-size: 12px;
   line-height: 1.35;
-  background: rgba(255, 239, 190, 0.52);
+  background: var(--ui-warning-surface);
 }
 
 .learning-growth-board-decay-rule strong {
@@ -8680,8 +8741,8 @@ body.task-markdown-preview-open {
 
 .learning-growth-board-decay-rule.is-danger {
   border-color: rgba(143, 47, 38, 0.18);
-  color: #8f2f26;
-  background: rgba(255, 225, 220, 0.58);
+  color: var(--ui-danger-ink);
+  background: var(--ui-danger-surface);
 }
 
 .learning-growth-board-card-meta small,
@@ -8691,7 +8752,7 @@ body.task-markdown-preview-open {
   border-radius: 999px;
   color: var(--muted);
   font-size: 12px;
-  background: rgba(255, 255, 252, 0.8);
+  background: var(--ui-surface-muted);
 }
 
 .learning-growth-board-card-decay {
@@ -8702,17 +8763,17 @@ body.task-markdown-preview-open {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.3;
-  background: rgba(255, 255, 252, 0.76);
+  background: var(--ui-surface-muted);
 }
 
 .learning-growth-board-card.is-reward-warning .learning-growth-board-card-decay {
-  color: #7a5514;
-  background: rgba(255, 239, 190, 0.82);
+  color: var(--ui-warning-ink);
+  background: var(--ui-warning-surface);
 }
 
 .learning-growth-board-card.is-reward-danger .learning-growth-board-card-decay {
-  color: #8f2f26;
-  background: rgba(255, 225, 220, 0.88);
+  color: var(--ui-danger-ink);
+  background: var(--ui-danger-surface);
 }
 
 .learning-growth-board-artifact-link,
@@ -8725,7 +8786,7 @@ body.task-markdown-preview-open {
   border: 1px solid var(--ui-hairline);
   box-shadow: none;
   color: var(--muted);
-  background: rgba(255, 255, 252, 0.72);
+  background: var(--ui-surface-muted);
   display: inline-grid;
   place-items: center;
   cursor: pointer;
@@ -11403,7 +11464,7 @@ body.task-markdown-preview-open {
 
 .action-inbox-item.active {
   border-color: rgba(95, 139, 148, 0.32);
-  background: rgba(247, 250, 249, 0.8);
+  background: var(--ui-thread-active);
 }
 
 .action-inbox-swipe-row .task-swipe-content {
@@ -11545,8 +11606,8 @@ body.task-markdown-preview-open {
 }
 
 .action-inbox-state-badge.done {
-  color: #426a5a;
-  background: rgba(114, 168, 137, 0.16);
+  color: var(--ui-success-ink);
+  background: var(--ui-success-surface);
 }
 
 .action-inbox-state-action {
@@ -11658,13 +11719,13 @@ body.task-markdown-preview-open {
 }
 
 .action-inbox-action-sheet-button.primary {
-  color: #426a5a;
-  background: rgba(114, 168, 137, 0.16);
+  color: var(--ui-success-ink);
+  background: var(--ui-success-surface);
 }
 
 .action-inbox-action-sheet-button.danger {
-  color: #8a4a45;
-  background: rgba(184, 104, 94, 0.12);
+  color: var(--ui-danger-ink);
+  background: var(--ui-danger-surface);
 }
 
 .action-inbox-action-sheet-cancel {
@@ -11684,8 +11745,8 @@ body.task-markdown-preview-open {
 }
 
 .action-inbox-status.done {
-  color: #426a5a;
-  background: rgba(114, 168, 137, 0.16);
+  color: var(--ui-success-ink);
+  background: var(--ui-success-surface);
 }
 
 .action-inbox-detail {
@@ -11759,7 +11820,7 @@ body.task-markdown-preview-open {
   resize: vertical;
   padding: 10px 11px;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.54);
+  background: var(--ui-field-bg);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 10px;
   outline: none;
@@ -11772,7 +11833,7 @@ body.task-markdown-preview-open {
   min-height: 38px;
   padding: 8px 10px;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.54);
+  background: var(--ui-field-bg);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 10px;
   outline: none;
@@ -12093,8 +12154,8 @@ body.task-markdown-preview-open {
   padding: 10px 11px;
   color: var(--ink);
   text-decoration: none;
-  background: rgba(255, 255, 255, 0.58);
-  border: 1px solid var(--line);
+  background: var(--ui-surface-muted);
+  border: 1px solid var(--ui-hairline);
   border-radius: 10px;
 }
 
@@ -12104,7 +12165,7 @@ body.task-markdown-preview-open {
 }
 
 .automation-doc-preview.history {
-  background: rgba(255, 255, 255, 0.40);
+  background: var(--ui-surface-muted);
 }
 
 .automation-doc-icon {
@@ -12225,7 +12286,7 @@ body.task-markdown-preview-open {
   min-height: 44px;
   border-radius: 10px;
   border: 1px solid rgba(31, 111, 98, 0.20);
-  background: rgba(255, 255, 255, 0.54);
+  background: var(--ui-surface-muted);
 }
 
 .automation-output-folder::before {
@@ -12321,7 +12382,7 @@ body.task-markdown-preview-open {
   gap: 6px;
   padding: 8px 13px calc(8px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--ui-hairline);
-  background: rgba(248, 249, 248, 0.86);
+  background: var(--ui-chrome);
   backdrop-filter: blur(14px);
 }
 
@@ -12396,7 +12457,7 @@ body.task-markdown-preview-open {
   padding: 5px;
   overflow-y: auto;
   color: var(--ink);
-  background: rgba(255, 255, 252, 0.98);
+  background: var(--ui-menu-bg);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
@@ -12415,7 +12476,7 @@ body.task-markdown-preview-open {
   gap: 5px;
   padding: 6px;
   color: var(--ink);
-  background: rgba(255, 255, 252, 0.98);
+  background: var(--ui-menu-bg);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
@@ -12433,7 +12494,7 @@ body.task-markdown-preview-open {
   align-items: center;
   gap: 7px;
   padding: 7px 9px;
-  color: rgba(31, 43, 51, 0.82);
+  color: var(--ink);
   background: var(--ui-control-bg);
   border: 1px solid var(--ui-hairline);
   border-radius: 10px;
@@ -12478,7 +12539,7 @@ body.task-markdown-preview-open {
   padding: 0 1px 1px;
   margin-bottom: -2px;
   overflow-x: auto;
-  color: rgba(70, 95, 102, 0.74);
+  color: var(--muted);
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
@@ -12523,8 +12584,8 @@ body.task-markdown-preview-open {
 }
 
 .composer-context-chip.active {
-  color: #8b6a2c;
-  background: rgba(255, 245, 224, 0.58);
+  color: var(--ui-warning-ink);
+  background: var(--ui-warning-surface);
   border-color: rgba(169, 122, 49, 0.14);
 }
 
@@ -12543,7 +12604,7 @@ body.task-markdown-preview-open {
   min-height: 36px;
   padding: 6px 8px;
   margin: 0;
-  background: rgba(255, 255, 252, 0.92);
+  background: var(--ui-menu-bg);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 999px;
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
@@ -12552,7 +12613,7 @@ body.task-markdown-preview-open {
 
 .composer.keyboard-context-mode .composer-context-chip {
   min-height: 24px;
-  background: rgba(255, 255, 255, 0.46);
+  background: var(--ui-surface-muted);
 }
 
 .composer .group-mention-option {
@@ -12915,7 +12976,7 @@ body.task-markdown-preview-open {
   .app {
     grid-template-columns: 1fr;
     padding-bottom: var(--mobile-bottom-nav-reserved-height);
-    background: #ededed;
+    background: var(--ui-page);
   }
 
   .app.main-back-visible {
