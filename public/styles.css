@@ -11237,7 +11237,7 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 6px;
   text-align: left;
-  padding: 12px;
+  padding: 12px 86px 12px 12px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -11249,7 +11249,7 @@ body.task-markdown-preview-open {
   align-items: center;
   justify-content: center;
   min-height: 30px;
-  min-width: 46px;
+  min-width: 72px;
   margin: 0 0 12px 12px;
   padding: 0 10px;
   border-radius: 8px;
@@ -11269,6 +11269,11 @@ body.task-markdown-preview-open {
 .action-inbox-swipe-row .task-swipe-content {
   border-radius: inherit;
   background: var(--ui-surface);
+}
+
+.action-inbox-swipe-content,
+.action-inbox-item-static {
+  position: relative;
 }
 
 .action-inbox-swipe-complete {
@@ -11364,6 +11369,51 @@ body.task-markdown-preview-open {
   color: var(--muted);
   background: var(--ui-surface-muted);
   font-size: 12px;
+}
+
+.action-inbox-status-action {
+  position: absolute;
+  right: 12px;
+  top: 51px;
+  z-index: 3;
+  cursor: pointer;
+}
+
+.action-inbox-status-action:focus-visible,
+.action-inbox-deliverable-chip:focus-visible,
+.action-inbox-action-menu button:focus-visible {
+  outline: 2px solid rgba(95, 139, 148, 0.45);
+  outline-offset: 2px;
+}
+
+.action-inbox-action-menu {
+  position: absolute;
+  right: 12px;
+  top: 80px;
+  z-index: 8;
+  display: grid;
+  min-width: 148px;
+  max-width: min(240px, calc(100vw - 48px));
+  padding: 6px;
+  border: 1px solid var(--ui-hairline);
+  border-radius: 8px;
+  background: var(--ui-surface);
+  box-shadow: 0 10px 24px rgba(43, 51, 48, 0.12);
+}
+
+.action-inbox-action-menu button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  padding: 0 9px;
+}
+
+.action-inbox-action-menu button:active {
+  background: var(--ui-surface-muted);
 }
 
 .action-inbox-status.open,

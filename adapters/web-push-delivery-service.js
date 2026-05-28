@@ -954,9 +954,10 @@ function createWebPushDeliveryService(options = {}) {
     const failed = automationRunFailed(job);
     const scheduledTodo = automationJobLooksScheduledTodo(job);
     if (!latestDoc && !failed && !scheduledTodo) return null;
-    const title = failed ? "\u81ea\u52a8\u5316\u4efb\u52a1\u5931\u8d25" : (scheduledTodo ? "\u5f85\u529e\u63d0\u9192" : "\u81ea\u52a8\u5316\u4efb\u52a1\u5b8c\u6210");
+    const automationTitle = automationTitleForPush(job);
+    const title = failed ? "\u81ea\u52a8\u5316\u4efb\u52a1\u5931\u8d25" : (scheduledTodo ? automationTitle : "\u81ea\u52a8\u5316\u4efb\u52a1\u5b8c\u6210");
     const body = compactText([
-      automationTitleForPush(job),
+      automationTitle,
       latestDoc ? `\u4ea4\u4ed8\u6587\u4ef6: ${latestDoc.name}` : "",
       failed ? `\u9519\u8bef: ${automationFailureSummary(job)}` : "",
     ].filter(Boolean).join("\n"), 220);
@@ -984,6 +985,7 @@ function createWebPushDeliveryService(options = {}) {
           automationId: jobId,
           principalId,
           messageType: failed ? "automation_failed" : (scheduledTodo ? "automation_scheduled_todo" : "automation_completed"),
+          automationTitle,
           lastRunAt: job.lastRunAt || "",
           status: job.lastStatus || job.status || "",
           schedule: job.scheduleText || job.schedule || "",
@@ -1049,6 +1051,7 @@ function createWebPushDeliveryService(options = {}) {
         sourceRef: {
           automationId: event.jobId,
           signature: event.signature,
+          automationTitle: String(event.payload?.data?.automationTitle || event.payload?.title || "").trim(),
           latestDocumentName: event.latestDoc?.name || "",
           latestDeliverable: automationDeliverableSourceRef(event.latestDoc),
           scheduledTodo: Boolean(event.scheduledTodo),

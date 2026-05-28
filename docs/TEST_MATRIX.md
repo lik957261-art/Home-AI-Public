@@ -102,10 +102,13 @@ status space.
 Action Inbox harnesses must cover the low-click delivery and Todo semantics:
 Automation delivery rows with `sourceRef.latestDeliverable` must render a
 direct same-window document preview action; scheduled Todo/reminder Automation
-triggers must create `itemType=todo` Inbox occurrences; partial left swipes must
-not complete an Inbox item while full swipes complete it once; and Todo/reminder
-items must sort above ordinary Automation delivery receipts in the default
-Inbox list.
+triggers must create `itemType=todo` Inbox occurrences; scheduled Todo
+Automation rows with a safe deliverable must still render the direct document
+preview action; row status pills must open a concrete action menu; generic
+`待办提醒` titles must be replaced by the actual Automation/reminder title in
+new projections or UI fallback; partial left swipes must not complete an Inbox
+item while full swipes complete it once; and Todo/reminder items must sort above
+ordinary Automation delivery receipts in the default Inbox list.
 
 Toolset escalation and retry harnesses must assert that
 `HERMES_TOOLSET_ESCALATION_REQUIRED` is stripped from visible chat content,

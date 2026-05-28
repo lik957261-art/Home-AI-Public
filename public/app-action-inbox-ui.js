@@ -77,7 +77,16 @@ function actionInboxTodoDueText(item = {}) {
 function actionInboxDisplayTitle(item = {}) {
   const dueAt = actionInboxTodoDueAt(item);
   const dueText = dueAt ? actionInboxCompactTime(dueAt) : "";
-  return String(item?.title || item?.summary || item?.id || "\u6536\u4ef6")
+  const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
+  let title = String(item?.title || item?.summary || item?.id || "\u6536\u4ef6");
+  if (sourceRef.scheduledTodo && title.trim() === "\u5f85\u529e\u63d0\u9192") {
+    title = String(sourceRef.automationTitle || sourceRef.reminderTitle || item?.summary || title)
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line && !/^\u4ea4\u4ed8\u6587\u4ef6\s*[:\uff1a]/.test(line))
+      || title;
+  }
+  return title
     .replace(/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.+-]+Z?/g, dueText || "");
 }
 
@@ -149,7 +158,9 @@ function actionInboxLatestDeliverable(item = {}) {
 function actionInboxPrimaryDeliverable(item = {}) {
   const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
   const itemType = String(item?.itemType || item?.item_type || "").trim().toLowerCase();
-  if (sourceType !== "automation" || itemType !== "delivery") return null;
+  const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
+  const canReadDirectly = itemType === "delivery" || (itemType === "todo" && sourceRef.scheduledTodo);
+  if (sourceType !== "automation" || !canReadDirectly) return null;
   return actionInboxLatestDeliverable(item);
 }
 
@@ -205,6 +216,35 @@ function actionInboxDeliverableLabel(deliverable = {}) {
   return "\u4ea4\u4ed8";
 }
 
+function actionInboxStatusActionLabel(item = {}) {
+  const status = actionInboxStatusLabel(item.status);
+  return status || "\u5904\u7406";
+}
+
+function actionInboxActionMenuItems(item = {}) {
+  const actions = [];
+  const deliverable = actionInboxPrimaryDeliverable(item) || actionInboxLatestDeliverable(item);
+  const sourceLink = actionInboxSourceDeepLink(item);
+  const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
+  if (deliverable?.url) {
+    actions.push({ id: "deliverable", label: `${"\u6253\u5f00\u4ea4\u4ed8"} ${actionInboxDeliverableLabel(deliverable)}` });
+  }
+  if (sourceLink) {
+    actions.push({ id: "source", label: sourceType === "automation" ? "\u6253\u5f00\u81ea\u52a8\u5316\u4efb\u52a1" : "\u6253\u5f00\u6765\u6e90" });
+  }
+  actions.push({ id: "detail", label: "\u67e5\u770b\u6536\u4ef6\u8be6\u60c5" });
+  if (!actionInboxIsTerminalStatus(item.status)) actions.push({ id: "complete", label: "\u6807\u8bb0\u4e3a\u5df2\u8bfb" });
+  return actions;
+}
+
+function renderActionInboxActionMenu(item = {}) {
+  if (state.actionInboxActionMenuItemId !== item.id) return "";
+  const actions = actionInboxActionMenuItems(item);
+  return `<div class="action-inbox-action-menu" role="menu" aria-label="${"\u5904\u7406\u65b9\u5f0f"}">
+    ${actions.map((action) => `<button type="button" role="menuitem" data-action-inbox-menu-action="${escapeHtml(action.id)}" data-action-inbox-menu-id="${escapeHtml(item.id || "")}">${escapeHtml(action.label)}</button>`).join("")}
+  </div>`;
+}
+
 async function loadActionInbox(options = {}) {
   const seq = (state.actionInboxRequestSeq || 0) + 1;
   state.actionInboxRequestSeq = seq;
@@ -251,6 +291,7 @@ function openActionInboxList() {
   state.skillDetail = null;
   state.selectedActionInboxItemId = "";
   state.actionInboxDetail = null;
+  state.actionInboxActionMenuItemId = "";
   state.actionInboxCreateOpen = false;
   renderActionInboxView();
 }
@@ -259,6 +300,7 @@ function openActionInboxCreate() {
   state.skillDetail = null;
   state.selectedActionInboxItemId = "";
   state.actionInboxDetail = null;
+  state.actionInboxActionMenuItemId = "";
   state.actionInboxCreateOpen = true;
   renderActionInboxView();
 }
@@ -288,6 +330,7 @@ function renderActionInboxItem(item) {
   const summary = actionInboxDisplaySummary(item);
   const primaryDeliverable = actionInboxPrimaryDeliverable(item);
   const directSource = actionInboxOpensSourceDirectly(item);
+  const statusMenuOpen = state.actionInboxActionMenuItemId === item.id;
   const itemActionAttr = primaryDeliverable
     ? `data-action-inbox-open-deliverable-id="${escapeHtml(item.id || "")}"`
     : directSource
@@ -304,11 +347,12 @@ function renderActionInboxItem(item) {
       </span>
       <span class="action-inbox-item-head">
         <strong>${escapeHtml(title)}</strong>
-        <span class="action-inbox-status ${escapeHtml(tone)}">${escapeHtml(actionInboxStatusLabel(item.status))}</span>
       </span>
       <span class="action-inbox-item-summary">${escapeHtml(summary)}</span>
     </button>
-    ${primaryDeliverable ? `<a class="action-inbox-deliverable-chip" href="${escapeHtml(primaryDeliverable.url)}" target="_self" data-task-doc data-action-inbox-deliverable-id="${escapeHtml(item.id || "")}" data-artifact-name="${escapeHtml(primaryDeliverable.name)}" data-artifact-mime="${escapeHtml(primaryDeliverable.mime || "text/markdown")}" aria-label="${escapeHtml(`\u6253\u5f00\u4ea4\u4ed8 ${primaryDeliverable.name}`)}">${escapeHtml(actionInboxDeliverableLabel(primaryDeliverable))}</a>` : ""}
+    <button class="action-inbox-status action-inbox-status-action ${escapeHtml(tone)}" type="button" data-action-inbox-actions-id="${escapeHtml(item.id || "")}" aria-haspopup="menu" aria-expanded="${statusMenuOpen ? "true" : "false"}">${escapeHtml(actionInboxStatusActionLabel(item))}</button>
+    ${renderActionInboxActionMenu(item)}
+    ${primaryDeliverable ? `<a class="action-inbox-deliverable-chip" href="${escapeHtml(primaryDeliverable.url)}" target="_self" data-task-doc data-action-inbox-deliverable-id="${escapeHtml(item.id || "")}" data-artifact-name="${escapeHtml(primaryDeliverable.name)}" data-artifact-mime="${escapeHtml(primaryDeliverable.mime || "text/markdown")}" aria-label="${escapeHtml(`\u6253\u5f00\u4ea4\u4ed8 ${primaryDeliverable.name}`)}">${escapeHtml(`${"\u4ea4\u4ed8"} ${actionInboxDeliverableLabel(primaryDeliverable)}`)}</a>` : ""}
     </div>
   </article>`;
 }
@@ -402,6 +446,7 @@ function wireActionInboxView(root) {
       state.actionInboxStatusFilter = button.dataset.actionInboxFilter || "open";
       state.selectedActionInboxItemId = "";
       state.actionInboxDetail = null;
+      state.actionInboxActionMenuItemId = "";
       loadActionInbox().catch(showError);
     });
   });
@@ -425,6 +470,22 @@ function wireActionInboxView(root) {
       event.stopPropagation();
       event.stopImmediatePropagation?.();
       openActionInboxItemDeliverableById(button.dataset.actionInboxOpenDeliverableId || button.dataset.actionInboxDeliverableId).catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-action-inbox-actions-id]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const id = button.dataset.actionInboxActionsId || "";
+      state.actionInboxActionMenuItemId = state.actionInboxActionMenuItemId === id ? "" : id;
+      renderActionInboxView({ preserveScroll: true });
+    });
+  });
+  root.querySelectorAll("[data-action-inbox-menu-action]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      handleActionInboxMenuAction(button.dataset.actionInboxMenuId || "", button.dataset.actionInboxMenuAction || "").catch(showError);
     });
   });
   root.querySelector("[data-action-inbox-open-source]")?.addEventListener("click", () => {
@@ -484,6 +545,21 @@ function openActionInboxItemDeliverableById(itemId) {
   const id = String(itemId || "").trim();
   const item = state.actionInboxItems.find((candidate) => candidate.id === id) || null;
   return openActionInboxItemDeliverable(item);
+}
+
+async function handleActionInboxMenuAction(itemId, action) {
+  const id = String(itemId || "").trim();
+  const item = state.actionInboxItems.find((candidate) => candidate.id === id)
+    || (currentActionInboxItem()?.id === id ? currentActionInboxItem() : null);
+  state.actionInboxActionMenuItemId = "";
+  if (!id || !item) {
+    renderActionInboxView({ preserveScroll: true });
+    return;
+  }
+  if (action === "deliverable") return openActionInboxItemDeliverable(item);
+  if (action === "source") return openActionInboxItemSource(item);
+  if (action === "complete") return mutateActionInboxItemById(id, "complete");
+  await loadActionInboxItem(id);
 }
 
 function openCurrentActionInboxItemLink() {

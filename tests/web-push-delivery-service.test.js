@@ -438,8 +438,8 @@ function testScheduledTodoAutomationCreatesTodoInboxItemWithoutDeliverable() {
           jobs: [{
             id: "weekly-todo-job",
             ownerPrincipalId: "owner",
-            name: "每周提醒检查书包",
-            prompt: "每周提醒我检查书包",
+            name: "Weekly bookcase check",
+            prompt: "remind me to check the bookcase weekly",
             schedule: "weekly",
             lastRunAt: runAt,
             lastStatus: "success",
@@ -466,8 +466,12 @@ function testScheduledTodoAutomationCreatesTodoInboxItemWithoutDeliverable() {
       assert.equal(inboxCalls[0].sourceType, "automation");
       assert.equal(inboxCalls[0].itemType, "todo");
       assert.equal(inboxCalls[0].priority, "high");
+      assert.equal(inboxCalls[0].title, "Weekly bookcase check");
+      assert.notEqual(inboxCalls[0].title, "\u5f85\u529e\u63d0\u9192");
       assert.equal(inboxCalls[0].sourceRef.scheduledTodo, true);
+      assert.equal(inboxCalls[0].sourceRef.automationTitle, "Weekly bookcase check");
       assert.equal(inboxCalls[0].sourceRef.schedule, "weekly");
+      assert.equal(calls.sends[0].payload.title, "Weekly bookcase check");
       assert.equal(calls.sends[0].payload.data.messageType, "automation_scheduled_todo");
       assert.equal(calls.sends[0].payload.data.viewMode, "inbox");
     });

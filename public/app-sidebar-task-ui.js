@@ -542,7 +542,7 @@ async function openSharedTaskGroupFromList(threadId, taskGroupId) {
 
 function isTaskSwipeInteractiveTarget(target) {
   return Boolean(target?.closest?.(
-    "[data-delete-swipe], [data-delete-task], [data-complete-swipe], [data-task-card-menu], [data-rename-task], .task-card-menu, [data-task-doc], [data-open-task], [data-directory-path-open], .task-skill-chip, .directory-alias-chip, input, select, textarea, [contenteditable='true']"
+    "[data-delete-swipe], [data-delete-task], [data-complete-swipe], [data-action-inbox-actions-id], [data-action-inbox-menu-action], [data-task-card-menu], [data-rename-task], .task-card-menu, [data-task-doc], [data-open-task], [data-directory-path-open], .task-skill-chip, .directory-alias-chip, input, select, textarea, [contenteditable='true']"
   ));
 }
 
@@ -606,7 +606,7 @@ function wireTaskSwipeActions(root) {
       commitSwipeDelete(row, itemKind, itemId);
     });
     row.addEventListener("click", (event) => {
-      if (event.target?.closest?.("[data-delete-swipe], [data-delete-task], [data-complete-swipe], [data-task-card-menu], [data-rename-task], .task-card-menu")) return;
+      if (event.target?.closest?.("[data-delete-swipe], [data-delete-task], [data-complete-swipe], [data-action-inbox-actions-id], [data-action-inbox-menu-action], [data-task-card-menu], [data-rename-task], .task-card-menu")) return;
       if (event.target?.closest?.("[data-task-doc], [data-directory-path-open], .task-skill-chip, .directory-alias-chip")) return;
       if (row.dataset.taskSwipeMoved) {
         event.preventDefault();
@@ -631,7 +631,7 @@ function wireTaskSwipeActions(root) {
     }
     row.addEventListener("touchstart", (event) => {
       if (!isMobileLayout() || event.touches.length !== 1) return;
-      if (event.target?.closest?.("[data-delete-swipe], [data-delete-task], [data-complete-swipe], [data-task-card-menu], [data-rename-task], .task-card-menu, [data-task-doc], [data-directory-path-open], .task-skill-chip, .directory-alias-chip, input, select, textarea, [contenteditable='true']")) return;
+      if (event.target?.closest?.("[data-delete-swipe], [data-delete-task], [data-complete-swipe], [data-action-inbox-actions-id], [data-action-inbox-menu-action], [data-task-card-menu], [data-rename-task], .task-card-menu, [data-task-doc], [data-directory-path-open], .task-skill-chip, .directory-alias-chip, input, select, textarea, [contenteditable='true']")) return;
       const content = taskSwipeContent(row);
       if (!content) return;
       closeTaskSwipeRows(document, row);

@@ -35,6 +35,7 @@ vm.runInNewContext(`${source}
 this.ActionInboxUiTest = {
   actionInboxDisplaySummary,
   actionInboxDisplayTitle,
+  actionInboxActionMenuItems,
   actionInboxOpensSourceDirectly,
   actionInboxPrimaryDeliverable,
   actionInboxSourceDeepLink,
@@ -60,6 +61,7 @@ assert.match(openTodoHtml, /data-swipe-kind="action-inbox"/);
 assert.match(openTodoHtml, /data-swipe-commit="full"/);
 assert.match(openTodoHtml, /data-complete-swipe="ainb-todo-1"/);
 assert.match(openTodoHtml, /data-action-inbox-id="ainb-todo-1"/);
+assert.match(openTodoHtml, /data-action-inbox-actions-id="ainb-todo-1"/);
 assert.doesNotMatch(openTodoHtml, /data-action-inbox-open-source-id="ainb-todo-1"/);
 assert.match(openTodoHtml, /标记为已读/);
 assert.match(openTodoHtml, /已读/);
@@ -127,8 +129,10 @@ assert.equal(ui.actionInboxOpensSourceDirectly(automationDelivery), false);
 assert.equal(ui.actionInboxPrimaryDeliverable(automationDelivery).name, "weekly.md");
 assert.match(deliveryHtml, /data-action-inbox-open-deliverable-id="ainb-auto-delivery"/);
 assert.match(deliveryHtml, /class="action-inbox-deliverable-chip"/);
+assert.match(deliveryHtml, />\u4ea4\u4ed8 MD<\/a>/);
 assert.match(deliveryHtml, /data-task-doc/);
 assert.match(deliveryHtml, /data-artifact-mime="text\/markdown"/);
+assert.deepEqual(ui.actionInboxActionMenuItems(automationDelivery).map((action) => action.id), ["deliverable", "source", "detail", "complete"]);
 
 const openedDeliverables = [];
 sandbox.state.actionInboxItems = [automationDelivery];
@@ -172,5 +176,31 @@ const legacyAutomationDelivery = {
 const legacyDeliveryHtml = ui.renderActionInboxItem(legacyAutomationDelivery);
 assert.match(legacyDeliveryHtml, /data-action-inbox-open-deliverable-id="ainb-auto-legacy"/);
 assert.equal(ui.actionInboxPrimaryDeliverable(legacyAutomationDelivery).url, "/api/automations/deliverable?jobId=auto-job-legacy&run=run.md&index=0");
+
+const scheduledTodoDelivery = {
+  id: "ainb-auto-scheduled",
+  sourceType: "automation",
+  itemType: "todo",
+  status: "open",
+  title: "\u5f85\u529e\u63d0\u9192",
+  summary: "Daily discussion report\n\u4ea4\u4ed8\u6587\u4ef6: report.md",
+  sourceRef: {
+    automationId: "auto-job-scheduled",
+    scheduledTodo: true,
+    automationTitle: "Daily discussion report",
+    latestDeliverable: {
+      name: "report.md",
+      url: "/api/automations/deliverable?jobId=auto-job-scheduled&run=run.md&index=0",
+      mime: "text/markdown",
+    },
+  },
+  workspaceId: "owner",
+};
+const scheduledTodoHtml = ui.renderActionInboxItem(scheduledTodoDelivery);
+assert.equal(ui.actionInboxDisplayTitle(scheduledTodoDelivery), "Daily discussion report");
+assert.equal(ui.actionInboxPrimaryDeliverable(scheduledTodoDelivery).name, "report.md");
+assert.match(scheduledTodoHtml, /data-action-inbox-open-deliverable-id="ainb-auto-scheduled"/);
+assert.match(scheduledTodoHtml, />\u4ea4\u4ed8 MD<\/a>/);
+assert.match(scheduledTodoHtml, /data-action-inbox-actions-id="ainb-auto-scheduled"/);
 
 console.log("app-action-inbox-ui tests passed");

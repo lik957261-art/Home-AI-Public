@@ -155,6 +155,14 @@ Required harness dimensions:
 - Scheduled Todo/reminder automations must project each trigger as a Todo-like
   Inbox occurrence, not as an ordinary delivery receipt; completing the
   occurrence must not delete the recurrence job.
+- Scheduled Todo/reminder Automation occurrences that include a safe deliverable
+  reference must still expose the direct same-window MD/document preview path.
+- Inbox row status pills must be actionable selectors for the concrete handling
+  paths instead of static labels only; the menu must include the safe source
+  actions available for that item without bypassing the source module.
+- Scheduled Todo/reminder Automation titles should use the concrete
+  Automation/reminder name; source/type badges, not generic titles, carry the
+  source classification.
 - Inbox swipe-complete gestures must be threshold-gated: partial swipes may
   reveal the action but must not call the complete transition; full swipes call
   it once.

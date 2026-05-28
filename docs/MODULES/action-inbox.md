@@ -81,6 +81,9 @@ render this as a direct file chip so the common reading path opens the Markdown
 or document preview from the list, in the same Hermes Mobile window, without
 first opening the Inbox detail or the Automation detail. The deliverable body
 must remain in the source file/preview route and must not be copied into Inbox.
+Scheduled Todo/reminder Automation rows may also render this direct deliverable
+chip when the run produced a safe `latestDeliverable`; Todo semantics affect
+completion/sort behavior, not whether the delivery file is reachable.
 
 Recurring reminder-style automations are treated as scheduled Todo triggers,
 not ordinary delivery receipts. When an automation job is explicitly marked as
@@ -150,6 +153,10 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
 
 - Keep mobile UI compact and scan-friendly.
 - Inbox rows and detail headers should show explicit source/type badges, not only low-contrast metadata, so items from Automation, Growth, manual Todo/reminder, approval/review, and executor completion notices are distinguishable at a glance.
+- Inbox row titles should describe the actual source task or reminder. Generic
+  titles such as `待办提醒` are fallback labels only; for Automation scheduled
+  Todo rows, use the Automation/reminder name as the title and rely on the
+  source/type badges to show `来源：自动化` and `类型：待办`.
 - Do not duplicate the top bar title inside the Inbox content area. Page-level actions should stay in the overflow menu; form-submit controls may remain in the form itself.
 - Keep source modules canonical; Inbox only stores summary/action projection and audit events.
 - Dedupe by stable source references so repeated refreshes or Web Push deliveries do not create duplicate items.
@@ -167,6 +174,13 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
   should expose a direct deliverable chip from the list. The direct file path is
   the primary delivery-reading path; Automation detail remains the source
   management/troubleshooting path.
+- Automation scheduled-Todo rows with a safe `sourceRef.latestDeliverable.url`
+  should also expose the same direct list chip, because the occurrence is still
+  the user's low-click delivery-reading path.
+- The right-side status pill in Inbox rows is an action selector. It should open
+  a compact source-aware menu such as direct deliverable, source Automation
+  task, Inbox detail, and mark-as-read/complete. The row tap remains the primary
+  default action, while the status menu exposes the alternate processing paths.
 - Todo/reminder items, including scheduled Todo occurrences created by
   Automation, must sort above ordinary Automation delivery receipts in the
   default Inbox. Automation failures and review/approval items may still rank

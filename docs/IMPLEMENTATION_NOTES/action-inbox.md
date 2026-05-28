@@ -249,6 +249,14 @@ Follow-up design/implementation rule for direct delivery and scheduled Todo:
   fresh deliverable exists.
 - Automation delivery Inbox rows expose a direct same-window document preview
   chip from the list.
+- Scheduled Todo Automation rows also expose the direct document preview chip
+  when `sourceRef.latestDeliverable` is present; their Todo classification only
+  changes sort/completion semantics.
+- Scheduled Todo Automation rows use the concrete Automation/reminder title in
+  Web Push and Inbox projections, not the generic `待办提醒` label.
+- The right-side Inbox status pill opens a compact action menu with
+  source-aware actions such as direct deliverable, Automation source, Inbox
+  detail, and mark-as-read/complete.
 - Left-swipe completion is threshold-gated as a full-swipe action; partial
   swipes do not call the complete transition.
 - Scheduled Todo automations create Todo-like Inbox occurrences and are sorted
