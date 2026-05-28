@@ -124,12 +124,14 @@ historical scrolling: arrow visibility recalculation must resolve the current
 conversation/message node when the queued callback executes, fall back from a
 detached pre-terminal node to the live conversation, and run a short delayed
 settle pass after final markdown/layout replacement. The eligibility check must
-also cover default-collapsed long replies by original content length rather than
-only rendered preview height. Viewport harnesses must also cover orientation
-recovery: after landscape/portrait changes, the client must clear stale keyboard
-viewport state when the composer is no longer actually focused, clear temporary
-conversation scroll-layer reset state, recompute bottom navigation reservation,
-and recalculate long-reply arrows.
+also cover one-screen overflow by measured rendered height and viewport
+geometry, not by the 6000-character rich-render threshold. If a reply footer is
+visible, the up/start arrow must stay inline beside the Usage/Skill/status chips;
+floating is only allowed while the footer is outside the viewport. Viewport
+harnesses must also cover orientation recovery: after landscape/portrait changes,
+the client must clear stale keyboard viewport state when the composer is no
+longer actually focused, clear temporary conversation scroll-layer reset state,
+recompute bottom navigation reservation, and recalculate long-reply arrows.
 
 Static client UI tests must cover device-local theme settings when the settings
 sheet changes: `system` / `light` / `dark` options render in the settings menu,

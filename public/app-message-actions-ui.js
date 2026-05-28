@@ -369,8 +369,15 @@ function renderMessageScrollButton(message, position) {
 function messageScrollEligibleByContent(message = {}) {
   if (message?.role !== "assistant" || !message?.id) return false;
   if (message.revokedAt) return false;
-  const contentLength = String(message.content || "").length;
-  return contentLength > Math.max(1600, ACTIVE_MESSAGE_RICH_RENDER_LIMIT);
+  const content = String(message.content || "");
+  if (!content.trim()) return false;
+  const estimatedLines = content.split(/\r\n|\r|\n/).reduce((total, line) => {
+    const cjk = (line.match(/[\u2e80-\u9fff\uac00-\ud7af]/g) || []).length;
+    const ascii = Math.max(0, line.length - cjk);
+    const units = cjk + (ascii * 0.55);
+    return total + Math.max(1, Math.ceil(units / 18));
+  }, 0);
+  return estimatedLines > 22;
 }
 
 function canUseMessageReplyActions(message) {
@@ -567,6 +574,7 @@ function wireMessageScrollButtons(root) {
       scrollMessageIntoView(button.dataset.scrollMessage || "", button.dataset.scrollPosition || "start");
     });
   });
+  applyMessageScrollButtonVisibility(root);
 }
 
 function currentMessageById(messageId) {
@@ -799,21 +807,33 @@ function updateMessageScrollButtonVisibility(root) {
   ];
   articles.forEach((article) => {
     const articleRect = article.getBoundingClientRect?.() || { top: 0, left: 0, right: 0, bottom: 0 };
-    const messageHeight = articleRect.height || article.offsetHeight || 0;
+    const messageBody = article.querySelector?.(".message-body") || null;
+    const messageHeight = Math.max(
+      articleRect.height || 0,
+      article.offsetHeight || 0,
+      article.scrollHeight || 0,
+      messageBody?.offsetHeight || 0,
+      messageBody?.scrollHeight || 0
+    );
     const wasShown = article.dataset.messageScrollButtonVisible === "1";
     const contentEligible = article.dataset.messageScrollEligible === "1";
     const hasRunProgress = Boolean(article.querySelector(".run-progress-panel.inline:not(.terminal)"));
-    const showThreshold = Math.max(420, viewportHeight - 28);
-    const hideThreshold = Math.max(360, viewportHeight - 140);
+    const measured = viewportHeight > 0 && messageHeight > 0;
+    const canReturnToStart = messageScrollCanReturnToStart(articleRect, conversationRect);
+    const canJumpToEnd = messageScrollCanJumpToEnd(articleRect, conversationRect);
+    const showThreshold = Math.max(180, viewportHeight - 24);
+    const hideThreshold = Math.max(160, viewportHeight - 96);
     const shouldShow = viewportHeight > 0 && !hasRunProgress && (
-      contentEligible
-      ||
-      messageHeight > showThreshold
+      canReturnToStart
+      || canJumpToEnd
+      || messageHeight > showThreshold
+      || (!measured && contentEligible)
       || (wasShown && messageHeight > hideThreshold)
     );
     if (shouldShow) article.dataset.messageScrollButtonVisible = "1";
     else delete article.dataset.messageScrollButtonVisible;
-    const shouldFloatStart = shouldShow && messageScrollCanReturnToStart(articleRect, conversationRect);
+    const footerVisible = messageScrollFooterVisible(articleRect, conversationRect);
+    const shouldFloatStart = shouldShow && canReturnToStart && !footerVisible;
     article.querySelectorAll(".message-scroll-button").forEach((button) => {
       const isStartButton = String(button.dataset.scrollPosition || "start") !== "end";
       const shouldFloat = Boolean(isStartButton && shouldFloatStart);
@@ -870,6 +890,26 @@ function messageScrollCanReturnToStart(articleRect, conversationRect) {
   const startPassed = (articleRect.top || 0) < (conversationRect.top || 0) + 28;
   const stillInsideMessage = (articleRect.bottom || 0) > (conversationRect.top || 0) + 96;
   return Boolean(startPassed && stillInsideMessage);
+}
+
+function messageScrollCanJumpToEnd(articleRect, conversationRect) {
+  const visibleTop = Math.max(articleRect.top || 0, conversationRect.top || 0);
+  const visibleBottom = Math.min(articleRect.bottom || 0, conversationRect.bottom || 0);
+  const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+  if (visibleHeight < 72) return false;
+  const endBelow = (articleRect.bottom || 0) > (conversationRect.bottom || 0) - 28;
+  const alreadyInsideMessage = (articleRect.top || 0) < (conversationRect.bottom || 0) - 96;
+  return Boolean(endBelow && alreadyInsideMessage);
+}
+
+function messageScrollFooterVisible(articleRect, conversationRect) {
+  const articleBottom = articleRect.bottom || 0;
+  const conversationTop = conversationRect.top || 0;
+  const conversationBottom = conversationRect.bottom || 0;
+  return Boolean(
+    articleBottom >= conversationTop + 96
+    && articleBottom <= conversationBottom + 56
+  );
 }
 
 function positionFloatingMessageScrollButton(button, shouldFloat, articleRect, conversationRect) {

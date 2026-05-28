@@ -24,8 +24,8 @@ assert.match(
 
 assert.match(
   appMessageActionsUiJs,
-  /const shouldFloatStart = shouldShow && messageScrollCanReturnToStart\(articleRect, conversationRect\);/,
-  "the start arrow should float only after the long message is eligible for normal scroll controls"
+  /const shouldFloatStart = shouldShow && canReturnToStart && !footerVisible;/,
+  "the start arrow should float only when the reply start has passed and the footer is not already visible"
 );
 
 assert.match(
@@ -54,8 +54,14 @@ assert.match(
 
 assert.match(
   appMessageActionsUiJs,
-  /function messageScrollEligibleByContent\(message = \{\}\) \{[\s\S]*?contentLength > Math\.max\(1600, ACTIVE_MESSAGE_RICH_RENDER_LIMIT\);/,
-  "default-collapsed long replies must be eligible for arrows even when the rendered preview is shorter than the viewport"
+  /function messageScrollEligibleByContent\(message = \{\}\) \{[\s\S]*?estimatedLines[\s\S]*?> 22;/,
+  "initial long-reply arrow eligibility may use a screen-line estimate, not the rich-render character limit"
+);
+
+assert.doesNotMatch(
+  appMessageActionsUiJs,
+  /function messageScrollEligibleByContent\(message = \{\}\) \{[\s\S]*?ACTIVE_MESSAGE_RICH_RENDER_LIMIT[\s\S]*?\}/,
+  "long-reply arrow eligibility must not be tied to the 6000-character rich-render threshold"
 );
 
 assert.match(
@@ -66,8 +72,26 @@ assert.match(
 
 assert.match(
   appMessageActionsUiJs,
-  /const contentEligible = article\.dataset\.messageScrollEligible === "1";[\s\S]*?contentEligible[\s\S]*?\|\|\s*messageHeight > showThreshold/,
-  "arrow visibility must use content eligibility before relying on rendered height"
+  /const messageHeight = Math\.max\([\s\S]*?messageBody\?\.scrollHeight \|\| 0[\s\S]*?messageHeight > showThreshold/,
+  "arrow visibility must use measured message height to determine whether the rendered reply fits in one screen"
+);
+
+assert.match(
+  appMessageActionsUiJs,
+  /const canReturnToStart = messageScrollCanReturnToStart\(articleRect, conversationRect\);[\s\S]*?const canJumpToEnd = messageScrollCanJumpToEnd\(articleRect, conversationRect\);[\s\S]*?canReturnToStart[\s\S]*?\|\| canJumpToEnd/,
+  "arrow visibility must use viewport geometry so a reply that has scrolled past its start can jump back even when character heuristics are unavailable"
+);
+
+assert.match(
+  appMessageActionsUiJs,
+  /const footerVisible = messageScrollFooterVisible\(articleRect, conversationRect\);[\s\S]*?const shouldFloatStart = shouldShow && canReturnToStart && !footerVisible;/,
+  "the footer up arrow must stay beside Usage when the reply footer is already visible"
+);
+
+assert.match(
+  appMessageActionsUiJs,
+  /function wireMessageScrollButtons\(root\) \{[\s\S]*?applyMessageScrollButtonVisibility\(root\);[\s\S]*?\}/,
+  "message scroll arrows must be recalculated immediately after binding instead of waiting only for a later async pass"
 );
 
 assert.match(
@@ -84,6 +108,7 @@ assert.match(
 
 let queuedFrame = null;
 let liveButtonHidden = true;
+let liveButtonFloating = null;
 const jumpBottomButton = {
   classList: { toggle() {} },
   setAttribute() {},
@@ -93,6 +118,7 @@ const liveButton = {
   classList: {
     toggle(name, hidden) {
       if (name === "hidden") liveButtonHidden = Boolean(hidden);
+      if (name === "floating") liveButtonFloating = Boolean(hidden);
     },
   },
   style: { setProperty() {}, removeProperty() {} },
@@ -100,12 +126,14 @@ const liveButton = {
   tabIndex: -1,
 };
 const liveArticle = {
-  dataset: { messageScrollEligible: "1" },
-  offsetHeight: 220,
+  dataset: {},
+  offsetHeight: 620,
+  scrollHeight: 620,
   matches() { return true; },
-  getBoundingClientRect() { return { top: 0, bottom: 220, left: 0, right: 390 }; },
+  getBoundingClientRect() { return { top: -260, bottom: 360, height: 620, left: 0, right: 390 }; },
   querySelector(selector) {
     if (selector === ".run-progress-panel.inline:not(.terminal)") return null;
+    if (selector === ".message-body") return { offsetHeight: 590, scrollHeight: 590 };
     return null;
   },
   querySelectorAll(selector) {
@@ -148,6 +176,7 @@ globalThis.messageScrollHarness = { scheduleMessageScrollButtonVisibility };`, c
 context.messageScrollHarness.scheduleMessageScrollButtonVisibility(detachedArticle);
 assert.strictEqual(typeof queuedFrame, "function");
 queuedFrame();
-assert.strictEqual(liveButtonHidden, false, "detached queued message nodes must fall back to the live conversation and reveal content-eligible long-reply arrows even when the collapsed preview is short");
+assert.strictEqual(liveButtonHidden, false, "detached queued message nodes must fall back to the live conversation and reveal one-screen-overflow long-reply arrows");
+assert.strictEqual(liveButtonFloating, false, "the reply-end up arrow must remain inline beside the footer controls when the reply footer is visible");
 
 console.log("message scroll button visibility harness passed");

@@ -65,8 +65,11 @@ Gateway plugin/schema/profile changes:
   the current DOM at execution time and include a delayed settle pass after final
   markdown/layout replacement so a stale pre-terminal message node cannot leave
   the footer arrow hidden. Eligibility must use the assistant message's original
-  content length before rendered height, because default-collapsed previews can
-  be much shorter than the full receipt while still needing a jump-back control.
+  rendered height and viewport geometry: if the rendered reply cannot fit in one
+  conversation screen, the jump control must be visible. Character-count or rich
+  render limits are only no-layout fallbacks. When the reply footer is already in
+  view, the up/start arrow must stay inline beside the Usage/Skill/status chips
+  instead of floating away to the top of the message.
 - Mobile orientation changes must have a deterministic viewport recovery pass:
   clear any temporary conversation scroll-layer reset, clear stale keyboard
   viewport CSS when the composer is no longer actually focused, recompute bottom
