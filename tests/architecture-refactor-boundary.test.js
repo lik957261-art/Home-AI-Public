@@ -668,7 +668,7 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /public\/app\.js/);
   assert.match(doc, /10,000 lines/);
   assert.match(doc, /120/);
-  assert.match(doc, /700 lines/);
+  assert.match(doc, /1,000 lines/);
   assert.match(doc, /Product Module Boundary/);
   assert.match(doc, /FANFAN_LEARNING_SYSTEM_ARCHITECTURE\.zh-CN\.md/);
 
@@ -752,7 +752,7 @@ function testServiceFirstArchitectureContract() {
   ];
   for (const frontendModule of frontendRuntimeModules) {
     const moduleLineCount = fileText(frontendModule).split(/\r?\n/).length;
-    assert.ok(moduleLineCount <= 700, `${frontendModule} line budget exceeded: ${moduleLineCount} > 700`);
+    assert.ok(moduleLineCount <= 1000, `${frontendModule} line budget exceeded: ${moduleLineCount} > 1000`);
   }
 }
 

@@ -860,6 +860,38 @@ function createWebPushDeliveryService(options = {}) {
     return candidates[0] || null;
   }
 
+  function automationDeliverableMime(doc = {}) {
+    const explicit = String(doc.mime || doc.mimeType || doc.contentType || "").trim();
+    if (explicit) return explicit;
+    const ext = automationDeliverableExtension(doc);
+    if (ext === ".md") return "text/markdown";
+    if (ext === ".pdf") return "application/pdf";
+    if (ext === ".docx") return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    if (ext === ".doc") return "application/msword";
+    return "application/octet-stream";
+  }
+
+  function automationDeliverableSourceRef(doc = null) {
+    if (!doc) return null;
+    return {
+      name: String(doc.name || "").trim(),
+      url: String(doc.url || "").trim(),
+      mime: automationDeliverableMime(doc),
+      updatedAt: String(doc.updatedAt || "").trim(),
+      runOutputUpdatedAt: String(doc.runOutputUpdatedAt || "").trim(),
+    };
+  }
+
+  function automationJobLooksScheduledTodo(job = {}) {
+    const explicit = String(job.itemType || job.item_type || job.intentType || job.intent_type || job.category || job.kind || "").trim().toLowerCase();
+    if (["todo", "scheduled_todo", "reminder", "scheduled-reminder"].includes(explicit)) return true;
+    if (job.scheduledTodo || job.scheduled_todo || job.todoReminder || job.todo_reminder) return true;
+    const schedule = String(job.scheduleText || job.schedule || "").trim().toLowerCase();
+    if (!schedule || schedule === "manual") return false;
+    const text = `${job.name || ""}\n${job.title || ""}\n${job.prompt || ""}\n${job.promptPreview || ""}`.toLowerCase();
+    return /\b(todo|to-do|reminder|remind me)\b/.test(text) || /待办|提醒|备忘/.test(text);
+  }
+
   function automationPushSignature(job, latestDoc = null) {
     const lastRunAt = String(job?.lastRunAt || "").trim();
     if (!lastRunAt) return "";
@@ -920,8 +952,9 @@ function createWebPushDeliveryService(options = {}) {
     const principalId = automationOwnerPrincipal(job);
     const workspaceId = workspaceIdForPrincipal(principalId);
     const failed = automationRunFailed(job);
-    if (!latestDoc && !failed) return null;
-    const title = failed ? "\u81ea\u52a8\u5316\u4efb\u52a1\u5931\u8d25" : "\u81ea\u52a8\u5316\u4efb\u52a1\u5b8c\u6210";
+    const scheduledTodo = automationJobLooksScheduledTodo(job);
+    if (!latestDoc && !failed && !scheduledTodo) return null;
+    const title = failed ? "\u81ea\u52a8\u5316\u4efb\u52a1\u5931\u8d25" : (scheduledTodo ? "\u5f85\u529e\u63d0\u9192" : "\u81ea\u52a8\u5316\u4efb\u52a1\u5b8c\u6210");
     const body = compactText([
       automationTitleForPush(job),
       latestDoc ? `\u4ea4\u4ed8\u6587\u4ef6: ${latestDoc.name}` : "",
@@ -934,6 +967,7 @@ function createWebPushDeliveryService(options = {}) {
       workspaceId,
       signature,
       latestDoc,
+      scheduledTodo,
       payload: {
         title,
         body,
@@ -949,9 +983,10 @@ function createWebPushDeliveryService(options = {}) {
           workspaceId,
           automationId: jobId,
           principalId,
-          messageType: failed ? "automation_failed" : "automation_completed",
+          messageType: failed ? "automation_failed" : (scheduledTodo ? "automation_scheduled_todo" : "automation_completed"),
           lastRunAt: job.lastRunAt || "",
           status: job.lastStatus || job.status || "",
+          schedule: job.scheduleText || job.schedule || "",
           requireInteraction: true,
         },
       },
@@ -982,8 +1017,9 @@ function createWebPushDeliveryService(options = {}) {
       if (!jobId || !principalSet.has(principalId)) continue;
       const existingMark = store.automationPushMarks[jobId];
       const failed = automationRunFailed(job);
+      const scheduledTodo = automationJobLooksScheduledTodo(job);
       const latestDoc = automationLatestDeliverableForPush(job, existingMark);
-      if (!latestDoc && !failed) continue;
+      if (!latestDoc && !failed && !scheduledTodo) continue;
       const signature = automationPushSignature(job, latestDoc);
       if (!signature) continue;
       const existing = automationPushMarkSignature(existingMark);
@@ -1014,10 +1050,13 @@ function createWebPushDeliveryService(options = {}) {
           automationId: event.jobId,
           signature: event.signature,
           latestDocumentName: event.latestDoc?.name || "",
+          latestDeliverable: automationDeliverableSourceRef(event.latestDoc),
+          scheduledTodo: Boolean(event.scheduledTodo),
+          schedule: String(event.payload?.data?.schedule || "").trim(),
         },
-        itemType: /failed/i.test(String(event.payload?.data?.messageType || "")) ? "error" : "delivery",
+        itemType: /failed/i.test(String(event.payload?.data?.messageType || "")) ? "error" : (event.scheduledTodo ? "todo" : "delivery"),
         status: "open",
-        priority: /failed/i.test(String(event.payload?.data?.messageType || "")) ? "high" : "normal",
+        priority: /failed/i.test(String(event.payload?.data?.messageType || "")) ? "high" : (event.scheduledTodo ? "high" : "normal"),
         title: event.payload?.title || "",
         summary: event.payload?.body || "",
         actionLabel: "\u67e5\u770b",

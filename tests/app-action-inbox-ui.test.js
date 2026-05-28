@@ -36,8 +36,10 @@ this.ActionInboxUiTest = {
   actionInboxDisplaySummary,
   actionInboxDisplayTitle,
   actionInboxOpensSourceDirectly,
+  actionInboxPrimaryDeliverable,
   actionInboxSourceDeepLink,
   actionInboxTodoDueText,
+  openActionInboxItemDeliverableById,
   renderActionInboxItem,
 };`, sandbox);
 
@@ -55,6 +57,7 @@ const openTodo = {
 
 const openTodoHtml = ui.renderActionInboxItem(openTodo);
 assert.match(openTodoHtml, /data-swipe-kind="action-inbox"/);
+assert.match(openTodoHtml, /data-swipe-commit="full"/);
 assert.match(openTodoHtml, /data-complete-swipe="ainb-todo-1"/);
 assert.match(openTodoHtml, /data-action-inbox-id="ainb-todo-1"/);
 assert.doesNotMatch(openTodoHtml, /data-action-inbox-open-source-id="ainb-todo-1"/);
@@ -101,5 +104,73 @@ assert.equal(ui.actionInboxOpensSourceDirectly(automationReceipt), true);
 const automationHtml = ui.renderActionInboxItem(automationReceipt);
 assert.match(automationHtml, /data-action-inbox-open-source-id="ainb-auto-1"/);
 assert.doesNotMatch(automationHtml, /data-action-inbox-id="ainb-auto-1"/);
+
+const automationDelivery = {
+  id: "ainb-auto-delivery",
+  sourceType: "automation",
+  itemType: "delivery",
+  status: "open",
+  title: "Weekly report",
+  summary: "交付文件: weekly.md",
+  sourceRef: {
+    automationId: "auto-job-2",
+    latestDeliverable: {
+      name: "weekly.md",
+      url: "/api/automations/deliverable?workspaceId=owner&jobId=auto-job-2&run=run.md&index=0",
+      mime: "text/markdown",
+    },
+  },
+  workspaceId: "owner",
+};
+const deliveryHtml = ui.renderActionInboxItem(automationDelivery);
+assert.equal(ui.actionInboxOpensSourceDirectly(automationDelivery), false);
+assert.equal(ui.actionInboxPrimaryDeliverable(automationDelivery).name, "weekly.md");
+assert.match(deliveryHtml, /data-action-inbox-open-deliverable-id="ainb-auto-delivery"/);
+assert.match(deliveryHtml, /class="action-inbox-deliverable-chip"/);
+assert.match(deliveryHtml, /data-task-doc/);
+assert.match(deliveryHtml, /data-artifact-mime="text\/markdown"/);
+
+const openedDeliverables = [];
+sandbox.state.actionInboxItems = [automationDelivery];
+sandbox.document = {
+  createElement(tag) {
+    assert.equal(tag, "a");
+    return {
+      dataset: {},
+      setAttribute(name, value) {
+        this[name] = value;
+      },
+    };
+  },
+};
+sandbox.openTaskDocumentLink = (link) => openedDeliverables.push({
+  href: link.href,
+  name: link.dataset.artifactName,
+  mime: link.dataset.artifactMime,
+});
+ui.openActionInboxItemDeliverableById("ainb-auto-delivery");
+assert.deepEqual(openedDeliverables, [{
+  href: "/api/automations/deliverable?workspaceId=owner&jobId=auto-job-2&run=run.md&index=0",
+  name: "weekly.md",
+  mime: "text/markdown",
+}]);
+
+const legacyAutomationDelivery = {
+  id: "ainb-auto-legacy",
+  sourceType: "automation",
+  itemType: "delivery",
+  status: "open",
+  title: "Legacy report",
+  summary: "交付文件: legacy.md",
+  sourceRef: {
+    automationId: "auto-job-legacy",
+    latestDocumentName: "legacy.md",
+    signature: "2026-05-28T09:03:52+08:00|ok|scheduled|||legacy.md:2026-05-28T09:03:33+08:00:2026-05-28T09:03:52+08:00:/api/automations/deliverable?jobId=auto-job-legacy&run=run.md&index=0",
+  },
+  workspaceId: "owner",
+};
+const legacyDeliveryHtml = ui.renderActionInboxItem(legacyAutomationDelivery);
+assert.match(legacyDeliveryHtml, /data-action-inbox-open-deliverable-id="ainb-auto-legacy"/);
+assert.equal(ui.actionInboxPrimaryDeliverable(legacyAutomationDelivery).url, "/api/automations/deliverable?jobId=auto-job-legacy&run=run.md&index=0");
 
 console.log("app-action-inbox-ui tests passed");

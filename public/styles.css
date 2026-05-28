@@ -1875,6 +1875,12 @@ button {
   box-shadow: none;
 }
 
+.run-progress-panel.compact-after-output {
+  margin-top: 8px;
+  margin-bottom: 6px;
+  padding: 7px 10px;
+}
+
 .run-progress-head {
   display: flex;
   align-items: center;
@@ -1886,9 +1892,17 @@ button {
   font-weight: 600;
 }
 
+.run-progress-panel.compact-after-output .run-progress-head {
+  margin-bottom: 4px;
+}
+
 .run-progress-rows {
   display: grid;
   gap: 5px;
+}
+
+.run-progress-panel.compact-after-output .run-progress-rows {
+  gap: 3px;
 }
 
 .run-progress-row {
@@ -11227,6 +11241,24 @@ body.task-markdown-preview-open {
   border: 0;
   background: transparent;
   color: inherit;
+}
+
+.action-inbox-deliverable-chip {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  min-width: 46px;
+  margin: 0 0 12px 12px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(95, 139, 148, 0.28);
+  background: var(--ui-accent-active-soft);
+  color: var(--ui-accent-active);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
 }
 
 .action-inbox-item.active {

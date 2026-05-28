@@ -76,6 +76,11 @@ that topic must keep authorized `wardrobe`, `vision`, and `file` in the
 suggested model-selection catalog by default, even when the latest message is
 semantically light. This is still a policy-bounded suggestion: the router must
 not grant toolsets that the run policy did not already authorize.
+The execution policy must also preserve the wardrobe companion set after
+model-first narrowing. If the suggested set contains authorized
+`wardrobe`, `vision`, and `file`, a selector result of `wardrobe,file` must
+still execute with `wardrobe,vision,file`; otherwise the main run will be forced
+into an avoidable `HERMES_TOOLSET_ESCALATION_REQUIRED` loop.
 
 The selector is an internal JSON-only preflight. Tests must assert that selector
 requests disable tool calls, that live selector probes do not contain tool-role
@@ -87,10 +92,20 @@ the request body's `model` field.
 
 Run status harnesses must cover no-first-byte visibility. If the execution
 stream receives no Gateway event after the configured warning window, the
-system must emit a user-visible status event without refreshing the real
-Gateway `lastEventAt` used by liveness/stale decisions. Harness coverage should
-also assert visible first-stream-event, first-text-output, liveness warning,
-liveness stale, and stream-failed statuses.
+system may store a diagnostic warning event without refreshing the real Gateway
+`lastEventAt` used by liveness/stale decisions. Harness coverage should assert
+visible first-stream-event, first-text-output, liveness stale, and stream-failed
+statuses. Run-progress UI must not render `run.liveness_warning` as a visible
+row; only stale/start-timeout/stream-failed states should consume visible
+status space.
+
+Action Inbox harnesses must cover the low-click delivery and Todo semantics:
+Automation delivery rows with `sourceRef.latestDeliverable` must render a
+direct same-window document preview action; scheduled Todo/reminder Automation
+triggers must create `itemType=todo` Inbox occurrences; partial left swipes must
+not complete an Inbox item while full swipes complete it once; and Todo/reminder
+items must sort above ordinary Automation delivery receipts in the default
+Inbox list.
 
 Toolset escalation and retry harnesses must assert that
 `HERMES_TOOLSET_ESCALATION_REQUIRED` is stripped from visible chat content,
@@ -122,7 +137,16 @@ following the run. Function-call UI tests must also assert that object-shaped
 previews and paired `callId` result events display the concrete function name
 when available, and that paired Skill/function start and done events render as
 one compact operation row with a status/duration label rather than adjacent
-duplicate start/result rows.
+duplicate start/result rows. For `function_call` / `function_call_output`
+pairs, the duration assertion must use the output/result completion timestamp
+minus the original function-call start timestamp; the intermediate
+`function_call.done` event must not be treated as tool execution completion.
+Gateway event-service tests must also cover both `item` and `output_item`
+payload shapes so function names are preserved while raw arguments and raw tool
+outputs remain excluded. Once streamed text begins, run-progress UI tests must
+assert the inline panel switches to compact display unless a later tool
+operation has started. UI fallback tests must assert unnamed function events do
+not render duplicated labels such as `Function Function`.
 
 For same-window navigation and browser-frame bugs, the required harness must
 cover both root-mounted and prefix-mounted app-shell paths. If the issue is

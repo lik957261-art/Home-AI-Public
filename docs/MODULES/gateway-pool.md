@@ -64,6 +64,10 @@ Hermes Mobile also projects stream wait states into the run-progress panel:
 - `run.liveness_warning`, `run.liveness_stale`, `run.gateway_start_timeout`,
   and `run.stream_failed` make retry/stale/failure states visible before the
   terminal message update.
+- The client-facing label for `run.liveness_warning` should be calm waiting
+  language such as `等待模型返回`, not a Gateway-failure phrase. This event only
+  means the run lookup is temporarily unavailable while Mobile keeps the stream
+  open. `run.liveness_stale` remains the visible timeout/failure state.
 - The run-progress client must merge the public Mobile run id and the Gateway
   response run id for the same assistant message. Startup events are often
   stored under the public `web_...` id, while model, Skill, and function events
@@ -233,6 +237,11 @@ Current runtime behavior:
   `vision`, and `file` for all AI runs in that topic by default. This does not
   grant new permission; it only keeps already-authorized MCP/input capabilities
   visible to the model-side selector.
+- The selector may still choose a narrower set, but it must not split the
+  wardrobe-bound input companion set. If the suggested set contains authorized
+  `wardrobe`, `vision`, and `file`, and the selector chooses `wardrobe`, the
+  execution policy keeps `vision` and `file` with it so image-backed wardrobe
+  verification does not degrade into a later toolset-escalation loop.
 - Missing or unresolved topic directory bindings are valid. Single-window chat
   and topics without a concrete directory route must fall back to ordinary chat
   routing or the effective default workspace policy; they must not fail during

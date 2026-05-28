@@ -599,7 +599,7 @@ function createGatewayRunEventService(options = {}) {
   function recordOutputItemEvent(context, event) {
     const { thread, runId, eventName, message, responseRunId, stream } = context;
     const eventRunId = cleanString(message?.runId || responseRunId || stream?.realRunId || runId);
-    const item = event.item || {};
+    const item = event.item || event.output_item || event.outputItem || {};
     const tool = outputItemToolName(item);
     let preview = outputItemPreview(item);
     if (cleanString(tool).toLowerCase() === "function_call_output") {

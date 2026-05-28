@@ -69,7 +69,6 @@ function actionInboxTodoDueAt(item = {}) {
 }
 
 function actionInboxTodoDueText(item = {}) {
-  if (String(item?.sourceType || item?.source_type || "").toLowerCase() !== "manual") return "";
   if (String(item?.itemType || item?.item_type || "").toLowerCase() !== "todo") return "";
   const dueAt = actionInboxTodoDueAt(item);
   return dueAt ? actionInboxCompactTime(dueAt) : "";
@@ -130,6 +129,30 @@ function actionInboxSourceDeepLink(item = {}) {
   return "";
 }
 
+function actionInboxLatestDeliverable(item = {}) {
+  const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
+  const direct = sourceRef.latestDeliverable && typeof sourceRef.latestDeliverable === "object" ? sourceRef.latestDeliverable : {};
+  let url = String(direct.url || sourceRef.latestDeliverableUrl || sourceRef.latest_document_url || "").trim();
+  if (!url) {
+    const signature = String(sourceRef.signature || "").trim();
+    const match = signature.match(/(\/api\/automations\/deliverable\?[^|]+)/);
+    if (match) url = match[1];
+  }
+  if (!url) return null;
+  return {
+    url,
+    name: String(direct.name || sourceRef.latestDocumentName || sourceRef.latest_document_name || "delivery.md").trim() || "delivery.md",
+    mime: String(direct.mime || direct.contentType || sourceRef.latestDeliverableMime || "").trim(),
+  };
+}
+
+function actionInboxPrimaryDeliverable(item = {}) {
+  const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
+  const itemType = String(item?.itemType || item?.item_type || "").trim().toLowerCase();
+  if (sourceType !== "automation" || itemType !== "delivery") return null;
+  return actionInboxLatestDeliverable(item);
+}
+
 function actionInboxAppShellRouteForParams(params) {
   if (typeof hermesAppShellRouteForParams === "function") return hermesAppShellRouteForParams(params);
   const nextParams = new URLSearchParams(params || "");
@@ -166,13 +189,20 @@ function actionInboxAutomationInboxReturnLink(link, item = {}, sourceType = "") 
 
 function actionInboxOpensSourceDirectly(item = {}) {
   const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
-  return sourceType === "automation" && Boolean(actionInboxSourceDeepLink(item));
+  return sourceType === "automation" && Boolean(actionInboxSourceDeepLink(item)) && !actionInboxPrimaryDeliverable(item);
 }
 
 function actionInboxSourceActionLabel(item = {}) {
   const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
   if (sourceType === "automation") return "\u6253\u5f00\u81ea\u52a8\u5316\u4efb\u52a1";
   return "\u6253\u5f00\u6765\u6e90";
+}
+
+function actionInboxDeliverableLabel(deliverable = {}) {
+  const name = String(deliverable.name || "").trim();
+  if (/\.md(?:$|[?#])/i.test(name) || String(deliverable.mime || "").toLowerCase().includes("markdown")) return "MD";
+  if (/\.pdf(?:$|[?#])/i.test(name) || String(deliverable.mime || "").toLowerCase().includes("pdf")) return "PDF";
+  return "\u4ea4\u4ed8";
 }
 
 async function loadActionInbox(options = {}) {
@@ -251,13 +281,16 @@ function renderActionInboxItem(item) {
   const time = item.updatedAt || item.lastEventAt || item.createdAt || "";
   const terminal = actionInboxIsTerminalStatus(item.status);
   const swipeClass = terminal ? "" : " task-swipe-row action-inbox-swipe-row";
-  const swipeAttrs = terminal ? "" : ` data-swipe-row data-swipe-kind="action-inbox" data-swipe-id="${escapeHtml(item.id || "")}"`;
+  const swipeAttrs = terminal ? "" : ` data-swipe-row data-swipe-kind="action-inbox" data-swipe-commit="full" data-swipe-id="${escapeHtml(item.id || "")}"`;
   const dueText = actionInboxTodoDueText(item);
   const displayTime = dueText ? `${"\u622a\u6b62"} ${dueText}` : (actionInboxCompactTime(time) || time || "");
   const title = actionInboxDisplayTitle(item);
   const summary = actionInboxDisplaySummary(item);
+  const primaryDeliverable = actionInboxPrimaryDeliverable(item);
   const directSource = actionInboxOpensSourceDirectly(item);
-  const itemActionAttr = directSource
+  const itemActionAttr = primaryDeliverable
+    ? `data-action-inbox-open-deliverable-id="${escapeHtml(item.id || "")}"`
+    : directSource
     ? `data-action-inbox-open-source-id="${escapeHtml(item.id || "")}"`
     : `data-action-inbox-id="${escapeHtml(item.id || "")}"`;
   return `<article class="action-inbox-item${active}${swipeClass}" data-action-inbox-item-card="${escapeHtml(item.id || "")}"${swipeAttrs}>
@@ -275,6 +308,7 @@ function renderActionInboxItem(item) {
       </span>
       <span class="action-inbox-item-summary">${escapeHtml(summary)}</span>
     </button>
+    ${primaryDeliverable ? `<a class="action-inbox-deliverable-chip" href="${escapeHtml(primaryDeliverable.url)}" target="_self" data-task-doc data-action-inbox-deliverable-id="${escapeHtml(item.id || "")}" data-artifact-name="${escapeHtml(primaryDeliverable.name)}" data-artifact-mime="${escapeHtml(primaryDeliverable.mime || "text/markdown")}" aria-label="${escapeHtml(`\u6253\u5f00\u4ea4\u4ed8 ${primaryDeliverable.name}`)}">${escapeHtml(actionInboxDeliverableLabel(primaryDeliverable))}</a>` : ""}
     </div>
   </article>`;
 }
@@ -385,9 +419,18 @@ function wireActionInboxView(root) {
       openActionInboxItemSourceById(button.dataset.actionInboxOpenSourceId).catch(showError);
     });
   });
+  root.querySelectorAll("[data-action-inbox-open-deliverable-id]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      openActionInboxItemDeliverableById(button.dataset.actionInboxOpenDeliverableId || button.dataset.actionInboxDeliverableId).catch(showError);
+    });
+  });
   root.querySelector("[data-action-inbox-open-source]")?.addEventListener("click", () => {
     openCurrentActionInboxItemLink().catch(showError);
   });
+  if (typeof wireTaskDocumentLinks === "function") wireTaskDocumentLinks(root);
   if (typeof wireTaskSwipeActions === "function") wireTaskSwipeActions(root);
 }
 
@@ -418,6 +461,29 @@ function openActionInboxItemSourceById(itemId) {
   const id = String(itemId || "").trim();
   const item = state.actionInboxItems.find((candidate) => candidate.id === id) || null;
   return openActionInboxItemSource(item);
+}
+
+function openActionInboxItemDeliverable(item) {
+  const deliverable = actionInboxPrimaryDeliverable(item) || actionInboxLatestDeliverable(item);
+  if (!deliverable?.url) return Promise.resolve(null);
+  if (typeof document !== "undefined" && typeof openTaskDocumentLink === "function") {
+    const link = document.createElement("a");
+    link.href = deliverable.url;
+    link.setAttribute("href", deliverable.url);
+    link.dataset.taskDoc = "1";
+    link.dataset.artifactName = deliverable.name || "delivery.md";
+    link.dataset.artifactMime = deliverable.mime || "text/markdown";
+    openTaskDocumentLink(link);
+    return Promise.resolve(true);
+  }
+  if (typeof openHermesInternalRoute === "function") return openHermesInternalRoute(deliverable.url);
+  return Promise.resolve(null);
+}
+
+function openActionInboxItemDeliverableById(itemId) {
+  const id = String(itemId || "").trim();
+  const item = state.actionInboxItems.find((candidate) => candidate.id === id) || null;
+  return openActionInboxItemDeliverable(item);
 }
 
 function openCurrentActionInboxItemLink() {

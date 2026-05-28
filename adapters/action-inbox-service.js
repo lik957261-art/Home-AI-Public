@@ -56,6 +56,40 @@ function dedupeKeyFor(input = {}) {
   return "";
 }
 
+function itemDateMs(value) {
+  const ms = Date.parse(String(value || ""));
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function actionInboxPriorityRank(item = {}) {
+  const status = normalizeStatus(item.status, "open");
+  if (["done", "dismissed", "archived"].includes(status)) return 90;
+  const sourceType = clean(item.sourceType || item.source_type, 80).toLowerCase();
+  const itemType = clean(item.itemType || item.item_type, 80).toLowerCase();
+  if (itemType === "todo") return 10;
+  if (["approval", "review", "reflection", "revision"].includes(itemType)) return 20;
+  if (itemType === "error") return 30;
+  if (sourceType === "automation" && itemType === "delivery") return 50;
+  return 40;
+}
+
+function sortActionInboxItems(items = []) {
+  return items.slice().sort((left, right) => {
+    const leftRank = actionInboxPriorityRank(left);
+    const rightRank = actionInboxPriorityRank(right);
+    if (leftRank !== rightRank) return leftRank - rightRank;
+    const leftDue = itemDateMs(left.dueAt || left.due_at || left.sourceRef?.dueAt || left.sourceRef?.due_at);
+    const rightDue = itemDateMs(right.dueAt || right.due_at || right.sourceRef?.dueAt || right.sourceRef?.due_at);
+    if (leftDue && rightDue && leftDue !== rightDue) return leftDue - rightDue;
+    if (leftDue !== rightDue) return leftDue ? -1 : 1;
+    const priorityOrder = { urgent: 0, high: 1, normal: 2 };
+    const leftPriority = priorityOrder[normalizePriority(left.priority)] ?? 2;
+    const rightPriority = priorityOrder[normalizePriority(right.priority)] ?? 2;
+    if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+    return itemDateMs(right.updatedAt || right.lastEventAt || right.createdAt) - itemDateMs(left.updatedAt || left.lastEventAt || left.createdAt);
+  });
+}
+
 function createActionInboxService(options = {}) {
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : defaultNowIso;
   const makeId = typeof options.makeId === "function" ? options.makeId : defaultMakeId;
@@ -90,7 +124,7 @@ function createActionInboxService(options = {}) {
     const workspaceId = clean(input.workspaceId || input.workspace_id || "owner", 120) || "owner";
     const sourceType = clean(input.sourceType || input.source_type, 80);
     const excludedSourceTypes = sourceType ? [] : defaultHiddenSourceTypes;
-    const items = store.listActionInboxItems({
+    const items = sortActionInboxItems(store.listActionInboxItems({
       workspaceId,
       status: clean(input.status || input.filterStatus, 40),
       sourceType,
@@ -99,7 +133,7 @@ function createActionInboxService(options = {}) {
       search: clean(input.search, 200),
       includeDone: Boolean(input.includeDone || input.include_done),
       limit: Math.max(1, Math.min(500, Number(input.limit || 100) || 100)),
-    });
+    }));
     const counts = typeof store.actionInboxCounts === "function" ? store.actionInboxCounts(workspaceId, { excludedSourceTypes }) : { byStatus: {}, bySourceType: {} };
     return { ok: true, items, counts, source: { name: "action_inbox", storage: "sqlite" } };
   }
@@ -232,4 +266,5 @@ module.exports = {
   createActionInboxService,
   normalizeActionInboxPriority: normalizePriority,
   normalizeActionInboxStatus: normalizeStatus,
+  sortActionInboxItems,
 };

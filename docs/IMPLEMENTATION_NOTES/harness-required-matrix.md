@@ -149,6 +149,17 @@ Required harness dimensions:
   recipients' Inbox.
 - Active user-initiated chat/topic task receipts do not enter Inbox unless they
   become passive follow-up work.
+- Automation delivery Inbox rows that include a safe deliverable reference must
+  expose a direct same-window MD/document preview path from the list, without
+  requiring an intermediate Inbox detail click.
+- Scheduled Todo/reminder automations must project each trigger as a Todo-like
+  Inbox occurrence, not as an ordinary delivery receipt; completing the
+  occurrence must not delete the recurrence job.
+- Inbox swipe-complete gestures must be threshold-gated: partial swipes may
+  reveal the action but must not call the complete transition; full swipes call
+  it once.
+- Todo/reminder items must remain visible above ordinary Automation delivery
+  receipts in the default Inbox sort order.
 - Web Push success with Inbox write failure and Inbox success with Web Push
   failure are both visible/retryable according to the source contract.
 - Each recipient workspace gets its own Inbox item and push route.
@@ -230,6 +241,11 @@ Required harness dimensions:
   by default, even when the latest message is a short follow-up. The routing
   layer must still preserve policy boundaries and must not grant any of those
   toolsets when absent from the authorized toolset list.
+- Harness scenarios must also assert that model-first narrowing cannot split
+  this wardrobe companion set. If the selector chooses `wardrobe` from a
+  suggested authorized `wardrobe`/`vision`/`file` set, execution must keep
+  `vision` and `file` with it so image-backed wardrobe checks do not degrade
+  into a preventable toolset-escalation result.
 - The negative case is also required: a single-window chat or topic with no
   resolved directory binding must not crash while reading the directory route.
   It should continue through the normal lightweight chat suggestion path.

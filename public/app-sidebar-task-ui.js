@@ -452,6 +452,9 @@ function wireTaskCardMenus(root) {
 
 function taskSwipeCommitDistance(row) {
   const width = Math.max(1, row?.clientWidth || 1);
+  if (row?.dataset?.swipeCommit === "full") {
+    return Math.min(Math.max(168, width * 0.78), Math.max(168, width - 16));
+  }
   return Math.min(Math.max(144, width * 0.58), Math.max(144, width - 24));
 }
 

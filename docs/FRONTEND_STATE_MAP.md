@@ -16,6 +16,10 @@ Use this file to locate the responsible frontend files before debugging a screen
     `run.liveness_warning`, `run.liveness_stale`, `run.gateway_start_timeout`,
     `run.stream_failed`, `run.tool_budget_exceeded`, and
     `run.toolset_escalation_required`.
+  - `run.liveness_warning` is a diagnostic event only. Keep it in run-event
+    metadata, but do not render it as a visible status row; reserve visible
+    timeout/failure wording for `run.liveness_stale`, `run.gateway_start_timeout`,
+    and `run.stream_failed`.
   - Run progress rows should preserve chronological order and append newer
     model, Skill, and function events downward. The panel may cap the number of
     visible rows, but it must not reorder later function calls above earlier
@@ -32,12 +36,24 @@ Use this file to locate the responsible frontend files before debugging a screen
     scrolled away.
   - Function-call rows should show the concrete function name whenever the
     event preview, tool field, or paired `callId` makes it available. Generic
-    `Function call` / `Function result` labels are only acceptable when the
-    Gateway event does not expose enough metadata to identify the function.
+    `Function` labels are only acceptable when the Gateway event does not expose
+    enough metadata to identify the function, and the UI must not render a
+    duplicated fallback such as `Function Function`.
   - Paired Skill/function start and done events should render as one compact
     operation row with status and elapsed operation time. The frontend should
     preserve raw event order internally but avoid adjacent duplicate visible
     rows such as `开始 Skill` followed immediately by `完成 Skill`.
+  - Function operation duration must measure real tool execution, not only
+    model argument generation. For `function_call` / `function_call_output`
+    pairs, the visible duration is `function_call_output.done` minus
+    `function_call.added`; the intermediate `function_call.done` event is only
+    the end of call construction and should not close the visible operation row.
+  - Output-item event parsing must accept both `item` and `output_item` payload
+    shapes so function names such as scheduled tasks, MCP calls, and search
+    calls are preserved without storing raw arguments or raw tool output.
+  - After `run.model_output_started` / `run.final_message_started`, and when no
+    later tool operation has started, the inline run-progress panel should use
+    compact display so streamed assistant text remains visible.
 - Static shell/cache: `public/index.html`, `public/service-worker.js`, `public/directory-viewer.html`
 
 ## Chat And Topics

@@ -52,6 +52,21 @@ function isPlainProbeMessage(text = "") {
   return /^(?:test|testing|ping|pong|hi|hello|hey|ok|okay|\u6d4b\u8bd5|\u4f60\u597d|\u6536\u5230|\u597d|\u597d\u7684|\u8c22\u8c22)[\s.!?,\u3002\uff01\uff1f\uff0c]*$/i.test(value);
 }
 
+function expandSelectedToolsetsWithCompanions(selectedToolsets = [], policy = {}) {
+  const selected = defaultDedupe(selectedToolsets);
+  const routing = objectValue(policy.toolset_routing || policy.toolsetRouting, {});
+  const suggested = defaultDedupe(routing.suggested_toolsets || routing.suggestedToolsets || []);
+  const allowed = new Set(defaultDedupe(policy.allowed_toolsets || policy.allowedToolsets || []));
+  const selectedSet = new Set(selected);
+  const wardrobeCompanions = ["wardrobe", "vision", "file"];
+  const hasWardrobeCompanionSuggestion = wardrobeCompanions.every((toolset) => suggested.includes(toolset));
+  if (!hasWardrobeCompanionSuggestion || !selectedSet.has("wardrobe")) return selected;
+  const companionSet = new Set(wardrobeCompanions.filter((toolset) => allowed.has(toolset)));
+  const companionSelected = suggested.filter((toolset) => companionSet.has(toolset));
+  const restSelected = selected.filter((toolset) => !companionSet.has(toolset));
+  return defaultDedupe([...companionSelected, ...restSelected]);
+}
+
 function maybeCall(fn, fallback) {
   return typeof fn === "function" ? fn : fallback;
 }
@@ -184,7 +199,10 @@ function createGatewayRunStartService(options = {}) {
     }) || {};
     runPolicy = sanitizePolicy(objectValue(routedPolicy.policy, runPolicy), policyHardeningOptions);
     const modelFirstSelection = objectValue(runOptions.modelFirstToolsetSelection, null);
-    const modelFirstToolsets = dedupe(modelFirstSelection?.selectedToolsets || modelFirstSelection?.selected_toolsets || []);
+    const modelFirstToolsets = expandSelectedToolsetsWithCompanions(
+      dedupe(modelFirstSelection?.selectedToolsets || modelFirstSelection?.selected_toolsets || []),
+      runPolicy,
+    );
     if (modelFirstToolsets.length) {
       runPolicy = sanitizePolicy(Object.assign({}, runPolicy, {
         allowed_toolsets: modelFirstToolsets,
@@ -470,7 +488,8 @@ function createGatewayRunStartService(options = {}) {
       } catch (err) {
         selection = { enabled: true, ok: false, reason: "selector_exception", error: cleanString(err?.message || err) };
       }
-      const selectedToolsets = dedupe(selection?.selectedToolsets || selection?.selected_toolsets || []);
+      const rawSelectedToolsets = dedupe(selection?.selectedToolsets || selection?.selected_toolsets || []);
+      const selectedToolsets = expandSelectedToolsetsWithCompanions(rawSelectedToolsets, request?.runPolicy || {});
       if (selection?.enabled && selection.elevationRequired) {
         completeModelPermissionRequest(thread, assistantMessage, taskId, selection);
         return {

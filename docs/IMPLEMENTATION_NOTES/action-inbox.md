@@ -147,6 +147,31 @@ When a run completes with user-visible output, upsert an Inbox `delivery` item. 
 
 Automation detail remains useful for configuration and troubleshooting, but the user's reading/acknowledgement path should be Inbox.
 
+For delivery rows, persist only a safe direct deliverable reference in
+`sourceRef.latestDeliverable`:
+
+- `name`
+- `url`
+- `mime`
+- `updatedAt`
+- `runOutputUpdatedAt`
+
+The list UI can use that reference to render a direct MD/PDF/document chip and
+open the existing same-window preview. Do not store the Markdown body or full
+automation output in Inbox.
+
+Recurring Todo/reminder requests should keep Todo semantics while reusing
+Automation as the trigger engine:
+
+- Natural-language or explicit job metadata may classify an Automation as a
+  scheduled Todo trigger.
+- Each trigger upserts an Inbox `itemType=todo`, `sourceType=automation`,
+  `sourceRef.scheduledTodo=true` occurrence.
+- Completing the Inbox item completes that occurrence only.
+- Editing, pausing, or deleting the recurrence remains an Automation job action.
+- Ordinary Automation delivery receipts remain `itemType=delivery` and should
+  not outrank Todo/reminder items in the default Inbox list.
+
 ### Growth
 
 When async evaluation completes and the next learner/Owner action is needed, upsert an Inbox item:
@@ -217,6 +242,17 @@ Follow-up in static/client version `20260526-inbox-topic-nav-v251`:
 Follow-up in static/client version `20260526-bottom-topic-v252`:
 
 - Corrected the mobile bottom navigation grid to five columns so `聊天 / 收件箱 / 话题 / 目录 / 成长` stays on one row instead of wrapping/cropping the Growth tab.
+
+Follow-up design/implementation rule for direct delivery and scheduled Todo:
+
+- Automation Web Push Inbox upserts include `sourceRef.latestDeliverable` when a
+  fresh deliverable exists.
+- Automation delivery Inbox rows expose a direct same-window document preview
+  chip from the list.
+- Left-swipe completion is threshold-gated as a full-swipe action; partial
+  swipes do not call the complete transition.
+- Scheduled Todo automations create Todo-like Inbox occurrences and are sorted
+  with Todo/reminder items above ordinary delivery receipts.
 
 Still planned:
 

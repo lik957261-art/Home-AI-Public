@@ -456,6 +456,54 @@ async function testStartRunCanExecuteWardrobeMcpSelection() {
   assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["wardrobe", "vision", "file"]);
 }
 
+async function testWardrobeSelectionKeepsVisionCompanionWhenSelectorNarrows() {
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["wardrobe", "vision", "file", "http", "skills"],
+    }),
+    routeRunToolsets: ({ policy }) => ({
+      policy: Object.assign({}, policy, {
+        allowed_toolsets: ["wardrobe", "vision", "file", "http", "skills"],
+        toolset_routing: {
+          mode: "disabled",
+          reason: "toolset_pruning_disabled",
+          suggested_toolsets: ["wardrobe", "vision", "file"],
+          suggested_mode: "intent",
+          suggested_reason: "wardrobe_bound_directory",
+        },
+      }),
+      routing: {
+        mode: "disabled",
+        reason: "toolset_pruning_disabled",
+        suggested_toolsets: ["wardrobe", "vision", "file"],
+      },
+    }),
+    selectRunToolsetsWithModel: async () => ({
+      enabled: true,
+      ok: true,
+      reason: "read wardrobe records first",
+      selectedToolsets: ["wardrobe", "file"],
+      authorizedToolsets: ["wardrobe", "vision", "file", "http", "skills"],
+      durationMs: 9000,
+    }),
+  });
+
+  await service.startRunForThread(
+    baseThread(),
+    baseUserMessage({ content: "核对这批衣橱鞋子的颜色和主图" }),
+    baseAssistantMessage(),
+    {},
+  );
+
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["wardrobe", "vision", "file"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.selected_toolsets, ["wardrobe", "vision", "file"]);
+  assert.match(calls.streams[0].body.instructions, /Enabled toolsets: wardrobe, vision, file/);
+  assert.doesNotMatch(calls.streams[0].body.instructions, /Omitted authorized toolsets: vision/);
+  assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["wardrobe", "vision", "file"]);
+}
+
 async function testStartRunFallsBackWhenModelFirstSelectionFails() {
   const { calls, service } = makeHarness({
     buildAccessPolicy: (routePolicy, _user, project) => ({
@@ -624,6 +672,7 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testStartRunUsesModelFirstSelectionBeforeExecution();
   await testModelFirstRoutingMetadataSurvivesPolicySanitizer();
   await testStartRunCanExecuteWardrobeMcpSelection();
+  await testWardrobeSelectionKeepsVisionCompanionWhenSelectorNarrows();
   await testStartRunFallsBackWhenModelFirstSelectionFails();
   await testStartRunStopsBeforeExecutionWhenModelPermissionRequiresElevation();
   testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions();

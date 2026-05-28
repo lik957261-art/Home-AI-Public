@@ -417,6 +417,20 @@ function testOutputItemEventsStoreReadableSummariesOnly() {
   service.applyHermesRunEvent({
     event: "response.output_item.added",
     run_id: "public_run",
+    output_item: {
+      type: "function_call",
+      name: "schedule_task",
+      call_id: "call_schedule_1",
+      arguments: "{\"private\":\"raw argument should not be stored\"}",
+    },
+  });
+  assert.equal(thread.events.at(-1).tool, "function_call");
+  assert.equal(thread.events.at(-1).preview, "{\"name\":\"schedule_task\",\"callId\":\"call_schedule_1\"}");
+  assert(!thread.events.at(-1).preview.includes("raw argument"));
+
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
     item: {
       name: "skill_view",
       arguments: "{\"name\":\"study-templates/learning-growth-card-creation\"}",

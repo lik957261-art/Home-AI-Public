@@ -75,6 +75,22 @@ Automation remains a background job engine. A successful run that creates a user
 
 Foreground push refresh should update Inbox state when automation push payloads include an Inbox item id or source reference.
 
+Automation delivery items may carry a summary-only `sourceRef.latestDeliverable`
+object with `name`, `url`, `mime`, and timestamp metadata. The Inbox list may
+render this as a direct file chip so the common reading path opens the Markdown
+or document preview from the list, in the same Hermes Mobile window, without
+first opening the Inbox detail or the Automation detail. The deliverable body
+must remain in the source file/preview route and must not be copied into Inbox.
+
+Recurring reminder-style automations are treated as scheduled Todo triggers,
+not ordinary delivery receipts. When an automation job is explicitly marked as
+`scheduledTodo` / `todo` / `reminder`, or clearly looks like a recurring
+reminder from its summary fields, each trigger should upsert an open Inbox
+`itemType=todo` item with `sourceType=automation` and
+`sourceRef.scheduledTodo=true`. Completing that Inbox item means the user
+completed this occurrence; it does not delete the recurrence rule. Editing or
+pausing the recurrence remains an Automation action.
+
 ### Growth
 
 Growth remains the canonical learning task system. Inbox may show action items such as:
@@ -143,6 +159,18 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
 - The Inbox row to Automation detail path is an internal secondary-page navigation path, not a Web Push path. It must use the shared same-window route helper from the current app runtime, render as a button-driven action, and must not open a browser window or replace the app with a new browser shell.
 - Returning from an Inbox-opened Automation detail must explicitly restore `viewMode=inbox` and cancel pending Automation list/detail loads. Otherwise an in-flight Automation refresh can repaint an empty `Hermes CRON` root shell after the right-swipe back action.
 - Inbox list rows may expose a left-swipe `已读` action for non-terminal items. The action must call the existing complete transition and project the item as `done`; terminal rows must not keep an active swipe-complete affordance.
+- Inbox left-swipe completion is a full-swipe action. A partial swipe may reveal
+  the action, but must not commit completion until the row passes the explicit
+  full-swipe threshold and the user releases. This keeps fast Inbox clearing
+  possible without making half-swipes destructive.
+- Automation `delivery` rows with a safe `sourceRef.latestDeliverable.url`
+  should expose a direct deliverable chip from the list. The direct file path is
+  the primary delivery-reading path; Automation detail remains the source
+  management/troubleshooting path.
+- Todo/reminder items, including scheduled Todo occurrences created by
+  Automation, must sort above ordinary Automation delivery receipts in the
+  default Inbox. Automation failures and review/approval items may still rank
+  above ordinary delivery receipts because they need intervention.
 - Manual Todo Inbox rows should display due time from `dueAt`/`sourceRef.dueAt` when available. Legacy summaries that only contain raw ISO text such as `截止：2026-...Z` should be normalized in the UI to the same compact local time format and must not expose raw UTC ISO text in the list.
 - Inbox root status filters should use the same mobile control typography scale as other compact app filters: stable 14px labels with explicit line-height, not browser-default button text.
 - Do not store raw secrets, access keys, push endpoints, raw prompts, full learner answers, full transcripts, or long automation outputs in Inbox records.

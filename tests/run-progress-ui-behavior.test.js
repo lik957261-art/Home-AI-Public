@@ -156,6 +156,13 @@ const thread = {
     },
     {
       runId: "resp_current",
+      event: "run.liveness_warning",
+      tool: "hermes_mobile",
+      timestamp: "2026-05-27T12:32:22.553Z",
+      preview: "Gateway temporarily did not report this run; keep waiting",
+    },
+    {
+      runId: "resp_current",
       event: "response.output_item.added",
       tool: "skill_view",
       timestamp: "2026-05-27T12:32:24.423Z",
@@ -173,13 +180,27 @@ const thread = {
       event: "response.output_item.added",
       tool: "function_call",
       timestamp: "2026-05-27T12:32:28.423Z",
-      preview: JSON.stringify({ name: "search_files" }),
+      preview: JSON.stringify({ name: "search_files", callId: "call_search_files" }),
+    },
+    {
+      runId: "resp_current",
+      event: "response.output_item.done",
+      tool: "function_call",
+      timestamp: "2026-05-27T12:32:29.423Z",
+      preview: JSON.stringify({ name: "search_files", callId: "call_search_files" }),
+    },
+    {
+      runId: "resp_current",
+      event: "response.output_item.added",
+      tool: "function_call_output",
+      timestamp: "2026-05-27T12:32:38.423Z",
+      preview: JSON.stringify({ callId: "call_search_files" }),
     },
     {
       runId: "resp_current",
       event: "response.output_item.done",
       tool: "function_call_output",
-      timestamp: "2026-05-27T12:32:29.423Z",
+      timestamp: "2026-05-27T12:32:39.423Z",
       preview: JSON.stringify({ callId: "call_search_files" }),
     },
     {
@@ -218,21 +239,104 @@ assert.strictEqual(messageForRunProgress(fallbackThread, "resp_pending")?.id, "m
 assert.strictEqual(messageForRunProgress(fallbackThread, "resp_missing"), null);
 
 const currentRunEvents = runProgressEvents(thread, ["web_current", "resp_current"]);
-assert.strictEqual(currentRunEvents.length, 9);
+assert.strictEqual(currentRunEvents.length, 12);
 
 const html = renderMessageRunProgress(thread, thread.messages[1]);
+assert.doesNotMatch(html, /\u7b49\u5f85\u6a21\u578b\u8fd4\u56de/);
+assert.doesNotMatch(html, /Gateway temporarily did not report this run/);
+assert.doesNotMatch(html, /Gateway \u72b6\u6001\u6682\u4e0d\u53ef\u89c1/);
 assert.match(html, /Skill productivity\/status-check/);
 assert.match(html, /Function search_files/);
 assert.match(html, /Function image_edit/);
 assert.doesNotMatch(html, /Function result search_files/);
 assert.doesNotMatch(html, /Function result image_edit/);
+assert.match(html, /\u5b8c\u6210 \u00b7 11\u79d2/);
 assert.match(html, /完成 · 2秒/);
 assert.match(html, /完成 · 1秒/);
 assert.match(html, /run-progress-operation-done/);
 assert.match(html, /\u8bf7\u6c42\u5df2\u53d1\u9001/);
 assert.match(html, /\u6a21\u578b\u6d41\u5df2\u8fde\u63a5/);
+assert.doesNotMatch(html, /compact-after-output/);
 assert.ok(html.indexOf("\u8bf7\u6c42\u5df2\u53d1\u9001") < html.indexOf("\u6a21\u578b\u6d41\u5df2\u8fde\u63a5"));
 assert.ok(html.indexOf("\u6a21\u578b\u6d41\u5df2\u8fde\u63a5") < html.indexOf("Function search_files"));
+
+const streamingOutputThread = {
+  id: "thread_streaming_output",
+  activeRunId: "resp_streaming_output",
+  activeRunIds: ["resp_streaming_output"],
+  messages: [
+    {
+      id: "msg_streaming_output",
+      role: "assistant",
+      status: "running",
+      runId: "resp_streaming_output",
+      responseRunId: "resp_streaming_output",
+      startedAt: "2026-05-27T13:00:00.000Z",
+      content: "\u5df2\u5f00\u59cb\u8f93\u51fa\u6b63\u6587",
+    },
+  ],
+  events: [
+    {
+      runId: "resp_streaming_output",
+      event: "run.request_sent",
+      tool: "hermes_mobile",
+      timestamp: "2026-05-27T13:00:01.000Z",
+      preview: "",
+    },
+    {
+      runId: "resp_streaming_output",
+      event: "run.model_stream_started",
+      tool: "hermes_mobile",
+      timestamp: "2026-05-27T13:00:02.000Z",
+      preview: "",
+    },
+    {
+      runId: "resp_streaming_output",
+      event: "run.model_output_started",
+      tool: "hermes_mobile",
+      timestamp: "2026-05-27T13:00:03.000Z",
+      preview: "",
+    },
+  ],
+};
+const compactHtml = renderMessageRunProgress(streamingOutputThread, streamingOutputThread.messages[0]);
+assert.match(compactHtml, /compact-after-output/);
+assert.match(compactHtml, /\u6a21\u578b\u5df2\u5f00\u59cb\u8f93\u51fa/);
+
+const unnamedFunctionThread = {
+  id: "thread_unnamed_function",
+  activeRunId: "resp_unnamed_function",
+  activeRunIds: ["resp_unnamed_function"],
+  messages: [
+    {
+      id: "msg_unnamed_function",
+      role: "assistant",
+      status: "running",
+      runId: "resp_unnamed_function",
+      responseRunId: "resp_unnamed_function",
+      startedAt: "2026-05-27T13:10:00.000Z",
+    },
+  ],
+  events: [
+    {
+      runId: "resp_unnamed_function",
+      event: "response.output_item.added",
+      tool: "function_call",
+      timestamp: "2026-05-27T13:10:01.000Z",
+      preview: JSON.stringify({ callId: "call_missing_name" }),
+    },
+    {
+      runId: "resp_unnamed_function",
+      event: "response.output_item.done",
+      tool: "function_call_output",
+      timestamp: "2026-05-27T13:10:03.000Z",
+      preview: JSON.stringify({ callId: "call_missing_name" }),
+    },
+  ],
+};
+const unnamedHtml = renderMessageRunProgress(unnamedFunctionThread, unnamedFunctionThread.messages[0]);
+assert.match(unnamedHtml, />Function</);
+assert.doesNotMatch(unnamedHtml, /Function Function/);
 
 const unrelatedActiveThread = {
   id: "thread_unrelated_active",

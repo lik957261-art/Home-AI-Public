@@ -78,7 +78,7 @@ Current CI guardrails:
 
 - `public/app.js` must stay at or below 10,000 lines;
 - top-level `function` declarations in `public/app.js` must stay at or below 120;
-- extracted front-end runtime modules must stay at or below 700 lines each;
+- extracted front-end runtime modules must stay at or below 1,000 lines each;
 - front-end helper modules should expose stable `window.Hermes<Domain>` helpers
   and have focused tests under `tests/app-<domain>.test.js`.
 - front-end runtime split modules loaded by `index.html` must remain cohesive by

@@ -381,6 +381,99 @@ function testAutomationTickSendsFailedRunWithoutDeliverableToInbox() {
   });
 }
 
+function testAutomationDeliveryInboxKeepsDirectDeliverableReference() {
+  withTempDir((root) => {
+    const runAt = new Date().toISOString();
+    const inboxCalls = [];
+    const automationProvider = {
+      async listJobs() {
+        return {
+          ok: true,
+          jobs: [{
+            id: "delivery-job",
+            ownerPrincipalId: "owner",
+            lastRunAt: runAt,
+            lastStatus: "success",
+            outputDocuments: [{
+              name: "weekly.md",
+              url: "/api/automations/deliverable?workspaceId=owner&jobId=delivery-job&run=run.md&index=0",
+              size: 12,
+              updatedAt: runAt,
+            }],
+          }],
+        };
+      },
+    };
+    const { service, state } = createHarness(root, {
+      automationProvider,
+      serviceOptions: {
+        actionInboxService: {
+          upsertSourceItem(input) {
+            inboxCalls.push(input);
+            return { ok: true, item: { id: "ainb_delivery_job", workspaceId: input.workspaceId } };
+          },
+        },
+      },
+    });
+    state.pushSubscriptions.push({ subscription: { endpoint: "owner-endpoint" }, principalIds: ["owner"], workspaceIds: ["owner"] });
+    return service.runAutomationWebPushTick().then((result) => {
+      assert.equal(result.deliveries.length, 1);
+      assert.equal(inboxCalls.length, 1);
+      assert.equal(inboxCalls[0].itemType, "delivery");
+      assert.equal(inboxCalls[0].sourceRef.latestDeliverable.name, "weekly.md");
+      assert.equal(inboxCalls[0].sourceRef.latestDeliverable.mime, "text/markdown");
+      assert.equal(inboxCalls[0].sourceRef.latestDeliverable.url, "/api/automations/deliverable?workspaceId=owner&jobId=delivery-job&run=run.md&index=0");
+    });
+  });
+}
+
+function testScheduledTodoAutomationCreatesTodoInboxItemWithoutDeliverable() {
+  withTempDir((root) => {
+    const runAt = new Date().toISOString();
+    const inboxCalls = [];
+    const automationProvider = {
+      async listJobs() {
+        return {
+          ok: true,
+          jobs: [{
+            id: "weekly-todo-job",
+            ownerPrincipalId: "owner",
+            name: "每周提醒检查书包",
+            prompt: "每周提醒我检查书包",
+            schedule: "weekly",
+            lastRunAt: runAt,
+            lastStatus: "success",
+            outputDocuments: [],
+          }],
+        };
+      },
+    };
+    const { calls, service, state } = createHarness(root, {
+      automationProvider,
+      serviceOptions: {
+        actionInboxService: {
+          upsertSourceItem(input) {
+            inboxCalls.push(input);
+            return { ok: true, item: { id: "ainb_weekly_todo", workspaceId: input.workspaceId } };
+          },
+        },
+      },
+    });
+    state.pushSubscriptions.push({ subscription: { endpoint: "owner-endpoint" }, principalIds: ["owner"], workspaceIds: ["owner"] });
+    return service.runAutomationWebPushTick().then((result) => {
+      assert.equal(result.deliveries.length, 1);
+      assert.equal(inboxCalls.length, 1);
+      assert.equal(inboxCalls[0].sourceType, "automation");
+      assert.equal(inboxCalls[0].itemType, "todo");
+      assert.equal(inboxCalls[0].priority, "high");
+      assert.equal(inboxCalls[0].sourceRef.scheduledTodo, true);
+      assert.equal(inboxCalls[0].sourceRef.schedule, "weekly");
+      assert.equal(calls.sends[0].payload.data.messageType, "automation_scheduled_todo");
+      assert.equal(calls.sends[0].payload.data.viewMode, "inbox");
+    });
+  });
+}
+
 function testAutomationTickInitializesOldFailedRunWithoutDeliverable() {
   withTempDir((root) => {
     const oldRunAt = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
@@ -746,6 +839,8 @@ Promise.resolve()
   .then(testTodoTickReconcilesAndDeliversPendingEvents)
   .then(testAutomationTickInitializesOldDeliveriesAndSendsRecentOnes)
   .then(testAutomationTickSendsFailedRunWithoutDeliverableToInbox)
+  .then(testAutomationDeliveryInboxKeepsDirectDeliverableReference)
+  .then(testScheduledTodoAutomationCreatesTodoInboxItemWithoutDeliverable)
   .then(testAutomationTickInitializesOldFailedRunWithoutDeliverable)
   .then(testTaskTerminalAndGroupMentionNotifications)
   .then(testTaskTerminalPushDoesNotCreateInboxItemForActiveChatReceipt)

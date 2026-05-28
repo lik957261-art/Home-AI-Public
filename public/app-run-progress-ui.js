@@ -19,9 +19,11 @@ const RUN_PROGRESS_START_EVENTS = new Set([
   "run.model_output_started",
   "run.stream_failed",
   "run.gateway_start_timeout",
-  "run.liveness_warning",
   "run.liveness_stale",
   "run.tool_budget_exceeded",
+]);
+const RUN_PROGRESS_HIDDEN_EVENTS = new Set([
+  "run.liveness_warning",
 ]);
 
 function boundedRunEventPreview(value) {
@@ -206,19 +208,31 @@ function runEventOperationKey(event) {
 function isRunOperationStartEvent(event) {
   const name = String(event?.event || "");
   if (name !== "response.output_item.added") return false;
-  return Boolean(runEventOperationKind(event));
+  const kind = runEventOperationKind(event);
+  if (!kind) return false;
+  const tool = String(event?.tool || "").trim().toLowerCase();
+  if (kind === "function" && tool === "function_call_output") return false;
+  return true;
 }
 
 function isRunOperationDoneEvent(event) {
   const name = String(event?.event || "");
   if (name !== "response.output_item.done") return false;
-  return Boolean(runEventOperationKind(event));
+  const kind = runEventOperationKind(event);
+  if (!kind) return false;
+  const tool = String(event?.tool || "").trim().toLowerCase();
+  if (kind === "function" && tool === "function_call") return false;
+  return true;
 }
 
 function runProgressCompactOperationEvents(events = []) {
   const out = [];
   const openByKey = new Map();
   for (const event of Array.isArray(events) ? events : []) {
+    const tool = String(event?.tool || "").trim().toLowerCase();
+    const eventName = String(event?.event || "");
+    if (eventName === "response.output_item.done" && tool === "function_call") continue;
+    if (eventName === "response.output_item.added" && tool === "function_call_output") continue;
     if (isRunOperationStartEvent(event)) {
       const key = runEventOperationKey(event);
       const row = Object.assign({}, event, {
@@ -280,7 +294,9 @@ function runEventToolLabel(event) {
 function runEventTitle(event) {
   if (event?.operationKind) {
     const prefix = event.operationKind === "skill" ? "Skill" : "Function";
-    return `${prefix} ${event.operationName || ""}`.trim();
+    const name = String(event.operationName || "").trim();
+    if (!name || name.toLowerCase() === prefix.toLowerCase()) return prefix;
+    return `${prefix} ${name}`.trim();
   }
   const name = String(event?.event || "event");
   const tool = runEventToolLabel(event);
@@ -302,7 +318,6 @@ function runEventTitle(event) {
   if (name === "run.model_output_started") return "\u6a21\u578b\u5df2\u5f00\u59cb\u8f93\u51fa";
   if (name === "run.stream_failed") return "\u6a21\u578b\u6d41\u5f0f\u8fde\u63a5\u5931\u8d25";
   if (name === "run.gateway_start_timeout") return "Gateway \u672a\u521b\u5efa\u8fd0\u884c";
-  if (name === "run.liveness_warning") return "Gateway \u72b6\u6001\u6682\u4e0d\u53ef\u89c1";
   if (name === "run.liveness_stale") return "Gateway \u54cd\u5e94\u8d85\u65f6";
   if (name === "run.tool_budget_exceeded") return "\u5de5\u5177\u8c03\u7528\u8d85\u9650";
   if (name === "response.completed" || name === "run.completed") return "\u5904\u7406\u5b8c\u6210";
@@ -362,8 +377,21 @@ function runProgressVisibleEvents(events = [], startMs = 0, now = Date.now()) {
 }
 
 function runProgressDisplayEvents(events = [], startMs = 0) {
-  const visible = runProgressVisibleEvents(events, startMs);
+  const visible = runProgressVisibleEvents(events, startMs)
+    .filter((event) => !RUN_PROGRESS_HIDDEN_EVENTS.has(String(event?.event || "")));
   return visible.slice(-RUN_PROGRESS_MAX_VISIBLE_EVENTS);
+}
+
+function shouldCompactRunProgressAfterOutput(allEvents = []) {
+  const outputStartedMs = Math.max(0, ...allEvents
+    .filter((event) => ["run.model_output_started", "run.final_message_started"].includes(String(event?.event || "")))
+    .map((event) => runProgressTimestampMs(event.timestamp))
+    .filter(Boolean));
+  if (!outputStartedMs) return false;
+  return !allEvents.some((event) => (
+    runEventOperationKind(event)
+    && runProgressTimestampMs(event.timestamp) > outputStartedMs
+  ));
 }
 
 function normalizeRunProgressId(value) {
@@ -514,7 +542,11 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
   if (!ids.length) return "";
   const allEvents = runProgressEvents(thread, ids);
   const startMs = runProgressStartMs(thread, ids, allEvents);
-  const events = runProgressDisplayEvents(runProgressCompactOperationEvents(runProgressEventsWithFunctionNames(allEvents)), startMs);
+  const compactAfterOutput = !options.terminal && shouldCompactRunProgressAfterOutput(allEvents);
+  const compactedEvents = runProgressCompactOperationEvents(runProgressEventsWithFunctionNames(allEvents));
+  const events = compactAfterOutput
+    ? runProgressDisplayEvents(compactedEvents, startMs).slice(-2)
+    : runProgressDisplayEvents(compactedEvents, startMs);
   const eventTimes = allEvents.map((event) => runProgressTimestampMs(event.timestamp)).filter(Boolean);
   const lastEventMs = eventTimes.length ? Math.max(...eventTimes) : 0;
   const quietRow = renderRunProgressQuietRow(lastEventMs, startMs);
@@ -534,7 +566,7 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
     ? runProgressDurationLabel(startMs, options.terminalMs || Date.now())
     : runProgressDurationLabel(startMs);
   const elapsedAttr = options.terminal ? "" : ` data-run-progress-elapsed="${escapeHtml(String(startMs))}"`;
-  return `<aside class="run-progress-panel${options.inline ? " inline" : ""}${options.terminal ? " terminal" : ""}" aria-live="polite">
+  return `<aside class="run-progress-panel${options.inline ? " inline" : ""}${options.terminal ? " terminal" : ""}${compactAfterOutput ? " compact-after-output" : ""}" aria-live="polite">
     <div class="run-progress-head">
       <span>${options.terminal ? "\u8fd0\u884c\u8bb0\u5f55" : "\u8fd0\u884c\u4e2d"}</span>
       <span${elapsedAttr}>${escapeHtml(elapsedLabel)}</span>
