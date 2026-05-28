@@ -24,6 +24,12 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 - For ordinary active chat/topic task completion/failure receipts, Web Push should link directly to the relevant chat/topic/task route and should not upsert a default Inbox item. The user just initiated the request, so the push click itself is the completion surface. These payloads must use the terminal assistant receipt `messageId`, not the first message in the topic, so clicks scroll to the completion/failure receipt.
 - Passive or durable notifications should still use Inbox when later attention is needed: automation delivery/failure, manual Todo/reminder, permission/approval/review requests, and Growth/executor card completion.
 - Automation failures do not require a new deliverable file to notify. The push/InBox payload should carry only a compact failure summary and a route to the Automation detail.
+- Automation Web Push clicks should open the Automation detail directly by
+  `automationId`, even when the notification also upserts an Inbox item and
+  carries `inboxItemId` for cache/receipt metadata. If an Inbox item id exists,
+  include `returnTo=inbox`, `returnScope=detail`, and `sourceInboxItemId` so the
+  Automation detail can return to Inbox without forcing the user through an
+  intermediate Inbox detail page.
 - Scheduled Todo/reminder Automation pushes must be idempotent per `lastRunAt`. If a run already has a push mark for the same `lastRunAt`, a later scan with no newer deliverable must not overwrite the mark with a `no-deliverable` signature or create a second Inbox item. This prevents alternating deliverable/no-deliverable tags and repeated push loops.
 
 ## Service Worker Rules
@@ -36,6 +42,9 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 - Markdown, HTML/PDF print, image, and document preview should follow the existing in-app overlay/iframe/download-fallback pattern from `public/app-task-preview-ui.js`; they must not create an outer browser frame as a preview workaround.
 - `clients.openWindow(targetWindowRoute)` is allowed only as the service-worker fallback when no same-origin top-level client is available; when an app shell client exists, notification click must post the route to that client and focus it.
 - Single-window chat/group routes take precedence over generic `taskGroupId` routing. If payload data says `viewMode=single`, `weixinChat`, `groupChat`, `taskGroupId=chat`, or `taskGroupId=group-chat`, the service worker must preserve `threadId` and `messageId` and route to `view=single`, not `view=tasks`.
+- Automation notification route fields take precedence over generic
+  `inboxItemId` routing. Inbox metadata on an Automation payload is used for
+  return context and foreground refresh, not as the click destination.
 - On mobile browser shells, Hermes Mobile must not render the full authenticated app. If the current mobile/touch client is not the installed PWA standalone window, the app must show only a blocker that asks the user to close the browser shell and reopen from the Home Screen Hermes Mobile app.
 - The PWA guard must run in `index.html` preflight before app bundles load, at app bootstrap before `loadWorkspaces()` / `loadSelectedView()`, and also on click-time routing through the shared internal route helper, startup URL routing (`applyRouteFromUrl`), and restored selected detail state. A browser shell may be launched directly with `automationId`, may already hold `state.viewMode=automation` plus `selectedAutomationId`, or may be a stale long-lived browser shell that has not yet run the latest app router.
 

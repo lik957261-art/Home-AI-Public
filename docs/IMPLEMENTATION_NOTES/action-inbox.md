@@ -221,7 +221,11 @@ Implemented in static/client version `20260526-action-inbox-v247`:
 - `action-inbox-service` owns source dedupe, manual item creation, complete/dismiss/snooze, and audit events.
 - `action-inbox-api-routes` exposes workspace-scoped list/detail/create/action endpoints.
 - Bottom navigation now exposes Inbox and keeps Topic in the mobile primary tab bar; Automation remains hidden as a background/admin surface.
-- Automation and Growth Web Push source events can upsert Inbox items and route notification clicks through `view=inbox&inboxItemId=...`.
+- Automation and Growth Web Push source events can upsert Inbox items. Growth
+  next-action/completion notifications may route clicks through
+  `view=inbox&inboxItemId=...`; Automation notifications should click directly
+  into `view=automation&automationId=...` and carry Inbox return context when an
+  Inbox item was created.
 
 Follow-up in static/client version `20260526-inbox-growth-v249`:
 
@@ -265,8 +269,9 @@ Follow-up design/implementation rule for direct delivery and scheduled Todo:
   card because that can clip or cover the deliverable file tag on mobile.
 - Left-swipe completion is threshold-gated as a full-swipe action; partial
   swipes do not call the complete transition.
-- Scheduled Todo automations create Todo-like Inbox occurrences and are sorted
-  with Todo/reminder items above ordinary delivery receipts.
+- Scheduled Todo automations create Todo-like Inbox occurrences, but the default
+  Inbox list sorts newest items first by update/event/create time. Source/type
+  priority must not hide a newer receipt under older Todo or delivery rows.
 
 Still planned:
 

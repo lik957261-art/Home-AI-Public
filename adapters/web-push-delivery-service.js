@@ -946,6 +946,23 @@ function createWebPushDeliveryService(options = {}) {
     };
   }
 
+  function automationDetailRouteUrl(input = {}) {
+    const workspaceId = String(input.workspaceId || "owner").trim() || "owner";
+    const automationId = String(input.automationId || input.jobId || "").trim();
+    const params = {
+      view: "automation",
+      workspaceId,
+      automationId,
+    };
+    const inboxItemId = String(input.inboxItemId || input.sourceInboxItemId || "").trim();
+    if (inboxItemId) {
+      params.returnTo = "inbox";
+      params.returnScope = "detail";
+      params.sourceInboxItemId = inboxItemId;
+    }
+    return appRouteUrl(params);
+  }
+
   function automationPushEventForJob(job, latestDoc, signature) {
     const jobId = String(job?.id || "").trim();
     if (!jobId || !String(job?.lastRunAt || "").trim()) return null;
@@ -961,7 +978,7 @@ function createWebPushDeliveryService(options = {}) {
       latestDoc ? `\u4ea4\u4ed8\u6587\u4ef6: ${latestDoc.name}` : "",
       failed ? `\u9519\u8bef: ${automationFailureSummary(job)}` : "",
     ].filter(Boolean).join("\n"), 220);
-    const params = new URLSearchParams({ view: "automation", workspaceId, automationId: jobId });
+    const automationUrl = automationDetailRouteUrl({ workspaceId, automationId: jobId });
     return {
       jobId,
       principalId,
@@ -979,7 +996,7 @@ function createWebPushDeliveryService(options = {}) {
         timestamp: Date.now(),
         vibrate: [200, 100, 200],
         data: {
-          url: `/?${params.toString()}`,
+          url: automationUrl,
           viewMode: "automation",
           workspaceId,
           automationId: jobId,
@@ -1045,7 +1062,7 @@ function createWebPushDeliveryService(options = {}) {
     if (opts.dryRun) return { ok: true, enabled: true, principals, events, initialized, deliveries: [] };
     const deliveries = [];
     for (const event of events) {
-      const originalUrl = event.payload?.data?.url || appRouteUrl({ view: "automation", workspaceId: event.workspaceId, automationId: event.jobId });
+      const originalUrl = automationDetailRouteUrl({ workspaceId: event.workspaceId, automationId: event.jobId });
       const inboxItem = await upsertActionInboxSourceItem({
         workspaceId: event.workspaceId,
         assigneeWorkspaceId: event.workspaceId,
@@ -1070,10 +1087,18 @@ function createWebPushDeliveryService(options = {}) {
         dedupeKey: `automation:${event.jobId}:${event.signature}`,
       });
       if (inboxItem?.id && event.payload?.data) {
-        event.payload.data.originalUrl = originalUrl;
+        const automationUrl = automationDetailRouteUrl({
+          workspaceId: event.workspaceId,
+          automationId: event.jobId,
+          inboxItemId: inboxItem.id,
+        });
+        event.payload.data.originalUrl = automationUrl;
         event.payload.data.inboxItemId = inboxItem.id;
-        event.payload.data.viewMode = "inbox";
-        event.payload.data.url = appRouteUrl({ view: "inbox", workspaceId: event.workspaceId, inboxItemId: inboxItem.id });
+        event.payload.data.sourceInboxItemId = inboxItem.id;
+        event.payload.data.returnTo = "inbox";
+        event.payload.data.returnScope = "detail";
+        event.payload.data.viewMode = "automation";
+        event.payload.data.url = automationUrl;
       }
       const delivery = await sendPushNotification(event.payload, {
         principalId: event.principalId,

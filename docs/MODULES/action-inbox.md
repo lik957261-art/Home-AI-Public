@@ -188,10 +188,15 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
   `处理` button, because it duplicates the state badge and compresses mobile row
   content. Source and file navigation should stay on the title/main area and the
   explicit deliverable file tag, not inside the processing sheet.
-- Todo/reminder items, including scheduled Todo occurrences created by
-  Automation, must sort above ordinary Automation delivery receipts in the
-  default Inbox. Automation failures and review/approval items may still rank
-  above ordinary delivery receipts because they need intervention.
+- In the default open Inbox list, the visible status/action badge should use a
+  concise command label such as `处理` instead of repeating `待处理`, because the
+  active filter already communicates the open state. Keep the accessible label
+  tied to the real status, and keep the control visually close to compact meta
+  text rather than a large dropdown button.
+- The default Inbox list must show newest items first by update/event/create
+  time. Terminal items may stay below non-terminal items when mixed into an
+  all-status view, but source/type priority must not hide a newer receipt under
+  older Todo or delivery rows.
 - Manual Todo Inbox rows should display due time from `dueAt`/`sourceRef.dueAt` when available. Legacy summaries that only contain raw ISO text such as `截止：2026-...Z` should be normalized in the UI to the same compact local time format and must not expose raw UTC ISO text in the list.
 - Inbox root status filters should use the same mobile control typography scale as other compact app filters: stable 14px labels with explicit line-height, not browser-default button text.
 - Do not store raw secrets, access keys, push endpoints, raw prompts, full learner answers, full transcripts, or long automation outputs in Inbox records.

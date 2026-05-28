@@ -137,7 +137,7 @@ function testDefaultListHidesOrdinaryChatReceipts() {
   }
 }
 
-function testTodoAndActionItemsSortAboveAutomationReceipts() {
+function testDefaultListSortsNewestItemsFirst() {
   const h = makeHarness();
   try {
     const delivery = h.service.upsertSourceItem({
@@ -148,7 +148,7 @@ function testTodoAndActionItemsSortAboveAutomationReceipts() {
       itemType: "delivery",
       title: "Automation report",
       summary: "Report ready.",
-      updatedAt: "2026-05-26T10:00:00.000Z",
+      updatedAt: "2026-05-26T12:00:00.000Z",
       dedupeKey: "automation:job-1:sig",
     });
     const todo = h.service.upsertSourceItem({
@@ -176,9 +176,9 @@ function testTodoAndActionItemsSortAboveAutomationReceipts() {
     });
     const listed = h.service.listItems({ workspaceId: "owner" });
     assert.deepEqual(listed.items.map((item) => item.id), [
-      todo.item.id,
-      scheduledTodo.item.id,
       delivery.item.id,
+      scheduledTodo.item.id,
+      todo.item.id,
     ]);
   } finally {
     cleanup(h);
@@ -188,5 +188,5 @@ function testTodoAndActionItemsSortAboveAutomationReceipts() {
 testManualItemLifecycle();
 testSourceDedupeAndTerminalProtection();
 testDefaultListHidesOrdinaryChatReceipts();
-testTodoAndActionItemsSortAboveAutomationReceipts();
+testDefaultListSortsNewestItemsFirst();
 console.log("action-inbox-service tests passed");

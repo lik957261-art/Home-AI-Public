@@ -372,10 +372,13 @@ function testAutomationTickSendsFailedRunWithoutDeliverableToInbox() {
       assert.match(inboxCalls[0].dedupeKey, /^automation:failed-job:/);
       const payload = calls.sends[0].payload;
       assert.equal(payload.data.messageType, "automation_failed");
-      assert.equal(payload.data.viewMode, "inbox");
+      assert.equal(payload.data.viewMode, "automation");
       assert.equal(payload.data.inboxItemId, "ainb_failed_job");
-      assert.equal(payload.data.originalUrl, "/?view=automation&workspaceId=owner&automationId=failed-job");
-      assert.equal(payload.data.url, "/?view=inbox&workspaceId=owner&inboxItemId=ainb_failed_job");
+      assert.equal(payload.data.sourceInboxItemId, "ainb_failed_job");
+      assert.equal(payload.data.returnTo, "inbox");
+      assert.equal(payload.data.returnScope, "detail");
+      assert.equal(payload.data.originalUrl, "/?view=automation&workspaceId=owner&automationId=failed-job&returnTo=inbox&returnScope=detail&sourceInboxItemId=ainb_failed_job");
+      assert.equal(payload.data.url, "/?view=automation&workspaceId=owner&automationId=failed-job&returnTo=inbox&returnScope=detail&sourceInboxItemId=ainb_failed_job");
       assert.equal(Boolean(state.automationPushMarks["failed-job"]), true);
     });
   });
@@ -473,7 +476,8 @@ function testScheduledTodoAutomationCreatesTodoInboxItemWithoutDeliverable() {
       assert.equal(inboxCalls[0].sourceRef.schedule, "weekly");
       assert.equal(calls.sends[0].payload.title, "Weekly bookcase check");
       assert.equal(calls.sends[0].payload.data.messageType, "automation_scheduled_todo");
-      assert.equal(calls.sends[0].payload.data.viewMode, "inbox");
+      assert.equal(calls.sends[0].payload.data.viewMode, "automation");
+      assert.equal(calls.sends[0].payload.data.url, "/?view=automation&workspaceId=owner&automationId=weekly-todo-job&returnTo=inbox&returnScope=detail&sourceInboxItemId=ainb_weekly_todo");
     });
   });
 }

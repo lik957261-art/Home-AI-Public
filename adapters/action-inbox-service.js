@@ -61,6 +61,14 @@ function itemDateMs(value) {
   return Number.isFinite(ms) ? ms : 0;
 }
 
+function itemSortTimeMs(item = {}) {
+  return Math.max(
+    itemDateMs(item.updatedAt || item.updated_at),
+    itemDateMs(item.lastEventAt || item.last_event_at),
+    itemDateMs(item.createdAt || item.created_at),
+  );
+}
+
 function actionInboxPriorityRank(item = {}) {
   const status = normalizeStatus(item.status, "open");
   if (["done", "dismissed", "archived"].includes(status)) return 90;
@@ -75,6 +83,12 @@ function actionInboxPriorityRank(item = {}) {
 
 function sortActionInboxItems(items = []) {
   return items.slice().sort((left, right) => {
+    const leftTerminal = actionInboxIsTerminalForSort(left);
+    const rightTerminal = actionInboxIsTerminalForSort(right);
+    if (leftTerminal !== rightTerminal) return leftTerminal ? 1 : -1;
+    const leftTime = itemSortTimeMs(left);
+    const rightTime = itemSortTimeMs(right);
+    if (leftTime !== rightTime) return rightTime - leftTime;
     const leftRank = actionInboxPriorityRank(left);
     const rightRank = actionInboxPriorityRank(right);
     if (leftRank !== rightRank) return leftRank - rightRank;
@@ -86,8 +100,12 @@ function sortActionInboxItems(items = []) {
     const leftPriority = priorityOrder[normalizePriority(left.priority)] ?? 2;
     const rightPriority = priorityOrder[normalizePriority(right.priority)] ?? 2;
     if (leftPriority !== rightPriority) return leftPriority - rightPriority;
-    return itemDateMs(right.updatedAt || right.lastEventAt || right.createdAt) - itemDateMs(left.updatedAt || left.lastEventAt || left.createdAt);
+    return clean(left.id, 160).localeCompare(clean(right.id, 160));
   });
+}
+
+function actionInboxIsTerminalForSort(item = {}) {
+  return ["done", "dismissed", "archived"].includes(normalizeStatus(item.status, "open"));
 }
 
 function createActionInboxService(options = {}) {

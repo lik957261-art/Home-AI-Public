@@ -132,12 +132,17 @@ render the direct document preview action; row title/main areas must open the
 Automation source detail with Inbox return context; row status must render as a
 compact action badge after source/type, and tapping that status badge opens a
 viewport-level action sheet with complete, snooze, and delete/dismiss actions;
+the default open-state action badge may render as the concise command `处理`
+instead of repeating `待处理` when the active filter already conveys open state,
+but its accessible label must preserve the underlying status and the visual
+size must stay close to compact metadata text;
 the list must not render a separate right-side `处理` button that duplicates the
 status badge or compresses the mobile row; generic
 `待办提醒` titles must be replaced by the actual Automation/reminder title in
 new projections or UI fallback; partial left swipes must not complete an Inbox
-item while full swipes complete it once; and Todo/reminder items must sort above
-ordinary Automation delivery receipts in the default Inbox list. Scheduled
+item while full swipes complete it once; and the default Inbox list must sort
+newest items first by update/event/create time rather than grouping older Todo
+rows above newer Automation receipts. Scheduled
 Todo/reminder Automation pushes must also assert same-run idempotency: after a
 deliverable push is marked for a `lastRunAt`, a later scan for the same run with
 no newer deliverable must not send a second no-deliverable push, create another

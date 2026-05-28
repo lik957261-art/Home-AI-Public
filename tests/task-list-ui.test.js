@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-theme-visual-v313";
+const CLIENT_VERSION = "20260528-inbox-status-compact-v314";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -212,6 +212,9 @@ assert.match(appJs, /data-action-inbox-open-deliverable-id/);
 assert.match(appJs, /function openActionInboxItemDeliverableById\(itemId\)/);
 assert.match(appJs, /wireTaskDocumentLinks\(root\)/);
 assert.match(appJs, /row\?\.dataset\?\.swipeCommit === "full"[\s\S]*?width \* 0\.78/);
+assert.match(appJs, /function actionInboxStatusActionLabel\(item = \{\}\)/);
+assert.match(appJs, /if \(!value \|\| value === "open"\) return "\\u5904\\u7406"/);
+assert.match(appJs, />\$\{escapeHtml\(actionInboxStatusActionLabel\(item\)\)\}<\/button>/);
 assert.match(stylesCss, /\.action-inbox-source-row \{[\s\S]*?display: flex;[\s\S]*?flex-wrap: wrap;/);
 assert.match(stylesCss, /\.action-inbox-source-badge,[\s\S]*?\.action-inbox-type-badge \{[\s\S]*?overflow: hidden;[\s\S]*?text-overflow: ellipsis;[\s\S]*?white-space: nowrap;/);
 assert.match(stylesCss, /\.action-inbox-filter \{[\s\S]*?font-size: 14px;[\s\S]*?line-height: 1\.2;/);
@@ -219,8 +222,8 @@ assert.match(stylesCss, /\.action-inbox-swipe-complete \{[\s\S]*?background: #4f
 assert.match(stylesCss, /\.action-inbox-deliverable-chip \{[\s\S]*?width: calc\(100% - 24px\);[\s\S]*?box-sizing: border-box;/);
 assert.match(stylesCss, /\.action-inbox-item-main \{[\s\S]*?padding: 6px 12px 8px;/);
 assert.match(stylesCss, /\.action-inbox-swipe-content > \.action-inbox-source-row,[\s\S]*?\.action-inbox-item-static > \.action-inbox-source-row \{[\s\S]*?padding: 12px 12px 0;/);
-assert.match(stylesCss, /\.action-inbox-state-action \{[\s\S]*?min-height: 28px;[\s\S]*?cursor: pointer;/);
-assert.match(stylesCss, /\.action-inbox-state-action::after \{[\s\S]*?border-top: 4px solid currentColor;/);
+assert.match(stylesCss, /\.action-inbox-state-action \{[\s\S]*?min-height: 22px;[\s\S]*?font-size: 11\.5px;[\s\S]*?cursor: pointer;/);
+assert.match(stylesCss, /\.action-inbox-state-action::after \{[\s\S]*?border-top: 3\.5px solid currentColor;/);
 assert.doesNotMatch(stylesCss, /\.action-inbox-process-button/);
 assert.match(stylesCss, /\.action-inbox-action-sheet-layer \{[\s\S]*?position: fixed;[\s\S]*?inset: 0;/);
 assert.match(stylesCss, /\.action-inbox-action-sheet-button,[\s\S]*?\.action-inbox-action-sheet-cancel \{[\s\S]*?min-height: 44px;/);
@@ -451,9 +454,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-theme-visual-v313/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-theme-visual-v313/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-theme-visual-v313/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-status-compact-v314/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-status-compact-v314/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-status-compact-v314/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -1900,9 +1903,11 @@ assert.match(serviceWorkerJs, /for \(const client of topLevelClients\.filter\(is
   assert.equal(serviceWorkerJs.slice(appShellLoopStart, fallbackLoopStart).includes("client.navigate(targetUrl)"), false);
 }
 assert.ok(
-  serviceWorkerJs.indexOf("if (data.inboxItemId)") < serviceWorkerJs.indexOf("if (data.automationId)"),
-  "notification inbox route should take precedence over automation detail fields",
+  serviceWorkerJs.indexOf("const automationNotification = Boolean(data.automationId)") < serviceWorkerJs.indexOf("if (data.inboxItemId)"),
+  "automation notifications should route directly to automation detail even when Inbox metadata is present",
 );
+assert.match(serviceWorkerJs, /params\.set\("returnTo", String\(data\.returnTo \|\| "inbox"\)\)/);
+assert.match(serviceWorkerJs, /params\.set\("sourceInboxItemId", sourceInboxItemId\)/);
 assert.ok(
   serviceWorkerJs.indexOf("if (data.automationId)") < serviceWorkerJs.indexOf("return explicitUrl || \"/\";"),
   "notification structured route fields should take precedence over explicit file/preview urls",
