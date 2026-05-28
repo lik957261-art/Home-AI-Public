@@ -70,6 +70,9 @@ async function loadSelectedView() {
   if (typeof guardHermesOwnedSelectedDetailNavigation === "function") {
     guardHermesOwnedSelectedDetailNavigation();
   }
+  if (state.viewMode !== "wardrobe" && typeof parkWardrobePluginShell === "function") {
+    parkWardrobePluginShell();
+  }
   if (state.viewMode !== "projects") state.directoryReturnRoute = null;
   if (state.viewMode !== "todos") clearTodoAutoRefresh();
   const leavingSkillDetail = Boolean(state.skillDetail && (state.viewMode !== "tasks" || !state.currentTaskGroupId));

@@ -229,6 +229,14 @@ Required harness dimensions:
   plugin tab must not rebuild an iframe from a consumed launch URL; the
   frontend must either preserve the existing iframe node or fetch a fresh
   manifest/launch URL before creating a new frame.
+- Embedded plugin navigation must be a parent/iframe contract, not direct DOM
+  coupling. The plugin reports `wardrobe.plugin.navigation` with `canGoBack`;
+  Hermes validates the plugin origin, exposes the normal back affordance only
+  when `canGoBack=true`, and sends `hermes.plugin.back` to the existing iframe.
+- Switching away from an embedded plugin tab must preserve the already-loaded
+  iframe node when possible. Harness coverage must assert that the host parks
+  and restores the frame instead of destroying the plugin SPA state on every
+  bottom-tab click.
 - Static/client version must be bumped for embedded-plugin host changes so the
   installed PWA does not keep an older iframe contract through the service
   worker.

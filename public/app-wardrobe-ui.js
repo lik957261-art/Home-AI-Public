@@ -141,6 +141,93 @@ function wardrobePluginBlockedByPageSecurity(manifest = currentWardrobePluginMan
   }
 }
 
+function wardrobePluginEntryOrigin(manifest = currentWardrobePluginManifest()) {
+  const value = String(manifest?.entry?.origin || manifest?.entry?.url || "").trim();
+  if (!value) return "";
+  try {
+    return new URL(value, window.location?.href || undefined).origin;
+  } catch (_) {
+    return "";
+  }
+}
+
+function wardrobePluginMessageOriginAllowed(event) {
+  const expected = wardrobePluginEntryOrigin();
+  return Boolean(expected && event?.origin === expected);
+}
+
+function updateWardrobePluginNavigationState(payload = {}) {
+  state.wardrobePluginCanGoBack = Boolean(payload.canGoBack);
+  state.wardrobePluginNavigationRoute = payload.route && typeof payload.route === "object" ? payload.route : null;
+  updateNavigationControls();
+}
+
+function handleWardrobePluginMessage(event) {
+  const data = event?.data || {};
+  if (!data || data.type !== "wardrobe.plugin.navigation") return;
+  if (!wardrobePluginMessageOriginAllowed(event)) return;
+  updateWardrobePluginNavigationState(data);
+}
+
+function ensureWardrobePluginNavigationBridge() {
+  if (state.wardrobePluginBridgeBound) return;
+  state.wardrobePluginBridgeBound = true;
+  window.addEventListener("message", handleWardrobePluginMessage);
+}
+
+function wardrobePluginBackActive() {
+  return state.viewMode === "wardrobe" && Boolean(state.wardrobePluginCanGoBack);
+}
+
+function wardrobePluginParkingHost() {
+  let host = $("wardrobePluginParkingHost");
+  if (host) return host;
+  host = document.createElement("div");
+  host.id = "wardrobePluginParkingHost";
+  host.hidden = true;
+  host.setAttribute("aria-hidden", "true");
+  document.body.appendChild(host);
+  return host;
+}
+
+function currentWardrobePluginShell() {
+  return state.wardrobePluginShellNode || document.querySelector(".wardrobe-plugin-shell");
+}
+
+function parkWardrobePluginShell() {
+  const shell = currentWardrobePluginShell();
+  if (!shell) return false;
+  wardrobePluginParkingHost().appendChild(shell);
+  state.wardrobePluginShellNode = shell;
+  return true;
+}
+
+function attachWardrobePluginShell(conversation, entryUrl) {
+  const shell = currentWardrobePluginShell();
+  if (!conversation || !shell) return false;
+  const frame = shell.querySelector(".wardrobe-plugin-frame");
+  if (!frame || frame.getAttribute("src") !== entryUrl) return false;
+  conversation.replaceChildren(shell);
+  state.wardrobePluginShellNode = shell;
+  return true;
+}
+
+function discardWardrobePluginShell() {
+  const shell = currentWardrobePluginShell();
+  shell?.remove();
+  state.wardrobePluginShellNode = null;
+  state.wardrobePluginCanGoBack = false;
+  state.wardrobePluginNavigationRoute = null;
+}
+
+function sendWardrobePluginBack() {
+  const frame = currentWardrobePluginShell()?.querySelector(".wardrobe-plugin-frame");
+  const origin = state.wardrobePluginFrameOrigin || wardrobePluginEntryOrigin();
+  if (!frame?.contentWindow || !origin) return false;
+  frame.contentWindow.postMessage({ type: "hermes.plugin.back", version: 1 }, origin);
+  return true;
+}
+
 function renderWardrobePluginSecurityNotice(manifest) {
   const entryOrigin = manifest?.entry?.origin || manifest?.entry?.url || "";
   const reason = manifest?.embed?.blockedByFrameAncestors
@@ -228,6 +315,7 @@ function bindWardrobePluginControls() {
 }
 
 function renderWardrobeView() {
+  ensureWardrobePluginNavigationBridge();
   updateWardrobeNavigationAvailability();
   state.currentThread = null;
   state.currentThreadId = "";
@@ -246,20 +334,31 @@ function renderWardrobeView() {
     if (!wardrobePluginBlockedByPageSecurity(pluginManifest)) {
       const existingFrame = conversation.querySelector(".wardrobe-plugin-frame");
       const entryUrl = String(pluginManifest.entry?.url || "");
+      const entryOrigin = wardrobePluginEntryOrigin(pluginManifest);
+      state.wardrobePluginFrameOrigin = entryOrigin;
+      if (attachWardrobePluginShell(conversation, entryUrl)) {
+        updateNavigationControls();
+        ensureVerticalScrollAffordance();
+        return;
+      }
       if (existingFrame && existingFrame.getAttribute("src") === entryUrl) {
+        state.wardrobePluginShellNode = existingFrame.closest(".wardrobe-plugin-shell");
         updateNavigationControls();
         ensureVerticalScrollAffordance();
         return;
       }
       if (wardrobePluginUsesLaunchToken(pluginManifest) && !wardrobeLaunchTokenIsFreshForFrame()) {
+        discardWardrobePluginShell();
         conversation.innerHTML = renderWardrobePluginLoading();
         if (!state.wardrobePluginLoading) loadWardrobePluginManifest({ force: true }).catch(showError);
         updateNavigationControls();
         ensureVerticalScrollAffordance();
         return;
       }
+      discardWardrobePluginShell();
       conversation.innerHTML = renderWardrobePluginFrame(pluginManifest);
       state.wardrobePluginFrameUrl = entryUrl;
+      state.wardrobePluginShellNode = conversation.querySelector(".wardrobe-plugin-shell");
       if (wardrobePluginUsesLaunchToken(pluginManifest)) state.wardrobePluginManifestFreshForFrame = false;
       updateNavigationControls();
       ensureVerticalScrollAffordance();

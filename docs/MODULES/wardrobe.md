@@ -1,6 +1,6 @@
 # Wardrobe Plugin
 
-Last updated: 2026-05-28.
+Last updated: 2026-05-29.
 
 This module describes the Hermes Mobile Wardrobe entry. The Wardrobe tab is a
 plugin host for the Wardrobe project's embedded app plus model-started
@@ -115,6 +115,26 @@ Launch-token URLs are short-lived and may be one-time use. The frontend must
 not cache and rebuild an iframe from a consumed launch URL during ordinary view
 rerenders; when the Wardrobe tab needs a new frame and the previous token is no
 longer fresh, it must fetch a new manifest/launch URL first.
+
+The embedded plugin must preserve its iframe node after the first successful
+load. Switching from Wardrobe to another Hermes tab may park the iframe in a
+hidden host, but it must not destroy and recreate it unless the entry URL
+changes or a fresh launch URL is required. This keeps the Wardrobe SPA route,
+scroll position, and plugin session stable across ordinary bottom-tab changes.
+
+The Wardrobe project owns internal navigation and reports it through the
+postMessage contract declared by the live manifest:
+
+- Wardrobe sends `wardrobe.plugin.navigation` with `canGoBack` and bounded route
+  metadata.
+- Hermes Mobile validates the message origin against the plugin entry origin.
+- When `canGoBack=true`, Hermes Mobile exposes its normal top-left/back-swipe
+  affordance and sends `hermes.plugin.back` to the iframe.
+- Wardrobe handles the back action inside the iframe and sends a new
+  navigation-state message after the route changes.
+
+Hermes Mobile must not inspect Wardrobe DOM, call Wardrobe route functions
+directly, or use browser-window navigation for plugin secondary pages.
 
 The manifest route should also probe the plugin entry response for
 `Content-Security-Policy: frame-ancestors`. If the plugin service has not

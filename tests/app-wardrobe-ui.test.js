@@ -10,6 +10,7 @@ const automationUi = fs.readFileSync(path.join(repoRoot, "public", "app-automati
 const wireStartUi = fs.readFileSync(path.join(repoRoot, "public", "app-wire-start-ui.js"), "utf8");
 const platformUi = fs.readFileSync(path.join(repoRoot, "public", "app-platform-ui.js"), "utf8");
 const navigationSearchUi = fs.readFileSync(path.join(repoRoot, "public", "app-navigation-search-ui.js"), "utf8");
+const sidebarTaskUi = fs.readFileSync(path.join(repoRoot, "public", "app-sidebar-task-ui.js"), "utf8");
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 
@@ -37,6 +38,11 @@ assert.match(wardrobeUi, /loadWardrobePluginManifest\(\{ force: true \}\)/);
 assert.match(wardrobeUi, /function wardrobePluginBlockedByPageSecurity\(manifest = currentWardrobePluginManifest\(\)\)/);
 assert.match(wardrobeUi, /manifest\?\.embed\?\.blockedByFrameAncestors/);
 assert.match(wardrobeUi, /pageProtocol === "https:" && entryProtocol === "http:"/);
+assert.match(wardrobeUi, /function ensureWardrobePluginNavigationBridge\(\)/);
+assert.match(wardrobeUi, /wardrobe\.plugin\.navigation/);
+assert.match(wardrobeUi, /function parkWardrobePluginShell\(\)/);
+assert.match(wardrobeUi, /function attachWardrobePluginShell\(conversation, entryUrl\)/);
+assert.match(wardrobeUi, /type: "hermes\.plugin\.back"/);
 assert.match(wardrobeUi, /function renderWardrobePluginSecurityNotice\(manifest\)/);
 assert.match(wardrobeUi, /function renderWardrobePluginUnavailable\(manifest = currentWardrobePluginManifest\(\)\)/);
 assert.match(wardrobeUi, /data-wardrobe-plugin-refresh/);
@@ -61,7 +67,11 @@ assert.doesNotMatch(wardrobeUi, /write_item/);
 assert.doesNotMatch(wardrobeUi, /write_history/);
 
 assert.match(automationUi, /const wardrobe = state\.viewMode === "wardrobe"/);
+assert.match(automationUi, /parkWardrobePluginShell\(\)/);
 assert.match(automationUi, /renderWardrobeView\(\)/);
+assert.match(sidebarTaskUi, /wardrobePluginBackActive\(\)/);
+assert.match(sidebarTaskUi, /sendWardrobePluginBack\(\)/);
+assert.match(navigationSearchUi, /const wardrobePluginBack = typeof wardrobePluginBackActive === "function" && wardrobePluginBackActive\(\)/);
 assert.match(wireStartUi, /bottomWardrobeMode/);
 assert.doesNotMatch(wireStartUi, /setWardrobeSection\(section\)/);
 assert.doesNotMatch(indexHtml, /topWardrobe(?:Overview|Watches|Maintenance|Wear|Looks|Log)/);
