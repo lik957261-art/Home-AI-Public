@@ -88,8 +88,9 @@ Highlights:
   directly, status actions use compact badges, manual Todo legacy Kanban links
   are suppressed, and Inbox detail now reuses the same compact status/action
   control as the list.
-- Hides retired Kanban case-topic groups from the root topic list once the
-  Kanban snapshot confirms the bound case is missing or fully archived.
+- Hides Kanban-generated case-topic groups from the root topic list; their
+  evidence stays reachable from Growth, Todo/Kanban, Inbox source links, or
+  explicit direct routes instead of mixing with ordinary topics.
 - Stabilizes Gateway profile ordering so dedicated Grok profiles keep their
   intended position when additional user workspaces are added.
 - Adds task-terminal Web Push duplicate-send prevention and expands the

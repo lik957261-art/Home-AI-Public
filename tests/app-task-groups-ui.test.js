@@ -69,7 +69,7 @@ sandbox.state.todos = [];
 sandbox.state.kanbanTopicCardSnapshotLoadedAt = 0;
 assert.deepEqual(
   ui.sharedCaseTopicGroupsForTaskList(currentThread).map((group) => group.id).sort(),
-  ["case-archived", "case-live", "case-missing", "plain-topic"].sort(),
+  [],
 );
 
 sandbox.state.todos = [
@@ -78,13 +78,14 @@ sandbox.state.todos = [
 ];
 sandbox.state.kanbanTopicCardSnapshotLoadedAt = Date.now();
 
-assert.equal(ui.topicGroupVisibleInTaskList({ kanbanCaseId: "case-live" }), true);
+assert.equal(ui.topicGroupVisibleInTaskList({ kanbanCaseId: "case-live" }), false);
 assert.equal(ui.topicGroupVisibleInTaskList({ kanbanCaseId: "case-missing" }), false);
 assert.equal(ui.topicGroupVisibleInTaskList({ kanbanCaseId: "case-archived" }), false);
+assert.equal(ui.topicGroupVisibleInTaskList({ kanbanCaseMode: "study-plan" }), false);
 assert.equal(ui.topicGroupVisibleInTaskList({ title: "Plain topic" }), true);
 assert.deepEqual(
   ui.sharedCaseTopicGroupsForTaskList(currentThread).map((group) => group.id).sort(),
-  ["case-live", "plain-topic"].sort(),
+  [],
 );
 
 console.log("app-task-groups-ui tests passed");

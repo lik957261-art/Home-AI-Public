@@ -294,10 +294,12 @@ frontend scroll target consumption after chat/topic messages render.
 For secondary-page return bugs, the harness must also cover async race
 conditions: a late response from the page being left must not repaint that page
 after the return target has already been restored.
-Topic-list harnesses must cover retired Kanban case-topic cleanup: after the
-Kanban card snapshot confirms a bound case id is missing or fully archived, that
-old case-topic group must not remain visible in the root topic list. The same
-filter must apply to first-party topic groups and shared case-topic groups.
+Topic-list harnesses must cover Kanban-generated case-topic cleanup: the root
+topic list must not render Kanban study/case topics even when their backing
+cards still exist. Those records are source evidence for Growth/Todo/Kanban or
+Inbox deep links, not ordinary root topics. The same filter must apply to
+first-party topic groups carrying `kanbanCaseId`/`kanbanCaseMode` and shared
+case-topic threads.
 
 ## CodeGraph-Assisted Test Selection
 

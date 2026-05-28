@@ -20,26 +20,13 @@ function taskListGroupsForThread(thread) {
 }
 
 function sharedCaseTopicGroupsForTaskList(currentThread) {
-  return (Array.isArray(state.caseTopicThreads) ? state.caseTopicThreads : [])
-    .filter((thread) => thread?.id && thread.id !== currentThread?.id)
-    .flatMap((thread) => taskListGroupsForThread(thread)
-      .filter(topicGroupVisibleInTaskList)
-      .map((group) => Object.assign({}, group, {
-        sourceThreadId: thread.id,
-        sourceThreadTitle: thread.title || "",
-        sharedTopic: true,
-      })));
+  return [];
 }
 
 function topicGroupVisibleInTaskList(group = {}) {
   const caseId = String(group?.kanbanCaseId || "").trim();
-  if (!caseId) return true;
-  const snapshotLoaded = Boolean(state.kanbanTopicCardSnapshotLoadedAt || (Array.isArray(state.todos) && state.todos.length));
-  if (!snapshotLoaded || typeof kanbanStoryCases !== "function") return true;
-  const story = kanbanStoryGroupForCaseId(caseId);
-  if (!story) return false;
-  if (typeof kanbanStoryCaseFullyArchived === "function" && kanbanStoryCaseFullyArchived(story)) return false;
-  return true;
+  const caseMode = String(group?.kanbanCaseMode || "").trim();
+  return !(caseId || caseMode);
 }
 
 function kanbanStoryCaseId(group) {

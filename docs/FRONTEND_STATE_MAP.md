@@ -107,10 +107,11 @@ Use this file to locate the responsible frontend files before debugging a screen
 - Composer: `public/app-chat-composer-ui.js`, `public/app-composer-send-ui.js`, `public/app-composer-context-ui.js`, `public/app-composer-source-ui.js`
 - Thread list/message rendering: `public/app-thread-list-ui.js`, `public/app-thread-message-ui.js`, `public/app-thread-card-message-ui.js`
 - Task group UI: `public/app-task-groups-ui.js`, `public/app-task-preview-ui.js`
-- Topic root lists should filter out retired Kanban case-topic groups once the
-  Kanban snapshot confirms the bound case id is missing or fully archived. This
-  applies before rendering both first-party topic groups and shared case-topic
-  groups.
+- Topic root lists should not show Kanban-generated case-topic groups. Kanban
+  study/case evidence should be reached from Growth, Todo/Kanban, Inbox source
+  links, or explicit direct routes instead of being mixed into ordinary topics.
+  The root-list harness must cover both first-party task groups carrying
+  `kanbanCaseId`/`kanbanCaseMode` and shared case-topic threads.
 - Message actions, Usage, Skill, and terminal run-status chips: `public/app-message-actions-ui.js`, `public/app-message-usage-ui.js`, `public/app-message-skill-ui.js`, `public/app-run-progress-ui.js`
 - Search: `public/app-navigation-search-ui.js`
 - Group/topic UI: `public/app-group-topic-ui.js`

@@ -640,10 +640,11 @@ Required contract dimensions:
   from the surface being left. For example, an Automation API response that
   finishes after returning to Inbox must not repaint an empty `Hermes CRON`
   root shell over the Inbox.
-- Root topic lists must not keep old Kanban task/case topics after the Kanban
-  snapshot confirms the bound case no longer exists or is fully archived. The
-  harness must cover both first-party topic groups and shared case-topic groups,
-  so stale official-Kanban cleanup is visible at the root level before any
+- Root topic lists must not show Kanban-generated task/case topics at all.
+  Backing Kanban cards may still exist, but those records belong to
+  Growth/Todo/Kanban or Inbox source links rather than the ordinary topic root.
+  The harness must cover both first-party topic groups carrying
+  `kanbanCaseId`/`kanbanCaseMode` and shared case-topic threads before any
   secondary page is opened.
 - Topic restore placeholders must be tied to the requested topic/task group.
   A missing `currentTaskGroupId` may wait only when that same task group has
