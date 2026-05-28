@@ -529,6 +529,7 @@ const state = {
   conversationViewportLayerResetUntil: 0,
   conversationViewportRefreshTimer: 0,
   conversationViewportLayerResetDoneUntil: 0,
+  messageScrollVisibilityRoot: null,
   routeScrollTaskGroupId: "",
   routeScrollMessageId: "",
   searchTimer: null,

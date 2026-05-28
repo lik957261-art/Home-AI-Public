@@ -15,6 +15,10 @@ const escapedClientVersion = clientVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"
 
 assert.match(appJs, /keyboardViewportActive/);
 assert.match(appJs, /function visualViewportKeyboardMetrics\(\)/);
+assert.match(appJs, /function clearKeyboardViewportMetrics\(\)/);
+assert.match(appJs, /root\.classList\.remove\("keyboard-viewport-active"\)/);
+assert.match(appJs, /function keyboardViewportShouldClearAfterOrientation\(\)/);
+assert.match(appJs, /document\.activeElement === input/);
 assert.match(appJs, /function updateKeyboardViewportMetrics\(\)/);
 assert.match(appJs, /root\.classList\.toggle\("keyboard-viewport-active", active\)/);
 assert.match(appJs, /--app-viewport-height/);

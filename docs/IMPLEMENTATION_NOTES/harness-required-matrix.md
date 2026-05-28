@@ -640,6 +640,10 @@ Required contract dimensions:
 - SSE refreshes do not jump to old history after the run appears.
 - Keyboard viewport changes do not hide the composer or force a stale scroll
   restore.
+- Long assistant reply jump controls survive terminal DOM replacement: queued
+  arrow-visibility recalculation must resolve the current live message or
+  conversation node at execution time, and final markdown/layout replacement
+  must schedule a short delayed settle pass.
 - Search mode can navigate results without permanently changing the send-time
   scroll intent.
 
@@ -664,6 +668,11 @@ Required contract dimensions:
 - Mobile shell changes keep the OS status bar visible; time, battery, and
   Wi-Fi indicators must not disappear behind browser-shell guards,
   full-viewport overlays, or safe-area changes.
+- Orientation changes must include a post-settle recovery pass that clears stale
+  keyboard viewport CSS when the composer is not actually focused, clears
+  temporary conversation scroll-layer reset state, recomputes bottom navigation
+  reservation, and recalculates long-reply jump controls. A landscape-to-portrait
+  transition must not leave a blank or hidden conversation surface.
 - Theme changes must verify actual shell and module surfaces in light, dark,
   and system modes. Required surfaces include sidebar/top bar, composer,
   user/assistant messages, topic cards, Action Inbox rows and deliverable tags,

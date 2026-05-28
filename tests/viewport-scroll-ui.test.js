@@ -15,6 +15,9 @@ const escapedClientVersion = clientVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"
 assert.match(appJs, /conversationPinnedToBottom/);
 assert.match(appJs, /function handleViewportLayoutChange\(/);
 assert.match(appJs, /function updateMobileBottomNavReservation\(\)/);
+assert.match(appJs, /function recoverConversationViewportAfterOrientation\(conversation = \$\("conversation"\)\)/);
+assert.match(appJs, /function clearConversationViewportLayerReset\(conversation = \$\("conversation"\)\)/);
+assert.match(appJs, /function scheduleConversationOrientationRecovery\(conversation = \$\("conversation"\)\)/);
 assert.match(appJs, /--mobile-bottom-nav-reserved-height-runtime/);
 assert.match(appJs, /function scheduleConversationBottomStick\(\)/);
 assert.match(appJs, /\$\( "conversation"\)|\$\("conversation"\)\?\.addEventListener\("scroll", handleConversationScrollState/);
@@ -22,6 +25,10 @@ assert.match(appJs, /window\.visualViewport\?\.addEventListener\("resize", handl
 assert.match(appJs, /window\.addEventListener\("orientationchange", handleViewportLayoutChange\)/);
 assert.match(appJs, /window\.screen\?\.orientation\?\.addEventListener\?\.\("change", handleViewportLayoutChange\)/);
 assert.match(appJs, /updateMobileBottomNavReservation\(\)/);
+assert.match(appJs, /if \(typeof keyboardViewportShouldClearAfterOrientation === "function" && keyboardViewportShouldClearAfterOrientation\(\)\) \{[\s\S]*?clearKeyboardViewportMetrics\(\);/);
+assert.match(appJs, /\[1180, 1800\]\.forEach\(\(delay\) => \{[\s\S]*?recoverConversationViewportAfterOrientation\(\$\("conversation"\)\)/);
+assert.match(appJs, /if \(orientationEvent\) scheduleConversationOrientationRecovery\(\$\("conversation"\)\)/);
+assert.match(appJs, /scheduleMessageScrollButtonVisibilitySettle\(conversation, \[120, 360\]\)/);
 assert.match(appJs, /if \(!shouldStickConversationOnViewportChange\(\)\) return;/);
 assert.match(appJs, /if \(!shouldFollowConversationBottomDuringViewport\(\)\) return;/);
 

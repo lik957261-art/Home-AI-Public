@@ -96,6 +96,14 @@ function resetConversationScrollLayer(conversation, pinned) {
   });
 }
 
+function clearConversationViewportLayerReset(conversation = $("conversation")) {
+  if (!conversation) return;
+  conversation.classList.remove("conversation-layer-reset");
+  conversation.style.webkitOverflowScrolling = "";
+  conversation.style.overflowY = "";
+  delete conversation.dataset.viewportLayerResetting;
+}
+
 function clearConversationViewportRefreshTimers() {
   for (const timer of state.conversationViewportRefreshTimers || []) window.clearTimeout(timer);
   state.conversationViewportRefreshTimers = [];
@@ -142,6 +150,28 @@ function scheduleConversationViewportRefresh(conversation = $("conversation"), o
   }
   window.clearTimeout(state.conversationViewportRefreshTimer);
   state.conversationViewportRefreshTimer = window.setTimeout(refresh, 160);
+}
+
+function recoverConversationViewportAfterOrientation(conversation = $("conversation")) {
+  if (!conversationViewportRefreshApplies()) return;
+  if (!conversation || !document.body.contains(conversation)) return;
+  if (typeof keyboardViewportShouldClearAfterOrientation === "function" && keyboardViewportShouldClearAfterOrientation()) {
+    clearKeyboardViewportMetrics();
+  } else {
+    updateKeyboardViewportMetrics();
+  }
+  clearConversationViewportLayerReset(conversation);
+  updateMobileBottomNavReservation();
+  repaintConversationAfterViewportChange(conversation);
+  scheduleMessageScrollButtonVisibility(conversation);
+  scheduleMessageScrollButtonVisibilitySettle(conversation, [120, 360]);
+}
+
+function scheduleConversationOrientationRecovery(conversation = $("conversation")) {
+  if (!conversation || !conversationViewportRefreshApplies()) return;
+  [1180, 1800].forEach((delay) => {
+    window.setTimeout(() => recoverConversationViewportAfterOrientation($("conversation")), delay);
+  });
 }
 
 function conversationJumpBottomApplies() {
@@ -249,6 +279,7 @@ function handleViewportLayoutChange(event = null) {
   scheduleMessageScrollButtonVisibility($("conversation"));
   updateConversationJumpBottomButton();
   scheduleConversationViewportRefresh($("conversation"), { resetTimers: orientationEvent, orientationSettle: orientationEvent });
+  if (orientationEvent) scheduleConversationOrientationRecovery($("conversation"));
   if (!shouldStickConversationOnViewportChange()) return;
   if (!shouldFollowConversationBottomDuringViewport()) return;
   scheduleConversationBottomStick();
@@ -786,6 +817,41 @@ function updateMessageScrollButtonVisibility(root) {
   });
 }
 
+function messageScrollVisibilityTarget(root) {
+  const conversation = $("conversation");
+  if (!root) return conversation;
+  if (root === conversation) return conversation;
+  if (document.body.contains(root)) return root;
+  return conversation || root;
+}
+
+function rememberMessageScrollVisibilityTarget(root) {
+  const target = root || $("conversation");
+  if (!state.messageScrollVisibilityRoot) {
+    state.messageScrollVisibilityRoot = target;
+    return;
+  }
+  const conversation = $("conversation");
+  const current = state.messageScrollVisibilityRoot;
+  if (!current || !document.body.contains(current) || target === conversation) {
+    state.messageScrollVisibilityRoot = target;
+  }
+}
+
+function applyMessageScrollButtonVisibility(root) {
+  const target = messageScrollVisibilityTarget(root || state.messageScrollVisibilityRoot || $("conversation"));
+  if (!target) return;
+  updateMessageScrollButtonVisibility(target);
+  updateConversationJumpBottomButton();
+}
+
+function scheduleMessageScrollButtonVisibilitySettle(root, delays = [100, 280]) {
+  const target = root || $("conversation");
+  for (const delay of delays) {
+    window.setTimeout(() => applyMessageScrollButtonVisibility(target), Math.max(0, delay));
+  }
+}
+
 function messageScrollCanReturnToStart(articleRect, conversationRect) {
   const visibleTop = Math.max(articleRect.top || 0, conversationRect.top || 0);
   const visibleBottom = Math.min(articleRect.bottom || 0, conversationRect.bottom || 0);
@@ -835,12 +901,13 @@ function positionFloatingMessageScrollButton(button, shouldFloat, articleRect, c
 }
 
 function scheduleMessageScrollButtonVisibility(root) {
-  const target = root || $("conversation");
+  rememberMessageScrollVisibilityTarget(root);
   if (state.messageScrollVisibilityScheduled) return;
   state.messageScrollVisibilityScheduled = true;
   requestAnimationFrame(() => {
     state.messageScrollVisibilityScheduled = false;
-    updateMessageScrollButtonVisibility(target);
-    updateConversationJumpBottomButton();
+    const target = state.messageScrollVisibilityRoot;
+    state.messageScrollVisibilityRoot = null;
+    applyMessageScrollButtonVisibility(target);
   });
 }

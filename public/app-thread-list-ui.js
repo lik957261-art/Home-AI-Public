@@ -240,6 +240,7 @@ function renderCurrentThreadUnsafe(options = {}) {
   syncRunProgressTicker(conversation);
   ensureVerticalScrollAffordance(conversation);
   scheduleMessageScrollButtonVisibility(conversation);
+  scheduleMessageScrollButtonVisibilitySettle(conversation, [120, 360]);
   if (consumeChatRouteScrollTarget(displayMessages)) {
     if (isSingleWindowChatView()) scheduleConversationViewportRefresh(conversation);
   } else if (state.chatSearchScrollPending) {
@@ -367,6 +368,7 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   updateNavigationControls();
   ensureVerticalScrollAffordance(conversation);
   scheduleMessageScrollButtonVisibility(conversation);
+  scheduleMessageScrollButtonVisibilitySettle(conversation, [120, 360]);
 
   if (selected && consumeTaskRouteScrollTarget(selected)) {
     return;

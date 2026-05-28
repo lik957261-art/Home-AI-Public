@@ -201,6 +201,24 @@ function visualViewportKeyboardMetrics() {
   return { height, offsetTop, bottomInset, keyboardLikely };
 }
 
+function clearKeyboardViewportMetrics() {
+  const root = document.documentElement;
+  state.keyboardViewportActive = false;
+  root.classList.remove("keyboard-viewport-active");
+  root.style.removeProperty("--app-viewport-height");
+  root.style.removeProperty("--app-viewport-offset-top");
+  root.style.removeProperty("--keyboard-bottom-inset");
+}
+
+function keyboardViewportShouldClearAfterOrientation() {
+  if (!state.keyboardViewportActive) return false;
+  const input = $("messageInput");
+  const composerActuallyFocused = Boolean(input && document.activeElement === input);
+  if (!state.composerFocused || !composerActuallyFocused) return true;
+  const metrics = visualViewportKeyboardMetrics();
+  return !metrics?.keyboardLikely;
+}
+
 function updateKeyboardViewportMetrics() {
   const root = document.documentElement;
   const metrics = visualViewportKeyboardMetrics();
@@ -217,9 +235,7 @@ function updateKeyboardViewportMetrics() {
       document.body.scrollTop = 0;
     }
   } else {
-    root.style.removeProperty("--app-viewport-height");
-    root.style.removeProperty("--app-viewport-offset-top");
-    root.style.removeProperty("--keyboard-bottom-inset");
+    clearKeyboardViewportMetrics();
   }
   return active;
 }

@@ -32,8 +32,9 @@ function renderStreamingMessageContent(message) {
   const content = body?.querySelector?.(".text-content");
   if (!article || !body || !content || message.revokedAt) return false;
   const shouldStick = shouldForceChatStickToBottom() || isNearBottom();
+  const messageStatus = String(message.status || "");
   try {
-    if (["queued", "running"].includes(String(message.status || ""))) {
+    if (["queued", "running"].includes(messageStatus)) {
       content.className = "text-content plain-text";
       content.textContent = cleanDisplayText(message.content || "");
     } else {
@@ -53,6 +54,9 @@ function renderStreamingMessageContent(message) {
     state.conversationPinnedToBottom = false;
   }
   scheduleMessageScrollButtonVisibility($("conversation"));
+  if (!["queued", "running"].includes(messageStatus)) {
+    scheduleMessageScrollButtonVisibilitySettle(article, [120, 360]);
+  }
   return true;
 }
 

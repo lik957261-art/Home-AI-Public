@@ -60,5 +60,15 @@ Gateway plugin/schema/profile changes:
   or danger cards, and the settings/access-key sheet in light, dark, and system
   mode. A dark-mode fix is incomplete if any of those surfaces still uses a
   hard-coded pale background with low-contrast foreground text.
+- Long assistant replies must keep their per-reply start/end jump controls
+  available after streaming settles. Arrow visibility recalculation must resolve
+  the current DOM at execution time and include a delayed settle pass after final
+  markdown/layout replacement so a stale pre-terminal message node cannot leave
+  the footer arrow hidden.
+- Mobile orientation changes must have a deterministic viewport recovery pass:
+  clear any temporary conversation scroll-layer reset, clear stale keyboard
+  viewport CSS when the composer is no longer actually focused, recompute bottom
+  navigation reservation, and recalculate long-message jump controls after the
+  orientation settles.
 - Do not expose raw local paths or sensitive metadata in normal UI.
 - Do not rely on cached clients receiving changes without a version bump.

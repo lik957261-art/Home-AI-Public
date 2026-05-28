@@ -119,6 +119,15 @@ and toolset-selection events should update an existing panel in place, compact
 one delayed fallback thread refresh when no target assistant message is visible.
 They must not call the generic whole-thread render path for each preflight
 event, because that produces visible mobile screen jitter.
+Long-reply jump control harnesses must cover terminal DOM replacement and
+historical scrolling: arrow visibility recalculation must resolve the current
+conversation/message node when the queued callback executes, fall back from a
+detached pre-terminal node to the live conversation, and run a short delayed
+settle pass after final markdown/layout replacement. Viewport harnesses must
+also cover orientation recovery: after landscape/portrait changes, the client
+must clear stale keyboard viewport state when the composer is no longer actually
+focused, clear temporary conversation scroll-layer reset state, recompute bottom
+navigation reservation, and recalculate long-reply arrows.
 
 Static client UI tests must cover device-local theme settings when the settings
 sheet changes: `system` / `light` / `dark` options render in the settings menu,
