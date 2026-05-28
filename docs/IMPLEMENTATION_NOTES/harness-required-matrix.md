@@ -209,6 +209,34 @@ Primary docs:
 - `docs/MODULES/action-inbox.md`
 - `docs/MODULES/web-push.md`
 
+### Embedded Plugin PWA Session Workflow
+
+Applies to same-window embedded app plugins such as Wardrobe.
+
+Required harness dimensions:
+
+- Manifest API smoke alone is insufficient. Validation must include installed
+  PWA behavior on the target browser class before declaring the workflow done.
+- Android Chrome PWA smoke must prove that the bottom-tab iframe renders real
+  plugin content or a bounded diagnostic.
+- iOS Safari installed-PWA smoke is required for cross-origin embedded plugins
+  that rely on cookies or browser session storage. iOS failures where a valid
+  login flashes back to the login page without decrementing retry count must be
+  classified as session persistence failure, not credential failure.
+- Server-side launch-token exchange must never expose the long-lived workspace
+  key to frontend JavaScript, iframe URLs, docs, handoffs, screenshots, or logs.
+- Short launch URLs must be treated as one-time/short-lived. Rerendering a
+  plugin tab must not rebuild an iframe from a consumed launch URL; the
+  frontend must either preserve the existing iframe node or fetch a fresh
+  manifest/launch URL before creating a new frame.
+- Static/client version must be bumped for embedded-plugin host changes so the
+  installed PWA does not keep an older iframe contract through the service
+  worker.
+
+Primary docs:
+
+- `docs/MODULES/wardrobe.md`
+
 ### Automation/Cron Execution Workflow
 
 Applies to scheduled jobs, manual runs, bridge-host proxy behavior, status

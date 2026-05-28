@@ -118,6 +118,17 @@ function wardrobePluginAvailable(manifest = currentWardrobePluginManifest()) {
   return Boolean(manifest?.available && manifest?.entry?.url && manifest?.kind === "embedded_app");
 }
 
+function wardrobePluginUsesLaunchToken(manifest = currentWardrobePluginManifest()) {
+  const entryUrl = String(manifest?.entry?.url || "");
+  return manifest?.embed?.tokenStatus === "launch_token_issued" || /[?&]launch=/.test(entryUrl);
+}
+
+function wardrobeLaunchTokenIsFreshForFrame() {
+  if (!state.wardrobePluginManifestFreshForFrame) return false;
+  const fetchedAt = Number(state.wardrobePluginManifestFetchedAt || 0);
+  return fetchedAt > 0 && Date.now() - fetchedAt < 60000;
+}
+
 function wardrobePluginBlockedByPageSecurity(manifest = currentWardrobePluginManifest()) {
   if (manifest?.embed?.blockedByFrameAncestors) return true;
   if (!wardrobePluginAvailable(manifest)) return false;
@@ -191,6 +202,8 @@ async function loadWardrobePluginManifest(options = {}) {
     const params = new URLSearchParams({ workspaceId, appOrigin: window.location.origin });
     const manifest = await api(`/api/hermes-plugins/wardrobe/manifest?${params.toString()}`);
     state.wardrobePluginManifest = Object.assign({ workspaceId }, manifest);
+    state.wardrobePluginManifestFetchedAt = Date.now();
+    state.wardrobePluginManifestFreshForFrame = wardrobePluginUsesLaunchToken(state.wardrobePluginManifest);
   } catch (err) {
     state.wardrobePluginManifest = {
       ok: false,
@@ -199,6 +212,8 @@ async function loadWardrobePluginManifest(options = {}) {
       code: "wardrobe_plugin_manifest_failed",
       warning: err?.message || String(err),
     };
+    state.wardrobePluginManifestFetchedAt = 0;
+    state.wardrobePluginManifestFreshForFrame = false;
   } finally {
     state.wardrobePluginChecked = true;
     state.wardrobePluginLoading = false;
@@ -229,7 +244,23 @@ function renderWardrobeView() {
   const pluginManifest = currentWardrobePluginManifest();
   if (wardrobePluginAvailable(pluginManifest)) {
     if (!wardrobePluginBlockedByPageSecurity(pluginManifest)) {
+      const existingFrame = conversation.querySelector(".wardrobe-plugin-frame");
+      const entryUrl = String(pluginManifest.entry?.url || "");
+      if (existingFrame && existingFrame.getAttribute("src") === entryUrl) {
+        updateNavigationControls();
+        ensureVerticalScrollAffordance();
+        return;
+      }
+      if (wardrobePluginUsesLaunchToken(pluginManifest) && !wardrobeLaunchTokenIsFreshForFrame()) {
+        conversation.innerHTML = renderWardrobePluginLoading();
+        if (!state.wardrobePluginLoading) loadWardrobePluginManifest({ force: true }).catch(showError);
+        updateNavigationControls();
+        ensureVerticalScrollAffordance();
+        return;
+      }
       conversation.innerHTML = renderWardrobePluginFrame(pluginManifest);
+      state.wardrobePluginFrameUrl = entryUrl;
+      if (wardrobePluginUsesLaunchToken(pluginManifest)) state.wardrobePluginManifestFreshForFrame = false;
       updateNavigationControls();
       ensureVerticalScrollAffordance();
       return;

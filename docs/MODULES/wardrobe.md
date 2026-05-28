@@ -98,10 +98,23 @@ back to username/password login or a local MCP overview.
 
 If the frontend receives an HTTP plugin entry while the Hermes page is HTTPS,
 it must not render a blank iframe or open a browser window. It should show a
-compact diagnostic notice. Deployment validation for embedded plugins must
-include an Android PWA smoke: launch Hermes from the home-screen icon, open the
-plugin tab, and verify real embedded content or the expected plugin diagnostic
-rather than only checking the manifest API.
+compact diagnostic notice. Deployment validation for embedded plugins must not
+stop at the manifest API. It must include installed-PWA smoke on the target
+browser class:
+
+- Android Chrome PWA for general embedded-frame rendering.
+- iOS Safari installed PWA for cookie/session behavior, because iOS WebKit can
+  block cross-origin iframe session cookies even when the server-side launch
+  token and first-party HTTP flow both succeed.
+
+The pass condition is real embedded content or the expected plugin diagnostic,
+not a username/password login screen. If the iOS PWA shows a login screen and
+valid credentials flash back to login without reducing the retry counter, treat
+that as an embedded session persistence failure rather than a password error.
+Launch-token URLs are short-lived and may be one-time use. The frontend must
+not cache and rebuild an iframe from a consumed launch URL during ordinary view
+rerenders; when the Wardrobe tab needs a new frame and the previous token is no
+longer fresh, it must fetch a new manifest/launch URL first.
 
 The manifest route should also probe the plugin entry response for
 `Content-Security-Policy: frame-ancestors`. If the plugin service has not
