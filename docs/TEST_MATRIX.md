@@ -101,10 +101,13 @@ status space.
 
 Action Inbox harnesses must cover the low-click delivery and Todo semantics:
 Automation delivery rows with `sourceRef.latestDeliverable` must render a
-direct same-window document preview action; scheduled Todo/reminder Automation
-triggers must create `itemType=todo` Inbox occurrences; scheduled Todo
-Automation rows with a safe deliverable must still render the direct document
-preview action; row status pills must open a concrete action menu; generic
+direct same-window document preview file tag that reuses the Automation detail
+deliverable visual pattern and does not hardcode Markdown-only wording;
+scheduled Todo/reminder Automation triggers must create `itemType=todo` Inbox
+occurrences; scheduled Todo Automation rows with a safe deliverable must still
+render the direct document preview action; row title/main areas must open the
+Automation source detail with Inbox return context; row status pills must open a
+processing menu with complete, snooze, and delete/dismiss actions; generic
 `待办提醒` titles must be replaced by the actual Automation/reminder title in
 new projections or UI fallback; partial left swipes must not complete an Inbox
 item while full swipes complete it once; and Todo/reminder items must sort above

@@ -63,8 +63,8 @@ assert.match(openTodoHtml, /data-complete-swipe="ainb-todo-1"/);
 assert.match(openTodoHtml, /data-action-inbox-id="ainb-todo-1"/);
 assert.match(openTodoHtml, /data-action-inbox-actions-id="ainb-todo-1"/);
 assert.doesNotMatch(openTodoHtml, /data-action-inbox-open-source-id="ainb-todo-1"/);
-assert.match(openTodoHtml, /标记为已读/);
-assert.match(openTodoHtml, /已读/);
+assert.match(openTodoHtml, /标记为完成/);
+assert.match(openTodoHtml, /完成/);
 assert.match(openTodoHtml, /截止 05\/27 16:00/);
 assert.doesNotMatch(openTodoHtml, /2026-05-27T08:00:00\.000Z/);
 assert.equal(ui.actionInboxTodoDueText(openTodo), "05/27 16:00");
@@ -125,14 +125,17 @@ const automationDelivery = {
   workspaceId: "owner",
 };
 const deliveryHtml = ui.renderActionInboxItem(automationDelivery);
-assert.equal(ui.actionInboxOpensSourceDirectly(automationDelivery), false);
+assert.equal(ui.actionInboxOpensSourceDirectly(automationDelivery), true);
 assert.equal(ui.actionInboxPrimaryDeliverable(automationDelivery).name, "weekly.md");
 assert.match(deliveryHtml, /data-action-inbox-open-deliverable-id="ainb-auto-delivery"/);
-assert.match(deliveryHtml, /class="action-inbox-deliverable-chip"/);
-assert.match(deliveryHtml, />\u4ea4\u4ed8 MD<\/a>/);
+assert.match(deliveryHtml, /<button class="action-inbox-item-main" type="button" data-action-inbox-open-source-id="ainb-auto-delivery">/);
+assert.match(deliveryHtml, /class="action-inbox-deliverable-chip automation-doc-preview compact doc-markdown"/);
+assert.match(deliveryHtml, /automation-doc-icon/);
+assert.match(deliveryHtml, />\u6700\u540e\u4ea4\u4ed8<\/span>/);
+assert.match(deliveryHtml, />weekly\.md<\/span>/);
 assert.match(deliveryHtml, /data-task-doc/);
 assert.match(deliveryHtml, /data-artifact-mime="text\/markdown"/);
-assert.deepEqual(ui.actionInboxActionMenuItems(automationDelivery).map((action) => action.id), ["deliverable", "source", "detail", "complete"]);
+assert.deepEqual(ui.actionInboxActionMenuItems(automationDelivery).map((action) => action.id), ["complete", "snooze", "dismiss"]);
 
 const openedDeliverables = [];
 sandbox.state.actionInboxItems = [automationDelivery];
@@ -199,8 +202,11 @@ const scheduledTodoDelivery = {
 const scheduledTodoHtml = ui.renderActionInboxItem(scheduledTodoDelivery);
 assert.equal(ui.actionInboxDisplayTitle(scheduledTodoDelivery), "Daily discussion report");
 assert.equal(ui.actionInboxPrimaryDeliverable(scheduledTodoDelivery).name, "report.md");
+assert.match(scheduledTodoHtml, /<button class="action-inbox-item-main" type="button" data-action-inbox-open-source-id="ainb-auto-scheduled">/);
 assert.match(scheduledTodoHtml, /data-action-inbox-open-deliverable-id="ainb-auto-scheduled"/);
-assert.match(scheduledTodoHtml, />\u4ea4\u4ed8 MD<\/a>/);
+assert.match(scheduledTodoHtml, /class="action-inbox-deliverable-chip automation-doc-preview compact doc-markdown"/);
+assert.match(scheduledTodoHtml, />report\.md<\/span>/);
 assert.match(scheduledTodoHtml, /data-action-inbox-actions-id="ainb-auto-scheduled"/);
+assert.deepEqual(ui.actionInboxActionMenuItems(scheduledTodoDelivery).map((action) => action.label), ["\u5b8c\u6210", "\u7a0d\u540e", "\u5220\u9664"]);
 
 console.log("app-action-inbox-ui tests passed");

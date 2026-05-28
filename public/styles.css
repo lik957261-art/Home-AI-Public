@@ -11244,21 +11244,9 @@ body.task-markdown-preview-open {
 }
 
 .action-inbox-deliverable-chip {
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 30px;
-  min-width: 72px;
-  margin: 0 0 12px 12px;
-  padding: 0 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(95, 139, 148, 0.28);
-  background: var(--ui-accent-active-soft);
-  color: var(--ui-accent-active);
-  font-size: 13px;
-  font-weight: 700;
-  text-decoration: none;
+  margin: 0 12px 12px;
+  width: calc(100% - 24px);
+  box-sizing: border-box;
 }
 
 .action-inbox-item.active {
@@ -11362,19 +11350,25 @@ body.task-markdown-preview-open {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  min-height: 23px;
-  padding: 0 8px;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 32px;
+  min-height: 32px;
+  min-width: 72px;
+  padding: 0 10px;
   border-radius: 999px;
   border: 1px solid var(--ui-hairline);
   color: var(--muted);
   background: var(--ui-surface-muted);
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .action-inbox-status-action {
   position: absolute;
   right: 12px;
-  top: 51px;
+  top: 50px;
   z-index: 3;
   cursor: pointer;
 }

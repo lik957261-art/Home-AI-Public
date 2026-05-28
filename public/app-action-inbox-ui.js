@@ -200,7 +200,7 @@ function actionInboxAutomationInboxReturnLink(link, item = {}, sourceType = "") 
 
 function actionInboxOpensSourceDirectly(item = {}) {
   const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
-  return sourceType === "automation" && Boolean(actionInboxSourceDeepLink(item)) && !actionInboxPrimaryDeliverable(item);
+  return sourceType === "automation" && Boolean(actionInboxSourceDeepLink(item));
 }
 
 function actionInboxSourceActionLabel(item = {}) {
@@ -209,11 +209,32 @@ function actionInboxSourceActionLabel(item = {}) {
   return "\u6253\u5f00\u6765\u6e90";
 }
 
-function actionInboxDeliverableLabel(deliverable = {}) {
-  const name = String(deliverable.name || "").trim();
-  if (/\.md(?:$|[?#])/i.test(name) || String(deliverable.mime || "").toLowerCase().includes("markdown")) return "MD";
-  if (/\.pdf(?:$|[?#])/i.test(name) || String(deliverable.mime || "").toLowerCase().includes("pdf")) return "PDF";
-  return "\u4ea4\u4ed8";
+function actionInboxDeliverableKind(deliverable = {}) {
+  if (typeof artifactKind === "function") return artifactKind(deliverable);
+  const name = String(deliverable.name || "").trim().toLowerCase();
+  const mime = String(deliverable.mime || "").toLowerCase();
+  if (mime.includes("pdf") || name.endsWith(".pdf")) return "pdf";
+  if (mime.includes("word") || name.endsWith(".doc") || name.endsWith(".docx")) return "word";
+  if (mime.includes("spreadsheet") || name.endsWith(".xls") || name.endsWith(".xlsx") || name.endsWith(".csv")) return "spreadsheet";
+  if (mime.includes("markdown") || name.endsWith(".md")) return "markdown";
+  if (mime.includes("text") || name.endsWith(".txt")) return "text";
+  return "generic";
+}
+
+function renderActionInboxDeliverableChip(item = {}, deliverable = null) {
+  if (!deliverable?.url) return "";
+  const name = String(deliverable.name || "delivery").trim() || "delivery";
+  const mime = String(deliverable.mime || "text/markdown").trim() || "text/markdown";
+  const kind = actionInboxDeliverableKind(Object.assign({}, deliverable, { mime, name }));
+  const classes = `action-inbox-deliverable-chip automation-doc-preview compact doc-${kind}`;
+  const itemId = escapeHtml(item.id || "");
+  return `<a class="${escapeHtml(classes)}" href="${escapeHtml(deliverable.url)}" target="_self" data-task-doc data-action-inbox-open-deliverable-id="${itemId}" data-action-inbox-deliverable-id="${itemId}" data-artifact-name="${escapeHtml(name)}" data-artifact-mime="${escapeHtml(mime)}" aria-label="${escapeHtml(`\u6253\u5f00\u6700\u540e\u4ea4\u4ed8 ${name}`)}">
+    <span class="automation-doc-icon" aria-hidden="true"></span>
+    <span class="automation-doc-copy">
+      <span class="automation-doc-label">${"\u6700\u540e\u4ea4\u4ed8"}</span>
+      <span class="automation-doc-name">${escapeHtml(name)}</span>
+    </span>
+  </a>`;
 }
 
 function actionInboxStatusActionLabel(item = {}) {
@@ -223,17 +244,13 @@ function actionInboxStatusActionLabel(item = {}) {
 
 function actionInboxActionMenuItems(item = {}) {
   const actions = [];
-  const deliverable = actionInboxPrimaryDeliverable(item) || actionInboxLatestDeliverable(item);
-  const sourceLink = actionInboxSourceDeepLink(item);
-  const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
-  if (deliverable?.url) {
-    actions.push({ id: "deliverable", label: `${"\u6253\u5f00\u4ea4\u4ed8"} ${actionInboxDeliverableLabel(deliverable)}` });
+  if (!actionInboxIsTerminalStatus(item.status)) {
+    actions.push({ id: "complete", label: "\u5b8c\u6210" });
+    actions.push({ id: "snooze", label: "\u7a0d\u540e" });
+    actions.push({ id: "dismiss", label: "\u5220\u9664" });
+  } else {
+    actions.push({ id: "detail", label: "\u67e5\u770b\u6536\u4ef6\u8be6\u60c5" });
   }
-  if (sourceLink) {
-    actions.push({ id: "source", label: sourceType === "automation" ? "\u6253\u5f00\u81ea\u52a8\u5316\u4efb\u52a1" : "\u6253\u5f00\u6765\u6e90" });
-  }
-  actions.push({ id: "detail", label: "\u67e5\u770b\u6536\u4ef6\u8be6\u60c5" });
-  if (!actionInboxIsTerminalStatus(item.status)) actions.push({ id: "complete", label: "\u6807\u8bb0\u4e3a\u5df2\u8bfb" });
   return actions;
 }
 
@@ -331,13 +348,11 @@ function renderActionInboxItem(item) {
   const primaryDeliverable = actionInboxPrimaryDeliverable(item);
   const directSource = actionInboxOpensSourceDirectly(item);
   const statusMenuOpen = state.actionInboxActionMenuItemId === item.id;
-  const itemActionAttr = primaryDeliverable
-    ? `data-action-inbox-open-deliverable-id="${escapeHtml(item.id || "")}"`
-    : directSource
+  const itemActionAttr = directSource
     ? `data-action-inbox-open-source-id="${escapeHtml(item.id || "")}"`
     : `data-action-inbox-id="${escapeHtml(item.id || "")}"`;
   return `<article class="action-inbox-item${active}${swipeClass}" data-action-inbox-item-card="${escapeHtml(item.id || "")}"${swipeAttrs}>
-    ${terminal ? "" : `<button class="task-swipe-delete action-inbox-swipe-complete" type="button" data-complete-swipe="${escapeHtml(item.id || "")}" aria-label="${"\u6807\u8bb0\u4e3a\u5df2\u8bfb"}">${"\u5df2\u8bfb"}</button>`}
+    ${terminal ? "" : `<button class="task-swipe-delete action-inbox-swipe-complete" type="button" data-complete-swipe="${escapeHtml(item.id || "")}" aria-label="${"\u6807\u8bb0\u4e3a\u5b8c\u6210"}">${"\u5b8c\u6210"}</button>`}
     <div class="${terminal ? "action-inbox-item-static" : "task-swipe-content action-inbox-swipe-content"}"${terminal ? "" : " data-swipe-content"}>
     <button class="action-inbox-item-main" type="button" ${itemActionAttr}>
       <span class="action-inbox-source-row">
@@ -352,7 +367,7 @@ function renderActionInboxItem(item) {
     </button>
     <button class="action-inbox-status action-inbox-status-action ${escapeHtml(tone)}" type="button" data-action-inbox-actions-id="${escapeHtml(item.id || "")}" aria-haspopup="menu" aria-expanded="${statusMenuOpen ? "true" : "false"}">${escapeHtml(actionInboxStatusActionLabel(item))}</button>
     ${renderActionInboxActionMenu(item)}
-    ${primaryDeliverable ? `<a class="action-inbox-deliverable-chip" href="${escapeHtml(primaryDeliverable.url)}" target="_self" data-task-doc data-action-inbox-deliverable-id="${escapeHtml(item.id || "")}" data-artifact-name="${escapeHtml(primaryDeliverable.name)}" data-artifact-mime="${escapeHtml(primaryDeliverable.mime || "text/markdown")}" aria-label="${escapeHtml(`\u6253\u5f00\u4ea4\u4ed8 ${primaryDeliverable.name}`)}">${escapeHtml(`${"\u4ea4\u4ed8"} ${actionInboxDeliverableLabel(primaryDeliverable)}`)}</a>` : ""}
+    ${renderActionInboxDeliverableChip(item, primaryDeliverable)}
     </div>
   </article>`;
 }
@@ -559,6 +574,8 @@ async function handleActionInboxMenuAction(itemId, action) {
   if (action === "deliverable") return openActionInboxItemDeliverable(item);
   if (action === "source") return openActionInboxItemSource(item);
   if (action === "complete") return mutateActionInboxItemById(id, "complete");
+  if (action === "snooze") return mutateActionInboxItemById(id, "snooze");
+  if (action === "dismiss") return mutateActionInboxItemById(id, "dismiss");
   await loadActionInboxItem(id);
 }
 

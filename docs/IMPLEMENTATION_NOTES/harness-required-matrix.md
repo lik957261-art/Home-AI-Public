@@ -150,20 +150,26 @@ Required harness dimensions:
 - Active user-initiated chat/topic task receipts do not enter Inbox unless they
   become passive follow-up work.
 - Automation delivery Inbox rows that include a safe deliverable reference must
-  expose a direct same-window MD/document preview path from the list, without
+  expose a direct same-window file preview path from the list, without
   requiring an intermediate Inbox detail click.
 - Scheduled Todo/reminder automations must project each trigger as a Todo-like
   Inbox occurrence, not as an ordinary delivery receipt; completing the
   occurrence must not delete the recurrence job.
 - Scheduled Todo/reminder Automation occurrences that include a safe deliverable
-  reference must still expose the direct same-window MD/document preview path.
+  reference must still expose the direct same-window file preview path.
 - Scheduled Todo/reminder Automation push marks must be idempotent per
   `lastRunAt`. A same-run scan after a delivered file must not downgrade the
   mark to `no-deliverable`, create a duplicate Inbox item, or send another push
   with an alternating tag.
 - Inbox row status pills must be actionable selectors for the concrete handling
-  paths instead of static labels only; the menu must include the safe source
-  actions available for that item without bypassing the source module.
+  paths instead of static labels only; the menu must contain processing actions
+  such as complete, snooze, and delete/dismiss rather than source or file
+  navigation.
+- Automation delivery and scheduled-Todo row title/main areas must open the
+  Automation source detail with Inbox return context, while only the explicit
+  deliverable file tag opens the preview. The file tag must reuse the existing
+  Automation deliverable visual pattern and must not hardcode Markdown-only
+  wording.
 - Scheduled Todo/reminder Automation titles should use the concrete
   Automation/reminder name; source/type badges, not generic titles, carry the
   source classification.

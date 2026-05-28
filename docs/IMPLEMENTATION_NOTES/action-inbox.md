@@ -156,7 +156,7 @@ For delivery rows, persist only a safe direct deliverable reference in
 - `updatedAt`
 - `runOutputUpdatedAt`
 
-The list UI can use that reference to render a direct MD/PDF/document chip and
+The list UI can use that reference to render a direct MD/PDF/document file tag and
 open the existing same-window preview. Do not store the Markdown body or full
 automation output in Inbox.
 
@@ -248,15 +248,17 @@ Follow-up design/implementation rule for direct delivery and scheduled Todo:
 - Automation Web Push Inbox upserts include `sourceRef.latestDeliverable` when a
   fresh deliverable exists.
 - Automation delivery Inbox rows expose a direct same-window document preview
-  chip from the list.
-- Scheduled Todo Automation rows also expose the direct document preview chip
-  when `sourceRef.latestDeliverable` is present; their Todo classification only
-  changes sort/completion semantics.
+  file tag from the list, reusing the Automation detail deliverable pattern.
+- Scheduled Todo Automation rows also expose the direct document preview file
+  tag when `sourceRef.latestDeliverable` is present; their Todo classification
+  only changes sort/completion semantics.
 - Scheduled Todo Automation rows use the concrete Automation/reminder title in
   Web Push and Inbox projections, not the generic `待办提醒` label.
-- The right-side Inbox status pill opens a compact action menu with
-  source-aware actions such as direct deliverable, Automation source, Inbox
-  detail, and mark-as-read/complete.
+- The row title/main area opens the Automation source detail, while the explicit
+  deliverable file tag opens the preview. The file tag reuses the Automation
+  detail deliverable visual pattern and must not hardcode Markdown-only wording.
+  The right-side Inbox status pill opens only processing actions such as
+  complete, snooze, and delete/dismiss.
 - Left-swipe completion is threshold-gated as a full-swipe action; partial
   swipes do not call the complete transition.
 - Scheduled Todo automations create Todo-like Inbox occurrences and are sorted

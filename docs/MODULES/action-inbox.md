@@ -77,12 +77,13 @@ Foreground push refresh should update Inbox state when automation push payloads 
 
 Automation delivery items may carry a summary-only `sourceRef.latestDeliverable`
 object with `name`, `url`, `mime`, and timestamp metadata. The Inbox list may
-render this as a direct file chip so the common reading path opens the Markdown
-or document preview from the list, in the same Hermes Mobile window, without
-first opening the Inbox detail or the Automation detail. The deliverable body
-must remain in the source file/preview route and must not be copied into Inbox.
+render this as a direct file tag using the same Automation detail deliverable
+visual pattern so the common reading path opens the Markdown/PDF/document
+preview from the list, in the same Hermes Mobile window, without first opening
+the Inbox detail or the Automation detail. The deliverable body must remain in
+the source file/preview route and must not be copied into Inbox.
 Scheduled Todo/reminder Automation rows may also render this direct deliverable
-chip when the run produced a safe `latestDeliverable`; Todo semantics affect
+file tag when the run produced a safe `latestDeliverable`; Todo semantics affect
 completion/sort behavior, not whether the delivery file is reachable.
 
 Recurring reminder-style automations are treated as scheduled Todo triggers,
@@ -165,22 +166,25 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
 - Automation receipt rows are direct-source rows: tapping the Inbox list row should open the matching Automation detail by `automationId` immediately, without first showing an intermediate Inbox detail. The generated route must carry Inbox return context (`returnTo=inbox`, direct detail scope, and the safe source Inbox item id) so the top-left back button and right-swipe return to the Inbox list instead of the Automation list.
 - The Inbox row to Automation detail path is an internal secondary-page navigation path, not a Web Push path. It must use the shared same-window route helper from the current app runtime, render as a button-driven action, and must not open a browser window or replace the app with a new browser shell.
 - Returning from an Inbox-opened Automation detail must explicitly restore `viewMode=inbox` and cancel pending Automation list/detail loads. Otherwise an in-flight Automation refresh can repaint an empty `Hermes CRON` root shell after the right-swipe back action.
-- Inbox list rows may expose a left-swipe `已读` action for non-terminal items. The action must call the existing complete transition and project the item as `done`; terminal rows must not keep an active swipe-complete affordance.
+- Inbox list rows may expose a left-swipe `完成` action for non-terminal items. The action must call the existing complete transition and project the item as `done`; terminal rows must not keep an active swipe-complete affordance.
 - Inbox left-swipe completion is a full-swipe action. A partial swipe may reveal
   the action, but must not commit completion until the row passes the explicit
   full-swipe threshold and the user releases. This keeps fast Inbox clearing
   possible without making half-swipes destructive.
 - Automation `delivery` rows with a safe `sourceRef.latestDeliverable.url`
-  should expose a direct deliverable chip from the list. The direct file path is
-  the primary delivery-reading path; Automation detail remains the source
-  management/troubleshooting path.
+  should expose a direct deliverable file tag from the list. Reuse the same
+  file-label/card visual pattern used by Automation detail deliverables, because
+  the delivery may be Markdown, PDF, Word, or another supported file type. The
+  file tag opens the preview; the row title/main area opens the Automation
+  detail with Inbox return context so source management/troubleshooting remains
+  one tap away.
 - Automation scheduled-Todo rows with a safe `sourceRef.latestDeliverable.url`
-  should also expose the same direct list chip, because the occurrence is still
+  should also expose the same direct file tag, because the occurrence is still
   the user's low-click delivery-reading path.
 - The right-side status pill in Inbox rows is an action selector. It should open
-  a compact source-aware menu such as direct deliverable, source Automation
-  task, Inbox detail, and mark-as-read/complete. The row tap remains the primary
-  default action, while the status menu exposes the alternate processing paths.
+  a compact processing menu for the item state, such as complete, snooze, and
+  delete/dismiss. Source and file navigation should stay on the title/main area
+  and the explicit deliverable file tag, not inside the status menu.
 - Todo/reminder items, including scheduled Todo occurrences created by
   Automation, must sort above ordinary Automation delivery receipts in the
   default Inbox. Automation failures and review/approval items may still rank

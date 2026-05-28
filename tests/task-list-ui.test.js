@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-inbox-actions-v302";
+const CLIENT_VERSION = "20260528-inbox-title-actions-v304";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -209,7 +209,9 @@ assert.match(stylesCss, /\.action-inbox-source-row \{[\s\S]*?display: flex;[\s\S
 assert.match(stylesCss, /\.action-inbox-source-badge,[\s\S]*?\.action-inbox-type-badge \{[\s\S]*?overflow: hidden;[\s\S]*?text-overflow: ellipsis;[\s\S]*?white-space: nowrap;/);
 assert.match(stylesCss, /\.action-inbox-filter \{[\s\S]*?font-size: 14px;[\s\S]*?line-height: 1\.2;/);
 assert.match(stylesCss, /\.action-inbox-swipe-complete \{[\s\S]*?background: #4f745d;/);
-assert.match(stylesCss, /\.action-inbox-deliverable-chip \{[\s\S]*?min-height: 30px;[\s\S]*?text-decoration: none;/);
+assert.match(stylesCss, /\.action-inbox-deliverable-chip \{[\s\S]*?width: calc\(100% - 24px\);[\s\S]*?box-sizing: border-box;/);
+assert.match(appJs, /class="\$\{escapeHtml\(classes\)\}"[\s\S]*?automation-doc-icon[\s\S]*?automation-doc-name/);
+assert.doesNotMatch(appJs, /function actionInboxDeliverableLabel/);
 assert.match(stylesCss, /\.action-inbox-source-badge\.source-automation/);
 assert.match(stylesCss, /\.action-inbox-source-badge\.source-growth/);
 assert.match(indexHtml, /id="topOpenAutomation"/);
@@ -420,9 +422,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-actions-v302/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-actions-v302/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-actions-v302/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-title-actions-v304/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-title-actions-v304/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-title-actions-v304/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
