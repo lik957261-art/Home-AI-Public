@@ -161,10 +161,12 @@ Required harness dimensions:
   `lastRunAt`. A same-run scan after a delivered file must not downgrade the
   mark to `no-deliverable`, create a duplicate Inbox item, or send another push
   with an alternating tag.
-- Inbox row status pills must be actionable selectors for the concrete handling
-  paths instead of static labels only; the menu must contain processing actions
-  such as complete, snooze, and delete/dismiss rather than source or file
-  navigation.
+- Inbox rows must separate status display from processing actions. Status should
+  render as a compact badge, while the row tool area exposes a stable processing
+  control. That control must open a viewport-level action sheet or equivalent
+  overlay, not an absolutely-positioned menu inside the card, and it must contain
+  processing actions such as complete, snooze, and delete/dismiss rather than
+  source or file navigation.
 - Automation delivery and scheduled-Todo row title/main areas must open the
   Automation source detail with Inbox return context, while only the explicit
   deliverable file tag opens the preview. The file tag must reuse the existing

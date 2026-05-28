@@ -181,10 +181,13 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
 - Automation scheduled-Todo rows with a safe `sourceRef.latestDeliverable.url`
   should also expose the same direct file tag, because the occurrence is still
   the user's low-click delivery-reading path.
-- The right-side status pill in Inbox rows is an action selector. It should open
-  a compact processing menu for the item state, such as complete, snooze, and
-  delete/dismiss. Source and file navigation should stay on the title/main area
-  and the explicit deliverable file tag, not inside the status menu.
+- Inbox row state and processing actions are separate. The row may show a small
+  inline state badge such as `待处理`, but the action affordance should be a
+  stable `处理` control in the row tool area. It opens a viewport-level action
+  sheet for complete, snooze, and delete/dismiss so the menu is not clipped by
+  the card or laid over the deliverable file tag. Source and file navigation
+  should stay on the title/main area and the explicit deliverable file tag, not
+  inside the processing sheet.
 - Todo/reminder items, including scheduled Todo occurrences created by
   Automation, must sort above ordinary Automation delivery receipts in the
   default Inbox. Automation failures and review/approval items may still rank

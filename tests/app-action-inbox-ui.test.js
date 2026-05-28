@@ -41,6 +41,7 @@ this.ActionInboxUiTest = {
   actionInboxSourceDeepLink,
   actionInboxTodoDueText,
   openActionInboxItemDeliverableById,
+  renderActionInboxActionSheet,
   renderActionInboxItem,
 };`, sandbox);
 
@@ -63,6 +64,10 @@ assert.match(openTodoHtml, /data-complete-swipe="ainb-todo-1"/);
 assert.match(openTodoHtml, /data-action-inbox-id="ainb-todo-1"/);
 assert.match(openTodoHtml, /data-action-inbox-actions-id="ainb-todo-1"/);
 assert.doesNotMatch(openTodoHtml, /data-action-inbox-open-source-id="ainb-todo-1"/);
+assert.match(openTodoHtml, /class="action-inbox-state-badge open">/);
+assert.match(openTodoHtml, /class="action-inbox-process-button open"/);
+assert.doesNotMatch(openTodoHtml, /action-inbox-status-action/);
+assert.doesNotMatch(openTodoHtml, /action-inbox-action-menu/);
 assert.match(openTodoHtml, /标记为完成/);
 assert.match(openTodoHtml, /完成/);
 assert.match(openTodoHtml, /截止 05\/27 16:00/);
@@ -208,5 +213,17 @@ assert.match(scheduledTodoHtml, /class="action-inbox-deliverable-chip automation
 assert.match(scheduledTodoHtml, />report\.md<\/span>/);
 assert.match(scheduledTodoHtml, /data-action-inbox-actions-id="ainb-auto-scheduled"/);
 assert.deepEqual(ui.actionInboxActionMenuItems(scheduledTodoDelivery).map((action) => action.label), ["\u5b8c\u6210", "\u7a0d\u540e", "\u5220\u9664"]);
+
+sandbox.state.actionInboxItems = [scheduledTodoDelivery];
+sandbox.state.actionInboxActionMenuItemId = "ainb-auto-scheduled";
+const actionSheetHtml = ui.renderActionInboxActionSheet();
+assert.match(actionSheetHtml, /class="action-inbox-action-sheet-layer"/);
+assert.match(actionSheetHtml, /class="action-inbox-action-sheet-backdrop"/);
+assert.match(actionSheetHtml, /role="menu"/);
+assert.match(actionSheetHtml, /data-action-inbox-menu-dismiss/);
+assert.match(actionSheetHtml, /class="action-inbox-action-sheet-button primary"[^>]+data-action-inbox-menu-action="complete"/);
+assert.match(actionSheetHtml, /class="action-inbox-action-sheet-button neutral"[^>]+data-action-inbox-menu-action="snooze"/);
+assert.match(actionSheetHtml, /class="action-inbox-action-sheet-button danger"[^>]+data-action-inbox-menu-action="dismiss"/);
+assert.doesNotMatch(actionSheetHtml, /action-inbox-action-menu/);
 
 console.log("app-action-inbox-ui tests passed");

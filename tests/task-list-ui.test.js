@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-push-runstatus-v306";
+const CLIENT_VERSION = "20260528-inbox-action-sheet-v307";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -198,6 +198,12 @@ assert.match(appJs, /action-inbox-type-badge/);
 assert.match(appJs, /data-swipe-kind="action-inbox"/);
 assert.match(appJs, /data-swipe-commit="full"/);
 assert.match(appJs, /data-complete-swipe="\$\{escapeHtml\(item\.id \|\| ""\)\}"/);
+assert.match(appJs, /action-inbox-state-badge \$\{escapeHtml\(tone\)\}/);
+assert.match(appJs, /action-inbox-process-button \$\{escapeHtml\(tone\)\}/);
+assert.match(appJs, /function renderActionInboxActionSheet\(\)/);
+assert.match(appJs, /class="action-inbox-action-sheet-layer"/);
+assert.match(appJs, /data-action-inbox-menu-dismiss/);
+assert.doesNotMatch(appJs, /action-inbox-status-action/);
 assert.match(appJs, /function completeActionInboxItemFromSwipe\(itemId\)/);
 assert.match(appJs, /wireTaskSwipeActions\(root\)/);
 assert.match(appJs, /function actionInboxPrimaryDeliverable\(item = \{\}\)/);
@@ -210,6 +216,10 @@ assert.match(stylesCss, /\.action-inbox-source-badge,[\s\S]*?\.action-inbox-type
 assert.match(stylesCss, /\.action-inbox-filter \{[\s\S]*?font-size: 14px;[\s\S]*?line-height: 1\.2;/);
 assert.match(stylesCss, /\.action-inbox-swipe-complete \{[\s\S]*?background: #4f745d;/);
 assert.match(stylesCss, /\.action-inbox-deliverable-chip \{[\s\S]*?width: calc\(100% - 24px\);[\s\S]*?box-sizing: border-box;/);
+assert.match(stylesCss, /\.action-inbox-process-button \{[\s\S]*?position: absolute;[\s\S]*?top: 12px;[\s\S]*?min-height: 32px;/);
+assert.match(stylesCss, /\.action-inbox-process-button::before \{[\s\S]*?inset: -6px;/);
+assert.match(stylesCss, /\.action-inbox-action-sheet-layer \{[\s\S]*?position: fixed;[\s\S]*?inset: 0;/);
+assert.match(stylesCss, /\.action-inbox-action-sheet-button,[\s\S]*?\.action-inbox-action-sheet-cancel \{[\s\S]*?min-height: 44px;/);
 assert.match(appJs, /class="\$\{escapeHtml\(classes\)\}"[\s\S]*?automation-doc-icon[\s\S]*?automation-doc-name/);
 assert.doesNotMatch(appJs, /function actionInboxDeliverableLabel/);
 assert.match(stylesCss, /\.action-inbox-source-badge\.source-automation/);
@@ -422,9 +432,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-push-runstatus-v306/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-push-runstatus-v306/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-push-runstatus-v306/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-action-sheet-v307/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-action-sheet-v307/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-action-sheet-v307/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);

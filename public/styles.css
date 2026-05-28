@@ -11261,7 +11261,7 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 6px;
   text-align: left;
-  padding: 12px 86px 12px 12px;
+  padding: 12px 78px 8px 12px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -11389,49 +11389,173 @@ body.task-markdown-preview-open {
   line-height: 1;
 }
 
-.action-inbox-status-action {
+.action-inbox-state-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--ui-hairline);
+  background: var(--ui-surface-muted);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.action-inbox-state-badge.open,
+.action-inbox-state-badge.waiting {
+  color: var(--ui-accent-active);
+  background: var(--ui-accent-active-soft);
+}
+
+.action-inbox-state-badge.done {
+  color: #426a5a;
+  background: rgba(114, 168, 137, 0.16);
+}
+
+.action-inbox-process-button {
   position: absolute;
   right: 12px;
-  top: 50px;
+  top: 12px;
   z-index: 3;
+  min-width: 54px;
+  min-height: 32px;
+  border: 1px solid var(--ui-hairline);
+  border-radius: 8px;
+  background: var(--ui-surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 12px;
   cursor: pointer;
 }
 
-.action-inbox-status-action:focus-visible,
+.action-inbox-process-button::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
+.action-inbox-process-button.open,
+.action-inbox-process-button.waiting {
+  color: var(--ui-accent-active);
+  background: rgba(230, 242, 240, 0.7);
+  border-color: rgba(95, 139, 148, 0.24);
+}
+
+.action-inbox-process-button.done,
+.action-inbox-process-button.muted {
+  color: var(--muted);
+}
+
+.action-inbox-process-button:focus-visible,
 .action-inbox-deliverable-chip:focus-visible,
-.action-inbox-action-menu button:focus-visible {
+.action-inbox-action-sheet-button:focus-visible,
+.action-inbox-action-sheet-cancel:focus-visible {
   outline: 2px solid rgba(95, 139, 148, 0.45);
   outline-offset: 2px;
 }
 
-.action-inbox-action-menu {
+.action-inbox-action-sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: block;
+}
+
+.action-inbox-action-sheet-backdrop {
   position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(22, 29, 28, 0.16);
+}
+
+.action-inbox-action-sheet {
+  position: absolute;
+  left: 12px;
   right: 12px;
-  top: 80px;
-  z-index: 8;
+  bottom: max(10px, env(safe-area-inset-bottom));
   display: grid;
-  min-width: 148px;
-  max-width: min(240px, calc(100vw - 48px));
-  padding: 6px;
+  gap: 8px;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 8px;
   border: 1px solid var(--ui-hairline);
   border-radius: 8px;
   background: var(--ui-surface);
-  box-shadow: 0 10px 24px rgba(43, 51, 48, 0.12);
+  box-shadow: 0 14px 34px rgba(43, 51, 48, 0.18);
 }
 
-.action-inbox-action-menu button {
-  min-height: 36px;
+.action-inbox-action-sheet-handle {
+  justify-self: center;
+  width: 34px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(110, 121, 118, 0.3);
+}
+
+.action-inbox-action-sheet-head {
+  display: grid;
+  gap: 3px;
+  padding: 2px 4px 4px;
+}
+
+.action-inbox-action-sheet-head span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.action-inbox-action-sheet-head strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action-inbox-action-sheet-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.action-inbox-action-sheet-button,
+.action-inbox-action-sheet-cancel {
+  min-height: 44px;
   border: 0;
   border-radius: 7px;
-  background: transparent;
+  background: var(--ui-surface-muted);
   color: var(--text);
-  font-size: 13px;
-  text-align: left;
-  padding: 0 9px;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  padding: 0 12px;
 }
 
-.action-inbox-action-menu button:active {
-  background: var(--ui-surface-muted);
+.action-inbox-action-sheet-button.primary {
+  color: #426a5a;
+  background: rgba(114, 168, 137, 0.16);
+}
+
+.action-inbox-action-sheet-button.danger {
+  color: #8a4a45;
+  background: rgba(184, 104, 94, 0.12);
+}
+
+.action-inbox-action-sheet-cancel {
+  background: transparent;
+  color: var(--muted);
+}
+
+.action-inbox-action-sheet-button:active,
+.action-inbox-action-sheet-cancel:active {
+  filter: brightness(0.98);
 }
 
 .action-inbox-status.open,

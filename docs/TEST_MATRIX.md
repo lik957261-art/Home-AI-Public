@@ -106,8 +106,10 @@ deliverable visual pattern and does not hardcode Markdown-only wording;
 scheduled Todo/reminder Automation triggers must create `itemType=todo` Inbox
 occurrences; scheduled Todo Automation rows with a safe deliverable must still
 render the direct document preview action; row title/main areas must open the
-Automation source detail with Inbox return context; row status pills must open a
-processing menu with complete, snooze, and delete/dismiss actions; generic
+Automation source detail with Inbox return context; row status must render as a
+compact badge while a separate row `处理` control opens a viewport-level action
+sheet with complete, snooze, and delete/dismiss actions, without clipping or
+covering the deliverable file tag; generic
 `待办提醒` titles must be replaced by the actual Automation/reminder title in
 new projections or UI fallback; partial left swipes must not complete an Inbox
 item while full swipes complete it once; and Todo/reminder items must sort above

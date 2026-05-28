@@ -245,20 +245,43 @@ function actionInboxStatusActionLabel(item = {}) {
 function actionInboxActionMenuItems(item = {}) {
   const actions = [];
   if (!actionInboxIsTerminalStatus(item.status)) {
-    actions.push({ id: "complete", label: "\u5b8c\u6210" });
-    actions.push({ id: "snooze", label: "\u7a0d\u540e" });
-    actions.push({ id: "dismiss", label: "\u5220\u9664" });
+    actions.push({ id: "complete", label: "\u5b8c\u6210", tone: "primary" });
+    actions.push({ id: "snooze", label: "\u7a0d\u540e", tone: "neutral" });
+    actions.push({ id: "dismiss", label: "\u5220\u9664", tone: "danger" });
   } else {
-    actions.push({ id: "detail", label: "\u67e5\u770b\u6536\u4ef6\u8be6\u60c5" });
+    actions.push({ id: "detail", label: "\u67e5\u770b\u6536\u4ef6\u8be6\u60c5", tone: "neutral" });
   }
   return actions;
 }
 
-function renderActionInboxActionMenu(item = {}) {
-  if (state.actionInboxActionMenuItemId !== item.id) return "";
+function currentActionInboxActionMenuItem() {
+  const id = String(state.actionInboxActionMenuItemId || "").trim();
+  if (!id) return null;
+  const items = Array.isArray(state.actionInboxItems) ? state.actionInboxItems : [];
+  return items.find((candidate) => candidate.id === id)
+    || (currentActionInboxItem()?.id === id ? currentActionInboxItem() : null)
+    || null;
+}
+
+function renderActionInboxActionSheet() {
+  const item = currentActionInboxActionMenuItem();
+  if (!item) return "";
   const actions = actionInboxActionMenuItems(item);
-  return `<div class="action-inbox-action-menu" role="menu" aria-label="${"\u5904\u7406\u65b9\u5f0f"}">
-    ${actions.map((action) => `<button type="button" role="menuitem" data-action-inbox-menu-action="${escapeHtml(action.id)}" data-action-inbox-menu-id="${escapeHtml(item.id || "")}">${escapeHtml(action.label)}</button>`).join("")}
+  const title = actionInboxDisplayTitle(item);
+  const status = actionInboxStatusLabel(item.status);
+  return `<div class="action-inbox-action-sheet-layer" data-action-inbox-action-sheet>
+    <button class="action-inbox-action-sheet-backdrop" type="button" data-action-inbox-menu-dismiss aria-label="${"\u5173\u95ed\u5904\u7406\u83dc\u5355"}"></button>
+    <section class="action-inbox-action-sheet" role="menu" aria-label="${"\u5904\u7406\u65b9\u5f0f"}">
+      <span class="action-inbox-action-sheet-handle" aria-hidden="true"></span>
+      <header class="action-inbox-action-sheet-head">
+        <span>${"\u5904\u7406"}</span>
+        <strong>${escapeHtml(title || status || "\u6536\u4ef6")}</strong>
+      </header>
+      <div class="action-inbox-action-sheet-actions">
+        ${actions.map((action) => `<button class="action-inbox-action-sheet-button ${escapeHtml(action.tone || "neutral")}" type="button" role="menuitem" data-action-inbox-menu-action="${escapeHtml(action.id)}" data-action-inbox-menu-id="${escapeHtml(item.id || "")}">${escapeHtml(action.label)}</button>`).join("")}
+      </div>
+      <button class="action-inbox-action-sheet-cancel" type="button" data-action-inbox-menu-dismiss>${"\u53d6\u6d88"}</button>
+    </section>
   </div>`;
 }
 
@@ -358,6 +381,7 @@ function renderActionInboxItem(item) {
       <span class="action-inbox-source-row">
         <span class="action-inbox-source-badge ${escapeHtml(actionInboxSourceTone(item.sourceType))}">${"\u6765\u6e90\uff1a"}${escapeHtml(actionInboxSourceLabel(item.sourceType))}</span>
         <span class="action-inbox-type-badge">${"\u7c7b\u578b\uff1a"}${escapeHtml(actionInboxTypeLabel(item.itemType))}</span>
+        <span class="action-inbox-state-badge ${escapeHtml(tone)}">${escapeHtml(actionInboxStatusLabel(item.status))}</span>
         <span class="action-inbox-item-time">${escapeHtml(displayTime)}</span>
       </span>
       <span class="action-inbox-item-head">
@@ -365,8 +389,7 @@ function renderActionInboxItem(item) {
       </span>
       <span class="action-inbox-item-summary">${escapeHtml(summary)}</span>
     </button>
-    <button class="action-inbox-status action-inbox-status-action ${escapeHtml(tone)}" type="button" data-action-inbox-actions-id="${escapeHtml(item.id || "")}" aria-haspopup="menu" aria-expanded="${statusMenuOpen ? "true" : "false"}">${escapeHtml(actionInboxStatusActionLabel(item))}</button>
-    ${renderActionInboxActionMenu(item)}
+    <button class="action-inbox-process-button ${escapeHtml(tone)}" type="button" data-action-inbox-actions-id="${escapeHtml(item.id || "")}" aria-haspopup="menu" aria-expanded="${statusMenuOpen ? "true" : "false"}">${"\u5904\u7406"}</button>
     ${renderActionInboxDeliverableChip(item, primaryDeliverable)}
     </div>
   </article>`;
@@ -423,7 +446,7 @@ function renderActionInboxCreatePanel() {
 function renderActionInboxList() {
   if (state.actionInboxLoading) return `<div class="automation-loading" role="status" aria-live="polite"><span class="automation-loading-spinner" aria-hidden="true"></span><span>${"\u6b63\u5728\u5237\u65b0\u6536\u4ef6\u7bb1"}</span></div>`;
   if (!state.actionInboxItems.length) return `<div class="empty-state">${"\u5f53\u524d\u6ca1\u6709\u9700\u8981\u5904\u7406\u7684\u4e8b\u9879\u3002"}</div>`;
-  return `<div class="action-inbox-list">${state.actionInboxItems.map(renderActionInboxItem).join("")}</div>`;
+  return `<div class="action-inbox-list">${state.actionInboxItems.map(renderActionInboxItem).join("")}</div>${renderActionInboxActionSheet()}`;
 }
 
 function renderActionInboxView(options = {}) {
@@ -493,6 +516,14 @@ function wireActionInboxView(root) {
       event.stopPropagation();
       const id = button.dataset.actionInboxActionsId || "";
       state.actionInboxActionMenuItemId = state.actionInboxActionMenuItemId === id ? "" : id;
+      renderActionInboxView({ preserveScroll: true });
+    });
+  });
+  root.querySelectorAll("[data-action-inbox-menu-dismiss]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      state.actionInboxActionMenuItemId = "";
       renderActionInboxView({ preserveScroll: true });
     });
   });
