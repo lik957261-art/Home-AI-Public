@@ -32,6 +32,17 @@ Automation/Cron execution, Gateway toolset selection/run telemetry,
 cross-shell production operations, Web Push click routing,
 permission/workspace boundaries, and Public Export/Release.
 
+Gateway Pool startup/provisioning harnesses must cover stable manifest
+profile/port mapping. `start-low-gateways.sh` and `configure-low-gateways.sh`
+must consume explicit `gateway-pool-manifest.json` `profile`/`port` pairs for
+`lowgw*` and `grokgw*`, and workspace provisioning must append new personal
+`lowgwN` entries after existing low/Grok workers without moving `grokgw1`.
+Deleting a workspace must not silently delete profile-local Gateway state;
+profile retirement needs an explicit backup/cleanup flow. Focused checks:
+`node tests\startup-scripts.test.js`,
+`node tests\gateway-workspace-provisioning-service.test.js`, and
+`node tests\cross-shell-command-harness.test.js`.
+
 For graph-guided Growth card planning, the harness must preserve the
 graph-first authoring contract. Formal model-generated cards must require a
 validated `learningGraphPlan` or validated temporary graph node; prerequisites
@@ -113,6 +124,12 @@ completion from the accumulated content, and avoid failed Web Push / failed
 external delivery. If no model output arrived, Mobile should release the queue
 without showing the raw `Hermes stream ended without a terminal completion
 event` string.
+Task terminal Web Push coverage must assert duplicate terminal events are
+idempotent. A second `response.completed` / `run.completed` for the same
+assistant message must return a terminal-ignored result, not enqueue another
+external delivery or call `notifyTaskTerminal` again; `notifyTaskTerminal`
+itself must skip a duplicate send when the same task receipt tag already has a
+successful push delivery.
 Run-progress UI tests must also cover preflight burst stability: model-selected
 and toolset-selection events should update an existing panel in place, compact
 `run.toolset_selection_started` with the matching terminal result, and use only
@@ -148,6 +165,15 @@ hard-coded pale surfaces.
 Foreground restore tests must also assert `handleAppForegrounded()` reapplies
 the saved theme preference before refresh/render work, so a light-mode user does
 not briefly see a dark-mode repaint when returning to the PWA.
+
+Growth card detail/share UI tests must cover the H2 projection contract:
+teaching-card and formal-card details render a `data-learning-growth-card-share`
+control, use the local image-share pipeline with Web Share file payloads plus
+clipboard/download fallback, and keep the detail page as a single-column
+reading shell rather than nested table-like card grids. Assertions should cover
+`app-learning-growth-task-ui`, `app-learning-program-ui`, `app-share-image-ui`,
+and CSS rules that prevent card detail sections and structured questions from
+compressing mobile text width.
 
 Action Inbox harnesses must cover the low-click delivery and Todo semantics:
 Automation delivery rows with `sourceRef.latestDeliverable` must render a

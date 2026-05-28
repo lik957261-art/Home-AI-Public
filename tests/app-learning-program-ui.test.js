@@ -290,10 +290,15 @@ function testNativeTaskDetailShowsRewardPolicyWithoutCapForm() {
     state: { auth: { isOwner: true } },
   });
   assert.match(html, /data-learning-task-reward-policy/);
+  assert.match(html, /learning-growth-card-detail-shell/);
+  assert.match(html, /learning-growth-card-detail-hero/);
+  assert.match(html, /data-learning-growth-card-share="task-native-reward"/);
   assert.match(html, /奖励 130 金币/);
   assert.match(html, /40%/);
   assert.match(html, /30%/);
   assert.match(html, /奖励比例/);
+  assert.doesNotMatch(html, /<table/i);
+  assert.equal((html.match(/data-learning-growth-answer-card/g) || []).length, 1);
   assert.doesNotMatch(html, /data-learning-task-reward-policy-form="task-native-reward"/);
   assert.doesNotMatch(html, /name="maxCoins"/);
 }

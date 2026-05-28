@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-inbox-status-popover-theme-v326";
+const CLIENT_VERSION = "20260528-growth-card-share-detail-v327";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -465,9 +465,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-status-popover-theme-v326/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-status-popover-theme-v326/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-status-popover-theme-v326/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-growth-card-share-detail-v327/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-growth-card-share-detail-v327/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-growth-card-share-detail-v327/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -1602,6 +1602,13 @@ assert.match(appLearningGrowthUiJs, /boardFallback/);
 assert.match(appLearningGrowthUiJs, /data-learning-growth-task-focus/);
 assert.match(appLearningProgramUiJs, /renderNativeGrowthTaskDetail/);
 assert.match(appLearningProgramUiJs, /data-learning-growth-answer-card/);
+assert.match(appLearningProgramUiJs, /data-learning-growth-card-share/);
+assert.match(appLearningGrowthTaskUiJs, /data-learning-growth-card-share/);
+assert.match(appLearningGrowthTeachingControllerJs, /shareLearningGrowthCardImage/);
+assert.match(appJs, /function shareLearningGrowthCardImage\(task = \{\}\)/);
+assert.match(appJs, /navigator\.share\(\{ files: \[file\], title, text:/);
+assert.match(stylesCss, /\.learning-growth-card-detail-shell \{[\s\S]*?background: transparent;/);
+assert.match(stylesCss, /\.learning-growth-card-detail-shell \.learning-native-growth-question \{[\s\S]*?border: 0;[\s\S]*?border-bottom: 1px solid var\(--ui-hairline\);/);
 assert.match(appLearningGrowthControllerJs, /state\.learningGrowthBoardLane/);
 assert.match(appLearningGrowthControllerJs, /selectLearningGrowthBoardLane/);
 assert.match(appLearningGrowthControllerJs, /event\.target\?\.closest\?\.\("\[data-directory-path-open\]"\)/);

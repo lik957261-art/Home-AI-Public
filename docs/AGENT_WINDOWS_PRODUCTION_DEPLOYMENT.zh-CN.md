@@ -188,7 +188,7 @@ WSL 低权限 Gateway：
 - Hermes Mobile listener：`8797`
 - Bridge host：`8798`
 - lowgw1..10：`18751..18760`
-- Grok/xAI worker `grokgw1`：从 `gateway-pool-manifest.json` 读取，不固定假设为 `18761`
+- Grok/xAI worker `grokgw1`：从 `gateway-pool-manifest.json` 读取。生产维护时应保持 manifest 中的 Grok 端口稳定；新增个人 workspace worker 排在后续空闲端口，不应把 `grokgw1` 顺延到新端口。
 - owner-maintenance 示例：`18651..18652`
 
 部署时要把运行脚本和重启入口一起放到生产目录。至少包括：
@@ -300,8 +300,7 @@ C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json
 
 如需 Grok/xAI，在同一个 manifest 中增加独立 worker：
 
-下面的 `18761` 只是默认 `lowgw1..10` 拓扑下的示例端口；如果增加更多
-lowgw，`grokgw1` 会顺延到后续端口，实际值以 manifest 为准。
+下面的 `18761` 只是默认 `lowgw1..10` 拓扑下的示例端口。实际值以 manifest 为准，但一旦生产 manifest 确定，新增个人 workspace worker 应排在 Grok 后面并使用后续空闲端口，不能因为新增 `lowgwN` 而移动 Grok 端口。
 
 ```json
 {
@@ -333,7 +332,7 @@ $env:HERMES_GROK_GATEWAY_COUNT = "1"
 
 ```text
 profile: grokgw1
-port: <manifest-derived-grok-port>  # 例如 lowgw1..10 时为 18761；lowgw1..11 时为 18762
+port: <manifest-derived-grok-port>  # 例如默认拓扑为 18761；新增个人 worker 不应移动它
 provider: xai-oauth
 model.default: grok-4.3
 ```
@@ -393,10 +392,12 @@ $env:HERMES_MOBILE_GATEWAY_SKILL_PROFILE_ROUTING = "on"
 
 1. 在 Hermes Mobile 中创建 workspace 和 Access Key。
 2. 在 Gateway Pool manifest 中为该 workspace 分配至少一个 `securityLevel=user` worker，或把该 workspace 加入一个明确批准共享的 worker 组。
-3. 为该 worker 设置对应的 `allowedWorkspaceIds`、`skillProfile`、`skillWorkspaceIds`。
+3. 为该 worker 设置对应的 `allowedWorkspaceIds`、`skillProfile`、`skillWorkspaceIds`。新增个人 workspace worker 应追加到 manifest 后面，使用当前 low/Grok worker 端口之后的下一个空闲端口，不要重排或移动 `grokgw1`。
 4. 准备该 profile 的 Skill store、connector credential 路径、memory/session/SQLite profile-local 状态目录。
 5. 重启 Gateway Pool，使新 manifest 和 profile 配置生效。
 6. 用该 workspace Access Key 发起一次低权限 smoke，确认实际路由到预期 `profile`，并且 session schema 中包含该账号应该有的工具。
+
+删除本地 workspace 当前只删除 workspace 记录、Access Key 和相关前端/动态 project 缓存，不会自动删除 Gateway manifest worker、profile-local Skill store、connector credential、memory/session 或 SQLite 状态。需要释放 Gateway profile 时，应走单独的显式清理/备份流程，避免误删认证和历史状态。
 
 如果新 workspace 找不到所属 lowgw，不要把所有 worker 改成全员共享；应补 manifest/profile 映射，或者明确决定该 workspace 使用某个受控共享 profile。
 
@@ -572,7 +573,7 @@ Invoke-WebRequest -UseBasicParsing -Headers @{ "X-Hermes-Web-Key" = $key } http:
 - `ok=true`
 - `health=ok`
 - Gateway Pool workers healthy。
-- lowgw ports listening；如部署了 `lowgw11`，也应包含 `18761`。
+- manifest 中每个 enabled `lowgw*` / `grokgw*` 端口都在 listening。
 - 如果启用 Grok，`grokgw1` manifest port 正在 listening，`/api/status.gatewayPool.workers` 中该 worker 为 `healthy=true`，并且 worker metadata/manifest 中保留 `provider=xai-oauth`。
 - 每个已创建 workspace 都能在 `/api/status.gatewayPool.workers` 中找到匹配的 `securityLevel=user` worker，并且该 worker 的 `allowedWorkspaceIds` 或 `skillWorkspaceIds` 包含该 workspace。
 - 生产强隔离部署中，`HERMES_MOBILE_GATEWAY_SKILL_PROFILE_ROUTING=on`，缺少 workspace/profile 映射时应 fail closed，而不是落到其他用户 worker。

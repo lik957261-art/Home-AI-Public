@@ -8859,6 +8859,59 @@ body.task-markdown-preview-open {
   background: rgba(255, 255, 252, 0.9);
 }
 
+.learning-growth-card-detail-shell {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  gap: 12px;
+}
+
+.learning-growth-card-detail-hero {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--ui-hairline);
+  border-radius: 8px;
+  background: var(--ui-surface);
+}
+
+.learning-growth-card-detail-head {
+  align-items: flex-start;
+}
+
+.learning-growth-card-detail-actions {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.learning-growth-card-share-button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(31, 111, 98, 0.18);
+  border-radius: 999px;
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.learning-growth-card-share-button.is-busy,
+.learning-growth-card-share-button:disabled {
+  color: var(--muted);
+  background: rgba(31, 43, 51, 0.06);
+}
+
+.learning-growth-card-detail-meta {
+  gap: 5px;
+}
+
 .learning-growth-answer-card-head {
   min-width: 0;
   display: flex;
@@ -9066,6 +9119,20 @@ body.task-markdown-preview-open {
   border: 1px solid rgba(31, 43, 51, 0.08);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.72);
+}
+
+.learning-growth-card-detail-shell .learning-growth-teaching-section,
+.learning-growth-card-detail-shell .learning-growth-teaching-feedback {
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--ui-hairline);
+  border-radius: 0;
+  background: transparent;
+}
+
+.learning-growth-card-detail-shell .learning-growth-teaching-worked-example {
+  border-color: var(--ui-hairline);
+  background: rgba(255, 255, 255, 0.58);
 }
 
 .learning-growth-teaching-section h4,
@@ -9342,6 +9409,42 @@ body.task-markdown-preview-open {
 
 .learning-growth-answer-instruction p {
   font-size: 16px;
+}
+
+.learning-growth-card-detail-shell .learning-growth-answer-instruction,
+.learning-growth-card-detail-shell .learning-growth-answer-feedback,
+.learning-growth-card-detail-shell .learning-growth-answer-feedback-detail,
+.learning-growth-card-detail-shell .learning-growth-answer-submission,
+.learning-growth-card-detail-shell .learning-growth-audio-evidence,
+.learning-growth-card-detail-shell .learning-growth-answer-reward,
+.learning-growth-card-detail-shell .learning-native-growth-submission-form {
+  padding: 12px 0 0;
+  border-top: 1px solid var(--ui-hairline);
+  border-radius: 0;
+  background: transparent;
+}
+
+.learning-growth-card-detail-shell .learning-growth-answer-reward-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.learning-growth-card-detail-shell .learning-growth-answer-reward-grid span,
+.learning-growth-card-detail-shell .learning-growth-previous-response,
+.learning-growth-card-detail-shell .learning-growth-feedback-criteria article,
+.learning-growth-card-detail-shell .learning-growth-feedback-detail-note {
+  border-color: var(--ui-hairline);
+  background: rgba(255, 255, 255, 0.54);
+}
+
+@media (max-width: 520px) {
+  .learning-growth-card-detail-shell .learning-growth-answer-reward-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .learning-growth-card-detail-head,
+  .learning-growth-teaching-head {
+    gap: 8px;
+  }
 }
 
 .learning-growth-previous-responses,
@@ -10719,6 +10822,28 @@ body.task-markdown-preview-open {
   font-size: 16px;
   line-height: 1.55;
   resize: vertical;
+}
+
+.learning-growth-card-detail-shell .learning-native-growth-questions {
+  gap: 14px;
+}
+
+.learning-growth-card-detail-shell .learning-native-growth-question {
+  padding: 0 0 14px;
+  border: 0;
+  border-bottom: 1px solid var(--ui-hairline);
+  border-radius: 0;
+  background: transparent;
+}
+
+.learning-growth-card-detail-shell .learning-native-growth-question:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.learning-growth-card-detail-shell .learning-native-growth-choice {
+  border-color: var(--ui-hairline);
+  background: rgba(255, 255, 255, 0.58);
 }
 
 .learning-native-growth-recorder {

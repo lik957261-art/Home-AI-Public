@@ -591,6 +591,18 @@ function createWebPushDeliveryService(options = {}) {
     return result;
   }
 
+  function hasSentPushDeliveryForTag(tag, messageType = "") {
+    const wantedTag = String(tag || "").trim();
+    if (!wantedTag) return false;
+    const wantedType = String(messageType || "").trim();
+    return (currentState().pushDeliveries || []).some((delivery) => {
+      if (!delivery || typeof delivery !== "object") return false;
+      if (String(delivery.tag || "").trim() !== wantedTag) return false;
+      if (wantedType && String(delivery.messageType || "").trim() !== wantedType) return false;
+      return Number(delivery.sent || 0) > 0;
+    });
+  }
+
   function activePushPrincipals() {
     const principals = new Set();
     for (const item of currentState().pushSubscriptions || []) {
@@ -1491,10 +1503,21 @@ function createWebPushDeliveryService(options = {}) {
       status,
       requireInteraction: true,
     };
+    const tag = `hermes-task-${message?.id || message?.runId || Date.now()}`;
+    if (hasSentPushDeliveryForTag(tag, messageType)) {
+      return Promise.resolve({
+        ok: true,
+        skipped: true,
+        duplicate: true,
+        tag,
+        messageType,
+        messageId: data.messageId,
+      });
+    }
     return sendPushNotification({
       title,
       body,
-      tag: `hermes-task-${message?.id || message?.runId || Date.now()}`,
+      tag,
       renotify: true,
       requireInteraction: true,
       silent: false,

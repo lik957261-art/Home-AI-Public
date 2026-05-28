@@ -28,6 +28,7 @@ Growth Learning owns learner programs, evergreen task cards, submissions, async 
 - `public/app-learning-growth-controller.js`
 - `public/app-learning-growth-teaching-controller.js`
 - `public/app-learning-program-ui.js`
+- `public/app-share-image-ui.js` for learning-card image sharing.
 
 Planned graph-guided card planning files are documented in
 `docs\IMPLEMENTATION_NOTES\growth-knowledge-graph-implementation.md`:
@@ -132,6 +133,19 @@ Card roles:
 - `stage_assessment`: formal independent task that may keep the existing submit/evaluate/revise/reflect completion gates.
 
 Frontend Growth detail should branch by card role. Teaching cards use learner-facing steps such as target, lesson, example, guided practice, quick check, and feedback. Stage assessment cards use the formal assessment flow.
+
+Growth card detail pages should use a full-width single-column reading layout:
+top summary, compact metadata, then content sections. Do not nest table-like
+cards or grids inside another bordered card in a way that squeezes the actual
+learning content or pushes primary text below mobile-readable size.
+
+Learning cards can be shared as PNG images from the detail page. The frontend
+generates the image locally and uses the Web Share API with a file payload so a
+phone can hand it to WeChat through the native share sheet. If file sharing is
+not available, the fallback is clipboard copy or PNG download. The share image
+should contain only the card's visible learning brief, goals, instructions,
+teaching flow, checks, and safe metadata; it must not include raw learner
+answers, transcripts, prompts, push endpoints, secrets, or hidden model output.
 
 Reward/time defaults:
 

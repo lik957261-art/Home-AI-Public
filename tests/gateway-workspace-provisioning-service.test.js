@@ -47,7 +47,7 @@ function baseWorker(profile, workspaceId, port) {
   };
 }
 
-function testProvisionNewWorkspaceWorkerAndMoveGrokPort() {
+function testProvisionNewWorkspaceWorkerAppendsAfterStableGrokPort() {
   withManifest({
     enabled: true,
     workers: [
@@ -66,7 +66,7 @@ function testProvisionNewWorkspaceWorkerAndMoveGrokPort() {
     assert.equal(result.ok, true);
     assert.equal(result.provisioned, true);
     assert.equal(result.profile, "lowgw3");
-    assert.equal(result.port, 18753);
+    assert.equal(result.port, 18754);
     assert.equal(result.restartRequired, true);
 
     const manifest = readManifest(manifestPath);
@@ -77,7 +77,8 @@ function testProvisionNewWorkspaceWorkerAndMoveGrokPort() {
     assert.equal(worker.skillProfile, "workspace:xuyan");
     assert.equal(worker.api_key, "secret");
     assert.equal(worker.telemetryStateDbPath.endsWith("\\lowgw3\\state.db"), true);
-    assert.equal(manifest.workers.find((item) => item.profile === "grokgw1").port, 18754);
+    assert.equal(manifest.workers.find((item) => item.profile === "grokgw1").port, 18753);
+    assert.equal(manifest.workers[manifest.workers.length - 1].profile, "lowgw3");
   });
 }
 
@@ -102,7 +103,7 @@ function testOwnerWorkspaceSkipped() {
   });
 }
 
-testProvisionNewWorkspaceWorkerAndMoveGrokPort();
+testProvisionNewWorkspaceWorkerAppendsAfterStableGrokPort();
 testExistingWorkspaceIsIdempotent();
 testOwnerWorkspaceSkipped();
 

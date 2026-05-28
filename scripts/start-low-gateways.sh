@@ -34,7 +34,47 @@ PY
 low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-$(manifest_low_gateway_count)}"
 grok_gateway_count="${HERMES_GROK_GATEWAY_COUNT:-1}"
 low_gateway_base_port="${HERMES_LOW_GATEWAY_BASE_PORT:-18750}"
-grok_gateway_base_port="${HERMES_GROK_GATEWAY_BASE_PORT:-$((low_gateway_base_port + low_gateway_count))}"
+
+manifest_gateway_specs() {
+  python3 - "$gateway_pool_manifest_path" <<'PY' 2>/dev/null || true
+import json, re, sys
+try:
+    data = json.load(open(sys.argv[1], encoding="utf-8"))
+except Exception:
+    raise SystemExit(0)
+for worker in data.get("workers") or []:
+    if worker.get("enabled") is False:
+        continue
+    profile = str(worker.get("profile") or worker.get("name") or "").strip()
+    if not re.match(r"^(lowgw|grokgw)\d+$", profile, re.I):
+        continue
+    try:
+        port = int(worker.get("port") or 0)
+    except Exception:
+        port = 0
+    if port <= 0:
+        continue
+    print(f"{profile}\t{port}")
+PY
+}
+
+legacy_gateway_specs() {
+  for idx in $(seq 1 "$low_gateway_count"); do
+    printf 'lowgw%s\t%s\n' "$idx" "$((low_gateway_base_port + idx))"
+  done
+  if [ "$grok_gateway_count" -gt 0 ]; then
+    local grok_gateway_base_port="${HERMES_GROK_GATEWAY_BASE_PORT:-$((low_gateway_base_port + low_gateway_count))}"
+    for idx in $(seq 1 "$grok_gateway_count"); do
+      printf 'grokgw%s\t%s\n' "$idx" "$((grok_gateway_base_port + idx))"
+    done
+  fi
+}
+
+gateway_specs="$(manifest_gateway_specs)"
+if [ -z "$gateway_specs" ]; then
+  gateway_specs="$(legacy_gateway_specs)"
+fi
+grok_gateway_port="$(printf '%s\n' "$gateway_specs" | awk '$1 ~ /^grokgw[0-9]+$/ { print $2; exit }')"
 
 detect_windows_host_gateway() {
   ip route 2>/dev/null | awk '/^default[[:space:]]/ { print $3; exit }'
@@ -47,7 +87,7 @@ if [ -n "$windows_host_gateway" ]; then
 fi
 mobile_bridge_host_url="${HERMES_MOBILE_BRIDGE_HOST_URL:-${HERMES_WEB_BRIDGE_HOST_URL:-$default_mobile_bridge_host_url}}"
 mobile_bridge_key_path="${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-/mnt/c/ProgramData/HermesMobile/data/secrets/bridge-host.secret}}"
-x_search_proxy_url="${HERMES_MOBILE_X_SEARCH_PROXY_URL:-http://127.0.0.1:$((grok_gateway_base_port + 1))}"
+x_search_proxy_url="${HERMES_MOBILE_X_SEARCH_PROXY_URL:-http://127.0.0.1:${grok_gateway_port:-18761}}"
 
 if ! id -u "$worker_user" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "$worker_user"
@@ -200,17 +240,13 @@ start_gateway_profile() {
   log_step "lowgw-start-profile-done profile=${profile} port=${port}"
 }
 
-for idx in $(seq 1 "$low_gateway_count"); do
-  verify_gateway_profile "lowgw${idx}"
-  start_gateway_profile "lowgw${idx}" $((low_gateway_base_port + idx))
-done
-
-if [ "$grok_gateway_count" -gt 0 ]; then
-  for idx in $(seq 1 "$grok_gateway_count"); do
-    verify_gateway_profile "grokgw${idx}"
-    start_gateway_profile "grokgw${idx}" $((grok_gateway_base_port + idx))
-  done
-fi
+while IFS=$'\t' read -r profile port; do
+  if [ -z "$profile" ] || [ -z "$port" ]; then
+    continue
+  fi
+  verify_gateway_profile "$profile"
+  start_gateway_profile "$profile" "$port"
+done <<< "$gateway_specs"
 
 wait_gateway_port() {
   local port="$1"
@@ -235,13 +271,11 @@ PY
   log_step "lowgw-wait-health-done port=${port}"
 }
 
-for port in $(seq $((low_gateway_base_port + 1)) $((low_gateway_base_port + low_gateway_count))); do
+while IFS=$'\t' read -r _profile port; do
+  if [ -z "$port" ]; then
+    continue
+  fi
   wait_gateway_port "$port"
-done
-if [ "$grok_gateway_count" -gt 0 ]; then
-  for port in $(seq $((grok_gateway_base_port + 1)) $((grok_gateway_base_port + grok_gateway_count))); do
-    wait_gateway_port "$port"
-  done
-fi
+done <<< "$gateway_specs"
 
 echo LOW_GATEWAYS_STARTED

@@ -284,6 +284,11 @@
     return `<span class="learning-growth-role-badge is-${escapeHtmlLocal(role)}">${escapeHtmlLocal(growthCardRoleLabel(role))}</span>`;
   }
 
+  function renderLearningGrowthCardShareButton(cardId) {
+    if (!cardId) return "";
+    return `<button type="button" class="learning-growth-card-share-button" data-learning-growth-card-share="${escapeHtmlLocal(cardId)}" aria-label="${escapeHtmlLocal("\u5206\u4eab\u5b66\u4e60\u5361\u56fe\u7247")}" title="${escapeHtmlLocal("\u5206\u4eab\u5b66\u4e60\u5361\u56fe\u7247")}">${escapeHtmlLocal("\u5206\u4eab")}</button>`;
+  }
+
   function renderTeachingStepper(cardId, currentStep) {
     const steps = [
       ["lesson", "讲解"],
@@ -381,11 +386,14 @@
     const busy = Boolean(state.learningGrowthTeachingCheckBusy?.[cardId]);
     const duration = task.expectedDurationMinutes || {};
     const reward = Number(task.rewardPolicy?.maxCoins || task.configuredRewardCoins || task.defaultRewardCoins || 100) || 100;
-    return `<section class="learning-growth-answer-card learning-growth-teaching-card" data-learning-growth-answer-card data-learning-growth-teaching-card="${escapeHtmlLocal(cardId)}" data-learning-growth-card-role="${escapeHtmlLocal(role)}" data-learning-executable-task-id="${escapeHtmlLocal(cardId)}">
-      <div class="learning-growth-teaching-head">
-        <div>${renderGrowthCardRoleBadge(role)}<span>${escapeHtmlLocal(`约 ${duration.min || 10}-${duration.max || 15} 分钟`)}</span><span>${escapeHtmlLocal(`${reward} 金币`)}</span></div>
+    return `<section class="learning-growth-answer-card learning-growth-card-detail-shell learning-growth-teaching-card" data-learning-growth-answer-card data-learning-growth-teaching-card="${escapeHtmlLocal(cardId)}" data-learning-growth-card-role="${escapeHtmlLocal(role)}" data-learning-executable-task-id="${escapeHtmlLocal(cardId)}">
+      <div class="learning-growth-card-detail-hero learning-growth-teaching-hero">
+        <div class="learning-growth-teaching-head learning-growth-card-detail-head">
+          <div>${renderGrowthCardRoleBadge(role)}<span>${escapeHtmlLocal(`约 ${duration.min || 10}-${duration.max || 15} 分钟`)}</span><span>${escapeHtmlLocal(`${reward} 金币`)}</span></div>
+          <div class="learning-growth-card-detail-actions">${renderLearningGrowthCardShareButton(cardId)}</div>
+        </div>
+        <h3>${escapeHtmlLocal(task.title || "学习卡")}</h3>
       </div>
-      <h3>${escapeHtmlLocal(task.title || "学习卡")}</h3>
       ${renderTeachingStepper(cardId, step)}
       ${step === "lesson" ? renderTeachingLessonSection(flow) : ""}
       ${step === "guided_practice" ? renderTeachingGuidedPracticeSection(task, flow, draft) : ""}
@@ -401,6 +409,7 @@
     isTeachingCardRole,
     renderFeedbackHistory,
     renderGrowthCardRoleBadge,
+    renderLearningGrowthCardShareButton,
     renderTeachingCardDetail,
     reportHistory,
     nextActionLabel,

@@ -456,11 +456,22 @@ Required harness dimensions:
 - PowerShell parse checks and shell syntax checks must cover touched startup or
   production-operation scripts.
 - The repository scan must reject new inline PowerShell-to-Bash quoting patterns.
+- Gateway Pool startup/configure scripts must honor explicit
+  `gateway-pool-manifest.json` `profile`/`port` pairs for `lowgw*` and
+  `grokgw*`. They must not derive `grokgw1` from the current maximum low-worker
+  count, because creating a later personal workspace must not move the Grok
+  worker or break Grok/X Search proxy routing.
+- Workspace provisioning must append new personal `lowgwN` workers after
+  existing low/Grok workers and allocate a later free port without renumbering
+  or moving existing `grokgw*` entries. Deleting a workspace must not silently
+  delete profile-local Gateway state; cleanup requires an explicit
+  backup/retirement path.
 
 Primary docs and tests:
 
 - `docs/MODULES/gateway-pool.md`
 - `docs/RUNBOOKS/codex-responses-stream-output-none.md`
+- `node tests\gateway-workspace-provisioning-service.test.js`
 - `node tests\cross-shell-command-harness.test.js`
 - `node tests\startup-scripts.test.js`
 
@@ -471,6 +482,10 @@ deep links, top-level client selection, and route fallback.
 
 Required harness dimensions:
 
+- Active task terminal receipts are idempotent per assistant receipt/tag:
+  duplicate `response.completed` / `run.completed` events for the same message,
+  or duplicate notifier calls after a successful send, must not create a second
+  Web Push or second external terminal delivery.
 - Notification click opens or focuses a top-level app window, not an embedded
   viewer frame.
 - Inbox, task, chat/topic, Growth, and Automation routes resolve to the expected
@@ -629,12 +644,25 @@ Required contract dimensions:
 - Preview fallbacks follow the in-app overlay/iframe/download pattern used by
   Markdown, image, and document previews; `about:blank` print windows and
   `open(..., "_blank")` are not allowed workarounds.
+- Growth card detail is an H2 projection surface even when no workflow state is
+  changed. The harness must assert the detail page uses a single-column
+  full-width reading shell, does not render nested table-like card/grids that
+  compress the learning text, keeps primary text at mobile-readable size, and
+  still exposes the existing task id/state data attributes for navigation and
+  submission wiring.
+- Growth learning-card sharing must be a same-window frontend action. The
+  harness must assert a `data-learning-growth-card-share` control exists on
+  teaching and formal card details, the implementation uses Web Share file
+  payloads (`navigator.share({ files: [...] })`) with clipboard/download
+  fallback, and the generated image excludes raw learner answers, transcripts,
+  prompts, secrets, push endpoints, and hidden model output.
 
 Primary docs:
 
 - `docs/FRONTEND_STATE_MAP.md`
 - `docs/MODULES/action-inbox.md`
 - `docs/MODULES/automation.md`
+- `docs/MODULES/growth-learning.md`
 - `node tests\same-window-navigation-harness.test.js`
 
 ### Chat Send And Scroll Stability

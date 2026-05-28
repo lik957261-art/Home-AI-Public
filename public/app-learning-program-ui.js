@@ -1253,6 +1253,13 @@
     </details>`;
   }
 
+  function renderLearningGrowthCardShareButton(taskCardId = "", options = {}) {
+    const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const id = String(taskCardId || "").trim();
+    if (!id) return "";
+    return `<button type="button" class="learning-growth-card-share-button" data-learning-growth-card-share="${escapeHtml(id)}" aria-label="${escapeHtml("\u5206\u4eab\u5b66\u4e60\u5361\u56fe\u7247")}" title="${escapeHtml("\u5206\u4eab\u5b66\u4e60\u5361\u56fe\u7247")}">${escapeHtml("\u5206\u4eab")}</button>`;
+  }
+
   function renderNativeGrowthTaskDetail(task = {}, data = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
     const taskCardId = String(task?.taskCardId || "");
@@ -1280,18 +1287,21 @@
       totalSubmissionCount: Number(task.totalSubmissionCount || 0) || taskSubmissionCount || undefined,
       totalEvaluationCount: Number(task.totalEvaluationCount || 0) || taskEvaluationCount || undefined,
     });
-    return `<section class="learning-growth-answer-card" data-learning-growth-answer-card data-learning-executable-task-id="${escapeHtml(taskCardId)}">
-      <div class="learning-growth-answer-card-head">
-        <div>
-          <span>\u7b54\u9898\u5361</span>
-          <h3>${escapeHtml(task.title || taskCardId || "\u5b66\u4e60\u4efb\u52a1")}</h3>
+    return `<section class="learning-growth-answer-card learning-growth-card-detail-shell" data-learning-growth-answer-card data-learning-executable-task-id="${escapeHtml(taskCardId)}">
+      <div class="learning-growth-card-detail-hero">
+        <div class="learning-growth-answer-card-head learning-growth-card-detail-head">
+          <div>
+            <span>\u7b54\u9898\u5361</span>
+            <h3>${escapeHtml(task.title || taskCardId || "\u5b66\u4e60\u4efb\u52a1")}</h3>
+          </div>
+          <div class="learning-growth-answer-card-status learning-growth-card-detail-actions">
+            <strong>${escapeHtml(taskStatusText(task.status, options))}</strong>
+            ${renderLearningGrowthCardShareButton(taskCardId, options)}
+            ${renderNativeGrowthOwnerMenu(taskForForm, options)}
+          </div>
         </div>
-        <div class="learning-growth-answer-card-status">
-          <strong>${escapeHtml(taskStatusText(task.status, options))}</strong>
-          ${renderNativeGrowthOwnerMenu(taskForForm, options)}
-        </div>
+        ${meta.length ? `<div class="learning-growth-answer-card-meta learning-growth-card-detail-meta">${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
       </div>
-      ${meta.length ? `<div class="learning-growth-answer-card-meta">${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
       ${renderTaskRewardPolicy(taskForForm, options)}
       ${renderNativeGrowthSequenceDecision(taskForForm, options)}
       ${renderNativeGrowthReadingMaterial(taskForForm, options)}

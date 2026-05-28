@@ -687,6 +687,44 @@ function testTaskTerminalPushDoesNotCreateInboxItemForActiveChatReceipt() {
   });
 }
 
+function testTaskTerminalPushIsIdempotentPerMessageTag() {
+  withTempDir((root) => {
+    const { calls, service, state } = createHarness(root);
+    service.savePushSubscription({
+      endpoint: "https://push.example/task-dedupe",
+      keys: { p256dh: "p256dh", auth: "auth" },
+    }, { workspaceId: "child" });
+    const thread = {
+      id: "thread-1",
+      title: "Thread title",
+      workspaceId: "child",
+      singleWindow: false,
+      messages: [
+        { id: "u1", role: "user", content: "Prompt text", taskGroupId: "task-1" },
+      ],
+    };
+    const message = {
+      id: "a1",
+      role: "assistant",
+      content: "Task result",
+      runId: "run-1",
+      taskGroupId: "task-1",
+    };
+    return service.notifyTaskTerminal(thread, message, "done")
+      .then((first) => {
+        assert.equal(first.sent, 1);
+        return service.notifyTaskTerminal(thread, message, "done");
+      })
+      .then((second) => {
+        assert.equal(second.skipped, true);
+        assert.equal(second.duplicate, true);
+        assert.equal(calls.sends.length, 1);
+        assert.equal(state.pushDeliveries.length, 1);
+        assert.equal(state.pushDeliveries[0].tag, "hermes-task-a1");
+      });
+  });
+}
+
 function testLearningGrowthEvaluationPushRoutesToTaskCard() {
   withTempDir((root) => {
     const { calls, service, state } = createHarness(root);
@@ -911,6 +949,7 @@ Promise.resolve()
   .then(testAutomationTickInitializesOldFailedRunWithoutDeliverable)
   .then(testTaskTerminalAndGroupMentionNotifications)
   .then(testTaskTerminalPushDoesNotCreateInboxItemForActiveChatReceipt)
+  .then(testTaskTerminalPushIsIdempotentPerMessageTag)
   .then(testLearningGrowthEvaluationPushRoutesToTaskCard)
   .then(testLearningGrowthEvaluationPushCanRouteThroughInboxItem)
   .then(testLearningGrowthCompletionNotifiesAuthorizedWorkspaceInboxItems)

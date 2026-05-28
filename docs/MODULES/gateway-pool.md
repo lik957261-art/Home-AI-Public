@@ -37,6 +37,13 @@ Ordinary runs without a provider hint should not be scheduled onto `xai-oauth`
 workers. Grok workers are selected only when model/provider routing explicitly
 requests `provider=xai-oauth`, such as `@Grok4.3`.
 
+Gateway startup and profile configuration must use the explicit
+`profile`/`port` pairs in `gateway-pool-manifest.json`. Do not derive the Grok
+port from the current maximum `lowgwN` index. New personal workspace workers
+are appended after existing low/Grok workers and must not renumber or move
+`grokgw1`; otherwise Grok/X Search proxy paths can drift after a workspace is
+created.
+
 ## Run Liveness
 
 Hermes Mobile tracks the Gateway stream and periodically checks the real Gateway

@@ -197,6 +197,32 @@ function testCompletedRunMutatesTerminalStateAndSchedulesQueue() {
   assert.equal(calls.broadcasts.some((payload) => payload.type === "run.completed"), true);
 }
 
+function testDuplicateCompletedEventDoesNotNotifyTwice() {
+  const { calls, service } = makeHarness();
+  const first = service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      output: [{ type: "message", content: [{ type: "output_text", text: "Final" }] }],
+    },
+  });
+  const second = service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      output: [{ type: "message", content: [{ type: "output_text", text: "Final" }] }],
+    },
+  });
+
+  assert.equal(first.action, "completed");
+  assert.equal(second.action, "terminal_ignored");
+  assert.equal(calls.notified.length, 1);
+  assert.equal(calls.enqueued.length, 1);
+  assert.equal(calls.broadcasts.filter((payload) => payload.type === "run.completed").length, 1);
+}
+
 function testCompletedRunPersistsLoadedSkillReferences() {
   const { message, service, thread } = makeHarness();
   service.applyHermesRunEvent({
@@ -693,6 +719,7 @@ testResponseCreatedAliasesRunAndBroadcasts();
 testDeltaUpdatesMessageAndThread();
 testStreamingDeltaSavesAreCoalesced();
 testCompletedRunMutatesTerminalStateAndSchedulesQueue();
+testDuplicateCompletedEventDoesNotNotifyTwice();
 testCompletedRunPersistsLoadedSkillReferences();
 testOutputItemSkillPersistsBeforeCompletionAndSurvivesEventTrim();
 testCompletedResponseOutputBackfillsLoadedSkillReferences();

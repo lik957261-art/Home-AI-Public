@@ -28,7 +28,6 @@ PY
 low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-$(manifest_low_gateway_count)}"
 grok_gateway_count="${HERMES_GROK_GATEWAY_COUNT:-1}"
 low_gateway_base_port="${HERMES_LOW_GATEWAY_BASE_PORT:-18750}"
-grok_gateway_base_port="${HERMES_GROK_GATEWAY_BASE_PORT:-$((low_gateway_base_port + low_gateway_count))}"
 shared_auth_mode="${HERMES_LOW_GATEWAY_SHARED_AUTH_MODE:-shared-root}"
 shared_auth_default_root="${HERMES_LOW_GATEWAY_SHARED_AUTH_ROOT:-$telemetry_profiles_root/shared-auth}"
 shared_auth_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_PATH:-$shared_auth_default_root/auth.json}"
@@ -60,6 +59,47 @@ cronjob_plugin_target="$worker_home_dir/plugins/hermes-mobile-cronjob"
 owner_connector_profiles="${HERMES_MOBILE_OWNER_CONNECTOR_PROFILES:-lowgw1 lowgw2 lowgw3 lowgw4 lowgw10}"
 outlook_graph_mcp_path="${HERMES_MOBILE_OUTLOOK_GRAPH_MCP_PATH:-$worker_home_dir/scripts/outlook_graph_mcp.py}"
 owner_skill_store="${HERMES_MOBILE_OWNER_SKILL_STORE:-/mnt/c/ProgramData/HermesMobile/data/skill-profiles/owner-full/skills}"
+
+manifest_gateway_specs() {
+  python3 - "$gateway_pool_manifest_path" <<'PY' 2>/dev/null || true
+import json, re, sys
+try:
+    data = json.load(open(sys.argv[1], encoding="utf-8"))
+except Exception:
+    raise SystemExit(0)
+for worker in data.get("workers") or []:
+    if worker.get("enabled") is False:
+        continue
+    profile = str(worker.get("profile") or worker.get("name") or "").strip()
+    if not re.match(r"^(lowgw|grokgw)\d+$", profile, re.I):
+        continue
+    try:
+        port = int(worker.get("port") or 0)
+    except Exception:
+        port = 0
+    if port <= 0:
+        continue
+    print(f"{profile}\t{port}")
+PY
+}
+
+legacy_gateway_specs() {
+  for idx in $(seq 1 "$low_gateway_count"); do
+    printf 'lowgw%s\t%s\n' "$idx" "$((low_gateway_base_port + idx))"
+  done
+  if [ "$grok_gateway_count" -gt 0 ]; then
+    local grok_gateway_base_port="${HERMES_GROK_GATEWAY_BASE_PORT:-$((low_gateway_base_port + low_gateway_count))}"
+    for idx in $(seq 1 "$grok_gateway_count"); do
+      printf 'grokgw%s\t%s\n' "$idx" "$((grok_gateway_base_port + idx))"
+    done
+  fi
+}
+
+gateway_specs="$(manifest_gateway_specs)"
+if [ -z "$gateway_specs" ]; then
+  gateway_specs="$(legacy_gateway_specs)"
+fi
+low_gateway_profiles="$(printf '%s\n' "$gateway_specs" | awk '$1 ~ /^lowgw[0-9]+$/ { print $1 }')"
 
 shared_auth_enabled=0
 case "${shared_auth_mode,,}" in
@@ -235,8 +275,11 @@ install -m 600 -o "$worker_user" -g "$worker_user" "$gateway_worker_root/secrets
 
 newest_profile_auth=""
 newest_profile_auth_mtime=0
-for idx in $(seq 1 "$low_gateway_count"); do
-  candidate_auth="${telemetry_profiles_root}/lowgw${idx}/auth.json"
+while IFS= read -r profile; do
+  if [ -z "$profile" ]; then
+    continue
+  fi
+  candidate_auth="${telemetry_profiles_root}/${profile}/auth.json"
   if [ -s "$candidate_auth" ]; then
     candidate_mtime="$(stat -c %Y "$candidate_auth" 2>/dev/null || echo 0)"
     if [ "$candidate_mtime" -gt "$newest_profile_auth_mtime" ]; then
@@ -244,7 +287,7 @@ for idx in $(seq 1 "$low_gateway_count"); do
       newest_profile_auth_mtime="$candidate_mtime"
     fi
   fi
-done
+done <<< "$low_gateway_profiles"
 
 if [ "$shared_auth_enabled" = "1" ] && [ -n "$shared_auth_source_profile" ]; then
   profile_shared_auth="${telemetry_profiles_root}/${shared_auth_source_profile}/auth.json"
@@ -491,9 +534,10 @@ YAML
 chmod 600 "$worker_home_dir/config.yaml" || true
 chown "$worker_user:$worker_user" "$worker_home_dir/config.yaml" || true
 
-for idx in $(seq 1 "$low_gateway_count"); do
-  profile="lowgw${idx}"
-  port=$((low_gateway_base_port + idx))
+while IFS=$'\t' read -r profile port; do
+  if [[ ! "$profile" =~ ^lowgw[0-9]+$ ]]; then
+    continue
+  fi
   profile_link="$worker_home_dir/profiles/${profile}"
   profile_dir="${telemetry_profiles_root}/${profile}"
   profile_seed="$profile_auth_seed_root/${profile}/auth.json"
@@ -694,12 +738,12 @@ YAML
   chmod 600 "$profile_link/config.yaml" || true
   chown -h "$worker_user:$worker_user" "$profile_link" || true
   chown -R "$worker_user:$worker_user" "$profile_dir" || true
-done
+done <<< "$gateway_specs"
 
-if [ "$grok_gateway_count" -gt 0 ]; then
-  for idx in $(seq 1 "$grok_gateway_count"); do
-    profile="grokgw${idx}"
-    port=$((grok_gateway_base_port + idx))
+while IFS=$'\t' read -r profile port; do
+    if [[ ! "$profile" =~ ^grokgw[0-9]+$ ]]; then
+      continue
+    fi
     profile_link="$worker_home_dir/profiles/${profile}"
     profile_dir="${telemetry_profiles_root}/${profile}"
     profile_seed="$profile_auth_seed_root/${profile}/auth.json"
@@ -799,8 +843,7 @@ YAML
     chmod 600 "$profile_link/config.yaml" || true
     chown -h "$worker_user:$worker_user" "$profile_link" || true
     chown -R "$worker_user:$worker_user" "$profile_dir" || true
-  done
-fi
+done <<< "$gateway_specs"
 
 chown -R "$worker_user:$worker_user" "$worker_home_dir"
 

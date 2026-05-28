@@ -42,6 +42,28 @@
     return null;
   }
 
+  async function shareGrowthCard(taskCardId, button = null) {
+    const id = String(taskCardId || "").trim();
+    const task = selectedTask(id);
+    if (!task) throw new Error("Learning card was not found");
+    if (typeof shareLearningGrowthCardImage !== "function") throw new Error("Learning card image sharing is unavailable");
+    const previousText = button ? button.textContent : "";
+    if (button) {
+      button.disabled = true;
+      button.classList.add("is-busy");
+      button.textContent = "\u751f\u6210\u4e2d";
+    }
+    try {
+      await shareLearningGrowthCardImage(task);
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.classList.remove("is-busy");
+        button.textContent = previousText || "\u5206\u4eab";
+      }
+    }
+  }
+
   async function submitCheck(event, form) {
     event.preventDefault();
     const taskCardId = String(form?.dataset?.learningGrowthTeachingCheckForm || "").trim();
@@ -145,6 +167,9 @@
     });
     scope.querySelectorAll?.("[data-learning-growth-experience-signal]").forEach((button) => {
       button.addEventListener("click", () => recordSignal(button.dataset.learningGrowthExperienceSignal, button.dataset.signalType).catch(showError));
+    });
+    scope.querySelectorAll?.("[data-learning-growth-card-share]").forEach((button) => {
+      button.addEventListener("click", () => shareGrowthCard(button.dataset.learningGrowthCardShare, button).catch(showError));
     });
     scope.querySelectorAll?.("[data-learning-growth-stage-assessment-challenge]").forEach((button) => {
       button.addEventListener("click", () => startChallenge(button.dataset.learningGrowthStageAssessmentChallenge).catch(showError));

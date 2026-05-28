@@ -154,6 +154,10 @@ function testTeachingCardDetailRendersLessonPracticeAndCheck() {
   assert.match(lessonHtml, /\u5148\u8bf4\u4e3b\u65e8/);
   assert.match(lessonHtml, /\u5148\u770b\u4e00\u4e2a\u793a\u8303/);
   assert.match(lessonHtml, /\u8fd9\u6bb5\u4e3b\u8981\u5728\u8bb2/);
+  assert.match(lessonHtml, /learning-growth-card-detail-shell/);
+  assert.match(lessonHtml, /learning-growth-card-detail-hero/);
+  assert.match(lessonHtml, /data-learning-growth-card-share="teach-1"/);
+  assert.equal((lessonHtml.match(/data-learning-growth-answer-card/g) || []).length, 1);
   assertNoDifficultyActions(lessonHtml);
   const guidedHtml = TaskUi.renderTeachingCardDetail(task, {
     state: {

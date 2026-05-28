@@ -169,17 +169,20 @@ function fillRoundRect(ctx, x, y, width, height, radius, fillStyle) {
   ctx.fill();
 }
 
-function layoutShareImage(ctx, message, text) {
+function layoutShareImagePayload(ctx, payload = {}) {
   const width = SHARE_IMAGE_WIDTH;
   const margin = 96;
   const contentWidth = width - margin * 2;
   const items = [];
   let y = 72;
-  const title = messageShareTitle(message);
-  const meta = [messageDisplayTimeLabel(message), state.currentThread?.title || ""].filter(Boolean).join(" - ");
+  const title = String(payload.title || "Hermes Mobile").trim() || "Hermes Mobile";
+  const meta = String(payload.meta || "").trim();
+  const brand = String(payload.brand || "Hermes Mobile").trim() || "Hermes Mobile";
+  const footer = String(payload.footer || "Shared from Hermes Mobile").trim() || "Shared from Hermes Mobile";
+  const text = String(payload.text || "").trim();
 
   setShareImageFont(ctx, 36, 800);
-  items.push({ type: "brand", x: margin, y, text: "Hermes Mobile", size: 36, weight: 800 });
+  items.push({ type: "brand", x: margin, y, text: brand, size: 36, weight: 800 });
   y += 58;
   setShareImageFont(ctx, 62, 760);
   const titleLines = wrapCanvasText(ctx, title, contentWidth);
@@ -229,9 +232,19 @@ function layoutShareImage(ctx, message, text) {
   }
 
   y += 32;
-  items.push({ type: "footer", x: margin, y, text: "Shared from Hermes Mobile", size: 30, weight: 500 });
+  items.push({ type: "footer", x: margin, y, text: footer, size: 30, weight: 500 });
   y += 72;
   return { width, height: Math.max(640, Math.ceil(y)), items };
+}
+
+function layoutShareImage(ctx, message, text) {
+  return layoutShareImagePayload(ctx, {
+    brand: "Hermes Mobile",
+    title: messageShareTitle(message),
+    meta: [messageDisplayTimeLabel(message), state.currentThread?.title || ""].filter(Boolean).join(" - "),
+    text,
+    footer: "Shared from Hermes Mobile",
+  });
 }
 
 function drawShareImage(ctx, layout) {
@@ -336,16 +349,17 @@ async function copyImageBlobToClipboard(blob) {
   return true;
 }
 
-function openImageBlobPreview(blob) {
+function openImageBlobPreview(blob, options = {}) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `hermes-reply-${Date.now().toString(36)}.png`;
+  const prefix = String(options.filenamePrefix || "hermes-reply").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "hermes-reply";
+  link.download = `${prefix}-${Date.now().toString(36)}.png`;
   document.body.append(link);
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 30000);
-  showPushToast("\u5df2\u751f\u6210\u56fe\u7247\u6587\u4ef6", "success");
+  showPushToast(options.toast || "\u5df2\u751f\u6210\u56fe\u7247\u6587\u4ef6", "success");
 }
 
 async function shareMessageImage(messageId) {
@@ -362,4 +376,141 @@ async function shareMessageImage(messageId) {
   }
   if (await copyImageBlobToClipboard(blob)) return;
   openImageBlobPreview(blob);
+}
+
+function learningGrowthCardRoleShareLabel(role) {
+  const key = String(role || "").trim().toLowerCase().replace(/[-\s]+/g, "_");
+  if (key === "teaching") return "\u6559\u5b66\u5361";
+  if (key === "practice") return "\u7ec3\u4e60\u5361";
+  if (key === "integration_practice") return "\u7efc\u5408\u7ec3\u4e60";
+  if (key === "stage_assessment") return "\u80fd\u529b\u6d4b\u9a8c";
+  return "\u5b66\u4e60\u5361";
+}
+
+function learningGrowthCardDurationText(task = {}) {
+  const duration = task.expectedDurationMinutes || {};
+  if (duration && typeof duration === "object" && (duration.min || duration.max)) {
+    return `${duration.min || duration.max || 10}-${duration.max || duration.min || 15} \u5206\u949f`;
+  }
+  const minutes = Number(task.plannedMinutes || task.durationMinutes || task.estimatedMinutes || 0);
+  return Number.isFinite(minutes) && minutes > 0 ? `${Math.round(minutes)} \u5206\u949f` : "";
+}
+
+function learningGrowthCardRewardText(task = {}) {
+  const value = Number(task.rewardPolicy?.maxCoins || task.configuredRewardCoins || task.defaultRewardCoins || task.rewardCapCoins || 0);
+  return Number.isFinite(value) && value > 0 ? `${Math.round(value)} \u91d1\u5e01` : "";
+}
+
+function compactLearningGrowthShareText(value, limit = 360) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text || text.length <= limit) return text;
+  return `${text.slice(0, limit - 1).trim()}\u2026`;
+}
+
+function learningGrowthCardShareText(task = {}) {
+  const model = task.taskModel || task.learningTaskModel || {};
+  const flow = task.teachingFlow && typeof task.teachingFlow === "object" ? task.teachingFlow : {};
+  const lesson = flow.lesson && typeof flow.lesson === "object" ? flow.lesson : {};
+  const microLesson = flow.microLesson && typeof flow.microLesson === "object" ? flow.microLesson : {};
+  const workedExample = flow.workedExample && typeof flow.workedExample === "object" ? flow.workedExample : {};
+  const guided = flow.guidedPractice && typeof flow.guidedPractice === "object" ? flow.guidedPractice : {};
+  const quick = flow.quickCheck && typeof flow.quickCheck === "object" ? flow.quickCheck : {};
+  const role = learningGrowthCardRoleShareLabel(task.cardRole || task.card_role || task.learningGrowthCardRole || model.taskCardType || "");
+  const meta = [
+    role,
+    task.domain || model.domain || "",
+    learningGrowthCardDurationText(task),
+    learningGrowthCardRewardText(task),
+  ].filter(Boolean).join(" / ");
+  const lines = [];
+  if (meta) lines.push(`> ${meta}`);
+  const target = compactLearningGrowthShareText(task.goalSummary || model.goalSummary || task.summary || "");
+  if (target) lines.push("## \u5b66\u4e60\u76ee\u6807", target);
+  const instruction = compactLearningGrowthShareText(task.learnerInstruction || task.instruction || model.learnerInstruction || task.instructionPreview || "");
+  if (instruction) lines.push("## \u4efb\u52a1\u8981\u6c42", instruction);
+  const lessonTitle = compactLearningGrowthShareText(lesson.title || "");
+  const explanation = compactLearningGrowthShareText(lesson.explanation || "");
+  if (lessonTitle || explanation) lines.push("## \u8bb2\u89e3", [lessonTitle, explanation].filter(Boolean).join("\n\n"));
+  const keyPoints = Array.isArray(microLesson.keyPoints) ? microLesson.keyPoints : [];
+  if (keyPoints.length) lines.push("## \u5173\u952e\u70b9", keyPoints.slice(0, 5).map((item) => `- ${compactLearningGrowthShareText(item, 120)}`).join("\n"));
+  const workedSteps = Array.isArray(workedExample.steps) ? workedExample.steps : [];
+  if (workedExample.instruction || workedSteps.length) {
+    const steps = workedSteps.slice(0, 4).map((step) => `- ${compactLearningGrowthShareText([step?.label, step?.text].filter(Boolean).join(": "), 150)}`);
+    lines.push("## \u793a\u8303", [compactLearningGrowthShareText(workedExample.instruction || ""), steps.join("\n")].filter(Boolean).join("\n"));
+  }
+  const guidedText = compactLearningGrowthShareText(guided.instruction || guided.prompt || task.guidedPracticePrompt || "");
+  if (guidedText) lines.push("## \u8ddf\u505a", guidedText);
+  const quickText = compactLearningGrowthShareText(quick.instruction || quick.prompt || "");
+  if (quickText) lines.push("## \u68c0\u67e5", quickText);
+  const acceptance = Array.isArray(quick.completionCriteria) && quick.completionCriteria.length
+    ? quick.completionCriteria
+    : (Array.isArray(task.acceptance) ? task.acceptance : (Array.isArray(model.acceptance) ? model.acceptance : []));
+  if (acceptance.length) lines.push("## \u5b8c\u6210\u6807\u51c6", acceptance.slice(0, 5).map((item) => `- ${compactLearningGrowthShareText(item, 120)}`).join("\n"));
+  const questions = Array.isArray(task.questionItems) ? task.questionItems
+    : Array.isArray(model.questionItems) ? model.questionItems
+      : Array.isArray(model.questions) ? model.questions
+        : [];
+  if (questions.length) {
+    lines.push("## \u9898\u76ee", questions.slice(0, 5).map((item, index) => {
+      const title = item?.title || item?.id || `Q${index + 1}`;
+      const prompt = item?.stem || item?.body || item?.prompt || item?.question || "";
+      return `- ${compactLearningGrowthShareText([title, prompt].filter(Boolean).join(": "), 180)}`;
+    }).join("\n"));
+  }
+  return lines.filter(Boolean).join("\n\n").trim() || "\u8fd9\u662f\u4e00\u5f20 Hermes Growth \u5b66\u4e60\u5361\u3002";
+}
+
+function learningGrowthCardShareMeta(task = {}) {
+  return [
+    learningGrowthCardRoleShareLabel(task.cardRole || task.card_role || task.learningGrowthCardRole || task.taskModel?.taskCardType || ""),
+    task.status || task.nextAction || "",
+    task.plannedDate || "",
+    learningGrowthCardDurationText(task),
+  ].filter(Boolean).join(" - ");
+}
+
+async function renderLearningGrowthCardShareImageBlob(task = {}) {
+  const measureCanvas = document.createElement("canvas");
+  const measureCtx = measureCanvas.getContext("2d");
+  const layout = layoutShareImagePayload(measureCtx, {
+    brand: "Hermes Growth",
+    title: task.title || task.taskCardId || task.id || "\u5b66\u4e60\u5361",
+    meta: learningGrowthCardShareMeta(task),
+    text: learningGrowthCardShareText(task),
+    footer: "Shared from Hermes Mobile",
+  });
+  if (layout.height > 30000) throw new Error("Learning card is too long for one image");
+  const scale = shareImageRenderScale(layout);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.ceil(layout.width * scale);
+  canvas.height = Math.ceil(layout.height * scale);
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+  drawShareImage(ctx, layout);
+  return canvasToBlob(canvas, "image/png");
+}
+
+async function shareLearningGrowthCardImage(task = {}) {
+  const blob = await renderLearningGrowthCardShareImageBlob(task);
+  const title = String(task.title || task.taskCardId || task.id || "\u5b66\u4e60\u5361").trim();
+  if (typeof File !== "undefined" && navigator.share && navigator.canShare) {
+    const file = new File([blob], `hermes-growth-card-${Date.now().toString(36)}.png`, { type: "image/png" });
+    try {
+      if (navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title, text: "\u5b66\u4e60\u5361\u56fe\u7247" });
+          return;
+        } catch (error) {
+          if (error?.name === "AbortError") return;
+        }
+      }
+    } catch (_error) {
+      // Fall through to clipboard/download fallback when the browser cannot test file sharing.
+    }
+  }
+  if (await copyImageBlobToClipboard(blob)) return;
+  openImageBlobPreview(blob, {
+    filenamePrefix: "hermes-growth-card",
+    toast: "\u5df2\u751f\u6210\u5b66\u4e60\u5361\u56fe\u7247",
+  });
 }

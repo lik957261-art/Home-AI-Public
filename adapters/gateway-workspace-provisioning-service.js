@@ -22,6 +22,22 @@ function grokGatewayIndex(worker) {
   return match ? Number(match[1]) : 0;
 }
 
+function workerPort(worker) {
+  const port = Number(worker?.port || 0);
+  return Number.isFinite(port) && port > 0 ? port : 0;
+}
+
+function nextGatewayPort(workers, lowGatewayBasePort, nextIndex) {
+  const used = new Set(workers.map(workerPort).filter(Boolean));
+  const highestLowOrGrokPort = workers
+    .filter((worker) => lowGatewayIndex(worker) > 0 || grokGatewayIndex(worker) > 0)
+    .map(workerPort)
+    .reduce((max, port) => Math.max(max, port), 0);
+  let port = Math.max(lowGatewayBasePort + nextIndex, highestLowOrGrokPort + 1);
+  while (used.has(port)) port += 1;
+  return port;
+}
+
 function replaceProfileInPath(value, profile) {
   const text = String(value || "");
   if (!text) return "";
@@ -77,7 +93,7 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
       name: profile,
       profile,
       host: template.host || "127.0.0.1",
-      port: lowGatewayBasePort + nextIndex,
+      port: nextGatewayPort(workers, lowGatewayBasePort, nextIndex),
       provider: "openai-codex",
       enabled: template.enabled !== false,
       securityLevel: "user",
@@ -91,10 +107,6 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
     });
     workers.push(newWorker);
     const lowCount = Math.max(nextIndex, ...workers.map(lowGatewayIndex));
-    for (const worker of workers) {
-      const idx = grokGatewayIndex(worker);
-      if (idx > 0) worker.port = lowGatewayBasePort + lowCount + idx;
-    }
     manifest.enabled = manifest.enabled !== false;
     manifest.workers = workers;
     manifest.updatedAt = nowIso();

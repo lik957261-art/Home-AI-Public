@@ -828,6 +828,9 @@ function createGatewayRunEventService(options = {}) {
 
   function markRunCompleted(context, event) {
     const { thread, message, runId, originalRunId, responseRunId, stream } = context;
+    if (["done", "failed", "cancelled"].includes(String(message?.status || ""))) {
+      return { action: "terminal_ignored", status: message.status };
+    }
     clearStreamingSaveTimer();
     const output = extractCompletedOutput(event) || String(message.content || "");
     const toolsetEscalationRequest = parseToolsetEscalationRequest(output, message) || message.pendingToolsetEscalationRequest || null;
