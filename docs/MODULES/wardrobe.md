@@ -117,10 +117,13 @@ rerenders; when the Wardrobe tab needs a new frame and the previous token is no
 longer fresh, it must fetch a new manifest/launch URL first.
 
 The embedded plugin must preserve its iframe node after the first successful
-load. Switching from Wardrobe to another Hermes tab may park the iframe in a
-hidden host, but it must not destroy and recreate it unless the entry URL
-changes or a fresh launch URL is required. This keeps the Wardrobe SPA route,
-scroll position, and plugin session stable across ordinary bottom-tab changes.
+load. Switching from Wardrobe to another Hermes tab must hide a persistent host
+rather than moving the iframe between containers. Moving the iframe can cause
+iOS WebKit installed PWAs to reload the iframe from its original `src`, which is
+unsafe when that `src` contains a one-time launch URL. Hermes should destroy and
+recreate the iframe only when the entry URL changes or a fresh launch URL is
+required. This keeps the Wardrobe SPA route, scroll position, and plugin session
+stable across ordinary bottom-tab changes.
 Because the iframe element's `src` can still contain a one-time `launch` URL,
 Hermes Mobile treats a launch iframe as healthy only after the embedded app
 sends `wardrobe.plugin.navigation`. If a launch iframe loads and no navigation

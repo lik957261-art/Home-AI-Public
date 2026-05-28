@@ -234,9 +234,10 @@ Required harness dimensions:
   Hermes validates the plugin origin, exposes the normal back affordance only
   when `canGoBack=true`, and sends `hermes.plugin.back` to the existing iframe.
 - Switching away from an embedded plugin tab must preserve the already-loaded
-  iframe node when possible. Harness coverage must assert that the host parks
-  and restores the frame instead of destroying the plugin SPA state on every
-  bottom-tab click.
+  iframe node when possible. Harness coverage must assert that the host uses a
+  persistent iframe container and CSS visibility, not DOM reparenting, because
+  moving a launch iframe can trigger iOS WebKit to reload the original one-time
+  URL on every bottom-tab click.
 - One-time launch iframe health must be tied to the plugin navigation event. If
   a launch iframe loads but never emits the expected navigation state, the host
   must fetch a fresh manifest/launch URL and must not leave the stale

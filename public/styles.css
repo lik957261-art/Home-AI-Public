@@ -1195,6 +1195,22 @@ button {
   background: var(--ui-panel);
 }
 
+.wardrobe-plugin-host {
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--ui-panel);
+}
+
+.wardrobe-plugin-host.active {
+  display: grid;
+}
+
+.wardrobe-plugin-host-active .conversation {
+  display: none;
+}
+
 .wardrobe-plugin-notice {
   display: grid;
   gap: 4px;
