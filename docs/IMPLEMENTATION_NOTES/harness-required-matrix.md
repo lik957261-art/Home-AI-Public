@@ -547,6 +547,11 @@ Required contract dimensions:
   from the surface being left. For example, an Automation API response that
   finishes after returning to Inbox must not repaint an empty `Hermes CRON`
   root shell over the Inbox.
+- Topic restore placeholders must be tied to the requested topic/task group.
+  A missing `currentTaskGroupId` may wait only when that same task group has
+  queued/running messages or the current thread fetch is already in flight;
+  unrelated active runs in the thread must not keep `Restoring topic...`
+  visible indefinitely.
 - Preview fallbacks follow the in-app overlay/iframe/download pattern used by
   Markdown, image, and document previews; `about:blank` print windows and
   `open(..., "_blank")` are not allowed workarounds.

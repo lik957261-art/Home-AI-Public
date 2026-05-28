@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-inbox-title-actions-v304";
+const CLIENT_VERSION = "20260528-topic-restore-v305";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -422,9 +422,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-title-actions-v304/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-title-actions-v304/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-title-actions-v304/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-topic-restore-v305/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-topic-restore-v305/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-topic-restore-v305/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -527,7 +527,9 @@ assert.match(appJs, /orientationSettle: orientationEvent/);
 assert.match(appJs, /orientationEvent && conversationViewportRefreshApplies\(\)/);
 assert.match(appJs, /incomingPage && !incomingMessages\.length && existingThreadMessages\.length/);
 assert.match(appJs, /messages: existingThreadMessages/);
-assert.match(appJs, /currentThreadHasPendingMessages\(thread\) \|\| state\.currentThreadRefreshInFlight/);
+assert.match(appJs, /function taskGroupHasPendingMessages\(thread = state\.currentThread, taskGroupId = ""\)/);
+assert.match(appJs, /taskGroupHasPendingMessages\(thread, state\.currentTaskGroupId\) \|\| state\.currentThreadRefreshInFlight/);
+assert.doesNotMatch(appJs, /if \(currentThreadHasPendingMessages\(thread\) \|\| state\.currentThreadRefreshInFlight\)/);
 assert.match(appJs, /timeoutMs: 8000/);
 assert.match(appJs, /timeoutMs: 130000/);
 assert.doesNotMatch(appJs, /data-close-skill-detail/);

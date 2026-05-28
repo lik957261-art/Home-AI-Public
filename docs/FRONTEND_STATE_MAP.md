@@ -124,6 +124,11 @@ Use this file to locate the responsible frontend files before debugging a screen
 - Static client changes require version bump in `public/index.html`, `public/service-worker.js`, `public/directory-viewer.html`, and `tests/task-list-ui.test.js`.
 - Local in-flight state must not be displayed as server-confirmed state.
 - Route targets should be kept until the target module has fetched or rendered the requested resource.
+- Topic restore placeholders must be scoped to the requested topic/task group.
+  If `currentTaskGroupId` no longer resolves, the UI may hold on
+  `Restoring topic...` only while that same task group has queued/running
+  messages or the current thread fetch is in flight. Unrelated active runs in
+  the same single-window thread must not keep the Topic page stuck in restore.
 - Secondary screens should be represented by explicit detail/create state and wired into `updateNavigationControls()`, `activateTopNavButton()`, `backSwipeTarget()`, and `performBackSwipeAction()`. The content area should not duplicate the top bar title or page-level overflow actions.
 - A primary module can also be opened as a secondary surface when launched from another page-level overflow menu. Example: opening the Automation list from the Inbox overflow records `automationReturnRoute="inbox"`; the Automation list then uses the top-left shell back button and right-swipe back to return to Inbox. Bottom navigation into the same module remains a primary page and clears the return route.
 - Mobile OS status bar visibility, safe-area, bottom nav, keyboard viewport, and back/right-swipe behavior must be tested when changing shell/navigation code.

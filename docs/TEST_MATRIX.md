@@ -117,6 +117,12 @@ deliverable push is marked for a `lastRunAt`, a later scan for the same run with
 no newer deliverable must not send a second no-deliverable push, create another
 Inbox upsert, or downgrade the stored mark.
 
+Topic/navigation harnesses must assert that a missing `currentTaskGroupId`
+does not leave the app permanently on `Restoring topic...` because of unrelated
+active runs in the same single-window thread. The restore placeholder is valid
+only for queued/running messages belonging to the same task group or while the
+current thread fetch is actually in flight.
+
 Toolset escalation and retry harnesses must assert that
 `HERMES_TOOLSET_ESCALATION_REQUIRED` is stripped from visible chat content,
 stored as bounded `toolsetEscalationRequired` metadata, and projected as

@@ -253,6 +253,15 @@ function renderCurrentThreadUnsafe(options = {}) {
   if (isSingleWindowChatView()) scheduleConversationViewportRefresh(conversation);
 }
 
+function taskGroupHasPendingMessages(thread = state.currentThread, taskGroupId = "") {
+  const id = String(taskGroupId || "").trim();
+  if (!thread || !id) return false;
+  return (thread.messages || []).some((message) => (
+    String(message?.taskGroupId || "") === id
+    && ["queued", "running"].includes(String(message?.status || ""))
+  ));
+}
+
 function renderTaskWindow(thread, conversation, options, bottomOffset) {
   const allGroups = taskListGroupsForThread(thread)
     .concat(sharedCaseTopicGroupsForTaskList(thread))
@@ -269,7 +278,7 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   const allActiveRuns = activeThreadRunIds(thread);
 
   if (state.currentTaskGroupId && !selected) {
-    if (currentThreadHasPendingMessages(thread) || state.currentThreadRefreshInFlight) {
+    if (taskGroupHasPendingMessages(thread, state.currentTaskGroupId) || state.currentThreadRefreshInFlight) {
       $("threadTitle").textContent = "";
       $("threadMeta").textContent = "";
       $("interruptRun").disabled = !allActiveRuns.length;
