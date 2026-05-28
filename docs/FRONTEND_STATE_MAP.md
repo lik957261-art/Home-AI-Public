@@ -144,7 +144,9 @@ Use this file to locate the responsible frontend files before debugging a screen
 - Inbox should render source tags and action states compactly, one list/detail surface, without relying on official Kanban UI modules.
 - Inbox list rows should combine processing actions into the inline status
   badge after source/type. Tapping `待处理` or another non-terminal status opens
-  the viewport action sheet; do not add a separate right-side `处理` button.
+  the viewport action sheet; do not add a separate right-side `处理` button. The
+  visible badge should show the actual status label and read like compact
+  metadata, not a filled command pill.
 - Inbox root page-level actions live in the top-right overflow menu. Inbox detail/create are secondary states and should use shared top-left back plus right-swipe back, not inline duplicate back/title controls.
 
 ## Kanban/Todo

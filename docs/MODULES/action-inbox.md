@@ -188,11 +188,12 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
   `处理` button, because it duplicates the state badge and compresses mobile row
   content. Source and file navigation should stay on the title/main area and the
   explicit deliverable file tag, not inside the processing sheet.
-- In the default open Inbox list, the visible status/action badge should use a
-  concise command label such as `处理` instead of repeating `待处理`, because the
-  active filter already communicates the open state. Keep the accessible label
-  tied to the real status, and keep the control visually close to compact meta
-  text rather than a large dropdown button.
+- In the default open Inbox list, the visible status/action control must show
+  the real state label such as `待处理`, not a generic command label like `处理`.
+  It should read as compact metadata: small, medium-weight text with a subtle
+  chevron, no large filled pill, no strong border, and no high-contrast action
+  color. Keep the accessible label tied to the real status and the available
+  processing menu.
 - The default Inbox list must show newest items first by update/event/create
   time. Terminal items may stay below non-terminal items when mixed into an
   all-status view, but source/type priority must not hide a newer receipt under

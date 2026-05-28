@@ -166,7 +166,10 @@ Required harness dimensions:
   `待处理` opens a viewport-level action sheet or equivalent overlay with
   complete, snooze, and delete/dismiss actions. Do not add a separate right-side
   `处理` button or an absolutely positioned in-card menu, because those duplicate
-  the badge and clip or compress mobile row content.
+  the badge and clip or compress mobile row content. The visible badge must show
+  the real status label, not a generic `处理` command, and must stay visually at
+  metadata weight: no large filled pill, no heavy border, no high-contrast
+  action color, and no typography larger than source/type metadata.
 - Automation delivery and scheduled-Todo row title/main areas must open the
   Automation source detail with Inbox return context, while only the explicit
   deliverable file tag opens the preview. The file tag must reuse the existing
@@ -244,6 +247,13 @@ Required harness dimensions:
   must assert the raw marker is stripped, metadata records only requested
   authorized toolsets, and a `run.toolset_escalation_required` status event is
   persisted.
+- If the requested escalation toolsets are part of the omitted authorized set,
+  harness coverage must assert Mobile retries the same assistant message with
+  the previous selected toolsets plus the requested authorized toolsets, skips a
+  second selector pass for that retry, emits `run.toolset_escalation_retrying`,
+  and does not enqueue/notify a terminal successful answer before the retry
+  finishes. Unauthorized, blocked, duplicate, or over-limit escalation requests
+  must remain a controlled insufficient-toolset result.
 - Harness scenarios must also cover plain-chat or ping/test messages where the
   selector is tempted to choose every authorized toolset due uncertainty. That
   case must narrow to the lightweight suggested set and must not expose `skills`

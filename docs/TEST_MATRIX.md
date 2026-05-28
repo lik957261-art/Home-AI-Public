@@ -133,10 +133,9 @@ render the direct document preview action; row title/main areas must open the
 Automation source detail with Inbox return context; row status must render as a
 compact action badge after source/type, and tapping that status badge opens a
 viewport-level action sheet with complete, snooze, and delete/dismiss actions;
-the default open-state action badge may render as the concise command `处理`
-instead of repeating `待处理` when the active filter already conveys open state,
-but its accessible label must preserve the underlying status and the visual
-size must stay close to compact metadata text;
+the default open-state action badge must render the real status label `待处理`,
+not a generic `处理` command, and its visual size/weight/color must stay close to
+compact metadata text rather than a filled action pill;
 the list must not render a separate right-side `处理` button that duplicates the
 status badge or compresses the mobile row; generic
 `待办提醒` titles must be replaced by the actual Automation/reminder title in
@@ -158,7 +157,11 @@ current thread fetch is actually in flight.
 Toolset escalation and retry harnesses must assert that
 `HERMES_TOOLSET_ESCALATION_REQUIRED` is stripped from visible chat content,
 stored as bounded `toolsetEscalationRequired` metadata, and projected as
-`run.toolset_escalation_required`. A later retry/rerun message should reuse
+`run.toolset_escalation_required`. When the requested toolsets are omitted but
+authorized, the same assistant message must automatically retry with the
+previous selected toolsets plus the requested toolsets, skip a second selector
+pass, emit `run.toolset_escalation_retrying`, and avoid terminal delivery until
+that retry finishes. A later manual retry/rerun message should also reuse
 recent task context or stored escalation metadata to suggest the needed
 authorized toolsets instead of treating retry as a plain probe, including when
 the relevant task context is in the same `taskGroupId` but no longer in the

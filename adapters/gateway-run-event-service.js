@@ -11,6 +11,7 @@ function cleanString(value) {
 }
 
 const TOOLSET_ESCALATION_MARKER = "HERMES_TOOLSET_ESCALATION_REQUIRED";
+const DEFAULT_MAX_TOOLSET_ESCALATION_RETRIES = 2;
 
 function compactFallback(value) {
   return value;
@@ -60,6 +61,32 @@ function routeToolsetMetadata(message = {}) {
   return runOptions.toolsetRouting || policy.toolset_routing || policy.toolsetRouting || {};
 }
 
+function routeSelectedToolsets(message = {}) {
+  const routing = routeToolsetMetadata(message);
+  const runOptions = message?.runOptions && typeof message.runOptions === "object" ? message.runOptions : {};
+  const policy = runOptions.access_policy_context && typeof runOptions.access_policy_context === "object"
+    ? runOptions.access_policy_context
+    : {};
+  return uniqueCleanStrings(
+    routing.selected_toolsets
+    || routing.selectedToolsets
+    || policy.allowed_toolsets
+    || policy.allowedToolsets
+    || [],
+  );
+}
+
+function routeOmittedAuthorizedToolsets(message = {}) {
+  const routing = routeToolsetMetadata(message);
+  return uniqueCleanStrings(
+    routing.omitted_authorized_toolsets
+    || routing.omittedAuthorizedToolsets
+    || routing.omitted_toolsets
+    || routing.omittedToolsets
+    || [],
+  );
+}
+
 function parseToolsetEscalationRequest(text, message = {}) {
   const value = String(text || "");
   const markerAt = value.indexOf(TOOLSET_ESCALATION_MARKER);
@@ -74,14 +101,7 @@ function parseToolsetEscalationRequest(text, message = {}) {
     || parsed?.allowedToolsets
     || [],
   );
-  const routing = routeToolsetMetadata(message);
-  const omitted = uniqueCleanStrings(
-    routing.omitted_authorized_toolsets
-    || routing.omittedAuthorizedToolsets
-    || routing.omitted_toolsets
-    || routing.omittedToolsets
-    || [],
-  );
+  const omitted = routeOmittedAuthorizedToolsets(message);
   const omittedSet = new Set(omitted);
   const toolsets = omittedSet.size ? requested.filter((item) => omittedSet.has(item)) : requested;
   if (!toolsets.length) return null;
@@ -146,6 +166,29 @@ function uniqueCleanStrings(values) {
     out.push(text);
   }
   return out;
+}
+
+function findEscalationUserMessage(thread = {}, assistantMessage = {}) {
+  const messages = Array.isArray(thread.messages) ? thread.messages : [];
+  const replyToId = cleanString(assistantMessage.replyToMessageId || assistantMessage.reply_to_message_id);
+  if (replyToId) {
+    const direct = messages.find((message) => cleanString(message.id) === replyToId && message.role === "user");
+    if (direct) return direct;
+  }
+  const assistantId = cleanString(assistantMessage.id);
+  const assistantIndex = assistantId ? messages.findIndex((message) => cleanString(message.id) === assistantId) : -1;
+  const before = messages.slice(0, assistantIndex >= 0 ? assistantIndex : messages.length);
+  const taskGroupId = cleanString(assistantMessage.taskGroupId || assistantMessage.task_group_id);
+  for (let index = before.length - 1; index >= 0; index -= 1) {
+    const message = before[index];
+    if (message?.role !== "user") continue;
+    if (taskGroupId && cleanString(message.taskGroupId || message.task_group_id) !== taskGroupId) continue;
+    return message;
+  }
+  for (let index = before.length - 1; index >= 0; index -= 1) {
+    if (before[index]?.role === "user") return before[index];
+  }
+  return null;
 }
 
 function loadedSkillFromRunEvent(event = {}) {
@@ -470,6 +513,14 @@ function createGatewayRunEventService(options = {}) {
   const scheduleNextQueuedRunForTaskGroup = typeof options.scheduleNextQueuedRunForTaskGroup === "function"
     ? options.scheduleNextQueuedRunForTaskGroup
     : (() => {});
+  const startToolsetEscalationRun = typeof options.startToolsetEscalationRun === "function"
+    ? options.startToolsetEscalationRun
+    : null;
+  const scheduleImmediate = typeof options.setImmediate === "function" ? options.setImmediate : setImmediate;
+  const maxToolsetEscalationRetries = Math.max(
+    0,
+    Number(options.maxToolsetEscalationRetries ?? DEFAULT_MAX_TOOLSET_ESCALATION_RETRIES) || 0,
+  );
   const notifyTaskTerminal = typeof options.notifyTaskTerminal === "function"
     ? options.notifyTaskTerminal
     : ((thread, message, status) => options.webPushDeliveryService?.notifyTaskTerminal?.(thread, message, status));
@@ -648,6 +699,92 @@ function createGatewayRunEventService(options = {}) {
     return { action: "final_message_done" };
   }
 
+  function startEscalatedToolsetRetry(thread, message, request, previousRunId) {
+    if (!startToolsetEscalationRun || !request?.toolsets?.length) return false;
+    const attempts = Math.max(0, Number(message.toolsetEscalationAttempts || 0) || 0);
+    if (attempts >= maxToolsetEscalationRetries) return false;
+    const userMessage = findEscalationUserMessage(thread, message);
+    if (!userMessage) return false;
+    const selectedToolsets = uniqueCleanStrings([...routeSelectedToolsets(message), ...request.toolsets]);
+    const authorizedToolsets = uniqueCleanStrings([...selectedToolsets, ...routeOmittedAuthorizedToolsets(message)]);
+    const omittedAfterRetry = authorizedToolsets.filter((toolset) => !selectedToolsets.includes(toolset));
+    const retryRouting = {
+      mode: "model_first",
+      reason: "toolset_escalation_retry",
+      selected_toolsets: selectedToolsets,
+      omitted_authorized_toolsets: omittedAfterRetry,
+      authorized_toolset_count: authorizedToolsets.length,
+      duration_ms: 0,
+      escalated_from_run_id: cleanString(previousRunId),
+    };
+    const existingRunOptions = message.runOptions && typeof message.runOptions === "object" ? message.runOptions : {};
+    const retryInstructions = [
+      existingRunOptions.instructions || "",
+      "Toolset escalation retry: the previous execution determined that additional authorized toolsets were required. Continue the same user task with the expanded enabled toolsets. Do not repeat the escalation marker unless another omitted authorized toolset is genuinely required.",
+    ].filter(Boolean).join("\n\n");
+    const retryRunOptions = Object.assign({}, existingRunOptions, {
+      instructions: retryInstructions,
+      skipModelFirstToolsetSelection: true,
+      toolsetEscalationRetry: {
+        previousRunId: cleanString(previousRunId),
+        requestedToolsets: request.toolsets,
+        reason: request.reason,
+        attempt: attempts + 1,
+      },
+      modelFirstToolsetSelection: {
+        skipSelector: true,
+        force: true,
+        reason: "toolset_escalation_retry",
+        selectedToolsets,
+        authorizedToolsets,
+        durationMs: 0,
+        routing: retryRouting,
+      },
+    });
+
+    const retryAt = nowIso();
+    message.status = "queued";
+    message.content = "";
+    message.error = "";
+    message.completedAt = "";
+    message.failedAt = "";
+    message.cancelledAt = "";
+    message.updatedAt = retryAt;
+    message.toolsetEscalationAttempts = attempts + 1;
+    message.toolsetEscalationRequired = false;
+    message.toolsetEscalationToolsets = [];
+    message.toolsetEscalationReason = "";
+    message.toolsetEscalationSource = "";
+    thread.updatedAt = retryAt;
+    addThreadEvent(thread, {
+      event: "run.toolset_escalation_retrying",
+      timestamp: nowMs() / 1000,
+      runId: cleanString(previousRunId),
+      tool: "toolset",
+      preview: JSON.stringify({
+        requested_toolsets: request.toolsets,
+        selected_toolsets: selectedToolsets,
+        attempt: attempts + 1,
+      }),
+      error: false,
+    });
+    broadcastMessageUpdated(thread, message);
+    scheduleImmediate(() => {
+      Promise.resolve(startToolsetEscalationRun(thread, userMessage, message, retryRunOptions)).catch((err) => {
+        const failedAt = nowIso();
+        message.status = "failed";
+        message.error = safeErrorMessage(err);
+        message.failedAt = failedAt;
+        message.updatedAt = failedAt;
+        thread.updatedAt = failedAt;
+        saveState();
+        broadcast({ type: "run.failed", threadId: thread.id, runId: cleanString(message.runId), message: compactMessage(message), thread: threadSummary(thread) });
+        notifyTaskTerminal(thread, message, "failed");
+      });
+    });
+    return true;
+  }
+
   function markRunCompleted(context, event) {
     const { thread, message, runId, originalRunId, responseRunId, stream } = context;
     clearStreamingSaveTimer();
@@ -715,6 +852,12 @@ function createGatewayRunEventService(options = {}) {
         }),
         error: false,
       });
+      removeThreadActiveRun(thread, runId, "idle");
+      if (startEscalatedToolsetRetry(thread, message, toolsetEscalationRequest, responseRunId || message.runId || runId)) {
+        saveState();
+        broadcast({ type: "run.event", threadId: thread.id, runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
+        return { action: "toolset_escalation_retrying", toolsets: toolsetEscalationRequest.toolsets };
+      }
     } else {
       message.toolsetEscalationRequired = false;
       message.toolsetEscalationToolsets = [];

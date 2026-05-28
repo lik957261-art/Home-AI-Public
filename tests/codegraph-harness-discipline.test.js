@@ -30,6 +30,7 @@ assert.match(harnessMatrix, /Gateway Toolset Selection And Run Telemetry/);
 assert.match(harnessMatrix, /must not hard-prune callable toolsets before the model/);
 assert.match(harnessMatrix, /compact capability\s+catalog/);
 assert.match(harnessMatrix, /explicit escalation path/);
+assert.match(harnessMatrix, /run\.toolset_escalation_retrying/);
 assert.match(harnessMatrix, /same model-side preflight/);
 assert.match(harnessMatrix, /HERMES_PERMISSION_APPROVAL_REQUIRED/);
 assert.match(harnessMatrix, /internal JSON-only preflight/);
@@ -70,5 +71,6 @@ if (fs.existsSync(userSkill)) {
   assert.match(skillText, /repeated streamed JSON candidates/);
   assert.match(skillText, /Gateway session\/log evidence/);
   assert.match(skillText, /explicit escalation path/);
+  assert.match(skillText, /run\.toolset_escalation_retrying/);
   assert.match(skillText, /final-message start\/end/);
 }

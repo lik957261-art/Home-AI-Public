@@ -267,6 +267,11 @@ Follow-up design/implementation rule for direct delivery and scheduled Todo:
   complete, snooze, and delete/dismiss actions. Do not render a separate
   right-side `处理` button. The sheet must not be absolutely positioned inside the
   card because that can clip or cover the deliverable file tag on mobile.
+  The list badge must render the actual status label (`待处理`, `稍后`, or
+  `已完成`) rather than a generic `处理` label, and it should remain visually
+  weaker than the source/type chips: small text, normal/medium weight, subtle
+  chevron, transparent or near-transparent surface, and no high-contrast pill
+  fill.
 - Left-swipe completion is threshold-gated as a full-swipe action; partial
   swipes do not call the complete transition.
 - Scheduled Todo automations create Todo-like Inbox occurrences, but the default

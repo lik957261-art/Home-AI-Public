@@ -219,6 +219,13 @@ Current runtime behavior:
   user-facing answer. Completion handling must strip the raw marker, persist
   `toolsetEscalationRequired` metadata and `run.toolset_escalation_required`,
   and show a controlled explanation with the requested toolset ids.
+- When the requested toolsets are in the omitted authorized set, Mobile must
+  automatically retry the same assistant message with the previous selected
+  toolsets plus the requested authorized toolsets. This retry bypasses the
+  selector so the model's explicit runtime finding is not lost to a second
+  selector mistake. If the request is blocked, unauthorized, repeats without
+  adding a new toolset, or exceeds the retry cap, Mobile keeps the controlled
+  insufficient-toolset message instead of leaking the raw marker.
 - The selector must not select every authorized toolset merely because the task
   is ambiguous, a ping, or a plain test message. If a selector response chooses
   the full authorized set only due uncertainty, Hermes Mobile narrows it to the

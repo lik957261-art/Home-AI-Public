@@ -238,10 +238,8 @@ function renderActionInboxDeliverableChip(item = {}, deliverable = null) {
 }
 
 function actionInboxStatusActionLabel(item = {}) {
-  const value = String(item?.status || "").toLowerCase();
-  if (!value || value === "open") return "\u5904\u7406";
   const status = actionInboxStatusLabel(item.status);
-  return status || "\u5904\u7406";
+  return status || "\u5f85\u5904\u7406";
 }
 
 function actionInboxActionMenuItems(item = {}) {
@@ -382,7 +380,7 @@ function renderActionInboxItem(item) {
     <div class="action-inbox-source-row">
       <span class="action-inbox-source-badge ${escapeHtml(actionInboxSourceTone(item.sourceType))}">${"\u6765\u6e90\uff1a"}${escapeHtml(actionInboxSourceLabel(item.sourceType))}</span>
       <span class="action-inbox-type-badge">${"\u7c7b\u578b\uff1a"}${escapeHtml(actionInboxTypeLabel(item.itemType))}</span>
-      <button class="action-inbox-state-badge action-inbox-state-action ${escapeHtml(tone)}" type="button" data-action-inbox-actions-id="${escapeHtml(item.id || "")}" aria-haspopup="menu" aria-expanded="${statusMenuOpen ? "true" : "false"}" aria-label="${escapeHtml(`\u5904\u7406\uff1a${actionInboxStatusLabel(item.status)}`)}">${escapeHtml(actionInboxStatusActionLabel(item))}</button>
+      <button class="action-inbox-state-badge action-inbox-state-action ${escapeHtml(tone)}" type="button" data-action-inbox-actions-id="${escapeHtml(item.id || "")}" aria-haspopup="menu" aria-expanded="${statusMenuOpen ? "true" : "false"}" aria-label="${escapeHtml(`\u72b6\u6001\uff1a${actionInboxStatusLabel(item.status)}\uff0c\u6253\u5f00\u5904\u7406\u65b9\u5f0f`)}">${escapeHtml(actionInboxStatusActionLabel(item))}</button>
       <span class="action-inbox-item-time">${escapeHtml(displayTime)}</span>
     </div>
     <button class="action-inbox-item-main" type="button" ${itemActionAttr}>

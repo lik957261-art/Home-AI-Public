@@ -66,9 +66,9 @@ assert.match(openTodoHtml, /data-action-inbox-id="ainb-todo-1"/);
 assert.match(openTodoHtml, /data-action-inbox-actions-id="ainb-todo-1"/);
 assert.doesNotMatch(openTodoHtml, /data-action-inbox-open-source-id="ainb-todo-1"/);
 assert.match(openTodoHtml, /class="action-inbox-state-badge action-inbox-state-action open"/);
-assert.match(openTodoHtml, />\u5904\u7406<\/button>/);
-assert.doesNotMatch(openTodoHtml, />\u5f85\u5904\u7406<\/button>/);
-assert.match(openTodoHtml, /aria-label="处理：待处理"/);
+assert.match(openTodoHtml, />\u5f85\u5904\u7406<\/button>/);
+assert.doesNotMatch(openTodoHtml, />\u5904\u7406<\/button>/);
+assert.match(openTodoHtml, /aria-label="状态：待处理，打开处理方式"/);
 assert.doesNotMatch(openTodoHtml, /action-inbox-process-button/);
 assert.doesNotMatch(openTodoHtml, /action-inbox-status-action/);
 assert.doesNotMatch(openTodoHtml, /action-inbox-action-menu/);
@@ -78,7 +78,7 @@ assert.match(openTodoHtml, /截止 05\/27 16:00/);
 assert.doesNotMatch(openTodoHtml, /2026-05-27T08:00:00\.000Z/);
 assert.equal(ui.actionInboxTodoDueText(openTodo), "05/27 16:00");
 assert.equal(ui.actionInboxDisplaySummary(openTodo), "");
-assert.equal(ui.actionInboxStatusActionLabel(openTodo), "\u5904\u7406");
+assert.equal(ui.actionInboxStatusActionLabel(openTodo), "\u5f85\u5904\u7406");
 assert.equal(ui.actionInboxStatusActionLabel(Object.assign({}, openTodo, { status: "waiting" })), "\u7a0d\u540e");
 
 const legacyTitle = Object.assign({}, openTodo, {

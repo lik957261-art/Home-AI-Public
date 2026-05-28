@@ -584,6 +584,61 @@ function testToolsetEscalationMarkerIsHiddenAndStored() {
   assert.deepEqual(JSON.parse(harness.thread.events.at(-1).preview).toolsets, ["weather", "wardrobe"]);
 }
 
+function testToolsetEscalationAutoRetriesWithExpandedAuthorizedToolsets() {
+  const starts = [];
+  const harness = makeHarness({
+    setImmediate: (fn) => fn(),
+    startToolsetEscalationRun: (thread, userMessage, assistantMessage, runOptions) => {
+      starts.push({ thread, userMessage, assistantMessage, runOptions });
+      return { status: "started" };
+    },
+  });
+  harness.message.runOptions = {
+    instructions: "existing run instruction",
+    toolsetRouting: {
+      mode: "model_first",
+      selected_toolsets: ["wardrobe", "file"],
+      omitted_authorized_toolsets: ["web", "search", "vision"],
+    },
+    access_policy_context: {
+      allowed_toolsets: ["wardrobe", "file"],
+      toolset_routing: {
+        mode: "model_first",
+        selected_toolsets: ["wardrobe", "file"],
+        omitted_authorized_toolsets: ["web", "search", "vision"],
+      },
+    },
+  };
+
+  const result = harness.service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    output: "HERMES_TOOLSET_ESCALATION_REQUIRED {\"toolsets\":[\"web\",\"search\"],\"reason\":\"needs public product photos\"}",
+  });
+
+  assert.equal(result.action, "toolset_escalation_retrying");
+  assert.equal(harness.message.status, "queued");
+  assert.equal(harness.message.content, "");
+  assert.equal(harness.message.toolsetEscalationRequired, false);
+  assert.equal(harness.message.toolsetEscalationAttempts, 1);
+  assert.deepEqual(harness.thread.activeRunIds, []);
+  assert.equal(starts.length, 1);
+  assert.equal(starts[0].userMessage.id, "user_1");
+  assert.equal(starts[0].assistantMessage.id, "assistant_1");
+  assert.equal(starts[0].runOptions.skipModelFirstToolsetSelection, true);
+  assert.deepEqual(starts[0].runOptions.modelFirstToolsetSelection.selectedToolsets, ["wardrobe", "file", "web", "search"]);
+  assert.deepEqual(starts[0].runOptions.modelFirstToolsetSelection.authorizedToolsets, ["wardrobe", "file", "web", "search", "vision"]);
+  assert.deepEqual(
+    starts[0].runOptions.modelFirstToolsetSelection.routing.omitted_authorized_toolsets,
+    ["vision"],
+  );
+  assert.equal(harness.thread.events.at(-2).event, "run.toolset_escalation_required");
+  assert.equal(harness.thread.events.at(-1).event, "run.toolset_escalation_retrying");
+  assert.deepEqual(harness.calls.enqueued, []);
+  assert.deepEqual(harness.calls.notified, []);
+  assert.deepEqual(harness.calls.scheduled, []);
+}
+
 function testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued() {
   const { activeStreams, calls, service, state, thread } = makeHarness();
   activeStreams.clear();
@@ -617,6 +672,7 @@ testFailedAndCancelledRunsUseTerminalHelpers();
 testSyntheticRunStatusDoesNotRefreshGatewayLastEventTime();
 testApprovalMarkersAreHiddenButValidRequestIsStored();
 testToolsetEscalationMarkerIsHiddenAndStored();
+testToolsetEscalationAutoRetriesWithExpandedAuthorizedToolsets();
 testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued();
 
 console.log("gateway-run-event-service tests passed");

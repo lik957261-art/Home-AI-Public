@@ -423,6 +423,61 @@ async function testModelFirstRoutingMetadataSurvivesPolicySanitizer() {
   assert.deepEqual(assistant.runOptions.toolsetRouting.selected_toolsets, ["weather", "file"]);
 }
 
+async function testStartRunSkipsSelectorForForcedToolsetEscalationRetry() {
+  let selectorCalls = 0;
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["wardrobe", "file", "web", "search", "vision"],
+    }),
+    selectRunToolsetsWithModel: async () => {
+      selectorCalls += 1;
+      return {
+        enabled: true,
+        ok: true,
+        reason: "should_not_run",
+        selectedToolsets: ["wardrobe", "file"],
+        authorizedToolsets: ["wardrobe", "file", "web", "search", "vision"],
+        durationMs: 1,
+      };
+    },
+  });
+  const assistant = baseAssistantMessage();
+
+  await service.startRunForThread(baseThread(), baseUserMessage(), assistant, {
+    skipModelFirstToolsetSelection: true,
+    modelFirstToolsetSelection: {
+      skipSelector: true,
+      reason: "toolset_escalation_retry",
+      selectedToolsets: ["wardrobe", "file", "web", "search"],
+      authorizedToolsets: ["wardrobe", "file", "web", "search", "vision"],
+      durationMs: 0,
+      routing: {
+        mode: "model_first",
+        reason: "toolset_escalation_retry",
+        selected_toolsets: ["wardrobe", "file", "web", "search"],
+        omitted_authorized_toolsets: ["vision"],
+        authorized_toolset_count: 5,
+        duration_ms: 0,
+      },
+    },
+  });
+
+  assert.equal(selectorCalls, 0);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["wardrobe", "file", "web", "search"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.selected_toolsets, ["wardrobe", "file", "web", "search"]);
+  assert.match(calls.streams[0].body.instructions, /Enabled toolsets: wardrobe, file, web, search/);
+  assert.match(calls.streams[0].body.instructions, /Omitted authorized toolsets: vision/);
+  assert.deepEqual(calls.events.map((event) => event.event), [
+    "run.context_ready",
+    "run.gateway_selected",
+    "run.toolset_selection_done",
+    "run.request_sent",
+  ]);
+  assert.deepEqual(JSON.parse(calls.events[2].preview).selected_toolsets, ["wardrobe", "file", "web", "search"]);
+}
+
 async function testStartRunCanExecuteWardrobeMcpSelection() {
   const { calls, service } = makeHarness({
     buildAccessPolicy: (routePolicy, _user, project) => ({
@@ -715,10 +770,11 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testStartRunBuildsGatewayRequestAndMutatesStartState();
   testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext();
   await testStartRunPreservesSearchSourceRouting();
-  await testOrdinaryRunUsesDefaultWebSearchBudgetWhenConfigured();
-  await testStartRunUsesModelFirstSelectionBeforeExecution();
-  await testModelFirstRoutingMetadataSurvivesPolicySanitizer();
-  await testStartRunCanExecuteWardrobeMcpSelection();
+    await testOrdinaryRunUsesDefaultWebSearchBudgetWhenConfigured();
+    await testStartRunUsesModelFirstSelectionBeforeExecution();
+    await testModelFirstRoutingMetadataSurvivesPolicySanitizer();
+    await testStartRunSkipsSelectorForForcedToolsetEscalationRetry();
+    await testStartRunCanExecuteWardrobeMcpSelection();
   await testWardrobeSelectionKeepsVisionCompanionWhenSelectorNarrows();
   await testWardrobeSelectionKeepsFileWhenSelectorChoosesVisionOnly();
   await testStartRunFallsBackWhenModelFirstSelectionFails();

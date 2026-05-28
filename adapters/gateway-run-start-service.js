@@ -473,7 +473,36 @@ function createGatewayRunStartService(options = {}) {
       streamOptions.runLivenessStaleAfterMs = 0;
       streamOptions.modelFirstByteWarningMs = CHATGPT_PRO_MIN_WAIT_MS;
     }
-    if (selectRunToolsetsWithModel && !isChatGptProRunOptions(runOptions)) {
+    const forcedModelFirstSelection = objectValue(runOptions.modelFirstToolsetSelection, null);
+    const forcedSelectedToolsets = dedupe(
+      forcedModelFirstSelection?.selectedToolsets
+      || forcedModelFirstSelection?.selected_toolsets
+      || [],
+    );
+    const skipModelFirstSelector = Boolean(
+      forcedSelectedToolsets.length
+      && (
+        runOptions.skipModelFirstToolsetSelection
+        || forcedModelFirstSelection?.skipSelector
+        || forcedModelFirstSelection?.force
+      ),
+    );
+    if (skipModelFirstSelector) {
+      const selection = Object.assign({}, forcedModelFirstSelection, {
+        enabled: true,
+        ok: true,
+        reason: cleanString(forcedModelFirstSelection.reason) || "forced_model_first_toolsets",
+        selectedToolsets: forcedSelectedToolsets,
+        authorizedToolsets: dedupe(forcedModelFirstSelection.authorizedToolsets || forcedModelFirstSelection.authorized_toolsets || forcedSelectedToolsets),
+        durationMs: Math.max(0, Number(forcedModelFirstSelection.durationMs || forcedModelFirstSelection.duration_ms || 0) || 0),
+      });
+      request = appendToolsetEscalationInstructions(request, selection, forcedSelectedToolsets);
+      request.toolsetRouting = request.runPolicy?.toolset_routing || request.toolsetRouting || toolsetSelectionRouting(selection, forcedSelectedToolsets);
+      request.runPolicy = Object.assign({}, request.runPolicy || {}, { toolset_routing: request.toolsetRouting });
+      request.body.access_policy_context = Object.assign({}, request.body.access_policy_context || {}, { toolset_routing: request.toolsetRouting });
+      applyAssistantRunOptions(assistantMessage, request, runOptions);
+      appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_done", toolsetSelectionPreview(selection, forcedSelectedToolsets));
+    } else if (selectRunToolsetsWithModel && !isChatGptProRunOptions(runOptions)) {
       appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_started", "");
       let selection = null;
       try {
