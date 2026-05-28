@@ -93,6 +93,15 @@ sandbox.state.actionInboxDetail = { item: legacyDeepLinkTodo, events: [] };
 const legacyTodoDetailHtml = ui.renderActionInboxDetail();
 assert.doesNotMatch(legacyTodoDetailHtml, /data-action-inbox-open-source/);
 assert.doesNotMatch(legacyTodoDetailHtml, /\u6253\u5f00\u6765\u6e90/);
+assert.match(legacyTodoDetailHtml, /class="action-inbox-state-badge action-inbox-state-action open"/);
+assert.match(legacyTodoDetailHtml, /data-action-inbox-actions-id="ainb-todo-legacy"/);
+assert.doesNotMatch(legacyTodoDetailHtml, /class="action-inbox-status/);
+
+sandbox.state.actionInboxActionMenuItemId = "ainb-todo-legacy";
+const legacyTodoDetailMenuHtml = ui.renderActionInboxDetail();
+assert.match(legacyTodoDetailMenuHtml, /class="action-inbox-action-sheet-layer"/);
+assert.match(legacyTodoDetailMenuHtml, /data-action-inbox-menu-action="complete"/);
+sandbox.state.actionInboxActionMenuItemId = "";
 
 const legacyTitle = Object.assign({}, openTodo, {
   title: "吃药 2026-05-27T08:00:00.000Z",

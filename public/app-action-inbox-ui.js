@@ -432,13 +432,15 @@ function renderActionInboxDetail() {
   const title = actionInboxDisplayTitle(item);
   const summary = actionInboxDisplaySummary(item);
   const dueText = actionInboxTodoDueText(item);
+  const tone = actionInboxStatusTone(item.status);
+  const statusMenuOpen = state.actionInboxActionMenuItemId === item.id;
   return `<section class="action-inbox-detail" aria-label="${"\u6536\u4ef6\u8be6\u60c5"}">
     <h3>${escapeHtml(title || item.id || "\u6536\u4ef6")}</h3>
     ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
     <div class="action-inbox-detail-meta">
       <span class="action-inbox-source-badge ${escapeHtml(actionInboxSourceTone(item.sourceType))}">${"\u6765\u6e90\uff1a"}${escapeHtml(actionInboxSourceLabel(item.sourceType))}</span>
       <span class="action-inbox-type-badge">${"\u7c7b\u578b\uff1a"}${escapeHtml(actionInboxTypeLabel(item.itemType))}</span>
-      <span class="action-inbox-status ${escapeHtml(actionInboxStatusTone(item.status))}">${escapeHtml(actionInboxStatusLabel(item.status))}</span>
+      <button class="action-inbox-state-badge action-inbox-state-action ${escapeHtml(tone)}" type="button" data-action-inbox-actions-id="${escapeHtml(item.id || "")}" aria-haspopup="menu" aria-expanded="${statusMenuOpen ? "true" : "false"}" aria-label="${escapeHtml(`\u72b6\u6001\uff1a${actionInboxStatusLabel(item.status)}\uff0c\u6253\u5f00\u5904\u7406\u65b9\u5f0f`)}">${escapeHtml(actionInboxStatusActionLabel(item))}</button>
       ${dueText ? `<span>${"\u622a\u6b62\uff1a"}${escapeHtml(dueText)}</span>` : ""}
       <span>${"\u66f4\u65b0\uff1a"}${escapeHtml(formatTime(item.updatedAt || item.createdAt) || item.updatedAt || item.createdAt || "")}</span>
     </div>
@@ -449,7 +451,7 @@ function renderActionInboxDetail() {
         <time>${escapeHtml(formatTime(event.createdAt) || event.createdAt || "")}</time>
       </div>`).join("")}
     </div>` : ""}
-  </section>`;
+  </section>${renderActionInboxActionSheet()}`;
 }
 
 function renderActionInboxCreatePanel() {

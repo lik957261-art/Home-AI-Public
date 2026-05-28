@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-growth-card-share-detail-v327";
+const CLIENT_VERSION = "20260528-inbox-topic-detail-v328";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -465,9 +465,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-growth-card-share-detail-v327/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-growth-card-share-detail-v327/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-growth-card-share-detail-v327/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-topic-detail-v328/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-topic-detail-v328/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-topic-detail-v328/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -731,7 +731,7 @@ assert.doesNotMatch(stylesCss, /\.skill-detail-close/);
 assert.match(stylesCss, /\.skill-analysis-card/);
 assert.match(stylesCss, /\.skill-analysis-fix/);
 assert.match(taskArtifactHelpersJs, /return \[\.\.\.groups\.values\(\)\]\.sort\(\(a, b\) => String\(b\.updatedAt\)\.localeCompare\(String\(a\.updatedAt\)\)\);/);
-assert.match(appJs, /const allGroups = taskListGroupsForThread\(thread\)\s+\.concat\(sharedCaseTopicGroupsForTaskList\(thread\)\)\s+\.sort/);
+assert.match(appJs, /const allGroups = taskListGroupsForThread\(thread\)\s+\.filter\(topicGroupVisibleInTaskList\)\s+\.concat\(sharedCaseTopicGroupsForTaskList\(thread\)\)\s+\.sort/);
 assert.match(appJs, /const displayGroups = allGroups\.slice\(\);/);
 assert.equal(appJs.includes("allGroups.slice().reverse()"), false);
 assert.ok(taskArtifactHelpersJs.includes("(?:\\/[A-Za-z0-9_.-]+)+"));
@@ -1319,6 +1319,8 @@ assert.match(appJs, /function rememberTaskListThread\(thread = state\.currentThr
 assert.match(appJs, /function restoreTaskListThreadFromCache\(options = \{\}\)/);
 assert.match(appJs, /function scheduleTaskListWindowRefresh\(\)/);
 assert.match(appJs, /function sharedCaseTopicGroupsForTaskList\(currentThread\)/);
+assert.match(appJs, /function topicGroupVisibleInTaskList\(group = \{\}\)/);
+assert.match(appJs, /kanbanStoryCaseFullyArchived\(story\)/);
 assert.doesNotMatch(appJs, /const visibleTaskGroups = taskListGroupsForThread\(state\.currentThread\)\s+\.concat\(sharedCaseTopicGroupsForTaskList\(state\.currentThread\)\)/);
 assert.match(appJs, /function currentTaskThreadIsSharedTopicThread\(\)/);
 assert.match(appJs, /const reloadTaskWindow = currentTaskThreadIsSharedTopicThread\(\)/);

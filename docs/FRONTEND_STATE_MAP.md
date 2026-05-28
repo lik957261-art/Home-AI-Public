@@ -107,6 +107,10 @@ Use this file to locate the responsible frontend files before debugging a screen
 - Composer: `public/app-chat-composer-ui.js`, `public/app-composer-send-ui.js`, `public/app-composer-context-ui.js`, `public/app-composer-source-ui.js`
 - Thread list/message rendering: `public/app-thread-list-ui.js`, `public/app-thread-message-ui.js`, `public/app-thread-card-message-ui.js`
 - Task group UI: `public/app-task-groups-ui.js`, `public/app-task-preview-ui.js`
+- Topic root lists should filter out retired Kanban case-topic groups once the
+  Kanban snapshot confirms the bound case id is missing or fully archived. This
+  applies before rendering both first-party topic groups and shared case-topic
+  groups.
 - Message actions, Usage, Skill, and terminal run-status chips: `public/app-message-actions-ui.js`, `public/app-message-usage-ui.js`, `public/app-message-skill-ui.js`, `public/app-run-progress-ui.js`
 - Search: `public/app-navigation-search-ui.js`
 - Group/topic UI: `public/app-group-topic-ui.js`
@@ -152,6 +156,8 @@ Use this file to locate the responsible frontend files before debugging a screen
   the viewport action sheet; do not add a separate right-side `处理` button. The
   visible badge should show the actual status label and read like compact
   metadata, not a filled command pill.
+- Inbox detail must reuse the same compact status-action badge and action sheet
+  as the list. Do not render a larger legacy status pill on the secondary page.
 - Inbox root page-level actions live in the top-right overflow menu. Inbox detail/create are secondary states and should use shared top-left back plus right-swipe back, not inline duplicate back/title controls.
 
 ## Kanban/Todo

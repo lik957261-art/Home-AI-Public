@@ -268,6 +268,7 @@ function taskGroupHasPendingMessages(thread = state.currentThread, taskGroupId =
 
 function renderTaskWindow(thread, conversation, options, bottomOffset) {
   const allGroups = taskListGroupsForThread(thread)
+    .filter(topicGroupVisibleInTaskList)
     .concat(sharedCaseTopicGroupsForTaskList(thread))
     .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
   const displayGroups = allGroups.slice();

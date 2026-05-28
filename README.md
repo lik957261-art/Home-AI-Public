@@ -73,6 +73,36 @@ Validation for this public release:
 - public export privacy scan
 - public repository CI for `v1.0.2`
 
+## 2026-05-28 Public Update
+
+This update refreshes the public tree from the current Hermes Mobile source.
+The exact source commit is recorded in `.public-export-report.json`.
+
+Highlights:
+
+- Adds Growth learning-card image sharing and simplifies Growth card detail
+  layout for mobile reading.
+- Improves run-status UI history, stream terminal recovery, toolset escalation,
+  and mobile status popover behavior.
+- Tightens Action Inbox low-click flows: automation deliverables can be opened
+  directly, status actions use compact badges, manual Todo legacy Kanban links
+  are suppressed, and Inbox detail now reuses the same compact status/action
+  control as the list.
+- Hides retired Kanban case-topic groups from the root topic list once the
+  Kanban snapshot confirms the bound case is missing or fully archived.
+- Stabilizes Gateway profile ordering so dedicated Grok profiles keep their
+  intended position when additional user workspaces are added.
+- Adds task-terminal Web Push duplicate-send prevention and expands the
+  public harness rules for Web Push, Action Inbox, topic navigation, Gateway
+  toolset selection, and startup scripts.
+
+Validation for this public update:
+
+- `npm.cmd run productization:check`
+- `node scripts/privacy-scan.js`
+- `node tests/public-export.test.js`
+- public export privacy scan
+
 ## 2026-05-12 Public Update
 
 本次 public tree 的具体 private source commit 由 `.public-export-report.json`

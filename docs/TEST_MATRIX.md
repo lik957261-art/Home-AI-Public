@@ -204,6 +204,10 @@ surface. If legacy data carries `/?view=todos...` or `todoId` deep links,
 projection tests must assert the detail page does not render `Open source`, row
 navigation does not call the internal route helper, and back navigation never
 lands in the retired official Kanban/Todo compatibility surface.
+The same compact source/type/status action contract applies to the Inbox detail
+secondary page, not only the root list: the detail meta row must reuse the same
+status-action badge and action-sheet path instead of rendering a larger legacy
+status pill or separate process button.
 The Inbox visual harness must also cover adjacent row badges/actions: `来源`,
 `类型`, and status-action labels in the same meta row must share height,
 padding, font family, font size, font weight, line-height, and letter spacing.
@@ -290,6 +294,10 @@ frontend scroll target consumption after chat/topic messages render.
 For secondary-page return bugs, the harness must also cover async race
 conditions: a late response from the page being left must not repaint that page
 after the return target has already been restored.
+Topic-list harnesses must cover retired Kanban case-topic cleanup: after the
+Kanban card snapshot confirms a bound case id is missing or fully archived, that
+old case-topic group must not remain visible in the root topic list. The same
+filter must apply to first-party topic groups and shared case-topic groups.
 
 ## CodeGraph-Assisted Test Selection
 

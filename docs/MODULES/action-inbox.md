@@ -195,6 +195,10 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
   `处理` button, because it duplicates the state badge and compresses mobile row
   content. Source and file navigation should stay on the title/main area and the
   explicit deliverable file tag, not inside the processing sheet.
+- Inbox detail is a secondary surface but must reuse the same compact
+  source/type/status-action badge system as the list. It must not render a
+  larger legacy status pill or a separate process button, because the user
+  should see the same action vocabulary before and after opening the detail.
 - In the default open Inbox list, the visible status/action control must show
   the real state label such as `待处理`, not a generic command label like `处理`.
   It should read as compact metadata subordinate to the source/type badges:
