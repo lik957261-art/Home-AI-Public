@@ -327,8 +327,15 @@ const terminalHistoryThread = {
       event: "run.request_sent",
       tool: "hermes_mobile",
       timestamp: "2026-05-27T13:05:00.500Z",
-      preview: "",
+      preview: "first terminal row",
     },
+    ...Array.from({ length: 13 }, (_value, index) => ({
+      runId: "resp_terminal_history",
+      event: "run.context_ready",
+      tool: "hermes_mobile",
+      timestamp: `2026-05-27T13:05:${String(index + 1).padStart(2, "0")}.200Z`,
+      preview: `history row ${index + 1}`,
+    })),
     {
       runId: "resp_terminal_history",
       event: "run.model_stream_started",
@@ -351,7 +358,9 @@ assert.match(terminalHistoryHtml, /run-progress-history/);
 assert.match(terminalHistoryHtml, /\u6a21\u578b\u72b6\u6001/);
 assert.match(terminalHistoryHtml, /run-progress-panel inline terminal/);
 assert.match(terminalHistoryHtml, /\u8fd0\u884c\u8bb0\u5f55/);
-assert.match(terminalHistoryHtml, /3 events/);
+assert.match(terminalHistoryHtml, /16 events/);
+assert.match(terminalHistoryHtml, /first terminal row/);
+assert.ok(terminalHistoryHtml.indexOf("first terminal row") < terminalHistoryHtml.indexOf("\u5904\u7406\u5b8c\u6210"));
 assert.doesNotMatch(terminalHistoryHtml, /\u4ecd\u5728\u8fd0\u884c/);
 
 const unnamedFunctionThread = {
@@ -386,7 +395,7 @@ const unnamedFunctionThread = {
   ],
 };
 const unnamedHtml = renderMessageRunProgress(unnamedFunctionThread, unnamedFunctionThread.messages[0]);
-assert.match(unnamedHtml, />Function</);
+assert.doesNotMatch(unnamedHtml, />Function</);
 assert.doesNotMatch(unnamedHtml, /Function Function/);
 
 const unrelatedActiveThread = {

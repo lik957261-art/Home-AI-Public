@@ -262,10 +262,10 @@ Required harness dimensions:
   layer must still preserve policy boundaries and must not grant any of those
   toolsets when absent from the authorized toolset list.
 - Harness scenarios must also assert that model-first narrowing cannot split
-  this wardrobe companion set. If the selector chooses `wardrobe` from a
-  suggested authorized `wardrobe`/`vision`/`file` set, execution must keep
-  `vision` and `file` with it so image-backed wardrobe checks do not degrade
-  into a preventable toolset-escalation result.
+  this wardrobe companion set. If the selector chooses any member of a suggested
+  authorized `wardrobe`/`vision`/`file` set, execution must keep all authorized
+  companions with it so image-backed wardrobe checks and Markdown/file receipts
+  do not degrade into a preventable toolset-escalation result.
 - The negative case is also required: a single-window chat or topic with no
   resolved directory binding must not crash while reading the directory route.
   It should continue through the normal lightweight chat suggestion path.
@@ -361,7 +361,16 @@ Required harness dimensions:
 - Terminal assistant receipts must keep run-progress detail available without
   occupying the main reply surface. The completed model status should collapse
   into a small footer tag comparable to Usage/Skill, and expanding it should
-  show historical rows without a misleading "still running" quiet row.
+  show historical rows from the first retained event, in chronological order,
+  without a misleading "still running" quiet row. On portrait mobile, the
+  expanded history panel must stay inside the viewport and be scrollable.
+- Skill footer tags must be evidence-based. Do not add a synthetic response or
+  fallback Skill merely because an assistant response completed; render Skill
+  only when a real loaded Skill or `skill_view` event is present.
+- Function-call projection must not render unnamed generic function rows. If a
+  concrete function name cannot be recovered from the event, preview JSON,
+  `callId` pair, or tool field, omit that function row instead of showing a
+  generic `Function` label.
 
 Primary docs and tests:
 

@@ -1873,6 +1873,8 @@ button {
   width: 100%;
   margin: 12px 0 0;
   box-shadow: none;
+  overflow-anchor: none;
+  contain: layout paint;
 }
 
 .run-progress-panel.compact-after-output {
@@ -3008,8 +3010,14 @@ button.directory-alias-chip {
 
 @media (max-width: 720px) {
   .run-progress-history-details {
-    width: min(320px, calc(100vw - 24px));
-    max-height: min(300px, 48vh);
+    position: fixed;
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    bottom: calc(var(--mobile-bottom-nav-reserved-height) + 12px);
+    width: auto;
+    max-height: min(420px, 58vh);
+    transform: none;
+    overscroll-behavior: contain;
   }
 
   .message-skill-details {

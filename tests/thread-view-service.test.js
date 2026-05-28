@@ -335,7 +335,6 @@ function testCompactMessage(subject) {
   assert.equal(got.taskGroupId, "task-a");
   assert.equal(got.messageKind, "ai");
   assert.deepEqual(got.loadedSkills, [
-    { id: "response-grounding-baseline", label: "response-grounding-baseline", path: "response-grounding-baseline", namespace: "" },
     { id: "write", label: "write", path: "productivity/write", namespace: "productivity" },
   ]);
   assert.deepEqual(got.loadedTools, [{ id: "x_search", name: "x_search", label: "x_search" }]);
@@ -369,9 +368,7 @@ function testCompactMessage(subject) {
     messageId: "orphan-weixin",
   });
   assert.equal(fallback.artifacts[0].threadId, "thread-view");
-  assert.deepEqual(fallback.loadedSkills, [
-    { id: "response-grounding-baseline", label: "response-grounding-baseline", path: "response-grounding-baseline", namespace: "" },
-  ]);
+  assert.deepEqual(fallback.loadedSkills, []);
 
   const toolFallback = compactMessage({
     id: "tool-fallback",
@@ -386,9 +383,7 @@ function testCompactMessage(subject) {
       { event: "response.output_item.done", runId: "other", tool: "function_call", preview: "{\"name\":\"web_search\"}" },
     ],
   }));
-  assert.deepEqual(toolFallback.loadedSkills, [
-    { id: "response-grounding-baseline", label: "response-grounding-baseline", path: "response-grounding-baseline", namespace: "" },
-  ]);
+  assert.deepEqual(toolFallback.loadedSkills, []);
   assert.deepEqual(toolFallback.loadedTools, [{ id: "x_search", name: "x_search", label: "x_search" }]);
 
   const notWeixin = compactMessage({

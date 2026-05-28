@@ -60,7 +60,8 @@ function expandSelectedToolsetsWithCompanions(selectedToolsets = [], policy = {}
   const selectedSet = new Set(selected);
   const wardrobeCompanions = ["wardrobe", "vision", "file"];
   const hasWardrobeCompanionSuggestion = wardrobeCompanions.every((toolset) => suggested.includes(toolset));
-  if (!hasWardrobeCompanionSuggestion || !selectedSet.has("wardrobe")) return selected;
+  const selectedAnyWardrobeCompanion = wardrobeCompanions.some((toolset) => selectedSet.has(toolset));
+  if (!hasWardrobeCompanionSuggestion || !selectedAnyWardrobeCompanion) return selected;
   const companionSet = new Set(wardrobeCompanions.filter((toolset) => allowed.has(toolset)));
   const companionSelected = suggested.filter((toolset) => companionSet.has(toolset));
   const restSelected = selected.filter((toolset) => !companionSet.has(toolset));

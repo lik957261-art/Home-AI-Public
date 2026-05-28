@@ -1,5 +1,7 @@
 "use strict";
 
+const MESSAGE_SKILL_HIDDEN_FALLBACKS = new Set(["response", "response-grounding-baseline"]);
+
 function parseMessageSkillObject(value) {
   const text = String(value || "").trim();
   if (!text) return null;
@@ -30,6 +32,7 @@ function normalizeMessageSkillPath(value) {
   const skillRoot = text.match(/(?:^|\/)skills\/(.+?)(?:\/SKILL\.md)?$/i);
   if (skillRoot) text = skillRoot[1];
   text = text.replace(/\/SKILL\.md$/i, "").replace(/^skills\//i, "").replace(/^\/+|\/+$/g, "");
+  if (MESSAGE_SKILL_HIDDEN_FALLBACKS.has(text.toLowerCase())) return "";
   if (!/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/.test(text)) return "";
   return text.slice(0, 240);
 }

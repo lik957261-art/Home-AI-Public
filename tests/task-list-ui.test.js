@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-inbox-action-sheet-v307";
+const CLIENT_VERSION = "20260528-runstatus-toolsets-v308";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -432,9 +432,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-action-sheet-v307/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-action-sheet-v307/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-action-sheet-v307/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-runstatus-toolsets-v308/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-runstatus-toolsets-v308/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-runstatus-toolsets-v308/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -539,8 +539,11 @@ assert.match(appJs, /consumeChatRouteScrollTarget\(displayMessages\)/);
 assert.match(appJs, /if \(requested\) return "";/);
 assert.match(appJs, /function renderMessageRunProgressHistory\(thread, message = \{\}, options = \{\}\)/);
 assert.match(appJs, /const runProgressHistory = typeof renderMessageRunProgressHistory === "function"/);
+assert.match(appJs, /function wireRunProgressHistoryPanels\(root\)/);
+assert.match(appJs, /MESSAGE_SKILL_HIDDEN_FALLBACKS = new Set\(\["response", "response-grounding-baseline"\]\)/);
 assert.match(stylesCss, /\.message-footer-row \.run-progress-history/);
 assert.match(stylesCss, /\.run-progress-history-details \{[\s\S]*?width: min\(520px, calc\(100vw - 24px\)\)/);
+assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.run-progress-history-details \{[\s\S]*?position: fixed;[\s\S]*?bottom: calc\(var\(--mobile-bottom-nav-reserved-height\) \+ 12px\);/);
 assert.match(appJs, /function handleAppForegrounded\(\)[\s\S]*scheduleConversationViewportRefresh\(\)/);
 assert.match(appJs, /function handleViewportLayoutChange\(event = null\)[\s\S]*scheduleConversationViewportRefresh/);
 assert.match(appJs, /orientationSettle: orientationEvent/);
@@ -572,7 +575,7 @@ assert.match(appJs, /RUN_PROGRESS_RENDER_THROTTLE_MS = 750/);
 assert.match(appJs, /RUN_PROGRESS_START_EVENT_REVEAL_MS = 1000/);
 assert.match(appJs, /RUN_PROGRESS_TERMINAL_STATUSES = new Set\(\["done", "failed", "cancelled"\]\)/);
 assert.match(appJs, /function runProgressVisibleEvents\(events = \[\], startMs = 0, now = Date\.now\(\)\)/);
-assert.match(appJs, /function runProgressDisplayEvents\(events = \[\], startMs = 0\)/);
+assert.match(appJs, /function runProgressDisplayEvents\(events = \[\], startMs = 0, options = \{\}\)/);
 assert.match(appJs, /"run\.toolset_selection_started"/);
 assert.match(appJs, /"run\.toolset_selection_done"/);
 assert.match(appJs, /"run\.toolset_selection_failed"/);
@@ -646,6 +649,7 @@ assert.match(stylesCss, /\.message-action-strip\s*\{[\s\S]*?flex:\s*0 0 72px;[\s
 assert.match(stylesCss, /\.message-footer-row\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*72px minmax\(0, 1fr\);[\s\S]*?min-height:\s*34px;/);
 assert.match(stylesCss, /\.message-footer-meta\s*\{[\s\S]*?grid-column:\s*2;[\s\S]*?display:\s*flex;/);
 assert.match(appMessageActionsUiJs, /dataset\.messageScrollButtonVisible/);
+assert.match(appMessageActionsUiJs, /root\.matches\?\.\([^)]*message\[data-message-id\]/);
 assert.match(appMessageActionsUiJs, /hasRunProgress/);
 assert.match(appMessageActionsUiJs, /\.run-progress-panel\.inline:not\(\.terminal\)/);
 assert.match(appMessageActionsUiJs, /!hasRunProgress && \(/);

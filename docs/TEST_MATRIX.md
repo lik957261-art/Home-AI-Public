@@ -163,11 +163,15 @@ Gateway event-service tests must also cover both `item` and `output_item`
 payload shapes so function names are preserved while raw arguments and raw tool
 outputs remain excluded. Once streamed text begins, run-progress UI tests must
 assert the inline panel switches to compact display unless a later tool
-operation has started. UI fallback tests must assert unnamed function events do
-not render duplicated labels such as `Function Function`.
+operation has started. UI fallback tests must assert unnamed function events are
+omitted instead of rendering generic labels such as `Function` or duplicated
+labels such as `Function Function`.
 Terminal assistant receipts must collapse completed run-progress details into a
-footer tag similar to Usage/Skill; opening the tag shows historical rows, while
-terminal history must not render an ongoing quiet/still-running row.
+footer tag similar to Usage/Skill; opening the tag shows historical rows from
+the first retained event, remains scrollable and inside the portrait viewport,
+while terminal history must not render an ongoing quiet/still-running row. Skill
+footer tests must assert no synthetic response fallback Skill is projected when
+no real Skill was loaded.
 
 For same-window navigation and browser-frame bugs, the required harness must
 cover both root-mounted and prefix-mounted app-shell paths. If the issue is

@@ -193,7 +193,7 @@ function runEventOperationKind(event) {
 function runEventOperationName(event) {
   const kind = runEventOperationKind(event);
   if (kind === "skill") return runEventSkillName(event) || "Skill";
-  if (kind === "function") return runEventFunctionName(event) || "Function";
+  if (kind === "function") return runEventFunctionName(event);
   return "";
 }
 
@@ -231,6 +231,7 @@ function runProgressCompactOperationEvents(events = []) {
   for (const event of Array.isArray(events) ? events : []) {
     const tool = String(event?.tool || "").trim().toLowerCase();
     const eventName = String(event?.event || "");
+    if (runEventOperationKind(event) === "function" && !runEventFunctionName(event)) continue;
     if (eventName === "response.output_item.done" && tool === "function_call") continue;
     if (eventName === "response.output_item.added" && tool === "function_call_output") continue;
     if (isRunOperationStartEvent(event)) {
@@ -376,9 +377,10 @@ function runProgressVisibleEvents(events = [], startMs = 0, now = Date.now()) {
   });
 }
 
-function runProgressDisplayEvents(events = [], startMs = 0) {
+function runProgressDisplayEvents(events = [], startMs = 0, options = {}) {
   const visible = runProgressVisibleEvents(events, startMs)
     .filter((event) => !RUN_PROGRESS_HIDDEN_EVENTS.has(String(event?.event || "")));
+  if (options.all) return visible;
   return visible.slice(-RUN_PROGRESS_MAX_VISIBLE_EVENTS);
 }
 
@@ -544,9 +546,11 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
   const startMs = runProgressStartMs(thread, ids, allEvents);
   const compactAfterOutput = !options.terminal && shouldCompactRunProgressAfterOutput(allEvents);
   const compactedEvents = runProgressCompactOperationEvents(runProgressEventsWithFunctionNames(allEvents));
-  const events = compactAfterOutput
-    ? runProgressDisplayEvents(compactedEvents, startMs).slice(-2)
-    : runProgressDisplayEvents(compactedEvents, startMs);
+  const events = options.terminal
+    ? runProgressDisplayEvents(compactedEvents, startMs, { all: true })
+    : (compactAfterOutput
+      ? runProgressDisplayEvents(compactedEvents, startMs).slice(-2)
+      : runProgressDisplayEvents(compactedEvents, startMs));
   const eventTimes = allEvents.map((event) => runProgressTimestampMs(event.timestamp)).filter(Boolean);
   const lastEventMs = eventTimes.length ? Math.max(...eventTimes) : 0;
   const quietRow = options.terminal ? "" : renderRunProgressQuietRow(lastEventMs, startMs);
@@ -613,6 +617,32 @@ function renderMessageRunProgressHistory(thread, message = {}, options = {}) {
     <summary aria-label="${escapeHtml(title)}">\u6a21\u578b\u72b6\u6001</summary>
     <div class="run-progress-history-details">${panel}</div>
   </details>`;
+}
+
+function updateExistingRunProgressPanel(existing, html) {
+  if (!existing || !html) return false;
+  if (existing.outerHTML === html) return true;
+  if (typeof document === "undefined" || typeof document.createElement !== "function") {
+    existing.outerHTML = html;
+    return true;
+  }
+  const template = document.createElement("template");
+  template.innerHTML = html.trim();
+  const next = template.content?.firstElementChild;
+  if (!next) return false;
+  existing.className = next.className;
+  existing.setAttribute("aria-live", next.getAttribute("aria-live") || "polite");
+  const existingHead = existing.querySelector(".run-progress-head");
+  const nextHead = next.querySelector(".run-progress-head");
+  if (existingHead && nextHead && existingHead.innerHTML !== nextHead.innerHTML) {
+    existingHead.innerHTML = nextHead.innerHTML;
+  }
+  const existingRows = existing.querySelector(".run-progress-rows");
+  const nextRows = next.querySelector(".run-progress-rows");
+  if (existingRows && nextRows && existingRows.innerHTML !== nextRows.innerHTML) {
+    existingRows.innerHTML = nextRows.innerHTML;
+  }
+  return true;
 }
 
 function messageForRunProgress(thread, runId) {
@@ -692,7 +722,7 @@ function renderMessageRunProgressInPlace(thread, message = {}, options = {}) {
     return true;
   }
   if (existing) {
-    existing.outerHTML = html;
+    updateExistingRunProgressPanel(existing, html);
   } else {
     const content = body.querySelector(".text-content");
     if (content) content.insertAdjacentHTML("afterend", html);

@@ -10,12 +10,6 @@ function cleanString(value) {
   return String(value || "").trim();
 }
 
-const DEFAULT_RESPONSE_SKILL = Object.freeze({
-  id: "response-grounding-baseline",
-  label: "response-grounding-baseline",
-  path: "response-grounding-baseline",
-  namespace: "",
-});
 const TOOLSET_ESCALATION_MARKER = "HERMES_TOOLSET_ESCALATION_REQUIRED";
 
 function compactFallback(value) {
@@ -673,7 +667,6 @@ function createGatewayRunEventService(options = {}) {
       message,
     );
     message.loadedSkills = mergeLoadedSkills(
-      DEFAULT_RESPONSE_SKILL,
       message.loadedSkills,
       loadedSkillsForRun(thread, [
         runId,

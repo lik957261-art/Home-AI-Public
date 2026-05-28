@@ -12,13 +12,6 @@ function normalizeTaskGroupMetaFallback(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
 }
 
-const DEFAULT_RESPONSE_SKILL = Object.freeze({
-  id: "response-grounding-baseline",
-  label: "response-grounding-baseline",
-  path: "response-grounding-baseline",
-  namespace: "",
-});
-
 function normalizeLoadedSkill(value = {}) {
   const path = String(value.path || value.skillPath || value.name || value.id || "").trim();
   if (!path) return null;
@@ -35,9 +28,6 @@ function normalizeLoadedSkill(value = {}) {
 
 function loadedSkillsForPublicMessage(message = {}) {
   const byPath = new Map();
-  if (message.role === "assistant") {
-    byPath.set(DEFAULT_RESPONSE_SKILL.path, Object.assign({}, DEFAULT_RESPONSE_SKILL));
-  }
   for (const item of Array.isArray(message.loadedSkills) ? message.loadedSkills : []) {
     const skill = normalizeLoadedSkill(item);
     if (skill && !byPath.has(skill.path)) byPath.set(skill.path, skill);

@@ -7,13 +7,6 @@ const {
   findRunTargetInState,
 } = require("../adapters/gateway-run-event-service");
 
-const DEFAULT_RESPONSE_SKILL = {
-  id: "response-grounding-baseline",
-  label: "response-grounding-baseline",
-  path: "response-grounding-baseline",
-  namespace: "",
-};
-
 function makeHarness(overrides = {}) {
   const thread = {
     id: "thread_1",
@@ -232,7 +225,7 @@ function testCompletedRunPersistsLoadedSkillReferences() {
   });
 
   assert.equal(result.action, "completed");
-  assert.deepEqual(message.loadedSkills, [DEFAULT_RESPONSE_SKILL, {
+  assert.deepEqual(message.loadedSkills, [{
     id: "write",
     label: "write",
     path: "productivity/write",
@@ -267,7 +260,7 @@ function testOutputItemSkillPersistsBeforeCompletionAndSurvivesEventTrim() {
     output: "Final",
   });
 
-  assert.deepEqual(message.loadedSkills, [DEFAULT_RESPONSE_SKILL, {
+  assert.deepEqual(message.loadedSkills, [{
     id: "write",
     label: "write",
     path: "productivity/write",
@@ -291,7 +284,7 @@ function testCompletedResponseOutputBackfillsLoadedSkillReferences() {
     },
   });
 
-  assert.deepEqual(message.loadedSkills, [DEFAULT_RESPONSE_SKILL, {
+  assert.deepEqual(message.loadedSkills, [{
     id: "english-weekly-challenge",
     label: "english-weekly-challenge",
     path: "study-templates/english-weekly-challenge",
@@ -299,7 +292,7 @@ function testCompletedResponseOutputBackfillsLoadedSkillReferences() {
   }]);
 }
 
-function testCompletedRunBackfillsDefaultResponseSkillAndTools() {
+function testCompletedRunBackfillsLoadedToolsWithoutDefaultSkill() {
   const { message, service } = makeHarness();
   service.applyHermesRunEvent({
     event: "response.output_item.added",
@@ -323,7 +316,7 @@ function testCompletedRunBackfillsDefaultResponseSkillAndTools() {
     },
   });
 
-  assert.deepEqual(message.loadedSkills, [DEFAULT_RESPONSE_SKILL]);
+  assert.deepEqual(message.loadedSkills, []);
   assert.deepEqual(message.loadedTools, [{ id: "x_search", name: "x_search", label: "x_search" }]);
 }
 
@@ -350,7 +343,7 @@ function testHostedSearchOutputItemBackfillsToolTag() {
     },
   });
 
-  assert.deepEqual(message.loadedSkills, [DEFAULT_RESPONSE_SKILL]);
+  assert.deepEqual(message.loadedSkills, []);
   assert.deepEqual(message.loadedTools, [{ id: "web_search_call", name: "web_search_call", label: "web_search_call" }]);
 }
 
@@ -614,7 +607,7 @@ testCompletedRunMutatesTerminalStateAndSchedulesQueue();
 testCompletedRunPersistsLoadedSkillReferences();
 testOutputItemSkillPersistsBeforeCompletionAndSurvivesEventTrim();
 testCompletedResponseOutputBackfillsLoadedSkillReferences();
-testCompletedRunBackfillsDefaultResponseSkillAndTools();
+testCompletedRunBackfillsLoadedToolsWithoutDefaultSkill();
 testHostedSearchOutputItemBackfillsToolTag();
 testCompletedRunUsageKeepsRequestedModelMetadata();
 testOutputItemEventsStoreReadableSummariesOnly();

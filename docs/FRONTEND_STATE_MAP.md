@@ -1,6 +1,6 @@
 # Hermes Mobile Frontend State Map
 
-Last updated: 2026-05-27.
+Last updated: 2026-05-28.
 
 Use this file to locate the responsible frontend files before debugging a screenshot or mobile UI report.
 
@@ -36,9 +36,9 @@ Use this file to locate the responsible frontend files before debugging a screen
     scrolled away.
   - Function-call rows should show the concrete function name whenever the
     event preview, tool field, or paired `callId` makes it available. Generic
-    `Function` labels are only acceptable when the Gateway event does not expose
-    enough metadata to identify the function, and the UI must not render a
-    duplicated fallback such as `Function Function`.
+    `Function` labels are not useful; if the Gateway event does not expose
+    enough metadata to identify the function, the UI should omit that function
+    row instead of rendering a fallback such as `Function` or `Function Function`.
   - Paired Skill/function start and done events should render as one compact
     operation row with status and elapsed operation time. The frontend should
     preserve raw event order internally but avoid adjacent duplicate visible
@@ -56,8 +56,11 @@ Use this file to locate the responsible frontend files before debugging a screen
     compact display so streamed assistant text remains visible.
   - After an assistant receipt reaches a terminal state, detailed run-progress
     rows should collapse into a small `模型状态` footer tag next to Usage/Skill.
-    Opening the tag shows the historical rows; terminal history must not keep a
-    visible "still running" quiet row.
+    Opening the tag shows historical rows from the first retained event, keeps
+    the panel inside the portrait viewport, and remains scrollable. Terminal
+    history must not keep a visible "still running" quiet row.
+  - Skill footer tags are evidence-based. Do not synthesize a Response Skill
+    fallback when no real Skill was loaded or no `skill_view` event exists.
 - Static shell/cache: `public/index.html`, `public/service-worker.js`, `public/directory-viewer.html`
 
 ## Chat And Topics

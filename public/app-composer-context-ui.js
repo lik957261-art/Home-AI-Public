@@ -37,21 +37,38 @@ function composerPermissionLabel() {
 }
 
 function composerTargetLabel() {
-  if (isChatSearchMode()) return "";
-  if (isWeixinChatView()) return "\u5fae\u4fe1";
-  if (isGroupChatView()) return "\u7fa4\u804a";
-  if (isSingleWindowChatView()) return "\u804a\u5929";
-  if (isSingleWindowView()) return "\u4efb\u52a1\u6d41";
-  if (state.viewMode === "tasks") return state.currentTaskGroupId ? "话题回复" : "新话题";
   return "";
 }
 
-function composerReasoningLabel() {
+function activeComposerAssistantMessage() {
+  return [...composerStatusMessages()].reverse().find((message) => (
+    message?.role === "assistant"
+    && ["queued", "running"].includes(message.status)
+  )) || null;
+}
+
+function composerReasoningCompactText(value = "") {
+  const effort = validTaskReasoningEffort(value || "") || String(value || "").trim().toLowerCase();
+  return effort ? taskReasoningCompactLabel({ value: effort }) : defaultReasoningCompactLabel();
+}
+
+function composerModelReasoningLabel() {
   if (isChatSearchMode()) return "";
   if (state.viewMode !== "single" && state.viewMode !== "tasks") return "";
-  const explicit = selectedComposerReasoningEffort(getComposerText());
-  const compact = explicit ? taskReasoningCompactLabel({ value: explicit }) : defaultReasoningCompactLabel();
-  return `\u63a8\u7406 ${compact}`;
+  const active = activeComposerAssistantMessage();
+  if (active) {
+    const model = String(active.model || active.runOptions?.model || state.defaultModel || assistantDisplayLabel()).trim();
+    const effort = String(active.reasoningEffort || active.reasoning_effort || active.runOptions?.reasoning_effort || state.defaultReasoningEffort || "").trim();
+    return [model, composerReasoningCompactText(effort)].filter(Boolean).join(" · ");
+  }
+  const text = getComposerText();
+  const mentionInfo = composerAiMentionInfo(text);
+  const selected = mentionInfo.modelExplicit
+    ? composerModelOptions().find((option) => option.model === mentionInfo.model && option.provider === mentionInfo.provider) || composerModelOptions()[0]
+    : selectedDefaultComposerModelOption();
+  const model = String(selected.label || selected.model || state.defaultModel || assistantDisplayLabel()).trim();
+  const effort = selectedComposerReasoningEffort(text) || state.defaultReasoningEffort || "";
+  return [model, composerReasoningCompactText(effort)].filter(Boolean).join(" · ");
 }
 
 function composerModelLabel() {
@@ -95,15 +112,31 @@ function messageUsesHighPermissionGateway(message = {}) {
   );
 }
 
+function messageGatewayDisplayName(message = {}) {
+  const direct = String(
+    message.gatewayName
+    || message.gateway_name
+    || message.gatewayProfile
+    || message.gateway_profile
+    || message.gatewaySource
+    || message.gateway_source
+    || "",
+  ).trim();
+  if (direct) return direct;
+  const url = String(message.gatewayUrl || message.gateway_url || "").trim();
+  if (!url) return "";
+  try {
+    return new URL(url).host || url;
+  } catch (_err) {
+    return url;
+  }
+}
+
 function activeRunGatewayPermissionLabel() {
-  const active = [...composerStatusMessages()].reverse().find((message) => (
-    message?.role === "assistant"
-    && ["queued", "running"].includes(message.status)
-  ));
+  const active = activeComposerAssistantMessage();
   if (!active) return null;
-  return messageUsesHighPermissionGateway(active)
-    ? { label: "Gateway 权限 高", tone: "active" }
-    : { label: "Gateway 权限 低" };
+  const gatewayName = messageGatewayDisplayName(active);
+  return gatewayName ? { label: `Gateway ${gatewayName}`, tone: "active" } : null;
 }
 
 function composerGatewayPermissionLabel() {
@@ -111,13 +144,7 @@ function composerGatewayPermissionLabel() {
   if (state.viewMode !== "single" && state.viewMode !== "tasks") return null;
   const activeLabel = activeRunGatewayPermissionLabel();
   if (activeLabel) return activeLabel;
-  if (ownerElevationComposerAvailable() && ownerElevationOnceTagInfo(getComposerText())) {
-    return { label: "Gateway 权限 高（本次）", tone: "active" };
-  }
-  if (ownerElevationActive()) {
-    return { label: "Gateway 权限 高（限时）", tone: "active" };
-  }
-  return { label: "Gateway 权限 低" };
+  return null;
 }
 
 function composerDirectoryLabel() {
@@ -247,14 +274,10 @@ function composerContextItems(counts = composerRunCounts()) {
   if (workspaceLabel) {
     items.push({ label: `${workspaceLabel} \u00b7 ${composerPermissionLabel()}`, tone: "primary" });
   }
-  const targetLabel = composerTargetLabel();
-  if (targetLabel) items.push({ label: targetLabel });
   const gatewayPermissionLabel = composerGatewayPermissionLabel();
   if (gatewayPermissionLabel?.label) items.push(gatewayPermissionLabel);
-  const reasoningLabel = composerReasoningLabel();
-  if (reasoningLabel) items.push({ label: reasoningLabel });
-  const modelLabel = composerModelLabel();
-  if (modelLabel?.label) items.push(modelLabel);
+  const modelReasoningLabel = composerModelReasoningLabel();
+  if (modelReasoningLabel) items.push({ label: modelReasoningLabel });
   const searchSourceLabel = composerSearchSourceLabel();
   if (searchSourceLabel?.label) items.push(searchSourceLabel);
   const directoryLabel = composerDirectoryLabel();
@@ -275,7 +298,6 @@ function shouldShowComposerContext(items, counts) {
     state.composerFocused
     || composerHasDraft()
     || state.pendingArtifacts.length
-    || Boolean(composerModelLabel()?.label)
     || Boolean(activeRunSearchSourceInfo())
     || state.quotedReply
     || state.pendingTaskDirectory?.projectId

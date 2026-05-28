@@ -234,6 +234,7 @@ function renderCurrentThreadUnsafe(options = {}) {
   wireSkillLinks(conversation);
   wireUsagePanels(conversation);
   wireMessageSkillPanels(conversation);
+  wireRunProgressHistoryPanels(conversation);
   wireLongMessageButtons(conversation);
   wireChatSearchControls(conversation);
   syncRunProgressTicker(conversation);
@@ -360,6 +361,7 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   wireArtifactWeixinButtons(conversation);
   wireUsagePanels(conversation);
   wireMessageSkillPanels(conversation);
+  wireRunProgressHistoryPanels(conversation);
   wireLongMessageButtons(conversation);
   syncRunProgressTicker(conversation);
   updateNavigationControls();

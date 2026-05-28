@@ -630,6 +630,8 @@ function positionUsagePanel(details) { positionMessageFooterPanel(details, ".usa
 
 function positionMessageSkillPanel(details) { positionMessageFooterPanel(details, ".message-skill-details"); }
 
+function positionRunProgressHistoryPanel(details) { positionMessageFooterPanel(details, ".run-progress-history-details"); }
+
 function closeOpenUsagePanels(root = document) {
   root.querySelectorAll?.(".usage[open]")?.forEach((details) => {
     details.open = false;
@@ -642,18 +644,26 @@ function closeOpenMessageSkillPanels(root = document) {
   });
 }
 
+function closeOpenRunProgressHistoryPanels(root = document) {
+  root.querySelectorAll?.(".run-progress-history[open]")?.forEach((details) => {
+    details.open = false;
+  });
+}
+
 function wireMessageFooterPopupDismiss() {
   if (document.documentElement.dataset.messageFooterPopupDismissBound) return;
   document.documentElement.dataset.messageFooterPopupDismissBound = "1";
   document.addEventListener("pointerdown", (event) => {
-    if (event.target?.closest?.(".usage, .message-skills")) return;
+    if (event.target?.closest?.(".usage, .message-skills, .run-progress-history")) return;
     closeOpenUsagePanels();
     closeOpenMessageSkillPanels();
+    closeOpenRunProgressHistoryPanels();
   }, { capture: true });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     closeOpenUsagePanels();
     closeOpenMessageSkillPanels();
+    closeOpenRunProgressHistoryPanels();
   });
 }
 
@@ -664,6 +674,7 @@ function wireUsagePanels(root) {
     details.dataset.boundUsagePanel = "1";
     details.addEventListener("toggle", () => {
       if (details.open) closeOpenMessageSkillPanels();
+      if (details.open) closeOpenRunProgressHistoryPanels();
       positionUsagePanel(details);
     });
   });
@@ -676,7 +687,21 @@ function wireMessageSkillPanels(root) {
     details.dataset.boundSkillPanel = "1";
     details.addEventListener("toggle", () => {
       if (details.open) closeOpenUsagePanels();
+      if (details.open) closeOpenRunProgressHistoryPanels();
       positionMessageSkillPanel(details);
+    });
+  });
+}
+
+function wireRunProgressHistoryPanels(root) {
+  wireMessageFooterPopupDismiss();
+  root?.querySelectorAll?.(".run-progress-history").forEach((details) => {
+    if (details.dataset.boundRunProgressHistoryPanel) return;
+    details.dataset.boundRunProgressHistoryPanel = "1";
+    details.addEventListener("toggle", () => {
+      if (details.open) closeOpenUsagePanels();
+      if (details.open) closeOpenMessageSkillPanels();
+      positionRunProgressHistoryPanel(details);
     });
   });
 }
@@ -685,7 +710,11 @@ function updateMessageScrollButtonVisibility(root) {
   const conversation = $("conversation");
   if (!conversation || !root?.querySelectorAll) return;
   const viewportHeight = Math.max(0, conversation.clientHeight || window.innerHeight || 0);
-  root.querySelectorAll(".message[data-message-id]").forEach((article) => {
+  const articles = [
+    ...(root.matches?.(".message[data-message-id]") ? [root] : []),
+    ...root.querySelectorAll(".message[data-message-id]"),
+  ];
+  articles.forEach((article) => {
     const messageHeight = article.getBoundingClientRect().height || article.offsetHeight || 0;
     const wasShown = article.dataset.messageScrollButtonVisible === "1";
     const hasRunProgress = Boolean(article.querySelector(".run-progress-panel.inline:not(.terminal)"));
