@@ -190,11 +190,11 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
   explicit deliverable file tag, not inside the processing sheet.
 - In the default open Inbox list, the visible status/action control must show
   the real state label such as `待处理`, not a generic command label like `处理`.
-  It should read as compact metadata at the same visual size as the source/type
-  badges: 22px high, 12px text, medium weight, subtle chevron, no large filled
-  pill, no strong border, and no high-contrast action color. The open state
-  uses a low-contrast pale amber treatment. Keep the accessible label tied to
-  the real status and the available processing menu.
+  It should read as compact metadata subordinate to the source/type badges:
+  about 20px high, 11px text, light-medium weight, subtle chevron, no large
+  filled pill, no strong border, and no high-contrast action color. The open
+  state uses a very low-contrast pale amber treatment. Keep the accessible
+  label tied to the real status and the available processing menu.
 - The default Inbox list must show newest items first by update/event/create
   time. Terminal items may stay below non-terminal items when mixed into an
   all-status view, but source/type priority must not hide a newer receipt under

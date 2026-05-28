@@ -11590,25 +11590,25 @@ body.task-markdown-preview-open {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  height: 22px;
-  min-height: 22px;
-  padding: 0 8px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0 6px;
   overflow: hidden;
   text-overflow: ellipsis;
   border: 1px solid var(--ui-hairline);
   border-radius: 999px;
   background: var(--ui-surface-muted);
   color: var(--muted);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 480;
   line-height: 1;
   white-space: nowrap;
 }
 
 .action-inbox-state-badge.open {
-  color: #9a7a35;
-  border-color: rgba(193, 151, 66, 0.18);
-  background: rgba(193, 151, 66, 0.11);
+  color: rgba(138, 111, 54, 0.68);
+  border-color: rgba(193, 151, 66, 0.14);
+  background: rgba(193, 151, 66, 0.07);
 }
 
 .action-inbox-state-badge.waiting {
@@ -11622,12 +11622,12 @@ body.task-markdown-preview-open {
 .action-inbox-state-action {
   appearance: none;
   -webkit-appearance: none;
-  height: 22px;
-  min-height: 22px;
-  padding: 0 8px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0 6px;
   font-family: inherit;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 480;
   letter-spacing: 0;
   line-height: 1;
   cursor: pointer;
@@ -11645,7 +11645,7 @@ body.task-markdown-preview-open {
 }
 
 .action-inbox-state-action:active {
-  background: rgba(193, 151, 66, 0.16);
+  background: rgba(193, 151, 66, 0.11);
 }
 
 .action-inbox-state-action:focus-visible,

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-inbox-status-small-v317";
+const CLIENT_VERSION = "20260528-inbox-status-compact-v318";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -222,9 +222,9 @@ assert.match(stylesCss, /\.action-inbox-swipe-complete \{[\s\S]*?background: #4f
 assert.match(stylesCss, /\.action-inbox-deliverable-chip \{[\s\S]*?width: calc\(100% - 24px\);[\s\S]*?box-sizing: border-box;/);
 assert.match(stylesCss, /\.action-inbox-item-main \{[\s\S]*?padding: 6px 12px 8px;/);
 assert.match(stylesCss, /\.action-inbox-swipe-content > \.action-inbox-source-row,[\s\S]*?\.action-inbox-item-static > \.action-inbox-source-row \{[\s\S]*?padding: 12px 12px 0;/);
-assert.match(stylesCss, /\.action-inbox-state-badge \{[\s\S]*?height: 22px;[\s\S]*?min-height: 22px;[\s\S]*?padding: 0 8px;[\s\S]*?background: var\(--ui-surface-muted\);[\s\S]*?font-size: 12px;[\s\S]*?font-weight: 500;/);
-assert.match(stylesCss, /\.action-inbox-state-badge\.open \{[\s\S]*?color: #9a7a35;[\s\S]*?background: rgba\(193, 151, 66, 0\.11\);/);
-assert.match(stylesCss, /\.action-inbox-state-action \{[\s\S]*?-webkit-appearance: none;[\s\S]*?height: 22px;[\s\S]*?min-height: 22px;[\s\S]*?padding: 0 8px;[\s\S]*?font-weight: 500;[\s\S]*?cursor: pointer;/);
+assert.match(stylesCss, /\.action-inbox-state-badge \{[\s\S]*?height: 20px;[\s\S]*?min-height: 20px;[\s\S]*?padding: 0 6px;[\s\S]*?background: var\(--ui-surface-muted\);[\s\S]*?font-size: 11px;[\s\S]*?font-weight: 480;/);
+assert.match(stylesCss, /\.action-inbox-state-badge\.open \{[\s\S]*?color: rgba\(138, 111, 54, 0\.68\);[\s\S]*?background: rgba\(193, 151, 66, 0\.07\);/);
+assert.match(stylesCss, /\.action-inbox-state-action \{[\s\S]*?-webkit-appearance: none;[\s\S]*?height: 20px;[\s\S]*?min-height: 20px;[\s\S]*?padding: 0 6px;[\s\S]*?font-weight: 480;[\s\S]*?cursor: pointer;/);
 assert.match(stylesCss, /\.action-inbox-state-action::after \{[\s\S]*?border-right: 1px solid currentColor;[\s\S]*?border-bottom: 1px solid currentColor;[\s\S]*?transform: rotate\(45deg\) translateY\(-1px\);/);
 assert.doesNotMatch(stylesCss, /\.action-inbox-process-button/);
 assert.match(stylesCss, /\.action-inbox-action-sheet-layer \{[\s\S]*?position: fixed;[\s\S]*?inset: 0;/);
@@ -456,9 +456,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-status-small-v317/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-status-small-v317/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-status-small-v317/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-status-compact-v318/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-status-compact-v318/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-status-compact-v318/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
