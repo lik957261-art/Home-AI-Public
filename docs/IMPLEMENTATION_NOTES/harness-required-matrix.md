@@ -1,6 +1,6 @@
 # Harness Required Matrix
 
-Last updated: 2026-05-27.
+Last updated: 2026-05-28.
 
 This document defines when Hermes Mobile changes must add or run a workflow
 harness instead of relying only on unit tests, focused UI tests, or manual
@@ -157,6 +157,10 @@ Required harness dimensions:
   occurrence must not delete the recurrence job.
 - Scheduled Todo/reminder Automation occurrences that include a safe deliverable
   reference must still expose the direct same-window MD/document preview path.
+- Scheduled Todo/reminder Automation push marks must be idempotent per
+  `lastRunAt`. A same-run scan after a delivered file must not downgrade the
+  mark to `no-deliverable`, create a duplicate Inbox item, or send another push
+  with an alternating tag.
 - Inbox row status pills must be actionable selectors for the concrete handling
   paths instead of static labels only; the menu must include the safe source
   actions available for that item without bypassing the source module.

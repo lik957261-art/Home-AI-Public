@@ -478,6 +478,62 @@ function testScheduledTodoAutomationCreatesTodoInboxItemWithoutDeliverable() {
   });
 }
 
+function testScheduledTodoAutomationDoesNotAlternateDeliverableAndEmptyPush() {
+  withTempDir((root) => {
+    const runAt = new Date().toISOString();
+    const inboxCalls = [];
+    const automationProvider = {
+      async listJobs() {
+        return {
+          ok: true,
+          jobs: [{
+            id: "scheduled-delivery-job",
+            ownerPrincipalId: "owner",
+            name: "Daily report reminder",
+            prompt: "daily reminder",
+            schedule: "daily",
+            lastRunAt: runAt,
+            lastStatus: "success",
+            outputDocuments: [{
+              name: "daily.md",
+              url: "/api/automations/deliverable?jobId=scheduled-delivery-job&run=run.md&index=0",
+              size: 12,
+              updatedAt: runAt,
+            }],
+          }],
+        };
+      },
+    };
+    const { calls, service, state } = createHarness(root, {
+      automationProvider,
+      serviceOptions: {
+        actionInboxService: {
+          upsertSourceItem(input) {
+            inboxCalls.push(input);
+            return { ok: true, item: { id: "ainb_scheduled_delivery", workspaceId: input.workspaceId } };
+          },
+        },
+      },
+    });
+    state.pushSubscriptions.push({ subscription: { endpoint: "owner-endpoint" }, principalIds: ["owner"], workspaceIds: ["owner"] });
+    return service.runAutomationWebPushTick()
+      .then((first) => {
+        assert.equal(first.deliveries.length, 1);
+        assert.equal(inboxCalls.length, 1);
+        assert.equal(inboxCalls[0].itemType, "todo");
+        assert.equal(inboxCalls[0].sourceRef.latestDeliverable.name, "daily.md");
+        assert.equal(calls.sends.length, 1);
+        return service.runAutomationWebPushTick();
+      })
+      .then((second) => {
+        assert.equal(second.deliveries.length, 0);
+        assert.equal(inboxCalls.length, 1);
+        assert.equal(calls.sends.length, 1);
+        assert.match(state.automationPushMarks["scheduled-delivery-job"].signature, /daily\.md/);
+      });
+  });
+}
+
 function testAutomationTickInitializesOldFailedRunWithoutDeliverable() {
   withTempDir((root) => {
     const oldRunAt = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
@@ -845,6 +901,7 @@ Promise.resolve()
   .then(testAutomationTickSendsFailedRunWithoutDeliverableToInbox)
   .then(testAutomationDeliveryInboxKeepsDirectDeliverableReference)
   .then(testScheduledTodoAutomationCreatesTodoInboxItemWithoutDeliverable)
+  .then(testScheduledTodoAutomationDoesNotAlternateDeliverableAndEmptyPush)
   .then(testAutomationTickInitializesOldFailedRunWithoutDeliverable)
   .then(testTaskTerminalAndGroupMentionNotifications)
   .then(testTaskTerminalPushDoesNotCreateInboxItemForActiveChatReceipt)

@@ -1,6 +1,6 @@
 # Hermes Mobile Test Matrix
 
-Last updated: 2026-05-27.
+Last updated: 2026-05-28.
 
 Use this matrix to pick focused tests before broader gates. Always add syntax checks for touched JS/Python/PowerShell files.
 
@@ -108,7 +108,11 @@ preview action; row status pills must open a concrete action menu; generic
 `待办提醒` titles must be replaced by the actual Automation/reminder title in
 new projections or UI fallback; partial left swipes must not complete an Inbox
 item while full swipes complete it once; and Todo/reminder items must sort above
-ordinary Automation delivery receipts in the default Inbox list.
+ordinary Automation delivery receipts in the default Inbox list. Scheduled
+Todo/reminder Automation pushes must also assert same-run idempotency: after a
+deliverable push is marked for a `lastRunAt`, a later scan for the same run with
+no newer deliverable must not send a second no-deliverable push, create another
+Inbox upsert, or downgrade the stored mark.
 
 Toolset escalation and retry harnesses must assert that
 `HERMES_TOOLSET_ESCALATION_REQUIRED` is stripped from visible chat content,

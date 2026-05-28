@@ -1022,6 +1022,9 @@ function createWebPushDeliveryService(options = {}) {
       const scheduledTodo = automationJobLooksScheduledTodo(job);
       const latestDoc = automationLatestDeliverableForPush(job, existingMark);
       if (!latestDoc && !failed && !scheduledTodo) continue;
+      const existingSameRun = existingMark && typeof existingMark === "object"
+        && String(existingMark.lastRunAt || "").trim() === String(job?.lastRunAt || "").trim();
+      if (scheduledTodo && !latestDoc && !failed && existingSameRun) continue;
       const signature = automationPushSignature(job, latestDoc);
       if (!signature) continue;
       const existing = automationPushMarkSignature(existingMark);

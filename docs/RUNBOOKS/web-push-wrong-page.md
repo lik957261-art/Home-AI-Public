@@ -33,6 +33,31 @@ Durable fix:
 - Root deployments should still generate `/?...`; prefixed deployments should generate `/hermes-mobile/?...` or the matching current prefix.
 - Do not hardcode the operator's domain or deployment path. The prefix must be inferred from runtime location/client URL.
 
+## Diagnosis Record: 2026-05-28 Repeated Automation Scheduled-Todo Push
+
+Incident:
+
+- The user received many Web Push notifications for the same scheduled Automation Todo items.
+- Tapping some notifications opened an older Inbox detail that lacked the direct delivery entry.
+
+Evidence:
+
+- `automationPushMarks` and `pushDeliveries` showed the same Automation ids repeating every minute with alternating tag suffixes.
+- SQLite `action_inbox_items` contained both deliverable rows and `no-deliverable` scheduled-Todo rows for the same source ids.
+- After the code hotfix, the latest push delivery for the affected jobs stopped advancing; stale no-deliverable Inbox rows still needed data repair because old notification URLs pointed at their ids.
+
+Root cause:
+
+- The Automation push scan computed the latest deliverable relative to the existing mark.
+- After a deliverable mark existed, the next scan for the same `lastRunAt` found no newer deliverable, but scheduled-Todo logic still allowed a `no-deliverable` event.
+- That no-deliverable event overwrote the mark, so the following scan sent the deliverable again. The cycle produced repeated pushes and duplicate Inbox items.
+
+Durable fix:
+
+- Scheduled Todo/reminder Automation scans must skip no-deliverable events when the existing mark already belongs to the same `lastRunAt` and there is no failure.
+- Add harness coverage that sends a scheduled-Todo deliverable once, runs the scan again for the same `lastRunAt`, and asserts there is no second push, no second Inbox upsert, and no mark downgrade to `no-deliverable`.
+- For production cleanup, repair stale no-deliverable Inbox rows by preserving their ids but restoring safe deliverable metadata from the sibling deliverable row, then mark the stale duplicates complete.
+
 ## First Checks
 
 1. Confirm the phone has refreshed to the expected static client version.
@@ -54,6 +79,7 @@ Durable fix:
 - Internal routes hardcoded root `/?...` while the installed or externally tested app shell is mounted under a prefix such as `/hermes-mobile/`; iOS/Synology containers can treat that as leaving the PWA scope and show the domain bar/bottom toolbar.
 - The browser shell may restore an already-selected detail state, such as `viewMode=automation` with `selectedAutomationId`, without passing through a URL route parser.
 - A prior fix may stop detail rendering but still leave the full Inbox/App shell inside the browser frame; that is still a failure for mobile browser-shell launches.
+- Automation scheduled-Todo push marks alternate between a deliverable signature and `no-deliverable` for the same `lastRunAt`, producing repeated notifications and stale no-deliverable Inbox links.
 - Static client cache is old.
 
 ## Repair
@@ -68,6 +94,7 @@ Durable fix:
 - Gate internal notification/source-detail navigation on mobile browser shells when the client is not PWA standalone. The route should stop and prompt the user to reopen the installed Hermes Mobile app instead of showing a detail page inside a browser frame.
 - Apply the gate to click-time routing, startup URL routing, and selected-detail state restoration. If the app starts with `?view=automation&automationId=...` inside a browser shell, or restores a selected Automation detail before `loadSelectedView()`, it must stop before rendering the detail page.
 - Add stable ids to the payload producer.
+- For repeated scheduled-Todo Automation pushes, first stop the mark alternation, then repair stale no-deliverable Inbox rows to include the safe deliverable reference or mark them complete if they are duplicate occurrences.
 - Make the target module force an authenticated fetch that includes the target even if search/limit would otherwise hide it.
 - Bump static client/cache version when service worker or route JS changes.
 

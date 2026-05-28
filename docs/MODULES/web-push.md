@@ -24,6 +24,7 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 - For ordinary active chat/topic task completion/failure receipts, Web Push should link directly to the relevant chat/topic/task route and should not upsert a default Inbox item. The user just initiated the request, so the push click itself is the completion surface.
 - Passive or durable notifications should still use Inbox when later attention is needed: automation delivery/failure, manual Todo/reminder, permission/approval/review requests, and Growth/executor card completion.
 - Automation failures do not require a new deliverable file to notify. The push/InBox payload should carry only a compact failure summary and a route to the Automation detail.
+- Scheduled Todo/reminder Automation pushes must be idempotent per `lastRunAt`. If a run already has a push mark for the same `lastRunAt`, a later scan with no newer deliverable must not overwrite the mark with a `no-deliverable` signature or create a second Inbox item. This prevents alternating deliverable/no-deliverable tags and repeated push loops.
 
 ## Service Worker Rules
 
@@ -61,3 +62,5 @@ When a push opens the wrong page, check three layers in order: payload route fie
 For browser-frame reports, first separate Web Push click handling from ordinary in-app second-level navigation. Inbox row to Automation detail is not itself a Web Push path, even if the Inbox item was originally created from an automation push. It still uses the same Hermes-owned internal route contract and must preserve the current app-shell path.
 
 Use the exact external app entry reported by the user for smoke verification. A root-mounted local check can miss a prefixed deployment bug where `/hermes-mobile/?source=pwa` is the real entry but an internal helper emits `/?view=...`. Do not hardcode the operator's domain or prefix in code; derive the app-shell path from `window.location.pathname` or the focused service-worker client URL.
+
+For repeated Automation push reports, inspect `automationPushMarks`, `pushDeliveries`, and the corresponding `action_inbox_items` rows together. Alternating tags for the same Automation id and same `lastRunAt` usually means the mark is being rewritten between a deliverable signature and `no-deliverable`; fix the mark transition first, then repair stale no-deliverable Inbox rows so old notification URLs still open a useful detail.
