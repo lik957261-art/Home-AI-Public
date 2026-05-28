@@ -75,6 +75,7 @@ function handleAppBackgrounded() {
 }
 
 function handleAppForegrounded() {
+  if (typeof applyThemePreference === "function") applyThemePreference();
   suppressComposerAutoFocus(900);
   blurComposerInput();
   if (state.viewMode === "todos") scheduleTodoAutoRefresh();

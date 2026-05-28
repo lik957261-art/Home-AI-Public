@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-inbox-badge-fontscale-v325";
+const CLIENT_VERSION = "20260528-inbox-status-popover-theme-v326";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -465,9 +465,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-badge-fontscale-v325/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-badge-fontscale-v325/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-badge-fontscale-v325/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-status-popover-theme-v326/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-status-popover-theme-v326/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-status-popover-theme-v326/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -577,14 +577,16 @@ assert.match(appJs, /function renderMessageRunProgressHistory\(thread, message =
 assert.match(appJs, /const runProgressHistory = typeof renderMessageRunProgressHistory === "function"/);
 assert.match(appJs, /function wireRunProgressHistoryPanels\(root\)/);
 assert.match(appJs, /function positionRunProgressHistoryPanel\(details\)/);
-assert.match(appJs, /const panelHeight = Math\.max\(180, Math\.min\(420, Math\.round\(viewportHeight \* 0\.58\), availableAboveAnchor\)\)/);
-assert.match(appJs, /availableAboveAnchor >= 180 \? bottomAboveAnchor : margin/);
+assert.match(appJs, /const maxAvailableHeight = Math\.max\(120, Math\.min\(420, Math\.round\(viewportHeight \* 0\.58\), Math\.max\(120, availableAboveAnchor\)\)\)/);
+assert.match(appJs, /const contentPanel = panel\.querySelector\("\.run-progress-panel"\)/);
+assert.match(appJs, /panel\.style\.setProperty\("--run-progress-history-bottom", "auto"\)/);
 assert.match(appJs, /MESSAGE_SKILL_HIDDEN_FALLBACKS = new Set\(\["response", "response-grounding-baseline"\]\)/);
 assert.match(stylesCss, /\.message-footer-row \.run-progress-history/);
 assert.match(stylesCss, /\.run-progress-history-details \{[\s\S]*?width: min\(520px, calc\(100vw - 24px\)\)/);
 assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.run-progress-history-details \{[\s\S]*?position: fixed;[\s\S]*?top: max\(calc\(var\(--run-progress-history-top, 12px\) \+ env\(safe-area-inset-top\)\), calc\(52px \+ env\(safe-area-inset-top\)\)\);[\s\S]*?bottom: var\(--run-progress-history-bottom, calc\(var\(--mobile-bottom-nav-reserved-height\) \+ 12px\)\);/);
 assert.match(stylesCss, /max-height: var\(--run-progress-history-max-height, min\(360px, 52vh\)\)/);
-assert.match(appJs, /function handleAppForegrounded\(\)[\s\S]*scheduleConversationViewportRefresh\(\)/);
+assert.match(appJs, /setProperty\("--run-progress-history-bottom", "auto"\)/);
+assert.match(appJs, /function handleAppForegrounded\(\) \{[\s\S]*?applyThemePreference\(\);[\s\S]*?scheduleConversationViewportRefresh\(\)/);
 assert.match(appJs, /function handleViewportLayoutChange\(event = null\)[\s\S]*scheduleConversationViewportRefresh/);
 assert.match(appJs, /orientationSettle: orientationEvent/);
 assert.match(appJs, /orientationEvent && conversationViewportRefreshApplies\(\)/);

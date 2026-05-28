@@ -18,6 +18,9 @@ Use this file to locate the responsible frontend files before debugging a screen
     status bars remain readable.
   - System color-scheme changes should affect the app only when the stored
     preference is `system`.
+  - Foreground restore (`visibilitychange`, `pageshow`, `focus`) must reapply
+    the saved theme preference before other refresh/render work so iOS/PWA
+    resume does not briefly repaint the app in the wrong color scheme.
   - Theme QA must include visible app surfaces, not only the settings control:
     sidebar/top bar, composer, user/assistant messages, topic cards, Inbox rows
     and deliverable tags, Growth warning/danger cards, and the settings or
@@ -67,7 +70,9 @@ Use this file to locate the responsible frontend files before debugging a screen
   - The completed run-status history popover on mobile should prefer the space
     above the tapped status chip and remain scrollable within the viewport. It
     must not default to a bottom-fixed sheet that covers the lower conversation
-    or composer area.
+    or composer area. When content is short, the popover should shrink to its
+    content instead of reserving a tall blank fixed area; long histories may
+    scroll within a bounded max height.
   - Function-call rows should show the concrete function name whenever the
     event preview, tool field, or paired `callId` makes it available. Generic
     `Function` labels are not useful; if the Gateway event does not expose

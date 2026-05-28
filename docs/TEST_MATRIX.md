@@ -145,6 +145,9 @@ settings/access-key sheets. A change that adds or modifies theme tokens must
 include a screenshot or browser visual smoke against those surfaces and focused
 assertions that the critical CSS rules consume theme variables instead of
 hard-coded pale surfaces.
+Foreground restore tests must also assert `handleAppForegrounded()` reapplies
+the saved theme preference before refresh/render work, so a light-mode user does
+not briefly see a dark-mode repaint when returning to the PWA.
 
 Action Inbox harnesses must cover the low-click delivery and Todo semantics:
 Automation delivery rows with `sourceRef.latestDeliverable` must render a
@@ -245,6 +248,9 @@ prefers space above the tapped status chip instead of covering the lower
 conversation/composer area, and terminal history must not render an ongoing
 quiet/still-running row. Skill footer tests must assert no synthetic response
 fallback Skill is projected when no real Skill was loaded.
+The terminal run-progress history panel must not reserve a tall blank fixed
+area when content is short. Mobile positioning should use content-aware
+`top + max-height` with `bottom:auto`; only long histories should scroll.
 
 For same-window navigation and browser-frame bugs, the required harness must
 cover both root-mounted and prefix-mounted app-shell paths. If the issue is
