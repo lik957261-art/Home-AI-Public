@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260528-topic-restore-v305";
+const HERMES_SW_VERSION = "20260528-push-runstatus-v306";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,80 +8,80 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260528-topic-restore-v305",
-  "/markdown-viewer.html?v=20260528-topic-restore-v305",
-  "/app-task-artifact-helpers.js?v=20260528-topic-restore-v305",
-  "/app-kanban-story-helpers.js?v=20260528-topic-restore-v305",
-  "/app-learning-reading-ui.js?v=20260528-topic-restore-v305",
-  "/app-learning-coins-ui.js?v=20260528-topic-restore-v305",
-  "/app-learning-program-ui.js?v=20260528-topic-restore-v305",
-  "/app-learning-growth-ui.js?v=20260528-topic-restore-v305",
-  "/app-learning-growth-task-ui.js?v=20260528-topic-restore-v305",
-  "/app-learning-growth-reflection-ui.js?v=20260528-topic-restore-v305",
-  "/app-api-client.js?v=20260528-topic-restore-v305",
-  "/app.js?v=20260528-topic-restore-v305",
-  "/app-shell-ui.js?v=20260528-topic-restore-v305",
-  "/app-task-groups-ui.js?v=20260528-topic-restore-v305",
-  "/app-navigation-view-ui.js?v=20260528-topic-restore-v305",
-  "/app-chat-composer-ui.js?v=20260528-topic-restore-v305",
-  "/app-composer-source-ui.js?v=20260528-topic-restore-v305",
-  "/app-composer-context-ui.js?v=20260528-topic-restore-v305",
-  "/app-run-progress-ui.js?v=20260528-topic-restore-v305",
-  "/app-navigation-search-ui.js?v=20260528-topic-restore-v305",
-  "/app-task-preview-helpers-ui.js?v=20260528-topic-restore-v305",
-  "/app-task-preview-ui.js?v=20260528-topic-restore-v305",
-  "/app-sidebar-task-ui.js?v=20260528-topic-restore-v305",
-  "/app-message-skill-ui.js?v=20260528-topic-restore-v305",
-  "/app-message-actions-ui.js?v=20260528-topic-restore-v305",
-  "/app-platform-ui.js?v=20260528-topic-restore-v305",
-  "/app-platform-status-ui.js?v=20260528-topic-restore-v305",
-  "/app-pwa-settings-push-ui.js?v=20260528-topic-restore-v305",
-  "/app-pwa-push-ui.js?v=20260528-topic-restore-v305",
-  "/app-workspace-admin-ui.js?v=20260528-topic-restore-v305",
-  "/app-access-key-manager-ui.js?v=20260528-topic-restore-v305",
-  "/app-share-image-ui.js?v=20260528-topic-restore-v305",
-  "/app-draft-thread-ui.js?v=20260528-topic-restore-v305",
-  "/app-directory-automation-ui.js?v=20260528-topic-restore-v305",
-  "/app-shared-directory-ui.js?v=20260528-topic-restore-v305",
-  "/app-action-inbox-ui.js?v=20260528-topic-restore-v305",
-  "/app-automation-ui.js?v=20260528-topic-restore-v305",
-  "/app-learning-native-growth-submission-controller.js?v=20260528-topic-restore-v305",
-  "/app-learning-growth-ai-controller.js?v=20260528-topic-restore-v305",
-  "/app-learning-growth-reward-controller.js?v=20260528-topic-restore-v305",
-  "/app-learning-growth-settings-controller.js?v=20260528-topic-restore-v305",
-  "/app-learning-growth-teaching-controller.js?v=20260528-topic-restore-v305",
-  "/app-learning-growth-controller.js?v=20260528-topic-restore-v305",
-  "/app-automation-controller-ui.js?v=20260528-topic-restore-v305",
-  "/app-automation-actions-ui.js?v=20260528-topic-restore-v305",
-  "/app-thread-state-ui.js?v=20260528-topic-restore-v305",
-  "/app-group-topic-ui.js?v=20260528-topic-restore-v305",
-  "/app-kanban-core-ui.js?v=20260528-topic-restore-v305",
-  "/app-kanban-story-core-ui.js?v=20260528-topic-restore-v305",
-  "/app-kanban-todo-core-ui.js?v=20260528-topic-restore-v305",
-  "/app-kanban-render-ui.js?v=20260528-topic-restore-v305",
-  "/app-kanban-list-ui.js?v=20260528-topic-restore-v305",
-  "/app-kanban-learning-panel-ui.js?v=20260528-topic-restore-v305",
-  "/app-kanban-recorder-ui.js?v=20260528-topic-restore-v305",
-  "/app-todo-detail-ui.js?v=20260528-topic-restore-v305",
-  "/app-kanban-actions-ui.js?v=20260528-topic-restore-v305",
-  "/app-kanban-composer-actions-ui.js?v=20260528-topic-restore-v305",
-  "/app-kanban-card-actions-ui.js?v=20260528-topic-restore-v305",
-  "/app-kanban-study-actions-ui.js?v=20260528-topic-restore-v305",
-  "/app-thread-message-ui.js?v=20260528-topic-restore-v305",
-  "/app-thread-list-ui.js?v=20260528-topic-restore-v305",
-  "/app-thread-directory-ui.js?v=20260528-topic-restore-v305",
-  "/app-thread-card-message-ui.js?v=20260528-topic-restore-v305",
-  "/app-long-message-ui.js?v=20260528-topic-restore-v305",
-  "/app-rich-text-directory-ui.js?v=20260528-topic-restore-v305",
-  "/app-message-usage-ui.js?v=20260528-topic-restore-v305",
-  "/app-events-composer-ui.js?v=20260528-topic-restore-v305",
-  "/app-event-stream-ui.js?v=20260528-topic-restore-v305",
-  "/app-upload-sidebar-ui.js?v=20260528-topic-restore-v305",
-  "/app-composer-send-ui.js?v=20260528-topic-restore-v305",
-  "/app-wire-start-ui.js?v=20260528-topic-restore-v305",
-  "/app-start.js?v=20260528-topic-restore-v305",
+  "/styles.css?v=20260528-push-runstatus-v306",
+  "/markdown-viewer.html?v=20260528-push-runstatus-v306",
+  "/app-task-artifact-helpers.js?v=20260528-push-runstatus-v306",
+  "/app-kanban-story-helpers.js?v=20260528-push-runstatus-v306",
+  "/app-learning-reading-ui.js?v=20260528-push-runstatus-v306",
+  "/app-learning-coins-ui.js?v=20260528-push-runstatus-v306",
+  "/app-learning-program-ui.js?v=20260528-push-runstatus-v306",
+  "/app-learning-growth-ui.js?v=20260528-push-runstatus-v306",
+  "/app-learning-growth-task-ui.js?v=20260528-push-runstatus-v306",
+  "/app-learning-growth-reflection-ui.js?v=20260528-push-runstatus-v306",
+  "/app-api-client.js?v=20260528-push-runstatus-v306",
+  "/app.js?v=20260528-push-runstatus-v306",
+  "/app-shell-ui.js?v=20260528-push-runstatus-v306",
+  "/app-task-groups-ui.js?v=20260528-push-runstatus-v306",
+  "/app-navigation-view-ui.js?v=20260528-push-runstatus-v306",
+  "/app-chat-composer-ui.js?v=20260528-push-runstatus-v306",
+  "/app-composer-source-ui.js?v=20260528-push-runstatus-v306",
+  "/app-composer-context-ui.js?v=20260528-push-runstatus-v306",
+  "/app-run-progress-ui.js?v=20260528-push-runstatus-v306",
+  "/app-navigation-search-ui.js?v=20260528-push-runstatus-v306",
+  "/app-task-preview-helpers-ui.js?v=20260528-push-runstatus-v306",
+  "/app-task-preview-ui.js?v=20260528-push-runstatus-v306",
+  "/app-sidebar-task-ui.js?v=20260528-push-runstatus-v306",
+  "/app-message-skill-ui.js?v=20260528-push-runstatus-v306",
+  "/app-message-actions-ui.js?v=20260528-push-runstatus-v306",
+  "/app-platform-ui.js?v=20260528-push-runstatus-v306",
+  "/app-platform-status-ui.js?v=20260528-push-runstatus-v306",
+  "/app-pwa-settings-push-ui.js?v=20260528-push-runstatus-v306",
+  "/app-pwa-push-ui.js?v=20260528-push-runstatus-v306",
+  "/app-workspace-admin-ui.js?v=20260528-push-runstatus-v306",
+  "/app-access-key-manager-ui.js?v=20260528-push-runstatus-v306",
+  "/app-share-image-ui.js?v=20260528-push-runstatus-v306",
+  "/app-draft-thread-ui.js?v=20260528-push-runstatus-v306",
+  "/app-directory-automation-ui.js?v=20260528-push-runstatus-v306",
+  "/app-shared-directory-ui.js?v=20260528-push-runstatus-v306",
+  "/app-action-inbox-ui.js?v=20260528-push-runstatus-v306",
+  "/app-automation-ui.js?v=20260528-push-runstatus-v306",
+  "/app-learning-native-growth-submission-controller.js?v=20260528-push-runstatus-v306",
+  "/app-learning-growth-ai-controller.js?v=20260528-push-runstatus-v306",
+  "/app-learning-growth-reward-controller.js?v=20260528-push-runstatus-v306",
+  "/app-learning-growth-settings-controller.js?v=20260528-push-runstatus-v306",
+  "/app-learning-growth-teaching-controller.js?v=20260528-push-runstatus-v306",
+  "/app-learning-growth-controller.js?v=20260528-push-runstatus-v306",
+  "/app-automation-controller-ui.js?v=20260528-push-runstatus-v306",
+  "/app-automation-actions-ui.js?v=20260528-push-runstatus-v306",
+  "/app-thread-state-ui.js?v=20260528-push-runstatus-v306",
+  "/app-group-topic-ui.js?v=20260528-push-runstatus-v306",
+  "/app-kanban-core-ui.js?v=20260528-push-runstatus-v306",
+  "/app-kanban-story-core-ui.js?v=20260528-push-runstatus-v306",
+  "/app-kanban-todo-core-ui.js?v=20260528-push-runstatus-v306",
+  "/app-kanban-render-ui.js?v=20260528-push-runstatus-v306",
+  "/app-kanban-list-ui.js?v=20260528-push-runstatus-v306",
+  "/app-kanban-learning-panel-ui.js?v=20260528-push-runstatus-v306",
+  "/app-kanban-recorder-ui.js?v=20260528-push-runstatus-v306",
+  "/app-todo-detail-ui.js?v=20260528-push-runstatus-v306",
+  "/app-kanban-actions-ui.js?v=20260528-push-runstatus-v306",
+  "/app-kanban-composer-actions-ui.js?v=20260528-push-runstatus-v306",
+  "/app-kanban-card-actions-ui.js?v=20260528-push-runstatus-v306",
+  "/app-kanban-study-actions-ui.js?v=20260528-push-runstatus-v306",
+  "/app-thread-message-ui.js?v=20260528-push-runstatus-v306",
+  "/app-thread-list-ui.js?v=20260528-push-runstatus-v306",
+  "/app-thread-directory-ui.js?v=20260528-push-runstatus-v306",
+  "/app-thread-card-message-ui.js?v=20260528-push-runstatus-v306",
+  "/app-long-message-ui.js?v=20260528-push-runstatus-v306",
+  "/app-rich-text-directory-ui.js?v=20260528-push-runstatus-v306",
+  "/app-message-usage-ui.js?v=20260528-push-runstatus-v306",
+  "/app-events-composer-ui.js?v=20260528-push-runstatus-v306",
+  "/app-event-stream-ui.js?v=20260528-push-runstatus-v306",
+  "/app-upload-sidebar-ui.js?v=20260528-push-runstatus-v306",
+  "/app-composer-send-ui.js?v=20260528-push-runstatus-v306",
+  "/app-wire-start-ui.js?v=20260528-push-runstatus-v306",
+  "/app-start.js?v=20260528-push-runstatus-v306",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260528-topic-restore-v305",
+  "/markdown-renderer-client.js?v=20260528-push-runstatus-v306",
   "/file-viewer.html",
   "/pdf-viewer.html",
   "/manifest.json",
@@ -279,11 +279,20 @@ function isTopLevelWindowClient(client) {
   return !frameType || frameType === "top-level" || frameType === "auxiliary";
 }
 
+function notificationRouteFlagEnabled(value) {
+  if (value === true) return true;
+  return ["1", "true", "yes"].includes(String(value || "").trim().toLowerCase());
+}
+
 function routeUrlForNotificationData(rawData = {}) {
   const data = rawData && typeof rawData === "object" ? rawData : {};
   const explicitUrl = String(data.url || "").trim();
   const params = new URLSearchParams();
   const workspaceId = String(data.workspaceId || data.principalId || "owner").trim() || "owner";
+  const requestedView = String(data.viewMode || data.view || "").trim().toLowerCase();
+  const taskGroupId = String(data.taskGroupId || "").trim();
+  const weixinChat = notificationRouteFlagEnabled(data.weixinChat);
+  const groupChat = notificationRouteFlagEnabled(data.groupChat);
   if (data.inboxItemId) {
     params.set("view", "inbox");
     params.set("workspaceId", workspaceId);
@@ -310,16 +319,33 @@ function routeUrlForNotificationData(rawData = {}) {
     if (data.submissionId) params.set("submissionId", String(data.submissionId));
     return appShellRouteForParams(params);
   }
-  if (data.taskGroupId) {
-    params.set("view", "tasks");
+  if (
+    requestedView === "single"
+    || weixinChat
+    || groupChat
+    || taskGroupId === "chat"
+    || taskGroupId === "group-chat"
+  ) {
+    params.set("view", "single");
     params.set("workspaceId", workspaceId);
-    params.set("taskGroupId", String(data.taskGroupId));
+    if (weixinChat) params.set("weixinChat", "1");
+    if (groupChat || taskGroupId === "group-chat") params.set("groupChat", "1");
+    if (data.threadId) params.set("threadId", String(data.threadId));
     if (data.messageId) params.set("messageId", String(data.messageId));
     return appShellRouteForParams(params);
   }
-  if (data.viewMode || data.view) {
-    params.set("view", String(data.viewMode || data.view));
+  if (taskGroupId) {
+    params.set("view", "tasks");
     params.set("workspaceId", workspaceId);
+    params.set("taskGroupId", taskGroupId);
+    if (data.messageId) params.set("messageId", String(data.messageId));
+    return appShellRouteForParams(params);
+  }
+  if (requestedView) {
+    params.set("view", requestedView);
+    params.set("workspaceId", workspaceId);
+    if (data.threadId) params.set("threadId", String(data.threadId));
+    if (data.messageId) params.set("messageId", String(data.messageId));
     return appShellRouteForParams(params);
   }
   return explicitUrl || "/";

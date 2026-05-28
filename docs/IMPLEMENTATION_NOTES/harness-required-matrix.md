@@ -356,6 +356,10 @@ Required harness dimensions:
   that run id for the target message; they must not be merged into every panel
   at render time, because concurrent or stale active runs can corrupt elapsed
   time and visible function rows.
+- Terminal assistant receipts must keep run-progress detail available without
+  occupying the main reply surface. The completed model status should collapse
+  into a small footer tag comparable to Usage/Skill, and expanding it should
+  show historical rows without a misleading "still running" quiet row.
 
 Primary docs and tests:
 
@@ -369,6 +373,7 @@ Primary docs and tests:
 - `node tests\gateway-run-stream-service.test.js`
 - `node tests\gateway-run-lifecycle-service.test.js`
 - `node tests\task-list-ui.test.js`
+- `node tests\run-progress-ui-behavior.test.js`
 - `node tests\run-liveness.test.js`
 
 ### Cross-Shell Production Operations
@@ -409,6 +414,11 @@ Required harness dimensions:
   viewer frame.
 - Inbox, task, chat/topic, Growth, and Automation routes resolve to the expected
   in-app view.
+- Chat/topic completion and failure notifications must carry the terminal
+  assistant receipt `messageId`. Topic routes should scroll to that receipt
+  inside the task group; single-window chat/group routes must preserve
+  `threadId`/`messageId` and must not be rewritten into generic `view=tasks`
+  because `taskGroupId=chat` is present.
 - Original task/detail route is preserved as a deep link when the primary route
   is Inbox.
 - Existing app window, no app window, PWA, and browser-tab cases are covered.

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-topic-restore-v305";
+const CLIENT_VERSION = "20260528-push-runstatus-v306";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -422,9 +422,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-topic-restore-v305/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-topic-restore-v305/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-topic-restore-v305/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-push-runstatus-v306/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-push-runstatus-v306/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-push-runstatus-v306/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -521,6 +521,16 @@ assert.match(appJs, /requestCurrentThreadRefresh\(\{ stickToBottom: true, delayM
 assert.match(appJs, /const keepRenderedTaskMessages = !selectedMessages\.length/);
 assert.match(appJs, /requestCurrentThreadRefresh\(\{ stickToBottom: false, delayMs: 120 \}\)/);
 assert.match(appJs, /if \(state\.currentTaskGroupId\) scheduleConversationViewportRefresh\(conversation\)/);
+assert.match(appJs, /const routeThreadId = String\(params\.get\("threadId"\) \|\| params\.get\("thread_id"\) \|\| ""\)\.trim\(\)/);
+assert.match(appJs, /if \(routeThreadId\) state\.currentThreadId = routeThreadId;/);
+assert.match(appJs, /setRouteScrollTarget\(taskGroupId \|\| \(groupChatRequested \? "group-chat" : "chat"\), messageId\)/);
+assert.match(appJs, /function consumeChatRouteScrollTarget\(messages = \[\]\)/);
+assert.match(appJs, /consumeChatRouteScrollTarget\(displayMessages\)/);
+assert.match(appJs, /if \(requested\) return "";/);
+assert.match(appJs, /function renderMessageRunProgressHistory\(thread, message = \{\}, options = \{\}\)/);
+assert.match(appJs, /const runProgressHistory = typeof renderMessageRunProgressHistory === "function"/);
+assert.match(stylesCss, /\.message-footer-row \.run-progress-history/);
+assert.match(stylesCss, /\.run-progress-history-details \{[\s\S]*?width: min\(520px, calc\(100vw - 24px\)\)/);
 assert.match(appJs, /function handleAppForegrounded\(\)[\s\S]*scheduleConversationViewportRefresh\(\)/);
 assert.match(appJs, /function handleViewportLayoutChange\(event = null\)[\s\S]*scheduleConversationViewportRefresh/);
 assert.match(appJs, /orientationSettle: orientationEvent/);
@@ -1846,6 +1856,13 @@ assert.ok(
   serviceWorkerJs.indexOf("if (data.automationId)") < serviceWorkerJs.indexOf("return explicitUrl || \"/\";"),
   "notification structured route fields should take precedence over explicit file/preview urls",
 );
+assert.ok(
+  serviceWorkerJs.indexOf("requestedView === \"single\"") < serviceWorkerJs.indexOf("if (taskGroupId)"),
+  "single-window chat/group notification routes must not be rewritten into generic task routes",
+);
+assert.match(serviceWorkerJs, /function notificationRouteFlagEnabled\(value\)/);
+assert.match(serviceWorkerJs, /if \(data\.threadId\) params\.set\("threadId", String\(data\.threadId\)\)/);
+assert.match(serviceWorkerJs, /if \(data\.messageId\) params\.set\("messageId", String\(data\.messageId\)\)/);
 assert.match(serviceWorkerJs, /if \(data\.taskCardId\) \{[\s\S]*?params\.set\("view", "learning"\)[\s\S]*?params\.set\("taskCardId", String\(data\.taskCardId\)\)/);
 assert.match(serviceWorkerJs, /client\.navigate\(targetWindowRoute\)/);
 assert.match(serviceWorkerJs, /self\.clients\.openWindow\(targetWindowRoute\)/);

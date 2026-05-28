@@ -73,6 +73,7 @@ Durable fix:
 - Service worker navigated an embedded viewer iframe instead of a top-level app client.
 - A secondary page, document preview, or internal link used `window.open` or `target=_blank`, which created a browser window instead of reusing the current app window.
 - Payload lacks the target id, such as `automationId` or task/evaluation id.
+- Active chat/topic completion payload uses the first task-group message id or the service worker rewrites `viewMode=single` plus `taskGroupId=chat` into `view=tasks`, so the click opens the wrong surface or scrolls to the prompt instead of the completion receipt.
 - Frontend route handler preserves stale search state or clears the selected target too early.
 - The push subscription was created from a mobile browser mode instead of the installed Hermes Mobile PWA. Old subscriptions without standalone metadata can still deliver a notification that opens in a browser shell.
 - The user is already operating Hermes inside mobile Safari/browser mode. Same-window routing then stays in that browser shell; JavaScript cannot convert that session into a standalone PWA window.
@@ -94,6 +95,7 @@ Durable fix:
 - Gate internal notification/source-detail navigation on mobile browser shells when the client is not PWA standalone. The route should stop and prompt the user to reopen the installed Hermes Mobile app instead of showing a detail page inside a browser frame.
 - Apply the gate to click-time routing, startup URL routing, and selected-detail state restoration. If the app starts with `?view=automation&automationId=...` inside a browser shell, or restores a selected Automation detail before `loadSelectedView()`, it must stop before rendering the detail page.
 - Add stable ids to the payload producer.
+- For active chat/topic receipts, use the terminal assistant receipt `messageId`, preserve `threadId/messageId` through the service worker, and keep the route scroll target until the chat/topic message list renders.
 - For repeated scheduled-Todo Automation pushes, first stop the mark alternation, then repair stale no-deliverable Inbox rows to include the safe deliverable reference or mark them complete if they are duplicate occurrences.
 - Make the target module force an authenticated fetch that includes the target even if search/limit would otherwise hide it.
 - Bump static client/cache version when service worker or route JS changes.

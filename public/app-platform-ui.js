@@ -484,6 +484,7 @@ function applyRouteParams(params) {
   const todoId = String(params.get("todoId") || "").trim(); const taskCardId = String(params.get("taskCardId") || "").trim();
   const taskGroupId = String(params.get("taskGroupId") || params.get("taskId") || "").trim();
   const messageId = String(params.get("messageId") || "").trim();
+  const routeThreadId = String(params.get("threadId") || params.get("thread_id") || "").trim();
   const projectId = String(params.get("projectId") || "").trim();
   const subprojectId = String(params.get("subprojectId") || "").trim();
   const directoryPath = String(params.get("directoryPath") || "").trim();
@@ -564,6 +565,10 @@ function applyRouteParams(params) {
     } else {
       state.weixinChatOpen = false;
       localStorage.setItem("hermesWebWeixinChatOpen", "0");
+    }
+    if (routeThreadId) state.currentThreadId = routeThreadId;
+    if (messageId) {
+      setRouteScrollTarget(taskGroupId || (groupChatRequested ? "group-chat" : "chat"), messageId);
     }
   }
   return Boolean(routeView || inboxItemId || automationId || todoId || taskGroupId || groupChatRequested || weixinChatRequested || readingQuizRequested || assessmentExamRequested);

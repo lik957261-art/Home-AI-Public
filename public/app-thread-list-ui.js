@@ -239,7 +239,9 @@ function renderCurrentThreadUnsafe(options = {}) {
   syncRunProgressTicker(conversation);
   ensureVerticalScrollAffordance(conversation);
   scheduleMessageScrollButtonVisibility(conversation);
-  if (state.chatSearchScrollPending) {
+  if (consumeChatRouteScrollTarget(displayMessages)) {
+    if (isSingleWindowChatView()) scheduleConversationViewportRefresh(conversation);
+  } else if (state.chatSearchScrollPending) {
     state.chatSearchScrollPending = false;
     requestAnimationFrame(() => scrollToCurrentChatSearchMatch(conversation));
   } else if (stickToBottom) {

@@ -598,8 +598,8 @@ function testTaskTerminalAndGroupMentionNotifications() {
 
     return service.notifyTaskTerminal(thread, message, "done").then(() => {
       assert.equal(calls.sends.at(-1).payload.data.viewMode, "tasks");
-      assert.equal(calls.sends.at(-1).payload.data.url, "/?view=tasks&workspaceId=child&taskGroupId=task-1&messageId=u1");
-      assert.equal(calls.sends.at(-1).payload.data.messageId, "u1");
+      assert.equal(calls.sends.at(-1).payload.data.url, "/?view=tasks&workspaceId=child&taskGroupId=task-1&messageId=a1");
+      assert.equal(calls.sends.at(-1).payload.data.messageId, "a1");
       assert.equal(calls.sends.at(-1).payload.data.messageType, "task_completed");
 
       const weixinThread = Object.assign({}, thread, {
@@ -610,7 +610,9 @@ function testTaskTerminalAndGroupMentionNotifications() {
       return service.notifyTaskTerminal(weixinThread, chatMessage, "failed");
     }).then(() => {
       assert.equal(calls.sends.at(-1).payload.data.viewMode, "single");
-      assert.equal(calls.sends.at(-1).payload.data.url, "/?view=single&workspaceId=child&weixinChat=1");
+      assert.equal(calls.sends.at(-1).payload.data.url, "/?view=single&workspaceId=child&threadId=thread-1&messageId=a1&weixinChat=1");
+      assert.equal(calls.sends.at(-1).payload.data.threadId, "thread-1");
+      assert.equal(calls.sends.at(-1).payload.data.messageId, "a1");
 
       const groupThread = {
         id: "group-thread",
@@ -675,7 +677,7 @@ function testTaskTerminalPushDoesNotCreateInboxItemForActiveChatReceipt() {
       const payload = calls.sends[0].payload;
       assert.equal(payload.data.viewMode, "tasks");
       assert.equal(Object.prototype.hasOwnProperty.call(payload.data, "inboxItemId"), false);
-      assert.equal(payload.data.url, "/?view=tasks&workspaceId=child&taskGroupId=task-1&messageId=u1");
+      assert.equal(payload.data.url, "/?view=tasks&workspaceId=child&taskGroupId=task-1&messageId=a1");
       assert.equal(payload.data.messageType, "task_completed");
     });
   });

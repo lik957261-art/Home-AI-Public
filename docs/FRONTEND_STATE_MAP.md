@@ -54,6 +54,10 @@ Use this file to locate the responsible frontend files before debugging a screen
   - After `run.model_output_started` / `run.final_message_started`, and when no
     later tool operation has started, the inline run-progress panel should use
     compact display so streamed assistant text remains visible.
+  - After an assistant receipt reaches a terminal state, detailed run-progress
+    rows should collapse into a small `模型状态` footer tag next to Usage/Skill.
+    Opening the tag shows the historical rows; terminal history must not keep a
+    visible "still running" quiet row.
 - Static shell/cache: `public/index.html`, `public/service-worker.js`, `public/directory-viewer.html`
 
 ## Chat And Topics
@@ -61,7 +65,7 @@ Use this file to locate the responsible frontend files before debugging a screen
 - Composer: `public/app-chat-composer-ui.js`, `public/app-composer-send-ui.js`, `public/app-composer-context-ui.js`, `public/app-composer-source-ui.js`
 - Thread list/message rendering: `public/app-thread-list-ui.js`, `public/app-thread-message-ui.js`, `public/app-thread-card-message-ui.js`
 - Task group UI: `public/app-task-groups-ui.js`, `public/app-task-preview-ui.js`
-- Message actions, Usage, Skill chip: `public/app-message-actions-ui.js`, `public/app-message-usage-ui.js`, `public/app-message-skill-ui.js`
+- Message actions, Usage, Skill, and terminal run-status chips: `public/app-message-actions-ui.js`, `public/app-message-usage-ui.js`, `public/app-message-skill-ui.js`, `public/app-run-progress-ui.js`
 - Search: `public/app-navigation-search-ui.js`
 - Group/topic UI: `public/app-group-topic-ui.js`
 

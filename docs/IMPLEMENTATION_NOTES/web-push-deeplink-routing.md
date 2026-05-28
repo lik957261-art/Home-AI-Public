@@ -17,6 +17,8 @@ Notification clicks should:
 ## Route Rules
 
 - Payloads should prefer product identifiers such as task group id, message id, automation id, group-chat flag, or learning evaluation id.
+- Active chat/topic terminal notifications should use the terminal assistant receipt `messageId`. Topic routes should scroll to that receipt inside the selected task group; single-window chat and group-chat routes should preserve `threadId`/`messageId` and stay in `view=single`.
+- In the service worker, single-window route intent takes precedence over generic `taskGroupId` routing. `viewMode=single`, `weixinChat`, `groupChat`, `taskGroupId=chat`, and `taskGroupId=group-chat` must not be rewritten into `view=tasks`.
 - A viewer URL should be folded back through its `return` route or the main app route.
 - Sensitive detail is fetched after opening through authenticated APIs.
 
@@ -24,6 +26,7 @@ Notification clicks should:
 
 - `node --check public\service-worker.js`
 - `node tests\web-push-delivery-service.test.js`
+- `node tests\same-window-navigation-harness.test.js`
 - `node tests\task-list-ui.test.js`
 - Static version bump when service worker or route JS changes.
 

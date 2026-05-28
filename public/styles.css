@@ -2874,7 +2874,8 @@ button.directory-alias-chip {
 }
 
 .message-footer-row .usage,
-.message-footer-row .message-skills {
+.message-footer-row .message-skills,
+.message-footer-row .run-progress-history {
   flex: 0 0 auto;
   width: auto;
   max-width: none;
@@ -2897,7 +2898,8 @@ button.directory-alias-chip {
 }
 
 .usage,
-.message-skills {
+.message-skills,
+.run-progress-history {
   position: relative;
   margin-top: 12px;
   border: 1px solid var(--line);
@@ -2907,7 +2909,8 @@ button.directory-alias-chip {
 }
 
 .usage summary,
-.message-skills summary {
+.message-skills summary,
+.run-progress-history summary {
   min-width: 48px;
   min-height: 22px;
   display: grid;
@@ -2922,18 +2925,21 @@ button.directory-alias-chip {
 }
 
 .usage summary::-webkit-details-marker,
-.message-skills summary::-webkit-details-marker {
+.message-skills summary::-webkit-details-marker,
+.run-progress-history summary::-webkit-details-marker {
   display: none;
 }
 
 .message:has(.usage[open]),
-.message:has(.message-skills[open]) {
+.message:has(.message-skills[open]),
+.message:has(.run-progress-history[open]) {
   overflow: visible;
   z-index: 9;
 }
 
 .usage-details,
-.message-skill-details {
+.message-skill-details,
+.run-progress-history-details {
   position: absolute;
   left: 0;
   bottom: calc(100% + 7px);
@@ -2945,6 +2951,19 @@ button.directory-alias-chip {
   background: rgba(255, 255, 252, 0.98);
   box-shadow: 0 14px 32px rgba(31, 43, 51, 0.13);
   transform: translateX(var(--usage-panel-shift, 0px));
+}
+
+.run-progress-history-details {
+  width: min(520px, calc(100vw - 24px));
+  max-height: min(420px, 62vh);
+  overflow: auto;
+  padding: 8px;
+}
+
+.run-progress-history-details .run-progress-panel.inline {
+  width: 100%;
+  margin: 0;
+  box-shadow: none;
 }
 
 .message-skill-details {
@@ -2988,6 +3007,11 @@ button.directory-alias-chip {
 }
 
 @media (max-width: 720px) {
+  .run-progress-history-details {
+    width: min(320px, calc(100vw - 24px));
+    max-height: min(300px, 48vh);
+  }
+
   .message-skill-details {
     position: absolute;
     left: 0;

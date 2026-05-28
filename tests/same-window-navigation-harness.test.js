@@ -47,6 +47,13 @@ assert.match(serviceWorker, /self\.clients\.openWindow\(targetWindowRoute\)/);
 assert.match(serviceWorker, /function normalizeAppShellPath\(pathname = ""\)/);
 assert.match(serviceWorker, /function appShellRouteForParams\(params, shellPath = "\/"\)/);
 assert.match(serviceWorker, /appWindowRouteForUrl\(parsedTargetUrl, client\)/);
+assert.ok(
+  serviceWorker.indexOf("requestedView === \"single\"") < serviceWorker.indexOf("if (taskGroupId)"),
+  "Web Push chat/group routes must preserve single-window view before generic taskGroup routing.",
+);
+assert.match(serviceWorker, /function notificationRouteFlagEnabled\(value\)/);
+assert.match(serviceWorker, /if \(data\.threadId\) params\.set\("threadId", String\(data\.threadId\)\)/);
+assert.match(serviceWorker, /if \(data\.messageId\) params\.set\("messageId", String\(data\.messageId\)\)/);
 assert.doesNotMatch(serviceWorker, /self\.clients\.openWindow\(targetUrl\)/);
 assert.doesNotMatch(serviceWorker, /return `\/\?\$\{params\.toString\(\)\}`/);
 

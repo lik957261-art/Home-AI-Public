@@ -275,11 +275,28 @@ function routeScrollMessageIdForTaskGroup(group) {
   const messages = Array.isArray(group.messages) ? group.messages : [];
   const requested = state.routeScrollMessageId;
   if (requested && messages.some((message) => message.id === requested)) return requested;
+  if (requested) return "";
   return [...messages].reverse().find((message) => message?.id)?.id || "";
 }
 
 function consumeTaskRouteScrollTarget(group) {
   const messageId = routeScrollMessageIdForTaskGroup(group);
+  if (!messageId) return false;
+  clearRouteScrollTarget();
+  requestAnimationFrame(() => {
+    scrollMessageIntoView(messageId, "start");
+  });
+  return true;
+}
+
+function consumeChatRouteScrollTarget(messages = []) {
+  if (!isSingleWindowChatView() || !state.routeScrollMessageId) return false;
+  const activeTaskGroupId = activeChatTaskGroupId();
+  if (state.routeScrollTaskGroupId && state.routeScrollTaskGroupId !== activeTaskGroupId) return false;
+  const requested = String(state.routeScrollMessageId || "");
+  const messageId = messages.some((message) => String(message?.id || "") === requested)
+    ? requested
+    : "";
   if (!messageId) return false;
   clearRouteScrollTarget();
   requestAnimationFrame(() => {
@@ -343,8 +360,11 @@ function renderMessageFooter(message, usage) {
   const actions = renderMessageActionStrip(message, "start");
   const gatewayDiagnostic = renderMessageGatewayDiagnostic(message);
   const skills = renderMessageSkillPanel(message, state.currentThread);
-  if (!actions && !usage && !skills && !gatewayDiagnostic) return "";
-  const meta = `${gatewayDiagnostic}${usage}${skills}`;
+  const runProgressHistory = typeof renderMessageRunProgressHistory === "function"
+    ? renderMessageRunProgressHistory(state.currentThread, message)
+    : "";
+  if (!actions && !usage && !skills && !gatewayDiagnostic && !runProgressHistory) return "";
+  const meta = `${gatewayDiagnostic}${usage}${skills}${runProgressHistory}`;
   return `<div class="message-footer-row">${actions}<div class="message-footer-meta">${meta}</div></div>`;
 }
 

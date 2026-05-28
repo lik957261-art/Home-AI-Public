@@ -91,6 +91,7 @@ globalThis.runProgressTestApi = {
   messageRunProgressIds,
   rememberMessageRunProgressId,
   renderMessageRunProgressInPlace,
+  renderMessageRunProgressHistory,
   shouldKeepRunProgressPinnedToBottom,
 };`, context);
 
@@ -103,6 +104,7 @@ const {
   messageRunProgressIds,
   rememberMessageRunProgressId,
   renderMessageRunProgressInPlace,
+  renderMessageRunProgressHistory,
   shouldKeepRunProgressPinnedToBottom,
 } = context.runProgressTestApi;
 
@@ -302,6 +304,55 @@ const streamingOutputThread = {
 const compactHtml = renderMessageRunProgress(streamingOutputThread, streamingOutputThread.messages[0]);
 assert.match(compactHtml, /compact-after-output/);
 assert.match(compactHtml, /\u6a21\u578b\u5df2\u5f00\u59cb\u8f93\u51fa/);
+
+const terminalHistoryThread = {
+  id: "thread_terminal_history",
+  activeRunId: "",
+  activeRunIds: [],
+  messages: [
+    {
+      id: "msg_terminal_history",
+      role: "assistant",
+      status: "done",
+      runId: "resp_terminal_history",
+      responseRunId: "resp_terminal_history",
+      startedAt: "2026-05-27T13:05:00.000Z",
+      completedAt: "2026-05-27T13:05:08.000Z",
+      content: "\u5b8c\u6210\u56de\u6267",
+    },
+  ],
+  events: [
+    {
+      runId: "resp_terminal_history",
+      event: "run.request_sent",
+      tool: "hermes_mobile",
+      timestamp: "2026-05-27T13:05:00.500Z",
+      preview: "",
+    },
+    {
+      runId: "resp_terminal_history",
+      event: "run.model_stream_started",
+      tool: "hermes_mobile",
+      timestamp: "2026-05-27T13:05:01.000Z",
+      preview: "",
+    },
+    {
+      runId: "resp_terminal_history",
+      event: "run.completed",
+      tool: "hermes_mobile",
+      timestamp: "2026-05-27T13:05:08.000Z",
+      preview: "",
+    },
+  ],
+};
+assert.strictEqual(renderMessageRunProgress(terminalHistoryThread, terminalHistoryThread.messages[0]), "");
+const terminalHistoryHtml = renderMessageRunProgressHistory(terminalHistoryThread, terminalHistoryThread.messages[0]);
+assert.match(terminalHistoryHtml, /run-progress-history/);
+assert.match(terminalHistoryHtml, /\u6a21\u578b\u72b6\u6001/);
+assert.match(terminalHistoryHtml, /run-progress-panel inline terminal/);
+assert.match(terminalHistoryHtml, /\u8fd0\u884c\u8bb0\u5f55/);
+assert.match(terminalHistoryHtml, /3 events/);
+assert.doesNotMatch(terminalHistoryHtml, /\u4ecd\u5728\u8fd0\u884c/);
 
 const unnamedFunctionThread = {
   id: "thread_unnamed_function",

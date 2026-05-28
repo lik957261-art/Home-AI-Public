@@ -549,7 +549,7 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
     : runProgressDisplayEvents(compactedEvents, startMs);
   const eventTimes = allEvents.map((event) => runProgressTimestampMs(event.timestamp)).filter(Boolean);
   const lastEventMs = eventTimes.length ? Math.max(...eventTimes) : 0;
-  const quietRow = renderRunProgressQuietRow(lastEventMs, startMs);
+  const quietRow = options.terminal ? "" : renderRunProgressQuietRow(lastEventMs, startMs);
   const rows = events.length
     ? `${quietRow}${events.map((event) => {
       const preview = runEventPreviewLabel(event);
@@ -586,6 +586,33 @@ function renderMessageRunProgress(thread, message = {}, options = {}) {
     inline: true,
     terminal: false,
   });
+}
+
+function renderMessageRunProgressHistory(thread, message = {}, options = {}) {
+  if (message?.role !== "assistant") return "";
+  const status = String(message.status || "");
+  if (!RUN_PROGRESS_TERMINAL_STATUSES.has(status)) return "";
+  if (!messageStatusCanHaveRunProgress(message)) return "";
+  const runIds = messageRunProgressIds(thread, message, options);
+  if (!runIds.length) return "";
+  const allEvents = runProgressEvents(thread, runIds);
+  if (!allEvents.length) return "";
+  const terminalMs = runProgressTerminalMs(message);
+  const startMs = runProgressStartMs(thread, runIds, allEvents);
+  const elapsedLabel = runProgressDurationLabel(startMs, terminalMs || Date.now());
+  const statusLabel = status === "failed"
+    ? "\u5931\u8d25"
+    : (status === "cancelled" ? "\u5df2\u53d6\u6d88" : "\u5b8c\u6210");
+  const title = `\u6a21\u578b\u72b6\u6001: ${statusLabel} · ${elapsedLabel} · ${allEvents.length} events`;
+  const panel = renderRunProgressPanel(thread, runIds, {
+    inline: true,
+    terminal: true,
+    terminalMs,
+  });
+  return `<details class="run-progress-history" title="${escapeHtml(title)}">
+    <summary aria-label="${escapeHtml(title)}">\u6a21\u578b\u72b6\u6001</summary>
+    <div class="run-progress-history-details">${panel}</div>
+  </details>`;
 }
 
 function messageForRunProgress(thread, runId) {

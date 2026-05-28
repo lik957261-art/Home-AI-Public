@@ -1298,11 +1298,8 @@ function createWebPushDeliveryService(options = {}) {
     return { ok: true, taskCardId, workspaceId: taskWorkspaceId, recipients, inboxItems, deliveries };
   }
 
-  function taskReceiptStartMessageId(thread, message) {
-    const taskGroupId = String(message?.taskGroupId || "").trim();
-    if (!taskGroupId) return String(message?.id || "").trim();
-    const first = (thread?.messages || []).find((item) => item?.taskGroupId === taskGroupId && item?.id);
-    return String(first?.id || message?.id || "").trim();
+  function taskReceiptMessageId(_thread, message) {
+    return String(message?.id || "").trim();
   }
 
   function taskDetailUrl(thread, message) {
@@ -1310,14 +1307,19 @@ function createWebPushDeliveryService(options = {}) {
       view: "tasks",
       workspaceId: thread?.workspaceId || "owner",
       taskGroupId: message?.taskGroupId || "",
-      messageId: taskReceiptStartMessageId(thread, message),
+      messageId: taskReceiptMessageId(thread, message),
     });
   }
 
   function terminalNotificationRoute(thread, message) {
     const workspaceId = thread?.workspaceId || "owner";
     if (thread?.singleWindow && message?.taskGroupId === singleWindowChatTaskGroupId) {
-      const params = { view: "single", workspaceId };
+      const params = {
+        view: "single",
+        workspaceId,
+        threadId: thread?.id || "",
+        messageId: taskReceiptMessageId(thread, message),
+      };
       if (isWeixinSingleWindowThread(thread)) params.weixinChat = "1";
       return {
         url: appRouteUrl(params),
@@ -1459,7 +1461,7 @@ function createWebPushDeliveryService(options = {}) {
       messageType,
       threadId: thread?.id || "",
       taskGroupId: message?.taskGroupId || "",
-      messageId: taskReceiptStartMessageId(thread, message),
+      messageId: taskReceiptMessageId(thread, message),
       runId: message?.runId || "",
       status,
       requireInteraction: true,

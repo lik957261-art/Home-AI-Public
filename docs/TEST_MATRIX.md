@@ -163,12 +163,18 @@ outputs remain excluded. Once streamed text begins, run-progress UI tests must
 assert the inline panel switches to compact display unless a later tool
 operation has started. UI fallback tests must assert unnamed function events do
 not render duplicated labels such as `Function Function`.
+Terminal assistant receipts must collapse completed run-progress details into a
+footer tag similar to Usage/Skill; opening the tag shows historical rows, while
+terminal history must not render an ongoing quiet/still-running row.
 
 For same-window navigation and browser-frame bugs, the required harness must
 cover both root-mounted and prefix-mounted app-shell paths. If the issue is
 reported through an external reverse-proxy/PWA URL, validation must include
 that exact external entry path and the changed route-helper JavaScript from the
 same origin/path; local root smoke alone is insufficient.
+Web Push chat/topic receipt routing must cover terminal receipt `messageId`
+projection, single-window route precedence over generic `taskGroupId`, and
+frontend scroll target consumption after chat/topic messages render.
 
 For secondary-page return bugs, the harness must also cover async race
 conditions: a late response from the page being left must not repaint that page
