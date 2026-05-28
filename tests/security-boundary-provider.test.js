@@ -185,6 +185,12 @@ function run() {
   assert.match(permissionInstructions, /Automation\/CRON job operations are ordinary low-permission work/);
   assert.match(permissionInstructions, /HERMES_PERMISSION_APPROVAL_REQUIRED/);
   assert.match(provider.permissionBoundarySkillInstructions({ access_mode: "restricted" }), /model-side permission check/);
+  const postSelectorPermissionInstructions = permissionBoundarySkillInstructions({
+    access_mode: "restricted",
+    toolset_routing: { mode: "model_first" },
+  });
+  assert.match(postSelectorPermissionInstructions, /permission and toolset preflight has already completed/);
+  assert.doesNotMatch(postSelectorPermissionInstructions, /Use Skill: productivity\/hermes-mobile-permission-boundary-check/);
   assert.strictEqual(permissionBoundarySkillInstructions({ access_mode: "unrestricted" }), "");
 
   const skillPath = path.join(__dirname, "..", "skills", "productivity", "hermes-mobile-permission-boundary-check", "SKILL.md");

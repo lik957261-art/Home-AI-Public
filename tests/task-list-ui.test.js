@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-runstatus-toolsets-v308";
+const CLIENT_VERSION = "20260528-runstatus-preflight-v309";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -84,6 +84,7 @@ const weixinIngressEventServiceJs = fs.readFileSync(path.join(repoRoot, "adapter
 const weixinIngressProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", "weixin-ingress-provider.js"), "utf8");
 const taskArtifactHelpersJs = fs.readFileSync(path.join(repoRoot, "public", "app-task-artifact-helpers.js"), "utf8");
 const kanbanStoryHelpersJs = fs.readFileSync(path.join(repoRoot, "public", "app-kanban-story-helpers.js"), "utf8");
+const appRunProgressUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-run-progress-ui.js"), "utf8");
 const appLearningReadingUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-reading-ui.js"), "utf8");
 const appLearningCoinsUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-coins-ui.js"), "utf8");
 const appLearningProgramUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-program-ui.js"), "utf8");
@@ -432,9 +433,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-runstatus-toolsets-v308/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-runstatus-toolsets-v308/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-runstatus-toolsets-v308/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-runstatus-preflight-v309/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-runstatus-preflight-v309/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-runstatus-preflight-v309/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -626,11 +627,14 @@ assert.match(appJs, /if \(!activeIds\.has\(id\)\) return null/);
 assert.match(appJs, /messageStatusIsActive\(message\)/);
 assert.match(appJs, /function shouldKeepRunProgressPinnedToBottom\(conversation = \$\("conversation"\)\)/);
 assert.match(appJs, /shouldFollowConversationBottomDuringViewport\(\)/);
-assert.match(appJs, /function stickRunProgressToConversationBottom\(conversation, shouldStick\)/);
+assert.match(appJs, /function runProgressScrollMetrics\(conversation\)/);
+assert.match(appJs, /function stickRunProgressToConversationBottom\(conversation, shouldStick, beforeMetrics = null\)/);
 assert.match(appJs, /state\.conversationViewportBottomFollowUntil = Math\.max/);
-assert.match(appJs, /scrollConversationToBottom\(\)/);
+assert.match(appJs, /const heightDelta = Math\.max\(0, afterHeight - before\.scrollHeight\)/);
+assert.doesNotMatch(appRunProgressUiJs, /scrollConversationToBottom\(\)/);
 assert.match(appJs, /const shouldStick = shouldKeepRunProgressPinnedToBottom\(conversation\)/);
-assert.match(appJs, /stickRunProgressToConversationBottom\(conversation, shouldStick\)/);
+assert.match(appJs, /const scrollMetrics = runProgressScrollMetrics\(conversation\)/);
+assert.match(appJs, /stickRunProgressToConversationBottom\(conversation, shouldStick, scrollMetrics\)/);
 assert.match(appJs, /\.\.\.messageOwnRunIds\(message\)/);
 assert.match(appJs, /rememberMessageRunProgressId\(thread, message, id\)/);
 assert.match(appJs, /renderMessageRunProgressInPlace\(thread, message, \{ extraRunIds: \[id\] \}\)/);

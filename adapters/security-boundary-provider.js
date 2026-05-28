@@ -148,8 +148,13 @@ const PERMISSION_APPROVAL_MARKER = "HERMES_PERMISSION_APPROVAL_REQUIRED";
 function permissionBoundarySkillInstructions(policy = {}) {
   const accessMode = String(policy?.access_mode || policy?.accessMode || "").trim().toLowerCase();
   if (accessMode === "unrestricted") return "";
+  const routing = policy?.toolset_routing || policy?.toolsetRouting || {};
+  const preflightMode = String(routing?.mode || "").trim().toLowerCase();
+  const modelFirstPreflightDone = preflightMode === "model_first";
   return [
-    `Use Skill: ${PERMISSION_BOUNDARY_SKILL} as the model-side permission check before any filesystem, Skill, automation, account, integration, or delivery-path operation.`,
+    modelFirstPreflightDone
+      ? "Model-side permission and toolset preflight has already completed for this run; do not load the permission-boundary Skill again."
+      : `Use Skill: ${PERMISSION_BOUNDARY_SKILL} as the model-side permission check before any filesystem, Skill, automation, account, integration, or delivery-path operation.`,
     "Treat the supplied access_policy_context as the source of truth for what this Gateway run can and cannot access.",
     "Web Search is ordinary low-permission work when the run has the web toolset; do not ask for Owner elevation just to search or extract public web information.",
     "Search-only public web lookup is ordinary low-permission work when the run has the search toolset.",

@@ -24,6 +24,10 @@ Use this file to locate the responsible frontend files before debugging a screen
     model, Skill, and function events downward. The panel may cap the number of
     visible rows, but it must not reorder later function calls above earlier
     startup rows.
+  - Toolset-selection status rows represent the combined permission and toolset
+    preflight. After a successful model-first selector decision, the main run
+    should not load the permission-boundary Skill again as a separate visible
+    step.
   - Event-driven refresh must bind a run event to the newest assistant message
     whose own `runId`, `originalRunId`, `responseRunId`, or `taskId` matches
     before falling back to thread active ids. Thread active ids are only a
@@ -32,6 +36,9 @@ Use this file to locate the responsible frontend files before debugging a screen
   - When an inline run-progress panel grows because new rows arrive, the
     conversation should remain pinned to the newest status area if the user was
     already near/pinned to the bottom or inside the send/run follow window.
+    It should preserve the previous bottom offset by compensating only for
+    actual height growth, not repeatedly force `scrollTop` to the absolute
+    bottom on every status refresh.
     It must not pull the viewport back down after the user has intentionally
     scrolled away.
   - Function-call rows should show the concrete function name whenever the

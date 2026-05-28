@@ -88,7 +88,11 @@ messages, and that repeated JSON candidates from streamed Responses events are
 parsed as a valid final decision rather than `invalid_json`. Tens-of-seconds
 latency is acceptable if the selector reliably returns; latency/cost claims must
 verify the actual Gateway session or worker log model instead of trusting only
-the request body's `model` field.
+the request body's `model` field. A successful model-first selector decision must
+also suppress a second permission-classifier pass before execution: the main
+execution prompt must not ask the model to load the permission-boundary Skill
+again, and UI status rows should describe permission/toolset selection as one
+combined preflight.
 
 Run status harnesses must cover no-first-byte visibility. If the execution
 stream receives no Gateway event after the configured warning window, the

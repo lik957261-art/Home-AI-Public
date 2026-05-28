@@ -342,9 +342,11 @@ Required harness dimensions:
   count if needed.
 - Inline run-progress growth is part of the scroll contract. If the user is
   pinned/near bottom or inside the send/run follow window, replacing a longer
-  status panel must restick to the newest status area after the DOM grows. If
-  the user has intentionally scrolled away, the refresh must not force the
-  viewport back to the bottom.
+  status panel must preserve the previous bottom offset by compensating only for
+  actual height growth. It must not repeatedly force `scrollTop=scrollHeight`,
+  because that can make the phone viewport jump to the bottom and then rebound by
+  roughly a row. If the user has intentionally scrolled away, the refresh must
+  not force the viewport back to the bottom.
 - Function-call projection must expose the concrete function name whenever the
   stream event contains it directly or through paired `callId` metadata. The
   UI should avoid generic `Function call` / `Function result` labels when a
@@ -367,6 +369,11 @@ Required harness dimensions:
 - Skill footer tags must be evidence-based. Do not add a synthetic response or
   fallback Skill merely because an assistant response completed; render Skill
   only when a real loaded Skill or `skill_view` event is present.
+- Permission and toolset preflight is one model-side step. When the
+  model-first selector has returned a normal allowed-toolset decision, the main
+  execution prompt must not ask the model to load the permission-boundary Skill
+  again; the run-status row should describe the combined permission/toolset
+  check, not show a separate Permission Skill step.
 - Function-call projection must not render unnamed generic function rows. If a
   concrete function name cannot be recovered from the event, preview JSON,
   `callId` pair, or tool field, omit that function row instead of showing a

@@ -308,9 +308,9 @@ function runEventTitle(event) {
   if (name === "run.final_message_done") return "\u56de\u590d\u5df2\u751f\u6210";
   if (name === "run.context_ready") return "\u4e0a\u4e0b\u6587\u5df2\u6574\u7406";
   if (name === "run.gateway_selected") return "Gateway \u5df2\u9009\u62e9";
-  if (name === "run.toolset_selection_started") return "\u6b63\u5728\u9009\u62e9\u5de5\u5177\u96c6";
-  if (name === "run.toolset_selection_done") return "\u5de5\u5177\u96c6\u5df2\u9009\u62e9";
-  if (name === "run.toolset_selection_failed") return "\u5de5\u5177\u96c6\u9009\u62e9\u56de\u9000";
+  if (name === "run.toolset_selection_started") return "\u6b63\u5728\u68c0\u67e5\u6743\u9650\u4e0e\u5de5\u5177\u96c6";
+  if (name === "run.toolset_selection_done") return "\u6743\u9650\u4e0e\u5de5\u5177\u96c6\u5df2\u786e\u8ba4";
+  if (name === "run.toolset_selection_failed") return "\u6743\u9650\u4e0e\u5de5\u5177\u96c6\u68c0\u67e5\u56de\u9000";
   if (name === "run.toolset_escalation_required") return "\u9700\u8981\u8ffd\u52a0\u5de5\u5177\u96c6";
   if (name === "run.permission_required") return "\u9700\u8981 Owner \u6388\u6743";
   if (name === "run.request_sent") return "\u8bf7\u6c42\u5df2\u53d1\u9001";
@@ -676,8 +676,23 @@ function shouldKeepRunProgressPinnedToBottom(conversation = $("conversation")) {
   return bottomOffset < 220;
 }
 
-function stickRunProgressToConversationBottom(conversation, shouldStick) {
+function runProgressScrollMetrics(conversation) {
+  if (!conversation) return null;
+  const scrollHeight = Number(conversation.scrollHeight || 0);
+  const scrollTop = Number(conversation.scrollTop || 0);
+  const clientHeight = Number(conversation.clientHeight || 0);
+  return {
+    scrollHeight,
+    scrollTop,
+    clientHeight,
+    bottomOffset: Math.max(0, scrollHeight - scrollTop - clientHeight),
+  };
+}
+
+function stickRunProgressToConversationBottom(conversation, shouldStick, beforeMetrics = null) {
   if (!conversation || !shouldStick) return;
+  const before = beforeMetrics || runProgressScrollMetrics(conversation);
+  if (!before) return;
   const now = Date.now();
   state.conversationViewportBottomFollowUntil = Math.max(
     Number(state.conversationViewportBottomFollowUntil || 0),
@@ -687,23 +702,23 @@ function stickRunProgressToConversationBottom(conversation, shouldStick) {
     Number(state.suppressConversationPinUntil || 0),
     now + 500
   );
-  state.conversationPinnedToBottom = true;
+  state.conversationPinnedToBottom = before.bottomOffset < 96;
   const stick = () => {
-    if (typeof scrollConversationToBottom === "function") {
-      scrollConversationToBottom();
-    } else {
-      conversation.scrollTop = conversation.scrollHeight;
-      state.conversationPinnedToBottom = true;
-    }
+    const afterHeight = Number(conversation.scrollHeight || 0);
+    const afterClientHeight = Number(conversation.clientHeight || 0);
+    const maxTop = Math.max(0, afterHeight - afterClientHeight);
+    const heightDelta = Math.max(0, afterHeight - before.scrollHeight);
+    const targetTop = before.bottomOffset < 8
+      ? maxTop
+      : Math.max(0, Math.min(maxTop, before.scrollTop + heightDelta));
+    conversation.scrollTop = targetTop;
+    state.conversationPinnedToBottom = Math.max(0, afterHeight - targetTop - afterClientHeight) < 96;
     if (typeof scheduleMessageScrollButtonVisibility === "function") {
       scheduleMessageScrollButtonVisibility(conversation);
     }
   };
-  requestAnimationFrame(() => {
-    stick();
-    requestAnimationFrame(stick);
-  });
-  window.setTimeout(stick, 260);
+  stick();
+  requestAnimationFrame(stick);
 }
 
 function renderMessageRunProgressInPlace(thread, message = {}, options = {}) {
@@ -713,12 +728,13 @@ function renderMessageRunProgressInPlace(thread, message = {}, options = {}) {
   if (!article || !body) return false;
   const conversation = $("conversation");
   const shouldStick = shouldKeepRunProgressPinnedToBottom(conversation);
+  const scrollMetrics = runProgressScrollMetrics(conversation);
   const existing = body.querySelector(".run-progress-panel.inline");
   const html = renderMessageRunProgress(thread, message, options);
   if (!html) {
     existing?.remove?.();
     syncRunProgressTicker(conversation);
-    stickRunProgressToConversationBottom(conversation, shouldStick);
+    stickRunProgressToConversationBottom(conversation, shouldStick, scrollMetrics);
     return true;
   }
   if (existing) {
@@ -729,7 +745,7 @@ function renderMessageRunProgressInPlace(thread, message = {}, options = {}) {
     else body.insertAdjacentHTML("afterbegin", html);
   }
   syncRunProgressTicker(conversation);
-  stickRunProgressToConversationBottom(conversation, shouldStick);
+  stickRunProgressToConversationBottom(conversation, shouldStick, scrollMetrics);
   scheduleMessageScrollButtonVisibility(article);
   return true;
 }
