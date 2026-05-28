@@ -1174,15 +1174,24 @@ button {
 
 .wardrobe-plugin-shell {
   width: 100%;
+  height: 100%;
   min-height: calc(100dvh - 132px);
   display: grid;
   background: var(--ui-panel);
 }
 
 .wardrobe-plugin-frame {
+  display: block;
   width: 100%;
+  height: 100%;
   min-height: calc(100dvh - 132px);
   border: 0;
+  background: var(--ui-panel);
+}
+
+.wardrobe-mode .conversation {
+  padding: 0;
+  overflow: hidden;
   background: var(--ui-panel);
 }
 

@@ -72,6 +72,7 @@ assert.match(stylesCss, /\.bottom-nav\.wardrobe-visible/);
 assert.match(stylesCss, /\.nav-wardrobe-icon::before/);
 assert.match(stylesCss, /\.wardrobe-plugin-shell/);
 assert.match(stylesCss, /\.wardrobe-plugin-frame/);
+assert.match(stylesCss, /\.wardrobe-mode \.conversation\s*\{[\s\S]*padding: 0;[\s\S]*overflow: hidden;/);
 assert.match(stylesCss, /\.wardrobe-plugin-notice/);
 assert.match(stylesCss, /\.wardrobe-mode \.composer/);
 assert.doesNotMatch(stylesCss, /\.wardrobe-action-card/);
