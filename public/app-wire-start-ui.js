@@ -402,13 +402,7 @@ function wireUi() {
   $("topToggleReadingFullscreen")?.addEventListener("click", () => {
     setReadingFullscreen(!state.readingFullscreen);
   });
-  ["topWardrobeOverview", "topWardrobeWatches", "topWardrobeMaintenance", "topWardrobeWear", "topWardrobeLooks", "topWardrobeLog"].forEach((id) => {
-    $(id)?.addEventListener("click", (event) => {
-      const section = event.currentTarget?.dataset?.wardrobeSection || "overview";
-      setWardrobeSection(section);
-    });
-  });
-  $("readingFullscreenExit")?.addEventListener("click", () => {
+    $("readingFullscreenExit")?.addEventListener("click", () => {
     setReadingFullscreen(false);
   });
   $("readingFullscreenEnter")?.addEventListener("click", () => {

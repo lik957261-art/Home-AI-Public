@@ -336,11 +336,6 @@ const state = {
   wardrobePluginManifest: null,
   wardrobePluginLoading: false,
   wardrobePluginChecked: false,
-  wardrobeOverview: null,
-  wardrobeOverviewLoading: false,
-  wardrobeFilters: { q: "", brand: "" },
-  wardrobeSection: localStorage.getItem("hermesWardrobeSection") || "overview",
-  wardrobeSearchTimer: null,
   concurrency: null,
   displayConfig: {
     ownerDriveRootNames: ["ChatGPT-Drive"],

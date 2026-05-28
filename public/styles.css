@@ -1186,6 +1186,31 @@ button {
   background: var(--ui-panel);
 }
 
+.wardrobe-plugin-notice {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 2px;
+  padding: 10px 11px;
+  border: 1px solid rgba(166, 141, 103, 0.22);
+  border-radius: 8px;
+  background: rgba(166, 141, 103, 0.09);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.wardrobe-plugin-notice strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.wardrobe-plugin-notice span,
+.wardrobe-plugin-notice small {
+  min-width: 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .nav-chat-icon::before {
   content: "";
   position: absolute;

@@ -137,15 +137,6 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
-    key: "wardrobe-api-routes",
-    exportName: "createWardrobeApiRoutes",
-    required: false,
-    minRoutes: 1,
-    probes: [
-      { method: "GET", path: "/api/wardrobe/overview", id: "wardrobe-overview" },
-    ],
-  },
-  {
     key: "hermes-plugin-api-routes",
     exportName: "createHermesPluginApiRoutes",
     required: false,

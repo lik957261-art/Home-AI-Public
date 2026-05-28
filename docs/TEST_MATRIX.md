@@ -102,6 +102,12 @@ The first NAS-backed registration uses
 defaults the live source to
 `http://192.168.10.99:8765/api/v1/hermes/plugin/manifest`, with an environment
 override for later local/production source changes.
+HTTPS/PWA embedded-plugin tests must assert that an HTTP iframe entry is never
+silently rendered as a blank plugin pane. The frontend should fall back to the
+native projection with a visible diagnostic unless production is configured to
+fetch an HTTPS manifest/entry. Deployment smoke for this class must include the
+installed Android PWA launched from the home-screen icon, not only browser URL or
+manifest API checks.
 Wardrobe dashboard binding tests must cover directory ambiguity: a configured
 wardrobe root with `.hermes-wardrobe/config.json` must win, child delivery
 folders such as `衣橱/交付` must not steal the root, and generic outfit output
@@ -384,7 +390,7 @@ The guard test is:
 | Web Push | `node tests\web-push-delivery-service.test.js`, `node tests\push-api-routes.test.js`, `node tests\task-list-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js` |
-| Wardrobe MCP/plugin tab | `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\wardrobe-projection-service.test.js`, `node tests\wardrobe-api-routes.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js` |
+| Wardrobe plugin tab | `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes |
 | Directory/files/artifacts | `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js` |
 | Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\link-skill-profile-store.test.js` |
 | Automation/Cron | `node tests\automation-api-routes.test.js`, `node tests\automation-provider.test.js`, `node tests\cron-bridge.test.js`, `node tests\local-automation-bridge-service.test.js` |

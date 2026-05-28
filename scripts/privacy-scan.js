@@ -105,7 +105,10 @@ function gitFiles(root) {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     });
-    return output.split("\0").filter(Boolean).sort();
+    return output.split("\0")
+      .filter(Boolean)
+      .filter((relativePath) => fs.existsSync(path.join(root, relativePath)))
+      .sort();
   } catch (_) {
     return allFiles(root);
   }

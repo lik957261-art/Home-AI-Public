@@ -69,7 +69,11 @@ function createHermesPluginApiRoutes(deps = {}) {
   async function handleWardrobeManifest(req, res, url) {
     const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(url));
     if (!workspaceId) return;
-    const manifest = await deps.hermesPluginService.manifest({ id: "wardrobe", workspaceId });
+    const manifest = await deps.hermesPluginService.manifest({
+      id: "wardrobe",
+      workspaceId,
+      appOrigin: url?.searchParams?.get("appOrigin") || "",
+    });
     deps.sendJson(res, 200, Object.assign({ workspaceId }, manifest));
   }
 

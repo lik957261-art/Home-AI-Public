@@ -50,6 +50,30 @@ function pathValue(value = "") {
   return stringValue(value).replace(/\\/g, "/").split("/").filter(Boolean).slice(-2).join("/");
 }
 
+function frameAncestorsAllows(csp = "", appOrigin = "", entryOrigin = "") {
+  const origin = stringValue(appOrigin);
+  if (!origin) return true;
+  const directive = stringValue(csp)
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.toLowerCase().startsWith("frame-ancestors "));
+  if (!directive) return true;
+  const sources = directive.split(/\s+/).slice(1).map((part) => part.trim()).filter(Boolean);
+  if (!sources.length) return true;
+  if (sources.includes("*")) return true;
+  if (sources.includes("'none'")) return false;
+  const normalizedEntryOrigin = originOf(entryOrigin);
+  return sources.some((source) => {
+    if (source === "'self'") return normalizedEntryOrigin && normalizedEntryOrigin === origin;
+    if (source.endsWith(":")) return origin.startsWith(source);
+    if (source.includes("*")) {
+      const escaped = source.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\\\*/g, ".*");
+      return new RegExp(`^${escaped}$`).test(origin);
+    }
+    return source === origin;
+  });
+}
+
 function normalizeManifest(raw = {}, source = {}) {
   const manifestUrl = stringValue(source.manifestUrl);
   const id = stringValue(raw.id || source.id);
@@ -112,6 +136,40 @@ function normalizeManifest(raw = {}, source = {}) {
   };
 }
 
+async function validateFrameAncestors(manifest, input = {}, fetchImpl) {
+  const appOrigin = originOf(input.appOrigin || "");
+  if (!appOrigin || !manifest?.entry?.url || typeof fetchImpl !== "function") return manifest;
+  try {
+    const response = await fetchImpl(manifest.entry.url, {
+      method: "GET",
+      headers: { Accept: "text/html,*/*" },
+    });
+    const csp = response?.headers?.get?.("content-security-policy")
+      || response?.headers?.get?.("Content-Security-Policy")
+      || "";
+    if (frameAncestorsAllows(csp, appOrigin, manifest.entry.origin)) return manifest;
+    return Object.assign({}, manifest, {
+      available: false,
+      code: "plugin_frame_ancestors_blocked",
+      warning: "plugin entry frame-ancestors does not allow the current Hermes origin",
+      embed: Object.assign({}, manifest.embed, {
+        blockedByFrameAncestors: true,
+        appOrigin,
+      }),
+    });
+  } catch (err) {
+    return Object.assign({}, manifest, {
+      available: false,
+      code: "plugin_entry_frame_probe_failed",
+      warning: stringValue(err?.message || err).slice(0, 300),
+      embed: Object.assign({}, manifest.embed, {
+        frameProbeFailed: true,
+        appOrigin,
+      }),
+    });
+  }
+}
+
 function createHermesPluginService(options = {}) {
   const fetchImpl = options.fetch || global.fetch;
   const timeoutMs = Number(options.timeoutMs || DEFAULT_TIMEOUT_MS);
@@ -149,11 +207,12 @@ function createHermesPluginService(options = {}) {
         };
       }
       const raw = await response.json();
-      return normalizeManifest(raw, {
+      const manifest = normalizeManifest(raw, {
         id,
         manifestUrl: plugin.manifestUrl,
         fetchedAt: nowIso(),
       });
+      return validateFrameAncestors(manifest, input, fetchImpl);
     } catch (err) {
       return {
         ok: false,
@@ -173,5 +232,6 @@ function createHermesPluginService(options = {}) {
 module.exports = {
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   createHermesPluginService,
+  frameAncestorsAllows,
   normalizeManifest,
 };

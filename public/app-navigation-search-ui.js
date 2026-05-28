@@ -404,22 +404,6 @@ function updateTopMoreControls() {
     readingFullscreen.disabled = wardrobeView;
     readingFullscreen.textContent = state.readingFullscreen ? "\u9000\u51fa\u5168\u5c4f" : "\u5168\u5c4f\u9605\u8bfb";
   }
-  const wardrobePlugin = typeof wardrobePluginAvailable === "function" ? wardrobePluginAvailable() : false;
-  const wardrobeSection = typeof currentWardrobeSection === "function" ? currentWardrobeSection() : "overview";
-  ["Overview", "Watches", "Maintenance", "Wear", "Looks", "Log"].forEach((suffix) => {
-    const button = $(`topWardrobe${suffix}`);
-    if (!button) return;
-    const id = button.dataset.wardrobeSection || "overview";
-    const showWardrobeSection = wardrobeView && !wardrobePlugin;
-    button.hidden = !showWardrobeSection;
-    button.disabled = !showWardrobeSection;
-    button.classList.toggle("active", showWardrobeSection && id === wardrobeSection);
-    if (showWardrobeSection && id === wardrobeSection && !button.textContent.trim().startsWith("\u2713")) {
-      button.textContent = `\u2713 ${button.textContent.replace(/^\u2713\s*/, "")}`;
-    } else if (button.textContent.trim().startsWith("\u2713") && id !== wardrobeSection) {
-      button.textContent = button.textContent.replace(/^\u2713\s*/, "");
-    }
-  });
   const menu = $("topMoreMenu");
   const hasVisibleAction = Boolean(menu && [...menu.querySelectorAll(".top-more-action")].some((button) => !button.hidden));
   wrap.classList.toggle("hidden", !hasVisibleAction);

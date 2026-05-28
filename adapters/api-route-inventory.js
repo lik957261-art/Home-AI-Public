@@ -212,11 +212,6 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
   exact("skills-detail", "GET", "/api/skills/detail", "skill", routeOptions("skill", {
     resourceTypes: ["skill"],
   })),
-  exact("wardrobe-overview", "GET", "/api/wardrobe/overview", "wardrobe", routeOptions("wardrobe", {
-    workspaceScoped: true,
-    resourceTypes: ["wardrobe", "project"],
-    summary: "Read deterministic Wardrobe MCP stats dashboard projection.",
-  })),
   exact("hermes-plugins-list", "GET", "/api/hermes-plugins", "plugins", routeOptions("hermes-plugins", {
     resourceTypes: ["plugin"],
     summary: "List configured Hermes embedded app plugins.",

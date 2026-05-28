@@ -133,24 +133,16 @@ Use this file to locate the responsible frontend files before debugging a screen
 - The tab is hidden by default and becomes visible only when the current
   workspace/project tree exposes a wardrobe/closet/outfit route or an authorized
   `wardrobe` toolset signal.
-- The tab homepage renders a deterministic entry overview from
-  `GET /api/wardrobe/overview`. That route invokes Wardrobe MCP stats tools
-  directly; the frontend must not start a model run, read cache files, or open a
-  browser window for the dashboard.
-- When `GET /api/hermes-plugins/wardrobe/manifest` returns an available
-  `embedded_app` manifest, the Wardrobe tab embeds the plugin entry URL in a
-  same-window iframe and hides the native section switcher.
-- The entry overview owns search, brand filter chips, filtered totals, brand
-  distribution, recent history, maintenance/data-quality summaries, and a
-  bounded item list.
-- The Wardrobe root menu exposes deterministic MCP sections for overview,
-  watches, maintenance, wear, featured looks, and log.
-- The Wardrobe tab must not show generic model task-launcher cards. If later
-  adding recommendation or writeback actions, they must be explicit product
-  actions rather than the default landing surface.
-- Full Wardrobe UI parity belongs to a future `embedded-app` plugin from the
-  Wardrobe project, not copied screens inside Hermes Mobile. The current native
-  tab is a minimal MCP overview/fallback.
+- `GET /api/hermes-plugins/wardrobe/manifest` is the only tab content source.
+  When it returns an available `embedded_app` manifest, the Wardrobe tab embeds
+  the plugin entry URL in a same-window iframe.
+- If the plugin manifest is unavailable, mixed-content blocked, or blocked by
+  `frame-ancestors`, the tab shows a compact plugin diagnostic and retry action.
+  It must not open a browser window and must not fall back to a local
+  `/api/wardrobe/overview` dashboard.
+- The old native section switcher and local MCP overview have been removed. Full
+  Wardrobe UI parity belongs to the embedded app from the Wardrobe project, not
+  copied screens inside Hermes Mobile.
 
 ## Growth
 

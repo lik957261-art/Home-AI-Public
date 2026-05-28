@@ -78,11 +78,11 @@ async function testListRoute() {
 async function testWardrobeManifestRoute() {
   const { calls, routes } = makeRoutes();
   const res = makeResponse();
-  const result = await routes.handle({ method: "GET" }, res, makeUrl("/api/hermes-plugins/wardrobe/manifest?workspaceId=weixin_wuping"));
+  const result = await routes.handle({ method: "GET" }, res, makeUrl("/api/hermes-plugins/wardrobe/manifest?workspaceId=weixin_wuping&appOrigin=https%3A%2F%2Fhermes.example.test"));
   assert.equal(result.handled, true);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(calls.access, ["weixin_wuping"]);
-  assert.deepEqual(calls.manifest, [{ id: "wardrobe", workspaceId: "weixin_wuping" }]);
+  assert.deepEqual(calls.manifest, [{ id: "wardrobe", workspaceId: "weixin_wuping", appOrigin: "https://hermes.example.test" }]);
   assert.equal(parseBody(res).entry.url, "http://nas/?embed=hermes");
 }
 

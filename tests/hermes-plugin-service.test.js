@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   createHermesPluginService,
+  frameAncestorsAllows,
   normalizeManifest,
 } = require("../adapters/hermes-plugin-service");
 
@@ -65,6 +66,12 @@ function testNormalizeManifest() {
   assert.equal(Object.hasOwn(manifest.ownerBinding, "accessKeyFile"), false);
 }
 
+function testFrameAncestorsAllowsCurrentOrigin() {
+  assert.equal(frameAncestorsAllows("frame-ancestors 'self'", "https://hermes.example.test", "https://hermes.example.test"), true);
+  assert.equal(frameAncestorsAllows("frame-ancestors 'self' http://localhost:*", "https://hermes.example.test", "https://wardrobe.example.test"), false);
+  assert.equal(frameAncestorsAllows("default-src 'self'; frame-ancestors https://hermes.example.test", "https://hermes.example.test", "https://wardrobe.example.test"), true);
+}
+
 async function testFetchesConfiguredWardrobeManifest() {
   const calls = [];
   const service = createHermesPluginService({
@@ -87,6 +94,32 @@ async function testFetchesConfiguredWardrobeManifest() {
   assert.equal(calls[0].options.headers.Accept, "application/json");
 }
 
+async function testFrameAncestorsBlockedReturnsUnavailable() {
+  const service = createHermesPluginService({
+    plugins: [{ id: "wardrobe", manifestUrl: "https://wardrobe.example.test/api/v1/hermes/plugin/manifest" }],
+    fetch(url) {
+      if (url.includes("/api/v1/hermes/plugin/manifest")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(Object.assign(sampleManifest(), {
+            entry: { type: "web", url: "https://wardrobe.example.test/?embed=hermes" },
+          })),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-security-policy" ? "frame-ancestors 'self' http://localhost:*" : "" },
+      });
+    },
+  });
+  const manifest = await service.manifest({ id: "wardrobe", appOrigin: "https://hermes.example.test" });
+  assert.equal(manifest.available, false);
+  assert.equal(manifest.code, "plugin_frame_ancestors_blocked");
+  assert.equal(manifest.embed.blockedByFrameAncestors, true);
+}
+
 async function testDefaultNasManifestUrl() {
   const service = createHermesPluginService({
     env: {},
@@ -99,6 +132,32 @@ async function testDefaultNasManifestUrl() {
     },
   });
   assert.equal(service.list()[0].manifestUrl, DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL);
+}
+
+async function testHttpsManifestOverride() {
+  const service = createHermesPluginService({
+    env: {
+      HERMES_MOBILE_WARDROBE_PLUGIN_MANIFEST_URL: "https://wardrobe.example.test/api/v1/hermes/plugin/manifest",
+    },
+    fetch() {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(Object.assign(sampleManifest(), {
+          entry: {
+            type: "web",
+            url: "https://wardrobe.example.test/?embed=hermes",
+            frame_policy: "allow_configured_hermes_origins",
+          },
+        })),
+      });
+    },
+  });
+  assert.equal(service.list()[0].manifestUrl, "https://wardrobe.example.test/api/v1/hermes/plugin/manifest");
+  const manifest = await service.manifest({ id: "wardrobe" });
+  assert.equal(manifest.available, true);
+  assert.equal(manifest.entry.url, "https://wardrobe.example.test/?embed=hermes");
+  assert.equal(manifest.entry.origin, "https://wardrobe.example.test");
 }
 
 async function testFetchFailureReturnsUnavailable() {
@@ -117,8 +176,11 @@ async function testFetchFailureReturnsUnavailable() {
 
 async function run() {
   testNormalizeManifest();
+  testFrameAncestorsAllowsCurrentOrigin();
   await testFetchesConfiguredWardrobeManifest();
+  await testFrameAncestorsBlockedReturnsUnavailable();
   await testDefaultNasManifestUrl();
+  await testHttpsManifestOverride();
   await testFetchFailureReturnsUnavailable();
 }
 
