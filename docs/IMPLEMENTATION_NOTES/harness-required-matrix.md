@@ -780,6 +780,15 @@ Required contract dimensions:
   URL for this installation and allowing environment override for future local
   production sources. It must not expose `.hermes-wardrobe/access-key.txt`,
   raw access keys, or plugin credentials to the browser.
+- Wardrobe plugin launch is H2 auth/session projection work. When the manifest
+  declares `program_api.plugin_launch`, Hermes Mobile must read the current
+  workspace's local `.hermes-wardrobe/access-key.txt` on the server and exchange
+  it for a one-time `entry_path` through `POST /api/v1/hermes/plugin/launch`.
+  Harnesses must assert the iframe URL uses the short launch entry, the browser
+  payload contains no `Authorization`, `Bearer`, raw `launch_token` field, or
+  long-lived workspace key, and a missing/failed launch shows a plugin
+  diagnostic rather than the legacy username/password login or local MCP
+  overview fallback.
 - The native Wardrobe MCP dashboard fallback is retired. Reintroducing it, or
   adding another local fallback dashboard, is a new H2/H1 design decision and
   requires explicit product approval plus route/service/frontend harness

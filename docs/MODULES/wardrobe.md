@@ -82,6 +82,20 @@ plugin when available. The normalized response intentionally omits raw
 access-key material and exposes only bounded manifest metadata, entry URL,
 toolset requirements, and registration paths.
 
+If the manifest declares `program_api.plugin_launch`, Hermes Mobile must launch
+the iframe through the server-side short-token exchange:
+
+- locate the current workspace's local `.hermes-wardrobe/access-key.txt`;
+- call `POST /api/v1/hermes/plugin/launch` with `Authorization: Bearer <local
+  workspace key>` and body `{ "workspace_id": "<current workspace>" }`;
+- replace the iframe entry URL with the returned `entry_path`;
+- expose only the short launch URL and bounded token status to the browser.
+
+The long-lived workspace Access Key must never be sent to frontend JavaScript,
+iframe URLs, docs, handoffs, screenshots, or logs. If launch fails or the local
+key file is missing, the tab should show a plugin diagnostic instead of falling
+back to username/password login or a local MCP overview.
+
 If the frontend receives an HTTP plugin entry while the Hermes page is HTTPS,
 it must not render a blank iframe or open a browser window. It should show a
 compact diagnostic notice. Deployment validation for embedded plugins must

@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   createHermesPluginService,
+  findWardrobeAccessKeyPath,
   frameAncestorsAllows,
   normalizeManifest,
 } = require("../adapters/hermes-plugin-service");
@@ -29,6 +30,7 @@ function sampleManifest() {
       base_url: "http://192.168.10.99:8765",
       plugin_manifest: "/api/v1/hermes/plugin/manifest",
       workspace_registration: "/api/v1/hermes/plugin/workspaces",
+      plugin_launch: "/api/v1/hermes/plugin/launch",
       sync_schema_version: 6,
     },
     owner_binding: {
@@ -61,6 +63,7 @@ function testNormalizeManifest() {
   assert.equal(manifest.mcp.toolset, "wardrobe");
   assert.deepEqual(manifest.mcp.requiredTools, ["wardrobe.search_items", "wardrobe.write_item"]);
   assert.equal(manifest.programApi.baseUrl, "http://192.168.10.99:8765/");
+  assert.equal(manifest.programApi.pluginLaunchPath, "/api/v1/hermes/plugin/launch");
   assert.equal(manifest.ownerBinding.configFile, ".hermes-wardrobe/config.json");
   assert.equal(Object.hasOwn(manifest.ownerBinding, "access_key_file"), false);
   assert.equal(Object.hasOwn(manifest.ownerBinding, "accessKeyFile"), false);
@@ -77,6 +80,7 @@ async function testFetchesConfiguredWardrobeManifest() {
   const service = createHermesPluginService({
     nowIso: () => "2026-05-28T00:00:00.000Z",
     plugins: [{ id: "wardrobe", manifestUrl: "http://nas/plugin.json" }],
+    wardrobeAccessKeyPath: "missing-key.txt",
     fetch(url, options) {
       calls.push({ url, options });
       return Promise.resolve({
@@ -97,6 +101,7 @@ async function testFetchesConfiguredWardrobeManifest() {
 async function testFrameAncestorsBlockedReturnsUnavailable() {
   const service = createHermesPluginService({
     plugins: [{ id: "wardrobe", manifestUrl: "https://wardrobe.example.test/api/v1/hermes/plugin/manifest" }],
+    wardrobeAccessKeyPath: "missing-key.txt",
     fetch(url) {
       if (url.includes("/api/v1/hermes/plugin/manifest")) {
         return Promise.resolve({
@@ -123,6 +128,7 @@ async function testFrameAncestorsBlockedReturnsUnavailable() {
 async function testDefaultNasManifestUrl() {
   const service = createHermesPluginService({
     env: {},
+    wardrobeAccessKeyPath: "missing-key.txt",
     fetch() {
       return Promise.resolve({
         ok: true,
@@ -139,6 +145,7 @@ async function testHttpsManifestOverride() {
     env: {
       HERMES_MOBILE_WARDROBE_PLUGIN_MANIFEST_URL: "https://wardrobe.example.test/api/v1/hermes/plugin/manifest",
     },
+    wardrobeAccessKeyPath: "missing-key.txt",
     fetch() {
       return Promise.resolve({
         ok: true,
@@ -174,6 +181,68 @@ async function testFetchFailureReturnsUnavailable() {
   assert.equal(manifest.status, 503);
 }
 
+async function testLaunchEntryUsesServerSideWorkspaceKey() {
+  const calls = [];
+  const service = createHermesPluginService({
+    plugins: [{ id: "wardrobe", manifestUrl: "https://wardrobe.example.test/api/v1/hermes/plugin/manifest" }],
+    wardrobeAccessKeyPath: __filename,
+    fetch(url, options = {}) {
+      calls.push({ url, options });
+      if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(Object.assign(sampleManifest(), {
+            entry: { type: "web", url: "https://wardrobe.example.test/?embed=hermes" },
+            program_api: Object.assign(sampleManifest().program_api, {
+              base_url: "https://wardrobe.example.test",
+              plugin_launch: "/api/v1/hermes/plugin/launch",
+            }),
+          })),
+        });
+      }
+      if (url === "https://wardrobe.example.test/?embed=hermes") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          headers: { get: () => "frame-ancestors https://hermes.example.test" },
+        });
+      }
+      if (url === "https://wardrobe.example.test/api/v1/hermes/plugin/launch") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            entry_path: "/?embed=hermes&launch=wpl_once",
+            expires_in: 90,
+          }),
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+  const manifest = await service.manifest({
+    id: "wardrobe",
+    workspaceId: "owner",
+    appOrigin: "https://hermes.example.test",
+    launchPlugin: true,
+  });
+  assert.equal(manifest.available, true);
+  assert.equal(manifest.entry.url, "https://wardrobe.example.test/?embed=hermes&launch=wpl_once");
+  assert.equal(manifest.embed.tokenStatus, "launch_token_issued");
+  assert.equal(manifest.embed.expiresIn, 90);
+  const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
+  assert.ok(launchCall);
+  assert.equal(launchCall.options.method, "POST");
+  assert.equal(JSON.parse(launchCall.options.body).workspace_id, "owner");
+  assert.match(launchCall.options.headers.Authorization, /^Bearer /);
+  assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"launch_token"|"workspace_key"/);
+}
+
+function testFindWardrobeAccessKeyPath() {
+  assert.equal(findWardrobeAccessKeyPath({ wardrobeAccessKeyPath: __filename }), __filename);
+}
+
 async function run() {
   testNormalizeManifest();
   testFrameAncestorsAllowsCurrentOrigin();
@@ -182,6 +251,8 @@ async function run() {
   await testDefaultNasManifestUrl();
   await testHttpsManifestOverride();
   await testFetchFailureReturnsUnavailable();
+  await testLaunchEntryUsesServerSideWorkspaceKey();
+  testFindWardrobeAccessKeyPath();
 }
 
 run().catch((err) => {

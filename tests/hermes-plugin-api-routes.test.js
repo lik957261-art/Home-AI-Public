@@ -82,7 +82,12 @@ async function testWardrobeManifestRoute() {
   assert.equal(result.handled, true);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(calls.access, ["weixin_wuping"]);
-  assert.deepEqual(calls.manifest, [{ id: "wardrobe", workspaceId: "weixin_wuping", appOrigin: "https://hermes.example.test" }]);
+  assert.deepEqual(calls.manifest, [{
+    id: "wardrobe",
+    workspaceId: "weixin_wuping",
+    appOrigin: "https://hermes.example.test",
+    launchPlugin: true,
+  }]);
   assert.equal(parseBody(res).entry.url, "http://nas/?embed=hermes");
 }
 

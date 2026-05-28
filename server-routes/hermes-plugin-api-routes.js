@@ -73,6 +73,7 @@ function createHermesPluginApiRoutes(deps = {}) {
       id: "wardrobe",
       workspaceId,
       appOrigin: url?.searchParams?.get("appOrigin") || "",
+      launchPlugin: true,
     });
     deps.sendJson(res, 200, Object.assign({ workspaceId }, manifest));
   }
