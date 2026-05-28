@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-inbox-badge-style-v324";
+const CLIENT_VERSION = "20260528-inbox-badge-fontscale-v325";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -224,6 +224,7 @@ assert.match(appJs, /return status \|\| "\\u5f85\\u5904\\u7406"/);
 assert.match(appJs, />\$\{escapeHtml\(actionInboxStatusActionLabel\(item\)\)\}<\/button>/);
 assert.match(stylesCss, /\.action-inbox-source-row \{[\s\S]*?display: flex;[\s\S]*?flex-wrap: wrap;/);
 assert.match(stylesCss, /\.action-inbox-source-badge,[\s\S]*?\.action-inbox-type-badge,[\s\S]*?\.action-inbox-state-badge \{[\s\S]*?height: 20px;[\s\S]*?min-height: 20px;[\s\S]*?padding: 0 6px;[\s\S]*?overflow: hidden;[\s\S]*?text-overflow: ellipsis;[\s\S]*?font-size: 11px;[\s\S]*?font-weight: 500;[\s\S]*?letter-spacing: 0;[\s\S]*?white-space: nowrap;/);
+assert.match(stylesCss, /:root\[data-font-size\] body,[\s\S]*?:root\[data-font-size\] button,[\s\S]*?font-size: calc\(16px \* var\(--app-font-scale\)\);[\s\S]*?:root\[data-font-size\] \.action-inbox-source-badge,[\s\S]*?:root\[data-font-size\] \.action-inbox-type-badge,[\s\S]*?:root\[data-font-size\] \.action-inbox-state-badge,[\s\S]*?:root\[data-font-size\] \.action-inbox-state-action \{[\s\S]*?font-size: 11px;/);
 assert.match(stylesCss, /\.action-inbox-filter \{[\s\S]*?font-size: 14px;[\s\S]*?line-height: 1\.2;/);
 assert.match(stylesCss, /\.action-inbox-swipe-complete \{[\s\S]*?background: #4f745d;/);
 assert.match(stylesCss, /\.action-inbox-deliverable-chip \{[\s\S]*?width: calc\(100% - 24px\);[\s\S]*?box-sizing: border-box;/);
@@ -464,9 +465,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-badge-style-v324/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-badge-style-v324/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-badge-style-v324/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-badge-fontscale-v325/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-badge-fontscale-v325/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-badge-fontscale-v325/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);

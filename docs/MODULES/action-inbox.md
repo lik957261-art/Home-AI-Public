@@ -206,6 +206,10 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
   system. `来源` / `类型` / status-action labels should use the same height,
   padding, font family, font size, font weight, line-height, and letter spacing;
   only semantic color and the status chevron may differ.
+- The app font-size setting must not make the clickable status badge larger
+  than neighboring non-button badges. If a generic `button` font-size rule is
+  active, the Inbox row badge rule must explicitly keep the whole adjacent badge
+  set on the same compact typography.
 - The default Inbox list must show newest items first by update/event/create
   time. Terminal items may stay below non-terminal items when mixed into an
   all-status view, but source/type priority must not hide a newer receipt under

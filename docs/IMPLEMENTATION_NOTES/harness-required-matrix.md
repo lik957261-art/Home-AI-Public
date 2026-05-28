@@ -176,6 +176,9 @@ Required harness dimensions:
   row badges/actions such as `来源`, `类型`, and the status action must share the
   same height, padding, font family, font size, font weight, line-height, and
   letter spacing; only semantic color and a subtle status chevron may differ.
+  The harness must cover the app font-size setting because the global
+  `:root[data-font-size] button` rule can otherwise enlarge the button-based
+  status badge while leaving adjacent span badges unchanged.
 - Automation delivery and scheduled-Todo row title/main areas must open the
   Automation source detail with Inbox return context, while only the explicit
   deliverable file tag opens the preview. The file tag must reuse the existing

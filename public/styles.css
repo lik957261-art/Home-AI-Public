@@ -13815,6 +13815,13 @@ body.task-markdown-preview-open {
   font-size: calc(16px * var(--app-font-scale));
 }
 
+:root[data-font-size] .action-inbox-source-badge,
+:root[data-font-size] .action-inbox-type-badge,
+:root[data-font-size] .action-inbox-state-badge,
+:root[data-font-size] .action-inbox-state-action {
+  font-size: 11px;
+}
+
 :root[data-font-size] .thread-title,
 :root[data-font-size] .automation-detail-head h2 {
   font-size: calc(18px * var(--app-font-scale));

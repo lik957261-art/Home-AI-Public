@@ -180,6 +180,9 @@ The Inbox visual harness must also cover adjacent row badges/actions: `来源`,
 padding, font family, font size, font weight, line-height, and letter spacing.
 The status action may show a subtle chevron and semantic color, but must not
 fall back to a larger browser-default button style.
+This must be asserted with the app font-size setting enabled: the generic
+`:root[data-font-size] button` rule must not enlarge an inline status button
+relative to adjacent span badges.
 
 Topic/navigation harnesses must assert that a missing `currentTaskGroupId`
 does not leave the app permanently on `Restoring topic...` because of unrelated
