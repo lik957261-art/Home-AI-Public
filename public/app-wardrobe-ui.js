@@ -159,6 +159,7 @@ function wardrobePluginMessageOriginAllowed(event) {
 function updateWardrobePluginNavigationState(payload = {}) {
   state.wardrobePluginCanGoBack = Boolean(payload.canGoBack);
   state.wardrobePluginNavigationRoute = payload.route && typeof payload.route === "object" ? payload.route : null;
+  state.wardrobePluginNavigationLastAt = Date.now();
   updateNavigationControls();
 }
 
@@ -209,6 +210,7 @@ function attachWardrobePluginShell(conversation, entryUrl) {
   if (!frame || frame.getAttribute("src") !== entryUrl) return false;
   conversation.replaceChildren(shell);
   state.wardrobePluginShellNode = shell;
+  bindWardrobePluginFrameHealth(frame);
   return true;
 }
 
@@ -218,6 +220,45 @@ function discardWardrobePluginShell() {
   state.wardrobePluginShellNode = null;
   state.wardrobePluginCanGoBack = false;
   state.wardrobePluginNavigationRoute = null;
+  state.wardrobePluginNavigationLastAt = 0;
+  state.wardrobePluginFrameHealthSeq = (state.wardrobePluginFrameHealthSeq || 0) + 1;
+}
+
+function wardrobeFrameSrcUsesLaunchToken(frame) {
+  return /[?&]launch=/.test(String(frame?.getAttribute?.("src") || ""));
+}
+
+function refreshWardrobePluginFrameFromFreshManifest() {
+  const conversation = $("conversation");
+  if (!conversation || state.wardrobePluginLoading) return;
+  discardWardrobePluginShell();
+  conversation.innerHTML = renderWardrobePluginLoading();
+  loadWardrobePluginManifest({ force: true }).catch(showError);
+  updateNavigationControls();
+  ensureVerticalScrollAffordance();
+}
+
+function scheduleWardrobePluginLaunchHealthCheck(frame, loadedAt = Date.now()) {
+  if (!frame || !wardrobeFrameSrcUsesLaunchToken(frame)) return;
+  const seq = (state.wardrobePluginFrameHealthSeq || 0) + 1;
+  state.wardrobePluginFrameHealthSeq = seq;
+  window.setTimeout(() => {
+    if (seq !== state.wardrobePluginFrameHealthSeq) return;
+    if (state.viewMode !== "wardrobe") return;
+    if (currentWardrobePluginShell()?.querySelector(".wardrobe-plugin-frame") !== frame) return;
+    if (!wardrobeFrameSrcUsesLaunchToken(frame)) return;
+    if (Number(state.wardrobePluginNavigationLastAt || 0) >= loadedAt) return;
+    refreshWardrobePluginFrameFromFreshManifest();
+  }, 7000);
+}
+
+function bindWardrobePluginFrameHealth(frame) {
+  if (!frame || frame.dataset.wardrobePluginHealthBound) return;
+  frame.dataset.wardrobePluginHealthBound = "1";
+  frame.addEventListener("load", () => {
+    scheduleWardrobePluginLaunchHealthCheck(frame, Date.now());
+  });
+  scheduleWardrobePluginLaunchHealthCheck(frame, Date.now());
 }
 
 function sendWardrobePluginBack() {
@@ -336,6 +377,13 @@ function renderWardrobeView() {
       const entryUrl = String(pluginManifest.entry?.url || "");
       const entryOrigin = wardrobePluginEntryOrigin(pluginManifest);
       state.wardrobePluginFrameOrigin = entryOrigin;
+      const launchFrameCanBePreserved = !wardrobePluginUsesLaunchToken(pluginManifest)
+        || wardrobeLaunchTokenIsFreshForFrame()
+        || Number(state.wardrobePluginNavigationLastAt || 0) > 0;
+      if (!launchFrameCanBePreserved) {
+        refreshWardrobePluginFrameFromFreshManifest();
+        return;
+      }
       if (attachWardrobePluginShell(conversation, entryUrl)) {
         updateNavigationControls();
         ensureVerticalScrollAffordance();
@@ -343,6 +391,7 @@ function renderWardrobeView() {
       }
       if (existingFrame && existingFrame.getAttribute("src") === entryUrl) {
         state.wardrobePluginShellNode = existingFrame.closest(".wardrobe-plugin-shell");
+        bindWardrobePluginFrameHealth(existingFrame);
         updateNavigationControls();
         ensureVerticalScrollAffordance();
         return;
@@ -359,6 +408,7 @@ function renderWardrobeView() {
       conversation.innerHTML = renderWardrobePluginFrame(pluginManifest);
       state.wardrobePluginFrameUrl = entryUrl;
       state.wardrobePluginShellNode = conversation.querySelector(".wardrobe-plugin-shell");
+      bindWardrobePluginFrameHealth(conversation.querySelector(".wardrobe-plugin-frame"));
       if (wardrobePluginUsesLaunchToken(pluginManifest)) state.wardrobePluginManifestFreshForFrame = false;
       updateNavigationControls();
       ensureVerticalScrollAffordance();

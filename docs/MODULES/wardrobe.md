@@ -121,6 +121,12 @@ load. Switching from Wardrobe to another Hermes tab may park the iframe in a
 hidden host, but it must not destroy and recreate it unless the entry URL
 changes or a fresh launch URL is required. This keeps the Wardrobe SPA route,
 scroll position, and plugin session stable across ordinary bottom-tab changes.
+Because the iframe element's `src` can still contain a one-time `launch` URL,
+Hermes Mobile treats a launch iframe as healthy only after the embedded app
+sends `wardrobe.plugin.navigation`. If a launch iframe loads and no navigation
+state arrives shortly after, Hermes discards that iframe and requests a fresh
+manifest/launch URL instead of leaving the user on an `invalid_launch_token`
+page.
 
 The Wardrobe project owns internal navigation and reports it through the
 postMessage contract declared by the live manifest:

@@ -237,6 +237,10 @@ Required harness dimensions:
   iframe node when possible. Harness coverage must assert that the host parks
   and restores the frame instead of destroying the plugin SPA state on every
   bottom-tab click.
+- One-time launch iframe health must be tied to the plugin navigation event. If
+  a launch iframe loads but never emits the expected navigation state, the host
+  must fetch a fresh manifest/launch URL and must not leave the stale
+  `invalid_launch_token` response as the visible plugin page.
 - Static/client version must be bumped for embedded-plugin host changes so the
   installed PWA does not keep an older iframe contract through the service
   worker.
