@@ -69,6 +69,13 @@ Manual todos create first-class Action Inbox items. They do not need official Ka
 
 The legacy `POST /api/todos` compatibility route may still create a Todo/Kanban record while the old surface is being retired, but it must also upsert a summary-only `sourceType=manual`, `itemType=todo` Action Inbox item for the selected workspace. This keeps existing callers from silently bypassing the Inbox.
 
+Manual Inbox Todo is its own mobile source surface. If an older item still
+carries a legacy `/?view=todos...` or `todoId` deep link, the Inbox UI must not
+render `Open source` for that link and must not navigate into the retired
+Todo/Kanban compatibility surface. Scheduled Todo items created by Automation
+remain `sourceType=automation` and may still open Automation detail with Inbox
+return context.
+
 ### Automation
 
 Automation remains a background job engine. A successful run that creates a user-facing delivery should upsert a `delivery` Inbox item. A failed run should upsert an `error` item with a short failure summary and a deep link to the relevant job detail or output history.

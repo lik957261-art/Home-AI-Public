@@ -144,6 +144,9 @@ Required harness dimensions:
 
 - Automation conclusions enter Inbox.
 - Todo items enter Inbox.
+- Manual Todo Inbox items are already on their source surface. Legacy
+  `/?view=todos...` or `todoId` deep links must not render an `Open source`
+  action or route the app into the retired Todo/Kanban compatibility surface.
 - Approval/review/permission requests enter Inbox.
 - Executor card completion notifications enter the authorized passive
   recipients' Inbox.
@@ -596,6 +599,9 @@ Required contract dimensions:
   UI path, not a Web Push-only path. The row must be a button-driven internal
   route that reuses the current app runtime, carries Inbox return context, and
   does not call `window.open`, `target=_blank`, or a location-level page open.
+- Manual Inbox Todo source handling is the inverse contract: if the item carries
+  an old Todo/Kanban compatibility deep link, the same-window harness must prove
+  the source action is suppressed and the internal route helper is not called.
 - Direct source navigation must also preserve the current app shell path. The
   harness must cover a prefixed deployment path such as `/hermes-mobile/`
   without hardcoding any domain.

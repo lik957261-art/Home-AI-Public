@@ -170,6 +170,11 @@ Todo/reminder Automation pushes must also assert same-run idempotency: after a
 deliverable push is marked for a `lastRunAt`, a later scan for the same run with
 no newer deliverable must not send a second no-deliverable push, create another
 Inbox upsert, or downgrade the stored mark.
+Manual `sourceType=manual,itemType=todo` Inbox rows are already on their source
+surface. If legacy data carries `/?view=todos...` or `todoId` deep links,
+projection tests must assert the detail page does not render `Open source`, row
+navigation does not call the internal route helper, and back navigation never
+lands in the retired official Kanban/Todo compatibility surface.
 
 Topic/navigation harnesses must assert that a missing `currentTaskGroupId`
 does not leave the app permanently on `Restoring topic...` because of unrelated

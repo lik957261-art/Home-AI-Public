@@ -43,6 +43,7 @@ this.ActionInboxUiTest = {
   actionInboxTodoDueText,
   openActionInboxItemDeliverableById,
   renderActionInboxActionSheet,
+  renderActionInboxDetail,
   renderActionInboxItem,
 };`, sandbox);
 
@@ -80,6 +81,18 @@ assert.equal(ui.actionInboxTodoDueText(openTodo), "05/27 16:00");
 assert.equal(ui.actionInboxDisplaySummary(openTodo), "");
 assert.equal(ui.actionInboxStatusActionLabel(openTodo), "\u5f85\u5904\u7406");
 assert.equal(ui.actionInboxStatusActionLabel(Object.assign({}, openTodo, { status: "waiting" })), "\u7a0d\u540e");
+
+const legacyDeepLinkTodo = Object.assign({}, openTodo, {
+  id: "ainb-todo-legacy",
+  deepLink: "/?view=todos&workspaceId=owner&todoId=todo-legacy",
+});
+assert.equal(ui.actionInboxSourceDeepLink(legacyDeepLinkTodo), "");
+sandbox.state.actionInboxItems = [legacyDeepLinkTodo];
+sandbox.state.selectedActionInboxItemId = "ainb-todo-legacy";
+sandbox.state.actionInboxDetail = { item: legacyDeepLinkTodo, events: [] };
+const legacyTodoDetailHtml = ui.renderActionInboxDetail();
+assert.doesNotMatch(legacyTodoDetailHtml, /data-action-inbox-open-source/);
+assert.doesNotMatch(legacyTodoDetailHtml, /\u6253\u5f00\u6765\u6e90/);
 
 const legacyTitle = Object.assign({}, openTodo, {
   title: "吃药 2026-05-27T08:00:00.000Z",

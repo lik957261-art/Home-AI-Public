@@ -289,6 +289,50 @@ assert.match(wireStartUi, /copyNavigationDiagnostics\(\)\.catch\(showError\)/);
 }
 
 {
+  const routeCalls = [];
+  const item = {
+    id: "todo-inbox-1",
+    sourceType: "manual",
+    itemType: "todo",
+    status: "open",
+    title: "Manual todo",
+    workspaceId: "owner",
+    deepLink: "/?view=todos&workspaceId=owner&todoId=legacy-todo-1",
+  };
+  const sandbox = {
+    URL,
+    URLSearchParams,
+    state: {
+      selectedWorkspaceId: "owner",
+      actionInboxItems: [item],
+      selectedActionInboxItemId: "",
+    },
+    window: {
+      location: { origin: "https://example.test", pathname: "/hermes-mobile/" },
+      open: () => { throw new Error("Manual Inbox Todo must not open the legacy Todo browser route."); },
+    },
+    formatTime: () => "",
+    escapeHtml: (value) => String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;"),
+    openHermesInternalRoute: (value) => {
+      routeCalls.push(value);
+      return Promise.resolve(value);
+    },
+    Promise,
+  };
+  vm.runInNewContext(actionInboxUi, sandbox);
+  const rowHtml = sandbox.renderActionInboxItem(item);
+  assert.match(rowHtml, /data-action-inbox-id="todo-inbox-1"/);
+  assert.doesNotMatch(rowHtml, /data-action-inbox-open-source-id="todo-inbox-1"/);
+  sandbox.openActionInboxItemSourceById("todo-inbox-1");
+  assert.deepEqual(routeCalls, []);
+}
+
+{
   const storage = new Map();
   const renderCalls = [];
   const sandbox = {

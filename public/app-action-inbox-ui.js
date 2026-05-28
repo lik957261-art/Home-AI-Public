@@ -118,10 +118,32 @@ function actionInboxCountsText() {
   return `${"\u5f85\u5904\u7406"} ${open} · ${"\u7a0d\u540e"} ${waiting} · ${"\u5df2\u5b8c\u6210"} ${done}`;
 }
 
+function actionInboxIsManualTodo(item = {}) {
+  const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
+  const itemType = String(item?.itemType || item?.item_type || "").trim().toLowerCase();
+  return sourceType === "manual" && itemType === "todo";
+}
+
+function actionInboxLinkTargetsLegacyTodo(link = "") {
+  const value = String(link || "").trim();
+  if (!value) return false;
+  try {
+    const origin = String(window?.location?.origin || "http://localhost");
+    const parsed = new URL(value, origin);
+    const view = String(parsed.searchParams.get("view") || parsed.searchParams.get("viewMode") || "").trim().toLowerCase();
+    return view === "todos" || parsed.searchParams.has("todoId");
+  } catch (_) {
+    return /(?:[?&](?:view|viewMode)=todos\b|[?&]todoId=)/i.test(value);
+  }
+}
+
 function actionInboxSourceDeepLink(item = {}) {
   const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
   const explicit = String(item?.deepLink || item?.deep_link || "").trim();
-  if (explicit) return actionInboxAutomationInboxReturnLink(explicit, item, sourceType);
+  if (explicit) {
+    if (actionInboxIsManualTodo(item) && actionInboxLinkTargetsLegacyTodo(explicit)) return "";
+    return actionInboxAutomationInboxReturnLink(explicit, item, sourceType);
+  }
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
   const workspaceId = String(item?.workspaceId || item?.assigneeWorkspaceId || state.selectedWorkspaceId || "owner").trim() || "owner";
   if (sourceType === "automation") {
@@ -565,7 +587,8 @@ function openActionInboxItemSource(item) {
 
 function openActionInboxItemSourceById(itemId) {
   const id = String(itemId || "").trim();
-  const item = state.actionInboxItems.find((candidate) => candidate.id === id) || null;
+  const item = state.actionInboxItems.find((candidate) => candidate.id === id)
+    || (currentActionInboxItem()?.id === id ? currentActionInboxItem() : null);
   return openActionInboxItemSource(item);
 }
 
