@@ -28,6 +28,16 @@ Use this file to locate the responsible frontend files before debugging a screen
     preflight. After a successful model-first selector decision, the main run
     should not load the permission-boundary Skill again as a separate visible
     step.
+  - High-frequency preflight events such as model selected, toolset selection
+    started, and toolset selected must update the inline status panel in place.
+    If the target assistant message is not visible yet, the frontend should
+    schedule one short delayed fallback thread refresh and coalesce later
+    preflight events into that fallback instead of triggering a full thread
+    render for every event.
+  - When a toolset-selection terminal event is already present, the visible
+    status list should hide the immediately preceding `run.toolset_selection_started`
+    row for the same run and show the resulting combined preflight row. The raw
+    event order may remain in state for diagnostics.
   - Event-driven refresh must bind a run event to the newest assistant message
     whose own `runId`, `originalRunId`, `responseRunId`, or `taskId` matches
     before falling back to thread active ids. Thread active ids are only a
@@ -119,6 +129,9 @@ Use this file to locate the responsible frontend files before debugging a screen
 - Route target: `view=inbox&inboxItemId=<id>`
 - Primary bottom navigation direction: `聊天 / 收件箱 / 话题 / 目录 / 成长`
 - Inbox should render source tags and action states compactly, one list/detail surface, without relying on official Kanban UI modules.
+- Inbox list rows should combine processing actions into the inline status
+  badge after source/type. Tapping `待处理` or another non-terminal status opens
+  the viewport action sheet; do not add a separate right-side `处理` button.
 - Inbox root page-level actions live in the top-right overflow menu. Inbox detail/create are secondary states and should use shared top-left back plus right-swipe back, not inline duplicate back/title controls.
 
 ## Kanban/Todo

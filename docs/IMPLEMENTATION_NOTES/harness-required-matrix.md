@@ -161,12 +161,12 @@ Required harness dimensions:
   `lastRunAt`. A same-run scan after a delivered file must not downgrade the
   mark to `no-deliverable`, create a duplicate Inbox item, or send another push
   with an alternating tag.
-- Inbox rows must separate status display from processing actions. Status should
-  render as a compact badge, while the row tool area exposes a stable processing
-  control. That control must open a viewport-level action sheet or equivalent
-  overlay, not an absolutely-positioned menu inside the card, and it must contain
-  processing actions such as complete, snooze, and delete/dismiss rather than
-  source or file navigation.
+- Inbox rows must combine status display and processing entry in one compact
+  status badge after source/type. Tapping a non-terminal status such as
+  `待处理` opens a viewport-level action sheet or equivalent overlay with
+  complete, snooze, and delete/dismiss actions. Do not add a separate right-side
+  `处理` button or an absolutely positioned in-card menu, because those duplicate
+  the badge and clip or compress mobile row content.
 - Automation delivery and scheduled-Todo row title/main areas must open the
   Automation source detail with Inbox return context, while only the explicit
   deliverable file tag opens the preview. The file tag must reuse the existing
@@ -356,6 +356,17 @@ Required harness dimensions:
   (`runId`, `originalRunId`, `responseRunId`, `taskId`) before thread active-id
   fallback, so response-run events cannot update an older terminal assistant
   message while the current phone panel remains stuck on startup rows.
+- High-frequency preflight status events must not cause one full conversation
+  render per event. `run.gateway_selected`, `run.toolset_selection_started`, and
+  `run.toolset_selection_done` bursts should update an existing inline panel in
+  place. If the assistant message is not visible yet, the frontend may schedule
+  one short delayed fallback thread refresh and must coalesce later preflight
+  events into that same fallback.
+- Visible toolset-selection projection should compact successful or failed
+  `run.toolset_selection_started` / terminal pairs for the same run into one
+  combined preflight row. The harness should keep raw events available while
+  asserting the UI does not flash two instant rows or trigger a whole-screen
+  refresh for the pair.
 - Thread active ids must be used only to target a fallback message and remember
   that run id for the target message; they must not be merged into every panel
   at render time, because concurrent or stale active runs can corrupt elapsed

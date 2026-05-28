@@ -11270,7 +11270,7 @@ body.task-markdown-preview-open {
   display: grid;
   gap: 6px;
   text-align: left;
-  padding: 12px 78px 8px 12px;
+  padding: 6px 12px 8px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -11333,6 +11333,11 @@ body.task-markdown-preview-open {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+.action-inbox-swipe-content > .action-inbox-source-row,
+.action-inbox-item-static > .action-inbox-source-row {
+  padding: 12px 12px 0;
 }
 
 .action-inbox-source-badge,
@@ -11425,43 +11430,29 @@ body.task-markdown-preview-open {
   background: rgba(114, 168, 137, 0.16);
 }
 
-.action-inbox-process-button {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  z-index: 3;
-  min-width: 54px;
-  min-height: 32px;
-  border: 1px solid var(--ui-hairline);
-  border-radius: 8px;
-  background: var(--ui-surface);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
-  padding: 0 12px;
+.action-inbox-state-action {
+  min-height: 28px;
+  border-color: rgba(95, 139, 148, 0.24);
+  font-family: inherit;
   cursor: pointer;
 }
 
-.action-inbox-process-button::before {
+.action-inbox-state-action::after {
   content: "";
-  position: absolute;
-  inset: -6px;
+  width: 0;
+  height: 0;
+  margin-left: 5px;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  border-top: 4px solid currentColor;
+  opacity: 0.72;
 }
 
-.action-inbox-process-button.open,
-.action-inbox-process-button.waiting {
-  color: var(--ui-accent-active);
-  background: rgba(230, 242, 240, 0.7);
-  border-color: rgba(95, 139, 148, 0.24);
+.action-inbox-state-action:active {
+  filter: brightness(0.98);
 }
 
-.action-inbox-process-button.done,
-.action-inbox-process-button.muted {
-  color: var(--muted);
-}
-
-.action-inbox-process-button:focus-visible,
+.action-inbox-state-action:focus-visible,
 .action-inbox-deliverable-chip:focus-visible,
 .action-inbox-action-sheet-button:focus-visible,
 .action-inbox-action-sheet-cancel:focus-visible {

@@ -377,19 +377,18 @@ function renderActionInboxItem(item) {
   return `<article class="action-inbox-item${active}${swipeClass}" data-action-inbox-item-card="${escapeHtml(item.id || "")}"${swipeAttrs}>
     ${terminal ? "" : `<button class="task-swipe-delete action-inbox-swipe-complete" type="button" data-complete-swipe="${escapeHtml(item.id || "")}" aria-label="${"\u6807\u8bb0\u4e3a\u5b8c\u6210"}">${"\u5b8c\u6210"}</button>`}
     <div class="${terminal ? "action-inbox-item-static" : "task-swipe-content action-inbox-swipe-content"}"${terminal ? "" : " data-swipe-content"}>
+    <div class="action-inbox-source-row">
+      <span class="action-inbox-source-badge ${escapeHtml(actionInboxSourceTone(item.sourceType))}">${"\u6765\u6e90\uff1a"}${escapeHtml(actionInboxSourceLabel(item.sourceType))}</span>
+      <span class="action-inbox-type-badge">${"\u7c7b\u578b\uff1a"}${escapeHtml(actionInboxTypeLabel(item.itemType))}</span>
+      <button class="action-inbox-state-badge action-inbox-state-action ${escapeHtml(tone)}" type="button" data-action-inbox-actions-id="${escapeHtml(item.id || "")}" aria-haspopup="menu" aria-expanded="${statusMenuOpen ? "true" : "false"}" aria-label="${escapeHtml(`\u5904\u7406\uff1a${actionInboxStatusLabel(item.status)}`)}">${escapeHtml(actionInboxStatusLabel(item.status))}</button>
+      <span class="action-inbox-item-time">${escapeHtml(displayTime)}</span>
+    </div>
     <button class="action-inbox-item-main" type="button" ${itemActionAttr}>
-      <span class="action-inbox-source-row">
-        <span class="action-inbox-source-badge ${escapeHtml(actionInboxSourceTone(item.sourceType))}">${"\u6765\u6e90\uff1a"}${escapeHtml(actionInboxSourceLabel(item.sourceType))}</span>
-        <span class="action-inbox-type-badge">${"\u7c7b\u578b\uff1a"}${escapeHtml(actionInboxTypeLabel(item.itemType))}</span>
-        <span class="action-inbox-state-badge ${escapeHtml(tone)}">${escapeHtml(actionInboxStatusLabel(item.status))}</span>
-        <span class="action-inbox-item-time">${escapeHtml(displayTime)}</span>
-      </span>
       <span class="action-inbox-item-head">
         <strong>${escapeHtml(title)}</strong>
       </span>
       <span class="action-inbox-item-summary">${escapeHtml(summary)}</span>
     </button>
-    <button class="action-inbox-process-button ${escapeHtml(tone)}" type="button" data-action-inbox-actions-id="${escapeHtml(item.id || "")}" aria-haspopup="menu" aria-expanded="${statusMenuOpen ? "true" : "false"}">${"\u5904\u7406"}</button>
     ${renderActionInboxDeliverableChip(item, primaryDeliverable)}
     </div>
   </article>`;

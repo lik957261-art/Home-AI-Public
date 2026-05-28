@@ -502,6 +502,8 @@ const state = {
   streamingMessageRenderLastAt: new Map(),
   runProgressRenderScheduled: new Set(),
   runProgressRenderLastAt: new Map(),
+  runProgressFallbackRefreshTimer: 0,
+  runProgressFallbackRefreshThreadId: "",
   expandedLongMessageIds: new Set(),
   runProgressTicker: 0,
   shouldStickToBottom: true,

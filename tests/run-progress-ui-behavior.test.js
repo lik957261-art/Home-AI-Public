@@ -19,6 +19,9 @@ const testState = {
 let followConversationBottom = true;
 let scrollCalls = 0;
 let visibilityCalls = 0;
+let fallbackRefreshCalls = 0;
+let fallbackRefreshOptions = null;
+let fullRenderCalls = 0;
 const fakeConversation = {
   scrollHeight: 1000,
   scrollTop: 700,
@@ -60,6 +63,7 @@ const context = {
   state: testState,
   window: {
     clearInterval() {},
+    clearTimeout() {},
     setInterval() { return 1; },
     setTimeout(fn) { fn(); return 1; },
   },
@@ -76,7 +80,11 @@ const context = {
     testState.conversationPinnedToBottom = true;
   },
   messageElementById(messageId) { return messageId === "msg_current" ? fakeArticle : null; },
-  scheduleRenderCurrentThread() {},
+  scheduleRenderCurrentThread() { fullRenderCalls += 1; },
+  requestCurrentThreadRefresh(options = {}) {
+    fallbackRefreshCalls += 1;
+    fallbackRefreshOptions = options;
+  },
   scheduleMessageScrollButtonVisibility() { visibilityCalls += 1; },
 };
 
@@ -86,12 +94,15 @@ globalThis.runProgressTestApi = {
   messageForRunProgress,
   renderMessageRunProgress,
   runProgressEvents,
+  runProgressCompactPreflightEvents,
   messageOwnRunIds,
   threadActiveRunIds,
   messageRunProgressIds,
   rememberMessageRunProgressId,
   renderMessageRunProgressInPlace,
   renderMessageRunProgressHistory,
+  appendRunEventToCurrentThread,
+  scheduleRunProgressFallbackThreadRefresh,
   shouldKeepRunProgressPinnedToBottom,
 };`, context);
 
@@ -99,12 +110,15 @@ const {
   messageForRunProgress,
   renderMessageRunProgress,
   runProgressEvents,
+  runProgressCompactPreflightEvents,
   messageOwnRunIds,
   threadActiveRunIds,
   messageRunProgressIds,
   rememberMessageRunProgressId,
   renderMessageRunProgressInPlace,
   renderMessageRunProgressHistory,
+  appendRunEventToCurrentThread,
+  scheduleRunProgressFallbackThreadRefresh,
   shouldKeepRunProgressPinnedToBottom,
 } = context.runProgressTestApi;
 
@@ -304,6 +318,13 @@ const streamingOutputThread = {
 const compactHtml = renderMessageRunProgress(streamingOutputThread, streamingOutputThread.messages[0]);
 assert.match(compactHtml, /compact-after-output/);
 assert.match(compactHtml, /\u6a21\u578b\u5df2\u5f00\u59cb\u8f93\u51fa/);
+
+const preflightCompacted = runProgressCompactPreflightEvents([
+  { runId: "resp_preflight", event: "run.gateway_selected", timestamp: "2026-05-27T13:04:00.000Z" },
+  { runId: "resp_preflight", event: "run.toolset_selection_started", timestamp: "2026-05-27T13:04:00.100Z" },
+  { runId: "resp_preflight", event: "run.toolset_selection_done", timestamp: "2026-05-27T13:04:00.250Z" },
+]);
+assert.deepStrictEqual(preflightCompacted.map((event) => event.event), ["run.gateway_selected", "run.toolset_selection_done"]);
 
 const terminalHistoryThread = {
   id: "thread_terminal_history",
@@ -514,5 +535,28 @@ assert.strictEqual(shouldKeepRunProgressPinnedToBottom(fakeConversation), false)
 assert.strictEqual(renderMessageRunProgressInPlace(thread, thread.messages[1]), true);
 assert.strictEqual(scrollCalls, 0);
 assert.strictEqual(fakeConversation.scrollTop, 300);
+
+testState.currentThread = { id: "thread_fallback", messages: [], events: [] };
+testState.runProgressFallbackRefreshTimer = 0;
+testState.runProgressFallbackRefreshThreadId = "";
+fallbackRefreshCalls = 0;
+fallbackRefreshOptions = null;
+assert.strictEqual(scheduleRunProgressFallbackThreadRefresh("thread_fallback"), true);
+assert.strictEqual(fallbackRefreshCalls, 1);
+assert.strictEqual(fallbackRefreshOptions?.stickToBottom, false);
+assert.strictEqual(fallbackRefreshOptions?.delayMs, 0);
+testState.runProgressFallbackRefreshTimer = 0;
+testState.runProgressFallbackRefreshThreadId = "";
+
+fallbackRefreshCalls = 0;
+fullRenderCalls = 0;
+testState.currentThread = { id: "thread_event_missing_message", messages: [], events: [] };
+appendRunEventToCurrentThread({
+  threadId: "thread_event_missing_message",
+  runId: "resp_missing_message",
+  event: { runId: "resp_missing_message", event: "run.gateway_selected", timestamp: "2026-05-27T13:12:00.000Z" },
+});
+assert.strictEqual(fallbackRefreshCalls, 1);
+assert.strictEqual(fullRenderCalls, 0);
 
 console.log("run progress UI behavior assertions passed");

@@ -2,6 +2,7 @@
 
 const RUN_EVENT_PREVIEW_MAX_CHARS = 180;
 const RUN_PROGRESS_RENDER_THROTTLE_MS = 750;
+const RUN_PROGRESS_FALLBACK_REFRESH_MS = 650;
 const RUN_PROGRESS_START_EVENT_REVEAL_MS = 1000;
 const RUN_PROGRESS_MAX_VISIBLE_EVENTS = 12;
 const RUN_PROGRESS_TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"]);
@@ -96,7 +97,11 @@ function appendRunEventToCurrentThread(payload) {
     state.currentThread.activeRunIds = payload.thread.activeRunIds || [];
     state.currentThread.updatedAt = payload.thread.updatedAt || state.currentThread.updatedAt;
   }
-  if (!scheduleRunProgressRenderForRun(event.runId || payload.runId || "")) scheduleRenderCurrentThread();
+  if (scheduleRunProgressRenderForRun(event.runId || payload.runId || "")) {
+    clearRunProgressFallbackThreadRefresh(payload.threadId);
+  } else {
+    scheduleRunProgressFallbackThreadRefresh(payload.threadId);
+  }
 }
 
 function runEventPreviewField(event, fields = []) {
@@ -271,6 +276,21 @@ function runProgressCompactOperationEvents(events = []) {
     out.push(event);
   }
   return out;
+}
+
+function runProgressCompactPreflightEvents(events = []) {
+  const toolsetTerminalRuns = new Set();
+  for (const event of Array.isArray(events) ? events : []) {
+    const name = String(event?.event || "");
+    if (name === "run.toolset_selection_done" || name === "run.toolset_selection_failed") {
+      toolsetTerminalRuns.add(String(event?.runId || "__run__"));
+    }
+  }
+  if (!toolsetTerminalRuns.size) return Array.isArray(events) ? events : [];
+  return (Array.isArray(events) ? events : []).filter((event) => {
+    if (String(event?.event || "") !== "run.toolset_selection_started") return true;
+    return !toolsetTerminalRuns.has(String(event?.runId || "__run__"));
+  });
 }
 
 function runEventToolLabel(event) {
@@ -545,7 +565,7 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
   const allEvents = runProgressEvents(thread, ids);
   const startMs = runProgressStartMs(thread, ids, allEvents);
   const compactAfterOutput = !options.terminal && shouldCompactRunProgressAfterOutput(allEvents);
-  const compactedEvents = runProgressCompactOperationEvents(runProgressEventsWithFunctionNames(allEvents));
+  const compactedEvents = runProgressCompactOperationEvents(runProgressCompactPreflightEvents(runProgressEventsWithFunctionNames(allEvents)));
   const events = options.terminal
     ? runProgressDisplayEvents(compactedEvents, startMs, { all: true })
     : (compactAfterOutput
@@ -769,6 +789,33 @@ function scheduleRunProgressRenderForRun(runId) {
   });
   if (delay) window.setTimeout(render, delay);
   else render();
+  return true;
+}
+
+function clearRunProgressFallbackThreadRefresh(threadId = "") {
+  const id = String(threadId || "").trim();
+  if (!state.runProgressFallbackRefreshTimer) return;
+  if (id && state.runProgressFallbackRefreshThreadId && state.runProgressFallbackRefreshThreadId !== id) return;
+  window.clearTimeout(state.runProgressFallbackRefreshTimer);
+  state.runProgressFallbackRefreshTimer = 0;
+  state.runProgressFallbackRefreshThreadId = "";
+}
+
+function scheduleRunProgressFallbackThreadRefresh(threadId = "") {
+  const id = String(threadId || "").trim();
+  if (!id || !state.currentThread || id !== state.currentThread.id) return false;
+  if (state.runProgressFallbackRefreshTimer) return true;
+  state.runProgressFallbackRefreshThreadId = id;
+  state.runProgressFallbackRefreshTimer = window.setTimeout(() => {
+    state.runProgressFallbackRefreshTimer = 0;
+    state.runProgressFallbackRefreshThreadId = "";
+    if (!state.currentThread || state.currentThread.id !== id) return;
+    if (typeof requestCurrentThreadRefresh === "function") {
+      requestCurrentThreadRefresh({ stickToBottom: false, delayMs: 0 });
+    } else if (typeof scheduleRenderCurrentThread === "function") {
+      scheduleRenderCurrentThread();
+    }
+  }, RUN_PROGRESS_FALLBACK_REFRESH_MS);
   return true;
 }
 

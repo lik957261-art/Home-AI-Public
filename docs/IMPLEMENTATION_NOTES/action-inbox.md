@@ -257,10 +257,11 @@ Follow-up design/implementation rule for direct delivery and scheduled Todo:
 - The row title/main area opens the Automation source detail, while the explicit
   deliverable file tag opens the preview. The file tag reuses the Automation
   detail deliverable visual pattern and must not hardcode Markdown-only wording.
-  Inbox rows keep the state badge and the processing affordance separate: the
-  compact state badge labels the item, while a `处理` button in the row tool area
-  opens a viewport-level action sheet containing only complete, snooze, and
-  delete/dismiss actions. The sheet must not be absolutely positioned inside the
+  Inbox rows use the compact status badge itself as the processing affordance:
+  `来源` / `类型` / status stay together in the meta row, and tapping a status
+  badge such as `待处理` opens a viewport-level action sheet containing only
+  complete, snooze, and delete/dismiss actions. Do not render a separate
+  right-side `处理` button. The sheet must not be absolutely positioned inside the
   card because that can clip or cover the deliverable file tag on mobile.
 - Left-swipe completion is threshold-gated as a full-swipe action; partial
   swipes do not call the complete transition.

@@ -102,6 +102,12 @@ visible first-stream-event, first-text-output, liveness stale, and stream-failed
 statuses. Run-progress UI must not render `run.liveness_warning` as a visible
 row; only stale/start-timeout/stream-failed states should consume visible
 status space.
+Run-progress UI tests must also cover preflight burst stability: model-selected
+and toolset-selection events should update an existing panel in place, compact
+`run.toolset_selection_started` with the matching terminal result, and use only
+one delayed fallback thread refresh when no target assistant message is visible.
+They must not call the generic whole-thread render path for each preflight
+event, because that produces visible mobile screen jitter.
 
 Action Inbox harnesses must cover the low-click delivery and Todo semantics:
 Automation delivery rows with `sourceRef.latestDeliverable` must render a
@@ -111,9 +117,10 @@ scheduled Todo/reminder Automation triggers must create `itemType=todo` Inbox
 occurrences; scheduled Todo Automation rows with a safe deliverable must still
 render the direct document preview action; row title/main areas must open the
 Automation source detail with Inbox return context; row status must render as a
-compact badge while a separate row `处理` control opens a viewport-level action
-sheet with complete, snooze, and delete/dismiss actions, without clipping or
-covering the deliverable file tag; generic
+compact action badge after source/type, and tapping that status badge opens a
+viewport-level action sheet with complete, snooze, and delete/dismiss actions;
+the list must not render a separate right-side `处理` button that duplicates the
+status badge or compresses the mobile row; generic
 `待办提醒` titles must be replaced by the actual Automation/reminder title in
 new projections or UI fallback; partial left swipes must not complete an Inbox
 item while full swipes complete it once; and Todo/reminder items must sort above
