@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-inbox-todo-source-v323";
+const CLIENT_VERSION = "20260528-inbox-badge-style-v324";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -36,6 +36,13 @@ const learningGrowthInteractionStateServicePath = path.join(repoRoot, "adapters"
 const learningGrowthInteractionStateServiceJs = fs.existsSync(learningGrowthInteractionStateServicePath) ? fs.readFileSync(learningGrowthInteractionStateServicePath, "utf8") : "";
 const mobileRuntimeEnvironmentServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "mobile-runtime-environment-service.js"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
+
+function cssRuleBody(selector) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = stylesCss.match(new RegExp(`${escaped} \\{([\\s\\S]*?)\\}`));
+  assert.ok(match, `Missing CSS rule for ${selector}`);
+  return match[1];
+}
 const serverJs = fs.readFileSync(path.join(repoRoot, "mobile-server-runtime.js"), "utf8");
 const ownerElevationApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "owner-elevation-api-routes.js"), "utf8");
 const weixinApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "weixin-api-routes.js"), "utf8");
@@ -216,15 +223,16 @@ assert.match(appJs, /function actionInboxStatusActionLabel\(item = \{\}\)/);
 assert.match(appJs, /return status \|\| "\\u5f85\\u5904\\u7406"/);
 assert.match(appJs, />\$\{escapeHtml\(actionInboxStatusActionLabel\(item\)\)\}<\/button>/);
 assert.match(stylesCss, /\.action-inbox-source-row \{[\s\S]*?display: flex;[\s\S]*?flex-wrap: wrap;/);
-assert.match(stylesCss, /\.action-inbox-source-badge,[\s\S]*?\.action-inbox-type-badge \{[\s\S]*?overflow: hidden;[\s\S]*?text-overflow: ellipsis;[\s\S]*?white-space: nowrap;/);
+assert.match(stylesCss, /\.action-inbox-source-badge,[\s\S]*?\.action-inbox-type-badge,[\s\S]*?\.action-inbox-state-badge \{[\s\S]*?height: 20px;[\s\S]*?min-height: 20px;[\s\S]*?padding: 0 6px;[\s\S]*?overflow: hidden;[\s\S]*?text-overflow: ellipsis;[\s\S]*?font-size: 11px;[\s\S]*?font-weight: 500;[\s\S]*?letter-spacing: 0;[\s\S]*?white-space: nowrap;/);
 assert.match(stylesCss, /\.action-inbox-filter \{[\s\S]*?font-size: 14px;[\s\S]*?line-height: 1\.2;/);
 assert.match(stylesCss, /\.action-inbox-swipe-complete \{[\s\S]*?background: #4f745d;/);
 assert.match(stylesCss, /\.action-inbox-deliverable-chip \{[\s\S]*?width: calc\(100% - 24px\);[\s\S]*?box-sizing: border-box;/);
 assert.match(stylesCss, /\.action-inbox-item-main \{[\s\S]*?padding: 6px 12px 8px;/);
 assert.match(stylesCss, /\.action-inbox-swipe-content > \.action-inbox-source-row,[\s\S]*?\.action-inbox-item-static > \.action-inbox-source-row \{[\s\S]*?padding: 12px 12px 0;/);
-assert.match(stylesCss, /\.action-inbox-state-badge \{[\s\S]*?height: 20px;[\s\S]*?min-height: 20px;[\s\S]*?padding: 0 6px;[\s\S]*?background: var\(--ui-surface-muted\);[\s\S]*?font-size: 11px;[\s\S]*?font-weight: 480;/);
 assert.match(stylesCss, /\.action-inbox-state-badge\.open \{[\s\S]*?color: rgba\(138, 111, 54, 0\.68\);[\s\S]*?background: rgba\(193, 151, 66, 0\.07\);/);
-assert.match(stylesCss, /\.action-inbox-state-action \{[\s\S]*?-webkit-appearance: none;[\s\S]*?height: 20px;[\s\S]*?min-height: 20px;[\s\S]*?padding: 0 6px;[\s\S]*?font-weight: 480;[\s\S]*?cursor: pointer;/);
+assert.match(stylesCss, /\.action-inbox-state-action \{[\s\S]*?-webkit-appearance: none;[\s\S]*?margin: 0;[\s\S]*?text-transform: none;[\s\S]*?cursor: pointer;/);
+const actionInboxStateActionRule = cssRuleBody(".action-inbox-state-action");
+assert.doesNotMatch(actionInboxStateActionRule, /\b(?:height|min-height|padding|font-size|font-weight|font-family|line-height|letter-spacing):/);
 assert.match(stylesCss, /\.action-inbox-state-action::after \{[\s\S]*?border-right: 1px solid currentColor;[\s\S]*?border-bottom: 1px solid currentColor;[\s\S]*?transform: rotate\(45deg\) translateY\(-1px\);/);
 assert.doesNotMatch(stylesCss, /\.action-inbox-process-button/);
 assert.match(stylesCss, /\.action-inbox-action-sheet-layer \{[\s\S]*?position: fixed;[\s\S]*?inset: 0;/);
@@ -456,9 +464,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-todo-source-v323/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-todo-source-v323/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-todo-source-v323/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-badge-style-v324/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-badge-style-v324/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-badge-style-v324/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);

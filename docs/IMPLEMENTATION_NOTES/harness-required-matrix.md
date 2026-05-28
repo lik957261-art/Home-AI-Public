@@ -172,7 +172,10 @@ Required harness dimensions:
   the badge and clip or compress mobile row content. The visible badge must show
   the real status label, not a generic `处理` command, and must stay visually at
   metadata weight: no large filled pill, no heavy border, no high-contrast
-  action color, and no typography larger than source/type metadata.
+  action color, and no typography larger than source/type metadata. Adjacent
+  row badges/actions such as `来源`, `类型`, and the status action must share the
+  same height, padding, font family, font size, font weight, line-height, and
+  letter spacing; only semantic color and a subtle status chevron may differ.
 - Automation delivery and scheduled-Todo row title/main areas must open the
   Automation source detail with Inbox return context, while only the explicit
   deliverable file tag opens the preview. The file tag must reuse the existing

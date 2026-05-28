@@ -202,6 +202,10 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
   filled pill, no strong border, and no high-contrast action color. The open
   state uses a very low-contrast pale amber treatment. Keep the accessible
   label tied to the real status and the available processing menu.
+- Adjacent controls in the same Inbox row meta line must share one badge style
+  system. `来源` / `类型` / status-action labels should use the same height,
+  padding, font family, font size, font weight, line-height, and letter spacing;
+  only semantic color and the status chevron may differ.
 - The default Inbox list must show newest items first by update/event/create
   time. Terminal items may stay below non-terminal items when mixed into an
   all-status view, but source/type priority must not hide a newer receipt under

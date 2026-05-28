@@ -175,6 +175,11 @@ surface. If legacy data carries `/?view=todos...` or `todoId` deep links,
 projection tests must assert the detail page does not render `Open source`, row
 navigation does not call the internal route helper, and back navigation never
 lands in the retired official Kanban/Todo compatibility surface.
+The Inbox visual harness must also cover adjacent row badges/actions: `来源`,
+`类型`, and status-action labels in the same meta row must share height,
+padding, font family, font size, font weight, line-height, and letter spacing.
+The status action may show a subtle chevron and semantic color, but must not
+fall back to a larger browser-default button style.
 
 Topic/navigation harnesses must assert that a missing `currentTaskGroupId`
 does not leave the app permanently on `Restoring topic...` because of unrelated
