@@ -107,7 +107,8 @@ function renderMessage(message) {
   const searchClass = chatSearchClassForMessage(message);
   const body = revoked ? `<div class="message-revoked-text">${escapeHtml(GROUP_MESSAGE_REVOKED_TEXT)}</div>` : renderText(message.content || "", message);
   const runProgress = !revoked ? renderMessageRunProgress(state.currentThread, message) : "";
-  return `<article class="message ${escapeHtml(message.role || "assistant")}${searchClass}${revoked ? " revoked" : ""}" data-message-id="${escapeHtml(message.id || "")}">
+  const scrollEligibleAttr = messageScrollEligibleByContent(message) ? ` data-message-scroll-eligible="1"` : "";
+  return `<article class="message ${escapeHtml(message.role || "assistant")}${searchClass}${revoked ? " revoked" : ""}" data-message-id="${escapeHtml(message.id || "")}"${scrollEligibleAttr}>
     <div class="message-head">
       <div class="message-head-main-wrap">
         <span class="message-head-main">${escapeHtml(roleLabel)}${escapeHtml(kindLabel)}${escapeHtml(status)}</span>

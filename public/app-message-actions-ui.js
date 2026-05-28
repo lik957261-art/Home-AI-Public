@@ -366,6 +366,13 @@ function renderMessageScrollButton(message, position) {
   return `<button class="message-scroll-button hidden" type="button" data-scroll-message="${escapeHtml(message.id)}" data-scroll-position="${end ? "end" : "start"}" aria-label="${end ? "Jump to reply end" : "Jump to reply start"}" title="${end ? "End" : "Start"}" aria-hidden="true" tabindex="-1"><span class="message-scroll-glyph">${end ? "&#8595;" : "&#8593;"}</span></button>`;
 }
 
+function messageScrollEligibleByContent(message = {}) {
+  if (message?.role !== "assistant" || !message?.id) return false;
+  if (message.revokedAt) return false;
+  const contentLength = String(message.content || "").length;
+  return contentLength > Math.max(1600, ACTIVE_MESSAGE_RICH_RENDER_LIMIT);
+}
+
 function canUseMessageReplyActions(message) {
   return Boolean(message?.role === "assistant" && message?.id && !message.revokedAt);
 }
@@ -794,10 +801,13 @@ function updateMessageScrollButtonVisibility(root) {
     const articleRect = article.getBoundingClientRect?.() || { top: 0, left: 0, right: 0, bottom: 0 };
     const messageHeight = articleRect.height || article.offsetHeight || 0;
     const wasShown = article.dataset.messageScrollButtonVisible === "1";
+    const contentEligible = article.dataset.messageScrollEligible === "1";
     const hasRunProgress = Boolean(article.querySelector(".run-progress-panel.inline:not(.terminal)"));
     const showThreshold = Math.max(420, viewportHeight - 28);
     const hideThreshold = Math.max(360, viewportHeight - 140);
     const shouldShow = viewportHeight > 0 && !hasRunProgress && (
+      contentEligible
+      ||
       messageHeight > showThreshold
       || (wasShown && messageHeight > hideThreshold)
     );

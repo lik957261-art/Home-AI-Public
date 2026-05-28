@@ -643,7 +643,9 @@ Required contract dimensions:
 - Long assistant reply jump controls survive terminal DOM replacement: queued
   arrow-visibility recalculation must resolve the current live message or
   conversation node at execution time, and final markdown/layout replacement
-  must schedule a short delayed settle pass.
+  must schedule a short delayed settle pass. The default-collapsed long-reply
+  case must remain eligible by original assistant content length; do not rely
+  only on rendered preview height.
 - Search mode can navigate results without permanently changing the send-time
   scroll intent.
 

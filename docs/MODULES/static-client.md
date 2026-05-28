@@ -64,7 +64,9 @@ Gateway plugin/schema/profile changes:
   available after streaming settles. Arrow visibility recalculation must resolve
   the current DOM at execution time and include a delayed settle pass after final
   markdown/layout replacement so a stale pre-terminal message node cannot leave
-  the footer arrow hidden.
+  the footer arrow hidden. Eligibility must use the assistant message's original
+  content length before rendered height, because default-collapsed previews can
+  be much shorter than the full receipt while still needing a jump-back control.
 - Mobile orientation changes must have a deterministic viewport recovery pass:
   clear any temporary conversation scroll-layer reset, clear stale keyboard
   viewport CSS when the composer is no longer actually focused, recompute bottom

@@ -8,6 +8,7 @@ const vm = require("vm");
 const repoRoot = path.resolve(__dirname, "..");
 const appMessageActionsUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-message-actions-ui.js"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
+const appThreadCardMessageUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-thread-card-message-ui.js"), "utf8");
 
 assert.match(
   appMessageActionsUiJs,
@@ -53,6 +54,24 @@ assert.match(
 
 assert.match(
   appMessageActionsUiJs,
+  /function messageScrollEligibleByContent\(message = \{\}\) \{[\s\S]*?contentLength > Math\.max\(1600, ACTIVE_MESSAGE_RICH_RENDER_LIMIT\);/,
+  "default-collapsed long replies must be eligible for arrows even when the rendered preview is shorter than the viewport"
+);
+
+assert.match(
+  appThreadCardMessageUiJs,
+  /const scrollEligibleAttr = messageScrollEligibleByContent\(message\) \? ` data-message-scroll-eligible="1"` : "";/,
+  "message render must persist long-reply arrow eligibility into the article DOM"
+);
+
+assert.match(
+  appMessageActionsUiJs,
+  /const contentEligible = article\.dataset\.messageScrollEligible === "1";[\s\S]*?contentEligible[\s\S]*?\|\|\s*messageHeight > showThreshold/,
+  "arrow visibility must use content eligibility before relying on rendered height"
+);
+
+assert.match(
+  appMessageActionsUiJs,
   /button\.style\.setProperty\("position", "fixed"\);[\s\S]*?button\.style\.setProperty\("left", `\$\{Math\.round\(left\)\}px`\);[\s\S]*?button\.style\.setProperty\("top", `\$\{Math\.round\(top\)\}px`\);[\s\S]*?button\.style\.setProperty\("z-index", "38"\);/,
   "floating long-message start arrows must be positioned outside the footer flow"
 );
@@ -81,10 +100,10 @@ const liveButton = {
   tabIndex: -1,
 };
 const liveArticle = {
-  dataset: {},
-  offsetHeight: 900,
+  dataset: { messageScrollEligible: "1" },
+  offsetHeight: 220,
   matches() { return true; },
-  getBoundingClientRect() { return { top: 0, bottom: 900, left: 0, right: 390 }; },
+  getBoundingClientRect() { return { top: 0, bottom: 220, left: 0, right: 390 }; },
   querySelector(selector) {
     if (selector === ".run-progress-panel.inline:not(.terminal)") return null;
     return null;
@@ -129,6 +148,6 @@ globalThis.messageScrollHarness = { scheduleMessageScrollButtonVisibility };`, c
 context.messageScrollHarness.scheduleMessageScrollButtonVisibility(detachedArticle);
 assert.strictEqual(typeof queuedFrame, "function");
 queuedFrame();
-assert.strictEqual(liveButtonHidden, false, "detached queued message nodes must fall back to the live conversation and reveal eligible long-reply arrows");
+assert.strictEqual(liveButtonHidden, false, "detached queued message nodes must fall back to the live conversation and reveal content-eligible long-reply arrows even when the collapsed preview is short");
 
 console.log("message scroll button visibility harness passed");

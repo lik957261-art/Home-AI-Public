@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-long-reply-viewport-v320";
+const CLIENT_VERSION = "20260528-long-reply-arrow-v321";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -456,9 +456,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-long-reply-viewport-v320/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-long-reply-viewport-v320/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-long-reply-viewport-v320/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-long-reply-arrow-v321/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-long-reply-arrow-v321/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-long-reply-arrow-v321/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -688,6 +688,9 @@ assert.match(stylesCss, /\.message-action-strip\s*\{[\s\S]*?flex:\s*0 0 72px;[\s
 assert.match(stylesCss, /\.message-footer-row\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*72px minmax\(0, 1fr\);[\s\S]*?min-height:\s*34px;/);
 assert.match(stylesCss, /\.message-footer-meta\s*\{[\s\S]*?grid-column:\s*2;[\s\S]*?display:\s*flex;/);
 assert.match(appMessageActionsUiJs, /dataset\.messageScrollButtonVisible/);
+assert.match(appMessageActionsUiJs, /function messageScrollEligibleByContent\(message = \{\}\)/);
+assert.match(appThreadCardMessageUiJs, /data-message-scroll-eligible="1"/);
+assert.match(appMessageActionsUiJs, /const contentEligible = article\.dataset\.messageScrollEligible === "1"/);
 assert.match(appMessageActionsUiJs, /root\.matches\?\.\([^)]*message\[data-message-id\]/);
 assert.match(appMessageActionsUiJs, /hasRunProgress/);
 assert.match(appMessageActionsUiJs, /\.run-progress-panel\.inline:not\(\.terminal\)/);
