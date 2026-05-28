@@ -11584,23 +11584,31 @@ body.task-markdown-preview-open {
 }
 
 .action-inbox-state-badge {
+  max-width: 100%;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 18px;
-  padding: 0 2px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
+  box-sizing: border-box;
+  height: 22px;
+  min-height: 22px;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 1px solid var(--ui-hairline);
+  border-radius: 999px;
+  background: var(--ui-surface-muted);
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
-  line-height: 1.1;
+  line-height: 1;
   white-space: nowrap;
 }
 
 .action-inbox-state-badge.open {
-  color: var(--ui-warning-ink);
+  color: #9a7a35;
+  border-color: rgba(193, 151, 66, 0.18);
+  background: rgba(193, 151, 66, 0.11);
 }
 
 .action-inbox-state-badge.waiting {
@@ -11612,14 +11620,16 @@ body.task-markdown-preview-open {
 }
 
 .action-inbox-state-action {
-  min-height: 18px;
-  padding: 0 4px 0 3px;
-  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 22px;
+  min-height: 22px;
+  padding: 0 8px;
   font-family: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: 0;
-  line-height: 1.1;
+  line-height: 1;
   cursor: pointer;
 }
 
@@ -11635,7 +11645,7 @@ body.task-markdown-preview-open {
 }
 
 .action-inbox-state-action:active {
-  background: var(--ui-surface-muted);
+  background: rgba(193, 151, 66, 0.16);
 }
 
 .action-inbox-state-action:focus-visible,
