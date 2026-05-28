@@ -3078,7 +3078,7 @@ button.directory-alias-chip {
 
 .run-progress-history-details {
   width: min(520px, calc(100vw - 24px));
-  max-height: min(420px, 62vh);
+  max-height: min(360px, 52vh);
   overflow: auto;
   padding: 8px;
 }
@@ -3134,10 +3134,10 @@ button.directory-alias-chip {
     position: fixed;
     left: max(12px, env(safe-area-inset-left));
     right: max(12px, env(safe-area-inset-right));
-    top: calc(var(--run-progress-history-top, 12px) + env(safe-area-inset-top));
+    top: max(calc(var(--run-progress-history-top, 12px) + env(safe-area-inset-top)), calc(52px + env(safe-area-inset-top)));
     bottom: var(--run-progress-history-bottom, calc(var(--mobile-bottom-nav-reserved-height) + 12px));
     width: auto;
-    max-height: var(--run-progress-history-max-height, min(420px, 58vh));
+    max-height: var(--run-progress-history-max-height, min(360px, 52vh));
     transform: none;
     overscroll-behavior: contain;
   }
@@ -11611,13 +11611,15 @@ body.task-markdown-preview-open {
 }
 
 .action-inbox-state-action {
-  min-height: 22px;
-  padding: 0 6px;
-  border-color: rgba(95, 139, 148, 0.24);
+  min-height: 20px;
+  padding: 0 5px;
+  color: rgba(72, 91, 94, 0.78);
+  background: var(--ui-surface-muted);
+  border-color: rgba(95, 139, 148, 0.14);
   font-family: inherit;
-  font-size: 11.5px;
-  font-weight: 650;
-  line-height: 1;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.05;
   cursor: pointer;
 }
 
@@ -11625,11 +11627,11 @@ body.task-markdown-preview-open {
   content: "";
   width: 0;
   height: 0;
-  margin-left: 4px;
-  border-left: 2.5px solid transparent;
-  border-right: 2.5px solid transparent;
-  border-top: 3.5px solid currentColor;
-  opacity: 0.72;
+  margin-left: 3px;
+  border-left: 2px solid transparent;
+  border-right: 2px solid transparent;
+  border-top: 3px solid currentColor;
+  opacity: 0.58;
 }
 
 .action-inbox-state-action:active {
@@ -12540,8 +12542,8 @@ body.task-markdown-preview-open {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 0 1px 1px;
-  margin-bottom: -2px;
+  padding: 1px 1px 2px;
+  margin-bottom: 0;
   overflow-x: auto;
   color: var(--muted);
   scrollbar-width: none;
@@ -12560,17 +12562,17 @@ body.task-markdown-preview-open {
   flex: 0 0 auto;
   min-width: 0;
   max-width: min(44vw, 190px);
-  min-height: 22px;
+  min-height: 24px;
   display: inline-flex;
   align-items: center;
-  padding: 0 7px;
+  padding: 1px 7px;
   color: var(--ui-accent-ink);
   background: var(--ui-control-bg);
   border: 1px solid var(--ui-hairline);
   border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
-  line-height: 1;
+  line-height: 1.16;
   box-shadow: none;
 }
 
@@ -13495,15 +13497,16 @@ body.task-markdown-preview-open {
 
   .composer-context {
     gap: 4px;
-    padding-bottom: 0;
-    margin-bottom: -1px;
+    padding-bottom: 1px;
+    margin-bottom: 0;
   }
 
   .composer-context-chip {
     max-width: 48vw;
-    min-height: 21px;
-    padding: 0 6px;
+    min-height: 23px;
+    padding: 1px 6px;
     font-size: 10.5px;
+    line-height: 1.16;
   }
 
   .composer-context-chip.directory {

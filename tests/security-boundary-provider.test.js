@@ -190,11 +190,13 @@ function run() {
     toolset_routing: { mode: "model_first" },
   });
   assert.match(postSelectorPermissionInstructions, /permission and toolset preflight has already completed/);
+  assert.match(postSelectorPermissionInstructions, /do not call skill_view or load productivity\/hermes-mobile-permission-boundary-check again/);
   assert.doesNotMatch(postSelectorPermissionInstructions, /Use Skill: productivity\/hermes-mobile-permission-boundary-check/);
   assert.strictEqual(permissionBoundarySkillInstructions({ access_mode: "unrestricted" }), "");
 
   const skillPath = path.join(__dirname, "..", "skills", "productivity", "hermes-mobile-permission-boundary-check", "SKILL.md");
   assert.ok(fs.existsSync(skillPath));
+  assert.match(fs.readFileSync(skillPath, "utf8"), /legacy fallback\/reference/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Public Web Search and public web extraction are \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Search-only public web lookup is \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /X Search is \*\*Allowed\*\*/);

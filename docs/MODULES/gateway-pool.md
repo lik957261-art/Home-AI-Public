@@ -183,6 +183,10 @@ Current runtime behavior:
 - This selector is the combined model-side permission and toolset preflight. It
   may return either selected authorized toolsets or a permission-elevation
   decision using `HERMES_PERMISSION_APPROVAL_REQUIRED` semantics.
+- After a successful `model_first` selector decision, the execution prompt must
+  not call `skill_view` or load
+  `productivity/hermes-mobile-permission-boundary-check` again. That Skill is
+  retained only as a legacy fallback/reference for non-selector paths.
 - Hermes Mobile must not route or block ordinary model runs through
   natural-language permission guesses before this model-side preflight. Server
   code may still construct the access policy and honor explicit Owner

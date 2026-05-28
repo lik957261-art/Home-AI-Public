@@ -385,8 +385,8 @@ Required harness dimensions:
 - Permission and toolset preflight is one model-side step. When the
   model-first selector has returned a normal allowed-toolset decision, the main
   execution prompt must not ask the model to load the permission-boundary Skill
-  again; the run-status row should describe the combined permission/toolset
-  check, not show a separate Permission Skill step.
+  again or call `skill_view` for it; the run-status row should describe the
+  combined permission/toolset check, not show a separate Permission Skill step.
 - Function-call projection must not render unnamed generic function rows. If a
   concrete function name cannot be recovered from the event, preview JSON,
   `callId` pair, or tool field, omit that function row instead of showing a

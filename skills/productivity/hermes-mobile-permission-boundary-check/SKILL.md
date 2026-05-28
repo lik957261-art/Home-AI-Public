@@ -1,11 +1,11 @@
 ---
 name: hermes-mobile-permission-boundary-check
-description: Model-side permission check for Hermes Mobile low-permission Gateway runs. Use before filesystem, Skill, automation, account, integration, or delivery-path tool use to decide whether the current run has permission, should ask for Owner elevation, or must fail closed.
+description: Legacy fallback/reference for Hermes Mobile permission rules. Normal model-first Gateway runs already combine permission and toolset selection before execution, so do not load this Skill again unless a non-selector fallback explicitly asks for it.
 ---
 
 # Hermes Mobile Permission Boundary Check
 
-This Skill is mandatory inside Hermes Mobile restricted or low-permission Gateway model runs before using tools or changing state. It is not a server-side natural-language route classifier.
+This Skill is a legacy fallback/reference for Hermes Mobile restricted or low-permission Gateway model runs. Normal model-first runs already perform the permission and toolset decision in one selector step before execution; those runs should not load this Skill again during the main execution round. It is not a server-side natural-language route classifier.
 
 ## Authority
 

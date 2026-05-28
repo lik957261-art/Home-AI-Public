@@ -39,7 +39,8 @@ Use this file to locate the responsible frontend files before debugging a screen
   - Toolset-selection status rows represent the combined permission and toolset
     preflight. After a successful model-first selector decision, the main run
     should not load the permission-boundary Skill again as a separate visible
-    step.
+    step or call `skill_view` for
+    `productivity/hermes-mobile-permission-boundary-check`.
   - High-frequency preflight events such as model selected, toolset selection
     started, and toolset selected must update the inline status panel in place.
     If the target assistant message is not visible yet, the frontend should

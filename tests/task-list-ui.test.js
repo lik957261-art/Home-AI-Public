@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260528-inbox-status-compact-v314";
+const CLIENT_VERSION = "20260528-run-status-permission-v315";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -222,8 +222,8 @@ assert.match(stylesCss, /\.action-inbox-swipe-complete \{[\s\S]*?background: #4f
 assert.match(stylesCss, /\.action-inbox-deliverable-chip \{[\s\S]*?width: calc\(100% - 24px\);[\s\S]*?box-sizing: border-box;/);
 assert.match(stylesCss, /\.action-inbox-item-main \{[\s\S]*?padding: 6px 12px 8px;/);
 assert.match(stylesCss, /\.action-inbox-swipe-content > \.action-inbox-source-row,[\s\S]*?\.action-inbox-item-static > \.action-inbox-source-row \{[\s\S]*?padding: 12px 12px 0;/);
-assert.match(stylesCss, /\.action-inbox-state-action \{[\s\S]*?min-height: 22px;[\s\S]*?font-size: 11\.5px;[\s\S]*?cursor: pointer;/);
-assert.match(stylesCss, /\.action-inbox-state-action::after \{[\s\S]*?border-top: 3\.5px solid currentColor;/);
+assert.match(stylesCss, /\.action-inbox-state-action \{[\s\S]*?min-height: 20px;[\s\S]*?font-size: 11px;[\s\S]*?cursor: pointer;/);
+assert.match(stylesCss, /\.action-inbox-state-action::after \{[\s\S]*?border-top: 3px solid currentColor;/);
 assert.doesNotMatch(stylesCss, /\.action-inbox-process-button/);
 assert.match(stylesCss, /\.action-inbox-action-sheet-layer \{[\s\S]*?position: fixed;[\s\S]*?inset: 0;/);
 assert.match(stylesCss, /\.action-inbox-action-sheet-button,[\s\S]*?\.action-inbox-action-sheet-cancel \{[\s\S]*?min-height: 44px;/);
@@ -454,9 +454,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-inbox-status-compact-v314/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-inbox-status-compact-v314/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-inbox-status-compact-v314/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260528-run-status-permission-v315/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260528-run-status-permission-v315/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260528-run-status-permission-v315/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -558,17 +558,21 @@ assert.match(appJs, /if \(routeThreadId\) state\.currentThreadId = routeThreadId
 assert.match(appJs, /setRouteScrollTarget\(taskGroupId \|\| \(groupChatRequested \? "group-chat" : "chat"\), messageId\)/);
 assert.match(appJs, /function consumeChatRouteScrollTarget\(messages = \[\]\)/);
 assert.match(appJs, /consumeChatRouteScrollTarget\(displayMessages\)/);
+assert.match(appMessageActionsUiJs, /function scrollRouteMessageIntoViewStable\(messageId, position = "start"\)/);
+assert.match(appMessageActionsUiJs, /window\.setTimeout\(align, 180\)/);
+assert.match(appMessageActionsUiJs, /window\.setTimeout\(align, 560\)/);
 assert.match(appJs, /if \(requested\) return "";/);
 assert.match(appJs, /function renderMessageRunProgressHistory\(thread, message = \{\}, options = \{\}\)/);
 assert.match(appJs, /const runProgressHistory = typeof renderMessageRunProgressHistory === "function"/);
 assert.match(appJs, /function wireRunProgressHistoryPanels\(root\)/);
 assert.match(appJs, /function positionRunProgressHistoryPanel\(details\)/);
+assert.match(appJs, /const panelHeight = Math\.max\(180, Math\.min\(420, Math\.round\(viewportHeight \* 0\.58\), availableAboveAnchor\)\)/);
 assert.match(appJs, /availableAboveAnchor >= 180 \? bottomAboveAnchor : margin/);
 assert.match(appJs, /MESSAGE_SKILL_HIDDEN_FALLBACKS = new Set\(\["response", "response-grounding-baseline"\]\)/);
 assert.match(stylesCss, /\.message-footer-row \.run-progress-history/);
 assert.match(stylesCss, /\.run-progress-history-details \{[\s\S]*?width: min\(520px, calc\(100vw - 24px\)\)/);
-assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.run-progress-history-details \{[\s\S]*?position: fixed;[\s\S]*?top: calc\(var\(--run-progress-history-top, 12px\) \+ env\(safe-area-inset-top\)\);[\s\S]*?bottom: var\(--run-progress-history-bottom, calc\(var\(--mobile-bottom-nav-reserved-height\) \+ 12px\)\);/);
-assert.match(stylesCss, /max-height: var\(--run-progress-history-max-height, min\(420px, 58vh\)\)/);
+assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.run-progress-history-details \{[\s\S]*?position: fixed;[\s\S]*?top: max\(calc\(var\(--run-progress-history-top, 12px\) \+ env\(safe-area-inset-top\)\), calc\(52px \+ env\(safe-area-inset-top\)\)\);[\s\S]*?bottom: var\(--run-progress-history-bottom, calc\(var\(--mobile-bottom-nav-reserved-height\) \+ 12px\)\);/);
+assert.match(stylesCss, /max-height: var\(--run-progress-history-max-height, min\(360px, 52vh\)\)/);
 assert.match(appJs, /function handleAppForegrounded\(\)[\s\S]*scheduleConversationViewportRefresh\(\)/);
 assert.match(appJs, /function handleViewportLayoutChange\(event = null\)[\s\S]*scheduleConversationViewportRefresh/);
 assert.match(appJs, /orientationSettle: orientationEvent/);

@@ -192,6 +192,7 @@ function scheduleConversationBottomStick() {
 }
 
 function handleConversationScrollState() {
+  scheduleMessageScrollButtonVisibility($("conversation"));
   if (Date.now() < Number(state.conversationViewportSettleUntil || 0)) {
     updateConversationJumpBottomButton();
     return;
@@ -283,9 +284,7 @@ function consumeTaskRouteScrollTarget(group) {
   const messageId = routeScrollMessageIdForTaskGroup(group);
   if (!messageId) return false;
   clearRouteScrollTarget();
-  requestAnimationFrame(() => {
-    scrollMessageIntoView(messageId, "start");
-  });
+  scrollRouteMessageIntoViewStable(messageId, "start");
   return true;
 }
 
@@ -299,10 +298,17 @@ function consumeChatRouteScrollTarget(messages = []) {
     : "";
   if (!messageId) return false;
   clearRouteScrollTarget();
-  requestAnimationFrame(() => {
-    scrollMessageIntoView(messageId, "start");
-  });
+  scrollRouteMessageIntoViewStable(messageId, "start");
   return true;
+}
+
+function scrollRouteMessageIntoViewStable(messageId, position = "start") {
+  const id = String(messageId || "").trim();
+  if (!id) return;
+  const align = () => scrollMessageIntoView(id, position);
+  requestAnimationFrame(align);
+  window.setTimeout(align, 180);
+  window.setTimeout(align, 560);
 }
 
 function scrollMessageIntoView(messageId, position = "start") {
@@ -647,11 +653,15 @@ function positionRunProgressHistoryPanel(details) {
     const mobile = viewportWidth <= 720;
     if (mobile) {
       const anchor = (details.querySelector("summary") || details).getBoundingClientRect();
-      const top = margin;
-      const bottomAboveAnchor = Math.max(margin, viewportHeight - Math.max(0, anchor.top) + 8);
-      const availableAboveAnchor = viewportHeight - top - bottomAboveAnchor;
+      const baseTop = margin;
+      const bottomAboveAnchor = Math.max(margin, viewportHeight - Math.max(0, anchor.top) + 10);
+      const availableAboveAnchor = viewportHeight - baseTop - bottomAboveAnchor;
+      const panelHeight = Math.max(180, Math.min(420, Math.round(viewportHeight * 0.58), availableAboveAnchor));
+      const top = availableAboveAnchor >= 180
+        ? Math.max(margin, Math.min(margin + 8, Math.max(margin, anchor.top - panelHeight - 10)))
+        : margin;
       const bottom = availableAboveAnchor >= 180 ? bottomAboveAnchor : margin;
-      const maxHeight = Math.max(160, viewportHeight - top - bottom);
+      const maxHeight = Math.max(180, Math.min(panelHeight, viewportHeight - top - bottom));
       panel.style.setProperty("--run-progress-history-top", `${Math.round(top)}px`);
       panel.style.setProperty("--run-progress-history-bottom", `${Math.round(bottom)}px`);
       panel.style.setProperty("--run-progress-history-max-height", `${Math.round(maxHeight)}px`);
@@ -744,12 +754,14 @@ function updateMessageScrollButtonVisibility(root) {
   const conversation = $("conversation");
   if (!conversation || !root?.querySelectorAll) return;
   const viewportHeight = Math.max(0, conversation.clientHeight || window.innerHeight || 0);
+  const conversationRect = conversation.getBoundingClientRect?.() || { top: 0, left: 0, right: 0, bottom: viewportHeight };
   const articles = [
     ...(root.matches?.(".message[data-message-id]") ? [root] : []),
     ...root.querySelectorAll(".message[data-message-id]"),
   ];
   articles.forEach((article) => {
-    const messageHeight = article.getBoundingClientRect().height || article.offsetHeight || 0;
+    const articleRect = article.getBoundingClientRect?.() || { top: 0, left: 0, right: 0, bottom: 0 };
+    const messageHeight = articleRect.height || article.offsetHeight || 0;
     const wasShown = article.dataset.messageScrollButtonVisible === "1";
     const hasRunProgress = Boolean(article.querySelector(".run-progress-panel.inline:not(.terminal)"));
     const showThreshold = Math.max(420, viewportHeight - 28);
@@ -760,12 +772,66 @@ function updateMessageScrollButtonVisibility(root) {
     );
     if (shouldShow) article.dataset.messageScrollButtonVisible = "1";
     else delete article.dataset.messageScrollButtonVisible;
+    const shouldFloatStart = shouldShow && messageScrollCanReturnToStart(articleRect, conversationRect);
     article.querySelectorAll(".message-scroll-button").forEach((button) => {
-      button.classList.toggle("hidden", !shouldShow);
-      button.tabIndex = shouldShow ? 0 : -1;
-      button.setAttribute("aria-hidden", shouldShow ? "false" : "true");
+      const isStartButton = String(button.dataset.scrollPosition || "start") !== "end";
+      const shouldFloat = Boolean(isStartButton && shouldFloatStart);
+      const buttonVisible = shouldShow;
+      button.classList.toggle("hidden", !buttonVisible);
+      button.classList.toggle("floating", shouldFloat);
+      positionFloatingMessageScrollButton(button, shouldFloat, articleRect, conversationRect);
+      button.tabIndex = buttonVisible ? 0 : -1;
+      button.setAttribute("aria-hidden", buttonVisible ? "false" : "true");
     });
   });
+}
+
+function messageScrollCanReturnToStart(articleRect, conversationRect) {
+  const visibleTop = Math.max(articleRect.top || 0, conversationRect.top || 0);
+  const visibleBottom = Math.min(articleRect.bottom || 0, conversationRect.bottom || 0);
+  const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+  if (visibleHeight < 72) return false;
+  const startPassed = (articleRect.top || 0) < (conversationRect.top || 0) + 28;
+  const stillInsideMessage = (articleRect.bottom || 0) > (conversationRect.top || 0) + 96;
+  return Boolean(startPassed && stillInsideMessage);
+}
+
+function positionFloatingMessageScrollButton(button, shouldFloat, articleRect, conversationRect) {
+  if (!button) return;
+  if (!shouldFloat) {
+    [
+      "position",
+      "left",
+      "top",
+      "z-index",
+      "width",
+      "min-width",
+      "height",
+      "color",
+      "background",
+      "border",
+      "border-radius",
+      "box-shadow",
+    ].forEach((property) => button.style.removeProperty(property));
+    return;
+  }
+  const viewportWidth = window.visualViewport?.width || window.innerWidth || document.documentElement.clientWidth || 0;
+  const leftLimit = Math.max(8, conversationRect.left || 0);
+  const rightLimit = Math.max(leftLimit, (conversationRect.right || viewportWidth || leftLimit + 36) - 34);
+  const left = Math.max(leftLimit + 8, Math.min(rightLimit, (articleRect.left || leftLimit) + 8));
+  const top = Math.max((conversationRect.top || 0) + 10, Math.min((conversationRect.bottom || 0) - 42, (conversationRect.top || 0) + 14));
+  button.style.setProperty("position", "fixed");
+  button.style.setProperty("left", `${Math.round(left)}px`);
+  button.style.setProperty("top", `${Math.round(top)}px`);
+  button.style.setProperty("z-index", "38");
+  button.style.setProperty("width", "24px");
+  button.style.setProperty("min-width", "24px");
+  button.style.setProperty("height", "24px");
+  button.style.setProperty("color", "rgba(31, 111, 98, 0.62)");
+  button.style.setProperty("background", "var(--ui-surface)");
+  button.style.setProperty("border", "1px solid var(--ui-hairline)");
+  button.style.setProperty("border-radius", "999px");
+  button.style.setProperty("box-shadow", "0 6px 18px rgba(38, 64, 60, 0.12)");
 }
 
 function scheduleMessageScrollButtonVisibility(root) {
