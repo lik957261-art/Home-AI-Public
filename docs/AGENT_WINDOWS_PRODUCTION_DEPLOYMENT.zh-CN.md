@@ -189,7 +189,8 @@ WSL 低权限 Gateway：
 - Bridge host：`8798`
 - lowgw1..10：`18751..18760`
 - Grok/xAI worker `grokgw1`：从 `gateway-pool-manifest.json` 读取。生产维护时应保持 manifest 中的 Grok 端口稳定；新增个人 workspace worker 排在后续空闲端口，不应把 `grokgw1` 顺延到新端口。
-- owner-maintenance 示例：`18651..18652`
+- owner-maintenance 示例：`18651..18653`
+- DeepSeek 专属低权限 worker 示例：`18764..18773`，其中 `deepseekgw1`、`deepseekgw2`、`deepseekgw99` 为 Owner 专属；其他用户使用各自 workspace 绑定的 `deepseekgwN`。
 
 部署时要把运行脚本和重启入口一起放到生产目录。至少包括：
 
@@ -492,7 +493,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\HermesMo
   -UserName "HermesMobileWorker" `
   -Port 8797 `
   -MinGatewayPoolWorkers 1 `
-  -GatewayPoolPorts "18751,18752,18753,18754,18755,18756,18757,18758,18759,18760,18761,18762,18763,18764,18765,18766,18651,18652,18653" `
+  -GatewayPoolPorts "18751,18752,18753,18754,18755,18756,18757,18758,18759,18760,18761,18762,18763,18764,18765,18766,18767,18768,18769,18770,18771,18772,18773,18651,18652,18653" `
   -ReplaceExisting
 ```
 
@@ -586,7 +587,7 @@ Invoke-WebRequest -UseBasicParsing -Headers @{ "X-Hermes-Web-Key" = $key } http:
 
 - `/api/status.ownerElevation.available=true`
 - Gateway Pool 中存在 healthy 的 `owner-maintenance` worker。
-- owner-maintenance ports 例如 `18651..18652` listening。
+- owner-maintenance ports 例如 `18651..18653` listening。
 - 高权限运行按钮不再显示 `Owner maintenance runs are disabled by server configuration`。
 
 管理员首次设置流程说明：

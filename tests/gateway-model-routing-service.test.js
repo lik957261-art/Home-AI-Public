@@ -54,6 +54,7 @@ function testDeepSeekRoutesThroughDirectProviderWorkerProfile() {
     provider: DEEPSEEK_PROVIDER,
     preferred_worker_profiles: DEEPSEEK_WORKER_PROFILES,
   });
+  assert.deepEqual(DEEPSEEK_WORKER_PROFILES, ["deepseekgw1", "deepseekgw2", "deepseekgw99", "deepseekgw5"]);
 
   const inferred = resolveGatewayModelRoute({ model: "deepseek-reasoner" });
   assert.equal(inferred.ok, true);

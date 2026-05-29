@@ -3,7 +3,7 @@
 const GROK_PROVIDER = "xai-oauth";
 const DEEPSEEK_PROVIDER = "deepseek";
 const DEFAULT_GROK_MODEL = "grok-4.3";
-const DEEPSEEK_WORKER_PROFILES = ["deepseekgw1", "deepseekgw5", "deepseekgw99"];
+const DEEPSEEK_WORKER_PROFILES = ["deepseekgw1", "deepseekgw2", "deepseekgw99", "deepseekgw5"];
 const DEEPSEEK_OWNER_MAINTENANCE_WORKER_PROFILES = ["deepseekmaint1"];
 const SUPPORTED_GROK_MODELS = new Set(["grok-4.3"]);
 const SUPPORTED_DEEPSEEK_MODELS = new Set(["deepseek-chat", "deepseek-reasoner", "deepseek-v4-pro", "deepseek-v4-flash"]);

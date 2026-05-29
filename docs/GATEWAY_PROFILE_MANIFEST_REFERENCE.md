@@ -42,6 +42,21 @@ This reference documents public-safe manifest fields. The example file is `examp
 - May expose current-workspace tools only.
 - Must not include owner-maintenance/developer/source/system tools by default.
 
+### Low-Permission DeepSeek Worker
+
+- `securityLevel: "user"`
+- `provider: "deepseek"`
+- Must be workspace-dedicated. Use `allowedWorkspaceIds` and
+  `skillWorkspaceIds` for the same workspace binding as the corresponding
+  OpenAI/Codex `lowgwN` profile.
+- Owner has multiple low-permission DeepSeek profiles:
+  `deepseekgw1`, `deepseekgw2`, and `deepseekgw99`. All three are Owner-only
+  and share Owner memory, Owner full Skill store, and Owner-bound MCP
+  registrations.
+- Non-Owner users should receive their own dedicated `deepseekgwN` profile.
+  Do not use `deepseekgw99` or `allowedWorkspaceIds: ["*"]` as a generic
+  DeepSeek fallback.
+
 ### Grok Worker
 
 - `securityLevel: "user"`
@@ -81,8 +96,8 @@ This reference documents public-safe manifest fields. The example file is `examp
 - Never commit real API keys, OAuth tokens, cookies, browser credentials, auth file contents, or production-only private paths.
 - Do not route Grok by only passing a model name to an ordinary worker; select a profile whose provider is configured for xAI.
 - Do not route DeepSeek by only passing a request body provider to an OpenAI
-  worker. Normal DeepSeek runs must use `deepseekgw*`; Owner high-permission
-  DeepSeek runs must use `deepseekmaint*`.
+  worker. Normal DeepSeek runs must use workspace-dedicated `deepseekgw*`;
+  Owner high-permission DeepSeek runs must use `deepseekmaint*`.
 - Do not let ordinary no-provider runs fall back to a Grok worker. `xai-oauth`
   workers should require an explicit provider/model route.
 - Do not regenerate Grok ports from the current low-worker count during startup

@@ -601,6 +601,14 @@ Required harness dimensions:
   run must use a healthy `deepseekmaint*` worker. The harness must reject
   fallback to `openai-codex`, `lowgw*`, or `officialclean*` when the selected
   provider tier is missing or unhealthy.
+- Low-permission DeepSeek profiles must be workspace-dedicated. Owner may have
+  multiple Owner-only low-permission DeepSeek profiles, currently
+  `deepseekgw1`, `deepseekgw2`, and `deepseekgw99`, all sharing Owner memory,
+  Owner full Skill store, and Owner-bound MCP registrations. Non-Owner
+  workspaces must use their own dedicated `deepseekgwN` profile that mirrors
+  their OpenAI/Codex `lowgwN` workspace/Skill binding. A missing non-Owner
+  DeepSeek profile should fail closed instead of falling back to
+  `deepseekgw99` or a broad `allowedWorkspaceIds=["*"]` shared profile.
 - Owner status/UI harnesses must expose a provider-by-tier availability matrix
   from non-secret Gateway Pool metadata so the operator can see whether ChatGPT,
   DeepSeek, and Grok are available for normal and high-permission runs.
@@ -633,8 +641,9 @@ Required harness dimensions:
   state that all workspaces that can start that Gateway class can use it unless
   an explicit workspace/provider allowlist is implemented. Provider-specific
   shared profiles must not collapse user-bound MCP registrations together; for
-  example, Owner, WuPing, and generic DeepSeek workers need distinct profile
-  bindings when Wardrobe MCP is present.
+  example, Owner, WuPing, and each additional non-Owner DeepSeek user need
+  distinct profile bindings when Wardrobe MCP or personal Skill/memory is
+  present.
 - Gateway MCP/profile registrations, such as Wardrobe MCP, require generator
   coverage as well as live-profile coverage. A one-off edit to
   `telemetry/profiles/<profile>/config.yaml` is not durable evidence, because a

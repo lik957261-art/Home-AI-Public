@@ -32,6 +32,58 @@
       "telemetryResponseStoreDbPath": "/var/lib/hermes-gateway/profiles/grokgw1/response_store.db"
     },
     {
+      "name": "owner-deepseek-worker-1",
+      "profile": "deepseekgw1",
+      "host": "127.0.0.1",
+      "port": 18764,
+      "api_key": "replace-with-worker-api-key",
+      "enabled": true,
+      "securityLevel": "user",
+      "provider": "deepseek",
+      "allowedWorkspaceIds": ["owner"],
+      "skillProfile": "owner-full",
+      "skillWorkspaceIds": ["owner"]
+    },
+    {
+      "name": "owner-deepseek-worker-2",
+      "profile": "deepseekgw2",
+      "host": "127.0.0.1",
+      "port": 18767,
+      "api_key": "replace-with-worker-api-key",
+      "enabled": true,
+      "securityLevel": "user",
+      "provider": "deepseek",
+      "allowedWorkspaceIds": ["owner"],
+      "skillProfile": "owner-full",
+      "skillWorkspaceIds": ["owner"]
+    },
+    {
+      "name": "owner-deepseek-worker-99",
+      "profile": "deepseekgw99",
+      "host": "127.0.0.1",
+      "port": 18766,
+      "api_key": "replace-with-worker-api-key",
+      "enabled": true,
+      "securityLevel": "user",
+      "provider": "deepseek",
+      "allowedWorkspaceIds": ["owner"],
+      "skillProfile": "owner-full",
+      "skillWorkspaceIds": ["owner"]
+    },
+    {
+      "name": "workspace-deepseek-worker-5",
+      "profile": "deepseekgw5",
+      "host": "127.0.0.1",
+      "port": 18765,
+      "api_key": "replace-with-worker-api-key",
+      "enabled": true,
+      "securityLevel": "user",
+      "provider": "deepseek",
+      "allowedWorkspaceIds": ["weixin_wuping"],
+      "skillProfile": "workspace:weixin_wuping",
+      "skillWorkspaceIds": ["weixin_wuping"]
+    },
+    {
       "name": "maintenance-worker-1",
       "profile": "maintenance-worker-1",
       "host": "127.0.0.1",

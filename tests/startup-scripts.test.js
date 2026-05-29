@@ -74,7 +74,7 @@ assert.match(startWorkerHost, /healthy authenticated API endpoint with ready Gat
 assert.match(startWorkerHost, /MinGatewayPoolWorkers/);
 assert.match(startWorkerHost, /GatewayPoolPorts/);
 assert.match(startWorkerHost, /18762/);
-assert.match(startWorkerHost, /18764,18765,18766,18651,18652,18653/);
+assert.match(startWorkerHost, /18764,18765,18766,18767,18768,18769,18770,18771,18772,18773,18651,18652,18653/);
 assert.match(startWorkerHost, /WeixinFrontGateway/);
 assert.match(startWorkerHost, /function Resolve-WeixinFrontGatewayMode/);
 assert.match(startWorkerHost, /HERMES_MOBILE_WEIXIN_FRONT_GATEWAY/);
@@ -291,6 +291,12 @@ assert.match(startLowGatewaysShell, /missing shared auth lock link for low gatew
 assert.doesNotMatch(startLowGatewaysShell, /xuxin/);
 
 assert.match(configureLowGateways, /HERMES_MOBILE_OWNER_CONNECTOR_PROFILES/);
+assert.match(configureLowGateways, /lowgw1 lowgw2 lowgw3 lowgw4 lowgw10 deepseekgw1 deepseekgw2 deepseekgw99/);
+assert.match(configureLowGateways, /link_low_gateway_profile_subdir\(\)/);
+assert.match(configureLowGateways, /deepseek_companion_low_profile\(\)/);
+assert.match(configureLowGateways, /link_low_gateway_profile_subdir "\$profile_dir\/memories" "\$companion_profile_dir\/memories" "memories"/);
+assert.match(configureLowGateways, /link_low_gateway_profile_subdir "\$profile_dir\/skills" "\$companion_profile_dir\/skills" "skills"/);
+assert.match(configureLowGateways, /link_low_gateway_profile_subdir "\$profile_dir\/skills" "\$owner_skill_store" "skills"/);
 assert.match(configureLowGateways, /HERMES_GROK_GATEWAY_COUNT/);
 assert.match(configureLowGateways, /manifest_gateway_specs\(\)/);
 assert.match(configureLowGateways, /gateway_specs="\$\(manifest_gateway_specs\)"/);

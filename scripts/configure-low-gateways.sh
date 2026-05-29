@@ -57,7 +57,7 @@ video_plugin_source="${HERMES_MOBILE_VIDEO_PLUGIN_SOURCE:-$mobile_app_root/gatew
 video_plugin_target="$worker_home_dir/plugins/hermes-mobile-video"
 cronjob_plugin_source="${HERMES_MOBILE_CRONJOB_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-cronjob}"
 cronjob_plugin_target="$worker_home_dir/plugins/hermes-mobile-cronjob"
-owner_connector_profiles="${HERMES_MOBILE_OWNER_CONNECTOR_PROFILES:-lowgw1 lowgw2 lowgw3 lowgw4 lowgw10 deepseekgw1}"
+owner_connector_profiles="${HERMES_MOBILE_OWNER_CONNECTOR_PROFILES:-lowgw1 lowgw2 lowgw3 lowgw4 lowgw10 deepseekgw1 deepseekgw2 deepseekgw99}"
 outlook_graph_mcp_path="${HERMES_MOBILE_OUTLOOK_GRAPH_MCP_PATH:-$worker_home_dir/scripts/outlook_graph_mcp.py}"
 owner_skill_store="${HERMES_MOBILE_OWNER_SKILL_STORE:-/mnt/c/ProgramData/HermesMobile/data/skill-profiles/owner-full/skills}"
 wardrobe_mcp_path="${HERMES_MOBILE_WARDROBE_MCP_PATH:-$gateway_worker_root/wardrobe-mcp/scripts/wardrobe-mcp.py}"
@@ -220,6 +220,38 @@ ensure_low_gateway_skill_link() {
     mv "$skill_dir" "$backup_root/skills-before-owner-link-${stamp}"
   fi
   ln -s "$owner_skill_store" "$skill_dir"
+}
+
+link_low_gateway_profile_subdir() {
+  local source_dir="$1"
+  local target_dir="$2"
+  local label="$3"
+  local parent
+  parent="$(dirname "$source_dir")"
+  install -d -m 700 "$target_dir"
+  if [ -L "$source_dir" ] && [ "$(readlink -f "$source_dir")" = "$(readlink -f "$target_dir")" ]; then
+    return 0
+  fi
+  if [ -e "$source_dir" ] || [ -L "$source_dir" ]; then
+    local stamp
+    local backup_root
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    backup_root="$parent/profile-link-backups"
+    install -d -m 700 "$backup_root"
+    mv "$source_dir" "$backup_root/${label}-before-profile-link-${stamp}"
+  fi
+  ln -sfn "$target_dir" "$source_dir"
+}
+
+deepseek_companion_low_profile() {
+  local profile="$1"
+  if [[ "$profile" =~ ^deepseekgw([0-9]+)$ ]]; then
+    if is_owner_connector_profile "$profile"; then
+      printf '%s\n' "lowgw1"
+    else
+      printf 'lowgw%s\n' "${BASH_REMATCH[1]}"
+    fi
+  fi
 }
 
 quarantine_sqlite_files() {
@@ -580,7 +612,18 @@ while IFS=$'\t' read -r profile port; do
   repair_low_gateway_sqlite "$profile" "$profile_dir" "state.db"
   repair_low_gateway_sqlite "$profile" "$profile_dir" "response_store.db"
   ln -s "$profile_dir" "$profile_link"
-  ensure_low_gateway_skill_link "$profile_dir/skills"
+  companion_low_profile="$(deepseek_companion_low_profile "$profile")"
+  if [ -n "$companion_low_profile" ]; then
+    companion_profile_dir="${telemetry_profiles_root}/${companion_low_profile}"
+    link_low_gateway_profile_subdir "$profile_dir/memories" "$companion_profile_dir/memories" "memories"
+    if is_owner_connector_profile "$profile"; then
+      link_low_gateway_profile_subdir "$profile_dir/skills" "$owner_skill_store" "skills"
+    else
+      link_low_gateway_profile_subdir "$profile_dir/skills" "$companion_profile_dir/skills" "skills"
+    fi
+  else
+    ensure_low_gateway_skill_link "$profile_dir/skills"
+  fi
   if [ "$weather_plugin_enabled" = "1" ]; then
     install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
     rm -rf "$profile_dir/plugins/hermes-mobile-weather"

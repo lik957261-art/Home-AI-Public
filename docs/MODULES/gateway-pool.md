@@ -281,12 +281,15 @@ DeepSeek request fall back to an `openai-codex` lowgw profile; when no healthy
 DeepSeek worker is available, fail closed instead of silently spending OpenAI
 quota.
 
-Provider routing prefers `deepseekgw1`, `deepseekgw5`, then `deepseekgw99`.
-`deepseekgw1` mirrors the Owner connector profile, `deepseekgw5` mirrors the
-WuPing connector profile, and `deepseekgw99` is the generic shared DeepSeek
-profile without user-bound MCP servers. This keeps provider selection broad
-while avoiding a shared worker accidentally exposing the wrong user's Wardrobe
-MCP binding.
+Provider routing prefers Owner's low-permission DeepSeek profiles first:
+`deepseekgw1`, `deepseekgw2`, and `deepseekgw99`, then the known WuPing profile
+`deepseekgw5`. `deepseekgw99` is not a shared fallback; it is Owner-dedicated
+and shares Owner memory, Skill store, and Owner-bound MCP registrations with
+the other Owner low-permission Gateway profiles. Other workspaces must use
+their own dedicated `deepseekgwN` profile, normally matching their existing
+`lowgwN` workspace binding. If a non-Owner workspace has no matching dedicated
+DeepSeek profile, the DeepSeek run should fail closed instead of reusing an
+Owner or shared profile.
 
 Production stores the key outside the repo at
 `C:\ProgramData\HermesMobile\data\secrets\deepseek-api-key.secret`. Low Gateway
@@ -294,15 +297,14 @@ workers receive it through the process environment when
 `scripts/start-low-gateways.sh` starts the pool. `deepseekgw*` profiles refuse
 to start when a DeepSeek API key is missing. Owner-maintenance `officialclean*`
 workers receive the same key when `scripts/start-gateway-pool.ps1` starts the
-maintenance pool. This is an installation-level provider credential: any
-workspace that may start a normal or owner-maintenance model run can use the
-configured DeepSeek model unless a future workspace/provider allowlist is
-added. Do not write the raw key into docs, handoffs, manifests, screenshots,
-logs, or committed config.
+maintenance pool. This is an installation-level provider credential, but
+workspace access is still profile-bounded by `allowedWorkspaceIds` and
+`skillWorkspaceIds`. Do not write the raw key into docs, handoffs, manifests,
+screenshots, logs, or committed config.
 
-Owner high-permission DeepSeek runs use a separate owner-maintenance Gateway
-profile, currently `deepseekmaint1`, instead of sharing the normal user-level
-`deepseekgw*` workers. The profile must be in
+Owner high-permission DeepSeek runs use a separate Owner-only
+owner-maintenance Gateway profile, currently `deepseekmaint1`, instead of
+sharing the normal user-level `deepseekgw*` workers. The profile must be in
 `gateway-pool-manifest.json` with `provider=deepseek`,
 `securityLevel=owner-maintenance`, and `allowMaintenance=true`. Startup must
 write `model.provider: deepseek` and `model.default: deepseek-chat` into that
