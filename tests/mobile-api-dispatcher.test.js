@@ -2,6 +2,7 @@
 
 const assert = require("node:assert/strict");
 const {
+  CODEX_MOBILE_PLUGIN_PROXY_PATH_PREFIX,
   MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE,
   WEIXIN_INGRESS_PATH_PREFIX,
   createMobileApiDispatcher,
@@ -161,6 +162,36 @@ async function testUnauthorizedRequestStopsAfterAuthFailure() {
   ]);
 }
 
+async function testCodexPluginProxyRunsBeforeBrowserAuth() {
+  const { deps, calls } = makeDeps({
+    routeBehaviors: {
+      hermesPluginApiRoutes: () => ({ handled: true, status: 200, writeJson: { ok: true, proxied: true } }),
+    },
+  });
+  const dispatcher = createMobileApiDispatcher(deps);
+  const res = makeResponse();
+  const req = {
+    method: "GET",
+    url: `${CODEX_MOBILE_PLUGIN_PROXY_PATH_PREFIX}/?embed=hermes&workspaceId=owner`,
+    headers: {},
+    authResult: { ok: false },
+  };
+
+  const result = await dispatcher.handleApi(req, res);
+
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(JSON.parse(res.body), { ok: true, proxied: true });
+  assert.equal(req.hermesRequestContext, undefined);
+  assert.deepEqual(calls.map((call) => call.type), [
+    "getUrl",
+    "attachClientVersionHeaders",
+    "route",
+    "route",
+  ]);
+  assert.deepEqual(routeCalls(calls).map((call) => call.key), ["publicApiRoutes", "hermesPluginApiRoutes"]);
+}
+
 async function testAuthenticatedPipelineOrderAndRequestContext() {
   const { deps, calls } = makeDeps();
   const dispatcher = createMobileApiDispatcher(deps);
@@ -305,6 +336,7 @@ async function run() {
   await testPublicRoutesRunBeforeAuthAndStopPipeline();
   await testWeixinIngressRunsBeforeBrowserAuth();
   await testUnauthorizedRequestStopsAfterAuthFailure();
+  await testCodexPluginProxyRunsBeforeBrowserAuth();
   await testAuthenticatedPipelineOrderAndRequestContext();
   await testAuthenticatedWeixinRouteUsesBrowserAuthContext();
   await testGrowthCardRoutesPrecedeProgramCatchAllRoutes();

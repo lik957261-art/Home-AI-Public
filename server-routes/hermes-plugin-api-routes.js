@@ -124,6 +124,12 @@ function createHermesPluginApiRoutes(deps = {}) {
     return response?.headers?.get?.(name) || response?.headers?.get?.(name.toLowerCase()) || "";
   }
 
+  function responseSetCookies(response) {
+    if (typeof response?.headers?.getSetCookie === "function") return response.headers.getSetCookie();
+    const value = responseHeader(response, "set-cookie");
+    return value ? [value] : [];
+  }
+
   function rewriteCodexProxyText(text = "") {
     const prefix = "/api/hermes-plugins/codex-mobile/proxy";
     return String(text)
@@ -160,6 +166,8 @@ function createHermesPluginApiRoutes(deps = {}) {
     const upstream = await fetchImpl(proxyTargetUrl(url), { method, headers, body });
     const contentType = responseHeader(upstream, "content-type");
     const outHeaders = { "Content-Type": contentType || "application/octet-stream" };
+    const setCookies = responseSetCookies(upstream);
+    if (setCookies.length) outHeaders["Set-Cookie"] = setCookies;
     const location = responseHeader(upstream, "location");
     if (location) {
       try {

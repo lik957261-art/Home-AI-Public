@@ -189,6 +189,46 @@ async function testCodexProxyRewritesHtmlAndUsesUpstream() {
   assert.equal(fetchCalls[0].options.headers["x-hermes-plugin-workspace-id"], "owner");
 }
 
+async function testCodexProxyPreservesLaunchCookieAndRedirect() {
+  const { routes } = makeRoutes({
+    fetch(url) {
+      assert.equal(url, "http://127.0.0.1:8787/?embed=hermes&codexPluginLaunch=token&workspaceId=owner");
+      return Promise.resolve({
+        ok: true,
+        status: 302,
+        headers: {
+          get(name) {
+            const lower = name.toLowerCase();
+            if (lower === "content-type") return "text/plain";
+            if (lower === "location") return "http://127.0.0.1:8787/?embed=hermes&workspaceId=owner";
+            return "";
+          },
+          getSetCookie() {
+            return ["codex_mobile_plugin_session=session-value; Path=/; HttpOnly; SameSite=Lax"];
+          },
+        },
+        text: () => Promise.resolve(""),
+        arrayBuffer: () => Promise.resolve(Buffer.from("")),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/codex-mobile/proxy/?embed=hermes&codexPluginLaunch=token&workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 302);
+  assert.equal(
+    res.headers.Location,
+    "/api/hermes-plugins/codex-mobile/proxy/?embed=hermes&workspaceId=owner",
+  );
+  assert.deepEqual(res.headers["Set-Cookie"], [
+    "codex_mobile_plugin_session=session-value; Path=/; HttpOnly; SameSite=Lax",
+  ]);
+}
+
 async function run() {
   await testSpecs();
   await testListRoute();
@@ -197,6 +237,7 @@ async function run() {
   await testCodexManifestRouteDeniesNonOwnerWithoutPluginGrant();
   await testWorkspaceBlockStopsRoute();
   await testCodexProxyRewritesHtmlAndUsesUpstream();
+  await testCodexProxyPreservesLaunchCookieAndRedirect();
 }
 
 run().catch((err) => {
