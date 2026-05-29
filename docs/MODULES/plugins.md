@@ -144,6 +144,11 @@ container. After the iframe is created, ordinary tab switches should hide/show
 the host using CSS visibility or `hidden`, not move the iframe DOM node between
 containers.
 
+When an embedded plugin host is active, Hermes Mobile hides its own top page
+header and lets the plugin iframe occupy the available content row. The bottom
+navigation remains the app-level escape hatch; plugin-owned headers and route
+controls stay inside the iframe.
+
 Do not use DOM reparenting to preserve an iframe. iOS WebKit installed PWAs can
 reload a moved iframe from its original `src`. If that `src` contains a one-time
 launch URL, switching away and back can replay an expired token.
@@ -192,6 +197,13 @@ Hermes Mobile should:
 The plugin should handle the back event inside the iframe and emit a fresh
 navigation state after the route changes.
 
+If the plugin exposes `<plugin-id>.plugin.back_result`, Hermes Mobile also
+listens for that result event. `handled=true` keeps the current plugin back
+state and only refreshes host controls. `handled=false` means the plugin did not
+consume the back request; Hermes Mobile clears the plugin `canGoBack` state so
+the outer app layer can own the next back action and restore host navigation
+tabs.
+
 ## Plugin-Side Requirements
 
 Each plugin project must implement the embedded contract before Hermes Mobile
@@ -221,8 +233,10 @@ Required plugin-side behavior:
 - Listen for `hermes.plugin.back` from the parent and perform in-iframe back
   navigation. This must handle detail pages, modal/lightbox/drawer states, and
   edit forms before asking the parent to leave the plugin tab.
-- After internal navigation or back handling, emit a fresh navigation state so
-  Hermes Mobile can update the top-left/back-swipe affordance.
+- After internal navigation or back handling, emit a fresh navigation state or a
+  `<plugin-id>.plugin.back_result` event so Hermes Mobile can update the
+  top-left/back-swipe affordance and know when the plugin did not consume the
+  back request.
 - Preserve session state across ordinary tab switches. Hermes Mobile keeps the
   iframe node alive, but the plugin must not force reload itself on visibility
   changes or convert tab focus into a new login flow.
@@ -280,6 +294,9 @@ Mobile tests. The plugin-side harness should prove:
   `<plugin-id>.plugin.navigation` with `canGoBack=true`.
 - Back event: receiving `hermes.plugin.back` changes the iframe route instead
   of navigating the parent page; closing modal/lightbox/edit states is covered.
+  If the plugin emits `<plugin-id>.plugin.back_result` with `handled=false`, the
+  host clears plugin-level back state and lets Hermes own the next outer back
+  layer.
 - State preservation: switching away from the plugin tab and back does not
   replay an expired launch URL or lose the current plugin route.
 - Windowing: plugin-owned links and details stay in the same iframe; no
@@ -322,6 +339,8 @@ Required coverage for host-only changes:
 - persistent iframe host with no DOM reparenting;
 - clean blank host during manifest/launch loading;
 - postMessage navigation/back contract with origin validation;
+- optional `<plugin-id>.plugin.back_result` handling where `handled=false`
+  clears host plugin back state instead of leaving a stale main-back affordance;
 - static client-version bump and service-worker cache update;
 - installed-PWA smoke for the target browser class when behavior depends on
   mobile WebKit/Chromium iframe/session behavior.

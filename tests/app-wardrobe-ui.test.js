@@ -91,6 +91,8 @@ assert.match(stylesCss, /\.nav-wardrobe-icon::before/);
 assert.match(stylesCss, /\.wardrobe-plugin-shell/);
 assert.match(stylesCss, /\.wardrobe-plugin-frame/);
 assert.match(stylesCss, /\.wardrobe-plugin-host-active \.conversation\s*\{[\s\S]*display: none;/);
+assert.match(stylesCss, /\.wardrobe-plugin-host-active \.topbar\s*\{[\s\S]*display: none !important;/);
+assert.match(stylesCss, /\.wardrobe-plugin-host-active \.main\s*\{[\s\S]*grid-template-rows: minmax\(0, 1fr\);/);
 assert.match(stylesCss, /\.wardrobe-mode \.conversation\s*\{[\s\S]*padding: 0;[\s\S]*overflow: hidden;/);
 assert.match(stylesCss, /\.wardrobe-plugin-notice/);
 assert.match(stylesCss, /\.wardrobe-mode \.composer/);

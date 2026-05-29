@@ -1223,6 +1223,18 @@ button {
   display: grid;
 }
 
+.wardrobe-plugin-host-active .main {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.wardrobe-plugin-host-active .topbar {
+  display: none !important;
+}
+
+.wardrobe-plugin-host-active .wardrobe-plugin-host {
+  grid-row: 1;
+}
+
 .wardrobe-plugin-host-active .conversation {
   display: none;
 }
@@ -1285,6 +1297,18 @@ button {
 
 .embedded-plugin-host.active {
   display: grid;
+}
+
+.embedded-plugin-host-active .main {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.embedded-plugin-host-active .topbar {
+  display: none !important;
+}
+
+.embedded-plugin-host-active .embedded-plugin-host {
+  grid-row: 1;
 }
 
 .embedded-plugin-host-active .conversation {

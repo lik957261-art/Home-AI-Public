@@ -255,6 +255,11 @@ Required harness dimensions:
   `canGoBack`; Hermes validates the plugin origin, exposes the normal back
   affordance only when `canGoBack=true`, and sends `hermes.plugin.back` to the
   existing iframe.
+- If a plugin emits `<plugin-id>.plugin.back_result`, Hermes must process it as
+  part of the same origin-validated navigation contract. `handled=false` means
+  the plugin did not consume the back action; the host must clear plugin
+  `canGoBack` so the next back action belongs to Hermes outer navigation rather
+  than leaving a stale plugin-level main-back affordance visible.
 - Switching away from an embedded plugin tab must preserve the already-loaded
   iframe node when possible. Harness coverage must assert that the host uses a
   persistent iframe container and CSS visibility, not DOM reparenting, because
@@ -268,6 +273,9 @@ Required harness dimensions:
   exchange states should use the blank persistent plugin host, not an
   intermediate Hermes-owned loading card, left-aligned text, or preflight page.
   Explanatory UI is allowed only for real plugin diagnostics.
+- When an embedded plugin host is active, the Hermes page header must be hidden
+  so the plugin is not double-framed by two top bars. The bottom navigation
+  remains visible as the host-level escape path.
 - Static/client version must be bumped for embedded-plugin host changes so the
   installed PWA does not keep an older iframe contract through the service
   worker.

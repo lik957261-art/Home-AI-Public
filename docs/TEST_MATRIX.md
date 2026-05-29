@@ -118,10 +118,12 @@ there is an explicit Owner authorization signal. A global plugin key is not
 enough to authorize every workspace.
 Plugin projects must also carry their own harness: manifest shape, launch
 exchange, frame-ancestor origin registration, `?embed=hermes` mode,
-`<plugin-id>.plugin.navigation`, `hermes.plugin.back`, same-iframe internal
-navigation, no `window.open`/`target=_blank`, state preservation across tab
-switches, and installed-PWA smoke. Hermes Mobile host tests do not replace the
-plugin project's own embedded-mode tests.
+`<plugin-id>.plugin.navigation`, `hermes.plugin.back`, optional
+`<plugin-id>.plugin.back_result` with `handled=false` fallback to the Hermes
+outer back layer, same-iframe internal navigation, no `window.open` /
+`target=_blank`, state preservation across tab switches, and installed-PWA
+smoke. Hermes Mobile host tests do not replace the plugin project's own
+embedded-mode tests.
 The first NAS-backed registration uses
 `GET /api/hermes-plugins/wardrobe/manifest` as the Mobile-side contract and
 defaults the live source to
@@ -141,7 +143,9 @@ as well as the plugin route module. Same-origin proxy launch tests must prove
 server-side `fetch` uses manual redirect handling, because automatic redirect
 following consumes launch `302` cookies before the browser can store them. Tests
 must also assert upstream cookie `Domain` is stripped and `Path` is rewritten to
-the plugin proxy prefix. Deployment smoke for this class must include the
+the plugin proxy prefix. Active embedded plugin hosts must hide the Hermes page
+header so plugin content is not double-framed; bottom navigation remains visible
+as the app-level escape hatch. Deployment smoke for this class must include the
 installed Android PWA launched from the home-screen icon. Opening the same
 URL in the Chrome/Safari address bar is explicitly not a valid PWA smoke,
 because Hermes Mobile shows a browser-shell guard page there and it does not

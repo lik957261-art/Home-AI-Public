@@ -11,6 +11,7 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
     hostId: "codexPluginHost",
     navVisibleClass: "codex-visible",
     navigationEventType: "codex-mobile.plugin.navigation",
+    backResultEventType: "codex-mobile.plugin.back_result",
     manifestPath: "/api/hermes-plugins/codex-mobile/manifest",
   }),
 });
@@ -97,15 +98,33 @@ function updateEmbeddedPluginNavigationState(def, payload = {}) {
   updateNavigationControls();
 }
 
+function updateEmbeddedPluginBackResultState(def, payload = {}) {
+  const record = embeddedPluginRecord(def.id);
+  record.navigationLastAt = Date.now();
+  if (payload.route && typeof payload.route === "object") record.navigationRoute = payload.route;
+  if (payload.handled) {
+    updateNavigationControls();
+    return;
+  }
+  record.canGoBack = false;
+  updateNavigationControls();
+}
+
 function ensureEmbeddedPluginNavigationBridge(def) {
   const record = embeddedPluginRecord(def.id);
   if (record.bridgeBound) return;
   record.bridgeBound = true;
   window.addEventListener("message", (event) => {
     const data = event?.data || {};
-    if (!data || data.type !== def.navigationEventType) return;
+    if (!data) return;
     if (!embeddedPluginMessageOriginAllowed(def, event)) return;
-    updateEmbeddedPluginNavigationState(def, data);
+    if (data.type === def.navigationEventType) {
+      updateEmbeddedPluginNavigationState(def, data);
+      return;
+    }
+    if (def.backResultEventType && data.type === def.backResultEventType) {
+      updateEmbeddedPluginBackResultState(def, data);
+    }
   });
 }
 
