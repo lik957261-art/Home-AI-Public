@@ -1,6 +1,6 @@
 # Hermes Mobile API Route Reference
 
-Last updated: 2026-05-26.
+Last updated: 2026-05-29.
 
 This is a hand-maintained route ownership and auth reference. The executable inventory contract lives in `adapters/api-route-inventory`, `adapters/api-route-registry`, and `tests/api-route-inventory.test.js`.
 
@@ -36,6 +36,7 @@ The authenticated pipeline is defined by `MOBILE_API_AUTHENTICATED_ROUTE_PIPELIN
 | `workspace-api-routes.js` | workspace list/create/update/delete | access-key, owner for management | Ordinary users see only their workspace projection. |
 | `access-key-api-routes.js` | workspace key status/rotate/revoke | owner | Plaintext key shown only once on generation/rotation. |
 | `resource-api-routes.js` | shared directories, Skill detail/analysis/fix | workspace-scoped/resource-scoped | Skill write is delegated to `skill-permission-service`. |
+| `hermes-plugin-api-routes.js` | embedded plugin list/manifest/proxy/notifications | access-key, workspace-scoped, proxy path unauthenticated after launch | Notification events upsert summary-only `sourceType=plugin` Inbox items and send Web Push through Hermes; same-origin proxy paths do not expose raw plugin keys. |
 | `action-inbox-api-routes.js` | Action Inbox list/detail/manual items/state transitions | workspace-scoped | Uses local SQLite `action_inbox_*` tables; Inbox items are summary/action projections, not canonical source records. |
 | `automation-api-routes.js` | automation list/actions/output preview | workspace-scoped/resource-scoped | Owner can manage broader automation; output preview must verify deliverable ownership. |
 | `todo-api-routes.js` | Todo/Kanban-compatible todo surface | workspace-scoped | Uses configured Todo backend, currently official Kanban-compatible in production. |

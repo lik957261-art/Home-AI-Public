@@ -121,6 +121,22 @@ Chat remains the message source of truth. Later integration may create Inbox ite
 
 Ordinary active chat/topic task terminal receipts do not create Inbox items. The Web Push payload should link directly to the original task/chat route. If a future chat-derived workflow is passive and needs later attention, it should use a specific source/category such as `approval`, `review`, `growth`, or `automation`, not a generic chat receipt.
 
+### Embedded Plugins
+
+Embedded plugins use `sourceType=plugin` for durable notification events that
+Hermes should surface in Inbox and optionally Web Push. The canonical plugin
+record remains in the plugin application. Inbox stores only:
+
+- `pluginId`
+- stable `eventId` / `sourceId`
+- compact `notificationType`
+- bounded route metadata such as `route.name`, `route.tab`, or `route.itemId`
+- a Hermes app deep link to Inbox or the plugin tab
+
+Plugins must not copy private inventories, long reports, raw model output,
+secrets, launch tokens, push endpoints, or database paths into Inbox. If the user
+needs details, the Inbox row links back to the plugin UI/API.
+
 ## Official Kanban Cutover
 
 Official Hermes Kanban is legacy for Hermes Mobile Todo after the Action Inbox migration.

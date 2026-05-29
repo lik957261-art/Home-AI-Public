@@ -939,6 +939,16 @@ Required contract dimensions:
   such as a deployment authorized-workspace list or a plugin-specific
   workspace-bound key created by the Owner binding flow. Generic/global plugin
   keys must not implicitly authorize every non-Owner workspace.
+- Plugin notification events are part of the H1 passive-notification path even
+  though the plugin host itself is H2. A plugin backend must call Hermes
+  `POST /api/hermes-plugins/<plugin-id>/notifications` with a stable
+  `sourceId`/`eventId`; Hermes must upsert a summary-only `sourceType=plugin`
+  Inbox item, optionally send Web Push through the Hermes PWA subscription, and
+  keep raw plugin keys, launch tokens, push endpoints, private inventories, raw
+  model output, and long reports out of the payload and stored Inbox projection.
+  Tests must cover default Inbox click routing, `openMode=plugin` click routing,
+  dedupe source keys, plugin registration rejection, and the no-push
+  `notify=false` path.
 - Each plugin project must also implement plugin-side harness coverage before
   release: manifest shape, launch exchange, frame-ancestor origin registration,
   `?embed=hermes` mode, navigation postMessage, `hermes.plugin.back`, no

@@ -53,6 +53,7 @@ const { createTodoApiRoutes } = require("./todo-api-routes");
 const { createWeixinApiRoutes } = require("./weixin-api-routes");
 const { createWorkspaceApiRoutes } = require("./workspace-api-routes");
 const { createHermesPluginService } = require("../adapters/hermes-plugin-service");
+const { createHermesPluginNotificationService } = require("../adapters/hermes-plugin-notification-service");
 
 function callBootTrace(deps, label) {
   if (typeof deps.bootTrace === "function") deps.bootTrace(label);
@@ -203,15 +204,6 @@ function createMobileApiComposition(deps = {}) {
   const hermesPluginService = deps.hermesPluginService || createHermesPluginService({
     nowIso: deps.nowIso,
   });
-  const hermesPluginApiRoutes = createHermesPluginApiRoutes({
-    authenticateRequest: deps.authenticateRequest,
-    isOwnerAuth: deps.isOwnerAuth,
-    requireWorkspaceAccess: deps.requireWorkspaceAccess,
-    sendJson: deps.sendJson,
-    hermesPluginService,
-  });
-  callBootTrace(deps, "hermes plugin api routes ready");
-
   const fileArtifactApiRoutes = createFileArtifactApiRoutes({
     contentDisposition: deps.contentDisposition,
     extractDocxText: deps.extractDocxText,
@@ -413,6 +405,26 @@ function createMobileApiComposition(deps = {}) {
     nowIso: deps.nowIso,
     store: deps.mobileSqliteStore,
   });
+  const hermesPluginNotificationService = deps.hermesPluginNotificationService || createHermesPluginNotificationService({
+    actionInboxService,
+    appRouteUrl: deps.appRouteUrl,
+    compactText: deps.compactText,
+    hermesPluginService,
+    nowIso: deps.nowIso,
+    sendPushNotification: deps.webPushDeliveryService.sendPushNotification,
+    workspacePrincipal: deps.workspacePrincipal,
+  });
+  const hermesPluginApiRoutes = createHermesPluginApiRoutes({
+    authenticateRequest: deps.authenticateRequest,
+    broadcast: deps.broadcast,
+    isOwnerAuth: deps.isOwnerAuth,
+    readBody: deps.readBody,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+    hermesPluginService,
+    hermesPluginNotificationService,
+  });
+  callBootTrace(deps, "hermes plugin api routes ready");
   const actionInboxApiRoutes = createActionInboxApiRoutes({
     actionInboxService,
     broadcast: deps.broadcast,
@@ -792,6 +804,7 @@ function createMobileApiComposition(deps = {}) {
       learningGrowthExperienceSignalService,
       learningGrowthStageAssessmentService,
       hermesPluginService,
+      hermesPluginNotificationService,
     },
     routes: {
       accessKeyApiRoutes,

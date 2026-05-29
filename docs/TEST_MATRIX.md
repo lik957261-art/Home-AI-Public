@@ -118,6 +118,14 @@ Installed plugin visibility must also be covered: Owner sees installed plugins
 by default, but non-Owner workspaces do not list or launch a plugin unless
 there is an explicit Owner authorization signal. A global plugin key is not
 enough to authorize every workspace.
+Plugin notification coverage must assert that
+`POST /api/hermes-plugins/<plugin-id>/notifications` requires Hermes auth,
+requires a stable `sourceId`/`eventId`, upserts one summary-only
+`sourceType=plugin` Inbox item, sends Web Push through Hermes when requested,
+and never exposes plugin keys, launch tokens, push endpoints, or raw plugin
+content. The default push click target is the Inbox item; `openMode=plugin` is
+allowed only when the payload still carries the Inbox item id as durable receipt
+metadata.
 Plugin projects must also carry their own harness: manifest shape, launch
 exchange, frame-ancestor origin registration, `?embed=hermes` mode,
 `<plugin-id>.plugin.navigation`, `hermes.plugin.back`, optional
@@ -447,7 +455,7 @@ The guard test is:
 | Web Push | `node tests\web-push-delivery-service.test.js`, `node tests\push-api-routes.test.js`, `node tests\task-list-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js` |
-| Embedded plugin host / Wardrobe and Codex plugin tabs | `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes |
+| Embedded plugin host / Wardrobe and Codex plugin tabs | `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes |
 | Directory/files/artifacts | `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js` |
 | Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\link-skill-profile-store.test.js` |
 | Automation/Cron | `node tests\automation-api-routes.test.js`, `node tests\automation-provider.test.js`, `node tests\cron-bridge.test.js`, `node tests\local-automation-bridge-service.test.js` |

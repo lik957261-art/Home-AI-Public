@@ -221,6 +221,12 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["plugin"],
     summary: "Read a configured embedded-app plugin manifest.",
   })),
+  regex("hermes-plugin-notification", "POST", /^\/api\/hermes-plugins\/[^/]+\/notifications$/, "plugins", routeOptions("hermes-plugins", {
+    workspaceScoped: true,
+    resourceTypes: ["plugin", "action-inbox", "web-push"],
+    riskLevel: "medium",
+    summary: "Accept a plugin event and let Hermes own Inbox/Web Push delivery.",
+  })),
 
   exact("action-inbox-list", "GET", "/api/action-inbox", "action-inbox", routeOptions("action-inbox", {
     workspaceScoped: true,

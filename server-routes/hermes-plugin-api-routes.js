@@ -33,6 +33,21 @@ const HERMES_PLUGIN_API_ROUTE_SPECS = Object.freeze([
     tags: ["plugin", "manifest"],
   },
   {
+    id: "hermes-plugin-notification",
+    method: "POST",
+    pathRegex: /^\/api\/hermes-plugins\/[^/]+\/notifications$/,
+    group: "plugins",
+    moduleKey: "hermes-plugins",
+    handlerKey: "notification",
+    summary: "Accept a plugin event and let Hermes Mobile create Inbox/Web Push notification surfaces.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["plugin", "action-inbox", "web-push"],
+    tags: ["plugin", "notification", "action-inbox", "web-push"],
+  },
+  {
     id: "hermes-plugin-same-origin-proxy",
     method: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     pathRegex: /^\/api\/hermes-plugins\/[^/]+\/proxy(?:\/|$)/,
@@ -60,6 +75,9 @@ function createHermesPluginApiRoutes(deps = {}) {
   }
   if (typeof deps.hermesPluginService.list !== "function") {
     throw new Error("hermes plugin api routes require hermesPluginService.list");
+  }
+  if (deps.hermesPluginNotificationService && typeof deps.hermesPluginNotificationService.postNotification !== "function") {
+    throw new Error("hermes plugin api routes require hermesPluginNotificationService.postNotification");
   }
 
   const registry = createApiRouteRegistry(HERMES_PLUGIN_API_ROUTE_SPECS);
@@ -94,6 +112,11 @@ function createHermesPluginApiRoutes(deps = {}) {
 
   function requestedPluginId(url) {
     const match = String(url?.pathname || "").match(/^\/api\/hermes-plugins\/([^/]+)\/manifest$/);
+    return match ? decodeURIComponent(match[1]) : "";
+  }
+
+  function requestedNotificationPluginId(url) {
+    const match = String(url?.pathname || "").match(/^\/api\/hermes-plugins\/([^/]+)\/notifications$/);
     return match ? decodeURIComponent(match[1]) : "";
   }
 
@@ -175,6 +198,17 @@ function createHermesPluginApiRoutes(deps = {}) {
     return Buffer.concat(chunks);
   }
 
+  async function readJsonBody(req) {
+    if (typeof deps.readBody === "function") return deps.readBody(req).catch(() => ({}));
+    const body = await readRequestBody(req);
+    if (!body.length) return {};
+    try {
+      return JSON.parse(body.toString("utf8"));
+    } catch (_) {
+      return {};
+    }
+  }
+
   async function handlePluginProxy(req, res, url) {
     const pluginId = requestedProxyPluginId(url);
     if (!pluginId || !pluginProxyUpstreamBase(pluginId)) {
@@ -244,7 +278,44 @@ function createHermesPluginApiRoutes(deps = {}) {
     deps.sendJson(res, 200, Object.assign({ workspaceId }, manifest));
   }
 
-  async function handle(req, res, url) {
+  async function handleNotification(req, res, url, context = {}) {
+    if (!deps.hermesPluginNotificationService) {
+      deps.sendJson(res, 503, { ok: false, error: "plugin_notification_service_unavailable" });
+      return;
+    }
+    const pluginId = requestedNotificationPluginId(url);
+    if (!pluginId) {
+      deps.sendJson(res, 404, { ok: false, error: "plugin_not_found" });
+      return;
+    }
+    const body = await readJsonBody(req);
+    const workspaceId = deps.requireWorkspaceAccess(req, res, body.workspaceId || body.workspace_id || requestedWorkspaceId(url));
+    if (!workspaceId) return;
+    const result = await deps.hermesPluginNotificationService.postNotification(Object.assign({}, body, {
+      pluginId,
+      workspaceId,
+      auth: context.auth || requestAuth(req),
+    }));
+    if (!result?.ok) {
+      deps.sendJson(res, Number(result?.status || 400), {
+        ok: false,
+        error: result?.error || "plugin_notification_failed",
+      });
+      return;
+    }
+    if (typeof deps.broadcast === "function") {
+      deps.broadcast({
+        type: "actionInbox.updated",
+        workspaceId,
+        itemId: result.inboxItem?.id || "",
+        sourceType: "plugin",
+        pluginId,
+      });
+    }
+    deps.sendJson(res, 202, result);
+  }
+
+  async function handle(req, res, url, context = {}) {
     const route = registry.match({
       method: req.method || "GET",
       path: url?.pathname || req.url || "/",
@@ -252,6 +323,7 @@ function createHermesPluginApiRoutes(deps = {}) {
     if (!route) return { handled: false };
     if (route.id === "hermes-plugins-list") await handleList(req, res, url);
     else if (route.id === "hermes-plugin-manifest") await handleManifest(req, res, url);
+    else if (route.id === "hermes-plugin-notification") await handleNotification(req, res, url, context);
     else if (route.id === "hermes-plugin-same-origin-proxy") await handlePluginProxy(req, res, url);
     else return { handled: false };
     return { handled: true, route };

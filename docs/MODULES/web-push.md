@@ -24,6 +24,12 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 - For ordinary active chat/topic task completion/failure receipts, Web Push should link directly to the relevant chat/topic/task route and should not upsert a default Inbox item. The user just initiated the request, so the push click itself is the completion surface. These payloads must use the terminal assistant receipt `messageId`, not the first message in the topic, so clicks scroll to the completion/failure receipt.
 - Ordinary task terminal receipts are idempotent per assistant receipt/tag. If duplicate terminal Gateway events arrive for the same assistant message, or a second producer calls the terminal notifier with the same task receipt tag after a successful send, Hermes Mobile must not send a second Web Push or enqueue a second external terminal delivery.
 - Passive or durable notifications should still use Inbox when later attention is needed: automation delivery/failure, manual Todo/reminder, permission/approval/review requests, and Growth/executor card completion.
+- Embedded plugins must delegate user notifications to Hermes Mobile instead of
+  registering iframe-local Web Push subscriptions. Plugin backends post bounded
+  events to `POST /api/hermes-plugins/<plugin-id>/notifications`; Hermes upserts
+  a `sourceType=plugin` Inbox item and sends Web Push from the installed Hermes
+  PWA subscription. This keeps local/LAN or proxy-only plugins usable even when
+  their own HTTPS/Web Push origin is disabled.
 - Automation failures do not require a new deliverable file to notify. The push/InBox payload should carry only a compact failure summary and a route to the Automation detail.
 - Automation Web Push clicks should open the Automation detail directly by
   `automationId`, even when the notification also upserts an Inbox item and
@@ -46,6 +52,10 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 - Automation notification route fields take precedence over generic
   `inboxItemId` routing. Inbox metadata on an Automation payload is used for
   return context and foreground refresh, not as the click destination.
+- Plugin notification payloads should default to the Inbox route generated from
+  `inboxItemId`. If the plugin explicitly asks for `openMode=plugin`, the push
+  URL may open the plugin tab, but the payload must still carry the Inbox item id
+  as durable receipt metadata.
 - On mobile browser shells, Hermes Mobile must not render the full authenticated app. If the current mobile/touch client is not the installed PWA standalone window, the app must show only a blocker that asks the user to close the browser shell and reopen from the Home Screen Hermes Mobile app.
 - The PWA guard must run in `index.html` preflight before app bundles load, at app bootstrap before `loadWorkspaces()` / `loadSelectedView()`, and also on click-time routing through the shared internal route helper, startup URL routing (`applyRouteFromUrl`), and restored selected detail state. A browser shell may be launched directly with `automationId`, may already hold `state.viewMode=automation` plus `selectedAutomationId`, or may be a stale long-lived browser shell that has not yet run the latest app router.
 

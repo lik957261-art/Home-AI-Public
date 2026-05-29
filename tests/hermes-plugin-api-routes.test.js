@@ -45,7 +45,7 @@ function parseBody(res) {
 }
 
 function makeRoutes(overrides = {}) {
-  const calls = { access: [], manifest: [] };
+  const calls = { access: [], manifest: [], notifications: [], broadcasts: [] };
   const deps = Object.assign({
     requireWorkspaceAccess(req, res, workspaceId) {
       calls.access.push(workspaceId);
@@ -56,6 +56,12 @@ function makeRoutes(overrides = {}) {
       return workspaceId || "owner";
     },
     sendJson,
+    readBody(req) {
+      return Promise.resolve(req.body || {});
+    },
+    broadcast(event) {
+      calls.broadcasts.push(event);
+    },
     authenticateRequest(req) {
       return req.auth || { workspaceId: "owner", isOwner: true };
     },
@@ -81,6 +87,16 @@ function makeRoutes(overrides = {}) {
         return id === "codex-mobile" ? "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest" : "http://nas/plugin.json";
       },
     },
+    hermesPluginNotificationService: {
+      postNotification(input) {
+        calls.notifications.push(input);
+        return Promise.resolve({
+          ok: true,
+          inboxItem: { id: "ainb-plugin-1", workspaceId: input.workspaceId },
+          push: { enabled: true, attempted: 1, sent: 1, failed: 0, removed: 0 },
+        });
+      },
+    },
     fetch() {
       throw new Error("unexpected fetch");
     },
@@ -89,10 +105,11 @@ function makeRoutes(overrides = {}) {
 }
 
 async function testSpecs() {
-  assert.equal(HERMES_PLUGIN_API_ROUTE_SPECS.length, 3);
+  assert.equal(HERMES_PLUGIN_API_ROUTE_SPECS.length, 4);
   assert.equal(HERMES_PLUGIN_API_ROUTE_SPECS[0].path, "/api/hermes-plugins");
   assert.match(String(HERMES_PLUGIN_API_ROUTE_SPECS[1].pathRegex), /hermes-plugins/);
-  assert.match(String(HERMES_PLUGIN_API_ROUTE_SPECS[2].pathRegex), /proxy/);
+  assert.match(String(HERMES_PLUGIN_API_ROUTE_SPECS[2].pathRegex), /notifications/);
+  assert.match(String(HERMES_PLUGIN_API_ROUTE_SPECS[3].pathRegex), /proxy/);
 }
 
 async function testListRoute() {
@@ -160,6 +177,38 @@ async function testWorkspaceBlockStopsRoute() {
   await routes.handle({ method: "GET" }, res, makeUrl("/api/hermes-plugins/wardrobe/manifest?workspaceId=blocked"));
   assert.equal(res.statusCode, 403);
   assert.deepEqual(calls.manifest, []);
+}
+
+async function testPluginNotificationRoute() {
+  const { calls, routes } = makeRoutes();
+  const res = makeResponse();
+  const req = makeRequest("POST");
+  req.body = {
+    workspaceId: "weixin_wuping",
+    eventId: "evt-1",
+    title: "插件通知",
+    summary: "插件事件摘要",
+  };
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/wardrobe/notifications?workspaceId=owner"),
+    { auth: { workspaceId: "weixin_wuping" } },
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 202);
+  assert.deepEqual(calls.access, ["weixin_wuping"]);
+  assert.equal(calls.notifications[0].pluginId, "wardrobe");
+  assert.equal(calls.notifications[0].workspaceId, "weixin_wuping");
+  assert.equal(calls.notifications[0].auth.workspaceId, "weixin_wuping");
+  assert.deepEqual(calls.broadcasts, [{
+    type: "actionInbox.updated",
+    workspaceId: "weixin_wuping",
+    itemId: "ainb-plugin-1",
+    sourceType: "plugin",
+    pluginId: "wardrobe",
+  }]);
+  assert.equal(parseBody(res).inboxItem.id, "ainb-plugin-1");
 }
 
 async function testCodexProxyRewritesHtmlAndUsesUpstream() {
@@ -325,6 +374,7 @@ async function run() {
   await testCodexManifestRoute();
   await testCodexManifestRouteDeniesNonOwnerWithoutPluginGrant();
   await testWorkspaceBlockStopsRoute();
+  await testPluginNotificationRoute();
   await testCodexProxyRewritesHtmlAndUsesUpstream();
   await testCodexProxyPreservesLaunchCookieAndRedirect();
   await testWardrobeProxyRewritesSessionCookieScope();

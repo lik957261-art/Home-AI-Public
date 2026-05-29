@@ -227,6 +227,60 @@ the iframe and route that gesture through the same plugin back/outer-back
 contract. The edge zone must start an actual back-swipe state; it must not only
 call `preventDefault()` and swallow the gesture before the host can act.
 
+## Notification Event Contract
+
+Plugins should not register their own browser Web Push subscriptions inside the
+iframe. Hermes Mobile owns the installed PWA window, service worker,
+subscription list, Action Inbox projection, and click routing. This is especially
+important for local/LAN plugins that are embedded through the Hermes same-origin
+proxy or do not expose a public HTTPS origin.
+
+A plugin backend that needs to notify the user should post a bounded event to:
+
+```text
+POST /api/hermes-plugins/<plugin-id>/notifications
+```
+
+The request uses the normal Hermes access-key auth boundary and is scoped to the
+target `workspaceId`. The body must include a stable `sourceId` or `eventId` so
+Hermes can dedupe repeated plugin callbacks. Minimal body:
+
+```json
+{
+  "workspaceId": "owner",
+  "eventId": "maintenance-watch-20260529",
+  "title": "腕表保养提醒",
+  "summary": "有一块腕表到保养时间。",
+  "itemType": "todo",
+  "priority": "high",
+  "route": {
+    "name": "watch-maintenance",
+    "itemId": "watch-1"
+  }
+}
+```
+
+Hermes Mobile then:
+
+- verifies the plugin is registered and the workspace is authorized;
+- upserts a summary-only Action Inbox item with `sourceType=plugin`;
+- stores only bounded route metadata in `sourceRef`;
+- sends Web Push through the Hermes PWA subscription when `notify` is not
+  `false`;
+- returns the generated Inbox item id and delivery summary without exposing push
+  endpoints or plugin secrets.
+
+Default click behavior opens the Hermes Inbox item. A plugin may set
+`openMode="plugin"` when the notification should click through to the plugin tab
+instead. Even then, Hermes still creates an Inbox projection so the notification
+has a durable record.
+
+Plugin notification events must not include raw access keys, bearer tokens,
+launch tokens, push endpoints, database paths, private inventories, full
+generated reports, raw model prompts/responses, or long logs. Put large or
+private content behind the plugin's authenticated UI/API and send only stable
+ids and compact summaries to Hermes.
+
 ## Plugin-Side Requirements
 
 Each plugin project must implement the embedded contract before Hermes Mobile
