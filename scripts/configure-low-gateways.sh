@@ -203,7 +203,7 @@ quarantine_sqlite_files() {
       mv "$sidecar" "$backup_dir/"
     fi
   done
-  chown -R "$worker_user:$worker_user" "$backup_dir" || true
+  chown -R "$worker_user:$worker_user" "$backup_dir" 2>/dev/null || true
 }
 
 repair_low_gateway_sqlite() {
@@ -532,7 +532,7 @@ plugins:
 ${plugin_block}
 YAML
 chmod 600 "$worker_home_dir/config.yaml" || true
-chown "$worker_user:$worker_user" "$worker_home_dir/config.yaml" || true
+chown "$worker_user:$worker_user" "$worker_home_dir/config.yaml" 2>/dev/null || true
 
 while IFS=$'\t' read -r profile port; do
   if [[ ! "$profile" =~ ^lowgw[0-9]+$ ]]; then
@@ -736,8 +736,8 @@ YAML
   fi
 
   chmod 600 "$profile_link/config.yaml" || true
-  chown -h "$worker_user:$worker_user" "$profile_link" || true
-  chown -R "$worker_user:$worker_user" "$profile_dir" || true
+  chown -h "$worker_user:$worker_user" "$profile_link" 2>/dev/null || true
+  chown -R "$worker_user:$worker_user" "$profile_dir" 2>/dev/null || true
 done <<< "$gateway_specs"
 
 while IFS=$'\t' read -r profile port; do
@@ -841,11 +841,11 @@ YAML
       missing_auth_profiles+=("$profile")
     fi
     chmod 600 "$profile_link/config.yaml" || true
-    chown -h "$worker_user:$worker_user" "$profile_link" || true
-    chown -R "$worker_user:$worker_user" "$profile_dir" || true
+    chown -h "$worker_user:$worker_user" "$profile_link" 2>/dev/null || true
+    chown -R "$worker_user:$worker_user" "$profile_dir" 2>/dev/null || true
 done <<< "$gateway_specs"
 
-chown -R "$worker_user:$worker_user" "$worker_home_dir"
+chown -R "$worker_user:$worker_user" "$worker_home_dir" 2>/dev/null || true
 
 if [ "${#missing_auth_profiles[@]}" -gt 0 ]; then
   echo "Missing profile-local Codex auth for: ${missing_auth_profiles[*]}" >&2

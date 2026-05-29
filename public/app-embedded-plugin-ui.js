@@ -110,6 +110,125 @@ function updateEmbeddedPluginBackResultState(def, payload = {}) {
   updateNavigationControls();
 }
 
+function captureEmbeddedPluginReturnRoute(def) {
+  if (!def || state.viewMode === def.viewMode || embeddedPluginDefByView(state.viewMode)) return null;
+  return {
+    viewMode: state.viewMode || "single",
+    singleWindowMode: state.singleWindowMode || "chat",
+    selectedProjectId: state.selectedProjectId || "",
+    selectedSubprojectId: state.selectedSubprojectId || "",
+    currentThread: state.currentThread || null,
+    currentThreadId: state.currentThreadId || "",
+    currentTaskGroupId: state.currentTaskGroupId || "",
+    threads: state.threads || [],
+    selectedTodoId: state.selectedTodoId || "",
+    todoCreateOpen: Boolean(state.todoCreateOpen),
+    selectedAutomationId: state.selectedAutomationId || "",
+    automationReturnRoute: state.automationReturnRoute || "",
+    automationReturnScope: state.automationReturnScope || "",
+    automationReturnInboxItemId: state.automationReturnInboxItemId || "",
+    automationRouteTargetId: state.automationRouteTargetId || "",
+    automationRouteTargetPending: Boolean(state.automationRouteTargetPending),
+    automationCreateOpen: Boolean(state.automationCreateOpen),
+    automationEditOpen: Boolean(state.automationEditOpen),
+    automationEditJobId: state.automationEditJobId || "",
+    automationOutputHistoryOpen: Boolean(state.automationOutputHistoryOpen),
+    selectedActionInboxItemId: state.selectedActionInboxItemId || "",
+    actionInboxCreateOpen: Boolean(state.actionInboxCreateOpen),
+    skillDetail: state.skillDetail || null,
+    learningGrowthWorkspaceId: state.learningGrowthWorkspaceId || "",
+    selectedLearningTaskCardId: state.selectedLearningTaskCardId || "",
+    learningGrowthBoardLane: state.learningGrowthBoardLane || "",
+    learningGrowthSettingsOpen: Boolean(state.learningGrowthSettingsOpen),
+    learningGrowthActiveTab: state.learningGrowthActiveTab || "",
+    directoryPath: state.directoryPath || "",
+    directoryRootPath: state.directoryRootPath || "",
+    sharedDirectoryManagerOpen: Boolean(state.sharedDirectoryManagerOpen),
+    conversationScrollTop: $("conversation")?.scrollTop || 0,
+    searchText: $("threadSearch")?.value || "",
+  };
+}
+
+function rememberEmbeddedPluginReturnRoute(def) {
+  const route = captureEmbeddedPluginReturnRoute(def);
+  if (!route) return false;
+  embeddedPluginRecord(def.id).returnRoute = route;
+  return true;
+}
+
+function embeddedPluginOuterBackActive(def = embeddedPluginDefByView()) {
+  if (!def) return false;
+  return state.viewMode === def.viewMode && Boolean(embeddedPluginRecord(def.id).returnRoute);
+}
+
+function restoreEmbeddedPluginReturnRoute(def = embeddedPluginDefByView()) {
+  if (!def) return false;
+  const record = embeddedPluginRecord(def.id);
+  const route = record.returnRoute;
+  if (!route) return false;
+  record.returnRoute = null;
+  record.canGoBack = false;
+  parkEmbeddedPluginShell(def);
+  state.viewMode = route.viewMode || "single";
+  state.singleWindowMode = route.singleWindowMode || state.singleWindowMode || "chat";
+  state.selectedProjectId = route.selectedProjectId || state.selectedProjectId || "";
+  state.selectedSubprojectId = route.selectedSubprojectId || "";
+  state.currentThread = route.currentThread || null;
+  state.currentThreadId = route.currentThreadId || "";
+  state.currentTaskGroupId = route.currentTaskGroupId || "";
+  state.threads = route.threads || [];
+  state.selectedTodoId = route.selectedTodoId || "";
+  state.todoCreateOpen = Boolean(route.todoCreateOpen);
+  state.selectedAutomationId = route.selectedAutomationId || "";
+  state.automationReturnRoute = route.automationReturnRoute || "";
+  state.automationReturnScope = route.automationReturnScope || "";
+  state.automationReturnInboxItemId = route.automationReturnInboxItemId || "";
+  state.automationRouteTargetId = route.automationRouteTargetId || "";
+  state.automationRouteTargetPending = Boolean(route.automationRouteTargetPending);
+  state.automationCreateOpen = Boolean(route.automationCreateOpen);
+  state.automationEditOpen = Boolean(route.automationEditOpen);
+  state.automationEditJobId = route.automationEditJobId || "";
+  state.automationOutputHistoryOpen = Boolean(route.automationOutputHistoryOpen);
+  state.selectedActionInboxItemId = route.selectedActionInboxItemId || "";
+  state.actionInboxCreateOpen = Boolean(route.actionInboxCreateOpen);
+  state.skillDetail = route.skillDetail || null;
+  state.learningGrowthWorkspaceId = route.learningGrowthWorkspaceId || state.learningGrowthWorkspaceId || "";
+  state.selectedLearningTaskCardId = route.selectedLearningTaskCardId || "";
+  state.learningGrowthBoardLane = route.learningGrowthBoardLane || state.learningGrowthBoardLane || "";
+  state.learningGrowthSettingsOpen = Boolean(route.learningGrowthSettingsOpen);
+  state.learningGrowthActiveTab = route.learningGrowthActiveTab || state.learningGrowthActiveTab || "";
+  state.directoryPath = route.directoryPath || "";
+  state.directoryRootPath = route.directoryRootPath || "";
+  state.sharedDirectoryManagerOpen = Boolean(route.sharedDirectoryManagerOpen);
+  localStorage.setItem("hermesWebViewMode", state.viewMode);
+  localStorage.setItem("hermesWebSingleWindowMode", state.singleWindowMode || "chat");
+  localStorage.setItem("hermesWebProject", state.selectedProjectId || "");
+  localStorage.setItem("hermesWebSubproject", state.selectedSubprojectId || "");
+  if ($("projectSelect")) $("projectSelect").value = state.selectedProjectId || "";
+  if (typeof renderSubprojects === "function") renderSubprojects();
+  if ($("threadSearch")) $("threadSearch").value = route.searchText || "";
+  updateSearchButton();
+  applyViewMode();
+  if (state.viewMode === "projects" && typeof renderDirectoryView === "function") renderDirectoryView();
+  else if (state.viewMode === "todos" && typeof renderTodos === "function") renderTodos();
+  else if (state.viewMode === "automation" && typeof renderAutomationView === "function") renderAutomationView();
+  else if (state.viewMode === "inbox" && typeof renderActionInboxView === "function") renderActionInboxView();
+  else if (state.viewMode === "learning" && typeof renderLearningCoinsView === "function") renderLearningCoinsView();
+  else {
+    renderThreads();
+    renderCurrentThread({ stickToBottom: true });
+    if (!isSkillDetailView()) setComposerEnabled(state.viewMode === "single" || state.viewMode === "tasks");
+  }
+  const scrollTop = Number(route.conversationScrollTop || 0) || 0;
+  if (scrollTop > 0) requestAnimationFrame(() => {
+    const conversation = $("conversation");
+    if (conversation) conversation.scrollTop = scrollTop;
+  });
+  updateNavigationControls();
+  ensureVerticalScrollAffordance();
+  return true;
+}
+
 function ensureEmbeddedPluginNavigationBridge(def) {
   const record = embeddedPluginRecord(def.id);
   if (record.bridgeBound) return;
@@ -235,9 +354,24 @@ function bindEmbeddedPluginFrameHealth(def, frame) {
 function sendEmbeddedPluginBack(def = embeddedPluginDefByView()) {
   if (!def) return false;
   const frame = currentEmbeddedPluginShell(def)?.querySelector(".embedded-plugin-frame");
-  const origin = embeddedPluginRecord(def.id).frameOrigin || embeddedPluginEntryOrigin(def);
+  const record = embeddedPluginRecord(def.id);
+  const origin = record.frameOrigin || embeddedPluginEntryOrigin(def);
   if (!frame?.contentWindow || !origin) return false;
+  const requestedAt = Date.now();
+  const seq = (record.backRequestSeq || 0) + 1;
+  record.backRequestSeq = seq;
   frame.contentWindow.postMessage({ type: "hermes.plugin.back", version: 1 }, origin);
+  window.setTimeout(() => {
+    if (state.viewMode !== def.viewMode) return;
+    if (record.backRequestSeq !== seq) return;
+    if (Number(record.navigationLastAt || 0) > requestedAt) return;
+    record.canGoBack = false;
+    if (record.returnRoute) {
+      restoreEmbeddedPluginReturnRoute(def);
+      return;
+    }
+    updateNavigationControls();
+  }, 1600);
   return true;
 }
 
@@ -411,8 +545,25 @@ function codexPluginBackActive() {
   return embeddedPluginBackActive(EMBEDDED_PLUGIN_DEFS["codex-mobile"]);
 }
 
+function codexPluginOuterBackActive() {
+  return embeddedPluginOuterBackActive(EMBEDDED_PLUGIN_DEFS["codex-mobile"]);
+}
+
+function rememberCodexPluginReturnRoute() {
+  return rememberEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS["codex-mobile"]);
+}
+
+function restoreCodexPluginReturnRoute() {
+  return restoreEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS["codex-mobile"]);
+}
+
 function sendCodexPluginBack() {
   return sendEmbeddedPluginBack(EMBEDDED_PLUGIN_DEFS["codex-mobile"]);
+}
+
+function sendCodexPluginBackOrReturn() {
+  if (sendCodexPluginBack()) return true;
+  return restoreCodexPluginReturnRoute();
 }
 
 function parkCodexPluginShell() {

@@ -275,6 +275,7 @@ function wireUi() {
   });
   $("bottomCodexMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
+    if (typeof rememberCodexPluginReturnRoute === "function") rememberCodexPluginReturnRoute();
     state.viewMode = "codex";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";

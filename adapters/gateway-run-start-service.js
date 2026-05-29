@@ -254,12 +254,15 @@ function createGatewayRunStartService(options = {}) {
     if (runOptions.reasoning_effort) body.reasoning_effort = runOptions.reasoning_effort;
     if (runOptions.reasoning && typeof runOptions.reasoning === "object") body.reasoning = runOptions.reasoning;
 
+    const modelProvider = cleanString(body.provider || "");
+    const workerProvider = modelProvider === "deepseek" ? "" : modelProvider;
     const gatewayRouting = Object.assign({}, requestedGatewayRouting, {
       purpose: "user_run",
       workspaceId: actorWorkspaceId,
       taskGroupId: userMessage?.taskGroupId || "",
       model: body.model || "",
-      provider: body.provider || "",
+      provider: workerProvider,
+      modelProvider,
       reasoning_effort: body.reasoning_effort || "",
     });
     if (runOptions.searchSource) gatewayRouting.searchSource = cleanString(runOptions.searchSource);

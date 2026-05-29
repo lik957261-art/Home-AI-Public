@@ -254,6 +254,31 @@ Current runtime behavior:
   escalation path instead of exposing broad schemas up front.
 - Product-specific MCP toolsets that are ordinary current-workspace capabilities
   must be present in the Mobile run policy before the selector can choose them.
+
+## Direct DeepSeek Provider
+
+Hermes Mobile exposes DeepSeek as an explicit composer/default-model option
+without creating a separate worker profile. The frontend sends
+`model=deepseek-chat` and `provider=deepseek`; Gateway worker selection remains
+the normal workspace/skill-profile selection, and the official Hermes provider
+layer uses `DEEPSEEK_API_KEY`.
+
+Production stores the key outside the repo at
+`C:\ProgramData\HermesMobile\data\secrets\deepseek-api-key.secret`. Low Gateway
+workers receive it through the process environment when
+`scripts/start-low-gateways.sh` starts the pool, and owner-maintenance
+`officialclean*` workers receive the same key when
+`scripts/start-gateway-pool.ps1` starts the maintenance pool. This is an
+installation-level provider credential: any workspace that may start a normal
+or owner-maintenance model run can use the configured DeepSeek model unless a
+future workspace/provider allowlist is added. Do not write the raw key into
+docs, handoffs, manifests, screenshots, logs, or committed config.
+
+Gateway Pool launch scripts must target the actual installed WSL distro. The
+current production default is `Ubuntu-24.04`; scripts must not fall back to a
+removed `HermesGatewayWorker` distro. A DeepSeek deployment is not complete
+until process-environment smoke confirms running low-Gateway workers and
+owner-maintenance workers have a non-empty `DEEPSEEK_API_KEY` value.
   Profile registration alone is not enough. For wardrobe tasks, `wardrobe` must
   be included in the authorized catalog so the selector chooses Wardrobe MCP
   for writeback, readback verification, and main image / field checks. If the

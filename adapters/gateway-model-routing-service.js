@@ -1,8 +1,10 @@
 "use strict";
 
 const GROK_PROVIDER = "xai-oauth";
+const DEEPSEEK_PROVIDER = "deepseek";
 const DEFAULT_GROK_MODEL = "grok-4.3";
 const SUPPORTED_GROK_MODELS = new Set(["grok-4.3"]);
+const SUPPORTED_DEEPSEEK_MODELS = new Set(["deepseek-chat", "deepseek-reasoner", "deepseek-v4-pro", "deepseek-v4-flash"]);
 
 function cleanString(value) {
   return String(value || "").trim();
@@ -14,6 +16,10 @@ function normalizeProvider(value) {
 
 function modelLooksLikeGrok(model) {
   return /^grok(?:[-_.]|\d|$)/i.test(cleanString(model));
+}
+
+function modelLooksLikeDeepSeek(model) {
+  return /^deepseek(?:[-_/]|$)/i.test(cleanString(model));
 }
 
 function textRequestsGrokModel(text) {
@@ -79,6 +85,25 @@ function resolveGatewayModelRoute(input = {}) {
     return errorRoute(400, "grok_provider_required", "Grok requests must route through the xai-oauth provider.");
   }
 
+  if (provider === DEEPSEEK_PROVIDER || modelLooksLikeDeepSeek(model)) {
+    const deepseekModel = model || "deepseek-chat";
+    if (!SUPPORTED_DEEPSEEK_MODELS.has(deepseekModel) && !/^deepseek-v\d+([-.].+)?$/i.test(deepseekModel)) {
+      return errorRoute(
+        400,
+        "unsupported_deepseek_model",
+        `DeepSeek model ${deepseekModel} is not configured for Hermes Mobile. Refresh the app and choose @DeepSeek.`,
+      );
+    }
+    return {
+      ok: true,
+      route: {
+        model: deepseekModel,
+        provider: DEEPSEEK_PROVIDER,
+        gatewayRouting: {},
+      },
+    };
+  }
+
   return {
     ok: true,
     route: {
@@ -90,9 +115,12 @@ function resolveGatewayModelRoute(input = {}) {
 }
 
 module.exports = {
+  DEEPSEEK_PROVIDER,
   DEFAULT_GROK_MODEL,
   GROK_PROVIDER,
+  SUPPORTED_DEEPSEEK_MODELS,
   SUPPORTED_GROK_MODELS,
+  modelLooksLikeDeepSeek,
   modelLooksLikeGrok,
   resolveGatewayModelRoute,
   textRequestsGrokModel,

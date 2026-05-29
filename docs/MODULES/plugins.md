@@ -145,8 +145,10 @@ the host using CSS visibility or `hidden`, not move the iframe DOM node between
 containers.
 
 When an embedded plugin host is active, Hermes Mobile hides its own top page
-header and lets the plugin iframe occupy the available content row. The bottom
-navigation remains the app-level escape hatch; plugin-owned headers and route
+header and lets the plugin iframe occupy the available content row. Plugin root
+pages keep the bottom navigation as the app-level escape hatch; plugin
+secondary pages hide the bottom navigation through the same `main-back-visible`
+contract used by native Hermes secondary pages. Plugin-owned headers and route
 controls stay inside the iframe.
 
 Do not use DOM reparenting to preserve an iframe. iOS WebKit installed PWAs can
@@ -203,6 +205,27 @@ state and only refreshes host controls. `handled=false` means the plugin did not
 consume the back request; Hermes Mobile clears the plugin `canGoBack` state so
 the outer app layer can own the next back action and restore host navigation
 tabs.
+
+Before Hermes Mobile enters an embedded plugin tab from a non-plugin surface,
+the host must snapshot the current Hermes route. If the plugin is already at
+its root page, or if a plugin back result reports `handled=false`, the next
+host-level back/right-swipe action restores that saved Hermes route instead of
+leaving the user trapped inside the plugin iframe. The snapshot is host state
+only: view mode, selected ids, filters, current thread metadata, and scroll
+position. It must not store plugin page content, secrets, launch tokens, or
+private business data.
+
+If Hermes sends `hermes.plugin.back` and the plugin does not emit a fresh
+navigation or back-result event within the bounded acknowledgement window, the
+host treats the plugin back request as unconsumed and restores the saved Hermes
+route when one exists. This is a failure-recovery path for incomplete plugin
+navigation contracts, not a replacement for plugin-side `back_result` support.
+
+On mobile PWA, iframe touch events are not a reliable signal for host
+navigation. Hermes Mobile must keep a parent-owned left-edge swipe zone above
+the iframe and route that gesture through the same plugin back/outer-back
+contract. The edge zone must start an actual back-swipe state; it must not only
+call `preventDefault()` and swallow the gesture before the host can act.
 
 ## Plugin-Side Requirements
 
@@ -341,6 +364,13 @@ Required coverage for host-only changes:
 - postMessage navigation/back contract with origin validation;
 - optional `<plugin-id>.plugin.back_result` handling where `handled=false`
   clears host plugin back state instead of leaving a stale main-back affordance;
+- host outer-back handling from the plugin root, restoring the Hermes page that
+  opened the plugin instead of requiring the plugin to become a first-class
+  Hermes page;
+- bounded no-ack fallback after `hermes.plugin.back`, so an incomplete plugin
+  cannot trap the user inside an iframe;
+- parent-owned left-edge swipe handling above plugin iframes, covering plugin
+  internal back and host outer return without relying on iframe touch bubbling;
 - static client-version bump and service-worker cache update;
 - installed-PWA smoke for the target browser class when behavior depends on
   mobile WebKit/Chromium iframe/session behavior.

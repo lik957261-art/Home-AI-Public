@@ -183,6 +183,7 @@ function updateNavigationControls() {
   const learningGrowthSettings = state.viewMode === "learning" && Boolean(state.learningGrowthSettingsOpen);
   const wardrobePluginBack = typeof wardrobePluginBackActive === "function" && wardrobePluginBackActive();
   const codexPluginBack = typeof codexPluginBackActive === "function" && codexPluginBackActive();
+  const codexPluginOuterBack = typeof codexPluginOuterBackActive === "function" && codexPluginOuterBackActive();
   const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || automationSecondary || actionInboxDetail || actionInboxCreate || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings || wardrobePluginBack || codexPluginBack;
   const minimalWindow = isMinimalWindowView();
   const centeredTopTitle = (

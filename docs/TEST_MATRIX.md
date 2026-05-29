@@ -109,9 +109,11 @@ Embedded app plugin host tests must assert manifest-driven tab loading,
 same-window iframe navigation, no `target=_blank` browser handoff, a short-lived
 signed embed token with no raw keys in URLs, a persistent iframe host that does
 not reparent launch iframes, a clean blank host during manifest/launch loading,
-and a postMessage/back contract. These are generic plugin requirements, not
-Wardrobe-only behavior; new plugins must satisfy the same host contract before
-being treated as production-ready.
+and a postMessage/back contract. The host-side harness must also assert that
+the parent `edgeSwipeZone` starts a real edge back-swipe state for plugin pages
+instead of only swallowing iframe-adjacent touch events with `preventDefault()`.
+These are generic plugin requirements, not Wardrobe-only behavior; new plugins
+must satisfy the same host contract before being treated as production-ready.
 Installed plugin visibility must also be covered: Owner sees installed plugins
 by default, but non-Owner workspaces do not list or launch a plugin unless
 there is an explicit Owner authorization signal. A global plugin key is not
@@ -151,6 +153,17 @@ URL in the Chrome/Safari address bar is explicitly not a valid PWA smoke,
 because Hermes Mobile shows a browser-shell guard page there and it does not
 exercise standalone storage, service-worker, navigation, or plugin iframe
 behavior.
+Embedded-plugin host tests must also cover the outer return layer: entering a
+plugin from a Hermes page records the source route, plugin internal
+`canGoBack=true` sends `hermes.plugin.back`, and plugin root /
+`back_result handled=false` restores the saved Hermes page instead of trapping
+the user inside the plugin tab. Plugin root pages keep bottom navigation as the
+app-level escape hatch; plugin secondary pages must hide bottom navigation
+through the normal `main-back-visible` secondary-page contract.
+If Hermes sends `hermes.plugin.back` and the plugin does not acknowledge with a
+fresh navigation or back-result event inside the bounded fallback window, the
+host must treat that back as unconsumed and restore the saved Hermes route when
+available.
 Wardrobe dashboard binding tests must cover directory ambiguity: a configured
 wardrobe root with `.hermes-wardrobe/config.json` must win, child delivery
 folders such as `衣橱/交付` must not steal the root, and generic outfit output
@@ -430,6 +443,7 @@ The guard test is:
 | Gateway Pool/scripts | `node tests\gateway-pool-provider.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\cross-shell-command-harness.test.js`, `node tests\hermes-mobile-image-plugin.test.js` |
 | ChatGPT Pro | `node tests\chatgpt-pro-codex-bridge-service.test.js`, `node tests\owner-elevation-routing-service.test.js`, `node tests\thread-message-create-service.test.js` |
 | Grok/model routing | `node tests\gateway-model-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js` |
+| Direct provider keys / Gateway Pool distro | `node tests\gateway-model-routing-service.test.js`, `node tests\startup-scripts.test.js`, production smoke: `/api/status?detail=1`, all low-Gateway health ports, and process-environment evidence that target workers received the expected provider key without logging the raw key |
 | Web Push | `node tests\web-push-delivery-service.test.js`, `node tests\push-api-routes.test.js`, `node tests\task-list-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js` |

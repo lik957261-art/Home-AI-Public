@@ -88,6 +88,7 @@ fi
 mobile_bridge_host_url="${HERMES_MOBILE_BRIDGE_HOST_URL:-${HERMES_WEB_BRIDGE_HOST_URL:-$default_mobile_bridge_host_url}}"
 mobile_bridge_key_path="${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-/mnt/c/ProgramData/HermesMobile/data/secrets/bridge-host.secret}}"
 x_search_proxy_url="${HERMES_MOBILE_X_SEARCH_PROXY_URL:-http://127.0.0.1:${grok_gateway_port:-18761}}"
+deepseek_api_key_path="${HERMES_MOBILE_DEEPSEEK_API_KEY_PATH:-${HERMES_WEB_DEEPSEEK_API_KEY_PATH:-/mnt/c/ProgramData/HermesMobile/data/secrets/deepseek-api-key.secret}}"
 
 if ! id -u "$worker_user" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "$worker_user"
@@ -125,6 +126,10 @@ api_key_file="$worker_home_dir/api-server-key.secret"
 if [ ! -s "$api_key_file" ]; then
   echo "missing low gateway API key file: $api_key_file" >&2
   exit 1
+fi
+deepseek_api_key=""
+if [ -s "$deepseek_api_key_path" ]; then
+  deepseek_api_key="$(tr -d '\r\n' < "$deepseek_api_key_path")"
 fi
 
 repair_gateway_profile_link() {
@@ -233,6 +238,7 @@ start_gateway_profile() {
     HERMES_MOBILE_X_SEARCH_PROXY_URL="$x_search_proxy_url" \
     HERMES_MOBILE_DISABLE_X_SEARCH_PROXY_TOOL="$disable_x_search_proxy_tool" \
     HERMES_KANBAN_DISPATCH_IN_GATEWAY=0 \
+    DEEPSEEK_API_KEY="$deepseek_api_key" \
     API_SERVER_KEY="$api_key" \
     "$runtime_hermes" gateway run --replace --accept-hooks > "$log" 2>&1 < /dev/null
   sleep 0.2

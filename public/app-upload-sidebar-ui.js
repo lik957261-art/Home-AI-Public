@@ -211,8 +211,8 @@ function wireSidebarSwipe() {
     if (!isMobileLayout() || event.touches.length !== 1) return;
     if (edge.classList.contains("disabled")) return;
     if (event.touches[0].clientX > EDGE_SWIPE_HIT_PX) return;
+    startSwipe("edge", event);
     event.preventDefault();
-    state.sidebarSwipe = null;
   };
   const moveEdgeSwipe = (event) => {
     if (state.sidebarSwipe?.mode === "edge") moveSwipe(event);

@@ -213,6 +213,7 @@ async function testStartRunBuildsGatewayRequestAndMutatesStartState() {
     taskGroupId: "task_group_1",
     model: "gpt-test",
     provider: "openai-codex",
+    modelProvider: "openai-codex",
     reasoning_effort: "medium",
     skillWorkspaceId: "owner",
     requireSkillProfile: true,
@@ -778,6 +779,22 @@ async function testChatGptProRunExtendsStreamWaits() {
   assert.equal(calls.streams[0].options.modelFirstByteWarningMs, 30 * 60 * 1000);
 }
 
+async function testDeepSeekProviderDoesNotFilterGatewayWorkerProvider() {
+  const { calls, service } = makeHarness();
+  const assistant = baseAssistantMessage();
+
+  await service.startRunForThread(baseThread(), baseUserMessage(), assistant, {
+    model: "deepseek-chat",
+    provider: "deepseek",
+  });
+
+  assert.equal(calls.gatewayRouting[0].model, "deepseek-chat");
+  assert.equal(calls.gatewayRouting[0].provider, "");
+  assert.equal(calls.gatewayRouting[0].modelProvider, "deepseek");
+  assert.equal(calls.streams[0].body.provider, "deepseek");
+  assert.equal(assistant.modelProvider, "deepseek");
+}
+
 async function testConcurrencyErrorStopsBeforeGatewaySelection() {
   const err = new Error("limit");
   err.status = 429;
@@ -831,6 +848,7 @@ function testMarkStartFailedUsesInjectedHooks() {
   testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions();
   testBuildRunRequestOverridesPlainProbeHistoryToolIntent();
   await testStartRunUsesSelectedGatewayProviderFallback();
+  await testDeepSeekProviderDoesNotFilterGatewayWorkerProvider();
   await testChatGptProRunExtendsStreamWaits();
   await testConcurrencyErrorStopsBeforeGatewaySelection();
   testMarkStartFailedUsesInjectedHooks();

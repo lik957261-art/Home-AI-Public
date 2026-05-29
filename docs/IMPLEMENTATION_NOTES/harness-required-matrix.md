@@ -260,6 +260,20 @@ Required harness dimensions:
   the plugin did not consume the back action; the host must clear plugin
   `canGoBack` so the next back action belongs to Hermes outer navigation rather
   than leaving a stale plugin-level main-back affordance visible.
+- Entering a plugin tab from a Hermes page must snapshot the source Hermes
+  route. When the plugin is at root, or after `back_result handled=false`, the
+  next host-level back/right-swipe action must restore that saved route. A user
+  must not be trapped in a plugin iframe or forced to use browser controls to
+  return to the previous Hermes page.
+- If the host sends `hermes.plugin.back` and receives no plugin navigation or
+  back-result acknowledgement inside a bounded fallback window, it must treat
+  the plugin back as unconsumed and restore the saved Hermes route when one
+  exists.
+- Mobile PWA right-swipe must be parent-owned. Because iframe touch events do
+  not reliably bubble to the Hermes host, the left-edge `edgeSwipeZone` must
+  start a real edge back-swipe state for plugin pages and route it through the
+  same plugin back/outer-return contract. A transparent edge layer that only
+  calls `preventDefault()` is a failing harness case.
 - Switching away from an embedded plugin tab must preserve the already-loaded
   iframe node when possible. Harness coverage must assert that the host uses a
   persistent iframe container and CSS visibility, not DOM reparenting, because
@@ -274,8 +288,10 @@ Required harness dimensions:
   intermediate Hermes-owned loading card, left-aligned text, or preflight page.
   Explanatory UI is allowed only for real plugin diagnostics.
 - When an embedded plugin host is active, the Hermes page header must be hidden
-  so the plugin is not double-framed by two top bars. The bottom navigation
-  remains visible as the host-level escape path.
+  so the plugin is not double-framed by two top bars. Plugin root pages keep
+  the bottom navigation as the host-level escape path, but plugin secondary
+  pages hide the bottom navigation through the same `main-back-visible`
+  contract used by native Hermes secondary pages.
 - Static/client version must be bumped for embedded-plugin host changes so the
   installed PWA does not keep an older iframe contract through the service
   worker.
@@ -546,6 +562,27 @@ Required harness dimensions:
   or moving existing `grokgw*` entries. Deleting a workspace must not silently
   delete profile-local Gateway state; cleanup requires an explicit
   backup/retirement path.
+- Gateway Pool startup scripts must target the actually installed production
+  WSL distro. Tests must prevent drift back to retired distro names such as
+  `HermesGatewayWorker`; a listener/client deployment is not complete if the
+  Gateway Pool restart script still points at a missing distro.
+- WSL Gateway Pool stop/start must not be run through a Windows account that
+  cannot see the registered WSL distro. The Windows-side process may invoke
+  `wsl.exe` as the account that owns the distro, while Linux-side privilege
+  boundaries must still be enforced with `root` for setup and the `hermes`
+  Linux user for low-Gateway runtime.
+- Ownership repair on Windows-mounted telemetry/profile backup trees must be
+  best-effort. Permission-denied errors from historical backup artifacts such as
+  `skill-store-backups` must not abort Gateway startup after the active runtime
+  directories have been prepared.
+- Direct provider key additions, such as DeepSeek, require both routing tests
+  and production process-environment evidence after Gateway Pool restart. A
+  secret file, settings option, or copied startup script is not enough evidence:
+  validation must prove the running low-Gateway and owner-maintenance worker
+  processes receive a non-empty provider key length without printing the raw
+  key. If a provider is installation-wide, docs must state that all workspaces
+  that can start that Gateway class can use it unless an explicit
+  workspace/provider allowlist is implemented.
 
 Primary docs and tests:
 

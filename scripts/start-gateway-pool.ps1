@@ -3,7 +3,7 @@ param(
   [string]$ManifestPath = "C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json",
   [string]$OfficialDistro = "Ubuntu-24.04",
   [string]$OfficialUser = "xuxin",
-  [string]$LowGatewayDistroName = "HermesGatewayWorker",
+  [string]$LowGatewayDistroName = "Ubuntu-24.04",
   [string]$GoogleTokenPath = "",
   [string]$GoogleClientSecretPath = "",
   [string]$OutlookGraphTokenPath = "",
@@ -444,8 +444,6 @@ runtime_hermes="$runtime_bin/hermes"
 }
 
 function Stop-LowGateways {
-  $runAsWorker = Join-Path $GatewayWorkerRoot "run-as-worker.ps1"
-  if (-not (Test-Path -LiteralPath $runAsWorker)) { throw "Missing worker runner: $runAsWorker" }
   Assert-SafeWslDistroName -DistroName $LowGatewayDistroName
 
   $stopShell = Join-Path $GatewayWorkerRoot "stop-low-gateways.sh"
@@ -492,7 +490,7 @@ if (`$LASTEXITCODE -ne 0) {
   [System.IO.File]::WriteAllText($stopChild, $stopChildText, $encoding)
 
   Write-GatewayPoolLog "Stopping existing low gateway processes before pool start."
-  $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runAsWorker -ChildScript $stopChild 2>&1
+  $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $stopChild 2>&1
   foreach ($line in $output) { Write-GatewayPoolLog ("lowgw-stop: {0}" -f $line) }
   if ($LASTEXITCODE -ne 0) { throw "Low gateway stop failed with exit code $LASTEXITCODE" }
 
@@ -518,14 +516,12 @@ sleep 1
 }
 
 function Start-LowGateways {
-  $runAsWorker = Join-Path $GatewayWorkerRoot "run-as-worker.ps1"
   $child = Join-Path $GatewayWorkerRoot "start-low-gateways-child.ps1"
-  if (-not (Test-Path -LiteralPath $runAsWorker)) { throw "Missing worker runner: $runAsWorker" }
   if (-not (Test-Path -LiteralPath $child)) { throw "Missing low gateway child script: $child" }
   Ensure-LowGatewayProfileEnv
   Stop-LowGateways
   Write-GatewayPoolLog "Starting low gateway pool."
-  $output = & $runAsWorker -ChildScript $child -ChildArgs @("-DistroName", $LowGatewayDistroName) 2>&1
+  $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $child -DistroName $LowGatewayDistroName 2>&1
   foreach ($line in $output) { Write-GatewayPoolLog ("lowgw: {0}" -f $line) }
   if ($LASTEXITCODE -ne 0) { throw "Low gateway pool start failed with exit code $LASTEXITCODE" }
 }
@@ -638,6 +634,7 @@ function Start-OwnerMaintenanceGateways {
   $sharedMemoryPath = "/home/$OfficialUser/.hermes/memories"
   $ownerMaintenanceLockPath = "/tmp/hermes-mobile-owner-maintenance-memory.lock"
   $bridgeKeyPath = "/mnt/c/ProgramData/HermesMobile/data/secrets/bridge-host.secret"
+  $deepseekApiKeyPath = "/mnt/c/ProgramData/HermesMobile/data/secrets/deepseek-api-key.secret"
   $commands = [System.Collections.ArrayList]@(
     "if [ -d $ownerMaintenanceLockPath ]; then rmdir $ownerMaintenanceLockPath 2>/dev/null || { echo owner_maintenance_memory_lock_busy >&2; exit 42; }; fi",
     "exec 9>$ownerMaintenanceLockPath",
@@ -650,6 +647,7 @@ function Start-OwnerMaintenanceGateways {
     "mkdir -p /home/$OfficialUser/.hermes/logs",
     "test -s $sharedAuthPath"
   )
+  [void]$commands.Add("deepseek_api_key=''; if [ -s $deepseekApiKeyPath ]; then deepseek_api_key=`$(tr -d '\r\n' < $deepseekApiKeyPath); fi")
   if ($sharedMemoryEnabled) {
     [void]$commands.Add("mkdir -p $sharedMemoryPath")
   }
@@ -665,7 +663,7 @@ function Start-OwnerMaintenanceGateways {
     if ($sharedMemoryEnabled) {
       Add-OwnerMaintenanceSharedMemoryCommands -Commands $commands -ProfileRoot $profileRoot -ProfileMemoryPath $profileMemoryPath -SharedMemoryPath $sharedMemoryPath
     }
-    [void]$commands.Add("setsid -f env HOME=/home/$OfficialUser HERMES_HOME=$profileRoot HERMES_PROFILE=$profile PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 HERMES_MOBILE_CHATGPT_PRO_BRIDGE_URL=`"`$mobile_bridge_host_url/bridge/chatgpt-pro`" HERMES_WEB_CHATGPT_PRO_BRIDGE_URL=`"`$mobile_bridge_host_url/bridge/chatgpt-pro`" HERMES_MOBILE_CHATGPT_PRO_BRIDGE_KEY_PATH=$bridgeKeyPath HERMES_WEB_CHATGPT_PRO_BRIDGE_KEY_PATH=$bridgeKeyPath HERMES_MOBILE_CHATGPT_PRO_TIMEOUT_SECONDS=1800 HERMES_WEB_CHATGPT_PRO_TIMEOUT_SECONDS=1800 $officialPython -m hermes_cli.main gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1")
+    [void]$commands.Add("setsid -f env HOME=/home/$OfficialUser HERMES_HOME=$profileRoot HERMES_PROFILE=$profile PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 HERMES_MOBILE_CHATGPT_PRO_BRIDGE_URL=`"`$mobile_bridge_host_url/bridge/chatgpt-pro`" HERMES_WEB_CHATGPT_PRO_BRIDGE_URL=`"`$mobile_bridge_host_url/bridge/chatgpt-pro`" HERMES_MOBILE_CHATGPT_PRO_BRIDGE_KEY_PATH=$bridgeKeyPath HERMES_WEB_CHATGPT_PRO_BRIDGE_KEY_PATH=$bridgeKeyPath HERMES_MOBILE_CHATGPT_PRO_TIMEOUT_SECONDS=1800 HERMES_WEB_CHATGPT_PRO_TIMEOUT_SECONDS=1800 DEEPSEEK_API_KEY=`"`$deepseek_api_key`" $officialPython -m hermes_cli.main gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1")
   }
   $ownerMaintenanceStartShell = Join-Path $GatewayWorkerRoot "start-owner-maintenance-gateways.sh"
   $bash = "set -euo pipefail`n" + ($commands -join "`n") + "`n"

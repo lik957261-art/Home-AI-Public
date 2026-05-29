@@ -68,6 +68,15 @@ const COMPOSER_MODEL_OPTIONS = Object.freeze([
     aliases: ["grok", "grok4", "grok4.3", "grok43", "xai", "xaioauth"],
     description: "xAI OAuth Grok worker",
   },
+  {
+    id: "deepseek-chat",
+    label: "DeepSeek",
+    model: "deepseek-chat",
+    provider: "deepseek",
+    mentionText: "@DeepSeek",
+    aliases: ["deepseek", "deep", "ds", "deepseekchat", "deepseek-chat"],
+    description: "DeepSeek direct API",
+  },
 ]);
 const CHAT_MESSAGE_INITIAL_LIMIT = 30;
 const CHAT_MESSAGE_PAGE_LIMIT = 40;
