@@ -91,6 +91,7 @@ function wardrobeDirectoryAttachment() {
 }
 
 function wardrobeEntryAvailable() {
+  if (!state.auth?.isOwner && !wardrobeDirectoryAttachment()) return false;
   return Boolean(wardrobeDirectoryAttachment() || workspaceAllowsWardrobeToolset());
 }
 

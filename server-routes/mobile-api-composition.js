@@ -204,6 +204,8 @@ function createMobileApiComposition(deps = {}) {
     nowIso: deps.nowIso,
   });
   const hermesPluginApiRoutes = createHermesPluginApiRoutes({
+    authenticateRequest: deps.authenticateRequest,
+    isOwnerAuth: deps.isOwnerAuth,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
     sendJson: deps.sendJson,
     hermesPluginService,

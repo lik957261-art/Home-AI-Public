@@ -211,7 +211,8 @@ Primary docs:
 
 ### Embedded Plugin PWA Session Workflow
 
-Applies to same-window embedded app plugins such as Wardrobe.
+Applies to all same-window embedded app plugins such as Wardrobe, watches,
+health, finance, or other future product plugins.
 
 Required harness dimensions:
 
@@ -230,9 +231,11 @@ Required harness dimensions:
   frontend must either preserve the existing iframe node or fetch a fresh
   manifest/launch URL before creating a new frame.
 - Embedded plugin navigation must be a parent/iframe contract, not direct DOM
-  coupling. The plugin reports `wardrobe.plugin.navigation` with `canGoBack`;
-  Hermes validates the plugin origin, exposes the normal back affordance only
-  when `canGoBack=true`, and sends `hermes.plugin.back` to the existing iframe.
+  coupling. The plugin reports a plugin-owned navigation event such as
+  `wardrobe.plugin.navigation` or `codex-mobile.plugin.navigation` with
+  `canGoBack`; Hermes validates the plugin origin, exposes the normal back
+  affordance only when `canGoBack=true`, and sends `hermes.plugin.back` to the
+  existing iframe.
 - Switching away from an embedded plugin tab must preserve the already-loaded
   iframe node when possible. Harness coverage must assert that the host uses a
   persistent iframe container and CSS visibility, not DOM reparenting, because
@@ -252,6 +255,7 @@ Required harness dimensions:
 
 Primary docs:
 
+- `docs/MODULES/plugins.md`
 - `docs/MODULES/wardrobe.md`
 
 ### Automation/Cron Execution Workflow
@@ -779,12 +783,12 @@ Required contract dimensions:
   Growth warning/danger cards, and settings/access-key sheets. The harness must
   combine focused CSS variable assertions with at least one screenshot or
   browser visual smoke so hard-coded pale panels cannot pass dark mode.
-- Conditional top-level tabs such as the Wardrobe plugin tab are H2 shell
+- Conditional top-level tabs such as embedded plugin tabs are H2 shell
   projections. The harness must assert the tab is hidden by default, becomes
-  visible only from an authorized wardrobe directory/toolset signal, preserves
+  visible only from an authorized directory/toolset/plugin registration signal, preserves
   the static client-version contract, and renders a same-window embedded plugin
   or bounded diagnostic rather than `window.open`, `target=_blank`, direct
-  Program API fallback, local MCP overview fallback, or copied Wardrobe app code.
+  Program API fallback, local MCP overview fallback, or copied plugin app code.
 - Wardrobe tab content is plugin-only. Harness coverage must assert the frontend
   does not contain `loadWardrobeOverview`, `renderWardrobeDashboard`,
   `/api/wardrobe/overview`, native section-switch listeners, model launcher
@@ -794,21 +798,21 @@ Required contract dimensions:
 - Wardrobe directory/toolset detection may make the tab visible, but it must not
   become a data source for the tab content. The actual page content must come
   from `GET /api/hermes-plugins/wardrobe/manifest`.
-- The Wardrobe tab landing surface is the embedded Wardrobe app, not a model
-  task launcher or copied deterministic dashboard.
+- A plugin tab landing surface is the embedded plugin app, not a model task
+  launcher or copied deterministic dashboard.
 - The Wardrobe root header must use the shared centered root-page title. The
   body must not repeat the title or expose the bound directory as a large
   hero/status pill. Root actions belong in the shared top-right three-dot menu;
   the disabled Stop button must not be visible there.
-- Full Wardrobe UI parity must not be implemented by copying Wardrobe app
-  screens, detail pages, photo management, settings, import/export, or business
-  workflows into Hermes Mobile. The required direction is a generic
-  `embedded-app` plugin host: the Wardrobe project exports a manifest, owns the
-  UI, and Hermes Mobile embeds it in the same window with a signed short-lived
-  token and workspace context. Plugin host harnesses must cover manifest loading,
-  tab registration, same-window iframe navigation, no `window.open` or
-  `target=_blank`, no raw credentials in URLs, frame/CSP expectations, and a
-  postMessage/back contract.
+- Full plugin UI parity must not be implemented by copying external app screens,
+  detail pages, settings, import/export, or business workflows into Hermes
+  Mobile. The required direction is a generic `embedded-app` plugin host: the
+  plugin project exports a manifest, owns the UI, and Hermes Mobile embeds it in
+  the same window with a signed short-lived token and workspace context. Plugin
+  host harnesses must cover manifest loading, tab registration, same-window
+  iframe navigation, no `window.open` or `target=_blank`, no raw credentials in
+  URLs, frame/CSP expectations, persistent iframe host behavior, clean loading
+  surface, and a postMessage/back contract.
 - Embedded-app harnesses must cover HTTPS/mobile security behavior. If Hermes is
   served as HTTPS/PWA and a plugin manifest returns an HTTP iframe entry, the
   frontend must not render a blank frame; it must either use a configured HTTPS
@@ -834,6 +838,24 @@ Required contract dimensions:
   long-lived workspace key, and a missing/failed launch shows a plugin
   diagnostic rather than the legacy username/password login or local MCP
   overview fallback.
+- Codex Mobile plugin registration is H2 service/projection work and must use
+  the local Codex Git repo's Hermes plugin manifest, not the PWA manifest.
+  `GET /api/hermes-plugins/codex-mobile/manifest` must normalize bounded
+  metadata from `GET /api/v1/hermes/plugin/manifest`, use the server-side
+  `%USERPROFILE%\.codex-mobile-web\access_key` or configured override only for
+  launch exchange, and must not expose Codex Mobile Access Keys, bearer headers,
+  or launch-token secrets to the browser.
+- Installed plugins default to Owner-only visibility. A non-Owner workspace may
+  list or launch a plugin only after an explicit Owner authorization signal,
+  such as a deployment authorized-workspace list or a plugin-specific
+  workspace-bound key created by the Owner binding flow. Generic/global plugin
+  keys must not implicitly authorize every non-Owner workspace.
+- Each plugin project must also implement plugin-side harness coverage before
+  release: manifest shape, launch exchange, frame-ancestor origin registration,
+  `?embed=hermes` mode, navigation postMessage, `hermes.plugin.back`, no
+  browser-window handoff, iframe state preservation across tab switches, and
+  installed-PWA smoke. Hermes Mobile cannot prove plugin-owned route behavior
+  by testing only the host shell.
 - The native Wardrobe MCP dashboard fallback is retired. Reintroducing it, or
   adding another local fallback dashboard, is a new H2/H1 design decision and
   requires explicit product approval plus route/service/frontend harness
@@ -844,6 +866,7 @@ Required contract dimensions:
 Primary docs:
 
 - `docs/MODULES/static-client.md`
+- `docs/MODULES/plugins.md`
 - `docs/MODULES/wardrobe.md`
 - `docs/RUNBOOKS/static-client-cache-version.md`
 

@@ -18,19 +18,19 @@ const HERMES_PLUGIN_API_ROUTE_SPECS = Object.freeze([
     tags: ["plugin", "manifest"],
   },
   {
-    id: "hermes-plugin-wardrobe-manifest",
+    id: "hermes-plugin-manifest",
     method: "GET",
-    path: "/api/hermes-plugins/wardrobe/manifest",
+    pathRegex: /^\/api\/hermes-plugins\/[^/]+\/manifest$/,
     group: "plugins",
     moduleKey: "hermes-plugins",
     handlerKey: "manifest",
-    summary: "Read the configured Wardrobe embedded-app plugin manifest.",
+    summary: "Read a configured embedded-app plugin manifest.",
     riskLevel: "low",
     authMode: "access-key",
     authRequired: true,
     workspaceScoped: true,
-    resourceTypes: ["plugin", "wardrobe"],
-    tags: ["plugin", "wardrobe", "manifest"],
+    resourceTypes: ["plugin"],
+    tags: ["plugin", "manifest"],
   },
 ]);
 
@@ -49,6 +49,14 @@ function createHermesPluginApiRoutes(deps = {}) {
 
   const registry = createApiRouteRegistry(HERMES_PLUGIN_API_ROUTE_SPECS);
 
+  function requestAuth(req) {
+    return typeof deps.authenticateRequest === "function" ? deps.authenticateRequest(req) : null;
+  }
+
+  function ownerAuthorized(auth) {
+    return typeof deps.isOwnerAuth === "function" ? deps.isOwnerAuth(auth) : false;
+  }
+
   function requestedWorkspaceId(url) {
     return url?.searchParams?.get("workspaceId") || "owner";
   }
@@ -59,19 +67,33 @@ function createHermesPluginApiRoutes(deps = {}) {
     deps.sendJson(res, 200, {
       ok: true,
       workspaceId,
-      plugins: deps.hermesPluginService.list().map((item) => ({
+      plugins: deps.hermesPluginService.list({
+        workspaceId,
+        ownerAuthorized: ownerAuthorized(requestAuth(req)),
+      }).map((item) => ({
         id: item.id,
         manifestPath: `/api/hermes-plugins/${encodeURIComponent(item.id)}/manifest`,
       })),
     });
   }
 
-  async function handleWardrobeManifest(req, res, url) {
+  function requestedPluginId(url) {
+    const match = String(url?.pathname || "").match(/^\/api\/hermes-plugins\/([^/]+)\/manifest$/);
+    return match ? decodeURIComponent(match[1]) : "";
+  }
+
+  async function handleManifest(req, res, url) {
     const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(url));
     if (!workspaceId) return;
+    const pluginId = requestedPluginId(url);
+    if (!pluginId) {
+      deps.sendJson(res, 404, { ok: false, error: "plugin_not_found" });
+      return;
+    }
     const manifest = await deps.hermesPluginService.manifest({
-      id: "wardrobe",
+      id: pluginId,
       workspaceId,
+      ownerAuthorized: ownerAuthorized(requestAuth(req)),
       appOrigin: url?.searchParams?.get("appOrigin") || "",
       launchPlugin: true,
     });
@@ -85,7 +107,7 @@ function createHermesPluginApiRoutes(deps = {}) {
     });
     if (!route) return { handled: false };
     if (route.id === "hermes-plugins-list") await handleList(req, res, url);
-    else if (route.id === "hermes-plugin-wardrobe-manifest") await handleWardrobeManifest(req, res, url);
+    else if (route.id === "hermes-plugin-manifest") await handleManifest(req, res, url);
     else return { handled: false };
     return { handled: true, route };
   }

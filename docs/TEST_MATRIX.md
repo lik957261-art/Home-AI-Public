@@ -94,14 +94,31 @@ looks, and log. Wardrobe stats tests must also cover currency-prefixed prices
 such as `¥4,787` so totals and average price do not undercount. Full Wardrobe
 UI parity must be tested as a future embedded-app plugin contract, not by
 copying Wardrobe detail/photo/settings screens into Hermes Mobile.
-Embedded Wardrobe plugin host tests must assert manifest-driven tab loading,
+Embedded app plugin host tests must assert manifest-driven tab loading,
 same-window iframe navigation, no `target=_blank` browser handoff, a short-lived
-signed embed token with no raw keys in URLs, and a postMessage/back contract.
+signed embed token with no raw keys in URLs, a persistent iframe host that does
+not reparent launch iframes, a clean blank host during manifest/launch loading,
+and a postMessage/back contract. These are generic plugin requirements, not
+Wardrobe-only behavior; new plugins must satisfy the same host contract before
+being treated as production-ready.
+Installed plugin visibility must also be covered: Owner sees installed plugins
+by default, but non-Owner workspaces do not list or launch a plugin unless
+there is an explicit Owner authorization signal. A global plugin key is not
+enough to authorize every workspace.
+Plugin projects must also carry their own harness: manifest shape, launch
+exchange, frame-ancestor origin registration, `?embed=hermes` mode,
+`<plugin-id>.plugin.navigation`, `hermes.plugin.back`, same-iframe internal
+navigation, no `window.open`/`target=_blank`, state preservation across tab
+switches, and installed-PWA smoke. Hermes Mobile host tests do not replace the
+plugin project's own embedded-mode tests.
 The first NAS-backed registration uses
 `GET /api/hermes-plugins/wardrobe/manifest` as the Mobile-side contract and
 defaults the live source to
 `http://192.168.10.99:8765/api/v1/hermes/plugin/manifest`, with an environment
-override for later local/production source changes.
+override for later local/production source changes. Codex Mobile Web uses the
+same generic route shape through `GET /api/hermes-plugins/codex-mobile/manifest`
+and defaults to the local Codex plugin manifest at
+`http://127.0.0.1:8787/api/v1/hermes/plugin/manifest`.
 HTTPS/PWA embedded-plugin tests must assert that an HTTP iframe entry is never
 silently rendered as a blank plugin pane. The frontend should fall back to the
 native projection with a visible diagnostic unless production is configured to
@@ -390,7 +407,7 @@ The guard test is:
 | Web Push | `node tests\web-push-delivery-service.test.js`, `node tests\push-api-routes.test.js`, `node tests\task-list-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js` |
-| Wardrobe plugin tab | `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes |
+| Embedded plugin host / Wardrobe and Codex plugin tabs | `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes |
 | Directory/files/artifacts | `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js` |
 | Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\link-skill-profile-store.test.js` |
 | Automation/Cron | `node tests\automation-api-routes.test.js`, `node tests\automation-provider.test.js`, `node tests\cron-bridge.test.js`, `node tests\local-automation-bridge-service.test.js` |

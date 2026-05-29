@@ -1236,6 +1236,76 @@ button {
   overflow-wrap: anywhere;
 }
 
+.embedded-plugin-shell {
+  width: 100%;
+  height: 100%;
+  min-height: calc(100dvh - 132px);
+  display: grid;
+  background: var(--ui-panel);
+}
+
+.embedded-plugin-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: calc(100dvh - 132px);
+  border: 0;
+  background: var(--ui-panel);
+}
+
+.codex-mode .conversation {
+  padding: 0;
+  overflow: hidden;
+  background: var(--ui-panel);
+}
+
+.embedded-plugin-host {
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--ui-panel);
+}
+
+.embedded-plugin-host.active {
+  display: grid;
+}
+
+.embedded-plugin-host-active .conversation {
+  display: none;
+}
+
+.embedded-plugin-view {
+  width: min(100%, 860px);
+  margin: 0 auto;
+  padding: 12px 10px 18px;
+}
+
+.embedded-plugin-notice {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0 2px;
+  padding: 10px 11px;
+  border: 1px solid rgba(166, 141, 103, 0.22);
+  border-radius: 8px;
+  background: rgba(166, 141, 103, 0.09);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.embedded-plugin-notice strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.embedded-plugin-notice span,
+.embedded-plugin-notice small {
+  min-width: 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 .nav-chat-icon::before {
   content: "";
   position: absolute;
@@ -1352,6 +1422,29 @@ button {
   border: 2px solid currentColor;
   border-top: 0;
   border-radius: 0 0 8px 8px;
+}
+
+.nav-codex-icon::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 7px;
+  bottom: 7px;
+  border: 1.8px solid currentColor;
+  border-radius: 7px;
+}
+
+.nav-codex-icon::after {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 11px;
+  width: 9px;
+  height: 9px;
+  border-top: 1.8px solid currentColor;
+  border-right: 1.8px solid currentColor;
+  transform: rotate(45deg);
 }
 
 .nav-todo-icon::before {
@@ -1782,7 +1875,8 @@ button {
 .projects-mode .composer,
 .automation-mode .composer,
 .learning-mode .composer,
-.wardrobe-mode .composer {
+.wardrobe-mode .composer,
+.codex-mode .composer {
   display: none;
 }
 
@@ -13583,6 +13677,14 @@ body.task-markdown-preview-open {
 
   .bottom-nav.wardrobe-visible {
     grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .bottom-nav.codex-visible {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .bottom-nav.wardrobe-visible.codex-visible {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
   }
 
   .main-back-visible .bottom-nav {

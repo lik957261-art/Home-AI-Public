@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL = "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest";
+const DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest";
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_KEY_SEARCH_DEPTH = 6;
 
@@ -17,19 +18,55 @@ function configuredWardrobeManifestUrl(env = process.env) {
     || DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL;
 }
 
+function configuredCodexMobileManifestUrl(env = process.env) {
+  return stringValue(env.HERMES_MOBILE_CODEX_PLUGIN_MANIFEST_URL)
+    || stringValue(env.HERMES_MOBILE_PLUGIN_CODEX_MOBILE_MANIFEST_URL)
+    || DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL;
+}
+
+function envKeyForPlugin(pluginId, suffix) {
+  return `HERMES_MOBILE_PLUGIN_${stringValue(pluginId).toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_${suffix}`;
+}
+
+function parseWorkspaceList(value) {
+  return [...new Set(String(value || "")
+    .split(/[,\s;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean))];
+}
+
+function configuredAuthorizedWorkspaceIds(pluginId, env = process.env) {
+  return parseWorkspaceList(env[envKeyForPlugin(pluginId, "WORKSPACES")]);
+}
+
 function configuredPlugins(options = {}) {
   const env = options.env || process.env;
   const explicit = Array.isArray(options.plugins) ? options.plugins : [];
-  const plugins = explicit.length ? explicit : [{
-    id: "wardrobe",
-    manifestUrl: configuredWardrobeManifestUrl(env),
-  }];
+  const plugins = explicit.length ? explicit : [
+    {
+      id: "wardrobe",
+      manifestUrl: configuredWardrobeManifestUrl(env),
+    },
+    {
+      id: "codex-mobile",
+      manifestUrl: configuredCodexMobileManifestUrl(env),
+    },
+  ];
   return plugins
     .map((item) => ({
       id: stringValue(item.id),
       manifestUrl: stringValue(item.manifestUrl || item.url),
+      authorizedWorkspaceIds: parseWorkspaceList(
+        Array.isArray(item.authorizedWorkspaceIds) ? item.authorizedWorkspaceIds.join(",") : item.authorizedWorkspaceIds,
+      ),
     }))
-    .filter((item) => item.id && item.manifestUrl);
+    .filter((item) => item.id && item.manifestUrl)
+    .map((item) => Object.assign({}, item, {
+      authorizedWorkspaceIds: [...new Set([
+        ...item.authorizedWorkspaceIds,
+        ...configuredAuthorizedWorkspaceIds(item.id, env),
+      ])],
+    }));
 }
 
 function safeUrl(value, base = "") {
@@ -59,6 +96,17 @@ function safeJoinUrl(baseUrl = "", relativePath = "") {
   const relative = stringValue(relativePath);
   if (!base || !relative) return "";
   return safeUrl(relative, base);
+}
+
+function urlWithoutSearchOrHash(value = "") {
+  try {
+    const url = new URL(value);
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch (_) {
+    return "";
+  }
 }
 
 function defaultDataDir(env = process.env) {
@@ -95,6 +143,37 @@ function findWardrobeAccessKeyPath(input = {}, options = {}) {
   }
 
   return walk(workspaceRoot, 0);
+}
+
+function findCodexMobileAccessKeyPath(input = {}, options = {}) {
+  const explicit = stringValue(input.codexMobileAccessKeyPath || options.codexMobileAccessKeyPath);
+  if (explicit && fs.existsSync(explicit)) return explicit;
+  const env = options.env || process.env;
+  const home = stringValue(env.USERPROFILE || env.HOME);
+  const candidates = [
+    stringValue(env.HERMES_MOBILE_CODEX_PLUGIN_ACCESS_KEY_PATH),
+    stringValue(env.CODEX_MOBILE_ACCESS_KEY_PATH),
+    home ? path.join(home, ".codex-mobile-web", "access_key") : "",
+  ].filter(Boolean);
+  return candidates.find((candidate) => fs.existsSync(candidate)) || "";
+}
+
+function findPluginAccessKeyPath(pluginId, input = {}, options = {}) {
+  if (pluginId === "codex-mobile") return findCodexMobileAccessKeyPath(input, options);
+  return findWardrobeAccessKeyPath(input, options);
+}
+
+function pluginWorkspaceAuthorized(plugin, input = {}, options = {}) {
+  const workspaceId = stringValue(input.workspaceId || "owner");
+  if (!workspaceId) return false;
+  if (workspaceId === "owner" || input.ownerAuthorized === true) return true;
+  const authorized = Array.isArray(plugin?.authorizedWorkspaceIds) ? plugin.authorizedWorkspaceIds : [];
+  if (authorized.includes("*") || authorized.includes(workspaceId)) return true;
+  const pluginId = stringValue(plugin?.id || input.id);
+  if (pluginId === "wardrobe") {
+    return Boolean(findWardrobeAccessKeyPath({ workspaceId }, options));
+  }
+  return false;
 }
 
 function frameAncestorsAllows(csp = "", appOrigin = "", entryOrigin = "") {
@@ -171,7 +250,9 @@ function normalizeManifest(raw = {}, source = {}) {
       strategy: stringValue(raw.owner_binding?.strategy),
       configFile: pathValue(raw.owner_binding?.config_file),
       cacheDir: pathValue(raw.owner_binding?.cache_dir),
-      rawKeyReturnedByWardrobe: raw.owner_binding?.raw_key_returned_by_wardrobe === true,
+      rawKeyReturned: raw.owner_binding?.raw_key_returned_by_wardrobe === true
+        || raw.owner_binding?.raw_key_returned_by_codex_mobile === true
+        || raw.owner_binding?.raw_key_returned === true,
     },
     permissions: {
       registerWorkspaceRequires: Array.isArray(raw.permissions?.register_workspace_requires)
@@ -184,16 +265,17 @@ function normalizeManifest(raw = {}, source = {}) {
   };
 }
 
-async function withWardrobeLaunchEntry(manifest, input = {}, fetchImpl, options = {}) {
+async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = {}) {
   if (input.launchPlugin !== true) return manifest;
   if (!manifest?.available || !manifest?.programApi?.pluginLaunchPath || typeof fetchImpl !== "function") return manifest;
   const workspaceId = stringValue(input.workspaceId || "owner");
-  const keyPath = findWardrobeAccessKeyPath(input, options);
+  const pluginId = stringValue(manifest.id || input.id || "wardrobe");
+  const keyPath = findPluginAccessKeyPath(pluginId, input, options);
   if (!keyPath) {
     return Object.assign({}, manifest, {
       available: false,
       code: "plugin_launch_key_missing",
-      warning: "Wardrobe workspace access key file was not found for this workspace.",
+      warning: "Plugin workspace access key file was not found for this workspace.",
       embed: Object.assign({}, manifest.embed, {
         tokenStatus: "workspace_key_missing",
       }),
@@ -229,7 +311,7 @@ async function withWardrobeLaunchEntry(manifest, input = {}, fetchImpl, options 
         available: false,
         code: "plugin_launch_failed",
         status: response?.status || 0,
-        warning: "Wardrobe plugin launch token request failed.",
+        warning: "Plugin launch token request failed.",
         embed: Object.assign({}, manifest.embed, {
           tokenStatus: "launch_failed",
         }),
@@ -241,7 +323,7 @@ async function withWardrobeLaunchEntry(manifest, input = {}, fetchImpl, options 
       return Object.assign({}, manifest, {
         available: false,
         code: "plugin_launch_entry_missing",
-        warning: "Wardrobe plugin launch response did not include a valid entry path.",
+        warning: "Plugin launch response did not include a valid entry path.",
         embed: Object.assign({}, manifest.embed, {
           tokenStatus: "launch_entry_missing",
         }),
@@ -304,6 +386,37 @@ async function validateFrameAncestors(manifest, input = {}, fetchImpl) {
   }
 }
 
+function validateHttpsEntryScheme(manifest, input = {}) {
+  const appUrl = safeUrl(input.appOrigin || "");
+  const entryUrl = safeUrl(manifest?.entry?.url || "");
+  if (!appUrl || !entryUrl) return manifest;
+  let appProtocol = "";
+  let entryProtocol = "";
+  try {
+    appProtocol = new URL(appUrl).protocol;
+    entryProtocol = new URL(entryUrl).protocol;
+  } catch (_) {
+    return manifest;
+  }
+  if (appProtocol !== "https:" || entryProtocol !== "http:") return manifest;
+  const redactedEntryUrl = urlWithoutSearchOrHash(entryUrl) || manifest.entry.url;
+  return Object.assign({}, manifest, {
+    available: false,
+    code: "plugin_https_entry_required",
+    warning: "HTTPS Hermes origin requires an HTTPS plugin iframe entry.",
+    entry: Object.assign({}, manifest.entry, {
+      url: redactedEntryUrl,
+      origin: originOf(entryUrl),
+    }),
+    embed: Object.assign({}, manifest.embed, {
+      url: "",
+      blockedByMixedContent: true,
+      appOrigin: originOf(appUrl),
+      requiredEntryScheme: "https",
+    }),
+  });
+}
+
 function createHermesPluginService(options = {}) {
   const fetchImpl = options.fetch || global.fetch;
   const timeoutMs = Number(options.timeoutMs || DEFAULT_TIMEOUT_MS);
@@ -314,10 +427,16 @@ function createHermesPluginService(options = {}) {
     env: options.env,
     maxKeySearchDepth: options.maxKeySearchDepth,
     wardrobeAccessKeyPath: options.wardrobeAccessKeyPath,
+    codexMobileAccessKeyPath: options.codexMobileAccessKeyPath,
   };
 
-  function list() {
-    return plugins.map((item) => ({ id: item.id, manifestUrl: item.manifestUrl }));
+  function list(input = {}) {
+    return plugins
+      .filter((item) => pluginWorkspaceAuthorized(item, input, launchOptions))
+      .map((item) => ({
+        id: item.id,
+        manifestUrl: item.manifestUrl,
+      }));
   }
 
   async function manifest(input = {}) {
@@ -325,6 +444,19 @@ function createHermesPluginService(options = {}) {
     const plugin = plugins.find((item) => item.id === id);
     if (!plugin) {
       return { ok: false, available: false, id, code: "plugin_not_registered" };
+    }
+    if (!pluginWorkspaceAuthorized(plugin, Object.assign({}, input, { id }), launchOptions)) {
+      return {
+        ok: false,
+        available: false,
+        id,
+        code: "plugin_workspace_not_authorized",
+        warning: "Plugin is installed but this workspace has not been authorized by Owner.",
+        embed: {
+          mode: "same_window_iframe",
+          tokenStatus: "workspace_not_authorized",
+        },
+      };
     }
     if (typeof fetchImpl !== "function") {
       return { ok: false, available: false, id, code: "fetch_unavailable" };
@@ -353,7 +485,8 @@ function createHermesPluginService(options = {}) {
         fetchedAt: nowIso(),
       });
       const frameCheckedManifest = await validateFrameAncestors(manifest, input, fetchImpl);
-      return withWardrobeLaunchEntry(frameCheckedManifest, input, fetchImpl, launchOptions);
+      const launchedManifest = await withPluginLaunchEntry(frameCheckedManifest, input, fetchImpl, launchOptions);
+      return validateHttpsEntryScheme(launchedManifest, input);
     } catch (err) {
       return {
         ok: false,
@@ -371,9 +504,13 @@ function createHermesPluginService(options = {}) {
 }
 
 module.exports = {
+  DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   createHermesPluginService,
+  findCodexMobileAccessKeyPath,
+  findPluginAccessKeyPath,
   findWardrobeAccessKeyPath,
   frameAncestorsAllows,
   normalizeManifest,
+  pluginWorkspaceAuthorized,
 };

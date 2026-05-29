@@ -76,6 +76,7 @@ function backSwipeTarget() {
   if (isTodoDetailView() || kanbanComposerOpen()) return isTodoDetailView() ? "todo" : "todo-create";
   if (state.viewMode === "learning" && (state.learningGrowthSettingsOpen || state.selectedLearningTaskCardId)) return state.learningGrowthSettingsOpen ? "learning-growth-settings" : "learning-growth-task";
   if (typeof wardrobePluginBackActive === "function" && wardrobePluginBackActive()) return "wardrobe-plugin";
+  if (typeof codexPluginBackActive === "function" && codexPluginBackActive()) return "codex-plugin";
   if (typeof automationDetailInboxReturnActive === "function" && automationDetailInboxReturnActive()) return "automation-secondary";
   if (isAutomationDetailView()) return "automation";
   if (typeof automationSecondaryReturnActive === "function" && automationSecondaryReturnActive()) return "automation-secondary";
@@ -116,6 +117,7 @@ function performBackSwipeAction(target) {
   }
   else if (target === "directory") state.directoryReturnRoute ? restoreDirectoryReturnRoute() : navigateDirectoryUp({ animateEntry: true }).catch(showError);
   else if (target === "wardrobe-plugin" && typeof sendWardrobePluginBack === "function") sendWardrobePluginBack();
+  else if (target === "codex-plugin" && typeof sendCodexPluginBack === "function") sendCodexPluginBack();
   else if (target === "automation") openAutomationList();
   else if (target === "automation-secondary") closeAutomationSecondarySurface();
   else if (target === "action-inbox" || target === "action-inbox-create") openActionInboxOverview();

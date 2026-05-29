@@ -27,7 +27,9 @@ function applyViewMode() {
   const learning = state.viewMode === "learning";
   const todos = state.viewMode === "todos";
   const wardrobe = state.viewMode === "wardrobe";
+  const codex = state.viewMode === "codex";
   if (typeof updateWardrobeNavigationAvailability === "function") updateWardrobeNavigationAvailability();
+  if (typeof updateCodexPluginNavigationAvailability === "function") updateCodexPluginNavigationAvailability();
   if (!(single && state.singleWindowMode === "chat")) renderChatScopeHeader(null);
   $("app")?.classList.toggle("todo-mode", todos);
   $("app")?.classList.toggle("inbox-mode", inbox);
@@ -35,6 +37,7 @@ function applyViewMode() {
   $("app")?.classList.toggle("learning-mode", learning);
   $("app")?.classList.toggle("projects-mode", directory);
   $("app")?.classList.toggle("wardrobe-mode", wardrobe);
+  $("app")?.classList.toggle("codex-mode", codex);
   $("chatManagementMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
   $("taskManagementMode")?.classList.toggle("active", tasks || (single && state.singleWindowMode === "task"));
   $("bottomChatMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
@@ -52,6 +55,7 @@ function applyViewMode() {
   $("todosMode").classList.toggle("active", learning);
   $("bottomTodosMode")?.classList.toggle("active", learning);
   $("bottomWardrobeMode")?.classList.toggle("active", wardrobe);
+  $("bottomCodexMode")?.classList.toggle("active", codex);
   $("taskModeControls")?.classList.add("hidden");
   $("routeFields").classList.add("hidden");
   $("directoryEntry")?.classList.add("hidden");
@@ -72,6 +76,9 @@ async function loadSelectedView() {
   }
   if (state.viewMode !== "wardrobe" && typeof parkWardrobePluginShell === "function") {
     parkWardrobePluginShell();
+  }
+  if (state.viewMode !== "codex" && typeof parkCodexPluginShell === "function") {
+    parkCodexPluginShell();
   }
   if (state.viewMode !== "projects") state.directoryReturnRoute = null;
   if (state.viewMode !== "todos") clearTodoAutoRefresh();
@@ -119,6 +126,9 @@ async function loadSelectedView() {
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "wardrobe") {
     renderWardrobeView();
+    if (!currentViewStillSelected()) return;
+  } else if (state.viewMode === "codex") {
+    renderCodexPluginView();
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "projects") {
     await loadDirectoryView();

@@ -33,6 +33,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Skill permissions: `docs/MODULES/skill-permissions.md`
 - Automation/Cron: `docs/MODULES/automation.md`
 - Action Inbox / user participation queue: `docs/MODULES/action-inbox.md`
+- Embedded app plugin host: `docs/MODULES/plugins.md`
 - Wardrobe MCP tab and embedded plugin host: `docs/MODULES/wardrobe.md`
 - Static client/cache/deploy: `docs/MODULES/static-client.md`, `docs/MODULES/deployment.md`
 - Workspace auth, keys, and access policy: `docs/MODULES/workspace-auth-permissions.md`

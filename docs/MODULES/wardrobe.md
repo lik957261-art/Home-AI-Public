@@ -2,8 +2,10 @@
 
 Last updated: 2026-05-29.
 
-This module describes the Hermes Mobile Wardrobe entry. The Wardrobe tab is a
-plugin host for the Wardrobe project's embedded app plus model-started
+This module describes the Hermes Mobile Wardrobe entry. The generic embedded
+plugin host contract is defined in `docs/MODULES/plugins.md`; this file records
+Wardrobe-specific manifest, toolset, and deployment details. The Wardrobe tab is
+a plugin host for the Wardrobe project's embedded app plus model-started
 Wardrobe MCP tasks. It is not a second Wardrobe app and it must not call the
 Wardrobe Program API or a local MCP dashboard route as an automatic fallback.
 

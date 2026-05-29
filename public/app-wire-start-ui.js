@@ -270,6 +270,15 @@ function wireUi() {
     state.currentThreadId = "";
     await loadSelectedView();
   });
+  $("bottomCodexMode")?.addEventListener("click", async () => {
+    clearQuotedReply({ render: false });
+    state.viewMode = "codex";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    state.currentThread = null;
+    state.currentThreadId = "";
+    await loadSelectedView();
+  });
   $("threadSearch").addEventListener("input", () => {
     updateSearchButton();
     clearTimeout(state.searchTimer);

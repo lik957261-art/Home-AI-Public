@@ -346,6 +346,7 @@ const state = {
   wardrobePluginFrameHealthSeq: 0,
   wardrobePluginLoading: false,
   wardrobePluginChecked: false,
+  embeddedPlugins: {},
   concurrency: null,
   displayConfig: {
     ownerDriveRootNames: ["ChatGPT-Drive"],

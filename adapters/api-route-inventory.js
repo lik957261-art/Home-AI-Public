@@ -216,10 +216,10 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["plugin"],
     summary: "List configured Hermes embedded app plugins.",
   })),
-  exact("hermes-plugin-wardrobe-manifest", "GET", "/api/hermes-plugins/wardrobe/manifest", "plugins", routeOptions("hermes-plugins", {
+  regex("hermes-plugin-manifest", "GET", /^\/api\/hermes-plugins\/[^/]+\/manifest$/, "plugins", routeOptions("hermes-plugins", {
     workspaceScoped: true,
-    resourceTypes: ["plugin", "wardrobe"],
-    summary: "Read the configured Wardrobe embedded-app plugin manifest.",
+    resourceTypes: ["plugin"],
+    summary: "Read a configured embedded-app plugin manifest.",
   })),
 
   exact("action-inbox-list", "GET", "/api/action-inbox", "action-inbox", routeOptions("action-inbox", {

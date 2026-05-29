@@ -143,7 +143,7 @@ const ROUTE_MODULES = Object.freeze([
     minRoutes: 2,
     probes: [
       { method: "GET", path: "/api/hermes-plugins", id: "hermes-plugins-list" },
-      { method: "GET", path: "/api/hermes-plugins/wardrobe/manifest", id: "hermes-plugin-wardrobe-manifest" },
+      { method: "GET", path: "/api/hermes-plugins/wardrobe/manifest", id: "hermes-plugin-manifest" },
     ],
   },
   {
@@ -378,7 +378,8 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/status" }).id, "status");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/login" }).id, "login");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/ingress/weixin/outbound/del-1/ack" }).id, "weixin-ingress-outbound-ack");
-  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/hermes-plugins/wardrobe/manifest" }).id, "hermes-plugin-wardrobe-manifest");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/hermes-plugins/wardrobe/manifest" }).id, "hermes-plugin-manifest");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/hermes-plugins/codex-mobile/manifest" }).id, "hermes-plugin-manifest");
   assert.equal(matchHermesMobileApiRoute({ method: "PATCH", path: "/api/workspaces/child-a" }).id, "workspaces-admin");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/automations/job-1/pause" }).id, "automations-action");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/kanban/cards/card-1/study-quiz" }).id, "kanban-reading-quiz");
