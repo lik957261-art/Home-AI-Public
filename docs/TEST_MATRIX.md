@@ -27,6 +27,17 @@ Before implementing non-trivial workflow changes, classify the change with
   state, async behavior, permissions, routing, release artifacts, navigation,
   scroll, or service-worker behavior.
 
+For all Hermes Mobile mobile/PWA function, UI, navigation, cache,
+service-worker, Web Push, file preview, and embedded-plugin validation, the
+primary smoke path is the installed home-screen PWA icon in the emulator or
+target device. Browser address-bar navigation is not a valid substitute; it is
+browser-mode evidence only and may intentionally show the browser-shell guard
+page.
+Startup harnesses must also verify that workspace/project bootstrap failures do
+not reveal a half-initialized shell with an empty workspace selector. The client
+should retry bounded startup loading and then show an explicit recovery/retry
+surface.
+
 H1 includes Growth learning cards, Action Inbox passive notifications,
 Automation/Cron execution, Gateway toolset selection/run telemetry,
 cross-shell production operations, Web Push click routing,
@@ -127,8 +138,11 @@ the browser-facing entry to `/api/hermes-plugins/<plugin-id>/proxy/...` and
 proxies HTML, static assets, plugin API calls, redirect headers, and session
 cookies through that path. The test must hit the real Mobile dispatcher route
 as well as the plugin route module. Deployment smoke for this class must include
-the installed Android PWA launched from the home-screen icon, not only browser
-URL or manifest API checks.
+the installed Android PWA launched from the home-screen icon. Opening the same
+URL in the Chrome/Safari address bar is explicitly not a valid PWA smoke,
+because Hermes Mobile shows a browser-shell guard page there and it does not
+exercise standalone storage, service-worker, navigation, or plugin iframe
+behavior.
 Wardrobe dashboard binding tests must cover directory ambiguity: a configured
 wardrobe root with `.hermes-wardrobe/config.json` must win, child delivery
 folders such as `衣橱/交付` must not steal the root, and generic outfit output

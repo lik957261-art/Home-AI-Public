@@ -94,6 +94,12 @@ Registration is not complete until a smoke check proves:
 - the installed PWA opens the iframe without browser mixed-content errors,
   browser chrome, or a fallback login page.
 
+Production PWA validation must start from the installed home-screen Hermes
+Mobile icon. Opening the Hermes URL in the browser address bar is a different
+mode and intentionally shows the browser-shell guard page. That browser mode
+must not be used as evidence that an embedded plugin works or fails in the
+standalone PWA.
+
 If a plugin cannot provide either a secure browser-facing entry or a Hermes
 same-origin proxy entry for an HTTPS Hermes deployment, Hermes Mobile should
 show a bounded setup diagnostic instead of trying to embed it.

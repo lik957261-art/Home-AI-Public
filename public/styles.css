@@ -279,6 +279,22 @@ button {
   font-weight: 560;
 }
 
+.boot-retry {
+  justify-self: center;
+  width: auto;
+  min-width: 72px;
+  min-height: 34px;
+  margin-top: 4px;
+  padding: 7px 14px;
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-hairline-strong);
+  border-radius: 8px;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .boot-splash-bar {
   width: min(220px, 58vw);
   height: 4px;

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260529-codex-plugin-v348";
+const CLIENT_VERSION = "20260529-startup-retry-v349";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -128,6 +128,11 @@ assert.match(appApiClientJs, /X-Hermes-Web-Refresh-Required/);
 assert.match(appApiClientJs, /function createHttpError\(response, body\)/);
 assert.match(appApiClientJs, /requestOptions\.timeoutMs/);
 assert.match(appApiClientJs, /AbortController/);
+assert.match(indexHtml, /id="bootRetry"/);
+assert.match(appJs, /function showStartupRecovery\(err\)/);
+assert.match(appJs, /async function bootstrapWithRetry\(options = \{\}\)/);
+assert.match(appJs, /await bootstrapWithRetry\(\)/);
+assert.match(appJs, /else showStartupRecovery\(err\)/);
 assert.match(appApiClientJs, /Request timed out/);
 assert.match(appJs, /const viewLoadId = \(state\.viewLoadSeq \|\| 0\) \+ 1;/);
 assert.match(appJs, /state\.viewLoadSeq = viewLoadId;/);
@@ -465,9 +470,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260529-codex-plugin-v348/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260529-codex-plugin-v348/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260529-codex-plugin-v348/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260529-startup-retry-v349/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260529-startup-retry-v349/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260529-startup-retry-v349/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);

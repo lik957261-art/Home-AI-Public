@@ -52,6 +52,7 @@ function setBootSplashText(message = "正在载入工作区") {
 
 function showBootSplash(message = "正在载入工作区") {
   setBootSplashText(message);
+  $("bootRetry")?.classList.add("hidden");
   $("setup")?.classList.add("hidden");
   $("login")?.classList.add("hidden");
   $("app")?.classList.add("hidden");
@@ -59,7 +60,50 @@ function showBootSplash(message = "正在载入工作区") {
 }
 
 function hideBootSplash() {
+  $("bootRetry")?.classList.add("hidden");
   $("bootSplash")?.classList.add("hidden");
+}
+
+function startupErrorMessage(err) {
+  const message = String(err?.message || err || "").trim();
+  if (/unauthorized/i.test(message)) return message;
+  if (/failed to fetch|network|load failed|request timed out|timeout/i.test(message)) {
+    return "\u65e0\u6cd5\u8f7d\u5165\u5de5\u4f5c\u533a\uff0c\u8bf7\u68c0\u67e5\u7f51\u7edc\u540e\u91cd\u8bd5\u3002";
+  }
+  return message
+    ? `\u65e0\u6cd5\u8f7d\u5165\u5de5\u4f5c\u533a\uff1a${message}`
+    : "\u65e0\u6cd5\u8f7d\u5165\u5de5\u4f5c\u533a\uff0c\u8bf7\u91cd\u8bd5\u3002";
+}
+
+function showStartupRecovery(err) {
+  setBootSplashText(startupErrorMessage(err));
+  $("setup")?.classList.add("hidden");
+  $("login")?.classList.add("hidden");
+  $("app")?.classList.add("hidden");
+  $("bootSplash")?.classList.remove("hidden");
+  $("bootRetry")?.classList.remove("hidden");
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
+
+async function bootstrapWithRetry(options = {}) {
+  const attempts = Math.max(1, Number(options.attempts || 3) || 3);
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await bootstrap();
+      return;
+    } catch (err) {
+      lastError = err;
+      if (/unauthorized/i.test(String(err?.message || err || ""))) throw err;
+      if (attempt >= attempts) break;
+      setBootSplashText(`\u6b63\u5728\u91cd\u65b0\u8f7d\u5165\u5de5\u4f5c\u533a (${attempt + 1}/${attempts})`);
+      await sleep(700 * attempt);
+    }
+  }
+  throw lastError || new Error("Workspace bootstrap failed");
 }
 async function hasCookieSession() {
   const res = await fetch("/api/status", { cache: "no-store" });

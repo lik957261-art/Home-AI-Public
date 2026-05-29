@@ -12,6 +12,9 @@ function wireUi() {
     state.refreshNoticeDismissedVersion = state.serverClientVersion;
     hideRefreshNotice();
   });
+  $("bootRetry")?.addEventListener("click", () => {
+    startFromBootRecovery().catch(showStartupRecovery);
+  });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") {
       handleAppBackgrounded();
@@ -576,11 +579,30 @@ async function start() {
       }
     }
     setBootSplashText("正在载入工作区");
-    await bootstrap();
+    await bootstrapWithRetry();
     showApp();
   } catch (err) {
     showError(err);
     if (/unauthorized/i.test(err.message)) showLogin();
-    else showApp();
+    else showStartupRecovery(err);
   }
+}
+
+async function startFromBootRecovery() {
+  showBootSplash("正在连接 Hermes Mobile");
+  const config = await fetch("/api/public-config", { cache: "no-store" }).then((res) => res.json());
+  state.setupRequired = Boolean(config.setupRequired);
+  if (state.setupRequired) {
+    showSetup();
+    return;
+  }
+  if (config.authRequired && !state.key) {
+    if (!(await hasCookieSession().catch(() => false))) {
+      showLogin();
+      return;
+    }
+  }
+  setBootSplashText("正在载入工作区");
+  await bootstrapWithRetry();
+  showApp();
 }

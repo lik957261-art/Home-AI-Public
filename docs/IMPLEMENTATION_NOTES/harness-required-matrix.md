@@ -30,6 +30,20 @@ Before implementing a non-trivial change, classify the touched flow:
 
 If a change touches multiple classes, use the highest class.
 
+## Mobile PWA Verification Rule
+
+Any Hermes Mobile function, navigation, UI, cache, service-worker, Web Push,
+plugin, file preview, or mobile viewport validation must launch Hermes Mobile
+from the installed home-screen PWA icon in the emulator or target device.
+
+Opening the Hermes URL in Chrome/Safari address bar is browser-mode validation
+only. It is not acceptable as the primary mobile/PWA acceptance evidence because
+it bypasses standalone display mode and may intentionally show the
+browser-shell guard page.
+
+Browser-mode checks may be used only as a diagnostic comparison after the PWA
+path has been tested, or when explicitly testing the browser-shell guard page.
+
 ## CodeGraph-Assisted Triage Rule
 
 Use CodeGraph as the first structural triage pass for H1/H2 changes, then
@@ -220,6 +234,11 @@ Required harness dimensions:
   PWA behavior on the target browser class before declaring the workflow done.
 - Android Chrome PWA smoke must prove that the bottom-tab iframe renders real
   plugin content or a bounded diagnostic.
+- Android/iOS PWA smoke must launch Hermes Mobile from the installed home-screen
+  PWA icon. Opening `https://.../hermes-mobile/?source=pwa` in the browser URL
+  bar is not valid evidence because Hermes Mobile intentionally shows a
+  browser-shell guard page there and does not exercise standalone PWA storage,
+  service-worker, navigation, or embedded-plugin behavior.
 - iOS Safari installed-PWA smoke is required for cross-origin embedded plugins
   that rely on cookies or browser session storage. iOS failures where a valid
   login flashes back to the login page without decrementing retry count must be
@@ -826,7 +845,8 @@ Required contract dimensions:
   UI must not render a Chrome broken-frame icon as if the plugin had loaded.
   Production validation must include opening the installed Android PWA from the
   home-screen icon and verifying the plugin tab content, because API manifest
-  smoke alone cannot catch mixed-content frame blocking.
+  smoke or browser URL-bar navigation cannot catch standalone-PWA storage,
+  service-worker, display-mode, or mixed-content frame behavior.
 - Wardrobe plugin registration is H2 service/projection work. The Mobile route
   `GET /api/hermes-plugins/wardrobe/manifest` must normalize only bounded
   manifest metadata from the configured source, defaulting to the NAS manifest
