@@ -68,11 +68,14 @@ origin in `frame-ancestors` is still required for direct external plugin
 entries, but it is not enough by itself to make an HTTP iframe valid inside an
 HTTPS PWA.
 
-The same-origin proxy must also rewrite plugin-owned resource URLs inside
-HTML, JavaScript, CSS, and JSON text responses. This includes absolute upstream
-URLs such as `http://<plugin-host>/uploads/...` and root-relative image/static
-paths such as `/uploads/...`, `/media/...`, `/images/...`, `/assets/...`, and
-`/static/...`. The rewritten browser-facing path must stay under
+The same-origin proxy must also rewrite plugin-owned resource URLs inside HTML,
+JavaScript, CSS, and JSON responses. HTML/CSS/JavaScript may use text rewriting,
+but JSON must be parsed and rewritten structurally: rewrite only string values
+that are standalone upstream URLs or root-relative plugin paths, not arbitrary
+prose in chat/thread/message fields. This includes absolute upstream URLs such
+as `http://<plugin-host>/uploads/...` and root-relative image/static paths such
+as `/uploads/...`, `/media/...`, `/images/...`, `/assets/...`, and `/static/...`.
+The rewritten browser-facing path must stay under
 `/api/hermes-plugins/<plugin-id>/proxy/...`. Binary image responses are then
 fetched through that proxy path and streamed back with their original content
 type. Without this, HTTPS Hermes Mobile PWAs can load the plugin shell while

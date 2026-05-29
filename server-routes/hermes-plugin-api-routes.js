@@ -212,6 +212,56 @@ function createHermesPluginApiRoutes(deps = {}) {
       .replace(/(["'`])\/static\//g, `$1${prefix}/static/`);
   }
 
+  function shouldProxyJsonResourcePath(value = "", pluginId = "") {
+    const text = String(value || "");
+    if (!text.startsWith("/") || text.startsWith("//")) return false;
+    if (text === pluginProxyPrefix(pluginId) || text.startsWith(`${pluginProxyPrefix(pluginId)}/`)) return false;
+    return text.startsWith("/icons/")
+      || text.startsWith("/uploads/")
+      || text.startsWith("/media/")
+      || text.startsWith("/images/")
+      || text.startsWith("/assets/")
+      || text.startsWith("/static/");
+  }
+
+  function rewritePluginProxyJsonString(value = "", pluginId = "", upstreamBase = "") {
+    const text = String(value || "");
+    const prefix = pluginProxyPrefix(pluginId);
+    if (!text) return text;
+    if (shouldProxyJsonResourcePath(text, pluginId)) return `${prefix}${text}`;
+    try {
+      const upstreamOrigin = new URL(upstreamBase).origin;
+      const parsed = new URL(text);
+      if (upstreamOrigin && parsed.origin === upstreamOrigin && shouldProxyJsonResourcePath(parsed.pathname, pluginId)) {
+        return `${prefix}${parsed.pathname}${parsed.search}${parsed.hash}`;
+      }
+    } catch (_) {
+      // Non-URL JSON strings are user/content data and must not be regex-rewritten.
+    }
+    return text;
+  }
+
+  function rewritePluginProxyJsonValue(value, pluginId = "", upstreamBase = "") {
+    if (typeof value === "string") return rewritePluginProxyJsonString(value, pluginId, upstreamBase);
+    if (Array.isArray(value)) return value.map((item) => rewritePluginProxyJsonValue(item, pluginId, upstreamBase));
+    if (value && typeof value === "object") {
+      const next = {};
+      for (const [key, item] of Object.entries(value)) {
+        next[key] = rewritePluginProxyJsonValue(item, pluginId, upstreamBase);
+      }
+      return next;
+    }
+    return value;
+  }
+
+  function rewritePluginProxyJsonText(text = "", pluginId = "", upstreamBase = "") {
+    try {
+      return JSON.stringify(rewritePluginProxyJsonValue(JSON.parse(String(text)), pluginId, upstreamBase));
+    } catch (_) {
+      return String(text);
+    }
+  }
+
   async function readRequestBody(req) {
     const chunks = [];
     for await (const chunk of req) chunks.push(Buffer.from(chunk));
@@ -267,7 +317,14 @@ function createHermesPluginApiRoutes(deps = {}) {
         outHeaders.Location = location;
       }
     }
-    if (/text\/html|javascript|ecmascript|text\/css|application\/json/i.test(contentType || "")) {
+    if (/application\/json/i.test(contentType || "")) {
+      const text = await upstream.text();
+      const rewritten = rewritePluginProxyJsonText(text, pluginId, upstreamBase);
+      res.writeHead(upstream.status || 200, outHeaders);
+      res.end(rewritten);
+      return;
+    }
+    if (/text\/html|javascript|ecmascript|text\/css/i.test(contentType || "")) {
       const text = await upstream.text();
       const rewritten = rewritePluginProxyText(text, pluginId, upstreamBase);
       res.writeHead(upstream.status || 200, outHeaders);

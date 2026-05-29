@@ -409,6 +409,49 @@ async function testPluginProxyRewritesJsonImageUrls() {
   assert.equal(res.body.includes("192.168.10.99"), false);
 }
 
+async function testPluginProxyDoesNotCorruptJsonProse() {
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "codex-mobile", manifestUrl: "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "codex-mobile" });
+      },
+      pluginManifestUrl(id) {
+        return id === "codex-mobile" ? "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch(url) {
+      assert.equal(url, "http://127.0.0.1:8787/api/threads/thread-1");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify({
+          text: 'Do not rewrite prose like CSS url(/uploads/example.jpg) inside a thread message.',
+          imageUrl: "/uploads/item-1.jpg",
+          nested: {
+            thumb: "http://127.0.0.1:8787/media/thumb-1.webp",
+          },
+        })),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/codex-mobile/proxy/api/threads/thread-1"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  const body = parseBody(res);
+  assert.equal(body.text, "Do not rewrite prose like CSS url(/uploads/example.jpg) inside a thread message.");
+  assert.equal(body.imageUrl, "/api/hermes-plugins/codex-mobile/proxy/uploads/item-1.jpg");
+  assert.equal(body.nested.thumb, "/api/hermes-plugins/codex-mobile/proxy/media/thumb-1.webp");
+}
+
 async function testPluginProxyForwardsBinaryImages() {
   const body = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
   const { routes } = makeRoutes({
@@ -458,6 +501,7 @@ async function run() {
   await testWardrobeProxyRewritesSessionCookieScope();
   await testWardrobeProxyUsesConfiguredLanUpstream();
   await testPluginProxyRewritesJsonImageUrls();
+  await testPluginProxyDoesNotCorruptJsonProse();
   await testPluginProxyForwardsBinaryImages();
 }
 

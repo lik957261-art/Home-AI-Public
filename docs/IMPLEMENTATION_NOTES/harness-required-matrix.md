@@ -999,10 +999,12 @@ Required contract dimensions:
   the configured HTTP upstream. Harness coverage must prove the browser-facing
   iframe URL is same-origin, not `127.0.0.1` or a LAN IP, and that proxied HTML
   rewrites absolute static/API paths back through the per-plugin proxy prefix.
-  It must also prove plugin-owned image/static URLs inside JSON/text responses
-  are rewritten through that prefix, including absolute upstream URLs and
-  root-relative `/uploads`, `/media`, `/images`, `/assets`, and `/static`
-  paths, while binary image responses preserve their content type.
+  It must also prove plugin-owned image/static URLs inside JSON responses are
+  rewritten structurally, not with HTML/CSS regexes over arbitrary JSON text.
+  Standalone absolute upstream URLs and root-relative `/uploads`, `/media`,
+  `/images`, `/assets`, and `/static` paths should be rewritten through that
+  prefix, while prose fields such as chat/thread text remain valid JSON and
+  binary image responses preserve their content type.
 - Same-origin plugin proxies must handle launch redirects manually. Automatic
   server-side redirect following can consume the plugin launch `302` and its
   session cookie before the browser sees it, causing the embedded app to fall

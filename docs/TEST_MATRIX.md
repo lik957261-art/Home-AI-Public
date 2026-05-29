@@ -163,8 +163,10 @@ the plugin proxy prefix. The same-origin proxy must also rewrite plugin-owned
 image/static URLs in HTML, JavaScript, CSS, and JSON responses so absolute
 upstream image URLs and root-relative `/uploads`, `/media`, `/images`,
 `/assets`, and `/static` paths stay under
-`/api/hermes-plugins/<plugin-id>/proxy/...`; binary image requests through that
-path must be streamed with their original content type. Active embedded plugin
+`/api/hermes-plugins/<plugin-id>/proxy/...`; JSON responses must be parsed and
+rewritten structurally so thread/chat prose, code snippets, and ordinary `/api`
+strings are not changed. Binary image requests through that path must be
+streamed with their original content type. Active embedded plugin
 hosts must hide the Hermes page header so plugin content is not double-framed;
 bottom navigation remains visible as the app-level escape hatch. Deployment
 smoke for this class must include the installed Android PWA launched from the
