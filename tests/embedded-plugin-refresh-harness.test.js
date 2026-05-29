@@ -1,0 +1,262 @@
+"use strict";
+
+const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
+const vm = require("vm");
+
+const repoRoot = path.resolve(__dirname, "..");
+const source = fs.readFileSync(path.join(repoRoot, "public", "app-embedded-plugin-ui.js"), "utf8");
+
+function createClassList() {
+  const values = new Set();
+  return {
+    toggle(name, enabled) {
+      if (enabled) values.add(name);
+      else values.delete(name);
+    },
+    contains(name) {
+      return values.has(name);
+    },
+  };
+}
+
+function createHarness() {
+  const calls = { api: [], health: 0, nav: 0, affordance: 0, errors: [] };
+  const listeners = {};
+  const main = { insertBefore() {} };
+  const conversation = {
+    parentNode: main,
+    innerHTML: "native content",
+    scrollTop: 0,
+  };
+  const app = { classList: createClassList() };
+  const hosts = {};
+
+  function makeHost(id) {
+    let shell = null;
+    return {
+      id,
+      hidden: true,
+      attributes: {},
+      classList: createClassList(),
+      setAttribute(name, value) {
+        this.attributes[name] = value;
+      },
+      appendChild(node) {
+        shell = node;
+        node.parentNode = this;
+      },
+      querySelector(selector) {
+        if (selector === ".embedded-plugin-shell" && shell && !shell.removed) return shell;
+        if (selector === ".embedded-plugin-frame" && shell && !shell.removed) return shell.querySelector(selector);
+        return null;
+      },
+      set innerHTML(value) {
+        this.html = value;
+        if (!value) shell = null;
+      },
+      get innerHTML() {
+        return this.html || "";
+      },
+      setShell(node) {
+        shell = node;
+        if (node) node.parentNode = this;
+      },
+    };
+  }
+
+  function makeShell() {
+    const frame = {
+      dataset: {},
+      addEventListener() {},
+      getAttribute(name) {
+        if (name === "src") return "/api/hermes-plugins/codex-mobile/proxy/?embed=hermes&codexPluginLaunch=old";
+        return "";
+      },
+      contentWindow: {},
+    };
+    return {
+      removed: false,
+      parentNode: null,
+      remove() {
+        this.removed = true;
+      },
+      querySelector(selector) {
+        return selector === ".embedded-plugin-frame" ? frame : null;
+      },
+    };
+  }
+
+  const sandbox = {
+    assert,
+    URL,
+    URLSearchParams,
+    Date,
+    Promise,
+    state: {
+      viewMode: "codex",
+      selectedWorkspaceId: "owner",
+      embeddedPlugins: {},
+    },
+    window: {
+      location: { origin: "https://hermes.example.test", href: "https://hermes.example.test/hermes-mobile/" },
+      addEventListener(type, handler) {
+        listeners[type] = listeners[type] || [];
+        listeners[type].push(handler);
+      },
+      setTimeout() {},
+    },
+    document: {
+      createElement(tagName) {
+        assert.equal(tagName, "div");
+        return makeHost("");
+      },
+      querySelector(selector) {
+        return selector === ".main" ? main : null;
+      },
+      body: { appendChild() {} },
+    },
+    $: (id) => {
+      if (id === "conversation") return conversation;
+      if (id === "app") return app;
+      return hosts[id] || null;
+    },
+    api(url) {
+      calls.api.push(url);
+      return new Promise(() => {});
+    },
+    showError(err) {
+      calls.errors.push(err);
+    },
+    updateNavigationControls() {
+      calls.nav += 1;
+    },
+    ensureVerticalScrollAffordance() {
+      calls.affordance += 1;
+    },
+    requestAnimationFrame(callback) {
+      callback();
+    },
+  };
+
+  hosts.codexPluginHost = makeHost("codexPluginHost");
+  vm.createContext(sandbox);
+  vm.runInContext(`${source}
+    globalThis.__pluginRefreshHarness = {
+      def: EMBEDDED_PLUGIN_DEFS["codex-mobile"],
+      embeddedPluginRecord,
+      ensureEmbeddedPluginNavigationBridge,
+      embeddedPluginRefreshRequiredEventType
+    };
+  `, sandbox);
+
+  return {
+    calls,
+    conversation,
+    listeners,
+    host: hosts.codexPluginHost,
+    makeShell,
+    sandbox,
+    emit(data, origin = "https://codex.example.test") {
+      assert.ok(listeners.message?.length, "message bridge should be registered");
+      listeners.message[0]({ data, origin });
+    },
+    setupManifest(shell = makeShell()) {
+      const { def, embeddedPluginRecord } = sandbox.__pluginRefreshHarness;
+      const record = embeddedPluginRecord(def.id);
+      record.manifest = {
+        ok: true,
+        available: true,
+        kind: "embedded_app",
+        workspaceId: "owner",
+        entry: { url: "https://codex.example.test/?embed=hermes", origin: "https://codex.example.test" },
+        embed: { tokenStatus: "launch_token_issued" },
+      };
+      record.checked = true;
+      record.manifestFreshForFrame = true;
+      record.shellNode = shell;
+      this.host.setShell(shell);
+      return { def, record, shell };
+    },
+  };
+}
+
+function testRefreshIgnoresWrongOrigin() {
+  const harness = createHarness();
+  const { def, record, shell } = harness.setupManifest();
+  harness.sandbox.__pluginRefreshHarness.ensureEmbeddedPluginNavigationBridge(def);
+  assert.equal(
+    harness.sandbox.__pluginRefreshHarness.embeddedPluginRefreshRequiredEventType({ id: "future-plugin" }),
+    "future-plugin.plugin.refresh_required",
+  );
+
+  harness.emit({
+    type: "codex-mobile.plugin.refresh_required",
+    route: { name: "thread", threadId: "thread-1" },
+  }, "https://evil.example.test");
+
+  assert.equal(shell.removed, false);
+  assert.equal(record.checked, true);
+  assert.equal(record.manifestFreshForFrame, true);
+  assert.deepEqual(harness.calls.api, []);
+}
+
+function testRefreshRebuildsActivePluginWithBoundedRoute() {
+  const harness = createHarness();
+  const { def, record, shell } = harness.setupManifest();
+  harness.sandbox.__pluginRefreshHarness.ensureEmbeddedPluginNavigationBridge(def);
+
+  harness.emit({
+    type: "codex-mobile.plugin.refresh_required",
+    reason: "auth_state_changed",
+    route: {
+      name: "thread",
+      threadId: "t".repeat(240),
+      itemId: "turn-1",
+      access_key: "must-not-be-copied",
+      launch: "must-not-be-copied",
+      cookie: "must-not-be-copied",
+    },
+  });
+
+  assert.equal(shell.removed, true);
+  assert.equal(record.checked, false);
+  assert.equal(record.manifestFreshForFrame, false);
+  assert.equal(record.canGoBack, false);
+  assert.equal(record.navigationRoute, null);
+  assert.equal(record.openRoute.pluginRoute, "thread");
+  assert.equal(record.openRoute.pluginThreadId.length, 180);
+  assert.equal(record.openRoute.pluginItemId, "turn-1");
+  assert.equal(Object.hasOwn(record.openRoute, "access_key"), false);
+  assert.equal(Object.hasOwn(record.openRoute, "launch"), false);
+  assert.equal(Object.hasOwn(record.openRoute, "cookie"), false);
+  assert.equal(harness.calls.api.length, 1);
+  assert.match(harness.calls.api[0], /^\/api\/hermes-plugins\/codex-mobile\/manifest\?/);
+}
+
+function testRefreshInvalidatesInactivePluginWithoutFetching() {
+  const harness = createHarness();
+  const { def, record, shell } = harness.setupManifest();
+  harness.sandbox.state.viewMode = "single";
+  harness.sandbox.__pluginRefreshHarness.ensureEmbeddedPluginNavigationBridge(def);
+
+  harness.emit({
+    type: "codex-mobile.plugin.refresh_required",
+    pluginRoute: "task",
+    pluginTaskId: "task-1",
+  });
+
+  assert.equal(shell.removed, true);
+  assert.equal(record.checked, false);
+  assert.equal(record.manifestFreshForFrame, false);
+  assert.equal(record.openRoute.pluginRoute, "task");
+  assert.equal(record.openRoute.pluginTaskId, "task-1");
+  assert.deepEqual(harness.calls.api, []);
+}
+
+testRefreshIgnoresWrongOrigin();
+testRefreshRebuildsActivePluginWithBoundedRoute();
+testRefreshInvalidatesInactivePluginWithoutFetching();
+
+console.log("embedded plugin refresh harness tests passed");

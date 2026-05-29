@@ -227,6 +227,74 @@ the iframe and route that gesture through the same plugin back/outer-back
 contract. The edge zone must start an actual back-swipe state; it must not only
 call `preventDefault()` and swallow the gesture before the host can act.
 
+## Host Refresh Contract
+
+Embedded plugins that use short-lived launch tokens can ask Hermes Mobile to
+rebuild their iframe when server code, plugin session state, or plugin auth
+state changes.
+
+The plugin posts a message from inside the iframe:
+
+```js
+window.parent.postMessage({
+  type: "<plugin-id>.plugin.refresh_required",
+  version: 1,
+  reason: "auth_state_changed",
+  route: {
+    name: "thread",
+    threadId: "<bounded-thread-id>",
+    itemId: "<bounded-item-id>"
+  }
+}, "<hermes-origin>");
+```
+
+Hermes Mobile must:
+
+- accept the message only when `event.origin` matches the plugin entry origin;
+- treat the message as a host refresh request, not as plugin-controlled host
+  navigation;
+- discard the stale iframe and stale launch manifest;
+- request a fresh Mobile-side manifest/launch URL through the existing
+  `GET /api/hermes-plugins/<plugin-id>/manifest` path;
+- preserve only bounded route hints such as `pluginRoute`, `pluginThreadId`,
+  `pluginTaskId`, or `pluginItemId`;
+- return to the same plugin tab when it is already active, or mark the iframe
+  stale so the next plugin-tab entry refreshes before display.
+
+The host-side executable harness is
+`tests/embedded-plugin-refresh-harness.test.js`. It simulates iframe
+`postMessage` events and asserts wrong-origin rejection, active iframe rebuild,
+inactive-tab invalidation, and bounded route-hint preservation.
+
+Codex Mobile Web uses:
+
+```text
+codex-mobile.plugin.refresh_required
+```
+
+Future embedded plugins use the same convention by default:
+
+```text
+<plugin-id>.plugin.refresh_required
+```
+
+Hermes Mobile treats the Codex-specific value as one instance of the generic
+plugin host contract, not as a Codex-only mechanism.
+
+Recommended Codex trigger points:
+
+- server build/version changed while the plugin iframe is mounted;
+- plugin session cookie or launch token is known to be invalid;
+- Codex account/auth state changed and the existing iframe cannot recover
+  in-place;
+- plugin-side API receives an unrecoverable `401` or session-expired response
+  in `?embed=hermes` mode.
+
+Payload fields are intentionally optional and bounded. Codex should include
+only non-secret route metadata and a short reason code. It must not include
+access keys, launch tokens, cookies, raw server logs, prompts, task content, or
+private file paths.
+
 ## Notification Event Contract
 
 Plugins should not register their own browser Web Push subscriptions inside the

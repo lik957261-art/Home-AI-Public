@@ -12,6 +12,7 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
     navVisibleClass: "codex-visible",
     navigationEventType: "codex-mobile.plugin.navigation",
     backResultEventType: "codex-mobile.plugin.back_result",
+    refreshRequiredEventType: "codex-mobile.plugin.refresh_required",
     manifestPath: "/api/hermes-plugins/codex-mobile/manifest",
   }),
 });
@@ -139,6 +140,37 @@ function updateEmbeddedPluginBackResultState(def, payload = {}) {
   }
   record.canGoBack = false;
   updateNavigationControls();
+}
+
+function embeddedPluginRefreshRequiredEventType(def) {
+  return def?.refreshRequiredEventType || `${def?.id || "plugin"}.plugin.refresh_required`;
+}
+
+function embeddedPluginRouteFromRefreshPayload(payload = {}) {
+  const route = payload.route && typeof payload.route === "object" ? payload.route : payload;
+  return normalizeEmbeddedPluginOpenRoute({
+    pluginRoute: route.pluginRoute || route.name || route.routeName || "",
+    pluginItemId: route.pluginItemId || route.itemId || route.turnId || route.taskId || "",
+    pluginThreadId: route.pluginThreadId || route.threadId || "",
+    pluginTaskId: route.pluginTaskId || route.taskId || "",
+  });
+}
+
+function requestEmbeddedPluginRefresh(def, payload = {}) {
+  const record = embeddedPluginRecord(def.id);
+  const route = embeddedPluginRouteFromRefreshPayload(payload);
+  if (Object.keys(route).length) record.openRoute = route;
+  record.canGoBack = false;
+  record.navigationRoute = null;
+  record.navigationLastAt = 0;
+  record.manifestFreshForFrame = false;
+  record.checked = false;
+  if (state.viewMode !== def.viewMode) {
+    discardEmbeddedPluginShell(def);
+    return true;
+  }
+  refreshEmbeddedPluginFrameFromFreshManifest(def);
+  return true;
 }
 
 function captureEmbeddedPluginReturnRoute(def) {
@@ -274,6 +306,10 @@ function ensureEmbeddedPluginNavigationBridge(def) {
     }
     if (def.backResultEventType && data.type === def.backResultEventType) {
       updateEmbeddedPluginBackResultState(def, data);
+      return;
+    }
+    if (data.type === embeddedPluginRefreshRequiredEventType(def)) {
+      requestEmbeddedPluginRefresh(def, data);
     }
   });
 }

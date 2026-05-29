@@ -322,6 +322,17 @@ Required harness dimensions:
   a launch iframe loads but never emits the expected navigation state, the host
   must fetch a fresh manifest/launch URL and must not leave the stale
   `invalid_launch_token` response as the visible plugin page.
+- Plugin refresh coupling is part of the same H2 host contract. A plugin may
+  emit `<plugin-id>.plugin.refresh_required` when its short-lived launch token,
+  session cookie, auth state, or server build becomes invalid. Hermes must
+  accept that message only from the plugin entry origin, discard the stale
+  iframe and stale launch manifest, fetch a fresh manifest/launch URL through
+  the Mobile-owned plugin route, preserve only bounded route hints, and return
+  to the same plugin tab when already active. The negative harness must prove
+  wrong-origin refresh messages are ignored and refresh payloads do not carry
+  access keys, launch tokens, cookies, raw plugin content, prompts, or local
+  paths. The current host executable harness is
+  `tests/embedded-plugin-refresh-harness.test.js`.
 - Plugin startup must be visually clean. Manifest loading and fresh-launch
   exchange states should use the blank persistent plugin host, not an
   intermediate Hermes-owned loading card, left-aligned text, or preflight page.

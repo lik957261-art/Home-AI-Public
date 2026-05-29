@@ -178,6 +178,16 @@ If Hermes sends `hermes.plugin.back` and the plugin does not acknowledge with a
 fresh navigation or back-result event inside the bounded fallback window, the
 host must treat that back as unconsumed and restore the saved Hermes route when
 available.
+Plugin refresh coupling must be covered by the host contract: the iframe may
+send `<plugin-id>.plugin.refresh_required`, Hermes must validate the plugin
+entry origin, discard stale iframe/launch state, fetch a fresh manifest through
+the Mobile plugin route, and preserve only bounded route hints so the active
+plugin returns to its intended Codex/Wardrobe position after refresh. Wrong
+origin refresh messages and payloads carrying keys, cookies, launch tokens,
+raw plugin content, prompts, or local paths are failing cases.
+Focused checks for this contract include
+`node tests\embedded-plugin-refresh-harness.test.js` and
+`node tests\app-embedded-plugin-ui.test.js`.
 Switching away from a plugin tab must force-hide the plugin host and clear the
 active host class even if the iframe shell record is missing, stale, or still
 loading; a plugin iframe must not remain above chat/topic content after a
