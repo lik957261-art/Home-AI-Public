@@ -109,15 +109,36 @@ function urlWithoutSearchOrHash(value = "") {
   }
 }
 
-function codexMobileProxyPathForUrl(value = "") {
+function pluginSameOriginProxyPathForUrl(pluginId = "", value = "") {
+  const id = encodeURIComponent(stringValue(pluginId));
   const url = safeUrl(value);
-  if (!url) return "";
+  if (!id || !url) return "";
   try {
     const parsed = new URL(url);
-    return `/api/hermes-plugins/codex-mobile/proxy${parsed.pathname}${parsed.search}`;
+    return `/api/hermes-plugins/${id}/proxy${parsed.pathname}${parsed.search}`;
   } catch (_) {
     return "";
   }
+}
+
+function codexMobileProxyPathForUrl(value = "") {
+  return pluginSameOriginProxyPathForUrl("codex-mobile", value);
+}
+
+function isLocalOrPrivateHttpUrl(value = "") {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch (_) {
+    return false;
+  }
+  if (parsed.protocol !== "http:") return false;
+  const host = parsed.hostname.toLowerCase();
+  if (host === "localhost" || host === "127.0.0.1" || host === "::1") return true;
+  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+  const private172 = host.match(/^172\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/);
+  return private172 ? Number(private172[1]) >= 16 && Number(private172[1]) <= 31 : false;
 }
 
 function defaultDataDir(env = process.env) {
@@ -410,8 +431,8 @@ function validateHttpsEntryScheme(manifest, input = {}) {
     return manifest;
   }
   if (appProtocol !== "https:" || entryProtocol !== "http:") return manifest;
-  if (manifest?.id === "codex-mobile") {
-    const proxyUrl = codexMobileProxyPathForUrl(entryUrl);
+  if (isLocalOrPrivateHttpUrl(entryUrl)) {
+    const proxyUrl = pluginSameOriginProxyPathForUrl(manifest?.id, entryUrl);
     if (proxyUrl) {
       return Object.assign({}, manifest, {
         entry: Object.assign({}, manifest.entry, {
@@ -547,4 +568,6 @@ module.exports = {
   normalizeManifest,
   pluginWorkspaceAuthorized,
   codexMobileProxyPathForUrl,
+  pluginSameOriginProxyPathForUrl,
+  isLocalOrPrivateHttpUrl,
 };

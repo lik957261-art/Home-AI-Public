@@ -2,7 +2,7 @@
 
 const assert = require("node:assert/strict");
 const {
-  CODEX_MOBILE_PLUGIN_PROXY_PATH_PREFIX,
+  EMBEDDED_PLUGIN_PROXY_PATH_REGEX,
   MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE,
   WEIXIN_INGRESS_PATH_PREFIX,
   createMobileApiDispatcher,
@@ -172,7 +172,7 @@ async function testCodexPluginProxyRunsBeforeBrowserAuth() {
   const res = makeResponse();
   const req = {
     method: "GET",
-    url: `${CODEX_MOBILE_PLUGIN_PROXY_PATH_PREFIX}/?embed=hermes&workspaceId=owner`,
+    url: "/api/hermes-plugins/codex-mobile/proxy/?embed=hermes&workspaceId=owner",
     headers: {},
     authResult: { ok: false },
   };
@@ -190,6 +190,7 @@ async function testCodexPluginProxyRunsBeforeBrowserAuth() {
     "route",
   ]);
   assert.deepEqual(routeCalls(calls).map((call) => call.key), ["publicApiRoutes", "hermesPluginApiRoutes"]);
+  assert.equal(EMBEDDED_PLUGIN_PROXY_PATH_REGEX.test("/api/hermes-plugins/wardrobe/proxy/?embed=hermes"), true);
 }
 
 async function testAuthenticatedPipelineOrderAndRequestContext() {

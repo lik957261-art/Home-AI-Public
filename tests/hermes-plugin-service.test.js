@@ -9,6 +9,7 @@ const {
   findWardrobeAccessKeyPath,
   frameAncestorsAllows,
   normalizeManifest,
+  pluginSameOriginProxyPathForUrl,
 } = require("../adapters/hermes-plugin-service");
 
 function sampleManifest() {
@@ -424,6 +425,63 @@ async function testHttpsHermesUsesSameOriginProxyForLocalCodexEntryAfterLaunch()
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|test-key/i);
 }
 
+async function testHttpsHermesUsesSameOriginProxyForLanWardrobeEntryAfterLaunch() {
+  const service = createHermesPluginService({
+    plugins: [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }],
+    wardrobeAccessKeyPath: __filename,
+    fetch(url) {
+      if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(sampleManifest()),
+        });
+      }
+      if (url === "http://192.168.10.99:8765/?embed=hermes") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          headers: { get: () => "frame-ancestors https://hermes.example.test" },
+        });
+      }
+      if (url === "http://192.168.10.99:8765/api/v1/hermes/plugin/launch") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            entry_path: "/?embed=hermes&launch=wpl_once&workspaceId=owner",
+            expires_in: 90,
+          }),
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+  const manifest = await service.manifest({
+    id: "wardrobe",
+    workspaceId: "owner",
+    appOrigin: "https://hermes.example.test",
+    launchPlugin: true,
+  });
+  assert.equal(manifest.available, true);
+  assert.equal(
+    manifest.entry.url,
+    "/api/hermes-plugins/wardrobe/proxy/?embed=hermes&launch=wpl_once&workspaceId=owner",
+  );
+  assert.equal(manifest.entry.origin, "https://hermes.example.test");
+  assert.equal(manifest.entry.proxiedFromOrigin, "http://192.168.10.99:8765");
+  assert.equal(manifest.embed.sameOriginProxy, true);
+  assert.equal(manifest.embed.upstreamOrigin, "http://192.168.10.99:8765");
+  assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|test-key/i);
+}
+
+function testPluginSameOriginProxyPathForUrl() {
+  assert.equal(
+    pluginSameOriginProxyPathForUrl("wardrobe", "http://192.168.10.99:8765/items/1?embed=hermes"),
+    "/api/hermes-plugins/wardrobe/proxy/items/1?embed=hermes",
+  );
+}
+
 function testFindWardrobeAccessKeyPath() {
   assert.equal(findWardrobeAccessKeyPath({ wardrobeAccessKeyPath: __filename }), __filename);
 }
@@ -446,6 +504,8 @@ async function run() {
   await testLaunchEntryUsesServerSideWorkspaceKey();
   await testCodexLaunchEntryUsesServerSideKey();
   await testHttpsHermesUsesSameOriginProxyForLocalCodexEntryAfterLaunch();
+  await testHttpsHermesUsesSameOriginProxyForLanWardrobeEntryAfterLaunch();
+  testPluginSameOriginProxyPathForUrl();
   testFindWardrobeAccessKeyPath();
   testFindCodexMobileAccessKeyPath();
 }

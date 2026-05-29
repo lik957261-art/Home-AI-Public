@@ -92,7 +92,7 @@ async function testSpecs() {
   assert.equal(HERMES_PLUGIN_API_ROUTE_SPECS.length, 3);
   assert.equal(HERMES_PLUGIN_API_ROUTE_SPECS[0].path, "/api/hermes-plugins");
   assert.match(String(HERMES_PLUGIN_API_ROUTE_SPECS[1].pathRegex), /hermes-plugins/);
-  assert.equal(HERMES_PLUGIN_API_ROUTE_SPECS[2].pathPrefix, "/api/hermes-plugins/codex-mobile/proxy");
+  assert.match(String(HERMES_PLUGIN_API_ROUTE_SPECS[2].pathRegex), /proxy/);
 }
 
 async function testListRoute() {
@@ -229,6 +229,44 @@ async function testCodexProxyPreservesLaunchCookieAndRedirect() {
   ]);
 }
 
+async function testWardrobeProxyUsesConfiguredLanUpstream() {
+  const fetchCalls = [];
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
+      },
+      pluginManifestUrl(id) {
+        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch(url, options = {}) {
+      fetchCalls.push({ url, options });
+      assert.equal(url, "http://192.168.10.99:8765/?embed=hermes&launch=wpl_once&workspaceId=owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/html; charset=utf-8" : "" },
+        text: () => Promise.resolve('<link rel="stylesheet" href="/styles.css"><script src="/app.js"></script>'),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/wardrobe/proxy/?embed=hermes&launch=wpl_once&workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body, /href="\/api\/hermes-plugins\/wardrobe\/proxy\/styles\.css"/);
+  assert.match(res.body, /src="\/api\/hermes-plugins\/wardrobe\/proxy\/app\.js"/);
+  assert.equal(fetchCalls[0].options.headers["x-hermes-plugin-workspace-id"], "owner");
+}
+
 async function run() {
   await testSpecs();
   await testListRoute();
@@ -238,6 +276,7 @@ async function run() {
   await testWorkspaceBlockStopsRoute();
   await testCodexProxyRewritesHtmlAndUsesUpstream();
   await testCodexProxyPreservesLaunchCookieAndRedirect();
+  await testWardrobeProxyUsesConfiguredLanUpstream();
 }
 
 run().catch((err) => {

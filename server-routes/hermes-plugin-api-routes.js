@@ -33,19 +33,19 @@ const HERMES_PLUGIN_API_ROUTE_SPECS = Object.freeze([
     tags: ["plugin", "manifest"],
   },
   {
-    id: "hermes-plugin-codex-mobile-proxy",
+    id: "hermes-plugin-same-origin-proxy",
     method: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    pathPrefix: "/api/hermes-plugins/codex-mobile/proxy",
+    pathRegex: /^\/api\/hermes-plugins\/[^/]+\/proxy(?:\/|$)/,
     group: "plugins",
     moduleKey: "hermes-plugins",
-    handlerKey: "codexMobileProxy",
-    summary: "Proxy the local Codex Mobile plugin through the Hermes same-origin host.",
+    handlerKey: "sameOriginProxy",
+    summary: "Proxy a local embedded plugin through the Hermes same-origin host.",
     riskLevel: "medium",
     authMode: "none",
     authRequired: false,
     workspaceScoped: true,
     resourceTypes: ["plugin", "proxy"],
-    tags: ["plugin", "codex-mobile", "proxy"],
+    tags: ["plugin", "proxy"],
   },
 ]);
 
@@ -97,27 +97,36 @@ function createHermesPluginApiRoutes(deps = {}) {
     return match ? decodeURIComponent(match[1]) : "";
   }
 
-  function codexProxyUpstreamBase() {
+  function pluginProxyUpstreamBase(pluginId) {
     if (typeof deps.hermesPluginService?.pluginManifestUrl === "function") {
-      const value = deps.hermesPluginService.pluginManifestUrl("codex-mobile");
+      const value = deps.hermesPluginService.pluginManifestUrl(pluginId);
       try {
         return new URL(value).origin;
       } catch (_) {
         return "";
       }
     }
-    return process.env.HERMES_MOBILE_CODEX_PLUGIN_UPSTREAM_ORIGIN || "http://127.0.0.1:8787";
+    return "";
   }
 
   function requestedProxyWorkspaceId(req, url) {
     return url?.searchParams?.get("workspaceId") || req.headers?.["x-hermes-plugin-workspace-id"] || "owner";
   }
 
-  function proxyTargetUrl(url) {
-    const prefix = "/api/hermes-plugins/codex-mobile/proxy";
+  function requestedProxyPluginId(url) {
+    const match = String(url?.pathname || "").match(/^\/api\/hermes-plugins\/([^/]+)\/proxy(?:\/|$)/);
+    return match ? decodeURIComponent(match[1]) : "";
+  }
+
+  function pluginProxyPrefix(pluginId) {
+    return `/api/hermes-plugins/${encodeURIComponent(pluginId)}/proxy`;
+  }
+
+  function proxyTargetUrl(url, pluginId) {
+    const prefix = pluginProxyPrefix(pluginId);
     const pathname = String(url?.pathname || "");
     const upstreamPath = pathname.startsWith(prefix) ? pathname.slice(prefix.length) || "/" : "/";
-    return new URL(`${upstreamPath}${url?.search || ""}`, codexProxyUpstreamBase()).toString();
+    return new URL(`${upstreamPath}${url?.search || ""}`, pluginProxyUpstreamBase(pluginId)).toString();
   }
 
   function responseHeader(response, name) {
@@ -130,12 +139,12 @@ function createHermesPluginApiRoutes(deps = {}) {
     return value ? [value] : [];
   }
 
-  function rewriteCodexProxyText(text = "") {
-    const prefix = "/api/hermes-plugins/codex-mobile/proxy";
+  function rewritePluginProxyText(text = "", pluginId = "") {
+    const prefix = pluginProxyPrefix(pluginId);
     return String(text)
-      .replace(/(href|src)=["']\/(?!\/|api\/hermes-plugins\/codex-mobile\/proxy\/)/g, `$1="${prefix}/`)
+      .replace(/(href|src)=["']\/(?!\/|api\/hermes-plugins\/[^/]+\/proxy\/)/g, `$1="${prefix}/`)
       .replace(/url\(\s*["']?\/(?!\/)/g, `url("${prefix}/`)
-      .replace(/(["'`])\/api\/(?!hermes-plugins\/codex-mobile\/proxy\/)/g, `$1${prefix}/api/`)
+      .replace(/(["'`])\/api\/(?!hermes-plugins\/[^/]+\/proxy\/)/g, `$1${prefix}/api/`)
       .replace(/(["'`])\/manifest\.json/g, `$1${prefix}/manifest.json`)
       .replace(/(["'`])\/icons\//g, `$1${prefix}/icons/`)
       .replace(/(["'`])\/uploads\//g, `$1${prefix}/uploads/`);
@@ -147,7 +156,12 @@ function createHermesPluginApiRoutes(deps = {}) {
     return Buffer.concat(chunks);
   }
 
-  async function handleCodexProxy(req, res, url) {
+  async function handlePluginProxy(req, res, url) {
+    const pluginId = requestedProxyPluginId(url);
+    if (!pluginId || !pluginProxyUpstreamBase(pluginId)) {
+      deps.sendJson(res, 404, { ok: false, error: "plugin_proxy_not_found" });
+      return;
+    }
     const workspaceId = requestedProxyWorkspaceId(req, url);
     const fetchImpl = deps.fetch || global.fetch;
     if (typeof fetchImpl !== "function") {
@@ -163,7 +177,7 @@ function createHermesPluginApiRoutes(deps = {}) {
     }
     headers["x-hermes-plugin-workspace-id"] = workspaceId;
     const body = ["GET", "HEAD"].includes(method.toUpperCase()) ? undefined : await readRequestBody(req);
-    const upstream = await fetchImpl(proxyTargetUrl(url), { method, headers, body });
+    const upstream = await fetchImpl(proxyTargetUrl(url, pluginId), { method, headers, body });
     const contentType = responseHeader(upstream, "content-type");
     const outHeaders = { "Content-Type": contentType || "application/octet-stream" };
     const setCookies = responseSetCookies(upstream);
@@ -171,8 +185,8 @@ function createHermesPluginApiRoutes(deps = {}) {
     const location = responseHeader(upstream, "location");
     if (location) {
       try {
-        const target = new URL(location, codexProxyUpstreamBase());
-        outHeaders.Location = `/api/hermes-plugins/codex-mobile/proxy${target.pathname}${target.search}`;
+        const target = new URL(location, pluginProxyUpstreamBase(pluginId));
+        outHeaders.Location = `${pluginProxyPrefix(pluginId)}${target.pathname}${target.search}`;
       } catch (_) {
         outHeaders.Location = location;
       }
@@ -180,7 +194,7 @@ function createHermesPluginApiRoutes(deps = {}) {
     if (/text\/html|javascript|ecmascript|text\/css|application\/json/i.test(contentType || "")) {
       const text = await upstream.text();
       const rewritten = /text\/html|javascript|ecmascript|text\/css/i.test(contentType || "")
-        ? rewriteCodexProxyText(text)
+        ? rewritePluginProxyText(text, pluginId)
         : text;
       res.writeHead(upstream.status || 200, outHeaders);
       res.end(rewritten);
@@ -217,7 +231,7 @@ function createHermesPluginApiRoutes(deps = {}) {
     if (!route) return { handled: false };
     if (route.id === "hermes-plugins-list") await handleList(req, res, url);
     else if (route.id === "hermes-plugin-manifest") await handleManifest(req, res, url);
-    else if (route.id === "hermes-plugin-codex-mobile-proxy") await handleCodexProxy(req, res, url);
+    else if (route.id === "hermes-plugin-same-origin-proxy") await handlePluginProxy(req, res, url);
     else return { handled: false };
     return { handled: true, route };
   }

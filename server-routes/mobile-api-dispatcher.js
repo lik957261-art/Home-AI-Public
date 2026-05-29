@@ -1,7 +1,7 @@
 "use strict";
 
 const WEIXIN_INGRESS_PATH_PREFIX = "/api/ingress/weixin/";
-const CODEX_MOBILE_PLUGIN_PROXY_PATH_PREFIX = "/api/hermes-plugins/codex-mobile/proxy";
+const EMBEDDED_PLUGIN_PROXY_PATH_REGEX = /^\/api\/hermes-plugins\/[^/]+\/proxy(?:\/|$)/;
 
 const MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE = Object.freeze([
   Object.freeze({ key: "systemApiRoutes", passAuth: false }),
@@ -107,7 +107,7 @@ function createMobileApiDispatcher(deps = {}) {
       if (routeWasHandled(ingressResult)) return ingressResult;
     }
 
-    if (url.pathname.startsWith(CODEX_MOBILE_PLUGIN_PROXY_PATH_PREFIX)) {
+    if (EMBEDDED_PLUGIN_PROXY_PATH_REGEX.test(url.pathname)) {
       const proxyResult = await deps.hermesPluginApiRoutes.handle(req, res, url);
       if (routeWasHandled(proxyResult)) return proxyResult;
     }
@@ -141,7 +141,7 @@ function createMobileApiDispatcher(deps = {}) {
 }
 
 module.exports = {
-  CODEX_MOBILE_PLUGIN_PROXY_PATH_PREFIX,
+  EMBEDDED_PLUGIN_PROXY_PATH_REGEX,
   WEIXIN_INGRESS_PATH_PREFIX,
   MOBILE_API_AUTHENTICATED_ROUTE_KEYS,
   MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE,

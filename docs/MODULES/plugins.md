@@ -59,13 +59,14 @@ local HTTP service, including `http://127.0.0.1:<port>` or another LAN-only
 upstream, but Hermes Mobile must not hand that upstream URL directly to a phone
 PWA iframe when it is not client-safe.
 
-For local-machine plugins such as Codex Mobile Web, Hermes Mobile should provide
-a same-origin proxy entry instead of asking the user to configure TLS or a
-reverse proxy. The browser sees an HTTPS Hermes path such as
-`/api/hermes-plugins/codex-mobile/proxy/...`; Hermes server-side code forwards
-that request to the local Codex HTTP upstream. Registering the Hermes origin in
-`frame-ancestors` is still required for direct external plugin entries, but it
-is not enough by itself to make an HTTP iframe valid inside an HTTPS PWA.
+For local or LAN plugins such as Codex Mobile Web and Wardrobe, Hermes Mobile
+should provide a same-origin proxy entry instead of asking the user to configure
+TLS or a reverse proxy. The browser sees an HTTPS Hermes path such as
+`/api/hermes-plugins/<plugin-id>/proxy/...`; Hermes server-side code forwards
+that request to the plugin's configured HTTP upstream. Registering the Hermes
+origin in `frame-ancestors` is still required for direct external plugin
+entries, but it is not enough by itself to make an HTTP iframe valid inside an
+HTTPS PWA.
 
 Plugin projects should support a deployment-owned public base URL setting, for
 example `<PLUGIN>_HERMES_PLUGIN_BASE_URL` or `<PLUGIN>_PUBLIC_BASE_URL`. The
@@ -84,8 +85,9 @@ in the iframe URL.
 Registration is not complete until a smoke check proves:
 
 - the manifest queried with the real Hermes HTTPS origin returns an HTTPS
-  `entry.url`;
-- `program_api.base_url` is HTTPS when used from the HTTPS Hermes PWA;
+  `entry.url` or a Hermes same-origin proxy URL;
+- `program_api.base_url` is HTTPS for direct external entries, or remains only a
+  server-side local/LAN upstream when Hermes returns a same-origin proxy URL;
 - `frame-ancestors` includes the same Hermes HTTPS origin;
 - a launch call returns a short-lived relative entry path and no long-lived
   secret;
@@ -256,6 +258,11 @@ Mobile tests. The plugin-side harness should prove:
 - HTTPS entry gate: when the manifest is queried with an HTTPS Hermes origin,
   the browser-facing `entry.url` is either HTTPS or a Hermes same-origin proxy
   URL. Localhost/LAN HTTP may remain only as a server-side upstream.
+- Same-origin proxy: local/LAN plugin proxies must be tested through the real
+  dispatcher path `/api/hermes-plugins/<plugin-id>/proxy/...`, not only by
+  invoking the plugin route handler directly. The test must cover HTML/JS/CSS
+  absolute path rewriting and launch/session cookie or redirect preservation
+  without printing short-lived launch tokens.
 - Embed mode: `/?embed=hermes` hides standalone app chrome and does not show a
   username/password login after a valid launch.
 - Navigation event: entering a secondary page sends

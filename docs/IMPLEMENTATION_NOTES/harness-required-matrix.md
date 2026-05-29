@@ -849,13 +849,19 @@ Required contract dimensions:
   `%USERPROFILE%\.codex-mobile-web\access_key` or configured override only for
   launch exchange, and must not expose Codex Mobile Access Keys, bearer headers,
   or launch-token secrets to the browser.
-- Codex Mobile is a local-machine plugin by default. Hermes Mobile must not
-  require the user to configure a separate HTTPS Codex service or reverse proxy.
-  When the HTTPS Hermes PWA embeds Codex, the manifest route should return a
-  Hermes same-origin proxy iframe URL and the proxy route should forward to the
-  local Codex HTTP upstream. Harness coverage must prove the browser-facing
-  iframe URL is same-origin, not `127.0.0.1`, and that proxied HTML rewrites
-  absolute static/API paths back through the proxy prefix.
+- Local/LAN plugins such as Codex Mobile and Wardrobe may use HTTP upstreams
+  only behind a Hermes same-origin proxy. Hermes Mobile must not require the
+  user to configure a separate HTTPS plugin service or reverse proxy for this
+  class. When the HTTPS Hermes PWA embeds them, the manifest route should return
+  a Hermes same-origin proxy iframe URL and the proxy route should forward to
+  the configured HTTP upstream. Harness coverage must prove the browser-facing
+  iframe URL is same-origin, not `127.0.0.1` or a LAN IP, and that proxied HTML
+  rewrites absolute static/API paths back through the per-plugin proxy prefix.
+- Same-origin plugin proxies must be validated through the real Mobile
+  dispatcher path, not only by direct route-handler calls. The dispatcher must
+  allow `/api/hermes-plugins/<plugin-id>/proxy/...` before browser auth so
+  iframe HTML/static/API requests can load, while manifest/list/launch issuance
+  remains behind the normal workspace access route.
 - Installed plugins default to Owner-only visibility. A non-Owner workspace may
   list or launch a plugin only after an explicit Owner authorization signal,
   such as a deployment authorized-workspace list or a plugin-specific
