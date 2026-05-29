@@ -159,14 +159,19 @@ as well as the plugin route module. Same-origin proxy launch tests must prove
 server-side `fetch` uses manual redirect handling, because automatic redirect
 following consumes launch `302` cookies before the browser can store them. Tests
 must also assert upstream cookie `Domain` is stripped and `Path` is rewritten to
-the plugin proxy prefix. Active embedded plugin hosts must hide the Hermes page
-header so plugin content is not double-framed; bottom navigation remains visible
-as the app-level escape hatch. Deployment smoke for this class must include the
-installed Android PWA launched from the home-screen icon. Opening the same
-URL in the Chrome/Safari address bar is explicitly not a valid PWA smoke,
-because Hermes Mobile shows a browser-shell guard page there and it does not
-exercise standalone storage, service-worker, navigation, or plugin iframe
-behavior.
+the plugin proxy prefix. The same-origin proxy must also rewrite plugin-owned
+image/static URLs in HTML, JavaScript, CSS, and JSON responses so absolute
+upstream image URLs and root-relative `/uploads`, `/media`, `/images`,
+`/assets`, and `/static` paths stay under
+`/api/hermes-plugins/<plugin-id>/proxy/...`; binary image requests through that
+path must be streamed with their original content type. Active embedded plugin
+hosts must hide the Hermes page header so plugin content is not double-framed;
+bottom navigation remains visible as the app-level escape hatch. Deployment
+smoke for this class must include the installed Android PWA launched from the
+home-screen icon. Opening the same URL in the Chrome/Safari address bar is
+explicitly not a valid PWA smoke, because Hermes Mobile shows a browser-shell
+guard page there and it does not exercise standalone storage, service-worker,
+navigation, or plugin iframe behavior.
 Embedded-plugin host tests must also cover the outer return layer: entering a
 plugin from a Hermes page records the source route, plugin internal
 `canGoBack=true` sends `hermes.plugin.back`, and plugin root /

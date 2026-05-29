@@ -367,6 +367,84 @@ async function testWardrobeProxyUsesConfiguredLanUpstream() {
   assert.equal(fetchCalls[0].options.headers["x-hermes-plugin-workspace-id"], "owner");
 }
 
+async function testPluginProxyRewritesJsonImageUrls() {
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
+      },
+      pluginManifestUrl(id) {
+        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch(url, options = {}) {
+      assert.equal(url, "http://192.168.10.99:8765/api/items/1?workspaceId=owner");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify({
+          imageUrl: "http://192.168.10.99:8765/uploads/item-1.jpg",
+          thumb: "/media/thumb-1.webp",
+          icon: "/static/icon.png",
+        })),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/wardrobe/proxy/api/items/1?workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body, /"imageUrl":"\/api\/hermes-plugins\/wardrobe\/proxy\/uploads\/item-1\.jpg"/);
+  assert.match(res.body, /"thumb":"\/api\/hermes-plugins\/wardrobe\/proxy\/media\/thumb-1\.webp"/);
+  assert.match(res.body, /"icon":"\/api\/hermes-plugins\/wardrobe\/proxy\/static\/icon\.png"/);
+  assert.equal(res.body.includes("192.168.10.99"), false);
+}
+
+async function testPluginProxyForwardsBinaryImages() {
+  const body = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "codex-mobile", manifestUrl: "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "codex-mobile" });
+      },
+      pluginManifestUrl(id) {
+        return id === "codex-mobile" ? "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch(url) {
+      assert.equal(url, "http://127.0.0.1:8787/uploads/screenshot.jpg");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "image/jpeg" : "" },
+        arrayBuffer: () => Promise.resolve(body),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/codex-mobile/proxy/uploads/screenshot.jpg"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers["Content-Type"], "image/jpeg");
+  assert.deepEqual(Buffer.from(res.body), body);
+}
+
 async function run() {
   await testSpecs();
   await testListRoute();
@@ -379,6 +457,8 @@ async function run() {
   await testCodexProxyPreservesLaunchCookieAndRedirect();
   await testWardrobeProxyRewritesSessionCookieScope();
   await testWardrobeProxyUsesConfiguredLanUpstream();
+  await testPluginProxyRewritesJsonImageUrls();
+  await testPluginProxyForwardsBinaryImages();
 }
 
 run().catch((err) => {

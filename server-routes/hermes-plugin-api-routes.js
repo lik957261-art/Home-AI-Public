@@ -181,15 +181,35 @@ function createHermesPluginApiRoutes(deps = {}) {
     return rewritten.join("; ");
   }
 
-  function rewritePluginProxyText(text = "", pluginId = "") {
+  function escapeRegExp(value = "") {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function rewritePluginProxyText(text = "", pluginId = "", upstreamBase = "") {
     const prefix = pluginProxyPrefix(pluginId);
-    return String(text)
+    let out = String(text);
+    const upstreamOrigin = (() => {
+      try {
+        return new URL(upstreamBase).origin;
+      } catch (_) {
+        return "";
+      }
+    })();
+    if (upstreamOrigin) {
+      out = out.replace(new RegExp(`${escapeRegExp(upstreamOrigin)}(?=/)`, "g"), prefix);
+    }
+    return out
       .replace(/(href|src)=["']\/(?!\/|api\/hermes-plugins\/[^/]+\/proxy\/)/g, `$1="${prefix}/`)
+      .replace(/(srcset)=["']\/(?!\/|api\/hermes-plugins\/[^/]+\/proxy\/)/g, `$1="${prefix}/`)
       .replace(/url\(\s*["']?\/(?!\/)/g, `url("${prefix}/`)
       .replace(/(["'`])\/api\/(?!hermes-plugins\/[^/]+\/proxy\/)/g, `$1${prefix}/api/`)
       .replace(/(["'`])\/manifest\.json/g, `$1${prefix}/manifest.json`)
       .replace(/(["'`])\/icons\//g, `$1${prefix}/icons/`)
-      .replace(/(["'`])\/uploads\//g, `$1${prefix}/uploads/`);
+      .replace(/(["'`])\/uploads\//g, `$1${prefix}/uploads/`)
+      .replace(/(["'`])\/media\//g, `$1${prefix}/media/`)
+      .replace(/(["'`])\/images\//g, `$1${prefix}/images/`)
+      .replace(/(["'`])\/assets\//g, `$1${prefix}/assets/`)
+      .replace(/(["'`])\/static\//g, `$1${prefix}/static/`);
   }
 
   async function readRequestBody(req) {
@@ -230,6 +250,7 @@ function createHermesPluginApiRoutes(deps = {}) {
     }
     headers["x-hermes-plugin-workspace-id"] = workspaceId;
     const body = ["GET", "HEAD"].includes(method.toUpperCase()) ? undefined : await readRequestBody(req);
+    const upstreamBase = pluginProxyUpstreamBase(pluginId);
     const upstream = await fetchImpl(proxyTargetUrl(url, pluginId), { method, headers, body, redirect: "manual" });
     const contentType = responseHeader(upstream, "content-type");
     const outHeaders = { "Content-Type": contentType || "application/octet-stream" };
@@ -248,9 +269,7 @@ function createHermesPluginApiRoutes(deps = {}) {
     }
     if (/text\/html|javascript|ecmascript|text\/css|application\/json/i.test(contentType || "")) {
       const text = await upstream.text();
-      const rewritten = /text\/html|javascript|ecmascript|text\/css/i.test(contentType || "")
-        ? rewritePluginProxyText(text, pluginId)
-        : text;
+      const rewritten = rewritePluginProxyText(text, pluginId, upstreamBase);
       res.writeHead(upstream.status || 200, outHeaders);
       res.end(rewritten);
       return;
