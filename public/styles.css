@@ -1265,11 +1265,14 @@ button {
 }
 
 .embedded-plugin-shell {
+  position: relative;
   width: 100%;
   height: 100%;
   min-height: calc(100dvh - 132px);
   display: grid;
-  background: var(--ui-panel);
+  overflow: hidden;
+  color-scheme: light dark;
+  background: var(--ui-page);
 }
 
 .embedded-plugin-frame {
@@ -1278,7 +1281,23 @@ button {
   height: 100%;
   min-height: calc(100dvh - 132px);
   border: 0;
-  background: var(--ui-panel);
+  background: var(--ui-page);
+  color-scheme: light dark;
+  opacity: 1;
+  transition: opacity 120ms ease;
+}
+
+.embedded-plugin-shell.is-loading::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--ui-page);
+  pointer-events: none;
+}
+
+.embedded-plugin-shell.is-loading .embedded-plugin-frame {
+  opacity: 0;
 }
 
 .codex-mode .conversation {

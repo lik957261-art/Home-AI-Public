@@ -165,6 +165,10 @@ upstream image URLs and root-relative `/uploads`, `/media`, `/images`,
 `/assets`, and `/static` paths stay under
 `/api/hermes-plugins/<plugin-id>/proxy/...`; explicit plugin resource APIs such
 as `/api/uploads/file` and `/api/files/preview/content` must also be proxied.
+Wardrobe JSON photo paths such as `/api/photos/<id>/content`,
+`/api/outfit-photos/<id>/content`, `/api/featured-look-photos/<id>/content`,
+and `/api/v1/items/<code>/photos/...` are resource URLs and must be proxied
+rather than resolved against Hermes Mobile's own `/api` namespace.
 JSON responses must be parsed and rewritten structurally so thread/chat prose,
 code snippets, and ordinary `/api` strings are not changed. Binary image
 requests through that path must be streamed with their original content type.
@@ -175,7 +179,14 @@ smoke for this class must include the installed Android PWA launched from the
 home-screen icon. Opening the same URL in the Chrome/Safari address bar is
 explicitly not a valid PWA smoke, because Hermes Mobile shows a browser-shell
 guard page there and it does not exercise standalone storage, service-worker,
-navigation, or plugin iframe behavior.
+navigation, or plugin iframe behavior. Dark-mode plugin-tab smoke must also
+assert that a newly created iframe is hidden behind a theme-colored shell until
+load, so Codex/Wardrobe tab entry does not flash a white browser default
+surface. Refresh stability assertions must prove an existing iframe remains
+visible while the host fetches a fresh launch URL, non-forced boot warmup
+`refresh_required` messages are suppressed, and entering plugin mode clears
+stale keyboard viewport metrics so the chat composer returns to its normal
+bottom alignment.
 Embedded-plugin host tests must also cover the outer return layer: entering a
 plugin from a Hermes page records the source route, plugin internal
 `canGoBack=true` sends `hermes.plugin.back`, and plugin root /

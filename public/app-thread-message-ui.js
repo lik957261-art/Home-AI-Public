@@ -89,6 +89,7 @@ async function openProjectTask(sourceThreadId, taskGroupId) {
 function configureComposer(options = {}) {
   const enabled = Boolean(options.enabled);
   const searchMode = isChatSearchMode();
+  if (!enabled && typeof clearKeyboardViewportMetrics === "function") clearKeyboardViewportMetrics();
   setComposerEditorEnabled(enabled || searchMode);
   setComposerPlaceholder(searchMode ? "搜索聊天" : composerPlaceholder(options.placeholder || "Message Hermes..."));
   $("attachFile").disabled = searchMode ? false : !enabled;

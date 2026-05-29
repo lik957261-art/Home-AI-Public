@@ -337,6 +337,18 @@ Required harness dimensions:
   exchange states should use the blank persistent plugin host, not an
   intermediate Hermes-owned loading card, left-aligned text, or preflight page.
   Explanatory UI is allowed only for real plugin diagnostics.
+- Plugin iframe creation must not flash a white browser default surface in dark
+  mode. New iframes should be hidden behind a theme-colored host shell until the
+  iframe load event, and the installed-PWA visual smoke must include dark-mode
+  tab entry for at least one embedded plugin.
+- Plugin refresh must be one visually stable swap. If a mounted iframe exists,
+  the host should keep it visible while fetching a fresh manifest/launch URL and
+  suppress non-forced `refresh_required` requests during the frame boot warmup.
+  Repeated boot-time refresh messages must not produce multiple blank/loading
+  surfaces or vertical layout jumps.
+- Entering an embedded plugin disables the chat composer and must clear stale
+  keyboard viewport metrics. Returning from plugin/native secondary pages must
+  not leave the chat composer shifted downward by an old mobile keyboard inset.
 - When an embedded plugin host is active, the Hermes page header must be hidden
   so the plugin is not double-framed by two top bars. Plugin root pages keep
   the bottom navigation as the host-level escape path, but plugin secondary
@@ -1004,7 +1016,11 @@ Required contract dimensions:
   Standalone absolute upstream URLs and root-relative `/uploads`, `/media`,
   `/images`, `/assets`, and `/static` paths should be rewritten through that
   prefix. Explicit resource API paths such as `/api/uploads/file` and
-  `/api/files/preview/content` should also be rewritten, while other `/api`
+  `/api/files/preview/content` should also be rewritten. Wardrobe image paths
+  returned in JSON, including `/api/photos/<id>/content`,
+  `/api/outfit-photos/<id>/content`, `/api/featured-look-photos/<id>/content`,
+  and `/api/v1/items/<code>/photos/...`, are resource paths and must be proxied
+  instead of leaking back to Hermes Mobile's own `/api` namespace. Other `/api`
   strings and prose fields such as chat/thread text remain valid JSON and
   binary image responses preserve their content type.
 - Same-origin plugin proxies must handle launch redirects manually. Automatic

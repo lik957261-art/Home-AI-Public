@@ -218,7 +218,12 @@ function createHermesPluginApiRoutes(deps = {}) {
     if (text === pluginProxyPrefix(pluginId) || text.startsWith(`${pluginProxyPrefix(pluginId)}/`)) return false;
     return text.startsWith("/icons/")
       || text.startsWith("/api/uploads/")
+      || text.startsWith("/api/generated-images/file")
       || text.startsWith("/api/files/preview/content")
+      || text.startsWith("/api/photos/")
+      || text.startsWith("/api/outfit-photos/")
+      || text.startsWith("/api/featured-look-photos/")
+      || /^\/api\/v1\/items\/[^/]+\/photos\/[^?#]+(?:[?#].*)?$/.test(text)
       || text.startsWith("/uploads/")
       || text.startsWith("/media/")
       || text.startsWith("/images/")

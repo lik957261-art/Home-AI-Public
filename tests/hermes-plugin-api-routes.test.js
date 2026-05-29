@@ -432,7 +432,12 @@ async function testPluginProxyDoesNotCorruptJsonProse() {
           text: 'Do not rewrite prose like CSS url(/uploads/example.jpg) inside a thread message.',
           imageUrl: "/uploads/item-1.jpg",
           uploadUrl: "/api/uploads/file?path=input.jpg",
+          generatedImageUrl: "/api/generated-images/file?id=image-1",
           previewContentUrl: "/api/files/preview/content?threadId=thread-1&path=out.png",
+          wardrobePhotoUrl: "/api/photos/12/content?thumb=1",
+          wardrobeItemThumbnailUrl: "/api/v1/items/LP-1/photos/primary/thumbnail",
+          wardrobeOutfitPhotoUrl: "/api/outfit-photos/44/content",
+          wardrobeFeaturedPhotoUrl: "/api/featured-look-photos/45/content",
           apiText: "/api/threads/thread-1",
           apiOriginText: "http://127.0.0.1:8787/api/threads/thread-1",
           nested: {
@@ -455,7 +460,12 @@ async function testPluginProxyDoesNotCorruptJsonProse() {
   assert.equal(body.text, "Do not rewrite prose like CSS url(/uploads/example.jpg) inside a thread message.");
   assert.equal(body.imageUrl, "/api/hermes-plugins/codex-mobile/proxy/uploads/item-1.jpg");
   assert.equal(body.uploadUrl, "/api/hermes-plugins/codex-mobile/proxy/api/uploads/file?path=input.jpg");
+  assert.equal(body.generatedImageUrl, "/api/hermes-plugins/codex-mobile/proxy/api/generated-images/file?id=image-1");
   assert.equal(body.previewContentUrl, "/api/hermes-plugins/codex-mobile/proxy/api/files/preview/content?threadId=thread-1&path=out.png");
+  assert.equal(body.wardrobePhotoUrl, "/api/hermes-plugins/codex-mobile/proxy/api/photos/12/content?thumb=1");
+  assert.equal(body.wardrobeItemThumbnailUrl, "/api/hermes-plugins/codex-mobile/proxy/api/v1/items/LP-1/photos/primary/thumbnail");
+  assert.equal(body.wardrobeOutfitPhotoUrl, "/api/hermes-plugins/codex-mobile/proxy/api/outfit-photos/44/content");
+  assert.equal(body.wardrobeFeaturedPhotoUrl, "/api/hermes-plugins/codex-mobile/proxy/api/featured-look-photos/45/content");
   assert.equal(body.apiText, "/api/threads/thread-1");
   assert.equal(body.apiOriginText, "http://127.0.0.1:8787/api/threads/thread-1");
   assert.equal(body.nested.thumb, "/api/hermes-plugins/codex-mobile/proxy/media/thumb-1.webp");

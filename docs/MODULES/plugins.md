@@ -76,7 +76,10 @@ prose in chat/thread/message fields. This includes absolute upstream URLs such
 as `http://<plugin-host>/uploads/...` and root-relative image/static paths such
 as `/uploads/...`, `/media/...`, `/images/...`, `/assets/...`, and `/static/...`.
 It also includes explicit plugin resource APIs such as `/api/uploads/file` and
-`/api/files/preview/content`.
+`/api/files/preview/content`, plus Wardrobe photo APIs such as
+`/api/photos/<id>/content`, `/api/outfit-photos/<id>/content`,
+`/api/featured-look-photos/<id>/content`, and
+`/api/v1/items/<code>/photos/...`.
 The rewritten browser-facing path must stay under
 `/api/hermes-plugins/<plugin-id>/proxy/...`. Binary image responses are then
 fetched through that proxy path and streamed back with their original content
@@ -293,6 +296,21 @@ The host-side executable harness is
 `tests/embedded-plugin-refresh-harness.test.js`. It simulates iframe
 `postMessage` events and asserts wrong-origin rejection, active iframe rebuild,
 inactive-tab invalidation, and bounded route-hint preservation.
+
+In dark mode, the host must not expose the browser's default white iframe
+surface while a fresh plugin frame is being created. Hermes Mobile keeps new
+embedded iframes hidden behind a theme-colored shell until the iframe `load`
+event, then reveals the frame. Plugin host CSS tests must cover this loading
+shell so future plugin tabs do not regress into a white flash.
+
+Plugin refreshes must also be visually stable. When a mounted iframe asks for a
+fresh launch, Hermes keeps the existing iframe visible while fetching the new
+manifest/launch URL, then swaps frames once. Refresh requests emitted during the
+first few seconds after frame creation are suppressed unless explicitly forced,
+because they commonly represent plugin-side boot reconciliation rather than a
+real expired session. Entering a plugin tab must clear stale keyboard viewport
+metrics so returning to chat does not leave the composer shifted by an old
+mobile keyboard offset.
 
 Codex Mobile Web uses:
 

@@ -163,6 +163,11 @@ function requestEmbeddedPluginRefresh(def, payload = {}) {
     record.lastRefreshSuppressedAt = now;
     return false;
   }
+  const warmupMs = Number(def?.refreshWarmupSuppressMs || 10000);
+  if (warmupMs > 0 && record.shellNode && now - Number(record.frameCreatedAt || 0) < warmupMs && !payload.force) {
+    record.lastRefreshSuppressedAt = now;
+    return false;
+  }
   const cooldownMs = Number(def?.refreshCooldownMs || 60000);
   if (cooldownMs > 0 && now - Number(record.lastRefreshRequestedAt || 0) < cooldownMs) {
     record.lastRefreshSuppressedAt = now;
@@ -351,6 +356,7 @@ function embeddedPluginHost(def) {
 
 function setEmbeddedPluginHostVisible(def, visible) {
   const host = embeddedPluginHost(def);
+  if (typeof clearKeyboardViewportMetrics === "function" && visible) clearKeyboardViewportMetrics();
   host.hidden = !visible;
   host.setAttribute("aria-hidden", visible ? "false" : "true");
   host.classList.toggle("active", visible);
@@ -402,8 +408,9 @@ function embeddedPluginFrameSrcUsesLaunchToken(frame) {
 function refreshEmbeddedPluginFrameFromFreshManifest(def) {
   const record = embeddedPluginRecord(def.id);
   if (!$("conversation") || record.loading) return;
-  discardEmbeddedPluginShell(def);
-  showEmbeddedPluginLoadingSurface(def);
+  const hasShell = Boolean(currentEmbeddedPluginShell(def));
+  if (hasShell) setEmbeddedPluginHostVisible(def, true);
+  else showEmbeddedPluginLoadingSurface(def);
   loadEmbeddedPluginManifest(def, { force: true }).catch(showError);
   updateNavigationControls();
   ensureVerticalScrollAffordance();
@@ -414,6 +421,8 @@ function scheduleEmbeddedPluginLaunchHealthCheck(def, frame, loadedAt = Date.now
   const record = embeddedPluginRecord(def.id);
   const seq = (record.frameHealthSeq || 0) + 1;
   record.frameHealthSeq = seq;
+  const timeoutMs = Math.max(0, Number(def?.launchHealthTimeoutMs || 30000));
+  if (!timeoutMs) return;
   window.setTimeout(() => {
     if (seq !== record.frameHealthSeq) return;
     if (state.viewMode !== def.viewMode) return;
@@ -421,16 +430,16 @@ function scheduleEmbeddedPluginLaunchHealthCheck(def, frame, loadedAt = Date.now
     if (!embeddedPluginFrameSrcUsesLaunchToken(frame)) return;
     if (Number(record.navigationLastAt || 0) >= loadedAt) return;
     requestEmbeddedPluginHealthRefresh(def);
-  }, 7000);
+  }, timeoutMs);
 }
 
 function bindEmbeddedPluginFrameHealth(def, frame) {
   if (!frame || frame.dataset.embeddedPluginHealthBound) return;
   frame.dataset.embeddedPluginHealthBound = "1";
   frame.addEventListener("load", () => {
+    frame.closest(".embedded-plugin-shell")?.classList.remove("is-loading");
     scheduleEmbeddedPluginLaunchHealthCheck(def, frame, Date.now());
   });
-  scheduleEmbeddedPluginLaunchHealthCheck(def, frame, Date.now());
 }
 
 function sendEmbeddedPluginBack(def = embeddedPluginDefByView()) {
@@ -487,7 +496,7 @@ function renderEmbeddedPluginUnavailable(def, manifest = embeddedPluginCurrentMa
 
 function renderEmbeddedPluginFrame(def, manifest) {
   return `
-    <div class="embedded-plugin-shell" data-plugin-id="${escapeHtml(def.id)}">
+    <div class="embedded-plugin-shell is-loading" data-plugin-id="${escapeHtml(def.id)}">
       <iframe
         class="embedded-plugin-frame"
         title="${escapeHtml(manifest.title || def.title)}"
@@ -588,6 +597,7 @@ function renderEmbeddedPluginView(def) {
     embeddedPluginHost(def).innerHTML = renderEmbeddedPluginFrame(def, pluginManifest);
     setEmbeddedPluginHostVisible(def, true);
     record.shellNode = embeddedPluginHost(def).querySelector(".embedded-plugin-shell");
+    record.frameCreatedAt = Date.now();
     bindEmbeddedPluginFrameHealth(def, embeddedPluginHost(def).querySelector(".embedded-plugin-frame"));
     if (embeddedPluginUsesLaunchToken(pluginManifest)) record.manifestFreshForFrame = false;
     updateNavigationControls();

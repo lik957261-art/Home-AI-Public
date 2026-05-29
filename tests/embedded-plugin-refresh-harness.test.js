@@ -150,6 +150,7 @@ function createHarness() {
       embeddedPluginRecord,
       ensureEmbeddedPluginNavigationBridge,
       embeddedPluginRefreshRequiredEventType,
+      requestEmbeddedPluginRefresh,
       scheduleEmbeddedPluginLaunchHealthCheck
     };
   `, sandbox);
@@ -209,6 +210,8 @@ function testRefreshRebuildsActivePluginWithBoundedRoute() {
   const harness = createHarness();
   const { def, record, shell } = harness.setupManifest();
   harness.sandbox.__pluginRefreshHarness.ensureEmbeddedPluginNavigationBridge(def);
+  record.frameCreatedAt = 1;
+  harness.sandbox.Date.now = () => 100000;
 
   harness.emit({
     type: "codex-mobile.plugin.refresh_required",
@@ -223,7 +226,7 @@ function testRefreshRebuildsActivePluginWithBoundedRoute() {
     },
   });
 
-  assert.equal(shell.removed, true);
+  assert.equal(shell.removed, false);
   assert.equal(record.checked, false);
   assert.equal(record.manifestFreshForFrame, false);
   assert.equal(record.canGoBack, false);
@@ -262,6 +265,7 @@ function testRefreshRequiredIsThrottled() {
   const harness = createHarness();
   const { def, record } = harness.setupManifest();
   harness.sandbox.__pluginRefreshHarness.ensureEmbeddedPluginNavigationBridge(def);
+  record.frameCreatedAt = 1;
 
   harness.sandbox.Date.now = () => 100000;
   harness.emit({ type: "codex-mobile.plugin.refresh_required", route: { name: "thread", threadId: "thread-1" } });
@@ -302,6 +306,23 @@ function testRefreshRequiredIgnoredDuringManifestLoad() {
   assert.equal(record.lastRefreshSuppressedAt, 200000);
 }
 
+function testRefreshRequiredIgnoredDuringFrameWarmup() {
+  const harness = createHarness();
+  const { def, record, shell } = harness.setupManifest();
+  harness.sandbox.__pluginRefreshHarness.ensureEmbeddedPluginNavigationBridge(def);
+  record.shellNode = shell;
+  record.frameCreatedAt = 400000;
+  record.loading = false;
+  harness.sandbox.Date.now = () => 405000;
+
+  harness.emit({ type: "codex-mobile.plugin.refresh_required", route: { name: "thread", threadId: "thread-warmup" } });
+
+  assert.equal(harness.calls.api.length, 0);
+  assert.equal(shell.removed, false);
+  assert.equal(record.openRoute, undefined);
+  assert.equal(record.lastRefreshSuppressedAt, 405000);
+}
+
 function testLaunchHealthRefreshUsesCooldown() {
   const harness = createHarness();
   const { def, record, shell } = harness.setupManifest();
@@ -311,7 +332,7 @@ function testLaunchHealthRefreshUsesCooldown() {
 
   harness.sandbox.__pluginRefreshHarness.scheduleEmbeddedPluginLaunchHealthCheck(def, frame, 300000);
   assert.equal(harness.calls.timers.length, 1);
-  assert.equal(harness.calls.timers[0].delayMs, 7000);
+  assert.equal(harness.calls.timers[0].delayMs, 30000);
   harness.calls.timers[0].callback();
 
   assert.equal(harness.calls.api.length, 1);
@@ -336,6 +357,7 @@ testRefreshRebuildsActivePluginWithBoundedRoute();
 testRefreshInvalidatesInactivePluginWithoutFetching();
 testRefreshRequiredIsThrottled();
 testRefreshRequiredIgnoredDuringManifestLoad();
+testRefreshRequiredIgnoredDuringFrameWarmup();
 testLaunchHealthRefreshUsesCooldown();
 
 console.log("embedded plugin refresh harness tests passed");
