@@ -53,12 +53,19 @@ other has passed:
 2. **Entry scheme gate**: the plugin manifest returns an iframe entry URL that
    the Hermes Mobile page is allowed to embed.
 
-When Hermes Mobile runs as HTTPS, every production iframe entry returned by the
-plugin manifest must also be HTTPS. A plugin may keep `http://127.0.0.1:<port>`
-or `http://localhost:<port>` for local development, but it must not return that
-HTTP entry to an HTTPS Hermes origin. Registering the Hermes origin in
-`frame-ancestors` is not enough to make an HTTP iframe valid inside an HTTPS
-PWA.
+When Hermes Mobile runs as HTTPS, the browser-facing iframe entry returned to
+the frontend must be a secure Hermes-reachable URL. A plugin may still run as a
+local HTTP service, including `http://127.0.0.1:<port>` or another LAN-only
+upstream, but Hermes Mobile must not hand that upstream URL directly to a phone
+PWA iframe when it is not client-safe.
+
+For local-machine plugins such as Codex Mobile Web, Hermes Mobile should provide
+a same-origin proxy entry instead of asking the user to configure TLS or a
+reverse proxy. The browser sees an HTTPS Hermes path such as
+`/api/hermes-plugins/codex-mobile/proxy/...`; Hermes server-side code forwards
+that request to the local Codex HTTP upstream. Registering the Hermes origin in
+`frame-ancestors` is still required for direct external plugin entries, but it
+is not enough by itself to make an HTTP iframe valid inside an HTTPS PWA.
 
 Plugin projects should support a deployment-owned public base URL setting, for
 example `<PLUGIN>_HERMES_PLUGIN_BASE_URL` or `<PLUGIN>_PUBLIC_BASE_URL`. The
@@ -85,9 +92,9 @@ Registration is not complete until a smoke check proves:
 - the installed PWA opens the iframe without browser mixed-content errors,
   browser chrome, or a fallback login page.
 
-If a plugin cannot provide an HTTPS entry for an HTTPS Hermes deployment,
-Hermes Mobile should show a bounded setup diagnostic instead of trying to
-embed it.
+If a plugin cannot provide either a secure browser-facing entry or a Hermes
+same-origin proxy entry for an HTTPS Hermes deployment, Hermes Mobile should
+show a bounded setup diagnostic instead of trying to embed it.
 
 ## Auth And Launch
 
@@ -197,9 +204,9 @@ Required plugin-side behavior:
 - Provide a registration/config route or admin workflow for allowing the Hermes
   origin in frame embedding. In HTTPS production, this must include the real
   Hermes origin, not a hard-coded personal domain.
-- Provide a configurable HTTPS public/plugin base URL for HTTPS Hermes
-  deployments. The manifest must not return `http://127.0.0.1` or other HTTP
-  iframe entries when queried for an HTTPS Hermes origin.
+- For external plugins, provide a configurable HTTPS public/plugin base URL for
+  HTTPS Hermes deployments. For local plugins, integrate through a Hermes
+  same-origin proxy so the browser never receives a `127.0.0.1` iframe URL.
 - Send bounded route state to the parent with
   `<plugin-id>.plugin.navigation`, including `canGoBack` and a small route
   object. Do not send private page content or raw business data.
@@ -247,8 +254,8 @@ Mobile tests. The plugin-side harness should prove:
 - Frame policy: the configured Hermes origin is allowed by `frame-ancestors`;
   unregistered origins are rejected or reported.
 - HTTPS entry gate: when the manifest is queried with an HTTPS Hermes origin,
-  `entry.url` and `program_api.base_url` use HTTPS rather than localhost or any
-  HTTP origin.
+  the browser-facing `entry.url` is either HTTPS or a Hermes same-origin proxy
+  URL. Localhost/LAN HTTP may remain only as a server-side upstream.
 - Embed mode: `/?embed=hermes` hides standalone app chrome and does not show a
   username/password login after a valid launch.
 - Navigation event: entering a secondary page sends
@@ -268,11 +275,12 @@ Mobile tests. The plugin-side harness should prove:
 - Embedded plugins must stay in the Hermes Mobile app window.
 - No `window.open`, `target=_blank`, browser-shell handoff, or external preview
   window is allowed for plugin-owned secondary pages.
-- HTTPS Hermes pages must not silently render HTTP iframe entries. Show a
-  bounded diagnostic unless production is configured with an HTTPS entry.
+- HTTPS Hermes pages must not silently render raw HTTP iframe entries. Use a
+  Hermes same-origin proxy for local plugins or show a bounded diagnostic.
 - A passing frame-ancestor registration is not enough for release. HTTPS
-  deployments must also prove the plugin manifest advertises an HTTPS iframe
-  entry and HTTPS Program API base.
+  deployments must also prove the plugin manifest advertises a secure
+  browser-facing iframe entry: HTTPS for external entries, or same-origin proxy
+  for local HTTP upstreams.
 - Frame-ancestor failures should be detected through manifest/entry probing and
   surfaced as setup diagnostics.
 - Mobile browser-shell sessions must not be treated as installed-PWA success.
@@ -290,7 +298,9 @@ Required coverage for host-only changes:
 - no `window.open` / `target=_blank` browser handoff;
 - no raw secrets or long-lived keys in frontend payloads or docs;
 - short launch URL usage;
-- HTTPS parent to HTTPS plugin entry validation;
+- HTTPS parent to secure browser-facing plugin entry validation;
+- local HTTP plugin proxy coverage when the upstream is `127.0.0.1` or another
+  server-only address;
 - persistent iframe host with no DOM reparenting;
 - clean blank host during manifest/launch loading;
 - postMessage navigation/back contract with origin validation;
@@ -343,14 +353,15 @@ The browser receives only the short launch entry URL returned by Codex Mobile
 Web. Raw Codex Mobile Access Keys must not be exposed in frontend state,
 iframe URLs, docs, handoffs, logs, screenshots, or test fixtures.
 
-For HTTPS Hermes PWA deployments, Codex Mobile Web must also be configured with
-an HTTPS plugin/public base URL on the Codex side, for example
-`CODEX_MOBILE_HERMES_PLUGIN_BASE_URL` or `CODEX_MOBILE_PUBLIC_BASE_URL`. The
-Codex manifest must then return HTTPS `entry.url` and HTTPS
-`program_api.base_url` when queried with the real Hermes origin. The local
-Hermes-side manifest URL may still point at `http://127.0.0.1:8787` for the
-server-to-server manifest fetch, but the browser-facing iframe entry must not
-remain `http://127.0.0.1:8787/?embed=hermes`.
+For HTTPS Hermes PWA deployments, Codex Mobile Web is expected to remain a local
+HTTP service. Hermes Mobile therefore rewrites the browser-facing Codex entry to
+the same-origin proxy path under `/api/hermes-plugins/codex-mobile/proxy/...`.
+The local Hermes-side manifest URL and Codex upstream may still point at
+`http://127.0.0.1:8787`; that address is server-side only and must not be the
+iframe `src` seen by a phone browser. If a deployment chooses to expose Codex
+through its own HTTPS reverse proxy, `CODEX_MOBILE_HERMES_PLUGIN_BASE_URL` or
+`CODEX_MOBILE_PUBLIC_BASE_URL` can still be used on the Codex side, but that is
+not required for the default local plugin setup.
 
 ## Paste-To-Plugin-Project Template
 
@@ -385,12 +396,12 @@ Required work:
      frame-ancestors / CSP.
    - Do not hard-code one personal domain. Other deployments will use their own
      HTTPS origins.
-   - If Hermes is HTTPS, the plugin manifest must return HTTPS entry.url and
-     HTTPS program_api.base_url. Registering frame-ancestors alone is not
+   - If Hermes is HTTPS, the browser-facing iframe URL must be HTTPS or a
+     Hermes same-origin proxy URL. Registering frame-ancestors alone is not
      sufficient.
-   - Provide a deployment-owned public/plugin base URL environment variable and
-     use it for browser-facing iframe URLs. Keep localhost HTTP only for local
-     development or server-to-server manifest fetches.
+   - External plugin deployments should provide a deployment-owned
+     public/plugin base URL environment variable. Local plugins may remain
+     localhost HTTP upstreams when Hermes Mobile owns the same-origin proxy.
 
 4. Embedded mode
    - /?embed=hermes should hide duplicate standalone app chrome and login splash

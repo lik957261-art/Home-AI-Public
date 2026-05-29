@@ -373,7 +373,7 @@ async function testCodexLaunchEntryUsesServerSideKey() {
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"launch_token"|test-key/i);
 }
 
-async function testHttpsHermesBlocksHttpCodexEntryAfterLaunch() {
+async function testHttpsHermesUsesSameOriginProxyForLocalCodexEntryAfterLaunch() {
   const service = createHermesPluginService({
     plugins: [{ id: "codex-mobile", manifestUrl: "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest" }],
     codexMobileAccessKeyPath: __filename,
@@ -411,12 +411,17 @@ async function testHttpsHermesBlocksHttpCodexEntryAfterLaunch() {
     appOrigin: "https://hermes.example.test",
     launchPlugin: true,
   });
-  assert.equal(manifest.available, false);
-  assert.equal(manifest.code, "plugin_https_entry_required");
-  assert.equal(manifest.entry.url, "http://127.0.0.1:8787/");
-  assert.equal(manifest.embed.url, "");
-  assert.equal(manifest.embed.blockedByMixedContent, true);
-  assert.doesNotMatch(JSON.stringify(manifest), /cpl_once|Authorization|Bearer|test-key/i);
+  assert.equal(manifest.available, true);
+  assert.equal(manifest.code, undefined);
+  assert.equal(
+    manifest.entry.url,
+    "/api/hermes-plugins/codex-mobile/proxy/?embed=hermes&codexPluginLaunch=cpl_once&workspaceId=owner",
+  );
+  assert.equal(manifest.entry.origin, "https://hermes.example.test");
+  assert.equal(manifest.entry.proxiedFromOrigin, "http://127.0.0.1:8787");
+  assert.equal(manifest.embed.sameOriginProxy, true);
+  assert.equal(manifest.embed.upstreamOrigin, "http://127.0.0.1:8787");
+  assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|test-key/i);
 }
 
 function testFindWardrobeAccessKeyPath() {
@@ -440,7 +445,7 @@ async function run() {
   await testFetchFailureReturnsUnavailable();
   await testLaunchEntryUsesServerSideWorkspaceKey();
   await testCodexLaunchEntryUsesServerSideKey();
-  await testHttpsHermesBlocksHttpCodexEntryAfterLaunch();
+  await testHttpsHermesUsesSameOriginProxyForLocalCodexEntryAfterLaunch();
   testFindWardrobeAccessKeyPath();
   testFindCodexMobileAccessKeyPath();
 }

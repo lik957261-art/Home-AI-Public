@@ -109,6 +109,17 @@ function urlWithoutSearchOrHash(value = "") {
   }
 }
 
+function codexMobileProxyPathForUrl(value = "") {
+  const url = safeUrl(value);
+  if (!url) return "";
+  try {
+    const parsed = new URL(url);
+    return `/api/hermes-plugins/codex-mobile/proxy${parsed.pathname}${parsed.search}`;
+  } catch (_) {
+    return "";
+  }
+}
+
 function defaultDataDir(env = process.env) {
   return stringValue(env.HERMES_WEB_DATA_DIR)
     || path.join(process.cwd(), "workspace", "hermes-web");
@@ -399,6 +410,23 @@ function validateHttpsEntryScheme(manifest, input = {}) {
     return manifest;
   }
   if (appProtocol !== "https:" || entryProtocol !== "http:") return manifest;
+  if (manifest?.id === "codex-mobile") {
+    const proxyUrl = codexMobileProxyPathForUrl(entryUrl);
+    if (proxyUrl) {
+      return Object.assign({}, manifest, {
+        entry: Object.assign({}, manifest.entry, {
+          url: proxyUrl,
+          origin: originOf(appUrl),
+          proxiedFromOrigin: originOf(entryUrl),
+        }),
+        embed: Object.assign({}, manifest.embed, {
+          url: proxyUrl,
+          sameOriginProxy: true,
+          upstreamOrigin: originOf(entryUrl),
+        }),
+      });
+    }
+  }
   const redactedEntryUrl = urlWithoutSearchOrHash(entryUrl) || manifest.entry.url;
   return Object.assign({}, manifest, {
     available: false,
@@ -437,6 +465,11 @@ function createHermesPluginService(options = {}) {
         id: item.id,
         manifestUrl: item.manifestUrl,
       }));
+  }
+
+  function pluginManifestUrl(id = "") {
+    const plugin = plugins.find((item) => item.id === stringValue(id));
+    return plugin?.manifestUrl || "";
   }
 
   async function manifest(input = {}) {
@@ -500,7 +533,7 @@ function createHermesPluginService(options = {}) {
     }
   }
 
-  return { list, manifest };
+  return { list, manifest, pluginManifestUrl };
 }
 
 module.exports = {
@@ -513,4 +546,5 @@ module.exports = {
   frameAncestorsAllows,
   normalizeManifest,
   pluginWorkspaceAuthorized,
+  codexMobileProxyPathForUrl,
 };

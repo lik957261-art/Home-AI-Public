@@ -21,6 +21,16 @@ function makeResponse() {
   };
 }
 
+function makeRequest(method = "GET", chunks = []) {
+  return {
+    method,
+    headers: {},
+    async *[Symbol.asyncIterator]() {
+      for (const chunk of chunks) yield Buffer.from(chunk);
+    },
+  };
+}
+
 function sendJson(res, status, data) {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(data));
@@ -67,15 +77,22 @@ function makeRoutes(overrides = {}) {
         }
         return Promise.resolve({ ok: true, available: true, id: input.id, entry: { url: "http://nas/?embed=hermes" } });
       },
+      pluginManifestUrl(id) {
+        return id === "codex-mobile" ? "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest" : "http://nas/plugin.json";
+      },
+    },
+    fetch() {
+      throw new Error("unexpected fetch");
     },
   }, overrides);
   return { calls, routes: createHermesPluginApiRoutes(deps) };
 }
 
 async function testSpecs() {
-  assert.equal(HERMES_PLUGIN_API_ROUTE_SPECS.length, 2);
+  assert.equal(HERMES_PLUGIN_API_ROUTE_SPECS.length, 3);
   assert.equal(HERMES_PLUGIN_API_ROUTE_SPECS[0].path, "/api/hermes-plugins");
   assert.match(String(HERMES_PLUGIN_API_ROUTE_SPECS[1].pathRegex), /hermes-plugins/);
+  assert.equal(HERMES_PLUGIN_API_ROUTE_SPECS[2].pathPrefix, "/api/hermes-plugins/codex-mobile/proxy");
 }
 
 async function testListRoute() {
@@ -145,6 +162,33 @@ async function testWorkspaceBlockStopsRoute() {
   assert.deepEqual(calls.manifest, []);
 }
 
+async function testCodexProxyRewritesHtmlAndUsesUpstream() {
+  const fetchCalls = [];
+  const { routes } = makeRoutes({
+    fetch(url, options = {}) {
+      fetchCalls.push({ url, options });
+      assert.equal(url, "http://127.0.0.1:8787/?embed=hermes&workspaceId=owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/html; charset=utf-8" : "" },
+        text: () => Promise.resolve('<link rel="stylesheet" href="/styles.css"><script src="/app.js"></script>'),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/codex-mobile/proxy/?embed=hermes&workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body, /href="\/api\/hermes-plugins\/codex-mobile\/proxy\/styles\.css"/);
+  assert.match(res.body, /src="\/api\/hermes-plugins\/codex-mobile\/proxy\/app\.js"/);
+  assert.equal(fetchCalls[0].options.headers["x-hermes-plugin-workspace-id"], "owner");
+}
+
 async function run() {
   await testSpecs();
   await testListRoute();
@@ -152,6 +196,7 @@ async function run() {
   await testCodexManifestRoute();
   await testCodexManifestRouteDeniesNonOwnerWithoutPluginGrant();
   await testWorkspaceBlockStopsRoute();
+  await testCodexProxyRewritesHtmlAndUsesUpstream();
 }
 
 run().catch((err) => {

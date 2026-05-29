@@ -815,11 +815,15 @@ Required contract dimensions:
   surface, and a postMessage/back contract.
 - Embedded-app harnesses must cover HTTPS/mobile security behavior. If Hermes is
   served as HTTPS/PWA and a plugin manifest returns an HTTP iframe entry, the
-  frontend must not render a blank frame; it must either use a configured HTTPS
-  manifest/entry or show a visible plugin diagnostic. The Mobile manifest route
-  must also probe the entry page's `frame-ancestors` policy for the current app
-  origin. If the plugin service does not allow the Hermes origin, the UI must
-  not render a Chrome broken-frame icon as if the plugin had loaded.
+  frontend must not render a blank frame. External plugins must use a configured
+  HTTPS manifest/entry or show a visible plugin diagnostic. Local-machine
+  plugins such as Codex Mobile may keep an HTTP upstream only when Hermes Mobile
+  rewrites the browser-facing entry to a same-origin proxy path and proxies
+  HTML, static assets, and plugin API calls through that path. The Mobile
+  manifest route must also probe the entry page's `frame-ancestors` policy for
+  the current app origin when embedding directly. If the plugin service does not
+  allow the Hermes origin and the plugin is not using the same-origin proxy, the
+  UI must not render a Chrome broken-frame icon as if the plugin had loaded.
   Production validation must include opening the installed Android PWA from the
   home-screen icon and verifying the plugin tab content, because API manifest
   smoke alone cannot catch mixed-content frame blocking.
@@ -845,6 +849,13 @@ Required contract dimensions:
   `%USERPROFILE%\.codex-mobile-web\access_key` or configured override only for
   launch exchange, and must not expose Codex Mobile Access Keys, bearer headers,
   or launch-token secrets to the browser.
+- Codex Mobile is a local-machine plugin by default. Hermes Mobile must not
+  require the user to configure a separate HTTPS Codex service or reverse proxy.
+  When the HTTPS Hermes PWA embeds Codex, the manifest route should return a
+  Hermes same-origin proxy iframe URL and the proxy route should forward to the
+  local Codex HTTP upstream. Harness coverage must prove the browser-facing
+  iframe URL is same-origin, not `127.0.0.1`, and that proxied HTML rewrites
+  absolute static/API paths back through the proxy prefix.
 - Installed plugins default to Owner-only visibility. A non-Owner workspace may
   list or launch a plugin only after an explicit Owner authorization signal,
   such as a deployment authorized-workspace list or a plugin-specific

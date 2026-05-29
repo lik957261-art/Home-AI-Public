@@ -119,12 +119,14 @@ override for later local/production source changes. Codex Mobile Web uses the
 same generic route shape through `GET /api/hermes-plugins/codex-mobile/manifest`
 and defaults to the local Codex plugin manifest at
 `http://127.0.0.1:8787/api/v1/hermes/plugin/manifest`.
-HTTPS/PWA embedded-plugin tests must assert that an HTTP iframe entry is never
-silently rendered as a blank plugin pane. The frontend should fall back to the
-native projection with a visible diagnostic unless production is configured to
-fetch an HTTPS manifest/entry. Deployment smoke for this class must include the
-installed Android PWA launched from the home-screen icon, not only browser URL or
-manifest API checks.
+HTTPS/PWA embedded-plugin tests must assert that a raw HTTP iframe entry is
+never silently rendered as a blank plugin pane. External plugins need an HTTPS
+browser-facing entry or a visible diagnostic. Local-machine plugins such as
+Codex Mobile may remain local HTTP upstreams only when Hermes Mobile rewrites
+the browser-facing entry to a same-origin proxy path and proxies HTML, static
+assets, and plugin API calls. Deployment smoke for this class must include the
+installed Android PWA launched from the home-screen icon, not only browser URL
+or manifest API checks.
 Wardrobe dashboard binding tests must cover directory ambiguity: a configured
 wardrobe root with `.hermes-wardrobe/config.json` must win, child delivery
 folders such as `衣橱/交付` must not steal the root, and generic outfit output
