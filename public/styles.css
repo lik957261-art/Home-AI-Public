@@ -195,6 +195,7 @@ body {
   margin: 0;
   color: var(--ink);
   background: var(--ui-page);
+  color-scheme: inherit;
 }
 
 html {
@@ -1272,6 +1273,7 @@ button {
   display: grid;
   overflow: hidden;
   color-scheme: light dark;
+  background: #101315;
   background: var(--ui-page);
 }
 
@@ -1281,6 +1283,7 @@ button {
   height: 100%;
   min-height: calc(100dvh - 132px);
   border: 0;
+  background: #101315;
   background: var(--ui-page);
   color-scheme: light dark;
   opacity: 1;
@@ -1292,6 +1295,7 @@ button {
   position: absolute;
   inset: 0;
   z-index: 1;
+  background: #101315;
   background: var(--ui-page);
   pointer-events: none;
 }
@@ -1303,7 +1307,7 @@ button {
 .codex-mode .conversation {
   padding: 0;
   overflow: hidden;
-  background: var(--ui-panel);
+  background: var(--ui-page);
 }
 
 .embedded-plugin-host {
@@ -1311,7 +1315,7 @@ button {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--ui-panel);
+  background: var(--ui-page);
 }
 
 .embedded-plugin-host.active {

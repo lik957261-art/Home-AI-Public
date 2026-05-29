@@ -122,6 +122,7 @@ function wireUi() {
   });
   $("taskManagementMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
+    if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     if (!(state.viewMode === "tasks" || (state.viewMode === "single" && state.singleWindowMode === "task"))) {
       state.viewMode = "tasks";
       localStorage.setItem("hermesWebViewMode", state.viewMode);
@@ -131,6 +132,7 @@ function wireUi() {
   });
   $("chatManagementMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
+    if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     state.viewMode = "single";
     setSingleWindowMode("chat");
     state.weixinChatOpen = false;
@@ -141,6 +143,7 @@ function wireUi() {
   });
   $("bottomTasksMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
+    if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     state.viewMode = "tasks";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
@@ -148,6 +151,7 @@ function wireUi() {
   });
   $("bottomChatMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
+    if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     state.viewMode = "single";
     setSingleWindowMode("chat");
     state.weixinChatOpen = false;
@@ -167,6 +171,7 @@ function wireUi() {
   });
   $("singleMode").addEventListener("click", async () => {
     clearQuotedReply({ render: false });
+    if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     state.viewMode = "single";
     setSingleWindowMode("chat");
     localStorage.setItem("hermesWebViewMode", state.viewMode);
@@ -175,6 +180,7 @@ function wireUi() {
   });
   $("singleTaskMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
+    if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     state.viewMode = "single";
     setSingleWindowMode("task");
     localStorage.setItem("hermesWebViewMode", state.viewMode);
@@ -183,6 +189,7 @@ function wireUi() {
   });
   $("tasksMode").addEventListener("click", async () => {
     clearQuotedReply({ render: false });
+    if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     state.viewMode = "tasks";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";

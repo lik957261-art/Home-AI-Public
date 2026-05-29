@@ -312,6 +312,21 @@ real expired session. Entering a plugin tab must clear stale keyboard viewport
 metrics so returning to chat does not leave the composer shifted by an old
 mobile keyboard offset.
 
+PWA resume is part of the same visual contract. The installed app can be
+repainted by the browser before normal JavaScript modules finish running,
+especially after switching away to another app and back. Hermes Mobile must keep
+the initial head style, `html`/`body` background, manifest `background_color`,
+manifest `theme_color`, status-bar meta, plugin host background, and iframe
+loading shell aligned to the effective theme. Do not rely only on late module
+code or iframe `load` handlers to hide a white surface in dark mode.
+
+Primary navigation out of a plugin must also clear keyboard viewport and
+keyboard-context metrics before the next chat/topic surface is laid out. The
+path `plugin -> topic list/topic stream -> chat` is a required regression path:
+the composer must return to the same vertical position as a fresh chat entry and
+must not inherit stale `keyboard-viewport-active`, `keyboard-context-mode`, or
+bottom-nav reservation values.
+
 Codex Mobile Web uses:
 
 ```text

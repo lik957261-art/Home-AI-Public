@@ -349,6 +349,15 @@ Required harness dimensions:
 - Entering an embedded plugin disables the chat composer and must clear stale
   keyboard viewport metrics. Returning from plugin/native secondary pages must
   not leave the chat composer shifted downward by an old mobile keyboard inset.
+- PWA resume and plugin entry in dark mode must verify the pre-JS app shell,
+  manifest `background_color`/`theme_color`, `html`/`body` background, plugin
+  host background, and iframe loading shell. A dark-mode installed PWA must not
+  flash a browser-default white surface when returning from another app or when
+  entering Codex/Wardrobe plugin tabs.
+- Primary navigation out of a plugin must cover `plugin -> topic -> chat` and
+  `plugin -> chat`. These paths must clear `keyboard-viewport-active`,
+  `keyboard-context-mode`, stale `--keyboard-*` CSS variables, and stale
+  bottom-nav reservation before laying out the chat composer.
 - When an embedded plugin host is active, the Hermes page header must be hidden
   so the plugin is not double-framed by two top bars. Plugin root pages keep
   the bottom navigation as the host-level escape path, but plugin secondary

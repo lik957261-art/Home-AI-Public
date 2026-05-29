@@ -187,6 +187,12 @@ visible while the host fetches a fresh launch URL, non-forced boot warmup
 `refresh_required` messages are suppressed, and entering plugin mode clears
 stale keyboard viewport metrics so the chat composer returns to its normal
 bottom alignment.
+Dark-mode installed-PWA resume must also assert that the pre-JS shell,
+manifest `background_color`/`theme_color`, `html`/`body` background, plugin
+host background, and iframe loading shell share the effective dark background.
+The navigation regression path `plugin -> topic -> chat` must verify stale
+`keyboard-viewport-active`, `keyboard-context-mode`, `--keyboard-*` CSS
+variables, and bottom-nav reservation do not shift the composer downward.
 Embedded-plugin host tests must also cover the outer return layer: entering a
 plugin from a Hermes page records the source route, plugin internal
 `canGoBack=true` sends `hermes.plugin.back`, and plugin root /

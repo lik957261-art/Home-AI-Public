@@ -1,19 +1,42 @@
 <!doctype html>
-<html lang="en" data-client-version="20260530-plugin-stable-entry-v363">
+<html lang="en" data-client-version="20260530-pwa-dark-resume-v364">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Hermes Mobile</title>
-  <meta name="hermes-web-client-version" content="20260530-plugin-stable-entry-v363">
+  <meta name="hermes-web-client-version" content="20260530-pwa-dark-resume-v364">
   <meta name="application-name" content="Hermes Mobile">
   <meta name="theme-color" content="#f7f8f7">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Hermes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/manifest-20260509.json">
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32-20260509.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180-20260509.png">
+  <style id="hermesInitialThemeStyle">
+    html {
+      background: #f7f8f7;
+      color-scheme: light;
+    }
+    body {
+      background: inherit;
+    }
+    @media (prefers-color-scheme: dark) {
+      html {
+        background: #101315;
+        color-scheme: dark;
+      }
+    }
+    html[data-effective-theme="light"] {
+      background: #f7f8f7;
+      color-scheme: light;
+    }
+    html[data-effective-theme="dark"] {
+      background: #101315;
+      color-scheme: dark;
+    }
+  </style>
   <script>
     (function () {
       try {
@@ -36,9 +59,21 @@
         function statusBarStyle(theme) {
           return effectiveTheme(theme) === "dark" ? "black-translucent" : "default";
         }
+        function applyPageChrome(theme) {
+          var effective = effectiveTheme(theme);
+          var pageColor = effective === "dark" ? "#101315" : "#f7f8f7";
+          document.documentElement.dataset.effectiveTheme = effective;
+          document.documentElement.style.backgroundColor = pageColor;
+          document.documentElement.style.colorScheme = effective;
+          if (document.body) {
+            document.body.style.backgroundColor = pageColor;
+            document.body.style.colorScheme = effective;
+          }
+        }
         function applyTheme(theme) {
           var normalizedTheme = themes[theme] ? theme : "system";
           document.documentElement.dataset.theme = normalizedTheme;
+          applyPageChrome(normalizedTheme);
           var colorMeta = document.querySelector('meta[name="theme-color"]');
           if (colorMeta) colorMeta.setAttribute("content", themeColor(normalizedTheme));
           var statusMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
@@ -48,6 +83,9 @@
         document.documentElement.dataset.theme = initialTheme;
         window.hermesMobileTheme = { read: readTheme, apply: applyTheme, effective: effectiveTheme };
         applyTheme(initialTheme);
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", function () { applyTheme(readTheme()); }, { once: true });
+        }
         var value = localStorage.getItem("hermesWebFontSize") || "standard";
         var allowed = { small: 1, standard: 1, large: 1, xlarge: 1, xxlarge: 1 };
         document.documentElement.dataset.fontSize = allowed[value] ? value : "standard";
@@ -67,7 +105,7 @@
       }
     }());
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260530-plugin-stable-entry-v363">
+  <link rel="stylesheet" href="/styles.css?v=20260530-pwa-dark-resume-v364">
 </head>
 <body>
   <main id="bootSplash" class="boot-splash" role="status" aria-live="polite">
@@ -375,78 +413,78 @@
   </div>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/markdown-renderer-client.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-task-artifact-helpers.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-kanban-story-helpers.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-learning-reading-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-learning-coins-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-learning-program-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-learning-growth-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-learning-growth-task-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-learning-growth-reflection-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-api-client.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-shell-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-task-groups-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-navigation-view-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-chat-composer-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-composer-source-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-composer-context-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-run-progress-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-navigation-search-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-task-preview-helpers-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-task-preview-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-sidebar-task-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-message-skill-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-message-actions-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-platform-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-platform-status-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-pwa-settings-push-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-pwa-push-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-workspace-admin-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-access-key-manager-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-share-image-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-draft-thread-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-directory-automation-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-shared-directory-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-embedded-plugin-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-wardrobe-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-action-inbox-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-automation-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-learning-native-growth-submission-controller.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-learning-growth-ai-controller.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-learning-growth-reward-controller.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-learning-growth-settings-controller.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-learning-growth-teaching-controller.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-learning-growth-controller.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-automation-controller-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-automation-actions-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-thread-state-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-group-topic-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-kanban-core-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-kanban-story-core-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-kanban-todo-core-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-kanban-render-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-kanban-list-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-kanban-learning-panel-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-kanban-recorder-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-todo-detail-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-kanban-actions-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-kanban-composer-actions-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-kanban-card-actions-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-kanban-study-actions-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-thread-message-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-thread-list-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-thread-directory-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-thread-card-message-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-long-message-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-rich-text-directory-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-message-usage-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-events-composer-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-event-stream-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-upload-sidebar-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-composer-send-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-wire-start-ui.js?v=20260530-plugin-stable-entry-v363"></script>
-  <script src="/app-start.js?v=20260530-plugin-stable-entry-v363"></script>
+  <script src="/markdown-renderer-client.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-task-artifact-helpers.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-kanban-story-helpers.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-learning-reading-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-learning-coins-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-learning-program-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-learning-growth-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-learning-growth-task-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-learning-growth-reflection-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-api-client.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-shell-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-task-groups-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-navigation-view-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-chat-composer-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-composer-source-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-composer-context-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-run-progress-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-navigation-search-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-task-preview-helpers-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-task-preview-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-sidebar-task-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-message-skill-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-message-actions-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-platform-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-platform-status-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-pwa-settings-push-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-pwa-push-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-workspace-admin-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-access-key-manager-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-share-image-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-draft-thread-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-directory-automation-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-shared-directory-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-embedded-plugin-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-wardrobe-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-action-inbox-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-automation-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-learning-native-growth-submission-controller.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-learning-growth-ai-controller.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-learning-growth-reward-controller.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-learning-growth-settings-controller.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-learning-growth-teaching-controller.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-learning-growth-controller.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-automation-controller-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-automation-actions-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-thread-state-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-group-topic-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-kanban-core-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-kanban-story-core-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-kanban-todo-core-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-kanban-render-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-kanban-list-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-kanban-learning-panel-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-kanban-recorder-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-todo-detail-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-kanban-actions-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-kanban-composer-actions-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-kanban-card-actions-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-kanban-study-actions-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-thread-message-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-thread-list-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-thread-directory-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-thread-card-message-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-long-message-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-rich-text-directory-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-message-usage-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-events-composer-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-event-stream-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-upload-sidebar-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-composer-send-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-wire-start-ui.js?v=20260530-pwa-dark-resume-v364"></script>
+  <script src="/app-start.js?v=20260530-pwa-dark-resume-v364"></script>
 </body>
 </html>

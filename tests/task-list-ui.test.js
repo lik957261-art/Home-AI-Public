@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260530-plugin-stable-entry-v363";
+const CLIENT_VERSION = "20260530-pwa-dark-resume-v364";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -147,14 +147,14 @@ assert.match(appJs, /await loadDirectoryView\(\);[\s\S]*?if \(!currentViewStillS
 assert.equal(manifest.id, "/");
 assert.equal(manifest.start_url, "/?source=pwa");
 assert.equal(manifest.scope, "/");
-assert.equal(manifest.theme_color, "#17212a");
-assert.equal(manifest.background_color, "#f7f8f7");
+assert.equal(manifest.theme_color, "#0f1315");
+assert.equal(manifest.background_color, "#101315");
 assert.doesNotMatch(manifestJson, /\/hermes-mobile\//);
 assert.equal(legacyManifest.id, "/");
 assert.equal(legacyManifest.start_url, "/?source=pwa");
 assert.equal(legacyManifest.scope, "/");
-assert.equal(legacyManifest.theme_color, "#17212a");
-assert.equal(legacyManifest.background_color, "#f7f8f7");
+assert.equal(legacyManifest.theme_color, "#0f1315");
+assert.equal(legacyManifest.background_color, "#101315");
 assert.doesNotMatch(legacyManifestJson, /\/hermes-mobile\//);
 assert.match(appJs, /function openTaskDocumentLink\(link\)/);
 assert.match(appJs, /if \(isMobileLayout\(\)\) \{[\s\S]*?window\.location\.assign\(href\);[\s\S]*?return;[\s\S]*?\}/);
@@ -354,8 +354,12 @@ assert.match(stylesCss, /\.task-toolbar-meta \.task-toolbar-directories \{[\s\S]
 assert.match(stylesCss, /--ui-accent: #6b858c;/);
 assert.match(stylesCss, /--ui-accent-fill: rgba\(144, 166, 170, 0\.20\);/);
 assert.match(indexHtml, /<meta name="theme-color" content="#f7f8f7">/);
-assert.match(indexHtml, /<meta name="apple-mobile-web-app-status-bar-style" content="default">/);
+assert.match(indexHtml, /<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">/);
+assert.match(indexHtml, /<style id="hermesInitialThemeStyle">[\s\S]*?html\[data-effective-theme="dark"\] \{[\s\S]*?background: #101315;[\s\S]*?color-scheme: dark;/);
 assert.match(indexHtml, /hermesWebTheme/);
+assert.match(indexHtml, /document\.documentElement\.dataset\.effectiveTheme = effective/);
+assert.match(indexHtml, /document\.documentElement\.style\.backgroundColor = pageColor/);
+assert.match(indexHtml, /document\.body\.style\.backgroundColor = pageColor/);
 assert.match(indexHtml, /window\.hermesMobileTheme = \{ read: readTheme, apply: applyTheme, effective: effectiveTheme \}/);
 assert.match(stylesCss, /--ui-page: #f7f8f7;/);
 assert.match(stylesCss, /--ui-status-bar: #17212a;/);
@@ -478,9 +482,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260530-plugin-stable-entry-v363/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260530-plugin-stable-entry-v363/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260530-plugin-stable-entry-v363/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260530-pwa-dark-resume-v364/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260530-pwa-dark-resume-v364/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260530-pwa-dark-resume-v364/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);

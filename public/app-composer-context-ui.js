@@ -204,10 +204,14 @@ function visualViewportKeyboardMetrics() {
 function clearKeyboardViewportMetrics() {
   const root = document.documentElement;
   state.keyboardViewportActive = false;
+  state.keyboardContextMode = false;
+  state.keyboardContextTopPx = 0;
   root.classList.remove("keyboard-viewport-active");
   root.style.removeProperty("--app-viewport-height");
   root.style.removeProperty("--app-viewport-offset-top");
   root.style.removeProperty("--keyboard-bottom-inset");
+  root.style.removeProperty("--keyboard-context-top");
+  $("composer")?.classList.remove("keyboard-context-mode");
 }
 
 function keyboardViewportShouldClearAfterOrientation() {
@@ -247,6 +251,10 @@ function updateMobileBottomNavReservation() {
     root.style.removeProperty("--mobile-bottom-nav-reserved-height-runtime");
     return;
   }
+  if (nav.hidden || window.getComputedStyle?.(nav).display === "none") {
+    root.style.removeProperty("--mobile-bottom-nav-reserved-height-runtime");
+    return;
+  }
   const rectHeight = Math.ceil(nav.getBoundingClientRect?.().height || 0);
   const contentHeight = Math.ceil(nav.scrollHeight || 0);
   const compact = isMobileLandscapeCompactLayout();
@@ -254,6 +262,12 @@ function updateMobileBottomNavReservation() {
     ? Math.max(58, rectHeight + 8, contentHeight + 8)
     : Math.max(76, rectHeight + 10, contentHeight + 10);
   root.style.setProperty("--mobile-bottom-nav-reserved-height-runtime", `${reserve}px`);
+}
+
+function normalizeMobileViewportAfterViewChange() {
+  state.composerFocused = false;
+  clearKeyboardViewportMetrics();
+  [0, 80, 240].forEach((delay) => window.setTimeout(updateMobileBottomNavReservation, delay));
 }
 
 function refreshKeyboardViewportSoon(delay = 0) {
