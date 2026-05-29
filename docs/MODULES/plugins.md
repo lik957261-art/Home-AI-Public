@@ -75,12 +75,19 @@ that are standalone upstream URLs or root-relative plugin paths, not arbitrary
 prose in chat/thread/message fields. This includes absolute upstream URLs such
 as `http://<plugin-host>/uploads/...` and root-relative image/static paths such
 as `/uploads/...`, `/media/...`, `/images/...`, `/assets/...`, and `/static/...`.
+It also includes explicit plugin resource APIs such as `/api/uploads/file` and
+`/api/files/preview/content`.
 The rewritten browser-facing path must stay under
 `/api/hermes-plugins/<plugin-id>/proxy/...`. Binary image responses are then
 fetched through that proxy path and streamed back with their original content
 type. Without this, HTTPS Hermes Mobile PWAs can load the plugin shell while
 plugin-supplied images remain broken because the browser is asked to fetch the
 HTTP/LAN upstream directly.
+
+The JSON rule is intentionally narrow: do not rewrite arbitrary `/api/...`
+strings inside plugin thread/chat/message prose. Only standalone resource API
+values are proxied. This prevents the proxy from corrupting Codex thread JSON
+while still allowing embedded images and file previews to load through Hermes.
 
 Plugin projects should support a deployment-owned public base URL setting, for
 example `<PLUGIN>_HERMES_PLUGIN_BASE_URL` or `<PLUGIN>_PUBLIC_BASE_URL`. The
@@ -269,6 +276,9 @@ Hermes Mobile must:
   cannot create an iframe relaunch loop. The default host cooldown is one
   rebuild per plugin per minute, and requests during manifest/launch loading are
   suppressed;
+- apply the same cooldown to host-side launch-health retries, and preserve an
+  already-mounted iframe during ordinary host re-renders so the host does not
+  consume new launch tokens repeatedly;
 - treat the message as a host refresh request, not as plugin-controlled host
   navigation;
 - discard the stale iframe and stale launch manifest;

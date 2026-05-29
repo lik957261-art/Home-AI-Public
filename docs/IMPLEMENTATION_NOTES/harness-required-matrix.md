@@ -1003,7 +1003,9 @@ Required contract dimensions:
   rewritten structurally, not with HTML/CSS regexes over arbitrary JSON text.
   Standalone absolute upstream URLs and root-relative `/uploads`, `/media`,
   `/images`, `/assets`, and `/static` paths should be rewritten through that
-  prefix, while prose fields such as chat/thread text remain valid JSON and
+  prefix. Explicit resource API paths such as `/api/uploads/file` and
+  `/api/files/preview/content` should also be rewritten, while other `/api`
+  strings and prose fields such as chat/thread text remain valid JSON and
   binary image responses preserve their content type.
 - Same-origin plugin proxies must handle launch redirects manually. Automatic
   server-side redirect following can consume the plugin launch `302` and its

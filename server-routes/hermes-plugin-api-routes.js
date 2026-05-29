@@ -217,6 +217,8 @@ function createHermesPluginApiRoutes(deps = {}) {
     if (!text.startsWith("/") || text.startsWith("//")) return false;
     if (text === pluginProxyPrefix(pluginId) || text.startsWith(`${pluginProxyPrefix(pluginId)}/`)) return false;
     return text.startsWith("/icons/")
+      || text.startsWith("/api/uploads/")
+      || text.startsWith("/api/files/preview/content")
       || text.startsWith("/uploads/")
       || text.startsWith("/media/")
       || text.startsWith("/images/")

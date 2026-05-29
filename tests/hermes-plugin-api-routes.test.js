@@ -431,8 +431,13 @@ async function testPluginProxyDoesNotCorruptJsonProse() {
         text: () => Promise.resolve(JSON.stringify({
           text: 'Do not rewrite prose like CSS url(/uploads/example.jpg) inside a thread message.',
           imageUrl: "/uploads/item-1.jpg",
+          uploadUrl: "/api/uploads/file?path=input.jpg",
+          previewContentUrl: "/api/files/preview/content?threadId=thread-1&path=out.png",
+          apiText: "/api/threads/thread-1",
+          apiOriginText: "http://127.0.0.1:8787/api/threads/thread-1",
           nested: {
             thumb: "http://127.0.0.1:8787/media/thumb-1.webp",
+            upload: "http://127.0.0.1:8787/api/uploads/file?path=input.jpg",
           },
         })),
       });
@@ -449,7 +454,12 @@ async function testPluginProxyDoesNotCorruptJsonProse() {
   const body = parseBody(res);
   assert.equal(body.text, "Do not rewrite prose like CSS url(/uploads/example.jpg) inside a thread message.");
   assert.equal(body.imageUrl, "/api/hermes-plugins/codex-mobile/proxy/uploads/item-1.jpg");
+  assert.equal(body.uploadUrl, "/api/hermes-plugins/codex-mobile/proxy/api/uploads/file?path=input.jpg");
+  assert.equal(body.previewContentUrl, "/api/hermes-plugins/codex-mobile/proxy/api/files/preview/content?threadId=thread-1&path=out.png");
+  assert.equal(body.apiText, "/api/threads/thread-1");
+  assert.equal(body.apiOriginText, "http://127.0.0.1:8787/api/threads/thread-1");
   assert.equal(body.nested.thumb, "/api/hermes-plugins/codex-mobile/proxy/media/thumb-1.webp");
+  assert.equal(body.nested.upload, "/api/hermes-plugins/codex-mobile/proxy/api/uploads/file?path=input.jpg");
 }
 
 async function testPluginProxyForwardsBinaryImages() {

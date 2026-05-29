@@ -22,7 +22,7 @@ function createClassList() {
 }
 
 function createHarness() {
-  const calls = { api: [], health: 0, nav: 0, affordance: 0, errors: [] };
+  const calls = { api: [], health: 0, nav: 0, affordance: 0, errors: [], timers: [] };
   const listeners = {};
   const main = { insertBefore() {} };
   const conversation = {
@@ -105,7 +105,9 @@ function createHarness() {
         listeners[type] = listeners[type] || [];
         listeners[type].push(handler);
       },
-      setTimeout() {},
+      setTimeout(callback, delayMs) {
+        calls.timers.push({ callback, delayMs });
+      },
     },
     document: {
       createElement(tagName) {
@@ -147,7 +149,8 @@ function createHarness() {
       def: EMBEDDED_PLUGIN_DEFS["codex-mobile"],
       embeddedPluginRecord,
       ensureEmbeddedPluginNavigationBridge,
-      embeddedPluginRefreshRequiredEventType
+      embeddedPluginRefreshRequiredEventType,
+      scheduleEmbeddedPluginLaunchHealthCheck
     };
   `, sandbox);
 
@@ -299,10 +302,40 @@ function testRefreshRequiredIgnoredDuringManifestLoad() {
   assert.equal(record.lastRefreshSuppressedAt, 200000);
 }
 
+function testLaunchHealthRefreshUsesCooldown() {
+  const harness = createHarness();
+  const { def, record, shell } = harness.setupManifest();
+  harness.sandbox.state.viewMode = "codex";
+  harness.sandbox.Date.now = () => 300000;
+  const frame = shell.querySelector(".embedded-plugin-frame");
+
+  harness.sandbox.__pluginRefreshHarness.scheduleEmbeddedPluginLaunchHealthCheck(def, frame, 300000);
+  assert.equal(harness.calls.timers.length, 1);
+  assert.equal(harness.calls.timers[0].delayMs, 7000);
+  harness.calls.timers[0].callback();
+
+  assert.equal(harness.calls.api.length, 1);
+  assert.equal(record.lastRefreshRequestedAt, 300000);
+
+  const nextShell = harness.makeShell();
+  record.shellNode = nextShell;
+  harness.host.setShell(nextShell);
+  record.checked = true;
+  record.manifestFreshForFrame = true;
+  record.loading = false;
+  harness.sandbox.Date.now = () => 305000;
+  harness.sandbox.__pluginRefreshHarness.scheduleEmbeddedPluginLaunchHealthCheck(def, nextShell.querySelector(".embedded-plugin-frame"), 305000);
+  harness.calls.timers[1].callback();
+
+  assert.equal(harness.calls.api.length, 1);
+  assert.equal(record.lastRefreshSuppressedAt, 305000);
+}
+
 testRefreshIgnoresWrongOrigin();
 testRefreshRebuildsActivePluginWithBoundedRoute();
 testRefreshInvalidatesInactivePluginWithoutFetching();
 testRefreshRequiredIsThrottled();
 testRefreshRequiredIgnoredDuringManifestLoad();
+testLaunchHealthRefreshUsesCooldown();
 
 console.log("embedded plugin refresh harness tests passed");

@@ -184,6 +184,10 @@ function requestEmbeddedPluginRefresh(def, payload = {}) {
   return true;
 }
 
+function requestEmbeddedPluginHealthRefresh(def, payload = {}) {
+  return requestEmbeddedPluginRefresh(def, Object.assign({ reason: "launch_health_timeout" }, payload));
+}
+
 function captureEmbeddedPluginReturnRoute(def) {
   if (!def || state.viewMode === def.viewMode || embeddedPluginDefByView(state.viewMode)) return null;
   return {
@@ -416,7 +420,7 @@ function scheduleEmbeddedPluginLaunchHealthCheck(def, frame, loadedAt = Date.now
     if (currentEmbeddedPluginShell(def)?.querySelector(".embedded-plugin-frame") !== frame) return;
     if (!embeddedPluginFrameSrcUsesLaunchToken(frame)) return;
     if (Number(record.navigationLastAt || 0) >= loadedAt) return;
-    refreshEmbeddedPluginFrameFromFreshManifest(def);
+    requestEmbeddedPluginHealthRefresh(def);
   }, 7000);
 }
 
@@ -556,9 +560,12 @@ function renderEmbeddedPluginView(def) {
   if (embeddedPluginAvailable(pluginManifest) && !embeddedPluginBlockedByPageSecurity(def, pluginManifest)) {
     const entryUrl = embeddedPluginEntryUrlForFrame(def, pluginManifest);
     record.frameOrigin = embeddedPluginEntryOrigin(def, pluginManifest);
+    const currentFrame = currentEmbeddedPluginShell(def)?.querySelector(".embedded-plugin-frame");
+    const currentFrameUsesEntry = Boolean(currentFrame && currentFrame.getAttribute("src") === entryUrl);
     const launchFrameCanBePreserved = !embeddedPluginUsesLaunchToken(pluginManifest)
       || embeddedPluginLaunchTokenFreshForFrame(def)
-      || Number(record.navigationLastAt || 0) > 0;
+      || Number(record.navigationLastAt || 0) > 0
+      || currentFrameUsesEntry;
     if (!launchFrameCanBePreserved) {
       refreshEmbeddedPluginFrameFromFreshManifest(def);
       return;

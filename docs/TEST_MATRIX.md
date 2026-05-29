@@ -163,10 +163,12 @@ the plugin proxy prefix. The same-origin proxy must also rewrite plugin-owned
 image/static URLs in HTML, JavaScript, CSS, and JSON responses so absolute
 upstream image URLs and root-relative `/uploads`, `/media`, `/images`,
 `/assets`, and `/static` paths stay under
-`/api/hermes-plugins/<plugin-id>/proxy/...`; JSON responses must be parsed and
-rewritten structurally so thread/chat prose, code snippets, and ordinary `/api`
-strings are not changed. Binary image requests through that path must be
-streamed with their original content type. Active embedded plugin
+`/api/hermes-plugins/<plugin-id>/proxy/...`; explicit plugin resource APIs such
+as `/api/uploads/file` and `/api/files/preview/content` must also be proxied.
+JSON responses must be parsed and rewritten structurally so thread/chat prose,
+code snippets, and ordinary `/api` strings are not changed. Binary image
+requests through that path must be streamed with their original content type.
+Active embedded plugin
 hosts must hide the Hermes page header so plugin content is not double-framed;
 bottom navigation remains visible as the app-level escape hatch. Deployment
 smoke for this class must include the installed Android PWA launched from the
@@ -195,7 +197,9 @@ raw plugin content, prompts, or local paths are failing cases.
 The host must also throttle refresh-required rebuilds so an invalid plugin page
 cannot create a relaunch loop; the harness must cover same-window repeated
 refresh messages and messages sent while manifest/launch loading is already in
-progress.
+progress. Host-side launch-health retries must use the same throttle, and a
+normal host re-render must preserve an already-mounted iframe instead of
+requesting another launch token.
 Focused checks for this contract include
 `node tests\embedded-plugin-refresh-harness.test.js` and
 `node tests\app-embedded-plugin-ui.test.js`.
