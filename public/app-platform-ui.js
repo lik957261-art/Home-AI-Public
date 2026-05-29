@@ -553,6 +553,14 @@ function applyRouteParams(params) {
     localStorage.setItem("hermesWebViewMode", routeView);
     Object.assign(state, { currentTaskGroupId: "", currentThread: null, currentThreadId: "" });
   }
+  if (routeView === "codex" && typeof setCodexPluginOpenRoute === "function") {
+    setCodexPluginOpenRoute({
+      pluginRoute: params.get("pluginRoute") || params.get("route") || "",
+      pluginItemId: params.get("pluginItemId") || params.get("itemId") || "",
+      pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",
+      pluginTaskId: params.get("pluginTaskId") || params.get("taskId") || "",
+    });
+  }
   if (routeView === "automation" && automationId) {
     const returnRoute = automationReturnTo === "inbox" ? "inbox" : "";
     Object.assign(state, { selectedAutomationId: automationId, automationReturnRoute: returnRoute, automationReturnScope: returnRoute && automationReturnScope === "detail" ? "detail" : "", automationReturnInboxItemId: returnRoute ? automationReturnInboxItemId : "", automationRouteTargetId: automationId, automationRouteTargetPending: true, automationOutputHistoryOpen: false, automationCreateOpen: false, automationEditOpen: false, automationEditJobId: "" });

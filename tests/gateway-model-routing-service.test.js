@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const {
   DEEPSEEK_PROVIDER,
+  DEEPSEEK_OWNER_MAINTENANCE_WORKER_PROFILES,
   DEEPSEEK_WORKER_PROFILES,
   GROK_PROVIDER,
   modelLooksLikeDeepSeek,
@@ -63,6 +64,20 @@ function testDeepSeekRoutesThroughDirectProviderWorkerProfile() {
   });
 }
 
+function testDeepSeekOwnerMaintenanceRoutesThroughHighPermissionProfile() {
+  const result = resolveGatewayModelRoute({
+    model: "deepseek-chat",
+    provider: "deepseek",
+    gatewayRouting: { securityLevel: "owner-maintenance", maintenance: true },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.route.provider, DEEPSEEK_PROVIDER);
+  assert.deepEqual(result.route.gatewayRouting, {
+    provider: DEEPSEEK_PROVIDER,
+    preferred_worker_profiles: DEEPSEEK_OWNER_MAINTENANCE_WORKER_PROFILES,
+  });
+}
+
 function testNaturalLanguageGrokRequestOverridesDefaultModelRoute() {
   assert.equal(textRequestsGrokModel("请使用 Grok 回答这个问题"), true);
   assert.equal(textRequestsGrokModel("用Grok分析一下"), true);
@@ -87,5 +102,6 @@ testGrokMentionRoutesToXaiWorkerProfile();
 testGrokModelInfersProviderButRejectsUnsupportedNames();
 testDefaultModelDoesNotForceProviderRoute();
 testDeepSeekRoutesThroughDirectProviderWorkerProfile();
+testDeepSeekOwnerMaintenanceRoutesThroughHighPermissionProfile();
 testNaturalLanguageGrokRequestOverridesDefaultModelRoute();
 console.log("gateway-model-routing-service tests passed");

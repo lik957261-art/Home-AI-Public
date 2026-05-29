@@ -90,6 +90,37 @@ function embeddedPluginMessageOriginAllowed(def, event) {
   return Boolean(expected && event?.origin === expected);
 }
 
+function normalizeEmbeddedPluginOpenRoute(route = {}) {
+  const value = route && typeof route === "object" ? route : {};
+  const out = {};
+  ["pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId"].forEach((key) => {
+    const text = String(value[key] || "").trim().slice(0, 180);
+    if (text) out[key] = text;
+  });
+  return out;
+}
+
+function setEmbeddedPluginOpenRoute(def, route = {}) {
+  if (!def) return false;
+  const normalized = normalizeEmbeddedPluginOpenRoute(route);
+  embeddedPluginRecord(def.id).openRoute = Object.keys(normalized).length ? normalized : null;
+  return Boolean(embeddedPluginRecord(def.id).openRoute);
+}
+
+function embeddedPluginEntryUrlForFrame(def, manifest) {
+  const entryUrl = String(manifest?.entry?.url || "");
+  const route = embeddedPluginRecord(def.id).openRoute;
+  if (!entryUrl || !route) return entryUrl;
+  try {
+    const parsed = new URL(entryUrl, window.location?.href || undefined);
+    Object.entries(route).forEach(([key, value]) => parsed.searchParams.set(key, value));
+    parsed.searchParams.set("pluginId", def.id);
+    return parsed.pathname + parsed.search + parsed.hash;
+  } catch (_) {
+    return entryUrl;
+  }
+}
+
 function updateEmbeddedPluginNavigationState(def, payload = {}) {
   const record = embeddedPluginRecord(def.id);
   record.canGoBack = Boolean(payload.canGoBack);
@@ -283,8 +314,8 @@ function currentEmbeddedPluginShell(def) {
 
 function parkEmbeddedPluginShell(def) {
   const shell = currentEmbeddedPluginShell(def);
-  if (!shell) return false;
   setEmbeddedPluginHostVisible(def, false);
+  if (!shell) return false;
   embeddedPluginRecord(def.id).shellNode = shell;
   return true;
 }
@@ -476,7 +507,7 @@ function renderEmbeddedPluginView(def) {
   const record = embeddedPluginRecord(def.id);
   const pluginManifest = embeddedPluginCurrentManifest(def);
   if (embeddedPluginAvailable(pluginManifest) && !embeddedPluginBlockedByPageSecurity(def, pluginManifest)) {
-    const entryUrl = String(pluginManifest.entry?.url || "");
+    const entryUrl = embeddedPluginEntryUrlForFrame(def, pluginManifest);
     record.frameOrigin = embeddedPluginEntryOrigin(def, pluginManifest);
     const launchFrameCanBePreserved = !embeddedPluginUsesLaunchToken(pluginManifest)
       || embeddedPluginLaunchTokenFreshForFrame(def)
@@ -551,6 +582,10 @@ function codexPluginOuterBackActive() {
 
 function rememberCodexPluginReturnRoute() {
   return rememberEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS["codex-mobile"]);
+}
+
+function setCodexPluginOpenRoute(route = {}) {
+  return setEmbeddedPluginOpenRoute(EMBEDDED_PLUGIN_DEFS["codex-mobile"], route);
 }
 
 function restoreCodexPluginReturnRoute() {

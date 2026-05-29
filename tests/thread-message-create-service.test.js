@@ -438,6 +438,33 @@ function testNaturalLanguageGrokRouteOverridesDefaultChatGptModel() {
   assert.equal(calls.gatewayRouting[0].body.provider, "xai-oauth");
 }
 
+function testDeepSeekOwnerMaintenanceRouteUsesHighPermissionProfile() {
+  const { service } = makeHarness({
+    serviceOptions: {
+      gatewayRoutingForModelRun: () => ({
+        securityLevel: "owner-maintenance",
+        maintenance: true,
+        maintenanceCategory: "owner_high_privilege",
+      }),
+    },
+  });
+  const plan = service.prepareThreadMessageCreate({
+    thread: baseThread(),
+    body: {
+      text: "run elevated DeepSeek maintenance",
+      model: "deepseek-chat",
+      provider: "deepseek",
+    },
+    auth: { owner: true, workspaces: ["owner"] },
+  });
+
+  assert.equal(plan.nextAction, "start-run");
+  assert.equal(plan.runOptions.provider, "deepseek");
+  assert.equal(plan.runOptions.gatewayRouting.securityLevel, "owner-maintenance");
+  assert.equal(plan.runOptions.gatewayRouting.maintenance, true);
+  assert.deepEqual(plan.runOptions.gatewayRouting.preferred_worker_profiles, ["deepseekmaint1"]);
+}
+
 function testSearchSourceRunOptions() {
   const { calls, service } = makeHarness();
   const plan = service.prepareThreadMessageCreate({
@@ -542,9 +569,10 @@ function testConcurrencyErrorBeforeStateMutation() {
   testDirectoryAttachmentPrecedence();
   testDirectCreateRoutingAndPayloads();
   await testRunOptionsAndDispatchHooks();
-  testGrokModelRouteRequiresXaiGatewayProvider();
-  testNaturalLanguageGrokRouteOverridesDefaultChatGptModel();
-  testSearchSourceRunOptions();
+testGrokModelRouteRequiresXaiGatewayProvider();
+testNaturalLanguageGrokRouteOverridesDefaultChatGptModel();
+testDeepSeekOwnerMaintenanceRouteUsesHighPermissionProfile();
+testSearchSourceRunOptions();
   await testQueuedChatRunSkipsConcurrencyAndStart();
   testConcurrencyErrorBeforeStateMutation();
   console.log("thread-message-create-service tests passed");

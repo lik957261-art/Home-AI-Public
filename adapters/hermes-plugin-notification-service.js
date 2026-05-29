@@ -25,6 +25,31 @@ function normalizeItemType(value) {
     : "info";
 }
 
+function truthyFlag(value) {
+  return ["1", "true", "yes", "on"].includes(clean(value, 20).toLowerCase());
+}
+
+function falseyFlag(value) {
+  return ["0", "false", "no", "off"].includes(clean(value, 20).toLowerCase());
+}
+
+function pluginNotificationCreatesInbox(input = {}, event = {}) {
+  if (input.inbox === false || input.createInbox === false || input.create_inbox === false) return false;
+  if (falseyFlag(input.inbox) || falseyFlag(input.createInbox || input.create_inbox)) return false;
+  const inboxMode = clean(input.inboxMode || input.inbox_mode || input.deliveryMode || input.delivery_mode, 40).toLowerCase();
+  if (["none", "push", "push_only", "push-only", "notification"].includes(inboxMode)) return false;
+  if (input.inbox === true || input.createInbox === true || input.create_inbox === true) return true;
+  if (truthyFlag(input.inbox) || truthyFlag(input.createInbox || input.create_inbox)) return true;
+  return true;
+}
+
+function pluginNotificationDedupeKey(input = {}, event = {}) {
+  const explicit = clean(input.dedupeKey || input.dedupe_key, 260);
+  if (explicit) return explicit;
+  if (event.pluginId === "codex-mobile") return `plugin:${event.pluginId}:workspace:${event.workspaceId}:latest`;
+  return `plugin:${event.pluginId}:${event.sourceId}`;
+}
+
 function pluginViewMode(pluginId = "", fallback = "") {
   const id = clean(pluginId, 80);
   if (id === "wardrobe") return "wardrobe";
@@ -43,6 +68,19 @@ function boundedRoute(route = {}) {
     if (text) out[key] = text;
   }
   return out;
+}
+
+function normalizeDetailMessage(value = {}, compactText) {
+  const input = objectValue(value);
+  const body = compactText(input.body || "", 12_000);
+  if (!body) return null;
+  const format = clean(input.format || "text", 20).toLowerCase() === "markdown" ? "markdown" : "text";
+  return {
+    format,
+    sourceTurnId: clean(input.sourceTurnId || input.source_turn_id || input.turnId || input.turn_id, 180),
+    body,
+    truncated: Boolean(input.truncated),
+  };
 }
 
 function safeRelativeLink(value = "") {
@@ -101,13 +139,13 @@ function createHermesPluginNotificationService(options = {}) {
     const title = compactText(input.title || "", 180);
     const summary = compactText(input.summary || input.body || input.content || "", 600);
     const route = boundedRoute(input.route || input.pluginRoute || input.plugin_route);
+    const detailMessage = normalizeDetailMessage(input.detailMessage || input.detail_message, compactText);
     const viewMode = pluginViewMode(pluginId, input.viewMode || input.view || route.view);
     if (!pluginId) return errorResult(400, "plugin_id_required");
     if (!pluginRegistered(pluginId)) return errorResult(404, "plugin_not_registered");
     if (!sourceId) return errorResult(400, "plugin_notification_source_id_required");
     if (!title && !summary) return errorResult(400, "plugin_notification_requires_title_or_summary");
     const notificationType = clean(input.type || input.notificationType || input.notification_type || "plugin_notification", 80);
-    const dedupeKey = clean(input.dedupeKey || input.dedupe_key, 260) || `plugin:${pluginId}:${sourceId}`;
     const pluginUrl = appRouteUrl({
       view: viewMode,
       workspaceId,
@@ -115,7 +153,7 @@ function createHermesPluginNotificationService(options = {}) {
       pluginRoute: route.name || route.route || "",
       pluginItemId: route.itemId || route.item_id || route.id || "",
     });
-    return {
+    const event = {
       ok: true,
       pluginId,
       workspaceId,
@@ -128,60 +166,68 @@ function createHermesPluginNotificationService(options = {}) {
       priority: normalizePriority(input.priority),
       title,
       summary,
+      detailMessage,
       actionLabel: clean(input.actionLabel || input.action_label || "打开", 80),
       route,
       viewMode,
       pluginUrl: safeRelativeLink(input.deepLink || input.deep_link) || pluginUrl,
-      dedupeKey,
-      openMode: clean(input.openMode || input.open_mode || "inbox", 40).toLowerCase() === "plugin" ? "plugin" : "inbox",
+      dedupeKey: "",
+      openMode: clean(input.openMode || input.open_mode || (pluginId === "codex-mobile" ? "plugin" : "inbox"), 40).toLowerCase() === "plugin" ? "plugin" : "inbox",
       notify: input.notify !== false,
+      createInbox: null,
       requireInteraction: input.requireInteraction !== false,
       dueAt: clean(input.dueAt || input.due_at, 80),
       availableAt: clean(input.availableAt || input.available_at, 80),
       createdAt: clean(input.createdAt || input.created_at, 80),
       updatedAt: clean(input.updatedAt || input.updated_at, 80) || nowIso(),
     };
+    event.dedupeKey = pluginNotificationDedupeKey(input, event);
+    return event;
   }
 
   async function postNotification(input = {}) {
     const event = normalizeEvent(input);
     if (!event.ok) return event;
-    const inbox = actionInboxService();
-    if (!inbox) return errorResult(503, "action_inbox_service_unavailable");
+    event.createInbox = pluginNotificationCreatesInbox(input, event);
+    let inboxResult = null;
+    if (event.createInbox) {
+      const inbox = actionInboxService();
+      if (!inbox) return errorResult(503, "action_inbox_service_unavailable");
+      inboxResult = await Promise.resolve(inbox.upsertSourceItem({
+        workspaceId: event.workspaceId,
+        assigneeWorkspaceId: event.workspaceId,
+        sourceType: "plugin",
+        sourceId: event.sourceId,
+        sourceRef: {
+          pluginId: event.pluginId,
+          eventId: event.eventId,
+          notificationType: event.notificationType,
+          route: event.route,
+          pluginViewMode: event.viewMode,
+          detailMessage: event.detailMessage,
+        },
+        itemType: event.itemType,
+        status: event.status,
+        priority: event.priority,
+        title: event.title,
+        summary: event.summary,
+        actionLabel: event.actionLabel,
+        deepLink: event.pluginUrl,
+        dedupeKey: event.dedupeKey,
+        dueAt: event.dueAt,
+        availableAt: event.availableAt,
+        createdAt: event.createdAt,
+        updatedAt: event.updatedAt,
+      }));
+      if (!inboxResult?.ok) return inboxResult || errorResult(500, "action_inbox_upsert_failed");
+    }
 
-    const inboxResult = await Promise.resolve(inbox.upsertSourceItem({
-      workspaceId: event.workspaceId,
-      assigneeWorkspaceId: event.workspaceId,
-      sourceType: "plugin",
-      sourceId: event.sourceId,
-      sourceRef: {
-        pluginId: event.pluginId,
-        eventId: event.eventId,
-        notificationType: event.notificationType,
-        route: event.route,
-        pluginViewMode: event.viewMode,
-      },
-      itemType: event.itemType,
-      status: event.status,
-      priority: event.priority,
-      title: event.title,
-      summary: event.summary,
-      actionLabel: event.actionLabel,
-      deepLink: event.pluginUrl,
-      dedupeKey: event.dedupeKey,
-      dueAt: event.dueAt,
-      availableAt: event.availableAt,
-      createdAt: event.createdAt,
-      updatedAt: event.updatedAt,
-    }));
-    if (!inboxResult?.ok) return inboxResult || errorResult(500, "action_inbox_upsert_failed");
-
-    const inboxUrl = appRouteUrl({
+    const inboxUrl = event.createInbox ? appRouteUrl({
       view: "inbox",
       workspaceId: event.workspaceId,
-      inboxItemId: inboxResult.item?.id || "",
-    });
-    const clickUrl = event.openMode === "plugin" ? event.pluginUrl : inboxUrl;
+      inboxItemId: inboxResult?.item?.id || "",
+    }) : "";
+    const clickUrl = event.createInbox && event.openMode !== "plugin" ? inboxUrl : event.pluginUrl;
     let push = null;
     const sendPush = sendPushNotification();
     if (event.notify && typeof sendPush === "function") {
@@ -201,8 +247,8 @@ function createHermesPluginNotificationService(options = {}) {
           messageType: "plugin_notification",
           pluginId: event.pluginId,
           pluginEventId: event.eventId,
-          inboxItemId: inboxResult.item?.id || "",
-          sourceInboxItemId: inboxResult.item?.id || "",
+          inboxItemId: inboxResult?.item?.id || "",
+          sourceInboxItemId: inboxResult?.item?.id || "",
           requireInteraction: event.requireInteraction,
         },
       }, {
@@ -216,7 +262,7 @@ function createHermesPluginNotificationService(options = {}) {
       pluginId: event.pluginId,
       workspaceId: event.workspaceId,
       principalId: event.principalId,
-      inboxItem: inboxResult.item,
+      inboxItem: inboxResult?.item || null,
       clickUrl,
       push,
     };

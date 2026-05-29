@@ -22,11 +22,23 @@ function cleanList(value) {
   return [];
 }
 
+function cleanProvider(value) {
+  return String(value || "").trim();
+}
+
 function normalizeSecurityLevel(value) {
   const text = String(value || "").trim().toLowerCase().replaceAll("_", "-");
   if (["user", "restricted", "low", "low-privilege"].includes(text)) return "user";
   if (["owner", "owner-maintenance", "maintenance", "admin", "high", "high-privilege"].includes(text)) return "owner-maintenance";
   return "unspecified";
+}
+
+function gatewayWorkerUnavailableError(message, code, details = {}) {
+  const err = new Error(message);
+  err.status = 503;
+  err.code = code;
+  err.details = details;
+  return err;
 }
 
 function normalizeWorkspaceIds(value) {
@@ -118,7 +130,7 @@ function matchesExact(worker, hints = {}) {
 }
 
 function satisfiesFilter(worker, hints = {}) {
-  const provider = String(hints.provider || "").trim();
+  const provider = cleanProvider(hints.provider);
   if (provider && worker.provider !== provider) return false;
   if (!provider && worker.provider && worker.provider !== "openai-codex" && !matchesExact(worker, hints)) return false;
   const requiredSecurityLevel = normalizeSecurityLevel(hints.securityLevel || hints.security_level || "user");
@@ -255,6 +267,7 @@ function createGatewayPoolProvider(options = {}) {
   async function chooseTarget(hints = {}) {
     const loaded = load();
     const requestedSecurityLevel = normalizeSecurityLevel(hints.securityLevel || hints.security_level || "user");
+    const requestedProvider = cleanProvider(hints.provider);
     const skillRoutingRequested = Boolean(
       hints.skillProfile
       || hints.skill_profile
@@ -275,25 +288,30 @@ function createGatewayPoolProvider(options = {}) {
       effectiveHints.requireSkillProfile = true;
     }
     if (!loaded.enabled) {
-      if (requestedSecurityLevel === "user") {
-        const err = new Error("No user-level Hermes Gateway worker pool is available");
-        err.status = 503;
-        err.code = "gateway_user_pool_unavailable";
-        err.details = { reason: loaded.error ? `manifest_error:${loaded.error.message || loaded.error}` : "pool_unavailable" };
-        throw err;
+      const reason = loaded.error ? `manifest_error:${loaded.error.message || loaded.error}` : "pool_unavailable";
+      if (requestedSecurityLevel === "user" || requestedProvider) {
+        throw gatewayWorkerUnavailableError(
+          requestedProvider
+            ? `No Hermes Gateway worker pool is available for provider ${requestedProvider}`
+            : "No user-level Hermes Gateway worker pool is available",
+          requestedProvider ? "gateway_provider_pool_unavailable" : "gateway_user_pool_unavailable",
+          { reason, provider: requestedProvider, securityLevel: requestedSecurityLevel },
+        );
       }
       return Object.assign(fallbackTarget(), {
-        reason: loaded.error ? `manifest_error:${loaded.error.message || loaded.error}` : "pool_unavailable",
+        reason,
       });
     }
     const candidates = orderedWorkers(loaded.workers, nextIndex, effectiveHints);
     if (!candidates.length) {
-      if (requestedSecurityLevel === "user") {
-        const err = new Error("No matching user-level Hermes Gateway worker is available");
-        err.status = 503;
-        err.code = "gateway_user_worker_unavailable";
-        err.details = { reason: "no_matching_worker" };
-        throw err;
+      if (requestedSecurityLevel === "user" || requestedProvider) {
+        throw gatewayWorkerUnavailableError(
+          requestedProvider
+            ? `No matching Hermes Gateway worker is available for provider ${requestedProvider}`
+            : "No matching user-level Hermes Gateway worker is available",
+          requestedProvider ? "gateway_provider_worker_unavailable" : "gateway_user_worker_unavailable",
+          { reason: "no_matching_worker", provider: requestedProvider, securityLevel: requestedSecurityLevel },
+        );
       }
       return Object.assign(fallbackTarget(), { reason: "no_matching_worker" });
     }
@@ -308,12 +326,14 @@ function createGatewayPoolProvider(options = {}) {
         });
       }
     }
-    if (requestedSecurityLevel === "user") {
-      const err = new Error("No healthy user-level Hermes Gateway worker is available");
-      err.status = 503;
-      err.code = "gateway_user_worker_unhealthy";
-      err.details = { reason: "no_healthy_worker" };
-      throw err;
+    if (requestedSecurityLevel === "user" || requestedProvider) {
+      throw gatewayWorkerUnavailableError(
+        requestedProvider
+          ? `No healthy Hermes Gateway worker is available for provider ${requestedProvider}`
+          : "No healthy user-level Hermes Gateway worker is available",
+        requestedProvider ? "gateway_provider_worker_unhealthy" : "gateway_user_worker_unhealthy",
+        { reason: "no_healthy_worker", provider: requestedProvider, securityLevel: requestedSecurityLevel },
+      );
     }
     return Object.assign(fallbackTarget(), { reason: "no_healthy_worker" });
   }

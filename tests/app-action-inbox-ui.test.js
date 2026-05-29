@@ -41,6 +41,7 @@ this.ActionInboxUiTest = {
   actionInboxPrimaryDeliverable,
   actionInboxSourceDeepLink,
   actionInboxTodoDueText,
+  actionInboxDetailMessage,
   openActionInboxItemDeliverableById,
   renderActionInboxActionSheet,
   renderActionInboxDetail,
@@ -68,6 +69,36 @@ assert.match(openTodoHtml, /data-action-inbox-actions-id="ainb-todo-1"/);
 assert.doesNotMatch(openTodoHtml, /data-action-inbox-open-source-id="ainb-todo-1"/);
 assert.match(openTodoHtml, /class="action-inbox-state-badge action-inbox-state-action open"/);
 assert.match(openTodoHtml, />\u5f85\u5904\u7406<\/button>/);
+
+const codexReceipt = {
+  id: "ainb-codex-1",
+  sourceType: "plugin",
+  itemType: "delivery",
+  status: "open",
+  title: "Codex task complete",
+  summary: "This turn 已结束",
+  sourceRef: {
+    pluginId: "codex-mobile",
+    detailMessage: {
+      format: "markdown",
+      sourceTurnId: "turn-1",
+      body: "# Result\n\nLong final receipt",
+      truncated: true,
+    },
+  },
+};
+sandbox.state.actionInboxDetail = { item: codexReceipt, events: [] };
+sandbox.state.selectedActionInboxItemId = "ainb-codex-1";
+assert.deepEqual(ui.actionInboxDetailMessage(codexReceipt), {
+  format: "markdown",
+  sourceTurnId: "turn-1",
+  body: "# Result\n\nLong final receipt",
+  truncated: true,
+});
+const codexReceiptHtml = ui.renderActionInboxDetail();
+assert.match(codexReceiptHtml, /action-inbox-detail-message/);
+assert.match(codexReceiptHtml, /Long final receipt/);
+assert.match(codexReceiptHtml, /\u5df2\u622a\u65ad/);
 assert.doesNotMatch(openTodoHtml, />\u5904\u7406<\/button>/);
 assert.match(openTodoHtml, /aria-label="状态：待处理，打开处理方式"/);
 assert.doesNotMatch(openTodoHtml, /action-inbox-process-button/);

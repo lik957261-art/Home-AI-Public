@@ -19,7 +19,9 @@ function createHarness(overrides = {}) {
     },
     hermesPluginService: {
       pluginManifestUrl(id) {
-        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+        if (id === "wardrobe") return "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest";
+        if (id === "codex-mobile") return "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest";
+        return "";
       },
     },
     actionInboxService: {
@@ -112,11 +114,73 @@ async function testNotifyFalseSkipsPush() {
   assert.equal(result.push, null);
 }
 
+async function testCodexTaskCompleteUsesWorkspaceScopedInboxRecord() {
+  const { calls, service } = createHarness();
+  const result = await service.postNotification({
+    pluginId: "codex-mobile",
+    workspaceId: "owner",
+    sourceId: "codex-task-1",
+    title: "Codex task complete",
+    type: "task_complete",
+    summary: "This turn 已结束 · 14:32",
+    route: { name: "task", itemId: "codex-task-1" },
+    openMode: "plugin",
+    detailMessage: {
+      format: "markdown",
+      sourceTurnId: "turn-1",
+      body: "# Codex task complete\n\nLong final receipt",
+      truncated: false,
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.inboxItem.id, "ainb-plugin-1");
+  assert.equal(calls.inbox.length, 1);
+  assert.equal(calls.inbox[0].sourceType, "plugin");
+  assert.equal(calls.inbox[0].sourceId, "codex-task-1");
+  assert.equal(calls.inbox[0].dedupeKey, "plugin:codex-mobile:workspace:owner:latest");
+  assert.deepEqual(calls.inbox[0].sourceRef.detailMessage, {
+    format: "markdown",
+    sourceTurnId: "turn-1",
+    body: "# Codex task complete\n\nLong final receipt",
+    truncated: false,
+  });
+  assert.equal(calls.push.length, 1);
+  assert.equal(calls.push[0].payload.body, "This turn 已结束 · 14:32");
+  assert.equal(JSON.stringify(calls.push[0]).includes("Long final receipt"), false);
+  assert.equal(result.clickUrl, "/?view=codex&workspaceId=owner&pluginId=codex-mobile&pluginRoute=task&pluginItemId=codex-task-1");
+  assert.equal(calls.push[0].payload.data.viewMode, "codex");
+  assert.equal(calls.push[0].payload.data.url, result.clickUrl);
+  assert.equal(calls.push[0].payload.data.originalUrl, result.clickUrl);
+  assert.equal(calls.push[0].payload.data.inboxItemId, "ainb-plugin-1");
+}
+
+async function testPluginNotificationCanExplicitlySkipInbox() {
+  const { calls, service } = createHarness({
+    actionInboxService: null,
+  });
+  const result = await service.postNotification({
+    pluginId: "wardrobe",
+    workspaceId: "owner",
+    sourceId: "wardrobe-toast-1",
+    title: "Wardrobe background update",
+    inbox: false,
+    openMode: "plugin",
+    route: { name: "updates" },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.inboxItem, null);
+  assert.equal(calls.inbox.length, 0);
+  assert.equal(calls.push.length, 1);
+  assert.equal(calls.push[0].payload.data.url, "/?view=wardrobe&workspaceId=owner&pluginId=wardrobe&pluginRoute=updates");
+}
+
 async function run() {
   await testPluginNotificationCreatesInboxAndPush();
   await testPluginOpenModeCanClickThroughToPluginTab();
   await testRequiresStableSourceIdAndRegisteredPlugin();
   await testNotifyFalseSkipsPush();
+  await testCodexTaskCompleteUsesWorkspaceScopedInboxRecord();
+  await testPluginNotificationCanExplicitlySkipInbox();
 }
 
 run().catch((err) => {

@@ -20,6 +20,8 @@ const rawPool = {
       name: "lowgw1",
       profile: "lowgw1",
       apiBase: "http://127.0.0.1:18751",
+      provider: "openai-codex",
+      securityLevel: "user",
       allowedWorkspaceIds: ["owner"],
       skillProfile: "owner-full",
       skillWorkspaceIds: ["owner"],
@@ -30,6 +32,8 @@ const rawPool = {
       name: "lowgw2",
       profile: "lowgw2",
       apiBase: "http://127.0.0.1:18752",
+      provider: "deepseek",
+      securityLevel: "owner-maintenance",
       healthy: false,
     },
   ],
@@ -41,6 +45,20 @@ const rawPool = {
     mode: "worker-pool",
     workerCount: 2,
     healthy: 1,
+    providerMatrix: [
+      {
+        provider: "openai-codex",
+        label: "ChatGPT",
+        user: { configured: 1, healthy: 1 },
+        ownerMaintenance: { configured: 0, healthy: 0 },
+      },
+      {
+        provider: "deepseek",
+        label: "DeepSeek",
+        user: { configured: 0, healthy: 0 },
+        ownerMaintenance: { configured: 1, healthy: 0 },
+      },
+    ],
   });
   assert.equal(publicGatewayPoolStatus(null), null);
   assert.equal(gatewayPoolStatusHealthy(rawPool), true);
@@ -51,7 +69,10 @@ const rawPool = {
   const projection = createGatewayStatusProjection({
     isOwnerAuth: (auth) => auth?.workspaceId === "owner",
   });
-  assert.equal(projection.publicGatewayPoolStatusForAuth({ workspaceId: "owner" }, rawPool), rawPool);
+  const ownerPool = projection.publicGatewayPoolStatusForAuth({ workspaceId: "owner" }, rawPool);
+  assert.notEqual(ownerPool, rawPool);
+  assert.equal(ownerPool.workers[0].apiBase, "http://127.0.0.1:18751");
+  assert.equal(ownerPool.providerMatrix[1].provider, "deepseek");
 
   const userPool = projection.publicGatewayPoolStatusForAuth({ workspaceId: "child" }, rawPool);
   assert.deepEqual(userPool, {
@@ -59,6 +80,20 @@ const rawPool = {
     mode: "worker-pool",
     workerCount: 2,
     healthy: 1,
+    providerMatrix: [
+      {
+        provider: "openai-codex",
+        label: "ChatGPT",
+        user: { configured: 1, healthy: 1 },
+        ownerMaintenance: { configured: 0, healthy: 0 },
+      },
+      {
+        provider: "deepseek",
+        label: "DeepSeek",
+        user: { configured: 0, healthy: 0 },
+        ownerMaintenance: { configured: 1, healthy: 0 },
+      },
+    ],
   });
   const serialized = JSON.stringify(userPool);
   assert.equal(serialized.includes("ProgramData"), false);

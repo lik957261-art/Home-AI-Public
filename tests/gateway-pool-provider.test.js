@@ -211,6 +211,58 @@ async function testFallsBackWhenManifestMissing() {
   assert.equal(chosen.apiKey, "fallback-key");
 }
 
+async function testProviderSpecificOwnerMaintenanceFailsClosedWithoutWorker() {
+  const manifest = tempManifest({
+    enabled: true,
+    workers: [
+      { name: "openai-maint", profile: "officialclean1", host: "127.0.0.1", port: 18651, provider: "openai-codex", securityLevel: "owner-maintenance", allowMaintenance: true },
+    ],
+  });
+  const provider = createGatewayPoolProvider({
+    enabled: "auto",
+    manifestPaths: [manifest.file],
+    fallbackApiBase: "http://fallback.example.test/",
+    fallbackApiKey: "fallback-key",
+    createGatewayRunner,
+    fetchImpl: async () => jsonResponse({ status: "ok" }),
+  });
+  await assert.rejects(() => provider.chooseTarget({
+    provider: "deepseek",
+    securityLevel: "owner-maintenance",
+    maintenance: true,
+  }), {
+    code: "gateway_provider_worker_unavailable",
+  });
+  fs.rmSync(manifest.dir, { recursive: true, force: true });
+}
+
+async function testProviderSpecificOwnerMaintenanceChoosesDeepSeekWorker() {
+  const manifest = tempManifest({
+    enabled: true,
+    workers: [
+      { name: "openai-maint", profile: "officialclean1", host: "127.0.0.1", port: 18651, provider: "openai-codex", securityLevel: "owner-maintenance", allowMaintenance: true },
+      { name: "deepseek-maint", profile: "deepseekmaint1", host: "127.0.0.1", port: 18653, provider: "deepseek", securityLevel: "owner-maintenance", allowMaintenance: true },
+    ],
+  });
+  const provider = createGatewayPoolProvider({
+    enabled: "auto",
+    manifestPaths: [manifest.file],
+    fallbackApiBase: "http://fallback.example.test/",
+    fallbackApiKey: "fallback-key",
+    createGatewayRunner,
+    fetchImpl: async () => jsonResponse({ status: "ok" }),
+  });
+  const chosen = await provider.chooseTarget({
+    provider: "deepseek",
+    securityLevel: "owner-maintenance",
+    maintenance: true,
+    preferred_worker_profiles: ["deepseekmaint1"],
+  });
+  assert.equal(chosen.name, "deepseek-maint");
+  assert.equal(chosen.source, "worker_pool");
+  fs.rmSync(manifest.dir, { recursive: true, force: true });
+}
+
 async function testUserRunsFailClosedWithoutUserWorker() {
   const manifest = tempManifest({
     enabled: true,
@@ -242,6 +294,8 @@ async function testUserRunsFailClosedWithoutUserWorker() {
   await testChooseHonorsSkillWorkspaceIds();
   await testSkillRoutingStaysCompatibleWithoutManifestFields();
   await testFallsBackWhenManifestMissing();
+  await testProviderSpecificOwnerMaintenanceFailsClosedWithoutWorker();
+  await testProviderSpecificOwnerMaintenanceChoosesDeepSeekWorker();
   await testUserRunsFailClosedWithoutUserWorker();
   console.log("gateway-pool-provider tests passed");
 })().catch((err) => {

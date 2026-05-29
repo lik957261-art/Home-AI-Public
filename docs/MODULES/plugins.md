@@ -263,23 +263,45 @@ Hermes can dedupe repeated plugin callbacks. Minimal body:
 Hermes Mobile then:
 
 - verifies the plugin is registered and the workspace is authorized;
-- upserts a summary-only Action Inbox item with `sourceType=plugin`;
-- stores only bounded route metadata in `sourceRef`;
+- for durable user work, upserts a summary-only Action Inbox item with
+  `sourceType=plugin`;
+- accepts optional bounded `detailMessage` for the Action Inbox detail page.
+  Web Push still uses only `title` and `summary`; long final receipts must live
+  in `sourceRef.detailMessage`, not in the Push body;
+- for ephemeral plugin completion messages, supports push-only delivery through
+  `inbox=false`, `createInbox=false`, or `inboxMode=push`;
+- treats Codex Mobile task-completion notifications as workspace-scoped
+  replacement records: each workspace keeps one latest Codex Inbox item, and a
+  new Codex completion overwrites that workspace's previous Codex completion
+  entry through the stable dedupe key;
+- routes Codex Mobile Web Push clicks directly to the Codex plugin tab by
+  default, while still carrying the Inbox item id as metadata;
+- stores only bounded route metadata in `sourceRef` when an Inbox item is
+  created;
 - sends Web Push through the Hermes PWA subscription when `notify` is not
   `false`;
-- returns the generated Inbox item id and delivery summary without exposing push
-  endpoints or plugin secrets.
+- returns the generated Inbox item id when one exists, plus delivery summary,
+  without exposing push endpoints or plugin secrets.
 
-Default click behavior opens the Hermes Inbox item. A plugin may set
-`openMode="plugin"` when the notification should click through to the plugin tab
-instead. Even then, Hermes still creates an Inbox projection so the notification
-has a durable record.
+Default click behavior opens the Hermes Inbox item when one is created. A
+plugin may set `openMode="plugin"` when the notification should click through to
+the plugin tab instead. Push-only events always click to the plugin route
+because there is no Inbox item.
+
+For Codex Mobile notifications, Hermes routes Action Inbox clicks to the Codex
+tab and carries bounded route hints such as `pluginRoute`, `pluginItemId`,
+`pluginThreadId`, and `pluginTaskId` into the iframe entry URL. The Codex plugin
+project must consume those hints in embedded mode and focus the matching thread
+or task when available. Web Push clicks follow the same Codex plugin route by
+default; the Inbox item id remains metadata for receipt/context, not the primary
+click destination.
 
 Plugin notification events must not include raw access keys, bearer tokens,
-launch tokens, push endpoints, database paths, private inventories, full
-generated reports, raw model prompts/responses, or long logs. Put large or
-private content behind the plugin's authenticated UI/API and send only stable
-ids and compact summaries to Hermes.
+launch tokens, push endpoints, database paths, private inventories, raw model
+prompts/responses, reasoning, raw tool payloads, command output, file diffs, or
+long logs. `detailMessage.body` is only for bounded final receipts such as
+Codex final assistant text and usage summary; cap it before submission and set
+`truncated=true` when shortened.
 
 ## Plugin-Side Requirements
 
@@ -378,6 +400,10 @@ Mobile tests. The plugin-side harness should prove:
   replay an expired launch URL or lose the current plugin route.
 - Windowing: plugin-owned links and details stay in the same iframe; no
   `window.open` or `target=_blank` for internal pages.
+- Notification mode: durable plugin notifications can create Inbox items, but
+  push-only plugin events must not create Inbox clutter. Codex Mobile task
+  completion keeps one latest Inbox record per workspace and should route back
+  to the Codex tab.
 - Mobile PWA smoke: at least one installed-PWA run verifies the plugin opens,
   navigates to a secondary page, handles right-swipe/back, and returns without
   browser chrome.

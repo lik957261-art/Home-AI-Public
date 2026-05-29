@@ -98,6 +98,19 @@ function actionInboxDisplaySummary(item = {}) {
   return normalized === `\u622a\u6b62 ${dueText}` ? "" : normalized;
 }
 
+function actionInboxDetailMessage(item = {}) {
+  const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
+  const detail = sourceRef.detailMessage && typeof sourceRef.detailMessage === "object" ? sourceRef.detailMessage : null;
+  const body = String(detail?.body || "").trim();
+  if (!body) return null;
+  return {
+    format: String(detail.format || "text").toLowerCase() === "markdown" ? "markdown" : "text",
+    sourceTurnId: String(detail.sourceTurnId || detail.source_turn_id || "").trim(),
+    body,
+    truncated: Boolean(detail.truncated),
+  };
+}
+
 function actionInboxFilterQuery() {
   const filter = String(state.actionInboxStatusFilter || "open");
   const params = new URLSearchParams({ workspaceId: state.selectedWorkspaceId || "owner", limit: "120" });
@@ -431,12 +444,21 @@ function renderActionInboxDetail() {
   const sourceLink = actionInboxSourceDeepLink(item);
   const title = actionInboxDisplayTitle(item);
   const summary = actionInboxDisplaySummary(item);
+  const detailMessage = actionInboxDetailMessage(item);
   const dueText = actionInboxTodoDueText(item);
   const tone = actionInboxStatusTone(item.status);
   const statusMenuOpen = state.actionInboxActionMenuItemId === item.id;
   return `<section class="action-inbox-detail" aria-label="${"\u6536\u4ef6\u8be6\u60c5"}">
     <h3>${escapeHtml(title || item.id || "\u6536\u4ef6")}</h3>
     ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
+    ${detailMessage ? `<section class="action-inbox-detail-message">
+      <div class="action-inbox-detail-message-head">
+        <span>${"\u8be6\u7ec6\u56de\u6267"}</span>
+        ${detailMessage.truncated ? `<em>${"\u5df2\u622a\u65ad"}</em>` : ""}
+      </div>
+      ${detailMessage.sourceTurnId ? `<div class="action-inbox-detail-message-meta">${escapeHtml(detailMessage.sourceTurnId)}</div>` : ""}
+      <pre>${escapeHtml(detailMessage.body)}</pre>
+    </section>` : ""}
     <div class="action-inbox-detail-meta">
       <span class="action-inbox-source-badge ${escapeHtml(actionInboxSourceTone(item.sourceType))}">${"\u6765\u6e90\uff1a"}${escapeHtml(actionInboxSourceLabel(item.sourceType))}</span>
       <span class="action-inbox-type-badge">${"\u7c7b\u578b\uff1a"}${escapeHtml(actionInboxTypeLabel(item.itemType))}</span>

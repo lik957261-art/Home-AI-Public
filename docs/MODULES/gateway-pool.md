@@ -300,10 +300,27 @@ configured DeepSeek model unless a future workspace/provider allowlist is
 added. Do not write the raw key into docs, handoffs, manifests, screenshots,
 logs, or committed config.
 
+Owner high-permission DeepSeek runs use a separate owner-maintenance Gateway
+profile, currently `deepseekmaint1`, instead of sharing the normal user-level
+`deepseekgw*` workers. The profile must be in
+`gateway-pool-manifest.json` with `provider=deepseek`,
+`securityLevel=owner-maintenance`, and `allowMaintenance=true`. Startup must
+write `model.provider: deepseek` and `model.default: deepseek-chat` into that
+profile config, enable the `skills` toolset for the profile, link the profile's
+`skills` directory to the Owner full Skill store, and fail closed if the
+DeepSeek key file is missing. A DeepSeek Owner maintenance request must not fall
+back to `officialclean*` or any `openai-codex` profile when DeepSeek is
+selected.
+
+Owner status surfaces show provider availability by tier: normal user-level
+Gateway workers and Owner high-permission Gateway workers. The matrix is only
+health/count metadata; it must not expose API keys, auth paths, manifest paths,
+or profile-local secrets.
+
 Gateway Pool launch scripts must target the actual installed WSL distro. The
 current production default is `Ubuntu-24.04`; scripts must not fall back to a
 removed `HermesGatewayWorker` distro. A DeepSeek deployment is not complete
-until live smoke confirms the selected `deepseekgw*` worker is healthy, has a
+until live smoke confirms the selected `deepseekgw*` or `deepseekmaint*` worker is healthy, has a
 non-empty DeepSeek key in its process environment, and its Gateway session or
 worker log reports the actual provider/backend as `deepseek`. Request body
 fields alone are not sufficient evidence.

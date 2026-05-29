@@ -1,6 +1,10 @@
 "use strict";
 
-const { resolveGatewayModelRoute: defaultResolveGatewayModelRoute } = require("./gateway-model-routing-service");
+const {
+  DEEPSEEK_OWNER_MAINTENANCE_WORKER_PROFILES,
+  DEEPSEEK_PROVIDER,
+  resolveGatewayModelRoute: defaultResolveGatewayModelRoute,
+} = require("./gateway-model-routing-service");
 const { resolveSearchSourceForMessage: defaultResolveSearchSourceForMessage } = require("./search-source-routing-service");
 
 const DEFAULT_SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
@@ -422,11 +426,21 @@ function createThreadMessageCreateService(options = {}) {
     const followUpInstructions = buildFollowUpInstructions(thread, context.singleWindowMode, context.requestedTaskGroupId);
     const searchSource = context.searchSource || {};
     const modelRoute = objectValue(context.modelRoute);
+    const gatewayRouting = Object.assign({}, objectValue(context.gatewayRouting), objectValue(modelRoute.gatewayRouting));
+    const maintenanceRoute = Boolean(
+      gatewayRouting.maintenance
+      || gatewayRouting.allowMaintenance
+      || gatewayRouting.allow_maintenance
+      || String(gatewayRouting.securityLevel || gatewayRouting.security_level || "").trim() === "owner-maintenance"
+    );
+    if (maintenanceRoute && gatewayRouting.provider === DEEPSEEK_PROVIDER) {
+      gatewayRouting.preferred_worker_profiles = DEEPSEEK_OWNER_MAINTENANCE_WORKER_PROFILES;
+    }
     const runOptions = {
       reasoning_effort: context.reasoningEffort,
       singleWindowMode: context.singleWindowMode,
       actorWorkspaceId: context.actorWorkspaceId,
-      gatewayRouting: Object.assign({}, objectValue(context.gatewayRouting), objectValue(modelRoute.gatewayRouting)),
+      gatewayRouting,
       instructions: [
         body.instructions || "",
         searchSource.instructions || "",

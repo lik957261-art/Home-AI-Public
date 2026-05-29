@@ -248,7 +248,7 @@ function Is-OwnerMaintenanceWorker {
   param($Worker)
   if (-not $Worker.enabled -or -not $Worker.allowMaintenance -or -not $Worker.profile -or -not $Worker.port) { return $false }
   if ([string]$Worker.securityLevel -ne "owner-maintenance") { return $false }
-  return [string]$Worker.profile -match '^officialclean[0-9]+$'
+  return [string]$Worker.profile -match '^(officialclean|deepseekmaint)[0-9]+$'
 }
 
 function Get-OwnerMaintenanceWorkers {
@@ -311,6 +311,55 @@ function Ensure-ProfileToolsetEnabled {
   } else {
     $text = $text.TrimEnd() + "`ntoolsets:`n  - $ToolsetName`n"
   }
+  $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+  [System.IO.File]::WriteAllText($ConfigPath, $text, $utf8NoBom)
+}
+
+function Ensure-OwnerMaintenanceProfileConfig {
+  param(
+    [string]$ConfigPath,
+    [int]$Port,
+    [string]$Provider
+  )
+  $parent = Split-Path -Parent $ConfigPath
+  if ($parent -and -not (Test-Path -LiteralPath $parent)) {
+    New-Item -ItemType Directory -Force -Path $parent | Out-Null
+  }
+  $normalizedProvider = ([string]$Provider).Trim().ToLowerInvariant()
+  if ($normalizedProvider -eq "deepseek") {
+    $modelBlock = "model:`n  default: deepseek-chat`n  provider: deepseek"
+    $skillsToolset = "`n  - skills"
+  } else {
+    $modelBlock = "model:`n  default: gpt-5.5`n  provider: openai-codex`n  base_url: https://chatgpt.com/backend-api/codex"
+    $skillsToolset = ""
+  }
+  $text = @"
+$modelBlock
+toolsets:
+  - chatgpt_pro
+  - hermes-cli
+$skillsToolset
+agent:
+  max_turns: 60
+  reasoning_effort: medium
+terminal:
+  backend: local
+  cwd: .
+  timeout: 180
+platforms:
+  api_server:
+    enabled: true
+    extra:
+      host: 127.0.0.1
+      port: $Port
+plugins:
+  enabled:
+    - hermes-mobile-chatgpt-pro
+worker_pool:
+  enabled: false
+cron:
+  enabled: false
+"@
   $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
   [System.IO.File]::WriteAllText($ConfigPath, $text, $utf8NoBom)
 }
@@ -632,6 +681,7 @@ function Start-OwnerMaintenanceGateways {
   $sharedAuthLockPath = "/home/$OfficialUser/.hermes/auth.lock"
   $sharedMemoryEnabled = OwnerMaintenanceSharedMemoryEnabled
   $sharedMemoryPath = "/home/$OfficialUser/.hermes/memories"
+  $ownerSkillStore = "/mnt/c/ProgramData/HermesMobile/data/skill-profiles/owner-full/skills"
   $ownerMaintenanceLockPath = "/tmp/hermes-mobile-owner-maintenance-memory.lock"
   $bridgeKeyPath = "/mnt/c/ProgramData/HermesMobile/data/secrets/bridge-host.secret"
   $deepseekApiKeyPath = "/mnt/c/ProgramData/HermesMobile/data/secrets/deepseek-api-key.secret"
@@ -654,6 +704,9 @@ function Start-OwnerMaintenanceGateways {
   foreach ($worker in $workers) {
     $profile = [string]$worker.profile
     Assert-SafeGatewayProfileName -Profile $profile
+    $provider = ([string]$worker.provider).Trim().ToLowerInvariant()
+    $configPath = "\\wsl.localhost\$OfficialDistro\home\$OfficialUser\.hermes\profiles\$profile\config.yaml"
+    Ensure-OwnerMaintenanceProfileConfig -ConfigPath $configPath -Port ([int]$worker.port) -Provider $provider
     $profileRoot = "/home/$OfficialUser/.hermes/profiles/$profile"
     $profileMemoryPath = "$profileRoot/memories"
     [void]$commands.Add("mkdir -p /home/$OfficialUser/.hermes/profiles/$profile/logs")
@@ -662,6 +715,11 @@ function Start-OwnerMaintenanceGateways {
     [void]$commands.Add("ln -sfn $sharedAuthLockPath /home/$OfficialUser/.hermes/profiles/$profile/auth.lock")
     if ($sharedMemoryEnabled) {
       Add-OwnerMaintenanceSharedMemoryCommands -Commands $commands -ProfileRoot $profileRoot -ProfileMemoryPath $profileMemoryPath -SharedMemoryPath $sharedMemoryPath
+    }
+    if ($provider -eq "deepseek") {
+      [void]$commands.Add("if [ -z `"`$deepseek_api_key`" ]; then echo missing DeepSeek API key for $profile >&2; exit 1; fi")
+      [void]$commands.Add("mkdir -p $ownerSkillStore")
+      [void]$commands.Add("if [ -L $profileRoot/skills ]; then rm -f $profileRoot/skills; fi; if [ ! -e $profileRoot/skills ]; then ln -sfn $ownerSkillStore $profileRoot/skills; elif [ ! -L $profileRoot/skills ]; then echo owner_maintenance_skills_directory_exists_keeping_profile_local:$profileRoot/skills >&2; fi")
     }
     [void]$commands.Add("setsid -f env HOME=/home/$OfficialUser HERMES_HOME=$profileRoot HERMES_PROFILE=$profile PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 HERMES_MOBILE_CHATGPT_PRO_BRIDGE_URL=`"`$mobile_bridge_host_url/bridge/chatgpt-pro`" HERMES_WEB_CHATGPT_PRO_BRIDGE_URL=`"`$mobile_bridge_host_url/bridge/chatgpt-pro`" HERMES_MOBILE_CHATGPT_PRO_BRIDGE_KEY_PATH=$bridgeKeyPath HERMES_WEB_CHATGPT_PRO_BRIDGE_KEY_PATH=$bridgeKeyPath HERMES_MOBILE_CHATGPT_PRO_TIMEOUT_SECONDS=1800 HERMES_WEB_CHATGPT_PRO_TIMEOUT_SECONDS=1800 DEEPSEEK_API_KEY=`"`$deepseek_api_key`" $officialPython -m hermes_cli.main gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1")
   }

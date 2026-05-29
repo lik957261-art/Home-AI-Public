@@ -26,7 +26,7 @@ param(
     [int]$HealthStatusTimeoutSec = 5,
     [int]$ReadyWaitSeconds = 90,
     [int]$MinGatewayPoolWorkers = 1,
-    [string]$GatewayPoolPorts = "18751,18752,18753,18754,18755,18756,18757,18758,18759,18760,18761,18762,18651,18652",
+    [string]$GatewayPoolPorts = "18751,18752,18753,18754,18755,18756,18757,18758,18759,18760,18761,18762,18763,18764,18765,18766,18651,18652,18653",
     [switch]$CheckOnly,
     [switch]$ReplaceExisting
 )

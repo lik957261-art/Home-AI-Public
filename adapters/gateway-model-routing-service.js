@@ -4,6 +4,7 @@ const GROK_PROVIDER = "xai-oauth";
 const DEEPSEEK_PROVIDER = "deepseek";
 const DEFAULT_GROK_MODEL = "grok-4.3";
 const DEEPSEEK_WORKER_PROFILES = ["deepseekgw1", "deepseekgw5", "deepseekgw99"];
+const DEEPSEEK_OWNER_MAINTENANCE_WORKER_PROFILES = ["deepseekmaint1"];
 const SUPPORTED_GROK_MODELS = new Set(["grok-4.3"]);
 const SUPPORTED_DEEPSEEK_MODELS = new Set(["deepseek-chat", "deepseek-reasoner", "deepseek-v4-pro", "deepseek-v4-flash"]);
 
@@ -36,6 +37,24 @@ function textRequestsGrokModel(text) {
     || /\buse\s+grok\b/i.test(raw)
     || /\bask\s+grok\b/i.test(raw)
     || /\bwith\s+grok\b/i.test(raw)
+  );
+}
+
+function inputRequestsOwnerMaintenance(input = {}) {
+  const routing = input.gatewayRouting || input.gateway_routing || {};
+  const securityLevel = cleanString(input.securityLevel || input.security_level || routing.securityLevel || routing.security_level).toLowerCase();
+  return Boolean(
+    input.maintenance
+    || input.allowMaintenance
+    || input.allow_maintenance
+    || input.maintenanceMode
+    || input.maintenance_mode
+    || routing.maintenance
+    || routing.allowMaintenance
+    || routing.allow_maintenance
+    || securityLevel === "owner-maintenance"
+    || securityLevel === "maintenance"
+    || securityLevel === "owner"
   );
 }
 
@@ -102,7 +121,9 @@ function resolveGatewayModelRoute(input = {}) {
         provider: DEEPSEEK_PROVIDER,
         gatewayRouting: {
           provider: DEEPSEEK_PROVIDER,
-          preferred_worker_profiles: DEEPSEEK_WORKER_PROFILES,
+          preferred_worker_profiles: inputRequestsOwnerMaintenance(input)
+            ? DEEPSEEK_OWNER_MAINTENANCE_WORKER_PROFILES
+            : DEEPSEEK_WORKER_PROFILES,
         },
       },
     };
@@ -119,6 +140,7 @@ function resolveGatewayModelRoute(input = {}) {
 }
 
 module.exports = {
+  DEEPSEEK_OWNER_MAINTENANCE_WORKER_PROFILES,
   DEEPSEEK_PROVIDER,
   DEEPSEEK_WORKER_PROFILES,
   DEFAULT_GROK_MODEL,
@@ -127,6 +149,7 @@ module.exports = {
   SUPPORTED_GROK_MODELS,
   modelLooksLikeDeepSeek,
   modelLooksLikeGrok,
+  inputRequestsOwnerMaintenance,
   resolveGatewayModelRoute,
   textRequestsGrokModel,
 };

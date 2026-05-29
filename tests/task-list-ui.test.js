@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260529-plugin-edge-back-v353";
+const CLIENT_VERSION = "20260529-codex-inbox-detail-v357";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -43,6 +43,11 @@ function cssRuleBody(selector) {
   assert.ok(match, `Missing CSS rule for ${selector}`);
   return match[1];
 }
+assert.match(appJs, /function renderGatewayProviderMatrix/);
+assert.match(appJs, /providerMatrix/);
+assert.match(appJs, /High \$\{escapeHtml\(gatewayProviderTierLabel\(row\.ownerMaintenance\)\)\}/);
+assert.match(stylesCss, /\.workspace-gateway-provider-matrix/);
+assert.match(stylesCss, /\.workspace-gateway-provider-row/);
 const serverJs = fs.readFileSync(path.join(repoRoot, "mobile-server-runtime.js"), "utf8");
 const ownerElevationApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "owner-elevation-api-routes.js"), "utf8");
 const weixinApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "weixin-api-routes.js"), "utf8");
@@ -198,6 +203,8 @@ assert.match(appJs, /state\.viewMode === "inbox"[\s\S]*?await loadActionInbox\(\
 assert.match(appJs, /function actionInboxSourceTone\(sourceType\)/);
 assert.match(appJs, /function actionInboxTodoDueText\(item = \{\}\)/);
 assert.match(appJs, /function actionInboxDisplaySummary\(item = \{\}\)/);
+assert.match(appJs, /function actionInboxDetailMessage\(item = \{\}\)/);
+assert.match(appJs, /class="action-inbox-detail-message"/);
 assert.match(appJs, /if \(value === "chat"\) return "\\u4efb\\u52a1\\u56de\\u6267"/);
 assert.match(appJs, /if \(value === "weixin"\) return "\\u5fae\\u4fe1"/);
 assert.match(appJs, /if \(value === "directory"\) return "\\u76ee\\u5f55"/);
@@ -282,6 +289,7 @@ assert.match(appJs, /openActionInboxItemSourceById\(button\.dataset\.actionInbox
 assert.match(appJs, /openCurrentActionInboxItemLink\(\)\.catch\(showError\)/);
 assert.match(appJs, /const link = actionInboxSourceDeepLink\(item\)/);
 assert.match(stylesCss, /\.action-inbox-detail-actions \{[\s\S]*?display: flex;[\s\S]*?gap: 8px;/);
+assert.match(stylesCss, /\.action-inbox-detail-message pre \{[\s\S]*?white-space: pre-wrap;/);
 assert.match(appJs, /\$\("threadTitle"\)\.textContent = creating \? "\\u65b0\\u589e\\u4e8b\\u9879" : \(item \? "\\u6536\\u4ef6\\u8be6\\u60c5" : "\\u6536\\u4ef6\\u7bb1"\)/);
 assert.match(appJs, /conversation\.innerHTML = `<section class="action-inbox-shell\$\{creating \|\| item \? " action-inbox-secondary" : ""\}">/);
 assert.match(appJs, /const selectedInboxItemLink = typeof actionInboxSourceDeepLink === "function" \? actionInboxSourceDeepLink\(selectedInboxItem\) : \(selectedInboxItem\?\.deepLink \|\| ""\)/);
@@ -470,9 +478,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260529-plugin-edge-back-v353/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260529-plugin-edge-back-v353/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260529-plugin-edge-back-v353/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260529-codex-inbox-detail-v357/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260529-codex-inbox-detail-v357/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260529-codex-inbox-detail-v357/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);

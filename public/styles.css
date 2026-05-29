@@ -6403,6 +6403,30 @@ body.task-markdown-preview-open {
   overflow-wrap: anywhere;
 }
 
+.workspace-gateway-provider-matrix {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.workspace-gateway-provider-row {
+  display: grid;
+  grid-template-columns: minmax(68px, 0.8fr) minmax(82px, 1fr) minmax(82px, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+}
+
+.workspace-gateway-provider-name {
+  color: var(--ink);
+  font-weight: 560;
+}
+
+.workspace-gateway-provider-tier {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 .runtime-config-sheet {
   width: min(720px, 100%);
 }
@@ -12483,6 +12507,43 @@ body.task-markdown-preview-open {
 
 .action-inbox-detail-actions .secondary-button {
   min-height: 34px;
+}
+
+.action-inbox-detail-message {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 4px;
+  padding: 10px 11px;
+  border: 1px solid var(--ui-hairline);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-surface) 88%, var(--ui-bg));
+}
+
+.action-inbox-detail-message-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.action-inbox-detail-message-head em,
+.action-inbox-detail-message-meta {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.action-inbox-detail-message pre {
+  margin: 0;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .action-inbox-events {

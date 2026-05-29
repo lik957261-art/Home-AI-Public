@@ -1,6 +1,6 @@
 # Gateway Pool Manifest Reference
 
-Last updated: 2026-05-25.
+Last updated: 2026-05-29.
 
 This reference documents public-safe manifest fields. The example file is `examples/gateway-pool-manifest.example.json`.
 
@@ -63,10 +63,26 @@ This reference documents public-safe manifest fields. The example file is `examp
 - Used only by explicit Owner maintenance/elevation flows such as ChatGPT Pro bridge paths.
 - Should not be a fallback for ordinary users when low-permission workers are unavailable.
 
+### Owner DeepSeek Maintenance Worker
+
+- `securityLevel: "owner-maintenance"`
+- `allowMaintenance: true`
+- `provider: "deepseek"`
+- Dedicated profile such as `deepseekmaint1`.
+- Used only when an explicit Owner high-permission run also selects the
+  DeepSeek provider.
+- Startup must configure the profile with `model.provider: deepseek` and
+  `model.default: deepseek-chat`, enable the profile `skills` toolset against
+  the Owner full Skill store, and fail closed if the deployment DeepSeek key
+  file is missing.
+
 ## Safety Rules
 
 - Never commit real API keys, OAuth tokens, cookies, browser credentials, auth file contents, or production-only private paths.
 - Do not route Grok by only passing a model name to an ordinary worker; select a profile whose provider is configured for xAI.
+- Do not route DeepSeek by only passing a request body provider to an OpenAI
+  worker. Normal DeepSeek runs must use `deepseekgw*`; Owner high-permission
+  DeepSeek runs must use `deepseekmaint*`.
 - Do not let ordinary no-provider runs fall back to a Grok worker. `xai-oauth`
   workers should require an explicit provider/model route.
 - Do not regenerate Grok ports from the current low-worker count during startup

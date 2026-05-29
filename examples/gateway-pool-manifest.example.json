@@ -41,6 +41,18 @@
       "securityLevel": "owner-maintenance",
       "allowedWorkspaceIds": ["owner"],
       "allowMaintenance": true
+    },
+    {
+      "name": "deepseek-maintenance-worker-1",
+      "profile": "deepseekmaint1",
+      "host": "127.0.0.1",
+      "port": 18653,
+      "api_key": "replace-with-maintenance-api-key",
+      "enabled": true,
+      "securityLevel": "owner-maintenance",
+      "provider": "deepseek",
+      "allowedWorkspaceIds": ["owner"],
+      "allowMaintenance": true
     }
   ]
 }

@@ -117,6 +117,25 @@ function gatewayPoolSummary(pool = state.gatewayPool) {
   };
 }
 
+function gatewayProviderTierLabel(tier = {}) {
+  const configured = Number(tier.configured || 0);
+  const healthy = Number(tier.healthy || 0);
+  if (!configured) return "not configured";
+  return `${healthy}/${configured} healthy`;
+}
+
+function renderGatewayProviderMatrix(pool = state.gatewayPool) {
+  const matrix = Array.isArray(pool?.providerMatrix) ? pool.providerMatrix : [];
+  if (!matrix.length) return "";
+  return `<div class="workspace-gateway-provider-matrix" aria-label="Gateway provider availability">
+    ${matrix.map((row) => `<div class="workspace-gateway-provider-row">
+      <span class="workspace-gateway-provider-name">${escapeHtml(row.label || row.provider || "Provider")}</span>
+      <span class="workspace-gateway-provider-tier">Low ${escapeHtml(gatewayProviderTierLabel(row.user))}</span>
+      <span class="workspace-gateway-provider-tier">High ${escapeHtml(gatewayProviderTierLabel(row.ownerMaintenance))}</span>
+    </div>`).join("")}
+  </div>`;
+}
+
 function concurrencySummary(concurrency = state.concurrency) {
   if (!concurrency || typeof concurrency !== "object") return "";
   const active = Number(concurrency.activeGlobal || 0);
@@ -136,6 +155,7 @@ function renderGatewayPoolMiniStatus(pool = state.gatewayPool, concurrency = sta
     <div class="workspace-gateway-title">${escapeHtml(summary.label)}</div>
     ${summary.detail ? `<div class="workspace-gateway-meta">${escapeHtml(summary.detail)}</div>` : ""}
     ${concurrencyText ? `<div class="workspace-gateway-meta">Run limit: ${escapeHtml(concurrencyText)}</div>` : ""}
+    ${renderGatewayProviderMatrix(pool)}
   </section>`;
 }
 

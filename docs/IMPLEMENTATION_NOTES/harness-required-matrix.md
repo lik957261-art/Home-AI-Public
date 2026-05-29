@@ -201,6 +201,10 @@ Required harness dimensions:
   recipients' Inbox.
 - Active user-initiated chat/topic task receipts do not enter Inbox unless they
   become passive follow-up work.
+- Plugin-backed Codex task-completion notifications may enter Inbox as durable
+  follow-up records. The Inbox detail projection must render the bounded
+  `sourceRef.detailMessage` final receipt when provided, while Web Push uses
+  only the compact title/summary and must not carry the long receipt body.
 - Automation delivery Inbox rows that include a safe deliverable reference must
   expose a direct same-window file preview path from the list, without
   requiring an intermediate Inbox detail click.
@@ -310,6 +314,10 @@ Required harness dimensions:
   persistent iframe container and CSS visibility, not DOM reparenting, because
   moving a launch iframe can trigger iOS WebKit to reload the original one-time
   URL on every bottom-tab click.
+- Switching away from an embedded plugin tab must also force-hide the plugin
+  host even when the iframe shell record is missing, stale, or still loading.
+  A stale `embedded-plugin-host-active` class must never keep the plugin iframe
+  above the native chat/topic surfaces after a bottom-tab switch.
 - One-time launch iframe health must be tied to the plugin navigation event. If
   a launch iframe loads but never emits the expected navigation state, the host
   must fetch a fresh manifest/launch URL and must not leave the stale
@@ -585,9 +593,17 @@ Required harness dimensions:
 - The repository scan must reject new inline PowerShell-to-Bash quoting patterns.
 - Gateway Pool startup/configure scripts must honor explicit
   `gateway-pool-manifest.json` `profile`/`port` pairs for `lowgw*` and
-  `grokgw*`. They must not derive `grokgw1` from the current maximum low-worker
-  count, because creating a later personal workspace must not move the Grok
-  worker or break Grok/X Search proxy routing.
+  `grokgw*`/`deepseekgw*`/`deepseekmaint*`. They must not derive `grokgw1`
+  from the current maximum low-worker count, because creating a later personal
+  workspace must not move the Grok worker or break Grok/X Search proxy routing.
+- Provider-specific Gateway routing must fail closed. A `deepseek` normal run
+  must use a healthy `deepseekgw*` worker, and an Owner high-permission DeepSeek
+  run must use a healthy `deepseekmaint*` worker. The harness must reject
+  fallback to `openai-codex`, `lowgw*`, or `officialclean*` when the selected
+  provider tier is missing or unhealthy.
+- Owner status/UI harnesses must expose a provider-by-tier availability matrix
+  from non-secret Gateway Pool metadata so the operator can see whether ChatGPT,
+  DeepSeek, and Grok are available for normal and high-permission runs.
 - Workspace provisioning must append new personal `lowgwN` workers after
   existing low/Grok workers and allocate a later free port without renumbering
   or moving existing `grokgw*` entries. Deleting a workspace must not silently
@@ -983,13 +999,22 @@ Required contract dimensions:
 - Plugin notification events are part of the H1 passive-notification path even
   though the plugin host itself is H2. A plugin backend must call Hermes
   `POST /api/hermes-plugins/<plugin-id>/notifications` with a stable
-  `sourceId`/`eventId`; Hermes must upsert a summary-only `sourceType=plugin`
-  Inbox item, optionally send Web Push through the Hermes PWA subscription, and
-  keep raw plugin keys, launch tokens, push endpoints, private inventories, raw
-  model output, and long reports out of the payload and stored Inbox projection.
-  Tests must cover default Inbox click routing, `openMode=plugin` click routing,
+  `sourceId`/`eventId`; Hermes must support both durable Inbox-backed plugin
+  notifications and push-only plugin notifications. Codex Mobile task completion
+  must keep one latest Inbox item per workspace through a workspace-scoped
+  dedupe key rather than creating one Inbox item per completed Codex task. Tests
+  must cover default Inbox click routing, `openMode=plugin` click routing,
+  explicit `inbox=false` / `inboxMode=push`, Codex workspace-scoped replacement
+  completion whose Web Push click goes directly to the Codex plugin route,
   dedupe source keys, plugin registration rejection, and the no-push
   `notify=false` path.
+  Codex Inbox click routing must enter the Codex plugin tab and forward bounded
+  route hints (`pluginRoute`, `pluginItemId`, `pluginThreadId`, `pluginTaskId`)
+  to the embedded iframe entry so the plugin can focus the corresponding thread
+  or task.
+  Plugin notification handling must keep raw plugin keys, launch tokens, push
+  endpoints, private inventories, raw model output, and long reports out of the
+  payload, push data, and stored Inbox projection.
 - Each plugin project must also implement plugin-side harness coverage before
   release: manifest shape, launch exchange, frame-ancestor origin registration,
   `?embed=hermes` mode, navigation postMessage, `hermes.plugin.back`, no
