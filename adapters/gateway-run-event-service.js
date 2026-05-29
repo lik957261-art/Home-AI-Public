@@ -359,6 +359,15 @@ function outputItemPreview(item = {}) {
   return "";
 }
 
+function extractOutputItemText(item = {}) {
+  if (cleanString(item.type).toLowerCase() !== "message") return "";
+  const chunks = [];
+  for (const part of Array.isArray(item.content) ? item.content : []) {
+    if (part?.type === "output_text" && part.text) chunks.push(String(part.text));
+  }
+  return chunks.join("\n\n").trim();
+}
+
 function defaultAppendBounded(current, delta, maxChars = 12000) {
   const next = `${current || ""}${delta || ""}`;
   if (next.length <= maxChars) return next;
@@ -675,6 +684,27 @@ function createGatewayRunEventService(options = {}) {
     return { action: sanitized.found ? "delta_sanitized_toolset_escalation" : "delta", delta: visibleDelta };
   }
 
+  function applyMessageOutputText(context, text, source = "message_output") {
+    const { thread, message } = context;
+    const value = String(text || "");
+    if (!value) return { action: `empty_${source}` };
+    const feedbackAt = nowIso();
+    const sanitized = sanitizeToolsetEscalationVisibleText(value);
+    if (sanitized.found) {
+      const pendingRequest = parseToolsetEscalationRequest(value, message);
+      if (pendingRequest) message.pendingToolsetEscalationRequest = pendingRequest;
+      message.content = compactFullContent(sanitized.text);
+    } else {
+      message.content = compactFullContent(value);
+    }
+    if (!message.firstFeedbackAt) message.firstFeedbackAt = feedbackAt;
+    message.updatedAt = feedbackAt;
+    thread.updatedAt = feedbackAt;
+    scheduleStreamingStateSave();
+    broadcastMessageUpdated(thread, message);
+    return { action: sanitized.found ? `${source}_sanitized_toolset_escalation` : source };
+  }
+
   function recordOutputItemEvent(context, event) {
     const { thread, runId, eventName, message, responseRunId, stream } = context;
     const eventRunId = cleanString(message?.runId || responseRunId || stream?.realRunId || runId);
@@ -700,6 +730,8 @@ function createGatewayRunEventService(options = {}) {
     if (loadedSkill) message.loadedSkills = mergeLoadedSkills(message.loadedSkills, loadedSkill);
     const loadedTool = loadedToolFromRunEvent({ tool, preview }) || loadedToolFromOutputItem(item);
     if (loadedTool) message.loadedTools = mergeLoadedTools(message.loadedTools, loadedTool);
+    const outputText = extractOutputItemText(item);
+    if (outputText) applyMessageOutputText(context, outputText, "output_item_text");
     saveState();
     broadcast({ type: "run.event", threadId: thread.id, runId: eventRunId || runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
     if (eventName === "response.output_item.added" && cleanString(tool).toLowerCase() === "message") {
@@ -717,9 +749,11 @@ function createGatewayRunEventService(options = {}) {
     return { action: "output_item" };
   }
 
-  function recordFinalMessageDoneEvent(context) {
+  function recordFinalMessageDoneEvent(context, event = {}) {
     const { thread, runId, message, responseRunId, stream } = context;
     const eventRunId = cleanString(message?.runId || responseRunId || stream?.realRunId || runId);
+    const finalText = String(event.text || "");
+    if (finalText) applyMessageOutputText(context, finalText, "output_text_done");
     addThreadEvent(thread, {
       event: "run.final_message_done",
       timestamp: nowMs() / 1000,
@@ -978,7 +1012,7 @@ function createGatewayRunEventService(options = {}) {
     if (eventName === "response.output_item.added" || eventName === "response.output_item.done") {
       return recordOutputItemEvent(context, event);
     }
-    if (eventName === "response.output_text.done") return recordFinalMessageDoneEvent(context);
+    if (eventName === "response.output_text.done") return recordFinalMessageDoneEvent(context, event);
 
     addThreadEvent(thread, event);
 

@@ -699,6 +699,57 @@ function testToolsetEscalationAutoRetriesWithExpandedAuthorizedToolsets() {
   assert.deepEqual(harness.calls.scheduled, []);
 }
 
+function testOutputItemFinalMessageCanTriggerToolsetEscalationRetryWithoutDeltas() {
+  const starts = [];
+  const harness = makeHarness({
+    setImmediate: (fn) => fn(),
+    startToolsetEscalationRun: (_thread, _userMessage, _assistantMessage, runOptions) => {
+      starts.push(runOptions);
+      return { status: "started" };
+    },
+  });
+  harness.message.runOptions = {
+    toolsetRouting: {
+      mode: "model_first",
+      selected_toolsets: ["file"],
+      omitted_authorized_toolsets: ["wardrobe", "vision"],
+    },
+    access_policy_context: {
+      allowed_toolsets: ["file"],
+      toolset_routing: {
+        mode: "model_first",
+        selected_toolsets: ["file"],
+        omitted_authorized_toolsets: ["wardrobe", "vision"],
+      },
+    },
+  };
+
+  harness.service.applyHermesRunEvent({
+    event: "response.output_item.done",
+    run_id: "public_run",
+    item: {
+      type: "message",
+      content: [{
+        type: "output_text",
+        text: "HERMES_TOOLSET_ESCALATION_REQUIRED {\"toolsets\":[\"wardrobe\"],\"reason\":\"needs wardrobe write access\"}",
+      }],
+    },
+  });
+
+  const completed = harness.service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    output: "",
+  });
+
+  assert.equal(completed.action, "toolset_escalation_retrying");
+  assert.equal(harness.message.content, "");
+  assert.equal(harness.message.status, "queued");
+  assert.equal(harness.message.pendingToolsetEscalationRequest, undefined);
+  assert.equal(starts.length, 1);
+  assert.deepEqual(starts[0].modelFirstToolsetSelection.selectedToolsets, ["file", "wardrobe"]);
+}
+
 function testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued() {
   const { activeStreams, calls, service, state, thread } = makeHarness();
   activeStreams.clear();
@@ -735,6 +786,7 @@ testApprovalMarkersAreHiddenButValidRequestIsStored();
 testToolsetEscalationMarkerIsHiddenAndStored();
 testStreamingToolsetEscalationMarkerIsSuppressedBeforeCompletion();
 testToolsetEscalationAutoRetriesWithExpandedAuthorizedToolsets();
+testOutputItemFinalMessageCanTriggerToolsetEscalationRetryWithoutDeltas();
 testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued();
 
 console.log("gateway-run-event-service tests passed");

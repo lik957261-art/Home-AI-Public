@@ -27,6 +27,7 @@ PY
 }
 low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-$(manifest_low_gateway_count)}"
 grok_gateway_count="${HERMES_GROK_GATEWAY_COUNT:-1}"
+deepseek_gateway_count="${HERMES_DEEPSEEK_GATEWAY_COUNT:-0}"
 low_gateway_base_port="${HERMES_LOW_GATEWAY_BASE_PORT:-18750}"
 shared_auth_mode="${HERMES_LOW_GATEWAY_SHARED_AUTH_MODE:-shared-root}"
 shared_auth_default_root="${HERMES_LOW_GATEWAY_SHARED_AUTH_ROOT:-$telemetry_profiles_root/shared-auth}"
@@ -56,9 +57,13 @@ video_plugin_source="${HERMES_MOBILE_VIDEO_PLUGIN_SOURCE:-$mobile_app_root/gatew
 video_plugin_target="$worker_home_dir/plugins/hermes-mobile-video"
 cronjob_plugin_source="${HERMES_MOBILE_CRONJOB_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-cronjob}"
 cronjob_plugin_target="$worker_home_dir/plugins/hermes-mobile-cronjob"
-owner_connector_profiles="${HERMES_MOBILE_OWNER_CONNECTOR_PROFILES:-lowgw1 lowgw2 lowgw3 lowgw4 lowgw10}"
+owner_connector_profiles="${HERMES_MOBILE_OWNER_CONNECTOR_PROFILES:-lowgw1 lowgw2 lowgw3 lowgw4 lowgw10 deepseekgw1}"
 outlook_graph_mcp_path="${HERMES_MOBILE_OUTLOOK_GRAPH_MCP_PATH:-$worker_home_dir/scripts/outlook_graph_mcp.py}"
 owner_skill_store="${HERMES_MOBILE_OWNER_SKILL_STORE:-/mnt/c/ProgramData/HermesMobile/data/skill-profiles/owner-full/skills}"
+wardrobe_mcp_path="${HERMES_MOBILE_WARDROBE_MCP_PATH:-$gateway_worker_root/wardrobe-mcp/scripts/wardrobe-mcp.py}"
+wardrobe_user_drive_root="${HERMES_MOBILE_WARDROBE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
+owner_wardrobe_workspace_override="${HERMES_MOBILE_OWNER_WARDROBE_WORKSPACE:-}"
+wuping_wardrobe_workspace_override="${HERMES_MOBILE_WUPING_WARDROBE_WORKSPACE:-}"
 
 manifest_gateway_specs() {
   python3 - "$gateway_pool_manifest_path" <<'PY' 2>/dev/null || true
@@ -71,7 +76,7 @@ for worker in data.get("workers") or []:
     if worker.get("enabled") is False:
         continue
     profile = str(worker.get("profile") or worker.get("name") or "").strip()
-    if not re.match(r"^(lowgw|grokgw)\d+$", profile, re.I):
+    if not re.match(r"^(lowgw|grokgw|deepseekgw)\d+$", profile, re.I):
         continue
     try:
         port = int(worker.get("port") or 0)
@@ -91,6 +96,12 @@ legacy_gateway_specs() {
     local grok_gateway_base_port="${HERMES_GROK_GATEWAY_BASE_PORT:-$((low_gateway_base_port + low_gateway_count))}"
     for idx in $(seq 1 "$grok_gateway_count"); do
       printf 'grokgw%s\t%s\n' "$idx" "$((grok_gateway_base_port + idx))"
+    done
+  fi
+  if [ "$deepseek_gateway_count" -gt 0 ]; then
+    local deepseek_gateway_base_port="${HERMES_DEEPSEEK_GATEWAY_BASE_PORT:-$((low_gateway_base_port + low_gateway_count + grok_gateway_count))}"
+    for idx in $(seq 1 "$deepseek_gateway_count"); do
+      printf 'deepseekgw%s\t%s\n' "$idx" "$((deepseek_gateway_base_port + idx))"
     done
   fi
 }
@@ -169,6 +180,28 @@ is_owner_connector_profile() {
   done
   return 1
 }
+
+find_first_wardrobe_workspace_root() {
+  local workspace_id="${1:-}"
+  local drive_root="${2:-$wardrobe_user_drive_root}"
+  python3 - "$workspace_id" "$drive_root" <<'PY' 2>/dev/null || true
+from pathlib import Path
+import sys
+
+workspace_id = sys.argv[1]
+drive_root = Path(sys.argv[2])
+user_root = drive_root / workspace_id
+if not user_root.exists():
+    raise SystemExit(0)
+matches = sorted(user_root.rglob(".hermes-wardrobe/config.json"))
+if not matches:
+    raise SystemExit(0)
+print(matches[0].parent.parent.as_posix())
+PY
+}
+
+owner_wardrobe_workspace="${owner_wardrobe_workspace_override:-$(find_first_wardrobe_workspace_root owner)}"
+wuping_wardrobe_workspace="${wuping_wardrobe_workspace_override:-$(find_first_wardrobe_workspace_root weixin_wuping)}"
 
 ensure_low_gateway_skill_link() {
   local skill_dir="$1"
@@ -535,7 +568,7 @@ chmod 600 "$worker_home_dir/config.yaml" || true
 chown "$worker_user:$worker_user" "$worker_home_dir/config.yaml" 2>/dev/null || true
 
 while IFS=$'\t' read -r profile port; do
-  if [[ ! "$profile" =~ ^lowgw[0-9]+$ ]]; then
+  if [[ ! "$profile" =~ ^(lowgw|deepseekgw)[0-9]+$ ]]; then
     continue
   fi
   profile_link="$worker_home_dir/profiles/${profile}"
@@ -631,12 +664,36 @@ ${plugin_enabled_lines%$'\n'}"
   fi
   outlook_toolset_block=""
   outlook_api_toolset_block=""
-  outlook_mcp_block=""
+  wardrobe_toolset_block=""
+  wardrobe_api_toolset_block=""
+  mcp_server_lines=""
+  profile_wardrobe_workspace=""
+  if is_owner_connector_profile "$profile"; then
+    profile_wardrobe_workspace="$owner_wardrobe_workspace"
+  elif [ "$profile" = "lowgw5" ] || [ "$profile" = "deepseekgw5" ]; then
+    profile_wardrobe_workspace="$wuping_wardrobe_workspace"
+  fi
+  if [ -n "$profile_wardrobe_workspace" ] && [ -f "$wardrobe_mcp_path" ]; then
+    wardrobe_toolset_block="  - wardrobe"
+    wardrobe_api_toolset_block="    - wardrobe"
+    mcp_server_lines="${mcp_server_lines}  wardrobe:
+    command: /opt/hermes-gateway-runtime/venv/bin/python
+    args:
+      - $wardrobe_mcp_path
+      - --workspace
+      - $profile_wardrobe_workspace
+      - --no-workspace-override
+    env:
+      HERMES_HOME: $profile_link
+      PYTHONPATH: /opt/hermes-gateway-runtime/official-clean
+    enabled: true
+    timeout: 180
+    connect_timeout: 60"$'\n'
+  fi
   if is_owner_connector_profile "$profile" && [ -f "$outlook_graph_mcp_path" ]; then
     outlook_toolset_block="  - outlook_graph"
     outlook_api_toolset_block="    - outlook_graph"
-    outlook_mcp_block="mcp_servers:
-  outlook_graph:
+    mcp_server_lines="${mcp_server_lines}  outlook_graph:
     command: /opt/hermes-gateway-runtime/venv/bin/python
     args:
       - $outlook_graph_mcp_path
@@ -645,13 +702,26 @@ ${plugin_enabled_lines%$'\n'}"
       PYTHONPATH: /opt/hermes-gateway-runtime/official-clean
     enabled: true
     timeout: 180
-    connect_timeout: 60"
+    connect_timeout: 60"$'\n'
+  fi
+  mcp_servers_block=""
+  if [ -n "$mcp_server_lines" ]; then
+    mcp_servers_block="mcp_servers:
+${mcp_server_lines%$'\n'}"
+  fi
+  profile_default_model="gpt-5.5"
+  profile_model_provider="openai-codex"
+  profile_base_url_block="  base_url: https://chatgpt.com/backend-api/codex"
+  if [[ "$profile" =~ ^deepseekgw[0-9]+$ ]]; then
+    profile_default_model="deepseek-chat"
+    profile_model_provider="deepseek"
+    profile_base_url_block=""
   fi
   cat > "$profile_link/config.yaml" <<YAML
 model:
-  default: gpt-5.5
-  provider: openai-codex
-  base_url: https://chatgpt.com/backend-api/codex
+  default: ${profile_default_model}
+  provider: ${profile_model_provider}
+${profile_base_url_block}
 toolsets:
   - web
   - search
@@ -673,6 +743,7 @@ toolsets:
 ${weather_toolset_block}
 ${http_toolset_block}
 ${cronjob_mobile_toolset_block}
+${wardrobe_toolset_block}
 ${outlook_toolset_block}
 platform_toolsets:
   api_server:
@@ -696,6 +767,7 @@ platform_toolsets:
 ${weather_api_toolset_block}
 ${http_api_toolset_block}
 ${cronjob_mobile_api_toolset_block}
+${wardrobe_api_toolset_block}
 ${outlook_api_toolset_block}
 agent:
   max_turns: 60
@@ -716,7 +788,7 @@ worker_pool:
   enabled: false
 cron:
   enabled: false
-${outlook_mcp_block}
+${mcp_servers_block}
 YAML
 
   if [ "$shared_auth_enabled" = "1" ]; then

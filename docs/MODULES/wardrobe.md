@@ -42,6 +42,12 @@ authorized `wardrobe` toolset signal. That signal only controls whether the
 app-level tab is relevant; the actual page content must come from the plugin
 manifest.
 
+Wardrobe model/tool routing is broader than the tab-visibility rule. If a
+thread/project/plugin context or recent same-topic messages clearly indicate a
+wardrobe/closet/outfit task, Hermes Mobile should preserve authorized
+`wardrobe`, `vision`, and `file` for the execution round even when the latest
+message is short and there is no active directory binding on that turn.
+
 ## Plugin Host
 
 Hermes Mobile must not replicate the Wardrobe app UI or business workflows
@@ -172,6 +178,11 @@ as a successful embedded plugin load.
 - The selector may narrow callable tools, but it must not split an authorized
   Wardrobe companion set in a way that forces an avoidable toolset-escalation
   retry.
+- The execution-round Gateway conversation key must vary with the final enabled
+  toolset signature. A Wardrobe run must not reuse a worker-side conversation
+  that was created for a narrower file-only schema, because that can leave the
+  model without `mcp_wardrobe_*` callables even while Mobile correctly reports
+  `Enabled toolsets: wardrobe, vision, file`.
 
 ## Privacy And Safety
 

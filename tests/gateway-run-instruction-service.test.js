@@ -27,7 +27,7 @@ function testPolicySummaryIncludesCallableToolHints() {
     principal_id: "owner",
     default_workspace: "C:/workspace",
     allowed_roots: ["C:/workspace", "D:/shared"],
-    allowed_toolsets: ["http", "file", "image_gen", "x_search", "cronjob", "http"],
+    allowed_toolsets: ["http", "file", "image_gen", "x_search", "cronjob", "wardrobe", "http"],
     connector_profiles: { google: {}, outlook: {} },
   });
 
@@ -38,6 +38,7 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /image_gen -> image_generate, chatgpt_image_edit, chatgpt_image_erase, image_edit, image_erase/);
   assert.match(summary, /x_search -> x_search/);
   assert.match(summary, /cronjob -> cronjob_mobile, http_request, cronjob/);
+  assert.match(summary, /wardrobe -> mcp_wardrobe_wardrobe_write_item, mcp_wardrobe_wardrobe_upload_photo, mcp_wardrobe_wardrobe_set_primary_photo, mcp_wardrobe_wardrobe_get_item, mcp_wardrobe_wardrobe_search_items/);
   assert.match(summary, /For HTTP\/API Program calls, use `http_request`/);
   assert.match(summary, /http_request\.file_body/);
   assert.match(summary, /http_request\.multipart_files/);
@@ -51,7 +52,7 @@ function testPolicySummaryIncludesCallableToolHints() {
 function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   const service = createService();
   const text = service.currentToolSchemaOverrideInstructions({
-    allowed_toolsets: ["http", "file", "web", "search", "x_search", "image_gen", "cronjob"],
+    allowed_toolsets: ["http", "file", "web", "search", "x_search", "image_gen", "cronjob", "wardrobe"],
   });
 
   assert.match(text, /`http` toolset is enabled/);
@@ -72,6 +73,9 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /profile-local scheduler/);
   assert.match(text, /function names include `image_generate`, `chatgpt_image_edit`, and `chatgpt_image_erase`/);
   assert.match(text, /Do not request Owner elevation merely because an ordinary current-workspace image editing tool is missing/);
+  assert.match(text, /`wardrobe` toolset is enabled/);
+  assert.match(text, /`mcp_wardrobe_wardrobe_write_item`/);
+  assert.match(text, /Gateway schema mismatch/);
 }
 
 function testExplicitWebSearchPrioritizesQualityAndUsesLargerBudget() {
@@ -109,15 +113,19 @@ function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
 
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["file"] }),
-    "session_a_group_1_20260527-explicit-search-quality-v1",
+    "session_a_group_1_20260527-explicit-search-quality-v1_file",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["memory"] }),
-    "session_a_group_1",
+    "session_a_group_1_20260527-explicit-search-quality-v1_memory",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["x_search"] }),
-    "session_a_group_1_20260527-explicit-search-quality-v1",
+    "session_a_group_1_20260527-explicit-search-quality-v1_x_search",
+  );
+  assert.equal(
+    service.gatewayConversationId(thread, message, { allowed_toolsets: ["vision", "wardrobe", "file"] }),
+    "session_a_group_1_20260527-explicit-search-quality-v1_file-vision-wardrobe",
   );
 }
 

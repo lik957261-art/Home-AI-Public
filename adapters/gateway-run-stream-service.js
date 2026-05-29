@@ -68,6 +68,14 @@ function isWebSearchToolCall(name) {
   return WEB_SEARCH_TOOL_NAMES.has(cleanString(name).toLowerCase());
 }
 
+function outputItemHasMessageText(item = {}) {
+  if (cleanString(item.type).toLowerCase() !== "message") return false;
+  for (const part of Array.isArray(item.content) ? item.content : []) {
+    if (part?.type === "output_text" && cleanString(part.text)) return true;
+  }
+  return false;
+}
+
 function safeErrorMessage(err) {
   return err?.message || String(err || "");
 }
@@ -392,7 +400,14 @@ function createGatewayRunStreamService(options = {}) {
       clearStreamTimers(stream);
       emitRunStreamEvent(fallbackRunId || originalRunId || visibleRunId, "run.model_stream_started", "已收到模型流式事件");
     }
-    if (stream && !stream.firstModelOutputAt && (eventName === "message.delta" || eventName === "response.output_text.delta")) {
+    const item = outputItemFromEvent(event);
+    const eventCarriesModelText = (
+      eventName === "message.delta"
+      || eventName === "response.output_text.delta"
+      || (eventName === "response.output_text.done" && cleanString(event.text))
+      || ((eventName === "response.output_item.added" || eventName === "response.output_item.done") && outputItemHasMessageText(item))
+    );
+    if (stream && !stream.firstModelOutputAt && eventCarriesModelText) {
       stream.firstModelOutputAt = nowMs();
       emitRunStreamEvent(fallbackRunId || originalRunId || visibleRunId, "run.model_output_started", "模型已开始输出文本");
     }

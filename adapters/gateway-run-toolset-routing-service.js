@@ -30,7 +30,7 @@ const TOOLSET_KEYWORDS = Object.freeze([
     pattern: /(?:\bHTTP\b|\bAPI\b|\brequest\b|\bendpoint\b|\bbase64\b|\bcodex(?:\s*mobile)?\b|\bmux\b|\u63a5\u53e3|\u8bf7\u6c42|\u4fdd\u5b58\s*base64|\u534f\u4f5c\u6d41|\u5bf9\u63a5\s*Codex)/i,
   },
   {
-    toolsets: ["wardrobe", "vision", "file"],
+    toolsets: ["wardrobe", "vision", "file", "skills"],
     pattern: /(?:\bwardrobe\b|\bcloset\b|\boutfit\b|\bwear\s*count\b|\bwearcount\b|\bLoro\s+Piana\b|\bLP\b.{0,24}(?:item|product|wardrobe|closet|outfit)|(?:\u5546\u54c1|\u8863\u6a71|\u5165\u5e93).{0,24}\bLP\b|\u8863\u6a71|\u7a7f\u642d|\u5355\u54c1|\u5165\u5e93|\u7a7f\u7740\u5386\u53f2|\u642d\u914d|\u5957\u88c5|\u8863\u670d|\u978b|\u8155\u8868|\u5546\u54c1\u7167|\u8d2d\u7269\u5355)/i,
   },
   {
@@ -93,6 +93,10 @@ function taskDirectoryLooksWardrobe(taskDirectory = {}) {
     directory.root,
   ].map(cleanString).join(" ");
   return /(?:\bwardrobe\b|\bcloset\b|\boutfit\b|\u8863\u6a71|\u7a7f\u642d)/i.test(text);
+}
+
+function textLooksWardrobe(text = "") {
+  return /(?:\bwardrobe\b|\bcloset\b|\boutfit\b|\u8863\u6a71|\u7a7f\u642d|\u642d\u914d|\u8863\u670d|\u978b|\u8155\u8868)/i.test(cleanString(text));
 }
 
 function requestedToolsetsFromOptions(runOptions = {}) {
@@ -182,6 +186,33 @@ function retryEscalationToolsets(context = {}, latestText = "") {
   return defaultDedupe(out);
 }
 
+function contextLooksWardrobe(context = {}) {
+  const metadataText = [
+    context.project?.id,
+    context.project?.projectId,
+    context.project?.subprojectId,
+    context.project?.label,
+    context.project?.name,
+    context.project?.path,
+    context.project?.root,
+    context.policyThread?.projectId,
+    context.policyThread?.subprojectId,
+    context.thread?.projectId,
+    context.thread?.subprojectId,
+    context.thread?.title,
+    context.thread?.label,
+    context.runOptions?.pluginId,
+    context.runOptions?.plugin_id,
+    context.runOptions?.tab,
+    context.runOptions?.view,
+  ].map(cleanString).join(" ");
+  if (textLooksWardrobe(metadataText)) return true;
+  for (const message of messagesBefore(context.thread, context.userMessage, 8)) {
+    if (textLooksWardrobe(message?.content || "")) return true;
+  }
+  return false;
+}
+
 function createGatewayRunToolsetRoutingService(options = {}) {
   const dedupe = typeof options.dedupe === "function" ? options.dedupe : defaultDedupe;
 
@@ -207,7 +238,7 @@ function createGatewayRunToolsetRoutingService(options = {}) {
         if (matched[i] === "web" || matched[i] === "search") matched.splice(i, 1);
       }
     }
-    if (taskDirectoryLooksWardrobe(context.taskDirectory)) matched.push("wardrobe", "vision", "file");
+    if (taskDirectoryLooksWardrobe(context.taskDirectory) || contextLooksWardrobe(context)) matched.push("wardrobe", "vision", "file", "skills");
     if (hasAttachmentSignal(context.userMessage)) matched.push("file", "vision");
     if (context.taskDirectory?.path) matched.push("file");
     if (context.groupChat?.groupChatDeliveryRoot) matched.push("file");

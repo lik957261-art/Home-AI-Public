@@ -47,6 +47,13 @@ function createGatewayRunInstructionService(options = {}) {
       file: ["read_file", "write_file", "patch", "search_files", "docx_extract_text", "audio_transcribe"],
       vision: ["vision_analyze"],
       image_gen: ["image_generate", "chatgpt_image_edit", "chatgpt_image_erase", "image_edit", "image_erase"],
+      wardrobe: [
+        "mcp_wardrobe_wardrobe_write_item",
+        "mcp_wardrobe_wardrobe_upload_photo",
+        "mcp_wardrobe_wardrobe_set_primary_photo",
+        "mcp_wardrobe_wardrobe_get_item",
+        "mcp_wardrobe_wardrobe_search_items",
+      ],
       messaging: ["send_message"],
       tts: ["text_to_speech"],
       skills: ["skills_list", "skill_view", "skill_manage"],
@@ -98,8 +105,10 @@ function createGatewayRunInstructionService(options = {}) {
     const base = thread.singleWindow
       ? `${thread.hermesSessionId}_${userMessage.taskGroupId || userMessage.id}`
       : thread.hermesSessionId;
-    const schemaSensitive = policyToolsets(runPolicy).some((name) => ["web", "search", "x_search", "http", "weather", "file", "image_gen"].includes(name));
-    return schemaSensitive ? `${base}_${toolSchemaEpoch}` : base;
+    const toolsets = policyToolsets(runPolicy);
+    if (!toolsets.length) return base;
+    const signature = toolsets.slice().sort().join("-");
+    return `${base}_${toolSchemaEpoch}_${signature}`;
   }
 
   function explicitSearchContext(buildOptions = {}) {
@@ -186,6 +195,14 @@ function createGatewayRunInstructionService(options = {}) {
         "Do not request Owner elevation merely because an ordinary current-workspace image editing tool is missing from the current callable schema. That is a Hermes Mobile deployment/schema mismatch, not a high-privilege operation.",
         "Ignore older assistant statements in conversation_history that claimed image editing, image erasing, `chatgpt_image_edit`, `chatgpt_image_erase`, `image_edit`, or `image_erase` tools were unavailable; those statements described earlier runs and are stale.",
         "Before reporting that image editing or image erasing is unavailable, check the current run's actual callable functions. If `chatgpt_image_edit`, `chatgpt_image_erase`, `image_edit`, or `image_erase` is available, use it for allowed current-account image edits."
+      );
+    }
+    if (policyHasToolset(policy, "wardrobe")) {
+      lines.push(
+        "Current tool schema override: the `wardrobe` toolset is enabled for this run. Callable function names normally begin with `mcp_wardrobe_`, including `mcp_wardrobe_wardrobe_write_item`, `mcp_wardrobe_wardrobe_upload_photo`, `mcp_wardrobe_wardrobe_set_primary_photo`, `mcp_wardrobe_wardrobe_get_item`, and `mcp_wardrobe_wardrobe_search_items`.",
+        "For wardrobe ingest, writeback, photo upload, primary-photo updates, and readback verification, use the `mcp_wardrobe_*` callable functions when they are present.",
+        "Do not report that the run lacks wardrobe capability solely because an older conversation turn said only file or vision tools were available. Check the current run's callable functions first.",
+        "If `Enabled toolsets` includes `wardrobe` but the current callable schema still lacks `mcp_wardrobe_*`, treat that as a Gateway schema mismatch and request toolset/schema recovery instead of pretending the write completed."
       );
     }
     return lines.join("\n");

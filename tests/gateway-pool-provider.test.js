@@ -68,6 +68,9 @@ function testOrderingHonorsProviderAndPreferredProfileHints() {
   const workers = [
     normalizeWorker({ name: "openai", profile: "lowgw1", port: 18751, provider: "openai-codex", securityLevel: "user", skillWorkspaceIds: ["*"] }),
     normalizeWorker({ name: "grok", profile: "grokgw1", port: 18761, provider: "xai-oauth", securityLevel: "user", skillWorkspaceIds: ["*"] }),
+    normalizeWorker({ name: "deepseek-owner", profile: "deepseekgw1", port: 18764, provider: "deepseek", securityLevel: "user", skillWorkspaceIds: ["owner"] }),
+    normalizeWorker({ name: "deepseek-wuping", profile: "deepseekgw5", port: 18765, provider: "deepseek", securityLevel: "user", skillWorkspaceIds: ["weixin_wuping"] }),
+    normalizeWorker({ name: "deepseek-shared", profile: "deepseekgw99", port: 18766, provider: "deepseek", securityLevel: "user", skillWorkspaceIds: ["*"] }),
   ];
   assert.deepEqual(
     orderedWorkers(workers, 1, { securityLevel: "user" }).map((w) => w.name),
@@ -76,6 +79,14 @@ function testOrderingHonorsProviderAndPreferredProfileHints() {
   assert.deepEqual(
     orderedWorkers(workers, 0, { provider: "xai-oauth", preferred_worker_profiles: ["grokgw1"], skillWorkspaceId: "owner", requireSkillProfile: true }).map((w) => w.name),
     ["grok"],
+  );
+  assert.deepEqual(
+    orderedWorkers(workers, 0, { provider: "deepseek", preferred_worker_profiles: ["deepseekgw1", "deepseekgw5", "deepseekgw99"], skillWorkspaceId: "owner", requireSkillProfile: true }).map((w) => w.name),
+    ["deepseek-owner", "deepseek-shared"],
+  );
+  assert.deepEqual(
+    orderedWorkers(workers, 0, { provider: "deepseek", preferred_worker_profiles: ["deepseekgw1", "deepseekgw5", "deepseekgw99"], skillWorkspaceId: "weixin_wuping", requireSkillProfile: true }).map((w) => w.name),
+    ["deepseek-wuping", "deepseek-shared"],
   );
 }
 

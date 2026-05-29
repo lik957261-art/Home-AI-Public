@@ -184,6 +184,20 @@ Required flow:
    selected toolsets, expanded callable count, tool-call start/end,
    final-message start/end, terminal status, and liveness failures.
 
+The Gateway `conversation` key must also vary with the effective enabled
+toolset set, not only with a global schema epoch. Reusing one worker-side
+conversation/session across materially different callable toolsets can leave a
+later run on an earlier callable schema. In practice this presents as:
+
+- Mobile records `Enabled toolsets: wardrobe, vision, file`.
+- The worker still exposes only an older file-only callable schema.
+- The model emits `HERMES_TOOLSET_ESCALATION_REQUIRED` or reports that no
+  wardrobe write function exists, even though the low Gateway profile has the
+  Wardrobe MCP registered.
+
+When this happens, fix the conversation/tool-schema reuse boundary first rather
+than assuming the MCP server failed to boot.
+
 This keeps task success safer than regex or route-level pruning while avoiding
 the cost of showing every ordinary tool schema on every simple run. It also
 lets the UI distinguish "choosing tools", "waiting for a tool", and
@@ -258,28 +272,43 @@ Current runtime behavior:
 ## Direct DeepSeek Provider
 
 Hermes Mobile exposes DeepSeek as an explicit composer/default-model option
-without creating a separate worker profile. The frontend sends
-`model=deepseek-chat` and `provider=deepseek`; Gateway worker selection remains
-the normal workspace/skill-profile selection, and the official Hermes provider
-layer uses `DEEPSEEK_API_KEY`.
+through a real DeepSeek Gateway profile. The frontend sends
+`model=deepseek-chat` and `provider=deepseek`, but that request envelope is not
+proof of the actual backend. Worker selection must route DeepSeek runs to a
+manifest/profile worker such as `deepseekgw1` whose `config.yaml` has
+`model.provider: deepseek` and `model.default: deepseek-chat`. Do not let a
+DeepSeek request fall back to an `openai-codex` lowgw profile; when no healthy
+DeepSeek worker is available, fail closed instead of silently spending OpenAI
+quota.
+
+Provider routing prefers `deepseekgw1`, `deepseekgw5`, then `deepseekgw99`.
+`deepseekgw1` mirrors the Owner connector profile, `deepseekgw5` mirrors the
+WuPing connector profile, and `deepseekgw99` is the generic shared DeepSeek
+profile without user-bound MCP servers. This keeps provider selection broad
+while avoiding a shared worker accidentally exposing the wrong user's Wardrobe
+MCP binding.
 
 Production stores the key outside the repo at
 `C:\ProgramData\HermesMobile\data\secrets\deepseek-api-key.secret`. Low Gateway
 workers receive it through the process environment when
-`scripts/start-low-gateways.sh` starts the pool, and owner-maintenance
-`officialclean*` workers receive the same key when
-`scripts/start-gateway-pool.ps1` starts the maintenance pool. This is an
-installation-level provider credential: any workspace that may start a normal
-or owner-maintenance model run can use the configured DeepSeek model unless a
-future workspace/provider allowlist is added. Do not write the raw key into
-docs, handoffs, manifests, screenshots, logs, or committed config.
+`scripts/start-low-gateways.sh` starts the pool. `deepseekgw*` profiles refuse
+to start when a DeepSeek API key is missing. Owner-maintenance `officialclean*`
+workers receive the same key when `scripts/start-gateway-pool.ps1` starts the
+maintenance pool. This is an installation-level provider credential: any
+workspace that may start a normal or owner-maintenance model run can use the
+configured DeepSeek model unless a future workspace/provider allowlist is
+added. Do not write the raw key into docs, handoffs, manifests, screenshots,
+logs, or committed config.
 
 Gateway Pool launch scripts must target the actual installed WSL distro. The
 current production default is `Ubuntu-24.04`; scripts must not fall back to a
 removed `HermesGatewayWorker` distro. A DeepSeek deployment is not complete
-until process-environment smoke confirms running low-Gateway workers and
-owner-maintenance workers have a non-empty `DEEPSEEK_API_KEY` value.
-  Profile registration alone is not enough. For wardrobe tasks, `wardrobe` must
+until live smoke confirms the selected `deepseekgw*` worker is healthy, has a
+non-empty DeepSeek key in its process environment, and its Gateway session or
+worker log reports the actual provider/backend as `deepseek`. Request body
+fields alone are not sufficient evidence.
+
+- Profile registration alone is not enough. For wardrobe tasks, `wardrobe` must
   be included in the authorized catalog so the selector chooses Wardrobe MCP
   for writeback, readback verification, and main image / field checks. If the
   `wardrobe` MCP toolset is missing for a wardrobe run, treat it as a toolset
@@ -294,6 +323,12 @@ owner-maintenance workers have a non-empty `DEEPSEEK_API_KEY` value.
   `vision`, and `file` for all AI runs in that topic by default. This does not
   grant new permission; it only keeps already-authorized MCP/input capabilities
   visible to the model-side selector.
+- Wardrobe topic context does not depend only on a live directory binding. If
+  the current thread/project metadata or recent same-topic messages clearly
+  identify the flow as wardrobe/closet/outfit work, Mobile should keep the
+  authorized `wardrobe`, `vision`, and `file` companion set visible even when
+  the latest user turn is short and the topic currently has no bound directory
+  route.
 - The selector may still choose a narrower set, but it must not split the
   wardrobe-bound input companion set. If the suggested set contains authorized
   `wardrobe`, `vision`, and `file`, and the selector chooses `wardrobe`, the
@@ -320,6 +355,14 @@ owner-maintenance workers have a non-empty `DEEPSEEK_API_KEY` value.
   call tools, or load Skills while selecting permission/toolsets; the selector
   request should disable tool calls and live probes should verify no tool-role
   messages appear in the selector session.
+- Execution-round stream recovery must treat final assistant text from
+  `response.output_item.done` message items and `response.output_text.done` as
+  real model output, even when no `message.delta` or
+  `response.output_text.delta` arrived. A later synthetic
+  `run.stream_closed_without_terminal` recovery must therefore complete from the
+  captured visible output or toolset-escalation marker instead of cancelling the
+  run or leaking raw internal markers such as
+  `HERMES_TOOLSET_ESCALATION_REQUIRED` into the final answer.
 - Responses streams can repeat the same JSON decision across delta/done/final
   events. Selector parsing must scan JSON candidates and accept a valid final
   decision instead of treating duplicated JSON text as an `invalid_json`
@@ -392,6 +435,7 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
 - Wardrobe-capable profiles expose toolset `wardrobe` through `platform_toolsets.api_server`.
 - Owner wardrobe profiles bind `wardrobe` to the XuXin wardrobe workspace; WuPing profile `lowgw5` binds it to the WuPing wardrobe workspace.
 - Wardrobe MCP is launched with `--no-workspace-override`; a model call must not switch a Gateway profile to another owner's `.hermes-wardrobe/access-key.txt`.
+- The generator script in the source repo is the durable source of truth. Do not rely on one-off edits to live `telemetry/profiles/<profile>/config.yaml`: a later Gateway Pool reconfigure/restart rewrites those files from `scripts/configure-low-gateways.sh` and will silently drop Wardrobe MCP registration if the source script no longer contains the wardrobe block.
 - Hermes Mobile access-policy hardening and toolset routing must also preserve
   `wardrobe`. If a wardrobe ingestion or recommendation run reaches a
   wardrobe-capable profile without `wardrobe` in `access_policy_context.allowed_toolsets`,

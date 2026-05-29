@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const {
   DEEPSEEK_PROVIDER,
+  DEEPSEEK_WORKER_PROFILES,
   GROK_PROVIDER,
   modelLooksLikeDeepSeek,
   modelLooksLikeGrok,
@@ -42,17 +43,24 @@ function testDefaultModelDoesNotForceProviderRoute() {
   assert.deepEqual(openai.route.gatewayRouting, { provider: "openai-codex" });
 }
 
-function testDeepSeekRoutesThroughDirectProviderWithoutForcingWorkerProvider() {
+function testDeepSeekRoutesThroughDirectProviderWorkerProfile() {
   assert.equal(modelLooksLikeDeepSeek("deepseek-chat"), true);
   const result = resolveGatewayModelRoute({ model: "deepseek-chat", provider: "deepseek" });
   assert.equal(result.ok, true);
   assert.equal(result.route.model, "deepseek-chat");
   assert.equal(result.route.provider, DEEPSEEK_PROVIDER);
-  assert.deepEqual(result.route.gatewayRouting, {});
+  assert.deepEqual(result.route.gatewayRouting, {
+    provider: DEEPSEEK_PROVIDER,
+    preferred_worker_profiles: DEEPSEEK_WORKER_PROFILES,
+  });
 
   const inferred = resolveGatewayModelRoute({ model: "deepseek-reasoner" });
   assert.equal(inferred.ok, true);
   assert.equal(inferred.route.provider, DEEPSEEK_PROVIDER);
+  assert.deepEqual(inferred.route.gatewayRouting, {
+    provider: DEEPSEEK_PROVIDER,
+    preferred_worker_profiles: DEEPSEEK_WORKER_PROFILES,
+  });
 }
 
 function testNaturalLanguageGrokRequestOverridesDefaultModelRoute() {
@@ -78,6 +86,6 @@ function testNaturalLanguageGrokRequestOverridesDefaultModelRoute() {
 testGrokMentionRoutesToXaiWorkerProfile();
 testGrokModelInfersProviderButRejectsUnsupportedNames();
 testDefaultModelDoesNotForceProviderRoute();
-testDeepSeekRoutesThroughDirectProviderWithoutForcingWorkerProvider();
+testDeepSeekRoutesThroughDirectProviderWorkerProfile();
 testNaturalLanguageGrokRequestOverridesDefaultModelRoute();
 console.log("gateway-model-routing-service tests passed");

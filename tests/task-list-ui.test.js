@@ -847,8 +847,9 @@ assert.match(gatewayRunInstructionServiceJs, /prefer `chatgpt_image_edit` or `ch
 assert.match(serverJs, /GATEWAY_TOOL_SCHEMA_EPOCH/);
 assert.match(serverJs, /20260527-explicit-search-quality-v1/);
 assert.match(serverJs, /function gatewayConversationId\(thread, userMessage, runPolicy = \{\}\)/);
-assert.match(gatewayRunInstructionServiceJs, /schemaSensitive \? `\$\{base\}_\$\{toolSchemaEpoch\}` : base/);
-assert.match(gatewayRunInstructionServiceJs, /\["web", "search", "x_search", "http", "weather", "file", "image_gen"\]/);
+assert.match(gatewayRunInstructionServiceJs, /const signature = toolsets\.slice\(\)\.sort\(\)\.join\("-"\)/);
+assert.match(gatewayRunInstructionServiceJs, /return `\$\{base\}_\$\{toolSchemaEpoch\}_\$\{signature\}`/);
+assert.match(gatewayRunInstructionServiceJs, /mcp_wardrobe_wardrobe_write_item/);
 assert.match(serverJs, /toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH/);
 assert.match(gatewayRunInstructionServiceJs, /Do not request Owner elevation merely because an ordinary current-workspace image editing tool is missing/);
 assert.match(ownerElevationRoutingServiceJs, /Image editing, object removal, background cleanup, P image requests, and erase\/inpainting requests inside the current workspace are ordinary user work/);

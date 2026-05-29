@@ -33,6 +33,7 @@ PY
 }
 low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-$(manifest_low_gateway_count)}"
 grok_gateway_count="${HERMES_GROK_GATEWAY_COUNT:-1}"
+deepseek_gateway_count="${HERMES_DEEPSEEK_GATEWAY_COUNT:-0}"
 low_gateway_base_port="${HERMES_LOW_GATEWAY_BASE_PORT:-18750}"
 
 manifest_gateway_specs() {
@@ -46,7 +47,7 @@ for worker in data.get("workers") or []:
     if worker.get("enabled") is False:
         continue
     profile = str(worker.get("profile") or worker.get("name") or "").strip()
-    if not re.match(r"^(lowgw|grokgw)\d+$", profile, re.I):
+    if not re.match(r"^(lowgw|grokgw|deepseekgw)\d+$", profile, re.I):
         continue
     try:
         port = int(worker.get("port") or 0)
@@ -66,6 +67,12 @@ legacy_gateway_specs() {
     local grok_gateway_base_port="${HERMES_GROK_GATEWAY_BASE_PORT:-$((low_gateway_base_port + low_gateway_count))}"
     for idx in $(seq 1 "$grok_gateway_count"); do
       printf 'grokgw%s\t%s\n' "$idx" "$((grok_gateway_base_port + idx))"
+    done
+  fi
+  if [ "$deepseek_gateway_count" -gt 0 ]; then
+    local deepseek_gateway_base_port="${HERMES_DEEPSEEK_GATEWAY_BASE_PORT:-$((low_gateway_base_port + low_gateway_count + grok_gateway_count))}"
+    for idx in $(seq 1 "$deepseek_gateway_count"); do
+      printf 'deepseekgw%s\t%s\n' "$idx" "$((deepseek_gateway_base_port + idx))"
     done
   fi
 }
@@ -220,6 +227,10 @@ start_gateway_profile() {
   log="$worker_home_dir/logs/${profile}-gateway-${port}.log"
   pidfile="$worker_home_dir/${profile}-gateway-${port}.pid"
   api_key="$(tr -d '\r\n' < "$api_key_file")"
+  if [[ "$profile" == deepseekgw* ]] && [ -z "$deepseek_api_key" ]; then
+    echo "missing DeepSeek API key for ${profile}: ${deepseek_api_key_path}" >&2
+    exit 1
+  fi
   log_step "lowgw-start-profile-start profile=${profile} port=${port}"
   stop_gateway_port "$port"
   rm -f "$pidfile"

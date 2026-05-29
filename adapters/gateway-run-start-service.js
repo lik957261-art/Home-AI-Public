@@ -59,7 +59,7 @@ function expandSelectedToolsetsWithCompanions(selectedToolsets = [], policy = {}
   const allowed = new Set(defaultDedupe(policy.allowed_toolsets || policy.allowedToolsets || []));
   const selectedSet = new Set(selected);
   const companionGroups = [
-    ["wardrobe", "vision", "file"],
+    ["wardrobe", "vision", "file", "skills"],
     ["web", "search", "browser"],
   ];
   let out = selected;
@@ -255,7 +255,7 @@ function createGatewayRunStartService(options = {}) {
     if (runOptions.reasoning && typeof runOptions.reasoning === "object") body.reasoning = runOptions.reasoning;
 
     const modelProvider = cleanString(body.provider || "");
-    const workerProvider = modelProvider === "deepseek" ? "" : modelProvider;
+    const workerProvider = modelProvider;
     const gatewayRouting = Object.assign({}, requestedGatewayRouting, {
       purpose: "user_run",
       workspaceId: actorWorkspaceId,

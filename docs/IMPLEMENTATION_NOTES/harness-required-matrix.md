@@ -149,6 +149,37 @@ Primary docs:
 - `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-design.md`
 - `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-implementation.md`
 
+### Gateway Toolset Routing And Stream Recovery
+
+Applies to model-first toolset selection, execution-round toolset escalation,
+Gateway event consumption, and terminal message recovery.
+
+Required harness dimensions:
+
+- Wardrobe-related runs must preserve authorized `wardrobe`, `vision`, and
+  `file` when the signal comes from a bound directory, plugin/thread/project
+  metadata, or recent same-topic message history.
+- Execution-round Gateway conversation/session reuse must be schema-sensitive.
+  If the effective enabled toolset set changes, the worker-side conversation key
+  must change with it so a later Wardrobe turn cannot inherit an older
+  file-only callable schema.
+- A final assistant message that arrives only through
+  `response.output_item.done` or `response.output_text.done` must still count
+  as visible model output.
+- A later `run.stream_closed_without_terminal` recovery must finish from that
+  captured output instead of cancelling the run.
+- Raw internal escalation markers such as
+  `HERMES_TOOLSET_ESCALATION_REQUIRED` must never remain visible in stored
+  assistant content or client-delivered final text.
+- When such a marker is the only final payload, Hermes Mobile must record the
+  requested toolsets and either auto-retry with the expanded authorized set or
+  finish with the sanitized escalation state.
+
+Primary docs:
+
+- `docs/MODULES/gateway-pool.md`
+- `docs/MODULES/wardrobe.md`
+
 ### Action Inbox And Passive Notification Workflow
 
 Applies to Inbox item creation, source filtering, multi-recipient delivery,
@@ -575,14 +606,24 @@ Required harness dimensions:
   best-effort. Permission-denied errors from historical backup artifacts such as
   `skill-store-backups` must not abort Gateway startup after the active runtime
   directories have been prepared.
-- Direct provider key additions, such as DeepSeek, require both routing tests
-  and production process-environment evidence after Gateway Pool restart. A
-  secret file, settings option, or copied startup script is not enough evidence:
-  validation must prove the running low-Gateway and owner-maintenance worker
-  processes receive a non-empty provider key length without printing the raw
-  key. If a provider is installation-wide, docs must state that all workspaces
-  that can start that Gateway class can use it unless an explicit
-  workspace/provider allowlist is implemented.
+- Direct provider additions, such as DeepSeek, require routing tests, dedicated
+  provider-profile generation, and production evidence after Gateway Pool
+  restart. A request body's `provider` field, secret file, settings option, or
+  copied startup script is not enough evidence: validation must prove the
+  selected `deepseekgw*`/provider worker has a non-empty provider key in its
+  process environment and that the Gateway session or worker log reports the
+  actual backend provider as the requested provider rather than a profile
+  default such as `openai-codex`. If a provider is installation-wide, docs must
+  state that all workspaces that can start that Gateway class can use it unless
+  an explicit workspace/provider allowlist is implemented. Provider-specific
+  shared profiles must not collapse user-bound MCP registrations together; for
+  example, Owner, WuPing, and generic DeepSeek workers need distinct profile
+  bindings when Wardrobe MCP is present.
+- Gateway MCP/profile registrations, such as Wardrobe MCP, require generator
+  coverage as well as live-profile coverage. A one-off edit to
+  `telemetry/profiles/<profile>/config.yaml` is not durable evidence, because a
+  later `configure-low-gateways.sh` run can regenerate those files and drop the
+  registration if the source script no longer contains the same MCP block.
 
 Primary docs and tests:
 

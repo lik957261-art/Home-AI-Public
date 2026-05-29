@@ -439,7 +439,7 @@ async function testStartRunSkipsSelectorForForcedToolsetEscalationRetry() {
         ok: true,
         reason: "should_not_run",
         selectedToolsets: ["wardrobe", "file"],
-        authorizedToolsets: ["wardrobe", "file", "web", "search", "browser", "vision"],
+        authorizedToolsets: ["wardrobe", "file", "web", "search", "browser", "vision", "skills"],
         durationMs: 1,
       };
     },
@@ -452,14 +452,14 @@ async function testStartRunSkipsSelectorForForcedToolsetEscalationRetry() {
       skipSelector: true,
       reason: "toolset_escalation_retry",
       selectedToolsets: ["wardrobe", "file", "web", "search", "browser"],
-      authorizedToolsets: ["wardrobe", "file", "web", "search", "browser", "vision"],
+      authorizedToolsets: ["wardrobe", "file", "web", "search", "browser", "vision", "skills"],
       durationMs: 0,
       routing: {
         mode: "model_first",
         reason: "toolset_escalation_retry",
         selected_toolsets: ["wardrobe", "file", "web", "search", "browser"],
-        omitted_authorized_toolsets: ["vision"],
-        authorized_toolset_count: 6,
+        omitted_authorized_toolsets: ["vision", "skills"],
+        authorized_toolset_count: 7,
         duration_ms: 0,
       },
     },
@@ -469,7 +469,7 @@ async function testStartRunSkipsSelectorForForcedToolsetEscalationRetry() {
   assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["wardrobe", "file", "web", "search", "browser"]);
   assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.selected_toolsets, ["wardrobe", "file", "web", "search", "browser"]);
   assert.match(calls.streams[0].body.instructions, /Enabled toolsets: wardrobe, file, web, search, browser/);
-  assert.match(calls.streams[0].body.instructions, /Omitted authorized toolsets: vision/);
+  assert.match(calls.streams[0].body.instructions, /Omitted authorized toolsets: vision, skills/);
   assert.deepEqual(calls.events.map((event) => event.event), [
     "run.context_ready",
     "run.gateway_selected",
@@ -508,7 +508,7 @@ async function testStartRunCanExecuteWardrobeMcpSelection() {
 
   assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["wardrobe", "vision", "file"]);
   assert.match(calls.streams[0].body.instructions, /Enabled toolsets: wardrobe, vision, file/);
-  assert.match(calls.streams[0].body.instructions, /Omitted authorized toolsets: http, skills/);
+  assert.match(calls.streams[0].body.instructions, /Omitted authorized toolsets: http/);
   assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["wardrobe", "vision", "file"]);
 }
 
@@ -525,7 +525,7 @@ async function testWardrobeSelectionKeepsVisionCompanionWhenSelectorNarrows() {
         toolset_routing: {
           mode: "disabled",
           reason: "toolset_pruning_disabled",
-          suggested_toolsets: ["wardrobe", "vision", "file"],
+          suggested_toolsets: ["wardrobe", "vision", "file", "skills"],
           suggested_mode: "intent",
           suggested_reason: "wardrobe_bound_directory",
         },
@@ -533,17 +533,17 @@ async function testWardrobeSelectionKeepsVisionCompanionWhenSelectorNarrows() {
       routing: {
         mode: "disabled",
         reason: "toolset_pruning_disabled",
-        suggested_toolsets: ["wardrobe", "vision", "file"],
+        suggested_toolsets: ["wardrobe", "vision", "file", "skills"],
       },
     }),
     selectRunToolsetsWithModel: async () => ({
       enabled: true,
       ok: true,
       reason: "read wardrobe records first",
-      selectedToolsets: ["wardrobe", "file"],
-      authorizedToolsets: ["wardrobe", "vision", "file", "http", "skills"],
-      durationMs: 9000,
-    }),
+        selectedToolsets: ["wardrobe", "file"],
+        authorizedToolsets: ["wardrobe", "vision", "file", "http", "skills"],
+        durationMs: 9000,
+      }),
   });
 
   await service.startRunForThread(
@@ -553,11 +553,11 @@ async function testWardrobeSelectionKeepsVisionCompanionWhenSelectorNarrows() {
     {},
   );
 
-  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["wardrobe", "vision", "file"]);
-  assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.selected_toolsets, ["wardrobe", "vision", "file"]);
-  assert.match(calls.streams[0].body.instructions, /Enabled toolsets: wardrobe, vision, file/);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["wardrobe", "vision", "file", "skills"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.selected_toolsets, ["wardrobe", "vision", "file", "skills"]);
+  assert.match(calls.streams[0].body.instructions, /Enabled toolsets: wardrobe, vision, file, skills/);
   assert.doesNotMatch(calls.streams[0].body.instructions, /Omitted authorized toolsets: vision/);
-  assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["wardrobe", "vision", "file"]);
+  assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["wardrobe", "vision", "file", "skills"]);
 }
 
 async function testWardrobeSelectionKeepsFileWhenSelectorChoosesVisionOnly() {
@@ -573,7 +573,7 @@ async function testWardrobeSelectionKeepsFileWhenSelectorChoosesVisionOnly() {
         toolset_routing: {
           mode: "disabled",
           reason: "toolset_pruning_disabled",
-          suggested_toolsets: ["wardrobe", "vision", "file"],
+          suggested_toolsets: ["wardrobe", "vision", "file", "skills"],
           suggested_mode: "intent",
           suggested_reason: "wardrobe_bound_directory",
         },
@@ -581,7 +581,7 @@ async function testWardrobeSelectionKeepsFileWhenSelectorChoosesVisionOnly() {
       routing: {
         mode: "disabled",
         reason: "toolset_pruning_disabled",
-        suggested_toolsets: ["wardrobe", "vision", "file"],
+        suggested_toolsets: ["wardrobe", "vision", "file", "skills"],
       },
     }),
     selectRunToolsetsWithModel: async () => ({
@@ -589,9 +589,9 @@ async function testWardrobeSelectionKeepsFileWhenSelectorChoosesVisionOnly() {
       ok: true,
       reason: "inspect image first",
       selectedToolsets: ["vision"],
-      authorizedToolsets: ["wardrobe", "vision", "file", "http", "skills"],
-      durationMs: 7000,
-    }),
+        authorizedToolsets: ["wardrobe", "vision", "file", "http", "skills"],
+        durationMs: 7000,
+      }),
   });
 
   await service.startRunForThread(
@@ -601,10 +601,10 @@ async function testWardrobeSelectionKeepsFileWhenSelectorChoosesVisionOnly() {
     {},
   );
 
-  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["wardrobe", "vision", "file"]);
-  assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.selected_toolsets, ["wardrobe", "vision", "file"]);
-  assert.match(calls.streams[0].body.instructions, /Enabled toolsets: wardrobe, vision, file/);
-  assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["wardrobe", "vision", "file"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["wardrobe", "vision", "file", "skills"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.selected_toolsets, ["wardrobe", "vision", "file", "skills"]);
+  assert.match(calls.streams[0].body.instructions, /Enabled toolsets: wardrobe, vision, file, skills/);
+  assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["wardrobe", "vision", "file", "skills"]);
 }
 
 async function testWebSelectionKeepsBrowserCompanionWhenSelectorNarrows() {
@@ -779,7 +779,7 @@ async function testChatGptProRunExtendsStreamWaits() {
   assert.equal(calls.streams[0].options.modelFirstByteWarningMs, 30 * 60 * 1000);
 }
 
-async function testDeepSeekProviderDoesNotFilterGatewayWorkerProvider() {
+async function testDeepSeekProviderFiltersForRealDeepSeekWorker() {
   const { calls, service } = makeHarness();
   const assistant = baseAssistantMessage();
 
@@ -789,7 +789,7 @@ async function testDeepSeekProviderDoesNotFilterGatewayWorkerProvider() {
   });
 
   assert.equal(calls.gatewayRouting[0].model, "deepseek-chat");
-  assert.equal(calls.gatewayRouting[0].provider, "");
+  assert.equal(calls.gatewayRouting[0].provider, "deepseek");
   assert.equal(calls.gatewayRouting[0].modelProvider, "deepseek");
   assert.equal(calls.streams[0].body.provider, "deepseek");
   assert.equal(assistant.modelProvider, "deepseek");
@@ -848,7 +848,7 @@ function testMarkStartFailedUsesInjectedHooks() {
   testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions();
   testBuildRunRequestOverridesPlainProbeHistoryToolIntent();
   await testStartRunUsesSelectedGatewayProviderFallback();
-  await testDeepSeekProviderDoesNotFilterGatewayWorkerProvider();
+  await testDeepSeekProviderFiltersForRealDeepSeekWorker();
   await testChatGptProRunExtendsStreamWaits();
   await testConcurrencyErrorStopsBeforeGatewaySelection();
   testMarkStartFailedUsesInjectedHooks();

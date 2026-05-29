@@ -125,7 +125,7 @@ function testWardrobeIngestionSuggestsWardrobeMcpAndInputTools() {
 
   assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
   assert.equal(result.routing.suggested_mode, "intent");
-  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file"]);
+  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "skills"]);
 }
 
 function testWardrobeBoundTopicDefaultsToWardrobeMcp() {
@@ -144,7 +144,29 @@ function testWardrobeBoundTopicDefaultsToWardrobeMcp() {
 
   assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
   assert.equal(result.routing.suggested_mode, "intent");
-  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file"]);
+  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "skills"]);
+}
+
+function testWardrobeTopicContextWithoutDirectoryStillKeepsWardrobeToolsets() {
+  const service = createService();
+  const result = service.routePolicy({
+    policy: policy(),
+    thread: {
+      id: "thread_wardrobe_1",
+      title: "WuPing Wardrobe",
+      projectId: "wardrobe-plugin",
+      messages: [
+        { id: "user_1", role: "user", content: "帮我看一下昨天那套穿搭" },
+        { id: "assistant_1", role: "assistant", content: "先看衣橱里的现有单品。" },
+        { id: "user_2", role: "user", content: "这次换个正式一点的" },
+      ],
+    },
+    userMessage: { id: "user_2", content: "这次换个正式一点的" },
+    runOptions: {},
+  });
+
+  assert.equal(result.routing.suggested_mode, "intent");
+  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "skills"]);
 }
 
 function testRetryUsesRecentToolsetEscalationContext() {
@@ -170,7 +192,7 @@ function testRetryUsesRecentToolsetEscalationContext() {
   });
 
   assert.equal(result.routing.suggested_mode, "intent");
-  assert.deepEqual(result.routing.suggested_toolsets, ["weather", "wardrobe"]);
+  assert.deepEqual(result.routing.suggested_toolsets, ["weather", "wardrobe", "vision", "file", "skills"]);
 }
 
 function testRetryUsesRecentTaskTextWhenNoEscalationMetadataExists() {
@@ -189,7 +211,7 @@ function testRetryUsesRecentTaskTextWhenNoEscalationMetadataExists() {
   });
 
   assert.equal(result.routing.suggested_mode, "intent");
-  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "weather"]);
+  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "skills", "weather"]);
 }
 
 function testRetryUsesSameTaskGroupContextBeyondGlobalTail() {
@@ -214,7 +236,7 @@ function testRetryUsesSameTaskGroupContextBeyondGlobalTail() {
   });
 
   assert.equal(result.routing.suggested_mode, "intent");
-  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "weather"]);
+  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "skills", "weather"]);
 }
 
 function testAmbiguousRequestFailsOpenToBaseToolsets() {
@@ -264,6 +286,7 @@ testExplicitWebSearchKeepsBrowserCompanionWhenAllowed();
 testFileAndSkillIntentCanCombine();
 testWardrobeIngestionSuggestsWardrobeMcpAndInputTools();
 testWardrobeBoundTopicDefaultsToWardrobeMcp();
+testWardrobeTopicContextWithoutDirectoryStillKeepsWardrobeToolsets();
 testRetryUsesRecentToolsetEscalationContext();
 testRetryUsesRecentTaskTextWhenNoEscalationMetadataExists();
 testRetryUsesSameTaskGroupContextBeyondGlobalTail();
