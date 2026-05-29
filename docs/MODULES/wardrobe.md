@@ -124,6 +124,10 @@ unsafe when that `src` contains a one-time launch URL. Hermes should destroy and
 recreate the iframe only when the entry URL changes or a fresh launch URL is
 required. This keeps the Wardrobe SPA route, scroll position, and plugin session
 stable across ordinary bottom-tab changes.
+The Wardrobe tab must also avoid intermediate Hermes-owned loading pages during
+normal plugin startup. While the manifest or fresh launch URL is loading, Hermes
+shows the clean plugin host surface without text, cards, or preflight prompts;
+only real plugin diagnostics should render explanatory UI.
 Because the iframe element's `src` can still contain a one-time `launch` URL,
 Hermes Mobile treats a launch iframe as healthy only after the embedded app
 sends `wardrobe.plugin.navigation`. If a launch iframe loads and no navigation

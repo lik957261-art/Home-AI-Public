@@ -245,8 +245,7 @@ function refreshWardrobePluginFrameFromFreshManifest() {
   const conversation = $("conversation");
   if (!conversation || state.wardrobePluginLoading) return;
   discardWardrobePluginShell();
-  setWardrobePluginHostVisible(false);
-  conversation.innerHTML = renderWardrobePluginLoading();
+  showWardrobePluginLoadingSurface();
   loadWardrobePluginManifest({ force: true }).catch(showError);
   updateNavigationControls();
   ensureVerticalScrollAffordance();
@@ -326,14 +325,15 @@ function renderWardrobePluginFrame(manifest) {
 }
 
 function renderWardrobePluginLoading() {
-  return `
-    <section class="wardrobe-view">
-      <div class="wardrobe-dashboard loading">
-        <div class="wardrobe-inline-empty">Loading Wardrobe plugin...</div>
-      </div>
-    </section>`;
+  return "";
 }
 
+function showWardrobePluginLoadingSurface() {
+  const conversation = $("conversation");
+  if (conversation) conversation.innerHTML = "";
+  if (!currentWardrobePluginShell()) wardrobePluginHost().innerHTML = "";
+  setWardrobePluginHostVisible(true);
+}
 
 async function loadWardrobePluginManifest(options = {}) {
   const workspaceId = state.selectedWorkspaceId || "owner";
@@ -404,8 +404,7 @@ function renderWardrobeView() {
       }
       if (wardrobePluginUsesLaunchToken(pluginManifest) && !wardrobeLaunchTokenIsFreshForFrame()) {
         discardWardrobePluginShell();
-        setWardrobePluginHostVisible(false);
-        conversation.innerHTML = renderWardrobePluginLoading();
+        showWardrobePluginLoadingSurface();
         if (!state.wardrobePluginLoading) loadWardrobePluginManifest({ force: true }).catch(showError);
         updateNavigationControls();
         ensureVerticalScrollAffordance();
@@ -425,15 +424,13 @@ function renderWardrobeView() {
     }
   }
   if (state.wardrobePluginLoading && !pluginManifest) {
-    setWardrobePluginHostVisible(false);
-    conversation.innerHTML = renderWardrobePluginLoading();
+    showWardrobePluginLoadingSurface();
     updateNavigationControls();
     ensureVerticalScrollAffordance();
     return;
   }
   if (!state.wardrobePluginChecked || state.wardrobePluginManifest?.workspaceId !== (state.selectedWorkspaceId || "owner")) {
-    setWardrobePluginHostVisible(false);
-    conversation.innerHTML = renderWardrobePluginLoading();
+    showWardrobePluginLoadingSurface();
     loadWardrobePluginManifest().catch(showError);
     updateNavigationControls();
     ensureVerticalScrollAffordance();

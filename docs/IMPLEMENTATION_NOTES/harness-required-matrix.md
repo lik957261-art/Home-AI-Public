@@ -242,6 +242,10 @@ Required harness dimensions:
   a launch iframe loads but never emits the expected navigation state, the host
   must fetch a fresh manifest/launch URL and must not leave the stale
   `invalid_launch_token` response as the visible plugin page.
+- Plugin startup must be visually clean. Manifest loading and fresh-launch
+  exchange states should use the blank persistent plugin host, not an
+  intermediate Hermes-owned loading card, left-aligned text, or preflight page.
+  Explanatory UI is allowed only for real plugin diagnostics.
 - Static/client version must be bumped for embedded-plugin host changes so the
   installed PWA does not keep an older iframe contract through the service
   worker.
