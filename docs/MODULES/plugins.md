@@ -262,6 +262,10 @@ window.parent.postMessage({
 Hermes Mobile must:
 
 - accept the message only when `event.origin` matches the plugin entry origin;
+- throttle rebuilds so repeated refresh requests from a failed plugin page
+  cannot create an iframe relaunch loop. The default host cooldown is one
+  rebuild per plugin per minute, and requests during manifest/launch loading are
+  suppressed;
 - treat the message as a host refresh request, not as plugin-controlled host
   navigation;
 - discard the stale iframe and stale launch manifest;

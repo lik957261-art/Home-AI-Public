@@ -255,8 +255,54 @@ function testRefreshInvalidatesInactivePluginWithoutFetching() {
   assert.deepEqual(harness.calls.api, []);
 }
 
+function testRefreshRequiredIsThrottled() {
+  const harness = createHarness();
+  const { def, record } = harness.setupManifest();
+  harness.sandbox.__pluginRefreshHarness.ensureEmbeddedPluginNavigationBridge(def);
+
+  harness.sandbox.Date.now = () => 100000;
+  harness.emit({ type: "codex-mobile.plugin.refresh_required", route: { name: "thread", threadId: "thread-1" } });
+  assert.equal(harness.calls.api.length, 1);
+
+  record.shellNode = harness.makeShell();
+  harness.host.setShell(record.shellNode);
+  record.checked = true;
+  record.manifestFreshForFrame = true;
+  harness.sandbox.Date.now = () => 105000;
+  harness.emit({ type: "codex-mobile.plugin.refresh_required", route: { name: "thread", threadId: "thread-2" } });
+  assert.equal(harness.calls.api.length, 1);
+  assert.equal(record.openRoute.pluginThreadId, "thread-1");
+  assert.equal(record.lastRefreshSuppressedAt, 105000);
+
+  harness.sandbox.Date.now = () => 159000;
+  harness.emit({ type: "codex-mobile.plugin.refresh_required", route: { name: "thread", threadId: "thread-3" } });
+  assert.equal(harness.calls.api.length, 1);
+
+  record.loading = false;
+  harness.sandbox.Date.now = () => 161000;
+  harness.emit({ type: "codex-mobile.plugin.refresh_required", route: { name: "thread", threadId: "thread-3" } });
+  assert.equal(harness.calls.api.length, 2);
+  assert.equal(record.openRoute.pluginThreadId, "thread-3");
+}
+
+function testRefreshRequiredIgnoredDuringManifestLoad() {
+  const harness = createHarness();
+  const { def, record } = harness.setupManifest();
+  harness.sandbox.__pluginRefreshHarness.ensureEmbeddedPluginNavigationBridge(def);
+  record.loading = true;
+  harness.sandbox.Date.now = () => 200000;
+
+  harness.emit({ type: "codex-mobile.plugin.refresh_required", route: { name: "thread", threadId: "thread-loading" } });
+
+  assert.equal(harness.calls.api.length, 0);
+  assert.equal(record.openRoute, undefined);
+  assert.equal(record.lastRefreshSuppressedAt, 200000);
+}
+
 testRefreshIgnoresWrongOrigin();
 testRefreshRebuildsActivePluginWithBoundedRoute();
 testRefreshInvalidatesInactivePluginWithoutFetching();
+testRefreshRequiredIsThrottled();
+testRefreshRequiredIgnoredDuringManifestLoad();
 
 console.log("embedded plugin refresh harness tests passed");

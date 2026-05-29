@@ -190,6 +190,10 @@ the Mobile plugin route, and preserve only bounded route hints so the active
 plugin returns to its intended Codex/Wardrobe position after refresh. Wrong
 origin refresh messages and payloads carrying keys, cookies, launch tokens,
 raw plugin content, prompts, or local paths are failing cases.
+The host must also throttle refresh-required rebuilds so an invalid plugin page
+cannot create a relaunch loop; the harness must cover same-window repeated
+refresh messages and messages sent while manifest/launch loading is already in
+progress.
 Focused checks for this contract include
 `node tests\embedded-plugin-refresh-harness.test.js` and
 `node tests\app-embedded-plugin-ui.test.js`.

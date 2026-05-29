@@ -158,6 +158,17 @@ function embeddedPluginRouteFromRefreshPayload(payload = {}) {
 
 function requestEmbeddedPluginRefresh(def, payload = {}) {
   const record = embeddedPluginRecord(def.id);
+  const now = Date.now();
+  if (record.loading) {
+    record.lastRefreshSuppressedAt = now;
+    return false;
+  }
+  const cooldownMs = Number(def?.refreshCooldownMs || 60000);
+  if (cooldownMs > 0 && now - Number(record.lastRefreshRequestedAt || 0) < cooldownMs) {
+    record.lastRefreshSuppressedAt = now;
+    return false;
+  }
+  record.lastRefreshRequestedAt = now;
   const route = embeddedPluginRouteFromRefreshPayload(payload);
   if (Object.keys(route).length) record.openRoute = route;
   record.canGoBack = false;

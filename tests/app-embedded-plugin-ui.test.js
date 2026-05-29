@@ -41,6 +41,10 @@ assert.match(embeddedPluginUi, /function requestEmbeddedPluginRefresh\(def, payl
 assert.match(embeddedPluginUi, /function embeddedPluginRefreshRequiredEventType\(def\)/);
 assert.match(embeddedPluginUi, /def\?\.refreshRequiredEventType \|\| `\$\{def\?\.id \|\| "plugin"\}\.plugin\.refresh_required`/);
 assert.match(embeddedPluginUi, /function embeddedPluginRouteFromRefreshPayload\(payload = {}\)/);
+assert.match(embeddedPluginUi, /if \(record\.loading\) \{/);
+assert.match(embeddedPluginUi, /const cooldownMs = Number\(def\?\.refreshCooldownMs \|\| 60000\)/);
+assert.match(embeddedPluginUi, /record\.lastRefreshSuppressedAt = now/);
+assert.match(embeddedPluginUi, /record\.lastRefreshRequestedAt = now/);
 assert.match(embeddedPluginUi, /data\.type === embeddedPluginRefreshRequiredEventType\(def\)[\s\S]*requestEmbeddedPluginRefresh\(def, data\)/);
 assert.match(embeddedPluginUi, /record\.manifestFreshForFrame = false/);
 assert.match(embeddedPluginUi, /record\.checked = false/);
