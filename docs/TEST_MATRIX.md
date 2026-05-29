@@ -137,8 +137,12 @@ Mobile and Wardrobe may remain HTTP upstreams only when Hermes Mobile rewrites
 the browser-facing entry to `/api/hermes-plugins/<plugin-id>/proxy/...` and
 proxies HTML, static assets, plugin API calls, redirect headers, and session
 cookies through that path. The test must hit the real Mobile dispatcher route
-as well as the plugin route module. Deployment smoke for this class must include
-the installed Android PWA launched from the home-screen icon. Opening the same
+as well as the plugin route module. Same-origin proxy launch tests must prove
+server-side `fetch` uses manual redirect handling, because automatic redirect
+following consumes launch `302` cookies before the browser can store them. Tests
+must also assert upstream cookie `Domain` is stripped and `Path` is rewritten to
+the plugin proxy prefix. Deployment smoke for this class must include the
+installed Android PWA launched from the home-screen icon. Opening the same
 URL in the Chrome/Safari address bar is explicitly not a valid PWA smoke,
 because Hermes Mobile shows a browser-shell guard page there and it does not
 exercise standalone storage, service-worker, navigation, or plugin iframe

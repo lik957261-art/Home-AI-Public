@@ -191,8 +191,9 @@ async function testCodexProxyRewritesHtmlAndUsesUpstream() {
 
 async function testCodexProxyPreservesLaunchCookieAndRedirect() {
   const { routes } = makeRoutes({
-    fetch(url) {
+    fetch(url, options = {}) {
       assert.equal(url, "http://127.0.0.1:8787/?embed=hermes&codexPluginLaunch=token&workspaceId=owner");
+      assert.equal(options.redirect, "manual");
       return Promise.resolve({
         ok: true,
         status: 302,
@@ -225,7 +226,57 @@ async function testCodexProxyPreservesLaunchCookieAndRedirect() {
     "/api/hermes-plugins/codex-mobile/proxy/?embed=hermes&workspaceId=owner",
   );
   assert.deepEqual(res.headers["Set-Cookie"], [
-    "codex_mobile_plugin_session=session-value; Path=/; HttpOnly; SameSite=Lax",
+    "codex_mobile_plugin_session=session-value; Path=/api/hermes-plugins/codex-mobile/proxy; HttpOnly; SameSite=Lax",
+  ]);
+}
+
+async function testWardrobeProxyRewritesSessionCookieScope() {
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
+      },
+      pluginManifestUrl(id) {
+        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch(url, options = {}) {
+      assert.equal(url, "http://192.168.10.99:8765/?embed=hermes&launch=wpl_once&workspaceId=owner");
+      assert.equal(options.redirect, "manual");
+      return Promise.resolve({
+        ok: false,
+        status: 302,
+        headers: {
+          get(name) {
+            const lower = name.toLowerCase();
+            if (lower === "content-type") return "text/plain";
+            if (lower === "location") return "http://192.168.10.99:8765/?embed=hermes";
+            return "";
+          },
+          getSetCookie() {
+            return [
+              "wardrobe_session=session-value; Domain=192.168.10.99; Path=/; HttpOnly; SameSite=None; Secure",
+            ];
+          },
+        },
+        arrayBuffer: () => Promise.resolve(Buffer.from("")),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/wardrobe/proxy/?embed=hermes&launch=wpl_once&workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 302);
+  assert.equal(res.headers.Location, "/api/hermes-plugins/wardrobe/proxy/?embed=hermes");
+  assert.deepEqual(res.headers["Set-Cookie"], [
+    "wardrobe_session=session-value; Path=/api/hermes-plugins/wardrobe/proxy; HttpOnly; SameSite=None; Secure",
   ]);
 }
 
@@ -276,6 +327,7 @@ async function run() {
   await testWorkspaceBlockStopsRoute();
   await testCodexProxyRewritesHtmlAndUsesUpstream();
   await testCodexProxyPreservesLaunchCookieAndRedirect();
+  await testWardrobeProxyRewritesSessionCookieScope();
   await testWardrobeProxyUsesConfiguredLanUpstream();
 }
 

@@ -268,7 +268,12 @@ Mobile tests. The plugin-side harness should prove:
   dispatcher path `/api/hermes-plugins/<plugin-id>/proxy/...`, not only by
   invoking the plugin route handler directly. The test must cover HTML/JS/CSS
   absolute path rewriting and launch/session cookie or redirect preservation
-  without printing short-lived launch tokens.
+  without printing short-lived launch tokens. The proxy must request the plugin
+  upstream with manual redirect handling so a launch `302` does not get consumed
+  by server-side `fetch`. Any upstream `Set-Cookie` returned through the proxy
+  must drop upstream `Domain` and rewrite `Path` to the plugin proxy prefix, for
+  example `/api/hermes-plugins/<plugin-id>/proxy`, so the installed PWA iframe
+  keeps the plugin session instead of falling back to a username/password page.
 - Embed mode: `/?embed=hermes` hides standalone app chrome and does not show a
   username/password login after a valid launch.
 - Navigation event: entering a secondary page sends

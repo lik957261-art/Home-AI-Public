@@ -139,6 +139,25 @@ function createHermesPluginApiRoutes(deps = {}) {
     return value ? [value] : [];
   }
 
+  function rewritePluginProxySetCookie(cookie = "", pluginId = "") {
+    const parts = String(cookie || "").split(";").map((part) => part.trim()).filter(Boolean);
+    if (!parts.length) return "";
+    const rewritten = [parts[0]];
+    let hasPath = false;
+    for (const part of parts.slice(1)) {
+      const lower = part.toLowerCase();
+      if (lower.startsWith("domain=")) continue;
+      if (lower.startsWith("path=")) {
+        rewritten.push(`Path=${pluginProxyPrefix(pluginId)}`);
+        hasPath = true;
+        continue;
+      }
+      rewritten.push(part);
+    }
+    if (!hasPath) rewritten.push(`Path=${pluginProxyPrefix(pluginId)}`);
+    return rewritten.join("; ");
+  }
+
   function rewritePluginProxyText(text = "", pluginId = "") {
     const prefix = pluginProxyPrefix(pluginId);
     return String(text)
@@ -177,10 +196,12 @@ function createHermesPluginApiRoutes(deps = {}) {
     }
     headers["x-hermes-plugin-workspace-id"] = workspaceId;
     const body = ["GET", "HEAD"].includes(method.toUpperCase()) ? undefined : await readRequestBody(req);
-    const upstream = await fetchImpl(proxyTargetUrl(url, pluginId), { method, headers, body });
+    const upstream = await fetchImpl(proxyTargetUrl(url, pluginId), { method, headers, body, redirect: "manual" });
     const contentType = responseHeader(upstream, "content-type");
     const outHeaders = { "Content-Type": contentType || "application/octet-stream" };
-    const setCookies = responseSetCookies(upstream);
+    const setCookies = responseSetCookies(upstream)
+      .map((cookie) => rewritePluginProxySetCookie(cookie, pluginId))
+      .filter(Boolean);
     if (setCookies.length) outHeaders["Set-Cookie"] = setCookies;
     const location = responseHeader(upstream, "location");
     if (location) {

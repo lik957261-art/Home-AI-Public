@@ -877,6 +877,13 @@ Required contract dimensions:
   the configured HTTP upstream. Harness coverage must prove the browser-facing
   iframe URL is same-origin, not `127.0.0.1` or a LAN IP, and that proxied HTML
   rewrites absolute static/API paths back through the per-plugin proxy prefix.
+- Same-origin plugin proxies must handle launch redirects manually. Automatic
+  server-side redirect following can consume the plugin launch `302` and its
+  session cookie before the browser sees it, causing the embedded app to fall
+  back to username/password login. Harness coverage must assert manual redirect
+  handling, `Location` rewriting to the proxy prefix, upstream cookie `Domain`
+  removal, and cookie `Path` rewriting to
+  `/api/hermes-plugins/<plugin-id>/proxy`.
 - Same-origin plugin proxies must be validated through the real Mobile
   dispatcher path, not only by direct route-handler calls. The dispatcher must
   allow `/api/hermes-plugins/<plugin-id>/proxy/...` before browser auth so
