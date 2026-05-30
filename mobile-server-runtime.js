@@ -1775,7 +1775,7 @@ function policyHasToolset(policy = {}, toolset = "") {
 function callableFunctionHintsForToolsets(toolsets = []) {
   return gatewayRunInstructionService.callableFunctionHintsForToolsets(toolsets);
 }
-const GATEWAY_TOOL_SCHEMA_EPOCH = "20260527-explicit-search-quality-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
+const GATEWAY_TOOL_SCHEMA_EPOCH = "20260530-wardrobe-history-schema-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
   dedupe,
   toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH,
   normalizeSingleWindowMode,

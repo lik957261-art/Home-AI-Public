@@ -1,6 +1,6 @@
 "use strict";
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260527-explicit-search-quality-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260530-wardrobe-history-schema-v1";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
@@ -49,6 +49,7 @@ function createGatewayRunInstructionService(options = {}) {
       image_gen: ["image_generate", "chatgpt_image_edit", "chatgpt_image_erase", "image_edit", "image_erase"],
       wardrobe: [
         "mcp_wardrobe_wardrobe_write_item",
+        "mcp_wardrobe_wardrobe_write_history",
         "mcp_wardrobe_wardrobe_upload_photo",
         "mcp_wardrobe_wardrobe_set_primary_photo",
         "mcp_wardrobe_wardrobe_get_item",
@@ -199,7 +200,7 @@ function createGatewayRunInstructionService(options = {}) {
     }
     if (policyHasToolset(policy, "wardrobe")) {
       lines.push(
-        "Current tool schema override: the `wardrobe` toolset is enabled for this run. Callable function names normally begin with `mcp_wardrobe_`, including `mcp_wardrobe_wardrobe_write_item`, `mcp_wardrobe_wardrobe_upload_photo`, `mcp_wardrobe_wardrobe_set_primary_photo`, `mcp_wardrobe_wardrobe_get_item`, and `mcp_wardrobe_wardrobe_search_items`.",
+        "Current tool schema override: the `wardrobe` toolset is enabled for this run. Callable function names normally begin with `mcp_wardrobe_`, including `mcp_wardrobe_wardrobe_write_item`, `mcp_wardrobe_wardrobe_write_history`, `mcp_wardrobe_wardrobe_upload_photo`, `mcp_wardrobe_wardrobe_set_primary_photo`, `mcp_wardrobe_wardrobe_get_item`, and `mcp_wardrobe_wardrobe_search_items`.",
         "For wardrobe ingest, writeback, photo upload, primary-photo updates, and readback verification, use the `mcp_wardrobe_*` callable functions when they are present.",
         "Do not report that the run lacks wardrobe capability solely because an older conversation turn said only file or vision tools were available. Check the current run's callable functions first.",
         "If `Enabled toolsets` includes `wardrobe` but the current callable schema still lacks `mcp_wardrobe_*`, treat that as a Gateway schema mismatch and request toolset/schema recovery instead of pretending the write completed."

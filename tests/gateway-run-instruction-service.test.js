@@ -38,7 +38,7 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /image_gen -> image_generate, chatgpt_image_edit, chatgpt_image_erase, image_edit, image_erase/);
   assert.match(summary, /x_search -> x_search/);
   assert.match(summary, /cronjob -> cronjob_mobile, http_request, cronjob/);
-  assert.match(summary, /wardrobe -> mcp_wardrobe_wardrobe_write_item, mcp_wardrobe_wardrobe_upload_photo, mcp_wardrobe_wardrobe_set_primary_photo, mcp_wardrobe_wardrobe_get_item, mcp_wardrobe_wardrobe_search_items/);
+  assert.match(summary, /wardrobe -> mcp_wardrobe_wardrobe_write_item, mcp_wardrobe_wardrobe_write_history, mcp_wardrobe_wardrobe_upload_photo, mcp_wardrobe_wardrobe_set_primary_photo, mcp_wardrobe_wardrobe_get_item, mcp_wardrobe_wardrobe_search_items/);
   assert.match(summary, /For HTTP\/API Program calls, use `http_request`/);
   assert.match(summary, /http_request\.file_body/);
   assert.match(summary, /http_request\.multipart_files/);
@@ -75,6 +75,7 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /Do not request Owner elevation merely because an ordinary current-workspace image editing tool is missing/);
   assert.match(text, /`wardrobe` toolset is enabled/);
   assert.match(text, /`mcp_wardrobe_wardrobe_write_item`/);
+  assert.match(text, /`mcp_wardrobe_wardrobe_write_history`/);
   assert.match(text, /Gateway schema mismatch/);
 }
 
@@ -113,19 +114,19 @@ function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
 
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["file"] }),
-    "session_a_group_1_20260527-explicit-search-quality-v1_file",
+    "session_a_group_1_20260530-wardrobe-history-schema-v1_file",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["memory"] }),
-    "session_a_group_1_20260527-explicit-search-quality-v1_memory",
+    "session_a_group_1_20260530-wardrobe-history-schema-v1_memory",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["x_search"] }),
-    "session_a_group_1_20260527-explicit-search-quality-v1_x_search",
+    "session_a_group_1_20260530-wardrobe-history-schema-v1_x_search",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["vision", "wardrobe", "file"] }),
-    "session_a_group_1_20260527-explicit-search-quality-v1_file-vision-wardrobe",
+    "session_a_group_1_20260530-wardrobe-history-schema-v1_file-vision-wardrobe",
   );
 }
 

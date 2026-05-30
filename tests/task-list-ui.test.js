@@ -863,7 +863,7 @@ assert.match(gatewayRunInstructionServiceJs, /`chatgpt_image_edit`, and `chatgpt
 assert.match(gatewayRunInstructionServiceJs, /For existing-image retouching, object removal, background cleanup, P image requests, or erase\/inpainting requests/);
 assert.match(gatewayRunInstructionServiceJs, /prefer `chatgpt_image_edit` or `chatgpt_image_erase`/);
 assert.match(serverJs, /GATEWAY_TOOL_SCHEMA_EPOCH/);
-assert.match(serverJs, /20260527-explicit-search-quality-v1/);
+assert.match(serverJs, /20260530-wardrobe-history-schema-v1/);
 assert.match(serverJs, /function gatewayConversationId\(thread, userMessage, runPolicy = \{\}\)/);
 assert.match(gatewayRunInstructionServiceJs, /const signature = toolsets\.slice\(\)\.sort\(\)\.join\("-"\)/);
 assert.match(gatewayRunInstructionServiceJs, /return `\$\{base\}_\$\{toolSchemaEpoch\}_\$\{signature\}`/);
