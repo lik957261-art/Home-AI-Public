@@ -422,7 +422,10 @@ Required harness dimensions:
   `HERMES_TOOLSET_ESCALATION_REQUIRED` as visible chat content. Harness coverage
   must assert the raw marker is stripped during both streamed deltas and
   completion handling, metadata records only requested authorized toolsets, and
-  a `run.toolset_escalation_required` status event is persisted.
+  a `run.toolset_escalation_required` status event is persisted. This includes
+  the schema-mismatch case where the model requests a toolset that is already
+  selected; the raw marker must still be stripped, and no retry should start
+  unless the request adds an omitted authorized toolset.
 - If the requested escalation toolsets are part of the omitted authorized set,
   harness coverage must assert Mobile retries the same assistant message with
   the previous selected toolsets plus the requested authorized toolsets, skips a
@@ -444,6 +447,9 @@ Required harness dimensions:
   catalog when the selected Gateway profile exposes Wardrobe MCP; otherwise the
   model cannot choose the correct MCP path and may over-use generic web/http/file
   tooling.
+- Wardrobe callable-schema harnesses must include
+  `mcp_wardrobe_wardrobe_write_history` for actual-wear history writeback, in
+  addition to item write, search, readback, and photo functions.
 - Harness scenarios must also cover topic-bound wardrobe directories. If the
   current topic has a directory route whose project id, label, path, or root
   identifies it as a wardrobe/closet directory, every AI run in that topic must
