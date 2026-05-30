@@ -366,7 +366,7 @@ function renderWardrobePluginFrame(manifest) {
         src="${escapeHtml(manifest.entry.url)}"
         loading="eager"
         referrerpolicy="no-referrer"
-        sandbox="allow-same-origin allow-scripts allow-forms allow-downloads"
+        sandbox="allow-same-origin allow-scripts allow-forms allow-downloads allow-modals"
       ></iframe>
     </div>`;
 }

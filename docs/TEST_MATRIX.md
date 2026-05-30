@@ -244,6 +244,11 @@ rather than resolved against Hermes Mobile's own `/api` namespace.
 JSON responses must be parsed and rewritten structurally so thread/chat prose,
 code snippets, and ordinary `/api` strings are not changed. Binary image
 requests through that path must be streamed with their original content type.
+Embedded plugin upload harnesses must also cover same-origin proxy upload
+compatibility: sandbox strings include `allow-forms` and `allow-modals`,
+multipart `FormData` upload requests keep the original body/content type, and
+Wardrobe CSS proxy output turns hidden `.upload-btn input` file controls into
+transparent interactive file inputs instead of `display:none` controls.
 Active embedded plugin
 hosts must hide the Hermes page header so plugin content is not double-framed;
 the Hermes bottom navigation must also be hidden for plugin root and secondary

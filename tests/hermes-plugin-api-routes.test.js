@@ -642,6 +642,42 @@ async function testPluginProxyForwardsBinaryImages() {
   assert.deepEqual(Buffer.from(res.body), body);
 }
 
+async function testWardrobeProxyInjectsUploadFileInputCompatibilityCss() {
+  const css = ".upload-btn input { display: none; }";
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
+      },
+      pluginManifestUrl(id) {
+        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch(url) {
+      assert.equal(url, "http://192.168.10.99:8765/styles.css?v=1");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/css; charset=utf-8" : "" },
+        text: () => Promise.resolve(css),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/wardrobe/proxy/styles.css?v=1"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body, /Hermes embedded-plugin upload compatibility/);
+  assert.match(res.body, /\.upload-btn input\[type="file"\],[\s\S]*?\.upload-btn input\.entity-photo-input \{[\s\S]*?display: block !important;[\s\S]*?opacity: 0;/);
+}
+
 async function run() {
   await testSpecs();
   await testAdminListRouteRequiresOwner();
@@ -662,6 +698,7 @@ async function run() {
   await testPluginProxyRewritesJsonImageUrls();
   await testPluginProxyDoesNotCorruptJsonProse();
   await testPluginProxyForwardsBinaryImages();
+  await testWardrobeProxyInjectsUploadFileInputCompatibilityCss();
 }
 
 run().catch((err) => {

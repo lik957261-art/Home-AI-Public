@@ -82,7 +82,7 @@ assert.match(embeddedPluginUi, /restoreEmbeddedPluginReturnRoute\(def\)/);
 assert.match(embeddedPluginUi, /class="embedded-plugin-frame"/);
 assert.match(embeddedPluginUi, /class="embedded-plugin-shell is-loading"/);
 assert.match(embeddedPluginUi, /closest\("\.embedded-plugin-shell"\)\?\.classList\.remove\("is-loading"\)/);
-assert.match(embeddedPluginUi, /sandbox="allow-same-origin allow-scripts allow-forms allow-downloads"/);
+assert.match(embeddedPluginUi, /sandbox="allow-same-origin allow-scripts allow-forms allow-downloads allow-modals"/);
 assert.match(embeddedPluginUi, /function renderCodexPluginView\(\)/);
 assert.match(embeddedPluginUi, /function updateCodexPluginNavigationAvailability\(\)/);
 assert.match(embeddedPluginUi, /const available = Boolean\(state\.auth\?\.isOwner\)/);

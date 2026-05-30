@@ -90,6 +90,15 @@ type. Without this, HTTPS Hermes Mobile PWAs can load the plugin shell while
 plugin-supplied images remain broken because the browser is asked to fetch the
 HTTP/LAN upstream directly.
 
+For embedded upload controls, the proxy/host must preserve ordinary browser file
+upload semantics. Plugin `POST`/`PUT`/`PATCH` requests, including multipart
+`FormData`, must forward the original body and `content-type` to the upstream
+service. The host iframe sandbox must allow forms and modals so upload failure
+messages are not silently blocked. Wardrobe's historical `.upload-btn input {
+display: none; }` pattern is normalized by the Hermes proxy into a transparent
+interactive file input because iOS/PWA iframe file pickers can otherwise open
+the photo selector but fail to deliver a reliable `change`/`files` event.
+
 The JSON rule is intentionally narrow: do not rewrite arbitrary `/api/...`
 strings inside plugin thread/chat/message prose. Only standalone resource API
 values are proxied. This prevents the proxy from corrupting Codex thread JSON

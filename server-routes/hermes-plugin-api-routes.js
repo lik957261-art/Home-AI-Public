@@ -291,6 +291,31 @@ function createHermesPluginApiRoutes(deps = {}) {
       .replace(/(["'`])\/static\//g, `$1${prefix}/static/`);
   }
 
+  function rewritePluginProxyCssText(text = "", pluginId = "") {
+    let out = String(text || "");
+    if (pluginId === "wardrobe" && /\.upload-btn\s+input\s*\{[\s\S]*?display:\s*none\s*;[\s\S]*?\}/.test(out)) {
+      out += `
+
+/* Hermes embedded-plugin upload compatibility: keep file inputs interactive in iOS/PWA iframes. */
+.upload-btn {
+  overflow: hidden;
+}
+
+.upload-btn input[type="file"],
+.upload-btn input.entity-photo-input {
+  position: absolute;
+  inset: 0;
+  display: block !important;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+`;
+    }
+    return out;
+  }
+
   function shouldProxyJsonResourcePath(value = "", pluginId = "") {
     const text = String(value || "");
     if (!text.startsWith("/") || text.startsWith("//")) return false;
@@ -418,7 +443,8 @@ function createHermesPluginApiRoutes(deps = {}) {
     }
     if (/text\/html|javascript|ecmascript|text\/css/i.test(contentType || "")) {
       const text = await upstream.text();
-      const rewritten = rewritePluginProxyText(text, pluginId, upstreamBase);
+      let rewritten = rewritePluginProxyText(text, pluginId, upstreamBase);
+      if (/text\/css/i.test(contentType || "")) rewritten = rewritePluginProxyCssText(rewritten, pluginId);
       res.writeHead(upstream.status || 200, outHeaders);
       res.end(rewritten);
       return;
