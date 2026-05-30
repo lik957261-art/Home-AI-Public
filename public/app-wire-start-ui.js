@@ -15,6 +15,9 @@ function wireUi() {
   $("bootRetry")?.addEventListener("click", () => {
     reloadForClientUpdate();
   });
+  $("bootResetClient")?.addEventListener("click", () => {
+    resetClientAndReload();
+  });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") {
       handleAppBackgrounded();

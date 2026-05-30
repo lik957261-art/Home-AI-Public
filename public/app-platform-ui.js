@@ -53,6 +53,7 @@ function setBootSplashText(message = "正在载入工作区") {
 function showBootSplash(message = "正在载入工作区") {
   setBootSplashText(message);
   $("bootRetry")?.classList.add("hidden");
+  $("bootResetClient")?.classList.add("hidden");
   $("setup")?.classList.add("hidden");
   $("login")?.classList.add("hidden");
   $("app")?.classList.add("hidden");
@@ -61,6 +62,7 @@ function showBootSplash(message = "正在载入工作区") {
 
 function hideBootSplash() {
   $("bootRetry")?.classList.add("hidden");
+  $("bootResetClient")?.classList.add("hidden");
   $("bootSplash")?.classList.add("hidden");
 }
 
@@ -84,6 +86,7 @@ function showStartupRecovery(err) {
   $("app")?.classList.add("hidden");
   $("bootSplash")?.classList.remove("hidden");
   $("bootRetry")?.classList.remove("hidden");
+  $("bootResetClient")?.classList.remove("hidden");
 }
 
 function sleep(ms) {

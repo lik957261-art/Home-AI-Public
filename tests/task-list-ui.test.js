@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260530-startup-recovery-v369";
+const CLIENT_VERSION = "20260530-client-reset-page-v372";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -21,6 +21,7 @@ const directoryViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "direc
 const fileViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "file-viewer.html"), "utf8");
 const pdfViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "pdf-viewer.html"), "utf8");
 const markdownViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "markdown-viewer.html"), "utf8");
+const clientResetHtml = fs.readFileSync(path.join(repoRoot, "public", "client-reset.html"), "utf8");
 const markdownRendererClient = fs.readFileSync(path.join(repoRoot, "public", "markdown-renderer-client.js"), "utf8");
 const markdownRendererJs = fs.readFileSync(path.join(repoRoot, "adapters", "markdown-renderer.js"), "utf8");
 const conversationHistoryServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "conversation-history-service.js"), "utf8");
@@ -137,6 +138,17 @@ assert.match(appApiClientJs, /function createHttpError\(response, body\)/);
 assert.match(appApiClientJs, /requestOptions\.timeoutMs/);
 assert.match(appApiClientJs, /AbortController/);
 assert.match(indexHtml, /id="bootRetry"/);
+assert.match(indexHtml, /id="bootResetClient"/);
+assert.match(indexHtml, /resetClient"\) === "1"/);
+assert.match(indexHtml, /navigator\.serviceWorker\.getRegistrations\(\)/);
+assert.match(indexHtml, /caches\.keys\(\)/);
+assert.match(clientResetHtml, /id="status"/);
+assert.match(clientResetHtml, /function preserveClientState\(\)/);
+assert.match(clientResetHtml, /readCookie\("hermes_web_key"\)/);
+assert.match(clientResetHtml, /localStorage\.clear\(\)/);
+assert.match(clientResetHtml, /caches\.keys\(\)/);
+assert.match(clientResetHtml, /navigator\.serviceWorker\.getRegistrations\(\)/);
+assert.match(serviceWorkerJs, /\/client-reset\.html/);
 assert.match(appJs, /function showStartupRecovery\(err\)/);
 assert.match(appJs, /state\.startupStage/);
 assert.match(appJs, /async function bootstrapWithRetry\(options = \{\}\)/);
@@ -145,6 +157,8 @@ assert.match(appJs, /else showStartupRecovery\(err\)/);
 assert.match(appApiClientJs, /Request timed out/);
 assert.match(appApiClientJs, /path\.startsWith\("\/api\/"\)[\s\S]*?fetchOptions\.cache = "no-store"/);
 assert.match(appJs, /\$\("bootRetry"\)\?\.addEventListener\("click", \(\) => \{\s+reloadForClientUpdate\(\);/);
+assert.match(appJs, /function resetClientAndReload\(\)/);
+assert.match(appJs, /\$\("bootResetClient"\)\?\.addEventListener\("click", \(\) => \{\s+resetClientAndReload\(\);/);
 assert.match(appJs, /const viewLoadId = \(state\.viewLoadSeq \|\| 0\) \+ 1;/);
 assert.match(appJs, /state\.viewLoadSeq = viewLoadId;/);
 assert.match(appJs, /const currentViewStillSelected = \(\) => state\.viewLoadSeq === viewLoadId;/);
@@ -1517,6 +1531,8 @@ assert.match(indexHtml, /id="pluginAdminOverlay"/);
 assert.match(appJs, /function renderPluginAdminManager\(\)/);
 assert.match(appJs, /data-open-plugin-admin/);
 assert.match(appJs, /\/api\/hermes-plugins\/admin/);
+assert.match(appJs, /Owner 默认可用/);
+assert.match(appJs, /非 Owner 已开通/);
 assert.match(appJs, /if \(!state\.auth\?\.isOwner\) \{\s*panel\.hidden = true;/);
 assert.doesNotMatch(appJs, /routeView && routeView !== "learning"/);
 assert.match(appJs, /function applyDefaultLaunchView\(\) \{\s*state\.viewMode = "single";/);

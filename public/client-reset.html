@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Hermes Mobile Reset</title>
+  <style>
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+      color: #1d2b31;
+      background: #f7f8f7;
+      font: 16px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+    }
+
+    main {
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      text-align: center;
+    }
+
+    .panel {
+      width: min(420px, 100%);
+      display: grid;
+      gap: 14px;
+      justify-items: center;
+    }
+
+    .mark {
+      width: 78px;
+      height: 78px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(74, 91, 95, 0.16);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.74);
+      color: #425f67;
+      font-size: 36px;
+      font-weight: 650;
+    }
+
+    h1 {
+      margin: 8px 0 0;
+      font-size: 26px;
+      line-height: 1.15;
+    }
+
+    p {
+      margin: 0;
+      color: #69777b;
+      font-size: 15px;
+    }
+
+    button,
+    a {
+      min-height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 16px;
+      border: 1px solid rgba(74, 91, 95, 0.18);
+      border-radius: 10px;
+      color: #37545c;
+      background: rgba(255, 255, 255, 0.84);
+      font: inherit;
+      font-weight: 560;
+      text-decoration: none;
+    }
+
+    button.primary {
+      color: #f7fbf8;
+      background: #486b73;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 4px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      html,
+      body {
+        color: #eef3f0;
+        background: #101315;
+      }
+
+      .mark,
+      button,
+      a {
+        color: #d7e3df;
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.12);
+      }
+
+      p {
+        color: #a8b5b1;
+      }
+
+      button.primary {
+        color: #071012;
+        background: #c9ddd7;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel" aria-live="polite">
+      <div class="mark" aria-hidden="true">H</div>
+      <h1>正在重置客户端</h1>
+      <p id="status">清理 Hermes Mobile 本地缓存和旧 Service Worker...</p>
+      <div class="actions">
+        <button id="retry" class="primary" type="button" hidden>重新执行</button>
+        <a id="openApp" href="/?source=pwa" hidden>打开 Hermes Mobile</a>
+      </div>
+    </section>
+  </main>
+  <script>
+    (function () {
+      var status = document.getElementById("status");
+      var retry = document.getElementById("retry");
+      var openApp = document.getElementById("openApp");
+
+      function setStatus(text) {
+        status.textContent = text;
+      }
+
+      function readCookie(name) {
+        var prefix = name + "=";
+        return document.cookie.split(";").map(function (part) { return part.trim(); })
+          .filter(function (part) { return part.indexOf(prefix) === 0; })
+          .map(function (part) { return decodeURIComponent(part.slice(prefix.length)); })[0] || "";
+      }
+
+      function preserveClientState() {
+        var preserved = {};
+        ["hermesWebKey", "hermesWebTheme", "hermesWebFontSize", "hermesWebFontFamily"].forEach(function (key) {
+          try { preserved[key] = localStorage.getItem(key) || ""; } catch (_) {}
+        });
+        if (!preserved.hermesWebKey) preserved.hermesWebKey = readCookie("hermes_web_key");
+        return preserved;
+      }
+
+      function restoreClientState(preserved) {
+        Object.keys(preserved || {}).forEach(function (key) {
+          if (preserved[key]) {
+            try { localStorage.setItem(key, preserved[key]); } catch (_) {}
+          }
+        });
+      }
+
+      async function clearCaches() {
+        if (!("caches" in window)) return;
+        var keys = await caches.keys();
+        await Promise.all(keys.map(function (key) { return caches.delete(key); }));
+      }
+
+      async function unregisterServiceWorkers() {
+        if (!("serviceWorker" in navigator)) return;
+        var registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(function (item) { return item.unregister(); }));
+      }
+
+      async function resetClient() {
+        retry.hidden = true;
+        openApp.hidden = true;
+        try {
+          var preserved = preserveClientState();
+          try { localStorage.clear(); } catch (_) {}
+          restoreClientState(preserved);
+          await clearCaches();
+          await unregisterServiceWorkers();
+          setStatus("已完成清理，正在重新打开 Hermes Mobile...");
+          var target = new URL("/", window.location.origin);
+          target.searchParams.set("source", "pwa");
+          target.searchParams.set("_hmv", String(Date.now()));
+          window.location.replace(target.href);
+        } catch (err) {
+          setStatus("重置失败：" + (err && err.message ? err.message : String(err || "unknown")));
+          retry.hidden = false;
+          openApp.hidden = false;
+        }
+      }
+
+      retry.addEventListener("click", resetClient);
+      resetClient();
+    }());
+  </script>
+</body>
+</html>

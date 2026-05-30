@@ -41,7 +41,7 @@ function renderPluginAdminManager() {
       ? `<div class="plugin-admin-list">${plugins.map((plugin) => {
           const grantedCount = (plugin.authorizedWorkspaceIds || []).length;
           const riskLabel = plugin.riskLevel === "owner-critical" ? "高风险" : "工作区私有";
-          const grantLabel = plugin.allowWorkspaceGrant === false ? "仅 Owner" : `可开通 ${grantedCount}`;
+          const grantLabel = plugin.allowWorkspaceGrant === false ? "Owner 专用" : `非 Owner 已开通 ${grantedCount}`;
           return `<section class="plugin-admin-card">
             <header class="plugin-admin-card-head">
               <div>
@@ -51,7 +51,7 @@ function renderPluginAdminManager() {
               <span class="plugin-admin-risk ${plugin.riskLevel === "owner-critical" ? "is-critical" : ""}">${escapeHtml(plugin.riskLevel || "workspace-private")}</span>
             </header>
             <div class="plugin-admin-contract">
-              <span>默认：Owner 可见</span>
+              <span>Owner 默认可用</span>
               <span>${plugin.allowWorkspaceGrant === false ? "禁止给非 Owner 开通" : "Owner 手动开通非 Owner"}</span>
               <span>${plugin.provisioning?.supported ? "开通后插件侧绑定/建档" : "插件侧手动绑定"}</span>
             </div>

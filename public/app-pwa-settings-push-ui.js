@@ -68,6 +68,10 @@ function reloadWithoutBfcache() {
   window.location.replace(url.href);
 }
 
+function resetClientAndReload() {
+  window.location.replace(`/client-reset.html?_hmv=${Date.now()}`);
+}
+
 function reloadForClientUpdate() {
   showBootSplash("正在更新客户端");
   if (!("serviceWorker" in navigator)) {
