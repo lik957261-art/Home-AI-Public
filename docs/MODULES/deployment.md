@@ -12,6 +12,10 @@
 ## Restart Tiers
 
 - Static-only: no restart.
+- Production launcher/env change: restart Hermes Mobile listener through
+  `C:\ProgramData\HermesMobile\app\scripts\start-worker-host.ps1
+  -ReplaceExisting` so the worker-host process re-reads
+  `C:\ProgramData\HermesMobile\start-hermes-mobile-production.ps1`.
 - Node route/service/provider change: restart Hermes Mobile listener only.
 - Bridge-host change: restart listener/bridge-host through `scripts\start-worker-host.ps1 -ReplaceExisting`.
 - Gateway plugin/schema/profile/startup change: restart Gateway Pool or targeted maintenance worker as appropriate.
@@ -41,6 +45,28 @@ the plugin appends `/v1/responses`.
 - `git diff --check`
 - production focused checks after sync
 - `/api/status?detail=1`
+
+## Production Launcher Toggles
+
+The operator wrapper at
+`%USERPROFILE%\.hermes-windows\start-hermes-mobile-production.ps1` forwards to
+the effective launcher:
+`C:\ProgramData\HermesMobile\start-hermes-mobile-production.ps1`.
+
+For Gateway model-side preflight and toolset selection, inspect the ProgramData
+launcher first before searching code:
+
+- `HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT` /
+  `HERMES_WEB_GATEWAY_MODEL_PERMISSION_PREFLIGHT`: permission preflight. It
+  defaults on in code when unset and should remain on unless the rollback is
+  explicitly about permission preflight.
+- `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION` /
+  `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION`: optional model-first
+  toolset selector. Set to `1`, `true`, `yes`, or `on` to enable narrowing;
+  set to `0`, `false`, `no`, or `off` to disable only toolset narrowing.
+
+Changing these values requires a listener restart, not a Gateway Pool restart,
+unless a separate worker profile/plugin/schema file also changed.
 
 ## Secrets
 

@@ -174,6 +174,14 @@ that Mobile's top-level `enabled_toolsets` becomes the effective
 keep `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION=0` while leaving
 `HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT` enabled unless there is an
 explicit emergency rollback.
+Runtime configuration harnesses must also check the effective production
+launcher before concluding the selector is on or off:
+`C:\ProgramData\HermesMobile\start-hermes-mobile-production.ps1` is the real
+toggle owner, while `%USERPROFILE%\.hermes-windows\start-hermes-mobile-production.ps1`
+is only a forwarding wrapper. A selector rollout or rollback must document the
+launcher value, the backup path, and a post-restart `/api/status?detail=1`
+smoke. Changing the selector does not require a Gateway Pool restart by itself,
+and it must not change provider routing or disable permission preflight.
 Embedded app plugin host tests must assert manifest-driven tab loading,
 same-window iframe navigation, no `target=_blank` browser handoff, a short-lived
 signed embed token with no raw keys in URLs, a persistent iframe host that does

@@ -255,6 +255,20 @@ Current runtime behavior:
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION` /
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION` enable toolset narrowing
   only when set to `1`, `true`, `yes`, or `on`; default is disabled.
+- Production deployments may intentionally override that default in the
+  production launcher. On the local maintained deployment, check
+  `C:\ProgramData\HermesMobile\start-hermes-mobile-production.ps1` first; as
+  of 2026-05-31 it sets both
+  `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION=1` and
+  `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION=1`. The wrapper
+  `%USERPROFILE%\.hermes-windows\start-hermes-mobile-production.ps1` only
+  forwards to the ProgramData launcher, so it is not the effective toggle
+  owner.
+- Re-enabling or disabling this selector is a listener configuration change:
+  update the ProgramData launcher, restart the Hermes Mobile listener through
+  the worker-host launcher, and keep
+  `HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT` enabled unless the user
+  explicitly requests a permission-preflight rollback.
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS` /
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS` controls the
   selector timeout; default is `45000`.
