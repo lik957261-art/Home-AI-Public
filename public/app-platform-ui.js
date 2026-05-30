@@ -66,13 +66,15 @@ function hideBootSplash() {
 
 function startupErrorMessage(err) {
   const message = String(err?.message || err || "").trim();
+  const stage = String(state.startupStage || "").trim();
+  const stageText = stage ? `（${stage}）` : "";
   if (/unauthorized/i.test(message)) return message;
   if (/failed to fetch|network|load failed|request timed out|timeout/i.test(message)) {
-    return "\u65e0\u6cd5\u8f7d\u5165\u5de5\u4f5c\u533a\uff0c\u8bf7\u68c0\u67e5\u7f51\u7edc\u540e\u91cd\u8bd5\u3002";
+    return `\u65e0\u6cd5\u8f7d\u5165\u5de5\u4f5c\u533a${stageText}\uff0c\u8bf7\u68c0\u67e5\u7f51\u7edc\u540e\u91cd\u8bd5\u3002`;
   }
   return message
-    ? `\u65e0\u6cd5\u8f7d\u5165\u5de5\u4f5c\u533a\uff1a${message}`
-    : "\u65e0\u6cd5\u8f7d\u5165\u5de5\u4f5c\u533a\uff0c\u8bf7\u91cd\u8bd5\u3002";
+    ? `\u65e0\u6cd5\u8f7d\u5165\u5de5\u4f5c\u533a${stageText}\uff1a${message}`
+    : `\u65e0\u6cd5\u8f7d\u5165\u5de5\u4f5c\u533a${stageText}\uff0c\u8bf7\u91cd\u8bd5\u3002`;
 }
 
 function showStartupRecovery(err) {
@@ -194,17 +196,24 @@ async function login(key) {
 }
 
 async function bootstrap() {
+  state.startupStage = "\u72b6\u6001";
   renderClientVersion();
   await loadStatus();
+  state.startupStage = "\u7248\u672c";
   await checkClientVersion("bootstrap").catch(() => {});
   checkAppUpdate("login").catch(() => {});
+  state.startupStage = "\u63a8\u9001";
   await loadPushStatus().catch(() => updatePushButton());
   if (blockMobileBrowserShellAppLaunch()) return;
+  state.startupStage = "\u5de5\u4f5c\u533a";
   await loadWorkspaces();
   if (!applyInitialRouteFromUrl()) applyDefaultLaunchView();
+  state.startupStage = "\u9879\u76ee";
   await syncPushSubscriptionContext().catch(() => {});
   await loadProjects();
+  state.startupStage = "\u89c6\u56fe";
   await loadSelectedView();
+  state.startupStage = "";
   startClientRefreshChecks();
   connectEvents();
 }

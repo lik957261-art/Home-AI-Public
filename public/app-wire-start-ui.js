@@ -13,7 +13,7 @@ function wireUi() {
     hideRefreshNotice();
   });
   $("bootRetry")?.addEventListener("click", () => {
-    startFromBootRecovery().catch(showStartupRecovery);
+    reloadForClientUpdate();
   });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") {

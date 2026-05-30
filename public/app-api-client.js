@@ -75,6 +75,9 @@
       if (requestOptions.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
       const timeoutMs = Math.max(0, Number(requestOptions.timeoutMs || 0) || 0);
       const fetchOptions = Object.assign({}, requestOptions, { headers });
+      if (!fetchOptions.cache && typeof path === "string" && path.startsWith("/api/")) {
+        fetchOptions.cache = "no-store";
+      }
       delete fetchOptions.timeoutMs;
       let timeoutId = 0;
       if (timeoutMs && !fetchOptions.signal && typeof AbortController === "function") {

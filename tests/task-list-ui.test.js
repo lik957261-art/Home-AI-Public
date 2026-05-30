@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260530-finance-composer-v368";
+const CLIENT_VERSION = "20260530-startup-recovery-v369";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -138,10 +138,13 @@ assert.match(appApiClientJs, /requestOptions\.timeoutMs/);
 assert.match(appApiClientJs, /AbortController/);
 assert.match(indexHtml, /id="bootRetry"/);
 assert.match(appJs, /function showStartupRecovery\(err\)/);
+assert.match(appJs, /state\.startupStage/);
 assert.match(appJs, /async function bootstrapWithRetry\(options = \{\}\)/);
 assert.match(appJs, /await bootstrapWithRetry\(\)/);
 assert.match(appJs, /else showStartupRecovery\(err\)/);
 assert.match(appApiClientJs, /Request timed out/);
+assert.match(appApiClientJs, /path\.startsWith\("\/api\/"\)[\s\S]*?fetchOptions\.cache = "no-store"/);
+assert.match(appJs, /\$\("bootRetry"\)\?\.addEventListener\("click", \(\) => \{\s+reloadForClientUpdate\(\);/);
 assert.match(appJs, /const viewLoadId = \(state\.viewLoadSeq \|\| 0\) \+ 1;/);
 assert.match(appJs, /state\.viewLoadSeq = viewLoadId;/);
 assert.match(appJs, /const currentViewStillSelected = \(\) => state\.viewLoadSeq === viewLoadId;/);
