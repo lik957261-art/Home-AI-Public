@@ -103,21 +103,40 @@ function parseToolsetEscalationRequest(text, message = {}) {
     || [],
   );
   const omitted = routeOmittedAuthorizedToolsets(message);
+  const selected = routeSelectedToolsets(message);
   const omittedSet = new Set(omitted);
-  const toolsets = omittedSet.size ? requested.filter((item) => omittedSet.has(item)) : requested;
-  if (!toolsets.length) return null;
+  const knownAuthorized = uniqueCleanStrings([...selected, ...omitted]);
+  const knownAuthorizedSet = new Set(knownAuthorized);
+  const toolsets = knownAuthorizedSet.size
+    ? requested.filter((item) => knownAuthorizedSet.has(item))
+    : requested;
+  const retryableToolsets = omittedSet.size
+    ? requested.filter((item) => omittedSet.has(item))
+    : toolsets;
+  const blockedToolsets = knownAuthorizedSet.size
+    ? requested.filter((item) => !knownAuthorizedSet.has(item))
+    : [];
   return {
     toolsets,
+    requestedToolsets: requested,
+    retryableToolsets,
+    blockedToolsets,
     reason: boundedText(parsed?.reason || parsed?.message || "model_requested_toolset_expansion"),
-    source: "model_toolset_escalation",
+    source: retryableToolsets.length ? "model_toolset_escalation" : "model_toolset_schema_mismatch",
   };
 }
 
 function toolsetEscalationMessage(request = {}) {
   const toolsets = uniqueCleanStrings(request.toolsets || []);
+  const retryableToolsets = uniqueCleanStrings(request.retryableToolsets || []);
+  const blockedToolsets = uniqueCleanStrings(request.blockedToolsets || []);
   const reason = boundedText(request.reason || "");
   const toolsetText = toolsets.length ? toolsets.join(", ") : "additional authorized toolsets";
+  const blockedText = blockedToolsets.length ? `\n\nBlocked toolsets: ${blockedToolsets.join(", ")}` : "";
   const reasonText = reason ? `\n\nReason: ${reason}` : "";
+  if (!retryableToolsets.length) {
+    return `Toolset/schema mismatch: the model requested ${toolsetText}, but Hermes Mobile could not safely expand the current run because the requested toolset was already selected or was not in the omitted authorized set. Hermes Mobile intercepted the internal toolset escalation marker and did not display the raw marker.${blockedText}${reasonText}`;
+  }
   return `\u5f53\u524d\u6267\u884c\u5de5\u5177\u96c6\u4e0d\u8db3\uff0c\u9700\u8981\u91cd\u65b0\u5f00\u653e\u5de5\u5177\u96c6\uff1a${toolsetText}\u3002Hermes Mobile \u5df2\u62e6\u622a\u5185\u90e8\u5de5\u5177\u96c6\u5347\u7ea7\u6807\u8bb0\uff0c\u6ca1\u6709\u628a\u539f\u59cb\u6807\u8bb0\u4f5c\u4e3a\u7b54\u6848\u7ee7\u7eed\u5c55\u793a\u3002${reasonText}`;
 }
 
@@ -768,20 +787,26 @@ function createGatewayRunEventService(options = {}) {
   }
 
   function startEscalatedToolsetRetry(thread, message, request, previousRunId) {
-    if (!startToolsetEscalationRun || !request?.toolsets?.length) return false;
+    const retryableToolsets = uniqueCleanStrings(request?.retryableToolsets || request?.toolsets || []);
+    if (!startToolsetEscalationRun || !retryableToolsets.length) return false;
     const attempts = Math.max(0, Number(message.toolsetEscalationAttempts || 0) || 0);
     if (attempts >= maxToolsetEscalationRetries) return false;
     const userMessage = findEscalationUserMessage(thread, message);
     if (!userMessage) return false;
     const authorizedToolsets = uniqueCleanStrings([
       ...routeSelectedToolsets(message),
-      ...request.toolsets,
+      ...retryableToolsets,
       ...routeOmittedAuthorizedToolsets(message),
     ]);
     const selectedToolsets = expandCommonWebEscalationToolsets(
-      uniqueCleanStrings([...routeSelectedToolsets(message), ...request.toolsets]),
+      uniqueCleanStrings([...routeSelectedToolsets(message), ...retryableToolsets]),
       authorizedToolsets,
     );
+    const previousSelectedToolsets = routeSelectedToolsets(message);
+    if (selectedToolsets.length === previousSelectedToolsets.length
+      && selectedToolsets.every((toolset) => previousSelectedToolsets.includes(toolset))) {
+      return false;
+    }
     const omittedAfterRetry = authorizedToolsets.filter((toolset) => !selectedToolsets.includes(toolset));
     const retryRouting = {
       mode: "model_first",
@@ -802,7 +827,7 @@ function createGatewayRunEventService(options = {}) {
       skipModelFirstToolsetSelection: true,
       toolsetEscalationRetry: {
         previousRunId: cleanString(previousRunId),
-        requestedToolsets: request.toolsets,
+        requestedToolsets: retryableToolsets,
         reason: request.reason,
         attempt: attempts + 1,
       },
@@ -837,7 +862,7 @@ function createGatewayRunEventService(options = {}) {
       runId: cleanString(previousRunId),
       tool: "toolset",
       preview: JSON.stringify({
-        requested_toolsets: request.toolsets,
+        requested_toolsets: retryableToolsets,
         selected_toolsets: selectedToolsets,
         attempt: attempts + 1,
       }),
@@ -927,6 +952,9 @@ function createGatewayRunEventService(options = {}) {
         tool: "toolset",
         preview: JSON.stringify({
           toolsets: toolsetEscalationRequest.toolsets,
+          requested_toolsets: toolsetEscalationRequest.requestedToolsets || toolsetEscalationRequest.toolsets,
+          retryable_toolsets: toolsetEscalationRequest.retryableToolsets || [],
+          blocked_toolsets: toolsetEscalationRequest.blockedToolsets || [],
           reason: toolsetEscalationRequest.reason,
         }),
         error: false,
