@@ -4,6 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>File Preview</title>
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem("hermesWebTheme") || "system";
+        var effective = stored === "dark" || (stored === "system" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+        document.documentElement.dataset.theme = stored === "dark" || stored === "light" ? stored : "system";
+        document.documentElement.dataset.effectiveTheme = effective;
+      } catch (_) {
+        document.documentElement.dataset.theme = "system";
+      }
+    }());
+  </script>
   <style>
     :root {
       --paper: #f6f0e4;
@@ -13,10 +25,23 @@
       --line: rgba(36, 53, 48, 0.13);
       --accent: #1f7768;
       --word: #477cb3;
+      --code: #f6f8fa;
       --viewer-font-scale: 1;
       --viewer-markdown-font-scale: 1;
       --viewer-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
       --hermes-markdown-font-family: var(--viewer-font-family);
+    }
+
+    html[data-effective-theme="dark"] {
+      color-scheme: dark;
+      --paper: #0e1113;
+      --panel: rgba(34, 42, 47, 0.96);
+      --ink: #f3f6f5;
+      --muted: #bec8ca;
+      --line: rgba(235, 241, 239, 0.18);
+      --accent: #c3e2e8;
+      --word: #a9cdec;
+      --code: rgba(255, 255, 255, 0.10);
     }
 
     * {
@@ -51,6 +76,10 @@
 
     .topbar {
       display: none;
+    }
+
+    html[data-effective-theme="dark"] body {
+      background: var(--paper);
     }
 
     body.embedded-viewer .viewer-more-button,
@@ -186,6 +215,15 @@
       -webkit-tap-highlight-color: transparent;
     }
 
+    html[data-effective-theme="dark"] .back,
+    html[data-effective-theme="dark"] .button.secondary,
+    html[data-effective-theme="dark"] .viewer-more-button {
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.12);
+      border-color: var(--line);
+      box-shadow: none;
+    }
+
     .viewer-save-image-button {
       position: fixed;
       z-index: 5;
@@ -232,7 +270,7 @@
       margin-top: 16px;
       border: 1px solid var(--line);
       border-radius: 18px;
-      background: #fff;
+      background: var(--panel);
       touch-action: pan-y;
     }
 
@@ -263,7 +301,7 @@
       padding: 16px;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
-      color: #17242c;
+      color: var(--ink);
       font: calc(15px * var(--viewer-font-scale))/1.72 var(--viewer-font-family);
       overscroll-behavior-y: contain;
       -webkit-overflow-scrolling: touch;
@@ -281,7 +319,7 @@
     .markdown-preview .hermes-markdown-doc {
       max-width: 860px;
       margin: 0 auto;
-      color: #24292f;
+      color: var(--ink);
       font-family: var(--hermes-markdown-font-family);
       line-height: 1.72;
     }
@@ -291,7 +329,7 @@
     .markdown-preview h3,
     .markdown-preview h4 {
       margin: 1.35em 0 0.62em;
-      color: #1f2328;
+      color: var(--ink);
       line-height: 1.25;
       letter-spacing: 0;
       font-weight: 760;
@@ -301,13 +339,13 @@
     .markdown-preview h1 {
       margin-top: 0.25em;
       padding-bottom: 0.3em;
-      border-bottom: 1px solid #d8dee4;
+      border-bottom: 1px solid var(--line);
       font-size: 1.72em;
     }
 
     .markdown-preview h2 {
       padding-bottom: 0.3em;
-      border-bottom: 1px solid #d8dee4;
+      border-bottom: 1px solid var(--line);
       font-size: 1.36em;
     }
 
@@ -367,7 +405,7 @@
     .markdown-preview blockquote {
       padding: 0.05em 0 0.05em 1em;
       color: #57606a;
-      border-left: 0.25em solid #d0d7de;
+      border-left: 0.25em solid var(--line);
     }
 
     .markdown-preview code {
@@ -382,8 +420,8 @@
     .markdown-preview pre {
       overflow-x: auto;
       padding: 1em;
-      background: #f6f8fa;
-      border: 1px solid #d8dee4;
+      background: var(--code);
+      border: 1px solid var(--line);
       border-radius: 8px;
       line-height: 1.55;
       -webkit-overflow-scrolling: touch;
@@ -400,9 +438,9 @@
     .hermes-markdown-table-wrapper {
       max-width: 100%;
       overflow-x: auto;
-      border: 1px solid #d8dee4;
+      border: 1px solid var(--line);
       border-radius: 8px;
-      background: #fff;
+      background: var(--panel);
       -webkit-overflow-scrolling: touch;
       touch-action: pan-x pan-y;
     }
@@ -419,13 +457,13 @@
     .markdown-preview td {
       min-width: 0;
       padding: 0.55em 0.65em;
-      border: 1px solid #d0d7de;
+      border: 1px solid var(--line);
       vertical-align: top;
       overflow-wrap: anywhere;
     }
 
     .markdown-preview th {
-      background: #f6f8fa;
+      background: var(--code);
       font-weight: 820;
     }
 
@@ -473,9 +511,9 @@
 
       .markdown-preview tr {
         margin: 0 0 0.82em;
-        border: 1px solid #d0d7de;
+        border: 1px solid var(--line);
         border-radius: 8px;
-        background: #fff;
+        background: var(--panel);
         overflow: hidden;
       }
 
@@ -516,7 +554,7 @@
     .markdown-preview hr {
       margin: 1.5em 0;
       border: 0;
-      border-top: 1px solid #d8dee4;
+      border-top: 1px solid var(--line);
     }
 
     .preview-status {
@@ -611,7 +649,7 @@
     }
 
     body.text-document-mode {
-      background: #fff;
+      background: var(--paper);
       overflow-x: hidden;
     }
 
@@ -734,7 +772,7 @@
       overflow: visible;
       border: 0;
       border-radius: 0;
-      background: #fff;
+      background: var(--paper);
       touch-action: pan-y;
     }
 
@@ -747,10 +785,10 @@
       min-height: 100dvh;
       overflow: visible;
       padding: calc(18px + env(safe-area-inset-top)) max(22px, env(safe-area-inset-left)) calc(32px + env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-right));
-      color: #24292f;
+      color: var(--ink);
       font: calc(18px * var(--viewer-font-scale))/1.72 var(--viewer-font-family);
       letter-spacing: 0;
-      background: #fff;
+      background: var(--paper);
       touch-action: pan-y;
     }
 

@@ -4,6 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Markdown Preview</title>
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem("hermesWebTheme") || "system";
+        var effective = stored === "dark" || (stored === "system" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+        document.documentElement.dataset.theme = stored === "dark" || stored === "light" ? stored : "system";
+        document.documentElement.dataset.effectiveTheme = effective;
+      } catch (_) {
+        document.documentElement.dataset.theme = "system";
+      }
+    }());
+  </script>
   <style>
     :root {
       --paper: #ffffff;
@@ -15,6 +27,16 @@
       --viewer-font-family: "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", "Microsoft YaHei", serif;
       --hermes-markdown-font-family: var(--viewer-font-family);
       --viewer-markdown-font-scale: 1.18;
+    }
+
+    html[data-effective-theme="dark"] {
+      color-scheme: dark;
+      --paper: #0e1113;
+      --ink: #f3f6f5;
+      --muted: #bec8ca;
+      --line: rgba(235, 241, 239, 0.18);
+      --code: rgba(255, 255, 255, 0.10);
+      --link: #9dccff;
     }
 
     * {
@@ -68,7 +90,7 @@
     .markdown-preview h3,
     .markdown-preview h4 {
       margin: 1.35em 0 0.62em;
-      color: #1f2328;
+      color: var(--ink);
       line-height: 1.25;
       letter-spacing: 0;
       font-weight: 760;
@@ -134,7 +156,7 @@
     .markdown-preview blockquote {
       padding: 0.05em 0 0.05em 1em;
       color: var(--muted);
-      border-left: 0.25em solid #d0d7de;
+      border-left: 0.25em solid var(--line);
     }
 
     .markdown-preview code {
@@ -167,7 +189,7 @@
       overflow-x: auto;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: #fff;
+      background: var(--paper);
       -webkit-overflow-scrolling: touch;
     }
 
@@ -183,7 +205,7 @@
     .markdown-preview td {
       min-width: 0;
       padding: 0.55em 0.65em;
-      border: 1px solid #d0d7de;
+      border: 1px solid var(--line);
       vertical-align: top;
       overflow-wrap: anywhere;
     }
@@ -211,7 +233,7 @@
     }
 
     .status.error {
-      color: #b42318;
+      color: #f0a097;
     }
 
     @media (max-width: 640px) {
@@ -256,9 +278,9 @@
 
       .markdown-preview tr {
         margin: 0 0 0.82em;
-        border: 1px solid #d0d7de;
+        border: 1px solid var(--line);
         border-radius: 8px;
-        background: #fff;
+        background: var(--paper);
         overflow: hidden;
       }
 
@@ -269,7 +291,7 @@
         align-items: start;
         padding: 0.62em 0.72em;
         border: 0;
-        border-bottom: 1px solid #d0d7de;
+        border-bottom: 1px solid var(--line);
       }
 
       .markdown-preview td::before {

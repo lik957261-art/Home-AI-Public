@@ -58,46 +58,46 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --paper: #15191c;
-  --paper-deep: #1b2024;
-  --panel: rgba(29, 34, 38, 0.88);
-  --panel-strong: #20262a;
-  --ink: #edf1f0;
-  --muted: #a8b1b3;
-  --line: rgba(235, 241, 239, 0.14);
-  --line-strong: rgba(235, 241, 239, 0.22);
-  --accent: #8fb0b8;
-  --accent-soft: rgba(143, 176, 184, 0.14);
-  --accent-mist: rgba(143, 176, 184, 0.18);
-  --ui-page: #121518;
-  --ui-chrome: rgba(18, 21, 24, 0.94);
-  --ui-surface: rgba(29, 34, 38, 0.80);
-  --ui-control-bg: rgba(255, 255, 255, 0.09);
-  --ui-hairline: rgba(255, 255, 255, 0.09);
-  --ui-hairline-strong: rgba(255, 255, 255, 0.17);
-  --ui-accent: #8fb0b8;
-  --ui-accent-active: #a5c7cf;
-  --ui-accent-ink: #d5e5e8;
-  --ui-accent-soft: rgba(143, 176, 184, 0.14);
-  --ui-accent-active-soft: rgba(143, 176, 184, 0.22);
-  --ui-accent-fill: rgba(143, 176, 184, 0.19);
-  --ui-status-bar: #111518;
+  --paper: #111518;
+  --paper-deep: #171d21;
+  --panel: rgba(34, 42, 47, 0.92);
+  --panel-strong: #263035;
+  --ink: #f3f6f5;
+  --muted: #bec8ca;
+  --line: rgba(235, 241, 239, 0.18);
+  --line-strong: rgba(235, 241, 239, 0.30);
+  --accent: #a7c7cf;
+  --accent-soft: rgba(167, 199, 207, 0.18);
+  --accent-mist: rgba(167, 199, 207, 0.24);
+  --ui-page: #0e1113;
+  --ui-chrome: rgba(17, 21, 24, 0.96);
+  --ui-surface: rgba(36, 45, 50, 0.92);
+  --ui-control-bg: rgba(255, 255, 255, 0.13);
+  --ui-hairline: rgba(255, 255, 255, 0.13);
+  --ui-hairline-strong: rgba(255, 255, 255, 0.24);
+  --ui-accent: #a7c7cf;
+  --ui-accent-active: #c3e2e8;
+  --ui-accent-ink: #e6f4f6;
+  --ui-accent-soft: rgba(167, 199, 207, 0.18);
+  --ui-accent-active-soft: rgba(167, 199, 207, 0.28);
+  --ui-accent-fill: rgba(167, 199, 207, 0.23);
+  --ui-status-bar: #0e1113;
   --text: var(--ink);
   --border: var(--ui-hairline);
   --surface: var(--ui-surface);
   --surface-soft: var(--ui-control-bg);
-  --ui-field-bg: rgba(255, 255, 255, 0.10);
-  --ui-sheet: rgba(30, 35, 39, 0.98);
-  --ui-menu-bg: rgba(30, 35, 39, 0.98);
-  --ui-surface-muted: rgba(255, 255, 255, 0.09);
-  --ui-card-surface: rgba(30, 35, 39, 0.84);
-  --ui-thread-active: rgba(143, 176, 184, 0.12);
-  --ui-warning-ink: #d8b16b;
-  --ui-warning-surface: rgba(181, 136, 62, 0.16);
+  --ui-field-bg: rgba(255, 255, 255, 0.15);
+  --ui-sheet: rgba(34, 42, 47, 0.99);
+  --ui-menu-bg: rgba(34, 42, 47, 0.99);
+  --ui-surface-muted: rgba(255, 255, 255, 0.13);
+  --ui-card-surface: rgba(38, 48, 53, 0.94);
+  --ui-thread-active: rgba(167, 199, 207, 0.18);
+  --ui-warning-ink: #e6c77f;
+  --ui-warning-surface: rgba(198, 160, 95, 0.22);
   --ui-danger-ink: #f0a097;
-  --ui-danger-surface: rgba(240, 140, 130, 0.14);
-  --ui-success-ink: #a2c8b7;
-  --ui-success-surface: rgba(102, 151, 129, 0.15);
+  --ui-danger-surface: rgba(240, 140, 130, 0.18);
+  --ui-success-ink: #bde2d0;
+  --ui-success-surface: rgba(122, 176, 149, 0.22);
   --pdf: #e18a82;
   --pdf-soft: rgba(225, 138, 130, 0.14);
   --word: #88b2d8;
@@ -110,46 +110,46 @@
 @media (prefers-color-scheme: dark) {
   :root[data-theme="system"] {
     color-scheme: dark;
-    --paper: #15191c;
-    --paper-deep: #1b2024;
-    --panel: rgba(29, 34, 38, 0.88);
-    --panel-strong: #20262a;
-    --ink: #edf1f0;
-    --muted: #a8b1b3;
-    --line: rgba(235, 241, 239, 0.14);
-    --line-strong: rgba(235, 241, 239, 0.22);
-    --accent: #8fb0b8;
-    --accent-soft: rgba(143, 176, 184, 0.14);
-    --accent-mist: rgba(143, 176, 184, 0.18);
-    --ui-page: #121518;
-    --ui-chrome: rgba(18, 21, 24, 0.94);
-    --ui-surface: rgba(29, 34, 38, 0.80);
-    --ui-control-bg: rgba(255, 255, 255, 0.09);
-    --ui-hairline: rgba(255, 255, 255, 0.09);
-    --ui-hairline-strong: rgba(255, 255, 255, 0.17);
-    --ui-accent: #8fb0b8;
-    --ui-accent-active: #a5c7cf;
-    --ui-accent-ink: #d5e5e8;
-    --ui-accent-soft: rgba(143, 176, 184, 0.14);
-    --ui-accent-active-soft: rgba(143, 176, 184, 0.22);
-    --ui-accent-fill: rgba(143, 176, 184, 0.19);
-    --ui-status-bar: #111518;
+    --paper: #111518;
+    --paper-deep: #171d21;
+    --panel: rgba(34, 42, 47, 0.92);
+    --panel-strong: #263035;
+    --ink: #f3f6f5;
+    --muted: #bec8ca;
+    --line: rgba(235, 241, 239, 0.18);
+    --line-strong: rgba(235, 241, 239, 0.30);
+    --accent: #a7c7cf;
+    --accent-soft: rgba(167, 199, 207, 0.18);
+    --accent-mist: rgba(167, 199, 207, 0.24);
+    --ui-page: #0e1113;
+    --ui-chrome: rgba(17, 21, 24, 0.96);
+    --ui-surface: rgba(36, 45, 50, 0.92);
+    --ui-control-bg: rgba(255, 255, 255, 0.13);
+    --ui-hairline: rgba(255, 255, 255, 0.13);
+    --ui-hairline-strong: rgba(255, 255, 255, 0.24);
+    --ui-accent: #a7c7cf;
+    --ui-accent-active: #c3e2e8;
+    --ui-accent-ink: #e6f4f6;
+    --ui-accent-soft: rgba(167, 199, 207, 0.18);
+    --ui-accent-active-soft: rgba(167, 199, 207, 0.28);
+    --ui-accent-fill: rgba(167, 199, 207, 0.23);
+    --ui-status-bar: #0e1113;
     --text: var(--ink);
     --border: var(--ui-hairline);
     --surface: var(--ui-surface);
     --surface-soft: var(--ui-control-bg);
-    --ui-field-bg: rgba(255, 255, 255, 0.10);
-    --ui-sheet: rgba(30, 35, 39, 0.98);
-    --ui-menu-bg: rgba(30, 35, 39, 0.98);
-    --ui-surface-muted: rgba(255, 255, 255, 0.09);
-    --ui-card-surface: rgba(30, 35, 39, 0.84);
-    --ui-thread-active: rgba(143, 176, 184, 0.12);
-    --ui-warning-ink: #d8b16b;
-    --ui-warning-surface: rgba(181, 136, 62, 0.16);
+    --ui-field-bg: rgba(255, 255, 255, 0.15);
+    --ui-sheet: rgba(34, 42, 47, 0.99);
+    --ui-menu-bg: rgba(34, 42, 47, 0.99);
+    --ui-surface-muted: rgba(255, 255, 255, 0.13);
+    --ui-card-surface: rgba(38, 48, 53, 0.94);
+    --ui-thread-active: rgba(167, 199, 207, 0.18);
+    --ui-warning-ink: #e6c77f;
+    --ui-warning-surface: rgba(198, 160, 95, 0.22);
     --ui-danger-ink: #f0a097;
-    --ui-danger-surface: rgba(240, 140, 130, 0.14);
-    --ui-success-ink: #a2c8b7;
-    --ui-success-surface: rgba(102, 151, 129, 0.15);
+    --ui-danger-surface: rgba(240, 140, 130, 0.18);
+    --ui-success-ink: #bde2d0;
+    --ui-success-surface: rgba(122, 176, 149, 0.22);
     --pdf: #e18a82;
     --pdf-soft: rgba(225, 138, 130, 0.14);
     --word: #88b2d8;
@@ -2453,6 +2453,56 @@ button {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+:root[data-theme="dark"] .thread-title,
+:root[data-theme="dark"] .side-heading,
+:root[data-theme="dark"] .action-inbox-item-head strong,
+:root[data-theme="dark"] .action-inbox-detail h3,
+:root[data-theme="dark"] .todo-card-title,
+:root[data-theme="dark"] .todo-kanban-card-title {
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .action-inbox-filter.active,
+:root[data-theme="dark"] .client-version.update-available {
+  color: var(--ui-accent-ink);
+}
+
+:root[data-theme="dark"] .action-inbox-create,
+:root[data-theme="dark"] .action-inbox-detail,
+:root[data-theme="dark"] .action-inbox-item,
+:root[data-theme="dark"] .todo-card,
+:root[data-theme="dark"] .todo-kanban-card-button,
+:root[data-theme="dark"] .task-card.task-swipe-row .task-swipe-content {
+  background: var(--ui-card-surface);
+  border-color: var(--ui-hairline);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .thread-title,
+  :root[data-theme="system"] .side-heading,
+  :root[data-theme="system"] .action-inbox-item-head strong,
+  :root[data-theme="system"] .action-inbox-detail h3,
+  :root[data-theme="system"] .todo-card-title,
+  :root[data-theme="system"] .todo-kanban-card-title {
+    color: var(--ink);
+  }
+
+  :root[data-theme="system"] .action-inbox-filter.active,
+  :root[data-theme="system"] .client-version.update-available {
+    color: var(--ui-accent-ink);
+  }
+
+  :root[data-theme="system"] .action-inbox-create,
+  :root[data-theme="system"] .action-inbox-detail,
+  :root[data-theme="system"] .action-inbox-item,
+  :root[data-theme="system"] .todo-card,
+  :root[data-theme="system"] .todo-kanban-card-button,
+  :root[data-theme="system"] .task-card.task-swipe-row .task-swipe-content {
+    background: var(--ui-card-surface);
+    border-color: var(--ui-hairline);
+  }
 }
 
 .thread-meta {
@@ -5477,7 +5527,7 @@ body.task-markdown-preview-open {
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 10px;
   color: var(--ink);
-  background: rgba(255, 255, 252, 0.99);
+  background: var(--ui-menu-bg);
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.10);
   font-family: var(--font-sans);
   font-size: 13px;
@@ -5540,7 +5590,7 @@ body.task-markdown-preview-open {
   z-index: 1200;
   display: grid;
   padding: 0;
-  background: #fff;
+  background: var(--ui-page);
   touch-action: none;
 }
 
@@ -5550,7 +5600,7 @@ body.task-markdown-preview-open {
   z-index: 1200;
   display: grid;
   padding: 0;
-  background: #fff;
+  background: var(--ui-page);
   touch-action: none;
 }
 
@@ -5564,7 +5614,7 @@ body.task-markdown-preview-open {
   overflow: hidden;
   border: 0;
   border-radius: 0;
-  background: #fff;
+  background: var(--ui-sheet);
   box-shadow: none;
 }
 
@@ -5579,7 +5629,7 @@ body.task-markdown-preview-open {
   gap: 10px;
   padding: 8px 10px 8px 14px;
   border-bottom: 1px solid rgba(31, 43, 51, 0.08);
-  background: rgba(255, 255, 252, 0.96);
+  background: var(--ui-chrome);
 }
 
 .task-document-preview-head strong {
@@ -5602,9 +5652,9 @@ body.task-markdown-preview-open {
 .task-document-preview-actions .task-preview-more-button {
   width: 40px;
   height: 40px;
-  border-color: rgba(31, 43, 51, 0.12);
+  border-color: var(--ui-hairline-strong);
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--ui-control-bg);
   font-size: 20px;
 }
 
@@ -5614,10 +5664,10 @@ body.task-markdown-preview-open {
   height: 40px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(31, 43, 51, 0.12);
+  border: 1px solid var(--ui-hairline-strong);
   border-radius: 999px;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--ui-control-bg);
   font-size: 25px;
   line-height: 1;
 }
@@ -5626,7 +5676,7 @@ body.task-markdown-preview-open {
   min-width: 0;
   min-height: 0;
   display: grid;
-  background: #fff;
+  background: var(--ui-page);
 }
 
 .task-document-preview-frame {
@@ -5635,7 +5685,7 @@ body.task-markdown-preview-open {
   min-width: 0;
   min-height: 0;
   border: 0;
-  background: #fff;
+  background: var(--ui-page);
 }
 
 .task-markdown-preview-shell {
@@ -5648,7 +5698,7 @@ body.task-markdown-preview-open {
   overflow: hidden;
   border: 0;
   border-radius: 0;
-  background: #fff;
+  background: var(--ui-sheet);
   box-shadow: none;
 }
 
@@ -5663,7 +5713,7 @@ body.task-markdown-preview-open {
   gap: 10px;
   padding: 8px 10px 8px 14px;
   border-bottom: 1px solid rgba(31, 43, 51, 0.1);
-  background: rgba(255, 255, 252, 0.96);
+  background: var(--ui-chrome);
 }
 
 .task-markdown-preview-head strong {
@@ -5686,9 +5736,9 @@ body.task-markdown-preview-open {
 .task-markdown-preview-actions .task-preview-more-button {
   width: 40px;
   height: 40px;
-  border-color: rgba(31, 43, 51, 0.12);
+  border-color: var(--ui-hairline-strong);
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--ui-control-bg);
   font-size: 20px;
 }
 
@@ -5698,10 +5748,10 @@ body.task-markdown-preview-open {
   height: 40px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(31, 43, 51, 0.12);
+  border: 1px solid var(--ui-hairline-strong);
   border-radius: 999px;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--ui-control-bg);
   font-size: 26px;
   line-height: 1;
 }
@@ -5731,7 +5781,7 @@ body.task-markdown-preview-open {
   min-width: 0;
   max-width: 860px;
   margin: 0 auto;
-  color: #24292f;
+  color: var(--ink);
   font-family: "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", "Microsoft YaHei", serif;
   font-size: 20px;
   line-height: 1.68;
