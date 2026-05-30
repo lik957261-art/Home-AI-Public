@@ -60,6 +60,11 @@ Gateway plugin/schema/profile changes:
   or danger cards, and the settings/access-key sheet in light, dark, and system
   mode. A dark-mode fix is incomplete if any of those surfaces still uses a
   hard-coded pale background with low-contrast foreground text.
+- Dark mode should follow the mobile control-panel reference: near-black page
+  background, slightly lifted charcoal cards, low-noise hairlines, high-contrast
+  off-white text, and brighter low-saturation status colors. Hard-coded dark
+  green text is not acceptable on dark surfaces; use the theme variables for
+  headings, receipt labels, file tags, status chips, and run/tool panels.
 - Long assistant replies must keep their per-reply start/end jump controls
   available after streaming settles. Arrow visibility recalculation must resolve
   the current DOM at execution time and include a delayed settle pass after final

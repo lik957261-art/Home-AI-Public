@@ -40,6 +40,10 @@ The same ACL boundary must protect listing, preview, upload, delete, task direct
 
 - Preview access must be resolved through thread/message/group/automation ACLs, not by raw filesystem path.
 - File viewer shells such as `file-viewer.html`, `pdf-viewer.html`, and `markdown-viewer.html` are UI surfaces, not durable notification targets.
+- File viewer shells must follow the current Hermes theme. `file-viewer.html`,
+  `markdown-viewer.html`, and `pdf-viewer.html` read `hermesWebTheme` before
+  paint and must use the same dark page and text contrast as the main PWA
+  instead of a separate light document surface.
 - Image preview must expose a same-window `保存到相册` action in both the full `file-viewer.html` shell and the in-app image overlay. The action should prefer system file share with the image blob and fall back to same-window download/long-press guidance; it must not open a separate browser window.
 - Automation deliverables must be verified as outputs of the requested automation job or its authorized delivery path.
 - Group-chat artifacts are visible to a member only when the artifact is attached to a visible group-chat message in a group the member belongs to.

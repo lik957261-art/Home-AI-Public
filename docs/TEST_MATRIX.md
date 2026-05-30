@@ -403,6 +403,12 @@ settings/access-key sheets. A change that adds or modifies theme tokens must
 include a screenshot or browser visual smoke against those surfaces and focused
 assertions that the critical CSS rules consume theme variables instead of
 hard-coded pale surfaces.
+Dark-mode contrast harnesses must also check that message markdown headings,
+receipt labels, file/artifact buttons, Growth teaching badges, and file viewer
+shells do not use hard-coded dark green or pale backgrounds on dark surfaces.
+Standalone `file-viewer.html`, `markdown-viewer.html`, and `pdf-viewer.html`
+must read the saved `hermesWebTheme` preference before paint and expose
+near-black page backgrounds in dark mode.
 Foreground restore tests must also assert `handleAppForegrounded()` reapplies
 the saved theme preference before refresh/render work, so a light-mode user does
 not briefly see a dark-mode repaint when returning to the PWA.
