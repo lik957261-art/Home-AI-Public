@@ -137,9 +137,54 @@ Installed plugins are Owner-visible by default. A non-Owner workspace must not
 see or launch an installed plugin until Owner has explicitly authorized that
 workspace for the plugin.
 
+The installed plugin manifest contract has a Hermes-side security envelope:
+
+```json
+{
+  "id": "finance",
+  "title": "记账",
+  "type": "embedded-app",
+  "toolsets": ["finance"],
+  "permissions": ["finance:read", "finance:write"],
+  "riskLevel": "workspace-private",
+  "defaultVisibility": "owner-only",
+  "allowWorkspaceGrant": true,
+  "provisioning": { "supported": true, "mode": "workspace_binding" },
+  "notifications": { "supported": true, "routeOwner": "hermes" }
+}
+```
+
+Hermes Mobile owns this security envelope even when a plugin omits optional
+fields. Business plugins default to `riskLevel=workspace-private`,
+`defaultVisibility=owner-only`, and `allowWorkspaceGrant=true`. Owner may open
+the side navigation's plugin manager and grant the plugin to a non-Owner
+workspace. That grant is a Hermes authorization record only; plugin-side user
+creation or workspace binding must still happen through the plugin's launch or
+provisioning contract and must not expose long-lived keys to the browser.
+
+Codex Mobile is the exception. Hermes marks it `riskLevel=owner-critical` and
+`allowWorkspaceGrant=false` by default. The plugin manager must not create
+non-Owner Codex grants. Codex contains code execution, file access, long-lived
+thread context, and task-agent surfaces, so it remains Owner-only unless a
+separate restricted Codex product mode is designed and reviewed.
+
+The side navigation plugin manager is the canonical admin surface for installed
+plugin authorization:
+
+- Owner can list installed plugins, their risk level, provisioning mode, and
+  workspace grant state.
+- Owner can grant or revoke normal business plugins for a workspace.
+- Non-Owner users never see the plugin manager.
+- Revoking a grant removes future list/manifest/launch access for that
+  workspace; it does not delete plugin-side business data.
+- The manager stores only plugin id, workspace id, timestamps, actor id, and
+  bounded provisioning status. It must not store plugin access keys, launch
+  tokens, cookies, private business payloads, or raw plugin logs.
+
 Hermes Mobile treats these as authorization evidence:
 
 - Owner auth, including Owner viewing another workspace.
+- A plugin manager grant stored in `plugin-workspace-authorizations.json`.
 - A plugin-specific authorized-workspace list configured by deployment.
 - For Wardrobe only, an existing workspace-scoped Wardrobe key file under the
   workspace drive, because that key is created by the Owner-side Wardrobe
@@ -620,8 +665,10 @@ Hermes Mobile may override the Codex manifest URL with:
 
 - `HERMES_MOBILE_CODEX_PLUGIN_MANIFEST_URL`
 - `HERMES_MOBILE_PLUGIN_CODEX_MOBILE_MANIFEST_URL`
-- `HERMES_MOBILE_PLUGIN_CODEX_MOBILE_WORKSPACES` for explicitly authorized
-  non-Owner workspace ids
+
+Codex is Owner-only by default in Hermes Mobile. It is not grantable through the
+plugin manager. Do not use plugin-manager provisioning to create non-Owner Codex
+access; a future restricted Codex mode would need a separate contract.
 
 Hermes Mobile may override the server-side key path with:
 
@@ -659,6 +706,7 @@ plugin:
 
 Finance is Owner-visible by default. Non-Owner workspaces remain hidden and
 cannot launch Finance unless Owner explicitly grants the workspace through
+the side navigation plugin manager or through
 `HERMES_MOBILE_PLUGIN_FINANCE_WORKSPACES`.
 
 The Finance manifest may use the compact top-level shape:

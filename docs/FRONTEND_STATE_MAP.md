@@ -200,7 +200,8 @@ Use this file to locate the responsible frontend files before debugging a screen
 
 ## Workspace/Admin
 
-- Workspace access/admin UI: `public/app-workspace-admin-ui.js`, `public/app-access-key-manager-ui.js`
+- Workspace access/admin UI: `public/app-workspace-admin-ui.js`, `public/app-access-key-manager-ui.js`,
+  `public/app-plugin-admin-ui.js`
 - PWA push settings: `public/app-pwa-settings-push-ui.js`
 - Upload/sidebar: `public/app-upload-sidebar-ui.js`
 - Share image: `public/app-share-image-ui.js`

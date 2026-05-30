@@ -356,6 +356,10 @@ const state = {
   wardrobePluginLoading: false,
   wardrobePluginChecked: false,
   embeddedPlugins: {},
+  pluginAdminOpen: false,
+  pluginAdminLoading: false,
+  pluginAdminError: "",
+  pluginAdminPlugins: [],
   concurrency: null,
   displayConfig: {
     ownerDriveRootNames: ["ChatGPT-Drive"],

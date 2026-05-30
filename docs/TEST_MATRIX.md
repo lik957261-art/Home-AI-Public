@@ -117,7 +117,10 @@ must satisfy the same host contract before being treated as production-ready.
 Installed plugin visibility must also be covered: Owner sees installed plugins
 by default, but non-Owner workspaces do not list or launch a plugin unless
 there is an explicit Owner authorization signal. A global plugin key is not
-enough to authorize every workspace.
+enough to authorize every workspace. Plugin-manager changes must additionally
+test Owner-only admin routes, grant/revoke persistence, normal business-plugin
+visibility after a grant, Codex Mobile grant denial, and the side-navigation
+manager being hidden from non-Owner users.
 Plugin notification coverage must assert that
 `POST /api/hermes-plugins/<plugin-id>/notifications` requires Hermes auth,
 requires a stable `sourceId`/`eventId`, supports durable Inbox-backed events and

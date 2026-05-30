@@ -14,7 +14,7 @@ async function loadWorkspaces() {
   }
   else if (!state.workspaces.some((item) => item.id === state.selectedWorkspaceId)) state.selectedWorkspaceId = state.workspaces[0]?.id || "";
   if (state.selectedWorkspaceId) localStorage.setItem("hermesWebWorkspace", state.selectedWorkspaceId);
-  if (!state.auth?.isOwner) { state.accessKeyManagerOpen = state.runtimeConfigOpen = false; document.querySelectorAll("#accessKeyOverlay,#runtimeConfigOverlay,#ownerElevationApprovalOverlay").forEach((node) => { node.classList.add("hidden"); node.innerHTML = ""; }); }
+  if (!state.auth?.isOwner) { state.accessKeyManagerOpen = state.runtimeConfigOpen = state.pluginAdminOpen = false; document.querySelectorAll("#accessKeyOverlay,#runtimeConfigOverlay,#pluginAdminOverlay,#ownerElevationApprovalOverlay").forEach((node) => { node.classList.add("hidden"); node.innerHTML = ""; }); }
   const select = $("workspaceSelect");
   select.innerHTML = state.workspaces.map((ws) => `<option value="${escapeHtml(ws.id)}">${escapeHtml(ws.label || ws.id)}</option>`).join("");
   select.value = state.selectedWorkspaceId;
@@ -163,6 +163,12 @@ function renderWorkspaceAccessPanel() {
     ${renderGatewayPoolMiniStatus()}
     ${runtimeConfigButton}
   </details>`;
+  if (canManageOwnerSettings) {
+    const details = panel.querySelector("details");
+    if (details && !details.querySelector("[data-open-plugin-admin]")) {
+      details.insertAdjacentHTML("beforeend", `<button class="workspace-access-key-button workspace-runtime-config-button" type="button" data-open-plugin-admin>插件管理</button>`);
+    }
+  }
   wireOwnerElevationPanel(panel);
   panel.querySelectorAll("[data-open-access-keys]").forEach((button) => {
     button.addEventListener("click", (event) => {
@@ -173,6 +179,10 @@ function renderWorkspaceAccessPanel() {
   panel.querySelector("[data-open-runtime-config]")?.addEventListener("click", (event) => {
     event.preventDefault();
     openRuntimeConfigManager().catch(showError);
+  });
+  panel.querySelector("[data-open-plugin-admin]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    openPluginAdminManager().catch(showError);
   });
 }
 

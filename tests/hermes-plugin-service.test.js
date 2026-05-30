@@ -5,6 +5,7 @@ const {
   DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL,
   DEFAULT_FINANCE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
+  configuredPlugins,
   createHermesPluginService,
   findCodexMobileAccessKeyPath,
   findFinanceAccessKeyPath,
@@ -152,7 +153,7 @@ function testNormalizeFinanceManifest() {
     fetchedAt: "2026-05-30T00:00:00.000Z",
   });
   assert.equal(manifest.id, "finance");
-  assert.equal(manifest.kind, "embedded-app");
+  assert.equal(manifest.kind, "embedded_app");
   assert.equal(manifest.entry.url, "http://127.0.0.1:8791/finance.html?embed=hermes");
   assert.equal(manifest.programApi.baseUrl, "http://127.0.0.1:8791/");
   assert.equal(manifest.programApi.pluginLaunchPath, "http://127.0.0.1:8791/api/v1/hermes/plugin/launch");
@@ -187,7 +188,9 @@ async function testFetchesConfiguredWardrobeManifest() {
       });
     },
   });
-  assert.deepEqual(service.list(), [{ id: "wardrobe", manifestUrl: "http://nas/plugin.json" }]);
+  assert.equal(service.list()[0].id, "wardrobe");
+  assert.equal(service.list()[0].manifestUrl, "http://nas/plugin.json");
+  assert.equal(service.list()[0].allowWorkspaceGrant, true);
   const manifest = await service.manifest({ id: "wardrobe", workspaceId: "owner" });
   assert.equal(manifest.available, true);
   assert.equal(manifest.source.manifestUrl, "http://nas/plugin.json");
@@ -211,19 +214,36 @@ async function testPluginWorkspaceAuthorizationDefaultsToOwnerOnly() {
 
 async function testExplicitPluginWorkspaceAuthorizationAllowsNonOwner() {
   const service = createHermesPluginService({
-    plugins: [{ id: "codex-mobile", manifestUrl: "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest", authorizedWorkspaceIds: ["weixin_wuping"] }],
+    plugins: [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest", authorizedWorkspaceIds: ["weixin_wuping"] }],
     fetch(url) {
-      assert.equal(url, "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest");
+      assert.equal(url, "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest");
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve(sampleCodexManifest()),
+        json: () => Promise.resolve(sampleFinanceManifest()),
       });
     },
   });
-  const manifest = await service.manifest({ id: "codex-mobile", workspaceId: "weixin_wuping" });
+  const manifest = await service.manifest({ id: "finance", workspaceId: "weixin_wuping" });
   assert.equal(manifest.available, true);
-  assert.equal(service.list({ workspaceId: "weixin_wuping" })[0].id, "codex-mobile");
+  assert.equal(service.list({ workspaceId: "weixin_wuping" })[0].id, "finance");
+}
+
+async function testCodexPluginCannotBeGrantedToNonOwner() {
+  const service = createHermesPluginService({
+    plugins: [{ id: "codex-mobile", manifestUrl: "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest", authorizedWorkspaceIds: ["weixin_wuping"] }],
+    fetch() {
+      throw new Error("codex non-owner grant must not fetch manifest");
+    },
+  });
+  assert.equal(configuredPlugins({
+    plugins: [{ id: "codex-mobile", manifestUrl: "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest", authorizedWorkspaceIds: ["weixin_wuping"] }],
+  })[0].allowWorkspaceGrant, false);
+  assert.equal(service.grantWorkspace({ id: "codex-mobile", workspaceId: "weixin_wuping" }).error, "plugin_workspace_grant_not_allowed");
+  const manifest = await service.manifest({ id: "codex-mobile", workspaceId: "weixin_wuping" });
+  assert.equal(manifest.available, false);
+  assert.deepEqual(service.list({ workspaceId: "weixin_wuping" }), []);
+  assert.equal(service.listInstalled().find((item) => item.id === "codex-mobile").allowWorkspaceGrant, false);
 }
 
 async function testFrameAncestorsBlockedReturnsUnavailable() {
@@ -609,6 +629,7 @@ async function run() {
   await testFetchesConfiguredWardrobeManifest();
   await testPluginWorkspaceAuthorizationDefaultsToOwnerOnly();
   await testExplicitPluginWorkspaceAuthorizationAllowsNonOwner();
+  await testCodexPluginCannotBeGrantedToNonOwner();
   await testFrameAncestorsBlockedReturnsUnavailable();
   await testDefaultNasManifestUrl();
   await testHttpsManifestOverride();

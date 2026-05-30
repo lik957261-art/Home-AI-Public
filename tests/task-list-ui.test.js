@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260530-fullscreen-sidebar-v366";
+const CLIENT_VERSION = "20260530-finance-composer-v368";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -381,6 +381,7 @@ assert.match(stylesCss, /\.app \{[\s\S]*?background: var\(--ui-page\);/);
 assert.match(stylesCss, /\.main \{[\s\S]*?background: var\(--ui-page\);/);
 assert.match(stylesCss, /\.sidebar \{[\s\S]*?background: var\(--ui-chrome\);/);
 assert.match(stylesCss, /\.composer \{[\s\S]*?background: var\(--ui-chrome\);/);
+assert.match(stylesCss, /\.wardrobe-mode \.composer,[\s\S]*?\.finance-mode \.composer,[\s\S]*?\.codex-mode \.composer \{[\s\S]*?display: none;/);
 assert.match(stylesCss, /\.message\.assistant \{[\s\S]*?color: var\(--ink\);[\s\S]*?background: var\(--ui-surface\);/);
 assert.match(stylesCss, /\.task-card\.task-swipe-row \.task-swipe-content \{[\s\S]*?background: var\(--ui-card-surface\);/);
 assert.match(stylesCss, /\.learning-growth-board-card\.is-reward-warning \{[\s\S]*?background: var\(--ui-warning-surface\);/);
@@ -487,9 +488,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260530-fullscreen-sidebar-v366/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260530-fullscreen-sidebar-v366/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260530-fullscreen-sidebar-v366/);
+assert.ok(directoryViewerHtml.includes(`/styles.css?v=${CLIENT_VERSION}`));
+assert.ok(directoryViewerHtml.includes(`/markdown-renderer-client.js?v=${CLIENT_VERSION}`));
+assert.ok(directoryViewerHtml.includes(`/app-task-preview-ui.js?v=${CLIENT_VERSION}`));
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
@@ -1508,7 +1509,11 @@ assert.match(appJs, /\/api\/learning-growth\/board/);
 assert.match(appJs, /LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID = "weixin_stephen"/);
 assert.match(appJs, /function learningGrowthLearnerWorkspaceId\(\)/);
 assert.match(appJs, /state\.auth && !state\.auth\.isOwner/);
-assert.match(appJs, /#accessKeyOverlay,#runtimeConfigOverlay,#ownerElevationApprovalOverlay/);
+assert.match(appJs, /#accessKeyOverlay,#runtimeConfigOverlay,#pluginAdminOverlay,#ownerElevationApprovalOverlay/);
+assert.match(indexHtml, /id="pluginAdminOverlay"/);
+assert.match(appJs, /function renderPluginAdminManager\(\)/);
+assert.match(appJs, /data-open-plugin-admin/);
+assert.match(appJs, /\/api\/hermes-plugins\/admin/);
 assert.match(appJs, /if \(!state\.auth\?\.isOwner\) \{\s*panel\.hidden = true;/);
 assert.doesNotMatch(appJs, /routeView && routeView !== "learning"/);
 assert.match(appJs, /function applyDefaultLaunchView\(\) \{\s*state\.viewMode = "single";/);

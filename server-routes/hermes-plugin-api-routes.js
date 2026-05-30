@@ -4,6 +4,51 @@ const { createApiRouteRegistry } = require("../adapters/api-route-registry");
 
 const HERMES_PLUGIN_API_ROUTE_SPECS = Object.freeze([
   {
+    id: "hermes-plugins-admin-list",
+    method: "GET",
+    path: "/api/hermes-plugins/admin",
+    group: "plugins",
+    moduleKey: "hermes-plugins",
+    handlerKey: "adminList",
+    summary: "Owner-only list of installed embedded plugins and workspace grants.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["plugin", "workspace"],
+    tags: ["plugin", "authorization"],
+  },
+  {
+    id: "hermes-plugin-workspace-grant",
+    method: "POST",
+    pathRegex: /^\/api\/hermes-plugins\/[^/]+\/workspaces$/,
+    group: "plugins",
+    moduleKey: "hermes-plugins",
+    handlerKey: "grantWorkspace",
+    summary: "Owner-only grant of a plugin to a workspace.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["plugin", "workspace"],
+    tags: ["plugin", "authorization"],
+  },
+  {
+    id: "hermes-plugin-workspace-revoke",
+    method: "DELETE",
+    pathRegex: /^\/api\/hermes-plugins\/[^/]+\/workspaces\/[^/]+$/,
+    group: "plugins",
+    moduleKey: "hermes-plugins",
+    handlerKey: "revokeWorkspace",
+    summary: "Owner-only revoke of a plugin from a workspace.",
+    riskLevel: "owner",
+    authMode: "owner",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["plugin", "workspace"],
+    tags: ["plugin", "authorization"],
+  },
+  {
     id: "hermes-plugins-list",
     method: "GET",
     path: "/api/hermes-plugins",
@@ -76,6 +121,9 @@ function createHermesPluginApiRoutes(deps = {}) {
   if (typeof deps.hermesPluginService.list !== "function") {
     throw new Error("hermes plugin api routes require hermesPluginService.list");
   }
+  if (typeof deps.requireOwner !== "function") {
+    throw new Error("hermes plugin api routes require requireOwner");
+  }
   if (deps.hermesPluginNotificationService && typeof deps.hermesPluginNotificationService.postNotification !== "function") {
     throw new Error("hermes plugin api routes require hermesPluginNotificationService.postNotification");
   }
@@ -133,6 +181,16 @@ function createHermesPluginApiRoutes(deps = {}) {
   function requestedPluginId(url) {
     const match = String(url?.pathname || "").match(/^\/api\/hermes-plugins\/([^/]+)\/manifest$/);
     return match ? decodeURIComponent(match[1]) : "";
+  }
+
+  function requestedWorkspaceGrantPluginId(url) {
+    const match = String(url?.pathname || "").match(/^\/api\/hermes-plugins\/([^/]+)\/workspaces$/);
+    return match ? decodeURIComponent(match[1]) : "";
+  }
+
+  function requestedWorkspaceRevoke(url) {
+    const match = String(url?.pathname || "").match(/^\/api\/hermes-plugins\/([^/]+)\/workspaces\/([^/]+)$/);
+    return match ? { pluginId: decodeURIComponent(match[1]), workspaceId: decodeURIComponent(match[2]) } : {};
   }
 
   function requestedNotificationPluginId(url) {
@@ -388,6 +446,56 @@ function createHermesPluginApiRoutes(deps = {}) {
     deps.sendJson(res, 200, Object.assign({ workspaceId }, manifest));
   }
 
+  async function handleAdminList(req, res) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    if (typeof deps.hermesPluginService.listInstalled !== "function") {
+      deps.sendJson(res, 503, { ok: false, error: "plugin_admin_unavailable" });
+      return;
+    }
+    deps.sendJson(res, 200, {
+      ok: true,
+      plugins: deps.hermesPluginService.listInstalled(),
+    });
+  }
+
+  async function handleWorkspaceGrant(req, res, url) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    if (typeof deps.hermesPluginService.grantWorkspace !== "function") {
+      deps.sendJson(res, 503, { ok: false, error: "plugin_admin_unavailable" });
+      return;
+    }
+    const pluginId = requestedWorkspaceGrantPluginId(url);
+    const body = await readJsonBody(req);
+    const result = deps.hermesPluginService.grantWorkspace({
+      id: pluginId,
+      workspaceId: body.workspaceId || body.workspace_id,
+      actor: owner.workspaceId || "owner",
+    });
+    if (!result?.ok) {
+      deps.sendJson(res, Number(result?.status || 400), { ok: false, error: result?.error || "plugin_workspace_grant_failed" });
+      return;
+    }
+    deps.sendJson(res, 200, result);
+  }
+
+  async function handleWorkspaceRevoke(req, res, url) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return;
+    if (typeof deps.hermesPluginService.revokeWorkspace !== "function") {
+      deps.sendJson(res, 503, { ok: false, error: "plugin_admin_unavailable" });
+      return;
+    }
+    const target = requestedWorkspaceRevoke(url);
+    const result = deps.hermesPluginService.revokeWorkspace(target);
+    if (!result?.ok) {
+      deps.sendJson(res, Number(result?.status || 400), { ok: false, error: result?.error || "plugin_workspace_revoke_failed" });
+      return;
+    }
+    deps.sendJson(res, 200, result);
+  }
+
   async function handleNotification(req, res, url, context = {}) {
     if (!deps.hermesPluginNotificationService) {
       deps.sendJson(res, 503, { ok: false, error: "plugin_notification_service_unavailable" });
@@ -431,7 +539,10 @@ function createHermesPluginApiRoutes(deps = {}) {
       path: url?.pathname || req.url || "/",
     });
     if (!route) return { handled: false };
-    if (route.id === "hermes-plugins-list") await handleList(req, res, url);
+    if (route.id === "hermes-plugins-admin-list") await handleAdminList(req, res);
+    else if (route.id === "hermes-plugin-workspace-grant") await handleWorkspaceGrant(req, res, url);
+    else if (route.id === "hermes-plugin-workspace-revoke") await handleWorkspaceRevoke(req, res, url);
+    else if (route.id === "hermes-plugins-list") await handleList(req, res, url);
     else if (route.id === "hermes-plugin-manifest") await handleManifest(req, res, url);
     else if (route.id === "hermes-plugin-notification") await handleNotification(req, res, url, context);
     else if (route.id === "hermes-plugin-same-origin-proxy") await handlePluginProxy(req, res, url);

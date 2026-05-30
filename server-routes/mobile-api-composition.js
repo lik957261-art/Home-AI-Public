@@ -419,6 +419,7 @@ function createMobileApiComposition(deps = {}) {
     broadcast: deps.broadcast,
     isOwnerAuth: deps.isOwnerAuth,
     readBody: deps.readBody,
+    requireOwner: deps.requireOwner,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
     sendJson: deps.sendJson,
     hermesPluginService,

@@ -1962,6 +1962,7 @@ button {
 .automation-mode .composer,
 .learning-mode .composer,
 .wardrobe-mode .composer,
+.finance-mode .composer,
 .codex-mode .composer {
   display: none;
 }
@@ -6569,6 +6570,105 @@ body.task-markdown-preview-open {
   font-size: 12px;
   line-height: 1.4;
   overflow-wrap: anywhere;
+}
+
+.plugin-admin-sheet {
+  width: min(760px, 100%);
+}
+
+.plugin-admin-list,
+.plugin-admin-card,
+.plugin-admin-workspace-list {
+  display: grid;
+  gap: 10px;
+}
+
+.plugin-admin-card {
+  padding: 12px;
+  border: 1px solid var(--ui-hairline);
+  border-radius: 10px;
+  background: var(--ui-surface-muted);
+}
+
+.plugin-admin-card-head,
+.plugin-admin-workspace-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.plugin-admin-title,
+.plugin-admin-workspace-title {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 560;
+}
+
+.plugin-admin-meta,
+.plugin-admin-workspace-meta,
+.plugin-admin-contract {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.plugin-admin-risk,
+.plugin-admin-workspace-state,
+.plugin-admin-owner-only {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: 1px solid var(--ui-hairline);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.54);
+  font-size: 11.5px;
+  font-weight: 560;
+  white-space: nowrap;
+}
+
+.plugin-admin-risk.is-critical {
+  color: var(--danger);
+  background: rgba(164, 61, 53, 0.08);
+}
+
+.plugin-admin-contract {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.plugin-admin-contract span {
+  padding: 3px 7px;
+  border: 1px solid var(--ui-hairline);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.46);
+}
+
+.plugin-admin-workspace-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  min-height: 42px;
+  padding: 7px 0;
+  border-top: 1px solid var(--ui-hairline);
+}
+
+.plugin-admin-workspace-row button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-hairline);
+  border-radius: 8px;
+  color: var(--accent);
+  background: rgba(232, 244, 235, 0.9);
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.plugin-admin-workspace-state.is-enabled {
+  color: var(--accent);
+  background: rgba(232, 244, 235, 0.72);
 }
 
 .access-key-login-button {

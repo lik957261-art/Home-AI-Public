@@ -1067,9 +1067,16 @@ Required contract dimensions:
   remains behind the normal workspace access route.
 - Installed plugins default to Owner-only visibility. A non-Owner workspace may
   list or launch a plugin only after an explicit Owner authorization signal,
-  such as a deployment authorized-workspace list or a plugin-specific
-  workspace-bound key created by the Owner binding flow. Generic/global plugin
-  keys must not implicitly authorize every non-Owner workspace.
+  such as a plugin-manager grant, deployment authorized-workspace list, or a
+  plugin-specific workspace-bound key created by the Owner binding flow.
+  Generic/global plugin keys must not implicitly authorize every non-Owner
+  workspace. Codex Mobile is `owner-critical` and not grantable through the
+  plugin manager unless a separate restricted Codex product mode is designed.
+- Plugin authorization/admin changes must cover the full contract: Owner-only
+  admin API, non-Owner rejection, grant/revoke persistence, Codex grant denial,
+  manifest/list visibility after grant, and side-navigation UI exposure only to
+  Owner. The stored authorization record may contain plugin id, workspace id,
+  timestamps, actor id, and bounded provisioning status only.
 - Plugin notification events are part of the H1 passive-notification path even
   though the plugin host itself is H2. A plugin backend must call Hermes
   `POST /api/hermes-plugins/<plugin-id>/notifications` with a stable

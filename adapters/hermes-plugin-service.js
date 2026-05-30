@@ -2,6 +2,9 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const {
+  createHermesPluginAuthorizationService,
+} = require("./hermes-plugin-authorization-service");
 
 const DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL = "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest";
 const DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest";
@@ -46,6 +49,53 @@ function configuredAuthorizedWorkspaceIds(pluginId, env = process.env) {
   return parseWorkspaceList(env[envKeyForPlugin(pluginId, "WORKSPACES")]);
 }
 
+const DEFAULT_PLUGIN_SECURITY = Object.freeze({
+  wardrobe: {
+    riskLevel: "workspace-private",
+    defaultVisibility: "owner-only",
+    allowWorkspaceGrant: true,
+    provisioning: { supported: true, mode: "workspace_binding" },
+    notifications: { supported: true, routeOwner: "hermes" },
+  },
+  "codex-mobile": {
+    riskLevel: "owner-critical",
+    defaultVisibility: "owner-only",
+    allowWorkspaceGrant: false,
+    provisioning: { supported: false, mode: "owner_only" },
+    notifications: { supported: true, routeOwner: "hermes", inboxMode: "replace_latest_per_workspace" },
+  },
+  finance: {
+    riskLevel: "workspace-private",
+    defaultVisibility: "owner-only",
+    allowWorkspaceGrant: true,
+    provisioning: { supported: true, mode: "workspace_binding" },
+    notifications: { supported: true, routeOwner: "hermes" },
+  },
+});
+
+function pluginSecurityDefaults(pluginId = "") {
+  return DEFAULT_PLUGIN_SECURITY[stringValue(pluginId)] || {
+    riskLevel: "workspace-private",
+    defaultVisibility: "owner-only",
+    allowWorkspaceGrant: true,
+    provisioning: { supported: false, mode: "manual_binding" },
+    notifications: { supported: false, routeOwner: "hermes" },
+  };
+}
+
+function normalizePluginSecurity(plugin = {}) {
+  const defaults = pluginSecurityDefaults(plugin.id);
+  const provisioning = plugin.provisioning && typeof plugin.provisioning === "object" ? plugin.provisioning : {};
+  const notifications = plugin.notifications && typeof plugin.notifications === "object" ? plugin.notifications : {};
+  return {
+    riskLevel: stringValue(plugin.riskLevel || defaults.riskLevel),
+    defaultVisibility: stringValue(plugin.defaultVisibility || defaults.defaultVisibility || "owner-only"),
+    allowWorkspaceGrant: plugin.allowWorkspaceGrant === false ? false : defaults.allowWorkspaceGrant !== false,
+    provisioning: Object.assign({}, defaults.provisioning, provisioning),
+    notifications: Object.assign({}, defaults.notifications, notifications),
+  };
+}
+
 function configuredPlugins(options = {}) {
   const env = options.env || process.env;
   const explicit = Array.isArray(options.plugins) ? options.plugins : [];
@@ -64,16 +114,19 @@ function configuredPlugins(options = {}) {
     },
   ];
   return plugins
-    .map((item) => ({
-      id: stringValue(item.id),
-      manifestUrl: stringValue(item.manifestUrl || item.url),
-      authorizedWorkspaceIds: parseWorkspaceList(
-        Array.isArray(item.authorizedWorkspaceIds) ? item.authorizedWorkspaceIds.join(",") : item.authorizedWorkspaceIds,
-      ),
-    }))
+    .map((item) => {
+      const base = {
+        id: stringValue(item.id),
+        manifestUrl: stringValue(item.manifestUrl || item.url),
+        authorizedWorkspaceIds: parseWorkspaceList(
+          Array.isArray(item.authorizedWorkspaceIds) ? item.authorizedWorkspaceIds.join(",") : item.authorizedWorkspaceIds,
+        ),
+      };
+      return Object.assign(base, normalizePluginSecurity(Object.assign({}, item, base)));
+    })
     .filter((item) => item.id && item.manifestUrl)
     .map((item) => Object.assign({}, item, {
-      authorizedWorkspaceIds: [...new Set([
+      authorizedWorkspaceIds: item.allowWorkspaceGrant === false ? [] : [...new Set([
         ...item.authorizedWorkspaceIds,
         ...configuredAuthorizedWorkspaceIds(item.id, env),
       ])],
@@ -279,9 +332,14 @@ function pluginWorkspaceAuthorized(plugin, input = {}, options = {}) {
   const workspaceId = stringValue(input.workspaceId || "owner");
   if (!workspaceId) return false;
   if (workspaceId === "owner" || input.ownerAuthorized === true) return true;
+  if (plugin?.allowWorkspaceGrant === false) return false;
   const authorized = Array.isArray(plugin?.authorizedWorkspaceIds) ? plugin.authorizedWorkspaceIds : [];
   if (authorized.includes("*") || authorized.includes(workspaceId)) return true;
   const pluginId = stringValue(plugin?.id || input.id);
+  if (typeof options.authorizationService?.isWorkspaceAuthorized === "function"
+    && options.authorizationService.isWorkspaceAuthorized(pluginId, workspaceId)) {
+    return true;
+  }
   if (pluginId === "wardrobe") {
     return Boolean(findWardrobeAccessKeyPath({ workspaceId }, options));
   }
@@ -337,13 +395,15 @@ function normalizeManifest(raw = {}, source = {}) {
   const topLevelToolsets = Array.isArray(raw.toolsets) ? raw.toolsets.map(stringValue).filter(Boolean) : [];
   const topLevelPermissions = Array.isArray(raw.permissions) ? raw.permissions.map(stringValue).filter(Boolean) : [];
   const embedding = raw.embedding && typeof raw.embedding === "object" ? raw.embedding : {};
+  const rawKind = stringValue(raw.kind || raw.type || "embedded_app");
+  const kind = rawKind === "embedded-app" ? "embedded_app" : rawKind;
   return {
     ok: true,
     available: true,
     id,
     title: stringValue(raw.title) || id,
     description: stringValue(raw.description),
-    kind: stringValue(raw.kind || raw.type || "embedded_app"),
+    kind,
     version: stringValue(raw.version),
     source: {
       manifestUrl,
@@ -585,6 +645,12 @@ function createHermesPluginService(options = {}) {
   const fetchImpl = options.fetch || global.fetch;
   const timeoutMs = Number(options.timeoutMs || DEFAULT_TIMEOUT_MS);
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
+  const authorizationService = options.authorizationService || createHermesPluginAuthorizationService({
+    dataDir: options.dataDir,
+    env: options.env,
+    nowIso,
+    storePath: options.pluginAuthorizationStorePath,
+  });
   const plugins = configuredPlugins(options);
   const launchOptions = {
     dataDir: options.dataDir,
@@ -593,15 +659,36 @@ function createHermesPluginService(options = {}) {
     wardrobeAccessKeyPath: options.wardrobeAccessKeyPath,
     codexMobileAccessKeyPath: options.codexMobileAccessKeyPath,
     financeAccessKeyPath: options.financeAccessKeyPath,
+    authorizationService,
   };
+
+  function pluginPublicMetadata(item) {
+    return {
+      id: item.id,
+      manifestUrl: item.manifestUrl,
+      riskLevel: item.riskLevel,
+      defaultVisibility: item.defaultVisibility,
+      allowWorkspaceGrant: item.allowWorkspaceGrant !== false,
+      provisioning: item.provisioning || {},
+      notifications: item.notifications || {},
+    };
+  }
 
   function list(input = {}) {
     return plugins
       .filter((item) => pluginWorkspaceAuthorized(item, input, launchOptions))
-      .map((item) => ({
-        id: item.id,
-        manifestUrl: item.manifestUrl,
-      }));
+      .map(pluginPublicMetadata);
+  }
+
+  function listInstalled() {
+    return plugins.map((item) => Object.assign(pluginPublicMetadata(item), {
+      authorizedWorkspaceIds: item.allowWorkspaceGrant === false
+        ? []
+        : [...new Set([
+          ...item.authorizedWorkspaceIds,
+          ...authorizationService.authorizedWorkspaceIds(item.id),
+        ])],
+    }));
   }
 
   function pluginManifestUrl(id = "") {
@@ -676,13 +763,42 @@ function createHermesPluginService(options = {}) {
     }
   }
 
-  return { list, manifest, pluginManifestUrl };
+  function grantWorkspace(input = {}) {
+    const id = stringValue(input.id || input.pluginId);
+    const plugin = plugins.find((item) => item.id === id);
+    if (!plugin) return { ok: false, status: 404, error: "plugin_not_registered" };
+    if (plugin.allowWorkspaceGrant === false) {
+      return { ok: false, status: 403, error: "plugin_workspace_grant_not_allowed" };
+    }
+    return authorizationService.grantWorkspace({
+      pluginId: id,
+      workspaceId: input.workspaceId,
+      actor: input.actor,
+      provisioningStatus: plugin.provisioning?.supported ? "pending" : "not_supported",
+    });
+  }
+
+  function revokeWorkspace(input = {}) {
+    const id = stringValue(input.id || input.pluginId);
+    const plugin = plugins.find((item) => item.id === id);
+    if (!plugin) return { ok: false, status: 404, error: "plugin_not_registered" };
+    if (plugin.allowWorkspaceGrant === false) {
+      return { ok: false, status: 403, error: "plugin_workspace_grant_not_allowed" };
+    }
+    return authorizationService.revokeWorkspace({
+      pluginId: id,
+      workspaceId: input.workspaceId,
+    });
+  }
+
+  return { list, listInstalled, manifest, pluginManifestUrl, grantWorkspace, revokeWorkspace };
 }
 
 module.exports = {
   DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL,
   DEFAULT_FINANCE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
+  configuredPlugins,
   createHermesPluginService,
   findCodexMobileAccessKeyPath,
   findFinanceAccessKeyPath,
