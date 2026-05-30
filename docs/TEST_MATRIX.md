@@ -90,6 +90,9 @@ select `wardrobe` with `vision`/`file` for image-backed writeback and readback
 verification. A run that has a wardrobe-capable Gateway profile but lacks
 `wardrobe` in `access_policy_context.allowed_toolsets` should be treated as a
 Mobile policy/routing regression, not as a missing Gateway MCP.
+Wardrobe callable-schema coverage must include actual-wear history writeback
+through `mcp_wardrobe_wardrobe_write_history`, not only item write/search/read
+and photo functions.
 Wardrobe-bound directory projects must first add `wardrobe` in the access
 policy catalog; selector routing alone is insufficient because it cannot grant
 toolsets absent from `allowed_toolsets`.
@@ -392,11 +395,13 @@ stored as bounded `toolsetEscalationRequired` metadata, and projected as
 authorized, the same assistant message must automatically retry with the
 previous selected toolsets plus the requested toolsets, skip a second selector
 pass, emit `run.toolset_escalation_retrying`, and avoid terminal delivery until
-that retry finishes. A later manual retry/rerun message should also reuse
-recent task context or stored escalation metadata to suggest the needed
-authorized toolsets instead of treating retry as a plain probe, including when
-the relevant task context is in the same `taskGroupId` but no longer in the
-global message tail.
+that retry finishes. If the model requests a toolset that is already selected,
+the raw marker must still be stripped and recorded as a controlled
+schema-mismatch escalation without starting a duplicate retry. A later manual
+retry/rerun message should also reuse recent task context or stored escalation
+metadata to suggest the needed authorized toolsets instead of treating retry as
+a plain probe, including when the relevant task context is in the same
+`taskGroupId` but no longer in the global message tail.
 Streaming-delta tests must also cover marker suppression before completion so
 the raw escalation marker cannot appear briefly in the visible receipt while the
 retry is being prepared.
