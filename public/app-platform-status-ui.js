@@ -130,8 +130,10 @@ function renderGatewayProviderMatrix(pool = state.gatewayPool) {
   return `<div class="workspace-gateway-provider-matrix" aria-label="Gateway provider availability">
     ${matrix.map((row) => `<div class="workspace-gateway-provider-row">
       <span class="workspace-gateway-provider-name">${escapeHtml(row.label || row.provider || "Provider")}</span>
-      <span class="workspace-gateway-provider-tier">Low ${escapeHtml(gatewayProviderTierLabel(row.user))}</span>
-      <span class="workspace-gateway-provider-tier">High ${escapeHtml(gatewayProviderTierLabel(row.ownerMaintenance))}</span>
+      <span class="workspace-gateway-provider-breakdown">
+        <span class="workspace-gateway-provider-tier">Low ${escapeHtml(gatewayProviderTierLabel(row.user))}</span>
+        <span class="workspace-gateway-provider-tier">High ${escapeHtml(gatewayProviderTierLabel(row.ownerMaintenance))}</span>
+      </span>
     </div>`).join("")}
   </div>`;
 }

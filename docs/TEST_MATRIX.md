@@ -318,6 +318,13 @@ Foreground restore tests must also assert `handleAppForegrounded()` reapplies
 the saved theme preference before refresh/render work, so a light-mode user does
 not briefly see a dark-mode repaint when returning to the PWA.
 
+Mobile sidebar shell tests must assert the side navigation is full-screen at
+mobile/PWA widths (`100vw`, `100dvh`, safe-area padding, no visible underlying
+app strip) and remains vertically scrollable without horizontal overflow.
+Gateway provider status rows inside the sidebar must wrap through a compact
+name/status layout rather than fixed three-column rows, so provider labels and
+`Low`/`High` availability text cannot overlap on narrow devices.
+
 Growth card detail/share UI tests must cover the H2 projection contract:
 teaching-card and formal-card details render a `data-learning-growth-card-share`
 control, use the local image-share pipeline with Web Share file payloads plus

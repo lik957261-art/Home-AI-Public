@@ -8,6 +8,15 @@ Use this file to locate the responsible frontend files before debugging a screen
 
 - Entry/wiring: `public/app-start.js`, `public/app-wire-start-ui.js`, `public/app-shell-ui.js`
 - Navigation and route handling: `public/app-platform-ui.js`, `public/app-sidebar-task-ui.js`
+- Mobile sidebar: `public/index.html`, `public/styles.css`,
+  `public/app-platform-status-ui.js`
+  - On mobile/PWA widths the sidebar is a full-screen navigation surface, not a
+    partial drawer that leaves app content visible behind it.
+  - The panel must respect top/side/bottom safe areas, stay vertically
+    scrollable, and keep close/navigation controls inside the same app surface.
+  - Gateway provider status rows must wrap within the panel. They must not use
+    fixed multi-column layouts that make `Low`/`High` provider text overlap or
+    overflow horizontally.
 - API wrapper: `public/app-api-client.js`
 - Event stream: `public/app-event-stream-ui.js`, `public/app-events-composer-ui.js`
 - Device-local display settings: `public/app-pwa-settings-push-ui.js`

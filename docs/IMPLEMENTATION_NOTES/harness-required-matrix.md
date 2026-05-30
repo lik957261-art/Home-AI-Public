@@ -945,6 +945,12 @@ Required contract dimensions:
   Growth warning/danger cards, and settings/access-key sheets. The harness must
   combine focused CSS variable assertions with at least one screenshot or
   browser visual smoke so hard-coded pale panels cannot pass dark mode.
+- Mobile side navigation is an H2 shell projection. On mobile/PWA widths the
+  sidebar must render as a full-screen app surface with `100vw` width,
+  `100dvh` height, safe-area padding, no visible app-content strip behind it,
+  and no horizontal overflow. Dense status sections such as the Gateway provider
+  matrix must wrap inside the panel; fixed three-column provider rows are not
+  acceptable because they can overlap on real mobile widths.
 - Conditional top-level tabs such as embedded plugin tabs are H2 shell
   projections. The harness must assert the tab is hidden by default, becomes
   visible only from an authorized directory/toolset/plugin registration signal, preserves

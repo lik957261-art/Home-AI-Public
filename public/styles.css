@@ -6457,8 +6457,8 @@ body.task-markdown-preview-open {
 
 .workspace-gateway-provider-row {
   display: grid;
-  grid-template-columns: minmax(68px, 0.8fr) minmax(82px, 1fr) minmax(82px, 1fr);
-  align-items: center;
+  grid-template-columns: minmax(68px, 0.72fr) minmax(0, 1.28fr);
+  align-items: start;
   gap: 6px;
   min-height: 22px;
 }
@@ -6469,8 +6469,17 @@ body.task-markdown-preview-open {
 }
 
 .workspace-gateway-provider-tier {
+  min-width: 0;
   color: var(--muted);
-  white-space: nowrap;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+}
+
+.workspace-gateway-provider-breakdown {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 8px;
 }
 
 .runtime-config-sheet {
@@ -13850,20 +13859,28 @@ body.task-markdown-preview-open {
 
   .sidebar {
     position: fixed;
-    inset: 0 auto 0 0;
+    inset: 0;
     z-index: 32;
-    width: clamp(268px, 76vw, 304px);
-    max-width: calc(100vw - 56px);
+    width: 100vw;
+    max-width: none;
     height: 100vh;
     height: 100dvh;
     max-height: 100dvh;
     min-height: 0;
-    padding-top: calc(14px + env(safe-area-inset-top));
+    padding-top: calc(12px + env(safe-area-inset-top));
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
     padding-bottom: calc(84px + env(safe-area-inset-bottom));
     transform: translate3d(-105%, 0, 0);
     transition: transform 240ms var(--motion-snap);
-    box-shadow: var(--shadow);
+    border-right: 0;
+    box-shadow: none;
     will-change: transform, scroll-position;
+  }
+
+  .sidebar .side-title {
+    margin: -2px 0 2px;
+    padding-bottom: 2px;
   }
 
   .sidebar.dragging {
@@ -13924,7 +13941,7 @@ body.task-markdown-preview-open {
   }
 
   .sidebar-overlay.open {
-    opacity: 1;
+    opacity: 0;
     pointer-events: auto;
   }
 

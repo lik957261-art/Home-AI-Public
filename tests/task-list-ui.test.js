@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260530-finance-plugin-v365";
+const CLIENT_VERSION = "20260530-fullscreen-sidebar-v366";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -48,6 +48,9 @@ assert.match(appJs, /providerMatrix/);
 assert.match(appJs, /High \$\{escapeHtml\(gatewayProviderTierLabel\(row\.ownerMaintenance\)\)\}/);
 assert.match(stylesCss, /\.workspace-gateway-provider-matrix/);
 assert.match(stylesCss, /\.workspace-gateway-provider-row/);
+assert.match(stylesCss, /\.workspace-gateway-provider-row \{[\s\S]*?grid-template-columns: minmax\(68px, 0\.72fr\) minmax\(0, 1\.28fr\);/);
+assert.match(stylesCss, /\.workspace-gateway-provider-breakdown \{[\s\S]*?flex-wrap: wrap;/);
+assert.match(stylesCss, /\.workspace-gateway-provider-tier \{[\s\S]*?overflow-wrap: anywhere;/);
 const serverJs = fs.readFileSync(path.join(repoRoot, "mobile-server-runtime.js"), "utf8");
 const ownerElevationApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "owner-elevation-api-routes.js"), "utf8");
 const weixinApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "weixin-api-routes.js"), "utf8");
@@ -406,6 +409,8 @@ assert.match(stylesCss, /\.sidebar \.workspace-permission-state \{[\s\S]*?font-s
 assert.match(stylesCss, /\.sidebar \.workspace-permission-select,[\s\S]*?\.sidebar \.workspace-permission-actions button \{[\s\S]*?font-size: 10\.75px;[\s\S]*?line-height: 1\.1;/);
 assert.match(stylesCss, /:root\[data-font-size\] \.sidebar #workspaceSelect \{[\s\S]*?font-size: 14\.5px;/);
 assert.match(stylesCss, /:root\[data-font-size\] \.sidebar \.workspace-permission-select,[\s\S]*?:root\[data-font-size\] \.sidebar \.workspace-permission-actions button \{[\s\S]*?font-size: 10\.75px;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.sidebar \{[\s\S]*?inset: 0;[\s\S]*?width: 100vw;[\s\S]*?max-width: none;[\s\S]*?height: 100dvh;[\s\S]*?box-shadow: none;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.sidebar-overlay\.open \{[\s\S]*?opacity: 0;[\s\S]*?pointer-events: auto;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.topbar \{[\s\S]*?border-bottom-color: var\(--ui-hairline\);[\s\S]*?background: var\(--ui-chrome\);/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.top-nav-button \{[\s\S]*?width: 36px;[\s\S]*?height: 36px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.top-nav-button \.top-nav-button-glyph \{[\s\S]*?width: 28px;[\s\S]*?font-size: 15px;/);
@@ -482,9 +487,9 @@ assert.match(pdfViewerHtml, /function readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return width;/);
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
-assert.match(directoryViewerHtml, /\/styles\.css\?v=20260530-finance-plugin-v365/);
-assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260530-finance-plugin-v365/);
-assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260530-finance-plugin-v365/);
+assert.match(directoryViewerHtml, /\/styles\.css\?v=20260530-fullscreen-sidebar-v366/);
+assert.match(directoryViewerHtml, /\/markdown-renderer-client\.js\?v=20260530-fullscreen-sidebar-v366/);
+assert.match(directoryViewerHtml, /\/app-task-preview-ui\.js\?v=20260530-fullscreen-sidebar-v366/);
 assert.match(directoryViewerHtml, /function isPreviewableEntry\(entry\)/);
 assert.match(directoryViewerHtml, /data-directory-preview-file="1"/);
 assert.match(directoryViewerHtml, /openImagePreviewOverlay/);
