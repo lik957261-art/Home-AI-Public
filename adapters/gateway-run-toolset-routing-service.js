@@ -221,6 +221,15 @@ function createGatewayRunToolsetRoutingService(options = {}) {
     return dedupe(toolsets).filter((item) => allowed.has(item));
   }
 
+  function executionToolsetsForDisabledSelection(baseAllowed, selected = {}) {
+    const authorized = dedupe(baseAllowed);
+    const suggested = keepAllowed(selected.allowed_toolsets || [], authorized);
+    if (!suggested.length) return authorized;
+    const suggestedSet = new Set(suggested);
+    if (suggestedSet.has("wardrobe")) return suggested;
+    return authorized;
+  }
+
   function selectToolsets(context = {}) {
     const policy = context.policy && typeof context.policy === "object" ? context.policy : {};
     const baseAllowed = dedupe(policy.allowed_toolsets || policy.allowedToolsets || []);
@@ -269,21 +278,34 @@ function createGatewayRunToolsetRoutingService(options = {}) {
     const policy = context.policy && typeof context.policy === "object" ? context.policy : {};
     const baseAllowed = dedupe(policy.allowed_toolsets || policy.allowedToolsets || []);
     const selected = selectToolsets(context);
+    const executionToolsets = executionToolsetsForDisabledSelection(baseAllowed, selected);
+    const omitted = baseAllowed.filter((item) => !executionToolsets.includes(item));
+    const executionNarrowed = omitted.length > 0;
     return {
       policy: Object.assign({}, policy, {
-        allowed_toolsets: baseAllowed,
+        authorized_toolsets: baseAllowed,
+        allowed_toolsets: executionToolsets,
         toolset_routing: {
           mode: "disabled",
           reason: "toolset_pruning_disabled",
+          execution_mode: executionNarrowed ? "deterministic_suggested" : "full_authorized",
+          selected_toolsets: executionToolsets,
+          omitted_authorized_toolsets: omitted,
+          authorized_toolset_count: baseAllowed.length,
           suggested_toolsets: selected.allowed_toolsets,
           suggested_mode: selected.mode,
           suggested_reason: selected.reason,
         },
       }),
       routing: {
-        allowed_toolsets: baseAllowed,
+        authorized_toolsets: baseAllowed,
+        allowed_toolsets: executionToolsets,
         mode: "disabled",
         reason: "toolset_pruning_disabled",
+        execution_mode: executionNarrowed ? "deterministic_suggested" : "full_authorized",
+        selected_toolsets: executionToolsets,
+        omitted_authorized_toolsets: omitted,
+        authorized_toolset_count: baseAllowed.length,
         suggested_toolsets: selected.allowed_toolsets,
         suggested_mode: selected.mode,
         suggested_reason: selected.reason,

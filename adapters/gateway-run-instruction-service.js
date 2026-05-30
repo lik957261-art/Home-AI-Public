@@ -1,6 +1,6 @@
 "use strict";
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260530-wardrobe-history-schema-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260530-wardrobe-mcp-request-toolsets-v2";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));

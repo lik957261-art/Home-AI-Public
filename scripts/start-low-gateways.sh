@@ -10,6 +10,8 @@ configure_low_gateway_script="${HERMES_LOW_GATEWAY_CONFIGURE_SCRIPT:-$gateway_wo
 runtime_root="${HERMES_GATEWAY_RUNTIME_ROOT:-/opt/hermes-gateway-runtime}"
 runtime_python="${HERMES_GATEWAY_RUNTIME_PYTHON:-$runtime_root/venv/bin/python}"
 runtime_source="${HERMES_GATEWAY_RUNTIME_SOURCE:-$runtime_root/official-clean}"
+runtime_overrides="${HERMES_GATEWAY_RUNTIME_OVERRIDES:-$runtime_root/runtime-overrides}"
+runtime_overrides_source="${HERMES_GATEWAY_RUNTIME_OVERRIDES_SOURCE:-$gateway_worker_root/runtime-overrides}"
 runtime_bin="${HERMES_GATEWAY_RUNTIME_BIN:-$runtime_root/bin}"
 log_step() {
   printf '%s %s\n' "$(date -Is)" "$*"
@@ -56,6 +58,26 @@ for worker in data.get("workers") or []:
     if port <= 0:
         continue
     print(f"{profile}\t{port}")
+PY
+}
+
+manifest_worker_api_key() {
+  local profile="$1"
+  python3 - "$gateway_pool_manifest_path" "$profile" <<'PY' 2>/dev/null || true
+import json, sys
+try:
+    data = json.load(open(sys.argv[1], encoding="utf-8-sig"))
+except Exception:
+    raise SystemExit(0)
+profile = str(sys.argv[2]).strip()
+for worker in data.get("workers") or []:
+    candidate = str(worker.get("profile") or worker.get("name") or "").strip()
+    if candidate != profile:
+        continue
+    key = str(worker.get("api_key") or worker.get("apiKey") or "").strip()
+    if key:
+        print(key)
+    break
 PY
 }
 
@@ -113,6 +135,27 @@ if [ ! -d "$runtime_source" ]; then
   echo "missing official Hermes runtime source: $runtime_source" >&2
   exit 1
 fi
+sync_runtime_overrides() {
+  install -d -m 755 "$runtime_overrides"
+  if [ -d "$runtime_overrides_source" ]; then
+    find "$runtime_overrides" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+    cp -a "$runtime_overrides_source/." "$runtime_overrides/"
+    find "$runtime_overrides" -type d -name '__pycache__' -prune -exec rm -rf {} +
+    find "$runtime_overrides" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+    chmod -R a+rX "$runtime_overrides"
+    return
+  fi
+  if [ -f "$runtime_overrides/sitecustomize.py" ]; then
+    log_step "runtime-overrides-source-missing-using-existing source=${runtime_overrides_source} target=${runtime_overrides}"
+    return
+  fi
+  echo "missing Gateway runtime overrides source: $runtime_overrides_source" >&2
+  exit 1
+}
+
+log_step "runtime-overrides-sync-start source=${runtime_overrides_source} target=${runtime_overrides}"
+sync_runtime_overrides
+log_step "runtime-overrides-sync-done"
 
 log_step "lowgw-configure-start"
 bash "$configure_low_gateway_script"
@@ -122,7 +165,7 @@ install -d -m 755 "$runtime_bin"
 cat > "$runtime_bin/hermes" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-export PYTHONPATH="$runtime_source\${PYTHONPATH:+:\$PYTHONPATH}"
+export PYTHONPATH="$runtime_overrides:$runtime_source\${PYTHONPATH:+:\$PYTHONPATH}"
 exec "$runtime_python" -m hermes_cli.main "\$@"
 EOF
 chmod 755 "$runtime_bin/hermes"
@@ -226,7 +269,10 @@ start_gateway_profile() {
   fi
   log="$worker_home_dir/logs/${profile}-gateway-${port}.log"
   pidfile="$worker_home_dir/${profile}-gateway-${port}.pid"
-  api_key="$(tr -d '\r\n' < "$api_key_file")"
+  api_key="$(manifest_worker_api_key "$profile")"
+  if [ -z "$api_key" ]; then
+    api_key="$(tr -d '\r\n' < "$api_key_file")"
+  fi
   if [[ "$profile" == deepseekgw* ]] && [ -z "$deepseek_api_key" ]; then
     echo "missing DeepSeek API key for ${profile}: ${deepseek_api_key_path}" >&2
     exit 1
@@ -237,8 +283,9 @@ start_gateway_profile() {
   runuser -u "$worker_user" -- setsid -f env \
     HOME="$worker_home" \
     HERMES_HOME="$worker_home_dir/profiles/$profile" \
-    PYTHONPATH="$runtime_source" \
+    PYTHONPATH="$runtime_overrides:$runtime_source" \
     HERMES_PROFILE="$profile" \
+    HERMES_MOBILE_MCP_INVENTORY_LOG="$worker_home_dir/logs/${profile}-mcp-inventory.log" \
     HERMES_GOOGLE_PROFILE_HOME="$worker_home_dir/profiles/$profile" \
     PATH="$low_gateway_path" \
     HERMES_ACCEPT_HOOKS=1 \

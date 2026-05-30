@@ -226,9 +226,10 @@ function parsePermissionDecision(parsed, originalText = "") {
   };
 }
 
-function parseToolsetSelectionText(text, allowedToolsets = [], dedupe = defaultDedupe) {
+function parseToolsetSelectionText(text, allowedToolsets = [], dedupe = defaultDedupe, options = {}) {
   const allowed = new Set(dedupe(allowedToolsets));
   const parsed = parseSelectionJson(text);
+  const toolsetSelectionEnabled = normalizeBoolean(options.toolsetSelectionEnabled, true);
   const permission = parsePermissionDecision(parsed, text);
   if (permission) {
     return Object.assign({
@@ -240,6 +241,15 @@ function parseToolsetSelectionText(text, allowedToolsets = [], dedupe = defaultD
   }
   if (!parsed) {
     return { ok: false, reason: "invalid_json", selectedToolsets: [], rejectedToolsets: [] };
+  }
+  if (!toolsetSelectionEnabled) {
+    return {
+      ok: true,
+      reason: cleanString(parsed.reason) || "permission_preflight_allowed",
+      selectedToolsets: dedupe(allowedToolsets),
+      rejectedToolsets: [],
+      toolsetSelectionDisabled: true,
+    };
   }
   const requested = normalizeToolsetList(
     parsed.toolsets || parsed.selected_toolsets || parsed.allowed_toolsets || parsed.selectedToolsets,
@@ -285,6 +295,14 @@ function constrainAllToolsetSelection(parsed = {}, { request = {}, allowedToolse
   const selected = normalizeToolsetList(parsed.selectedToolsets, dedupe);
   const suggested = routingSuggestedToolsets(request, allowedToolsets, dedupe);
   if (!suggested.length) return parsed;
+  const suggestedHasWardrobeStack = ["wardrobe", "vision", "file", "skills"].every((toolset) => suggested.includes(toolset));
+  if (suggestedHasWardrobeStack && !selected.includes("wardrobe") && selected.length === 1 && selected[0] === "clarify") {
+    return Object.assign({}, parsed, {
+      reason: cleanString(parsed.reason) ? `${cleanString(parsed.reason)}; expanded_to_suggested_wardrobe_toolsets` : "expanded_to_suggested_wardrobe_toolsets",
+      selectedToolsets: suggested,
+      selectionConstrained: true,
+    });
+  }
   if (inputLooksPlainProbe(request.body?.input) && selected.length === 1 && selected[0] === "clarify" && suggested.length > 1) {
     return Object.assign({}, parsed, {
       reason: cleanString(parsed.reason) ? `${cleanString(parsed.reason)}; expanded_to_suggested_toolsets` : "expanded_to_suggested_toolsets",
@@ -303,7 +321,8 @@ function constrainAllToolsetSelection(parsed = {}, { request = {}, allowedToolse
   });
 }
 
-function buildSelectorInstructions({ allowedToolsets = [], request = {} } = {}) {
+function buildSelectorInstructions({ allowedToolsets = [], request = {}, toolsetSelectionEnabled = true } = {}) {
+  const selectingToolsets = normalizeBoolean(toolsetSelectionEnabled, true);
   const catalog = buildCapabilityCatalog(allowedToolsets);
   const routing = objectValue(request.gatewayRouting);
   const policy = objectValue(request.runPolicy || request.body?.access_policy_context);
@@ -323,21 +342,35 @@ function buildSelectorInstructions({ allowedToolsets = [], request = {} } = {}) 
     source_mode: cleanString(routing.sourceMode),
     suggested_toolsets: suggestedToolsets,
     suggested_reason: cleanString(request.toolsetRouting?.suggested_reason || request.toolsetRouting?.suggestedReason || policy.toolset_routing?.suggested_reason || policy.toolsetRouting?.suggestedReason),
-    rule: "First decide permission, then choose the smallest execution toolset set that can reasonably handle the task. Do not perform the user task.",
+    rule: selectingToolsets
+      ? "First decide permission, then choose the smallest execution toolset set that can reasonably handle the task. Do not perform the user task."
+      : "First decide permission only. Do not choose, omit, or optimize execution toolsets; Hermes Mobile will execute with deterministic authorized_toolsets if permission is allowed.",
   };
-  return [
-    "You are doing the model-side permission and toolset preflight for a Hermes Mobile run.",
+  const lines = [
+    selectingToolsets
+      ? "You are doing the model-side permission and toolset preflight for a Hermes Mobile run."
+      : "You are doing the model-side permission preflight for a Hermes Mobile run.",
     "This is an internal preflight, not a user-facing answer. Do not browse, search, call tools, or load skills.",
     `Apply the embedded Hermes Mobile permission-boundary Skill rules (${PERMISSION_BOUNDARY_SKILL}) from the access-policy summary before selecting tools.`,
     "Return only compact JSON in one of these shapes:",
-    "{\"decision\":\"allowed\",\"toolsets\":[\"toolset_id\"],\"reason\":\"short reason\"}",
+    selectingToolsets
+      ? "{\"decision\":\"allowed\",\"toolsets\":[\"toolset_id\"],\"reason\":\"short reason\"}"
+      : "{\"decision\":\"allowed\",\"reason\":\"short reason\"}",
     "{\"decision\":\"needs_elevation\",\"scope\":\"owner_high_privilege\",\"reason\":\"short reason\"}",
-    "Use only toolset ids from authorized_toolsets. Do not request blocked developer, shell, source, process, broad MCP, or cross-workspace tools.",
+    selectingToolsets
+      ? "Use only toolset ids from authorized_toolsets. Do not request blocked developer, shell, source, process, broad MCP, or cross-workspace tools."
+      : "Do not choose, omit, or optimize execution toolsets. Hermes Mobile will use all deterministic authorized_toolsets after an allowed permission decision.",
     `If and only if the permission decision needs Owner elevation, you may alternatively output ${PERMISSION_APPROVAL_MARKER} with compact JSON.`,
-    "If the task may need a toolset and you are not sure, include that plausible toolset, but do not select every authorized toolset merely because the task is ambiguous or unspecified.",
-    "For ping, greeting, acknowledgement, or plain test messages, use suggested_toolsets when it is non-empty; choose clarify alone only when no suggested_toolsets are available. For retry/rerun messages, use suggested_toolsets when they reflect recent task context.",
-    JSON.stringify(summary),
-  ].join("\n");
+  ];
+  if (selectingToolsets) {
+    lines.push(
+      "If the task may need a toolset and you are not sure, include that plausible toolset, but do not select every authorized toolset merely because the task is ambiguous or unspecified.",
+      "For ping, greeting, acknowledgement, or plain test messages, use suggested_toolsets when it is non-empty; choose clarify alone only when no suggested_toolsets are available. For retry/rerun messages, use suggested_toolsets when they reflect recent task context.",
+      "If suggested_toolsets contains wardrobe, vision, file, and skills, preserve that wardrobe stack. Do not replace a wardrobe MCP task or wardrobe MCP visibility check with clarify alone.",
+    );
+  }
+  lines.push(JSON.stringify(summary));
+  return lines.join("\n");
 }
 
 function buildSelectionBody({
@@ -346,21 +379,24 @@ function buildSelectionBody({
   selectorModel = "",
   selectorProvider = "",
   selectorReasoningEffort = "low",
+  toolsetSelectionEnabled = true,
 } = {}) {
+  const selectingToolsets = normalizeBoolean(toolsetSelectionEnabled, true);
   const body = {
     input: boundedText(request.body?.input, 2000),
     stream: true,
     store: false,
     conversation: `${cleanString(request.body?.conversation) || "hermes"}:toolset-selection`,
     conversation_history: [],
-    instructions: buildSelectorInstructions({ allowedToolsets, request }),
+    instructions: buildSelectorInstructions({ allowedToolsets, request, toolsetSelectionEnabled: selectingToolsets }),
     tool_choice: "none",
     parallel_tool_calls: false,
     access_policy_context: {
-      toolset_selection_only: true,
+      toolset_selection_only: selectingToolsets,
+      permission_preflight_only: !selectingToolsets,
       allowed_toolsets: [],
       authorized_toolsets: allowedToolsets,
-      toolset_routing: { mode: "model_first_selector" },
+      toolset_routing: { mode: selectingToolsets ? "model_first_selector" : "permission_preflight" },
     },
   };
   const model = cleanString(selectorModel) || cleanString(request.body?.model);
@@ -391,6 +427,7 @@ function stopSelectorRun({ runner, gatewayTarget = {}, selectorRunId = "", stopT
 function createGatewayRunModelToolsetSelectionService(options = {}) {
   const dedupe = typeof options.dedupe === "function" ? options.dedupe : defaultDedupe;
   const enabled = normalizeBoolean(options.enabled, true);
+  const toolsetSelectionEnabled = normalizeBoolean(options.toolsetSelectionEnabled, true);
   const timeoutMs = Math.max(1000, Number(options.timeoutMs || 45000) || 45000);
   const stopTimeoutMs = Math.max(500, Number(options.stopTimeoutMs || 2000) || 2000);
   const nowMs = typeof options.nowMs === "function" ? options.nowMs : (() => Date.now());
@@ -426,6 +463,7 @@ function createGatewayRunModelToolsetSelectionService(options = {}) {
         selectorModel,
         selectorProvider,
         selectorReasoningEffort,
+        toolsetSelectionEnabled,
       });
       const chunks = [];
       runner = pool.runnerFor(gatewayTarget);
@@ -442,14 +480,20 @@ function createGatewayRunModelToolsetSelectionService(options = {}) {
           if (text) chunks.push(text);
         },
       });
-      const parsed = constrainAllToolsetSelection(
-        parseToolsetSelectionText(chunks.join(""), allowedToolsets, dedupe),
-        { request, allowedToolsets, dedupe },
+      const parsedSelection = parseToolsetSelectionText(
+        chunks.join(""),
+        allowedToolsets,
+        dedupe,
+        { toolsetSelectionEnabled },
       );
+      const parsed = toolsetSelectionEnabled
+        ? constrainAllToolsetSelection(parsedSelection, { request, allowedToolsets, dedupe })
+        : parsedSelection;
       return Object.assign({}, parsed, {
         enabled: true,
-        mode: "model_first",
+        mode: toolsetSelectionEnabled ? "model_first" : "permission_preflight",
         authorizedToolsets: allowedToolsets,
+        toolsetSelectionDisabled: !toolsetSelectionEnabled,
         durationMs: nowMs() - startedAt,
       });
     } catch (err) {
@@ -461,6 +505,8 @@ function createGatewayRunModelToolsetSelectionService(options = {}) {
         error: boundedText(err?.message || String(err), 240),
         selectedToolsets: allowedToolsets,
         authorizedToolsets: allowedToolsets,
+        mode: toolsetSelectionEnabled ? "model_first" : "permission_preflight",
+        toolsetSelectionDisabled: !toolsetSelectionEnabled,
         durationMs: nowMs() - startedAt,
       };
     }
@@ -469,7 +515,7 @@ function createGatewayRunModelToolsetSelectionService(options = {}) {
   return {
     buildCapabilityCatalog,
     buildSelectionBody,
-    parseToolsetSelectionText: (text, allowedToolsets) => parseToolsetSelectionText(text, allowedToolsets, dedupe),
+    parseToolsetSelectionText: (text, allowedToolsets, parseOptions = {}) => parseToolsetSelectionText(text, allowedToolsets, dedupe, parseOptions),
     selectToolsetsForRun,
   };
 }

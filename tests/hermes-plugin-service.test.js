@@ -429,7 +429,9 @@ async function testCodexLaunchEntryUsesServerSideKey() {
     launchPlugin: true,
   });
   assert.equal(manifest.available, true);
-  assert.equal(manifest.entry.url, "http://127.0.0.1:8787/?embed=hermes&codexPluginLaunch=cpl_once&workspaceId=owner");
+  assert.equal(manifest.entry.url, "/api/hermes-plugins/codex-mobile/proxy/?embed=hermes&codexPluginLaunch=cpl_once&workspaceId=owner");
+  assert.equal(manifest.entry.proxiedFromOrigin, "http://127.0.0.1:8787");
+  assert.equal(manifest.embed.sameOriginProxy, true);
   assert.equal(manifest.embed.tokenStatus, "launch_token_issued");
   const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
   assert.ok(launchCall);
@@ -494,9 +496,60 @@ async function testFinanceLaunchEntryUsesWorkspaceKeyBody() {
   assert.equal(body.workspace_id, "owner");
   assert.equal(body.role, "owner");
   assert.equal(typeof body.workspace_key, "string");
-  assert.equal(typeof body.user_key, "string");
-  assert.match(launchCall.options.headers.Authorization, /^Bearer /);
+  assert.equal(Object.hasOwn(body, "user_key"), false);
+  assert.equal(Object.hasOwn(launchCall.options.headers, "Authorization"), false);
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"workspace_key"|"user_key"/);
+}
+
+async function testFinanceLaunchEntryUsesSeparateWorkspaceUserKeyWhenProvided() {
+  const calls = [];
+  const service = createHermesPluginService({
+    plugins: [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }],
+    financeAccessKeyPath: __filename,
+    fetch(url, options = {}) {
+      calls.push({ url, options });
+      if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(sampleFinanceManifest()),
+        });
+      }
+      if (url === "http://127.0.0.1:8791/finance.html?embed=hermes") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          headers: { get: () => "frame-ancestors http://127.0.0.1:8791" },
+        });
+      }
+      if (url.endsWith("/api/v1/hermes/plugin/launch")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            entry_path: "/api/v1/hermes/plugin/launch/finance_member_once",
+            expires_in: 120,
+          }),
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+  await service.manifest({
+    id: "finance",
+    workspaceId: "weixin_wuping",
+    workspaceUserKey: "member-user-key",
+    ownerAuthorized: true,
+    launchPlugin: true,
+  });
+  const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
+  assert.ok(launchCall);
+  const body = JSON.parse(launchCall.options.body);
+  assert.equal(body.workspace_id, "weixin_wuping");
+  assert.equal(body.role, "owner");
+  assert.equal(body.user_key, "member-user-key");
+  assert.notEqual(body.workspace_key, "member-user-key");
+  assert.equal(Object.hasOwn(launchCall.options.headers, "Authorization"), false);
 }
 
 async function testHttpsHermesUsesSameOriginProxyForLocalCodexEntryAfterLaunch() {
@@ -637,6 +690,7 @@ async function run() {
   await testLaunchEntryUsesServerSideWorkspaceKey();
   await testCodexLaunchEntryUsesServerSideKey();
   await testFinanceLaunchEntryUsesWorkspaceKeyBody();
+  await testFinanceLaunchEntryUsesSeparateWorkspaceUserKeyWhenProvided();
   await testHttpsHermesUsesSameOriginProxyForLocalCodexEntryAfterLaunch();
   await testHttpsHermesUsesSameOriginProxyForLanWardrobeEntryAfterLaunch();
   testPluginSameOriginProxyPathForUrl();

@@ -145,6 +145,8 @@ assert.match(stylesCss, /\.embedded-plugin-shell\.is-loading \.embedded-plugin-f
 assert.match(stylesCss, /\.codex-mode \.conversation\s*\{[\s\S]*padding: 0;/);
 assert.match(stylesCss, /\.embedded-plugin-host-active \.conversation\s*\{[\s\S]*display: none;/);
 assert.match(stylesCss, /\.embedded-plugin-host-active \.topbar\s*\{[\s\S]*display: none !important;/);
+assert.match(stylesCss, /\.app\.embedded-plugin-host-active\s*\{[\s\S]*padding-bottom: 0;/);
+assert.match(stylesCss, /\.embedded-plugin-host-active \.bottom-nav\s*\{[\s\S]*display: none !important;/);
 assert.match(stylesCss, /\.embedded-plugin-host-active \.main\s*\{[\s\S]*grid-template-rows: minmax\(0, 1fr\);/);
 assert.doesNotMatch(stylesCss, /\.embedded-plugin-host-active\.main-back-visible \.bottom-nav[\s\S]*?display: grid;/);
 assert.doesNotMatch(stylesCss, /\.wardrobe-plugin-host-active\.main-back-visible \.bottom-nav[\s\S]*?display: grid;/);

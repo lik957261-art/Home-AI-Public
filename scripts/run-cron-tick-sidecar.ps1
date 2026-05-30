@@ -84,7 +84,7 @@ function Invoke-CronTick {
         $stdoutPath = [System.IO.Path]::GetTempFileName()
         $stderrPath = [System.IO.Path]::GetTempFileName()
         try {
-            $process = Start-Process -FilePath "wsl.exe" -ArgumentList $wslArgs -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
+            $process = Start-Process -FilePath "wsl.exe" -ArgumentList $wslArgs -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
             if (-not $process.WaitForExit($DispatchTimeoutSeconds * 1000)) {
                 $timedOut = $true
                 $exitCode = 124

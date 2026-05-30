@@ -135,7 +135,12 @@ stable across ordinary bottom-tab changes.
 The Wardrobe tab must also avoid intermediate Hermes-owned loading pages during
 normal plugin startup. While the manifest or fresh launch URL is loading, Hermes
 shows the clean plugin host surface without text, cards, or preflight prompts;
-only real plugin diagnostics should render explanatory UI.
+only real plugin diagnostics should render explanatory UI. The clean host
+surface must inherit the current Hermes theme from `data-theme`: light/system
+light uses the normal light page background, and dark/system dark uses the dark
+page background. The Wardrobe iframe remains visually hidden behind that
+theme-colored shell until the iframe `load` event so browser `about:blank` does
+not flash white during dark-mode plugin startup.
 Because the iframe element's `src` can still contain a one-time `launch` URL,
 Hermes Mobile treats a launch iframe as healthy only after the embedded app
 sends `wardrobe.plugin.navigation`. If a launch iframe loads and no navigation

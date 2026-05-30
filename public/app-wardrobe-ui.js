@@ -181,6 +181,50 @@ function wardrobePluginBackActive() {
   return state.viewMode === "wardrobe" && Boolean(state.wardrobePluginCanGoBack);
 }
 
+function rememberWardrobePluginReturnRoute() {
+  if (typeof captureEmbeddedPluginReturnRoute !== "function") return false;
+  const route = captureEmbeddedPluginReturnRoute({ id: "wardrobe", viewMode: "wardrobe" });
+  if (!route) return false;
+  state.wardrobePluginReturnRoute = route;
+  return true;
+}
+
+function wardrobePluginOuterBackActive() {
+  return state.viewMode === "wardrobe" && Boolean(state.wardrobePluginReturnRoute);
+}
+
+function restoreWardrobePluginReturnRoute() {
+  const route = state.wardrobePluginReturnRoute;
+  if (!route) return false;
+  state.wardrobePluginReturnRoute = null;
+  state.wardrobePluginCanGoBack = false;
+  parkWardrobePluginShell();
+  state.viewMode = route.viewMode || "single";
+  state.singleWindowMode = route.singleWindowMode || state.singleWindowMode || "chat";
+  state.selectedProjectId = route.selectedProjectId || state.selectedProjectId || "";
+  state.selectedSubprojectId = route.selectedSubprojectId || "";
+  state.currentThread = route.currentThread || null;
+  state.currentThreadId = route.currentThreadId || "";
+  state.currentTaskGroupId = route.currentTaskGroupId || "";
+  state.threads = route.threads || [];
+  state.selectedTodoId = route.selectedTodoId || "";
+  state.selectedAutomationId = route.selectedAutomationId || "";
+  state.selectedActionInboxItemId = route.selectedActionInboxItemId || "";
+  state.selectedLearningTaskCardId = route.selectedLearningTaskCardId || "";
+  state.learningGrowthSettingsOpen = Boolean(route.learningGrowthSettingsOpen);
+  state.directoryPath = route.directoryPath || "";
+  state.directoryRootPath = route.directoryRootPath || "";
+  localStorage.setItem("hermesWebViewMode", state.viewMode);
+  localStorage.setItem("hermesWebSingleWindowMode", state.singleWindowMode || "chat");
+  localStorage.setItem("hermesWebProject", state.selectedProjectId || "");
+  localStorage.setItem("hermesWebSubproject", state.selectedSubprojectId || "");
+  applyViewMode();
+  loadSelectedView().catch(showError);
+  updateNavigationControls();
+  ensureVerticalScrollAffordance();
+  return true;
+}
+
 function wardrobePluginHost() {
   let host = $("wardrobePluginHost");
   if (host) return host;
@@ -198,6 +242,7 @@ function wardrobePluginHost() {
 
 function setWardrobePluginHostVisible(visible) {
   const host = wardrobePluginHost();
+  if (typeof clearKeyboardViewportMetrics === "function" && visible) clearKeyboardViewportMetrics();
   host.hidden = !visible;
   host.setAttribute("aria-hidden", visible ? "false" : "true");
   host.classList.toggle("active", visible);
@@ -270,6 +315,7 @@ function bindWardrobePluginFrameHealth(frame) {
   if (!frame || frame.dataset.wardrobePluginHealthBound) return;
   frame.dataset.wardrobePluginHealthBound = "1";
   frame.addEventListener("load", () => {
+    frame.closest(".wardrobe-plugin-shell")?.classList.remove("is-loading");
     scheduleWardrobePluginLaunchHealthCheck(frame, Date.now());
   });
   scheduleWardrobePluginLaunchHealthCheck(frame, Date.now());
@@ -313,7 +359,7 @@ function renderWardrobePluginUnavailable(manifest = currentWardrobePluginManifes
 
 function renderWardrobePluginFrame(manifest) {
   return `
-    <div class="wardrobe-plugin-shell">
+    <div class="wardrobe-plugin-shell is-loading">
       <iframe
         class="wardrobe-plugin-frame"
         title="${escapeHtml(manifest.title || "\u8863\u6a71")}"

@@ -113,6 +113,10 @@ const SAFE_RESTRICTED_TOOLSETS = Object.freeze([
   "wardrobe",
 ]);
 
+const PRODUCT_MCP_TOOLSETS = Object.freeze([
+  "wardrobe",
+]);
+
 const DEVELOPER_TOOLSETS = Object.freeze([
   "shell",
   "terminal",
@@ -150,10 +154,10 @@ function permissionBoundarySkillInstructions(policy = {}) {
   if (accessMode === "unrestricted") return "";
   const routing = policy?.toolset_routing || policy?.toolsetRouting || {};
   const preflightMode = String(routing?.mode || "").trim().toLowerCase();
-  const modelFirstPreflightDone = preflightMode === "model_first";
+  const modelFirstPreflightDone = preflightMode === "model_first" || preflightMode === "permission_preflight";
   return [
     modelFirstPreflightDone
-      ? `Model-side permission and toolset preflight has already completed for this run; do not call skill_view or load ${PERMISSION_BOUNDARY_SKILL} again.`
+      ? `Model-side permission preflight has already completed for this run; do not call skill_view or load ${PERMISSION_BOUNDARY_SKILL} again.`
       : `Use Skill: ${PERMISSION_BOUNDARY_SKILL} as the model-side permission check before any filesystem, Skill, automation, account, integration, or delivery-path operation.`,
     "Treat the supplied access_policy_context as the source of truth for what this Gateway run can and cannot access.",
     "Web Search is ordinary low-permission work when the run has the web toolset; do not ask for Owner elevation just to search or extract public web information.",
@@ -300,6 +304,16 @@ function createSecurityBoundaryProvider(options = {}) {
     return raw.filter((item) => !DEVELOPER_TOOLSET_RE.test(item));
   }
 
+  function hasAllowedProductMcpToolset(policy = {}) {
+    const allowed = new Set(dedupe(policy.allowed_toolsets || policy.allowedToolsets || []));
+    return PRODUCT_MCP_TOOLSETS.some((toolset) => allowed.has(toolset));
+  }
+
+  function developerBlockedToolsetsForPolicy(policy = {}) {
+    const productMcpAllowed = hasAllowedProductMcpToolset(policy);
+    return DEVELOPER_TOOLSETS.filter((toolset) => !(productMcpAllowed && toolset === "mcp"));
+  }
+
   function hardenAccessPolicy(policy = {}, localOptions = {}) {
     const source = policy && typeof policy === "object" ? policy : {};
     const out = Object.assign({}, source);
@@ -326,9 +340,10 @@ function createSecurityBoundaryProvider(options = {}) {
       }
       out.allow_shell = false;
       out.can_delegate_codex = false;
+      const productMcpAllowed = hasAllowedProductMcpToolset(out);
       out.blocked_toolsets = dedupe([
-        ...(out.blocked_toolsets || []),
-        ...DEVELOPER_TOOLSETS,
+        ...(out.blocked_toolsets || []).filter((toolset) => !(productMcpAllowed && String(toolset || "").trim() === "mcp")),
+        ...developerBlockedToolsetsForPolicy(out),
       ]);
     }
     return out;

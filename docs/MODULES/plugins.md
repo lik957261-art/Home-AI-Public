@@ -127,11 +127,38 @@ mode and intentionally shows the browser-shell guard page. That browser mode
 must not be used as evidence that an embedded plugin works or fails in the
 standalone PWA.
 
+Plugin release smokes must follow the shared Hermes Mobile PWA harness:
+
+1. Use `adb devices` to name the emulator or target device.
+2. Ensure the launcher has a `Hermes` PWA shortcut. If not, use Chrome only to
+   run `Install app`, then return to the launcher.
+3. Start Hermes by tapping the launcher icon.
+4. Capture a screenshot showing standalone PWA chrome, not a browser address
+   bar.
+5. Open the plugin tab from inside Hermes and verify the expected plugin host:
+   no blank preflight page, no browser handoff, same-origin proxy or HTTPS
+   iframe as appropriate, no Hermes bottom navigation inside the plugin surface
+   even on the plugin home page, and correct return/back behavior.
+6. If Android UIAutomator only reports a generic WebView node, attach DevTools
+   to the PWA WebView and record bounded state such as URL, ready state, client
+   version, and visible text summary. Do not store secrets, cookies, launch
+   tokens, push endpoints, or private plugin payloads.
+
+Direct browser URL tests remain useful only for diagnostics such as the
+browser-shell guard page or mixed-content comparison. They do not replace the
+installed-PWA plugin smoke.
+
 If a plugin cannot provide either a secure browser-facing entry or a Hermes
 same-origin proxy entry for an HTTPS Hermes deployment, Hermes Mobile should
 show a bounded setup diagnostic instead of trying to embed it.
 
 ## Auth And Launch
+
+Embedded plugin surfaces are full-screen app surfaces inside Hermes Mobile.
+Once the host activates a plugin iframe, Hermes hides both its top bar and its
+bottom navigation, including on the plugin's own home/root page. The plugin owns
+the in-frame primary UI while Hermes keeps same-window hosting, safe proxying,
+permission checks, and back/return mediation.
 
 Installed plugins are Owner-visible by default. A non-Owner workspace must not
 see or launch an installed plugin until Owner has explicitly authorized that
@@ -218,10 +245,10 @@ containers.
 
 When an embedded plugin host is active, Hermes Mobile hides its own top page
 header and lets the plugin iframe occupy the available content row. Plugin root
-pages keep the bottom navigation as the app-level escape hatch; plugin
-secondary pages hide the bottom navigation through the same `main-back-visible`
-contract used by native Hermes secondary pages. Plugin-owned headers and route
-controls stay inside the iframe.
+and secondary pages both hide the Hermes bottom navigation; exiting the
+full-screen plugin belongs to the host back/right-swipe contract and saved
+Hermes route restoration, not to a visible bottom-tab escape path inside the
+plugin surface. Plugin-owned headers and route controls stay inside the iframe.
 
 Do not use DOM reparenting to preserve an iframe. iOS WebKit installed PWAs can
 reload a moved iframe from its original `src`. If that `src` contains a one-time
@@ -350,6 +377,9 @@ surface while a fresh plugin frame is being created. Hermes Mobile keeps new
 embedded iframes hidden behind a theme-colored shell until the iframe `load`
 event, then reveals the frame. Plugin host CSS tests must cover this loading
 shell so future plugin tabs do not regress into a white flash.
+Plugin-specific hosts such as Wardrobe must follow the same rule even when they
+still use their own wrapper class instead of the generic `.embedded-plugin-*`
+classes.
 
 Plugin refreshes must also be visually stable. When a mounted iframe asks for a
 fresh launch, Hermes keeps the existing iframe visible while fetching the new
@@ -758,11 +788,37 @@ in this order:
 - `.hermes-finance/access-key.txt` or `.hermes-finance/workspace-key.txt` under
   the current workspace drive root
 
-For Finance only, Hermes Mobile sends the launch body fields
-`workspace_id`, `workspace_key`, `user_key`, and `role` to match Finance's
-workspace launch contract. The same key may also be sent in an Authorization
-header for compatibility, but no raw key is returned in the normalized manifest,
+For Finance only, Hermes Mobile sends the launch body fields `workspace_id`,
+`workspace_key`, and `role` to match Finance's workspace launch contract.
+Hermes Mobile sends `user_key` only when it has a separate workspace-user key;
+it must not reuse the long-lived workspace key as `user_key`. Hermes Mobile
+must also not send the Finance workspace key in an `Authorization: Bearer ...`
+header during launch, because Finance's independent direct-login token resolver
+owns Bearer credentials. No raw key is returned in the normalized manifest,
 frontend state, iframe URL, docs, handoffs, screenshots, or logs.
+
+Finance launch diagnostics must separate the stages:
+
+- Hermes Mobile manifest route:
+  `GET /api/hermes-plugins/finance/manifest?workspaceId=<workspace>&appOrigin=<origin>`
+- Finance upstream manifest:
+  `GET http://127.0.0.1:8791/api/v1/hermes/plugin/manifest`
+- Finance upstream launch, server-side only:
+  `POST http://127.0.0.1:8791/api/v1/hermes/plugin/launch`
+- Browser-facing iframe entry:
+  `/api/hermes-plugins/finance/proxy/api/v1/hermes/plugin/launch/<redacted>`
+- Expected launch redirect shape:
+  `/api/hermes-plugins/finance/proxy/finance.html?embed=hermes`
+- Expected session cookie name:
+  `finance_hermes_session`
+
+If Finance returns `finance_access_token_invalid` during launch, first verify
+that Hermes Mobile is not sending `Authorization: Bearer <workspace-key>`. That
+error belongs to Finance's independent direct-login access-token resolver, not
+to the Hermes workspace-key launch contract. Record only bounded error fields
+such as HTTP status, route path, error code, request id, and token status. Do
+not record raw workspace keys, Finance access tokens, launch tokens, session
+cookie values, private finance rows, or full plugin payloads.
 
 Finance iframe navigation uses:
 

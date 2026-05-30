@@ -66,9 +66,20 @@ function run() {
   assert.strictEqual(policy.can_delegate_codex, false);
   assert.ok(policy.blocked_toolsets.includes("codex"));
   assert.ok(policy.blocked_toolsets.includes("code_execution"));
+  assert.ok(!policy.blocked_toolsets.includes("mcp"));
   assert.ok(!policy.blocked_toolsets.includes("cronjob"));
   assert.ok(!policy.allowed_toolsets.includes("terminal"));
   assert.ok(!policy.allowed_toolsets.includes("code_execution"));
+
+  const genericMcpPolicy = provider.hardenAccessPolicy({
+    principal_id: "owner",
+    access_mode: "restricted",
+    allowed_roots: ["/Users/alice/HermesDrive"],
+    allowed_toolsets: ["file", "mcp", "terminal"],
+  });
+  assert.deepStrictEqual(genericMcpPolicy.allowed_toolsets, ["file"]);
+  assert.ok(genericMcpPolicy.blocked_toolsets.includes("mcp"));
+  assert.ok(genericMcpPolicy.blocked_toolsets.includes("terminal"));
 
   const defaultToolPolicy = provider.hardenAccessPolicy({
     principal_id: "owner",
@@ -94,6 +105,7 @@ function run() {
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("session_search"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("clarify"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("wardrobe"));
+  assert.ok(!defaultToolPolicy.blocked_toolsets.includes("mcp"));
   assert.ok(!defaultToolPolicy.allowed_toolsets.includes("terminal"));
   assert.ok(!defaultToolPolicy.allowed_toolsets.includes("code_execution"));
   assert.ok(!defaultToolPolicy.allowed_toolsets.includes("computer_use"));
@@ -189,7 +201,13 @@ function run() {
     access_mode: "restricted",
     toolset_routing: { mode: "model_first" },
   });
-  assert.match(postSelectorPermissionInstructions, /permission and toolset preflight has already completed/);
+  assert.match(postSelectorPermissionInstructions, /permission preflight has already completed/);
+  const postPermissionOnlyPreflightInstructions = provider.permissionBoundarySkillInstructions({
+    access_mode: "restricted",
+    toolset_routing: { mode: "permission_preflight" },
+  });
+  assert.match(postPermissionOnlyPreflightInstructions, /permission preflight has already completed/);
+  assert.doesNotMatch(postPermissionOnlyPreflightInstructions, /Use Skill: productivity\/hermes-mobile-permission-boundary-check/);
   assert.match(postSelectorPermissionInstructions, /do not call skill_view or load productivity\/hermes-mobile-permission-boundary-check again/);
   assert.doesNotMatch(postSelectorPermissionInstructions, /Use Skill: productivity\/hermes-mobile-permission-boundary-check/);
   assert.strictEqual(permissionBoundarySkillInstructions({ access_mode: "unrestricted" }), "");

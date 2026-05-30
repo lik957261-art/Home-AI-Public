@@ -66,10 +66,11 @@ function expandSelectedToolsetsWithCompanions(selectedToolsets = [], policy = {}
   for (const companions of companionGroups) {
     const hasCompanionSuggestion = companions.every((toolset) => suggested.includes(toolset));
     const selectedAnyCompanion = companions.some((toolset) => selectedSet.has(toolset));
-    if (!hasCompanionSuggestion || !selectedAnyCompanion) continue;
+    const selectedOnlyClarify = selected.length === 1 && selectedSet.has("clarify");
+    if (!hasCompanionSuggestion || (!selectedAnyCompanion && !selectedOnlyClarify)) continue;
     const companionSet = new Set(companions.filter((toolset) => allowed.has(toolset)));
     const companionSelected = suggested.filter((toolset) => companionSet.has(toolset));
-    const restSelected = out.filter((toolset) => !companionSet.has(toolset));
+    const restSelected = selectedOnlyClarify ? [] : out.filter((toolset) => !companionSet.has(toolset));
     out = defaultDedupe([...companionSelected, ...restSelected]);
   }
   return out;
@@ -248,6 +249,7 @@ function createGatewayRunStartService(options = {}) {
       conversation_history: conversationHistory,
       instructions,
       access_policy_context: runPolicy,
+      enabled_toolsets: dedupe(runPolicy.allowed_toolsets || runPolicy.allowedToolsets || []),
     };
     if (runOptions.model) body.model = runOptions.model;
     if (runOptions.provider) body.provider = runOptions.provider;
@@ -337,12 +339,13 @@ function createGatewayRunStartService(options = {}) {
     const authorized = dedupe(selection.authorizedToolsets || []);
     const omitted = authorized.filter((item) => !selected.includes(item));
     return {
-      mode: "model_first",
+      mode: selection.toolsetSelectionDisabled ? "permission_preflight" : "model_first",
       reason: cleanString(selection.reason) || "model_selected",
       selected_toolsets: selected,
       omitted_authorized_toolsets: omitted,
       authorized_toolset_count: Math.max(0, Number(selection.authorizedToolsets?.length || 0) || 0),
       duration_ms: Math.max(0, Number(selection.durationMs || 0) || 0),
+      toolset_selection_disabled: Boolean(selection.toolsetSelectionDisabled),
     };
   }
 
@@ -351,6 +354,7 @@ function createGatewayRunStartService(options = {}) {
       selected_toolsets: dedupe(selectedToolsets),
       duration_ms: Math.max(0, Number(selection.durationMs || 0) || 0),
       reason: cleanString(selection.reason) || "model_selected",
+      toolset_selection_disabled: Boolean(selection.toolsetSelectionDisabled),
     });
   }
 
@@ -510,6 +514,7 @@ function createGatewayRunStartService(options = {}) {
       request.toolsetRouting = request.runPolicy?.toolset_routing || request.toolsetRouting || toolsetSelectionRouting(selection, forcedSelectedToolsets);
       request.runPolicy = Object.assign({}, request.runPolicy || {}, { toolset_routing: request.toolsetRouting });
       request.body.access_policy_context = Object.assign({}, request.body.access_policy_context || {}, { toolset_routing: request.toolsetRouting });
+      request.body.enabled_toolsets = dedupe(request.runPolicy?.allowed_toolsets || request.runPolicy?.allowedToolsets || request.body.enabled_toolsets || []);
       applyAssistantRunOptions(assistantMessage, request, runOptions);
       appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_done", toolsetSelectionPreview(selection, forcedSelectedToolsets));
     } else if (selectRunToolsetsWithModel && !isChatGptProRunOptions(runOptions)) {
@@ -558,6 +563,7 @@ function createGatewayRunStartService(options = {}) {
         request.toolsetRouting = routing;
         request.runPolicy = Object.assign({}, request.runPolicy || {}, { toolset_routing: routing });
         request.body.access_policy_context = Object.assign({}, request.body.access_policy_context || {}, { toolset_routing: routing });
+        request.body.enabled_toolsets = dedupe(request.runPolicy?.allowed_toolsets || request.runPolicy?.allowedToolsets || request.body.enabled_toolsets || []);
         applyAssistantRunOptions(assistantMessage, request, selectedRunOptions);
         appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_done", toolsetSelectionPreview(selection, selectedToolsets));
       } else if (selection?.enabled) {
@@ -565,6 +571,7 @@ function createGatewayRunStartService(options = {}) {
       }
     }
     appendRunStartEvent(thread, assistantMessage, "run.request_sent", "等待模型或工具返回");
+    request.body.enabled_toolsets = dedupe(request.runPolicy?.allowed_toolsets || request.runPolicy?.allowedToolsets || request.body.enabled_toolsets || []);
     saveState();
     streamResponse(taskId, thread.id, assistantMessage.id, request.body, streamOptions);
     return {

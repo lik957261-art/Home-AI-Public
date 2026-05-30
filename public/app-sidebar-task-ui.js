@@ -76,6 +76,7 @@ function backSwipeTarget() {
   if (isTodoDetailView() || kanbanComposerOpen()) return isTodoDetailView() ? "todo" : "todo-create";
   if (state.viewMode === "learning" && (state.learningGrowthSettingsOpen || state.selectedLearningTaskCardId)) return state.learningGrowthSettingsOpen ? "learning-growth-settings" : "learning-growth-task";
   if (typeof wardrobePluginBackActive === "function" && wardrobePluginBackActive()) return "wardrobe-plugin";
+  if (typeof wardrobePluginOuterBackActive === "function" && wardrobePluginOuterBackActive()) return "wardrobe-plugin-outer";
   if (typeof codexPluginBackActive === "function" && codexPluginBackActive()) return "codex-plugin";
   if (typeof codexPluginOuterBackActive === "function" && codexPluginOuterBackActive()) return "codex-plugin-outer";
   if (typeof financePluginBackActive === "function" && financePluginBackActive()) return "finance-plugin";
@@ -120,6 +121,7 @@ function performBackSwipeAction(target) {
   }
   else if (target === "directory") state.directoryReturnRoute ? restoreDirectoryReturnRoute() : navigateDirectoryUp({ animateEntry: true }).catch(showError);
   else if (target === "wardrobe-plugin" && typeof sendWardrobePluginBack === "function") sendWardrobePluginBack();
+  else if (target === "wardrobe-plugin-outer" && typeof restoreWardrobePluginReturnRoute === "function") restoreWardrobePluginReturnRoute();
   else if (target === "codex-plugin" && typeof sendCodexPluginBackOrReturn === "function") sendCodexPluginBackOrReturn();
   else if (target === "codex-plugin-outer" && typeof restoreCodexPluginReturnRoute === "function") restoreCodexPluginReturnRoute();
   else if (target === "finance-plugin" && typeof sendFinancePluginBackOrReturn === "function") sendFinancePluginBackOrReturn();

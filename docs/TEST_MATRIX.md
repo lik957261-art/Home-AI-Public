@@ -1,6 +1,6 @@
 # Hermes Mobile Test Matrix
 
-Last updated: 2026-05-28.
+Last updated: 2026-05-30.
 
 Use this matrix to pick focused tests before broader gates. Always add syntax checks for touched JS/Python/PowerShell files.
 
@@ -33,6 +33,29 @@ primary smoke path is the installed home-screen PWA icon in the emulator or
 target device. Browser address-bar navigation is not a valid substitute; it is
 browser-mode evidence only and may intentionally show the browser-shell guard
 page.
+The required PWA smoke sequence is:
+
+1. Verify an Android emulator or target device is connected with `adb devices`.
+2. Confirm a home-screen `Hermes` PWA shortcut exists. If it does not, open the
+   Hermes HTTPS URL in Chrome only to use Chrome's `Install app` flow, then
+   return to the launcher.
+3. Start the app by tapping the launcher `Hermes` icon. Do not start the smoke
+   by `adb am start ... -d <Hermes URL>` or by pasting the URL into the Chrome
+   address bar.
+4. Capture evidence from the standalone PWA shell:
+   - screenshot without browser address bar;
+   - visible client version or DevTools state showing the expected version;
+   - loaded workspace list or current workspace content;
+   - relevant bottom tab/plugin/file-preview/navigation state.
+5. If direct Chrome URL launch shows `mode=browser` or the browser-shell guard,
+   record it only as a guard-page diagnostic. It is not a failing PWA smoke and
+   it is not passing functional evidence.
+
+For emulator automation, use UI-tree coordinates only to install or tap the PWA
+shortcut, then validate the rendered Hermes state with screenshot evidence and,
+when needed, Chrome DevTools attached to the PWA WebView. UIAutomator may return
+only a generic WebView node for rendered web content, so an empty accessibility
+tree alone is not proof that Hermes failed to load.
 Startup harnesses must also verify that workspace/project bootstrap failures do
 not reveal a half-initialized shell with an empty workspace selector. The client
 should retry bounded startup loading and then show an explicit recovery/retry
@@ -53,6 +76,14 @@ profile retirement needs an explicit backup/cleanup flow. Focused checks:
 `node tests\startup-scripts.test.js`,
 `node tests\gateway-workspace-provisioning-service.test.js`, and
 `node tests\cross-shell-command-harness.test.js`.
+Gateway Pool startup/provisioning harnesses must also cover per-worker
+API-server-key binding. Startup scripts must read the selected worker's own
+manifest `api_key` by `profile` and pass that key to the worker process; using
+the first manifest key or one class-wide key is a failing case because workers
+can stay healthy while rejecting Mobile `/v1/responses` calls with
+`401 invalid_api_key`. Gateway profile/schema deployments must sync source
+scripts into the production worker root before restart and then run live schema
+smoke with the same manifest key Mobile uses for the selected worker.
 
 For graph-guided Growth card planning, the harness must preserve the
 graph-first authoring contract. Formal model-generated cards must require a
@@ -66,22 +97,28 @@ must reject paid/restricted materials or learner-level mismatches such as using
 IGCSE/A Level nodes as direct current targets for a Primary learner.
 
 For Gateway toolset selection, the harness must preserve the model-first
-contract. Do not hard-prune callable toolsets before a first-round model
-selection. A first round may use a compact capability catalog, and the
-execution round may expand only the selected authorized toolsets, but the
-model must have an explicit escalation path for additional authorized toolsets.
+contract when that selector is enabled. Do not hard-prune callable toolsets
+before a first-round model selection. A first round may use a compact
+capability catalog, and the execution round may expand only the selected
+authorized toolsets, but the model must have an explicit escalation path for
+additional authorized toolsets. If request-level schema proof is missing,
+model-first toolset selection stays disabled and execution uses the
+deterministic authorized toolset set. The model-side permission preflight is a
+separate switch and remains enabled by default.
 The harness must cover selected narrow execution, allowed escalation, denied
 blocked-toolset escalation, invalid selection fallback, and telemetry for
 model-selection start/end, tool-call start/end, and final-message start/end.
 Selector failure is explicitly recoverable: timeout, invalid JSON, missing
 runner, or unauthorized selections must fall back to the originally authorized
-toolset list. Permission and toolset choice must share the same model-side
-preflight. The selector should use a ChatGPT low-cost model, a bounded timeout
-large enough for reliable completion, and best-effort cancellation when a
-selector run id is known. Do not add local natural-language permission routing
-before the model. If the model-side preflight returns a
-`HERMES_PERMISSION_APPROVAL_REQUIRED`-style decision, execution must not start
-until Owner approval.
+toolset list. Permission and optional toolset choice must share the same
+model-side preflight when both are enabled; when toolset choice is disabled,
+that same preflight returns only the permission decision and execution keeps
+the deterministic authorized toolsets. The selector should use a ChatGPT
+low-cost model, a bounded timeout large enough for reliable completion, and
+best-effort cancellation when a selector run id is known. Do not add local
+natural-language permission routing before the model. If the model-side
+preflight returns a `HERMES_PERMISSION_APPROVAL_REQUIRED`-style decision,
+execution must not start until Owner approval.
 
 Product-specific MCP capabilities are part of the same H1 contract. Wardrobe
 ingestion/recommendation/writeback tests must assert that authorized
@@ -108,6 +145,35 @@ looks, and log. Wardrobe stats tests must also cover currency-prefixed prices
 such as `¥4,787` so totals and average price do not undercount. Full Wardrobe
 UI parity must be tested as a future embedded-app plugin contract, not by
 copying Wardrobe detail/photo/settings screens into Hermes Mobile.
+Wardrobe MCP schema smoke must use a real selected Gateway worker and require
+`mcp_wardrobe_wardrobe_search_items`, `mcp_wardrobe_wardrobe_get_item`,
+`mcp_wardrobe_wardrobe_write_item`, `mcp_wardrobe_wardrobe_upload_photo`,
+`mcp_wardrobe_wardrobe_set_primary_photo`, and
+`mcp_wardrobe_wardrobe_write_history`. A policy record that says `wardrobe` is
+enabled is not enough if the callable schema exposed to the model lacks those
+functions. MCP registration logs are not enough either: for MCP-required
+smoke, use a session schema when the runtime writes one, or run
+`node scripts\gateway-tool-schema-smoke.js --profile <profile> --schema-only
+--require <mcp_...>` so the harness constructs that profile's actual
+`AIAgent` under the production runtime overlay. Runtime-log-only MCP evidence
+is allowed only with an explicit emergency override and must not be used as
+normal pass evidence. Provider selection remains user intent: if the selected
+provider is OpenAI/ChatGPT, repair that OpenAI profile's schema exposure rather
+than auto-routing to DeepSeek; the reverse is also true.
+When model-first toolset selection is disabled, Wardrobe-intent or
+wardrobe-bound-topic runs must still execute with the deterministic Wardrobe
+stack rather than the broad all-toolset catalog: `wardrobe`, `vision`, `file`,
+and `skills`, plus only other explicitly routed authorized companions. Tests
+must assert both `access_policy_context.allowed_toolsets` and top-level
+`enabled_toolsets`; a policy note that merely lists `wardrobe` as authorized is
+not enough.
+For selector/runtime-overlay changes, standalone schema smoke is not sufficient.
+The harness must also exercise the real `/v1/responses` request path and prove
+that Mobile's top-level `enabled_toolsets` becomes the effective
+`AIAgent.enabled_toolsets`. If that proof is unavailable during a hotfix window,
+keep `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION=0` while leaving
+`HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT` enabled unless there is an
+explicit emergency rollback.
 Embedded app plugin host tests must assert manifest-driven tab loading,
 same-window iframe navigation, no `target=_blank` browser handoff, a short-lived
 signed embed token with no raw keys in URLs, a persistent iframe host that does
@@ -180,7 +246,8 @@ code snippets, and ordinary `/api` strings are not changed. Binary image
 requests through that path must be streamed with their original content type.
 Active embedded plugin
 hosts must hide the Hermes page header so plugin content is not double-framed;
-bottom navigation remains visible as the app-level escape hatch. Deployment
+the Hermes bottom navigation must also be hidden for plugin root and secondary
+pages. Deployment
 smoke for this class must include the installed Android PWA launched from the
 home-screen icon. Opening the same URL in the Chrome/Safari address bar is
 explicitly not a valid PWA smoke, because Hermes Mobile shows a browser-shell
@@ -188,7 +255,9 @@ guard page there and it does not exercise standalone storage, service-worker,
 navigation, or plugin iframe behavior. Dark-mode plugin-tab smoke must also
 assert that a newly created iframe is hidden behind a theme-colored shell until
 load, so Codex/Wardrobe tab entry does not flash a white browser default
-surface. Refresh stability assertions must prove an existing iframe remains
+surface. Wardrobe-specific host tests must cover the same loading-shell
+contract even when the tab uses `.wardrobe-plugin-*` classes rather than the
+generic embedded-plugin host classes. Refresh stability assertions must prove an existing iframe remains
 visible while the host fetches a fresh launch URL, non-forced boot warmup
 `refresh_required` messages are suppressed, and entering plugin mode clears
 stale keyboard viewport metrics so the chat composer returns to its normal
@@ -203,9 +272,10 @@ Embedded-plugin host tests must also cover the outer return layer: entering a
 plugin from a Hermes page records the source route, plugin internal
 `canGoBack=true` sends `hermes.plugin.back`, and plugin root /
 `back_result handled=false` restores the saved Hermes page instead of trapping
-the user inside the plugin tab. Plugin root pages keep bottom navigation as the
-app-level escape hatch; plugin secondary pages must hide bottom navigation
-through the normal `main-back-visible` secondary-page contract.
+the user inside the plugin tab. Plugin root and secondary pages must hide the
+Hermes bottom navigation; exiting a full-screen plugin uses the host
+back/right-swipe contract and saved Hermes route restoration, not a visible
+bottom-tab escape path inside the plugin surface.
 If Hermes sends `hermes.plugin.back` and the plugin does not acknowledge with a
 fresh navigation or back-result event inside the bounded fallback window, the
 host must treat that back as unconsumed and restore the saved Hermes route when
@@ -227,10 +297,17 @@ Finance embedded-app registration follows the same host contract. Tests must
 cover compact manifest normalization (`entry` string, top-level `launch`,
 `toolsets`, `mcpServer`, `permissions`, and `embedding` events), Owner-default
 visibility with non-Owner denial unless explicitly authorized, server-side
-Finance launch body fields (`workspace_id`, `workspace_key`, `user_key`,
-`role`) without leaking raw keys into the returned manifest, same-origin proxy
-rewriting for `/finance.html`, `/manifest.webmanifest`, `/app-finance-ui.js`,
-and plugin-owned `/api/finance/...` resource URLs.
+Finance launch body fields (`workspace_id`, `workspace_key`, `role`, and
+optional `user_key`) without leaking raw keys into the returned manifest, and
+the current Finance auth split where `user_key` is optional and must be a separate
+workspace-user key, not a reused workspace key, while the workspace key is not
+sent in an `Authorization: Bearer ...` header. Tests must also cover
+same-origin proxy rewriting for `/finance.html`, `/manifest.webmanifest`,
+`/app-finance-ui.js`, and plugin-owned `/api/finance/...` resource URLs. The
+Finance token-error smoke must record only bounded evidence: manifest
+`available`, `tokenStatus`, redacted proxy launch URL shape, launch `302`
+preservation, redirect shape, `finance_hermes_session` cookie name, and a
+bounded authenticated `/api/finance/overview` result.
 Focused checks for this contract include
 `node tests\hermes-plugin-service.test.js`,
 `node tests\hermes-plugin-api-routes.test.js`,
@@ -250,21 +327,27 @@ model-first narrowing. If the suggested set contains authorized
 `wardrobe`, `vision`, and `file`, a selector result of `wardrobe,file` must
 still execute with `wardrobe,vision,file`; otherwise the main run will be forced
 into an avoidable `HERMES_TOOLSET_ESCALATION_REQUIRED` loop.
+The same harness must cover the low-level regression where the selector returns
+`clarify` alone for a wardrobe MCP task or an MCP visibility check. When the
+router has already suggested authorized `wardrobe`, `vision`, `file`, and
+`skills`, execution must expand back to that stack instead of starting a run
+whose policy text mentions wardrobe but whose model-selected execution set
+cannot expose `mcp_wardrobe_*`.
 The common web companion set follows the same rule: `web`, `search`, and
 `browser` should be suggested, retained, and escalation-retried together when
 authorized, while the negative harness must prove `browser` is not granted if
 the run policy did not authorize it.
 
-The selector is an internal JSON-only preflight. Tests must assert that selector
-requests disable tool calls, that live selector probes do not contain tool-role
-messages, and that repeated JSON candidates from streamed Responses events are
-parsed as a valid final decision rather than `invalid_json`. Tens-of-seconds
-latency is acceptable if the selector reliably returns; latency/cost claims must
-verify the actual Gateway session or worker log model instead of trusting only
-the request body's `model` field. A successful model-first selector decision must
-also suppress a second permission-classifier pass before execution: the main
-execution prompt must not ask the model to load the permission-boundary Skill
-again or call `skill_view` for
+The selector/preflight is an internal JSON-only step. Tests must assert that
+preflight requests disable tool calls, that live preflight probes do not contain
+tool-role messages, and that repeated JSON candidates from streamed Responses
+events are parsed as a valid final decision rather than `invalid_json`.
+Tens-of-seconds latency is acceptable if the preflight reliably returns;
+latency/cost claims must verify the actual Gateway session or worker log model
+instead of trusting only the request body's `model` field. A successful
+model-first or permission-only preflight decision must also suppress a second
+permission-classifier pass before execution: the main execution prompt must not
+ask the model to load the permission-boundary Skill again or call `skill_view` for
 `productivity/hermes-mobile-permission-boundary-check`, and UI status rows should
 describe permission/toolset selection as one combined preflight.
 
@@ -526,6 +609,7 @@ The guard test is:
 | Gateway run lifecycle | `node tests\gateway-run-model-toolset-selection-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\gateway-run-stream-service.test.js`, `node tests\gateway-run-lifecycle-service.test.js`, `node tests\gateway-run-queue-service.test.js`, `node tests\run-liveness.test.js`, `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js` |
 | Chat context/compaction | `node tests\conversation-history-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\topic-context-compaction-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\mobile-sqlite-store.test.js` |
 | Gateway Pool/scripts | `node tests\gateway-pool-provider.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\cross-shell-command-harness.test.js`, `node tests\hermes-mobile-image-plugin.test.js` |
+| Gateway MCP callable schema | `python -m py_compile gateway-runtime-overrides\sitecustomize.py gateway-runtime-overrides\model_tools.py`, `node scripts\probe-lowgw1-wardrobe-mcp.js`, `node tests\no-window-command-harness.test.js` |
 | ChatGPT Pro | `node tests\chatgpt-pro-codex-bridge-service.test.js`, `node tests\owner-elevation-routing-service.test.js`, `node tests\thread-message-create-service.test.js` |
 | Grok/model routing | `node tests\gateway-model-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js` |
 | Direct provider keys / Gateway Pool distro | `node tests\gateway-model-routing-service.test.js`, `node tests\gateway-pool-provider.test.js`, `node tests\gateway-status-projection.test.js`, `node tests\thread-message-create-service.test.js`, `node tests\startup-scripts.test.js`, production smoke: `/api/status?detail=1`, all low/owner-maintenance Gateway health ports, provider-tier status matrix, workspace-dedicated DeepSeek profile routing including Owner-only `deepseekgw99`, and process-environment evidence that target workers received the expected provider key without logging the raw key |

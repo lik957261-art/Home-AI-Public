@@ -46,8 +46,15 @@ function handleClientVersionFromResponse(response) {
 }
 
 function setBootSplashText(message = "正在载入工作区") {
+  window.__hermesBootTouched = Date.now();
   const text = $("bootSplashText");
   if (text) text.textContent = message;
+  const meta = $("bootSplashMeta");
+  if (meta) {
+    const stage = String(state.startupStage || "").trim();
+    const version = state.clientVersion || document.documentElement?.dataset?.clientVersion || "";
+    meta.textContent = stage ? `client ${version} · ${stage}` : `client ${version}`;
+  }
 }
 
 function showBootSplash(message = "正在载入工作区") {
@@ -61,8 +68,10 @@ function showBootSplash(message = "正在载入工作区") {
 }
 
 function hideBootSplash() {
+  window.__hermesBootCompleted = true;
   $("bootRetry")?.classList.add("hidden");
   $("bootResetClient")?.classList.add("hidden");
+  $("bootHardReset")?.classList.add("hidden");
   $("bootSplash")?.classList.add("hidden");
 }
 
@@ -87,6 +96,35 @@ function showStartupRecovery(err) {
   $("bootSplash")?.classList.remove("hidden");
   $("bootRetry")?.classList.remove("hidden");
   $("bootResetClient")?.classList.remove("hidden");
+  $("bootHardReset")?.classList.remove("hidden");
+  maybeAutoResetClientAfterStartupFailure(err);
+}
+
+function startupAutoResetKey() {
+  return `hermesStartupAutoReset:${state.clientVersion || "unknown"}`;
+}
+
+function shouldAutoResetClientAfterStartupFailure(err) {
+  const message = String(err?.message || err || "");
+  if (/unauthorized/i.test(message)) return false;
+  try {
+    return sessionStorage.getItem(startupAutoResetKey()) !== "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function maybeAutoResetClientAfterStartupFailure(err) {
+  if (typeof resetClientAndReload !== "function") return;
+  if (!shouldAutoResetClientAfterStartupFailure(err)) return;
+  try {
+    sessionStorage.setItem(startupAutoResetKey(), "1");
+  } catch (_) {
+    return;
+  }
+  window.setTimeout(() => {
+    resetClientAndReload("startup_failed");
+  }, 900);
 }
 
 function sleep(ms) {

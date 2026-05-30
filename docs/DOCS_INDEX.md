@@ -53,6 +53,8 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Growth submit button disabled or local submission is misleading: `docs/RUNBOOKS/growth-submit-button-disabled.md`
 - Grok Gateway authentication or routing failure: `docs/RUNBOOKS/grok-gateway-auth.md`
 - Codex Responses stream output missing: `docs/RUNBOOKS/codex-responses-stream-output-none.md`
+- OpenAI Codex MCP callable schema missing: `docs/RUNBOOKS/openai-codex-mcp-schema-missing.md`
+- Finance embedded plugin token error: `docs/RUNBOOKS/finance-plugin-token-error.md`
 - Disaster recovery backup verification: `docs/RUNBOOKS/disaster-recovery-backup.md`
 - Context compaction and chat history debugging: `docs/RUNBOOKS/context-compaction-debug.md`
 

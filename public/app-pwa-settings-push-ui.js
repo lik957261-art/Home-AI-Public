@@ -68,8 +68,10 @@ function reloadWithoutBfcache() {
   window.location.replace(url.href);
 }
 
-function resetClientAndReload() {
-  window.location.replace(`/client-reset.html?_hmv=${Date.now()}`);
+function resetClientAndReload(reason = "") {
+  const params = new URLSearchParams({ _hmv: String(Date.now()) });
+  if (reason) params.set("reason", String(reason).slice(0, 80));
+  window.location.replace(`/client-reset.html?${params.toString()}`);
 }
 
 function reloadForClientUpdate() {

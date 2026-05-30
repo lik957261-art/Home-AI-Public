@@ -44,6 +44,28 @@ browser-shell guard page.
 Browser-mode checks may be used only as a diagnostic comparison after the PWA
 path has been tested, or when explicitly testing the browser-shell guard page.
 
+The minimum accepted PWA harness evidence is:
+
+- `adb devices` shows the emulator or target device used for the smoke.
+- The `Hermes` home-screen PWA shortcut is installed or installed during the
+  test through Chrome's `Install app` flow.
+- The app is launched by tapping that launcher icon, not by opening the Hermes
+  URL with `am start -d`, Chrome address-bar navigation, or a desktop browser.
+- The captured screenshot shows the standalone PWA shell without a browser
+  address bar.
+- The captured app state proves the tested surface loaded, such as the expected
+  client version, workspace list, chat content, bottom tab, plugin iframe,
+  file preview, or Web Push destination.
+- If DevTools is used because UIAutomator exposes only a generic WebView, the
+  recorded state must include bounded fields such as `location.href`,
+  `document.readyState`, version, stored-key presence, and visible text summary;
+  do not record raw access keys, cookies, launch tokens, push endpoints, or
+  private long content.
+
+Opening the same URL in mobile Chrome/Safari may be useful to prove the
+browser-shell guard works. That result must be labeled `browser-mode` and must
+not be used as PWA functional pass/fail evidence.
+
 ## CodeGraph-Assisted Triage Rule
 
 Use CodeGraph as the first structural triage pass for H1/H2 changes, then
@@ -159,10 +181,55 @@ Required harness dimensions:
 - Wardrobe-related runs must preserve authorized `wardrobe`, `vision`, and
   `file` when the signal comes from a bound directory, plugin/thread/project
   metadata, or recent same-topic message history.
+- If that routing signal suggests the authorized `wardrobe`, `vision`, `file`,
+  and `skills` stack, model-first selection must not reduce execution to
+  `clarify` alone. The harness must cover wardrobe MCP visibility checks as
+  well as actual wardrobe read/write tasks, because both need the real
+  `mcp_wardrobe_*` callable schema.
 - Execution-round Gateway conversation/session reuse must be schema-sensitive.
   If the effective enabled toolset set changes, the worker-side conversation key
   must change with it so a later Wardrobe turn cannot inherit an older
   file-only callable schema.
+- Gateway Pool startup/profile changes must prove runtime script and manifest
+  consistency. The harness must assert `start-low-gateways.sh` and
+  owner-maintenance launch scripts use the selected worker's own
+  `gateway-pool-manifest.json` `api_key`, not the first manifest key or a
+  class-wide shared key. It must also assert source app scripts and
+  `C:\ProgramData\HermesMobile\gateway-worker` runtime scripts are synced before
+  a Gateway Pool restart.
+- A run that records `Enabled toolsets: wardrobe` but whose execution schema
+  lacks `mcp_wardrobe_*` functions is a Gateway schema/API-key/profile mismatch
+  until proven otherwise. The required harness evidence is a live schema smoke
+  using the same manifest key Mobile uses for the selected worker, with Wardrobe
+  search/read/write/photo/history callables present.
+- For MCP-capable profiles, "registered MCP tools" in worker logs is diagnostic
+  evidence only. It cannot satisfy the harness by itself because OpenAI/Codex
+  agent construction can still read a stale `model_tools` registry and expose no
+  `mcp_<server>_*` callables. The harness must use a session schema when
+  available or the `gateway-tool-schema-smoke.js --schema-only` /
+  agent-schema-probe path, which constructs the same profile's `AIAgent` under
+  the production runtime overlay. Runtime-log-only MCP evidence requires an
+  explicit emergency override and must not be treated as normal pass evidence.
+- Selector/runtime-overlay changes require one more proof layer: the real
+  `/v1/responses` request path must show that Mobile's top-level
+  `enabled_toolsets` becomes the effective `AIAgent.enabled_toolsets`. If that
+  request-level proof is missing in a hotfix window, model-first toolset
+  selection must remain disabled and execution must use the deterministic
+  authorized toolset set. This does not disable model-side permission preflight:
+  `HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT` remains enabled by default,
+  while `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION=0` disables only
+  toolset narrowing.
+- Runtime overlay path checks are part of the harness. The source/staging copy
+  is `C:\ProgramData\HermesMobile\gateway-worker\runtime-overrides`, but the
+  worker process imports from `/opt/hermes-gateway-runtime/runtime-overrides`.
+  Startup tests must assert `start-low-gateways.sh` syncs staging to that WSL
+  path before worker start, and production smoke must inspect the selected
+  worker's `PYTHONPATH` plus `--schema-only` output after restart.
+- Provider selection is user intent. If the user has selected OpenAI/ChatGPT or
+  DeepSeek, a missing MCP schema must be repaired inside that selected provider
+  profile or reported as a provider-profile schema failure. Do not auto-route a
+  selected OpenAI run to DeepSeek, or a selected DeepSeek run to OpenAI, merely
+  because another provider currently exposes the desired MCP functions.
 - A final assistant message that arrives only through
   `response.output_item.done` or `response.output_text.done` must still count
   as visible model output.
@@ -359,10 +426,10 @@ Required harness dimensions:
   `keyboard-context-mode`, stale `--keyboard-*` CSS variables, and stale
   bottom-nav reservation before laying out the chat composer.
 - When an embedded plugin host is active, the Hermes page header must be hidden
-  so the plugin is not double-framed by two top bars. Plugin root pages keep
-  the bottom navigation as the host-level escape path, but plugin secondary
-  pages hide the bottom navigation through the same `main-back-visible`
-  contract used by native Hermes secondary pages.
+  so the plugin is not double-framed by two top bars. The Hermes bottom
+  navigation must also be hidden for both plugin root pages and plugin secondary
+  pages. Exiting a full-screen plugin belongs to the host back/right-swipe
+  contract, not a visible bottom-tab escape path inside the plugin surface.
 - Static/client version must be bumped for embedded-plugin host changes so the
   installed PWA does not keep an older iframe contract through the service
   worker.
@@ -403,8 +470,15 @@ tasks.
 
 Required harness dimensions:
 
-- The system must not hard-prune callable toolsets before the model has had a
-  first-round chance to choose the task's needed capability set.
+- When model-first toolset selection is enabled, the system must not hard-prune
+  callable toolsets before the model has had a first-round chance to choose the
+  task's needed capability set. The default production posture is selector-off
+  unless the request-level schema harness above passes.
+- Permission preflight and toolset narrowing must remain separate controls.
+  Turning off model-first toolset selection must leave the model-side permission
+  decision active. A permission-only preflight may return allowed or
+  `HERMES_PERMISSION_APPROVAL_REQUIRED`, but must not choose, omit, or optimize
+  execution toolsets; execution uses the deterministic authorized toolset set.
 - A first-round model toolset-selection step may receive a compact capability
   catalog and the authorized policy summary, but not the full expanded schema
   for every ordinary tool.
@@ -487,10 +561,16 @@ Required harness dimensions:
 - Tens-of-seconds selector latency is acceptable when it reliably returns a
   decision. The timeout must be set for reliability rather than micro-latency,
   and timeout/error fallback must still allow the original authorized toolsets.
-- Permission and toolset choice must enter the same model-side preflight. Do
-  not add a local natural-language permission classifier before the model run.
-  The model may return either selected authorized toolsets or a
-  `HERMES_PERMISSION_APPROVAL_REQUIRED`-style Owner-elevation decision.
+- Permission and optional toolset choice must enter the same model-side
+  preflight when both are enabled. Do not add a local natural-language
+  permission classifier before the model run. The model may return either
+  selected authorized toolsets or a `HERMES_PERMISSION_APPROVAL_REQUIRED`-style
+  Owner-elevation decision. When model-first toolset narrowing is disabled, the
+  model may return only the permission decision and execution keeps the
+  deterministic route/access toolset set. For Wardrobe-intent or
+  wardrobe-bound-topic runs this is the bounded Wardrobe stack, not the broad
+  all-toolset catalog, so OpenAI/Codex execution must receive `wardrobe`,
+  `vision`, `file`, and `skills` through top-level `enabled_toolsets`.
 - The selector is an internal JSON-only preflight, not a user-facing task run.
   It must not browse, search, call tools, or load Skills. Harness coverage must
   assert the selector request disables tool calls and, for live probes, that the
@@ -585,11 +665,11 @@ Required harness dimensions:
 - Skill footer tags must be evidence-based. Do not add a synthetic response or
   fallback Skill merely because an assistant response completed; render Skill
   only when a real loaded Skill or `skill_view` event is present.
-- Permission and toolset preflight is one model-side step. When the
-  model-first selector has returned a normal allowed-toolset decision, the main
-  execution prompt must not ask the model to load the permission-boundary Skill
-  again or call `skill_view` for it; the run-status row should describe the
-  combined permission/toolset check, not show a separate Permission Skill step.
+- Permission preflight is one model-side step. When the model-first selector or
+  permission-only preflight has returned an allowed decision, the main execution
+  prompt must not ask the model to load the permission-boundary Skill again or
+  call `skill_view` for it; the run-status row should describe the completed
+  preflight, not show a separate Permission Skill step.
 - Function-call projection must not render unnamed generic function rows. If a
   concrete function name cannot be recovered from the event, preview JSON,
   `callId` pair, or tool field, omit that function row instead of showing a
@@ -1029,13 +1109,21 @@ Required contract dimensions:
   `GET http://127.0.0.1:8791/api/v1/hermes/plugin/manifest`. Hermes Mobile must
   normalize Finance's compact manifest shape: string `entry`, top-level
   `launch`, top-level `toolsets`, `mcpServer`, `permissions`, and `embedding`
-  event names. Harness coverage must assert Owner default visibility, non-Owner
-  denial without explicit authorization, Owner-only fallback to the configured
+    event names. Harness coverage must assert Owner default visibility, non-Owner
+    denial without explicit authorization, Owner-only fallback to the configured
   `HERMES_WEB_AUTH_KEY_PATH` when no Finance-specific key path exists, Finance
-  launch body fields `workspace_id`, `workspace_key`, `user_key`, and `role`, no
-  raw key leakage in the normalized manifest, and route wiring for
+  launch body fields `workspace_id`, `workspace_key`, and `role`, optional
+  `user_key` only when a separate workspace-user key is present, no
+  `Authorization: Bearer <workspace-key>` header on Finance launch, no raw key
+  leakage in the normalized manifest, and route wiring for
   `finance.plugin.navigation`,
-  `finance.plugin.back_result`, and `finance.plugin.refresh_required`.
+  `finance.plugin.back_result`, and `finance.plugin.refresh_required`. Finance
+  launch-auth regression coverage must prove `tokenStatus=launch_token_issued`,
+  the browser-facing launch URL is
+  `/api/hermes-plugins/finance/proxy/api/v1/hermes/plugin/launch/<redacted>`,
+  the proxy preserves a launch `302`, the redirected page loads under
+  `/api/hermes-plugins/finance/proxy/finance.html?embed=hermes`, and only the
+  cookie name `finance_hermes_session` is recorded.
 - Local/LAN plugins such as Codex Mobile, Wardrobe, and Finance may use HTTP upstreams
   only behind a Hermes same-origin proxy. Hermes Mobile must not require the
   user to configure a separate HTTPS plugin service or reverse proxy for this

@@ -1,7 +1,9 @@
 "use strict";
 
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 
 function argValue(name, fallback = "") {
   const index = process.argv.indexOf(name);
@@ -67,22 +69,25 @@ function parseSseFrame(frame) {
 async function drainResponse(response) {
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("text/event-stream") || !response.body?.getReader) {
-    await response.text().catch(() => "");
-    return;
+    return await response.text().catch(() => "");
   }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let raw = "";
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+    const chunk = decoder.decode(value, { stream: true });
+    raw += chunk;
+    buffer += chunk;
     let index;
     while ((index = buffer.indexOf("\n\n")) >= 0) {
       parseSseFrame(buffer.slice(0, index));
       buffer = buffer.slice(index + 2);
     }
   }
+  return raw;
 }
 
 function newestMatchingSession(sessionDir, marker, sinceMs) {
@@ -108,6 +113,186 @@ function toolsFromSession(sessionPath) {
   return Array.isArray(parsed.tools) ? parsed.tools : [];
 }
 
+function toolDefinitionsFromNames(names) {
+  return Array.from(new Set(names.filter(Boolean).sort())).map((name) => ({ name }));
+}
+
+function toolNamesFromText(text) {
+  return Array.from(String(text || "").matchAll(/\bmcp_[A-Za-z0-9]+_[A-Za-z0-9_]+\b/g)).map((match) => match[0]);
+}
+
+function hasMcpToolRequirement(requiredTools) {
+  return requiredTools.some((tool) => String(tool || "").startsWith("mcp_"));
+}
+
+function toolNamesFromDefinitions(toolDefinitions) {
+  return toolDefinitions
+    .map((tool) => tool?.function?.name || tool?.name || "")
+    .filter(Boolean)
+    .sort();
+}
+
+function validateToolDefinitions(worker, toolDefinitions, requiredTools, forbiddenTools, requiredDescriptionChecks, evidence) {
+  const tools = toolNamesFromDefinitions(toolDefinitions);
+  const missing = requiredTools.filter((tool) => !tools.includes(tool));
+  if (missing.length) {
+    throw new Error(`worker ${worker.profile || worker.name} missing tools in ${evidence}: ${missing.join(", ")}; got ${tools.join(", ")}`);
+  }
+  const forbiddenPresent = forbiddenTools.filter((tool) => tools.includes(tool));
+  if (forbiddenPresent.length) {
+    throw new Error(`worker ${worker.profile || worker.name} has forbidden tools in ${evidence}: ${forbiddenPresent.join(", ")}; got ${tools.join(", ")}`);
+  }
+  for (const check of requiredDescriptionChecks) {
+    const tool = toolDefinitions.find((definition) => (
+      (definition?.function?.name || definition?.name || "") === check.tool
+    ));
+    const description = String(tool?.function?.description || tool?.description || "");
+    if (!description.includes(check.pattern)) {
+      throw new Error(`worker ${worker.profile || worker.name} tool ${check.tool} description missing required text in ${evidence}: ${check.pattern}`);
+    }
+  }
+  return tools;
+}
+
+function windowsPathToWslPath(value) {
+  const text = String(value || "").replace(/\\/g, "/");
+  const driveMatch = text.match(/^([A-Za-z]):\/(.*)$/);
+  if (driveMatch) return `/mnt/${driveMatch[1].toLowerCase()}/${driveMatch[2]}`;
+  return text;
+}
+
+function bashSingleQuote(value) {
+  return `'${String(value || "").replace(/'/g, "'\"'\"'")}'`;
+}
+
+function writeTempBashScript(content) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-agent-schema-"));
+  const scriptPath = path.join(dir, "probe.sh");
+  fs.writeFileSync(scriptPath, content, { encoding: "utf8" });
+  return scriptPath;
+}
+
+function parseProbeJson(stdout) {
+  const lines = String(stdout || "").split(/\r?\n/);
+  let next = false;
+  for (const line of lines) {
+    if (line.trim() === "HERMES_AGENT_SCHEMA_PROBE_JSON_START") {
+      next = true;
+      continue;
+    }
+    if (next && line.trim().startsWith("{")) return JSON.parse(line);
+  }
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i].trim();
+    if (line.startsWith("{") && line.endsWith("}")) return JSON.parse(line);
+  }
+  throw new Error("agent schema probe did not return JSON");
+}
+
+function runAgentSchemaProbe(worker, options) {
+  const telemetryProfile = String(worker.telemetryProfile || worker.telemetry_profile || worker.profile || "").trim();
+  if (!telemetryProfile) throw new Error(`worker ${worker.profile || worker.name || "unknown"} has no telemetry profile for agent schema probe`);
+  const profileHome = path.join(options.telemetryRoot, telemetryProfile);
+  const deepseekKeyPath = windowsPathToWslPath(options.deepseekApiKeyPath || "");
+  const script = `#!/usr/bin/env bash
+set -euo pipefail
+cd ${bashSingleQuote(options.runtimeSource)}
+export HERMES_HOME=${bashSingleQuote(windowsPathToWslPath(profileHome))}
+export HERMES_PROFILE=${bashSingleQuote(worker.profile || telemetryProfile)}
+export PYTHONPATH=${bashSingleQuote(`${options.runtimeOverrides}:${options.runtimeSource}`)}"\${PYTHONPATH:+:\$PYTHONPATH}"
+if [ -n ${bashSingleQuote(deepseekKeyPath)} ] && [ -s ${bashSingleQuote(deepseekKeyPath)} ]; then
+  export DEEPSEEK_API_KEY="$(tr -d '\\r\\n' < ${bashSingleQuote(deepseekKeyPath)})"
+fi
+${bashSingleQuote(options.runtimePython)} - <<'PY'
+import json
+
+from gateway.run import _load_gateway_config, _resolve_gateway_model, _resolve_runtime_agent_kwargs
+from hermes_cli.tools_config import _get_platform_tools
+from run_agent import AIAgent
+
+agent = None
+try:
+    cfg = _load_gateway_config()
+    enabled_toolsets = sorted(_get_platform_tools(cfg, "api_server"))
+    agent = AIAgent(
+        model=_resolve_gateway_model(),
+        **_resolve_runtime_agent_kwargs(),
+        quiet_mode=True,
+        enabled_toolsets=enabled_toolsets,
+        max_iterations=1,
+    )
+    print("HERMES_AGENT_SCHEMA_PROBE_JSON_START")
+    print(json.dumps({
+        "enabled_toolsets": enabled_toolsets,
+        "tools": agent.tools or [],
+    }, ensure_ascii=False))
+finally:
+    if agent is not None:
+        agent.close()
+PY
+`;
+  const tempScript = writeTempBashScript(script);
+  try {
+    const result = spawnSync("wsl.exe", [
+      "-d",
+      options.wslDistro,
+      "--",
+      "bash",
+      windowsPathToWslPath(tempScript),
+    ], {
+      encoding: "utf8",
+      timeout: options.agentSchemaTimeoutMs,
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      throw new Error(`agent schema probe failed for ${worker.profile || worker.name}: ${String(result.stderr || result.stdout || "").slice(0, 1000)}`);
+    }
+    const parsed = parseProbeJson(result.stdout);
+    const toolDefinitions = Array.isArray(parsed.tools) ? parsed.tools : [];
+    return {
+      evidence: "agent-schema-probe",
+      enabledToolsets: Array.isArray(parsed.enabled_toolsets) ? parsed.enabled_toolsets : [],
+      toolDefinitions,
+    };
+  } finally {
+    try {
+      fs.rmSync(path.dirname(tempScript), { recursive: true, force: true });
+    } catch (_) {
+      // ignore cleanup failure for temporary probe script
+    }
+  }
+}
+
+function logLineTimestampMs(line) {
+  const match = String(line || "").match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2}),(\d{3})/);
+  if (!match) return 0;
+  const value = Date.parse(`${match[1]}T${match[2]}.${match[3]}+08:00`);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function newestRegisteredToolsFromLogs(logDir, sinceMs) {
+  if (!fs.existsSync(logDir)) return [];
+  const candidates = ["agent.log", "gateway.log"]
+    .map((name) => path.join(logDir, name))
+    .filter((file) => fs.existsSync(file));
+  const freshTools = [];
+  let latestTools = [];
+  for (const file of candidates) {
+    const text = fs.readFileSync(file, "utf8");
+    for (const line of text.split(/\r?\n/)) {
+      if (!line.includes("registered") || !line.includes("tool")) continue;
+      const names = toolNamesFromText(line);
+      if (names.length) latestTools = names;
+      const timestampMs = logLineTimestampMs(line);
+      if (timestampMs && timestampMs < sinceMs - 10000) continue;
+      freshTools.push(...names);
+    }
+  }
+  const tools = freshTools.length ? freshTools : latestTools;
+  return Array.from(new Set(tools)).sort();
+}
+
 function workerTargets(manifest) {
   const profile = argValue("--profile");
   const allUserWorkers = hasFlag("--all-user-workers");
@@ -131,6 +316,30 @@ async function smokeWorker(worker, requiredTools, forbiddenTools, requiredDescri
   if (!port) throw new Error(`worker ${worker.name || worker.profile || "unknown"} has no port`);
   const apiBase = String(worker.url || worker.gatewayUrl || worker.apiBase || `http://127.0.0.1:${port}`).replace(/\/+$/, "");
   const startedAt = Date.now();
+  const requiresMcpEvidence = hasMcpToolRequirement(requiredTools);
+  const agentSchema = (options.schemaOnly || options.requireAgentSchema || (requiresMcpEvidence && !options.allowMcpRuntimeLogEvidence))
+    ? runAgentSchemaProbe(worker, options)
+    : null;
+  if (agentSchema) {
+    const agentSchemaTools = validateToolDefinitions(
+      worker,
+      agentSchema.toolDefinitions,
+      requiredTools,
+      forbiddenTools,
+      requiredDescriptionChecks,
+      agentSchema.evidence,
+    );
+    if (options.schemaOnly) {
+      return {
+        worker: worker.profile || worker.name || String(port),
+        sessionPath: "",
+        tools: agentSchemaTools,
+        evidence: agentSchema.evidence,
+        agentSchemaToolCount: agentSchemaTools.length,
+        agentSchemaEnabledToolsets: agentSchema.enabledToolsets,
+      };
+    }
+  }
   const response = await fetch(`${apiBase}/v1/responses`, {
     method: "POST",
     headers: Object.assign(
@@ -150,36 +359,49 @@ async function smokeWorker(worker, requiredTools, forbiddenTools, requiredDescri
     const detail = await response.text().catch(() => "");
     throw new Error(`worker ${worker.profile || worker.name} response failed: ${response.status} ${detail.slice(0, 500)}`);
   }
-  await drainResponse(response);
+  const streamText = await drainResponse(response);
 
   const telemetryRoot = options.telemetryRoot;
   const telemetryProfile = String(worker.telemetryProfile || worker.telemetry_profile || worker.profile || "").trim();
   const sessionDir = path.join(telemetryRoot, telemetryProfile, "sessions");
   const sessionPath = newestMatchingSession(sessionDir, marker, startedAt);
-  if (!sessionPath) throw new Error(`worker ${worker.profile || worker.name} did not write a matching session under ${sessionDir}`);
-  const toolDefinitions = toolsFromSession(sessionPath);
-  const tools = toolDefinitions
-    .map((tool) => tool?.function?.name || tool?.name || "")
-    .filter(Boolean)
-    .sort();
-  const missing = requiredTools.filter((tool) => !tools.includes(tool));
-  if (missing.length) {
-    throw new Error(`worker ${worker.profile || worker.name} missing tools in live session schema: ${missing.join(", ")}; got ${tools.join(", ")}`);
+  const logDir = path.join(telemetryRoot, telemetryProfile, "logs");
+  let evidence = "runtime-log";
+  let toolDefinitions = [];
+  if (sessionPath) {
+    evidence = "session";
+    toolDefinitions = toolsFromSession(sessionPath);
+  } else if (agentSchema) {
+    evidence = agentSchema.evidence;
+    toolDefinitions = agentSchema.toolDefinitions;
+  } else {
+    toolDefinitions = toolDefinitionsFromNames([
+      ...newestRegisteredToolsFromLogs(logDir, startedAt),
+      ...toolNamesFromText(streamText),
+    ]);
   }
-  const forbiddenPresent = forbiddenTools.filter((tool) => tools.includes(tool));
-  if (forbiddenPresent.length) {
-    throw new Error(`worker ${worker.profile || worker.name} has forbidden tools in live session schema: ${forbiddenPresent.join(", ")}; got ${tools.join(", ")}`);
+  if (!sessionPath && toolDefinitions.length === 0) {
+    throw new Error(`worker ${worker.profile || worker.name} did not write a matching session under ${sessionDir} and no registered tools were observed in ${logDir}`);
   }
-  for (const check of requiredDescriptionChecks) {
-    const tool = toolDefinitions.find((definition) => (
-      (definition?.function?.name || definition?.name || "") === check.tool
-    ));
-    const description = String(tool?.function?.description || tool?.description || "");
-    if (!description.includes(check.pattern)) {
-      throw new Error(`worker ${worker.profile || worker.name} tool ${check.tool} description missing required text: ${check.pattern}`);
-    }
+  if (requiresMcpEvidence && evidence === "runtime-log" && !options.allowMcpRuntimeLogEvidence) {
+    throw new Error(`worker ${worker.profile || worker.name} only has runtime-log MCP evidence. Registration logs are not enough; use --require-agent-schema or keep the default agent schema probe enabled.`);
   }
-  return { worker: worker.profile || worker.name || String(port), sessionPath, tools };
+  const tools = validateToolDefinitions(
+    worker,
+    toolDefinitions,
+    requiredTools,
+    forbiddenTools,
+    requiredDescriptionChecks,
+    evidence,
+  );
+  return {
+    worker: worker.profile || worker.name || String(port),
+    sessionPath,
+    tools,
+    evidence,
+    agentSchemaToolCount: agentSchema ? toolNamesFromDefinitions(agentSchema.toolDefinitions).length : 0,
+    agentSchemaEnabledToolsets: agentSchema ? agentSchema.enabledToolsets : [],
+  };
 }
 
 async function main() {
@@ -197,6 +419,15 @@ async function main() {
   const options = {
     telemetryRoot: argValue("--telemetry-root", "C:/ProgramData/HermesMobile/gateway-worker/telemetry/profiles"),
     timeoutMs: Number(argValue("--timeout-ms", "120000")) || 120000,
+    schemaOnly: hasFlag("--schema-only"),
+    requireAgentSchema: hasFlag("--require-agent-schema"),
+    allowMcpRuntimeLogEvidence: hasFlag("--allow-mcp-log-evidence"),
+    wslDistro: argValue("--wsl-distro", "Ubuntu-24.04"),
+    runtimeSource: argValue("--runtime-source", "/opt/hermes-gateway-runtime/official-clean"),
+    runtimeOverrides: argValue("--runtime-overrides", "/opt/hermes-gateway-runtime/runtime-overrides"),
+    runtimePython: argValue("--runtime-python", "/opt/hermes-gateway-runtime/venv/bin/python"),
+    deepseekApiKeyPath: argValue("--deepseek-api-key-path", "C:/ProgramData/HermesMobile/data/secrets/deepseek-api-key.secret"),
+    agentSchemaTimeoutMs: Number(argValue("--agent-schema-timeout-ms", "60000")) || 60000,
   };
   const results = [];
   for (const worker of targets) {
@@ -210,7 +441,10 @@ async function main() {
     workers: results.map((result) => ({
       worker: result.worker,
       sessionPath: result.sessionPath,
+      evidence: result.evidence,
       toolCount: result.tools.length,
+      agentSchemaToolCount: result.agentSchemaToolCount,
+      agentSchemaEnabledToolsets: result.agentSchemaEnabledToolsets,
     })),
   }, null, 2));
 }

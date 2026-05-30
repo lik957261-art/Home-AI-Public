@@ -42,6 +42,11 @@ function Convert-GatewayPoolWindowsPathToWslPath {
   return ($output | Select-Object -First 1)
 }
 
+function Convert-GatewayPoolBashSingleQuotedLiteral {
+  param([string]$Value)
+  return "'" + $Value.Replace("'", "'\''") + "'"
+}
+
 function Invoke-GatewayPoolWslBashFile {
   param(
     [string]$Distro,
@@ -439,12 +444,13 @@ bash "$configure_low_gateway_script"
 runtime_root="${HERMES_GATEWAY_RUNTIME_ROOT:-/opt/hermes-gateway-runtime}"
 runtime_python="${HERMES_GATEWAY_RUNTIME_PYTHON:-$runtime_root/venv/bin/python}"
 runtime_source="${HERMES_GATEWAY_RUNTIME_SOURCE:-$runtime_root/official-clean}"
+runtime_overrides="${HERMES_GATEWAY_RUNTIME_OVERRIDES:-$runtime_root/runtime-overrides}"
 runtime_bin="${HERMES_GATEWAY_RUNTIME_BIN:-$runtime_root/bin}"
 install -d -m 755 "$runtime_bin"
 cat > "$runtime_bin/hermes" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
-export PYTHONPATH="$runtime_source\${PYTHONPATH:+:\$PYTHONPATH}"
+export PYTHONPATH="$runtime_overrides:$runtime_source\${PYTHONPATH:+:\$PYTHONPATH}"
 exec "$runtime_python" -m hermes_cli.main "\$@"
 EOF
 chmod 755 "$runtime_bin/hermes"
@@ -671,11 +677,10 @@ function Start-OwnerMaintenanceGateways {
     Write-GatewayPoolLog "No owner-maintenance workers in manifest."
     return @()
   }
-  $apiKey = [string]($allWorkers | Where-Object { $_.api_key } | Select-Object -First 1).api_key
-  if (-not $apiKey) { throw "Owner-maintenance gateway API key missing from manifest." }
 
   $runtimeRoot = "/opt/hermes-gateway-runtime"
   $officialCleanRoot = "$runtimeRoot/official-clean"
+  $runtimeOverridesRoot = "$runtimeRoot/runtime-overrides"
   $officialPython = "$runtimeRoot/venv/bin/python"
   $sharedAuthPath = "/home/$OfficialUser/.hermes/auth.json"
   $sharedAuthLockPath = "/home/$OfficialUser/.hermes/auth.lock"
@@ -685,6 +690,8 @@ function Start-OwnerMaintenanceGateways {
   $ownerMaintenanceLockPath = "/tmp/hermes-mobile-owner-maintenance-memory.lock"
   $bridgeKeyPath = "/mnt/c/ProgramData/HermesMobile/data/secrets/bridge-host.secret"
   $deepseekApiKeyPath = "/mnt/c/ProgramData/HermesMobile/data/secrets/deepseek-api-key.secret"
+  $manifestPathWsl = Convert-GatewayPoolWindowsPathToWslPath -Distro $OfficialDistro -User $OfficialUser -WindowsPath $ManifestPath
+  $manifestPathArg = Convert-GatewayPoolBashSingleQuotedLiteral -Value $manifestPathWsl
   $commands = [System.Collections.ArrayList]@(
     "if [ -d $ownerMaintenanceLockPath ]; then rmdir $ownerMaintenanceLockPath 2>/dev/null || { echo owner_maintenance_memory_lock_busy >&2; exit 42; }; fi",
     "exec 9>$ownerMaintenanceLockPath",
@@ -697,6 +704,28 @@ function Start-OwnerMaintenanceGateways {
     "mkdir -p /home/$OfficialUser/.hermes/logs",
     "test -s $sharedAuthPath"
   )
+  [void]$commands.Add("gateway_pool_manifest_path=$manifestPathArg")
+  [void]$commands.Add(@'
+manifest_api_key() {
+  local profile="$1"
+  python3 - "$gateway_pool_manifest_path" "$profile" <<'PY' 2>/dev/null || true
+import json, sys
+try:
+    data = json.load(open(sys.argv[1], encoding="utf-8-sig"))
+except Exception:
+    raise SystemExit(0)
+profile = str(sys.argv[2]).strip()
+for worker in data.get("workers") or []:
+    candidate = str(worker.get("profile") or worker.get("name") or "").strip()
+    if candidate != profile:
+        continue
+    key = str(worker.get("api_key") or worker.get("apiKey") or "").strip()
+    if key:
+        print(key)
+    break
+PY
+}
+'@.TrimEnd())
   [void]$commands.Add("deepseek_api_key=''; if [ -s $deepseekApiKeyPath ]; then deepseek_api_key=`$(tr -d '\r\n' < $deepseekApiKeyPath); fi")
   if ($sharedMemoryEnabled) {
     [void]$commands.Add("mkdir -p $sharedMemoryPath")
@@ -704,6 +733,9 @@ function Start-OwnerMaintenanceGateways {
   foreach ($worker in $workers) {
     $profile = [string]$worker.profile
     Assert-SafeGatewayProfileName -Profile $profile
+    if (-not [string]$worker.api_key) {
+      throw "Owner-maintenance gateway API key missing from manifest for profile $profile."
+    }
     $provider = ([string]$worker.provider).Trim().ToLowerInvariant()
     $configPath = "\\wsl.localhost\$OfficialDistro\home\$OfficialUser\.hermes\profiles\$profile\config.yaml"
     Ensure-OwnerMaintenanceProfileConfig -ConfigPath $configPath -Port ([int]$worker.port) -Provider $provider
@@ -721,7 +753,9 @@ function Start-OwnerMaintenanceGateways {
       [void]$commands.Add("mkdir -p $ownerSkillStore")
       [void]$commands.Add("if [ -L $profileRoot/skills ]; then rm -f $profileRoot/skills; fi; if [ ! -e $profileRoot/skills ]; then ln -sfn $ownerSkillStore $profileRoot/skills; elif [ ! -L $profileRoot/skills ]; then echo owner_maintenance_skills_directory_exists_keeping_profile_local:$profileRoot/skills >&2; fi")
     }
-    [void]$commands.Add("setsid -f env HOME=/home/$OfficialUser HERMES_HOME=$profileRoot HERMES_PROFILE=$profile PYTHONPATH=$officialCleanRoot HERMES_ACCEPT_HOOKS=1 HERMES_MOBILE_CHATGPT_PRO_BRIDGE_URL=`"`$mobile_bridge_host_url/bridge/chatgpt-pro`" HERMES_WEB_CHATGPT_PRO_BRIDGE_URL=`"`$mobile_bridge_host_url/bridge/chatgpt-pro`" HERMES_MOBILE_CHATGPT_PRO_BRIDGE_KEY_PATH=$bridgeKeyPath HERMES_WEB_CHATGPT_PRO_BRIDGE_KEY_PATH=$bridgeKeyPath HERMES_MOBILE_CHATGPT_PRO_TIMEOUT_SECONDS=1800 HERMES_WEB_CHATGPT_PRO_TIMEOUT_SECONDS=1800 DEEPSEEK_API_KEY=`"`$deepseek_api_key`" $officialPython -m hermes_cli.main gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1")
+    [void]$commands.Add("api_server_key=`$(manifest_api_key $profile)")
+    [void]$commands.Add("if [ -z `"`$api_server_key`" ]; then echo owner-maintenance gateway API key missing for $profile >&2; exit 1; fi")
+    [void]$commands.Add("setsid -f env HOME=/home/$OfficialUser HERMES_HOME=$profileRoot HERMES_PROFILE=$profile PYTHONPATH=${runtimeOverridesRoot}:${officialCleanRoot} HERMES_ACCEPT_HOOKS=1 API_SERVER_KEY=`"`$api_server_key`" HERMES_MOBILE_CHATGPT_PRO_BRIDGE_URL=`"`$mobile_bridge_host_url/bridge/chatgpt-pro`" HERMES_WEB_CHATGPT_PRO_BRIDGE_URL=`"`$mobile_bridge_host_url/bridge/chatgpt-pro`" HERMES_MOBILE_CHATGPT_PRO_BRIDGE_KEY_PATH=$bridgeKeyPath HERMES_WEB_CHATGPT_PRO_BRIDGE_KEY_PATH=$bridgeKeyPath HERMES_MOBILE_CHATGPT_PRO_TIMEOUT_SECONDS=1800 HERMES_WEB_CHATGPT_PRO_TIMEOUT_SECONDS=1800 DEEPSEEK_API_KEY=`"`$deepseek_api_key`" $officialPython -m hermes_cli.main gateway run --replace > /home/$OfficialUser/.hermes/profiles/$profile/logs/start-gateway-pool.log 2>&1")
   }
   $ownerMaintenanceStartShell = Join-Path $GatewayWorkerRoot "start-owner-maintenance-gateways.sh"
   $bash = "set -euo pipefail`n" + ($commands -join "`n") + "`n"
@@ -729,15 +763,11 @@ function Start-OwnerMaintenanceGateways {
   [System.IO.File]::WriteAllText($ownerMaintenanceStartShell, $bash, $encoding)
 
   Write-GatewayPoolLog "Starting owner-maintenance gateway pool."
-  $env:API_SERVER_KEY = $apiKey
-  $env:WSLENV = "API_SERVER_KEY/u"
   try {
     $ownerMaintenanceResult = Invoke-GatewayPoolWslBashFile -Distro $OfficialDistro -User $OfficialUser -ScriptPath $ownerMaintenanceStartShell
     foreach ($line in $ownerMaintenanceResult.Output) { Write-GatewayPoolLog ("owner-maintenance-start: {0}" -f $line) }
     if ($ownerMaintenanceResult.ExitCode -ne 0) { throw "Owner-maintenance gateway start failed with exit code $($ownerMaintenanceResult.ExitCode)" }
   } finally {
-    Remove-Item Env:\API_SERVER_KEY -ErrorAction SilentlyContinue
-    Remove-Item Env:\WSLENV -ErrorAction SilentlyContinue
   }
   return @($workers | ForEach-Object { [int]$_.port })
 }

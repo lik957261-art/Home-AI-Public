@@ -276,6 +276,7 @@ function wireUi() {
   });
   $("bottomWardrobeMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
+    if (typeof rememberWardrobePluginReturnRoute === "function") rememberWardrobePluginReturnRoute();
     state.viewMode = "wardrobe";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
@@ -587,7 +588,11 @@ async function start() {
   ensurePwaServiceWorker({ timeoutMs: 8000 }).catch(() => {});
   showBootSplash("正在连接 Hermes Mobile");
   try {
-    const config = await fetch("/api/public-config").then((res) => res.json());
+    const config = await withTimeout(
+      fetch("/api/public-config", { cache: "no-store" }).then((res) => res.json()),
+      12000,
+      "载入公开配置超时",
+    );
     state.setupRequired = Boolean(config.setupRequired);
     if (state.setupRequired) {
       showSetup();
@@ -600,7 +605,7 @@ async function start() {
       }
     }
     setBootSplashText("正在载入工作区");
-    await bootstrapWithRetry();
+    await withTimeout(bootstrapWithRetry(), 26000, "载入工作区超时");
     showApp();
   } catch (err) {
     showError(err);
@@ -611,7 +616,11 @@ async function start() {
 
 async function startFromBootRecovery() {
   showBootSplash("正在连接 Hermes Mobile");
-  const config = await fetch("/api/public-config", { cache: "no-store" }).then((res) => res.json());
+  const config = await withTimeout(
+    fetch("/api/public-config", { cache: "no-store" }).then((res) => res.json()),
+    12000,
+    "载入公开配置超时",
+  );
   state.setupRequired = Boolean(config.setupRequired);
   if (state.setupRequired) {
     showSetup();
@@ -624,6 +633,6 @@ async function startFromBootRecovery() {
     }
   }
   setBootSplashText("正在载入工作区");
-  await bootstrapWithRetry();
+  await withTimeout(bootstrapWithRetry(), 26000, "载入工作区超时");
   showApp();
 }

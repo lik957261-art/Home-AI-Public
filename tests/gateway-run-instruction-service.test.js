@@ -114,19 +114,19 @@ function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
 
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["file"] }),
-    "session_a_group_1_20260530-wardrobe-history-schema-v1_file",
+    "session_a_group_1_20260530-wardrobe-mcp-request-toolsets-v2_file",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["memory"] }),
-    "session_a_group_1_20260530-wardrobe-history-schema-v1_memory",
+    "session_a_group_1_20260530-wardrobe-mcp-request-toolsets-v2_memory",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["x_search"] }),
-    "session_a_group_1_20260530-wardrobe-history-schema-v1_x_search",
+    "session_a_group_1_20260530-wardrobe-mcp-request-toolsets-v2_x_search",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["vision", "wardrobe", "file"] }),
-    "session_a_group_1_20260530-wardrobe-history-schema-v1_file-vision-wardrobe",
+    "session_a_group_1_20260530-wardrobe-mcp-request-toolsets-v2_file-vision-wardrobe",
   );
 }
 

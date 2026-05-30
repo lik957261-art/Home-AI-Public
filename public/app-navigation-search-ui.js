@@ -182,11 +182,12 @@ function updateNavigationControls() {
   const learningGrowthDetail = state.viewMode === "learning" && Boolean(state.selectedLearningTaskCardId);
   const learningGrowthSettings = state.viewMode === "learning" && Boolean(state.learningGrowthSettingsOpen);
   const wardrobePluginBack = typeof wardrobePluginBackActive === "function" && wardrobePluginBackActive();
+  const wardrobePluginOuterBack = typeof wardrobePluginOuterBackActive === "function" && wardrobePluginOuterBackActive();
   const codexPluginBack = typeof codexPluginBackActive === "function" && codexPluginBackActive();
   const codexPluginOuterBack = typeof codexPluginOuterBackActive === "function" && codexPluginOuterBackActive();
   const financePluginBack = typeof financePluginBackActive === "function" && financePluginBackActive();
   const financePluginOuterBack = typeof financePluginOuterBackActive === "function" && financePluginOuterBackActive();
-  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || automationSecondary || actionInboxDetail || actionInboxCreate || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings || wardrobePluginBack || codexPluginBack || financePluginBack;
+  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || automationSecondary || actionInboxDetail || actionInboxCreate || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings || wardrobePluginBack || wardrobePluginOuterBack || codexPluginBack || financePluginBack;
   const minimalWindow = isMinimalWindowView();
   const centeredTopTitle = (
     (state.viewMode === "single" && state.singleWindowMode === "chat")

@@ -495,30 +495,46 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
   }
   const launchUrl = serverSidePluginUrl(manifest, manifest.programApi.pluginLaunchPath);
   if (!launchUrl || !accessKey) return manifest;
+  const financeUserKey = stringValue(
+    input.workspaceUserKey
+    || input.workspace_user_key
+    || input.hermesWorkspaceUserKey
+    || input.hermes_workspace_user_key
+    || input.userKey
+    || input.user_key,
+  );
   const launchBody = pluginId === "finance"
-    ? {
+    ? Object.assign({
       workspace_id: workspaceId,
       workspace_key: accessKey,
-      user_key: accessKey,
       role: workspaceId === "owner" || input.ownerAuthorized === true ? "owner" : "member",
-    }
+    }, financeUserKey ? { user_key: financeUserKey } : {})
     : { workspace_id: workspaceId };
   try {
+    const headers = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
+    if (pluginId !== "finance") headers.Authorization = `Bearer ${accessKey}`;
     const response = await fetchImpl(launchUrl, {
       method: "POST",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${accessKey}`,
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify(launchBody),
     });
     if (!response?.ok) {
+      let launchError = "";
+      try {
+        const errorText = await response.text();
+        const parsed = JSON.parse(errorText);
+        launchError = stringValue(parsed?.error || parsed?.code || "").slice(0, 160);
+      } catch (_) {
+        launchError = "";
+      }
       return Object.assign({}, manifest, {
         available: false,
         code: "plugin_launch_failed",
         status: response?.status || 0,
-        warning: "Plugin launch token request failed.",
+        warning: launchError ? `Plugin launch token request failed: ${launchError}` : "Plugin launch token request failed.",
         embed: Object.assign({}, manifest.embed, {
           tokenStatus: "launch_failed",
         }),
@@ -596,16 +612,15 @@ async function validateFrameAncestors(manifest, input = {}, fetchImpl) {
 function validateHttpsEntryScheme(manifest, input = {}) {
   const appUrl = safeUrl(input.appOrigin || "");
   const entryUrl = safeUrl(manifest?.entry?.url || "");
-  if (!appUrl || !entryUrl) return manifest;
+  if (!entryUrl) return manifest;
   let appProtocol = "";
   let entryProtocol = "";
   try {
-    appProtocol = new URL(appUrl).protocol;
+    appProtocol = appUrl ? new URL(appUrl).protocol : "";
     entryProtocol = new URL(entryUrl).protocol;
   } catch (_) {
     return manifest;
   }
-  if (appProtocol !== "https:" || entryProtocol !== "http:") return manifest;
   if (isLocalOrPrivateHttpUrl(entryUrl)) {
     const proxyUrl = pluginSameOriginProxyPathForUrl(manifest?.id, entryUrl);
     if (proxyUrl) {
@@ -623,6 +638,7 @@ function validateHttpsEntryScheme(manifest, input = {}) {
       });
     }
   }
+  if (appProtocol !== "https:" || entryProtocol !== "http:") return manifest;
   const redactedEntryUrl = urlWithoutSearchOrHash(entryUrl) || manifest.entry.url;
   return Object.assign({}, manifest, {
     available: false,

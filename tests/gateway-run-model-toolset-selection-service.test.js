@@ -104,6 +104,22 @@ function testBuildsCompactSelectorBodyWithoutCallableToolsets() {
   assert.deepEqual(summary.suggested_toolsets, ["file", "weather"]);
 }
 
+function testBuildsPermissionOnlyBodyWhenToolsetSelectionDisabled() {
+  const body = buildSelectionBody({
+    request: baseRequest(),
+    allowedToolsets: ["file", "weather"],
+    toolsetSelectionEnabled: false,
+  });
+
+  assert.match(body.instructions, /permission preflight/);
+  assert.doesNotMatch(body.instructions, /choose the smallest execution toolset set/);
+  assert.match(body.instructions, /Do not choose, omit, or optimize execution toolsets/);
+  assert.equal(body.access_policy_context.toolset_selection_only, false);
+  assert.equal(body.access_policy_context.permission_preflight_only, true);
+  assert.equal(body.access_policy_context.toolset_routing.mode, "permission_preflight");
+  assert.deepEqual(body.access_policy_context.authorized_toolsets, ["file", "weather"]);
+}
+
 function testSelectorModelOverrideUsesLightweightModel() {
   const body = buildSelectionBody({
     request: baseRequest(),
@@ -116,6 +132,43 @@ function testSelectorModelOverrideUsesLightweightModel() {
   assert.equal(body.model, "gpt-selector-mini");
   assert.equal(body.provider, "openai-codex");
   assert.equal(body.reasoning_effort, "minimal");
+}
+
+async function testPermissionPreflightKeepsFullAuthorizedToolsetsWhenToolsetSelectionDisabled() {
+  const calls = [];
+  const service = createGatewayRunModelToolsetSelectionService({
+    toolsetSelectionEnabled: false,
+    nowMs: (() => {
+      let value = 2000;
+      return () => {
+        value += 20;
+        return value;
+      };
+    })(),
+    gatewayPool: {
+      runnerFor() {
+        return {
+          async streamResponses(body, options) {
+            calls.push({ body, options });
+            options.onEvent({ event: "response.output_text.delta", delta: "{\"decision\":\"allowed\",\"reason\":\"inside current workspace\"}" });
+          },
+        };
+      },
+    },
+  });
+
+  const result = await service.selectToolsetsForRun({
+    request: baseRequest(),
+    gatewayTarget: { apiBase: "http://worker", apiKey: "key" },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.mode, "permission_preflight");
+  assert.equal(result.toolsetSelectionDisabled, true);
+  assert.equal(result.reason, "inside current workspace");
+  assert.deepEqual(result.selectedToolsets, ["file", "weather", "x_search", "web", "search", "http", "clarify"]);
+  assert.deepEqual(result.authorizedToolsets, ["file", "weather", "x_search", "web", "search", "http", "clarify"]);
+  assert.equal(calls[0].body.access_policy_context.permission_preflight_only, true);
 }
 
 async function testStreamsSelectorAndReturnsAuthorizedSelection() {
@@ -232,6 +285,44 @@ async function testPlainProbeClarifySelectionExpandsToSuggestedToolsets() {
   assert.match(result.reason, /expanded_to_suggested_toolsets/);
 }
 
+async function testWardrobeClarifySelectionExpandsToSuggestedMcpStack() {
+  const request = baseRequest();
+  request.runPolicy.allowed_toolsets = ["wardrobe", "vision", "file", "skills", "clarify", "web"];
+  request.body.input = "\u68c0\u67e5\u5f53\u524d\u4f1a\u8bdd\u662f\u5426\u5df2\u7ecf\u6302\u51fa\u8863\u6a71 MCP";
+  request.toolsetRouting = {
+    suggested_toolsets: ["wardrobe", "vision", "file", "skills"],
+    suggested_reason: "matched_intent",
+  };
+  const service = createGatewayRunModelToolsetSelectionService({
+    gatewayPool: {
+      runnerFor() {
+        return {
+          async streamResponses(_body, options) {
+            options.onEvent({
+              event: "response.output_text.delta",
+              delta: JSON.stringify({
+                decision: "allowed",
+                toolsets: ["clarify"],
+                reason: "diagnostic question",
+              }),
+            });
+          },
+        };
+      },
+    },
+  });
+
+  const result = await service.selectToolsetsForRun({
+    request,
+    gatewayTarget: { apiBase: "http://worker" },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.selectionConstrained, true);
+  assert.deepEqual(result.selectedToolsets, ["wardrobe", "vision", "file", "skills"]);
+  assert.match(result.reason, /expanded_to_suggested_wardrobe_toolsets/);
+}
+
 async function testSelectorErrorsReturnFullFallbackMetadata() {
   const service = createGatewayRunModelToolsetSelectionService({
     gatewayPool: {
@@ -302,10 +393,13 @@ testParsesPermissionDecisionBeforeToolsets();
 testParsesLastBalancedJsonWhenStreamRepeatsOutput();
 testInvalidSelectionFallsBack();
 testBuildsCompactSelectorBodyWithoutCallableToolsets();
+testBuildsPermissionOnlyBodyWhenToolsetSelectionDisabled();
 testSelectorModelOverrideUsesLightweightModel();
 testStreamsSelectorAndReturnsAuthorizedSelection()
+  .then(testPermissionPreflightKeepsFullAuthorizedToolsetsWhenToolsetSelectionDisabled)
   .then(testUncertainAllToolsetsSelectionNarrowsToSuggestedToolsets)
   .then(testPlainProbeClarifySelectionExpandsToSuggestedToolsets)
+  .then(testWardrobeClarifySelectionExpandsToSuggestedMcpStack)
   .then(testSelectorErrorsReturnFullFallbackMetadata)
   .then(testSelectorErrorStopsKnownSelectorRun)
   .then(() => console.log("gateway-run-model-toolset-selection-service tests passed"))
