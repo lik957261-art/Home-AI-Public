@@ -247,7 +247,9 @@ Current runtime behavior:
   user-facing answer. Streaming delta and completion handling must strip the raw
   marker, persist `toolsetEscalationRequired` metadata and
   `run.toolset_escalation_required`, and show a controlled explanation with the
-  requested toolset ids.
+  requested toolset ids. This applies even when the requested toolset is already
+  selected in the current execution round; that case is a schema mismatch or
+  non-retryable escalation state, not permission to leak the raw marker.
 - When the requested toolsets are in the omitted authorized set, Mobile must
   automatically retry the same assistant message with the previous selected
   toolsets plus the requested authorized toolsets. This retry bypasses the
@@ -332,6 +334,11 @@ fields alone are not sufficient evidence.
   for writeback, readback verification, and main image / field checks. If the
   `wardrobe` MCP toolset is missing for a wardrobe run, treat it as a toolset
   routing gap; do not satisfy the wardrobe run with generic `http`.
+- Current wardrobe schema hints must include actual-wear history writeback:
+  `mcp_wardrobe_wardrobe_write_history`, along with item read/search and item
+  write/photo functions. A run that has `wardrobe` selected but still cannot see
+  `mcp_wardrobe_*` callables is a Gateway schema mismatch; do not claim the
+  wardrobe write completed.
 - Wardrobe directory authorization starts in `access-policy-provider`, not only
   in the routing selector. A project or directory route whose id, label, path,
   or root identifies a wardrobe/closet/outfit space adds `wardrobe` to the
