@@ -78,6 +78,8 @@ function backSwipeTarget() {
   if (typeof wardrobePluginBackActive === "function" && wardrobePluginBackActive()) return "wardrobe-plugin";
   if (typeof codexPluginBackActive === "function" && codexPluginBackActive()) return "codex-plugin";
   if (typeof codexPluginOuterBackActive === "function" && codexPluginOuterBackActive()) return "codex-plugin-outer";
+  if (typeof financePluginBackActive === "function" && financePluginBackActive()) return "finance-plugin";
+  if (typeof financePluginOuterBackActive === "function" && financePluginOuterBackActive()) return "finance-plugin-outer";
   if (typeof automationDetailInboxReturnActive === "function" && automationDetailInboxReturnActive()) return "automation-secondary";
   if (isAutomationDetailView()) return "automation";
   if (typeof automationSecondaryReturnActive === "function" && automationSecondaryReturnActive()) return "automation-secondary";
@@ -120,6 +122,8 @@ function performBackSwipeAction(target) {
   else if (target === "wardrobe-plugin" && typeof sendWardrobePluginBack === "function") sendWardrobePluginBack();
   else if (target === "codex-plugin" && typeof sendCodexPluginBackOrReturn === "function") sendCodexPluginBackOrReturn();
   else if (target === "codex-plugin-outer" && typeof restoreCodexPluginReturnRoute === "function") restoreCodexPluginReturnRoute();
+  else if (target === "finance-plugin" && typeof sendFinancePluginBackOrReturn === "function") sendFinancePluginBackOrReturn();
+  else if (target === "finance-plugin-outer" && typeof restoreFinancePluginReturnRoute === "function") restoreFinancePluginReturnRoute();
   else if (target === "automation") openAutomationList();
   else if (target === "automation-secondary") closeAutomationSecondarySurface();
   else if (target === "action-inbox" || target === "action-inbox-create") openActionInboxOverview();

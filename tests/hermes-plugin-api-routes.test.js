@@ -74,6 +74,7 @@ function makeRoutes(overrides = {}) {
         return [
           { id: "wardrobe", manifestUrl: "http://nas/plugin.json" },
           { id: "codex-mobile", manifestUrl: "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest" },
+          { id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" },
         ];
       },
       manifest(input) {
@@ -84,7 +85,9 @@ function makeRoutes(overrides = {}) {
         return Promise.resolve({ ok: true, available: true, id: input.id, entry: { url: "http://nas/?embed=hermes" } });
       },
       pluginManifestUrl(id) {
-        return id === "codex-mobile" ? "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest" : "http://nas/plugin.json";
+        if (id === "codex-mobile") return "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest";
+        if (id === "finance") return "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest";
+        return "http://nas/plugin.json";
       },
     },
     hermesPluginNotificationService: {
@@ -121,6 +124,7 @@ async function testListRoute() {
   assert.deepEqual(calls.access, ["owner"]);
   assert.equal(parseBody(res).plugins[0].manifestPath, "/api/hermes-plugins/wardrobe/manifest");
   assert.equal(parseBody(res).plugins[1].manifestPath, "/api/hermes-plugins/codex-mobile/manifest");
+  assert.equal(parseBody(res).plugins[2].manifestPath, "/api/hermes-plugins/finance/manifest");
 }
 
 async function testWardrobeManifestRoute() {
@@ -169,6 +173,26 @@ async function testCodexManifestRouteDeniesNonOwnerWithoutPluginGrant() {
   assert.equal(parseBody(res).available, false);
   assert.equal(parseBody(res).code, "plugin_workspace_not_authorized");
   assert.equal(calls.manifest[0].ownerAuthorized, false);
+}
+
+async function testFinanceManifestRoute() {
+  const { calls, routes } = makeRoutes();
+  const res = makeResponse();
+  const result = await routes.handle(
+    { method: "GET" },
+    res,
+    makeUrl("/api/hermes-plugins/finance/manifest?workspaceId=owner&appOrigin=https%3A%2F%2Fhermes.example.test"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(calls.access, ["owner"]);
+  assert.deepEqual(calls.manifest, [{
+    id: "finance",
+    workspaceId: "owner",
+    ownerAuthorized: true,
+    appOrigin: "https://hermes.example.test",
+    launchPlugin: true,
+  }]);
 }
 
 async function testWorkspaceBlockStopsRoute() {
@@ -277,6 +301,65 @@ async function testCodexProxyPreservesLaunchCookieAndRedirect() {
   assert.deepEqual(res.headers["Set-Cookie"], [
     "codex_mobile_plugin_session=session-value; Path=/api/hermes-plugins/codex-mobile/proxy; HttpOnly; SameSite=Lax",
   ]);
+}
+
+async function testFinanceProxyUsesConfiguredLocalUpstreamAndForwardsOrigin() {
+  const fetchCalls = [];
+  const { routes } = makeRoutes({
+    fetch(url, options = {}) {
+      fetchCalls.push({ url, options });
+      assert.equal(url, "http://127.0.0.1:8791/finance.html?embed=hermes&workspaceId=owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/html; charset=utf-8" : "" },
+        text: () => Promise.resolve('<link rel="manifest" href="/manifest.webmanifest"><script src="/app-finance-ui.js"></script>'),
+      });
+    },
+  });
+  const req = makeRequest("GET");
+  req.headers.host = "hermes.example.test";
+  req.headers["x-forwarded-proto"] = "https";
+  const res = makeResponse();
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/finance/proxy/finance.html?embed=hermes&workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body, /href="\/api\/hermes-plugins\/finance\/proxy\/manifest\.webmanifest"/);
+  assert.match(res.body, /src="\/api\/hermes-plugins\/finance\/proxy\/app-finance-ui\.js"/);
+  assert.equal(fetchCalls[0].options.headers["x-hermes-plugin-workspace-id"], "owner");
+  assert.equal(fetchCalls[0].options.headers["x-hermes-public-origin"], "https://hermes.example.test");
+}
+
+async function testFinanceProxyRewritesFinanceApiJsonUrls() {
+  const { routes } = makeRoutes({
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:8791/api/finance/receipts/1?workspaceId=owner");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify({
+          receiptUrl: "/api/finance/receipts/1/image",
+          note: "Do not rewrite prose mentioning /api/not-a-resource.",
+        })),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/finance/proxy/api/finance/receipts/1?workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body, /"receiptUrl":"\/api\/hermes-plugins\/finance\/proxy\/api\/finance\/receipts\/1\/image"/);
+  assert.match(res.body, /"note":"Do not rewrite prose mentioning \/api\/not-a-resource\."/);
 }
 
 async function testWardrobeProxyRewritesSessionCookieScope() {
@@ -514,10 +597,13 @@ async function run() {
   await testWardrobeManifestRoute();
   await testCodexManifestRoute();
   await testCodexManifestRouteDeniesNonOwnerWithoutPluginGrant();
+  await testFinanceManifestRoute();
   await testWorkspaceBlockStopsRoute();
   await testPluginNotificationRoute();
   await testCodexProxyRewritesHtmlAndUsesUpstream();
   await testCodexProxyPreservesLaunchCookieAndRedirect();
+  await testFinanceProxyUsesConfiguredLocalUpstreamAndForwardsOrigin();
+  await testFinanceProxyRewritesFinanceApiJsonUrls();
   await testWardrobeProxyRewritesSessionCookieScope();
   await testWardrobeProxyUsesConfiguredLanUpstream();
   await testPluginProxyRewritesJsonImageUrls();

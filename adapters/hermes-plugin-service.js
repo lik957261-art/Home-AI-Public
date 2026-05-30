@@ -5,6 +5,7 @@ const path = require("node:path");
 
 const DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL = "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest";
 const DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest";
+const DEFAULT_FINANCE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest";
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_KEY_SEARCH_DEPTH = 6;
 
@@ -22,6 +23,12 @@ function configuredCodexMobileManifestUrl(env = process.env) {
   return stringValue(env.HERMES_MOBILE_CODEX_PLUGIN_MANIFEST_URL)
     || stringValue(env.HERMES_MOBILE_PLUGIN_CODEX_MOBILE_MANIFEST_URL)
     || DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL;
+}
+
+function configuredFinanceManifestUrl(env = process.env) {
+  return stringValue(env.HERMES_MOBILE_FINANCE_PLUGIN_MANIFEST_URL)
+    || stringValue(env.HERMES_MOBILE_PLUGIN_FINANCE_MANIFEST_URL)
+    || DEFAULT_FINANCE_PLUGIN_MANIFEST_URL;
 }
 
 function envKeyForPlugin(pluginId, suffix) {
@@ -50,6 +57,10 @@ function configuredPlugins(options = {}) {
     {
       id: "codex-mobile",
       manifestUrl: configuredCodexMobileManifestUrl(env),
+    },
+    {
+      id: "finance",
+      manifestUrl: configuredFinanceManifestUrl(env),
     },
   ];
   return plugins
@@ -96,6 +107,28 @@ function safeJoinUrl(baseUrl = "", relativePath = "") {
   const relative = stringValue(relativePath);
   if (!base || !relative) return "";
   return safeUrl(relative, base);
+}
+
+function localOrPrivateManifestSource(manifest) {
+  return isLocalOrPrivateHttpUrl(manifest?.source?.manifestUrl || "");
+}
+
+function serverSidePluginUrl(manifest, value = "") {
+  const target = stringValue(value);
+  if (!target) return "";
+  const sourceUrl = stringValue(manifest?.source?.manifestUrl);
+  if (localOrPrivateManifestSource(manifest)) {
+    try {
+      const parsed = new URL(target, manifest?.programApi?.baseUrl || sourceUrl);
+      const sourceOrigin = originOf(sourceUrl);
+      if (sourceOrigin && parsed.origin !== sourceOrigin) {
+        return safeJoinUrl(sourceUrl, `${parsed.pathname}${parsed.search}${parsed.hash}`);
+      }
+    } catch (_) {
+      return safeJoinUrl(sourceUrl, target);
+    }
+  }
+  return safeJoinUrl(manifest?.programApi?.baseUrl || sourceUrl, target);
 }
 
 function urlWithoutSearchOrHash(value = "") {
@@ -190,8 +223,55 @@ function findCodexMobileAccessKeyPath(input = {}, options = {}) {
   return candidates.find((candidate) => fs.existsSync(candidate)) || "";
 }
 
+function findFinanceAccessKeyPath(input = {}, options = {}) {
+  const explicit = stringValue(input.financeAccessKeyPath || options.financeAccessKeyPath);
+  if (explicit && fs.existsSync(explicit)) return explicit;
+  const env = options.env || process.env;
+  const workspaceId = stringValue(input.workspaceId || "owner");
+  const candidates = [
+    stringValue(env.HERMES_MOBILE_FINANCE_PLUGIN_ACCESS_KEY_PATH),
+    stringValue(env.HERMES_MOBILE_PLUGIN_FINANCE_ACCESS_KEY_PATH),
+    stringValue(env.FINANCE_HERMES_PLUGIN_ACCESS_KEY_PATH),
+    workspaceId === "owner" ? stringValue(env.HERMES_WEB_AUTH_KEY_PATH) : "",
+  ].filter(Boolean);
+  const configured = candidates.find((candidate) => fs.existsSync(candidate));
+  if (configured) return configured;
+
+  const dataDir = stringValue(options.dataDir) || defaultDataDir(options.env);
+  const workspaceRoot = path.join(dataDir, "drive", "users", workspaceId);
+  const maxDepth = Number(options.maxKeySearchDepth || DEFAULT_MAX_KEY_SEARCH_DEPTH);
+  const targetSets = [
+    [".hermes-finance", "access-key.txt"],
+    [".hermes-finance", "workspace-key.txt"],
+  ];
+
+  function walk(dir, depth) {
+    if (depth > maxDepth) return "";
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      return "";
+    }
+    for (const parts of targetSets) {
+      const direct = path.join(dir, ...parts);
+      if (fs.existsSync(direct)) return direct;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === ".hermes-cache" || entry.name === "node_modules" || entry.name === ".git") continue;
+      const found = walk(path.join(dir, entry.name), depth + 1);
+      if (found) return found;
+    }
+    return "";
+  }
+
+  return walk(workspaceRoot, 0);
+}
+
 function findPluginAccessKeyPath(pluginId, input = {}, options = {}) {
   if (pluginId === "codex-mobile") return findCodexMobileAccessKeyPath(input, options);
+  if (pluginId === "finance") return findFinanceAccessKeyPath(input, options);
   return findWardrobeAccessKeyPath(input, options);
 }
 
@@ -235,10 +315,28 @@ function frameAncestorsAllows(csp = "", appOrigin = "", entryOrigin = "") {
 function normalizeManifest(raw = {}, source = {}) {
   const manifestUrl = stringValue(source.manifestUrl);
   const id = stringValue(raw.id || source.id);
-  const entryUrl = safeUrl(raw.entry?.url || raw.entryUrl || raw.url, manifestUrl);
+  const rawEntry = typeof raw.entry === "string" ? raw.entry : raw.entry?.url;
+  const candidateEntryUrl = safeUrl(rawEntry || raw.entryUrl || raw.url, manifestUrl);
+  const entryUrl = (() => {
+    if (!candidateEntryUrl || !isLocalOrPrivateHttpUrl(manifestUrl)) return candidateEntryUrl;
+    const sourceOrigin = originOf(manifestUrl);
+    if (!sourceOrigin || originOf(candidateEntryUrl) === sourceOrigin) return candidateEntryUrl;
+    try {
+      const parsed = new URL(candidateEntryUrl);
+      return safeJoinUrl(manifestUrl, `${parsed.pathname}${parsed.search}${parsed.hash}`);
+    } catch (_) {
+      return candidateEntryUrl;
+    }
+  })();
   if (!id) throw new Error("plugin_manifest_id_required");
   if (!entryUrl) throw new Error("plugin_manifest_entry_url_required");
-  const programBaseUrl = safeUrl(raw.program_api?.base_url || raw.programApi?.baseUrl || "", manifestUrl);
+  const rawLaunch = typeof raw.launch === "string" ? raw.launch : raw.launch?.url;
+  const rawProgramLaunch = raw.program_api?.plugin_launch || raw.programApi?.pluginLaunch || "";
+  const launchUrl = safeUrl(rawLaunch || "", manifestUrl);
+  const programBaseUrl = safeUrl(raw.program_api?.base_url || raw.programApi?.baseUrl || (launchUrl ? originOf(launchUrl) : ""), manifestUrl);
+  const topLevelToolsets = Array.isArray(raw.toolsets) ? raw.toolsets.map(stringValue).filter(Boolean) : [];
+  const topLevelPermissions = Array.isArray(raw.permissions) ? raw.permissions.map(stringValue).filter(Boolean) : [];
+  const embedding = raw.embedding && typeof raw.embedding === "object" ? raw.embedding : {};
   return {
     ok: true,
     available: true,
@@ -253,10 +351,10 @@ function normalizeManifest(raw = {}, source = {}) {
       fetchedAt: stringValue(source.fetchedAt),
     },
     entry: {
-      type: stringValue(raw.entry?.type || "web"),
+      type: stringValue((typeof raw.entry === "object" && raw.entry?.type) || "web"),
       url: entryUrl,
       origin: originOf(entryUrl),
-      framePolicy: stringValue(raw.entry?.frame_policy || raw.entry?.framePolicy),
+      framePolicy: stringValue(typeof raw.entry === "object" ? (raw.entry?.frame_policy || raw.entry?.framePolicy) : ""),
     },
     embed: {
       mode: "same_window_iframe",
@@ -265,18 +363,26 @@ function normalizeManifest(raw = {}, source = {}) {
       tokenStatus: "pending_plugin_registration",
     },
     mcp: {
-      server: stringValue(raw.mcp?.server),
-      toolset: stringValue(raw.mcp?.toolset),
+      server: stringValue(raw.mcp?.server || raw.mcpServer),
+      toolset: stringValue(raw.mcp?.toolset || topLevelToolsets[0]),
       version: stringValue(raw.mcp?.version),
       requiredTools: Array.isArray(raw.mcp?.required_tools) ? raw.mcp.required_tools.map(stringValue).filter(Boolean) : [],
+      toolsets: topLevelToolsets,
     },
     programApi: {
       baseUrl: programBaseUrl,
       origin: originOf(programBaseUrl),
       pluginManifestPath: stringValue(raw.program_api?.plugin_manifest),
       workspaceRegistrationPath: stringValue(raw.program_api?.workspace_registration),
-      pluginLaunchPath: stringValue(raw.program_api?.plugin_launch),
+      pluginLaunchPath: launchUrl || stringValue(rawProgramLaunch),
       syncSchemaVersion: raw.program_api?.sync_schema_version || null,
+    },
+    embedding: {
+      stateEvent: stringValue(embedding.state_event || embedding.stateEvent),
+      backEvent: stringValue(embedding.back_event || embedding.backEvent),
+      backResultEvent: stringValue(embedding.back_result_event || embedding.backResultEvent),
+      refreshRequiredEvent: stringValue(embedding.refresh_required_event || embedding.refreshRequiredEvent),
+      preserveIframeState: embedding.preserve_iframe_state === true || embedding.preserveIframeState === true,
     },
     ownerBinding: {
       strategy: stringValue(raw.owner_binding?.strategy),
@@ -287,6 +393,7 @@ function normalizeManifest(raw = {}, source = {}) {
         || raw.owner_binding?.raw_key_returned === true,
     },
     permissions: {
+      plugin: topLevelPermissions,
       registerWorkspaceRequires: Array.isArray(raw.permissions?.register_workspace_requires)
         ? raw.permissions.register_workspace_requires.map(stringValue).filter(Boolean)
         : [],
@@ -326,8 +433,16 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
       }),
     });
   }
-  const launchUrl = safeJoinUrl(manifest.programApi.baseUrl || manifest.source?.manifestUrl, manifest.programApi.pluginLaunchPath);
+  const launchUrl = serverSidePluginUrl(manifest, manifest.programApi.pluginLaunchPath);
   if (!launchUrl || !accessKey) return manifest;
+  const launchBody = pluginId === "finance"
+    ? {
+      workspace_id: workspaceId,
+      workspace_key: accessKey,
+      user_key: accessKey,
+      role: workspaceId === "owner" || input.ownerAuthorized === true ? "owner" : "member",
+    }
+    : { workspace_id: workspaceId };
   try {
     const response = await fetchImpl(launchUrl, {
       method: "POST",
@@ -336,7 +451,7 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
         Authorization: `Bearer ${accessKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ workspace_id: workspaceId }),
+      body: JSON.stringify(launchBody),
     });
     if (!response?.ok) {
       return Object.assign({}, manifest, {
@@ -350,7 +465,7 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
       });
     }
     const launch = await response.json();
-    const entryUrl = safeJoinUrl(manifest.programApi.baseUrl || manifest.source?.manifestUrl, launch?.entry_path);
+    const entryUrl = serverSidePluginUrl(manifest, launch?.entry_path);
     if (!entryUrl) {
       return Object.assign({}, manifest, {
         available: false,
@@ -477,6 +592,7 @@ function createHermesPluginService(options = {}) {
     maxKeySearchDepth: options.maxKeySearchDepth,
     wardrobeAccessKeyPath: options.wardrobeAccessKeyPath,
     codexMobileAccessKeyPath: options.codexMobileAccessKeyPath,
+    financeAccessKeyPath: options.financeAccessKeyPath,
   };
 
   function list(input = {}) {
@@ -520,7 +636,13 @@ function createHermesPluginService(options = {}) {
     try {
       const response = await fetchImpl(plugin.manifestUrl, {
         method: "GET",
-        headers: { Accept: "application/json" },
+        headers: Object.assign(
+          { Accept: "application/json" },
+          originOf(input.appOrigin || "") ? {
+            "x-hermes-public-origin": originOf(input.appOrigin || ""),
+            "x-forwarded-origin": originOf(input.appOrigin || ""),
+          } : {},
+        ),
         signal: controller.signal,
       });
       if (!response || !response.ok) {
@@ -559,9 +681,11 @@ function createHermesPluginService(options = {}) {
 
 module.exports = {
   DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL,
+  DEFAULT_FINANCE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   createHermesPluginService,
   findCodexMobileAccessKeyPath,
+  findFinanceAccessKeyPath,
   findPluginAccessKeyPath,
   findWardrobeAccessKeyPath,
   frameAncestorsAllows,

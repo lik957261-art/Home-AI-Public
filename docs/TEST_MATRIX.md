@@ -217,8 +217,18 @@ refresh messages and messages sent while manifest/launch loading is already in
 progress. Host-side launch-health retries must use the same throttle, and a
 normal host re-render must preserve an already-mounted iframe instead of
 requesting another launch token.
+Finance embedded-app registration follows the same host contract. Tests must
+cover compact manifest normalization (`entry` string, top-level `launch`,
+`toolsets`, `mcpServer`, `permissions`, and `embedding` events), Owner-default
+visibility with non-Owner denial unless explicitly authorized, server-side
+Finance launch body fields (`workspace_id`, `workspace_key`, `user_key`,
+`role`) without leaking raw keys into the returned manifest, same-origin proxy
+rewriting for `/finance.html`, `/manifest.webmanifest`, `/app-finance-ui.js`,
+and plugin-owned `/api/finance/...` resource URLs.
 Focused checks for this contract include
-`node tests\embedded-plugin-refresh-harness.test.js` and
+`node tests\hermes-plugin-service.test.js`,
+`node tests\hermes-plugin-api-routes.test.js`,
+`node tests\embedded-plugin-refresh-harness.test.js`, and
 `node tests\app-embedded-plugin-ui.test.js`.
 Switching away from a plugin tab must force-hide the plugin host and clear the
 active host class even if the iframe shell record is missing, stale, or still
@@ -507,7 +517,7 @@ The guard test is:
 | Web Push | `node tests\web-push-delivery-service.test.js`, `node tests\push-api-routes.test.js`, `node tests\task-list-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js` |
-| Embedded plugin host / Wardrobe and Codex plugin tabs | `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes |
+| Embedded plugin host / Wardrobe, Codex, and Finance plugin tabs | `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\embedded-plugin-refresh-harness.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes |
 | Directory/files/artifacts | `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js` |
 | Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\link-skill-profile-store.test.js` |
 | Automation/Cron | `node tests\automation-api-routes.test.js`, `node tests\automation-provider.test.js`, `node tests\cron-bridge.test.js`, `node tests\local-automation-bridge-service.test.js` |

@@ -16,6 +16,7 @@ const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 
 assert.match(indexHtml, /id="bottomCodexMode"/);
+assert.match(indexHtml, /id="bottomFinanceMode"/);
 assert.match(indexHtml, /app-embedded-plugin-ui\.js\?v=/);
 
 assert.match(embeddedPluginUi, /"codex-mobile"/);
@@ -23,6 +24,12 @@ assert.match(embeddedPluginUi, /viewMode: "codex"/);
 assert.match(embeddedPluginUi, /manifestPath: "\/api\/hermes-plugins\/codex-mobile\/manifest"/);
 assert.match(embeddedPluginUi, /backResultEventType: "codex-mobile\.plugin\.back_result"/);
 assert.match(embeddedPluginUi, /refreshRequiredEventType: "codex-mobile\.plugin\.refresh_required"/);
+assert.match(embeddedPluginUi, /id: "finance"/);
+assert.match(embeddedPluginUi, /viewMode: "finance"/);
+assert.match(embeddedPluginUi, /manifestPath: "\/api\/hermes-plugins\/finance\/manifest"/);
+assert.match(embeddedPluginUi, /navigationEventType: "finance\.plugin\.navigation"/);
+assert.match(embeddedPluginUi, /backResultEventType: "finance\.plugin\.back_result"/);
+assert.match(embeddedPluginUi, /refreshRequiredEventType: "finance\.plugin\.refresh_required"/);
 assert.match(embeddedPluginUi, /function renderEmbeddedPluginView\(def\)/);
 assert.match(embeddedPluginUi, /function loadEmbeddedPluginManifest\(def, options = {}\)/);
 assert.match(embeddedPluginUi, /appOrigin: window\.location\.origin/);
@@ -88,24 +95,45 @@ assert.match(embeddedPluginUi, /function setCodexPluginOpenRoute\(route = {}\)/)
 assert.match(embeddedPluginUi, /function restoreCodexPluginReturnRoute\(\)/);
 assert.match(embeddedPluginUi, /function sendCodexPluginBack\(\)/);
 assert.match(embeddedPluginUi, /function sendCodexPluginBackOrReturn\(\)/);
+assert.match(embeddedPluginUi, /function renderFinancePluginView\(\)/);
+assert.match(embeddedPluginUi, /function updateFinancePluginNavigationAvailability\(\)/);
+assert.match(embeddedPluginUi, /function financePluginBackActive\(\)/);
+assert.match(embeddedPluginUi, /function financePluginOuterBackActive\(\)/);
+assert.match(embeddedPluginUi, /function rememberFinancePluginReturnRoute\(\)/);
+assert.match(embeddedPluginUi, /function setFinancePluginOpenRoute\(route = {}\)/);
+assert.match(embeddedPluginUi, /function restoreFinancePluginReturnRoute\(\)/);
+assert.match(embeddedPluginUi, /function sendFinancePluginBack\(\)/);
+assert.match(embeddedPluginUi, /function sendFinancePluginBackOrReturn\(\)/);
 assert.doesNotMatch(embeddedPluginUi, /window\.open/);
 assert.doesNotMatch(embeddedPluginUi, /target="_blank"/);
 assert.doesNotMatch(embeddedPluginUi, /access_key|Authorization|Bearer/);
 
 assert.match(automationUi, /const codex = state\.viewMode === "codex"/);
+assert.match(automationUi, /const finance = state\.viewMode === "finance"/);
 assert.match(automationUi, /parkCodexPluginShell\(\)/);
+assert.match(automationUi, /parkFinancePluginShell\(\)/);
 assert.match(automationUi, /renderCodexPluginView\(\)/);
+assert.match(automationUi, /renderFinancePluginView\(\)/);
 assert.match(wireStartUi, /bottomCodexMode/);
+assert.match(wireStartUi, /bottomFinanceMode/);
 assert.match(wireStartUi, /rememberCodexPluginReturnRoute\(\)/);
+assert.match(wireStartUi, /rememberFinancePluginReturnRoute\(\)/);
 assert.match(navigationSearchUi, /codexPluginBackActive\(\)/);
 assert.match(navigationSearchUi, /codexPluginOuterBackActive\(\)/);
+assert.match(navigationSearchUi, /financePluginBackActive\(\)/);
+assert.match(navigationSearchUi, /financePluginOuterBackActive\(\)/);
 assert.match(sidebarTaskUi, /sendCodexPluginBackOrReturn\(\)/);
+assert.match(sidebarTaskUi, /sendFinancePluginBackOrReturn\(\)/);
 assert.match(sidebarTaskUi, /codexPluginOuterBackActive\(\)[\s\S]*return "codex-plugin-outer"/);
 assert.match(sidebarTaskUi, /target === "codex-plugin-outer"[\s\S]*restoreCodexPluginReturnRoute\(\)/);
+assert.match(sidebarTaskUi, /financePluginOuterBackActive\(\)[\s\S]*return "finance-plugin-outer"/);
+assert.match(sidebarTaskUi, /target === "finance-plugin-outer"[\s\S]*restoreFinancePluginReturnRoute\(\)/);
 assert.match(uploadSidebarUi, /const startEdgeSwipe = \(event\) => \{[\s\S]*startSwipe\("edge", event\);[\s\S]*event\.preventDefault\(\);/);
 assert.doesNotMatch(uploadSidebarUi, /startEdgeSwipe[\s\S]{0,260}state\.sidebarSwipe = null;/);
 assert.match(platformUi, /view === "codex" \|\| view === "codex-mobile"/);
+assert.match(platformUi, /view === "finance" \|\| view === "accounting" \|\| view === "ledger"/);
 assert.match(platformUi, /routeView === "codex"[\s\S]*setCodexPluginOpenRoute\(\{/);
+assert.match(platformUi, /routeView === "finance"[\s\S]*setFinancePluginOpenRoute\(\{/);
 assert.match(platformUi, /pluginThreadId: params\.get\("pluginThreadId"\) \|\| params\.get\("threadId"\) \|\| ""/);
 assert.match(fs.readFileSync(path.join(repoRoot, "public", "app-thread-message-ui.js"), "utf8"), /if \(!enabled && typeof clearKeyboardViewportMetrics === "function"\) clearKeyboardViewportMetrics\(\);/);
 
@@ -121,4 +149,6 @@ assert.match(stylesCss, /\.embedded-plugin-host-active \.main\s*\{[\s\S]*grid-te
 assert.doesNotMatch(stylesCss, /\.embedded-plugin-host-active\.main-back-visible \.bottom-nav[\s\S]*?display: grid;/);
 assert.doesNotMatch(stylesCss, /\.wardrobe-plugin-host-active\.main-back-visible \.bottom-nav[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.nav-codex-icon::before/);
+assert.match(stylesCss, /\.nav-finance-icon::before/);
 assert.match(stylesCss, /\.bottom-nav\.wardrobe-visible\.codex-visible/);
+assert.match(stylesCss, /\.bottom-nav\.wardrobe-visible\.codex-visible\.finance-visible/);

@@ -94,6 +94,26 @@ function createHermesPluginApiRoutes(deps = {}) {
     return url?.searchParams?.get("workspaceId") || "owner";
   }
 
+  function originFromRequest(req) {
+    const headers = req?.headers || {};
+    const explicit = headers["x-hermes-public-origin"] || headers["x-forwarded-origin"] || headers.origin;
+    if (explicit) {
+      try {
+        return new URL(String(explicit)).origin;
+      } catch (_) {
+        return "";
+      }
+    }
+    const host = headers["x-forwarded-host"] || headers.host;
+    if (!host) return "";
+    const proto = headers["x-forwarded-proto"] || "http";
+    try {
+      return new URL(`${proto}://${host}`).origin;
+    } catch (_) {
+      return "";
+    }
+  }
+
   async function handleList(req, res, url) {
     const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(url));
     if (!workspaceId) return;
@@ -204,6 +224,7 @@ function createHermesPluginApiRoutes(deps = {}) {
       .replace(/url\(\s*["']?\/(?!\/)/g, `url("${prefix}/`)
       .replace(/(["'`])\/api\/(?!hermes-plugins\/[^/]+\/proxy\/)/g, `$1${prefix}/api/`)
       .replace(/(["'`])\/manifest\.json/g, `$1${prefix}/manifest.json`)
+      .replace(/(["'`])\/manifest\.webmanifest/g, `$1${prefix}/manifest.webmanifest`)
       .replace(/(["'`])\/icons\//g, `$1${prefix}/icons/`)
       .replace(/(["'`])\/uploads\//g, `$1${prefix}/uploads/`)
       .replace(/(["'`])\/media\//g, `$1${prefix}/media/`)
@@ -220,6 +241,7 @@ function createHermesPluginApiRoutes(deps = {}) {
       || text.startsWith("/api/uploads/")
       || text.startsWith("/api/generated-images/file")
       || text.startsWith("/api/files/preview/content")
+      || (pluginId === "finance" && text.startsWith("/api/finance/"))
       || text.startsWith("/api/photos/")
       || text.startsWith("/api/outfit-photos/")
       || text.startsWith("/api/featured-look-photos/")
@@ -306,6 +328,11 @@ function createHermesPluginApiRoutes(deps = {}) {
       headers[name] = value;
     }
     headers["x-hermes-plugin-workspace-id"] = workspaceId;
+    const publicOrigin = originFromRequest(req);
+    if (publicOrigin) {
+      headers["x-hermes-public-origin"] = publicOrigin;
+      headers["x-forwarded-origin"] = publicOrigin;
+    }
     const body = ["GET", "HEAD"].includes(method.toUpperCase()) ? undefined : await readRequestBody(req);
     const upstreamBase = pluginProxyUpstreamBase(pluginId);
     const upstream = await fetchImpl(proxyTargetUrl(url, pluginId), { method, headers, body, redirect: "manual" });

@@ -1510,6 +1510,29 @@ button {
   transform: rotate(45deg);
 }
 
+.nav-finance-icon::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 5px;
+  width: 16px;
+  height: 20px;
+  border: 1.8px solid currentColor;
+  border-radius: 5px;
+}
+
+.nav-finance-icon::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  width: 10px;
+  height: 9px;
+  border-top: 1.8px solid currentColor;
+  border-bottom: 1.8px solid currentColor;
+  box-shadow: 0 4px 0 -2px currentColor;
+}
+
 .nav-todo-icon::before {
   content: "";
   position: absolute;
@@ -13807,8 +13830,18 @@ body.task-markdown-preview-open {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
-  .bottom-nav.wardrobe-visible.codex-visible {
+  .bottom-nav.finance-visible {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .bottom-nav.wardrobe-visible.codex-visible,
+  .bottom-nav.wardrobe-visible.finance-visible,
+  .bottom-nav.codex-visible.finance-visible {
     grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .bottom-nav.wardrobe-visible.codex-visible.finance-visible {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
   }
 
   .main-back-visible .bottom-nav {

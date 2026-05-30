@@ -3,9 +3,11 @@
 const assert = require("node:assert/strict");
 const {
   DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL,
+  DEFAULT_FINANCE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   createHermesPluginService,
   findCodexMobileAccessKeyPath,
+  findFinanceAccessKeyPath,
   findWardrobeAccessKeyPath,
   frameAncestorsAllows,
   normalizeManifest,
@@ -83,6 +85,26 @@ function sampleCodexManifest() {
   };
 }
 
+function sampleFinanceManifest() {
+  return {
+    id: "finance",
+    title: "记账",
+    type: "embedded-app",
+    entry: "http://127.0.0.1:8791/finance.html?embed=hermes",
+    launch: "http://127.0.0.1:8791/api/v1/hermes/plugin/launch",
+    toolsets: ["finance"],
+    mcpServer: "finance",
+    permissions: ["finance:read", "finance:write"],
+    embedding: {
+      state_event: "finance.plugin.navigation",
+      back_event: "hermes.plugin.back",
+      back_result_event: "finance.plugin.back_result",
+      refresh_required_event: "finance.plugin.refresh_required",
+      preserve_iframe_state: true,
+    },
+  };
+}
+
 function testNormalizeManifest() {
   const manifest = normalizeManifest(sampleManifest(), {
     id: "wardrobe",
@@ -121,6 +143,27 @@ function testNormalizeCodexManifest() {
   assert.equal(manifest.ownerBinding.rawKeyReturned, false);
   assert.equal(Object.hasOwn(manifest.ownerBinding, "access_key_file"), false);
   assert.equal(Object.hasOwn(manifest.ownerBinding, "accessKeyFile"), false);
+}
+
+function testNormalizeFinanceManifest() {
+  const manifest = normalizeManifest(sampleFinanceManifest(), {
+    id: "finance",
+    manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest",
+    fetchedAt: "2026-05-30T00:00:00.000Z",
+  });
+  assert.equal(manifest.id, "finance");
+  assert.equal(manifest.kind, "embedded-app");
+  assert.equal(manifest.entry.url, "http://127.0.0.1:8791/finance.html?embed=hermes");
+  assert.equal(manifest.programApi.baseUrl, "http://127.0.0.1:8791/");
+  assert.equal(manifest.programApi.pluginLaunchPath, "http://127.0.0.1:8791/api/v1/hermes/plugin/launch");
+  assert.equal(manifest.mcp.server, "finance");
+  assert.equal(manifest.mcp.toolset, "finance");
+  assert.deepEqual(manifest.mcp.toolsets, ["finance"]);
+  assert.deepEqual(manifest.permissions.plugin, ["finance:read", "finance:write"]);
+  assert.equal(manifest.embedding.stateEvent, "finance.plugin.navigation");
+  assert.equal(manifest.embedding.backResultEvent, "finance.plugin.back_result");
+  assert.equal(manifest.embedding.refreshRequiredEvent, "finance.plugin.refresh_required");
+  assert.equal(manifest.embedding.preserveIframeState, true);
 }
 
 function testFrameAncestorsAllowsCurrentOrigin() {
@@ -224,6 +267,7 @@ async function testDefaultNasManifestUrl() {
   });
   assert.equal(service.list()[0].manifestUrl, DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL);
   assert.equal(service.list()[1].manifestUrl, DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL);
+  assert.equal(service.list()[2].manifestUrl, DEFAULT_FINANCE_PLUGIN_MANIFEST_URL);
 }
 
 async function testHttpsManifestOverride() {
@@ -374,6 +418,67 @@ async function testCodexLaunchEntryUsesServerSideKey() {
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"launch_token"|test-key/i);
 }
 
+async function testFinanceLaunchEntryUsesWorkspaceKeyBody() {
+  const calls = [];
+  const service = createHermesPluginService({
+    plugins: [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }],
+    financeAccessKeyPath: __filename,
+    fetch(url, options = {}) {
+      calls.push({ url, options });
+      if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
+        assert.equal(options.headers["x-hermes-public-origin"], "https://hermes.example.test");
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(Object.assign(sampleFinanceManifest(), {
+            entry: "https://hermes.example.test/finance.html?embed=hermes",
+            launch: "https://hermes.example.test/api/v1/hermes/plugin/launch",
+          })),
+        });
+      }
+      if (url === "http://127.0.0.1:8791/finance.html?embed=hermes") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          headers: { get: () => "frame-ancestors https://hermes.example.test" },
+        });
+      }
+      if (url === "http://127.0.0.1:8791/api/v1/hermes/plugin/launch") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            entry_path: "/api/v1/hermes/plugin/launch/finance_once",
+            expires_in: 120,
+          }),
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+  const manifest = await service.manifest({
+    id: "finance",
+    workspaceId: "owner",
+    appOrigin: "https://hermes.example.test",
+    launchPlugin: true,
+  });
+  assert.equal(manifest.available, true);
+  assert.equal(
+    manifest.entry.url,
+    "/api/hermes-plugins/finance/proxy/api/v1/hermes/plugin/launch/finance_once",
+  );
+  assert.equal(manifest.embed.sameOriginProxy, true);
+  const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
+  assert.ok(launchCall);
+  const body = JSON.parse(launchCall.options.body);
+  assert.equal(body.workspace_id, "owner");
+  assert.equal(body.role, "owner");
+  assert.equal(typeof body.workspace_key, "string");
+  assert.equal(typeof body.user_key, "string");
+  assert.match(launchCall.options.headers.Authorization, /^Bearer /);
+  assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"workspace_key"|"user_key"/);
+}
+
 async function testHttpsHermesUsesSameOriginProxyForLocalCodexEntryAfterLaunch() {
   const service = createHermesPluginService({
     plugins: [{ id: "codex-mobile", manifestUrl: "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest" }],
@@ -490,9 +595,16 @@ function testFindCodexMobileAccessKeyPath() {
   assert.equal(findCodexMobileAccessKeyPath({ codexMobileAccessKeyPath: __filename }), __filename);
 }
 
+function testFindFinanceAccessKeyPath() {
+  assert.equal(findFinanceAccessKeyPath({ financeAccessKeyPath: __filename }), __filename);
+  assert.equal(findFinanceAccessKeyPath({ workspaceId: "owner" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), __filename);
+  assert.equal(findFinanceAccessKeyPath({ workspaceId: "weixin_wuping" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
+}
+
 async function run() {
   testNormalizeManifest();
   testNormalizeCodexManifest();
+  testNormalizeFinanceManifest();
   testFrameAncestorsAllowsCurrentOrigin();
   await testFetchesConfiguredWardrobeManifest();
   await testPluginWorkspaceAuthorizationDefaultsToOwnerOnly();
@@ -503,11 +615,13 @@ async function run() {
   await testFetchFailureReturnsUnavailable();
   await testLaunchEntryUsesServerSideWorkspaceKey();
   await testCodexLaunchEntryUsesServerSideKey();
+  await testFinanceLaunchEntryUsesWorkspaceKeyBody();
   await testHttpsHermesUsesSameOriginProxyForLocalCodexEntryAfterLaunch();
   await testHttpsHermesUsesSameOriginProxyForLanWardrobeEntryAfterLaunch();
   testPluginSameOriginProxyPathForUrl();
   testFindWardrobeAccessKeyPath();
   testFindCodexMobileAccessKeyPath();
+  testFindFinanceAccessKeyPath();
 }
 
 run().catch((err) => {

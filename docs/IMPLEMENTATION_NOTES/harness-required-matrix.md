@@ -286,10 +286,10 @@ Required harness dimensions:
   manifest/launch URL before creating a new frame.
 - Embedded plugin navigation must be a parent/iframe contract, not direct DOM
   coupling. The plugin reports a plugin-owned navigation event such as
-  `wardrobe.plugin.navigation` or `codex-mobile.plugin.navigation` with
-  `canGoBack`; Hermes validates the plugin origin, exposes the normal back
-  affordance only when `canGoBack=true`, and sends `hermes.plugin.back` to the
-  existing iframe.
+  `wardrobe.plugin.navigation`, `codex-mobile.plugin.navigation`, or
+  `finance.plugin.navigation` with `canGoBack`; Hermes validates the plugin
+  origin, exposes the normal back affordance only when `canGoBack=true`, and
+  sends `hermes.plugin.back` to the existing iframe.
 - If a plugin emits `<plugin-id>.plugin.back_result`, Hermes must process it as
   part of the same origin-validated navigation contract. `handled=false` means
   the plugin did not consume the back action; the host must clear plugin
@@ -1012,7 +1012,19 @@ Required contract dimensions:
   `%USERPROFILE%\.codex-mobile-web\access_key` or configured override only for
   launch exchange, and must not expose Codex Mobile Access Keys, bearer headers,
   or launch-token secrets to the browser.
-- Local/LAN plugins such as Codex Mobile and Wardrobe may use HTTP upstreams
+- Finance plugin registration is H2 service/projection work and must use the
+  Finance embedded-app manifest at
+  `GET http://127.0.0.1:8791/api/v1/hermes/plugin/manifest`. Hermes Mobile must
+  normalize Finance's compact manifest shape: string `entry`, top-level
+  `launch`, top-level `toolsets`, `mcpServer`, `permissions`, and `embedding`
+  event names. Harness coverage must assert Owner default visibility, non-Owner
+  denial without explicit authorization, Owner-only fallback to the configured
+  `HERMES_WEB_AUTH_KEY_PATH` when no Finance-specific key path exists, Finance
+  launch body fields `workspace_id`, `workspace_key`, `user_key`, and `role`, no
+  raw key leakage in the normalized manifest, and route wiring for
+  `finance.plugin.navigation`,
+  `finance.plugin.back_result`, and `finance.plugin.refresh_required`.
+- Local/LAN plugins such as Codex Mobile, Wardrobe, and Finance may use HTTP upstreams
   only behind a Hermes same-origin proxy. Hermes Mobile must not require the
   user to configure a separate HTTPS plugin service or reverse proxy for this
   class. When the HTTPS Hermes PWA embeds them, the manifest route should return
@@ -1025,8 +1037,11 @@ Required contract dimensions:
   Standalone absolute upstream URLs and root-relative `/uploads`, `/media`,
   `/images`, `/assets`, and `/static` paths should be rewritten through that
   prefix. Explicit resource API paths such as `/api/uploads/file` and
-  `/api/files/preview/content` should also be rewritten. Wardrobe image paths
-  returned in JSON, including `/api/photos/<id>/content`,
+  `/api/files/preview/content` should also be rewritten. Finance plugin resource
+  APIs under `/api/finance/...` are plugin-owned paths and must be proxied
+  through `/api/hermes-plugins/finance/proxy/...`, not leaked to Hermes Mobile's
+  own API namespace. Wardrobe image paths returned in JSON, including
+  `/api/photos/<id>/content`,
   `/api/outfit-photos/<id>/content`, `/api/featured-look-photos/<id>/content`,
   and `/api/v1/items/<code>/photos/...`, are resource paths and must be proxied
   instead of leaking back to Hermes Mobile's own `/api` namespace. Other `/api`

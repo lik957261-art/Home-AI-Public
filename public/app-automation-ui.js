@@ -28,8 +28,10 @@ function applyViewMode() {
   const todos = state.viewMode === "todos";
   const wardrobe = state.viewMode === "wardrobe";
   const codex = state.viewMode === "codex";
+  const finance = state.viewMode === "finance";
   if (typeof updateWardrobeNavigationAvailability === "function") updateWardrobeNavigationAvailability();
   if (typeof updateCodexPluginNavigationAvailability === "function") updateCodexPluginNavigationAvailability();
+  if (typeof updateFinancePluginNavigationAvailability === "function") updateFinancePluginNavigationAvailability();
   if (!(single && state.singleWindowMode === "chat")) renderChatScopeHeader(null);
   $("app")?.classList.toggle("todo-mode", todos);
   $("app")?.classList.toggle("inbox-mode", inbox);
@@ -38,6 +40,7 @@ function applyViewMode() {
   $("app")?.classList.toggle("projects-mode", directory);
   $("app")?.classList.toggle("wardrobe-mode", wardrobe);
   $("app")?.classList.toggle("codex-mode", codex);
+  $("app")?.classList.toggle("finance-mode", finance);
   $("chatManagementMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
   $("taskManagementMode")?.classList.toggle("active", tasks || (single && state.singleWindowMode === "task"));
   $("bottomChatMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
@@ -56,6 +59,7 @@ function applyViewMode() {
   $("bottomTodosMode")?.classList.toggle("active", learning);
   $("bottomWardrobeMode")?.classList.toggle("active", wardrobe);
   $("bottomCodexMode")?.classList.toggle("active", codex);
+  $("bottomFinanceMode")?.classList.toggle("active", finance);
   $("taskModeControls")?.classList.add("hidden");
   $("routeFields").classList.add("hidden");
   $("directoryEntry")?.classList.add("hidden");
@@ -79,6 +83,9 @@ async function loadSelectedView() {
   }
   if (state.viewMode !== "codex" && typeof parkCodexPluginShell === "function") {
     parkCodexPluginShell();
+  }
+  if (state.viewMode !== "finance" && typeof parkFinancePluginShell === "function") {
+    parkFinancePluginShell();
   }
   if (state.viewMode !== "projects") state.directoryReturnRoute = null;
   if (state.viewMode !== "todos") clearTodoAutoRefresh();
@@ -129,6 +136,9 @@ async function loadSelectedView() {
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "codex") {
     renderCodexPluginView();
+    if (!currentViewStillSelected()) return;
+  } else if (state.viewMode === "finance") {
+    renderFinancePluginView();
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "projects") {
     await loadDirectoryView();

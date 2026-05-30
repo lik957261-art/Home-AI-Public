@@ -15,6 +15,20 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
     refreshRequiredEventType: "codex-mobile.plugin.refresh_required",
     manifestPath: "/api/hermes-plugins/codex-mobile/manifest",
   }),
+  finance: Object.freeze({
+    id: "finance",
+    viewMode: "finance",
+    title: "\u8bb0\u8d26",
+    label: "\u8bb0\u8d26",
+    bottomButtonId: "bottomFinanceMode",
+    appClass: "finance-mode",
+    hostId: "financePluginHost",
+    navVisibleClass: "finance-visible",
+    navigationEventType: "finance.plugin.navigation",
+    backResultEventType: "finance.plugin.back_result",
+    refreshRequiredEventType: "finance.plugin.refresh_required",
+    manifestPath: "/api/hermes-plugins/finance/manifest",
+  }),
 });
 
 function embeddedPluginRecord(pluginId) {
@@ -672,4 +686,55 @@ function parkCodexPluginShell() {
 function renderCodexPluginView() {
   updateCodexPluginNavigationAvailability();
   renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS["codex-mobile"]);
+}
+
+function updateFinancePluginNavigationAvailability() {
+  const def = EMBEDDED_PLUGIN_DEFS.finance;
+  const button = $(def.bottomButtonId);
+  const nav = $("bottomNav");
+  const available = Boolean(state.auth?.isOwner);
+  if (button) {
+    button.hidden = !available;
+    button.setAttribute("aria-hidden", available ? "false" : "true");
+  }
+  nav?.classList.toggle(def.navVisibleClass, available);
+  return available;
+}
+
+function financePluginBackActive() {
+  return embeddedPluginBackActive(EMBEDDED_PLUGIN_DEFS.finance);
+}
+
+function financePluginOuterBackActive() {
+  return embeddedPluginOuterBackActive(EMBEDDED_PLUGIN_DEFS.finance);
+}
+
+function rememberFinancePluginReturnRoute() {
+  return rememberEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS.finance);
+}
+
+function setFinancePluginOpenRoute(route = {}) {
+  return setEmbeddedPluginOpenRoute(EMBEDDED_PLUGIN_DEFS.finance, route);
+}
+
+function restoreFinancePluginReturnRoute() {
+  return restoreEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS.finance);
+}
+
+function sendFinancePluginBack() {
+  return sendEmbeddedPluginBack(EMBEDDED_PLUGIN_DEFS.finance);
+}
+
+function sendFinancePluginBackOrReturn() {
+  if (sendFinancePluginBack()) return true;
+  return restoreFinancePluginReturnRoute();
+}
+
+function parkFinancePluginShell() {
+  return parkEmbeddedPluginShell(EMBEDDED_PLUGIN_DEFS.finance);
+}
+
+function renderFinancePluginView() {
+  updateFinancePluginNavigationAvailability();
+  renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS.finance);
 }

@@ -290,6 +290,16 @@ function wireUi() {
     state.currentThreadId = "";
     await loadSelectedView();
   });
+  $("bottomFinanceMode")?.addEventListener("click", async () => {
+    clearQuotedReply({ render: false });
+    if (typeof rememberFinancePluginReturnRoute === "function") rememberFinancePluginReturnRoute();
+    state.viewMode = "finance";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    state.currentThread = null;
+    state.currentThreadId = "";
+    await loadSelectedView();
+  });
   $("threadSearch").addEventListener("input", () => {
     updateSearchButton();
     clearTimeout(state.searchTimer);

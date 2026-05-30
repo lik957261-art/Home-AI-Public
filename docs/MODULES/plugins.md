@@ -1,6 +1,6 @@
 # Embedded App Plugins
 
-Last updated: 2026-05-29.
+Last updated: 2026-05-30.
 
 This module describes the Hermes Mobile embedded-app plugin contract. A plugin
 is an external product surface mounted inside Hermes Mobile. Hermes owns the
@@ -10,8 +10,10 @@ logic, and MCP wrapper.
 
 Wardrobe is the first production plugin. Codex Mobile Web is the second plugin
 path and is integrated from the local Codex Git repo's Hermes plugin manifest.
-These rules are generic and apply to future embedded apps such as watches,
-health, finance, or other private workspace tools.
+Finance/记账 is the third embedded-app plugin and uses the same generic host,
+launch, proxy, navigation, and refresh contracts. These rules are generic and
+apply to future embedded apps such as watches, health, or other private
+workspace tools.
 
 ## Source Of Truth
 
@@ -76,7 +78,8 @@ prose in chat/thread/message fields. This includes absolute upstream URLs such
 as `http://<plugin-host>/uploads/...` and root-relative image/static paths such
 as `/uploads/...`, `/media/...`, `/images/...`, `/assets/...`, and `/static/...`.
 It also includes explicit plugin resource APIs such as `/api/uploads/file` and
-`/api/files/preview/content`, plus Wardrobe photo APIs such as
+`/api/files/preview/content`, Finance plugin APIs under `/api/finance/...`, plus
+Wardrobe photo APIs such as
 `/api/photos/<id>/content`, `/api/outfit-photos/<id>/content`,
 `/api/featured-look-photos/<id>/content`, and
 `/api/v1/items/<code>/photos/...`.
@@ -638,6 +641,92 @@ iframe `src` seen by a phone browser. If a deployment chooses to expose Codex
 through its own HTTPS reverse proxy, `CODEX_MOBILE_HERMES_PLUGIN_BASE_URL` or
 `CODEX_MOBILE_PUBLIC_BASE_URL` can still be used on the Codex side, but that is
 not required for the default local plugin setup.
+
+## Finance Plugin
+
+Hermes Mobile registers the Finance/记账 plugin as a standard `embedded-app`
+plugin:
+
+- plugin id: `finance`
+- title: `记账`
+- default manifest URL:
+  `http://127.0.0.1:8791/api/v1/hermes/plugin/manifest`
+- default embedded entry from Finance:
+  `/finance.html?embed=hermes`
+- toolsets: `finance`
+- MCP server: `finance`
+- declared permissions: `finance:read`, `finance:write`
+
+Finance is Owner-visible by default. Non-Owner workspaces remain hidden and
+cannot launch Finance unless Owner explicitly grants the workspace through
+`HERMES_MOBILE_PLUGIN_FINANCE_WORKSPACES`.
+
+The Finance manifest may use the compact top-level shape:
+
+```json
+{
+  "id": "finance",
+  "title": "记账",
+  "type": "embedded-app",
+  "entry": "http://127.0.0.1:8791/finance.html?embed=hermes",
+  "launch": "http://127.0.0.1:8791/api/v1/hermes/plugin/launch",
+  "toolsets": ["finance"],
+  "mcpServer": "finance",
+  "permissions": ["finance:read", "finance:write"],
+  "embedding": {
+    "state_event": "finance.plugin.navigation",
+    "back_event": "hermes.plugin.back",
+    "back_result_event": "finance.plugin.back_result",
+    "refresh_required_event": "finance.plugin.refresh_required",
+    "preserve_iframe_state": true
+  }
+}
+```
+
+Hermes Mobile normalizes this compact shape into the same internal contract used
+by Wardrobe and Codex. When Hermes Mobile runs as HTTPS, the browser-facing
+Finance iframe entry is rewritten to:
+
+```text
+/api/hermes-plugins/finance/proxy/...
+```
+
+The Finance upstream remains a local HTTP service at `127.0.0.1:8791`; the phone
+PWA never receives that local HTTP URL as an iframe `src`.
+If Finance returns forwarded HTTPS `entry` / `launch` URLs after seeing
+`x-hermes-public-origin`, Hermes Mobile still performs server-side launch
+against the configured local manifest upstream and then rewrites the short
+launch entry to the same-origin proxy. The forwarded HTTPS values are
+browser-facing hints, not the server-side upstream for launch.
+
+Finance launch uses a server-side workspace key file. Hermes Mobile looks for it
+in this order:
+
+- explicit option or `HERMES_MOBILE_FINANCE_PLUGIN_ACCESS_KEY_PATH`
+- `HERMES_MOBILE_PLUGIN_FINANCE_ACCESS_KEY_PATH`
+- `FINANCE_HERMES_PLUGIN_ACCESS_KEY_PATH`
+- for Owner only, the configured Hermes Mobile Owner key path
+  `HERMES_WEB_AUTH_KEY_PATH`
+- `.hermes-finance/access-key.txt` or `.hermes-finance/workspace-key.txt` under
+  the current workspace drive root
+
+For Finance only, Hermes Mobile sends the launch body fields
+`workspace_id`, `workspace_key`, `user_key`, and `role` to match Finance's
+workspace launch contract. The same key may also be sent in an Authorization
+header for compatibility, but no raw key is returned in the normalized manifest,
+frontend state, iframe URL, docs, handoffs, screenshots, or logs.
+
+Finance iframe navigation uses:
+
+- `finance.plugin.navigation`
+- `hermes.plugin.back`
+- `finance.plugin.back_result`
+- `finance.plugin.refresh_required`
+
+The host behavior is identical to Codex/Wardrobe: preserve the iframe on tab
+switch, process `back_result handled=false` as an outer-return signal, throttle
+refresh-required loops, and keep the root plugin page as a same-window bottom-tab
+destination.
 
 ## Paste-To-Plugin-Project Template
 
