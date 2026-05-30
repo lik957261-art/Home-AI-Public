@@ -750,6 +750,51 @@ function testOutputItemFinalMessageCanTriggerToolsetEscalationRetryWithoutDeltas
   assert.deepEqual(starts[0].modelFirstToolsetSelection.selectedToolsets, ["file", "wardrobe"]);
 }
 
+function testAlreadySelectedToolsetEscalationIsSanitizedWithoutRetry() {
+  const starts = [];
+  const harness = makeHarness({
+    maxMessageChars: 600,
+    setImmediate: (fn) => fn(),
+    startToolsetEscalationRun: (_thread, _userMessage, _assistantMessage, runOptions) => {
+      starts.push(runOptions);
+      return { status: "started" };
+    },
+  });
+  harness.message.runOptions = {
+    toolsetRouting: {
+      mode: "model_first",
+      selected_toolsets: ["wardrobe", "skills"],
+      omitted_authorized_toolsets: ["web", "search", "file", "vision"],
+    },
+    access_policy_context: {
+      allowed_toolsets: ["wardrobe", "skills"],
+      toolset_routing: {
+        mode: "model_first",
+        selected_toolsets: ["wardrobe", "skills"],
+        omitted_authorized_toolsets: ["web", "search", "file", "vision"],
+      },
+    },
+  };
+
+  const result = harness.service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    output: "HERMES_TOOLSET_ESCALATION_REQUIRED {\"toolsets\":[\"wardrobe\"],\"reason\":\"needs wardrobe history writeback\"}",
+  });
+
+  assert.equal(result.action, "completed");
+  assert.equal(harness.message.status, "done");
+  assert.equal(harness.message.content.includes("HERMES_TOOLSET_ESCALATION_REQUIRED"), false);
+  assert.notEqual(harness.message.content.trim(), "");
+  assert.equal(harness.message.toolsetEscalationRequired, true);
+  assert.deepEqual(harness.message.toolsetEscalationToolsets, ["wardrobe"]);
+  assert.equal(harness.message.toolsetEscalationSource, "model_toolset_schema_mismatch");
+  assert.equal(starts.length, 0);
+  const preview = JSON.parse(harness.thread.events.at(-1).preview);
+  assert.deepEqual(preview.toolsets, ["wardrobe"]);
+  assert.deepEqual(preview.retryable_toolsets, []);
+}
+
 function testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued() {
   const { activeStreams, calls, service, state, thread } = makeHarness();
   activeStreams.clear();
@@ -787,6 +832,7 @@ testToolsetEscalationMarkerIsHiddenAndStored();
 testStreamingToolsetEscalationMarkerIsSuppressedBeforeCompletion();
 testToolsetEscalationAutoRetriesWithExpandedAuthorizedToolsets();
 testOutputItemFinalMessageCanTriggerToolsetEscalationRetryWithoutDeltas();
+testAlreadySelectedToolsetEscalationIsSanitizedWithoutRetry();
 testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued();
 
 console.log("gateway-run-event-service tests passed");
