@@ -1,0 +1,141 @@
+"use strict";
+
+const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
+const vm = require("vm");
+
+const repoRoot = path.resolve(__dirname, "..");
+const source = [
+  fs.readFileSync(path.join(repoRoot, "public", "app-embedded-plugin-ui.js"), "utf8"),
+  fs.readFileSync(path.join(repoRoot, "public", "app-wardrobe-ui.js"), "utf8"),
+].join("\n");
+
+function classList() {
+  const values = new Set();
+  return {
+    toggle(name, enabled) {
+      if (enabled) values.add(name);
+      else values.delete(name);
+    },
+    contains(name) {
+      return values.has(name);
+    },
+  };
+}
+
+function createHarness(overrides = {}) {
+  const nodes = {
+    bottomWardrobeMode: {
+      hidden: true,
+      attrs: {},
+      setAttribute(name, value) {
+        this.attrs[name] = value;
+      },
+    },
+    bottomNav: { classList: classList() },
+    app: { classList: classList() },
+  };
+  const sandbox = {
+    Date,
+    Promise,
+    URL,
+    URLSearchParams,
+    state: Object.assign({
+      auth: { isOwner: true },
+      selectedWorkspaceId: "weixin_test_1",
+      workspaces: [],
+      projects: [],
+      embeddedPluginList: {
+        workspaceId: "weixin_test_1",
+        loading: false,
+        loaded: true,
+        pluginIds: [],
+        requestSeq: 0,
+        lastAttemptAt: Date.now(),
+        error: "",
+      },
+    }, overrides.state || {}),
+    window: {
+      location: { origin: "https://hermes.example.test", href: "https://hermes.example.test/" },
+      addEventListener() {},
+    },
+    document: {
+      querySelector() {
+        return null;
+      },
+      createElement() {
+        return {};
+      },
+      body: {},
+    },
+    $: (id) => nodes[id] || null,
+    api: overrides.api || (async () => ({ plugins: [] })),
+    updateNavigationControls() {},
+  };
+  vm.runInNewContext(source, sandbox);
+  return { sandbox, nodes };
+}
+
+{
+  const { sandbox, nodes } = createHarness({
+    state: {
+      embeddedPluginList: {
+        workspaceId: "weixin_test_1",
+        loading: false,
+        loaded: true,
+        pluginIds: ["wardrobe", "finance"],
+        requestSeq: 1,
+        lastAttemptAt: Date.now(),
+        error: "",
+      },
+    },
+  });
+  assert.equal(sandbox.updateWardrobeNavigationAvailability(), true);
+  assert.equal(nodes.bottomWardrobeMode.hidden, false);
+  assert.equal(nodes.bottomWardrobeMode.attrs["aria-hidden"], "false");
+  assert.equal(nodes.bottomNav.classList.contains("wardrobe-visible"), true);
+}
+
+{
+  const { sandbox, nodes } = createHarness({
+    state: {
+      workspaces: [
+        { id: "weixin_test_1", localConfig: { allowedToolsets: ["wardrobe"] } },
+      ],
+      embeddedPluginList: {
+        workspaceId: "weixin_test_1",
+        loading: false,
+        loaded: true,
+        pluginIds: ["finance"],
+        requestSeq: 1,
+        lastAttemptAt: Date.now(),
+        error: "",
+      },
+    },
+  });
+  assert.equal(sandbox.updateWardrobeNavigationAvailability(), false);
+  assert.equal(nodes.bottomWardrobeMode.hidden, true);
+  assert.equal(nodes.bottomWardrobeMode.attrs["aria-hidden"], "true");
+  assert.equal(nodes.bottomNav.classList.contains("wardrobe-visible"), false);
+}
+
+{
+  const { sandbox, nodes } = createHarness({
+    state: {
+      selectedWorkspaceId: "owner",
+      embeddedPluginList: {
+        workspaceId: "owner",
+        loading: false,
+        loaded: false,
+        pluginIds: [],
+        requestSeq: 0,
+        lastAttemptAt: 0,
+        error: "",
+      },
+    },
+  });
+  assert.equal(sandbox.updateWardrobeNavigationAvailability(), true);
+  assert.equal(nodes.bottomWardrobeMode.hidden, false);
+  assert.equal(nodes.bottomWardrobeMode.attrs["aria-hidden"], "false");
+}

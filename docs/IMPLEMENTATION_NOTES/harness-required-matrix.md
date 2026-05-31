@@ -1225,17 +1225,19 @@ Required contract dimensions:
   acceptable because they can overlap on real mobile widths.
 - Conditional top-level tabs such as embedded plugin tabs are H2 shell
   projections. The harness must assert the tab is hidden by default, becomes
-  visible only from an authorized directory/toolset/plugin registration signal, preserves
-  the static client-version contract, and renders a same-window embedded plugin
-  or bounded diagnostic rather than `window.open`, `target=_blank`, direct
-  Program API fallback, local MCP overview fallback, or copied plugin app code.
+  visible from the same effective-workspace plugin list/authorization projection
+  used by manifest and launch, preserves the static client-version contract, and
+  renders a same-window embedded plugin or bounded diagnostic rather than
+  `window.open`, `target=_blank`, direct Program API fallback, local MCP overview
+  fallback, or copied plugin app code.
 - Wardrobe tab content is plugin-only. Harness coverage must assert the frontend
   does not contain `loadWardrobeOverview`, `renderWardrobeDashboard`,
   `/api/wardrobe/overview`, native section-switch listeners, model launcher
   cards, local stats/search dashboards, or direct MCP stdio invocation for the
   root tab. If the plugin is unavailable, the only allowed UI is a compact
   plugin diagnostic and retry action.
-- Wardrobe directory/toolset detection may make the tab visible, but it must not
+- Wardrobe directory/toolset detection may guide model-side routing, but it must
+  not bypass plugin list authorization for a non-Owner bottom tab and must not
   become a data source for the tab content. The actual page content must come
   from `GET /api/hermes-plugins/wardrobe/manifest`.
 - A plugin tab landing surface is the embedded plugin app, not a model task

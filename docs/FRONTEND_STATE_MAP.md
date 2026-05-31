@@ -151,9 +151,11 @@ Use this file to locate the responsible frontend files before debugging a screen
 - Wardrobe tab/task launcher: `public/app-wardrobe-ui.js`
 - Bottom tab: `bottomWardrobeMode`; route aliases: `view=wardrobe`,
   `view=closet`, `view=outfit`.
-- The tab is hidden by default and becomes visible only when the current
-  workspace/project tree exposes a wardrobe/closet/outfit route or an authorized
-  `wardrobe` toolset signal.
+- The tab is hidden by default and becomes visible from the same workspace
+  plugin list projection used for launch. Owner sees it by default only in the
+  effective Owner workspace; when Owner switches to a non-Owner workspace, that
+  workspace must be returned by `GET /api/hermes-plugins?workspaceId=...` with
+  `wardrobe` before the bottom tab appears.
 - `GET /api/hermes-plugins/wardrobe/manifest` is the only tab content source.
   When it returns an available `embedded_app` manifest, the Wardrobe tab embeds
   the plugin entry URL in a same-window iframe.

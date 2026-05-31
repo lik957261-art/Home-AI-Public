@@ -942,6 +942,15 @@ it only after `GET /api/hermes-plugins?workspaceId=<workspace>` includes
 otherwise an authorized workspace can launch through the backend contract but
 still miss the visible tab in its own PWA session.
 
+Wardrobe follows the same bottom-tab projection rule even though it still has a
+specialized host file for its one-time launch and navigation health checks.
+Owner sees Wardrobe by default only in the effective Owner workspace. When Owner
+switches to a non-Owner workspace, or when a non-Owner user opens Hermes
+directly, the Wardrobe tab must use the ordinary plugin list for that workspace
+and appear only when the list includes `wardrobe`. Directory names and
+`wardrobe` toolset policy may guide model routing, but they must not bypass the
+plugin authorization/list contract for tab visibility.
+
 The Finance manifest may use the compact top-level shape:
 
 ```json

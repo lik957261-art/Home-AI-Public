@@ -32,15 +32,20 @@ Wardrobe Program API or a local MCP dashboard route as an automatic fallback.
 - Static shell files: `public/index.html`, `public/service-worker.js`
 - Focused tests: `node tests\hermes-plugin-service.test.js`,
   `node tests\hermes-plugin-api-routes.test.js`,
-  `node tests\app-wardrobe-ui.test.js`, `node tests\task-list-ui.test.js`,
+  `node tests\app-wardrobe-ui.test.js`,
+  `node tests\wardrobe-plugin-navigation-ui.test.js`,
+  `node tests\task-list-ui.test.js`,
   `node tests\api-route-inventory.test.js`,
   `node tests\mobile-api-dispatcher.test.js`.
 
-The tab is hidden by default and becomes visible only when the current
-workspace/project tree exposes a wardrobe/closet directory route or an
-authorized `wardrobe` toolset signal. That signal only controls whether the
-app-level tab is relevant; the actual page content must come from the plugin
-manifest.
+The tab is hidden by default and becomes visible from the same workspace plugin
+list projection used by manifest and launch. Owner sees Wardrobe by default only
+while the effective workspace is `owner`; when an Owner-authenticated browser
+switches to a non-Owner workspace, the bottom tab must appear only after
+`GET /api/hermes-plugins?workspaceId=<workspace>` includes `wardrobe`. Directory
+or toolset signals may still help model-side Wardrobe routing, but they must not
+make an unauthorized non-Owner plugin tab visible. The actual page content must
+come from the plugin manifest.
 
 Wardrobe model/tool routing is broader than the tab-visibility rule. If a
 thread/project/plugin context or recent same-topic messages clearly indicate a

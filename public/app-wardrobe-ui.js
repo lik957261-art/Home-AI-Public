@@ -50,6 +50,27 @@ function workspaceAllowsWardrobeToolset() {
   return selectedWorkspaceToolsets().includes("wardrobe");
 }
 
+function wardrobePluginListedForCurrentWorkspace() {
+  if (typeof embeddedPluginListedForWorkspace !== "function") return false;
+  return embeddedPluginListedForWorkspace("wardrobe");
+}
+
+function refreshWardrobePluginListWhenStale() {
+  if (typeof embeddedPluginListState !== "function" || typeof refreshEmbeddedPluginList !== "function") return;
+  const record = embeddedPluginListState();
+  const workspaceId = state.selectedWorkspaceId || "owner";
+  const retryReady = record.workspaceId !== workspaceId || Date.now() - Number(record.lastAttemptAt || 0) > 15000;
+  if (!record.loading && retryReady) refreshEmbeddedPluginList().catch(() => {});
+}
+
+function wardrobePluginNavigationAvailable() {
+  const workspaceId = state.selectedWorkspaceId || "owner";
+  if (state.auth?.isOwner && workspaceId === "owner") return true;
+  if (wardrobePluginListedForCurrentWorkspace()) return true;
+  refreshWardrobePluginListWhenStale();
+  return false;
+}
+
 function wardrobeDirectoryCandidates() {
   const candidates = [];
   (state.projects || []).forEach((project) => {
@@ -91,7 +112,8 @@ function wardrobeDirectoryAttachment() {
 }
 
 function wardrobeEntryAvailable() {
-  if (!state.auth?.isOwner && !wardrobeDirectoryAttachment()) return false;
+  if (wardrobePluginNavigationAvailable()) return true;
+  if ((state.selectedWorkspaceId || "owner") !== "owner") return false;
   return Boolean(wardrobeDirectoryAttachment() || workspaceAllowsWardrobeToolset());
 }
 

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260531-gateway-starting-tools-v413";
+const CLIENT_VERSION = "20260601-wardrobe-tab-auth-v414";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -2045,6 +2045,8 @@ assert.match(indexHtml, /id="bottomCodexMode"[\s\S]*hidden aria-hidden="true"/);
 assert.match(indexHtml, /id="bottomFinanceMode"[\s\S]*hidden aria-hidden="true"/);
 assert.match(appJs, /const hiddenBottomTabs = new Set\(\["bottomAutomationMode"\]\)/);
 assert.match(appJs, /function updateWardrobeNavigationAvailability\(\)/);
+assert.match(appJs, /function wardrobePluginNavigationAvailable\(\)/);
+assert.match(appJs, /embeddedPluginListedForWorkspace\("wardrobe"\)/);
 assert.match(appJs, /nav\?\.classList\.toggle\("wardrobe-visible", available\)/);
 assert.match(appJs, /function updateCodexPluginNavigationAvailability\(\)/);
 assert.match(appJs, /function updateFinancePluginNavigationAvailability\(\)/);
