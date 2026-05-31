@@ -702,15 +702,15 @@ function positionRunProgressHistoryPanel(details) {
       const baseTop = margin;
       const bottomAboveAnchor = Math.max(margin, viewportHeight - Math.max(0, anchor.top) + 10);
       const availableAboveAnchor = viewportHeight - baseTop - bottomAboveAnchor;
-      const maxAvailableHeight = Math.max(120, Math.min(420, Math.round(viewportHeight * 0.58), Math.max(120, availableAboveAnchor)));
+      const maxAvailableHeight = Math.max(220, Math.min(460, Math.round(viewportHeight * 0.68), Math.max(220, availableAboveAnchor)));
       const contentPanel = panel.querySelector(".run-progress-panel");
       const contentRect = contentPanel?.getBoundingClientRect?.();
       const contentHeight = Math.ceil(contentRect?.height || contentPanel?.scrollHeight || panel.scrollHeight || maxAvailableHeight) + 16;
-      const targetHeight = Math.min(maxAvailableHeight, Math.max(96, contentHeight));
+      const targetHeight = Math.min(maxAvailableHeight, Math.max(180, contentHeight));
       const top = availableAboveAnchor >= targetHeight
         ? Math.max(margin, Math.min(margin + 8, Math.max(margin, anchor.top - targetHeight - 10)))
         : margin;
-      const maxHeight = Math.max(96, Math.min(maxAvailableHeight, viewportHeight - top - margin));
+      const maxHeight = Math.max(180, Math.min(maxAvailableHeight, viewportHeight - top - margin));
       panel.style.setProperty("--run-progress-history-top", `${Math.round(top)}px`);
       panel.style.setProperty("--run-progress-history-bottom", "auto");
       panel.style.setProperty("--run-progress-history-max-height", `${Math.round(maxHeight)}px`);

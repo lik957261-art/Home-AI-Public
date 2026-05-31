@@ -422,7 +422,10 @@ system may store a diagnostic warning event without refreshing the real Gateway
 visible first-stream-event, first-text-output, liveness stale, and stream-failed
 statuses. Run-progress UI must not render `run.liveness_warning` as a visible
 row; only stale/start-timeout/stream-failed states should consume visible
-status space.
+status space. Light and dark theme checks must also assert the inline active
+run-status panel does not collapse into a thin empty border: the panel, header,
+rows, elapsed time, and at least one status row must remain visible in both
+themes.
 Stream-closed-without-terminal coverage is required: if streamed text already
 arrived, Mobile must emit `run.stream_closed_without_terminal`, synthesize
 completion from the accumulated content, and avoid failed Web Push / failed

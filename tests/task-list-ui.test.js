@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260531-plugin-push-route-v394";
+const CLIENT_VERSION = "20260531-run-status-history-v396";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -405,6 +405,9 @@ assert.match(stylesCss, /:root\[data-theme="dark"\] \{[\s\S]*?color-scheme: dark
 assert.match(stylesCss, /@media \(prefers-color-scheme: dark\) \{[\s\S]*?:root\[data-theme="system"\]/);
 assert.match(stylesCss, /:root\[data-theme="dark"\] \.run-progress-panel \{[\s\S]*?background: rgba\(22, 27, 29, 0\.96\);[\s\S]*?border-color: rgba\(200, 234, 216, 0\.24\);/);
 assert.match(stylesCss, /:root\[data-theme="dark"\] \.run-progress-preview \{[\s\S]*?color: #cbd2d3;/);
+assert.match(stylesCss, /\.run-progress-panel \{[\s\S]*?min-height: 96px;/);
+assert.match(stylesCss, /\.run-progress-panel\.compact-after-output \{[\s\S]*?min-height: 74px;/);
+assert.match(stylesCss, /\.run-progress-row \{[\s\S]*?min-height: 18px;[\s\S]*?color: inherit;/);
 assert.match(stylesCss, /:root\[data-theme="dark"\] \.usage-details,[\s\S]*?:root\[data-theme="dark"\] \.run-progress-history-details \{[\s\S]*?background: var\(--ui-sheet\);/);
 assert.match(stylesCss, /:root\[data-theme="dark"\] \.thread-title,[\s\S]*?:root\[data-theme="dark"\] \.todo-kanban-card-title \{[\s\S]*?color: var\(--ink\);/);
 assert.match(stylesCss, /:root\[data-theme="dark"\] \.message-prose h2,[\s\S]*?:root\[data-theme="dark"\] \.assistant-receipt-list-item\.tone-file \.assistant-receipt-list-label \{[\s\S]*?color: var\(--ui-accent-ink\);/);
@@ -656,13 +659,15 @@ assert.match(appJs, /function renderMessageRunProgressHistory\(thread, message =
 assert.match(appJs, /const runProgressHistory = typeof renderMessageRunProgressHistory === "function"/);
 assert.match(appJs, /function wireRunProgressHistoryPanels\(root\)/);
 assert.match(appJs, /function positionRunProgressHistoryPanel\(details\)/);
-assert.match(appJs, /const maxAvailableHeight = Math\.max\(120, Math\.min\(420, Math\.round\(viewportHeight \* 0\.58\), Math\.max\(120, availableAboveAnchor\)\)\)/);
+assert.match(appJs, /const maxAvailableHeight = Math\.max\(220, Math\.min\(460, Math\.round\(viewportHeight \* 0\.68\), Math\.max\(220, availableAboveAnchor\)\)\)/);
 assert.match(appJs, /const contentPanel = panel\.querySelector\("\.run-progress-panel"\)/);
 assert.match(appJs, /panel\.style\.setProperty\("--run-progress-history-bottom", "auto"\)/);
 assert.match(appJs, /MESSAGE_SKILL_HIDDEN_FALLBACKS = new Set\(\["response", "response-grounding-baseline"\]\)/);
 assert.match(stylesCss, /\.message-footer-row \.run-progress-history/);
 assert.match(stylesCss, /\.run-progress-history-details \{[\s\S]*?width: min\(520px, calc\(100vw - 24px\)\)/);
+assert.match(stylesCss, /\.run-progress-history-details \{[\s\S]*?min-height: 180px;/);
 assert.match(stylesCss, /@media \(max-width: 720px\)[\s\S]*?\.run-progress-history-details \{[\s\S]*?position: fixed;[\s\S]*?top: max\(calc\(var\(--run-progress-history-top, 12px\) \+ env\(safe-area-inset-top\)\), calc\(52px \+ env\(safe-area-inset-top\)\)\);[\s\S]*?bottom: var\(--run-progress-history-bottom, calc\(var\(--mobile-bottom-nav-reserved-height\) \+ 12px\)\);/);
+assert.match(stylesCss, /min-height: min\(220px, calc\(100vh - 96px\)\)/);
 assert.match(stylesCss, /max-height: var\(--run-progress-history-max-height, min\(360px, 52vh\)\)/);
 assert.match(appJs, /setProperty\("--run-progress-history-bottom", "auto"\)/);
 assert.match(appJs, /function handleAppForegrounded\(\) \{[\s\S]*?applyThemePreference\(\);[\s\S]*?scheduleConversationViewportRefresh\(\)/);

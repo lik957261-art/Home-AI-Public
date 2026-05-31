@@ -2740,6 +2740,7 @@ button {
   z-index: 8;
   width: min(920px, 100%);
   max-width: 100%;
+  min-height: 96px;
   margin: 0 auto 12px;
   padding: 10px 12px;
   color: #17332f;
@@ -2780,6 +2781,7 @@ button {
 .run-progress-panel.compact-after-output {
   margin-top: 8px;
   margin-bottom: 6px;
+  min-height: 74px;
   padding: 7px 10px;
 }
 
@@ -2788,6 +2790,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: 18px;
   margin-bottom: 7px;
   color: #1f6f62;
   font-size: 12px;
@@ -2811,6 +2814,7 @@ button {
 .run-progress-rows {
   display: grid;
   gap: 5px;
+  min-height: 26px;
 }
 
 .run-progress-panel.compact-after-output .run-progress-rows {
@@ -2819,12 +2823,14 @@ button {
 
 .run-progress-row {
   min-width: 0;
+  min-height: 18px;
   display: grid;
   grid-template-columns: 10px minmax(0, auto) auto minmax(0, 1fr);
   align-items: center;
   gap: 7px;
   font-size: 12px;
   line-height: 1.35;
+  color: inherit;
 }
 
 .run-progress-row.error {
@@ -2877,16 +2883,17 @@ button {
 }
 
 .run-progress-main {
+  color: inherit;
   font-weight: 600;
 }
 
 .run-progress-time {
-  color: var(--muted);
+  color: #65716f;
   font-variant-numeric: tabular-nums;
 }
 
 .run-progress-preview {
-  color: #50645f;
+  color: #4f615d;
 }
 
 :root[data-theme="dark"] .run-progress-row.run-progress-operation {
@@ -4116,6 +4123,7 @@ button.directory-alias-chip {
 .run-progress-history-details {
   width: min(520px, calc(100vw - 24px));
   max-height: min(360px, 52vh);
+  min-height: 180px;
   overflow: auto;
   padding: 8px;
 }
@@ -4175,6 +4183,7 @@ button.directory-alias-chip {
     bottom: var(--run-progress-history-bottom, calc(var(--mobile-bottom-nav-reserved-height) + 12px));
     width: auto;
     max-height: var(--run-progress-history-max-height, min(360px, 52vh));
+    min-height: min(220px, calc(100vh - 96px));
     transform: none;
     overscroll-behavior: contain;
   }
