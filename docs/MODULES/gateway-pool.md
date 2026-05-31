@@ -258,9 +258,9 @@ Current runtime behavior:
 - Production deployments may intentionally override that default in the
   production launcher. On the local maintained deployment, check
   `C:\ProgramData\HermesMobile\start-hermes-mobile-production.ps1` first; as
-  of 2026-05-31 it sets both
-  `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION=1` and
-  `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION=1`. The wrapper
+  of the 2026-05-31 rollback it sets both
+  `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION=0` and
+  `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION=0`. The wrapper
   `%USERPROFILE%\.hermes-windows\start-hermes-mobile-production.ps1` only
   forwards to the ProgramData launcher, so it is not the effective toggle
   owner.
