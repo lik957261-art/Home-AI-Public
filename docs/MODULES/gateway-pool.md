@@ -81,6 +81,12 @@ starts a single worker profile, while `-StopProfiles <profile>`
 stops only the selected idle profile. Wrapper calls must continue to use hidden
 PowerShell windows.
 
+Maintained production status as of 2026-05-31: v404 code is deployed, but the
+launcher is kept in eager/auto mode. A hybrid probe was rolled back because a
+non-Owner Mobile API cold start failed through the listener-triggered profile
+launch path even though an operator-run single-profile start could succeed.
+Do not re-enable hybrid until that exact listener path has a passing smoke.
+
 Worker reuse must be keyed by workspace, profile, provider, permission tier,
 effective toolset/schema set, MCP/plugin binding, and manifest identity. Do not
 reuse a healthy worker across incompatible providers, permission tiers, or

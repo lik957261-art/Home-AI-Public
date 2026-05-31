@@ -1,7 +1,10 @@
 # Gateway Elastic Worker Scheduling
 
-Status: implemented in source as `20260531-gateway-elastic-v404`; not deployed
-or switched in production by this document alone.
+Status: implemented in source as `20260531-gateway-elastic-v404` and deployed
+to the maintained production app in eager mode. Production hybrid/on-demand
+mode was probed and rolled back on 2026-05-31 because listener-triggered
+non-Owner cold start still failed with `gateway_pool_script_failed`; keep
+production eager until that path passes a real Mobile API cold-start smoke.
 
 ## Classification
 
@@ -263,6 +266,12 @@ Minimum H1 scenarios for implementation:
   measuring cold-start cost and memory consumption on the PC.
 - Whether some plugin-owned MCP profiles, such as Wardrobe, need a shorter or
   longer idle TTL because startup includes plugin/session initialization.
+- Production follow-up from the 2026-05-31 hybrid probe: a direct operator
+  `-StartProfiles lowgw6 -NoStopExisting` run could start the profile, but the
+  same profile start triggered through the Mobile listener failed and degraded
+  `/api/status?detail=1`. Before enabling hybrid again, reproduce the listener
+  launch path, capture bounded stdout/stderr diagnostics, and verify Owner warm
+  reuse plus a non-Owner cold-start Mobile API run without manual intervention.
 
 Resolved in v404:
 
