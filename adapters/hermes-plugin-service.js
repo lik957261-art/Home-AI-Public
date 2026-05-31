@@ -444,7 +444,7 @@ function discoverPluginWorkspaceIdsFromAccessKeys(pluginId, options = {}) {
 function pluginWorkspaceAuthorized(plugin, input = {}, options = {}) {
   const workspaceId = stringValue(input.workspaceId || "owner");
   if (!workspaceId) return false;
-  if (workspaceId === "owner" || input.ownerAuthorized === true) return true;
+  if (workspaceId === "owner") return true;
   if (plugin?.allowWorkspaceGrant === false) return false;
   const authorized = Array.isArray(plugin?.authorizedWorkspaceIds) ? plugin.authorizedWorkspaceIds : [];
   if (authorized.includes("*") || authorized.includes(workspaceId)) return true;

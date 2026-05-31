@@ -1,6 +1,6 @@
 # Harness Required Matrix
 
-Last updated: 2026-05-28.
+Last updated: 2026-05-31.
 
 This document defines when Hermes Mobile changes must add or run a workflow
 harness instead of relying only on unit tests, focused UI tests, or manual
@@ -1189,6 +1189,13 @@ Required contract dimensions:
   `%USERPROFILE%\.codex-mobile-web\access_key` or configured override only for
   launch exchange, and must not expose Codex Mobile Access Keys, bearer headers,
   or launch-token secrets to the browser.
+- Owner workspace switching is a permission/workspace-boundary harness case.
+  Owner-authenticated requests for a non-Owner workspace must use the target
+  workspace projection for ordinary plugin list/navigation/manifest behavior:
+  `codex-mobile` remains hidden and denied for `workspaceId!=owner`, while
+  workspace-private plugins remain visible only through grant/provisioning/key
+  evidence for that target workspace. This must be covered in service, route,
+  and frontend projection tests rather than as a CSS-only hide.
 - Finance plugin registration is H2 service/projection work and must use the
   Finance embedded-app manifest at
   `GET http://127.0.0.1:8791/api/v1/hermes/plugin/manifest`. Hermes Mobile must

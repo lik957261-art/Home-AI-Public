@@ -1,6 +1,6 @@
 # Hermes Mobile Test Matrix
 
-Last updated: 2026-05-30.
+Last updated: 2026-05-31.
 
 Use this matrix to pick focused tests before broader gates. Always add syntax checks for touched JS/Python/PowerShell files.
 
@@ -218,12 +218,15 @@ instead of only swallowing iframe-adjacent touch events with `preventDefault()`.
 These are generic plugin requirements, not Wardrobe-only behavior; new plugins
 must satisfy the same host contract before being treated as production-ready.
 Installed plugin visibility must also be covered: Owner sees installed plugins
-by default, but non-Owner workspaces do not list or launch a plugin unless
-there is an explicit Owner authorization signal. A global plugin key is not
-enough to authorize every workspace. Plugin-manager changes must additionally
-test Owner-only admin routes, grant/revoke persistence, normal business-plugin
-visibility after a grant, Codex Mobile grant denial, and the side-navigation
-manager being hidden from non-Owner users.
+by default only when the effective workspace is `owner`; when an Owner session
+switches to a non-Owner workspace, ordinary plugin list/navigation/manifest
+projection must simulate that target workspace. Non-Owner workspaces do not
+list or launch a plugin unless there is an explicit Owner authorization signal.
+A global plugin key is not enough to authorize every workspace. Plugin-manager
+changes must additionally test Owner-only admin routes, grant/revoke
+persistence, normal business-plugin visibility after a grant, Codex Mobile
+grant denial, Codex Mobile absence during Owner-to-non-Owner workspace
+switching, and the side-navigation manager being hidden from non-Owner users.
 Finance workspace provisioning is an H1 plugin authorization workflow. Granting
 Finance to a workspace must create a workspace-local
 `.hermes-finance/access-key.txt`, call Finance

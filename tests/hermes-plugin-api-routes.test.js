@@ -45,7 +45,7 @@ function parseBody(res) {
 }
 
 function makeRoutes(overrides = {}) {
-  const calls = { access: [], owner: [], manifest: [], grants: [], revokes: [], notifications: [], broadcasts: [], audit: [] };
+  const calls = { access: [], owner: [], list: [], manifest: [], grants: [], revokes: [], notifications: [], broadcasts: [], audit: [] };
   const deps = Object.assign({
     requireWorkspaceAccess(req, res, workspaceId) {
       calls.access.push(workspaceId);
@@ -81,6 +81,7 @@ function makeRoutes(overrides = {}) {
     },
     hermesPluginService: {
       list(input = {}) {
+        calls.list.push(input);
         if (!input.ownerAuthorized && input.workspaceId !== "owner") return [];
         return [
           { id: "wardrobe", manifestUrl: "http://nas/plugin.json" },
@@ -154,6 +155,21 @@ async function testListRoute() {
   assert.equal(parseBody(res).plugins[2].manifestPath, "/api/hermes-plugins/finance/manifest");
 }
 
+async function testListRouteUsesEffectiveWorkspaceForOwnerSwitch() {
+  const { calls, routes } = makeRoutes();
+  const res = makeResponse();
+  const result = await routes.handle(
+    { method: "GET", auth: { workspaceId: "owner", isOwner: true } },
+    res,
+    makeUrl("/api/hermes-plugins?workspaceId=weixin_wuping"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(calls.access, ["weixin_wuping"]);
+  assert.deepEqual(calls.list, [{ workspaceId: "weixin_wuping", ownerAuthorized: false }]);
+  assert.deepEqual(parseBody(res).plugins, []);
+}
+
 async function testAdminListRouteRequiresOwner() {
   const { calls, routes } = makeRoutes();
   const res = makeResponse();
@@ -191,7 +207,7 @@ async function testWardrobeManifestRoute() {
   assert.deepEqual(calls.manifest, [{
     id: "wardrobe",
     workspaceId: "weixin_wuping",
-    ownerAuthorized: true,
+    ownerAuthorized: false,
     appOrigin: "https://hermes.example.test",
     appearance: { theme: "dark", fontSize: "large" },
     launchPlugin: true,
@@ -233,6 +249,21 @@ async function testCodexManifestRouteDeniesNonOwnerWithoutPluginGrant() {
   const res = makeResponse();
   const result = await routes.handle(
     { method: "GET", auth: { workspaceId: "weixin_wuping", isOwner: false } },
+    res,
+    makeUrl("/api/hermes-plugins/codex-mobile/manifest?workspaceId=weixin_wuping"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.equal(parseBody(res).available, false);
+  assert.equal(parseBody(res).code, "plugin_workspace_not_authorized");
+  assert.equal(calls.manifest[0].ownerAuthorized, false);
+}
+
+async function testCodexManifestRouteUsesEffectiveWorkspaceForOwnerSwitch() {
+  const { calls, routes } = makeRoutes();
+  const res = makeResponse();
+  const result = await routes.handle(
+    { method: "GET", auth: { workspaceId: "owner", isOwner: true } },
     res,
     makeUrl("/api/hermes-plugins/codex-mobile/manifest?workspaceId=weixin_wuping"),
   );
@@ -753,9 +784,11 @@ async function run() {
   await testAdminListRouteRequiresOwner();
   await testGrantAndRevokeRoutesRequireOwner();
   await testListRoute();
+  await testListRouteUsesEffectiveWorkspaceForOwnerSwitch();
   await testWardrobeManifestRoute();
   await testCodexManifestRoute();
   await testCodexManifestRouteDeniesNonOwnerWithoutPluginGrant();
+  await testCodexManifestRouteUsesEffectiveWorkspaceForOwnerSwitch();
   await testFinanceManifestRoute();
   await testWorkspaceBlockStopsRoute();
   await testPluginNotificationRoute();

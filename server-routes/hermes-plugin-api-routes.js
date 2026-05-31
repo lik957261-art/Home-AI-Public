@@ -150,6 +150,10 @@ function createHermesPluginApiRoutes(deps = {}) {
     return typeof deps.isOwnerAuth === "function" ? deps.isOwnerAuth(auth) : false;
   }
 
+  function ownerAuthorizedForWorkspace(auth, workspaceId) {
+    return ownerAuthorized(auth) && String(workspaceId || "owner") === "owner";
+  }
+
   function requestedWorkspaceId(url) {
     return url?.searchParams?.get("workspaceId") || "owner";
   }
@@ -182,7 +186,7 @@ function createHermesPluginApiRoutes(deps = {}) {
       workspaceId,
       plugins: deps.hermesPluginService.list({
         workspaceId,
-        ownerAuthorized: ownerAuthorized(requestAuth(req)),
+        ownerAuthorized: ownerAuthorizedForWorkspace(requestAuth(req), workspaceId),
       }).map((item) => ({
         id: item.id,
         manifestPath: `/api/hermes-plugins/${encodeURIComponent(item.id)}/manifest`,
@@ -486,7 +490,7 @@ function createHermesPluginApiRoutes(deps = {}) {
     const manifest = await deps.hermesPluginService.manifest({
       id: pluginId,
       workspaceId,
-      ownerAuthorized: ownerAuthorized(requestAuth(req)),
+      ownerAuthorized: ownerAuthorizedForWorkspace(requestAuth(req), workspaceId),
       appOrigin: url?.searchParams?.get("appOrigin") || "",
       appearance: {
         theme: url?.searchParams?.get("appearanceTheme") || "",

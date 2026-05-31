@@ -118,7 +118,7 @@ async function refreshEmbeddedPluginList(options = {}) {
 
 function embeddedPluginListedForWorkspace(pluginId) {
   const record = embeddedPluginListState();
-  const workspaceId = state.selectedWorkspaceId || "owner";
+  const workspaceId = embeddedPluginCurrentWorkspaceId();
   return Boolean(
     record.loaded
     && record.workspaceId === workspaceId
@@ -126,12 +126,20 @@ function embeddedPluginListedForWorkspace(pluginId) {
   );
 }
 
+function embeddedPluginCurrentWorkspaceId() {
+  return state.selectedWorkspaceId || "owner";
+}
+
+function codexPluginNavigationAvailable() {
+  return Boolean(state.auth?.isOwner && embeddedPluginCurrentWorkspaceId() === "owner");
+}
+
 function embeddedPluginNavigationAvailable(def) {
-  if (def?.id === "codex-mobile") return Boolean(state.auth?.isOwner);
-  if (state.auth?.isOwner) return true;
+  if (def?.id === "codex-mobile") return codexPluginNavigationAvailable();
+  if (state.auth?.isOwner && embeddedPluginCurrentWorkspaceId() === "owner") return true;
   const available = embeddedPluginListedForWorkspace(def?.id || "");
   const record = embeddedPluginListState();
-  const workspaceId = state.selectedWorkspaceId || "owner";
+  const workspaceId = embeddedPluginCurrentWorkspaceId();
   const retryReady = record.workspaceId !== workspaceId || Date.now() - Number(record.lastAttemptAt || 0) > 15000;
   if (!available && !record.loading && retryReady) refreshEmbeddedPluginList().catch(() => {});
   return available;
@@ -755,7 +763,7 @@ function renderEmbeddedPluginView(def) {
 function updateCodexPluginNavigationAvailability() {
   const button = $("bottomCodexMode");
   const nav = $("bottomNav");
-  const available = Boolean(state.auth?.isOwner);
+  const available = codexPluginNavigationAvailable();
   if (button) {
     button.hidden = !available;
     button.setAttribute("aria-hidden", available ? "false" : "true");

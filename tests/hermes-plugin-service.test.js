@@ -231,7 +231,7 @@ async function testPluginWorkspaceAuthorizationDefaultsToOwnerOnly() {
   assert.equal(denied.available, false);
   assert.equal(denied.code, "plugin_workspace_not_authorized");
   assert.deepEqual(service.list({ workspaceId: "weixin_wuping" }), []);
-  assert.equal(service.list({ workspaceId: "weixin_wuping", ownerAuthorized: true })[0].id, "codex-mobile");
+  assert.deepEqual(service.list({ workspaceId: "weixin_wuping", ownerAuthorized: true }), []);
 }
 
 async function testExplicitPluginWorkspaceAuthorizationAllowsNonOwner() {
@@ -699,7 +699,7 @@ async function testFinanceLaunchEntryUsesWorkspaceKeyBody() {
 async function testFinanceLaunchEntryUsesSeparateWorkspaceUserKeyWhenProvided() {
   const calls = [];
   const service = createHermesPluginService({
-    plugins: [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }],
+    plugins: [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest", authorizedWorkspaceIds: ["weixin_wuping"] }],
     financeAccessKeyPath: __filename,
     fetch(url, options = {}) {
       calls.push({ url, options });

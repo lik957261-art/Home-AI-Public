@@ -1,6 +1,6 @@
 # Embedded App Plugins
 
-Last updated: 2026-05-30.
+Last updated: 2026-05-31.
 
 This module describes the Hermes Mobile embedded-app plugin contract. A plugin
 is an external product surface mounted inside Hermes Mobile. Hermes owns the
@@ -229,9 +229,12 @@ bottom navigation, including on the plugin's own home/root page. The plugin owns
 the in-frame primary UI while Hermes keeps same-window hosting, safe proxying,
 permission checks, and back/return mediation.
 
-Installed plugins are Owner-visible by default. A non-Owner workspace must not
-see or launch an installed plugin until Owner has explicitly authorized that
-workspace for the plugin.
+Installed plugins are Owner-visible by default only in the effective Owner
+workspace. When an Owner-authenticated browser switches to a non-Owner
+workspace, the ordinary plugin list, navigation tabs, and manifest routes must
+project the target workspace's effective identity instead of the Owner session.
+A non-Owner workspace must not see or launch an installed plugin until Owner
+has explicitly authorized that workspace for the plugin.
 
 The installed plugin manifest contract has a Hermes-side security envelope:
 
@@ -801,6 +804,16 @@ Required coverage for host-only changes:
 - installed-PWA smoke for the target browser class when behavior depends on
   mobile WebKit/Chromium iframe/session behavior.
 
+Owner workspace switching is part of the plugin host permission contract. The
+normal embedded-plugin shell is an effective-workspace simulation surface, not
+an Owner admin console. If Owner switches from `owner` to `weixin_wuping`, a
+non-grantable Owner-critical plugin such as `codex-mobile` must be absent from
+the bottom navigation, `GET /api/hermes-plugins?workspaceId=weixin_wuping`, and
+`GET /api/hermes-plugins/codex-mobile/manifest?workspaceId=weixin_wuping`.
+Workspace-private business plugins such as Wardrobe and Finance may remain
+visible only when the target workspace has an explicit grant, an active
+provisioning record, or a discovered workspace-local key.
+
 For Wardrobe-specific implementation details, see `docs/MODULES/wardrobe.md`.
 
 ## Codex Mobile Plugin
@@ -829,6 +842,10 @@ The Codex manifest declares:
 - `program_api.plugin_launch=/api/v1/hermes/plugin/launch`
 - `owner_binding.strategy=codex_mobile_access_key`
 - `owner_binding.raw_key_returned_by_codex_mobile=false`
+
+Codex Mobile is `owner-critical`, Owner-only, and non-grantable. It is visible
+only when the effective plugin workspace is `owner`. Owner's browser session
+must not make Codex visible while simulating or viewing a non-Owner workspace.
 
 Hermes Mobile may override the Codex manifest URL with:
 

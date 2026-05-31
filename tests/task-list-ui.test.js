@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260531-plugin-provisioning-compat-v402";
+const CLIENT_VERSION = "20260531-plugin-effective-workspace-v403";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -2020,9 +2020,12 @@ assert.match(appJs, /function updateWardrobeNavigationAvailability\(\)/);
 assert.match(appJs, /nav\?\.classList\.toggle\("wardrobe-visible", available\)/);
 assert.match(appJs, /function updateCodexPluginNavigationAvailability\(\)/);
 assert.match(appJs, /function updateFinancePluginNavigationAvailability\(\)/);
-assert.match(appJs, /const available = Boolean\(state\.auth\?\.isOwner\)/);
+assert.match(appJs, /function codexPluginNavigationAvailable\(\)/);
+assert.match(appJs, /return Boolean\(state\.auth\?\.isOwner && embeddedPluginCurrentWorkspaceId\(\) === "owner"\)/);
+assert.match(appJs, /const available = codexPluginNavigationAvailable\(\)/);
 assert.match(appJs, /function refreshEmbeddedPluginList\(options = \{\}\)/);
 assert.match(appJs, /function embeddedPluginNavigationAvailable\(def\)/);
+assert.match(appJs, /if \(state\.auth\?\.isOwner && embeddedPluginCurrentWorkspaceId\(\) === "owner"\) return true/);
 assert.match(appJs, /const available = embeddedPluginNavigationAvailable\(def\)/);
 assert.match(appJs, /nav\?\.classList\.toggle\("codex-visible", available\)/);
 assert.match(appJs, /nav\?\.classList\.toggle\(def\.navVisibleClass, available\)/);
