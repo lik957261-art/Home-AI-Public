@@ -11,6 +11,11 @@ param(
   [string]$OutlookGraphMcpPath = "",
   [int]$HealthTimeoutSeconds = 45,
   [int]$OwnerMaintenanceBusyGraceMinutes = 45,
+  [ValidateSet("eager", "hybrid")]
+  [string]$StartMode = $(if ($env:HERMES_MOBILE_GATEWAY_POOL_START_MODE) { $env:HERMES_MOBILE_GATEWAY_POOL_START_MODE } elseif ($env:HERMES_WEB_GATEWAY_POOL_START_MODE) { $env:HERMES_WEB_GATEWAY_POOL_START_MODE } else { "eager" }),
+  [string[]]$StartProfiles = @(),
+  [string[]]$StopProfiles = @(),
+  [switch]$NoStopExisting,
   [switch]$OwnerMaintenanceOnly,
   [switch]$OnlyWhenOwnerMaintenanceUnhealthy
 )
@@ -276,6 +281,46 @@ function Is-OwnerMaintenanceWorker {
   if (-not $Worker.enabled -or -not $Worker.allowMaintenance -or -not $Worker.profile -or -not $Worker.port) { return $false }
   if ([string]$Worker.securityLevel -ne "owner-maintenance") { return $false }
   return [string]$Worker.profile -match '^(officialclean|deepseekmaint)[0-9]+$'
+}
+
+function Normalize-GatewayProfileList {
+  param([string[]]$Profiles)
+  $items = @()
+  foreach ($profile in @($Profiles)) {
+    foreach ($part in ([string]$profile -split ",")) {
+      $text = $part.Trim()
+      if (-not $text) { continue }
+      Assert-SafeGatewayProfileName -Profile $text
+      $items += $text
+    }
+  }
+  return @($items | Select-Object -Unique)
+}
+
+function Get-HybridOwnerWarmProfiles {
+  if (-not (Test-Path -LiteralPath $ManifestPath)) { throw "Missing gateway pool manifest: $ManifestPath" }
+  $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
+  $limit = 1
+  $envLimit = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM")
+  if (-not $envLimit) { $envLimit = [Environment]::GetEnvironmentVariable("HERMES_WEB_GATEWAY_OWNER_MIN_WARM") }
+  if ($envLimit -and $envLimit -match '^\d+$') { $limit = [Math]::Max(0, [int]$envLimit) }
+  if ($limit -le 0) { return @() }
+  $profiles = @()
+  foreach ($worker in @($manifest.workers)) {
+    if ($worker.enabled -eq $false) { continue }
+    if ([string]$worker.securityLevel -eq "owner-maintenance") { continue }
+    $profile = ([string]$worker.profile).Trim()
+    if (-not $profile) { $profile = ([string]$worker.name).Trim() }
+    if (-not $profile) { continue }
+    $allowed = @($worker.allowedWorkspaceIds) + @($worker.allowed_workspace_ids) + @($worker.skillWorkspaceIds) + @($worker.skill_workspace_ids)
+    $allowedText = ($allowed | ForEach-Object { [string]$_ }) -join ","
+    if ($allowedText -match '(^|,)\s*owner\s*(,|$)' -or $profile -eq "lowgw1") {
+      Assert-SafeGatewayProfileName -Profile $profile
+      $profiles += $profile
+    }
+    if ($profiles.Count -ge $limit) { break }
+  }
+  return @($profiles)
 }
 
 function Get-OwnerMaintenanceWorkers {
@@ -593,14 +638,34 @@ sleep 1
 }
 
 function Start-LowGateways {
+  param(
+    [string[]]$Profiles = @(),
+    [switch]$NoStopExisting
+  )
   $child = Join-Path $GatewayWorkerRoot "start-low-gateways-child.ps1"
   if (-not (Test-Path -LiteralPath $child)) { throw "Missing low gateway child script: $child" }
   Ensure-LowGatewayProfileEnv
-  Stop-LowGateways
-  Write-GatewayPoolLog "Starting low gateway pool."
-  $output = & powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $child -DistroName $LowGatewayDistroName 2>&1
+  $profiles = Normalize-GatewayProfileList -Profiles $Profiles
+  if (-not $NoStopExisting) { Stop-LowGateways }
+  $profileArgs = @()
+  if ($profiles.Count -gt 0) { $profileArgs += @("-StartProfiles", ($profiles -join ",")) }
+  Write-GatewayPoolLog ("Starting low gateway pool profiles: {0}" -f ($(if ($profiles.Count) { $profiles -join "," } else { "all" })))
+  $output = & powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $child -DistroName $LowGatewayDistroName @profileArgs 2>&1
   foreach ($line in $output) { Write-GatewayPoolLog ("lowgw: {0}" -f $line) }
   if ($LASTEXITCODE -ne 0) { throw "Low gateway pool start failed with exit code $LASTEXITCODE" }
+}
+
+function Stop-LowGatewayProfiles {
+  param([string[]]$Profiles = @())
+  $profiles = Normalize-GatewayProfileList -Profiles $Profiles
+  if ($profiles.Count -eq 0) { return }
+  $child = Join-Path $GatewayWorkerRoot "start-low-gateways-child.ps1"
+  if (-not (Test-Path -LiteralPath $child)) { throw "Missing low gateway child script: $child" }
+  Ensure-LowGatewayProfileEnv
+  Write-GatewayPoolLog ("Stopping low gateway profiles: {0}" -f ($profiles -join ","))
+  $output = & powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $child -DistroName $LowGatewayDistroName -StartProfiles ($profiles -join ",") -StopOnly 2>&1
+  foreach ($line in $output) { Write-GatewayPoolLog ("lowgw-stop-profile: {0}" -f $line) }
+  if ($LASTEXITCODE -ne 0) { throw "Low gateway profile stop failed with exit code $LASTEXITCODE" }
 }
 
 function Check-LowGatewayCodexAuth {
@@ -821,6 +886,14 @@ function Repair-OwnerMaintenanceGateways {
 
 Acquire-GatewayPoolRunMutex
 try {
+  if ($StopProfiles.Count -gt 0) {
+    Stop-LowGatewayProfiles -Profiles $StopProfiles
+    exit 0
+  }
+  if ($StartProfiles.Count -gt 0) {
+    Start-LowGateways -Profiles $StartProfiles -NoStopExisting:$NoStopExisting
+    exit 0
+  }
   if ($OwnerMaintenanceOnly) {
     Write-GatewayPoolLog "Owner-maintenance gateway repair begin."
     Repair-OwnerMaintenanceGateways
@@ -829,13 +902,29 @@ try {
 
   Write-GatewayPoolLog "Gateway pool startup begin."
   Invoke-GatewayPoolPhase -Name "provision-owner-external-connectors" -ScriptBlock { Provision-OwnerExternalConnectors }
-  Invoke-GatewayPoolPhase -Name "start-low-gateways" -ScriptBlock { Start-LowGateways }
+  if ($StartMode -eq "hybrid") {
+    $ownerWarmProfiles = @(Get-HybridOwnerWarmProfiles)
+    if ($ownerWarmProfiles.Count -gt 0) {
+      Invoke-GatewayPoolPhase -Name "start-low-gateways-hybrid-owner-warm" -ScriptBlock { Start-LowGateways -Profiles $ownerWarmProfiles }
+    } else {
+      Write-GatewayPoolLog "Hybrid startup skipped low Gateway warm start because owner min warm is zero."
+    }
+  } else {
+    Invoke-GatewayPoolPhase -Name "start-low-gateways" -ScriptBlock { Start-LowGateways }
+  }
   Invoke-GatewayPoolPhase -Name "check-low-gateway-codex-auth" -ScriptBlock { Check-LowGatewayCodexAuth }
-  Invoke-GatewayPoolPhase -Name "install-owner-maintenance-chatgpt-pro-plugin" -ScriptBlock { Install-OwnerMaintenanceChatGptProPlugin }
-  Invoke-GatewayPoolPhase -Name "start-owner-maintenance-gateways" -ScriptBlock { Start-OwnerMaintenanceGateways | Out-Null }
+  if ($StartMode -ne "hybrid") {
+    Invoke-GatewayPoolPhase -Name "install-owner-maintenance-chatgpt-pro-plugin" -ScriptBlock { Install-OwnerMaintenanceChatGptProPlugin }
+    Invoke-GatewayPoolPhase -Name "start-owner-maintenance-gateways" -ScriptBlock { Start-OwnerMaintenanceGateways | Out-Null }
+  }
 
   $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
-  $ports = @($manifest.workers | Where-Object { $_.enabled -and $_.port } | ForEach-Object { [int]$_.port })
+  if ($StartMode -eq "hybrid") {
+    $activeProfiles = @(Get-HybridOwnerWarmProfiles)
+    $ports = @($manifest.workers | Where-Object { $_.enabled -and $_.port -and ($activeProfiles -contains [string]$_.profile) } | ForEach-Object { [int]$_.port })
+  } else {
+    $ports = @($manifest.workers | Where-Object { $_.enabled -and $_.port } | ForEach-Object { [int]$_.port })
+  }
   Invoke-GatewayPoolPhase -Name "wait-gateway-health" -ScriptBlock { Wait-HealthPorts -Ports $ports }
   Write-GatewayPoolLog "Gateway pool startup OK; healthy ports: $($ports -join ', ')."
 } finally {

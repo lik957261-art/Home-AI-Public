@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260531-plugin-effective-workspace-v403";
+const CLIENT_VERSION = "20260531-gateway-elastic-v404";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -46,7 +46,18 @@ function cssRuleBody(selector) {
 }
 assert.match(appJs, /function renderGatewayProviderMatrix/);
 assert.match(appJs, /providerMatrix/);
+assert.match(appJs, /pool\.elastic \|\| pool\.mode === "hybrid"/);
+assert.match(appJs, /configuredStopped/);
+assert.match(appJs, /queueDepth/);
 assert.match(appJs, /High \$\{escapeHtml\(gatewayProviderTierLabel\(row\.ownerMaintenance\)\)\}/);
+assert.match(appJs, /run\.gateway_worker_starting/);
+assert.match(appJs, /run\.gateway_worker_reused/);
+assert.match(appJs, /run\.gateway_worker_queued/);
+assert.match(appJs, /run\.gateway_worker_start_failed/);
+assert.match(appJs, /function runGatewayWorkerPreviewLabel/);
+assert.match(appJs, /profileId/);
+assert.match(appJs, /warm until/);
+assert.match(appJs, /queue \$/);
 assert.match(stylesCss, /\.workspace-gateway-provider-matrix/);
 assert.match(stylesCss, /\.workspace-gateway-provider-row/);
 assert.match(stylesCss, /\.workspace-gateway-provider-row \{[\s\S]*?grid-template-columns: minmax\(68px, 0\.72fr\) minmax\(0, 1\.28fr\);/);

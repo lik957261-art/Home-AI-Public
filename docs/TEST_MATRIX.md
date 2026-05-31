@@ -94,22 +94,29 @@ validation should use `/opt/hermes-gateway-runtime/bin/hermes auth list` with
 `C:\ProgramData\HermesMobile\gateway-worker\check-worker-codex-auth.ps1`, with
 no raw tokens or refresh tokens printed.
 
-Gateway elastic worker scheduling is an H1 workflow. Before switching
-production from eager startup to hybrid/on-demand startup, harnesses must cover
-Owner `minWarm=1` / `maxWorkers=4`, non-Owner `minWarm=0` / `maxWorkers=2`,
-compatible warm-worker reuse, profile/provider-compatible cold start, workspace
-cap queueing, global cap queueing, idle TTL retirement, active-run protection,
-bounded launch-failure diagnostics, and `/api/status?detail=1` treating
-configured-but-stopped workers as expected state rather than unhealthy Gateway
-Pool degradation. The run-progress UI must distinguish starting, reused,
-queued, idle-retirement, and failed states without exposing API keys, workspace
-keys, plugin launch tokens, raw prompts, raw model output, or long logs.
-Focused implementation checks should include
+Gateway elastic worker scheduling is an H1 workflow. The source harness must
+cover Owner `minWarm=1` / `maxWorkers=4`, non-Owner `minWarm=0` /
+`maxWorkers=2`, compatible warm-worker reuse, already-running warm discovery,
+profile/provider-compatible cold start, workspace cap queueing, global cap
+queueing, idle TTL retirement, active-run protection, bounded launch-failure
+diagnostics, hidden single-profile start/stop launchers, and
+`/api/status?detail=1` treating configured-but-stopped workers as expected state
+rather than unhealthy Gateway Pool degradation. The run-progress UI must
+distinguish starting, reused, queued, idle-retirement, and failed states without
+exposing API keys, workspace keys, plugin launch tokens, raw prompts, raw model
+output, or long logs. Before switching production from eager startup to
+hybrid/on-demand startup, rerun these checks after syncing scripts into the
+production worker root and then smoke `/api/status?detail=1` plus a real Owner
+run. Focused implementation checks should include
 `node tests\gateway-elastic-worker-scheduler.test.js`,
+`node tests\gateway-worker-profile-launch-service.test.js`,
+`node tests\gateway-pool-provider.test.js`,
 `node tests\gateway-run-start-service.test.js`,
 `node tests\gateway-run-lifecycle-service.test.js`,
-`node tests\task-list-ui.test.js`, `node tests\startup-scripts.test.js`, and
-`node tests\cross-shell-command-harness.test.js`.
+`node tests\gateway-status-projection.test.js`, `node tests\system-api-routes.test.js`,
+`node tests\task-list-ui.test.js`, `node tests\startup-scripts.test.js`,
+`node tests\cross-shell-command-harness.test.js`, and
+`node tests\static-cache-version-harness.test.js`.
 
 For graph-guided Growth card planning, the harness must preserve the
 graph-first authoring contract. Formal model-generated cards must require a

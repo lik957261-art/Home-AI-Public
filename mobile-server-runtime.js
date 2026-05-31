@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
 const crypto = require("node:crypto");
-const { spawn, spawnSync } = require("node:child_process");
+const { spawnSync } = require("node:child_process");
 const webpush = require("web-push");
 const assessmentExamService = require("./adapters/assessment-exam-service");
 const { assessmentConfigLine, createAssessmentExamWorkflowService } = require("./adapters/assessment-exam-workflow-service");
@@ -21,6 +21,7 @@ const { createExternalIntegrationProvider } = require("./adapters/external-integ
 const { createArtifactTextRegistrationService } = require("./adapters/artifact-text-registration-service");
 const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider");
 const { createGatewayRunner } = require("./adapters/gateway-runner");
+const { createGatewayWorkerProfileLaunchService } = require("./adapters/gateway-worker-profile-launch-service");
 const { createGatewayRunInstructionService } = require("./adapters/gateway-run-instruction-service"); const { createGatewayRunToolsetRoutingService } = require("./adapters/gateway-run-toolset-routing-service"); const { createGatewayRunModelToolsetSelectionService } = require("./adapters/gateway-run-model-toolset-selection-service");
 const { createGatewayRuntimeCompositionService } = require("./adapters/gateway-runtime-composition-service");
 const { gatewayPoolStatusHealthy } = require("./adapters/gateway-status-projection");
@@ -79,7 +80,7 @@ const runtimeEnv = createMobileRuntimeEnvironment({ toolRoot: __dirname });
 const { TOOL_ROOT, REPO_ROOT, PUBLIC_ROOT, INDEX_HTML_PATH, LOCAL_CONFIG_ROOT, HOST, PORT, DATA_DIR, OWNER_DEFAULT_WORKSPACE, WINDOWS_HOME, WSL_USER, WSL_HOME, WSL_HERMES_HOME, WSL_DISTRO, BOOT_TRACE_PATH } = runtimeEnv;
 const { UPDATE_REMOTE_NAME, UPDATE_BRANCH, UPDATE_VERSION_URL, UPDATE_CHECK_TIMEOUT_MS, DEFAULT_TODO_BRIDGE_SCRIPT, DEFAULT_CRON_BRIDGE_SCRIPT, DEFAULT_DIRECTORY_BRIDGE_SCRIPT, DEFAULT_SKILL_BRIDGE_SCRIPT } = runtimeEnv;
 const { HERMES_API_BASE, HERMES_API_TIMEOUT_MS, HERMES_ENV_PATHS, HERMES_API_KEY_PATHS, HERMES_CONFIG_PATHS, EXPLICIT_HERMES_CONFIG_PATHS, ALLOW_WSL_REASONING_CONFIG_LOOKUP } = runtimeEnv;
-const { GATEWAY_POOL_ENABLED, GATEWAY_SKILL_PROFILE_ROUTING, GATEWAY_USAGE_TELEMETRY_ENABLED, GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS, GATEWAY_POOL_HEALTH_TIMEOUT_MS, GATEWAY_POOL_MANIFEST_PATHS } = runtimeEnv;
+const { GATEWAY_POOL_ENABLED, GATEWAY_POOL_START_MODE, GATEWAY_POOL_ELASTIC_CONFIG, GATEWAY_SKILL_PROFILE_ROUTING, GATEWAY_USAGE_TELEMETRY_ENABLED, GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS, GATEWAY_POOL_HEALTH_TIMEOUT_MS, GATEWAY_POOL_MANIFEST_PATHS } = runtimeEnv;
 const { RUN_START_TIMEOUT_MS, RUN_STREAMING_SAVE_THROTTLE_MS, RUN_LIVENESS_CHECK_AFTER_MS, RUN_LIVENESS_CHECK_INTERVAL_MS, RUN_LIVENESS_STALE_AFTER_MS, RUN_MODEL_FIRST_BYTE_WARNING_MS, RUN_WEB_SEARCH_MAX_CALLS, RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS, GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_STOP_TIMEOUT_MS, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_MODEL, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_PROVIDER, GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_REASONING_EFFORT, RUN_CONCURRENCY_MAX_GLOBAL, RUN_CONCURRENCY_MAX_PER_WORKSPACE } = runtimeEnv;
 const { DISABLE_AUTH, AUTH_KEY_PATH, ACCESS_KEYS_PATH, PERMISSION_APPROVAL_MARKER, OWNER_MAINTENANCE_RUNS_ENABLED, OWNER_ELEVATION_DURATION_OPTIONS_MINUTES, OWNER_ELEVATION_DEFAULT_MINUTES, OWNER_ELEVATION_ONCE_TTL_MS } = runtimeEnv;
 const { STATE_PATH, STATE_BACKUP_DIR, MAX_STATE_BACKUPS, STATE_BACKUP_MIN_INTERVAL_MS, AUDIT_EVENT_LOG_PATH, RUNTIME_CONFIG_PATH, SERVICE_STORE_BACKEND, MOBILE_SQLITE_DB_PATH } = runtimeEnv;
@@ -124,6 +125,7 @@ let clients = new Set();
 let activeStreams = new Map();
 let gatewayRunner = null;
 let gatewayPoolProvider = null;
+let gatewayWorkerProfileLaunchService = null;
 let gatewayRuntimeCompositionService = null;
 let assessmentExamWorkflowService = null;
 let directoryBrowserBoundaryService = null;
@@ -170,6 +172,7 @@ function getGatewayRuntimeCompositionService() {
       mergeAccessPolicyOverride, mkdirSync: (targetPath, options) => fs.mkdirSync(targetPath, options),
       modelPermissionApprovalRequest, nowIso, nowMs: () => Date.now(), selectRunToolsetsWithModel: (...args) => gatewayRunModelToolsetSelectionService.selectToolsetsForRun(...args),
       notifyTaskTerminal: (...args) => webPushDeliveryService.notifyTaskTerminal(...args),
+      releaseGatewayRunTarget,
       projectForTaskDirectoryAttachment: (...args) => getSemanticDirectoryAttachmentService().projectForTaskDirectoryAttachment(...args),
       registerArtifactsFromText, runLivenessCheckAfterMs: RUN_LIVENESS_CHECK_AFTER_MS,
       runLivenessCheckIntervalMs: RUN_LIVENESS_CHECK_INTERVAL_MS, runLivenessStaleAfterMs: RUN_LIVENESS_STALE_AFTER_MS,
@@ -340,61 +343,37 @@ function loadRuntimeConfig() {
 function saveRuntimeConfig(input, actor = "owner") {
   return runtimeConfigProvider.save(input, actor);
 }
-function effectiveHermesApiBase(config = loadRuntimeConfig()) {
-  return runtimeConfigProvider.effectiveHermesApiBase(config);
-}
-function effectiveWebPushSubject(config = loadRuntimeConfig()) {
-  return runtimeConfigProvider.effectiveWebPushSubject(config);
-}
-function effectiveWebPushVapidPath(config = loadRuntimeConfig()) {
-  return runtimeConfigProvider.effectiveWebPushVapidPath(config);
-}
-function publicRuntimeConfig() {
-  return runtimeConfigProvider.publicConfig({
-    pushStatus: webPushDeliveryService.publicPushStatus(),
-    webPushConfig: webPushDeliveryService?.getWebPushConfig?.() || null,
-    webPushEnabled: WEB_PUSH_ENABLED,
-  });
-}
-function loadHermesApiKey() {
-  return runtimeConfigProvider.loadHermesApiKey();
-}
+function effectiveHermesApiBase(config = loadRuntimeConfig()) { return runtimeConfigProvider.effectiveHermesApiBase(config); }
+function effectiveWebPushSubject(config = loadRuntimeConfig()) { return runtimeConfigProvider.effectiveWebPushSubject(config); }
+function effectiveWebPushVapidPath(config = loadRuntimeConfig()) { return runtimeConfigProvider.effectiveWebPushVapidPath(config); }
+function publicRuntimeConfig() { return runtimeConfigProvider.publicConfig({ pushStatus: webPushDeliveryService.publicPushStatus(), webPushConfig: webPushDeliveryService?.getWebPushConfig?.() || null, webPushEnabled: WEB_PUSH_ENABLED }); }
+function loadHermesApiKey() { return runtimeConfigProvider.loadHermesApiKey(); }
 function singleGatewayRunner() {
-  if (!gatewayRunner) {
-    gatewayRunner = createGatewayRunner({
-      apiBase: () => effectiveHermesApiBase(),
-      apiKey: () => loadHermesApiKey(),
-      timeoutMs: () => HERMES_API_TIMEOUT_MS,
-    });
-  }
+  if (!gatewayRunner) gatewayRunner = createGatewayRunner({ apiBase: () => effectiveHermesApiBase(), apiKey: () => loadHermesApiKey(), timeoutMs: () => HERMES_API_TIMEOUT_MS });
   return gatewayRunner;
 }
+function gatewayWorkerProfileLauncher() {
+  if (!gatewayWorkerProfileLaunchService) gatewayWorkerProfileLaunchService = createGatewayWorkerProfileLaunchService({ toolRoot: TOOL_ROOT, fs, path, elasticConfig: GATEWAY_POOL_ELASTIC_CONFIG });
+  return gatewayWorkerProfileLaunchService;
+}
 function gatewayPool() {
-  if (!gatewayPoolProvider) {
-    gatewayPoolProvider = createGatewayPoolProvider({
-      enabled: () => GATEWAY_POOL_ENABLED,
-      manifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS,
-      fallbackApiBase: () => effectiveHermesApiBase(),
-      fallbackApiKey: () => loadHermesApiKey(),
-      timeoutMs: () => HERMES_API_TIMEOUT_MS,
-      healthTimeoutMs: GATEWAY_POOL_HEALTH_TIMEOUT_MS,
-      createGatewayRunner,
-    });
-  }
+  if (!gatewayPoolProvider) gatewayPoolProvider = createGatewayPoolProvider({
+    enabled: () => GATEWAY_POOL_ENABLED, startMode: () => GATEWAY_POOL_START_MODE, elastic: GATEWAY_POOL_ELASTIC_CONFIG,
+    manifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS, fallbackApiBase: () => effectiveHermesApiBase(), fallbackApiKey: () => loadHermesApiKey(),
+    timeoutMs: () => HERMES_API_TIMEOUT_MS, healthTimeoutMs: GATEWAY_POOL_HEALTH_TIMEOUT_MS, createGatewayRunner,
+    startWorkerProfile: (...args) => gatewayWorkerProfileLauncher().startWorkerProfile(...args),
+    stopWorkerProfile: (...args) => gatewayWorkerProfileLauncher().stopWorkerProfile(...args),
+  });
   return gatewayPoolProvider;
 }
 function gatewayUsageTelemetry() {
-  if (!gatewayUsageTelemetryProvider) {
-    gatewayUsageTelemetryProvider = createGatewayUsageTelemetryProvider({
-      enabled: () => GATEWAY_USAGE_TELEMETRY_ENABLED,
-      profileRoots: () => GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS,
-      manifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS,
-    });
-  }
+  if (!gatewayUsageTelemetryProvider) gatewayUsageTelemetryProvider = createGatewayUsageTelemetryProvider({ enabled: () => GATEWAY_USAGE_TELEMETRY_ENABLED, profileRoots: () => GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS, manifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS });
   return gatewayUsageTelemetryProvider;
 }
-async function chooseGatewayRunTarget(hints = {}) {
-  return gatewayPool().chooseTarget(hints);
+async function chooseGatewayRunTarget(hints = {}, context = {}) { return gatewayPool().chooseTarget(hints, context); }
+function releaseGatewayRunTarget(runId, idleStatus = "idle") {
+  if (!gatewayPoolProvider || typeof gatewayPoolProvider.releaseRun !== "function") return false;
+  return gatewayPoolProvider.releaseRun(runId, idleStatus);
 }
 function gatewayTargetForRun(runId) {
   return getGatewayRuntimeCompositionService().gatewayTargetForRun(runId);
@@ -1356,22 +1335,29 @@ function extractJsonObject(text) {
 }
 async function hermesModelText(body, timeoutMs = AUTOMATION_CREATE_TIMEOUT_MS) {
   let text = "";
-  const gatewayTarget = await chooseGatewayRunTarget({ purpose: "automation_draft" });
-  const response = await gatewayPool().runnerFor(gatewayTarget).streamResponses(body, {
-    signal: AbortSignal.timeout(Math.max(5000, timeoutMs)),
-    gatewayUrl: gatewayTarget.apiBase,
-    apiKey: gatewayTarget.apiKey,
-    onEvent: (event) => {
-      const eventName = String(event.event || event.type || "");
-      if (eventName === "message.delta" || eventName === "response.output_text.delta") {
-        text += String(event.delta || event.text || "");
-      } else {
-        text += responseTextFromValue(event.output_text || event.output || event.message || "");
-      }
-    },
-  });
-  if (!response?.body?.getReader) text += responseTextFromValue(response);
-  return text.trim();
+  const runId = `automation_draft_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
+  const gatewayTarget = await chooseGatewayRunTarget({ purpose: "automation_draft" }, { runId });
+  try {
+    const response = await gatewayPool().runnerFor(gatewayTarget).streamResponses(body, {
+      signal: AbortSignal.timeout(Math.max(5000, timeoutMs)),
+      gatewayUrl: gatewayTarget.apiBase,
+      apiKey: gatewayTarget.apiKey,
+      onEvent: (event) => {
+        const eventName = String(event.event || event.type || "");
+        if (eventName === "message.delta" || eventName === "response.output_text.delta") {
+          text += String(event.delta || event.text || "");
+        } else {
+          text += responseTextFromValue(event.output_text || event.output || event.message || "");
+        }
+      },
+    });
+    if (!response?.body?.getReader) text += responseTextFromValue(response);
+    releaseGatewayRunTarget(gatewayTarget.schedulerRunId || runId, "idle");
+    return text.trim();
+  } catch (err) {
+    releaseGatewayRunTarget(gatewayTarget.schedulerRunId || runId, "failed");
+    throw err;
+  }
 }
 function runProcessText(command, args = [], options = {}) {
   return getLocalBridgeRuntimeService().runProcessText(command, args, options);

@@ -1,6 +1,10 @@
 "use strict";
 
 const fs = require("node:fs");
+const {
+  createGatewayElasticWorkerScheduler,
+  normalizeElasticSchedulerConfig,
+} = require("./gateway-elastic-worker-scheduler");
 
 function stripTrailingSlash(value) {
   return String(value || "").replace(/\/+$/, "");
@@ -39,6 +43,13 @@ function gatewayWorkerUnavailableError(message, code, details = {}) {
   err.code = code;
   err.details = details;
   return err;
+}
+
+function normalizePoolStartMode(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text === "hybrid" || text === "elastic" || text === "on-demand" || text === "ondemand") return "hybrid";
+  if (text === "eager" || text === "worker-pool" || text === "fixed") return "eager";
+  return "";
 }
 
 function normalizeWorkspaceIds(value) {
@@ -200,6 +211,17 @@ function createGatewayPoolProvider(options = {}) {
   if (typeof createGatewayRunner !== "function") throw new Error("GatewayPoolProvider requires createGatewayRunner");
   let nextIndex = 0;
   let lastLoaded = { manifestPath: "", workers: [], error: null, enabled: false };
+  const elasticScheduler = createGatewayElasticWorkerScheduler({
+    config: normalizeElasticSchedulerConfig(options.elastic || options.elasticConfig || {}),
+    nowMs: options.nowMs,
+    startWorker: typeof options.startWorkerProfile === "function"
+      ? (worker, context) => options.startWorkerProfile(worker, context)
+      : undefined,
+    stopWorker: typeof options.stopWorkerProfile === "function"
+      ? (worker, context) => options.stopWorkerProfile(worker, context)
+      : undefined,
+    isHealthy,
+  });
 
   function manifestPaths() {
     const value = typeof options.manifestPaths === "function" ? options.manifestPaths() : options.manifestPaths;
@@ -219,6 +241,11 @@ function createGatewayPoolProvider(options = {}) {
 
   function mode() {
     return envEnabled(typeof options.enabled === "function" ? options.enabled() : options.enabled);
+  }
+
+  function startMode() {
+    const explicit = typeof options.startMode === "function" ? options.startMode() : options.startMode;
+    return normalizePoolStartMode(explicit) || "eager";
   }
 
   function load() {
@@ -264,10 +291,7 @@ function createGatewayPoolProvider(options = {}) {
     }
   }
 
-  async function chooseTarget(hints = {}) {
-    const loaded = load();
-    const requestedSecurityLevel = normalizeSecurityLevel(hints.securityLevel || hints.security_level || "user");
-    const requestedProvider = cleanProvider(hints.provider);
+  function effectiveRoutingHints(loaded, hints = {}) {
     const skillRoutingRequested = Boolean(
       hints.skillProfile
       || hints.skill_profile
@@ -287,6 +311,14 @@ function createGatewayPoolProvider(options = {}) {
     } else if (skillRoutingRequested && skillRoutingConfigured) {
       effectiveHints.requireSkillProfile = true;
     }
+    return effectiveHints;
+  }
+
+  async function chooseTarget(hints = {}, context = {}) {
+    const loaded = load();
+    const requestedSecurityLevel = normalizeSecurityLevel(hints.securityLevel || hints.security_level || "user");
+    const requestedProvider = cleanProvider(hints.provider);
+    const effectiveHints = effectiveRoutingHints(loaded, hints);
     if (!loaded.enabled) {
       const reason = loaded.error ? `manifest_error:${loaded.error.message || loaded.error}` : "pool_unavailable";
       if (requestedSecurityLevel === "user" || requestedProvider) {
@@ -314,6 +346,20 @@ function createGatewayPoolProvider(options = {}) {
         );
       }
       return Object.assign(fallbackTarget(), { reason: "no_matching_worker" });
+    }
+    if (startMode() === "hybrid") {
+      const target = await elasticScheduler.chooseTarget({
+        allWorkers: loaded.workers,
+        candidates,
+        hints: effectiveHints,
+        runId: context.runId || hints.runId || hints.run_id || "",
+        onEvent: context.onEvent,
+      });
+      const idx = loaded.workers.findIndex((item) => item.id === target.id);
+      nextIndex = idx >= 0 ? (idx + 1) % loaded.workers.length : (nextIndex + 1) % loaded.workers.length;
+      return Object.assign({}, target, {
+        manifestPath: loaded.manifestPath,
+      });
     }
     for (const worker of candidates) {
       if (await isHealthy(worker)) {
@@ -358,6 +404,20 @@ function createGatewayPoolProvider(options = {}) {
   async function status() {
     const loaded = load();
     const fallback = fallbackTarget();
+    if (loaded.enabled && startMode() === "hybrid") {
+      for (const worker of loaded.workers) {
+        if (await isHealthy(worker)) elasticScheduler.markWorkerWarm(worker);
+      }
+      const schedulerStatus = elasticScheduler.status(loaded.workers);
+      return Object.assign({}, schedulerStatus, {
+        enabled: loaded.enabled,
+        mode: "hybrid",
+        manifestPath: loaded.manifestPath,
+        workerCount: loaded.workers.length,
+        fallbackApiBase: fallback.apiBase,
+        error: loaded.error ? loaded.error.message || String(loaded.error) : null,
+      });
+    }
     const workers = [];
     for (const worker of loaded.workers) {
       workers.push(publicWorker(worker, await isHealthy(worker)));
@@ -377,6 +437,8 @@ function createGatewayPoolProvider(options = {}) {
     chooseTarget,
     fallbackTarget,
     load,
+    planHybridStartup: (workers) => elasticScheduler.planHybridStartup(workers || load().workers || []),
+    releaseRun: (...args) => elasticScheduler.releaseRun(...args),
     runnerFor,
     status,
     targetForGatewayUrl,
@@ -385,6 +447,7 @@ function createGatewayPoolProvider(options = {}) {
 
 module.exports = {
   createGatewayPoolProvider,
+  normalizePoolStartMode,
   normalizeSecurityLevel,
   normalizeWorker,
   orderedWorkers,

@@ -1,5 +1,7 @@
 param(
-  [string]$DistroName = ""
+  [string]$DistroName = "",
+  [string]$StartProfiles = "",
+  [switch]$StopOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,7 +16,14 @@ if (-not (Test-Path -LiteralPath $scriptPath)) {
   throw "Start script missing: $scriptPath"
 }
 
-& wsl.exe -d $distroName -u root -- bash /mnt/c/ProgramData/HermesMobile/gateway-worker/start-low-gateways.sh
+$envArgs = @()
+if ($StartProfiles) { $envArgs += "HERMES_GATEWAY_START_PROFILES=$StartProfiles" }
+if ($StopOnly) { $envArgs += "HERMES_GATEWAY_STOP_ONLY=1" }
+if ($envArgs.Count -gt 0) {
+  & wsl.exe -d $distroName -u root -- env @envArgs bash /mnt/c/ProgramData/HermesMobile/gateway-worker/start-low-gateways.sh
+} else {
+  & wsl.exe -d $distroName -u root -- bash /mnt/c/ProgramData/HermesMobile/gateway-worker/start-low-gateways.sh
+}
 if ($LASTEXITCODE -ne 0) {
   throw "Low gateway start failed with exit code $LASTEXITCODE"
 }

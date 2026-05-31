@@ -21,6 +21,8 @@ const fileArtifactResolverService = require("../adapters/file-artifact-resolver-
 const fileResponseService = require("../adapters/file-response-service");
 const fileResourceService = require("../adapters/file-resource-service");
 const gatewayRunEventService = require("../adapters/gateway-run-event-service");
+const gatewayElasticWorkerScheduler = require("../adapters/gateway-elastic-worker-scheduler");
+const gatewayWorkerProfileLaunchService = require("../adapters/gateway-worker-profile-launch-service");
 const gatewayRunInstructionService = require("../adapters/gateway-run-instruction-service");
 const gatewayRunLifecycleService = require("../adapters/gateway-run-lifecycle-service");
 const gatewayRunModelToolsetSelectionService = require("../adapters/gateway-run-model-toolset-selection-service");
@@ -211,6 +213,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof fileResourceService.publicFileMetadata, "function");
   assert.equal(typeof fileResourceService.previewStrategyForFile, "function");
   assert.equal(typeof gatewayRunEventService.createGatewayRunEventService, "function");
+    assert.equal(typeof gatewayElasticWorkerScheduler.createGatewayElasticWorkerScheduler, "function");
+    assert.equal(typeof gatewayWorkerProfileLaunchService.createGatewayWorkerProfileLaunchService, "function");
     assert.equal(typeof gatewayRunInstructionService.createGatewayRunInstructionService, "function");
     assert.equal(typeof gatewayRunLifecycleService.createGatewayRunLifecycleService, "function");
     assert.equal(typeof gatewayRunLifecycleService.livenessDecisionAfterCheck, "function");
@@ -422,9 +426,11 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createGatewayRunInstructionService/);
   assert.match(server, /gatewayRunInstructionService\.buildHermesInstructions/);
   assert.match(server, /createGatewayRuntimeCompositionService/);
+  assert.match(server, /createGatewayWorkerProfileLaunchService/);
   assert.match(gatewayComposition, /createGatewayRunLifecycleService/);
   assert.match(gatewayComposition, /createGatewayRunQueueService/);
   assert.match(gatewayComposition, /createGatewayRunStartService/);
+  assert.match(gatewayComposition, /releaseGatewayRunTarget/);
   assert.match(gatewayComposition, /lifecycleService\.livenessDecisionAfterCheck/);
   assert.match(server, /createDirectKanbanCreateService/);
   assert.match(server, /directKanbanCreateService\.detectDirectTodoCreateIntentForWeb/);

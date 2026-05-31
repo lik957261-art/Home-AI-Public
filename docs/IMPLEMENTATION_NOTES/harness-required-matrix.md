@@ -738,7 +738,9 @@ Required harness dimensions:
   `workspace_capacity` status instead of starting a fifth worker.
 - A non-Owner workspace may expand to two workers, then must queue with the
   same bounded capacity semantics.
-- A compatible warm worker must be reused instead of starting a new process.
+- A compatible warm worker must be reused instead of starting a new process;
+  an already-running configured worker discovered by health check must also be
+  marked warm and reused rather than restarted.
 - Provider/profile selection is part of compatibility. A DeepSeek, Grok, or
   OpenAI/Codex request must select or start a compatible profile and must not
   silently reroute to another provider merely to reuse a warm worker.
@@ -755,6 +757,9 @@ Required harness dimensions:
 - Launch failure must record a bounded diagnostic, release or preserve the
   queue according to terminal state, and never leave a user task indefinitely
   `running`.
+- Single-profile start/stop launchers must use hidden PowerShell windows and
+  bounded diagnostics. Raw API keys, workspace keys, browser tokens, and plugin
+  launch tokens must not appear in thrown error details or run-progress events.
 - `/api/status?detail=1` must treat configured-but-stopped elastic workers as
   expected state in hybrid mode, while still reporting failed launch or failed
   health checks as degraded.
@@ -769,10 +774,15 @@ Primary docs and tests:
 - `docs/MODULES/gateway-pool.md`
 - `docs/IMPLEMENTATION_NOTES/gateway-elastic-worker-scheduling.md`
 - `node tests\gateway-elastic-worker-scheduler.test.js`
+- `node tests\gateway-worker-profile-launch-service.test.js`
+- `node tests\gateway-pool-provider.test.js`
 - `node tests\gateway-run-start-service.test.js`
 - `node tests\gateway-run-lifecycle-service.test.js`
+- `node tests\gateway-status-projection.test.js`
+- `node tests\system-api-routes.test.js`
 - `node tests\task-list-ui.test.js`
 - `node tests\startup-scripts.test.js`
+- `node tests\static-cache-version-harness.test.js`
 - `node tests\cross-shell-command-harness.test.js`
 
 ### Cross-Shell Production Operations

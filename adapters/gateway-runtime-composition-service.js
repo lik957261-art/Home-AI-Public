@@ -43,7 +43,13 @@ function createGatewayRuntimeCompositionService(deps = {}) {
   }
 
   function removeThreadActiveRun(...args) {
-    return getQueueService().removeThreadActiveRun(...args);
+    const result = getQueueService().removeThreadActiveRun(...args);
+    const runId = args[1];
+    const idleStatus = args[2] || "idle";
+    if (runId && typeof deps.releaseGatewayRunTarget === "function") {
+      deps.releaseGatewayRunTarget(runId, idleStatus);
+    }
+    return result;
   }
 
   function taskGroupHasRunningRun(...args) {

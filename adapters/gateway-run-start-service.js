@@ -318,6 +318,41 @@ function createGatewayRunStartService(options = {}) {
     });
   }
 
+  function appendGatewaySchedulerEvent(thread, runId, event = {}) {
+    const eventName = cleanString(event.event || "");
+    const id = cleanString(runId || event.runId || event.run_id);
+    if (!thread || !id || !eventName.startsWith("run.gateway_worker_")) return;
+    const preview = JSON.stringify({
+      reason: cleanString(event.reason),
+      profileId: cleanString(event.profileId || event.profile || event.workerId),
+      provider: cleanString(event.provider),
+      workspaceId: cleanString(event.workspaceId),
+      permissionTier: cleanString(event.permissionTier),
+      state: cleanString(event.state),
+      queueDepth: Math.max(0, Number(event.queueDepth || 0) || 0),
+      warmUntil: cleanString(event.warmUntil),
+      idleExpiresAt: cleanString(event.idleExpiresAt),
+      lastStartDurationMs: Math.max(0, Number(event.lastStartDurationMs || 0) || 0),
+      failureCode: cleanString(event.failureCode || event.lastFailureCode),
+      diagnostic: cleanString(event.diagnostic).slice(0, 160),
+    });
+    addThreadEvent(thread, {
+      event: eventName,
+      timestamp: Number(event.timestampMs || 0) > 0 ? Number(event.timestampMs) / 1000 : nowMs() / 1000,
+      runId: id,
+      tool: "hermes_mobile",
+      preview,
+      error: Boolean(event.error || eventName.endsWith("_failed")),
+    });
+    broadcast({
+      type: "run.event",
+      threadId: thread.id,
+      runId: id,
+      event: thread.events?.[thread.events.length - 1],
+      thread: threadSummary(thread),
+    });
+  }
+
   function contextReadyPreview(request = {}) {
     const summary = request.conversationHistorySummary || {};
     const count = Math.max(0, Number(summary.messageCount || 0) || 0);
@@ -458,7 +493,10 @@ function createGatewayRunStartService(options = {}) {
     const taskId = makePublicTaskId("web");
     applyAssistantRunOptions(assistantMessage, request, runOptions);
 
-    const gatewayTarget = await chooseGatewayRunTarget(request.gatewayRouting);
+    const gatewayTarget = await chooseGatewayRunTarget(request.gatewayRouting, {
+      runId: taskId,
+      onEvent: (event) => appendGatewaySchedulerEvent(thread, taskId, event),
+    });
     const { gatewayUrl } = applyStartedRunState(thread, assistantMessage, taskId, gatewayTarget, nowIso());
     assistantMessage.model = cleanString(request.body.model || request.gatewayRouting.model || gatewayTarget?.model || gatewayTarget?.defaultModel);
     assistantMessage.modelProvider = cleanString(request.body.provider || request.gatewayRouting.provider || gatewayTarget?.provider);

@@ -99,12 +99,27 @@ async function applyAppUpdateFromBadge() {
 function gatewayPoolSummary(pool = state.gatewayPool) {
   if (!pool || typeof pool !== "object") return { label: "Gateway Pool: unknown", detail: "" };
   const workers = Array.isArray(pool.workers) ? pool.workers : [];
-  const healthy = workers.filter((worker) => worker.healthy === true).length;
+  const healthy = Number(pool.healthy ?? workers.filter((worker) => worker.healthy === true).length) || 0;
   const workerCount = Number(pool.workerCount ?? workers.length) || workers.length;
+  const running = Number(pool.running || workers.filter((worker) => worker.expectedRunning === true).length) || 0;
+  const stopped = Number(pool.configuredStopped || 0) || 0;
+  const failed = Number(pool.failed || 0) || 0;
   if (!pool.enabled) {
     return {
       label: "Gateway Pool: fallback",
       detail: pool.error || pool.reason || pool.fallbackApiBase || "",
+      healthy,
+      workerCount,
+    };
+  }
+  if (pool.elastic || pool.mode === "hybrid") {
+    const parts = [`running ${running}/${workerCount}`];
+    if (stopped) parts.push(`configured ${stopped}`);
+    if (failed) parts.push(`failed ${failed}`);
+    if (pool.queueDepth) parts.push(`queued ${pool.queueDepth}`);
+    return {
+      label: `Gateway Pool: ${healthy}/${running || workerCount} healthy`,
+      detail: `mode hybrid / ${parts.join(" / ")}`,
       healthy,
       workerCount,
     };
@@ -120,7 +135,17 @@ function gatewayPoolSummary(pool = state.gatewayPool) {
 function gatewayProviderTierLabel(tier = {}) {
   const configured = Number(tier.configured || 0);
   const healthy = Number(tier.healthy || 0);
+  const running = Number(tier.running || 0);
+  const stopped = Number(tier.stopped || 0);
+  const failed = Number(tier.failed || 0);
   if (!configured) return "not configured";
+  if (running || stopped || failed) {
+    const parts = [];
+    if (running) parts.push(`${healthy}/${running} healthy`);
+    if (stopped) parts.push(`${stopped} stopped`);
+    if (failed) parts.push(`${failed} failed`);
+    return parts.join(", ");
+  }
   return `${healthy}/${configured} healthy`;
 }
 

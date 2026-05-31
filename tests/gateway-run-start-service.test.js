@@ -351,6 +351,61 @@ async function testOrdinaryRunUsesDefaultWebSearchBudgetWhenConfigured() {
   assert.equal(calls.streams[0].options.webSearchMaxCalls, 6);
 }
 
+async function testStartRunProjectsGatewaySchedulerEventsBeforeSelection() {
+  const { calls, service } = makeHarness({
+    chooseGatewayRunTarget: async (routing, context = {}) => {
+      calls.gatewayRouting.push(routing);
+      assert.equal(context.runId, "web_test_1");
+      context.onEvent({
+        event: "run.gateway_worker_starting",
+        reason: "worker_starting",
+        profileId: "lowgw5",
+        provider: "openai-codex",
+        workspaceId: "workspace_sender",
+        permissionTier: "user",
+        state: "starting",
+        queueDepth: 0,
+        timestampMs: 1_778_806_923_000,
+        secret: "must-not-render",
+      });
+      context.onEvent({
+        event: "run.gateway_worker_started",
+        reason: "worker_started",
+        profileId: "lowgw5",
+        provider: "openai-codex",
+        workspaceId: "workspace_sender",
+        permissionTier: "user",
+        state: "busy",
+        queueDepth: 0,
+        lastStartDurationMs: 2100,
+      });
+      return {
+        apiBase: "http://worker.gateway",
+        apiKey: "worker-key",
+        name: "lowgw5",
+        profile: "lowgw5",
+        source: "worker_pool",
+      };
+    },
+  });
+
+  await service.startRunForThread(baseThread(), baseUserMessage(), baseAssistantMessage(), {});
+
+  assert.deepEqual(calls.events.map((event) => event.event).slice(0, 5), [
+    "run.gateway_worker_starting",
+    "run.gateway_worker_started",
+    "run.context_ready",
+    "run.gateway_selected",
+    "run.request_sent",
+  ]);
+  const starting = JSON.parse(calls.events[0].preview);
+  assert.equal(starting.reason, "worker_starting");
+  assert.equal(starting.profileId, "lowgw5");
+  assert.equal(starting.workspaceId, "workspace_sender");
+  assert.equal(JSON.stringify(calls.events).includes("must-not-render"), false);
+  assert.equal(JSON.stringify(calls.events).includes("worker-key"), false);
+}
+
 async function testStartRunUsesModelFirstSelectionBeforeExecution() {
   const { calls, service } = makeHarness({
     buildAccessPolicy: (routePolicy, _user, project) => ({
@@ -947,9 +1002,10 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testStartRunBuildsGatewayRequestAndMutatesStartState();
   testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext();
   await testStartRunPreservesSearchSourceRouting();
-    await testOrdinaryRunUsesDefaultWebSearchBudgetWhenConfigured();
-    await testStartRunUsesModelFirstSelectionBeforeExecution();
-    await testModelFirstRoutingMetadataSurvivesPolicySanitizer();
+  await testOrdinaryRunUsesDefaultWebSearchBudgetWhenConfigured();
+  await testStartRunProjectsGatewaySchedulerEventsBeforeSelection();
+  await testStartRunUsesModelFirstSelectionBeforeExecution();
+  await testModelFirstRoutingMetadataSurvivesPolicySanitizer();
   await testStartRunSkipsSelectorForForcedToolsetEscalationRetry();
   await testStartRunCanExecuteWardrobeMcpSelection();
   await testPermissionPreflightKeepsDeterministicWardrobeStackWhenSelectionDisabled();

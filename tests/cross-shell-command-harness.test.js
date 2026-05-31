@@ -51,6 +51,9 @@ assert.match(startGatewayPool, /wslpath -a \$portable/);
 assert.match(startGatewayPool, /-- bash \$wslScriptPath/);
 assert.match(startGatewayPool, /stop-legacy-official-low-gateways\.sh/);
 assert.match(startGatewayPool, /start-owner-maintenance-gateways\.sh/);
+assert.match(startGatewayPool, /Start-LowGateways -Profiles \$StartProfiles -NoStopExisting:\$NoStopExisting/);
+assert.match(startGatewayPool, /Start-LowGateways -Profiles \$ownerWarmProfiles/);
+assert.match(startGatewayPool, /Stop-LowGatewayProfiles -Profiles \$StopProfiles/);
 
 const startWeixinFrontGateway = read("scripts/start-weixin-front-gateway.ps1");
 assert.match(startWeixinFrontGateway, /WriteAllText\(\$tmpScript, \$Script, \$encoding\)/);

@@ -10,6 +10,9 @@ Gateway Pool owns official-clean Hermes worker startup, health checks, routing t
 - `scripts/start-low-gateways.sh`
 - `scripts/configure-low-gateways.sh`
 - `scripts/check-worker-codex-auth.ps1`
+- `adapters/gateway-elastic-worker-scheduler.js`
+- `adapters/gateway-worker-profile-launch-service.js`
+- `adapters/gateway-pool-provider.js`
 - `adapters/gateway-run-start-service.js`
 - `adapters/gateway-run-stream-service.js`
 - `adapters/owner-elevation-routing-service.js`
@@ -53,23 +56,30 @@ not start a whole worker class with the first key in the manifest. A worker can
 still pass `/health` while rejecting Mobile `/v1/responses` requests with
 `401 invalid_api_key` if the process key and manifest key differ.
 
-## Planned Elastic Worker Scheduling
+## Elastic Worker Scheduling
 
-Hermes Mobile should move Gateway Pool startup from a fully eager fixed pool to
-a hybrid elastic pool. The target design keeps only the required warm baseline,
-starts compatible workers on demand, reuses them for a bounded warm period, and
-retires idle workers after a TTL.
+Hermes Mobile supports Gateway Pool startup through either the historical eager
+fixed pool or a hybrid elastic pool. The hybrid scheduler keeps only the
+required warm baseline, starts compatible workers on demand, reuses them for a
+bounded warm period, and retires idle workers after a TTL.
 
-Initial target policy:
+Default hybrid policy:
 
 - Owner keeps `1` compatible warm worker and may expand to `4` workers.
 - Non-Owner workspaces keep `0` warm workers and may expand to `2` workers.
-- A global elastic cap should limit total started workers; the first proposed
-  default is `8`.
-- Idle workers should remain reusable for several hours; the first proposed
-  default is `180` minutes.
+- A global elastic cap limits total started workers; the first default is `8`.
+- Idle workers remain reusable for several hours; the first default is `180`
+  minutes.
 - A configured but stopped on-demand worker is expected state, not Gateway Pool
   degradation.
+
+Hybrid mode is enabled through `HERMES_MOBILE_GATEWAY_POOL_START_MODE=hybrid`
+or the compatibility alias `HERMES_WEB_GATEWAY_POOL_START_MODE=hybrid`. The
+source default remains eager until the production launcher explicitly changes
+mode. `scripts/start-gateway-pool.ps1 -StartProfiles <profile> -NoStopExisting`
+starts a single worker profile, while `-StopProfiles <profile>`
+stops only the selected idle profile. Wrapper calls must continue to use hidden
+PowerShell windows.
 
 Worker reuse must be keyed by workspace, profile, provider, permission tier,
 effective toolset/schema set, MCP/plugin binding, and manifest identity. Do not
@@ -77,6 +87,11 @@ reuse a healthy worker across incompatible providers, permission tiers, or
 workspace-bound MCP registrations. Provider selection remains user intent: a
 DeepSeek request must not be silently rerouted to OpenAI/Codex or Grok merely
 because those workers are already warm.
+
+Run progress emits bounded scheduler events for queued, starting, started,
+reused, and start-failed states. `/api/status?detail=1` reports `configured`,
+`warm`, `busy`, `idle`, `failed`, `runningWorkerCount`, and `queueDepth` without
+exposing API keys or plugin/workspace keys.
 
 Detailed design:
 

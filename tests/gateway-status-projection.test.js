@@ -49,16 +49,21 @@ const rawPool = {
       {
         provider: "openai-codex",
         label: "ChatGPT",
-        user: { configured: 1, healthy: 1 },
-        ownerMaintenance: { configured: 0, healthy: 0 },
+        user: { configured: 1, running: 1, healthy: 1, stopped: 0, failed: 0 },
+        ownerMaintenance: { configured: 0, running: 0, healthy: 0, stopped: 0, failed: 0 },
       },
       {
         provider: "deepseek",
         label: "DeepSeek",
-        user: { configured: 0, healthy: 0 },
-        ownerMaintenance: { configured: 1, healthy: 0 },
+        user: { configured: 0, running: 0, healthy: 0, stopped: 0, failed: 0 },
+        ownerMaintenance: { configured: 1, running: 1, healthy: 0, stopped: 0, failed: 1 },
       },
     ],
+    running: 2,
+    configuredStopped: 0,
+    failed: 1,
+    elastic: false,
+    queueDepth: 0,
   });
   assert.equal(publicGatewayPoolStatus(null), null);
   assert.equal(gatewayPoolStatusHealthy(rawPool), true);
@@ -84,16 +89,21 @@ const rawPool = {
       {
         provider: "openai-codex",
         label: "ChatGPT",
-        user: { configured: 1, healthy: 1 },
-        ownerMaintenance: { configured: 0, healthy: 0 },
+        user: { configured: 1, running: 1, healthy: 1, stopped: 0, failed: 0 },
+        ownerMaintenance: { configured: 0, running: 0, healthy: 0, stopped: 0, failed: 0 },
       },
       {
         provider: "deepseek",
         label: "DeepSeek",
-        user: { configured: 0, healthy: 0 },
-        ownerMaintenance: { configured: 1, healthy: 0 },
+        user: { configured: 0, running: 0, healthy: 0, stopped: 0, failed: 0 },
+        ownerMaintenance: { configured: 1, running: 1, healthy: 0, stopped: 0, failed: 1 },
       },
     ],
+    running: 2,
+    configuredStopped: 0,
+    failed: 1,
+    elastic: false,
+    queueDepth: 0,
   });
   const serialized = JSON.stringify(userPool);
   assert.equal(serialized.includes("ProgramData"), false);
@@ -104,6 +114,50 @@ const rawPool = {
   assert.equal(Object.hasOwn(userPool, "manifestPath"), false);
   assert.equal(Object.hasOwn(userPool, "fallbackApiBase"), false);
   assert.equal(Object.hasOwn(userPool, "error"), false);
+}
+
+{
+  const hybrid = {
+    enabled: true,
+    mode: "hybrid",
+    elastic: true,
+    workerCount: 3,
+    queueDepth: 1,
+    workers: [
+      { id: "lowgw1", provider: "openai-codex", securityLevel: "user", state: "busy", healthy: true, expectedRunning: true },
+      { id: "lowgw5", provider: "openai-codex", securityLevel: "user", state: "configured", healthy: null, expectedRunning: false },
+      { id: "deepseekgw1", provider: "deepseek", securityLevel: "user", state: "configured", healthy: null, expectedRunning: false },
+    ],
+  };
+  assert.deepEqual(publicGatewayPoolStatus(hybrid), {
+    enabled: true,
+    mode: "hybrid",
+    workerCount: 3,
+    healthy: 1,
+    running: 1,
+    configuredStopped: 2,
+    failed: 0,
+    elastic: true,
+    queueDepth: 1,
+    providerMatrix: [
+      {
+        provider: "openai-codex",
+        label: "ChatGPT",
+        user: { configured: 2, running: 1, healthy: 1, stopped: 1, failed: 0 },
+        ownerMaintenance: { configured: 0, running: 0, healthy: 0, stopped: 0, failed: 0 },
+      },
+      {
+        provider: "deepseek",
+        label: "DeepSeek",
+        user: { configured: 1, running: 0, healthy: 0, stopped: 1, failed: 0 },
+        ownerMaintenance: { configured: 0, running: 0, healthy: 0, stopped: 0, failed: 0 },
+      },
+    ],
+  });
+  assert.equal(gatewayPoolStatusHealthy(hybrid), true);
+  assert.equal(gatewayPoolStatusHealthy(Object.assign({}, hybrid, {
+    workers: [{ id: "lowgw1", state: "failed", healthy: false, expectedRunning: true }],
+  })), false);
 }
 
 console.log("gateway status projection tests passed");

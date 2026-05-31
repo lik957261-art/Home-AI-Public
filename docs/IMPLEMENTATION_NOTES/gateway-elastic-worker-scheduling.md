@@ -1,14 +1,15 @@
-# Gateway Elastic Worker Scheduling Design
+# Gateway Elastic Worker Scheduling
 
-Status: design only. This document does not change runtime behavior by itself.
+Status: implemented in source as `20260531-gateway-elastic-v404`; not deployed
+or switched in production by this document alone.
 
 ## Classification
 
-The future implementation is an H1 Gateway workflow change because it alters
-worker startup, profile routing, queueing, run telemetry, status projection, and
-production startup behavior. It is not complete until the workflow harness
-scenarios in `docs/IMPLEMENTATION_NOTES/harness-required-matrix.md` and
-`docs/TEST_MATRIX.md` exist and pass.
+This is an H1 Gateway workflow change because it alters worker startup, profile
+routing, queueing, run telemetry, status projection, and production startup
+behavior. The source implementation must keep the workflow harness scenarios in
+`docs/IMPLEMENTATION_NOTES/harness-required-matrix.md` and
+`docs/TEST_MATRIX.md` passing before any production switch to hybrid mode.
 
 ## Problem
 
@@ -27,9 +28,9 @@ logic fans out across many workers.
 
 ## Target Model
 
-Hermes Mobile should move from an eager fixed pool to a hybrid elastic pool.
-The scheduler keeps a small warm baseline, starts compatible workers on demand,
-reuses them while warm, and retires idle workers after a bounded time.
+Hermes Mobile now supports moving from an eager fixed pool to a hybrid elastic
+pool. The scheduler keeps a small warm baseline, starts compatible workers on
+demand, reuses them while warm, and retires idle workers after a bounded time.
 
 Initial policy:
 
@@ -51,6 +52,36 @@ Recommended first defaults:
 
 The `HERMES_WEB_*` aliases should remain accepted for existing production
 launchers until the deployment scripts are fully migrated.
+
+## Source Implementation
+
+The v404 source implementation adds these boundaries:
+
+- `adapters/gateway-elastic-worker-scheduler.js`: compatibility key, lifecycle
+  state, per-workspace caps, global cap queueing, idle retirement, and bounded
+  scheduler events.
+- `adapters/gateway-worker-profile-launch-service.js`: hidden PowerShell launch
+  wrapper for single-profile start/stop through `scripts/start-gateway-pool.ps1`.
+- `adapters/gateway-pool-provider.js`: hybrid mode worker choice, warm worker
+  discovery, on-demand launch, and status projection.
+- `adapters/gateway-run-start-service.js` and
+  `adapters/gateway-runtime-composition-service.js`: scheduler events enter the
+  run-progress timeline and run completion releases assigned workers.
+- `adapters/gateway-status-projection.js`: configured/stopped elastic workers
+  are expected state while failed expected-running workers still degrade status.
+- `scripts/start-gateway-pool.ps1`, `scripts/start-low-gateways-child.ps1`, and
+  `scripts/start-low-gateways.sh`: hybrid startup and single-profile
+  `-StartProfiles` / `-StopProfiles` operations.
+- `public/app-run-progress-ui.js` and `public/app-platform-status-ui.js`: model
+  status and Gateway Pool status show queued, starting, reused, failed, running,
+  and stopped states from bounded metadata.
+
+The default environment remains `eager` unless
+`HERMES_MOBILE_GATEWAY_POOL_START_MODE=hybrid` or its `HERMES_WEB_*` alias is
+set in the launcher. Switching production to hybrid requires backup, script
+sync, listener restart, status smoke, and a real run smoke. The Gateway Pool
+itself does not need a full restart merely because the listener starts issuing
+on-demand single-profile operations.
 
 ## Worker Compatibility Key
 
@@ -98,8 +129,8 @@ needs it" is expected state, not degraded health.
 
 1. Normalize the run target from request, route, workspace policy, provider
    selection, toolset policy, and permission tier.
-2. Search for a compatible `warm` or `busy` worker with spare execution
-   capacity.
+2. Search for a compatible `warm`, `idle`, or already-running configured worker
+   with spare execution capacity.
 3. If found, assign the run and emit a bounded status event such as
    `run.gateway_worker_reused`.
 4. If none is found, check the workspace actor cap and the global elastic cap.
@@ -167,33 +198,34 @@ only switch the startup mode and restart the appropriate runtime tier.
 
 ## Implementation Phases
 
-Phase 0: documentation and harness planning.
+Phase 0: documentation and harness planning. Completed.
 
 - This document.
 - `docs/MODULES/gateway-pool.md` summary.
 - Harness matrix and test matrix entries.
 
-Phase 1: status model without behavior change.
+Phase 1: status model without behavior change. Completed in v404.
 
 - Project current eager workers into the new lifecycle shape.
 - Add status fields for warm/idle/busy/failed without changing startup.
 - Add tests that prove stopped-on-demand status is not counted unhealthy.
 
-Phase 2: scheduler service in compatibility mode.
+Phase 2: scheduler service in compatibility mode. Completed in v404.
 
 - Add a service that can choose compatible workers from the manifest.
 - Keep eager startup available.
 - Route new runs through the scheduler while existing warm workers are still
   prestarted.
 
-Phase 3: on-demand start and idle retirement.
+Phase 3: on-demand start and idle retirement. Completed in v404 source.
 
 - Start non-warm compatible workers on demand.
 - Enforce Owner max 4 and non-Owner max 2.
 - Add global cap queueing.
 - Add idle TTL reaper that never stops active runs.
 
-Phase 4: production hybrid startup.
+Phase 4: production hybrid startup. Source support completed in v404; production
+switch is still a deployment operation.
 
 - Change maintained production launcher to hybrid mode.
 - Start Owner minimum warm worker only.
@@ -227,10 +259,12 @@ Minimum H1 scenarios for implementation:
 
 ## Open Questions For Implementation
 
-- Whether the Owner minimum warm worker should be the default low-permission
-  Owner interactive profile, an Owner maintenance profile, or two separate
-  counters. The safe default is to keep permission tiers separate.
 - Whether the first production global cap should be `8` or another number after
   measuring cold-start cost and memory consumption on the PC.
 - Whether some plugin-owned MCP profiles, such as Wardrobe, need a shorter or
   longer idle TTL because startup includes plugin/session initialization.
+
+Resolved in v404:
+
+- Owner warm baseline uses the low-permission Owner interactive worker tier.
+  Owner-maintenance workers remain a separate protected tier.

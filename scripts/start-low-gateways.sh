@@ -37,6 +37,25 @@ low_gateway_count="${HERMES_LOW_GATEWAY_COUNT:-$(manifest_low_gateway_count)}"
 grok_gateway_count="${HERMES_GROK_GATEWAY_COUNT:-1}"
 deepseek_gateway_count="${HERMES_DEEPSEEK_GATEWAY_COUNT:-0}"
 low_gateway_base_port="${HERMES_LOW_GATEWAY_BASE_PORT:-18750}"
+gateway_start_profiles="${HERMES_GATEWAY_START_PROFILES:-}"
+gateway_stop_only="${HERMES_GATEWAY_STOP_ONLY:-0}"
+
+profile_selected() {
+  local profile="$1"
+  local selected="$gateway_start_profiles"
+  if [ -z "$selected" ]; then
+    return 0
+  fi
+  local item
+  IFS=',' read -ra items <<< "$selected"
+  for item in "${items[@]}"; do
+    item="$(printf '%s' "$item" | xargs)"
+    if [ "$item" = "$profile" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
 
 manifest_gateway_specs() {
   python3 - "$gateway_pool_manifest_path" <<'PY' 2>/dev/null || true
@@ -102,6 +121,20 @@ legacy_gateway_specs() {
 gateway_specs="$(manifest_gateway_specs)"
 if [ -z "$gateway_specs" ]; then
   gateway_specs="$(legacy_gateway_specs)"
+fi
+filtered_gateway_specs=""
+while IFS=$'\t' read -r profile port; do
+  if [ -z "$profile" ] || [ -z "$port" ]; then
+    continue
+  fi
+  if profile_selected "$profile"; then
+    filtered_gateway_specs="${filtered_gateway_specs}${profile}"$'\t'"${port}"$'\n'
+  fi
+done <<< "$gateway_specs"
+gateway_specs="$(printf '%s' "$filtered_gateway_specs" | sed '/^[[:space:]]*$/d')"
+if [ -z "$gateway_specs" ]; then
+  echo "no selected Gateway profiles matched manifest: ${gateway_start_profiles:-all}" >&2
+  exit 1
 fi
 grok_gateway_port="$(printf '%s\n' "$gateway_specs" | awk '$1 ~ /^grokgw[0-9]+$/ { print $2; exit }')"
 
@@ -309,8 +342,19 @@ while IFS=$'\t' read -r profile port; do
     continue
   fi
   verify_gateway_profile "$profile"
+  if [[ "$gateway_stop_only" =~ ^(1|true|yes|on)$ ]]; then
+    log_step "lowgw-stop-profile-start profile=${profile} port=${port}"
+    stop_gateway_port "$port"
+    log_step "lowgw-stop-profile-done profile=${profile} port=${port}"
+    continue
+  fi
   start_gateway_profile "$profile" "$port"
 done <<< "$gateway_specs"
+
+if [[ "$gateway_stop_only" =~ ^(1|true|yes|on)$ ]]; then
+  echo LOW_GATEWAYS_STOPPED
+  exit 0
+fi
 
 wait_gateway_port() {
   local port="$1"

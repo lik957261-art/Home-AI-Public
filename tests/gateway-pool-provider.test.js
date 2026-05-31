@@ -295,6 +295,110 @@ async function testUserRunsFailClosedWithoutUserWorker() {
   fs.rmSync(manifest.dir, { recursive: true, force: true });
 }
 
+async function testHybridModeStartsCompatibleWorkerAndEmitsBoundedEvents() {
+  const manifest = tempManifest({
+    enabled: true,
+    workers: [
+      { name: "owner-openai", profile: "lowgw1", port: 18751, api_key: "owner-secret", provider: "openai-codex", securityLevel: "user", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] },
+      { name: "owner-deepseek", profile: "deepseekgw1", port: 18764, api_key: "deepseek-secret", provider: "deepseek", securityLevel: "user", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] },
+    ],
+  });
+  const healthyProfiles = new Set();
+  const started = [];
+  const events = [];
+  const provider = createGatewayPoolProvider({
+    enabled: "auto",
+    startMode: "hybrid",
+    elastic: { ownerMaxWorkers: 4, workspaceMaxWorkers: 2, globalMaxWorkers: 4 },
+    manifestPaths: [manifest.file],
+    fallbackApiBase: "http://fallback.example.test",
+    createGatewayRunner,
+    startWorkerProfile: async (worker) => {
+      started.push(worker.profile);
+      healthyProfiles.add(worker.profile);
+    },
+    fetchImpl: async (url) => {
+      if (url.includes(":18764/") && healthyProfiles.has("deepseekgw1")) return jsonResponse({ status: "ok" });
+      if (url.includes(":18751/") && healthyProfiles.has("lowgw1")) return jsonResponse({ status: "ok" });
+      return jsonResponse({ error: "down" }, { status: 503 });
+    },
+  });
+
+  const chosen = await provider.chooseTarget({
+    provider: "deepseek",
+    securityLevel: "user",
+    workspaceId: "owner",
+    skillWorkspaceId: "owner",
+  }, {
+    runId: "run-deepseek",
+    onEvent: (event) => events.push(event),
+  });
+
+  assert.equal(chosen.profile, "deepseekgw1");
+  assert.deepEqual(started, ["deepseekgw1"]);
+  assert.deepEqual(events.map((event) => event.event), [
+    "run.gateway_worker_starting",
+    "run.gateway_worker_started",
+  ]);
+  assert.equal(JSON.stringify(events).includes("deepseek-secret"), false);
+  fs.rmSync(manifest.dir, { recursive: true, force: true });
+}
+
+async function testHybridStatusReportsConfiguredStoppedAsExpectedState() {
+  const manifest = tempManifest({
+    enabled: true,
+    workers: [
+      { name: "owner-openai", profile: "lowgw1", port: 18751, provider: "openai-codex", securityLevel: "user", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] },
+      { name: "child-openai", profile: "lowgw5", port: 18755, provider: "openai-codex", securityLevel: "user", allowedWorkspaceIds: ["weixin_test_1"], skillWorkspaceIds: ["weixin_test_1"] },
+    ],
+  });
+  const provider = createGatewayPoolProvider({
+    enabled: "auto",
+    startMode: "hybrid",
+    manifestPaths: [manifest.file],
+    fallbackApiBase: "http://fallback.example.test",
+    createGatewayRunner,
+    fetchImpl: async () => jsonResponse({ error: "not running" }, { status: 503 }),
+  });
+
+  const status = await provider.status();
+  assert.equal(status.mode, "hybrid");
+  assert.equal(status.elastic, true);
+  assert.equal(status.runningWorkerCount, 0);
+  assert.deepEqual(status.workers.map((item) => item.state), ["configured", "configured"]);
+  assert.deepEqual(status.workers.map((item) => item.expectedRunning), [false, false]);
+  assert.deepEqual(status.workers.map((item) => item.healthy), [null, null]);
+  fs.rmSync(manifest.dir, { recursive: true, force: true });
+}
+
+async function testHybridStatusObservesAlreadyRunningWarmWorker() {
+  const manifest = tempManifest({
+    enabled: true,
+    workers: [
+      { name: "owner-openai", profile: "lowgw1", port: 18751, provider: "openai-codex", securityLevel: "user", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] },
+      { name: "child-openai", profile: "lowgw5", port: 18755, provider: "openai-codex", securityLevel: "user", allowedWorkspaceIds: ["weixin_test_1"], skillWorkspaceIds: ["weixin_test_1"] },
+    ],
+  });
+  const provider = createGatewayPoolProvider({
+    enabled: "auto",
+    startMode: "hybrid",
+    manifestPaths: [manifest.file],
+    fallbackApiBase: "http://fallback.example.test",
+    createGatewayRunner,
+    fetchImpl: async (url) => {
+      if (url.includes(":18751/")) return jsonResponse({ status: "ok" });
+      return jsonResponse({ error: "not running" }, { status: 503 });
+    },
+  });
+
+  const status = await provider.status();
+  assert.equal(status.runningWorkerCount, 1);
+  assert.deepEqual(status.workers.map((item) => item.state), ["warm", "configured"]);
+  assert.deepEqual(status.workers.map((item) => item.expectedRunning), [true, false]);
+  assert.deepEqual(status.workers.map((item) => item.healthy), [true, null]);
+  fs.rmSync(manifest.dir, { recursive: true, force: true });
+}
+
 (async () => {
   testNormalizeWorker();
   testOrderingHonorsHints();
@@ -307,6 +411,9 @@ async function testUserRunsFailClosedWithoutUserWorker() {
   await testProviderSpecificOwnerMaintenanceFailsClosedWithoutWorker();
   await testProviderSpecificOwnerMaintenanceChoosesDeepSeekWorker();
   await testUserRunsFailClosedWithoutUserWorker();
+  await testHybridModeStartsCompatibleWorkerAndEmitsBoundedEvents();
+  await testHybridStatusReportsConfiguredStoppedAsExpectedState();
+  await testHybridStatusObservesAlreadyRunningWarmWorker();
   console.log("gateway-pool-provider tests passed");
 })().catch((err) => {
   console.error(err);

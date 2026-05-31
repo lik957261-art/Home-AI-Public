@@ -8,6 +8,11 @@ const RUN_PROGRESS_MAX_VISIBLE_EVENTS = 12;
 const RUN_PROGRESS_TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"]);
 const RUN_PROGRESS_START_EVENTS = new Set([
   "run.context_ready",
+  "run.gateway_worker_queued",
+  "run.gateway_worker_starting",
+  "run.gateway_worker_started",
+  "run.gateway_worker_reused",
+  "run.gateway_worker_start_failed",
   "run.gateway_selected",
   "run.toolset_selection_started",
   "run.toolset_selection_done",
@@ -329,6 +334,11 @@ function runEventTitle(event) {
   if (name === "run.final_message_started") return "\u5f00\u59cb\u751f\u6210\u56de\u590d";
   if (name === "run.final_message_done") return "\u56de\u590d\u5df2\u751f\u6210";
   if (name === "run.context_ready") return "\u4e0a\u4e0b\u6587\u5df2\u6574\u7406";
+  if (name === "run.gateway_worker_queued") return "Gateway \u6392\u961f\u7b49\u5f85";
+  if (name === "run.gateway_worker_starting") return "Gateway \u51b7\u542f\u52a8";
+  if (name === "run.gateway_worker_started") return "Gateway \u5df2\u542f\u52a8";
+  if (name === "run.gateway_worker_reused") return "Gateway \u5df2\u590d\u7528";
+  if (name === "run.gateway_worker_start_failed") return "Gateway \u542f\u52a8\u5931\u8d25";
   if (name === "run.gateway_selected") return "Gateway \u5df2\u9009\u62e9";
   if (name === "run.toolset_selection_started") return "\u6b63\u5728\u68c0\u67e5\u6743\u9650\u4e0e\u5de5\u5177\u96c6";
   if (name === "run.toolset_selection_done") return "\u6743\u9650\u4e0e\u5de5\u5177\u96c6\u5df2\u786e\u8ba4";
@@ -370,7 +380,27 @@ function runEventRowClass(event) {
   return classes.join(" ");
 }
 
+function runGatewayWorkerPreviewLabel(event) {
+  const name = String(event?.event || "");
+  if (!name.startsWith("run.gateway_worker_")) return "";
+  const parsed = parseRunEventPreviewObject(event?.preview) || {};
+  const parts = [];
+  const profile = String(parsed.profileId || "").trim();
+  const provider = String(parsed.provider || "").trim();
+  const reason = String(parsed.reason || parsed.failureCode || "").trim();
+  const queueDepth = Number(parsed.queueDepth || 0) || 0;
+  const reusableUntil = String(parsed.idleExpiresAt || parsed.warmUntil || "").trim();
+  if (profile || provider) parts.push([provider, profile].filter(Boolean).join(" / "));
+  if (reason) parts.push(reason.replaceAll("_", " "));
+  if (queueDepth) parts.push(`queue ${queueDepth}`);
+  if (reusableUntil) parts.push(`warm until ${reusableUntil}`);
+  if (parsed.diagnostic) parts.push(String(parsed.diagnostic).slice(0, 80));
+  return boundedRunEventPreview(parts.join(" · "));
+}
+
 function runEventPreviewLabel(event) {
+  const gatewayPreview = runGatewayWorkerPreviewLabel(event);
+  if (gatewayPreview) return gatewayPreview;
   if (event?.error) return boundedRunEventPreview(event.preview || "");
   const tool = String(event?.tool || "").trim().toLowerCase();
   if (tool === "skill_view" || tool === "function_call" || tool === "function_call_output" || tool === "message") return "";

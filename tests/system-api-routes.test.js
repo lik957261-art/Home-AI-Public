@@ -174,7 +174,25 @@ async function testStatusShapeForWorkspaceAndOwner() {
   const userStatus = JSON.parse(userRes.body);
   assert.equal(userRes.statusCode, 200);
   assert.equal(userStatus.ok, true);
-  assert.deepEqual(userStatus.gatewayPool, { enabled: true, mode: "", workerCount: 1, healthy: 1 });
+  assert.deepEqual(userStatus.gatewayPool, {
+    enabled: true,
+    mode: "",
+    workerCount: 1,
+    healthy: 1,
+    running: 1,
+    configuredStopped: 0,
+    failed: 0,
+    elastic: false,
+    queueDepth: 0,
+    providerMatrix: [
+      {
+        provider: "openai-codex",
+        label: "ChatGPT",
+        user: { configured: 1, running: 1, healthy: 1, stopped: 0, failed: 0 },
+        ownerMaintenance: { configured: 0, running: 0, healthy: 0, stopped: 0, failed: 0 },
+      },
+    ],
+  });
   assert.equal(Object.hasOwn(userStatus, "catalog"), false);
   assert.deepEqual(userStatus.display, {
     ownerLabel: "Owner",
