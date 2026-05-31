@@ -70,7 +70,12 @@ Gateway plugin/schema/profile changes:
   green must resolve to off-white (`--ink` / `--ui-success-ink`) unless a
   dedicated contrast check proves it remains readable. This applies to Action
   Inbox source/status badges, Automation success labels, group/member action
-  buttons, and reading fullscreen controls.
+  buttons, topic secondary-page header controls and directory chips, and
+  reading fullscreen controls.
+- Settings-sheet option groups are a grouped-control surface. In dark/system-dark
+  mode, active theme, font, and default-model options must use a visible
+  high-contrast selected frame plus an inner outline; a subtle fill alone is not
+  enough to communicate the selected option.
 - Long assistant replies must keep their per-reply start/end jump controls
   available after streaming settles. Arrow visibility recalculation must resolve
   the current DOM at execution time and include a delayed settle pass after final

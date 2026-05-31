@@ -423,7 +423,11 @@ Green/success text in dark/system-dark mode should be treated as a contrast
 risk: tests should assert success/status text resolves to off-white variables
 while preserving green only as a non-text semantic cue such as background,
 border, or status dot. Cover Action Inbox source/status badges, Automation
-success labels, group/member action buttons, and reading fullscreen controls.
+success labels, group/member action buttons, topic secondary-page header
+controls and directory chips, and reading fullscreen controls.
+Settings-sheet grouped controls must also have dark/system-dark selected-state
+coverage: theme options, font options, and default model options need a visible
+selected frame/inner outline, not only a low-contrast fill.
 Standalone `file-viewer.html`, `markdown-viewer.html`, and `pdf-viewer.html`
 must read the saved `hermesWebTheme` preference before paint and expose
 near-black page backgrounds in dark mode.

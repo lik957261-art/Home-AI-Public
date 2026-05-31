@@ -2416,6 +2416,13 @@ button {
   letter-spacing: 0.02em;
 }
 
+:root[data-theme="dark"] .task-more-button {
+  color: var(--ink);
+  background: var(--ui-control-bg);
+  border-color: var(--ui-hairline);
+  box-shadow: none;
+}
+
 .task-more-menu {
   position: absolute;
   right: 0;
@@ -2428,6 +2435,13 @@ button {
   border-radius: 12px;
   box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
   backdrop-filter: blur(14px);
+}
+
+:root[data-theme="dark"] .task-more-menu {
+  color: var(--ink);
+  background: var(--ui-menu-bg);
+  border-color: var(--ui-hairline-strong);
+  box-shadow: none;
 }
 
 .task-more-delete {
@@ -2516,6 +2530,20 @@ button {
   :root[data-theme="system"] .task-card.task-swipe-row .task-swipe-content {
     background: var(--ui-card-surface);
     border-color: var(--ui-hairline);
+  }
+
+  :root[data-theme="system"] .task-more-button {
+    color: var(--ink);
+    background: var(--ui-control-bg);
+    border-color: var(--ui-hairline);
+    box-shadow: none;
+  }
+
+  :root[data-theme="system"] .task-more-menu {
+    color: var(--ink);
+    background: var(--ui-menu-bg);
+    border-color: var(--ui-hairline-strong);
+    box-shadow: none;
   }
 }
 
@@ -3596,6 +3624,32 @@ button {
   box-shadow: none;
   font-size: 14px;
   line-height: 1.32;
+}
+
+:root[data-theme="dark"] .directory-alias-chip,
+:root[data-theme="dark"] .directory-alias-chip-reference,
+:root[data-theme="dark"] .task-toolbar-directories .directory-alias-chip {
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .directory-alias-open {
+  color: var(--ink);
+  background: var(--ui-control-bg);
+  border-color: var(--ui-hairline);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .directory-alias-chip,
+  :root[data-theme="system"] .directory-alias-chip-reference,
+  :root[data-theme="system"] .task-toolbar-directories .directory-alias-chip {
+    color: var(--ink);
+  }
+
+  :root[data-theme="system"] .directory-alias-open {
+    color: var(--ink);
+    background: var(--ui-control-bg);
+    border-color: var(--ui-hairline);
+  }
 }
 
 .directory-alias-chip-reference {
@@ -6199,6 +6253,28 @@ body.task-markdown-preview-open {
   color: var(--ui-accent-ink);
   background: var(--ui-accent-fill);
   border-color: rgba(144, 166, 170, 0.30);
+}
+
+:root[data-theme="dark"] .font-size-option.active,
+:root[data-theme="dark"] .font-family-option.active,
+:root[data-theme="dark"] .default-model-option.active,
+:root[data-theme="dark"] .theme-mode-option.active {
+  color: var(--ink);
+  background: rgba(184, 211, 216, 0.18);
+  border-color: rgba(245, 247, 246, 0.52);
+  box-shadow: inset 0 0 0 1px rgba(245, 247, 246, 0.28);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .font-size-option.active,
+  :root[data-theme="system"] .font-family-option.active,
+  :root[data-theme="system"] .default-model-option.active,
+  :root[data-theme="system"] .theme-mode-option.active {
+    color: var(--ink);
+    background: rgba(184, 211, 216, 0.18);
+    border-color: rgba(245, 247, 246, 0.52);
+    box-shadow: inset 0 0 0 1px rgba(245, 247, 246, 0.28);
+  }
 }
 
 .settings-account-actions {

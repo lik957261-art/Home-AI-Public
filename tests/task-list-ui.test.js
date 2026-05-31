@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260531-dark-readable-success-v385";
+const CLIENT_VERSION = "20260531-settings-model-selected-dark-v387";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -504,6 +504,9 @@ assert.match(stylesCss, /:root\[data-theme="dark"\] \.action-inbox-source-badge\
 assert.match(stylesCss, /:root\[data-theme="dark"\] \.automation-state\.ok \{[\s\S]*?color: var\(--ink\);/);
 assert.match(stylesCss, /:root\[data-theme="dark"\] \.group-member-actions button \{[\s\S]*?color: var\(--ink\);/);
 assert.match(stylesCss, /:root\[data-theme="dark"\] \.reading-fullscreen-mode \.reading-fullscreen-exit \{[\s\S]*?color: var\(--ink\);/);
+assert.match(stylesCss, /:root\[data-theme="dark"\] \.directory-alias-chip,[\s\S]*?:root\[data-theme="dark"\] \.task-toolbar-directories \.directory-alias-chip \{[\s\S]*?color: var\(--ink\);/);
+assert.match(stylesCss, /:root\[data-theme="dark"\] \.task-more-button \{[\s\S]*?color: var\(--ink\);[\s\S]*?background: var\(--ui-control-bg\);/);
+assert.match(stylesCss, /:root\[data-theme="dark"\] \.task-more-menu \{[\s\S]*?background: var\(--ui-menu-bg\);/);
 assert.match(stylesCss, /\.task-card-directories \.directory-alias-chip \{[\s\S]*?font-size: 14px;[\s\S]*?line-height: 1\.32;/);
 assert.match(appJs, /directory-alias-text/);
 assert.match(appJs, /data-directory-project[\s\S]*?directory-alias-icon/);
@@ -1118,6 +1121,8 @@ assert.match(stylesCss, /--app-font-family/);
 assert.match(stylesCss, /\.font-family-options/);
 assert.match(stylesCss, /\.theme-mode-options/);
 assert.match(stylesCss, /\.theme-mode-option\.active/);
+assert.match(stylesCss, /:root\[data-theme="dark"\] \.font-size-option\.active,[\s\S]*?:root\[data-theme="dark"\] \.default-model-option\.active,[\s\S]*?:root\[data-theme="dark"\] \.theme-mode-option\.active \{[\s\S]*?color: var\(--ink\);[\s\S]*?border-color: rgba\(245, 247, 246, 0\.52\);[\s\S]*?box-shadow: inset 0 0 0 1px rgba\(245, 247, 246, 0\.28\);/);
+assert.match(stylesCss, /@media \(prefers-color-scheme: dark\) \{[\s\S]*?:root\[data-theme="system"\] \.font-size-option\.active,[\s\S]*?:root\[data-theme="system"\] \.default-model-option\.active,[\s\S]*?:root\[data-theme="system"\] \.theme-mode-option\.active \{[\s\S]*?border-color: rgba\(245, 247, 246, 0\.52\);/);
 assert.match(appJs, /function logoutCurrentAccount\(\)/);
 assert.match(appJs, /data-settings-logout/);
 assert.match(appJs, /clearStoredAccessKey\(\);[\s\S]*showLogin/);
