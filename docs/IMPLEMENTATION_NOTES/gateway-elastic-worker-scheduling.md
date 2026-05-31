@@ -42,6 +42,12 @@ Initial policy:
 | Owner | 1 | 4 | Keep one Owner-compatible interactive worker warm. Expand up to four for concurrent Owner work or provider/profile switching. |
 | Non-Owner workspace | 0 | 2 | No always-on worker. Start on demand and allow one extra concurrent worker before queueing. |
 
+The maximum is an upper bound over compatible worker profiles, not a guarantee
+that every provider has that many profiles. If a workspace has one
+OpenAI/Codex profile and one DeepSeek profile, a normal ChatGPT run can only use
+the OpenAI/Codex profile; the DeepSeek profile does not count as a second
+ChatGPT slot.
+
 Recommended first defaults:
 
 - `HERMES_MOBILE_GATEWAY_POOL_START_MODE=hybrid`
@@ -178,9 +184,13 @@ needs it" is expected state, not degraded health.
    `run.gateway_worker_starting`.
 6. If caps are exhausted, queue the run and emit `run.gateway_worker_queued`
    with reason `workspace_capacity`, `global_capacity`, or `profile_affinity`.
-7. When a run reaches terminal state, update the worker to `warm` or `idle` and
+7. When Gateway reports the real response/run id, replace the scheduler's
+   public Mobile run id assignment with that real id. Terminal events often
+   carry the real response id, so failing to mirror this alias leaks the worker
+   slot and leaves later compatible runs queued.
+8. When a run reaches terminal state, update the worker to `warm` or `idle` and
    schedule idle retirement.
-8. The reaper stops only workers whose idle TTL has expired and which have no
+9. The reaper stops only workers whose idle TTL has expired and which have no
    active run, no protected maintenance operation, and no startup/recovery
    action in progress.
 
@@ -290,6 +300,8 @@ Minimum H1 scenarios for implementation:
   reaper.
 - A launch failure records a bounded diagnostic and releases or preserves the
   run queue according to terminal state.
+- Response-created run id replacement preserves scheduler ownership, and a
+  later terminal release using the real response id frees the worker slot.
 - `/api/status?detail=1` reports configured/stopped on-demand workers without
   marking the whole Gateway Pool unhealthy.
 - Startup scripts in hybrid mode do not launch the historical full fixed pool.

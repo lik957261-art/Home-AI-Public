@@ -439,6 +439,7 @@ function createGatewayPoolProvider(options = {}) {
     load,
     planHybridStartup: (workers) => elasticScheduler.planHybridStartup(workers || load().workers || []),
     releaseRun: (...args) => elasticScheduler.releaseRun(...args),
+    replaceRun: (...args) => elasticScheduler.replaceRun(...args),
     runnerFor,
     status,
     targetForGatewayUrl,

@@ -172,7 +172,7 @@ function getGatewayRuntimeCompositionService() {
       mergeAccessPolicyOverride, mkdirSync: (targetPath, options) => fs.mkdirSync(targetPath, options),
       modelPermissionApprovalRequest, nowIso, nowMs: () => Date.now(), selectRunToolsetsWithModel: (...args) => gatewayRunModelToolsetSelectionService.selectToolsetsForRun(...args),
       notifyTaskTerminal: (...args) => webPushDeliveryService.notifyTaskTerminal(...args),
-      releaseGatewayRunTarget,
+      releaseGatewayRunTarget, replaceGatewayRunTarget,
       projectForTaskDirectoryAttachment: (...args) => getSemanticDirectoryAttachmentService().projectForTaskDirectoryAttachment(...args),
       registerArtifactsFromText, runLivenessCheckAfterMs: RUN_LIVENESS_CHECK_AFTER_MS,
       runLivenessCheckIntervalMs: RUN_LIVENESS_CHECK_INTERVAL_MS, runLivenessStaleAfterMs: RUN_LIVENESS_STALE_AFTER_MS,
@@ -374,6 +374,10 @@ async function chooseGatewayRunTarget(hints = {}, context = {}) { return gateway
 function releaseGatewayRunTarget(runId, idleStatus = "idle") {
   if (!gatewayPoolProvider || typeof gatewayPoolProvider.releaseRun !== "function") return false;
   return gatewayPoolProvider.releaseRun(runId, idleStatus);
+}
+function replaceGatewayRunTarget(oldRunId, newRunId) {
+  if (!gatewayPoolProvider || typeof gatewayPoolProvider.replaceRun !== "function") return false;
+  return gatewayPoolProvider.replaceRun(oldRunId, newRunId);
 }
 function gatewayTargetForRun(runId) {
   return getGatewayRuntimeCompositionService().gatewayTargetForRun(runId);

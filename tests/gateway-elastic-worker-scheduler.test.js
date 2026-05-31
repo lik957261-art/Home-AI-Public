@@ -181,6 +181,26 @@ async function testNonOwnerExpandsToTwoThenQueues() {
   assert.equal((await queued).profile, "lowgw5");
 }
 
+async function testRunIdReplacementReleasesWorkerSlot() {
+  const { calls, scheduler } = createHarness();
+  const workers = [worker("lowgw6", { allowedWorkspaceIds: ["weixin_test_1"], skillWorkspaceIds: ["weixin_test_1"] })];
+
+  assert.equal((await scheduler.chooseTarget({
+    allWorkers: workers,
+    candidates: workers,
+    hints: { workspaceId: "weixin_test_1", provider: "openai-codex", securityLevel: "user" },
+    runId: "web_public_run",
+    onEvent: (event) => calls.events.push(event),
+  })).profile, "lowgw6");
+  assert.equal(scheduler.status(workers).workers[0].activeRunCount, 1);
+
+  assert.equal(scheduler.replaceRun("web_public_run", "resp_real_run"), true);
+  assert.equal(scheduler.releaseRun("resp_real_run", "idle"), true);
+  assert.equal(scheduler.status(workers).workers[0].activeRunCount, 0);
+  assert.equal(scheduler.status(workers).workers[0].state, "idle");
+  assert.equal(scheduler.releaseRun("web_public_run", "idle"), false);
+}
+
 async function testGlobalCapQueuesBeforeWorkspaceCap() {
   const { calls, scheduler } = createHarness({ config: { ownerMaxWorkers: 4, workspaceMaxWorkers: 2, globalMaxWorkers: 2 } });
   const ownerWorkers = ["lowgw1", "lowgw2"].map((profile) => (
@@ -337,6 +357,7 @@ function testConfigDefaultsAndAliases() {
   await testAlreadyRunningConfiguredWorkerIsReusedWithoutRestart();
   await testOwnerExpandsToFourThenQueuesUntilRelease();
   await testNonOwnerExpandsToTwoThenQueues();
+  await testRunIdReplacementReleasesWorkerSlot();
   await testGlobalCapQueuesBeforeWorkspaceCap();
   await testProviderSwitchStartsMatchingProviderOnly();
   await testPostStartHealthPollAvoidsEarlyFalseFailure();

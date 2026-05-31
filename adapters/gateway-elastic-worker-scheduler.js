@@ -508,6 +508,25 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     return true;
   }
 
+  function replaceRun(oldRunId, newRunId) {
+    const oldId = cleanString(oldRunId);
+    const newId = cleanString(newRunId);
+    if (!oldId || !newId || oldId === newId) return false;
+    const workerId = runAssignments.get(oldId);
+    if (!workerId) return false;
+    const existingNewWorkerId = runAssignments.get(newId);
+    if (existingNewWorkerId && existingNewWorkerId !== workerId) return false;
+    const state = stateByWorkerId.get(workerId);
+    runAssignments.delete(oldId);
+    runAssignments.set(newId, workerId);
+    if (state) {
+      state.activeRunIds.delete(oldId);
+      state.activeRunIds.add(newId);
+      state.state = state.activeRunIds.size ? "busy" : "warm";
+    }
+    return true;
+  }
+
   async function reapIdle(workers = []) {
     const stopped = [];
     const now = nowMs();
@@ -590,6 +609,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     planHybridStartup,
     reapIdle,
     releaseRun,
+    replaceRun,
     status,
   };
 }

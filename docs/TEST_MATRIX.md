@@ -99,7 +99,8 @@ cover Owner `minWarm=1` / `maxWorkers=4`, non-Owner `minWarm=0` /
 `maxWorkers=2`, compatible warm-worker reuse, already-running warm discovery,
 profile/provider-compatible cold start, workspace cap queueing, global cap
 queueing, idle TTL retirement, active-run protection, bounded launch-failure
-diagnostics, hidden single-profile start/stop launchers, and
+diagnostics, public-to-real run id replacement without worker-slot leakage,
+hidden single-profile start/stop launchers, and
 `/api/status?detail=1` treating configured-but-stopped workers as expected state
 rather than unhealthy Gateway Pool degradation. The run-progress UI must
 distinguish starting, reused, queued, idle-retirement, and failed states without
@@ -138,6 +139,7 @@ from a stopped profile through the listener, followed by healthy
 `/api/status?detail=1` and no manual worker start.
 Focused implementation checks should include
 `node tests\gateway-elastic-worker-scheduler.test.js`,
+`node tests\gateway-runtime-composition-service.test.js`,
 `node tests\gateway-worker-profile-launch-service.test.js`,
 `node tests\gateway-pool-provider.test.js`,
 `node tests\gateway-run-start-service.test.js`,

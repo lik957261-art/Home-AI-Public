@@ -757,6 +757,11 @@ Required harness dimensions:
 - Launch failure must record a bounded diagnostic, release or preserve the
   queue according to terminal state, and never leave a user task indefinitely
   `running`.
+- Public-to-real run id replacement must preserve scheduler ownership. When a
+  Gateway `response.created` event replaces Mobile's public `web_*` id with a
+  real `resp_*` id, the scheduler assignment must be replaced too so terminal
+  completion/failure/cancel releases the worker slot and does not leave later
+  compatible runs queued behind a false `activeRunCount`.
 - Single-profile start/stop launchers must use hidden PowerShell windows and
   bounded diagnostics. Raw API keys, workspace keys, browser tokens, and plugin
   launch tokens must not appear in thrown error details or run-progress events.
@@ -800,6 +805,7 @@ Primary docs and tests:
 - `docs/MODULES/gateway-pool.md`
 - `docs/IMPLEMENTATION_NOTES/gateway-elastic-worker-scheduling.md`
 - `node tests\gateway-elastic-worker-scheduler.test.js`
+- `node tests\gateway-runtime-composition-service.test.js`
 - `node tests\gateway-worker-profile-launch-service.test.js`
 - `node tests\gateway-pool-provider.test.js`
 - `node tests\gateway-run-start-service.test.js`

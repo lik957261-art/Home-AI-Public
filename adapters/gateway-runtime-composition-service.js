@@ -39,7 +39,13 @@ function createGatewayRuntimeCompositionService(deps = {}) {
   }
 
   function replaceThreadActiveRun(...args) {
-    return getQueueService().replaceThreadActiveRun(...args);
+    const result = getQueueService().replaceThreadActiveRun(...args);
+    const oldRunId = args[1];
+    const newRunId = args[2];
+    if (oldRunId && newRunId && typeof deps.replaceGatewayRunTarget === "function") {
+      deps.replaceGatewayRunTarget(oldRunId, newRunId);
+    }
+    return result;
   }
 
   function removeThreadActiveRun(...args) {

@@ -73,6 +73,10 @@ Default hybrid policy:
 - A configured but stopped on-demand worker is expected state, not Gateway Pool
   degradation.
 
+These caps are upper bounds over compatible profiles. A workspace with one
+OpenAI/Codex worker and one DeepSeek worker still has only one ChatGPT-compatible
+slot; provider-dedicated profiles are not interchangeable.
+
 Hybrid mode is enabled through `HERMES_MOBILE_GATEWAY_POOL_START_MODE=hybrid`
 or the compatibility alias `HERMES_WEB_GATEWAY_POOL_START_MODE=hybrid`. The
 source default remains eager until the production launcher explicitly changes
@@ -138,6 +142,13 @@ reuse a healthy worker across incompatible providers, permission tiers, or
 workspace-bound MCP registrations. Provider selection remains user intent: a
 DeepSeek request must not be silently rerouted to OpenAI/Codex or Grok merely
 because those workers are already warm.
+
+Scheduler run ownership must follow Gateway run id aliases. Mobile initially
+assigns the worker slot to a public `web_*` run id, while Gateway later emits a
+real response id such as `resp_*`. When that replacement happens, the scheduler
+must replace its active assignment too; terminal completion/failure/cancel
+events release the real id. Otherwise the worker remains falsely busy and later
+runs for the same compatible profile can stay queued.
 
 Run progress emits bounded scheduler events for queued, starting, started,
 reused, and start-failed states. `/api/status?detail=1` reports `configured`,
