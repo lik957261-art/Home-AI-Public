@@ -5,6 +5,9 @@ const path = require("node:path");
 const {
   createHermesPluginAuthorizationService,
 } = require("./hermes-plugin-authorization-service");
+const {
+  createFinancePluginProvisioningService,
+} = require("./finance-plugin-provisioning-service");
 
 const DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL = "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest";
 const DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest";
@@ -456,6 +459,35 @@ function pluginWorkspaceAuthorized(plugin, input = {}, options = {}) {
   return false;
 }
 
+function pluginWorkspaceProvisioningBlock(plugin, input = {}, options = {}) {
+  const workspaceId = stringValue(input.workspaceId || "owner");
+  if (!workspaceId || workspaceId === "owner") return null;
+  const pluginId = stringValue(plugin?.id || input.id);
+  if (!pluginId || plugin?.provisioning?.supported !== true) return null;
+  const record = typeof options.authorizationService?.recordForWorkspace === "function"
+    ? options.authorizationService.recordForWorkspace(pluginId, workspaceId)
+    : null;
+  if (!record || record.status !== "authorized") return null;
+  const status = stringValue(record.provisioningStatus || "not_started");
+  if (!["pending", "provisioning_failed"].includes(status)) return null;
+  const failed = status === "provisioning_failed";
+  return {
+    ok: false,
+    available: false,
+    id: pluginId,
+    code: failed ? "plugin_workspace_provisioning_failed" : "plugin_workspace_provisioning_pending",
+    warning: failed
+      ? "Plugin workspace provisioning failed. Owner must retry or repair the plugin binding."
+      : "Plugin workspace provisioning has not completed yet.",
+    provisioningStatus: status,
+    provisioningError: stringValue(record.provisioningError).slice(0, 160),
+    embed: {
+      mode: "same_window_iframe",
+      tokenStatus: failed ? "workspace_provisioning_failed" : "workspace_provisioning_pending",
+    },
+  };
+}
+
 function frameAncestorsAllows(csp = "", appOrigin = "", entryOrigin = "") {
   const origin = stringValue(appOrigin);
   if (!origin) return true;
@@ -788,6 +820,14 @@ function createHermesPluginService(options = {}) {
     nowIso,
     storePath: options.pluginAuthorizationStorePath,
   });
+  const financeProvisioningService = options.financeProvisioningService || createFinancePluginProvisioningService({
+    dataDir: options.dataDir,
+    env: options.env,
+    fetch: fetchImpl,
+  });
+  const workspaceLabelForId = typeof options.workspaceLabelForId === "function"
+    ? options.workspaceLabelForId
+    : () => "";
   const plugins = configuredPlugins(options);
   const launchOptions = {
     dataDir: options.dataDir,
@@ -816,19 +856,52 @@ function createHermesPluginService(options = {}) {
   function list(input = {}) {
     return plugins
       .filter((item) => pluginWorkspaceAuthorized(item, input, launchOptions))
+      .filter((item) => !pluginWorkspaceProvisioningBlock(item, Object.assign({}, input, { id: item.id }), launchOptions))
       .map(pluginPublicMetadata);
   }
 
   function listInstalled() {
-    return plugins.map((item) => Object.assign(pluginPublicMetadata(item), {
-      authorizedWorkspaceIds: item.allowWorkspaceGrant === false
+    return plugins.map((item) => {
+      const records = typeof authorizationService.recordsForPlugin === "function"
+        ? authorizationService.recordsForPlugin(item.id)
+        : [];
+      const discovered = discoverPluginWorkspaceIdsFromAccessKeys(item.id, launchOptions);
+      const explicitIds = typeof authorizationService.authorizedWorkspaceIds === "function"
+        ? authorizationService.authorizedWorkspaceIds(item.id)
+        : [];
+      const authorizedWorkspaceIds = item.allowWorkspaceGrant === false
         ? []
         : [...new Set([
           ...item.authorizedWorkspaceIds,
-          ...authorizationService.authorizedWorkspaceIds(item.id),
-          ...discoverPluginWorkspaceIdsFromAccessKeys(item.id, launchOptions),
-        ])],
-    }));
+          ...explicitIds,
+          ...discovered,
+        ])];
+      const explicitRecordIds = new Set(records.map((record) => record.workspaceId));
+      const workspaceAuthorizations = [
+        ...records.map((record) => ({
+          workspaceId: record.workspaceId,
+          status: record.status,
+          provisioningStatus: record.provisioningStatus || "not_started",
+          provisioningError: record.provisioningError || "",
+          provisioningUpdatedAt: record.provisioningUpdatedAt || "",
+          source: "authorization_store",
+        })),
+        ...discovered
+          .filter((workspaceId) => !explicitRecordIds.has(workspaceId))
+          .map((workspaceId) => ({
+            workspaceId,
+            status: "authorized",
+            provisioningStatus: "active",
+            provisioningError: "",
+            provisioningUpdatedAt: "",
+            source: "workspace_key",
+          })),
+      ];
+      return Object.assign(pluginPublicMetadata(item), {
+        authorizedWorkspaceIds,
+        workspaceAuthorizations,
+      });
+    });
   }
 
   function pluginManifestUrl(id = "") {
@@ -842,6 +915,8 @@ function createHermesPluginService(options = {}) {
     if (!plugin) {
       return { ok: false, available: false, id, code: "plugin_not_registered" };
     }
+    const provisioningBlock = pluginWorkspaceProvisioningBlock(plugin, Object.assign({}, input, { id }), launchOptions);
+    if (provisioningBlock) return provisioningBlock;
     if (!pluginWorkspaceAuthorized(plugin, Object.assign({}, input, { id }), launchOptions)) {
       return {
         ok: false,
@@ -903,18 +978,63 @@ function createHermesPluginService(options = {}) {
     }
   }
 
-  function grantWorkspace(input = {}) {
+  async function grantWorkspace(input = {}) {
     const id = stringValue(input.id || input.pluginId);
     const plugin = plugins.find((item) => item.id === id);
     if (!plugin) return { ok: false, status: 404, error: "plugin_not_registered" };
     if (plugin.allowWorkspaceGrant === false) {
       return { ok: false, status: 403, error: "plugin_workspace_grant_not_allowed" };
     }
-    return authorizationService.grantWorkspace({
+    const base = authorizationService.grantWorkspace({
       pluginId: id,
       workspaceId: input.workspaceId,
       actor: input.actor,
       provisioningStatus: plugin.provisioning?.supported ? "pending" : "not_supported",
+      provisioningError: "",
+    });
+    if (!base.ok || id !== "finance" || plugin.provisioning?.supported !== true) return base;
+    const workspaceId = stringValue(input.workspaceId);
+    const displayName = stringValue(input.displayName || input.workspaceLabel || input.workspace_label)
+      || stringValue(workspaceLabelForId(workspaceId))
+      || workspaceId;
+    const provisioned = await financeProvisioningService.provisionWorkspace({
+      workspaceId,
+      displayName,
+      role: "owner",
+      adminWorkspaceId: "owner",
+      financeManifestUrl: plugin.manifestUrl,
+    });
+    if (provisioned.ok) {
+      const saved = authorizationService.updateProvisioningStatus({
+        pluginId: id,
+        workspaceId,
+        actor: input.actor,
+        provisioningStatus: "active",
+        provisioningError: "",
+      });
+      return Object.assign({}, saved, {
+        provisioning: {
+          status: "active",
+          keyCreated: Boolean(provisioned.keyCreated),
+          financeUserId: provisioned.financeUserId || "",
+          ledgerId: provisioned.ledgerId || "",
+          created: Boolean(provisioned.created),
+        },
+      });
+    }
+    const saved = authorizationService.updateProvisioningStatus({
+      pluginId: id,
+      workspaceId,
+      actor: input.actor,
+      provisioningStatus: "provisioning_failed",
+      provisioningError: provisioned.error || "finance_plugin_provisioning_failed",
+    });
+    return Object.assign({}, saved, {
+      provisioning: {
+        status: "provisioning_failed",
+        error: provisioned.error || "finance_plugin_provisioning_failed",
+        keyCreated: Boolean(provisioned.keyCreated),
+      },
     });
   }
 

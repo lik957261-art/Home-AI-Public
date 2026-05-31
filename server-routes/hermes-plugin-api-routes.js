@@ -536,9 +536,10 @@ function createHermesPluginApiRoutes(deps = {}) {
     }
     const pluginId = requestedWorkspaceGrantPluginId(url);
     const body = await readJsonBody(req);
-    const result = deps.hermesPluginService.grantWorkspace({
+    const result = await deps.hermesPluginService.grantWorkspace({
       id: pluginId,
       workspaceId: body.workspaceId || body.workspace_id,
+      displayName: body.displayName || body.display_name || body.workspaceLabel || body.workspace_label,
       actor: owner.workspaceId || "owner",
     });
     if (!result?.ok) {

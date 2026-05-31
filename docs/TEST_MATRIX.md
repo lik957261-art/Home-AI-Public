@@ -198,6 +198,19 @@ enough to authorize every workspace. Plugin-manager changes must additionally
 test Owner-only admin routes, grant/revoke persistence, normal business-plugin
 visibility after a grant, Codex Mobile grant denial, and the side-navigation
 manager being hidden from non-Owner users.
+Finance workspace provisioning is an H1 plugin authorization workflow. Granting
+Finance to a workspace must create a workspace-local
+`.hermes-finance/access-key.txt`, call Finance
+`POST /api/v1/hermes/plugin/users/bind` with UTF-8 workspace display name,
+record only `active` or bounded `provisioning_failed` status, and block
+non-Owner list/manifest/launch when provisioning has failed or is still
+pending. Harnesses must assert the raw workspace key is not returned in the
+grant result, manifest, frontend state, URL, postMessage payload, docs, logs,
+or screenshots. Focused checks include
+`node tests\finance-plugin-provisioning-service.test.js`,
+`node tests\hermes-plugin-service.test.js`,
+`node tests\hermes-plugin-api-routes.test.js`, and
+`node tests\task-list-ui.test.js`.
 Plugin notification coverage must assert that
 `POST /api/hermes-plugins/<plugin-id>/notifications` requires Hermes auth,
 requires a stable `sourceId`/`eventId`, supports durable Inbox-backed events and

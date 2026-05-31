@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260531-tongbao-wallet-v399";
+const CLIENT_VERSION = "20260531-finance-provisioning-v400";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -1588,6 +1588,10 @@ assert.match(indexHtml, /id="pluginAdminOverlay"/);
 assert.match(appJs, /function renderPluginAdminManager\(\)/);
 assert.match(appJs, /data-open-plugin-admin/);
 assert.match(appJs, /\/api\/hermes-plugins\/admin/);
+assert.match(appJs, /workspaceAuthorizations/);
+assert.match(appJs, /authorized \/ provisioning_failed/);
+assert.match(appJs, /data-plugin-workspace-label/);
+assert.match(appJs, /body: JSON\.stringify\(\{ workspaceId, displayName \}\)/);
 assert.match(appJs, /Owner 默认可用/);
 assert.match(appJs, /非 Owner 已开通/);
 assert.match(appJs, /function workspaceTongbaoLine\(workspace\)/);

@@ -2,22 +2,33 @@
 
 function pluginAdminWorkspaceRows(plugin) {
   const granted = new Set((plugin.authorizedWorkspaceIds || []).map((item) => String(item || "")));
+  const authorizations = new Map((plugin.workspaceAuthorizations || [])
+    .map((item) => [String(item.workspaceId || ""), item]));
   return (state.workspaces || [])
     .filter((workspace) => workspace.id && workspace.id !== "owner")
     .map((workspace) => {
       const workspaceId = String(workspace.id || "");
       const enabled = granted.has(workspaceId);
       const label = workspace.label || workspaceId;
+      const authorization = authorizations.get(workspaceId) || {};
+      const provisioningStatus = authorization.provisioningStatus || (enabled ? "active" : "");
+      const provisioningError = authorization.provisioningError || "";
+      const statusText = enabled && provisioningStatus === "provisioning_failed"
+        ? "authorized / provisioning_failed"
+        : enabled && provisioningStatus === "pending"
+          ? "authorized / pending"
+          : enabled ? "已开通" : "未开通";
+      const statusTitle = provisioningError ? ` title="${escapeHtml(provisioningError)}"` : "";
       const disabled = plugin.allowWorkspaceGrant === false;
       const action = disabled
         ? `<span class="plugin-admin-owner-only">Owner only</span>`
-        : `<button type="button" data-plugin-workspace-toggle="${escapeHtml(plugin.id)}" data-plugin-workspace-id="${escapeHtml(workspaceId)}" data-plugin-enabled="${enabled ? "1" : "0"}">${enabled ? "撤销" : "开通"}</button>`;
+        : `<button type="button" data-plugin-workspace-toggle="${escapeHtml(plugin.id)}" data-plugin-workspace-id="${escapeHtml(workspaceId)}" data-plugin-workspace-label="${escapeHtml(label)}" data-plugin-enabled="${enabled ? "1" : "0"}">${enabled ? "撤销" : "开通"}</button>`;
       return `<article class="plugin-admin-workspace-row">
         <div>
           <div class="plugin-admin-workspace-title">${escapeHtml(label)}</div>
           <div class="plugin-admin-workspace-meta">${escapeHtml(workspaceId)}</div>
         </div>
-        <span class="plugin-admin-workspace-state ${enabled ? "is-enabled" : ""}">${enabled ? "已开通" : "未开通"}</span>
+        <span class="plugin-admin-workspace-state ${enabled ? "is-enabled" : ""}"${statusTitle}>${escapeHtml(statusText)}</span>
         ${action}
       </article>`;
     }).join("");
@@ -112,6 +123,7 @@ function closePluginAdminManager() {
 async function togglePluginWorkspaceGrant(button) {
   const pluginId = button.dataset.pluginWorkspaceToggle || "";
   const workspaceId = button.dataset.pluginWorkspaceId || "";
+  const displayName = button.dataset.pluginWorkspaceLabel || workspaceId;
   const enabled = button.dataset.pluginEnabled === "1";
   if (!pluginId || !workspaceId) return;
   state.pluginAdminLoading = true;
@@ -125,7 +137,7 @@ async function togglePluginWorkspaceGrant(button) {
     } else {
       await api(`/api/hermes-plugins/${encodeURIComponent(pluginId)}/workspaces`, {
         method: "POST",
-        body: JSON.stringify({ workspaceId }),
+        body: JSON.stringify({ workspaceId, displayName }),
       });
     }
     await loadPluginAdminManager();

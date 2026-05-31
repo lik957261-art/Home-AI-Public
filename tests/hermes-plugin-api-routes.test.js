@@ -170,10 +170,10 @@ async function testGrantAndRevokeRoutesRequireOwner() {
   const { calls, routes } = makeRoutes();
   const grantRes = makeResponse();
   const grantReq = makeRequest("POST");
-  grantReq.body = { workspaceId: "weixin_wuping" };
+  grantReq.body = { workspaceId: "weixin_wuping", displayName: "吴萍" };
   await routes.handle(grantReq, grantRes, makeUrl("/api/hermes-plugins/finance/workspaces"));
   assert.equal(grantRes.statusCode, 200);
-  assert.deepEqual(calls.grants, [{ id: "finance", workspaceId: "weixin_wuping", actor: "owner" }]);
+  assert.deepEqual(calls.grants, [{ id: "finance", workspaceId: "weixin_wuping", displayName: "吴萍", actor: "owner" }]);
 
   const revokeRes = makeResponse();
   await routes.handle(makeRequest("DELETE"), revokeRes, makeUrl("/api/hermes-plugins/finance/workspaces/weixin_wuping"));

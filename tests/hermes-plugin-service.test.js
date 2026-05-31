@@ -261,7 +261,7 @@ async function testCodexPluginCannotBeGrantedToNonOwner() {
   assert.equal(configuredPlugins({
     plugins: [{ id: "codex-mobile", manifestUrl: "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest", authorizedWorkspaceIds: ["weixin_wuping"] }],
   })[0].allowWorkspaceGrant, false);
-  assert.equal(service.grantWorkspace({ id: "codex-mobile", workspaceId: "weixin_wuping" }).error, "plugin_workspace_grant_not_allowed");
+  assert.equal((await service.grantWorkspace({ id: "codex-mobile", workspaceId: "weixin_wuping" })).error, "plugin_workspace_grant_not_allowed");
   const manifest = await service.manifest({ id: "codex-mobile", workspaceId: "weixin_wuping" });
   assert.equal(manifest.available, false);
   assert.deepEqual(service.list({ workspaceId: "weixin_wuping" }), []);
@@ -337,7 +337,91 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   const installed = service.listInstalled();
   assert.deepEqual(installed.find((item) => item.id === "wardrobe").authorizedWorkspaceIds, ["weixin_wuping"]);
   assert.deepEqual(installed.find((item) => item.id === "finance").authorizedWorkspaceIds, ["child_workspace"]);
+  assert.deepEqual(installed.find((item) => item.id === "finance").workspaceAuthorizations, [{
+    workspaceId: "child_workspace",
+    status: "authorized",
+    provisioningStatus: "active",
+    provisioningError: "",
+    provisioningUpdatedAt: "",
+    source: "workspace_key",
+  }]);
   assert.deepEqual(installed.find((item) => item.id === "codex-mobile").authorizedWorkspaceIds, []);
+}
+
+async function testFinanceGrantProvisionsWorkspaceKeyAndBind() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-finance-grant-"));
+  const calls = [];
+  const service = createHermesPluginService({
+    dataDir: dir,
+    env: {},
+    plugins: [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }],
+    fetch(url, options = {}) {
+      calls.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      if (url.endsWith("/api/v1/hermes/plugin/users/bind")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ result: { user: { id: "user_test_2" }, ledger: { id: "ledger_test_2" }, created: true } }),
+        });
+      }
+      if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(sampleFinanceManifest()) });
+      }
+      if (url.endsWith("/api/v1/hermes/plugin/launch")) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ entry_path: "/finance.html?launch=token" }) });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+  const grant = await service.grantWorkspace({ id: "finance", workspaceId: "weixin_test_2", displayName: "测试账号", actor: "owner" });
+  assert.equal(grant.ok, true);
+  assert.equal(grant.record.provisioningStatus, "active");
+  assert.equal(grant.provisioning.financeUserId, "user_test_2");
+  assert.equal(grant.provisioning.ledgerId, "ledger_test_2");
+  const keyPath = path.join(dir, "drive", "users", "weixin_test_2", ".hermes-finance", "access-key.txt");
+  assert.equal(fs.existsSync(keyPath), true);
+  const rawKey = fs.readFileSync(keyPath, "utf8").trim();
+  assert.equal(JSON.stringify(grant).includes(rawKey), false);
+  assert.deepEqual(calls[0].body, {
+    target_workspace_id: "weixin_test_2",
+    display_name: "测试账号",
+    role: "owner",
+    admin_workspace_id: "owner",
+  });
+  const installed = service.listInstalled().find((item) => item.id === "finance");
+  assert.equal(installed.workspaceAuthorizations[0].provisioningStatus, "active");
+
+  const manifest = await service.manifest({ id: "finance", workspaceId: "weixin_test_2", launchPlugin: true });
+  assert.equal(manifest.available, true);
+  assert.notEqual(manifest.code, "plugin_launch_key_missing");
+  assert.equal(calls[2].body.workspace_id, "weixin_test_2");
+  assert.equal(calls[2].body.workspace_key, rawKey);
+}
+
+async function testFinanceProvisioningFailureBlocksManifest() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-finance-grant-fail-"));
+  const service = createHermesPluginService({
+    dataDir: dir,
+    env: {},
+    plugins: [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }],
+    financeProvisioningService: {
+      provisionWorkspace() {
+        return Promise.resolve({ ok: false, error: "finance_bind_failed_503" });
+      },
+    },
+    fetch() {
+      throw new Error("failed provisioning must block before plugin manifest fetch");
+    },
+  });
+  const grant = await service.grantWorkspace({ id: "finance", workspaceId: "weixin_fail", displayName: "Fail", actor: "owner" });
+  assert.equal(grant.ok, true);
+  assert.equal(grant.record.provisioningStatus, "provisioning_failed");
+  assert.equal(grant.record.provisioningError, "finance_bind_failed_503");
+  assert.deepEqual(service.list({ workspaceId: "weixin_fail" }), []);
+  const manifest = await service.manifest({ id: "finance", workspaceId: "weixin_fail", launchPlugin: true });
+  assert.equal(manifest.available, false);
+  assert.equal(manifest.code, "plugin_workspace_provisioning_failed");
+  assert.equal(manifest.embed.tokenStatus, "workspace_provisioning_failed");
 }
 
 async function testHttpsManifestOverride() {
@@ -779,6 +863,8 @@ async function run() {
   await testFrameAncestorsBlockedReturnsUnavailable();
   await testDefaultNasManifestUrl();
   testInstalledPluginListReflectsWorkspaceKeyBindings();
+  await testFinanceGrantProvisionsWorkspaceKeyAndBind();
+  await testFinanceProvisioningFailureBlocksManifest();
   await testHttpsManifestOverride();
   await testFetchFailureReturnsUnavailable();
   await testLaunchEntryUsesServerSideWorkspaceKey();

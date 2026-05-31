@@ -1198,6 +1198,15 @@ Required contract dimensions:
   manifest/list visibility after grant, and side-navigation UI exposure only to
   Owner. The stored authorization record may contain plugin id, workspace id,
   timestamps, actor id, and bounded provisioning status only.
+- Finance workspace grant is H1 provisioning, not a plain visibility toggle.
+  Granting `finance` must create or reuse the target workspace's local
+  `.hermes-finance/access-key.txt`, call Finance's loopback
+  `/api/v1/hermes/plugin/users/bind` with the Hermes workspace label as UTF-8
+  `display_name`, and mark the authorization record `active` only after Finance
+  accepts the bind. Key creation or bind failure must remain visible as bounded
+  `provisioning_failed` state and must block non-Owner list/manifest/launch
+  rather than falling through to `plugin_launch_key_missing` or a misleading
+  usable tab.
 - Plugin notification events are part of the H1 passive-notification path even
   though the plugin host itself is H2. A plugin backend must call Hermes
   `POST /api/hermes-plugins/<plugin-id>/notifications` with a stable

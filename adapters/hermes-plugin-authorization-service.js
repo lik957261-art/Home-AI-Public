@@ -38,6 +38,8 @@ function normalizeRecord(record = {}) {
     createdBy: stringValue(record.createdBy),
     updatedAt: stringValue(record.updatedAt),
     updatedBy: stringValue(record.updatedBy),
+    provisioningError: stringValue(record.provisioningError).slice(0, 160),
+    provisioningUpdatedAt: stringValue(record.provisioningUpdatedAt),
   };
 }
 
@@ -116,6 +118,22 @@ function createHermesPluginAuthorizationService(options = {}) {
     return state.plugins[id]?.records?.[ws]?.status === "authorized";
   }
 
+  function recordForWorkspace(pluginId, workspaceId) {
+    const id = sanitizeId(pluginId);
+    const ws = sanitizeId(workspaceId);
+    if (!id || !ws || ws === "owner") return null;
+    const state = loadState();
+    return state.plugins[id]?.records?.[ws] || null;
+  }
+
+  function recordsForPlugin(pluginId) {
+    const id = sanitizeId(pluginId);
+    if (!id) return [];
+    const state = loadState();
+    return Object.values(state.plugins[id]?.records || {})
+      .filter((record) => record.status === "authorized");
+  }
+
   function grantWorkspace(input = {}) {
     const pluginId = sanitizeId(input.pluginId);
     const workspaceId = sanitizeId(input.workspaceId);
@@ -130,10 +148,42 @@ function createHermesPluginAuthorizationService(options = {}) {
       workspaceId,
       status: "authorized",
       provisioningStatus: stringValue(input.provisioningStatus || existing.provisioningStatus || "not_started"),
+      provisioningError: stringValue(input.provisioningError || existing.provisioningError || ""),
+      provisioningUpdatedAt: stringValue(input.provisioningUpdatedAt || existing.provisioningUpdatedAt || ""),
       createdAt: existing.createdAt || at,
       createdBy: existing.createdBy || actor,
       updatedAt: at,
       updatedBy: actor,
+    }));
+    const saved = saveState(state);
+    return {
+      ok: true,
+      pluginId,
+      workspaceId,
+      record: saved.plugins[pluginId].records[workspaceId],
+    };
+  }
+
+  function updateProvisioningStatus(input = {}) {
+    const pluginId = sanitizeId(input.pluginId);
+    const workspaceId = sanitizeId(input.workspaceId);
+    if (!pluginId) return { ok: false, error: "plugin_id_required" };
+    if (!workspaceId || workspaceId === "owner") return { ok: false, error: "workspace_id_required" };
+    const state = loadState();
+    const plugin = pluginState(state, pluginId);
+    const existing = plugin.records[workspaceId] || {};
+    const at = nowIso();
+    const status = stringValue(input.provisioningStatus || input.status || existing.provisioningStatus || "not_started");
+    plugin.records[workspaceId] = normalizeRecord(Object.assign({}, existing, {
+      workspaceId,
+      status: "authorized",
+      provisioningStatus: status,
+      provisioningError: stringValue(input.provisioningError || input.error || ""),
+      provisioningUpdatedAt: at,
+      createdAt: existing.createdAt || at,
+      createdBy: existing.createdBy || stringValue(input.actor || "owner").slice(0, 120),
+      updatedAt: at,
+      updatedBy: stringValue(input.actor || existing.updatedBy || "owner").slice(0, 120),
     }));
     const saved = saveState(state);
     return {
@@ -161,7 +211,10 @@ function createHermesPluginAuthorizationService(options = {}) {
     list,
     authorizedWorkspaceIds,
     isWorkspaceAuthorized,
+    recordForWorkspace,
+    recordsForPlugin,
     grantWorkspace,
+    updateProvisioningStatus,
     revokeWorkspace,
   };
 }

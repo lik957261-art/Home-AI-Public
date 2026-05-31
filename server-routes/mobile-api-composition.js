@@ -233,6 +233,16 @@ function createMobileApiComposition(deps = {}) {
   const hermesPluginService = deps.hermesPluginService || createHermesPluginService({
     nowIso: deps.nowIso,
     dataDir: deps.dataDir,
+    workspaceLabelForId: (workspaceId) => {
+      const workspace = typeof deps.findWorkspace === "function" ? deps.findWorkspace(workspaceId) : null;
+      if (workspace) return workspace.label || workspace.name || workspace.title || workspace.id || workspaceId;
+      if (typeof deps.loadCatalog === "function") {
+        const catalog = deps.loadCatalog() || {};
+        const found = (catalog.workspaces || []).find((item) => item.id === workspaceId);
+        if (found) return found.label || found.name || found.title || found.id || workspaceId;
+      }
+      return workspaceId;
+    },
   });
   const fileArtifactApiRoutes = createFileArtifactApiRoutes({
     contentDisposition: deps.contentDisposition,

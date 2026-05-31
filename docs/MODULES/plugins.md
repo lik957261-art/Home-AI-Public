@@ -258,6 +258,25 @@ workspace. That grant is a Hermes authorization record only; plugin-side user
 creation or workspace binding must still happen through the plugin's launch or
 provisioning contract and must not expose long-lived keys to the browser.
 
+For Finance, a plugin-manager grant is also a provisioning workflow. When Owner
+grants `finance` to a non-Owner workspace, Hermes Mobile must create a
+workspace-local server-side key at
+`<HERMES_DATA_DIR>\drive\users\<workspaceId>\.hermes-finance\access-key.txt`
+when one does not already exist, then call the Finance loopback binding
+contract `POST /api/v1/hermes/plugin/users/bind` with bounded workspace
+identity: `target_workspace_id`, UTF-8 `display_name`, `role=owner`, and
+`admin_workspace_id=owner`. The display name should come from the Hermes
+workspace label so Finance user and ledger names do not inherit mojibake from
+PowerShell or ad-hoc repair scripts. A successful bind updates the authorization
+record to `provisioningStatus=active`; a key or bind failure keeps the grant
+record but marks `provisioningStatus=provisioning_failed` with a bounded error.
+Pending or failed Finance provisioning must block non-Owner list/manifest/launch
+access and the plugin manager must show a diagnostic such as
+`authorized / provisioning_failed` instead of making the plugin look fully
+usable. Hermes must not store or return the raw Finance workspace key in the
+authorization record, frontend state, iframe URL, postMessage payload, docs,
+handoffs, screenshots, or logs.
+
 The plugin manager's open/closed status must reflect the same effective
 workspace availability used by the launch path. For workspace-private plugins,
 Hermes merges explicit Owner grants, configured workspace allowlists, and
