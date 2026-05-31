@@ -306,6 +306,14 @@ refresh messages and messages sent while manifest/launch loading is already in
 progress. Host-side launch-health retries must use the same throttle, and a
 normal host re-render must preserve an already-mounted iframe instead of
 requesting another launch token.
+Embedded-plugin appearance sync is part of the launch contract. Host tests must
+assert Hermes sends sanitized `appearance.theme` and `appearance.fontSize` in
+Codex, Finance, and Wardrobe launch bodies, maps Hermes `standard` font size to
+plugin `default`, and creates iframe entries only after the short launch path
+contains matching `pluginTheme` / `pluginFontSize` query parameters. The host
+must treat these as session-scoped preferences and must not leak keys, launch
+tokens, local paths, raw settings dumps, or private content into appearance
+metadata.
 Finance embedded-app registration follows the same host contract. Tests must
 cover compact manifest normalization (`entry` string, top-level `launch`,
 `toolsets`, `mcpServer`, `permissions`, and `embedding` events), Owner-default

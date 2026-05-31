@@ -54,6 +54,10 @@ Gateway plugin/schema/profile changes:
   set `data-theme` before loading CSS to avoid first-paint flashes, update
   `theme-color` / `apple-mobile-web-app-status-bar-style`, and listen for system
   color-scheme changes only while the selected mode is `system`.
+- Embedded-plugin launches must pass the current device-local theme and font
+  size as sanitized appearance metadata. Hermes `standard` maps to plugin
+  `default`; the plugin iframe should not be initialized until the launch entry
+  carries the matching `pluginTheme` and `pluginFontSize` query values.
 - Theme changes must be verified against real app surfaces, not only root token
   strings. At minimum, check sidebar/top bar, composer, user and assistant
   messages, topic cards, Action Inbox rows and deliverable tags, Growth warning

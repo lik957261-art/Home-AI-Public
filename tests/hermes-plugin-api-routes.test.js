@@ -181,7 +181,7 @@ async function testGrantAndRevokeRoutesRequireOwner() {
 async function testWardrobeManifestRoute() {
   const { calls, routes } = makeRoutes();
   const res = makeResponse();
-  const result = await routes.handle({ method: "GET" }, res, makeUrl("/api/hermes-plugins/wardrobe/manifest?workspaceId=weixin_wuping&appOrigin=https%3A%2F%2Fhermes.example.test"));
+  const result = await routes.handle({ method: "GET" }, res, makeUrl("/api/hermes-plugins/wardrobe/manifest?workspaceId=weixin_wuping&appOrigin=https%3A%2F%2Fhermes.example.test&appearanceTheme=dark&appearanceFontSize=large"));
   assert.equal(result.handled, true);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(calls.access, ["weixin_wuping"]);
@@ -190,6 +190,7 @@ async function testWardrobeManifestRoute() {
     workspaceId: "weixin_wuping",
     ownerAuthorized: true,
     appOrigin: "https://hermes.example.test",
+    appearance: { theme: "dark", fontSize: "large" },
     launchPlugin: true,
   }]);
   assert.equal(parseBody(res).entry.url, "http://nas/?embed=hermes");
@@ -198,7 +199,7 @@ async function testWardrobeManifestRoute() {
 async function testCodexManifestRoute() {
   const { calls, routes } = makeRoutes();
   const res = makeResponse();
-  const result = await routes.handle({ method: "GET" }, res, makeUrl("/api/hermes-plugins/codex-mobile/manifest?workspaceId=owner&appOrigin=https%3A%2F%2Fhermes.example.test"));
+  const result = await routes.handle({ method: "GET" }, res, makeUrl("/api/hermes-plugins/codex-mobile/manifest?workspaceId=owner&appOrigin=https%3A%2F%2Fhermes.example.test&appearanceTheme=system&appearanceFontSize=default"));
   assert.equal(result.handled, true);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(calls.access, ["owner"]);
@@ -207,6 +208,7 @@ async function testCodexManifestRoute() {
     workspaceId: "owner",
     ownerAuthorized: true,
     appOrigin: "https://hermes.example.test",
+    appearance: { theme: "system", fontSize: "default" },
     launchPlugin: true,
   }]);
 }
@@ -242,6 +244,7 @@ async function testFinanceManifestRoute() {
     workspaceId: "owner",
     ownerAuthorized: true,
     appOrigin: "https://hermes.example.test",
+    appearance: { theme: "", fontSize: "" },
     launchPlugin: true,
   }]);
 }

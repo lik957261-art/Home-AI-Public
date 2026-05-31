@@ -33,6 +33,10 @@ assert.match(embeddedPluginUi, /refreshRequiredEventType: "finance\.plugin\.refr
 assert.match(embeddedPluginUi, /function renderEmbeddedPluginView\(def\)/);
 assert.match(embeddedPluginUi, /function loadEmbeddedPluginManifest\(def, options = {}\)/);
 assert.match(embeddedPluginUi, /appOrigin: window\.location\.origin/);
+assert.match(embeddedPluginUi, /function embeddedPluginAppearanceForLaunch\(\)/);
+assert.match(embeddedPluginUi, /rawFontSize === "standard"[\s\S]*\? "default"/);
+assert.match(embeddedPluginUi, /appearanceTheme: appearance\.theme/);
+assert.match(embeddedPluginUi, /appearanceFontSize: appearance\.fontSize/);
 assert.match(embeddedPluginUi, /function embeddedPluginUsesLaunchToken\(manifest\)/);
 assert.match(embeddedPluginUi, /codexPluginLaunch/);
 assert.match(embeddedPluginUi, /function embeddedPluginHost\(def\)/);

@@ -467,6 +467,10 @@ function createHermesPluginApiRoutes(deps = {}) {
       workspaceId,
       ownerAuthorized: ownerAuthorized(requestAuth(req)),
       appOrigin: url?.searchParams?.get("appOrigin") || "",
+      appearance: {
+        theme: url?.searchParams?.get("appearanceTheme") || "",
+        fontSize: url?.searchParams?.get("appearanceFontSize") || "",
+      },
       launchPlugin: true,
     });
     deps.sendJson(res, 200, Object.assign({ workspaceId }, manifest));

@@ -136,6 +136,17 @@ function embeddedPluginEntryUrlForFrame(def, manifest) {
   }
 }
 
+function embeddedPluginAppearanceForLaunch() {
+  const theme = ["system", "dark", "light"].includes(String(state.themeMode || "").trim())
+    ? String(state.themeMode || "").trim()
+    : "system";
+  const rawFontSize = String(state.fontSize || "").trim();
+  const fontSize = rawFontSize === "standard"
+    ? "default"
+    : (["small", "default", "large", "xlarge", "xxlarge"].includes(rawFontSize) ? rawFontSize : "default");
+  return { theme, fontSize };
+}
+
 function updateEmbeddedPluginNavigationState(def, payload = {}) {
   const record = embeddedPluginRecord(def.id);
   record.canGoBack = Boolean(payload.canGoBack);
@@ -536,7 +547,13 @@ async function loadEmbeddedPluginManifest(def, options = {}) {
   if (!options.force && record.checked && record.manifest?.workspaceId === workspaceId) return;
   record.loading = true;
   try {
-    const params = new URLSearchParams({ workspaceId, appOrigin: window.location.origin });
+    const appearance = embeddedPluginAppearanceForLaunch();
+    const params = new URLSearchParams({
+      workspaceId,
+      appOrigin: window.location.origin,
+      appearanceTheme: appearance.theme,
+      appearanceFontSize: appearance.fontSize,
+    });
     const manifest = await api(`${def.manifestPath}?${params.toString()}`);
     record.manifest = Object.assign({ workspaceId }, manifest);
     record.manifestFetchedAt = Date.now();

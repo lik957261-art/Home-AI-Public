@@ -12,6 +12,7 @@ const {
   findWardrobeAccessKeyPath,
   frameAncestorsAllows,
   normalizeManifest,
+  normalizePluginAppearance,
   pluginSameOriginProxyPathForUrl,
 } = require("../adapters/hermes-plugin-service");
 
@@ -165,6 +166,22 @@ function testNormalizeFinanceManifest() {
   assert.equal(manifest.embedding.backResultEvent, "finance.plugin.back_result");
   assert.equal(manifest.embedding.refreshRequiredEvent, "finance.plugin.refresh_required");
   assert.equal(manifest.embedding.preserveIframeState, true);
+}
+
+function testNormalizePluginAppearance() {
+  assert.deepEqual(normalizePluginAppearance({ theme: "dark", fontSize: "standard" }), {
+    theme: "dark",
+    fontSize: "default",
+  });
+  assert.deepEqual(normalizePluginAppearance({
+    appearanceTheme: "light",
+    appearanceFontSize: "xxlarge",
+    access_key: "must-not-copy",
+  }), {
+    theme: "light",
+    fontSize: "xxlarge",
+  });
+  assert.deepEqual(normalizePluginAppearance({ theme: "neon", fontSize: "huge" }), {});
 }
 
 function testFrameAncestorsAllowsCurrentOrigin() {
@@ -375,16 +392,19 @@ async function testLaunchEntryUsesServerSideWorkspaceKey() {
     id: "wardrobe",
     workspaceId: "owner",
     appOrigin: "https://hermes.example.test",
+    appearance: { theme: "dark", fontSize: "large" },
     launchPlugin: true,
   });
   assert.equal(manifest.available, true);
-  assert.equal(manifest.entry.url, "https://wardrobe.example.test/?embed=hermes&launch=wpl_once");
+  assert.equal(manifest.entry.url, "https://wardrobe.example.test/?embed=hermes&launch=wpl_once&pluginTheme=dark&pluginFontSize=large");
   assert.equal(manifest.embed.tokenStatus, "launch_token_issued");
   assert.equal(manifest.embed.expiresIn, 90);
+  assert.deepEqual(manifest.embed.appearance, { theme: "dark", fontSize: "large" });
   const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
   assert.ok(launchCall);
   assert.equal(launchCall.options.method, "POST");
   assert.equal(JSON.parse(launchCall.options.body).workspace_id, "owner");
+  assert.deepEqual(JSON.parse(launchCall.options.body).appearance, { theme: "dark", fontSize: "large" });
   assert.match(launchCall.options.headers.Authorization, /^Bearer /);
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"launch_token"|"workspace_key"/);
 }
@@ -426,16 +446,19 @@ async function testCodexLaunchEntryUsesServerSideKey() {
   const manifest = await service.manifest({
     id: "codex-mobile",
     workspaceId: "owner",
+    appearanceTheme: "system",
+    appearanceFontSize: "standard",
     launchPlugin: true,
   });
   assert.equal(manifest.available, true);
-  assert.equal(manifest.entry.url, "/api/hermes-plugins/codex-mobile/proxy/?embed=hermes&codexPluginLaunch=cpl_once&workspaceId=owner");
+  assert.equal(manifest.entry.url, "/api/hermes-plugins/codex-mobile/proxy/?embed=hermes&codexPluginLaunch=cpl_once&workspaceId=owner&pluginTheme=system&pluginFontSize=default");
   assert.equal(manifest.entry.proxiedFromOrigin, "http://127.0.0.1:8787");
   assert.equal(manifest.embed.sameOriginProxy, true);
   assert.equal(manifest.embed.tokenStatus, "launch_token_issued");
   const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
   assert.ok(launchCall);
   assert.equal(JSON.parse(launchCall.options.body).workspace_id, "owner");
+  assert.deepEqual(JSON.parse(launchCall.options.body).appearance, { theme: "system", fontSize: "default" });
   assert.match(launchCall.options.headers.Authorization, /^Bearer /);
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"launch_token"|test-key/i);
 }
@@ -482,12 +505,13 @@ async function testFinanceLaunchEntryUsesWorkspaceKeyBody() {
     id: "finance",
     workspaceId: "owner",
     appOrigin: "https://hermes.example.test",
+    appearance: { theme: "dark", fontSize: "xlarge" },
     launchPlugin: true,
   });
   assert.equal(manifest.available, true);
   assert.equal(
     manifest.entry.url,
-    "/api/hermes-plugins/finance/proxy/api/v1/hermes/plugin/launch/finance_once",
+    "/api/hermes-plugins/finance/proxy/api/v1/hermes/plugin/launch/finance_once?pluginTheme=dark&pluginFontSize=xlarge",
   );
   assert.equal(manifest.embed.sameOriginProxy, true);
   const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
@@ -496,6 +520,7 @@ async function testFinanceLaunchEntryUsesWorkspaceKeyBody() {
   assert.equal(body.workspace_id, "owner");
   assert.equal(body.role, "owner");
   assert.equal(typeof body.workspace_key, "string");
+  assert.deepEqual(body.appearance, { theme: "dark", fontSize: "xlarge" });
   assert.equal(Object.hasOwn(body, "user_key"), false);
   assert.equal(Object.hasOwn(launchCall.options.headers, "Authorization"), false);
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"workspace_key"|"user_key"/);
@@ -678,6 +703,7 @@ async function run() {
   testNormalizeManifest();
   testNormalizeCodexManifest();
   testNormalizeFinanceManifest();
+  testNormalizePluginAppearance();
   testFrameAncestorsAllowsCurrentOrigin();
   await testFetchesConfiguredWardrobeManifest();
   await testPluginWorkspaceAuthorizationDefaultsToOwnerOnly();

@@ -118,6 +118,35 @@ for example `/?embed=hermes&launch=<short-token>`. It must not return a
 long-lived key, and it must not require Hermes Mobile to place a long-lived key
 in the iframe URL.
 
+## Appearance Sync
+
+Hermes Mobile is the host for embedded-plugin visual context. During manifest
+launch, Hermes sends a sanitized `appearance` object in the server-side launch
+body:
+
+```json
+{
+  "appearance": {
+    "theme": "system|dark|light",
+    "fontSize": "small|default|large|xlarge|xxlarge"
+  }
+}
+```
+
+The value is session-scoped host preference, not a command to overwrite the
+plugin app's long-term standalone local settings. Hermes maps its local
+`standard` font size to plugin-contract `default`. No Access Key, launch token,
+session token, local path, full settings dump, or private content belongs in
+appearance metadata.
+
+When a plugin returns a short launch `entry_path`, Hermes keeps the browser
+entry appearance-aware by ensuring the safe query parameters
+`pluginTheme=<theme>` and `pluginFontSize=<fontSize>` are present before the
+iframe is created. The iframe should stay hidden behind the Hermes
+theme-colored loading shell until this launch response is available; do not
+initialize a plugin iframe from a stale/default entry that would flash the
+wrong theme or font size.
+
 Registration is not complete until a smoke check proves:
 
 - the manifest queried with the real Hermes HTTPS origin returns an HTTPS
@@ -127,6 +156,8 @@ Registration is not complete until a smoke check proves:
 - `frame-ancestors` includes the same Hermes HTTPS origin;
 - a launch call returns a short-lived relative entry path and no long-lived
   secret;
+- the launch request includes only sanitized `appearance`, and the iframe entry
+  contains matching `pluginTheme` / `pluginFontSize` values;
 - the installed PWA opens the iframe without browser mixed-content errors,
   browser chrome, or a fallback login page.
 

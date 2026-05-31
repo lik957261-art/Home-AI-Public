@@ -11,6 +11,8 @@ const DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8787/api/v1/h
 const DEFAULT_FINANCE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest";
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_KEY_SEARCH_DEPTH = 6;
+const PLUGIN_APPEARANCE_THEMES = new Set(["system", "dark", "light"]);
+const PLUGIN_APPEARANCE_FONT_SIZES = new Set(["small", "default", "large", "xlarge", "xxlarge"]);
 
 function stringValue(value) {
   return String(value || "").trim();
@@ -207,6 +209,30 @@ function pluginSameOriginProxyPathForUrl(pluginId = "", value = "") {
   }
 }
 
+function normalizePluginAppearance(input = {}) {
+  const source = input.appearance && typeof input.appearance === "object" ? input.appearance : input;
+  const theme = stringValue(source.theme || source.appearanceTheme || source.pluginTheme).toLowerCase();
+  const rawFontSize = stringValue(source.fontSize || source.font_size || source.appearanceFontSize || source.pluginFontSize).toLowerCase();
+  const fontSize = rawFontSize === "standard" ? "default" : rawFontSize;
+  const out = {};
+  if (PLUGIN_APPEARANCE_THEMES.has(theme)) out.theme = theme;
+  if (PLUGIN_APPEARANCE_FONT_SIZES.has(fontSize)) out.fontSize = fontSize;
+  return out;
+}
+
+function addPluginAppearanceToEntryUrl(entryUrl = "", appearance = {}) {
+  const normalized = normalizePluginAppearance(appearance);
+  if (!normalized.theme && !normalized.fontSize) return entryUrl;
+  try {
+    const parsed = new URL(entryUrl);
+    if (normalized.theme) parsed.searchParams.set("pluginTheme", normalized.theme);
+    if (normalized.fontSize) parsed.searchParams.set("pluginFontSize", normalized.fontSize);
+    return parsed.toString();
+  } catch (_) {
+    return entryUrl;
+  }
+}
+
 function codexMobileProxyPathForUrl(value = "") {
   return pluginSameOriginProxyPathForUrl("codex-mobile", value);
 }
@@ -395,6 +421,9 @@ function normalizeManifest(raw = {}, source = {}) {
   const topLevelToolsets = Array.isArray(raw.toolsets) ? raw.toolsets.map(stringValue).filter(Boolean) : [];
   const topLevelPermissions = Array.isArray(raw.permissions) ? raw.permissions.map(stringValue).filter(Boolean) : [];
   const embedding = raw.embedding && typeof raw.embedding === "object" ? raw.embedding : {};
+  const rawAppearanceSync = raw.appearance_sync || raw.appearanceSync;
+  const appearanceSync = rawAppearanceSync === true
+    || (rawAppearanceSync && typeof rawAppearanceSync === "object" && rawAppearanceSync.supported !== false);
   const rawKind = stringValue(raw.kind || raw.type || "embedded_app");
   const kind = rawKind === "embedded-app" ? "embedded_app" : rawKind;
   return {
@@ -443,6 +472,7 @@ function normalizeManifest(raw = {}, source = {}) {
       backResultEvent: stringValue(embedding.back_result_event || embedding.backResultEvent),
       refreshRequiredEvent: stringValue(embedding.refresh_required_event || embedding.refreshRequiredEvent),
       preserveIframeState: embedding.preserve_iframe_state === true || embedding.preserveIframeState === true,
+      appearanceSync,
     },
     ownerBinding: {
       strategy: stringValue(raw.owner_binding?.strategy),
@@ -503,13 +533,15 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
     || input.userKey
     || input.user_key,
   );
+  const appearance = normalizePluginAppearance(input);
+  const appearancePayload = Object.keys(appearance).length ? { appearance } : {};
   const launchBody = pluginId === "finance"
     ? Object.assign({
       workspace_id: workspaceId,
       workspace_key: accessKey,
       role: workspaceId === "owner" || input.ownerAuthorized === true ? "owner" : "member",
-    }, financeUserKey ? { user_key: financeUserKey } : {})
-    : { workspace_id: workspaceId };
+    }, financeUserKey ? { user_key: financeUserKey } : {}, appearancePayload)
+    : Object.assign({ workspace_id: workspaceId }, appearancePayload);
   try {
     const headers = {
       Accept: "application/json",
@@ -541,7 +573,10 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
       });
     }
     const launch = await response.json();
-    const entryUrl = serverSidePluginUrl(manifest, launch?.entry_path);
+    const entryUrl = addPluginAppearanceToEntryUrl(
+      serverSidePluginUrl(manifest, launch?.entry_path),
+      appearance,
+    );
     if (!entryUrl) {
       return Object.assign({}, manifest, {
         available: false,
@@ -561,7 +596,9 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
         url: entryUrl,
         tokenStatus: "launch_token_issued",
         expiresIn: Number(launch?.expires_in || 0) || null,
+        appearance: Object.keys(appearance).length ? appearance : undefined,
       }),
+      appearance: Object.keys(appearance).length ? appearance : undefined,
     });
   } catch (err) {
     return Object.assign({}, manifest, {
@@ -821,6 +858,7 @@ module.exports = {
   findPluginAccessKeyPath,
   findWardrobeAccessKeyPath,
   frameAncestorsAllows,
+  normalizePluginAppearance,
   normalizeManifest,
   pluginWorkspaceAuthorized,
   codexMobileProxyPathForUrl,
