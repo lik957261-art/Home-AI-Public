@@ -233,6 +233,67 @@ function addPluginAppearanceToEntryUrl(entryUrl = "", appearance = {}) {
   }
 }
 
+async function reviewFinanceLedgerJoinRequest(input = {}, options = {}) {
+  const fetchImpl = options.fetch || global.fetch;
+  if (typeof fetchImpl !== "function") return { ok: false, status: 503, error: "fetch_unavailable" };
+  const workspaceId = stringValue(input.workspaceId || "owner") || "owner";
+  const requestId = stringValue(input.request_id || input.requestId || input.args?.request_id);
+  const decision = stringValue(input.decision || input.args?.decision).toLowerCase();
+  if (!requestId) return { ok: false, status: 400, error: "finance_ledger_join_request_id_required" };
+  if (!["approve", "reject"].includes(decision)) return { ok: false, status: 400, error: "finance_ledger_join_decision_invalid" };
+  const keyPath = findFinanceAccessKeyPath({ workspaceId }, options);
+  if (!keyPath) return { ok: false, status: 503, error: "finance_plugin_key_missing" };
+  let workspaceKey = "";
+  try {
+    workspaceKey = fs.readFileSync(keyPath, "utf8").trim();
+  } catch (_) {
+    return { ok: false, status: 503, error: "finance_plugin_key_read_failed" };
+  }
+  if (!workspaceKey) return { ok: false, status: 503, error: "finance_plugin_key_empty" };
+  const manifestUrl = stringValue(options.financeManifestUrl) || configuredFinanceManifestUrl(options.env || process.env);
+  const reviewUrl = safeJoinUrl(manifestUrl, `/api/finance/ledger-join-requests/${encodeURIComponent(requestId)}/review`);
+  const body = {
+    workspace_id: workspaceId,
+    workspace_key: workspaceKey,
+    decision,
+  };
+  if (decision === "approve") {
+    body.role = stringValue(input.role || input.args?.role || "viewer") || "viewer";
+    body.member_ids = Array.isArray(input.memberIds)
+      ? input.memberIds.map(stringValue).filter(Boolean)
+      : Array.isArray(input.args?.member_ids)
+        ? input.args.member_ids.map(stringValue).filter(Boolean)
+        : [];
+  }
+  const response = await fetchImpl(reviewUrl, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch (_) {
+    payload = {};
+  }
+  if (!response?.ok || payload?.ok === false) {
+    return {
+      ok: false,
+      status: response?.status || 502,
+      error: stringValue(payload?.error || payload?.code || "finance_ledger_join_review_failed").slice(0, 160),
+    };
+  }
+  return {
+    ok: true,
+    requestId,
+    decision,
+    status: stringValue(payload.status || payload.request?.status || ""),
+  };
+}
+
 function codexMobileProxyPathForUrl(value = "") {
   return pluginSameOriginProxyPathForUrl("codex-mobile", value);
 }
@@ -713,6 +774,7 @@ function createHermesPluginService(options = {}) {
     codexMobileAccessKeyPath: options.codexMobileAccessKeyPath,
     financeAccessKeyPath: options.financeAccessKeyPath,
     authorizationService,
+    fetch: fetchImpl,
   };
 
   function pluginPublicMetadata(item) {
@@ -844,7 +906,13 @@ function createHermesPluginService(options = {}) {
     });
   }
 
-  return { list, listInstalled, manifest, pluginManifestUrl, grantWorkspace, revokeWorkspace };
+  function reviewFinanceLedgerJoin(input = {}) {
+    return reviewFinanceLedgerJoinRequest(input, Object.assign({}, launchOptions, {
+      financeManifestUrl: pluginManifestUrl("finance"),
+    }));
+  }
+
+  return { list, listInstalled, manifest, pluginManifestUrl, grantWorkspace, revokeWorkspace, reviewFinanceLedgerJoin };
 }
 
 module.exports = {
@@ -859,6 +927,7 @@ module.exports = {
   findWardrobeAccessKeyPath,
   frameAncestorsAllows,
   normalizePluginAppearance,
+  reviewFinanceLedgerJoinRequest,
   normalizeManifest,
   pluginWorkspaceAuthorized,
   codexMobileProxyPathForUrl,

@@ -137,6 +137,24 @@ Plugins must not copy private inventories, long reports, raw model output,
 secrets, launch tokens, push endpoints, or database paths into Inbox. If the user
 needs details, the Inbox row links back to the plugin UI/API.
 
+Finance ledger join requests are plugin approval events, not ordinary plugin
+delivery receipts. A Finance payload with `type=finance.ledger_join_request`
+is normalized into an Inbox `itemType=approval` item for the target Hermes
+workspace, normally Owner. The Inbox item may store only bounded approval
+metadata: request id, ledger id/name, requester display name/id, requested role,
+target display name/id, status, created time, and route metadata. It must not
+store Finance tokens, Hermes workspace keys, cookies, bank/account details,
+receipt bodies, voucher images, push endpoints, or long logs.
+
+Owner approval and rejection are explicit Inbox actions. Hermes must call the
+Finance review contract first, using the Finance review tool shape
+`finance.review_ledger_join_request` with `{ request_id, decision, role,
+member_ids }` for approval and `{ request_id, decision }` for rejection. Hermes
+may only transition the Inbox item after Finance confirms success: approval
+marks the item `done`, rejection marks it `dismissed`. Hermes must not restore
+QR-code, invite-link, or generic direct-database joining paths for Finance
+ledger membership.
+
 ## Official Kanban Cutover
 
 Official Hermes Kanban is legacy for Hermes Mobile Todo after the Action Inbox migration.
@@ -159,6 +177,8 @@ Phase 1 routes:
 - `POST /api/action-inbox/:itemId/complete`
 - `POST /api/action-inbox/:itemId/dismiss`
 - `POST /api/action-inbox/:itemId/snooze`
+- `POST /api/action-inbox/:itemId/finance-ledger-join/approve`
+- `POST /api/action-inbox/:itemId/finance-ledger-join/reject`
 
 Auth mode is workspace-scoped. Owner may inspect or manage configured family/workspace projections, but ordinary workspaces should only see items assigned to or visible to that workspace.
 
@@ -166,7 +186,10 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
 
 - `node tests\action-inbox-service.test.js`
 - `node tests\action-inbox-api-routes.test.js`
+- `node tests\finance-ledger-join-approval-service.test.js`
 - `node tests\mobile-sqlite-store.test.js`
+- `node tests\hermes-plugin-notification-service.test.js`
+- `node tests\app-action-inbox-ui.test.js`
 - `node tests\task-list-ui.test.js`
 - `node tests\web-push-delivery-service.test.js`
 - `node tests\automation-api-routes.test.js`

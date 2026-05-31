@@ -568,6 +568,19 @@ or task when available. Web Push clicks follow the same Codex plugin route by
 default; the Inbox item id remains metadata for receipt/context, not the primary
 click destination.
 
+For Finance ledger join approval, Finance posts
+`type=finance.ledger_join_request` to the same notification route. Hermes
+normalizes the bounded request into an Action Inbox `approval` item for the
+target workspace. The Inbox action sheet exposes `approve` and `reject`
+decisions instead of the ordinary complete/snooze/delete menu. Hermes calls the
+Finance review contract first, using the tool shape
+`finance.review_ledger_join_request` with `{ request_id, decision, role,
+member_ids }` for approval and `{ request_id, decision }` for rejection. Only
+after Finance confirms success may Hermes mark the Inbox item `done` or
+`dismissed` and request a Finance plugin refresh. Hermes must not create Finance
+ledger memberships directly and must not reintroduce QR-code or invite-link
+join flows.
+
 Plugin notification events must not include raw access keys, bearer tokens,
 launch tokens, push endpoints, database paths, private inventories, raw model
 prompts/responses, reasoning, raw tool payloads, command output, file diffs, or

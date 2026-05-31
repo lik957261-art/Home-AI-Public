@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const {
   DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL,
   DEFAULT_FINANCE_PLUGIN_MANIFEST_URL,
@@ -14,6 +15,7 @@ const {
   normalizeManifest,
   normalizePluginAppearance,
   pluginSameOriginProxyPathForUrl,
+  reviewFinanceLedgerJoinRequest,
 } = require("../adapters/hermes-plugin-service");
 
 function sampleManifest() {
@@ -699,6 +701,40 @@ function testFindFinanceAccessKeyPath() {
   assert.equal(findFinanceAccessKeyPath({ workspaceId: "weixin_wuping" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
 }
 
+async function testReviewFinanceLedgerJoinRequestUsesDedicatedFinanceEndpoint() {
+  const calls = [];
+  const result = await reviewFinanceLedgerJoinRequest({
+    workspaceId: "owner",
+    args: {
+      request_id: "join-req-1",
+      decision: "approve",
+      role: "viewer",
+      member_ids: ["member-1"],
+    },
+  }, {
+    financeAccessKeyPath: __filename,
+    env: { HERMES_MOBILE_FINANCE_PLUGIN_MANIFEST_URL: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" },
+    fetch(url, options) {
+      calls.push({ url, options });
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ ok: true, status: "approved" }),
+      });
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "http://127.0.0.1:8791/api/finance/ledger-join-requests/join-req-1/review");
+  const body = JSON.parse(calls[0].options.body);
+  assert.equal(body.workspace_id, "owner");
+  assert.equal(body.workspace_key, fs.readFileSync(__filename, "utf8").trim());
+  assert.equal(body.decision, "approve");
+  assert.equal(body.role, "viewer");
+  assert.deepEqual(body.member_ids, ["member-1"]);
+  assert.doesNotMatch(JSON.stringify(result), /workspace_key|Authorization|Bearer/i);
+}
+
 async function run() {
   testNormalizeManifest();
   testNormalizeCodexManifest();
@@ -723,6 +759,7 @@ async function run() {
   testFindWardrobeAccessKeyPath();
   testFindCodexMobileAccessKeyPath();
   testFindFinanceAccessKeyPath();
+  await testReviewFinanceLedgerJoinRequestUsesDedicatedFinanceEndpoint();
 }
 
 run().catch((err) => {

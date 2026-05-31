@@ -36,6 +36,7 @@ this.ActionInboxUiTest = {
   actionInboxDisplaySummary,
   actionInboxDisplayTitle,
   actionInboxActionMenuItems,
+  actionInboxPluginLabel,
   actionInboxStatusActionLabel,
   actionInboxOpensSourceDirectly,
   actionInboxPrimaryDeliverable,
@@ -99,6 +100,35 @@ const codexReceiptHtml = ui.renderActionInboxDetail();
 assert.match(codexReceiptHtml, /action-inbox-detail-message/);
 assert.match(codexReceiptHtml, /Long final receipt/);
 assert.match(codexReceiptHtml, /\u5df2\u622a\u65ad/);
+
+const financeLedgerJoin = {
+  id: "ainb-finance-join",
+  sourceType: "plugin",
+  itemType: "approval",
+  status: "open",
+  title: "\u8d26\u672c\u52a0\u5165\u7533\u8bf7\uff1aFamily Ledger",
+  summary: "Lulu \u7533\u8bf7\u4ee5 viewer \u8eab\u4efd\u52a0\u5165\u8d26\u672c\u3002",
+  sourceRef: {
+    pluginId: "finance",
+    notificationType: "finance.ledger_join_request",
+    requestId: "join-req-1",
+    requestedRole: "viewer",
+  },
+};
+const financeJoinHtml = ui.renderActionInboxItem(financeLedgerJoin);
+assert.equal(ui.actionInboxPluginLabel(financeLedgerJoin), "\u8bb0\u8d26");
+assert.match(financeJoinHtml, /\u6765\u6e90\uff1a\u8bb0\u8d26/);
+assert.deepEqual(ui.actionInboxActionMenuItems(financeLedgerJoin).map((action) => action.id), [
+  "finance-ledger-join-approve",
+  "finance-ledger-join-reject",
+]);
+sandbox.state.actionInboxItems = [financeLedgerJoin];
+sandbox.state.actionInboxActionMenuItemId = "ainb-finance-join";
+const financeJoinActionSheetHtml = ui.renderActionInboxActionSheet();
+assert.match(financeJoinActionSheetHtml, /data-action-inbox-menu-action="finance-ledger-join-approve"/);
+assert.match(financeJoinActionSheetHtml, /data-action-inbox-menu-action="finance-ledger-join-reject"/);
+sandbox.state.actionInboxActionMenuItemId = "";
+
 assert.doesNotMatch(openTodoHtml, />\u5904\u7406<\/button>/);
 assert.match(openTodoHtml, /aria-label="状态：待处理，打开处理方式"/);
 assert.doesNotMatch(openTodoHtml, /action-inbox-process-button/);

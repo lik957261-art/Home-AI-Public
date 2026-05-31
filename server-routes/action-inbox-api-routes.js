@@ -63,6 +63,21 @@ const ACTION_INBOX_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["action-inbox"],
     tags: ["action-inbox", "mutate"],
   },
+  {
+    id: "action-inbox-finance-ledger-join-review",
+    method: "POST",
+    pathRegex: /^\/api\/action-inbox\/[^/]+\/finance-ledger-join\/(?:approve|reject)$/,
+    group: "action-inbox",
+    moduleKey: "action-inbox",
+    handlerKey: "financeLedgerJoinReview",
+    summary: "Review a Finance ledger join request from an Action Inbox approval item.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["action-inbox", "plugin", "finance"],
+    tags: ["action-inbox", "plugin", "finance", "approval"],
+  },
 ]);
 
 function requireFunctions(deps, names) {
@@ -77,6 +92,15 @@ function itemIdFromPath(pathname) {
   return {
     itemId: decodeURIComponent(match[1] || ""),
     action: match[2] || "",
+  };
+}
+
+function financeLedgerJoinReviewFromPath(pathname) {
+  const match = String(pathname || "").match(/^\/api\/action-inbox\/([^/]+)\/finance-ledger-join\/(approve|reject)$/);
+  if (!match) return null;
+  return {
+    itemId: decodeURIComponent(match[1] || ""),
+    decision: match[2] || "",
   };
 }
 
@@ -100,6 +124,9 @@ function createActionInboxApiRoutes(deps = {}) {
   ]);
   if (!deps.actionInboxService || typeof deps.actionInboxService.listItems !== "function") {
     throw new Error("action inbox api routes require actionInboxService");
+  }
+  if (deps.financeLedgerJoinApprovalService && typeof deps.financeLedgerJoinApprovalService.reviewRequest !== "function") {
+    throw new Error("action inbox api routes require financeLedgerJoinApprovalService.reviewRequest");
   }
 
   const registry = createApiRouteRegistry(ACTION_INBOX_API_ROUTE_SPECS);
@@ -177,6 +204,44 @@ function createActionInboxApiRoutes(deps = {}) {
     return true;
   }
 
+  async function handleFinanceLedgerJoinReview(req, res, url, context = {}) {
+    const parsed = financeLedgerJoinReviewFromPath(url.pathname);
+    if (!parsed?.itemId || !parsed.decision) return false;
+    if (!deps.financeLedgerJoinApprovalService) {
+      deps.sendJson(res, 503, { ok: false, error: "finance_ledger_join_approval_unavailable" });
+      return true;
+    }
+    const body = await deps.readBody(req).catch(() => ({}));
+    const current = deps.actionInboxService.getItem({ itemId: parsed.itemId });
+    if (!current?.ok) {
+      responseFromResult(deps, res, current);
+      return true;
+    }
+    const workspaceId = deps.requireWorkspaceAccess(req, res, current.item.workspaceId || "owner");
+    if (!workspaceId) return true;
+    const result = await deps.financeLedgerJoinApprovalService.reviewRequest(Object.assign({}, body, {
+      itemId: parsed.itemId,
+      decision: parsed.decision,
+      workspaceId,
+      auth: context.auth,
+    }));
+    if (responseFromResult(deps, res, result) && typeof deps.broadcast === "function") {
+      deps.broadcast({
+        type: "actionInbox.updated",
+        workspaceId,
+        itemId: result.item?.id || parsed.itemId,
+        action: `finance-ledger-join-${parsed.decision}`,
+      });
+      deps.broadcast({
+        type: "embeddedPlugin.refreshRequired",
+        workspaceId,
+        pluginId: "finance",
+        reason: "finance_ledger_join_reviewed",
+      });
+    }
+    return true;
+  }
+
   async function handle(req, res, url, context = {}) {
     const route = registry.match({
       method: req.method || "GET",
@@ -188,6 +253,7 @@ function createActionInboxApiRoutes(deps = {}) {
     else if (route.id === "action-inbox-create") await handleCreate(req, res, context);
     else if (route.id === "action-inbox-detail") await handleDetail(req, res, url);
     else if (route.id === "action-inbox-action") await handleAction(req, res, url, context);
+    else if (route.id === "action-inbox-finance-ledger-join-review") await handleFinanceLedgerJoinReview(req, res, url, context);
     else return { handled: false };
 
     return { handled: true, route, auth: context.auth };

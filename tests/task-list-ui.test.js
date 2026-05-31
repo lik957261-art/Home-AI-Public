@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260531-plugin-appearance-effective-v392";
+const CLIENT_VERSION = "20260531-finance-ledger-join-v393";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -288,6 +288,7 @@ assert.match(appJs, /class="\$\{escapeHtml\(classes\)\}"[\s\S]*?automation-doc-i
 assert.doesNotMatch(appJs, /function actionInboxDeliverableLabel/);
 assert.match(stylesCss, /\.action-inbox-source-badge\.source-automation/);
 assert.match(stylesCss, /\.action-inbox-source-badge\.source-growth/);
+assert.match(stylesCss, /\.action-inbox-source-badge\.source-plugin/);
 assert.match(indexHtml, /id="topOpenAutomation"/);
 assert.match(indexHtml, /id="topNewActionInbox"/);
 assert.match(indexHtml, /id="topOpenActionInboxItem"/);
@@ -500,7 +501,7 @@ assert.match(stylesCss, /\.automation-warning,[\s\S]*?\.automation-create,[\s\S]
 assert.match(stylesCss, /\.automation-run-times div \{[\s\S]*?background: var\(--ui-accent-soft\);[\s\S]*?border: 1px solid var\(--ui-hairline\);/);
 assert.match(stylesCss, /:root\[data-theme="dark"\] \{[\s\S]*?--ui-success-ink: #f5f7f6;/);
 assert.match(stylesCss, /@media \(prefers-color-scheme: dark\) \{[\s\S]*?:root\[data-theme="system"\] \{[\s\S]*?--ui-success-ink: #f5f7f6;/);
-assert.match(stylesCss, /:root\[data-theme="dark"\] \.action-inbox-source-badge\.source-automation,[\s\S]*?:root\[data-theme="dark"\] \.action-inbox-source-badge\.source-chat \{[\s\S]*?color: var\(--ink\);/);
+assert.match(stylesCss, /:root\[data-theme="dark"\] \.action-inbox-source-badge\.source-automation,[\s\S]*?:root\[data-theme="dark"\] \.action-inbox-source-badge\.source-chat,[\s\S]*?:root\[data-theme="dark"\] \.action-inbox-source-badge\.source-plugin \{[\s\S]*?color: var\(--ink\);/);
 assert.match(stylesCss, /:root\[data-theme="dark"\] \.automation-state\.ok \{[\s\S]*?color: var\(--ink\);/);
 assert.match(stylesCss, /:root\[data-theme="dark"\] \.group-member-actions button \{[\s\S]*?color: var\(--ink\);/);
 assert.match(stylesCss, /:root\[data-theme="dark"\] \.reading-fullscreen-mode \.reading-fullscreen-exit \{[\s\S]*?color: var\(--ink\);/);

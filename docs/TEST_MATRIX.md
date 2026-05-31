@@ -212,6 +212,16 @@ go directly to the Codex plugin route, with the Inbox id carried only as
 metadata. If a plugin supplies bounded `detailMessage`, Action Inbox detail
 must render it as the long receipt; Web Push assertions must prove the long body
 does not appear in the push payload.
+Finance ledger join approval is an H1 plugin-to-Inbox workflow. Harnesses must
+cover `finance.ledger_join_request` normalization into an Inbox `approval` item,
+compact ledger/requester/role display, approve/reject actions, Finance review
+contract invocation before Inbox state transition, Finance plugin refresh after
+review, and privacy limits that exclude Finance tokens, Hermes workspace keys,
+cookies, bank/account details, voucher bodies, push endpoints, and long logs.
+Focused checks: `node tests\hermes-plugin-notification-service.test.js`,
+`node tests\finance-ledger-join-approval-service.test.js`,
+`node tests\action-inbox-api-routes.test.js`, and
+`node tests\app-action-inbox-ui.test.js`.
 Plugin projects must also carry their own harness: manifest shape, launch
 exchange, frame-ancestor origin registration, `?embed=hermes` mode,
 `<plugin-id>.plugin.navigation`, `hermes.plugin.back`, optional

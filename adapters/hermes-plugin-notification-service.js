@@ -25,6 +25,64 @@ function normalizeItemType(value) {
     : "info";
 }
 
+function financeLedgerJoinRequestEvent(input = {}) {
+  const type = clean(input.type || input.notificationType || input.notification_type, 120);
+  if (type !== "finance.ledger_join_request") return null;
+  const ledger = objectValue(input.ledger);
+  const requester = objectValue(input.requester);
+  const target = objectValue(input.target);
+  const requestId = clean(input.request_id || input.requestId || input.sourceId || input.source_id || input.eventId || input.event_id, 180);
+  if (!requestId) return errorResult(400, "finance_ledger_join_request_id_required");
+  const ledgerName = clean(ledger.name || ledger.title || "\u8d26\u672c", 180);
+  const requesterName = clean(requester.display_name || requester.displayName || requester.name || requester.finance_user_id || requester.financeUserId || "\u7533\u8bf7\u4eba", 120);
+  const requestedRole = clean(input.requested_role || input.requestedRole || "viewer", 80) || "viewer";
+  const workspaceId = clean(
+    input.workspaceId
+    || input.workspace_id
+    || target.workspaceId
+    || target.workspace_id
+    || target.hermesWorkspaceId
+    || target.hermes_workspace_id
+    || "owner",
+    120,
+  ) || "owner";
+  const route = boundedRoute(input.route || { name: "ledger-join-request", itemId: requestId });
+  return {
+    ok: true,
+    workspaceId,
+    eventId: clean(input.eventId || input.event_id || requestId, 180) || requestId,
+    sourceId: requestId,
+    notificationType: type,
+    itemType: "approval",
+    status: "open",
+    priority: normalizePriority(input.priority),
+    title: clean(input.title || `\u8d26\u672c\u52a0\u5165\u7533\u8bf7\uff1a${ledgerName}`, 180),
+    summary: clean(input.summary || `${requesterName} \u7533\u8bf7\u4ee5 ${requestedRole} \u8eab\u4efd\u52a0\u5165\u8d26\u672c\u3002`, 600),
+    actionLabel: "\u5ba1\u6279",
+    route,
+    sourceRef: {
+      requestId,
+      ledger: {
+        id: clean(ledger.id || ledger.ledger_id || ledger.ledgerId, 180),
+        name: ledgerName,
+      },
+      requester: {
+        financeUserId: clean(requester.finance_user_id || requester.financeUserId || requester.id, 180),
+        displayName: requesterName,
+      },
+      target: {
+        financeUserId: clean(target.finance_user_id || target.financeUserId || target.id, 180),
+        displayName: clean(target.display_name || target.displayName || target.name, 120),
+        workspaceId,
+      },
+      requestedRole,
+      status: clean(input.status || "pending", 80) || "pending",
+      createdAt: clean(input.created_at || input.createdAt, 80),
+    },
+    createdAt: clean(input.created_at || input.createdAt, 80),
+  };
+}
+
 function truthyFlag(value) {
   return ["1", "true", "yes", "on"].includes(clean(value, 20).toLowerCase());
 }
@@ -132,20 +190,22 @@ function createHermesPluginNotificationService(options = {}) {
   }
 
   function normalizeEvent(input = {}) {
+    const financeJoin = financeLedgerJoinRequestEvent(input);
+    if (financeJoin && !financeJoin.ok) return financeJoin;
     const pluginId = clean(input.pluginId || input.plugin_id, 80);
-    const workspaceId = clean(input.workspaceId || input.workspace_id || "owner", 120) || "owner";
-    const eventId = clean(input.eventId || input.event_id || input.id, 180);
-    const sourceId = clean(input.sourceId || input.source_id || eventId, 180);
-    const title = compactText(input.title || "", 180);
-    const summary = compactText(input.summary || input.body || input.content || "", 600);
-    const route = boundedRoute(input.route || input.pluginRoute || input.plugin_route);
+    const workspaceId = financeJoin?.workspaceId || clean(input.workspaceId || input.workspace_id || "owner", 120) || "owner";
+    const eventId = financeJoin?.eventId || clean(input.eventId || input.event_id || input.id, 180);
+    const sourceId = financeJoin?.sourceId || clean(input.sourceId || input.source_id || eventId, 180);
+    const title = financeJoin?.title || compactText(input.title || "", 180);
+    const summary = financeJoin?.summary || compactText(input.summary || input.body || input.content || "", 600);
+    const route = financeJoin?.route || boundedRoute(input.route || input.pluginRoute || input.plugin_route);
     const detailMessage = normalizeDetailMessage(input.detailMessage || input.detail_message, compactText);
     const viewMode = pluginViewMode(pluginId, input.viewMode || input.view || route.view);
     if (!pluginId) return errorResult(400, "plugin_id_required");
     if (!pluginRegistered(pluginId)) return errorResult(404, "plugin_not_registered");
     if (!sourceId) return errorResult(400, "plugin_notification_source_id_required");
     if (!title && !summary) return errorResult(400, "plugin_notification_requires_title_or_summary");
-    const notificationType = clean(input.type || input.notificationType || input.notification_type || "plugin_notification", 80);
+    const notificationType = financeJoin?.notificationType || clean(input.type || input.notificationType || input.notification_type || "plugin_notification", 80);
     const pluginUrl = appRouteUrl({
       view: viewMode,
       workspaceId,
@@ -161,9 +221,9 @@ function createHermesPluginNotificationService(options = {}) {
       eventId: eventId || sourceId,
       sourceId,
       notificationType,
-      itemType: normalizeItemType(input.itemType || input.item_type),
-      status: normalizeStatus(input.status),
-      priority: normalizePriority(input.priority),
+      itemType: financeJoin?.itemType || normalizeItemType(input.itemType || input.item_type),
+      status: financeJoin?.status || normalizeStatus(input.status),
+      priority: financeJoin?.priority || normalizePriority(input.priority),
       title,
       summary,
       detailMessage,
@@ -178,9 +238,11 @@ function createHermesPluginNotificationService(options = {}) {
       requireInteraction: input.requireInteraction !== false,
       dueAt: clean(input.dueAt || input.due_at, 80),
       availableAt: clean(input.availableAt || input.available_at, 80),
-      createdAt: clean(input.createdAt || input.created_at, 80),
+      createdAt: financeJoin?.createdAt || clean(input.createdAt || input.created_at, 80),
       updatedAt: clean(input.updatedAt || input.updated_at, 80) || nowIso(),
+      sourceRef: financeJoin?.sourceRef || null,
     };
+    if (financeJoin?.actionLabel) event.actionLabel = financeJoin.actionLabel;
     event.dedupeKey = pluginNotificationDedupeKey(input, event);
     return event;
   }
@@ -205,6 +267,7 @@ function createHermesPluginNotificationService(options = {}) {
           route: event.route,
           pluginViewMode: event.viewMode,
           detailMessage: event.detailMessage,
+          ...objectValue(event.sourceRef),
         },
         itemType: event.itemType,
         status: event.status,

@@ -40,6 +40,7 @@ function makeRoutes(overrides = {}) {
     complete: [],
     create: [],
     dismiss: [],
+    financeReview: [],
     get: [],
     list: [],
     snooze: [],
@@ -75,6 +76,12 @@ function makeRoutes(overrides = {}) {
       snoozeItem(input) {
         calls.snooze.push(input);
         return { ok: true, item: Object.assign({}, items.get(input.itemId), { status: "waiting" }) };
+      },
+    },
+    financeLedgerJoinApprovalService: {
+      reviewRequest(input) {
+        calls.financeReview.push(input);
+        return { ok: true, item: Object.assign({}, items.get(input.itemId), { status: input.decision === "approve" ? "done" : "dismissed" }) };
       },
     },
     broadcast(payload) {
@@ -113,16 +120,44 @@ async function testRouteMetadataAndFallthrough() {
     "action-inbox-create",
     "action-inbox-detail",
     "action-inbox-action",
+    "action-inbox-finance-ledger-join-review",
   ]);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/action-inbox" }).id, "action-inbox-list");
   assert.equal(routes.match({ method: "POST", path: "/api/action-inbox" }).id, "action-inbox-create");
   assert.equal(routes.match({ method: "GET", path: "/api/action-inbox/item%2F1" }).id, "action-inbox-detail");
   assert.equal(routes.match({ method: "POST", path: "/api/action-inbox/item-1/complete" }).id, "action-inbox-action");
+  assert.equal(routes.match({ method: "POST", path: "/api/action-inbox/item-1/finance-ledger-join/approve" }).id, "action-inbox-finance-ledger-join-review");
 
   const miss = await request(routes, "GET", "/api/status");
   assert.equal(miss.result.handled, false);
   assert.equal(miss.res.statusCode, 0);
+}
+
+async function testFinanceLedgerJoinReviewUsesItemWorkspaceAndBroadcastsRefresh() {
+  const { routes, calls } = makeRoutes();
+  const approved = await request(routes, "POST", "/api/action-inbox/item-1/finance-ledger-join/approve", {
+    auth: { principalId: "owner" },
+    body: { role: "viewer" },
+  });
+  assert.equal(approved.res.statusCode, 200);
+  assert.equal(calls.financeReview.length, 1);
+  assert.equal(calls.financeReview[0].itemId, "item-1");
+  assert.equal(calls.financeReview[0].decision, "approve");
+  assert.equal(calls.financeReview[0].workspaceId, "child");
+  assert.deepEqual(calls.financeReview[0].auth, { principalId: "owner" });
+  assert.deepEqual(calls.broadcast.at(-2), {
+    type: "actionInbox.updated",
+    workspaceId: "child",
+    itemId: "item-1",
+    action: "finance-ledger-join-approve",
+  });
+  assert.deepEqual(calls.broadcast.at(-1), {
+    type: "embeddedPlugin.refreshRequired",
+    workspaceId: "child",
+    pluginId: "finance",
+    reason: "finance_ledger_join_reviewed",
+  });
 }
 
 async function testListAndCreate() {
@@ -170,6 +205,7 @@ async function main() {
   await testRouteMetadataAndFallthrough();
   await testListAndCreate();
   await testDetailAndMutationsUseItemWorkspace();
+  await testFinanceLedgerJoinReviewUsesItemWorkspaceAndBroadcastsRefresh();
   console.log("action-inbox-api-routes tests passed");
 }
 

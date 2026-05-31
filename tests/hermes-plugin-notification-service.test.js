@@ -21,6 +21,7 @@ function createHarness(overrides = {}) {
       pluginManifestUrl(id) {
         if (id === "wardrobe") return "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest";
         if (id === "codex-mobile") return "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest";
+        if (id === "finance") return "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest";
         return "";
       },
     },
@@ -174,6 +175,35 @@ async function testPluginNotificationCanExplicitlySkipInbox() {
   assert.equal(calls.push[0].payload.data.url, "/?view=wardrobe&workspaceId=owner&pluginId=wardrobe&pluginRoute=updates");
 }
 
+async function testFinanceLedgerJoinRequestCreatesApprovalInboxItem() {
+  const { calls, service } = createHarness();
+  const result = await service.postNotification({
+    pluginId: "finance",
+    type: "finance.ledger_join_request",
+    request_id: "join-req-1",
+    ledger: { id: "ledger-1", name: "Family Ledger" },
+    requester: { finance_user_id: "finance-user-2", display_name: "Lulu" },
+    target: { finance_user_id: "finance-owner", display_name: "Owner", hermesWorkspaceId: "owner" },
+    requested_role: "viewer",
+    status: "pending",
+    created_at: "2026-05-31T09:00:00.000Z",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(calls.inbox.length, 1);
+  assert.equal(calls.inbox[0].workspaceId, "owner");
+  assert.equal(calls.inbox[0].sourceType, "plugin");
+  assert.equal(calls.inbox[0].sourceId, "join-req-1");
+  assert.equal(calls.inbox[0].itemType, "approval");
+  assert.equal(calls.inbox[0].status, "open");
+  assert.equal(calls.inbox[0].actionLabel, "\u5ba1\u6279");
+  assert.equal(calls.inbox[0].sourceRef.pluginId, "finance");
+  assert.equal(calls.inbox[0].sourceRef.notificationType, "finance.ledger_join_request");
+  assert.equal(calls.inbox[0].sourceRef.requestId, "join-req-1");
+  assert.deepEqual(calls.inbox[0].sourceRef.ledger, { id: "ledger-1", name: "Family Ledger" });
+  assert.equal(calls.inbox[0].sourceRef.requestedRole, "viewer");
+  assert.doesNotMatch(JSON.stringify(calls.inbox[0]), /token|cookie|bank|password|endpoint/i);
+}
+
 async function run() {
   await testPluginNotificationCreatesInboxAndPush();
   await testPluginOpenModeCanClickThroughToPluginTab();
@@ -181,6 +211,7 @@ async function run() {
   await testNotifyFalseSkipsPush();
   await testCodexTaskCompleteUsesWorkspaceScopedInboxRecord();
   await testPluginNotificationCanExplicitlySkipInbox();
+  await testFinanceLedgerJoinRequestCreatesApprovalInboxItem();
 }
 
 run().catch((err) => {

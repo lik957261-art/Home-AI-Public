@@ -20,6 +20,15 @@ function actionInboxSourceLabel(sourceType) {
   return value || "\u6536\u4ef6";
 }
 
+function actionInboxPluginLabel(item = {}) {
+  const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
+  const pluginId = String(sourceRef.pluginId || "").trim();
+  if (pluginId === "finance") return "\u8bb0\u8d26";
+  if (pluginId === "wardrobe") return "\u8863\u6a71";
+  if (pluginId === "codex-mobile") return "Codex";
+  return actionInboxSourceLabel(item.sourceType);
+}
+
 function actionInboxTypeLabel(itemType) {
   const value = String(itemType || "").toLowerCase();
   if (value === "delivery") return "\u4ea4\u4ed8";
@@ -40,6 +49,7 @@ function actionInboxSourceTone(sourceType) {
   if (value === "growth") return "source-growth";
   if (value === "manual") return "source-manual";
   if (value === "chat") return "source-chat";
+  if (value === "plugin") return "source-plugin";
   return "source-default";
 }
 
@@ -199,6 +209,13 @@ function actionInboxPrimaryDeliverable(item = {}) {
   return actionInboxLatestDeliverable(item);
 }
 
+function actionInboxIsFinanceLedgerJoinRequest(item = {}) {
+  const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
+  return String(item?.sourceType || item?.source_type || "").trim().toLowerCase() === "plugin"
+    && String(sourceRef.pluginId || "").trim() === "finance"
+    && String(sourceRef.notificationType || "").trim() === "finance.ledger_join_request";
+}
+
 function actionInboxAppShellRouteForParams(params) {
   if (typeof hermesAppShellRouteForParams === "function") return hermesAppShellRouteForParams(params);
   const nextParams = new URLSearchParams(params || "");
@@ -279,6 +296,11 @@ function actionInboxStatusActionLabel(item = {}) {
 
 function actionInboxActionMenuItems(item = {}) {
   const actions = [];
+  if (actionInboxIsFinanceLedgerJoinRequest(item) && !actionInboxIsTerminalStatus(item.status)) {
+    actions.push({ id: "finance-ledger-join-approve", label: "\u540c\u610f\u52a0\u5165", tone: "primary" });
+    actions.push({ id: "finance-ledger-join-reject", label: "\u62d2\u7edd", tone: "danger" });
+    return actions;
+  }
   if (!actionInboxIsTerminalStatus(item.status)) {
     actions.push({ id: "complete", label: "\u5b8c\u6210", tone: "primary" });
     actions.push({ id: "snooze", label: "\u7a0d\u540e", tone: "neutral" });
@@ -413,7 +435,7 @@ function renderActionInboxItem(item) {
     ${terminal ? "" : `<button class="task-swipe-delete action-inbox-swipe-complete" type="button" data-complete-swipe="${escapeHtml(item.id || "")}" aria-label="${"\u6807\u8bb0\u4e3a\u5b8c\u6210"}">${"\u5b8c\u6210"}</button>`}
     <div class="${terminal ? "action-inbox-item-static" : "task-swipe-content action-inbox-swipe-content"}"${terminal ? "" : " data-swipe-content"}>
     <div class="action-inbox-source-row">
-      <span class="action-inbox-source-badge ${escapeHtml(actionInboxSourceTone(item.sourceType))}">${"\u6765\u6e90\uff1a"}${escapeHtml(actionInboxSourceLabel(item.sourceType))}</span>
+      <span class="action-inbox-source-badge ${escapeHtml(actionInboxSourceTone(item.sourceType))}">${"\u6765\u6e90\uff1a"}${escapeHtml(actionInboxPluginLabel(item))}</span>
       <span class="action-inbox-type-badge">${"\u7c7b\u578b\uff1a"}${escapeHtml(actionInboxTypeLabel(item.itemType))}</span>
       <button class="action-inbox-state-badge action-inbox-state-action ${escapeHtml(tone)}" type="button" data-action-inbox-actions-id="${escapeHtml(item.id || "")}" aria-haspopup="menu" aria-expanded="${statusMenuOpen ? "true" : "false"}" aria-label="${escapeHtml(`\u72b6\u6001\uff1a${actionInboxStatusLabel(item.status)}\uff0c\u6253\u5f00\u5904\u7406\u65b9\u5f0f`)}">${escapeHtml(actionInboxStatusActionLabel(item))}</button>
       <span class="action-inbox-item-time">${escapeHtml(displayTime)}</span>
@@ -460,7 +482,7 @@ function renderActionInboxDetail() {
       <pre>${escapeHtml(detailMessage.body)}</pre>
     </section>` : ""}
     <div class="action-inbox-detail-meta">
-      <span class="action-inbox-source-badge ${escapeHtml(actionInboxSourceTone(item.sourceType))}">${"\u6765\u6e90\uff1a"}${escapeHtml(actionInboxSourceLabel(item.sourceType))}</span>
+      <span class="action-inbox-source-badge ${escapeHtml(actionInboxSourceTone(item.sourceType))}">${"\u6765\u6e90\uff1a"}${escapeHtml(actionInboxPluginLabel(item))}</span>
       <span class="action-inbox-type-badge">${"\u7c7b\u578b\uff1a"}${escapeHtml(actionInboxTypeLabel(item.itemType))}</span>
       <button class="action-inbox-state-badge action-inbox-state-action ${escapeHtml(tone)}" type="button" data-action-inbox-actions-id="${escapeHtml(item.id || "")}" aria-haspopup="menu" aria-expanded="${statusMenuOpen ? "true" : "false"}" aria-label="${escapeHtml(`\u72b6\u6001\uff1a${actionInboxStatusLabel(item.status)}\uff0c\u6253\u5f00\u5904\u7406\u65b9\u5f0f`)}">${escapeHtml(actionInboxStatusActionLabel(item))}</button>
       ${dueText ? `<span>${"\u622a\u6b62\uff1a"}${escapeHtml(dueText)}</span>` : ""}
@@ -504,7 +526,7 @@ function renderActionInboxView(options = {}) {
   $("threadTitle").textContent = creating ? "\u65b0\u589e\u4e8b\u9879" : (item ? "\u6536\u4ef6\u8be6\u60c5" : "\u6536\u4ef6\u7bb1");
   $("threadMeta").textContent = creating
     ? "\u6536\u4ef6\u7bb1"
-    : (item ? `${actionInboxSourceLabel(item.sourceType)} · ${actionInboxStatusLabel(item.status)}` : actionInboxCountsText());
+    : (item ? `${actionInboxPluginLabel(item)} · ${actionInboxStatusLabel(item.status)}` : actionInboxCountsText());
   $("interruptRun").disabled = true;
   configureComposer({ enabled: false, placeholder: "\u6536\u4ef6\u7bb1" });
   updateNavigationControls();
@@ -650,10 +672,34 @@ async function handleActionInboxMenuAction(itemId, action) {
   }
   if (action === "deliverable") return openActionInboxItemDeliverable(item);
   if (action === "source") return openActionInboxItemSource(item);
+  if (action === "finance-ledger-join-approve") return reviewFinanceLedgerJoinRequestById(id, "approve");
+  if (action === "finance-ledger-join-reject") return reviewFinanceLedgerJoinRequestById(id, "reject");
   if (action === "complete") return mutateActionInboxItemById(id, "complete");
   if (action === "snooze") return mutateActionInboxItemById(id, "snooze");
   if (action === "dismiss") return mutateActionInboxItemById(id, "dismiss");
   await loadActionInboxItem(id);
+}
+
+async function reviewFinanceLedgerJoinRequestById(itemId, decision) {
+  const id = String(itemId || "").trim();
+  if (!id) return null;
+  const item = state.actionInboxItems.find((candidate) => candidate.id === id)
+    || (currentActionInboxItem()?.id === id ? currentActionInboxItem() : null)
+    || { id, workspaceId: state.selectedWorkspaceId || "owner" };
+  const result = await api(`/api/action-inbox/${encodeURIComponent(id)}/finance-ledger-join/${decision}`, {
+    method: "POST",
+    body: JSON.stringify({
+      workspaceId: item.workspaceId || state.selectedWorkspaceId || "owner",
+    }),
+  });
+  if (state.selectedActionInboxItemId === id) {
+    state.actionInboxDetail = { item: result.item, events: state.actionInboxDetail?.events || [] };
+  }
+  await loadActionInbox({ preserveScroll: true });
+  if (typeof requestEmbeddedPluginRefresh === "function" && typeof EMBEDDED_PLUGIN_DEFS !== "undefined" && EMBEDDED_PLUGIN_DEFS.finance) {
+    requestEmbeddedPluginRefresh(EMBEDDED_PLUGIN_DEFS.finance, { reason: "finance_ledger_join_reviewed" });
+  }
+  return result;
 }
 
 function openCurrentActionInboxItemLink() {

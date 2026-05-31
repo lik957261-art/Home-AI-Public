@@ -56,6 +56,7 @@ const { createWeixinApiRoutes } = require("./weixin-api-routes");
 const { createWorkspaceApiRoutes } = require("./workspace-api-routes");
 const { createHermesPluginService } = require("../adapters/hermes-plugin-service");
 const { createHermesPluginNotificationService } = require("../adapters/hermes-plugin-notification-service");
+const { createFinanceLedgerJoinApprovalService } = require("../adapters/finance-ledger-join-approval-service");
 
 function callBootTrace(deps, label) {
   if (typeof deps.bootTrace === "function") deps.bootTrace(label);
@@ -430,6 +431,10 @@ function createMobileApiComposition(deps = {}) {
     sendPushNotification: deps.webPushDeliveryService.sendPushNotification,
     workspacePrincipal: deps.workspacePrincipal,
   });
+  const financeLedgerJoinApprovalService = deps.financeLedgerJoinApprovalService || createFinanceLedgerJoinApprovalService({
+    actionInboxService,
+    reviewLedgerJoinRequest: deps.reviewFinanceLedgerJoinRequest || ((input) => hermesPluginService.reviewFinanceLedgerJoin(input)),
+  });
   const hermesPluginApiRoutes = createHermesPluginApiRoutes({
     authenticateRequest: deps.authenticateRequest,
     broadcast: deps.broadcast,
@@ -446,6 +451,7 @@ function createMobileApiComposition(deps = {}) {
   const actionInboxApiRoutes = createActionInboxApiRoutes({
     actionInboxService,
     broadcast: deps.broadcast,
+    financeLedgerJoinApprovalService,
     readBody: deps.readBody,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
     sendJson: deps.sendJson,
@@ -817,6 +823,7 @@ function createMobileApiComposition(deps = {}) {
     mobileApiDispatcher,
     services: {
       actionInboxService,
+      financeLedgerJoinApprovalService,
       learningGrowthSubmissionService,
       learningGrowthTeachingCheckService,
       learningGrowthExperienceSignalService,

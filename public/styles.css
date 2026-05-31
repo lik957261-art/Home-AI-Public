@@ -12948,10 +12948,16 @@ body.task-markdown-preview-open {
   background: rgba(134, 139, 163, 0.14);
 }
 
+.action-inbox-source-badge.source-plugin {
+  color: #605f6c;
+  background: rgba(145, 141, 164, 0.14);
+}
+
 :root[data-theme="dark"] .action-inbox-source-badge.source-automation,
 :root[data-theme="dark"] .action-inbox-source-badge.source-growth,
 :root[data-theme="dark"] .action-inbox-source-badge.source-manual,
-:root[data-theme="dark"] .action-inbox-source-badge.source-chat {
+:root[data-theme="dark"] .action-inbox-source-badge.source-chat,
+:root[data-theme="dark"] .action-inbox-source-badge.source-plugin {
   color: var(--ink);
   background: var(--ui-surface-muted);
   border-color: var(--ui-hairline);
@@ -12961,7 +12967,8 @@ body.task-markdown-preview-open {
   :root[data-theme="system"] .action-inbox-source-badge.source-automation,
   :root[data-theme="system"] .action-inbox-source-badge.source-growth,
   :root[data-theme="system"] .action-inbox-source-badge.source-manual,
-  :root[data-theme="system"] .action-inbox-source-badge.source-chat {
+  :root[data-theme="system"] .action-inbox-source-badge.source-chat,
+  :root[data-theme="system"] .action-inbox-source-badge.source-plugin {
     color: var(--ink);
     background: var(--ui-surface-muted);
     border-color: var(--ui-hairline);
