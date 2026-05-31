@@ -169,6 +169,33 @@ async function testPermissionPreflightKeepsFullAuthorizedToolsetsWhenToolsetSele
   assert.deepEqual(result.selectedToolsets, ["file", "weather", "x_search", "web", "search", "http", "clarify"]);
   assert.deepEqual(result.authorizedToolsets, ["file", "weather", "x_search", "web", "search", "http", "clarify"]);
   assert.equal(calls[0].body.access_policy_context.permission_preflight_only, true);
+  assert.equal(calls[0].options.timeoutMs, 8000);
+}
+
+async function testPermissionPreflightUsesSeparateShortTimeout() {
+  const calls = [];
+  const service = createGatewayRunModelToolsetSelectionService({
+    toolsetSelectionEnabled: false,
+    permissionPreflightTimeoutMs: 3500,
+    timeoutMs: 45000,
+    gatewayPool: {
+      runnerFor() {
+        return {
+          async streamResponses(body, options) {
+            calls.push({ body, options });
+            options.onEvent({ event: "response.output_text.delta", delta: "{\"decision\":\"allowed\"}" });
+          },
+        };
+      },
+    },
+  });
+
+  await service.selectToolsetsForRun({
+    request: baseRequest(),
+    gatewayTarget: { apiBase: "http://worker", apiKey: "key" },
+  });
+
+  assert.equal(calls[0].options.timeoutMs, 3500);
 }
 
 async function testStreamsSelectorAndReturnsAuthorizedSelection() {
@@ -205,7 +232,7 @@ async function testStreamsSelectorAndReturnsAuthorizedSelection() {
   assert.deepEqual(result.selectedToolsets, ["weather", "file"]);
   assert.deepEqual(result.authorizedToolsets, ["file", "weather", "x_search", "web", "search", "http", "clarify"]);
   assert.equal(calls[1].options.gatewayUrl, "http://worker");
-  assert.equal(calls[1].options.timeoutMs, 45000);
+  assert.equal(calls[1].options.timeoutMs, 30000);
   assert.equal(calls[1].body.model, "gpt-5.4-mini");
   assert.equal(calls[1].body.provider, "openai-codex");
   assert.deepEqual(calls[1].body.access_policy_context.allowed_toolsets, []);
@@ -347,6 +374,39 @@ async function testSelectorErrorsReturnFullFallbackMetadata() {
   assert.match(result.error, /timeout/);
 }
 
+async function testSelectorFallbackUsesAuthorizedToolsetsWhenAllowedWasSuggested() {
+  const request = baseRequest();
+  request.runPolicy = {
+    allowed_toolsets: ["wardrobe", "vision", "file", "skills"],
+    authorized_toolsets: ["wardrobe", "vision", "file", "skills", "weather", "web", "search", "browser"],
+  };
+  request.toolsetRouting = {
+    suggested_toolsets: ["wardrobe", "vision", "file", "skills", "weather"],
+    suggested_reason: "wardrobe_weather",
+  };
+  const service = createGatewayRunModelToolsetSelectionService({
+    gatewayPool: {
+      runnerFor() {
+        return {
+          async streamResponses(_body, options) {
+            options.onEvent({ event: "response.output_text.delta", delta: "not json" });
+          },
+        };
+      },
+    },
+  });
+
+  const result = await service.selectToolsetsForRun({
+    request,
+    gatewayTarget: { apiBase: "http://worker" },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "invalid_json");
+  assert.deepEqual(result.authorizedToolsets, ["wardrobe", "vision", "file", "skills", "weather", "web", "search", "browser"]);
+  assert.deepEqual(result.selectedToolsets, []);
+}
+
 async function testSelectorErrorStopsKnownSelectorRun() {
   const calls = [];
   const service = createGatewayRunModelToolsetSelectionService({
@@ -397,10 +457,12 @@ testBuildsPermissionOnlyBodyWhenToolsetSelectionDisabled();
 testSelectorModelOverrideUsesLightweightModel();
 testStreamsSelectorAndReturnsAuthorizedSelection()
   .then(testPermissionPreflightKeepsFullAuthorizedToolsetsWhenToolsetSelectionDisabled)
+  .then(testPermissionPreflightUsesSeparateShortTimeout)
   .then(testUncertainAllToolsetsSelectionNarrowsToSuggestedToolsets)
   .then(testPlainProbeClarifySelectionExpandsToSuggestedToolsets)
   .then(testWardrobeClarifySelectionExpandsToSuggestedMcpStack)
   .then(testSelectorErrorsReturnFullFallbackMetadata)
+  .then(testSelectorFallbackUsesAuthorizedToolsetsWhenAllowedWasSuggested)
   .then(testSelectorErrorStopsKnownSelectorRun)
   .then(() => console.log("gateway-run-model-toolset-selection-service tests passed"))
   .catch((err) => {

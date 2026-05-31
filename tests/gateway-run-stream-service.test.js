@@ -461,6 +461,41 @@ async function testStreamEndWithoutTerminalCompletesWhenOnlyFinalOutputItemArriv
   assert.ok(events.some((event) => event.event === "response.completed" && event.run_id === "real_response" && event.hermes_mobile_stream_recovery));
 }
 
+async function testStreamEndAfterTerminalEventDoesNotAddRecoveryCompletion() {
+  const activeStreams = new Map();
+  const controller = createController();
+  const events = [];
+  const failures = [];
+  const cancellations = [];
+  const service = createGatewayRunStreamService({
+    activeStreams,
+    gatewayPool: createGatewayPool({
+      streamResponses: async (_body, options) => {
+        options.onEvent({ event: "response.created", response: { id: "real_response" } });
+        options.onEvent({ event: "message.delta", delta: "final output" });
+        options.onEvent({ event: "response.completed", response_id: "real_response", response: { id: "real_response" } });
+      },
+    }),
+    abortControllerFactory: () => controller,
+    onHermesRunEvent: (event) => events.push(event),
+    markRunFailed: (...args) => failures.push(args),
+    markRunCancelled: (...args) => cancellations.push(args),
+  });
+
+  service.streamResponse("public_run", "thread_1", "message_1", { input: "hello" }, {
+    gatewayUrl: "http://worker.gateway",
+    gatewayApiKey: "worker-key",
+  });
+  await flushAsyncTurns();
+  await flushAsyncTurns();
+
+  assert.deepEqual(failures, []);
+  assert.deepEqual(cancellations, []);
+  assert.equal(events.filter((event) => event.event === "run.stream_closed_without_terminal").length, 0);
+  assert.equal(events.filter((event) => event.event === "response.completed").length, 1);
+  assert.equal(events.some((event) => event.hermes_mobile_stream_recovery), false);
+}
+
 async function testStreamEndWithoutTerminalCancelsWithoutFailurePushWhenNoOutputArrived() {
   const activeStreams = new Map();
   const controller = createController();
@@ -507,6 +542,7 @@ async function testStreamEndWithoutTerminalCancelsWithoutFailurePushWhenNoOutput
   testHostedWebSearchBudgetUsesOutputItemType();
   await testStreamEndWithoutTerminalCompletesWhenOutputArrived();
   await testStreamEndWithoutTerminalCompletesWhenOnlyFinalOutputItemArrived();
+  await testStreamEndAfterTerminalEventDoesNotAddRecoveryCompletion();
   await testStreamEndWithoutTerminalCancelsWithoutFailurePushWhenNoOutputArrived();
   console.log("gateway-run-stream-service tests passed");
 })().catch((err) => {

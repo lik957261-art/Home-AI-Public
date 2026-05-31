@@ -533,7 +533,7 @@ Required harness dimensions:
   Turning off model-first toolset selection must leave the model-side permission
   decision active. A permission-only preflight may return allowed or
   `HERMES_PERMISSION_APPROVAL_REQUIRED`, but must not choose, omit, or optimize
-  execution toolsets; execution uses the deterministic authorized toolset set.
+  execution toolsets; execution uses the full authorized route/access toolset set.
 - A first-round model toolset-selection step may receive a compact capability
   catalog and the authorized policy summary, but not the full expanded schema
   for every ordinary tool.
@@ -586,6 +586,12 @@ Required harness dimensions:
   by default, even when the latest message is a short follow-up. The routing
   layer must still preserve policy boundaries and must not grant any of those
   toolsets when absent from the authorized toolset list.
+- Wardrobe outfit-recommendation turns must also preserve authorized `weather`.
+  Harness coverage should include a wardrobe-bound topic whose latest message is
+  an outfit request and assert the suggested set contains `wardrobe`, `vision`,
+  `file`, `skills`, and `weather`. When model-first toolset narrowing is
+  disabled or falls back, the same harness must assert execution keeps the full
+  authorized route/access toolset set rather than the suggested subset.
 - Harness scenarios must also assert that model-first narrowing cannot split
   this wardrobe companion set. If the selector chooses any member of a suggested
   authorized `wardrobe`/`vision`/`file` set, execution must keep all authorized
@@ -611,7 +617,7 @@ Required harness dimensions:
   the original authorized toolsets rather than failing the user run.
 - Selector latency is part of the contract. The first-round selector uses a
   ChatGPT low-cost model with a bounded timeout large enough for reliable
-  completion, defaults to 45000ms, and attempts a best-effort stop when a
+  completion, defaults to 30000ms, and attempts a best-effort stop when a
   selector run id is known after failure.
 - Tens-of-seconds selector latency is acceptable when it reliably returns a
   decision. The timeout must be set for reliability rather than micro-latency,
@@ -622,10 +628,12 @@ Required harness dimensions:
   selected authorized toolsets or a `HERMES_PERMISSION_APPROVAL_REQUIRED`-style
   Owner-elevation decision. When model-first toolset narrowing is disabled, the
   model may return only the permission decision and execution keeps the
-  deterministic route/access toolset set. For Wardrobe-intent or
-  wardrobe-bound-topic runs this is the bounded Wardrobe stack, not the broad
-  all-toolset catalog, so OpenAI/Codex execution must receive `wardrobe`,
-  `vision`, `file`, and `skills` through top-level `enabled_toolsets`.
+  full authorized route/access toolset set. For Wardrobe-intent or
+  wardrobe-bound-topic runs, the bounded Wardrobe/weather companion set is only
+  a `suggested_toolsets` hint unless the selector is explicitly enabled and the
+  request-level schema harness passes. Selector timeout, invalid JSON, empty
+  selection, or unauthorized-only selection must also fall back to the full
+  originally authorized toolset set, not to the suggested subset.
 - The selector is an internal JSON-only preflight, not a user-facing task run.
   It must not browse, search, call tools, or load Skills. Harness coverage must
   assert the selector request disables tool calls and, for live probes, that the
@@ -828,7 +836,8 @@ Required harness dimensions:
   status UI does not report a stopped process as warm.
 - Production hybrid startup scripts must not launch the full historical fixed
   pool. Eager startup must remain available as a rollback mode.
-- Run-progress and model-status UI must show starting, reused, queued,
+- Run-progress and model-status UI must show cold-start `starting` as a startup
+  state, not as queue depth, while still showing reused, queued,
   idle-retirement, and failed scheduler states without exposing raw API keys,
   workspace keys, plugin launch tokens, prompts, model output, or long logs.
 

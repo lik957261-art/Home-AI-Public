@@ -124,11 +124,11 @@ function testWardrobeIngestionSuggestsWardrobeMcpAndInputTools() {
   });
 
   assert.deepEqual(result.policy.authorized_toolsets, allToolsets);
-  assert.deepEqual(result.policy.allowed_toolsets, ["wardrobe", "vision", "file", "skills"]);
-  assert.equal(result.routing.execution_mode, "deterministic_suggested");
+  assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
+  assert.equal(result.routing.execution_mode, "full_authorized");
   assert.equal(result.routing.suggested_mode, "intent");
   assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "skills"]);
-  assert.deepEqual(result.routing.selected_toolsets, ["wardrobe", "vision", "file", "skills"]);
+  assert.deepEqual(result.routing.selected_toolsets, allToolsets);
 }
 
 function testWardrobeBoundTopicDefaultsToWardrobeMcp() {
@@ -146,11 +146,33 @@ function testWardrobeBoundTopicDefaultsToWardrobeMcp() {
   });
 
   assert.deepEqual(result.policy.authorized_toolsets, allToolsets);
-  assert.deepEqual(result.policy.allowed_toolsets, ["wardrobe", "vision", "file", "skills"]);
-  assert.equal(result.routing.execution_mode, "deterministic_suggested");
+  assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
+  assert.equal(result.routing.execution_mode, "full_authorized");
   assert.equal(result.routing.suggested_mode, "intent");
   assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "skills"]);
-  assert.deepEqual(result.routing.selected_toolsets, ["wardrobe", "vision", "file", "skills"]);
+  assert.deepEqual(result.routing.selected_toolsets, allToolsets);
+}
+
+function testWardrobeOutfitRecommendationKeepsWeatherCompanion() {
+  const service = createService();
+  const result = service.routePolicy({
+    policy: policy(),
+    userMessage: { content: "\u91cd\u65b0\u914d\u4e00\u5957\u8863\u670d", taskGroupId: "wardrobe-topic" },
+    taskDirectory: {
+      projectId: "family-wardrobe",
+      label: "\u8863\u6a71 / WuPing",
+      path: "D:\\Wardrobe\\WuPing",
+      root: "D:\\Wardrobe\\WuPing",
+    },
+    runOptions: {},
+  });
+
+  assert.deepEqual(result.policy.authorized_toolsets, allToolsets);
+  assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
+  assert.equal(result.routing.execution_mode, "full_authorized");
+  assert.equal(result.routing.suggested_mode, "intent");
+  assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "skills", "weather"]);
+  assert.deepEqual(result.routing.selected_toolsets, allToolsets);
 }
 
 function testWardrobeTopicContextWithoutDirectoryStillKeepsWardrobeToolsets() {
@@ -173,8 +195,8 @@ function testWardrobeTopicContextWithoutDirectoryStillKeepsWardrobeToolsets() {
 
   assert.equal(result.routing.suggested_mode, "intent");
   assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "skills"]);
-  assert.deepEqual(result.policy.allowed_toolsets, ["wardrobe", "vision", "file", "skills"]);
-  assert.equal(result.routing.execution_mode, "deterministic_suggested");
+  assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
+  assert.equal(result.routing.execution_mode, "full_authorized");
 }
 
 function testRetryUsesRecentToolsetEscalationContext() {
@@ -201,8 +223,8 @@ function testRetryUsesRecentToolsetEscalationContext() {
 
   assert.equal(result.routing.suggested_mode, "intent");
   assert.deepEqual(result.routing.suggested_toolsets, ["weather", "wardrobe", "vision", "file", "skills"]);
-  assert.deepEqual(result.policy.allowed_toolsets, ["weather", "wardrobe", "vision", "file", "skills"]);
-  assert.equal(result.routing.execution_mode, "deterministic_suggested");
+  assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
+  assert.equal(result.routing.execution_mode, "full_authorized");
 }
 
 function testRetryUsesRecentTaskTextWhenNoEscalationMetadataExists() {
@@ -222,8 +244,8 @@ function testRetryUsesRecentTaskTextWhenNoEscalationMetadataExists() {
 
   assert.equal(result.routing.suggested_mode, "intent");
   assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "skills", "weather"]);
-  assert.deepEqual(result.policy.allowed_toolsets, ["wardrobe", "vision", "file", "skills", "weather"]);
-  assert.equal(result.routing.execution_mode, "deterministic_suggested");
+  assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
+  assert.equal(result.routing.execution_mode, "full_authorized");
 }
 
 function testRetryUsesSameTaskGroupContextBeyondGlobalTail() {
@@ -249,8 +271,8 @@ function testRetryUsesSameTaskGroupContextBeyondGlobalTail() {
 
   assert.equal(result.routing.suggested_mode, "intent");
   assert.deepEqual(result.routing.suggested_toolsets, ["wardrobe", "vision", "file", "skills", "weather"]);
-  assert.deepEqual(result.policy.allowed_toolsets, ["wardrobe", "vision", "file", "skills", "weather"]);
-  assert.equal(result.routing.execution_mode, "deterministic_suggested");
+  assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
+  assert.equal(result.routing.execution_mode, "full_authorized");
 }
 
 function testAmbiguousRequestFailsOpenToBaseToolsets() {
@@ -300,6 +322,7 @@ testExplicitWebSearchKeepsBrowserCompanionWhenAllowed();
 testFileAndSkillIntentCanCombine();
 testWardrobeIngestionSuggestsWardrobeMcpAndInputTools();
 testWardrobeBoundTopicDefaultsToWardrobeMcp();
+testWardrobeOutfitRecommendationKeepsWeatherCompanion();
 testWardrobeTopicContextWithoutDirectoryStillKeepsWardrobeToolsets();
 testRetryUsesRecentToolsetEscalationContext();
 testRetryUsesRecentTaskTextWhenNoEscalationMetadataExists();

@@ -26,7 +26,7 @@ param(
     [int]$HealthStatusTimeoutSec = 5,
     [int]$ReadyWaitSeconds = 90,
     [int]$MinGatewayPoolWorkers = 1,
-    [string]$GatewayPoolPorts = "18751,18752,18753,18754,18755,18756,18757,18758,18759,18760,18761,18762,18763,18764,18765,18766,18767,18768,18769,18770,18771,18772,18773,18651,18652,18653",
+    [string]$GatewayPoolPorts = "18751,18752,18753,18754,18755,18756,18757,18758,18759,18760,18761,18762,18763,18764,18765,18766,18767,18768,18769,18770,18771,18772,18773,18774,18651,18652,18653",
     [switch]$RunInCallerContext,
     [switch]$CheckOnly,
     [switch]$ReplaceExisting
@@ -42,6 +42,27 @@ function Write-WorkerHostLog {
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
     $line = "{0} {1}" -f (Get-Date).ToString("s"), $Message
     Add-Content -LiteralPath (Join-Path $logDir "worker-host.log") -Value $line -Encoding UTF8
+}
+
+function Test-TruthyValue {
+    param([string]$Value)
+    return ($Value -match '^(1|true|yes|on)$')
+}
+
+function Test-ListenerCallerContextMarker {
+    $markerPath = $env:HERMES_MOBILE_LISTENER_RUN_IN_CALLER_CONTEXT_MARKER
+    if (-not $markerPath) { $markerPath = $env:HERMES_WEB_LISTENER_RUN_IN_CALLER_CONTEXT_MARKER }
+    if (-not $markerPath) { $markerPath = "C:\ProgramData\HermesMobile\listener-run-in-caller-context.flag" }
+    return ($markerPath -and (Test-Path -LiteralPath $markerPath))
+}
+
+if (-not $RunInCallerContext) {
+    if ((Test-TruthyValue $env:HERMES_MOBILE_LISTENER_RUN_IN_CALLER_CONTEXT) -or
+        (Test-TruthyValue $env:HERMES_WEB_LISTENER_RUN_IN_CALLER_CONTEXT) -or
+        (Test-ListenerCallerContextMarker)) {
+        $RunInCallerContext = $true
+        Write-WorkerHostLog "Listener caller-context mode enabled by environment or marker file."
+    }
 }
 
 function Get-ListenerProcess {

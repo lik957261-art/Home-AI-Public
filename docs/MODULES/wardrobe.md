@@ -44,9 +44,17 @@ manifest.
 
 Wardrobe model/tool routing is broader than the tab-visibility rule. If a
 thread/project/plugin context or recent same-topic messages clearly indicate a
-wardrobe/closet/outfit task, Hermes Mobile should preserve authorized
-`wardrobe`, `vision`, and `file` for the execution round even when the latest
-message is short and there is no active directory binding on that turn.
+wardrobe/closet/outfit task, Hermes Mobile should suggest authorized
+`wardrobe`, `vision`, `file`, and `skills` even when the latest message is
+short and there is no active directory binding on that turn. When model-first
+toolset selection is disabled, that suggestion is telemetry only and execution
+continues with the full authorized route/access toolset set.
+For outfit recommendation turns such as "配一套衣服", "穿什么", or "穿搭建议",
+the route should also suggest authorized `weather` so the model can check the
+current forecast before recommending a set. General `web`/`search` remains an
+explicit-intent suggestion; with the selector disabled, ordinary authorized
+`web`/`search` can still be available to execution through the full authorized
+policy.
 
 ## Plugin Host
 
@@ -176,13 +184,15 @@ as a successful embedded plugin load.
   should use `wardrobe.stats_*` MCP tools instead of pulling all items and
   manually summarizing them.
 - Image-backed ingestion or verification should keep the companion set
-  `wardrobe`, `vision`, and `file` available when those toolsets are already
-  authorized by policy.
+  `wardrobe`, `vision`, and `file` in the suggested set when those toolsets are
+  already authorized by policy.
 - Markdown/file receipts require `file` to remain available for the execution
   round when the workspace policy authorizes it.
-- The selector may narrow callable tools, but it must not split an authorized
-  Wardrobe companion set in a way that forces an avoidable toolset-escalation
-  retry.
+- The selector may narrow callable tools only when explicitly enabled. If it is
+  enabled, it must not split an authorized Wardrobe companion set in a way that
+  forces an avoidable toolset-escalation retry. If it is disabled, execution
+  uses the full authorized route/access toolset set and the Wardrobe companion
+  set remains a suggestion only.
 - The execution-round Gateway conversation key must vary with the final enabled
   toolset signature. A Wardrobe run must not reuse a worker-side conversation
   that was created for a narrower file-only schema, because that can leave the

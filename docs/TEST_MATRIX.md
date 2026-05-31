@@ -69,10 +69,12 @@ click routing, permission/workspace boundaries, and Public Export/Release.
 Gateway Pool startup/provisioning harnesses must cover stable manifest
 profile/port mapping. `start-low-gateways.sh` and `configure-low-gateways.sh`
 must consume explicit `gateway-pool-manifest.json` `profile`/`port` pairs for
-`lowgw*` and `grokgw*`, and workspace provisioning must append new personal
-`lowgwN` entries after existing low/Grok workers without moving `grokgw1`.
-Deleting a workspace must not silently delete profile-local Gateway state;
-profile retirement needs an explicit backup/cleanup flow. Focused checks:
+`lowgw*`, `grokgw*`, and `deepseekgw*`. Workspace provisioning must append new
+personal `lowgwN` entries after existing low/Grok/DeepSeek workers without
+moving `grokgw1`, and ordinary workspaces must get two OpenAI/Codex `lowgw*`
+candidates plus one workspace-dedicated `deepseekgw*` candidate when DeepSeek is
+available. Deleting a workspace must not silently delete profile-local Gateway
+state; profile retirement needs an explicit backup/cleanup flow. Focused checks:
 `node tests\startup-scripts.test.js`,
 `node tests\gateway-workspace-provisioning-service.test.js`, and
 `node tests\cross-shell-command-harness.test.js`.
@@ -95,9 +97,11 @@ validation should use `/opt/hermes-gateway-runtime/bin/hermes auth list` with
 no raw tokens or refresh tokens printed.
 
 Gateway elastic worker scheduling is an H1 workflow. The source harness must
-cover Owner `minWarm=1` / `maxWorkers=4`, owner-maintenance `minWarm=0` /
-`maxWorkers=2`, non-Owner `minWarm=0` / `maxWorkers=2`, compatible warm-worker
-reuse, already-running warm discovery, profile/provider-compatible cold start,
+cover Owner OpenAI/Codex `minWarm=1` / `maxWorkers=4`, Owner DeepSeek
+`minWarm=0` / `maxWorkers=2`, owner-maintenance `minWarm=0` / `maxWorkers=2`,
+non-Owner OpenAI/Codex `minWarm=0` / `maxWorkers=2`, non-Owner DeepSeek
+`minWarm=0` / `maxWorkers=1`, compatible warm-worker reuse, already-running
+warm discovery, profile/provider-compatible cold start, provider-scoped
 workspace cap queueing, global cap queueing, idle TTL retirement, active-run
 protection, bounded launch-failure diagnostics, public-to-real run id
 replacement without worker-slot leakage, tier-scoped worker caps so
@@ -111,7 +115,9 @@ warm worker after the process stops and `/health` no longer responds. The
 run-progress UI must
 distinguish starting, reused, queued, idle-retirement, and failed states without
 exposing API keys, workspace keys, plugin launch tokens, raw prompts, raw model
-output, or long logs. Before switching production from eager startup to
+output, or long logs. Cold-start `starting` must render as startup in the
+model-status/run-progress UI rather than as queue depth; `queued` is reserved
+for real capacity/profile waits. Before switching production from eager startup to
 hybrid/on-demand startup, rerun these checks after syncing scripts into the
 production worker root and then smoke `/api/status?detail=1` plus a real Owner
 run. Full hybrid/eager starts and listener on-demand `-NoStopExisting`
@@ -133,6 +139,9 @@ On a single-user maintained deployment where WSL/Codex state belongs to the
 operator account, the preferred production path is to run the listener itself in
 that caller context. In that mode the scheduled-task relay must be disabled and
 the live gate must prove listener-owned direct single-profile start works.
+`scripts/start-worker-host.ps1` must also honor the caller-context marker/env
+guard so a later plain `-ReplaceExisting` cannot relaunch the listener under a
+separate worker account and recreate the on-demand startup failure.
 After a start script returns success, the scheduler must poll the selected
 worker's `/health` for the configured bounded window before emitting
 `health_check_failed`; a single immediate health miss is a failing harness case
@@ -176,9 +185,10 @@ before a first-round model selection. A first round may use a compact
 capability catalog, and the execution round may expand only the selected
 authorized toolsets, but the model must have an explicit escalation path for
 additional authorized toolsets. If request-level schema proof is missing,
-model-first toolset selection stays disabled and execution uses the
-deterministic authorized toolset set. The model-side permission preflight is a
-separate switch and remains enabled by default.
+model-first toolset selection stays disabled and execution uses the full
+authorized route/access toolset set. Narrow `suggested_toolsets` remain
+telemetry only unless the selector succeeds. The model-side permission
+preflight is a separate switch and remains enabled by default.
 The harness must cover selected narrow execution, allowed escalation, denied
 blocked-toolset escalation, invalid selection fallback, and telemetry for
 model-selection start/end, tool-call start/end, and final-message start/end.
@@ -187,9 +197,11 @@ runner, or unauthorized selections must fall back to the originally authorized
 toolset list. Permission and optional toolset choice must share the same
 model-side preflight when both are enabled; when toolset choice is disabled,
 that same preflight returns only the permission decision and execution keeps
-the deterministic authorized toolsets. The selector should use a ChatGPT
-low-cost model, a bounded timeout large enough for reliable completion, and
-best-effort cancellation when a selector run id is known. Do not add local
+the full authorized toolsets. Selector failure has the same fallback rule:
+execution restores the full originally authorized toolset list, not the
+suggested subset. The selector should use a ChatGPT low-cost model, a bounded
+timeout of 30000ms by default, and best-effort cancellation when a selector run
+id is known. Do not add local
 natural-language permission routing before the model. If the model-side
 preflight returns a `HERMES_PERMISSION_APPROVAL_REQUIRED`-style decision,
 execution must not start until Owner approval.
@@ -235,12 +247,11 @@ normal pass evidence. Provider selection remains user intent: if the selected
 provider is OpenAI/ChatGPT, repair that OpenAI profile's schema exposure rather
 than auto-routing to DeepSeek; the reverse is also true.
 When model-first toolset selection is disabled, Wardrobe-intent or
-wardrobe-bound-topic runs must still execute with the deterministic Wardrobe
-stack rather than the broad all-toolset catalog: `wardrobe`, `vision`, `file`,
-and `skills`, plus only other explicitly routed authorized companions. Tests
-must assert both `access_policy_context.allowed_toolsets` and top-level
-`enabled_toolsets`; a policy note that merely lists `wardrobe` as authorized is
-not enough.
+wardrobe-bound-topic runs must still execute with the full authorized
+route/access toolset set. The deterministic route may record a narrower
+`suggested_toolsets` hint such as `wardrobe`, `vision`, `file`, `skills`, and
+weather-sensitive `weather`, but tests must assert that this hint does not
+prune `access_policy_context.allowed_toolsets` or top-level `enabled_toolsets`.
 For selector/runtime-overlay changes, standalone schema smoke is not sufficient.
 The harness must also exercise the real `/v1/responses` request path and prove
 that Mobile's top-level `enabled_toolsets` becomes the effective
@@ -526,6 +537,10 @@ permission-classifier pass before execution: the main execution prompt must not
 ask the model to load the permission-boundary Skill again or call `skill_view` for
 `productivity/hermes-mobile-permission-boundary-check`, and UI status rows should
 describe permission/toolset selection as one combined preflight.
+Permission-only preflight timeout/error coverage must assert the shorter
+`HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS` path, the
+`run.permission_preflight_fallback` status row, and continued deterministic
+route/access execution without showing a toolset-selection failure to the user.
 
 Run status harnesses must cover no-first-byte visibility. If the execution
 stream receives no Gateway event after the configured warning window, the
@@ -556,6 +571,15 @@ and toolset-selection events should update an existing panel in place, compact
 one delayed fallback thread refresh when no target assistant message is visible.
 They must not call the generic whole-thread render path for each preflight
 event, because that produces visible mobile screen jitter.
+Single Window topic reply and thread-merge harnesses must assert that replying
+inside an open topic posts the selected `taskGroupId`, and that a locally
+running message not present in an idle incoming thread is removed rather than
+kept as a stale pending card.
+Wardrobe routing harnesses must include weather-sensitive outfit recommendation:
+a wardrobe-bound topic asking for an outfit should add authorized `weather` to
+the Wardrobe companion `suggested_toolsets`. With the selector disabled or
+after selector fallback, the same test must prove execution still receives the
+full authorized toolset set rather than the suggested subset.
 Long-reply jump control harnesses must cover terminal DOM replacement and
 historical scrolling: arrow visibility recalculation must resolve the current
 conversation/message node when the queued callback executes, fall back from a

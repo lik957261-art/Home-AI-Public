@@ -163,8 +163,17 @@ function mergeMessagesPage(existingPage = null, incomingPage = null, messages = 
   return merged;
 }
 
-function shouldPreserveMessageOutsideIncomingPage(message = {}) {
-  return ["queued", "running"].includes(String(message?.status || ""));
+function incomingThreadHasActiveRun(thread = {}) {
+  if (!thread) return false;
+  if (["queued", "running"].includes(String(thread.status || ""))) return true;
+  if (String(thread.activeRunId || "").trim()) return true;
+  return Array.isArray(thread.activeRunIds) && thread.activeRunIds.some((id) => String(id || "").trim());
+}
+
+function shouldPreserveMessageOutsideIncomingPage(message = {}, incomingThread = null) {
+  if (!["queued", "running"].includes(String(message?.status || ""))) return false;
+  if (!incomingThread) return true;
+  return incomingThreadHasActiveRun(incomingThread);
 }
 
 function mergeCurrentThreadMessages(messages = [], page = null) {

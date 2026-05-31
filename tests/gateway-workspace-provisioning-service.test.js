@@ -47,6 +47,13 @@ function baseWorker(profile, workspaceId, port) {
   };
 }
 
+function deepseekWorker(profile, workspaceId, port) {
+  return Object.assign(baseWorker(profile, workspaceId, port), {
+    provider: "deepseek",
+    tags: ["official", "clean", "low-privilege", "user", "deepseek"],
+  });
+}
+
 function testProvisionNewWorkspaceWorkerAppendsAfterStableGrokPort() {
   withManifest({
     enabled: true,
@@ -60,13 +67,18 @@ function testProvisionNewWorkspaceWorkerAppendsAfterStableGrokPort() {
         skillWorkspaceIds: ["*"],
         tags: ["official", "clean", "low-privilege", "user", "grok", "xai-oauth"],
       }),
+      deepseekWorker("deepseekgw2", "weixin_stephen", 18754),
     ],
   }, (manifestPath) => {
     const result = createService(manifestPath).ensureWorkspaceGateway({ workspaceId: "xuyan" });
     assert.equal(result.ok, true);
     assert.equal(result.provisioned, true);
     assert.equal(result.profile, "lowgw3");
-    assert.equal(result.port, 18754);
+    assert.deepEqual(result.provisionedWorkers, ["lowgw3", "lowgw4", "deepseekgw3"]);
+    assert.deepEqual(result.profiles, ["lowgw3", "lowgw4", "deepseekgw3"]);
+    assert.equal(result.openAiWorkerCount, 2);
+    assert.equal(result.deepseekWorkerCount, 1);
+    assert.equal(result.port, 18755);
     assert.equal(result.restartRequired, true);
     assert.equal(result.skillStoreProvisioned, true);
     assert.equal(fs.existsSync(result.skillStorePath), true);
@@ -74,6 +86,8 @@ function testProvisionNewWorkspaceWorkerAppendsAfterStableGrokPort() {
 
     const manifest = readManifest(manifestPath);
     const worker = manifest.workers.find((item) => item.profile === "lowgw3");
+    const secondWorker = manifest.workers.find((item) => item.profile === "lowgw4");
+    const deepseek = manifest.workers.find((item) => item.profile === "deepseekgw3");
     assert.equal(worker.provider, "openai-codex");
     assert.deepEqual(worker.allowedWorkspaceIds, ["xuyan"]);
     assert.deepEqual(worker.skillWorkspaceIds, ["xuyan"]);
@@ -81,27 +95,40 @@ function testProvisionNewWorkspaceWorkerAppendsAfterStableGrokPort() {
     assert.equal(worker.api_key, "secret");
     assert.equal(worker.telemetryStateDbPath.endsWith("\\lowgw3\\state.db"), true);
     assert.equal(manifest.workers.find((item) => item.profile === "grokgw1").port, 18753);
-    assert.equal(manifest.workers[manifest.workers.length - 1].profile, "lowgw3");
+    assert.deepEqual(secondWorker.allowedWorkspaceIds, ["xuyan"]);
+    assert.equal(deepseek.provider, "deepseek");
+    assert.deepEqual(deepseek.allowedWorkspaceIds, ["xuyan"]);
+    assert.deepEqual(deepseek.skillWorkspaceIds, ["xuyan"]);
+    assert.equal(deepseek.skillProfile, "workspace:xuyan");
+    assert.equal(manifest.workers[manifest.workers.length - 1].profile, "deepseekgw3");
   });
 }
 
 function testExistingWorkspaceIsIdempotent() {
   withManifest({
     enabled: true,
-    workers: [baseWorker("lowgw7", "weixin_stephen", 18757)],
+    workers: [
+      baseWorker("lowgw7", "weixin_stephen", 18757),
+      deepseekWorker("deepseekgw7", "weixin_stephen", 18767),
+    ],
   }, (manifestPath) => {
     const result = createService(manifestPath).ensureWorkspaceGateway({ workspaceId: "weixin_stephen" });
     assert.equal(result.ok, true);
-    assert.equal(result.provisioned, false);
+    assert.equal(result.provisioned, true);
+    assert.deepEqual(result.provisionedWorkers, ["lowgw8"]);
+    assert.equal(result.openAiWorkerCount, 2);
+    assert.equal(result.deepseekWorkerCount, 1);
     assert.equal(result.restartRequired, true);
     assert.equal(result.skillStoreProvisioned, true);
     assert.equal(fs.existsSync(result.skillStorePath), true);
-    assert.equal(readManifest(manifestPath).workers.length, 1);
+    assert.equal(readManifest(manifestPath).workers.length, 3);
 
     const second = createService(manifestPath).ensureWorkspaceGateway({ workspaceId: "weixin_stephen" });
     assert.equal(second.provisioned, false);
     assert.equal(second.restartRequired, false);
     assert.equal(second.skillStoreProvisioned, false);
+    assert.equal(second.openAiWorkerCount, 2);
+    assert.equal(second.deepseekWorkerCount, 1);
   });
 }
 

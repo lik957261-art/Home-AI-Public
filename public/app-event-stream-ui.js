@@ -111,6 +111,9 @@ async function sendMessage(event) {
           ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
           : SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
         body.messageLimit = CHAT_MESSAGE_INITIAL_LIMIT;
+      } else if (state.currentTaskGroupId) {
+        body.taskGroupId = state.currentTaskGroupId;
+        body.messageLimit = TASK_MESSAGE_INITIAL_LIMIT;
       }
       if (isGroupChatView()) body.messageKind = aiMention.mentionsAi ? "ai" : "plain";
     }

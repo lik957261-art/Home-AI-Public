@@ -26,9 +26,12 @@ Gateway Pool owns official-clean Hermes worker startup, health checks, routing t
 - Low Gateway profiles: `C:\ProgramData\HermesMobile\gateway-worker\telemetry\profiles\lowgw*`
 - Owner-maintenance runtime tree: `/opt/hermes-gateway-runtime/official-clean`
   in the owner WSL distro.
-- Low Gateway runtime tree: `/opt/hermes-gateway-runtime/official-clean` inside
-  the Windows `HermesMobileWorker` account's `HermesGatewayWorker` WSL distro.
-  Operator-user `wsl.exe -l` does not show that worker distro.
+- Low Gateway runtime tree: `/opt/hermes-gateway-runtime/official-clean`.
+  Separate-account deployments may run it inside the Windows
+  `HermesMobileWorker` account's `HermesGatewayWorker` WSL distro, which the
+  operator user's `wsl.exe -l` does not show. The maintained production machine
+  runs the listener in caller context so on-demand starts use the operator-owned
+  WSL registration instead.
 
 ## Worker Roles
 
@@ -65,8 +68,13 @@ bounded warm period, and retires idle workers after a TTL.
 
 Default hybrid policy:
 
-- Owner keeps `1` compatible warm worker and may expand to `4` workers.
-- Non-Owner workspaces keep `0` warm workers and may expand to `2` workers.
+- Owner keeps `1` OpenAI/Codex warm worker and may expand to `4`
+  OpenAI/Codex workers.
+- Owner DeepSeek keeps `0` warm workers and may expand to `2` DeepSeek workers.
+- Non-Owner workspaces keep `0` warm workers, get `2` OpenAI/Codex candidate
+  profiles, and may expand to `2` OpenAI/Codex workers.
+- Non-Owner DeepSeek gets `1` workspace-dedicated candidate profile and may run
+  `1` DeepSeek worker.
 - Owner-maintenance keeps `0` warm workers by default in hybrid mode and may
   expand to `2` high-permission workers for explicit maintenance/elevation
   runs.
@@ -79,9 +87,12 @@ Default hybrid policy:
   no active run assigned, status reconciliation must return it to `configured`
   instead of leaving stale warm/running metadata visible.
 
-These caps are upper bounds over compatible profiles. A workspace with one
-OpenAI/Codex worker and one DeepSeek worker still has only one ChatGPT-compatible
-slot; provider-dedicated profiles are not interchangeable.
+These caps are provider-scoped upper bounds over compatible profiles. A
+workspace with one OpenAI/Codex worker and one DeepSeek worker still has only
+one ChatGPT-compatible slot; provider-dedicated profiles are not interchangeable.
+Workspace provisioning must therefore create enough same-provider candidates:
+ordinary workspaces need two `openai-codex` `lowgw*` profiles and one
+`deepseekgw*` profile when DeepSeek is available.
 
 The caps are tier-scoped. Low-permission user workers count against the
 Owner/workspace user cap, while `owner-maintenance` workers are separate
@@ -108,6 +119,15 @@ runtime. On this maintained machine, that means starting the listener in caller
 context as `GMK\xuxin`; then on-demand single-profile starts can invoke
 `start-gateway-pool.ps1 -StartProfiles <profile> -NoStopExisting` directly and
 no scheduled-task relay is needed.
+
+`scripts/start-worker-host.ps1` also honors
+`C:\ProgramData\HermesMobile\listener-run-in-caller-context.flag` and the
+`HERMES_MOBILE_LISTENER_RUN_IN_CALLER_CONTEXT` /
+`HERMES_WEB_LISTENER_RUN_IN_CALLER_CONTEXT` toggles. On the maintained machine,
+that marker prevents a later plain `-ReplaceExisting` restart from silently
+moving the listener back to `GMK\HermesMobileWorker`, which would make
+listener-triggered on-demand Gateway starts fail while operator-run starts still
+work.
 
 If a deployment intentionally keeps the listener under a separate account that
 cannot see the WSL distro, use the scheduled-task launch relay instead.
@@ -306,17 +326,16 @@ callable toolsets before the model has judged the task.
 
 As of the 2026-05-30 Wardrobe MCP incident, model-first toolset selection is
 disabled by default. The immediate production rule is conservative: execute
-with the deterministic toolset set from the route/access policy unless the
-model-first toolset selector is explicitly enabled and the request-level schema
-harness below passes. For product-specific MCP work such as Wardrobe, the
-deterministic route may select the bounded product stack
-`wardrobe`/`vision`/`file`/`skills` instead of exposing every ordinary
-authorized toolset to the OpenAI/Codex transport. This is not provider
-auto-routing and not model-side tool pruning; it is the effective execution
-policy for the current product route. The model-side permission preflight
-remains enabled by default and is configured independently. This preserves the
-user's manually selected provider; do not route an OpenAI run to DeepSeek, or a
-DeepSeek run to OpenAI, to compensate for missing callable schema.
+with the full authorized route/access toolset set unless the model-first
+toolset selector is explicitly enabled and the request-level schema harness
+below passes. Product-specific routing such as Wardrobe may still write a
+bounded `suggested_toolsets` hint (`wardrobe`/`vision`/`file`/`skills`, plus
+`weather` for outfit recommendation), but with the selector off that hint is
+telemetry and future-selector input only; it must not prune the execution
+`allowed_toolsets`. The model-side permission preflight remains enabled by
+default and is configured independently. This preserves the user's manually
+selected provider; do not route an OpenAI run to DeepSeek, or a DeepSeek run to
+OpenAI, to compensate for missing callable schema.
 
 Required flow:
 
@@ -325,11 +344,11 @@ Required flow:
    decision. When toolset selection is explicitly enabled, it may also choose
    the toolsets needed for the task; otherwise it must not choose or omit
    toolsets.
-2. Execution round: expose the deterministic route/access toolsets when
+2. Execution round: expose the full authorized route/access toolsets when
    toolset selection is disabled, or only the selected authorized toolsets when
-   selection is explicitly enabled and proven safe. Wardrobe execution must use
-   the bounded Wardrobe stack when the route detects wardrobe intent or a
-   wardrobe-bound topic.
+   selection is explicitly enabled and proven safe. Wardrobe routing may
+   suggest the Wardrobe/weather companion set, but must not narrow execution
+   while the selector is disabled.
 3. Escalation: if the model determines an additional authorized toolset is
    needed, it must request expansion explicitly and continue with the expanded
    schema. Escalation to blocked or cross-boundary toolsets is denied unless the
@@ -352,10 +371,11 @@ later run on an earlier callable schema. In practice this presents as:
 When this happens, fix the conversation/tool-schema reuse boundary first rather
 than assuming the MCP server failed to boot.
 
-This keeps task success safer than regex or route-level pruning while avoiding
-the cost of showing every ordinary tool schema on every simple run. It also
-lets the UI distinguish "choosing tools", "waiting for a tool", and
-"generating final reply" instead of showing a single opaque running state.
+This keeps task success safer than regex or route-level pruning when the
+selector is disabled. If the selector is later re-enabled, it must satisfy the
+schema harness below before it can reduce the ordinary callable set. The UI can
+still distinguish "choosing tools", "waiting for a tool", and "generating final
+reply" instead of showing a single opaque running state.
 
 Current runtime behavior:
 
@@ -379,6 +399,14 @@ Current runtime behavior:
   `HERMES_WEB_GATEWAY_MODEL_PERMISSION_PREFLIGHT` control the permission
   preflight and default to enabled. Set to `0`, `false`, `no`, or `off` only for
   an explicit emergency rollback.
+- `HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS` /
+  `HERMES_WEB_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS` controls the
+  permission-only preflight timeout; default is `8000`. Permission preflight is
+  an advisory model-side guard in front of deterministic server policy, so a
+  timeout must not hold the user run for the full model-first selector window.
+  On timeout/error while toolset selection is disabled, Mobile records
+  `run.permission_preflight_fallback` and continues with the full authorized
+  route/access toolset set.
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION` /
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION` enable toolset narrowing
   only when set to `1`, `true`, `yes`, or `on`; default is disabled.
@@ -398,7 +426,7 @@ Current runtime behavior:
   explicitly requests a permission-preflight rollback.
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS` /
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS` controls the
-  selector timeout; default is `45000`.
+  selector timeout; default is `30000`.
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_MODEL` /
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_MODEL` controls the compact
   selector model; default is `gpt-5.4-mini`. The provider and reasoning effort
@@ -408,20 +436,20 @@ Current runtime behavior:
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_STOP_TIMEOUT_MS` controls
   the best-effort stop request for a selector run id that was observed before a
   selector failure; default is `2000`.
-- If selection fails, times out, or returns no authorized toolsets, Hermes
-  Mobile falls back to the full originally authorized toolset list and records
-  `run.toolset_selection_failed`.
+- If model-first toolset selection fails, times out, or returns no authorized
+  toolsets, Hermes Mobile falls back to the full originally authorized toolset
+  list and records `run.toolset_selection_failed`.
 - If model-side preflight returns a permission-elevation decision, Hermes Mobile
   marks the assistant message as requiring Owner approval and does not start the
   execution round.
 - If permission preflight succeeds while toolset selection is disabled,
-  execution receives the deterministic route/access toolset set. For normal
-  broad routes this may be the full authorized set. For Wardrobe routes it is
-  the bounded Wardrobe stack so OpenAI/Codex runs do not lose `mcp_wardrobe_*`
-  callables inside a broad schema. If explicit selection succeeds, execution
-  receives only the selected authorized toolsets, and the prompt includes
-  `HERMES_TOOLSET_ESCALATION_REQUIRED` as the explicit path for requesting
-  omitted authorized toolsets.
+  execution receives the full authorized route/access toolset set. Routing
+  services may record narrower `suggested_toolsets` such as the Wardrobe stack
+  or Wardrobe plus `weather`, but those suggestions must not change execution
+  `allowed_toolsets` while the selector is off. If explicit selection succeeds,
+  execution receives only the selected authorized toolsets, and the prompt
+  includes `HERMES_TOOLSET_ESCALATION_REQUIRED` as the explicit path for
+  requesting omitted authorized toolsets.
 - `HERMES_TOOLSET_ESCALATION_REQUIRED` is an internal control marker, not a
   user-facing answer. Streaming delta and completion handling must strip the raw
   marker, persist `toolsetEscalationRequired` metadata and
@@ -468,15 +496,14 @@ DeepSeek request fall back to an `openai-codex` lowgw profile; when no healthy
 DeepSeek worker is available, fail closed instead of silently spending OpenAI
 quota.
 
-Provider routing prefers Owner's low-permission DeepSeek profiles first:
-`deepseekgw1`, `deepseekgw2`, and `deepseekgw99`, then the known WuPing profile
-`deepseekgw5`. `deepseekgw99` is not a shared fallback; it is Owner-dedicated
-and shares Owner memory, Skill store, and Owner-bound MCP registrations with
-the other Owner low-permission Gateway profiles. Other workspaces must use
-their own dedicated `deepseekgwN` profile, normally matching their existing
-`lowgwN` workspace binding. If a non-Owner workspace has no matching dedicated
-DeepSeek profile, the DeepSeek run should fail closed instead of reusing an
-Owner or shared profile.
+Provider routing prefers Owner's low-permission DeepSeek profiles first,
+normally `deepseekgw1` and `deepseekgw2`. Legacy Owner-dedicated profiles such
+as `deepseekgw99` do not raise the active Owner DeepSeek cap above two and are
+not a shared fallback. Other workspaces must use their own dedicated
+`deepseekgwN` profile, normally matching their existing `lowgwN` workspace
+binding. If a non-Owner workspace has no matching dedicated DeepSeek profile,
+the DeepSeek run should fail closed instead of reusing an Owner or shared
+profile.
 
 Production stores the key outside the repo at
 `C:\ProgramData\HermesMobile\data\secrets\deepseek-api-key.secret`. Low Gateway
@@ -579,6 +606,11 @@ DeepSeek or another provider.
   authorized `wardrobe`, `vision`, and `file` companion set visible even when
   the latest user turn is short and the topic currently has no bound directory
   route.
+- Weather-sensitive wardrobe recommendation turns, for example outfit
+  selection, "what should I wear", "配一套衣服", or "穿搭建议", must also keep the
+  authorized `weather` toolset visible. This is still bounded routing: ordinary
+  wardrobe read/write/photo verification does not automatically receive broad
+  `web/search/browser`; public search remains explicit-intent only.
 - The selector may still choose a narrower set, but it must not split or erase
   the wardrobe-bound input companion set. If the suggested set contains
   authorized `wardrobe`, `vision`, `file`, and `skills`, and the selector
@@ -708,7 +740,11 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
 - Low Gateway profile MCP servers are generated into each profile `config.yaml` by `C:\ProgramData\HermesMobile\gateway-worker\configure-low-gateways.sh`.
 - Wardrobe MCP runtime is installed under `C:\ProgramData\HermesMobile\gateway-worker\wardrobe-mcp`.
 - Wardrobe-capable profiles expose toolset `wardrobe` through `platform_toolsets.api_server`.
-- Owner wardrobe profiles bind `wardrobe` to the XuXin wardrobe workspace; WuPing profile `lowgw5` binds it to the WuPing wardrobe workspace.
+- Owner wardrobe profiles bind `wardrobe` to the XuXin wardrobe workspace.
+  Non-Owner wardrobe-capable profiles derive their wardrobe workspace from the
+  manifest `skillWorkspaceIds` / `skillProfile` workspace and the corresponding
+  `.hermes-wardrobe/config.json`, so additional WuPing profiles such as a second
+  OpenAI/Codex worker bind to WuPing's wardrobe instead of losing Wardrobe MCP.
 - Wardrobe MCP is launched with `--no-workspace-override`; a model call must not switch a Gateway profile to another owner's `.hermes-wardrobe/access-key.txt`.
 - The generator script in the source repo is the durable source of truth. Do not rely on one-off edits to live `telemetry/profiles/<profile>/config.yaml`: a later Gateway Pool reconfigure/restart rewrites those files from `scripts/configure-low-gateways.sh` and will silently drop Wardrobe MCP registration if the source script no longer contains the wardrobe block.
 - The production worker-root copies of `configure-low-gateways.sh`,

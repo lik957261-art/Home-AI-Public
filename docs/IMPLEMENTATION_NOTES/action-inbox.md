@@ -2,7 +2,7 @@
 
 ## Goal
 
-Implement `收件箱` as the Hermes Mobile lightweight user-action surface and migrate Todo/Automation user-facing participation away from official Hermes Kanban.
+Implement the bottom navigation `信息` surface as the Hermes Mobile lightweight user-action surface while keeping Action Inbox as the internal domain, and migrate Todo/Automation user-facing participation away from official Hermes Kanban.
 
 The first implementation should be minimal but complete:
 
@@ -116,7 +116,7 @@ Add `public/app-action-inbox-ui.js`.
 Bottom navigation target:
 
 - `聊天`
-- `收件箱`
+- `信息`
 - `话题`
 - `目录`
 - `成长`
@@ -241,11 +241,11 @@ Follow-up in static/client version `20260526-inbox-nav-v250`:
 
 Follow-up in static/client version `20260526-inbox-topic-nav-v251`:
 
-- Restored the Topic bottom-tab entry. The primary mobile bottom navigation is `聊天 / 收件箱 / 话题 / 目录 / 成长`; Automation remains available from the Inbox overflow menu rather than the bottom tab.
+- Restored the Topic bottom-tab entry. The primary mobile bottom navigation is now `聊天 / 信息 / 话题 / 目录 / 成长`; Automation remains available from the Inbox overflow menu rather than the bottom tab.
 
 Follow-up in static/client version `20260526-bottom-topic-v252`:
 
-- Corrected the mobile bottom navigation grid to five columns so `聊天 / 收件箱 / 话题 / 目录 / 成长` stays on one row instead of wrapping/cropping the Growth tab.
+- Corrected the mobile bottom navigation grid to five columns so `聊天 / 信息 / 话题 / 目录 / 成长` stays on one row instead of wrapping/cropping the Growth tab.
 
 Follow-up design/implementation rule for direct delivery and scheduled Todo:
 
@@ -313,7 +313,7 @@ Production verification:
 
 ## Done Criteria
 
-- A user can open `收件箱` from the bottom nav and see current action items without official Kanban calls.
+- A user can open `信息` from the bottom nav and see current action items without official Kanban calls.
 - A manual todo can be created, completed, dismissed, and audited.
 - Automation completed/failed runs produce or update Inbox items and push/deep-link correctly.
 - Growth next actions appear in Inbox without copying full learner content.

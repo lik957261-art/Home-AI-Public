@@ -43,8 +43,12 @@ read/write access to this key file or its parent directory.
 - Static-only: no restart.
 - Production launcher/env change: restart Hermes Mobile listener through
   `C:\ProgramData\HermesMobile\app\scripts\start-worker-host.ps1
-  -ReplaceExisting` so the worker-host process re-reads
-  `C:\ProgramData\HermesMobile\start-hermes-mobile-production.ps1`.
+  -RunInCallerContext -ReplaceExisting` so the worker-host process re-reads
+  `C:\ProgramData\HermesMobile\start-hermes-mobile-production.ps1`. On the
+  maintained production machine,
+  `C:\ProgramData\HermesMobile\listener-run-in-caller-context.flag` should also
+  exist so a later plain `-ReplaceExisting` still starts the listener in caller
+  context instead of the separate worker account.
 - Node route/service/provider change: restart Hermes Mobile listener only.
 - Bridge-host change: restart listener/bridge-host through `scripts\start-worker-host.ps1 -ReplaceExisting`.
 - Gateway plugin/schema/profile/startup change: restart Gateway Pool or targeted maintenance worker as appropriate.
@@ -89,10 +93,20 @@ launcher first before searching code:
   `HERMES_WEB_GATEWAY_MODEL_PERMISSION_PREFLIGHT`: permission preflight. It
   defaults on in code when unset and should remain on unless the rollback is
   explicitly about permission preflight.
+- `HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS` /
+  `HERMES_WEB_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS`: permission-only
+  preflight timeout. Default is `8000`; it is intentionally shorter than the
+  optional model-first toolset selector timeout so a slow advisory preflight
+  does not block normal deterministic execution for tens of seconds.
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION` /
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION`: optional model-first
   toolset selector. Set to `1`, `true`, `yes`, or `on` to enable narrowing;
   set to `0`, `false`, `no`, or `off` to disable only toolset narrowing.
+- `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS` /
+  `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS`: optional
+  selector timeout. Default is `30000`; selector failure or timeout must fall
+  back to the full originally authorized toolset set, not to a narrower
+  suggested set.
 - `HERMES_MOBILE_DISABLE_QUERY_ACCESS_KEY` /
   `HERMES_WEB_DISABLE_QUERY_ACCESS_KEY`: disable Access Key authentication via
   URL query parameter for public deployments. Header and same-origin cookie

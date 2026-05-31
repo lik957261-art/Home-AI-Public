@@ -95,6 +95,8 @@ globalThis.runProgressTestApi = {
   renderMessageRunProgress,
   runProgressEvents,
   runProgressCompactPreflightEvents,
+  runEventTitle,
+  runGatewayWorkerPreviewLabel,
   messageOwnRunIds,
   threadActiveRunIds,
   messageRunProgressIds,
@@ -111,6 +113,8 @@ const {
   renderMessageRunProgress,
   runProgressEvents,
   runProgressCompactPreflightEvents,
+  runEventTitle,
+  runGatewayWorkerPreviewLabel,
   messageOwnRunIds,
   threadActiveRunIds,
   messageRunProgressIds,
@@ -341,6 +345,25 @@ const preflightCompacted = runProgressCompactPreflightEvents([
   { runId: "resp_preflight", event: "run.toolset_selection_done", timestamp: "2026-05-27T13:04:00.250Z" },
 ]);
 assert.deepStrictEqual(preflightCompacted.map((event) => event.event), ["run.gateway_selected", "run.toolset_selection_done"]);
+
+const permissionPreflightCompacted = runProgressCompactPreflightEvents([
+  { runId: "resp_permission", event: "run.gateway_selected", timestamp: "2026-05-27T13:04:01.000Z" },
+  { runId: "resp_permission", event: "run.toolset_selection_started", timestamp: "2026-05-27T13:04:01.100Z" },
+  { runId: "resp_permission", event: "run.permission_preflight_fallback", timestamp: "2026-05-27T13:04:09.100Z" },
+]);
+assert.deepStrictEqual(permissionPreflightCompacted.map((event) => event.event), ["run.gateway_selected", "run.permission_preflight_fallback"]);
+assert.match(runEventTitle({ event: "run.permission_preflight_fallback" }), /\u6743\u9650\u9884\u68c0/);
+assert.match(runEventTitle({ event: "run.gateway_worker_starting" }), /\u542f\u52a8\u4e2d/);
+const startingPreview = runGatewayWorkerPreviewLabel({
+  event: "run.gateway_worker_starting",
+  preview: JSON.stringify({ profileId: "lowgw13", provider: "openai-codex", reason: "worker_starting", queueDepth: 1 }),
+});
+assert.match(startingPreview, /\u542f\u52a8\u4e2d/);
+assert.doesNotMatch(startingPreview, /queue|\u6392\u961f/);
+assert.match(runGatewayWorkerPreviewLabel({
+  event: "run.gateway_worker_queued",
+  preview: JSON.stringify({ profileId: "lowgw13", provider: "openai-codex", reason: "workspace_capacity", queueDepth: 2 }),
+}), /\u6392\u961f 2/);
 
 const terminalHistoryThread = {
   id: "thread_terminal_history",

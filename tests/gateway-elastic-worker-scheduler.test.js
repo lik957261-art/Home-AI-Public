@@ -74,9 +74,9 @@ function createHarness(overrides = {}) {
 async function testStartupPlanKeepsOnlyOwnerWarmBaseline() {
   const { scheduler } = createHarness();
   const workers = [
+    worker("deepseekgw1", { provider: "deepseek", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] }),
     worker("lowgw1", { allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] }),
     worker("lowgw5", { allowedWorkspaceIds: ["weixin_test_1"], skillWorkspaceIds: ["weixin_test_1"] }),
-    worker("deepseekgw1", { provider: "deepseek", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] }),
   ];
   const plan = scheduler.planHybridStartup(workers);
   assert.deepEqual(plan.ownerWarmProfiles, ["lowgw1"]);
@@ -315,6 +315,86 @@ async function testProviderSwitchStartsMatchingProviderOnly() {
   assert.notEqual(buildGatewayWorkerCompatibilityKey(workers[0], { workspaceId: "owner", provider: "openai-codex" }), buildGatewayWorkerCompatibilityKey(workers[1], { workspaceId: "owner", provider: "deepseek" }));
 }
 
+async function testOwnerDeepSeekUsesSeparateTwoWorkerCapAndNoWarmBaseline() {
+  const { calls, scheduler } = createHarness({
+    config: { ownerMaxWorkers: 4, ownerDeepSeekMaxWorkers: 2, globalMaxWorkers: 8 },
+  });
+  const openaiWorkers = ["lowgw1", "lowgw2", "lowgw3", "lowgw4"].map((profile) => (
+    worker(profile, { provider: "openai-codex", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] })
+  ));
+  const deepseekWorkers = ["deepseekgw1", "deepseekgw2", "deepseekgw3"].map((profile) => (
+    worker(profile, { provider: "deepseek", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] })
+  ));
+  const workers = [...deepseekWorkers, ...openaiWorkers];
+  assert.deepEqual(scheduler.planHybridStartup(workers).startProfiles, ["lowgw1"]);
+
+  const chooseOpenAi = (runId) => scheduler.chooseTarget({
+    allWorkers: workers,
+    candidates: openaiWorkers,
+    hints: { workspaceId: "owner", provider: "openai-codex", securityLevel: "user" },
+    runId,
+  });
+  const chooseDeepSeek = (runId) => scheduler.chooseTarget({
+    allWorkers: workers,
+    candidates: deepseekWorkers,
+    hints: { workspaceId: "owner", provider: "deepseek", securityLevel: "user" },
+    runId,
+    onEvent: (event) => calls.events.push(event),
+  });
+
+  assert.equal((await chooseOpenAi("run-openai-1")).profile, "lowgw1");
+  assert.equal((await chooseOpenAi("run-openai-2")).profile, "lowgw2");
+  assert.equal((await chooseOpenAi("run-openai-3")).profile, "lowgw3");
+  assert.equal((await chooseOpenAi("run-openai-4")).profile, "lowgw4");
+  assert.equal((await chooseDeepSeek("run-deepseek-1")).profile, "deepseekgw1");
+  assert.equal((await chooseDeepSeek("run-deepseek-2")).profile, "deepseekgw2");
+
+  const queued = chooseDeepSeek("run-deepseek-3");
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(calls.events.at(-1).event, "run.gateway_worker_queued");
+  assert.equal(calls.events.at(-1).reason, "workspace_capacity");
+  scheduler.releaseRun("run-deepseek-1", "idle");
+  assert.equal((await queued).profile, "deepseekgw1");
+}
+
+async function testNonOwnerDeepSeekUsesSingleWorkerCapSeparateFromOpenAi() {
+  const { calls, scheduler } = createHarness({
+    config: { workspaceMaxWorkers: 2, workspaceDeepSeekMaxWorkers: 1, globalMaxWorkers: 8 },
+  });
+  const openaiWorkers = ["lowgw5", "lowgw13"].map((profile) => (
+    worker(profile, { provider: "openai-codex", allowedWorkspaceIds: ["weixin_wuping"], skillWorkspaceIds: ["weixin_wuping"] })
+  ));
+  const deepseekWorkers = ["deepseekgw5", "deepseekgw13"].map((profile) => (
+    worker(profile, { provider: "deepseek", allowedWorkspaceIds: ["weixin_wuping"], skillWorkspaceIds: ["weixin_wuping"] })
+  ));
+  const workers = [...openaiWorkers, ...deepseekWorkers];
+  const chooseOpenAi = (runId) => scheduler.chooseTarget({
+    allWorkers: workers,
+    candidates: openaiWorkers,
+    hints: { workspaceId: "weixin_wuping", provider: "openai-codex", securityLevel: "user" },
+    runId,
+  });
+  const chooseDeepSeek = (runId) => scheduler.chooseTarget({
+    allWorkers: workers,
+    candidates: deepseekWorkers,
+    hints: { workspaceId: "weixin_wuping", provider: "deepseek", securityLevel: "user" },
+    runId,
+    onEvent: (event) => calls.events.push(event),
+  });
+
+  assert.equal((await chooseOpenAi("run-openai-a")).profile, "lowgw5");
+  assert.equal((await chooseOpenAi("run-openai-b")).profile, "lowgw13");
+  assert.equal((await chooseDeepSeek("run-deepseek-a")).profile, "deepseekgw5");
+
+  const queued = chooseDeepSeek("run-deepseek-b");
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(calls.events.at(-1).reason, "workspace_capacity");
+  scheduler.releaseRun("run-deepseek-a", "idle");
+  assert.equal((await queued).profile, "deepseekgw5");
+}
+
 async function testPostStartHealthPollAvoidsEarlyFalseFailure() {
   let now = 1_778_000_000_000;
   const calls = { events: [], starts: [], healthy: [], sleeps: [] };
@@ -415,6 +495,8 @@ function testConfigDefaultsAndAliases() {
   assert.equal(config.ownerMinWarm, 1);
   assert.equal(config.ownerMaintenanceMaxWorkers, 2);
   assert.equal(config.workspaceMaxWorkers, 2);
+  assert.equal(config.ownerDeepSeekMaxWorkers, 2);
+  assert.equal(config.workspaceDeepSeekMaxWorkers, 1);
   assert.equal(config.idleTtlMs, 180 * 60 * 1000);
   assert.equal(normalizeElasticSchedulerConfig({}).startTimeoutMs, 300_000);
   assert.equal(normalizeElasticSchedulerConfig({}).startHealthWaitMs, 30_000);
@@ -432,6 +514,8 @@ function testConfigDefaultsAndAliases() {
   await testRunIdReplacementReleasesWorkerSlot();
   await testGlobalCapQueuesBeforeWorkspaceCap();
   await testProviderSwitchStartsMatchingProviderOnly();
+  await testOwnerDeepSeekUsesSeparateTwoWorkerCapAndNoWarmBaseline();
+  await testNonOwnerDeepSeekUsesSingleWorkerCapSeparateFromOpenAi();
   await testPostStartHealthPollAvoidsEarlyFalseFailure();
   await testIdleReaperStopsOnlyExpiredIdleWorkers();
   await testLaunchFailureUsesBoundedDiagnosticWithoutSecrets();

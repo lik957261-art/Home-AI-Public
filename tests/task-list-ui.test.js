@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260531-skill-store-isolation-v405";
+const CLIENT_VERSION = "20260531-gateway-starting-tools-v413";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -54,10 +54,15 @@ assert.match(appJs, /run\.gateway_worker_starting/);
 assert.match(appJs, /run\.gateway_worker_reused/);
 assert.match(appJs, /run\.gateway_worker_queued/);
 assert.match(appJs, /run\.gateway_worker_start_failed/);
+assert.match(appJs, /state\.singleWindowMode === "chat" \? "chat" : "task"/);
+assert.match(appJs, /else if \(state\.currentTaskGroupId\) \{[\s\S]*?body\.taskGroupId = state\.currentTaskGroupId;[\s\S]*?body\.messageLimit = TASK_MESSAGE_INITIAL_LIMIT;/);
+assert.match(appJs, /function incomingThreadHasActiveRun\(thread = \{\}\)/);
+assert.match(appJs, /shouldPreserveMessageOutsideIncomingPage\(message, incomingThread\)/);
 assert.match(appJs, /function runGatewayWorkerPreviewLabel/);
 assert.match(appJs, /profileId/);
 assert.match(appJs, /warm until/);
-assert.match(appJs, /queue \$/);
+assert.match(appJs, /\\u542f\\u52a8\\u4e2d/);
+assert.match(appJs, /\\u6392\\u961f/);
 assert.match(appJs, /function skillStoreWorkspaceId\(workspaceId = ""\)/);
 assert.match(appJs, /query\.set\("workspaceId", skillStoreWorkspaceId\(workspaceId\)\)/);
 assert.match(appJs, /workspaceId,/);
@@ -728,6 +733,8 @@ assert.match(appJs, /function runProgressDisplayEvents\(events = \[\], startMs =
 assert.match(appJs, /"run\.toolset_selection_started"/);
 assert.match(appJs, /"run\.toolset_selection_done"/);
 assert.match(appJs, /"run\.toolset_selection_failed"/);
+assert.match(appJs, /"run\.permission_preflight_done"/);
+assert.match(appJs, /"run\.permission_preflight_fallback"/);
 assert.match(appJs, /"run\.toolset_escalation_required"/);
 assert.match(appJs, /"run\.tool_budget_exceeded"/);
 assert.match(appJs, /"run\.permission_required"/);
@@ -950,7 +957,9 @@ assert.match(serverJs, /GATEWAY_TOOL_SCHEMA_EPOCH/);
 assert.match(serverJs, /20260530-wardrobe-mcp-request-toolsets-v2/);
 assert.match(gatewayRunInstructionServiceJs, /20260530-wardrobe-mcp-request-toolsets-v2/);
 assert.match(mobileRuntimeEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT[\s\S]*\|\| "1"/);
+assert.match(mobileRuntimeEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS[\s\S]*\|\| "8000"/);
 assert.match(serverJs, /enabled: GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED/);
+assert.match(serverJs, /permissionPreflightTimeoutMs: GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS/);
 assert.match(serverJs, /toolsetSelectionEnabled: GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED/);
 assert.match(mobileRuntimeEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION[\s\S]*\|\| "0"/);
 assert.match(serverJs, /function gatewayConversationId\(thread, userMessage, runPolicy = \{\}\)/);
@@ -978,6 +987,8 @@ assert.match(gatewayRunStartServiceJs, /conversation_history: conversationHistor
 assert.match(gatewayRunStartServiceJs, /appendRunStartEvent\(thread, assistantMessage, "run\.context_ready"/);
 assert.match(gatewayRunStartServiceJs, /appendRunStartEvent\(thread, assistantMessage, "run\.permission_required"/);
 assert.match(gatewayRunStartServiceJs, /appendRunStartEvent\(thread, assistantMessage, "run\.request_sent"/);
+assert.match(gatewayRunStartServiceJs, /function preflightResultEventName\(selection = \{\}, ok = false\)/);
+assert.match(gatewayRunStartServiceJs, /"run\.permission_preflight_fallback"/);
 assert.match(serverJs, /function ensureGroupChatSharedArtifactCopies\(thread, latestUserMessage, deliveryRoot\)/);
 assert.match(gatewayRunInstructionServiceJs, /Group-chat shared attachments authorized for this run/);
 assert.match(gatewayRunStartServiceJs, /groupChatAttachmentCopies/);
@@ -2024,7 +2035,7 @@ assert.match(stylesCss, /\.learning-answer-review/);
 assert.ok(appJs.includes("Topic ID"));
 assert.match(indexHtml, /id="bottomTodosMode"[\s\S]*aria-label="&#25104;&#38271;"/);
 assert.match(indexHtml, /id="bottomLearningMode"[\s\S]*hidden aria-hidden="true"/);
-assert.match(indexHtml, /id="bottomInboxMode"[\s\S]*aria-label="&#25910;&#20214;&#31665;"/);
+assert.match(indexHtml, /id="bottomInboxMode"[\s\S]*aria-label="&#20449;&#24687;"/);
 assert.match(indexHtml, /id="bottomTasksMode"[\s\S]*aria-label="话题"/);
 assert.match(indexHtml, /id="bottomChatMode"[\s\S]*id="bottomTasksMode"[\s\S]*id="bottomInboxMode"[\s\S]*id="bottomProjectsMode"[\s\S]*id="bottomTodosMode"[\s\S]*id="bottomWardrobeMode"[\s\S]*id="bottomCodexMode"[\s\S]*id="bottomFinanceMode"/);
 assert.doesNotMatch(indexHtml, /id="bottomTasksMode"[\s\S]{0,160}hidden aria-hidden="true"/);

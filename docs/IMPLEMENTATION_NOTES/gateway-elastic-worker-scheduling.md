@@ -39,15 +39,19 @@ Initial policy:
 
 | Actor class | Minimum warm workers | Maximum workers | Notes |
 | --- | ---: | ---: | --- |
-| Owner | 1 | 4 | Keep one Owner-compatible interactive worker warm. Expand up to four for concurrent Owner work or provider/profile switching. |
+| Owner OpenAI/Codex | 1 | 4 | Keep one Owner-compatible ChatGPT/OpenAI-Codex worker warm. Expand up to four for concurrent Owner work. |
+| Owner DeepSeek | 0 | 2 | DeepSeek profiles are provider-dedicated and stay cold until an explicit DeepSeek run. |
 | Owner maintenance | 0 | 2 | High-permission `officialclean*` / `deepseekmaint*` workers are not always-on in hybrid mode. Start only for an explicit maintenance/elevation run and retire after idle TTL. |
-| Non-Owner workspace | 0 | 2 | No always-on worker. Start on demand and allow one extra concurrent worker before queueing. |
+| Non-Owner OpenAI/Codex | 0 | 2 | No always-on worker. Provision two ChatGPT/OpenAI-Codex candidate profiles, start on demand, and allow one extra concurrent worker before queueing. |
+| Non-Owner DeepSeek | 0 | 1 | Provision one workspace-dedicated DeepSeek profile when DeepSeek is available. Start only for explicit DeepSeek runs. |
 
-The maximum is an upper bound over compatible worker profiles, not a guarantee
-that every provider has that many profiles. If a workspace has one
+The maximum is an upper bound over same-provider compatible worker profiles, not
+a guarantee that every provider has that many profiles. If a workspace has one
 OpenAI/Codex profile and one DeepSeek profile, a normal ChatGPT run can only use
 the OpenAI/Codex profile; the DeepSeek profile does not count as a second
-ChatGPT slot.
+ChatGPT slot. Workspace provisioning must create two `openai-codex` `lowgw*`
+profiles and one `deepseekgw*` profile for ordinary workspaces when DeepSeek is
+configured.
 
 The workspace cap is also tier-scoped. Low-permission user workers count
 against the Owner or workspace user-worker cap, while `owner-maintenance`
@@ -63,10 +67,12 @@ Recommended first defaults:
 - `HERMES_MOBILE_GATEWAY_POOL_START_MODE=hybrid`
 - `HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM=1`
 - `HERMES_MOBILE_GATEWAY_OWNER_MAX_WORKERS=4`
+- `HERMES_MOBILE_GATEWAY_OWNER_DEEPSEEK_MAX_WORKERS=2`
 - `HERMES_MOBILE_GATEWAY_OWNER_MAINTENANCE_MIN_WARM=0`
 - `HERMES_MOBILE_GATEWAY_OWNER_MAINTENANCE_MAX_WORKERS=2`
 - `HERMES_MOBILE_GATEWAY_WORKSPACE_MIN_WARM=0`
 - `HERMES_MOBILE_GATEWAY_WORKSPACE_MAX_WORKERS=2`
+- `HERMES_MOBILE_GATEWAY_WORKSPACE_DEEPSEEK_MAX_WORKERS=1`
 - `HERMES_MOBILE_GATEWAY_ELASTIC_MAX_WORKERS=8`
 - `HERMES_MOBILE_GATEWAY_WORKER_IDLE_TTL_MINUTES=180`
 - `HERMES_MOBILE_GATEWAY_START_TIMEOUT_MS=300000`
@@ -96,6 +102,16 @@ On the maintained single-user production machine, the preferred fix is to run
 the listener in the same caller context as the WSL/Codex owner (`GMK\xuxin`) and
 disable the scheduled-task relay. The relay remains available for deployments
 that intentionally keep listener and WSL owner accounts separate.
+
+The maintained production script has a caller-context guard: a
+`C:\ProgramData\HermesMobile\listener-run-in-caller-context.flag` marker or
+`HERMES_MOBILE_LISTENER_RUN_IN_CALLER_CONTEXT=1` /
+`HERMES_WEB_LISTENER_RUN_IN_CALLER_CONTEXT=1` forces
+`scripts/start-worker-host.ps1` into caller-context mode even when an operator
+runs a plain `-ReplaceExisting`. This prevents a recurrent failure where the
+listener is accidentally relaunched as `GMK\HermesMobileWorker`, but
+listener-triggered WSL/Gateway starts then fail while manual operator starts
+still succeed.
 
 The scheduled task principal should remain the WSL-owning Windows account, but
 the listener account must be able to demand-run that task. If `schtasks.exe
@@ -308,7 +324,8 @@ Phase 2: scheduler service in compatibility mode. Completed in v404.
 Phase 3: on-demand start and idle retirement. Completed in v404 source.
 
 - Start non-warm compatible workers on demand.
-- Enforce Owner max 4 and non-Owner max 2.
+- Enforce provider-scoped caps: Owner OpenAI/Codex max 4, Owner DeepSeek max 2,
+  non-Owner OpenAI/Codex max 2, and non-Owner DeepSeek max 1.
 - Add global cap queueing.
 - Add idle TTL reaper that never stops active runs.
 
@@ -327,6 +344,10 @@ Minimum H1 scenarios for implementation:
 - Owner startup creates exactly one compatible warm worker in hybrid mode.
 - Non-Owner startup creates zero warm workers in hybrid mode.
 - Owner concurrent runs expand up to four workers and then queue.
+- Owner DeepSeek starts cold on demand, expands up to two workers, and then
+  queues without consuming or increasing the Owner OpenAI/Codex cap.
+- Non-Owner DeepSeek starts cold on demand and queues the second concurrent
+  DeepSeek run even when that workspace still has OpenAI/Codex capacity.
 - Owner-maintenance warm workers do not consume the Owner low-permission user
   worker cap.
 - Owner-maintenance runs start a selected `officialclean*` / `deepseekmaint*`

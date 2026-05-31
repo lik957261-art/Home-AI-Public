@@ -251,6 +251,51 @@ else:
 PY
 }
 
+workspace_id_for_gateway_profile() {
+  local profile="$1"
+  python3 - "$gateway_pool_manifest_path" "$profile" <<'PY' 2>/dev/null || true
+import json
+import re
+import sys
+
+manifest_path, profile = sys.argv[1:3]
+
+def clean_workspace_id(value):
+    text = str(value or "").strip().lower()
+    if text.startswith("workspace:"):
+        text = text.split(":", 1)[1]
+    text = re.sub(r"[^a-z0-9_-]+", "-", text).strip("-")
+    return text[:80]
+
+try:
+    data = json.load(open(manifest_path, encoding="utf-8"))
+except Exception:
+    raise SystemExit(0)
+
+for worker in data.get("workers") or []:
+    worker_profile = str(worker.get("profile") or worker.get("name") or "").strip()
+    if worker_profile != profile:
+        continue
+    candidates = []
+    for key in ("skillWorkspaceIds", "skill_workspace_ids", "allowedWorkspaceIds", "allowed_workspace_ids"):
+        raw = worker.get(key) or []
+        if isinstance(raw, str):
+            raw = [item.strip() for item in raw.split(",") if item.strip()]
+        candidates.extend(clean_workspace_id(item) for item in raw)
+    skill_profile = str(worker.get("skillProfile") or worker.get("skill_profile") or "").strip()
+    if skill_profile.lower().startswith("workspace:"):
+        candidates.insert(0, clean_workspace_id(skill_profile))
+    private_ids = [item for item in candidates if item not in ("", "owner", "*")]
+    unique = []
+    for item in private_ids:
+        if item not in unique:
+            unique.append(item)
+    if len(unique) == 1:
+        print(unique[0])
+    break
+PY
+}
+
 ensure_low_gateway_skill_link() {
   local profile="$1"
   local skill_dir="$2"
@@ -764,8 +809,14 @@ ${plugin_enabled_lines%$'\n'}"
   profile_wardrobe_workspace=""
   if is_owner_connector_profile "$profile"; then
     profile_wardrobe_workspace="$owner_wardrobe_workspace"
-  elif [ "$profile" = "lowgw5" ] || [ "$profile" = "deepseekgw5" ]; then
-    profile_wardrobe_workspace="$wuping_wardrobe_workspace"
+  else
+    profile_workspace_id="$(workspace_id_for_gateway_profile "$profile")"
+    if [ -n "$profile_workspace_id" ]; then
+      profile_wardrobe_workspace="$(find_first_wardrobe_workspace_root "$profile_workspace_id")"
+      if [ -z "$profile_wardrobe_workspace" ] && [ "$profile_workspace_id" = "weixin_wuping" ]; then
+        profile_wardrobe_workspace="$wuping_wardrobe_workspace"
+      fi
+    fi
   fi
   if [ -n "$profile_wardrobe_workspace" ] && [ -f "$wardrobe_mcp_path" ]; then
     wardrobe_toolset_block="  - wardrobe"

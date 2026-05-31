@@ -57,7 +57,8 @@ function mergeCurrentThread(incomingThread) {
   if (!state.currentThread || state.currentThread.id !== incomingThread.id) return incomingThread;
   const existingPage = state.currentThread.messagesPage || null;
   const incomingPage = incomingThread.messagesPage || null;
-  const incomingMessages = Array.isArray(incomingThread.messages) ? incomingThread.messages : [];
+  const incomingHasMessageList = Array.isArray(incomingThread.messages);
+  const incomingMessages = incomingHasMessageList ? incomingThread.messages : [];
   const existingThreadMessages = state.currentThread.messages || [];
   if (incomingPage && !incomingMessages.length && existingThreadMessages.length) {
     const messagesPage = mergeMessagesPage(existingPage, incomingPage, chatMessagesForThread(state.currentThread));
@@ -70,7 +71,10 @@ function mergeCurrentThread(incomingThread) {
     return mergeServerMessage(existingMessages.get(message.id), message);
   });
   for (const message of state.currentThread.messages || []) {
-    if (!incomingIds.has(message.id) && (!incomingPage || shouldPreserveMessageOutsideIncomingPage(message))) {
+    const shouldPreserveExisting = incomingPage
+      ? shouldPreserveMessageOutsideIncomingPage(message, incomingThread)
+      : (!incomingHasMessageList || shouldPreserveMessageOutsideIncomingPage(message, incomingThread));
+    if (!incomingIds.has(message.id) && shouldPreserveExisting) {
       messages.push(message);
     }
   }

@@ -99,6 +99,10 @@ function textLooksWardrobe(text = "") {
   return /(?:\bwardrobe\b|\bcloset\b|\boutfit\b|\u8863\u6a71|\u7a7f\u642d|\u642d\u914d|\u8863\u670d|\u978b|\u8155\u8868)/i.test(cleanString(text));
 }
 
+function textLooksWardrobeWeatherSensitive(text = "") {
+  return /(?:\boutfit\b|\bwhat\s+to\s+wear\b|\brecommend(?:ation|ed)?\b|\bstyle\b|\u91cd\u65b0\u914d|\u518d\u914d|\u914d\u4e00?\u5957|\u6362\u4e00?\u5957|\u7a7f\u4ec0\u4e48|\u7a7f\u642d\u5efa\u8bae|\u642d\u914d\u5efa\u8bae|\u51fa\u95e8|\u4eca\u5929\u7a7f|\u660e\u5929\u7a7f|\u8863\u670d\u63a8\u8350)/i.test(cleanString(text));
+}
+
 function requestedToolsetsFromOptions(runOptions = {}) {
   const out = [];
   const searchSource = cleanString(runOptions.searchSource).toLowerCase();
@@ -223,10 +227,6 @@ function createGatewayRunToolsetRoutingService(options = {}) {
 
   function executionToolsetsForDisabledSelection(baseAllowed, selected = {}) {
     const authorized = dedupe(baseAllowed);
-    const suggested = keepAllowed(selected.allowed_toolsets || [], authorized);
-    if (!suggested.length) return authorized;
-    const suggestedSet = new Set(suggested);
-    if (suggestedSet.has("wardrobe")) return suggested;
     return authorized;
   }
 
@@ -247,7 +247,9 @@ function createGatewayRunToolsetRoutingService(options = {}) {
         if (matched[i] === "web" || matched[i] === "search") matched.splice(i, 1);
       }
     }
-    if (taskDirectoryLooksWardrobe(context.taskDirectory) || contextLooksWardrobe(context)) matched.push("wardrobe", "vision", "file", "skills");
+    const wardrobeContext = taskDirectoryLooksWardrobe(context.taskDirectory) || contextLooksWardrobe(context);
+    if (wardrobeContext) matched.push("wardrobe", "vision", "file", "skills");
+    if ((wardrobeContext || textLooksWardrobe(intentText)) && textLooksWardrobeWeatherSensitive(intentText)) matched.push("weather");
     if (hasAttachmentSignal(context.userMessage)) matched.push("file", "vision");
     if (context.taskDirectory?.path) matched.push("file");
     if (context.groupChat?.groupChatDeliveryRoot) matched.push("file");

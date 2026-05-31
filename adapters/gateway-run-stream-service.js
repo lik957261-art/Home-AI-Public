@@ -41,6 +41,14 @@ function eventNameFromEvent(event = {}) {
 }
 
 const WEB_SEARCH_TOOL_NAMES = new Set(["mobile_web_search", "web_search", "web_search_call"]);
+const TERMINAL_GATEWAY_EVENTS = new Set([
+  "response.completed",
+  "run.completed",
+  "response.failed",
+  "run.failed",
+  "response.incomplete",
+  "run.cancelled",
+]);
 
 function outputItemFromEvent(event = {}) {
   return event.item || event.output_item || event.outputItem || {};
@@ -392,6 +400,7 @@ function createGatewayRunStreamService(options = {}) {
       || activeStreamForRun(responseRunId)
       || activeStreamForRun(fallbackRunId);
     if (stream) stream.lastEventAt = nowMs();
+    if (stream && TERMINAL_GATEWAY_EVENTS.has(eventName)) stream.terminalEventSeen = true;
     if (eventName === "response.created" && stream && responseRunId) {
       registerRunAlias(fallbackRunId || originalRunId || visibleRunId, responseRunId);
     }
@@ -496,6 +505,7 @@ function createGatewayRunStreamService(options = {}) {
       firstModelOutputAt: 0,
       firstEventWarningCount: 0,
       firstEventTimer: null,
+      terminalEventSeen: false,
       apiTimeoutMs: streamOptions.apiTimeoutMs,
       modelFirstByteWarningMs: streamOptions.modelFirstByteWarningMs,
       runStartTimeoutMs: streamOptions.runStartTimeoutMs,
@@ -523,6 +533,8 @@ function createGatewayRunStreamService(options = {}) {
           markRunFailed(threadId, messageId, visibleRunId, new Error(stream.failureReason));
         } else if (controller.signal?.aborted) {
           markRunCancelled(threadId, messageId, visibleRunId);
+        } else if (stream?.terminalEventSeen) {
+          return;
         } else {
           handleStreamClosedWithoutTerminal(id, threadId, messageId);
         }

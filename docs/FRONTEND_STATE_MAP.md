@@ -63,6 +63,10 @@ Use this file to locate the responsible frontend files before debugging a screen
     status list should hide the immediately preceding `run.toolset_selection_started`
     row for the same run and show the resulting combined preflight row. The raw
     event order may remain in state for diagnostics.
+    Permission-only preflight uses `run.permission_preflight_done` or
+    `run.permission_preflight_fallback` as the terminal row; the latter means
+    Mobile continued with deterministic server policy, not that execution
+    failed.
   - Event-driven refresh must bind a run event to the newest assistant message
     whose own `runId`, `originalRunId`, `responseRunId`, or `taskId` matches
     before falling back to thread active ids. Thread active ids are only a
@@ -116,6 +120,14 @@ Use this file to locate the responsible frontend files before debugging a screen
 - Composer: `public/app-chat-composer-ui.js`, `public/app-composer-send-ui.js`, `public/app-composer-context-ui.js`, `public/app-composer-source-ui.js`
 - Thread list/message rendering: `public/app-thread-list-ui.js`, `public/app-thread-message-ui.js`, `public/app-thread-card-message-ui.js`
 - Task group UI: `public/app-task-groups-ui.js`, `public/app-task-preview-ui.js`
+- Single Window topic replies must carry the currently selected `taskGroupId`
+  just like the standalone Tasks view. If the composer says "Reply in this
+  task...", the post must remain in that selected topic instead of creating a
+  new topic group.
+- Thread refresh/merge must not preserve a locally running message once the
+  incoming thread summary has no active run. Pending messages outside a paged
+  response may be kept only while the incoming thread still reports an active
+  run.
 - Topic root lists should not show Kanban-generated case-topic groups. Kanban
   study/case evidence should be reached from Growth, Todo/Kanban, Inbox source
   links, or explicit direct routes instead of being mixed into ordinary topics.
@@ -178,7 +190,7 @@ Use this file to locate the responsible frontend files before debugging a screen
 
 - Inbox tab/list/detail: `public/app-action-inbox-ui.js`
 - Route target: `view=inbox&inboxItemId=<id>`
-- Primary bottom navigation direction: `聊天 / 收件箱 / 话题 / 目录 / 成长`
+- Primary bottom navigation direction: `聊天 / 信息 / 话题 / 目录 / 成长`
 - Inbox should render source tags and action states compactly, one list/detail surface, without relying on official Kanban UI modules.
 - Inbox list rows should combine processing actions into the inline status
   badge after source/type. Tapping `待处理` or another non-terminal status opens

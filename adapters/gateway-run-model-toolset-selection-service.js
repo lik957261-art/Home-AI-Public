@@ -63,7 +63,10 @@ function normalizeToolsetList(value, dedupe = defaultDedupe) {
 }
 
 function allowedToolsetsFromPolicy(policy = {}, dedupe = defaultDedupe) {
-  return normalizeToolsetList(policy.allowed_toolsets || policy.allowedToolsets || [], dedupe);
+  return normalizeToolsetList(
+    policy.authorized_toolsets || policy.authorizedToolsets || policy.allowed_toolsets || policy.allowedToolsets || [],
+    dedupe,
+  );
 }
 
 function routingSuggestedToolsets(request = {}, allowedToolsets = [], dedupe = defaultDedupe) {
@@ -428,7 +431,8 @@ function createGatewayRunModelToolsetSelectionService(options = {}) {
   const dedupe = typeof options.dedupe === "function" ? options.dedupe : defaultDedupe;
   const enabled = normalizeBoolean(options.enabled, true);
   const toolsetSelectionEnabled = normalizeBoolean(options.toolsetSelectionEnabled, true);
-  const timeoutMs = Math.max(1000, Number(options.timeoutMs || 45000) || 45000);
+  const timeoutMs = Math.max(1000, Number(options.timeoutMs || 30000) || 30000);
+  const permissionPreflightTimeoutMs = Math.max(1000, Number(options.permissionPreflightTimeoutMs || options.permission_preflight_timeout_ms || 8000) || 8000);
   const stopTimeoutMs = Math.max(500, Number(options.stopTimeoutMs || 2000) || 2000);
   const nowMs = typeof options.nowMs === "function" ? options.nowMs : (() => Date.now());
   const selectorModel = cleanString(options.selectorModel) || "gpt-5.4-mini";
@@ -473,7 +477,7 @@ function createGatewayRunModelToolsetSelectionService(options = {}) {
       await runner.streamResponses(body, {
         gatewayUrl: gatewayTarget.apiBase,
         apiKey: gatewayTarget.apiKey,
-        timeoutMs,
+        timeoutMs: toolsetSelectionEnabled ? timeoutMs : permissionPreflightTimeoutMs,
         onEvent: (event) => {
           selectorRunId = selectorRunId || selectorRunIdFromEvent(event);
           const text = selectorTextFromEvent(event);

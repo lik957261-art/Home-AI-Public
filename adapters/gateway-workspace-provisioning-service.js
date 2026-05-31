@@ -27,15 +27,55 @@ function grokGatewayIndex(worker) {
   return match ? Number(match[1]) : 0;
 }
 
+function deepseekGatewayIndex(worker) {
+  const text = String(worker?.profile || worker?.name || "");
+  const match = text.match(/^deepseekgw(\d+)$/i);
+  return match ? Number(match[1]) : 0;
+}
+
 function workerPort(worker) {
   const port = Number(worker?.port || 0);
   return Number.isFinite(port) && port > 0 ? port : 0;
 }
 
+function providerName(worker) {
+  return String(worker?.provider || "").trim() || "openai-codex";
+}
+
+function workspaceIdsForWorker(worker) {
+  return cleanList(worker?.allowedWorkspaceIds || worker?.allowed_workspace_ids);
+}
+
+function gatewayIndexForProvider(worker, provider) {
+  return provider === "deepseek" ? deepseekGatewayIndex(worker) : lowGatewayIndex(worker);
+}
+
+function profilePrefixForProvider(provider) {
+  return provider === "deepseek" ? "deepseekgw" : "lowgw";
+}
+
+function profileInUse(workers, profile) {
+  return workers.some((worker) => String(worker?.profile || worker?.name || "").trim() === profile);
+}
+
+function nextGatewayIndexForProvider(workers, provider, preferredIndex = 0) {
+  const prefix = profilePrefixForProvider(provider);
+  const preferred = Number(preferredIndex || 0);
+  if (preferred > 0 && !profileInUse(workers, `${prefix}${preferred}`)) return preferred;
+  return Math.max(0, ...workers.map((worker) => gatewayIndexForProvider(worker, provider))) + 1;
+}
+
+function tagsForProvider(worker, provider) {
+  const tags = cleanList(worker?.tags);
+  const base = tags.length ? tags : ["official", "clean", "low-privilege", "user"];
+  if (provider === "deepseek" && !base.includes("deepseek")) return [...base, "deepseek"];
+  return base;
+}
+
 function nextGatewayPort(workers, lowGatewayBasePort, nextIndex) {
   const used = new Set(workers.map(workerPort).filter(Boolean));
   const highestLowOrGrokPort = workers
-    .filter((worker) => lowGatewayIndex(worker) > 0 || grokGatewayIndex(worker) > 0)
+    .filter((worker) => lowGatewayIndex(worker) > 0 || grokGatewayIndex(worker) > 0 || deepseekGatewayIndex(worker) > 0)
     .map(workerPort)
     .reduce((max, port) => Math.max(max, port), 0);
   let port = Math.max(lowGatewayBasePort + nextIndex, highestLowOrGrokPort + 1);
@@ -46,7 +86,9 @@ function nextGatewayPort(workers, lowGatewayBasePort, nextIndex) {
 function replaceProfileInPath(value, profile) {
   const text = String(value || "");
   if (!text) return "";
-  return text.replace(/profiles[\\/][^\\/]+/i, `profiles\\${profile}`).replace(/lowgw\d+/gi, profile).replace(/grokgw\d+/gi, profile);
+  return text
+    .replace(/profiles[\\/][^\\/]+/i, `profiles\\${profile}`)
+    .replace(/(lowgw|grokgw|deepseekgw)\d+/gi, profile);
 }
 
 function firstExistingManifestPath(fs, paths) {
@@ -73,6 +115,10 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
   const skillProfilesRoot = typeof options.skillProfilesRoot === "function" ? options.skillProfilesRoot : (() => options.skillProfilesRoot || "");
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : (() => new Date().toISOString());
   const lowGatewayBasePort = Number(options.lowGatewayBasePort || 18750);
+  const workspaceOpenAiWorkerMin = Math.max(1, Math.floor(Number(options.workspaceOpenAiWorkerMin || 2) || 2));
+  const workspaceDeepSeekWorkerMin = options.workspaceDeepSeekWorkerMin == null
+    ? 1
+    : Math.max(0, Math.floor(Number(options.workspaceDeepSeekWorkerMin) || 0));
 
   function writeManifest(manifestPath, manifest) {
     fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
@@ -105,55 +151,81 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
     }
     const manifest = readManifest(fs, manifestPath);
     const workers = Array.isArray(manifest.workers) ? manifest.workers : [];
-    const existing = workers.find((worker) => worker?.provider === "openai-codex" && cleanList(worker.allowedWorkspaceIds || worker.allowed_workspace_ids).includes(workspaceId));
-    if (existing) {
-      return {
-        ok: true,
-        provisioned: false,
-        manifestPath,
-        workerName: existing.name || existing.profile,
-        profile: existing.profile,
-        port: Number(existing.port || 0),
-        restartRequired: Boolean(skillStore.skillStoreProvisioned),
-        skillStorePath: skillStore.skillStorePath,
-        skillStoreProvisioned: skillStore.skillStoreProvisioned,
-      };
-    }
     const lowWorkers = workers.filter((worker) => lowGatewayIndex(worker) > 0);
     const template = lowWorkers.find((worker) => cleanList(worker.allowedWorkspaceIds || worker.allowed_workspace_ids).some((id) => id !== "owner")) || lowWorkers[lowWorkers.length - 1] || {};
-    const nextIndex = Math.max(0, ...lowWorkers.map(lowGatewayIndex)) + 1;
-    const profile = `lowgw${nextIndex}`;
-    const newWorker = Object.assign({}, template, {
-      name: profile,
-      profile,
-      host: template.host || "127.0.0.1",
-      port: nextGatewayPort(workers, lowGatewayBasePort, nextIndex),
-      provider: "openai-codex",
-      enabled: template.enabled !== false,
-      securityLevel: "user",
-      allowMaintenance: false,
-      allowedWorkspaceIds: [workspaceId],
-      skillProfile: `workspace:${workspaceId}`,
-      skillWorkspaceIds: [workspaceId],
-      tags: cleanList(template.tags).length ? cleanList(template.tags) : ["official", "clean", "low-privilege", "user"],
-      telemetryStateDbPath: replaceProfileInPath(template.telemetryStateDbPath, profile),
-      telemetryResponseStoreDbPath: replaceProfileInPath(template.telemetryResponseStoreDbPath, profile),
-    });
-    workers.push(newWorker);
-    const lowCount = Math.max(nextIndex, ...workers.map(lowGatewayIndex));
-    manifest.enabled = manifest.enabled !== false;
-    manifest.workers = workers;
-    manifest.updatedAt = nowIso();
-    writeManifest(manifestPath, manifest);
+    const provisionedWorkers = [];
+    function workspaceProviderWorkers(provider) {
+      return workers.filter((worker) => (
+        providerName(worker) === provider
+        && workspaceIdsForWorker(worker).includes(workspaceId)
+      ));
+    }
+    function templateForProvider(provider) {
+      const providerWorkers = workers.filter((worker) => providerName(worker) === provider);
+      if (!providerWorkers.length && provider !== "openai-codex") return null;
+      return providerWorkers.find((worker) => workspaceIdsForWorker(worker).some((id) => id !== "owner"))
+        || providerWorkers[providerWorkers.length - 1]
+        || template;
+    }
+    function ensureProviderWorkers(provider, minimum, preferredIndex = 0) {
+      const existing = workspaceProviderWorkers(provider);
+      const providerTemplate = templateForProvider(provider);
+      if (!providerTemplate) return existing;
+      while (existing.length < minimum) {
+        const nextIndex = nextGatewayIndexForProvider(workers, provider, preferredIndex);
+        const profile = `${profilePrefixForProvider(provider)}${nextIndex}`;
+        const newWorker = Object.assign({}, providerTemplate, {
+          name: profile,
+          profile,
+          host: providerTemplate.host || "127.0.0.1",
+          port: nextGatewayPort(workers, lowGatewayBasePort, nextIndex),
+          provider,
+          enabled: providerTemplate.enabled !== false,
+          securityLevel: "user",
+          allowMaintenance: false,
+          allowedWorkspaceIds: [workspaceId],
+          skillProfile: `workspace:${workspaceId}`,
+          skillWorkspaceIds: [workspaceId],
+          tags: tagsForProvider(providerTemplate, provider),
+          telemetryStateDbPath: replaceProfileInPath(providerTemplate.telemetryStateDbPath, profile),
+          telemetryResponseStoreDbPath: replaceProfileInPath(providerTemplate.telemetryResponseStoreDbPath, profile),
+        });
+        workers.push(newWorker);
+        existing.push(newWorker);
+        provisionedWorkers.push(newWorker);
+      }
+      return existing;
+    }
+    const openAiWorkers = ensureProviderWorkers("openai-codex", workspaceOpenAiWorkerMin);
+    const companionIndex = lowGatewayIndex(openAiWorkers[0]);
+    const deepseekWorkers = ensureProviderWorkers("deepseek", workspaceDeepSeekWorkerMin, companionIndex);
+    const allWorkspaceWorkers = [...openAiWorkers, ...deepseekWorkers];
+    const firstWorker = allWorkspaceWorkers[0];
+    const lowCount = Math.max(0, ...workers.map(lowGatewayIndex));
+    const deepseekCount = Math.max(0, ...workers.map(deepseekGatewayIndex));
+    if (provisionedWorkers.length) {
+      manifest.enabled = manifest.enabled !== false;
+      manifest.workers = workers;
+      manifest.updatedAt = nowIso();
+      writeManifest(manifestPath, manifest);
+    }
     return {
       ok: true,
-      provisioned: true,
+      provisioned: provisionedWorkers.length > 0,
       manifestPath,
-      workerName: profile,
-      profile,
-      port: newWorker.port,
+      workerName: provisionedWorkers[0]?.name || provisionedWorkers[0]?.profile || firstWorker?.name || firstWorker?.profile || "",
+      workerNames: allWorkspaceWorkers.map((worker) => worker.name || worker.profile).filter(Boolean),
+      profile: provisionedWorkers[0]?.profile || firstWorker?.profile || "",
+      profiles: allWorkspaceWorkers.map((worker) => worker.profile).filter(Boolean),
+      port: workerPort(provisionedWorkers[0] || firstWorker),
+      ports: allWorkspaceWorkers.map(workerPort).filter(Boolean),
+      workerCount: allWorkspaceWorkers.length,
+      openAiWorkerCount: openAiWorkers.length,
+      deepseekWorkerCount: deepseekWorkers.length,
+      provisionedWorkers: provisionedWorkers.map((worker) => worker.profile).filter(Boolean),
       lowGatewayCount: lowCount,
-      restartRequired: true,
+      deepseekGatewayCount: deepseekCount,
+      restartRequired: Boolean(provisionedWorkers.length || skillStore.skillStoreProvisioned),
       skillStorePath: skillStore.skillStorePath,
       skillStoreProvisioned: skillStore.skillStoreProvisioned,
     };

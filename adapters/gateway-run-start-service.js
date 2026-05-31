@@ -208,10 +208,15 @@ function createGatewayRunStartService(options = {}) {
     }) || {};
     runPolicy = sanitizePolicy(objectValue(routedPolicy.policy, runPolicy), policyHardeningOptions);
     const modelFirstSelection = objectValue(runOptions.modelFirstToolsetSelection, null);
-    const modelFirstToolsets = expandSelectedToolsetsWithCompanions(
-      dedupe(modelFirstSelection?.selectedToolsets || modelFirstSelection?.selected_toolsets || []),
-      runPolicy,
+    const rawModelFirstToolsets = dedupe(modelFirstSelection?.selectedToolsets || modelFirstSelection?.selected_toolsets || []);
+    const modelFirstSelectionDisabled = Boolean(
+      modelFirstSelection?.toolsetSelectionDisabled
+      || modelFirstSelection?.toolset_selection_disabled
+      || modelFirstSelection?.routing?.toolset_selection_disabled,
     );
+    const modelFirstToolsets = modelFirstSelectionDisabled
+      ? rawModelFirstToolsets
+      : expandSelectedToolsetsWithCompanions(rawModelFirstToolsets, runPolicy);
     if (modelFirstToolsets.length) {
       runPolicy = sanitizePolicy(Object.assign({}, runPolicy, {
         allowed_toolsets: modelFirstToolsets,
@@ -400,6 +405,36 @@ function createGatewayRunStartService(options = {}) {
     });
   }
 
+  function restoreAuthorizedToolsetsForSelectionFallback(request = {}, selection = {}) {
+    const authorized = dedupe(
+      selection.authorizedToolsets
+      || selection.authorized_toolsets
+      || request.runPolicy?.authorized_toolsets
+      || request.runPolicy?.authorizedToolsets
+      || request.body?.access_policy_context?.authorized_toolsets
+      || request.body?.access_policy_context?.authorizedToolsets
+      || [],
+    );
+    if (!authorized.length) return request;
+    request.runPolicy = Object.assign({}, request.runPolicy || {}, {
+      authorized_toolsets: authorized,
+      allowed_toolsets: authorized,
+    });
+    request.body.access_policy_context = Object.assign({}, request.body.access_policy_context || {}, {
+      authorized_toolsets: authorized,
+      allowed_toolsets: authorized,
+    });
+    request.body.enabled_toolsets = authorized;
+    return request;
+  }
+
+  function preflightResultEventName(selection = {}, ok = false) {
+    if (selection?.toolsetSelectionDisabled || cleanString(selection?.mode) === "permission_preflight") {
+      return ok ? "run.permission_preflight_done" : "run.permission_preflight_fallback";
+    }
+    return ok ? "run.toolset_selection_done" : "run.toolset_selection_failed";
+  }
+
   function permissionSelectionPreview(selection = {}) {
     return JSON.stringify({
       scope: cleanString(selection.elevationScope || selection.elevation_scope || "owner_high_privilege"),
@@ -572,7 +607,9 @@ function createGatewayRunStartService(options = {}) {
         selection = { enabled: true, ok: false, reason: "selector_exception", error: cleanString(err?.message || err) };
       }
       const rawSelectedToolsets = dedupe(selection?.selectedToolsets || selection?.selected_toolsets || []);
-      const selectedToolsets = expandSelectedToolsetsWithCompanions(rawSelectedToolsets, request?.runPolicy || {});
+      const selectedToolsets = selection?.toolsetSelectionDisabled
+        ? rawSelectedToolsets
+        : expandSelectedToolsetsWithCompanions(rawSelectedToolsets, request?.runPolicy || {});
       if (selection?.enabled && selection.elevationRequired) {
         completeModelPermissionRequest(thread, assistantMessage, taskId, selection);
         return {
@@ -590,6 +627,7 @@ function createGatewayRunStartService(options = {}) {
         const selectedRunOptions = Object.assign({}, runOptions, {
           modelFirstToolsetSelection: {
             selectedToolsets,
+            toolsetSelectionDisabled: Boolean(selection.toolsetSelectionDisabled),
             routing,
           },
         });
@@ -603,9 +641,10 @@ function createGatewayRunStartService(options = {}) {
         request.body.access_policy_context = Object.assign({}, request.body.access_policy_context || {}, { toolset_routing: routing });
         request.body.enabled_toolsets = dedupe(request.runPolicy?.allowed_toolsets || request.runPolicy?.allowedToolsets || request.body.enabled_toolsets || []);
         applyAssistantRunOptions(assistantMessage, request, selectedRunOptions);
-        appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_done", toolsetSelectionPreview(selection, selectedToolsets));
+        appendRunStartEvent(thread, assistantMessage, preflightResultEventName(selection, true), toolsetSelectionPreview(selection, selectedToolsets));
       } else if (selection?.enabled) {
-        appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_failed", toolsetSelectionFallbackPreview(selection || {}));
+        request = restoreAuthorizedToolsetsForSelectionFallback(request, selection || {});
+        appendRunStartEvent(thread, assistantMessage, preflightResultEventName(selection, false), toolsetSelectionFallbackPreview(selection || {}));
       }
     }
     appendRunStartEvent(thread, assistantMessage, "run.request_sent", "等待模型或工具返回");

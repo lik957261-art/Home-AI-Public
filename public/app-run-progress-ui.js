@@ -17,6 +17,8 @@ const RUN_PROGRESS_START_EVENTS = new Set([
   "run.toolset_selection_started",
   "run.toolset_selection_done",
   "run.toolset_selection_failed",
+  "run.permission_preflight_done",
+  "run.permission_preflight_fallback",
   "run.toolset_escalation_required",
   "run.toolset_escalation_retrying",
   "run.permission_required",
@@ -289,7 +291,12 @@ function runProgressCompactPreflightEvents(events = []) {
   const toolsetTerminalRuns = new Set();
   for (const event of Array.isArray(events) ? events : []) {
     const name = String(event?.event || "");
-    if (name === "run.toolset_selection_done" || name === "run.toolset_selection_failed") {
+    if (
+      name === "run.toolset_selection_done"
+      || name === "run.toolset_selection_failed"
+      || name === "run.permission_preflight_done"
+      || name === "run.permission_preflight_fallback"
+    ) {
       toolsetTerminalRuns.add(String(event?.runId || "__run__"));
     }
   }
@@ -335,7 +342,7 @@ function runEventTitle(event) {
   if (name === "run.final_message_done") return "\u56de\u590d\u5df2\u751f\u6210";
   if (name === "run.context_ready") return "\u4e0a\u4e0b\u6587\u5df2\u6574\u7406";
   if (name === "run.gateway_worker_queued") return "Gateway \u6392\u961f\u7b49\u5f85";
-  if (name === "run.gateway_worker_starting") return "Gateway \u51b7\u542f\u52a8";
+  if (name === "run.gateway_worker_starting") return "Gateway \u542f\u52a8\u4e2d";
   if (name === "run.gateway_worker_started") return "Gateway \u5df2\u542f\u52a8";
   if (name === "run.gateway_worker_reused") return "Gateway \u5df2\u590d\u7528";
   if (name === "run.gateway_worker_start_failed") return "Gateway \u542f\u52a8\u5931\u8d25";
@@ -343,6 +350,8 @@ function runEventTitle(event) {
   if (name === "run.toolset_selection_started") return "\u6b63\u5728\u68c0\u67e5\u6743\u9650\u4e0e\u5de5\u5177\u96c6";
   if (name === "run.toolset_selection_done") return "\u6743\u9650\u4e0e\u5de5\u5177\u96c6\u5df2\u786e\u8ba4";
   if (name === "run.toolset_selection_failed") return "\u6743\u9650\u4e0e\u5de5\u5177\u96c6\u68c0\u67e5\u56de\u9000";
+  if (name === "run.permission_preflight_done") return "\u6743\u9650\u9884\u68c0\u5df2\u901a\u8fc7";
+  if (name === "run.permission_preflight_fallback") return "\u6743\u9650\u9884\u68c0\u8d85\u65f6\uff0c\u5df2\u6309\u786e\u5b9a\u6027\u6743\u9650\u7ee7\u7eed";
   if (name === "run.toolset_escalation_required") return "\u9700\u8981\u8ffd\u52a0\u5de5\u5177\u96c6";
   if (name === "run.toolset_escalation_retrying") return "\u6b63\u5728\u8ffd\u52a0\u5de5\u5177\u5e76\u91cd\u65b0\u8fd0\u884c";
   if (name === "run.permission_required") return "\u9700\u8981 Owner \u6388\u6743";
@@ -391,8 +400,15 @@ function runGatewayWorkerPreviewLabel(event) {
   const queueDepth = Number(parsed.queueDepth || 0) || 0;
   const reusableUntil = String(parsed.idleExpiresAt || parsed.warmUntil || "").trim();
   if (profile || provider) parts.push([provider, profile].filter(Boolean).join(" / "));
-  if (reason) parts.push(reason.replaceAll("_", " "));
-  if (queueDepth) parts.push(`queue ${queueDepth}`);
+  const reasonLabel = name === "run.gateway_worker_starting"
+    ? "\u542f\u52a8\u4e2d"
+    : (name === "run.gateway_worker_queued" ? "\u6392\u961f" : reason.replaceAll("_", " "));
+  if (name === "run.gateway_worker_queued" && queueDepth) {
+    parts.push(`\u6392\u961f ${queueDepth}`);
+  } else if (reasonLabel) {
+    parts.push(reasonLabel);
+  }
+  if (queueDepth && name !== "run.gateway_worker_queued" && name !== "run.gateway_worker_starting") parts.push(`\u6392\u961f ${queueDepth}`);
   if (reusableUntil) parts.push(`warm until ${reusableUntil}`);
   if (parsed.diagnostic) parts.push(String(parsed.diagnostic).slice(0, 80));
   return boundedRunEventPreview(parts.join(" · "));
