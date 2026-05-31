@@ -65,6 +65,12 @@ Gateway plugin/schema/profile changes:
   off-white text, and brighter low-saturation status colors. Hard-coded dark
   green text is not acceptable on dark surfaces; use the theme variables for
   headings, receipt labels, file tags, status chips, and run/tool panels.
+- In dark/system-dark mode, green/success semantics may remain in backgrounds,
+  borders, dots, or subtle status surfaces, but text that previously used dark
+  green must resolve to off-white (`--ink` / `--ui-success-ink`) unless a
+  dedicated contrast check proves it remains readable. This applies to Action
+  Inbox source/status badges, Automation success labels, group/member action
+  buttons, and reading fullscreen controls.
 - Long assistant replies must keep their per-reply start/end jump controls
   available after streaming settles. Arrow visibility recalculation must resolve
   the current DOM at execution time and include a delayed settle pass after final

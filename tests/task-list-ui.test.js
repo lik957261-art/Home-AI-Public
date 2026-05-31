@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260531-wardrobe-upload-proxy-v384";
+const CLIENT_VERSION = "20260531-dark-readable-success-v385";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -498,6 +498,12 @@ assert.match(stylesCss, /\.learning-growth-board-card \{[\s\S]*?border: 1px soli
 assert.match(stylesCss, /\.todo-learning-growth-panel \{[\s\S]*?border-color: var\(--ui-hairline\);[\s\S]*?background: var\(--ui-surface\);/);
 assert.match(stylesCss, /\.automation-warning,[\s\S]*?\.automation-create,[\s\S]*?\.automation-card,[\s\S]*?\.automation-detail-card \{[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;[\s\S]*?background: var\(--ui-surface\);[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /\.automation-run-times div \{[\s\S]*?background: var\(--ui-accent-soft\);[\s\S]*?border: 1px solid var\(--ui-hairline\);/);
+assert.match(stylesCss, /:root\[data-theme="dark"\] \{[\s\S]*?--ui-success-ink: #f5f7f6;/);
+assert.match(stylesCss, /@media \(prefers-color-scheme: dark\) \{[\s\S]*?:root\[data-theme="system"\] \{[\s\S]*?--ui-success-ink: #f5f7f6;/);
+assert.match(stylesCss, /:root\[data-theme="dark"\] \.action-inbox-source-badge\.source-automation,[\s\S]*?:root\[data-theme="dark"\] \.action-inbox-source-badge\.source-chat \{[\s\S]*?color: var\(--ink\);/);
+assert.match(stylesCss, /:root\[data-theme="dark"\] \.automation-state\.ok \{[\s\S]*?color: var\(--ink\);/);
+assert.match(stylesCss, /:root\[data-theme="dark"\] \.group-member-actions button \{[\s\S]*?color: var\(--ink\);/);
+assert.match(stylesCss, /:root\[data-theme="dark"\] \.reading-fullscreen-mode \.reading-fullscreen-exit \{[\s\S]*?color: var\(--ink\);/);
 assert.match(stylesCss, /\.task-card-directories \.directory-alias-chip \{[\s\S]*?font-size: 14px;[\s\S]*?line-height: 1\.32;/);
 assert.match(appJs, /directory-alias-text/);
 assert.match(appJs, /data-directory-project[\s\S]*?directory-alias-icon/);

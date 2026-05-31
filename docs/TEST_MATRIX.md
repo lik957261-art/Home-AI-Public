@@ -419,6 +419,11 @@ hard-coded pale surfaces.
 Dark-mode contrast harnesses must also check that message markdown headings,
 receipt labels, file/artifact buttons, Growth teaching badges, and file viewer
 shells do not use hard-coded dark green or pale backgrounds on dark surfaces.
+Green/success text in dark/system-dark mode should be treated as a contrast
+risk: tests should assert success/status text resolves to off-white variables
+while preserving green only as a non-text semantic cue such as background,
+border, or status dot. Cover Action Inbox source/status badges, Automation
+success labels, group/member action buttons, and reading fullscreen controls.
 Standalone `file-viewer.html`, `markdown-viewer.html`, and `pdf-viewer.html`
 must read the saved `hermesWebTheme` preference before paint and expose
 near-black page backgrounds in dark mode.

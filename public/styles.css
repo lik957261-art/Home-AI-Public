@@ -96,7 +96,7 @@
   --ui-warning-surface: rgba(198, 160, 95, 0.20);
   --ui-danger-ink: #f0a097;
   --ui-danger-surface: rgba(240, 140, 130, 0.18);
-  --ui-success-ink: #c8ead8;
+  --ui-success-ink: #f5f7f6;
   --ui-success-surface: rgba(130, 194, 160, 0.18);
   --pdf: #e18a82;
   --pdf-soft: rgba(225, 138, 130, 0.14);
@@ -148,7 +148,7 @@
     --ui-warning-surface: rgba(198, 160, 95, 0.20);
     --ui-danger-ink: #f0a097;
     --ui-danger-surface: rgba(240, 140, 130, 0.18);
-    --ui-success-ink: #c8ead8;
+    --ui-success-ink: #f5f7f6;
     --ui-success-surface: rgba(130, 194, 160, 0.18);
     --pdf: #e18a82;
     --pdf-soft: rgba(225, 138, 130, 0.14);
@@ -2064,6 +2064,20 @@ button {
   font-weight: 600;
   line-height: 1;
   opacity: 0.74;
+}
+
+:root[data-theme="dark"] .reading-fullscreen-mode .reading-fullscreen-exit {
+  color: var(--ink);
+  background: var(--ui-control-bg);
+  border-color: var(--ui-hairline);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .reading-fullscreen-mode .reading-fullscreen-exit {
+    color: var(--ink);
+    background: var(--ui-control-bg);
+    border-color: var(--ui-hairline);
+  }
 }
 
 .topbar {
@@ -6570,6 +6584,20 @@ body.task-markdown-preview-open {
   border: 1px solid rgba(31, 111, 98, 0.18);
   border-radius: 10px;
   font-weight: 600;
+}
+
+:root[data-theme="dark"] .group-member-actions button {
+  color: var(--ink);
+  background: var(--ui-control-bg);
+  border-color: var(--ui-hairline);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .group-member-actions button {
+    color: var(--ink);
+    background: var(--ui-control-bg);
+    border-color: var(--ui-hairline);
+  }
 }
 
 .access-key-subtitle,
@@ -12844,6 +12872,26 @@ body.task-markdown-preview-open {
   background: rgba(134, 139, 163, 0.14);
 }
 
+:root[data-theme="dark"] .action-inbox-source-badge.source-automation,
+:root[data-theme="dark"] .action-inbox-source-badge.source-growth,
+:root[data-theme="dark"] .action-inbox-source-badge.source-manual,
+:root[data-theme="dark"] .action-inbox-source-badge.source-chat {
+  color: var(--ink);
+  background: var(--ui-surface-muted);
+  border-color: var(--ui-hairline);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .action-inbox-source-badge.source-automation,
+  :root[data-theme="system"] .action-inbox-source-badge.source-growth,
+  :root[data-theme="system"] .action-inbox-source-badge.source-manual,
+  :root[data-theme="system"] .action-inbox-source-badge.source-chat {
+    color: var(--ink);
+    background: var(--ui-surface-muted);
+    border-color: var(--ui-hairline);
+  }
+}
+
 .action-inbox-item-time {
   color: var(--muted);
   white-space: nowrap;
@@ -13332,6 +13380,18 @@ body.task-markdown-preview-open {
 .automation-state.ok {
   color: #245f49;
   background: rgba(47, 125, 95, 0.09);
+}
+
+:root[data-theme="dark"] .automation-state.ok {
+  color: var(--ink);
+  background: var(--ui-success-surface);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .automation-state.ok {
+    color: var(--ink);
+    background: var(--ui-success-surface);
+  }
 }
 
 .automation-detail-card.error .automation-state {
@@ -15142,6 +15202,21 @@ body.task-markdown-preview-open {
 
   .reading-fullscreen-mode .reading-fullscreen-enter {
     display: none !important;
+  }
+
+  :root[data-theme="dark"] .reading-fullscreen-enter {
+    color: var(--ink);
+    background: var(--ui-control-bg);
+    border-color: var(--ui-hairline);
+  }
+
+}
+
+@media (max-width: 1099px) and (orientation: landscape) and (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .reading-fullscreen-enter {
+    color: var(--ink);
+    background: var(--ui-control-bg);
+    border-color: var(--ui-hairline);
   }
 }
 
