@@ -115,6 +115,14 @@ plugin rule: Wardrobe, Finance, Codex Mobile, and future same-origin plugins
 must not show Owner content merely because the browser already has an Owner
 plugin session.
 
+Manifest/launch boundaries must also clear stale plugin sessions. A manifest
+response for a workspace-private same-origin plugin should expire known raw
+upstream session cookie names and the Hermes-scoped Owner/current-workspace
+session names under that plugin proxy path. A proxy request carrying a fresh
+short launch token must not forward any existing plugin session cookie to the
+upstream; it should first expire stale raw/Owner/current scoped cookies and then
+let the upstream's new `Set-Cookie` establish the current workspace session.
+
 For embedded upload controls, the proxy/host must preserve ordinary browser file
 upload semantics. Plugin `POST`/`PUT`/`PATCH` requests, including multipart
 `FormData`, must forward the original body and `content-type` to the upstream

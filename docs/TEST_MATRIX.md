@@ -407,7 +407,11 @@ must drop Owner-scoped plugin cookies, other-workspace plugin cookies, and old
 unscoped plugin cookies. This is a generic embedded-plugin harness requirement,
 not a Wardrobe-only case; cover normal workspace-private plugins such as
 Wardrobe and Finance, and keep Owner-only plugins such as Codex Mobile hidden
-when the effective workspace is non-Owner. The same-origin proxy must also
+when the effective workspace is non-Owner. Harnesses must also assert stale
+session cleanup: manifest responses expire known raw upstream session cookie
+names plus Owner/current Hermes-scoped names, and launch-token proxy requests do
+not forward any existing plugin session cookie before the upstream issues the
+fresh workspace session. The same-origin proxy must also
 rewrite plugin-owned image/static URLs in HTML, JavaScript, CSS, and JSON
 responses so absolute upstream image URLs and root-relative `/uploads`,
 `/media`, `/images`, `/assets`, and `/static` paths stay under

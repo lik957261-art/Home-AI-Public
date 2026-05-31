@@ -302,6 +302,13 @@ function createHermesPluginApiRoutes(deps = {}) {
     return String(name || "").startsWith("hmplugin_");
   }
 
+  function knownPluginSessionCookieNames(pluginId = "") {
+    if (pluginId === "wardrobe") return ["wardrobe_session"];
+    if (pluginId === "finance") return ["finance_hermes_session", "finance_session"];
+    if (pluginId === "codex-mobile") return ["codex_mobile_plugin_session"];
+    return [];
+  }
+
   function parseCookiePair(part = "") {
     const index = String(part).indexOf("=");
     if (index <= 0) return null;
@@ -361,6 +368,42 @@ function createHermesPluginApiRoutes(deps = {}) {
     return forwarded.join("; ");
   }
 
+  function pluginProxyExpireCookie(cookieName = "", pluginId = "") {
+    const name = String(cookieName || "").trim();
+    if (!name) return "";
+    return `${name}=; Path=${pluginProxyPrefix(pluginId)}; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax`;
+  }
+
+  function pluginProxyCookieCleanupHeaders(pluginId = "", workspaceId = "", cookieHeader = "", options = {}) {
+    const expireNames = new Set();
+    const currentWorkspaceId = String(workspaceId || "owner").trim() || "owner";
+    const knownNames = knownPluginSessionCookieNames(pluginId);
+    if (options.resetKnown) {
+      for (const name of knownNames) {
+        expireNames.add(name);
+        expireNames.add(pluginProxyCookieName(pluginId, "owner", name));
+        expireNames.add(pluginProxyCookieName(pluginId, currentWorkspaceId, name));
+      }
+    }
+    const cookies = String(cookieHeader || "")
+      .split(";")
+      .map((part) => parseCookiePair(part.trim()))
+      .filter(Boolean);
+    for (const pair of cookies) {
+      if (knownNames.includes(pair.name)) {
+        expireNames.add(pair.name);
+        continue;
+      }
+      if (!isHermesPluginProxyCookieName(pair.name)) continue;
+      const currentName = decodePluginProxyCookieName(pair.name, pluginId, currentWorkspaceId);
+      if (!currentName) expireNames.add(pair.name);
+    }
+    return [...expireNames]
+      .filter(Boolean)
+      .map((name) => pluginProxyExpireCookie(name, pluginId))
+      .filter(Boolean);
+  }
+
   function withProxyWorkspaceId(proxyUrl = "", workspaceId = "") {
     const id = String(workspaceId || "owner").trim() || "owner";
     try {
@@ -372,6 +415,19 @@ function createHermesPluginApiRoutes(deps = {}) {
     } catch (_) {
       return proxyUrl;
     }
+  }
+
+  function proxyRequestHasLaunchToken(url) {
+    return Boolean(
+      url?.searchParams?.get("launch")
+      || url?.searchParams?.get("codexPluginLaunch")
+      || url?.searchParams?.get("financeLaunch")
+    );
+  }
+
+  function sendJsonWithHeaders(res, status, data, headers = {}) {
+    res.writeHead(status, Object.assign({ "Content-Type": "application/json; charset=utf-8" }, headers));
+    res.end(JSON.stringify(data));
   }
 
   function escapeRegExp(value = "") {
@@ -534,7 +590,10 @@ function createHermesPluginApiRoutes(deps = {}) {
       if (lower === "cookie") continue;
       headers[name] = value;
     }
-    const upstreamCookie = rewritePluginProxyRequestCookie(req.headers?.cookie, pluginId, workspaceId);
+    const hasLaunchToken = proxyRequestHasLaunchToken(url);
+    const upstreamCookie = hasLaunchToken
+      ? ""
+      : rewritePluginProxyRequestCookie(req.headers?.cookie, pluginId, workspaceId);
     if (upstreamCookie) headers.cookie = upstreamCookie;
     headers["x-hermes-plugin-workspace-id"] = workspaceId;
     const publicOrigin = originFromRequest(req);
@@ -554,9 +613,12 @@ function createHermesPluginApiRoutes(deps = {}) {
     const upstream = await fetchImpl(targetUrl, { method, headers, body, redirect: "manual" });
     const contentType = responseHeader(upstream, "content-type");
     const outHeaders = { "Content-Type": contentType || "application/octet-stream" };
-    const setCookies = responseSetCookies(upstream)
+    const setCookies = [
+      ...pluginProxyCookieCleanupHeaders(pluginId, workspaceId, req.headers?.cookie, { resetKnown: hasLaunchToken }),
+      ...responseSetCookies(upstream)
       .map((cookie) => rewritePluginProxySetCookie(cookie, pluginId, workspaceId))
-      .filter(Boolean);
+      .filter(Boolean),
+    ];
     if (setCookies.length) outHeaders["Set-Cookie"] = setCookies;
     const location = responseHeader(upstream, "location");
     if (location) {
@@ -623,7 +685,13 @@ function createHermesPluginApiRoutes(deps = {}) {
         sameOriginProxy: manifest?.embed?.sameOriginProxy === true,
       });
     }
-    deps.sendJson(res, 200, Object.assign({ workspaceId }, manifest));
+    const cleanupCookies = pluginProxyCookieCleanupHeaders(pluginId, workspaceId, req.headers?.cookie, { resetKnown: true });
+    sendJsonWithHeaders(
+      res,
+      200,
+      Object.assign({ workspaceId }, manifest),
+      cleanupCookies.length ? { "Set-Cookie": cleanupCookies } : {},
+    );
   }
 
   async function handleAdminList(req, res) {
