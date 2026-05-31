@@ -254,6 +254,17 @@ workspace. That grant is a Hermes authorization record only; plugin-side user
 creation or workspace binding must still happen through the plugin's launch or
 provisioning contract and must not expose long-lived keys to the browser.
 
+The plugin manager's open/closed status must reflect the same effective
+workspace availability used by the launch path. For workspace-private plugins,
+Hermes merges explicit Owner grants, configured workspace allowlists, and
+existing server-side plugin workspace key bindings when projecting
+`authorizedWorkspaceIds`. This prevents the management UI from showing a plugin
+as `未开通` when the workspace can already launch it through a valid
+server-side binding such as `.hermes-wardrobe/access-key.txt` or
+`.hermes-finance/access-key.txt`. Built-in plugins should also expose stable
+host-side display titles (`衣橱`, `记账`, `Codex`) so the management UI does not
+fall back to internal ids such as `finance`.
+
 Codex Mobile is the exception. Hermes marks it `riskLevel=owner-critical` and
 `allowWorkspaceGrant=false` by default. The plugin manager must not create
 non-Owner Codex grants. Codex contains code execution, file access, long-lived

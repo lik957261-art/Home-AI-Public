@@ -53,6 +53,7 @@ function configuredAuthorizedWorkspaceIds(pluginId, env = process.env) {
 
 const DEFAULT_PLUGIN_SECURITY = Object.freeze({
   wardrobe: {
+    title: "衣橱",
     riskLevel: "workspace-private",
     defaultVisibility: "owner-only",
     allowWorkspaceGrant: true,
@@ -60,6 +61,7 @@ const DEFAULT_PLUGIN_SECURITY = Object.freeze({
     notifications: { supported: true, routeOwner: "hermes" },
   },
   "codex-mobile": {
+    title: "Codex",
     riskLevel: "owner-critical",
     defaultVisibility: "owner-only",
     allowWorkspaceGrant: false,
@@ -67,6 +69,7 @@ const DEFAULT_PLUGIN_SECURITY = Object.freeze({
     notifications: { supported: true, routeOwner: "hermes", inboxMode: "replace_latest_per_workspace" },
   },
   finance: {
+    title: "记账",
     riskLevel: "workspace-private",
     defaultVisibility: "owner-only",
     allowWorkspaceGrant: true,
@@ -77,6 +80,7 @@ const DEFAULT_PLUGIN_SECURITY = Object.freeze({
 
 function pluginSecurityDefaults(pluginId = "") {
   return DEFAULT_PLUGIN_SECURITY[stringValue(pluginId)] || {
+    title: stringValue(pluginId),
     riskLevel: "workspace-private",
     defaultVisibility: "owner-only",
     allowWorkspaceGrant: true,
@@ -90,6 +94,7 @@ function normalizePluginSecurity(plugin = {}) {
   const provisioning = plugin.provisioning && typeof plugin.provisioning === "object" ? plugin.provisioning : {};
   const notifications = plugin.notifications && typeof plugin.notifications === "object" ? plugin.notifications : {};
   return {
+    title: stringValue(plugin.title || defaults.title),
     riskLevel: stringValue(plugin.riskLevel || defaults.riskLevel),
     defaultVisibility: stringValue(plugin.defaultVisibility || defaults.defaultVisibility || "owner-only"),
     allowWorkspaceGrant: plugin.allowWorkspaceGrant === false ? false : defaults.allowWorkspaceGrant !== false,
@@ -413,6 +418,24 @@ function findPluginAccessKeyPath(pluginId, input = {}, options = {}) {
   if (pluginId === "codex-mobile") return findCodexMobileAccessKeyPath(input, options);
   if (pluginId === "finance") return findFinanceAccessKeyPath(input, options);
   return findWardrobeAccessKeyPath(input, options);
+}
+
+function discoverPluginWorkspaceIdsFromAccessKeys(pluginId, options = {}) {
+  const id = stringValue(pluginId);
+  if (id === "codex-mobile") return [];
+  const dataDir = stringValue(options.dataDir) || defaultDataDir(options.env);
+  const usersRoot = path.join(dataDir, "drive", "users");
+  let entries = [];
+  try {
+    entries = fs.readdirSync(usersRoot, { withFileTypes: true });
+  } catch (_) {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((workspaceId) => workspaceId && workspaceId !== "owner")
+    .filter((workspaceId) => Boolean(findPluginAccessKeyPath(id, { workspaceId }, options)));
 }
 
 function pluginWorkspaceAuthorized(plugin, input = {}, options = {}) {
@@ -780,6 +803,7 @@ function createHermesPluginService(options = {}) {
   function pluginPublicMetadata(item) {
     return {
       id: item.id,
+      title: item.title,
       manifestUrl: item.manifestUrl,
       riskLevel: item.riskLevel,
       defaultVisibility: item.defaultVisibility,
@@ -802,6 +826,7 @@ function createHermesPluginService(options = {}) {
         : [...new Set([
           ...item.authorizedWorkspaceIds,
           ...authorizationService.authorizedWorkspaceIds(item.id),
+          ...discoverPluginWorkspaceIdsFromAccessKeys(item.id, launchOptions),
         ])],
     }));
   }
@@ -924,6 +949,7 @@ module.exports = {
   findCodexMobileAccessKeyPath,
   findFinanceAccessKeyPath,
   findPluginAccessKeyPath,
+  discoverPluginWorkspaceIdsFromAccessKeys,
   findWardrobeAccessKeyPath,
   frameAncestorsAllows,
   normalizePluginAppearance,

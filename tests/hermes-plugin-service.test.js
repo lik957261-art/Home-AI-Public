@@ -2,12 +2,15 @@
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const {
   DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL,
   DEFAULT_FINANCE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   configuredPlugins,
   createHermesPluginService,
+  discoverPluginWorkspaceIdsFromAccessKeys,
   findCodexMobileAccessKeyPath,
   findFinanceAccessKeyPath,
   findWardrobeAccessKeyPath,
@@ -307,6 +310,34 @@ async function testDefaultNasManifestUrl() {
   assert.equal(service.list()[0].manifestUrl, DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL);
   assert.equal(service.list()[1].manifestUrl, DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL);
   assert.equal(service.list()[2].manifestUrl, DEFAULT_FINANCE_PLUGIN_MANIFEST_URL);
+  assert.equal(service.listInstalled()[0].title, "衣橱");
+  assert.equal(service.listInstalled()[1].title, "Codex");
+  assert.equal(service.listInstalled()[2].title, "记账");
+}
+
+function testInstalledPluginListReflectsWorkspaceKeyBindings() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-plugin-bindings-"));
+  const wardrobeKey = path.join(dir, "drive", "users", "weixin_wuping", "Hermes-吴萍", "衣橱", ".hermes-wardrobe", "access-key.txt");
+  const financeKey = path.join(dir, "drive", "users", "child_workspace", "Finance", ".hermes-finance", "access-key.txt");
+  fs.mkdirSync(path.dirname(wardrobeKey), { recursive: true });
+  fs.mkdirSync(path.dirname(financeKey), { recursive: true });
+  fs.writeFileSync(wardrobeKey, "wardrobe-key\n", "utf8");
+  fs.writeFileSync(financeKey, "finance-key\n", "utf8");
+
+  assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("wardrobe", { dataDir: dir }), ["weixin_wuping"]);
+  assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("finance", { dataDir: dir }), ["child_workspace"]);
+
+  const service = createHermesPluginService({
+    dataDir: dir,
+    env: {},
+    fetch() {
+      throw new Error("listInstalled should not fetch plugin manifests");
+    },
+  });
+  const installed = service.listInstalled();
+  assert.deepEqual(installed.find((item) => item.id === "wardrobe").authorizedWorkspaceIds, ["weixin_wuping"]);
+  assert.deepEqual(installed.find((item) => item.id === "finance").authorizedWorkspaceIds, ["child_workspace"]);
+  assert.deepEqual(installed.find((item) => item.id === "codex-mobile").authorizedWorkspaceIds, []);
 }
 
 async function testHttpsManifestOverride() {
@@ -747,6 +778,7 @@ async function run() {
   await testCodexPluginCannotBeGrantedToNonOwner();
   await testFrameAncestorsBlockedReturnsUnavailable();
   await testDefaultNasManifestUrl();
+  testInstalledPluginListReflectsWorkspaceKeyBindings();
   await testHttpsManifestOverride();
   await testFetchFailureReturnsUnavailable();
   await testLaunchEntryUsesServerSideWorkspaceKey();
