@@ -745,6 +745,11 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   manifest `skillWorkspaceIds` / `skillProfile` workspace and the corresponding
   `.hermes-wardrobe/config.json`, so additional WuPing profiles such as a second
   OpenAI/Codex worker bind to WuPing's wardrobe instead of losing Wardrobe MCP.
+- New non-Owner Wardrobe access must be created by the Hermes Mobile Wardrobe
+  provisioner. The provisioner writes the user's own `.hermes-wardrobe`
+  config/key, installs the keyless Wardrobe Skill in that user's Skill Store,
+  and marks the workspace profile binding refreshed in the Gateway Pool manifest
+  so the next selected-profile start/restart rebuilds the MCP profile config.
 - Wardrobe MCP is launched with `--no-workspace-override`; a model call must not switch a Gateway profile to another owner's `.hermes-wardrobe/access-key.txt`.
 - The generator script in the source repo is the durable source of truth. Do not rely on one-off edits to live `telemetry/profiles/<profile>/config.yaml`: a later Gateway Pool reconfigure/restart rewrites those files from `scripts/configure-low-gateways.sh` and will silently drop Wardrobe MCP registration if the source script no longer contains the wardrobe block.
 - The production worker-root copies of `configure-low-gateways.sh`,

@@ -233,6 +233,8 @@ function createMobileApiComposition(deps = {}) {
   const hermesPluginService = deps.hermesPluginService || createHermesPluginService({
     nowIso: deps.nowIso,
     dataDir: deps.dataDir,
+    gatewayWorkspaceProvisioningService: deps.gatewayWorkspaceProvisioningService,
+    repoRoot: deps.repoRoot,
     workspaceLabelForId: (workspaceId) => {
       const workspace = typeof deps.findWorkspace === "function" ? deps.findWorkspace(workspaceId) : null;
       if (workspace) return workspace.label || workspace.name || workspace.title || workspace.id || workspaceId;

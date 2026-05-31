@@ -8,6 +8,10 @@ const {
 const {
   createFinancePluginProvisioningService,
 } = require("./finance-plugin-provisioning-service");
+const {
+  createWardrobePluginProvisioningService,
+  readWardrobeWorkspaceConfig,
+} = require("./wardrobe-plugin-provisioning-service");
 
 const DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL = "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest";
 const DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest";
@@ -489,7 +493,7 @@ function pluginWorkspaceProvisioningBlock(plugin, input = {}, options = {}) {
 }
 
 function pluginSupportsHermesProvisioning(plugin) {
-  return stringValue(plugin?.id) === "finance" && plugin?.provisioning?.supported === true;
+  return ["finance", "wardrobe"].includes(stringValue(plugin?.id)) && plugin?.provisioning?.supported === true;
 }
 
 function pluginInitialProvisioningStatus(plugin) {
@@ -667,12 +671,21 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
   );
   const appearance = normalizePluginAppearance(input);
   const appearancePayload = Object.keys(appearance).length ? { appearance } : {};
+  const wardrobeConfig = pluginId === "wardrobe"
+    ? readWardrobeWorkspaceConfig({ workspaceId }, options)
+    : {};
+  const wardrobeWorkspaceId = stringValue(wardrobeConfig.workspace_id || wardrobeConfig.workspaceId) || workspaceId;
   const launchBody = pluginId === "finance"
     ? Object.assign({
       workspace_id: workspaceId,
       workspace_key: accessKey,
       role: workspaceId === "owner" || input.ownerAuthorized === true ? "owner" : "member",
     }, financeUserKey ? { user_key: financeUserKey } : {}, appearancePayload)
+    : pluginId === "wardrobe"
+      ? Object.assign({
+        workspace_id: wardrobeWorkspaceId,
+        hermes_workspace_id: workspaceId,
+      }, appearancePayload)
     : Object.assign({ workspace_id: workspaceId }, appearancePayload);
   try {
     const headers = {
@@ -840,6 +853,15 @@ function createHermesPluginService(options = {}) {
     dataDir: options.dataDir,
     env: options.env,
     fetch: fetchImpl,
+  });
+  const wardrobeProvisioningService = options.wardrobeProvisioningService || createWardrobePluginProvisioningService({
+    dataDir: options.dataDir,
+    env: options.env,
+    fetch: fetchImpl,
+    gatewayWorkspaceProvisioningService: options.gatewayWorkspaceProvisioningService,
+    nowIso,
+    repoRoot: options.repoRoot,
+    wardrobeSkillTemplatePath: options.wardrobeSkillTemplatePath,
   });
   const workspaceLabelForId = typeof options.workspaceLabelForId === "function"
     ? options.workspaceLabelForId
@@ -1013,7 +1035,13 @@ function createHermesPluginService(options = {}) {
     const displayName = stringValue(input.displayName || input.workspaceLabel || input.workspace_label)
       || stringValue(workspaceLabelForId(workspaceId))
       || workspaceId;
-    const provisioned = await financeProvisioningService.provisionWorkspace({
+    const provisioned = id === "wardrobe"
+      ? await wardrobeProvisioningService.provisionWorkspace({
+        workspaceId,
+        displayName,
+        wardrobeManifestUrl: plugin.manifestUrl,
+      })
+      : await financeProvisioningService.provisionWorkspace({
       workspaceId,
       displayName,
       role: "owner",
@@ -1028,6 +1056,20 @@ function createHermesPluginService(options = {}) {
         provisioningStatus: "active",
         provisioningError: "",
       });
+      if (id === "wardrobe") {
+        return Object.assign({}, saved, {
+          provisioning: {
+            status: "active",
+            keyCreated: Boolean(provisioned.keyCreated),
+            wardrobeWorkspaceId: provisioned.wardrobeWorkspaceId || "",
+            skillInstalled: Boolean(provisioned.skillInstalled),
+            gatewayProfiles: Array.isArray(provisioned.gatewayProfiles) ? provisioned.gatewayProfiles : [],
+            gatewayRestartRequired: Boolean(provisioned.gatewayRestartRequired),
+            gatewayProfileBindingRefreshed: Boolean(provisioned.gatewayProfileBindingRefreshed),
+            created: Boolean(provisioned.created),
+          },
+        });
+      }
       return Object.assign({}, saved, {
         provisioning: {
           status: "active",
@@ -1043,12 +1085,12 @@ function createHermesPluginService(options = {}) {
       workspaceId,
       actor: input.actor,
       provisioningStatus: "provisioning_failed",
-      provisioningError: provisioned.error || "finance_plugin_provisioning_failed",
+      provisioningError: provisioned.error || `${id}_plugin_provisioning_failed`,
     });
     return Object.assign({}, saved, {
       provisioning: {
         status: "provisioning_failed",
-        error: provisioned.error || "finance_plugin_provisioning_failed",
+        error: provisioned.error || `${id}_plugin_provisioning_failed`,
         keyCreated: Boolean(provisioned.keyCreated),
       },
     });

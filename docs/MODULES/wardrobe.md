@@ -1,6 +1,6 @@
 # Wardrobe Plugin
 
-Last updated: 2026-05-29.
+Last updated: 2026-06-01.
 
 This module describes the Hermes Mobile Wardrobe entry. The generic embedded
 plugin host contract is defined in `docs/MODULES/plugins.md`; this file records
@@ -103,7 +103,10 @@ the iframe through the server-side short-token exchange:
 
 - locate the current workspace's local `.hermes-wardrobe/access-key.txt`;
 - call `POST /api/v1/hermes/plugin/launch` with `Authorization: Bearer <local
-  workspace key>` and body `{ "workspace_id": "<current workspace>" }`;
+  workspace key>` and body containing the Wardrobe workspace id from
+  `.hermes-wardrobe/config.json`, for example
+  `{ "workspace_id": "wardrobe:<hermes_workspace_id>",
+  "hermes_workspace_id": "<current workspace>" }`;
 - replace the iframe entry URL with the returned `entry_path`;
 - expose only the short launch URL and bounded token status to the browser.
 
@@ -131,6 +134,40 @@ Launch-token URLs are short-lived and may be one-time use. The frontend must
 not cache and rebuild an iframe from a consumed launch URL during ordinary view
 rerenders; when the Wardrobe tab needs a new frame and the previous token is no
 longer fresh, it must fetch a new manifest/launch URL first.
+
+## Workspace Provisioning
+
+Opening Wardrobe for a non-Owner workspace is not a manual copy operation.
+Hermes Mobile owns the provisioner behind the plugin-manager action
+`Enable Wardrobe for user`:
+
+- create a stable Wardrobe workspace id such as
+  `wardrobe:<hermes_workspace_id>` instead of reusing XuXin/WuPing bindings;
+- generate a workspace-local raw Access Key and write it only to
+  `<HERMES_DATA_DIR>\drive\users\<workspaceId>\.hermes-wardrobe\access-key.txt`;
+- write non-secret
+  `<HERMES_DATA_DIR>\drive\users\<workspaceId>\.hermes-wardrobe\config.json`
+  with `api_base_url`, `workspace_id`, `hermes_workspace_id`, owner/display
+  metadata, cache directories, and scopes;
+- call Wardrobe `POST /api/v1/hermes/plugin/workspaces` with owner,
+  `workspace_id`, key hash/registration material, and scopes
+  `items:read`, `items:write`, `history:write`, `sync:read`;
+- install the keyless `productivity/wardrobe-style-operations` Skill into that
+  workspace's own Skill Store;
+- refresh the workspace Gateway profile binding. Existing Gateway processes may
+  need a selected-profile restart before they expose the new Wardrobe MCP
+  schema; listener-only restart is not enough for already-running workers.
+
+The provisioner must mark the plugin authorization record `active` only after
+key/config creation, Wardrobe registration, Skill install, Gateway profile
+binding, and local verification pass. Any failure remains visible as
+`provisioning_failed`; the tab must not pretend the plugin is usable and then
+fall through to `plugin_launch_key_missing`.
+
+The provisioner must not copy an existing XuXin or WuPing `.hermes-wardrobe`
+directory. Wardrobe data remains in the Wardrobe SQLite store and is isolated by
+owner plus workspace/access-key binding, not by creating a separate database per
+Hermes user.
 
 The embedded plugin must preserve its iframe node after the first successful
 load. Switching from Wardrobe to another Hermes tab must hide a persistent host

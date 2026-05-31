@@ -424,26 +424,115 @@ async function testFinanceProvisioningFailureBlocksManifest() {
   assert.equal(manifest.embed.tokenStatus, "workspace_provisioning_failed");
 }
 
-async function testManualProvisioningGrantDoesNotBlockWardrobe() {
+async function testWardrobeGrantProvisionsWorkspaceKeySkillGatewayAndLaunchBinding() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-wardrobe-grant-"));
+  const calls = [];
+  const gatewayCalls = [];
   const service = createHermesPluginService({
+    dataDir: dir,
+    env: {},
     plugins: [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }],
-    wardrobeAccessKeyPath: __filename,
-    fetch(url) {
-      assert.equal(url, "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest");
-      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(sampleManifest()) });
+    gatewayWorkspaceProvisioningService: {
+      ensureWorkspaceGateway(input) {
+        gatewayCalls.push(input);
+        const skillStorePath = path.join(dir, "skill-profiles", input.workspaceId, "skills");
+        fs.mkdirSync(skillStorePath, { recursive: true });
+        return {
+          ok: true,
+          profiles: ["lowgw31", "lowgw32", "deepseekgw31"],
+          restartRequired: true,
+          profileBindingRefreshed: true,
+          skillStorePath,
+        };
+      },
+    },
+    fetch(url, options = {}) {
+      calls.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      if (url.endsWith("/api/v1/hermes/plugin/workspaces")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ result: { workspace_id: "wardrobe:weixin_wardrobe_new", owner: "weixin_wardrobe_new", created: true } }),
+        });
+      }
+      if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(sampleManifest()) });
+      }
+      if (url.endsWith("/api/v1/hermes/plugin/launch")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ entry_path: "/?embed=hermes&launch=wpl_new", expires_in: 90 }),
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
     },
   });
-  const grant = await service.grantWorkspace({ id: "wardrobe", workspaceId: "weixin_manual", actor: "owner" });
+  const grant = await service.grantWorkspace({
+    id: "wardrobe",
+    workspaceId: "weixin_wardrobe_new",
+    displayName: "Wardrobe New",
+    actor: "owner",
+  });
   assert.equal(grant.ok, true);
-  assert.equal(grant.record.provisioningStatus, "manual_required");
-  assert.equal(service.list({ workspaceId: "weixin_manual" })[0].id, "wardrobe");
+  assert.equal(grant.record.provisioningStatus, "active");
+  assert.equal(grant.provisioning.wardrobeWorkspaceId, "wardrobe:weixin_wardrobe_new");
+  assert.deepEqual(grant.provisioning.gatewayProfiles, ["lowgw31", "lowgw32", "deepseekgw31"]);
+  assert.equal(grant.provisioning.gatewayRestartRequired, true);
+  assert.deepEqual(gatewayCalls, [{ workspaceId: "weixin_wardrobe_new", refreshProfileBinding: true }]);
+  const keyPath = path.join(dir, "drive", "users", "weixin_wardrobe_new", ".hermes-wardrobe", "access-key.txt");
+  const configPath = path.join(dir, "drive", "users", "weixin_wardrobe_new", ".hermes-wardrobe", "config.json");
+  const skillPath = path.join(dir, "skill-profiles", "weixin_wardrobe_new", "skills", "productivity", "wardrobe-style-operations", "SKILL.md");
+  assert.equal(fs.existsSync(keyPath), true);
+  assert.equal(fs.existsSync(configPath), true);
+  assert.equal(fs.existsSync(skillPath), true);
+  const rawKey = fs.readFileSync(keyPath, "utf8").trim();
+  assert.equal(JSON.stringify(grant).includes(rawKey), false);
+  assert.equal(calls[0].body.workspace_id, "wardrobe:weixin_wardrobe_new");
+  assert.equal(calls[0].body.access_key_sha256.length, 64);
+  assert.equal(JSON.stringify(calls[0].body).includes(rawKey), false);
+  assert.equal(service.list({ workspaceId: "weixin_wardrobe_new" })[0].id, "wardrobe");
   const installed = service.listInstalled().find((item) => item.id === "wardrobe");
-  assert.equal(installed.workspaceAuthorizations[0].provisioningStatus, "manual_required");
-  const manifest = await service.manifest({ id: "wardrobe", workspaceId: "weixin_manual" });
+  assert.equal(installed.workspaceAuthorizations[0].provisioningStatus, "active");
+
+  const manifest = await service.manifest({ id: "wardrobe", workspaceId: "weixin_wardrobe_new", launchPlugin: true });
   assert.equal(manifest.available, true);
+  assert.notEqual(manifest.code, "plugin_launch_key_missing");
+  const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
+  assert.ok(launchCall);
+  assert.equal(launchCall.body.workspace_id, "wardrobe:weixin_wardrobe_new");
+  assert.equal(launchCall.body.hermes_workspace_id, "weixin_wardrobe_new");
+  assert.match(launchCall.options.headers.Authorization, /^Bearer /);
+  assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"launch_token"|"workspace_key"|hwd_/);
 }
 
-async function testLegacyManualProvisioningPendingDoesNotBlockWardrobe() {
+async function testWardrobeProvisioningFailureBlocksManifest() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-wardrobe-grant-fail-"));
+  const service = createHermesPluginService({
+    dataDir: dir,
+    env: {},
+    plugins: [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }],
+    wardrobeProvisioningService: {
+      provisionWorkspace() {
+        return Promise.resolve({ ok: false, error: "wardrobe_registration_failed_503" });
+      },
+    },
+    fetch() {
+      throw new Error("failed Wardrobe provisioning must block before plugin manifest fetch");
+    },
+  });
+  const grant = await service.grantWorkspace({ id: "wardrobe", workspaceId: "weixin_fail", displayName: "Fail", actor: "owner" });
+  assert.equal(grant.ok, true);
+  assert.equal(grant.record.provisioningStatus, "provisioning_failed");
+  assert.equal(grant.record.provisioningError, "wardrobe_registration_failed_503");
+  assert.deepEqual(service.list({ workspaceId: "weixin_fail" }), []);
+  const manifest = await service.manifest({ id: "wardrobe", workspaceId: "weixin_fail", launchPlugin: true });
+  assert.equal(manifest.available, false);
+  assert.equal(manifest.code, "plugin_workspace_provisioning_failed");
+  assert.equal(manifest.embed.tokenStatus, "workspace_provisioning_failed");
+}
+
+async function testLegacyWardrobePendingProvisioningBlocksManifest() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-wardrobe-pending-"));
   const authPath = path.join(dir, "plugin-workspace-authorizations.json");
   fs.writeFileSync(authPath, JSON.stringify({
@@ -466,15 +555,15 @@ async function testLegacyManualProvisioningPendingDoesNotBlockWardrobe() {
     plugins: [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }],
     wardrobeAccessKeyPath: __filename,
     fetch(url) {
-      assert.equal(url, "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest");
-      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(sampleManifest()) });
+      throw new Error(`pending Wardrobe provisioning must block before manifest fetch: ${url}`);
     },
   });
   const installed = service.listInstalled().find((item) => item.id === "wardrobe");
-  assert.equal(installed.workspaceAuthorizations[0].provisioningStatus, "manual_required");
-  assert.equal(service.list({ workspaceId: "weixin_legacy" })[0].id, "wardrobe");
+  assert.equal(installed.workspaceAuthorizations[0].provisioningStatus, "pending");
+  assert.deepEqual(service.list({ workspaceId: "weixin_legacy" }), []);
   const manifest = await service.manifest({ id: "wardrobe", workspaceId: "weixin_legacy" });
-  assert.equal(manifest.available, true);
+  assert.equal(manifest.available, false);
+  assert.equal(manifest.code, "plugin_workspace_provisioning_pending");
 }
 
 async function testHttpsManifestOverride() {
@@ -918,8 +1007,9 @@ async function run() {
   testInstalledPluginListReflectsWorkspaceKeyBindings();
   await testFinanceGrantProvisionsWorkspaceKeyAndBind();
   await testFinanceProvisioningFailureBlocksManifest();
-  await testManualProvisioningGrantDoesNotBlockWardrobe();
-  await testLegacyManualProvisioningPendingDoesNotBlockWardrobe();
+  await testWardrobeGrantProvisionsWorkspaceKeySkillGatewayAndLaunchBinding();
+  await testWardrobeProvisioningFailureBlocksManifest();
+  await testLegacyWardrobePendingProvisioningBlocksManifest();
   await testHttpsManifestOverride();
   await testFetchFailureReturnsUnavailable();
   await testLaunchEntryUsesServerSideWorkspaceKey();

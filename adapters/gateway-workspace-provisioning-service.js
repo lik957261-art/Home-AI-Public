@@ -203,7 +203,13 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
     const firstWorker = allWorkspaceWorkers[0];
     const lowCount = Math.max(0, ...workers.map(lowGatewayIndex));
     const deepseekCount = Math.max(0, ...workers.map(deepseekGatewayIndex));
-    if (provisionedWorkers.length) {
+    const profileBindingRefreshRequested = input.refreshProfileBinding === true || input.bindingChanged === true;
+    const profileBindingRefreshed = Boolean(profileBindingRefreshRequested && allWorkspaceWorkers.length);
+    if (profileBindingRefreshed) {
+      const refreshedAt = nowIso();
+      for (const worker of allWorkspaceWorkers) worker.pluginBindingUpdatedAt = refreshedAt;
+    }
+    if (provisionedWorkers.length || profileBindingRefreshed) {
       manifest.enabled = manifest.enabled !== false;
       manifest.workers = workers;
       manifest.updatedAt = nowIso();
@@ -225,7 +231,8 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
       provisionedWorkers: provisionedWorkers.map((worker) => worker.profile).filter(Boolean),
       lowGatewayCount: lowCount,
       deepseekGatewayCount: deepseekCount,
-      restartRequired: Boolean(provisionedWorkers.length || skillStore.skillStoreProvisioned),
+      restartRequired: Boolean(provisionedWorkers.length || skillStore.skillStoreProvisioned || profileBindingRefreshed),
+      profileBindingRefreshed,
       skillStorePath: skillStore.skillStorePath,
       skillStoreProvisioned: skillStore.skillStoreProvisioned,
     };

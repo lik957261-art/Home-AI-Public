@@ -132,6 +132,31 @@ function testExistingWorkspaceIsIdempotent() {
   });
 }
 
+function testRefreshProfileBindingMarksExistingWorkspaceProfiles() {
+  withManifest({
+    enabled: true,
+    workers: [
+      baseWorker("lowgw9", "weixin_wuping", 18759),
+      baseWorker("lowgw10", "weixin_wuping", 18760),
+      deepseekWorker("deepseekgw9", "weixin_wuping", 18769),
+    ],
+  }, (manifestPath) => {
+    const result = createService(manifestPath).ensureWorkspaceGateway({
+      workspaceId: "weixin_wuping",
+      refreshProfileBinding: true,
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.provisioned, false);
+    assert.equal(result.profileBindingRefreshed, true);
+    assert.equal(result.restartRequired, true);
+    assert.deepEqual(result.provisionedWorkers, []);
+    const manifest = readManifest(manifestPath);
+    assert.equal(manifest.updatedAt, "2026-05-22T12:00:00.000Z");
+    assert.equal(manifest.workers.find((item) => item.profile === "lowgw9").pluginBindingUpdatedAt, "2026-05-22T12:00:00.000Z");
+    assert.equal(manifest.workers.find((item) => item.profile === "deepseekgw9").pluginBindingUpdatedAt, "2026-05-22T12:00:00.000Z");
+  });
+}
+
 function testOwnerWorkspaceSkipped() {
   withManifest({ enabled: true, workers: [] }, (manifestPath) => {
     const result = createService(manifestPath).ensureWorkspaceGateway({ workspaceId: "owner" });
@@ -142,6 +167,7 @@ function testOwnerWorkspaceSkipped() {
 
 testProvisionNewWorkspaceWorkerAppendsAfterStableGrokPort();
 testExistingWorkspaceIsIdempotent();
+testRefreshProfileBindingMarksExistingWorkspaceProfiles();
 testOwnerWorkspaceSkipped();
 
 console.log("gateway-workspace-provisioning-service tests passed");

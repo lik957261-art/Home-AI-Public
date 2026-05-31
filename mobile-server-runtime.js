@@ -126,6 +126,7 @@ let activeStreams = new Map();
 let gatewayRunner = null;
 let gatewayPoolProvider = null;
 let gatewayWorkerProfileLaunchService = null;
+let gatewayWorkspaceProvisioningService = null;
 let gatewayRuntimeCompositionService = null;
 let assessmentExamWorkflowService = null;
 let directoryBrowserBoundaryService = null;
@@ -366,6 +367,7 @@ function gatewayPool() {
   });
   return gatewayPoolProvider;
 }
+function getGatewayWorkspaceProvisioningService() { if (!gatewayWorkspaceProvisioningService) gatewayWorkspaceProvisioningService = createGatewayWorkspaceProvisioningService({ fs, path, manifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS, nowIso }); return gatewayWorkspaceProvisioningService; }
 function gatewayUsageTelemetry() {
   if (!gatewayUsageTelemetryProvider) gatewayUsageTelemetryProvider = createGatewayUsageTelemetryProvider({ enabled: () => GATEWAY_USAGE_TELEMETRY_ENABLED, profileRoots: () => GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS, manifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS });
   return gatewayUsageTelemetryProvider;
@@ -487,7 +489,7 @@ function localWorkspaceDefaults(input = {}, previous = {}) {
 function localWorkspaceRecords() {
   return getLocalWorkspaceStoreService().localWorkspaceRecords();
 }
-function upsertLocalWorkspace(input, actor = "owner") { const record = getLocalWorkspaceStoreService().upsertLocalWorkspace(input, actor); record.gatewayProvisioning = createGatewayWorkspaceProvisioningService({ fs, path, manifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS, nowIso }).ensureWorkspaceGateway({ workspaceId: record.id }); return record; }
+function upsertLocalWorkspace(input, actor = "owner") { const record = getLocalWorkspaceStoreService().upsertLocalWorkspace(input, actor); record.gatewayProvisioning = getGatewayWorkspaceProvisioningService().ensureWorkspaceGateway({ workspaceId: record.id }); return record; }
 function deleteLocalWorkspace(workspaceId) {
   return getLocalWorkspaceStoreService().deleteLocalWorkspace(workspaceId);
 }
@@ -2423,7 +2425,7 @@ const { eventStreamApiRoutes, mobileApiDispatcher, services: mobileApiServices =
     ownerRootFallbackLabel: OWNER_ROOT_FALLBACK_LABEL,
   },
   effectiveHermesApiBase, eventFanoutService, exists: (value) => fs.existsSync(value), extractDocxText, extractJsonObject, findDirectoryThreadForRequest,
-  findProject, findSubproject, findWorkspace, generateWebPushVapidConfig, getAssessmentExamWorkflowService, hermesModelText,
+  findProject, findSubproject, findWorkspace, gatewayWorkspaceProvisioningService: getGatewayWorkspaceProvisioningService(), generateWebPushVapidConfig, getAssessmentExamWorkflowService, hermesModelText,
   getDirectoryBrowserBoundaryService, getHermesStatus, getKanbanPlanCardCreationService, getRuntimeStateNormalizationService, getRuntimeStateThreadService,
   getSharedDirectoryProjectionService, getSingleWindowThreadService, getThreadMessageRunRouteService, getUrl, grantOwnerElevation,
   grantOwnerElevationOnce, consumeOwnerElevationOnce, groupAiReplyRevokedText: GROUP_AI_REPLY_REVOKED_TEXT, groupAssistantReplyForUserMessage, groupMessageRevokedText: GROUP_MESSAGE_REVOKED_TEXT, groupMessageRevoker,
@@ -2448,7 +2450,7 @@ const { eventStreamApiRoutes, mobileApiDispatcher, services: mobileApiServices =
   threadMessagesPage, threadSummary, todoAssigneeLabel, todoErrorResponse, todoProvider,
   uniqueChildPath, unlink: (value) => fs.unlinkSync(value), upsertLocalWorkspace, useKanbanTodoBackend, verifyDirectTodoCreateResult,
   webPushDeliveryService, weixinForwardTargetsForWorkspace, weixinIngressProvider, workspacePrincipal, workspaceUploadDirectoryForRequest,
-  writeFile: (filePath, buffer, options = {}) => fs.writeFileSync(filePath, buffer, { flag: options.flag || "w" }),
+  repoRoot: TOOL_ROOT, writeFile: (filePath, buffer, options = {}) => fs.writeFileSync(filePath, buffer, { flag: options.flag || "w" }),
   writeKanbanCardListCache,
 });
 const server = http.createServer(async (req, res) => {

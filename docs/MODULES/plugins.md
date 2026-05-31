@@ -1,6 +1,6 @@
 # Embedded App Plugins
 
-Last updated: 2026-05-31.
+Last updated: 2026-06-01.
 
 This module describes the Hermes Mobile embedded-app plugin contract. A plugin
 is an external product surface mounted inside Hermes Mobile. Hermes owns the
@@ -290,6 +290,25 @@ usable. Hermes must not store or return the raw Finance workspace key in the
 authorization record, frontend state, iframe URL, postMessage payload, docs,
 handoffs, screenshots, or logs.
 
+For Wardrobe, a plugin-manager grant is also a Hermes-owned provisioning
+workflow. When Owner grants `wardrobe` to a non-Owner workspace, Hermes Mobile
+must create the target user's own Wardrobe workspace id such as
+`wardrobe:<hermes_workspace_id>`, create
+`<HERMES_DATA_DIR>\drive\users\<workspaceId>\.hermes-wardrobe\access-key.txt`,
+write non-secret
+`<HERMES_DATA_DIR>\drive\users\<workspaceId>\.hermes-wardrobe\config.json`, and
+call Wardrobe's server-side registration contract
+`POST /api/v1/hermes/plugin/workspaces`. The registration body may include an
+access-key hash or one-time registration material, but Hermes Mobile must keep
+the raw key only in the workspace-local key file. It must also install the
+keyless `productivity/wardrobe-style-operations` Skill into that workspace's
+own Skill Store and refresh the workspace Gateway profile binding so the next
+worker start/restart exposes Wardrobe MCP with `--no-workspace-override`.
+Successful provisioning updates the authorization record to
+`provisioningStatus=active`; any key/config/register/Skill/Gateway failure
+keeps the grant but marks `provisioningStatus=provisioning_failed` and blocks
+non-Owner list/manifest/launch with a bounded diagnostic.
+
 Provisioning states are generic across plugins:
 
 - `not_supported`: the plugin has no Hermes-side provisioning workflow.
@@ -304,11 +323,11 @@ Provisioning states are generic across plugins:
   diagnostic.
 
 Only plugins with a registered Hermes-side provisioning service may enter
-`pending` from plugin-manager grant. As of v401 this applies to Finance. Plugins
-such as Wardrobe that rely on an external or manual owner binding use
-`manual_required` until an effective workspace key is discovered or the launch
-path returns its own bounded diagnostic. Codex Mobile remains Owner-only and is
-not grantable through this contract.
+`pending` from plugin-manager grant. As of the Wardrobe provisioner change this
+applies to Finance and Wardrobe. Manual or externally bound plugins that do not
+have a Hermes provisioner use `manual_required` until an effective workspace key
+is discovered or the launch path returns its own bounded diagnostic. Codex
+Mobile remains Owner-only and is not grantable through this contract.
 
 The plugin manager's open/closed status must reflect the same effective
 workspace availability used by the launch path. For workspace-private plugins,
@@ -346,8 +365,9 @@ Hermes Mobile treats these as authorization evidence:
 - A plugin manager grant stored in `plugin-workspace-authorizations.json`.
 - A plugin-specific authorized-workspace list configured by deployment.
 - For Wardrobe only, an existing workspace-scoped Wardrobe key file under the
-  workspace drive, because that key is created by the Owner-side Wardrobe
-  binding flow.
+  workspace drive remains legacy/effective evidence, but new grants must create
+  that key through the Hermes Mobile Wardrobe provisioner rather than by manual
+  copy.
 
 Generic/global plugin keys, such as the Codex Mobile Access Key, do not
 authorize every non-Owner workspace by themselves.
