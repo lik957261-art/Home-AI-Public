@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("node:fs");
+const path = require("node:path");
 const { createAccessKeyApiRoutes } = require("./access-key-api-routes");
 const { createActionInboxApiRoutes } = require("./action-inbox-api-routes");
 const { createAutomationApiRoutes } = require("./automation-api-routes");
@@ -66,6 +68,19 @@ function boolEnabled(value, fallback = false) {
   if (["1", "true", "yes", "on"].includes(normalized)) return true;
   if (["0", "false", "no", "off"].includes(normalized)) return false;
   return fallback;
+}
+
+function appendPluginManifestAudit(deps = {}, event = {}) {
+  const dataDir = String(deps.dataDir || process.env.HERMES_WEB_DATA_DIR || process.env.HERMES_MOBILE_DATA_DIR || path.join(process.cwd(), "workspace", "hermes-web"));
+  const auditPath = path.join(dataDir, "logs", "plugin-manifest-requests.jsonl");
+  try {
+    fs.mkdirSync(path.dirname(auditPath), { recursive: true });
+    fs.appendFileSync(auditPath, `${JSON.stringify(Object.assign({
+      at: typeof deps.nowIso === "function" ? deps.nowIso() : new Date().toISOString(),
+    }, event))}\n`, "utf8");
+  } catch (err) {
+    if (typeof deps.bootTrace === "function") deps.bootTrace(`plugin manifest audit failed: ${err?.message || String(err)}`);
+  }
 }
 
 function createMobileApiComposition(deps = {}) {
@@ -203,6 +218,7 @@ function createMobileApiComposition(deps = {}) {
 
   const hermesPluginService = deps.hermesPluginService || createHermesPluginService({
     nowIso: deps.nowIso,
+    dataDir: deps.dataDir,
   });
   const fileArtifactApiRoutes = createFileArtifactApiRoutes({
     contentDisposition: deps.contentDisposition,
@@ -424,6 +440,7 @@ function createMobileApiComposition(deps = {}) {
     sendJson: deps.sendJson,
     hermesPluginService,
     hermesPluginNotificationService,
+    auditPluginManifestRequest: (event) => appendPluginManifestAudit(deps, event),
   });
   callBootTrace(deps, "hermes plugin api routes ready");
   const actionInboxApiRoutes = createActionInboxApiRoutes({

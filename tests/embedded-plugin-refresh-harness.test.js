@@ -177,6 +177,7 @@ function createHarness() {
         entry: { url: "https://codex.example.test/?embed=hermes", origin: "https://codex.example.test" },
         embed: { tokenStatus: "launch_token_issued" },
       };
+      record.manifestAppearanceKey = "light/default";
       record.checked = true;
       record.manifestFreshForFrame = true;
       record.shellNode = shell;

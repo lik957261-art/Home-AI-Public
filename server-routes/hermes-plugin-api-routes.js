@@ -113,6 +113,18 @@ function requireFunction(deps, name) {
   if (typeof deps[name] !== "function") throw new Error(`hermes plugin api routes require ${name}`);
 }
 
+function manifestAuditValue(value = "") {
+  return String(value || "").trim().slice(0, 80);
+}
+
+function manifestAuditAppearance(input = {}) {
+  if (!input || typeof input !== "object") return {};
+  return {
+    theme: manifestAuditValue(input.theme || input.appearanceTheme || input.pluginTheme),
+    fontSize: manifestAuditValue(input.fontSize || input.appearanceFontSize || input.pluginFontSize),
+  };
+}
+
 function createHermesPluginApiRoutes(deps = {}) {
   for (const name of ["requireWorkspaceAccess", "sendJson"]) requireFunction(deps, name);
   if (!deps.hermesPluginService || typeof deps.hermesPluginService.manifest !== "function") {
@@ -473,6 +485,23 @@ function createHermesPluginApiRoutes(deps = {}) {
       },
       launchPlugin: true,
     });
+    if (typeof deps.auditPluginManifestRequest === "function") {
+      deps.auditPluginManifestRequest({
+        eventType: "plugin_manifest_request",
+        pluginId,
+        workspaceId,
+        appOriginPresent: Boolean(url?.searchParams?.get("appOrigin")),
+        requestedAppearance: manifestAuditAppearance({
+          theme: url?.searchParams?.get("appearanceTheme") || "",
+          fontSize: url?.searchParams?.get("appearanceFontSize") || "",
+        }),
+        responseAppearance: manifestAuditAppearance(manifest?.embed?.appearance || manifest?.appearance || {}),
+        available: manifest?.available === true,
+        code: manifestAuditValue(manifest?.code),
+        tokenStatus: manifestAuditValue(manifest?.embed?.tokenStatus),
+        sameOriginProxy: manifest?.embed?.sameOriginProxy === true,
+      });
+    }
     deps.sendJson(res, 200, Object.assign({ workspaceId }, manifest));
   }
 

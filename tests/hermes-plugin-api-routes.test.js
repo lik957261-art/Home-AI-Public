@@ -45,7 +45,7 @@ function parseBody(res) {
 }
 
 function makeRoutes(overrides = {}) {
-  const calls = { access: [], owner: [], manifest: [], grants: [], revokes: [], notifications: [], broadcasts: [] };
+  const calls = { access: [], owner: [], manifest: [], grants: [], revokes: [], notifications: [], broadcasts: [], audit: [] };
   const deps = Object.assign({
     requireWorkspaceAccess(req, res, workspaceId) {
       calls.access.push(workspaceId);
@@ -61,6 +61,9 @@ function makeRoutes(overrides = {}) {
     },
     broadcast(event) {
       calls.broadcasts.push(event);
+    },
+    auditPluginManifestRequest(event) {
+      calls.audit.push(event);
     },
     authenticateRequest(req) {
       return req.auth || { workspaceId: "owner", isOwner: true };
@@ -194,6 +197,18 @@ async function testWardrobeManifestRoute() {
     launchPlugin: true,
   }]);
   assert.equal(parseBody(res).entry.url, "http://nas/?embed=hermes");
+  assert.deepEqual(calls.audit, [{
+    eventType: "plugin_manifest_request",
+    pluginId: "wardrobe",
+    workspaceId: "weixin_wuping",
+    appOriginPresent: true,
+    requestedAppearance: { theme: "dark", fontSize: "large" },
+    responseAppearance: { theme: "", fontSize: "" },
+    available: true,
+    code: "",
+    tokenStatus: "",
+    sameOriginProxy: false,
+  }]);
 }
 
 async function testCodexManifestRoute() {

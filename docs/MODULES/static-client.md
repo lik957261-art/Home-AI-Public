@@ -58,6 +58,23 @@ Gateway plugin/schema/profile changes:
   size as sanitized appearance metadata. Hermes `standard` maps to plugin
   `default`; the plugin iframe should not be initialized until the launch entry
   carries the matching `pluginTheme` and `pluginFontSize` query values.
+- Embedded-plugin launch manifest caches must include the sanitized appearance
+  key, not only the workspace id. If a user changes theme or font size, the next
+  plugin entry must request a fresh launch token instead of reusing an older
+  `system/default` manifest.
+- Static hotfixes that touch cache-sensitive client assets, including
+  `public/app-*.js`, `public/styles.css`, `public/index.html`,
+  `public/service-worker.js`, or viewer HTML files, must bump the
+  client/cache version in the same change before deployment. Deploying changed
+  JavaScript under an unchanged `?v=<client-version>` URL can leave installed
+  PWA/service-worker clients on the old script even when the production file has
+  been copied.
+- On Windows, do not rewrite static/test files containing Chinese text through
+  PowerShell `Get-Content -Raw` plus `Set-Content` / `WriteAllText` unless the
+  command explicitly preserves UTF-8 from a known UTF-8 source. Prefer
+  `apply_patch` for targeted edits or a Node-based byte/UTF-8 script for
+  mechanical version replacement. This prevents mojibake in UI strings and test
+  regexes.
 - Theme changes must be verified against real app surfaces, not only root token
   strings. At minimum, check sidebar/top bar, composer, user and assistant
   messages, topic cards, Action Inbox rows and deliverable tags, Growth warning

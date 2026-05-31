@@ -314,6 +314,34 @@ contains matching `pluginTheme` / `pluginFontSize` query parameters. The host
 must treat these as session-scoped preferences and must not leak keys, launch
 tokens, local paths, raw settings dumps, or private content into appearance
 metadata.
+The host cache harness must also assert a manifest/launch result is reused only
+when both workspace id and sanitized appearance key match. A previously fetched
+`system/default` Wardrobe manifest must not satisfy a later `dark/large` launch;
+the next plugin entry must fetch a new launch token and entry URL with matching
+appearance query parameters. The render path must apply the same
+workspace-and-appearance check before reusing an existing iframe shell, so a new
+appearance-aware launch token cannot remain unconsumed while the old iframe
+session stays mounted.
+The same harness must require stale plugin shells to be discarded when the
+workspace-and-appearance key no longer matches; `preserve_iframe_state`,
+navigation metadata, and refresh warmup/cooldown paths must not preserve an old
+`system/default` Wardrobe iframe after a `dark/large` launch has been requested.
+Plugin appearance harnesses must assert Hermes launches plugins with the
+effective host theme. A host preference of `system` must be resolved via
+`prefers-color-scheme` before launch, so a dark-mode PWA sends `dark` rather
+than relying on each plugin to interpret `system` identically.
+Plugin API route tests must also assert bounded manifest audit events capture
+requested and response appearance without recording keys, launch tokens, entry
+URLs, cookies, plugin content, or request bodies. This audit is the required
+diagnostic path when a plugin reports receiving `system/default` while Hermes is
+visibly in dark mode.
+Static-client hotfixes must also run `node tests\static-cache-version-harness.test.js`.
+This harness fails when cache-sensitive `public/app-*.js`, `public/styles.css`,
+viewer HTML, `index.html`, or `service-worker.js` changes are present without a
+client/cache version bump from `HEAD`, and it checks that the versioned app shell
+uses the current embedded-plugin host script URL. Windows edits to static/test
+files with Chinese text must use UTF-8-safe paths; PowerShell raw text rewrites
+are not an acceptable harness path for version replacement.
 Finance embedded-app registration follows the same host contract. Tests must
 cover compact manifest normalization (`entry` string, top-level `launch`,
 `toolsets`, `mcpServer`, `permissions`, and `embedding` events), Owner-default

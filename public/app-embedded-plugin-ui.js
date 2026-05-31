@@ -36,6 +36,7 @@ function embeddedPluginRecord(pluginId) {
   if (!state.embeddedPlugins[pluginId]) {
     state.embeddedPlugins[pluginId] = {
       manifest: null,
+      manifestAppearanceKey: "",
       manifestFetchedAt: 0,
       manifestFreshForFrame: false,
       frameOrigin: "",
@@ -56,10 +57,10 @@ function embeddedPluginDefByView(viewMode = state.viewMode) {
   return Object.values(EMBEDDED_PLUGIN_DEFS).find((item) => item.viewMode === viewMode) || null;
 }
 
-function embeddedPluginCurrentManifest(def) {
+function embeddedPluginCurrentManifest(def, appearanceKey = embeddedPluginAppearanceKey()) {
   const record = embeddedPluginRecord(def.id);
   const workspaceId = state.selectedWorkspaceId || "owner";
-  return record.manifest?.workspaceId === workspaceId ? record.manifest : null;
+  return embeddedPluginManifestMatchesLaunchContext(record, workspaceId, appearanceKey) ? record.manifest : null;
 }
 
 function embeddedPluginAvailable(manifest) {
@@ -137,14 +138,36 @@ function embeddedPluginEntryUrlForFrame(def, manifest) {
 }
 
 function embeddedPluginAppearanceForLaunch() {
-  const theme = ["system", "dark", "light"].includes(String(state.themeMode || "").trim())
+  const themeMode = ["system", "dark", "light"].includes(String(state.themeMode || "").trim())
     ? String(state.themeMode || "").trim()
     : "system";
+  const theme = themeMode === "system"
+    ? (window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light")
+    : themeMode;
   const rawFontSize = String(state.fontSize || "").trim();
   const fontSize = rawFontSize === "standard"
     ? "default"
     : (["small", "default", "large", "xlarge", "xxlarge"].includes(rawFontSize) ? rawFontSize : "default");
   return { theme, fontSize };
+}
+
+function embeddedPluginAppearanceKey(appearance = embeddedPluginAppearanceForLaunch()) {
+  const theme = ["system", "dark", "light"].includes(String(appearance.theme || "").trim())
+    ? String(appearance.theme || "").trim()
+    : "system";
+  const rawFontSize = String(appearance.fontSize || "").trim();
+  const fontSize = rawFontSize === "standard"
+    ? "default"
+    : (["small", "default", "large", "xlarge", "xxlarge"].includes(rawFontSize) ? rawFontSize : "default");
+  return `${theme}/${fontSize}`;
+}
+
+function embeddedPluginManifestMatchesLaunchContext(record, workspaceId, appearanceKey = embeddedPluginAppearanceKey()) {
+  return Boolean(
+    record?.checked
+    && record?.manifest?.workspaceId === workspaceId
+    && record?.manifestAppearanceKey === appearanceKey
+  );
 }
 
 function updateEmbeddedPluginNavigationState(def, payload = {}) {
@@ -543,11 +566,12 @@ function showEmbeddedPluginLoadingSurface(def) {
 async function loadEmbeddedPluginManifest(def, options = {}) {
   const record = embeddedPluginRecord(def.id);
   const workspaceId = state.selectedWorkspaceId || "owner";
+  const appearance = embeddedPluginAppearanceForLaunch();
+  const appearanceKey = embeddedPluginAppearanceKey(appearance);
   if (!options.force && record.loading) return;
-  if (!options.force && record.checked && record.manifest?.workspaceId === workspaceId) return;
+  if (!options.force && embeddedPluginManifestMatchesLaunchContext(record, workspaceId, appearanceKey)) return;
   record.loading = true;
   try {
-    const appearance = embeddedPluginAppearanceForLaunch();
     const params = new URLSearchParams({
       workspaceId,
       appOrigin: window.location.origin,
@@ -556,6 +580,7 @@ async function loadEmbeddedPluginManifest(def, options = {}) {
     });
     const manifest = await api(`${def.manifestPath}?${params.toString()}`);
     record.manifest = Object.assign({ workspaceId }, manifest);
+    record.manifestAppearanceKey = appearanceKey;
     record.manifestFetchedAt = Date.now();
     record.manifestFreshForFrame = embeddedPluginUsesLaunchToken(record.manifest);
   } catch (err) {
@@ -566,6 +591,7 @@ async function loadEmbeddedPluginManifest(def, options = {}) {
       code: `${def.id}_plugin_manifest_failed`,
       warning: err?.message || String(err),
     };
+    record.manifestAppearanceKey = "";
     record.manifestFetchedAt = 0;
     record.manifestFreshForFrame = false;
   } finally {
@@ -641,7 +667,8 @@ function renderEmbeddedPluginView(def) {
     ensureVerticalScrollAffordance();
     return;
   }
-  if (!record.checked || record.manifest?.workspaceId !== (state.selectedWorkspaceId || "owner")) {
+  if (!embeddedPluginManifestMatchesLaunchContext(record, state.selectedWorkspaceId || "owner")) {
+    if (record.shellNode) discardEmbeddedPluginShell(def);
     showEmbeddedPluginLoadingSurface(def);
     loadEmbeddedPluginManifest(def).catch(showError);
     updateNavigationControls();

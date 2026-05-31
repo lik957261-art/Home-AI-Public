@@ -147,6 +147,31 @@ theme-colored loading shell until this launch response is available; do not
 initialize a plugin iframe from a stale/default entry that would flash the
 wrong theme or font size.
 
+The host-side launch manifest cache is keyed by both workspace and sanitized
+appearance. A cached plugin manifest or launch entry fetched for
+`system/default` must not be reused after the Hermes host changes to `dark`,
+`light`, `large`, `xlarge`, or another supported appearance value. Changing
+theme or font size should cause the next plugin entry to fetch a fresh launch
+token with matching `appearance` metadata instead of replaying the old token.
+Hermes sends the current effective host theme to plugins, not merely the stored
+theme preference. If the user preference is `system`, the host resolves
+`prefers-color-scheme` and sends `dark` or `light` in the launch appearance so
+all plugins inherit the visible Hermes appearance consistently.
+For production diagnosis, Hermes records a bounded manifest audit line for each
+plugin manifest/launch request under `workspace/hermes-web/logs/plugin-manifest-requests.jsonl`
+in the configured data directory. The audit line may include plugin id,
+workspace id, requested/response appearance, availability, token status, and
+same-origin-proxy status. It must not include workspace keys, launch tokens,
+cookies, full entry URLs, plugin content, or request bodies.
+The render path must apply the same workspace-and-appearance check before it
+decides a manifest is current; otherwise a new launch token can be issued but
+left unconsumed while the old iframe session remains mounted.
+When the current plugin shell does not match the active appearance key, the host
+must discard that shell before fetching/rendering the next launch entry. Do not
+let `preserve_iframe_state`, navigation state, or warmup/cooldown logic keep a
+stale `system/default` Wardrobe iframe visible after the host has switched to
+`dark/large`.
+
 Registration is not complete until a smoke check proves:
 
 - the manifest queried with the real Hermes HTTPS origin returns an HTTPS
