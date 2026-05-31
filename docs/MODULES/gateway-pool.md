@@ -53,6 +53,35 @@ not start a whole worker class with the first key in the manifest. A worker can
 still pass `/health` while rejecting Mobile `/v1/responses` requests with
 `401 invalid_api_key` if the process key and manifest key differ.
 
+## Planned Elastic Worker Scheduling
+
+Hermes Mobile should move Gateway Pool startup from a fully eager fixed pool to
+a hybrid elastic pool. The target design keeps only the required warm baseline,
+starts compatible workers on demand, reuses them for a bounded warm period, and
+retires idle workers after a TTL.
+
+Initial target policy:
+
+- Owner keeps `1` compatible warm worker and may expand to `4` workers.
+- Non-Owner workspaces keep `0` warm workers and may expand to `2` workers.
+- A global elastic cap should limit total started workers; the first proposed
+  default is `8`.
+- Idle workers should remain reusable for several hours; the first proposed
+  default is `180` minutes.
+- A configured but stopped on-demand worker is expected state, not Gateway Pool
+  degradation.
+
+Worker reuse must be keyed by workspace, profile, provider, permission tier,
+effective toolset/schema set, MCP/plugin binding, and manifest identity. Do not
+reuse a healthy worker across incompatible providers, permission tiers, or
+workspace-bound MCP registrations. Provider selection remains user intent: a
+DeepSeek request must not be silently rerouted to OpenAI/Codex or Grok merely
+because those workers are already warm.
+
+Detailed design:
+
+- `docs/IMPLEMENTATION_NOTES/gateway-elastic-worker-scheduling.md`
+
 ## Run Liveness
 
 Hermes Mobile tracks the Gateway stream and periodically checks the real Gateway
@@ -536,6 +565,28 @@ processes are healthy. Do not treat the wrapper exit alone as the source of
 truth. Verify the worker-distro `official-clean` commit, lowgw listening ports,
 process start times, `/api/status?detail=1`, and a Gateway Pool production
 smoke; then clean up only the stale wrapper processes if they remain attached.
+
+## OpenAI Codex Shared Auth
+
+Low Gateway OpenAI/Codex profiles share an auth store so token refreshes remain
+coherent across `lowgw*` workers. The runtime must not print raw token values,
+refresh tokens, cookies, or workspace keys while diagnosing this path.
+
+Use the production wrapper for low-Gateway auth commands:
+
+- `HOME=/home/hermes HERMES_HOME=/home/hermes/.hermes /opt/hermes-gateway-runtime/bin/hermes auth status openai-codex`
+- `HOME=/home/hermes HERMES_HOME=/home/hermes/.hermes /opt/hermes-gateway-runtime/bin/hermes auth list`
+
+Do not use a direct `python -m hermes_cli.main` command for shared-auth repair
+unless `PYTHONPATH` includes `/opt/hermes-gateway-runtime/runtime-overrides`
+before `/opt/hermes-gateway-runtime/official-clean`. The Mobile runtime override
+patches official `utils.atomic_replace()` so symlinked `auth.json` writes that
+cross from WSL ext4 to Windows-mounted storage recover from `EXDEV` by retrying
+the final replace on the resolved target filesystem.
+
+Durable runbook:
+
+- `docs/RUNBOOKS/openai-codex-shared-auth.md`
 
 ## Cross-Shell Operation Rule
 

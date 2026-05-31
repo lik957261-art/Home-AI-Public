@@ -13,7 +13,10 @@ import sys
 import threading
 import importlib
 import contextvars
+import errno
 import inspect
+import shutil
+import tempfile
 from typing import Any, Iterable
 
 logger = logging.getLogger(__name__)
@@ -38,6 +41,10 @@ _openai_responses_patch_installed = False
 _openai_responses_import_hook_installed = False
 _openai_base_client_patch_installed = False
 _openai_base_client_import_hook_installed = False
+_utils_atomic_replace_patch_installed = False
+_utils_atomic_replace_import_hook_installed = False
+_auth_atomic_replace_patch_installed = False
+_auth_atomic_replace_import_hook_installed = False
 _deferred_patch_attempts = 0
 _mcp_discovery_lock = threading.Lock()
 _mcp_discovery_attempted = False
@@ -94,6 +101,8 @@ def _write_runtime_patch_status_marker() -> None:
                 "codex_runtime={codex_runtime} "
                 "openai_responses={openai_responses} "
                 "openai_base_client={openai_base_client} "
+                "utils_atomic_replace={utils_atomic_replace} "
+                "auth_atomic_replace={auth_atomic_replace} "
                 "attempt={attempt}\n".format(
                     profile=profile,
                     prompt=_prompt_patch_installed,
@@ -107,6 +116,8 @@ def _write_runtime_patch_status_marker() -> None:
                     codex_runtime=_codex_runtime_patch_installed,
                     openai_responses=_openai_responses_patch_installed,
                     openai_base_client=_openai_base_client_patch_installed,
+                    utils_atomic_replace=_utils_atomic_replace_patch_installed,
+                    auth_atomic_replace=_auth_atomic_replace_patch_installed,
                     attempt=_deferred_patch_attempts,
                 )
             )
@@ -126,6 +137,190 @@ def _write_runtime_event_marker(event: str) -> None:
             handle.write(f"profile={profile} event={event}\n")
     except Exception:
         logger.debug("Hermes Mobile failed to write runtime event marker", exc_info=True)
+
+
+def _patch_utils_atomic_replace_module(utils_module: Any) -> bool:
+    global _utils_atomic_replace_patch_installed
+    original = getattr(utils_module, "atomic_replace", None)
+    if not callable(original):
+        return False
+    if _has_patch_marker(original, "utils_atomic_replace_exdev"):
+        _utils_atomic_replace_patch_installed = True
+        return True
+
+    def patched_atomic_replace(tmp_path, target):
+        try:
+            return original(tmp_path, target)
+        except OSError as exc:
+            if exc.errno != errno.EXDEV:
+                raise
+
+            target_str = str(target)
+            real_path = os.path.realpath(target_str) if os.path.islink(target_str) else target_str
+            real_dir = os.path.dirname(real_path) or "."
+            os.makedirs(real_dir, exist_ok=True)
+            fd, fallback_tmp = tempfile.mkstemp(
+                dir=real_dir,
+                prefix=f".{os.path.basename(real_path)}_",
+                suffix=".tmp",
+            )
+            fd_to_close = fd
+            try:
+                try:
+                    source_mode = os.stat(str(tmp_path)).st_mode & 0o777
+                except OSError:
+                    source_mode = None
+                with os.fdopen(fd, "wb") as out_file, open(str(tmp_path), "rb") as in_file:
+                    fd_to_close = None
+                    shutil.copyfileobj(in_file, out_file)
+                    out_file.flush()
+                    os.fsync(out_file.fileno())
+                if source_mode is not None:
+                    try:
+                        os.chmod(fallback_tmp, source_mode)
+                    except OSError:
+                        pass
+                os.replace(fallback_tmp, real_path)
+                try:
+                    os.unlink(str(tmp_path))
+                except OSError:
+                    pass
+                _write_runtime_event_marker("utils_atomic_replace_exdev_fallback")
+                return real_path
+            except BaseException:
+                if fd_to_close is not None:
+                    try:
+                        os.close(fd_to_close)
+                    except OSError:
+                        pass
+                try:
+                    os.unlink(fallback_tmp)
+                except OSError:
+                    pass
+                raise
+
+    setattr(
+        utils_module,
+        "atomic_replace",
+        _mark_patched(patched_atomic_replace, "utils_atomic_replace_exdev"),
+    )
+    _utils_atomic_replace_patch_installed = True
+    return True
+
+
+def _install_utils_atomic_replace_import_hook() -> None:
+    global _utils_atomic_replace_import_hook_installed
+    if _utils_atomic_replace_import_hook_installed:
+        return
+    try:
+        import importlib.abc
+        import importlib.machinery
+    except Exception:
+        return
+
+    class _UtilsAtomicReplacePatchLoader(importlib.abc.Loader):
+        def __init__(self, original_loader):
+            self._original_loader = original_loader
+
+        def create_module(self, spec):
+            create_module = getattr(self._original_loader, "create_module", None)
+            if callable(create_module):
+                return create_module(spec)
+            return None
+
+        def exec_module(self, module):
+            self._original_loader.exec_module(module)
+            _patch_utils_atomic_replace_module(module)
+
+    class _UtilsAtomicReplacePatchFinder(importlib.abc.MetaPathFinder):
+        def find_spec(self, fullname, path=None, target=None):
+            if fullname != "utils":
+                return None
+            spec = importlib.machinery.PathFinder.find_spec(fullname, path)
+            if spec is None or spec.loader is None:
+                return spec
+            spec.loader = _UtilsAtomicReplacePatchLoader(spec.loader)
+            return spec
+
+    sys.meta_path.insert(0, _UtilsAtomicReplacePatchFinder())
+    _utils_atomic_replace_import_hook_installed = True
+
+
+def _install_utils_atomic_replace_patch() -> None:
+    with _patch_lock:
+        if _utils_atomic_replace_patch_installed:
+            return
+        module = sys.modules.get("utils")
+        if module is not None and _patch_utils_atomic_replace_module(module):
+            return
+        _install_utils_atomic_replace_import_hook()
+
+
+def _patch_auth_atomic_replace_module(auth_module: Any) -> bool:
+    global _auth_atomic_replace_patch_installed
+    try:
+        utils_module = importlib.import_module("utils")
+        _patch_utils_atomic_replace_module(utils_module)
+        replacement = getattr(utils_module, "atomic_replace", None)
+    except Exception:
+        return False
+    if not callable(replacement):
+        return False
+    current = getattr(auth_module, "atomic_replace", None)
+    if current is replacement or _has_patch_marker(current, "utils_atomic_replace_exdev"):
+        _auth_atomic_replace_patch_installed = True
+        return True
+    setattr(auth_module, "atomic_replace", replacement)
+    _auth_atomic_replace_patch_installed = True
+    return True
+
+
+def _install_auth_atomic_replace_import_hook() -> None:
+    global _auth_atomic_replace_import_hook_installed
+    if _auth_atomic_replace_import_hook_installed:
+        return
+    try:
+        import importlib.abc
+        import importlib.machinery
+    except Exception:
+        return
+
+    class _AuthAtomicReplacePatchLoader(importlib.abc.Loader):
+        def __init__(self, original_loader):
+            self._original_loader = original_loader
+
+        def create_module(self, spec):
+            create_module = getattr(self._original_loader, "create_module", None)
+            if callable(create_module):
+                return create_module(spec)
+            return None
+
+        def exec_module(self, module):
+            self._original_loader.exec_module(module)
+            _patch_auth_atomic_replace_module(module)
+
+    class _AuthAtomicReplacePatchFinder(importlib.abc.MetaPathFinder):
+        def find_spec(self, fullname, path=None, target=None):
+            if fullname != "hermes_cli.auth":
+                return None
+            spec = importlib.machinery.PathFinder.find_spec(fullname, path)
+            if spec is None or spec.loader is None:
+                return spec
+            spec.loader = _AuthAtomicReplacePatchLoader(spec.loader)
+            return spec
+
+    sys.meta_path.insert(0, _AuthAtomicReplacePatchFinder())
+    _auth_atomic_replace_import_hook_installed = True
+
+
+def _install_auth_atomic_replace_patch() -> None:
+    with _patch_lock:
+        if _auth_atomic_replace_patch_installed:
+            return
+        module = sys.modules.get("hermes_cli.auth")
+        if module is not None and _patch_auth_atomic_replace_module(module):
+            return
+        _install_auth_atomic_replace_import_hook()
 
 
 def _sanitize_toolset_list(value: Any) -> list[str]:
@@ -1625,6 +1820,12 @@ def _deferred_patch_attempt() -> None:
         openai_base_client = sys.modules.get("openai._base_client")
         if openai_base_client is not None:
             _patch_openai_base_client_module(openai_base_client)
+        utils_module = sys.modules.get("utils")
+        if utils_module is not None:
+            _patch_utils_atomic_replace_module(utils_module)
+        auth_module = sys.modules.get("hermes_cli.auth")
+        if auth_module is not None:
+            _patch_auth_atomic_replace_module(auth_module)
     except Exception:
         logger.debug("Hermes Mobile deferred runtime override patch failed", exc_info=True)
 
@@ -1662,6 +1863,8 @@ def _eager_import_and_patch_runtime_modules() -> None:
         ("agent.codex_runtime", _patch_codex_runtime_module),
         ("openai.resources.responses.responses", _patch_openai_responses_module),
         ("openai._base_client", _patch_openai_base_client_module),
+        ("utils", _patch_utils_atomic_replace_module),
+        ("hermes_cli.auth", _patch_auth_atomic_replace_module),
     )
     for module_name, patcher in targets:
         try:
@@ -1674,6 +1877,8 @@ def _eager_import_and_patch_runtime_modules() -> None:
 _write_runtime_override_loaded_marker()
 if _configured_mcp_servers():
     _ensure_mcp_discovered_once()
+_install_utils_atomic_replace_patch()
+_install_auth_atomic_replace_patch()
 _install_model_tools_patch()
 _install_system_prompt_patch()
 _install_api_server_patch()

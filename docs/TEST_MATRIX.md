@@ -63,8 +63,8 @@ surface.
 
 H1 includes Growth learning cards, Action Inbox passive notifications,
 Automation/Cron execution, Gateway toolset selection/run telemetry,
-cross-shell production operations, Web Push click routing,
-permission/workspace boundaries, and Public Export/Release.
+Gateway elastic worker scheduling, cross-shell production operations, Web Push
+click routing, permission/workspace boundaries, and Public Export/Release.
 
 Gateway Pool startup/provisioning harnesses must cover stable manifest
 profile/port mapping. `start-low-gateways.sh` and `configure-low-gateways.sh`
@@ -84,6 +84,32 @@ can stay healthy while rejecting Mobile `/v1/responses` calls with
 `401 invalid_api_key`. Gateway profile/schema deployments must sync source
 scripts into the production worker root before restart and then run live schema
 smoke with the same manifest key Mobile uses for the selected worker.
+
+OpenAI/Codex shared-auth harnesses must cover runtime-overlay protection for
+symlink-preserving atomic writes that cross WSL ext4 and Windows-mounted
+storage, including the `hermes_cli.auth` module's direct imported reference.
+The static guard is `node tests\startup-scripts.test.js`; live repair
+validation should use `/opt/hermes-gateway-runtime/bin/hermes auth list` with
+`HOME=/home/hermes` and `HERMES_HOME=/home/hermes/.hermes`, then
+`C:\ProgramData\HermesMobile\gateway-worker\check-worker-codex-auth.ps1`, with
+no raw tokens or refresh tokens printed.
+
+Gateway elastic worker scheduling is an H1 workflow. Before switching
+production from eager startup to hybrid/on-demand startup, harnesses must cover
+Owner `minWarm=1` / `maxWorkers=4`, non-Owner `minWarm=0` / `maxWorkers=2`,
+compatible warm-worker reuse, profile/provider-compatible cold start, workspace
+cap queueing, global cap queueing, idle TTL retirement, active-run protection,
+bounded launch-failure diagnostics, and `/api/status?detail=1` treating
+configured-but-stopped workers as expected state rather than unhealthy Gateway
+Pool degradation. The run-progress UI must distinguish starting, reused,
+queued, idle-retirement, and failed states without exposing API keys, workspace
+keys, plugin launch tokens, raw prompts, raw model output, or long logs.
+Focused implementation checks should include
+`node tests\gateway-elastic-worker-scheduler.test.js`,
+`node tests\gateway-run-start-service.test.js`,
+`node tests\gateway-run-lifecycle-service.test.js`,
+`node tests\task-list-ui.test.js`, `node tests\startup-scripts.test.js`, and
+`node tests\cross-shell-command-harness.test.js`.
 
 For graph-guided Growth card planning, the harness must preserve the
 graph-first authoring contract. Formal model-generated cards must require a

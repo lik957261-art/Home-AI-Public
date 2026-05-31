@@ -307,6 +307,15 @@ assert.match(gatewayRuntimeSiteCustomize, /def _eager_import_and_patch_runtime_m
 assert.match(gatewayRuntimeSiteCustomize, /importlib\.import_module\(module_name\)/);
 assert.match(gatewayRuntimeSiteCustomize, /_eager_import_and_patch_runtime_modules\(\)/);
 assert.match(gatewayRuntimeSiteCustomize, /_install_deferred_patch_retry\(\)/);
+assert.match(gatewayRuntimeSiteCustomize, /def _patch_utils_atomic_replace_module/);
+assert.match(gatewayRuntimeSiteCustomize, /errno\.EXDEV/);
+assert.match(gatewayRuntimeSiteCustomize, /shutil\.copyfileobj/);
+assert.match(gatewayRuntimeSiteCustomize, /"utils", _patch_utils_atomic_replace_module/);
+assert.match(gatewayRuntimeSiteCustomize, /_install_utils_atomic_replace_patch\(\)/);
+assert.match(gatewayRuntimeSiteCustomize, /def _patch_auth_atomic_replace_module/);
+assert.match(gatewayRuntimeSiteCustomize, /fullname != "hermes_cli\.auth"/);
+assert.match(gatewayRuntimeSiteCustomize, /"hermes_cli\.auth", _patch_auth_atomic_replace_module/);
+assert.match(gatewayRuntimeSiteCustomize, /_install_auth_atomic_replace_patch\(\)/);
 assert.match(startLowGatewaysChild, /start-low-gateways\.sh/);
 assert.match(startLowGatewaysChild, /wsl\.exe -d \$distroName -u root/);
 

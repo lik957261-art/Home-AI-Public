@@ -52,6 +52,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Web Push opens the wrong page or embedded viewer: `docs/RUNBOOKS/web-push-wrong-page.md`
 - Growth submit button disabled or local submission is misleading: `docs/RUNBOOKS/growth-submit-button-disabled.md`
 - Grok Gateway authentication or routing failure: `docs/RUNBOOKS/grok-gateway-auth.md`
+- OpenAI Codex shared auth repair: `docs/RUNBOOKS/openai-codex-shared-auth.md`
 - Codex Responses stream output missing: `docs/RUNBOOKS/codex-responses-stream-output-none.md`
 - OpenAI Codex MCP callable schema missing: `docs/RUNBOOKS/openai-codex-mcp-schema-missing.md`
 - Finance embedded plugin token error: `docs/RUNBOOKS/finance-plugin-token-error.md`
@@ -69,6 +70,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Growth knowledge graph design: `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-design.md`
 - Growth knowledge graph implementation plan: `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-implementation.md`
 - Tongbao platform currency and Growth coin exchange design: `docs/IMPLEMENTATION_NOTES/tongbao-platform-currency-design.md`
+- Gateway elastic worker scheduling: `docs/IMPLEMENTATION_NOTES/gateway-elastic-worker-scheduling.md`
 - Cross-module harness required matrix: `docs/IMPLEMENTATION_NOTES/harness-required-matrix.md`
 - Async Growth evaluation queue: `docs/IMPLEMENTATION_NOTES/async-growth-evaluation-queue.md`
 - Maintenance Gateway watchdog: `docs/IMPLEMENTATION_NOTES/maintenance-gateway-watchdog.md`

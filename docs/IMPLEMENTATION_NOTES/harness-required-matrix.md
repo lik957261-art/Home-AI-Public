@@ -252,6 +252,13 @@ Required harness dimensions:
   Startup tests must assert `start-low-gateways.sh` syncs staging to that WSL
   path before worker start, and production smoke must inspect the selected
   worker's `PYTHONPATH` plus `--schema-only` output after restart.
+- OpenAI/Codex shared-auth repair is part of the same Gateway runtime-overlay
+  contract. The harness must assert the overlay patches official
+  `utils.atomic_replace()` and `hermes_cli.auth`'s imported `atomic_replace`
+  reference for `EXDEV` on symlinked `auth.json` writes, and the live repair
+  path must validate `auth list` through
+  `/opt/hermes-gateway-runtime/bin/hermes` without printing raw tokens or
+  refresh tokens.
 - Provider selection is user intent. If the user has selected OpenAI/ChatGPT or
   DeepSeek, a missing MCP schema must be repaired inside that selected provider
   profile or reported as a provider-profile schema failure. Do not auto-route a
@@ -716,6 +723,57 @@ Primary docs and tests:
 - `node tests\task-list-ui.test.js`
 - `node tests\run-progress-ui-behavior.test.js`
 - `node tests\run-liveness.test.js`
+
+### Gateway Elastic Worker Scheduling
+
+Applies to Gateway Pool startup mode, on-demand worker launch, worker reuse,
+per-workspace worker caps, global worker caps, idle retirement, and
+user-visible scheduler status.
+
+Required harness dimensions:
+
+- Hybrid startup must keep exactly one Owner-compatible warm worker and zero
+  non-Owner warm workers before any non-Owner run starts.
+- Owner runs may expand to four workers, then must queue with a bounded
+  `workspace_capacity` status instead of starting a fifth worker.
+- A non-Owner workspace may expand to two workers, then must queue with the
+  same bounded capacity semantics.
+- A compatible warm worker must be reused instead of starting a new process.
+- Provider/profile selection is part of compatibility. A DeepSeek, Grok, or
+  OpenAI/Codex request must select or start a compatible profile and must not
+  silently reroute to another provider merely to reuse a warm worker.
+- Effective enabled toolsets, schema epoch, MCP/plugin binding, permission
+  tier, manifest profile, port, and API key identity must participate in the
+  compatibility key.
+- Global cap exhaustion must queue new work with a distinct `global_capacity`
+  status.
+- Profile-affinity waits, such as a conversation that must stay on the same
+  worker, must be distinguishable from workspace/global capacity waits.
+- Idle TTL retirement must stop only workers with no active run and no
+  protected maintenance action. Active, starting, and maintenance-protected
+  workers must survive the reaper.
+- Launch failure must record a bounded diagnostic, release or preserve the
+  queue according to terminal state, and never leave a user task indefinitely
+  `running`.
+- `/api/status?detail=1` must treat configured-but-stopped elastic workers as
+  expected state in hybrid mode, while still reporting failed launch or failed
+  health checks as degraded.
+- Production hybrid startup scripts must not launch the full historical fixed
+  pool. Eager startup must remain available as a rollback mode.
+- Run-progress and model-status UI must show starting, reused, queued,
+  idle-retirement, and failed scheduler states without exposing raw API keys,
+  workspace keys, plugin launch tokens, prompts, model output, or long logs.
+
+Primary docs and tests:
+
+- `docs/MODULES/gateway-pool.md`
+- `docs/IMPLEMENTATION_NOTES/gateway-elastic-worker-scheduling.md`
+- `node tests\gateway-elastic-worker-scheduler.test.js`
+- `node tests\gateway-run-start-service.test.js`
+- `node tests\gateway-run-lifecycle-service.test.js`
+- `node tests\task-list-ui.test.js`
+- `node tests\startup-scripts.test.js`
+- `node tests\cross-shell-command-harness.test.js`
 
 ### Cross-Shell Production Operations
 
