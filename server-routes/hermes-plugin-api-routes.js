@@ -101,8 +101,8 @@ const HERMES_PLUGIN_API_ROUTE_SPECS = Object.freeze([
     handlerKey: "sameOriginProxy",
     summary: "Proxy a local embedded plugin through the Hermes same-origin host.",
     riskLevel: "medium",
-    authMode: "none",
-    authRequired: false,
+    authMode: "access-key",
+    authRequired: true,
     workspaceScoped: true,
     resourceTypes: ["plugin", "proxy"],
     tags: ["plugin", "proxy"],
@@ -226,8 +226,26 @@ function createHermesPluginApiRoutes(deps = {}) {
     return "";
   }
 
-  function requestedProxyWorkspaceId(req, url) {
-    return url?.searchParams?.get("workspaceId") || req.headers?.["x-hermes-plugin-workspace-id"] || "owner";
+  function requestedProxyWorkspaceId(req, url, auth) {
+    const direct = url?.searchParams?.get("workspaceId") || req.headers?.["x-hermes-plugin-workspace-id"];
+    if (direct) return direct;
+    const referrer = req.headers?.referer || req.headers?.referrer || "";
+    if (referrer) {
+      try {
+        const referrerUrl = new URL(String(referrer), "http://localhost");
+        const referrerWorkspaceId = referrerUrl.searchParams.get("workspaceId");
+        if (referrerWorkspaceId) return referrerWorkspaceId;
+      } catch (_) {}
+    }
+    return auth?.workspaceId || "owner";
+  }
+
+  function pluginProxyWorkspaceAuthorized(pluginId, workspaceId, auth) {
+    const visiblePlugins = deps.hermesPluginService.list({
+      workspaceId,
+      ownerAuthorized: ownerAuthorizedForWorkspace(auth, workspaceId),
+    });
+    return Array.isArray(visiblePlugins) && visiblePlugins.some((plugin) => plugin?.id === pluginId);
   }
 
   function requestedProxyPluginId(url) {
@@ -413,7 +431,13 @@ function createHermesPluginApiRoutes(deps = {}) {
       deps.sendJson(res, 404, { ok: false, error: "plugin_proxy_not_found" });
       return;
     }
-    const workspaceId = requestedProxyWorkspaceId(req, url);
+    const auth = requestAuth(req);
+    const workspaceId = deps.requireWorkspaceAccess(req, res, requestedProxyWorkspaceId(req, url, auth));
+    if (!workspaceId) return;
+    if (!pluginProxyWorkspaceAuthorized(pluginId, workspaceId, auth)) {
+      deps.sendJson(res, 403, { ok: false, error: "plugin_workspace_not_authorized" });
+      return;
+    }
     const fetchImpl = deps.fetch || global.fetch;
     if (typeof fetchImpl !== "function") {
       deps.sendJson(res, 503, { ok: false, error: "fetch_unavailable" });

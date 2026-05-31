@@ -462,7 +462,9 @@ the current Finance auth split where `user_key` is optional and must be a separa
 workspace-user key, not a reused workspace key, while the workspace key is not
 sent in an `Authorization: Bearer ...` header. Tests must also cover
 same-origin proxy rewriting for `/finance.html`, `/manifest.webmanifest`,
-`/app-finance-ui.js`, and plugin-owned `/api/finance/...` resource URLs. The
+`/app-finance-ui.js`, and plugin-owned `/api/finance/...` resource URLs, plus
+negative cases where anonymous or unauthorized workspace requests are denied
+before any upstream fetch. The
 Finance token-error smoke must record only bounded evidence: manifest
 `available`, `tokenStatus`, redacted proxy launch URL shape, launch `302`
 preservation, redirect shape, `finance_hermes_session` cookie name, and a

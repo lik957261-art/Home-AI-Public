@@ -70,6 +70,16 @@ origin in `frame-ancestors` is still required for direct external plugin
 entries, but it is not enough by itself to make an HTTP iframe valid inside an
 HTTPS PWA.
 
+The same-origin proxy is still inside the Hermes Mobile access boundary. It
+must require Hermes workspace access before forwarding any request to a plugin
+upstream, including HTML shells, static assets, JSON APIs, uploads, and binary
+resources. The proxy uses the requested `workspaceId`, `x-hermes-plugin-workspace-id`,
+or same-origin referrer `workspaceId` as the target workspace hint, then clamps
+that hint through `requireWorkspaceAccess`. It must also verify that the plugin
+is visible to that effective workspace before fetching from the upstream. Public
+unauthenticated requests to `/api/hermes-plugins/<plugin-id>/proxy/...` must
+not expose plugin HTML or API data.
+
 The same-origin proxy must also rewrite plugin-owned resource URLs inside HTML,
 JavaScript, CSS, and JSON responses. HTML/CSS/JavaScript may use text rewriting,
 but JSON must be parsed and rewritten structurally: rewrite only string values

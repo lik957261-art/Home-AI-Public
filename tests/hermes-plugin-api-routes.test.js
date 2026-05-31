@@ -141,6 +141,8 @@ async function testSpecs() {
   assert.match(String(HERMES_PLUGIN_API_ROUTE_SPECS[4].pathRegex), /manifest/);
   assert.match(String(HERMES_PLUGIN_API_ROUTE_SPECS[5].pathRegex), /notifications/);
   assert.match(String(HERMES_PLUGIN_API_ROUTE_SPECS[6].pathRegex), /proxy/);
+  assert.equal(HERMES_PLUGIN_API_ROUTE_SPECS[6].authMode, "access-key");
+  assert.equal(HERMES_PLUGIN_API_ROUTE_SPECS[6].authRequired, true);
 }
 
 async function testListRoute() {
@@ -303,6 +305,63 @@ async function testWorkspaceBlockStopsRoute() {
   assert.deepEqual(calls.manifest, []);
 }
 
+async function testPluginProxyRequiresWorkspaceAccessBeforeFetch() {
+  const access = [];
+  const fetchCalls = [];
+  const { routes } = makeRoutes({
+    requireWorkspaceAccess(req, res, workspaceId) {
+      access.push(workspaceId);
+      sendJson(res, 403, { error: "Workspace access is not allowed" });
+      return "";
+    },
+    fetch() {
+      fetchCalls.push(true);
+      throw new Error("proxy must not fetch without workspace access");
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/finance/proxy/api/finance/overview?workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 403);
+  assert.deepEqual(access, ["owner"]);
+  assert.deepEqual(fetchCalls, []);
+}
+
+async function testPluginProxyDeniesUnauthorizedWorkspacePlugin() {
+  const fetchCalls = [];
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [];
+      },
+      manifest() {
+        return Promise.resolve({ ok: false, available: false, id: "finance" });
+      },
+      pluginManifestUrl(id) {
+        return id === "finance" ? "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch() {
+      fetchCalls.push(true);
+      throw new Error("proxy must not fetch unauthorized plugins");
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/finance/proxy/api/finance/overview?workspaceId=weixin_wuping"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 403);
+  assert.deepEqual(fetchCalls, []);
+  assert.equal(parseBody(res).error, "plugin_workspace_not_authorized");
+}
+
 async function testPluginNotificationRoute() {
   const { calls, routes } = makeRoutes();
   const res = makeResponse();
@@ -405,7 +464,7 @@ async function testCodexProxyPreservesLaunchCookieAndRedirect() {
 
 async function testFinanceProxyUsesConfiguredLocalUpstreamAndForwardsOrigin() {
   const fetchCalls = [];
-  const { routes } = makeRoutes({
+  const { calls, routes } = makeRoutes({
     fetch(url, options = {}) {
       fetchCalls.push({ url, options });
       assert.equal(url, "http://127.0.0.1:8791/finance.html?embed=hermes&workspaceId=owner");
@@ -430,6 +489,8 @@ async function testFinanceProxyUsesConfiguredLocalUpstreamAndForwardsOrigin() {
   assert.equal(res.statusCode, 200);
   assert.match(res.body, /href="\/api\/hermes-plugins\/finance\/proxy\/manifest\.webmanifest"/);
   assert.match(res.body, /src="\/api\/hermes-plugins\/finance\/proxy\/app-finance-ui\.js"/);
+  assert.deepEqual(calls.access, ["owner"]);
+  assert.deepEqual(calls.list, [{ workspaceId: "owner", ownerAuthorized: true }]);
   assert.equal(fetchCalls[0].options.headers["x-hermes-plugin-workspace-id"], "owner");
   assert.equal(fetchCalls[0].options.headers["x-hermes-public-origin"], "https://hermes.example.test");
 }
@@ -791,6 +852,8 @@ async function run() {
   await testCodexManifestRouteUsesEffectiveWorkspaceForOwnerSwitch();
   await testFinanceManifestRoute();
   await testWorkspaceBlockStopsRoute();
+  await testPluginProxyRequiresWorkspaceAccessBeforeFetch();
+  await testPluginProxyDeniesUnauthorizedWorkspacePlugin();
   await testPluginNotificationRoute();
   await testCodexProxyRewritesHtmlAndUsesUpstream();
   await testCodexProxyPreservesLaunchCookieAndRedirect();

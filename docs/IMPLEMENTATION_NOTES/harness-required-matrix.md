@@ -381,6 +381,11 @@ Required harness dimensions:
   classified as session persistence failure, not credential failure.
 - Server-side launch-token exchange must never expose the long-lived workspace
   key to frontend JavaScript, iframe URLs, docs, handoffs, screenshots, or logs.
+- Same-origin plugin proxy routes must remain inside the Hermes workspace access
+  boundary. The route must require Hermes workspace access, clamp any requested
+  `workspaceId` or `x-hermes-plugin-workspace-id` hint through
+  `requireWorkspaceAccess`, verify the plugin is visible to that effective
+  workspace, and avoid upstream fetches for anonymous or unauthorized requests.
 - Short launch URLs must be treated as one-time/short-lived. Rerendering a
   plugin tab must not rebuild an iframe from a consumed launch URL; the
   frontend must either preserve the existing iframe node or fetch a fresh
