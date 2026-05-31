@@ -211,6 +211,15 @@ or screenshots. Focused checks include
 `node tests\hermes-plugin-service.test.js`,
 `node tests\hermes-plugin-api-routes.test.js`, and
 `node tests\task-list-ui.test.js`.
+Generic plugin provisioning states must also be covered. A plugin-manager grant
+may enter `pending` only when Hermes owns an automatic provisioning service for
+that plugin. Manual/external-binding plugins such as Wardrobe should store
+`manual_required` and must not be blocked by the pending/failed gate solely due
+to the grant record; their launch path still returns the normal bounded key or
+launch diagnostic. Codex Mobile remains non-grantable. The service harness must
+cover Finance auto-provisioning, Finance failure blocking, Wardrobe
+manual-required non-blocking behavior, and Codex grant denial in
+`node tests\hermes-plugin-service.test.js`.
 Plugin notification coverage must assert that
 `POST /api/hermes-plugins/<plugin-id>/notifications` requires Hermes auth,
 requires a stable `sourceId`/`eventId`, supports durable Inbox-backed events and

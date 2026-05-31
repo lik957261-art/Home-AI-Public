@@ -424,6 +424,59 @@ async function testFinanceProvisioningFailureBlocksManifest() {
   assert.equal(manifest.embed.tokenStatus, "workspace_provisioning_failed");
 }
 
+async function testManualProvisioningGrantDoesNotBlockWardrobe() {
+  const service = createHermesPluginService({
+    plugins: [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }],
+    wardrobeAccessKeyPath: __filename,
+    fetch(url) {
+      assert.equal(url, "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest");
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(sampleManifest()) });
+    },
+  });
+  const grant = await service.grantWorkspace({ id: "wardrobe", workspaceId: "weixin_manual", actor: "owner" });
+  assert.equal(grant.ok, true);
+  assert.equal(grant.record.provisioningStatus, "manual_required");
+  assert.equal(service.list({ workspaceId: "weixin_manual" })[0].id, "wardrobe");
+  const installed = service.listInstalled().find((item) => item.id === "wardrobe");
+  assert.equal(installed.workspaceAuthorizations[0].provisioningStatus, "manual_required");
+  const manifest = await service.manifest({ id: "wardrobe", workspaceId: "weixin_manual" });
+  assert.equal(manifest.available, true);
+}
+
+async function testLegacyManualProvisioningPendingDoesNotBlockWardrobe() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-wardrobe-pending-"));
+  const authPath = path.join(dir, "plugin-workspace-authorizations.json");
+  fs.writeFileSync(authPath, JSON.stringify({
+    version: 1,
+    plugins: {
+      wardrobe: {
+        records: {
+          weixin_legacy: {
+            workspaceId: "weixin_legacy",
+            status: "authorized",
+            provisioningStatus: "pending",
+          },
+        },
+      },
+    },
+  }, null, 2), "utf8");
+  const service = createHermesPluginService({
+    dataDir: dir,
+    pluginAuthorizationStorePath: authPath,
+    plugins: [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }],
+    wardrobeAccessKeyPath: __filename,
+    fetch(url) {
+      assert.equal(url, "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest");
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(sampleManifest()) });
+    },
+  });
+  const installed = service.listInstalled().find((item) => item.id === "wardrobe");
+  assert.equal(installed.workspaceAuthorizations[0].provisioningStatus, "manual_required");
+  assert.equal(service.list({ workspaceId: "weixin_legacy" })[0].id, "wardrobe");
+  const manifest = await service.manifest({ id: "wardrobe", workspaceId: "weixin_legacy" });
+  assert.equal(manifest.available, true);
+}
+
 async function testHttpsManifestOverride() {
   const service = createHermesPluginService({
     env: {
@@ -865,6 +918,8 @@ async function run() {
   testInstalledPluginListReflectsWorkspaceKeyBindings();
   await testFinanceGrantProvisionsWorkspaceKeyAndBind();
   await testFinanceProvisioningFailureBlocksManifest();
+  await testManualProvisioningGrantDoesNotBlockWardrobe();
+  await testLegacyManualProvisioningPendingDoesNotBlockWardrobe();
   await testHttpsManifestOverride();
   await testFetchFailureReturnsUnavailable();
   await testLaunchEntryUsesServerSideWorkspaceKey();

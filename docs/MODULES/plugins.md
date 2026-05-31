@@ -277,6 +277,26 @@ usable. Hermes must not store or return the raw Finance workspace key in the
 authorization record, frontend state, iframe URL, postMessage payload, docs,
 handoffs, screenshots, or logs.
 
+Provisioning states are generic across plugins:
+
+- `not_supported`: the plugin has no Hermes-side provisioning workflow.
+- `manual_required`: Owner has granted visibility, but plugin-side binding is
+  created by another owner-controlled flow or an existing workspace key; Hermes
+  should not block list/manifest solely because this state is present.
+- `pending`: Hermes has started an automatic provisioning workflow and must not
+  expose the plugin as usable until the workflow resolves.
+- `active`: the grant and required plugin-side binding are usable.
+- `provisioning_failed`: the grant record exists, but the plugin-side binding
+  failed; non-Owner list/manifest/launch must be blocked with a bounded
+  diagnostic.
+
+Only plugins with a registered Hermes-side provisioning service may enter
+`pending` from plugin-manager grant. As of v401 this applies to Finance. Plugins
+such as Wardrobe that rely on an external or manual owner binding use
+`manual_required` until an effective workspace key is discovered or the launch
+path returns its own bounded diagnostic. Codex Mobile remains Owner-only and is
+not grantable through this contract.
+
 The plugin manager's open/closed status must reflect the same effective
 workspace availability used by the launch path. For workspace-private plugins,
 Hermes merges explicit Owner grants, configured workspace allowlists, and

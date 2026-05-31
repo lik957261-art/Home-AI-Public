@@ -13,10 +13,10 @@ function pluginAdminWorkspaceRows(plugin) {
       const authorization = authorizations.get(workspaceId) || {};
       const provisioningStatus = authorization.provisioningStatus || (enabled ? "active" : "");
       const provisioningError = authorization.provisioningError || "";
-      const statusText = enabled && provisioningStatus === "provisioning_failed"
-        ? "authorized / provisioning_failed"
-        : enabled && provisioningStatus === "pending"
-          ? "authorized / pending"
+      const statusText = enabled && provisioningStatus === "active"
+        ? "已开通"
+        : enabled && provisioningStatus
+          ? `authorized / ${provisioningStatus}`
           : enabled ? "已开通" : "未开通";
       const statusTitle = provisioningError ? ` title="${escapeHtml(provisioningError)}"` : "";
       const disabled = plugin.allowWorkspaceGrant === false;

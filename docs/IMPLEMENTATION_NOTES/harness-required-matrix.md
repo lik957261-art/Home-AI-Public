@@ -1207,6 +1207,13 @@ Required contract dimensions:
   `provisioning_failed` state and must block non-Owner list/manifest/launch
   rather than falling through to `plugin_launch_key_missing` or a misleading
   usable tab.
+- Generic plugin provisioning status is part of the same contract. A grant may
+  enter `pending` only when Hermes owns the automatic provisioning service for
+  that plugin. Plugins with manual or external binding must store
+  `manual_required`, keep the admin diagnostic visible, and avoid the
+  pending/failed launch block unless a real automatic provisioning attempt has
+  failed. Harnesses must prove Finance auto-provisioning, Wardrobe
+  manual-required non-blocking grants, and Codex non-grantability.
 - Plugin notification events are part of the H1 passive-notification path even
   though the plugin host itself is H2. A plugin backend must call Hermes
   `POST /api/hermes-plugins/<plugin-id>/notifications` with a stable

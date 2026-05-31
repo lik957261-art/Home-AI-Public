@@ -463,7 +463,7 @@ function pluginWorkspaceProvisioningBlock(plugin, input = {}, options = {}) {
   const workspaceId = stringValue(input.workspaceId || "owner");
   if (!workspaceId || workspaceId === "owner") return null;
   const pluginId = stringValue(plugin?.id || input.id);
-  if (!pluginId || plugin?.provisioning?.supported !== true) return null;
+  if (!pluginId || !pluginSupportsHermesProvisioning(plugin)) return null;
   const record = typeof options.authorizationService?.recordForWorkspace === "function"
     ? options.authorizationService.recordForWorkspace(pluginId, workspaceId)
     : null;
@@ -486,6 +486,22 @@ function pluginWorkspaceProvisioningBlock(plugin, input = {}, options = {}) {
       tokenStatus: failed ? "workspace_provisioning_failed" : "workspace_provisioning_pending",
     },
   };
+}
+
+function pluginSupportsHermesProvisioning(plugin) {
+  return stringValue(plugin?.id) === "finance" && plugin?.provisioning?.supported === true;
+}
+
+function pluginInitialProvisioningStatus(plugin) {
+  if (pluginSupportsHermesProvisioning(plugin)) return "pending";
+  if (plugin?.provisioning?.supported === true) return "manual_required";
+  return "not_supported";
+}
+
+function pluginProjectedProvisioningStatus(plugin, status = "") {
+  const value = stringValue(status || "not_started");
+  if (!pluginSupportsHermesProvisioning(plugin) && value === "pending") return "manual_required";
+  return value;
 }
 
 function frameAncestorsAllows(csp = "", appOrigin = "", entryOrigin = "") {
@@ -881,7 +897,7 @@ function createHermesPluginService(options = {}) {
         ...records.map((record) => ({
           workspaceId: record.workspaceId,
           status: record.status,
-          provisioningStatus: record.provisioningStatus || "not_started",
+          provisioningStatus: pluginProjectedProvisioningStatus(item, record.provisioningStatus),
           provisioningError: record.provisioningError || "",
           provisioningUpdatedAt: record.provisioningUpdatedAt || "",
           source: "authorization_store",
@@ -989,10 +1005,10 @@ function createHermesPluginService(options = {}) {
       pluginId: id,
       workspaceId: input.workspaceId,
       actor: input.actor,
-      provisioningStatus: plugin.provisioning?.supported ? "pending" : "not_supported",
+      provisioningStatus: pluginInitialProvisioningStatus(plugin),
       provisioningError: "",
     });
-    if (!base.ok || id !== "finance" || plugin.provisioning?.supported !== true) return base;
+    if (!base.ok || !pluginSupportsHermesProvisioning(plugin)) return base;
     const workspaceId = stringValue(input.workspaceId);
     const displayName = stringValue(input.displayName || input.workspaceLabel || input.workspace_label)
       || stringValue(workspaceLabelForId(workspaceId))
