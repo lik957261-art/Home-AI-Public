@@ -314,13 +314,19 @@ Wardrobe workspace provisioning is also an H1 plugin authorization workflow.
 Granting Wardrobe to a workspace must create that Hermes user's own Wardrobe
 workspace id, write workspace-local `.hermes-wardrobe/access-key.txt` and
 non-secret `.hermes-wardrobe/config.json`, call Wardrobe
-`POST /api/v1/hermes/plugin/workspaces`, install the keyless
+`POST /api/v1/hermes/plugin/workspaces` with a server-side `owners:write` or
+`admin:*` registration bearer credential, install the keyless
 `productivity/wardrobe-style-operations` Skill into that user's Skill Store,
 refresh the workspace Gateway profile binding, and block non-Owner
 list/manifest/launch while provisioning is pending or failed. Harnesses must
-assert the raw Wardrobe key is not returned in grant result, manifest, frontend
-state, iframe URL, postMessage payload, docs, logs, or screenshots. Focused
-checks include `node tests\wardrobe-plugin-provisioning-service.test.js`,
+assert generated target keys use Wardrobe's accepted Program API prefix, replace
+invalid legacy placeholder-prefixed keys before registration, and keep the
+target raw Wardrobe key present only in the server-to-server registration body
+and the workspace-local key file, not in the grant result, manifest, frontend
+state, iframe URL, postMessage payload, docs, logs, or screenshots. They must
+also cover missing/invalid registration credentials as bounded provisioning
+failures. Focused checks include
+`node tests\wardrobe-plugin-provisioning-service.test.js`,
 `node tests\gateway-workspace-provisioning-service.test.js`,
 `node tests\hermes-plugin-service.test.js`, and
 `node tests\hermes-plugin-api-routes.test.js`.

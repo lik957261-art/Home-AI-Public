@@ -7,6 +7,7 @@ const path = require("node:path");
 const DEFAULT_WARDROBE_REGISTRATION_PATH = "/api/v1/hermes/plugin/workspaces";
 const DEFAULT_WARDROBE_SCOPES = Object.freeze(["items:read", "items:write", "history:write", "sync:read"]);
 const DEFAULT_MAX_KEY_SEARCH_DEPTH = 6;
+const DEFAULT_WARDROBE_WORKSPACE_KEY_PREFIX = "wd_live_";
 
 function stringValue(value) {
   return String(value || "").trim();
@@ -56,8 +57,77 @@ function wardrobeWorkspaceKeyPath(input = {}) {
   return configDir ? path.join(configDir, "access-key.txt") : "";
 }
 
-function generateWardrobeWorkspaceKey() {
-  return `hwd_${crypto.randomBytes(32).toString("base64url")}`;
+function findWardrobeAccessKeyPath(input = {}, options = {}) {
+  const explicit = stringValue(input.wardrobeAccessKeyPath || options.wardrobeAccessKeyPath);
+  if (explicit && fs.existsSync(explicit)) return explicit;
+  const workspaceId = stringValue(input.workspaceId || options.workspaceId || "owner");
+  const dataDir = stringValue(input.dataDir || options.dataDir) || defaultDataDir(input.env || options.env);
+  const workspaceRoot = path.join(dataDir, "drive", "users", workspaceId);
+  const maxDepth = Number(input.maxKeySearchDepth || options.maxKeySearchDepth || DEFAULT_MAX_KEY_SEARCH_DEPTH);
+
+  function walk(dir, depth) {
+    if (depth > maxDepth) return "";
+    const directCandidate = path.join(dir, ".hermes-wardrobe", "access-key.txt");
+    if (fs.existsSync(directCandidate)) return directCandidate;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      return "";
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === ".hermes-cache" || entry.name === "node_modules" || entry.name === ".git") continue;
+      const found = walk(path.join(dir, entry.name), depth + 1);
+      if (found) return found;
+    }
+    return "";
+  }
+
+  return walk(workspaceRoot, 0);
+}
+
+function defaultWardrobeRegistrationAccessKeyPath(input = {}, options = {}) {
+  const env = input.env || options.env || process.env;
+  const dataDir = stringValue(input.dataDir || options.dataDir) || defaultDataDir(env);
+  return path.join(dataDir, "plugin-secrets", "wardrobe-registration-access-key.txt");
+}
+
+function findWardrobeRegistrationAccessKeyPath(input = {}, options = {}) {
+  const env = input.env || options.env || process.env;
+  const explicit = stringValue(input.wardrobeRegistrationAccessKeyPath || options.wardrobeRegistrationAccessKeyPath)
+    || stringValue(env.HERMES_MOBILE_WARDROBE_REGISTRATION_ACCESS_KEY_PATH)
+    || stringValue(env.HERMES_MOBILE_PLUGIN_WARDROBE_REGISTRATION_ACCESS_KEY_PATH);
+  if (explicit && fs.existsSync(explicit)) return explicit;
+  const defaultPath = defaultWardrobeRegistrationAccessKeyPath(input, options);
+  if (defaultPath && fs.existsSync(defaultPath)) return defaultPath;
+  return findWardrobeAccessKeyPath(Object.assign({}, input, { workspaceId: "owner" }), options);
+}
+
+function readWardrobeRegistrationAccessKey(input = {}, options = {}) {
+  const env = input.env || options.env || process.env;
+  const inline = stringValue(input.wardrobeRegistrationAccessKey || options.wardrobeRegistrationAccessKey)
+    || stringValue(env.HERMES_MOBILE_WARDROBE_REGISTRATION_ACCESS_KEY);
+  if (inline) return { ok: true, accessKey: inline, source: "inline" };
+  const keyPath = findWardrobeRegistrationAccessKeyPath(input, options);
+  if (!keyPath) return { ok: false, error: "wardrobe_registration_key_missing" };
+  try {
+    const accessKey = fs.readFileSync(keyPath, "utf8").trim();
+    if (!accessKey) return { ok: false, error: "wardrobe_registration_key_empty" };
+    return { ok: true, accessKey, source: "file" };
+  } catch (_) {
+    return { ok: false, error: "wardrobe_registration_key_read_failed" };
+  }
+}
+
+function wardrobeWorkspaceKeyPrefix(input = {}) {
+  return stringValue(input.wardrobeWorkspaceKeyPrefix)
+    || stringValue((input.env || process.env).HERMES_MOBILE_WARDROBE_WORKSPACE_KEY_PREFIX)
+    || DEFAULT_WARDROBE_WORKSPACE_KEY_PREFIX;
+}
+
+function generateWardrobeWorkspaceKey(input = {}) {
+  return `${wardrobeWorkspaceKeyPrefix(input)}${crypto.randomBytes(32).toString("base64url")}`;
 }
 
 function sha256Hex(value = "") {
@@ -73,11 +143,12 @@ function ensureWardrobeWorkspaceKey(input = {}) {
   } catch (_) {
     return { ok: false, error: "wardrobe_plugin_key_read_failed" };
   }
-  if (existing) return { ok: true, keyPath, created: false };
+  const expectedPrefix = wardrobeWorkspaceKeyPrefix(input);
+  if (existing && existing.startsWith(expectedPrefix)) return { ok: true, keyPath, created: false };
   try {
     fs.mkdirSync(path.dirname(keyPath), { recursive: true });
-    fs.writeFileSync(keyPath, `${generateWardrobeWorkspaceKey()}\n`, { encoding: "utf8", mode: 0o600 });
-    return { ok: true, keyPath, created: true };
+    fs.writeFileSync(keyPath, `${generateWardrobeWorkspaceKey(input)}\n`, { encoding: "utf8", mode: 0o600 });
+    return { ok: true, keyPath, created: true, replacedInvalid: Boolean(existing) };
   } catch (_) {
     return { ok: false, error: "wardrobe_plugin_key_write_failed" };
   }
@@ -279,15 +350,22 @@ async function registerWardrobeWorkspace(input = {}, options = {}) {
     return { ok: false, error: "wardrobe_plugin_key_read_failed" };
   }
   if (!rawKey) return { ok: false, error: "wardrobe_plugin_key_empty" };
+  const registrationCredential = readWardrobeRegistrationAccessKey(input, options);
+  if (!registrationCredential.ok) return registrationCredential;
   const keyHash = sha256Hex(rawKey);
   const body = {
     owner: workspaceId,
+    display_name: safeDisplayName(Object.assign({}, input, { workspaceId })),
     owner_display_name: safeDisplayName(Object.assign({}, input, { workspaceId })),
     hermes_workspace_id: workspaceId,
     workspace_id: wardrobeWorkspaceIdForHermesWorkspace(workspaceId),
+    access_key: rawKey,
     access_key_hash: keyHash,
     access_key_sha256: keyHash,
     access_key_hash_algorithm: "sha256",
+    api_base_url: stringValue(input.apiBaseUrl) || wardrobeApiBaseUrl(input.wardrobeManifestUrl),
+    replace_existing_key: true,
+    store_access_key: true,
     scopes: DEFAULT_WARDROBE_SCOPES.slice(),
   };
   let response;
@@ -296,6 +374,7 @@ async function registerWardrobeWorkspace(input = {}, options = {}) {
       method: "POST",
       headers: {
         Accept: "application/json",
+        Authorization: `Bearer ${registrationCredential.accessKey}`,
         "Content-Type": "application/json; charset=utf-8",
       },
       body: JSON.stringify(body),
@@ -353,6 +432,8 @@ function createWardrobePluginProvisioningService(options = {}) {
       apiBaseUrl: stringValue(input.apiBaseUrl) || wardrobeApiBaseUrl(input.wardrobeManifestUrl),
       repoRoot: options.repoRoot,
       wardrobeSkillTemplatePath: options.wardrobeSkillTemplatePath,
+      wardrobeRegistrationAccessKey: options.wardrobeRegistrationAccessKey,
+      wardrobeRegistrationAccessKeyPath: options.wardrobeRegistrationAccessKeyPath,
     });
     const key = ensureWardrobeWorkspaceKey(baseInput);
     if (!key.ok) return { ok: false, error: key.error || "wardrobe_plugin_key_failed" };
@@ -438,12 +519,16 @@ function createWardrobePluginProvisioningService(options = {}) {
 module.exports = {
   DEFAULT_WARDROBE_REGISTRATION_PATH,
   DEFAULT_WARDROBE_SCOPES,
+  DEFAULT_WARDROBE_WORKSPACE_KEY_PREFIX,
   createWardrobePluginProvisioningService,
+  findWardrobeAccessKeyPath,
+  findWardrobeRegistrationAccessKeyPath,
   ensureWardrobeWorkspaceKey,
   findWardrobeConfigPath,
   generateWardrobeWorkspaceKey,
   installWardrobeSkill,
   readWardrobeWorkspaceConfig,
+  readWardrobeRegistrationAccessKey,
   registerWardrobeWorkspace,
   sha256Hex,
   verifyLocalProvisioning,
@@ -452,5 +537,6 @@ module.exports = {
   wardrobeWorkspaceConfigPath,
   wardrobeWorkspaceIdForHermesWorkspace,
   wardrobeWorkspaceKeyPath,
+  wardrobeWorkspaceKeyPrefix,
   wardrobeWorkspaceRoot,
 };

@@ -145,13 +145,21 @@ Hermes Mobile owns the provisioner behind the plugin-manager action
   `wardrobe:<hermes_workspace_id>` instead of reusing XuXin/WuPing bindings;
 - generate a workspace-local raw Access Key and write it only to
   `<HERMES_DATA_DIR>\drive\users\<workspaceId>\.hermes-wardrobe\access-key.txt`;
+  the generated key must use the Wardrobe Program API token prefix, currently
+  `wd_live_`, not a Hermes-only placeholder prefix;
 - write non-secret
   `<HERMES_DATA_DIR>\drive\users\<workspaceId>\.hermes-wardrobe\config.json`
   with `api_base_url`, `workspace_id`, `hermes_workspace_id`, owner/display
   metadata, cache directories, and scopes;
 - call Wardrobe `POST /api/v1/hermes/plugin/workspaces` with owner,
-  `workspace_id`, key hash/registration material, and scopes
+  `workspace_id`, the one-time workspace `access_key`, key hash metadata, and scopes
   `items:read`, `items:write`, `history:write`, `sync:read`;
+- authenticate that registration call with a server-side Wardrobe credential
+  carrying `owners:write` or `admin:*`. Hermes Mobile reads this credential
+  from `HERMES_MOBILE_WARDROBE_REGISTRATION_ACCESS_KEY_PATH`, then from
+  `<HERMES_DATA_DIR>\plugin-secrets\wardrobe-registration-access-key.txt`, and
+  only falls back to an Owner Wardrobe key when that key actually has the
+  registration scope;
 - install the keyless `productivity/wardrobe-style-operations` Skill into that
   workspace's own Skill Store;
 - refresh the workspace Gateway profile binding. Existing Gateway processes may
@@ -168,6 +176,12 @@ The provisioner must not copy an existing XuXin or WuPing `.hermes-wardrobe`
 directory. Wardrobe data remains in the Wardrobe SQLite store and is isolated by
 owner plus workspace/access-key binding, not by creating a separate database per
 Hermes user.
+
+The target workspace Access Key may appear only inside the server-to-server
+Wardrobe registration request and the target workspace's local
+`.hermes-wardrobe/access-key.txt`. It must not be returned from the grant API,
+stored in `plugin-workspace-authorizations.json`, embedded in iframe URLs,
+postMessage payloads, docs, handoffs, screenshots, or model-visible receipts.
 
 The embedded plugin must preserve its iframe node after the first successful
 load. Switching from Wardrobe to another Hermes tab must hide a persistent host

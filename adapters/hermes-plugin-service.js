@@ -862,6 +862,8 @@ function createHermesPluginService(options = {}) {
     nowIso,
     repoRoot: options.repoRoot,
     wardrobeSkillTemplatePath: options.wardrobeSkillTemplatePath,
+    wardrobeRegistrationAccessKey: options.wardrobeRegistrationAccessKey,
+    wardrobeRegistrationAccessKeyPath: options.wardrobeRegistrationAccessKeyPath,
   });
   const workspaceLabelForId = typeof options.workspaceLabelForId === "function"
     ? options.workspaceLabelForId

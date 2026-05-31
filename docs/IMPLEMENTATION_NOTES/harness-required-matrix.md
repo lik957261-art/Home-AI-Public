@@ -1377,12 +1377,18 @@ Required contract dimensions:
   Granting `wardrobe` must create a per-Hermes-user Wardrobe workspace id,
   write only that user's `.hermes-wardrobe/config.json` and `access-key.txt`,
   call Wardrobe's `/api/v1/hermes/plugin/workspaces` registration contract,
-  install a keyless Wardrobe Skill into that user's Skill Store, and refresh the
-  workspace Gateway profile binding. The harness must prove no raw Wardrobe key
-  is returned in grant results, manifests, frontend state, iframe URLs,
-  postMessage payloads, docs, handoffs, screenshots, or logs. Pending or failed
-  Wardrobe provisioning must block non-Owner list/manifest/launch instead of
-  exposing a misleading usable tab.
+  authenticated by a server-side `owners:write` or `admin:*` registration
+  credential, install a keyless Wardrobe Skill into that user's Skill Store, and
+  refresh the workspace Gateway profile binding. The harness must prove the
+  generated target key uses Wardrobe's accepted Program API prefix, invalid
+  legacy placeholder-prefixed keys are replaced before registration, and the
+  target raw Wardrobe key appears only in the server-to-server registration body
+  and workspace-local key file, not in grant results, manifests, frontend state,
+  iframe URLs, postMessage payloads, docs, handoffs, screenshots, or logs.
+  Missing or invalid registration credentials must become bounded
+  `provisioning_failed` states. Pending or failed Wardrobe provisioning must
+  block non-Owner list/manifest/launch instead of exposing a misleading usable
+  tab.
 - Generic plugin provisioning status is part of the same contract. A grant may
   enter `pending` only when Hermes owns the automatic provisioning service for
   that plugin. Plugins with manual or external binding must store

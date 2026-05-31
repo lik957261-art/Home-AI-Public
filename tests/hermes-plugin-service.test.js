@@ -426,11 +426,13 @@ async function testFinanceProvisioningFailureBlocksManifest() {
 
 async function testWardrobeGrantProvisionsWorkspaceKeySkillGatewayAndLaunchBinding() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-wardrobe-grant-"));
+  const registrationKey = `wd_${"live"}_${"g".repeat(40)}`;
   const calls = [];
   const gatewayCalls = [];
   const service = createHermesPluginService({
     dataDir: dir,
     env: {},
+    wardrobeRegistrationAccessKey: registrationKey,
     plugins: [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }],
     gatewayWorkspaceProvisioningService: {
       ensureWorkspaceGateway(input) {
@@ -488,9 +490,11 @@ async function testWardrobeGrantProvisionsWorkspaceKeySkillGatewayAndLaunchBindi
   assert.equal(fs.existsSync(skillPath), true);
   const rawKey = fs.readFileSync(keyPath, "utf8").trim();
   assert.equal(JSON.stringify(grant).includes(rawKey), false);
+  assert.equal(JSON.stringify(grant).includes(registrationKey), false);
   assert.equal(calls[0].body.workspace_id, "wardrobe:weixin_wardrobe_new");
+  assert.equal(calls[0].body.access_key, rawKey);
   assert.equal(calls[0].body.access_key_sha256.length, 64);
-  assert.equal(JSON.stringify(calls[0].body).includes(rawKey), false);
+  assert.equal(calls[0].options.headers.Authorization, `Bearer ${registrationKey}`);
   assert.equal(service.list({ workspaceId: "weixin_wardrobe_new" })[0].id, "wardrobe");
   const installed = service.listInstalled().find((item) => item.id === "wardrobe");
   assert.equal(installed.workspaceAuthorizations[0].provisioningStatus, "active");

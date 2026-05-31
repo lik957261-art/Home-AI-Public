@@ -300,10 +300,20 @@ write non-secret
 call Wardrobe's server-side registration contract
 `POST /api/v1/hermes/plugin/workspaces`. The registration body may include an
 access-key hash or one-time registration material, but Hermes Mobile must keep
-the raw key only in the workspace-local key file. It must also install the
+the raw key only in the workspace-local key file. The generated target key must
+use the Wardrobe Program API token prefix, currently `wd_live_`, not a
+Hermes-only placeholder prefix. It must also install the
 keyless `productivity/wardrobe-style-operations` Skill into that workspace's
 own Skill Store and refresh the workspace Gateway profile binding so the next
 worker start/restart exposes Wardrobe MCP with `--no-workspace-override`.
+Wardrobe's current registration endpoint also requires a server-side bearer
+credential with `owners:write` or `admin:*`; Hermes Mobile reads it from
+`HERMES_MOBILE_WARDROBE_REGISTRATION_ACCESS_KEY_PATH`, then from
+`<HERMES_DATA_DIR>\plugin-secrets\wardrobe-registration-access-key.txt`, and
+only falls back to an Owner Wardrobe key if that key has the registration
+scope. The target workspace raw key is sent once in that server-to-server
+registration body and must not appear in grant results, authorization records,
+frontend state, iframe URLs, postMessage payloads, docs, screenshots, or logs.
 Successful provisioning updates the authorization record to
 `provisioningStatus=active`; any key/config/register/Skill/Gateway failure
 keeps the grant but marks `provisioningStatus=provisioning_failed` and blocks
