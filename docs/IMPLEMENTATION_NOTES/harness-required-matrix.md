@@ -171,6 +171,33 @@ Primary docs:
 - `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-design.md`
 - `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-implementation.md`
 
+### Tongbao Platform Currency And Growth Coin Exchange
+
+Applies to platform-level `通宝` wallets, user balances, ledger entries, holds,
+spend/refund/reversal flows, and Growth learning coin exchange into `通宝`.
+
+Required harness dimensions:
+
+- Wallet creation is idempotent per workspace user.
+- Owner grants, adjustments, and reversals are idempotent and audited.
+- Non-Owner reads and exchange requests are clamped to the authenticated
+  workspace user; spoofed workspace ids are rejected.
+- Growth coin exchange does not double debit learning coins or double credit
+  `通宝` when requests retry or listener restarts.
+- Exchange rule changes affect only new exchanges and do not mutate settled
+  exchange records.
+- Owner review, when enabled, settles only after approval and rejects/releases
+  without leaking or duplicating funds.
+- Ledger metadata remains summary-only and does not store Finance tokens,
+  real bank/account rows, plugin keys, raw learner answers, transcripts,
+  prompts, push endpoints, or long logs.
+- UI projections show available, held, and total balances consistently across
+  Growth and platform wallet surfaces.
+
+Primary doc:
+
+- `docs/IMPLEMENTATION_NOTES/tongbao-platform-currency-design.md`
+
 ### Gateway Toolset Routing And Stream Recovery
 
 Applies to model-first toolset selection, execution-round toolset escalation,

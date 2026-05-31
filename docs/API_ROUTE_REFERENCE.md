@@ -47,6 +47,7 @@ The authenticated pipeline is defined by `MOBILE_API_AUTHENTICATED_ROUTE_PIPELIN
 | `learning-program-api-routes.js` | programs, sources, tasks, submissions, evaluations, audio | workspace-scoped/resource-scoped | Mutations are Owner or executor scoped depending on operation; summary-only privacy rules apply. |
 | `learning-parent-review-api-routes.js` | parent review queue/actions | owner | Review mutations are Owner-only. |
 | `learning-coin-api-routes.js` | coin summary/ledger/rewards | workspace-scoped, owner for mutation | Coin ledger writes go through reward settlement/coin services. |
+| `platform-currency-api-routes.js` | Tongbao wallet and ledger | workspace-scoped | v399 exposes read-only wallet/ledger routes; wallet read lazily creates a default `0` Tongbao wallet for the workspace. |
 | `file-artifact-api-routes.js` | artifact/file preview/download | resource-scoped | Must validate thread/message/group/automation access before streaming. |
 | `directory-browser-api-routes.js` | directory preview/list | workspace-scoped/resource-scoped | Uses directory browser boundary service. |
 | `directory-share-api-routes.js` | share/update/unshare directories | owner or sharing workspace | Read-only shares must reject writes downstream. |

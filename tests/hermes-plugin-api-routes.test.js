@@ -519,6 +519,58 @@ async function testWardrobeProxyUsesConfiguredLanUpstream() {
   assert.equal(fetchCalls[0].options.headers["x-hermes-plugin-workspace-id"], "owner");
 }
 
+async function testWardrobeProxyNormalizesUnsafeOriginForUpload() {
+  const requestBody = "--boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"photo.jpg\"\r\n\r\njpeg\r\n--boundary--\r\n";
+  const fetchCalls = [];
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
+      },
+      pluginManifestUrl(id) {
+        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch(url, options = {}) {
+      fetchCalls.push({ url, options });
+      assert.equal(url, "http://192.168.10.99:8765/api/items/1/photos?workspaceId=owner");
+      assert.equal(options.method, "POST");
+      assert.equal(options.headers.origin, "http://192.168.10.99:8765");
+      assert.equal(options.headers.referer, "http://192.168.10.99:8765/api/items/1/photos?workspaceId=owner");
+      assert.equal(options.headers["x-hermes-public-origin"], "https://hermes-xuxin.synology.me:8445");
+      assert.equal(options.headers["x-forwarded-origin"], "https://hermes-xuxin.synology.me:8445");
+      assert.equal(options.headers["content-type"], "multipart/form-data; boundary=boundary");
+      assert.equal(String(options.headers.origin).includes("hermes-xuxin"), false);
+      assert.deepEqual(Buffer.from(options.body), Buffer.from(requestBody));
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify({ ok: true })),
+      });
+    },
+  });
+  const req = makeRequest("POST", [requestBody]);
+  req.headers = {
+    origin: "https://hermes-xuxin.synology.me:8445",
+    referer: "https://hermes-xuxin.synology.me:8445/hermes-mobile/",
+    "content-type": "multipart/form-data; boundary=boundary",
+    "content-length": String(Buffer.byteLength(requestBody)),
+  };
+  const res = makeResponse();
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/wardrobe/proxy/api/items/1/photos?workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.equal(fetchCalls.length, 1);
+}
+
 async function testPluginProxyRewritesJsonImageUrls() {
   const { routes } = makeRoutes({
     hermesPluginService: {
@@ -713,6 +765,7 @@ async function run() {
   await testFinanceProxyRewritesFinanceApiJsonUrls();
   await testWardrobeProxyRewritesSessionCookieScope();
   await testWardrobeProxyUsesConfiguredLanUpstream();
+  await testWardrobeProxyNormalizesUnsafeOriginForUpload();
   await testPluginProxyRewritesJsonImageUrls();
   await testPluginProxyDoesNotCorruptJsonProse();
   await testPluginProxyForwardsBinaryImages();

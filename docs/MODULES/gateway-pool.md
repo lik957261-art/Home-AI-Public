@@ -604,6 +604,10 @@ The official runtime checkout under `/opt/hermes-gateway-runtime/official-clean`
 
 It must not replace a maintenance worker during a long tool call merely because `/health` is slow. If HTTP health fails but TCP port remains open, the busy-grace guard defers replacement for `OwnerMaintenanceBusyGraceMinutes` (default 45).
 
+`start-gateway-pool.ps1` must also keep an entry-level mutex around both full pool startup and owner-maintenance repair. A full Gateway Pool start can take several minutes after official runtime changes; without the mutex, the 5-minute watchdog can overlap the full startup and trigger a second owner-maintenance start while the low gateway pool is still coming up.
+
+The scheduled task uses a hidden PowerShell launcher, but that does not automatically hide child PowerShell processes started by `start-gateway-pool.ps1`. Gateway Pool wrapper calls that spawn `powershell.exe` for stop/start, Codex auth checks, or external connector provisioning must pass `-WindowStyle Hidden`; otherwise a slower official runtime startup or watchdog pass can surface visible Windows terminal windows even though the parent scheduled task is hidden.
+
 ## Validation
 
 - `node tests\startup-scripts.test.js`

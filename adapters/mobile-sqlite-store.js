@@ -5,7 +5,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 
 function nowIso() {
   return new Date().toISOString();
@@ -230,6 +230,8 @@ function sqlQuoteIdent(name) {
 }
 
 const TABLES = [
+  "platform_currency_ledger_entries",
+  "platform_currency_wallets",
   "audit_log",
   "action_inbox_events",
   "action_inbox_items",
@@ -273,6 +275,8 @@ const TABLE_COUNT_COLUMNS = {
   topic_working_states: "topic_id",
   topic_context_refs: "ref_id",
   audit_log: "id",
+  platform_currency_wallets: "wallet_id",
+  platform_currency_ledger_entries: "entry_id",
 };
 
 function createMobileSqliteStore(options = {}) {
@@ -663,6 +667,41 @@ function createMobileSqliteStore(options = {}) {
         payload_json TEXT,
         created_at TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS platform_currency_wallets (
+        wallet_id TEXT PRIMARY KEY,
+        workspace_id TEXT UNIQUE NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'TONGBAO',
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT ''
+      );
+
+      CREATE TABLE IF NOT EXISTS platform_currency_ledger_entries (
+        entry_id TEXT PRIMARY KEY,
+        wallet_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'TONGBAO',
+        amount_delta INTEGER NOT NULL DEFAULT 0,
+        available_delta INTEGER NOT NULL DEFAULT 0,
+        held_delta INTEGER NOT NULL DEFAULT 0,
+        entry_type TEXT NOT NULL DEFAULT '',
+        source_type TEXT NOT NULL DEFAULT '',
+        source_id TEXT NOT NULL DEFAULT '',
+        idempotency_key TEXT NOT NULL DEFAULT '',
+        reason TEXT NOT NULL DEFAULT '',
+        metadata_json TEXT,
+        created_by_principal_id TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT '',
+        reversal_of_entry_id TEXT NOT NULL DEFAULT '',
+        FOREIGN KEY(wallet_id) REFERENCES platform_currency_wallets(wallet_id) ON DELETE CASCADE
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_platform_currency_ledger_idempotency
+        ON platform_currency_ledger_entries(wallet_id, idempotency_key)
+        WHERE idempotency_key IS NOT NULL AND idempotency_key <> '';
+      CREATE INDEX IF NOT EXISTS idx_platform_currency_ledger_workspace
+        ON platform_currency_ledger_entries(workspace_id, created_at);
     `);
 
     ensureColumn("threads", "position", "INTEGER NOT NULL DEFAULT 0");
@@ -684,6 +723,7 @@ function createMobileSqliteStore(options = {}) {
     markMigration(2, "kanban_case_shares");
     markMigration(3, "topic_context");
     markMigration(4, "action_inbox");
+    markMigration(5, "platform_currency");
     setMeta("schemaVersion", CURRENT_SCHEMA_VERSION);
   }
 
@@ -2175,6 +2215,90 @@ function createMobileSqliteStore(options = {}) {
     );
   }
 
+  function publicPlatformCurrencyWallet(row) {
+    if (!row) return null;
+    const availableBalance = Number(row.available_balance || 0);
+    const heldBalance = Number(row.held_balance || 0);
+    return {
+      walletId: String(row.wallet_id || ""),
+      workspaceId: String(row.workspace_id || ""),
+      currency: String(row.currency || "TONGBAO"),
+      status: String(row.status || "active"),
+      availableBalance,
+      heldBalance,
+      totalBalance: availableBalance + heldBalance,
+      createdAt: String(row.created_at || ""),
+      updatedAt: String(row.updated_at || ""),
+    };
+  }
+
+  function ensurePlatformCurrencyWallet(workspaceId, options = {}) {
+    migrate();
+    const normalizedWorkspaceId = normalizeId(workspaceId, "owner");
+    const walletId = normalizeId(options.walletId, `wallet:${normalizedWorkspaceId}`);
+    const currency = normalizeId(options.currency, "TONGBAO");
+    const timestamp = normalizeIso(options.nowIso || nowIso());
+    open().prepare(`
+      INSERT INTO platform_currency_wallets(wallet_id, workspace_id, currency, status, created_at, updated_at)
+      VALUES (?, ?, ?, 'active', ?, ?)
+      ON CONFLICT(workspace_id) DO UPDATE SET
+        updated_at = CASE
+          WHEN platform_currency_wallets.updated_at IS NULL OR platform_currency_wallets.updated_at = ''
+          THEN excluded.updated_at
+          ELSE platform_currency_wallets.updated_at
+        END
+    `).run(walletId, normalizedWorkspaceId, currency, timestamp, timestamp);
+    return getPlatformCurrencyWallet(normalizedWorkspaceId);
+  }
+
+  function getPlatformCurrencyWallet(workspaceId) {
+    migrate();
+    const normalizedWorkspaceId = normalizeId(workspaceId, "owner");
+    const row = open().prepare(`
+      SELECT
+        wallet.wallet_id,
+        wallet.workspace_id,
+        wallet.currency,
+        wallet.status,
+        wallet.created_at,
+        wallet.updated_at,
+        COALESCE(SUM(ledger.available_delta), 0) AS available_balance,
+        COALESCE(SUM(ledger.held_delta), 0) AS held_balance
+      FROM platform_currency_wallets wallet
+      LEFT JOIN platform_currency_ledger_entries ledger ON ledger.wallet_id = wallet.wallet_id
+      WHERE wallet.workspace_id = ?
+      GROUP BY wallet.wallet_id
+    `).get(normalizedWorkspaceId);
+    return publicPlatformCurrencyWallet(row);
+  }
+
+  function listPlatformCurrencyLedger(workspaceId, options = {}) {
+    migrate();
+    const normalizedWorkspaceId = normalizeId(workspaceId, "owner");
+    const limit = Math.max(1, Math.min(200, Math.floor(Number(options.limit || 50) || 50)));
+    return open().prepare(`
+      SELECT *
+      FROM platform_currency_ledger_entries
+      WHERE workspace_id = ?
+      ORDER BY created_at DESC, entry_id DESC
+      LIMIT ?
+    `).all(normalizedWorkspaceId, limit).map((row) => ({
+      entryId: String(row.entry_id || ""),
+      walletId: String(row.wallet_id || ""),
+      workspaceId: String(row.workspace_id || ""),
+      currency: String(row.currency || "TONGBAO"),
+      amountDelta: Number(row.amount_delta || 0),
+      availableDelta: Number(row.available_delta || 0),
+      heldDelta: Number(row.held_delta || 0),
+      entryType: String(row.entry_type || ""),
+      sourceType: String(row.source_type || ""),
+      sourceId: String(row.source_id || ""),
+      reason: String(row.reason || ""),
+      createdAt: String(row.created_at || ""),
+      reversalOfEntryId: String(row.reversal_of_entry_id || ""),
+    }));
+  }
+
   return {
     actionInboxCounts,
     addActionInboxEvent,
@@ -2194,6 +2318,7 @@ function createMobileSqliteStore(options = {}) {
     importAutomationJob,
     importWorkspace,
     integrityReport,
+    ensurePlatformCurrencyWallet,
     deleteAutomationJob,
     updateActionInboxItem,
     deleteKanbanCaseShare,
@@ -2203,6 +2328,7 @@ function createMobileSqliteStore(options = {}) {
     getActionInboxItemByDedupe,
     getKanbanCaseShare,
     getTodoItem,
+    getPlatformCurrencyWallet,
     getTopicContextSummary,
     getTopicWorkingState,
     exportRuntimeState,
@@ -2210,6 +2336,7 @@ function createMobileSqliteStore(options = {}) {
     listActionInboxEvents,
     listActionInboxItems,
     listKanbanCaseShares,
+    listPlatformCurrencyLedger,
     listTopicContextRefs,
     listTodoItems,
     migrate,

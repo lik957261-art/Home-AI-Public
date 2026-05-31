@@ -79,6 +79,24 @@ function workspaceAccessKeyStatusLabel(workspace) {
   return stateText;
 }
 
+function workspaceTongbaoWallet(workspace) {
+  const wallet = workspace?.tongbaoWallet && typeof workspace.tongbaoWallet === "object"
+    ? workspace.tongbaoWallet
+    : {};
+  return {
+    availableBalance: Number(wallet.availableBalance || 0) || 0,
+    heldBalance: Number(wallet.heldBalance || 0) || 0,
+    totalBalance: Number(wallet.totalBalance || wallet.availableBalance || 0) || 0,
+    currency: String(wallet.currency || "TONGBAO"),
+  };
+}
+
+function workspaceTongbaoLine(workspace) {
+  const wallet = workspaceTongbaoWallet(workspace);
+  const held = wallet.heldBalance > 0 ? ` · 冻结 ${wallet.heldBalance}` : "";
+  return `<div class="workspace-access-line workspace-tongbao-line"><span>通宝</span>${escapeHtml(String(wallet.availableBalance))}${escapeHtml(held)}</div>`;
+}
+
 function workspaceOutboundStatusLabel(status) {
   const value = String(status || "").trim();
   if (!value) return "";
@@ -125,7 +143,6 @@ function workspaceAccessRows() {
 function renderWorkspaceAccessPanel() {
   const panel = $("workspaceAccessPanel");
   if (!panel) return;
-  if (!state.auth?.isOwner) { panel.hidden = true; panel.innerHTML = ""; return; }
   const accessRows = workspaceAccessRows();
   const show = accessRows.length > 0;
   panel.hidden = !show;
@@ -147,6 +164,7 @@ function renderWorkspaceAccessPanel() {
       : "";
     return `<section class="workspace-access-row">
       <div class="workspace-access-name">${escapeHtml(workspace.label || workspace.id)}</div>
+      ${workspaceTongbaoLine(workspace)}
       ${canManageOwnerSettings && account ? `<div class="workspace-access-line"><span>账号</span>${escapeHtml(account)}</div>` : ""}
       <div class="workspace-access-line"><span>根目录</span>${escapeHtml(rootDirectory)}</div>
       ${accessKeyLine}

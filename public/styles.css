@@ -603,6 +603,14 @@ button {
   font-weight: 600;
 }
 
+.workspace-tongbao-line {
+  color: var(--ink);
+}
+
+.workspace-tongbao-line span {
+  color: var(--ui-accent-ink);
+}
+
 .workspace-access-key-row {
   display: flex;
   align-items: center;

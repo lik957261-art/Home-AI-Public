@@ -416,10 +416,12 @@ function createHermesPluginApiRoutes(deps = {}) {
       return;
     }
     const method = req.method || "GET";
+    const upstreamBase = pluginProxyUpstreamBase(pluginId);
+    const targetUrl = proxyTargetUrl(url, pluginId);
     const headers = {};
     for (const [name, value] of Object.entries(req.headers || {})) {
       const lower = name.toLowerCase();
-      if (["host", "connection", "content-length", "accept-encoding"].includes(lower)) continue;
+      if (["host", "connection", "content-length", "accept-encoding", "origin", "referer"].includes(lower)) continue;
       headers[name] = value;
     }
     headers["x-hermes-plugin-workspace-id"] = workspaceId;
@@ -428,9 +430,16 @@ function createHermesPluginApiRoutes(deps = {}) {
       headers["x-hermes-public-origin"] = publicOrigin;
       headers["x-forwarded-origin"] = publicOrigin;
     }
+    if (!["GET", "HEAD"].includes(method.toUpperCase())) {
+      try {
+        headers.origin = new URL(upstreamBase).origin;
+        headers.referer = targetUrl;
+      } catch (_) {
+        // Keep proxying even if a plugin origin is misconfigured.
+      }
+    }
     const body = ["GET", "HEAD"].includes(method.toUpperCase()) ? undefined : await readRequestBody(req);
-    const upstreamBase = pluginProxyUpstreamBase(pluginId);
-    const upstream = await fetchImpl(proxyTargetUrl(url, pluginId), { method, headers, body, redirect: "manual" });
+    const upstream = await fetchImpl(targetUrl, { method, headers, body, redirect: "manual" });
     const contentType = responseHeader(upstream, "content-type");
     const outHeaders = { "Content-Type": contentType || "application/octet-stream" };
     const setCookies = responseSetCookies(upstream)

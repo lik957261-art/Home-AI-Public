@@ -42,6 +42,7 @@ const { createActionInboxService } = require("../adapters/action-inbox-service")
 const { createKanbanCaseTopicDeliveryService } = require("../adapters/kanban-case-topic-delivery-service");
 const { createMobileApiDispatcher } = require("./mobile-api-dispatcher");
 const { createOwnerElevationApiRoutes } = require("./owner-elevation-api-routes");
+const { createPlatformCurrencyApiRoutes } = require("./platform-currency-api-routes");
 const { createPublicApiRoutes } = require("./public-api-routes");
 const { createPushApiRoutes } = require("./push-api-routes");
 const { createResourceApiRoutes } = require("./resource-api-routes");
@@ -57,6 +58,7 @@ const { createWorkspaceApiRoutes } = require("./workspace-api-routes");
 const { createHermesPluginService } = require("../adapters/hermes-plugin-service");
 const { createHermesPluginNotificationService } = require("../adapters/hermes-plugin-notification-service");
 const { createFinanceLedgerJoinApprovalService } = require("../adapters/finance-ledger-join-approval-service");
+const { createPlatformCurrencyService } = require("../adapters/platform-currency-service");
 
 function callBootTrace(deps, label) {
   if (typeof deps.bootTrace === "function") deps.bootTrace(label);
@@ -85,6 +87,10 @@ function appendPluginManifestAudit(deps = {}, event = {}) {
 }
 
 function createMobileApiComposition(deps = {}) {
+  const platformCurrencyService = deps.platformCurrencyService || createPlatformCurrencyService({
+    nowIso: deps.nowIso,
+    store: () => (typeof deps.mobileSqliteStore === "function" ? deps.mobileSqliteStore() : null),
+  });
   const publicApiRoutes = createPublicApiRoutes({
     authenticateRequest: deps.authenticateRequest,
     createInitialOwnerKey: deps.createInitialOwnerKey,
@@ -198,6 +204,13 @@ function createMobileApiComposition(deps = {}) {
     upsertLocalWorkspace: deps.upsertLocalWorkspace,
     deleteLocalWorkspace: deps.deleteLocalWorkspace,
     findWorkspace: deps.findWorkspace,
+    platformCurrencyService,
+  });
+
+  const platformCurrencyApiRoutes = createPlatformCurrencyApiRoutes({
+    platformCurrencyService,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
   });
 
   const resourceApiRoutes = createResourceApiRoutes({
@@ -791,6 +804,7 @@ function createMobileApiComposition(deps = {}) {
     directoryShareApiRoutes,
     fileArtifactApiRoutes,
     hermesPluginApiRoutes,
+    platformCurrencyApiRoutes,
     getUrl: deps.getUrl,
     kanbanCardApiRoutes,
     kanbanLearningGuidanceApiRoutes,
@@ -825,6 +839,7 @@ function createMobileApiComposition(deps = {}) {
       actionInboxService,
       financeLedgerJoinApprovalService,
       learningGrowthSubmissionService,
+      platformCurrencyService,
       learningGrowthTeachingCheckService,
       learningGrowthExperienceSignalService,
       learningGrowthStageAssessmentService,
@@ -840,6 +855,7 @@ function createMobileApiComposition(deps = {}) {
       directoryShareApiRoutes,
       fileArtifactApiRoutes,
       hermesPluginApiRoutes,
+      platformCurrencyApiRoutes,
       kanbanCardApiRoutes,
       kanbanLearningGuidanceApiRoutes,
       kanbanStudyApiRoutes,

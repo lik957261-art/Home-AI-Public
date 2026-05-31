@@ -95,6 +95,16 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "platform-currency-api-routes",
+    exportName: "createPlatformCurrencyApiRoutes",
+    required: false,
+    minRoutes: 2,
+    probes: [
+      { method: "GET", path: "/api/platform-currency/wallet", id: "platform-currency-wallet" },
+      { method: "GET", path: "/api/platform-currency/ledger", id: "platform-currency-ledger" },
+    ],
+  },
+  {
     key: "automation-api-routes",
     exportName: "createAutomationApiRoutes",
     required: false,
@@ -414,6 +424,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/parent-review-requests" }).id, "learning-parent-review-requests-list");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/parent-review-requests/req-1/decision" }).id, "learning-parent-review-request-decision");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning-coins/summary" }).id, "learning-coins-summary");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/platform-currency/wallet" }).id, "platform-currency-wallet");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/directories/delete" }).id, "directories-delete");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/threads/thread-1/uploads" }).id, "thread-uploads-create");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/directories/share/update" }).id, "directories-share-update");
@@ -463,6 +474,7 @@ function testGroupingProducesModuleWorkPackages() {
   assert.ok(modules.has("learning-program"));
   assert.ok(modules.has("learning-parent-review"));
   assert.ok(modules.has("learning-coins"));
+  assert.ok(modules.has("platform-currency"));
   assert.ok(modules.has("thread-message"));
   assert.ok(modules.has("single-window"));
   assert.ok(modules.has("group-chat"));

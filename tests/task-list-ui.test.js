@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260531-run-status-history-v396";
+const CLIENT_VERSION = "20260531-tongbao-wallet-v399";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -449,6 +449,12 @@ assert.match(stylesCss, /\.bottom-tab\.active \.bottom-tab-icon \{[\s\S]*?backgr
 assert.match(stylesCss, /\.sidebar #workspaceSelect \{[\s\S]*?font-size: 14\.5px;[\s\S]*?line-height: 1\.2;/);
 assert.match(stylesCss, /\.sidebar \.client-version \{[\s\S]*?font-size: 9\.5px;/);
 assert.match(stylesCss, /\.sidebar \.workspace-access-panel summary \{[\s\S]*?font-size: 11\.5px;[\s\S]*?line-height: 1\.25;/);
+assert.match(appJs, /function workspaceTongbaoWallet\(workspace\)/);
+assert.match(appJs, /function workspaceTongbaoLine\(workspace\)/);
+assert.match(appJs, /workspace\.tongbaoWallet/);
+assert.match(appJs, /<span>通宝<\/span>/);
+assert.doesNotMatch(appJs, /if \(!state\.auth\?\.isOwner\) \{ panel\.hidden = true; panel\.innerHTML = ""; return; \}/);
+assert.match(stylesCss, /\.workspace-tongbao-line \{[\s\S]*?color: var\(--ink\);/);
 assert.match(stylesCss, /\.sidebar \.workspace-permission-state \{[\s\S]*?font-size: 13px;[\s\S]*?line-height: 1\.25;/);
 assert.match(stylesCss, /\.sidebar \.workspace-permission-select,[\s\S]*?\.sidebar \.workspace-permission-actions button \{[\s\S]*?font-size: 10\.75px;[\s\S]*?line-height: 1\.1;/);
 assert.match(stylesCss, /:root\[data-font-size\] \.sidebar #workspaceSelect \{[\s\S]*?font-size: 14\.5px;/);
@@ -1584,7 +1590,8 @@ assert.match(appJs, /data-open-plugin-admin/);
 assert.match(appJs, /\/api\/hermes-plugins\/admin/);
 assert.match(appJs, /Owner 默认可用/);
 assert.match(appJs, /非 Owner 已开通/);
-assert.match(appJs, /if \(!state\.auth\?\.isOwner\) \{\s*panel\.hidden = true;/);
+assert.match(appJs, /function workspaceTongbaoLine\(workspace\)/);
+assert.doesNotMatch(appJs, /if \(!state\.auth\?\.isOwner\) \{\s*panel\.hidden = true;/);
 assert.doesNotMatch(appJs, /routeView && routeView !== "learning"/);
 assert.match(appJs, /function applyDefaultLaunchView\(\) \{\s*state\.viewMode = "single";/);
 assert.doesNotMatch(appJs, /node\.hidden = Boolean\(state\.auth && !state\.auth\.isOwner\)/);
@@ -1998,7 +2005,7 @@ assert.match(indexHtml, /id="bottomTodosMode"[\s\S]*aria-label="&#25104;&#38271;
 assert.match(indexHtml, /id="bottomLearningMode"[\s\S]*hidden aria-hidden="true"/);
 assert.match(indexHtml, /id="bottomInboxMode"[\s\S]*aria-label="&#25910;&#20214;&#31665;"/);
 assert.match(indexHtml, /id="bottomTasksMode"[\s\S]*aria-label="话题"/);
-assert.match(indexHtml, /id="bottomChatMode"[\s\S]*id="bottomTasksMode"[\s\S]*id="bottomInboxMode"[\s\S]*id="bottomProjectsMode"[\s\S]*id="bottomWardrobeMode"[\s\S]*id="bottomCodexMode"[\s\S]*id="bottomFinanceMode"[\s\S]*id="bottomTodosMode"/);
+assert.match(indexHtml, /id="bottomChatMode"[\s\S]*id="bottomTasksMode"[\s\S]*id="bottomInboxMode"[\s\S]*id="bottomProjectsMode"[\s\S]*id="bottomTodosMode"[\s\S]*id="bottomWardrobeMode"[\s\S]*id="bottomCodexMode"[\s\S]*id="bottomFinanceMode"/);
 assert.doesNotMatch(indexHtml, /id="bottomTasksMode"[\s\S]{0,160}hidden aria-hidden="true"/);
 assert.match(indexHtml, /id="bottomAutomationMode"[\s\S]*hidden aria-hidden="true"/);
 assert.match(indexHtml, /id="bottomWardrobeMode"[\s\S]*hidden aria-hidden="true"/);
@@ -2010,6 +2017,9 @@ assert.match(appJs, /nav\?\.classList\.toggle\("wardrobe-visible", available\)/)
 assert.match(appJs, /function updateCodexPluginNavigationAvailability\(\)/);
 assert.match(appJs, /function updateFinancePluginNavigationAvailability\(\)/);
 assert.match(appJs, /const available = Boolean\(state\.auth\?\.isOwner\)/);
+assert.match(appJs, /function refreshEmbeddedPluginList\(options = \{\}\)/);
+assert.match(appJs, /function embeddedPluginNavigationAvailable\(def\)/);
+assert.match(appJs, /const available = embeddedPluginNavigationAvailable\(def\)/);
 assert.match(appJs, /nav\?\.classList\.toggle\("codex-visible", available\)/);
 assert.match(appJs, /nav\?\.classList\.toggle\(def\.navVisibleClass, available\)/);
 assert.doesNotMatch(appJs, /hiddenBottomTabs = new Set\(\[[^\]]*"bottomTasksMode"/);

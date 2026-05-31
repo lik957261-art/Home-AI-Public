@@ -50,6 +50,15 @@ This file records durable product rules that implementation must preserve.
 - Learning records must be summary-only. Do not expose full child answers, transcripts, questions, answer keys, or prompts in planning records, docs, or handoffs.
 - Rewards are settled only through the reward settlement service and coin service. Evaluation services must not write coin ledger rows directly.
 
+## Platform Currency
+
+- `通宝` is the Hermes Mobile platform-level base currency for each workspace user.
+- Growth learning coins remain a learning-domain reward signal and must not be directly rebranded as platform currency.
+- Growth learning coins may be exchanged into `通宝` only through an idempotent, audited exchange service with Owner-configurable rules.
+- `通宝` wallet and ledger records belong to the platform currency domain, not the Growth SQLite domain and not the Finance plugin.
+- Finance may report or summarize `通宝`, but `通宝` must not be mixed with real RMB/bank/card transaction ledgers.
+- Platform currency mutations must resolve authenticated actor, target workspace user, source type, source id, and idempotency key before writing a ledger entry.
+
 ## Skill Permissions
 
 - Owner can write system/shared Skills.

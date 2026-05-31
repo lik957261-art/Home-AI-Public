@@ -180,6 +180,14 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     ownerOnly: true,
     resourceTypes: ["workspace"],
   })),
+  exact("platform-currency-wallet", "GET", "/api/platform-currency/wallet", "platform-currency", routeOptions("platform-currency", {
+    workspaceScoped: true,
+    resourceTypes: ["platform-currency", "wallet"],
+  })),
+  exact("platform-currency-ledger", "GET", "/api/platform-currency/ledger", "platform-currency", routeOptions("platform-currency", {
+    workspaceScoped: true,
+    resourceTypes: ["platform-currency", "ledger"],
+  })),
   exact("access-keys-list", "GET", "/api/access-keys", "access-key", routeOptions("access-key", {
     riskLevel: "owner",
     ownerOnly: true,

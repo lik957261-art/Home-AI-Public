@@ -192,6 +192,36 @@ async function testWorkspaceListShapeAndAuthMetadata() {
   ]);
 }
 
+async function testWorkspaceListIncludesTongbaoWalletWhenServiceIsAvailable() {
+  const { routes } = makeRoutes({
+    platformCurrencyService: {
+      walletSummary(input) {
+        return {
+          walletId: `wallet:${input.workspaceId}`,
+          workspaceId: input.workspaceId,
+          currency: "TONGBAO",
+          status: "active",
+          availableBalance: 0,
+          heldBalance: 0,
+          totalBalance: 0,
+        };
+      },
+    },
+  });
+  const listed = await request(routes, "GET", "/api/workspaces", { ok: true, role: "workspace", workspaceId: "child" });
+
+  assert.equal(listed.res.statusCode, 200);
+  assert.deepEqual(listed.body.data[0].tongbaoWallet, {
+    walletId: "wallet:child",
+    workspaceId: "child",
+    currency: "TONGBAO",
+    status: "active",
+    availableBalance: 0,
+    heldBalance: 0,
+    totalBalance: 0,
+  });
+}
+
 async function testDefaultsOwnerOnlyWithInjectedAuth() {
   const { routes, calls } = makeRoutes();
   const denied = await request(routes, "GET", "/api/workspaces/defaults?username=child", { ok: true, role: "workspace", workspaceId: "child" });
@@ -454,6 +484,7 @@ function testDependencyValidation() {
 async function run() {
   await testMetadataAndFallthrough();
   await testWorkspaceListShapeAndAuthMetadata();
+  await testWorkspaceListIncludesTongbaoWalletWhenServiceIsAvailable();
   await testDefaultsOwnerOnlyWithInjectedAuth();
   await testDefaultsParameterPassing();
   await testDefaultsErrorShape();

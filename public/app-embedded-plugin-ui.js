@@ -67,6 +67,76 @@ function embeddedPluginAvailable(manifest) {
   return Boolean(manifest?.available && manifest?.entry?.url && manifest?.kind === "embedded_app");
 }
 
+function embeddedPluginListState() {
+  if (!state.embeddedPluginList || typeof state.embeddedPluginList !== "object") {
+    state.embeddedPluginList = {
+      workspaceId: "",
+      loading: false,
+      loaded: false,
+      pluginIds: [],
+      requestSeq: 0,
+      lastAttemptAt: 0,
+      error: "",
+    };
+  }
+  return state.embeddedPluginList;
+}
+
+async function refreshEmbeddedPluginList(options = {}) {
+  const record = embeddedPluginListState();
+  const workspaceId = state.selectedWorkspaceId || "owner";
+  if (!options.force && record.loading) return record;
+  if (!options.force && record.loaded && record.workspaceId === workspaceId) return record;
+  const seq = Number(record.requestSeq || 0) + 1;
+  record.requestSeq = seq;
+  record.workspaceId = workspaceId;
+  record.loading = true;
+  record.lastAttemptAt = Date.now();
+  record.error = "";
+  try {
+    const params = new URLSearchParams({ workspaceId });
+    const result = await api(`/api/hermes-plugins?${params.toString()}`);
+    if (record.requestSeq !== seq || record.workspaceId !== workspaceId) return record;
+    record.pluginIds = (result.plugins || [])
+      .map((item) => String(item?.id || "").trim())
+      .filter(Boolean);
+    record.loaded = true;
+  } catch (err) {
+    if (record.requestSeq === seq && record.workspaceId === workspaceId) {
+      record.pluginIds = [];
+      record.loaded = false;
+      record.error = err?.message || String(err);
+    }
+  } finally {
+    if (record.requestSeq === seq && record.workspaceId === workspaceId) {
+      record.loading = false;
+      updateNavigationControls();
+    }
+  }
+  return record;
+}
+
+function embeddedPluginListedForWorkspace(pluginId) {
+  const record = embeddedPluginListState();
+  const workspaceId = state.selectedWorkspaceId || "owner";
+  return Boolean(
+    record.loaded
+    && record.workspaceId === workspaceId
+    && record.pluginIds.includes(pluginId)
+  );
+}
+
+function embeddedPluginNavigationAvailable(def) {
+  if (def?.id === "codex-mobile") return Boolean(state.auth?.isOwner);
+  if (state.auth?.isOwner) return true;
+  const available = embeddedPluginListedForWorkspace(def?.id || "");
+  const record = embeddedPluginListState();
+  const workspaceId = state.selectedWorkspaceId || "owner";
+  const retryReady = record.workspaceId !== workspaceId || Date.now() - Number(record.lastAttemptAt || 0) > 15000;
+  if (!available && !record.loading && retryReady) refreshEmbeddedPluginList().catch(() => {});
+  return available;
+}
+
 function embeddedPluginUsesLaunchToken(manifest) {
   const entryUrl = String(manifest?.entry?.url || "");
   return manifest?.embed?.tokenStatus === "launch_token_issued" || /[?&](?:launch|codexPluginLaunch)=/.test(entryUrl);
@@ -736,7 +806,7 @@ function updateFinancePluginNavigationAvailability() {
   const def = EMBEDDED_PLUGIN_DEFS.finance;
   const button = $(def.bottomButtonId);
   const nav = $("bottomNav");
-  const available = Boolean(state.auth?.isOwner);
+  const available = embeddedPluginNavigationAvailable(def);
   if (button) {
     button.hidden = !available;
     button.setAttribute("aria-hidden", available ? "false" : "true");

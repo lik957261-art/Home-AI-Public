@@ -710,6 +710,7 @@ The guard test is:
 | Growth mastery/evergreen | `node tests\learning-growth-mastery-profile-service.test.js`, `node tests\learning-growth-mastery-repository.test.js`, `node tests\learning-growth-next-card-strategy-service.test.js`, `node tests\learning-growth-sequence-service.test.js` |
 | Growth frontend | `node tests\app-learning-growth-ui.test.js`, `node tests\app-learning-growth-task-ui.test.js`, `node tests\app-learning-program-ui.test.js`, `node tests\app-learning-native-growth-submission-controller.test.js`, `node tests\task-list-ui.test.js` |
 | Learning rewards/coins | `node tests\learning-reward-settlement-service.test.js`, `node tests\learning-coin-service.test.js`, `node tests\learning-coin-api-routes.test.js` |
+| Tongbao platform currency | v399 wallet foundation: `node tests\platform-currency-service.test.js`, `node tests\platform-currency-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\api-route-inventory.test.js`, `node tests\task-list-ui.test.js`, and `node tests\architecture-refactor-boundary.test.js`; future exchange/spend/grant work must also add `node tests\platform-currency-exchange-service.test.js`, `node tests\learning-coin-service.test.js`, and `node tests\learning-coin-api-routes.test.js` |
 | Public export/release | `node tests\public-export.test.js`, `node scripts\privacy-scan.js --all-files`, `npm.cmd run export:public` |
 
 ## Planned Growth Workflow Contract Gate

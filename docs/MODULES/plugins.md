@@ -93,8 +93,12 @@ HTTP/LAN upstream directly.
 For embedded upload controls, the proxy/host must preserve ordinary browser file
 upload semantics. Plugin `POST`/`PUT`/`PATCH` requests, including multipart
 `FormData`, must forward the original body and `content-type` to the upstream
-service. The host iframe sandbox must allow forms and modals so upload failure
-messages are not silently blocked. Wardrobe's historical `.upload-btn input {
+service. The proxy must not forward the browser-facing Hermes `Origin` /
+`Referer` directly to a local/LAN upstream for unsafe methods; it should keep the
+real Hermes origin in `X-Hermes-Public-Origin` / `X-Forwarded-Origin` and send
+the upstream's own origin in `Origin` so plugin CSRF checks still see a same-origin
+server-side proxy request. The host iframe sandbox must allow forms and modals
+so upload failure messages are not silently blocked. Wardrobe's historical `.upload-btn input {
 display: none; }` pattern is normalized by the Hermes proxy into a transparent
 interactive file input because iOS/PWA iframe file pickers can otherwise open
 the photo selector but fail to deliver a reliable `change`/`files` event.
@@ -834,6 +838,13 @@ Finance is Owner-visible by default. Non-Owner workspaces remain hidden and
 cannot launch Finance unless Owner explicitly grants the workspace through
 the side navigation plugin manager or through
 `HERMES_MOBILE_PLUGIN_FINANCE_WORKSPACES`.
+
+The Hermes Mobile bottom-tab entry for Finance must use the same authorization
+projection as launch: Owner sees it by default, while Non-Owner workspaces see
+it only after `GET /api/hermes-plugins?workspaceId=<workspace>` includes
+`finance`. Do not gate Finance navigation on `state.auth.isOwner` alone;
+otherwise an authorized workspace can launch through the backend contract but
+still miss the visible tab in its own PWA session.
 
 The Finance manifest may use the compact top-level shape:
 

@@ -27,6 +27,28 @@ function Write-GatewayPoolLog {
   Add-Content -LiteralPath $logPath -Value $line -Encoding UTF8
 }
 
+function Acquire-GatewayPoolRunMutex {
+  $script:GatewayPoolRunMutex = [System.Threading.Mutex]::new($false, "Local\HermesMobileGatewayPoolStart")
+  try {
+    $script:GatewayPoolRunMutexAcquired = $script:GatewayPoolRunMutex.WaitOne(0)
+  } catch [System.Threading.AbandonedMutexException] {
+    $script:GatewayPoolRunMutexAcquired = $true
+  }
+  if (-not $script:GatewayPoolRunMutexAcquired) {
+    Write-GatewayPoolLog "Gateway Pool startup skipped; another start-gateway-pool.ps1 instance is already running."
+    exit 0
+  }
+}
+
+function Release-GatewayPoolRunMutex {
+  if ($script:GatewayPoolRunMutexAcquired -and $script:GatewayPoolRunMutex) {
+    $script:GatewayPoolRunMutex.ReleaseMutex()
+  }
+  if ($script:GatewayPoolRunMutex) {
+    $script:GatewayPoolRunMutex.Dispose()
+  }
+}
+
 function Convert-GatewayPoolWindowsPathToWslPath {
   param(
     [string]$Distro,
@@ -545,7 +567,7 @@ if (`$LASTEXITCODE -ne 0) {
   [System.IO.File]::WriteAllText($stopChild, $stopChildText, $encoding)
 
   Write-GatewayPoolLog "Stopping existing low gateway processes before pool start."
-  $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $stopChild 2>&1
+  $output = & powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $stopChild 2>&1
   foreach ($line in $output) { Write-GatewayPoolLog ("lowgw-stop: {0}" -f $line) }
   if ($LASTEXITCODE -ne 0) { throw "Low gateway stop failed with exit code $LASTEXITCODE" }
 
@@ -576,7 +598,7 @@ function Start-LowGateways {
   Ensure-LowGatewayProfileEnv
   Stop-LowGateways
   Write-GatewayPoolLog "Starting low gateway pool."
-  $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $child -DistroName $LowGatewayDistroName 2>&1
+  $output = & powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $child -DistroName $LowGatewayDistroName 2>&1
   foreach ($line in $output) { Write-GatewayPoolLog ("lowgw: {0}" -f $line) }
   if ($LASTEXITCODE -ne 0) { throw "Low gateway pool start failed with exit code $LASTEXITCODE" }
 }
@@ -589,6 +611,7 @@ function Check-LowGatewayCodexAuth {
   }
   $args = @(
     "-NoProfile",
+    "-WindowStyle", "Hidden",
     "-ExecutionPolicy", "Bypass",
     "-File", $checkScript,
     "-WorkerRunAsScript", (Join-Path $GatewayWorkerRoot "run-as-worker.ps1"),
@@ -620,6 +643,7 @@ function Provision-OwnerExternalConnectors {
   }
   $args = @(
     "-NoProfile",
+    "-WindowStyle", "Hidden",
     "-ExecutionPolicy", "Bypass",
     "-File", $provisionScript,
     "-WorkerRunAsScript", $runAsWorker,
@@ -795,20 +819,25 @@ function Repair-OwnerMaintenanceGateways {
   Write-GatewayPoolLog "Owner-maintenance gateway repair OK; healthy ports: $($script:repairPorts -join ', ')."
 }
 
-if ($OwnerMaintenanceOnly) {
-  Write-GatewayPoolLog "Owner-maintenance gateway repair begin."
-  Repair-OwnerMaintenanceGateways
-  exit 0
+Acquire-GatewayPoolRunMutex
+try {
+  if ($OwnerMaintenanceOnly) {
+    Write-GatewayPoolLog "Owner-maintenance gateway repair begin."
+    Repair-OwnerMaintenanceGateways
+    exit 0
+  }
+
+  Write-GatewayPoolLog "Gateway pool startup begin."
+  Invoke-GatewayPoolPhase -Name "provision-owner-external-connectors" -ScriptBlock { Provision-OwnerExternalConnectors }
+  Invoke-GatewayPoolPhase -Name "start-low-gateways" -ScriptBlock { Start-LowGateways }
+  Invoke-GatewayPoolPhase -Name "check-low-gateway-codex-auth" -ScriptBlock { Check-LowGatewayCodexAuth }
+  Invoke-GatewayPoolPhase -Name "install-owner-maintenance-chatgpt-pro-plugin" -ScriptBlock { Install-OwnerMaintenanceChatGptProPlugin }
+  Invoke-GatewayPoolPhase -Name "start-owner-maintenance-gateways" -ScriptBlock { Start-OwnerMaintenanceGateways | Out-Null }
+
+  $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
+  $ports = @($manifest.workers | Where-Object { $_.enabled -and $_.port } | ForEach-Object { [int]$_.port })
+  Invoke-GatewayPoolPhase -Name "wait-gateway-health" -ScriptBlock { Wait-HealthPorts -Ports $ports }
+  Write-GatewayPoolLog "Gateway pool startup OK; healthy ports: $($ports -join ', ')."
+} finally {
+  Release-GatewayPoolRunMutex
 }
-
-Write-GatewayPoolLog "Gateway pool startup begin."
-Invoke-GatewayPoolPhase -Name "provision-owner-external-connectors" -ScriptBlock { Provision-OwnerExternalConnectors }
-Invoke-GatewayPoolPhase -Name "start-low-gateways" -ScriptBlock { Start-LowGateways }
-Invoke-GatewayPoolPhase -Name "check-low-gateway-codex-auth" -ScriptBlock { Check-LowGatewayCodexAuth }
-Invoke-GatewayPoolPhase -Name "install-owner-maintenance-chatgpt-pro-plugin" -ScriptBlock { Install-OwnerMaintenanceChatGptProPlugin }
-Invoke-GatewayPoolPhase -Name "start-owner-maintenance-gateways" -ScriptBlock { Start-OwnerMaintenanceGateways | Out-Null }
-
-$manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
-$ports = @($manifest.workers | Where-Object { $_.enabled -and $_.port } | ForEach-Object { [int]$_.port })
-Invoke-GatewayPoolPhase -Name "wait-gateway-health" -ScriptBlock { Wait-HealthPorts -Ports $ports }
-Write-GatewayPoolLog "Gateway pool startup OK; healthy ports: $($ports -join ', ')."

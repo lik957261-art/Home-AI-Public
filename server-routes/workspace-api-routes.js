@@ -147,8 +147,15 @@ function createWorkspaceApiRoutes(deps = {}) {
       : (Array.isArray(auth?.workspaces) && auth.workspaces.length
         ? auth.workspaces
         : (auth?.workspaceId ? [auth.workspaceId] : []));
+    const platformCurrencyService = deps.platformCurrencyService || null;
     deps.sendJson(res, 200, {
-      data: deps.publicWorkspacesForAuth(auth).map(deps.publicWorkspace),
+      data: deps.publicWorkspacesForAuth(auth).map((workspace) => {
+        const publicWorkspace = deps.publicWorkspace(workspace);
+        if (platformCurrencyService && typeof platformCurrencyService.walletSummary === "function") {
+          publicWorkspace.tongbaoWallet = platformCurrencyService.walletSummary({ workspaceId: publicWorkspace.id });
+        }
+        return publicWorkspace;
+      }),
       sources: catalog.sources,
       auth: {
         role: auth?.role,
