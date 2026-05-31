@@ -774,7 +774,7 @@ async function testFinanceLaunchEntryUsesWorkspaceKeyBody() {
   assert.equal(manifest.available, true);
   assert.equal(
     manifest.entry.url,
-    "/api/hermes-plugins/finance/proxy/api/v1/hermes/plugin/launch/finance_once?pluginTheme=dark&pluginFontSize=xlarge",
+    "/api/hermes-plugins/finance/proxy/api/v1/hermes/plugin/launch/finance_once?pluginTheme=dark&pluginFontSize=xlarge&workspaceId=owner",
   );
   assert.equal(manifest.embed.sameOriginProxy, true);
   const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
@@ -823,13 +823,17 @@ async function testFinanceLaunchEntryUsesSeparateWorkspaceUserKeyWhenProvided() 
       throw new Error(`unexpected fetch ${url}`);
     },
   });
-  await service.manifest({
+  const manifest = await service.manifest({
     id: "finance",
     workspaceId: "weixin_wuping",
     workspaceUserKey: "member-user-key",
     ownerAuthorized: true,
     launchPlugin: true,
   });
+  assert.equal(
+    manifest.entry.url,
+    "/api/hermes-plugins/finance/proxy/api/v1/hermes/plugin/launch/finance_member_once?workspaceId=weixin_wuping",
+  );
   const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
   assert.ok(launchCall);
   const body = JSON.parse(launchCall.options.body);
@@ -941,10 +945,74 @@ async function testHttpsHermesUsesSameOriginProxyForLanWardrobeEntryAfterLaunch(
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|test-key/i);
 }
 
+async function testHttpsHermesProxyEntryIncludesEffectiveWorkspaceForWardrobeLaunch() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-wardrobe-proxy-workspace-"));
+  const configPath = path.join(dir, "drive", "users", "weixin_test_1", ".hermes-wardrobe", "config.json");
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify({
+    workspace_id: "wardrobe:weixin_test_1",
+    hermes_workspace_id: "weixin_test_1",
+  }), "utf8");
+  const launchBodies = [];
+  const service = createHermesPluginService({
+    dataDir: dir,
+    plugins: [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }],
+    wardrobeAccessKeyPath: __filename,
+    fetch(url, options = {}) {
+      if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(sampleManifest()),
+        });
+      }
+      if (url === "http://192.168.10.99:8765/?embed=hermes") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          headers: { get: () => "frame-ancestors https://hermes.example.test" },
+        });
+      }
+      if (url === "http://192.168.10.99:8765/api/v1/hermes/plugin/launch") {
+        launchBodies.push(JSON.parse(options.body));
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            entry_path: "/?embed=hermes&launch=wpl_once",
+            expires_in: 90,
+          }),
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+  const manifest = await service.manifest({
+    id: "wardrobe",
+    workspaceId: "weixin_test_1",
+    appOrigin: "https://hermes.example.test",
+    launchPlugin: true,
+  });
+  assert.equal(manifest.available, true);
+  assert.equal(
+    manifest.entry.url,
+    "/api/hermes-plugins/wardrobe/proxy/?embed=hermes&launch=wpl_once&workspaceId=weixin_test_1",
+  );
+  assert.deepEqual(launchBodies, [{
+    workspace_id: "wardrobe:weixin_test_1",
+    hermes_workspace_id: "weixin_test_1",
+  }]);
+  assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|test-key/i);
+}
+
 function testPluginSameOriginProxyPathForUrl() {
   assert.equal(
     pluginSameOriginProxyPathForUrl("wardrobe", "http://192.168.10.99:8765/items/1?embed=hermes"),
     "/api/hermes-plugins/wardrobe/proxy/items/1?embed=hermes",
+  );
+  assert.equal(
+    pluginSameOriginProxyPathForUrl("wardrobe", "http://192.168.10.99:8765/items/1?embed=hermes", { workspaceId: "weixin_test_1" }),
+    "/api/hermes-plugins/wardrobe/proxy/items/1?embed=hermes&workspaceId=weixin_test_1",
   );
 }
 
@@ -1022,6 +1090,7 @@ async function run() {
   await testFinanceLaunchEntryUsesSeparateWorkspaceUserKeyWhenProvided();
   await testHttpsHermesUsesSameOriginProxyForLocalCodexEntryAfterLaunch();
   await testHttpsHermesUsesSameOriginProxyForLanWardrobeEntryAfterLaunch();
+  await testHttpsHermesProxyEntryIncludesEffectiveWorkspaceForWardrobeLaunch();
   testPluginSameOriginProxyPathForUrl();
   testFindWardrobeAccessKeyPath();
   testFindCodexMobileAccessKeyPath();

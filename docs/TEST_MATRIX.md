@@ -397,10 +397,20 @@ as well as the plugin route module. Same-origin proxy launch tests must prove
 server-side `fetch` uses manual redirect handling, because automatic redirect
 following consumes launch `302` cookies before the browser can store them. Tests
 must also assert upstream cookie `Domain` is stripped and `Path` is rewritten to
-the plugin proxy prefix. The same-origin proxy must also rewrite plugin-owned
-image/static URLs in HTML, JavaScript, CSS, and JSON responses so absolute
-upstream image URLs and root-relative `/uploads`, `/media`, `/images`,
-`/assets`, and `/static` paths stay under
+the plugin proxy prefix. They must also assert Owner switching into a non-Owner
+workspace cannot reuse an Owner plugin session: the proxied launch entry must
+carry the effective target `workspaceId`, upstream requests must forward
+`x-hermes-plugin-workspace-id` for that target, and session cookies must be
+namespaced by plugin id plus workspace id. Incoming proxy requests may translate
+only the current plugin/workspace cookie back to the upstream cookie name; they
+must drop Owner-scoped plugin cookies, other-workspace plugin cookies, and old
+unscoped plugin cookies. This is a generic embedded-plugin harness requirement,
+not a Wardrobe-only case; cover normal workspace-private plugins such as
+Wardrobe and Finance, and keep Owner-only plugins such as Codex Mobile hidden
+when the effective workspace is non-Owner. The same-origin proxy must also
+rewrite plugin-owned image/static URLs in HTML, JavaScript, CSS, and JSON
+responses so absolute upstream image URLs and root-relative `/uploads`,
+`/media`, `/images`, `/assets`, and `/static` paths stay under
 `/api/hermes-plugins/<plugin-id>/proxy/...`; explicit plugin resource APIs such
 as `/api/uploads/file` and `/api/files/preview/content` must also be proxied.
 Wardrobe JSON photo paths such as `/api/photos/<id>/content`,

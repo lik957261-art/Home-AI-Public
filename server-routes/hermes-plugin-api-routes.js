@@ -264,6 +264,53 @@ function createHermesPluginApiRoutes(deps = {}) {
     return new URL(`${upstreamPath}${url?.search || ""}`, pluginProxyUpstreamBase(pluginId)).toString();
   }
 
+  function base64UrlEncode(value = "") {
+    return Buffer.from(String(value), "utf8")
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/g, "");
+  }
+
+  function base64UrlDecode(value = "") {
+    const text = String(value || "");
+    if (!/^[A-Za-z0-9_-]*$/.test(text)) return "";
+    const padded = `${text}${"=".repeat((4 - (text.length % 4)) % 4)}`;
+    try {
+      return Buffer.from(padded.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function pluginProxyCookieName(pluginId = "", workspaceId = "", cookieName = "") {
+    const id = base64UrlEncode(pluginId);
+    const workspace = base64UrlEncode(workspaceId || "owner");
+    const name = base64UrlEncode(cookieName);
+    if (!id || !workspace || !name) return "";
+    return `hmplugin_${id}_${workspace}_${name}`;
+  }
+
+  function decodePluginProxyCookieName(name = "", pluginId = "", workspaceId = "") {
+    const prefix = `hmplugin_${base64UrlEncode(pluginId)}_${base64UrlEncode(workspaceId || "owner")}_`;
+    const text = String(name || "");
+    if (!text.startsWith(prefix)) return "";
+    return base64UrlDecode(text.slice(prefix.length));
+  }
+
+  function isHermesPluginProxyCookieName(name = "") {
+    return String(name || "").startsWith("hmplugin_");
+  }
+
+  function parseCookiePair(part = "") {
+    const index = String(part).indexOf("=");
+    if (index <= 0) return null;
+    return {
+      name: String(part).slice(0, index).trim(),
+      value: String(part).slice(index + 1),
+    };
+  }
+
   function responseHeader(response, name) {
     return response?.headers?.get?.(name) || response?.headers?.get?.(name.toLowerCase()) || "";
   }
@@ -274,10 +321,14 @@ function createHermesPluginApiRoutes(deps = {}) {
     return value ? [value] : [];
   }
 
-  function rewritePluginProxySetCookie(cookie = "", pluginId = "") {
+  function rewritePluginProxySetCookie(cookie = "", pluginId = "", workspaceId = "") {
     const parts = String(cookie || "").split(";").map((part) => part.trim()).filter(Boolean);
     if (!parts.length) return "";
-    const rewritten = [parts[0]];
+    const pair = parseCookiePair(parts[0]);
+    if (!pair) return "";
+    const scopedName = pluginProxyCookieName(pluginId, workspaceId, pair.name);
+    if (!scopedName) return "";
+    const rewritten = [`${scopedName}=${pair.value}`];
     let hasPath = false;
     for (const part of parts.slice(1)) {
       const lower = part.toLowerCase();
@@ -291,6 +342,36 @@ function createHermesPluginApiRoutes(deps = {}) {
     }
     if (!hasPath) rewritten.push(`Path=${pluginProxyPrefix(pluginId)}`);
     return rewritten.join("; ");
+  }
+
+  function rewritePluginProxyRequestCookie(cookieHeader = "", pluginId = "", workspaceId = "") {
+    const cookies = String(cookieHeader || "")
+      .split(";")
+      .map((part) => parseCookiePair(part.trim()))
+      .filter(Boolean);
+    const forwarded = [];
+    for (const pair of cookies) {
+      const originalName = decodePluginProxyCookieName(pair.name, pluginId, workspaceId);
+      if (originalName) {
+        forwarded.push(`${originalName}=${pair.value}`);
+        continue;
+      }
+      if (isHermesPluginProxyCookieName(pair.name)) continue;
+    }
+    return forwarded.join("; ");
+  }
+
+  function withProxyWorkspaceId(proxyUrl = "", workspaceId = "") {
+    const id = String(workspaceId || "owner").trim() || "owner";
+    try {
+      const parsed = new URL(proxyUrl, "http://localhost");
+      if (!parsed.searchParams.get("workspaceId") && !parsed.searchParams.get("workspace_id")) {
+        parsed.searchParams.set("workspaceId", id);
+      }
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    } catch (_) {
+      return proxyUrl;
+    }
   }
 
   function escapeRegExp(value = "") {
@@ -450,8 +531,11 @@ function createHermesPluginApiRoutes(deps = {}) {
     for (const [name, value] of Object.entries(req.headers || {})) {
       const lower = name.toLowerCase();
       if (["host", "connection", "content-length", "accept-encoding", "origin", "referer"].includes(lower)) continue;
+      if (lower === "cookie") continue;
       headers[name] = value;
     }
+    const upstreamCookie = rewritePluginProxyRequestCookie(req.headers?.cookie, pluginId, workspaceId);
+    if (upstreamCookie) headers.cookie = upstreamCookie;
     headers["x-hermes-plugin-workspace-id"] = workspaceId;
     const publicOrigin = originFromRequest(req);
     if (publicOrigin) {
@@ -471,14 +555,14 @@ function createHermesPluginApiRoutes(deps = {}) {
     const contentType = responseHeader(upstream, "content-type");
     const outHeaders = { "Content-Type": contentType || "application/octet-stream" };
     const setCookies = responseSetCookies(upstream)
-      .map((cookie) => rewritePluginProxySetCookie(cookie, pluginId))
+      .map((cookie) => rewritePluginProxySetCookie(cookie, pluginId, workspaceId))
       .filter(Boolean);
     if (setCookies.length) outHeaders["Set-Cookie"] = setCookies;
     const location = responseHeader(upstream, "location");
     if (location) {
       try {
         const target = new URL(location, pluginProxyUpstreamBase(pluginId));
-        outHeaders.Location = `${pluginProxyPrefix(pluginId)}${target.pathname}${target.search}`;
+        outHeaders.Location = withProxyWorkspaceId(`${pluginProxyPrefix(pluginId)}${target.pathname}${target.search}`, workspaceId);
       } catch (_) {
         outHeaders.Location = location;
       }

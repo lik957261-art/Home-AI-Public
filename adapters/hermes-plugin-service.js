@@ -209,12 +209,16 @@ function urlWithoutSearchOrHash(value = "") {
   }
 }
 
-function pluginSameOriginProxyPathForUrl(pluginId = "", value = "") {
+function pluginSameOriginProxyPathForUrl(pluginId = "", value = "", input = {}) {
   const id = encodeURIComponent(stringValue(pluginId));
   const url = safeUrl(value);
   if (!id || !url) return "";
   try {
     const parsed = new URL(url);
+    const workspaceId = stringValue(input.workspaceId || input.workspace_id);
+    if (workspaceId && !parsed.searchParams.get("workspaceId") && !parsed.searchParams.get("workspace_id")) {
+      parsed.searchParams.set("workspaceId", workspaceId);
+    }
     return `/api/hermes-plugins/${id}/proxy${parsed.pathname}${parsed.search}`;
   } catch (_) {
     return "";
@@ -804,7 +808,9 @@ function validateHttpsEntryScheme(manifest, input = {}) {
     return manifest;
   }
   if (isLocalOrPrivateHttpUrl(entryUrl)) {
-    const proxyUrl = pluginSameOriginProxyPathForUrl(manifest?.id, entryUrl);
+    const proxyUrl = pluginSameOriginProxyPathForUrl(manifest?.id, entryUrl, {
+      workspaceId: input.workspaceId,
+    });
     if (proxyUrl) {
       return Object.assign({}, manifest, {
         entry: Object.assign({}, manifest.entry, {

@@ -44,6 +44,18 @@ function parseBody(res) {
   return JSON.parse(res.body || "{}");
 }
 
+function testBase64Url(value = "") {
+  return Buffer.from(String(value), "utf8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function testProxyCookieName(pluginId, workspaceId, cookieName) {
+  return `hmplugin_${testBase64Url(pluginId)}_${testBase64Url(workspaceId)}_${testBase64Url(cookieName)}`;
+}
+
 function makeRoutes(overrides = {}) {
   const calls = { access: [], owner: [], list: [], manifest: [], grants: [], revokes: [], notifications: [], broadcasts: [], audit: [] };
   const deps = Object.assign({
@@ -458,7 +470,7 @@ async function testCodexProxyPreservesLaunchCookieAndRedirect() {
     "/api/hermes-plugins/codex-mobile/proxy/?embed=hermes&workspaceId=owner",
   );
   assert.deepEqual(res.headers["Set-Cookie"], [
-    "codex_mobile_plugin_session=session-value; Path=/api/hermes-plugins/codex-mobile/proxy; HttpOnly; SameSite=Lax",
+    `${testProxyCookieName("codex-mobile", "owner", "codex_mobile_plugin_session")}=session-value; Path=/api/hermes-plugins/codex-mobile/proxy; HttpOnly; SameSite=Lax`,
   ]);
 }
 
@@ -495,6 +507,55 @@ async function testFinanceProxyUsesConfiguredLocalUpstreamAndForwardsOrigin() {
   assert.equal(fetchCalls[0].options.headers["x-hermes-public-origin"], "https://hermes.example.test");
 }
 
+async function testFinanceProxyNamespacesSessionCookieAndRedirectForWorkspace() {
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "finance" });
+      },
+      pluginManifestUrl(id) {
+        return id === "finance" ? "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:8791/finance.html?launch=finance_once&workspaceId=weixin_test_1");
+      assert.equal(options.redirect, "manual");
+      return Promise.resolve({
+        ok: true,
+        status: 302,
+        headers: {
+          get(name) {
+            const lower = name.toLowerCase();
+            if (lower === "content-type") return "text/plain";
+            if (lower === "location") return "http://127.0.0.1:8791/finance.html?embed=hermes";
+            return "";
+          },
+          getSetCookie() {
+            return ["finance_hermes_session=finance-session; Domain=127.0.0.1; Path=/; HttpOnly; SameSite=Lax"];
+          },
+        },
+        text: () => Promise.resolve(""),
+        arrayBuffer: () => Promise.resolve(Buffer.from("")),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/finance/proxy/finance.html?launch=finance_once&workspaceId=weixin_test_1"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 302);
+  assert.equal(res.headers.Location, "/api/hermes-plugins/finance/proxy/finance.html?embed=hermes&workspaceId=weixin_test_1");
+  assert.deepEqual(res.headers["Set-Cookie"], [
+    `${testProxyCookieName("finance", "weixin_test_1", "finance_hermes_session")}=finance-session; Path=/api/hermes-plugins/finance/proxy; HttpOnly; SameSite=Lax`,
+  ]);
+}
+
 async function testFinanceProxyRewritesFinanceApiJsonUrls() {
   const { routes } = makeRoutes({
     fetch(url, options = {}) {
@@ -523,6 +584,50 @@ async function testFinanceProxyRewritesFinanceApiJsonUrls() {
   assert.match(res.body, /"note":"Do not rewrite prose mentioning \/api\/not-a-resource\."/);
 }
 
+async function testFinanceProxyForwardsOnlyCurrentWorkspaceSessionCookie() {
+  const fetchCalls = [];
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "finance" });
+      },
+      pluginManifestUrl(id) {
+        return id === "finance" ? "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch(url, options = {}) {
+      fetchCalls.push({ url, options });
+      assert.equal(url, "http://127.0.0.1:8791/api/finance/overview?workspaceId=weixin_test_1");
+      assert.equal(options.headers.cookie, "finance_hermes_session=test-finance-session");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify({ ok: true })),
+      });
+    },
+  });
+  const req = makeRequest("GET");
+  req.headers.cookie = [
+    `${testProxyCookieName("finance", "owner", "finance_hermes_session")}=owner-finance-session`,
+    `${testProxyCookieName("finance", "weixin_test_1", "finance_hermes_session")}=test-finance-session`,
+    "finance_hermes_session=legacy-owner-session",
+    "hermes_session=host-session",
+  ].join("; ");
+  const res = makeResponse();
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/finance/proxy/api/finance/overview?workspaceId=weixin_test_1"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.equal(fetchCalls.length, 1);
+}
+
 async function testWardrobeProxyRewritesSessionCookieScope() {
   const { routes } = makeRoutes({
     hermesPluginService: {
@@ -537,7 +642,7 @@ async function testWardrobeProxyRewritesSessionCookieScope() {
       },
     },
     fetch(url, options = {}) {
-      assert.equal(url, "http://192.168.10.99:8765/?embed=hermes&launch=wpl_once&workspaceId=owner");
+      assert.equal(url, "http://192.168.10.99:8765/?embed=hermes&launch=wpl_once&workspaceId=weixin_test_1");
       assert.equal(options.redirect, "manual");
       return Promise.resolve({
         ok: false,
@@ -563,14 +668,58 @@ async function testWardrobeProxyRewritesSessionCookieScope() {
   const result = await routes.handle(
     makeRequest("GET"),
     res,
-    makeUrl("/api/hermes-plugins/wardrobe/proxy/?embed=hermes&launch=wpl_once&workspaceId=owner"),
+    makeUrl("/api/hermes-plugins/wardrobe/proxy/?embed=hermes&launch=wpl_once&workspaceId=weixin_test_1"),
   );
   assert.equal(result.handled, true);
   assert.equal(res.statusCode, 302);
-  assert.equal(res.headers.Location, "/api/hermes-plugins/wardrobe/proxy/?embed=hermes");
+  assert.equal(res.headers.Location, "/api/hermes-plugins/wardrobe/proxy/?embed=hermes&workspaceId=weixin_test_1");
   assert.deepEqual(res.headers["Set-Cookie"], [
-    "wardrobe_session=session-value; Path=/api/hermes-plugins/wardrobe/proxy; HttpOnly; SameSite=None; Secure",
+    `${testProxyCookieName("wardrobe", "weixin_test_1", "wardrobe_session")}=session-value; Path=/api/hermes-plugins/wardrobe/proxy; HttpOnly; SameSite=None; Secure`,
   ]);
+}
+
+async function testWardrobeProxyForwardsOnlyCurrentWorkspaceSessionCookie() {
+  const fetchCalls = [];
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
+      },
+      pluginManifestUrl(id) {
+        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch(url, options = {}) {
+      fetchCalls.push({ url, options });
+      assert.equal(url, "http://192.168.10.99:8765/api/items?workspaceId=weixin_test_1");
+      assert.equal(options.headers.cookie, "wardrobe_session=test-session");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify({ ok: true })),
+      });
+    },
+  });
+  const req = makeRequest("GET");
+  req.headers.cookie = [
+    `${testProxyCookieName("wardrobe", "owner", "wardrobe_session")}=owner-session`,
+    `${testProxyCookieName("wardrobe", "weixin_test_1", "wardrobe_session")}=test-session`,
+    "wardrobe_session=legacy-owner-session",
+    "hermes_session=host-session",
+  ].join("; ");
+  const res = makeResponse();
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/wardrobe/proxy/api/items?workspaceId=weixin_test_1"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.equal(fetchCalls.length, 1);
 }
 
 async function testWardrobeProxyUsesConfiguredLanUpstream() {
@@ -858,8 +1007,11 @@ async function run() {
   await testCodexProxyRewritesHtmlAndUsesUpstream();
   await testCodexProxyPreservesLaunchCookieAndRedirect();
   await testFinanceProxyUsesConfiguredLocalUpstreamAndForwardsOrigin();
+  await testFinanceProxyNamespacesSessionCookieAndRedirectForWorkspace();
   await testFinanceProxyRewritesFinanceApiJsonUrls();
+  await testFinanceProxyForwardsOnlyCurrentWorkspaceSessionCookie();
   await testWardrobeProxyRewritesSessionCookieScope();
+  await testWardrobeProxyForwardsOnlyCurrentWorkspaceSessionCookie();
   await testWardrobeProxyUsesConfiguredLanUpstream();
   await testWardrobeProxyNormalizesUnsafeOriginForUpload();
   await testPluginProxyRewritesJsonImageUrls();

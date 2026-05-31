@@ -100,6 +100,21 @@ type. Without this, HTTPS Hermes Mobile PWAs can load the plugin shell while
 plugin-supplied images remain broken because the browser is asked to fetch the
 HTTP/LAN upstream directly.
 
+The browser-facing same-origin proxy entry must preserve the effective
+workspace. When Owner authentication is viewing a non-Owner workspace, the proxy
+URL must include that target `workspaceId`; the proxy must clamp it through
+Hermes workspace access and forward
+`x-hermes-plugin-workspace-id=<target workspace>`, not `owner`. Plugin session
+cookies are also workspace-scoped by the Hermes proxy: upstream `Set-Cookie`
+headers are rewritten to a host-owned cookie name that includes plugin id and
+workspace id, with upstream `Domain` stripped and `Path` set to the plugin proxy
+prefix. Incoming proxy requests translate only the matching plugin/workspace
+cookie back to the upstream cookie name and drop plugin cookies for other
+workspaces, including old unscoped plugin cookies. This is a generic embedded
+plugin rule: Wardrobe, Finance, Codex Mobile, and future same-origin plugins
+must not show Owner content merely because the browser already has an Owner
+plugin session.
+
 For embedded upload controls, the proxy/host must preserve ordinary browser file
 upload semantics. Plugin `POST`/`PUT`/`PATCH` requests, including multipart
 `FormData`, must forward the original body and `content-type` to the upstream
