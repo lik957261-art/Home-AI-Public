@@ -2453,6 +2453,7 @@ const { eventStreamApiRoutes, mobileApiDispatcher, services: mobileApiServices =
 });
 const server = http.createServer(async (req, res) => {
   try {
+    httpRuntimeService.attachSecurityHeaders(req, res);
     const url = getUrl(req);
     if ((await eventStreamApiRoutes.handle(req, res, url)).handled) return;
     if (url.pathname.startsWith("/api/")) {

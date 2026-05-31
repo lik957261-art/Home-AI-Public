@@ -43,11 +43,23 @@ Related route/provider boundaries:
 - Generated workspace Access Keys may be shown once at creation/rotation.
 - Stored key material, API keys, OAuth tokens, VAPID private keys, push endpoints, and secret file contents must not be exposed in browser projections or docs.
 - Revoking or rotating the current account key should force clients back to login rather than silently continuing.
+- Public/reverse-proxied deployments should disable URL query Access Keys with
+  `HERMES_MOBILE_DISABLE_QUERY_ACCESS_KEY=1` or
+  `HERMES_WEB_DISABLE_QUERY_ACCESS_KEY=1`. Browser clients should authenticate
+  with the `X-Hermes-Web-Key` header and the existing same-origin cookie path;
+  `?key=` is a compatibility path only for local/private deployments because it
+  can leak through logs, browser history, and referrers.
+- Cookie/localStorage key storage remains a planned migration area. Do not
+  remove cookie auth without first preserving embedded plugin iframe/proxy
+  requests, because iframe navigations and static resource loads cannot attach
+  the `X-Hermes-Web-Key` header.
 
 ## Validation
 
 - Workspace API tests should cover Owner and non-Owner projections.
 - Permission-sensitive route tests should include spoofed `workspaceId` / `actorWorkspaceId` requests.
+- Auth tests should cover URL query-key denial when the public deployment toggle
+  is enabled.
 - Run `node tests\architecture-refactor-boundary.test.js` when changing auth composition or route wiring.
 - Use metadata-only verification for production auth checks; do not print raw keys.
 

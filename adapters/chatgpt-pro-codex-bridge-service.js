@@ -207,7 +207,7 @@ function createChatGptProCodexBridgeService(options = {}) {
   const pollIntervalMs = Math.max(1000, Number(options.pollIntervalMs || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_POLL_MS || DEFAULT_POLL_INTERVAL_MS));
   const model = options.model || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_MODEL || "gpt-5.5";
   const effort = options.effort || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_EFFORT || "medium";
-  const permissionMode = options.permissionMode || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_PERMISSION_MODE || "full";
+  const permissionMode = options.permissionMode || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_PERMISSION_MODE || "auto";
   const key = options.key || codexMobileKey(env);
 
   async function requestJson(method, urlPath, body, signal) {

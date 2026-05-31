@@ -386,6 +386,15 @@ Required harness dimensions:
   `workspaceId` or `x-hermes-plugin-workspace-id` hint through
   `requireWorkspaceAccess`, verify the plugin is visible to that effective
   workspace, and avoid upstream fetches for anonymous or unauthorized requests.
+- Public reverse-proxy exposure is part of the permission/workspace boundary.
+  Harnesses must assert that browser-facing JSON and route-owned responses carry
+  `Strict-Transport-Security`, `Content-Security-Policy`,
+  `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy`; public
+  production launchers disable `?key=` authentication while keeping header auth
+  working; anonymous same-origin plugin proxy requests stop before upstream
+  fetch; Codex Mobile bridge defaults to a non-`full` permission mode unless
+  explicitly elevated; and Windows firewall rules do not leave generic Node.js
+  Public inbound access open when Hermes is reverse-proxied to the internet.
 - Short launch URLs must be treated as one-time/short-lived. Rerendering a
   plugin tab must not rebuild an iframe from a consumed launch URL; the
   frontend must either preserve the existing iframe node or fetch a fresh

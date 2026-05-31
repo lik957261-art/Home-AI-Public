@@ -252,6 +252,17 @@ is only a forwarding wrapper. A selector rollout or rollback must document the
 launcher value, the backup path, and a post-restart `/api/status?detail=1`
 smoke. Changing the selector does not require a Gateway Pool restart by itself,
 and it must not change provider routing or disable permission preflight.
+Public reverse-proxy hardening is a permission/security workflow. The harness
+must cover global HTTP security headers on JSON and route-owned responses,
+including `Strict-Transport-Security`, `Content-Security-Policy`,
+`X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy`; query-string
+Access Keys disabled by the effective production launcher; header-based Owner
+auth still accepted; anonymous plugin proxy requests denied before upstream
+fetch; and Codex Mobile bridge default permission mode remaining below
+`full`/dangerous execution unless explicitly overridden. Production rollout
+must record the launcher backup, post-restart `/api/public-config` header
+smoke, query-key denial smoke, authenticated `/api/status?detail=1` smoke, and
+Windows firewall state for generic Node.js Public inbound rules.
 Embedded app plugin host tests must assert manifest-driven tab loading,
 same-window iframe navigation, no `target=_blank` browser handoff, a short-lived
 signed embed token with no raw keys in URLs, a persistent iframe host that does
@@ -784,7 +795,8 @@ The guard test is:
 | --- | --- |
 | API registry/dispatcher | `node tests\api-route-registry.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js` |
 | Multi-user/task platform | `node tests\auth-provider.test.js`, `node tests\access-key-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\conversation-history-service.test.js`, `node tests\action-inbox-service.test.js`, `node tests\web-push-delivery-service.test.js` |
-| Auth/workspace/access keys | `node tests\auth-provider.test.js`, `node tests\access-key-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\workspace-public-projection-service.test.js` |
+| Auth/workspace/access keys | `node tests\auth-provider.test.js`, `node tests\access-key-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\workspace-public-projection-service.test.js`, `node tests\mobile-http-runtime-service.test.js` |
+| Public reverse-proxy security | `node tests\auth-provider.test.js`, `node tests\mobile-http-runtime-service.test.js`, `node tests\chatgpt-pro-codex-bridge-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\api-route-inventory.test.js`, `node tests\architecture-refactor-boundary.test.js`, `npm.cmd run security:invariants`, `npm.cmd run privacy:scan`, production smoke: `/api/public-config` headers, query-string key denial, header-authenticated `/api/status?detail=1`, anonymous plugin proxy denial, and Windows firewall state |
 | Gateway run lifecycle | `node tests\gateway-run-model-toolset-selection-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\gateway-run-stream-service.test.js`, `node tests\gateway-run-lifecycle-service.test.js`, `node tests\gateway-run-queue-service.test.js`, `node tests\run-liveness.test.js`, `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js` |
 | Chat context/compaction | `node tests\conversation-history-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\topic-context-compaction-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\mobile-sqlite-store.test.js` |
 | Gateway Pool/scripts | `node tests\gateway-pool-provider.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\cross-shell-command-harness.test.js`, `node tests\hermes-mobile-image-plugin.test.js` |

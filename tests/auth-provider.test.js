@@ -32,6 +32,10 @@ function reqWithKey(key) {
   return { headers: { host: "localhost", "x-hermes-web-key": key }, url: "/" };
 }
 
+function reqWithQueryKey(key) {
+  return { headers: { host: "localhost" }, url: `/?key=${encodeURIComponent(key)}` };
+}
+
 function testFirstRunOwnerSetupAndOwnerAuth() {
   const { provider, tempDir } = makeProvider();
   assert.equal(provider.ownerSetupStatus().setupRequired, true);
@@ -92,6 +96,24 @@ function testWorkspaceAuthCanCarryAccessibleWorkspaceIds() {
   assert.equal(provider.authCanAccessWorkspace(auth, "workspace_b"), true);
 }
 
+function testQueryAccessKeyCanBeDisabled() {
+  const { provider } = makeProvider({ envKey: "owner-key" });
+  assert.equal(provider.authenticateRequest(reqWithQueryKey("owner-key")).ok, true);
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-auth-query-"));
+  const strict = createAuthProvider({
+    disableAuth: () => false,
+    envKey: () => "owner-key",
+    authKeyPath: () => path.join(tempDir, "owner.key"),
+    accessKeysPath: () => path.join(tempDir, "access-keys.json"),
+    allowQueryAccessKey: () => false,
+    ensureDataDir: () => {},
+    findWorkspace: () => null,
+  });
+  assert.equal(strict.authenticateRequest(reqWithQueryKey("owner-key")).ok, false);
+  assert.equal(strict.authenticateRequest(reqWithKey("owner-key")).ok, true);
+}
+
 function testGlobalRotationEnvGuardAndDisabledAuth() {
   const envProvider = makeProvider({ envKey: "owner-key" }).provider;
   assert.throws(() => envProvider.rotateGlobalAccessKey(), /HERMES_WEB_KEY/);
@@ -107,5 +129,6 @@ function testGlobalRotationEnvGuardAndDisabledAuth() {
 testFirstRunOwnerSetupAndOwnerAuth();
 testWorkspaceKeyRotationAndScopedAuth();
 testWorkspaceAuthCanCarryAccessibleWorkspaceIds();
+testQueryAccessKeyCanBeDisabled();
 testGlobalRotationEnvGuardAndDisabledAuth();
 console.log("auth-provider tests passed");

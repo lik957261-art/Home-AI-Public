@@ -3,10 +3,43 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+const DEFAULT_CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'self'",
+  "frame-src 'self' https:",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  "style-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline'",
+  "connect-src 'self' https: wss:",
+  "manifest-src 'self'",
+  "form-action 'self'",
+  "worker-src 'self' blob:",
+].join("; ");
+
+function envFlag(value) {
+  return /^(1|true|yes|on)$/i.test(String(value || "").trim());
+}
+
 function createMobileHttpRuntimeService(options = {}) {
   const maxBodyBytes = Number(options.maxBodyBytes || 1024 * 1024) || 1024 * 1024;
   const mimeByExt = options.mimeByExt || {};
   const publicRoot = String(options.publicRoot || "");
+  const securityHeadersEnabled = () => !envFlag(
+    typeof options.disableSecurityHeaders === "function"
+      ? options.disableSecurityHeaders()
+      : options.disableSecurityHeaders,
+  );
+  const hstsEnabled = () => !envFlag(
+    typeof options.disableHsts === "function" ? options.disableHsts() : options.disableHsts,
+  );
+  const contentSecurityPolicy = () => String(
+    typeof options.contentSecurityPolicy === "function"
+      ? options.contentSecurityPolicy()
+      : (options.contentSecurityPolicy || DEFAULT_CONTENT_SECURITY_POLICY),
+  ).trim();
 
   function bodyReadError(message, status, code) {
     const err = new Error(message);
@@ -31,13 +64,38 @@ function createMobileHttpRuntimeService(options = {}) {
     res.setHeader("X-Hermes-Web-Refresh-Required", info.refreshRequired ? "1" : "0");
   }
 
+  function securityHeaders() {
+    if (!securityHeadersEnabled()) return {};
+    const headers = {
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "SAMEORIGIN",
+      "Referrer-Policy": "no-referrer",
+      "Content-Security-Policy": contentSecurityPolicy(),
+    };
+    if (hstsEnabled()) {
+      headers["Strict-Transport-Security"] = "max-age=15552000";
+    }
+    return Object.fromEntries(Object.entries(headers).filter(([, value]) => value));
+  }
+
+  function attachSecurityHeaders(_req, res) {
+    for (const [name, value] of Object.entries(securityHeaders())) {
+      if (typeof res.hasHeader === "function" && res.hasHeader(name)) continue;
+      res.setHeader(name, value);
+    }
+  }
+
+  function withSecurityHeaders(headers = {}) {
+    return Object.assign({}, securityHeaders(), headers);
+  }
+
   function sendJson(res, status, data) {
     const body = JSON.stringify(data);
-    res.writeHead(status, {
+    res.writeHead(status, withSecurityHeaders({
       "Content-Type": "application/json; charset=utf-8",
       "Content-Length": Buffer.byteLength(body),
       "Cache-Control": "no-store",
-    });
+    }));
     res.end(body);
   }
 
@@ -100,26 +158,27 @@ function createMobileHttpRuntimeService(options = {}) {
     const rel = decodeURIComponent((pathname === "/" || pathname === "/hermes-mobile/") ? "/index.html" : pathname);
     const target = path.normalize(path.join(publicRoot, rel));
     if (!target.startsWith(publicRoot)) {
-      res.writeHead(403);
+      res.writeHead(403, withSecurityHeaders());
       res.end("Forbidden");
       return;
     }
     fs.readFile(target, (err, data) => {
       if (err) {
-        res.writeHead(404);
+        res.writeHead(404, withSecurityHeaders());
         res.end("Not found");
         return;
       }
-      res.writeHead(200, {
+      res.writeHead(200, withSecurityHeaders({
         "Content-Type": mimeFor(target),
         "Cache-Control": "no-cache",
-      });
+      }));
       res.end(data);
     });
   }
 
   return {
     attachClientVersionHeaders,
+    attachSecurityHeaders,
     contentDisposition,
     getUrl,
     mimeFor,

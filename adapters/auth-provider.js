@@ -62,6 +62,10 @@ function createAuthProvider(options = {}) {
   const findWorkspace = typeof options.findWorkspace === "function" ? options.findWorkspace : () => null;
   const workspacePrincipal = typeof options.workspacePrincipal === "function" ? options.workspacePrincipal : (workspaceId) => workspaceId || "owner";
   const listWorkspaces = typeof options.listWorkspaces === "function" ? options.listWorkspaces : () => [];
+  const allowQueryAccessKey = () => {
+    if (typeof options.allowQueryAccessKey === "function") return Boolean(options.allowQueryAccessKey());
+    return options.allowQueryAccessKey !== false;
+  };
 
   let ownerKeyState = disableAuth() ? { key: "", source: "disabled" } : loadOwnerKeyState();
 
@@ -133,7 +137,7 @@ function createAuthProvider(options = {}) {
   function requestAccessKey(req) {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     return req.headers["x-hermes-web-key"]
-      || url.searchParams.get("key")
+      || (allowQueryAccessKey() ? url.searchParams.get("key") : "")
       || parseCookies(req.headers.cookie).hermes_web_key;
   }
 

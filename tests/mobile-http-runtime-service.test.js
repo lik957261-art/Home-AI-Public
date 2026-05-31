@@ -21,6 +21,27 @@ async function readBody(service, req, maxBytes) {
   return promise;
 }
 
+function makeResponse() {
+  return {
+    statusCode: 0,
+    headers: {},
+    body: "",
+    setHeader(name, value) {
+      this.headers[name] = value;
+    },
+    hasHeader(name) {
+      return Object.prototype.hasOwnProperty.call(this.headers, name);
+    },
+    writeHead(status, headers = {}) {
+      this.statusCode = status;
+      this.headers = Object.assign({}, this.headers, headers);
+    },
+    end(body = "") {
+      this.body = body;
+    },
+  };
+}
+
 async function testReadBodyParsesJson() {
   const service = createMobileHttpRuntimeService({ clientVersionInfo: () => ({}) });
   const req = makeRequest(['{"text":"hello"}']);
@@ -60,10 +81,35 @@ async function testReadBodyReportsInvalidJson() {
   );
 }
 
+function testSecurityHeadersAttachToJsonResponses() {
+  const service = createMobileHttpRuntimeService({ clientVersionInfo: () => ({}) });
+  const res = makeResponse();
+  service.sendJson(res, 200, { ok: true });
+  assert.equal(res.headers["X-Content-Type-Options"], "nosniff");
+  assert.equal(res.headers["X-Frame-Options"], "SAMEORIGIN");
+  assert.equal(res.headers["Referrer-Policy"], "no-referrer");
+  assert.equal(res.headers["Strict-Transport-Security"], "max-age=15552000");
+  assert.match(res.headers["Content-Security-Policy"], /default-src 'self'/);
+  assert.match(res.headers["Content-Security-Policy"], /object-src 'none'/);
+}
+
+function testSecurityHeadersCanBeAttachedBeforeRouteWriteHead() {
+  const service = createMobileHttpRuntimeService({ clientVersionInfo: () => ({}) });
+  const req = makeRequest();
+  const res = makeResponse();
+  service.attachSecurityHeaders(req, res);
+  res.writeHead(202, { "Content-Type": "text/event-stream" });
+  assert.equal(res.headers["X-Content-Type-Options"], "nosniff");
+  assert.equal(res.headers["Content-Type"], "text/event-stream");
+  assert.match(res.headers["Content-Security-Policy"], /frame-src 'self' https:/);
+}
+
 (async () => {
   await testReadBodyParsesJson();
   await testReadBodyReportsTooLargeWithoutDestroyingSocket();
   await testReadBodyReportsInvalidJson();
+  testSecurityHeadersAttachToJsonResponses();
+  testSecurityHeadersCanBeAttachedBeforeRouteWriteHead();
   console.log("mobile-http-runtime-service tests passed");
 })().catch((err) => {
   console.error(err);

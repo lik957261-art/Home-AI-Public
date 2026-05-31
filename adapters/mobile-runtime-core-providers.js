@@ -32,6 +32,7 @@ function createMobileRuntimeCoreProviders(deps = {}) {
     authKeyPath: () => runtimeEnv.AUTH_KEY_PATH,
     accessKeysPath: () => runtimeEnv.ACCESS_KEYS_PATH,
     allowMemoryKey: () => /^(1|true|yes|on)$/i.test(env.HERMES_WEB_ALLOW_MEMORY_KEY || ""),
+    allowQueryAccessKey: () => !/^(1|true|yes|on)$/i.test(env.HERMES_MOBILE_DISABLE_QUERY_ACCESS_KEY || env.HERMES_WEB_DISABLE_QUERY_ACCESS_KEY || ""),
     nowIso: deps.nowIso,
     ensureDataDir: deps.ensureDataDir,
     findWorkspace: deps.findWorkspace,

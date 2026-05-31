@@ -21,7 +21,7 @@ async function testStartsCodexMobileThreadAndReturnsFinalAssistantText() {
       assert.equal(body.cwd, "C:\\Work");
       assert.equal(body.model, "gpt-5.5");
       assert.equal(body.effort, "medium");
-      assert.equal(body.permissionMode, "full");
+      assert.equal(body.permissionMode, "auto");
       assert.match(body.text, /must use the Chrome plugin \/ Chrome skill/);
       assert.match(body.text, /Do not impersonate ChatGPT Pro output/);
       assert.match(body.text, /tmp\\chatgpt-pro/);
@@ -129,6 +129,36 @@ function testPromptKeepsChatGptProBoundary() {
   assert.match(prompt, /Answer in Chinese for parent-facing analysis/);
 }
 
+async function testPermissionModeCanBeExplicitlyOverridden() {
+  const calls = [];
+  const fakeFetch = async (url, options = {}) => {
+    calls.push({ url, options });
+    if (url.endsWith("/api/threads/new-message")) {
+      return { ok: true, text: async () => JSON.stringify({ threadId: "thread_1" }) };
+    }
+    if (url.endsWith("/api/threads/thread_1/name")) {
+      return { ok: true, text: async () => JSON.stringify({ ok: true }) };
+    }
+    if (url.endsWith("/api/threads/thread_1")) {
+      return { ok: true, text: async () => JSON.stringify({ thread: { status: { type: "completed" }, turns: [] } }) };
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+  const service = createChatGptProCodexBridgeService({
+    fetch: fakeFetch,
+    key: "test-key",
+    permissionMode: "full",
+    pollIntervalMs: 1,
+    timeoutMs: 1000,
+    statePath: path.join(fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-pro-permission-")), "state.json"),
+  });
+  await service.generate({ prompt: "Generate text" });
+  const newMessageCall = calls.find((call) => call.url.endsWith("/api/threads/new-message"));
+  assert.ok(newMessageCall);
+  const body = JSON.parse(newMessageCall.options.body);
+  assert.equal(body.permissionMode, "full");
+}
+
 function testDefaultOutputDirStaysOutsideWorkspace() {
   assert.equal(
     defaultOutputDir({ HERMES_MOBILE_DATA_DIR: "C:\\ProgramData\\HermesMobile\\data" }),
@@ -158,6 +188,7 @@ async function main() {
   await testStartsCodexMobileThreadAndReturnsFinalAssistantText();
   await testReusesPersistedNamedCodexMobileThread();
   testPromptKeepsChatGptProBoundary();
+  await testPermissionModeCanBeExplicitlyOverridden();
   testDefaultOutputDirStaysOutsideWorkspace();
   testThreadStatusAndExtraction();
   console.log("chatgpt-pro-codex-bridge-service tests passed");

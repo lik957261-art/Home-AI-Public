@@ -22,6 +22,11 @@ ChatGPT Pro bridge lets Owner-approved Hermes Mobile runs call the logged-in Cha
 - Dedicated Codex Mobile thread name: `ChatGPT Pro`
 - State file: `C:\ProgramData\HermesMobile\data\chatgpt-pro-bridge-state.json`
 - Default temp output directory: `C:\ProgramData\HermesMobile\data\tmp\chatgpt-pro`
+- Default Codex Mobile `permissionMode`: `auto`. This maps to a workspace-write
+  sandbox with request-time approval behavior in Codex Mobile instead of
+  silently forcing full/danger access. Emergency full access must be explicit
+  through `HERMES_MOBILE_CHATGPT_PRO_CODEX_PERMISSION_MODE=full` and should be
+  paired with Owner maintenance/elevation review.
 
 ## Timeouts
 
@@ -44,4 +49,8 @@ ChatGPT Pro can normally take 20-30 minutes. Product layers should allow at leas
 
 - Do not create durable artifacts under the source checkout or repo-level `outputs/`.
 - Do not expose Codex Mobile keys, browser cookies, ChatGPT credentials, prompts, or generated private reports in logs/docs.
+- Do not default the bridge to Codex Mobile `full` permission mode for public
+  Hermes deployments. The bridge is reachable from an Owner-approved Gateway
+  path and therefore needs least-privilege defaults even when the downstream
+  Codex thread can still request explicit elevation.
 - Routine production validation should not start same-profile Gateway schema smoke with `--replace` against live owner-maintenance ports.
