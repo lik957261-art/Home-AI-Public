@@ -44,6 +44,7 @@ const RESOURCE_API_ROUTE_SPECS = Object.freeze([
     riskLevel: "low",
     authMode: "access-key",
     authRequired: true,
+    workspaceScoped: true,
     resourceTypes: ["skill"],
     tags: ["skill", "detail"],
   },
@@ -58,6 +59,7 @@ const RESOURCE_API_ROUTE_SPECS = Object.freeze([
     riskLevel: "low",
     authMode: "access-key",
     authRequired: true,
+    workspaceScoped: true,
     resourceTypes: ["skill"],
     tags: ["skill", "analysis"],
   },
@@ -72,6 +74,7 @@ const RESOURCE_API_ROUTE_SPECS = Object.freeze([
     riskLevel: "high",
     authMode: "access-key",
     authRequired: true,
+    workspaceScoped: true,
     resourceTypes: ["skill"],
     tags: ["skill", "analysis", "fix"],
   },
@@ -129,8 +132,29 @@ function createResourceApiRoutes(deps = {}) {
 
   const registry = createApiRouteRegistry(RESOURCE_API_ROUTE_SPECS);
 
-  function requestedWorkspaceId(url) {
-    return url?.searchParams?.get("workspaceId") || "owner";
+  function cleanWorkspaceId(value, fallback = "owner") {
+    return String(value || fallback || "owner").trim() || "owner";
+  }
+
+  function requestedWorkspaceId(url, fallback = "owner") {
+    return cleanWorkspaceId(url?.searchParams?.get("workspaceId"), fallback);
+  }
+
+  function skillScopedAuth(auth, workspaceId) {
+    const id = cleanWorkspaceId(workspaceId, auth?.workspaceId || "owner");
+    const ownerScope = id === "owner" && Boolean(auth?.isOwner || auth?.role === "owner" || auth?.kind === "owner");
+    return Object.assign({}, auth || {}, {
+      ok: Boolean(auth?.ok || auth?.authenticated || auth?.isOwner),
+      authenticated: Boolean(auth?.ok || auth?.authenticated || auth?.isOwner),
+      role: ownerScope ? "owner" : "workspace",
+      workspaceId: id,
+      principalId: ownerScope ? (auth?.principalId || "owner") : id,
+      workspaceIds: [id],
+      workspaces: [id],
+      isOwner: ownerScope,
+      skillWorkspaceId: id,
+      ownerDelegatedWorkspaceId: auth?.isOwner && id !== "owner" ? id : "",
+    });
   }
 
   async function handleProjects(req, res, url) {
@@ -146,14 +170,17 @@ function createResourceApiRoutes(deps = {}) {
     sendJson(res, 200, { ok: true, data: directories });
   }
 
-  async function handleSkillDetail(res, url, auth) {
+  async function handleSkillDetail(req, res, url, auth) {
     const skill = String(url?.searchParams?.get("skill") || "").trim();
     if (!skill) {
       sendJson(res, 400, { error: "Skill is required" });
       return;
     }
+    const workspaceId = requireWorkspaceAccess(req, res, requestedWorkspaceId(url, auth?.workspaceId || "owner"));
+    if (!workspaceId) return;
+    const scopedAuth = skillScopedAuth(auth, workspaceId);
     try {
-      const detail = await skillDetailProvider.detail(skill, { auth });
+      const detail = await skillDetailProvider.detail(skill, { auth: scopedAuth, skillWorkspaceId: workspaceId });
       sendJson(res, 200, { data: detail });
     } catch (err) {
       sendJson(res, statusCode(err), {
@@ -163,14 +190,17 @@ function createResourceApiRoutes(deps = {}) {
     }
   }
 
-  async function handleSkillAnalysis(res, url, auth) {
+  async function handleSkillAnalysis(req, res, url, auth) {
     const skill = String(url?.searchParams?.get("skill") || "").trim();
     if (!skill) {
       sendJson(res, 400, { error: "Skill is required" });
       return;
     }
+    const workspaceId = requireWorkspaceAccess(req, res, requestedWorkspaceId(url, auth?.workspaceId || "owner"));
+    if (!workspaceId) return;
+    const scopedAuth = skillScopedAuth(auth, workspaceId);
     try {
-      const analysis = await skillDetailProvider.analyze(skill, { auth });
+      const analysis = await skillDetailProvider.analyze(skill, { auth: scopedAuth, skillWorkspaceId: workspaceId });
       sendJson(res, 200, { data: analysis });
     } catch (err) {
       sendJson(res, statusCode(err), {
@@ -180,7 +210,7 @@ function createResourceApiRoutes(deps = {}) {
     }
   }
 
-  async function handleSkillAnalysisFix(req, res, auth) {
+  async function handleSkillAnalysisFix(req, res, url, auth) {
     const actorAuth = auth || req.hermesRequestContext?.actor || null;
     if (!actorAuth?.ok && !actorAuth?.authenticated && !actorAuth?.isOwner) {
       sendJson(res, 401, { error: "Unauthorized" });
@@ -199,8 +229,11 @@ function createResourceApiRoutes(deps = {}) {
       sendJson(res, 400, { error: "Skill and fixId are required" });
       return;
     }
+    const workspaceId = requireWorkspaceAccess(req, res, cleanWorkspaceId(body?.workspaceId || body?.workspace_id || url?.searchParams?.get("workspaceId"), actorAuth?.workspaceId || "owner"));
+    if (!workspaceId) return;
+    const scopedAuth = skillScopedAuth(actorAuth, workspaceId);
     try {
-      const result = await skillDetailProvider.applyFix(skill, fixId, { auth: actorAuth });
+      const result = await skillDetailProvider.applyFix(skill, fixId, { auth: scopedAuth, skillWorkspaceId: workspaceId });
       sendJson(res, 200, { data: result });
     } catch (err) {
       sendJson(res, statusCode(err), {
@@ -219,9 +252,9 @@ function createResourceApiRoutes(deps = {}) {
 
     if (route.id === "projects-list") await handleProjects(req, res, url);
     else if (route.id === "directories-shared-list") await handleSharedDirectories(req, res, url);
-    else if (route.id === "skills-detail") await handleSkillDetail(res, url, context.auth);
-    else if (route.id === "skills-analysis") await handleSkillAnalysis(res, url, context.auth);
-    else if (route.id === "skills-analysis-fix") await handleSkillAnalysisFix(req, res, context.auth);
+    else if (route.id === "skills-detail") await handleSkillDetail(req, res, url, context.auth);
+    else if (route.id === "skills-analysis") await handleSkillAnalysis(req, res, url, context.auth);
+    else if (route.id === "skills-analysis-fix") await handleSkillAnalysisFix(req, res, url, context.auth);
     else return { handled: false };
 
     return {

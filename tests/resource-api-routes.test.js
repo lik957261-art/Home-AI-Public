@@ -78,7 +78,7 @@ function makeRoutes(overrides = {}) {
     },
     skillDetailProvider: {
       detail(skill, options = {}) {
-        calls.skillDetail.push({ skill, auth: options.auth || null });
+        calls.skillDetail.push({ skill, auth: options.auth || null, skillWorkspaceId: options.skillWorkspaceId || "" });
         return Promise.resolve({
           id: skill,
           name: skill.split("/").pop(),
@@ -86,7 +86,7 @@ function makeRoutes(overrides = {}) {
         });
       },
       analyze(skill, options = {}) {
-        calls.skillDetail.push({ skill: `analysis:${skill}`, auth: options.auth || null });
+        calls.skillDetail.push({ skill: `analysis:${skill}`, auth: options.auth || null, skillWorkspaceId: options.skillWorkspaceId || "" });
         return Promise.resolve({
           skill: { path: skill },
           summary: "Skill analysis",
@@ -94,7 +94,7 @@ function makeRoutes(overrides = {}) {
         });
       },
       applyFix(skill, fixId, options = {}) {
-        calls.skillFix.push({ skill, fixId, auth: options.auth || null });
+        calls.skillFix.push({ skill, fixId, auth: options.auth || null, skillWorkspaceId: options.skillWorkspaceId || "" });
         return Promise.resolve({
           ok: true,
           changed: true,
@@ -148,7 +148,7 @@ async function testRouteMetadataAndFallthrough() {
 
   const publicRoutes = routes.list({ public: true });
   assert.equal(Object.hasOwn(publicRoutes[0], "path"), false);
-  assert.deepEqual(publicRoutes.map((route) => route.workspaceScoped), [true, true, false, false, false]);
+  assert.deepEqual(publicRoutes.map((route) => route.workspaceScoped), [true, true, true, true, true]);
   assert.deepEqual(publicRoutes.map((route) => route.resourceTypes), [
     ["project", "workspace"],
     ["directory", "share"],
@@ -230,10 +230,28 @@ async function testSkillRequired() {
 
 async function testSkillDetailSuccessAndError() {
   const { routes, calls } = makeRoutes();
-  const got = await request(routes, "GET", "/api/skills/detail?skill=%20productivity%2Fwrite%20");
+  const got = await request(routes, "GET", "/api/skills/detail?workspaceId=child&skill=%20productivity%2Fwrite%20", {
+    auth: { ok: true, workspaceId: "child", principalId: "child-principal" },
+  });
 
   assert.equal(got.res.statusCode, 200);
-  assert.deepEqual(calls.skillDetail, [{ skill: "productivity/write", auth: null }]);
+  assert.deepEqual(calls.workspaceAccess, [{ workspaceId: "child", key: "" }]);
+  assert.deepEqual(calls.skillDetail, [{
+    skill: "productivity/write",
+    auth: {
+      ok: true,
+      authenticated: true,
+      role: "workspace",
+      workspaceId: "child",
+      principalId: "child",
+      workspaceIds: ["child"],
+      workspaces: ["child"],
+      isOwner: false,
+      skillWorkspaceId: "child",
+      ownerDelegatedWorkspaceId: "",
+    },
+    skillWorkspaceId: "child",
+  }]);
   assert.deepEqual(got.body, {
     data: {
       id: "productivity/write",
@@ -258,7 +276,9 @@ async function testSkillDetailSuccessAndError() {
       },
     },
   });
-  const failed = await request(failing.routes, "GET", "/api/skills/detail?skill=productivity%2Fraw");
+  const failed = await request(failing.routes, "GET", "/api/skills/detail?skill=productivity%2Fraw", {
+    auth: { ok: true, workspaceId: "owner", principalId: "owner", role: "owner", isOwner: true },
+  });
 
   assert.equal(failed.res.statusCode, 504);
   assert.deepEqual(failed.body, {
@@ -273,10 +293,23 @@ async function testSkillDetailSuccessAndError() {
 
 async function testSkillAnalysisSuccessAndError() {
   const { routes, calls } = makeRoutes();
-  const got = await request(routes, "GET", "/api/skills/analysis?skill=x-social-monitoring-and-briefs");
+  const ownerAuth = { ok: true, workspaceId: "owner", principalId: "owner", role: "owner", isOwner: true };
+  const got = await request(routes, "GET", "/api/skills/analysis?workspaceId=owner&skill=x-social-monitoring-and-briefs", {
+    auth: ownerAuth,
+  });
 
   assert.equal(got.res.statusCode, 200);
-  assert.deepEqual(calls.skillDetail, [{ skill: "analysis:x-social-monitoring-and-briefs", auth: null }]);
+  assert.deepEqual(calls.skillDetail, [{
+    skill: "analysis:x-social-monitoring-and-briefs",
+    auth: Object.assign({}, ownerAuth, {
+      authenticated: true,
+      workspaceIds: ["owner"],
+      workspaces: ["owner"],
+      skillWorkspaceId: "owner",
+      ownerDelegatedWorkspaceId: "",
+    }),
+    skillWorkspaceId: "owner",
+  }]);
   assert.deepEqual(got.body, {
     data: {
       skill: { path: "x-social-monitoring-and-briefs" },
@@ -301,7 +334,9 @@ async function testSkillAnalysisSuccessAndError() {
       },
     },
   });
-  const failed = await request(failing.routes, "GET", "/api/skills/analysis?skill=x-social-monitoring-and-briefs");
+  const failed = await request(failing.routes, "GET", "/api/skills/analysis?skill=x-social-monitoring-and-briefs", {
+    auth: ownerAuth,
+  });
 
   assert.equal(failed.res.statusCode, 422);
   assert.deepEqual(failed.body, {
@@ -315,13 +350,24 @@ async function testSkillAnalysisFixSuccessAndPermissionGate() {
   const auth = { ok: true, workspaceId: "owner", principalId: "owner", role: "owner", isOwner: true };
   const got = await request(routes, "POST", "/api/skills/analysis/fix", {
     auth,
-    body: { skill: "social-media/x-social-monitoring-and-briefs", fixId: "narrow-x-search-invocation" },
+    body: { skill: "social-media/x-social-monitoring-and-briefs", fixId: "narrow-x-search-invocation", workspaceId: "owner" },
   });
 
   assert.equal(got.result.handled, true);
   assert.equal(got.result.route.id, "skills-analysis-fix");
   assert.equal(got.res.statusCode, 200);
-  assert.deepEqual(calls.skillFix, [{ skill: "social-media/x-social-monitoring-and-briefs", fixId: "narrow-x-search-invocation", auth }]);
+  assert.deepEqual(calls.skillFix, [{
+    skill: "social-media/x-social-monitoring-and-briefs",
+    fixId: "narrow-x-search-invocation",
+    auth: Object.assign({}, auth, {
+      authenticated: true,
+      workspaceIds: ["owner"],
+      workspaces: ["owner"],
+      skillWorkspaceId: "owner",
+      ownerDelegatedWorkspaceId: "",
+    }),
+    skillWorkspaceId: "owner",
+  }]);
   assert.equal(got.body.data.changed, true);
   assert.equal(got.body.data.detail.path, "social-media/x-social-monitoring-and-briefs");
 

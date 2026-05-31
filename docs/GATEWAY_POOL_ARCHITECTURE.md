@@ -96,7 +96,7 @@ Gateway Pool mode expects a manifest such as:
 }
 ```
 
-Each worker should run an official Hermes Gateway process for its profile. Worker profiles may share official Hermes skills/memories through deployment-supported links or shared storage. When deployments need account-level Skill isolation, use `skillProfile` plus `skillWorkspaceIds` in the manifest and point that worker profile at the corresponding official Hermes Skill store. Hermes Mobile does not edit those stores directly; it only submits Gateway runs.
+Each worker should run an official Hermes Gateway process for its profile. Worker profiles may share official Hermes skills/memories through deployment-supported links or shared storage. When deployments need account-level Skill isolation, use `skillProfile` plus `skillWorkspaceIds` in the manifest and point that worker profile at the corresponding official Hermes Skill store. Hermes Mobile provisions the local store directory for each workspace, but Skill creation/update still happens through official Gateway Skill behavior or the authenticated Skill repair route.
 
 Workers that declare the same `skillProfile` must resolve their profile `skills`
 directory to the same writable Skill store. This is required for Skill creation
@@ -146,6 +146,13 @@ The low-privilege `skills` toolset is allowed only for the current
 account/workspace's profile-local Skill store selected by `skillProfile`. It is
 not permission to write the shared/global Skill store, the Owner full Skill
 store, or another account's Skill store.
+
+On the maintained Windows deployment, ordinary workspace profiles link
+`profiles/<lowgwN>/skills` to
+`C:\ProgramData\HermesMobile\data\skill-profiles\<workspaceId>\skills` according
+to the worker's manifest `skillWorkspaceIds`. Owner and wildcard/shared profiles
+continue to use the Owner full Skill Store unless a future manifest explicitly
+defines a different shared store.
 
 ## Scheduler Contract
 

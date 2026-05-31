@@ -60,6 +60,7 @@ cronjob_plugin_target="$worker_home_dir/plugins/hermes-mobile-cronjob"
 owner_connector_profiles="${HERMES_MOBILE_OWNER_CONNECTOR_PROFILES:-lowgw1 lowgw2 lowgw3 lowgw4 lowgw10 deepseekgw1 deepseekgw2 deepseekgw99}"
 outlook_graph_mcp_path="${HERMES_MOBILE_OUTLOOK_GRAPH_MCP_PATH:-$worker_home_dir/scripts/outlook_graph_mcp.py}"
 owner_skill_store="${HERMES_MOBILE_OWNER_SKILL_STORE:-/mnt/c/ProgramData/HermesMobile/data/skill-profiles/owner-full/skills}"
+skill_profiles_root="${HERMES_MOBILE_SKILL_PROFILES_ROOT:-$(dirname "$(dirname "$owner_skill_store")")}"
 wardrobe_mcp_path="${HERMES_MOBILE_WARDROBE_MCP_PATH:-$gateway_worker_root/wardrobe-mcp/scripts/wardrobe-mcp.py}"
 wardrobe_user_drive_root="${HERMES_MOBILE_WARDROBE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_wardrobe_workspace_override="${HERMES_MOBILE_OWNER_WARDROBE_WORKSPACE:-}"
@@ -203,12 +204,62 @@ PY
 owner_wardrobe_workspace="${owner_wardrobe_workspace_override:-$(find_first_wardrobe_workspace_root owner)}"
 wuping_wardrobe_workspace="${wuping_wardrobe_workspace_override:-$(find_first_wardrobe_workspace_root weixin_wuping)}"
 
+skill_store_for_gateway_profile() {
+  local profile="$1"
+  python3 - "$gateway_pool_manifest_path" "$profile" "$owner_skill_store" "$skill_profiles_root" <<'PY' 2>/dev/null || printf '%s\n' "$owner_skill_store"
+import json
+import re
+import sys
+
+manifest_path, profile, owner_skill_store, skill_profiles_root = sys.argv[1:5]
+
+def clean_workspace_id(value):
+    text = str(value or "").strip().lower()
+    if text.startswith("workspace:"):
+        text = text.split(":", 1)[1]
+    text = re.sub(r"[^a-z0-9_-]+", "-", text).strip("-")
+    return text[:80]
+
+try:
+    data = json.load(open(manifest_path, encoding="utf-8"))
+except Exception:
+    print(owner_skill_store)
+    raise SystemExit(0)
+
+target = ""
+for worker in data.get("workers") or []:
+    worker_profile = str(worker.get("profile") or worker.get("name") or "").strip()
+    if worker_profile != profile:
+        continue
+    skill_workspace_ids = worker.get("skillWorkspaceIds") or worker.get("skill_workspace_ids") or []
+    if isinstance(skill_workspace_ids, str):
+        skill_workspace_ids = [item.strip() for item in skill_workspace_ids.split(",") if item.strip()]
+    private_ids = [clean_workspace_id(item) for item in skill_workspace_ids if clean_workspace_id(item) not in ("", "owner", "*")]
+    if len(private_ids) == 1:
+        target = private_ids[0]
+        break
+    skill_profile = str(worker.get("skillProfile") or worker.get("skill_profile") or "").strip()
+    if skill_profile.lower().startswith("workspace:"):
+        target = clean_workspace_id(skill_profile)
+        break
+    break
+
+if target:
+    print(f"{skill_profiles_root.rstrip('/')}/{target}/skills")
+else:
+    print(owner_skill_store)
+PY
+}
+
 ensure_low_gateway_skill_link() {
-  local skill_dir="$1"
+  local profile="$1"
+  local skill_dir="$2"
+  local target_skill_store
+  target_skill_store="$(skill_store_for_gateway_profile "$profile")"
   local parent
   parent="$(dirname "$skill_dir")"
-  install -d -m 700 "$owner_skill_store"
-  if [ -L "$skill_dir" ] && [ "$(readlink -f "$skill_dir")" = "$(readlink -f "$owner_skill_store")" ]; then
+  install -d -m 700 "$target_skill_store"
+  if [ -L "$skill_dir" ] && [ "$(readlink -f "$skill_dir")" = "$(readlink -f "$target_skill_store")" ]; then
     return 0
   fi
   if [ -e "$skill_dir" ] || [ -L "$skill_dir" ]; then
@@ -217,9 +268,9 @@ ensure_low_gateway_skill_link() {
     stamp="$(date +%Y%m%d-%H%M%S)"
     backup_root="$parent/skill-store-backups"
     install -d -m 700 "$backup_root"
-    mv "$skill_dir" "$backup_root/skills-before-owner-link-${stamp}"
+    mv "$skill_dir" "$backup_root/skills-before-profile-link-${stamp}"
   fi
-  ln -s "$owner_skill_store" "$skill_dir"
+  ln -s "$target_skill_store" "$skill_dir"
 }
 
 link_low_gateway_profile_subdir() {
@@ -619,10 +670,10 @@ while IFS=$'\t' read -r profile port; do
     if is_owner_connector_profile "$profile"; then
       link_low_gateway_profile_subdir "$profile_dir/skills" "$owner_skill_store" "skills"
     else
-      link_low_gateway_profile_subdir "$profile_dir/skills" "$companion_profile_dir/skills" "skills"
+      link_low_gateway_profile_subdir "$profile_dir/skills" "$(skill_store_for_gateway_profile "$profile")" "skills"
     fi
   else
-    ensure_low_gateway_skill_link "$profile_dir/skills"
+    ensure_low_gateway_skill_link "$profile" "$profile_dir/skills"
   fi
   if [ "$weather_plugin_enabled" = "1" ]; then
     install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
@@ -868,7 +919,7 @@ while IFS=$'\t' read -r profile port; do
     repair_low_gateway_sqlite "$profile" "$profile_dir" "state.db"
     repair_low_gateway_sqlite "$profile" "$profile_dir" "response_store.db"
     ln -s "$profile_dir" "$profile_link"
-    ensure_low_gateway_skill_link "$profile_dir/skills"
+    ensure_low_gateway_skill_link "$profile" "$profile_dir/skills"
     grok_plugin_block="  enabled: []"
     if [ "$video_plugin_enabled" = "1" ]; then
       install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"

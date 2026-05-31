@@ -218,6 +218,7 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["directory", "share"],
   })),
   exact("skills-detail", "GET", "/api/skills/detail", "skill", routeOptions("skill", {
+    workspaceScoped: true,
     resourceTypes: ["skill"],
   })),
   exact("hermes-plugins-list", "GET", "/api/hermes-plugins", "plugins", routeOptions("hermes-plugins", {

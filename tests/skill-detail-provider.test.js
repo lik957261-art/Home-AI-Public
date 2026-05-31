@@ -200,6 +200,75 @@ creatorWorkspaceId: child
       repoRoot: path.join(root, "repo"),
     });
     assert(roots.some((item) => item === profileRoot));
+
+    const scopedDataRoot = path.join(root, "scoped-data");
+    const scopedOwnerSkillDir = path.join(scopedDataRoot, "skill-profiles", "owner-full", "skills", "private", "owner-only");
+    const scopedChildSkillDir = path.join(scopedDataRoot, "skill-profiles", "child", "skills", "custom", "child-only");
+    const scopedOtherSkillDir = path.join(scopedDataRoot, "skill-profiles", "other", "skills", "custom", "other-only");
+    const scopedSharedSkillDir = path.join(scopedDataRoot, "skill-profiles", "shared-global", "skills", "shared", "read-only");
+    fs.mkdirSync(scopedOwnerSkillDir, { recursive: true });
+    fs.mkdirSync(scopedChildSkillDir, { recursive: true });
+    fs.mkdirSync(scopedOtherSkillDir, { recursive: true });
+    fs.mkdirSync(scopedSharedSkillDir, { recursive: true });
+    fs.writeFileSync(path.join(scopedOwnerSkillDir, "SKILL.md"), "# Owner Only\n", "utf8");
+    fs.writeFileSync(path.join(scopedChildSkillDir, "SKILL.md"), "# Child Only\n", "utf8");
+    fs.writeFileSync(path.join(scopedOtherSkillDir, "SKILL.md"), "# Other Only\n", "utf8");
+    fs.writeFileSync(path.join(scopedSharedSkillDir, "SKILL.md"), "# Shared\n", "utf8");
+
+    const childScopedRoots = defaultSkillRoots({
+      env: { HERMES_WEB_DATA_DIR: scopedDataRoot },
+      repoRoot: path.join(root, "empty-repo"),
+    }, {
+      auth: { ok: true, workspaceId: "child", principalId: "child" },
+      skillWorkspaceId: "child",
+    });
+    assert(childScopedRoots.some((item) => item.endsWith(path.join("skill-profiles", "child", "skills"))));
+    assert(childScopedRoots.some((item) => item.endsWith(path.join("skill-profiles", "shared-global", "skills"))));
+    assert.equal(childScopedRoots.some((item) => item.endsWith(path.join("skill-profiles", "owner-full", "skills"))), false);
+    assert.equal(childScopedRoots.some((item) => item.endsWith(path.join("skill-profiles", "other", "skills"))), false);
+
+    let scopedBridgeCalls = 0;
+    const scopedProvider = createSkillDetailProvider({
+      env: { HERMES_WEB_DATA_DIR: scopedDataRoot },
+      repoRoot: path.join(root, "empty-repo"),
+      async runBridge() {
+        scopedBridgeCalls += 1;
+        return { ok: true, skill: { path: "bridge/global", content: "# Global\n" } };
+      },
+    });
+    const childScopedDetail = await scopedProvider.detail("child-only", {
+      auth: { ok: true, workspaceId: "child", principalId: "child" },
+      skillWorkspaceId: "child",
+    });
+    assert.equal(childScopedDetail.path, "custom/child-only");
+    assert.equal(childScopedDetail.access.canWrite, true);
+    const sharedScopedDetail = await scopedProvider.detail("read-only", {
+      auth: { ok: true, workspaceId: "child", principalId: "child" },
+      skillWorkspaceId: "child",
+    });
+    assert.equal(sharedScopedDetail.access.canWrite, false);
+    await assert.rejects(
+      () => scopedProvider.detail("owner-only", {
+        auth: { ok: true, workspaceId: "child", principalId: "child" },
+        skillWorkspaceId: "child",
+      }),
+      (err) => err.status === 404 && /this workspace Skill Store/.test(err.message),
+    );
+    await assert.rejects(
+      () => scopedProvider.detail("other-only", {
+        auth: { ok: true, workspaceId: "child", principalId: "child" },
+        skillWorkspaceId: "child",
+      }),
+      (err) => err.status === 404,
+    );
+    assert.equal(scopedBridgeCalls, 0);
+
+    const ownerScopedDetail = await scopedProvider.detail("owner-only", {
+      auth: { ok: true, workspaceId: "owner", principalId: "owner", role: "owner", isOwner: true },
+      skillWorkspaceId: "owner",
+    });
+    assert.equal(ownerScopedDetail.path, "private/owner-only");
+    assert.equal(ownerScopedDetail.access.canWrite, true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -271,13 +271,26 @@ function closeSkillDetail() {
   renderCurrentThread({ stickToBottom: false });
 }
 
+function skillStoreWorkspaceId(workspaceId = "") {
+  return String(workspaceId || state.selectedWorkspaceId || state.auth?.workspaceId || "owner").trim() || "owner";
+}
+
+function skillStoreQuery(skillPath, workspaceId = "") {
+  const query = new URLSearchParams();
+  query.set("skill", skillPath);
+  query.set("workspaceId", skillStoreWorkspaceId(workspaceId));
+  return query.toString();
+}
+
 async function openSkillDetail(skill) {
   if (!skill?.path) return;
+  const workspaceId = skillStoreWorkspaceId();
   state.skillDetail = {
     id: skill.id || skill.label || "",
     label: skill.label || skill.id || "",
     namespace: skill.namespace || "",
     path: skill.path,
+    workspaceId,
     loading: true,
     error: "",
     content: "",
@@ -287,7 +300,7 @@ async function openSkillDetail(skill) {
   };
   renderSkillDetailPanel({ resetScroll: true });
   try {
-    const result = await api(`/api/skills/detail?skill=${encodeURIComponent(skill.path)}`, { timeoutMs: 8000 });
+    const result = await api(`/api/skills/detail?${skillStoreQuery(skill.path, workspaceId)}`, { timeoutMs: 8000 });
     if (!state.skillDetail || state.skillDetail.path !== skill.path) return;
     state.skillDetail = Object.assign({}, state.skillDetail, result.data || {}, {
       loading: false,
@@ -310,7 +323,7 @@ async function analyzeSkillDetail() {
   });
   renderSkillDetailPanel();
   try {
-    const result = await api(`/api/skills/analysis?skill=${encodeURIComponent(skill.path)}`, { timeoutMs: 130000 });
+    const result = await api(`/api/skills/analysis?${skillStoreQuery(skill.path, skill.workspaceId)}`, { timeoutMs: 130000 });
     if (!state.skillDetail || state.skillDetail.path !== skill.path) return;
     state.skillDetail = Object.assign({}, state.skillDetail, {
       analysis: { loading: false, error: "", data: result.data || null },
@@ -336,7 +349,7 @@ async function applySkillAnalysisFix(fixId) {
   try {
     const result = await api("/api/skills/analysis/fix", {
       method: "POST",
-      body: JSON.stringify({ skill: skill.path, fixId: id }),
+      body: JSON.stringify({ skill: skill.path, fixId: id, workspaceId: skillStoreWorkspaceId(skill.workspaceId) }),
       timeoutMs: 300000,
     });
     if (!state.skillDetail || state.skillDetail.path !== skill.path) return;

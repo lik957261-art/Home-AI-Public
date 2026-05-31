@@ -485,6 +485,14 @@ workspace access is still profile-bounded by `allowedWorkspaceIds` and
 `skillWorkspaceIds`. Do not write the raw key into docs, handoffs, manifests,
 screenshots, logs, or committed config.
 
+For ordinary non-Owner workspaces, `skillWorkspaceIds` also selects the
+workspace-local Skill Store. `scripts/configure-low-gateways.sh` links the
+profile `skills` directory to
+`C:\ProgramData\HermesMobile\data\skill-profiles\<workspaceId>\skills` for a
+single non-Owner workspace binding. Owner and wildcard/shared profiles keep the
+Owner full Skill Store unless the deployment is intentionally moved to a
+separate shared store.
+
 Owner high-permission DeepSeek runs use a separate Owner-only
 owner-maintenance Gateway profile, currently `deepseekmaint1`, instead of
 sharing the normal user-level `deepseekgw*` workers. The profile must be in

@@ -10,6 +10,11 @@ function cleanList(value) {
   return [];
 }
 
+function skillStorePathForWorkspace(path, manifestPath, workspaceId, configuredRoot = "") {
+  const profilesRoot = String(configuredRoot || "").trim() || path.join(path.dirname(manifestPath), "skill-profiles");
+  return path.join(profilesRoot, workspaceId, "skills");
+}
+
 function lowGatewayIndex(worker) {
   const text = String(worker?.profile || worker?.name || "");
   const match = text.match(/^lowgw(\d+)$/i);
@@ -65,6 +70,7 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
   const fs = options.fs || require("node:fs");
   const path = options.path || require("node:path");
   const manifestPaths = typeof options.manifestPaths === "function" ? options.manifestPaths : (() => options.manifestPaths || []);
+  const skillProfilesRoot = typeof options.skillProfilesRoot === "function" ? options.skillProfilesRoot : (() => options.skillProfilesRoot || "");
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : (() => new Date().toISOString());
   const lowGatewayBasePort = Number(options.lowGatewayBasePort || 18750);
 
@@ -73,17 +79,45 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
     fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   }
 
+  function ensureWorkspaceSkillStore(manifestPath, workspaceId) {
+    const skillStorePath = skillStorePathForWorkspace(path, manifestPath, workspaceId, skillProfilesRoot());
+    const existed = fs.existsSync(skillStorePath);
+    fs.mkdirSync(skillStorePath, { recursive: true });
+    return { skillStorePath, skillStoreProvisioned: !existed };
+  }
+
   function ensureWorkspaceGateway(input = {}) {
     const workspaceId = cleanWorkspaceId(input.workspaceId || input.id);
     if (!workspaceId || workspaceId === "owner") return { ok: true, skipped: true, reason: "system_workspace" };
     const paths = manifestPaths();
     const manifestPath = firstExistingManifestPath(fs, Array.isArray(paths) ? paths : [paths]);
     if (!manifestPath) return { ok: false, skipped: true, reason: "manifest_path_missing" };
+    let skillStore = null;
+    try {
+      skillStore = ensureWorkspaceSkillStore(manifestPath, workspaceId);
+    } catch (err) {
+      return {
+        ok: false,
+        skipped: true,
+        reason: "skill_store_create_failed",
+        error: err?.message || String(err),
+      };
+    }
     const manifest = readManifest(fs, manifestPath);
     const workers = Array.isArray(manifest.workers) ? manifest.workers : [];
     const existing = workers.find((worker) => worker?.provider === "openai-codex" && cleanList(worker.allowedWorkspaceIds || worker.allowed_workspace_ids).includes(workspaceId));
     if (existing) {
-      return { ok: true, provisioned: false, manifestPath, workerName: existing.name || existing.profile, profile: existing.profile, port: Number(existing.port || 0), restartRequired: false };
+      return {
+        ok: true,
+        provisioned: false,
+        manifestPath,
+        workerName: existing.name || existing.profile,
+        profile: existing.profile,
+        port: Number(existing.port || 0),
+        restartRequired: Boolean(skillStore.skillStoreProvisioned),
+        skillStorePath: skillStore.skillStorePath,
+        skillStoreProvisioned: skillStore.skillStoreProvisioned,
+      };
     }
     const lowWorkers = workers.filter((worker) => lowGatewayIndex(worker) > 0);
     const template = lowWorkers.find((worker) => cleanList(worker.allowedWorkspaceIds || worker.allowed_workspace_ids).some((id) => id !== "owner")) || lowWorkers[lowWorkers.length - 1] || {};
@@ -111,7 +145,18 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
     manifest.workers = workers;
     manifest.updatedAt = nowIso();
     writeManifest(manifestPath, manifest);
-    return { ok: true, provisioned: true, manifestPath, workerName: profile, profile, port: newWorker.port, lowGatewayCount: lowCount, restartRequired: true };
+    return {
+      ok: true,
+      provisioned: true,
+      manifestPath,
+      workerName: profile,
+      profile,
+      port: newWorker.port,
+      lowGatewayCount: lowCount,
+      restartRequired: true,
+      skillStorePath: skillStore.skillStorePath,
+      skillStoreProvisioned: skillStore.skillStoreProvisioned,
+    };
   }
 
   return { ensureWorkspaceGateway };

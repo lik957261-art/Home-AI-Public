@@ -69,7 +69,36 @@ function isUncPath(value) {
   return /^\\\\/.test(cleanString(value));
 }
 
-function localSkillProfileRoots(options = {}) {
+function normalizeWorkspaceId(value) {
+  return cleanString(value).toLowerCase();
+}
+
+function cleanSkillProfileName(value) {
+  const text = normalizeWorkspaceId(value).replace(/^workspace:/, "");
+  return text.replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+}
+
+function isOwnerAuth(auth = {}) {
+  return Boolean(auth?.isOwner || auth?.role === "owner" || auth?.kind === "owner");
+}
+
+function skillWorkspaceIdFromScope(scope = {}) {
+  const raw = cleanString(scope.skillWorkspaceId || scope.skill_workspace_id || scope.workspaceId || scope.workspace_id || scope.auth?.skillWorkspaceId || scope.auth?.skill_workspace_id || scope.auth?.workspaceId);
+  const value = raw.replace(/^workspace:/i, "");
+  return value || "";
+}
+
+function hasSkillRootScope(scope = {}) {
+  return Boolean(scope?.auth || skillWorkspaceIdFromScope(scope) || scope?.scopedSkillRoots);
+}
+
+function ownerSkillRootScope(scope = {}) {
+  const workspaceId = skillWorkspaceIdFromScope(scope) || (scope?.auth ? cleanString(scope.auth.workspaceId) : "");
+  if (workspaceId && normalizeWorkspaceId(workspaceId) !== "owner") return false;
+  return !scope?.auth || isOwnerAuth(scope.auth) || normalizeWorkspaceId(workspaceId) === "owner";
+}
+
+function localSkillProfileRoots(options = {}, scope = {}) {
   const env = options.env || process.env;
   const dataDirs = [
     env.HERMES_WEB_DATA_DIR,
@@ -79,12 +108,19 @@ function localSkillProfileRoots(options = {}) {
   ];
   if (process.platform === "win32") dataDirs.push("C:\\ProgramData\\HermesMobile\\data");
   const roots = [];
+  const scoped = hasSkillRootScope(scope);
+  const ownerScope = ownerSkillRootScope(scope);
+  const workspaceProfile = cleanSkillProfileName(skillWorkspaceIdFromScope(scope));
   for (const value of dedupeRoots(dataDirs)) {
     if (!value || isUncPath(value)) continue;
     const profilesRoot = path.join(value, "skill-profiles");
-    for (const profile of ["owner-full", "shared-global"]) {
+    const scopedProfiles = ["shared-global"];
+    if (ownerScope) scopedProfiles.unshift("owner-full");
+    else if (workspaceProfile) scopedProfiles.unshift(workspaceProfile);
+    for (const profile of scoped ? scopedProfiles : ["owner-full", "shared-global"]) {
       roots.push(path.join(profilesRoot, profile, "skills"));
     }
+    if (scoped) continue;
     try {
       if (!fs.existsSync(profilesRoot) || !fs.statSync(profilesRoot).isDirectory()) continue;
       for (const entry of fs.readdirSync(profilesRoot, { withFileTypes: true })) {
@@ -97,23 +133,26 @@ function localSkillProfileRoots(options = {}) {
   return roots;
 }
 
-function defaultSkillRoots(options = {}) {
+function defaultSkillRoots(options = {}, scope = {}) {
   const env = options.env || process.env;
   const repoRoot = path.resolve(options.repoRoot || path.join(__dirname, ".."));
   const distro = cleanString(options.wslDistro || env.HERMES_WEB_WSL_DISTRO || env.HERMES_MOBILE_WSL_DISTRO || "Ubuntu-24.04");
   const hermesHome = cleanString(env.HERMES_HOME || env.HERMES_WEB_HERMES_HOME);
+  const scoped = hasSkillRootScope(scope);
+  const ownerScope = ownerSkillRootScope(scope);
   const roots = [
-    env.HERMES_WEB_SKILLS_ROOT,
-    env.HERMES_MOBILE_SKILLS_ROOT,
-    ...localSkillProfileRoots(options),
+    ...(ownerScope ? [env.HERMES_WEB_SKILLS_ROOT, env.HERMES_MOBILE_SKILLS_ROOT] : []),
+    ...localSkillProfileRoots(options, scope),
     path.join(repoRoot, "skills"),
-    path.join(os.homedir(), ".codex", "skills"),
   ];
-  if (hermesHome) {
+  if (!scoped || ownerScope) roots.push(path.join(os.homedir(), ".codex", "skills"));
+  if (hermesHome && (!scoped || ownerScope)) {
     roots.push(hermesHome.startsWith("/") ? path.join(wslPathToUnc(hermesHome, distro), "skills") : path.join(hermesHome, "skills"));
   }
-  for (const user of ["xuxin", "hermes"]) {
-    roots.push(wslPathToUnc(`/${["home", user, ".hermes", "skills"].join("/")}`, distro));
+  if (!scoped || ownerScope) {
+    for (const user of ["xuxin", "hermes"]) {
+      roots.push(wslPathToUnc(`/${["home", user, ".hermes", "skills"].join("/")}`, distro));
+    }
   }
   roots.push(
     wslPathToUnc(`/${["opt", "hermes-gateway-runtime", "official-clean", "skills"].join("/")}`, distro),
@@ -200,7 +239,7 @@ function skillDetailFromFile(filePath, resolvedPath, maxChars, options = {}) {
 }
 
 function createDirectSkillResolver(options = {}) {
-  const roots = Array.isArray(options.skillRoots) ? options.skillRoots : defaultSkillRoots(options);
+  const configuredRoots = Array.isArray(options.skillRoots) ? options.skillRoots : null;
   const maxChars = Number(options.maxSkillChars || 60000);
   const scanOptions = {
     allowRemoteSkillRoots: Boolean(options.allowRemoteSkillRoots),
@@ -208,9 +247,14 @@ function createDirectSkillResolver(options = {}) {
     maxNamedSkillScanMs: options.maxNamedSkillScanMs,
   };
 
-  function resolve(skill) {
+  function rootsForScope(scope = {}) {
+    return configuredRoots || defaultSkillRoots(options, scope);
+  }
+
+  function resolve(skill, scope = {}) {
     const skillPath = normalizeSkillPath(skill);
     if (!skillPath) return null;
+    const roots = rootsForScope(scope);
     for (const root of roots) {
       if (!usableSkillRoot(root, scanOptions)) continue;
       const direct = directSkillCandidate(root, skillPath);
@@ -236,7 +280,7 @@ function createDirectSkillResolver(options = {}) {
   }
 
   function detail(skill, detailOptions = {}) {
-    const match = resolve(skill);
+    const match = resolve(skill, detailOptions);
     return match ? skillDetailFromFile(match.file, match.path, maxChars, { root: match.root, auth: detailOptions.auth }) : null;
   }
 
@@ -320,6 +364,11 @@ function createSkillDetailProvider(options = {}) {
   const skillAnalysisService = options.skillAnalysisService || createSkillAnalysisService(options);
   const maxChars = Number(options.maxSkillChars || 60000);
 
+  function bridgeFallbackAllowed(scope = {}) {
+    if (!hasSkillRootScope(scope)) return true;
+    return ownerSkillRootScope(scope) && isOwnerAuth(scope.auth || {});
+  }
+
   async function detail(skill, options = {}) {
     const requestedSkill = String(skill || "").trim();
     if (!requestedSkill) {
@@ -327,6 +376,9 @@ function createSkillDetailProvider(options = {}) {
     }
     const direct = directResolver?.detail?.(requestedSkill, options);
     if (direct) return direct;
+    if (!bridgeFallbackAllowed(options)) {
+      throw errorWithStatus("Skill was not found in this workspace Skill Store", 404, { skill: requestedSkill });
+    }
     let bridgeError = null;
     try {
       const result = await runBridge({ skill: requestedSkill });
@@ -349,7 +401,7 @@ function createSkillDetailProvider(options = {}) {
   async function applyFix(skill, fixId, options = {}) {
     const requestedSkill = String(skill || "").trim();
     if (!requestedSkill) throw errorWithStatus("Skill is required", 400);
-    const match = directResolver?.resolve?.(requestedSkill);
+    const match = directResolver?.resolve?.(requestedSkill, options);
     if (!match?.file) {
       throw errorWithStatus("Skill can only be modified when it resolves to a local SKILL.md", 404, { skill: requestedSkill });
     }
@@ -374,4 +426,5 @@ module.exports = {
   createDirectSkillResolver,
   createSkillDetailProvider,
   defaultSkillRoots,
+  localSkillProfileRoots,
 };

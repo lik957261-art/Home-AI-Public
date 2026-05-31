@@ -1021,6 +1021,12 @@ Required harness dimensions:
   `workspaces`, and equivalent policy fields.
 - System/shared Skills are writable only by Owner; creator-owned Skills are
   writable only by their creator principal/workspace.
+- Skill detail, analysis, and repair routes are workspace-scoped and must not
+  enumerate sibling `skill-profiles/*` roots or fall back to Owner/global Skill
+  bridge for a non-Owner workspace request.
+- Workspace provisioning creates a physical private Skill Store at
+  `data/skill-profiles/<workspaceId>/skills`, and Gateway startup links each
+  ordinary user profile to the store declared by manifest `skillWorkspaceIds`.
 - Growth executor surfaces do not expose Owner-only configuration or private
   source records.
 - Inbox multi-recipient fanout respects workspace authorization.

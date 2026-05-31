@@ -68,6 +68,9 @@ function testProvisionNewWorkspaceWorkerAppendsAfterStableGrokPort() {
     assert.equal(result.profile, "lowgw3");
     assert.equal(result.port, 18754);
     assert.equal(result.restartRequired, true);
+    assert.equal(result.skillStoreProvisioned, true);
+    assert.equal(fs.existsSync(result.skillStorePath), true);
+    assert.equal(result.skillStorePath.endsWith(path.join("skill-profiles", "xuyan", "skills")), true);
 
     const manifest = readManifest(manifestPath);
     const worker = manifest.workers.find((item) => item.profile === "lowgw3");
@@ -90,8 +93,15 @@ function testExistingWorkspaceIsIdempotent() {
     const result = createService(manifestPath).ensureWorkspaceGateway({ workspaceId: "weixin_stephen" });
     assert.equal(result.ok, true);
     assert.equal(result.provisioned, false);
-    assert.equal(result.restartRequired, false);
+    assert.equal(result.restartRequired, true);
+    assert.equal(result.skillStoreProvisioned, true);
+    assert.equal(fs.existsSync(result.skillStorePath), true);
     assert.equal(readManifest(manifestPath).workers.length, 1);
+
+    const second = createService(manifestPath).ensureWorkspaceGateway({ workspaceId: "weixin_stephen" });
+    assert.equal(second.provisioned, false);
+    assert.equal(second.restartRequired, false);
+    assert.equal(second.skillStoreProvisioned, false);
   });
 }
 

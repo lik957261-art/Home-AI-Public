@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260531-gateway-elastic-v404";
+const CLIENT_VERSION = "20260531-skill-store-isolation-v405";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -58,6 +58,12 @@ assert.match(appJs, /function runGatewayWorkerPreviewLabel/);
 assert.match(appJs, /profileId/);
 assert.match(appJs, /warm until/);
 assert.match(appJs, /queue \$/);
+assert.match(appJs, /function skillStoreWorkspaceId\(workspaceId = ""\)/);
+assert.match(appJs, /query\.set\("workspaceId", skillStoreWorkspaceId\(workspaceId\)\)/);
+assert.match(appJs, /workspaceId,/);
+assert.match(appJs, /\/api\/skills\/detail\?\$\{skillStoreQuery\(skill\.path, workspaceId\)\}/);
+assert.match(appJs, /\/api\/skills\/analysis\?\$\{skillStoreQuery\(skill\.path, skill\.workspaceId\)\}/);
+assert.match(appJs, /body: JSON\.stringify\(\{ skill: skill\.path, fixId: id, workspaceId: skillStoreWorkspaceId\(skill\.workspaceId\) \}\)/);
 assert.match(stylesCss, /\.workspace-gateway-provider-matrix/);
 assert.match(stylesCss, /\.workspace-gateway-provider-row/);
 assert.match(stylesCss, /\.workspace-gateway-provider-row \{[\s\S]*?grid-template-columns: minmax\(68px, 0\.72fr\) minmax\(0, 1\.28fr\);/);
@@ -700,7 +706,7 @@ assert.match(appJs, /timeoutMs: 8000/);
 assert.match(appJs, /timeoutMs: 130000/);
 assert.doesNotMatch(appJs, /data-close-skill-detail/);
 assert.match(appJs, /data-skill-analysis/);
-assert.match(appJs, /\/api\/skills\/analysis\?skill=/);
+assert.match(appJs, /\/api\/skills\/analysis\?\$\{skillStoreQuery\(skill\.path, skill\.workspaceId\)\}/);
 assert.match(appJs, /data-skill-fix-id/);
 assert.match(appJs, /\/api\/skills\/analysis\/fix/);
 assert.match(appJs, /timeoutMs: 300000/);
