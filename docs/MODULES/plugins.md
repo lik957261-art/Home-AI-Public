@@ -559,6 +559,10 @@ Hermes Mobile then:
   entry through the stable dedupe key;
 - routes Codex Mobile Web Push clicks directly to the Codex plugin tab by
   default, while still carrying the Inbox item id as metadata;
+- suppresses Codex Mobile completion Web Push until the event is terminal
+  (`status=done` or `status=archived`), includes a bounded final
+  `detailMessage.body`, and carries a stable route anchor such as
+  `pluginThreadId`, `pluginTaskId`, `pluginItemId`, or `sourceTurnId`;
 - stores only bounded route metadata in `sourceRef` when an Inbox item is
   created;
 - sends Web Push through the Hermes PWA subscription when `notify` is not
@@ -573,11 +577,14 @@ because there is no Inbox item.
 
 For Codex Mobile notifications, Hermes routes Action Inbox clicks to the Codex
 tab and carries bounded route hints such as `pluginRoute`, `pluginItemId`,
-`pluginThreadId`, and `pluginTaskId` into the iframe entry URL. The Codex plugin
-project must consume those hints in embedded mode and focus the matching thread
-or task when available. Web Push clicks follow the same Codex plugin route by
-default; the Inbox item id remains metadata for receipt/context, not the primary
-click destination.
+`pluginThreadId`, `pluginTaskId`, and `sourceTurnId` into the iframe entry URL
+and the Web Push payload. The Codex plugin project must consume those hints in
+embedded mode and focus the matching thread, task, or final-turn receipt start
+when available. Web Push clicks follow the same Codex plugin route by default;
+the Inbox item id remains metadata for receipt/context, not the primary click
+destination. The service worker must preserve plugin route fields before generic
+Inbox routing when `openMode=plugin`, so an Inbox-backed Codex completion still
+opens the completed plugin receipt rather than the Inbox detail.
 
 For Finance ledger join approval, Finance posts
 `type=finance.ledger_join_request` to the same notification route. Hermes

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260531-finance-ledger-join-v393";
+const CLIENT_VERSION = "20260531-plugin-push-route-v394";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -2039,6 +2039,11 @@ assert.ok(
   serviceWorkerJs.indexOf("const automationNotification = Boolean(data.automationId)") < serviceWorkerJs.indexOf("if (data.inboxItemId)"),
   "automation notifications should route directly to automation detail even when Inbox metadata is present",
 );
+assert.ok(
+  serviceWorkerJs.indexOf("messageType === \"plugin_notification\" || pluginId") < serviceWorkerJs.indexOf("if (data.inboxItemId)"),
+  "plugin openMode=plugin notifications should preserve plugin route metadata before generic Inbox routing",
+);
+assert.match(serviceWorkerJs, /\["pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId", "messageId"\]\.forEach/);
 assert.match(serviceWorkerJs, /params\.set\("returnTo", String\(data\.returnTo \|\| "inbox"\)\)/);
 assert.match(serviceWorkerJs, /params\.set\("sourceInboxItemId", sourceInboxItemId\)/);
 assert.ok(

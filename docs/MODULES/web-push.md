@@ -35,6 +35,13 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
   plugin route so the task/thread can open without an intermediate Inbox step.
   This keeps local/LAN or proxy-only plugins usable even when their own
   HTTPS/Web Push origin is disabled.
+- Codex Mobile completion push is gated on terminal evidence. Hermes must not
+  send a Codex completion Web Push for an `open` / non-terminal plugin event, or
+  for an event that lacks a bounded final `detailMessage.body` and a stable
+  route anchor (`pluginThreadId`, `pluginTaskId`, `pluginItemId`, or
+  `sourceTurnId`). Clicking a Codex completion push must preserve those plugin
+  route fields even when the notification also carries `inboxItemId`, because
+  the Inbox item is receipt metadata and not the click destination.
 - Automation failures do not require a new deliverable file to notify. The push/InBox payload should carry only a compact failure summary and a route to the Automation detail.
 - Automation Web Push clicks should open the Automation detail directly by
   `automationId`, even when the notification also upserts an Inbox item and
@@ -62,6 +69,11 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
   `openMode=plugin`, or if the event is push-only, the push URL may open the
   plugin tab. Push-only events must carry empty Inbox ids rather than creating a
   synthetic Inbox receipt.
+- For `openMode=plugin`, plugin route fields take precedence over generic
+  `inboxItemId` routing in the service worker. The worker must preserve
+  `pluginId`, `pluginRoute`, `pluginItemId`, `pluginThreadId`, `pluginTaskId`,
+  and `sourceTurnId` so plugin completion notifications can open the final
+  receipt start instead of a stale plugin root or Inbox detail.
 - On mobile browser shells, Hermes Mobile must not render the full authenticated app. If the current mobile/touch client is not the installed PWA standalone window, the app must show only a blocker that asks the user to close the browser shell and reopen from the Home Screen Hermes Mobile app.
 - The PWA guard must run in `index.html` preflight before app bundles load, at app bootstrap before `loadWorkspaces()` / `loadSelectedView()`, and also on click-time routing through the shared internal route helper, startup URL routing (`applyRouteFromUrl`), and restored selected detail state. A browser shell may be launched directly with `automationId`, may already hold `state.viewMode=automation` plus `selectedAutomationId`, or may be a stale long-lived browser shell that has not yet run the latest app router.
 

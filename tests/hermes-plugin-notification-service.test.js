@@ -124,7 +124,8 @@ async function testCodexTaskCompleteUsesWorkspaceScopedInboxRecord() {
     title: "Codex task complete",
     type: "task_complete",
     summary: "This turn 已结束 · 14:32",
-    route: { name: "task", itemId: "codex-task-1" },
+    status: "done",
+    route: { name: "thread", threadId: "thread-1", itemId: "codex-task-1" },
     openMode: "plugin",
     detailMessage: {
       format: "markdown",
@@ -148,11 +149,41 @@ async function testCodexTaskCompleteUsesWorkspaceScopedInboxRecord() {
   assert.equal(calls.push.length, 1);
   assert.equal(calls.push[0].payload.body, "This turn 已结束 · 14:32");
   assert.equal(JSON.stringify(calls.push[0]).includes("Long final receipt"), false);
-  assert.equal(result.clickUrl, "/?view=codex&workspaceId=owner&pluginId=codex-mobile&pluginRoute=task&pluginItemId=codex-task-1");
+  assert.equal(result.clickUrl, "/?view=codex&workspaceId=owner&pluginId=codex-mobile&pluginRoute=thread&pluginItemId=codex-task-1&pluginThreadId=thread-1&sourceTurnId=turn-1");
   assert.equal(calls.push[0].payload.data.viewMode, "codex");
   assert.equal(calls.push[0].payload.data.url, result.clickUrl);
   assert.equal(calls.push[0].payload.data.originalUrl, result.clickUrl);
+  assert.equal(calls.push[0].payload.data.openMode, "plugin");
+  assert.equal(calls.push[0].payload.data.pluginRoute, "thread");
+  assert.equal(calls.push[0].payload.data.pluginItemId, "codex-task-1");
+  assert.equal(calls.push[0].payload.data.pluginThreadId, "thread-1");
+  assert.equal(calls.push[0].payload.data.sourceTurnId, "turn-1");
   assert.equal(calls.push[0].payload.data.inboxItemId, "ainb-plugin-1");
+}
+
+async function testCodexTaskCompleteSuppressesPushUntilTerminalAndAnchored() {
+  const { calls, service } = createHarness();
+  const result = await service.postNotification({
+    pluginId: "codex-mobile",
+    workspaceId: "owner",
+    sourceId: "codex-task-early",
+    title: "Codex task complete",
+    type: "task_complete",
+    status: "open",
+    summary: "This turn may still be updating",
+    route: { name: "thread", threadId: "thread-1", itemId: "turn-early" },
+    openMode: "plugin",
+    detailMessage: {
+      format: "markdown",
+      sourceTurnId: "turn-early",
+      body: "# Pending final receipt",
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(calls.inbox.length, 1);
+  assert.equal(calls.push.length, 0);
+  assert.equal(result.push.skipped, true);
+  assert.equal(result.push.reason, "codex_completion_status_not_terminal");
 }
 
 async function testPluginNotificationCanExplicitlySkipInbox() {
@@ -210,6 +241,7 @@ async function run() {
   await testRequiresStableSourceIdAndRegisteredPlugin();
   await testNotifyFalseSkipsPush();
   await testCodexTaskCompleteUsesWorkspaceScopedInboxRecord();
+  await testCodexTaskCompleteSuppressesPushUntilTerminalAndAnchored();
   await testPluginNotificationCanExplicitlySkipInbox();
   await testFinanceLedgerJoinRequestCreatesApprovalInboxItem();
 }

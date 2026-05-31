@@ -209,9 +209,14 @@ one latest Inbox record per workspace through a stable workspace-scoped dedupe
 key, so a new completion overwrites that workspace's previous Codex completion
 item instead of creating a growing Inbox list. Codex Web Push clicks must still
 go directly to the Codex plugin route, with the Inbox id carried only as
-metadata. If a plugin supplies bounded `detailMessage`, Action Inbox detail
-must render it as the long receipt; Web Push assertions must prove the long body
-does not appear in the push payload.
+metadata. Codex completion push must be suppressed unless the plugin event is
+terminal, includes bounded final receipt detail, and carries a route anchor that
+can focus the completed thread/task/turn. If a plugin supplies bounded
+`detailMessage`, Action Inbox detail must render it as the long receipt; Web
+Push assertions must prove the long body does not appear in the push payload and
+that `openMode=plugin` payloads preserve `pluginRoute`, `pluginItemId`,
+`pluginThreadId`, `pluginTaskId`, and `sourceTurnId` before generic Inbox
+routing.
 Finance ledger join approval is an H1 plugin-to-Inbox workflow. Harnesses must
 cover `finance.ledger_join_request` normalization into an Inbox `approval` item,
 compact ledger/requester/role display, approve/reject actions, Finance review

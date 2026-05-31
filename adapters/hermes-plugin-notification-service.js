@@ -148,6 +148,50 @@ function safeRelativeLink(value = "") {
   return text;
 }
 
+function pluginRouteParams(pluginId, workspaceId, viewMode, route = {}, detailMessage = null) {
+  const sourceTurnId = clean(
+    route.sourceTurnId || route.source_turn_id || route.turnId || route.turn_id || detailMessage?.sourceTurnId,
+    180,
+  );
+  return {
+    view: viewMode,
+    workspaceId,
+    pluginId,
+    pluginRoute: route.pluginRoute || route.name || route.route || "",
+    pluginItemId: route.pluginItemId || route.itemId || route.item_id || route.id || route.turnId || route.turn_id || sourceTurnId || "",
+    pluginThreadId: route.pluginThreadId || route.threadId || route.thread_id || "",
+    pluginTaskId: route.pluginTaskId || route.taskId || route.task_id || "",
+    sourceTurnId,
+  };
+}
+
+function codexCompletionLikeEvent(event = {}) {
+  if (event.pluginId !== "codex-mobile") return false;
+  const text = [
+    event.notificationType,
+    event.title,
+    event.summary,
+    event.itemType,
+  ].map((item) => clean(item, 240).toLowerCase()).join(" ");
+  return /task[_ -]?complete|turn[_ -]?complete|completed|complete|finished|done|已完成|完成|结束|結束/.test(text);
+}
+
+function pluginNotificationPushReadiness(event = {}) {
+  if (!codexCompletionLikeEvent(event)) return { ok: true };
+  if (event.status !== "done" && event.status !== "archived") {
+    return { ok: false, reason: "codex_completion_status_not_terminal" };
+  }
+  const route = objectValue(event.route);
+  const params = pluginRouteParams(event.pluginId, event.workspaceId, event.viewMode, route, event.detailMessage);
+  if (!params.pluginThreadId && !params.pluginTaskId && !params.pluginItemId && !params.sourceTurnId) {
+    return { ok: false, reason: "codex_completion_route_anchor_missing" };
+  }
+  if (!event.detailMessage?.body) {
+    return { ok: false, reason: "codex_completion_detail_message_missing" };
+  }
+  return { ok: true };
+}
+
 function errorResult(status, error) {
   return { ok: false, status, error };
 }
@@ -206,13 +250,8 @@ function createHermesPluginNotificationService(options = {}) {
     if (!sourceId) return errorResult(400, "plugin_notification_source_id_required");
     if (!title && !summary) return errorResult(400, "plugin_notification_requires_title_or_summary");
     const notificationType = financeJoin?.notificationType || clean(input.type || input.notificationType || input.notification_type || "plugin_notification", 80);
-    const pluginUrl = appRouteUrl({
-      view: viewMode,
-      workspaceId,
-      pluginId,
-      pluginRoute: route.name || route.route || "",
-      pluginItemId: route.itemId || route.item_id || route.id || "",
-    });
+    const routeParams = pluginRouteParams(pluginId, workspaceId, viewMode, route, detailMessage);
+    const pluginUrl = appRouteUrl(routeParams);
     const event = {
       ok: true,
       pluginId,
@@ -229,6 +268,7 @@ function createHermesPluginNotificationService(options = {}) {
       detailMessage,
       actionLabel: clean(input.actionLabel || input.action_label || "打开", 80),
       route,
+      routeParams,
       viewMode,
       pluginUrl: safeRelativeLink(input.deepLink || input.deep_link) || pluginUrl,
       dedupeKey: "",
@@ -293,7 +333,8 @@ function createHermesPluginNotificationService(options = {}) {
     const clickUrl = event.createInbox && event.openMode !== "plugin" ? inboxUrl : event.pluginUrl;
     let push = null;
     const sendPush = sendPushNotification();
-    if (event.notify && typeof sendPush === "function") {
+    const pushReadiness = pluginNotificationPushReadiness(event);
+    if (event.notify && typeof sendPush === "function" && pushReadiness.ok) {
       push = await sendPush({
         title: event.title || "插件通知",
         body: event.summary || event.title || "插件有新的通知",
@@ -305,11 +346,17 @@ function createHermesPluginNotificationService(options = {}) {
           url: clickUrl,
           originalUrl: event.pluginUrl,
           viewMode: event.openMode === "plugin" ? event.viewMode : "inbox",
+          openMode: event.openMode,
           workspaceId: event.workspaceId,
           principalId: event.principalId,
           messageType: "plugin_notification",
           pluginId: event.pluginId,
           pluginEventId: event.eventId,
+          pluginRoute: event.routeParams.pluginRoute || "",
+          pluginItemId: event.routeParams.pluginItemId || "",
+          pluginThreadId: event.routeParams.pluginThreadId || "",
+          pluginTaskId: event.routeParams.pluginTaskId || "",
+          sourceTurnId: event.routeParams.sourceTurnId || "",
           inboxItemId: inboxResult?.item?.id || "",
           sourceInboxItemId: inboxResult?.item?.id || "",
           requireInteraction: event.requireInteraction,
@@ -319,6 +366,15 @@ function createHermesPluginNotificationService(options = {}) {
         urgency: event.priority === "normal" ? "normal" : "high",
         ttl: 24 * 60 * 60,
       });
+    } else if (event.notify && !pushReadiness.ok) {
+      push = {
+        enabled: true,
+        attempted: 0,
+        sent: 0,
+        failed: 0,
+        skipped: true,
+        reason: pushReadiness.reason,
+      };
     }
     return {
       ok: true,
