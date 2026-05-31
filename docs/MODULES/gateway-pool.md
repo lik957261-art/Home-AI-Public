@@ -138,13 +138,17 @@ leaves
 `/api/status?detail=1` healthy, and does not require manual `-StartProfiles`
 execution.
 
-Listener on-demand `-NoStopExisting` selected-profile starts and stop-only
-operations must not run full low-Gateway reconfiguration when the target
-profile's telemetry directory, config, shared auth link, and lock link are
-already ready. Full hybrid startup should still be able to reconfigure normally.
-The listener launch wrapper must keep bounded stdout/stderr diagnostics and use
-an on-demand start timeout large enough for the first post-deploy configure
-case; the maintained default is now 300 seconds.
+Gateway startup must keep the configure path narrow. `start-low-gateways.sh`
+stores a non-secret configure signature under the worker root and skips
+`configure-low-gateways.sh` when the selected profiles are already ready and
+the signature still matches the manifest, generator script, runtime override
+source, plugin sources, and Skill Store mapping inputs. Stop-only operations
+always skip configure. Full hybrid/eager starts and selected-profile starts use
+the same cache gate; pass `start-gateway-pool.ps1 -ForceConfigure` only when the
+operator intentionally wants to rebuild all profile config even though the
+signature is unchanged. The listener launch wrapper must keep bounded
+stdout/stderr diagnostics and use an on-demand start timeout large enough for
+the first post-deploy configure case; the maintained default is now 300 seconds.
 
 After a start script returns success, Mobile must poll the selected Gateway
 worker's `/health` for a bounded propagation window before failing the user run.

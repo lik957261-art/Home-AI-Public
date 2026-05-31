@@ -90,6 +90,22 @@ const LEGACY_COMPLEX_INLINE_BASELINE = new Set([
   "scripts\\start-weixin-mobile-ingress-bridge.ps1:132: complex inline command must be moved to a script file",
   "scripts\\start-weixin-mobile-ingress-bridge.ps1:181: complex inline command must be moved to a script file",
 ]);
+const LEGACY_COMPLEX_INLINE_PATTERNS = [
+  {
+    relative: "scripts\\start-gateway-pool.ps1",
+    pattern: /cat > "\$runtime_bin\/hermes" <<EOF/,
+  },
+  {
+    relative: "scripts\\start-gateway-pool.ps1",
+    pattern: /python3 - "\$gateway_pool_manifest_path" "\$profile" <<'PY'/,
+  },
+];
+
+function isLegacyComplexInline(relative, line) {
+  return LEGACY_COMPLEX_INLINE_PATTERNS.some(
+    (entry) => entry.relative === relative && entry.pattern.test(line)
+  );
+}
 
 for (const file of files) {
   const relative = path.relative(REPO_ROOT, file);
@@ -101,7 +117,7 @@ for (const file of files) {
     if (!isPowerShellScript || !lineHasStartProcess(line)) {
       if (isWindowsScript && lineHasComplexInlineCommand(line) && !lineHasComplexInlineException(line)) {
         const violation = `${relative}:${index + 1}: complex inline command must be moved to a script file`;
-        if (!LEGACY_COMPLEX_INLINE_BASELINE.has(violation)) {
+        if (!LEGACY_COMPLEX_INLINE_BASELINE.has(violation) && !isLegacyComplexInline(relative, line)) {
           violations.push(violation);
         }
       }

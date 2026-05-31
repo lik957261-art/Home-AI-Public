@@ -474,14 +474,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\HermesMo
 
 - 使用 `run-as-worker.ps1` 切到 `HermesMobileWorker`。
 - 在 `HermesGatewayWorker` WSL distro 中启动 lowgw 和配置的 `grokgw`。
-- 调用 `configure-low-gateways.sh` 写 base/profile config。
+- 需要时调用 `configure-low-gateways.sh` 写 base/profile config；如果配置签名未变化且目标 profile 已就绪，`start-low-gateways.sh` 会跳过全量重配。
 - 安装 `hermes-mobile-weather` 和 `hermes-mobile-http` 插件。
 - 配置 shared-auth 同文件系统路径。
 - 检查并隔离损坏的 profile SQLite DB/sidecar。
 - 停掉旧 lowgw 后再启动新 lowgw。
 - 检查 lowgw auth fingerprint。
 
-日常修复或配置变更后的 Gateway Pool 重启也使用同一个入口。优先触发计划任务 `Hermes Mobile Gateway Pool`；没有计划任务时再直接运行 `start-gateway-pool.ps1`。不要只杀某个 `python` 进程后手动拉起单个 Gateway，因为这样容易绕过 shared-auth、profile config、plugin 同步、SQLite sidecar 修复和 `grokgw1` 配置。
+日常修复或配置变更后的 Gateway Pool 重启也使用同一个入口。优先触发计划任务 `Hermes Mobile Gateway Pool`；没有计划任务时再直接运行 `start-gateway-pool.ps1`。普通重启依赖非敏感配置签名缓存，只有 manifest、生成脚本、runtime override、插件源、Skill Store 映射输入变化、目标 profile 缺失配置，或显式传入 `-ForceConfigure` 时才全量执行 `configure-low-gateways.sh`。不要只杀某个 `python` 进程后手动拉起单个 Gateway，因为这样容易绕过 shared-auth、profile config、plugin 同步、SQLite sidecar 修复和 `grokgw1` 配置。
 
 ## 9. 启动 Hermes Mobile listener
 

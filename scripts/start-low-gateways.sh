@@ -7,6 +7,8 @@ worker_home_dir="$worker_home/.hermes"
 gateway_worker_root="${HERMES_GATEWAY_WORKER_ROOT:-/mnt/c/ProgramData/HermesMobile/gateway-worker}"
 gateway_pool_manifest_path="${HERMES_GATEWAY_POOL_MANIFEST_PATH:-/mnt/c/ProgramData/HermesMobile/data/gateway-pool-manifest.json}"
 configure_low_gateway_script="${HERMES_LOW_GATEWAY_CONFIGURE_SCRIPT:-$gateway_worker_root/configure-low-gateways.sh}"
+configure_state_root="${HERMES_LOW_GATEWAY_CONFIGURE_STATE_ROOT:-$gateway_worker_root/configure-state}"
+configure_signature_file="$configure_state_root/low-gateway-config.sha256"
 runtime_root="${HERMES_GATEWAY_RUNTIME_ROOT:-/opt/hermes-gateway-runtime}"
 runtime_python="${HERMES_GATEWAY_RUNTIME_PYTHON:-$runtime_root/venv/bin/python}"
 runtime_source="${HERMES_GATEWAY_RUNTIME_SOURCE:-$runtime_root/official-clean}"
@@ -40,6 +42,7 @@ low_gateway_base_port="${HERMES_LOW_GATEWAY_BASE_PORT:-18750}"
 gateway_start_profiles="${HERMES_GATEWAY_START_PROFILES:-}"
 gateway_stop_only="${HERMES_GATEWAY_STOP_ONLY:-0}"
 gateway_skip_configure_if_ready="${HERMES_GATEWAY_SKIP_CONFIGURE_IF_READY:-0}"
+gateway_force_configure="${HERMES_GATEWAY_FORCE_CONFIGURE:-0}"
 
 profile_selected() {
   local profile="$1"
@@ -152,6 +155,30 @@ mobile_bridge_host_url="${HERMES_MOBILE_BRIDGE_HOST_URL:-${HERMES_WEB_BRIDGE_HOS
 mobile_bridge_key_path="${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-/mnt/c/ProgramData/HermesMobile/data/secrets/bridge-host.secret}}"
 x_search_proxy_url="${HERMES_MOBILE_X_SEARCH_PROXY_URL:-http://127.0.0.1:${grok_gateway_port:-18761}}"
 deepseek_api_key_path="${HERMES_MOBILE_DEEPSEEK_API_KEY_PATH:-${HERMES_WEB_DEEPSEEK_API_KEY_PATH:-/mnt/c/ProgramData/HermesMobile/data/secrets/deepseek-api-key.secret}}"
+shared_auth_mode="${HERMES_LOW_GATEWAY_SHARED_AUTH_MODE:-shared-root}"
+shared_auth_default_root="${HERMES_LOW_GATEWAY_SHARED_AUTH_ROOT:-$gateway_worker_root/telemetry/profiles/shared-auth}"
+shared_auth_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_PATH:-$shared_auth_default_root/auth.json}"
+shared_auth_lock_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_LOCK_PATH:-$shared_auth_default_root/auth.lock}"
+grok_auth_default_root="${HERMES_GROK_GATEWAY_AUTH_ROOT:-$gateway_worker_root/telemetry/profiles/shared-auth-grok}"
+grok_auth_path="${HERMES_GROK_GATEWAY_AUTH_PATH:-$grok_auth_default_root/auth.json}"
+grok_auth_lock_path="${HERMES_GROK_GATEWAY_AUTH_LOCK_PATH:-$grok_auth_default_root/auth.lock}"
+mobile_app_root="${HERMES_MOBILE_APP_ROOT:-/mnt/c/ProgramData/HermesMobile/app}"
+weather_plugin_source="${HERMES_MOBILE_WEATHER_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-weather}"
+web_plugin_source="${HERMES_MOBILE_WEB_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-web}"
+http_plugin_source="${HERMES_MOBILE_HTTP_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-http}"
+docx_plugin_source="${HERMES_MOBILE_DOCX_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-docx}"
+audio_plugin_source="${HERMES_MOBILE_AUDIO_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-audio}"
+image_plugin_source="${HERMES_MOBILE_IMAGE_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-image}"
+video_plugin_source="${HERMES_MOBILE_VIDEO_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-video}"
+cronjob_plugin_source="${HERMES_MOBILE_CRONJOB_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-cronjob}"
+owner_connector_profiles="${HERMES_MOBILE_OWNER_CONNECTOR_PROFILES:-lowgw1 lowgw2 lowgw3 lowgw4 lowgw10 deepseekgw1 deepseekgw2 deepseekgw99}"
+outlook_graph_mcp_path="${HERMES_MOBILE_OUTLOOK_GRAPH_MCP_PATH:-$worker_home_dir/scripts/outlook_graph_mcp.py}"
+owner_skill_store="${HERMES_MOBILE_OWNER_SKILL_STORE:-/mnt/c/ProgramData/HermesMobile/data/skill-profiles/owner-full/skills}"
+skill_profiles_root="${HERMES_MOBILE_SKILL_PROFILES_ROOT:-$(dirname "$(dirname "$owner_skill_store")")}"
+wardrobe_mcp_path="${HERMES_MOBILE_WARDROBE_MCP_PATH:-$gateway_worker_root/wardrobe-mcp/scripts/wardrobe-mcp.py}"
+wardrobe_user_drive_root="${HERMES_MOBILE_WARDROBE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
+owner_wardrobe_workspace_override="${HERMES_MOBILE_OWNER_WARDROBE_WORKSPACE:-}"
+wuping_wardrobe_workspace_override="${HERMES_MOBILE_WUPING_WARDROBE_WORKSPACE:-}"
 
 if ! id -u "$worker_user" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "$worker_user"
@@ -199,6 +226,141 @@ is_skip_configure_if_ready() {
   [[ "$gateway_skip_configure_if_ready" =~ ^(1|true|yes|on)$ ]]
 }
 
+is_force_configure() {
+  [[ "$gateway_force_configure" =~ ^(1|true|yes|on)$ ]]
+}
+
+compute_configure_signature() {
+  python3 - \
+    --value "worker_user=$worker_user" \
+    --value "worker_home_dir=$worker_home_dir" \
+    --value "gateway_worker_root=$gateway_worker_root" \
+    --value "telemetry_profiles_root=$gateway_worker_root/telemetry/profiles" \
+    --value "profile_auth_seed_root=$gateway_worker_root/profile-auth" \
+    --value "low_gateway_count=$low_gateway_count" \
+    --value "grok_gateway_count=$grok_gateway_count" \
+    --value "deepseek_gateway_count=$deepseek_gateway_count" \
+    --value "low_gateway_base_port=$low_gateway_base_port" \
+    --value "shared_auth_mode=$shared_auth_mode" \
+    --value "shared_auth_path=$shared_auth_path" \
+    --value "shared_auth_lock_path=$shared_auth_lock_path" \
+    --value "grok_auth_path=$grok_auth_path" \
+    --value "grok_auth_lock_path=$grok_auth_lock_path" \
+    --value "mobile_app_root=$mobile_app_root" \
+    --value "owner_connector_profiles=$owner_connector_profiles" \
+    --value "owner_skill_store=$owner_skill_store" \
+    --value "skill_profiles_root=$skill_profiles_root" \
+    --value "wardrobe_user_drive_root=$wardrobe_user_drive_root" \
+    --value "owner_wardrobe_workspace_override=$owner_wardrobe_workspace_override" \
+    --value "wuping_wardrobe_workspace_override=$wuping_wardrobe_workspace_override" \
+    --path "$configure_low_gateway_script" \
+    --path "$gateway_pool_manifest_path" \
+    --path "$runtime_overrides_source" \
+    --path "$weather_plugin_source" \
+    --path "$web_plugin_source" \
+    --path "$http_plugin_source" \
+    --path "$docx_plugin_source" \
+    --path "$audio_plugin_source" \
+    --path "$image_plugin_source" \
+    --path "$video_plugin_source" \
+    --path "$cronjob_plugin_source" \
+    --path "$wardrobe_mcp_path" \
+    --path "$outlook_graph_mcp_path" <<'PY'
+import hashlib
+import os
+import sys
+
+hash_state = hashlib.sha256()
+
+def add(label, value):
+    hash_state.update(str(label).encode("utf-8", "surrogatepass"))
+    hash_state.update(b"\0")
+    hash_state.update(str(value).encode("utf-8", "surrogatepass"))
+    hash_state.update(b"\0")
+
+def add_file(path, relpath):
+    try:
+        st = os.lstat(path)
+    except OSError:
+        add("missing-file", relpath)
+        return
+    if os.path.islink(path):
+        try:
+            target = os.readlink(path)
+        except OSError:
+            target = ""
+        add("symlink", f"{relpath}->{target}")
+        return
+    add("file-meta", f"{relpath}:{st.st_size}:{getattr(st, 'st_mtime_ns', int(st.st_mtime * 1000000000))}")
+    try:
+        with open(path, "rb") as handle:
+            while True:
+                chunk = handle.read(1024 * 1024)
+                if not chunk:
+                    break
+                hash_state.update(chunk)
+    except OSError:
+        add("unreadable-file", relpath)
+
+def add_path(path):
+    path = str(path or "").strip()
+    if not path:
+        add("empty-path", "")
+        return
+    if not os.path.exists(path) and not os.path.islink(path):
+        add("missing-path", path)
+        return
+    if os.path.isdir(path) and not os.path.islink(path):
+        add("dir", path)
+        for root, dirs, files in os.walk(path):
+            dirs[:] = sorted(name for name in dirs if name not in {".git", "node_modules", "__pycache__"})
+            for name in sorted(files):
+                if name.endswith((".pyc", ".pyo")):
+                    continue
+                full = os.path.join(root, name)
+                rel = os.path.relpath(full, path)
+                add_file(full, f"{path}/{rel}")
+        return
+    add_file(path, path)
+
+args = sys.argv[1:]
+index = 0
+while index < len(args):
+    mode = args[index]
+    value = args[index + 1] if index + 1 < len(args) else ""
+    if mode == "--value":
+        add("value", value)
+    elif mode == "--path":
+        add_path(value)
+    index += 2
+
+print(hash_state.hexdigest())
+PY
+}
+
+configure_cache_current() {
+  if [ ! -s "$configure_signature_file" ]; then
+    return 1
+  fi
+  local expected
+  local current
+  expected="$(tr -d '\r\n' < "$configure_signature_file" || true)"
+  current="$(compute_configure_signature || true)"
+  if [ -z "$expected" ] || [ -z "$current" ]; then
+    return 1
+  fi
+  [ "$expected" = "$current" ]
+}
+
+write_configure_signature() {
+  local tmp
+  install -d -m 700 "$configure_state_root"
+  tmp="${configure_signature_file}.$$"
+  compute_configure_signature > "$tmp"
+  mv "$tmp" "$configure_signature_file"
+  chmod 600 "$configure_signature_file" || true
+}
+
 profile_environment_ready() {
   local profile="$1"
   local profile_link="$worker_home_dir/profiles/$profile"
@@ -220,6 +382,12 @@ profile_environment_ready() {
     fi
   fi
   if [ ! -s "$expected_target/config.yaml" ]; then
+    return 1
+  fi
+  if [ ! -d "$expected_target/plugins" ]; then
+    return 1
+  fi
+  if [ ! -L "$expected_target/skills" ] || [ ! -d "$expected_target/skills" ]; then
     return 1
   fi
   if [ ! -L "$expected_target/auth.json" ] || [ ! -s "$expected_target/auth.json" ]; then
@@ -247,11 +415,22 @@ selected_gateway_profiles_ready() {
 
 if is_gateway_stop_only; then
   log_step "lowgw-configure-skipped reason=stop-only profiles=${gateway_start_profiles:-all}"
-elif is_skip_configure_if_ready && [ -n "$gateway_start_profiles" ] && selected_gateway_profiles_ready; then
-  log_step "lowgw-configure-skipped reason=selected-profiles-ready profiles=${gateway_start_profiles}"
+elif ! is_force_configure && selected_gateway_profiles_ready && configure_cache_current; then
+  log_step "lowgw-configure-skipped reason=config-current profiles=${gateway_start_profiles:-all}"
+elif is_skip_configure_if_ready && [ -n "$gateway_start_profiles" ]; then
+  log_step "lowgw-configure-cache-miss profiles=${gateway_start_profiles}"
+  log_step "lowgw-configure-start"
+  bash "$configure_low_gateway_script"
+  if ! write_configure_signature; then
+    log_step "lowgw-configure-signature-write-failed"
+  fi
+  log_step "lowgw-configure-done"
 else
   log_step "lowgw-configure-start"
   bash "$configure_low_gateway_script"
+  if ! write_configure_signature; then
+    log_step "lowgw-configure-signature-write-failed"
+  fi
   log_step "lowgw-configure-done"
 fi
 
@@ -343,7 +522,7 @@ stop_gateway_port() {
   if [ -z "$pids" ]; then
     return 0
   fi
-  echo "Stopping existing low Gateway listener on port ${port}: ${pids}" >&2
+  echo "Stopping existing low Gateway listener on port ${port}: ${pids}"
   kill $pids 2>/dev/null || true
   for _ in $(seq 1 20); do
     if ! ss -ltn "sport = :${port}" 2>/dev/null | grep -q ":${port}"; then

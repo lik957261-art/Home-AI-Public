@@ -17,6 +17,7 @@ param(
   [string[]]$StartProfiles = @(),
   [string[]]$StopProfiles = @(),
   [switch]$NoStopExisting,
+  [switch]$ForceConfigure,
   [switch]$OwnerMaintenanceOnly,
   [switch]$OnlyWhenOwnerMaintenanceUnhealthy
 )
@@ -724,7 +725,8 @@ sleep 1
 function Start-LowGateways {
   param(
     [string[]]$Profiles = @(),
-    [switch]$NoStopExisting
+    [switch]$NoStopExisting,
+    [switch]$ForceConfigure
   )
   $child = Join-Path $GatewayWorkerRoot "start-low-gateways-child.ps1"
   if (-not (Test-Path -LiteralPath $child)) { throw "Missing low gateway child script: $child" }
@@ -734,6 +736,7 @@ function Start-LowGateways {
   $profileArgs = @()
   if ($profiles.Count -gt 0) { $profileArgs += @("-StartProfiles", ($profiles -join ",")) }
   if ($NoStopExisting) { $profileArgs += "-SkipConfigureIfReady" }
+  if ($ForceConfigure) { $profileArgs += "-ForceConfigure" }
   Write-GatewayPoolLog ("Starting low gateway pool profiles: {0}" -f ($(if ($profiles.Count) { $profiles -join "," } else { "all" })))
   $output = & powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $child -DistroName $LowGatewayDistroName @profileArgs 2>&1
   foreach ($line in $output) { Write-GatewayPoolLog ("lowgw: {0}" -f $line) }
@@ -1050,7 +1053,7 @@ function Invoke-GatewayPoolElasticRequests {
       Write-GatewayPoolLog ("elastic-request-start id={0} action={1} profiles={2}" -f $requestId, $action, ($profiles -join ","))
       if ($action -eq "start") {
         if ($profiles.Count -eq 0) { throw "Gateway elastic start request missing profile." }
-        Start-LowGateways -Profiles $profiles -NoStopExisting:([bool]$request.noStopExisting)
+        Start-LowGateways -Profiles $profiles -NoStopExisting:([bool]$request.noStopExisting) -ForceConfigure:([bool]$request.forceConfigure)
       } elseif ($action -eq "stop") {
         if ($profiles.Count -eq 0) { throw "Gateway elastic stop request missing profile." }
         Stop-LowGatewayProfiles -Profiles $profiles
@@ -1114,7 +1117,7 @@ try {
     exit 0
   }
   if ($StartProfiles.Count -gt 0) {
-    Start-LowGateways -Profiles $StartProfiles -NoStopExisting:$NoStopExisting
+    Start-LowGateways -Profiles $StartProfiles -NoStopExisting:$NoStopExisting -ForceConfigure:$ForceConfigure
     exit 0
   }
 
@@ -1123,12 +1126,12 @@ try {
   if ($StartMode -eq "hybrid") {
     $ownerWarmProfiles = @(Get-HybridOwnerWarmProfiles)
     if ($ownerWarmProfiles.Count -gt 0) {
-      Invoke-GatewayPoolPhase -Name "start-low-gateways-hybrid-owner-warm" -ScriptBlock { Start-LowGateways -Profiles $ownerWarmProfiles }
+      Invoke-GatewayPoolPhase -Name "start-low-gateways-hybrid-owner-warm" -ScriptBlock { Start-LowGateways -Profiles $ownerWarmProfiles -ForceConfigure:$ForceConfigure }
     } else {
       Write-GatewayPoolLog "Hybrid startup skipped low Gateway warm start because owner min warm is zero."
     }
   } else {
-    Invoke-GatewayPoolPhase -Name "start-low-gateways" -ScriptBlock { Start-LowGateways }
+    Invoke-GatewayPoolPhase -Name "start-low-gateways" -ScriptBlock { Start-LowGateways -ForceConfigure:$ForceConfigure }
   }
   Invoke-GatewayPoolPhase -Name "check-low-gateway-codex-auth" -ScriptBlock { Check-LowGatewayCodexAuth }
   if ($StartMode -ne "hybrid") {

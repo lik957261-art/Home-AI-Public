@@ -224,6 +224,13 @@ Required harness dimensions:
   class-wide shared key. It must also assert source app scripts and
   `C:\ProgramData\HermesMobile\gateway-worker` runtime scripts are synced before
   a Gateway Pool restart.
+- Gateway Pool restart latency is part of the startup/profile contract.
+  `start-low-gateways.sh` must not run full profile reconfiguration on every
+  restart when the selected profiles are already ready and the non-secret
+  configure signature is current. The harness must assert the
+  `config-current` skip path, the `-ForceConfigure` override, stop-only skip,
+  and automatic cache invalidation when manifest/script/plugin/schema/Skill
+  Store mapping inputs change.
 - A run that records `Enabled toolsets: wardrobe` but whose execution schema
   lacks `mcp_wardrobe_*` functions is a Gateway schema/API-key/profile mismatch
   until proven otherwise. The required harness evidence is a live schema smoke

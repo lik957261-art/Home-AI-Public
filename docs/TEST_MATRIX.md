@@ -114,10 +114,14 @@ exposing API keys, workspace keys, plugin launch tokens, raw prompts, raw model
 output, or long logs. Before switching production from eager startup to
 hybrid/on-demand startup, rerun these checks after syncing scripts into the
 production worker root and then smoke `/api/status?detail=1` plus a real Owner
-run. Listener on-demand `-NoStopExisting` single-profile starts must skip full
-reconfiguration when the selected profile is already configured, while full
-hybrid startup remains able to reconfigure normally. Stop-only operations must
-not require profile config/auth validation before killing the selected port.
+run. Full hybrid/eager starts and listener on-demand `-NoStopExisting`
+single-profile starts must skip full reconfiguration when the selected profiles
+are already configured and the non-secret configure signature is current.
+Changing the manifest, generator script, plugin/schema source, runtime override
+source, Skill Store mapping inputs, missing profile artifacts, or explicit
+`-ForceConfigure` must run `configure-low-gateways.sh` again. Stop-only
+operations must not require profile config/auth validation before killing the
+selected port.
 If the listener account cannot see the production WSL distro, the launch
 service must use the configured Windows Scheduled Task relay: write only bounded
 action/profile metadata to `elastic-requests`, trigger the task, wait for the

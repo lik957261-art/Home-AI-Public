@@ -257,6 +257,19 @@ Hybrid startup should not launch every configured Gateway profile. It should:
   high-permission maintenance/elevation run needs one;
 - publish status that shows configured-but-stopped workers as expected.
 
+Startup should also avoid full profile reconfiguration on every restart.
+`start-low-gateways.sh` maintains a non-secret configure signature for the
+generator script, manifest, runtime override source, Gateway plugin sources, and
+Skill Store mapping inputs. If the selected profiles already have their
+telemetry directory, `config.yaml`, plugin directory, `skills` link, shared auth
+link, and lock link, and the signature matches, the script skips
+`configure-low-gateways.sh` for both full hybrid/eager starts and selected
+profile starts. A changed manifest, changed generator, changed plugin/schema
+source, changed Skill Store mapping input, missing profile artifact, or explicit
+`start-gateway-pool.ps1 -ForceConfigure` must force reconfiguration. The cache
+file stores only a hash, never API keys, workspace keys, OAuth tokens, prompts,
+or profile config bodies.
+
 `Hermes Mobile Maintenance Gateway Watchdog` is still valid in eager mode and
 for deployments that opt into a maintenance warm baseline. In hybrid mode the
 default `HERMES_MOBILE_GATEWAY_OWNER_MAINTENANCE_MIN_WARM=0` means the watchdog
@@ -339,6 +352,10 @@ Minimum H1 scenarios for implementation:
 - `/api/status?detail=1` reports configured/stopped on-demand workers without
   marking the whole Gateway Pool unhealthy.
 - Startup scripts in hybrid mode do not launch the historical full fixed pool.
+- Startup scripts skip full low-Gateway reconfiguration when the configure
+  signature is current and selected profiles are ready, but force
+  reconfiguration when `-ForceConfigure` is passed or the signature inputs
+  change.
 - Status/UI tests show starting, reused, queued, idle-retirement, and failed
   states without exposing secrets or long logs.
 
