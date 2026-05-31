@@ -38,6 +38,10 @@ assert.match(embeddedPluginUi, /const themeMode = \["system", "dark", "light"\]/
 assert.match(embeddedPluginUi, /themeMode === "system"[\s\S]*?prefers-color-scheme: dark[\s\S]*?\? "dark" : "light"/);
 assert.match(embeddedPluginUi, /function embeddedPluginAppearanceKey\(appearance = embeddedPluginAppearanceForLaunch\(\)\)/);
 assert.match(embeddedPluginUi, /function embeddedPluginManifestMatchesLaunchContext\(record, workspaceId, appearanceKey = embeddedPluginAppearanceKey\(\)\)/);
+assert.match(embeddedPluginUi, /function embeddedPluginProxyEntryWorkspaceMatches\(entryUrl = "", workspaceId = ""\)/);
+assert.match(embeddedPluginUi, /parsed\.pathname\.startsWith\("\/api\/hermes-plugins\/"\)/);
+assert.match(embeddedPluginUi, /const entryWorkspaceId = parsed\.searchParams\.get\("workspaceId"\) \|\| parsed\.searchParams\.get\("workspace_id"\) \|\| ""/);
+assert.match(embeddedPluginUi, /embeddedPluginProxyEntryWorkspaceMatches\(record\?\.manifest\?\.entry\?\.url, workspaceId\)/);
 assert.match(embeddedPluginUi, /function embeddedPluginCurrentManifest\(def, appearanceKey = embeddedPluginAppearanceKey\(\)\)/);
 assert.match(embeddedPluginUi, /rawFontSize === "standard"[\s\S]*\? "default"/);
 assert.match(embeddedPluginUi, /appearanceTheme: appearance\.theme/);

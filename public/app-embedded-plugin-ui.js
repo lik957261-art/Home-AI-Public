@@ -63,6 +63,18 @@ function embeddedPluginCurrentManifest(def, appearanceKey = embeddedPluginAppear
   return embeddedPluginManifestMatchesLaunchContext(record, workspaceId, appearanceKey) ? record.manifest : null;
 }
 
+function embeddedPluginProxyEntryWorkspaceMatches(entryUrl = "", workspaceId = "") {
+  const targetWorkspaceId = String(workspaceId || "owner").trim() || "owner";
+  try {
+    const parsed = new URL(String(entryUrl || ""), window.location?.href || undefined);
+    if (!parsed.pathname.startsWith("/api/hermes-plugins/")) return true;
+    const entryWorkspaceId = parsed.searchParams.get("workspaceId") || parsed.searchParams.get("workspace_id") || "";
+    return entryWorkspaceId === targetWorkspaceId;
+  } catch (_) {
+    return false;
+  }
+}
+
 function embeddedPluginAvailable(manifest) {
   return Boolean(manifest?.available && manifest?.entry?.url && manifest?.kind === "embedded_app");
 }
@@ -245,6 +257,7 @@ function embeddedPluginManifestMatchesLaunchContext(record, workspaceId, appeara
     record?.checked
     && record?.manifest?.workspaceId === workspaceId
     && record?.manifestAppearanceKey === appearanceKey
+    && embeddedPluginProxyEntryWorkspaceMatches(record?.manifest?.entry?.url, workspaceId)
   );
 }
 

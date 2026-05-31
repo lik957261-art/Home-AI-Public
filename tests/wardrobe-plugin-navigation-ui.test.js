@@ -121,6 +121,40 @@ function createHarness(overrides = {}) {
 }
 
 {
+  const { sandbox } = createHarness({
+    state: {
+      selectedWorkspaceId: "weixin_test_1",
+      wardrobePluginManifest: {
+        workspaceId: "weixin_test_1",
+        entry: { url: "/api/hermes-plugins/wardrobe/proxy/?embed=hermes&launch=stale-owner-style" },
+      },
+    },
+  });
+  assert.equal(sandbox.currentWardrobePluginManifest(), null);
+  assert.equal(sandbox.wardrobePluginManifestMatchesLaunchContext(), false);
+  sandbox.state.wardrobePluginManifest.entry.url = "/api/hermes-plugins/wardrobe/proxy/?embed=hermes&launch=fresh&workspaceId=weixin_test_1";
+  assert.equal(sandbox.wardrobePluginManifestMatchesLaunchContext(), true);
+}
+
+{
+  const { sandbox } = createHarness({
+    state: { selectedWorkspaceId: "weixin_test_1" },
+  });
+  const record = sandbox.embeddedPluginRecord("finance");
+  Object.assign(record, {
+    checked: true,
+    manifestAppearanceKey: "light/default",
+    manifest: {
+      workspaceId: "weixin_test_1",
+      entry: { url: "/api/hermes-plugins/finance/proxy/finance.html?launch=stale-owner-style" },
+    },
+  });
+  assert.equal(sandbox.embeddedPluginManifestMatchesLaunchContext(record, "weixin_test_1", "light/default"), false);
+  record.manifest.entry.url = "/api/hermes-plugins/finance/proxy/finance.html?launch=fresh&workspaceId=weixin_test_1";
+  assert.equal(sandbox.embeddedPluginManifestMatchesLaunchContext(record, "weixin_test_1", "light/default"), true);
+}
+
+{
   const { sandbox, nodes } = createHarness({
     state: {
       selectedWorkspaceId: "owner",

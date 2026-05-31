@@ -134,7 +134,27 @@ function updateWardrobeNavigationAvailability() {
 function currentWardrobePluginManifest() {
   const workspaceId = state.selectedWorkspaceId || "owner";
   const manifest = state.wardrobePluginManifest || null;
-  return manifest?.workspaceId === workspaceId ? manifest : null;
+  return wardrobePluginManifestMatchesLaunchContext(manifest, workspaceId) ? manifest : null;
+}
+
+function wardrobePluginProxyEntryWorkspaceMatches(entryUrl = "", workspaceId = "") {
+  const targetWorkspaceId = String(workspaceId || "owner").trim() || "owner";
+  try {
+    const parsed = new URL(String(entryUrl || ""), window.location?.href || undefined);
+    if (!parsed.pathname.startsWith("/api/hermes-plugins/wardrobe/proxy")) return true;
+    const entryWorkspaceId = parsed.searchParams.get("workspaceId") || parsed.searchParams.get("workspace_id") || "";
+    return entryWorkspaceId === targetWorkspaceId;
+  } catch (_) {
+    return false;
+  }
+}
+
+function wardrobePluginManifestMatchesLaunchContext(manifest = state.wardrobePluginManifest || null, workspaceId = state.selectedWorkspaceId || "owner") {
+  return Boolean(
+    manifest
+    && manifest.workspaceId === workspaceId
+    && wardrobePluginProxyEntryWorkspaceMatches(manifest?.entry?.url, workspaceId)
+  );
 }
 
 function wardrobePluginAvailable(manifest = currentWardrobePluginManifest()) {
@@ -407,7 +427,7 @@ function showWardrobePluginLoadingSurface() {
 async function loadWardrobePluginManifest(options = {}) {
   const workspaceId = state.selectedWorkspaceId || "owner";
   if (!options.force && state.wardrobePluginLoading) return;
-  if (!options.force && state.wardrobePluginChecked && state.wardrobePluginManifest?.workspaceId === workspaceId) return;
+  if (!options.force && state.wardrobePluginChecked && wardrobePluginManifestMatchesLaunchContext(state.wardrobePluginManifest, workspaceId)) return;
   state.wardrobePluginLoading = true;
   try {
     const params = new URLSearchParams({ workspaceId, appOrigin: window.location.origin });
@@ -498,7 +518,8 @@ function renderWardrobeView() {
     ensureVerticalScrollAffordance();
     return;
   }
-  if (!state.wardrobePluginChecked || state.wardrobePluginManifest?.workspaceId !== (state.selectedWorkspaceId || "owner")) {
+  if (!state.wardrobePluginChecked || !wardrobePluginManifestMatchesLaunchContext()) {
+    if (state.wardrobePluginShellNode) discardWardrobePluginShell();
     showWardrobePluginLoadingSurface();
     loadWardrobePluginManifest().catch(showError);
     updateNavigationControls();
