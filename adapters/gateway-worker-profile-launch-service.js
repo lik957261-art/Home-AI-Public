@@ -35,12 +35,54 @@ function publicArgs(args = []) {
   return result;
 }
 
+function readConfigString(config = {}, ...keys) {
+  for (const key of keys) {
+    const value = cleanString(config[key]);
+    if (value) return value;
+  }
+  return "";
+}
+
+function safeGatewayProfileName(value) {
+  const text = cleanString(value);
+  return /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(text) ? text : "";
+}
+
 function createGatewayWorkerProfileLaunchService(options = {}) {
   const fs = options.fs || defaultFs;
   const path = options.path || defaultPath;
   const spawn = options.spawn || defaultSpawn;
   const toolRoot = cleanString(options.toolRoot || process.cwd());
   const elasticConfig = options.elasticConfig || {};
+  const gatewayWorkerRoot = cleanString(
+    options.gatewayWorkerRoot
+    || readConfigString(
+      elasticConfig,
+      "HERMES_MOBILE_GATEWAY_WORKER_ROOT",
+      "HERMES_WEB_GATEWAY_WORKER_ROOT",
+      "gatewayWorkerRoot",
+    )
+    || path.join(path.dirname(toolRoot), "gateway-worker"),
+  );
+  const scheduledTaskName = cleanString(
+    options.scheduledTaskName
+    || readConfigString(
+      elasticConfig,
+      "HERMES_MOBILE_GATEWAY_START_SCHEDULED_TASK_NAME",
+      "HERMES_WEB_GATEWAY_START_SCHEDULED_TASK_NAME",
+      "scheduledTaskName",
+    ),
+  );
+  const launchRequestRoot = cleanString(
+    options.launchRequestRoot
+    || readConfigString(
+      elasticConfig,
+      "HERMES_MOBILE_GATEWAY_LAUNCH_REQUEST_ROOT",
+      "HERMES_WEB_GATEWAY_LAUNCH_REQUEST_ROOT",
+      "launchRequestRoot",
+    )
+    || (gatewayWorkerRoot ? path.join(gatewayWorkerRoot, "elastic-requests") : ""),
+  );
 
   function gatewayPoolScriptPath() {
     return path.join(toolRoot, "scripts", "start-gateway-pool.ps1");
@@ -93,10 +135,27 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
         resolve(value);
       };
       const timer = setTimeout(() => {
-        try { child.kill(); } catch (_) {}
+        if (process.platform === "win32" && child.pid) {
+          try {
+            spawn("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], {
+              windowsHide: true,
+              stdio: "ignore",
+            });
+          } catch (_) {
+            try { child.kill(); } catch (_) {}
+          }
+        } else {
+          try { child.kill(); } catch (_) {}
+        }
         const err = new Error("Gateway pool script timed out.");
         err.code = "gateway_pool_script_timeout";
-        err.details = { script, args: publicArgs(args) };
+        err.details = {
+          script,
+          args: publicArgs(args),
+          timeoutMs: readTimeoutMs(timeoutMs, 120000),
+          stderr: sanitizeProcessText(stderr),
+          stdout: sanitizeProcessText(stdout),
+        };
         finishReject(err);
       }, readTimeoutMs(timeoutMs, 120000));
       if (timer && typeof timer.unref === "function") timer.unref();
@@ -125,6 +184,168 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
     });
   }
 
+  function spawnCommand(command, args = [], timeoutMs = 120000) {
+    return new Promise((resolve, reject) => {
+      const child = spawn(command, args, {
+        cwd: toolRoot,
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let stdout = "";
+      let stderr = "";
+      let settled = false;
+      const finishReject = (err) => {
+        if (settled) return;
+        settled = true;
+        reject(err);
+      };
+      const finishResolve = (value) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+      const timer = setTimeout(() => {
+        try { child.kill(); } catch (_) {}
+        const err = new Error(`${command} timed out.`);
+        err.code = "command_timeout";
+        err.details = {
+          command,
+          args: publicArgs(args),
+          stderr: sanitizeProcessText(stderr),
+          stdout: sanitizeProcessText(stdout),
+        };
+        finishReject(err);
+      }, readTimeoutMs(timeoutMs, 120000));
+      if (timer && typeof timer.unref === "function") timer.unref();
+      child.stdout?.on?.("data", (chunk) => { stdout += chunk.toString(); });
+      child.stderr?.on?.("data", (chunk) => { stderr += chunk.toString(); });
+      child.on("error", (err) => {
+        clearTimeout(timer);
+        finishReject(err);
+      });
+      child.on("close", (code) => {
+        clearTimeout(timer);
+        if (code === 0) {
+          finishResolve({ ok: true, code, stdout, stderr });
+          return;
+        }
+        const err = new Error(`${command} failed with exit code ${code}.`);
+        err.code = "command_failed";
+        err.details = {
+          code,
+          stderr: sanitizeProcessText(stderr),
+          stdout: sanitizeProcessText(stdout),
+          args: publicArgs(args),
+        };
+        finishReject(err);
+      });
+    });
+  }
+
+  function requestIdFor(action, profiles = []) {
+    const suffix = `${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 10)}`;
+    return ["gateway", cleanString(action), ...profiles].filter(Boolean).join("-").replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 120) + `-${suffix}`;
+  }
+
+  function ensureLaunchRequestDirs() {
+    if (!launchRequestRoot) {
+      const err = new Error("Gateway launch request root is not configured.");
+      err.code = "gateway_launch_request_root_missing";
+      throw err;
+    }
+    for (const name of ["pending", "results"]) {
+      fs.mkdirSync(path.join(launchRequestRoot, name), { recursive: true });
+    }
+  }
+
+  function readJsonFile(filePath) {
+    const raw = fs.readFileSync(filePath, "utf8");
+    return JSON.parse(raw);
+  }
+
+  function waitForResult(resultPath, timeoutMs) {
+    const started = Date.now();
+    const deadline = started + readTimeoutMs(timeoutMs, 120000);
+    return new Promise((resolve, reject) => {
+      function tick() {
+        try {
+          if (fs.existsSync(resultPath)) {
+            const result = readJsonFile(resultPath);
+            if (result && result.ok) {
+              resolve(Object.assign({ ok: true }, result));
+              return;
+            }
+            const err = new Error(sanitizeProcessText(result?.message) || "Gateway scheduled launch request failed.");
+            err.code = cleanString(result?.code) || "gateway_scheduled_launch_failed";
+            err.details = {
+              requestId: cleanString(result?.requestId),
+              action: cleanString(result?.action),
+              profiles: Array.isArray(result?.profiles) ? result.profiles.map(cleanString).filter(Boolean) : [],
+              stderr: sanitizeProcessText(result?.stderr),
+              stdout: sanitizeProcessText(result?.stdout),
+            };
+            reject(err);
+            return;
+          }
+        } catch (err) {
+          err.code = err.code || "gateway_scheduled_launch_result_unreadable";
+          reject(err);
+          return;
+        }
+        if (Date.now() >= deadline) {
+          const err = new Error("Gateway scheduled launch request timed out.");
+          err.code = "gateway_scheduled_launch_timeout";
+          err.details = {
+            resultFile: path.basename(resultPath),
+            timeoutMs: readTimeoutMs(timeoutMs, 120000),
+          };
+          reject(err);
+          return;
+        }
+        setTimeout(tick, 500);
+      }
+      tick();
+    });
+  }
+
+  async function runScheduledGatewayRequest(action, profiles = [], timeoutMs = 120000, extra = {}) {
+    if (!scheduledTaskName) return null;
+    const safeProfiles = profiles.map(safeGatewayProfileName).filter(Boolean);
+    if (profiles.length !== safeProfiles.length) {
+      const err = new Error("Gateway scheduled launch request contains an unsafe profile name.");
+      err.code = "gateway_profile_unsafe";
+      throw err;
+    }
+    ensureLaunchRequestDirs();
+    const requestId = requestIdFor(action, safeProfiles);
+    const request = {
+      version: 1,
+      requestId,
+      action: cleanString(action),
+      profiles: safeProfiles,
+      noStopExisting: Boolean(extra.noStopExisting),
+      createdAt: new Date().toISOString(),
+    };
+    const pendingDir = path.join(launchRequestRoot, "pending");
+    const resultPath = path.join(launchRequestRoot, "results", `${requestId}.json`);
+    const requestPath = path.join(pendingDir, `${requestId}.json`);
+    const tempPath = `${requestPath}.tmp`;
+    fs.writeFileSync(tempPath, JSON.stringify(request, null, 2), "utf8");
+    fs.renameSync(tempPath, requestPath);
+    const resultPromise = waitForResult(resultPath, timeoutMs);
+    try {
+      await spawnCommand("schtasks.exe", ["/Run", "/TN", scheduledTaskName], 30000);
+    } catch (err) {
+      err.code = err.code || "gateway_scheduled_task_trigger_failed";
+      err.details = Object.assign({}, err.details || {}, {
+        scheduledTaskName,
+        requestId,
+      });
+      throw err;
+    }
+    return resultPromise;
+  }
+
   async function startWorkerProfile(worker = {}, context = {}) {
     const profile = cleanString(worker.profile || worker.name);
     if (!profile) {
@@ -133,8 +354,12 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
       throw err;
     }
     if (cleanString(worker.securityLevel).toLowerCase() === "owner-maintenance" || worker.allowMaintenance) {
+      const scheduledResult = await runScheduledGatewayRequest("ownerMaintenance", [], startTimeoutMs(context));
+      if (scheduledResult) return scheduledResult;
       return runGatewayPoolScript(["-OwnerMaintenanceOnly"], startTimeoutMs(context));
     }
+    const scheduledResult = await runScheduledGatewayRequest("start", [profile], startTimeoutMs(context), { noStopExisting: true });
+    if (scheduledResult) return scheduledResult;
     return runGatewayPoolScript(["-StartProfiles", profile, "-NoStopExisting"], startTimeoutMs(context));
   }
 
@@ -144,12 +369,15 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
     if (cleanString(worker.securityLevel).toLowerCase() === "owner-maintenance" || worker.allowMaintenance) {
       return { ok: true, skipped: true, reason: "owner_maintenance_not_idle_reaped" };
     }
+    const scheduledResult = await runScheduledGatewayRequest("stop", [profile], stopTimeoutMs(context));
+    if (scheduledResult) return scheduledResult;
     return runGatewayPoolScript(["-StopProfiles", profile], stopTimeoutMs(context));
   }
 
   return {
     gatewayPoolScriptPath,
     runGatewayPoolScript,
+    runScheduledGatewayRequest,
     startWorkerProfile,
     stopWorkerProfile,
   };
@@ -159,4 +387,5 @@ module.exports = {
   createGatewayWorkerProfileLaunchService,
   publicArgs,
   sanitizeProcessText,
+  safeGatewayProfileName,
 };

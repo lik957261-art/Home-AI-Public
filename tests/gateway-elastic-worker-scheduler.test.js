@@ -43,6 +43,7 @@ function createHarness(overrides = {}) {
       globalMaxWorkers: 8,
       idleTtlMs: 60_000,
       startTimeoutMs: 5_000,
+      startHealthWaitMs: 0,
       queueWaitTimeoutMs: 30_000,
     },
     isHealthy: async (candidate) => {
@@ -226,6 +227,50 @@ async function testProviderSwitchStartsMatchingProviderOnly() {
   assert.notEqual(buildGatewayWorkerCompatibilityKey(workers[0], { workspaceId: "owner", provider: "openai-codex" }), buildGatewayWorkerCompatibilityKey(workers[1], { workspaceId: "owner", provider: "deepseek" }));
 }
 
+async function testPostStartHealthPollAvoidsEarlyFalseFailure() {
+  let now = 1_778_000_000_000;
+  const calls = { events: [], starts: [], healthy: [], sleeps: [] };
+  let healthyAfterChecks = 0;
+  const scheduler = createGatewayElasticWorkerScheduler({
+    nowMs: () => now,
+    sleep: async (ms) => {
+      calls.sleeps.push(ms);
+      now += ms;
+    },
+    config: {
+      ownerMaxWorkers: 4,
+      workspaceMaxWorkers: 2,
+      globalMaxWorkers: 4,
+      startTimeoutMs: 1000,
+      startHealthWaitMs: 3000,
+      startHealthPollMs: 500,
+    },
+    isHealthy: async (candidate) => {
+      calls.healthy.push(candidate.profile);
+      healthyAfterChecks += 1;
+      return healthyAfterChecks >= 3;
+    },
+    startWorker: async (candidate) => {
+      calls.starts.push(candidate.profile);
+      return { ok: true };
+    },
+  });
+
+  const target = await scheduler.chooseTarget({
+    allWorkers: [worker("lowgw6")],
+    candidates: [worker("lowgw6")],
+    hints: { workspaceId: "weixin_test_1" },
+    runId: "run-delayed-health",
+    onEvent: (event) => calls.events.push(event),
+  });
+
+  assert.equal(target.profile, "lowgw6");
+  assert.deepEqual(calls.starts, ["lowgw6"]);
+  assert.equal(calls.healthy.length, 3);
+  assert.deepEqual(calls.sleeps, [500]);
+  assert.equal(calls.events.at(-1).event, "run.gateway_worker_started");
+}
+
 async function testIdleReaperStopsOnlyExpiredIdleWorkers() {
   const { calls, scheduler, tick } = createHarness();
   const workers = [worker("lowgw1"), worker("lowgw2")];
@@ -247,6 +292,10 @@ async function testLaunchFailureUsesBoundedDiagnosticWithoutSecrets() {
     startWorker: async () => {
       const err = new Error("port 18751 busy; key lowgw1-secret should stay private");
       err.code = "port_busy";
+      err.details = {
+        stderr: "nested script said workspace_key abcdefghijklmnopqrstuvwxyz and port is busy",
+        stdout: "LOW_GATEWAYS_STARTED should not be treated as success here",
+      };
       throw err;
     },
   });
@@ -262,7 +311,10 @@ async function testLaunchFailureUsesBoundedDiagnosticWithoutSecrets() {
   });
   assert.equal(calls.events.at(-1).event, "run.gateway_worker_start_failed");
   assert.equal(calls.events.at(-1).failureCode, "port_busy");
+  assert.match(calls.events.at(-1).diagnostic, /nested script said/);
+  assert.match(calls.events.at(-1).diagnostic, /stdout:/);
   assert.equal(JSON.stringify(calls.events).includes("lowgw1-secret"), false);
+  assert.equal(JSON.stringify(calls.events).includes("abcdefghijklmnopqrstuvwxyz"), false);
 }
 
 function testConfigDefaultsAndAliases() {
@@ -274,6 +326,8 @@ function testConfigDefaultsAndAliases() {
   assert.equal(config.ownerMinWarm, 1);
   assert.equal(config.workspaceMaxWorkers, 2);
   assert.equal(config.idleTtlMs, 180 * 60 * 1000);
+  assert.equal(normalizeElasticSchedulerConfig({}).startTimeoutMs, 300_000);
+  assert.equal(normalizeElasticSchedulerConfig({}).startHealthWaitMs, 30_000);
 }
 
 (async () => {
@@ -285,6 +339,7 @@ function testConfigDefaultsAndAliases() {
   await testNonOwnerExpandsToTwoThenQueues();
   await testGlobalCapQueuesBeforeWorkspaceCap();
   await testProviderSwitchStartsMatchingProviderOnly();
+  await testPostStartHealthPollAvoidsEarlyFalseFailure();
   await testIdleReaperStopsOnlyExpiredIdleWorkers();
   await testLaunchFailureUsesBoundedDiagnosticWithoutSecrets();
   console.log("gateway elastic worker scheduler tests passed");

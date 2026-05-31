@@ -52,6 +52,11 @@ assert.match(startGatewayPool, /-- bash \$wslScriptPath/);
 assert.match(startGatewayPool, /stop-legacy-official-low-gateways\.sh/);
 assert.match(startGatewayPool, /start-owner-maintenance-gateways\.sh/);
 assert.match(startGatewayPool, /Start-LowGateways -Profiles \$StartProfiles -NoStopExisting:\$NoStopExisting/);
+assert.match(startGatewayPool, /-SkipConfigureIfReady/);
+assert.match(startGatewayPool, /Invoke-GatewayPoolElasticRequests/);
+assert.match(startGatewayPool, /elastic-requests/);
+assert.match(startGatewayPool, /Move-Item -LiteralPath \$file\.FullName -Destination \$processingPath -Force/);
+assert.match(startGatewayPool, /Write-GatewayPoolElasticResult -Request \$request -Ok \$true/);
 assert.match(startGatewayPool, /Start-LowGateways -Profiles \$ownerWarmProfiles/);
 assert.match(startGatewayPool, /Stop-LowGatewayProfiles -Profiles \$StopProfiles/);
 

@@ -11,6 +11,7 @@ param(
   [string]$OutlookGraphMcpPath = "",
   [int]$HealthTimeoutSeconds = 45,
   [int]$OwnerMaintenanceBusyGraceMinutes = 45,
+  [string]$ElasticRequestRoot = $(if ($env:HERMES_MOBILE_GATEWAY_LAUNCH_REQUEST_ROOT) { $env:HERMES_MOBILE_GATEWAY_LAUNCH_REQUEST_ROOT } elseif ($env:HERMES_WEB_GATEWAY_LAUNCH_REQUEST_ROOT) { $env:HERMES_WEB_GATEWAY_LAUNCH_REQUEST_ROOT } else { "" }),
   [ValidateSet("eager", "hybrid")]
   [string]$StartMode = $(if ($env:HERMES_MOBILE_GATEWAY_POOL_START_MODE) { $env:HERMES_MOBILE_GATEWAY_POOL_START_MODE } elseif ($env:HERMES_WEB_GATEWAY_POOL_START_MODE) { $env:HERMES_WEB_GATEWAY_POOL_START_MODE } else { "eager" }),
   [string[]]$StartProfiles = @(),
@@ -30,6 +31,59 @@ function Write-GatewayPoolLog {
   param([string]$Message)
   $line = "{0} {1}" -f (Get-Date).ToString("s"), $Message
   Add-Content -LiteralPath $logPath -Value $line -Encoding UTF8
+}
+
+function Get-GatewayPoolElasticRequestRoot {
+  if ($ElasticRequestRoot) { return $ElasticRequestRoot }
+  return (Join-Path $GatewayWorkerRoot "elastic-requests")
+}
+
+function Limit-GatewayPoolPublicText {
+  param([string]$Value)
+  $text = ([string]$Value).Trim()
+  if (-not $text) { return "" }
+  $text = [Regex]::Replace($text, '[A-Za-z0-9+/=_-]{24,}', '[redacted]')
+  $text = [Regex]::Replace($text, 'Bearer\s+[^\s]+', 'Bearer [redacted]', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+  $text = [Regex]::Replace($text, '\b(access|refresh|owner|workspace|api)?_?key\s*[:=]?\s+[^\s;,.]+', '$1_key [redacted]', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+  if ($text.Length -gt 800) { return $text.Substring($text.Length - 800) }
+  return $text
+}
+
+function Write-GatewayPoolElasticResult {
+  param(
+    [object]$Request,
+    [bool]$Ok,
+    [string]$Code = "",
+    [string]$Message = "",
+    [string]$Stdout = "",
+    [string]$Stderr = "",
+    [datetime]$StartedAt
+  )
+  $root = Get-GatewayPoolElasticRequestRoot
+  $resultDir = Join-Path $root "results"
+  New-Item -ItemType Directory -Force -Path $resultDir | Out-Null
+  $requestId = ([string]$Request.requestId).Trim()
+  if (-not $requestId -or $requestId -notmatch '^[A-Za-z0-9][A-Za-z0-9_-]{0,140}$') {
+    $requestId = "invalid-request"
+  }
+  $durationMs = 0
+  if ($StartedAt) { $durationMs = [int]((Get-Date) - $StartedAt).TotalMilliseconds }
+  $payload = [ordered]@{
+    ok = $Ok
+    requestId = $requestId
+    action = ([string]$Request.action).Trim()
+    profiles = @($Request.profiles)
+    code = $Code
+    message = Limit-GatewayPoolPublicText -Value $Message
+    stdout = Limit-GatewayPoolPublicText -Value $Stdout
+    stderr = Limit-GatewayPoolPublicText -Value $Stderr
+    completedAt = (Get-Date).ToUniversalTime().ToString("o")
+    durationMs = $durationMs
+  }
+  $path = Join-Path $resultDir "$requestId.json"
+  $tmp = "$path.tmp"
+  $payload | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $tmp -Encoding UTF8
+  Move-Item -LiteralPath $tmp -Destination $path -Force
 }
 
 function Acquire-GatewayPoolRunMutex {
@@ -649,6 +703,7 @@ function Start-LowGateways {
   if (-not $NoStopExisting) { Stop-LowGateways }
   $profileArgs = @()
   if ($profiles.Count -gt 0) { $profileArgs += @("-StartProfiles", ($profiles -join ",")) }
+  if ($NoStopExisting) { $profileArgs += "-SkipConfigureIfReady" }
   Write-GatewayPoolLog ("Starting low gateway pool profiles: {0}" -f ($(if ($profiles.Count) { $profiles -join "," } else { "all" })))
   $output = & powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $child -DistroName $LowGatewayDistroName @profileArgs 2>&1
   foreach ($line in $output) { Write-GatewayPoolLog ("lowgw: {0}" -f $line) }
@@ -884,8 +939,72 @@ function Repair-OwnerMaintenanceGateways {
   Write-GatewayPoolLog "Owner-maintenance gateway repair OK; healthy ports: $($script:repairPorts -join ', ')."
 }
 
+function Invoke-GatewayPoolElasticRequests {
+  $root = Get-GatewayPoolElasticRequestRoot
+  $pendingDir = Join-Path $root "pending"
+  $processingDir = Join-Path $root "processing"
+  $archiveDir = Join-Path $root "archive"
+  if (-not (Test-Path -LiteralPath $pendingDir)) { return $false }
+  $requests = @(Get-ChildItem -LiteralPath $pendingDir -Filter "*.json" -File | Sort-Object LastWriteTimeUtc, Name)
+  if ($requests.Count -eq 0) { return $false }
+  New-Item -ItemType Directory -Force -Path $processingDir | Out-Null
+  New-Item -ItemType Directory -Force -Path $archiveDir | Out-Null
+
+  foreach ($file in $requests) {
+    $started = Get-Date
+    $request = $null
+    $processingPath = Join-Path $processingDir $file.Name
+    try {
+      Move-Item -LiteralPath $file.FullName -Destination $processingPath -Force
+      $request = Get-Content -Raw -LiteralPath $processingPath | ConvertFrom-Json
+      $requestId = ([string]$request.requestId).Trim()
+      if (-not $requestId -or $requestId -notmatch '^[A-Za-z0-9][A-Za-z0-9_-]{0,140}$') {
+        throw "Invalid Gateway elastic request id."
+      }
+      $action = ([string]$request.action).Trim()
+      $profiles = Normalize-GatewayProfileList -Profiles @($request.profiles)
+      Write-GatewayPoolLog ("elastic-request-start id={0} action={1} profiles={2}" -f $requestId, $action, ($profiles -join ","))
+      if ($action -eq "start") {
+        if ($profiles.Count -eq 0) { throw "Gateway elastic start request missing profile." }
+        Start-LowGateways -Profiles $profiles -NoStopExisting:([bool]$request.noStopExisting)
+      } elseif ($action -eq "stop") {
+        if ($profiles.Count -eq 0) { throw "Gateway elastic stop request missing profile." }
+        Stop-LowGatewayProfiles -Profiles $profiles
+      } elseif ($action -eq "ownerMaintenance") {
+        Repair-OwnerMaintenanceGateways
+      } else {
+        throw "Unsupported Gateway elastic request action: $action"
+      }
+      Write-GatewayPoolElasticResult -Request $request -Ok $true -StartedAt $started
+      Write-GatewayPoolLog ("elastic-request-done id={0} elapsedMs={1}" -f $requestId, [int]((Get-Date) - $started).TotalMilliseconds)
+    } catch {
+      $message = $_.Exception.Message
+      if (-not $request) {
+        $request = [pscustomobject]@{
+          requestId = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
+          action = ""
+          profiles = @()
+        }
+      }
+      Write-GatewayPoolElasticResult -Request $request -Ok $false -Code "gateway_elastic_request_failed" -Message $message -Stderr $message -StartedAt $started
+      Write-GatewayPoolLog ("elastic-request-failed file={0} error={1}" -f $file.Name, (Limit-GatewayPoolPublicText -Value $message))
+    } finally {
+      if (Test-Path -LiteralPath $processingPath) {
+        $archiveName = "{0}-{1}" -f (Get-Date).ToString("yyyyMMddHHmmssfff"), $file.Name
+        Move-Item -LiteralPath $processingPath -Destination (Join-Path $archiveDir $archiveName) -Force
+      }
+    }
+  }
+  return $true
+}
+
 Acquire-GatewayPoolRunMutex
 try {
+  if ($StopProfiles.Count -eq 0 -and $StartProfiles.Count -eq 0 -and -not $OwnerMaintenanceOnly) {
+    if (Invoke-GatewayPoolElasticRequests) {
+      exit 0
+    }
+  }
   if ($StopProfiles.Count -gt 0) {
     Stop-LowGatewayProfiles -Profiles $StopProfiles
     exit 0

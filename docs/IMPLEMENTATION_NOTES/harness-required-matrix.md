@@ -760,6 +760,32 @@ Required harness dimensions:
 - Single-profile start/stop launchers must use hidden PowerShell windows and
   bounded diagnostics. Raw API keys, workspace keys, browser tokens, and plugin
   launch tokens must not appear in thrown error details or run-progress events.
+- If the listener account cannot see the production WSL distro, on-demand
+  launch must go through a configured Windows Scheduled Task relay that runs as
+  the distro-owning account. Harnesses must prove only bounded action/profile
+  metadata is written to request/result files and that failed relay results are
+  redacted before entering run-progress diagnostics.
+- On single-user maintained deployments where WSL/Codex state belongs to the
+  operator account, running the listener in that same caller context is the
+  preferred path. In that mode the scheduled-task relay should be disabled, and
+  the regression gate must prove the listener-owned direct single-profile start
+  path rather than a relay path.
+- After a start script reports success, the scheduler must poll the selected
+  worker's `/health` for a bounded propagation window before emitting
+  `health_check_failed`. A single immediate miss after script success is a
+  known race and must be covered by harness tests.
+- This listener-account vs WSL-owner split is a known recurring production
+  failure mode, not a one-off workaround. Any future Gateway elastic, profile
+  provisioning, provider switch, or startup-script change must keep a regression
+  harness for the exact path: Mobile listener writes a relay request, scheduled
+  task runs under the WSL-owning Windows account, target profile becomes healthy,
+  `/api/status?detail=1` remains non-degraded, and a real non-Owner run can use
+  the newly started profile without manual intervention.
+- The scheduled task ACL is part of that harness. The task principal must remain
+  the WSL-owning account, but the listener Windows account needs permission to
+  demand-run the task. A pending relay request plus `command_failed` from
+  `schtasks.exe /Run` is a failed production gate even if an operator can run the
+  same task manually.
 - `/api/status?detail=1` must treat configured-but-stopped elastic workers as
   expected state in hybrid mode, while still reporting failed launch or failed
   health checks as degraded.
@@ -834,11 +860,23 @@ Required harness dimensions:
   WSL distro. Tests must prevent drift back to retired distro names such as
   `HermesGatewayWorker`; a listener/client deployment is not complete if the
   Gateway Pool restart script still points at a missing distro.
+- Hybrid single-profile start/stop scripts must remain fast enough for
+  listener-triggered on-demand use. Listener on-demand `-NoStopExisting`
+  selected-profile starts should skip full reconfiguration when the profile
+  telemetry directory, config, shared auth link, and lock link are already ready;
+  full hybrid startup must remain able to reconfigure normally. Stop-only
+  operations should not run full configure or require profile config/auth
+  validation before stopping the selected port.
 - WSL Gateway Pool stop/start must not be run through a Windows account that
   cannot see the registered WSL distro. The Windows-side process may invoke
   `wsl.exe` as the account that owns the distro, while Linux-side privilege
   boundaries must still be enforced with `root` for setup and the `hermes`
-  Linux user for low-Gateway runtime.
+  Linux user for low-Gateway runtime. In maintained hybrid deployments this can
+  be a scheduled-task relay: the listener writes a bounded launch request and
+  triggers the existing Gateway Pool scheduled task, which runs under the
+  distro-owning Windows account. The regression gate must fail if an on-demand
+  listener path falls back to direct listener-account `wsl.exe` execution on a
+  deployment where only the scheduled task/operator account can see the distro.
 - Ownership repair on Windows-mounted telemetry/profile backup trees must be
   best-effort. Permission-denied errors from historical backup artifacts such as
   `skill-store-backups` must not abort Gateway startup after the active runtime

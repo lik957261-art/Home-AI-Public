@@ -27,6 +27,7 @@ param(
     [int]$ReadyWaitSeconds = 90,
     [int]$MinGatewayPoolWorkers = 1,
     [string]$GatewayPoolPorts = "18751,18752,18753,18754,18755,18756,18757,18758,18759,18760,18761,18762,18763,18764,18765,18766,18767,18768,18769,18770,18771,18772,18773,18651,18652,18653",
+    [switch]$RunInCallerContext,
     [switch]$CheckOnly,
     [switch]$ReplaceExisting
 )
@@ -387,7 +388,7 @@ function Start-CronTickSidecarInCallerContextIfNeeded {
     }
 }
 
-if (-not (Test-Path -LiteralPath $CredentialPath)) {
+if (-not $RunInCallerContext -and -not (Test-Path -LiteralPath $CredentialPath)) {
     throw "Worker credential file not found: $CredentialPath"
 }
 if (-not (Test-Path -LiteralPath $LauncherPath)) {
@@ -414,7 +415,11 @@ if (-not $CheckOnly) {
     Start-BridgeHost -ScriptPath $BridgeHostScript -ListenPort $BridgeHostPort -KeyPath $BridgeHostKeyPath -Replace:$ReplaceExisting
 }
 
-$targetOwner = ("{0}\{1}" -f $Domain, $UserName).Trim("\")
+$targetOwner = if ($RunInCallerContext) {
+    [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+} else {
+    ("{0}\{1}" -f $Domain, $UserName).Trim("\")
+}
 $listener = Get-ListenerProcess -ListenPort $Port
 if ($listener) {
     $ownerName = Get-ProcessOwnerName -ProcessInfo $listener
@@ -441,7 +446,10 @@ if ($listener) {
     }
 }
 
-$credential = Import-Clixml -LiteralPath $CredentialPath
+$credential = $null
+if (-not $RunInCallerContext) {
+    $credential = Import-Clixml -LiteralPath $CredentialPath
+}
 $workerTempDir = $env:HERMES_MOBILE_WORKER_TEMP_DIR
 if (-not $workerTempDir) {
     $workerDataRoot = $env:HERMES_WEB_DATA_DIR
@@ -457,11 +465,13 @@ $psi.Arguments = ($launcherArgs | ForEach-Object {
     if ($_ -match '[\s"]') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ }
 }) -join " "
 $psi.WorkingDirectory = $WorkingDirectory
-$psi.UserName = $UserName
-$psi.Domain = $Domain
-$psi.Password = $credential.Password
+if (-not $RunInCallerContext) {
+    $psi.UserName = $UserName
+    $psi.Domain = $Domain
+    $psi.Password = $credential.Password
+    $psi.LoadUserProfile = $true
+}
 $psi.UseShellExecute = $false
-$psi.LoadUserProfile = $true
 $psi.CreateNoWindow = $true
 $psi.EnvironmentVariables["HERMES_MOBILE_BRIDGE_HOST_URL"] = $env:HERMES_MOBILE_BRIDGE_HOST_URL
 $psi.EnvironmentVariables["HERMES_WEB_BRIDGE_HOST_URL"] = $env:HERMES_WEB_BRIDGE_HOST_URL

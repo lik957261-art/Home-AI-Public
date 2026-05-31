@@ -107,7 +107,36 @@ exposing API keys, workspace keys, plugin launch tokens, raw prompts, raw model
 output, or long logs. Before switching production from eager startup to
 hybrid/on-demand startup, rerun these checks after syncing scripts into the
 production worker root and then smoke `/api/status?detail=1` plus a real Owner
-run. Focused implementation checks should include
+run. Listener on-demand `-NoStopExisting` single-profile starts must skip full
+reconfiguration when the selected profile is already configured, while full
+hybrid startup remains able to reconfigure normally. Stop-only operations must
+not require profile config/auth validation before killing the selected port.
+If the listener account cannot see the production WSL distro, the launch
+service must use the configured Windows Scheduled Task relay: write only bounded
+action/profile metadata to `elastic-requests`, trigger the task, wait for the
+result file, and keep failures redacted. Focused checks must assert this relay
+path in `node tests\gateway-worker-profile-launch-service.test.js`,
+`node tests\startup-scripts.test.js`, and
+`node tests\cross-shell-command-harness.test.js`.
+On a single-user maintained deployment where WSL/Codex state belongs to the
+operator account, the preferred production path is to run the listener itself in
+that caller context. In that mode the scheduled-task relay must be disabled and
+the live gate must prove listener-owned direct single-profile start works.
+After a start script returns success, the scheduler must poll the selected
+worker's `/health` for the configured bounded window before emitting
+`health_check_failed`; a single immediate health miss is a failing harness case
+because it can race the newly opened Gateway listener.
+Production setup must also verify that the scheduled task can be demand-started
+by the listener account. The task principal should remain the WSL-owning
+account, but the task file/Task Scheduler ACL must grant the listener account
+read/execute permission to run it; otherwise the relay request will remain
+pending and the user run will fail before WSL starts.
+Because this account-boundary failure has recurred, production rollout is not
+complete with only an operator-run `start-gateway-pool.ps1 -StartProfiles`
+success. The required live gate is a real non-Owner Mobile API cold-start smoke
+from a stopped profile through the listener, followed by healthy
+`/api/status?detail=1` and no manual worker start.
+Focused implementation checks should include
 `node tests\gateway-elastic-worker-scheduler.test.js`,
 `node tests\gateway-worker-profile-launch-service.test.js`,
 `node tests\gateway-pool-provider.test.js`,

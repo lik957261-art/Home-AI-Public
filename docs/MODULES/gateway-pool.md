@@ -81,11 +81,56 @@ starts a single worker profile, while `-StopProfiles <profile>`
 stops only the selected idle profile. Wrapper calls must continue to use hidden
 PowerShell windows.
 
-Maintained production status as of 2026-05-31: v404 code is deployed, but the
-launcher is kept in eager/auto mode. A hybrid probe was rolled back because a
-non-Owner Mobile API cold start failed through the listener-triggered profile
-launch path even though an operator-run single-profile start could succeed.
-Do not re-enable hybrid until that exact listener path has a passing smoke.
+Maintained production hybrid deployments should prefer running the Hermes
+Mobile listener under the same Windows account that owns the WSL Gateway/Codex
+runtime. On this maintained machine, that means starting the listener in caller
+context as `GMK\xuxin`; then on-demand single-profile starts can invoke
+`start-gateway-pool.ps1 -StartProfiles <profile> -NoStopExisting` directly and
+no scheduled-task relay is needed.
+
+If a deployment intentionally keeps the listener under a separate account that
+cannot see the WSL distro, use the scheduled-task launch relay instead.
+Configure the listener with
+`HERMES_MOBILE_GATEWAY_START_SCHEDULED_TASK_NAME=Hermes Mobile Gateway Pool`
+and `HERMES_MOBILE_GATEWAY_WORKER_ROOT=C:\ProgramData\HermesMobile\gateway-worker`.
+The listener writes a bounded JSON request under
+`elastic-requests\pending`, triggers the scheduled task, and waits for the
+scheduled-task run to write `elastic-requests\results\<requestId>.json`. The
+request/result files may contain only action/profile/status metadata; no API
+keys, workspace keys, auth tokens, prompts, model output, plugin launch tokens,
+or long logs.
+
+The scheduled task itself must allow the listener Windows account to demand-run
+the task. On the maintained deployment this means the task file
+`C:\Windows\System32\Tasks\Hermes Mobile Gateway Pool` grants
+`GMK\HermesMobileWorker` read/execute permission while the task principal
+remains `GMK\xuxin`. Granting permission to trigger the task is not the same as
+moving WSL ownership or exposing secrets to the listener.
+
+This account split is a recurring production risk. Treat it as a compatibility
+contract rather than an incidental local workaround: if a Gateway change touches
+worker startup, profile provisioning, provider routing, or hybrid scheduling,
+the deployer must prove the listener-triggered path, not only an operator-run
+PowerShell command. The minimum production evidence is a non-Owner Mobile API
+run that starts a stopped profile through the effective listener launch path,
+leaves
+`/api/status?detail=1` healthy, and does not require manual `-StartProfiles`
+execution.
+
+Listener on-demand `-NoStopExisting` selected-profile starts and stop-only
+operations must not run full low-Gateway reconfiguration when the target
+profile's telemetry directory, config, shared auth link, and lock link are
+already ready. Full hybrid startup should still be able to reconfigure normally.
+The listener launch wrapper must keep bounded stdout/stderr diagnostics and use
+an on-demand start timeout large enough for the first post-deploy configure
+case; the maintained default is now 300 seconds.
+
+After a start script returns success, Mobile must poll the selected Gateway
+worker's `/health` for a bounded propagation window before failing the user run.
+The maintained defaults are `HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS=30000`
+and `HERMES_MOBILE_GATEWAY_START_HEALTH_POLL_MS=1000`. A one-shot immediate
+health miss after script success is a scheduler race, not proof the worker failed
+to start.
 
 Worker reuse must be keyed by workspace, profile, provider, permission tier,
 effective toolset/schema set, MCP/plugin binding, and manifest identity. Do not

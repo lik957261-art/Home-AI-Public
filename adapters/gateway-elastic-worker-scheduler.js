@@ -7,7 +7,9 @@ const DEFAULT_CONFIG = Object.freeze({
   workspaceMaxWorkers: 2,
   globalMaxWorkers: 8,
   idleTtlMs: 180 * 60 * 1000,
-  startTimeoutMs: 90_000,
+  startTimeoutMs: 300_000,
+  startHealthWaitMs: 30_000,
+  startHealthPollMs: 1_000,
   queueWaitTimeoutMs: 10 * 60 * 1000,
 });
 
@@ -44,6 +46,8 @@ function normalizeElasticSchedulerConfig(input = {}) {
     globalMaxWorkers: readEnvInteger(env, "HERMES_MOBILE_GATEWAY_ELASTIC_MAX_WORKERS", "HERMES_WEB_GATEWAY_ELASTIC_MAX_WORKERS", DEFAULT_CONFIG.globalMaxWorkers),
     idleTtlMs: Math.max(0, idleMinutes * 60_000),
     startTimeoutMs: readEnvInteger(env, "HERMES_MOBILE_GATEWAY_START_TIMEOUT_MS", "HERMES_WEB_GATEWAY_START_TIMEOUT_MS", DEFAULT_CONFIG.startTimeoutMs),
+    startHealthWaitMs: readEnvInteger(env, "HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS", "HERMES_WEB_GATEWAY_START_HEALTH_WAIT_MS", DEFAULT_CONFIG.startHealthWaitMs),
+    startHealthPollMs: readEnvInteger(env, "HERMES_MOBILE_GATEWAY_START_HEALTH_POLL_MS", "HERMES_WEB_GATEWAY_START_HEALTH_POLL_MS", DEFAULT_CONFIG.startHealthPollMs),
     queueWaitTimeoutMs: readEnvInteger(env, "HERMES_MOBILE_GATEWAY_QUEUE_WAIT_TIMEOUT_MS", "HERMES_WEB_GATEWAY_QUEUE_WAIT_TIMEOUT_MS", DEFAULT_CONFIG.queueWaitTimeoutMs),
   };
 }
@@ -100,13 +104,19 @@ function buildGatewayWorkerCompatibilityKey(worker = {}, hints = {}) {
 
 function sanitizeFailureMessage(err) {
   const code = cleanString(err?.code || err?.reason || "start_failed");
+  const parts = [];
   const message = cleanString(err?.message || err || "");
-  if (!message) return code;
-  return message
+  if (message) parts.push(message);
+  const stderr = cleanString(err?.details?.stderr);
+  const stdout = cleanString(err?.details?.stdout);
+  if (stderr) parts.push(`stderr: ${stderr}`);
+  if (stdout) parts.push(`stdout: ${stdout}`);
+  if (!parts.length) parts.push(code);
+  return parts.join(" | ")
     .replace(/[A-Za-z0-9+/=_-]{24,}/g, "[redacted]")
     .replace(/Bearer\s+[^\s]+/gi, "Bearer [redacted]")
     .replace(/\bkey\s+[^\s;,.]+/gi, "key [redacted]")
-    .slice(0, 160);
+    .slice(0, 240);
 }
 
 function createTimeout(setTimeoutFn, clearTimeoutFn, ms, onTimeout) {
@@ -156,6 +166,12 @@ function createGatewayElasticWorkerScheduler(options = {}) {
   const nowMs = typeof options.nowMs === "function" ? options.nowMs : () => Date.now();
   const setTimeoutFn = options.setTimeout || setTimeout;
   const clearTimeoutFn = options.clearTimeout || clearTimeout;
+  const sleep = typeof options.sleep === "function"
+    ? options.sleep
+    : (ms) => new Promise((resolve) => {
+      const timer = setTimeoutFn(resolve, Math.max(0, Number(ms) || 0));
+      if (timer && typeof timer.unref === "function") timer.unref();
+    });
   const isHealthy = typeof options.isHealthy === "function" ? options.isHealthy : async () => false;
   const startWorker = typeof options.startWorker === "function" ? options.startWorker : async () => ({ ok: false, reason: "start_worker_unavailable" });
   const stopWorker = typeof options.stopWorker === "function" ? options.stopWorker : async () => ({ ok: true });
@@ -283,6 +299,19 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     return true;
   }
 
+  async function waitForStartedHealthy(worker) {
+    if (await isHealthy(worker)) return true;
+    const waitMs = Math.max(0, Number(config.startHealthWaitMs || 0) || 0);
+    if (!waitMs) return false;
+    const pollMs = Math.max(100, Number(config.startHealthPollMs || 1000) || 1000);
+    const deadline = nowMs() + waitMs;
+    while (nowMs() < deadline) {
+      await sleep(Math.min(pollMs, Math.max(1, deadline - nowMs())));
+      if (await isHealthy(worker)) return true;
+    }
+    return false;
+  }
+
   function chooseReusable(candidates, hints) {
     const key = (worker) => buildGatewayWorkerCompatibilityKey(worker, hints);
     for (const worker of candidates) {
@@ -361,7 +390,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     }));
     try {
       await startWorker(worker, { hints, runId, timeoutMs: config.startTimeoutMs });
-      const healthy = await isHealthy(worker);
+      const healthy = await waitForStartedHealthy(worker);
       state.healthy = healthy;
       if (!healthy) {
         const err = new Error("Gateway worker did not become healthy after start.");

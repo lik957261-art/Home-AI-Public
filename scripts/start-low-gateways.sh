@@ -39,6 +39,7 @@ deepseek_gateway_count="${HERMES_DEEPSEEK_GATEWAY_COUNT:-0}"
 low_gateway_base_port="${HERMES_LOW_GATEWAY_BASE_PORT:-18750}"
 gateway_start_profiles="${HERMES_GATEWAY_START_PROFILES:-}"
 gateway_stop_only="${HERMES_GATEWAY_STOP_ONLY:-0}"
+gateway_skip_configure_if_ready="${HERMES_GATEWAY_SKIP_CONFIGURE_IF_READY:-0}"
 
 profile_selected() {
   local profile="$1"
@@ -190,9 +191,69 @@ log_step "runtime-overrides-sync-start source=${runtime_overrides_source} target
 sync_runtime_overrides
 log_step "runtime-overrides-sync-done"
 
-log_step "lowgw-configure-start"
-bash "$configure_low_gateway_script"
-log_step "lowgw-configure-done"
+is_gateway_stop_only() {
+  [[ "$gateway_stop_only" =~ ^(1|true|yes|on)$ ]]
+}
+
+is_skip_configure_if_ready() {
+  [[ "$gateway_skip_configure_if_ready" =~ ^(1|true|yes|on)$ ]]
+}
+
+profile_environment_ready() {
+  local profile="$1"
+  local profile_link="$worker_home_dir/profiles/$profile"
+  local expected_target="$gateway_worker_root/telemetry/profiles/$profile"
+  local resolved_profile=""
+  local resolved_expected=""
+
+  if [ ! -d "$expected_target" ]; then
+    return 1
+  fi
+  if [ -e "$profile_link" ] && [ ! -L "$profile_link" ]; then
+    return 1
+  fi
+  if [ -L "$profile_link" ]; then
+    resolved_profile="$(readlink -f "$profile_link" || true)"
+    resolved_expected="$(readlink -f "$expected_target" || true)"
+    if [ -z "$resolved_profile" ] || [ -z "$resolved_expected" ] || [ "$resolved_profile" != "$resolved_expected" ]; then
+      return 1
+    fi
+  fi
+  if [ ! -s "$expected_target/config.yaml" ]; then
+    return 1
+  fi
+  if [ ! -L "$expected_target/auth.json" ] || [ ! -s "$expected_target/auth.json" ]; then
+    return 1
+  fi
+  if [ ! -L "$expected_target/auth.lock" ]; then
+    return 1
+  fi
+  return 0
+}
+
+selected_gateway_profiles_ready() {
+  local profile=""
+  local port=""
+  while IFS=$'\t' read -r profile port; do
+    if [ -z "$profile" ] || [ -z "$port" ]; then
+      continue
+    fi
+    if ! profile_environment_ready "$profile"; then
+      return 1
+    fi
+  done <<< "$gateway_specs"
+  return 0
+}
+
+if is_gateway_stop_only; then
+  log_step "lowgw-configure-skipped reason=stop-only profiles=${gateway_start_profiles:-all}"
+elif is_skip_configure_if_ready && [ -n "$gateway_start_profiles" ] && selected_gateway_profiles_ready; then
+  log_step "lowgw-configure-skipped reason=selected-profiles-ready profiles=${gateway_start_profiles}"
+else
+  log_step "lowgw-configure-start"
+  bash "$configure_low_gateway_script"
+  log_step "lowgw-configure-done"
+fi
 
 install -d -m 755 "$runtime_bin"
 cat > "$runtime_bin/hermes" <<EOF
@@ -206,7 +267,7 @@ chmod 755 "$runtime_bin/hermes"
 low_gateway_path="$runtime_bin:$runtime_root/venv/bin:/usr/local/bin:/usr/bin:/bin"
 runtime_hermes="$runtime_bin/hermes"
 api_key_file="$worker_home_dir/api-server-key.secret"
-if [ ! -s "$api_key_file" ]; then
+if ! is_gateway_stop_only && [ ! -s "$api_key_file" ]; then
   echo "missing low gateway API key file: $api_key_file" >&2
   exit 1
 fi
@@ -341,17 +402,17 @@ while IFS=$'\t' read -r profile port; do
   if [ -z "$profile" ] || [ -z "$port" ]; then
     continue
   fi
-  verify_gateway_profile "$profile"
-  if [[ "$gateway_stop_only" =~ ^(1|true|yes|on)$ ]]; then
+  if is_gateway_stop_only; then
     log_step "lowgw-stop-profile-start profile=${profile} port=${port}"
     stop_gateway_port "$port"
     log_step "lowgw-stop-profile-done profile=${profile} port=${port}"
     continue
   fi
+  verify_gateway_profile "$profile"
   start_gateway_profile "$profile" "$port"
 done <<< "$gateway_specs"
 
-if [[ "$gateway_stop_only" =~ ^(1|true|yes|on)$ ]]; then
+if is_gateway_stop_only; then
   echo LOW_GATEWAYS_STOPPED
   exit 0
 fi

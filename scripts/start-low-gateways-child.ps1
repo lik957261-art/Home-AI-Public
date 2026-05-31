@@ -1,6 +1,7 @@
 param(
   [string]$DistroName = "",
   [string]$StartProfiles = "",
+  [switch]$SkipConfigureIfReady,
   [switch]$StopOnly
 )
 
@@ -18,6 +19,7 @@ if (-not (Test-Path -LiteralPath $scriptPath)) {
 
 $envArgs = @()
 if ($StartProfiles) { $envArgs += "HERMES_GATEWAY_START_PROFILES=$StartProfiles" }
+if ($SkipConfigureIfReady) { $envArgs += "HERMES_GATEWAY_SKIP_CONFIGURE_IF_READY=1" }
 if ($StopOnly) { $envArgs += "HERMES_GATEWAY_STOP_ONLY=1" }
 if ($envArgs.Count -gt 0) {
   & wsl.exe -d $distroName -u root -- env @envArgs bash /mnt/c/ProgramData/HermesMobile/gateway-worker/start-low-gateways.sh

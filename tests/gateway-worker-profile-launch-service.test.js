@@ -27,6 +27,9 @@ function fakeSpawnFactory(calls, options = {}) {
     child.stderr = new PassThrough();
     child.kill = () => { child.killed = true; };
     calls.push({ command, args, spawnOptions, child });
+    if (typeof options.onSpawn === "function") {
+      options.onSpawn({ command, args, spawnOptions, child, calls });
+    }
     process.nextTick(() => {
       if (options.stdout) child.stdout.write(options.stdout);
       if (options.stderr) child.stderr.write(options.stderr);
@@ -34,6 +37,22 @@ function fakeSpawnFactory(calls, options = {}) {
     });
     return child;
   };
+}
+
+function writeFirstScheduledResult(launchRoot, payload = {}) {
+  const pendingDir = path.join(launchRoot, "pending");
+  const resultDir = path.join(launchRoot, "results");
+  const file = fs.readdirSync(pendingDir).find((name) => name.endsWith(".json"));
+  assert.ok(file, "scheduled launch request file should exist");
+  const request = JSON.parse(fs.readFileSync(path.join(pendingDir, file), "utf8"));
+  fs.mkdirSync(resultDir, { recursive: true });
+  fs.writeFileSync(path.join(resultDir, `${request.requestId}.json`), JSON.stringify(Object.assign({
+    ok: true,
+    requestId: request.requestId,
+    action: request.action,
+    profiles: request.profiles,
+  }, payload)), "utf8");
+  return request;
 }
 
 async function testStartsAndStopsSpecificProfilesHidden() {
@@ -79,13 +98,78 @@ async function testOwnerMaintenanceStartAndStopPolicy() {
   fs.rmSync(toolRoot, { recursive: true, force: true });
 }
 
+async function testScheduledTaskLaunchRequest() {
+  const calls = [];
+  const toolRoot = tempToolRoot();
+  const launchRequestRoot = path.join(toolRoot, "elastic-requests");
+  let capturedRequest = null;
+  const service = createGatewayWorkerProfileLaunchService({
+    toolRoot,
+    launchRequestRoot,
+    scheduledTaskName: "Hermes Mobile Gateway Pool",
+    spawn: fakeSpawnFactory(calls, {
+      onSpawn: ({ command }) => {
+        if (command === "schtasks.exe") {
+          capturedRequest = writeFirstScheduledResult(launchRequestRoot);
+        }
+      },
+    }),
+  });
+
+  const result = await service.startWorkerProfile({ profile: "lowgw6", securityLevel: "user" }, { timeoutMs: 9000 });
+
+  assert.equal(result.ok, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].command, "schtasks.exe");
+  assert.deepEqual(calls[0].args, ["/Run", "/TN", "Hermes Mobile Gateway Pool"]);
+  assert.equal(capturedRequest.action, "start");
+  assert.deepEqual(capturedRequest.profiles, ["lowgw6"]);
+  assert.equal(capturedRequest.noStopExisting, true);
+  fs.rmSync(toolRoot, { recursive: true, force: true });
+}
+
+async function testScheduledTaskFailureDiagnosticsAreBounded() {
+  const calls = [];
+  const toolRoot = tempToolRoot();
+  const launchRequestRoot = path.join(toolRoot, "elastic-requests");
+  const service = createGatewayWorkerProfileLaunchService({
+    toolRoot,
+    launchRequestRoot,
+    scheduledTaskName: "Hermes Mobile Gateway Pool",
+    spawn: fakeSpawnFactory(calls, {
+      onSpawn: ({ command }) => {
+        if (command === "schtasks.exe") {
+          writeFirstScheduledResult(launchRequestRoot, {
+            ok: false,
+            code: "gateway_elastic_request_failed",
+            message: "failed with Bearer abcdefghijklmnopqrstuvwxyz0123456789",
+            stderr: "workspace_key abcdefghijklmnopqrstuvwxyz",
+          });
+        }
+      },
+    }),
+  });
+
+  await assert.rejects(() => service.startWorkerProfile({ profile: "lowgw7" }, { timeoutMs: 9000 }), (err) => {
+    assert.equal(err.code, "gateway_elastic_request_failed");
+    assert.equal(JSON.stringify(err.details).includes("abcdefghijklmnopqrstuvwxyz0123456789"), false);
+    assert.match(err.message, /Bearer/);
+    return true;
+  });
+  fs.rmSync(toolRoot, { recursive: true, force: true });
+}
+
 async function testFailureDiagnosticsAreBounded() {
   const calls = [];
   const toolRoot = tempToolRoot();
   const rawSecret = "Bearer abcdefghijklmnopqrstuvwxyz0123456789";
   const service = createGatewayWorkerProfileLaunchService({
     toolRoot,
-    spawn: fakeSpawnFactory(calls, { code: 1, stderr: `failed with ${rawSecret} and workspace_key abcdefghijklmnopqrstuvwxyz` }),
+    spawn: fakeSpawnFactory(calls, {
+      code: 1,
+      stderr: `failed with ${rawSecret} and workspace_key abcdefghijklmnopqrstuvwxyz`,
+      stdout: "selected profile lowgw7 failed after API_KEY abcdefghijklmnopqrstuvwxyz",
+    }),
   });
 
   await assert.rejects(() => service.startWorkerProfile({ profile: "lowgw7" }), (err) => {
@@ -93,6 +177,7 @@ async function testFailureDiagnosticsAreBounded() {
     assert.equal(JSON.stringify(err.details).includes("abcdefghijklmnopqrstuvwxyz0123456789"), false);
     assert.match(err.details.stderr, /Bearer \[redacted\]/);
     assert.match(err.details.stderr, /workspace_key \[redacted\]/);
+    assert.match(err.details.stdout, /API_key \[redacted\]/i);
     return true;
   });
   fs.rmSync(toolRoot, { recursive: true, force: true });
@@ -113,6 +198,8 @@ function testHelpersSanitizePublicState() {
 (async () => {
   await testStartsAndStopsSpecificProfilesHidden();
   await testOwnerMaintenanceStartAndStopPolicy();
+  await testScheduledTaskLaunchRequest();
+  await testScheduledTaskFailureDiagnosticsAreBounded();
   await testFailureDiagnosticsAreBounded();
   await testMissingProfileAndMissingScriptFailClosed();
   testHelpersSanitizePublicState();

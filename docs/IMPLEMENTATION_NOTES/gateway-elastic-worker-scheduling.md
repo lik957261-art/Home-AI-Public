@@ -51,10 +51,44 @@ Recommended first defaults:
 - `HERMES_MOBILE_GATEWAY_WORKSPACE_MAX_WORKERS=2`
 - `HERMES_MOBILE_GATEWAY_ELASTIC_MAX_WORKERS=8`
 - `HERMES_MOBILE_GATEWAY_WORKER_IDLE_TTL_MINUTES=180`
-- `HERMES_MOBILE_GATEWAY_START_TIMEOUT_MS=90000`
+- `HERMES_MOBILE_GATEWAY_START_TIMEOUT_MS=300000`
+- `HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS=30000`
+- `HERMES_MOBILE_GATEWAY_START_HEALTH_POLL_MS=1000`
 
 The `HERMES_WEB_*` aliases should remain accepted for existing production
 launchers until the deployment scripts are fully migrated.
+
+When the maintained Windows listener runs under an account that cannot see the
+registered WSL distro, hybrid on-demand starts must set:
+
+- `HERMES_MOBILE_GATEWAY_START_SCHEDULED_TASK_NAME=Hermes Mobile Gateway Pool`
+- `HERMES_MOBILE_GATEWAY_WORKER_ROOT=C:\ProgramData\HermesMobile\gateway-worker`
+
+The listener then writes only action/profile metadata to
+`elastic-requests\pending`, triggers the scheduled task, and waits for a bounded
+result file. Raw API keys, workspace keys, auth tokens, prompts, and model
+outputs must never be placed in those request or result files.
+
+This is a recurring Windows/WSL account-boundary issue. Production validation
+must use the listener-triggered Mobile API path, not only an operator-run
+PowerShell command, because those can run under different Windows accounts and
+see different WSL distro registrations.
+
+On the maintained single-user production machine, the preferred fix is to run
+the listener in the same caller context as the WSL/Codex owner (`GMK\xuxin`) and
+disable the scheduled-task relay. The relay remains available for deployments
+that intentionally keep listener and WSL owner accounts separate.
+
+The scheduled task principal should remain the WSL-owning Windows account, but
+the listener account must be able to demand-run that task. If `schtasks.exe
+/Run` fails before the request is consumed, the relay is not active even though
+the operator can start the same profile manually.
+
+After the profile startup script exits successfully, the scheduler must still
+poll `/health` for a short bounded window before declaring the user run failed.
+The WSL script can return just before the Mobile-side health probe observes the
+new listener; a single immediate failed probe is not sufficient evidence of
+startup failure.
 
 ## Source Implementation
 
@@ -64,7 +98,8 @@ The v404 source implementation adds these boundaries:
   state, per-workspace caps, global cap queueing, idle retirement, and bounded
   scheduler events.
 - `adapters/gateway-worker-profile-launch-service.js`: hidden PowerShell launch
-  wrapper for single-profile start/stop through `scripts/start-gateway-pool.ps1`.
+  wrapper for single-profile start/stop. It can also use a scheduled-task
+  request relay when the listener account cannot directly start the WSL worker.
 - `adapters/gateway-pool-provider.js`: hybrid mode worker choice, warm worker
   discovery, on-demand launch, and status projection.
 - `adapters/gateway-run-start-service.js` and
@@ -73,8 +108,9 @@ The v404 source implementation adds these boundaries:
 - `adapters/gateway-status-projection.js`: configured/stopped elastic workers
   are expected state while failed expected-running workers still degrade status.
 - `scripts/start-gateway-pool.ps1`, `scripts/start-low-gateways-child.ps1`, and
-  `scripts/start-low-gateways.sh`: hybrid startup and single-profile
-  `-StartProfiles` / `-StopProfiles` operations.
+  `scripts/start-low-gateways.sh`: hybrid startup, scheduled-task launch
+  request processing, and single-profile `-StartProfiles` / `-StopProfiles`
+  operations.
 - `public/app-run-progress-ui.js` and `public/app-platform-status-ui.js`: model
   status and Gateway Pool status show queued, starting, reused, failed, running,
   and stopped states from bounded metadata.
@@ -272,6 +308,14 @@ Minimum H1 scenarios for implementation:
   `/api/status?detail=1`. Before enabling hybrid again, reproduce the listener
   launch path, capture bounded stdout/stderr diagnostics, and verify Owner warm
   reuse plus a non-Owner cold-start Mobile API run without manual intervention.
+- The root cause found after the rollback was that listener-triggered
+  single-profile starts inherited the original 90-second timeout while
+  `start-low-gateways.sh` still ran full low-Gateway reconfiguration before
+  every selected profile start. The v405 fix must skip full configure for
+  stop-only operations and for listener on-demand `-NoStopExisting` selected
+  profile starts whose config/auth/profile links are already ready, keep bounded
+  stdout/stderr diagnostics, and use a 300-second start timeout as a safety net
+  for the first post-deploy cold start.
 
 Resolved in v404:
 
