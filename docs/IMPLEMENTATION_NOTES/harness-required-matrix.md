@@ -736,6 +736,15 @@ Required harness dimensions:
   non-Owner warm workers before any non-Owner run starts.
 - Owner runs may expand to four workers, then must queue with a bounded
   `workspace_capacity` status instead of starting a fifth worker.
+- Owner-maintenance warm workers must not consume the Owner low-permission user
+  worker cap. A warm `officialclean*` or `deepseekmaint*` profile cannot block
+  normal Owner work from starting compatible `lowgw*` profiles while the user
+  tier cap and global cap allow it.
+- Owner-maintenance is also on-demand in hybrid mode by default. The harness
+  must prove `officialclean*` / `deepseekmaint*` profiles start only for an
+  explicit high-permission maintenance/elevation run, enforce their own cap,
+  stop by selected profile after idle retirement, and are not restarted by the
+  five-minute watchdog when `HERMES_MOBILE_GATEWAY_OWNER_MAINTENANCE_MIN_WARM=0`.
 - A non-Owner workspace may expand to two workers, then must queue with the
   same bounded capacity semantics.
 - A compatible warm worker must be reused instead of starting a new process;
@@ -793,7 +802,9 @@ Required harness dimensions:
   same task manually.
 - `/api/status?detail=1` must treat configured-but-stopped elastic workers as
   expected state in hybrid mode, while still reporting failed launch or failed
-  health checks as degraded.
+  health checks as degraded. A worker that was previously warm but now fails
+  `/health` with no active run must be reconciled back to `configured` so the
+  status UI does not report a stopped process as warm.
 - Production hybrid startup scripts must not launch the full historical fixed
   pool. Eager startup must remain available as a rollback mode.
 - Run-progress and model-status UI must show starting, reused, queued,

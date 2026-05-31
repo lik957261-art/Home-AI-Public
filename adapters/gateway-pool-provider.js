@@ -406,7 +406,11 @@ function createGatewayPoolProvider(options = {}) {
     const fallback = fallbackTarget();
     if (loaded.enabled && startMode() === "hybrid") {
       for (const worker of loaded.workers) {
-        if (await isHealthy(worker)) elasticScheduler.markWorkerWarm(worker);
+        if (await isHealthy(worker)) {
+          elasticScheduler.markWorkerWarm(worker);
+        } else {
+          elasticScheduler.markWorkerUnavailable(worker);
+        }
       }
       const schedulerStatus = elasticScheduler.status(loaded.workers);
       return Object.assign({}, schedulerStatus, {

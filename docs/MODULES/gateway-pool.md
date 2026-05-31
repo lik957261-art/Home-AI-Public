@@ -67,23 +67,40 @@ Default hybrid policy:
 
 - Owner keeps `1` compatible warm worker and may expand to `4` workers.
 - Non-Owner workspaces keep `0` warm workers and may expand to `2` workers.
+- Owner-maintenance keeps `0` warm workers by default in hybrid mode and may
+  expand to `2` high-permission workers for explicit maintenance/elevation
+  runs.
 - A global elastic cap limits total started workers; the first default is `8`.
 - Idle workers remain reusable for several hours; the first default is `180`
   minutes.
 - A configured but stopped on-demand worker is expected state, not Gateway Pool
   degradation.
+- If a worker was previously warm and later `/health` no longer responds with
+  no active run assigned, status reconciliation must return it to `configured`
+  instead of leaving stale warm/running metadata visible.
 
 These caps are upper bounds over compatible profiles. A workspace with one
 OpenAI/Codex worker and one DeepSeek worker still has only one ChatGPT-compatible
 slot; provider-dedicated profiles are not interchangeable.
+
+The caps are tier-scoped. Low-permission user workers count against the
+Owner/workspace user cap, while `owner-maintenance` workers are separate
+maintenance capacity and should not block normal Owner runs from starting
+additional `lowgw*` workers when the user cap and global cap allow it. In
+hybrid mode, stopped `officialclean*` / `deepseekmaint*` profiles are expected
+state unless `HERMES_MOBILE_GATEWAY_OWNER_MAINTENANCE_MIN_WARM` is explicitly
+set above zero.
 
 Hybrid mode is enabled through `HERMES_MOBILE_GATEWAY_POOL_START_MODE=hybrid`
 or the compatibility alias `HERMES_WEB_GATEWAY_POOL_START_MODE=hybrid`. The
 source default remains eager until the production launcher explicitly changes
 mode. `scripts/start-gateway-pool.ps1 -StartProfiles <profile> -NoStopExisting`
 starts a single worker profile, while `-StopProfiles <profile>`
-stops only the selected idle profile. Wrapper calls must continue to use hidden
-PowerShell windows.
+stops only the selected idle profile. High-permission workers use
+`-OwnerMaintenanceOnly -StartProfiles <profile>` and
+`-OwnerMaintenanceOnly -StopProfiles <profile>` so on-demand startup and idle
+retirement target one maintenance profile instead of the whole maintenance
+class. Wrapper calls must continue to use hidden PowerShell windows.
 
 Maintained production hybrid deployments should prefer running the Hermes
 Mobile listener under the same Windows account that owns the WSL Gateway/Codex
@@ -731,6 +748,12 @@ The official runtime checkout under `/opt/hermes-gateway-runtime/official-clean`
 `Hermes Mobile Maintenance Gateway Watchdog` runs every 5 minutes and calls `start-gateway-pool.ps1 -OwnerMaintenanceOnly -OnlyWhenOwnerMaintenanceUnhealthy`.
 
 It must not replace a maintenance worker during a long tool call merely because `/health` is slow. If HTTP health fails but TCP port remains open, the busy-grace guard defers replacement for `OwnerMaintenanceBusyGraceMinutes` (default 45).
+
+In hybrid/on-demand mode the default maintenance warm baseline is zero. With
+`HERMES_MOBILE_GATEWAY_OWNER_MAINTENANCE_MIN_WARM=0`, the watchdog must skip
+closed `officialclean*` / `deepseekmaint*` ports instead of treating every
+stopped high-permission profile as unhealthy. A deployment that wants a warm
+maintenance baseline must opt in by setting that min-warm value above zero.
 
 `start-gateway-pool.ps1` must also keep an entry-level mutex around both full pool startup and owner-maintenance repair. A full Gateway Pool start can take several minutes after official runtime changes; without the mutex, the 5-minute watchdog can overlap the full startup and trigger a second owner-maintenance start while the low gateway pool is still coming up.
 

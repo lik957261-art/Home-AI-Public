@@ -38,6 +38,7 @@ function createHarness(overrides = {}) {
     config: {
       ownerMinWarm: 1,
       ownerMaxWorkers: 4,
+      ownerMaintenanceMaxWorkers: 2,
       workspaceMinWarm: 0,
       workspaceMaxWorkers: 2,
       globalMaxWorkers: 8,
@@ -156,6 +157,73 @@ async function testOwnerExpandsToFourThenQueuesUntilRelease() {
   assert.equal(settled, true);
   assert.equal(target.profile, "lowgw1");
   assert.equal(calls.starts.length, 4);
+}
+
+async function testOwnerMaintenanceWorkersDoNotConsumeUserWorkerCap() {
+  const { calls, scheduler } = createHarness({
+    config: { ownerMaxWorkers: 4, workspaceMaxWorkers: 2, globalMaxWorkers: 8 },
+    initialHealthy: ["officialclean1", "officialclean2", "deepseekmaint1"],
+  });
+  const maintenanceWorkers = [
+    worker("officialclean1", { securityLevel: "owner-maintenance", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: [] }),
+    worker("officialclean2", { securityLevel: "owner-maintenance", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: [] }),
+    worker("deepseekmaint1", { provider: "deepseek", securityLevel: "owner-maintenance", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: [] }),
+  ];
+  const userWorkers = ["lowgw1", "lowgw2", "lowgw3", "lowgw4", "lowgw5"].map((profile) => (
+    worker(profile, { allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] })
+  ));
+  for (const item of maintenanceWorkers) scheduler.markWorkerWarm(item);
+  const workers = [...maintenanceWorkers, ...userWorkers];
+  const choose = (runId) => scheduler.chooseTarget({
+    allWorkers: workers,
+    candidates: userWorkers,
+    hints: { workspaceId: "owner", provider: "openai-codex", securityLevel: "user" },
+    runId,
+    onEvent: (event) => calls.events.push(event),
+  });
+
+  assert.equal((await choose("run-owner-user-1")).profile, "lowgw1");
+  assert.equal((await choose("run-owner-user-2")).profile, "lowgw2");
+  assert.equal((await choose("run-owner-user-3")).profile, "lowgw3");
+  assert.equal((await choose("run-owner-user-4")).profile, "lowgw4");
+
+  const queued = choose("run-owner-user-5");
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(calls.events.at(-1).reason, "workspace_capacity");
+  scheduler.releaseRun("run-owner-user-1", "idle");
+  assert.equal((await queued).profile, "lowgw1");
+}
+
+async function testOwnerMaintenanceUsesSeparateOnDemandCap() {
+  const { calls, scheduler } = createHarness({
+    config: { ownerMaxWorkers: 4, ownerMaintenanceMaxWorkers: 2, workspaceMaxWorkers: 2, globalMaxWorkers: 8 },
+  });
+  const maintenanceWorkers = [
+    worker("officialclean1", { securityLevel: "owner-maintenance", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: [] }),
+    worker("officialclean2", { securityLevel: "owner-maintenance", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: [] }),
+    worker("officialclean3", { securityLevel: "owner-maintenance", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: [] }),
+  ];
+  const choose = (runId) => scheduler.chooseTarget({
+    allWorkers: maintenanceWorkers,
+    candidates: maintenanceWorkers,
+    hints: { workspaceId: "owner", provider: "openai-codex", securityLevel: "owner-maintenance", maintenance: true },
+    runId,
+    onEvent: (event) => calls.events.push(event),
+  });
+
+  assert.equal((await choose("run-maint-1")).profile, "officialclean1");
+  assert.equal((await choose("run-maint-2")).profile, "officialclean2");
+
+  const queued = choose("run-maint-3");
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(calls.events.at(-1).event, "run.gateway_worker_queued");
+  assert.equal(calls.events.at(-1).reason, "workspace_capacity");
+  assert.deepEqual(calls.starts, ["officialclean1", "officialclean2"]);
+
+  scheduler.releaseRun("run-maint-1", "idle");
+  assert.equal((await queued).profile, "officialclean1");
 }
 
 async function testNonOwnerExpandsToTwoThenQueues() {
@@ -340,10 +408,12 @@ async function testLaunchFailureUsesBoundedDiagnosticWithoutSecrets() {
 function testConfigDefaultsAndAliases() {
   const config = normalizeElasticSchedulerConfig({
     HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM: "1",
+    HERMES_WEB_GATEWAY_OWNER_MAINTENANCE_MAX_WORKERS: "2",
     HERMES_WEB_GATEWAY_WORKSPACE_MAX_WORKERS: "2",
     HERMES_MOBILE_GATEWAY_WORKER_IDLE_TTL_MINUTES: "180",
   });
   assert.equal(config.ownerMinWarm, 1);
+  assert.equal(config.ownerMaintenanceMaxWorkers, 2);
   assert.equal(config.workspaceMaxWorkers, 2);
   assert.equal(config.idleTtlMs, 180 * 60 * 1000);
   assert.equal(normalizeElasticSchedulerConfig({}).startTimeoutMs, 300_000);
@@ -356,6 +426,8 @@ function testConfigDefaultsAndAliases() {
   await testWarmCompatibleWorkerIsReusedWithoutStarting();
   await testAlreadyRunningConfiguredWorkerIsReusedWithoutRestart();
   await testOwnerExpandsToFourThenQueuesUntilRelease();
+  await testOwnerMaintenanceWorkersDoNotConsumeUserWorkerCap();
+  await testOwnerMaintenanceUsesSeparateOnDemandCap();
   await testNonOwnerExpandsToTwoThenQueues();
   await testRunIdReplacementReleasesWorkerSlot();
   await testGlobalCapQueuesBeforeWorkspaceCap();

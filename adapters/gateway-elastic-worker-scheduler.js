@@ -3,6 +3,7 @@
 const DEFAULT_CONFIG = Object.freeze({
   ownerMinWarm: 1,
   ownerMaxWorkers: 4,
+  ownerMaintenanceMaxWorkers: 2,
   workspaceMinWarm: 0,
   workspaceMaxWorkers: 2,
   globalMaxWorkers: 8,
@@ -41,6 +42,7 @@ function normalizeElasticSchedulerConfig(input = {}) {
   return {
     ownerMinWarm: readEnvInteger(env, "HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM", "HERMES_WEB_GATEWAY_OWNER_MIN_WARM", DEFAULT_CONFIG.ownerMinWarm),
     ownerMaxWorkers: readEnvInteger(env, "HERMES_MOBILE_GATEWAY_OWNER_MAX_WORKERS", "HERMES_WEB_GATEWAY_OWNER_MAX_WORKERS", DEFAULT_CONFIG.ownerMaxWorkers),
+    ownerMaintenanceMaxWorkers: readEnvInteger(env, "HERMES_MOBILE_GATEWAY_OWNER_MAINTENANCE_MAX_WORKERS", "HERMES_WEB_GATEWAY_OWNER_MAINTENANCE_MAX_WORKERS", DEFAULT_CONFIG.ownerMaintenanceMaxWorkers),
     workspaceMinWarm: readEnvInteger(env, "HERMES_MOBILE_GATEWAY_WORKSPACE_MIN_WARM", "HERMES_WEB_GATEWAY_WORKSPACE_MIN_WARM", DEFAULT_CONFIG.workspaceMinWarm),
     workspaceMaxWorkers: readEnvInteger(env, "HERMES_MOBILE_GATEWAY_WORKSPACE_MAX_WORKERS", "HERMES_WEB_GATEWAY_WORKSPACE_MAX_WORKERS", DEFAULT_CONFIG.workspaceMaxWorkers),
     globalMaxWorkers: readEnvInteger(env, "HERMES_MOBILE_GATEWAY_ELASTIC_MAX_WORKERS", "HERMES_WEB_GATEWAY_ELASTIC_MAX_WORKERS", DEFAULT_CONFIG.globalMaxWorkers),
@@ -211,11 +213,16 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     return [...stateByWorkerId.values()].filter((item) => STARTED_STATES.has(item.state));
   }
 
-  function runningCountForWorkspace(workspaceId) {
-    return startedStates().filter((item) => item.workspaceId === workspaceId).length;
+  function runningCountForWorkspace(workspaceId, tier = "") {
+    const requestedTier = cleanString(tier);
+    return startedStates().filter((item) => (
+      item.workspaceId === workspaceId
+      && (!requestedTier || item.permissionTier === requestedTier)
+    )).length;
   }
 
-  function maxForWorkspace(workspaceId) {
+  function maxForWorkspace(workspaceId, tier = "") {
+    if (cleanString(tier) === "owner-maintenance") return config.ownerMaintenanceMaxWorkers;
     return actorClassForWorkspace(workspaceId) === "owner" ? config.ownerMaxWorkers : config.workspaceMaxWorkers;
   }
 
@@ -338,8 +345,9 @@ function createGatewayElasticWorkerScheduler(options = {}) {
   function capacityReason(candidates, hints) {
     const workspaceId = actorWorkspaceId(hints, candidates[0]);
     if (config.globalMaxWorkers && startedStates().length >= config.globalMaxWorkers) return "global_capacity";
-    const maxWorkspace = maxForWorkspace(workspaceId);
-    if (maxWorkspace && runningCountForWorkspace(workspaceId) >= maxWorkspace) return "workspace_capacity";
+    const requestedTier = permissionTier(candidates[0], hints);
+    const maxWorkspace = maxForWorkspace(workspaceId, requestedTier);
+    if (maxWorkspace && runningCountForWorkspace(workspaceId, requestedTier) >= maxWorkspace) return "workspace_capacity";
     return "profile_affinity";
   }
 
@@ -442,8 +450,9 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       }
 
       const workspaceId = actorWorkspaceId(hints, candidates[0]);
-      const maxWorkspace = maxForWorkspace(workspaceId);
       const startable = chooseStartable(candidates);
+      const requestedTier = permissionTier(startable?.worker || candidates[0], hints);
+      const maxWorkspace = maxForWorkspace(workspaceId, requestedTier);
       if (startable && await markExistingHealthy(startable.worker, startable.state, hints)) {
         const target = assignRun(startable.worker, startable.state, runId, hints, "worker_reused");
         emit(onEvent, Object.assign({}, target.schedulerEvent, { runId }));
@@ -451,7 +460,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       }
       const canStart = startable
         && (!config.globalMaxWorkers || startedStates().length < config.globalMaxWorkers)
-        && (!maxWorkspace || runningCountForWorkspace(workspaceId) < maxWorkspace);
+        && (!maxWorkspace || runningCountForWorkspace(workspaceId, requestedTier) < maxWorkspace);
       if (canStart) {
         const target = await startAndAssign(startable.worker, startable.state, hints, runId, onEvent);
         emit(onEvent, Object.assign({}, target.schedulerEvent, { runId }));
@@ -566,6 +575,25 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     return state;
   }
 
+  function markWorkerUnavailable(worker) {
+    const state = getState(worker);
+    if (!state) return null;
+    state.healthy = false;
+    if (!state.activeRunIds.size && state.state !== "starting") {
+      state.state = "configured";
+      state.compatibilityKey = "";
+      state.workspaceId = "";
+      state.actorClass = "";
+      state.idleSince = null;
+      state.idleExpiresAt = null;
+      if (state.idleCancel) {
+        state.idleCancel();
+        state.idleCancel = null;
+      }
+    }
+    return state;
+  }
+
   function planHybridStartup(workers = []) {
     const candidates = (Array.isArray(workers) ? workers : [])
       .filter((worker) => permissionTier(worker) === "user")
@@ -592,6 +620,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       config: {
         ownerMinWarm: config.ownerMinWarm,
         ownerMaxWorkers: config.ownerMaxWorkers,
+        ownerMaintenanceMaxWorkers: config.ownerMaintenanceMaxWorkers,
         workspaceMinWarm: config.workspaceMinWarm,
         workspaceMaxWorkers: config.workspaceMaxWorkers,
         globalMaxWorkers: config.globalMaxWorkers,
@@ -606,6 +635,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
   return {
     chooseTarget,
     markWorkerWarm,
+    markWorkerUnavailable,
     planHybridStartup,
     reapIdle,
     releaseRun,

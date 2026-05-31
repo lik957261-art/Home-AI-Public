@@ -383,6 +383,36 @@ function Get-OwnerMaintenanceWorkers {
   return @($manifest.workers | Where-Object { Is-OwnerMaintenanceWorker -Worker $_ })
 }
 
+function Get-OwnerMaintenanceMinWarm {
+  $envLimit = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_GATEWAY_OWNER_MAINTENANCE_MIN_WARM")
+  if (-not $envLimit) { $envLimit = [Environment]::GetEnvironmentVariable("HERMES_WEB_GATEWAY_OWNER_MAINTENANCE_MIN_WARM") }
+  if ($envLimit -and $envLimit -match '^\d+$') { return [Math]::Max(0, [int]$envLimit) }
+  if ($StartMode -eq "hybrid") { return 0 }
+  return -1
+}
+
+function Get-OwnerMaintenanceWatchdogTargetWorkers {
+  param([object[]]$Workers)
+  $limit = Get-OwnerMaintenanceMinWarm
+  if ($limit -lt 0) { return @($Workers) }
+  if ($limit -le 0) { return @() }
+  return @($Workers | Select-Object -First $limit)
+}
+
+function Get-OwnerMaintenanceWorkersByProfile {
+  param([string[]]$Profiles)
+  $normalized = Normalize-GatewayProfileList -Profiles $Profiles
+  if ($normalized.Count -eq 0) { return @() }
+  $selected = @()
+  $workers = Get-OwnerMaintenanceWorkers
+  foreach ($profile in $normalized) {
+    $match = @($workers | Where-Object { [string]$_.profile -eq $profile })
+    if ($match.Count -eq 0) { throw "Owner-maintenance profile not found or not allowed: $profile" }
+    $selected += $match[0]
+  }
+  return @($selected)
+}
+
 function OwnerMaintenanceSharedMemoryEnabled {
   $value = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_OWNER_MAINTENANCE_SHARED_MEMORY_MODE")
   if (-not $value) { $value = [Environment]::GetEnvironmentVariable("HERMES_WEB_OWNER_MAINTENANCE_SHARED_MEMORY_MODE") }
@@ -916,6 +946,55 @@ PY
   return @($workers | ForEach-Object { [int]$_.port })
 }
 
+function Start-OwnerMaintenanceProfiles {
+  param([string[]]$Profiles)
+  $targetWorkers = @(Get-OwnerMaintenanceWorkersByProfile -Profiles $Profiles)
+  if ($targetWorkers.Count -eq 0) { throw "Owner-maintenance start request missing profile." }
+  Write-GatewayPoolLog ("Owner-maintenance on-demand start profiles: {0}" -f (($targetWorkers | ForEach-Object { [string]$_.profile }) -join ', '))
+  Invoke-GatewayPoolPhase -Name "install-owner-maintenance-chatgpt-pro-plugin" -ScriptBlock { Install-OwnerMaintenanceChatGptProPlugin }
+  $targetPorts = @()
+  Invoke-GatewayPoolPhase -Name "start-owner-maintenance-gateways" -ScriptBlock { $script:targetPorts = @(Start-OwnerMaintenanceGateways -TargetWorkers $targetWorkers) }
+  Invoke-GatewayPoolPhase -Name "wait-owner-maintenance-health" -ScriptBlock { Wait-HealthPorts -Ports $script:targetPorts }
+  Write-GatewayPoolLog "Owner-maintenance on-demand start OK; healthy ports: $($script:targetPorts -join ', ')."
+}
+
+function Stop-OwnerMaintenanceGateways {
+  param([object[]]$TargetWorkers = @())
+  Assert-SafeLinuxUserName -UserName $OfficialUser
+  $workers = @($TargetWorkers)
+  if ($workers.Count -eq 0) { $workers = Get-OwnerMaintenanceWorkers }
+  if ($workers.Count -eq 0) {
+    Write-GatewayPoolLog "No owner-maintenance workers to stop."
+    return
+  }
+  $commands = [System.Collections.ArrayList]@()
+  foreach ($worker in $workers) {
+    $profile = [string]$worker.profile
+    Assert-SafeGatewayProfileName -Profile $profile
+    $port = [int]$worker.port
+    [void]$commands.Add("profile=$profile")
+    [void]$commands.Add("port=$port")
+    [void]$commands.Add('pids="$(ss -ltnp "sport = :${port}" 2>/dev/null | sed -n ''s/.*pid=\([0-9]\+\).*/\1/p'' | sort -u | tr ''\n'' '' '' | xargs || true)"')
+    [void]$commands.Add('if [ -n "$pids" ]; then echo "Stopping owner-maintenance ${profile} on port ${port}: ${pids}"; kill $pids 2>/dev/null || true; for _ in $(seq 1 20); do if ! ss -ltn "sport = :${port}" 2>/dev/null | grep -q ":${port}"; then break; fi; sleep 0.25; done; if ss -ltn "sport = :${port}" 2>/dev/null | grep -q ":${port}"; then kill -9 $pids 2>/dev/null || true; fi; fi')
+  }
+  $ownerMaintenanceStopShell = Join-Path $GatewayWorkerRoot "stop-owner-maintenance-gateways.sh"
+  $bash = "set -euo pipefail`n" + ($commands -join "`n") + "`n"
+  $encoding = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllText($ownerMaintenanceStopShell, $bash, $encoding)
+
+  Write-GatewayPoolLog ("Stopping owner-maintenance gateway profiles: {0}" -f (($workers | ForEach-Object { [string]$_.profile }) -join ', '))
+  $result = Invoke-GatewayPoolWslBashFile -Distro $OfficialDistro -User $OfficialUser -ScriptPath $ownerMaintenanceStopShell
+  foreach ($line in $result.Output) { Write-GatewayPoolLog ("owner-maintenance-stop: {0}" -f $line) }
+  if ($result.ExitCode -ne 0) { throw "Owner-maintenance gateway stop failed with exit code $($result.ExitCode)" }
+}
+
+function Stop-OwnerMaintenanceProfiles {
+  param([string[]]$Profiles)
+  $targetWorkers = @(Get-OwnerMaintenanceWorkersByProfile -Profiles $Profiles)
+  if ($targetWorkers.Count -eq 0) { throw "Owner-maintenance stop request missing profile." }
+  Stop-OwnerMaintenanceGateways -TargetWorkers $targetWorkers
+}
+
 function Repair-OwnerMaintenanceGateways {
   $workers = Get-OwnerMaintenanceWorkers
   if ($workers.Count -eq 0) {
@@ -924,7 +1003,12 @@ function Repair-OwnerMaintenanceGateways {
   }
   $unhealthyWorkers = @($workers | Where-Object { -not (Test-HttpHealth -Port ([int]$_.port)) })
   if ($OnlyWhenOwnerMaintenanceUnhealthy) {
-    $unhealthyWorkers = @(Select-OwnerMaintenanceWorkersNeedingRepair -Workers $workers)
+    $watchdogWorkers = @(Get-OwnerMaintenanceWatchdogTargetWorkers -Workers $workers)
+    if ($watchdogWorkers.Count -eq 0) {
+      Write-GatewayPoolLog "Owner-maintenance watchdog skipped in hybrid on-demand mode; min warm is zero."
+      return
+    }
+    $unhealthyWorkers = @(Select-OwnerMaintenanceWorkersNeedingRepair -Workers $watchdogWorkers)
   }
   if ($OnlyWhenOwnerMaintenanceUnhealthy -and $unhealthyWorkers.Count -eq 0) {
     Write-GatewayPoolLog "Owner-maintenance repair skipped; all owner-maintenance ports are healthy."
@@ -971,7 +1055,14 @@ function Invoke-GatewayPoolElasticRequests {
         if ($profiles.Count -eq 0) { throw "Gateway elastic stop request missing profile." }
         Stop-LowGatewayProfiles -Profiles $profiles
       } elseif ($action -eq "ownerMaintenance") {
-        Repair-OwnerMaintenanceGateways
+        if ($profiles.Count -gt 0) {
+          Start-OwnerMaintenanceProfiles -Profiles $profiles
+        } else {
+          Repair-OwnerMaintenanceGateways
+        }
+      } elseif ($action -eq "ownerMaintenanceStop") {
+        if ($profiles.Count -eq 0) { throw "Gateway elastic owner-maintenance stop request missing profile." }
+        Stop-OwnerMaintenanceProfiles -Profiles $profiles
       } else {
         throw "Unsupported Gateway elastic request action: $action"
       }
@@ -1005,17 +1096,25 @@ try {
       exit 0
     }
   }
+  if ($OwnerMaintenanceOnly) {
+    if ($StopProfiles.Count -gt 0) {
+      Stop-OwnerMaintenanceProfiles -Profiles $StopProfiles
+      exit 0
+    }
+    if ($StartProfiles.Count -gt 0) {
+      Start-OwnerMaintenanceProfiles -Profiles $StartProfiles
+      exit 0
+    }
+    Write-GatewayPoolLog "Owner-maintenance gateway repair begin."
+    Repair-OwnerMaintenanceGateways
+    exit 0
+  }
   if ($StopProfiles.Count -gt 0) {
     Stop-LowGatewayProfiles -Profiles $StopProfiles
     exit 0
   }
   if ($StartProfiles.Count -gt 0) {
     Start-LowGateways -Profiles $StartProfiles -NoStopExisting:$NoStopExisting
-    exit 0
-  }
-  if ($OwnerMaintenanceOnly) {
-    Write-GatewayPoolLog "Owner-maintenance gateway repair begin."
-    Repair-OwnerMaintenanceGateways
     exit 0
   }
 

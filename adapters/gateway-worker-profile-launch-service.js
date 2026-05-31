@@ -354,9 +354,9 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
       throw err;
     }
     if (cleanString(worker.securityLevel).toLowerCase() === "owner-maintenance" || worker.allowMaintenance) {
-      const scheduledResult = await runScheduledGatewayRequest("ownerMaintenance", [], startTimeoutMs(context));
+      const scheduledResult = await runScheduledGatewayRequest("ownerMaintenance", [profile], startTimeoutMs(context), { noStopExisting: true });
       if (scheduledResult) return scheduledResult;
-      return runGatewayPoolScript(["-OwnerMaintenanceOnly"], startTimeoutMs(context));
+      return runGatewayPoolScript(["-OwnerMaintenanceOnly", "-StartProfiles", profile], startTimeoutMs(context));
     }
     const scheduledResult = await runScheduledGatewayRequest("start", [profile], startTimeoutMs(context), { noStopExisting: true });
     if (scheduledResult) return scheduledResult;
@@ -367,7 +367,9 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
     const profile = cleanString(worker.profile || worker.name);
     if (!profile) return { ok: false, reason: "profile_missing" };
     if (cleanString(worker.securityLevel).toLowerCase() === "owner-maintenance" || worker.allowMaintenance) {
-      return { ok: true, skipped: true, reason: "owner_maintenance_not_idle_reaped" };
+      const scheduledResult = await runScheduledGatewayRequest("ownerMaintenanceStop", [profile], stopTimeoutMs(context));
+      if (scheduledResult) return scheduledResult;
+      return runGatewayPoolScript(["-OwnerMaintenanceOnly", "-StopProfiles", profile], stopTimeoutMs(context));
     }
     const scheduledResult = await runScheduledGatewayRequest("stop", [profile], stopTimeoutMs(context));
     if (scheduledResult) return scheduledResult;

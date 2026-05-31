@@ -95,14 +95,20 @@ validation should use `/opt/hermes-gateway-runtime/bin/hermes auth list` with
 no raw tokens or refresh tokens printed.
 
 Gateway elastic worker scheduling is an H1 workflow. The source harness must
-cover Owner `minWarm=1` / `maxWorkers=4`, non-Owner `minWarm=0` /
-`maxWorkers=2`, compatible warm-worker reuse, already-running warm discovery,
-profile/provider-compatible cold start, workspace cap queueing, global cap
-queueing, idle TTL retirement, active-run protection, bounded launch-failure
-diagnostics, public-to-real run id replacement without worker-slot leakage,
+cover Owner `minWarm=1` / `maxWorkers=4`, owner-maintenance `minWarm=0` /
+`maxWorkers=2`, non-Owner `minWarm=0` / `maxWorkers=2`, compatible warm-worker
+reuse, already-running warm discovery, profile/provider-compatible cold start,
+workspace cap queueing, global cap queueing, idle TTL retirement, active-run
+protection, bounded launch-failure diagnostics, public-to-real run id
+replacement without worker-slot leakage, tier-scoped worker caps so
+owner-maintenance workers do not consume the Owner low-permission user cap,
+profile-specific owner-maintenance start/stop and watchdog skip in hybrid
+on-demand mode,
 hidden single-profile start/stop launchers, and
 `/api/status?detail=1` treating configured-but-stopped workers as expected state
-rather than unhealthy Gateway Pool degradation. The run-progress UI must
+rather than unhealthy Gateway Pool degradation, including clearing a previously
+warm worker after the process stops and `/health` no longer responds. The
+run-progress UI must
 distinguish starting, reused, queued, idle-retirement, and failed states without
 exposing API keys, workspace keys, plugin launch tokens, raw prompts, raw model
 output, or long logs. Before switching production from eager startup to

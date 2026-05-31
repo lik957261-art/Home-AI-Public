@@ -92,9 +92,38 @@ async function testOwnerMaintenanceStartAndStopPolicy() {
   await service.startWorkerProfile({ profile: "officialclean1", securityLevel: "owner-maintenance" });
   const stop = await service.stopWorkerProfile({ profile: "officialclean1", securityLevel: "owner-maintenance" });
 
-  assert.deepEqual(calls[0].args.slice(-1), ["-OwnerMaintenanceOnly"]);
-  assert.deepEqual(stop, { ok: true, skipped: true, reason: "owner_maintenance_not_idle_reaped" });
+  assert.deepEqual(calls[0].args.slice(-3), ["-OwnerMaintenanceOnly", "-StartProfiles", "officialclean1"]);
+  assert.deepEqual(calls[1].args.slice(-3), ["-OwnerMaintenanceOnly", "-StopProfiles", "officialclean1"]);
+  assert.equal(stop.ok, true);
+  assert.equal(calls.length, 2);
+  fs.rmSync(toolRoot, { recursive: true, force: true });
+}
+
+async function testScheduledOwnerMaintenanceLaunchRequestTargetsProfile() {
+  const calls = [];
+  const toolRoot = tempToolRoot();
+  const launchRequestRoot = path.join(toolRoot, "elastic-requests");
+  let capturedRequest = null;
+  const service = createGatewayWorkerProfileLaunchService({
+    toolRoot,
+    launchRequestRoot,
+    scheduledTaskName: "Hermes Mobile Gateway Pool",
+    spawn: fakeSpawnFactory(calls, {
+      onSpawn: ({ command }) => {
+        if (command === "schtasks.exe") {
+          capturedRequest = writeFirstScheduledResult(launchRequestRoot);
+        }
+      },
+    }),
+  });
+
+  const result = await service.startWorkerProfile({ profile: "officialclean1", securityLevel: "owner-maintenance" }, { timeoutMs: 9000 });
+
+  assert.equal(result.ok, true);
   assert.equal(calls.length, 1);
+  assert.equal(capturedRequest.action, "ownerMaintenance");
+  assert.deepEqual(capturedRequest.profiles, ["officialclean1"]);
+  assert.equal(capturedRequest.noStopExisting, true);
   fs.rmSync(toolRoot, { recursive: true, force: true });
 }
 
@@ -198,6 +227,7 @@ function testHelpersSanitizePublicState() {
 (async () => {
   await testStartsAndStopsSpecificProfilesHidden();
   await testOwnerMaintenanceStartAndStopPolicy();
+  await testScheduledOwnerMaintenanceLaunchRequestTargetsProfile();
   await testScheduledTaskLaunchRequest();
   await testScheduledTaskFailureDiagnosticsAreBounded();
   await testFailureDiagnosticsAreBounded();

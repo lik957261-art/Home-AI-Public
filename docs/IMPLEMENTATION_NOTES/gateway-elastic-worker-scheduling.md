@@ -1,10 +1,10 @@
 # Gateway Elastic Worker Scheduling
 
-Status: implemented in source as `20260531-gateway-elastic-v404` and deployed
-to the maintained production app in eager mode. Production hybrid/on-demand
-mode was probed and rolled back on 2026-05-31 because listener-triggered
-non-Owner cold start still failed with `gateway_pool_script_failed`; keep
-production eager until that path passes a real Mobile API cold-start smoke.
+Status: implemented in source as `20260531-gateway-elastic-v404` and later
+production hotfixes. Maintained production now runs hybrid/on-demand mode after
+the listener launch path, run-id release, and tier-scoped capacity fixes passed
+focused smoke on 2026-05-31. Future Gateway startup changes must keep the
+hybrid harness and production smoke gates in this document passing.
 
 ## Classification
 
@@ -40,6 +40,7 @@ Initial policy:
 | Actor class | Minimum warm workers | Maximum workers | Notes |
 | --- | ---: | ---: | --- |
 | Owner | 1 | 4 | Keep one Owner-compatible interactive worker warm. Expand up to four for concurrent Owner work or provider/profile switching. |
+| Owner maintenance | 0 | 2 | High-permission `officialclean*` / `deepseekmaint*` workers are not always-on in hybrid mode. Start only for an explicit maintenance/elevation run and retire after idle TTL. |
 | Non-Owner workspace | 0 | 2 | No always-on worker. Start on demand and allow one extra concurrent worker before queueing. |
 
 The maximum is an upper bound over compatible worker profiles, not a guarantee
@@ -48,11 +49,22 @@ OpenAI/Codex profile and one DeepSeek profile, a normal ChatGPT run can only use
 the OpenAI/Codex profile; the DeepSeek profile does not count as a second
 ChatGPT slot.
 
+The workspace cap is also tier-scoped. Low-permission user workers count
+against the Owner or workspace user-worker cap, while `owner-maintenance`
+workers such as `officialclean*` and `deepseekmaint*` are governed by their own
+maintenance routing, `ownerMaintenanceMaxWorkers`, and the global cap. Stopped
+owner-maintenance workers are expected in hybrid mode, and the watchdog must not
+turn that expected stopped state back into a permanent warm pool. Owner
+maintenance capacity must not prevent Owner's normal low-permission work from
+expanding from `lowgw1` to `lowgw2`/`lowgw3`/`lowgw4`.
+
 Recommended first defaults:
 
 - `HERMES_MOBILE_GATEWAY_POOL_START_MODE=hybrid`
 - `HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM=1`
 - `HERMES_MOBILE_GATEWAY_OWNER_MAX_WORKERS=4`
+- `HERMES_MOBILE_GATEWAY_OWNER_MAINTENANCE_MIN_WARM=0`
+- `HERMES_MOBILE_GATEWAY_OWNER_MAINTENANCE_MAX_WORKERS=2`
 - `HERMES_MOBILE_GATEWAY_WORKSPACE_MIN_WARM=0`
 - `HERMES_MOBILE_GATEWAY_WORKSPACE_MAX_WORKERS=2`
 - `HERMES_MOBILE_GATEWAY_ELASTIC_MAX_WORKERS=8`
@@ -104,8 +116,9 @@ The v404 source implementation adds these boundaries:
   state, per-workspace caps, global cap queueing, idle retirement, and bounded
   scheduler events.
 - `adapters/gateway-worker-profile-launch-service.js`: hidden PowerShell launch
-  wrapper for single-profile start/stop. It can also use a scheduled-task
-  request relay when the listener account cannot directly start the WSL worker.
+  wrapper for single-profile start/stop, including profile-specific
+  owner-maintenance start/stop. It can also use a scheduled-task request relay
+  when the listener account cannot directly start the WSL worker.
 - `adapters/gateway-pool-provider.js`: hybrid mode worker choice, warm worker
   discovery, on-demand launch, and status projection.
 - `adapters/gateway-run-start-service.js` and
@@ -115,8 +128,9 @@ The v404 source implementation adds these boundaries:
   are expected state while failed expected-running workers still degrade status.
 - `scripts/start-gateway-pool.ps1`, `scripts/start-low-gateways-child.ps1`, and
   `scripts/start-low-gateways.sh`: hybrid startup, scheduled-task launch
-  request processing, and single-profile `-StartProfiles` / `-StopProfiles`
-  operations.
+  request processing, low-permission single-profile `-StartProfiles` /
+  `-StopProfiles`, and owner-maintenance `-OwnerMaintenanceOnly
+  -StartProfiles/-StopProfiles` operations.
 - `public/app-run-progress-ui.js` and `public/app-platform-status-ui.js`: model
   status and Gateway Pool status show queued, starting, reused, failed, running,
   and stopped states from bounded metadata.
@@ -169,6 +183,11 @@ workers as failures:
 `/api/status?detail=1` should distinguish `configured` and `stopped` elastic
 workers from unhealthy workers. In hybrid mode, "not running because no run
 needs it" is expected state, not degraded health.
+
+Status reconciliation must also clear stale warm state. If a worker was
+previously warm but a later `/health` check fails and no active run is assigned,
+`/api/status?detail=1` must project it back to `configured` rather than
+continuing to report a stopped process as warm.
 
 ## Scheduling Algorithm
 
@@ -234,9 +253,16 @@ Hybrid startup should not launch every configured Gateway profile. It should:
 - start the Owner minimum warm worker;
 - skip non-Owner workers until a run needs them;
 - leave provider-specific profiles in `configured` state;
-- start protected maintenance workers only when the maintenance contract
-  requires them;
+- leave owner-maintenance profiles in `configured` state unless an explicit
+  high-permission maintenance/elevation run needs one;
 - publish status that shows configured-but-stopped workers as expected.
+
+`Hermes Mobile Maintenance Gateway Watchdog` is still valid in eager mode and
+for deployments that opt into a maintenance warm baseline. In hybrid mode the
+default `HERMES_MOBILE_GATEWAY_OWNER_MAINTENANCE_MIN_WARM=0` means the watchdog
+must skip closed owner-maintenance ports instead of repairing them every five
+minutes. Setting the min-warm value above zero is an explicit choice to maintain
+that many high-permission workers warm.
 
 The existing eager path must remain available for rollback:
 
@@ -288,6 +314,14 @@ Minimum H1 scenarios for implementation:
 - Owner startup creates exactly one compatible warm worker in hybrid mode.
 - Non-Owner startup creates zero warm workers in hybrid mode.
 - Owner concurrent runs expand up to four workers and then queue.
+- Owner-maintenance warm workers do not consume the Owner low-permission user
+  worker cap.
+- Owner-maintenance runs start a selected `officialclean*` / `deepseekmaint*`
+  profile on demand, enforce their own cap, and queue after that cap.
+- Owner-maintenance idle retirement stops only the selected maintenance profile,
+  and the hybrid watchdog does not restart it when min-warm is zero.
+- `/api/status?detail=1` clears a previously warm worker after the underlying
+  process is stopped and health no longer responds.
 - Non-Owner concurrent runs expand up to two workers and then queue.
 - A compatible warm worker is reused instead of starting a new process.
 - A provider switch starts or selects a provider-compatible worker and never
