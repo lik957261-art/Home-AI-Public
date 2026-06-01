@@ -21,6 +21,18 @@ The first supported NAS direction is a split deployment, documented in
 - NAS talks to one reachable Gateway API server or to a fixed remote worker
   manifest. NAS should not be expected to start/stop Windows/WSL workers unless
   a remote worker-manager contract has been implemented and tested.
+- NAS-side Codex CLI login is useful for the NAS deployment thread, but it is
+  not the Hermes Mobile runtime Gateway/Codex backend. Do not treat it as a
+  shared user-facing model worker unless a separate remote worker/Mux contract
+  has been designed and validated.
+- After NAS becomes production, treat NAS runtime data as authoritative and
+  Windows as development plus external worker host. Code flows to NAS through
+  Git/deploy; NAS data flows back only as backups or isolated debug copies.
+  Do not run live bidirectional sync for SQLite, workspace files, plugin keys,
+  Skill Stores, Inbox/task state, learning records, or currency ledgers.
+- NAS maintenance credentials must live in restricted secret files or an OS
+  credential store. Do not paste NAS keys, SSH private keys, cookies, or tokens
+  into chats, docs, handoffs, commits, or logs.
 
 Do not present full NAS-native Gateway Pool as ready. It requires new Linux or
 container launchers, process supervision, profile provisioning, and H1 lifecycle

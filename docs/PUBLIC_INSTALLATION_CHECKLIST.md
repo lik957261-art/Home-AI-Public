@@ -36,6 +36,21 @@ document full NAS-native Gateway Pool as ready until Linux/NAS launchers,
 credential placement, remote worker management, plugin provisioning, and
 workspace-switching harnesses exist.
 
+If Codex CLI is installed and logged in on NAS, use it only as the deployment
+agent's local tool. It does not replace the external Hermes Gateway/Codex
+runtime path for Hermes Mobile users.
+
+After a NAS deployment becomes the family production environment, NAS owns the
+production data. Windows remains the development and external-worker host.
+Publish code from Windows to NAS through Git/deploy, and copy NAS data back only
+as backups or isolated debug snapshots. Do not configure bidirectional live sync
+for SQLite, runtime state, plugin keys, Skill Stores, learning/currency ledgers,
+or task/message data.
+
+NAS maintenance keys must be stored as restricted secret files or OS-managed
+credentials. Public docs, handoffs, chat messages, and commits may record only
+the secret path and permission boundary, never the raw key.
+
 ## Windows Production Worker Pool
 
 The production-like path requires:
