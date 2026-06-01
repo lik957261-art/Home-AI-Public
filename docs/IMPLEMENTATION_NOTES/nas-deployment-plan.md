@@ -480,6 +480,34 @@ preserve these rules:
   must not enter iframe URLs, postMessage payloads, screenshots, docs, handoffs,
   or logs.
 
+Fresh installs and migrated installs differ only in where plugin-side business
+data comes from. A clean public/NAS install may have empty Finance ledgers,
+Wardrobe items, or Email mailbox rows, but every enabled plugin still needs a
+workspace-local identity and server-side bind before it is usable. Owner's own
+first plugin enablement must run the same provisioning class as a non-Owner
+grant unless the deployment explicitly binds Owner to an existing plugin
+account. A Hermes authorization record alone is not enough to show an `active`
+plugin.
+
+For each workspace-private plugin, first-run provisioning must finish all
+plugin-relevant steps before `provisioningStatus=active`:
+
+1. Select the effective Hermes workspace and clamp it through workspace access.
+2. Create or discover the workspace-local plugin key/config under that
+   workspace's NAS data directory.
+3. Call the plugin's server-to-server bind/register contract so the plugin owns
+   its user, workspace, ledger, mailbox store, or equivalent business space.
+4. Install any required keyless Skill bundle into that workspace's independent
+   Skill Store.
+5. Register or refresh the MCP/toolset/profile binding if model calls need the
+   plugin tools.
+6. Smoke manifest, launch, same-origin proxy, workspace switching, and at least
+   one empty-state or seeded-content page for the same effective workspace.
+
+If a step fails, keep the grant as `pending` or `provisioning_failed` with a
+bounded diagnostic. Do not fall back to Owner's plugin key, Owner's plugin
+session, a global plugin key, or a misleading empty active tab.
+
 Recommended migration path:
 
 1. Migrate non-secret plugin authorization metadata.

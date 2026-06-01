@@ -51,6 +51,32 @@ NAS maintenance keys must be stored as restricted secret files or OS-managed
 credentials. Public docs, handoffs, chat messages, and commits may record only
 the secret path and permission boundary, never the raw key.
 
+## Plugin First-Run Provisioning
+
+A fresh public install starts with empty Hermes and plugin databases unless the
+operator intentionally imports data. Empty plugin data is valid; incomplete
+plugin provisioning is not.
+
+For every workspace-private plugin that is enabled for Owner or another
+workspace, verify:
+
+- Hermes creates or discovers a workspace-local plugin key/config for that
+  exact workspace.
+- The plugin backend creates or confirms its own user/workspace/ledger/mailbox
+  through a server-side bind/register endpoint.
+- Required keyless Skill bundles and MCP/toolset registrations are present
+  before model-callable plugin features are advertised.
+- Plugin list, manifest, launch, and same-origin proxy use the effective target
+  workspace, including the case where Owner switches into a non-Owner
+  workspace.
+- The plugin is marked `active` only after provisioning and launch smoke pass;
+  otherwise the admin UI shows `pending`, `manual_required`, or
+  `provisioning_failed`.
+
+Do not copy Owner plugin keys, plugin sessions, browser cookies, launch tokens,
+or plugin database rows into another workspace to make a fresh install look
+pre-populated.
+
 ## Windows Production Worker Pool
 
 The production-like path requires:

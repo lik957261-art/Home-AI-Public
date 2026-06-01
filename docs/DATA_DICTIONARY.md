@@ -83,6 +83,7 @@ Primary implementation: `adapters/learning-program-repository.js`.
 | `learning_evaluations` | evaluation | Evaluation summaries and verification state. |
 | `learning_task_submissions` | submission | Authorized task submissions, including bounded metadata and private task-detail projection. |
 | `learning_task_reflections` | reflection | Reflection evidence summaries and audio metadata. |
+| `learning_task_audio_blobs` | evidence | Canonical authenticated audio BLOB storage for Growth task submission/reflection recordings. |
 | `learning_task_artifacts` | artifacts | Task-related artifacts and metadata. |
 | `learning_parent_review_requests` | review | Generic evaluation/reward review requests. |
 | `learning_reward_settlements` | rewards | Idempotent reward settlement records. |
@@ -95,7 +96,7 @@ Primary implementation: `adapters/learning-program-repository.js`.
 
 - Do not store full child answers, full transcripts, full questions, answer keys, raw prompts, endpoints, local private paths, or secrets in planning/profile/source docs or handoffs.
 - Task-detail APIs may expose authorized learner submissions for the specific card view; do not copy that content into broad summaries or docs.
-- Audio routes should stream through authenticated APIs; docs should mention ids/routes only when needed.
+- Growth task audio routes should stream through authenticated APIs and prefer SQLite BLOB evidence over host-local artifact paths. Docs should mention ids/routes only when needed and must not include raw transcripts or audio content.
 
 ## Migration Rules
 

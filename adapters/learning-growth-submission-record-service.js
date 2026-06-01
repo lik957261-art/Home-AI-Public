@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const fs = require("node:fs");
 const path = require("node:path");
 const {
   compactLearningSummary,
@@ -18,6 +19,40 @@ function asArray(value) {
 
 function digestText(value) {
   return crypto.createHash("sha256").update(String(value || "")).digest("hex");
+}
+
+function readAudioStorageContent(audioStorage = {}) {
+  const dataBase64 = cleanString(audioStorage.dataBase64 || audioStorage.data_base64 || audioStorage.audioDataBase64, 20000000);
+  if (dataBase64) return Buffer.from(dataBase64, "base64");
+  const audioPath = cleanString(audioStorage.path || audioStorage.filePath || audioStorage.absolutePath, 2000);
+  if (audioPath) {
+    try {
+      return fs.readFileSync(audioPath);
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
+}
+
+function saveAudioBlob(repository, recordType, record = {}, audio = {}, audioStorage = {}) {
+  if (!repository || typeof repository.saveTaskAudioBlob !== "function") return null;
+  const content = readAudioStorageContent(audioStorage);
+  if (!content?.length) return null;
+  return repository.saveTaskAudioBlob({
+    recordType,
+    recordId: record.submissionId || record.reflectionId,
+    taskCardId: record.taskCardId,
+    sessionId: record.sessionId,
+    programId: record.programId,
+    learnerId: record.learnerId,
+    workspaceId: record.workspaceId,
+    name: cleanString(audio.name || audioStorage.name || audioStorage.filename, 240),
+    mime: cleanString(audio.mime || audioStorage.mime || audioStorage.type, 120),
+    size: Number(audio.size || audioStorage.size || content.length) || content.length,
+    digest: cleanString(audio.digest),
+    content,
+  });
 }
 
 function submissionStats(text) {
@@ -152,6 +187,9 @@ function createLearningGrowthSubmissionRecordService(options = {}) {
         } : null,
       },
     });
+    if (input.audio && input.audioStorage) {
+      saveAudioBlob(repository, "submission", record, input.audio, input.audioStorage);
+    }
     return { record, session };
   }
 
@@ -293,6 +331,9 @@ function createLearningGrowthSubmissionRecordService(options = {}) {
         } : null,
       },
     });
+    if (audio.digest && input.audioStorage) {
+      saveAudioBlob(repository, "reflection", record, audio, input.audioStorage);
+    }
     return { record, session };
   }
 

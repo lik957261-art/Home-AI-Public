@@ -1390,6 +1390,13 @@ Required contract dimensions:
   Generic/global plugin keys must not implicitly authorize every non-Owner
   workspace. Codex Mobile is `owner-critical` and not grantable through the
   plugin manager unless a separate restricted Codex product mode is designed.
+- Plugin first-run provisioning is H1 for Owner and non-Owner workspaces. A
+  fresh install with empty plugin data must still prove workspace-local
+  identity/key creation, plugin-side bind/register success, required Skill/MCP
+  setup, and manifest/launch smoke before projecting `active`. Empty plugin
+  business rows are acceptable after provisioning; missing provisioning must
+  show `pending`, `manual_required`, or `provisioning_failed` and must not reuse
+  Owner keys, Owner sessions, global keys, or stale cookies.
 - Plugin authorization/admin changes must cover the full contract: Owner-only
   admin API, non-Owner rejection, grant/revoke persistence, Codex grant denial,
   manifest/list visibility after grant, and side-navigation UI exposure only to

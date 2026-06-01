@@ -195,6 +195,22 @@ function testMigrationAndPersistence() {
   assert.equal(submission.submissionText, "[redacted]");
   assert.equal(submission.textChars, 320);
   assert.equal(submission.audio.url, "/api/learning/task-submissions/submission-1/audio");
+  const submissionAudioBlob = repository.saveTaskAudioBlob({
+    recordType: "submission",
+    recordId: submission.submissionId,
+    taskCardId: submission.taskCardId,
+    sessionId: submission.sessionId,
+    programId: submission.programId,
+    learnerId: submission.learnerId,
+    workspaceId: submission.workspaceId,
+    name: "attempt.webm",
+    mime: "audio/webm",
+    digest: "digest-submission-audio",
+    content: Buffer.from("submission audio bytes"),
+  });
+  assert.equal(submissionAudioBlob.recordType, "submission");
+  assert.equal(submissionAudioBlob.recordId, "submission-1");
+  assert.equal(submissionAudioBlob.content.toString("utf8"), "submission audio bytes");
 
   const reflection = repository.saveTaskReflection({
     reflectionId: "reflection-1",
@@ -218,6 +234,21 @@ function testMigrationAndPersistence() {
   assert.equal(reflection.reflectionId, "reflection-1");
   assert.equal(reflection.transcript, "[redacted]");
   assert.equal(reflection.audioDigest, "digest-audio");
+  const reflectionAudioBlob = repository.saveTaskAudioBlob({
+    recordType: "reflection",
+    recordId: reflection.reflectionId,
+    taskCardId: reflection.taskCardId,
+    sessionId: reflection.sessionId,
+    programId: reflection.programId,
+    learnerId: reflection.learnerId,
+    workspaceId: reflection.workspaceId,
+    name: "reflection.webm",
+    mime: "audio/webm",
+    digest: "digest-reflection-audio",
+    content: Buffer.from("reflection audio bytes"),
+  });
+  assert.equal(repository.getTaskAudioBlob("reflection", "reflection-1").content.toString("utf8"), "reflection audio bytes");
+  assert.equal(reflectionAudioBlob.workspaceId, "weixin_stephen");
 
   const artifact = repository.saveTaskArtifact({
     artifactId: "artifact-1",

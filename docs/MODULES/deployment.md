@@ -76,6 +76,13 @@ The first supported NAS direction is a split deployment, documented in
   Wardrobe binding used by the current Windows environment. Do not reprovision
   Owner as a new empty `wardrobe:owner` workspace during NAS setup; that hides
   existing Owner wardrobe data.
+- For a clean public/NAS install with no migrated plugin data, Owner must still
+  enable each workspace-private plugin through the same provisioning contract
+  used for non-Owner workspaces. Empty plugin business data is acceptable only
+  after the plugin has created or confirmed a workspace-local identity, key,
+  plugin-side user/space, required Skill/MCP registration, and a successful
+  manifest/launch smoke. Do not mark a plugin `active` just because the Hermes
+  authorization record exists.
 - The maintained Windows/local development launcher may point Wardrobe at a
   different local service from NAS. As of 2026-06-01, its
   `HERMES_MOBILE_WARDROBE_PLUGIN_MANIFEST_URL` was changed from the NAS

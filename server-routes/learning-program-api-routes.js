@@ -860,6 +860,26 @@ function firstReadableFile(paths = []) {
   return null;
 }
 
+function learningAudioBlob(service, recordType, recordId) {
+  const repository = service?.repository;
+  if (!repository || typeof repository.getTaskAudioBlob !== "function") return null;
+  return repository.getTaskAudioBlob(recordType, recordId);
+}
+
+function sendLearningAudioBlob(res, audio = {}, blob = {}) {
+  const content = Buffer.isBuffer(blob.content) ? blob.content : Buffer.from(blob.content || []);
+  if (!content.length) return false;
+  const fileName = path.basename(cleanString(audio.name || audio.fileName || audio.filename || blob.name) || "learning-audio");
+  res.writeHead(200, {
+    "Content-Type": cleanString(blob.mime) || audioMimeForPlayback(audio, fileName),
+    "Content-Length": content.length,
+    "Content-Disposition": `inline; filename="${safeHeaderValue(fileName)}"`,
+    "Cache-Control": "private, max-age=60",
+  });
+  res.end(content);
+  return true;
+}
+
 function sendRouteError(deps, res, err) {
   deps.sendJson(res, err.status || 500, { ok: false, error: err.message || String(err) });
 }
@@ -1432,6 +1452,8 @@ function createLearningProgramApiRoutes(deps = {}) {
       deps.sendJson(res, 404, { ok: false, error: "Learning task submission audio not found" });
       return;
     }
+    const blob = learningAudioBlob(service, "submission", submission.submissionId || submissionId);
+    if (blob && sendLearningAudioBlob(res, audio, blob)) return;
     const found = firstReadableFile(submissionAudioCandidates(submission, taskCard));
     if (!found) {
       deps.sendJson(res, 404, { ok: false, error: "Learning task submission audio file not found" });
@@ -1468,6 +1490,8 @@ function createLearningProgramApiRoutes(deps = {}) {
       deps.sendJson(res, 404, { ok: false, error: "Learning task reflection audio not found" });
       return;
     }
+    const blob = learningAudioBlob(service, "reflection", reflection.reflectionId || reflectionId);
+    if (blob && sendLearningAudioBlob(res, audio, blob)) return;
     const found = firstReadableFile(reflectionAudioCandidates(reflection, taskCard));
     if (!found) {
       deps.sendJson(res, 404, { ok: false, error: "Learning task reflection audio file not found" });

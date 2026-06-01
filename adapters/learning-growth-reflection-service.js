@@ -392,6 +392,13 @@ function createLearningGrowthReflectionService(options = {}) {
       });
     }
     const publicAudio = audio ? publicAudioEvidence(audio, input) : null;
+    const audioStorage = audio ? {
+      path: cleanString(audio.path || "", 2000),
+      dataBase64,
+      filename: input.filename || audio.name || "growth-reflection-audio.webm",
+      type: input.type || input.mime || input.mimeType || audio.mime || "audio/webm",
+      size: Number(audio.size || input.size || 0) || 0,
+    } : null;
     const reflection = publicReflection({
       status: assessed.accepted ? "accepted" : "rejected",
       mode: "spoken",
@@ -409,6 +416,7 @@ function createLearningGrowthReflectionService(options = {}) {
       ok: true,
       accepted: assessed.accepted,
       reflection,
+      audioStorage,
     };
   }
 

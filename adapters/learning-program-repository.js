@@ -17,7 +17,7 @@ const {
   withTeachingFlow,
 } = require("./learning-growth-teaching-card-contract-service");
 
-const CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION = 11;
+const CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION = 12;
 
 function nowIso() {
   return new Date().toISOString();
@@ -571,6 +571,27 @@ function publicTaskReflectionFromRow(row) {
   });
 }
 
+function publicTaskAudioBlobFromRow(row) {
+  if (!row) return null;
+  return {
+    audioBlobId: row.id,
+    recordType: row.record_type,
+    recordId: row.record_id,
+    taskCardId: row.task_card_id,
+    sessionId: row.session_id,
+    programId: row.program_id,
+    learnerId: row.learner_id,
+    workspaceId: row.workspace_id,
+    name: row.name || "",
+    mime: row.mime || "",
+    size: Number(row.size || 0) || 0,
+    digest: row.digest || "",
+    content: row.content_blob ? Buffer.from(row.content_blob) : null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function publicTaskArtifactFromRow(row) {
   if (!row) return null;
   return Object.assign(parseJson(row.raw_json, {}) || {}, {
@@ -1052,6 +1073,24 @@ function createLearningProgramRepository(options = {}) {
         FOREIGN KEY(program_id) REFERENCES learning_programs(id) ON DELETE CASCADE
       );
 
+      CREATE TABLE IF NOT EXISTS learning_task_audio_blobs (
+        id TEXT PRIMARY KEY,
+        record_type TEXT NOT NULL,
+        record_id TEXT NOT NULL,
+        task_card_id TEXT NOT NULL,
+        session_id TEXT NOT NULL DEFAULT '',
+        program_id TEXT NOT NULL,
+        learner_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        name TEXT NOT NULL DEFAULT '',
+        mime TEXT NOT NULL DEFAULT '',
+        size INTEGER NOT NULL DEFAULT 0,
+        digest TEXT NOT NULL DEFAULT '',
+        content_blob BLOB NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS learning_parent_review_requests (
         id TEXT PRIMARY KEY,
         learner_id TEXT NOT NULL,
@@ -1214,6 +1253,8 @@ function createLearningProgramRepository(options = {}) {
       CREATE INDEX IF NOT EXISTS idx_learning_task_reflections_learner ON learning_task_reflections(learner_id, status, submitted_at);
       CREATE INDEX IF NOT EXISTS idx_learning_task_artifacts_task ON learning_task_artifacts(task_card_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_learning_task_artifacts_learner ON learning_task_artifacts(learner_id, artifact_type, created_at);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_task_audio_blobs_record ON learning_task_audio_blobs(record_type, record_id);
+      CREATE INDEX IF NOT EXISTS idx_learning_task_audio_blobs_task ON learning_task_audio_blobs(task_card_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_learning_parent_review_requests_learner ON learning_parent_review_requests(learner_id, status, updated_at);
       CREATE INDEX IF NOT EXISTS idx_learning_parent_review_requests_resource ON learning_parent_review_requests(resource_type, resource_id, updated_at);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_learning_parent_review_requests_idempotency ON learning_parent_review_requests(idempotency_key) WHERE idempotency_key <> '';
@@ -2775,6 +2816,67 @@ function createLearningProgramRepository(options = {}) {
     return open().prepare(sql).all(...values, limit).map(publicTaskArtifactFromRow);
   }
 
+  function saveTaskAudioBlob(input = {}) {
+    migrate();
+    const content = Buffer.isBuffer(input.content) ? input.content : Buffer.from(input.content || []);
+    if (!content.length) return null;
+    const recordType = cleanString(input.recordType);
+    const recordId = cleanString(input.recordId);
+    if (!recordType || !recordId) return null;
+    const now = nowIso();
+    const current = getTaskAudioBlob(recordType, recordId);
+    const createdAt = current?.createdAt || input.createdAt || now;
+    const updatedAt = input.updatedAt || now;
+    const digest = cleanString(input.digest)
+      || crypto.createHash("sha256").update(content).digest("hex").slice(0, 24);
+    const audioBlobId = cleanString(input.audioBlobId || input.id)
+      || stableId("laudio", [recordType, recordId, digest]);
+    open().prepare(`
+      INSERT INTO learning_task_audio_blobs(
+        id, record_type, record_id, task_card_id, session_id, program_id,
+        learner_id, workspace_id, name, mime, size, digest, content_blob,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(record_type, record_id) DO UPDATE SET
+        id=excluded.id,
+        task_card_id=excluded.task_card_id,
+        session_id=excluded.session_id,
+        program_id=excluded.program_id,
+        learner_id=excluded.learner_id,
+        workspace_id=excluded.workspace_id,
+        name=excluded.name,
+        mime=excluded.mime,
+        size=excluded.size,
+        digest=excluded.digest,
+        content_blob=excluded.content_blob,
+        updated_at=excluded.updated_at
+    `).run(
+      audioBlobId,
+      recordType,
+      recordId,
+      cleanString(input.taskCardId),
+      cleanString(input.sessionId),
+      cleanString(input.programId),
+      cleanString(input.learnerId),
+      cleanString(input.workspaceId),
+      cleanString(input.name),
+      cleanString(input.mime),
+      Number(input.size || content.length) || content.length,
+      digest,
+      content,
+      createdAt,
+      updatedAt,
+    );
+    return getTaskAudioBlob(recordType, recordId);
+  }
+
+  function getTaskAudioBlob(recordType, recordId) {
+    migrate();
+    return publicTaskAudioBlobFromRow(open().prepare(
+      "SELECT * FROM learning_task_audio_blobs WHERE record_type = ? AND record_id = ?",
+    ).get(cleanString(recordType), cleanString(recordId)));
+  }
+
   function saveReviewRequest(request) {
     migrate();
     const now = nowIso();
@@ -3242,6 +3344,7 @@ function createLearningProgramRepository(options = {}) {
       growthCardTrajectories: count("learning_growth_card_trajectories"),
       taskReflections: count("learning_task_reflections"),
       taskArtifacts: count("learning_task_artifacts"),
+      taskAudioBlobs: count("learning_task_audio_blobs"),
       reviewRequests: count("learning_parent_review_requests"),
       rewardSettlements: count("learning_reward_settlements"),
       taskSeriesRecommendations: count("learning_task_series_recommendations"),
@@ -3319,8 +3422,9 @@ function createLearningProgramRepository(options = {}) {
     getRewardSettlement,
     getSource,
     getStageAssessmentCycle,
-    getTaskArtifact,
-    getTaskCard,
+      getTaskArtifact,
+      getTaskAudioBlob,
+      getTaskCard,
     getTaskReflection,
     getTaskSubmission,
     integritySummary,
@@ -3360,8 +3464,9 @@ function createLearningProgramRepository(options = {}) {
     saveReviewItem,
     saveReviewRequest,
     saveRewardSettlement,
-    saveTaskArtifact,
-    saveTaskReflection,
+      saveTaskArtifact,
+      saveTaskAudioBlob,
+      saveTaskReflection,
     saveTaskSubmission,
     saveTaskSeriesRecommendation,
     summarizeExperienceSignals,

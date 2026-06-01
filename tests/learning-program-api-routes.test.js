@@ -27,6 +27,7 @@ function sendJson(res, status, data) {
 }
 
 function parseBody(res) {
+  if (!/^application\/json/i.test(String(res.headers?.["Content-Type"] || ""))) return {};
   return JSON.parse(res.body || "{}");
 }
 
@@ -827,6 +828,48 @@ async function testTaskSubmissionAudioRouteIsScopedAndBounded() {
   assert.deepEqual(calls.slice(-2).map((call) => call[0]), ["getTaskSubmission", "getTaskCard"]);
 }
 
+async function testTaskSubmissionAudioRouteStreamsSqliteBlobBeforeFileLookup() {
+  const { routes } = makeRoutes({
+    service: {
+      repository: {
+        getTaskAudioBlob(recordType, recordId) {
+          assert.equal(recordType, "submission");
+          assert.equal(recordId, "lsub-1");
+          return {
+            name: "attempt.webm",
+            mime: "audio/webm",
+            content: Buffer.from("sqlite audio bytes"),
+          };
+        },
+      },
+      getTaskSubmission(submissionId) {
+        return {
+          submissionId,
+          taskCardId: "task-1",
+          workspaceId: "weixin_stephen",
+          learnerId: "weixin_stephen",
+          audio: { kind: "audio", name: "attempt.webm", mime: "audio/webm", size: 18 },
+        };
+      },
+      getTaskCard(taskCardId) {
+        return {
+          taskCardId,
+          workspaceId: "weixin_stephen",
+          learnerId: "weixin_stephen",
+          status: "published",
+          artifactDirectoryPath: "C:\\missing-learning-audio-dir",
+        };
+      },
+    },
+  });
+  const response = await request(routes, "GET", "/api/learning/task-submissions/lsub-1/audio", {
+    auth: { ok: true, workspaceId: "weixin_stephen", principalId: "child", isOwner: false },
+  });
+  assert.equal(response.res.statusCode, 200);
+  assert.equal(response.res.headers["Content-Type"], "audio/webm");
+  assert.equal(response.res.body.toString("utf8"), "sqlite audio bytes");
+}
+
 async function testExecutorCannotEvaluateOtherLearnerSession() {
   const { routes, calls } = makeRoutes({
     service: {
@@ -857,6 +900,7 @@ async function testExecutorCannotEvaluateOtherLearnerSession() {
   await testExecutorTaskReadUsesSummaryProjectionOnly();
   await testExecutorCannotReadUnpublishedTaskDetail();
   await testTaskSubmissionAudioRouteIsScopedAndBounded();
+  await testTaskSubmissionAudioRouteStreamsSqliteBlobBeforeFileLookup();
   await testExecutorCannotStartUnpublishedTask();
   await testNativeGrowthSubmissionDoesNotRequireKanbanLink();
   await testNativeGrowthSubmissionUsesUploadSizedBodyLimit();

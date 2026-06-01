@@ -1278,6 +1278,13 @@ function createLearningGrowthSubmissionService(options = {}) {
       ok: true,
       text: transcript,
       audio: publicSubmissionAudioEvidence(audio, input),
+      audioStorage: {
+        path: cleanString(audio?.path),
+        dataBase64,
+        filename: input.filename || audio?.name || "growth-speaking-audio.webm",
+        type: input.type || input.mime || input.mimeType || audio?.mime || "audio/webm",
+        size: Number(audio?.size || input.size || 0) || 0,
+      },
     };
   }
 
@@ -1300,6 +1307,7 @@ function createLearningGrowthSubmissionService(options = {}) {
     if (!resolvedSubmission.ok) return resolvedSubmission;
     const text = cleanString(resolvedSubmission.text);
     const submissionAudio = resolvedSubmission.audio || null;
+    const submissionAudioStorage = resolvedSubmission.audioStorage || null;
     if (!text) return createError(400, needsAudio ? "Growth speaking retell audio transcript is required" : "Learning task submission text is required");
     if (text.length > maxSubmissionChars) return createError(413, `Learning task submission is too long; keep it under ${maxSubmissionChars} characters`);
     const guard = resolveSubmissionGuard(taskModel, stage);
@@ -1352,6 +1360,7 @@ function createLearningGrowthSubmissionService(options = {}) {
             ? `${activityLabel(taskModel.activityType)} audio submission received and transcribed.`
             : `${activityLabel(taskModel.activityType)} task submission received.`,
           audio: submissionAudio,
+          audioStorage: submissionAudioStorage,
         });
         if (submissionAudio && nativeSubmission?.record?.audio?.url) submissionAudio.url = nativeSubmission.record.audio.url;
       } catch (err) {
@@ -1859,6 +1868,7 @@ function createLearningGrowthSubmissionService(options = {}) {
           task: nativeTask,
           evaluationId: cleanString(evaluation.evaluationId),
           reflection,
+          audioStorage: reflectionResult.audioStorage || null,
           author: input.author,
         });
       } catch (err) {

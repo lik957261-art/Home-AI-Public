@@ -1448,6 +1448,9 @@ async function testNativeSpeakingSubmissionUsesAudioTranscription() {
     assert.equal(nativeSubmission.raw.audio.digest, result.submissionAudio.digest);
     assert.equal(nativeSubmission.raw.audio.url, result.submissionAudio.url);
     assert.doesNotMatch(JSON.stringify(nativeSubmission.raw), /First I introduce/);
+    const nativeAudioBlob = repository.getTaskAudioBlob("submission", nativeSubmission.submissionId);
+    assert.equal(nativeAudioBlob.mime, "audio/webm");
+    assert.equal(nativeAudioBlob.content.toString("utf8"), "fake-audio");
   } finally {
     repository.close();
     fs.rmSync(root, { recursive: true, force: true });

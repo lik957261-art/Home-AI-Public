@@ -349,6 +349,33 @@ workspace. That grant is a Hermes authorization record only; plugin-side user
 creation or workspace binding must still happen through the plugin's launch or
 provisioning contract and must not expose long-lived keys to the browser.
 
+Plugin enablement is a host-side provisioning workflow, not a display toggle.
+This applies to Owner's first use as well as grants to non-Owner workspaces.
+On a fresh public install with an empty database, it is normal for a plugin's
+business data to be empty, but it is not acceptable for Hermes to show the
+plugin as fully usable before these workspace-local prerequisites exist:
+
+- a target Hermes workspace identity selected and clamped through workspace
+  access policy;
+- a server-side plugin workspace key or plugin-owned equivalent created for
+  that exact workspace, never copied from Owner unless the target workspace is
+  Owner and the plugin intentionally binds to an existing Owner account;
+- plugin-side user/space/ledger/mailbox/workspace registration confirmed by the
+  plugin's server-to-server bind/register contract;
+- required Skill Store bundle and MCP/profile registration completed when the
+  plugin exposes model-callable tools;
+- manifest/launch smoke for that same effective workspace, including Owner
+  switching into a non-Owner workspace.
+
+Only after those checks pass may Hermes store or project
+`provisioningStatus=active`. If any automatic step fails, the grant remains
+diagnosable as `pending` or `provisioning_failed` and list/manifest/launch must
+be blocked for that workspace. If a plugin cannot be automatically provisioned
+by Hermes, it should use `manual_required` until an external Owner-controlled
+binding or plugin-side setup has been verified. Empty plugin content after a
+successful first-run provisioning is valid; missing identity, missing key,
+missing bind, missing Skill/MCP registration, or Owner-session reuse is not.
+
 For Finance, a plugin-manager grant is also a provisioning workflow. When Owner
 grants `finance` to a non-Owner workspace, Hermes Mobile must create a
 workspace-local server-side key at

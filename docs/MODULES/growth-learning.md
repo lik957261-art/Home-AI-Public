@@ -60,6 +60,7 @@ Important tables include:
 
 - `learning_task_cards`
 - `learning_task_submissions`
+- `learning_task_audio_blobs`
 - `learning_growth_evaluation_jobs`
 - `learning_evaluations`
 - `learning_task_reflections`
@@ -106,6 +107,7 @@ Planned graph-guided card planning tables:
 - Growth model calls may use either SSE or ordinary JSON responses from Gateway. New learning-plan decomposition and JIT card authoring should prefer streaming responses so `hermesModelText` receives incremental text deltas consistently; non-stream JSON responses must still be surfaced to avoid empty-output invalid JSON failures.
 - For `teaching`, `practice`, and `integration_practice` cards, production JIT generation must return an explicit model-authored `teachingFlow` with micro-lesson, worked example, guided practice, and quick check sections. If `requireModel=true` and the model output omits that structure, publishing fails closed instead of silently using a local split of the old instruction text. Deterministic teaching-flow fallback is only a compatibility/normalization aid for older stored cards, not the production authoring path for new cards.
 - Native Growth audio/text submissions are accepted before model evaluation and persisted as `learning_growth_evaluation_jobs`. The listener must keep a lightweight retry dispatcher alive: pending/retry jobs should survive restarts, failed model calls should retry after `availableAt`, and stale processing leases should become recoverable without requiring the learner to resubmit.
+- Growth card submission/reflection audio is canonical learning evidence and must be persisted in `learning_task_audio_blobs` as authenticated SQLite BLOB data. File paths may still exist as transient upload/transcription/cache material, but playback routes must prefer the SQLite BLOB and only fall back to the file path for older records. NAS or cross-host migration must preserve the learning SQLite database; it must not rely on Windows-local audio artifact paths for card playback.
 - Future non-trivial card workflow changes must follow `docs\IMPLEMENTATION_NOTES\growth-learning-workflow-contract-harness.md`: state transitions, async jobs, reconciler behavior, UI projection, reward settlement, and privacy assertions need harness scenarios before implementation is considered done.
 - Historical mastery profile repair should use `scripts\backfill-learning-growth-mastery-profile.js`; it reads historical evaluation metadata and writes idempotent summary-only mastery states.
 
