@@ -433,8 +433,8 @@ async function testCodexProxyRewritesHtmlAndUsesUpstream() {
   );
   assert.equal(result.handled, true);
   assert.equal(res.statusCode, 200);
-  assert.match(res.body, /href="\/api\/hermes-plugins\/codex-mobile\/proxy\/styles\.css"/);
-  assert.match(res.body, /src="\/api\/hermes-plugins\/codex-mobile\/proxy\/app\.js"/);
+  assert.match(res.body, /href="\/api\/hermes-plugins\/codex-mobile\/proxy\/styles\.css\?workspaceId=owner"/);
+  assert.match(res.body, /src="\/api\/hermes-plugins\/codex-mobile\/proxy\/app\.js\?workspaceId=owner"/);
   assert.equal(fetchCalls[0].options.headers["x-hermes-plugin-workspace-id"], "owner");
 }
 
@@ -506,8 +506,8 @@ async function testFinanceProxyUsesConfiguredLocalUpstreamAndForwardsOrigin() {
   );
   assert.equal(result.handled, true);
   assert.equal(res.statusCode, 200);
-  assert.match(res.body, /href="\/api\/hermes-plugins\/finance\/proxy\/manifest\.webmanifest"/);
-  assert.match(res.body, /src="\/api\/hermes-plugins\/finance\/proxy\/app-finance-ui\.js"/);
+  assert.match(res.body, /href="\/api\/hermes-plugins\/finance\/proxy\/manifest\.webmanifest\?workspaceId=owner"/);
+  assert.match(res.body, /src="\/api\/hermes-plugins\/finance\/proxy\/app-finance-ui\.js\?workspaceId=owner"/);
   assert.deepEqual(calls.access, ["owner"]);
   assert.deepEqual(calls.list, [{ workspaceId: "owner", ownerAuthorized: true }]);
   assert.equal(fetchCalls[0].options.headers["x-hermes-plugin-workspace-id"], "owner");
@@ -593,7 +593,7 @@ async function testFinanceProxyRewritesFinanceApiJsonUrls() {
   );
   assert.equal(result.handled, true);
   assert.equal(res.statusCode, 200);
-  assert.match(res.body, /"receiptUrl":"\/api\/hermes-plugins\/finance\/proxy\/api\/finance\/receipts\/1\/image"/);
+  assert.match(res.body, /"receiptUrl":"\/api\/hermes-plugins\/finance\/proxy\/api\/finance\/receipts\/1\/image\?workspaceId=owner"/);
   assert.match(res.body, /"note":"Do not rewrite prose mentioning \/api\/not-a-resource\."/);
 }
 
@@ -639,6 +639,78 @@ async function testFinanceProxyForwardsOnlyCurrentWorkspaceSessionCookie() {
   assert.equal(result.handled, true);
   assert.equal(res.statusCode, 200);
   assert.equal(fetchCalls.length, 1);
+}
+
+async function testFinanceProxyRewritesBrowserApiCallsWithWorkspaceId() {
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "finance" });
+      },
+      pluginManifestUrl(id) {
+        return id === "finance" ? "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:8791/app-finance-ui.js?workspaceId=weixin_wuping");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "weixin_wuping");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/javascript; charset=utf-8" : "" },
+        text: () => Promise.resolve("fetch('/api/finance/overview'); fetch(`/api/finance/transactions?limit=5`);"),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/finance/proxy/app-finance-ui.js?workspaceId=weixin_wuping"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body, /fetch\('\/api\/hermes-plugins\/finance\/proxy\/api\/finance\/overview\?workspaceId=weixin_wuping'\)/);
+  assert.match(res.body, /fetch\(`\/api\/hermes-plugins\/finance\/proxy\/api\/finance\/transactions\?limit=5&workspaceId=weixin_wuping`\)/);
+}
+
+async function testFinanceProxyRejectsAmbiguousWorkspaceCookiesWithoutWorkspaceHint() {
+  const fetchCalls = [];
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "finance" });
+      },
+      pluginManifestUrl(id) {
+        return id === "finance" ? "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch() {
+      fetchCalls.push(true);
+      throw new Error("ambiguous workspace cookies must not reach upstream");
+    },
+  });
+  const req = makeRequest("GET");
+  req.headers.cookie = [
+    `${testProxyCookieName("finance", "owner", "finance_hermes_session")}=owner-finance-session`,
+    `${testProxyCookieName("finance", "weixin_wuping", "finance_hermes_session")}=wuping-finance-session`,
+  ].join("; ");
+  const res = makeResponse();
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/finance/proxy/api/finance/overview"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 400);
+  assert.equal(parseBody(res).error, "plugin_proxy_workspace_ambiguous");
+  assert.equal(fetchCalls.length, 0);
 }
 
 async function testWardrobeProxyRewritesSessionCookieScope() {
@@ -829,9 +901,51 @@ async function testWardrobeProxyUsesConfiguredLanUpstream() {
   );
   assert.equal(result.handled, true);
   assert.equal(res.statusCode, 200);
-  assert.match(res.body, /href="\/api\/hermes-plugins\/wardrobe\/proxy\/styles\.css"/);
-  assert.match(res.body, /src="\/api\/hermes-plugins\/wardrobe\/proxy\/app\.js"/);
+  assert.match(res.body, /href="\/api\/hermes-plugins\/wardrobe\/proxy\/styles\.css\?workspaceId=owner"/);
+  assert.match(res.body, /src="\/api\/hermes-plugins\/wardrobe\/proxy\/app\.js\?workspaceId=owner"/);
   assert.equal(fetchCalls[0].options.headers["x-hermes-plugin-workspace-id"], "owner");
+}
+
+async function testWardrobeProxyPreservesTemplateLiteralApiUrls() {
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
+      },
+      pluginManifestUrl(id) {
+        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch(url) {
+      assert.equal(url, "http://192.168.10.99:8765/app.js?workspaceId=owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/javascript; charset=utf-8" : "" },
+        text: () => Promise.resolve([
+          'return fetch(`/api/auth/status?_ts=${Date.now()}_${attempt}`, { cache: "no-store" });',
+          'await fetch(`/api/threads${params}`);',
+          'await fetch(`/api/client-events?key=${encodeURIComponent(state.key)}`);',
+        ].join("\n")),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/wardrobe/proxy/app.js?workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body, /`\/api\/hermes-plugins\/wardrobe\/proxy\/api\/auth\/status\?_ts=\$\{Date\.now\(\)\}_\$\{attempt\}`/);
+  assert.match(res.body, /`\/api\/hermes-plugins\/wardrobe\/proxy\/api\/threads\$\{params\}`/);
+  assert.match(res.body, /`\/api\/hermes-plugins\/wardrobe\/proxy\/api\/client-events\?key=\$\{encodeURIComponent\(state\.key\)\}`/);
+  assert.equal(res.body.includes("workspaceId=owner"), false);
+  assert.equal(res.body.includes("Date.now(&workspaceId"), false);
 }
 
 async function testWardrobeProxyNormalizesUnsafeOriginForUpload() {
@@ -922,9 +1036,9 @@ async function testPluginProxyRewritesJsonImageUrls() {
   );
   assert.equal(result.handled, true);
   assert.equal(res.statusCode, 200);
-  assert.match(res.body, /"imageUrl":"\/api\/hermes-plugins\/wardrobe\/proxy\/uploads\/item-1\.jpg"/);
-  assert.match(res.body, /"thumb":"\/api\/hermes-plugins\/wardrobe\/proxy\/media\/thumb-1\.webp"/);
-  assert.match(res.body, /"icon":"\/api\/hermes-plugins\/wardrobe\/proxy\/static\/icon\.png"/);
+  assert.match(res.body, /"imageUrl":"\/api\/hermes-plugins\/wardrobe\/proxy\/uploads\/item-1\.jpg\?workspaceId=owner"/);
+  assert.match(res.body, /"thumb":"\/api\/hermes-plugins\/wardrobe\/proxy\/media\/thumb-1\.webp\?workspaceId=owner"/);
+  assert.match(res.body, /"icon":"\/api\/hermes-plugins\/wardrobe\/proxy\/static\/icon\.png\?workspaceId=owner"/);
   assert.equal(res.body.includes("192.168.10.99"), false);
 }
 
@@ -977,18 +1091,18 @@ async function testPluginProxyDoesNotCorruptJsonProse() {
   assert.equal(res.statusCode, 200);
   const body = parseBody(res);
   assert.equal(body.text, "Do not rewrite prose like CSS url(/uploads/example.jpg) inside a thread message.");
-  assert.equal(body.imageUrl, "/api/hermes-plugins/codex-mobile/proxy/uploads/item-1.jpg");
-  assert.equal(body.uploadUrl, "/api/hermes-plugins/codex-mobile/proxy/api/uploads/file?path=input.jpg");
-  assert.equal(body.generatedImageUrl, "/api/hermes-plugins/codex-mobile/proxy/api/generated-images/file?id=image-1");
-  assert.equal(body.previewContentUrl, "/api/hermes-plugins/codex-mobile/proxy/api/files/preview/content?threadId=thread-1&path=out.png");
-  assert.equal(body.wardrobePhotoUrl, "/api/hermes-plugins/codex-mobile/proxy/api/photos/12/content?thumb=1");
-  assert.equal(body.wardrobeItemThumbnailUrl, "/api/hermes-plugins/codex-mobile/proxy/api/v1/items/LP-1/photos/primary/thumbnail");
-  assert.equal(body.wardrobeOutfitPhotoUrl, "/api/hermes-plugins/codex-mobile/proxy/api/outfit-photos/44/content");
-  assert.equal(body.wardrobeFeaturedPhotoUrl, "/api/hermes-plugins/codex-mobile/proxy/api/featured-look-photos/45/content");
+  assert.equal(body.imageUrl, "/api/hermes-plugins/codex-mobile/proxy/uploads/item-1.jpg?workspaceId=owner");
+  assert.equal(body.uploadUrl, "/api/hermes-plugins/codex-mobile/proxy/api/uploads/file?path=input.jpg&workspaceId=owner");
+  assert.equal(body.generatedImageUrl, "/api/hermes-plugins/codex-mobile/proxy/api/generated-images/file?id=image-1&workspaceId=owner");
+  assert.equal(body.previewContentUrl, "/api/hermes-plugins/codex-mobile/proxy/api/files/preview/content?threadId=thread-1&path=out.png&workspaceId=owner");
+  assert.equal(body.wardrobePhotoUrl, "/api/hermes-plugins/codex-mobile/proxy/api/photos/12/content?thumb=1&workspaceId=owner");
+  assert.equal(body.wardrobeItemThumbnailUrl, "/api/hermes-plugins/codex-mobile/proxy/api/v1/items/LP-1/photos/primary/thumbnail?workspaceId=owner");
+  assert.equal(body.wardrobeOutfitPhotoUrl, "/api/hermes-plugins/codex-mobile/proxy/api/outfit-photos/44/content?workspaceId=owner");
+  assert.equal(body.wardrobeFeaturedPhotoUrl, "/api/hermes-plugins/codex-mobile/proxy/api/featured-look-photos/45/content?workspaceId=owner");
   assert.equal(body.apiText, "/api/threads/thread-1");
   assert.equal(body.apiOriginText, "http://127.0.0.1:8787/api/threads/thread-1");
-  assert.equal(body.nested.thumb, "/api/hermes-plugins/codex-mobile/proxy/media/thumb-1.webp");
-  assert.equal(body.nested.upload, "/api/hermes-plugins/codex-mobile/proxy/api/uploads/file?path=input.jpg");
+  assert.equal(body.nested.thumb, "/api/hermes-plugins/codex-mobile/proxy/media/thumb-1.webp?workspaceId=owner");
+  assert.equal(body.nested.upload, "/api/hermes-plugins/codex-mobile/proxy/api/uploads/file?path=input.jpg&workspaceId=owner");
 }
 
 async function testPluginProxyForwardsBinaryImages() {
@@ -1084,10 +1198,13 @@ async function run() {
   await testFinanceProxyNamespacesSessionCookieAndRedirectForWorkspace();
   await testFinanceProxyRewritesFinanceApiJsonUrls();
   await testFinanceProxyForwardsOnlyCurrentWorkspaceSessionCookie();
+  await testFinanceProxyRewritesBrowserApiCallsWithWorkspaceId();
+  await testFinanceProxyRejectsAmbiguousWorkspaceCookiesWithoutWorkspaceHint();
   await testWardrobeProxyRewritesSessionCookieScope();
   await testPluginLaunchProxyDoesNotForwardExistingSessionCookiesAndClearsStaleCookies();
   await testWardrobeProxyForwardsOnlyCurrentWorkspaceSessionCookie();
   await testWardrobeProxyUsesConfiguredLanUpstream();
+  await testWardrobeProxyPreservesTemplateLiteralApiUrls();
   await testWardrobeProxyNormalizesUnsafeOriginForUpload();
   await testPluginProxyRewritesJsonImageUrls();
   await testPluginProxyDoesNotCorruptJsonProse();

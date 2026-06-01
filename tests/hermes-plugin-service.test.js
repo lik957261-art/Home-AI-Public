@@ -661,7 +661,7 @@ async function testLaunchEntryUsesServerSideWorkspaceKey() {
           })),
         });
       }
-      if (url === "https://wardrobe.example.test/?embed=hermes") {
+      if (String(url).startsWith("https://wardrobe.example.test/?embed=hermes")) {
         return Promise.resolve({
           ok: true,
           status: 200,
@@ -975,6 +975,53 @@ async function testHttpsHermesUsesSameOriginProxyForLanWardrobeEntryAfterLaunch(
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|test-key/i);
 }
 
+async function testSameOriginProxySkipsUpstreamFrameAncestorsBlock() {
+  const service = createHermesPluginService({
+    plugins: [{ id: "wardrobe", manifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" }],
+    wardrobeAccessKeyPath: __filename,
+    fetch(url) {
+      if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(Object.assign(sampleManifest(), {
+            entry: { type: "web", url: "http://127.0.0.1:8765/?embed=hermes" },
+            program_api: Object.assign(sampleManifest().program_api, {
+              base_url: "http://127.0.0.1:8765",
+              plugin_launch: "/api/v1/hermes/plugin/launch",
+            }),
+          })),
+        });
+      }
+      if (url === "http://127.0.0.1:8765/api/v1/hermes/plugin/launch") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            entry_path: "/?embed=hermes&launch=wpl_once",
+            expires_in: 90,
+          }),
+        });
+      }
+      if (url === "http://127.0.0.1:8765/?embed=hermes") {
+        throw new Error("same-origin proxy entries must not be frame-probed against upstream CSP");
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+  const manifest = await service.manifest({
+    id: "wardrobe",
+    workspaceId: "owner",
+    appOrigin: "http://127.0.0.1:8797",
+    launchPlugin: true,
+  });
+  assert.equal(manifest.available, true);
+  assert.equal(manifest.code, undefined);
+  assert.equal(manifest.entry.url, "/api/hermes-plugins/wardrobe/proxy/?embed=hermes&launch=wpl_once&workspaceId=owner");
+  assert.equal(manifest.embed.sameOriginProxy, true);
+  assert.equal(manifest.embed.tokenStatus, "launch_token_issued");
+}
+
 async function testHttpsHermesProxyEntryIncludesEffectiveWorkspaceForWardrobeLaunch() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-wardrobe-proxy-workspace-"));
   const configPath = path.join(dir, "drive", "users", "weixin_test_1", ".hermes-wardrobe", "config.json");
@@ -1120,6 +1167,7 @@ async function run() {
   await testFinanceLaunchEntryUsesSeparateWorkspaceUserKeyWhenProvided();
   await testHttpsHermesUsesSameOriginProxyForLocalCodexEntryAfterLaunch();
   await testHttpsHermesUsesSameOriginProxyForLanWardrobeEntryAfterLaunch();
+  await testSameOriginProxySkipsUpstreamFrameAncestorsBlock();
   await testHttpsHermesProxyEntryIncludesEffectiveWorkspaceForWardrobeLaunch();
   testPluginSameOriginProxyPathForUrl();
   testFindWardrobeAccessKeyPath();

@@ -21,6 +21,12 @@ The first supported NAS direction is a split deployment, documented in
 - NAS talks to one reachable Gateway API server or to a fixed remote worker
   manifest. NAS should not be expected to start/stop Windows/WSL workers unless
   a remote worker-manager contract has been implemented and tested.
+- For ordinary user-level chat, a disabled Gateway Pool plus
+  `HERMES_WEB_HERMES_API_BASE` health is not enough under the current
+  fail-closed contract. NAS must expose at least one healthy `securityLevel:
+  user` worker through a fixed manifest, such as the verified 2026-06-01
+  `nas-local-codex` manifest pointing at `127.0.0.1:8642`, or use a validated
+  remote worker manifest.
 - NAS-side Codex CLI login is useful for the NAS deployment thread, but it is
   not the Hermes Mobile runtime Gateway/Codex backend. Do not treat it as a
   shared user-facing model worker unless a separate remote worker/Mux contract
@@ -33,6 +39,29 @@ The first supported NAS direction is a split deployment, documented in
 - NAS maintenance credentials must live in restricted secret files or an OS
   credential store. Do not paste NAS keys, SSH private keys, cookies, or tokens
   into chats, docs, handoffs, commits, or logs.
+- On NAS `192.168.10.99`, the current public Hermes entry is
+  `https://wardrobe-xuxin.synology.me:8555`: router external `8555` reaches NAS
+  `443`, DSM nginx terminates HTTPS, then proxies to Hermes Mobile
+  `127.0.0.1:8797`. The hostname is historical; it is currently the Hermes
+  Mobile entry, not a direct Wardrobe entry.
+- On that NAS, Finance is deployed as Docker/Container Manager container
+  `finance-mcp`, bound to loopback `127.0.0.1:8791` only. Wardrobe remains the
+  existing NAS Wardrobe service on port `8765`. Both must be reached by users
+  through Hermes same-origin plugin proxy routes, not by exposing backend ports
+  publicly.
+- The NAS Owner Wardrobe binding is intentionally aligned to the existing XuXin
+  Wardrobe binding used by the current Windows environment. Do not reprovision
+  Owner as a new empty `wardrobe:owner` workspace during NAS setup; that hides
+  existing Owner wardrobe data.
+- The maintained Windows/local development launcher may point Wardrobe at a
+  different local service from NAS. As of 2026-06-01, its
+  `HERMES_MOBILE_WARDROBE_PLUGIN_MANIFEST_URL` was changed from the NAS
+  `192.168.10.99:8765` service to the local loopback
+  `127.0.0.1:8765` service. Keep NAS and Windows launcher settings explicit
+  instead of relying on one shared default. Do not use the Windows host's LAN IP
+  as the server-side plugin upstream unless same-host LAN self-connect has been
+  verified; the Hermes listener proxy can use loopback for local plugins while
+  phones still reach the plugin through Hermes.
 
 Do not present full NAS-native Gateway Pool as ready. It requires new Linux or
 container launchers, process supervision, profile provisioning, and H1 lifecycle

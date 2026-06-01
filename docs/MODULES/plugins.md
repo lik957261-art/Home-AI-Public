@@ -70,6 +70,12 @@ origin in `frame-ancestors` is still required for direct external plugin
 entries, but it is not enough by itself to make an HTTP iframe valid inside an
 HTTPS PWA.
 
+When Hermes serves a plugin through the same-origin proxy, the browser is
+framing the Hermes proxy URL rather than the upstream plugin origin. Upstream
+`frame-ancestors` diagnostics must not make the normalized manifest unavailable
+for that proxied entry; direct HTTPS/non-proxied entries still require the
+normal frame-ancestor allow check.
+
 The same-origin proxy is still inside the Hermes Mobile access boundary. It
 must require Hermes workspace access before forwarding any request to a plugin
 upstream, including HTML shells, static assets, JSON APIs, uploads, and binary
@@ -79,6 +85,15 @@ that hint through `requireWorkspaceAccess`. It must also verify that the plugin
 is visible to that effective workspace before fetching from the upstream. Public
 unauthenticated requests to `/api/hermes-plugins/<plugin-id>/proxy/...` must
 not expose plugin HTML or API data.
+
+The Hermes web client must keep the same-origin `hermes_web_key` cookie in sync
+with its local access key before opening embedded plugin iframes. Ordinary API
+requests carry `X-Hermes-Web-Key`, but iframe navigations cannot set custom
+headers; without the cookie, the authenticated shell can fetch a launch manifest
+while the iframe itself receives `403 Workspace access is not allowed`. This
+cookie is a same-origin Hermes auth bridge for plugin proxy navigation only and
+must not be copied into plugin URLs, postMessage payloads, docs, screenshots, or
+logs.
 
 The same-origin proxy must also rewrite plugin-owned resource URLs inside HTML,
 JavaScript, CSS, and JSON responses. HTML/CSS/JavaScript may use text rewriting,
@@ -114,6 +129,28 @@ workspaces, including old unscoped plugin cookies. This is a generic embedded
 plugin rule: Wardrobe, Finance, Codex Mobile, and future same-origin plugins
 must not show Owner content merely because the browser already has an Owner
 plugin session.
+
+All proxy-rewritten plugin resource and API URLs should carry the effective
+`workspaceId` when the URL is a static string, including URLs rewritten inside
+plugin HTML, JavaScript, CSS, and structured JSON. JavaScript template strings
+with runtime query fragments such as ``/api/threads${params}`` or
+``/api/auth/status?_ts=${Date.now()}`` must have only their static path prefix
+rewritten to `/api/hermes-plugins/<plugin-id>/proxy/...`; the proxy must not
+inject `workspaceId` inside the template expression or concatenate it without a
+delimiter. Those dynamic requests resolve workspace through the same-origin
+referrer or the workspace-scoped plugin session cookie. Browser requests that
+arrive without a direct workspace hint, without a referrer workspace hint, and
+with multiple workspace-scoped cookies for the same plugin must fail closed as
+an ambiguous plugin workspace instead of falling back to the Owner workspace.
+This protects Owner-account workspace switching when an embedded plugin
+frontend suppresses or omits `Referer`.
+
+When the Hermes workspace selector changes, the host must discard all embedded
+plugin iframes, cached manifests, launch freshness state, and plugin list state
+before loading the selected workspace. Same-origin embedded apps such as Finance
+can otherwise keep an old Owner iframe or session alive while the shell shows a
+non-Owner workspace. A new workspace must always obtain a fresh manifest and a
+fresh launch entry for that effective workspace.
 
 Manifest/launch boundaries must also clear stale plugin sessions. A manifest
 response for a workspace-private same-origin plugin should expire known raw
@@ -535,11 +572,11 @@ window.parent.postMessage({
 Hermes Mobile must:
 
 - accept the message only when `event.origin` matches the plugin entry origin;
-- throttle rebuilds so repeated refresh requests from a failed plugin page
-  cannot create an iframe relaunch loop. The default host cooldown is one
-  rebuild per plugin per minute, and requests during manifest/launch loading are
-  suppressed;
-- apply the same cooldown to host-side launch-health retries, and preserve an
+- accept an explicit plugin `refresh_required` event as a recovery request. It
+  may bypass the first-frame warmup so an expired or consumed launch page can
+  obtain a fresh manifest, but repeated refreshes must still obey the normal
+  cooldown; requests during manifest/launch loading are also suppressed;
+- apply cooldown throttling to host-side launch-health retries, and preserve an
   already-mounted iframe during ordinary host re-renders so the host does not
   consume new launch tokens repeatedly;
 - treat the message as a host refresh request, not as plugin-controlled host
@@ -553,9 +590,14 @@ Hermes Mobile must:
   stale so the next plugin-tab entry refreshes before display.
 
 The host-side executable harness is
-`tests/embedded-plugin-refresh-harness.test.js`. It simulates iframe
-`postMessage` events and asserts wrong-origin rejection, active iframe rebuild,
-inactive-tab invalidation, and bounded route-hint preservation.
+`tests/embedded-plugin-refresh-harness.test.js`; Wardrobe's specialized host is
+covered by `tests/wardrobe-plugin-refresh-harness.test.js`. These simulate
+iframe `postMessage` events and assert wrong-origin rejection, active iframe
+rebuild, inactive-tab invalidation, and bounded route-hint preservation.
+Wardrobe's current specialized host should replace the invalid iframe on the
+first accepted refresh request, then suppress repeated requests inside the
+cooldown window so plugin-side delete/auth failures cannot create a relaunch
+loop.
 
 In dark mode, the host must not expose the browser's default white iframe
 surface while a fresh plugin frame is being created. Hermes Mobile keeps new
@@ -568,12 +610,14 @@ classes.
 
 Plugin refreshes must also be visually stable. When a mounted iframe asks for a
 fresh launch, Hermes keeps the existing iframe visible while fetching the new
-manifest/launch URL, then swaps frames once. Refresh requests emitted during the
-first few seconds after frame creation are suppressed unless explicitly forced,
-because they commonly represent plugin-side boot reconciliation rather than a
-real expired session. Entering a plugin tab must clear stale keyboard viewport
-metrics so returning to chat does not leave the composer shifted by an old
-mobile keyboard offset.
+manifest/launch URL, then swaps frames once. Passive refresh requests emitted
+during the first few seconds after frame creation are suppressed unless
+explicitly forced, because they commonly represent plugin-side boot
+reconciliation rather than a real expired session. The standard
+`<plugin-id>.plugin.refresh_required` postMessage is explicit and may bypass
+that boot warmup, but it must not bypass the relaunch cooldown. Entering a
+plugin tab must clear stale keyboard viewport metrics so returning to chat does
+not leave the composer shifted by an old mobile keyboard offset.
 
 PWA resume is part of the same visual contract. The installed app can be
 repainted by the browser before normal JavaScript modules finish running,

@@ -416,7 +416,11 @@ browser-facing entry or a visible diagnostic. Local/LAN plugins such as Codex
 Mobile and Wardrobe may remain HTTP upstreams only when Hermes Mobile rewrites
 the browser-facing entry to `/api/hermes-plugins/<plugin-id>/proxy/...` and
 proxies HTML, static assets, plugin API calls, redirect headers, and session
-cookies through that path. The test must hit the real Mobile dispatcher route
+cookies through that path. A same-origin proxied entry must not be marked
+unavailable merely because the upstream plugin's `frame-ancestors` directive
+does not list the Hermes origin; the browser frames the Hermes proxy URL. Direct
+HTTPS/non-proxied plugin entries must still pass the frame-ancestor allow check.
+The test must hit the real Mobile dispatcher route
 as well as the plugin route module. Same-origin proxy launch tests must prove
 server-side `fetch` uses manual redirect handling, because automatic redirect
 following consumes launch `302` cookies before the browser can store them. Tests
@@ -425,13 +429,28 @@ the plugin proxy prefix. They must also assert Owner switching into a non-Owner
 workspace cannot reuse an Owner plugin session: the proxied launch entry must
 carry the effective target `workspaceId`, upstream requests must forward
 `x-hermes-plugin-workspace-id` for that target, and session cookies must be
-namespaced by plugin id plus workspace id. Incoming proxy requests may translate
-only the current plugin/workspace cookie back to the upstream cookie name; they
-must drop Owner-scoped plugin cookies, other-workspace plugin cookies, and old
-unscoped plugin cookies. This is a generic embedded-plugin harness requirement,
-not a Wardrobe-only case; cover normal workspace-private plugins such as
-Wardrobe and Finance, and keep Owner-only plugins such as Codex Mobile hidden
-when the effective workspace is non-Owner. Harnesses must also assert stale
+namespaced by plugin id plus workspace id. Rewritten plugin HTML, JavaScript,
+CSS, and JSON resource/API URLs must also carry the effective `workspaceId` when
+the URL is a static string so a browser request that omits `Referer` still lands
+in the selected workspace. JavaScript template-string URLs with runtime query
+fragments, such as ``/api/threads${params}`` or
+``/api/auth/status?_ts=${Date.now()}``, must preserve the template expression
+and only rewrite the static path prefix to the proxy; inserting `workspaceId`
+inside the expression or concatenating it as `workspaceId=ownerlimit=...` is a
+failing harness case.
+The client auth harness must also assert that `public/app-api-client.js` syncs
+the same-origin `hermes_web_key` cookie whenever it sends `X-Hermes-Web-Key`;
+otherwise authenticated plugin iframes cannot navigate to the protected
+same-origin proxy because iframe navigations cannot attach custom headers.
+Incoming proxy requests may translate only the current plugin/workspace cookie
+back to the upstream cookie name; they must drop Owner-scoped plugin cookies,
+other-workspace plugin cookies, and old unscoped plugin cookies. If a request
+has no workspace hint and carries multiple workspace-scoped cookies for the same
+plugin, the proxy must fail closed as an ambiguous workspace instead of falling
+back to Owner. This is a generic embedded-plugin harness requirement, not a
+Wardrobe-only case; cover normal workspace-private plugins such as Wardrobe and
+Finance, and keep Owner-only plugins such as Codex Mobile hidden when the
+effective workspace is non-Owner. Harnesses must also assert stale
 session cleanup: manifest responses expire known raw upstream session cookie
 names plus Owner/current Hermes-scoped names, and launch-token proxy requests do
 not forward any existing plugin session cookie before the upstream issues the
@@ -467,10 +486,12 @@ load, so Codex/Wardrobe tab entry does not flash a white browser default
 surface. Wardrobe-specific host tests must cover the same loading-shell
 contract even when the tab uses `.wardrobe-plugin-*` classes rather than the
 generic embedded-plugin host classes. Refresh stability assertions must prove an existing iframe remains
-visible while the host fetches a fresh launch URL, non-forced boot warmup
-`refresh_required` messages are suppressed, and entering plugin mode clears
-stale keyboard viewport metrics so the chat composer returns to its normal
-bottom alignment.
+visible while the host fetches a fresh launch URL, passive/non-forced boot
+warmup refresh attempts are suppressed, explicit
+`<plugin-id>.plugin.refresh_required` postMessages can recover a consumed or
+invalid launch page without bypassing relaunch cooldown, and entering plugin
+mode clears stale keyboard viewport metrics so the chat composer returns to its
+normal bottom alignment.
 Dark-mode installed-PWA resume must also assert that the pre-JS shell,
 manifest `background_color`/`theme_color`, `html`/`body` background, plugin
 host background, and iframe loading shell share the effective dark background.
@@ -496,12 +517,13 @@ the Mobile plugin route, and preserve only bounded route hints so the active
 plugin returns to its intended Codex/Wardrobe position after refresh. Wrong
 origin refresh messages and payloads carrying keys, cookies, launch tokens,
 raw plugin content, prompts, or local paths are failing cases.
-The host must also throttle refresh-required rebuilds so an invalid plugin page
-cannot create a relaunch loop; the harness must cover same-window repeated
-refresh messages and messages sent while manifest/launch loading is already in
-progress. Host-side launch-health retries must use the same throttle, and a
-normal host re-render must preserve an already-mounted iframe instead of
-requesting another launch token.
+The host must still throttle passive launch-health rebuilds so an invalid
+plugin page cannot create a relaunch loop; the harness must cover same-window
+explicit refresh recovery, messages sent while manifest/launch loading is
+already in progress, and active-tab frame rebuild without leaking route hints
+beyond bounded plugin route fields. Host-side launch-health retries must use
+the same throttle, and a normal host re-render must preserve an already-mounted
+iframe instead of requesting another launch token.
 Embedded-plugin appearance sync is part of the launch contract. Host tests must
 assert Hermes sends sanitized `appearance.theme` and `appearance.fontSize` in
 Codex, Finance, and Wardrobe launch bodies, maps Hermes `standard` font size to
@@ -558,7 +580,8 @@ bounded authenticated `/api/finance/overview` result.
 Focused checks for this contract include
 `node tests\hermes-plugin-service.test.js`,
 `node tests\hermes-plugin-api-routes.test.js`,
-`node tests\embedded-plugin-refresh-harness.test.js`, and
+`node tests\embedded-plugin-refresh-harness.test.js`,
+`node tests\wardrobe-plugin-refresh-harness.test.js`, and
 `node tests\app-embedded-plugin-ui.test.js`.
 Switching away from a plugin tab must force-hide the plugin host and clear the
 active host class even if the iframe shell record is missing, stale, or still

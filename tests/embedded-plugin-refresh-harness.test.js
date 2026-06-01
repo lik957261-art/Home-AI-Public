@@ -262,7 +262,7 @@ function testRefreshInvalidatesInactivePluginWithoutFetching() {
   assert.deepEqual(harness.calls.api, []);
 }
 
-function testRefreshRequiredIsThrottled() {
+function testRefreshRequiredBypassesWarmupButUsesCooldown() {
   const harness = createHarness();
   const { def, record } = harness.setupManifest();
   harness.sandbox.__pluginRefreshHarness.ensureEmbeddedPluginNavigationBridge(def);
@@ -276,15 +276,12 @@ function testRefreshRequiredIsThrottled() {
   harness.host.setShell(record.shellNode);
   record.checked = true;
   record.manifestFreshForFrame = true;
+  record.loading = false;
   harness.sandbox.Date.now = () => 105000;
   harness.emit({ type: "codex-mobile.plugin.refresh_required", route: { name: "thread", threadId: "thread-2" } });
   assert.equal(harness.calls.api.length, 1);
   assert.equal(record.openRoute.pluginThreadId, "thread-1");
   assert.equal(record.lastRefreshSuppressedAt, 105000);
-
-  harness.sandbox.Date.now = () => 159000;
-  harness.emit({ type: "codex-mobile.plugin.refresh_required", route: { name: "thread", threadId: "thread-3" } });
-  assert.equal(harness.calls.api.length, 1);
 
   record.loading = false;
   harness.sandbox.Date.now = () => 161000;
@@ -307,7 +304,7 @@ function testRefreshRequiredIgnoredDuringManifestLoad() {
   assert.equal(record.lastRefreshSuppressedAt, 200000);
 }
 
-function testRefreshRequiredIgnoredDuringFrameWarmup() {
+function testRefreshRequiredBypassesFrameWarmup() {
   const harness = createHarness();
   const { def, record, shell } = harness.setupManifest();
   harness.sandbox.__pluginRefreshHarness.ensureEmbeddedPluginNavigationBridge(def);
@@ -318,10 +315,9 @@ function testRefreshRequiredIgnoredDuringFrameWarmup() {
 
   harness.emit({ type: "codex-mobile.plugin.refresh_required", route: { name: "thread", threadId: "thread-warmup" } });
 
-  assert.equal(harness.calls.api.length, 0);
+  assert.equal(harness.calls.api.length, 1);
   assert.equal(shell.removed, false);
-  assert.equal(record.openRoute, undefined);
-  assert.equal(record.lastRefreshSuppressedAt, 405000);
+  assert.equal(record.openRoute.pluginThreadId, "thread-warmup");
 }
 
 function testLaunchHealthRefreshUsesCooldown() {
@@ -356,9 +352,9 @@ function testLaunchHealthRefreshUsesCooldown() {
 testRefreshIgnoresWrongOrigin();
 testRefreshRebuildsActivePluginWithBoundedRoute();
 testRefreshInvalidatesInactivePluginWithoutFetching();
-testRefreshRequiredIsThrottled();
+testRefreshRequiredBypassesWarmupButUsesCooldown();
 testRefreshRequiredIgnoredDuringManifestLoad();
-testRefreshRequiredIgnoredDuringFrameWarmup();
+testRefreshRequiredBypassesFrameWarmup();
 testLaunchHealthRefreshUsesCooldown();
 
 console.log("embedded plugin refresh harness tests passed");

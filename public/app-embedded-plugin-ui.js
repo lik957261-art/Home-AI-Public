@@ -468,7 +468,7 @@ function ensureEmbeddedPluginNavigationBridge(def) {
       return;
     }
     if (data.type === embeddedPluginRefreshRequiredEventType(def)) {
-      requestEmbeddedPluginRefresh(def, data);
+      requestEmbeddedPluginRefresh(def, Object.assign({ force: true }, data));
     }
   });
 }
@@ -537,6 +537,33 @@ function discardEmbeddedPluginShell(def) {
     navigationRoute: null,
     navigationLastAt: 0,
     frameHealthSeq: (record.frameHealthSeq || 0) + 1,
+  });
+}
+
+function resetEmbeddedPluginsForWorkspaceChange() {
+  Object.values(EMBEDDED_PLUGIN_DEFS).forEach((def) => {
+    const record = embeddedPluginRecord(def.id);
+    discardEmbeddedPluginShell(def);
+    Object.assign(record, {
+      manifest: null,
+      manifestAppearanceKey: "",
+      manifestFetchedAt: 0,
+      manifestFreshForFrame: false,
+      frameOrigin: "",
+      openRoute: null,
+      returnRoute: null,
+      checked: false,
+      loading: false,
+    });
+    embeddedPluginHost(def).innerHTML = "";
+    setEmbeddedPluginHostVisible(def, false);
+  });
+  const list = embeddedPluginListState();
+  Object.assign(list, {
+    workspaceId: "",
+    loaded: false,
+    loading: false,
+    pluginIds: [],
   });
 }
 

@@ -398,6 +398,11 @@ Required harness dimensions:
   `workspaceId` or `x-hermes-plugin-workspace-id` hint through
   `requireWorkspaceAccess`, verify the plugin is visible to that effective
   workspace, and avoid upstream fetches for anonymous or unauthorized requests.
+- Same-origin plugin proxy URL rewriting must preserve the effective workspace
+  in browser-facing HTML, JavaScript, CSS, and JSON resource/API URLs. If an
+  iframe fetch arrives without a direct workspace hint or referrer, and the
+  request carries multiple workspace-scoped session cookies for the same plugin,
+  the proxy must fail closed instead of routing to Owner by default.
 - Public reverse-proxy exposure is part of the permission/workspace boundary.
   Harnesses must assert that browser-facing JSON and route-owned responses carry
   `Strict-Transport-Security`, `Content-Security-Policy`,

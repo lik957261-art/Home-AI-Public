@@ -49,6 +49,8 @@ assert.match(wardrobeUi, /manifest\?\.embed\?\.blockedByFrameAncestors/);
 assert.match(wardrobeUi, /pageProtocol === "https:" && entryProtocol === "http:"/);
 assert.match(wardrobeUi, /function ensureWardrobePluginNavigationBridge\(\)/);
 assert.match(wardrobeUi, /wardrobe\.plugin\.navigation/);
+assert.match(wardrobeUi, /wardrobe\.plugin\.refresh_required/);
+assert.match(wardrobeUi, /data\.type === "wardrobe\.plugin\.refresh_required"[\s\S]*refreshWardrobePluginFrameFromFreshManifest\(\)/);
 assert.match(wardrobeUi, /function parkWardrobePluginShell\(\)/);
 assert.match(wardrobeUi, /function rememberWardrobePluginReturnRoute\(\)/);
 assert.match(wardrobeUi, /function wardrobePluginOuterBackActive\(\)/);

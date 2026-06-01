@@ -65,12 +65,22 @@
     const onUnauthorized = typeof options.onUnauthorized === "function"
       ? options.onUnauthorized
       : null;
+    const syncAccessKeyCookie = typeof options.syncAccessKeyCookie === "function"
+      ? options.syncAccessKeyCookie
+      : (accessKey) => {
+        if (!accessKey || typeof document === "undefined") return;
+        const secure = window?.location?.protocol === "https:" ? "; Secure" : "";
+        document.cookie = `hermes_web_key=${encodeURIComponent(accessKey)}; Path=/; SameSite=Lax${secure}`;
+      };
 
     return async function api(path, requestOptions = {}) {
       const headers = normalizeHeaders(requestOptions.headers);
       const accessKey = getAccessKey();
       const clientVersion = getClientVersion();
-      if (accessKey) headers["X-Hermes-Web-Key"] = accessKey;
+      if (accessKey) {
+        headers["X-Hermes-Web-Key"] = accessKey;
+        syncAccessKeyCookie(accessKey);
+      }
       if (clientVersion) headers["X-Hermes-Web-Client-Version"] = clientVersion;
       if (requestOptions.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
       const timeoutMs = Math.max(0, Number(requestOptions.timeoutMs || 0) || 0);

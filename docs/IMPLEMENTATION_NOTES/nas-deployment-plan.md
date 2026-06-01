@@ -200,7 +200,18 @@ Gateway connection choices:
 
 - Minimal: set `HERMES_WEB_GATEWAY_POOL_ENABLED=off` and point
   `HERMES_WEB_HERMES_API_BASE` at one reachable Gateway API server. This gives
-  the simplest NAS app deployment but not elastic worker scheduling.
+  the simplest NAS app deployment but not elastic worker scheduling. Current
+  Hermes Mobile user-level runs fail closed without a user worker, so this mode
+  is suitable only for health/status surfaces unless the selected routes do not
+  require user-level Gateway execution.
+- NAS-local single worker manifest: set `HERMES_WEB_GATEWAY_POOL_ENABLED=auto`
+  and point `HERMES_WEB_GATEWAY_POOL_MANIFEST` at a NAS data-file manifest that
+  declares a `securityLevel: user` worker whose `apiBase` is the NAS-local
+  Hermes Agent API, for example `http://127.0.0.1:8642`. This is still a fixed
+  worker path, not full elastic Gateway Pool. It was verified on 2026-06-01 on
+  NAS `192.168.10.99` with one `nas-local-codex` worker and an ordinary Owner
+  chat run. The manifest stores only server-side worker credentials and must
+  never expose raw keys to the browser, docs, handoffs, or logs.
 - Fixed remote pool: set `HERMES_WEB_GATEWAY_POOL_ENABLED=auto`, use a manifest
   whose worker `apiBase` values point to remote fixed Gateway endpoints, and run
   `HERMES_MOBILE_GATEWAY_POOL_START_MODE=eager` or otherwise keep remote workers
@@ -468,6 +479,53 @@ Recommended migration path:
 4. Validate manifest, proxy launch, workspace switching, and plugin content for
    Owner, one non-Owner, and Owner-impersonating-that-workspace.
 
+### Verified 10.99 Plugin Shape
+
+As of 2026-06-01, NAS `192.168.10.99` uses this first plugin deployment shape:
+
+- Public entry `https://wardrobe-xuxin.synology.me:8555` is Hermes Mobile. The
+  router forwards external `8555` to NAS `443`; DSM nginx terminates HTTPS and
+  proxies to Hermes Mobile `127.0.0.1:8797`.
+- Finance runs as a NAS Docker/Container Manager container named
+  `finance-mcp`, bound only to `127.0.0.1:8791`. The backend source is under
+  `/volume1/docker/finance-mcp/source`, runtime data under
+  `/volume1/docker/finance-mcp/data`, and the container reuses the NAS Hermes
+  Node runtime mounted from `/volume1/docker/hermes-mobile/runtime/node-current`.
+  Do not expose Finance port `8791` directly to the public internet.
+- Wardrobe continues to run on the existing NAS Wardrobe service at port `8765`.
+  Hermes Mobile reaches it through the plugin manifest/proxy path; Wardrobe no
+  longer needs its own public reverse-proxy entry. Wardrobe must allow the
+  Hermes public origin as an iframe frame ancestor and must use workspace-local
+  `.hermes-wardrobe` config/key files.
+- The NAS Hermes Owner Wardrobe binding must point to the existing XuXin
+  Wardrobe binding already used by the Windows development/production machine,
+  not to a freshly provisioned empty `wardrobe:owner` workspace. If a migration
+  step accidentally creates `drive/users/owner/.hermes-wardrobe` with
+  `workspace_id=wardrobe:owner`, it masks the existing nested XuXin binding and
+  Owner will see an empty wardrobe. Repair by backing up that direct directory
+  and installing the known-good Owner `.hermes-wardrobe` config/key into the
+  direct NAS Owner path without exposing the raw key.
+- Browser access to both plugins must go through Hermes same-origin routes:
+  `/api/hermes-plugins/finance/proxy/...` and
+  `/api/hermes-plugins/wardrobe/proxy/...`.
+- Current smoke verified owner manifest/launch availability for Finance and
+  Wardrobe through both NAS local Hermes and the public HTTPS origin. Treat
+  non-Owner content checks as a separate smoke requirement before declaring
+  per-user plugin migration complete.
+
+Operational notes:
+
+- Finance on NAS was deployed from the current Finance working-tree snapshot,
+  not from a clean tagged release. Before a repeatable production rollout,
+  freeze that source in Git or package it with an explicit source checksum.
+- Finance and Wardrobe plugin keys remain server-side only. Record key file
+  paths and provisioning status, not raw keys, launch tokens, session cookies,
+  or upstream cookies.
+- When recreating NAS containers from Windows, avoid embedding non-ASCII NAS
+  mount paths directly in inline shell commands. Prefer NAS-side inspect files,
+  UTF-8 scripts, or Python helpers executed on NAS so paths such as localized
+  shared folders are preserved exactly.
+
 ## Data Migration
 
 Before migration:
@@ -541,8 +599,10 @@ run privacy scan on the deployed source tree
 Expected Mode A status:
 
 - Hermes Mobile app health is `ok`.
-- Gateway Pool may be disabled or fixed/eager remote; this is not a failure if
-  the deployment intentionally uses a single external Gateway.
+- Gateway Pool may be fixed/eager local or remote. A NAS-local single user
+  worker manifest can satisfy user-level chat execution if it exposes a healthy
+  `securityLevel: user` worker. A fully disabled pool can still pass health but
+  will not run ordinary user-level chats under the current fail-closed contract.
 - Hybrid/on-demand worker start from NAS is not expected unless a remote worker
   manager has been implemented and tested.
 

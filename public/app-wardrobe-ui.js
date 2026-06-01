@@ -208,9 +208,15 @@ function updateWardrobePluginNavigationState(payload = {}) {
 
 function handleWardrobePluginMessage(event) {
   const data = event?.data || {};
-  if (!data || data.type !== "wardrobe.plugin.navigation") return;
+  if (!data) return;
   if (!wardrobePluginMessageOriginAllowed(event)) return;
-  updateWardrobePluginNavigationState(data);
+  if (data.type === "wardrobe.plugin.navigation") {
+    updateWardrobePluginNavigationState(data);
+    return;
+  }
+  if (data.type === "wardrobe.plugin.refresh_required") {
+    refreshWardrobePluginFrameFromFreshManifest();
+  }
 }
 
 function ensureWardrobePluginNavigationBridge() {
@@ -332,6 +338,13 @@ function wardrobeFrameSrcUsesLaunchToken(frame) {
 function refreshWardrobePluginFrameFromFreshManifest() {
   const conversation = $("conversation");
   if (!conversation || state.wardrobePluginLoading) return;
+  const now = Date.now();
+  const cooldownMs = Number(state.wardrobePluginRefreshCooldownMs || 60000);
+  if (cooldownMs > 0 && now - Number(state.wardrobePluginLastRefreshRequestedAt || 0) < cooldownMs) {
+    state.wardrobePluginLastRefreshSuppressedAt = now;
+    return;
+  }
+  state.wardrobePluginLastRefreshRequestedAt = now;
   discardWardrobePluginShell();
   showWardrobePluginLoadingSurface();
   loadWardrobePluginManifest({ force: true }).catch(showError);

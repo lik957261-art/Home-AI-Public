@@ -1008,9 +1008,10 @@ function createHermesPluginService(options = {}) {
         manifestUrl: plugin.manifestUrl,
         fetchedAt: nowIso(),
       });
-      const frameCheckedManifest = await validateFrameAncestors(manifest, input, fetchImpl);
-      const launchedManifest = await withPluginLaunchEntry(frameCheckedManifest, input, fetchImpl, launchOptions);
-      return validateHttpsEntryScheme(launchedManifest, input);
+      const launchedManifest = await withPluginLaunchEntry(manifest, input, fetchImpl, launchOptions);
+      const entrySchemeManifest = validateHttpsEntryScheme(launchedManifest, input);
+      if (entrySchemeManifest?.embed?.sameOriginProxy) return entrySchemeManifest;
+      return validateFrameAncestors(entrySchemeManifest, input, fetchImpl);
     } catch (err) {
       return {
         ok: false,

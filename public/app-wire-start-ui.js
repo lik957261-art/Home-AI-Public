@@ -80,6 +80,7 @@ function wireUi() {
     clearQuotedReply({ render: false });
     clearTaskDirectoryFilter({ render: false });
     state.selectedWorkspaceId = event.target.value;
+    if (typeof resetEmbeddedPluginsForWorkspaceChange === "function") resetEmbeddedPluginsForWorkspaceChange();
     state.privateChatThread = null;
     state.weixinChatThread = null;
     state.weixinChatThreadId = "";

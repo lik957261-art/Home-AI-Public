@@ -37,10 +37,12 @@ function response({
 (async () => {
   const calls = [];
   const versions = [];
+  const syncedCookies = [];
   const api = createApiClient({
     getAccessKey: () => "test-key",
     getClientVersion: () => "client-a",
     onClientVersion: (payload, source) => versions.push({ payload, source }),
+    syncAccessKeyCookie: (value) => syncedCookies.push(value),
     fetchImpl: async (url, options) => {
       calls.push({ url, options });
       return response({
@@ -57,6 +59,7 @@ function response({
   assert.deepEqual(await api("/api/test", { method: "POST", body: "{}" }), { ok: true });
   assert.equal(calls[0].url, "/api/test");
   assert.equal(calls[0].options.headers["X-Hermes-Web-Key"], "test-key");
+  assert.deepEqual(syncedCookies, ["test-key"]);
   assert.equal(calls[0].options.headers["X-Hermes-Web-Client-Version"], "client-a");
   assert.equal(calls[0].options.headers["Content-Type"], "application/json");
   assert.deepEqual(versions[0], {
