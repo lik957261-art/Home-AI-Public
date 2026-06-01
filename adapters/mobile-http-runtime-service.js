@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const zlib = require("node:zlib");
 
 const DEFAULT_CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
@@ -27,6 +28,9 @@ function createMobileHttpRuntimeService(options = {}) {
   const maxBodyBytes = Number(options.maxBodyBytes || 1024 * 1024) || 1024 * 1024;
   const mimeByExt = options.mimeByExt || {};
   const publicRoot = String(options.publicRoot || "");
+  const zlibImpl = options.zlib || zlib;
+  const staticCompressionCache = new Map();
+  const maxStaticCompressionCacheEntries = Math.max(0, Number(options.maxStaticCompressionCacheEntries || 256) || 256);
   const securityHeadersEnabled = () => !envFlag(
     typeof options.disableSecurityHeaders === "function"
       ? options.disableSecurityHeaders()
@@ -143,6 +147,57 @@ function createMobileHttpRuntimeService(options = {}) {
     return mimeByExt[path.extname(String(file || "")).toLowerCase()] || "application/octet-stream";
   }
 
+  function staticCacheControl(target, url) {
+    const ext = path.extname(String(target || "")).toLowerCase();
+    const base = path.basename(String(target || "")).toLowerCase();
+    if (base === "index.html" || base === "service-worker.js") return "no-cache";
+    if (url.searchParams.has("v") || /\b\d{8,}\b/.test(base)) {
+      return "public, max-age=31536000, immutable";
+    }
+    if ([".js", ".css", ".json", ".webmanifest", ".svg", ".png", ".jpg", ".jpeg", ".ico"].includes(ext)) {
+      return "public, max-age=3600";
+    }
+    return "no-cache";
+  }
+
+  function compressibleStatic(target, contentType, data) {
+    if (!data || data.length < 1024) return false;
+    const ext = path.extname(String(target || "")).toLowerCase();
+    if ([".js", ".css", ".html", ".json", ".svg", ".txt", ".md", ".webmanifest"].includes(ext)) return true;
+    return /^(text\/|application\/(?:javascript|json)|image\/svg\+xml)/i.test(String(contentType || ""));
+  }
+
+  function staticEncodingForRequest(req) {
+    const accept = String(req.headers["accept-encoding"] || "");
+    if (/\bbr\b/i.test(accept)) return "br";
+    if (/\bgzip\b/i.test(accept)) return "gzip";
+    return "";
+  }
+
+  function rememberStaticEncoding(cacheKey, body) {
+    if (!maxStaticCompressionCacheEntries) return;
+    staticCompressionCache.set(cacheKey, body);
+    while (staticCompressionCache.size > maxStaticCompressionCacheEntries) {
+      const oldest = staticCompressionCache.keys().next().value;
+      staticCompressionCache.delete(oldest);
+    }
+  }
+
+  function encodedStaticBody(req, target, contentType, data, stat) {
+    if (!compressibleStatic(target, contentType, data)) return { data, encoding: "" };
+    const encoding = staticEncodingForRequest(req);
+    if (!encoding) return { data, encoding: "" };
+    const cacheKey = stat
+      ? `${target}\0${stat.size}\0${Number(stat.mtimeMs || 0)}\0${encoding}`
+      : "";
+    if (cacheKey && staticCompressionCache.has(cacheKey)) {
+      return { data: staticCompressionCache.get(cacheKey), encoding };
+    }
+    const encoded = encoding === "br" ? zlibImpl.brotliCompressSync(data) : zlibImpl.gzipSync(data);
+    if (cacheKey) rememberStaticEncoding(cacheKey, encoded);
+    return { data: encoded, encoding };
+  }
+
   function contentDisposition(disposition, filename) {
     const safeDisposition = disposition === "attachment" ? "attachment" : "inline";
     const safeAscii = String(filename || "file")
@@ -162,17 +217,32 @@ function createMobileHttpRuntimeService(options = {}) {
       res.end("Forbidden");
       return;
     }
-    fs.readFile(target, (err, data) => {
+    fs.stat(target, (statErr, stat) => {
+      if (statErr || !stat.isFile()) {
+        res.writeHead(404, withSecurityHeaders());
+        res.end("Not found");
+        return;
+      }
+      fs.readFile(target, (err, data) => {
       if (err) {
         res.writeHead(404, withSecurityHeaders());
         res.end("Not found");
         return;
       }
-      res.writeHead(200, withSecurityHeaders({
-        "Content-Type": mimeFor(target),
-        "Cache-Control": "no-cache",
-      }));
-      res.end(data);
+      const contentType = mimeFor(target);
+      const encoded = encodedStaticBody(req, target, contentType, data, stat);
+      const headers = {
+        "Content-Type": contentType,
+        "Cache-Control": staticCacheControl(target, url),
+        "Content-Length": encoded.data.length,
+      };
+      if (encoded.encoding) {
+        headers["Content-Encoding"] = encoded.encoding;
+        headers.Vary = "Accept-Encoding";
+      }
+      res.writeHead(200, withSecurityHeaders(headers));
+      res.end(req.method === "HEAD" ? "" : encoded.data);
+      });
     });
   }
 

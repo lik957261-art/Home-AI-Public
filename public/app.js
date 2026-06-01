@@ -95,10 +95,101 @@ const KANBAN_STORY_DETAIL_LOAD_LIMIT = 6;
 const KANBAN_MULTI_AGENT_DEFAULT_PARALLEL = 3;
 const KANBAN_MULTI_AGENT_MAX_PARALLEL = 8;
 const LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID = "weixin_stephen";
+const STARTUP_PERF_LOG_KEY = "hermesStartupPerfLast";
 const TaskArtifactHelpers = window.HermesTaskArtifactHelpers || {};
 const KanbanStoryHelpers = window.HermesKanbanStoryHelpers || {};
 const LearningReadingUi = window.HermesLearningReadingUi || {};
 const AppApiClient = window.HermesAppApiClient || {};
+
+function nowMs() {
+  return typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+}
+
+function startupPerfStart(label = "startup") {
+  const run = {
+    label: String(label || "startup"),
+    clientVersion: CLIENT_VERSION,
+    startedAt: new Date().toISOString(),
+    startMs: nowMs(),
+    marks: [],
+  };
+  window.__hermesStartupPerf = run;
+  return run;
+}
+
+function startupPerfRun() {
+  return window.__hermesStartupPerf || startupPerfStart("startup");
+}
+
+function startupPerfMark(name, fields = {}) {
+  const run = startupPerfRun();
+  const elapsedMs = Math.round(nowMs() - run.startMs);
+  const entry = Object.assign({
+    name: String(name || "mark"),
+    elapsedMs,
+  }, fields || {});
+  run.marks.push(entry);
+  try {
+    console.info("[Hermes startup]", entry.name, `${entry.elapsedMs}ms`, entry);
+  } catch (_) {}
+  return entry;
+}
+
+async function startupPerfStep(name, fn) {
+  const started = nowMs();
+  try {
+    const value = await fn();
+    startupPerfMark(name, { durationMs: Math.round(nowMs() - started), ok: true });
+    return value;
+  } catch (err) {
+    startupPerfMark(name, {
+      durationMs: Math.round(nowMs() - started),
+      ok: false,
+      error: String(err?.message || err || "").slice(0, 180),
+    });
+    throw err;
+  }
+}
+
+function finishStartupPerf(status = "ok", fields = {}) {
+  const run = startupPerfRun();
+  run.status = status;
+  run.finishedAt = new Date().toISOString();
+  run.totalMs = Math.round(nowMs() - run.startMs);
+  Object.assign(run, fields || {});
+  try {
+    localStorage.setItem(STARTUP_PERF_LOG_KEY, JSON.stringify({
+      label: run.label,
+      status: run.status,
+      clientVersion: run.clientVersion,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt,
+      totalMs: run.totalMs,
+      workspaceId: state.selectedWorkspaceId || "",
+      viewMode: state.viewMode || "",
+      singleWindowMode: state.singleWindowMode || "",
+      threadId: state.currentThreadId || "",
+      messageCount: Array.isArray(state.currentThread?.messages) ? state.currentThread.messages.length : 0,
+      totalMessages: state.currentThread?.messagesPage?.total || 0,
+      marks: run.marks || [],
+    }));
+  } catch (_) {}
+  try {
+    console.info("[Hermes startup] complete", {
+      status: run.status,
+      totalMs: run.totalMs,
+      marks: run.marks,
+      workspaceId: state.selectedWorkspaceId || "",
+      viewMode: state.viewMode || "",
+      messageCount: Array.isArray(state.currentThread?.messages) ? state.currentThread.messages.length : 0,
+      totalMessages: state.currentThread?.messagesPage?.total || 0,
+    });
+    if (console.table) console.table(run.marks);
+  } catch (_) {}
+  return run;
+}
 
 function initialFontSizePreference(value) {
   const id = String(value || "").trim();

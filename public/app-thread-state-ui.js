@@ -135,7 +135,7 @@ async function loadSingleWindow(options = {}) {
   request.weixinChat = weixinChat;
   request.groupChat = groupChat;
   const messageMode = request.messageMode;
-  const result = await api("/api/single-window", {
+  const result = await startupPerfStep("single-window-api", () => api("/api/single-window", {
     method: "POST",
     body: JSON.stringify({
       workspaceId: request.workspaceId,
@@ -146,8 +146,13 @@ async function loadSingleWindow(options = {}) {
       messageLimit: messageMode === "tasks" ? TASK_MESSAGE_INITIAL_LIMIT : CHAT_MESSAGE_INITIAL_LIMIT,
     }),
     timeoutMs: 12000,
-  });
+  }));
   if (!singleWindowRequestStillCurrent(request)) return;
+  startupPerfMark("single-window-payload", {
+    messages: Array.isArray(result.thread?.messages) ? result.thread.messages.length : 0,
+    totalMessages: result.thread?.messagesPage?.total || 0,
+    caseTopicThreads: Array.isArray(result.caseTopicThreads) ? result.caseTopicThreads.length : 0,
+  });
   state.currentThread = mergeCurrentThread(result.thread);
   if (result.groupChatThread) {
     state.groupChatThread = mergeChatScopeThread(state.groupChatThread, result.groupChatThread);
@@ -181,7 +186,10 @@ async function loadSingleWindow(options = {}) {
   if (state.viewMode !== "tasks") state.currentTaskGroupId = "";
   if (messageMode === "tasks") rememberTaskListThread(state.currentThread);
   renderThreads();
-  renderCurrentThread({ stickToBottom: true });
+  await startupPerfStep("render-current-thread", () => {
+    renderCurrentThread({ stickToBottom: true });
+    return Promise.resolve();
+  });
   setComposerEnabled(true);
 }
 

@@ -239,24 +239,25 @@ async function login(key) {
 async function bootstrap() {
   state.startupStage = "\u72b6\u6001";
   renderClientVersion();
-  await loadStatus();
+  await startupPerfStep("status", () => loadStatus());
   state.startupStage = "\u7248\u672c";
-  await checkClientVersion("bootstrap").catch(() => {});
+  await startupPerfStep("client-version", () => checkClientVersion("bootstrap")).catch(() => {});
   checkAppUpdate("login").catch(() => {});
   state.startupStage = "\u63a8\u9001";
-  await loadPushStatus().catch(() => updatePushButton());
+  await startupPerfStep("push-status", () => loadPushStatus({ subscription: false })).catch(() => updatePushButton());
   if (blockMobileBrowserShellAppLaunch()) return;
   state.startupStage = "\u5de5\u4f5c\u533a";
-  await loadWorkspaces();
+  await startupPerfStep("workspaces", () => loadWorkspaces());
   if (!applyInitialRouteFromUrl()) applyDefaultLaunchView();
   state.startupStage = "\u9879\u76ee";
-  await syncPushSubscriptionContext().catch(() => {});
-  await loadProjects();
+  await startupPerfStep("push-context", () => syncPushSubscriptionContext()).catch(() => {});
+  await startupPerfStep("projects", () => loadProjects());
   state.startupStage = "\u89c6\u56fe";
-  await loadSelectedView();
+  await startupPerfStep(`selected-view:${state.viewMode || "unknown"}`, () => loadSelectedView());
   state.startupStage = "";
   startClientRefreshChecks();
-  connectEvents();
+  await startupPerfStep("connect-events", () => Promise.resolve(connectEvents()));
+  if (typeof refreshPushSubscriptionAfterStartup === "function") refreshPushSubscriptionAfterStartup();
 }
 
 function normalizedRouteView(value, fallback = "") {

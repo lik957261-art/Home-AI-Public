@@ -96,7 +96,9 @@ assert.match(platformUi, /getElementById\("mobileBrowserShellPreflight"\)\?\.rem
 assert.match(platformUi, /function guardHermesOwnedSelectedDetailNavigation\(\)/);
 assert.match(platformUi, /function clearHermesOwnedDetailStateAfterBrowserShellBlock\(\)/);
 assert.match(platformUi, /function showApp\(\) \{[\s\S]*?state\.mobileBrowserShellBlocked = false;[\s\S]*?mobile-browser-shell-blocked/);
-assert.match(platformUi, /await loadPushStatus\(\)\.catch\(\(\) => updatePushButton\(\)\);[\s\S]*?if \(blockMobileBrowserShellAppLaunch\(\)\) return;/);
+assert.match(platformUi, /await startupPerfStep\("push-status", \(\) => loadPushStatus\(\{ subscription: false \}\)\)\.catch\(\(\) => updatePushButton\(\)\);[\s\S]*?if \(blockMobileBrowserShellAppLaunch\(\)\) return;/);
+assert.match(platformUi, /refreshPushSubscriptionAfterStartup\(\)/);
+assert.match(pwaPushUi, /function refreshPushSubscriptionAfterStartup\(\)/);
 assert.match(platformUi, /if \(hermesRouteMobileBrowserShell\(\)\) \{[\s\S]*?mobile_browser_shell_internal_route_allowed[\s\S]*?return true;/);
 assert.match(platformUi, /state\.viewMode === "automation"[\s\S]*?state\.selectedAutomationId/);
 assert.match(platformUi, /selectedAutomationId: ""[\s\S]*?automationRouteTargetPending: false/);

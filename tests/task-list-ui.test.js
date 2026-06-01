@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260601-bottom-apps-drawer-v435";
+const CLIENT_VERSION = "20260601-startup-push-defer-v437";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -191,7 +191,7 @@ assert.match(appJs, /resetClientAndReload\("startup_failed"\)/);
 assert.match(appJs, /async function bootstrapWithRetry\(options = \{\}\)/);
 assert.match(appJs, /fetch\("\/api\/public-config", \{ cache: "no-store" \}\)/);
 assert.match(appJs, /withTimeout\([\s\S]*?12000,[\s\S]*?"载入公开配置超时"/);
-assert.match(appJs, /withTimeout\(bootstrapWithRetry\(\), 26000, "载入工作区超时"\)/);
+assert.ok(appJs.includes('startupPerfStep("bootstrap-with-retry", () => withTimeout(bootstrapWithRetry(), 26000,'));
 assert.match(appJs, /else showStartupRecovery\(err\)/);
 assert.match(appApiClientJs, /Request timed out/);
 assert.match(appApiClientJs, /path\.startsWith\("\/api\/"\)[\s\S]*?fetchOptions\.cache = "no-store"/);
@@ -2496,6 +2496,14 @@ assert.match(threadReadUploadApiRoutes, /thread-messages-list/);
 assert.match(threadReadUploadApiRoutes, /handleThreadMessagesList/);
 assert.match(appJs, /const CHAT_MESSAGE_INITIAL_LIMIT = 30/);
 assert.match(appJs, /const TASK_MESSAGE_INITIAL_LIMIT = 300/);
+assert.match(appJs, /const STARTUP_PERF_LOG_KEY = "hermesStartupPerfLast"/);
+assert.match(appJs, /function startupPerfStep\(name, fn\)/);
+assert.match(appJs, /localStorage\.setItem\(STARTUP_PERF_LOG_KEY, JSON\.stringify/);
+assert.match(appJs, /startupPerfStep\("single-window-api"/);
+assert.match(appJs, /startupPerfStep\("render-current-thread"/);
+assert.match(appJs, /startupPerfStep\(`selected-view:\$\{state\.viewMode \|\| "unknown"\}`/);
+assert.match(appJs, /loadPushStatus\(\{ subscription: false \}\)/);
+assert.match(appJs, /function refreshPushSubscriptionAfterStartup\(\)/);
 assert.match(appJs, /function answerDraftStorageKey\(kind, workspaceId, todoId, fingerprint\)/);
 assert.match(appJs, /function readAssessmentExamDraft\(todoId, exam = \{\}\)/);
 assert.match(appJs, /function writeAssessmentExamDraft\(todoId\)/);

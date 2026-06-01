@@ -71,9 +71,9 @@ async function getServiceWorkerRegistration(options = {}) {
   }
 }
 
-async function loadPushStatus() {
+async function loadPushStatus(options = {}) {
   state.pushStatus = await api("/api/push/vapid-public-key");
-  if (pushSupported()) {
+  if (options.subscription !== false && pushSupported()) {
     try {
       const registration = await getServiceWorkerRegistration();
       state.pushSubscription = await withTimeout(registration.pushManager.getSubscription(), 6000, "读取通知订阅超时");
@@ -82,6 +82,14 @@ async function loadPushStatus() {
     }
   }
   updatePushButton();
+}
+
+function refreshPushSubscriptionAfterStartup() {
+  window.setTimeout(() => {
+    loadPushStatus({ subscription: true })
+      .then(() => syncPushSubscriptionContext())
+      .catch(() => updatePushButton());
+  }, 0);
 }
 
 async function syncPushSubscriptionContext() {

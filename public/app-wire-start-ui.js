@@ -640,6 +640,7 @@ function wireUi() {
 }
 
 async function start() {
+  startupPerfStart("start");
   applyThemePreference();
   startThemePreferenceWatcher();
   applyFontFamilyPreference();
@@ -649,26 +650,30 @@ async function start() {
   ensurePwaServiceWorker({ timeoutMs: 8000 }).catch(() => {});
   showBootSplash("正在连接 Hermes Mobile");
   try {
-    const config = await withTimeout(
+    const config = await startupPerfStep("public-config", () => withTimeout(
       fetch("/api/public-config", { cache: "no-store" }).then((res) => res.json()),
       12000,
       "载入公开配置超时",
-    );
+    ));
     state.setupRequired = Boolean(config.setupRequired);
     if (state.setupRequired) {
+      finishStartupPerf("setup-required");
       showSetup();
       return;
     }
     if (config.authRequired && !state.key) {
       if (!(await hasCookieSession().catch(() => false))) {
+        finishStartupPerf("login-required");
         showLogin();
         return;
       }
     }
-    setBootSplashText("正在载入工作区");
-    await withTimeout(bootstrapWithRetry(), 26000, "载入工作区超时");
+    setBootSplashText("Loading workspace");
+    await startupPerfStep("bootstrap-with-retry", () => withTimeout(bootstrapWithRetry(), 26000, "Workspace bootstrap timed out"));
     showApp();
+    finishStartupPerf("ok");
   } catch (err) {
+    finishStartupPerf("error", { error: String(err?.message || err || "").slice(0, 180) });
     showError(err);
     if (/unauthorized/i.test(err.message)) showLogin();
     else showStartupRecovery(err);
@@ -676,24 +681,28 @@ async function start() {
 }
 
 async function startFromBootRecovery() {
+  startupPerfStart("boot-recovery");
   showBootSplash("正在连接 Hermes Mobile");
-  const config = await withTimeout(
+  const config = await startupPerfStep("public-config", () => withTimeout(
     fetch("/api/public-config", { cache: "no-store" }).then((res) => res.json()),
     12000,
-    "载入公开配置超时",
-  );
+    "Public config load timed out",
+  ));
   state.setupRequired = Boolean(config.setupRequired);
   if (state.setupRequired) {
+    finishStartupPerf("setup-required");
     showSetup();
     return;
   }
   if (config.authRequired && !state.key) {
     if (!(await hasCookieSession().catch(() => false))) {
+      finishStartupPerf("login-required");
       showLogin();
       return;
     }
   }
-  setBootSplashText("正在载入工作区");
-  await withTimeout(bootstrapWithRetry(), 26000, "载入工作区超时");
+  setBootSplashText("Loading workspace");
+  await startupPerfStep("bootstrap-with-retry", () => withTimeout(bootstrapWithRetry(), 26000, "Workspace bootstrap timed out"));
   showApp();
+  finishStartupPerf("ok");
 }

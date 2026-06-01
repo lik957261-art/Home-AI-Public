@@ -41,6 +41,31 @@ Server/route changes:
 
 - listener restart is required
 
+## Static Resource Performance
+
+The listener serves `index.html` and `service-worker.js` with `no-cache` so the
+PWA can discover new client versions and Service Worker updates. Versioned
+static assets referenced with `?v=<client-version>`, and fingerprinted static
+files such as dated manifests/icons, should be cacheable with a long immutable
+cache lifetime because a version bump changes the URL.
+
+Text static assets such as JavaScript, CSS, HTML, JSON, SVG, and web manifests
+should be returned compressed when the browser advertises `br` or `gzip`.
+Mobile/PWA load checks should inspect:
+
+- HTML response time.
+- Number of JS/CSS assets in the first page.
+- `Cache-Control` for versioned JS/CSS.
+- `Content-Encoding` for large JS/CSS.
+- Service Worker update behavior after a client version bump.
+
+When diagnosing account-specific startup slowness, the client records a bounded
+startup performance summary in `localStorage.hermesStartupPerfLast` and logs
+`[Hermes startup]` entries to the browser console. The log contains stage
+names, durations, selected workspace/view ids, message counts, and page totals
+only; it must not include message bodies, access keys, cookies, push endpoints,
+or plugin tokens.
+
 Gateway plugin/schema/profile changes:
 
 - Gateway Pool restart is required
