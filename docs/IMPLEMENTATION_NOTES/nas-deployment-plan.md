@@ -268,6 +268,14 @@ The deploy preflight must also prove the per-user isolation shape.
 Required Mode B checks:
 
 - Workers are NAS-local processes with NAS-local `apiBase` values.
+- Hybrid mode is the default NAS production policy. The manifest may contain a
+  larger candidate set than the number of currently running processes:
+  - Owner OpenAI/Codex: `1` warm, up to `4`.
+  - Owner DeepSeek: `0` warm, up to `2`.
+  - Ordinary workspace OpenAI/Codex: `0` warm, up to `2`.
+  - Ordinary workspace DeepSeek: `0` warm, up to `1`.
+  - The default NAS launcher starts only the Owner OpenAI/Codex warm profile;
+    listener-triggered `--start-profiles <profile>` starts candidates on demand.
 - User workers are single-workspace workers. Wildcard `allowedWorkspaceIds`
   must fail preflight unless the deployment is explicitly using the legacy
   single-worker bridge warning mode.

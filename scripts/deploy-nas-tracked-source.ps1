@@ -186,6 +186,8 @@ if not status.get('ok') or (status.get('health') or {}).get('status') != 'ok':
     issues.append('status_not_ok')
 if not gp.get('enabled'):
     issues.append('gateway_pool_disabled')
+if gp.get('mode') != 'hybrid':
+    issues.append('gateway_mode_not_hybrid')
 if not user_workers:
     issues.append('gateway_user_worker_missing')
 if not healthy_user_workers:

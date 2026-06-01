@@ -83,6 +83,15 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
     )
     || (gatewayWorkerRoot ? path.join(gatewayWorkerRoot, "elastic-requests") : ""),
   );
+  const profileLaunchScript = cleanString(
+    options.profileLaunchScript
+    || readConfigString(
+      elasticConfig,
+      "HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT",
+      "HERMES_WEB_GATEWAY_PROFILE_LAUNCH_SCRIPT",
+      "profileLaunchScript",
+    ),
+  );
 
   function gatewayPoolScriptPath() {
     return path.join(toolRoot, "scripts", "start-gateway-pool.ps1");
@@ -182,6 +191,16 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
         finishReject(err);
       });
     });
+  }
+
+  function runProfileLaunchScript(args = [], timeoutMs = 120000) {
+    if (!profileLaunchScript) return null;
+    if (!fs.existsSync(profileLaunchScript)) {
+      const err = new Error(`Gateway profile launch script not found: ${profileLaunchScript}`);
+      err.code = "gateway_profile_launch_script_missing";
+      throw err;
+    }
+    return spawnCommand(profileLaunchScript, args, timeoutMs);
   }
 
   function spawnCommand(command, args = [], timeoutMs = 120000) {
@@ -360,6 +379,8 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
     }
     const scheduledResult = await runScheduledGatewayRequest("start", [profile], startTimeoutMs(context), { noStopExisting: true });
     if (scheduledResult) return scheduledResult;
+    const scriptResult = runProfileLaunchScript(["--start-profiles", profile, "--no-stop-existing"], startTimeoutMs(context));
+    if (scriptResult) return scriptResult;
     return runGatewayPoolScript(["-StartProfiles", profile, "-NoStopExisting"], startTimeoutMs(context));
   }
 
@@ -373,6 +394,8 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
     }
     const scheduledResult = await runScheduledGatewayRequest("stop", [profile], stopTimeoutMs(context));
     if (scheduledResult) return scheduledResult;
+    const scriptResult = runProfileLaunchScript(["--stop-profiles", profile], stopTimeoutMs(context));
+    if (scriptResult) return scriptResult;
     return runGatewayPoolScript(["-StopProfiles", profile], stopTimeoutMs(context));
   }
 

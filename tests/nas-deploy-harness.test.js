@@ -33,6 +33,7 @@ for (const requiredCheck of [
   "served_client_version_mismatch",
   "gateway_user_worker_missing",
   "gateway_healthy_user_worker_missing",
+  "gateway_mode_not_hybrid",
   "nas_single_worker_bridge_not_hybrid_parity",
   "nas_skill_profiles_missing",
   "nas_user_worker_wildcard_workspace",
@@ -48,6 +49,11 @@ for (const requiredCheck of [
 
 assert.ok(
   deployScript.includes("gateway_not_hybrid_parity"),
+  "NAS first-start preflight must retain strict hybrid parity support",
+);
+
+assert.ok(
+  deployScript.includes("gateway_not_hybrid_parity"),
   "NAS first-start preflight must support strict hybrid parity failure",
 );
 
@@ -60,6 +66,30 @@ const nasStartScript = read("scripts/start-nas-gateway-pool.sh");
 assert.ok(
   nasStartScript.includes("SKILL_PROFILES_ROOT"),
   "NAS Gateway launcher must bind workers to NAS-local skill profiles",
+);
+assert.ok(
+  nasStartScript.includes("START_PROFILES") && nasStartScript.includes("nasgw1"),
+  "NAS Gateway launcher must support hybrid warm-profile startup",
+);
+assert.ok(
+  nasStartScript.includes("nasgw4:18754:owner:owner-full:openai-codex"),
+  "NAS Gateway launcher must provision four Owner OpenAI/Codex candidates",
+);
+assert.ok(
+  nasStartScript.includes("nasdsgw1") && nasStartScript.includes("owner:owner-full:deepseek"),
+  "NAS Gateway launcher must provision Owner DeepSeek candidates without warming them by default",
+);
+assert.ok(
+  nasStartScript.includes("nasgw5:18755:weixin_wuping") && nasStartScript.includes("nasgw6:18756:weixin_wuping"),
+  "NAS Gateway launcher must provision two OpenAI/Codex candidates for ordinary workspaces",
+);
+assert.ok(
+  nasStartScript.includes("nasdsgw5:18775:weixin_wuping"),
+  "NAS Gateway launcher must provision one DeepSeek candidate for ordinary workspaces",
+);
+assert.ok(
+  nasStartScript.includes("--start-profiles") && nasStartScript.includes("--stop-profiles"),
+  "NAS Gateway launcher must support profile-specific on-demand start/stop",
 );
 assert.ok(
   nasStartScript.includes("MEMORY_PROFILES_ROOT"),
@@ -100,6 +130,10 @@ for (const doc of [publicChecklist, deploymentDoc, nasPlan, readme]) {
 }
 
 for (const doc of [deploymentDoc, nasPlan]) {
+  assert.ok(
+    doc.includes("hybrid") && doc.includes("Owner") && doc.includes("4"),
+    "NAS docs must state hybrid production policy as the default",
+  );
   assert.ok(
     doc.includes("Skill Store") && doc.includes("Memory Store"),
     "NAS docs must require per-workspace Skill Store and Memory Store binding",

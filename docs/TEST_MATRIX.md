@@ -85,8 +85,9 @@ production. `scripts/deploy-nas-tracked-source.ps1` must package only
 Git-tracked source files with `git archive`, back up overwritten NAS `app` and
 `source` files, run pinned-runtime checks, and run a first-start preflight. The
 preflight must fail when app/source/served client versions disagree, when
-Gateway Pool is disabled, or when no healthy `securityLevel=user` worker is
-available. A single `nas-local-codex` wildcard worker is allowed as a bootstrap
+Gateway Pool is disabled, when NAS is not in `hybrid` Gateway mode, or when no
+healthy `securityLevel=user` worker is available. A single `nas-local-codex`
+wildcard worker is allowed as a bootstrap
 bridge only with an explicit warning; it must not be treated as equivalent to
 the maintained Windows hybrid/Owner-warm Gateway Pool. Focused check:
 `node tests\nas-deploy-harness.test.js`.

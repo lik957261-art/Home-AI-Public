@@ -157,6 +157,30 @@ async function testScheduledTaskLaunchRequest() {
   fs.rmSync(toolRoot, { recursive: true, force: true });
 }
 
+async function testCustomProfileLaunchScriptForNasHybrid() {
+  const calls = [];
+  const toolRoot = tempToolRoot();
+  const script = path.join(toolRoot, "start-nas-gateway-pool.sh");
+  fs.writeFileSync(script, "#!/bin/sh\n", "utf8");
+  const service = createGatewayWorkerProfileLaunchService({
+    toolRoot,
+    elasticConfig: {
+      HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT: script,
+    },
+    spawn: fakeSpawnFactory(calls),
+  });
+
+  await service.startWorkerProfile({ profile: "nasgw7", securityLevel: "user" }, { timeoutMs: 9000 });
+  await service.stopWorkerProfile({ profile: "nasgw7", securityLevel: "user" }, { timeoutMs: 8000 });
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].command, script);
+  assert.deepEqual(calls[0].args, ["--start-profiles", "nasgw7", "--no-stop-existing"]);
+  assert.deepEqual(calls[1].args, ["--stop-profiles", "nasgw7"]);
+  assert.equal(calls[0].spawnOptions.cwd, toolRoot);
+  fs.rmSync(toolRoot, { recursive: true, force: true });
+}
+
 async function testScheduledTaskFailureDiagnosticsAreBounded() {
   const calls = [];
   const toolRoot = tempToolRoot();
@@ -229,6 +253,7 @@ function testHelpersSanitizePublicState() {
   await testOwnerMaintenanceStartAndStopPolicy();
   await testScheduledOwnerMaintenanceLaunchRequestTargetsProfile();
   await testScheduledTaskLaunchRequest();
+  await testCustomProfileLaunchScriptForNasHybrid();
   await testScheduledTaskFailureDiagnosticsAreBounded();
   await testFailureDiagnosticsAreBounded();
   await testMissingProfileAndMissingScriptFailClosed();

@@ -106,6 +106,13 @@ only after all of these preflight checks pass:
 
 - The Gateway Pool exposes healthy `securityLevel: user` workers from NAS-local
   processes, not from the operator's Windows machine.
+- NAS production uses hybrid mode by default, matching the maintained Windows
+  policy: Owner OpenAI/Codex keeps `1` warm worker and may expand to `4`;
+  ordinary workspaces keep `0` warm workers and may expand to `2`
+  OpenAI/Codex workers; Owner DeepSeek keeps `0` warm workers and may expand to
+  `2`; ordinary workspace DeepSeek keeps `0` warm workers and may start `1`
+  provider-dedicated worker. A fixed always-running pool is a diagnostic
+  fallback, not the default deployment model.
 - Every user worker is scoped to exactly one `allowedWorkspaceIds` value. A
   wildcard workspace is allowed only for an explicitly documented legacy bridge
   warning and is not production parity.

@@ -15,7 +15,35 @@ FINANCE_MCP_PATH="${HERMES_MOBILE_NAS_FINANCE_MCP_PATH:-/volume1/docker/finance-
 FINANCE_MCP_API_BASE_URL="${HERMES_MOBILE_NAS_FINANCE_MCP_API_BASE_URL:-http://127.0.0.1:8791}"
 
 # Format: profile:port:workspaceId:skillProfile
-WORKERS="${HERMES_MOBILE_NAS_GATEWAY_WORKERS:-nasgw1:18751:owner:owner-full,nasgw2:18752:owner:owner-full,nasgw3:18753:weixin_wuping:workspace:weixin_wuping,nasgw4:18754:weixin_stephen:workspace:weixin_stephen,nasgw5:18755:xuyan:workspace:xuyan,nasgw6:18756:weixin_test_1:workspace:weixin_test_1}"
+# Optional fifth field is provider. Defaults to openai-codex.
+WORKERS="${HERMES_MOBILE_NAS_GATEWAY_WORKERS:-nasgw1:18751:owner:owner-full:openai-codex,nasgw2:18752:owner:owner-full:openai-codex,nasgw3:18753:owner:owner-full:openai-codex,nasgw4:18754:owner:owner-full:openai-codex,nasdsgw1:18771:owner:owner-full:deepseek,nasdsgw2:18772:owner:owner-full:deepseek,nasgw5:18755:weixin_wuping:workspace:weixin_wuping:openai-codex,nasgw6:18756:weixin_wuping:workspace:weixin_wuping:openai-codex,nasdsgw5:18775:weixin_wuping:workspace:weixin_wuping:deepseek,nasgw7:18757:weixin_stephen:workspace:weixin_stephen:openai-codex,nasgw8:18758:weixin_stephen:workspace:weixin_stephen:openai-codex,nasdsgw7:18777:weixin_stephen:workspace:weixin_stephen:deepseek,nasgw9:18759:xuyan:workspace:xuyan:openai-codex,nasgw10:18760:xuyan:workspace:xuyan:openai-codex,nasdsgw9:18779:xuyan:workspace:xuyan:deepseek,nasgw11:18761:weixin_test_1:workspace:weixin_test_1:openai-codex,nasgw12:18762:weixin_test_1:workspace:weixin_test_1:openai-codex,nasdsgw11:18781:weixin_test_1:workspace:weixin_test_1:deepseek}"
+START_PROFILES="${HERMES_MOBILE_NAS_GATEWAY_START_PROFILES:-nasgw1}"
+STOP_PROFILES=""
+NO_STOP_EXISTING=0
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --start-profiles|-StartProfiles)
+      START_PROFILES="${2:-}"
+      NO_STOP_EXISTING=1
+      shift 2
+      ;;
+    --stop-profiles|-StopProfiles)
+      STOP_PROFILES="${2:-}"
+      START_PROFILES=""
+      NO_STOP_EXISTING=1
+      shift 2
+      ;;
+    --no-stop-existing|-NoStopExisting)
+      NO_STOP_EXISTING=1
+      shift
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
 
 mkdir -p "$PROFILES_ROOT" "$(dirname "$MANIFEST_PATH")" "$SKILL_PROFILES_ROOT" "$MEMORY_PROFILES_ROOT"
 
@@ -192,12 +220,32 @@ def plugin_mcp_config(config_text, profile_home, workspace_root):
         config += "mcp_servers:\n" + "\n".join(blocks) + "\n"
     return config
 
+def apply_provider_config(config_text, provider):
+    if provider != "deepseek":
+        return config_text
+    lines = []
+    for line in config_text.splitlines():
+        if line.strip().startswith("provider:"):
+            indent = line[:len(line) - len(line.lstrip())]
+            lines.append(f"{indent}provider: deepseek")
+        elif line.strip().startswith("default:"):
+            indent = line[:len(line) - len(line.lstrip())]
+            lines.append(f"{indent}default: deepseek-chat")
+        else:
+            lines.append(line)
+    return "\n".join(lines).rstrip() + "\n"
+
 for raw in [item.strip() for item in worker_spec.split(",") if item.strip()]:
     parts = raw.split(":")
     if len(parts) < 4:
         raise SystemExit(f"invalid worker spec: {raw}")
     name, port_text, workspace_id = parts[0].strip(), parts[1].strip(), parts[2].strip()
-    skill_profile = ":".join(parts[3:]).strip()
+    provider = "openai-codex"
+    if len(parts) >= 5 and parts[-1].strip() in ("openai-codex", "deepseek"):
+        provider = parts[-1].strip()
+        skill_profile = ":".join(parts[3:-1]).strip()
+    else:
+        skill_profile = ":".join(parts[3:]).strip()
     port = int(port_text)
     if not name or not workspace_id:
         raise SystemExit(f"invalid worker spec: {raw}")
@@ -241,6 +289,7 @@ for raw in [item.strip() for item in worker_spec.split(",") if item.strip()]:
         f"HERMES_HOME: {base_home}",
         f"HERMES_HOME: {profile_home}",
     )
+    config = apply_provider_config(config, provider)
     config = plugin_mcp_config(config, profile_home, workspace_root)
     (profile_home / "config.yaml").write_text(config, encoding="utf-8")
 
@@ -289,8 +338,8 @@ for raw in [item.strip() for item in worker_spec.split(",") if item.strip()]:
         "apiBase": f"http://127.0.0.1:{port}",
         "api_key": api_key,
         "enabled": True,
-        "provider": "openai-codex",
-        "tags": ["official", "clean", "nas", "user"],
+        "provider": provider,
+        "tags": ["official", "clean", "nas", "user"] + (["deepseek"] if provider == "deepseek" else []),
         "securityLevel": "user",
         "allowedWorkspaceIds": [workspace_id],
         "skillProfile": skill_profile,
@@ -302,10 +351,9 @@ tmp.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf
 tmp.replace(manifest_path)
 PY
 
-for item in $(printf '%s' "$WORKERS" | tr ',' ' '); do
-  profile=$(printf '%s' "$item" | cut -d: -f1)
+stop_profile() {
+  profile="$1"
   profile_home="$PROFILES_ROOT/$profile"
-  mkdir -p "$profile_home/logs"
   if [ -f "$profile_home/gateway.pid" ]; then
     old_pid=$(python3 - "$profile_home/gateway.pid" <<'PY' 2>/dev/null || true
 import json
@@ -317,6 +365,42 @@ PY
       kill "$old_pid" 2>/dev/null || true
     fi
   fi
+}
+
+profile_in_list() {
+  needle="$1"
+  list="$2"
+  for item in $(printf '%s' "$list" | tr ',' ' '); do
+    [ "$item" = "$needle" ] && return 0
+  done
+  return 1
+}
+
+if [ -n "$STOP_PROFILES" ]; then
+  for profile in $(printf '%s' "$STOP_PROFILES" | tr ',' ' '); do
+    stop_profile "$profile"
+  done
+  exit 0
+fi
+
+if [ "$NO_STOP_EXISTING" = "0" ]; then
+  for item in $(printf '%s' "$WORKERS" | tr ',' ' '); do
+    profile=$(printf '%s' "$item" | cut -d: -f1)
+    if ! profile_in_list "$profile" "$START_PROFILES"; then
+      stop_profile "$profile"
+    fi
+  done
+fi
+
+for profile in $(printf '%s' "$START_PROFILES" | tr ',' ' '); do
+  [ -n "$profile" ] || continue
+  profile_home="$PROFILES_ROOT/$profile"
+  if [ ! -d "$profile_home" ]; then
+    echo "Unknown profile: $profile" >&2
+    exit 3
+  fi
+  mkdir -p "$profile_home/logs"
+  stop_profile "$profile"
   nohup env \
     HOME="$HOME" \
     HERMES_HOME="$profile_home" \
@@ -325,16 +409,19 @@ PY
     >"$profile_home/logs/gateway.log" 2>&1 &
 done
 
-python3 - "$MANIFEST_PATH" <<'PY'
+python3 - "$MANIFEST_PATH" "$START_PROFILES" <<'PY'
 import json
 import sys
 import time
 import urllib.request
 
 manifest = json.load(open(sys.argv[1], encoding="utf-8"))
+start_profiles = {item.strip() for item in sys.argv[2].replace(",", " ").split() if item.strip()}
 failures = []
 for worker in manifest.get("workers", []):
     name = worker.get("profile") or worker.get("name")
+    if name not in start_profiles:
+        continue
     api_base = str(worker.get("apiBase") or "").rstrip("/")
     ok = False
     last_error = ""
@@ -352,5 +439,5 @@ for worker in manifest.get("workers", []):
 
 if failures:
     raise SystemExit("NAS Gateway workers unhealthy: " + ", ".join(failures))
-print(f"NAS Gateway workers healthy: {len(manifest.get('workers', []))}")
+print(f"NAS Gateway workers healthy: {len(start_profiles)}")
 PY
