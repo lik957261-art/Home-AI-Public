@@ -29,12 +29,67 @@ The same ACL boundary must protect listing, preview, upload, delete, task direct
 ## Directory Rules
 
 - Directory mode is the primary in-app file manager surface.
+- Directory is presented as a built-in plugin card on the topic surface instead
+  of a permanent mobile bottom-navigation tab. This is only an entry-point
+  change; all directory operations remain protected by the directory module's
+  ACL and mutation rules.
 - Root listing should include normal project-map roots, workspace-directory roots, and shared roots together.
 - Directory entries should be filtered by the authenticated workspace and shared-directory ACLs.
 - Shared roots may be read-only; create/upload/delete must reject non-owner writes to read-only shares.
 - Upload must not overwrite existing files by default.
 - Delete must be explicit and non-recursive unless a dedicated audited policy says otherwise.
 - Protected roots include workspace root, sync/download roots, cache/delivery roots, hidden roots, and allowed-root boundaries.
+
+## Directory Topic Collections
+
+Directory-bound topics are different from plugin-bound topics. A plugin has one
+primary application topic because the plugin is a structured app/data domain. A
+directory is a project or evidence container, so the same directory may collect
+multiple topic chats for different purposes.
+
+Product rules:
+
+- One directory may bind multiple topics.
+- One directory may have at most one default primary topic for quick entry.
+- Additional bound topics are secondary/special-purpose topic entries, for
+  example planning, analysis, issue tracking, summary, or report drafting.
+- The directory card may use a large icon/card presentation, with compact
+  actions for opening the directory, opening the default topic, and selecting a
+  bound topic.
+- When a directory has multiple bound topics, each bound-topic entry must show a
+  readable short topic name, not only repeated chat icons. Manual topic names
+  take priority; otherwise the UI may derive a deterministic short name from the
+  first user message until service-owned title generation exists.
+- The main card click should not be ambiguous: opening a directory and opening
+  a topic are separate actions unless a future UI explicitly labels the default.
+- Deleting or unbinding a topic must not delete the directory or other bound
+  topics.
+
+Context rules:
+
+- Directory topic context may include cleaned summaries, selected files, pinned
+  reports, and bounded previews resolved through the existing directory
+  boundary service.
+- The context selector must not blindly inject every file in the directory.
+- Raw secrets, Access Keys, push endpoints, browser cookies, provider tokens,
+  full learner content, full mailboxes, raw ledgers, private inventories, and
+  long logs must not enter topic context, docs, handoff, or tests.
+- Owner viewing another workspace must resolve that workspace's directory topic
+  bindings, default topic, and files. Owner fallback is a permission bug.
+
+Current frontend projection:
+
+- Static v444 renders directory-topic cards from the existing topic directory
+  bindings. This is display-only and does not create a new persistence table.
+- Static v446 adds short named bound-topic entries inside directory-topic cards
+  and preserves native mobile topic-list scrolling instead of intercepting
+  normal vertical pan gestures.
+- Static v453 exposes Directory as a built-in plugin card in the topic
+  application grid and hides the standalone mobile bottom Directory tab.
+- Until a service-owned explicit default topic exists, the card opens the most
+  recently updated topic in that directory as the temporary default.
+- Changing persistence, context assembly, or workspace binding resolution must
+  follow the H1 harness path in `docs/IMPLEMENTATION_NOTES/directory-topic-collections.md`.
 
 ## Plugin Topic Delivery Directories
 

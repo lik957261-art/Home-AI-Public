@@ -25,6 +25,10 @@ assembly only decides what is injected into the next model call.
   task-stream sends should remain stateless new tasks.
 - Directory bindings are not automatically inherited by ordinary Chat. Stale
   `目录别名` / `Directory aliases` lines must be stripped from chat history.
+- Directory-bound topics are explicit context scopes. One directory may collect
+  multiple topic chats, but each topic context remains scoped by its own
+  `(threadId, taskGroupId)` and may include only the selected directory's
+  cleaned summaries, selected files, and bounded previews.
 - Long artifacts, long tool logs, raw prompts, full learner content, secrets,
   and push endpoints must not be written into context summaries or debug
   metadata.
@@ -42,6 +46,9 @@ Current implementation uses these practical layers:
   routing context only after effective-workspace plugin authorization is
   resolved. Structured plugin MCP remains the primary source for live plugin
   data; cleaned delivery-directory files are supporting context.
+- Directory-topic bindings, when implemented, are injected as bounded directory
+  metadata and selected evidence. They do not authorize file access and must
+  resolve all file context through the directory boundary service.
 - `topic_summary` is read from `topic_context_summaries` when layered mode is
   enabled and a stable summary exists.
 - `working_state` is read from `topic_working_states` when available.

@@ -278,6 +278,10 @@ function taskTitle(group) {
   return TaskArtifactHelpers.taskTitle(group, { rewriteDirectoryPathsForDisplay });
 }
 
+function taskShortTitle(group) {
+  return TaskArtifactHelpers.taskShortTitle(group, { rewriteDirectoryPathsForDisplay });
+}
+
 function taskArtifacts(group) {
   return TaskArtifactHelpers.taskArtifacts(group);
 }

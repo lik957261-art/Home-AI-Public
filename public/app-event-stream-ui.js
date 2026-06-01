@@ -119,6 +119,15 @@ async function sendMessage(event) {
     }
     if (state.viewMode === "tasks" && state.currentTaskGroupId) {
       body.taskGroupId = state.currentTaskGroupId;
+      const pluginTopicDef = typeof pluginTopicDefForGroupId === "function"
+        ? pluginTopicDefForGroupId(state.currentTaskGroupId)
+        : null;
+      if (pluginTopicDef) {
+        const directory = typeof pluginTopicDeliveryAttachment === "function" ? pluginTopicDeliveryAttachment(pluginTopicDef) : null;
+        if (directory?.projectId) body.directory = directory;
+        const instruction = typeof pluginTopicInstruction === "function" ? pluginTopicInstruction(pluginTopicDef) : "";
+        if (instruction) body.instructions = [body.instructions || "", instruction].filter(Boolean).join("\n\n");
+      }
       const sharedTopicGroup = selectedSharedTopicGroup();
       if (sharedTopicGroup) {
         body.singleWindowMode = "chat";

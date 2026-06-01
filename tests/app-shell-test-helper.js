@@ -30,6 +30,8 @@ const appSplitModuleFiles = Object.freeze([
   "app-shared-directory-ui.js",
   "app-embedded-plugin-ui.js",
   "app-wardrobe-ui.js",
+  "app-plugin-topics-ui.js",
+  "app-directory-topics-ui.js",
   "app-action-inbox-ui.js",
   "app-automation-ui.js",
   "app-learning-growth-ai-controller.js",

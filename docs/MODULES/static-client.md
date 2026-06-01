@@ -28,6 +28,12 @@ After deployment, verify:
 - `/api/status?detail=1`
 - `/api/client-version?clientVersion=<new-version>`
 
+If a cache-sensitive static file was missed during a production sync and is
+then copied under the same `?v=<client-version>` URL, bump the client version
+again before considering the hotfix deployed. Installed PWA clients can keep
+the old JavaScript under the old query string and will not see a refresh prompt
+when the server version has not changed.
+
 ## Deployment
 
 Static-only changes:
@@ -94,6 +100,11 @@ Gateway plugin/schema/profile changes:
   JavaScript under an unchanged `?v=<client-version>` URL can leave installed
   PWA/service-worker clients on the old script even when the production file has
   been copied.
+- When the app detects a server/client version mismatch during startup, status
+  refresh, foreground, focus, push, or timer checks, it may run one
+  session-scoped `/client-reset.html` recovery for the target server version.
+  The refresh notice remains available, but correctness must not depend on the
+  notice being visible on an already-stale PWA shell.
 - On Windows, do not rewrite static/test files containing Chinese text through
   PowerShell `Get-Content -Raw` plus `Set-Content` / `WriteAllText` unless the
   command explicitly preserves UTF-8 from a known UTF-8 source. Prefer

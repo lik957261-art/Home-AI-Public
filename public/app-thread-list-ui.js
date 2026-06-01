@@ -267,9 +267,13 @@ function taskGroupHasPendingMessages(thread = state.currentThread, taskGroupId =
 }
 
 function renderTaskWindow(thread, conversation, options, bottomOffset) {
+  const pluginTopicGroups = typeof pluginTopicGroupsForTaskList === "function"
+    ? pluginTopicGroupsForTaskList(thread)
+    : [];
   const allGroups = taskListGroupsForThread(thread)
     .filter(topicGroupVisibleInTaskList)
     .concat(sharedCaseTopicGroupsForTaskList(thread))
+    .concat(pluginTopicGroups)
     .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
   const displayGroups = allGroups.slice();
   const search = currentSearchText().toLowerCase();
@@ -304,9 +308,18 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     $("interruptRun").disabled = !allActiveRuns.length;
     configureComposer({ enabled: true, placeholder: "New topic..." });
     const filterBanner = renderTaskDirectoryFilterBanner();
-    conversation.innerHTML = groups.length
-      ? `${filterBanner}<div class="task-grid">${groups.map(renderTaskCard).join("")}</div>`
-      : `${filterBanner}<div class="empty-state">${state.taskDirectoryFilter ? "No topics in this directory." : "No topics yet. Send a message to create one."}</div>`;
+    const pluginTopicCards = typeof renderPluginTopicCards === "function" ? renderPluginTopicCards() : "";
+    const directoryTopicCollections = typeof directoryTopicCollectionsForGroups === "function"
+      ? directoryTopicCollectionsForGroups(groups.filter((group) => !group.pluginTopic))
+      : [];
+    const directoryTopicGroupIds = typeof directoryTopicCollectionGroupIds === "function"
+      ? directoryTopicCollectionGroupIds(directoryTopicCollections)
+      : new Set();
+    const directoryTopicCards = typeof renderDirectoryTopicCards === "function" ? renderDirectoryTopicCards(directoryTopicCollections) : "";
+    const regularGroups = groups.filter((group) => !group.pluginTopic && !directoryTopicGroupIds.has(group.id));
+    conversation.innerHTML = regularGroups.length || pluginTopicCards || directoryTopicCards
+      ? `${filterBanner}${pluginTopicCards}${directoryTopicCards}<div class="task-grid">${regularGroups.map(renderTaskCard).join("")}</div>`
+      : `${filterBanner}${pluginTopicCards}${directoryTopicCards}<div class="empty-state">${state.taskDirectoryFilter ? "No topics in this directory." : "No topics yet. Send a message to create one."}</div>`;
     conversation.querySelectorAll("[data-open-task]").forEach((button) => {
       button.addEventListener("click", () => {
         const sourceThreadId = String(button.dataset.openTaskThread || "");
@@ -321,6 +334,8 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     wireTaskSwipeActions(conversation);
     wireTaskCardMenus(conversation);
     wireTaskDirectoryFilterControls(conversation);
+    if (typeof wirePluginTopicCards === "function") wirePluginTopicCards(conversation);
+    if (typeof wireDirectoryTopicCards === "function") wireDirectoryTopicCards(conversation);
     wireSkillLinks(conversation);
   } else {
     const groupActiveRuns = (selected.messages || [])

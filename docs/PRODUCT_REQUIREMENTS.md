@@ -28,9 +28,29 @@ This file records durable product rules that implementation must preserve.
 - Summary/state/debug metadata must not store raw secrets, push endpoints, raw prompts, full model responses, full learner answers, full transcripts, full questions, answer keys, long tool logs, or private generated reports.
 - Layered context assembly must keep a rollback path to legacy bounded recent-window behavior.
 
+## Directory Topics
+
+- Directory is a built-in application plugin in the Hermes Mobile topic
+  surface. It should be discovered from the topic/application grid rather than
+  occupying a permanent bottom navigation tab.
+- Treating Directory as a built-in plugin is an information-architecture rule,
+  not a permission/runtime rewrite. Directory browsing, upload, delete, preview,
+  and context selection must still go through the existing directory ACL and
+  boundary services.
+- A directory is a project/evidence container, not a single fixed topic.
+- One directory may bind multiple topic chats when those chats represent different purposes, such as planning, analysis, summary, issue tracking, or report drafting.
+- Each directory may have at most one default primary topic for quick entry. Additional bound topics are topic-specific secondary entries.
+- Directory-topic cards may use a large icon/card presentation similar to plugin topics, but the actions should make the distinction clear: open directory, open default topic, or pick a bound topic.
+- Directory-topic context must load cleaned summaries, selected files, and bounded previews from the directory through the directory boundary service. It must not blindly inject every file in the directory.
+- Directory-topic binding must not weaken directory ACLs. Owner viewing another workspace must resolve that workspace's directory, default topic, and topic list, not Owner's.
+
 ## Plugin Topics
 
 - Workspace-private plugins may be bound to first-class application topics.
+- The topic application grid may include built-in plugins such as Directory
+  alongside external embedded plugins such as Wardrobe, Finance, and Email.
+  Built-in plugin cards reuse the launcher pattern but keep their original
+  module services and authorization boundaries.
 - A plugin topic must not authorize a plugin by itself; visibility, launch, MCP/toolset exposure, and delivery directory access must all resolve through the effective workspace.
 - A plugin topic run should use the plugin MCP as the primary structured data access path when the selected workspace has active provisioning and callable schema evidence. Directory context is supporting evidence only.
 - Every plugin topic should have a standard workspace-local delivery directory for cleaned reports and user-facing outputs. That directory must not store raw plugin keys, launch tokens, browser cookies, provider credentials, full mailbox bodies, raw ledger rows, private inventories, health record dumps, or plugin database files.

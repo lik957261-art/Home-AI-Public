@@ -1,5 +1,13 @@
 "use strict";
 
+function preparePrimaryNavigationChange() {
+  if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
+  if (typeof closeTopMoreMenu === "function") closeTopMoreMenu();
+  if (typeof closeTaskCardMenus === "function") closeTaskCardMenus();
+  if (typeof closeDirectoryEntryMenus === "function") closeDirectoryEntryMenus();
+  if (typeof closeSidebar === "function" && typeof isMobileLayout === "function" && isMobileLayout()) closeSidebar();
+}
+
 function wireUi() {
   wireBackNavigationGuard();
   wireSidebarTouchScroll();
@@ -16,7 +24,7 @@ function wireUi() {
     reloadForClientUpdate();
   });
   $("bootResetClient")?.addEventListener("click", () => {
-    resetClientAndReload();
+    resetClientAndReload("manual", { hard: true });
   });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") {
@@ -47,6 +55,13 @@ function wireUi() {
   });
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("message", (event) => {
+      if (event.data?.type === "hermes.client-version.updated") {
+        handleClientVersion({
+          version: event.data.version || "",
+          clientVersion: state.clientVersion,
+        }, "service-worker");
+        return;
+      }
       if (event.data?.type === "hermes.notification.open") {
         openNotificationRoute(event.data.url || event.data.data?.url || "/").catch(showError);
         return;
@@ -125,16 +140,18 @@ function wireUi() {
     renderCurrentThread({ stickToBottom: true });
   });
   $("taskManagementMode")?.addEventListener("click", async () => {
+    preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     if (!(state.viewMode === "tasks" || (state.viewMode === "single" && state.singleWindowMode === "task"))) {
       state.viewMode = "tasks";
       localStorage.setItem("hermesWebViewMode", state.viewMode);
       state.currentTaskGroupId = "";
-      await loadSelectedView();
+      await loadSelectedView({ forceTaskListReload: true });
     }
   });
   $("chatManagementMode")?.addEventListener("click", async () => {
+    preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     state.viewMode = "single";
@@ -146,14 +163,16 @@ function wireUi() {
     await loadSelectedView();
   });
   $("bottomTasksMode")?.addEventListener("click", async () => {
+    preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     state.viewMode = "tasks";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
-    await loadSelectedView();
+    await loadSelectedView({ forceTaskListReload: true });
   });
   $("bottomChatMode")?.addEventListener("click", async () => {
+    preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     state.viewMode = "single";
@@ -165,6 +184,7 @@ function wireUi() {
     await loadSelectedView();
   });
   $("bottomInboxMode")?.addEventListener("click", async () => {
+    preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     state.viewMode = "inbox";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
@@ -174,6 +194,7 @@ function wireUi() {
     await loadSelectedView();
   });
   $("singleMode").addEventListener("click", async () => {
+    preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     state.viewMode = "single";
@@ -183,6 +204,7 @@ function wireUi() {
     await loadSelectedView();
   });
   $("singleTaskMode")?.addEventListener("click", async () => {
+    preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     state.viewMode = "single";
@@ -192,14 +214,16 @@ function wireUi() {
     await loadSelectedView();
   });
   $("tasksMode").addEventListener("click", async () => {
+    preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     state.viewMode = "tasks";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
-    await loadSelectedView();
+    await loadSelectedView({ forceTaskListReload: true });
   });
   $("projectsMode").addEventListener("click", async () => {
+    preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     state.directoryReturnRoute = null;
     state.viewMode = "projects";
@@ -210,6 +234,7 @@ function wireUi() {
     await loadSelectedView();
   });
   $("bottomProjectsMode")?.addEventListener("click", async () => {
+    preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     state.directoryReturnRoute = null;
     state.viewMode = "projects";

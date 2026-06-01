@@ -18,6 +18,44 @@ function hideRefreshNotice() {
   $("refreshNotice")?.classList.add("hidden");
 }
 
+const HERMES_CLIENT_VERSION_AUTO_RESET_SOURCES = new Set([
+  "bootstrap",
+  "status",
+  "response",
+  "visible",
+  "focus",
+  "timer",
+  "push",
+  "service-worker",
+  "update-applied",
+]);
+
+function clientVersionAutoResetKey(serverVersion) {
+  return `hermesClientVersionAutoReset:${serverVersion}`;
+}
+
+function shouldAutoResetForClientVersionMismatch(serverVersion, source = "") {
+  const version = normalizeClientVersion(serverVersion);
+  if (!version || !HERMES_CLIENT_VERSION_AUTO_RESET_SOURCES.has(String(source || ""))) return false;
+  try {
+    const key = clientVersionAutoResetKey(version);
+    if (window.sessionStorage?.getItem(key) === "1") return false;
+    window.sessionStorage?.setItem(key, "1");
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function scheduleClientVersionAutoReset(serverVersion, source = "") {
+  if (!shouldAutoResetForClientVersionMismatch(serverVersion, source)) return false;
+  showBootSplash("正在更新客户端");
+  window.setTimeout(() => {
+    reloadForClientUpdate(`client-version-${String(source || "mismatch").slice(0, 40)}`);
+  }, 120);
+  return true;
+}
+
 function handleClientVersion(info, source = "") {
   const serverVersion = normalizeClientVersion(info?.version || info?.clientVersion || "");
   if (!serverVersion) return;
@@ -25,6 +63,7 @@ function handleClientVersion(info, source = "") {
   const clientVersion = normalizeClientVersion(state.clientVersion);
   if (clientVersion && serverVersion !== clientVersion) {
     showRefreshNotice(serverVersion, source);
+    scheduleClientVersionAutoReset(serverVersion, source);
     return;
   }
   hideRefreshNotice();
@@ -35,7 +74,7 @@ async function checkClientVersion(reason = "manual") {
   if (state.clientVersion) query.set("clientVersion", state.clientVersion);
   if (reason) query.set("reason", reason);
   const info = await api(`/api/client-version?${query.toString()}`);
-  handleClientVersion(info, "poll");
+  handleClientVersion(info, reason || "poll");
   if (info.reasoning) applyReasoningInfo(info.reasoning);
   return info;
 }
@@ -62,22 +101,24 @@ function waitForServiceWorkerControllerChange(timeoutMs = 3500) {
   });
 }
 
-function reloadWithoutBfcache() {
+function reloadWithoutBfcache(reason = "") {
   const url = new URL(window.location.href);
   url.searchParams.set("_hmv", String(Date.now()));
+  if (reason) url.searchParams.set("reason", String(reason).slice(0, 80));
   window.location.replace(url.href);
 }
 
-function resetClientAndReload(reason = "") {
+function resetClientAndReload(reason = "", options = {}) {
   const params = new URLSearchParams({ _hmv: String(Date.now()) });
   if (reason) params.set("reason", String(reason).slice(0, 80));
+  if (options?.hard) params.set("hard", "1");
   window.location.replace(`/client-reset.html?${params.toString()}`);
 }
 
-function reloadForClientUpdate() {
+function reloadForClientUpdate(reason = "") {
   showBootSplash("正在更新客户端");
   if (!("serviceWorker" in navigator)) {
-    reloadWithoutBfcache();
+    reloadWithoutBfcache(reason);
     return;
   }
   navigator.serviceWorker.getRegistration("/")
@@ -95,7 +136,7 @@ function reloadForClientUpdate() {
       await waitForServiceWorkerControllerChange();
     })
     .catch(() => {})
-    .finally(reloadWithoutBfcache);
+    .finally(() => reloadWithoutBfcache(reason));
 }
 
 function isStandalonePwa() {

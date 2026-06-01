@@ -36,6 +36,8 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Action Inbox / user participation queue: `docs/MODULES/action-inbox.md`
 - Embedded app plugin host: `docs/MODULES/plugins.md`
 - Plugin-bound application topics: `docs/MODULES/plugin-topics.md`
+- Directory-bound topic collections: `docs/MODULES/directory-files.md`,
+  `docs/IMPLEMENTATION_NOTES/directory-topic-collections.md`
 - Wardrobe MCP tab and embedded plugin host: `docs/MODULES/wardrobe.md`
 - Static client/cache/deploy: `docs/MODULES/static-client.md`, `docs/MODULES/deployment.md`
 - Workspace auth, keys, and access policy: `docs/MODULES/workspace-auth-permissions.md`
@@ -74,6 +76,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Tongbao platform currency and Growth coin exchange design: `docs/IMPLEMENTATION_NOTES/tongbao-platform-currency-design.md`
 - Gateway elastic worker scheduling: `docs/IMPLEMENTATION_NOTES/gateway-elastic-worker-scheduling.md`
 - Plugin topic binding: `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md`
+- Directory topic collections: `docs/IMPLEMENTATION_NOTES/directory-topic-collections.md`
 - NAS deployment plan: `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`
 - Cross-module harness required matrix: `docs/IMPLEMENTATION_NOTES/harness-required-matrix.md`
 - Async Growth evaluation queue: `docs/IMPLEMENTATION_NOTES/async-growth-evaluation-queue.md`

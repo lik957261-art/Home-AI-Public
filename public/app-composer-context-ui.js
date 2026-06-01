@@ -11,7 +11,8 @@ function activeThreadRunIds(thread = state.currentThread) {
 
 function activeTaskRunIds() {
   if (!isTaskDetailView()) return [];
-  const selected = taskListGroupsForThread(state.currentThread).find((group) => group.id === state.currentTaskGroupId);
+  const pluginGroups = typeof pluginTopicGroupsForTaskList === "function" ? pluginTopicGroupsForTaskList(state.currentThread) : [];
+  const selected = taskListGroupsForThread(state.currentThread).concat(pluginGroups).find((group) => group.id === state.currentTaskGroupId);
   return (selected?.messages || [])
     .filter((message) => ["queued", "running"].includes(message.status))
     .map((message) => message.runId)

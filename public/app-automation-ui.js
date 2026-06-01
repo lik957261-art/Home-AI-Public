@@ -79,7 +79,7 @@ function applyViewMode() {
   updateSearchButton();
 }
 
-async function loadSelectedView() {
+async function loadSelectedView(options = {}) {
   const viewLoadId = (state.viewLoadSeq || 0) + 1;
   state.viewLoadSeq = viewLoadId;
   const currentViewStillSelected = () => state.viewLoadSeq === viewLoadId;
@@ -110,7 +110,12 @@ async function loadSelectedView() {
   if (leavingSkillDetail) updateNavigationControls();
   if (state.viewMode !== "tasks") state.skillDetail = null;
   if (state.viewMode === "single" || state.viewMode === "tasks") {
-    if (state.viewMode === "tasks" && !state.currentTaskGroupId && restoreTaskListThreadFromCache({ stickToBottom: true })) {
+    if (
+      state.viewMode === "tasks"
+      && !state.currentTaskGroupId
+      && !options.forceTaskListReload
+      && restoreTaskListThreadFromCache({ stickToBottom: true })
+    ) {
       scheduleTaskListWindowRefresh();
       return;
     }

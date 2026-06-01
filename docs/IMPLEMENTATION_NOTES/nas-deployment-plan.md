@@ -224,6 +224,17 @@ Gateway connection choices:
   NAS `192.168.10.99` with one `nas-local-codex` worker and an ordinary Owner
   chat run. The manifest stores only server-side worker credentials and must
   never expose raw keys to the browser, docs, handoffs, or logs.
+  This worker must also install and enable the Hermes Mobile fallback Gateway
+  plugins under the same Hermes home used by the running API server. Listing
+  `web`, `search`, `http`, or other toolsets in `config.yaml` is not enough:
+  `/v1/toolsets` can show configured toolsets while `/v1/responses` still has
+  no callable schemas if `plugins.enabled` is missing the matching plugin
+  bundles. The maintained NAS single-worker config currently installs
+  `hermes-mobile-web`, `hermes-mobile-http`, `hermes-mobile-weather`,
+  `hermes-mobile-docx`, `hermes-mobile-audio`, `hermes-mobile-image`,
+  `hermes-mobile-video`, and `hermes-mobile-cronjob`. Do not enable
+  Owner-maintenance plugins such as `hermes-mobile-chatgpt-pro` in this normal
+  user-level API-server worker.
 - Fixed remote pool: set `HERMES_WEB_GATEWAY_POOL_ENABLED=auto`, use a manifest
   whose worker `apiBase` values point to remote fixed Gateway endpoints, and run
   `HERMES_MOBILE_GATEWAY_POOL_START_MODE=eager` or otherwise keep remote workers
@@ -412,6 +423,11 @@ If the app starts but model runs fail, classify the failure before editing:
 - Gateway rejects auth: wrong Gateway API key path/content.
 - Gateway answers but tool/plugin missing: remote worker profile/toolset issue
   on the Windows/WSL worker host, not NAS listener source.
+- NAS-local single worker answers but reports no search/download/weather tools:
+  inspect the API-server Hermes home `plugins.enabled` and installed plugin
+  directories first. The real gate is `model_tools.get_tool_definitions(...)`
+  and a direct `/v1/responses` smoke that emits `function_call` /
+  `function_call_output`, not only the `/v1/toolsets` configured list.
 - Codex/Grok/ChatGPT Pro bridge fails: bridge placement issue. Keep those
   services on the worker host unless there is a separate migration task.
 

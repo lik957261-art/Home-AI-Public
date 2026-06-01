@@ -65,6 +65,15 @@ function sidebarScrollTarget(target) {
   return sidebar;
 }
 
+function canNativeScrollSidebarTarget(target, delta) {
+  if (!target) return false;
+  const maxScroll = Math.max(0, target.scrollHeight - target.clientHeight);
+  if (maxScroll <= 1) return false;
+  if (delta > 0) return target.scrollTop < maxScroll - 1;
+  if (delta < 0) return target.scrollTop > 1;
+  return true;
+}
+
 function wireSidebarTouchScroll() {
   const sidebar = $("sidebar");
   if (!sidebar) return;
@@ -79,6 +88,7 @@ function wireSidebarTouchScroll() {
   }, { passive: true });
   sidebar.addEventListener("touchmove", (event) => {
     if (!gesture || !isMobileLayout() || event.touches.length !== 1) return;
+    if (event.target?.closest?.(".thread-list")) return;
     const x = event.touches[0].clientX;
     const dx = x - (state.sidebarSwipe?.startX ?? x);
     const dyFromSwipe = event.touches[0].clientY - (state.sidebarSwipe?.startY ?? event.touches[0].clientY);
@@ -91,11 +101,8 @@ function wireSidebarTouchScroll() {
     if (Math.abs(y - gesture.startY) < 2) return;
     const target = gesture.target || sidebarScrollTarget(event.target);
     if (!target) return;
-    const maxScroll = Math.max(0, target.scrollHeight - target.clientHeight);
-    if (maxScroll <= 1) return;
-    const before = target.scrollTop;
-    const next = Math.max(0, Math.min(maxScroll, before + delta));
-    if (next !== before) target.scrollTop = next;
+    if (canNativeScrollSidebarTarget(target, delta)) return;
+    if (target === sidebar && event.target?.closest?.(".thread-list")) return;
     event.preventDefault();
   }, { passive: false });
   const end = () => {
@@ -130,6 +137,7 @@ function wireSidebarSwipe() {
   const moveSwipe = (event) => {
     const swipe = state.sidebarSwipe;
     if (!swipe || !isMobileLayout() || event.touches.length !== 1 || swipe.handled) return;
+    if (event.target?.closest?.(".thread-list")) return;
     const x = event.touches[0].clientX;
     const y = event.touches[0].clientY;
     const dx = x - swipe.startX;

@@ -113,11 +113,11 @@
   <main>
     <section class="panel" aria-live="polite">
       <div class="mark" aria-hidden="true">H</div>
-      <h1>正在重置客户端</h1>
-      <p id="status">清理 Hermes Mobile 本地缓存和旧 Service Worker...</p>
+      <h1>Hermes Mobile Reset</h1>
+      <p id="status">Refreshing Hermes Mobile client state...</p>
       <div class="actions">
-        <button id="retry" class="primary" type="button" hidden>重新执行</button>
-        <a id="openApp" href="/?source=pwa" hidden>打开 Hermes Mobile</a>
+        <button id="retry" class="primary" type="button" hidden>Retry</button>
+        <a id="openApp" href="/?source=pwa" hidden>Open Hermes Mobile</a>
       </div>
     </section>
   </main>
@@ -167,27 +167,40 @@
         await Promise.all(registrations.map(function (item) { return item.unregister(); }));
       }
 
+      function hardResetRequested() {
+        var params = new URLSearchParams(window.location.search || "");
+        return params.get("hard") === "1" || params.get("reason") === "boot_timeout";
+      }
+
+      function appTarget() {
+        var target = new URL("/", window.location.origin);
+        target.searchParams.set("source", "pwa");
+        target.searchParams.set("_hmv", String(Date.now()));
+        return target;
+      }
+
       async function resetClient() {
         retry.hidden = true;
         openApp.hidden = true;
         try {
+          if (!hardResetRequested()) {
+            setStatus("Refreshing Hermes Mobile client...");
+            window.location.replace(appTarget().href);
+            return;
+          }
           var preserved = preserveClientState();
           try { localStorage.clear(); } catch (_) {}
           restoreClientState(preserved);
           await clearCaches();
           await unregisterServiceWorkers();
-          setStatus("已完成清理，正在重新打开 Hermes Mobile...");
-          var target = new URL("/", window.location.origin);
-          target.searchParams.set("source", "pwa");
-          target.searchParams.set("_hmv", String(Date.now()));
-          window.location.replace(target.href);
+          setStatus("Client reset complete. Reopening Hermes Mobile...");
+          window.location.replace(appTarget().href);
         } catch (err) {
-          setStatus("重置失败：" + (err && err.message ? err.message : String(err || "unknown")));
+          setStatus("Client reset failed: " + (err && err.message ? err.message : String(err || "unknown")));
           retry.hidden = false;
           openApp.hidden = false;
         }
       }
-
       retry.addEventListener("click", resetClient);
       resetClient();
     }());

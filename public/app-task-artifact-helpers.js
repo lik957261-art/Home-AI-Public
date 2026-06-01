@@ -38,6 +38,45 @@
     return cleaned.length <= max ? cleaned : `${cleaned.slice(0, max - 1)}...`;
   }
 
+  function stripTopicTitleNoise(value) {
+    let text = String(value || "").trim();
+    if (!text) return "";
+    const prefixPatterns = [
+      /^(请|麻烦|辛苦|帮我|帮忙|我们|我想|我要|你先|你再|现在|然后|另外|就是|这个|那个|关于)[，,。:：\s]*/u,
+      /^(讨论一个问题|确认一个问题|看一个问题|有个问题|还有一个问题)(啊)?[，,。:：\s]*/u,
+      /^(看一下|查一下|分析一下|整理一下|讨论一下|做一下|写一下|生成一下|继续|先|再)[，,。:：\s]*/u,
+      /^(请|麻烦)?(帮我|帮忙)?(看|查|分析|整理|讨论|做|写|生成|检查|确认)(一下)?[，,。:：\s]*/u,
+    ];
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const pattern of prefixPatterns) {
+        const next = text.replace(pattern, "").trim();
+        if (next !== text) {
+          text = next;
+          changed = true;
+        }
+      }
+    }
+    return text.replace(/^[“”"'`]+|[“”"'`]+$/g, "").trim();
+  }
+
+  function compactTopicTitle(value, max = 14, options = {}) {
+    const base = compactDisplayText(value, 90, options);
+    if (!base) return "";
+    const clause = base
+      .split(/[。！？!?；;，,：:]/u)
+      .map(stripTopicTitleNoise)
+      .find(Boolean) || stripTopicTitleNoise(base) || base;
+    const cleaned = clause
+      .replace(/\s+/g, " ")
+      .replace(/^(这个|那个|现在|就是|关于)[\s，,。:：]*/u, "")
+      .trim();
+    if (!cleaned) return "";
+    const limit = Number(max) > 0 ? Number(max) : 14;
+    return cleaned.length <= limit ? cleaned : cleaned.slice(0, limit);
+  }
+
   function taskGroupsForThread(thread) {
     const groups = new Map();
     let currentTaskGroupId = "";
@@ -139,6 +178,13 @@
 
   function taskTitle(group, options = {}) {
     return String(group?.title || "").trim() || taskPrompt(group, options) || taskSummary(group, options) || taskDisplayId(group);
+  }
+
+  function taskShortTitle(group, options = {}) {
+    const explicit = String(group?.title || "").trim();
+    if (explicit) return compactTopicTitle(explicit, options.max || 14, options);
+    const user = (group?.messages || []).find((message) => message.role === "user");
+    return compactTopicTitle(user?.content || "", options.max || 14, options);
   }
 
   function taskArtifacts(group) {
@@ -309,6 +355,7 @@
   return Object.freeze({
     formatBytes,
     compactDisplayText,
+    compactTopicTitle,
     taskGroupsForThread,
     messageOwnerWorkspaceId,
     taskGroupOwnerWorkspaceId,
@@ -319,6 +366,7 @@
     taskPrompt,
     taskSummary,
     taskTitle,
+    taskShortTitle,
     taskArtifacts,
     isTaskListPrimaryDocument,
     isMarkdownArtifact,

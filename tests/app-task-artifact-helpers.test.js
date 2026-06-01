@@ -155,4 +155,24 @@ function message(id, role, extra = {}) {
   assert.equal(helpers.compactDisplayText("abcdefghijklmnopqrstuvwxyz", 8), "abcdefg...");
 }
 
+{
+  assert.equal(
+    helpers.compactTopicTitle("帮我看一下，NAS 上面的工具集为什么没有搜索功能", 12),
+    "NAS 上面的工具集为什",
+  );
+  assert.equal(
+    helpers.taskShortTitle({
+      messages: [message("1", "user", { content: "现在讨论一个问题啊，目录绑定话题应该怎么显示" })],
+    }),
+    "目录绑定话题应该怎么显示",
+  );
+  assert.equal(
+    helpers.taskShortTitle({
+      title: "小龙虾做法",
+      messages: [message("1", "user", { content: "这是很长的第一条消息" })],
+    }),
+    "小龙虾做法",
+  );
+}
+
 console.log("app-task-artifact-helpers tests passed");

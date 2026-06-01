@@ -44,7 +44,7 @@ function setBottomPluginMenuItemAvailability(kind = "", available = false) {
 }
 
 function updateBottomPluginMenuAvailability() {
-  const available = bottomPluginMenuHasVisibleItems();
+  const available = false;
   const button = $("bottomPluginMode");
   const nav = $("bottomNav");
   if (button) {
@@ -88,7 +88,9 @@ function validTaskReasoningEffort(value) {
 
 function currentTaskGroup() {
   if (!state.currentThread || !state.currentTaskGroupId) return null;
-  return taskListGroupsForThread(state.currentThread).find((group) => group.id === state.currentTaskGroupId) || null;
+  const groups = taskListGroupsForThread(state.currentThread);
+  const pluginGroups = typeof pluginTopicGroupsForTaskList === "function" ? pluginTopicGroupsForTaskList(state.currentThread) : [];
+  return groups.concat(pluginGroups).find((group) => group.id === state.currentTaskGroupId) || null;
 }
 
 function taskReasoningEffort(group) {
@@ -194,10 +196,9 @@ function wireConversationScrollFeedback() {
       feedback.dragging = true;
     }
     const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight);
-    const contentShort = (feedback.surface?.offsetHeight || 0) < container.clientHeight - 24;
     const atTopPull = container.scrollTop <= 0 && dy > 0;
     const atBottomPush = container.scrollTop >= maxScroll - 1 && dy < 0;
-    const shortList = maxScroll <= 1 || contentShort;
+    const shortList = maxScroll <= 1;
     if (!shortList && !atTopPull && !atBottomPush) return;
     applyScrollFeedback(feedback.surface, dy);
     event.preventDefault();
@@ -225,6 +226,9 @@ function updateNavigationControls() {
   const actionInboxCreate = isActionInboxCreateView();
   const skillDetail = isSkillDetailView();
   const taskList = isTaskListView();
+  const pluginTopicDetail = taskDetail
+    && typeof pluginTopicDefForGroupId === "function"
+    && Boolean(pluginTopicDefForGroupId(state.currentTaskGroupId));
   const directoryBack = state.viewMode === "projects" && Boolean(directoryActivePath());
   const learningGrowthDetail = state.viewMode === "learning" && Boolean(state.selectedLearningTaskCardId);
   const learningGrowthSettings = state.viewMode === "learning" && Boolean(state.learningGrowthSettingsOpen);
@@ -253,6 +257,7 @@ function updateNavigationControls() {
   );
   app?.classList.toggle("minimal-window-mode", minimalWindow);
   app?.classList.toggle("task-detail-mode", taskDetail);
+  app?.classList.toggle("plugin-topic-detail-mode", pluginTopicDetail);
   app?.classList.toggle("todo-detail-mode", todoDetail);
   app?.classList.toggle("todo-create-mode", todoCreate);
   app?.classList.toggle("automation-detail-mode", automationDetail);
@@ -277,7 +282,7 @@ function updateNavigationControls() {
   }
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
-  const hiddenBottomTabs = new Set(["bottomPluginMode", "bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomLearningMode", "bottomAutomationMode"]);
+  const hiddenBottomTabs = new Set(["bottomPluginMode", "bottomProjectsMode", "bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomLearningMode", "bottomAutomationMode"]);
   ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
     const node = $(id);
     if (node) {

@@ -33,6 +33,14 @@ primary smoke path is the installed home-screen PWA icon in the emulator or
 target device. Browser address-bar navigation is not a valid substitute; it is
 browser-mode evidence only and may intentionally show the browser-shell guard
 page.
+Static-client cache fixes must prove both sides of the version contract:
+`/api/client-version?clientVersion=<new-version>` returns
+`refreshRequired=false`, the previous deployed static version returns
+`refreshRequired=true`, and cache-sensitive JavaScript changes use a new
+`?v=<client-version>` query string. If a production sync missed a script and the
+same version was already exposed, the corrective deploy must bump the static
+version again. Focused checks: `node tests\task-list-ui.test.js` and
+`node tests\static-cache-version-harness.test.js`.
 The required PWA smoke sequence is:
 
 1. Verify an Android emulator or target device is connected with `adb devices`.
@@ -71,10 +79,55 @@ and smoke both `/api/client-version` and the public origin HTML. `scp`, `sftp`,
 and raw PowerShell binary tar pipes are failing cases for this maintained NAS
 flow. Focused check: `node tests\nas-static-deploy-harness.test.js`.
 
+NAS-local single-worker Gateway configuration is also a production harness
+surface. A NAS `nas-local-codex` style worker must prove that configured
+toolsets have real callable schemas, not only configured names in
+`/v1/toolsets`. The maintained smoke must verify that Hermes Mobile fallback
+plugins are installed in the API-server Hermes home, listed in
+`plugins.enabled`, included in `platform_toolsets.api_server`, visible through
+`model_tools.get_tool_definitions(...)`, and exercised by a direct
+`/v1/responses` request that emits `function_call` and
+`function_call_output` for representative tools such as `web_search` and
+`weather`. `browser` remains a runtime-dependency-gated toolset and requires
+separate evidence that `agent-browser` plus its browser engine dependencies are
+installed before treating `browser_*` as available.
+
 H1 includes Growth learning cards, Action Inbox passive notifications,
 Automation/Cron execution, Gateway toolset selection/run telemetry,
 Gateway elastic worker scheduling, cross-shell production operations, Web Push
 click routing, permission/workspace boundaries, and Public Export/Release.
+
+Directory topic collections are H1 when they change persistence, workspace
+isolation, directory ACL, context assembly, default-topic selection, or
+topic-open routing. They are H2 only for display-only card/list projection. The
+harness must prove that one directory can collect multiple topics, one default
+topic is enforced per directory, changing the default does not delete secondary
+topics, Owner workspace switching does not fall back to Owner's directory or
+topics, and context assembly includes only cleaned/selected/bounded files.
+Focused checks should include
+`node tests\directory-topic-binding-service.test.js`,
+`node tests\directory-topic-context-service.test.js`,
+`node tests\directory-topic-api-routes.test.js`, and
+`node tests\task-list-ui.test.js` when implemented.
+
+Static v446 directory-topic card projection is H2 display-only. Required
+coverage for that increment:
+
+- `public/app-directory-topics-ui.js` is loaded by `index.html`, cached by the
+  service worker, and included in the app-shell harness.
+- Directory-topic collections are derived from existing bound directory routes.
+- Groups displayed inside directory-topic collection cards are removed from the
+  regular topic grid to avoid duplicate entries.
+- The card exposes icon actions for default topic, bound directory, and
+  secondary topic chips.
+- Secondary topic chips must show a short readable topic name and not only a
+  repeated icon. Manual topic titles take priority over first-message fallback
+  names.
+- Mobile topic-list scrolling must keep native vertical pan behavior; touch
+  guards may not call `preventDefault()` while `.thread-list` can scroll in the
+  gesture direction.
+- Static cache version harness proves `20260601-directory-topic-names-v446`
+  reaches every shell resource that changed.
 
 Gateway Pool startup/provisioning harnesses must cover stable manifest
 profile/port mapping. `start-low-gateways.sh` and `configure-low-gateways.sh`
@@ -261,9 +314,10 @@ Plugin-bound application topics are H1 when they influence plugin visibility,
 MCP/toolset routing, workspace switching, delivery-directory creation, or
 context assembly. The harness must assert that visible topic cards use the same
 effective-workspace plugin projection as the app drawer and manifest routes;
-open-app and open-topic are separate actions; the standard delivery directory is
-created/resolved under the target workspace; context uses cleaned selected
-delivery files only; and a plugin topic run uses the selected workspace's MCP
+open-app, open-topic, and open-file-directory are separate actions; the
+standard plugin file directory is created/resolved under the target workspace as
+`插件/<plugin title>`; context uses cleaned selected directory files only; and a
+plugin topic run uses the selected workspace's MCP
 schema or omits the plugin toolset with a bounded diagnostic. Owner fallback to
 Owner's plugin app, directory, or MCP is a failing case. Focused checks should
 include `node tests\plugin-topic-binding-service.test.js`,
@@ -347,9 +401,9 @@ and a postMessage/back contract. The host-side harness must also assert that
 the parent `edgeSwipeZone` starts a real edge back-swipe state for plugin pages
 instead of only swallowing iframe-adjacent touch events with `preventDefault()`.
 Mobile bottom navigation must keep Codex as a first-level tab while collecting
-Wardrobe, Finance, and Email under the `应用` drawer without bypassing their
-manifest/workspace visibility rules; hidden legacy plugin tabs must not consume
-bottom navigation hit targets.
+Wardrobe, Finance, and Email under the centered `插件` drawer without bypassing
+their manifest/workspace visibility rules; hidden legacy plugin tabs must not
+consume bottom navigation hit targets.
 These are generic plugin requirements, not Wardrobe-only behavior; new plugins
 must satisfy the same host contract before being treated as production-ready.
 Installed plugin visibility must also be covered: Owner sees installed plugins
@@ -1008,7 +1062,8 @@ The guard test is:
 | Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js` |
 | Embedded plugin host / Wardrobe, Codex, Finance, and Email plugin tabs | `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\embedded-plugin-refresh-harness.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\wardrobe-plugin-navigation-ui.test.js`, `node tests\wardrobe-plugin-provisioning-service.test.js`, `node tests\email-plugin-provisioning-service.test.js` when Email behavior changes, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes. First-run plugin enablement must verify Owner and one non-Owner workspace cannot project `active` until workspace-local key/config, plugin-side bind/register, required Skill/MCP setup, and manifest/launch smoke pass. |
-| Plugin-bound application topics | Planned: `node tests\plugin-topic-binding-service.test.js`, `node tests\plugin-topic-delivery-directory-service.test.js`, `node tests\plugin-topic-context-service.test.js`, `node tests\plugin-topic-api-routes.test.js`, `node tests\app-plugin-topics-ui.test.js`, plus `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\task-list-ui.test.js`, and `node tests\architecture-refactor-boundary.test.js` when implementation touches services/routes/runtime. |
+| Plugin-bound application topics | Current frontend projection: `node tests\task-list-ui.test.js`, `node tests\static-cache-version-harness.test.js`. Planned service/runtime phases: `node tests\plugin-topic-binding-service.test.js`, `node tests\plugin-topic-delivery-directory-service.test.js`, `node tests\plugin-topic-context-service.test.js`, `node tests\plugin-topic-api-routes.test.js`, `node tests\app-plugin-topics-ui.test.js`, plus `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\directory-browser-api-routes.test.js`, and `node tests\architecture-refactor-boundary.test.js` when implementation touches services/routes/runtime. Frontend harness must cover the small chat/folder icon actions, fixed `plugin:<pluginId>` topic ids, automatic `插件/<plugin title>` directory creation through the directory API, returning from that directory to the topic list, clearing stale plugin view-mode classes before opening the topic detail so the message composer is visible, and hiding the bottom navigation on plugin-topic secondary pages. |
+| Directory-bound topic collections | Planned: `node tests\directory-topic-binding-service.test.js`, `node tests\directory-topic-context-service.test.js`, `node tests\directory-topic-api-routes.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\context-assembly-service.test.js`, and `node tests\task-list-ui.test.js`. Harness must cover multiple topics per directory, one default topic per directory, default-topic reassignment without deleting secondary topics, explicit open-directory/open-default-topic/open-topic-picker actions, workspace isolation, and cleaned/selected/bounded directory context. |
 | Directory/files/artifacts | `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js` |
 | Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\gateway-workspace-provisioning-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\link-skill-profile-store.test.js`, `node tests\task-list-ui.test.js` |
 | Automation/Cron | `node tests\automation-api-routes.test.js`, `node tests\automation-provider.test.js`, `node tests\cron-bridge.test.js`, `node tests\local-automation-bridge-service.test.js`, `node tests\mobile-runtime-environment-service.test.js`, `node tests\startup-scripts.test.js`; production/NAS smoke must verify that `/api/automations?detail=summary&refresh=1` reads the configured canonical scheduler and does not silently report an empty SQLite mirror when official CRON has jobs |

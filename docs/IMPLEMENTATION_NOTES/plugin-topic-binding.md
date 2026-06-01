@@ -2,9 +2,11 @@
 
 Last updated: 2026-06-01.
 
-This document defines the planned `plugin topic` / `application topic` feature
-for Hermes Mobile. It is a product and architecture design note only; it does
-not imply that the runtime implementation already exists.
+This document defines the `plugin topic` / `application topic` feature for
+Hermes Mobile. The v440 frontend projection exists; v453 adds Directory as a
+built-in application plugin in the topic launcher. Service persistence, server
+routes, durable directory binding records, and Gateway/toolset routing
+integration remain separate phases.
 
 ## Problem
 
@@ -39,25 +41,32 @@ tool routing, and delivery-directory context.
   than only as a text topic row.
 - The user can open either:
   - the plugin application surface; or
-  - the topic chat that is pre-scoped to that plugin.
+  - the topic chat that is pre-scoped to that plugin; or
+  - the plugin file directory.
+- Built-in modules may also appear as application plugin cards. Directory is
+  the first built-in plugin: it opens the embedded Directory view and directory
+  topic collections, but it does not use external plugin authorization, iframe
+  launch tokens, or MCP provisioning.
 - A run started from the plugin topic should automatically receive:
   - the authorized plugin MCP/toolset for the effective workspace;
   - the normal baseline tools allowed by the workspace policy;
   - companion tools required by the plugin's domain, such as `file`, `vision`,
     `weather`, `search`, or `web`, when policy permits.
-- Hermes Mobile creates a standard delivery directory for the plugin topic.
-- The delivery directory contributes cleaned, selected context to the topic; it
+- Hermes Mobile creates a standard plugin file directory for the plugin topic.
+- The plugin file directory contributes cleaned, selected context to the topic; it
   is not treated as the canonical plugin database.
 - Owner switching into a non-Owner workspace must behave as a true workspace
-  simulation: the plugin topic, plugin app, plugin MCP, and delivery directory
+  simulation: the plugin topic, plugin app, plugin MCP, and file directory
   all resolve to the target workspace, not Owner.
 
 ### Non-Goals
 
 - Do not copy plugin UI screens, settings, import flows, or databases into
   Hermes Mobile.
-- Do not replace embedded plugin tabs or the `应用` drawer. A plugin topic is a
+- Do not replace embedded plugin tabs or the `插件` drawer. A plugin topic is a
   launcher/context surface that points at the same plugin host contract.
+- Do not force built-in modules to adopt external-plugin runtime mechanics.
+  Directory remains owned by the directory module and its ACL boundary.
 - Do not inject raw plugin data dumps into prompts.
 - Do not allow plugin topic binding to authorize a plugin. Plugin authorization
   and provisioning remain the source of truth.
@@ -90,7 +99,7 @@ Suggested record shape:
   "deliveryRoot": {
     "kind": "workspace_directory",
     "route": "<server-normalized route>",
-    "label": "交付/记账"
+    "label": "插件/记账"
   },
   "toolsetPolicy": {
     "required": ["finance"],
@@ -111,9 +120,9 @@ Suggested record shape:
 The exact persistence format can be SQLite-backed or JSON-backed in the first
 implementation, but the public behavior must keep the same boundaries.
 
-### Standard Delivery Directory
+### Standard Plugin File Directory
 
-Each plugin topic gets a workspace-local delivery root. The directory stores
+Each plugin topic gets a workspace-local plugin file root. The directory stores
 human-readable outputs, exports, reports, and curated summaries that are useful
 to the model and the user.
 
@@ -128,11 +137,10 @@ It must not store:
   retention design explicitly allows it;
 - plugin database files.
 
-The initial default route should be implementation-owned, not inferred from
-free-form folder names. A possible display label is:
+The initial frontend route is:
 
 ```text
-交付/<plugin title>
+插件/<plugin title>
 ```
 
 The physical path must be resolved by the directory boundary service for the
@@ -145,14 +153,14 @@ A plugin topic's context should be assembled in this order:
 
 1. Current user request and recent topic messages.
 2. Runtime access policy and effective workspace identity.
-3. Plugin topic binding metadata: plugin id, bounded title, delivery-root route,
+3. Plugin topic binding metadata: plugin id, bounded title, file-directory route,
    and toolset policy.
 4. Structured plugin access through MCP/toolsets. This is the primary source
    for live domain data.
-5. Cleaned delivery-directory summaries and selected report files.
+5. Cleaned plugin file directory summaries and selected report files.
 6. Existing layered topic summaries, working state, and refs.
 
-The delivery directory is context evidence, not a database mirror. If a question
+The plugin file directory is context evidence, not a database mirror. If a question
 needs live or authoritative domain state, the model should use the plugin MCP.
 
 ## Architecture
@@ -188,7 +196,8 @@ Implementation should add focused services before route or UI wiring:
 
 The first UI should be deliberately small:
 
-- A pinned application-topic strip or grid near the topic entry surface.
+- A pinned application-topic strip or grid near the topic entry surface. It may
+  contain external plugin cards and built-in plugin cards.
 - Each card shows plugin icon/title, bounded status, and two actions:
   - open app;
   - open topic.
@@ -199,8 +208,28 @@ The first UI should be deliberately small:
   but it must use the directory module's normal ACL and preview flow.
 
 Codex remains a first-level bottom tab by current product rule. Wardrobe,
-Finance, Email, and future business plugins can be shown in the `应用` drawer and
-also as plugin topic cards when bound.
+Finance, Email, and future business plugins can be shown as plugin topic cards
+when bound. Directory is no longer a permanent bottom tab in the mobile primary
+navigation; it is a built-in plugin card on the topic surface, with old
+directory routes/deep links remaining compatible.
+
+### Built-In Directory Plugin
+
+Directory is a built-in application plugin with a different backend boundary
+from embedded plugins:
+
+- card id: `directory`;
+- primary action: open the embedded Directory root for the effective workspace;
+- topic action: return to the topic list and show directory-topic collections;
+- directory action: open the embedded Directory root;
+- authorization: existing directory browser/mutation ACLs;
+- context: selected, cleaned, bounded directory evidence through the directory
+  context path;
+- non-goal: no iframe launch token, no plugin workspace key, no MCP schema gate.
+
+The UI may render the Directory card in the same large-icon grid as other
+plugins, but code should keep a separate built-in branch so future external
+plugin authorization checks cannot accidentally hide or grant Directory.
 
 ### Toolset Routing
 
@@ -256,10 +285,25 @@ The selector should ignore or summarize:
 
 ### Phase 2 - UI And Navigation
 
-- Render plugin topic cards.
-- Wire open-app to the existing plugin host.
-- Wire open-topic to a stable plugin task group.
-- Add app/topic/delivery actions without changing plugin iframe internals.
+- Render plugin topic cards. Implemented in v439 for visible Wardrobe, Finance,
+  and Email entries.
+- Wire open-app to the existing plugin host. Implemented in v439.
+- Wire open-topic to a stable plugin task group. Implemented in v439 using
+  `plugin:<pluginId>` task group ids.
+- Add app/topic/file-directory actions without changing plugin iframe internals.
+  Implemented in v440 with small chat and folder icon actions.
+- Create/open the fixed workspace directory `插件/<plugin title>` when the user
+  enters the plugin topic or file directory. Implemented in v440 through the
+  existing directory mutation API and directory ACL boundary.
+- Return from the plugin file directory to the topic list on back/right-swipe
+  instead of walking up the directory tree. Implemented in v440.
+- Place the bottom `插件` drawer in the center of the seven-tab navigation when
+  Codex and plugin entries are visible. Implemented in v439.
+
+The v440 frontend increment does not authorize plugins, create provisioning
+records, or force MCP exposure. It reuses the existing effective-workspace
+plugin visibility checks and only appends plugin-topic instructions and
+file-directory route metadata when the user sends from a plugin-bound topic.
 
 ### Phase 3 - Context And Toolset Integration
 
