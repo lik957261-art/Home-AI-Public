@@ -224,6 +224,14 @@ Gateway connection choices:
   NAS `192.168.10.99` with one `nas-local-codex` worker and an ordinary Owner
   chat run. The manifest stores only server-side worker credentials and must
   never expose raw keys to the browser, docs, handoffs, or logs.
+  Do not claim parity with the maintained Windows hybrid deployment when using
+  this mode. A single NAS-local worker has no Owner warm-worker baseline, no
+  on-demand candidate expansion, no per-provider capacity split, and no
+  workspace-specific MCP/profile process isolation. It can legitimately render
+  different Gateway progress wording, such as `Gateway selected` instead of
+  `Gateway reused`, and concurrent family use will queue behind the one
+  process. If production parity is required, use a validated fixed/elastic
+  remote Gateway Pool or implement Mode B.
   This worker must also install and enable the Hermes Mobile fallback Gateway
   plugins under the same Hermes home used by the running API server. Listing
   `web`, `search`, `http`, or other toolsets in `config.yaml` is not enough:

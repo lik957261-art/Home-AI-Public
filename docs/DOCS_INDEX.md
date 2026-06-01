@@ -19,6 +19,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Gateway Pool manifest reference: `docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md`
 - Public install/deploy checklist: `docs/PUBLIC_INSTALLATION_CHECKLIST.md`
 - NAS deployment plan: `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`
+- NAS first-start deploy harness: `tests/nas-deploy-harness.test.js`
 - Screenshot-to-code debug map: `docs/SCREENSHOT_DEBUG_MAP.md`
 - Module-to-test matrix: `docs/TEST_MATRIX.md`
 - Harness required matrix: `docs/IMPLEMENTATION_NOTES/harness-required-matrix.md`

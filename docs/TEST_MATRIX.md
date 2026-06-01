@@ -79,6 +79,18 @@ and smoke both `/api/client-version` and the public origin HTML. `scp`, `sftp`,
 and raw PowerShell binary tar pipes are failing cases for this maintained NAS
 flow. Focused check: `node tests\nas-static-deploy-harness.test.js`.
 
+NAS full-source production deploy is required when the current version changed
+more than the narrow shell/cache files, or when NAS has drifted behind local
+production. `scripts/deploy-nas-tracked-source.ps1` must package only
+Git-tracked source files with `git archive`, back up overwritten NAS `app` and
+`source` files, run pinned-runtime checks, and run a first-start preflight. The
+preflight must fail when app/source/served client versions disagree, when
+Gateway Pool is disabled, or when no healthy `securityLevel=user` worker is
+available. A single `nas-local-codex` wildcard worker is allowed as a bootstrap
+bridge only with an explicit warning; it must not be treated as equivalent to
+the maintained Windows hybrid/Owner-warm Gateway Pool. Focused check:
+`node tests\nas-deploy-harness.test.js`.
+
 NAS-local single-worker Gateway configuration is also a production harness
 surface. A NAS `nas-local-codex` style worker must prove that configured
 toolsets have real callable schemas, not only configured names in

@@ -36,6 +36,23 @@ document full NAS-native Gateway Pool as ready until Linux/NAS launchers,
 credential placement, remote worker management, plugin provisioning, and
 workspace-switching harnesses exist.
 
+A NAS-local single worker manifest, for example one `nas-local-codex` entry
+pointing at `127.0.0.1:8642`, is only a bootstrap/runtime bridge. It satisfies
+the user-level fail-closed contract, but it is not equivalent to the maintained
+Windows production hybrid pool:
+
+- it has no Owner warm-worker baseline;
+- it has no per-workspace/per-provider candidate expansion;
+- it cannot start additional workers on demand;
+- it may show `Gateway selected` instead of `Gateway reused`;
+- it will queue or wait behind the single worker under concurrent use.
+
+If a deployment guide claims production parity with the maintained Windows
+environment, it must either connect NAS to the real external Gateway Pool
+through a validated remote worker manifest/manager or implement and test a
+NAS-native worker launcher. Do not present a single worker manifest as the
+recommended production topology for a family multi-user install.
+
 If Codex CLI is installed and logged in on NAS, use it only as the deployment
 agent's local tool. It does not replace the external Hermes Gateway/Codex
 runtime path for Hermes Mobile users.
@@ -46,6 +63,12 @@ Publish code from Windows to NAS through Git/deploy, and copy NAS data back only
 as backups or isolated debug snapshots. Do not configure bidirectional live sync
 for SQLite, runtime state, plugin keys, Skill Stores, learning/currency ledgers,
 or task/message data.
+
+When updating an existing NAS production app, deploy all changed frontend
+modules and supporting service files that participate in the current static
+client version. Updating only `index.html`, `service-worker.js`, and the cache
+harness can leave NAS serving an old UI/event module with a new shell version,
+which is enough to reintroduce blank waits before Gateway progress appears.
 
 NAS maintenance keys must be stored as restricted secret files or OS-managed
 credentials. Public docs, handoffs, chat messages, and commits may record only

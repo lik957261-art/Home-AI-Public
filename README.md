@@ -265,6 +265,15 @@ See `examples/gateway-pool-manifest.example.json` and
 `docs/GATEWAY_POOL_ARCHITECTURE.md`. Do not commit real worker API keys or
 worker manifests containing secrets.
 
+For NAS deployments, a single fixed `nas-local-codex` worker manifest can make
+ordinary chat run, but it is not equivalent to the maintained Windows hybrid
+Gateway Pool. It has no Owner warm-worker baseline, no elastic expansion, and
+no per-provider/per-workspace worker capacity. If a NAS install must behave
+like the reference Windows production environment, connect it to a validated
+external Gateway Pool or implement a NAS-native worker launcher; do not present
+the single-worker bridge as production parity. See
+`docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`.
+
 For Windows production, copy the script entrypoints from this repo into the
 runtime app/gateway-worker directories as described in the deployment runbook.
 The operational restart paths are script-owned: use `start-worker-host.ps1`

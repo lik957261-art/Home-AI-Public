@@ -27,6 +27,13 @@ The first supported NAS direction is a split deployment, documented in
   user` worker through a fixed manifest, such as the verified 2026-06-01
   `nas-local-codex` manifest pointing at `127.0.0.1:8642`, or use a validated
   remote worker manifest.
+- A fixed NAS-local `nas-local-codex` manifest is not the same operating model
+  as the maintained Windows hybrid Gateway Pool. It provides one always-running
+  user worker, but it has no Owner warm-worker baseline, no elastic expansion,
+  no per-provider candidate pool, and no on-demand start/reuse events. UI
+  wording and progress timing may therefore differ from Windows production
+  unless NAS is connected to a validated external Gateway Pool or a NAS-native
+  launcher is implemented.
 - NAS-side Codex CLI login is useful for the NAS deployment thread, but it is
   not the Hermes Mobile runtime Gateway/Codex backend. Do not treat it as a
   shared user-facing model worker unless a separate remote worker/Mux contract
@@ -152,7 +159,13 @@ Mobile updates should use the scripted harness:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\deploy-nas-static-assets.ps1
 ```
 
-The script is intentionally narrow:
+The script is intentionally narrow, but its file list must include every
+changed frontend module participating in the current client version. Do not
+update only the shell/version files when the fix lives in `public/app-*.js` or
+`public/styles.css`; otherwise NAS can appear current while still running old
+interaction/progress code.
+
+The script:
 
 - It reads the current client version from `public/index.html`.
 - It checks NAS `/api/status?detail=1` with the NAS-side Owner key file and
@@ -160,9 +173,9 @@ The script is intentionally narrow:
 - It backs up the target files from both `/volume1/docker/hermes-mobile/app`
   and `/volume1/docker/hermes-mobile/source` under
   `/volume1/docker/hermes-mobile/backups/<version>-<timestamp>`.
-- It syncs only the declared static/test file set:
-  `public/index.html`, `public/service-worker.js`,
-  `public/directory-viewer.html`, and `tests/task-list-ui.test.js`.
+- It syncs only the declared static/test file set. Callers must expand `-Files`
+  for the current change, or use a full tracked-source deploy when backend,
+  startup, route, profile, or broad frontend modules changed.
 - It does not use `scp`, `sftp`, or a PowerShell binary pipe for tar data. The
   maintained NAS SSH setup rejected `scp`/`sftp`, and Windows PowerShell can
   corrupt binary tar streams. The script packages a local tar, converts it to
