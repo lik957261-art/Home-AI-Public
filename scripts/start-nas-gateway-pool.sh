@@ -15,7 +15,7 @@ FINANCE_MCP_PATH="${HERMES_MOBILE_NAS_FINANCE_MCP_PATH:-/volume1/docker/finance-
 FINANCE_MCP_API_BASE_URL="${HERMES_MOBILE_NAS_FINANCE_MCP_API_BASE_URL:-http://127.0.0.1:8791}"
 
 # Format: profile:port:workspaceId:skillProfile
-WORKERS="${HERMES_MOBILE_NAS_GATEWAY_WORKERS:-nasgw1:18751:owner:owner-full,nasgw2:18752:owner:owner-full,nasgw3:18753:weixin_wuping:workspace:weixin_wuping,nasgw4:18754:weixin_stephen:workspace:weixin_stephen,nasgw5:18755:xuyan:workspace:xuyan,nasgw6:18756:weixin_test_1:workspace:weixin_test_1,nasgw7:18757:weixin_xiaonan:workspace:weixin_xiaonan,nasgw8:18758:weixin_zhengyinge:workspace:weixin_zhengyinge}"
+WORKERS="${HERMES_MOBILE_NAS_GATEWAY_WORKERS:-nasgw1:18751:owner:owner-full,nasgw2:18752:owner:owner-full,nasgw3:18753:weixin_wuping:workspace:weixin_wuping,nasgw4:18754:weixin_stephen:workspace:weixin_stephen,nasgw5:18755:xuyan:workspace:xuyan,nasgw6:18756:weixin_test_1:workspace:weixin_test_1}"
 
 mkdir -p "$PROFILES_ROOT" "$(dirname "$MANIFEST_PATH")" "$SKILL_PROFILES_ROOT" "$MEMORY_PROFILES_ROOT"
 

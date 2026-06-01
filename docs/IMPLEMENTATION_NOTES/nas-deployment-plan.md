@@ -271,9 +271,11 @@ Required Mode B checks:
 - User workers are single-workspace workers. Wildcard `allowedWorkspaceIds`
   must fail preflight unless the deployment is explicitly using the legacy
   single-worker bridge warning mode.
-- The worker set includes the maintained family/workspace accounts that need
-  conversations: Owner, `weixin_wuping`, `weixin_stephen`, `xuyan`, and active
-  test/workspace accounts.
+- The worker set includes only maintained production workspaces that need
+  conversations. On the current NAS production host that is Owner,
+  `weixin_wuping`, `weixin_stephen`, `xuyan`, and the active test workspace
+  when smoke testing is needed. Historical or inactive workspace directories
+  must not automatically become running Gateway workers.
 - The NAS data directory contains the same per-user Skill Store profiles that
   Windows production uses, for example `owner-full`, `weixin_wuping`,
   `weixin_stephen`, `xuyan`, and `weixin_test_1`.

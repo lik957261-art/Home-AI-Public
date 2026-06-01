@@ -116,9 +116,12 @@ only after all of these preflight checks pass:
   under the same skill profile or under
   `/volume1/docker/hermes-mobile/data/gateway-memories/<profile>`. It must not
   use one shared base-memory directory for all users.
-- The maintained deployment must include at least Owner, WuPing
-  (`weixin_wuping`), Stephen (`weixin_stephen`), XuYan (`xuyan`), and any active
-  test/workspace accounts that are expected to run conversations.
+- The maintained deployment must include only production workspaces that are
+  expected to run conversations. On the current NAS production host this means
+  Owner, WuPing (`weixin_wuping`), Stephen (`weixin_stephen`), XuYan (`xuyan`),
+  and the active test workspace when test smoke is needed. Do not keep
+  historical or inactive workspace workers warm/running just because old data
+  directories or Skill profiles exist.
 - Plugin MCP toolsets must be workspace-local. The NAS launcher must register
   Wardrobe, Finance, Email, or future plugin MCP servers only when the selected
   workspace has its own `.hermes-<plugin>/config.json` plus key material. A
