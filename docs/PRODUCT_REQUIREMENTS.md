@@ -28,6 +28,14 @@ This file records durable product rules that implementation must preserve.
 - Summary/state/debug metadata must not store raw secrets, push endpoints, raw prompts, full model responses, full learner answers, full transcripts, full questions, answer keys, long tool logs, or private generated reports.
 - Layered context assembly must keep a rollback path to legacy bounded recent-window behavior.
 
+## Plugin Topics
+
+- Workspace-private plugins may be bound to first-class application topics.
+- A plugin topic must not authorize a plugin by itself; visibility, launch, MCP/toolset exposure, and delivery directory access must all resolve through the effective workspace.
+- A plugin topic run should use the plugin MCP as the primary structured data access path when the selected workspace has active provisioning and callable schema evidence. Directory context is supporting evidence only.
+- Every plugin topic should have a standard workspace-local delivery directory for cleaned reports and user-facing outputs. That directory must not store raw plugin keys, launch tokens, browser cookies, provider credentials, full mailbox bodies, raw ledger rows, private inventories, health record dumps, or plugin database files.
+- Owner switching into a non-Owner workspace must use the target workspace's plugin topic, plugin app, delivery directory, and MCP binding. Owner fallback is a permission failure.
+
 ## Growth Learning
 
 - Evergreen cards are driven by observed ability and weakness evidence, not by a fixed grade-only track.

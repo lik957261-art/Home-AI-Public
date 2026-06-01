@@ -38,6 +38,10 @@ Current implementation uses these practical layers:
 
 - Runtime/system instructions and access policy are injected outside topic
   compaction.
+- Plugin-topic bindings, when implemented, are injected as bounded metadata and
+  routing context only after effective-workspace plugin authorization is
+  resolved. Structured plugin MCP remains the primary source for live plugin
+  data; cleaned delivery-directory files are supporting context.
 - `topic_summary` is read from `topic_context_summaries` when layered mode is
   enabled and a stable summary exists.
 - `working_state` is read from `topic_working_states` when available.
@@ -94,6 +98,10 @@ harmful. Do not delete generated summary/state rows during rollback.
 - The SQLite schema has `input_hash` and event-id fields for future audit and
   concurrency work, but the current compaction service mainly guards by
   `lastCompactedMessageId`.
+- Plugin-topic context is still a design target. The implementation must not
+  blindly import plugin delivery directories into every prompt; it needs a
+  service-owned selector that prefers cleaned summaries, selected reports,
+  source ids, and bounded previews.
 
 ## Privacy
 

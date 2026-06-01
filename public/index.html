@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en" data-client-version="20260601-startup-push-defer-v437">
+<html lang="en" data-client-version="20260601-boot-splash-first-paint-v438">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Hermes Mobile</title>
-  <meta name="hermes-web-client-version" content="20260601-startup-push-defer-v437">
+  <meta name="hermes-web-client-version" content="20260601-boot-splash-first-paint-v438">
   <meta name="application-name" content="Hermes Mobile">
   <meta name="theme-color" content="#f7f8f7">
   <meta name="mobile-web-app-capable" content="yes">
@@ -21,11 +21,102 @@
     }
     body {
       background: inherit;
+      color: #23323a;
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
+    }
+    .boot-splash {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      place-content: center;
+      justify-items: center;
+      gap: 16px;
+      box-sizing: border-box;
+      padding: 24px;
+      text-align: center;
+      background: inherit;
+    }
+    .boot-splash-mark {
+      width: 54px;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      color: #23323a;
+      background: #dfe8e4;
+      border: 1px solid rgba(144, 166, 170, 0.24);
+      border-radius: 14px;
+      box-shadow: none;
+      font-size: 26px;
+      font-weight: 600;
+    }
+    .boot-splash-copy {
+      display: grid;
+      gap: 5px;
+    }
+    .boot-splash-title {
+      color: #23323a;
+      font-size: 24px;
+      font-weight: 600;
+    }
+    .boot-splash-text {
+      color: #617077;
+      font-size: 14px;
+      font-weight: 560;
+    }
+    .boot-splash-meta {
+      color: #879298;
+      font-size: 11px;
+      line-height: 1.35;
+    }
+    .boot-splash .hidden {
+      display: none !important;
+    }
+    .boot-splash-bar {
+      width: min(220px, 58vw);
+      height: 4px;
+      overflow: hidden;
+      background: rgba(31, 43, 51, 0.10);
+      border-radius: 999px;
+    }
+    .boot-splash-bar span {
+      display: block;
+      width: 42%;
+      height: 100%;
+      background: #4e7f75;
+      border-radius: inherit;
+      animation: boot-splash-progress 1100ms cubic-bezier(0.2, 0, 0.1, 1) infinite;
+    }
+    @keyframes boot-splash-progress {
+      0% { transform: translateX(-115%); }
+      100% { transform: translateX(255%); }
     }
     @media (prefers-color-scheme: dark) {
       html {
         background: #101214;
         color-scheme: dark;
+      }
+      body {
+        color: #f2f4f2;
+      }
+      .boot-splash-mark {
+        color: #f2f4f2;
+        background: #263036;
+        border-color: rgba(255, 255, 255, 0.12);
+      }
+      .boot-splash-title {
+        color: #f2f4f2;
+      }
+      .boot-splash-text {
+        color: #b4bdb8;
+      }
+      .boot-splash-meta {
+        color: #87928d;
+      }
+      .boot-splash-bar {
+        background: rgba(255, 255, 255, 0.12);
       }
     }
     html[data-effective-theme="light"] {
@@ -35,6 +126,26 @@
     html[data-effective-theme="dark"] {
       background: #101214;
       color-scheme: dark;
+    }
+    html[data-effective-theme="dark"] body {
+      color: #f2f4f2;
+    }
+    html[data-effective-theme="dark"] .boot-splash-mark {
+      color: #f2f4f2;
+      background: #263036;
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+    html[data-effective-theme="dark"] .boot-splash-title {
+      color: #f2f4f2;
+    }
+    html[data-effective-theme="dark"] .boot-splash-text {
+      color: #b4bdb8;
+    }
+    html[data-effective-theme="dark"] .boot-splash-meta {
+      color: #87928d;
+    }
+    html[data-effective-theme="dark"] .boot-splash-bar {
+      background: rgba(255, 255, 255, 0.12);
     }
   </style>
   <script>
@@ -128,7 +239,8 @@
       }
     }());
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260601-startup-push-defer-v437">
+  <link rel="preload" href="/styles.css?v=20260601-boot-splash-first-paint-v438" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="/styles.css?v=20260601-boot-splash-first-paint-v438"></noscript>
 </head>
 <body>
   <main id="bootSplash" class="boot-splash" role="status" aria-live="polite">
@@ -136,7 +248,7 @@
     <div class="boot-splash-copy">
       <div class="boot-splash-title">Hermes Mobile</div>
       <div id="bootSplashText" class="boot-splash-text">正在载入工作区</div>
-      <div id="bootSplashMeta" class="boot-splash-meta">client 20260601-startup-push-defer-v437</div>
+      <div id="bootSplashMeta" class="boot-splash-meta">client 20260601-boot-splash-first-paint-v438</div>
       <button id="bootRetry" class="boot-retry hidden" type="button">重试</button>
       <button id="bootResetClient" class="boot-retry hidden" type="button">重置客户端</button>
       <a id="bootHardReset" class="boot-retry hidden" href="/client-reset.html?reason=boot_timeout">硬重置客户端</a>
@@ -156,7 +268,7 @@
         if (retry) retry.classList.remove("hidden");
         if (reset) reset.classList.remove("hidden");
         if (hardReset) hardReset.classList.remove("hidden");
-        if (meta) meta.textContent = "client 20260601-startup-push-defer-v437 · boot fallback";
+        if (meta) meta.textContent = "client 20260601-boot-splash-first-paint-v438 · boot fallback";
       }, 20000);
       function isStandaloneAppWindow() {
         return Boolean(
@@ -446,79 +558,79 @@
   </div>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/markdown-renderer-client.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-task-artifact-helpers.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-kanban-story-helpers.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-learning-reading-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-learning-coins-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-learning-program-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-learning-growth-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-learning-growth-task-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-learning-growth-reflection-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-api-client.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-shell-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-task-groups-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-navigation-view-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-chat-composer-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-composer-source-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-composer-context-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-run-progress-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-navigation-search-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-task-preview-helpers-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-task-preview-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-sidebar-task-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-message-skill-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-message-actions-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-platform-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-platform-status-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-pwa-settings-push-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-pwa-push-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-workspace-admin-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-access-key-manager-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-plugin-admin-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-share-image-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-draft-thread-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-directory-automation-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-shared-directory-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-embedded-plugin-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-wardrobe-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-action-inbox-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-automation-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-learning-native-growth-submission-controller.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-learning-growth-ai-controller.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-learning-growth-reward-controller.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-learning-growth-settings-controller.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-learning-growth-teaching-controller.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-learning-growth-controller.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-automation-controller-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-automation-actions-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-thread-state-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-group-topic-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-kanban-core-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-kanban-story-core-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-kanban-todo-core-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-kanban-render-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-kanban-list-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-kanban-learning-panel-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-kanban-recorder-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-todo-detail-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-kanban-actions-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-kanban-composer-actions-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-kanban-card-actions-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-kanban-study-actions-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-thread-message-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-thread-list-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-thread-directory-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-thread-card-message-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-long-message-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-rich-text-directory-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-message-usage-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-events-composer-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-event-stream-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-upload-sidebar-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-composer-send-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-wire-start-ui.js?v=20260601-startup-push-defer-v437"></script>
-  <script src="/app-start.js?v=20260601-startup-push-defer-v437"></script>
+  <script src="/markdown-renderer-client.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-task-artifact-helpers.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-kanban-story-helpers.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-learning-reading-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-learning-coins-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-learning-program-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-learning-growth-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-learning-growth-task-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-learning-growth-reflection-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-api-client.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-shell-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-task-groups-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-navigation-view-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-chat-composer-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-composer-source-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-composer-context-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-run-progress-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-navigation-search-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-task-preview-helpers-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-task-preview-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-sidebar-task-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-message-skill-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-message-actions-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-platform-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-platform-status-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-pwa-settings-push-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-pwa-push-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-workspace-admin-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-access-key-manager-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-plugin-admin-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-share-image-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-draft-thread-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-directory-automation-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-shared-directory-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-embedded-plugin-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-wardrobe-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-action-inbox-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-automation-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-learning-native-growth-submission-controller.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-learning-growth-ai-controller.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-learning-growth-reward-controller.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-learning-growth-settings-controller.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-learning-growth-teaching-controller.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-learning-growth-controller.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-automation-controller-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-automation-actions-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-thread-state-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-group-topic-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-kanban-core-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-kanban-story-core-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-kanban-todo-core-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-kanban-render-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-kanban-list-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-kanban-learning-panel-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-kanban-recorder-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-todo-detail-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-kanban-actions-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-kanban-composer-actions-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-kanban-card-actions-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-kanban-study-actions-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-thread-message-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-thread-list-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-thread-directory-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-thread-card-message-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-long-message-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-rich-text-directory-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-message-usage-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-events-composer-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-event-stream-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-upload-sidebar-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-composer-send-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-wire-start-ui.js?v=20260601-boot-splash-first-paint-v438"></script>
+  <script src="/app-start.js?v=20260601-boot-splash-first-paint-v438"></script>
 </body>
 </html>

@@ -7,6 +7,7 @@ const path = require("node:path");
 const {
   createFinancePluginProvisioningService,
   financeBindUrl,
+  financeWorkspaceConfigPath,
   financeWorkspaceKeyPath,
 } = require("../adapters/finance-plugin-provisioning-service");
 
@@ -48,6 +49,17 @@ async function testCreatesWorkspaceKeyAndBindsWithDisplayName() {
   assert.equal(fs.existsSync(keyPath), true);
   const rawKey = fs.readFileSync(keyPath, "utf8").trim();
   assert.match(rawKey, /^hfin_/);
+  const configPath = financeWorkspaceConfigPath({ dataDir, workspaceId: "weixin_test_2" });
+  assert.equal(result.configPath, configPath);
+  assert.equal(fs.existsSync(configPath), true);
+  const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  assert.equal(config.api_base_url, "http://127.0.0.1:8791");
+  assert.equal(config.workspace_id, "weixin_test_2");
+  assert.equal(config.hermes_workspace_id, "weixin_test_2");
+  assert.equal(config.access_key_file, "access-key.txt");
+  assert.equal(config.display_name, calls[0].body.display_name);
+  assert.equal(config.role, "owner");
+  assert.equal(JSON.stringify(config).includes(rawKey), false);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, "http://127.0.0.1:8791/api/v1/hermes/plugin/users/bind");
   assert.equal(calls[0].options.method, "POST");
@@ -60,6 +72,28 @@ async function testCreatesWorkspaceKeyAndBindsWithDisplayName() {
   });
   assert.equal(JSON.stringify(result).includes(rawKey), false);
   assert.equal(calls[0].options.body.includes(rawKey), false);
+}
+
+async function testOwnerCanUseWorkspaceLocalFinanceConfig() {
+  const dataDir = tempDir();
+  const service = createFinancePluginProvisioningService({
+    dataDir,
+    fetch() {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ ok: true, result: { user_id: "user_owner", ledger_id: "ledger_owner" } }),
+      });
+    },
+  });
+  const result = await service.provisionWorkspace({
+    workspaceId: "owner",
+    displayName: "Owner",
+    financeManifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(fs.existsSync(financeWorkspaceKeyPath({ dataDir, workspaceId: "owner" })), true);
+  assert.equal(fs.existsSync(financeWorkspaceConfigPath({ dataDir, workspaceId: "owner" })), true);
 }
 
 async function testBindFailureDoesNotExposeWorkspaceKey() {
@@ -90,6 +124,7 @@ function testBindUrlFromManifestOrigin() {
 
 (async () => {
   await testCreatesWorkspaceKeyAndBindsWithDisplayName();
+  await testOwnerCanUseWorkspaceLocalFinanceConfig();
   await testBindFailureDoesNotExposeWorkspaceKey();
   testBindUrlFromManifestOrigin();
   console.log("finance-plugin-provisioning-service tests passed");

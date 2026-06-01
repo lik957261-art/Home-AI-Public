@@ -1,6 +1,6 @@
 # Harness Required Matrix
 
-Last updated: 2026-05-31.
+Last updated: 2026-06-01.
 
 This document defines when Hermes Mobile changes must add or run a workflow
 harness instead of relying only on unit tests, focused UI tests, or manual
@@ -393,6 +393,36 @@ Required harness dimensions:
   classified as session persistence failure, not credential failure.
 - Server-side launch-token exchange must never expose the long-lived workspace
   key to frontend JavaScript, iframe URLs, docs, handoffs, screenshots, or logs.
+- Workspace-private plugin MCP is part of the same H1 boundary, not an optional
+  UI enhancement. Every MCP-capable plugin must have a harness proving the
+  Wardrobe-style isolation pattern: per-workspace `.hermes-<plugin>/config.json`
+  and `access-key.txt` or plugin-owned equivalent, a Gateway profile
+  `mcp_servers.<plugin>` block bound to that exact workspace root, an explicit
+  no-workspace-override guard, and callable schema evidence for that selected
+  profile. Owner switching into a non-Owner workspace must use the target
+  workspace's MCP binding or omit the plugin MCP/toolset; falling back to
+  Owner's MCP is a failing H1 case.
+- Plugin MCP wrappers must attach workspace plugin keys internally. The model
+  must not pass raw plugin keys, provider OAuth tokens, mailbox credentials,
+  ledger access tokens, health records, or private inventory state as tool
+  arguments. Skills installed for plugin operation must be keyless usage
+  bundles.
+- Plugin-bound application topics are part of the same H1 boundary when they
+  affect visibility, app launch, MCP/toolset routing, delivery-directory
+  creation, or context assembly. A plugin topic must use the same
+  effective-workspace projection as the app drawer, manifest route, and plugin
+  launch route. Its open-app action must enter the existing embedded plugin
+  host, and its open-topic action must enter a stable topic/task group with the
+  selected workspace's plugin MCP only when callable schema evidence exists.
+  Missing schema or provisioning must produce a bounded diagnostic and omit the
+  plugin toolset; falling back to Owner's plugin app, delivery directory, or MCP
+  is a failing H1 case.
+- Plugin-topic delivery directories are supporting evidence, not plugin
+  databases. Harnesses must assert the directory is created/resolved under the
+  target workspace, exposes only a route/label projection to the frontend, and
+  contributes cleaned selected summaries/reports to context rather than raw
+  plugin exports, keys, tokens, cookies, full mailbox bodies, raw ledger rows,
+  private inventories, health records, full learner content, or long logs.
 - Same-origin plugin proxy routes must remain inside the Hermes workspace access
   boundary. The route must require Hermes workspace access, clamp any requested
   `workspaceId` or `x-hermes-plugin-workspace-id` hint through
@@ -1404,13 +1434,19 @@ Required contract dimensions:
   timestamps, actor id, and bounded provisioning status only.
 - Finance workspace grant is H1 provisioning, not a plain visibility toggle.
   Granting `finance` must create or reuse the target workspace's local
-  `.hermes-finance/access-key.txt`, call Finance's loopback
-  `/api/v1/hermes/plugin/users/bind` with the Hermes workspace label as UTF-8
-  `display_name`, and mark the authorization record `active` only after Finance
-  accepts the bind. Key creation or bind failure must remain visible as bounded
-  `provisioning_failed` state and must block non-Owner list/manifest/launch
-  rather than falling through to `plugin_launch_key_missing` or a misleading
-  usable tab.
+  `.hermes-finance/access-key.txt`, write a non-secret sibling `config.json`,
+  call Finance's loopback `/api/v1/hermes/plugin/users/bind` with the Hermes
+  workspace label as UTF-8 `display_name`, and expose model-side Finance only
+  through a Gateway profile whose `mcp_servers.finance` points at that same
+  target workspace with `--no-workspace-override`. Finance must use the common
+  plugin MCP runtime shape, i.e. a Python stdio wrapper (`finance_mcp_stdio.py`)
+  launched by the Gateway profile's configured Python runtime, so low Gateway
+  registration does not depend on ad-hoc Node availability. The authorization
+  record may become `active` only after the key/config, Finance bind, and
+  profile/MCP registration checks pass. Key creation, config write, bind, or
+  MCP/profile failure must remain visible as bounded `provisioning_failed` state
+  and must block non-Owner list/manifest/launch rather than falling through to
+  `plugin_launch_key_missing`, Owner's Finance MCP, or a misleading usable tab.
 - Wardrobe workspace grant is H1 provisioning, not a plain visibility toggle.
   Granting `wardrobe` must create a per-Hermes-user Wardrobe workspace id,
   write only that user's `.hermes-wardrobe/config.json` and `access-key.txt`,

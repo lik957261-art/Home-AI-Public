@@ -65,6 +65,24 @@ wardrobe_mcp_path="${HERMES_MOBILE_WARDROBE_MCP_PATH:-$gateway_worker_root/wardr
 wardrobe_user_drive_root="${HERMES_MOBILE_WARDROBE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_wardrobe_workspace_override="${HERMES_MOBILE_OWNER_WARDROBE_WORKSPACE:-}"
 wuping_wardrobe_workspace_override="${HERMES_MOBILE_WUPING_WARDROBE_WORKSPACE:-}"
+finance_mcp_python="${HERMES_MOBILE_FINANCE_MCP_PYTHON:-/opt/hermes-gateway-runtime/venv/bin/python}"
+finance_mcp_path="${HERMES_MOBILE_FINANCE_MCP_PATH:-$gateway_worker_root/finance-mcp/scripts/finance_mcp_stdio.py}"
+finance_mcp_api_base_url="${HERMES_MOBILE_FINANCE_MCP_API_BASE_URL:-http://127.0.0.1:8791}"
+finance_user_drive_root="${HERMES_MOBILE_FINANCE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
+owner_finance_workspace_override="${HERMES_MOBILE_OWNER_FINANCE_WORKSPACE:-}"
+wuping_finance_workspace_override="${HERMES_MOBILE_WUPING_FINANCE_WORKSPACE:-}"
+gateway_start_profiles="${HERMES_GATEWAY_START_PROFILES:-}"
+
+profile_selected_for_configure() {
+  local profile="$1"
+  if [ -z "$gateway_start_profiles" ]; then
+    return 0
+  fi
+  case ",$gateway_start_profiles," in
+    *,"$profile",*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 manifest_gateway_specs() {
   python3 - "$gateway_pool_manifest_path" <<'PY' 2>/dev/null || true
@@ -201,8 +219,29 @@ print(matches[0].parent.parent.as_posix())
 PY
 }
 
+find_first_finance_workspace_root() {
+  local workspace_id="${1:-}"
+  local drive_root="${2:-$finance_user_drive_root}"
+  python3 - "$workspace_id" "$drive_root" <<'PY' 2>/dev/null || true
+from pathlib import Path
+import sys
+
+workspace_id = sys.argv[1]
+drive_root = Path(sys.argv[2])
+user_root = drive_root / workspace_id
+if not user_root.exists():
+    raise SystemExit(0)
+config = user_root / ".hermes-finance" / "config.json"
+key_dir = config.parent
+if config.exists() and ((key_dir / "access-key.txt").exists() or (key_dir / "workspace-key.txt").exists()):
+    print(user_root.as_posix())
+PY
+}
+
 owner_wardrobe_workspace="${owner_wardrobe_workspace_override:-$(find_first_wardrobe_workspace_root owner)}"
 wuping_wardrobe_workspace="${wuping_wardrobe_workspace_override:-$(find_first_wardrobe_workspace_root weixin_wuping)}"
+owner_finance_workspace="${owner_finance_workspace_override:-$(find_first_finance_workspace_root owner)}"
+wuping_finance_workspace="${wuping_finance_workspace_override:-$(find_first_finance_workspace_root weixin_wuping)}"
 
 skill_store_for_gateway_profile() {
   local profile="$1"
@@ -699,6 +738,9 @@ while IFS=$'\t' read -r profile port; do
   if [[ ! "$profile" =~ ^(lowgw|deepseekgw)[0-9]+$ ]]; then
     continue
   fi
+  if ! profile_selected_for_configure "$profile"; then
+    continue
+  fi
   profile_link="$worker_home_dir/profiles/${profile}"
   profile_dir="${telemetry_profiles_root}/${profile}"
   profile_seed="$profile_auth_seed_root/${profile}/auth.json"
@@ -805,8 +847,11 @@ ${plugin_enabled_lines%$'\n'}"
   outlook_api_toolset_block=""
   wardrobe_toolset_block=""
   wardrobe_api_toolset_block=""
+  finance_toolset_block=""
+  finance_api_toolset_block=""
   mcp_server_lines=""
   profile_wardrobe_workspace=""
+  profile_workspace_id=""
   if is_owner_connector_profile "$profile"; then
     profile_wardrobe_workspace="$owner_wardrobe_workspace"
   else
@@ -831,6 +876,38 @@ ${plugin_enabled_lines%$'\n'}"
     env:
       HERMES_HOME: $profile_link
       PYTHONPATH: /opt/hermes-gateway-runtime/official-clean
+    enabled: true
+    timeout: 180
+    connect_timeout: 60"$'\n'
+  fi
+  profile_finance_workspace=""
+  if is_owner_connector_profile "$profile"; then
+    profile_finance_workspace="$owner_finance_workspace"
+  else
+    if [ -z "$profile_workspace_id" ]; then
+      profile_workspace_id="$(workspace_id_for_gateway_profile "$profile")"
+    fi
+    if [ -n "$profile_workspace_id" ]; then
+      profile_finance_workspace="$(find_first_finance_workspace_root "$profile_workspace_id")"
+      if [ -z "$profile_finance_workspace" ] && [ "$profile_workspace_id" = "weixin_wuping" ]; then
+        profile_finance_workspace="$wuping_finance_workspace"
+      fi
+    fi
+  fi
+  if [ -n "$profile_finance_workspace" ] && [ -f "$finance_mcp_path" ]; then
+    finance_toolset_block="  - finance"
+    finance_api_toolset_block="    - finance"
+    mcp_server_lines="${mcp_server_lines}  finance:
+    command: $finance_mcp_python
+    args:
+      - $finance_mcp_path
+      - --workspace
+      - $profile_finance_workspace
+      - --no-workspace-override
+      - --api-base-url
+      - $finance_mcp_api_base_url
+    env:
+      HERMES_HOME: $profile_link
     enabled: true
     timeout: 180
     connect_timeout: 60"$'\n'
@@ -889,6 +966,7 @@ ${weather_toolset_block}
 ${http_toolset_block}
 ${cronjob_mobile_toolset_block}
 ${wardrobe_toolset_block}
+${finance_toolset_block}
 ${outlook_toolset_block}
 platform_toolsets:
   api_server:
@@ -913,6 +991,7 @@ ${weather_api_toolset_block}
 ${http_api_toolset_block}
 ${cronjob_mobile_api_toolset_block}
 ${wardrobe_api_toolset_block}
+${finance_api_toolset_block}
 ${outlook_api_toolset_block}
 agent:
   max_turns: 60

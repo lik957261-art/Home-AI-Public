@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260601-startup-push-defer-v437";
+const CLIENT_VERSION = "20260601-boot-splash-first-paint-v438";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -167,6 +167,10 @@ assert.match(indexHtml, /id="bootRetry"/);
 assert.match(indexHtml, /id="bootResetClient"/);
 assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
+assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
+assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260601-boot-splash-first-paint-v438" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260601-boot-splash-first-paint-v438"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /resetClient"\) === "1"/);

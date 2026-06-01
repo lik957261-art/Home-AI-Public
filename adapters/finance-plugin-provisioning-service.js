@@ -23,8 +23,13 @@ function defaultDataDir(env = process.env) {
 function financeWorkspaceKeyPath(input = {}) {
   const dataDir = stringValue(input.dataDir) || defaultDataDir(input.env);
   const workspaceId = stringValue(input.workspaceId);
-  if (!workspaceId || workspaceId === "owner") return "";
+  if (!workspaceId) return "";
   return path.join(dataDir, "drive", "users", workspaceId, ".hermes-finance", "access-key.txt");
+}
+
+function financeWorkspaceConfigPath(input = {}) {
+  const keyPath = financeWorkspaceKeyPath(input);
+  return keyPath ? path.join(path.dirname(keyPath), "config.json") : "";
 }
 
 function generateFinanceWorkspaceKey() {
@@ -60,8 +65,40 @@ function financeBindUrl(manifestUrl = "") {
   }
 }
 
+function financeApiBaseUrl(manifestUrl = "") {
+  try {
+    return new URL(stringValue(manifestUrl)).origin;
+  } catch (_) {
+    return "http://127.0.0.1:8791";
+  }
+}
+
 function safeJsonId(value) {
   return stringValue(value).slice(0, 120);
+}
+
+function writeFinanceWorkspaceConfig(input = {}) {
+  const configPath = financeWorkspaceConfigPath(input);
+  if (!configPath) return { ok: false, error: "workspace_id_required" };
+  const workspaceId = stringValue(input.workspaceId);
+  const config = {
+    schema_version: 1,
+    api_base_url: stringValue(input.apiBaseUrl) || financeApiBaseUrl(input.financeManifestUrl),
+    workspace_id: workspaceId,
+    hermes_workspace_id: workspaceId,
+    access_key_file: "access-key.txt",
+    display_name: stringValue(input.displayName) || workspaceId,
+    role: stringValue(input.role) || "owner",
+    provisioned_by: "hermes-mobile",
+    updated_at: new Date().toISOString(),
+  };
+  try {
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+    return { ok: true, configPath };
+  } catch (_) {
+    return { ok: false, error: "finance_plugin_config_write_failed" };
+  }
 }
 
 function createFinancePluginProvisioningService(options = {}) {
@@ -72,7 +109,7 @@ function createFinancePluginProvisioningService(options = {}) {
   async function bindWorkspaceUser(input = {}) {
     if (typeof fetchImpl !== "function") return { ok: false, error: "fetch_unavailable" };
     const workspaceId = stringValue(input.workspaceId);
-    if (!workspaceId || workspaceId === "owner") return { ok: false, error: "workspace_id_required" };
+    if (!workspaceId) return { ok: false, error: "workspace_id_required" };
     const url = financeBindUrl(input.financeManifestUrl);
     if (!url) return { ok: false, error: "finance_bind_url_invalid" };
     const body = {
@@ -126,9 +163,18 @@ function createFinancePluginProvisioningService(options = {}) {
         keyCreated: key.created,
       };
     }
+    const config = writeFinanceWorkspaceConfig(Object.assign({}, input, { dataDir, env }));
+    if (!config.ok) {
+      return {
+        ok: false,
+        error: config.error || "finance_plugin_config_failed",
+        keyCreated: key.created,
+      };
+    }
     return {
       ok: true,
       keyCreated: key.created,
+      configPath: config.configPath,
       financeUserId: bind.financeUserId,
       ledgerId: bind.ledgerId,
       created: bind.created,
@@ -145,8 +191,11 @@ function createFinancePluginProvisioningService(options = {}) {
 module.exports = {
   DEFAULT_FINANCE_BIND_PATH,
   createFinancePluginProvisioningService,
+  financeApiBaseUrl,
   ensureFinanceWorkspaceKey,
   financeBindUrl,
+  financeWorkspaceConfigPath,
   financeWorkspaceKeyPath,
   generateFinanceWorkspaceKey,
+  writeFinanceWorkspaceConfig,
 };

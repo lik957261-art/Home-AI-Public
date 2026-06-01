@@ -143,6 +143,45 @@ read/write access to this key file or its parent directory.
 - Cron dispatcher change: restart cron sidecar through `scripts\start-cron-tick-sidecar.ps1 -ReplaceExisting`.
 - Data-only repair: backup data first; avoid restart unless runtime memory can overwrite the repair.
 
+## NAS Static Deploy Harness
+
+For the maintained NAS production host `192.168.10.99`, static-only Hermes
+Mobile updates should use the scripted harness:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\deploy-nas-static-assets.ps1
+```
+
+The script is intentionally narrow:
+
+- It reads the current client version from `public/index.html`.
+- It checks NAS `/api/status?detail=1` with the NAS-side Owner key file and
+  aborts if health is not `ok` or `activeGlobal` is nonzero.
+- It backs up the target files from both `/volume1/docker/hermes-mobile/app`
+  and `/volume1/docker/hermes-mobile/source` under
+  `/volume1/docker/hermes-mobile/backups/<version>-<timestamp>`.
+- It syncs only the declared static/test file set:
+  `public/index.html`, `public/service-worker.js`,
+  `public/directory-viewer.html`, and `tests/task-list-ui.test.js`.
+- It does not use `scp`, `sftp`, or a PowerShell binary pipe for tar data. The
+  maintained NAS SSH setup rejected `scp`/`sftp`, and Windows PowerShell can
+  corrupt binary tar streams. The script packages a local tar, converts it to
+  base64 text, streams that text through SSH, decodes it on NAS with Python,
+  and extracts the same archive into both `app` and `source`.
+- It compares SHA-256 for every file in both NAS destinations before running
+  checks.
+- It runs NAS checks with the pinned NAS Node runtime path
+  `/volume1/docker/hermes-mobile/runtime/node-v22.22.3-linux-x64/bin/node`
+  rather than assuming `node` is on the remote PATH.
+- It smokes `/api/client-version?clientVersion=<version>` and verifies the
+  public origin HTML at `https://wardrobe-xuxin.synology.me:8555` contains the
+  deployed version.
+
+The harness does not print Owner keys, plugin keys, launch tokens, cookies, or
+push endpoints. If a future NAS static deploy needs a different file set, add it
+to the script parameter explicitly and extend `tests\nas-static-deploy-harness.test.js`
+instead of doing an ad hoc one-off copy.
+
 ## Automation Deployment Checks
 
 Before declaring a production environment ready for Automation:

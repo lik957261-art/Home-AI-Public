@@ -756,6 +756,24 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
 ## Profile MCP Registration
 
 - Low Gateway profile MCP servers are generated into each profile `config.yaml` by `C:\ProgramData\HermesMobile\gateway-worker\configure-low-gateways.sh`.
+- Workspace-private plugin MCP runtimes must follow the same profile-bound
+  isolation model. Each MCP-capable plugin gets a workspace-local config/key
+  directory such as `.hermes-wardrobe`, `.hermes-finance`, `.hermes-email`, or
+  `.hermes-health`; the MCP wrapper reads that directory and attaches the
+  plugin workspace key internally.
+- Gateway profile config must expose the plugin toolset in both `toolsets` and
+  `platform_toolsets.api_server`, and must add a matching `mcp_servers.<id>`
+  block only when the effective Hermes workspace has a valid plugin config/key
+  binding for that same plugin.
+- Plugin MCP registration must bind to the effective Hermes workspace with a
+  fixed `--workspace` or equivalent root argument and must reject runtime
+  workspace override. Wardrobe uses `--no-workspace-override`; Finance, Email,
+  Health, and future plugins must implement an equivalent check before they are
+  considered production-ready.
+- Owner-authenticated browsing of a non-Owner workspace must select or cold-start
+  a profile whose plugin MCP is bound to that target workspace. If no matching
+  profile/schema exists, Mobile must omit the plugin MCP/toolset and return a
+  bounded missing-profile diagnostic instead of falling back to Owner's MCP.
 - Wardrobe MCP runtime is installed under `C:\ProgramData\HermesMobile\gateway-worker\wardrobe-mcp`.
 - Wardrobe-capable profiles expose toolset `wardrobe` through `platform_toolsets.api_server`.
 - Owner wardrobe profiles bind `wardrobe` to the XuXin wardrobe workspace.
@@ -769,7 +787,36 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   and marks the workspace profile binding refreshed in the Gateway Pool manifest
   so the next selected-profile start/restart rebuilds the MCP profile config.
 - Wardrobe MCP is launched with `--no-workspace-override`; a model call must not switch a Gateway profile to another owner's `.hermes-wardrobe/access-key.txt`.
+- Finance MCP is generated from the same source script. The generator checks the
+  effective workspace root directly for `.hermes-finance/config.json` and a
+  sibling `access-key.txt` or `workspace-key.txt`; it must not scan the user's
+  whole drive tree for Finance config during Gateway startup. Only then does it add
+  `finance` to `toolsets` / `platform_toolsets.api_server` and write
+  `mcp_servers.finance`. The Finance MCP wrapper follows the Wardrobe-style
+  Python stdio standard: launch it with
+  `/opt/hermes-gateway-runtime/venv/bin/python`, the plugin-owned
+  `finance_mcp_stdio.py`, `--workspace <target-user-root>`,
+  `--no-workspace-override`, and the server-side `--api-base-url`. A Finance
+  plugin UI/proxy that launches correctly does not by itself prove model-side
+  Finance MCP registration.
+- On Windows deployments where low Gateways run inside WSL and the Finance
+  service runs as a Windows process, `127.0.0.1` inside the MCP wrapper is the
+  WSL loopback, not the Windows loopback. The Finance MCP bridge must either run
+  in the same network namespace as the Finance service or use a Finance-approved
+  local relay/trust path. The maintained Windows deployment uses a
+  Finance-approved trusted Gateway CIDR plus a Windows host API base, while NAS
+  must generate its own Finance API base from container/network topology. A
+  profile smoke must prove `tools/list` returns `mcp_finance_*`, not only that
+  the wrapper process starts.
+- Email MCP follows the same rule with `.hermes-email`; provider OAuth tokens
+  and mailbox credentials remain inside the Email plugin, while the MCP uses
+  only the workspace-local Email plugin key to call Email APIs.
 - The generator script in the source repo is the durable source of truth. Do not rely on one-off edits to live `telemetry/profiles/<profile>/config.yaml`: a later Gateway Pool reconfigure/restart rewrites those files from `scripts/configure-low-gateways.sh` and will silently drop Wardrobe MCP registration if the source script no longer contains the wardrobe block.
+- Targeted starts such as `-StartProfiles lowgw13,lowgw14 -ForceConfigure`
+  must pass `HERMES_GATEWAY_START_PROFILES` through to
+  `configure-low-gateways.sh`, and that script must configure only those
+  selected profiles. A targeted plugin/MCP repair must not walk every low
+  Gateway profile or run SQLite integrity checks for unrelated profiles.
 - The production worker-root copies of `configure-low-gateways.sh`,
   `start-low-gateways.sh`, and `start-gateway-pool.ps1` must be synced from the
   deployed app source before a Gateway Pool restart. A stale worker-root

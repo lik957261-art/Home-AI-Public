@@ -43,6 +43,16 @@ manifest/workspace authorization rules would have made the corresponding plugin
 tab available. Moving an app into the drawer must not bypass plugin visibility,
 workspace clamping, launch-token freshness, iframe hosting, or proxy rules.
 
+Plugin-bound application topics are a separate launcher/context layer. A plugin
+may appear in the `应用` drawer, in the embedded plugin host, and as a pinned
+plugin topic card at the same time. All three surfaces must use the same
+effective-workspace visibility and provisioning projection. A plugin topic card
+may open the app directly or open the bound topic chat, but it must not create a
+new authorization path, bypass launch-token freshness, or expose a plugin MCP
+without the selected workspace's matching Gateway schema. See
+`docs/MODULES/plugin-topics.md` and
+`docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md`.
+
 ## Manifest Contract
 
 The plugin project should publish a bounded manifest endpoint. Hermes Mobile
@@ -376,18 +386,66 @@ binding or plugin-side setup has been verified. Empty plugin content after a
 successful first-run provisioning is valid; missing identity, missing key,
 missing bind, missing Skill/MCP registration, or Owner-session reuse is not.
 
+Plugins that expose model-callable MCP tools must use the Wardrobe-style
+workspace-local isolation pattern as the default host contract:
+
+- Hermes Mobile creates one plugin workspace identity per effective Hermes
+  workspace. The plugin may map that id to its own user, ledger, mailbox,
+  health profile, wardrobe workspace, or other domain object, but it must not
+  silently reuse Owner's plugin identity for a non-Owner workspace.
+- Hermes Mobile writes a plugin-local directory under the target user's drive,
+  for example `.hermes-wardrobe`, `.hermes-finance`, `.hermes-email`, or
+  `.hermes-health`.
+- `config.json` in that directory contains only non-secret metadata such as
+  API base URL, plugin workspace id, Hermes workspace id, display name, cache
+  directories, scopes, and the relative key-file name.
+- `access-key.txt` in that directory is the only long-lived workspace plugin
+  secret Hermes stores for that plugin. It must not be copied into Skill files,
+  Gateway manifests, frontend state, iframe URLs, postMessage payloads, docs,
+  screenshots, handoffs, logs, or plugin authorization records.
+- The plugin MCP wrapper reads its own `.hermes-<plugin>/config.json` and
+  `.hermes-<plugin>/access-key.txt`, then attaches the workspace-local key to
+  plugin API calls internally. The model must never pass raw keys as tool
+  arguments.
+- The Gateway profile registers that plugin MCP with `--workspace` or an
+  equivalent fixed workspace-root argument pointing to the target Hermes
+  workspace. It must also disable runtime workspace override, for example
+  `--no-workspace-override`, or enforce the same check in code.
+- The selected Gateway profile and exposed callable schema are part of the
+  authorization boundary. Owner switching into a non-Owner workspace must select
+  a profile bound to that target workspace's plugin directory. If no matching
+  profile/schema exists, Hermes must omit the plugin MCP/toolset and show a
+  bounded diagnostic instead of falling back to Owner's MCP.
+- Plugin Skills installed into a user's Skill Store are keyless usage bundles.
+  They may describe how to use the MCP toolset, but they must not contain
+  concrete access keys, launch tokens, plugin session cookies, raw private data,
+  or local secret paths.
+
 For Finance, a plugin-manager grant is also a provisioning workflow. When Owner
-grants `finance` to a non-Owner workspace, Hermes Mobile must create a
+grants `finance` to a workspace, Hermes Mobile must create a
 workspace-local server-side key at
 `<HERMES_DATA_DIR>\drive\users\<workspaceId>\.hermes-finance\access-key.txt`
-when one does not already exist, then call the Finance loopback binding
+when one does not already exist, write a non-secret sibling `config.json` for
+the Finance MCP wrapper, then call the Finance loopback binding
 contract `POST /api/v1/hermes/plugin/users/bind` with bounded workspace
 identity: `target_workspace_id`, UTF-8 `display_name`, `role=owner`, and
 `admin_workspace_id=owner`. The display name should come from the Hermes
 workspace label so Finance user and ledger names do not inherit mojibake from
-PowerShell or ad-hoc repair scripts. A successful bind updates the authorization
-record to `provisioningStatus=active`; a key or bind failure keeps the grant
-record but marks `provisioningStatus=provisioning_failed` with a bounded error.
+PowerShell or ad-hoc repair scripts. Finance must also follow the generic MCP
+isolation contract before model-callable Finance tools are considered active.
+`config.json` may contain `api_base_url`, `workspace_id`,
+`hermes_workspace_id`, `access_key_file`, `display_name`, and `role`; it must
+not contain the raw key. Gateway profile generation registers
+`mcp_servers.finance` only when the target workspace has both
+`.hermes-finance/config.json` and `.hermes-finance/access-key.txt`, exposes the
+`finance` toolset in both `toolsets` and `platform_toolsets.api_server`, and
+launches the Finance Python stdio wrapper with
+`/opt/hermes-gateway-runtime/venv/bin/python`, `finance_mcp_stdio.py`,
+`--workspace <target-user-root>`, and `--no-workspace-override`. A successful
+bind plus profile/MCP registration updates the authorization record to
+`provisioningStatus=active`; a key, bind, config, or MCP/profile failure keeps
+the grant record but marks
+`provisioningStatus=provisioning_failed` with a bounded error.
 Pending or failed Finance provisioning must block non-Owner list/manifest/launch
 access and the plugin manager must show a diagnostic such as
 `authorized / provisioning_failed` instead of making the plugin look fully
@@ -1073,10 +1131,22 @@ Email launch uses the generated workspace key as a server-side
 entry path rewritten through `/api/hermes-plugins/email/proxy/...` when the
 plugin is local HTTP. Hermes Mobile must not own Email OAuth tokens, IMAP app
 passwords, mailbox sync cursors, local message bodies, attachments, provider
-SDKs, or mailbox UI logic. Raw Email Owner keys, workspace keys, launch tokens,
-session cookies, full mail bodies, attachment content, and provider credentials
-must not appear in manifests, iframe URLs, postMessage payloads, frontend state,
-docs, handoffs, screenshots, logs, or tests.
+SDKs, or mailbox UI logic.
+
+Email model-side access must also use the generic workspace-local MCP isolation
+contract. The Email MCP wrapper should read `.hermes-email/config.json` and
+`.hermes-email/access-key.txt`, call Email APIs with the workspace-local key,
+and never receive provider OAuth tokens or raw mailbox credentials from Hermes.
+Gateway profiles that expose the `email` toolset must bind the MCP to the
+effective Hermes workspace directory and reject workspace override. If an Owner
+session switches into another workspace and no Email-bound profile exists for
+that workspace, Hermes must omit the Email MCP/toolset rather than using
+Owner's Email MCP.
+
+Raw Email Owner keys, workspace keys, launch tokens, session cookies, full mail
+bodies, attachment content, and provider credentials must not appear in
+manifests, iframe URLs, postMessage payloads, frontend state, docs, handoffs,
+screenshots, logs, or tests.
 
 ## Finance Plugin
 

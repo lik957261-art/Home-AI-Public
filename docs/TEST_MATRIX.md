@@ -1,6 +1,6 @@
 # Hermes Mobile Test Matrix
 
-Last updated: 2026-05-31.
+Last updated: 2026-06-01.
 
 Use this matrix to pick focused tests before broader gates. Always add syntax checks for touched JS/Python/PowerShell files.
 
@@ -60,6 +60,16 @@ Startup harnesses must also verify that workspace/project bootstrap failures do
 not reveal a half-initialized shell with an empty workspace selector. The client
 should retry bounded startup loading and then show an explicit recovery/retry
 surface.
+
+NAS static production deploy is a cross-shell production operation. The source
+harness must keep `scripts/deploy-nas-static-assets.ps1` on the safe transport
+path that worked against the maintained Synology host: health check first,
+abort on active runs, backup both NAS `app` and `source`, package local files as
+tar, base64 the archive before SSH transport, decode/extract on NAS, compare
+SHA-256 in both destinations, use the pinned NAS runtime Node path for checks,
+and smoke both `/api/client-version` and the public origin HTML. `scp`, `sftp`,
+and raw PowerShell binary tar pipes are failing cases for this maintained NAS
+flow. Focused check: `node tests\nas-static-deploy-harness.test.js`.
 
 H1 includes Growth learning cards, Action Inbox passive notifications,
 Automation/Cron execution, Gateway toolset selection/run telemetry,
@@ -231,6 +241,39 @@ select `wardrobe` with `vision`/`file` for image-backed writeback and readback
 verification. A run that has a wardrobe-capable Gateway profile but lacks
 `wardrobe` in `access_policy_context.allowed_toolsets` should be treated as a
 Mobile policy/routing regression, not as a missing Gateway MCP.
+All workspace-private plugin MCP capabilities must also prove user isolation,
+not only schema presence. The harness for a plugin MCP must assert that:
+
+- each target workspace has its own `.hermes-<plugin>/config.json` and
+  `.hermes-<plugin>/access-key.txt` or plugin-owned equivalent;
+- the Gateway profile's `mcp_servers.<plugin>` block points at that target
+  workspace root and rejects runtime workspace override;
+- an Owner session switched into a non-Owner workspace selects a profile/schema
+  bound to the target workspace, not Owner's plugin directory;
+- a missing target profile/schema omits the plugin MCP/toolset and returns a
+  bounded diagnostic instead of falling back to Owner;
+- raw workspace keys, Owner plugin keys, launch tokens, provider OAuth tokens,
+  cookies, full mailbox bodies, private ledger rows, inventory dumps, or health
+  records do not appear in manifests, prompts, frontend state, postMessage
+  payloads, docs, logs, screenshots, or test output.
+
+Plugin-bound application topics are H1 when they influence plugin visibility,
+MCP/toolset routing, workspace switching, delivery-directory creation, or
+context assembly. The harness must assert that visible topic cards use the same
+effective-workspace plugin projection as the app drawer and manifest routes;
+open-app and open-topic are separate actions; the standard delivery directory is
+created/resolved under the target workspace; context uses cleaned selected
+delivery files only; and a plugin topic run uses the selected workspace's MCP
+schema or omits the plugin toolset with a bounded diagnostic. Owner fallback to
+Owner's plugin app, directory, or MCP is a failing case. Focused checks should
+include `node tests\plugin-topic-binding-service.test.js`,
+`node tests\plugin-topic-delivery-directory-service.test.js`,
+`node tests\plugin-topic-context-service.test.js`,
+`node tests\plugin-topic-api-routes.test.js`,
+`node tests\gateway-run-toolset-routing-service.test.js`,
+`node tests\context-assembly-service.test.js`, and
+`node tests\app-plugin-topics-ui.test.js` once those tests exist.
+
 Wardrobe callable-schema coverage must include actual-wear history writeback
 through `mcp_wardrobe_wardrobe_write_history`, not only item write/search/read
 and photo functions.
@@ -321,14 +364,25 @@ grant denial, Codex Mobile absence during Owner-to-non-Owner workspace
 switching, and the side-navigation manager being hidden from non-Owner users.
 Finance workspace provisioning is an H1 plugin authorization workflow. Granting
 Finance to a workspace must create a workspace-local
-`.hermes-finance/access-key.txt`, call Finance
+`.hermes-finance/access-key.txt` and non-secret `.hermes-finance/config.json`,
+call Finance
 `POST /api/v1/hermes/plugin/users/bind` with UTF-8 workspace display name,
-record only `active` or bounded `provisioning_failed` status, and block
-non-Owner list/manifest/launch when provisioning has failed or is still
-pending. Harnesses must assert the raw workspace key is not returned in the
-grant result, manifest, frontend state, URL, postMessage payload, docs, logs,
-or screenshots. Focused checks include
+register `mcp_servers.finance` for the target workspace profile, expose the
+`finance` toolset only when that profile/schema exists, launch Finance through
+the standard Python stdio wrapper (`finance_mcp_stdio.py`) rather than a
+profile-specific ad-hoc runtime, record only `active` or bounded
+`provisioning_failed` status, and block non-Owner list/manifest/launch when
+provisioning has failed or is still pending. Harnesses must assert the raw
+workspace key is not returned in the grant result, manifest, frontend state,
+URL, postMessage payload, docs, logs, or screenshots, and that Owner switching
+into a non-Owner workspace cannot reach Owner's Finance user or ledger through
+either iframe launch or MCP. Windows+WSL smoke must additionally prove the
+Finance Python wrapper can call `tools/list` and receive `mcp_finance_*`; a
+non-loopback `--api-base-url` that hits Finance's loopback-only MCP bridge and
+returns `finance_mcp_dispatch_loopback_only` is a failing deployment state.
+Focused checks include
 `node tests\finance-plugin-provisioning-service.test.js`,
+`node tests\startup-scripts.test.js`,
 `node tests\hermes-plugin-service.test.js`,
 `node tests\hermes-plugin-api-routes.test.js`,
 `node tests\wardrobe-plugin-navigation-ui.test.js`, and
@@ -366,6 +420,9 @@ bounded workspace identity, and the target workspace root. The resulting
 workspace-local `.hermes-email/config.json` and `.hermes-email/access-key.txt`
 are the only long-lived launch materials Hermes should use; Email owns mailbox
 credentials, local mail storage, sync cursors, and per-user account filtering.
+The Email MCP harness must prove the `email` toolset and `mcp_servers.email`
+are bound to the target workspace directory, reject workspace override, and do
+not expose provider OAuth/token material to Hermes or the model.
 Harnesses must assert the raw Email Owner key, workspace key, launch token, full
 mail body, attachment content, and provider credentials are not returned in the
 grant result, manifest, frontend state, iframe URL, postMessage payload, docs,
@@ -951,6 +1008,7 @@ The guard test is:
 | Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js` |
 | Embedded plugin host / Wardrobe, Codex, Finance, and Email plugin tabs | `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\embedded-plugin-refresh-harness.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\wardrobe-plugin-navigation-ui.test.js`, `node tests\wardrobe-plugin-provisioning-service.test.js`, `node tests\email-plugin-provisioning-service.test.js` when Email behavior changes, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes. First-run plugin enablement must verify Owner and one non-Owner workspace cannot project `active` until workspace-local key/config, plugin-side bind/register, required Skill/MCP setup, and manifest/launch smoke pass. |
+| Plugin-bound application topics | Planned: `node tests\plugin-topic-binding-service.test.js`, `node tests\plugin-topic-delivery-directory-service.test.js`, `node tests\plugin-topic-context-service.test.js`, `node tests\plugin-topic-api-routes.test.js`, `node tests\app-plugin-topics-ui.test.js`, plus `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\task-list-ui.test.js`, and `node tests\architecture-refactor-boundary.test.js` when implementation touches services/routes/runtime. |
 | Directory/files/artifacts | `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js` |
 | Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\gateway-workspace-provisioning-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\link-skill-profile-store.test.js`, `node tests\task-list-ui.test.js` |
 | Automation/Cron | `node tests\automation-api-routes.test.js`, `node tests\automation-provider.test.js`, `node tests\cron-bridge.test.js`, `node tests\local-automation-bridge-service.test.js`, `node tests\mobile-runtime-environment-service.test.js`, `node tests\startup-scripts.test.js`; production/NAS smoke must verify that `/api/automations?detail=summary&refresh=1` reads the configured canonical scheduler and does not silently report an empty SQLite mirror when official CRON has jobs |

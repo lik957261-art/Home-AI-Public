@@ -36,6 +36,22 @@ The same ACL boundary must protect listing, preview, upload, delete, task direct
 - Delete must be explicit and non-recursive unless a dedicated audited policy says otherwise.
 - Protected roots include workspace root, sync/download roots, cache/delivery roots, hidden roots, and allowed-root boundaries.
 
+## Plugin Topic Delivery Directories
+
+Plugin-bound application topics may create a standard workspace-local delivery
+directory, for example a displayed `交付/<plugin title>` route. The route must
+be resolved through the same directory boundary service as ordinary directory
+listing, preview, upload, and delete. The physical path is implementation-owned
+and should not be inferred from a free-form folder name by the model.
+
+These directories are for cleaned reports, selected exports, and user-facing
+outputs. They are not plugin databases and must not contain raw plugin keys,
+launch tokens, browser cookies, provider credentials, full mailbox bodies, raw
+ledger rows, private inventories, health record dumps, or raw learner content.
+Context assembly may read bounded summaries and selected report metadata from
+the directory, but authoritative live data should come from the plugin MCP when
+available.
+
 ## Preview Rules
 
 - Preview access must be resolved through thread/message/group/automation ACLs, not by raw filesystem path.
