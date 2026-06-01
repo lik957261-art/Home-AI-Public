@@ -17,6 +17,14 @@ function stripTrailingSlash(value) {
   return String(value || "").replace(/\/+$/, "");
 }
 
+function resolveAutomationBackend(env = {}) {
+  const explicit = String(env.HERMES_MOBILE_AUTOMATION_BACKEND || env.HERMES_WEB_AUTOMATION_BACKEND || "").trim();
+  if (explicit) return explicit.toLowerCase();
+  const serviceStore = String(env.HERMES_WEB_SERVICE_STORE || "").trim().toLowerCase();
+  if (serviceStore === "sqlite") return "hermes_cron";
+  return "local";
+}
+
 function createMobileRuntimeEnvironment(options = {}) {
   const env = options.env || process.env;
   function normalizeAutoMode(value) {
@@ -318,7 +326,7 @@ function createMobileRuntimeEnvironment(options = {}) {
   const KANBAN_ASSESSMENT_PLAN_MAX_EXAMS = Math.max(1, Math.min(30, Number(env.HERMES_MOBILE_ASSESSMENT_PLAN_MAX_EXAMS || "30") || 30));
   const KANBAN_ASSESSMENT_MAX_QUESTIONS = Math.max(5, Math.min(40, Number(env.HERMES_MOBILE_ASSESSMENT_MAX_QUESTIONS || "40") || 40));
   const KANBAN_ASSESSMENT_MODEL_TIMEOUT_MS = Number(env.HERMES_MOBILE_ASSESSMENT_MODEL_TIMEOUT_MS || "180000");
-  const AUTOMATION_BACKEND = String(env.HERMES_WEB_AUTOMATION_BACKEND || "local").trim().toLowerCase();
+  const AUTOMATION_BACKEND = resolveAutomationBackend(env);
   const LOCAL_TODO_STORE_PATH = path.resolve(env.HERMES_WEB_TODO_STORE_PATH || path.join(DATA_DIR, "todos.json"));
   const LOCAL_AUTOMATION_STORE_PATH = path.resolve(env.HERMES_WEB_AUTOMATION_STORE_PATH || path.join(DATA_DIR, "automations.json"));
   const SERVICE_STORE_BACKEND = String(env.HERMES_WEB_SERVICE_STORE || "").trim().toLowerCase();
@@ -658,4 +666,5 @@ function createMobileRuntimeEnvironment(options = {}) {
 
 module.exports = {
   createMobileRuntimeEnvironment,
+  resolveAutomationBackend,
 };

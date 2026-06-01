@@ -142,7 +142,9 @@ Before declaring a production environment ready for Automation:
 
 - Confirm the configured canonical backend. Official Hermes CRON is the default
   production target unless a future scheduler backend has an explicit design and
-  harness.
+  harness. If `HERMES_WEB_SERVICE_STORE=sqlite` is enabled without an explicit
+  Automation backend override, Hermes Mobile defaults Automation to
+  `hermes_cron`; choosing local/SQLite Automation must be explicit.
 - Query `/api/automations?detail=summary&refresh=1` and verify the visible job
   count matches the canonical scheduler for the same principal/workspace.
 - Confirm there is exactly one live scheduler/tick owner for production. The

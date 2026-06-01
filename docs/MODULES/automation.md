@@ -51,6 +51,10 @@ canonical scheduler, not a replacement scheduler.
   installs, tests, temporary import/migration, or an explicitly selected future
   scheduler backend. It must not be treated as a live mirror of official CRON in
   production.
+- When `HERMES_WEB_SERVICE_STORE=sqlite` is enabled and no explicit
+  `HERMES_MOBILE_AUTOMATION_BACKEND` / `HERMES_WEB_AUTOMATION_BACKEND` is set,
+  Hermes Mobile should default Automation to `hermes_cron`. Local/SQLite
+  automation must be selected explicitly with `HERMES_WEB_AUTOMATION_BACKEND=local`.
 - A production deployment must not return `available=true` with an empty SQLite
   automation store when official CRON contains jobs. That is a configuration
   drift, not a valid "no automations" state.
@@ -86,6 +90,7 @@ Do not patch official Hermes runtime cron source for this behavior unless explic
 
 - `node tests\automation-api-routes.test.js`
 - `node tests\cron-bridge.test.js`
+- `node tests\mobile-runtime-environment-service.test.js`
 - `node tests\startup-scripts.test.js`
 - `node tests\task-list-ui.test.js`
 - `python -m py_compile cron_bridge.py scripts\hermes-mobile-cron-dispatcher.py`
