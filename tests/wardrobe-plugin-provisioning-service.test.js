@@ -7,8 +7,10 @@ const path = require("node:path");
 const {
   DEFAULT_WARDROBE_SCOPES,
   createWardrobePluginProvisioningService,
+  installWardrobeSkill,
   readWardrobeWorkspaceConfig,
   sha256Hex,
+  validateWardrobeSkillBundle,
   wardrobeRegistrationUrl,
   wardrobeWorkspaceConfigPath,
   wardrobeWorkspaceIdForHermesWorkspace,
@@ -19,8 +21,34 @@ function tempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "hermes-wardrobe-provision-"));
 }
 
-function writeTemplate(repoRoot) {
-  const templateDir = path.join(repoRoot, "skills", "productivity", "wardrobe-style-operations");
+function writeCompleteTemplate(repoRoot, options = {}) {
+  const templateDir = options.templateDir || path.join(repoRoot, "skills", "productivity", "wardrobe-style-operations");
+  fs.mkdirSync(templateDir, { recursive: true });
+  fs.writeFileSync(path.join(templateDir, "SKILL.md"), [
+    "---",
+    "name: wardrobe-style-operations",
+    "description: Complete keyless Wardrobe MCP operation bundle.",
+    "---",
+    "",
+    "# Wardrobe Style Operations",
+    "",
+    "Use wardrobe MCP. Do not read access-key.txt. Credentials live only in the workspace .hermes-wardrobe directory.",
+    "Consult references/wardrobe-program-api.md before using Program API contracts.",
+    "",
+    Array.from({ length: 80 }, (_, index) => `Rule ${index + 1}: keep Wardrobe reads, writes, photo checks, and outfit history scoped to the active Hermes workspace.`).join("\n"),
+    options.includeSensitiveToken ? `Test fixture token ${`wd_${"live"}_${"x".repeat(16)}`}` : "",
+  ].join("\n"), "utf8");
+  const referencesDir = path.join(templateDir, "references");
+  fs.mkdirSync(referencesDir, { recursive: true });
+  fs.writeFileSync(path.join(referencesDir, "wardrobe-program-api.md"), "# Wardrobe Program API\n\nUse server-side MCP/API contracts only.\n", "utf8");
+  fs.writeFileSync(path.join(referencesDir, "wardrobe-judgment-pitfalls.md"), "# Wardrobe Judgment Pitfalls\n\nAvoid cross-owner contamination.\n", "utf8");
+  const scriptsDir = path.join(templateDir, "scripts");
+  fs.mkdirSync(scriptsDir, { recursive: true });
+  fs.writeFileSync(path.join(scriptsDir, "render_wardrobe_phone_pdf.py"), "def main():\n    return 0\n\nif __name__ == \"__main__\":\n    raise SystemExit(main())\n", "utf8");
+  return templateDir;
+}
+
+function writeShortTemplate(templateDir) {
   fs.mkdirSync(templateDir, { recursive: true });
   fs.writeFileSync(path.join(templateDir, "SKILL.md"), [
     "---",
@@ -31,11 +59,32 @@ function writeTemplate(repoRoot) {
   ].join("\n"), "utf8");
 }
 
+function readTextTree(rootDir) {
+  const parts = [];
+  function walk(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const entryPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(entryPath);
+      } else if (entry.isFile() && [".md", ".py", ".txt", ".json"].includes(path.extname(entry.name).toLowerCase())) {
+        parts.push(fs.readFileSync(entryPath, "utf8"));
+      }
+    }
+  }
+  walk(rootDir);
+  return parts.join("\n");
+}
+
 async function testProvisionCreatesKeyConfigRegistrationSkillAndGatewayBinding() {
   const dataDir = tempDir();
   const repoRoot = tempDir();
   const registrationKey = `wd_${"live"}_${"r".repeat(40)}`;
-  writeTemplate(repoRoot);
+  const ownerKey = `wd_${"live"}_${"owner".repeat(10)}`;
+  const ownerKeyPath = path.join(dataDir, "drive", "users", "owner", ".hermes-wardrobe", "access-key.txt");
+  fs.mkdirSync(path.dirname(ownerKeyPath), { recursive: true });
+  fs.writeFileSync(ownerKeyPath, `${ownerKey}\n`, "utf8");
+  writeCompleteTemplate(repoRoot);
   const calls = [];
   const gatewayCalls = [];
   const service = createWardrobePluginProvisioningService({
@@ -82,6 +131,12 @@ async function testProvisionCreatesKeyConfigRegistrationSkillAndGatewayBinding()
   assert.equal(result.keyCreated, true);
   assert.equal(result.wardrobeWorkspaceId, "wardrobe:weixin_test_wardrobe");
   assert.equal(result.skillInstalled, true);
+  assert.equal(result.skillSource, "bundle_copy");
+  assert.equal(result.skillSourceKind, "repo_template");
+  assert.equal(result.skillBundle.ok, true);
+  assert.equal(result.skillBundle.hasProgramApiReference, true);
+  assert.equal(result.skillBundle.hasRenderPdfScript, true);
+  assert.equal(result.skillBundle.referenceFiles >= 2, true);
   assert.deepEqual(result.gatewayProfiles, ["lowgw21", "lowgw22", "deepseekgw21"]);
   assert.equal(result.gatewayRestartRequired, true);
   assert.equal(result.gatewayProfileBindingRefreshed, true);
@@ -116,12 +171,27 @@ async function testProvisionCreatesKeyConfigRegistrationSkillAndGatewayBinding()
   assert.deepEqual(calls[0].body.scopes, DEFAULT_WARDROBE_SCOPES);
   assert.equal(JSON.stringify(result).includes(rawKey), false);
   assert.equal(JSON.stringify(result).includes(registrationKey), false);
+  assert.equal(JSON.stringify(result).includes(ownerKey), false);
 
-  const skillPath = path.join(dataDir, "skill-profiles", "weixin_test_wardrobe", "skills", "productivity", "wardrobe-style-operations", "SKILL.md");
+  const skillDir = path.join(dataDir, "skill-profiles", "weixin_test_wardrobe", "skills", "productivity", "wardrobe-style-operations");
+  const skillPath = path.join(skillDir, "SKILL.md");
   assert.equal(fs.existsSync(skillPath), true);
+  assert.equal(fs.existsSync(path.join(skillDir, "references", "wardrobe-program-api.md")), true);
+  assert.equal(fs.existsSync(path.join(skillDir, "references", "wardrobe-judgment-pitfalls.md")), true);
+  assert.equal(fs.existsSync(path.join(skillDir, "scripts", "render_wardrobe_phone_pdf.py")), true);
+  const targetValidation = validateWardrobeSkillBundle(skillDir);
+  assert.equal(targetValidation.ok, true);
   const skillText = fs.readFileSync(skillPath, "utf8");
   assert.match(skillText, /wardrobe MCP/i);
+  assert.equal(skillText.length > 2048, true);
+  const bundleText = readTextTree(skillDir);
   assert.equal(skillText.includes(rawKey), false);
+  assert.equal(bundleText.includes(rawKey), false);
+  assert.equal(bundleText.includes(registrationKey), false);
+  assert.equal(bundleText.includes(ownerKey), false);
+  assert.equal(/wd_live_[A-Za-z0-9_-]{8,}/.test(bundleText), false);
+  assert.equal(/wpl_[A-Za-z0-9_-]{8,}/.test(bundleText), false);
+  assert.equal(/Authorization:\s*Bearer\s+[A-Za-z0-9._~+/-]{8,}/i.test(bundleText), false);
 }
 
 async function testRegistrationFailureKeepsRawKeyOutOfResult() {
@@ -169,6 +239,7 @@ async function testRegistrationKeyMissingReturnsBoundedFailure() {
 
 async function testInvalidExistingWorkspaceKeyIsReplacedBeforeRegistration() {
   const dataDir = tempDir();
+  writeCompleteTemplate(path.join(dataDir, "skill-profiles", "owner-full"));
   const keyPath = wardrobeWorkspaceKeyPath({ dataDir, workspaceId: "weixin_invalid_key" });
   fs.mkdirSync(path.dirname(keyPath), { recursive: true });
   fs.writeFileSync(keyPath, "hwd_invalid_legacy_key\n", "utf8");
@@ -202,6 +273,38 @@ async function testInvalidExistingWorkspaceKeyIsReplacedBeforeRegistration() {
   assert.equal(calls[0].body.access_key.includes("hwd_invalid"), false);
 }
 
+function testIncompleteTemplateFailsInsteadOfWritingBuiltInFallback() {
+  const dataDir = tempDir();
+  const templateDir = path.join(tempDir(), "wardrobe-style-operations");
+  const skillStorePath = path.join(dataDir, "skill-profiles", "weixin_short_template", "skills");
+  writeShortTemplate(templateDir);
+  const result = installWardrobeSkill({
+    dataDir,
+    workspaceId: "weixin_short_template",
+    skillStorePath,
+    wardrobeSkillTemplatePath: templateDir,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "wardrobe_skill_bundle_incomplete");
+  assert.equal(fs.existsSync(path.join(skillStorePath, "productivity", "wardrobe-style-operations", "SKILL.md")), false);
+}
+
+function testSensitiveTemplateFailsClosed() {
+  const dataDir = tempDir();
+  const templateDir = writeCompleteTemplate(tempDir(), { includeSensitiveToken: true });
+  const skillStorePath = path.join(dataDir, "skill-profiles", "weixin_sensitive_template", "skills");
+  const result = installWardrobeSkill({
+    dataDir,
+    workspaceId: "weixin_sensitive_template",
+    skillStorePath,
+    wardrobeSkillTemplatePath: templateDir,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "wardrobe_skill_bundle_incomplete");
+  assert.equal(result.invalidCandidates[0].reason, "wardrobe_skill_sensitive_content");
+  assert.equal(fs.existsSync(path.join(skillStorePath, "productivity", "wardrobe-style-operations", "SKILL.md")), false);
+}
+
 function testRegistrationUrlFromManifestOrigin() {
   assert.equal(
     wardrobeRegistrationUrl("http://192.168.10.99:8765/api/v1/hermes/plugin/manifest"),
@@ -214,6 +317,8 @@ function testRegistrationUrlFromManifestOrigin() {
   await testRegistrationFailureKeepsRawKeyOutOfResult();
   await testRegistrationKeyMissingReturnsBoundedFailure();
   await testInvalidExistingWorkspaceKeyIsReplacedBeforeRegistration();
+  testIncompleteTemplateFailsInsteadOfWritingBuiltInFallback();
+  testSensitiveTemplateFailsClosed();
   testRegistrationUrlFromManifestOrigin();
   console.log("wardrobe-plugin-provisioning-service tests passed");
 })().catch((err) => {

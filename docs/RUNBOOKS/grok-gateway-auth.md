@@ -25,6 +25,9 @@ Do not print OAuth tokens, auth files, cookies, or raw headers.
 - DNS/proxy rules affect xAI endpoints.
 - The cron runner's `HERMES_MOBILE_X_SEARCH_PROXY_URL` points at the runner's own loopback instead of the Windows bridge-host proxy prefix.
 - Bridge host does not expose `POST /bridge/grok-gateway-proxy/v1/responses` or is not restarted after a bridge-host change.
+- In hybrid Gateway Pool mode, `grokgw1` is configured but stopped and the
+  bridge-host proxy is not starting it before forwarding, causing
+  `ECONNREFUSED 127.0.0.1:18761`.
 
 ## Repair
 
@@ -32,6 +35,9 @@ Do not print OAuth tokens, auth files, cookies, or raw headers.
 - Fix xAI OAuth in the Gateway profile if the right worker is chosen but auth fails.
 - Remove unsupported model variants from UI/config until backed by live profiles.
 - For cross-distro cron runners, set or let the dispatcher set `HERMES_MOBILE_X_SEARCH_PROXY_URL` to the proxy prefix `http://<windows-host>:8798/bridge/grok-gateway-proxy`.
+- For hybrid cold starts, keep bridge-host Grok proxy autostart enabled so the
+  proxy checks `/health`, starts only `grokgw1`, waits for health, and then
+  forwards the request.
 - If `scripts/bridge-host.js` changed, restart listener/bridge-host through `scripts\start-worker-host.ps1 -ReplaceExisting`.
 - If `scripts/hermes-mobile-cron-dispatcher.py` changed, restart the cron sidecar.
 - If `gateway-plugins/hermes-mobile-web/__init__.py` changed, restart Gateway Pool so worker plugin code is reloaded.
@@ -41,5 +47,7 @@ Do not print OAuth tokens, auth files, cookies, or raw headers.
 
 - Short `@Grok` smoke returns through the Grok worker.
 - Automation/Cron `x_search` smoke uses the bridge-host proxy and does not fail with `grok_gateway_proxy_failed`, `gateway_api_key_unavailable`, or `Tool x_search returned error`.
+- A stopped `grokgw1` cold proxy smoke must start only that profile and not
+  leave the run queued behind an unrelated low-permission OpenAI/Codex worker.
 - `/api/status?detail=1` remains healthy.
 - No live same-profile schema-smoke command should replace a production worker during routine validation.

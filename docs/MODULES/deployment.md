@@ -9,6 +9,23 @@
 - Listener HTTP: `http://127.0.0.1:8797`
 - Bridge host: `http://127.0.0.1:8798`
 
+## NAS Deployment Direction
+
+The first supported NAS direction is a split deployment, documented in
+`docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`:
+
+- NAS runs Hermes Mobile app/data/static/proxy surfaces.
+- Windows/WSL continues to own official Hermes Gateway workers, Codex-local
+  execution, Grok/xAI OAuth, and worker launchers that depend on PowerShell,
+  WSL registration, or local browser/auth state.
+- NAS talks to one reachable Gateway API server or to a fixed remote worker
+  manifest. NAS should not be expected to start/stop Windows/WSL workers unless
+  a remote worker-manager contract has been implemented and tested.
+
+Do not present full NAS-native Gateway Pool as ready. It requires new Linux or
+container launchers, process supervision, profile provisioning, and H1 lifecycle
+harness coverage.
+
 ## Public Reverse Proxy Security
 
 When Hermes Mobile is reachable through a public HTTPS reverse proxy, the app

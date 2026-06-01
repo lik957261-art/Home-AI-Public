@@ -39,6 +39,12 @@ deployment-wide shared Skills use `shared-global`.
   `data/skill-profiles/<workspaceId>/skills` directory. Gateway launch scripts
   must link each ordinary user worker's `skills` directory to the matching
   workspace Skill Store based on manifest `skillWorkspaceIds`.
+- Product plugin provisioners that install Skills must install the complete
+  keyless bundle required by that plugin into the target workspace's private
+  Skill Store. Wardrobe onboarding specifically requires the full
+  `productivity/wardrobe-style-operations` bundle with `references/` and
+  `scripts/`; a minimal placeholder `SKILL.md` is a provisioning failure, not a
+  usable grant.
 
 ## API/UI
 

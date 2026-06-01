@@ -55,6 +55,15 @@ The durable path is:
 The bridge proxy requires an Authorization bearer key and must not expose OAuth
 tokens or profile auth files.
 
+In hybrid/on-demand Gateway Pool mode, the bridge proxy must not assume the
+dedicated Grok worker is already warm. Before forwarding, bridge-host checks the
+target Grok Gateway `/health`; if it is stopped, bridge-host starts only the
+manifest Grok profile, currently `grokgw1`, waits for health, and then forwards
+the request. Concurrent `x_search` proxy requests share one start attempt so a
+cold Grok worker does not create multiple `start-gateway-pool.ps1` processes.
+`HERMES_MOBILE_GROK_GATEWAY_PROXY_AUTOSTART=0` can disable this only for a
+controlled diagnostic run.
+
 If `gateway-plugins/hermes-mobile-web/__init__.py` changes, restart Gateway
 Pool. If only `scripts/bridge-host.js` changes, restart listener/bridge-host.
 If `scripts/hermes-mobile-cron-dispatcher.py` changes, restart the cron sidecar.
@@ -70,6 +79,10 @@ If `scripts/hermes-mobile-cron-dispatcher.py` changes, restart the cron sidecar.
 - Check `/api/status?detail=1` for worker health and selected profiles.
 - For live smoke, use a short authenticated Grok request through Hermes Mobile or the relevant live Gateway endpoint.
 - For Automation/Cron `x_search`, validate through a cron/Automation path or a controlled plugin call that uses the bridge-host proxy prefix, not only ordinary `@Grok`.
+- In hybrid mode, validate the cold proxy path too: stop or leave `grokgw1`
+  configured, trigger the bridge-host proxy, and confirm bridge-host starts
+  only `grokgw1`, `/api/status?detail=1` stays healthy, and 18761 becomes
+  healthy without starting unrelated worker profiles.
 - Avoid routine schema-smoke commands that start a same-profile Gateway with `--replace` against live production profiles.
 
 ## Debug Pointers

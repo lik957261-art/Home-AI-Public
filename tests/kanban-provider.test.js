@@ -22,6 +22,61 @@ async function run() {
   assert.equal(preferStoredText("英语写作任务", "????????", "fallback"), "英语写作任务");
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-kanban-provider-"));
+  const singleFlightCalls = [];
+  let releaseBoardCreate;
+  let markBoardCreateStarted;
+  const boardCreateReleased = new Promise((resolve) => { releaseBoardCreate = resolve; });
+  const boardCreateStarted = new Promise((resolve) => { markBoardCreateStarted = resolve; });
+  const singleFlightProvider = createKanbanTodoBridge({
+    command: "hermes",
+    metadataPath: path.join(tempDir, "single-flight-meta.json"),
+    boardForWorkspace: (workspaceId) => `single-${workspaceId}`,
+    async runCommand(command, args) {
+      singleFlightCalls.push(args);
+      const joined = args.join(" ");
+      if (joined.includes("boards create")) {
+        markBoardCreateStarted();
+        await boardCreateReleased;
+        return { code: 0, stdout: "", stderr: "" };
+      }
+      if (joined.includes(" list ")) return { code: 0, stdout: JSON.stringify({ tasks: [] }), stderr: "" };
+      return { code: 0, stdout: JSON.stringify({ ok: true }), stderr: "" };
+    },
+  });
+  const firstSingleFlightList = singleFlightProvider.run({ action: "list", workspace_id: "workspace_a" });
+  const secondSingleFlightList = singleFlightProvider.run({ action: "list", workspace_id: "workspace_a" });
+  await boardCreateStarted;
+  assert.equal(singleFlightCalls.filter((args) => args.join(" ").includes("boards create")).length, 1);
+  releaseBoardCreate();
+  assert.deepEqual((await Promise.all([firstSingleFlightList, secondSingleFlightList])).map((result) => result.ok), [true, true]);
+  assert.equal(singleFlightCalls.filter((args) => args.join(" ").includes("boards create")).length, 1);
+
+  let cooledNow = 1_000;
+  let failedCreateAttempts = 0;
+  const cooldownProvider = createKanbanTodoBridge({
+    command: "hermes",
+    metadataPath: path.join(tempDir, "cooldown-meta.json"),
+    boardForWorkspace: (workspaceId) => `cooldown-${workspaceId}`,
+    ensureBoardFailureCooldownMs: 60_000,
+    nowMs: () => cooledNow,
+    async runCommand(command, args) {
+      const joined = args.join(" ");
+      if (joined.includes("boards create")) {
+        failedCreateAttempts += 1;
+        return { code: 1, stdout: "", stderr: "temporary board create failure" };
+      }
+      if (joined.includes(" list ")) return { code: 0, stdout: JSON.stringify({ tasks: [] }), stderr: "" };
+      return { code: 0, stdout: JSON.stringify({ ok: true }), stderr: "" };
+    },
+  });
+  assert.equal((await cooldownProvider.run({ action: "list", workspace_id: "workspace_b" })).ok, false);
+  assert.equal(failedCreateAttempts, 1);
+  assert.equal((await cooldownProvider.run({ action: "list", workspace_id: "workspace_b" })).ok, true);
+  assert.equal(failedCreateAttempts, 1);
+  cooledNow += 61_000;
+  assert.equal((await cooldownProvider.run({ action: "list", workspace_id: "workspace_b" })).ok, false);
+  assert.equal(failedCreateAttempts, 2);
+
   const calls = [];
   let createCount = 0;
   const provider = createKanbanTodoBridge({

@@ -184,6 +184,14 @@ workspace-bound MCP registrations. Provider selection remains user intent: a
 DeepSeek request must not be silently rerouted to OpenAI/Codex or Grok merely
 because those workers are already warm.
 
+Status reconciliation must not invent a durable workspace binding for a
+wildcard profile. A health check that discovers `allowedWorkspaceIds=["*"]`,
+such as `grokgw1`, should mark the worker warm without pinning the compatibility
+key to `workspace=*` or `owner`; the next real request must bind the worker
+from its own routing hints. When reconciliation frees an idle/warm worker, it
+must wake the waiting queue so a profile-affinity waiter does not remain queued
+behind a healthy worker with `activeRunCount=0`.
+
 Scheduler run ownership must follow Gateway run id aliases. Mobile initially
 assigns the worker slot to a public `web_*` run id, while Gateway later emits a
 real response id such as `resp_*`. When that replacement happens, the scheduler
@@ -192,9 +200,13 @@ events release the real id. Otherwise the worker remains falsely busy and later
 runs for the same compatible profile can stay queued.
 
 Run progress emits bounded scheduler events for queued, starting, started,
-reused, and start-failed states. `/api/status?detail=1` reports `configured`,
-`warm`, `busy`, `idle`, `failed`, `runningWorkerCount`, and `queueDepth` without
-exposing API keys or plugin/workspace keys.
+reused, and start-failed states. Mobile must assign the public `web_*` run id
+and mark the assistant run active before Gateway target selection or cold-start
+work begins; otherwise early scheduler/preflight events cannot be rendered in
+the inline run-progress panel and the composer can show a misleading plain
+queue state. `/api/status?detail=1` reports `configured`, `warm`, `busy`,
+`idle`, `failed`, `runningWorkerCount`, and `queueDepth` without exposing API
+keys or plugin/workspace keys.
 
 Detailed design:
 
@@ -245,6 +257,12 @@ Hermes Mobile also projects stream wait states into the run-progress panel:
   newest assistant message by its own run ids (`runId`, `originalRunId`,
   `responseRunId`, `taskId`) and only use thread active ids as a fallback for a
   still-active message.
+- The public `web_...` id must exist on the assistant message before
+  `run.gateway_worker_queued`, `run.gateway_worker_starting`, and permission
+  preflight events are broadcast. The inline panel should appear for queued or
+  starting runs immediately, so cold-start and preflight timeout time are part of
+  the visible command/run frame instead of appearing only after the worker is
+  selected.
 - Thread active ids are a targeting fallback, not a general render input.
   A run-progress panel should render only the current message's own run ids and
   any response run id that was explicitly remembered for that message through
@@ -812,10 +830,28 @@ maintenance baseline must opt in by setting that min-warm value above zero.
 
 The scheduled task uses a hidden PowerShell launcher, but that does not automatically hide child PowerShell processes started by `start-gateway-pool.ps1`. Gateway Pool wrapper calls that spawn `powershell.exe` for stop/start, Codex auth checks, or external connector provisioning must pass `-WindowStyle Hidden`; otherwise a slower official runtime startup or watchdog pass can surface visible Windows terminal windows even though the parent scheduled task is hidden.
 
+Hermes Mobile's Kanban bridge is also part of the Gateway Pool/process-safety
+contract. Board provisioning must be single-flight per board inside the
+listener, and a failed board provision must use a bounded retry cooldown instead
+of starting a new Windows/WSL command on every Todo poll. When a Kanban bridge
+command times out on Windows, the wrapper must terminate the whole child process
+tree, not only the direct `powershell.exe` parent; otherwise `run-as-worker.ps1`,
+`wsl.exe -d HermesGatewayWorker`, and `conhost.exe` descendants can survive and
+accumulate.
+
+On the maintained caller-context production deployment, the Kanban wrapper must
+also use the installed `Ubuntu-24.04` distro and run in caller context. The
+launcher should pass
+`-DistroName Ubuntu-24.04 -RunInCallerContext` through
+`HERMES_MOBILE_KANBAN_COMMAND_ARGS`, or set equivalent `HERMES_*` environment
+values. This prevents Todo/Kanban polling from falling back to a retired
+`HermesGatewayWorker` distro or the wrong Windows WSL registration context.
+
 ## Validation
 
 - `node tests\startup-scripts.test.js`
 - `node tests\cross-shell-command-harness.test.js`
+- `node tests\kanban-provider.test.js`
 - `node tests\gateway-run-model-toolset-selection-service.test.js`
 - `node tests\gateway-run-toolset-routing-service.test.js`
 - `node tests\gateway-run-start-service.test.js`

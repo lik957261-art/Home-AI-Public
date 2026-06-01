@@ -87,6 +87,16 @@ can stay healthy while rejecting Mobile `/v1/responses` calls with
 scripts into the production worker root before restart and then run live schema
 smoke with the same manifest key Mobile uses for the selected worker.
 
+Kanban-backed Todo board provisioning is part of the same H1 process-safety
+harness. `ensureBoard()` must be single-flight per board, failed board creation
+must use a bounded retry cooldown, and Windows bridge command timeouts must
+terminate the full PowerShell/WSL child process tree. The Windows Kanban
+wrapper must resolve the production WSL distro from explicit args or
+`HERMES_*` environment values and support maintained caller-context execution
+instead of silently defaulting to a retired `HermesGatewayWorker` distro.
+Focused checks: `node tests\kanban-provider.test.js`,
+`node tests\startup-scripts.test.js`, and `node tests\task-list-ui.test.js`.
+
 OpenAI/Codex shared-auth harnesses must cover runtime-overlay protection for
 symlink-preserving atomic writes that cross WSL ext4 and Windows-mounted
 storage, including the `hermes_cli.auth` module's direct imported reference.
@@ -111,11 +121,19 @@ on-demand mode,
 hidden single-profile start/stop launchers, and
 `/api/status?detail=1` treating configured-but-stopped workers as expected state
 rather than unhealthy Gateway Pool degradation, including clearing a previously
-warm worker after the process stops and `/health` no longer responds. The
+warm worker after the process stops and `/health` no longer responds. It must
+also cover wildcard profiles such as `grokgw1`: status reconciliation may mark
+the process warm, but must not pin an artificial `workspace=*` compatibility
+key, and must wake a `profile_affinity` waiter when a healthy idle wildcard
+worker is available. The
 run-progress UI must
 distinguish starting, reused, queued, idle-retirement, and failed states without
 exposing API keys, workspace keys, plugin launch tokens, raw prompts, raw model
-output, or long logs. Cold-start `starting` must render as startup in the
+output, or long logs. The assistant message must receive its public `web_*` run
+id before Gateway target selection starts, and `run.gateway_worker_queued`,
+`run.gateway_worker_starting`, and permission preflight timeout/fallback events
+must render in the inline run-progress panel immediately instead of waiting for
+worker selection to finish. Cold-start `starting` must render as startup in the
 model-status/run-progress UI rather than as queue depth; `queued` is reserved
 for real capacity/profile waits. Before switching production from eager startup to
 hybrid/on-demand startup, rerun these checks after syncing scripts into the
@@ -317,16 +335,22 @@ workspace id, write workspace-local `.hermes-wardrobe/access-key.txt` and
 non-secret `.hermes-wardrobe/config.json`, call Wardrobe
 `POST /api/v1/hermes/plugin/workspaces` with a server-side `owners:write` or
 `admin:*` registration bearer credential, install the keyless
-`productivity/wardrobe-style-operations` Skill into that user's Skill Store,
-refresh the workspace Gateway profile binding, and block non-Owner
+complete `productivity/wardrobe-style-operations` Skill bundle into that user's
+Skill Store, refresh the workspace Gateway profile binding, and block non-Owner
 list/manifest/launch while provisioning is pending or failed. Harnesses must
 assert generated target keys use Wardrobe's accepted Program API prefix, replace
 invalid legacy placeholder-prefixed keys before registration, and keep the
 target raw Wardrobe key present only in the server-to-server registration body
 and the workspace-local key file, not in the grant result, manifest, frontend
 state, iframe URL, postMessage payload, docs, logs, or screenshots. They must
-also cover missing/invalid registration credentials as bounded provisioning
-failures. Focused checks include
+also assert the target Skill Store contains the full `SKILL.md`,
+`references/wardrobe-program-api.md`, at least one other reference Markdown
+file, and `scripts/render_wardrobe_phone_pdf.py`; a fixture or runtime source
+that lacks `references/` must fail closed instead of falling back to a short
+template. The installed Skill bundle must not contain concrete Wardrobe
+workspace keys, plugin launch tokens, or `Authorization: Bearer ...`
+credentials. Missing/invalid registration credentials or incomplete Skill
+bundles are bounded provisioning failures. Focused checks include
 `node tests\wardrobe-plugin-provisioning-service.test.js`,
 `node tests\gateway-workspace-provisioning-service.test.js`,
 `node tests\hermes-plugin-service.test.js`, and
@@ -754,6 +778,12 @@ quality-first instruction. Harness coverage must assert that explicit
 `web_search` / `x_search` runs tell the model to prioritize source quality,
 meaningful coverage, and verifiable evidence over small time/token savings,
 while ordinary incidental web-enabled runs keep the normal cap.
+`x_search` bridge-host proxy coverage must also include hybrid cold starts:
+when the manifest Grok profile is configured but stopped, bridge-host checks
+Grok `/health`, starts only the manifest `xai-oauth` profile, waits for health,
+and then forwards the proxy request. Concurrent proxy requests must share one
+start attempt. Focused checks include `node tests\bridge-host-grok-proxy.test.js`
+and `node tests\startup-scripts.test.js`.
 
 Run-progress UI behavior tests must also assert chronological downward row
 ordering, public `web_...` plus response `resp_...` id merging for the same

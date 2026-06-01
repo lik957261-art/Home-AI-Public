@@ -8,6 +8,20 @@ const DEFAULT_WARDROBE_REGISTRATION_PATH = "/api/v1/hermes/plugin/workspaces";
 const DEFAULT_WARDROBE_SCOPES = Object.freeze(["items:read", "items:write", "history:write", "sync:read"]);
 const DEFAULT_MAX_KEY_SEARCH_DEPTH = 6;
 const DEFAULT_WARDROBE_WORKSPACE_KEY_PREFIX = "wd_live_";
+const MIN_COMPLETE_WARDROBE_SKILL_BYTES = 2048;
+const REQUIRED_WARDROBE_SKILL_REFERENCE = "wardrobe-program-api.md";
+const REQUIRED_WARDROBE_SKILL_SCRIPT = "render_wardrobe_phone_pdf.py";
+const WARDROBE_SKILL_TEXT_EXTENSIONS = new Set([
+  ".cjs",
+  ".js",
+  ".json",
+  ".md",
+  ".mjs",
+  ".py",
+  ".txt",
+  ".yaml",
+  ".yml",
+]);
 
 function stringValue(value) {
   return String(value || "").trim();
@@ -258,9 +272,14 @@ function shouldSkipSkillCopyEntry(entryName = "") {
     || name === "node_modules"
     || name === ".hermes-wardrobe"
     || name === ".hermes-cache"
+    || name === "__pycache__"
+    || name === ".pytest_cache"
+    || name === ".DS_Store"
     || name === ".usage.json"
     || name === "access-key.txt"
-    || name === "workspace-key.txt";
+    || name === "workspace-key.txt"
+    || name.endsWith(".pyc")
+    || name.endsWith(".pyo");
 }
 
 function copySkillDirectory(sourceDir, targetDir) {
@@ -304,11 +323,168 @@ function defaultWardrobeSkillText() {
 function defaultSkillSourceCandidates(input = {}) {
   const repoRoot = stringValue(input.repoRoot) || process.cwd();
   const dataDir = stringValue(input.dataDir) || defaultDataDir(input.env);
+  const explicit = stringValue(input.wardrobeSkillTemplatePath);
+  if (explicit) {
+    return [{ sourceKind: "explicit_template", dir: explicit }];
+  }
   return [
-    stringValue(input.wardrobeSkillTemplatePath),
-    path.join(repoRoot, "skills", "productivity", "wardrobe-style-operations"),
-    path.join(dataDir, "skill-profiles", "owner-full", "skills", "productivity", "wardrobe-style-operations"),
-  ].filter(Boolean);
+    { sourceKind: "owner_full", dir: path.join(dataDir, "skill-profiles", "owner-full", "skills", "productivity", "wardrobe-style-operations") },
+    { sourceKind: "repo_template", dir: path.join(repoRoot, "skills", "productivity", "wardrobe-style-operations") },
+  ].filter((candidate) => candidate.dir);
+}
+
+function isTextSkillFile(filePath = "") {
+  return WARDROBE_SKILL_TEXT_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+}
+
+function listSkillFiles(rootDir) {
+  const files = [];
+  function walk(dir) {
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      return;
+    }
+    for (const entry of entries) {
+      if (shouldSkipSkillCopyEntry(entry.name)) continue;
+      const entryPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(entryPath);
+      } else if (entry.isFile()) {
+        files.push(entryPath);
+      }
+    }
+  }
+  walk(rootDir);
+  return files;
+}
+
+function scanSkillDirectoryForSensitiveContent(rootDir) {
+  const files = listSkillFiles(rootDir);
+  for (const filePath of files) {
+    if (!isTextSkillFile(filePath)) continue;
+    let text = "";
+    try {
+      text = fs.readFileSync(filePath, "utf8");
+    } catch (_) {
+      return { ok: false, error: "wardrobe_skill_scan_failed" };
+    }
+    if (
+      /wd_live_[A-Za-z0-9_-]{8,}/.test(text)
+      || /wpl_[A-Za-z0-9_-]{8,}/.test(text)
+      || /Authorization:\s*Bearer\s+[A-Za-z0-9._~+/-]{8,}/i.test(text)
+    ) {
+      return { ok: false, error: "wardrobe_skill_sensitive_content" };
+    }
+  }
+  return { ok: true, fileCount: files.length };
+}
+
+function validateWardrobeSkillBundle(rootDir) {
+  const dir = stringValue(rootDir);
+  const missing = [];
+  const skillPath = path.join(dir, "SKILL.md");
+  const referencesDir = path.join(dir, "references");
+  const scriptsDir = path.join(dir, "scripts");
+  let skillBytes = 0;
+  let referenceFiles = [];
+  let scriptFiles = [];
+
+  try {
+    if (fs.existsSync(skillPath)) {
+      skillBytes = fs.statSync(skillPath).size;
+    } else {
+      missing.push("SKILL.md");
+    }
+    if (skillBytes > 0 && skillBytes < MIN_COMPLETE_WARDROBE_SKILL_BYTES) {
+      missing.push("complete_SKILL.md");
+    }
+    referenceFiles = fs.existsSync(referencesDir)
+      ? fs.readdirSync(referencesDir, { withFileTypes: true }).filter((entry) => entry.isFile() && entry.name.endsWith(".md")).map((entry) => entry.name)
+      : [];
+    scriptFiles = fs.existsSync(scriptsDir)
+      ? fs.readdirSync(scriptsDir, { withFileTypes: true }).filter((entry) => entry.isFile()).map((entry) => entry.name)
+      : [];
+  } catch (_) {
+    return { ok: false, error: "wardrobe_skill_bundle_read_failed" };
+  }
+
+  if (!referenceFiles.includes(REQUIRED_WARDROBE_SKILL_REFERENCE)) {
+    missing.push(`references/${REQUIRED_WARDROBE_SKILL_REFERENCE}`);
+  }
+  if (referenceFiles.filter((name) => name.endsWith(".md")).length < 2) {
+    missing.push("references/*.md");
+  }
+  if (!scriptFiles.includes(REQUIRED_WARDROBE_SKILL_SCRIPT)) {
+    missing.push(`scripts/${REQUIRED_WARDROBE_SKILL_SCRIPT}`);
+  }
+
+  const sensitive = scanSkillDirectoryForSensitiveContent(dir);
+  if (!sensitive.ok) {
+    return Object.assign({
+      ok: false,
+      skillBytes,
+      referenceFiles: referenceFiles.length,
+      scriptFiles: scriptFiles.length,
+      missing,
+    }, sensitive);
+  }
+
+  return {
+    ok: missing.length === 0,
+    error: missing.length ? "wardrobe_skill_bundle_incomplete" : "",
+    skillBytes,
+    referenceFiles: referenceFiles.length,
+    scriptFiles: scriptFiles.length,
+    hasProgramApiReference: referenceFiles.includes(REQUIRED_WARDROBE_SKILL_REFERENCE),
+    hasRenderPdfScript: scriptFiles.includes(REQUIRED_WARDROBE_SKILL_SCRIPT),
+    missing,
+    sensitiveContentPresent: false,
+  };
+}
+
+function publicSkillBundleValidation(validation = {}) {
+  return {
+    ok: Boolean(validation.ok),
+    skillBytes: Number(validation.skillBytes || 0),
+    referenceFiles: Number(validation.referenceFiles || 0),
+    scriptFiles: Number(validation.scriptFiles || 0),
+    hasProgramApiReference: Boolean(validation.hasProgramApiReference),
+    hasRenderPdfScript: Boolean(validation.hasRenderPdfScript),
+    missing: Array.isArray(validation.missing) ? validation.missing.slice(0, 8) : [],
+    sensitiveContentPresent: Boolean(validation.sensitiveContentPresent || validation.error === "wardrobe_skill_sensitive_content"),
+  };
+}
+
+function findCompleteWardrobeSkillSource(input = {}) {
+  const invalidCandidates = [];
+  for (const candidate of defaultSkillSourceCandidates(input)) {
+    const candidateDir = stringValue(candidate.dir);
+    if (!candidateDir || !fs.existsSync(candidateDir)) {
+      invalidCandidates.push({ sourceKind: candidate.sourceKind, reason: "missing" });
+      continue;
+    }
+    const validation = validateWardrobeSkillBundle(candidateDir);
+    if (validation.ok) {
+      return {
+        ok: true,
+        sourceDir: candidateDir,
+        sourceKind: candidate.sourceKind,
+        validation,
+      };
+    }
+    invalidCandidates.push({
+      sourceKind: candidate.sourceKind,
+      reason: validation.error || "wardrobe_skill_bundle_incomplete",
+      missing: Array.isArray(validation.missing) ? validation.missing.slice(0, 8) : [],
+    });
+  }
+  return {
+    ok: false,
+    error: "wardrobe_skill_bundle_incomplete",
+    invalidCandidates,
+  };
 }
 
 function installWardrobeSkill(input = {}) {
@@ -317,20 +493,32 @@ function installWardrobeSkill(input = {}) {
   const targetDir = path.join(skillStorePath, "productivity", "wardrobe-style-operations");
   if (!safeWorkspaceId(input.workspaceId) || !skillStorePath) return { ok: false, error: "workspace_id_required" };
   try {
-    const sourceDir = defaultSkillSourceCandidates(input).find((candidate) => {
-      try {
-        return candidate && fs.existsSync(path.join(candidate, "SKILL.md"));
-      } catch (_) {
-        return false;
-      }
-    });
-    if (sourceDir) {
-      copySkillDirectory(sourceDir, targetDir);
-      return { ok: true, skillPath: path.join(targetDir, "SKILL.md"), source: "template_copy" };
+    const source = findCompleteWardrobeSkillSource(input);
+    if (!source.ok) {
+      return {
+        ok: false,
+        error: source.error || "wardrobe_skill_bundle_incomplete",
+        invalidCandidates: source.invalidCandidates,
+      };
     }
-    fs.mkdirSync(targetDir, { recursive: true });
-    fs.writeFileSync(path.join(targetDir, "SKILL.md"), defaultWardrobeSkillText(), "utf8");
-    return { ok: true, skillPath: path.join(targetDir, "SKILL.md"), source: "built_in_template" };
+    fs.rmSync(targetDir, { recursive: true, force: true });
+    copySkillDirectory(source.sourceDir, targetDir);
+    const targetValidation = validateWardrobeSkillBundle(targetDir);
+    if (!targetValidation.ok) {
+      return {
+        ok: false,
+        error: targetValidation.error || "wardrobe_skill_install_verification_failed",
+        bundle: publicSkillBundleValidation(targetValidation),
+      };
+    }
+    return {
+      ok: true,
+      skillPath: path.join(targetDir, "SKILL.md"),
+      skillDir: targetDir,
+      source: "bundle_copy",
+      sourceKind: source.sourceKind,
+      bundle: publicSkillBundleValidation(targetValidation),
+    };
   } catch (err) {
     return { ok: false, error: boundedError(err?.message || err) };
   }
@@ -406,12 +594,16 @@ function verifyLocalProvisioning(input = {}) {
   const config = readWardrobeWorkspaceConfig(input, input);
   const keyPath = wardrobeWorkspaceKeyPath(input);
   const skillPath = stringValue(input.skillPath);
+  const skillDir = stringValue(input.skillDir) || (skillPath ? path.dirname(skillPath) : "");
   const expectedWardrobeWorkspaceId = wardrobeWorkspaceIdForHermesWorkspace(workspaceId);
+  const skillBundle = skillDir ? validateWardrobeSkillBundle(skillDir) : { ok: false, missing: ["wardrobe-style-operations"] };
   return {
     keyPresent: Boolean(keyPath && fs.existsSync(keyPath)),
     configPresent: Boolean(findWardrobeConfigPath(input, input)),
     configWorkspaceMatches: stringValue(config.workspace_id || config.workspaceId) === expectedWardrobeWorkspaceId,
     skillPresent: Boolean(skillPath && fs.existsSync(skillPath)),
+    skillBundleComplete: Boolean(skillBundle.ok),
+    skillBundle: publicSkillBundleValidation(skillBundle),
     wardrobeWorkspaceId: expectedWardrobeWorkspaceId,
   };
 }
@@ -479,8 +671,9 @@ function createWardrobePluginProvisioningService(options = {}) {
     }
     const verification = verifyLocalProvisioning(Object.assign({}, baseInput, {
       skillPath: skill.skillPath,
+      skillDir: skill.skillDir,
     }));
-    const verified = verification.keyPresent && verification.configPresent && verification.configWorkspaceMatches && verification.skillPresent;
+    const verified = verification.keyPresent && verification.configPresent && verification.configWorkspaceMatches && verification.skillPresent && verification.skillBundleComplete;
     if (!verified) {
       return {
         ok: false,
@@ -500,6 +693,8 @@ function createWardrobePluginProvisioningService(options = {}) {
       created: Boolean(registration.created),
       skillInstalled: true,
       skillSource: skill.source,
+      skillSourceKind: skill.sourceKind,
+      skillBundle: skill.bundle,
       gatewayProfiles: Array.isArray(gateway?.profiles) ? gateway.profiles : [],
       gatewayRestartRequired: Boolean(gateway?.restartRequired),
       gatewayProfileBindingRefreshed: Boolean(gateway?.profileBindingRefreshed),
@@ -521,6 +716,7 @@ module.exports = {
   DEFAULT_WARDROBE_SCOPES,
   DEFAULT_WARDROBE_WORKSPACE_KEY_PREFIX,
   createWardrobePluginProvisioningService,
+  defaultWardrobeSkillText,
   findWardrobeAccessKeyPath,
   findWardrobeRegistrationAccessKeyPath,
   ensureWardrobeWorkspaceKey,
@@ -531,6 +727,7 @@ module.exports = {
   readWardrobeRegistrationAccessKey,
   registerWardrobeWorkspace,
   sha256Hex,
+  validateWardrobeSkillBundle,
   verifyLocalProvisioning,
   wardrobeApiBaseUrl,
   wardrobeRegistrationUrl,

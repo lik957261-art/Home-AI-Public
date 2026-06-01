@@ -493,6 +493,29 @@ function createGatewayRunStartService(options = {}) {
     if (sourceRunOptions.sourceMode) assistantMessage.runOptions.sourceMode = cleanString(sourceRunOptions.sourceMode);
   }
 
+  function ensureActiveRun(thread, taskId) {
+    const id = cleanString(taskId);
+    if (!id) return;
+    const activeRunIds = Array.isArray(thread?.activeRunIds) ? thread.activeRunIds.map(cleanString) : [];
+    if (!activeRunIds.includes(id)) {
+      addThreadActiveRun(thread, id);
+    } else {
+      thread.activeRunId = id;
+    }
+  }
+
+  function applyPreparingRunState(thread, assistantMessage, taskId, startedAt = nowIso()) {
+    assistantMessage.runId = taskId;
+    assistantMessage.taskId = taskId;
+    assistantMessage.status = "running";
+    assistantMessage.startedAt = assistantMessage.startedAt || startedAt;
+    assistantMessage.updatedAt = startedAt;
+    ensureActiveRun(thread, taskId);
+    thread.status = "running";
+    thread.updatedAt = startedAt;
+    return { startedAt };
+  }
+
   function applyStartedRunState(thread, assistantMessage, taskId, gatewayTarget, startedAt = nowIso()) {
     const gatewayUrl = cleanString(gatewayTarget?.apiBase);
     assistantMessage.runId = taskId;
@@ -504,7 +527,7 @@ function createGatewayRunStartService(options = {}) {
     assistantMessage.status = "running";
     assistantMessage.startedAt = assistantMessage.startedAt || startedAt;
     assistantMessage.updatedAt = startedAt;
-    addThreadActiveRun(thread, taskId);
+    ensureActiveRun(thread, taskId);
     thread.status = "running";
     thread.updatedAt = startedAt;
     return { gatewayUrl, startedAt };
@@ -527,6 +550,9 @@ function createGatewayRunStartService(options = {}) {
     let request = buildRunRequest(thread, userMessage, assistantMessage, runOptions);
     const taskId = makePublicTaskId("web");
     applyAssistantRunOptions(assistantMessage, request, runOptions);
+    applyPreparingRunState(thread, assistantMessage, taskId, nowIso());
+    saveState();
+    broadcastMessageUpdated(thread, assistantMessage);
 
     const gatewayTarget = await chooseGatewayRunTarget(request.gatewayRouting, {
       runId: taskId,

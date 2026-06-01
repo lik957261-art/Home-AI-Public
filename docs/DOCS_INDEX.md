@@ -18,6 +18,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Runtime and learning SQLite data dictionary: `docs/DATA_DICTIONARY.md`
 - Gateway Pool manifest reference: `docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md`
 - Public install/deploy checklist: `docs/PUBLIC_INSTALLATION_CHECKLIST.md`
+- NAS deployment plan: `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`
 - Screenshot-to-code debug map: `docs/SCREENSHOT_DEBUG_MAP.md`
 - Module-to-test matrix: `docs/TEST_MATRIX.md`
 - Harness required matrix: `docs/IMPLEMENTATION_NOTES/harness-required-matrix.md`
@@ -71,6 +72,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Growth knowledge graph implementation plan: `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-implementation.md`
 - Tongbao platform currency and Growth coin exchange design: `docs/IMPLEMENTATION_NOTES/tongbao-platform-currency-design.md`
 - Gateway elastic worker scheduling: `docs/IMPLEMENTATION_NOTES/gateway-elastic-worker-scheduling.md`
+- NAS deployment plan: `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`
 - Cross-module harness required matrix: `docs/IMPLEMENTATION_NOTES/harness-required-matrix.md`
 - Async Growth evaluation queue: `docs/IMPLEMENTATION_NOTES/async-growth-evaluation-queue.md`
 - Maintenance Gateway watchdog: `docs/IMPLEMENTATION_NOTES/maintenance-gateway-watchdog.md`

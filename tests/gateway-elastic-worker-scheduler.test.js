@@ -439,6 +439,66 @@ async function testPostStartHealthPollAvoidsEarlyFalseFailure() {
   assert.equal(calls.events.at(-1).event, "run.gateway_worker_started");
 }
 
+async function testWildcardWarmWorkerDoesNotPinSyntheticWorkspace() {
+  const { calls, scheduler } = createHarness({ initialHealthy: ["grokgw1"] });
+  const grok = worker("grokgw1", {
+    provider: "xai-oauth",
+    allowedWorkspaceIds: ["*"],
+    skillWorkspaceIds: ["*"],
+    skillProfile: "grok",
+  });
+
+  scheduler.markWorkerWarm(grok);
+  const target = await scheduler.chooseTarget({
+    allWorkers: [grok],
+    candidates: [grok],
+    hints: {
+      workspaceId: "owner",
+      provider: "xai-oauth",
+      securityLevel: "user",
+      preferred_worker_profiles: ["grokgw1"],
+    },
+    runId: "run-grok-owner",
+    onEvent: (event) => calls.events.push(event),
+  });
+
+  assert.equal(target.profile, "grokgw1");
+  assert.deepEqual(calls.starts, []);
+  assert.equal(calls.events.at(-1).event, "run.gateway_worker_reused");
+  assert.equal(scheduler.status([grok]).queueDepth, 0);
+}
+
+async function testStatusReconciliationWakesProfileAffinityQueue() {
+  const { calls, scheduler } = createHarness({
+    initialHealthy: ["grokgw1"],
+    config: { workspaceMaxWorkers: 2, globalMaxWorkers: 8, queueWaitTimeoutMs: 30_000 },
+  });
+  const grok = worker("grokgw1", {
+    provider: "xai-oauth",
+    allowedWorkspaceIds: ["*"],
+    skillWorkspaceIds: ["*"],
+    skillProfile: "grok",
+  });
+
+  scheduler.markWorkerWarm(grok, { workspaceId: "other_workspace", provider: "xai-oauth" });
+  const queued = scheduler.chooseTarget({
+    allWorkers: [grok],
+    candidates: [grok],
+    hints: { workspaceId: "owner", provider: "xai-oauth", securityLevel: "user" },
+    runId: "run-grok-queued",
+    onEvent: (event) => calls.events.push(event),
+  });
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(scheduler.status([grok]).queueDepth, 1);
+  assert.equal(calls.events.at(-1).reason, "profile_affinity");
+
+  scheduler.markWorkerWarm(grok);
+  const target = await queued;
+  assert.equal(target.profile, "grokgw1");
+  assert.equal(scheduler.status([grok]).queueDepth, 0);
+}
+
 async function testIdleReaperStopsOnlyExpiredIdleWorkers() {
   const { calls, scheduler, tick } = createHarness();
   const workers = [worker("lowgw1"), worker("lowgw2")];
@@ -517,6 +577,8 @@ function testConfigDefaultsAndAliases() {
   await testOwnerDeepSeekUsesSeparateTwoWorkerCapAndNoWarmBaseline();
   await testNonOwnerDeepSeekUsesSingleWorkerCapSeparateFromOpenAi();
   await testPostStartHealthPollAvoidsEarlyFalseFailure();
+  await testWildcardWarmWorkerDoesNotPinSyntheticWorkspace();
+  await testStatusReconciliationWakesProfileAffinityQueue();
   await testIdleReaperStopsOnlyExpiredIdleWorkers();
   await testLaunchFailureUsesBoundedDiagnosticWithoutSecrets();
   console.log("gateway elastic worker scheduler tests passed");

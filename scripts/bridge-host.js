@@ -7,6 +7,7 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { createBridgeCommandProvider } = require("../adapters/bridge-command-provider");
 const { createChatGptProCodexBridgeService } = require("../adapters/chatgpt-pro-codex-bridge-service");
+const { createGatewayWorkerProfileLaunchService } = require("../adapters/gateway-worker-profile-launch-service");
 
 const TOOL_ROOT = path.resolve(__dirname, "..");
 const DEFAULT_TODO_BRIDGE_SCRIPT = path.join(TOOL_ROOT, "todo_bridge.py");
@@ -19,12 +20,19 @@ const CHATGPT_PRO_TIMEOUT_MS = Math.max(
   30 * 60 * 1000,
   Number(process.env.HERMES_MOBILE_CHATGPT_PRO_BRIDGE_TIMEOUT_MS || process.env.HERMES_WEB_CHATGPT_PRO_BRIDGE_TIMEOUT_MS || "1800000"),
 );
-const GROK_GATEWAY_URL = resolveGrokGatewayUrl();
 const GROK_GATEWAY_PROXY_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_GROK_GATEWAY_PROXY_TIMEOUT_MS || "120000");
+const GROK_GATEWAY_START_TIMEOUT_MS = Number(process.env.HERMES_MOBILE_GROK_GATEWAY_START_TIMEOUT_MS || "120000");
+const GROK_GATEWAY_START_HEALTH_WAIT_MS = Number(process.env.HERMES_MOBILE_GROK_GATEWAY_START_HEALTH_WAIT_MS || "30000");
+const GROK_GATEWAY_START_HEALTH_POLL_MS = Number(process.env.HERMES_MOBILE_GROK_GATEWAY_START_HEALTH_POLL_MS || "1000");
 const STDOUT_LIMIT_BYTES = Number(process.env.HERMES_MOBILE_BRIDGE_HOST_STDOUT_LIMIT_BYTES || "50000000");
 const KEY_PATH = process.env.HERMES_MOBILE_BRIDGE_HOST_KEY_PATH || process.env.HERMES_WEB_BRIDGE_HOST_KEY_PATH || "";
 const KEY = String(process.env.HERMES_MOBILE_BRIDGE_HOST_KEY || process.env.HERMES_WEB_BRIDGE_HOST_KEY || readText(KEY_PATH)).trim();
 const chatGptProBridge = createChatGptProCodexBridgeService();
+const gatewayWorkerProfileLauncher = createGatewayWorkerProfileLaunchService({
+  toolRoot: TOOL_ROOT,
+  elasticConfig: process.env,
+});
+let grokGatewayStartPromise = null;
 
 function readText(filePath) {
   if (!filePath) return "";
@@ -49,7 +57,7 @@ function gatewayPoolManifestPaths() {
   ].filter(Boolean);
 }
 
-function grokGatewayUrlFromManifest() {
+function grokGatewayTargetFromManifest() {
   for (const manifestPath of gatewayPoolManifestPaths()) {
     let parsed;
     try {
@@ -69,22 +77,110 @@ function grokGatewayUrlFromManifest() {
       && String(item.provider || "").trim() === "xai-oauth"
     ));
     if (!worker) continue;
+    const profile = String(worker.profile || worker.name || "").trim();
     const explicit = cleanUrl(worker.url || worker.gatewayUrl || worker.gateway_url || worker.apiBase || worker.api_base);
-    if (explicit) return explicit;
+    if (explicit) return { url: explicit, profile };
     const host = String(worker.host || "127.0.0.1").trim() || "127.0.0.1";
     const port = Number(worker.port || 0);
-    if (port > 0) return `http://${host}:${port}`;
+    if (port > 0) return { url: `http://${host}:${port}`, profile };
   }
-  return "";
+  return { url: "", profile: "" };
+}
+
+function grokGatewayProfileFromManifest() {
+  return grokGatewayTargetFromManifest().profile || "";
+}
+
+function resolveGrokGatewayTarget() {
+  const profile = String(process.env.HERMES_MOBILE_GROK_GATEWAY_PROFILE || process.env.HERMES_GROK_GATEWAY_PROFILE || grokGatewayProfileFromManifest()).trim();
+  const explicitUrl = cleanUrl(process.env.HERMES_MOBILE_GROK_GATEWAY_URL || process.env.HERMES_GROK_GATEWAY_URL);
+  if (explicitUrl) return { url: explicitUrl, profile };
+  const manifest = grokGatewayTargetFromManifest();
+  if (manifest.url) return manifest;
+  return { url: "http://127.0.0.1:18761", profile: profile || "grokgw1" };
 }
 
 function resolveGrokGatewayUrl() {
-  return cleanUrl(
-    process.env.HERMES_MOBILE_GROK_GATEWAY_URL
-    || process.env.HERMES_GROK_GATEWAY_URL
-    || grokGatewayUrlFromManifest()
-    || "http://127.0.0.1:18761",
-  );
+  return resolveGrokGatewayTarget().url;
+}
+
+function truthy(value) {
+  return /^(1|true|yes|on)$/i.test(String(value || "").trim());
+}
+
+function autostartGrokGatewayEnabled() {
+  const value = process.env.HERMES_MOBILE_GROK_GATEWAY_PROXY_AUTOSTART || process.env.HERMES_WEB_GROK_GATEWAY_PROXY_AUTOSTART;
+  if (!value) return true;
+  return truthy(value);
+}
+
+function safeGatewayProfileName(value) {
+  const text = String(value || "").trim();
+  return /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(text) ? text : "";
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
+
+function checkGrokGatewayHealth(url, timeoutMs = 2500) {
+  return new Promise((resolve) => {
+    let target;
+    try {
+      target = new URL("/health", `${url}/`);
+    } catch (_) {
+      resolve(false);
+      return;
+    }
+    const transport = target.protocol === "https:" ? https : http;
+    const req = transport.request(target, { method: "GET", timeout: Math.max(500, Number(timeoutMs) || 2500) }, (healthRes) => {
+      healthRes.resume();
+      resolve(healthRes.statusCode >= 200 && healthRes.statusCode < 300);
+    });
+    req.on("timeout", () => req.destroy(new Error("grok gateway health timeout")));
+    req.on("error", () => resolve(false));
+    req.end();
+  });
+}
+
+async function waitForGrokGatewayHealth(url, options = {}) {
+  const healthCheck = options.healthCheck || checkGrokGatewayHealth;
+  const waitMs = Math.max(0, Number(options.waitMs ?? GROK_GATEWAY_START_HEALTH_WAIT_MS) || 0);
+  const pollMs = Math.max(100, Number(options.pollMs ?? GROK_GATEWAY_START_HEALTH_POLL_MS) || 1000);
+  const deadline = Date.now() + waitMs;
+  if (await healthCheck(url)) return true;
+  while (Date.now() < deadline) {
+    await (options.sleep || sleep)(Math.min(pollMs, Math.max(1, deadline - Date.now())));
+    if (await healthCheck(url)) return true;
+  }
+  return false;
+}
+
+async function ensureGrokGatewayReady(targetInfo = resolveGrokGatewayTarget(), options = {}) {
+  const url = cleanUrl(targetInfo?.url);
+  if (!url) return false;
+  const healthCheck = options.healthCheck || checkGrokGatewayHealth;
+  if (await healthCheck(url)) return true;
+  const autostart = options.autostart ?? autostartGrokGatewayEnabled();
+  if (!autostart) return false;
+  const profile = safeGatewayProfileName(targetInfo?.profile);
+  if (!profile) return false;
+  if (!grokGatewayStartPromise) {
+    const startWorkerProfile = options.startWorkerProfile || ((worker, context) => gatewayWorkerProfileLauncher.startWorkerProfile(worker, context));
+    const waitForHealth = options.waitForHealth || waitForGrokGatewayHealth;
+    grokGatewayStartPromise = (async () => {
+      await startWorkerProfile({ profile, name: profile, securityLevel: "user" }, { timeoutMs: GROK_GATEWAY_START_TIMEOUT_MS });
+      return waitForHealth(url, {
+        healthCheck,
+        waitMs: options.waitMs,
+        pollMs: options.pollMs,
+        sleep: options.sleep,
+      });
+    })().finally(() => {
+      grokGatewayStartPromise = null;
+    });
+  }
+  return grokGatewayStartPromise;
 }
 
 function sendJson(res, status, payload) {
@@ -175,15 +271,20 @@ async function proxyGrokGateway(req, res) {
     return;
   }
 
+  const targetInfo = resolveGrokGatewayTarget();
   let target;
   try {
-    target = new URL("/v1/responses", `${GROK_GATEWAY_URL}/`);
+    target = new URL("/v1/responses", `${targetInfo.url}/`);
   } catch (err) {
     sendJson(res, 500, { ok: false, error: "invalid_grok_gateway_url", detail: err.message || String(err) });
     return;
   }
   if (target.protocol !== "http:" && target.protocol !== "https:") {
     sendJson(res, 500, { ok: false, error: "invalid_grok_gateway_protocol" });
+    return;
+  }
+  if (!(await ensureGrokGatewayReady(targetInfo))) {
+    sendJson(res, 503, { ok: false, error: "grok_gateway_unavailable", detail: "Grok Gateway is not healthy and could not be started." });
     return;
   }
 
@@ -365,18 +466,36 @@ async function handle(req, res) {
   }
 }
 
-if (!KEY) {
-  console.error("Hermes Mobile bridge host key is not configured.");
-  process.exit(1);
+function startServer() {
+  if (!KEY) {
+    console.error("Hermes Mobile bridge host key is not configured.");
+    process.exit(1);
+  }
+
+  const server = http.createServer((req, res) => {
+    handle(req, res).catch((err) => sendJson(res, 500, { error: err.message || String(err) }));
+  });
+  server.requestTimeout = CHATGPT_PRO_TIMEOUT_MS + 60000;
+  server.headersTimeout = Math.max(60000, Math.min(server.requestTimeout, 120000));
+  server.keepAliveTimeout = 65000;
+
+  server.listen(PORT, HOST, () => {
+    console.log(`Hermes Mobile bridge host listening on http://${HOST}:${PORT}`);
+  });
+  return server;
 }
 
-const server = http.createServer((req, res) => {
-  handle(req, res).catch((err) => sendJson(res, 500, { error: err.message || String(err) }));
-});
-server.requestTimeout = CHATGPT_PRO_TIMEOUT_MS + 60000;
-server.headersTimeout = Math.max(60000, Math.min(server.requestTimeout, 120000));
-server.keepAliveTimeout = 65000;
+if (require.main === module) {
+  startServer();
+}
 
-server.listen(PORT, HOST, () => {
-  console.log(`Hermes Mobile bridge host listening on http://${HOST}:${PORT}`);
-});
+module.exports = {
+  autostartGrokGatewayEnabled,
+  checkGrokGatewayHealth,
+  ensureGrokGatewayReady,
+  grokGatewayTargetFromManifest,
+  resolveGrokGatewayTarget,
+  resolveGrokGatewayUrl,
+  startServer,
+  waitForGrokGatewayHealth,
+};

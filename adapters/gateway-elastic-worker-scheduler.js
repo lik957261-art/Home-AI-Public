@@ -64,15 +64,38 @@ function mergeConfig(config = {}) {
 }
 
 function actorWorkspaceId(hints = {}, worker = {}) {
+  const allowedWorkspaceIds = Array.isArray(worker.allowedWorkspaceIds)
+    ? worker.allowedWorkspaceIds.map((item) => cleanString(item)).filter((item) => item && item !== "*" && item.toLowerCase() !== "all")
+    : [];
+  const skillWorkspaceIds = Array.isArray(worker.skillWorkspaceIds)
+    ? worker.skillWorkspaceIds.map((item) => cleanString(item)).filter((item) => item && item !== "*" && item.toLowerCase() !== "all")
+    : [];
   return cleanString(
     hints.workspaceId
     || hints.workspace_id
     || hints.skillWorkspaceId
     || hints.skill_workspace_id
-    || (Array.isArray(worker.allowedWorkspaceIds) && worker.allowedWorkspaceIds.length === 1 ? worker.allowedWorkspaceIds[0] : "")
-    || (Array.isArray(worker.skillWorkspaceIds) && worker.skillWorkspaceIds.length === 1 ? worker.skillWorkspaceIds[0] : "")
+    || (allowedWorkspaceIds.length === 1 ? allowedWorkspaceIds[0] : "")
+    || (skillWorkspaceIds.length === 1 ? skillWorkspaceIds[0] : "")
     || "owner",
   ) || "owner";
+}
+
+function hasExplicitWorkspaceHint(hints = {}) {
+  return Boolean(cleanString(
+    hints.workspaceId
+    || hints.workspace_id
+    || hints.skillWorkspaceId
+    || hints.skill_workspace_id,
+  ));
+}
+
+function workerHasWildcardWorkspace(worker = {}) {
+  const values = [
+    ...(Array.isArray(worker.allowedWorkspaceIds) ? worker.allowedWorkspaceIds : []),
+    ...(Array.isArray(worker.skillWorkspaceIds) ? worker.skillWorkspaceIds : []),
+  ].map((item) => cleanString(item).toLowerCase());
+  return values.includes("*") || values.includes("all");
 }
 
 function actorClassForWorkspace(workspaceId) {
@@ -529,6 +552,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       state.state = "idle";
       state.idleSince = nowMs();
       state.idleExpiresAt = state.idleSince + config.idleTtlMs;
+      if (worker && workerHasWildcardWorkspace(worker)) state.compatibilityKey = "";
       if (worker) scheduleIdleStop(worker, state);
     }
     drainQueue();
@@ -585,13 +609,21 @@ function createGatewayElasticWorkerScheduler(options = {}) {
 
   function markWorkerWarm(worker, hints = {}) {
     const state = getState(worker);
+    if (state.activeRunIds.size) {
+      state.state = "busy";
+      state.healthy = true;
+      return state;
+    }
     state.state = "warm";
     state.healthy = true;
     state.workspaceId = actorWorkspaceId(hints, worker);
     state.actorClass = actorClassForWorkspace(state.workspaceId);
     state.provider = providerKey(worker, hints);
     state.permissionTier = permissionTier(worker, hints);
-    state.compatibilityKey = buildGatewayWorkerCompatibilityKey(worker, hints);
+    state.compatibilityKey = hasExplicitWorkspaceHint(hints)
+      ? buildGatewayWorkerCompatibilityKey(worker, hints)
+      : "";
+    drainQueue();
     return state;
   }
 

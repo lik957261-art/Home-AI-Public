@@ -165,8 +165,11 @@ Hermes Mobile owns the provisioner behind the plugin-manager action
   `<HERMES_DATA_DIR>\plugin-secrets\wardrobe-registration-access-key.txt`, and
   only falls back to an Owner Wardrobe key when that key actually has the
   registration scope;
-- install the keyless `productivity/wardrobe-style-operations` Skill into that
-  workspace's own Skill Store;
+- install the complete keyless `productivity/wardrobe-style-operations` Skill
+  bundle into that workspace's own Skill Store. The bundle must include the
+  full `SKILL.md`, `references/wardrobe-program-api.md`, at least one other
+  reference Markdown file, and `scripts/render_wardrobe_phone_pdf.py`. A short
+  minimal template is not a valid Wardrobe onboarding result;
 - refresh the workspace Gateway profile binding. Existing Gateway processes may
   need a selected-profile restart before they expose the new Wardrobe MCP
   schema; listener-only restart is not enough for already-running workers.
@@ -181,6 +184,14 @@ The provisioner must not copy an existing XuXin or WuPing `.hermes-wardrobe`
 directory. Wardrobe data remains in the Wardrobe SQLite store and is isolated by
 owner plus workspace/access-key binding, not by creating a separate database per
 Hermes user.
+
+The provisioner may copy only the non-secret Skill bundle content. It must not
+copy any user's `.hermes-wardrobe` directory, `access-key.txt`,
+`workspace-key.txt`, cache directories, or generated Python cache files into the
+target Skill Store. If the available Skill source lacks `references/` or the
+required script, or if it contains a concrete Wardrobe workspace key, plugin
+launch token, or `Authorization: Bearer ...` credential, provisioning must fail
+as `provisioning_failed` instead of installing a fallback short template.
 
 The target workspace Access Key may appear only inside the server-to-server
 Wardrobe registration request and the target workspace's local

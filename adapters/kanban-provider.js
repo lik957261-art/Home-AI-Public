@@ -3,7 +3,7 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const { StringDecoder } = require("node:string_decoder");
 const { compareKanbanRowsForList } = require("./kanban-card-order-service");
 const { createKanbanTaskDispatchPolicy } = require("./kanban-task-dispatch-policy");
@@ -393,6 +393,22 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function terminateChildProcessTree(child) {
+  if (!child || !child.pid) return;
+  if (process.platform === "win32") {
+    try {
+      spawnSync("taskkill.exe", ["/pid", String(child.pid), "/T", "/F"], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      return;
+    } catch (_) {}
+  }
+  try {
+    child.kill();
+  } catch (_) {}
+}
+
 function defaultRunCommand(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -409,7 +425,7 @@ function defaultRunCommand(command, args, options = {}) {
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
-      child.kill();
+      terminateChildProcessTree(child);
       reject(new Error("Hermes Kanban command timed out"));
     }, positiveNumber(options.timeoutMs, 15000));
     child.stdout.on("data", (chunk) => {
@@ -445,6 +461,10 @@ function createKanbanTodoBridge(options = {}) {
   const runCommand = typeof options.runCommand === "function" ? options.runCommand : defaultRunCommand;
   const dispatchPolicy = options.dispatchPolicy || createKanbanTaskDispatchPolicy();
   const ensuredBoards = new Set();
+  const ensuringBoards = new Map();
+  const failedBoardEnsures = new Map();
+  const ensureBoardFailureCooldownMs = positiveNumber(options.ensureBoardFailureCooldownMs, 60_000);
+  const nowMs = typeof options.nowMs === "function" ? options.nowMs : (() => Date.now());
 
   function metadataStore() {
     const raw = readJson(metadataPath, {});
@@ -519,14 +539,30 @@ function createKanbanTodoBridge(options = {}) {
   async function ensureBoard(payload) {
     const board = boardForPayload(payload);
     if (!board || board === "default" || ensuredBoards.has(board)) return board;
-    try {
-      await kanban(["boards", "create", board, "--name", boardNameForPayload(payload), "--description", "Hermes Mobile workspace board"]);
-    } catch (err) {
-      const text = `${err.message || ""}\n${err.stderr || ""}\n${err.stdout || ""}`.toLowerCase();
-      if (!/(exist|already|duplicate|present)/.test(text)) throw err;
-    }
-    ensuredBoards.add(board);
-    return board;
+    const pending = ensuringBoards.get(board);
+    if (pending) return pending;
+    const failedAt = failedBoardEnsures.get(board);
+    if (failedAt && nowMs() - failedAt < ensureBoardFailureCooldownMs) return board;
+    const ensurePromise = (async () => {
+      try {
+        await kanban(["boards", "create", board, "--name", boardNameForPayload(payload), "--description", "Hermes Mobile workspace board"]);
+        ensuredBoards.add(board);
+        failedBoardEnsures.delete(board);
+      } catch (err) {
+        const text = `${err.message || ""}\n${err.stderr || ""}\n${err.stdout || ""}`.toLowerCase();
+        if (!/(exist|already|duplicate|present)/.test(text)) {
+          failedBoardEnsures.set(board, nowMs());
+          throw err;
+        }
+        ensuredBoards.add(board);
+        failedBoardEnsures.delete(board);
+      } finally {
+        ensuringBoards.delete(board);
+      }
+      return board;
+    })();
+    ensuringBoards.set(board, ensurePromise);
+    return ensurePromise;
   }
 
   function rowFromTask(task, fallbackMeta = {}, payload = {}) {

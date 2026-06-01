@@ -365,6 +365,86 @@ assert.match(runGatewayWorkerPreviewLabel({
   preview: JSON.stringify({ profileId: "lowgw13", provider: "openai-codex", reason: "workspace_capacity", queueDepth: 2 }),
 }), /\u6392\u961f 2/);
 
+const coldStartThread = {
+  id: "thread_cold_start",
+  activeRunId: "web_cold_start",
+  activeRunIds: ["web_cold_start"],
+  messages: [
+    {
+      id: "msg_cold_start",
+      role: "assistant",
+      status: "running",
+      runId: "web_cold_start",
+      taskId: "web_cold_start",
+      startedAt: "2026-05-27T13:04:00.000Z",
+    },
+  ],
+  events: [
+    {
+      runId: "web_cold_start",
+      event: "run.gateway_worker_starting",
+      tool: "hermes_mobile",
+      timestamp: "2026-05-27T13:04:00.200Z",
+      preview: JSON.stringify({ profileId: "lowgw2", provider: "openai-codex", reason: "worker_starting", state: "starting" }),
+    },
+    {
+      runId: "web_cold_start",
+      event: "run.gateway_worker_started",
+      tool: "hermes_mobile",
+      timestamp: "2026-05-27T13:04:20.200Z",
+      preview: JSON.stringify({ profileId: "lowgw2", provider: "openai-codex", reason: "worker_started", lastStartDurationMs: 20000 }),
+    },
+    {
+      runId: "web_cold_start",
+      event: "run.toolset_selection_started",
+      tool: "hermes_mobile",
+      timestamp: "2026-05-27T13:04:21.000Z",
+      preview: "",
+    },
+    {
+      runId: "web_cold_start",
+      event: "run.permission_preflight_fallback",
+      tool: "hermes_mobile",
+      timestamp: "2026-05-27T13:04:31.000Z",
+      preview: JSON.stringify({ reason: "permission_preflight_timeout", allowed_toolsets: ["web", "search", "file"] }),
+    },
+  ],
+};
+const coldStartHtml = renderMessageRunProgress(coldStartThread, coldStartThread.messages[0]);
+assert.match(coldStartHtml, /run-progress-panel inline/);
+assert.match(coldStartHtml, /\u8fd0\u884c\u4e2d/);
+assert.match(coldStartHtml, /Gateway \u542f\u52a8\u4e2d/);
+assert.match(coldStartHtml, /Gateway \u5df2\u542f\u52a8/);
+assert.match(coldStartHtml, /\u6743\u9650\u9884\u68c0\u8d85\u65f6/);
+
+const gatewayQueuedThread = {
+  id: "thread_gateway_queued",
+  activeRunId: "web_gateway_queued",
+  activeRunIds: ["web_gateway_queued"],
+  messages: [
+    {
+      id: "msg_gateway_queued",
+      role: "assistant",
+      status: "queued",
+      runId: "web_gateway_queued",
+      queuedAt: "2026-05-27T13:04:00.000Z",
+    },
+  ],
+  events: [
+    {
+      runId: "web_gateway_queued",
+      event: "run.gateway_worker_queued",
+      tool: "hermes_mobile",
+      timestamp: "2026-05-27T13:04:00.100Z",
+      preview: JSON.stringify({ profileId: "lowgw2", provider: "openai-codex", reason: "workspace_capacity", queueDepth: 1 }),
+    },
+  ],
+};
+const gatewayQueuedHtml = renderMessageRunProgress(gatewayQueuedThread, gatewayQueuedThread.messages[0]);
+assert.match(gatewayQueuedHtml, /run-progress-panel inline/);
+assert.match(gatewayQueuedHtml, /Gateway \u6392\u961f\u7b49\u5f85/);
+assert.match(gatewayQueuedHtml, /\u6392\u961f 1/);
+
 const terminalHistoryThread = {
   id: "thread_terminal_history",
   activeRunId: "",

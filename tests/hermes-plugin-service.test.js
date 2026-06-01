@@ -59,6 +59,31 @@ function sampleManifest() {
   };
 }
 
+function writeCompleteWardrobeSkillBundle(dataDir) {
+  const templateDir = path.join(dataDir, "skill-profiles", "owner-full", "skills", "productivity", "wardrobe-style-operations");
+  fs.mkdirSync(templateDir, { recursive: true });
+  fs.writeFileSync(path.join(templateDir, "SKILL.md"), [
+    "---",
+    "name: wardrobe-style-operations",
+    "description: Complete keyless Wardrobe MCP operation bundle.",
+    "---",
+    "",
+    "# Wardrobe Style Operations",
+    "",
+    "Use wardrobe MCP. Credentials live only in .hermes-wardrobe.",
+    "Consult references/wardrobe-program-api.md before using Program API contracts.",
+    Array.from({ length: 80 }, (_, index) => `Rule ${index + 1}: keep Wardrobe operations scoped to the active Hermes workspace.`).join("\n"),
+  ].join("\n"), "utf8");
+  const referencesDir = path.join(templateDir, "references");
+  fs.mkdirSync(referencesDir, { recursive: true });
+  fs.writeFileSync(path.join(referencesDir, "wardrobe-program-api.md"), "# Wardrobe Program API\n", "utf8");
+  fs.writeFileSync(path.join(referencesDir, "wardrobe-judgment-pitfalls.md"), "# Wardrobe Judgment Pitfalls\n", "utf8");
+  const scriptsDir = path.join(templateDir, "scripts");
+  fs.mkdirSync(scriptsDir, { recursive: true });
+  fs.writeFileSync(path.join(scriptsDir, "render_wardrobe_phone_pdf.py"), "def main():\n    return 0\n", "utf8");
+  return templateDir;
+}
+
 function sampleCodexManifest() {
   return {
     id: "codex-mobile",
@@ -426,6 +451,7 @@ async function testFinanceProvisioningFailureBlocksManifest() {
 
 async function testWardrobeGrantProvisionsWorkspaceKeySkillGatewayAndLaunchBinding() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-wardrobe-grant-"));
+  writeCompleteWardrobeSkillBundle(dir);
   const registrationKey = `wd_${"live"}_${"g".repeat(40)}`;
   const calls = [];
   const gatewayCalls = [];
@@ -484,10 +510,14 @@ async function testWardrobeGrantProvisionsWorkspaceKeySkillGatewayAndLaunchBindi
   assert.deepEqual(gatewayCalls, [{ workspaceId: "weixin_wardrobe_new", refreshProfileBinding: true }]);
   const keyPath = path.join(dir, "drive", "users", "weixin_wardrobe_new", ".hermes-wardrobe", "access-key.txt");
   const configPath = path.join(dir, "drive", "users", "weixin_wardrobe_new", ".hermes-wardrobe", "config.json");
-  const skillPath = path.join(dir, "skill-profiles", "weixin_wardrobe_new", "skills", "productivity", "wardrobe-style-operations", "SKILL.md");
+  const skillDir = path.join(dir, "skill-profiles", "weixin_wardrobe_new", "skills", "productivity", "wardrobe-style-operations");
+  const skillPath = path.join(skillDir, "SKILL.md");
   assert.equal(fs.existsSync(keyPath), true);
   assert.equal(fs.existsSync(configPath), true);
   assert.equal(fs.existsSync(skillPath), true);
+  assert.equal(fs.existsSync(path.join(skillDir, "references", "wardrobe-program-api.md")), true);
+  assert.equal(fs.existsSync(path.join(skillDir, "references", "wardrobe-judgment-pitfalls.md")), true);
+  assert.equal(fs.existsSync(path.join(skillDir, "scripts", "render_wardrobe_phone_pdf.py")), true);
   const rawKey = fs.readFileSync(keyPath, "utf8").trim();
   assert.equal(JSON.stringify(grant).includes(rawKey), false);
   assert.equal(JSON.stringify(grant).includes(registrationKey), false);

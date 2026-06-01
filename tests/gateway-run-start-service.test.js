@@ -233,7 +233,7 @@ async function testStartRunBuildsGatewayRequestAndMutatesStartState() {
   assert.equal(assistant.runOptions.access_policy_context.connector_profiles.extra.type, "profile");
   assert.equal(thread.status, "running");
   assert.deepEqual(thread.activeRunIds, ["web_test_1"]);
-  assert.equal(calls.saved, 2);
+  assert.equal(calls.saved, 3);
   assert.equal(calls.events.length, 3);
   assert.deepEqual(calls.events.map((event) => event.event), [
     "run.context_ready",
@@ -245,8 +245,10 @@ async function testStartRunBuildsGatewayRequestAndMutatesStartState() {
   assert.match(calls.events[1].preview, /lowgw1/);
   assert.match(calls.events[1].preview, /gpt-test/);
   assert.equal(calls.events[2].preview, "等待模型或工具返回");
-  assert.equal(calls.broadcasts[0].type, "message.updated");
-  assert.deepEqual(calls.broadcasts.slice(1, 4).map((item) => item.type), ["run.event", "run.event", "run.event"]);
+  assert.deepEqual(calls.broadcasts.slice(0, 2).map((item) => item.type), ["message.updated", "message.updated"]);
+  assert.equal(calls.broadcasts[0].message.runId, "web_test_1");
+  assert.equal(calls.broadcasts[0].message.status, "running");
+  assert.deepEqual(calls.broadcasts.slice(2, 5).map((item) => item.type), ["run.event", "run.event", "run.event"]);
   assert.equal(calls.streams.length, 1);
   assert.equal(calls.streams[0].runId, "web_test_1");
   assert.equal(calls.streams[0].body.input, "Do the task");
@@ -352,10 +354,13 @@ async function testOrdinaryRunUsesDefaultWebSearchBudgetWhenConfigured() {
 }
 
 async function testStartRunProjectsGatewaySchedulerEventsBeforeSelection() {
+  const thread = baseThread();
   const { calls, service } = makeHarness({
     chooseGatewayRunTarget: async (routing, context = {}) => {
       calls.gatewayRouting.push(routing);
       assert.equal(context.runId, "web_test_1");
+      assert.equal(thread.activeRunId, "web_test_1");
+      assert.deepEqual(thread.activeRunIds, ["web_test_1"]);
       context.onEvent({
         event: "run.gateway_worker_starting",
         reason: "worker_starting",
@@ -389,7 +394,7 @@ async function testStartRunProjectsGatewaySchedulerEventsBeforeSelection() {
     },
   });
 
-  await service.startRunForThread(baseThread(), baseUserMessage(), baseAssistantMessage(), {});
+  await service.startRunForThread(thread, baseUserMessage(), baseAssistantMessage(), {});
 
   assert.deepEqual(calls.events.map((event) => event.event).slice(0, 5), [
     "run.gateway_worker_starting",
@@ -404,6 +409,11 @@ async function testStartRunProjectsGatewaySchedulerEventsBeforeSelection() {
   assert.equal(starting.workspaceId, "workspace_sender");
   assert.equal(JSON.stringify(calls.events).includes("must-not-render"), false);
   assert.equal(JSON.stringify(calls.events).includes("worker-key"), false);
+  assert.equal(calls.broadcasts[0].type, "message.updated");
+  assert.equal(calls.broadcasts[0].message.runId, "web_test_1");
+  assert.deepEqual(calls.broadcasts[0].thread.activeRunIds, ["web_test_1"]);
+  assert.equal(calls.broadcasts[1].type, "run.event");
+  assert.deepEqual(calls.broadcasts[1].thread.activeRunIds, ["web_test_1"]);
 }
 
 async function testStartRunUsesModelFirstSelectionBeforeExecution() {

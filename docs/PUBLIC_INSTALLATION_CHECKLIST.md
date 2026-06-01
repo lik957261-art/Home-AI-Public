@@ -10,6 +10,7 @@ Use this checklist when making README or deployment doc changes for an external 
 - Main README: `README.md`
 - Production deployment runbook: `docs/AGENT_WINDOWS_PRODUCTION_DEPLOYMENT.zh-CN.md`
 - Deployment module: `docs/MODULES/deployment.md`
+- NAS deployment plan: `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`
 - Gateway manifest reference: `docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md`
 - Public export checklist: `docs/PUBLIC_EXPORT_CHECKLIST.md`
 
@@ -25,6 +26,15 @@ The minimal path requires:
 - Hermes API key configured through path/env or Owner runtime UI.
 
 This path can run Hermes Mobile, but it does not create the production worker pool and may not support `@Grok4.3` unless the single Gateway profile is already configured for xAI OAuth.
+
+## NAS Deployment
+
+The current practical NAS path is a split deployment: NAS runs Hermes Mobile
+app/data/static/proxy surfaces, while Windows/WSL keeps Gateway workers, Codex
+local execution, Grok/xAI OAuth, and desktop/browser-bound bridge flows. Do not
+document full NAS-native Gateway Pool as ready until Linux/NAS launchers,
+credential placement, remote worker management, plugin provisioning, and
+workspace-switching harnesses exist.
 
 ## Windows Production Worker Pool
 

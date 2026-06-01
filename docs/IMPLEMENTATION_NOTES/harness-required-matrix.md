@@ -231,6 +231,11 @@ Required harness dimensions:
   `config-current` skip path, the `-ForceConfigure` override, stop-only skip,
   and automatic cache invalidation when manifest/script/plugin/schema/Skill
   Store mapping inputs change.
+- Kanban-backed Todo board provisioning is a cross-shell process-safety path.
+  The harness must assert same-board provisioning is single-flight, board
+  creation failures have a bounded retry cooldown, and Windows command timeouts
+  terminate the full `powershell.exe` / `run-as-worker.ps1` / `wsl.exe` child
+  tree instead of only the direct parent process.
 - A run that records `Enabled toolsets: wardrobe` but whose execution schema
   lacks `mcp_wardrobe_*` functions is a Gateway schema/API-key/profile mismatch
   until proven otherwise. The required harness evidence is a live schema smoke
@@ -785,6 +790,12 @@ Required harness dimensions:
 - Effective enabled toolsets, schema epoch, MCP/plugin binding, permission
   tier, manifest profile, port, and API key identity must participate in the
   compatibility key.
+- Wildcard profiles such as `grokgw1` must not be pinned to a synthetic
+  `workspace=*` or default `owner` compatibility key by health/status
+  reconciliation. When no active run is assigned, the next real request should
+  rebind the worker from that request's routing hints, and reconciliation must
+  wake queued `profile_affinity` waiters if a healthy idle wildcard worker is
+  available.
 - Global cap exhaustion must queue new work with a distinct `global_capacity`
   status.
 - Profile-affinity waits, such as a conversation that must stay on the same
@@ -840,6 +851,10 @@ Required harness dimensions:
   state, not as queue depth, while still showing reused, queued,
   idle-retirement, and failed scheduler states without exposing raw API keys,
   workspace keys, plugin launch tokens, prompts, model output, or long logs.
+- Gateway start harnesses must assert the public `web_*` run id is assigned and
+  broadcast before `chooseGatewayRunTarget()` emits scheduler events. UI
+  harnesses must render queued/cold-start and permission preflight timeout rows
+  in the inline run-progress panel before a worker has been selected.
 
 Primary docs and tests:
 
@@ -907,6 +922,10 @@ Required harness dimensions:
   WSL distro. Tests must prevent drift back to retired distro names such as
   `HermesGatewayWorker`; a listener/client deployment is not complete if the
   Gateway Pool restart script still points at a missing distro.
+- Kanban/Todo compatibility commands are covered by the same process-safety
+  rule. The Windows Kanban wrapper must resolve its WSL distro from explicit
+  args or `HERMES_*` environment values, support maintained caller-context
+  execution, and must not silently default back to `HermesGatewayWorker`.
 - Hybrid single-profile start/stop scripts must remain fast enough for
   listener-triggered on-demand use. Listener on-demand `-NoStopExisting`
   selected-profile starts should skip full reconfiguration when the profile
@@ -1380,13 +1399,22 @@ Required contract dimensions:
   write only that user's `.hermes-wardrobe/config.json` and `access-key.txt`,
   call Wardrobe's `/api/v1/hermes/plugin/workspaces` registration contract,
   authenticated by a server-side `owners:write` or `admin:*` registration
-  credential, install a keyless Wardrobe Skill into that user's Skill Store, and
-  refresh the workspace Gateway profile binding. The harness must prove the
+  credential, install the complete keyless Wardrobe Skill bundle into that
+  user's Skill Store, and refresh the workspace Gateway profile binding. The
+  harness must prove the
   generated target key uses Wardrobe's accepted Program API prefix, invalid
   legacy placeholder-prefixed keys are replaced before registration, and the
   target raw Wardrobe key appears only in the server-to-server registration body
   and workspace-local key file, not in grant results, manifests, frontend state,
   iframe URLs, postMessage payloads, docs, handoffs, screenshots, or logs.
+  The complete Skill bundle requirement is part of the same boundary: the
+  target store must contain the full `SKILL.md`,
+  `references/wardrobe-program-api.md`, another reference Markdown file, and
+  `scripts/render_wardrobe_phone_pdf.py`. A short placeholder template or a
+  source bundle with no `references/` must fail closed instead of becoming an
+  active Wardrobe grant. Skill bundle sources and installed targets must reject
+  concrete Wardrobe workspace keys, plugin launch tokens, and
+  `Authorization: Bearer ...` credentials.
   Missing or invalid registration credentials must become bounded
   `provisioning_failed` states. Pending or failed Wardrobe provisioning must
   block non-Owner list/manifest/launch instead of exposing a misleading usable
