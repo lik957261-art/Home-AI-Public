@@ -154,6 +154,13 @@ Before declaring a production environment ready for Automation:
   owns the canonical scheduler. If Windows remains the external scheduler,
   document that boundary and do not also run a NAS tick loop against a mirrored
   store.
+- When NAS owns the canonical scheduler, install
+  `scripts/start-nas-cron-tick.sh` and `scripts/stop-nas-cron-tick.sh` into the
+  NAS config directory, keep the PID file under
+  `/volume1/docker/hermes-mobile/runtime/hermes-cron-tick.pid`, and set
+  `PYTHONPATH` to `/volume1/docker/hermes-agent/current` so
+  `scripts/hermes-mobile-cron-dispatcher.py` imports official Hermes CRON from
+  the NAS Hermes Agent release.
 - Back up the canonical automation store before any migration or repair. Do not
   print task prompts, raw runner output, keys, OAuth tokens, mail content, or
   push endpoints during the check.

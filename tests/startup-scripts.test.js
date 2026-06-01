@@ -26,6 +26,8 @@ const runKanbanGatewayWorkerChild = read(path.join("scripts", "run-kanban-gatewa
 const runKanbanGatewayWorkerShell = read(path.join("scripts", "run-kanban-gateway-worker.sh"));
 const startCronTickSidecar = read(path.join("scripts", "start-cron-tick-sidecar.ps1"));
 const runCronTickSidecar = read(path.join("scripts", "run-cron-tick-sidecar.ps1"));
+const startNasCronTick = read(path.join("scripts", "start-nas-cron-tick.sh"));
+const stopNasCronTick = read(path.join("scripts", "stop-nas-cron-tick.sh"));
 const hermesMobileCronDispatcher = read(path.join("scripts", "hermes-mobile-cron-dispatcher.py"));
 const bridgeHost = read(path.join("scripts", "bridge-host.js"));
 const startWeixinFrontGateway = read(path.join("scripts", "start-weixin-front-gateway.ps1"));
@@ -63,6 +65,15 @@ assert.match(startHermesWeb, /hermes_cron/);
 assert.match(startHermesWeb, /start-cron-tick-sidecar\.ps1/);
 assert.match(startHermesWeb, /HERMES_MOBILE_CRON_TICK_SIDECAR/);
 assert.match(startHermesWeb, /Start-CronTickSidecarIfNeeded\s*\r?\n\s*\$existing = Get-HermesWebListener/s);
+
+assert.match(startNasCronTick, /HERMES_AGENT_ROOT/);
+assert.match(startNasCronTick, /\/volume1\/docker\/hermes-agent\/current/);
+assert.match(startNasCronTick, /PYTHONPATH="\$HERMES_AGENT_ROOT/);
+assert.match(startNasCronTick, /hermes-mobile-cron-dispatcher\.py --dispatch/);
+assert.match(startNasCronTick, /hermes-cron-tick\.pid/);
+assert.match(startNasCronTick, /bg_pid=\$!/);
+assert.match(stopNasCronTick, /hermes-cron-tick\.pid/);
+assert.match(stopNasCronTick, /kill -9 "\$pid"/);
 
 assert.match(startWorkerHost, /function Test-HermesMobileHttpHealth/);
 assert.match(startWorkerHost, /function Test-HermesMobileAuthenticatedHealth/);
