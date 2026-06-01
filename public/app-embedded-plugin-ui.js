@@ -29,6 +29,20 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
     refreshRequiredEventType: "finance.plugin.refresh_required",
     manifestPath: "/api/hermes-plugins/finance/manifest",
   }),
+  email: Object.freeze({
+    id: "email",
+    viewMode: "email",
+    title: "\u90ae\u7bb1",
+    label: "\u90ae\u7bb1",
+    bottomButtonId: "bottomEmailMode",
+    appClass: "email-mode",
+    hostId: "emailPluginHost",
+    navVisibleClass: "email-visible",
+    navigationEventType: "email.plugin.navigation",
+    backResultEventType: "email.plugin.back_result",
+    refreshRequiredEventType: "email.plugin.refresh_required",
+    manifestPath: "/api/hermes-plugins/email/manifest",
+  }),
 });
 
 function embeddedPluginRecord(pluginId) {
@@ -856,10 +870,12 @@ function updateFinancePluginNavigationAvailability() {
   const nav = $("bottomNav");
   const available = embeddedPluginNavigationAvailable(def);
   if (button) {
-    button.hidden = !available;
-    button.setAttribute("aria-hidden", available ? "false" : "true");
+    button.hidden = true;
+    button.setAttribute("aria-hidden", "true");
   }
-  nav?.classList.toggle(def.navVisibleClass, available);
+  nav?.classList.remove(def.navVisibleClass);
+  if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("finance", available);
+  if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
   return available;
 }
 
@@ -899,4 +915,57 @@ function parkFinancePluginShell() {
 function renderFinancePluginView() {
   updateFinancePluginNavigationAvailability();
   renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS.finance);
+}
+
+function updateEmailPluginNavigationAvailability() {
+  const def = EMBEDDED_PLUGIN_DEFS.email;
+  const button = $(def.bottomButtonId);
+  const nav = $("bottomNav");
+  const available = embeddedPluginNavigationAvailable(def);
+  if (button) {
+    button.hidden = true;
+    button.setAttribute("aria-hidden", "true");
+  }
+  nav?.classList.remove(def.navVisibleClass);
+  if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("email", available);
+  if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
+  return available;
+}
+
+function emailPluginBackActive() {
+  return embeddedPluginBackActive(EMBEDDED_PLUGIN_DEFS.email);
+}
+
+function emailPluginOuterBackActive() {
+  return embeddedPluginOuterBackActive(EMBEDDED_PLUGIN_DEFS.email);
+}
+
+function rememberEmailPluginReturnRoute() {
+  return rememberEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS.email);
+}
+
+function setEmailPluginOpenRoute(route = {}) {
+  return setEmbeddedPluginOpenRoute(EMBEDDED_PLUGIN_DEFS.email, route);
+}
+
+function restoreEmailPluginReturnRoute() {
+  return restoreEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS.email);
+}
+
+function sendEmailPluginBack() {
+  return sendEmbeddedPluginBack(EMBEDDED_PLUGIN_DEFS.email);
+}
+
+function sendEmailPluginBackOrReturn() {
+  if (sendEmailPluginBack()) return true;
+  return restoreEmailPluginReturnRoute();
+}
+
+function parkEmailPluginShell() {
+  return parkEmbeddedPluginShell(EMBEDDED_PLUGIN_DEFS.email);
+}
+
+function renderEmailPluginView() {
+  updateEmailPluginNavigationAvailability();
+  renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS.email);
 }

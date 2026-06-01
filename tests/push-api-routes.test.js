@@ -207,11 +207,11 @@ async function testSubscribeRequiresConfiguredPushAndWorkspaceAccess() {
   await routes.handle({
     method: "POST",
     url: "/api/push/subscribe",
-    headers: { "user-agent": "UnitTest/1" },
+    headers: { "user-agent": "UnitTest/1", origin: "https://nas.example.test/hermes" },
     body: {
       workspaceId: "owner",
       deviceLabel: "phone",
-      clientContext: { displayMode: "standalone", standalone: true, clientVersion: "client-test", platform: "iPhone" },
+      clientContext: { displayMode: "standalone", standalone: true, clientVersion: "client-test", platform: "iPhone", origin: "https://client.example.test" },
       subscription: { endpoint: "https://push.example.invalid/secret-token", keys: { p256dh: "p", auth: "a" } },
     },
   }, ok, makeUrl("/api/push/subscribe"));
@@ -224,6 +224,9 @@ async function testSubscribeRequiresConfiguredPushAndWorkspaceAccess() {
     clientVersion: "client-test",
     platform: "iPhone",
     userAgent: "UnitTest/1",
+    origin: "https://nas.example.test",
+    host: "",
+    path: "",
   });
   assert.equal(calls.saved[0].meta.workspaceId, "child");
   assert.equal(calls.saved[0].meta.principalId, "principal_child");

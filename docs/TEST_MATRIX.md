@@ -303,6 +303,10 @@ not reparent launch iframes, a clean blank host during manifest/launch loading,
 and a postMessage/back contract. The host-side harness must also assert that
 the parent `edgeSwipeZone` starts a real edge back-swipe state for plugin pages
 instead of only swallowing iframe-adjacent touch events with `preventDefault()`.
+Mobile bottom navigation must keep Codex as a first-level tab while collecting
+Wardrobe, Finance, and Email under the `应用` drawer without bypassing their
+manifest/workspace visibility rules; hidden legacy plugin tabs must not consume
+bottom navigation hit targets.
 These are generic plugin requirements, not Wardrobe-only behavior; new plugins
 must satisfy the same host contract before being treated as production-ready.
 Installed plugin visibility must also be covered: Owner sees installed plugins
@@ -355,16 +359,33 @@ bundles are bounded provisioning failures. Focused checks include
 `node tests\gateway-workspace-provisioning-service.test.js`,
 `node tests\hermes-plugin-service.test.js`, and
 `node tests\hermes-plugin-api-routes.test.js`.
+Email workspace provisioning is an H1 plugin authorization workflow. Granting
+Email to a workspace must call Email
+`POST /api/v1/hermes/plugin/workspaces` with a server-side Email Owner key,
+bounded workspace identity, and the target workspace root. The resulting
+workspace-local `.hermes-email/config.json` and `.hermes-email/access-key.txt`
+are the only long-lived launch materials Hermes should use; Email owns mailbox
+credentials, local mail storage, sync cursors, and per-user account filtering.
+Harnesses must assert the raw Email Owner key, workspace key, launch token, full
+mail body, attachment content, and provider credentials are not returned in the
+grant result, manifest, frontend state, iframe URL, postMessage payload, docs,
+logs, or screenshots. Pending or failed Email provisioning must block non-Owner
+list/manifest/launch. Focused checks include
+`node tests\email-plugin-provisioning-service.test.js`,
+`node tests\hermes-plugin-service.test.js`,
+`node tests\app-embedded-plugin-ui.test.js`, and
+`node tests\task-list-ui.test.js`.
 Generic plugin provisioning states must also be covered. A plugin-manager grant
 may enter `pending` only when Hermes owns an automatic provisioning service for
-that plugin. Finance and Wardrobe are automatic provisioning plugins; pending
+that plugin. Finance, Wardrobe, and Email are automatic provisioning plugins; pending
 or failed records for either one must block non-Owner list/manifest/launch.
 Manual/external-binding plugins without a Hermes provisioner should store
 `manual_required` and must not be blocked by the pending/failed gate solely due
 to the grant record. Codex Mobile remains non-grantable. The service harness
 must cover Finance auto-provisioning, Finance failure blocking, Wardrobe
-auto-provisioning, Wardrobe failure blocking, legacy Wardrobe pending blocking,
-and Codex grant denial in `node tests\hermes-plugin-service.test.js`.
+auto-provisioning, Wardrobe failure blocking, Email auto-provisioning, Email
+failure blocking, legacy Wardrobe pending blocking, and Codex grant denial in
+`node tests\hermes-plugin-service.test.js`.
 Plugin notification coverage must assert that
 `POST /api/hermes-plugins/<plugin-id>/notifications` requires Hermes auth,
 requires a stable `sourceId`/`eventId`, supports durable Inbox-backed events and
@@ -846,7 +867,12 @@ that exact external entry path and the changed route-helper JavaScript from the
 same origin/path; local root smoke alone is insufficient.
 Web Push chat/topic receipt routing must cover terminal receipt `messageId`
 projection, single-window route precedence over generic `taskGroupId`, and
-frontend scroll target consumption after chat/topic messages render.
+frontend scroll target consumption after chat/topic messages render. Web Push
+subscription and delivery tests must also cover deployment-origin scoping:
+frontend `clientContext.origin`, subscribe-route server-origin forwarding,
+matching-origin delivery, and skipped delivery for copied legacy subscriptions
+with missing or mismatched origin when `HERMES_MOBILE_PUBLIC_ORIGIN` or
+`HERMES_WEB_PUBLIC_ORIGIN` is configured.
 
 For secondary-page return bugs, the harness must also cover async race
 conditions: a late response from the page being left must not repaint that page
@@ -927,7 +953,7 @@ The guard test is:
 | Embedded plugin host / Wardrobe, Codex, and Finance plugin tabs | `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\embedded-plugin-refresh-harness.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\wardrobe-plugin-navigation-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes |
 | Directory/files/artifacts | `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js` |
 | Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\gateway-workspace-provisioning-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\link-skill-profile-store.test.js`, `node tests\task-list-ui.test.js` |
-| Automation/Cron | `node tests\automation-api-routes.test.js`, `node tests\automation-provider.test.js`, `node tests\cron-bridge.test.js`, `node tests\local-automation-bridge-service.test.js` |
+| Automation/Cron | `node tests\automation-api-routes.test.js`, `node tests\automation-provider.test.js`, `node tests\cron-bridge.test.js`, `node tests\local-automation-bridge-service.test.js`; production/NAS smoke must verify that `/api/automations?detail=summary&refresh=1` reads the configured canonical scheduler and does not silently report an empty SQLite mirror when official CRON has jobs |
 | Weixin ingress/delivery | `node tests\weixin-api-routes.test.js`, `node tests\weixin-ingress-event-service.test.js`, `node tests\weixin-ingress-provider.test.js`, `node tests\weixin-outbound-delivery-service.test.js`, `node tests\weixin-runtime-composition-service.test.js` |
 | Group chat | `node tests\single-window-group-chat-api-routes.test.js`, `node tests\group-chat-ui.test.js`, `node tests\group-chat-shared-attachment-service.test.js`, `node tests\web-push-delivery-service.test.js` |
 | Runtime SQLite/state | `node tests\mobile-sqlite-store.test.js`, `node tests\runtime-state-repository.test.js`, `node tests\runtime-state-store-service.test.js`, `node tests\runtime-state-persistence-service.test.js`, `node tests\runtime-state-normalization-service.test.js` |

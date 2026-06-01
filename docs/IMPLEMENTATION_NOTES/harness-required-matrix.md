@@ -1026,6 +1026,11 @@ Required harness dimensions:
 - iOS Web Push subscription requires PWA standalone evidence. The harness must
   cover frontend `clientContext.displayMode` / `standalone`, subscribe-route
   forwarding, and delivery-side filtering of legacy iOS browser subscriptions.
+- Web Push subscriptions are deployment-origin scoped. The harness must cover
+  frontend `clientContext.origin`, subscribe-route server-origin forwarding,
+  delivery to matching-origin subscriptions, and skipped delivery for copied
+  legacy subscriptions with missing or mismatched origin when a production
+  public origin is configured.
 - iOS browser-shell clients must not continue Hermes-owned notification/source
   detail navigation. The harness must assert a PWA standalone guard before the
   shared internal route helper applies route params.
@@ -1424,14 +1429,28 @@ Required contract dimensions:
   `provisioning_failed` states. Pending or failed Wardrobe provisioning must
   block non-Owner list/manifest/launch instead of exposing a misleading usable
   tab.
+- Email workspace grant is H1 provisioning, not a plain visibility toggle.
+  Granting `email` must call Email's `/api/v1/hermes/plugin/workspaces`
+  registration contract with a server-side Email Owner key and bounded
+  workspace identity. Email owns `.hermes-email/config.json`,
+  `.hermes-email/access-key.txt`, mailbox OAuth/IMAP credentials, sync cursors,
+  local mail rows, and account-level authorization. Hermes Mobile only records
+  bounded provisioning state and later uses the generated workspace key
+  server-side to request a short-lived launch entry. Harnesses must prove Email
+  auto-provisioning and failure blocking, workspace-key discovery, launch via
+  `Authorization: Bearer <workspace-key>` without returning that key, and no
+  raw Email Owner key, workspace key, launch token, full mail body, attachment
+  content, provider credential, or session cookie appears in grant results,
+  manifests, frontend state, iframe URLs, postMessage payloads, docs, handoffs,
+  screenshots, or logs.
 - Generic plugin provisioning status is part of the same contract. A grant may
   enter `pending` only when Hermes owns the automatic provisioning service for
   that plugin. Plugins with manual or external binding must store
   `manual_required`, keep the admin diagnostic visible, and avoid the
   pending/failed launch block unless a real automatic provisioning attempt has
   failed. Harnesses must prove Finance auto-provisioning, Wardrobe
-  auto-provisioning, their failure-blocking behavior, and Codex
-  non-grantability.
+  auto-provisioning, Email auto-provisioning, their failure-blocking behavior,
+  and Codex non-grantability.
 - Plugin notification events are part of the H1 passive-notification path even
   though the plugin host itself is H2. A plugin backend must call Hermes
   `POST /api/hermes-plugins/<plugin-id>/notifications` with a stable

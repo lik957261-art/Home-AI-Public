@@ -122,15 +122,16 @@ function upsertThreadSummary(thread) {
 
 function upsertMessage(message) {
   if (!state.currentThread || !message) return;
-  const messages = state.currentThread.messages || [];
+  const messages = (state.currentThread.messages || [])
+    .filter((item) => !localPendingSendReplacedByIncoming(item, [message], state.currentThread.messages || []));
   const index = messages.findIndex((item) => item.id === message.id);
   if (index >= 0) messages[index] = mergeServerMessage(messages[index], message);
   else messages.push(message);
-  state.currentThread.messages = messages;
+  state.currentThread.messages = sortedThreadMessages(messages);
   if (state.viewMode === "tasks" && state.currentThread?.singleWindow && !currentTaskThreadIsSharedTopicThread()) {
     rememberTaskListThread(state.currentThread);
   }
-  const mergedMessage = index >= 0 ? messages[index] : message;
+  const mergedMessage = index >= 0 ? state.currentThread.messages.find((item) => item.id === message.id) || message : message;
   offerOwnerElevationForMessage(mergedMessage).catch(showError);
   if (state.viewMode === "tasks") renderThreads();
   if (
@@ -149,7 +150,8 @@ function upsertCachedChatScopeMessage(threadId, message, threadSummary = null) {
   if (!threadId || !message) return false;
   let touched = false;
   const update = (thread) => {
-    const messages = thread.messages || [];
+    const messages = (thread.messages || [])
+      .filter((item) => !localPendingSendReplacedByIncoming(item, [message], thread.messages || []));
     const index = messages.findIndex((item) => item.id === message.id);
     if (index >= 0) messages[index] = mergeServerMessage(messages[index], message);
     else messages.push(message);

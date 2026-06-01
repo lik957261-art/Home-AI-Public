@@ -81,6 +81,8 @@ function backSwipeTarget() {
   if (typeof codexPluginOuterBackActive === "function" && codexPluginOuterBackActive()) return "codex-plugin-outer";
   if (typeof financePluginBackActive === "function" && financePluginBackActive()) return "finance-plugin";
   if (typeof financePluginOuterBackActive === "function" && financePluginOuterBackActive()) return "finance-plugin-outer";
+  if (typeof emailPluginBackActive === "function" && emailPluginBackActive()) return "email-plugin";
+  if (typeof emailPluginOuterBackActive === "function" && emailPluginOuterBackActive()) return "email-plugin-outer";
   if (typeof automationDetailInboxReturnActive === "function" && automationDetailInboxReturnActive()) return "automation-secondary";
   if (isAutomationDetailView()) return "automation";
   if (typeof automationSecondaryReturnActive === "function" && automationSecondaryReturnActive()) return "automation-secondary";
@@ -126,6 +128,8 @@ function performBackSwipeAction(target) {
   else if (target === "codex-plugin-outer" && typeof restoreCodexPluginReturnRoute === "function") restoreCodexPluginReturnRoute();
   else if (target === "finance-plugin" && typeof sendFinancePluginBackOrReturn === "function") sendFinancePluginBackOrReturn();
   else if (target === "finance-plugin-outer" && typeof restoreFinancePluginReturnRoute === "function") restoreFinancePluginReturnRoute();
+  else if (target === "email-plugin" && typeof sendEmailPluginBackOrReturn === "function") sendEmailPluginBackOrReturn();
+  else if (target === "email-plugin-outer" && typeof restoreEmailPluginReturnRoute === "function") restoreEmailPluginReturnRoute();
   else if (target === "automation") openAutomationList();
   else if (target === "automation-secondary") closeAutomationSecondarySurface();
   else if (target === "action-inbox" || target === "action-inbox-create") openActionInboxOverview();

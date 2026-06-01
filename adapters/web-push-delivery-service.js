@@ -38,6 +38,18 @@ function numeric(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function normalizeOrigin(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  try {
+    const parsed = new URL(text);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    return `${parsed.protocol}//${parsed.host}`.toLowerCase();
+  } catch (_) {
+    return "";
+  }
+}
+
 function getProvider(value) {
   return typeof value === "function" ? value() : value;
 }
@@ -123,6 +135,16 @@ function createWebPushDeliveryService(options = {}) {
   const automationDeliverableLookbackMs = numeric(options.automationDeliverableLookbackMs, 30 * 60 * 1000);
   const automationDeliverableFutureGraceMs = numeric(options.automationDeliverableFutureGraceMs, 30 * 60 * 1000);
   const automationInitialLookbackMs = numeric(options.automationInitialLookbackMs, 24 * 60 * 60 * 1000);
+  const configuredDeploymentOrigin = () => normalizeOrigin(
+    typeof options.deploymentOrigin === "function"
+      ? options.deploymentOrigin()
+      : (options.deploymentOrigin
+        || env.HERMES_MOBILE_PUBLIC_ORIGIN
+        || env.HERMES_WEB_PUBLIC_ORIGIN
+        || env.HERMES_PUBLIC_ORIGIN
+        || env.PUBLIC_ORIGIN
+        || ""),
+  );
   let webPushConfig = null;
   let todoWebPushRunning = false;
   let automationWebPushRunning = false;
@@ -416,6 +438,9 @@ function createWebPushDeliveryService(options = {}) {
       clientVersion: String(source.clientVersion || nested.clientVersion || "").trim().slice(0, 80),
       platform: String(source.platform || nested.platform || source.deviceLabel || "").trim().slice(0, 120),
       userAgent: String(source.userAgent || nested.userAgent || "").trim().slice(0, 240),
+      origin: normalizeOrigin(source.origin || nested.origin || source.clientOrigin || nested.clientOrigin || ""),
+      host: String(source.host || nested.host || "").trim().toLowerCase().slice(0, 160),
+      path: String(source.path || nested.path || source.scope || nested.scope || "").trim().slice(0, 240),
     };
   }
 
@@ -449,10 +474,22 @@ function createWebPushDeliveryService(options = {}) {
   }
 
   function shouldSkipPushSubscriptionForClient(item) {
+    return Boolean(pushSubscriptionSkipReason(item));
+  }
+
+  function pushSubscriptionSkipReason(item) {
     if (!item || typeof item !== "object") return false;
     const context = normalizePushClientContext(item);
     const userAgent = context.userAgent || String(item.userAgent || "");
-    return (isIosUserAgent(userAgent) || isMobilePushClient(context)) && !isStandalonePushClient(context);
+    if ((isIosUserAgent(userAgent) || isMobilePushClient(context)) && !isStandalonePushClient(context)) {
+      return "ios_pwa_standalone_required";
+    }
+    const deploymentOrigin = configuredDeploymentOrigin();
+    if (deploymentOrigin) {
+      if (!context.origin) return "push_deployment_origin_required";
+      if (context.origin !== deploymentOrigin) return "push_deployment_origin_mismatch";
+    }
+    return "";
   }
 
   function recordPushReceipt(body = {}) {
@@ -552,8 +589,9 @@ function createWebPushDeliveryService(options = {}) {
     const now = nowIso();
     const body = JSON.stringify(payload);
     for (const item of subscriptions) {
-      if (shouldSkipPushSubscriptionForClient(item)) {
-        item.lastError = "ios_pwa_standalone_required";
+      const skipReason = pushSubscriptionSkipReason(item);
+      if (skipReason) {
+        item.lastError = skipReason;
         item.updatedAt = now;
         continue;
       }

@@ -123,10 +123,12 @@ function updateWardrobeNavigationAvailability() {
   const button = $("bottomWardrobeMode");
   const nav = $("bottomNav");
   if (button) {
-    button.hidden = !available;
-    button.setAttribute("aria-hidden", available ? "false" : "true");
+    button.hidden = true;
+    button.setAttribute("aria-hidden", "true");
   }
-  nav?.classList.toggle("wardrobe-visible", available);
+  nav?.classList.remove("wardrobe-visible");
+  if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("wardrobe", available);
+  if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
   $("app")?.classList.toggle("wardrobe-capable", available);
   return available;
 }

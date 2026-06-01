@@ -26,11 +26,26 @@ const context = {
   },
   isGroupChatView: () => false,
   messageTimelineTimestamp: (message) => message.updatedAt || message.createdAt || "",
+  $: () => null,
+  currentTaskThreadIsSharedTopicThread: () => false,
+  rememberTaskListThread: () => {},
+  offerOwnerElevationForMessage: () => Promise.resolve(),
+  showError: () => {},
+  renderThreads: () => {},
+  renderCurrentThread: () => {},
+  scheduleRunProgressRenderForRun: () => {},
+  scheduleStreamingMessageRender: () => false,
+  isChatSearchMode: () => false,
+  currentChatSearchQuery: () => "",
+  shouldForceChatStickToBottom: () => false,
+  isNearBottom: () => false,
+  requestAnimationFrame: (fn) => fn(),
 };
 
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(repoRoot, "public", "app-task-groups-ui.js"), "utf8"), context);
 vm.runInContext(fs.readFileSync(path.join(repoRoot, "public", "app-thread-state-ui.js"), "utf8"), context);
+vm.runInContext(fs.readFileSync(path.join(repoRoot, "public", "app-events-composer-ui.js"), "utf8"), context);
 
 context.state.currentThread = {
   id: "thread_1",
@@ -108,5 +123,193 @@ const activeIncoming = {
 
 const preserved = context.mergeCurrentThread(activeIncoming);
 assert.deepEqual(preserved.messages.map((message) => message.id), ["assistant_live"]);
+
+context.state.currentThread = {
+  id: "thread_1",
+  status: "running",
+  activeRunIds: ["run_real"],
+  messages: [
+    {
+      id: "local_user",
+      role: "user",
+      status: "done",
+      taskGroupId: "task_a",
+      content: "same prompt",
+      localPendingSend: true,
+      createdAt: "2026-06-01T07:40:00.000Z",
+      updatedAt: "2026-06-01T07:40:00.000Z",
+    },
+    {
+      id: "local_assistant",
+      role: "assistant",
+      status: "queued",
+      taskGroupId: "task_a",
+      content: "",
+      localPendingSend: true,
+      createdAt: "2026-06-01T07:40:01.000Z",
+      updatedAt: "2026-06-01T07:40:01.000Z",
+    },
+  ],
+};
+
+const realIncoming = {
+  id: "thread_1",
+  status: "running",
+  activeRunIds: ["run_real"],
+  messages: [
+    {
+      id: "real_user",
+      role: "user",
+      status: "done",
+      taskGroupId: "task_a",
+      content: "same prompt",
+      createdAt: "2026-06-01T07:40:02.000Z",
+      updatedAt: "2026-06-01T07:40:02.000Z",
+    },
+    {
+      id: "real_assistant",
+      role: "assistant",
+      status: "running",
+      runId: "run_real",
+      taskGroupId: "task_a",
+      content: "",
+      createdAt: "2026-06-01T07:40:03.000Z",
+      updatedAt: "2026-06-01T07:40:03.000Z",
+    },
+  ],
+};
+
+const replaced = context.mergeCurrentThread(realIncoming);
+assert.deepEqual(replaced.messages.map((message) => message.id), ["real_user", "real_assistant"]);
+
+context.state.currentThread = {
+  id: "thread_1",
+  status: "running",
+  activeRunIds: ["run_stream"],
+  messages: [
+    {
+      id: "local_user_stream",
+      role: "user",
+      status: "done",
+      taskGroupId: "local_task",
+      content: "stream prompt",
+      localPendingSend: true,
+      createdAt: "2026-06-01T07:41:00.000Z",
+      updatedAt: "2026-06-01T07:41:00.000Z",
+    },
+    {
+      id: "local_assistant_stream",
+      role: "assistant",
+      status: "queued",
+      taskGroupId: "local_task",
+      content: "",
+      localPendingSend: true,
+      createdAt: "2026-06-01T07:41:01.000Z",
+      updatedAt: "2026-06-01T07:41:01.000Z",
+    },
+  ],
+};
+
+context.mergeCurrentThreadMessages([
+  {
+    id: "real_user_stream",
+    role: "user",
+    status: "done",
+    taskGroupId: "server_task",
+    content: "stream prompt",
+    createdAt: "2026-06-01T07:41:02.000Z",
+    updatedAt: "2026-06-01T07:41:02.000Z",
+  },
+]);
+assert.deepEqual(Array.from(context.state.currentThread.messages.map((message) => message.id)), ["real_user_stream"]);
+
+context.state.currentThread.messages.push({
+  id: "local_assistant_stream_2",
+  role: "assistant",
+  status: "queued",
+  taskGroupId: "local_task",
+  content: "",
+  localPendingSend: true,
+  createdAt: "2026-06-01T07:41:03.000Z",
+  updatedAt: "2026-06-01T07:41:03.000Z",
+});
+context.mergeCurrentThreadMessages([
+  {
+    id: "real_assistant_stream",
+    role: "assistant",
+    status: "running",
+    runId: "run_stream",
+    taskGroupId: "server_task",
+    content: "",
+    createdAt: "2026-06-01T07:41:04.000Z",
+    updatedAt: "2026-06-01T07:41:04.000Z",
+  },
+]);
+assert.deepEqual(Array.from(context.state.currentThread.messages.map((message) => message.id)), ["real_user_stream", "real_assistant_stream"]);
+
+context.state.currentThread = {
+  id: "thread_1",
+  singleWindow: true,
+  status: "running",
+  activeRunIds: ["run_event"],
+  messages: [
+    {
+      id: "local_user_event",
+      role: "user",
+      status: "done",
+      taskGroupId: "event_task",
+      content: "event prompt",
+      localPendingSend: true,
+      localPendingSendId: "event_send",
+      createdAt: "2026-06-01T07:42:00.000Z",
+      updatedAt: "2026-06-01T07:42:00.000Z",
+    },
+    {
+      id: "local_assistant_event",
+      role: "assistant",
+      status: "queued",
+      taskGroupId: "event_task",
+      content: "",
+      localPendingSend: true,
+      localPendingSendId: "event_send",
+      createdAt: "2026-06-01T07:42:01.000Z",
+      updatedAt: "2026-06-01T07:42:01.000Z",
+    },
+  ],
+};
+
+context.upsertMessage({
+  id: "real_user_event",
+  role: "user",
+  status: "done",
+  taskGroupId: "server_event_task",
+  content: "event prompt",
+  createdAt: "2026-06-01T07:42:02.000Z",
+  updatedAt: "2026-06-01T07:42:02.000Z",
+});
+assert.deepEqual(Array.from(context.state.currentThread.messages.map((message) => message.id)), ["real_user_event"]);
+
+context.state.currentThread.messages.push({
+  id: "local_assistant_event_2",
+  role: "assistant",
+  status: "queued",
+  taskGroupId: "event_task",
+  content: "",
+  localPendingSend: true,
+  localPendingSendId: "event_send",
+  createdAt: "2026-06-01T07:42:03.000Z",
+  updatedAt: "2026-06-01T07:42:03.000Z",
+});
+context.upsertMessage({
+  id: "real_assistant_event",
+  role: "assistant",
+  status: "running",
+  runId: "run_event",
+  taskGroupId: "server_event_task",
+  content: "",
+  createdAt: "2026-06-01T07:42:04.000Z",
+  updatedAt: "2026-06-01T07:42:04.000Z",
+});
+assert.deepEqual(Array.from(context.state.currentThread.messages.map((message) => message.id)), ["real_user_event", "real_assistant_event"]);
 
 console.log("thread-state-ui-behavior tests passed");

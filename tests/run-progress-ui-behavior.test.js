@@ -445,6 +445,25 @@ assert.match(gatewayQueuedHtml, /run-progress-panel inline/);
 assert.match(gatewayQueuedHtml, /Gateway \u6392\u961f\u7b49\u5f85/);
 assert.match(gatewayQueuedHtml, /\u6392\u961f 1/);
 
+const queuedBeforeRunIdThread = {
+  id: "thread_queued_before_run_id",
+  activeRunId: "",
+  activeRunIds: [],
+  messages: [
+    {
+      id: "msg_queued_before_run_id",
+      role: "assistant",
+      status: "queued",
+      queuedAt: "2026-05-27T13:04:00.000Z",
+    },
+  ],
+  events: [],
+};
+const queuedBeforeRunIdHtml = renderMessageRunProgress(queuedBeforeRunIdThread, queuedBeforeRunIdThread.messages[0]);
+assert.match(queuedBeforeRunIdHtml, /run-progress-panel inline pending-run-id/);
+assert.match(queuedBeforeRunIdHtml, /\u8bf7\u6c42\u5df2\u53d1\u9001/);
+assert.match(queuedBeforeRunIdHtml, /\u7b49\u5f85\u6a21\u578b\u6216\u5de5\u5177\u8fd4\u56de/);
+
 const terminalHistoryThread = {
   id: "thread_terminal_history",
   activeRunId: "",

@@ -58,15 +58,15 @@ assert.doesNotMatch(serviceWorker, /self\.clients\.openWindow\(targetUrl\)/);
 assert.doesNotMatch(serviceWorker, /return `\/\?\$\{params\.toString\(\)\}`/);
 
 const indexHtml = read("public/index.html");
-assert.match(indexHtml, /window\.__hermesMobileBrowserShellBlocked = true/);
-assert.match(indexHtml, /preflight\.id = "mobileBrowserShellPreflight"/);
-assert.match(indexHtml, /mode=preflight-browser/);
-assert.match(indexHtml, /index_mobile_browser_shell_preflight/);
-assert.match(indexHtml, /data-mobile-browser-shell-copy/);
+assert.match(indexHtml, /window\.__hermesMobileBrowserShellDetected = true/);
+assert.match(indexHtml, /index_mobile_browser_shell_detected/);
+assert.match(indexHtml, /preflightBlocked: false/);
+assert.doesNotMatch(indexHtml, /preflight\.id = "mobileBrowserShellPreflight"/);
+assert.doesNotMatch(indexHtml, /data-mobile-browser-shell-close/);
 assert.ok(
-  indexHtml.indexOf("__hermesMobileBrowserShellBlocked") > 0
-    && indexHtml.indexOf("__hermesMobileBrowserShellBlocked") < indexHtml.indexOf("/app.js?"),
-  "index.html must run the mobile browser-shell preflight before app bundles load.",
+  indexHtml.indexOf("__hermesMobileBrowserShellDetected") > 0
+    && indexHtml.indexOf("__hermesMobileBrowserShellDetected") < indexHtml.indexOf("/app.js?"),
+  "index.html must record mobile browser-shell diagnostics before app bundles load.",
 );
 
 const pwaPushUi = [
@@ -91,13 +91,13 @@ assert.match(platformUi, /function requireHermesAppWindowForRoute\(params\)/);
 assert.match(platformUi, /function hermesRouteMobileBrowserShell\(\)/);
 assert.match(platformUi, /function showMobileBrowserShellBlocked\(\)/);
 assert.match(platformUi, /function blockMobileBrowserShellAppLaunch\(\)/);
-assert.match(platformUi, /window\.__hermesMobileBrowserShellBlocked === true \|\| hermesRouteMobileBrowserShell\(\)/);
+assert.match(platformUi, /return window\.__hermesMobileBrowserShellBlocked === true;/);
 assert.match(platformUi, /getElementById\("mobileBrowserShellPreflight"\)\?\.remove/);
 assert.match(platformUi, /function guardHermesOwnedSelectedDetailNavigation\(\)/);
 assert.match(platformUi, /function clearHermesOwnedDetailStateAfterBrowserShellBlock\(\)/);
-assert.match(platformUi, /function showApp\(\) \{[\s\S]*?shouldBlockMobileBrowserShellApp\(\)[\s\S]*?showMobileBrowserShellBlocked\(\);[\s\S]*?return;/);
+assert.match(platformUi, /function showApp\(\) \{[\s\S]*?state\.mobileBrowserShellBlocked = false;[\s\S]*?mobile-browser-shell-blocked/);
 assert.match(platformUi, /await loadPushStatus\(\)\.catch\(\(\) => updatePushButton\(\)\);[\s\S]*?if \(blockMobileBrowserShellAppLaunch\(\)\) return;/);
-assert.match(platformUi, /if \(hermesRouteMobileBrowserShell\(\)\) \{[\s\S]*?replaceBlockedBrowserShellRoute\(\);[\s\S]*?return false;/);
+assert.match(platformUi, /if \(hermesRouteMobileBrowserShell\(\)\) \{[\s\S]*?mobile_browser_shell_internal_route_allowed[\s\S]*?return true;/);
 assert.match(platformUi, /state\.viewMode === "automation"[\s\S]*?state\.selectedAutomationId/);
 assert.match(platformUi, /selectedAutomationId: ""[\s\S]*?automationRouteTargetPending: false/);
 const automationUi = read("public/app-automation-ui.js");
@@ -219,26 +219,30 @@ assert.match(wireStartUi, /copyNavigationDiagnostics\(\)\.catch\(showError\)/);
     hermesAppWindowRequiredText: () => "open from PWA",
   };
   vm.runInNewContext(platformUi, sandbox);
-  assert.equal(sandbox.guardHermesOwnedSelectedDetailNavigation(), false);
-  assert.equal(sandbox.state.mobileBrowserShellBlocked, true);
-  assert.equal(sandbox.state.viewMode, "inbox");
-  assert.equal(sandbox.state.selectedAutomationId, "");
-  assert.equal(sandbox.state.automationRouteTargetPending, false);
-  assert.equal(storage.get("hermesWebViewMode"), "inbox");
-  assert.equal(sandbox.window.history.replacedUrl, "/hermes-mobile/?source=pwa");
-  assert.equal(alerts[0], "open from PWA");
-  assert.deepEqual(toasts[0], { message: "open from PWA", tone: "error" });
-  assert.equal(element("app").classList.contains("mobile-browser-shell-blocked"), true);
-  assert.match(element("conversation").innerHTML, /mobile-browser-shell-block/);
+  assert.equal(sandbox.guardHermesOwnedSelectedDetailNavigation(), true);
+  assert.equal(sandbox.state.mobileBrowserShellBlocked, undefined);
+  assert.equal(sandbox.state.viewMode, "automation");
+  assert.equal(sandbox.state.selectedAutomationId, "job-1");
+  assert.equal(sandbox.state.automationRouteTargetPending, true);
+  assert.equal(storage.get("hermesWebViewMode"), undefined);
+  assert.equal(sandbox.window.history.replacedUrl, "");
+  assert.equal(alerts.length, 0);
+  assert.equal(toasts.length, 0);
+  assert.equal(element("app").classList.contains("mobile-browser-shell-blocked"), false);
 
   sandbox.state.mobileBrowserShellBlocked = false;
   sandbox.state.viewMode = "inbox";
   sandbox.state.selectedAutomationId = "";
   element("conversation").innerHTML = "INBOX UI SHOULD NOT REMAIN";
-  assert.equal(sandbox.blockMobileBrowserShellAppLaunch(), true);
-  assert.equal(sandbox.state.mobileBrowserShellBlocked, true);
-  assert.match(element("conversation").innerHTML, /mobile-browser-shell-block/);
-  assert.doesNotMatch(element("conversation").innerHTML, /INBOX UI SHOULD NOT REMAIN/);
+  assert.equal(sandbox.blockMobileBrowserShellAppLaunch(), false);
+  assert.equal(sandbox.state.mobileBrowserShellBlocked, false);
+  assert.equal(element("conversation").innerHTML, "INBOX UI SHOULD NOT REMAIN");
+
+  sandbox.window.__hermesMobileBrowserShellBlocked = true;
+  assert.equal(sandbox.blockMobileBrowserShellAppLaunch(), false);
+  assert.equal(sandbox.state.mobileBrowserShellBlocked, false);
+  assert.equal(sandbox.window.__hermesMobileBrowserShellBlocked, false);
+  assert.equal(element("conversation").innerHTML, "INBOX UI SHOULD NOT REMAIN");
 }
 
 {

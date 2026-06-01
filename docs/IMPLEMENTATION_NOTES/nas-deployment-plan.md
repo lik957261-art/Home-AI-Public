@@ -184,8 +184,20 @@ NAS responsibilities:
   records, Web Push records, and app-owned non-secret config.
 - Public HTTPS reverse proxy and security headers.
 - Same-origin embedded plugin proxy routes.
+- Plugin containers whose business state should stay outside Hermes Mobile.
+  On the maintained NAS deployment this includes:
+  - Finance container `finance-mcp` on loopback `127.0.0.1:8791`;
+  - Email container `email-plugin` on loopback `127.0.0.1:5175`, with runtime
+    SQLite/config/tokens mounted from `/volume1/docker/email-plugin/runtime`.
 - Optional NAS-local bridge host only for routes whose upstream dependencies are
   also reachable from NAS.
+- Codex Mobile embedded-plugin proxying can point to the Windows development
+  host when Codex Mobile itself remains there. On the maintained deployment,
+  NAS Hermes uses
+  `http://192.168.10.108:8787/api/v1/hermes/plugin/manifest` as the server-side
+  Codex Mobile manifest URL and reads the Codex plugin key from a NAS
+  server-side secret file. Browser clients still access Codex through Hermes'
+  same-origin proxy; the Windows Codex Mobile port is not a public user entry.
 
 External Windows/WSL responsibilities:
 
@@ -478,6 +490,29 @@ Recommended migration path:
    registration contract.
 4. Validate manifest, proxy launch, workspace switching, and plugin content for
    Owner, one non-Owner, and Owner-impersonating-that-workspace.
+
+### Plugin MCP Responsibility Boundary
+
+Hermes Mobile host owns the embedded-plugin contract on NAS: plugin registry,
+admin visibility, workspace authorization/provisioning handshake, manifest
+normalization, same-origin proxy, iframe launch, postMessage navigation/back,
+theme/font-size refresh, workspace-switch isolation, and Gateway worker
+selection.
+
+Each plugin project owns its NAS runtime and model-tooling surface: container or
+service process, plugin database and migrations, plugin-specific secrets,
+health checks, MCP server runtime, MCP schema/toolset registration into the
+NAS-local Hermes Agent or Gateway profile, and plugin-side deploy/runbook. If a
+plugin iframe/proxy works but model calls report a missing MCP/toolset, first
+debug the plugin project's NAS MCP package and profile registration. Do not
+solve that by copying plugin MCP source into the Hermes Mobile host.
+
+For the maintained `10.99` NAS, the current Gateway path is a single
+`nas-local-codex` worker at `127.0.0.1:8642`. Therefore Wardrobe, Finance,
+Email, or later plugins that need model-callable tools must register their MCP
+servers with that NAS-local Hermes Agent/Gateway profile, not with the old
+Windows/WSL low Gateway profile generator unless that generator is explicitly in
+use for the deployment.
 
 ### Verified 10.99 Plugin Shape
 

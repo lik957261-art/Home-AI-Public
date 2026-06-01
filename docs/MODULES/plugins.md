@@ -10,10 +10,11 @@ logic, and MCP wrapper.
 
 Wardrobe is the first production plugin. Codex Mobile Web is the second plugin
 path and is integrated from the local Codex Git repo's Hermes plugin manifest.
-Finance/记账 is the third embedded-app plugin and uses the same generic host,
-launch, proxy, navigation, and refresh contracts. These rules are generic and
-apply to future embedded apps such as watches, health, or other private
-workspace tools.
+Finance/记账 is the third embedded-app plugin. Email/邮箱 is the fourth
+embedded-app plugin and uses the same generic host, launch, proxy, navigation,
+refresh, appearance, and workspace provisioning contracts. These rules are
+generic and apply to future embedded apps such as watches, health, or other
+private workspace tools.
 
 ## Source Of Truth
 
@@ -25,6 +26,22 @@ workspace tools.
 - Model-side actions should use the plugin's MCP/toolset when the task requires
   model reasoning or write/readback verification. Human UI operation remains in
   the embedded app.
+- Plugin-side MCP runtime, schema/toolset registration, plugin containers,
+  plugin databases, and plugin-specific deploy scripts are owned by the plugin
+  project. Hermes Mobile consumes registered toolsets through the selected
+  Gateway/Hermes Agent profile; it does not vendor or maintain each plugin's MCP
+  server implementation as host code.
+
+## Host Navigation
+
+The mobile bottom navigation should keep only high-frequency app destinations at
+the first level. Codex remains a first-level bottom tab because it is a frequent
+Owner workflow. Lower-frequency embedded apps such as Wardrobe, Finance, and
+Email are collected under the bottom `应用` entry. That entry opens a compact
+host-owned app list, but each item must still be shown only when the same
+manifest/workspace authorization rules would have made the corresponding plugin
+tab available. Moving an app into the drawer must not bypass plugin visibility,
+workspace clamping, launch-token freshness, iframe hosting, or proxy rules.
 
 ## Manifest Contract
 
@@ -61,7 +78,8 @@ local HTTP service, including `http://127.0.0.1:<port>` or another LAN-only
 upstream, but Hermes Mobile must not hand that upstream URL directly to a phone
 PWA iframe when it is not client-safe.
 
-For local or LAN plugins such as Codex Mobile Web and Wardrobe, Hermes Mobile
+For local or LAN plugins such as Codex Mobile Web, Wardrobe, Finance, and Email,
+Hermes Mobile
 should provide a same-origin proxy entry instead of asking the user to configure
 TLS or a reverse proxy. The browser sees an HTTPS Hermes path such as
 `/api/hermes-plugins/<plugin-id>/proxy/...`; Hermes server-side code forwards
@@ -981,6 +999,57 @@ iframe `src` seen by a phone browser. If a deployment chooses to expose Codex
 through its own HTTPS reverse proxy, `CODEX_MOBILE_HERMES_PLUGIN_BASE_URL` or
 `CODEX_MOBILE_PUBLIC_BASE_URL` can still be used on the Codex side, but that is
 not required for the default local plugin setup.
+
+## Email Plugin
+
+Hermes Mobile registers the Email/邮箱 plugin as a standard `embedded-app`
+plugin:
+
+- plugin id: `email`
+- title: `邮箱`
+- default manifest URL:
+  `http://127.0.0.1:5175/api/v1/hermes/plugin/manifest`
+- default embedded entry from Email:
+  `/?embed=hermes`
+- toolset/MCP server: `email` / `email-mcp`
+- launch events:
+  `email.plugin.navigation`, `email.plugin.back_result`, and
+  `email.plugin.refresh_required`
+
+Email is Owner-visible by default in the effective Owner workspace. Non-Owner
+workspaces remain hidden until Owner grants that workspace through the plugin
+manager, a deployment workspace allowlist, or a discovered workspace-local
+`.hermes-email/access-key.txt`.
+
+Email workspace provisioning is an H1 plugin authorization workflow. When Owner
+grants `email` to a non-Owner workspace, Hermes Mobile calls Email's
+server-side registration endpoint:
+
+```text
+POST /api/v1/hermes/plugin/workspaces
+```
+
+The call is authenticated with a server-side Email Owner key read from
+`HERMES_MOBILE_EMAIL_PLUGIN_OWNER_KEY_PATH`,
+`HERMES_MOBILE_PLUGIN_EMAIL_OWNER_KEY_PATH`, `EMAIL_HERMES_OWNER_KEY_FILE`, or
+`<HERMES_DATA_DIR>\plugin-secrets\email-owner-key.txt`. The registration body
+contains bounded workspace identity and the target workspace root; Email owns
+writing `.hermes-email/config.json` and `.hermes-email/access-key.txt` under
+that workspace. Hermes stores only bounded `active` or
+`provisioning_failed` status. Pending or failed Email provisioning must block
+non-Owner list/manifest/launch so the tab does not appear usable before the
+plugin-side workspace exists.
+
+Email launch uses the generated workspace key as a server-side
+`Authorization: Bearer ...` credential to Email's
+`POST /api/v1/hermes/plugin/launch`. The browser receives only the short-lived
+entry path rewritten through `/api/hermes-plugins/email/proxy/...` when the
+plugin is local HTTP. Hermes Mobile must not own Email OAuth tokens, IMAP app
+passwords, mailbox sync cursors, local message bodies, attachments, provider
+SDKs, or mailbox UI logic. Raw Email Owner keys, workspace keys, launch tokens,
+session cookies, full mail bodies, attachment content, and provider credentials
+must not appear in manifests, iframe URLs, postMessage payloads, frontend state,
+docs, handoffs, screenshots, logs, or tests.
 
 ## Finance Plugin
 

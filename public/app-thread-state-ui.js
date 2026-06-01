@@ -71,6 +71,7 @@ function mergeCurrentThread(incomingThread) {
     return mergeServerMessage(existingMessages.get(message.id), message);
   });
   for (const message of state.currentThread.messages || []) {
+    if (localPendingSendReplacedByIncoming(message, incomingMessages, state.currentThread.messages || [])) continue;
     const shouldPreserveExisting = incomingPage
       ? shouldPreserveMessageOutsideIncomingPage(message, incomingThread)
       : (!incomingHasMessageList || shouldPreserveMessageOutsideIncomingPage(message, incomingThread));

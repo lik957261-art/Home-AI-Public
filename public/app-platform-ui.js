@@ -162,11 +162,11 @@ function showLogin(message = "") {
 }
 
 function showApp() {
-  if (state.mobileBrowserShellBlocked || shouldBlockMobileBrowserShellApp()) {
-    showMobileBrowserShellBlocked();
-    return;
-  }
   hideBootSplash();
+  state.mobileBrowserShellBlocked = false;
+  window.__hermesMobileBrowserShellBlocked = false;
+  document.body?.classList?.remove?.("preflight-mobile-browser-shell");
+  document.getElementById("mobileBrowserShellPreflight")?.remove?.();
   $("setup")?.classList.add("hidden");
   $("login").classList.add("hidden");
   $("app").classList.remove("hidden");
@@ -267,6 +267,7 @@ function normalizedRouteView(value, fallback = "") {
   if (view === "wardrobe" || view === "closet" || view === "outfit") return "wardrobe";
   if (view === "codex" || view === "codex-mobile") return "codex";
   if (view === "finance" || view === "accounting" || view === "ledger") return "finance";
+  if (view === "email" || view === "mail" || view === "mailbox") return "email";
   if (view === "todo" || view === "todos") return "todos";
   if (view === "directory" || view === "directories" || view === "projects") return "projects";
   if (view === "task" || view === "tasks") return "tasks";
@@ -381,7 +382,7 @@ function hermesRouteMobileBrowserShell() {
 }
 
 function shouldBlockMobileBrowserShellApp() {
-  return window.__hermesMobileBrowserShellBlocked === true || hermesRouteMobileBrowserShell();
+  return window.__hermesMobileBrowserShellBlocked === true;
 }
 
 function mobileBrowserShellBlockedTitle() {
@@ -432,7 +433,7 @@ function showMobileBrowserShellBlocked() {
           <code class="mobile-browser-shell-block-diagnostic">${escapeHtml(mobileBrowserShellDiagnosticText())}</code>
           <div class="mobile-browser-shell-block-actions">
             <button class="secondary-small" type="button" data-mobile-browser-shell-copy>${"\u590d\u5236\u8bca\u65ad"}</button>
-            <button class="secondary-small" type="button" data-mobile-browser-shell-close>${"\u5173\u95ed\u6b64\u6d4f\u89c8\u5668\u7a97\u53e3"}</button>
+            <button class="secondary-small" type="button" data-mobile-browser-shell-close>${"\u8fd4\u56de Hermes"}</button>
           </div>
         </section>
       `;
@@ -440,8 +441,12 @@ function showMobileBrowserShellBlocked() {
         copyNavigationDiagnostics().catch(() => {});
       });
       conversation.querySelector("[data-mobile-browser-shell-close]")?.addEventListener("click", () => {
-        try { window.close(); } catch (_) {}
-        showHermesAppWindowRequiredMessage();
+        state.mobileBrowserShellBlocked = false;
+        window.__hermesMobileBrowserShellBlocked = false;
+        replaceBlockedBrowserShellRoute();
+        applyDefaultLaunchView();
+        showApp();
+        loadSelectedView?.();
       });
       conversation.scrollTop = 0;
     }
@@ -450,11 +455,18 @@ function showMobileBrowserShellBlocked() {
 }
 
 function blockMobileBrowserShellAppLaunch() {
+  if (window.__hermesMobileBrowserShellDetected === true || hermesRouteMobileBrowserShell()) {
+    recordNavigationDiagnostic("mobile_browser_shell_app_launch_allowed", {
+      source: window.__hermesMobileBrowserShellDetected === true ? "index_detection" : "app_router",
+    });
+  }
   if (!shouldBlockMobileBrowserShellApp()) return false;
-  recordNavigationDiagnostic("block_mobile_browser_shell_app_launch", {});
-  clearHermesOwnedDetailStateAfterBrowserShellBlock();
-  showMobileBrowserShellBlocked();
-  return true;
+  recordNavigationDiagnostic("legacy_mobile_browser_shell_block_recovered", {});
+  state.mobileBrowserShellBlocked = false;
+  window.__hermesMobileBrowserShellBlocked = false;
+  document.body?.classList?.remove?.("preflight-mobile-browser-shell");
+  document.getElementById("mobileBrowserShellPreflight")?.remove?.();
+  return false;
 }
 
 function showHermesAppWindowRequiredMessage() {
@@ -503,9 +515,8 @@ function replaceBlockedBrowserShellRoute() {
 function requireHermesAppWindowForRoute(params) {
   if (!routeParamsHaveHermesOwnedDetailTarget(params)) return true;
   if (hermesRouteMobileBrowserShell()) {
-    showHermesAppWindowRequiredMessage();
-    replaceBlockedBrowserShellRoute();
-    return false;
+    recordNavigationDiagnostic("mobile_browser_shell_internal_route_allowed", {});
+    return true;
   }
   if (typeof requireHermesAppWindowForNavigation === "function") {
     const allowed = requireHermesAppWindowForNavigation();
@@ -614,6 +625,14 @@ function applyRouteParams(params) {
   }
   if (routeView === "finance" && typeof setFinancePluginOpenRoute === "function") {
     setFinancePluginOpenRoute({
+      pluginRoute: params.get("pluginRoute") || params.get("route") || "",
+      pluginItemId: params.get("pluginItemId") || params.get("itemId") || "",
+      pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",
+      pluginTaskId: params.get("pluginTaskId") || params.get("taskId") || "",
+    });
+  }
+  if (routeView === "email" && typeof setEmailPluginOpenRoute === "function") {
+    setEmailPluginOpenRoute({
       pluginRoute: params.get("pluginRoute") || params.get("route") || "",
       pluginItemId: params.get("pluginItemId") || params.get("itemId") || "",
       pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",

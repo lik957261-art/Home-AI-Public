@@ -6,12 +6,14 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL,
+  DEFAULT_EMAIL_PLUGIN_MANIFEST_URL,
   DEFAULT_FINANCE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   configuredPlugins,
   createHermesPluginService,
   discoverPluginWorkspaceIdsFromAccessKeys,
   findCodexMobileAccessKeyPath,
+  findEmailAccessKeyPath,
   findFinanceAccessKeyPath,
   findWardrobeAccessKeyPath,
   frameAncestorsAllows,
@@ -137,6 +139,44 @@ function sampleFinanceManifest() {
   };
 }
 
+function sampleEmailManifest() {
+  return {
+    id: "email",
+    title: "邮箱",
+    kind: "embedded_app",
+    entry: {
+      type: "web",
+      url: "http://127.0.0.1:5175/?embed=hermes",
+    },
+    navigation: {
+      state_event: "email.plugin.navigation",
+      back_event: "hermes.plugin.back",
+      back_result_event: "email.plugin.back_result",
+      refresh_required_event: "email.plugin.refresh_required",
+      preserve_iframe_state: true,
+    },
+    mcp: {
+      server: "email-mcp",
+      toolset: "email",
+      required_tools: ["email.search_messages", "email.get_message"],
+    },
+    program_api: {
+      base_url: "http://127.0.0.1:5175",
+      workspace_registration: "/api/v1/hermes/plugin/workspaces",
+      plugin_launch: "/api/v1/hermes/plugin/launch",
+    },
+    owner_binding: {
+      strategy: "workspace_generated_access_key",
+      config_file: ".hermes-email/config.json",
+      access_key_file: ".hermes-email/access-key.txt",
+      raw_key_returned_by_email: false,
+    },
+    permissions: {
+      register_workspace_requires: ["owners:write"],
+    },
+  };
+}
+
 function testNormalizeManifest() {
   const manifest = normalizeManifest(sampleManifest(), {
     id: "wardrobe",
@@ -196,6 +236,29 @@ function testNormalizeFinanceManifest() {
   assert.equal(manifest.embedding.backResultEvent, "finance.plugin.back_result");
   assert.equal(manifest.embedding.refreshRequiredEvent, "finance.plugin.refresh_required");
   assert.equal(manifest.embedding.preserveIframeState, true);
+}
+
+function testNormalizeEmailManifest() {
+  const manifest = normalizeManifest(sampleEmailManifest(), {
+    id: "email",
+    manifestUrl: "http://127.0.0.1:5175/api/v1/hermes/plugin/manifest",
+    fetchedAt: "2026-06-01T00:00:00.000Z",
+  });
+  assert.equal(manifest.id, "email");
+  assert.equal(manifest.kind, "embedded_app");
+  assert.equal(manifest.entry.url, "http://127.0.0.1:5175/?embed=hermes");
+  assert.equal(manifest.programApi.baseUrl, "http://127.0.0.1:5175/");
+  assert.equal(manifest.programApi.pluginLaunchPath, "/api/v1/hermes/plugin/launch");
+  assert.equal(manifest.programApi.workspaceRegistrationPath, "/api/v1/hermes/plugin/workspaces");
+  assert.equal(manifest.mcp.server, "email-mcp");
+  assert.equal(manifest.mcp.toolset, "email");
+  assert.deepEqual(manifest.mcp.requiredTools, ["email.search_messages", "email.get_message"]);
+  assert.equal(manifest.embedding.stateEvent, "email.plugin.navigation");
+  assert.equal(manifest.embedding.backResultEvent, "email.plugin.back_result");
+  assert.equal(manifest.embedding.refreshRequiredEvent, "email.plugin.refresh_required");
+  assert.equal(manifest.ownerBinding.configFile, ".hermes-email/config.json");
+  assert.equal(manifest.ownerBinding.rawKeyReturned, false);
+  assert.equal(Object.hasOwn(manifest.ownerBinding, "access_key_file"), false);
 }
 
 function testNormalizePluginAppearance() {
@@ -335,22 +398,28 @@ async function testDefaultNasManifestUrl() {
   assert.equal(service.list()[0].manifestUrl, DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL);
   assert.equal(service.list()[1].manifestUrl, DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL);
   assert.equal(service.list()[2].manifestUrl, DEFAULT_FINANCE_PLUGIN_MANIFEST_URL);
+  assert.equal(service.list()[3].manifestUrl, DEFAULT_EMAIL_PLUGIN_MANIFEST_URL);
   assert.equal(service.listInstalled()[0].title, "衣橱");
   assert.equal(service.listInstalled()[1].title, "Codex");
   assert.equal(service.listInstalled()[2].title, "记账");
+  assert.equal(service.listInstalled()[3].title, "邮箱");
 }
 
 function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-plugin-bindings-"));
   const wardrobeKey = path.join(dir, "drive", "users", "weixin_wuping", "Hermes-吴萍", "衣橱", ".hermes-wardrobe", "access-key.txt");
   const financeKey = path.join(dir, "drive", "users", "child_workspace", "Finance", ".hermes-finance", "access-key.txt");
+  const emailKey = path.join(dir, "drive", "users", "mail_workspace", "Email", ".hermes-email", "access-key.txt");
   fs.mkdirSync(path.dirname(wardrobeKey), { recursive: true });
   fs.mkdirSync(path.dirname(financeKey), { recursive: true });
+  fs.mkdirSync(path.dirname(emailKey), { recursive: true });
   fs.writeFileSync(wardrobeKey, "wardrobe-key\n", "utf8");
   fs.writeFileSync(financeKey, "finance-key\n", "utf8");
+  fs.writeFileSync(emailKey, "email-key\n", "utf8");
 
   assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("wardrobe", { dataDir: dir }), ["weixin_wuping"]);
   assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("finance", { dataDir: dir }), ["child_workspace"]);
+  assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("email", { dataDir: dir }), ["mail_workspace"]);
 
   const service = createHermesPluginService({
     dataDir: dir,
@@ -362,6 +431,7 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   const installed = service.listInstalled();
   assert.deepEqual(installed.find((item) => item.id === "wardrobe").authorizedWorkspaceIds, ["weixin_wuping"]);
   assert.deepEqual(installed.find((item) => item.id === "finance").authorizedWorkspaceIds, ["child_workspace"]);
+  assert.deepEqual(installed.find((item) => item.id === "email").authorizedWorkspaceIds, ["mail_workspace"]);
   assert.deepEqual(installed.find((item) => item.id === "finance").workspaceAuthorizations, [{
     workspaceId: "child_workspace",
     status: "authorized",
@@ -444,6 +514,96 @@ async function testFinanceProvisioningFailureBlocksManifest() {
   assert.equal(grant.record.provisioningError, "finance_bind_failed_503");
   assert.deepEqual(service.list({ workspaceId: "weixin_fail" }), []);
   const manifest = await service.manifest({ id: "finance", workspaceId: "weixin_fail", launchPlugin: true });
+  assert.equal(manifest.available, false);
+  assert.equal(manifest.code, "plugin_workspace_provisioning_failed");
+  assert.equal(manifest.embed.tokenStatus, "workspace_provisioning_failed");
+}
+
+async function testEmailGrantProvisionsWorkspaceRegistrationAndLaunch() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-email-grant-"));
+  const ownerKeyPath = path.join(dir, "email-owner-key.txt");
+  fs.writeFileSync(ownerKeyPath, "email-owner-test-key\n", "utf8");
+  const calls = [];
+  const service = createHermesPluginService({
+    dataDir: dir,
+    env: {},
+    emailOwnerKeyPath: ownerKeyPath,
+    plugins: [{ id: "email", manifestUrl: "http://127.0.0.1:5175/api/v1/hermes/plugin/manifest" }],
+    fetch(url, options = {}) {
+      calls.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      if (url.endsWith("/api/v1/hermes/plugin/workspaces")) {
+        const body = JSON.parse(options.body);
+        assert.equal(options.headers.Authorization, "Bearer email-owner-test-key");
+        const configDir = path.join(body.workspace_root, ".hermes-email");
+        fs.mkdirSync(configDir, { recursive: true });
+        fs.writeFileSync(path.join(configDir, "config.json"), JSON.stringify({
+          workspace_id: body.workspace_id,
+          plugin_id: "email",
+          status: "active",
+        }), "utf8");
+        fs.writeFileSync(path.join(configDir, "access-key.txt"), "email-ws-test-key\n", "utf8");
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ ok: true, workspace_id: body.workspace_id, status: "active", created: true }),
+        });
+      }
+      if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(sampleEmailManifest()) });
+      }
+      if (url.endsWith("/api/v1/hermes/plugin/launch")) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ entry_path: "/?embed=hermes&launch=email-once", expires_in: 300 }) });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+  const grant = await service.grantWorkspace({ id: "email", workspaceId: "weixin_email", displayName: "Email User", actor: "owner" });
+  assert.equal(grant.ok, true);
+  assert.equal(grant.record.provisioningStatus, "active");
+  assert.equal(grant.provisioning.keyCreated, true);
+  assert.equal(grant.provisioning.configCreated, true);
+  const keyPath = path.join(dir, "drive", "users", "weixin_email", ".hermes-email", "access-key.txt");
+  assert.equal(fs.existsSync(keyPath), true);
+  const rawKey = fs.readFileSync(keyPath, "utf8").trim();
+  assert.equal(JSON.stringify(grant).includes(rawKey), false);
+  assert.deepEqual(calls[0].body, {
+    workspace_id: "weixin_email",
+    workspace_name: "Email User",
+    display_name: "Email User",
+    workspace_root: path.join(dir, "drive", "users", "weixin_email"),
+  });
+
+  const manifest = await service.manifest({ id: "email", workspaceId: "weixin_email", launchPlugin: true });
+  assert.equal(manifest.available, true);
+  assert.equal(manifest.embed.tokenStatus, "launch_token_issued");
+  const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
+  assert.ok(launchCall);
+  assert.equal(launchCall.options.headers.Authorization, `Bearer ${rawKey}`);
+  assert.deepEqual(launchCall.body, { workspace_id: "weixin_email" });
+  assert.doesNotMatch(JSON.stringify(manifest), /email-ws-test-key|Authorization|Bearer|"launch_token"/);
+}
+
+async function testEmailProvisioningFailureBlocksManifest() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-email-grant-fail-"));
+  const service = createHermesPluginService({
+    dataDir: dir,
+    env: {},
+    plugins: [{ id: "email", manifestUrl: "http://127.0.0.1:5175/api/v1/hermes/plugin/manifest" }],
+    emailProvisioningService: {
+      provisionWorkspace() {
+        return Promise.resolve({ ok: false, error: "email_workspace_registration_failed_503" });
+      },
+    },
+    fetch() {
+      throw new Error("failed email provisioning must block before plugin manifest fetch");
+    },
+  });
+  const grant = await service.grantWorkspace({ id: "email", workspaceId: "weixin_email_fail", displayName: "Fail", actor: "owner" });
+  assert.equal(grant.ok, true);
+  assert.equal(grant.record.provisioningStatus, "provisioning_failed");
+  assert.equal(grant.record.provisioningError, "email_workspace_registration_failed_503");
+  assert.deepEqual(service.list({ workspaceId: "weixin_email_fail" }), []);
+  const manifest = await service.manifest({ id: "email", workspaceId: "weixin_email_fail", launchPlugin: true });
   assert.equal(manifest.available, false);
   assert.equal(manifest.code, "plugin_workspace_provisioning_failed");
   assert.equal(manifest.embed.tokenStatus, "workspace_provisioning_failed");
@@ -1107,6 +1267,10 @@ function testFindFinanceAccessKeyPath() {
   assert.equal(findFinanceAccessKeyPath({ workspaceId: "weixin_wuping" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
 }
 
+function testFindEmailAccessKeyPath() {
+  assert.equal(findEmailAccessKeyPath({ emailAccessKeyPath: __filename }), __filename);
+}
+
 async function testReviewFinanceLedgerJoinRequestUsesDedicatedFinanceEndpoint() {
   const calls = [];
   const result = await reviewFinanceLedgerJoinRequest({
@@ -1145,6 +1309,7 @@ async function run() {
   testNormalizeManifest();
   testNormalizeCodexManifest();
   testNormalizeFinanceManifest();
+  testNormalizeEmailManifest();
   testNormalizePluginAppearance();
   testFrameAncestorsAllowsCurrentOrigin();
   await testFetchesConfiguredWardrobeManifest();
@@ -1156,6 +1321,8 @@ async function run() {
   testInstalledPluginListReflectsWorkspaceKeyBindings();
   await testFinanceGrantProvisionsWorkspaceKeyAndBind();
   await testFinanceProvisioningFailureBlocksManifest();
+  await testEmailGrantProvisionsWorkspaceRegistrationAndLaunch();
+  await testEmailProvisioningFailureBlocksManifest();
   await testWardrobeGrantProvisionsWorkspaceKeySkillGatewayAndLaunchBinding();
   await testWardrobeProvisioningFailureBlocksManifest();
   await testLegacyWardrobePendingProvisioningBlocksManifest();
@@ -1173,6 +1340,7 @@ async function run() {
   testFindWardrobeAccessKeyPath();
   testFindCodexMobileAccessKeyPath();
   testFindFinanceAccessKeyPath();
+  testFindEmailAccessKeyPath();
   await testReviewFinanceLedgerJoinRequestUsesDedicatedFinanceEndpoint();
 }
 

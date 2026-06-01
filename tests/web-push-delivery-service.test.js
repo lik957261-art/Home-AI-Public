@@ -132,11 +132,12 @@ function testSubscriptionSendAndRemoval() {
       principalId: "child-principal",
       deviceLabel: "iPad",
       userAgent: "ua",
-      clientContext: { displayMode: "standalone", standalone: true, clientVersion: "client-pwa" },
+      clientContext: { displayMode: "standalone", standalone: true, clientVersion: "client-pwa", origin: "https://prod.example.test/app" },
     });
     assert.equal(saved.endpointHash, "hash-endpoint-a");
     assert.deepEqual(saved.principalIds, ["child-principal"]);
     assert.deepEqual(saved.workspaceIds, ["child"]);
+    assert.equal(state.pushSubscriptions[0].clientContext.origin, "https://prod.example.test");
 
     return service.sendPushNotification({ title: "Hello", data: { workspaceId: "child" } }, {
       principalId: "child-principal",
@@ -149,6 +150,51 @@ function testSubscriptionSendAndRemoval() {
       assert.equal(state.pushDeliveries.length, 1);
       assert.equal(service.removePushSubscription("endpoint-a"), true);
       assert.equal(state.pushSubscriptions.length, 0);
+    });
+  });
+}
+
+function testDeploymentOriginFiltersCopiedSubscriptions() {
+  withTempDir((root) => {
+    const { calls, service, state } = createHarness(root, {
+      serviceOptions: { deploymentOrigin: "https://prod.example.test/hermes" },
+    });
+    state.pushSubscriptions.push({
+      id: "push_dev_origin",
+      endpointHash: "hash-dev-origin",
+      subscription: { endpoint: "endpoint-dev-origin", keys: { p256dh: "p", auth: "a" } },
+      clientContext: { displayMode: "standalone", standalone: true, origin: "https://dev.example.test" },
+      principalIds: ["owner"],
+      workspaceIds: ["owner"],
+    });
+    state.pushSubscriptions.push({
+      id: "push_legacy_unscoped",
+      endpointHash: "hash-legacy-unscoped",
+      subscription: { endpoint: "endpoint-legacy-unscoped", keys: { p256dh: "p", auth: "a" } },
+      clientContext: { displayMode: "standalone", standalone: true },
+      principalIds: ["owner"],
+      workspaceIds: ["owner"],
+    });
+    state.pushSubscriptions.push({
+      id: "push_prod_origin",
+      endpointHash: "hash-prod-origin",
+      subscription: { endpoint: "endpoint-prod-origin", keys: { p256dh: "p", auth: "a" } },
+      clientContext: { displayMode: "standalone", standalone: true, origin: "https://prod.example.test" },
+      principalIds: ["owner"],
+      workspaceIds: ["owner"],
+      lastError: null,
+    });
+    assert.equal(service.publicPushStatus().subscriptionCount, 1);
+
+    return service.sendPushNotification({ title: "Hello", data: { workspaceId: "owner" } }, {
+      principalId: "owner",
+    }).then((result) => {
+      assert.deepEqual(result, { enabled: true, attempted: 1, sent: 1, failed: 0, removed: 0, skipped: 2 });
+      assert.equal(calls.sends.length, 1);
+      assert.equal(calls.sends[0].subscription.endpoint, "endpoint-prod-origin");
+      assert.equal(state.pushSubscriptions[0].lastError, "push_deployment_origin_mismatch");
+      assert.equal(state.pushSubscriptions[1].lastError, "push_deployment_origin_required");
+      assert.equal(state.pushSubscriptions[2].lastError, null);
     });
   });
 }
@@ -938,6 +984,7 @@ function testAutomationListSortUsesLatestActivity() {
 Promise.resolve()
   .then(testVapidLifecycleAndPublicStatus)
   .then(testSubscriptionSendAndRemoval)
+  .then(testDeploymentOriginFiltersCopiedSubscriptions)
   .then(testIosBrowserSubscriptionsAreRejectedAndSkipped)
   .then(testReceiptMarksTodoWithoutCountingAttempt)
   .then(testTodoTickReconcilesAndDeliversPendingEvents)

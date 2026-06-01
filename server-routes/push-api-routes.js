@@ -22,6 +22,30 @@ function defaultNowIso() {
   return new Date().toISOString();
 }
 
+function normalizeRequestOrigin(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  try {
+    const parsed = new URL(text);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    return `${parsed.protocol}//${parsed.host}`.toLowerCase();
+  } catch (_) {
+    return "";
+  }
+}
+
+function requestOrigin(req) {
+  const headers = req?.headers || {};
+  const origin = normalizeRequestOrigin(headers.origin);
+  if (origin) return origin;
+  const referer = normalizeRequestOrigin(headers.referer || headers.referrer);
+  if (referer) return referer;
+  const host = String(headers["x-forwarded-host"] || headers.host || "").split(",")[0].trim();
+  if (!host) return "";
+  const proto = String(headers["x-forwarded-proto"] || "").split(",")[0].trim() || "http";
+  return normalizeRequestOrigin(`${proto}://${host}`);
+}
+
 function defaultAppRouteUrl(params = {}) {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -216,6 +240,7 @@ function createPushApiRoutes(deps = {}) {
         const pushWorkspaceId = pushWorkspaceForAuth(authenticateRequest(req), workspaceId);
         const clientContext = body.clientContext && typeof body.clientContext === "object" ? body.clientContext : {};
         const userAgent = String(req.headers?.["user-agent"] || body.userAgent || clientContext.userAgent || "");
+        const publicOrigin = requestOrigin(req) || clientContext.origin || body.origin || "";
         const saved = savePushSubscription(subscription, {
           deviceLabel: body.deviceLabel || body.label || "",
           userAgent,
@@ -225,6 +250,9 @@ function createPushApiRoutes(deps = {}) {
             standalone: body.standalone ?? clientContext.standalone,
             clientVersion: body.clientVersion || clientContext.clientVersion || "",
             platform: body.platform || clientContext.platform || "",
+            origin: publicOrigin,
+            host: clientContext.host || body.host || "",
+            path: clientContext.path || body.path || "",
           }),
           displayMode: body.displayMode || clientContext.displayMode || "",
           standalone: body.standalone ?? clientContext.standalone,

@@ -275,7 +275,35 @@ function wireUi() {
     state.currentThreadId = "";
     await loadSelectedView();
   });
+  $("bottomPluginMode")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const menu = $("bottomPluginMenu");
+    const button = $("bottomPluginMode");
+    if (!menu || !button || button.hidden) return;
+    const open = menu.hidden;
+    menu.hidden = !open;
+    button.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  document.addEventListener("click", (event) => {
+    const menu = $("bottomPluginMenu");
+    const button = $("bottomPluginMode");
+    if (!menu || menu.hidden) return;
+    if (menu.contains(event.target) || button?.contains(event.target)) return;
+    if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
+  });
   $("bottomWardrobeMode")?.addEventListener("click", async () => {
+    clearQuotedReply({ render: false });
+    if (typeof rememberWardrobePluginReturnRoute === "function") rememberWardrobePluginReturnRoute();
+    state.viewMode = "wardrobe";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    state.currentThread = null;
+    state.currentThreadId = "";
+    await loadSelectedView();
+  });
+  $("bottomPluginWardrobeMode")?.addEventListener("click", async () => {
+    if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
     clearQuotedReply({ render: false });
     if (typeof rememberWardrobePluginReturnRoute === "function") rememberWardrobePluginReturnRoute();
     state.viewMode = "wardrobe";
@@ -299,6 +327,38 @@ function wireUi() {
     clearQuotedReply({ render: false });
     if (typeof rememberFinancePluginReturnRoute === "function") rememberFinancePluginReturnRoute();
     state.viewMode = "finance";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    state.currentThread = null;
+    state.currentThreadId = "";
+    await loadSelectedView();
+  });
+  $("bottomPluginFinanceMode")?.addEventListener("click", async () => {
+    if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
+    clearQuotedReply({ render: false });
+    if (typeof rememberFinancePluginReturnRoute === "function") rememberFinancePluginReturnRoute();
+    state.viewMode = "finance";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    state.currentThread = null;
+    state.currentThreadId = "";
+    await loadSelectedView();
+  });
+  $("bottomEmailMode")?.addEventListener("click", async () => {
+    clearQuotedReply({ render: false });
+    if (typeof rememberEmailPluginReturnRoute === "function") rememberEmailPluginReturnRoute();
+    state.viewMode = "email";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    state.currentThread = null;
+    state.currentThreadId = "";
+    await loadSelectedView();
+  });
+  $("bottomPluginEmailMode")?.addEventListener("click", async () => {
+    if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
+    clearQuotedReply({ render: false });
+    if (typeof rememberEmailPluginReturnRoute === "function") rememberEmailPluginReturnRoute();
+    state.viewMode = "email";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
     state.currentThread = null;

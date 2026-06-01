@@ -29,9 +29,11 @@ function applyViewMode() {
   const wardrobe = state.viewMode === "wardrobe";
   const codex = state.viewMode === "codex";
   const finance = state.viewMode === "finance";
+  const email = state.viewMode === "email";
   if (typeof updateWardrobeNavigationAvailability === "function") updateWardrobeNavigationAvailability();
   if (typeof updateCodexPluginNavigationAvailability === "function") updateCodexPluginNavigationAvailability();
   if (typeof updateFinancePluginNavigationAvailability === "function") updateFinancePluginNavigationAvailability();
+  if (typeof updateEmailPluginNavigationAvailability === "function") updateEmailPluginNavigationAvailability();
   if (!(single && state.singleWindowMode === "chat")) renderChatScopeHeader(null);
   $("app")?.classList.toggle("todo-mode", todos);
   $("app")?.classList.toggle("inbox-mode", inbox);
@@ -41,6 +43,7 @@ function applyViewMode() {
   $("app")?.classList.toggle("wardrobe-mode", wardrobe);
   $("app")?.classList.toggle("codex-mode", codex);
   $("app")?.classList.toggle("finance-mode", finance);
+  $("app")?.classList.toggle("email-mode", email);
   $("chatManagementMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
   $("taskManagementMode")?.classList.toggle("active", tasks || (single && state.singleWindowMode === "task"));
   $("bottomChatMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
@@ -57,17 +60,22 @@ function applyViewMode() {
   $("bottomLearningMode")?.classList.toggle("active", learning);
   $("todosMode").classList.toggle("active", learning);
   $("bottomTodosMode")?.classList.toggle("active", learning);
+  $("bottomPluginMode")?.classList.toggle("active", wardrobe || finance || email);
+  $("bottomPluginWardrobeMode")?.classList.toggle("active", wardrobe);
   $("bottomWardrobeMode")?.classList.toggle("active", wardrobe);
   $("bottomCodexMode")?.classList.toggle("active", codex);
+  $("bottomPluginFinanceMode")?.classList.toggle("active", finance);
   $("bottomFinanceMode")?.classList.toggle("active", finance);
+  $("bottomPluginEmailMode")?.classList.toggle("active", email);
+  $("bottomEmailMode")?.classList.toggle("active", email);
   $("taskModeControls")?.classList.add("hidden");
   $("routeFields").classList.add("hidden");
   $("directoryEntry")?.classList.add("hidden");
   $("directoryEntry")?.parentElement?.classList.add("hidden");
-  $("newThread").classList.toggle("hidden", single || tasks || automation || inbox || learning || directory || todos || wardrobe);
-  $("newThread").disabled = single || tasks || automation || inbox || learning || directory || todos || wardrobe;
+  $("newThread").classList.toggle("hidden", single || tasks || automation || inbox || learning || directory || todos || wardrobe || codex || finance || email);
+  $("newThread").disabled = single || tasks || automation || inbox || learning || directory || todos || wardrobe || codex || finance || email;
   $("newThread").textContent = todos ? "新建看板卡片" : "新建话题";
-  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : learning ? "Search growth" : wardrobe ? "Search wardrobe" : "Search directories";
+  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : learning ? "Search growth" : wardrobe ? "Search wardrobe" : email ? "Search email" : "Search directories";
   updateSearchButton();
 }
 
@@ -86,6 +94,9 @@ async function loadSelectedView() {
   }
   if (state.viewMode !== "finance" && typeof parkFinancePluginShell === "function") {
     parkFinancePluginShell();
+  }
+  if (state.viewMode !== "email" && typeof parkEmailPluginShell === "function") {
+    parkEmailPluginShell();
   }
   if (state.viewMode !== "projects") state.directoryReturnRoute = null;
   if (state.viewMode !== "todos") clearTodoAutoRefresh();
@@ -139,6 +150,9 @@ async function loadSelectedView() {
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "finance") {
     renderFinancePluginView();
+    if (!currentViewStillSelected()) return;
+  } else if (state.viewMode === "email") {
+    renderEmailPluginView();
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "projects") {
     await loadDirectoryView();

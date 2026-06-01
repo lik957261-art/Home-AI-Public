@@ -16,6 +16,9 @@ Automation owns scheduled jobs, detail loading, Web Push/deep-link production, a
 
 ## Product Rules
 
+- Official Hermes CRON is the canonical automation job source for production
+  automation. Hermes Mobile must not maintain a second durable job-definition
+  store that silently diverges from official CRON.
 - Foreground Automation list should preserve the full-detail display format.
 - Product direction: Automation should not remain a permanent primary bottom tab after Action Inbox is active.
 - The mobile entry for Automation management after Action Inbox activation is the Inbox top-right overflow menu, which can open the Automation list or create a new automation.
@@ -32,6 +35,34 @@ Automation owns scheduled jobs, detail loading, Web Push/deep-link production, a
 - Foreground Web Push with `messageType=automation_*` or `automationId` must invalidate Automation full-cache state. If the Automation view is open, it should force a full refresh and repaint the list after fresh data arrives.
 - A user-initiated full refresh after deleting an automation must replace the local list with the server list. Do not append missing local cache entries back into a refreshed list, or deleted jobs can appear to survive deletion.
 - Long cron jobs must not block the scheduling entrance.
+
+## Canonical Store Boundary
+
+Hermes Mobile's Automation API is a safety and projection layer over the
+canonical scheduler, not a replacement scheduler.
+
+- Production job definitions, schedule state, pause/resume/run/delete, and
+  next-run calculation should be owned by official Hermes CRON.
+- `server-routes/automation-api-routes.js` may expose a stable Mobile API, but
+  it should project the official CRON job list after applying
+  workspace/principal filtering, path privacy, output-file authorization,
+  Action Inbox/Web Push metadata, and UI field normalization.
+- SQLite/local automation storage is allowed only for first-run local product
+  installs, tests, temporary import/migration, or an explicitly selected future
+  scheduler backend. It must not be treated as a live mirror of official CRON in
+  production.
+- A production deployment must not return `available=true` with an empty SQLite
+  automation store when official CRON contains jobs. That is a configuration
+  drift, not a valid "no automations" state.
+- If the configured backend is unavailable, unknown, or inconsistent with the
+  deployment contract, the API should report a bounded diagnostic warning/error
+  rather than silently falling back to an empty alternate store.
+- Creating, updating, deleting, pausing, resuming, or manually running an
+  automation from Hermes Mobile should mutate the canonical backend only. Any
+  cache or UI projection must be invalidated after the canonical mutation.
+- Task prompt text, generated reports, runner logs, raw model output, raw mail
+  content, tokens, local secret paths, and push endpoints must not be copied
+  into Automation docs, handoffs, or long-lived diagnostic records.
 
 ## Cron Dispatcher
 

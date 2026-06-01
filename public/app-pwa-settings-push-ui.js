@@ -142,6 +142,9 @@ function pushClientContext() {
     clientVersion: state.clientVersion || document.documentElement?.dataset?.clientVersion || "",
     platform: navigator.platform || "",
     userAgent: navigator.userAgent || "",
+    origin: window.location.origin || "",
+    host: window.location.host || "",
+    path: window.location.pathname || "/",
   };
 }
 

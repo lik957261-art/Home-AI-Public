@@ -196,6 +196,7 @@ function mergeChatScopeThread(existingThread, incomingThread) {
     return mergeServerMessage(existingMessages.get(message.id), message);
   });
   for (const message of existingThread.messages || []) {
+    if (localPendingSendReplacedByIncoming(message, incomingMessages, existingThread.messages || [])) continue;
     if (!incomingIds.has(message.id) && (!incomingPage || shouldPreserveMessageOutsideIncomingPage(message))) {
       messages.push(message);
     }

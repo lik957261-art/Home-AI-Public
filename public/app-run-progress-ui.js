@@ -609,6 +609,22 @@ function renderRunProgressQuietRow(lastEventMs, startMs) {
   </div>`;
 }
 
+function renderPendingRunProgressPanel(message = {}) {
+  const startMs = [
+    message.queuedAt,
+    message.startedAt,
+    message.createdAt,
+    message.updatedAt,
+  ].map(runProgressTimestampMs).find(Boolean) || Date.now();
+  return `<aside class="run-progress-panel inline pending-run-id" aria-live="polite">
+    <div class="run-progress-head">
+      <span>\u8fd0\u884c\u4e2d</span>
+      <span data-run-progress-elapsed="${escapeHtml(String(startMs))}">${escapeHtml(runProgressDurationLabel(startMs))}</span>
+    </div>
+    <div class="run-progress-rows">${renderRunProgressWaitingRow(startMs)}</div>
+  </aside>`;
+}
+
 function renderRunProgressPanel(thread, runIds, options = {}) {
   const ids = (runIds || []).filter(Boolean);
   if (!ids.length) return "";
@@ -655,7 +671,7 @@ function renderMessageRunProgress(thread, message = {}, options = {}) {
   if (!messageStatusCanHaveRunProgress(message)) return "";
   if (RUN_PROGRESS_TERMINAL_STATUSES.has(status)) return "";
   const runIds = messageRunProgressIds(thread, message, options);
-  if (!runIds.length) return "";
+  if (!runIds.length) return messageStatusIsActive(message) ? renderPendingRunProgressPanel(message) : "";
   return renderRunProgressPanel(thread, runIds, {
     inline: true,
     terminal: false,

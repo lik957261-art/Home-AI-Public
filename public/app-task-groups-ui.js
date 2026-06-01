@@ -176,9 +176,58 @@ function shouldPreserveMessageOutsideIncomingPage(message = {}, incomingThread =
   return incomingThreadHasActiveRun(incomingThread);
 }
 
+function localPendingSendReplacedByIncoming(message = {}, incomingMessages = [], existingMessages = []) {
+  if (!message?.localPendingSend || !Array.isArray(incomingMessages) || !incomingMessages.length) return false;
+  const role = String(message.role || "");
+  const taskGroupId = String(message.taskGroupId || "");
+  const content = String(message.content || "");
+  const pendingSendId = String(message.localPendingSendId || "");
+  const serverMessages = [...incomingMessages, ...(Array.isArray(existingMessages) ? existingMessages : [])]
+    .filter((item) => item && !item.localPendingSend);
+  const sameTaskGroup = (incoming) => {
+    const incomingTaskGroupId = String(incoming?.taskGroupId || "");
+    return taskGroupId && incomingTaskGroupId && incomingTaskGroupId === taskGroupId;
+  };
+  if (role === "user") {
+    return serverMessages.some((incoming) => (
+      String(incoming.role || "") === "user"
+      && String(incoming.content || "") === content
+    ));
+  }
+  if (role === "assistant") {
+    if (serverMessages.some((incoming) => String(incoming.role || "") === "assistant" && sameTaskGroup(incoming))) return true;
+    const localUser = (Array.isArray(existingMessages) ? existingMessages : []).find((item) => (
+      item?.localPendingSend
+      && String(item.role || "") === "user"
+      && (
+        (pendingSendId && String(item.localPendingSendId || "") === pendingSendId)
+        || String(item.taskGroupId || "") === taskGroupId
+      )
+    ));
+    const localUserContent = String(localUser?.content || "");
+    if (Boolean(localUserContent) && serverMessages.some((incoming) => (
+      String(incoming.role || "") === "user"
+      && String(incoming.content || "") === localUserContent
+    ))) return true;
+    return !content && incomingMessages.some((incoming) => (
+      incoming
+      && !incoming.localPendingSend
+      && String(incoming.role || "") === "assistant"
+    ));
+  }
+  return serverMessages.some((incoming) => {
+    if (!incoming || incoming.localPendingSend) return false;
+    if (String(incoming.role || "") !== role) return false;
+    return sameTaskGroup(incoming);
+  });
+}
+
 function mergeCurrentThreadMessages(messages = [], page = null) {
   if (!state.currentThread || !Array.isArray(messages) || !messages.length) return;
-  const current = new Map((state.currentThread.messages || []).map((message) => [message.id, message]));
+  const existing = state.currentThread.messages || [];
+  const current = new Map(existing
+    .filter((message) => !localPendingSendReplacedByIncoming(message, messages, existing))
+    .map((message) => [message.id, message]));
   for (const message of messages) {
     current.set(message.id, mergeServerMessage(current.get(message.id), message));
   }

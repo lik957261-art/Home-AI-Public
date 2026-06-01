@@ -82,6 +82,18 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 - iOS Web Push must be registered from the installed Hermes Mobile PWA window, not from Safari/browser mode. The frontend must send `clientContext.displayMode`, `clientContext.standalone`, and `clientContext.clientVersion` when posting `/api/push/subscribe`.
 - The subscribe route must forward this client context into `savePushSubscription`, and the Web Push delivery service must reject new iOS browser-mode subscriptions.
 - Delivery must skip legacy iOS subscriptions that lack PWA standalone evidence, so old Safari/browser subscriptions cannot keep opening Hermes inside a browser shell.
+- Subscriptions are deployment-origin scoped. The frontend sends
+  `clientContext.origin`, `host`, and `path`; the subscribe route prefers the
+  server-observed request origin from `Origin`, `Referer`, or forwarded host
+  headers before storing the subscription.
+- Production deployments should set `HERMES_MOBILE_PUBLIC_ORIGIN` or
+  `HERMES_WEB_PUBLIC_ORIGIN` to the externally used app origin. When this is
+  configured, delivery must send only to subscriptions whose stored origin
+  matches that deployment. Copied or migrated legacy subscriptions that lack an
+  origin must be skipped until the user opens that deployment and resyncs Push.
+  This prevents a NAS production notification from opening a Windows/local app
+  service worker, and prevents one result from producing duplicate external
+  pushes across two deployments.
 
 ## Validation
 

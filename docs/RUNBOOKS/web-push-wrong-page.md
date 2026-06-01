@@ -81,6 +81,12 @@ Durable fix:
 - The browser shell may restore an already-selected detail state, such as `viewMode=automation` with `selectedAutomationId`, without passing through a URL route parser.
 - A prior fix may stop detail rendering but still leave the full Inbox/App shell inside the browser frame; that is still a failure for mobile browser-shell launches.
 - Automation scheduled-Todo push marks alternate between a deliverable signature and `no-deliverable` for the same `lastRunAt`, producing repeated notifications and stale no-deliverable Inbox links.
+- Two Hermes deployments share migrated runtime state and therefore share old
+  Web Push subscriptions. If subscriptions are not scoped to the deployment
+  origin, NAS can send to a Windows/local-origin subscription; notification
+  click handling then belongs to the Windows/local service worker and opens the
+  wrong app. The same unscoped subscription set can also produce two external
+  notifications for one result.
 - Static client cache is old.
 
 ## Repair
@@ -97,6 +103,12 @@ Durable fix:
 - Add stable ids to the payload producer.
 - For active chat/topic receipts, use the terminal assistant receipt `messageId`, preserve `threadId/messageId` through the service worker, and keep the route scroll target until the chat/topic message list renders.
 - For repeated scheduled-Todo Automation pushes, first stop the mark alternation, then repair stale no-deliverable Inbox rows to include the safe deliverable reference or mark them complete if they are duplicate occurrences.
+- Scope Push delivery by deployment origin. Ensure the client posts
+  `clientContext.origin`, the subscribe route stores the server-observed origin,
+  and production sets `HERMES_MOBILE_PUBLIC_ORIGIN` or
+  `HERMES_WEB_PUBLIC_ORIGIN`. With an origin configured, skip mismatched and
+  legacy unscoped subscriptions; ask the user to reopen that deployment and
+  resync notifications if Push had only old migrated subscriptions.
 - Make the target module force an authenticated fetch that includes the target even if search/limit would otherwise hide it.
 - Bump static client/cache version when service worker or route JS changes.
 

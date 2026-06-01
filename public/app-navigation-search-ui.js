@@ -10,6 +10,53 @@ function setSingleWindowMode(mode) {
   if (state.singleWindowMode === "chat") clearQuotedReply({ render: false });
 }
 
+const BOTTOM_PLUGIN_MENU_ITEMS = Object.freeze({
+  wardrobe: { buttonId: "bottomPluginWardrobeMode", viewMode: "wardrobe" },
+  finance: { buttonId: "bottomPluginFinanceMode", viewMode: "finance" },
+  email: { buttonId: "bottomPluginEmailMode", viewMode: "email" },
+});
+
+function bottomPluginMenuItem(kind = "") {
+  const item = BOTTOM_PLUGIN_MENU_ITEMS[String(kind || "").trim()];
+  return item ? $(item.buttonId) : null;
+}
+
+function bottomPluginMenuHasVisibleItems() {
+  return Object.values(BOTTOM_PLUGIN_MENU_ITEMS).some((item) => {
+    const node = $(item.buttonId);
+    return Boolean(node && !node.hidden);
+  });
+}
+
+function closeBottomPluginMenu() {
+  const menu = $("bottomPluginMenu");
+  const button = $("bottomPluginMode");
+  if (menu) menu.hidden = true;
+  button?.setAttribute("aria-expanded", "false");
+}
+
+function setBottomPluginMenuItemAvailability(kind = "", available = false) {
+  const node = bottomPluginMenuItem(kind);
+  if (!node) return false;
+  node.hidden = !available;
+  node.setAttribute("aria-hidden", available ? "false" : "true");
+  return Boolean(available);
+}
+
+function updateBottomPluginMenuAvailability() {
+  const available = bottomPluginMenuHasVisibleItems();
+  const button = $("bottomPluginMode");
+  const nav = $("bottomNav");
+  if (button) {
+    button.hidden = !available;
+    button.setAttribute("aria-hidden", available ? "false" : "true");
+    if (!available) button.setAttribute("aria-expanded", "false");
+  }
+  if (!available) closeBottomPluginMenu();
+  nav?.classList.toggle("plugins-visible", available);
+  return available;
+}
+
 function reasoningEffortLabel(value) {
   const effort = String(value || "").trim().toLowerCase();
   return configuredReasoningOptions().find((item) => item.value === effort)?.label
@@ -187,7 +234,9 @@ function updateNavigationControls() {
   const codexPluginOuterBack = typeof codexPluginOuterBackActive === "function" && codexPluginOuterBackActive();
   const financePluginBack = typeof financePluginBackActive === "function" && financePluginBackActive();
   const financePluginOuterBack = typeof financePluginOuterBackActive === "function" && financePluginOuterBackActive();
-  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || automationSecondary || actionInboxDetail || actionInboxCreate || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings || wardrobePluginBack || wardrobePluginOuterBack || codexPluginBack || financePluginBack;
+  const emailPluginBack = typeof emailPluginBackActive === "function" && emailPluginBackActive();
+  const emailPluginOuterBack = typeof emailPluginOuterBackActive === "function" && emailPluginOuterBackActive();
+  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || automationSecondary || actionInboxDetail || actionInboxCreate || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings || wardrobePluginBack || wardrobePluginOuterBack || codexPluginBack || financePluginBack || emailPluginBack;
   const minimalWindow = isMinimalWindowView();
   const centeredTopTitle = (
     (state.viewMode === "single" && state.singleWindowMode === "chat")
@@ -200,6 +249,7 @@ function updateNavigationControls() {
     || state.viewMode === "wardrobe"
     || state.viewMode === "codex"
     || state.viewMode === "finance"
+    || state.viewMode === "email"
   );
   app?.classList.toggle("minimal-window-mode", minimalWindow);
   app?.classList.toggle("task-detail-mode", taskDetail);
@@ -227,8 +277,8 @@ function updateNavigationControls() {
   }
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
-  const hiddenBottomTabs = new Set(["bottomAutomationMode"]);
-  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomFinanceMode", "bottomAutomationMode"].forEach((id) => {
+  const hiddenBottomTabs = new Set(["bottomPluginMode", "bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomLearningMode", "bottomAutomationMode"]);
+  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
     const node = $(id);
     if (node) {
       node.hidden = hiddenBottomTabs.has(id);
@@ -238,6 +288,8 @@ function updateNavigationControls() {
   if (typeof updateWardrobeNavigationAvailability === "function") updateWardrobeNavigationAvailability();
   if (typeof updateCodexPluginNavigationAvailability === "function") updateCodexPluginNavigationAvailability();
   if (typeof updateFinancePluginNavigationAvailability === "function") updateFinancePluginNavigationAvailability();
+  if (typeof updateEmailPluginNavigationAvailability === "function") updateEmailPluginNavigationAvailability();
+  if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
   updateTopMoreControls();
 }
 
@@ -262,7 +314,8 @@ function updateTopMoreControls() {
   const wardrobeView = state.viewMode === "wardrobe";
   const codexView = state.viewMode === "codex";
   const financeView = state.viewMode === "finance";
-  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || inboxView || actionInboxDetail || learningView || automationList || automationDetail || wardrobeView || codexView || financeView;
+  const emailView = state.viewMode === "email";
+  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || inboxView || actionInboxDetail || learningView || automationList || automationDetail || wardrobeView || codexView || financeView || emailView;
   wrap.classList.toggle("hidden", !showTopMenu);
   interrupt.classList.toggle("hidden", showTopMenu || chatView);
   if (!showTopMenu) {

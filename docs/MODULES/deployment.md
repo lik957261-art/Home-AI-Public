@@ -36,6 +36,14 @@ The first supported NAS direction is a split deployment, documented in
   Git/deploy; NAS data flows back only as backups or isolated debug copies.
   Do not run live bidirectional sync for SQLite, workspace files, plugin keys,
   Skill Stores, Inbox/task state, learning records, or currency ledgers.
+- Automation is a special case because production job definitions should be
+  owned by the canonical scheduler, not by a second Hermes Mobile mirror. If NAS
+  is production, do not keep Windows official CRON jobs and NAS SQLite
+  automation rows as two live sources. Either migrate the official CRON job
+  store to NAS and run the NAS dispatcher, or explicitly keep Windows as the
+  external canonical scheduler and configure NAS to read that backend. A one-off
+  import into NAS SQLite is only a repair/migration step; it is not the desired
+  steady state.
 - NAS maintenance credentials must live in restricted secret files or an OS
   credential store. Do not paste NAS keys, SSH private keys, cookies, or tokens
   into chats, docs, handoffs, commits, or logs.
@@ -49,6 +57,21 @@ The first supported NAS direction is a split deployment, documented in
   existing NAS Wardrobe service on port `8765`. Both must be reached by users
   through Hermes same-origin plugin proxy routes, not by exposing backend ports
   publicly.
+- On that NAS, Email is deployed as Docker/Container Manager container
+  `email-plugin`, bound to loopback `127.0.0.1:5175` only. Its source is under
+  `/volume1/docker/email-plugin/source`, and its SQLite/config/token runtime
+  state is mounted from `/volume1/docker/email-plugin/runtime`. Hermes reaches
+  it through `HERMES_MOBILE_EMAIL_PLUGIN_MANIFEST_URL=http://127.0.0.1:5175/api/v1/hermes/plugin/manifest`;
+  users reach it only through the Hermes same-origin plugin proxy.
+- On that NAS, the Codex Mobile embedded plugin is a remote upstream served
+  from the Windows development/Codex Mobile host at
+  `http://192.168.10.108:8787/api/v1/hermes/plugin/manifest`. NAS Hermes must
+  set `HERMES_MOBILE_CODEX_PLUGIN_MANIFEST_URL` or
+  `HERMES_MOBILE_PLUGIN_CODEX_MOBILE_MANIFEST_URL` to that URL, and set the
+  Codex plugin access-key path to the NAS server-side secret file. The raw
+  Codex Mobile key must remain server-side only; users enter Codex through the
+  Hermes same-origin plugin proxy, not by opening `192.168.10.108:8787`
+  directly from the browser.
 - The NAS Owner Wardrobe binding is intentionally aligned to the existing XuXin
   Wardrobe binding used by the current Windows environment. Do not reprovision
   Owner as a new empty `wardrobe:owner` workspace during NAS setup; that hides
@@ -112,6 +135,26 @@ read/write access to this key file or its parent directory.
 - Gateway plugin/schema/profile/startup change: restart Gateway Pool or targeted maintenance worker as appropriate.
 - Cron dispatcher change: restart cron sidecar through `scripts\start-cron-tick-sidecar.ps1 -ReplaceExisting`.
 - Data-only repair: backup data first; avoid restart unless runtime memory can overwrite the repair.
+
+## Automation Deployment Checks
+
+Before declaring a production environment ready for Automation:
+
+- Confirm the configured canonical backend. Official Hermes CRON is the default
+  production target unless a future scheduler backend has an explicit design and
+  harness.
+- Query `/api/automations?detail=summary&refresh=1` and verify the visible job
+  count matches the canonical scheduler for the same principal/workspace.
+- Confirm there is exactly one live scheduler/tick owner for production. The
+  Windows development cron sidecar must be stopped when NAS owns production
+  scheduling.
+- For NAS production, verify the dispatcher/tick process is running only if NAS
+  owns the canonical scheduler. If Windows remains the external scheduler,
+  document that boundary and do not also run a NAS tick loop against a mirrored
+  store.
+- Back up the canonical automation store before any migration or repair. Do not
+  print task prompts, raw runner output, keys, OAuth tokens, mail content, or
+  push endpoints during the check.
 
 ## Bridge Host Routes
 

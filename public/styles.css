@@ -853,6 +853,10 @@ button {
   letter-spacing: 0;
 }
 
+.bottom-plugin-menu {
+  display: none;
+}
+
 .wardrobe-view {
   width: min(100%, 860px);
   margin: 0 auto;
@@ -1348,7 +1352,8 @@ button {
   opacity: 0;
 }
 
-.codex-mode .conversation {
+.codex-mode .conversation,
+.email-mode .conversation {
   padding: 0;
   overflow: hidden;
   background: var(--ui-page);
@@ -1562,6 +1567,30 @@ button {
   transform: rotate(45deg);
 }
 
+.nav-plugins-icon::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  width: 7px;
+  height: 7px;
+  border: 1.8px solid currentColor;
+  border-radius: 3px;
+  box-shadow: 11px 0 0 -1.8px currentColor, 0 11px 0 -1.8px currentColor, 11px 11px 0 -1.8px currentColor;
+}
+
+.nav-plugins-icon::after {
+  content: "";
+  position: absolute;
+  left: 15px;
+  top: 15px;
+  width: 5px;
+  height: 5px;
+  border: 1.8px solid currentColor;
+  border-radius: 2px;
+  background: var(--ui-chrome);
+}
+
 .nav-finance-icon::before {
   content: "";
   position: absolute;
@@ -1583,6 +1612,29 @@ button {
   border-top: 1.8px solid currentColor;
   border-bottom: 1.8px solid currentColor;
   box-shadow: 0 4px 0 -2px currentColor;
+}
+
+.nav-email-icon::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  top: 7px;
+  height: 16px;
+  border: 1.8px solid currentColor;
+  border-radius: 5px;
+}
+
+.nav-email-icon::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 10px;
+  height: 8px;
+  border-left: 1.8px solid currentColor;
+  border-bottom: 1.8px solid currentColor;
+  transform: rotate(-45deg);
 }
 
 .nav-todo-icon::before {
@@ -2015,6 +2067,7 @@ button {
 .learning-mode .composer,
 .wardrobe-mode .composer,
 .finance-mode .composer,
+.email-mode .composer,
 .codex-mode .composer {
   display: none;
 }
@@ -14474,37 +14527,102 @@ body.task-markdown-preview-open {
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 10;
+    z-index: 40;
+    --bottom-nav-column-min: 48px;
     height: var(--mobile-bottom-nav-height);
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(var(--bottom-nav-column-min), 1fr));
     align-items: center;
-    padding: 4px max(6px, env(safe-area-inset-right)) calc(3px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
+    padding: 4px max(10px, env(safe-area-inset-right)) calc(3px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
     border-top: 1px solid var(--ui-hairline);
     background: var(--ui-chrome);
     backdrop-filter: blur(12px);
   }
 
+  .bottom-nav::-webkit-scrollbar {
+    display: none;
+  }
+
   .bottom-nav.wardrobe-visible {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(var(--bottom-nav-column-min), 1fr));
   }
 
   .bottom-nav.codex-visible {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(var(--bottom-nav-column-min), 1fr));
   }
 
-  .bottom-nav.finance-visible {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+  .bottom-nav.plugins-visible {
+    grid-template-columns: repeat(6, minmax(var(--bottom-nav-column-min), 1fr));
   }
 
-  .bottom-nav.wardrobe-visible.codex-visible,
-  .bottom-nav.wardrobe-visible.finance-visible,
-  .bottom-nav.codex-visible.finance-visible {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+  .bottom-nav.codex-visible.plugins-visible {
+    grid-template-columns: repeat(7, minmax(var(--bottom-nav-column-min), 1fr));
   }
 
-  .bottom-nav.wardrobe-visible.codex-visible.finance-visible {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
+  .bottom-plugin-menu {
+    position: fixed;
+    left: max(10px, env(safe-area-inset-left));
+    right: max(10px, env(safe-area-inset-right));
+    bottom: calc(var(--mobile-bottom-nav-height) + 8px);
+    z-index: 41;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    gap: 6px;
+    padding: 8px;
+    color: var(--ink);
+    background: var(--ui-menu-bg);
+    border: 1px solid var(--ui-hairline-strong);
+    border-radius: 12px;
+    box-shadow: 0 12px 28px rgba(34, 28, 20, 0.12);
+    backdrop-filter: blur(14px);
+  }
+
+  .bottom-plugin-menu[hidden] {
+    display: none !important;
+  }
+
+  .bottom-plugin-menu-item {
+    min-width: 0;
+    min-height: 48px;
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    color: var(--ink);
+    background: rgba(255, 255, 252, 0.64);
+    border: 1px solid var(--ui-hairline);
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+    touch-action: manipulation;
+  }
+
+  .bottom-plugin-menu-item.active {
+    color: var(--ui-accent-active);
+    background: var(--ui-accent-active-soft);
+    border-color: rgba(95, 139, 148, 0.28);
+  }
+
+  .bottom-plugin-menu-icon {
+    width: 28px;
+    height: 28px;
+    position: relative;
+    display: block;
+    color: currentColor;
+  }
+
+  .bottom-plugin-menu-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .main-back-visible .bottom-nav {

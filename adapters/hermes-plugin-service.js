@@ -9,6 +9,9 @@ const {
   createFinancePluginProvisioningService,
 } = require("./finance-plugin-provisioning-service");
 const {
+  createEmailPluginProvisioningService,
+} = require("./email-plugin-provisioning-service");
+const {
   createWardrobePluginProvisioningService,
   readWardrobeWorkspaceConfig,
 } = require("./wardrobe-plugin-provisioning-service");
@@ -16,6 +19,7 @@ const {
 const DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL = "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest";
 const DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest";
 const DEFAULT_FINANCE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest";
+const DEFAULT_EMAIL_PLUGIN_MANIFEST_URL = "http://127.0.0.1:5175/api/v1/hermes/plugin/manifest";
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_KEY_SEARCH_DEPTH = 6;
 const PLUGIN_APPEARANCE_THEMES = new Set(["system", "dark", "light"]);
@@ -41,6 +45,12 @@ function configuredFinanceManifestUrl(env = process.env) {
   return stringValue(env.HERMES_MOBILE_FINANCE_PLUGIN_MANIFEST_URL)
     || stringValue(env.HERMES_MOBILE_PLUGIN_FINANCE_MANIFEST_URL)
     || DEFAULT_FINANCE_PLUGIN_MANIFEST_URL;
+}
+
+function configuredEmailManifestUrl(env = process.env) {
+  return stringValue(env.HERMES_MOBILE_EMAIL_PLUGIN_MANIFEST_URL)
+    || stringValue(env.HERMES_MOBILE_PLUGIN_EMAIL_MANIFEST_URL)
+    || DEFAULT_EMAIL_PLUGIN_MANIFEST_URL;
 }
 
 function envKeyForPlugin(pluginId, suffix) {
@@ -77,6 +87,14 @@ const DEFAULT_PLUGIN_SECURITY = Object.freeze({
   },
   finance: {
     title: "记账",
+    riskLevel: "workspace-private",
+    defaultVisibility: "owner-only",
+    allowWorkspaceGrant: true,
+    provisioning: { supported: true, mode: "workspace_binding" },
+    notifications: { supported: true, routeOwner: "hermes" },
+  },
+  email: {
+    title: "邮箱",
     riskLevel: "workspace-private",
     defaultVisibility: "owner-only",
     allowWorkspaceGrant: true,
@@ -125,6 +143,10 @@ function configuredPlugins(options = {}) {
     {
       id: "finance",
       manifestUrl: configuredFinanceManifestUrl(env),
+    },
+    {
+      id: "email",
+      manifestUrl: configuredEmailManifestUrl(env),
     },
   ];
   return plugins
@@ -425,9 +447,50 @@ function findFinanceAccessKeyPath(input = {}, options = {}) {
   return walk(workspaceRoot, 0);
 }
 
+function findEmailAccessKeyPath(input = {}, options = {}) {
+  const explicit = stringValue(input.emailAccessKeyPath || options.emailAccessKeyPath);
+  if (explicit && fs.existsSync(explicit)) return explicit;
+  const env = options.env || process.env;
+  const workspaceId = stringValue(input.workspaceId || "owner");
+  const candidates = [
+    stringValue(env.HERMES_MOBILE_EMAIL_PLUGIN_ACCESS_KEY_PATH),
+    stringValue(env.HERMES_MOBILE_PLUGIN_EMAIL_ACCESS_KEY_PATH),
+    stringValue(env.EMAIL_HERMES_PLUGIN_ACCESS_KEY_PATH),
+  ].filter(Boolean);
+  const configured = candidates.find((candidate) => fs.existsSync(candidate));
+  if (configured) return configured;
+
+  const dataDir = stringValue(options.dataDir) || defaultDataDir(options.env);
+  const workspaceRoot = path.join(dataDir, "drive", "users", workspaceId);
+  const maxDepth = Number(options.maxKeySearchDepth || DEFAULT_MAX_KEY_SEARCH_DEPTH);
+  const targetParts = [".hermes-email", "access-key.txt"];
+
+  function walk(dir, depth) {
+    if (depth > maxDepth) return "";
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      return "";
+    }
+    const direct = path.join(dir, ...targetParts);
+    if (fs.existsSync(direct)) return direct;
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === ".hermes-cache" || entry.name === "node_modules" || entry.name === ".git") continue;
+      const found = walk(path.join(dir, entry.name), depth + 1);
+      if (found) return found;
+    }
+    return "";
+  }
+
+  return walk(workspaceRoot, 0);
+}
+
 function findPluginAccessKeyPath(pluginId, input = {}, options = {}) {
   if (pluginId === "codex-mobile") return findCodexMobileAccessKeyPath(input, options);
   if (pluginId === "finance") return findFinanceAccessKeyPath(input, options);
+  if (pluginId === "email") return findEmailAccessKeyPath(input, options);
   return findWardrobeAccessKeyPath(input, options);
 }
 
@@ -461,8 +524,8 @@ function pluginWorkspaceAuthorized(plugin, input = {}, options = {}) {
     && options.authorizationService.isWorkspaceAuthorized(pluginId, workspaceId)) {
     return true;
   }
-  if (pluginId === "wardrobe") {
-    return Boolean(findWardrobeAccessKeyPath({ workspaceId }, options));
+  if (pluginId !== "codex-mobile") {
+    return Boolean(findPluginAccessKeyPath(pluginId, { workspaceId }, options));
   }
   return false;
 }
@@ -497,7 +560,7 @@ function pluginWorkspaceProvisioningBlock(plugin, input = {}, options = {}) {
 }
 
 function pluginSupportsHermesProvisioning(plugin) {
-  return ["finance", "wardrobe"].includes(stringValue(plugin?.id)) && plugin?.provisioning?.supported === true;
+  return ["finance", "wardrobe", "email"].includes(stringValue(plugin?.id)) && plugin?.provisioning?.supported === true;
 }
 
 function pluginInitialProvisioningStatus(plugin) {
@@ -560,7 +623,11 @@ function normalizeManifest(raw = {}, source = {}) {
   const programBaseUrl = safeUrl(raw.program_api?.base_url || raw.programApi?.baseUrl || (launchUrl ? originOf(launchUrl) : ""), manifestUrl);
   const topLevelToolsets = Array.isArray(raw.toolsets) ? raw.toolsets.map(stringValue).filter(Boolean) : [];
   const topLevelPermissions = Array.isArray(raw.permissions) ? raw.permissions.map(stringValue).filter(Boolean) : [];
-  const embedding = raw.embedding && typeof raw.embedding === "object" ? raw.embedding : {};
+  const embedding = raw.embedding && typeof raw.embedding === "object"
+    ? raw.embedding
+    : raw.navigation && typeof raw.navigation === "object"
+      ? raw.navigation
+      : {};
   const rawAppearanceSync = raw.appearance_sync || raw.appearanceSync;
   const appearanceSync = rawAppearanceSync === true
     || (rawAppearanceSync && typeof rawAppearanceSync === "object" && rawAppearanceSync.supported !== false);
@@ -860,6 +927,13 @@ function createHermesPluginService(options = {}) {
     env: options.env,
     fetch: fetchImpl,
   });
+  const emailProvisioningService = options.emailProvisioningService || createEmailPluginProvisioningService({
+    dataDir: options.dataDir,
+    env: options.env,
+    fetch: fetchImpl,
+    emailOwnerKey: options.emailOwnerKey,
+    emailOwnerKeyPath: options.emailOwnerKeyPath,
+  });
   const wardrobeProvisioningService = options.wardrobeProvisioningService || createWardrobePluginProvisioningService({
     dataDir: options.dataDir,
     env: options.env,
@@ -882,6 +956,7 @@ function createHermesPluginService(options = {}) {
     wardrobeAccessKeyPath: options.wardrobeAccessKeyPath,
     codexMobileAccessKeyPath: options.codexMobileAccessKeyPath,
     financeAccessKeyPath: options.financeAccessKeyPath,
+    emailAccessKeyPath: options.emailAccessKeyPath,
     authorizationService,
     fetch: fetchImpl,
   };
@@ -1050,7 +1125,14 @@ function createHermesPluginService(options = {}) {
         displayName,
         wardrobeManifestUrl: plugin.manifestUrl,
       })
-      : await financeProvisioningService.provisionWorkspace({
+      : id === "email"
+        ? await emailProvisioningService.provisionWorkspace({
+          workspaceId,
+          workspaceName: displayName,
+          displayName,
+          emailManifestUrl: plugin.manifestUrl,
+        })
+        : await financeProvisioningService.provisionWorkspace({
       workspaceId,
       displayName,
       role: "owner",
@@ -1075,6 +1157,16 @@ function createHermesPluginService(options = {}) {
             gatewayProfiles: Array.isArray(provisioned.gatewayProfiles) ? provisioned.gatewayProfiles : [],
             gatewayRestartRequired: Boolean(provisioned.gatewayRestartRequired),
             gatewayProfileBindingRefreshed: Boolean(provisioned.gatewayProfileBindingRefreshed),
+            created: Boolean(provisioned.created),
+          },
+        });
+      }
+      if (id === "email") {
+        return Object.assign({}, saved, {
+          provisioning: {
+            status: "active",
+            keyCreated: Boolean(provisioned.keyCreated),
+            configCreated: Boolean(provisioned.configCreated),
             created: Boolean(provisioned.created),
           },
         });
@@ -1129,11 +1221,13 @@ function createHermesPluginService(options = {}) {
 
 module.exports = {
   DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL,
+  DEFAULT_EMAIL_PLUGIN_MANIFEST_URL,
   DEFAULT_FINANCE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   configuredPlugins,
   createHermesPluginService,
   findCodexMobileAccessKeyPath,
+  findEmailAccessKeyPath,
   findFinanceAccessKeyPath,
   findPluginAccessKeyPath,
   discoverPluginWorkspaceIdsFromAccessKeys,
