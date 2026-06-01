@@ -100,9 +100,42 @@ The first supported NAS direction is a split deployment, documented in
   verified; the Hermes listener proxy can use loopback for local plugins while
   phones still reach the plugin through Hermes.
 
-Do not present full NAS-native Gateway Pool as ready. It requires new Linux or
-container launchers, process supervision, profile provisioning, and H1 lifecycle
-harness coverage.
+NAS-native Gateway workers must be treated as a separate production topology,
+not as the Windows hybrid pool copied onto Linux. A NAS worker is acceptable
+only after all of these preflight checks pass:
+
+- The Gateway Pool exposes healthy `securityLevel: user` workers from NAS-local
+  processes, not from the operator's Windows machine.
+- Every user worker is scoped to exactly one `allowedWorkspaceIds` value. A
+  wildcard workspace is allowed only for an explicitly documented legacy bridge
+  warning and is not production parity.
+- Every worker profile binds `skills` to the NAS-local per-workspace Skill
+  Store under `/volume1/docker/hermes-mobile/data/skill-profiles/<profile>/skills`.
+  It must not symlink all users to `/var/services/homes/xuxinxp/.hermes/skills`.
+- Every worker profile binds `memories` to a per-workspace Memory Store, either
+  under the same skill profile or under
+  `/volume1/docker/hermes-mobile/data/gateway-memories/<profile>`. It must not
+  use one shared base-memory directory for all users.
+- The maintained deployment must include at least Owner, WuPing
+  (`weixin_wuping`), Stephen (`weixin_stephen`), XuYan (`xuyan`), and any active
+  test/workspace accounts that are expected to run conversations.
+- Plugin MCP toolsets must be workspace-local. The NAS launcher must register
+  Wardrobe, Finance, Email, or future plugin MCP servers only when the selected
+  workspace has its own `.hermes-<plugin>/config.json` plus key material. A
+  worker for Stephen, XuYan, or another workspace without that plugin config
+  must not expose the plugin toolset and must not fall back to Owner.
+- The NAS `data/drive/users/<workspaceId>` directories must be private to the
+  NAS service account (`0700` or stricter equivalent). This protects against
+  other NAS users, but it is not equivalent to Windows per-account ACL
+  isolation when all Gateway workers run as one Unix user.
+
+NAS file-system isolation is therefore two-tiered. The current NAS-native
+launcher provides Hermes Mobile workspace routing plus per-profile
+Skill/Memory binding and private directory modes. Strong OS-level isolation
+equivalent to Windows ACLs would require each workspace worker to run under a
+separate Unix user or container with bind-mounted workspace roots. Do not claim
+that level of isolation until a per-user UID/container launcher and harness are
+implemented.
 
 ## Public Reverse Proxy Security
 

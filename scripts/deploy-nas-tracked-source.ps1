@@ -100,6 +100,81 @@ single_worker_bridge = (
 issues = []
 warnings = []
 repairs = []
+skill_profiles_root = root / 'data/skill-profiles'
+gateway_profiles_root = root / 'gateway-worker/profiles'
+base_hermes_home = Path('/var/services/homes/xuxinxp/.hermes')
+
+def normalized_workspace_ids(worker):
+    raw = worker.get('allowedWorkspaceIds') or worker.get('allowed_workspace_ids') or []
+    if isinstance(raw, str):
+        raw = [item.strip() for item in raw.split(',') if item.strip()]
+    return [str(item).strip() for item in raw if str(item).strip()]
+
+def skill_profile_name(worker, workspace_id):
+    raw = str(worker.get('skillProfile') or worker.get('skill_profile') or '').strip()
+    if raw.lower().startswith('workspace:'):
+        return raw.split(':', 1)[1].strip()
+    if raw:
+        return raw
+    return 'owner-full' if workspace_id == 'owner' else workspace_id
+
+def is_publicly_accessible(path):
+    try:
+        return bool(path.stat().st_mode & 0o077)
+    except FileNotFoundError:
+        return False
+
+if not skill_profiles_root.exists():
+    issues.append('nas_skill_profiles_missing')
+
+for worker in user_workers:
+    profile = str(worker.get('profile') or worker.get('name') or '').strip()
+    workspace_ids = normalized_workspace_ids(worker)
+    if workspace_ids == ['*']:
+        if not single_worker_bridge:
+            issues.append(f'nas_user_worker_wildcard_workspace:{profile}')
+        continue
+    if len(workspace_ids) != 1:
+        issues.append(f'nas_user_worker_not_single_workspace:{profile}')
+        continue
+    workspace_id = workspace_ids[0]
+    workspace_root = root / 'data/drive/users' / workspace_id
+    if not workspace_root.exists():
+        issues.append(f'nas_workspace_root_missing:{workspace_id}')
+    elif is_publicly_accessible(workspace_root):
+        issues.append(f'nas_workspace_root_not_private:{workspace_id}')
+    skill_profile = skill_profile_name(worker, workspace_id)
+    skill_store = skill_profiles_root / skill_profile / 'skills'
+    if not skill_store.exists():
+        issues.append(f'nas_worker_skill_store_missing:{profile}:{skill_profile}')
+    profile_home = gateway_profiles_root / profile
+    profile_skills = profile_home / 'skills'
+    profile_memories = profile_home / 'memories'
+    if profile and profile_home.exists():
+        if profile_skills.is_symlink():
+            try:
+                target = Path(profile_skills.resolve())
+            except Exception:
+                target = Path('')
+            if str(target).startswith(str(base_hermes_home / 'skills')):
+                issues.append(f'nas_worker_uses_shared_base_skills:{profile}')
+            if skill_store.exists() and target != skill_store.resolve():
+                issues.append(f'nas_worker_skill_store_mismatch:{profile}')
+        elif profile_skills.exists():
+            issues.append(f'nas_worker_skills_not_linked:{profile}')
+        else:
+            issues.append(f'nas_worker_skills_missing:{profile}')
+        if profile_memories.is_symlink():
+            try:
+                memory_target = Path(profile_memories.resolve())
+            except Exception:
+                memory_target = Path('')
+            if str(memory_target).startswith(str(base_hermes_home / 'memories')):
+                issues.append(f'nas_worker_uses_shared_base_memories:{profile}')
+        elif profile_memories.exists():
+            issues.append(f'nas_worker_memories_not_linked:{profile}')
+        else:
+            issues.append(f'nas_worker_memories_missing:{profile}')
 
 if app_version != '$ExpectedVersion':
     issues.append('app_index_version_mismatch')

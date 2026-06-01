@@ -149,6 +149,8 @@ clean Git checkout plus a NAS-owned data directory.
 - Keep runtime data outside the Git checkout.
 - Preserve workspace isolation, plugin session isolation, and Owner switching
   behavior.
+- Preserve per-user Skill Store and Memory Store behavior when moving Gateway
+  execution from Windows to NAS.
 - Keep Codex, ChatGPT Pro, xAI OAuth, and worker profile credentials on the
   machine/account that actually owns those credentials.
 - Keep public exposure behind a hardened reverse proxy.
@@ -253,7 +255,53 @@ Gateway connection choices:
 
 ### Mode B: Full NAS-Native Runtime
 
-Treat this as future work.
+Mode B runs the Hermes Mobile listener and ordinary Gateway workers on NAS.
+This is the required direction for a standalone public/NAS install: another
+installer cannot depend on XuXin's Windows machine or WSL worker pool.
+
+The first NAS-native worker launcher is
+`scripts/start-nas-gateway-pool.sh`. It is intentionally narrower than the
+Windows hybrid launcher: it starts a fixed set of NAS-local user workers and
+generates a NAS-local manifest. Production readiness is not just `/health`.
+The deploy preflight must also prove the per-user isolation shape.
+
+Required Mode B checks:
+
+- Workers are NAS-local processes with NAS-local `apiBase` values.
+- User workers are single-workspace workers. Wildcard `allowedWorkspaceIds`
+  must fail preflight unless the deployment is explicitly using the legacy
+  single-worker bridge warning mode.
+- The worker set includes the maintained family/workspace accounts that need
+  conversations: Owner, `weixin_wuping`, `weixin_stephen`, `xuyan`, and active
+  test/workspace accounts.
+- The NAS data directory contains the same per-user Skill Store profiles that
+  Windows production uses, for example `owner-full`, `weixin_wuping`,
+  `weixin_stephen`, `xuyan`, and `weixin_test_1`.
+- Each worker profile's `skills` entry is linked to
+  `/volume1/docker/hermes-mobile/data/skill-profiles/<profile>/skills`.
+  It must not point to `/var/services/homes/xuxinxp/.hermes/skills`, because
+  that would give all workspaces Owner/default skills.
+- Each worker profile's `memories` entry is per-workspace. It may use
+  `<skill-profile>/memories` when present, or
+  `/volume1/docker/hermes-mobile/data/gateway-memories/<profile>`.
+- Each plugin MCP server in a worker profile must read the target workspace's
+  local `.hermes-<plugin>` config/key directory. It must not fall back to Owner
+  when Owner switches into WuPing, Stephen, XuYan, or test workspaces.
+- Plugin toolsets are opt-in per workspace. If a workspace lacks
+  `.hermes-wardrobe`, `.hermes-finance`, `.hermes-email`, or the relevant
+  plugin config/key directory, its worker profile must omit that MCP server and
+  hide that toolset from model calls. A configured toolset with a missing
+  workspace-local key is a deployment failure, not an acceptable empty state.
+- `data/drive/users/<workspaceId>` directories are private to the NAS service
+  account (`0700` or stricter equivalent).
+
+NAS file-system isolation differs from Windows production. Windows can combine
+Hermes Mobile policy with OS ACL-backed workspace users. The current NAS-native
+launcher runs worker processes under one NAS service account, so `0700`
+protects against other NAS users but not against another worker process running
+as the same Unix user. Strong NAS isolation requires a future per-workspace Unix
+user or container launcher with bind-mounted workspace roots and a harness that
+proves cross-workspace filesystem reads fail at the OS boundary.
 
 Required new work:
 

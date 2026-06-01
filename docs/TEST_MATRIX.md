@@ -90,6 +90,15 @@ available. A single `nas-local-codex` wildcard worker is allowed as a bootstrap
 bridge only with an explicit warning; it must not be treated as equivalent to
 the maintained Windows hybrid/Owner-warm Gateway Pool. Focused check:
 `node tests\nas-deploy-harness.test.js`.
+The same harness must also cover NAS-native workspace isolation: user workers
+must be single-workspace workers, worker `skills` links must point at
+`data/skill-profiles/<profile>/skills`, worker `memories` links must point at a
+per-workspace memory store, and `data/drive/users/<workspaceId>` directories
+must not be publicly accessible. Plugin MCP registration must be
+workspace-local: Wardrobe, Finance, Email, and future plugin toolsets may be
+advertised only when the worker's target workspace has the matching
+`.hermes-<plugin>` config/key directory. A worker without plugin config must not
+fall back to Owner or expose a broken plugin toolset.
 
 NAS-local single-worker Gateway configuration is also a production harness
 surface. A NAS `nas-local-codex` style worker must prove that configured
