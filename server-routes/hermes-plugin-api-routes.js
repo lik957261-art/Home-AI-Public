@@ -245,7 +245,10 @@ function createHermesPluginApiRoutes(deps = {}) {
   }
 
   function requestedProxyWorkspace(req, url, auth, pluginId = "") {
-    const direct = url?.searchParams?.get("workspaceId") || req.headers?.["x-hermes-plugin-workspace-id"];
+    const normalizedSearchParams = pluginProxySearchParams(url);
+    const direct = normalizedSearchParams.get("workspaceId")
+      || normalizedSearchParams.get("workspace_id")
+      || req.headers?.["x-hermes-plugin-workspace-id"];
     if (direct) return { workspaceId: direct, ambiguous: false };
     const referrer = req.headers?.referer || req.headers?.referrer || "";
     if (referrer) {
@@ -282,7 +285,18 @@ function createHermesPluginApiRoutes(deps = {}) {
     const prefix = pluginProxyPrefix(pluginId);
     const pathname = String(url?.pathname || "");
     const upstreamPath = pathname.startsWith(prefix) ? pathname.slice(prefix.length) || "/" : "/";
-    return new URL(`${upstreamPath}${url?.search || ""}`, pluginProxyUpstreamBase(pluginId)).toString();
+    return new URL(`${upstreamPath}${pluginProxySearch(url)}`, pluginProxyUpstreamBase(pluginId)).toString();
+  }
+
+  function pluginProxySearch(url) {
+    const search = String(url?.search || "");
+    if (!search) return "";
+    return `?${search.slice(1).replace(/\?/g, "&")}`;
+  }
+
+  function pluginProxySearchParams(url) {
+    const search = pluginProxySearch(url);
+    return new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
   }
 
   function base64UrlEncode(value = "") {

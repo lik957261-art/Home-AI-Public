@@ -1141,6 +1141,44 @@ async function testPluginProxyForwardsBinaryImages() {
   assert.deepEqual(Buffer.from(res.body), body);
 }
 
+async function testWardrobeProxyNormalizesThumbnailQuerySuffix() {
+  const body = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+  const { calls, routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
+      },
+      pluginManifestUrl(id) {
+        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch(url, options = {}) {
+      assert.equal(url, "http://192.168.10.99:8765/api/photos/584/content?workspaceId=owner&thumb=1");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "image/jpeg" : "" },
+        arrayBuffer: () => Promise.resolve(body),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/wardrobe/proxy/api/photos/584/content?workspaceId=owner?thumb=1"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers["Content-Type"], "image/jpeg");
+  assert.deepEqual(calls.access, ["owner"]);
+  assert.deepEqual(Buffer.from(res.body), body);
+}
+
 async function testWardrobeProxyInjectsUploadFileInputCompatibilityCss() {
   const css = ".upload-btn input { display: none; }";
   const { routes } = makeRoutes({
@@ -1209,6 +1247,7 @@ async function run() {
   await testPluginProxyRewritesJsonImageUrls();
   await testPluginProxyDoesNotCorruptJsonProse();
   await testPluginProxyForwardsBinaryImages();
+  await testWardrobeProxyNormalizesThumbnailQuerySuffix();
   await testWardrobeProxyInjectsUploadFileInputCompatibilityCss();
 }
 

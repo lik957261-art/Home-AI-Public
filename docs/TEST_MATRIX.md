@@ -110,6 +110,13 @@ base64 text, SSH text upload, NAS-side Python decode, extraction to both
 `scp`/`sftp`, raw PowerShell binary tar pipes, or ad-hoc inline Bash embedded
 inside PowerShell. Focused check:
 `node tests\cross-shell-command-harness.test.js`.
+NAS listener restart is part of the same cross-shell harness. The tracked-source
+deploy restart path must use the base64/remote-Python control channel, stop any
+existing `node server.js` listener, wait for port `8797` to stop serving public
+config, fail with `nas_listener_restart_port_still_busy` if the port remains
+occupied, start only `config/start-hermes-mobile.sh`, and verify
+`setupRequired=false`, `ownerKeyConfigured=true`, and `ownerKeySource=file`
+after restart. Focused check: `node tests\nas-deploy-harness.test.js`.
 The same harness must also cover NAS-native workspace isolation: user workers
 must be single-workspace workers, worker `skills` links must point at
 `data/skill-profiles/<profile>/skills`, worker `memories` links must point at a

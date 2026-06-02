@@ -255,6 +255,16 @@ For NAS listener restarts, do not rely only on a command-line match such as
 as `node server.js` with cwd `/volume1/docker/hermes-mobile/app`; restart
 scripts and hand repairs must stop by the effective cwd/port or by the
 maintained stop script before starting `config/start-hermes-mobile.sh`.
+The scripted restart must travel through the same base64/remote-Python control
+path as NAS deploy uploads, not through ad-hoc PowerShell strings with nested
+Bash quoting. It must wait until port `8797` is no longer serving
+`/api/public-config`; if the port is still occupied, fail with
+`nas_listener_restart_port_still_busy` instead of starting a second listener.
+After start, it must verify that `/api/public-config` reports
+`setupRequired=false`, `ownerKeyConfigured=true`, and `ownerKeySource=file`.
+Starting `node server.js` by hand without the maintained env is a failing
+operation because it can serve from the checkout workspace and lose the
+file-backed Owner key.
 
 ## NAS Full-Source Deploy Harness
 
@@ -283,6 +293,9 @@ operator errors. The script must:
 Do not replace this with one-off inline PowerShell strings that embed complex
 Bash, heredocs, binary streams, or long remote command chains. If a new NAS
 operation is needed, add it to the deploy script and update the harness.
+This also applies to restart-only hotfixes: represent the operation as a
+checked script function using the fixed base64/remote-Python execution channel,
+then add a harness assertion for the specific failure mode.
 
 ## NAS Static Deploy Harness
 

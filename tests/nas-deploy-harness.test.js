@@ -50,6 +50,22 @@ assert.ok(
     && deployScript.includes("--no-stop-existing"),
   "NAS listener restart must restore the default warm Gateway profile before final preflight",
 );
+assert.ok(
+  deployScript.includes("function Restart-NasListener")
+    && deployScript.includes("Invoke-NasPython $python")
+    && deployScript.includes("listener_pids()")
+    && deployScript.includes("signal.SIGTERM")
+    && deployScript.includes("signal.SIGKILL")
+    && deployScript.includes("nas_listener_restart_port_still_busy")
+    && deployScript.includes("start-hermes-mobile.sh")
+    && deployScript.includes("ownerKeySource")
+    && deployScript.includes("ownerKeySource') != 'file'"),
+  "NAS listener restart must use the base64/Python control path, release port 8797, start only the maintained launcher, and verify file-backed owner auth",
+);
+assert.ok(
+  !/function Restart-NasListener\s*\{[\s\S]*?nohup[\s\S]*?&[\s\S]*?\}/.test(deployScript),
+  "NAS listener restart must not use an inline shell nohup chain that can leave port 8797 occupied",
+);
 
 for (const requiredCheck of [
   "app_index_version_mismatch",
@@ -108,6 +124,14 @@ assert.ok(
 assert.ok(
   deploymentDoc.includes("node server.js") && nasPlan.includes("EADDRINUSE"),
   "NAS docs must record cwd/port listener restart matching instead of only absolute server.js command lines",
+);
+assert.ok(
+  deploymentDoc.includes("nas_listener_restart_port_still_busy")
+    && deploymentDoc.includes("ownerKeySource")
+    && deploymentDoc.includes("base64/remote-Python")
+    && testMatrix.includes("nas_listener_restart_port_still_busy")
+    && testMatrix.includes("ownerKeySource=file"),
+  "NAS docs and matrix must require safe listener restart transport, port-release failure, and owner-key-source verification",
 );
 
 assert.ok(

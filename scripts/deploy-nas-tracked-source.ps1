@@ -340,8 +340,121 @@ function Invoke-PublicOriginSmoke {
 }
 
 function Restart-NasListener {
-  Invoke-NasSsh "cd '$RemoteRoot/app' && if [ -x '$RemoteRoot/config/stop-hermes-processes.sh' ]; then '$RemoteRoot/config/stop-hermes-processes.sh'; fi && nohup '$RemoteRoot/config/start-hermes-mobile.sh' >/tmp/hermes-mobile-restart.out 2>/tmp/hermes-mobile-restart.err &"
-  Start-Sleep -Seconds 4
+  $python = @"
+import json, os, signal, subprocess, time, urllib.request
+from pathlib import Path
+
+root = Path('$RemoteRoot')
+app_root = root / 'app'
+launcher = root / 'config/start-hermes-mobile.sh'
+log_path = root / 'runtime/hermes-mobile-listener-restart.log'
+
+def public_config():
+    try:
+        with urllib.request.urlopen('http://127.0.0.1:8797/api/public-config', timeout=2) as resp:
+            return json.loads(resp.read().decode('utf-8'))
+    except Exception:
+        return None
+
+def listener_pids():
+    try:
+        proc = subprocess.run(['ps', '-eo', 'pid=,args='], capture_output=True, text=True, timeout=10)
+    except Exception:
+        return []
+    pids = []
+    for raw_line in proc.stdout.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        pid_text, _, args = line.partition(' ')
+        if not pid_text.isdigit():
+            continue
+        if 'server.js' not in args or 'node' not in args:
+            continue
+        if 'SynologyPhotos' in args:
+            continue
+        pids.append(int(pid_text))
+    return sorted(set(pids))
+
+def wait_until_down(timeout_seconds):
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        if not listener_pids() and public_config() is None:
+            return True
+        time.sleep(0.5)
+    return False
+
+def stop_existing():
+    killed = []
+    pids = listener_pids()
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+            killed.append({'pid': pid, 'signal': 'TERM'})
+        except ProcessLookupError:
+            pass
+    if not wait_until_down(20):
+        for pid in listener_pids():
+            try:
+                os.kill(pid, signal.SIGKILL)
+                killed.append({'pid': pid, 'signal': 'KILL'})
+            except ProcessLookupError:
+                pass
+        if not wait_until_down(10):
+            raise RuntimeError('nas_listener_restart_port_still_busy')
+    return killed
+
+def start_listener():
+    if not launcher.exists():
+        raise RuntimeError('nas_listener_launcher_missing')
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log = open(log_path, 'ab')
+    try:
+        return subprocess.Popen(
+            [str(launcher)],
+            cwd=str(app_root),
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    except Exception:
+        log.close()
+        raise
+
+def wait_until_ready(proc, timeout_seconds):
+    deadline = time.time() + timeout_seconds
+    last_error = None
+    while time.time() < deadline:
+        cfg = public_config()
+        if cfg is not None:
+            return cfg
+        if proc.poll() is not None:
+            last_error = f'process_exited:{proc.returncode}'
+        time.sleep(0.5)
+    raise RuntimeError(last_error or 'nas_listener_restart_timeout')
+
+killed = stop_existing()
+proc = start_listener()
+cfg = wait_until_ready(proc, 60)
+if cfg.get('setupRequired') is not False:
+    raise RuntimeError('nas_listener_restart_setup_required')
+if cfg.get('ownerKeyConfigured') is not True:
+    raise RuntimeError('nas_listener_restart_owner_key_unconfigured')
+if cfg.get('ownerKeySource') != 'file':
+    raise RuntimeError('nas_listener_restart_owner_key_not_file')
+
+print(json.dumps({
+    'ok': True,
+    'killed': killed,
+    'startedPid': proc.pid,
+    'setupRequired': cfg.get('setupRequired'),
+    'ownerKeyConfigured': cfg.get('ownerKeyConfigured'),
+    'ownerKeySource': cfg.get('ownerKeySource'),
+}, ensure_ascii=False))
+"@
+  $output = Invoke-NasPython $python
+  Write-Host ("NAS listener restart: " + ($output -join " "))
   Invoke-NasSsh "if [ -x '$RemoteRoot/config/start-nas-gateway-pool.sh' ]; then '$RemoteRoot/config/start-nas-gateway-pool.sh' --start-profiles nasgw1 --no-stop-existing; fi"
 }
 
