@@ -210,6 +210,35 @@ External Windows/WSL responsibilities:
 - Grok/xAI OAuth profile and `x_search` worker if OAuth lives on that machine.
 - Weixin/iLink sidecars unless those are explicitly migrated and validated.
 
+Once Grok/xAI OAuth is migrated to NAS, it must become an explicit NAS-native
+Gateway profile instead of a hidden dependency on Windows. The maintained NAS
+shape is a manifest-derived `grokgw1` profile with `provider=xai-oauth`,
+profile name `grokgw1`, wildcard workspace affinity, and its own port
+(`18763` on the current host). `bridge-host` should resolve the target from the
+manifest and autostart `grokgw1` on demand. Do not hard-code the historical
+Windows Grok port `18761` on NAS because that port can be an ordinary workspace
+worker in the NAS hybrid manifest.
+
+Growth reading/speaking audio needs another NAS-native runtime dependency:
+Whisper large v3 Turbo on loopback `8001`. Linux/NAS must not invoke the
+Windows PowerShell transcription script. The portable path is:
+
+```text
+node scripts/transcribe-reading-audio.js --audio-path <audio> --timeout-seconds <n>
+```
+
+That script talks to:
+
+```text
+http://127.0.0.1:8001/v1/audio/transcriptions
+```
+
+The service package/model cache is runtime material, not Git source. It should
+be installed under a NAS service directory such as
+`/volume1/docker/hermes-mobile/services/whisper-large-v3-turbo`, with model
+files and virtualenv outside the source checkout. Record health/status and
+paths only; do not record uploaded audio bodies or transcripts.
+
 Gateway connection choices:
 
 - Minimal: set `HERMES_WEB_GATEWAY_POOL_ENABLED=off` and point
@@ -731,7 +760,10 @@ Handle separately:
 - Finance/Wardrobe workspace plugin keys: prefer reprovision/bind; if copying,
   copy server-side key files only and verify workspace isolation.
 - xAI OAuth, Codex auth, browser state, and worker profile credentials: keep on
-  the worker host unless full NAS-native runtime is implemented.
+  the worker host unless full NAS-native runtime is implemented. If xAI/Grok is
+  promoted to NAS-native, copy only the profile/auth files through a restricted
+  maintenance channel and validate `grokgw1` health; never print the token
+  material.
 
 Do not migrate:
 

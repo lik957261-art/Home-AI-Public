@@ -314,7 +314,10 @@ function createMobileRuntimeEnvironment(options = {}) {
   const KANBAN_READING_PLAN_MAX_SESSIONS = Math.max(1, Math.min(60, Number(env.HERMES_MOBILE_READING_PLAN_MAX_SESSIONS || env.HERMES_WEB_READING_PLAN_MAX_SESSIONS || "31") || 31));
   const KANBAN_READING_ANALYSIS_TIMEOUT_MS = Number(env.HERMES_MOBILE_READING_ANALYSIS_TIMEOUT_MS || env.HERMES_WEB_READING_ANALYSIS_TIMEOUT_MS || "120000");
   const KANBAN_READING_TRANSCRIBE_TIMEOUT_MS = Number(env.HERMES_MOBILE_READING_TRANSCRIBE_TIMEOUT_MS || env.HERMES_WEB_READING_TRANSCRIBE_TIMEOUT_MS || "240000");
-  const KANBAN_READING_TRANSCRIBE_SCRIPT = path.resolve(env.HERMES_MOBILE_READING_TRANSCRIBE_SCRIPT || env.HERMES_WEB_READING_TRANSCRIBE_SCRIPT || path.join(TOOL_ROOT, "scripts", "transcribe-reading-audio.ps1"));
+  const defaultKanbanReadingTranscribeScript = process.platform === "win32"
+    ? path.join(TOOL_ROOT, "scripts", "transcribe-reading-audio.ps1")
+    : path.join(TOOL_ROOT, "scripts", "transcribe-reading-audio.js");
+  const KANBAN_READING_TRANSCRIBE_SCRIPT = path.resolve(env.HERMES_MOBILE_READING_TRANSCRIBE_SCRIPT || env.HERMES_WEB_READING_TRANSCRIBE_SCRIPT || defaultKanbanReadingTranscribeScript);
   const KANBAN_READING_ARTIFACT_ROOT = path.resolve(env.HERMES_MOBILE_READING_ARTIFACT_ROOT || env.HERMES_WEB_READING_ARTIFACT_ROOT || path.join(DATA_DIR, "artifacts", "kanban-reading"));
   const KANBAN_READING_COVER_MAX_BYTES = Math.max(1, Math.min(MAX_UPLOAD_BYTES, Number(env.HERMES_MOBILE_READING_COVER_MAX_BYTES || env.HERMES_WEB_READING_COVER_MAX_BYTES || String(20 * 1024 * 1024)) || (20 * 1024 * 1024)));
   const KANBAN_SOURCE_DOCUMENT_MAX_BYTES = Math.max(1, Math.min(MAX_UPLOAD_BYTES, Number(env.HERMES_MOBILE_KANBAN_SOURCE_DOCUMENT_MAX_BYTES || env.HERMES_WEB_KANBAN_SOURCE_DOCUMENT_MAX_BYTES || String(20 * 1024 * 1024)) || (20 * 1024 * 1024)));

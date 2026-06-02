@@ -136,12 +136,24 @@ assert.ok(
   "NAS Gateway launcher must provision four Owner OpenAI/Codex candidates",
 );
 assert.ok(
+  nasStartScript.includes("grokgw1:18763:owner:owner-full:xai-oauth")
+    && nasStartScript.includes('"allowedWorkspaceIds": ["*"] if provider == "xai-oauth"')
+    && nasStartScript.includes('"grok", "xai-oauth"')
+    && nasStartScript.includes("HERMES_MOBILE_NAS_GROK_AUTH_ROOT")
+    && nasStartScript.includes('grok_auth_path if provider == "xai-oauth"'),
+  "NAS Gateway launcher must provision a dedicated wildcard Grok/xAI candidate without stealing an ordinary workspace port",
+);
+assert.ok(
   nasStartScript.includes("nasdsgw1") && nasStartScript.includes("owner:owner-full:deepseek"),
   "NAS Gateway launcher must provision Owner DeepSeek candidates without warming them by default",
 );
 assert.ok(
   nasStartScript.includes("nasgw5:18755:weixin_wuping") && nasStartScript.includes("nasgw6:18756:weixin_wuping"),
   "NAS Gateway launcher must provision two OpenAI/Codex candidates for ordinary workspaces",
+);
+assert.ok(
+  nasStartScript.includes("nasgw11:18761:weixin_test_1:workspace:weixin_test_1:openai-codex"),
+  "NAS Gateway launcher must leave the historical 18761 ordinary test worker as OpenAI/Codex and use manifest-derived Grok routing instead of a hardcoded 18761 assumption",
 );
 assert.ok(
   nasStartScript.includes("nasdsgw5:18775:weixin_wuping"),

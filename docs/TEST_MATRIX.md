@@ -129,6 +129,19 @@ Runtime-state backup harnesses must reject a design where every normal message
 increase creates a full state backup or performs a forced SQLite full
 replacement before run progress becomes visible. Focused check:
 `node tests\runtime-state-persistence-service.test.js`.
+NAS Growth audio parity must cover the platform-specific transcription path:
+Windows may use `scripts\transcribe-reading-audio.ps1`, while Linux/NAS must use
+`scripts\transcribe-reading-audio.js` against the local Whisper large v3 Turbo
+service on `127.0.0.1:8001`. The NAS deploy/runbook checks must treat a missing
+8001 health endpoint as "Growth audio submission unavailable", even when stored
+SQLite audio playback works. Focused checks include
+`node tests\kanban-reading-workflow-service.test.js`.
+NAS Grok parity must cover a manifest-derived dedicated `grokgw1`
+`provider=xai-oauth` profile. The test workspace's historical `18761` worker
+must remain an ordinary OpenAI/Codex worker on NAS; bridge-host must discover
+the Grok URL from the manifest instead of assuming 18761. Focused checks include
+`node tests\nas-deploy-harness.test.js` and
+`node tests\bridge-host-grok-proxy.test.js`.
 When a deployment chooses to disable or enable model permission preflight, the
 NAS effective environment must be recorded explicitly and compared with the
 intended local-production behavior instead of being treated as an implicit

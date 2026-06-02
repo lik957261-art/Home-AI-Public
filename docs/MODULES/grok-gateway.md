@@ -24,6 +24,11 @@ Hermes Mobile should select the correct profile; it should not assume that passi
 - Provider: `xai-oauth`
 - Current exposed model family: `grok-4.3`
 - Routing should use `preferred_worker_profiles: ["grokgw1"]` or equivalent manifest/profile selection.
+- Windows production historically uses `grokgw1` on `18761`. NAS production
+  must not assume that port: the maintained NAS hybrid manifest can use `18761`
+  for an ordinary workspace OpenAI/Codex worker. NAS Grok must be discovered
+  from the manifest by `provider=xai-oauth` and `profile=grokgw1`; on the
+  current NAS host the planned Grok port is `18763`.
 - The live port is manifest-derived from `gateway-pool-manifest.json`, but it
   must be stable across later personal workspace provisioning. Additional
   low-permission personal workers are appended after the existing Grok worker;

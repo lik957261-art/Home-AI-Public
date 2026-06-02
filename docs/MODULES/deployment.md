@@ -117,6 +117,22 @@ only after all of these preflight checks pass:
   message flow, not with a probe-only shortcut or a content-specific "test"
   fast path. Small token savings must not hide real latency, missing toolsets,
   missing plugin MCP registration, or Gateway selection regressions.
+- NAS Growth audio parity also requires a NAS-local Whisper large v3 Turbo
+  transcription service. The listener's default reading/Growth transcription
+  script is platform-specific: Windows uses
+  `scripts/transcribe-reading-audio.ps1`, while Linux/NAS uses
+  `scripts/transcribe-reading-audio.js` against
+  `http://127.0.0.1:8001/v1/audio/transcriptions`. A NAS deployment that has
+  only copied learning SQLite/audio BLOB data but has no healthy 8001 Whisper
+  service can play stored audio, but new speaking/reading submissions will fail
+  transcription.
+- NAS Grok parity requires a dedicated `grokgw1` `provider=xai-oauth` worker in
+  the NAS manifest. Do not reuse an ordinary workspace worker port as Grok.
+  On the maintained NAS deployment, `grokgw1` is a stopped-on-demand wildcard
+  profile at `18763`; bridge-host discovers it from the manifest and starts
+  only that profile for `x_search`/Grok proxy cold starts. xAI OAuth files stay
+  in the NAS Gateway profile/auth store and must not be printed or copied into
+  docs, frontend state, or plugin config.
 - A successful parity smoke records the run phase timeline from Mobile events:
   `run.request_preparing`, `run.gateway_worker_reused` or
   `run.gateway_worker_started`, `run.context_ready`, `run.gateway_selected`,

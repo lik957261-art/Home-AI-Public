@@ -10,13 +10,16 @@ SKILL_PROFILES_ROOT="${HERMES_MOBILE_NAS_SKILL_PROFILES_ROOT:-$ROOT/data/skill-p
 MEMORY_PROFILES_ROOT="${HERMES_MOBILE_NAS_MEMORY_PROFILES_ROOT:-$ROOT/data/gateway-memories}"
 WARDROBE_MCP_PYTHON="${HERMES_MOBILE_NAS_WARDROBE_MCP_PYTHON:-/volume1/docker/hermes-agent/current/venv/bin/python3}"
 WARDROBE_MCP_PATH="${HERMES_MOBILE_NAS_WARDROBE_MCP_PATH:-/volume1/docker/wardrobe-mcp/scripts/wardrobe-mcp.py}"
-FINANCE_MCP_PYTHON="${HERMES_MOBILE_NAS_FINANCE_MCP_PYTHON:-/opt/hermes-gateway-runtime/venv/bin/python}"
+FINANCE_MCP_PYTHON="${HERMES_MOBILE_NAS_FINANCE_MCP_PYTHON:-/usr/bin/python3}"
 FINANCE_MCP_PATH="${HERMES_MOBILE_NAS_FINANCE_MCP_PATH:-/volume1/docker/finance-mcp/source/scripts/finance_mcp_stdio.py}"
 FINANCE_MCP_API_BASE_URL="${HERMES_MOBILE_NAS_FINANCE_MCP_API_BASE_URL:-http://127.0.0.1:8791}"
+GROK_AUTH_ROOT="${HERMES_MOBILE_NAS_GROK_AUTH_ROOT:-$ROOT/gateway-worker/profiles/shared-auth-grok}"
+GROK_AUTH_PATH="${HERMES_MOBILE_NAS_GROK_AUTH_PATH:-$GROK_AUTH_ROOT/auth.json}"
+GROK_AUTH_LOCK_PATH="${HERMES_MOBILE_NAS_GROK_AUTH_LOCK_PATH:-$GROK_AUTH_ROOT/auth.lock}"
 
 # Format: profile:port:workspaceId:skillProfile
 # Optional fifth field is provider. Defaults to openai-codex.
-WORKERS="${HERMES_MOBILE_NAS_GATEWAY_WORKERS:-nasgw1:18751:owner:owner-full:openai-codex,nasgw2:18752:owner:owner-full:openai-codex,nasgw3:18753:owner:owner-full:openai-codex,nasgw4:18754:owner:owner-full:openai-codex,nasdsgw1:18771:owner:owner-full:deepseek,nasdsgw2:18772:owner:owner-full:deepseek,nasgw5:18755:weixin_wuping:workspace:weixin_wuping:openai-codex,nasgw6:18756:weixin_wuping:workspace:weixin_wuping:openai-codex,nasdsgw5:18775:weixin_wuping:workspace:weixin_wuping:deepseek,nasgw7:18757:weixin_stephen:workspace:weixin_stephen:openai-codex,nasgw8:18758:weixin_stephen:workspace:weixin_stephen:openai-codex,nasdsgw7:18777:weixin_stephen:workspace:weixin_stephen:deepseek,nasgw9:18759:xuyan:workspace:xuyan:openai-codex,nasgw10:18760:xuyan:workspace:xuyan:openai-codex,nasdsgw9:18779:xuyan:workspace:xuyan:deepseek,nasgw11:18761:weixin_test_1:workspace:weixin_test_1:openai-codex,nasgw12:18762:weixin_test_1:workspace:weixin_test_1:openai-codex,nasdsgw11:18781:weixin_test_1:workspace:weixin_test_1:deepseek}"
+WORKERS="${HERMES_MOBILE_NAS_GATEWAY_WORKERS:-nasgw1:18751:owner:owner-full:openai-codex,nasgw2:18752:owner:owner-full:openai-codex,nasgw3:18753:owner:owner-full:openai-codex,nasgw4:18754:owner:owner-full:openai-codex,grokgw1:18763:owner:owner-full:xai-oauth,nasdsgw1:18771:owner:owner-full:deepseek,nasdsgw2:18772:owner:owner-full:deepseek,nasgw5:18755:weixin_wuping:workspace:weixin_wuping:openai-codex,nasgw6:18756:weixin_wuping:workspace:weixin_wuping:openai-codex,nasdsgw5:18775:weixin_wuping:workspace:weixin_wuping:deepseek,nasgw7:18757:weixin_stephen:workspace:weixin_stephen:openai-codex,nasgw8:18758:weixin_stephen:workspace:weixin_stephen:openai-codex,nasdsgw7:18777:weixin_stephen:workspace:weixin_stephen:deepseek,nasgw9:18759:xuyan:workspace:xuyan:openai-codex,nasgw10:18760:xuyan:workspace:xuyan:openai-codex,nasdsgw9:18779:xuyan:workspace:xuyan:deepseek,nasgw11:18761:weixin_test_1:workspace:weixin_test_1:openai-codex,nasgw12:18762:weixin_test_1:workspace:weixin_test_1:openai-codex,nasdsgw11:18781:weixin_test_1:workspace:weixin_test_1:deepseek}"
 START_PROFILES="${HERMES_MOBILE_NAS_GATEWAY_START_PROFILES:-nasgw1}"
 STOP_PROFILES=""
 NO_STOP_EXISTING=0
@@ -47,7 +50,7 @@ done
 
 mkdir -p "$PROFILES_ROOT" "$(dirname "$MANIFEST_PATH")" "$SKILL_PROFILES_ROOT" "$MEMORY_PROFILES_ROOT"
 
-python3 - "$ROOT" "$BASE_HOME" "$PROFILES_ROOT" "$MANIFEST_PATH" "$WORKERS" "$SKILL_PROFILES_ROOT" "$MEMORY_PROFILES_ROOT" "$WARDROBE_MCP_PYTHON" "$WARDROBE_MCP_PATH" "$FINANCE_MCP_PYTHON" "$FINANCE_MCP_PATH" "$FINANCE_MCP_API_BASE_URL" <<'PY'
+python3 - "$ROOT" "$BASE_HOME" "$PROFILES_ROOT" "$MANIFEST_PATH" "$WORKERS" "$SKILL_PROFILES_ROOT" "$MEMORY_PROFILES_ROOT" "$WARDROBE_MCP_PYTHON" "$WARDROBE_MCP_PATH" "$FINANCE_MCP_PYTHON" "$FINANCE_MCP_PATH" "$FINANCE_MCP_API_BASE_URL" "$GROK_AUTH_PATH" "$GROK_AUTH_LOCK_PATH" <<'PY'
 import json
 import os
 import secrets
@@ -67,6 +70,8 @@ wardrobe_mcp_path = Path(sys.argv[9])
 finance_mcp_python = sys.argv[10]
 finance_mcp_path = Path(sys.argv[11])
 finance_mcp_api_base_url = sys.argv[12]
+grok_auth_path = Path(sys.argv[13])
+grok_auth_lock_path = Path(sys.argv[14])
 
 base_config = (base_home / "config.yaml").read_text(encoding="utf-8")
 base_env = (base_home / ".env").read_text(encoding="utf-8")
@@ -221,16 +226,16 @@ def plugin_mcp_config(config_text, profile_home, workspace_root):
     return config
 
 def apply_provider_config(config_text, provider):
-    if provider != "deepseek":
+    if provider not in {"deepseek", "xai-oauth"}:
         return config_text
     lines = []
     for line in config_text.splitlines():
         if line.strip().startswith("provider:"):
             indent = line[:len(line) - len(line.lstrip())]
-            lines.append(f"{indent}provider: deepseek")
+            lines.append(f"{indent}provider: {provider}")
         elif line.strip().startswith("default:"):
             indent = line[:len(line) - len(line.lstrip())]
-            lines.append(f"{indent}default: deepseek-chat")
+            lines.append(f"{indent}default: {'grok-4.3' if provider == 'xai-oauth' else 'deepseek-chat'}")
         else:
             lines.append(line)
     return "\n".join(lines).rstrip() + "\n"
@@ -241,7 +246,7 @@ for raw in [item.strip() for item in worker_spec.split(",") if item.strip()]:
         raise SystemExit(f"invalid worker spec: {raw}")
     name, port_text, workspace_id = parts[0].strip(), parts[1].strip(), parts[2].strip()
     provider = "openai-codex"
-    if len(parts) >= 5 and parts[-1].strip() in ("openai-codex", "deepseek"):
+    if len(parts) >= 5 and parts[-1].strip() in ("openai-codex", "deepseek", "xai-oauth"):
         provider = parts[-1].strip()
         skill_profile = ":".join(parts[3:-1]).strip()
     else:
@@ -293,9 +298,15 @@ for raw in [item.strip() for item in worker_spec.split(",") if item.strip()]:
     config = plugin_mcp_config(config, profile_home, workspace_root)
     (profile_home / "config.yaml").write_text(config, encoding="utf-8")
 
-    for filename in ["auth.json", "SOUL.md"]:
-        src = base_home / filename
+    auth_sources = {
+        "auth.json": grok_auth_path if provider == "xai-oauth" else base_home / "auth.json",
+        "auth.lock": grok_auth_lock_path if provider == "xai-oauth" else base_home / "auth.lock",
+        "SOUL.md": base_home / "SOUL.md",
+    }
+    for filename, src in auth_sources.items():
         dst = profile_home / filename
+        if provider == "xai-oauth" and filename.startswith("auth.") and dst.exists() and not dst.is_symlink():
+            safe_remove_path(dst)
         if src.exists() and not dst.exists():
             try:
                 dst.symlink_to(src)
@@ -339,11 +350,11 @@ for raw in [item.strip() for item in worker_spec.split(",") if item.strip()]:
         "api_key": api_key,
         "enabled": True,
         "provider": provider,
-        "tags": ["official", "clean", "nas", "user"] + (["deepseek"] if provider == "deepseek" else []),
+        "tags": ["official", "clean", "nas", "user"] + (["deepseek"] if provider == "deepseek" else []) + (["grok", "xai-oauth"] if provider == "xai-oauth" else []),
         "securityLevel": "user",
-        "allowedWorkspaceIds": [workspace_id],
+        "allowedWorkspaceIds": ["*"] if provider == "xai-oauth" else [workspace_id],
         "skillProfile": skill_profile,
-        "skillWorkspaceIds": [workspace_id],
+        "skillWorkspaceIds": ["*"] if provider == "xai-oauth" else [workspace_id],
     })
 
 tmp = manifest_path.with_suffix(manifest_path.suffix + ".tmp")

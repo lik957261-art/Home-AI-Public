@@ -204,6 +204,38 @@ async function testReadingAudioUsesTranscriptionPath() {
   assert.equal(calls.transcribe.length, 1);
 }
 
+async function testReadingAudioUsesNodeTranscriptionScriptOnLinuxCompatiblePath() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "kanban-reading-node-transcribe-"));
+  const transcribeScript = path.join(root, "transcribe.js");
+  fs.writeFileSync(transcribeScript, "/* noop */", "utf8");
+  const { service, calls } = makeService({
+    cards: [{
+      id: "card-1",
+      content: "Reading",
+      kanbanCaseId: "case-1",
+      kanbanCaseMode: "study-plan",
+      kanbanCaseTemplate: "reading",
+      kanbanCaseCardIndex: 1,
+      kanbanCaseCardCount: 1,
+      kanbanStatus: "todo",
+    }],
+    deps: { transcribeScript },
+  });
+  const result = await service.submitKanbanReadingSubmission("owner", "card-1", {
+    filename: "voice.m4a",
+    type: "audio/mp4",
+    dataBase64: Buffer.from("audio bytes").toString("base64"),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(calls.transcribe.length, 1);
+  assert.equal(calls.transcribe[0].command, process.execPath);
+  assert.equal(calls.transcribe[0].args[0], transcribeScript);
+  assert.equal(calls.transcribe[0].args[1], "--audio-path");
+  assert.match(calls.transcribe[0].args[2], /voice\.m4a$/);
+  assert.equal(fs.existsSync(calls.transcribe[0].args[2]), true);
+  assert.equal(calls.transcribe[0].args[3], "--timeout-seconds");
+}
+
 async function testReadingAudioCanBeAcceptedBeforeBackgroundAnalysis() {
   const { service, calls, stores } = makeService({
     cards: [{
@@ -480,6 +512,7 @@ async function run() {
   await testTextSubmissionCreatesAnalysisQuizAndComment();
   await testAnalysisUsesBoundCaseDeliverableDirectory();
   await testReadingAudioUsesTranscriptionPath();
+  await testReadingAudioUsesNodeTranscriptionScriptOnLinuxCompatiblePath();
   await testReadingAudioCanBeAcceptedBeforeBackgroundAnalysis();
   await testReadingAnalysisHeadingsAreReadable();
   await testQuizFailureAndPassWorkflow();

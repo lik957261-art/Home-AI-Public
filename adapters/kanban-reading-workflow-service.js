@@ -256,17 +256,51 @@ function createKanbanReadingWorkflowService(deps = {}) {
     if (!fs.existsSync(transcribeScript)) {
       throw new Error(`Reading audio transcription script is not installed: ${transcribeScript}`);
     }
-    const result = await runProcessText("powershell.exe", [
-      "-NoProfile",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-File",
-      transcribeScript,
-      "-AudioPath",
-      audioPath,
-      "-TimeoutSeconds",
-      String(Math.ceil(transcribeTimeoutMs / 1000)),
-    ], {
+    const timeoutSeconds = String(Math.ceil(transcribeTimeoutMs / 1000));
+    const ext = path.extname(transcribeScript).toLowerCase();
+    let command = "";
+    let args = [];
+    if (ext === ".ps1") {
+      command = process.platform === "win32" ? "powershell.exe" : "pwsh";
+      args = [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        transcribeScript,
+        "-AudioPath",
+        audioPath,
+        "-TimeoutSeconds",
+        timeoutSeconds,
+      ];
+    } else if (ext === ".js" || ext === ".mjs" || ext === ".cjs") {
+      command = process.execPath;
+      args = [
+        transcribeScript,
+        "--audio-path",
+        audioPath,
+        "--timeout-seconds",
+        timeoutSeconds,
+      ];
+    } else if (ext === ".py") {
+      command = process.env.PYTHON || process.env.PYTHON3 || "python3";
+      args = [
+        transcribeScript,
+        "--audio-path",
+        audioPath,
+        "--timeout-seconds",
+        timeoutSeconds,
+      ];
+    } else {
+      command = transcribeScript;
+      args = [
+        "--audio-path",
+        audioPath,
+        "--timeout-seconds",
+        timeoutSeconds,
+      ];
+    }
+    const result = await runProcessText(command, args, {
       timeoutMs: transcribeTimeoutMs + 15000,
       maxOutputBytes: 4_000_000,
     });
