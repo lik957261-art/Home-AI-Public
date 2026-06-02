@@ -80,6 +80,14 @@ assert.ok(
   deployScript.includes("gateway_not_hybrid_parity"),
   "NAS first-start preflight must support strict hybrid parity failure",
 );
+assert.ok(
+  deployScript.includes("is_documented_grok_wildcard")
+    && deployScript.includes("profile == 'grokgw1'")
+    && deployScript.includes("provider == 'xai-oauth'")
+    && deployScript.includes("('toolsets', 'tags')")
+    && deployScript.includes("not single_worker_bridge and not is_documented_grok_wildcard(worker)"),
+  "NAS first-start preflight must allow only the documented Grok/xAI wildcard profile while rejecting ordinary wildcard workers",
+);
 
 assert.ok(
   deploymentDoc.includes("run.request_preparing") && nasPlan.includes("run.request_preparing"),
@@ -136,11 +144,21 @@ assert.ok(
   "NAS Gateway launcher must provision four Owner OpenAI/Codex candidates",
 );
 assert.ok(
-  nasStartScript.includes('"openai-codex": "gpt-5.5"')
-    && nasStartScript.includes("reasoning_effort: medium")
+  nasStartScript.includes("DEFAULT_OPENAI_CODEX_MODEL")
+    && nasStartScript.includes("HERMES_MOBILE_DEFAULT_OPENAI_CODEX_MODEL")
+    && nasStartScript.includes("DEFAULT_REASONING_EFFORT")
     && nasStartScript.includes("max_turns: 60")
     && !nasStartScript.includes("gpt-5.3-codex"),
-  "NAS Gateway launcher must keep OpenAI/Codex profiles on the maintained ChatGPT 5.5 medium default and never fall back to unsupported gpt-5.3-codex",
+  "NAS Gateway launcher must derive OpenAI/Codex profiles from the maintained default model source and never fall back to unsupported gpt-5.3-codex",
+);
+assert.ok(
+  read("scripts/start-nas-cron-tick.sh").includes("RUNTIME_CONFIG_PATH")
+    && read("scripts/start-nas-cron-tick.sh").includes("defaultModel")
+    && read("scripts/start-nas-cron-tick.sh").includes("config.yaml")
+    && read("scripts/start-nas-cron-tick.sh").includes("HERMES_GATEWAY_POOL_MANIFEST_PATH")
+    && read("scripts/start-nas-cron-tick.sh").includes("HERMES_GATEWAY_TELEMETRY_ROOT")
+    && read("scripts/start-nas-cron-tick.sh").includes("hermes-mobile-token-usage-daily.py"),
+  "NAS cron tick must sync official CRON runtime config.yaml and install NAS-local official CRON helper scripts from the same runtime source as Gateway workers",
 );
 assert.ok(
   nasStartScript.includes("grokgw1:18763:owner:owner-full:xai-oauth")

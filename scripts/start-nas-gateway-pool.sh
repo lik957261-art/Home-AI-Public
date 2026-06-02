@@ -13,6 +13,11 @@ WARDROBE_MCP_PATH="${HERMES_MOBILE_NAS_WARDROBE_MCP_PATH:-/volume1/docker/wardro
 FINANCE_MCP_PYTHON="${HERMES_MOBILE_NAS_FINANCE_MCP_PYTHON:-/usr/bin/python3}"
 FINANCE_MCP_PATH="${HERMES_MOBILE_NAS_FINANCE_MCP_PATH:-/volume1/docker/finance-mcp/source/scripts/finance_mcp_stdio.py}"
 FINANCE_MCP_API_BASE_URL="${HERMES_MOBILE_NAS_FINANCE_MCP_API_BASE_URL:-http://127.0.0.1:8791}"
+DEFAULT_OPENAI_CODEX_MODEL="${HERMES_MOBILE_DEFAULT_OPENAI_CODEX_MODEL:-${HERMES_WEB_DEFAULT_OPENAI_CODEX_MODEL:-gpt-5.5}}"
+DEFAULT_DEEPSEEK_MODEL="${HERMES_MOBILE_DEFAULT_DEEPSEEK_MODEL:-${HERMES_WEB_DEFAULT_DEEPSEEK_MODEL:-deepseek-chat}}"
+DEFAULT_XAI_MODEL="${HERMES_MOBILE_DEFAULT_XAI_MODEL:-${HERMES_WEB_DEFAULT_XAI_MODEL:-grok-4.3}}"
+DEFAULT_REASONING_EFFORT="${HERMES_MOBILE_DEFAULT_REASONING_EFFORT:-${HERMES_WEB_DEFAULT_REASONING_EFFORT:-medium}}"
+export DEFAULT_OPENAI_CODEX_MODEL DEFAULT_DEEPSEEK_MODEL DEFAULT_XAI_MODEL DEFAULT_REASONING_EFFORT
 GROK_AUTH_ROOT="${HERMES_MOBILE_NAS_GROK_AUTH_ROOT:-$ROOT/gateway-worker/profiles/shared-auth-grok}"
 GROK_AUTH_PATH="${HERMES_MOBILE_NAS_GROK_AUTH_PATH:-$GROK_AUTH_ROOT/auth.json}"
 GROK_AUTH_LOCK_PATH="${HERMES_MOBILE_NAS_GROK_AUTH_LOCK_PATH:-$GROK_AUTH_ROOT/auth.lock}"
@@ -230,10 +235,11 @@ def plugin_mcp_config(config_text, profile_home, workspace_root):
 
 def apply_provider_config(config_text, provider):
     defaults = {
-        "openai-codex": "gpt-5.5",
-        "deepseek": "deepseek-chat",
-        "xai-oauth": "grok-4.3",
+        "openai-codex": os.environ.get("DEFAULT_OPENAI_CODEX_MODEL", "gpt-5.5"),
+        "deepseek": os.environ.get("DEFAULT_DEEPSEEK_MODEL", "deepseek-chat"),
+        "xai-oauth": os.environ.get("DEFAULT_XAI_MODEL", "grok-4.3"),
     }
+    default_effort = os.environ.get("DEFAULT_REASONING_EFFORT", "medium") or "medium"
     if provider not in defaults:
         provider = "openai-codex"
     lines = []
@@ -252,20 +258,20 @@ def apply_provider_config(config_text, provider):
             saw_agent_block = True
             lines.append(line)
         elif in_agent_block and line.startswith("  reasoning_effort:"):
-            lines.append("  reasoning_effort: medium")
+            lines.append(f"  reasoning_effort: {default_effort}")
             saw_reasoning_effort = True
         elif in_agent_block and line and not line.startswith("  "):
             if not saw_reasoning_effort:
-                lines.append("  reasoning_effort: medium")
+                lines.append(f"  reasoning_effort: {default_effort}")
                 saw_reasoning_effort = True
             in_agent_block = False
             lines.append(line)
         else:
             lines.append(line)
     if in_agent_block and not saw_reasoning_effort:
-        lines.append("  reasoning_effort: medium")
+        lines.append(f"  reasoning_effort: {default_effort}")
     if not saw_agent_block:
-        lines.extend(["", "agent:", "  max_turns: 60", "  reasoning_effort: medium"])
+        lines.extend(["", "agent:", "  max_turns: 60", f"  reasoning_effort: {default_effort}"])
     return "\n".join(lines).rstrip() + "\n"
 
 for raw in [item.strip() for item in worker_spec.split(",") if item.strip()]:

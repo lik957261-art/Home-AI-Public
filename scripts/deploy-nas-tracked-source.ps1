@@ -124,6 +124,21 @@ def is_publicly_accessible(path):
     except FileNotFoundError:
         return False
 
+def is_documented_grok_wildcard(worker):
+    profile = str(worker.get('profile') or worker.get('name') or '').strip()
+    provider = str(worker.get('provider') or worker.get('modelProvider') or worker.get('model_provider') or '').strip()
+    markers = []
+    for key in ('toolsets', 'tags'):
+        raw = worker.get(key) or []
+        if isinstance(raw, str):
+            raw = [raw]
+        markers.extend(raw)
+    return (
+        profile == 'grokgw1'
+        and provider == 'xai-oauth'
+        and ('grok' in markers or 'xai-oauth' in markers)
+    )
+
 if not skill_profiles_root.exists():
     issues.append('nas_skill_profiles_missing')
 
@@ -131,7 +146,7 @@ for worker in user_workers:
     profile = str(worker.get('profile') or worker.get('name') or '').strip()
     workspace_ids = normalized_workspace_ids(worker)
     if workspace_ids == ['*']:
-        if not single_worker_bridge:
+        if not single_worker_bridge and not is_documented_grok_wildcard(worker):
             issues.append(f'nas_user_worker_wildcard_workspace:{profile}')
         continue
     if len(workspace_ids) != 1:

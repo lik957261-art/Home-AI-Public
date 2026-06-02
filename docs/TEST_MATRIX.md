@@ -96,6 +96,14 @@ wildcard worker is allowed as a bootstrap
 bridge only with an explicit warning; it must not be treated as equivalent to
 the maintained Windows hybrid/Owner-warm Gateway Pool. Focused check:
 `node tests\nas-deploy-harness.test.js`.
+The same NAS deploy/preflight harness must verify runtime model parity across
+all execution entrances: generated OpenAI/Codex Gateway profiles, NAS
+`$HERMES_HOME/config.yaml`, NAS `.env`, and official CRON dispatcher startup
+must not retain stale models such as `gpt-5.3-codex`. The maintained user-run
+default is `gpt-5.5` with `medium` reasoning. Permission preflight is separate:
+unless explicitly overridden, it should remain the fast `gpt-5.4-mini` low
+reasoning classifier with the bounded timeout from
+`HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS`.
 Both NAS deploy scripts must use the fixed cross-shell transport: local tar to
 base64 text, SSH text upload, NAS-side Python decode, extraction to both
 `app` and `source`, and pinned NAS Node checks. They must not depend on

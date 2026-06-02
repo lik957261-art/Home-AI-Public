@@ -67,6 +67,19 @@ canonical scheduler, not a replacement scheduler.
 - Task prompt text, generated reports, runner logs, raw model output, raw mail
   content, tokens, local secret paths, and push endpoints must not be copied
   into Automation docs, handoffs, or long-lived diagnostic records.
+- NAS production must dispatch official CRON with the same maintained runtime
+  model defaults as the listener/Gateway layer. The NAS cron tick sidecar syncs
+  `$HERMES_HOME/config.yaml` from the product runtime config before dispatch so
+  scheduled model jobs do not keep using stale values such as
+  `gpt-5.3-codex`. If official CRON jobs show repeated timeouts or rejected
+  model errors while Gateway chat uses the correct model, inspect the official
+  Hermes home config first instead of reviving Hermes Mobile SQLite automation
+  rows.
+- NAS official CRON helper scripts must be installed into
+  `$HERMES_HOME/scripts` by the cron sidecar. For example,
+  `tokenusage001` calls `hermes-mobile-token-usage-daily.py`, which is a
+  NAS-local compatibility copy of `scripts/gateway-token-usage-daily-report.py`
+  with NAS manifest, telemetry, and report-root environment defaults.
 
 ## Cron Dispatcher
 

@@ -401,13 +401,20 @@ function assertRunConcurrencyCapacity(workspaceId) {
 }
 function publicReasoningInfoForAuth(auth) {
   const info = defaultReasoningInfo();
+  const runtimeConfig = loadRuntimeConfig();
+  const runtimeModel = runtimeConfig.defaultModel || info.defaultModel || "";
+  const runtimeProvider = runtimeConfig.defaultModelProvider || info.provider || "";
+  const runtimeEffort = runtimeConfig.defaultReasoningEffort || info.defaultEffort || "medium";
+  const runtimePublicConfig = runtimeConfigProvider.publicConfig();
   const shared = {
-    defaultEffort: info.defaultEffort || "medium",
+    defaultEffort: runtimeEffort,
     efforts: REASONING_EFFORT_OPTIONS,
     assistantLabel: info.assistantLabel || "AI",
+    defaultModelId: runtimeConfig.defaultModelId || runtimePublicConfig.defaultModelId || "",
+    modelOptions: runtimePublicConfig.modelOptions || [],
     model: {
-      default: info.defaultModel || "",
-      provider: info.provider || "",
+      default: runtimeModel,
+      provider: runtimeProvider,
       label: info.assistantLabel || "AI",
     },
   };

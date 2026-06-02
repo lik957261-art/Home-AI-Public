@@ -802,6 +802,8 @@ function applyReasoningInfo(info = {}) {
   if (!info || typeof info !== "object") return;
   const options = normalizeReasoningOptions(info.efforts || info.options || []);
   state.reasoningOptions = options;
+  state.runtimeModelOptions = Array.isArray(info.modelOptions) ? info.modelOptions : [];
+  state.defaultModelId = String(info.defaultModelId || state.defaultModelId || "").trim();
   const defaultEffort = String(info.defaultEffort || "").trim().toLowerCase();
   state.defaultReasoningEffort = options.some((item) => item.value === defaultEffort)
     ? defaultEffort

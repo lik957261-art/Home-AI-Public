@@ -118,6 +118,14 @@ only after all of these preflight checks pass:
   inherit an older NAS-local Hermes `.env` or profile value such as
   `gpt-5.3-codex`; that model is rejected by the ChatGPT Codex account backend
   and turns normal Owner runs into Gateway failures.
+- The Owner runtime setting is the product-level default model source. NAS
+  Gateway profile generation and the NAS official CRON tick sidecar must both
+  sync from that source before dispatch. The maintained default is ChatGPT
+  `gpt-5.5` with `medium` reasoning, while the model permission preflight
+  remains a fast classifier path using `gpt-5.4-mini` with low reasoning and an
+  8 second timeout unless explicitly overridden. A stale
+  `$HERMES_HOME/config.yaml`, `.env`, or generated profile must be treated as a
+  failed deploy/preflight, not as a harmless local default.
 - NAS/Windows parity must be measured with the same ordinary representative
   message flow, not with a probe-only shortcut or a content-specific "test"
   fast path. Small token savings must not hide real latency, missing toolsets,
@@ -162,7 +170,9 @@ only after all of these preflight checks pass:
   into SQLite before serving runtime state.
 - Every user worker is scoped to exactly one `allowedWorkspaceIds` value. A
   wildcard workspace is allowed only for an explicitly documented legacy bridge
-  warning and is not production parity.
+  warning or the dedicated `grokgw1` `provider=xai-oauth` on-demand Grok
+  profile. Ordinary workspace workers must not use wildcard access, and a
+  wildcard bridge is not production parity.
 - Every worker profile binds `skills` to the NAS-local per-workspace Skill
   Store under `/volume1/docker/hermes-mobile/data/skill-profiles/<profile>/skills`.
   It must not symlink all users to `/var/services/homes/xuxinxp/.hermes/skills`.

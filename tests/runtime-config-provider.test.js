@@ -4,7 +4,10 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { createRuntimeConfigProvider } = require("../adapters/runtime-config-provider");
+const {
+  DEFAULT_RUNTIME_MODEL_OPTION,
+  createRuntimeConfigProvider,
+} = require("../adapters/runtime-config-provider");
 
 function makeProvider() {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-runtime-config-"));
@@ -37,6 +40,10 @@ function testSaveAndPublicConfig() {
   }, "owner");
 
   assert.equal(saved.hermesApiBase, "http://localhost:8642");
+  assert.equal(saved.defaultModelId, DEFAULT_RUNTIME_MODEL_OPTION.id);
+  assert.equal(saved.defaultModel, "gpt-5.5");
+  assert.equal(saved.defaultModelProvider, "openai-codex");
+  assert.equal(saved.defaultReasoningEffort, "medium");
   assert.equal(saved.updatedBy, "owner");
   assert.equal(provider.effectiveHermesApiBase(), "http://localhost:8642");
   assert.equal(provider.loadHermesApiKey(), "file-key");
@@ -51,6 +58,42 @@ function testSaveAndPublicConfig() {
   assert.equal(publicConfig.webPushConfigured, true);
   assert.equal(publicConfig.webPushSubscriptionCount, 3);
   assert.equal(publicConfig.webPushVapidExists, true);
+  assert.equal(publicConfig.defaultModelId, "openai-codex:gpt-5.5");
+  assert.equal(publicConfig.defaultModel, "gpt-5.5");
+  assert.equal(publicConfig.defaultModelProvider, "openai-codex");
+  assert.equal(publicConfig.defaultReasoningEffort, "medium");
+  assert.deepEqual(
+    publicConfig.modelOptions.map((item) => item.id),
+    ["openai-codex:gpt-5.5", "deepseek:deepseek-chat", "xai-oauth:grok-4.3"],
+  );
+}
+
+function testModelSelectionNormalizesCatalogOnly() {
+  const { provider } = makeProvider();
+  const deepseek = provider.save({
+    defaultModelId: "deepseek:deepseek-chat",
+    defaultReasoningEffort: "high",
+  }, "owner");
+  assert.equal(deepseek.defaultModelId, "deepseek:deepseek-chat");
+  assert.equal(deepseek.defaultModelProvider, "deepseek");
+  assert.equal(deepseek.defaultModel, "deepseek-chat");
+  assert.equal(deepseek.defaultReasoningEffort, "high");
+
+  const fallback = provider.save({
+    defaultModelId: "unknown-provider:unknown-model",
+    defaultReasoningEffort: "custom-secret-value",
+  }, "owner");
+  assert.equal(fallback.defaultModelId, "deepseek:deepseek-chat");
+  assert.equal(fallback.defaultModel, "deepseek-chat");
+  assert.equal(fallback.defaultReasoningEffort, "medium");
+
+  const fresh = makeProvider().provider.save({
+    defaultModelId: "unknown-provider:unknown-model",
+    defaultReasoningEffort: "custom-secret-value",
+  }, "owner");
+  assert.equal(fresh.defaultModelId, DEFAULT_RUNTIME_MODEL_OPTION.id);
+  assert.equal(fresh.defaultModel, "gpt-5.5");
+  assert.equal(fresh.defaultReasoningEffort, "medium");
 }
 
 function testEnvKeyAndEnvFileFallback() {
@@ -69,6 +112,7 @@ function testValidation() {
 }
 
 testSaveAndPublicConfig();
+testModelSelectionNormalizesCatalogOnly();
 testEnvKeyAndEnvFileFallback();
 testValidation();
 console.log("runtime-config-provider tests passed");

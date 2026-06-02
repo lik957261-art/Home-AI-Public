@@ -204,6 +204,29 @@ function renderWorkspaceAccessPanel() {
   });
 }
 
+function renderRuntimeModelOptions(config = {}) {
+  const options = Array.isArray(config.modelOptions) && config.modelOptions.length
+    ? config.modelOptions
+    : (Array.isArray(state.runtimeModelOptions) ? state.runtimeModelOptions : []);
+  const selected = String(config.defaultModelId || state.defaultModelId || "").trim();
+  return options.map((option) => {
+    const id = String(option.id || `${option.provider || ""}:${option.model || ""}`).trim();
+    if (!id) return "";
+    const label = String(option.label || option.model || id).trim();
+    const meta = [option.model, option.provider].filter(Boolean).join(" / ");
+    return `<option value="${escapeHtml(id)}"${id === selected ? " selected" : ""}>${escapeHtml(meta ? `${label} (${meta})` : label)}</option>`;
+  }).join("");
+}
+
+function renderRuntimeReasoningOptions(selected = "") {
+  const current = String(selected || state.defaultReasoningEffort || "medium").trim().toLowerCase();
+  return configuredReasoningOptions().map((option) => {
+    const value = String(option.value || "").trim().toLowerCase();
+    if (!value) return "";
+    return `<option value="${escapeHtml(value)}"${value === current ? " selected" : ""}>${escapeHtml(option.label || value)}</option>`;
+  }).join("");
+}
+
 function renderRuntimeConfigManager() {
   const overlay = $("runtimeConfigOverlay");
   if (!overlay) return;
@@ -240,6 +263,15 @@ function renderRuntimeConfigManager() {
           <label>
             <span>Hermes API Key 文件路径</span>
             <input id="runtimeHermesApiKeyPath" type="text" autocomplete="off" value="${escapeHtml(config.hermesApiKeyPath || "")}" placeholder="可留空，继续使用环境变量或默认路径">
+          </label>
+          <div class="runtime-config-subtitle">Model default</div>
+          <label>
+            <span>Default model</span>
+            <select id="runtimeDefaultModelId" class="todo-input">${renderRuntimeModelOptions(config)}</select>
+          </label>
+          <label>
+            <span>Default reasoning</span>
+            <select id="runtimeDefaultReasoningEffort" class="todo-input">${renderRuntimeReasoningOptions(config.defaultReasoningEffort || "")}</select>
           </label>
           <div class="runtime-config-subtitle">Web Push / VAPID</div>
           <label>
@@ -327,6 +359,8 @@ function closeRuntimeConfigManager() {
 async function saveRuntimeConfigManager() {
   const hermesApiBase = $("runtimeHermesApiBase")?.value?.trim() || "";
   const hermesApiKeyPath = $("runtimeHermesApiKeyPath")?.value?.trim() || "";
+  const defaultModelId = $("runtimeDefaultModelId")?.value?.trim() || "";
+  const defaultReasoningEffort = $("runtimeDefaultReasoningEffort")?.value?.trim() || "";
   const webPushSubject = $("runtimeWebPushSubject")?.value?.trim() || "";
   const webPushVapidPath = $("runtimeWebPushVapidPath")?.value?.trim() || "";
   state.runtimeConfigLoading = true;
@@ -335,7 +369,7 @@ async function saveRuntimeConfigManager() {
   try {
     const result = await api("/api/runtime-config", {
       method: "PATCH",
-      body: JSON.stringify({ hermesApiBase, hermesApiKeyPath, webPushSubject, webPushVapidPath }),
+      body: JSON.stringify({ hermesApiBase, hermesApiKeyPath, defaultModelId, defaultReasoningEffort, webPushSubject, webPushVapidPath }),
     });
     state.runtimeConfig = result.config || {};
     state.pushStatus = result.push || state.pushStatus;

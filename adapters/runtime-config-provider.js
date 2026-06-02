@@ -7,16 +7,75 @@ function stripTrailingSlash(value) {
   return String(value || "").replace(/\/+$/, "");
 }
 
+const RUNTIME_MODEL_OPTIONS = Object.freeze([
+  Object.freeze({
+    id: "openai-codex:gpt-5.5",
+    label: "ChatGPT 5.5",
+    provider: "openai-codex",
+    model: "gpt-5.5",
+    defaultReasoningEffort: "medium",
+  }),
+  Object.freeze({
+    id: "deepseek:deepseek-chat",
+    label: "DeepSeek Chat",
+    provider: "deepseek",
+    model: "deepseek-chat",
+    defaultReasoningEffort: "medium",
+  }),
+  Object.freeze({
+    id: "xai-oauth:grok-4.3",
+    label: "Grok 4.3",
+    provider: "xai-oauth",
+    model: "grok-4.3",
+    defaultReasoningEffort: "medium",
+  }),
+]);
+
+const DEFAULT_RUNTIME_MODEL_OPTION = RUNTIME_MODEL_OPTIONS[0];
+const VALID_REASONING_EFFORTS = new Set(["low", "medium", "high", "xhigh"]);
+
+function runtimeModelOptionId(provider, model) {
+  const cleanProvider = String(provider || "").trim();
+  const cleanModel = String(model || "").trim();
+  return cleanProvider && cleanModel ? `${cleanProvider}:${cleanModel}` : "";
+}
+
+function runtimeModelOptions() {
+  return RUNTIME_MODEL_OPTIONS.map((item) => Object.assign({}, item));
+}
+
+function normalizeRuntimeModelSelection(source = {}) {
+  const explicitId = String(source.defaultModelId || source.default_model_id || "").trim();
+  const explicitProvider = String(source.defaultModelProvider || source.default_model_provider || source.modelProvider || "").trim();
+  const explicitModel = String(source.defaultModel || source.default_model || "").trim();
+  const id = explicitId || runtimeModelOptionId(explicitProvider, explicitModel);
+  const selected = RUNTIME_MODEL_OPTIONS.find((item) => item.id === id)
+    || RUNTIME_MODEL_OPTIONS.find((item) => item.provider === explicitProvider && item.model === explicitModel)
+    || DEFAULT_RUNTIME_MODEL_OPTION;
+  const effort = String(source.defaultReasoningEffort || source.default_reasoning_effort || selected.defaultReasoningEffort || "medium").trim().toLowerCase();
+  return {
+    defaultModelId: selected.id,
+    defaultModel: selected.model,
+    defaultModelProvider: selected.provider,
+    defaultReasoningEffort: VALID_REASONING_EFFORTS.has(effort) ? effort : selected.defaultReasoningEffort || "medium",
+  };
+}
+
 function normalizeRuntimeConfig(value) {
   const source = value && typeof value === "object" ? value : {};
   const hermesApiBase = String(source.hermesApiBase || source.hermes_api_base || "").trim();
   const hermesApiKeyPath = String(source.hermesApiKeyPath || source.hermes_api_key_path || "").trim();
   const webPushSubject = String(source.webPushSubject || source.web_push_subject || "").trim();
   const webPushVapidPath = String(source.webPushVapidPath || source.web_push_vapid_path || "").trim();
+  const model = normalizeRuntimeModelSelection(source);
   return {
     schemaVersion: 1,
     hermesApiBase: hermesApiBase ? stripTrailingSlash(hermesApiBase) : "",
     hermesApiKeyPath,
+    defaultModelId: model.defaultModelId,
+    defaultModel: model.defaultModel,
+    defaultModelProvider: model.defaultModelProvider,
+    defaultReasoningEffort: model.defaultReasoningEffort,
     webPushSubject,
     webPushVapidPath,
     updatedAt: String(source.updatedAt || ""),
@@ -90,6 +149,12 @@ function createRuntimeConfigProvider(options = {}) {
     const next = normalizeRuntimeConfig(Object.assign({}, previous, input, {
       hermesApiBase: validateHermesApiBase(input.hermesApiBase ?? input.hermes_api_base ?? previous.hermesApiBase),
       hermesApiKeyPath: String(input.hermesApiKeyPath ?? input.hermes_api_key_path ?? previous.hermesApiKeyPath ?? "").trim(),
+      ...normalizeRuntimeModelSelection({
+        defaultModelId: input.defaultModelId ?? input.default_model_id ?? previous.defaultModelId,
+        defaultModel: input.defaultModel ?? input.default_model ?? previous.defaultModel,
+        defaultModelProvider: input.defaultModelProvider ?? input.default_model_provider ?? previous.defaultModelProvider,
+        defaultReasoningEffort: input.defaultReasoningEffort ?? input.default_reasoning_effort ?? previous.defaultReasoningEffort,
+      }),
       webPushSubject: validateWebPushSubject(input.webPushSubject ?? input.web_push_subject ?? previous.webPushSubject),
       webPushVapidPath: String(input.webPushVapidPath ?? input.web_push_vapid_path ?? previous.webPushVapidPath ?? "").trim(),
       updatedAt: nowIso(),
@@ -190,6 +255,11 @@ function createRuntimeConfigProvider(options = {}) {
       hermesApiKeyConfigured: keyStatus.configured,
       hermesApiKeySource: keyStatus.source,
       hermesApiKeyResolvedPath: keyStatus.path,
+      defaultModelId: config.defaultModelId || DEFAULT_RUNTIME_MODEL_OPTION.id,
+      defaultModel: config.defaultModel || DEFAULT_RUNTIME_MODEL_OPTION.model,
+      defaultModelProvider: config.defaultModelProvider || DEFAULT_RUNTIME_MODEL_OPTION.provider,
+      defaultReasoningEffort: config.defaultReasoningEffort || DEFAULT_RUNTIME_MODEL_OPTION.defaultReasoningEffort,
+      modelOptions: runtimeModelOptions(),
       webPushEnabled: Boolean(args.webPushEnabled),
       webPushConfigured: Boolean(pushStatus.enabled),
       webPushSubject: effectiveWebPushSubject(config),
@@ -222,8 +292,12 @@ function createRuntimeConfigProvider(options = {}) {
 }
 
 module.exports = {
+  DEFAULT_RUNTIME_MODEL_OPTION,
+  RUNTIME_MODEL_OPTIONS,
   createRuntimeConfigProvider,
   normalizeRuntimeConfig,
+  normalizeRuntimeModelSelection,
+  runtimeModelOptions,
   validateHermesApiBase,
   validateWebPushSubject,
 };
