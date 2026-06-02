@@ -136,6 +136,13 @@ assert.ok(
   "NAS Gateway launcher must provision four Owner OpenAI/Codex candidates",
 );
 assert.ok(
+  nasStartScript.includes('"openai-codex": "gpt-5.5"')
+    && nasStartScript.includes("reasoning_effort: medium")
+    && nasStartScript.includes("max_turns: 60")
+    && !nasStartScript.includes("gpt-5.3-codex"),
+  "NAS Gateway launcher must keep OpenAI/Codex profiles on the maintained ChatGPT 5.5 medium default and never fall back to unsupported gpt-5.3-codex",
+);
+assert.ok(
   nasStartScript.includes("grokgw1:18763:owner:owner-full:xai-oauth")
     && nasStartScript.includes('"allowedWorkspaceIds": ["*"] if provider == "xai-oauth"')
     && nasStartScript.includes('"grok", "xai-oauth"')
@@ -174,6 +181,11 @@ assert.ok(
 assert.ok(
   nasStartScript.includes("first_plugin_workspace"),
   "NAS Gateway launcher must discover workspace-local plugin config before registering plugin MCP",
+);
+assert.ok(
+  nasStartScript.includes("direct_plugin_root = user_root / dirname")
+    && nasStartScript.includes("return user_root"),
+  "NAS Gateway launcher must prefer workspace-root .hermes-* plugin config before recursively scanning delivery directories",
 );
 assert.ok(
   nasStartScript.includes("plugin_mcp_config"),

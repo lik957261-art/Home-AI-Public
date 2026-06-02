@@ -178,6 +178,9 @@ def append_toolset(config_text, toolset):
 def first_plugin_workspace(user_root, dirname, key_names):
     if not user_root.exists():
         return None
+    direct_plugin_root = user_root / dirname
+    if (direct_plugin_root / "config.json").exists() and any((direct_plugin_root / name).exists() for name in key_names):
+        return user_root
     for config in sorted(user_root.rglob(f"{dirname}/config.json")):
         plugin_root = config.parent
         if any((plugin_root / name).exists() for name in key_names):
@@ -226,18 +229,43 @@ def plugin_mcp_config(config_text, profile_home, workspace_root):
     return config
 
 def apply_provider_config(config_text, provider):
-    if provider not in {"deepseek", "xai-oauth"}:
-        return config_text
+    defaults = {
+        "openai-codex": "gpt-5.5",
+        "deepseek": "deepseek-chat",
+        "xai-oauth": "grok-4.3",
+    }
+    if provider not in defaults:
+        provider = "openai-codex"
     lines = []
+    in_agent_block = False
+    saw_agent_block = False
+    saw_reasoning_effort = False
     for line in config_text.splitlines():
         if line.strip().startswith("provider:"):
             indent = line[:len(line) - len(line.lstrip())]
             lines.append(f"{indent}provider: {provider}")
         elif line.strip().startswith("default:"):
             indent = line[:len(line) - len(line.lstrip())]
-            lines.append(f"{indent}default: {'grok-4.3' if provider == 'xai-oauth' else 'deepseek-chat'}")
+            lines.append(f"{indent}default: {defaults[provider]}")
+        elif line == "agent:":
+            in_agent_block = True
+            saw_agent_block = True
+            lines.append(line)
+        elif in_agent_block and line.startswith("  reasoning_effort:"):
+            lines.append("  reasoning_effort: medium")
+            saw_reasoning_effort = True
+        elif in_agent_block and line and not line.startswith("  "):
+            if not saw_reasoning_effort:
+                lines.append("  reasoning_effort: medium")
+                saw_reasoning_effort = True
+            in_agent_block = False
+            lines.append(line)
         else:
             lines.append(line)
+    if in_agent_block and not saw_reasoning_effort:
+        lines.append("  reasoning_effort: medium")
+    if not saw_agent_block:
+        lines.extend(["", "agent:", "  max_turns: 60", "  reasoning_effort: medium"])
     return "\n".join(lines).rstrip() + "\n"
 
 for raw in [item.strip() for item in worker_spec.split(",") if item.strip()]:

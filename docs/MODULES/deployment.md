@@ -113,6 +113,11 @@ only after all of these preflight checks pass:
   `2`; ordinary workspace DeepSeek keeps `0` warm workers and may start `1`
   provider-dedicated worker. A fixed always-running pool is a diagnostic
   fallback, not the default deployment model.
+- NAS OpenAI/Codex profiles must use the maintained production default model
+  and reasoning level: `gpt-5.5` with `agent.reasoning_effort: medium`. Do not
+  inherit an older NAS-local Hermes `.env` or profile value such as
+  `gpt-5.3-codex`; that model is rejected by the ChatGPT Codex account backend
+  and turns normal Owner runs into Gateway failures.
 - NAS/Windows parity must be measured with the same ordinary representative
   message flow, not with a probe-only shortcut or a content-specific "test"
   fast path. Small token savings must not hide real latency, missing toolsets,
