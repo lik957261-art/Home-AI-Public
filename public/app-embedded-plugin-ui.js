@@ -220,7 +220,8 @@ function embeddedPluginBlockedByPageSecurity(def, manifest = embeddedPluginCurre
 }
 
 function embeddedPluginMessageOriginAllowed(def, event) {
-  const expected = embeddedPluginEntryOrigin(def);
+  const record = embeddedPluginRecord(def.id);
+  const expected = record.frameOrigin || embeddedPluginEntryOrigin(def, record.manifest) || embeddedPluginEntryOrigin(def);
   return Boolean(expected && event?.origin === expected);
 }
 
@@ -281,10 +282,15 @@ function embeddedPluginAppearanceKey(appearance = embeddedPluginAppearanceForLau
 }
 
 function embeddedPluginManifestMatchesLaunchContext(record, workspaceId, appearanceKey = embeddedPluginAppearanceKey()) {
+  const fetchedAt = Number(record?.manifestFetchedAt || 0);
+  const maxAgeMs = Number(record?.manifestMaxAgeMs || 60000);
+  const freshEnough = !embeddedPluginUsesLaunchToken(record?.manifest)
+    || (fetchedAt > 0 && Date.now() - fetchedAt < maxAgeMs);
   return Boolean(
     record?.checked
     && record?.manifest?.workspaceId === workspaceId
     && record?.manifestAppearanceKey === appearanceKey
+    && freshEnough
     && embeddedPluginProxyEntryWorkspaceMatches(record?.manifest?.entry?.url, workspaceId)
   );
 }
@@ -567,6 +573,7 @@ function discardEmbeddedPluginShell(def) {
     navigationRoute: null,
     navigationLastAt: 0,
     frameHealthSeq: (record.frameHealthSeq || 0) + 1,
+    renderedEntryUrl: "",
   });
 }
 
@@ -777,9 +784,10 @@ function renderEmbeddedPluginView(def) {
     record.frameOrigin = embeddedPluginEntryOrigin(def, pluginManifest);
     const currentFrame = currentEmbeddedPluginShell(def)?.querySelector(".embedded-plugin-frame");
     const currentFrameUsesEntry = Boolean(currentFrame && currentFrame.getAttribute("src") === entryUrl);
+    const currentShellWasRenderedForEntry = Boolean(record.renderedEntryUrl && record.renderedEntryUrl === entryUrl);
     const launchFrameCanBePreserved = !embeddedPluginUsesLaunchToken(pluginManifest)
       || embeddedPluginLaunchTokenFreshForFrame(def)
-      || Number(record.navigationLastAt || 0) > 0
+      || (Number(record.navigationLastAt || 0) > 0 && currentShellWasRenderedForEntry)
       || currentFrameUsesEntry;
     if (!launchFrameCanBePreserved) {
       refreshEmbeddedPluginFrameFromFreshManifest(def);
@@ -803,6 +811,7 @@ function renderEmbeddedPluginView(def) {
     embeddedPluginHost(def).innerHTML = renderEmbeddedPluginFrame(def, pluginManifest);
     setEmbeddedPluginHostVisible(def, true);
     record.shellNode = embeddedPluginHost(def).querySelector(".embedded-plugin-shell");
+    record.renderedEntryUrl = entryUrl;
     record.frameCreatedAt = Date.now();
     bindEmbeddedPluginFrameHealth(def, embeddedPluginHost(def).querySelector(".embedded-plugin-frame"));
     if (embeddedPluginUsesLaunchToken(pluginManifest)) record.manifestFreshForFrame = false;

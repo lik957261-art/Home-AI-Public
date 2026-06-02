@@ -317,7 +317,25 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     $("threadTitle").textContent = "话题列表";
     $("threadMeta").textContent = "";
     $("interruptRun").disabled = !allActiveRuns.length;
-    configureComposer({ enabled: false, hidden: true, placeholder: "Open a directory to bind a topic" });
+    const directoryTopicComposerOpen = Boolean(state.taskDirectoryFilter?.projectId || state.pendingTaskDirectory?.projectId);
+    configureComposer({
+      enabled: directoryTopicComposerOpen,
+      hidden: !directoryTopicComposerOpen,
+      placeholder: directoryTopicComposerOpen ? "Start a topic in this directory..." : "Open a directory to bind a topic",
+    });
+    if (directoryTopicComposerOpen && state.pendingTaskDirectory?.projectId) {
+      const label = String(state.pendingTaskDirectory.label || state.pendingTaskDirectory.projectId || "").trim();
+      $("threadTitle").textContent = "新建话题";
+      conversation.innerHTML = `<div class="empty-state">${escapeHtml(label ? `Start a topic for ${label}.` : "Start a topic for this directory.")}</div>`;
+      setTopicPluginDock("");
+      wireTaskDirectoryFilterControls(conversation);
+      wireSkillLinks(conversation);
+      updateNavigationControls();
+      ensureVerticalScrollAffordance(conversation);
+      scheduleMessageScrollButtonVisibility(conversation);
+      focusComposerSoon();
+      return;
+    }
     const directoryTopicCollectionsReady = options.directoryTopicCollectionsReady === true;
     const directoryTopicCollections = directoryTopicCollectionsReady && typeof directoryTopicCollectionsForGroups === "function"
       ? directoryTopicCollectionsForGroups(groups.filter((group) => !(typeof isPluginTopicTaskGroup === "function" ? isPluginTopicTaskGroup(group) : group.pluginTopic)))

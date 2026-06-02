@@ -84,10 +84,27 @@ function pluginContextBackTarget() {
   return def && !def.builtinKind ? "plugin-context-home" : "";
 }
 
+function isDirectoryTopicDraftActive() {
+  return state.viewMode === "tasks"
+    && !state.currentTaskGroupId
+    && Boolean(state.pendingTaskDirectory?.projectId);
+}
+
+function discardDirectoryTopicDraftState() {
+  state.pendingTaskDirectory = null;
+  state.taskDirectoryFilter = null;
+  state.pendingTaskReasoningEffort = "";
+  state.pendingTaskReasoningExplicit = false;
+}
+
+function closeDirectoryTopicDraft() {
+  if (!isDirectoryTopicDraftActive()) return false;
+  discardDirectoryTopicDraftState();
+  return state.directoryReturnRoute ? restoreDirectoryReturnRoute() : false;
+}
+
 function backSwipeTarget() {
   const pluginContextBack = pluginContextBackNavigationActive();
-  const pluginContextTarget = pluginContextBackTarget();
-  if (pluginContextTarget) return pluginContextTarget;
   if (isSkillDetailView()) return "skill";
   if (isTaskDetailView()) return "task";
   if (isTodoDetailView() || kanbanComposerOpen()) return isTodoDetailView() ? "todo" : "todo-create";
@@ -102,6 +119,9 @@ function backSwipeTarget() {
   if (!pluginContextBack && typeof emailPluginOuterBackActive === "function" && emailPluginOuterBackActive()) return "email-plugin-outer";
   if (typeof healthPluginBackActive === "function" && healthPluginBackActive()) return "health-plugin";
   if (!pluginContextBack && typeof healthPluginOuterBackActive === "function" && healthPluginOuterBackActive()) return "health-plugin-outer";
+  if (isDirectoryTopicDraftActive()) return "directory-topic-draft";
+  const pluginContextTarget = pluginContextBackTarget();
+  if (pluginContextTarget) return pluginContextTarget;
   if (typeof automationDetailInboxReturnActive === "function" && automationDetailInboxReturnActive()) return "automation-secondary";
   if (isAutomationDetailView()) return "automation";
   if (typeof automationSecondaryReturnActive === "function" && automationSecondaryReturnActive()) return "automation-secondary";
@@ -140,6 +160,7 @@ function performBackSwipeAction(target) {
     state.learningGrowthSettingsOpen = false;
     renderLearningCoinsView();
   }
+  else if (target === "directory-topic-draft") closeDirectoryTopicDraft();
   else if (target === "directory") state.directoryReturnRoute ? restoreDirectoryReturnRoute() : navigateDirectoryUp({ animateEntry: true }).catch(showError);
   else if (target === "wardrobe-plugin" && typeof sendWardrobePluginBack === "function") sendWardrobePluginBack();
   else if (target === "wardrobe-plugin-outer" && typeof restoreWardrobePluginReturnRoute === "function") restoreWardrobePluginReturnRoute();
@@ -164,6 +185,7 @@ async function handleInAppBackNavigation(options = {}) {
   }
   const target = backSwipeTarget();
   if (!target) return false;
+  if (target === "directory-topic-draft") return closeDirectoryTopicDraft();
   if (target === "directory") state.directoryReturnRoute ? restoreDirectoryReturnRoute() : await navigateDirectoryUp({ animateEntry: Boolean(options.animateEntry) });
   else performBackSwipeAction(target);
   return true;
@@ -292,15 +314,32 @@ function captureDirectoryReturnRoute() {
   };
 }
 
+function captureCurrentDirectoryRoute() {
+  if (state.viewMode !== "projects") return captureDirectoryReturnRoute();
+  return {
+    viewMode: "projects",
+    selectedProjectId: state.selectedProjectId,
+    selectedSubprojectId: state.selectedSubprojectId || "",
+    currentThread: state.currentThread,
+    currentThreadId: state.currentThreadId,
+    currentTaskGroupId: state.currentTaskGroupId,
+    threads: state.threads,
+    directoryPath: state.directoryPath || "",
+    directoryRootPath: state.directoryRootPath || "",
+    sharedDirectoryManagerOpen: Boolean(state.sharedDirectoryManagerOpen),
+    searchText: $("threadSearch")?.value || "",
+  };
+}
+
 function restoreDirectoryReturnRoute() {
   const route = state.directoryReturnRoute;
   if (!route) return false;
   state.directoryReturnRoute = null;
-  state.directoryPath = "";
-  state.directoryRootPath = "";
+  state.directoryPath = route.directoryPath || "";
+  state.directoryRootPath = route.directoryRootPath || "";
   state.directoryPreview = null;
   state.directoryError = "";
-  state.sharedDirectoryManagerOpen = false;
+  state.sharedDirectoryManagerOpen = Boolean(route.sharedDirectoryManagerOpen);
   state.viewMode = route.viewMode || "single";
   state.selectedProjectId = route.selectedProjectId || state.selectedProjectId || "";
   state.selectedSubprojectId = route.selectedSubprojectId || "";
@@ -325,6 +364,9 @@ function restoreDirectoryReturnRoute() {
   updateSearchButton();
   applyViewMode();
   if (state.viewMode === "todos") renderTodos();
+  else if (state.viewMode === "projects") {
+    loadDirectoryView({ preserveScroll: true }).catch(showError);
+  }
   else if (state.viewMode === "learning") {
     renderLearningCoinsView();
     const scrollTop = Number(route.conversationScrollTop || 0) || 0; if (scrollTop > 0) requestAnimationFrame(() => { const conversation = $("conversation"); if (conversation) conversation.scrollTop = scrollTop; });

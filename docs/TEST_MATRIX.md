@@ -565,6 +565,30 @@ Mobile bottom navigation must keep Codex as a first-level tab while collecting
 Wardrobe, Finance, and Email under the centered `插件` drawer without bypassing
 their manifest/workspace visibility rules; hidden legacy plugin tabs must not
 consume bottom navigation hit targets.
+Plugin-context bottom navigation must remain a three-entry browser-style footer.
+It is not the ordinary five-entry app navigation: it should be icon-first,
+compact, fixed outside the embedded browser viewport, and visually separated by
+a clear top divider with minimal wasted vertical space. It must not add
+host-owned bottom padding to the embedded iframe. The iframe must end at the
+footer's top edge and plugin-context iframe/shell min-height must be cleared so
+standalone `100dvh` plugin layouts cannot slide under the Hermes buttons. The
+harness must also assert that an empty directory-bound topic draft can be
+dismissed by top-left or right-swipe back, and that switching from that empty
+draft to a plugin app discards only the pending draft state instead of locking
+the plugin footer. The draft recognition must be based on the pending directory
+attachment itself, not on the return route still being present, and
+`loadSelectedView()` must not clear `state.directoryReturnRoute` while that
+draft is active. Discarding the draft must clear both `pendingTaskDirectory` and
+`taskDirectoryFilter`.
+Codex Mobile is a special Owner-critical plugin surface: when its embedded
+iframe is active, Hermes must hide both ordinary bottom navigation and the
+plugin-context three-entry bar, reserve zero bottom-nav space, and let the Codex
+iframe occupy the bottom of the viewport. This must hold even on mobile
+secondary/back-visible states that normally re-show plugin-context navigation.
+Right-swipe/back from a plugin context must prefer plugin-owned navigation over
+host exit: when `canGoBack=true`, the swipe target sends `hermes.plugin.back` to
+the iframe, and only falls back to `plugin-context-home` after the plugin has no
+secondary page to close.
 These are generic plugin requirements, not Wardrobe-only behavior; new plugins
 must satisfy the same host contract before being treated as production-ready.
 Installed plugin visibility must also be covered: Owner sees installed plugins
@@ -862,6 +886,13 @@ The same harness must require stale plugin shells to be discarded when the
 workspace-and-appearance key no longer matches; `preserve_iframe_state`,
 navigation metadata, and refresh warmup/cooldown paths must not preserve an old
 `system/default` Wardrobe iframe after a `dark/large` launch has been requested.
+Launch-token plugin harnesses must also cover plugin-side version changes. A
+cached launch-token manifest must expire on a short TTL, and when a fresh
+manifest/launch returns a different browser-facing iframe entry URL, the host
+must rebuild the iframe shell even if the previous iframe recently posted
+navigation events. Refresh-required postMessages from the still-mounted frame
+origin must remain accepted so the plugin can trigger the refresh that replaces
+the stale shell. Focused check: `node tests\embedded-plugin-refresh-harness.test.js`.
 Plugin appearance harnesses must assert Hermes launches plugins with the
 effective host theme. A host preference of `system` must be resolved via
 `prefers-color-scheme` before launch, so a dark-mode PWA sends `dark` rather
@@ -889,6 +920,10 @@ workspace-user key, not a reused workspace key, while the workspace key is not
 sent in an `Authorization: Bearer ...` header. Tests must also cover
 same-origin proxy rewriting for `/finance.html`, `/manifest.webmanifest`,
 `/app-finance-ui.js`, and plugin-owned `/api/finance/...` resource URLs, plus
+quoted and unquoted CSS `url(...)` resources such as
+`url("/assets/wacai-ledger-bg.svg")`; malformed quote stripping that causes
+later rules such as `.finance-bottom-nav` to disappear from the browser CSSOM is
+a failing case. Tests must also cover
 negative cases where anonymous or unauthorized workspace requests are denied
 before any upstream fetch. The
 Finance token-error smoke must record only bounded evidence: manifest
@@ -1094,6 +1129,13 @@ does not leave the app permanently on `Restoring topic...` because of unrelated
 active runs in the same single-window thread. The restore placeholder is valid
 only for queued/running messages belonging to the same task group or while the
 current thread fetch is actually in flight.
+
+Directory plugin topic-start harnesses must assert that opening a topic from a
+folder enters a directory-bound draft detail page in place, not the ordinary
+topic-list root. The draft page must keep the composer visible and enabled,
+hide the normal bottom navigation, preserve the pending directory attachment,
+and restore the same directory view through top-left back or right-swipe before
+the first message is sent.
 
 Toolset escalation and retry harnesses must assert that
 `HERMES_TOOLSET_ESCALATION_REQUIRED` is stripped from visible chat content,

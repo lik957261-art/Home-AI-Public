@@ -66,12 +66,12 @@ function createHarness() {
     };
   }
 
-  function makeShell() {
+  function makeShell(src = "/api/hermes-plugins/codex-mobile/proxy/?embed=hermes&codexPluginLaunch=old") {
     const frame = {
       dataset: {},
       addEventListener() {},
       getAttribute(name) {
-        if (name === "src") return "/api/hermes-plugins/codex-mobile/proxy/?embed=hermes&codexPluginLaunch=old";
+        if (name === "src") return src;
         return "";
       },
       contentWindow: {},
@@ -122,6 +122,10 @@ function createHarness() {
     $: (id) => {
       if (id === "conversation") return conversation;
       if (id === "app") return app;
+      if (id === "threadList") return { innerHTML: "" };
+      if (id === "threadTitle") return { textContent: "" };
+      if (id === "threadMeta") return { textContent: "" };
+      if (id === "interruptRun") return { disabled: false };
       return hosts[id] || null;
     },
     api(url) {
@@ -137,6 +141,10 @@ function createHarness() {
     ensureVerticalScrollAffordance() {
       calls.affordance += 1;
     },
+    configureComposer() {},
+    escapeHtml(value) {
+      return String(value || "");
+    },
     requestAnimationFrame(callback) {
       callback();
     },
@@ -151,6 +159,7 @@ function createHarness() {
       ensureEmbeddedPluginNavigationBridge,
       embeddedPluginRefreshRequiredEventType,
       requestEmbeddedPluginRefresh,
+      renderEmbeddedPluginView,
       scheduleEmbeddedPluginLaunchHealthCheck
     };
   `, sandbox);
@@ -178,13 +187,43 @@ function createHarness() {
         embed: { tokenStatus: "launch_token_issued" },
       };
       record.manifestAppearanceKey = "light/default";
+      record.manifestFetchedAt = 1000;
       record.checked = true;
       record.manifestFreshForFrame = true;
       record.shellNode = shell;
+      record.renderedEntryUrl = "https://codex.example.test/?embed=hermes";
       this.host.setShell(shell);
       return { def, record, shell };
     },
   };
+}
+
+function testLaunchManifestExpiresForTokenPlugins() {
+  const harness = createHarness();
+  const { record } = harness.setupManifest();
+  harness.sandbox.Date.now = () => 61000;
+
+  assert.equal(
+    harness.sandbox.embeddedPluginManifestMatchesLaunchContext(record, "owner", "light/default"),
+    false,
+  );
+}
+
+function testFreshManifestEntryRebuildsNavigatedShell() {
+  const harness = createHarness();
+  const oldShell = harness.makeShell("https://codex.example.test/?embed=hermes&codexPluginLaunch=old");
+  const { def, record, shell } = harness.setupManifest(oldShell);
+  harness.sandbox.state.viewMode = "codex";
+  record.navigationLastAt = 5000;
+  record.renderedEntryUrl = "https://codex.example.test/?embed=hermes&codexPluginLaunch=old";
+  record.manifest.entry.url = "https://codex.example.test/?embed=hermes&codexPluginLaunch=new";
+  record.manifestFetchedAt = 6000;
+  harness.sandbox.Date.now = () => 7000;
+
+  harness.sandbox.__pluginRefreshHarness.renderEmbeddedPluginView(def);
+
+  assert.equal(shell.removed, true);
+  assert.match(harness.host.innerHTML, /codexPluginLaunch=new/);
 }
 
 function testRefreshIgnoresWrongOrigin() {
@@ -350,6 +389,8 @@ function testLaunchHealthRefreshUsesCooldown() {
 }
 
 testRefreshIgnoresWrongOrigin();
+testLaunchManifestExpiresForTokenPlugins();
+testFreshManifestEntryRebuildsNavigatedShell();
 testRefreshRebuildsActivePluginWithBoundedRoute();
 testRefreshInvalidatesInactivePluginWithoutFetching();
 testRefreshRequiredBypassesWarmupButUsesCooldown();

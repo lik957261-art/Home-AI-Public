@@ -319,9 +319,13 @@ function selectDirectoryAttachmentRoute(attachment) {
 
 async function openTaskComposerForDirectoryAttachment(attachment) {
   if (!attachment?.projectId) return;
+  const returnRoute = typeof captureCurrentDirectoryRoute === "function"
+    ? captureCurrentDirectoryRoute()
+    : (typeof captureDirectoryReturnRoute === "function" ? captureDirectoryReturnRoute() : null);
   closeDirectoryEntryMenus();
   clearQuotedReply({ render: false });
   selectDirectoryAttachmentRoute(attachment);
+  state.directoryReturnRoute = returnRoute || state.directoryReturnRoute;
   state.pendingTaskDirectory = attachment;
   state.taskDirectoryFilter = {
     projectId: attachment.projectId,

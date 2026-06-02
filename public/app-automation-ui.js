@@ -105,7 +105,8 @@ async function loadSelectedView(options = {}) {
   if (state.viewMode !== "health" && typeof parkHealthPluginShell === "function") {
     parkHealthPluginShell();
   }
-  if (state.viewMode !== "projects") state.directoryReturnRoute = null;
+  const directoryTopicDraft = typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive();
+  if (state.viewMode !== "projects" && !directoryTopicDraft) state.directoryReturnRoute = null;
   if (state.viewMode !== "todos") clearTodoAutoRefresh();
   const leavingSkillDetail = Boolean(state.skillDetail && (state.viewMode !== "tasks" || !state.currentTaskGroupId));
   if (leavingSkillDetail) {

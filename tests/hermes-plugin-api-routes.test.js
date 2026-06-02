@@ -1215,6 +1215,52 @@ async function testWardrobeProxyInjectsUploadFileInputCompatibilityCss() {
   assert.match(res.body, /\.upload-btn input\[type="file"\],[\s\S]*?\.upload-btn input\.entity-photo-input \{[\s\S]*?display: block !important;[\s\S]*?opacity: 0;/);
 }
 
+async function testPluginProxyPreservesQuotedCssUrlSyntax() {
+  const css = [
+    ".hero {",
+    "  background: url(\"/assets/wacai-ledger-bg.svg\") center / cover no-repeat;",
+    "}",
+    ".icon { background: url('/icons/finance-icon.svg') center / contain no-repeat; }",
+    ".plain { background: url(/media/thumb.webp) center / cover no-repeat; }",
+    ".finance-bottom-nav { position: fixed; bottom: 126px; }",
+  ].join("\n");
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "finance" });
+      },
+      pluginManifestUrl(id) {
+        return id === "finance" ? "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch(url) {
+      assert.equal(url, "http://127.0.0.1:8791/styles.css?v=finance-replica&workspaceId=owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/css; charset=utf-8" : "" },
+        text: () => Promise.resolve(css),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/finance/proxy/styles.css?v=finance-replica&workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body, /url\("\/api\/hermes-plugins\/finance\/proxy\/assets\/wacai-ledger-bg\.svg\?workspaceId=owner"\) center/);
+  assert.match(res.body, /url\('\/api\/hermes-plugins\/finance\/proxy\/icons\/finance-icon\.svg\?workspaceId=owner'\) center/);
+  assert.match(res.body, /url\(\/api\/hermes-plugins\/finance\/proxy\/media\/thumb\.webp\?workspaceId=owner\) center/);
+  assert.match(res.body, /\.finance-bottom-nav \{ position: fixed; bottom: 126px; \}/);
+  assert.doesNotMatch(res.body, /wacai-ledger-bg\.svg\?workspaceId=owner\) center/);
+}
+
 async function run() {
   await testSpecs();
   await testAdminListRouteRequiresOwner();
@@ -1249,6 +1295,7 @@ async function run() {
   await testPluginProxyForwardsBinaryImages();
   await testWardrobeProxyNormalizesThumbnailQuerySuffix();
   await testWardrobeProxyInjectsUploadFileInputCompatibilityCss();
+  await testPluginProxyPreservesQuotedCssUrlSyntax();
 }
 
 run().catch((err) => {

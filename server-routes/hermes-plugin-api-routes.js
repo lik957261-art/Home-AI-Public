@@ -508,7 +508,7 @@ function createHermesPluginApiRoutes(deps = {}) {
         `${attr}=${quote}${pluginProxyResourcePath(pluginId, `/${resourcePath}`, workspaceId)}`
       ))
       .replace(/url\(\s*(["']?)\/(?!\/)([^)"']*)\1/g, (_match, quote, resourcePath) => (
-        `url(${quote || "\""}${pluginProxyResourcePath(pluginId, `/${resourcePath}`, workspaceId)}`
+        `url(${quote}${pluginProxyResourcePath(pluginId, `/${resourcePath}`, workspaceId)}${quote}`
       ))
       .replace(/(["'`])\/api\/(?!hermes-plugins\/[^/]+\/proxy\/)([^"'`\s]*)/g, (_match, quote, resourcePath) => (
         `${quote}${pluginProxyTextResourcePath(pluginId, `/api/${resourcePath}`, workspaceId)}`

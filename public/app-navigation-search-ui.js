@@ -250,6 +250,12 @@ function updateNavigationControls() {
   const edgeSwipeZone = $("edgeSwipeZone");
   const taskToolbar = $("taskDetailToolbar");
   const taskDetail = isTaskDetailView();
+  const directoryTopicDraft = typeof isDirectoryTopicDraftActive === "function"
+    ? isDirectoryTopicDraftActive()
+    : state.viewMode === "tasks"
+      && !state.currentTaskGroupId
+      && Boolean(state.pendingTaskDirectory?.projectId)
+      && Boolean(state.directoryReturnRoute);
   const todoDetail = isTodoDetailView();
   const todoCreate = kanbanComposerOpen();
   const automationDetail = isAutomationDetailView();
@@ -278,7 +284,7 @@ function updateNavigationControls() {
   const healthPluginBack = typeof healthPluginBackActive === "function" && healthPluginBackActive();
   const healthPluginOuterBack = typeof healthPluginOuterBackActive === "function" && healthPluginOuterBackActive();
   const pluginBack = wardrobePluginBack || wardrobePluginOuterBack || codexPluginBack || financePluginBack || emailPluginBack || healthPluginBack || healthPluginOuterBack;
-  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || automationSecondary || actionInboxDetail || actionInboxCreate || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings || (!pluginContextNav && pluginBack);
+  const mainBack = taskDetail || directoryTopicDraft || todoDetail || todoCreate || automationDetail || automationSecondary || actionInboxDetail || actionInboxCreate || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings || (!pluginContextNav && pluginBack);
   const minimalWindow = isMinimalWindowView();
   const centeredTopTitle = (
     (state.viewMode === "single" && state.singleWindowMode === "chat")
@@ -296,6 +302,7 @@ function updateNavigationControls() {
   );
   app?.classList.toggle("minimal-window-mode", minimalWindow);
   app?.classList.toggle("task-detail-mode", taskDetail);
+  app?.classList.toggle("directory-topic-draft-mode", directoryTopicDraft);
   app?.classList.toggle("plugin-topic-detail-mode", pluginTopicDetail);
   app?.classList.toggle("todo-detail-mode", todoDetail);
   app?.classList.toggle("todo-create-mode", todoCreate);

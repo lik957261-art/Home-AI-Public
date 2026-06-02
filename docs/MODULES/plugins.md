@@ -88,6 +88,45 @@ without the selected workspace's matching Gateway schema. See
 `docs/MODULES/plugin-topics.md` and
 `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md`.
 
+When a plugin is opened from a plugin-bound topic, Hermes shows a three-entry
+plugin context browser-style footer: Topic, the current plugin, and Directory.
+This context navigation keeps only three columns and stays outside the embedded
+browser viewport. It should be visually closer to a mobile browser toolbar than
+to the ordinary five-entry app navigation: icon-first, compact, fixed, with a
+clear top divider and minimal wasted vertical space. The plugin iframe must end
+at the footer's top edge, not continue behind the Hermes buttons. In plugin
+context mode the iframe/shell must also drop any standalone `100dvh` min-height
+so it obeys the host viewport slice.
+
+The built-in Directory plugin is different from embedded iframe plugins. When a
+user opens a folder and chooses to start a topic, Hermes must keep the directory
+context and enter a directory-bound topic draft detail page instead of returning
+to the ordinary topic-list root. That draft page shows the composer immediately,
+keeps the normal bottom navigation hidden, and uses the top-left/back gesture to
+return to the same directory view. The actual topic is created only when the
+first message is sent with the pending directory attachment. If the draft is
+still empty, back navigation must discard only that pending draft state and
+restore the directory route. This route must not be cleared by generic
+`loadSelectedView()` view-mode cleanup while the pending directory draft is
+active, and discarding the empty draft must also clear the directory topic
+filter so the ordinary topic list does not remain in a phantom directory-create
+state. Switching to a plugin app must also discard the empty draft before
+opening the plugin so the plugin context footer does not lock up.
+Codex Mobile is the exception to plugin-context bottom navigation. It is an
+Owner-critical workbench plugin and should run as a full-screen embedded
+surface. When the Codex iframe is active, Hermes must not show the ordinary
+bottom navigation or the three-entry plugin-context bar, and it must not reserve
+bottom navigation space under the iframe. Codex-owned navigation remains inside
+the Codex iframe; leaving the surface belongs to Hermes back/right-swipe or the
+host menu, not to a visible bottom-tab row.
+
+Right-swipe/back inside this context is ordered from inside to outside. If the
+embedded plugin has reported `canGoBack=true`, Hermes must first post
+`hermes.plugin.back` to the iframe so plugin-owned secondary pages such as a
+Finance bill detail can return to the plugin list page. Only when the plugin has
+no in-frame back target should Hermes leave the plugin surface and return to the
+bound Hermes topic page.
+
 ## Manifest Contract
 
 The plugin project should publish a bounded manifest endpoint. Hermes Mobile
@@ -178,6 +217,14 @@ type. Without this, HTTPS Hermes Mobile PWAs can load the plugin shell while
 plugin-supplied images remain broken because the browser is asked to fetch the
 HTTP/LAN upstream directly.
 
+CSS `url(...)` rewriting must preserve the original URL quoting and closing
+delimiter. For example, `url("/assets/bg.svg")` must become
+`url("/api/hermes-plugins/<plugin-id>/proxy/assets/bg.svg?workspaceId=<id>")`,
+not a malformed `url("...workspaceId=<id>)`. A malformed CSS URL can make the
+browser drop the rest of the stylesheet, which breaks fixed plugin controls such
+as Finance's bottom action bar even though the stylesheet request itself
+returned HTTP 200.
+
 The browser-facing same-origin proxy entry must preserve the effective
 workspace. When Owner authentication is viewing a non-Owner workspace, the proxy
 URL must include that target `workspaceId`; the proxy must clamp it through
@@ -214,6 +261,17 @@ before loading the selected workspace. Same-origin embedded apps such as Finance
 can otherwise keep an old Owner iframe or session alive while the shell shows a
 non-Owner workspace. A new workspace must always obtain a fresh manifest and a
 fresh launch entry for that effective workspace.
+
+For launch-token plugins, a cached manifest/launch context is intentionally
+short-lived. The host may preserve an iframe across ordinary tab switches only
+when the current iframe was rendered from the same effective entry URL. If a
+fresh manifest or launch returns a different browser-facing entry, including a
+different plugin version query such as Finance's `v=...`, the host must discard
+the old iframe shell and render the new entry. `preserve_iframe_state`,
+navigation timestamps, or refresh cooldowns must not keep a stale iframe alive
+after the plugin has advertised a new entry. Plugin `refresh_required`
+postMessages may still be accepted from the currently mounted frame origin so a
+plugin can ask the host to refresh even when the cached manifest has expired.
 
 Plugin-bound topics also define model-side MCP requirements. The host maps
 `plugin:<id>` task groups to the plugin's toolset, for example

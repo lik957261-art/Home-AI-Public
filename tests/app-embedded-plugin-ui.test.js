@@ -281,7 +281,9 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode\s*\{[\s\S]*o
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomWardrobeMode,[\s\S]*#bottomFinanceMode,[\s\S]*#bottomEmailMode,[\s\S]*#bottomHealthMode\s*\{[\s\S]*order: 2;/);
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode\s*\{[\s\S]*order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav\s*\{[\s\S]*display: grid;/);
-assert.match(stylesCss, /\.plugin-context-nav-mode\.plugin-topic-detail-mode \.composer\s*\{[\s\S]*margin-bottom: var\(--mobile-bottom-nav-offset-height\);/);
+assert.match(stylesCss, /--plugin-context-bottom-nav-height: calc\(54px \+ env\(safe-area-inset-bottom\)\)/);
+assert.match(stylesCss, /\.plugin-context-nav-mode\.plugin-topic-detail-mode \.composer\s*\{[\s\S]*margin-bottom: var\(--plugin-context-bottom-nav-height\);/);
+assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-tab-label\s*\{[\s\S]*display: none;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.topic-plugin-dock\s*\{[\s\S]*display: none !important;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav\s*\{[\s\S]*display: none !important;/);
 assert.match(stylesCss, /\.nav-codex-icon::before/);

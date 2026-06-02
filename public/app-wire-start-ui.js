@@ -165,6 +165,10 @@ function wireUi() {
     await loadSelectedView({ skipTaskListWindowRefresh: true });
   });
   $("bottomTasksMode")?.addEventListener("click", async () => {
+    if (typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive()) {
+      if (typeof closeDirectoryTopicDraft === "function") closeDirectoryTopicDraft();
+      return;
+    }
     const pluginContextDef = typeof pluginTopicDefForViewMode === "function" ? pluginTopicDefForViewMode(state.viewMode) : null;
     if (pluginContextDef) {
       await openPluginTopicChat(pluginContextDef.id);
@@ -241,6 +245,10 @@ function wireUi() {
     await loadSelectedView();
   });
   $("bottomProjectsMode")?.addEventListener("click", async () => {
+    if (typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive()) {
+      if (typeof closeDirectoryTopicDraft === "function") closeDirectoryTopicDraft();
+      return;
+    }
     const pluginContextDef = typeof pluginTopicDefForViewMode === "function" ? pluginTopicDefForViewMode(state.viewMode) : null;
     if (pluginContextDef) {
       await openPluginTopicDelivery(pluginContextDef.id);
@@ -314,6 +322,7 @@ function wireUi() {
   });
   $("bottomWardrobeMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
+    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
     if (typeof rememberWardrobePluginReturnRoute === "function") rememberWardrobePluginReturnRoute();
     state.viewMode = "wardrobe";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
@@ -324,6 +333,7 @@ function wireUi() {
   });
   $("bottomCodexMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
+    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
     if (typeof rememberCodexPluginReturnRoute === "function") rememberCodexPluginReturnRoute();
     state.viewMode = "codex";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
@@ -334,6 +344,7 @@ function wireUi() {
   });
   $("bottomFinanceMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
+    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
     if (typeof rememberFinancePluginReturnRoute === "function") rememberFinancePluginReturnRoute();
     state.viewMode = "finance";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
@@ -344,6 +355,7 @@ function wireUi() {
   });
   $("bottomEmailMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
+    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
     if (typeof rememberEmailPluginReturnRoute === "function") rememberEmailPluginReturnRoute();
     state.viewMode = "email";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
@@ -354,6 +366,7 @@ function wireUi() {
   });
   $("bottomHealthMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
+    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
     if (typeof rememberHealthPluginReturnRoute === "function") rememberHealthPluginReturnRoute();
     state.viewMode = "health";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
