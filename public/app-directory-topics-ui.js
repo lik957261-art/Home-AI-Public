@@ -17,6 +17,7 @@ function directoryTopicRouteLabel(route) {
 
 function directoryTopicPrimaryRoute(group) {
   if (!group || group.pluginTopic || group.sharedTopic || group.sourceThreadId) return null;
+  if (typeof isPluginTopicTaskGroup === "function" && isPluginTopicTaskGroup(group)) return null;
   const routes = typeof taskDirectoryRoutes === "function" ? taskDirectoryRoutes(group) : [];
   return routes.find((route) => route?.projectId && (route.root || route.path)) || null;
 }
@@ -71,10 +72,15 @@ function directoryTopicDisplayTitle(group) {
   return title || (typeof taskTitle === "function" ? taskTitle(group) : "") || "\u8bdd\u9898";
 }
 
-function renderDirectoryTopicCards(collections = []) {
+function renderDirectoryTopicCards(collections = [], options = {}) {
   const visible = (collections || []).filter((collection) => collection?.defaultGroup && collection.groups?.length);
   if (!visible.length) return "";
-  return `<section class="directory-topic-launcher" aria-label="\u76ee\u5f55\u8bdd\u9898">
+  const associated = options.associatedWithDirectoryPlugin === true;
+  return `<section class="directory-topic-launcher${associated ? " directory-topic-associated" : ""}" aria-label="\u76ee\u5f55\u8bdd\u9898">
+    ${associated ? `<div class="directory-topic-association-label" aria-hidden="true">
+      <span class="directory-topic-association-icon"></span>
+      <span>\u76ee\u5f55\u7ed1\u5b9a\u8bdd\u9898</span>
+    </div>` : ""}
     <div class="directory-topic-grid">
       ${visible.map((collection) => {
         const defaultGroup = collection.defaultGroup;
@@ -83,21 +89,20 @@ function renderDirectoryTopicCards(collections = []) {
         const path = route.path || route.root || "";
         const defaultTitle = directoryTopicDisplayTitle(defaultGroup);
         return `<article class="directory-topic-card" data-directory-topic-card="${escapeHtml(collection.key)}">
-          <button class="directory-topic-card-main" type="button" data-directory-topic-open-default="${escapeHtml(defaultGroup.id)}" aria-label="${escapeHtml(`\u6253\u5f00${collection.label}\u7684\u9ed8\u8ba4\u8bdd\u9898`)}">
-            <span class="directory-topic-app-icon" aria-hidden="true"></span>
+          <div class="directory-topic-card-main-row">
+            <button class="directory-topic-card-main" type="button" data-directory-topic-open-default="${escapeHtml(defaultGroup.id)}" aria-label="${escapeHtml(`\u6253\u5f00${collection.label}\u7684\u9ed8\u8ba4\u8bdd\u9898`)}">
+            <span class="directory-topic-topic-icon" aria-hidden="true"></span>
             <span class="directory-topic-text">
               <span class="directory-topic-title">${escapeHtml(collection.label || "\u76ee\u5f55")}</span>
               <span class="directory-topic-subtitle">${escapeHtml(defaultTitle || "\u9ed8\u8ba4\u8bdd\u9898")}</span>
               <span class="directory-topic-meta">${escapeHtml(`${topics.length} \u4e2a\u8bdd\u9898\u3000${formatTime(collection.updatedAt)}`)}</span>
             </span>
-          </button>
-          <div class="directory-topic-actions" aria-label="${escapeHtml(`${collection.label}\u5feb\u6377\u64cd\u4f5c`)}">
-            <button class="directory-topic-action" type="button" data-directory-topic-open-default="${escapeHtml(defaultGroup.id)}" aria-label="${escapeHtml(`\u6253\u5f00${collection.label}\u9ed8\u8ba4\u8bdd\u9898`)}" title="\u8bdd\u9898">
-              <span class="plugin-topic-action-icon chat" aria-hidden="true"></span>
             </button>
+            <div class="directory-topic-actions" aria-label="${escapeHtml(`${collection.label}\u5feb\u6377\u64cd\u4f5c`)}">
             <button class="directory-topic-action" type="button" data-directory-topic-open-directory data-project-id="${escapeHtml(route.projectId || "")}" data-subproject-id="${escapeHtml(route.subprojectId || "")}" data-directory-path="${escapeHtml(path)}" aria-label="${escapeHtml(`\u6253\u5f00${collection.label}\u76ee\u5f55`)}" title="\u76ee\u5f55">
               <span class="plugin-topic-action-icon folder" aria-hidden="true"></span>
             </button>
+            </div>
           </div>
           ${topics.length > 1 ? `<div class="directory-topic-bound-list" aria-label="${escapeHtml(`${collection.label}\u7684\u8bdd\u9898`)}">
             ${topics.slice(0, 4).map((group) => {

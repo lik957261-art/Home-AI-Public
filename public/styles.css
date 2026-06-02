@@ -5206,27 +5206,44 @@ button.directory-alias-chip {
 .plugin-topic-card {
   min-width: 0;
   display: grid;
-  grid-template-rows: minmax(112px, 1fr) auto;
-  gap: 8px;
-  padding: 12px;
+  grid-template-rows: minmax(98px, 1fr) auto;
+  gap: 6px;
+  padding: 10px;
   background: var(--ui-card-surface);
   border: 1px solid var(--ui-hairline);
   border-radius: 14px;
   box-shadow: var(--ui-card-shadow);
 }
 
+.plugin-topic-card.directory-special-plugin {
+  grid-column: 1 / -1;
+  grid-template-rows: minmax(102px, 1fr);
+  margin-top: 6px;
+  padding-top: 16px;
+  border-top: 1px dashed rgba(95, 139, 148, 0.26);
+}
+
+.plugin-topic-card.directory-special-plugin .plugin-topic-card-main {
+  grid-template-columns: 92px minmax(0, 1fr);
+}
+
+.plugin-topic-card.directory-special-plugin .plugin-topic-title,
+.plugin-topic-card.directory-special-plugin .plugin-topic-subtitle {
+  display: none;
+}
+
 .plugin-topic-card-main {
   min-width: 0;
-  min-height: 108px;
+  min-height: 96px;
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
-  padding: 10px;
+  gap: 10px;
+  padding: 6px;
   color: var(--ink);
-  background: rgba(255, 255, 252, 0.56);
-  border: 1px solid var(--ui-hairline);
-  border-radius: 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
   text-align: left;
   touch-action: pan-y;
 }
@@ -5288,7 +5305,19 @@ button.directory-alias-chip {
 }
 
 .plugin-topic-app-icon.directory {
-  background: linear-gradient(135deg, #4f7d8a 0%, #7fb0a0 52%, #d6c16f 100%);
+  width: 88px;
+  height: 88px;
+  background: transparent url("/icons/file-folder.svg") center / contain no-repeat;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.plugin-topic-app-icon.directory::before {
+  content: none;
+}
+
+.plugin-topic-app-icon.directory::after {
+  content: none;
 }
 
 .plugin-topic-app-icon.finance::after {
@@ -5306,7 +5335,7 @@ button.directory-alias-chip {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 700;
 }
 
@@ -5317,16 +5346,38 @@ button.directory-alias-chip {
   line-height: 1.36;
 }
 
+.plugin-topic-stats {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 3px;
+}
+
+.plugin-topic-stats span {
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+  border: 1px solid rgba(95, 139, 148, 0.18);
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
 .plugin-topic-actions {
   display: grid;
-  grid-template-columns: repeat(2, 34px);
+  grid-template-columns: repeat(2, 30px);
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .plugin-topic-action {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -5339,36 +5390,82 @@ button.directory-alias-chip {
 
 .plugin-topic-action-icon {
   position: relative;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   display: block;
 }
 
 .plugin-topic-action-icon.chat::before {
   content: "";
   position: absolute;
-  inset: 3px 2px 5px;
+  inset: 3px 2px 4px;
   border: 2px solid currentColor;
-  border-radius: 7px;
+  border-radius: 8px;
 }
 
 .plugin-topic-action-icon.chat::after {
   content: "";
   position: absolute;
   left: 6px;
-  bottom: 2px;
-  width: 6px;
-  height: 6px;
-  border-left: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  transform: skew(-20deg);
+  top: 9px;
+  width: 3px;
+  height: 3px;
+  background: currentColor;
+  border-radius: 999px;
+  box-shadow: 4px 0 0 currentColor, 8px 0 0 currentColor;
+  transform: none;
 }
 
 .plugin-topic-action-icon.folder::before {
   content: "";
   position: absolute;
+  inset: 0;
+  background: currentColor;
+  mask: url("/icons/file-folder.svg") center / contain no-repeat;
+  -webkit-mask: url("/icons/file-folder.svg") center / contain no-repeat;
+}
+
+.plugin-topic-action-icon.folder::after {
+  content: none;
+}
+
+.directory-topic-launcher {
+  width: min(920px, 100%);
+  max-width: 100%;
+  margin: 0 auto 14px;
+}
+
+.directory-topic-launcher.directory-topic-associated {
+  margin-top: -4px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(95, 139, 148, 0.24);
+}
+
+.directory-topic-association-label {
+  width: min(920px, 100%);
+  max-width: 100%;
+  margin: 0 auto 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.directory-topic-association-icon {
+  width: 17px;
+  height: 14px;
+  position: relative;
+  display: inline-block;
+  color: var(--ui-accent-ink);
+}
+
+.directory-topic-association-icon::before {
+  content: "";
+  position: absolute;
   left: 2px;
-  top: 5px;
+  top: 1px;
   width: 7px;
   height: 4px;
   border: 2px solid currentColor;
@@ -5376,21 +5473,15 @@ button.directory-alias-chip {
   border-radius: 3px 3px 0 0;
 }
 
-.plugin-topic-action-icon.folder::after {
+.directory-topic-association-icon::after {
   content: "";
   position: absolute;
-  left: 2px;
-  right: 2px;
-  top: 8px;
-  bottom: 3px;
+  left: 1px;
+  right: 1px;
+  top: 5px;
+  bottom: 1px;
   border: 2px solid currentColor;
   border-radius: 3px;
-}
-
-.directory-topic-launcher {
-  width: min(920px, 100%);
-  max-width: 100%;
-  margin: 0 auto 14px;
 }
 
 .directory-topic-grid {
@@ -5402,26 +5493,34 @@ button.directory-alias-chip {
 .directory-topic-card {
   min-width: 0;
   display: grid;
-  gap: 8px;
-  padding: 12px;
+  gap: 6px;
+  padding: 10px;
   background: var(--ui-card-surface);
   border: 1px solid var(--ui-hairline);
   border-radius: 14px;
   box-shadow: var(--ui-card-shadow);
 }
 
+.directory-topic-card-main-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  align-items: stretch;
+  gap: 6px;
+}
+
 .directory-topic-card-main {
   min-width: 0;
-  min-height: 86px;
+  min-height: 72px;
   display: grid;
-  grid-template-columns: 50px minmax(0, 1fr);
+  grid-template-columns: 34px minmax(0, 1fr);
   align-items: center;
-  gap: 11px;
-  padding: 10px;
+  gap: 8px;
+  padding: 6px;
   color: var(--ink);
-  background: rgba(255, 255, 252, 0.56);
-  border: 1px solid var(--ui-hairline);
-  border-radius: 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
   text-align: left;
   touch-action: pan-y;
 }
@@ -5432,40 +5531,39 @@ button.directory-alias-chip {
   transform: translateY(1px);
 }
 
-.directory-topic-app-icon {
-  width: 50px;
-  height: 50px;
+.directory-topic-topic-icon {
+  width: 30px;
+  height: 30px;
   position: relative;
   display: grid;
   place-items: center;
-  color: #fff;
-  background: linear-gradient(135deg, #5e8e9b 0%, #89b8a9 50%, #d6c16f 100%);
-  border-radius: 15px;
-  box-shadow: 0 9px 18px rgba(24, 31, 37, 0.12), inset 0 1px 0 rgba(255,255,255,0.32);
-  overflow: hidden;
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+  border: 1px solid rgba(95, 139, 148, 0.18);
+  border-radius: 9px;
 }
 
-.directory-topic-app-icon::before {
+.directory-topic-topic-icon::before {
   content: "";
   position: absolute;
-  left: 12px;
-  top: 15px;
-  width: 13px;
-  height: 8px;
-  border-radius: 4px 4px 0 0;
-  background: rgba(255,255,255,0.86);
-}
-
-.directory-topic-app-icon::after {
-  content: "";
-  position: absolute;
-  left: 9px;
-  right: 8px;
-  top: 19px;
-  bottom: 11px;
+  left: 7px;
+  right: 7px;
+  top: 8px;
+  bottom: 10px;
+  border: 2px solid currentColor;
   border-radius: 6px;
-  background: rgba(255,255,255,0.94);
-  box-shadow: inset 0 -8px 0 rgba(255,255,255,0.18);
+}
+
+.directory-topic-topic-icon::after {
+  content: "";
+  position: absolute;
+  left: 13px;
+  bottom: 7px;
+  width: 6px;
+  height: 6px;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: skew(-20deg);
 }
 
 .directory-topic-text {
@@ -5500,14 +5598,12 @@ button.directory-alias-chip {
 
 .directory-topic-actions {
   display: grid;
-  grid-template-columns: repeat(2, 34px);
-  justify-content: center;
-  gap: 8px;
+  place-items: center;
 }
 
 .directory-topic-action {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -14931,7 +15027,7 @@ body.task-markdown-preview-open {
   }
 
   .bottom-nav.codex-visible {
-    grid-template-columns: repeat(6, minmax(var(--bottom-nav-column-min), 1fr));
+    grid-template-columns: repeat(5, minmax(var(--bottom-nav-column-min), 1fr));
   }
 
   .bottom-nav.plugins-visible {
@@ -14939,7 +15035,7 @@ body.task-markdown-preview-open {
   }
 
   .bottom-nav.codex-visible.plugins-visible {
-    grid-template-columns: repeat(7, minmax(var(--bottom-nav-column-min), 1fr));
+    grid-template-columns: repeat(6, minmax(var(--bottom-nav-column-min), 1fr));
   }
 
   .bottom-plugin-menu {
@@ -15452,18 +15548,18 @@ body.task-markdown-preview-open {
 
   .plugin-topic-card {
     grid-template-rows: auto auto;
-    gap: 7px;
+    gap: 5px;
     padding: 8px;
     border-radius: 12px;
   }
 
   .plugin-topic-card-main {
-    min-height: 94px;
+    min-height: 82px;
     grid-template-columns: minmax(0, 1fr);
     justify-items: center;
     align-content: center;
-    gap: 6px;
-    padding: 8px 6px;
+    gap: 5px;
+    padding: 5px 4px;
     text-align: center;
   }
 
@@ -15473,8 +15569,18 @@ body.task-markdown-preview-open {
     border-radius: 14px;
   }
 
+  .plugin-topic-card.directory-special-plugin .plugin-topic-card-main {
+    grid-template-columns: 82px minmax(0, 1fr);
+  }
+
+  .plugin-topic-card.directory-special-plugin .plugin-topic-app-icon.directory {
+    width: 78px;
+    height: 78px;
+    border-radius: 0;
+  }
+
   .plugin-topic-title {
-    font-size: 14px;
+    font-size: 12px;
   }
 
   .plugin-topic-subtitle {
@@ -15482,16 +15588,13 @@ body.task-markdown-preview-open {
   }
 
   .plugin-topic-actions {
-    gap: 5px;
-  }
-
-  .plugin-topic-actions {
-    grid-template-columns: repeat(2, 30px);
+    grid-template-columns: repeat(2, 28px);
+    gap: 4px;
   }
 
   .plugin-topic-action {
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
   }
 
   .directory-topic-launcher {
@@ -15504,22 +15607,22 @@ body.task-markdown-preview-open {
   }
 
   .directory-topic-card {
-    gap: 7px;
+    gap: 5px;
     padding: 8px;
     border-radius: 12px;
   }
 
   .directory-topic-card-main {
-    min-height: 72px;
-    grid-template-columns: 44px minmax(0, 1fr);
-    gap: 9px;
-    padding: 8px;
+    min-height: 64px;
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 7px;
+    padding: 5px;
   }
 
-  .directory-topic-app-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 13px;
+  .directory-topic-topic-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
   }
 
   .directory-topic-title {
@@ -15532,13 +15635,12 @@ body.task-markdown-preview-open {
   }
 
   .directory-topic-actions {
-    grid-template-columns: repeat(2, 30px);
-    gap: 5px;
+    place-items: center;
   }
 
   .directory-topic-action {
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
   }
 
   .task-card {

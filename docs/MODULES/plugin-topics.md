@@ -1,6 +1,6 @@
 # Module: Plugin Topics
 
-Last updated: 2026-06-01.
+Last updated: 2026-06-02.
 
 ## Responsibility
 
@@ -34,12 +34,36 @@ or raw plugin credentials.
 - Plugin topic detail is a secondary page. It must hide the bottom app
   navigation and use the standard top back/right-swipe route to return, while
   keeping the normal message composer visible for the topic chat.
+- Returning from topic detail to the topic list must restore the topic-list
+  scroll position captured before entering the detail. Right-swipe/back should
+  not jump away from the plugin and Directory card area.
+- When there is no saved launch view, Hermes Mobile opens the topic page first.
+  The mobile bottom navigation keeps five primary slots with Topics in the
+  center position.
 - The current frontend projection renders Wardrobe, Finance, and Email as
   large-icon cards only when those plugins are visible in the effective
   workspace. It does not create new plugin grants.
+- Plugin cards should use one visible card surface. The app launch target may
+  be implemented as a button, but it must not add a second framed panel inside
+  the card. Plugin labels below the large icons stay compact, and chat/folder
+  mini actions stay visually smaller than the app icon.
 - The current frontend projection renders Directory as a built-in large-icon
-  card for every authenticated workspace and hides the separate mobile bottom
-  Directory tab.
+  card for every authenticated workspace, places it after external plugin
+  cards, and hides the separate mobile bottom Directory tab.
+- The Directory built-in card opens the Directory application from the large
+  icon only. It does not show the plugin topic or file-directory mini actions,
+  because directory-bound topics are represented by the associated Directory
+  topic collection below the card.
+- Directory-bound topic collections are visually attached to the Directory
+  built-in card and must exclude fixed plugin topics such as `plugin:wardrobe`,
+  `plugin:finance`, and `plugin:email`.
+- Directory-bound topic cards use the main card body as the topic entry. The
+  folder/directory action is placed on the same row as that main entry; there is
+  no separate small topic button below the card.
+- The Directory special card uses the same standard folder icon asset as Growth
+  delivery-directory links. Directory-bound topic cards must not reuse that
+  Directory icon; they use a smaller topic/chat icon so the directory app and
+  its bound topics remain visually distinct.
 - Runs started in the plugin topic should include the plugin MCP/toolset only
   when the selected workspace has an active plugin binding and matching Gateway
   callable schema.
@@ -122,12 +146,19 @@ The current frontend projection is covered by `node tests\task-list-ui.test.js`
 and `node tests\static-cache-version-harness.test.js`: the harness asserts the
 hidden legacy bottom plugin drawer, the built-in Directory card, the hidden
 mobile bottom Directory tab, the plugin-topic script in the app
-shell/service worker cache, large-card app/chat/file-directory icon actions,
-fixed `plugin:<pluginId>` topic entry, non-blocking topic entry before directory
-refresh, creation of `插件/<plugin title>`, file-directory attachment on
+shell/service worker cache, large-card app/chat/file-directory icon actions
+for external plugins, the Directory special card without mini actions,
+Directory-bound topic collections associated below the Directory card and
+excluding plugin topics, bottom navigation with Topics centered, default launch
+to Topics when no saved view exists, fixed `plugin:<pluginId>` topic entry,
+non-blocking topic entry before directory refresh, creation of `插件/<plugin title>`, file-directory attachment on
 plugin-topic sends, return from plugin file directory to the topic list, plugin
 topic detail hiding bottom navigation while keeping the composer available,
-cache-sensitive static version recovery after missed script sync, and the static
-version bump.
+restoring topic-list scroll position after topic-detail back/right-swipe,
+single-surface compact plugin cards,
+cache-sensitive static version recovery after missed script sync, first-paint
+topic-list rendering that does not synchronously wait for directory-topic
+aggregation, preserving topic-list scroll position after that background
+aggregation/refresh completes, and the static version bump.
 
 See `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md` for the detailed design.

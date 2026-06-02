@@ -527,6 +527,7 @@ function commitSwipeDelete(row, kind, itemId) {
 
 function openTaskGroupFromList(taskGroupId) {
   if (!taskGroupId) return;
+  if (typeof rememberTaskListScrollPosition === "function") rememberTaskListScrollPosition();
   rememberTaskListThread();
   state.pendingTaskReasoningEffort = "";
   state.pendingTaskReasoningExplicit = false;
@@ -538,6 +539,7 @@ function openTaskGroupFromList(taskGroupId) {
 
 async function openSharedTaskGroupFromList(threadId, taskGroupId) {
   if (!threadId || !taskGroupId) return;
+  if (typeof rememberTaskListScrollPosition === "function") rememberTaskListScrollPosition();
   rememberTaskListThread();
   const params = new URLSearchParams({
     messageMode: "tasks",

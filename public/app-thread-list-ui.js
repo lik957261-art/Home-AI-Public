@@ -307,16 +307,27 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     $("threadMeta").textContent = "";
     $("interruptRun").disabled = !allActiveRuns.length;
     configureComposer({ enabled: true, placeholder: "New topic..." });
-    const filterBanner = renderTaskDirectoryFilterBanner();
-    const pluginTopicCards = typeof renderPluginTopicCards === "function" ? renderPluginTopicCards() : "";
-    const directoryTopicCollections = typeof directoryTopicCollectionsForGroups === "function"
-      ? directoryTopicCollectionsForGroups(groups.filter((group) => !group.pluginTopic))
+    const directoryTopicCollectionsReady = options.directoryTopicCollectionsReady === true;
+    const directoryTopicCollections = directoryTopicCollectionsReady && typeof directoryTopicCollectionsForGroups === "function"
+      ? directoryTopicCollectionsForGroups(groups.filter((group) => !(typeof isPluginTopicTaskGroup === "function" ? isPluginTopicTaskGroup(group) : group.pluginTopic)))
       : [];
     const directoryTopicGroupIds = typeof directoryTopicCollectionGroupIds === "function"
       ? directoryTopicCollectionGroupIds(directoryTopicCollections)
       : new Set();
-    const directoryTopicCards = typeof renderDirectoryTopicCards === "function" ? renderDirectoryTopicCards(directoryTopicCollections) : "";
-    const regularGroups = groups.filter((group) => !group.pluginTopic && !directoryTopicGroupIds.has(group.id));
+    const filterBanner = renderTaskDirectoryFilterBanner();
+    const pluginTopicCards = typeof renderPluginTopicCards === "function"
+      ? renderPluginTopicCards({
+        directoryRootCount: Array.isArray(state.projects) ? state.projects.length : 0,
+        directoryTopicCount: directoryTopicCollectionsReady ? directoryTopicGroupIds.size : 0,
+      })
+      : "";
+    const directoryTopicCards = typeof renderDirectoryTopicCards === "function"
+      ? renderDirectoryTopicCards(directoryTopicCollections, { associatedWithDirectoryPlugin: true })
+      : "";
+    const regularGroups = groups.filter((group) => {
+      if (typeof isPluginTopicTaskGroup === "function" ? isPluginTopicTaskGroup(group) : group.pluginTopic) return false;
+      return directoryTopicCollectionsReady ? !directoryTopicGroupIds.has(group.id) : true;
+    });
     conversation.innerHTML = regularGroups.length || pluginTopicCards || directoryTopicCards
       ? `${filterBanner}${pluginTopicCards}${directoryTopicCards}<div class="task-grid">${regularGroups.map(renderTaskCard).join("")}</div>`
       : `${filterBanner}${pluginTopicCards}${directoryTopicCards}<div class="empty-state">${state.taskDirectoryFilter ? "No topics in this directory." : "No topics yet. Send a message to create one."}</div>`;
@@ -337,6 +348,9 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     if (typeof wirePluginTopicCards === "function") wirePluginTopicCards(conversation);
     if (typeof wireDirectoryTopicCards === "function") wireDirectoryTopicCards(conversation);
     wireSkillLinks(conversation);
+    if (!directoryTopicCollectionsReady && typeof directoryTopicCollectionsForGroups === "function") {
+      scheduleDeferredDirectoryTopicRender(thread.id);
+    }
   } else {
     const groupActiveRuns = (selected.messages || [])
       .filter((message) => ["queued", "running"].includes(message.status))
@@ -389,7 +403,11 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   if (selected && consumeTaskRouteScrollTarget(selected)) {
     return;
   }
-  if (options.stickToBottom) {
+  if (!state.currentTaskGroupId && Number.isFinite(Number(options.restoreScrollTop))) {
+    const maxTop = Math.max(0, conversation.scrollHeight - conversation.clientHeight);
+    conversation.scrollTop = Math.min(maxTop, Math.max(0, Number(options.restoreScrollTop) || 0));
+    state.conversationPinnedToBottom = false;
+  } else if (options.stickToBottom) {
     conversation.scrollTop = state.currentTaskGroupId ? conversation.scrollHeight : 0;
     state.conversationPinnedToBottom = Boolean(state.currentTaskGroupId);
   } else if (Date.now() < Number(state.forceChatStickToBottomUntil || 0) && state.currentTaskGroupId) {
@@ -400,4 +418,22 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     state.conversationPinnedToBottom = isNearBottom();
   }
   if (state.currentTaskGroupId) scheduleConversationViewportRefresh(conversation);
+}
+
+function scheduleDeferredDirectoryTopicRender(threadId = "") {
+  if (state.directoryTopicRenderPending) return;
+  state.directoryTopicRenderPending = true;
+  const restoreScrollTop = $("conversation")?.scrollTop || 0;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      state.directoryTopicRenderPending = false;
+      if (state.viewMode !== "tasks" || state.currentTaskGroupId) return;
+      if (threadId && state.currentThread?.id !== threadId) return;
+      renderCurrentThread({
+        stickToBottom: false,
+        restoreScrollTop,
+        directoryTopicCollectionsReady: true,
+      });
+    });
+  });
 }

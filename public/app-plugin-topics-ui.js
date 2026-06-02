@@ -2,18 +2,6 @@
 
 const PLUGIN_TOPIC_DEFS = Object.freeze([
   Object.freeze({
-    id: "directory",
-    builtinKind: "directory",
-    viewMode: "projects",
-    label: "\u76ee\u5f55",
-    subtitle: "\u6587\u4ef6\u3001\u8d44\u6599\u548c\u76ee\u5f55\u8bdd\u9898",
-    iconClass: "nav-directory-icon",
-    appIconClass: "directory",
-    appIconGlyph: "\u76ee",
-    toolset: "",
-    deliveryHints: ["directory", "\u76ee\u5f55", "\u6587\u4ef6", "\u8d44\u6599"],
-  }),
-  Object.freeze({
     id: "wardrobe",
     viewMode: "wardrobe",
     label: "\u8863\u6a71",
@@ -46,6 +34,18 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     toolset: "email",
     deliveryHints: ["email", "\u90ae\u7bb1", "\u90ae\u4ef6", "\u6536\u4ef6"],
   }),
+  Object.freeze({
+    id: "directory",
+    builtinKind: "directory",
+    viewMode: "projects",
+    label: "\u76ee\u5f55",
+    subtitle: "\u6587\u4ef6\u3001\u8d44\u6599\u548c\u76ee\u5f55\u8bdd\u9898",
+    iconClass: "nav-directory-icon",
+    appIconClass: "directory",
+    appIconGlyph: "\u76ee",
+    toolset: "",
+    deliveryHints: ["directory", "\u76ee\u5f55", "\u6587\u4ef6", "\u8d44\u6599"],
+  }),
 ]);
 
 function pluginTopicId(value = "") {
@@ -66,6 +66,11 @@ function pluginTopicDefForGroupId(taskGroupId = "") {
   const text = String(taskGroupId || "").trim();
   if (!text.startsWith("plugin:")) return null;
   return pluginTopicDefById(text.slice("plugin:".length));
+}
+
+function isPluginTopicTaskGroup(group = {}) {
+  if (group?.pluginTopic) return true;
+  return Boolean(pluginTopicDefForGroupId(group?.id || group?.taskGroupId || ""));
 }
 
 function pluginTopicNavigationAvailable(def) {
@@ -198,30 +203,50 @@ function pluginTopicGroupsForTaskList(thread) {
   });
 }
 
-function renderPluginTopicCards() {
+function renderPluginTopicActions(def) {
+  if (def?.builtinKind === "directory") return "";
+  return `<div class="plugin-topic-actions" aria-label="${escapeHtml(`${def.label}\u5feb\u6377\u64cd\u4f5c`)}">
+    <button class="plugin-topic-action" type="button" data-plugin-topic-open-topic="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u8bdd\u9898`)}" title="\u8bdd\u9898">
+      <span class="plugin-topic-action-icon chat" aria-hidden="true"></span>
+    </button>
+    <button class="plugin-topic-action" type="button" data-plugin-topic-open-delivery="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u8d44\u6599\u76ee\u5f55`)}" title="\u8d44\u6599\u76ee\u5f55">
+      <span class="plugin-topic-action-icon folder" aria-hidden="true"></span>
+    </button>
+  </div>`;
+}
+
+function renderPluginTopicStats(def, options = {}) {
+  if (def?.builtinKind !== "directory") return "";
+  const rootCount = Number(options.directoryRootCount || 0);
+  const topicCount = Number(options.directoryTopicCount || 0);
+  const stats = [
+    rootCount > 0 ? `${rootCount} \u4e2a\u76ee\u5f55` : "",
+    `${Math.max(0, topicCount)} \u4e2a\u7ed1\u5b9a\u8bdd\u9898`,
+  ].filter(Boolean);
+  return `<span class="plugin-topic-stats">${stats.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</span>`;
+}
+
+function renderPluginTopicCards(options = {}) {
   const defs = availablePluginTopicDefs();
   if (!defs.length) return "";
   return `<section class="plugin-topic-launcher" aria-label="\u63d2\u4ef6\u4e3b\u9898">
     <div class="plugin-topic-grid">
-      ${defs.map((def) => `
-        <article class="plugin-topic-card" data-plugin-topic-card="${escapeHtml(def.id)}">
+      ${defs.map((def) => {
+        const specialClass = def.builtinKind === "directory" ? " directory-special-plugin" : "";
+        return `
+        <article class="plugin-topic-card${specialClass}" data-plugin-topic-card="${escapeHtml(def.id)}">
           <button class="plugin-topic-card-main" type="button" data-plugin-topic-open-app="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u63d2\u4ef6`)}">
             <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
             <span class="plugin-topic-text">
               <span class="plugin-topic-title">${escapeHtml(def.label)}</span>
               <span class="plugin-topic-subtitle">${escapeHtml(def.subtitle)}</span>
+              ${renderPluginTopicStats(def, options)}
             </span>
           </button>
-          <div class="plugin-topic-actions" aria-label="${escapeHtml(`${def.label}\u5feb\u6377\u64cd\u4f5c`)}">
-            <button class="plugin-topic-action" type="button" data-plugin-topic-open-topic="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u8bdd\u9898`)}" title="\u8bdd\u9898">
-              <span class="plugin-topic-action-icon chat" aria-hidden="true"></span>
-            </button>
-            <button class="plugin-topic-action" type="button" data-plugin-topic-open-delivery="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u8d44\u6599\u76ee\u5f55`)}" title="\u8d44\u6599\u76ee\u5f55">
-              <span class="plugin-topic-action-icon folder" aria-hidden="true"></span>
-            </button>
-          </div>
+          ${renderPluginTopicActions(def)}
         </article>
-      `).join("")}
+      `;
+      }).join("")}
     </div>
   </section>`;
 }

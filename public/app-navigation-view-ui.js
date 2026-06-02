@@ -4,17 +4,18 @@ function openTaskList() {
   clearQuotedReply({ render: false });
   state.skillDetail = null;
   const reloadTaskWindow = currentTaskThreadIsSharedTopicThread();
+  const restoreScrollTop = typeof taskListReturnScrollTop === "function" ? taskListReturnScrollTop() : 0;
   state.currentTaskGroupId = "";
   if (reloadTaskWindow) {
-    if (restoreTaskListThreadFromCache({ stickToBottom: true })) {
+    if (restoreTaskListThreadFromCache({ stickToBottom: false, restoreScrollTop })) {
       scheduleTaskListWindowRefresh();
       return;
     }
-    loadSingleWindow({ groupChat: false, weixinChat: false }).catch(showError);
+    loadSingleWindow({ groupChat: false, weixinChat: false, preserveTaskListScroll: true }).catch(showError);
     return;
   }
   renderThreads();
-  renderCurrentThread({ stickToBottom: true });
+  renderCurrentThread({ stickToBottom: false, restoreScrollTop });
 }
 
 function openTodoList() {

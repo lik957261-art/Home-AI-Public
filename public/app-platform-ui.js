@@ -781,7 +781,7 @@ async function openNotificationRoute(value) {
 }
 
 function applyDefaultLaunchView() {
-  state.viewMode = "single";
+  state.viewMode = "tasks";
   setSingleWindowMode("chat");
   state.weixinChatOpen = false;
   state.currentTaskGroupId = "";

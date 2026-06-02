@@ -89,6 +89,17 @@ function rememberTaskListThread(thread = state.currentThread) {
   state.taskListThreadId = thread.id;
 }
 
+function rememberTaskListScrollPosition() {
+  if (state.viewMode !== "tasks" || state.currentTaskGroupId) return;
+  const conversation = $("conversation");
+  if (!conversation) return;
+  state.taskListScrollTop = Math.max(0, Number(conversation.scrollTop) || 0);
+}
+
+function taskListReturnScrollTop() {
+  return Math.max(0, Number(state.taskListScrollTop) || 0);
+}
+
 function restoreTaskListThreadFromCache(options = {}) {
   const cached = state.taskListThread;
   if (!cached?.id) return false;
@@ -99,7 +110,10 @@ function restoreTaskListThreadFromCache(options = {}) {
   state.threads = [summarizeThread(cached)];
   state.currentTaskGroupId = "";
   renderThreads();
-  renderCurrentThread({ stickToBottom: options.stickToBottom !== false });
+  renderCurrentThread({
+    stickToBottom: options.stickToBottom !== false && !Number.isFinite(Number(options.restoreScrollTop)),
+    restoreScrollTop: options.restoreScrollTop,
+  });
   setComposerEnabled(true);
   return true;
 }
@@ -112,7 +126,7 @@ function scheduleTaskListWindowRefresh() {
       state.taskListWindowRefreshLoading = false;
       return;
     }
-    loadSingleWindow({ groupChat: false, weixinChat: false })
+    loadSingleWindow({ groupChat: false, weixinChat: false, preserveTaskListScroll: true })
       .catch(showError)
       .finally(() => {
         state.taskListWindowRefreshLoading = false;

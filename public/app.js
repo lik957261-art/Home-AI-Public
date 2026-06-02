@@ -407,7 +407,7 @@ function initialKanbanAssessmentDraft() {
 }
 
 function initialHermesViewMode() {
-  const saved = localStorage.getItem("hermesWebViewMode") || "single";
+  const saved = localStorage.getItem("hermesWebViewMode") || "tasks";
   return saved === "todos" ? "learning" : saved;
 }
 
@@ -613,6 +613,7 @@ const state = {
   currentThreadRefreshTimer: 0,
   singleWindowRequestSeq: 0,
   currentTaskGroupId: "",
+  taskListScrollTop: 0,
   viewMode: initialHermesViewMode(),
   singleWindowMode: localStorage.getItem("hermesWebSingleWindowMode") || "chat",
   selectedWorkspaceId: localStorage.getItem("hermesWebWorkspace") || "owner",
