@@ -488,7 +488,7 @@ function composerAiMentionOptions() {
       provider: option.provider || "",
       modelExplicit: true,
     }));
-  return [chatGptProMentionOption(), chatGptXhigh, ...grokOptions].slice(0, 3);
+  return [chatGptProMentionOption(), chatGptXhigh, ...grokOptions].slice(0, 4);
 }
 
 function assistantMentionAliases() {

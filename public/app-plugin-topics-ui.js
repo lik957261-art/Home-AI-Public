@@ -227,7 +227,7 @@ function renderPluginTopicStats(def, options = {}) {
 }
 
 function renderPluginTopicCards(options = {}) {
-  const defs = availablePluginTopicDefs();
+  const defs = availablePluginTopicDefs().filter((def) => def.builtinKind === "directory");
   if (!defs.length) return "";
   return `<section class="plugin-topic-launcher" aria-label="\u63d2\u4ef6\u4e3b\u9898">
     <div class="plugin-topic-grid">
@@ -247,6 +247,21 @@ function renderPluginTopicCards(options = {}) {
         </article>
       `;
       }).join("")}
+    </div>
+  </section>`;
+}
+
+function renderPluginAppLauncher() {
+  const defs = availablePluginTopicDefs().filter((def) => !def.builtinKind);
+  if (!defs.length) return "";
+  return `<section class="plugin-app-launcher" aria-label="\u63d2\u4ef6\u5e94\u7528">
+    <div class="plugin-app-grid">
+      ${defs.map((def) => `
+        <button class="plugin-app-card" type="button" data-plugin-topic-open-app="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u63d2\u4ef6`)}">
+          <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
+          <span class="plugin-app-label">${escapeHtml(def.label)}</span>
+        </button>
+      `).join("")}
     </div>
   </section>`;
 }

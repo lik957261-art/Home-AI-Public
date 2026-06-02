@@ -41,6 +41,13 @@ Static-client cache fixes must prove both sides of the version contract:
 same version was already exposed, the corrective deploy must bump the static
 version again. Focused checks: `node tests\task-list-ui.test.js` and
 `node tests\static-cache-version-harness.test.js`.
+Production UI/static deploys must also prove the real client loaded the new
+version after refresh, not only that source files contain the version string.
+The minimum accepted evidence is a browser/Playwright or installed-PWA read of
+`document.documentElement.dataset.clientVersion` matching `<new-version>` after a
+reload, plus the `/api/client-version` old/new smoke above. If the loaded client
+still reports the old version after a kill/reopen or reload, the deploy is not
+complete and the corrective deploy must issue another static version.
 The required PWA smoke sequence is:
 
 1. Verify an Android emulator or target device is connected with `adb devices`.
@@ -64,6 +71,16 @@ shortcut, then validate the rendered Hermes state with screenshot evidence and,
 when needed, Chrome DevTools attached to the PWA WebView. UIAutomator may return
 only a generic WebView node for rendered web content, so an empty accessibility
 tree alone is not proof that Hermes failed to load.
+
+All Hermes Mobile UI changes require visual verification evidence before they
+are treated as done. At minimum, run a Playwright mobile viewport check that
+captures a screenshot and records relevant bounding rectangles for the changed
+surface, including overlap-sensitive elements such as bottom navigation,
+composers, fixed panels, popups, plugin docks, and scroll containers. When an
+Android emulator or target device is available, also run the installed-PWA
+smoke path above. Static DOM/unit assertions are necessary but not sufficient
+for visual layout changes.
+
 Startup harnesses must also verify that workspace/project bootstrap failures do
 not reveal a half-initialized shell with an empty workspace selector. The client
 should retry bounded startup loading and then show an explicit recovery/retry

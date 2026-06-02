@@ -10,33 +10,20 @@ function setSingleWindowMode(mode) {
   if (state.singleWindowMode === "chat") clearQuotedReply({ render: false });
 }
 
-const BOTTOM_PLUGIN_MENU_ITEMS = Object.freeze({
-  wardrobe: { buttonId: "bottomPluginWardrobeMode", viewMode: "wardrobe" },
-  finance: { buttonId: "bottomPluginFinanceMode", viewMode: "finance" },
-  email: { buttonId: "bottomPluginEmailMode", viewMode: "email" },
-});
-
-function bottomPluginMenuItem(kind = "") {
-  const item = BOTTOM_PLUGIN_MENU_ITEMS[String(kind || "").trim()];
-  return item ? $(item.buttonId) : null;
-}
-
-function bottomPluginMenuHasVisibleItems() {
-  return Object.values(BOTTOM_PLUGIN_MENU_ITEMS).some((item) => {
-    const node = $(item.buttonId);
-    return Boolean(node && !node.hidden);
-  });
-}
-
 function closeBottomPluginMenu() {
   const menu = $("bottomPluginMenu");
-  const button = $("bottomPluginMode");
+  const button = $("bottomTasksMode");
+  const legacyButton = $("bottomPluginMode");
   if (menu) menu.hidden = true;
-  button?.setAttribute("aria-expanded", "false");
+  button?.removeAttribute("aria-expanded");
+  button?.removeAttribute("aria-controls");
+  button?.classList.remove("menu-open");
+  legacyButton?.removeAttribute("aria-expanded");
+  legacyButton?.classList.remove("menu-open");
 }
 
 function setBottomPluginMenuItemAvailability(kind = "", available = false) {
-  const node = bottomPluginMenuItem(kind);
+  const node = $(`bottomPlugin${String(kind || "").trim().replace(/^[a-z]/, (item) => item.toUpperCase())}Mode`);
   if (!node) return false;
   node.hidden = !available;
   node.setAttribute("aria-hidden", available ? "false" : "true");
@@ -44,17 +31,19 @@ function setBottomPluginMenuItemAvailability(kind = "", available = false) {
 }
 
 function updateBottomPluginMenuAvailability() {
-  const available = false;
-  const button = $("bottomPluginMode");
+  const button = $("bottomTasksMode");
+  const legacyButton = $("bottomPluginMode");
   const nav = $("bottomNav");
-  if (button) {
-    button.hidden = !available;
-    button.setAttribute("aria-hidden", available ? "false" : "true");
-    if (!available) button.setAttribute("aria-expanded", "false");
+  button?.removeAttribute("aria-controls");
+  button?.removeAttribute("aria-expanded");
+  if (legacyButton) {
+    legacyButton.hidden = true;
+    legacyButton.setAttribute("aria-hidden", "true");
+    legacyButton.removeAttribute("aria-expanded");
   }
-  if (!available) closeBottomPluginMenu();
-  nav?.classList.toggle("plugins-visible", available);
-  return available;
+  closeBottomPluginMenu();
+  nav?.classList.remove("plugins-visible");
+  return false;
 }
 
 function updateBottomNavVisibleCount() {

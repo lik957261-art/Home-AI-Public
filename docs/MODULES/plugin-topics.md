@@ -40,16 +40,22 @@ or raw plugin credentials.
 - When there is no saved launch view, Hermes Mobile opens the topic page first.
   The mobile bottom navigation keeps five primary slots with Topics in the
   center position.
-- The current frontend projection renders Wardrobe, Finance, and Email as
-  large-icon cards only when those plugins are visible in the effective
-  workspace. It does not create new plugin grants.
-- Plugin cards should use one visible card surface. The app launch target may
-  be implemented as a button, but it must not add a second framed panel inside
-  the card. Plugin labels below the large icons stay compact, and chat/folder
-  mini actions stay visually smaller than the app icon.
+- The current frontend projection renders Wardrobe, Finance, and Email in a
+  topic-page plugin Dock row directly above the mobile bottom navigation when
+  those plugins are visible in the effective workspace. The Dock is a dedicated
+  layout row outside the scrollable topic list, so it must not cover
+  directory-bound topic cards. It does not create a separate bottom Plugin tab,
+  does not open a floating plugin drawer from the Topics tab, and does not
+  create new plugin grants.
+- External plugin entries in the topic-page plugin Dock are app launch targets
+  only. They do not expose separate topic or file-directory mini actions in the
+  topic list. Plugin-specific topic and directory surfaces remain reachable from
+  the plugin context/navigation rules instead of as small buttons beside the app
+  icon.
 - The current frontend projection renders Directory as a built-in large-icon
-  card for every authenticated workspace, places it after external plugin
-  cards, and hides the separate mobile bottom Directory tab.
+  card for every authenticated workspace, keeps it in the topic page body above
+  directory-bound topic collections, and hides the separate mobile bottom
+  Directory tab.
 - The Directory built-in card opens the Directory application from the large
   icon only. It does not show the plugin topic or file-directory mini actions,
   because directory-bound topics are represented by the associated Directory
@@ -60,6 +66,10 @@ or raw plugin credentials.
 - Directory-bound topic cards use the main card body as the topic entry. The
   folder/directory action is placed on the same row as that main entry; there is
   no separate small topic button below the card.
+- The topic list itself does not expose a bottom message composer for creating a
+  free-floating topic. New topic creation must enter through a Directory binding
+  or another explicit binding flow, so every new topic has a durable context
+  anchor.
 - The Directory special card uses the same standard folder icon asset as Growth
   delivery-directory links. Directory-bound topic cards must not reuse that
   Directory icon; they use a smaller topic/chat icon so the directory app and
@@ -144,16 +154,18 @@ Focused validation should include:
 
 The current frontend projection is covered by `node tests\task-list-ui.test.js`
 and `node tests\static-cache-version-harness.test.js`: the harness asserts the
-hidden legacy bottom plugin drawer, the built-in Directory card, the hidden
-mobile bottom Directory tab, the plugin-topic script in the app
-shell/service worker cache, large-card app/chat/file-directory icon actions
-for external plugins, the Directory special card without mini actions,
+topic-page plugin Dock row above the bottom navigation, the absence of a separate
+bottom Plugin tab and floating plugin drawer, the built-in Directory card, the hidden mobile
+bottom Directory tab, the plugin-topic script in the app shell/service worker
+cache, Dock app launch actions for external plugins without
+topic/file-directory mini actions, the Directory special card without mini actions,
 Directory-bound topic collections associated below the Directory card and
 excluding plugin topics, bottom navigation with Topics centered, default launch
 to Topics when no saved view exists, fixed `plugin:<pluginId>` topic entry,
 non-blocking topic entry before directory refresh, creation of `插件/<plugin title>`, file-directory attachment on
 plugin-topic sends, return from plugin file directory to the topic list, plugin
 topic detail hiding bottom navigation while keeping the composer available,
+embedded plugin host pages preserving bottom plugin-context navigation,
 restoring topic-list scroll position after topic-detail back/right-swipe,
 single-surface compact plugin cards,
 cache-sensitive static version recovery after missed script sync, first-paint

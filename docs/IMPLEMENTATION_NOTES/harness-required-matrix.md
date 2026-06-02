@@ -44,6 +44,26 @@ browser-shell guard page.
 Browser-mode checks may be used only as a diagnostic comparison after the PWA
 path has been tested, or when explicitly testing the browser-shell guard page.
 
+Any Hermes Mobile UI change must include visual verification evidence before it
+is considered complete. The minimum fallback is a Playwright mobile viewport
+screenshot plus measured bounding rectangles for the changed surface and nearby
+layout boundaries. If an Android emulator or target device is available, the
+same surface should also be checked through the installed PWA path. This visual
+gate is required for fixed/sticky regions, bottom navigation, plugin docks,
+scroll containers, cards, popups, drawers, embedded plugin frames, and any
+change where text or controls can overlap, drift, disappear, or become
+untappable.
+
+Any deployed UI/static change must also verify the client refresh contract on
+the actual target origin. The source version bump is insufficient by itself:
+validation must read the loaded page's `data-client-version` after a browser or
+installed-PWA reload and prove it equals the new static version. It must also
+smoke `/api/client-version` with both the new version (`refreshRequired=false`)
+and the previously deployed version (`refreshRequired=true`). If the real client
+still loads the old version after kill/reopen or reload, the deployment remains
+open and the correction must use another static version instead of overwriting
+the same `?v=` URLs.
+
 The minimum accepted PWA harness evidence is:
 
 - `adb devices` shows the emulator or target device used for the smoke.

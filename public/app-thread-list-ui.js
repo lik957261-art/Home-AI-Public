@@ -266,7 +266,17 @@ function taskGroupHasPendingMessages(thread = state.currentThread, taskGroupId =
   ));
 }
 
+function setTopicPluginDock(html = "") {
+  const dock = $("topicPluginDock");
+  if (!dock) return;
+  dock.innerHTML = String(html || "");
+  dock.hidden = !dock.innerHTML.trim();
+  dock.setAttribute("aria-hidden", dock.hidden ? "true" : "false");
+  if (!dock.hidden && typeof wirePluginTopicCards === "function") wirePluginTopicCards(dock);
+}
+
 function renderTaskWindow(thread, conversation, options, bottomOffset) {
+  setTopicPluginDock("");
   const pluginTopicGroups = typeof pluginTopicGroupsForTaskList === "function"
     ? pluginTopicGroupsForTaskList(thread)
     : [];
@@ -306,7 +316,7 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     $("threadTitle").textContent = "话题列表";
     $("threadMeta").textContent = "";
     $("interruptRun").disabled = !allActiveRuns.length;
-    configureComposer({ enabled: true, placeholder: "New topic..." });
+    configureComposer({ enabled: false, hidden: true, placeholder: "Open a directory to bind a topic" });
     const directoryTopicCollectionsReady = options.directoryTopicCollectionsReady === true;
     const directoryTopicCollections = directoryTopicCollectionsReady && typeof directoryTopicCollectionsForGroups === "function"
       ? directoryTopicCollectionsForGroups(groups.filter((group) => !(typeof isPluginTopicTaskGroup === "function" ? isPluginTopicTaskGroup(group) : group.pluginTopic)))
@@ -324,6 +334,9 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     const directoryTopicCards = typeof renderDirectoryTopicCards === "function"
       ? renderDirectoryTopicCards(directoryTopicCollections, { associatedWithDirectoryPlugin: true })
       : "";
+    const pluginAppCards = typeof renderPluginAppLauncher === "function"
+      ? renderPluginAppLauncher()
+      : "";
     const regularGroups = groups.filter((group) => {
       if (typeof isPluginTopicTaskGroup === "function" ? isPluginTopicTaskGroup(group) : group.pluginTopic) return false;
       const hasDirectoryTopicRoute = typeof directoryTopicPrimaryRoute === "function"
@@ -334,6 +347,7 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     conversation.innerHTML = regularGroups.length || pluginTopicCards || directoryTopicCards
       ? `${filterBanner}${pluginTopicCards}${directoryTopicCards}<div class="task-grid">${regularGroups.map(renderTaskCard).join("")}</div>`
       : `${filterBanner}${pluginTopicCards}${directoryTopicCards}<div class="empty-state">${state.taskDirectoryFilter ? "No topics in this directory." : "No topics yet. Send a message to create one."}</div>`;
+    setTopicPluginDock(pluginAppCards);
     conversation.querySelectorAll("[data-open-task]").forEach((button) => {
       button.addEventListener("click", () => {
         const sourceThreadId = String(button.dataset.openTaskThread || "");

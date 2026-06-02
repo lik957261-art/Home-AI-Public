@@ -64,6 +64,8 @@ const currentVersion = extractCurrentVersion();
 const headVersion = extractHeadVersion();
 const changedFiles = changedFilesFromHead();
 const changedCacheSensitiveFiles = changedFiles.filter(isCacheSensitiveFile);
+const testMatrix = read("docs/TEST_MATRIX.md");
+const harnessMatrix = read("docs/IMPLEMENTATION_NOTES/harness-required-matrix.md");
 
 for (const relPath of versionFiles) {
   const content = read(relPath);
@@ -85,5 +87,12 @@ if (changedCacheSensitiveFiles.length > 0 && headVersion) {
     `cache-sensitive static changes require a client/cache version bump: ${changedCacheSensitiveFiles.join(", ")}`,
   );
 }
+
+assert.match(testMatrix, /real client loaded the new\s+version after refresh/);
+assert.match(testMatrix, /document\.documentElement\.dataset\.clientVersion/);
+assert.match(testMatrix, /previous deployed static version returns\s+`refreshRequired=true`/);
+assert.match(harnessMatrix, /verify the client refresh contract on\s+the actual target origin/);
+assert.match(harnessMatrix, /read the loaded page's `data-client-version`/);
+assert.match(harnessMatrix, /correction must use another static version/);
 
 console.log("static cache version harness passed");
