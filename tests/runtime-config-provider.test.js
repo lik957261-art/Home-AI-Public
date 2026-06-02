@@ -64,7 +64,11 @@ function testSaveAndPublicConfig() {
   assert.equal(publicConfig.defaultReasoningEffort, "medium");
   assert.deepEqual(
     publicConfig.modelOptions.map((item) => item.id),
-    ["openai-codex:gpt-5.5", "deepseek:deepseek-chat", "xai-oauth:grok-4.3"],
+    ["openai-codex:gpt-5.4", "openai-codex:gpt-5.5", "deepseek:deepseek-chat", "xai-oauth:grok-4.3"],
+  );
+  assert.deepEqual(
+    publicConfig.modelFamilies.map((item) => item.id),
+    ["openai-codex", "deepseek", "xai-oauth"],
   );
 }
 

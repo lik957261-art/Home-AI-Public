@@ -126,6 +126,11 @@ only after all of these preflight checks pass:
   8 second timeout unless explicitly overridden. A stale
   `$HERMES_HOME/config.yaml`, `.env`, or generated profile must be treated as a
   failed deploy/preflight, not as a harmless local default.
+- Runtime model selection is two-level in the Owner settings UI: first choose
+  the provider/family such as `ChatGPT`, then choose the concrete family model
+  version such as `gpt-5.4` or `gpt-5.5`. The persisted value remains the final
+  provider/model id (`provider:model`) so launcher scripts, official CRON, and
+  status projection all share the same resolved model.
 - NAS/Windows parity must be measured with the same ordinary representative
   message flow, not with a probe-only shortcut or a content-specific "test"
   fast path. Small token savings must not hide real latency, missing toolsets,

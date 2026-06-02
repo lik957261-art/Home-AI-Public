@@ -204,17 +204,57 @@ function renderWorkspaceAccessPanel() {
   });
 }
 
-function renderRuntimeModelOptions(config = {}) {
+function runtimeModelCatalog(config = {}) {
   const options = Array.isArray(config.modelOptions) && config.modelOptions.length
     ? config.modelOptions
     : (Array.isArray(state.runtimeModelOptions) ? state.runtimeModelOptions : []);
+  return options.filter((option) => String(option?.id || option?.model || "").trim());
+}
+
+function runtimeSelectedModelOption(config = {}) {
+  const options = runtimeModelCatalog(config);
   const selected = String(config.defaultModelId || state.defaultModelId || "").trim();
-  return options.map((option) => {
+  return options.find((option) => String(option.id || "").trim() === selected) || options[0] || null;
+}
+
+function runtimeModelFamiliesFromOptions(options = []) {
+  const families = [];
+  const seen = new Set();
+  options.forEach((option) => {
+    const familyId = String(option.familyId || option.provider || "").trim();
+    if (!familyId || seen.has(familyId)) return;
+    seen.add(familyId);
+    families.push({
+      id: familyId,
+      label: String(option.familyLabel || option.provider || familyId).trim(),
+    });
+  });
+  return families;
+}
+
+function renderRuntimeModelFamilyOptions(config = {}) {
+  const options = runtimeModelCatalog(config);
+  const selectedOption = runtimeSelectedModelOption(config);
+  const selectedFamilyId = String(selectedOption?.familyId || selectedOption?.provider || "").trim();
+  return runtimeModelFamiliesFromOptions(options).map((family) => (
+    `<option value="${escapeHtml(family.id)}"${family.id === selectedFamilyId ? " selected" : ""}>${escapeHtml(family.label)}</option>`
+  )).join("");
+}
+
+function renderRuntimeModelOptions(config = {}, familyId = "") {
+  const options = runtimeModelCatalog(config);
+  const selectedOption = runtimeSelectedModelOption(config);
+  const selected = String(selectedOption?.id || config.defaultModelId || state.defaultModelId || "").trim();
+  const selectedFamilyId = String(familyId || selectedOption?.familyId || selectedOption?.provider || "").trim();
+  const filtered = options.filter((option) => {
+    const optionFamilyId = String(option.familyId || option.provider || "").trim();
+    return !selectedFamilyId || optionFamilyId === selectedFamilyId;
+  });
+  return filtered.map((option) => {
     const id = String(option.id || `${option.provider || ""}:${option.model || ""}`).trim();
     if (!id) return "";
-    const label = String(option.label || option.model || id).trim();
-    const meta = [option.model, option.provider].filter(Boolean).join(" / ");
-    return `<option value="${escapeHtml(id)}"${id === selected ? " selected" : ""}>${escapeHtml(meta ? `${label} (${meta})` : label)}</option>`;
+    const label = String(option.variantLabel || option.label || option.model || id).trim();
+    return `<option value="${escapeHtml(id)}"${id === selected ? " selected" : ""}>${escapeHtml(label)}</option>`;
   }).join("");
 }
 
@@ -267,6 +307,10 @@ function renderRuntimeConfigManager() {
           <div class="runtime-config-subtitle">Model default</div>
           <label>
             <span>Default model</span>
+            <select id="runtimeDefaultModelFamilyId" class="todo-input">${renderRuntimeModelFamilyOptions(config)}</select>
+          </label>
+          <label>
+            <span>Model version</span>
             <select id="runtimeDefaultModelId" class="todo-input">${renderRuntimeModelOptions(config)}</select>
           </label>
           <label>
@@ -316,6 +360,12 @@ function renderRuntimeConfigManager() {
   overlay.querySelector("[data-test-runtime-config]")?.addEventListener("click", () => testRuntimeConfigManager().catch(showError));
   overlay.querySelector("[data-reload-web-push-config]")?.addEventListener("click", () => reloadWebPushRuntimeConfig().catch(showError));
   overlay.querySelector("[data-generate-web-push-vapid]")?.addEventListener("click", () => generateWebPushVapidFromRuntimeConfig().catch(showError));
+  overlay.querySelector("#runtimeDefaultModelFamilyId")?.addEventListener("change", (event) => {
+    const modelSelect = overlay.querySelector("#runtimeDefaultModelId");
+    if (!modelSelect) return;
+    modelSelect.innerHTML = renderRuntimeModelOptions(state.runtimeConfig || {}, event.target.value || "");
+    if (modelSelect.options.length) modelSelect.selectedIndex = 0;
+  });
 }
 
 async function loadRuntimeConfigManager() {

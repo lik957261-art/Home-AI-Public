@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260602-runtime-model-default-v469";
+const CLIENT_VERSION = "20260602-runtime-model-variant-v470";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -175,8 +175,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260602-runtime-model-default-v469" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260602-runtime-model-default-v469"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260602-runtime-model-variant-v470" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260602-runtime-model-variant-v470"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -1656,8 +1656,12 @@ assert.match(appJs, /state\.auth && !state\.auth\.isOwner/);
 assert.match(appJs, /#accessKeyOverlay,#runtimeConfigOverlay,#pluginAdminOverlay,#ownerElevationApprovalOverlay/);
 assert.match(appJs, /defaultModelId: ""/);
 assert.match(appJs, /runtimeModelOptions: \[\]/);
-assert.match(appJs, /function renderRuntimeModelOptions\(config = \{\}\)/);
+assert.match(appJs, /function renderRuntimeModelFamilyOptions\(config = \{\}\)/);
+assert.match(appJs, /id="runtimeDefaultModelFamilyId"/);
+assert.match(appJs, /function renderRuntimeModelOptions\(config = \{\}, familyId = ""\)/);
 assert.match(appJs, /id="runtimeDefaultModelId"/);
+assert.match(appJs, /Model version/);
+assert.match(appJs, /modelSelect\.innerHTML = renderRuntimeModelOptions\(state\.runtimeConfig \|\| \{\}, event\.target\.value \|\| ""\)/);
 assert.match(appJs, /id="runtimeDefaultReasoningEffort"/);
 assert.match(appJs, /const defaultModelId = \$\("runtimeDefaultModelId"\)\?\.value\?\.trim\(\) \|\| ""/);
 assert.match(appJs, /body: JSON\.stringify\(\{ hermesApiBase, hermesApiKeyPath, defaultModelId, defaultReasoningEffort, webPushSubject, webPushVapidPath \}\)/);
@@ -2114,10 +2118,10 @@ assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-topic-detail-mode \.
 assert.match(stylesCss, /\.main-back-visible \.bottom-nav \{[\s\S]*?display: none;/);
 assert.match(stylesCss, /\.bottom-plugin-menu \{[\s\S]*?grid-template-columns: repeat\(auto-fit, minmax\(96px, 1fr\)\);/);
 assert.match(stylesCss, /\.bottom-plugin-menu-item \{[\s\S]*?min-height: 48px;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260602-runtime-model-default-v469/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260602-runtime-model-default-v469/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260602-runtime-model-default-v469/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260602-runtime-model-default-v469/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260602-runtime-model-variant-v470/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260602-runtime-model-variant-v470/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260602-runtime-model-variant-v470/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260602-runtime-model-variant-v470/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /id: "directory"[\s\S]*?builtinKind: "directory"[\s\S]*?viewMode: "projects"/);
 assert.match(appJs, /id: "email"[\s\S]*?id: "directory"[\s\S]*?builtinKind: "directory"/);
