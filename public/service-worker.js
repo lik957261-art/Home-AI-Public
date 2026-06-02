@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260602-topic-plugin-dock-refresh-v478";
+const HERMES_SW_VERSION = "20260602-plugin-topic-composer-v495";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,85 +8,85 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260602-topic-plugin-dock-refresh-v478",
-  "/markdown-viewer.html?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-task-artifact-helpers.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-kanban-story-helpers.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-learning-reading-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-learning-coins-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-learning-program-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-learning-growth-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-learning-growth-task-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-learning-growth-reflection-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-api-client.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-shell-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-task-groups-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-navigation-view-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-chat-composer-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-composer-source-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-composer-context-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-run-progress-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-navigation-search-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-task-preview-helpers-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-task-preview-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-sidebar-task-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-message-skill-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-message-actions-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-platform-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-platform-status-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-pwa-settings-push-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-pwa-push-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-workspace-admin-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-access-key-manager-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-plugin-admin-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-share-image-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-draft-thread-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-directory-automation-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-shared-directory-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-embedded-plugin-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-wardrobe-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-plugin-topics-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-directory-topics-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-action-inbox-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-automation-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-learning-native-growth-submission-controller.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-learning-growth-ai-controller.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-learning-growth-reward-controller.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-learning-growth-settings-controller.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-learning-growth-teaching-controller.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-learning-growth-controller.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-automation-controller-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-automation-actions-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-thread-state-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-group-topic-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-kanban-core-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-kanban-story-core-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-kanban-todo-core-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-kanban-render-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-kanban-list-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-kanban-learning-panel-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-kanban-recorder-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-todo-detail-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-kanban-actions-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-kanban-composer-actions-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-kanban-card-actions-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-kanban-study-actions-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-thread-message-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-thread-list-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-thread-directory-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-thread-card-message-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-long-message-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-rich-text-directory-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-message-usage-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-events-composer-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-event-stream-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-upload-sidebar-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-composer-send-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-wire-start-ui.js?v=20260602-topic-plugin-dock-refresh-v478",
-  "/app-start.js?v=20260602-topic-plugin-dock-refresh-v478",
+  "/styles.css?v=20260602-plugin-topic-composer-v495",
+  "/markdown-viewer.html?v=20260602-plugin-topic-composer-v495",
+  "/app-task-artifact-helpers.js?v=20260602-plugin-topic-composer-v495",
+  "/app-kanban-story-helpers.js?v=20260602-plugin-topic-composer-v495",
+  "/app-learning-reading-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-learning-coins-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-learning-program-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-learning-growth-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-learning-growth-task-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-learning-growth-reflection-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-api-client.js?v=20260602-plugin-topic-composer-v495",
+  "/app.js?v=20260602-plugin-topic-composer-v495",
+  "/app-shell-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-task-groups-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-navigation-view-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-chat-composer-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-composer-source-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-composer-context-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-run-progress-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-navigation-search-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-task-preview-helpers-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-task-preview-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-sidebar-task-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-message-skill-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-message-actions-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-platform-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-platform-status-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-pwa-settings-push-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-pwa-push-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-workspace-admin-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-access-key-manager-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-plugin-admin-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-share-image-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-draft-thread-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-directory-automation-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-shared-directory-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-embedded-plugin-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-wardrobe-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-plugin-topics-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-directory-topics-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-action-inbox-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-automation-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-learning-native-growth-submission-controller.js?v=20260602-plugin-topic-composer-v495",
+  "/app-learning-growth-ai-controller.js?v=20260602-plugin-topic-composer-v495",
+  "/app-learning-growth-reward-controller.js?v=20260602-plugin-topic-composer-v495",
+  "/app-learning-growth-settings-controller.js?v=20260602-plugin-topic-composer-v495",
+  "/app-learning-growth-teaching-controller.js?v=20260602-plugin-topic-composer-v495",
+  "/app-learning-growth-controller.js?v=20260602-plugin-topic-composer-v495",
+  "/app-automation-controller-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-automation-actions-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-thread-state-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-group-topic-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-kanban-core-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-kanban-story-core-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-kanban-todo-core-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-kanban-render-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-kanban-list-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-kanban-learning-panel-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-kanban-recorder-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-todo-detail-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-kanban-actions-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-kanban-composer-actions-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-kanban-card-actions-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-kanban-study-actions-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-thread-message-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-thread-list-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-thread-directory-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-thread-card-message-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-long-message-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-rich-text-directory-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-message-usage-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-events-composer-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-event-stream-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-upload-sidebar-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-composer-send-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-wire-start-ui.js?v=20260602-plugin-topic-composer-v495",
+  "/app-start.js?v=20260602-plugin-topic-composer-v495",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260602-topic-plugin-dock-refresh-v478",
+  "/markdown-renderer-client.js?v=20260602-plugin-topic-composer-v495",
   "/file-viewer.html",
   "/pdf-viewer.html",
   "/manifest.json",
@@ -156,6 +156,12 @@ function isCacheableStaticRequest(url) {
     || url.pathname === "/index.html";
 }
 
+function isAppShellRequest(url) {
+  return url.pathname === "/"
+    || url.pathname === "/hermes-mobile/"
+    || url.pathname === "/index.html";
+}
+
 function isCriticalStaticRequest(url) {
   return /\.(?:css|js)$/i.test(url.pathname);
 }
@@ -188,7 +194,7 @@ async function deleteCachedViewerShell(cache) {
 async function networkFirst(request, fallbackUrl = "/") {
   const cache = await caches.open(HERMES_APP_SHELL_CACHE);
   try {
-    const response = await fetch(request);
+    const response = await fetch(request, { cache: "no-store" });
     if (response && response.ok) cache.put(request, response.clone()).catch(() => {});
     return response;
   } catch (_) {
@@ -248,6 +254,10 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (isApiOrEventRequest(url)) return;
   if (request.mode === "navigate") {
+    event.respondWith(networkFirst(request, "/"));
+    return;
+  }
+  if (isAppShellRequest(url)) {
     event.respondWith(networkFirst(request, "/"));
     return;
   }

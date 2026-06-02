@@ -29,7 +29,7 @@ function emptyState() {
 
 function normalizeRecord(record = {}) {
   const workspaceId = sanitizeId(record.workspaceId);
-  if (!workspaceId || workspaceId === "owner") return null;
+  if (!workspaceId) return null;
   return {
     workspaceId,
     status: stringValue(record.status) || "authorized",
@@ -113,7 +113,7 @@ function createHermesPluginAuthorizationService(options = {}) {
   function isWorkspaceAuthorized(pluginId, workspaceId) {
     const id = sanitizeId(pluginId);
     const ws = sanitizeId(workspaceId);
-    if (!id || !ws || ws === "owner") return false;
+    if (!id || !ws) return false;
     const state = loadState();
     return state.plugins[id]?.records?.[ws]?.status === "authorized";
   }
@@ -121,7 +121,7 @@ function createHermesPluginAuthorizationService(options = {}) {
   function recordForWorkspace(pluginId, workspaceId) {
     const id = sanitizeId(pluginId);
     const ws = sanitizeId(workspaceId);
-    if (!id || !ws || ws === "owner") return null;
+    if (!id || !ws) return null;
     const state = loadState();
     return state.plugins[id]?.records?.[ws] || null;
   }
@@ -138,7 +138,7 @@ function createHermesPluginAuthorizationService(options = {}) {
     const pluginId = sanitizeId(input.pluginId);
     const workspaceId = sanitizeId(input.workspaceId);
     if (!pluginId) return { ok: false, error: "plugin_id_required" };
-    if (!workspaceId || workspaceId === "owner") return { ok: false, error: "workspace_id_required" };
+    if (!workspaceId) return { ok: false, error: "workspace_id_required" };
     const state = loadState();
     const plugin = pluginState(state, pluginId);
     const existing = plugin.records[workspaceId] || {};
@@ -168,7 +168,7 @@ function createHermesPluginAuthorizationService(options = {}) {
     const pluginId = sanitizeId(input.pluginId);
     const workspaceId = sanitizeId(input.workspaceId);
     if (!pluginId) return { ok: false, error: "plugin_id_required" };
-    if (!workspaceId || workspaceId === "owner") return { ok: false, error: "workspace_id_required" };
+    if (!workspaceId) return { ok: false, error: "workspace_id_required" };
     const state = loadState();
     const plugin = pluginState(state, pluginId);
     const existing = plugin.records[workspaceId] || {};
@@ -198,7 +198,7 @@ function createHermesPluginAuthorizationService(options = {}) {
     const pluginId = sanitizeId(input.pluginId);
     const workspaceId = sanitizeId(input.workspaceId);
     if (!pluginId) return { ok: false, error: "plugin_id_required" };
-    if (!workspaceId || workspaceId === "owner") return { ok: false, error: "workspace_id_required" };
+    if (!workspaceId) return { ok: false, error: "workspace_id_required" };
     const state = loadState();
     const plugin = pluginState(state, pluginId);
     if (plugin.records[workspaceId]) delete plugin.records[workspaceId];

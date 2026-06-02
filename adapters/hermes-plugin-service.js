@@ -14,6 +14,11 @@ const {
   createEmailPluginProvisioningService,
 } = require("./email-plugin-provisioning-service");
 const {
+  createHealthPluginProvisioningService,
+  healthWorkspaceConfigPath,
+  healthWorkspaceKeyPath,
+} = require("./health-plugin-provisioning-service");
+const {
   createWardrobePluginProvisioningService,
   readWardrobeWorkspaceConfig,
 } = require("./wardrobe-plugin-provisioning-service");
@@ -22,6 +27,7 @@ const DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL = "http://192.168.10.99:8765/api/v1/h
 const DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest";
 const DEFAULT_FINANCE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest";
 const DEFAULT_EMAIL_PLUGIN_MANIFEST_URL = "http://127.0.0.1:5175/api/v1/hermes/plugin/manifest";
+const DEFAULT_HEALTH_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest";
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_KEY_SEARCH_DEPTH = 6;
 const PLUGIN_APPEARANCE_THEMES = new Set(["system", "dark", "light"]);
@@ -53,6 +59,12 @@ function configuredEmailManifestUrl(env = process.env) {
   return stringValue(env.HERMES_MOBILE_EMAIL_PLUGIN_MANIFEST_URL)
     || stringValue(env.HERMES_MOBILE_PLUGIN_EMAIL_MANIFEST_URL)
     || DEFAULT_EMAIL_PLUGIN_MANIFEST_URL;
+}
+
+function configuredHealthManifestUrl(env = process.env) {
+  return stringValue(env.HERMES_MOBILE_HEALTH_PLUGIN_MANIFEST_URL)
+    || stringValue(env.HERMES_MOBILE_PLUGIN_HEALTH_MANIFEST_URL)
+    || DEFAULT_HEALTH_PLUGIN_MANIFEST_URL;
 }
 
 function envKeyForPlugin(pluginId, suffix) {
@@ -97,6 +109,14 @@ const DEFAULT_PLUGIN_SECURITY = Object.freeze({
   },
   email: {
     title: "邮箱",
+    riskLevel: "workspace-private",
+    defaultVisibility: "owner-only",
+    allowWorkspaceGrant: true,
+    provisioning: { supported: true, mode: "workspace_binding" },
+    notifications: { supported: true, routeOwner: "hermes" },
+  },
+  health: {
+    title: "健康",
     riskLevel: "workspace-private",
     defaultVisibility: "owner-only",
     allowWorkspaceGrant: true,
@@ -149,6 +169,10 @@ function configuredPlugins(options = {}) {
     {
       id: "email",
       manifestUrl: configuredEmailManifestUrl(env),
+    },
+    {
+      id: "health",
+      manifestUrl: configuredHealthManifestUrl(env),
     },
   ];
   return plugins
@@ -489,10 +513,50 @@ function findEmailAccessKeyPath(input = {}, options = {}) {
   return walk(workspaceRoot, 0);
 }
 
+function findHealthAccessKeyPath(input = {}, options = {}) {
+  const explicit = stringValue(input.healthAccessKeyPath || options.healthAccessKeyPath);
+  if (explicit && fs.existsSync(explicit)) return explicit;
+  const env = options.env || process.env;
+  const workspaceId = stringValue(input.workspaceId || "owner");
+  const candidates = [
+    stringValue(env.HERMES_MOBILE_HEALTH_PLUGIN_ACCESS_KEY_PATH),
+    stringValue(env.HERMES_MOBILE_PLUGIN_HEALTH_ACCESS_KEY_PATH),
+    stringValue(env.HEALTH_HERMES_PLUGIN_ACCESS_KEY_PATH),
+  ].filter(Boolean);
+  const configured = candidates.find((candidate) => fs.existsSync(candidate));
+  if (configured) return configured;
+  const dataDir = stringValue(options.dataDir) || defaultDataDir(env);
+  const workspaceRoot = path.join(dataDir, "drive", "users", workspaceId);
+  const maxDepth = Number(options.maxKeySearchDepth || DEFAULT_MAX_KEY_SEARCH_DEPTH);
+  const targetParts = [".hermes-health", "access-key.txt"];
+
+  function walk(dir, depth) {
+    if (depth > maxDepth) return "";
+    const candidate = path.join(dir, ...targetParts);
+    if (fs.existsSync(candidate)) return candidate;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      return "";
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === ".hermes-cache" || entry.name === "node_modules" || entry.name === ".git") continue;
+      const found = walk(path.join(dir, entry.name), depth + 1);
+      if (found) return found;
+    }
+    return "";
+  }
+
+  return walk(workspaceRoot, 0);
+}
+
 function findPluginAccessKeyPath(pluginId, input = {}, options = {}) {
   if (pluginId === "codex-mobile") return findCodexMobileAccessKeyPath(input, options);
   if (pluginId === "finance") return findFinanceAccessKeyPath(input, options);
   if (pluginId === "email") return findEmailAccessKeyPath(input, options);
+  if (pluginId === "health") return findHealthAccessKeyPath(input, options);
   return findWardrobeAccessKeyPath(input, options);
 }
 
@@ -502,6 +566,20 @@ function financeWorkspaceLocalConfigReady(input = {}, options = {}) {
   const env = options.env || process.env;
   const configPath = financeWorkspaceConfigPath({ dataDir, env, workspaceId });
   const keyPath = financeWorkspaceKeyPath({ dataDir, env, workspaceId });
+  if (!configPath || !keyPath) return false;
+  try {
+    return fs.existsSync(configPath) && fs.existsSync(keyPath);
+  } catch (_) {
+    return false;
+  }
+}
+
+function healthWorkspaceLocalConfigReady(input = {}, options = {}) {
+  const workspaceId = stringValue(input.workspaceId || "owner") || "owner";
+  const dataDir = stringValue(options.dataDir) || defaultDataDir(options.env);
+  const env = options.env || process.env;
+  const configPath = healthWorkspaceConfigPath({ dataDir, env, workspaceId });
+  const keyPath = healthWorkspaceKeyPath({ dataDir, env, workspaceId });
   if (!configPath || !keyPath) return false;
   try {
     return fs.existsSync(configPath) && fs.existsSync(keyPath);
@@ -524,18 +602,24 @@ function discoverPluginWorkspaceIdsFromAccessKeys(pluginId, options = {}) {
   return entries
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
-    .filter((workspaceId) => workspaceId && workspaceId !== "owner")
-    .filter((workspaceId) => Boolean(findPluginAccessKeyPath(id, { workspaceId }, options)));
+    .filter((workspaceId) => workspaceId)
+    .filter((workspaceId) => {
+      if (id === "health") return healthWorkspaceLocalConfigReady({ workspaceId }, options);
+      return Boolean(findPluginAccessKeyPath(id, { workspaceId }, options));
+    });
 }
 
 function pluginWorkspaceAuthorized(plugin, input = {}, options = {}) {
   const workspaceId = stringValue(input.workspaceId || "owner");
   if (!workspaceId) return false;
+  const pluginId = stringValue(plugin?.id || input.id);
+  if (pluginId === "health") {
+    return healthWorkspaceLocalConfigReady({ workspaceId }, options);
+  }
   if (workspaceId === "owner") return true;
   if (plugin?.allowWorkspaceGrant === false) return false;
   const authorized = Array.isArray(plugin?.authorizedWorkspaceIds) ? plugin.authorizedWorkspaceIds : [];
   if (authorized.includes("*") || authorized.includes(workspaceId)) return true;
-  const pluginId = stringValue(plugin?.id || input.id);
   if (typeof options.authorizationService?.isWorkspaceAuthorized === "function"
     && options.authorizationService.isWorkspaceAuthorized(pluginId, workspaceId)) {
     return true;
@@ -576,7 +660,7 @@ function pluginWorkspaceProvisioningBlock(plugin, input = {}, options = {}) {
 }
 
 function pluginSupportsHermesProvisioning(plugin) {
-  return ["finance", "wardrobe", "email"].includes(stringValue(plugin?.id)) && plugin?.provisioning?.supported === true;
+  return ["finance", "wardrobe", "email", "health"].includes(stringValue(plugin?.id)) && plugin?.provisioning?.supported === true;
 }
 
 function pluginInitialProvisioningStatus(plugin) {
@@ -633,7 +717,7 @@ function normalizeManifest(raw = {}, source = {}) {
   })();
   if (!id) throw new Error("plugin_manifest_id_required");
   if (!entryUrl) throw new Error("plugin_manifest_entry_url_required");
-  const rawLaunch = typeof raw.launch === "string" ? raw.launch : raw.launch?.url;
+  const rawLaunch = typeof raw.launch === "string" ? raw.launch : (raw.launch?.url || raw.launch?.endpoint);
   const rawProgramLaunch = raw.program_api?.plugin_launch || raw.programApi?.pluginLaunch || "";
   const launchUrl = safeUrl(rawLaunch || "", manifestUrl);
   const programBaseUrl = safeUrl(raw.program_api?.base_url || raw.programApi?.baseUrl || (launchUrl ? originOf(launchUrl) : ""), manifestUrl);
@@ -685,9 +769,9 @@ function normalizeManifest(raw = {}, source = {}) {
       baseUrl: programBaseUrl,
       origin: originOf(programBaseUrl),
       pluginManifestPath: stringValue(raw.program_api?.plugin_manifest),
-      workspaceRegistrationPath: stringValue(raw.program_api?.workspace_registration),
+      workspaceRegistrationPath: stringValue(raw.program_api?.workspace_registration || raw.programApi?.workspaceRegistration || raw.provisioning?.endpoint || raw.provisioning?.workspace_registration),
       pluginLaunchPath: launchUrl || stringValue(rawProgramLaunch),
-      syncSchemaVersion: raw.program_api?.sync_schema_version || null,
+      syncSchemaVersion: raw.program_api?.sync_schema_version || raw.programApi?.syncSchemaVersion || null,
     },
     embedding: {
       stateEvent: stringValue(embedding.state_event || embedding.stateEvent),
@@ -768,6 +852,11 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
       workspace_key: accessKey,
       role: workspaceId === "owner" || input.ownerAuthorized === true ? "owner" : "member",
     }, financeUserKey ? { user_key: financeUserKey } : {}, appearancePayload)
+    : pluginId === "health"
+      ? Object.assign({
+        workspace_id: `health:${workspaceId}`,
+        hermes_workspace_id: workspaceId,
+      }, appearancePayload)
     : pluginId === "wardrobe"
       ? Object.assign({
         workspace_id: wardrobeWorkspaceId,
@@ -827,7 +916,7 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
       embed: Object.assign({}, manifest.embed, {
         url: entryUrl,
         tokenStatus: "launch_token_issued",
-        expiresIn: Number(launch?.expires_in || 0) || null,
+        expiresIn: Number(launch?.expires_in || launch?.expires_in_seconds || 0) || null,
         appearance: Object.keys(appearance).length ? appearance : undefined,
       }),
       appearance: Object.keys(appearance).length ? appearance : undefined,
@@ -950,6 +1039,13 @@ function createHermesPluginService(options = {}) {
     emailOwnerKey: options.emailOwnerKey,
     emailOwnerKeyPath: options.emailOwnerKeyPath,
   });
+  const healthProvisioningService = options.healthProvisioningService || createHealthPluginProvisioningService({
+    dataDir: options.dataDir,
+    env: options.env,
+    fetch: fetchImpl,
+    healthOwnerKey: options.healthOwnerKey,
+    healthOwnerKeyPath: options.healthOwnerKeyPath,
+  });
   const wardrobeProvisioningService = options.wardrobeProvisioningService || createWardrobePluginProvisioningService({
     dataDir: options.dataDir,
     env: options.env,
@@ -973,6 +1069,7 @@ function createHermesPluginService(options = {}) {
     codexMobileAccessKeyPath: options.codexMobileAccessKeyPath,
     financeAccessKeyPath: options.financeAccessKeyPath,
     emailAccessKeyPath: options.emailAccessKeyPath,
+    healthAccessKeyPath: options.healthAccessKeyPath,
     authorizationService,
     fetch: fetchImpl,
   };
@@ -1011,6 +1108,13 @@ function createHermesPluginService(options = {}) {
         emailManifestUrl: plugin.manifestUrl,
       });
     }
+    if (id === "health") {
+      return healthProvisioningService.provisionWorkspace({
+        workspaceId,
+        displayName,
+        healthManifestUrl: plugin.manifestUrl,
+      });
+    }
     return financeProvisioningService.provisionWorkspace({
       workspaceId,
       displayName,
@@ -1030,6 +1134,9 @@ function createHermesPluginService(options = {}) {
       return { ok: true, provisioning: { status: "not_required" } };
     }
     if (id === "finance" && financeWorkspaceLocalConfigReady({ workspaceId }, launchOptions)) {
+      return { ok: true, provisioning: { status: "active", existing: true } };
+    }
+    if (id === "health" && healthWorkspaceLocalConfigReady({ workspaceId }, launchOptions)) {
       return { ok: true, provisioning: { status: "active", existing: true } };
     }
     const provisioned = await provisionPluginWorkspace(plugin, Object.assign({}, input, {
@@ -1210,15 +1317,15 @@ function createHermesPluginService(options = {}) {
     if (plugin.allowWorkspaceGrant === false) {
       return { ok: false, status: 403, error: "plugin_workspace_grant_not_allowed" };
     }
+    const workspaceId = stringValue(input.workspaceId || "owner") || "owner";
     const base = authorizationService.grantWorkspace({
       pluginId: id,
-      workspaceId: input.workspaceId,
+      workspaceId,
       actor: input.actor,
       provisioningStatus: pluginInitialProvisioningStatus(plugin),
       provisioningError: "",
     });
     if (!base.ok || !pluginSupportsHermesProvisioning(plugin)) return base;
-    const workspaceId = stringValue(input.workspaceId);
     const provisioned = await provisionPluginWorkspace(plugin, input);
     if (provisioned.ok) {
       const saved = authorizationService.updateProvisioningStatus({
@@ -1249,6 +1356,16 @@ function createHermesPluginService(options = {}) {
             keyCreated: Boolean(provisioned.keyCreated),
             configCreated: Boolean(provisioned.configCreated),
             created: Boolean(provisioned.created),
+          },
+        });
+      }
+      if (id === "health") {
+        return Object.assign({}, saved, {
+          provisioning: {
+            status: "active",
+            keyCreated: Boolean(provisioned.keyCreated),
+            configCreated: Boolean(provisioned.configCreated),
+            healthWorkspaceId: provisioned.healthWorkspaceId || "",
           },
         });
       }
@@ -1313,12 +1430,14 @@ module.exports = {
   DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL,
   DEFAULT_EMAIL_PLUGIN_MANIFEST_URL,
   DEFAULT_FINANCE_PLUGIN_MANIFEST_URL,
+  DEFAULT_HEALTH_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   configuredPlugins,
   createHermesPluginService,
   findCodexMobileAccessKeyPath,
   findEmailAccessKeyPath,
   findFinanceAccessKeyPath,
+  findHealthAccessKeyPath,
   findPluginAccessKeyPath,
   discoverPluginWorkspaceIdsFromAccessKeys,
   findWardrobeAccessKeyPath,

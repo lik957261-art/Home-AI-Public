@@ -43,6 +43,20 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
     refreshRequiredEventType: "email.plugin.refresh_required",
     manifestPath: "/api/hermes-plugins/email/manifest",
   }),
+  health: Object.freeze({
+    id: "health",
+    viewMode: "health",
+    title: "\u5065\u5eb7",
+    label: "\u5065\u5eb7",
+    bottomButtonId: "bottomHealthMode",
+    appClass: "health-mode",
+    hostId: "healthPluginHost",
+    navVisibleClass: "health-visible",
+    navigationEventType: "health.plugin.navigation",
+    backResultEventType: "health.plugin.back_result",
+    refreshRequiredEventType: "health.plugin.refresh_required",
+    manifestPath: "/api/hermes-plugins/health/manifest",
+  }),
 });
 
 function embeddedPluginRecord(pluginId) {
@@ -350,6 +364,7 @@ function captureEmbeddedPluginReturnRoute(def) {
   if (!def || state.viewMode === def.viewMode || embeddedPluginDefByView(state.viewMode)) return null;
   return {
     viewMode: state.viewMode || "single",
+    pluginContextNavPluginId: state.pluginContextNavPluginId || "",
     singleWindowMode: state.singleWindowMode || "chat",
     selectedProjectId: state.selectedProjectId || "",
     selectedSubprojectId: state.selectedSubprojectId || "",
@@ -406,6 +421,7 @@ function restoreEmbeddedPluginReturnRoute(def = embeddedPluginDefByView()) {
   record.canGoBack = false;
   parkEmbeddedPluginShell(def);
   state.viewMode = route.viewMode || "single";
+  state.pluginContextNavPluginId = route.pluginContextNavPluginId || "";
   state.singleWindowMode = route.singleWindowMode || state.singleWindowMode || "chat";
   state.selectedProjectId = route.selectedProjectId || state.selectedProjectId || "";
   state.selectedSubprojectId = route.selectedSubprojectId || "";
@@ -637,7 +653,8 @@ function sendEmbeddedPluginBack(def = embeddedPluginDefByView()) {
     if (record.backRequestSeq !== seq) return;
     if (Number(record.navigationLastAt || 0) > requestedAt) return;
     record.canGoBack = false;
-    if (record.returnRoute) {
+    const pluginContextBack = typeof pluginContextBackNavigationActive === "function" && pluginContextBackNavigationActive();
+    if (record.returnRoute && !pluginContextBack) {
       restoreEmbeddedPluginReturnRoute(def);
       return;
     }
@@ -852,6 +869,7 @@ function sendCodexPluginBack() {
 
 function sendCodexPluginBackOrReturn() {
   if (sendCodexPluginBack()) return true;
+  if (typeof pluginContextBackNavigationActive === "function" && pluginContextBackNavigationActive()) return false;
   return restoreCodexPluginReturnRoute();
 }
 
@@ -869,9 +887,12 @@ function updateFinancePluginNavigationAvailability() {
   const button = $(def.bottomButtonId);
   const nav = $("bottomNav");
   const available = embeddedPluginNavigationAvailable(def);
+  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
+    && typeof pluginTopicBottomButtonId === "function"
+    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === def.bottomButtonId;
   if (button) {
-    button.hidden = true;
-    button.setAttribute("aria-hidden", "true");
+    button.hidden = !keepPluginContextButton;
+    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
   }
   nav?.classList.remove(def.navVisibleClass);
   if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("finance", available);
@@ -905,6 +926,7 @@ function sendFinancePluginBack() {
 
 function sendFinancePluginBackOrReturn() {
   if (sendFinancePluginBack()) return true;
+  if (typeof pluginContextBackNavigationActive === "function" && pluginContextBackNavigationActive()) return false;
   return restoreFinancePluginReturnRoute();
 }
 
@@ -922,9 +944,12 @@ function updateEmailPluginNavigationAvailability() {
   const button = $(def.bottomButtonId);
   const nav = $("bottomNav");
   const available = embeddedPluginNavigationAvailable(def);
+  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
+    && typeof pluginTopicBottomButtonId === "function"
+    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === def.bottomButtonId;
   if (button) {
-    button.hidden = true;
-    button.setAttribute("aria-hidden", "true");
+    button.hidden = !keepPluginContextButton;
+    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
   }
   nav?.classList.remove(def.navVisibleClass);
   if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("email", available);
@@ -958,6 +983,7 @@ function sendEmailPluginBack() {
 
 function sendEmailPluginBackOrReturn() {
   if (sendEmailPluginBack()) return true;
+  if (typeof pluginContextBackNavigationActive === "function" && pluginContextBackNavigationActive()) return false;
   return restoreEmailPluginReturnRoute();
 }
 
@@ -968,4 +994,61 @@ function parkEmailPluginShell() {
 function renderEmailPluginView() {
   updateEmailPluginNavigationAvailability();
   renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS.email);
+}
+
+function updateHealthPluginNavigationAvailability() {
+  const def = EMBEDDED_PLUGIN_DEFS.health;
+  const button = $(def.bottomButtonId);
+  const nav = $("bottomNav");
+  const available = embeddedPluginNavigationAvailable(def);
+  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
+    && typeof pluginTopicBottomButtonId === "function"
+    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === def.bottomButtonId;
+  if (button) {
+    button.hidden = !keepPluginContextButton;
+    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
+  }
+  nav?.classList.remove(def.navVisibleClass);
+  if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("health", available);
+  if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
+  return available;
+}
+
+function healthPluginBackActive() {
+  return embeddedPluginBackActive(EMBEDDED_PLUGIN_DEFS.health);
+}
+
+function healthPluginOuterBackActive() {
+  return embeddedPluginOuterBackActive(EMBEDDED_PLUGIN_DEFS.health);
+}
+
+function rememberHealthPluginReturnRoute() {
+  return rememberEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS.health);
+}
+
+function setHealthPluginOpenRoute(route = {}) {
+  return setEmbeddedPluginOpenRoute(EMBEDDED_PLUGIN_DEFS.health, route);
+}
+
+function restoreHealthPluginReturnRoute() {
+  return restoreEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS.health);
+}
+
+function sendHealthPluginBack() {
+  return sendEmbeddedPluginBack(EMBEDDED_PLUGIN_DEFS.health);
+}
+
+function sendHealthPluginBackOrReturn() {
+  if (sendHealthPluginBack()) return true;
+  if (typeof pluginContextBackNavigationActive === "function" && pluginContextBackNavigationActive()) return false;
+  return restoreHealthPluginReturnRoute();
+}
+
+function parkHealthPluginShell() {
+  return parkEmbeddedPluginShell(EMBEDDED_PLUGIN_DEFS.health);
+}
+
+function renderHealthPluginView() {
+  updateHealthPluginNavigationAvailability();
+  renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS.health);
 }

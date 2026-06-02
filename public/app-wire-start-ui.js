@@ -5,6 +5,8 @@ function preparePrimaryNavigationChange() {
   if (typeof closeTopMoreMenu === "function") closeTopMoreMenu();
   if (typeof closeTaskCardMenus === "function") closeTaskCardMenus();
   if (typeof closeDirectoryEntryMenus === "function") closeDirectoryEntryMenus();
+  if (typeof setTopicPluginDock === "function") setTopicPluginDock("");
+  state.pluginContextNavPluginId = "";
   if (typeof closeSidebar === "function" && typeof isMobileLayout === "function" && isMobileLayout()) closeSidebar();
 }
 
@@ -163,6 +165,11 @@ function wireUi() {
     await loadSelectedView({ skipTaskListWindowRefresh: true });
   });
   $("bottomTasksMode")?.addEventListener("click", async () => {
+    const pluginContextDef = typeof pluginTopicDefForViewMode === "function" ? pluginTopicDefForViewMode(state.viewMode) : null;
+    if (pluginContextDef) {
+      await openPluginTopicChat(pluginContextDef.id);
+      return;
+    }
     preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
@@ -234,6 +241,11 @@ function wireUi() {
     await loadSelectedView();
   });
   $("bottomProjectsMode")?.addEventListener("click", async () => {
+    const pluginContextDef = typeof pluginTopicDefForViewMode === "function" ? pluginTopicDefForViewMode(state.viewMode) : null;
+    if (pluginContextDef) {
+      await openPluginTopicDelivery(pluginContextDef.id);
+      return;
+    }
     preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     state.directoryReturnRoute = null;
@@ -334,6 +346,16 @@ function wireUi() {
     clearQuotedReply({ render: false });
     if (typeof rememberEmailPluginReturnRoute === "function") rememberEmailPluginReturnRoute();
     state.viewMode = "email";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    state.currentThread = null;
+    state.currentThreadId = "";
+    await loadSelectedView();
+  });
+  $("bottomHealthMode")?.addEventListener("click", async () => {
+    clearQuotedReply({ render: false });
+    if (typeof rememberHealthPluginReturnRoute === "function") rememberHealthPluginReturnRoute();
+    state.viewMode = "health";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
     state.currentThread = null;

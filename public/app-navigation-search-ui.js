@@ -58,6 +58,37 @@ function updateBottomNavVisibleCount() {
   return count;
 }
 
+function setBottomTabHidden(node, hidden) {
+  if (!node) return;
+  node.hidden = Boolean(hidden);
+  node.setAttribute("aria-hidden", hidden ? "true" : "false");
+}
+
+function updateBottomNavLabel(id, label) {
+  const node = $(id);
+  const labelNode = node?.querySelector?.(".bottom-tab-label");
+  if (!node || !labelNode) return;
+  if (!node.dataset.defaultAriaLabel) node.dataset.defaultAriaLabel = node.getAttribute("aria-label") || "";
+  if (!labelNode.dataset.defaultText) labelNode.dataset.defaultText = labelNode.textContent || "";
+  const text = String(label || "").trim();
+  if (text) {
+    labelNode.textContent = text;
+    node.setAttribute("aria-label", text);
+  } else {
+    labelNode.textContent = labelNode.dataset.defaultText || "";
+    node.setAttribute("aria-label", node.dataset.defaultAriaLabel || labelNode.textContent || "");
+  }
+}
+
+function updateTopicPluginDockChrome(taskList) {
+  const dock = $("topicPluginDock");
+  if (!dock) return;
+  const sidebarOpen = $("sidebar")?.classList.contains("open");
+  const showDock = Boolean(taskList && !state.currentTaskGroupId && !sidebarOpen && dock.innerHTML.trim());
+  dock.hidden = !showDock;
+  dock.setAttribute("aria-hidden", showDock ? "false" : "true");
+}
+
 function reasoningEffortLabel(value) {
   const effort = String(value || "").trim().toLowerCase();
   return configuredReasoningOptions().find((item) => item.value === effort)?.label
@@ -233,6 +264,9 @@ function updateNavigationControls() {
   const directoryBack = state.viewMode === "projects" && (Boolean(directoryActivePath()) || Boolean(state.directoryReturnRoute));
   const learningGrowthDetail = state.viewMode === "learning" && Boolean(state.selectedLearningTaskCardId);
   const learningGrowthSettings = state.viewMode === "learning" && Boolean(state.learningGrowthSettingsOpen);
+  const pluginContextDef = typeof pluginTopicDefForViewMode === "function" ? pluginTopicDefForViewMode(state.viewMode) : null;
+  const pluginContextButtonId = typeof pluginTopicBottomButtonId === "function" ? pluginTopicBottomButtonId(pluginContextDef) : "";
+  const pluginContextNav = Boolean(pluginContextDef && pluginContextButtonId);
   const wardrobePluginBack = typeof wardrobePluginBackActive === "function" && wardrobePluginBackActive();
   const wardrobePluginOuterBack = typeof wardrobePluginOuterBackActive === "function" && wardrobePluginOuterBackActive();
   const codexPluginBack = typeof codexPluginBackActive === "function" && codexPluginBackActive();
@@ -241,7 +275,10 @@ function updateNavigationControls() {
   const financePluginOuterBack = typeof financePluginOuterBackActive === "function" && financePluginOuterBackActive();
   const emailPluginBack = typeof emailPluginBackActive === "function" && emailPluginBackActive();
   const emailPluginOuterBack = typeof emailPluginOuterBackActive === "function" && emailPluginOuterBackActive();
-  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || automationSecondary || actionInboxDetail || actionInboxCreate || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings || wardrobePluginBack || wardrobePluginOuterBack || codexPluginBack || financePluginBack || emailPluginBack;
+  const healthPluginBack = typeof healthPluginBackActive === "function" && healthPluginBackActive();
+  const healthPluginOuterBack = typeof healthPluginOuterBackActive === "function" && healthPluginOuterBackActive();
+  const pluginBack = wardrobePluginBack || wardrobePluginOuterBack || codexPluginBack || financePluginBack || emailPluginBack || healthPluginBack || healthPluginOuterBack;
+  const mainBack = taskDetail || todoDetail || todoCreate || automationDetail || automationSecondary || actionInboxDetail || actionInboxCreate || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings || (!pluginContextNav && pluginBack);
   const minimalWindow = isMinimalWindowView();
   const centeredTopTitle = (
     (state.viewMode === "single" && state.singleWindowMode === "chat")
@@ -255,6 +292,7 @@ function updateNavigationControls() {
     || state.viewMode === "codex"
     || state.viewMode === "finance"
     || state.viewMode === "email"
+    || state.viewMode === "health"
   );
   app?.classList.toggle("minimal-window-mode", minimalWindow);
   app?.classList.toggle("task-detail-mode", taskDetail);
@@ -266,6 +304,7 @@ function updateNavigationControls() {
   app?.classList.toggle("action-inbox-create-mode", actionInboxCreate);
   app?.classList.toggle("skill-detail-mode", skillDetail);
   app?.classList.toggle("task-list-mode", taskList);
+  app?.classList.toggle("plugin-context-nav-mode", pluginContextNav);
   app?.classList.toggle("learning-mode", state.viewMode === "learning");
   app?.classList.toggle("learning-settings-mode", learningGrowthSettings);
   app?.classList.toggle("centered-top-title-mode", centeredTopTitle);
@@ -283,19 +322,48 @@ function updateNavigationControls() {
   }
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
-  const hiddenBottomTabs = new Set(["bottomPluginMode", "bottomProjectsMode", "bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomLearningMode", "bottomAutomationMode"]);
-  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
+  let hiddenBottomTabs = new Set(["bottomPluginMode", "bottomProjectsMode", "bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomLearningMode", "bottomAutomationMode"]);
+  if (pluginContextNav) {
+    hiddenBottomTabs = new Set(["bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode", "bottomPluginMode", "bottomLearningMode", "bottomAutomationMode"]);
+    ["bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode"].forEach((id) => {
+      if (id !== pluginContextButtonId) hiddenBottomTabs.add(id);
+    });
+  }
+  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
     const node = $(id);
     if (node) {
-      node.hidden = hiddenBottomTabs.has(id);
+      setBottomTabHidden(node, hiddenBottomTabs.has(id));
       node.disabled = false;
     }
+  });
+  updateBottomNavLabel("bottomTasksMode", pluginContextNav ? "话题" : "");
+  updateBottomNavLabel("bottomProjectsMode", pluginContextNav ? "目录" : "");
+  ["bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode"].forEach((id) => {
+    updateBottomNavLabel(id, pluginContextNav && id === pluginContextButtonId ? "插件" : "");
   });
   if (typeof updateWardrobeNavigationAvailability === "function") updateWardrobeNavigationAvailability();
   if (typeof updateCodexPluginNavigationAvailability === "function") updateCodexPluginNavigationAvailability();
   if (typeof updateFinancePluginNavigationAvailability === "function") updateFinancePluginNavigationAvailability();
   if (typeof updateEmailPluginNavigationAvailability === "function") updateEmailPluginNavigationAvailability();
+  if (typeof updateHealthPluginNavigationAvailability === "function") updateHealthPluginNavigationAvailability();
   if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
+  if (pluginContextNav) {
+    const pluginContextBottomTabs = new Set(["bottomTasksMode", "bottomProjectsMode", pluginContextButtonId]);
+    document.querySelectorAll(".bottom-tab").forEach((node) => {
+      if (!node?.id) return;
+      const visible = pluginContextBottomTabs.has(node.id);
+      setBottomTabHidden(node, !visible);
+    });
+    pluginContextBottomTabs.forEach((id) => {
+      const node = $(id);
+      if (!node) return;
+      setBottomTabHidden(node, false);
+    });
+    updateBottomNavLabel("bottomTasksMode", "话题");
+    updateBottomNavLabel("bottomProjectsMode", "目录");
+    updateBottomNavLabel(pluginContextButtonId, "插件");
+  }
+  updateTopicPluginDockChrome(taskList);
   updateBottomNavVisibleCount();
   updateTopMoreControls();
 }
@@ -322,7 +390,8 @@ function updateTopMoreControls() {
   const codexView = state.viewMode === "codex";
   const financeView = state.viewMode === "finance";
   const emailView = state.viewMode === "email";
-  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || inboxView || actionInboxDetail || learningView || automationList || automationDetail || wardrobeView || codexView || financeView || emailView;
+  const healthView = state.viewMode === "health";
+  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || inboxView || actionInboxDetail || learningView || automationList || automationDetail || wardrobeView || codexView || financeView || emailView || healthView;
   wrap.classList.toggle("hidden", !showTopMenu);
   interrupt.classList.toggle("hidden", showTopMenu || chatView);
   if (!showTopMenu) {

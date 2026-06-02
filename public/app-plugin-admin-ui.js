@@ -4,8 +4,12 @@ function pluginAdminWorkspaceRows(plugin) {
   const granted = new Set((plugin.authorizedWorkspaceIds || []).map((item) => String(item || "")));
   const authorizations = new Map((plugin.workspaceAuthorizations || [])
     .map((item) => [String(item.workspaceId || ""), item]));
-  return (state.workspaces || [])
-    .filter((workspace) => workspace.id && workspace.id !== "owner")
+  const workspaces = (state.workspaces || []).filter((workspace) => workspace.id);
+  const ownerWorkspace = workspaces.find((workspace) => workspace.id === "owner") || { id: "owner", label: "Owner" };
+  const listedWorkspaces = plugin.allowWorkspaceGrant === false
+    ? workspaces.filter((workspace) => workspace.id && workspace.id !== "owner")
+    : [ownerWorkspace, ...workspaces.filter((workspace) => workspace.id && workspace.id !== "owner")];
+  return listedWorkspaces
     .map((workspace) => {
       const workspaceId = String(workspace.id || "");
       const enabled = granted.has(workspaceId);
@@ -13,6 +17,7 @@ function pluginAdminWorkspaceRows(plugin) {
       const authorization = authorizations.get(workspaceId) || {};
       const provisioningStatus = authorization.provisioningStatus || (enabled ? "active" : "");
       const provisioningError = authorization.provisioningError || "";
+      const retryProvisioning = enabled && provisioningStatus && provisioningStatus !== "active";
       const statusText = enabled && provisioningStatus === "active"
         ? "已开通"
         : enabled && provisioningStatus
@@ -22,7 +27,7 @@ function pluginAdminWorkspaceRows(plugin) {
       const disabled = plugin.allowWorkspaceGrant === false;
       const action = disabled
         ? `<span class="plugin-admin-owner-only">Owner only</span>`
-        : `<button type="button" data-plugin-workspace-toggle="${escapeHtml(plugin.id)}" data-plugin-workspace-id="${escapeHtml(workspaceId)}" data-plugin-workspace-label="${escapeHtml(label)}" data-plugin-enabled="${enabled ? "1" : "0"}">${enabled ? "撤销" : "开通"}</button>`;
+        : `<button type="button" data-plugin-workspace-toggle="${escapeHtml(plugin.id)}" data-plugin-workspace-id="${escapeHtml(workspaceId)}" data-plugin-workspace-label="${escapeHtml(label)}" data-plugin-enabled="${enabled && !retryProvisioning ? "1" : "0"}">${retryProvisioning ? "重试" : enabled ? "撤销" : "开通"}</button>`;
       return `<article class="plugin-admin-workspace-row">
         <div>
           <div class="plugin-admin-workspace-title">${escapeHtml(label)}</div>
@@ -62,8 +67,8 @@ function renderPluginAdminManager() {
               <span class="plugin-admin-risk ${plugin.riskLevel === "owner-critical" ? "is-critical" : ""}">${escapeHtml(plugin.riskLevel || "workspace-private")}</span>
             </header>
             <div class="plugin-admin-contract">
-              <span>Owner 默认可用</span>
-              <span>${plugin.allowWorkspaceGrant === false ? "禁止给非 Owner 开通" : "Owner 手动开通非 Owner"}</span>
+              <span>${plugin.provisioning?.supported ? "Owner 也需要开通建档" : "Owner 默认可用"}</span>
+              <span>${plugin.allowWorkspaceGrant === false ? "禁止给非 Owner 开通" : "Owner 手动开通各工作区"}</span>
               <span>${plugin.provisioning?.supported ? "开通后插件侧绑定/建档" : "插件侧手动绑定"}</span>
             </div>
             <div class="plugin-admin-workspace-list">${pluginAdminWorkspaceRows(plugin) || `<div class="access-key-empty">暂无非 Owner 工作区。</div>`}</div>

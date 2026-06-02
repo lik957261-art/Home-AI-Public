@@ -437,6 +437,16 @@ Required harness dimensions:
   Missing schema or provisioning must produce a bounded diagnostic and omit the
   plugin toolset; falling back to Owner's plugin app, delivery directory, or MCP
   is a failing H1 case.
+- Plugin-context navigation across app/topic/directory is part of the same H1
+  boundary. While `pluginContextNavPluginId` is set, right-swipe/browser-back
+  from the plugin app, fixed plugin topic, or plugin directory must resolve to
+  one dedicated plugin-context exit transition that returns to the ordinary
+  topic root. The exit must clear plugin-context state, hide plugin hosts,
+  restore normal bottom navigation, and render the remembered topic-list thread
+  directly. It must not call `openTaskList()`,
+  `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`, because those
+  generic routes can reload shared topic threads and expose the empty ordinary
+  chat page.
 - Plugin-topic delivery directories are supporting evidence, not plugin
   databases. Harnesses must assert the directory is created/resolved under the
   target workspace, exposes only a route/label projection to the frontend, and
@@ -1282,6 +1292,16 @@ Required contract dimensions:
 - Existing tabs do not disappear unintentionally.
 - Top-right menu availability follows the active view contract.
 - Stale clients are prompted to refresh through `/api/client-version`.
+- Client-version mismatch auto-recovery routes through the current app shell
+  with `resetClient=1` and `targetVersion=<server-version>`, preserves Access
+  Key/theme/font preferences, clears static caches, unregisters Service Workers,
+  and reopens the app with a cache-busting query. Automatic update recovery must
+  not navigate to `/client-reset.html`, which is reserved for manual/hard reset
+  fallback because mobile PWA clients can open it in a browser wrapper.
+- Service Worker app-shell requests (`/`, `/index.html`, and
+  `/hermes-mobile/`) are network-first with `cache: "no-store"`, so killing and
+  reopening the PWA after a version bump cannot keep replaying an old cached
+  shell.
 - Mobile shell changes keep the OS status bar visible; time, battery, and
   Wi-Fi indicators must not disappear behind browser-shell guards,
   full-viewport overlays, or safe-area changes.
@@ -1452,6 +1472,11 @@ Required contract dimensions:
   manifest/list visibility after grant, and side-navigation UI exposure only to
   Owner. The stored authorization record may contain plugin id, workspace id,
   timestamps, actor id, and bounded provisioning status only.
+  Owner is a valid workspace id for plugin authorization records when a plugin
+  requires explicit Owner first-run provisioning. The admin projection must
+  merge stored Owner records and discovered Owner workspace-local config/key
+  directories, so already-opened Owner plugins stay enabled after reload and
+  failed Owner provisioning stays visible as a bounded retryable diagnostic.
 - Finance workspace grant is H1 provisioning, not a plain visibility toggle.
   Granting `finance` must create or reuse the target workspace's local
   `.hermes-finance/access-key.txt`, write a non-secret sibling `config.json`,
@@ -1506,14 +1531,34 @@ Required contract dimensions:
   content, provider credential, or session cookie appears in grant results,
   manifests, frontend state, iframe URLs, postMessage payloads, docs, handoffs,
   screenshots, or logs.
+- Health workspace grant is H1 provisioning, not a plain visibility toggle.
+  Granting `health` must create or reuse the target workspace's
+  `.hermes-health/access-key.txt`, write a non-secret sibling `config.json`,
+  call Health's `/api/v1/hermes/plugin/workspaces` registration contract with a
+  server-side registration credential such as `HEALTHY_REGISTRATION_KEY`, and
+  register only `access_key_hash` with Health. Missing registration credentials
+  must fail closed before writing workspace keys or calling Health. Health MCP
+  must follow the common workspace-local wrapper pattern: the Gateway profile
+  passes the target workspace root and `--no-workspace-override`, while the
+  wrapper reads `.hermes-health/config.json` and `access-key.txt` internally.
+  The Health manifest is an installed-plugin contract only; it must not make
+  Owner or any other workspace active until an explicit provision/open flow has
+  created both workspace-local files and completed Health registration.
+  Harnesses must prove fresh-install installed-but-inactive projection, Owner
+  explicit provisioning, Health auto-provisioning and failure blocking,
+  top-level `toolsets` plus `mcp.toolset` normalization, `launch.endpoint` /
+  `provisioning.endpoint` compatibility, `expires_in` /
+  `expires_in_seconds` launch TTL compatibility, no raw Health registration
+  key or workspace key leakage, and no Owner fallback when Owner switches into
+  a non-Owner workspace.
 - Generic plugin provisioning status is part of the same contract. A grant may
   enter `pending` only when Hermes owns the automatic provisioning service for
   that plugin. Plugins with manual or external binding must store
   `manual_required`, keep the admin diagnostic visible, and avoid the
   pending/failed launch block unless a real automatic provisioning attempt has
   failed. Harnesses must prove Finance auto-provisioning, Wardrobe
-  auto-provisioning, Email auto-provisioning, their failure-blocking behavior,
-  and Codex non-grantability.
+  auto-provisioning, Email auto-provisioning, Health auto-provisioning, their
+  failure-blocking behavior, and Codex non-grantability.
 - Plugin notification events are part of the H1 passive-notification path even
   though the plugin host itself is H2. A plugin backend must call Hermes
   `POST /api/hermes-plugins/<plugin-id>/notifications` with a stable

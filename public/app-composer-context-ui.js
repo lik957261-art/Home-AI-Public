@@ -249,19 +249,25 @@ function updateMobileBottomNavReservation() {
   const root = document.documentElement;
   const nav = $("bottomNav");
   if (!nav || !isMobileLayout()) {
+    root.style.removeProperty("--mobile-bottom-nav-offset-height-runtime");
     root.style.removeProperty("--mobile-bottom-nav-reserved-height-runtime");
     return;
   }
   if (nav.hidden || window.getComputedStyle?.(nav).display === "none") {
+    root.style.removeProperty("--mobile-bottom-nav-offset-height-runtime");
     root.style.removeProperty("--mobile-bottom-nav-reserved-height-runtime");
     return;
   }
   const rectHeight = Math.ceil(nav.getBoundingClientRect?.().height || 0);
   const contentHeight = Math.ceil(nav.scrollHeight || 0);
   const compact = isMobileLandscapeCompactLayout();
+  const offset = compact
+    ? Math.max(50, rectHeight)
+    : Math.max(58, rectHeight);
   const reserve = compact
     ? Math.max(58, rectHeight + 8, contentHeight + 8)
     : Math.max(76, rectHeight + 10, contentHeight + 10);
+  root.style.setProperty("--mobile-bottom-nav-offset-height-runtime", `${offset}px`);
   root.style.setProperty("--mobile-bottom-nav-reserved-height-runtime", `${reserve}px`);
 }
 

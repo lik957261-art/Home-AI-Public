@@ -122,9 +122,12 @@ function updateWardrobeNavigationAvailability() {
   state.wardrobeAvailable = available;
   const button = $("bottomWardrobeMode");
   const nav = $("bottomNav");
+  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
+    && typeof pluginTopicBottomButtonId === "function"
+    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === "bottomWardrobeMode";
   if (button) {
-    button.hidden = true;
-    button.setAttribute("aria-hidden", "true");
+    button.hidden = !keepPluginContextButton;
+    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
   }
   nav?.classList.remove("wardrobe-visible");
   if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("wardrobe", available);
@@ -250,6 +253,7 @@ function restoreWardrobePluginReturnRoute() {
   state.wardrobePluginCanGoBack = false;
   parkWardrobePluginShell();
   state.viewMode = route.viewMode || "single";
+  state.pluginContextNavPluginId = route.pluginContextNavPluginId || "";
   state.singleWindowMode = route.singleWindowMode || state.singleWindowMode || "chat";
   state.selectedProjectId = route.selectedProjectId || state.selectedProjectId || "";
   state.selectedSubprojectId = route.selectedSubprojectId || "";
@@ -384,6 +388,12 @@ function sendWardrobePluginBack() {
   if (!frame?.contentWindow || !origin) return false;
   frame.contentWindow.postMessage({ type: "hermes.plugin.back", version: 1 }, origin);
   return true;
+}
+
+function sendWardrobePluginBackOrReturn() {
+  if (sendWardrobePluginBack()) return true;
+  if (typeof pluginContextBackNavigationActive === "function" && pluginContextBackNavigationActive()) return false;
+  return restoreWardrobePluginReturnRoute();
 }
 
 function renderWardrobePluginSecurityNotice(manifest) {

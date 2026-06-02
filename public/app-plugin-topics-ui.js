@@ -35,6 +35,17 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     deliveryHints: ["email", "\u90ae\u7bb1", "\u90ae\u4ef6", "\u6536\u4ef6"],
   }),
   Object.freeze({
+    id: "health",
+    viewMode: "health",
+    label: "\u5065\u5eb7",
+    subtitle: "\u8bad\u7ec3\u3001\u8eab\u4f53\u6307\u6807\u548c\u5065\u5eb7\u62a5\u544a",
+    iconClass: "nav-health-icon",
+    appIconClass: "health",
+    appIconGlyph: "+",
+    toolset: "health",
+    deliveryHints: ["health", "\u5065\u5eb7", "\u8bad\u7ec3", "\u4f53\u91cd", "\u7528\u836f"],
+  }),
+  Object.freeze({
     id: "directory",
     builtinKind: "directory",
     viewMode: "projects",
@@ -66,6 +77,75 @@ function pluginTopicDefForGroupId(taskGroupId = "") {
   const text = String(taskGroupId || "").trim();
   if (!text.startsWith("plugin:")) return null;
   return pluginTopicDefById(text.slice("plugin:".length));
+}
+
+function pluginTopicDefForViewMode(viewMode = state.viewMode) {
+  const mode = String(viewMode || "").trim();
+  if (!mode) return null;
+  const viewModeDef = PLUGIN_TOPIC_DEFS.find((item) => !item.builtinKind && item.viewMode === mode) || null;
+  if (viewModeDef) return viewModeDef;
+  const contextDef = pluginTopicDefById(state.pluginContextNavPluginId);
+  if (!contextDef || contextDef.builtinKind) return null;
+  if (mode === "tasks" && state.currentTaskGroupId === pluginTopicGroupId(contextDef.id)) return contextDef;
+  if (mode === "projects") return contextDef;
+  return null;
+}
+
+function pluginTopicBottomButtonId(def) {
+  const id = String(def?.id || "").trim();
+  if (id === "wardrobe") return "bottomWardrobeMode";
+  if (id === "finance") return "bottomFinanceMode";
+  if (id === "email") return "bottomEmailMode";
+  if (id === "health") return "bottomHealthMode";
+  return "";
+}
+
+function hideActivePluginHostsForPluginTopicNavigation() {
+  if (typeof setWardrobePluginHostVisible === "function") setWardrobePluginHostVisible(false);
+  if (typeof setEmbeddedPluginHostVisible === "function" && typeof EMBEDDED_PLUGIN_DEFS === "object") {
+    Object.values(EMBEDDED_PLUGIN_DEFS || {}).forEach((def) => setEmbeddedPluginHostVisible(def, false));
+  }
+  const app = $("app");
+  app?.classList.remove("wardrobe-plugin-host-active", "embedded-plugin-host-active");
+  ["codex", "finance", "email", "health"].forEach((id) => {
+    app?.classList.remove(`${id}-plugin-host-active`);
+  });
+}
+
+function exitPluginContextToTopicHome() {
+  hideActivePluginHostsForPluginTopicNavigation();
+  if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
+  clearQuotedReply({ render: false });
+  state.pluginContextNavPluginId = "";
+  state.viewMode = "tasks";
+  state.currentTaskGroupId = "";
+  state.taskDirectoryFilter = null;
+  state.pendingTaskDirectory = null;
+  state.pendingTaskReasoningEffort = "";
+  localStorage.setItem("hermesWebViewMode", state.viewMode);
+  renderPluginContextTopicHomeAfterExit();
+}
+
+function renderPluginContextTopicHomeAfterExit() {
+  const restoreScrollTop = typeof taskListReturnScrollTop === "function" ? taskListReturnScrollTop() : 0;
+  const cached = state.taskListThread;
+  const selectedWorkspaceId = String(state.selectedWorkspaceId || "").trim();
+  const cachedMatchesWorkspace = cached?.id && (
+    !selectedWorkspaceId
+    || cached.workspaceId === selectedWorkspaceId
+    || (typeof threadGroupMemberIds === "function" && threadGroupMemberIds(cached).includes(selectedWorkspaceId))
+  );
+  if (cachedMatchesWorkspace) {
+    state.currentThread = cached;
+    state.currentThreadId = cached.id;
+    if (typeof summarizeThread === "function") state.threads = [summarizeThread(cached)];
+  } else if (state.currentThread?.singleWindow && typeof summarizeThread === "function") {
+    state.threads = [summarizeThread(state.currentThread)];
+  }
+  if (typeof renderThreads === "function") renderThreads();
+  if (typeof renderCurrentThread === "function") renderCurrentThread({ stickToBottom: false, restoreScrollTop });
+  if (typeof updateNavigationControls === "function") updateNavigationControls();
+  if (typeof updateTopicPluginDockChrome === "function" && typeof isTaskListView === "function") updateTopicPluginDockChrome(isTaskListView());
 }
 
 function isPluginTopicTaskGroup(group = {}) {
@@ -303,9 +383,11 @@ async function openPluginTopicApp(pluginId) {
   if (typeof preparePrimaryNavigationChange === "function") preparePrimaryNavigationChange();
   else if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
   clearQuotedReply({ render: false });
+  state.pluginContextNavPluginId = def.id;
   if (def.id === "wardrobe" && typeof rememberWardrobePluginReturnRoute === "function") rememberWardrobePluginReturnRoute();
   if (def.id === "finance" && typeof rememberFinancePluginReturnRoute === "function") rememberFinancePluginReturnRoute();
   if (def.id === "email" && typeof rememberEmailPluginReturnRoute === "function") rememberEmailPluginReturnRoute();
+  if (def.id === "health" && typeof rememberHealthPluginReturnRoute === "function") rememberHealthPluginReturnRoute();
   state.viewMode = def.viewMode;
   localStorage.setItem("hermesWebViewMode", state.viewMode);
   state.currentTaskGroupId = "";
@@ -323,7 +405,9 @@ async function openPluginTopicChat(pluginId) {
   }
   if (typeof preparePrimaryNavigationChange === "function") preparePrimaryNavigationChange();
   else if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
+  hideActivePluginHostsForPluginTopicNavigation();
   clearQuotedReply({ render: false });
+  state.pluginContextNavPluginId = def.id;
   state.viewMode = "tasks";
   localStorage.setItem("hermesWebViewMode", state.viewMode);
   state.currentTaskGroupId = pluginTopicGroupId(def.id);
@@ -357,7 +441,9 @@ async function openPluginTopicDelivery(pluginId) {
   }
   if (typeof preparePrimaryNavigationChange === "function") preparePrimaryNavigationChange();
   else if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
+  hideActivePluginHostsForPluginTopicNavigation();
   clearQuotedReply({ render: false });
+  state.pluginContextNavPluginId = def.id;
   const returnRoute = typeof captureDirectoryReturnRoute === "function" ? captureDirectoryReturnRoute() : null;
   if (returnRoute) {
     returnRoute.viewMode = "tasks";
@@ -373,6 +459,7 @@ async function openPluginTopicDelivery(pluginId) {
   state.currentThread = null;
   state.currentThreadId = "";
   state.directoryReturnRoute = returnRoute;
+  if (typeof applyViewMode === "function") applyViewMode();
   if (project?.root && directory?.path) {
     state.selectedProjectId = project.id;
     localStorage.setItem("hermesWebProject", state.selectedProjectId);

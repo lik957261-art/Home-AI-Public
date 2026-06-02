@@ -52,8 +52,10 @@
   --app-font-scale: 1;
   --app-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
   --mobile-bottom-nav-height: calc(58px + env(safe-area-inset-bottom));
+  --mobile-bottom-nav-offset-height: var(--mobile-bottom-nav-offset-height-runtime, var(--mobile-bottom-nav-height));
   --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 10px));
   --topic-plugin-dock-height: 82px;
+  --topic-plugin-dock-reserved-height: calc(var(--mobile-bottom-nav-offset-height) + var(--topic-plugin-dock-height));
   font-family: var(--app-font-family);
 }
 
@@ -1268,7 +1270,7 @@ button {
 }
 
 .wardrobe-plugin-host-active .main {
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .app.wardrobe-plugin-host-active {
@@ -1276,11 +1278,11 @@ button {
 }
 
 .wardrobe-plugin-host-active .topbar {
-  display: none !important;
+  display: flex !important;
 }
 
 .wardrobe-plugin-host-active .wardrobe-plugin-host {
-  grid-row: 1;
+  grid-row: 2;
 }
 
 .wardrobe-plugin-host-active .conversation {
@@ -1352,7 +1354,8 @@ button {
 }
 
 .codex-mode .conversation,
-.email-mode .conversation {
+.email-mode .conversation,
+.health-mode .conversation {
   padding: 0;
   overflow: hidden;
   background: var(--ui-page);
@@ -1371,7 +1374,7 @@ button {
 }
 
 .embedded-plugin-host-active .main {
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .app.embedded-plugin-host-active {
@@ -1379,11 +1382,11 @@ button {
 }
 
 .embedded-plugin-host-active .topbar {
-  display: none !important;
+  display: flex !important;
 }
 
 .embedded-plugin-host-active .embedded-plugin-host {
-  grid-row: 1;
+  grid-row: 2;
 }
 
 .embedded-plugin-host-active .conversation {
@@ -2064,6 +2067,7 @@ button {
 .wardrobe-mode .composer,
 .finance-mode .composer,
 .email-mode .composer,
+.health-mode .composer,
 .codex-mode .composer {
   display: none;
 }
@@ -5250,15 +5254,19 @@ button.directory-alias-chip {
   display: block;
 }
 
+.sidebar.open ~ .topic-plugin-dock {
+  display: none !important;
+}
+
 .app.task-list-mode {
-  padding-bottom: calc(var(--mobile-bottom-nav-reserved-height) + var(--topic-plugin-dock-height));
+  padding-bottom: var(--topic-plugin-dock-reserved-height);
 }
 
 .task-list-mode .topic-plugin-dock {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: var(--mobile-bottom-nav-reserved-height);
+  bottom: var(--mobile-bottom-nav-offset-height);
   z-index: 39;
   width: 100%;
   min-height: var(--topic-plugin-dock-height);
@@ -5277,9 +5285,9 @@ button.directory-alias-chip {
 }
 
 .task-list-mode .plugin-app-grid {
-  width: min(420px, 100%);
+  width: min(448px, 100%);
   margin: 0 auto;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .task-list-mode .plugin-app-card {
@@ -5291,6 +5299,25 @@ button.directory-alias-chip {
 .task-list-mode .plugin-app-card .bottom-plugin-menu-icon {
   width: 48px;
   height: 48px;
+}
+
+.plugin-context-nav-mode .bottom-nav {
+  grid-template-columns: repeat(3, minmax(var(--bottom-nav-column-min, 48px), 1fr));
+}
+
+.plugin-context-nav-mode #bottomTasksMode {
+  order: 1;
+}
+
+.plugin-context-nav-mode #bottomWardrobeMode,
+.plugin-context-nav-mode #bottomFinanceMode,
+.plugin-context-nav-mode #bottomEmailMode,
+.plugin-context-nav-mode #bottomHealthMode {
+  order: 2;
+}
+
+.plugin-context-nav-mode #bottomProjectsMode {
+  order: 3;
 }
 
 .plugin-topic-card {
@@ -5393,6 +5420,10 @@ button.directory-alias-chip {
 
 .plugin-topic-app-icon.finance {
   background: linear-gradient(135deg, #1d9b72 0%, #4fc080 48%, #f1cf5b 100%);
+}
+
+.plugin-topic-app-icon.health {
+  background: linear-gradient(135deg, #dcf7ea 0%, #4ebd89 48%, #19765a 100%);
 }
 
 .plugin-topic-app-icon.directory {
@@ -15142,8 +15173,13 @@ body.task-markdown-preview-open {
   }
 
   .main-back-visible.wardrobe-plugin-host-active .bottom-nav,
-  .main-back-visible.embedded-plugin-host-active .bottom-nav {
+  .main-back-visible.embedded-plugin-host-active .bottom-nav,
+  .main-back-visible.plugin-context-nav-mode .bottom-nav {
     display: grid;
+  }
+
+  .sidebar.open ~ .bottom-nav {
+    display: none !important;
   }
 
   .sidebar {
@@ -15599,6 +15635,10 @@ body.task-markdown-preview-open {
     gap: 6px;
   }
 
+  .task-list-mode .plugin-app-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .plugin-app-card {
     min-height: 70px;
     padding: 5px 4px;
@@ -15784,6 +15824,10 @@ body.task-markdown-preview-open {
     padding-bottom: calc(12px + env(safe-area-inset-bottom));
   }
 
+  .plugin-context-nav-mode.plugin-topic-detail-mode .composer {
+    margin-bottom: var(--mobile-bottom-nav-offset-height);
+  }
+
   .composer-context {
     gap: 4px;
     padding-bottom: 1px;
@@ -15871,7 +15915,9 @@ body.task-markdown-preview-open {
 @media (max-width: 1099px) and (orientation: landscape) and (max-height: 620px) {
   :root {
     --mobile-bottom-nav-height: calc(50px + env(safe-area-inset-bottom));
+    --mobile-bottom-nav-offset-height: var(--mobile-bottom-nav-offset-height-runtime, var(--mobile-bottom-nav-height));
     --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 8px));
+    --topic-plugin-dock-reserved-height: calc(var(--mobile-bottom-nav-offset-height) + var(--topic-plugin-dock-height));
   }
 
   .topbar {

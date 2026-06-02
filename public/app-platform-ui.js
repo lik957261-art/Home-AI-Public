@@ -107,6 +107,10 @@ function startupAutoResetKey() {
 function shouldAutoResetClientAfterStartupFailure(err) {
   const message = String(err?.message || err || "");
   if (/unauthorized/i.test(message)) return false;
+  if (typeof clientVersionTargetFromUrl === "function") {
+    const targetVersion = clientVersionTargetFromUrl();
+    if (targetVersion && targetVersion === normalizeClientVersion(state.clientVersion)) return false;
+  }
   try {
     return sessionStorage.getItem(startupAutoResetKey()) !== "1";
   } catch (_) {
@@ -269,6 +273,7 @@ function normalizedRouteView(value, fallback = "") {
   if (view === "codex" || view === "codex-mobile") return "codex";
   if (view === "finance" || view === "accounting" || view === "ledger") return "finance";
   if (view === "email" || view === "mail" || view === "mailbox") return "email";
+  if (view === "health") return "health";
   if (view === "todo" || view === "todos") return "todos";
   if (view === "directory" || view === "directories" || view === "projects") return "projects";
   if (view === "task" || view === "tasks") return "tasks";
@@ -634,6 +639,14 @@ function applyRouteParams(params) {
   }
   if (routeView === "email" && typeof setEmailPluginOpenRoute === "function") {
     setEmailPluginOpenRoute({
+      pluginRoute: params.get("pluginRoute") || params.get("route") || "",
+      pluginItemId: params.get("pluginItemId") || params.get("itemId") || "",
+      pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",
+      pluginTaskId: params.get("pluginTaskId") || params.get("taskId") || "",
+    });
+  }
+  if (routeView === "health" && typeof setHealthPluginOpenRoute === "function") {
+    setHealthPluginOpenRoute({
       pluginRoute: params.get("pluginRoute") || params.get("route") || "",
       pluginItemId: params.get("pluginItemId") || params.get("itemId") || "",
       pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",

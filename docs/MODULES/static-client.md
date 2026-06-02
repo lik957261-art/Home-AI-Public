@@ -101,10 +101,19 @@ Gateway plugin/schema/profile changes:
   PWA/service-worker clients on the old script even when the production file has
   been copied.
 - When the app detects a server/client version mismatch during startup, status
-  refresh, foreground, focus, push, or timer checks, it may run one
-  session-scoped `/client-reset.html` recovery for the target server version.
-  The refresh notice remains available, but correctness must not depend on the
-  notice being visible on an already-stale PWA shell.
+  refresh, foreground, focus, push, or timer checks, it must run one
+  session-scoped same-shell recovery by navigating to the current app URL with
+  `resetClient=1` and `targetVersion=<server-version>`. The inline app-shell
+  reset clears bounded static caches, unregisters Service Workers, preserves the
+  stored Access Key/theme/font preferences, and returns to the app with a
+  cache-busting query. Automatic update recovery must not navigate to
+  `/client-reset.html`, because mobile PWA clients can open that page in a
+  browser wrapper. The refresh notice remains available, but correctness must
+  not depend on the notice being visible on an already-stale PWA shell.
+- The Service Worker must treat app-shell requests (`/`, `/index.html`, and
+  `/hermes-mobile/`) as network-first with `cache: "no-store"`. Killing and
+  reopening the PWA after a version bump must not replay an old cached app shell
+  before checking the network.
 - The boot splash must not leave a user on an endless animated progress bar. If
   startup has not completed after the short watchdog window, the shell may run
   one session-scoped soft reload for the current client version; if startup

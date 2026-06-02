@@ -31,12 +31,18 @@ Static-only sync:
 When a stale PWA shell is suspected, verify the old version reports
 `refreshRequired=true` and the new version reports `refreshRequired=false` from
 `/api/client-version`. Current clients run a one-time session-scoped
-PWA-in-place recovery on startup/foreground/API-response version mismatch, and
-the Service Worker posts a client-version update message on activation. Automatic
-version recovery should update the Service Worker and reload in place; it must
-not unregister the Service Worker or jump through browser-shell reset unless the
-user explicitly opens `/client-reset.html?hard=1`. If that does not happen,
+same-shell recovery on startup/foreground/API-response version mismatch by
+navigating the current app URL with `resetClient=1` and
+`targetVersion=<server-version>`. The inline app-shell reset clears bounded
+static caches, unregisters Service Workers, preserves the stored Access
+Key/theme/font preferences, and returns to the app with a cache-busting query.
+Automatic update recovery must not use `/client-reset.html`, because mobile PWA
+clients can open that page in a browser wrapper. If that does not happen,
 inspect whether the client is still executing a pre-recovery static version.
+The Service Worker must fetch app-shell requests (`/`, `/index.html`, and
+`/hermes-mobile/`) network-first with `cache: "no-store"` so killing and
+reopening the PWA does not replay an old cached shell before checking the
+network.
 The boot page also has a bounded startup watchdog: one soft reload is allowed
 per client version when startup does not complete, and retry/reset controls must
 appear shortly after that. A reset page that clears caches or unregisters the

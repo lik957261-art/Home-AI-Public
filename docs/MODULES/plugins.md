@@ -1,6 +1,6 @@
 # Embedded App Plugins
 
-Last updated: 2026-06-01.
+Last updated: 2026-06-02.
 
 This module describes the Hermes Mobile embedded-app plugin contract. A plugin
 is an external product surface mounted inside Hermes Mobile. Hermes owns the
@@ -15,6 +15,28 @@ embedded-app plugin and uses the same generic host, launch, proxy, navigation,
 refresh, appearance, and workspace provisioning contracts. These rules are
 generic and apply to future embedded apps such as watches, health, or other
 private workspace tools.
+
+Health/健康 is now an embedded-app plugin in the same workspace-private class as
+Wardrobe, Finance, and Email. Hermes Mobile owns its host registration, manifest
+normalization, same-origin proxy, plugin Dock entry, topic binding, and
+workspace provisioning. The Health project owns the health UI, data model,
+reports, API, and MCP wrapper. Health provisioning writes only workspace-local
+Hermes files under `.hermes-health`: `access-key.txt` stores the raw key, while
+`config.json` stores non-secret metadata such as `api_base_url`,
+`workspace_id=health:<hermesWorkspaceId>`, `hermes_workspace_id`, display name,
+and scopes. The Health registration request receives only the SHA-256
+`access_key_hash`, never the raw key. Health workspace registration must be
+authenticated with a server-side registration credential. Hermes reads it from
+`HERMES_MOBILE_HEALTH_PLUGIN_OWNER_KEY(_PATH)`,
+`HERMES_MOBILE_PLUGIN_HEALTH_OWNER_KEY(_PATH)`, or the Health-side
+`HEALTHY_REGISTRATION_KEY` / `HEALTHY_REGISTRATION_KEY_PATH` environment
+contract. Missing or empty registration credentials must fail closed and block
+the grant from becoming active; Hermes must not reuse the Owner web key, plugin
+launch key, or workspace raw key for this registration credential. Health is
+the standard fresh-install plugin enablement example: its manifest may be
+installed and readable while no Hermes workspace, including Owner, is active
+yet. Owner must explicitly open/provision Health before normal list, manifest,
+launch, topic Dock, or MCP projection treats it as usable.
 
 ## Source Of Truth
 
@@ -386,6 +408,16 @@ binding or plugin-side setup has been verified. Empty plugin content after a
 successful first-run provisioning is valid; missing identity, missing key,
 missing bind, missing Skill/MCP registration, or Owner-session reuse is not.
 
+The plugin manager projection must combine the same evidence used by launch:
+stored authorization records, deployment allowlists, and discovered
+workspace-local plugin config/key directories. This includes `owner`. If Owner
+has a valid workspace-local binding, the Owner row must display as already
+enabled; if Owner has a failed automatic provisioning record, the row must show
+a retry/diagnostic state rather than a plain unopened `开通` action. Health is
+the reference case: Owner is not implicitly active on fresh install, but once
+Owner provisioning succeeds the authorization record and `.hermes-health`
+config/key must survive reloads and keep the manager row enabled.
+
 Plugins that expose model-callable MCP tools must use the Wardrobe-style
 workspace-local isolation pattern as the default host contract:
 
@@ -518,11 +550,11 @@ Provisioning states are generic across plugins:
   diagnostic.
 
 Only plugins with a registered Hermes-side provisioning service may enter
-`pending` from plugin-manager grant. As of the Wardrobe provisioner change this
-applies to Finance and Wardrobe. Manual or externally bound plugins that do not
-have a Hermes provisioner use `manual_required` until an effective workspace key
-is discovered or the launch path returns its own bounded diagnostic. Codex
-Mobile remains Owner-only and is not grantable through this contract.
+`pending` from plugin-manager grant. This currently applies to Finance,
+Wardrobe, Email, and Health. Manual or externally bound plugins that do not have
+a Hermes provisioner use `manual_required` until an effective workspace key is
+discovered or the launch path returns its own bounded diagnostic. Codex Mobile
+remains Owner-only and is not grantable through this contract.
 
 The plugin manager's open/closed status must reflect the same effective
 workspace availability used by the launch path. For workspace-private plugins,
@@ -547,6 +579,9 @@ plugin authorization:
 - Owner can list installed plugins, their risk level, provisioning mode, and
   workspace grant state.
 - Owner can grant or revoke normal business plugins for a workspace.
+- For plugins with Hermes-side provisioning, the plugin manager must show the
+  Owner workspace row as well. Owner first use is an explicit enable/provision
+  workflow, not an invisible default-active state.
 - Non-Owner users never see the plugin manager.
 - Revoking a grant removes future list/manifest/launch access for that
   workspace; it does not delete plugin-side business data.

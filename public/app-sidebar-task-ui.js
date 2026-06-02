@@ -62,6 +62,7 @@ function openSidebar(options = {}) {
   sidebar.classList.add("open");
   overlay?.classList.add("open");
   if (options.resetScroll !== false) resetSidebarScroll();
+  if (typeof updateTopicPluginDockChrome === "function") updateTopicPluginDockChrome(isTaskListView());
 }
 
 function closeSidebar() {
@@ -69,20 +70,38 @@ function closeSidebar() {
   $("sidebar")?.classList.remove("open");
   $("sidebarOverlay")?.classList.remove("open");
   restoreTransientProjectRoute();
+  if (typeof updateTopicPluginDockChrome === "function") updateTopicPluginDockChrome(isTaskListView());
 }
+
+function pluginContextBackNavigationActive() {
+  if (typeof pluginTopicDefForViewMode !== "function" || typeof pluginTopicBottomButtonId !== "function") return false;
+  return Boolean(pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)));
+}
+
+function pluginContextBackTarget() {
+  if (typeof pluginTopicDefForViewMode !== "function") return "";
+  const def = pluginTopicDefForViewMode(state.viewMode);
+  return def && !def.builtinKind ? "plugin-context-home" : "";
+}
+
 function backSwipeTarget() {
+  const pluginContextBack = pluginContextBackNavigationActive();
+  const pluginContextTarget = pluginContextBackTarget();
+  if (pluginContextTarget) return pluginContextTarget;
   if (isSkillDetailView()) return "skill";
   if (isTaskDetailView()) return "task";
   if (isTodoDetailView() || kanbanComposerOpen()) return isTodoDetailView() ? "todo" : "todo-create";
   if (state.viewMode === "learning" && (state.learningGrowthSettingsOpen || state.selectedLearningTaskCardId)) return state.learningGrowthSettingsOpen ? "learning-growth-settings" : "learning-growth-task";
   if (typeof wardrobePluginBackActive === "function" && wardrobePluginBackActive()) return "wardrobe-plugin";
-  if (typeof wardrobePluginOuterBackActive === "function" && wardrobePluginOuterBackActive()) return "wardrobe-plugin-outer";
+  if (!pluginContextBack && typeof wardrobePluginOuterBackActive === "function" && wardrobePluginOuterBackActive()) return "wardrobe-plugin-outer";
   if (typeof codexPluginBackActive === "function" && codexPluginBackActive()) return "codex-plugin";
-  if (typeof codexPluginOuterBackActive === "function" && codexPluginOuterBackActive()) return "codex-plugin-outer";
+  if (!pluginContextBack && typeof codexPluginOuterBackActive === "function" && codexPluginOuterBackActive()) return "codex-plugin-outer";
   if (typeof financePluginBackActive === "function" && financePluginBackActive()) return "finance-plugin";
-  if (typeof financePluginOuterBackActive === "function" && financePluginOuterBackActive()) return "finance-plugin-outer";
+  if (!pluginContextBack && typeof financePluginOuterBackActive === "function" && financePluginOuterBackActive()) return "finance-plugin-outer";
   if (typeof emailPluginBackActive === "function" && emailPluginBackActive()) return "email-plugin";
-  if (typeof emailPluginOuterBackActive === "function" && emailPluginOuterBackActive()) return "email-plugin-outer";
+  if (!pluginContextBack && typeof emailPluginOuterBackActive === "function" && emailPluginOuterBackActive()) return "email-plugin-outer";
+  if (typeof healthPluginBackActive === "function" && healthPluginBackActive()) return "health-plugin";
+  if (!pluginContextBack && typeof healthPluginOuterBackActive === "function" && healthPluginOuterBackActive()) return "health-plugin-outer";
   if (typeof automationDetailInboxReturnActive === "function" && automationDetailInboxReturnActive()) return "automation-secondary";
   if (isAutomationDetailView()) return "automation";
   if (typeof automationSecondaryReturnActive === "function" && automationSecondaryReturnActive()) return "automation-secondary";
@@ -130,6 +149,9 @@ function performBackSwipeAction(target) {
   else if (target === "finance-plugin-outer" && typeof restoreFinancePluginReturnRoute === "function") restoreFinancePluginReturnRoute();
   else if (target === "email-plugin" && typeof sendEmailPluginBackOrReturn === "function") sendEmailPluginBackOrReturn();
   else if (target === "email-plugin-outer" && typeof restoreEmailPluginReturnRoute === "function") restoreEmailPluginReturnRoute();
+  else if (target === "health-plugin" && typeof sendHealthPluginBackOrReturn === "function") sendHealthPluginBackOrReturn();
+  else if (target === "health-plugin-outer" && typeof restoreHealthPluginReturnRoute === "function") restoreHealthPluginReturnRoute();
+  else if (target === "plugin-context-home" && typeof exitPluginContextToTopicHome === "function") exitPluginContextToTopicHome();
   else if (target === "automation") openAutomationList();
   else if (target === "automation-secondary") closeAutomationSecondarySurface();
   else if (target === "action-inbox" || target === "action-inbox-create") openActionInboxOverview();

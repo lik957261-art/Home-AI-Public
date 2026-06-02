@@ -90,6 +90,12 @@ boot splash performs at most one session-scoped soft reload for a client
 version, exposes retry/reset controls after a bounded wait, and the reset page
 uses timeout-wrapped cache clear / hard-reset Service Worker unregister so the
 recovery screen itself cannot hang indefinitely.
+For client-version mismatches, automatic recovery must route through the bounded
+reset page for the target version, preserve Access Key/theme/font preferences,
+clear static caches, refresh Service Worker registrations, and reopen the app
+with a cache-busting query. The Service Worker must serve app-shell requests
+(`/`, `/index.html`, and `/hermes-mobile/`) network-first with `cache:
+"no-store"` so kill/reopen cannot keep showing a stale shell.
 
 NAS static production deploy is a cross-shell production operation. The source
 harness must keep `scripts/deploy-nas-static-assets.ps1` on the safe transport
@@ -139,7 +145,7 @@ must be single-workspace workers, worker `skills` links must point at
 `data/skill-profiles/<profile>/skills`, worker `memories` links must point at a
 per-workspace memory store, and `data/drive/users/<workspaceId>` directories
 must not be publicly accessible. Plugin MCP registration must be
-workspace-local: Wardrobe, Finance, Email, and future plugin toolsets may be
+workspace-local: Wardrobe, Finance, Email, Health, and future plugin toolsets may be
 advertised only when the worker's target workspace has the matching
 `.hermes-<plugin>` config/key directory. A worker without plugin config must not
 fall back to Owner or expose a broken plugin toolset.
@@ -218,8 +224,9 @@ coverage for that increment:
 - Directory-topic collections are derived from existing bound directory routes.
 - Groups displayed inside directory-topic collection cards are removed from the
   regular topic grid to avoid duplicate entries.
-- Plugin fixed topics such as `plugin:wardrobe`, `plugin:finance`, and
-  `plugin:email` must not be included in directory-topic collection cards.
+- Plugin fixed topics such as `plugin:wardrobe`, `plugin:finance`,
+  `plugin:email`, and `plugin:health` must not be included in directory-topic
+  collection cards.
 - The Directory built-in application card is shown with the plugin application
   cards but placed after external plugins. It has no chat/file mini actions;
   directory-bound topic collections are visually associated below it instead.
@@ -621,10 +628,28 @@ list/manifest/launch. Focused checks include
 `node tests\hermes-plugin-service.test.js`,
 `node tests\app-embedded-plugin-ui.test.js`, and
 `node tests\task-list-ui.test.js`.
+Health workspace provisioning is the same H1 plugin authorization workflow.
+Granting Health to a workspace must create workspace-local
+`.hermes-health/access-key.txt`, write non-secret `.hermes-health/config.json`,
+and call Health `POST /api/v1/hermes/plugin/workspaces` with a server-side
+registration credential such as `HEALTHY_REGISTRATION_KEY` or the Hermes Mobile
+Health owner-key env/file aliases. The request may send `access_key_hash`, but
+must not send the raw workspace key. Missing or empty registration credentials,
+failed Health registration, key/config write failure, or missing MCP wrapper
+binding must keep the grant out of `active` and block list/manifest/launch
+instead of falling back to Owner. A fresh Health manifest means installed only:
+Owner and non-Owner workspaces must not see Health in ordinary plugin lists,
+plugin topics, launch manifests, or MCP toolsets until explicit provisioning
+creates both `.hermes-health/access-key.txt` and `.hermes-health/config.json`
+for that effective workspace. Focused checks include
+`node tests\health-plugin-provisioning-service.test.js`,
+`node tests\hermes-plugin-service.test.js`, and
+`node tests\task-list-ui.test.js`.
 Generic plugin provisioning states must also be covered. A plugin-manager grant
 may enter `pending` only when Hermes owns an automatic provisioning service for
-that plugin. Finance, Wardrobe, and Email are automatic provisioning plugins; pending
-or failed records for either one must block non-Owner list/manifest/launch.
+that plugin. Finance, Wardrobe, Email, and Health are automatic provisioning
+plugins; pending or failed records for any of them must block non-Owner
+list/manifest/launch.
 Manual/external-binding plugins without a Hermes provisioner should store
 `manual_required` and must not be blocked by the pending/failed gate solely due
 to the grant record. Codex Mobile remains non-grantable. The service harness
@@ -1201,8 +1226,8 @@ The guard test is:
 | Web Push | `node tests\web-push-delivery-service.test.js`, `node tests\push-api-routes.test.js`, `node tests\task-list-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js` |
-| Embedded plugin host / Wardrobe, Codex, Finance, and Email plugin tabs | `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\embedded-plugin-refresh-harness.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\wardrobe-plugin-navigation-ui.test.js`, `node tests\wardrobe-plugin-provisioning-service.test.js`, `node tests\email-plugin-provisioning-service.test.js` when Email behavior changes, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes. First-run plugin enablement must verify Owner and one non-Owner workspace cannot project `active` until workspace-local key/config, plugin-side bind/register, required Skill/MCP setup, and manifest/launch smoke pass. |
-| Plugin-bound application topics | Current frontend projection: `node tests\task-list-ui.test.js`, `node tests\static-cache-version-harness.test.js`. Planned service/runtime phases: `node tests\plugin-topic-binding-service.test.js`, `node tests\plugin-topic-delivery-directory-service.test.js`, `node tests\plugin-topic-context-service.test.js`, `node tests\plugin-topic-api-routes.test.js`, `node tests\app-plugin-topics-ui.test.js`, plus `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\directory-browser-api-routes.test.js`, and `node tests\architecture-refactor-boundary.test.js` when implementation touches services/routes/runtime. Frontend harness must cover the small chat/folder icon actions for external plugins, the Directory special card with no mini actions, compact single-surface plugin cards without nested framed panels, five-slot bottom navigation with Topics centered, default launch to Topics when no saved view exists, fixed `plugin:<pluginId>` topic ids, automatic `插件/<plugin title>` directory creation through the directory API, returning from that directory to the topic list, restoring topic-list scroll position after topic-detail back/right-swipe, clearing stale plugin view-mode classes before opening the topic detail so the message composer is visible, and hiding the bottom navigation on plugin-topic secondary pages. |
+| Embedded plugin host / Wardrobe, Codex, Finance, Email, and Health plugin tabs | `node tests\hermes-plugin-authorization-service.test.js`, `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\embedded-plugin-refresh-harness.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\wardrobe-plugin-navigation-ui.test.js`, `node tests\wardrobe-plugin-provisioning-service.test.js`, `node tests\email-plugin-provisioning-service.test.js` when Email behavior changes, `node tests\health-plugin-provisioning-service.test.js` when Health behavior changes, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes. First-run plugin enablement must verify Owner and one non-Owner workspace cannot project `active` until workspace-local key/config, plugin-side bind/register, required Skill/MCP setup, and manifest/launch smoke pass. Plugin-manager projection must also prove Owner records can be persisted, Owner workspace-local key/config discovery is reflected as already enabled, and failed Owner provisioning remains a retryable diagnostic instead of reverting to a plain unopened button. |
+| Plugin-bound application topics | Current frontend projection: `node tests\task-list-ui.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\static-cache-version-harness.test.js`. Planned service/runtime phases: `node tests\plugin-topic-binding-service.test.js`, `node tests\plugin-topic-delivery-directory-service.test.js`, `node tests\plugin-topic-context-service.test.js`, `node tests\plugin-topic-api-routes.test.js`, `node tests\app-plugin-topics-ui.test.js`, plus `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\directory-browser-api-routes.test.js`, and `node tests\architecture-refactor-boundary.test.js` when implementation touches services/routes/runtime. Frontend harness must cover direct app launch from the topic-page plugin Dock, the Directory special card with no mini actions, compact single-surface plugin cards without nested framed panels, five-slot bottom navigation with Topics centered, default launch to Topics when no saved view exists, fixed `plugin:<pluginId>` topic ids, automatic `插件/<plugin title>` directory creation through the directory API, returning from that directory to the topic list, restoring topic-list scroll position after topic-detail back/right-swipe, clearing stale plugin view-mode classes before opening the topic detail so the message composer is visible, hiding the bottom navigation on ordinary plugin-topic secondary pages, preserving the three-item plugin-context bar inside plugin app/topic/directory context, and making plugin-context right-swipe/browser-back exit through the dedicated topic-root renderer without calling `openTaskList()`, `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`. |
 | Directory-bound topic collections | Planned: `node tests\directory-topic-binding-service.test.js`, `node tests\directory-topic-context-service.test.js`, `node tests\directory-topic-api-routes.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\context-assembly-service.test.js`, and `node tests\task-list-ui.test.js`. Harness must cover multiple topics per directory, one default topic per directory, default-topic reassignment without deleting secondary topics, explicit open-directory/open-default-topic/open-topic-picker actions, workspace isolation, cleaned/selected/bounded directory context, and exclusion of fixed plugin topics from directory collections. Frontend harness must also prove the topic list can render its first frame before directory-topic aggregation runs, that directory collections are visually attached below the Directory special application card, that the directory action sits on the same row as the main topic entry, and that background aggregation/API refresh preserves the user's current topic-list scroll position, because directory route extraction may scan many existing messages on large accounts. |
 | Directory/files/artifacts | `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js` |
 | Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\gateway-workspace-provisioning-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\link-skill-profile-store.test.js`, `node tests\task-list-ui.test.js` |

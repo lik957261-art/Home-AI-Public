@@ -209,6 +209,11 @@ The first UI should be deliberately small:
   contains external plugin launch icons such as Wardrobe, Finance, and Email,
   lives outside the scrollable topic list, and does not add a separate bottom
   Plugin tab or a floating drawer.
+- The Dock's fixed bottom offset is based on the real bottom-navigation height,
+  not the broader page-content reserved height. The reserved height may include
+  scroll/composer spacing after switching out of a plugin topic chat, so using
+  it for Dock positioning can create a blank band between the Dock and the
+  normal bottom navigation.
 - Each external plugin Dock item opens the plugin app directly. It does not show
   separate topic or delivery-directory mini actions in the topic list.
 - The app action enters the existing embedded plugin host, which keeps the mobile bottom navigation visible as plugin-context navigation.
@@ -220,6 +225,35 @@ The first UI should be deliberately small:
   Users create or enter new topics through an explicit binding surface such as a
   Directory-bound topic. This prevents unanchored topic creation from bypassing
   directory/plugin context rules.
+
+### Plugin Context State Machine
+
+The plugin-context surface has four explicit states:
+
+- **Topic root**: `viewMode=tasks`, `currentTaskGroupId=""`, and
+  `pluginContextNavPluginId=""`. This is the ordinary Hermes topic list with
+  the normal bottom navigation.
+- **Plugin app**: `viewMode=<plugin viewMode>` and
+  `pluginContextNavPluginId=<pluginId>`. The embedded plugin host is visible
+  and the mobile bottom navigation is replaced by the three plugin-context
+  tabs: topic, plugin, and directory.
+- **Plugin topic**: `viewMode=tasks`,
+  `currentTaskGroupId=plugin:<pluginId>`, and
+  `pluginContextNavPluginId=<pluginId>`. The chat composer is visible for the
+  bound topic and the same three plugin-context tabs remain visible.
+- **Plugin directory**: `viewMode=projects` and
+  `pluginContextNavPluginId=<pluginId>`. The directory module owns the file
+  view, but the same three plugin-context tabs remain visible.
+
+Right-swipe/browser-back from any plugin-context state exits the plugin context
+and returns directly to **Topic root**. This transition is not the same as
+ordinary task-detail back. It must call the dedicated plugin-context exit
+renderer, restore the remembered topic-list thread, clear plugin-context state,
+hide plugin iframes, remove the three-tab plugin-context bar, and restore the
+ordinary five-tab navigation. It must not call `openTaskList()`,
+`restoreTaskListThreadFromCache()`, or `loadSingleWindow()`, because those
+generic routes can reload a shared topic thread and fall into the empty ordinary
+chat page.
 
 Codex remains a first-level bottom tab by current product rule. Wardrobe,
 Finance, Email, and future business plugins are launched from the topic page's
@@ -318,6 +352,11 @@ The selector should ignore or summarize:
   topic-page Dock layout row directly above the mobile bottom navigation, outside
   the scrollable topic list, so directory-bound topic cards are not hidden behind
   the Dock. Implemented in v477.
+- Keep plugin-context back/right-swipe as a single state-machine transition to
+  the ordinary topic root. It must not delegate through `openTaskList()` or any
+  path that can call `loadSingleWindow()`. Implemented in v492 after the v491
+  regression where plugin topic right-swipe could land on
+  `Select or create a thread`.
 
 The v440 frontend increment does not authorize plugins, create provisioning
 records, or force MCP exposure. It reuses the existing effective-workspace

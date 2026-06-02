@@ -36,7 +36,34 @@ function testGrantAndRevokeWorkspace() {
   assert.equal(next.isWorkspaceAuthorized("finance", "weixin_wuping"), false);
 }
 
-function testNormalizeRejectsOwnerAndUnsafeIds() {
+function testGrantAndRevokeOwnerWorkspace() {
+  const dir = tempDir();
+  const service = createHermesPluginAuthorizationService({
+    dataDir: dir,
+    nowIso: () => "2026-06-02T12:00:00.000Z",
+  });
+  const grant = service.grantWorkspace({
+    pluginId: "health",
+    workspaceId: "owner",
+    actor: "owner",
+    provisioningStatus: "pending",
+  });
+  assert.equal(grant.ok, true);
+  assert.equal(grant.record.workspaceId, "owner");
+  assert.equal(service.isWorkspaceAuthorized("health", "owner"), true);
+  assert.deepEqual(service.authorizedWorkspaceIds("health"), ["owner"]);
+  const updated = service.updateProvisioningStatus({
+    pluginId: "health",
+    workspaceId: "owner",
+    provisioningStatus: "active",
+  });
+  assert.equal(updated.ok, true);
+  assert.equal(service.recordForWorkspace("health", "owner").provisioningStatus, "active");
+  assert.equal(service.revokeWorkspace({ pluginId: "health", workspaceId: "owner" }).ok, true);
+  assert.equal(service.isWorkspaceAuthorized("health", "owner"), false);
+}
+
+function testNormalizeKeepsOwnerAndSanitizesUnsafeIds() {
   const normalized = normalizeState({
     plugins: {
       "finance<script>": {
@@ -49,13 +76,15 @@ function testNormalizeRejectsOwnerAndUnsafeIds() {
     },
   });
   assert.deepEqual(Object.keys(normalized.plugins), ["financescript"]);
-  assert.deepEqual(Object.keys(normalized.plugins.financescript.records), ["..bad", "weixin_wuping"]);
+  assert.deepEqual(Object.keys(normalized.plugins.financescript.records), ["owner", "..bad", "weixin_wuping"]);
+  assert.equal(normalized.plugins.financescript.records.owner.status, "authorized");
   assert.equal(normalized.plugins.financescript.records.weixin_wuping.status, "authorized");
 }
 
 function run() {
   testGrantAndRevokeWorkspace();
-  testNormalizeRejectsOwnerAndUnsafeIds();
+  testGrantAndRevokeOwnerWorkspace();
+  testNormalizeKeepsOwnerAndSanitizesUnsafeIds();
 }
 
 run();

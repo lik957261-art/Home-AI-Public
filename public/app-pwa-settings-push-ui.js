@@ -34,9 +34,40 @@ function clientVersionAutoResetKey(serverVersion) {
   return `hermesClientVersionAutoReset:${serverVersion}`;
 }
 
+function clientVersionTargetFromUrl() {
+  try {
+    return normalizeClientVersion(new URLSearchParams(window.location.search || "").get("targetVersion") || "");
+  } catch (_) {
+    return "";
+  }
+}
+
+function markClientVersionRefreshSettled(version = "") {
+  const normalized = normalizeClientVersion(version);
+  if (!normalized) return false;
+  try {
+    window.sessionStorage?.setItem(clientVersionAutoResetKey(normalized), "1");
+    window.sessionStorage?.setItem(`hermesClientVersionSettled:${normalized}`, "1");
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function clientVersionRefreshSettled(version = "") {
+  const normalized = normalizeClientVersion(version);
+  if (!normalized) return false;
+  try {
+    return window.sessionStorage?.getItem(`hermesClientVersionSettled:${normalized}`) === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
 function shouldAutoResetForClientVersionMismatch(serverVersion, source = "") {
   const version = normalizeClientVersion(serverVersion);
   if (!version || !HERMES_CLIENT_VERSION_AUTO_RESET_SOURCES.has(String(source || ""))) return false;
+  if (clientVersionRefreshSettled(version)) return false;
   try {
     const key = clientVersionAutoResetKey(version);
     if (window.sessionStorage?.getItem(key) === "1") return false;
@@ -48,10 +79,13 @@ function shouldAutoResetForClientVersionMismatch(serverVersion, source = "") {
 }
 
 function scheduleClientVersionAutoReset(serverVersion, source = "") {
-  if (!shouldAutoResetForClientVersionMismatch(serverVersion, source)) return false;
+  const version = normalizeClientVersion(serverVersion);
+  if (!shouldAutoResetForClientVersionMismatch(version, source)) return false;
   showBootSplash("正在更新客户端");
   window.setTimeout(() => {
-    reloadForClientUpdate(`client-version-${String(source || "mismatch").slice(0, 40)}`);
+    resetClientAndReload(`client-version-${String(source || "mismatch").slice(0, 40)}`, {
+      targetVersion: version,
+    });
   }, 120);
   return true;
 }
@@ -61,11 +95,18 @@ function handleClientVersion(info, source = "") {
   if (!serverVersion) return;
   state.serverClientVersion = serverVersion;
   const clientVersion = normalizeClientVersion(state.clientVersion);
+  const targetVersion = clientVersionTargetFromUrl();
+  if (clientVersion && targetVersion && targetVersion === clientVersion) {
+    markClientVersionRefreshSettled(clientVersion);
+    hideRefreshNotice();
+    return;
+  }
   if (clientVersion && serverVersion !== clientVersion) {
     showRefreshNotice(serverVersion, source);
     scheduleClientVersionAutoReset(serverVersion, source);
     return;
   }
+  if (clientVersion && serverVersion === clientVersion) markClientVersionRefreshSettled(clientVersion);
   hideRefreshNotice();
 }
 
@@ -109,10 +150,15 @@ function reloadWithoutBfcache(reason = "") {
 }
 
 function resetClientAndReload(reason = "", options = {}) {
-  const params = new URLSearchParams({ _hmv: String(Date.now()) });
-  if (reason) params.set("reason", String(reason).slice(0, 80));
-  if (options?.hard) params.set("hard", "1");
-  window.location.replace(`/client-reset.html?${params.toString()}`);
+  const target = new URL(window.location.href);
+  target.searchParams.set("resetClient", "1");
+  target.searchParams.set("_hmv", String(Date.now()));
+  if (!target.searchParams.has("source")) target.searchParams.set("source", "pwa");
+  if (reason) target.searchParams.set("reason", String(reason).slice(0, 80));
+  if (options?.hard) target.searchParams.set("hard", "1");
+  const targetVersion = normalizeClientVersion(options?.targetVersion || "");
+  if (targetVersion) target.searchParams.set("targetVersion", targetVersion);
+  window.location.replace(target.href);
 }
 
 function reloadForClientUpdate(reason = "") {

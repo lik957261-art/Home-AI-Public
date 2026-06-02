@@ -40,7 +40,7 @@ or raw plugin credentials.
 - When there is no saved launch view, Hermes Mobile opens the topic page first.
   The mobile bottom navigation keeps five primary slots with Topics in the
   center position.
-- The current frontend projection renders Wardrobe, Finance, and Email in a
+- The current frontend projection renders Wardrobe, Finance, Email, and Health in a
   topic-page plugin Dock row directly above the mobile bottom navigation when
   those plugins are visible in the effective workspace. The Dock is a dedicated
   layout row outside the scrollable topic list, so it must not cover
@@ -52,6 +52,36 @@ or raw plugin credentials.
   topic list. Plugin-specific topic and directory surfaces remain reachable from
   the plugin context/navigation rules instead of as small buttons beside the app
   icon.
+- The topic-page plugin Dock is visible only on the root topic list. It must be
+  hidden when the sidebar menu is open, when a plugin app is active, and on any
+  secondary page, so it cannot cover the navigation menu or plugin iframe.
+- The topic-page plugin Dock is positioned directly above the real mobile
+  bottom navigation height. It must not use the broader page-content reserved
+  height, because that value can include scroll/composer spacing after returning
+  from a plugin topic chat and would leave a visible blank band above the
+  normal bottom navigation.
+- Opening an external plugin from the Dock directly enters the plugin app. The
+  plugin app keeps the Hermes top navigation button visible and replaces the
+  normal mobile bottom tabs with a three-item plugin-context bar:
+  `话题` opens the fixed plugin topic, `插件` stays on the plugin app, and `目录`
+  opens the plugin file directory.
+- In plugin-context navigation, right-swipe or browser-back from any of the
+  three context tabs exits the plugin context and returns to the ordinary topic
+  list root (`viewMode=tasks`, empty `currentTaskGroupId`). The exit path must
+  clear `pluginContextNavPluginId`, hide active plugin iframes, close plugin
+  Dock/menu chrome, and restore the normal bottom navigation. It must not leave
+  the topic list in a mixed plugin-context bottom-tab state.
+- The plugin-context exit path is a dedicated state transition, not the normal
+  task-detail return route. It must render the ordinary topic root directly
+  from the remembered task-list thread and must not call `openTaskList()`,
+  `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`. Those generic
+  paths can legally reload a shared topic thread and can produce the empty
+  `Select or create a thread` chat page after a plugin right-swipe.
+- Plugin iframe inner back, plugin iframe outer return, plugin topic chat back,
+  and plugin directory back must not compete. While `pluginContextNavPluginId`
+  is set, right-swipe/browser-back resolves first to plugin-context home. After
+  that transition, ordinary five-tab navigation and topic-root scroll state are
+  restored; the three-item plugin-context bar is removed.
 - The current frontend projection renders Directory as a built-in large-icon
   card for every authenticated workspace, keeps it in the topic page body above
   directory-bound topic collections, and hides the separate mobile bottom
@@ -62,7 +92,7 @@ or raw plugin credentials.
   topic collection below the card.
 - Directory-bound topic collections are visually attached to the Directory
   built-in card and must exclude fixed plugin topics such as `plugin:wardrobe`,
-  `plugin:finance`, and `plugin:email`.
+  `plugin:finance`, `plugin:email`, and `plugin:health`.
 - Directory-bound topic cards use the main card body as the topic entry. The
   folder/directory action is placed on the same row as that main entry; there is
   no separate small topic button below the card.
@@ -139,13 +169,17 @@ The delivery directory is a curated evidence layer, not a bulk-import source.
 ## Harness
 
 Plugin Topics are H1 when they affect plugin authorization, MCP/toolset routing,
-workspace switching, delivery-directory creation, or context assembly. They are
-H2 only for display-only card projection.
+workspace switching, delivery-directory creation, context assembly, or
+cross-surface navigation between plugin app, plugin topic, plugin directory,
+and ordinary topic root. They are H2 only for display-only card projection.
 
 Focused validation should include:
 
 - binding isolation across Owner, WuPing, test, and future workspaces;
 - app/topic/delivery actions;
+- plugin-context right-swipe/browser-back from plugin app, plugin topic, and
+  plugin directory returning to the ordinary topic root without calling
+  `openTaskList()` or `loadSingleWindow()`;
 - missing or unprovisioned plugin diagnostics;
 - plugin MCP schema presence for the selected workspace;
 - no Owner fallback;
@@ -167,8 +201,15 @@ plugin-topic sends, return from plugin file directory to the topic list, plugin
 topic detail hiding bottom navigation while keeping the composer available,
 embedded plugin host pages preserving bottom plugin-context navigation,
 restoring topic-list scroll position after topic-detail back/right-swipe,
+plugin-context exit using the dedicated direct topic-root renderer instead of
+the generic task-list reload path,
 single-surface compact plugin cards,
-cache-sensitive static version recovery after missed script sync, first-paint
+cache-sensitive static version recovery after missed script sync, plugin app
+pages preserving the top navigation button while showing the three-item
+`话题` / `插件` / `目录` bottom context bar, hiding the topic-page plugin Dock
+when the sidebar/menu or plugin app is active, positioning the Dock against the
+real bottom navigation height rather than the page-content reserved height,
+first-paint
 topic-list rendering that does not synchronously wait for directory-topic
 aggregation, preserving topic-list scroll position after that background
 aggregation/refresh completes, and the static version bump.

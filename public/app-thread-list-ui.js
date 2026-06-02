@@ -273,6 +273,7 @@ function setTopicPluginDock(html = "") {
   dock.hidden = !dock.innerHTML.trim();
   dock.setAttribute("aria-hidden", dock.hidden ? "true" : "false");
   if (!dock.hidden && typeof wirePluginTopicCards === "function") wirePluginTopicCards(dock);
+  if (typeof updateTopicPluginDockChrome === "function") updateTopicPluginDockChrome(isTaskListView());
 }
 
 function renderTaskWindow(thread, conversation, options, bottomOffset) {

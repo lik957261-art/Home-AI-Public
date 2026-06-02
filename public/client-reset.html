@@ -176,6 +176,18 @@
         await Promise.all(registrations.map(function (item) { return item.unregister(); }));
       }
 
+      async function refreshServiceWorkers() {
+        if (!("serviceWorker" in navigator)) return;
+        var registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(async function (item) {
+          try {
+            await item.update();
+            var worker = item.waiting || item.installing;
+            if (worker) worker.postMessage({ type: "HERMES_SKIP_WAITING" });
+          } catch (_) {}
+        }));
+      }
+
       function hardResetRequested() {
         var params = new URLSearchParams(window.location.search || "");
         return params.get("hard") === "1" || params.get("reason") === "boot_timeout";
@@ -183,8 +195,11 @@
 
       function appTarget() {
         var target = new URL("/", window.location.origin);
+        var params = new URLSearchParams(window.location.search || "");
         target.searchParams.set("source", "pwa");
         target.searchParams.set("_hmv", String(Date.now()));
+        var targetVersion = params.get("targetVersion") || "";
+        if (targetVersion) target.searchParams.set("targetVersion", targetVersion.slice(0, 96));
         return target;
       }
 
@@ -196,6 +211,7 @@
           if (!hardResetRequested()) {
             setStatus("Refreshing Hermes Mobile client...");
             await withTimeout(clearCaches(), 2500, null);
+            await withTimeout(refreshServiceWorkers(), 2500, null);
             restoreClientState(preserved);
             window.location.replace(appTarget().href);
             return;
