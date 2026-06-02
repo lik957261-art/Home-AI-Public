@@ -31,6 +31,16 @@ Backups must allow a replacement machine to restore source, production app files
 - Do not overwrite runtime state with fresh defaults after normalization failures.
 - Destructive operations must create bounded backups or snapshots first.
 - State snapshots are for recovery and inspection; do not copy them into public exports.
+- Normal message creation is not a destructive operation and must not force a
+  full `state.json` backup for every message-count increase. High-frequency
+  run-start writes should use the JSON snapshot as the immediate recovery point
+  and avoid SQLite full replacement until a lower-frequency or terminal save.
+- Message-count decreases, refused overwrites, startup import, parse failure,
+  and explicit data repairs still require bounded backup protection.
+- `state.json` remains a compatibility/recovery snapshot. SQLite is the
+  structured runtime store; if a fast JSON snapshot is newer than SQLite's
+  `lastRuntimeStateSave`, startup must import the JSON snapshot into SQLite
+  before serving state.
 - Do not store raw secrets, push endpoints, OAuth tokens, full learner content, raw prompts, or long logs in docs or handoffs.
 
 ## Disaster Backup Rules

@@ -106,7 +106,7 @@ async function testPublicProjectsUseDynamicRemoteProjectionForNasWorkspaces() {
   const { service, calls } = makeService();
   const first = await service.publicProjectsForWorkspace("nas");
 
-  assert.deepEqual(first.map((project) => project.id), ["nas-dynamic", "nas-base"]);
+  assert.deepEqual(first.map((project) => project.id), ["nas-dynamic", "nas-base", "dir-nas"]);
   assert.deepEqual(calls.remote, ["nas"]);
   assert.deepEqual(calls.setDynamic, [{
     workspaceId: "nas",
@@ -114,15 +114,23 @@ async function testPublicProjectsUseDynamicRemoteProjectionForNasWorkspaces() {
   }]);
 
   const second = await service.publicProjectsForWorkspace("nas");
-  assert.deepEqual(second.map((project) => project.id), ["nas-dynamic", "nas-base"]);
+  assert.deepEqual(second.map((project) => project.id), ["nas-dynamic", "nas-base", "dir-nas"]);
   assert.deepEqual(calls.remote, ["nas"]);
 }
 
 async function testLocalAndOwnerProjectsSkipRemoteLookup() {
   const { service, calls } = makeService();
-  assert.deepEqual((await service.publicProjectsForWorkspace("owner")).map((item) => item.id), ["owner-a"]);
-  assert.deepEqual((await service.publicProjectsForWorkspace("local")).map((item) => item.id), ["local-a"]);
+  assert.deepEqual((await service.publicProjectsForWorkspace("owner")).map((item) => item.id), ["owner-a", "dir-owner"]);
+  assert.deepEqual((await service.publicProjectsForWorkspace("local")).map((item) => item.id), ["local-a", "dir-local"]);
   assert.deepEqual(calls.remote, []);
+}
+
+async function testPublicProjectsIncludeSharedDirectoryRoots() {
+  const { service } = makeService();
+  const projects = await service.publicProjectsForWorkspace("local");
+  const shared = projects.find((project) => project.id === "dir-local");
+  assert.equal(shared.workspaceId, "local");
+  assert.equal(shared.root, "/shared/a");
 }
 
 async function testShareableRootProjectUsesPublicProjection() {
@@ -169,6 +177,7 @@ function testDependencyValidation() {
 async function run() {
   await testPublicProjectsUseDynamicRemoteProjectionForNasWorkspaces();
   await testLocalAndOwnerProjectsSkipRemoteLookup();
+  await testPublicProjectsIncludeSharedDirectoryRoots();
   await testShareableRootProjectUsesPublicProjection();
   testSharedDirectoryProjectionAndMutationWrappers();
   testDependencyValidation();

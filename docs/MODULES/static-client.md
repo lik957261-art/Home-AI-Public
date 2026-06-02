@@ -105,6 +105,13 @@ Gateway plugin/schema/profile changes:
   session-scoped `/client-reset.html` recovery for the target server version.
   The refresh notice remains available, but correctness must not depend on the
   notice being visible on an already-stale PWA shell.
+- The boot splash must not leave a user on an endless animated progress bar. If
+  startup has not completed after the short watchdog window, the shell may run
+  one session-scoped soft reload for the current client version; if startup
+  still has not completed, retry/reset controls must become visible. The
+  non-hard reset path may clear bounded static caches but must preserve the
+  stored Access Key, theme, and font preferences. Service Worker unregister is
+  reserved for explicit hard reset and must also be bounded by a timeout.
 - On Windows, do not rewrite static/test files containing Chinese text through
   PowerShell `Get-Content -Raw` plus `Set-Content` / `WriteAllText` unless the
   command explicitly preserves UTF-8 from a known UTF-8 source. Prefer

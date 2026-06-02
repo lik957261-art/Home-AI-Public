@@ -709,6 +709,7 @@ const state = {
   pwaServiceWorkerReady: false,
   pwaServiceWorkerError: "",
   settingsOpen: false,
+  settingsReturnToSidebar: false,
   themeMode: initialThemePreference(localStorage.getItem("hermesWebTheme") || DEFAULT_THEME_MODE),
   themePreferenceWatcherStarted: false,
   fontSize: initialFontSizePreference(localStorage.getItem("hermesWebFontSize") || DEFAULT_FONT_SIZE),

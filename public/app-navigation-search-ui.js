@@ -57,6 +57,18 @@ function updateBottomPluginMenuAvailability() {
   return available;
 }
 
+function updateBottomNavVisibleCount() {
+  const nav = $("bottomNav");
+  if (!nav) return 0;
+  const count = [...nav.querySelectorAll(".bottom-tab")]
+    .filter((node) => !node.hidden && node.getAttribute("aria-hidden") !== "true")
+    .length;
+  for (let index = 1; index <= 8; index += 1) {
+    nav.classList.toggle(`bottom-nav-count-${index}`, count === index);
+  }
+  return count;
+}
+
 function reasoningEffortLabel(value) {
   const effort = String(value || "").trim().toLowerCase();
   return configuredReasoningOptions().find((item) => item.value === effort)?.label
@@ -229,7 +241,7 @@ function updateNavigationControls() {
   const pluginTopicDetail = taskDetail
     && typeof pluginTopicDefForGroupId === "function"
     && Boolean(pluginTopicDefForGroupId(state.currentTaskGroupId));
-  const directoryBack = state.viewMode === "projects" && Boolean(directoryActivePath());
+  const directoryBack = state.viewMode === "projects" && (Boolean(directoryActivePath()) || Boolean(state.directoryReturnRoute));
   const learningGrowthDetail = state.viewMode === "learning" && Boolean(state.selectedLearningTaskCardId);
   const learningGrowthSettings = state.viewMode === "learning" && Boolean(state.learningGrowthSettingsOpen);
   const wardrobePluginBack = typeof wardrobePluginBackActive === "function" && wardrobePluginBackActive();
@@ -295,6 +307,7 @@ function updateNavigationControls() {
   if (typeof updateFinancePluginNavigationAvailability === "function") updateFinancePluginNavigationAvailability();
   if (typeof updateEmailPluginNavigationAvailability === "function") updateEmailPluginNavigationAvailability();
   if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
+  updateBottomNavVisibleCount();
   updateTopMoreControls();
 }
 

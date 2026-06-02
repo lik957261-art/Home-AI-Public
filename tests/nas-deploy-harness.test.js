@@ -15,16 +15,40 @@ const staticDeployScript = read("scripts/deploy-nas-static-assets.ps1");
 const publicChecklist = read("docs/PUBLIC_INSTALLATION_CHECKLIST.md");
 const deploymentDoc = read("docs/MODULES/deployment.md");
 const nasPlan = read("docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md");
+const runtimeStateDoc = read("docs/MODULES/runtime-state-backup.md");
+const testMatrix = read("docs/TEST_MATRIX.md");
 const readme = read("README.md");
 
 assert.ok(
   deployScript.includes("git archive --format=tar"),
   "NAS tracked-source deploy must package only Git-tracked source files",
 );
+for (const script of [deployScript, staticDeployScript]) {
+  assert.ok(
+    script.includes("cmd.exe /d /c $uploadCommand")
+      && script.includes("base64.b64decode")
+      && script.includes("B64='$b64' python3 -c"),
+    "NAS deploy scripts must use the fixed base64 text upload and remote Python decode path",
+  );
+  assert.ok(
+    !/\bscp\b|\bsftp\b/.test(script),
+    "NAS deploy scripts must not depend on scp/sftp",
+  );
+  assert.ok(
+    !/tar(?:\.exe)?[^\r\n|]*\|\s*ssh/i.test(script),
+    "NAS deploy scripts must not pipe binary tar streams through PowerShell into ssh",
+  );
+}
 
 assert.ok(
   deployScript.includes("Invoke-NasFirstStartPreflight"),
   "NAS tracked-source deploy must run first-start preflight",
+);
+assert.ok(
+  deployScript.includes("start-nas-gateway-pool.sh")
+    && deployScript.includes("--start-profiles nasgw1")
+    && deployScript.includes("--no-stop-existing"),
+  "NAS listener restart must restore the default warm Gateway profile before final preflight",
 );
 
 for (const requiredCheck of [
@@ -58,8 +82,44 @@ assert.ok(
 );
 
 assert.ok(
+  deploymentDoc.includes("run.request_preparing") && nasPlan.includes("run.request_preparing"),
+  "NAS docs must require immediate run-preparing visibility in parity smoke",
+);
+assert.ok(
+  deploymentDoc.includes("probe-only shortcut") && nasPlan.includes("probe-only shortcuts"),
+  "NAS docs must forbid probe-only performance shortcuts",
+);
+assert.ok(
+  deploymentDoc.includes("message-count growth must not force a full `state.json` backup")
+    && testMatrix.includes("normal message growth does not force a full state backup")
+    && testMatrix.includes("skip SQLite full replacement")
+    && deploymentDoc.includes("state.json` is newer than SQLite's")
+    && nasPlan.includes("ordinary message-count growth must not trigger a forced"),
+  "NAS docs must require listener persistence checks for pre-run latency",
+);
+assert.ok(
+  deploymentDoc.includes("node server.js") && nasPlan.includes("EADDRINUSE"),
+  "NAS docs must record cwd/port listener restart matching instead of only absolute server.js command lines",
+);
+
+assert.ok(
   staticDeployScript.includes("Callers must expand") || deploymentDoc.includes("Callers must expand"),
   "NAS static deploy docs must warn callers to include all changed frontend files",
+);
+assert.ok(
+  deploymentDoc.includes("NAS Full-Source Deploy Harness")
+    && deploymentDoc.includes("git archive")
+    && deploymentDoc.includes("base64 text archive")
+    && testMatrix.includes("fixed cross-shell transport"),
+  "NAS full-source deploy docs must require the fixed scripted transport path",
+);
+assert.ok(
+  runtimeStateDoc.includes("Normal message creation")
+    && runtimeStateDoc.includes("message-count increase")
+    && runtimeStateDoc.includes("lastRuntimeStateSave")
+    && testMatrix.includes("every normal message")
+    && testMatrix.includes("full state backup"),
+  "runtime state docs must forbid high-frequency full backups for normal message growth",
 );
 
 const nasStartScript = read("scripts/start-nas-gateway-pool.sh");

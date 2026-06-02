@@ -116,7 +116,7 @@ async function loadSelectedView(options = {}) {
       && !options.forceTaskListReload
       && restoreTaskListThreadFromCache({ stickToBottom: true })
     ) {
-      scheduleTaskListWindowRefresh();
+      if (!options.skipTaskListWindowRefresh) scheduleTaskListWindowRefresh();
       return;
     }
     await loadSingleWindow();

@@ -57,6 +57,7 @@ function createSharedDirectoryProjectionService(options = {}) {
     return options.dedupeProjects([
       ...options.loadCatalog().projects.filter((item) => item.workspaceId === workspaceId),
       ...options.cachedDynamicProjectsForWorkspace(workspaceId),
+      ...sharedDirectoryProjectsForWorkspace(workspaceId),
     ]);
   }
 
@@ -64,15 +65,18 @@ function createSharedDirectoryProjectionService(options = {}) {
     const catalog = options.loadCatalog();
     const workspace = catalog.workspaces.find((item) => item.id === workspaceId);
     const base = catalog.projects.filter((item) => item.workspaceId === workspaceId);
-    if (!workspace || workspace.id === "owner" || workspace.policy?.access_mode === "unrestricted") return base;
+    const shared = sharedDirectoryProjectsForWorkspace(workspaceId, catalog.workspaces);
+    if (!workspace || workspace.id === "owner" || workspace.policy?.access_mode === "unrestricted") {
+      return options.dedupeProjects([...base, ...shared]);
+    }
     const root = String(workspace.defaultWorkspace || workspace.policy?.default_workspace || "").trim();
-    if (!root.startsWith("/volume1/")) return base;
+    if (!root.startsWith("/volume1/")) return options.dedupeProjects([...base, ...shared]);
     let dynamic = options.cachedDynamicProjectsForWorkspace(workspaceId);
     if (!dynamic.length) {
       dynamic = await options.remoteWorkspaceDirectoryProjects(workspace);
       options.setDynamicProjectsForWorkspace(workspaceId, dynamic);
     }
-    return options.dedupeProjects([...dynamic, ...base]);
+    return options.dedupeProjects([...dynamic, ...base, ...shared]);
   }
 
   async function shareableRootProjectForPath(workspaceId, displayPath) {

@@ -37,6 +37,11 @@ version recovery should update the Service Worker and reload in place; it must
 not unregister the Service Worker or jump through browser-shell reset unless the
 user explicitly opens `/client-reset.html?hard=1`. If that does not happen,
 inspect whether the client is still executing a pre-recovery static version.
+The boot page also has a bounded startup watchdog: one soft reload is allowed
+per client version when startup does not complete, and retry/reset controls must
+appear shortly after that. A reset page that clears caches or unregisters the
+Service Worker must use a timeout so the recovery screen cannot become the next
+permanent hang.
 
 ## Constraint
 

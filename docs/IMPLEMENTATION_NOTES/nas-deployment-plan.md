@@ -259,6 +259,40 @@ Mode B runs the Hermes Mobile listener and ordinary Gateway workers on NAS.
 This is the required direction for a standalone public/NAS install: another
 installer cannot depend on XuXin's Windows machine or WSL worker pool.
 
+Mode B performance parity must be validated at the Mobile run-event layer, not
+only by checking that a Gateway process is listening. Use an ordinary
+representative chat message and compare the NAS phase timeline with the
+maintained Windows production timeline: `run.request_preparing` should appear
+immediately after send, a warm Owner OpenAI/Codex worker should emit
+`run.gateway_worker_reused` quickly, cold workers should emit
+`run.gateway_worker_starting`, and `queued` should appear only when capacity or
+profile affinity really blocks the run. Do not add probe-only shortcuts or
+content-specific "test" fast paths to make this smoke look faster; that hides
+the actual deployment bottleneck.
+
+If NAS is slower than Windows while direct Gateway `/health` remains fast,
+separate listener-side setup/persistence latency from worker cold-start
+latency. A long gap before `run.request_preparing` is not a Gateway startup
+delay. In particular, ordinary message-count growth must not trigger a forced
+full `state.json` backup on every send; backup protection remains mandatory for
+startup/import/parse failure, refused drops, and explicit message-count
+decreases.
+
+The maintained run-start path may persist the immediate user/assistant/run-id
+state to `state.json` before the heavier SQLite runtime replacement. That is
+allowed only with the paired startup recovery rule: when `state.json` is newer
+than SQLite's `lastRuntimeStateSave` marker, startup must import the JSON
+snapshot into SQLite before serving state. This keeps NAS sends responsive
+without making the SQLite projection authoritative over a newer JSON snapshot
+after a crash.
+
+The NAS listener restart path is also part of Mode B parity. The maintained
+listener can appear as `node server.js` with cwd
+`/volume1/docker/hermes-mobile/app`, so stop/restart scripts must identify the
+effective listener by cwd/port or use the maintained stop script. Matching only
+an absolute `.../app/server.js` command line can leave a stale listener running
+and make the next start fail with `EADDRINUSE`.
+
 The first NAS-native worker launcher is
 `scripts/start-nas-gateway-pool.sh`. It is intentionally narrower than the
 Windows hybrid launcher: it starts a fixed set of NAS-local user workers and

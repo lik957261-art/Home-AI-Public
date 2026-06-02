@@ -710,7 +710,7 @@ function createThreadMessageCreateService(options = {}) {
     assistantMessage.updatedAt = failedAt;
     removeThreadActiveRun(thread, assistantMessage.runId, "failed");
     thread.updatedAt = failedAt;
-    saveState();
+    saveState(undefined, { reason: "message-create-pre-run", skipSqliteRuntimeReplace: true });
     broadcast({
       type: "run.failed",
       threadId: thread.id,

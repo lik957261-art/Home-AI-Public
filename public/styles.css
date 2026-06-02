@@ -5217,14 +5217,15 @@ button.directory-alias-chip {
 
 .plugin-topic-card.directory-special-plugin {
   grid-column: 1 / -1;
-  grid-template-rows: minmax(102px, 1fr);
-  margin-top: 6px;
-  padding-top: 16px;
+  grid-template-rows: minmax(86px, 1fr);
+  margin-top: 4px;
+  padding-top: 10px;
   border-top: 1px dashed rgba(95, 139, 148, 0.26);
 }
 
 .plugin-topic-card.directory-special-plugin .plugin-topic-card-main {
-  grid-template-columns: 92px minmax(0, 1fr);
+  min-height: 86px;
+  grid-template-columns: 78px minmax(0, 1fr);
 }
 
 .plugin-topic-card.directory-special-plugin .plugin-topic-title,
@@ -5305,8 +5306,8 @@ button.directory-alias-chip {
 }
 
 .plugin-topic-app-icon.directory {
-  width: 88px;
-  height: 88px;
+  width: 76px;
+  height: 76px;
   background: transparent url("/icons/file-folder.svg") center / contain no-repeat;
   border-radius: 0;
   box-shadow: none;
@@ -15022,6 +15023,30 @@ body.task-markdown-preview-open {
     display: none;
   }
 
+  .bottom-nav.bottom-nav-count-1 {
+    grid-template-columns: repeat(1, minmax(var(--bottom-nav-column-min), 1fr));
+  }
+
+  .bottom-nav.bottom-nav-count-2 {
+    grid-template-columns: repeat(2, minmax(var(--bottom-nav-column-min), 1fr));
+  }
+
+  .bottom-nav.bottom-nav-count-3 {
+    grid-template-columns: repeat(3, minmax(var(--bottom-nav-column-min), 1fr));
+  }
+
+  .bottom-nav.bottom-nav-count-4 {
+    grid-template-columns: repeat(4, minmax(var(--bottom-nav-column-min), 1fr));
+  }
+
+  .bottom-nav.bottom-nav-count-5 {
+    grid-template-columns: repeat(5, minmax(var(--bottom-nav-column-min), 1fr));
+  }
+
+  .bottom-nav.bottom-nav-count-6 {
+    grid-template-columns: repeat(6, minmax(var(--bottom-nav-column-min), 1fr));
+  }
+
   .bottom-nav.wardrobe-visible {
     grid-template-columns: repeat(6, minmax(var(--bottom-nav-column-min), 1fr));
   }
@@ -15570,12 +15595,13 @@ body.task-markdown-preview-open {
   }
 
   .plugin-topic-card.directory-special-plugin .plugin-topic-card-main {
-    grid-template-columns: 82px minmax(0, 1fr);
+    min-height: 70px;
+    grid-template-columns: 70px minmax(0, 1fr);
   }
 
   .plugin-topic-card.directory-special-plugin .plugin-topic-app-icon.directory {
-    width: 78px;
-    height: 78px;
+    width: 68px;
+    height: 68px;
     border-radius: 0;
   }
 

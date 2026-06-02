@@ -44,10 +44,7 @@ function Invoke-NasPython {
   param([string] $Python)
   $bytes = [System.Text.Encoding]::UTF8.GetBytes($Python)
   $b64 = [Convert]::ToBase64String($bytes)
-  Invoke-NasSsh "python3 - <<'PY'
-import base64
-exec(base64.b64decode('$b64').decode('utf-8'))
-PY"
+  Invoke-NasSsh "B64='$b64' python3 -c 'import os,base64; exec(base64.b64decode(os.environ.get(chr(66)+chr(54)+chr(52))).decode())'"
 }
 
 function Get-NasStatus {

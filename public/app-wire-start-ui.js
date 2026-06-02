@@ -147,7 +147,7 @@ function wireUi() {
       state.viewMode = "tasks";
       localStorage.setItem("hermesWebViewMode", state.viewMode);
       state.currentTaskGroupId = "";
-      await loadSelectedView({ forceTaskListReload: true });
+      await loadSelectedView({ skipTaskListWindowRefresh: true });
     }
   });
   $("chatManagementMode")?.addEventListener("click", async () => {
@@ -160,7 +160,7 @@ function wireUi() {
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     localStorage.setItem("hermesWebWeixinChatOpen", "0");
     state.currentTaskGroupId = "";
-    await loadSelectedView();
+    await loadSelectedView({ skipTaskListWindowRefresh: true });
   });
   $("bottomTasksMode")?.addEventListener("click", async () => {
     preparePrimaryNavigationChange();
@@ -169,7 +169,7 @@ function wireUi() {
     state.viewMode = "tasks";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
-    await loadSelectedView({ forceTaskListReload: true });
+    await loadSelectedView({ skipTaskListWindowRefresh: true });
   });
   $("bottomChatMode")?.addEventListener("click", async () => {
     preparePrimaryNavigationChange();
@@ -220,7 +220,7 @@ function wireUi() {
     state.viewMode = "tasks";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
-    await loadSelectedView({ forceTaskListReload: true });
+    await loadSelectedView({ skipTaskListWindowRefresh: true });
   });
   $("projectsMode").addEventListener("click", async () => {
     preparePrimaryNavigationChange();
@@ -528,7 +528,7 @@ function wireUi() {
   $("readingFullscreenEnter")?.addEventListener("click", () => {
     setReadingFullscreen(true);
   });
-  $("topSettingsButton")?.addEventListener("click", openSettings);
+  $("topSettingsButton")?.addEventListener("click", () => openSettings({ returnToSidebar: true }));
   $("clientVersion")?.addEventListener("click", applyAppUpdateFromBadge);
   document.addEventListener("click", closeTopMoreMenu);
   document.addEventListener("click", () => closeTaskCardMenus());

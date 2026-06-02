@@ -87,7 +87,7 @@ function backSwipeTarget() {
   if (isAutomationDetailView()) return "automation";
   if (typeof automationSecondaryReturnActive === "function" && automationSecondaryReturnActive()) return "automation-secondary";
   if (isActionInboxDetailView() || isActionInboxCreateView()) return isActionInboxCreateView() ? "action-inbox-create" : "action-inbox";
-  if (state.viewMode === "projects" && directoryActivePath()) return "directory";
+  if (state.viewMode === "projects" && (directoryActivePath() || state.directoryReturnRoute)) return "directory";
   return "";
 }
 

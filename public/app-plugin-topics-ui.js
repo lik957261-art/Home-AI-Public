@@ -256,10 +256,6 @@ async function openBuiltInDirectoryPlugin() {
   else if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
   clearQuotedReply({ render: false });
   if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
-  if (typeof openCurrentDirectoryEntry === "function") {
-    await openCurrentDirectoryEntry();
-    return;
-  }
   state.directoryReturnRoute = typeof captureDirectoryReturnRoute === "function" ? captureDirectoryReturnRoute() : null;
   state.viewMode = "projects";
   localStorage.setItem("hermesWebViewMode", state.viewMode);
@@ -267,7 +263,8 @@ async function openBuiltInDirectoryPlugin() {
   state.currentThread = null;
   state.currentThreadId = "";
   if (typeof resetDirectoryPath === "function") resetDirectoryPath();
-  await loadSelectedView();
+  await loadProjects();
+  await loadDirectoryView({ resetPath: true });
 }
 
 async function openBuiltInDirectoryTopicList() {

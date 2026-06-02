@@ -234,21 +234,23 @@ async function testStartRunBuildsGatewayRequestAndMutatesStartState() {
   assert.equal(thread.status, "running");
   assert.deepEqual(thread.activeRunIds, ["web_test_1"]);
   assert.equal(calls.saved, 3);
-  assert.equal(calls.events.length, 3);
+  assert.equal(calls.events.length, 4);
   assert.deepEqual(calls.events.map((event) => event.event), [
+    "run.request_preparing",
     "run.context_ready",
     "run.gateway_selected",
     "run.request_sent",
   ]);
   assert.equal(calls.events[0].runId, "web_test_1");
-  assert.equal(calls.events[0].preview, "上下文 1 条，约 0 字");
-  assert.match(calls.events[1].preview, /lowgw1/);
-  assert.match(calls.events[1].preview, /gpt-test/);
-  assert.equal(calls.events[2].preview, "等待模型或工具返回");
-  assert.deepEqual(calls.broadcasts.slice(0, 2).map((item) => item.type), ["message.updated", "message.updated"]);
+  assert.equal(calls.events[0].preview, "正在准备上下文和选择 Gateway");
+  assert.equal(calls.events[1].preview, "上下文 1 条，约 0 字");
+  assert.match(calls.events[2].preview, /lowgw1/);
+  assert.match(calls.events[2].preview, /gpt-test/);
+  assert.equal(calls.events[3].preview, "等待模型或工具返回");
+  assert.deepEqual(calls.broadcasts.slice(0, 3).map((item) => item.type), ["message.updated", "run.event", "message.updated"]);
   assert.equal(calls.broadcasts[0].message.runId, "web_test_1");
   assert.equal(calls.broadcasts[0].message.status, "running");
-  assert.deepEqual(calls.broadcasts.slice(2, 5).map((item) => item.type), ["run.event", "run.event", "run.event"]);
+  assert.deepEqual(calls.broadcasts.slice(1, 6).map((item) => item.type), ["run.event", "message.updated", "run.event", "run.event", "run.event"]);
   assert.equal(calls.streams.length, 1);
   assert.equal(calls.streams[0].runId, "web_test_1");
   assert.equal(calls.streams[0].body.input, "Do the task");
@@ -277,6 +279,32 @@ async function testStartRunBuildsGatewayRequestAndMutatesStartState() {
     gatewayProfile: "lowgw1",
     gatewaySource: "worker_pool",
   });
+}
+
+async function testStartRunPublishesRunIdBeforeRequestBuild() {
+  let sawPreparedState = false;
+  const { calls, service } = makeHarness({
+    buildHermesInstructions: (thread) => {
+      sawPreparedState = thread.activeRunId === "web_test_1"
+        && Array.isArray(thread.activeRunIds)
+        && thread.activeRunIds.includes("web_test_1")
+        && thread.status === "running";
+      return "instructions-after-visible-run";
+    },
+  });
+  const thread = baseThread();
+  const assistant = baseAssistantMessage();
+
+  await service.startRunForThread(thread, baseUserMessage(), assistant, {});
+
+  assert.equal(sawPreparedState, true);
+  assert.equal(calls.broadcasts[0].type, "message.updated");
+  assert.deepEqual(calls.broadcasts[0].message, {
+    id: "assistant_1",
+    status: "running",
+    runId: "web_test_1",
+  });
+  assert.ok(calls.broadcasts.find((item) => item.type === "run.event" && item.event?.event === "run.context_ready"));
 }
 
 function testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext() {
@@ -397,13 +425,13 @@ async function testStartRunProjectsGatewaySchedulerEventsBeforeSelection() {
   await service.startRunForThread(thread, baseUserMessage(), baseAssistantMessage(), {});
 
   assert.deepEqual(calls.events.map((event) => event.event).slice(0, 5), [
+    "run.request_preparing",
     "run.gateway_worker_starting",
     "run.gateway_worker_started",
     "run.context_ready",
     "run.gateway_selected",
-    "run.request_sent",
   ]);
-  const starting = JSON.parse(calls.events[0].preview);
+  const starting = JSON.parse(calls.events[1].preview);
   assert.equal(starting.reason, "worker_starting");
   assert.equal(starting.profileId, "lowgw5");
   assert.equal(starting.workspaceId, "workspace_sender");
@@ -449,13 +477,14 @@ async function testStartRunUsesModelFirstSelectionBeforeExecution() {
   assert.equal(assistant.runOptions.toolsetRouting.mode, "model_first");
   assert.deepEqual(assistant.runOptions.access_policy_context.allowed_toolsets, ["weather", "file"]);
   assert.deepEqual(calls.events.map((event) => event.event), [
+    "run.request_preparing",
     "run.context_ready",
     "run.gateway_selected",
     "run.toolset_selection_started",
     "run.toolset_selection_done",
     "run.request_sent",
   ]);
-  assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["weather", "file"]);
+  assert.deepEqual(JSON.parse(calls.events[4].preview).selected_toolsets, ["weather", "file"]);
 }
 
 async function testModelFirstRoutingMetadataSurvivesPolicySanitizer() {
@@ -537,12 +566,13 @@ async function testStartRunSkipsSelectorForForcedToolsetEscalationRetry() {
   assert.match(calls.streams[0].body.instructions, /Enabled toolsets: wardrobe, file, web, search, browser/);
   assert.match(calls.streams[0].body.instructions, /Omitted authorized toolsets: vision, skills/);
   assert.deepEqual(calls.events.map((event) => event.event), [
+    "run.request_preparing",
     "run.context_ready",
     "run.gateway_selected",
     "run.toolset_selection_done",
     "run.request_sent",
   ]);
-  assert.deepEqual(JSON.parse(calls.events[2].preview).selected_toolsets, ["wardrobe", "file", "web", "search", "browser"]);
+  assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["wardrobe", "file", "web", "search", "browser"]);
 }
 
 async function testStartRunCanExecuteWardrobeMcpSelection() {
@@ -576,7 +606,7 @@ async function testStartRunCanExecuteWardrobeMcpSelection() {
   assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["wardrobe", "vision", "file"]);
   assert.match(calls.streams[0].body.instructions, /Enabled toolsets: wardrobe, vision, file/);
   assert.match(calls.streams[0].body.instructions, /Omitted authorized toolsets: http/);
-  assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["wardrobe", "vision", "file"]);
+  assert.deepEqual(JSON.parse(calls.events[4].preview).selected_toolsets, ["wardrobe", "vision", "file"]);
 }
 
 async function testPermissionPreflightKeepsFullAuthorizedToolsetsWhenSelectionDisabled() {
@@ -636,6 +666,7 @@ async function testPermissionPreflightKeepsFullAuthorizedToolsetsWhenSelectionDi
   assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.omitted_authorized_toolsets, []);
   assert.doesNotMatch(calls.streams[0].body.instructions, /Omitted authorized toolsets: http/);
   assert.deepEqual(calls.events.map((event) => event.event), [
+    "run.request_preparing",
     "run.context_ready",
     "run.gateway_selected",
     "run.toolset_selection_started",
@@ -687,13 +718,14 @@ async function testPermissionPreflightFallbackRestoresFullAuthorizedToolsets() {
   assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["wardrobe", "vision", "file", "skills", "weather", "web"]);
   assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["wardrobe", "vision", "file", "skills", "weather", "web"]);
   assert.deepEqual(calls.events.map((event) => event.event), [
+    "run.request_preparing",
     "run.context_ready",
     "run.gateway_selected",
     "run.toolset_selection_started",
     "run.permission_preflight_fallback",
     "run.request_sent",
   ]);
-  assert.equal(JSON.parse(calls.events[3].preview).reason, "selector_error");
+  assert.equal(JSON.parse(calls.events[4].preview).reason, "selector_error");
 }
 
 async function testWardrobeSelectionKeepsVisionCompanionWhenSelectorNarrows() {
@@ -742,7 +774,7 @@ async function testWardrobeSelectionKeepsVisionCompanionWhenSelectorNarrows() {
   assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.selected_toolsets, ["wardrobe", "vision", "file", "skills"]);
   assert.match(calls.streams[0].body.instructions, /Enabled toolsets: wardrobe, vision, file, skills/);
   assert.doesNotMatch(calls.streams[0].body.instructions, /Omitted authorized toolsets: vision/);
-  assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["wardrobe", "vision", "file", "skills"]);
+  assert.deepEqual(JSON.parse(calls.events[4].preview).selected_toolsets, ["wardrobe", "vision", "file", "skills"]);
 }
 
 async function testWardrobeSelectionKeepsFileWhenSelectorChoosesVisionOnly() {
@@ -790,7 +822,7 @@ async function testWardrobeSelectionKeepsFileWhenSelectorChoosesVisionOnly() {
   assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["wardrobe", "vision", "file", "skills"]);
   assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.selected_toolsets, ["wardrobe", "vision", "file", "skills"]);
   assert.match(calls.streams[0].body.instructions, /Enabled toolsets: wardrobe, vision, file, skills/);
-  assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["wardrobe", "vision", "file", "skills"]);
+  assert.deepEqual(JSON.parse(calls.events[4].preview).selected_toolsets, ["wardrobe", "vision", "file", "skills"]);
 }
 
 async function testWardrobeSelectionKeepsMcpStackWhenSelectorChoosesClarifyOnly() {
@@ -840,7 +872,7 @@ async function testWardrobeSelectionKeepsMcpStackWhenSelectorChoosesClarifyOnly(
   assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.selected_toolsets, ["wardrobe", "vision", "file", "skills"]);
   assert.match(calls.streams[0].body.instructions, /Enabled toolsets: wardrobe, vision, file, skills/);
   assert.doesNotMatch(calls.streams[0].body.instructions, /Enabled toolsets: clarify/);
-  assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["wardrobe", "vision", "file", "skills"]);
+  assert.deepEqual(JSON.parse(calls.events[4].preview).selected_toolsets, ["wardrobe", "vision", "file", "skills"]);
 }
 
 async function testWebSelectionKeepsBrowserCompanionWhenSelectorNarrows() {
@@ -888,7 +920,7 @@ async function testWebSelectionKeepsBrowserCompanionWhenSelectorNarrows() {
   assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.selected_toolsets, ["web", "search", "browser"]);
   assert.match(calls.streams[0].body.instructions, /Enabled toolsets: web, search, browser/);
   assert.doesNotMatch(calls.streams[0].body.instructions, /Omitted authorized toolsets: browser/);
-  assert.deepEqual(JSON.parse(calls.events[3].preview).selected_toolsets, ["web", "search", "browser"]);
+  assert.deepEqual(JSON.parse(calls.events[4].preview).selected_toolsets, ["web", "search", "browser"]);
 }
 
 async function testStartRunFallsBackWhenModelFirstSelectionFails() {
@@ -928,13 +960,14 @@ async function testStartRunFallsBackWhenModelFirstSelectionFails() {
   assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["file", "weather", "x_search", "web"]);
   assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["file", "weather", "x_search", "web"]);
   assert.deepEqual(calls.events.map((event) => event.event), [
+    "run.request_preparing",
     "run.context_ready",
     "run.gateway_selected",
     "run.toolset_selection_started",
     "run.toolset_selection_failed",
     "run.request_sent",
   ]);
-  assert.equal(JSON.parse(calls.events[3].preview).reason, "selector_error");
+  assert.equal(JSON.parse(calls.events[4].preview).reason, "selector_error");
 }
 
 async function testStartRunStopsBeforeExecutionWhenModelPermissionRequiresElevation() {
@@ -1084,6 +1117,7 @@ function testMarkStartFailedUsesInjectedHooks() {
 (async () => {
   testPureWorkspaceHelpers();
   await testStartRunBuildsGatewayRequestAndMutatesStartState();
+  await testStartRunPublishesRunIdBeforeRequestBuild();
   testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext();
   await testStartRunPreservesSearchSourceRouting();
   await testOrdinaryRunUsesDefaultWebSearchBudgetWhenConfigured();

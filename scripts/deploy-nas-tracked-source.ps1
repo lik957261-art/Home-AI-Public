@@ -327,6 +327,7 @@ function Invoke-PublicOriginSmoke {
 function Restart-NasListener {
   Invoke-NasSsh "cd '$RemoteRoot/app' && if [ -x '$RemoteRoot/config/stop-hermes-processes.sh' ]; then '$RemoteRoot/config/stop-hermes-processes.sh'; fi && nohup '$RemoteRoot/config/start-hermes-mobile.sh' >/tmp/hermes-mobile-restart.out 2>/tmp/hermes-mobile-restart.err &"
   Start-Sleep -Seconds 4
+  Invoke-NasSsh "if [ -x '$RemoteRoot/config/start-nas-gateway-pool.sh' ]; then '$RemoteRoot/config/start-nas-gateway-pool.sh' --start-profiles nasgw1 --no-stop-existing; fi"
 }
 
 $repoRoot = Resolve-RepoRoot

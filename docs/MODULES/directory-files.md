@@ -34,6 +34,10 @@ The same ACL boundary must protect listing, preview, upload, delete, task direct
   change; all directory operations remain protected by the directory module's
   ACL and mutation rules.
 - Root listing should include normal project-map roots, workspace-directory roots, and shared roots together.
+- The Directory built-in plugin entry must open the directory root list, not the
+  currently selected root directory. It should reset the active directory path
+  before rendering so the breadcrumb remains `Directory` and shared roots stay
+  visible.
 - Directory entries should be filtered by the authenticated workspace and shared-directory ACLs.
 - Shared roots may be read-only; create/upload/delete must reject non-owner writes to read-only shares.
 - Upload must not overwrite existing files by default.
@@ -123,6 +127,8 @@ available.
 
 - Syntax-check touched frontend/static files.
 - Run focused directory/share/file-artifact tests when touching these route modules.
+- Run `node tests\shared-directory-projection-service.test.js` when changing
+  directory root projection or shared-root visibility.
 - Run `node tests\task-list-ui.test.js` for directory UI routing/static version changes.
 - Run `git diff --check`; frontend files may have existing CRLF normalization warnings.
 

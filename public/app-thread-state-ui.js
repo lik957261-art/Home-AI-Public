@@ -185,9 +185,17 @@ async function loadSingleWindow(options = {}) {
   state.threads = [summarizeThread(state.currentThread)];
   if (state.viewMode !== "tasks") state.currentTaskGroupId = "";
   if (messageMode === "tasks") rememberTaskListThread(state.currentThread);
+  const restoreTaskListScrollTop = options.preserveTaskListScroll
+    && messageMode === "tasks"
+    && !state.currentTaskGroupId
+    ? $("conversation")?.scrollTop || 0
+    : null;
   renderThreads();
   await startupPerfStep("render-current-thread", () => {
-    renderCurrentThread({ stickToBottom: true });
+    renderCurrentThread({
+      stickToBottom: restoreTaskListScrollTop === null,
+      restoreScrollTop: restoreTaskListScrollTop,
+    });
     return Promise.resolve();
   });
   setComposerEnabled(true);

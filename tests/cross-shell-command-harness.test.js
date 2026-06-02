@@ -78,3 +78,30 @@ assert.match(startWeixinMobileIngressBridge, /\$wslScript = \$wslPathOutput \| W
 assert.match(startWeixinMobileIngressBridge, /wslpath -a \$portableTmpScript/);
 assert.doesNotMatch(startWeixinMobileIngressBridge, /wslpath -a \$portableTmpScript 2>&1 \| Select-Object -First 1/);
 assert.match(startWeixinMobileIngressBridge, /-- bash \$wslScript/);
+
+for (const file of [
+  "scripts/deploy-nas-tracked-source.ps1",
+  "scripts/deploy-nas-static-assets.ps1",
+]) {
+  const text = read(file);
+  assert.match(
+    text,
+    /B64='\$b64' python3 -c/,
+    `${file} must execute remote Python through a base64 environment variable instead of nested heredocs.`,
+  );
+  assert.match(
+    text,
+    /cmd\.exe \/d \/c \$uploadCommand/,
+    `${file} must upload NAS archives through a fixed cmd.exe text pipeline, not ad-hoc PowerShell binary piping.`,
+  );
+  assert.doesNotMatch(
+    text,
+    /\bscp\b|\bsftp\b/,
+    `${file} must not depend on scp/sftp because the maintained NAS SSH server rejects that subsystem.`,
+  );
+  assert.doesNotMatch(
+    text,
+    /tar(?:\.exe)?[^\r\n|]*\|\s*ssh/i,
+    `${file} must not pipe binary tar output through PowerShell into ssh.`,
+  );
+}

@@ -7,6 +7,7 @@ const RUN_PROGRESS_START_EVENT_REVEAL_MS = 1000;
 const RUN_PROGRESS_MAX_VISIBLE_EVENTS = 12;
 const RUN_PROGRESS_TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"]);
 const RUN_PROGRESS_START_EVENTS = new Set([
+  "run.request_preparing",
   "run.context_ready",
   "run.gateway_worker_queued",
   "run.gateway_worker_starting",
@@ -340,6 +341,7 @@ function runEventTitle(event) {
   if (name === "response.output_text.done") return "\u751f\u6210\u56de\u590d";
   if (name === "run.final_message_started") return "\u5f00\u59cb\u751f\u6210\u56de\u590d";
   if (name === "run.final_message_done") return "\u56de\u590d\u5df2\u751f\u6210";
+  if (name === "run.request_preparing") return "\u6b63\u5728\u51c6\u5907\u8fd0\u884c";
   if (name === "run.context_ready") return "\u4e0a\u4e0b\u6587\u5df2\u6574\u7406";
   if (name === "run.gateway_worker_queued") return "Gateway \u6392\u961f\u7b49\u5f85";
   if (name === "run.gateway_worker_starting") return "Gateway \u542f\u52a8\u4e2d";

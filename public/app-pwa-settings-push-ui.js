@@ -536,14 +536,18 @@ function renderSettingsOverlay() {
   overlay.querySelector("[data-settings-logout]")?.addEventListener("click", logoutCurrentAccount);
 }
 
-function openSettings() {
+function openSettings(options = {}) {
   closeTopMoreMenu();
+  state.settingsReturnToSidebar = Boolean(options.returnToSidebar || $("sidebar")?.classList.contains("open"));
   closeSidebar();
   state.settingsOpen = true;
   renderSettingsOverlay();
 }
 
 function closeSettings() {
+  const returnToSidebar = Boolean(state.settingsReturnToSidebar);
   state.settingsOpen = false;
+  state.settingsReturnToSidebar = false;
   renderSettingsOverlay();
+  if (returnToSidebar && typeof openSidebar === "function") openSidebar({ resetScroll: false });
 }

@@ -247,6 +247,98 @@ function testSaveCanAllowMessageDropAndWriteSqliteThenSnapshot() {
   });
 }
 
+function testSaveDoesNotForceBackupForNormalMessageGrowth() {
+  withTempDir((dir) => {
+    let nowMs = Date.parse("2026-05-15T00:00:00.000Z");
+    const previous = baseState({ threads: [{ id: "thread-a", messages: messages(1) }] });
+    const next = baseState({ threads: [{ id: "thread-a", messages: messages(2) }] });
+    const { service, statePath, stateBackupDir } = makeService(dir, {
+      stateBackupMinIntervalMs: 60_000,
+      nowDate: () => new Date(nowMs),
+    });
+    writeJson(statePath, previous);
+
+    assert.ok(service.backupStateFile("baseline"));
+    nowMs += 30_000;
+    service.saveState(next, { reason: "message-growth" });
+
+    const names = backupNames(stateBackupDir);
+    assert.equal(names.length, 1);
+    assert.equal(names[0].includes("baseline"), true);
+    assert.equal(stateMessageCount(readJson(statePath)), 2);
+  });
+}
+
+function testAllowedMessageDropStillForcesBackup() {
+  withTempDir((dir) => {
+    let nowMs = Date.parse("2026-05-15T00:00:00.000Z");
+    const previous = baseState({ threads: [{ id: "thread-a", messages: messages(2) }] });
+    const next = baseState({ threads: [{ id: "thread-a", messages: messages(1) }] });
+    const { service, statePath, stateBackupDir } = makeService(dir, {
+      stateBackupMinIntervalMs: 60_000,
+      nowDate: () => new Date(nowMs),
+    });
+    writeJson(statePath, previous);
+
+    assert.ok(service.backupStateFile("baseline"));
+    nowMs += 30_000;
+    service.saveState(next, { reason: "allowed-small-drop", allowMessageDrop: true });
+
+    const names = backupNames(stateBackupDir);
+    assert.equal(names.length, 2);
+    assert.equal(names.some((name) => name.includes("baseline")), true);
+    assert.equal(names.some((name) => name.includes("allowed-small-drop")), true);
+    assert.equal(stateMessageCount(readJson(statePath)), 1);
+  });
+}
+
+function testFastMessageSaveSkipsSqliteReplaceAndWritesSnapshot() {
+  withTempDir((dir) => {
+    const replacements = [];
+    const sqlite = {
+      replaceRuntimeState: (value) => replacements.push(value),
+    };
+    const previous = baseState({ threads: [{ id: "thread-a", messages: messages(1) }] });
+    const next = baseState({ threads: [{ id: "thread-a", messages: messages(2) }] });
+    const { service, statePath } = makeService(dir, {
+      useSqliteServiceStore: () => true,
+      mobileSqliteStore: () => sqlite,
+    });
+    writeJson(statePath, previous);
+
+    service.saveState(next, { reason: "message-create-pre-run", skipSqliteRuntimeReplace: true });
+
+    assert.equal(replacements.length, 0);
+    assert.equal(stateMessageCount(readJson(statePath)), 2);
+  });
+}
+
+function testSqliteLoadImportsNewerJsonSnapshot() {
+  withTempDir((dir) => {
+    const replacements = [];
+    const exported = baseState({ threads: [{ id: "thread-sqlite", messages: messages(1) }] });
+    const newer = baseState({ threads: [{ id: "thread-json", messages: messages(2) }] });
+    const sqlite = {
+      runtimeStateCounts: () => ({ threads: 1, messages: 1, artifacts: 0, pushSubscriptions: 0, pushReceipts: 0, pushDeliveries: 0 }),
+      getMeta: (key, fallback) => (key === "lastRuntimeStateSave" ? { savedAt: "2026-05-14T00:00:00.000Z" } : fallback),
+      replaceRuntimeState: (value) => replacements.push(value),
+      exportRuntimeState: () => exported,
+    };
+    const { service, statePath } = makeService(dir, {
+      useSqliteServiceStore: () => true,
+      mobileSqliteStore: () => sqlite,
+    });
+    writeJson(statePath, newer);
+
+    const loaded = service.loadState();
+
+    assert.equal(loaded.threads[0].id, "thread-json");
+    assert.equal(replacements.length, 1);
+    assert.equal(replacements[0].threads[0].id, "thread-json");
+    assert.equal(readJson(statePath).threads[0].id, "thread-json");
+  });
+}
+
 function testStateSnapshotRenameRetriesTransientWindowsLock() {
   withTempDir((dir) => {
     const attempts = [];
@@ -329,6 +421,10 @@ function run() {
   testSqliteExistingRuntimeExportsAndSnapshots();
   testSaveRefusesLargeMessageDropAndKeepsExistingFile();
   testSaveCanAllowMessageDropAndWriteSqliteThenSnapshot();
+  testSaveDoesNotForceBackupForNormalMessageGrowth();
+  testAllowedMessageDropStillForcesBackup();
+  testFastMessageSaveSkipsSqliteReplaceAndWritesSnapshot();
+  testSqliteLoadImportsNewerJsonSnapshot();
   testStateSnapshotRenameRetriesTransientWindowsLock();
   testBackupPruningKeepsNewestFiles();
   testBackupThrottleSkipsNonForcedBackups();

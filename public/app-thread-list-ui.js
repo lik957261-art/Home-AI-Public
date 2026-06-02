@@ -326,7 +326,10 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
       : "";
     const regularGroups = groups.filter((group) => {
       if (typeof isPluginTopicTaskGroup === "function" ? isPluginTopicTaskGroup(group) : group.pluginTopic) return false;
-      return directoryTopicCollectionsReady ? !directoryTopicGroupIds.has(group.id) : true;
+      const hasDirectoryTopicRoute = typeof directoryTopicPrimaryRoute === "function"
+        ? Boolean(directoryTopicPrimaryRoute(group))
+        : false;
+      return directoryTopicCollectionsReady ? !directoryTopicGroupIds.has(group.id) : !hasDirectoryTopicRoute;
     });
     conversation.innerHTML = regularGroups.length || pluginTopicCards || directoryTopicCards
       ? `${filterBanner}${pluginTopicCards}${directoryTopicCards}<div class="task-grid">${regularGroups.map(renderTaskCard).join("")}</div>`
@@ -349,7 +352,7 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     if (typeof wireDirectoryTopicCards === "function") wireDirectoryTopicCards(conversation);
     wireSkillLinks(conversation);
     if (!directoryTopicCollectionsReady && typeof directoryTopicCollectionsForGroups === "function") {
-      scheduleDeferredDirectoryTopicRender(thread.id);
+      scheduleDeferredDirectoryTopicRender(thread.id, options.restoreScrollTop);
     }
   } else {
     const groupActiveRuns = (selected.messages || [])
@@ -420,10 +423,13 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   if (state.currentTaskGroupId) scheduleConversationViewportRefresh(conversation);
 }
 
-function scheduleDeferredDirectoryTopicRender(threadId = "") {
+function scheduleDeferredDirectoryTopicRender(threadId = "", restoreScrollTop = null) {
   if (state.directoryTopicRenderPending) return;
   state.directoryTopicRenderPending = true;
-  const restoreScrollTop = $("conversation")?.scrollTop || 0;
+  const currentScrollTop = $("conversation")?.scrollTop || 0;
+  const nextRestoreScrollTop = Number.isFinite(Number(restoreScrollTop))
+    ? Math.max(0, Number(restoreScrollTop) || 0)
+    : currentScrollTop;
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       state.directoryTopicRenderPending = false;
@@ -431,7 +437,7 @@ function scheduleDeferredDirectoryTopicRender(threadId = "") {
       if (threadId && state.currentThread?.id !== threadId) return;
       renderCurrentThread({
         stickToBottom: false,
-        restoreScrollTop,
+        restoreScrollTop: nextRestoreScrollTop,
         directoryTopicCollectionsReady: true,
       });
     });

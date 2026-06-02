@@ -184,6 +184,10 @@ coverage for that increment:
 - The Directory special card must use the shared standard folder icon asset
   already used by Growth delivery-directory links. Directory-bound topic cards
   must use a smaller topic/chat icon and must not reuse the same Directory icon.
+- Opening the Directory special application card must reset to the Directory
+  root list, not reuse the sidebar/current-directory entry. Shared directory
+  roots must be included in the public project projection that backs that root
+  list.
 - Plugin and Directory topic cards must avoid nested framed panels. The outer
   card is the visible surface; internal app/topic buttons remain transparent,
   labels are compact, and mini actions are visually smaller than the app icon.

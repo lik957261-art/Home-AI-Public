@@ -113,6 +113,32 @@ only after all of these preflight checks pass:
   `2`; ordinary workspace DeepSeek keeps `0` warm workers and may start `1`
   provider-dedicated worker. A fixed always-running pool is a diagnostic
   fallback, not the default deployment model.
+- NAS/Windows parity must be measured with the same ordinary representative
+  message flow, not with a probe-only shortcut or a content-specific "test"
+  fast path. Small token savings must not hide real latency, missing toolsets,
+  missing plugin MCP registration, or Gateway selection regressions.
+- A successful parity smoke records the run phase timeline from Mobile events:
+  `run.request_preparing`, `run.gateway_worker_reused` or
+  `run.gateway_worker_started`, `run.context_ready`, `run.gateway_selected`,
+  `run.toolset_selection_started` when enabled, `run.request_sent`,
+  `run.model_stream_started`, and `run.model_output_started`. `queued` is valid
+  only for real capacity/profile waits; a warm Owner worker should not spend
+  tens of seconds before a Gateway reuse/start event.
+- Direct `GET /health` on a Gateway port is necessary but insufficient. It
+  proves the worker process is responsive, not that Hermes Mobile can build the
+  run request, choose the worker, emit progress, and dispatch through the same
+  path as Windows production.
+- Listener-side runtime persistence is part of NAS parity. Normal
+  message-count growth must not force a full `state.json` backup before every
+  run; message-drop refusal, allowed decreases, startup, import, and
+  parse-failure backups remain safety-critical. If a NAS smoke shows a long gap
+  before `run.request_preparing`, diagnose listener persistence/setup latency
+  before blaming Gateway worker cold start.
+- The run-start hot path may write the JSON snapshot before doing the heavier
+  SQLite runtime replacement, so progress can become visible before a full
+  structured-store refresh. On startup, if `state.json` is newer than SQLite's
+  `lastRuntimeStateSave` marker, Hermes must import the newer JSON snapshot
+  into SQLite before serving runtime state.
 - Every user worker is scoped to exactly one `allowedWorkspaceIds` value. A
   wildcard workspace is allowed only for an explicitly documented legacy bridge
   warning and is not production parity.
@@ -192,6 +218,40 @@ read/write access to this key file or its parent directory.
 - Gateway plugin/schema/profile/startup change: restart Gateway Pool or targeted maintenance worker as appropriate.
 - Cron dispatcher change: restart cron sidecar through `scripts\start-cron-tick-sidecar.ps1 -ReplaceExisting`.
 - Data-only repair: backup data first; avoid restart unless runtime memory can overwrite the repair.
+
+For NAS listener restarts, do not rely only on a command-line match such as
+`/volume1/docker/hermes-mobile/app/server.js`. The maintained listener may run
+as `node server.js` with cwd `/volume1/docker/hermes-mobile/app`; restart
+scripts and hand repairs must stop by the effective cwd/port or by the
+maintained stop script before starting `config/start-hermes-mobile.sh`.
+
+## NAS Full-Source Deploy Harness
+
+For maintained NAS production updates that touch backend services, startup
+scripts, route modules, profile launchers, harness files, or broad frontend
+modules, use the scripted tracked-source deploy:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\deploy-nas-tracked-source.ps1
+```
+
+The tracked-source deploy path is intentionally fixed because ad-hoc
+PowerShell/SSH quoting and binary transport failures have caused repeated
+operator errors. The script must:
+
+- package only Git-tracked files with `git archive`;
+- upload a base64 text archive through SSH rather than `scp`, `sftp`, or a raw
+  binary tar pipe;
+- decode the archive on NAS with Python and extract the same archive into both
+  `/volume1/docker/hermes-mobile/app` and
+  `/volume1/docker/hermes-mobile/source`;
+- back up overwritten files before extraction;
+- run pinned NAS Node checks and the first-start preflight;
+- compare the served version and Gateway worker posture after deploy.
+
+Do not replace this with one-off inline PowerShell strings that embed complex
+Bash, heredocs, binary streams, or long remote command chains. If a new NAS
+operation is needed, add it to the deploy script and update the harness.
 
 ## NAS Static Deploy Harness
 

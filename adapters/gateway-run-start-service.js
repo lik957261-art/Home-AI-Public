@@ -402,6 +402,7 @@ function createGatewayRunStartService(options = {}) {
     return JSON.stringify({
       reason: cleanString(selection.reason) || "fallback_full_toolsets",
       duration_ms: Math.max(0, Number(selection.durationMs || 0) || 0),
+      error: cleanString(selection.error).slice(0, 180),
     });
   }
 
@@ -460,7 +461,7 @@ function createGatewayRunStartService(options = {}) {
     thread.status = "idle";
     thread.updatedAt = completedAt;
     appendRunStartEvent(thread, assistantMessage, "run.permission_required", permissionSelectionPreview(selection));
-    saveState();
+    saveState(undefined, { reason: "run-request-preparing", skipSqliteRuntimeReplace: true });
     broadcastMessageUpdated(thread, assistantMessage);
   }
 
@@ -547,12 +548,14 @@ function createGatewayRunStartService(options = {}) {
     assertRunConcurrencyCapacity(actorWorkspaceId);
     assistantMessage.actorWorkspaceId = actorWorkspaceId;
 
-    let request = buildRunRequest(thread, userMessage, assistantMessage, runOptions);
     const taskId = makePublicTaskId("web");
-    applyAssistantRunOptions(assistantMessage, request, runOptions);
     applyPreparingRunState(thread, assistantMessage, taskId, nowIso());
-    saveState();
+    saveState(undefined, { reason: "run-gateway-selected", skipSqliteRuntimeReplace: true });
     broadcastMessageUpdated(thread, assistantMessage);
+    appendRunStartEvent(thread, assistantMessage, "run.request_preparing", "正在准备上下文和选择 Gateway");
+
+    let request = buildRunRequest(thread, userMessage, assistantMessage, runOptions);
+    applyAssistantRunOptions(assistantMessage, request, runOptions);
 
     const gatewayTarget = await chooseGatewayRunTarget(request.gatewayRouting, {
       runId: taskId,

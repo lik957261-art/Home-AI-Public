@@ -161,6 +161,15 @@
         await Promise.all(keys.map(function (key) { return caches.delete(key); }));
       }
 
+      function withTimeout(promise, timeoutMs, fallback) {
+        return Promise.race([
+          promise,
+          new Promise(function (resolve) {
+            window.setTimeout(function () { resolve(fallback); }, timeoutMs);
+          }),
+        ]);
+      }
+
       async function unregisterServiceWorkers() {
         if (!("serviceWorker" in navigator)) return;
         var registrations = await navigator.serviceWorker.getRegistrations();
@@ -183,16 +192,18 @@
         retry.hidden = true;
         openApp.hidden = true;
         try {
+          var preserved = preserveClientState();
           if (!hardResetRequested()) {
             setStatus("Refreshing Hermes Mobile client...");
+            await withTimeout(clearCaches(), 2500, null);
+            restoreClientState(preserved);
             window.location.replace(appTarget().href);
             return;
           }
-          var preserved = preserveClientState();
           try { localStorage.clear(); } catch (_) {}
           restoreClientState(preserved);
-          await clearCaches();
-          await unregisterServiceWorkers();
+          await withTimeout(clearCaches(), 3500, null);
+          await withTimeout(unregisterServiceWorkers(), 3500, null);
           setStatus("Client reset complete. Reopening Hermes Mobile...");
           window.location.replace(appTarget().href);
         } catch (err) {

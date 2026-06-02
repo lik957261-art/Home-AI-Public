@@ -22,6 +22,7 @@
     "package:runtime": "node scripts/create-runtime-package.js",
     "export:public": "node scripts/create-public-export.js",
     "productization:check": "node scripts/productization-check.js",
+    "visual:smoke": "node scripts/playwright-visual-smoke.js",
     "test": "node scripts/run-checks.js --test",
     "migrate:sqlite:dry-run": "node scripts/migrate-json-to-sqlite.js --dry-run",
     "start": "node server.js"
@@ -29,5 +30,8 @@
   "dependencies": {
     "pdfjs-dist": "^5.7.284",
     "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "playwright": "^1.60.0"
   }
 }

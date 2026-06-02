@@ -92,6 +92,22 @@ function createRuntimeStatePersistenceService(options = {}) {
     }
   }
 
+  function stateFileMtimeMs() {
+    try {
+      return fsImpl.statSync(statePath).mtimeMs;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  function sqliteRuntimeSaveTimeMs(store) {
+    if (!store || typeof store.getMeta !== "function") return 0;
+    const meta = store.getMeta("lastRuntimeStateSave", null);
+    const savedAt = meta && typeof meta === "object" ? meta.savedAt : "";
+    const parsed = savedAt ? Date.parse(savedAt) : 0;
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
   function shouldRefuseStateOverwrite(previous, next, saveOptions = {}) {
     return shouldRefuseMessageCountOverwrite(previous, next, {
       allowMessageDrop: saveOptions.allowMessageDrop,
@@ -215,6 +231,16 @@ function createRuntimeStatePersistenceService(options = {}) {
       bootTrace("loadState sqlite fresh snapshot written");
       return fresh;
     }
+    const existing = readStateFileIfValid();
+    if (existing && stateFileMtimeMs() > sqliteRuntimeSaveTimeMs(store) + 500) {
+      bootTrace("loadState sqlite importing newer state-file snapshot");
+      const normalized = normalizeState(existing, { skipCatalogLookups: true });
+      store.replaceRuntimeState(normalized);
+      bootTrace("loadState sqlite newer state-file imported");
+      writeStateFile(normalized);
+      bootTrace("loadState sqlite newer state-file snapshot written");
+      return normalized;
+    }
     bootTrace("loadState sqlite before exportRuntimeState");
     const exported = store.exportRuntimeState();
     bootTrace("loadState sqlite after exportRuntimeState");
@@ -237,14 +263,17 @@ function createRuntimeStatePersistenceService(options = {}) {
     const previousMessages = previous ? stateMessageCount(previous) : 0;
     const nextMessages = stateMessageCount(next);
     if (previousMessages && previousMessages !== nextMessages) {
-      backupStateFile(saveOptions.reason || "message-count-change", { force: saveOptions.forceBackup });
+      const messageCountDropped = nextMessages < previousMessages;
+      backupStateFile(saveOptions.reason || "message-count-change", {
+        force: Boolean(saveOptions.forceBackup || messageCountDropped),
+      });
     } else {
       backupStateFile(saveOptions.reason || "periodic-save");
     }
     if (useSqliteServiceStore()) {
       const store = mobileSqliteStore();
       if (!store) throw new Error("SQLite service store is not available");
-      store.replaceRuntimeState(next);
+      if (!saveOptions.skipSqliteRuntimeReplace) store.replaceRuntimeState(next);
     }
     writeStateFile(next);
   }
