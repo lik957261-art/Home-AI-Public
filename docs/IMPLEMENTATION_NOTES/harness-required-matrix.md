@@ -54,6 +54,14 @@ scroll containers, cards, popups, drawers, embedded plugin frames, and any
 change where text or controls can overlap, drift, disappear, or become
 untappable.
 
+As of 2026-06-02, the maintained ADB Android 13 e-ink target is the default
+real-device UI harness target for Hermes Mobile when the assertion is not about
+exact color. Any UI, navigation, gesture, layout, installed-PWA refresh, bottom
+navigation, composer, plugin dock, plugin iframe, or scroll/back change must be
+smoked on that device before completion if it is connected. Use Playwright,
+Chrome, or a normal color phone for color fidelity, saturation, and icon color
+review; do not reject or accept color decisions from the e-ink screenshot alone.
+
 Any deployed UI/static change must also verify the client refresh contract on
 the actual target origin. The source version bump is insufficient by itself:
 validation must read the loaded page's `data-client-version` after a browser or
@@ -269,6 +277,15 @@ Required harness dimensions:
   agent-schema-probe path, which constructs the same profile's `AIAgent` under
   the production runtime overlay. Runtime-log-only MCP evidence requires an
   explicit emergency override and must not be treated as normal pass evidence.
+- Plugin MCP failures must be reproduced and cleared against the exact selected
+  profile. If the failed run used `lowgw2`, testing `lowgw1` or an arbitrary
+  warm Owner profile is insufficient. The normal proof is
+  `node scripts\gateway-tool-schema-smoke.js --profile <selected-profile> --schema-only --require mcp_<plugin>_<tool>`.
+  For Finance, a direct wrapper probe must also distinguish a Gateway profile
+  mismatch from a plugin-service trust failure such as
+  `finance_mcp_dispatch_loopback_only`; the Finance service process must retain
+  both `FINANCE_MCP_PORT=8791` and trusted WSL Gateway source env, or the UI can
+  remain healthy while `mcp_finance_*` callables disappear.
 - Selector/runtime-overlay changes require one more proof layer: the real
   `/v1/responses` request path must show that Mobile's top-level
   `enabled_toolsets` becomes the effective `AIAgent.enabled_toolsets`. If that

@@ -30,6 +30,7 @@ function testNormalizeWorker() {
     apiKey: "k",
     provider: "",
     tags: [],
+    toolsets: [],
     securityLevel: "unspecified",
     allowedWorkspaceIds: [],
     allowMaintenance: false,
@@ -48,6 +49,7 @@ function testNormalizeWorker() {
   });
   assert.equal(skillWorker.skillProfile, "workspace:weixin_example_user");
   assert.deepEqual(skillWorker.skillWorkspaceIds, ["weixin_example_user", "weixin_test"]);
+  assert.deepEqual(normalizeWorker({ profile: "toolgw", port: 18777, toolsets: ["web", "finance"] }).toolsets, ["web", "finance"]);
   assert.equal(normalizeSecurityLevel("low-privilege"), "user");
   assert.equal(normalizeSecurityLevel("admin"), "owner-maintenance");
   assert.equal(normalizeWorker({ enabled: false, port: 1 }), null);
@@ -118,6 +120,131 @@ function testOrderingHonorsSkillWorkspaceHints() {
     orderedWorkers(workers, 0, { securityLevel: "user", skillWorkspaceId: "unknown", requireSkillProfile: true }).map((w) => w.name),
     ["shared"],
   );
+}
+
+function testOrderingHonorsRequiredToolsetsWithinWorkspaceProfilePool() {
+  const workers = [
+    normalizeWorker({
+      name: "owner-complete",
+      profile: "lowgw1",
+      port: 18751,
+      provider: "openai-codex",
+      securityLevel: "user",
+      allowedWorkspaceIds: ["owner"],
+      skillWorkspaceIds: ["owner"],
+      toolsets: ["web", "search", "finance"],
+    }),
+    normalizeWorker({
+      name: "owner-stale",
+      profile: "lowgw10",
+      port: 18760,
+      provider: "openai-codex",
+      securityLevel: "user",
+      allowedWorkspaceIds: ["owner"],
+      skillWorkspaceIds: ["owner"],
+      toolsets: ["web", "search"],
+    }),
+    normalizeWorker({
+      name: "wuping-finance",
+      profile: "lowgw13",
+      port: 18763,
+      provider: "openai-codex",
+      securityLevel: "user",
+      allowedWorkspaceIds: ["weixin_wuping"],
+      skillWorkspaceIds: ["weixin_wuping"],
+      toolsets: ["web", "search", "finance"],
+    }),
+  ];
+  assert.deepEqual(
+    orderedWorkers(workers, 1, {
+      provider: "openai-codex",
+      securityLevel: "user",
+      workspaceId: "owner",
+      skillWorkspaceId: "owner",
+      requireSkillProfile: true,
+      requiredToolsets: ["finance"],
+    }).map((w) => w.name),
+    ["owner-complete"],
+  );
+  assert.deepEqual(
+    orderedWorkers(workers, 0, {
+      provider: "openai-codex",
+      securityLevel: "user",
+      workspaceId: "owner",
+      skillWorkspaceId: "owner",
+      requireSkillProfile: true,
+      requiredToolsets: ["finance", "health"],
+    }).map((w) => w.name),
+    [],
+  );
+}
+
+async function testChooseTargetHonorsProfileConfigToolsets() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-gateway-profile-config-"));
+  const goodProfileDir = path.join(dir, "telemetry", "profiles", "lowgw1");
+  const staleProfileDir = path.join(dir, "telemetry", "profiles", "lowgw10");
+  fs.mkdirSync(goodProfileDir, { recursive: true });
+  fs.mkdirSync(staleProfileDir, { recursive: true });
+  fs.writeFileSync(path.join(goodProfileDir, "config.yaml"), [
+    "model:",
+    "  provider: openai-codex",
+    "toolsets:",
+    "  - web",
+    "  - finance",
+    "platform_toolsets:",
+    "  api_server:",
+    "    - web",
+    "    - finance",
+  ].join("\n"), "utf8");
+  fs.writeFileSync(path.join(staleProfileDir, "config.yaml"), [
+    "model:",
+    "  provider: openai-codex",
+    "toolsets:",
+    "  - web",
+  ].join("\n"), "utf8");
+  const manifest = tempManifest({
+    enabled: true,
+    workers: [
+      {
+        name: "stale-owner",
+        profile: "lowgw10",
+        port: 18760,
+        provider: "openai-codex",
+        securityLevel: "user",
+        allowedWorkspaceIds: ["owner"],
+        skillWorkspaceIds: ["owner"],
+        telemetryStateDbPath: path.join(staleProfileDir, "state.db"),
+      },
+      {
+        name: "finance-owner",
+        profile: "lowgw1",
+        port: 18751,
+        provider: "openai-codex",
+        securityLevel: "user",
+        allowedWorkspaceIds: ["owner"],
+        skillWorkspaceIds: ["owner"],
+        telemetryStateDbPath: path.join(goodProfileDir, "state.db"),
+      },
+    ],
+  });
+  const provider = createGatewayPoolProvider({
+    enabled: "auto",
+    manifestPaths: [manifest.file],
+    fallbackApiBase: "http://fallback.example.test",
+    createGatewayRunner,
+    fetchImpl: async () => jsonResponse({ status: "ok" }),
+  });
+  const chosen = await provider.chooseTarget({
+    provider: "openai-codex",
+    securityLevel: "user",
+    workspaceId: "owner",
+    skillWorkspaceId: "owner",
+    requireSkillProfile: true,
+    requiredToolsets: ["finance"],
+  });
+  assert.equal(chosen.name, "finance-owner");
+  fs.rmSync(manifest.dir, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true });
 }
 
 async function testChooseHealthyWorkerAndLookupSecretByUrl() {
@@ -486,8 +613,10 @@ async function testHybridStatusClearsStoppedWarmWorker() {
   testOrderingHonorsHints();
   testOrderingHonorsProviderAndPreferredProfileHints();
   testOrderingHonorsSkillWorkspaceHints();
+  testOrderingHonorsRequiredToolsetsWithinWorkspaceProfilePool();
   await testChooseHealthyWorkerAndLookupSecretByUrl();
   await testChooseHonorsSkillWorkspaceIds();
+  await testChooseTargetHonorsProfileConfigToolsets();
   await testSkillRoutingStaysCompatibleWithoutManifestFields();
   await testFallsBackWhenManifestMissing();
   await testProviderSpecificOwnerMaintenanceFailsClosedWithoutWorker();

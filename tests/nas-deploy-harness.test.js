@@ -234,6 +234,11 @@ assert.ok(
   "NAS Gateway launcher must generate plugin MCP config per worker profile",
 );
 assert.ok(
+  deployScript.includes("nas_finance_config_missing")
+    && deployScript.includes("finance_config_missing_for_key"),
+  "NAS first-start preflight must fail Finance workspace key-only bindings without .hermes-finance/config.json",
+);
+assert.ok(
   nasStartScript.includes("strip_plugin_toolset") && nasStartScript.includes("append_toolset"),
   "NAS Gateway launcher must hide plugin toolsets unless the selected workspace has plugin config",
 );

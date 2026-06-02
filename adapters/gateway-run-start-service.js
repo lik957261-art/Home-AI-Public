@@ -4,6 +4,12 @@ const DEFAULT_TOOL_SCHEMA_EPOCH = "20260513-audio-file-v1";
 const DEFAULT_SINGLE_WINDOW_PROJECT_ID = "single-window";
 const DEFAULT_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
 const CHATGPT_PRO_MIN_WAIT_MS = 30 * 60 * 1000;
+const PLUGIN_TOPIC_TOOLSETS = Object.freeze({
+  wardrobe: "wardrobe",
+  finance: "finance",
+  email: "email",
+  health: "health",
+});
 
 function cleanString(value, fallback = "") {
   const text = String(value || "").trim();
@@ -20,6 +26,35 @@ function defaultDedupe(values = []) {
     out.push(text);
   }
   return out;
+}
+
+function pluginToolsetsForTaskGroup(taskGroupId = "") {
+  const match = cleanString(taskGroupId).match(/^plugin:([a-z0-9_-]+)$/i);
+  if (!match) return [];
+  const toolset = PLUGIN_TOPIC_TOOLSETS[match[1].toLowerCase()];
+  return toolset ? [toolset] : [];
+}
+
+function mergeRequiredToolsetsIntoPolicy(policy = {}, requiredToolsets = []) {
+  const required = defaultDedupe(requiredToolsets);
+  if (!required.length) return policy;
+  const allowed = defaultDedupe([
+    ...(policy.allowed_toolsets || policy.allowedToolsets || []),
+    ...required,
+  ]);
+  const authorized = defaultDedupe([
+    ...(policy.authorized_toolsets || policy.authorizedToolsets || []),
+    ...allowed,
+  ]);
+  const requiredCurrent = defaultDedupe([
+    ...(policy.required_toolsets || policy.requiredToolsets || []),
+    ...required,
+  ]);
+  return Object.assign({}, policy, {
+    allowed_toolsets: allowed,
+    authorized_toolsets: authorized,
+    required_toolsets: requiredCurrent,
+  });
 }
 
 function objectValue(value, fallback = {}) {
@@ -179,6 +214,7 @@ function createGatewayRunStartService(options = {}) {
 
   function buildRunRequest(thread, userMessage, assistantMessage, runOptions = {}) {
     const actorWorkspaceId = resolveActorWorkspaceId(thread, userMessage, runOptions);
+    const requiredPluginToolsets = pluginToolsetsForTaskGroup(userMessage?.taskGroupId);
     const requestedGatewayRouting = Object.assign({}, objectValue(runOptions.gatewayRouting));
     const policyHardeningOptions = accessPolicyHardeningOptionsForGatewayRouting(requestedGatewayRouting);
     const policyThread = policyThreadForRun(thread, actorWorkspaceId, singleWindowProjectId);
@@ -207,6 +243,7 @@ function createGatewayRunStartService(options = {}) {
       policyHardeningOptions,
     }) || {};
     runPolicy = sanitizePolicy(objectValue(routedPolicy.policy, runPolicy), policyHardeningOptions);
+    runPolicy = sanitizePolicy(mergeRequiredToolsetsIntoPolicy(runPolicy, requiredPluginToolsets), policyHardeningOptions);
     const modelFirstSelection = objectValue(runOptions.modelFirstToolsetSelection, null);
     const rawModelFirstToolsets = dedupe(modelFirstSelection?.selectedToolsets || modelFirstSelection?.selected_toolsets || []);
     const modelFirstSelectionDisabled = Boolean(
@@ -218,14 +255,16 @@ function createGatewayRunStartService(options = {}) {
       ? rawModelFirstToolsets
       : expandSelectedToolsetsWithCompanions(rawModelFirstToolsets, runPolicy);
     if (modelFirstToolsets.length) {
+      const modelFirstRequiredToolsets = dedupe([...modelFirstToolsets, ...requiredPluginToolsets]);
       runPolicy = sanitizePolicy(Object.assign({}, runPolicy, {
-        allowed_toolsets: modelFirstToolsets,
+        allowed_toolsets: modelFirstRequiredToolsets,
         toolset_routing: modelFirstSelection.routing || {
           mode: "model_first",
           reason: "model_selected",
-          selected_toolsets: modelFirstToolsets,
+          selected_toolsets: modelFirstRequiredToolsets,
         },
       }), policyHardeningOptions);
+      runPolicy = sanitizePolicy(mergeRequiredToolsetsIntoPolicy(runPolicy, requiredPluginToolsets), policyHardeningOptions);
     }
     const conversation = gatewayConversationId(thread, userMessage, runPolicy);
     const instructions = [
@@ -275,6 +314,10 @@ function createGatewayRunStartService(options = {}) {
     if (runOptions.searchSource) gatewayRouting.searchSource = cleanString(runOptions.searchSource);
     if (runOptions.sourceIntent) gatewayRouting.sourceIntent = cleanString(runOptions.sourceIntent);
     if (runOptions.sourceMode) gatewayRouting.sourceMode = cleanString(runOptions.sourceMode);
+    if (requiredPluginToolsets.length) {
+      gatewayRouting.requiredToolsets = requiredPluginToolsets;
+      gatewayRouting.enabledToolsets = requiredPluginToolsets;
+    }
     Object.assign(gatewayRouting, gatewaySkillRoutingForWorkspace(actorWorkspaceId, gatewayRouting));
 
     return {

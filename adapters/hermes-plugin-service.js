@@ -604,6 +604,7 @@ function discoverPluginWorkspaceIdsFromAccessKeys(pluginId, options = {}) {
     .map((entry) => entry.name)
     .filter((workspaceId) => workspaceId)
     .filter((workspaceId) => {
+      if (id === "finance") return financeWorkspaceLocalConfigReady({ workspaceId }, options);
       if (id === "health") return healthWorkspaceLocalConfigReady({ workspaceId }, options);
       return Boolean(findPluginAccessKeyPath(id, { workspaceId }, options));
     });
@@ -854,7 +855,8 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
     }, financeUserKey ? { user_key: financeUserKey } : {}, appearancePayload)
     : pluginId === "health"
       ? Object.assign({
-        workspace_id: `health:${workspaceId}`,
+        workspace_id: workspaceId,
+        target_workspace_id: workspaceId,
         hermes_workspace_id: workspaceId,
       }, appearancePayload)
     : pluginId === "wardrobe"

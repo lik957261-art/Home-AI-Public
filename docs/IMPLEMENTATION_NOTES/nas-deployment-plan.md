@@ -201,6 +201,16 @@ NAS responsibilities:
   server-side secret file. Browser clients still access Codex through Hermes'
   same-origin proxy; the Windows Codex Mobile port is not a public user entry.
 
+Finance on NAS must be complete at both the container and Hermes workspace
+layers before it is reported usable. The Finance container must accept the
+Hermes server-side registration/bind path from the NAS host/container network,
+and each active Hermes workspace must have both
+`.hermes-finance/access-key.txt` and `.hermes-finance/config.json` under its
+NAS user root. A key-only directory is a partial repair artifact. The NAS
+first-start preflight fails this as `nas_finance_config_missing:<workspaceId>`
+so a deploy cannot pass while Finance later fails during Owner manifest
+provisioning.
+
 External Windows/WSL responsibilities:
 
 - Official Hermes Gateway profiles.

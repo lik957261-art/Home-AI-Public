@@ -22,11 +22,15 @@ normalization, same-origin proxy, plugin Dock entry, topic binding, and
 workspace provisioning. The Health project owns the health UI, data model,
 reports, API, and MCP wrapper. Health provisioning writes only workspace-local
 Hermes files under `.hermes-health`: `access-key.txt` stores the raw key, while
-`config.json` stores non-secret metadata such as `api_base_url`,
+`config.json` stores non-secret metadata such as `base_url` / `api_base_url`,
 `workspace_id=health:<hermesWorkspaceId>`, `hermes_workspace_id`, display name,
 and scopes. The Health registration request receives only the SHA-256
-`access_key_hash`, never the raw key. Health workspace registration must be
-authenticated with a server-side registration credential. Hermes reads it from
+`access_key_hash`, never the raw key. Hermes sends the bare Hermes workspace id
+in `workspace_id`, `target_workspace_id`, and `hermes_workspace_id` during
+registration; Health stores and returns the canonical `health:<workspaceId>`
+identity, and Hermes writes that canonical id into `.hermes-health/config.json`.
+Health workspace registration must be authenticated with a server-side
+registration credential. Hermes reads it from
 `HERMES_MOBILE_HEALTH_PLUGIN_OWNER_KEY(_PATH)`,
 `HERMES_MOBILE_PLUGIN_HEALTH_OWNER_KEY(_PATH)`, or the Health-side
 `HEALTHY_REGISTRATION_KEY` / `HEALTHY_REGISTRATION_KEY_PATH` environment
@@ -37,6 +41,15 @@ the standard fresh-install plugin enablement example: its manifest may be
 installed and readable while no Hermes workspace, including Owner, is active
 yet. Owner must explicitly open/provision Health before normal list, manifest,
 launch, topic Dock, or MCP projection treats it as usable.
+
+Finance uses the same workspace-local completeness rule for Hermes Mobile
+projection. A `.hermes-finance/access-key.txt` without the sibling
+`.hermes-finance/config.json` is a partial provisioning artifact, not an active
+workspace binding. Hermes Mobile must not project that key-only state as an
+installed/active workspace, and NAS deployment preflight must fail it as
+`nas_finance_config_missing:<workspaceId>`. This prevents migrated or repaired
+NAS environments from showing Finance as usable while Owner launch later fails
+in manifest provisioning.
 
 ## Source Of Truth
 
@@ -201,6 +214,16 @@ before loading the selected workspace. Same-origin embedded apps such as Finance
 can otherwise keep an old Owner iframe or session alive while the shell shows a
 non-Owner workspace. A new workspace must always obtain a fresh manifest and a
 fresh launch entry for that effective workspace.
+
+Plugin-bound topics also define model-side MCP requirements. The host maps
+`plugin:<id>` task groups to the plugin's toolset, for example
+`plugin:finance -> finance`, and injects that toolset into the run policy and
+Gateway routing as required. The Gateway Pool must then select only a profile
+owned by the effective Hermes workspace whose actual profile `config.yaml`
+contains that toolset. This is a schema-capability guard, not a generic
+fallback mechanism: Owner's Finance topic must not run on an Owner profile that
+lacks `finance`, and Owner switching into WuPing/test workspace must not reuse
+Owner's plugin MCP binding.
 
 Manifest/launch boundaries must also clear stale plugin sessions. A manifest
 response for a workspace-private same-origin plugin should expire known raw

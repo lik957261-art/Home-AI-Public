@@ -179,6 +179,12 @@ wardrobe_mcp_path="${HERMES_MOBILE_WARDROBE_MCP_PATH:-$gateway_worker_root/wardr
 wardrobe_user_drive_root="${HERMES_MOBILE_WARDROBE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_wardrobe_workspace_override="${HERMES_MOBILE_OWNER_WARDROBE_WORKSPACE:-}"
 wuping_wardrobe_workspace_override="${HERMES_MOBILE_WUPING_WARDROBE_WORKSPACE:-}"
+finance_mcp_python="${HERMES_MOBILE_FINANCE_MCP_PYTHON:-/opt/hermes-gateway-runtime/venv/bin/python}"
+finance_mcp_path="${HERMES_MOBILE_FINANCE_MCP_PATH:-$gateway_worker_root/finance-mcp/scripts/finance_mcp_stdio.py}"
+finance_mcp_api_base_url="${HERMES_MOBILE_FINANCE_MCP_API_BASE_URL:-http://127.0.0.1:8791}"
+finance_user_drive_root="${HERMES_MOBILE_FINANCE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
+owner_finance_workspace_override="${HERMES_MOBILE_OWNER_FINANCE_WORKSPACE:-}"
+wuping_finance_workspace_override="${HERMES_MOBILE_WUPING_FINANCE_WORKSPACE:-}"
 
 if ! id -u "$worker_user" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "$worker_user"
@@ -253,6 +259,11 @@ compute_configure_signature() {
     --value "wardrobe_user_drive_root=$wardrobe_user_drive_root" \
     --value "owner_wardrobe_workspace_override=$owner_wardrobe_workspace_override" \
     --value "wuping_wardrobe_workspace_override=$wuping_wardrobe_workspace_override" \
+    --value "finance_mcp_python=$finance_mcp_python" \
+    --value "finance_mcp_api_base_url=$finance_mcp_api_base_url" \
+    --value "finance_user_drive_root=$finance_user_drive_root" \
+    --value "owner_finance_workspace_override=$owner_finance_workspace_override" \
+    --value "wuping_finance_workspace_override=$wuping_finance_workspace_override" \
     --path "$configure_low_gateway_script" \
     --path "$gateway_pool_manifest_path" \
     --path "$runtime_overrides_source" \
@@ -265,6 +276,7 @@ compute_configure_signature() {
     --path "$video_plugin_source" \
     --path "$cronjob_plugin_source" \
     --path "$wardrobe_mcp_path" \
+    --path "$finance_mcp_path" \
     --path "$outlook_graph_mcp_path" <<'PY'
 import hashlib
 import os

@@ -64,6 +64,11 @@ The first supported NAS direction is a split deployment, documented in
   existing NAS Wardrobe service on port `8765`. Both must be reached by users
   through Hermes same-origin plugin proxy routes, not by exposing backend ports
   publicly.
+  Finance must also have complete workspace-local Hermes binding files before
+  it is projected as active: `.hermes-finance/access-key.txt` and
+  `.hermes-finance/config.json` must both exist for the effective workspace. A
+  key-only Finance directory is a partial provisioning state and NAS preflight
+  must fail it as `nas_finance_config_missing:<workspaceId>`.
 - On that NAS, Email is deployed as Docker/Container Manager container
   `email-plugin`, bound to loopback `127.0.0.1:5175` only. Its source is under
   `/volume1/docker/email-plugin/source`, and its SQLite/config/token runtime

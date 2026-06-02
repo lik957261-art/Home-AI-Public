@@ -1,6 +1,7 @@
 "use strict";
 
 const fs = require("node:fs");
+const path = require("node:path");
 const {
   createGatewayElasticWorkerScheduler,
   normalizeElasticSchedulerConfig,
@@ -24,6 +25,18 @@ function cleanList(value) {
     return value.split(",").map((item) => item.trim()).filter(Boolean);
   }
   return [];
+}
+
+function dedupeList(values = []) {
+  const out = [];
+  const seen = new Set();
+  for (const value of Array.isArray(values) ? values : []) {
+    const text = String(value || "").trim();
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    out.push(text);
+  }
+  return out;
 }
 
 function cleanProvider(value) {
@@ -58,6 +71,64 @@ function normalizeWorkspaceIds(value) {
   return all;
 }
 
+function profileConfigPathForWorker(raw = {}, profile = "") {
+  const direct = String(raw.configPath || raw.config_path || raw.profileConfigPath || raw.profile_config_path || "").trim();
+  if (direct) return direct;
+  const candidates = [
+    raw.telemetryStateDbPath,
+    raw.telemetry_state_db_path,
+    raw.stateDbPath,
+    raw.state_db_path,
+    raw.telemetryResponseStoreDbPath,
+    raw.telemetry_response_store_db_path,
+    raw.responseStoreDbPath,
+    raw.response_store_db_path,
+  ].map((item) => String(item || "").trim()).filter(Boolean);
+  for (const candidate of candidates) {
+    const configPath = path.join(path.dirname(candidate), "config.yaml");
+    if (fs.existsSync(configPath)) return configPath;
+  }
+  const root = String(raw.telemetryRoot || raw.telemetry_root || raw.gatewayWorkerRoot || raw.gateway_worker_root || "").trim();
+  if (root && profile) {
+    const configPath = path.join(root, "telemetry", "profiles", profile, "config.yaml");
+    if (fs.existsSync(configPath)) return configPath;
+  }
+  return "";
+}
+
+function readProfileToolsets(configPath = "") {
+  const resolved = String(configPath || "").trim();
+  if (!resolved || !fs.existsSync(resolved)) return [];
+  try {
+    const lines = fs.readFileSync(resolved, "utf8").split(/\r?\n/);
+    const out = [];
+    let inToolsets = false;
+    for (const line of lines) {
+      if (/^toolsets:\s*$/.test(line)) {
+        inToolsets = true;
+        continue;
+      }
+      if (!inToolsets) continue;
+      if (/^\S.*:\s*$/.test(line)) break;
+      const match = line.match(/^\s*-\s*([A-Za-z0-9_.:-]+)\s*$/);
+      if (match) out.push(match[1]);
+    }
+    return dedupeList(out);
+  } catch {
+    return [];
+  }
+}
+
+function normalizeWorkerToolsets(raw = {}, profile = "") {
+  const manifestToolsets = [
+    ...cleanList(raw.toolsets),
+    ...cleanList(raw.enabledToolsets || raw.enabled_toolsets),
+    ...cleanList(raw.requiredToolsets || raw.required_toolsets),
+  ];
+  const configToolsets = readProfileToolsets(profileConfigPathForWorker(raw, profile));
+  return dedupeList([...manifestToolsets, ...configToolsets]);
+}
+
 function normalizeWorker(raw, index = 0) {
   if (!raw || typeof raw !== "object") return null;
   if (raw.enabled === false) return null;
@@ -76,6 +147,7 @@ function normalizeWorker(raw, index = 0) {
     apiKey: String(raw.api_key || raw.apiKey || "").trim(),
     provider: String(raw.provider || "").trim(),
     tags: cleanList(raw.tags),
+    toolsets: normalizeWorkerToolsets(raw, profile),
     securityLevel: normalizeSecurityLevel(raw.securityLevel || raw.security_level || raw.level),
     allowedWorkspaceIds: normalizeWorkspaceIds(raw.allowedWorkspaceIds || raw.allowed_workspace_ids || raw.workspaceIds || raw.workspace_ids),
     allowMaintenance: Boolean(raw.allowMaintenance || raw.allow_maintenance),
@@ -123,6 +195,7 @@ function publicWorker(worker, health = null) {
     apiBase: worker.apiBase,
     provider: worker.provider,
     tags: worker.tags,
+    toolsets: worker.toolsets || [],
     securityLevel: worker.securityLevel,
     allowedWorkspaceIds: worker.allowedWorkspaceIds,
     allowMaintenance: Boolean(worker.allowMaintenance),
@@ -130,6 +203,13 @@ function publicWorker(worker, health = null) {
     skillWorkspaceIds: worker.skillWorkspaceIds || [],
     healthy: health == null ? null : Boolean(health),
   };
+}
+
+function requiredToolsetsForHints(hints = {}) {
+  return dedupeList([
+    ...cleanList(hints.requiredToolsets || hints.required_toolsets),
+    ...cleanList(hints.pluginToolsets || hints.plugin_toolsets),
+  ]);
 }
 
 function matchesExact(worker, hints = {}) {
@@ -168,6 +248,11 @@ function satisfiesFilter(worker, hints = {}) {
   if (requiredTags.length) {
     const tags = new Set(worker.tags || []);
     if (!requiredTags.every((tag) => tags.has(tag))) return false;
+  }
+  const requiredToolsets = requiredToolsetsForHints(hints);
+  if (requiredToolsets.length) {
+    const toolsets = new Set(worker.toolsets || []);
+    if (!requiredToolsets.every((toolset) => toolsets.has(toolset))) return false;
   }
   return true;
 }

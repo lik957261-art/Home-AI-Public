@@ -6,6 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   createHealthPluginProvisioningService,
+  canonicalHealthWorkspaceId,
   healthWorkspaceConfigPath,
   healthWorkspaceKeyPath,
   healthWorkspaceRegistrationUrl,
@@ -52,7 +53,8 @@ async function testCreatesWorkspaceKeyRegistersHashAndWritesConfig() {
   assert.equal(calls[0].url, "http://127.0.0.1:4877/api/v1/hermes/plugin/workspaces");
   assert.equal(calls[0].options.headers.Authorization, "Bearer health-owner-test-key");
   assert.equal(calls[0].body.owner, "hermes");
-  assert.equal(calls[0].body.workspace_id, "health:weixin_health");
+  assert.equal(calls[0].body.workspace_id, "weixin_health");
+  assert.equal(calls[0].body.target_workspace_id, "weixin_health");
   assert.equal(calls[0].body.hermes_workspace_id, "weixin_health");
   assert.deepEqual(calls[0].body.scopes, ["health:read", "health:write", "reports:read", "records:write"]);
   assert.match(calls[0].body.access_key_hash, /^[a-f0-9]{64}$/);
@@ -68,6 +70,7 @@ async function testCreatesWorkspaceKeyRegistersHashAndWritesConfig() {
   assert.equal(result.configPath, configPath);
   assert.equal(fs.existsSync(configPath), true);
   const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  assert.equal(config.base_url, "http://127.0.0.1:4877");
   assert.equal(config.api_base_url, "http://127.0.0.1:4877");
   assert.equal(config.workspace_id, "health:weixin_health");
   assert.equal(config.hermes_workspace_id, "weixin_health");
@@ -76,6 +79,54 @@ async function testCreatesWorkspaceKeyRegistersHashAndWritesConfig() {
   assert.equal(JSON.stringify(config).includes(rawKey), false);
   assert.equal(JSON.stringify(result).includes(rawKey), false);
   assert.equal(JSON.stringify(result).includes("health-owner-test-key"), false);
+}
+
+async function testOwnerProvisioningUsesBareRegistrationAndCanonicalConfig() {
+  const dataDir = tempDir();
+  const ownerKeyPath = path.join(dataDir, "plugin-secrets", "health-owner-key.txt");
+  fs.mkdirSync(path.dirname(ownerKeyPath), { recursive: true });
+  fs.writeFileSync(ownerKeyPath, "health-owner-test-key\n", "utf8");
+  const calls = [];
+  const service = createHealthPluginProvisioningService({
+    dataDir,
+    env: {},
+    fetch(url, options = {}) {
+      calls.push({ url, options, body: JSON.parse(options.body) });
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({
+          ok: true,
+          workspace_id: "health:owner",
+          hermes_workspace_id: "owner",
+          status: "active",
+        }),
+      });
+    },
+  });
+  const result = await service.provisionWorkspace({
+    workspaceId: "owner",
+    displayName: "Owner",
+    healthManifestUrl: "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.healthWorkspaceId, "health:owner");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].body.workspace_id, "owner");
+  assert.equal(calls[0].body.target_workspace_id, "owner");
+  assert.equal(calls[0].body.hermes_workspace_id, "owner");
+  assert.equal(calls[0].body.access_key_hash.length, 64);
+  assert.equal(JSON.stringify(calls[0].body).includes("health-owner-test-key"), false);
+
+  const keyPath = healthWorkspaceKeyPath({ dataDir, workspaceId: "owner" });
+  const rawKey = fs.readFileSync(keyPath, "utf8").trim();
+  assert.equal(calls[0].body.access_key_hash, sha256(rawKey));
+
+  const config = JSON.parse(fs.readFileSync(healthWorkspaceConfigPath({ dataDir, workspaceId: "owner" }), "utf8"));
+  assert.equal(config.workspace_id, "health:owner");
+  assert.equal(config.hermes_workspace_id, "owner");
+  assert.equal(config.base_url, "http://127.0.0.1:4877");
+  assert.equal(JSON.stringify(config).includes(rawKey), false);
 }
 
 async function testProvisioningCanUseHealthyRegistrationKeyEnvAlias() {
@@ -100,7 +151,8 @@ async function testProvisioningCanUseHealthyRegistrationKeyEnvAlias() {
   assert.equal(result.ok, true);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].options.headers.Authorization, "Bearer health-registration-env-key");
-  assert.equal(calls[0].body.workspace_id, "health:weixin_health");
+  assert.equal(calls[0].body.workspace_id, "weixin_health");
+  assert.equal(calls[0].body.target_workspace_id, "weixin_health");
   assert.equal(JSON.stringify(result).includes("health-registration-env-key"), false);
 }
 
@@ -136,11 +188,14 @@ function testHelpers() {
     healthWorkspaceRegistrationUrl("http://127.0.0.1:4877/api/v1/hermes/plugin/manifest"),
     "http://127.0.0.1:4877/api/v1/hermes/plugin/workspaces",
   );
+  assert.equal(canonicalHealthWorkspaceId("owner"), "health:owner");
+  assert.equal(canonicalHealthWorkspaceId("health:owner"), "health:owner");
 }
 
 (async () => {
   testHelpers();
   await testCreatesWorkspaceKeyRegistersHashAndWritesConfig();
+  await testOwnerProvisioningUsesBareRegistrationAndCanonicalConfig();
   await testProvisioningCanUseHealthyRegistrationKeyEnvAlias();
   await testProvisioningFailsClosedWithoutOwnerKey();
   console.log("health-plugin-provisioning-service tests passed");

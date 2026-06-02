@@ -481,11 +481,13 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-plugin-bindings-"));
   const ownerWardrobeKey = path.join(dir, "drive", "users", "owner", ".hermes-wardrobe", "access-key.txt");
   const ownerFinanceKey = path.join(dir, "drive", "users", "owner", ".hermes-finance", "access-key.txt");
+  const ownerFinanceConfig = path.join(dir, "drive", "users", "owner", ".hermes-finance", "config.json");
   const ownerEmailKey = path.join(dir, "drive", "users", "owner", ".hermes-email", "access-key.txt");
   const ownerHealthKey = path.join(dir, "drive", "users", "owner", ".hermes-health", "access-key.txt");
   const ownerHealthConfig = path.join(dir, "drive", "users", "owner", ".hermes-health", "config.json");
   const wardrobeKey = path.join(dir, "drive", "users", "weixin_wuping", "Hermes-吴萍", "衣橱", ".hermes-wardrobe", "access-key.txt");
-  const financeKey = path.join(dir, "drive", "users", "child_workspace", "Finance", ".hermes-finance", "access-key.txt");
+  const financeKey = path.join(dir, "drive", "users", "child_workspace", ".hermes-finance", "access-key.txt");
+  const financeConfig = path.join(dir, "drive", "users", "child_workspace", ".hermes-finance", "config.json");
   const emailKey = path.join(dir, "drive", "users", "mail_workspace", "Email", ".hermes-email", "access-key.txt");
   const healthKey = path.join(dir, "drive", "users", "health_workspace", ".hermes-health", "access-key.txt");
   const healthConfig = path.join(dir, "drive", "users", "health_workspace", ".hermes-health", "config.json");
@@ -499,6 +501,11 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   fs.mkdirSync(path.dirname(healthKey), { recursive: true });
   fs.writeFileSync(ownerWardrobeKey, "owner-wardrobe-key\n", "utf8");
   fs.writeFileSync(ownerFinanceKey, "owner-finance-key\n", "utf8");
+  fs.writeFileSync(ownerFinanceConfig, JSON.stringify({
+    workspace_id: "owner",
+    hermes_workspace_id: "owner",
+    access_key_file: "access-key.txt",
+  }), "utf8");
   fs.writeFileSync(ownerEmailKey, "owner-email-key\n", "utf8");
   fs.writeFileSync(ownerHealthKey, "owner-health-key\n", "utf8");
   fs.writeFileSync(ownerHealthConfig, JSON.stringify({
@@ -508,6 +515,12 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   }), "utf8");
   fs.writeFileSync(wardrobeKey, "wardrobe-key\n", "utf8");
   fs.writeFileSync(financeKey, "finance-key\n", "utf8");
+  fs.mkdirSync(path.dirname(financeConfig), { recursive: true });
+  fs.writeFileSync(financeConfig, JSON.stringify({
+    workspace_id: "child_workspace",
+    hermes_workspace_id: "child_workspace",
+    access_key_file: "access-key.txt",
+  }), "utf8");
   fs.writeFileSync(emailKey, "email-key\n", "utf8");
   fs.writeFileSync(healthKey, "health-key\n", "utf8");
   fs.writeFileSync(healthConfig, JSON.stringify({
@@ -599,6 +612,25 @@ function testHealthWorkspaceKeyWithoutConfigIsNotActive() {
     },
   });
   assert.deepEqual(service.list({ workspaceId: "health_workspace" }), []);
+}
+
+function testFinanceWorkspaceKeyWithoutConfigIsNotActive() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-finance-key-only-"));
+  const financeKey = path.join(dir, "drive", "users", "finance_workspace", ".hermes-finance", "access-key.txt");
+  fs.mkdirSync(path.dirname(financeKey), { recursive: true });
+  fs.writeFileSync(financeKey, "finance-key\n", "utf8");
+  assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("finance", { dataDir: dir }), []);
+  const service = createHermesPluginService({
+    dataDir: dir,
+    env: {},
+    plugins: [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }],
+    fetch() {
+      throw new Error("key-only Finance workspace must not fetch manifest");
+    },
+  });
+  const installed = service.listInstalled().find((item) => item.id === "finance");
+  assert.deepEqual(installed.authorizedWorkspaceIds, []);
+  assert.deepEqual(installed.workspaceAuthorizations, []);
 }
 
 async function testFinanceGrantProvisionsWorkspaceKeyAndBind() {
@@ -795,11 +827,13 @@ async function testHealthGrantProvisionsWorkspaceKeyHashConfigAndLaunch() {
   assert.match(rawKey, /^hhlt_/);
   const registrationCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/workspaces"));
   assert.ok(registrationCall);
-  assert.equal(registrationCall.body.workspace_id, "health:weixin_health");
+  assert.equal(registrationCall.body.workspace_id, "weixin_health");
+  assert.equal(registrationCall.body.target_workspace_id, "weixin_health");
   assert.equal(registrationCall.body.hermes_workspace_id, "weixin_health");
   assert.match(registrationCall.body.access_key_hash, /^[a-f0-9]{64}$/);
   assert.equal(JSON.stringify(registrationCall.body).includes(rawKey), false);
   const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  assert.equal(config.base_url, "http://127.0.0.1:4877");
   assert.equal(config.workspace_id, "health:weixin_health");
   assert.equal(config.hermes_workspace_id, "weixin_health");
   assert.equal(config.access_key_file, "access-key.txt");
@@ -821,7 +855,8 @@ async function testHealthGrantProvisionsWorkspaceKeyHashConfigAndLaunch() {
   assert.ok(launchCall);
   assert.equal(launchCall.options.headers.Authorization, `Bearer ${rawKey}`);
   assert.deepEqual(launchCall.body, {
-    workspace_id: "health:weixin_health",
+    workspace_id: "weixin_health",
+    target_workspace_id: "weixin_health",
     hermes_workspace_id: "weixin_health",
   });
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"launch_token"|"workspace_key"|hhlt_/);
@@ -876,9 +911,14 @@ async function testHealthOwnerGrantProvisionsWorkspaceBeforeManifest() {
   assert.equal(fs.existsSync(keyPath), true);
   assert.equal(fs.existsSync(configPath), true);
   const rawKey = fs.readFileSync(keyPath, "utf8").trim();
-  assert.equal(calls[0].body.workspace_id, "health:owner");
+  assert.equal(calls[0].body.workspace_id, "owner");
+  assert.equal(calls[0].body.target_workspace_id, "owner");
   assert.equal(calls[0].body.hermes_workspace_id, "owner");
   assert.equal(JSON.stringify(calls[0].body).includes(rawKey), false);
+  const ownerConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  assert.equal(ownerConfig.workspace_id, "health:owner");
+  assert.equal(ownerConfig.hermes_workspace_id, "owner");
+  assert.equal(ownerConfig.base_url, "http://127.0.0.1:4877");
 
   const manifest = await service.manifest({ id: "health", workspaceId: "owner", launchPlugin: true });
   assert.equal(manifest.available, true);
@@ -887,7 +927,8 @@ async function testHealthOwnerGrantProvisionsWorkspaceBeforeManifest() {
   assert.ok(launchCall);
   assert.equal(launchCall.options.headers.Authorization, `Bearer ${rawKey}`);
   assert.deepEqual(launchCall.body, {
-    workspace_id: "health:owner",
+    workspace_id: "owner",
+    target_workspace_id: "owner",
     hermes_workspace_id: "owner",
   });
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"launch_token"|"workspace_key"|hhlt_/);
@@ -1752,6 +1793,7 @@ async function run() {
   testInstalledPluginListReflectsWorkspaceKeyBindings();
   await testHealthFreshInstallIsInstalledButNotWorkspaceActive();
   testHealthWorkspaceKeyWithoutConfigIsNotActive();
+  testFinanceWorkspaceKeyWithoutConfigIsNotActive();
   await testFinanceGrantProvisionsWorkspaceKeyAndBind();
   await testFinanceProvisioningFailureBlocksManifest();
   await testFinanceOwnerManifestProvisionsWorkspaceLocalMcpConfig();

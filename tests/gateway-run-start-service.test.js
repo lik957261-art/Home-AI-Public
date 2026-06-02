@@ -307,6 +307,67 @@ async function testStartRunPublishesRunIdBeforeRequestBuild() {
   assert.ok(calls.broadcasts.find((item) => item.type === "run.event" && item.event?.event === "run.context_ready"));
 }
 
+async function testPluginTopicRequiresItsMcpToolsetForPolicyAndGatewayRouting() {
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "web"],
+      authorized_toolsets: ["file", "web"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+  });
+
+  await service.startRunForThread(
+    baseThread({ workspaceId: "owner" }),
+    baseUserMessage({
+      senderWorkspaceId: "owner",
+      taskGroupId: "plugin:finance",
+      content: "列出账本",
+    }),
+    baseAssistantMessage(),
+    { actorWorkspaceId: "owner", model: "gpt-test", provider: "openai-codex" },
+  );
+
+  assert.deepEqual(calls.gatewayRouting[0].requiredToolsets, ["finance"]);
+  assert.deepEqual(calls.gatewayRouting[0].enabledToolsets, ["finance"]);
+  assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["file", "web", "finance"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.required_toolsets, ["finance"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.authorized_toolsets, ["file", "web", "finance"]);
+}
+
+async function testPluginTopicKeepsRequiredMcpWhenModelFirstNarrowsToolsets() {
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "web", "finance"],
+      authorized_toolsets: ["file", "web", "finance"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+    selectRunToolsetsWithModel: async () => ({
+      enabled: true,
+      ok: true,
+      reason: "model_selected_web",
+      selectedToolsets: ["web"],
+      authorizedToolsets: ["file", "web", "finance"],
+      durationMs: 50,
+    }),
+  });
+
+  await service.startRunForThread(
+    baseThread({ workspaceId: "owner" }),
+    baseUserMessage({ senderWorkspaceId: "owner", taskGroupId: "plugin:finance" }),
+    baseAssistantMessage(),
+    { actorWorkspaceId: "owner", model: "gpt-test", provider: "openai-codex" },
+  );
+
+  assert.deepEqual(calls.gatewayRouting[0].requiredToolsets, ["finance"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["web", "finance"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.required_toolsets, ["finance"]);
+  assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["web", "finance"]);
+}
+
 function testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext() {
   const copies = [{ name: "shared.pdf", copyPathForModel: "/mnt/c/delivery/shared.pdf" }];
   const { calls, service } = makeHarness({
@@ -1118,6 +1179,8 @@ function testMarkStartFailedUsesInjectedHooks() {
   testPureWorkspaceHelpers();
   await testStartRunBuildsGatewayRequestAndMutatesStartState();
   await testStartRunPublishesRunIdBeforeRequestBuild();
+  await testPluginTopicRequiresItsMcpToolsetForPolicyAndGatewayRouting();
+  await testPluginTopicKeepsRequiredMcpWhenModelFirstNarrowsToolsets();
   testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext();
   await testStartRunPreservesSearchSourceRouting();
   await testOrdinaryRunUsesDefaultWebSearchBudgetWhenConfigured();

@@ -184,6 +184,18 @@ workspace-bound MCP registrations. Provider selection remains user intent: a
 DeepSeek request must not be silently rerouted to OpenAI/Codex or Grok merely
 because those workers are already warm.
 
+Gateway profiles are workspace-owned, not generic capability pools. All
+same-provider profiles for the same workspace must be generated with the same
+workspace-local plugin MCP bindings and top-level `toolsets`; for example every
+Owner OpenAI/Codex `lowgw*` profile must either expose Finance through that
+Owner `.hermes-finance` binding or none of them may be considered Finance
+capable. A plugin-bound run such as `taskGroupId=plugin:finance` must request
+the plugin toolset as a required routing hint. Target selection may then choose
+only among that same workspace's profiles whose actual `config.yaml` includes
+the required toolset. It must not fall back to a generic Owner profile, a
+sibling workspace profile, or a stale profile that still passes `/health` but
+lacks the plugin MCP schema.
+
 Status reconciliation must not invent a durable workspace binding for a
 wildcard profile. A health check that discovers `allowedWorkspaceIds=["*"]`,
 such as `grokgw1`, should mark the worker warm without pinning the compatibility

@@ -139,8 +139,25 @@ def is_documented_grok_wildcard(worker):
         and ('grok' in markers or 'xai-oauth' in markers)
     )
 
+def finance_config_missing_for_key(workspace_id):
+    finance_root = root / 'data/drive/users' / workspace_id / '.hermes-finance'
+    key_path = finance_root / 'access-key.txt'
+    config_path = finance_root / 'config.json'
+    try:
+        return key_path.exists() and not config_path.exists()
+    except Exception:
+        return False
+
 if not skill_profiles_root.exists():
     issues.append('nas_skill_profiles_missing')
+
+users_root = root / 'data/drive/users'
+try:
+    for entry in users_root.iterdir():
+        if entry.is_dir() and finance_config_missing_for_key(entry.name):
+            issues.append(f'nas_finance_config_missing:{entry.name}')
+except FileNotFoundError:
+    pass
 
 for worker in user_workers:
     profile = str(worker.get('profile') or worker.get('name') or '').strip()

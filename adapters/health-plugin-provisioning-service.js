@@ -112,14 +112,22 @@ function readHealthOwnerKey(input = {}, options = {}) {
   }
 }
 
+function canonicalHealthWorkspaceId(workspaceId = "") {
+  const clean = stringValue(workspaceId);
+  if (!clean) return "";
+  return clean.startsWith("health:") ? clean : `health:${clean}`;
+}
+
 function writeHealthWorkspaceConfig(input = {}) {
   const configPath = healthWorkspaceConfigPath(input);
   if (!configPath) return { ok: false, error: "workspace_id_required" };
   const workspaceId = stringValue(input.workspaceId);
+  const healthWorkspaceId = canonicalHealthWorkspaceId(input.healthWorkspaceId || input.health_workspace_id || workspaceId);
   const config = {
     schema_version: 1,
+    base_url: stringValue(input.apiBaseUrl) || healthApiBaseUrl(input.healthManifestUrl),
     api_base_url: stringValue(input.apiBaseUrl) || healthApiBaseUrl(input.healthManifestUrl),
-    workspace_id: `health:${workspaceId}`,
+    workspace_id: healthWorkspaceId,
     hermes_workspace_id: workspaceId,
     access_key_file: "access-key.txt",
     display_name: stringValue(input.displayName) || workspaceId,
@@ -154,7 +162,8 @@ function createHealthPluginProvisioningService(options = {}) {
     const scopes = Array.isArray(input.scopes) ? input.scopes : ["health:read", "health:write", "reports:read", "records:write"];
     const body = {
       owner: "hermes",
-      workspace_id: `health:${workspaceId}`,
+      workspace_id: workspaceId,
+      target_workspace_id: workspaceId,
       hermes_workspace_id: workspaceId,
       display_name: stringValue(input.displayName || input.display_name) || workspaceId,
       access_key_hash: sha256(key.key),
@@ -189,7 +198,7 @@ function createHealthPluginProvisioningService(options = {}) {
       status: response.status || 200,
       keyCreated: key.created,
       workspaceId: stringValue(payload.hermes_workspace_id || workspaceId),
-      healthWorkspaceId: stringValue(payload.workspace_id || `health:${workspaceId}`),
+      healthWorkspaceId: canonicalHealthWorkspaceId(payload.workspace_id || workspaceId),
       scopes,
     };
   }
@@ -204,7 +213,12 @@ function createHealthPluginProvisioningService(options = {}) {
         keyCreated: Boolean(registered.keyCreated),
       };
     }
-    const config = writeHealthWorkspaceConfig(Object.assign({}, input, { dataDir, env, scopes: registered.scopes }));
+    const config = writeHealthWorkspaceConfig(Object.assign({}, input, {
+      dataDir,
+      env,
+      healthWorkspaceId: registered.healthWorkspaceId,
+      scopes: registered.scopes,
+    }));
     if (!config.ok) {
       return {
         ok: false,
@@ -231,6 +245,7 @@ module.exports = {
   ensureHealthWorkspaceKey,
   findHealthOwnerKeyPath,
   generateHealthWorkspaceKey,
+  canonicalHealthWorkspaceId,
   healthApiBaseUrl,
   healthWorkspaceConfigPath,
   healthWorkspaceKeyPath,

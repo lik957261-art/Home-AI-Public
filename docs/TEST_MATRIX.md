@@ -81,6 +81,15 @@ Android emulator or target device is available, also run the installed-PWA
 smoke path above. Static DOM/unit assertions are necessary but not sufficient
 for visual layout changes.
 
+As of 2026-06-02, an ADB-connected Android 13 e-ink target device is available
+for Hermes Mobile mobile UI validation. For any UI/navigation/gesture/layout
+change whose acceptance does not depend on exact color fidelity, this real
+device smoke is required, not optional. Use it to verify tap targets, scroll,
+right-swipe back behavior, bottom navigation, composer placement, fixed panels,
+PWA refresh, and plugin iframe/tab transitions. Because the device renders as
+black/white or grayscale, color, saturation, and brand-icon color decisions must
+still be checked with Playwright/Chrome or a normal color phone.
+
 Startup harnesses must also verify that workspace/project bootstrap failures do
 not reveal a half-initialized shell with an empty workspace selector. The client
 should retry bounded startup loading and then show an explicit recovery/retry
@@ -117,7 +126,11 @@ Gateway Pool is disabled, when NAS is not in `hybrid` Gateway mode, or when no
 healthy `securityLevel=user` worker is available. A single `nas-local-codex`
 wildcard worker is allowed as a bootstrap
 bridge only with an explicit warning; it must not be treated as equivalent to
-the maintained Windows hybrid/Owner-warm Gateway Pool. Focused check:
+the maintained Windows hybrid/Owner-warm Gateway Pool. The same preflight must
+fail Finance partial provisioning: a workspace with
+`.hermes-finance/access-key.txt` but no sibling `.hermes-finance/config.json`
+must report `nas_finance_config_missing:<workspaceId>` instead of being treated
+as an active plugin/MCP binding. Focused check:
 `node tests\nas-deploy-harness.test.js`.
 The same NAS deploy/preflight harness must verify runtime model parity across
 all execution entrances: generated OpenAI/Codex Gateway profiles, NAS
@@ -283,6 +296,16 @@ Windows-local Finance service can silently regenerate WSL profiles with
 `http://127.0.0.1:8791`, which is WSL loopback and hides `mcp_finance_*` even
 though Finance UI launch works. Focused check:
 `node tests\startup-scripts.test.js`.
+Live plugin MCP smoke must target the exact selected Low Gateway profile, not a
+generic or first healthy worker. A failure from `lowgw2` is only cleared by
+schema evidence from `lowgw2` itself, for example
+`node scripts\gateway-tool-schema-smoke.js --profile lowgw2 --schema-only --require mcp_finance_list_ledgers`,
+plus direct wrapper evidence when the plugin service rejects WSL-origin calls.
+Finance service startup must keep `FINANCE_MCP_PORT=8791` together with
+`FINANCE_MCP_TRUSTED_GATEWAY_ADDRESSES` or `FINANCE_MCP_TRUSTED_GATEWAY_CIDRS`;
+starting Finance without the port env can fall back to `8787`, while starting
+without the trusted env keeps the UI healthy but hides the MCP schema behind
+`finance_mcp_dispatch_loopback_only`.
 
 Kanban-backed Todo board provisioning is part of the same H1 process-safety
 harness. `ensureBoard()` must be single-flight per board, failed board creation
@@ -633,15 +656,18 @@ Granting Health to a workspace must create workspace-local
 `.hermes-health/access-key.txt`, write non-secret `.hermes-health/config.json`,
 and call Health `POST /api/v1/hermes/plugin/workspaces` with a server-side
 registration credential such as `HEALTHY_REGISTRATION_KEY` or the Hermes Mobile
-Health owner-key env/file aliases. The request may send `access_key_hash`, but
-must not send the raw workspace key. Missing or empty registration credentials,
-failed Health registration, key/config write failure, or missing MCP wrapper
-binding must keep the grant out of `active` and block list/manifest/launch
-instead of falling back to Owner. A fresh Health manifest means installed only:
-Owner and non-Owner workspaces must not see Health in ordinary plugin lists,
-plugin topics, launch manifests, or MCP toolsets until explicit provisioning
-creates both `.hermes-health/access-key.txt` and `.hermes-health/config.json`
-for that effective workspace. Focused checks include
+Health owner-key env/file aliases. The registration request must include the
+bare Hermes workspace id in `workspace_id`, `target_workspace_id`, and
+`hermes_workspace_id`, and may send `access_key_hash`; it must not send the raw
+workspace key. Health may respond with canonical `workspace_id` such as
+`health:owner`; Hermes must persist that canonical id in config. Missing or
+empty registration credentials, failed Health registration, key/config write
+failure, or missing MCP wrapper binding must keep the grant out of `active` and
+block list/manifest/launch instead of falling back to Owner. A fresh Health
+manifest means installed only: Owner and non-Owner workspaces must not see
+Health in ordinary plugin lists, plugin topics, launch manifests, or MCP
+toolsets until explicit provisioning creates both `.hermes-health/access-key.txt`
+and `.hermes-health/config.json` for that effective workspace. Focused checks include
 `node tests\health-plugin-provisioning-service.test.js`,
 `node tests\hermes-plugin-service.test.js`, and
 `node tests\task-list-ui.test.js`.
