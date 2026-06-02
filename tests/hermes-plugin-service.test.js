@@ -519,6 +519,77 @@ async function testFinanceProvisioningFailureBlocksManifest() {
   assert.equal(manifest.embed.tokenStatus, "workspace_provisioning_failed");
 }
 
+async function testFinanceOwnerManifestProvisionsWorkspaceLocalMcpConfig() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-finance-owner-"));
+  const calls = [];
+  const service = createHermesPluginService({
+    dataDir: dir,
+    env: {},
+    plugins: [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }],
+    fetch(url, options = {}) {
+      calls.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      if (url.endsWith("/api/v1/hermes/plugin/users/bind")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ result: { user: { id: "user_owner" }, ledger: { id: "ledger_owner" }, created: true } }),
+        });
+      }
+      if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(sampleFinanceManifest()) });
+      }
+      if (url.endsWith("/api/v1/hermes/plugin/launch")) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ entry_path: "/finance.html?launch=owner-token" }) });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+  const manifest = await service.manifest({ id: "finance", workspaceId: "owner", launchPlugin: true });
+  assert.equal(manifest.available, true);
+  const keyPath = path.join(dir, "drive", "users", "owner", ".hermes-finance", "access-key.txt");
+  const configPath = path.join(dir, "drive", "users", "owner", ".hermes-finance", "config.json");
+  assert.equal(fs.existsSync(keyPath), true);
+  assert.equal(fs.existsSync(configPath), true);
+  const rawKey = fs.readFileSync(keyPath, "utf8").trim();
+  const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  assert.equal(config.workspace_id, "owner");
+  assert.equal(config.access_key_file, "access-key.txt");
+  assert.equal(JSON.stringify(config).includes(rawKey), false);
+  assert.deepEqual(calls[0].body, {
+    target_workspace_id: "owner",
+    display_name: "Owner",
+    role: "owner",
+    admin_workspace_id: "owner",
+  });
+  const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
+  assert.ok(launchCall);
+  assert.equal(launchCall.body.workspace_id, "owner");
+  assert.equal(launchCall.body.workspace_key, rawKey);
+  assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"launch_token"|"workspace_key"|hfin_/);
+}
+
+async function testFinanceOwnerProvisioningFailureBlocksManifest() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-finance-owner-fail-"));
+  const service = createHermesPluginService({
+    dataDir: dir,
+    env: {},
+    plugins: [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }],
+    financeProvisioningService: {
+      provisionWorkspace(input) {
+        assert.equal(input.workspaceId, "owner");
+        return Promise.resolve({ ok: false, status: 503, error: "finance_bind_failed_503" });
+      },
+    },
+    fetch() {
+      throw new Error("failed owner provisioning must block before plugin manifest fetch");
+    },
+  });
+  const manifest = await service.manifest({ id: "finance", workspaceId: "owner", launchPlugin: true });
+  assert.equal(manifest.available, false);
+  assert.equal(manifest.code, "plugin_owner_provisioning_failed");
+  assert.equal(manifest.embed.tokenStatus, "owner_workspace_provisioning_failed");
+}
+
 async function testEmailGrantProvisionsWorkspaceRegistrationAndLaunch() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-email-grant-"));
   const ownerKeyPath = path.join(dir, "email-owner-key.txt");
@@ -1321,6 +1392,8 @@ async function run() {
   testInstalledPluginListReflectsWorkspaceKeyBindings();
   await testFinanceGrantProvisionsWorkspaceKeyAndBind();
   await testFinanceProvisioningFailureBlocksManifest();
+  await testFinanceOwnerManifestProvisionsWorkspaceLocalMcpConfig();
+  await testFinanceOwnerProvisioningFailureBlocksManifest();
   await testEmailGrantProvisionsWorkspaceRegistrationAndLaunch();
   await testEmailProvisioningFailureBlocksManifest();
   await testWardrobeGrantProvisionsWorkspaceKeySkillGatewayAndLaunchBinding();

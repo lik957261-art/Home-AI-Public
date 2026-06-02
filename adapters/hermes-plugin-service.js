@@ -7,6 +7,8 @@ const {
 } = require("./hermes-plugin-authorization-service");
 const {
   createFinancePluginProvisioningService,
+  financeWorkspaceConfigPath,
+  financeWorkspaceKeyPath,
 } = require("./finance-plugin-provisioning-service");
 const {
   createEmailPluginProvisioningService,
@@ -494,6 +496,20 @@ function findPluginAccessKeyPath(pluginId, input = {}, options = {}) {
   return findWardrobeAccessKeyPath(input, options);
 }
 
+function financeWorkspaceLocalConfigReady(input = {}, options = {}) {
+  const workspaceId = stringValue(input.workspaceId || "owner") || "owner";
+  const dataDir = stringValue(options.dataDir) || defaultDataDir(options.env);
+  const env = options.env || process.env;
+  const configPath = financeWorkspaceConfigPath({ dataDir, env, workspaceId });
+  const keyPath = financeWorkspaceKeyPath({ dataDir, env, workspaceId });
+  if (!configPath || !keyPath) return false;
+  try {
+    return fs.existsSync(configPath) && fs.existsSync(keyPath);
+  } catch (_) {
+    return false;
+  }
+}
+
 function discoverPluginWorkspaceIdsFromAccessKeys(pluginId, options = {}) {
   const id = stringValue(pluginId);
   if (id === "codex-mobile") return [];
@@ -974,6 +990,74 @@ function createHermesPluginService(options = {}) {
     };
   }
 
+  async function provisionPluginWorkspace(plugin, input = {}) {
+    const id = stringValue(plugin?.id || input.id || input.pluginId);
+    const workspaceId = stringValue(input.workspaceId);
+    const displayName = stringValue(input.displayName || input.workspaceLabel || input.workspace_label)
+      || stringValue(workspaceLabelForId(workspaceId))
+      || workspaceId;
+    if (id === "wardrobe") {
+      return wardrobeProvisioningService.provisionWorkspace({
+        workspaceId,
+        displayName,
+        wardrobeManifestUrl: plugin.manifestUrl,
+      });
+    }
+    if (id === "email") {
+      return emailProvisioningService.provisionWorkspace({
+        workspaceId,
+        workspaceName: displayName,
+        displayName,
+        emailManifestUrl: plugin.manifestUrl,
+      });
+    }
+    return financeProvisioningService.provisionWorkspace({
+      workspaceId,
+      displayName,
+      role: "owner",
+      adminWorkspaceId: "owner",
+      financeManifestUrl: plugin.manifestUrl,
+    });
+  }
+
+  async function ensureOwnerWorkspaceProvisioning(input = {}) {
+    const id = stringValue(input.id || input.pluginId);
+    const plugin = plugins.find((item) => item.id === id);
+    if (!plugin) return { ok: false, status: 404, error: "plugin_not_registered" };
+    const workspaceId = stringValue(input.workspaceId || "owner") || "owner";
+    if (workspaceId !== "owner") return { ok: false, status: 400, error: "owner_workspace_required" };
+    if (!pluginSupportsHermesProvisioning(plugin)) {
+      return { ok: true, provisioning: { status: "not_required" } };
+    }
+    if (id === "finance" && financeWorkspaceLocalConfigReady({ workspaceId }, launchOptions)) {
+      return { ok: true, provisioning: { status: "active", existing: true } };
+    }
+    const provisioned = await provisionPluginWorkspace(plugin, Object.assign({}, input, {
+      workspaceId,
+      displayName: stringValue(input.displayName || input.workspaceLabel || input.workspace_label) || "Owner",
+    }));
+    if (!provisioned.ok) {
+      return {
+        ok: false,
+        status: provisioned.status || 503,
+        error: provisioned.error || `${id}_owner_provisioning_failed`,
+        provisioning: {
+          status: "provisioning_failed",
+          keyCreated: Boolean(provisioned.keyCreated),
+        },
+      };
+    }
+    return {
+      ok: true,
+      provisioning: {
+        status: "active",
+        keyCreated: Boolean(provisioned.keyCreated),
+        configCreated: Boolean(provisioned.configPath || provisioned.configCreated),
+        created: Boolean(provisioned.created),
+      },
+    };
+  }
+
   function list(input = {}) {
     return plugins
       .filter((item) => pluginWorkspaceAuthorized(item, input, launchOptions))
@@ -1035,6 +1119,25 @@ function createHermesPluginService(options = {}) {
     const plugin = plugins.find((item) => item.id === id);
     if (!plugin) {
       return { ok: false, available: false, id, code: "plugin_not_registered" };
+    }
+    if (id === "finance"
+      && stringValue(input.workspaceId || "owner") === "owner"
+      && !stringValue(options.financeAccessKeyPath)) {
+      const ownerProvisioning = await ensureOwnerWorkspaceProvisioning(Object.assign({}, input, { id }));
+      if (!ownerProvisioning.ok) {
+        return {
+          ok: false,
+          available: false,
+          id,
+          code: "plugin_owner_provisioning_failed",
+          warning: stringValue(ownerProvisioning.error).slice(0, 160),
+          provisioningStatus: "provisioning_failed",
+          embed: {
+            mode: "same_window_iframe",
+            tokenStatus: "owner_workspace_provisioning_failed",
+          },
+        };
+      }
     }
     const provisioningBlock = pluginWorkspaceProvisioningBlock(plugin, Object.assign({}, input, { id }), launchOptions);
     if (provisioningBlock) return provisioningBlock;
@@ -1116,29 +1219,7 @@ function createHermesPluginService(options = {}) {
     });
     if (!base.ok || !pluginSupportsHermesProvisioning(plugin)) return base;
     const workspaceId = stringValue(input.workspaceId);
-    const displayName = stringValue(input.displayName || input.workspaceLabel || input.workspace_label)
-      || stringValue(workspaceLabelForId(workspaceId))
-      || workspaceId;
-    const provisioned = id === "wardrobe"
-      ? await wardrobeProvisioningService.provisionWorkspace({
-        workspaceId,
-        displayName,
-        wardrobeManifestUrl: plugin.manifestUrl,
-      })
-      : id === "email"
-        ? await emailProvisioningService.provisionWorkspace({
-          workspaceId,
-          workspaceName: displayName,
-          displayName,
-          emailManifestUrl: plugin.manifestUrl,
-        })
-        : await financeProvisioningService.provisionWorkspace({
-      workspaceId,
-      displayName,
-      role: "owner",
-      adminWorkspaceId: "owner",
-      financeManifestUrl: plugin.manifestUrl,
-    });
+    const provisioned = await provisionPluginWorkspace(plugin, input);
     if (provisioned.ok) {
       const saved = authorizationService.updateProvisioningStatus({
         pluginId: id,
@@ -1216,7 +1297,16 @@ function createHermesPluginService(options = {}) {
     }));
   }
 
-  return { list, listInstalled, manifest, pluginManifestUrl, grantWorkspace, revokeWorkspace, reviewFinanceLedgerJoin };
+  return {
+    list,
+    listInstalled,
+    manifest,
+    pluginManifestUrl,
+    ensureOwnerWorkspaceProvisioning,
+    grantWorkspace,
+    revokeWorkspace,
+    reviewFinanceLedgerJoin,
+  };
 }
 
 module.exports = {

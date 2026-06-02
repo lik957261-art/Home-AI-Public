@@ -244,6 +244,14 @@ can stay healthy while rejecting Mobile `/v1/responses` calls with
 `401 invalid_api_key`. Gateway profile/schema deployments must sync source
 scripts into the production worker root before restart and then run live schema
 smoke with the same manifest key Mobile uses for the selected worker.
+Windows-to-WSL plugin MCP environment is part of the same startup harness.
+`start-low-gateways-child.ps1` must pass Finance MCP env such as
+`HERMES_MOBILE_FINANCE_MCP_API_BASE_URL`, wrapper path, Python path, and user
+drive root into `wsl.exe -- env ... configure-low-gateways.sh`; otherwise a
+Windows-local Finance service can silently regenerate WSL profiles with
+`http://127.0.0.1:8791`, which is WSL loopback and hides `mcp_finance_*` even
+though Finance UI launch works. Focused check:
+`node tests\startup-scripts.test.js`.
 
 Kanban-backed Todo board provisioning is part of the same H1 process-safety
 harness. `ensureBoard()` must be single-flight per board, failed board creation
@@ -395,6 +403,9 @@ not only schema presence. The harness for a plugin MCP must assert that:
 
 - each target workspace has its own `.hermes-<plugin>/config.json` and
   `.hermes-<plugin>/access-key.txt` or plugin-owned equivalent;
+- stdio MCP wrappers are compatible with the Hermes Agent MCP SDK transport,
+  including newline-delimited JSON framing as used by `mcp.client.stdio`, not
+  only `Content-Length` fixture clients;
 - the Gateway profile's `mcp_servers.<plugin>` block points at that target
   workspace root and rejects runtime workspace override;
 - an Owner session switched into a non-Owner workspace selects a profile/schema
@@ -513,7 +524,8 @@ persistence, normal business-plugin visibility after a grant, Codex Mobile
 grant denial, Codex Mobile absence during Owner-to-non-Owner workspace
 switching, and the side-navigation manager being hidden from non-Owner users.
 Finance workspace provisioning is an H1 plugin authorization workflow. Granting
-Finance to a workspace must create a workspace-local
+Finance to a workspace, and Owner first use of the default-visible Finance
+plugin, must create a workspace-local
 `.hermes-finance/access-key.txt` and non-secret `.hermes-finance/config.json`,
 call Finance
 `POST /api/v1/hermes/plugin/users/bind` with UTF-8 workspace display name,
@@ -530,6 +542,9 @@ either iframe launch or MCP. Windows+WSL smoke must additionally prove the
 Finance Python wrapper can call `tools/list` and receive `mcp_finance_*`; a
 non-loopback `--api-base-url` that hits Finance's loopback-only MCP bridge and
 returns `finance_mcp_dispatch_loopback_only` is a failing deployment state.
+Owner profiles must be tested for the same `.hermes-finance` presence before
+MCP registration; falling back to the Hermes Owner web key is not valid MCP
+provisioning evidence.
 Focused checks include
 `node tests\finance-plugin-provisioning-service.test.js`,
 `node tests\startup-scripts.test.js`,
@@ -811,6 +826,11 @@ Focused checks for this contract include
 `node tests\embedded-plugin-refresh-harness.test.js`,
 `node tests\wardrobe-plugin-refresh-harness.test.js`, and
 `node tests\app-embedded-plugin-ui.test.js`.
+Finance MCP registration checks must also prove the real Gateway callable schema,
+not only generated profile files or MCP registration logs:
+`node scripts\gateway-tool-schema-smoke.js --profile <finance-capable-profile> --schema-only --require mcp_finance_list_ledgers`.
+This smoke is required after changing Finance provisioning, MCP wrapper framing,
+Gateway profile generation, WSL/NAS MCP API-base propagation, or startup scripts.
 Switching away from a plugin tab must force-hide the plugin host and clear the
 active host class even if the iframe shell record is missing, stale, or still
 loading; a plugin iframe must not remain above chat/topic content after a

@@ -407,6 +407,16 @@ workspace-local isolation pattern as the default host contract:
   `.hermes-<plugin>/access-key.txt`, then attaches the workspace-local key to
   plugin API calls internally. The model must never pass raw keys as tool
   arguments.
+- Stdio MCP wrappers must support the transport used by the current Hermes
+  Agent MCP SDK. In the maintained runtime this means newline-delimited JSON
+  messages from `mcp.client.stdio`; a wrapper that only parses
+  `Content-Length` framed test messages can pass plugin-local tests while
+  failing to connect in real Gateway profiles.
+- Tool names returned by a plugin MCP server should be local names such as
+  `list_ledgers`. Hermes Agent prefixes them as `mcp_<server>_<tool>` in the
+  model schema. Returning already-prefixed names such as
+  `mcp_finance_list_ledgers` from the wrapper creates double-prefixed callables
+  like `mcp_finance_mcp_finance_list_ledgers`.
 - The Gateway profile registers that plugin MCP with `--workspace` or an
   equivalent fixed workspace-root argument pointing to the target Hermes
   workspace. It must also disable runtime workspace override, for example
@@ -421,9 +431,12 @@ workspace-local isolation pattern as the default host contract:
   concrete access keys, launch tokens, plugin session cookies, raw private data,
   or local secret paths.
 
-For Finance, a plugin-manager grant is also a provisioning workflow. When Owner
-grants `finance` to a workspace, Hermes Mobile must create a
-workspace-local server-side key at
+For Finance, a plugin-manager grant is also a provisioning workflow. Owner's
+default Finance visibility is not an exception: the Owner workspace must also
+have its own `.hermes-finance/config.json` and `access-key.txt` before Finance
+is considered model-callable. When Owner grants `finance` to a workspace, or
+when the Owner workspace first uses the default-visible Finance plugin, Hermes
+Mobile must create a workspace-local server-side key at
 `<HERMES_DATA_DIR>\drive\users\<workspaceId>\.hermes-finance\access-key.txt`
 when one does not already exist, write a non-secret sibling `config.json` for
 the Finance MCP wrapper, then call the Finance loopback binding
@@ -446,8 +459,17 @@ bind plus profile/MCP registration updates the authorization record to
 `provisioningStatus=active`; a key, bind, config, or MCP/profile failure keeps
 the grant record but marks
 `provisioningStatus=provisioning_failed` with a bounded error.
+On Windows production, low Gateway profiles are generated inside WSL. If the
+Finance service runs on Windows, the Finance MCP API base passed to the WSL
+profile must be a WSL-reachable address such as the Windows host LAN address,
+not `http://127.0.0.1:8791`. The production launcher owns the environment
+value, and `start-low-gateways-child.ps1` must pass it through to WSL when
+running `configure-low-gateways.sh`; otherwise Finance UI may launch while the
+model schema omits `mcp_finance_*`.
 Pending or failed Finance provisioning must block non-Owner list/manifest/launch
-access and the plugin manager must show a diagnostic such as
+access; failed Owner first-use provisioning must block the Owner manifest with a
+bounded diagnostic instead of falling back to the Hermes Owner web key. The
+plugin manager must show a diagnostic such as
 `authorized / provisioning_failed` instead of making the plugin look fully
 usable. Hermes must not store or return the raw Finance workspace key in the
 authorization record, frontend state, iframe URL, postMessage payload, docs,
