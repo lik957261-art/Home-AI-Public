@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260603-plugin-preview-fullscreen-v520";
+const CLIENT_VERSION = "20260603-pdf-preview-render-v521";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -176,8 +176,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260603-plugin-preview-fullscreen-v520" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260603-plugin-preview-fullscreen-v520"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260603-pdf-preview-render-v521" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260603-pdf-preview-render-v521"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -610,6 +610,14 @@ assert.match(pdfViewerHtml, /if \(embedded && deviceClass === "phone"\) return w
 assert.match(pdfViewerHtml, /document\.getElementById\("pdfScroll"\)\?\.clientWidth/);
 assert.match(pdfViewerHtml, /const readableWidth = readablePdfCssWidth\(page, width\)/);
 assert.match(pdfViewerHtml, /const pdfCanvasBackground = getComputedStyle\(document\.documentElement\)\.getPropertyValue\("--pdf-canvas-bg"\)/);
+assert.match(pdfViewerHtml, /async function preparePdfBytes\(\)/);
+assert.match(pdfViewerHtml, /blob\.arrayBuffer\(\)/);
+assert.match(pdfViewerHtml, /new Uint8Array\(buffer\)/);
+assert.match(pdfViewerHtml, /const options = \{ data: await preparePdfBytes\(\), disableWorker: isAndroid \};[\s\S]*?pdfjsLib\.getDocument\(options\)\.promise/);
+assert.doesNotMatch(pdfViewerHtml, /withCredentials: true/);
+assert.match(pdfViewerHtml, /document\.documentElement\.dataset\.pdfStatus = "loading"/);
+assert.match(pdfViewerHtml, /document\.documentElement\.dataset\.pdfStatus = renderedPages > 0 \? "rendered" : "error"/);
+assert.match(pdfViewerHtml, /canvas\.dataset\.pdfPage = String\(pageNumber\)/);
 assert.ok(directoryViewerHtml.includes(`/styles.css?v=${CLIENT_VERSION}`));
 assert.ok(directoryViewerHtml.includes(`/markdown-renderer-client.js?v=${CLIENT_VERSION}`));
 assert.ok(directoryViewerHtml.includes(`/app-task-preview-ui.js?v=${CLIENT_VERSION}`));
@@ -2250,10 +2258,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260603-plugin-preview-fullscreen-v520/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260603-plugin-preview-fullscreen-v520/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260603-plugin-preview-fullscreen-v520/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260603-plugin-preview-fullscreen-v520/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260603-pdf-preview-render-v521/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260603-pdf-preview-render-v521/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260603-pdf-preview-render-v521/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260603-pdf-preview-render-v521/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);

@@ -223,7 +223,6 @@
     let toastTimer = 0;
     let cachedPdfBlob = null;
     let pdfBlobPromise = null;
-    let renderObjectUrl = "";
     let handlingViewerBack = false;
     const isAndroid = /Android/i.test(navigator.userAgent || "");
     const EDGE_BACK_SWIPE_PX = 38;
@@ -247,6 +246,8 @@
     }
 
     function showFallback(message, href = "") {
+      document.documentElement.dataset.pdfStatus = "error";
+      document.documentElement.dataset.pdfRenderedPages = "0";
       pages.replaceChildren();
       status.classList.add("hidden");
       fallback.classList.remove("hidden");
@@ -474,6 +475,12 @@
       return pdfBlobPromise;
     }
 
+    async function preparePdfBytes() {
+      const blob = await preparePdfBlob();
+      const buffer = await blob.arrayBuffer();
+      return new Uint8Array(buffer);
+    }
+
     function isUserCancelledShare(err) {
       return String(err?.name || "").toLowerCase() === "aborterror";
     }
@@ -619,8 +626,8 @@
       return { cssViewport, outputScale };
     }
 
-    async function loadPdfDocument(pdfUrl) {
-      const options = { url: String(pdfUrl), withCredentials: true, disableWorker: isAndroid };
+    async function loadPdfDocumentFromBlob() {
+      const options = { data: await preparePdfBytes(), disableWorker: isAndroid };
       return pdfjsLib.getDocument(options).promise;
     }
 
@@ -629,7 +636,9 @@
       const serial = ++renderSerial;
       const width = viewportWidth();
       const fragment = document.createDocumentFragment();
+      let renderedPages = 0;
 
+      document.documentElement.dataset.pdfStatus = "rendering";
       setStatus("Rendering PDF...");
       for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
         if (serial !== renderSerial) return;
@@ -645,12 +654,14 @@
           canvas.style.width = `${Math.ceil(cssViewport.width)}px`;
           canvas.style.height = `${Math.ceil(cssViewport.height)}px`;
           canvas.dataset.pixelRatio = outputScale.toFixed(2);
+          canvas.dataset.pdfPage = String(pageNumber);
           fragment.append(canvas);
 
           context.fillStyle = pdfCanvasBackground;
           context.fillRect(0, 0, canvas.width, canvas.height);
           const transform = outputScale === 1 ? null : [outputScale, 0, 0, outputScale, 0, 0];
           await page.render({ canvasContext: context, viewport: cssViewport, transform, background: pdfCanvasBackground }).promise;
+          renderedPages += 1;
         } catch (err) {
           const errorBox = document.createElement("div");
           errorBox.className = "pdf-page-error";
@@ -661,15 +672,16 @@
 
       if (serial !== renderSerial) return;
       pages.replaceChildren(fragment);
+      document.documentElement.dataset.pdfStatus = renderedPages > 0 ? "rendered" : "error";
+      document.documentElement.dataset.pdfRenderedPages = String(renderedPages);
       setStatus("");
     }
 
     async function loadPdf() {
       try {
-        const blob = await preparePdfBlob();
-        if (renderObjectUrl) URL.revokeObjectURL(renderObjectUrl);
-        renderObjectUrl = URL.createObjectURL(blob);
-        pdfDocument = await loadPdfDocument(renderObjectUrl);
+        document.documentElement.dataset.pdfStatus = "loading";
+        document.documentElement.dataset.pdfRenderedPages = "0";
+        pdfDocument = await loadPdfDocumentFromBlob();
         await renderPdf();
       } catch (err) {
         showFallback("PDF preview failed.", raw);
@@ -689,9 +701,6 @@
     });
     if (!embedded) wireViewerBackGuard();
     wireViewerBackSwipe(document.getElementById("pdfScroll"));
-    window.addEventListener("beforeunload", () => {
-      if (renderObjectUrl) URL.revokeObjectURL(renderObjectUrl);
-    });
 
     loadPdf();
   </script>

@@ -119,6 +119,10 @@ available.
   `markdown-viewer.html`, and `pdf-viewer.html` read `hermesWebTheme` before
   paint and must use the same dark page and text contrast as the main PWA
   instead of a separate light document surface.
+- `pdf-viewer.html` must render through the already-authorized fetched PDF
+  bytes (`Uint8Array` data passed to PDF.js), not by handing PDF.js a secondary
+  `blob:` URL fetch with credentials. This keeps PDF preview aligned with the
+  same-origin ACL/download path used by the other viewers.
 - Image preview must expose a same-window `保存到相册` action in both the full `file-viewer.html` shell and the in-app image overlay. The action should prefer system file share with the image blob and fall back to same-window download/long-press guidance; it must not open a separate browser window.
 - Automation deliverables must be verified as outputs of the requested automation job or its authorized delivery path.
 - Group-chat artifacts are visible to a member only when the artifact is attached to a visible group-chat message in a group the member belongs to.
@@ -126,6 +130,9 @@ available.
 ## Validation
 
 - Syntax-check touched frontend/static files.
+- Run `node scripts\pdf-viewer-render-harness.js` when changing
+  `pdf-viewer.html`; the harness must verify at least one rendered PDF canvas,
+  not only that the iframe/viewer shell opened.
 - Run focused directory/share/file-artifact tests when touching these route modules.
 - Run `node tests\shared-directory-projection-service.test.js` when changing
   directory root projection or shared-root visibility.
