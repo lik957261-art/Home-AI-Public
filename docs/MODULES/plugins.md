@@ -169,12 +169,12 @@ not a Directory-plugin draft unless Hermes also has a `directoryReturnRoute`.
 Topic-list rendering, send duplicate guards, and right-swipe/back selection must
 therefore use the explicit directory-draft predicate instead of treating any
 pending directory attachment as a new-topic page.
-Inside the plugin-context footer, tapping `Topic` is a host-level return from
-the embedded plugin surface to the cached plugin-bound Hermes topic home. It
-must call the direct plugin-context exit path and render from the cached topic
-list state, not re-run the full `openPluginTopicChat()` entry flow or
-`loadSingleWindow()`, because that can show a transient wrong page before the
-correct topic surface appears.
+Inside the plugin-context footer, tapping `Topic` returns from the embedded
+plugin surface to that plugin's bound Hermes topic conversation, for example
+`plugin:finance`, not to the ordinary topic list. It may defer host view-mode
+application until after `loadSingleWindow()` has loaded the bound conversation,
+so the user does not see a transient wrong page before the correct topic surface
+appears.
 Codex Mobile is the exception to plugin-context bottom navigation. It is an
 Owner-critical workbench plugin and should run as a full-screen embedded
 surface. When the Codex iframe is active, Hermes must not show the ordinary

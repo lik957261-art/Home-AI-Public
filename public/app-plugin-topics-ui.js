@@ -489,13 +489,14 @@ async function openPluginTopicApp(pluginId) {
   await loadSelectedView();
 }
 
-async function openPluginTopicChat(pluginId) {
+async function openPluginTopicChat(pluginId, options = {}) {
   const def = pluginTopicDefById(pluginId);
   if (!def || !pluginTopicNavigationAvailable(def)) return;
   if (def.builtinKind === "directory") {
     await openBuiltInDirectoryTopicList();
     return;
   }
+  const deferViewModeApplyUntilLoaded = Boolean(options.deferViewModeApplyUntilLoaded);
   if (typeof preparePrimaryNavigationChange === "function") preparePrimaryNavigationChange();
   else if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
   hideActivePluginHostsForPluginTopicNavigation();
@@ -509,8 +510,9 @@ async function openPluginTopicChat(pluginId) {
   state.pendingTaskReasoningEffort = "";
   state.pendingTaskReasoningExplicit = false;
   if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
-  if (typeof applyViewMode === "function") applyViewMode();
+  if (!deferViewModeApplyUntilLoaded && typeof applyViewMode === "function") applyViewMode();
   await loadSingleWindow();
+  if (deferViewModeApplyUntilLoaded && typeof applyViewMode === "function") applyViewMode();
   ensurePluginTopicDirectory(def)
     .then((directory) => {
       if (state.viewMode === "tasks" && state.currentTaskGroupId === pluginTopicGroupId(def.id)) {
