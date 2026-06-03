@@ -158,6 +158,28 @@ If a command unexpectedly emits a very large result, do not keep iterating with
 the same command shape. Switch to a narrower command and summarize only the
 actionable lines.
 
+## Cross-Workspace Enforcement
+
+The cross-workspace HANES template lives at:
+
+- `.agent-context/HANES_CONTEXT_LOADING.md`
+
+Use these scripts to keep all known workspaces aligned:
+
+- `scripts/powershell/initialize-workspace-context.ps1`
+  - creates `.agent-context/` for a new workspace;
+  - copies `HANES_CONTEXT_LOADING.md`;
+  - creates compact `PROJECT_CONTEXT.md` / `HANDOFF.md` when missing;
+  - adds the short HANES pointer to `PROJECT_CONTEXT.md`.
+- `scripts/powershell/sync-hanes-context-rule.ps1`
+  - copies the current HANES template to known workspaces;
+  - adds the HANES pointer where missing;
+  - verifies the global `C:\Users\xuxin\.codex\AGENTS.md` pointer.
+- `scripts/powershell/audit-workspace-context-rules.ps1`
+  - reports `OK`, `NeedsSync`, or `WorkspaceMissing` for each known workspace;
+  - checks for `## Tool Output Budget`, the `PROJECT_CONTEXT.md` pointer, and
+    the global Codex pointer without printing full file contents.
+
 ## Handoff Rules
 
 `.agent-context/HANDOFF.md` should record current rollout state, not become a
