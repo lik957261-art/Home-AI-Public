@@ -119,6 +119,8 @@ function backSwipeTarget() {
   if (!pluginContextBack && typeof emailPluginOuterBackActive === "function" && emailPluginOuterBackActive()) return "email-plugin-outer";
   if (typeof healthPluginBackActive === "function" && healthPluginBackActive()) return "health-plugin";
   if (!pluginContextBack && typeof healthPluginOuterBackActive === "function" && healthPluginOuterBackActive()) return "health-plugin-outer";
+  if (typeof notePluginBackActive === "function" && notePluginBackActive()) return "note-plugin";
+  if (!pluginContextBack && typeof notePluginOuterBackActive === "function" && notePluginOuterBackActive()) return "note-plugin-outer";
   if (isDirectoryTopicDraftActive()) return "directory-topic-draft";
   const pluginContextTarget = pluginContextBackTarget();
   if (pluginContextTarget) return pluginContextTarget;
@@ -172,6 +174,8 @@ function performBackSwipeAction(target) {
   else if (target === "email-plugin-outer" && typeof restoreEmailPluginReturnRoute === "function") restoreEmailPluginReturnRoute();
   else if (target === "health-plugin" && typeof sendHealthPluginBackOrReturn === "function") sendHealthPluginBackOrReturn();
   else if (target === "health-plugin-outer" && typeof restoreHealthPluginReturnRoute === "function") restoreHealthPluginReturnRoute();
+  else if (target === "note-plugin" && typeof sendNotePluginBackOrReturn === "function") sendNotePluginBackOrReturn();
+  else if (target === "note-plugin-outer" && typeof restoreNotePluginReturnRoute === "function") restoreNotePluginReturnRoute();
   else if (target === "plugin-context-home" && typeof exitPluginContextToTopicHome === "function") exitPluginContextToTopicHome();
   else if (target === "automation") openAutomationList();
   else if (target === "automation-secondary") closeAutomationSecondarySurface();

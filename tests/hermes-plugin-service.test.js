@@ -9,6 +9,7 @@ const {
   DEFAULT_EMAIL_PLUGIN_MANIFEST_URL,
   DEFAULT_FINANCE_PLUGIN_MANIFEST_URL,
   DEFAULT_HEALTH_PLUGIN_MANIFEST_URL,
+  DEFAULT_NOTE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   configuredPlugins,
   createHermesPluginService,
@@ -17,6 +18,7 @@ const {
   findEmailAccessKeyPath,
   findFinanceAccessKeyPath,
   findHealthAccessKeyPath,
+  findNoteAccessKeyPath,
   findWardrobeAccessKeyPath,
   frameAncestorsAllows,
   normalizeManifest,
@@ -224,6 +226,51 @@ function sampleHealthManifest() {
   };
 }
 
+function sampleNoteManifest() {
+  return {
+    id: "note",
+    title: "笔记",
+    kind: "embedded_app",
+    entry: {
+      type: "web",
+      url: "http://127.0.0.1:4181/note.html?embed=hermes",
+    },
+    launch: {
+      supported: true,
+      endpoint: "/api/v1/hermes/plugin/launch",
+      method: "POST",
+      token_ttl_seconds: 300,
+    },
+    provisioning: {
+      supported: true,
+      mode: "workspace_binding",
+      endpoint: "/api/v1/hermes/plugin/workspaces",
+    },
+    navigation: {
+      state_event: "note.plugin.navigation",
+      back_event: "hermes.plugin.back",
+      back_result_event: "note.plugin.back_result",
+      refresh_required_event: "note.plugin.refresh_required",
+      preserve_iframe_state: true,
+    },
+    mcp: {
+      server: "note",
+      toolset: "note",
+      required_tools: ["mcp_note_notes_search", "mcp_note_notes_create"],
+    },
+    toolsets: ["note"],
+    owner_binding: {
+      strategy: "workspace_generated_access_key_hash",
+      config_file: ".hermes-note/config.json",
+      access_key_file: ".hermes-note/access-key.txt",
+      raw_key_returned_by_note: false,
+    },
+    permissions: {
+      plugin: ["notes:read", "notes:write", "notes:search"],
+    },
+  };
+}
+
 function testNormalizeManifest() {
   const manifest = normalizeManifest(sampleManifest(), {
     id: "wardrobe",
@@ -328,6 +375,30 @@ function testNormalizeHealthManifest() {
   assert.equal(manifest.embedding.backResultEvent, "health.plugin.back_result");
   assert.equal(manifest.embedding.refreshRequiredEvent, "health.plugin.refresh_required");
   assert.equal(manifest.ownerBinding.configFile, ".hermes-health/config.json");
+  assert.equal(manifest.ownerBinding.rawKeyReturned, false);
+  assert.equal(Object.hasOwn(manifest.ownerBinding, "access_key_file"), false);
+}
+
+function testNormalizeNoteManifest() {
+  const manifest = normalizeManifest(sampleNoteManifest(), {
+    id: "note",
+    manifestUrl: "http://127.0.0.1:4181/api/v1/hermes/plugin/manifest",
+    fetchedAt: "2026-06-03T00:00:00.000Z",
+  });
+  assert.equal(manifest.id, "note");
+  assert.equal(manifest.kind, "embedded_app");
+  assert.equal(manifest.entry.url, "http://127.0.0.1:4181/note.html?embed=hermes");
+  assert.equal(manifest.programApi.baseUrl, "http://127.0.0.1:4181/");
+  assert.equal(manifest.programApi.pluginLaunchPath, "http://127.0.0.1:4181/api/v1/hermes/plugin/launch");
+  assert.equal(manifest.programApi.workspaceRegistrationPath, "/api/v1/hermes/plugin/workspaces");
+  assert.equal(manifest.mcp.server, "note");
+  assert.equal(manifest.mcp.toolset, "note");
+  assert.deepEqual(manifest.mcp.toolsets, ["note"]);
+  assert.deepEqual(manifest.mcp.requiredTools, ["mcp_note_notes_search", "mcp_note_notes_create"]);
+  assert.equal(manifest.embedding.stateEvent, "note.plugin.navigation");
+  assert.equal(manifest.embedding.backResultEvent, "note.plugin.back_result");
+  assert.equal(manifest.embedding.refreshRequiredEvent, "note.plugin.refresh_required");
+  assert.equal(manifest.ownerBinding.configFile, ".hermes-note/config.json");
   assert.equal(manifest.ownerBinding.rawKeyReturned, false);
   assert.equal(Object.hasOwn(manifest.ownerBinding, "access_key_file"), false);
 }
@@ -860,6 +931,87 @@ async function testHealthGrantProvisionsWorkspaceKeyHashConfigAndLaunch() {
     hermes_workspace_id: "weixin_health",
   });
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"launch_token"|"workspace_key"|hhlt_/);
+}
+
+async function testNoteGrantProvisionsWorkspaceKeyHashConfigAndLaunch() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-note-grant-"));
+  const ownerKeyPath = path.join(dir, "note-owner-key.txt");
+  fs.writeFileSync(ownerKeyPath, "note-owner-test-key\n", "utf8");
+  const calls = [];
+  const service = createHermesPluginService({
+    dataDir: dir,
+    env: {},
+    noteOwnerKeyPath: ownerKeyPath,
+    plugins: [{ id: "note", manifestUrl: "http://127.0.0.1:4181/api/v1/hermes/plugin/manifest" }],
+    fetch(url, options = {}) {
+      calls.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      if (url.endsWith("/api/v1/hermes/plugin/workspaces")) {
+        assert.equal(options.headers.Authorization, "Bearer note-owner-test-key");
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            ok: true,
+            workspace_id: "note:weixin_note",
+            hermes_workspace_id: "weixin_note",
+          }),
+        });
+      }
+      if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(sampleNoteManifest()) });
+      }
+      if (url.endsWith("/api/v1/hermes/plugin/launch")) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ entry_path: "/note.html?embed=hermes&launch=note_once", expires_in: 300 }) });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+  const granted = await service.grantWorkspace({ id: "note", workspaceId: "weixin_note", displayName: "Note User" });
+  assert.equal(granted.ok, true);
+  assert.equal(granted.record.provisioningStatus, "active");
+  assert.equal(granted.provisioning.noteWorkspaceId, "note:weixin_note");
+  assert.equal(service.list({ workspaceId: "weixin_note" }).find((item) => item.id === "note").id, "note");
+
+  const keyPath = path.join(dir, "drive", "users", "weixin_note", ".hermes-note", "access-key.txt");
+  const configPath = path.join(dir, "drive", "users", "weixin_note", ".hermes-note", "config.json");
+  assert.equal(fs.existsSync(keyPath), true);
+  assert.equal(fs.existsSync(configPath), true);
+  const rawKey = fs.readFileSync(keyPath, "utf8").trim();
+  assert.match(rawKey, /^hnt_/);
+  const registrationCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/workspaces"));
+  assert.ok(registrationCall);
+  assert.equal(registrationCall.body.workspace_id, "note:weixin_note");
+  assert.equal(registrationCall.body.target_workspace_id, "weixin_note");
+  assert.equal(registrationCall.body.hermes_workspace_id, "weixin_note");
+  assert.match(registrationCall.body.access_key_hash, /^[a-f0-9]{64}$/);
+  assert.equal(JSON.stringify(registrationCall.body).includes(rawKey), false);
+  const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  assert.equal(config.api_base_url, "http://127.0.0.1:4181");
+  assert.equal(config.workspace_id, "note:weixin_note");
+  assert.equal(config.hermes_workspace_id, "weixin_note");
+  assert.equal(config.access_key_file, "access-key.txt");
+  assert.equal(JSON.stringify(config).includes(rawKey), false);
+
+  const manifest = await service.manifest({
+    id: "note",
+    workspaceId: "weixin_note",
+    ownerAuthorized: true,
+    launchPlugin: true,
+  });
+  assert.equal(manifest.available, true);
+  assert.equal(
+    manifest.entry.url,
+    "/api/hermes-plugins/note/proxy/note.html?embed=hermes&launch=note_once&workspaceId=weixin_note",
+  );
+  assert.equal(manifest.embed.expiresIn, 300);
+  const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
+  assert.ok(launchCall);
+  assert.equal(launchCall.options.headers.Authorization, `Bearer ${rawKey}`);
+  assert.deepEqual(launchCall.body, {
+    workspace_id: "note:weixin_note",
+    target_workspace_id: "weixin_note",
+  });
+  assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"launch_token"|"workspace_key"|hnt_/);
 }
 
 async function testHealthOwnerGrantProvisionsWorkspaceBeforeManifest() {
@@ -1742,6 +1894,11 @@ function testFindHealthAccessKeyPath() {
   assert.equal(findHealthAccessKeyPath({ workspaceId: "owner" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
 }
 
+function testFindNoteAccessKeyPath() {
+  assert.equal(findNoteAccessKeyPath({ noteAccessKeyPath: __filename }), __filename);
+  assert.equal(findNoteAccessKeyPath({ workspaceId: "owner" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
+}
+
 async function testReviewFinanceLedgerJoinRequestUsesDedicatedFinanceEndpoint() {
   const calls = [];
   const result = await reviewFinanceLedgerJoinRequest({
@@ -1782,6 +1939,7 @@ async function run() {
   testNormalizeFinanceManifest();
   testNormalizeEmailManifest();
   testNormalizeHealthManifest();
+  testNormalizeNoteManifest();
   testNormalizePluginAppearance();
   testFrameAncestorsAllowsCurrentOrigin();
   await testFetchesConfiguredWardrobeManifest();
@@ -1799,6 +1957,7 @@ async function run() {
   await testFinanceOwnerManifestProvisionsWorkspaceLocalMcpConfig();
   await testFinanceOwnerProvisioningFailureBlocksManifest();
   await testHealthGrantProvisionsWorkspaceKeyHashConfigAndLaunch();
+  await testNoteGrantProvisionsWorkspaceKeyHashConfigAndLaunch();
   await testHealthOwnerGrantProvisionsWorkspaceBeforeManifest();
   await testHealthOwnerGrantMissingRegistrationKeyDoesNotBecomeActive();
   await testEmailGrantProvisionsWorkspaceRegistrationAndLaunch();
@@ -1823,6 +1982,7 @@ async function run() {
   testFindFinanceAccessKeyPath();
   testFindEmailAccessKeyPath();
   testFindHealthAccessKeyPath();
+  testFindNoteAccessKeyPath();
   await testReviewFinanceLedgerJoinRequestUsesDedicatedFinanceEndpoint();
 }
 

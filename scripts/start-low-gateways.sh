@@ -181,10 +181,22 @@ owner_wardrobe_workspace_override="${HERMES_MOBILE_OWNER_WARDROBE_WORKSPACE:-}"
 wuping_wardrobe_workspace_override="${HERMES_MOBILE_WUPING_WARDROBE_WORKSPACE:-}"
 finance_mcp_python="${HERMES_MOBILE_FINANCE_MCP_PYTHON:-/opt/hermes-gateway-runtime/venv/bin/python}"
 finance_mcp_path="${HERMES_MOBILE_FINANCE_MCP_PATH:-$gateway_worker_root/finance-mcp/scripts/finance_mcp_stdio.py}"
-finance_mcp_api_base_url="${HERMES_MOBILE_FINANCE_MCP_API_BASE_URL:-http://127.0.0.1:8791}"
+note_mcp_python="${HERMES_MOBILE_NOTE_MCP_PYTHON:-/opt/hermes-gateway-runtime/venv/bin/python}"
+note_mcp_path="${HERMES_MOBILE_NOTE_MCP_PATH:-$gateway_worker_root/note-mcp/scripts/note_mcp_stdio.py}"
+default_finance_mcp_api_base_url="http://127.0.0.1:8791"
+default_note_mcp_api_base_url="http://127.0.0.1:4181"
+if [[ "$gateway_worker_root" == /mnt/* ]] && [ -n "${windows_host_gateway:-}" ]; then
+  default_finance_mcp_api_base_url="http://${windows_host_gateway}:8791"
+  default_note_mcp_api_base_url="http://${windows_host_gateway}:4181"
+fi
+finance_mcp_api_base_url="${HERMES_MOBILE_FINANCE_MCP_API_BASE_URL:-$default_finance_mcp_api_base_url}"
+note_mcp_api_base_url="${HERMES_MOBILE_NOTE_MCP_API_BASE_URL:-$default_note_mcp_api_base_url}"
 finance_user_drive_root="${HERMES_MOBILE_FINANCE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_finance_workspace_override="${HERMES_MOBILE_OWNER_FINANCE_WORKSPACE:-}"
 wuping_finance_workspace_override="${HERMES_MOBILE_WUPING_FINANCE_WORKSPACE:-}"
+note_user_drive_root="${HERMES_MOBILE_NOTE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
+owner_note_workspace_override="${HERMES_MOBILE_OWNER_NOTE_WORKSPACE:-}"
+wuping_note_workspace_override="${HERMES_MOBILE_WUPING_NOTE_WORKSPACE:-}"
 
 if ! id -u "$worker_user" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "$worker_user"
@@ -264,6 +276,11 @@ compute_configure_signature() {
     --value "finance_user_drive_root=$finance_user_drive_root" \
     --value "owner_finance_workspace_override=$owner_finance_workspace_override" \
     --value "wuping_finance_workspace_override=$wuping_finance_workspace_override" \
+    --value "note_mcp_python=$note_mcp_python" \
+    --value "note_mcp_api_base_url=$note_mcp_api_base_url" \
+    --value "note_user_drive_root=$note_user_drive_root" \
+    --value "owner_note_workspace_override=$owner_note_workspace_override" \
+    --value "wuping_note_workspace_override=$wuping_note_workspace_override" \
     --path "$configure_low_gateway_script" \
     --path "$gateway_pool_manifest_path" \
     --path "$runtime_overrides_source" \
@@ -277,6 +294,7 @@ compute_configure_signature() {
     --path "$cronjob_plugin_source" \
     --path "$wardrobe_mcp_path" \
     --path "$finance_mcp_path" \
+    --path "$note_mcp_path" \
     --path "$outlook_graph_mcp_path" <<'PY'
 import hashlib
 import os

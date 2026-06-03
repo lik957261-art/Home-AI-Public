@@ -1,6 +1,6 @@
 "use strict";
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260530-wardrobe-mcp-request-toolsets-v2";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260603-plugin-mcp-finance-health-v3";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
@@ -54,6 +54,16 @@ function createGatewayRunInstructionService(options = {}) {
         "mcp_wardrobe_wardrobe_set_primary_photo",
         "mcp_wardrobe_wardrobe_get_item",
         "mcp_wardrobe_wardrobe_search_items",
+      ],
+      finance: [
+        "mcp_finance_list_ledgers",
+        "mcp_finance_list_transactions",
+        "mcp_finance_get_summary",
+        "mcp_finance_get_report",
+        "mcp_finance_create_transaction",
+      ],
+      health: [
+        "mcp_health_records_get_summary",
       ],
       messaging: ["send_message"],
       tts: ["text_to_speech"],
@@ -204,6 +214,20 @@ function createGatewayRunInstructionService(options = {}) {
         "For wardrobe ingest, writeback, photo upload, primary-photo updates, and readback verification, use the `mcp_wardrobe_*` callable functions when they are present.",
         "Do not report that the run lacks wardrobe capability solely because an older conversation turn said only file or vision tools were available. Check the current run's callable functions first.",
         "If `Enabled toolsets` includes `wardrobe` but the current callable schema still lacks `mcp_wardrobe_*`, treat that as a Gateway schema mismatch and request toolset/schema recovery instead of pretending the write completed."
+      );
+    }
+    if (policyHasToolset(policy, "finance")) {
+      lines.push(
+        "Current tool schema override: the `finance` toolset is enabled for this run. Callable function names normally begin with `mcp_finance_`, including `mcp_finance_list_ledgers`, `mcp_finance_list_transactions`, `mcp_finance_get_summary`, `mcp_finance_get_report`, and `mcp_finance_create_transaction`.",
+        "For ledger lookup, annual/monthly spending analysis, transaction search, reports, and Finance writeback, use the `mcp_finance_*` callable functions when they are present.",
+        "Do not report that Finance MCP is unavailable solely because older conversation_history said it was missing. Check the current run's callable functions first.",
+        "If `Enabled toolsets` includes `finance` but the current callable schema still lacks `mcp_finance_*`, treat that as a Gateway schema mismatch and request toolset/schema recovery instead of falling back to cleaned files as an MCP result."
+      );
+    }
+    if (policyHasToolset(policy, "health")) {
+      lines.push(
+        "Current tool schema override: the `health` toolset is enabled for this run. Callable function names normally begin with `mcp_health_`, including `mcp_health_records_get_summary` when the plugin wrapper exposes local tool names correctly.",
+        "If Health callables are double-prefixed such as `mcp_health_mcp_health_records_get_summary`, treat that as a plugin wrapper naming bug rather than a valid callable contract."
       );
     }
     return lines.join("\n");

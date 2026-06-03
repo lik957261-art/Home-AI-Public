@@ -3,6 +3,9 @@ set -eu
 
 ROOT="${HERMES_MOBILE_NAS_ROOT:-/volume1/docker/hermes-mobile}"
 HERMES_BIN="${HERMES_MOBILE_NAS_HERMES_BIN:-/var/services/homes/xuxinxp/.local/bin/hermes}"
+HERMES_AGENT_CURRENT="${HERMES_MOBILE_NAS_HERMES_AGENT_CURRENT:-/volume1/docker/hermes-agent/current}"
+GATEWAY_RUNTIME_OVERRIDES="${HERMES_MOBILE_NAS_GATEWAY_RUNTIME_OVERRIDES:-$ROOT/app/gateway-runtime-overrides}"
+OFFICIAL_CLEAN_PATH="${HERMES_MOBILE_NAS_OFFICIAL_CLEAN_PATH:-$HERMES_AGENT_CURRENT}"
 BASE_HOME="${HERMES_MOBILE_NAS_BASE_HERMES_HOME:-/var/services/homes/xuxinxp/.hermes}"
 PROFILES_ROOT="${HERMES_MOBILE_NAS_GATEWAY_PROFILES_ROOT:-$ROOT/gateway-worker/profiles}"
 MANIFEST_PATH="${HERMES_MOBILE_NAS_GATEWAY_MANIFEST:-$ROOT/data/gateway-pool-manifest.nas-native.json}"
@@ -13,6 +16,11 @@ WARDROBE_MCP_PATH="${HERMES_MOBILE_NAS_WARDROBE_MCP_PATH:-/volume1/docker/wardro
 FINANCE_MCP_PYTHON="${HERMES_MOBILE_NAS_FINANCE_MCP_PYTHON:-/usr/bin/python3}"
 FINANCE_MCP_PATH="${HERMES_MOBILE_NAS_FINANCE_MCP_PATH:-/volume1/docker/finance-mcp/source/scripts/finance_mcp_stdio.py}"
 FINANCE_MCP_API_BASE_URL="${HERMES_MOBILE_NAS_FINANCE_MCP_API_BASE_URL:-http://127.0.0.1:8791}"
+HEALTH_MCP_NODE="${HERMES_MOBILE_NAS_HEALTH_MCP_NODE:-/volume1/docker/hermes-mobile/runtime/node-v22.22.3-linux-x64/bin/node}"
+HEALTH_MCP_PATH="${HERMES_MOBILE_NAS_HEALTH_MCP_PATH:-/volume1/docker/healthy/app/scripts/mcp-health-wrapper.js}"
+NOTE_MCP_PYTHON="${HERMES_MOBILE_NAS_NOTE_MCP_PYTHON:-/usr/bin/python3}"
+NOTE_MCP_PATH="${HERMES_MOBILE_NAS_NOTE_MCP_PATH:-/volume1/docker/note/source/scripts/note_mcp_stdio.py}"
+NOTE_MCP_API_BASE_URL="${HERMES_MOBILE_NAS_NOTE_MCP_API_BASE_URL:-http://127.0.0.1:4181}"
 DEFAULT_OPENAI_CODEX_MODEL="${HERMES_MOBILE_DEFAULT_OPENAI_CODEX_MODEL:-${HERMES_WEB_DEFAULT_OPENAI_CODEX_MODEL:-gpt-5.5}}"
 DEFAULT_DEEPSEEK_MODEL="${HERMES_MOBILE_DEFAULT_DEEPSEEK_MODEL:-${HERMES_WEB_DEFAULT_DEEPSEEK_MODEL:-deepseek-chat}}"
 DEFAULT_XAI_MODEL="${HERMES_MOBILE_DEFAULT_XAI_MODEL:-${HERMES_WEB_DEFAULT_XAI_MODEL:-grok-4.3}}"
@@ -55,7 +63,7 @@ done
 
 mkdir -p "$PROFILES_ROOT" "$(dirname "$MANIFEST_PATH")" "$SKILL_PROFILES_ROOT" "$MEMORY_PROFILES_ROOT"
 
-python3 - "$ROOT" "$BASE_HOME" "$PROFILES_ROOT" "$MANIFEST_PATH" "$WORKERS" "$SKILL_PROFILES_ROOT" "$MEMORY_PROFILES_ROOT" "$WARDROBE_MCP_PYTHON" "$WARDROBE_MCP_PATH" "$FINANCE_MCP_PYTHON" "$FINANCE_MCP_PATH" "$FINANCE_MCP_API_BASE_URL" "$GROK_AUTH_PATH" "$GROK_AUTH_LOCK_PATH" <<'PY'
+python3 - "$ROOT" "$BASE_HOME" "$PROFILES_ROOT" "$MANIFEST_PATH" "$WORKERS" "$SKILL_PROFILES_ROOT" "$MEMORY_PROFILES_ROOT" "$WARDROBE_MCP_PYTHON" "$WARDROBE_MCP_PATH" "$FINANCE_MCP_PYTHON" "$FINANCE_MCP_PATH" "$FINANCE_MCP_API_BASE_URL" "$HEALTH_MCP_NODE" "$HEALTH_MCP_PATH" "$NOTE_MCP_PYTHON" "$NOTE_MCP_PATH" "$NOTE_MCP_API_BASE_URL" "$GROK_AUTH_PATH" "$GROK_AUTH_LOCK_PATH" <<'PY'
 import json
 import os
 import secrets
@@ -75,8 +83,13 @@ wardrobe_mcp_path = Path(sys.argv[9])
 finance_mcp_python = sys.argv[10]
 finance_mcp_path = Path(sys.argv[11])
 finance_mcp_api_base_url = sys.argv[12]
-grok_auth_path = Path(sys.argv[13])
-grok_auth_lock_path = Path(sys.argv[14])
+health_mcp_node = sys.argv[13]
+health_mcp_path = Path(sys.argv[14])
+note_mcp_python = sys.argv[15]
+note_mcp_path = Path(sys.argv[16])
+note_mcp_api_base_url = sys.argv[17]
+grok_auth_path = Path(sys.argv[18])
+grok_auth_lock_path = Path(sys.argv[19])
 
 base_config = (base_home / "config.yaml").read_text(encoding="utf-8")
 base_env = (base_home / ".env").read_text(encoding="utf-8")
@@ -196,6 +209,8 @@ def plugin_mcp_config(config_text, profile_home, workspace_root):
     config = remove_mcp_servers(config_text)
     config = strip_plugin_toolset(config, "wardrobe")
     config = strip_plugin_toolset(config, "finance")
+    config = strip_plugin_toolset(config, "health")
+    config = strip_plugin_toolset(config, "note")
     blocks = []
     wardrobe_workspace = first_plugin_workspace(workspace_root, ".hermes-wardrobe", ["access-key.txt", "workspace-key.txt"])
     if wardrobe_workspace and wardrobe_mcp_path.exists():
@@ -224,6 +239,38 @@ def plugin_mcp_config(config_text, profile_home, workspace_root):
       - --no-workspace-override
       - --api-base-url
       - {finance_mcp_api_base_url}
+    env:
+      HERMES_HOME: {profile_home}
+    enabled: true
+    timeout: 180
+    connect_timeout: 60""")
+    health_workspace = first_plugin_workspace(workspace_root, ".hermes-health", ["access-key.txt", "workspace-key.txt"])
+    if health_workspace and health_mcp_path.exists():
+        config = append_toolset(config, "health")
+        blocks.append(f"""  health:
+    command: {health_mcp_node}
+    args:
+      - {health_mcp_path}
+      - --workspace
+      - {health_workspace}
+      - --no-workspace-override
+    env:
+      HERMES_HOME: {profile_home}
+    enabled: true
+    timeout: 180
+    connect_timeout: 60""")
+    note_workspace = first_plugin_workspace(workspace_root, ".hermes-note", ["access-key.txt"])
+    if note_workspace and note_mcp_path.exists():
+        config = append_toolset(config, "note")
+        blocks.append(f"""  note:
+    command: {note_mcp_python}
+    args:
+      - {note_mcp_path}
+      - --workspace
+      - {note_workspace}
+      - --no-workspace-override
+      - --api-base-url
+      - {note_mcp_api_base_url}
     env:
       HERMES_HOME: {profile_home}
     enabled: true
@@ -450,6 +497,9 @@ for profile in $(printf '%s' "$START_PROFILES" | tr ',' ' '); do
     HOME="$HOME" \
     HERMES_HOME="$profile_home" \
     HERMES_PROFILE="$profile" \
+    HERMES_MOBILE_OFFICIAL_CLEAN_PATH="$OFFICIAL_CLEAN_PATH" \
+    HERMES_MOBILE_MCP_INVENTORY_LOG="$ROOT/runtime/logs/mcp-inventory.log" \
+    PYTHONPATH="$GATEWAY_RUNTIME_OVERRIDES:$HERMES_AGENT_CURRENT${PYTHONPATH:+:$PYTHONPATH}" \
     "$HERMES_BIN" gateway run --replace \
     >"$profile_home/logs/gateway.log" 2>&1 &
 done

@@ -148,6 +148,54 @@ Required practice:
 
 ## H1 Required Harness
 
+### macOS Production Deployment And Workspace Isolation
+
+Applies to the Mac Studio production installer, launchd service generation,
+Mac-native Gateway startup, workspace OS-user isolation, plugin MCP binding,
+network-mode selection, and first-start preflight.
+
+Required harness dimensions:
+
+- macOS is Darwin/BSD Unix, not Linux. Installer and runbook checks must use
+  launchd-oriented service definitions and must not assume systemd, WSL,
+  Linux namespace behavior, or Windows Task Scheduler.
+- The installer must create or verify a host/control user, such as
+  `hermes-host`, and one OS user per production workspace, such as `hm-owner`,
+  `hm-wuping`, `hm-stephen`, and `hm-xuyan`.
+- Workspace private roots must be owned by their workspace OS user and be
+  private (`0700` or stricter equivalent). A non-Owner OS user must fail to
+  read Owner files, Owner Skill Store, Owner Memory Store, and Owner
+  `.hermes-<plugin>/access-key.txt`.
+- Gateway workers and MCP wrappers must run as the effective workspace OS user.
+  Owner switching into another workspace must select that workspace's worker
+  and MCP bindings rather than an Owner worker.
+- Plugin services may be shared application services, but Hermes-facing plugin
+  identity must remain workspace-local. MCP wrappers must pass the target
+  workspace root plus `--no-workspace-override` and must not accept model-side
+  workspace/key overrides.
+- Missing plugin config/key must omit the plugin toolset or produce a bounded
+  diagnostic. Falling back to Owner plugin MCP is a failing H1 case.
+- The installer must support explicit `direct` and `proxy` network modes.
+  Direct mode proves model egress through the host/router without requiring
+  process proxy env. Proxy mode requires a reachable configured proxy and
+  retains fail-closed CRON behavior before official `cron.scheduler.run_job()`.
+- launchd services must use explicit absolute command paths, working
+  directories, environment variables, and log paths. They must not depend on
+  `.zshrc`, `.bashrc`, or an interactive shell.
+- First-start preflight must prove listener health, model egress, Owner key
+  storage, workspace users/directories, Gateway worker selection, plugin MCP
+  schema for provisioned plugins, CRON wrapper use, and restart recovery.
+- A clean install may start with no plugin data. Owner must be able to enable
+  plugins on demand through the standard provisioning contract instead of
+  relying on pre-bound development data.
+
+Reference docs:
+
+- `docs/IMPLEMENTATION_NOTES/macos-production-deployment-plan.md`
+- `docs/MODULES/deployment.md`
+- `docs/MODULES/gateway-pool.md`
+- `docs/MODULES/plugins.md`
+
 ### Growth Learning Card Workflow
 
 Applies to teaching cards, practice cards, weekly/stage assessment cards,
@@ -1573,14 +1621,31 @@ Required contract dimensions:
   `expires_in_seconds` launch TTL compatibility, no raw Health registration
   key or workspace key leakage, and no Owner fallback when Owner switches into
   a non-Owner workspace.
+- Note workspace grant is H1 provisioning, not a plain visibility toggle.
+  Granting `note` must create or reuse the target workspace's
+  `.hermes-note/access-key.txt`, write a non-secret sibling `config.json`, call
+  Note's `/api/v1/hermes/plugin/workspaces` registration contract with a
+  server-side registration credential such as `NOTE_REGISTRATION_KEY`, and
+  register only `access_key_hash` with Note. Missing registration credentials
+  must fail closed before writing workspace keys or calling Note. Note MCP must
+  follow the common workspace-local wrapper pattern: the Gateway profile passes
+  the target workspace root, `--no-workspace-override`, and the deployment
+  Note API base, while `note_mcp_stdio.py` reads `.hermes-note/config.json` and
+  `access-key.txt` internally. Harnesses must prove fresh-install
+  installed-but-inactive projection, Owner explicit provisioning, Note
+  auto-provisioning and failure blocking, top-level `toolsets` plus
+  `mcp.toolset` normalization, launch/provisioning endpoint compatibility,
+  single-prefixed selected-profile callables such as `mcp_note_notes_search`,
+  no raw Note registration key or workspace key leakage, and no Owner fallback
+  when Owner switches into a non-Owner workspace.
 - Generic plugin provisioning status is part of the same contract. A grant may
   enter `pending` only when Hermes owns the automatic provisioning service for
   that plugin. Plugins with manual or external binding must store
   `manual_required`, keep the admin diagnostic visible, and avoid the
   pending/failed launch block unless a real automatic provisioning attempt has
   failed. Harnesses must prove Finance auto-provisioning, Wardrobe
-  auto-provisioning, Email auto-provisioning, Health auto-provisioning, their
-  failure-blocking behavior, and Codex non-grantability.
+  auto-provisioning, Email auto-provisioning, Health auto-provisioning, Note
+  auto-provisioning, their failure-blocking behavior, and Codex non-grantability.
 - Plugin notification events are part of the H1 passive-notification path even
   though the plugin host itself is H2. A plugin backend must call Hermes
   `POST /api/hermes-plugins/<plugin-id>/notifications` with a stable

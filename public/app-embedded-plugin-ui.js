@@ -57,6 +57,20 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
     refreshRequiredEventType: "health.plugin.refresh_required",
     manifestPath: "/api/hermes-plugins/health/manifest",
   }),
+  note: Object.freeze({
+    id: "note",
+    viewMode: "note",
+    title: "\u7b14\u8bb0",
+    label: "\u7b14\u8bb0",
+    bottomButtonId: "bottomNoteMode",
+    appClass: "note-mode",
+    hostId: "notePluginHost",
+    navVisibleClass: "note-visible",
+    navigationEventType: "note.plugin.navigation",
+    backResultEventType: "note.plugin.back_result",
+    refreshRequiredEventType: "note.plugin.refresh_required",
+    manifestPath: "/api/hermes-plugins/note/manifest",
+  }),
 });
 
 function embeddedPluginRecord(pluginId) {
@@ -1060,4 +1074,61 @@ function parkHealthPluginShell() {
 function renderHealthPluginView() {
   updateHealthPluginNavigationAvailability();
   renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS.health);
+}
+
+function updateNotePluginNavigationAvailability() {
+  const def = EMBEDDED_PLUGIN_DEFS.note;
+  const button = $(def.bottomButtonId);
+  const nav = $("bottomNav");
+  const available = embeddedPluginNavigationAvailable(def);
+  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
+    && typeof pluginTopicBottomButtonId === "function"
+    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === def.bottomButtonId;
+  if (button) {
+    button.hidden = !keepPluginContextButton;
+    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
+  }
+  nav?.classList.remove(def.navVisibleClass);
+  if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("note", available);
+  if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
+  return available;
+}
+
+function notePluginBackActive() {
+  return embeddedPluginBackActive(EMBEDDED_PLUGIN_DEFS.note);
+}
+
+function notePluginOuterBackActive() {
+  return embeddedPluginOuterBackActive(EMBEDDED_PLUGIN_DEFS.note);
+}
+
+function rememberNotePluginReturnRoute() {
+  return rememberEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS.note);
+}
+
+function setNotePluginOpenRoute(route = {}) {
+  return setEmbeddedPluginOpenRoute(EMBEDDED_PLUGIN_DEFS.note, route);
+}
+
+function restoreNotePluginReturnRoute() {
+  return restoreEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS.note);
+}
+
+function sendNotePluginBack() {
+  return sendEmbeddedPluginBack(EMBEDDED_PLUGIN_DEFS.note);
+}
+
+function sendNotePluginBackOrReturn() {
+  if (sendNotePluginBack()) return true;
+  if (typeof pluginContextBackNavigationActive === "function" && pluginContextBackNavigationActive()) return false;
+  return restoreNotePluginReturnRoute();
+}
+
+function parkNotePluginShell() {
+  return parkEmbeddedPluginShell(EMBEDDED_PLUGIN_DEFS.note);
+}
+
+function renderNotePluginView() {
+  updateNotePluginNavigationAvailability();
+  renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS.note);
 }

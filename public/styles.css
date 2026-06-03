@@ -1360,7 +1360,8 @@ button {
 
 .codex-mode .conversation,
 .email-mode .conversation,
-.health-mode .conversation {
+.health-mode .conversation,
+.note-mode .conversation {
   padding: 0;
   overflow: hidden;
   background: var(--ui-page);
@@ -1657,6 +1658,29 @@ button {
   border-left: 1.8px solid currentColor;
   border-bottom: 1.8px solid currentColor;
   transform: rotate(-45deg);
+}
+
+.nav-note-icon::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 5px;
+  width: 15px;
+  height: 19px;
+  border: 1.8px solid currentColor;
+  border-radius: 4px;
+}
+
+.nav-note-icon::after {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 10px;
+  width: 8px;
+  height: 9px;
+  border-top: 1.8px solid currentColor;
+  border-bottom: 1.8px solid currentColor;
+  box-shadow: 0 4px 0 -2px currentColor;
 }
 
 .nav-todo-icon::before {
@@ -2092,6 +2116,7 @@ button {
 .finance-mode .composer,
 .email-mode .composer,
 .health-mode .composer,
+.note-mode .composer,
 .codex-mode .composer {
   display: none;
 }
@@ -5362,7 +5387,8 @@ button.directory-alias-chip {
 .plugin-context-nav-mode #bottomWardrobeMode,
 .plugin-context-nav-mode #bottomFinanceMode,
 .plugin-context-nav-mode #bottomEmailMode,
-.plugin-context-nav-mode #bottomHealthMode {
+.plugin-context-nav-mode #bottomHealthMode,
+.plugin-context-nav-mode #bottomNoteMode {
   order: 2;
 }
 
@@ -5474,6 +5500,10 @@ button.directory-alias-chip {
 
 .plugin-topic-app-icon.health {
   background: linear-gradient(135deg, #dcf7ea 0%, #4ebd89 48%, #19765a 100%);
+}
+
+.plugin-topic-app-icon.note {
+  background: linear-gradient(135deg, #fff4bf 0%, #f2c94c 50%, #9b6b19 100%);
 }
 
 .plugin-topic-app-icon.directory {

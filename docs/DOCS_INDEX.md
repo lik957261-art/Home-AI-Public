@@ -19,6 +19,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Gateway Pool manifest reference: `docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md`
 - Public install/deploy checklist: `docs/PUBLIC_INSTALLATION_CHECKLIST.md`
 - NAS deployment plan: `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`
+- macOS production deployment plan: `docs/IMPLEMENTATION_NOTES/macos-production-deployment-plan.md`
 - NAS first-start deploy harness: `tests/nas-deploy-harness.test.js`
 - Screenshot-to-code debug map: `docs/SCREENSHOT_DEBUG_MAP.md`
 - Module-to-test matrix: `docs/TEST_MATRIX.md`
@@ -79,6 +80,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Plugin topic binding: `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md`
 - Directory topic collections: `docs/IMPLEMENTATION_NOTES/directory-topic-collections.md`
 - NAS deployment plan: `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`
+- macOS production deployment plan: `docs/IMPLEMENTATION_NOTES/macos-production-deployment-plan.md`
 - Cross-module harness required matrix: `docs/IMPLEMENTATION_NOTES/harness-required-matrix.md`
 - Async Growth evaluation queue: `docs/IMPLEMENTATION_NOTES/async-growth-evaluation-queue.md`
 - Maintenance Gateway watchdog: `docs/IMPLEMENTATION_NOTES/maintenance-gateway-watchdog.md`

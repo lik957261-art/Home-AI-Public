@@ -27,7 +27,7 @@ function testPolicySummaryIncludesCallableToolHints() {
     principal_id: "owner",
     default_workspace: "C:/workspace",
     allowed_roots: ["C:/workspace", "D:/shared"],
-    allowed_toolsets: ["http", "file", "image_gen", "x_search", "cronjob", "wardrobe", "http"],
+    allowed_toolsets: ["http", "file", "image_gen", "x_search", "cronjob", "wardrobe", "finance", "health", "http"],
     connector_profiles: { google: {}, outlook: {} },
   });
 
@@ -39,6 +39,8 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /x_search -> x_search/);
   assert.match(summary, /cronjob -> cronjob_mobile, http_request, cronjob/);
   assert.match(summary, /wardrobe -> mcp_wardrobe_wardrobe_write_item, mcp_wardrobe_wardrobe_write_history, mcp_wardrobe_wardrobe_upload_photo, mcp_wardrobe_wardrobe_set_primary_photo, mcp_wardrobe_wardrobe_get_item, mcp_wardrobe_wardrobe_search_items/);
+  assert.match(summary, /finance -> mcp_finance_list_ledgers, mcp_finance_list_transactions, mcp_finance_get_summary, mcp_finance_get_report, mcp_finance_create_transaction/);
+  assert.match(summary, /health -> mcp_health_records_get_summary/);
   assert.match(summary, /For HTTP\/API Program calls, use `http_request`/);
   assert.match(summary, /http_request\.file_body/);
   assert.match(summary, /http_request\.multipart_files/);
@@ -52,7 +54,7 @@ function testPolicySummaryIncludesCallableToolHints() {
 function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   const service = createService();
   const text = service.currentToolSchemaOverrideInstructions({
-    allowed_toolsets: ["http", "file", "web", "search", "x_search", "image_gen", "cronjob", "wardrobe"],
+    allowed_toolsets: ["http", "file", "web", "search", "x_search", "image_gen", "cronjob", "wardrobe", "finance", "health"],
   });
 
   assert.match(text, /`http` toolset is enabled/);
@@ -76,6 +78,11 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /`wardrobe` toolset is enabled/);
   assert.match(text, /`mcp_wardrobe_wardrobe_write_item`/);
   assert.match(text, /`mcp_wardrobe_wardrobe_write_history`/);
+  assert.match(text, /`finance` toolset is enabled/);
+  assert.match(text, /`mcp_finance_list_ledgers`/);
+  assert.match(text, /falling back to cleaned files as an MCP result/);
+  assert.match(text, /`health` toolset is enabled/);
+  assert.match(text, /double-prefixed/);
   assert.match(text, /Gateway schema mismatch/);
 }
 
@@ -114,19 +121,19 @@ function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
 
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["file"] }),
-    "session_a_group_1_20260530-wardrobe-mcp-request-toolsets-v2_file",
+    "session_a_group_1_20260603-plugin-mcp-finance-health-v3_file",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["memory"] }),
-    "session_a_group_1_20260530-wardrobe-mcp-request-toolsets-v2_memory",
+    "session_a_group_1_20260603-plugin-mcp-finance-health-v3_memory",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["x_search"] }),
-    "session_a_group_1_20260530-wardrobe-mcp-request-toolsets-v2_x_search",
+    "session_a_group_1_20260603-plugin-mcp-finance-health-v3_x_search",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["vision", "wardrobe", "file"] }),
-    "session_a_group_1_20260530-wardrobe-mcp-request-toolsets-v2_file-vision-wardrobe",
+    "session_a_group_1_20260603-plugin-mcp-finance-health-v3_file-vision-wardrobe",
   );
 }
 

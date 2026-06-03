@@ -24,13 +24,85 @@ if ($SkipConfigureIfReady) { $envArgs += "HERMES_GATEWAY_SKIP_CONFIGURE_IF_READY
 if ($ForceConfigure) { $envArgs += "HERMES_GATEWAY_FORCE_CONFIGURE=1" }
 if ($StopOnly) { $envArgs += "HERMES_GATEWAY_STOP_ONLY=1" }
 
+function Resolve-DefaultFinanceMcpApiBaseUrl {
+  $configured = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_FINANCE_MCP_API_BASE_URL", "Process")
+  if ($configured) { return $configured }
+  $port = [Environment]::GetEnvironmentVariable("FINANCE_MCP_PORT", "Process")
+  if (-not $port) { $port = "8791" }
+  $addresses = @()
+  try {
+    $addresses = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
+      Where-Object {
+        $_.IPAddress -and
+        $_.IPAddress -ne "127.0.0.1" -and
+        $_.IPAddress -notmatch "^169\.254\." -and
+        ($_.AddressState -eq "Preferred" -or -not $_.AddressState)
+      } |
+      Select-Object -ExpandProperty IPAddress)
+  } catch {
+    $addresses = @()
+  }
+  $preferred = @($addresses | Where-Object { $_ -match "^192\.168\.10\." } | Select-Object -First 1)
+  if ($preferred.Count -eq 0) {
+    $preferred = @($addresses | Where-Object { $_ -match "^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)" } | Select-Object -First 1)
+  }
+  if ($preferred.Count -eq 0) { return "" }
+  return "http://$($preferred[0]):$port"
+}
+
+function Resolve-DefaultNoteMcpApiBaseUrl {
+  $configured = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_NOTE_MCP_API_BASE_URL", "Process")
+  if ($configured) { return $configured }
+  $port = [Environment]::GetEnvironmentVariable("NOTE_MCP_PORT", "Process")
+  if (-not $port) { $port = "4181" }
+  $addresses = @()
+  try {
+    $addresses = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
+      Where-Object {
+        $_.IPAddress -and
+        $_.IPAddress -ne "127.0.0.1" -and
+        $_.IPAddress -notmatch "^169\.254\." -and
+        ($_.AddressState -eq "Preferred" -or -not $_.AddressState)
+      } |
+      Select-Object -ExpandProperty IPAddress)
+  } catch {
+    $addresses = @()
+  }
+  $preferred = @($addresses | Where-Object { $_ -match "^192\.168\.10\." } | Select-Object -First 1)
+  if ($preferred.Count -eq 0) {
+    $preferred = @($addresses | Where-Object { $_ -match "^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)" } | Select-Object -First 1)
+  }
+  if ($preferred.Count -eq 0) { return "" }
+  return "http://$($preferred[0]):$port"
+}
+
+if (-not [Environment]::GetEnvironmentVariable("HERMES_MOBILE_FINANCE_MCP_API_BASE_URL", "Process")) {
+  $financeApiBase = Resolve-DefaultFinanceMcpApiBaseUrl
+  if ($financeApiBase) {
+    [Environment]::SetEnvironmentVariable("HERMES_MOBILE_FINANCE_MCP_API_BASE_URL", $financeApiBase, "Process")
+  }
+}
+
+if (-not [Environment]::GetEnvironmentVariable("HERMES_MOBILE_NOTE_MCP_API_BASE_URL", "Process")) {
+  $noteApiBase = Resolve-DefaultNoteMcpApiBaseUrl
+  if ($noteApiBase) {
+    [Environment]::SetEnvironmentVariable("HERMES_MOBILE_NOTE_MCP_API_BASE_URL", $noteApiBase, "Process")
+  }
+}
+
 $passthroughEnvNames = @(
   "HERMES_MOBILE_FINANCE_MCP_API_BASE_URL",
   "HERMES_MOBILE_FINANCE_MCP_PATH",
   "HERMES_MOBILE_FINANCE_MCP_PYTHON",
   "HERMES_MOBILE_FINANCE_USER_DRIVE_ROOT",
   "HERMES_MOBILE_OWNER_FINANCE_WORKSPACE",
-  "HERMES_MOBILE_WUPING_FINANCE_WORKSPACE"
+  "HERMES_MOBILE_WUPING_FINANCE_WORKSPACE",
+  "HERMES_MOBILE_NOTE_MCP_API_BASE_URL",
+  "HERMES_MOBILE_NOTE_MCP_PATH",
+  "HERMES_MOBILE_NOTE_MCP_PYTHON",
+  "HERMES_MOBILE_NOTE_USER_DRIVE_ROOT",
+  "HERMES_MOBILE_OWNER_NOTE_WORKSPACE",
+  "HERMES_MOBILE_WUPING_NOTE_WORKSPACE"
 )
 foreach ($name in $passthroughEnvNames) {
   $value = [Environment]::GetEnvironmentVariable($name, "Process")

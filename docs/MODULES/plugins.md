@@ -1,6 +1,6 @@
 # Embedded App Plugins
 
-Last updated: 2026-06-02.
+Last updated: 2026-06-03.
 
 This module describes the Hermes Mobile embedded-app plugin contract. A plugin
 is an external product surface mounted inside Hermes Mobile. Hermes owns the
@@ -12,9 +12,10 @@ Wardrobe is the first production plugin. Codex Mobile Web is the second plugin
 path and is integrated from the local Codex Git repo's Hermes plugin manifest.
 Finance/记账 is the third embedded-app plugin. Email/邮箱 is the fourth
 embedded-app plugin and uses the same generic host, launch, proxy, navigation,
-refresh, appearance, and workspace provisioning contracts. These rules are
-generic and apply to future embedded apps such as watches, health, or other
-private workspace tools.
+refresh, appearance, and workspace provisioning contracts. Health and Note are
+the next standard workspace-private plugins. These rules are generic and apply
+to future embedded apps such as watches, health, notes, or other private
+workspace tools.
 
 Health/健康 is now an embedded-app plugin in the same workspace-private class as
 Wardrobe, Finance, and Email. Hermes Mobile owns its host registration, manifest
@@ -41,6 +42,36 @@ the standard fresh-install plugin enablement example: its manifest may be
 installed and readable while no Hermes workspace, including Owner, is active
 yet. Owner must explicitly open/provision Health before normal list, manifest,
 launch, topic Dock, or MCP projection treats it as usable.
+
+Note follows the same fresh-install and workspace-local provisioning model as
+Health. Hermes Mobile owns manifest normalization, plugin Dock/topic projection,
+same-origin launch/proxy, and the workspace provisioner. The Note project owns
+the notes UI, bounded notes API, SQLite tables, attachment storage, and MCP
+wrapper. Granting or opening Note writes only workspace-local Hermes files under
+`.hermes-note`: `access-key.txt` stores the raw key and `config.json` stores
+non-secret metadata such as `api_base_url`,
+`workspace_id=note:<hermesWorkspaceId>`, `hermes_workspace_id`, display name,
+scopes, and the relative key filename. Hermes calls Note's
+`/api/v1/hermes/plugin/workspaces` registration endpoint with a server-side
+registration credential from `HERMES_MOBILE_NOTE_PLUGIN_OWNER_KEY(_PATH)`,
+`HERMES_MOBILE_PLUGIN_NOTE_OWNER_KEY(_PATH)`, or `NOTE_REGISTRATION_KEY(_PATH)`.
+The registration body sends `access_key_hash` only; the raw workspace key must
+not appear in manifest data, launch URLs, postMessage payloads, docs, logs, or
+model context. Note's canonical plugin workspace id is
+`note:<hermesWorkspaceId>`, and Hermes writes that canonical id into
+`.hermes-note/config.json`.
+
+Note MCP uses the common single-prefix stdio contract. Gateway profiles may add
+`mcp_servers.note`, `toolsets: [note]`, and
+`platform_toolsets.api_server: [note]` only when the effective workspace has
+both `.hermes-note/config.json` and `.hermes-note/access-key.txt`. The profile
+launches the plugin-owned `note_mcp_stdio.py` with the target workspace root,
+`--no-workspace-override`, and the deployment-specific Note API base. The Note
+wrapper returns local tool names such as `notes_search`; Hermes Agent must
+produce final callable names such as `mcp_note_notes_search` and
+`mcp_note_notes_create`. A double-prefixed callable, a profile lacking Note
+callables while policy says `note` is enabled, or an Owner fallback when viewing
+a non-Owner workspace is a failing integration state.
 
 Finance uses the same workspace-local completeness rule for Hermes Mobile
 projection. A `.hermes-finance/access-key.txt` without the sibling
@@ -507,8 +538,8 @@ workspace-local isolation pattern as the default host contract:
   health profile, wardrobe workspace, or other domain object, but it must not
   silently reuse Owner's plugin identity for a non-Owner workspace.
 - Hermes Mobile writes a plugin-local directory under the target user's drive,
-  for example `.hermes-wardrobe`, `.hermes-finance`, `.hermes-email`, or
-  `.hermes-health`.
+  for example `.hermes-wardrobe`, `.hermes-finance`, `.hermes-email`,
+  `.hermes-health`, or `.hermes-note`.
 - `config.json` in that directory contains only non-secret metadata such as
   API base URL, plugin workspace id, Hermes workspace id, display name, cache
   directories, scopes, and the relative key-file name.
@@ -529,7 +560,10 @@ workspace-local isolation pattern as the default host contract:
   `list_ledgers`. Hermes Agent prefixes them as `mcp_<server>_<tool>` in the
   model schema. Returning already-prefixed names such as
   `mcp_finance_list_ledgers` from the wrapper creates double-prefixed callables
-  like `mcp_finance_mcp_finance_list_ledgers`.
+  like `mcp_finance_mcp_finance_list_ledgers`; Health has the same rule, so
+  the wrapper should expose `records_get_summary`, not
+  `mcp_health_records_get_summary`, to produce the final callable
+  `mcp_health_records_get_summary`.
 - The Gateway profile registers that plugin MCP with `--workspace` or an
   equivalent fixed workspace-root argument pointing to the target Hermes
   workspace. It must also disable runtime workspace override, for example
@@ -575,10 +609,13 @@ the grant record but marks
 On Windows production, low Gateway profiles are generated inside WSL. If the
 Finance service runs on Windows, the Finance MCP API base passed to the WSL
 profile must be a WSL-reachable address such as the Windows host LAN address,
-not `http://127.0.0.1:8791`. The production launcher owns the environment
-value, and `start-low-gateways-child.ps1` must pass it through to WSL when
-running `configure-low-gateways.sh`; otherwise Finance UI may launch while the
-model schema omits `mcp_finance_*`.
+not `http://127.0.0.1:8791` and not a WSL NAT gateway that Finance rejects as
+`finance_mcp_dispatch_loopback_only`. The production launcher owns the
+preferred environment value, and `start-low-gateways-child.ps1` must pass it
+through to WSL when running `configure-low-gateways.sh`. If the launcher value
+is absent, the child script must resolve a Windows LAN API base such as
+`http://192.168.10.x:8791` before WSL profile generation. Otherwise Finance UI
+may launch while the selected Gateway model schema omits `mcp_finance_*`.
 Pending or failed Finance provisioning must block non-Owner list/manifest/launch
 access; failed Owner first-use provisioning must block the Owner manifest with a
 bounded diagnostic instead of falling back to the Hermes Owner web key. The
@@ -632,7 +669,7 @@ Provisioning states are generic across plugins:
 
 Only plugins with a registered Hermes-side provisioning service may enter
 `pending` from plugin-manager grant. This currently applies to Finance,
-Wardrobe, Email, and Health. Manual or externally bound plugins that do not have
+Wardrobe, Email, Health, and Note. Manual or externally bound plugins that do not have
 a Hermes provisioner use `manual_required` until an effective workspace key is
 discovered or the launch path returns its own bounded diagnostic. Codex Mobile
 remains Owner-only and is not grantable through this contract.

@@ -401,6 +401,15 @@ later run on an earlier callable schema. In practice this presents as:
 When this happens, fix the conversation/tool-schema reuse boundary first rather
 than assuming the MCP server failed to boot.
 
+Any plugin MCP callable-schema change must also bump the Mobile
+`GATEWAY_TOOL_SCHEMA_EPOCH` / default `toolSchemaEpoch`. This includes adding a
+new plugin toolset, changing MCP wrapper tool names, repairing double-prefixed
+tools, or changing the runtime overlay that discovers MCP tools. If the epoch
+still names an older integration, such as a Wardrobe-only epoch after Finance
+or Health MCP changes, a plugin topic may show `Enabled toolsets: finance`
+while the model still runs on a cached conversation schema that lacks
+`mcp_finance_*`.
+
 This keeps task success safer than regex or route-level pruning when the
 selector is disabled. If the selector is later re-enabled, it must satisfy the
 schema harness below before it can reduce the ordinary callable set. The UI can
@@ -770,8 +779,8 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
 - Low Gateway profile MCP servers are generated into each profile `config.yaml` by `C:\ProgramData\HermesMobile\gateway-worker\configure-low-gateways.sh`.
 - Workspace-private plugin MCP runtimes must follow the same profile-bound
   isolation model. Each MCP-capable plugin gets a workspace-local config/key
-  directory such as `.hermes-wardrobe`, `.hermes-finance`, `.hermes-email`, or
-  `.hermes-health`; the MCP wrapper reads that directory and attaches the
+  directory such as `.hermes-wardrobe`, `.hermes-finance`, `.hermes-email`,
+  `.hermes-health`, or `.hermes-note`; the MCP wrapper reads that directory and attaches the
   plugin workspace key internally.
 - Gateway profile config must expose the plugin toolset in both `toolsets` and
   `platform_toolsets.api_server`, and must add a matching `mcp_servers.<id>`
@@ -780,8 +789,8 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
 - Plugin MCP registration must bind to the effective Hermes workspace with a
   fixed `--workspace` or equivalent root argument and must reject runtime
   workspace override. Wardrobe uses `--no-workspace-override`; Finance, Email,
-  Health, and future plugins must implement an equivalent check before they are
-  considered production-ready.
+  Health, Note, and future plugins must implement an equivalent check before
+  they are considered production-ready.
 - Owner-authenticated browsing of a non-Owner workspace must select or cold-start
   a profile whose plugin MCP is bound to that target workspace. If no matching
   profile/schema exists, Mobile must omit the plugin MCP/toolset and return a
@@ -816,13 +825,30 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   WSL loopback, not the Windows loopback. The Finance MCP bridge must either run
   in the same network namespace as the Finance service or use a Finance-approved
   local relay/trust path. The maintained Windows deployment uses a
-  Finance-approved trusted Gateway CIDR plus a Windows host API base, while NAS
-  must generate its own Finance API base from container/network topology. A
+  Finance-approved trusted Gateway CIDR plus a Windows LAN host API base, while
+  NAS must generate its own Finance API base from container/network topology.
+  Do not let direct `start-gateway-pool.ps1 -StartProfiles ...` calls
+  regenerate profiles with `http://127.0.0.1:8791` or a WSL NAT gateway such as
+  `172.*`; both can leave the Finance UI healthy while the model callable
+  schema omits `mcp_finance_*`. `start-low-gateways-child.ps1` is responsible
+  for resolving and passing the Windows LAN Finance API base when the production
+  launcher has not already set `HERMES_MOBILE_FINANCE_MCP_API_BASE_URL`. A
   profile smoke must prove `tools/list` returns `mcp_finance_*`, not only that
   the wrapper process starts.
 - Email MCP follows the same rule with `.hermes-email`; provider OAuth tokens
   and mailbox credentials remain inside the Email plugin, while the MCP uses
   only the workspace-local Email plugin key to call Email APIs.
+- Note MCP follows the same rule with `.hermes-note`. Gateway profile generation
+  must require both `.hermes-note/config.json` and `.hermes-note/access-key.txt`
+  in the effective workspace root before exposing `note` in `toolsets`,
+  `platform_toolsets.api_server`, or `mcp_servers.note`. The Note MCP wrapper is
+  the plugin-owned Python stdio entry `note_mcp_stdio.py`; launch it with the
+  configured Python runtime, `--workspace <target-user-root>`,
+  `--no-workspace-override`, and the deployment-specific `--api-base-url`.
+  Valid schema evidence is a selected-profile callable such as
+  `mcp_note_notes_search` or `mcp_note_notes_create`; a missing schema,
+  double-prefix, or Owner-bound Note wrapper in a non-Owner workspace is a
+  profile/provisioning failure, not a model issue.
 - The generator script in the source repo is the durable source of truth. Do not rely on one-off edits to live `telemetry/profiles/<profile>/config.yaml`: a later Gateway Pool reconfigure/restart rewrites those files from `scripts/configure-low-gateways.sh` and will silently drop Wardrobe MCP registration if the source script no longer contains the wardrobe block.
 - Targeted starts such as `-StartProfiles lowgw13,lowgw14 -ForceConfigure`
   must pass `HERMES_GATEWAY_START_PROFILES` through to

@@ -375,6 +375,17 @@ function wireUi() {
     state.currentThreadId = "";
     await loadSelectedView();
   });
+  $("bottomNoteMode")?.addEventListener("click", async () => {
+    clearQuotedReply({ render: false });
+    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
+    if (typeof rememberNotePluginReturnRoute === "function") rememberNotePluginReturnRoute();
+    state.viewMode = "note";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    state.currentThread = null;
+    state.currentThreadId = "";
+    await loadSelectedView();
+  });
   $("threadSearch").addEventListener("input", () => {
     updateSearchButton();
     clearTimeout(state.searchTimer);

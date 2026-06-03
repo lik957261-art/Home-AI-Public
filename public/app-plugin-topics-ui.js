@@ -46,6 +46,17 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     deliveryHints: ["health", "\u5065\u5eb7", "\u8bad\u7ec3", "\u4f53\u91cd", "\u7528\u836f"],
   }),
   Object.freeze({
+    id: "note",
+    viewMode: "note",
+    label: "\u7b14\u8bb0",
+    subtitle: "\u7b14\u8bb0\u3001\u6458\u8981\u548c\u8d44\u6599\u6574\u7406",
+    iconClass: "nav-note-icon",
+    appIconClass: "note",
+    appIconGlyph: "N",
+    toolset: "note",
+    deliveryHints: ["note", "\u7b14\u8bb0", "\u6458\u8981", "\u8d44\u6599"],
+  }),
+  Object.freeze({
     id: "directory",
     builtinKind: "directory",
     viewMode: "projects",
@@ -97,6 +108,7 @@ function pluginTopicBottomButtonId(def) {
   if (id === "finance") return "bottomFinanceMode";
   if (id === "email") return "bottomEmailMode";
   if (id === "health") return "bottomHealthMode";
+  if (id === "note") return "bottomNoteMode";
   return "";
 }
 
@@ -107,7 +119,7 @@ function hideActivePluginHostsForPluginTopicNavigation() {
   }
   const app = $("app");
   app?.classList.remove("wardrobe-plugin-host-active", "embedded-plugin-host-active");
-  ["codex", "finance", "email", "health"].forEach((id) => {
+  ["codex", "finance", "email", "health", "note"].forEach((id) => {
     app?.classList.remove(`${id}-plugin-host-active`);
   });
 }
@@ -388,6 +400,7 @@ async function openPluginTopicApp(pluginId) {
   if (def.id === "finance" && typeof rememberFinancePluginReturnRoute === "function") rememberFinancePluginReturnRoute();
   if (def.id === "email" && typeof rememberEmailPluginReturnRoute === "function") rememberEmailPluginReturnRoute();
   if (def.id === "health" && typeof rememberHealthPluginReturnRoute === "function") rememberHealthPluginReturnRoute();
+  if (def.id === "note" && typeof rememberNotePluginReturnRoute === "function") rememberNotePluginReturnRoute();
   state.viewMode = def.viewMode;
   localStorage.setItem("hermesWebViewMode", state.viewMode);
   state.currentTaskGroupId = "";

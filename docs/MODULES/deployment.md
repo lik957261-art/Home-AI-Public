@@ -9,6 +9,41 @@
 - Listener HTTP: `http://127.0.0.1:8797`
 - Bridge host: `http://127.0.0.1:8798`
 
+## macOS Production Direction
+
+The next preferred stable production target is Mac Studio. The detailed design
+is `docs/IMPLEMENTATION_NOTES/macos-production-deployment-plan.md`.
+
+Key decisions:
+
+- macOS is Darwin/BSD Unix, not Linux. Use `launchd`, explicit paths, and
+  macOS users instead of systemd/WSL assumptions.
+- Windows remains the fast-iteration development machine until the Mac runtime
+  is validated.
+- Mac Studio should become the stable Hermes Mobile production host for family
+  use after first-start preflight and workspace-isolation harnesses pass.
+- NAS remains storage, backup, archive, and cold-data infrastructure rather
+  than the primary compute host.
+- Mac production should use OS-level workspace isolation: a host/control user
+  such as `hermes-host`, plus workspace users such as `hm-owner`,
+  `hm-wuping`, `hm-stephen`, and `hm-xuyan`.
+- Gateway workers and MCP wrappers must run as the effective workspace OS user
+  so non-Owner model/tool execution cannot directly read Owner files, Skill
+  Store, Memory Store, or plugin keys.
+- Plugin services may remain shared multi-tenant app services. Hermes Mobile
+  must still enter every plugin through workspace-local `.hermes-<plugin>`
+  config/key material and `--no-workspace-override` MCP wrappers.
+- Mac deployments support explicit network modes:
+  - `HERMES_MOBILE_NETWORK_MODE=direct` when the Mac's router/default gateway
+    provides model-provider egress;
+  - `HERMES_MOBILE_NETWORK_MODE=proxy` when per-process proxy env is required.
+- CRON model jobs must prove model network egress according to the selected
+  mode. In direct mode, no proxy is required; in proxy mode, missing/unreachable
+  proxy remains fail-closed before official `cron.scheduler.run_job()`.
+
+Do not treat the Mac plan as implemented until a Mac-specific installer,
+launchd services, first-start preflight, and workspace isolation harness exist.
+
 ## NAS Deployment Direction
 
 The first supported NAS direction is a split deployment, documented in
@@ -75,6 +110,17 @@ The first supported NAS direction is a split deployment, documented in
   state is mounted from `/volume1/docker/email-plugin/runtime`. Hermes reaches
   it through `HERMES_MOBILE_EMAIL_PLUGIN_MANIFEST_URL=http://127.0.0.1:5175/api/v1/hermes/plugin/manifest`;
   users reach it only through the Hermes same-origin plugin proxy.
+- On that NAS, Health is deployed as a local Node service from
+  `/volume1/docker/healthy/app`, bound to loopback `127.0.0.1:4877` only. The
+  Hermes config points to
+  `HERMES_MOBILE_HEALTH_PLUGIN_MANIFEST_URL=http://127.0.0.1:4877/api/v1/hermes/plugin/manifest`.
+  The service must be started before the Hermes listener can project Health as
+  available. Authorization/provisioning state alone is insufficient: if port
+  `4877` is not listening, Hermes will show Health as `plugin_manifest_error`
+  / `fetch failed` even when Owner is marked `authorized / active`. The
+  maintained NAS hotfix uses `/volume1/docker/healthy/config/start-healthy.sh`
+  and `/volume1/docker/healthy/config/stop-healthy.sh`; Health data and logs
+  stay under `/volume1/docker/healthy/data` and `/volume1/docker/healthy/logs`.
 - On that NAS, the Codex Mobile embedded plugin is a remote upstream served
   from the Windows development/Codex Mobile host at
   `http://192.168.10.108:8787/api/v1/hermes/plugin/manifest`. NAS Hermes must
@@ -210,6 +256,12 @@ only after all of these preflight checks pass:
   workspace has its own `.hermes-<plugin>/config.json` plus key material. A
   worker for Stephen, XuYan, or another workspace without that plugin config
   must not expose the plugin toolset and must not fall back to Owner.
+- NAS Gateway workers must start with the Hermes Mobile runtime overlay on
+  `PYTHONPATH`, ahead of the NAS Hermes Agent runtime, and set
+  `HERMES_MOBILE_OFFICIAL_CLEAN_PATH` to that runtime. Otherwise profile YAML
+  can list `mcp_servers.health` / `platform_toolsets.api_server: health` while
+  the real callable schema still contains only built-in tools. This presents as
+  "plugin MCP unavailable" even though the wrapper process is running.
 - The NAS `data/drive/users/<workspaceId>` directories must be private to the
   NAS service account (`0700` or stricter equivalent). This protects against
   other NAS users, but it is not equivalent to Windows per-account ACL

@@ -67,10 +67,26 @@ owner_wardrobe_workspace_override="${HERMES_MOBILE_OWNER_WARDROBE_WORKSPACE:-}"
 wuping_wardrobe_workspace_override="${HERMES_MOBILE_WUPING_WARDROBE_WORKSPACE:-}"
 finance_mcp_python="${HERMES_MOBILE_FINANCE_MCP_PYTHON:-/opt/hermes-gateway-runtime/venv/bin/python}"
 finance_mcp_path="${HERMES_MOBILE_FINANCE_MCP_PATH:-$gateway_worker_root/finance-mcp/scripts/finance_mcp_stdio.py}"
-finance_mcp_api_base_url="${HERMES_MOBILE_FINANCE_MCP_API_BASE_URL:-http://127.0.0.1:8791}"
+note_mcp_python="${HERMES_MOBILE_NOTE_MCP_PYTHON:-/opt/hermes-gateway-runtime/venv/bin/python}"
+note_mcp_path="${HERMES_MOBILE_NOTE_MCP_PATH:-$gateway_worker_root/note-mcp/scripts/note_mcp_stdio.py}"
+detect_windows_host_gateway() {
+  ip route 2>/dev/null | awk '/^default[[:space:]]/ { print $3; exit }'
+}
+windows_host_gateway="$(detect_windows_host_gateway || true)"
+default_finance_mcp_api_base_url="http://127.0.0.1:8791"
+default_note_mcp_api_base_url="http://127.0.0.1:4181"
+if [[ "$gateway_worker_root" == /mnt/* ]] && [ -n "$windows_host_gateway" ]; then
+  default_finance_mcp_api_base_url="http://${windows_host_gateway}:8791"
+  default_note_mcp_api_base_url="http://${windows_host_gateway}:4181"
+fi
+finance_mcp_api_base_url="${HERMES_MOBILE_FINANCE_MCP_API_BASE_URL:-$default_finance_mcp_api_base_url}"
+note_mcp_api_base_url="${HERMES_MOBILE_NOTE_MCP_API_BASE_URL:-$default_note_mcp_api_base_url}"
 finance_user_drive_root="${HERMES_MOBILE_FINANCE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_finance_workspace_override="${HERMES_MOBILE_OWNER_FINANCE_WORKSPACE:-}"
 wuping_finance_workspace_override="${HERMES_MOBILE_WUPING_FINANCE_WORKSPACE:-}"
+note_user_drive_root="${HERMES_MOBILE_NOTE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
+owner_note_workspace_override="${HERMES_MOBILE_OWNER_NOTE_WORKSPACE:-}"
+wuping_note_workspace_override="${HERMES_MOBILE_WUPING_NOTE_WORKSPACE:-}"
 gateway_start_profiles="${HERMES_GATEWAY_START_PROFILES:-}"
 
 profile_selected_for_configure() {
@@ -238,10 +254,32 @@ if config.exists() and ((key_dir / "access-key.txt").exists() or (key_dir / "wor
 PY
 }
 
+find_first_note_workspace_root() {
+  local workspace_id="${1:-}"
+  local drive_root="${2:-$note_user_drive_root}"
+  python3 - "$workspace_id" "$drive_root" <<'PY' 2>/dev/null || true
+from pathlib import Path
+import sys
+workspace_id = (sys.argv[1] or "").strip()
+drive_root = Path(sys.argv[2])
+if not workspace_id:
+    raise SystemExit(0)
+user_root = drive_root / workspace_id
+if not user_root.exists():
+    raise SystemExit(0)
+config = user_root / ".hermes-note" / "config.json"
+key = user_root / ".hermes-note" / "access-key.txt"
+if config.exists() and key.exists():
+    print(str(user_root))
+PY
+}
+
 owner_wardrobe_workspace="${owner_wardrobe_workspace_override:-$(find_first_wardrobe_workspace_root owner)}"
 wuping_wardrobe_workspace="${wuping_wardrobe_workspace_override:-$(find_first_wardrobe_workspace_root weixin_wuping)}"
 owner_finance_workspace="${owner_finance_workspace_override:-$(find_first_finance_workspace_root owner)}"
 wuping_finance_workspace="${wuping_finance_workspace_override:-$(find_first_finance_workspace_root weixin_wuping)}"
+owner_note_workspace="${owner_note_workspace_override:-$(find_first_note_workspace_root owner)}"
+wuping_note_workspace="${wuping_note_workspace_override:-$(find_first_note_workspace_root weixin_wuping)}"
 
 skill_store_for_gateway_profile() {
   local profile="$1"
@@ -849,6 +887,8 @@ ${plugin_enabled_lines%$'\n'}"
   wardrobe_api_toolset_block=""
   finance_toolset_block=""
   finance_api_toolset_block=""
+  note_toolset_block=""
+  note_api_toolset_block=""
   mcp_server_lines=""
   profile_wardrobe_workspace=""
   profile_workspace_id=""
@@ -912,6 +952,38 @@ ${plugin_enabled_lines%$'\n'}"
     timeout: 180
     connect_timeout: 60"$'\n'
   fi
+  profile_note_workspace=""
+  if is_owner_connector_profile "$profile"; then
+    profile_note_workspace="$owner_note_workspace"
+  else
+    if [ -z "$profile_workspace_id" ]; then
+      profile_workspace_id="$(workspace_id_for_gateway_profile "$profile")"
+    fi
+    if [ -n "$profile_workspace_id" ]; then
+      profile_note_workspace="$(find_first_note_workspace_root "$profile_workspace_id")"
+      if [ -z "$profile_note_workspace" ] && [ "$profile_workspace_id" = "weixin_wuping" ]; then
+        profile_note_workspace="$wuping_note_workspace"
+      fi
+    fi
+  fi
+  if [ -n "$profile_note_workspace" ] && [ -f "$note_mcp_path" ]; then
+    note_toolset_block="  - note"
+    note_api_toolset_block="    - note"
+    mcp_server_lines="${mcp_server_lines}  note:
+    command: $note_mcp_python
+    args:
+      - $note_mcp_path
+      - --workspace
+      - $profile_note_workspace
+      - --no-workspace-override
+      - --api-base-url
+      - $note_mcp_api_base_url
+    env:
+      HERMES_HOME: $profile_link
+      HERMES_PROFILE: $profile
+    startup_timeout: 60
+    connect_timeout: 60"$'\n'
+  fi
   if is_owner_connector_profile "$profile" && [ -f "$outlook_graph_mcp_path" ]; then
     outlook_toolset_block="  - outlook_graph"
     outlook_api_toolset_block="    - outlook_graph"
@@ -967,6 +1039,7 @@ ${http_toolset_block}
 ${cronjob_mobile_toolset_block}
 ${wardrobe_toolset_block}
 ${finance_toolset_block}
+${note_toolset_block}
 ${outlook_toolset_block}
 platform_toolsets:
   api_server:
@@ -992,6 +1065,7 @@ ${http_api_toolset_block}
 ${cronjob_mobile_api_toolset_block}
 ${wardrobe_api_toolset_block}
 ${finance_api_toolset_block}
+${note_api_toolset_block}
 ${outlook_api_toolset_block}
 agent:
   max_turns: 60
