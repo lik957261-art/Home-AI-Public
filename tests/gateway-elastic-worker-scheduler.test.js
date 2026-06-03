@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const {
   buildGatewayWorkerCompatibilityKey,
+  buildGatewayWorkerTemplateKey,
   createGatewayElasticWorkerScheduler,
   normalizeElasticSchedulerConfig,
 } = require("../adapters/gateway-elastic-worker-scheduler");
@@ -121,6 +122,39 @@ async function testAlreadyRunningConfiguredWorkerIsReusedWithoutRestart() {
   assert.deepEqual(calls.starts, []);
   assert.deepEqual(calls.healthy, ["lowgw1"]);
   assert.equal(calls.events[0].event, "run.gateway_worker_reused");
+}
+
+async function testWarmWorkerWithStaleMaterializedHashIsNotReused() {
+  const { calls, scheduler } = createHarness({ initialHealthy: ["lowgw1"] });
+  const stale = worker("lowgw1", {
+    allowedWorkspaceIds: ["owner"],
+    skillWorkspaceIds: ["owner"],
+    templateKey: "owner|user|openai-codex",
+    capabilityHash: "old-capability",
+  });
+  const fresh = worker("lowgw2", {
+    allowedWorkspaceIds: ["owner"],
+    skillWorkspaceIds: ["owner"],
+    templateKey: "owner|user|openai-codex",
+    capabilityHash: "new-capability",
+  });
+  scheduler.markWorkerWarm(stale, { workspaceId: "owner", provider: "openai-codex", securityLevel: "user" });
+  stale.capabilityHash = "new-capability";
+
+  const target = await scheduler.chooseTarget({
+    allWorkers: [stale, fresh],
+    candidates: [stale, fresh],
+    hints: { workspaceId: "owner", provider: "openai-codex", securityLevel: "user" },
+    runId: "run-owner-stale-hash",
+    onEvent: (event) => calls.events.push(event),
+  });
+
+  assert.equal(target.profile, "lowgw2");
+  assert.deepEqual(calls.starts, ["lowgw2"]);
+  assert.equal(calls.events.at(-1).event, "run.gateway_worker_started");
+  const status = scheduler.status([stale, fresh]).workers;
+  assert.equal(status.find((item) => item.profile === "lowgw1").materializedCapabilityHash, "old-capability");
+  assert.equal(status.find((item) => item.profile === "lowgw1").capabilityHash, "new-capability");
 }
 
 async function testOwnerExpandsToFourThenQueuesUntilRelease() {
@@ -468,8 +502,8 @@ async function testWildcardWarmWorkerDoesNotPinSyntheticWorkspace() {
   assert.equal(scheduler.status([grok]).queueDepth, 0);
 }
 
-async function testStatusReconciliationWakesProfileAffinityQueue() {
-  const { calls, scheduler } = createHarness({
+async function testStatusReconciliationPreservesMaterializedTemplateAffinity() {
+  const { scheduler } = createHarness({
     initialHealthy: ["grokgw1"],
     config: { workspaceMaxWorkers: 2, globalMaxWorkers: 8, queueWaitTimeoutMs: 30_000 },
   });
@@ -481,22 +515,11 @@ async function testStatusReconciliationWakesProfileAffinityQueue() {
   });
 
   scheduler.markWorkerWarm(grok, { workspaceId: "other_workspace", provider: "xai-oauth" });
-  const queued = scheduler.chooseTarget({
-    allWorkers: [grok],
-    candidates: [grok],
-    hints: { workspaceId: "owner", provider: "xai-oauth", securityLevel: "user" },
-    runId: "run-grok-queued",
-    onEvent: (event) => calls.events.push(event),
-  });
-  await Promise.resolve();
-  await Promise.resolve();
-  assert.equal(scheduler.status([grok]).queueDepth, 1);
-  assert.equal(calls.events.at(-1).reason, "profile_affinity");
-
   scheduler.markWorkerWarm(grok);
-  const target = await queued;
-  assert.equal(target.profile, "grokgw1");
-  assert.equal(scheduler.status([grok]).queueDepth, 0);
+  const publicWorker = scheduler.status([grok]).workers[0];
+  assert.equal(publicWorker.templateKey, buildGatewayWorkerTemplateKey(grok));
+  assert.equal(publicWorker.materializedTemplateKey, "other_workspace|user|xai-oauth");
+  assert.equal(publicWorker.state, "warm");
 }
 
 async function testIdleReaperStopsOnlyExpiredIdleWorkers() {
@@ -567,6 +590,7 @@ function testConfigDefaultsAndAliases() {
   await testStartupPlanKeepsOnlyOwnerWarmBaseline();
   await testWarmCompatibleWorkerIsReusedWithoutStarting();
   await testAlreadyRunningConfiguredWorkerIsReusedWithoutRestart();
+  await testWarmWorkerWithStaleMaterializedHashIsNotReused();
   await testOwnerExpandsToFourThenQueuesUntilRelease();
   await testOwnerMaintenanceWorkersDoNotConsumeUserWorkerCap();
   await testOwnerMaintenanceUsesSeparateOnDemandCap();
@@ -578,7 +602,7 @@ function testConfigDefaultsAndAliases() {
   await testNonOwnerDeepSeekUsesSingleWorkerCapSeparateFromOpenAi();
   await testPostStartHealthPollAvoidsEarlyFalseFailure();
   await testWildcardWarmWorkerDoesNotPinSyntheticWorkspace();
-  await testStatusReconciliationWakesProfileAffinityQueue();
+  await testStatusReconciliationPreservesMaterializedTemplateAffinity();
   await testIdleReaperStopsOnlyExpiredIdleWorkers();
   await testLaunchFailureUsesBoundedDiagnosticWithoutSecrets();
   console.log("gateway elastic worker scheduler tests passed");

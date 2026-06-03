@@ -124,15 +124,69 @@ function buildGatewayWorkerCompatibilityKey(worker = {}, hints = {}) {
   return [
     `workspace=${workspaceId}`,
     `actor=${actorClassForWorkspace(workspaceId)}`,
+    `template=${buildGatewayWorkerTemplateKey(worker, hints)}`,
     `profile=${cleanString(worker.profile || hints.worker_profile || hints.profile)}`,
     `provider=${providerKey(worker, hints)}`,
     `tier=${permissionTier(worker, hints)}`,
     `toolsets=${listKey(hints.enabledToolsets || hints.enabled_toolsets || hints.toolsets || [])}`,
     `schema=${cleanString(hints.toolSchemaEpoch || hints.tool_schema_epoch || "")}`,
+    `capability=${workerCapabilityHash(worker)}`,
     `skill=${cleanString(hints.skillProfile || hints.skill_profile || worker.skillProfile || "")}`,
     `skillWorkspaces=${listKey(hints.skillWorkspaceId || hints.skill_workspace_id || worker.skillWorkspaceIds || [])}`,
     `api=${cleanString(worker.apiBase)}`,
   ].join("|");
+}
+
+function buildGatewayWorkerTemplateKey(worker = {}, hints = {}) {
+  return [
+    actorWorkspaceId(hints, worker),
+    permissionTier(worker, hints),
+    providerKey(worker, hints),
+  ].join("|");
+}
+
+function workerCapabilityHash(worker = {}) {
+  return cleanString(worker.capabilityHash || worker.materializedCapabilityHash || "");
+}
+
+function workerCapabilityStatus(worker = {}) {
+  const status = cleanString(worker.capabilityStatus || "");
+  if (status) return status;
+  return workerCapabilityHash(worker) ? "ok" : "unknown";
+}
+
+function workerToolSchemaEpoch(worker = {}, hints = {}) {
+  return cleanString(worker.toolSchemaEpoch || hints.toolSchemaEpoch || hints.tool_schema_epoch || "");
+}
+
+function rememberMaterializedIdentity(state, worker = {}, hints = {}, options = {}) {
+  if (!state) return;
+  const overwrite = Boolean(options.overwrite);
+  const templateKey = cleanString(worker.templateKey || worker.materializedTemplateKey || buildGatewayWorkerTemplateKey(worker, hints));
+  const capabilityHash = workerCapabilityHash(worker);
+  const schemaEpoch = workerToolSchemaEpoch(worker, hints);
+  if (overwrite || !state.materializedTemplateKey) state.materializedTemplateKey = templateKey;
+  if (overwrite || !state.materializedCapabilityHash) state.materializedCapabilityHash = capabilityHash;
+  if (overwrite || !state.capabilityStatus) state.capabilityStatus = workerCapabilityStatus(worker);
+  if (overwrite || !state.toolSchemaEpoch) state.toolSchemaEpoch = schemaEpoch;
+}
+
+function clearMaterializedIdentity(state) {
+  if (!state) return;
+  state.materializedTemplateKey = "";
+  state.materializedCapabilityHash = "";
+  state.capabilityStatus = "";
+  state.toolSchemaEpoch = "";
+}
+
+function materializedIdentityMatches(worker = {}, state = {}, hints = {}) {
+  const expectedTemplateKey = buildGatewayWorkerTemplateKey(worker, hints);
+  const configuredTemplateKey = cleanString(worker.templateKey || "");
+  if (configuredTemplateKey && configuredTemplateKey !== expectedTemplateKey) return false;
+  if (state.materializedTemplateKey && state.materializedTemplateKey !== expectedTemplateKey) return false;
+  const expectedHash = workerCapabilityHash(worker);
+  if (state.materializedCapabilityHash && expectedHash && state.materializedCapabilityHash !== expectedHash) return false;
+  return true;
 }
 
 function sanitizeFailureMessage(err) {
@@ -179,6 +233,12 @@ function publicState(worker, state = null, nowMs = Date.now()) {
     allowMaintenance: Boolean(worker.allowMaintenance),
     skillProfile: worker.skillProfile || "",
     skillWorkspaceIds: worker.skillWorkspaceIds || [],
+    templateKey: worker.templateKey || buildGatewayWorkerTemplateKey(worker),
+    capabilityHash: worker.capabilityHash || "",
+    capabilityStatus: worker.capabilityStatus || "",
+    toolSchemaEpoch: worker.toolSchemaEpoch || state?.toolSchemaEpoch || "",
+    materializedTemplateKey: state?.materializedTemplateKey || "",
+    materializedCapabilityHash: state?.materializedCapabilityHash || "",
     healthy,
     state: lifecycle,
     lifecycleState: lifecycle,
@@ -229,6 +289,10 @@ function createGatewayElasticWorkerScheduler(options = {}) {
         provider: cleanString(worker.provider),
         permissionTier: permissionTier(worker),
         healthy: null,
+        materializedTemplateKey: "",
+        materializedCapabilityHash: "",
+        capabilityStatus: "",
+        toolSchemaEpoch: "",
         idleSince: null,
         idleExpiresAt: null,
         lastStartDurationMs: 0,
@@ -286,6 +350,9 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       provider: providerKey(worker, hints),
       workspaceId,
       permissionTier: permissionTier(worker, hints),
+      templateKey: buildGatewayWorkerTemplateKey(worker, hints),
+      materializedTemplateKey: state?.materializedTemplateKey || "",
+      materializedCapabilityHash: state?.materializedCapabilityHash || "",
       state: state?.state || "configured",
       activeRunCount: state?.activeRunIds?.size || 0,
       queueDepth: queueDepthForWorkspace(workspaceId),
@@ -310,6 +377,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     state.provider = providerKey(worker, hints);
     state.permissionTier = permissionTier(worker, hints);
     state.compatibilityKey = buildGatewayWorkerCompatibilityKey(worker, hints);
+    rememberMaterializedIdentity(state, worker, hints);
     state.idleSince = null;
     state.idleExpiresAt = null;
     if (state.idleCancel) {
@@ -342,6 +410,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       state.permissionTier = permissionTier(worker, hints);
       state.compatibilityKey = buildGatewayWorkerCompatibilityKey(worker, hints);
     }
+    rememberMaterializedIdentity(state, worker, hints);
     return true;
   }
 
@@ -367,6 +436,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       if (state.activeRunIds.size > 0) continue;
       const expectedKey = key(worker);
       if (state.compatibilityKey && state.compatibilityKey !== expectedKey) continue;
+      if (!materializedIdentityMatches(worker, state, hints)) continue;
       return { worker, state };
     }
     return null;
@@ -448,6 +518,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       state.lastStartDurationMs = Math.max(0, nowMs() - startedAt);
       state.lastFailureCode = "";
       state.lastFailureAt = null;
+      rememberMaterializedIdentity(state, worker, hints, { overwrite: true });
       return assignRun(worker, state, runId, hints, "worker_started");
     } catch (err) {
       state.state = "failed";
@@ -484,6 +555,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     while (true) {
       const reusable = chooseReusable(candidates, hints);
       if (reusable && await markExistingHealthy(reusable.worker, reusable.state, hints)) {
+        if (!materializedIdentityMatches(reusable.worker, reusable.state, hints)) continue;
         const target = assignRun(reusable.worker, reusable.state, runId, hints, "worker_reused");
         emit(onEvent, Object.assign({}, target.schedulerEvent, { runId }));
         return target;
@@ -495,6 +567,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       const requestedProvider = providerKey(startable?.worker || candidates[0], hints);
       const maxWorkspace = maxForWorkspace(workspaceId, requestedTier, requestedProvider);
       if (startable && await markExistingHealthy(startable.worker, startable.state, hints)) {
+        if (!materializedIdentityMatches(startable.worker, startable.state, hints)) continue;
         const target = assignRun(startable.worker, startable.state, runId, hints, "worker_reused");
         emit(onEvent, Object.assign({}, target.schedulerEvent, { runId }));
         return target;
@@ -548,6 +621,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       state.compatibilityKey = "";
       state.workspaceId = "";
       state.actorClass = "";
+      clearMaterializedIdentity(state);
     } else {
       state.state = "idle";
       state.idleSince = nowMs();
@@ -593,6 +667,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
         state.compatibilityKey = "";
         state.workspaceId = "";
         state.actorClass = "";
+        clearMaterializedIdentity(state);
         state.idleSince = null;
         state.idleExpiresAt = null;
         stopped.push(worker.profile || worker.id);
@@ -622,7 +697,8 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     state.permissionTier = permissionTier(worker, hints);
     state.compatibilityKey = hasExplicitWorkspaceHint(hints)
       ? buildGatewayWorkerCompatibilityKey(worker, hints)
-      : "";
+      : (state.compatibilityKey || "");
+    rememberMaterializedIdentity(state, worker, hints);
     drainQueue();
     return state;
   }
@@ -636,6 +712,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       state.compatibilityKey = "";
       state.workspaceId = "";
       state.actorClass = "";
+      clearMaterializedIdentity(state);
       state.idleSince = null;
       state.idleExpiresAt = null;
       if (state.idleCancel) {
@@ -701,6 +778,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
 
 module.exports = {
   buildGatewayWorkerCompatibilityKey,
+  buildGatewayWorkerTemplateKey,
   createGatewayElasticWorkerScheduler,
   normalizeElasticSchedulerConfig,
 };

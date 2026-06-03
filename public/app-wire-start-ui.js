@@ -525,7 +525,7 @@ function wireUi() {
     setReadingFullscreen(true);
   });
   $("topSettingsButton")?.addEventListener("click", () => openSettings({ returnToSidebar: true }));
-  $("clientVersion")?.addEventListener("click", applyAppUpdateFromBadge);
+  $("clientVersion")?.addEventListener("click", handleClientVersionBadgeClick);
   document.addEventListener("click", closeTopMoreMenu);
   document.addEventListener("click", () => closeTaskCardMenus());
   document.addEventListener("click", () => closeDirectoryEntryMenus());

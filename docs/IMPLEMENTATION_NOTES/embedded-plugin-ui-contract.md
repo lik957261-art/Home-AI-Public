@@ -63,6 +63,13 @@ Each plugin owns the layout inside its iframe:
   `imagePreviewFullscreen`, `hermes.plugin.preview`, or
   `hermes.plugin.fullscreen`, then clear it when the preview closes.
 
+This contract does not make plugin projects responsible for Hermes-owned topic
+chat composer layout. A plugin-bound topic chat is a Hermes Mobile chat surface;
+the plugin only changes which plugin context is active. Plugin projects are
+responsible for their own iframe bottom labels/tabs: keep them at the bottom of
+the iframe and reserve only plugin-owned footer space inside plugin-owned
+scroll containers.
+
 ## Floating Buttons And Local Action Bars
 
 Plugin-owned floating buttons and local action bars belong inside the iframe.

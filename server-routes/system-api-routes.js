@@ -123,9 +123,14 @@ function createSystemApiRoutes(deps = {}) {
     return false;
   }
 
-  async function handleClientVersion(req, res, auth) {
+  async function handleClientVersion(req, res, auth = null) {
+    const info = deps.clientVersionInfo(deps.requestClientVersion(req));
+    if (!auth) {
+      deps.sendJson(res, 200, info);
+      return;
+    }
     deps.sendJson(res, 200, Object.assign(
-      deps.clientVersionInfo(deps.requestClientVersion(req)),
+      info,
       { reasoning: deps.publicReasoningInfoForAuth(auth) },
     ));
   }
@@ -177,13 +182,18 @@ function createSystemApiRoutes(deps = {}) {
     });
     if (!route) return { handled: false };
 
+    if (route.id === "client-version") {
+      const auth = deps.authenticateRequest(req);
+      await handleClientVersion(req, res, auth?.ok ? auth : null);
+      return { handled: true, route, auth: auth?.ok ? auth : null };
+    }
+
     const auth = authenticate(req, res);
     if (!auth) return { handled: true, route };
 
     if (route.ownerOnly && !requireOwner(auth, res)) return { handled: true, route, auth };
 
-    if (route.id === "client-version") await handleClientVersion(req, res, auth);
-    else if (route.id === "app-update-status") await handleAppUpdateStatus(res);
+    if (route.id === "app-update-status") await handleAppUpdateStatus(res);
     else if (route.id === "app-update-apply") await handleApplyAppUpdate(res);
     else if (route.id === "status") await handleStatus(req, res, auth);
     else return { handled: false };

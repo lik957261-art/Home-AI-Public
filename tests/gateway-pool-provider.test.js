@@ -575,6 +575,86 @@ async function testHybridStatusObservesAlreadyRunningWarmWorker() {
   fs.rmSync(manifest.dir, { recursive: true, force: true });
 }
 
+async function testHybridStatusProjectsProfileTemplateIdentityWithoutSecrets() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-gateway-status-template-"));
+  const ownerProfileDir = path.join(dir, "telemetry", "profiles", "lowgw1");
+  const extraProfileDir = path.join(dir, "telemetry", "profiles", "lowgw2");
+  fs.mkdirSync(ownerProfileDir, { recursive: true });
+  fs.mkdirSync(extraProfileDir, { recursive: true });
+  const configBody = [
+    "model:",
+    "  provider: openai-codex",
+    "  default: gpt-test",
+    "toolsets:",
+    "  - web",
+    "  - finance",
+    "platform_toolsets:",
+    "  api_server:",
+    "    - web",
+    "    - finance",
+    "mcp_servers:",
+    "  finance:",
+    "    command: node",
+    "    env:",
+    "      PRIVATE_TOKEN: should-not-leak",
+  ].join("\n");
+  fs.writeFileSync(path.join(ownerProfileDir, "config.yaml"), configBody, "utf8");
+  fs.writeFileSync(path.join(extraProfileDir, "config.yaml"), configBody, "utf8");
+  const manifest = tempManifest({
+    enabled: true,
+    workers: [
+      {
+        name: "owner-openai",
+        profile: "lowgw1",
+        port: 18751,
+        api_key: "owner-profile-secret",
+        provider: "openai-codex",
+        securityLevel: "user",
+        allowedWorkspaceIds: ["owner"],
+        skillWorkspaceIds: ["owner"],
+        telemetryStateDbPath: path.join(ownerProfileDir, "state.db"),
+      },
+      {
+        name: "owner-extra",
+        profile: "lowgw2",
+        port: 18752,
+        api_key: "extra-profile-secret",
+        provider: "openai-codex",
+        securityLevel: "user",
+        allowedWorkspaceIds: ["owner"],
+        skillWorkspaceIds: ["owner"],
+        telemetryStateDbPath: path.join(extraProfileDir, "state.db"),
+      },
+    ],
+  });
+  const provider = createGatewayPoolProvider({
+    enabled: "auto",
+    startMode: "hybrid",
+    manifestPaths: [manifest.file],
+    fallbackApiBase: "http://fallback.example.test",
+    toolSchemaEpoch: "epoch-status-test",
+    createGatewayRunner,
+    fetchImpl: async (url) => (url.includes(":18751/")
+      ? jsonResponse({ status: "ok" })
+      : jsonResponse({ error: "not running" }, { status: 503 })),
+  });
+
+  const status = await provider.status();
+  const owner = status.workers.find((item) => item.profile === "lowgw1");
+  const extra = status.workers.find((item) => item.profile === "lowgw2");
+  assert.equal(owner.templateKey, "owner|user|openai-codex");
+  assert.equal(owner.capabilityStatus, "ok");
+  assert.equal(owner.capabilityHash.length, 16);
+  assert.equal(owner.materializedTemplateKey, "owner|user|openai-codex");
+  assert.equal(owner.materializedCapabilityHash, owner.capabilityHash);
+  assert.equal(owner.toolSchemaEpoch, "epoch-status-test");
+  assert.equal(extra.materializedTemplateKey, "");
+  assert.equal(JSON.stringify(status).includes("owner-profile-secret"), false);
+  assert.equal(JSON.stringify(status).includes("should-not-leak"), false);
+  fs.rmSync(manifest.dir, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
 async function testHybridStatusClearsStoppedWarmWorker() {
   const manifest = tempManifest({
     enabled: true,
@@ -626,6 +706,7 @@ async function testHybridStatusClearsStoppedWarmWorker() {
   await testHybridModeStartsOwnerMaintenanceProfileOnDemand();
   await testHybridStatusReportsConfiguredStoppedAsExpectedState();
   await testHybridStatusObservesAlreadyRunningWarmWorker();
+  await testHybridStatusProjectsProfileTemplateIdentityWithoutSecrets();
   await testHybridStatusClearsStoppedWarmWorker();
   console.log("gateway-pool-provider tests passed");
 })().catch((err) => {

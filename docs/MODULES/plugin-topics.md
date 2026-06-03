@@ -34,6 +34,12 @@ or raw plugin credentials.
 - Plugin topic detail is a secondary page. It must hide the bottom app
   navigation and use the standard top back/right-swipe route to return, while
   keeping the normal message composer visible for the topic chat.
+- Plugin topic detail is a Hermes-owned chat surface, not a plugin iframe
+  layout surface. It must match the ordinary Hermes chat composer layout; the
+  only bottom difference is replacing the normal five-entry mobile navigation
+  with the three-entry plugin-context navigation. Composer/footer overlap must
+  be solved by the shared bottom-layout standard, not by adding visible padding
+  to the outer app or main shell.
 - Returning from topic detail to the topic list must restore the topic-list
   scroll position captured before entering the detail. Right-swipe/back should
   not jump away from the plugin and Directory card area.
@@ -93,9 +99,14 @@ or raw plugin credentials.
 - Directory-bound topic collections are visually attached to the Directory
   built-in card and must exclude fixed plugin topics such as `plugin:wardrobe`,
   `plugin:finance`, `plugin:email`, and `plugin:health`.
-- Directory-bound topic cards use the main card body as the topic entry. The
-  folder/directory action is placed on the same row as that main entry; there is
-  no separate small topic button below the card.
+- Directory-bound topic collections render as compact collapsible folder-tree
+  rows followed by an indented child-topic list. The folder/directory icon lives
+  at the left edge of the header with the explicit directory name/path beside
+  it; there is no separate right-side directory icon. Child topic rows/chips are
+  visually indented below the directory header so the parent directory
+  relationship is clear. The directory parent row toggles expand/collapse;
+  opening the file manager must remain an explicit Directory-card or directory
+  action, not an ambiguous parent-row click.
 - The topic list itself does not expose a bottom message composer for creating a
   free-floating topic. New topic creation must enter through a Directory binding
   or another explicit binding flow, so every new topic has a durable context
@@ -193,9 +204,10 @@ bottom Plugin tab and floating plugin drawer, the built-in Directory card, the h
 bottom Directory tab, the plugin-topic script in the app shell/service worker
 cache, Dock app launch actions for external plugins without
 topic/file-directory mini actions, the Directory special card without mini actions,
-Directory-bound topic collections associated below the Directory card and
-excluding plugin topics, bottom navigation with Topics centered, default launch
-to Topics when no saved view exists, fixed `plugin:<pluginId>` topic entry,
+Directory-bound topic collections associated below the compact Directory card,
+collapsible folder-tree rows excluding plugin topics, bottom navigation with
+Topics centered, default launch to Topics when no saved view exists, fixed
+`plugin:<pluginId>` topic entry,
 non-blocking topic entry before directory refresh, creation of `插件/<plugin title>`, file-directory attachment on
 plugin-topic sends, return from plugin file directory to the topic list, plugin
 topic detail hiding bottom navigation while keeping the composer available,
@@ -215,3 +227,5 @@ aggregation, preserving topic-list scroll position after that background
 aggregation/refresh completes, and the static version bump.
 
 See `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md` for the detailed design.
+See `docs/IMPLEMENTATION_NOTES/embedded-surface-bottom-layout-standard.md` for
+the shared Hermes-owned chat and plugin-owned iframe bottom-tab layout rules.

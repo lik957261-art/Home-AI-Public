@@ -72,10 +72,29 @@ function directoryTopicDisplayTitle(group) {
   return title || (typeof taskTitle === "function" ? taskTitle(group) : "") || "\u8bdd\u9898";
 }
 
+const DIRECTORY_TOPIC_COLLAPSED_STORAGE_KEY = "hermesDirectoryTopicCollapsed";
+
+function readCollapsedDirectoryTopics() {
+  try {
+    const raw = localStorage.getItem(DIRECTORY_TOPIC_COLLAPSED_STORAGE_KEY);
+    const values = JSON.parse(raw || "[]");
+    return new Set(Array.isArray(values) ? values.map((value) => String(value || "")) : []);
+  } catch (_) {
+    return new Set();
+  }
+}
+
+function writeCollapsedDirectoryTopics(collapsed) {
+  try {
+    localStorage.setItem(DIRECTORY_TOPIC_COLLAPSED_STORAGE_KEY, JSON.stringify([...collapsed].filter(Boolean)));
+  } catch (_) {}
+}
+
 function renderDirectoryTopicCards(collections = [], options = {}) {
   const visible = (collections || []).filter((collection) => collection?.defaultGroup && collection.groups?.length);
   if (!visible.length) return "";
   const associated = options.associatedWithDirectoryPlugin === true;
+  const collapsedDirectories = readCollapsedDirectoryTopics();
   return `<section class="directory-topic-launcher${associated ? " directory-topic-associated" : ""}" aria-label="\u76ee\u5f55\u8bdd\u9898">
     ${associated ? `<div class="directory-topic-association-label" aria-hidden="true">
       <span class="directory-topic-association-icon"></span>
@@ -87,25 +106,21 @@ function renderDirectoryTopicCards(collections = [], options = {}) {
         const topics = collection.groups || [];
         const route = collection.route || {};
         const path = route.path || route.root || "";
-        const defaultTitle = directoryTopicDisplayTitle(defaultGroup);
-        return `<article class="directory-topic-card" data-directory-topic-card="${escapeHtml(collection.key)}">
+        const collapsed = collapsedDirectories.has(collection.key);
+        return `<article class="directory-topic-card${collapsed ? " collapsed" : ""}" data-directory-topic-card="${escapeHtml(collection.key)}">
           <div class="directory-topic-card-main-row">
-            <button class="directory-topic-card-main" type="button" data-directory-topic-open-default="${escapeHtml(defaultGroup.id)}" aria-label="${escapeHtml(`\u6253\u5f00${collection.label}\u7684\u9ed8\u8ba4\u8bdd\u9898`)}">
-            <span class="directory-topic-topic-icon" aria-hidden="true"></span>
+            <button class="directory-topic-card-main directory-topic-directory-main" type="button" data-directory-topic-toggle="${escapeHtml(collection.key)}" aria-expanded="${collapsed ? "false" : "true"}" aria-label="${escapeHtml(`${collapsed ? "\u5c55\u5f00" : "\u6536\u8d77"}${collection.label}\u8bdd\u9898`)}">
+            <span class="directory-topic-chevron" aria-hidden="true"></span>
+            <span class="plugin-topic-action-icon folder directory-topic-folder-icon" aria-hidden="true"></span>
             <span class="directory-topic-text">
               <span class="directory-topic-title">${escapeHtml(collection.label || "\u76ee\u5f55")}</span>
-              <span class="directory-topic-subtitle">${escapeHtml(defaultTitle || "\u9ed8\u8ba4\u8bdd\u9898")}</span>
+              <span class="directory-topic-subtitle">${escapeHtml(path || "\u76ee\u5f55")}</span>
               <span class="directory-topic-meta">${escapeHtml(`${topics.length} \u4e2a\u8bdd\u9898\u3000${formatTime(collection.updatedAt)}`)}</span>
             </span>
             </button>
-            <div class="directory-topic-actions" aria-label="${escapeHtml(`${collection.label}\u5feb\u6377\u64cd\u4f5c`)}">
-            <button class="directory-topic-action" type="button" data-directory-topic-open-directory data-project-id="${escapeHtml(route.projectId || "")}" data-subproject-id="${escapeHtml(route.subprojectId || "")}" data-directory-path="${escapeHtml(path)}" aria-label="${escapeHtml(`\u6253\u5f00${collection.label}\u76ee\u5f55`)}" title="\u76ee\u5f55">
-              <span class="plugin-topic-action-icon folder" aria-hidden="true"></span>
-            </button>
-            </div>
           </div>
-          ${topics.length > 1 ? `<div class="directory-topic-bound-list" aria-label="${escapeHtml(`${collection.label}\u7684\u8bdd\u9898`)}">
-            ${topics.slice(0, 4).map((group) => {
+          <div class="directory-topic-bound-list" aria-label="${escapeHtml(`${collection.label}\u7684\u8bdd\u9898`)}">
+            ${topics.map((group) => {
               const title = directoryTopicDisplayTitle(group);
               const fullTitle = typeof taskTitle === "function" ? taskTitle(group) : title;
               return `<button class="directory-topic-chip${group.id === defaultGroup.id ? " default" : ""}" type="button" data-directory-topic-open-topic="${escapeHtml(group.id)}" title="${escapeHtml(fullTitle || title || "")}">
@@ -114,7 +129,7 @@ function renderDirectoryTopicCards(collections = [], options = {}) {
                 ${group.id === defaultGroup.id ? `<span class="directory-topic-chip-badge">\u9ed8\u8ba4</span>` : ""}
               </button>`;
             }).join("")}
-          </div>` : ""}
+          </div>
         </article>`;
       }).join("")}
     </div>
@@ -122,6 +137,24 @@ function renderDirectoryTopicCards(collections = [], options = {}) {
 }
 
 function wireDirectoryTopicCards(root) {
+  root?.querySelectorAll?.("[data-directory-topic-toggle]").forEach((button) => {
+    if (button.dataset.boundDirectoryTopicToggle) return;
+    button.dataset.boundDirectoryTopicToggle = "1";
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const key = button.dataset.directoryTopicToggle || "";
+      if (!key) return;
+      const collapsed = readCollapsedDirectoryTopics();
+      if (collapsed.has(key)) collapsed.delete(key);
+      else collapsed.add(key);
+      writeCollapsedDirectoryTopics(collapsed);
+      const card = button.closest?.("[data-directory-topic-card]");
+      const isCollapsed = collapsed.has(key);
+      card?.classList.toggle("collapsed", isCollapsed);
+      button.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+    });
+  });
   root?.querySelectorAll?.("[data-directory-topic-open-default]").forEach((button) => {
     if (button.dataset.boundDirectoryTopicDefault) return;
     button.dataset.boundDirectoryTopicDefault = "1";

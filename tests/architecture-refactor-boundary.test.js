@@ -29,6 +29,7 @@ const gatewayRunModelToolsetSelectionService = require("../adapters/gateway-run-
 const gatewayRunQueueService = require("../adapters/gateway-run-queue-service");
 const gatewayRunStartService = require("../adapters/gateway-run-start-service");
 const gatewayRuntimeCompositionService = require("../adapters/gateway-runtime-composition-service");
+const gatewayProfileTemplateIdentityService = require("../adapters/gateway-profile-template-identity-service");
 const gatewayStatusProjection = require("../adapters/gateway-status-projection");
 const groupChatSharedAttachmentService = require("../adapters/group-chat-shared-attachment-service");
 const requestContext = require("../adapters/request-context-provider");
@@ -222,6 +223,7 @@ function testRefactorModulesExportStableContracts() {
     assert.equal(typeof gatewayRunQueueService.createGatewayRunQueueService, "function");
   assert.equal(typeof gatewayRunStartService.createGatewayRunStartService, "function");
   assert.equal(typeof gatewayRuntimeCompositionService.createGatewayRuntimeCompositionService, "function");
+  assert.equal(typeof gatewayProfileTemplateIdentityService.createGatewayProfileTemplateIdentityService, "function");
   assert.equal(typeof gatewayStatusProjection.createGatewayStatusProjection, "function");
   assert.equal(typeof gatewayStatusProjection.gatewayPoolStatusHealthy, "function");
   assert.equal(typeof groupChatSharedAttachmentService.createGroupChatSharedAttachmentService, "function");

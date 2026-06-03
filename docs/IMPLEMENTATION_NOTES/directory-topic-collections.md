@@ -84,22 +84,26 @@ Uniqueness rules:
 Directory is now also exposed as a built-in application plugin in the topic
 surface. This is a navigation and discovery model, not a backend rewrite:
 Directory still uses the directory module, directory ACLs, and directory-topic
-collection rules. Individual directory collection cards can continue borrowing
-the large-card/icon pattern from plugin topics, while the top-level Directory
-card opens the built-in file manager.
+collection rules. The top-level Directory card opens the built-in file manager.
+Directory-bound topic collections use a compact folder-tree expression below
+that card instead of borrowing the large plugin-card pattern.
 
 Recommended first UI:
 
 - Show one built-in Directory application card in the plugin/application grid;
   its primary action opens the embedded Directory root for the effective
-  workspace.
-- Show directory containers as large cards in the topic surface.
-- Main visual area opens the directory or expands the directory topic list,
-  depending on the existing navigation convention chosen during implementation.
-- Use compact icon actions:
-  - folder icon: open directory;
-  - chat icon: open default topic;
-  - list or chevron icon: show bound topics.
+  workspace. The Directory card should stay compact enough that the bound-topic
+  tree remains visible on a mobile first viewport.
+- Show directory containers as compact collapsible parent rows in the topic
+  surface. The folder icon is placed on the left of the header, followed by the
+  explicit directory name/path and topic count. Do not place a second directory
+  icon on the far right.
+- Show bound child topics below the directory header as an indented list. Each
+  child topic row opens that topic, and the default marker is inline with the
+  row instead of being represented by a separate topic button.
+- The directory parent row toggles expand/collapse. Opening the file directory
+  remains the responsibility of the top-level Directory card or an explicitly
+  labeled directory action, not an ambiguous parent-row click.
 - If no default topic exists, the chat action opens a small chooser or offers
   to create the first topic; it should not silently create a generic topic.
 - Bound topic rows/chips should show title, purpose, recent activity, and
@@ -191,18 +195,16 @@ Likely focused checks:
 
 ## Implementation Status
 
-2026-06-01 frontend projection v446:
+2026-06-03 frontend projection v547:
 
 - `public/app-directory-topics-ui.js` renders directory-topic collection cards
-  from existing task directory bindings.
+  from existing task directory bindings as compact collapsible folder-tree rows.
 - The task list now shows plugin topic cards, then directory-topic collection
-  cards, then unbound regular topics.
-- Directory-topic cards expose icon actions for:
-  - default topic;
-  - bound directory;
-  - secondary topics in the same directory.
-- Secondary topics render as named compact entries with a chat icon, short
-  title, and default marker when applicable. The short title uses a
+  rows, then unbound regular topics.
+- Directory-topic parent rows toggle expand/collapse and persist the collapsed
+  row keys in device-local storage. Bound topics render as named compact
+  indented entries with a chat icon, short title, and default marker when
+  applicable. The short title uses a
   deterministic frontend fallback from the first user message unless the topic
   has an explicit/manual title.
 - Mobile topic-list scrolling uses native vertical pan behavior. Sidebar touch
@@ -222,10 +224,13 @@ Likely focused checks:
 - Static v453 moves the primary Directory entry out of the mobile bottom
   navigation and into the topic application grid as a built-in plugin card.
   Existing directory routes and sidebar directory entry remain compatible.
+- Static v547 keeps the Directory built-in card compact and fixes top-left
+  Directory back from route-root pages that only have `directoryReturnRoute`:
+  the button restores the captured source route instead of opening the sidebar.
 - The v446 projection does not add persistence yet. Until the service layer
   stores an explicit default topic, the frontend uses the most recently updated
   topic in the directory as the temporary default.
-- Static/client version: `20260601-directory-topic-names-v446`.
+- Static/client version: `20260603-directory-topic-tree-v547`.
 
 Remaining service-layer work:
 

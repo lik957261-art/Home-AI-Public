@@ -453,6 +453,17 @@ function createGatewayRunModelToolsetSelectionService(options = {}) {
     if (!enabled) {
       return { enabled: false, ok: false, reason: "disabled", selectedToolsets: allowedToolsets, durationMs: 0 };
     }
+    if (!toolsetSelectionEnabled) {
+      return {
+        enabled: false,
+        ok: false,
+        reason: "permission_preflight_disabled",
+        selectedToolsets: allowedToolsets,
+        authorizedToolsets: allowedToolsets,
+        toolsetSelectionDisabled: true,
+        durationMs: 0,
+      };
+    }
     if (allowedToolsets.length <= 1) {
       return { enabled: true, ok: false, reason: "not_enough_toolsets", selectedToolsets: allowedToolsets, durationMs: 0 };
     }

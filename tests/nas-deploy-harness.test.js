@@ -45,6 +45,13 @@ assert.ok(
   "NAS tracked-source deploy must run first-start preflight",
 );
 assert.ok(
+  deployScript.includes("function Sync-NasRuntimeConfigScripts")
+    && deployScript.includes("app/scripts/start-nas-gateway-pool.sh")
+    && deployScript.includes("config/start-nas-gateway-pool.sh")
+    && deployScript.includes("Sync-NasRuntimeConfigScripts"),
+  "NAS tracked-source deploy must keep runtime config launchers in sync with deployed app scripts",
+);
+assert.ok(
   deployScript.includes("get('/api/owner-elevation')")
     && deployScript.includes("owner_elevation_unavailable")
     && deployScript.includes("'ownerElevationAvailable': owner_elevation.get('available')"),

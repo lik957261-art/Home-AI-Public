@@ -41,6 +41,7 @@ legacy_shared_auth_lock_path="$worker_home_dir/auth.lock"
 shared_auth_source_profile="${HERMES_LOW_GATEWAY_SHARED_AUTH_SOURCE_PROFILE:-}"
 shared_auth_seed_path="${HERMES_LOW_GATEWAY_SHARED_AUTH_SEED_PATH:-$profile_auth_seed_root/shared/auth.json}"
 mobile_app_root="${HERMES_MOBILE_APP_ROOT:-/mnt/c/ProgramData/HermesMobile/app}"
+gateway_profile_template_builder_script="${HERMES_GATEWAY_PROFILE_TEMPLATE_BUILDER_SCRIPT:-$mobile_app_root/scripts/build-gateway-profile-template.js}"
 weather_plugin_source="${HERMES_MOBILE_WEATHER_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-weather}"
 weather_plugin_target="$worker_home_dir/plugins/hermes-mobile-weather"
 web_plugin_source="${HERMES_MOBILE_WEB_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-web}"
@@ -427,6 +428,50 @@ deepseek_companion_low_profile() {
   fi
 }
 
+find_gateway_template_node() {
+  if [ -n "${HERMES_GATEWAY_PROFILE_TEMPLATE_BUILDER_NODE:-}" ] && [ -x "$HERMES_GATEWAY_PROFILE_TEMPLATE_BUILDER_NODE" ]; then
+    printf '%s\n' "$HERMES_GATEWAY_PROFILE_TEMPLATE_BUILDER_NODE"
+    return 0
+  fi
+  if command -v node >/dev/null 2>&1; then
+    command -v node
+    return 0
+  fi
+  if [ -x "/mnt/c/Program Files/nodejs/node.exe" ]; then
+    printf '%s\n' "/mnt/c/Program Files/nodejs/node.exe"
+    return 0
+  fi
+  return 1
+}
+
+gateway_template_node="$(find_gateway_template_node || true)"
+
+gateway_template_builder_script_arg() {
+  if [ -z "$gateway_template_node" ] || [ ! -f "$gateway_profile_template_builder_script" ]; then
+    return 1
+  fi
+  if [[ "$gateway_template_node" == *.exe ]] && command -v wslpath >/dev/null 2>&1; then
+    wslpath -w "$gateway_profile_template_builder_script"
+    return 0
+  fi
+  printf '%s\n' "$gateway_profile_template_builder_script"
+}
+
+render_gateway_template_yaml() {
+  local output_path="$1"
+  shift
+  local script_arg
+  script_arg="$(gateway_template_builder_script_arg)" || return 1
+  local temp_path="${output_path}.template.$$"
+  if "$gateway_template_node" "$script_arg" --render-config-yaml "$@" > "$temp_path" < /dev/null; then
+    mv "$temp_path" "$output_path"
+    echo "gateway-template-rendered output=${output_path}"
+    return 0
+  fi
+  rm -f "$temp_path"
+  return 1
+}
+
 quarantine_sqlite_files() {
   local db_path="$1"
   local backup_dir="$2"
@@ -715,6 +760,15 @@ if [ -n "$plugin_enabled_lines" ]; then
 ${plugin_enabled_lines%$'\n'}"
 fi
 
+if ! render_gateway_template_yaml "$worker_home_dir/config.yaml" \
+  --config-kind base \
+  --value "weather_plugin_enabled=$weather_plugin_enabled" \
+  --value "web_plugin_enabled=$web_plugin_enabled" \
+  --value "http_plugin_enabled=$http_plugin_enabled" \
+  --value "docx_plugin_enabled=$docx_plugin_enabled" \
+  --value "audio_plugin_enabled=$audio_plugin_enabled" \
+  --value "image_plugin_enabled=$image_plugin_enabled" \
+  --value "cronjob_plugin_enabled=$cronjob_plugin_enabled"; then
 cat > "$worker_home_dir/config.yaml" <<YAML
 model:
   default: gpt-5.5
@@ -769,6 +823,7 @@ agent:
 plugins:
 ${plugin_block}
 YAML
+fi
 chmod 600 "$worker_home_dir/config.yaml" || true
 chown "$worker_user:$worker_user" "$worker_home_dir/config.yaml" 2>/dev/null || true
 
@@ -1011,6 +1066,33 @@ ${mcp_server_lines%$'\n'}"
     profile_model_provider="deepseek"
     profile_base_url_block=""
   fi
+  if ! render_gateway_template_yaml "$profile_link/config.yaml" \
+    --config-kind profile \
+    --value "profile=$profile" \
+    --value "port=$port" \
+    --value "profile_link=$profile_link" \
+    --value "weather_plugin_enabled=$weather_plugin_enabled" \
+    --value "web_plugin_enabled=$web_plugin_enabled" \
+    --value "http_plugin_enabled=$http_plugin_enabled" \
+    --value "docx_plugin_enabled=$docx_plugin_enabled" \
+    --value "audio_plugin_enabled=$audio_plugin_enabled" \
+    --value "image_plugin_enabled=$image_plugin_enabled" \
+    --value "cronjob_plugin_enabled=$cronjob_plugin_enabled" \
+    --value "wardrobe_enabled=${wardrobe_toolset_block:+1}" \
+    --value "wardrobe_mcp_path=$wardrobe_mcp_path" \
+    --value "wardrobe_workspace=$profile_wardrobe_workspace" \
+    --value "finance_enabled=${finance_toolset_block:+1}" \
+    --value "finance_mcp_python=$finance_mcp_python" \
+    --value "finance_mcp_path=$finance_mcp_path" \
+    --value "finance_workspace=$profile_finance_workspace" \
+    --value "finance_mcp_api_base_url=$finance_mcp_api_base_url" \
+    --value "note_enabled=${note_toolset_block:+1}" \
+    --value "note_mcp_python=$note_mcp_python" \
+    --value "note_mcp_path=$note_mcp_path" \
+    --value "note_workspace=$profile_note_workspace" \
+    --value "note_mcp_api_base_url=$note_mcp_api_base_url" \
+    --value "outlook_graph_enabled=${outlook_toolset_block:+1}" \
+    --value "outlook_graph_mcp_path=$outlook_graph_mcp_path"; then
   cat > "$profile_link/config.yaml" <<YAML
 model:
   default: ${profile_default_model}
@@ -1088,6 +1170,7 @@ cron:
   enabled: false
 ${mcp_servers_block}
 YAML
+  fi
 
   if [ "$shared_auth_enabled" = "1" ]; then
     rm -f "$profile_link/auth.json" "$profile_link/auth.lock"
@@ -1133,6 +1216,11 @@ while IFS=$'\t' read -r profile port; do
       grok_plugin_block="  enabled:
     - hermes-mobile-video"
     fi
+    if ! render_gateway_template_yaml "$profile_link/config.yaml" \
+      --config-kind grok \
+      --value "profile=$profile" \
+      --value "port=$port" \
+      --value "video_plugin_enabled=$video_plugin_enabled"; then
     cat > "$profile_link/config.yaml" <<YAML
 model:
   default: grok-4.3
@@ -1199,6 +1287,7 @@ worker_pool:
 cron:
   enabled: false
 YAML
+    fi
     if [ "$shared_auth_enabled" = "1" ]; then
       rm -f "$profile_link/auth.json" "$profile_link/auth.lock"
       ln -s "$grok_auth_path" "$profile_link/auth.json"

@@ -60,9 +60,11 @@ Product rules:
 - One directory may have at most one default primary topic for quick entry.
 - Additional bound topics are secondary/special-purpose topic entries, for
   example planning, analysis, issue tracking, summary, or report drafting.
-- The directory card may use a large icon/card presentation, with compact
-  actions for opening the directory, opening the default topic, and selecting a
-  bound topic.
+- The top-level Directory application entry may use a compact icon/card
+  presentation to open the file manager. Directory-bound topic collections
+  below it should use collapsible folder-tree rows: the parent directory row
+  toggles expand/collapse, and bound topic rows are indented children with
+  readable titles and inline default markers.
 - When a directory has multiple bound topics, each bound-topic entry must show a
   readable short topic name, not only repeated chat icons. Manual topic names
   take priority; otherwise the UI may derive a deterministic short name from the
@@ -93,6 +95,9 @@ Current frontend projection:
   normal vertical pan gestures.
 - Static v453 exposes Directory as a built-in plugin card in the topic
   application grid and hides the standalone mobile bottom Directory tab.
+- Static v547 renders directory-bound topics as compact collapsible folder-tree
+  rows, keeps the built-in Directory card tighter on mobile, and fixes
+  top-left Directory back from route-root pages with a captured return route.
 - Until a service-owned explicit default topic exists, the card opens the most
   recently updated topic in that directory as the temporary default.
 - Changing persistence, context assembly, or workspace binding resolution must

@@ -184,25 +184,86 @@ workspace-bound MCP registrations. Provider selection remains user intent: a
 DeepSeek request must not be silently rerouted to OpenAI/Codex or Grok merely
 because those workers are already warm.
 
-Gateway profiles are workspace-owned, not generic capability pools. All
-same-provider profiles for the same workspace must be generated with the same
-workspace-local plugin MCP bindings and top-level `toolsets`; for example every
-Owner OpenAI/Codex `lowgw*` profile must either expose Finance through that
-Owner `.hermes-finance` binding or none of them may be considered Finance
-capable. A plugin-bound run such as `taskGroupId=plugin:finance` must request
-the plugin toolset as a required routing hint. Target selection may then choose
-only among that same workspace's profiles whose actual `config.yaml` includes
-the required toolset. It must not fall back to a generic Owner profile, a
-sibling workspace profile, or a stale profile that still passes `/health` but
-lacks the plugin MCP schema.
+Gateway capability should be template-owned, while Gateway profile instances
+should become reusable process/port slots. The target architecture uses a
+canonical template key of `workspaceId + securityLevel + provider`; for example
+`owner + user + openai-codex` or
+`owner + owner-maintenance + openai-codex`. All slots materialized from the
+same template key must expose the same top-level `toolsets`,
+`platform_toolsets.api_server`, plugin MCP server names, Skill Store binding,
+and workspace-local plugin binding. Slot-specific differences are limited to
+runtime identity such as port, pid, telemetry DB path, logs, and health state.
 
-Status reconciliation must not invent a durable workspace binding for a
-wildcard profile. A health check that discovers `allowedWorkspaceIds=["*"]`,
-such as `grokgw1`, should mark the worker warm without pinning the compatibility
-key to `workspace=*` or `owner`; the next real request must bind the worker
-from its own routing hints. When reconciliation frees an idle/warm worker, it
-must wake the waiting queue so a profile-affinity waiter does not remain queued
-behind a healthy worker with `activeRunCount=0`.
+A plugin-bound run such as `taskGroupId=plugin:finance` must request the plugin
+toolset as a required routing hint. Target selection may then choose only a warm
+slot whose currently materialized template includes that toolset, or start a
+stopped compatible slot after materializing the canonical template. It must not
+fall back to a generic Owner profile, a sibling workspace profile, a different
+permission tier, or a stale warm slot that still passes `/health` but lacks the
+plugin MCP schema.
+
+The first implementation should preserve the current hybrid scheduler and
+manifest slots. Owner low OpenAI/Codex may keep `minWarm=1` for current user
+experience, with on-demand expansion up to the existing Owner cap and a bounded
+idle TTL such as 60 minutes. The structural change is that stopped slots are
+materialized from canonical templates before startup instead of each `lowgw*`
+instance owning an independent toolset decision.
+
+Phase 1 source behavior adds `scripts/verify-gateway-profile-template-sync.js`
+and a `start-low-gateways.sh` drift guard. The verifier groups generated
+profiles by `workspaceId + securityLevel + provider` and compares only public
+capability shape: model provider/default, top-level toolsets,
+`platform_toolsets.api_server`, MCP server names, and enabled plugin names. If
+same-template profiles drift, the selected-profile start path must not skip
+configure merely because the configure signature still matches.
+
+Phase 2 source behavior expands selected-profile configure to template peers.
+For example, starting `lowgw10` with configure required must run configure for
+the whole Owner low OpenAI/Codex template group
+`lowgw1,lowgw2,lowgw3,lowgw4,lowgw10`, while only the requested selected
+profile is started. This preserves the existing hybrid scheduler and slot ids
+while making capability materialization group-scoped instead of slot-local.
+
+Phase 3 source behavior adds `scripts/build-gateway-profile-template.js` as the
+canonical template query/builder utility. It reads only manifest metadata and
+materialized profile `config.yaml` public capability shape: model
+provider/default, top-level `toolsets`, `platform_toolsets.api_server`, MCP
+server names, and enabled plugin names. It can print selected template peers as
+CSV for startup integration and can produce bounded JSON/human output for
+production verification. `start-low-gateways.sh` uses it for peer expansion
+only when Node is available in the WSL runtime; otherwise it falls back to the
+existing Python peer-expansion path.
+
+Phase 4 source behavior makes the builder responsible for low Gateway YAML body
+rendering. `configure-low-gateways.sh` calls
+`build-gateway-profile-template.js --render-config-yaml` for the base
+low-permission config, low/deepseek profile configs, and Grok profile configs.
+The maintained Windows production WSL runtime can reach the Windows Node binary
+through `/mnt/c/Program Files/nodejs/node.exe`; the shell scripts use `wslpath`
+to convert builder and manifest paths for that interop mode. If Node or the
+builder script is unavailable, configure falls back to the preserved shell
+heredocs so profile startup remains rollback-safe.
+
+Phase 5 source behavior adds runtime template identity projection and a warm
+reuse guard. `adapters/gateway-profile-template-identity-service.js` reads only
+the public capability shape from each materialized profile config and projects
+`templateKey`, `capabilityHash`, `capabilityStatus`, and `toolSchemaEpoch`.
+Hybrid status also reports the running process's `materializedTemplateKey` and
+`materializedCapabilityHash`. The scheduler refuses to reuse a warm worker when
+that materialized identity no longer matches the requested template or the
+current capability hash, even if `/health` is still `ok`.
+
+Detailed template/materialization design:
+
+- `docs/IMPLEMENTATION_NOTES/gateway-profile-template-materialization.md`
+
+Status reconciliation must not erase a running worker's materialized template
+identity. A health check that discovers `allowedWorkspaceIds=["*"]`, such as
+`grokgw1`, may mark the worker warm, but it must preserve the previously
+materialized template key/hash until the process stops or is retired. A waiting
+request may reuse or be woken by that worker only when the materialized identity
+matches the request template; otherwise the scheduler must start another
+compatible slot or wait for capacity.
 
 Scheduler run ownership must follow Gateway run id aliases. Mobile initially
 assigns the worker slot to a public `web_*` run id, while Gateway later emits a
@@ -419,12 +480,12 @@ reply" instead of showing a single opaque running state.
 Current runtime behavior:
 
 - `adapters/gateway-run-model-toolset-selection-service.js` runs a bounded
-  model-side preflight request before execution. The preflight receives only a
-  compact authorized-toolset catalog and an empty callable `allowed_toolsets`
-  list.
+  model-first selector only when toolset selection is explicitly enabled.
+  Permission-only model preflight is disabled by default and must not run as a
+  hidden extra model call for ordinary execution.
 - Permission preflight and toolset selection are separate switches. Permission
-  preflight defaults on and may return a permission-elevation decision using
-  `HERMES_PERMISSION_APPROVAL_REQUIRED` semantics. Toolset selection defaults
+  preflight defaults off; deterministic server policy and explicit Owner
+  maintenance approval routes remain the authority. Toolset selection defaults
   off and may only narrow execution toolsets when explicitly enabled.
 - After a successful `model_first` or `permission_preflight` decision, the
   execution prompt must not call `skill_view` or load
@@ -435,17 +496,16 @@ Current runtime behavior:
   code may still construct the access policy and honor explicit Owner
   maintenance approval routes.
 - `HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT` /
-  `HERMES_WEB_GATEWAY_MODEL_PERMISSION_PREFLIGHT` control the permission
-  preflight and default to enabled. Set to `0`, `false`, `no`, or `off` only for
-  an explicit emergency rollback.
+  `HERMES_WEB_GATEWAY_MODEL_PERMISSION_PREFLIGHT` control the legacy
+  permission-only preflight and default to disabled. Set to `1`, `true`, `yes`,
+  or `on` only for an explicit diagnostic rollback that accepts the extra model
+  call.
 - `HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS` /
   `HERMES_WEB_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS` controls the
   permission-only preflight timeout; default is `8000`. Permission preflight is
-  an advisory model-side guard in front of deterministic server policy, so a
-  timeout must not hold the user run for the full model-first selector window.
-  On timeout/error while toolset selection is disabled, Mobile records
-  `run.permission_preflight_fallback` and continues with the full authorized
-  route/access toolset set.
+  a legacy advisory model-side guard in front of deterministic server policy.
+  With the default disabled state, no permission-only selector request is sent
+  and no `run.permission_preflight_*` event is emitted.
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION` /
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION` enable toolset narrowing
   only when set to `1`, `true`, `yes`, or `on`; default is disabled.
@@ -458,11 +518,11 @@ Current runtime behavior:
   `%USERPROFILE%\.hermes-windows\start-hermes-mobile-production.ps1` only
   forwards to the ProgramData launcher, so it is not the effective toggle
   owner.
-- Re-enabling or disabling this selector is a listener configuration change:
+- Re-enabling or disabling model-first toolset selection is a listener configuration change:
   update the ProgramData launcher, restart the Hermes Mobile listener through
   the worker-host launcher, and keep
-  `HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT` enabled unless the user
-  explicitly requests a permission-preflight rollback.
+  `HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT` disabled unless the user
+  explicitly requests a temporary diagnostic rollback.
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS` /
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS` controls the
   selector timeout; default is `30000`.

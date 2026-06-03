@@ -151,6 +151,11 @@ fail Finance partial provisioning: a workspace with
 must report `nas_finance_config_missing:<workspaceId>` instead of being treated
 as an active plugin/MCP binding. Focused check:
 `node tests\nas-deploy-harness.test.js`.
+The deploy harness must also sync runtime config launchers outside the tracked
+app tree, including refreshing `config/start-nas-gateway-pool.sh` from
+`app/scripts/start-nas-gateway-pool.sh`, before Gateway profile restart or
+smoke. Otherwise new MCP registrations can be present in source but absent from
+live generated profiles.
 The same NAS version smoke must call `/api/owner-elevation` with Owner auth and
 fail if `ownerElevation.available` is false. The maintained NAS launcher must
 set `HERMES_MOBILE_ALLOW_OWNER_MAINTENANCE_RUNS=1` in
@@ -160,10 +165,9 @@ The same NAS deploy/preflight harness must verify runtime model parity across
 all execution entrances: generated OpenAI/Codex Gateway profiles, NAS
 `$HERMES_HOME/config.yaml`, NAS `.env`, and official CRON dispatcher startup
 must not retain stale models such as `gpt-5.3-codex`. The maintained user-run
-default is `gpt-5.5` with `medium` reasoning. Permission preflight is separate:
-unless explicitly overridden, it should remain the fast `gpt-5.4-mini` low
-reasoning classifier with the bounded timeout from
-`HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS`.
+default is `gpt-5.5` with `medium` reasoning. Permission-only model preflight
+is separate and defaults off; unless explicitly overridden for diagnostics,
+ordinary runs must not spend an extra selector call before execution.
 The official CRON dispatcher startup check must also prove model jobs are
 proxied before official `cron.scheduler.run_job()` starts. The dispatcher must
 inject `HERMES_MOBILE_CRON_MODEL_PROXY_URL` or the standard proxy variables
@@ -212,6 +216,45 @@ Runtime-state backup harnesses must reject a design where every normal message
 increase creates a full state backup or performs a forced SQLite full
 replacement before run progress becomes visible. Focused check:
 `node tests\runtime-state-persistence-service.test.js`.
+Gateway profile template materialization is an H1 Gateway workflow change. The
+focused implementation harness must prove canonical template generation,
+same-template toolset/MCP equality, no cross-tier slot reuse, stopped-slot
+materialization before startup, warm reuse when the template key matches, cold
+start to health, first text delta timing, terminal release, idle stop, and
+`/api/status?detail=1` projection without exposing raw config bodies or secrets.
+Phase 1 focused checks are
+`node tests\gateway-profile-template-sync.test.js`,
+`node tests\startup-scripts.test.js`, `bash -n scripts/start-low-gateways.sh`,
+and a production verifier run against
+`C:\ProgramData\HermesMobile\gateway-worker\telemetry\profiles`.
+Phase 2 production smoke must also prove a selected stopped profile start logs
+`lowgw-configure-template-peers` with the requested profile and the expanded
+same-template peer group, then leaves the requested profile startable and the
+baseline warm worker restorable.
+Phase 3 focused checks add
+`node tests\gateway-profile-template-builder.test.js` and a production builder
+run such as
+`node scripts\build-gateway-profile-template.js --manifest <manifest> --profiles-root <profiles> --profile lowgw10 --require-config`.
+The builder must report the same selected peer group and capability hash as
+`scripts\verify-gateway-profile-template-sync.js`, without printing raw config
+bodies or secrets.
+Phase 4 focused checks also require the builder render path:
+`node scripts\build-gateway-profile-template.js --render-config-yaml --config-kind profile ...`,
+`bash -n scripts/configure-low-gateways.sh`, and
+`node tests\startup-scripts.test.js`. Local production validation must prove
+WSL can call the builder through the effective Node path, then run a forced
+configure/start smoke or an equivalent configure-only verifier to confirm the
+materialized production profiles still share the expected capability hash.
+Phase 5 focused checks require runtime projection and reuse-guard coverage:
+`node --check adapters\gateway-profile-template-identity-service.js`,
+`node tests\gateway-elastic-worker-scheduler.test.js`,
+`node tests\gateway-pool-provider.test.js`,
+`node tests\system-api-routes.test.js`, and
+`node tests\architecture-refactor-boundary.test.js`. Status projection must show
+only non-secret `templateKey`, `capabilityHash`, `capabilityStatus`,
+`toolSchemaEpoch`, `materializedTemplateKey`, and
+`materializedCapabilityHash`; a warm worker with a stale materialized hash must
+not be reused merely because `/health` is `ok`.
 NAS Growth audio parity must cover the platform-specific transcription path:
 Windows may use `scripts\transcribe-reading-audio.ps1`, while Linux/NAS must use
 `scripts\transcribe-reading-audio.js` against the local Whisper large v3 Turbo
@@ -290,9 +333,10 @@ coverage for that increment:
 - The Directory built-in application card is shown with the plugin application
   cards but placed after external plugins. It has no chat/file mini actions;
   directory-bound topic collections are visually associated below it instead.
-- Directory-bound cards use the main body as the topic entry and place the
-  bound-directory action on the same row; they must not render an extra small
-  topic-entry action below the card.
+- Directory-bound cards render a directory header with the folder icon on the
+  left and the explicit directory name/path beside it. They must not render a
+  second right-side directory icon. Bound child topics render below as an
+  indented list so the parent directory relationship is visible.
 - The Directory special card must use the shared standard folder icon asset
   already used by Growth delivery-directory links. Directory-bound topic cards
   must use a smaller topic/chat icon and must not reuse the same Directory icon.
@@ -398,9 +442,8 @@ hidden single-profile start/stop launchers, and
 rather than unhealthy Gateway Pool degradation, including clearing a previously
 warm worker after the process stops and `/health` no longer responds. It must
 also cover wildcard profiles such as `grokgw1`: status reconciliation may mark
-the process warm, but must not pin an artificial `workspace=*` compatibility
-key, and must wake a `profile_affinity` waiter when a healthy idle wildcard
-worker is available. The
+the process warm, but must preserve the materialized template key/hash and must
+not wake or reuse the worker for an incompatible request template. The
 run-progress UI must
 distinguish starting, reused, queued, idle-retirement, and failed states without
 exposing API keys, workspace keys, plugin launch tokens, raw prompts, raw model
@@ -588,8 +631,8 @@ The harness must also exercise the real `/v1/responses` request path and prove
 that Mobile's top-level `enabled_toolsets` becomes the effective
 `AIAgent.enabled_toolsets`. If that proof is unavailable during a hotfix window,
 keep `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION=0` while leaving
-`HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT` enabled unless there is an
-explicit emergency rollback.
+`HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT=0` unless there is an
+explicit diagnostic rollback.
 Runtime configuration harnesses must also check the effective production
 launcher before concluding the selector is on or off:
 `C:\ProgramData\HermesMobile\start-hermes-mobile-production.ps1` is the real
@@ -597,7 +640,8 @@ toggle owner, while `%USERPROFILE%\.hermes-windows\start-hermes-mobile-productio
 is only a forwarding wrapper. A selector rollout or rollback must document the
 launcher value, the backup path, and a post-restart `/api/status?detail=1`
 smoke. Changing the selector does not require a Gateway Pool restart by itself,
-and it must not change provider routing or disable permission preflight.
+and it must not change provider routing or silently re-enable permission
+preflight.
 Public reverse-proxy hardening is a permission/security workflow. The harness
 must cover global HTTP security headers on JSON and route-owned responses,
 including `Strict-Transport-Security`, `Content-Security-Policy`,
@@ -1070,15 +1114,15 @@ events are parsed as a valid final decision rather than `invalid_json`.
 Tens-of-seconds latency is acceptable if the preflight reliably returns;
 latency/cost claims must verify the actual Gateway session or worker log model
 instead of trusting only the request body's `model` field. A successful
-model-first or permission-only preflight decision must also suppress a second
-permission-classifier pass before execution: the main execution prompt must not
-ask the model to load the permission-boundary Skill again or call `skill_view` for
-`productivity/hermes-mobile-permission-boundary-check`, and UI status rows should
-describe permission/toolset selection as one combined preflight.
-Permission-only preflight timeout/error coverage must assert the shorter
-`HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS` path, the
-`run.permission_preflight_fallback` status row, and continued deterministic
-route/access execution without showing a toolset-selection failure to the user.
+model-first decisions must also suppress a second permission-classifier pass
+before execution: the main execution prompt must not ask the model to load the
+permission-boundary Skill again or call `skill_view` for
+`productivity/hermes-mobile-permission-boundary-check`. Permission-only
+preflight is a legacy explicit opt-in path; default run-start coverage must
+assert that disabling it does not send a selector model call and does not emit
+`run.permission_preflight_*` rows. If temporarily re-enabled for diagnostics,
+timeout/error coverage must remain bounded by
+`HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS`.
 
 Run status harnesses must cover no-first-byte visibility. If the execution
 stream receives no Gateway event after the configured warning window, the
@@ -1386,7 +1430,7 @@ The guard test is:
 | Public reverse-proxy security | `node tests\auth-provider.test.js`, `node tests\mobile-http-runtime-service.test.js`, `node tests\chatgpt-pro-codex-bridge-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\api-route-inventory.test.js`, `node tests\architecture-refactor-boundary.test.js`, `npm.cmd run security:invariants`, `npm.cmd run privacy:scan`, production smoke: `/api/public-config` headers, query-string key denial, header-authenticated `/api/status?detail=1`, anonymous plugin proxy denial, and Windows firewall state |
 | Gateway run lifecycle | `node tests\gateway-run-model-toolset-selection-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\gateway-run-stream-service.test.js`, `node tests\gateway-run-lifecycle-service.test.js`, `node tests\gateway-run-queue-service.test.js`, `node tests\run-liveness.test.js`, `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js` |
 | Chat context/compaction | `node tests\conversation-history-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\topic-context-compaction-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\mobile-sqlite-store.test.js` |
-| Gateway Pool/scripts | `node tests\gateway-pool-provider.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\cross-shell-command-harness.test.js`, `node tests\hermes-mobile-image-plugin.test.js` |
+| Gateway Pool/scripts | `node tests\gateway-elastic-worker-scheduler.test.js`, `node tests\gateway-pool-provider.test.js`, `node tests\gateway-profile-template-sync.test.js`, `node tests\gateway-profile-template-builder.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\cross-shell-command-harness.test.js`, `node tests\hermes-mobile-image-plugin.test.js` |
 | Gateway MCP callable schema | `python -m py_compile gateway-runtime-overrides\sitecustomize.py gateway-runtime-overrides\model_tools.py`, `node scripts\probe-lowgw1-wardrobe-mcp.js`, `node tests\no-window-command-harness.test.js` |
 | ChatGPT Pro | `node tests\chatgpt-pro-codex-bridge-service.test.js`, `node tests\owner-elevation-routing-service.test.js`, `node tests\thread-message-create-service.test.js` |
 | Grok/model routing | `node tests\gateway-model-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js` |

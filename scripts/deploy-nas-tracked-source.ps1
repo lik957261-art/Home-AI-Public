@@ -318,6 +318,34 @@ function Invoke-NasChecks {
   Invoke-NasSsh "cd '$RemoteRoot/app' && '$RemoteNode' --check server.js && '$RemoteNode' --check public/service-worker.js && '$RemoteNode' tests/task-list-ui.test.js && '$RemoteNode' tests/static-cache-version-harness.test.js"
 }
 
+function Sync-NasRuntimeConfigScripts {
+  $python = @"
+from pathlib import Path
+import shutil
+import time
+
+root = Path('$RemoteRoot')
+pairs = [
+    (root / 'app/scripts/start-nas-gateway-pool.sh', root / 'config/start-nas-gateway-pool.sh'),
+]
+synced = []
+for src, dst in pairs:
+    if not src.exists():
+        raise SystemExit(f'nas_runtime_config_source_missing:{src}')
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if dst.exists() and src.read_bytes() == dst.read_bytes():
+        continue
+    if dst.exists():
+        backup = dst.with_name(dst.name + '.before-sync-' + time.strftime('%Y%m%d-%H%M%S'))
+        shutil.copy2(dst, backup)
+    shutil.copy2(src, dst)
+    dst.chmod(0o755)
+    synced.append(str(dst))
+print(';'.join(synced) if synced else 'runtime config scripts already current')
+"@
+  Invoke-NasPython $python
+}
+
 function Invoke-NasVersionSmoke {
   param([string] $Version)
   $python = @"
@@ -512,6 +540,7 @@ try {
 }
 
 Invoke-NasChecks
+Sync-NasRuntimeConfigScripts
 if ($RestartListener) {
   Restart-NasListener
 }

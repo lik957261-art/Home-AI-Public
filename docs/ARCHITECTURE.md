@@ -44,7 +44,9 @@ Run `node tests\architecture-refactor-boundary.test.js` for non-trivial server/r
 - Chat context: single-window Chat, group chat, task groups, bounded conversation
   history, topic context compaction, working state, and evidence refs.
 - Growth learning: learning programs, task cards, submissions, async evaluation, reflection, rewards, mastery profile, and next-card strategy.
-- Gateway Pool: worker lifecycle, routing, health, maintenance watchdog, tool/plugin availability.
+- Gateway Pool: worker lifecycle, routing, health, maintenance watchdog,
+  tool/plugin availability, and the separation between canonical capability
+  profile templates and reusable Gateway process slots.
 - ChatGPT Pro: Owner-maintenance routing, Gateway plugin, bridge-host endpoint, Codex Mobile thread reuse, temporary output directory.
 - Skill permissions: product-level write guard for Skill analysis/fix routes and UI affordances.
 - Action Inbox: local lightweight user-action queue for manual todos, Automation deliveries, Growth next actions, and review/follow-up items.

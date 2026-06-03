@@ -163,6 +163,7 @@ grok_auth_default_root="${HERMES_GROK_GATEWAY_AUTH_ROOT:-$gateway_worker_root/te
 grok_auth_path="${HERMES_GROK_GATEWAY_AUTH_PATH:-$grok_auth_default_root/auth.json}"
 grok_auth_lock_path="${HERMES_GROK_GATEWAY_AUTH_LOCK_PATH:-$grok_auth_default_root/auth.lock}"
 mobile_app_root="${HERMES_MOBILE_APP_ROOT:-/mnt/c/ProgramData/HermesMobile/app}"
+gateway_profile_template_builder_script="${HERMES_GATEWAY_PROFILE_TEMPLATE_BUILDER_SCRIPT:-$mobile_app_root/scripts/build-gateway-profile-template.js}"
 weather_plugin_source="${HERMES_MOBILE_WEATHER_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-weather}"
 web_plugin_source="${HERMES_MOBILE_WEB_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-web}"
 http_plugin_source="${HERMES_MOBILE_HTTP_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-http}"
@@ -443,21 +444,372 @@ selected_gateway_profiles_ready() {
   return 0
 }
 
+profile_template_sync_current() {
+  python3 - "$gateway_pool_manifest_path" "$gateway_worker_root/telemetry/profiles" <<'PY'
+import hashlib
+import json
+import os
+import re
+import sys
+
+manifest_path, profiles_root = sys.argv[1:3]
+
+def clean(value):
+    return str(value or "").strip()
+
+def clean_list(value):
+    if isinstance(value, list):
+        return [clean(item) for item in value if clean(item)]
+    if isinstance(value, str):
+        return [item for item in re.split(r"[,;\s]+", value.strip()) if item]
+    return []
+
+def dedupe_sorted(values):
+    return sorted(set(clean_list(values)))
+
+def workspace_id(worker):
+    candidates = []
+    for key in ("skillWorkspaceIds", "skill_workspace_ids", "allowedWorkspaceIds", "allowed_workspace_ids"):
+        candidates.extend(clean_list(worker.get(key)))
+    normalized = []
+    for item in candidates:
+        text = clean(item).lower()
+        if text in ("", "*", "all"):
+            continue
+        if text.startswith("workspace:"):
+            text = text.split(":", 1)[1]
+        text = re.sub(r"[^a-z0-9_-]+", "-", text).strip("-")[:80]
+        if text and text not in normalized:
+            normalized.append(text)
+    if len(normalized) == 1:
+        return normalized[0]
+    if "owner" in normalized:
+        return "owner"
+    return "+".join(sorted(normalized)) or "owner"
+
+def security_level(worker):
+    text = clean(worker.get("securityLevel") or worker.get("security_level")).lower().replace("_", "-")
+    if text in ("owner", "owner-maintenance", "maintenance", "admin", "high", "high-privilege"):
+        return "owner-maintenance"
+    return "user"
+
+def section(lines, name):
+    out = []
+    active = False
+    for line in lines:
+        if re.match(rf"^{re.escape(name)}:\s*$", line):
+            active = True
+            continue
+        if not active:
+            continue
+        if re.match(r"^\S.*:\s*$", line):
+            break
+        out.append(line)
+    return out
+
+def top_list(lines, name):
+    out = []
+    for line in section(lines, name):
+        match = re.match(r"^\s*-\s*([A-Za-z0-9_.:-]+)\s*$", line)
+        if match:
+            out.append(match.group(1))
+    return dedupe_sorted(out)
+
+def model_provider(lines):
+    for line in section(lines, "model"):
+        match = re.match(r"^\s{2}provider:\s*(.+?)\s*$", line)
+        if match:
+            return clean(match.group(1)) or "openai-codex"
+    return "openai-codex"
+
+def model_default(lines):
+    for line in section(lines, "model"):
+        match = re.match(r"^\s{2}default:\s*(.+?)\s*$", line)
+        if match:
+            return clean(match.group(1))
+    return ""
+
+def api_toolsets(lines):
+    out = []
+    in_platform = False
+    in_api = False
+    for line in lines:
+        if re.match(r"^platform_toolsets:\s*$", line):
+            in_platform = True
+            in_api = False
+            continue
+        if not in_platform:
+            continue
+        if re.match(r"^\S.*:\s*$", line):
+            break
+        if re.match(r"^\s{2}api_server:\s*$", line):
+            in_api = True
+            continue
+        if not in_api:
+            continue
+        if re.match(r"^\s{2}\S.*:\s*$", line):
+            break
+        match = re.match(r"^\s{4}-\s*([A-Za-z0-9_.:-]+)\s*$", line)
+        if match:
+            out.append(match.group(1))
+    return dedupe_sorted(out)
+
+def mcp_servers(lines):
+    out = []
+    active = False
+    for line in lines:
+        if re.match(r"^mcp_servers:\s*$", line):
+            active = True
+            continue
+        if not active:
+            continue
+        if re.match(r"^\S.*:\s*$", line):
+            break
+        match = re.match(r"^\s{2}([A-Za-z0-9_.:-]+):\s*$", line)
+        if match:
+            out.append(match.group(1))
+    return dedupe_sorted(out)
+
+def plugins(lines):
+    out = []
+    in_plugins = False
+    in_enabled = False
+    for line in lines:
+        if re.match(r"^plugins:\s*$", line):
+            in_plugins = True
+            in_enabled = False
+            continue
+        if not in_plugins:
+            continue
+        if re.match(r"^\S.*:\s*$", line):
+            break
+        if re.match(r"^\s{2}enabled:\s*$", line):
+            in_enabled = True
+            continue
+        if re.match(r"^\s{2}enabled:\s*\[\]\s*$", line):
+            break
+        if not in_enabled:
+            continue
+        match = re.match(r"^\s{4}-\s*([A-Za-z0-9_.:-]+)\s*$", line)
+        if match:
+            out.append(match.group(1))
+    return dedupe_sorted(out)
+
+def capabilities(config_path):
+    with open(config_path, encoding="utf-8") as handle:
+        lines = handle.read().splitlines()
+    return {
+        "modelDefault": model_default(lines),
+        "modelProvider": model_provider(lines),
+        "toolsets": top_list(lines, "toolsets"),
+        "apiServerToolsets": api_toolsets(lines),
+        "mcpServers": mcp_servers(lines),
+        "plugins": plugins(lines),
+    }
+
+try:
+    manifest = json.load(open(manifest_path, encoding="utf-8-sig"))
+except Exception:
+    raise SystemExit(1)
+
+groups = {}
+for worker in manifest.get("workers") or []:
+    if worker.get("enabled") is False:
+        continue
+    profile = clean(worker.get("profile") or worker.get("name"))
+    if not profile:
+        continue
+    config_path = os.path.join(profiles_root, profile, "config.yaml")
+    if not os.path.exists(config_path):
+        continue
+    caps = capabilities(config_path)
+    provider = clean(worker.get("provider")) or caps["modelProvider"] or "openai-codex"
+    template_key = "|".join([workspace_id(worker), security_level(worker), provider])
+    public_shape = json.dumps(caps, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(public_shape.encode("utf-8")).hexdigest()[:16]
+    groups.setdefault(template_key, {}).setdefault(digest, []).append(profile)
+
+for template_key, hashes in groups.items():
+    if len(hashes) > 1:
+        print(f"profile_template_drift:{template_key}:" + ",".join(sorted(sum(hashes.values(), []))), file=sys.stderr)
+        raise SystemExit(1)
+raise SystemExit(0)
+PY
+}
+
+find_gateway_template_node() {
+  if [ -n "${HERMES_GATEWAY_PROFILE_TEMPLATE_BUILDER_NODE:-}" ] && [ -x "$HERMES_GATEWAY_PROFILE_TEMPLATE_BUILDER_NODE" ]; then
+    printf '%s\n' "$HERMES_GATEWAY_PROFILE_TEMPLATE_BUILDER_NODE"
+    return 0
+  fi
+  if command -v node >/dev/null 2>&1; then
+    command -v node
+    return 0
+  fi
+  if [ -x "/mnt/c/Program Files/nodejs/node.exe" ]; then
+    printf '%s\n' "/mnt/c/Program Files/nodejs/node.exe"
+    return 0
+  fi
+  return 1
+}
+
+gateway_template_node="$(find_gateway_template_node || true)"
+
+gateway_template_builder_script_arg() {
+  if [ -z "$gateway_template_node" ] || [ ! -f "$gateway_profile_template_builder_script" ]; then
+    return 1
+  fi
+  if [[ "$gateway_template_node" == *.exe ]] && command -v wslpath >/dev/null 2>&1; then
+    wslpath -w "$gateway_profile_template_builder_script"
+    return 0
+  fi
+  printf '%s\n' "$gateway_profile_template_builder_script"
+}
+
+gateway_template_manifest_arg() {
+  if [[ "$gateway_template_node" == *.exe ]] && command -v wslpath >/dev/null 2>&1; then
+    wslpath -w "$gateway_pool_manifest_path"
+    return 0
+  fi
+  printf '%s\n' "$gateway_pool_manifest_path"
+}
+
+template_peer_profiles_for_selection() {
+  local selected_profiles="${1:-}"
+  if [ -z "$selected_profiles" ]; then
+    return 0
+  fi
+  if [ -n "$gateway_template_node" ] && [ -f "$gateway_profile_template_builder_script" ]; then
+    local script_arg
+    local manifest_arg
+    local builder_output
+    script_arg="$(gateway_template_builder_script_arg)" || script_arg=""
+    manifest_arg="$(gateway_template_manifest_arg)" || manifest_arg=""
+    if [ -n "$script_arg" ] && [ -n "$manifest_arg" ] && builder_output="$("$gateway_template_node" "$script_arg" --manifest "$manifest_arg" --profiles "$selected_profiles" --print-configure-profiles 2>/dev/null)" && [ -n "$builder_output" ]; then
+      printf '%s\n' "$builder_output"
+      return 0
+    fi
+  fi
+  python3 - "$gateway_pool_manifest_path" "$selected_profiles" <<'PY' 2>/dev/null || printf '%s\n' "$selected_profiles"
+import json
+import re
+import sys
+
+manifest_path, selected = sys.argv[1:3]
+selected_profiles = [item.strip() for item in selected.split(",") if item.strip()]
+selected_set = set(selected_profiles)
+
+def clean(value):
+    return str(value or "").strip()
+
+def clean_list(value):
+    if isinstance(value, list):
+        return [clean(item) for item in value if clean(item)]
+    if isinstance(value, str):
+        return [item for item in re.split(r"[,;\s]+", value.strip()) if item]
+    return []
+
+def workspace_id(worker):
+    candidates = []
+    for key in ("skillWorkspaceIds", "skill_workspace_ids", "allowedWorkspaceIds", "allowed_workspace_ids"):
+        candidates.extend(clean_list(worker.get(key)))
+    normalized = []
+    for item in candidates:
+        text = clean(item).lower()
+        if text in ("", "*", "all"):
+            continue
+        if text.startswith("workspace:"):
+            text = text.split(":", 1)[1]
+        text = re.sub(r"[^a-z0-9_-]+", "-", text).strip("-")[:80]
+        if text and text not in normalized:
+            normalized.append(text)
+    if len(normalized) == 1:
+        return normalized[0]
+    if "owner" in normalized:
+        return "owner"
+    return "+".join(sorted(normalized)) or "owner"
+
+def security_level(worker):
+    text = clean(worker.get("securityLevel") or worker.get("security_level")).lower().replace("_", "-")
+    if text in ("owner", "owner-maintenance", "maintenance", "admin", "high", "high-privilege"):
+        return "owner-maintenance"
+    return "user"
+
+def provider(worker):
+    return clean(worker.get("provider") or worker.get("provider_id")) or "openai-codex"
+
+def template_key(worker):
+    return "|".join([workspace_id(worker), security_level(worker), provider(worker)])
+
+try:
+    manifest = json.load(open(manifest_path, encoding="utf-8-sig"))
+except Exception:
+    print(",".join(selected_profiles))
+    raise SystemExit(0)
+
+workers = []
+selected_keys = set()
+for worker in manifest.get("workers") or []:
+    if worker.get("enabled") is False:
+        continue
+    profile = clean(worker.get("profile") or worker.get("name"))
+    if not re.match(r"^(lowgw|grokgw|deepseekgw)\d+$", profile, re.I):
+        continue
+    key = template_key(worker)
+    workers.append((profile, key))
+    if profile in selected_set:
+        selected_keys.add(key)
+
+if not selected_keys:
+    print(",".join(selected_profiles))
+    raise SystemExit(0)
+
+peers = []
+seen = set()
+for profile, key in workers:
+    if key not in selected_keys or profile in seen:
+        continue
+    seen.add(profile)
+    peers.append(profile)
+
+print(",".join(peers or selected_profiles))
+PY
+}
+
+gateway_configure_profiles="${gateway_start_profiles}"
+if [ -n "$gateway_start_profiles" ]; then
+  expanded_configure_profiles="$(template_peer_profiles_for_selection "$gateway_start_profiles" || true)"
+  if [ -n "$expanded_configure_profiles" ]; then
+    gateway_configure_profiles="$expanded_configure_profiles"
+  fi
+fi
+
+run_configure_low_gateways() {
+  if [ -n "$gateway_configure_profiles" ]; then
+    if [ "$gateway_configure_profiles" != "$gateway_start_profiles" ]; then
+      log_step "lowgw-configure-template-peers requested=${gateway_start_profiles} configure=${gateway_configure_profiles}"
+    fi
+    HERMES_GATEWAY_START_PROFILES="$gateway_configure_profiles" bash "$configure_low_gateway_script"
+    return
+  fi
+  bash "$configure_low_gateway_script"
+}
+
 if is_gateway_stop_only; then
   log_step "lowgw-configure-skipped reason=stop-only profiles=${gateway_start_profiles:-all}"
-elif ! is_force_configure && selected_gateway_profiles_ready && configure_cache_current; then
+elif ! is_force_configure && selected_gateway_profiles_ready && configure_cache_current && profile_template_sync_current; then
   log_step "lowgw-configure-skipped reason=config-current profiles=${gateway_start_profiles:-all}"
 elif is_skip_configure_if_ready && [ -n "$gateway_start_profiles" ]; then
   log_step "lowgw-configure-cache-miss profiles=${gateway_start_profiles}"
   log_step "lowgw-configure-start"
-  bash "$configure_low_gateway_script"
+  run_configure_low_gateways
   if ! write_configure_signature; then
     log_step "lowgw-configure-signature-write-failed"
   fi
   log_step "lowgw-configure-done"
 else
   log_step "lowgw-configure-start"
-  bash "$configure_low_gateway_script"
+  run_configure_low_gateways
   if ! write_configure_signature; then
     log_step "lowgw-configure-signature-write-failed"
   fi

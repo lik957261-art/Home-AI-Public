@@ -301,7 +301,13 @@ function animateDirectoryEntry() {
 
 async function navigateDirectoryUp(options = {}) {
   if (state.viewMode !== "projects" || state.directoryLoading) return false;
-  if (!directoryActivePath()) return false;
+  if (!directoryActivePath()) {
+    if (state.directoryReturnRoute) {
+      restoreDirectoryReturnRoute();
+      return true;
+    }
+    return false;
+  }
   const exitShell = options.exitShell || (options.animateEntry ? document.querySelector(".directory-shell") : null);
   if (exitShell) {
     await settleDirectorySwipeShell(exitShell, true);

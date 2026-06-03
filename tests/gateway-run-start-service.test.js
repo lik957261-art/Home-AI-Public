@@ -670,7 +670,8 @@ async function testStartRunCanExecuteWardrobeMcpSelection() {
   assert.deepEqual(JSON.parse(calls.events[4].preview).selected_toolsets, ["wardrobe", "vision", "file"]);
 }
 
-async function testPermissionPreflightKeepsFullAuthorizedToolsetsWhenSelectionDisabled() {
+async function testModelPermissionPreflightIsSkippedWhenSelectionDisabled() {
+  let selectorCalls = 0;
   const { calls, service } = makeHarness({
     buildAccessPolicy: (routePolicy, _user, project) => ({
       principal_id: routePolicy.principal_id || "unknown",
@@ -701,16 +702,18 @@ async function testPermissionPreflightKeepsFullAuthorizedToolsetsWhenSelectionDi
         suggested_toolsets: ["wardrobe", "vision", "file", "skills"],
       },
     }),
-    selectRunToolsetsWithModel: async ({ request }) => ({
-      enabled: true,
-      ok: true,
-      mode: "permission_preflight",
-      toolsetSelectionDisabled: true,
-      reason: "permission allowed; full authorized toolsets retained",
-      selectedToolsets: request.runPolicy.allowed_toolsets,
-      authorizedToolsets: request.runPolicy.authorized_toolsets || request.runPolicy.allowed_toolsets,
-      durationMs: 800,
-    }),
+    selectRunToolsetsWithModel: async ({ request }) => {
+      selectorCalls += 1;
+      return {
+        enabled: false,
+        ok: false,
+        reason: "permission_preflight_disabled",
+        selectedToolsets: request.runPolicy.allowed_toolsets,
+        authorizedToolsets: request.runPolicy.authorized_toolsets || request.runPolicy.allowed_toolsets,
+        toolsetSelectionDisabled: true,
+        durationMs: 0,
+      };
+    },
   });
 
   await service.startRunForThread(
@@ -722,8 +725,8 @@ async function testPermissionPreflightKeepsFullAuthorizedToolsetsWhenSelectionDi
 
   assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["wardrobe", "vision", "file", "http", "skills"]);
   assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["wardrobe", "vision", "file", "http", "skills"]);
-  assert.equal(calls.streams[0].body.access_policy_context.toolset_routing.mode, "permission_preflight");
-  assert.equal(calls.streams[0].body.access_policy_context.toolset_routing.toolset_selection_disabled, true);
+  assert.equal(selectorCalls, 1);
+  assert.equal(calls.streams[0].body.access_policy_context.toolset_routing.mode, "disabled");
   assert.deepEqual(calls.streams[0].body.access_policy_context.toolset_routing.omitted_authorized_toolsets, []);
   assert.doesNotMatch(calls.streams[0].body.instructions, /Omitted authorized toolsets: http/);
   assert.deepEqual(calls.events.map((event) => event.event), [
@@ -731,12 +734,12 @@ async function testPermissionPreflightKeepsFullAuthorizedToolsetsWhenSelectionDi
     "run.context_ready",
     "run.gateway_selected",
     "run.toolset_selection_started",
-    "run.permission_preflight_done",
     "run.request_sent",
   ]);
 }
 
-async function testPermissionPreflightFallbackRestoresFullAuthorizedToolsets() {
+async function testModelPermissionPreflightFallbackIsSkipped() {
+  let selectorCalls = 0;
   const { calls, service } = makeHarness({
     buildAccessPolicy: (routePolicy, _user, project) => ({
       principal_id: routePolicy.principal_id || "unknown",
@@ -757,16 +760,18 @@ async function testPermissionPreflightFallbackRestoresFullAuthorizedToolsets() {
       }),
       routing: { mode: "disabled", reason: "toolset_pruning_disabled" },
     }),
-    selectRunToolsetsWithModel: async ({ request }) => ({
-      enabled: true,
-      ok: false,
-      mode: "permission_preflight",
-      toolsetSelectionDisabled: true,
-      reason: "selector_error",
-      selectedToolsets: request.runPolicy.allowed_toolsets,
-      authorizedToolsets: request.runPolicy.authorized_toolsets || request.runPolicy.allowed_toolsets,
-      durationMs: 8000,
-    }),
+    selectRunToolsetsWithModel: async ({ request }) => {
+      selectorCalls += 1;
+      return {
+        enabled: false,
+        ok: false,
+        reason: "permission_preflight_disabled",
+        selectedToolsets: request.runPolicy.allowed_toolsets,
+        authorizedToolsets: request.runPolicy.authorized_toolsets || request.runPolicy.allowed_toolsets,
+        toolsetSelectionDisabled: true,
+        durationMs: 0,
+      };
+    },
   });
 
   await service.startRunForThread(
@@ -776,17 +781,16 @@ async function testPermissionPreflightFallbackRestoresFullAuthorizedToolsets() {
     {},
   );
 
-  assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["wardrobe", "vision", "file", "skills", "weather", "web"]);
-  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["wardrobe", "vision", "file", "skills", "weather", "web"]);
+  assert.equal(selectorCalls, 1);
+  assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["wardrobe", "vision", "file", "skills"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["wardrobe", "vision", "file", "skills"]);
   assert.deepEqual(calls.events.map((event) => event.event), [
     "run.request_preparing",
     "run.context_ready",
     "run.gateway_selected",
     "run.toolset_selection_started",
-    "run.permission_preflight_fallback",
     "run.request_sent",
   ]);
-  assert.equal(JSON.parse(calls.events[4].preview).reason, "selector_error");
 }
 
 async function testWardrobeSelectionKeepsVisionCompanionWhenSelectorNarrows() {
@@ -1189,8 +1193,8 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testModelFirstRoutingMetadataSurvivesPolicySanitizer();
   await testStartRunSkipsSelectorForForcedToolsetEscalationRetry();
   await testStartRunCanExecuteWardrobeMcpSelection();
-  await testPermissionPreflightKeepsFullAuthorizedToolsetsWhenSelectionDisabled();
-  await testPermissionPreflightFallbackRestoresFullAuthorizedToolsets();
+  await testModelPermissionPreflightIsSkippedWhenSelectionDisabled();
+  await testModelPermissionPreflightFallbackIsSkipped();
   await testWardrobeSelectionKeepsVisionCompanionWhenSelectorNarrows();
   await testWardrobeSelectionKeepsFileWhenSelectorChoosesVisionOnly();
   await testWardrobeSelectionKeepsMcpStackWhenSelectorChoosesClarifyOnly();

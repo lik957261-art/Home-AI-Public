@@ -134,7 +134,7 @@ function testSelectorModelOverrideUsesLightweightModel() {
   assert.equal(body.reasoning_effort, "minimal");
 }
 
-async function testPermissionPreflightKeepsFullAuthorizedToolsetsWhenToolsetSelectionDisabled() {
+async function testPermissionPreflightIsSkippedWhenToolsetSelectionDisabled() {
   const calls = [];
   const service = createGatewayRunModelToolsetSelectionService({
     toolsetSelectionEnabled: false,
@@ -162,17 +162,16 @@ async function testPermissionPreflightKeepsFullAuthorizedToolsetsWhenToolsetSele
     gatewayTarget: { apiBase: "http://worker", apiKey: "key" },
   });
 
-  assert.equal(result.ok, true);
-  assert.equal(result.mode, "permission_preflight");
+  assert.equal(result.enabled, false);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "permission_preflight_disabled");
   assert.equal(result.toolsetSelectionDisabled, true);
-  assert.equal(result.reason, "inside current workspace");
   assert.deepEqual(result.selectedToolsets, ["file", "weather", "x_search", "web", "search", "http", "clarify"]);
   assert.deepEqual(result.authorizedToolsets, ["file", "weather", "x_search", "web", "search", "http", "clarify"]);
-  assert.equal(calls[0].body.access_policy_context.permission_preflight_only, true);
-  assert.equal(calls[0].options.timeoutMs, 8000);
+  assert.equal(calls.length, 0);
 }
 
-async function testPermissionPreflightUsesSeparateShortTimeout() {
+async function testPermissionPreflightDisabledDoesNotUseSeparateTimeout() {
   const calls = [];
   const service = createGatewayRunModelToolsetSelectionService({
     toolsetSelectionEnabled: false,
@@ -195,7 +194,7 @@ async function testPermissionPreflightUsesSeparateShortTimeout() {
     gatewayTarget: { apiBase: "http://worker", apiKey: "key" },
   });
 
-  assert.equal(calls[0].options.timeoutMs, 3500);
+  assert.equal(calls.length, 0);
 }
 
 async function testStreamsSelectorAndReturnsAuthorizedSelection() {
@@ -456,8 +455,8 @@ testBuildsCompactSelectorBodyWithoutCallableToolsets();
 testBuildsPermissionOnlyBodyWhenToolsetSelectionDisabled();
 testSelectorModelOverrideUsesLightweightModel();
 testStreamsSelectorAndReturnsAuthorizedSelection()
-  .then(testPermissionPreflightKeepsFullAuthorizedToolsetsWhenToolsetSelectionDisabled)
-  .then(testPermissionPreflightUsesSeparateShortTimeout)
+  .then(testPermissionPreflightIsSkippedWhenToolsetSelectionDisabled)
+  .then(testPermissionPreflightDisabledDoesNotUseSeparateTimeout)
   .then(testUncertainAllToolsetsSelectionNarrowsToSuggestedToolsets)
   .then(testPlainProbeClarifySelectionExpandsToSuggestedToolsets)
   .then(testWardrobeClarifySelectionExpandsToSuggestedMcpStack)

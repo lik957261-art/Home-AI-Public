@@ -6,6 +6,9 @@ const {
   createGatewayElasticWorkerScheduler,
   normalizeElasticSchedulerConfig,
 } = require("./gateway-elastic-worker-scheduler");
+const {
+  createGatewayProfileTemplateIdentityService,
+} = require("./gateway-profile-template-identity-service");
 
 function stripTrailingSlash(value) {
   return String(value || "").replace(/\/+$/, "");
@@ -201,6 +204,10 @@ function publicWorker(worker, health = null) {
     allowMaintenance: Boolean(worker.allowMaintenance),
     skillProfile: worker.skillProfile || "",
     skillWorkspaceIds: worker.skillWorkspaceIds || [],
+    templateKey: worker.templateKey || "",
+    capabilityHash: worker.capabilityHash || "",
+    capabilityStatus: worker.capabilityStatus || "",
+    toolSchemaEpoch: worker.toolSchemaEpoch || "",
     healthy: health == null ? null : Boolean(health),
   };
 }
@@ -296,6 +303,10 @@ function createGatewayPoolProvider(options = {}) {
   if (typeof createGatewayRunner !== "function") throw new Error("GatewayPoolProvider requires createGatewayRunner");
   let nextIndex = 0;
   let lastLoaded = { manifestPath: "", workers: [], error: null, enabled: false };
+  const templateIdentityService = options.templateIdentityService || createGatewayProfileTemplateIdentityService({
+    profilesRoot: options.profilesRoot || options.gatewayProfilesRoot,
+    toolSchemaEpoch: options.toolSchemaEpoch,
+  });
   const elasticScheduler = createGatewayElasticWorkerScheduler({
     config: normalizeElasticSchedulerConfig(options.elastic || options.elasticConfig || {}),
     nowMs: options.nowMs,
@@ -307,6 +318,17 @@ function createGatewayPoolProvider(options = {}) {
       : undefined,
     isHealthy,
   });
+
+  function withTemplateIdentity(worker) {
+    if (!worker || !templateIdentityService || typeof templateIdentityService.identityForWorker !== "function") return worker;
+    const identity = templateIdentityService.identityForWorker(worker);
+    return Object.assign(worker, {
+      templateKey: identity.templateKey || "",
+      capabilityHash: identity.capabilityHash || "",
+      capabilityStatus: identity.capabilityStatus || "",
+      toolSchemaEpoch: identity.toolSchemaEpoch || "",
+    });
+  }
 
   function manifestPaths() {
     const value = typeof options.manifestPaths === "function" ? options.manifestPaths() : options.manifestPaths;
@@ -346,7 +368,7 @@ function createGatewayPoolProvider(options = {}) {
     }
     const manifestEnabled = read.manifest.enabled !== false;
     const workers = manifestEnabled
-      ? (read.manifest.workers || []).map(normalizeWorker).filter(Boolean)
+      ? (read.manifest.workers || []).map((raw, index) => withTemplateIdentity(normalizeWorker(raw, index))).filter(Boolean)
       : [];
     lastLoaded = {
       manifestPath: read.path,

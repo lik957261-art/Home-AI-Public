@@ -65,6 +65,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Finance embedded plugin token error: `docs/RUNBOOKS/finance-plugin-token-error.md`
 - Disaster recovery backup verification: `docs/RUNBOOKS/disaster-recovery-backup.md`
 - Context compaction and chat history debugging: `docs/RUNBOOKS/context-compaction-debug.md`
+- Plugin topic composer layout incident: `docs/RUNBOOKS/plugin-topic-composer-layout-incident-20260603.md`
 
 ## Current Priority Implementation Notes
 
@@ -78,8 +79,10 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Growth knowledge graph implementation plan: `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-implementation.md`
 - Tongbao platform currency and Growth coin exchange design: `docs/IMPLEMENTATION_NOTES/tongbao-platform-currency-design.md`
 - Gateway elastic worker scheduling: `docs/IMPLEMENTATION_NOTES/gateway-elastic-worker-scheduling.md`
+- Gateway profile template materialization: `docs/IMPLEMENTATION_NOTES/gateway-profile-template-materialization.md`
 - Plugin topic binding: `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md`
 - Embedded plugin UI contract: `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`
+- Embedded surface bottom layout standard: `docs/IMPLEMENTATION_NOTES/embedded-surface-bottom-layout-standard.md`
 - Directory topic collections: `docs/IMPLEMENTATION_NOTES/directory-topic-collections.md`
 - NAS deployment plan: `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`
 - macOS production deployment plan: `docs/IMPLEMENTATION_NOTES/macos-production-deployment-plan.md`

@@ -5,9 +5,9 @@ function refreshNoticeText(serverVersion) {
   return version ? `客户端已更新到 v${version}` : "客户端已更新";
 }
 
-function showRefreshNotice(serverVersion) {
+function showRefreshNotice(serverVersion, options = {}) {
   const version = normalizeClientVersion(serverVersion);
-  if (!version || version === state.refreshNoticeDismissedVersion) return;
+  if (!version || (!options.force && version === state.refreshNoticeDismissedVersion)) return;
   const notice = $("refreshNotice");
   if (!notice) return;
   $("refreshNoticeText").textContent = refreshNoticeText(version);
@@ -88,20 +88,24 @@ function handleClientVersion(info, source = "") {
   const serverVersion = normalizeClientVersion(info?.version || info?.clientVersion || "");
   if (!serverVersion) return;
   state.serverClientVersion = serverVersion;
+  if (typeof renderClientVersion === "function") renderClientVersion();
   const clientVersion = normalizeClientVersion(state.clientVersion);
   const targetVersion = clientVersionTargetFromUrl();
   if (clientVersion && targetVersion && targetVersion === clientVersion) {
     markClientVersionRefreshSettled(clientVersion);
     hideRefreshNotice();
+    if (typeof renderClientVersion === "function") renderClientVersion();
     return;
   }
   if (clientVersion && serverVersion !== clientVersion) {
-    showRefreshNotice(serverVersion, source);
+    showRefreshNotice(serverVersion, { force: Boolean(info?.refreshRequired) });
     scheduleClientVersionAutoReset(serverVersion, source);
+    if (typeof renderClientVersion === "function") renderClientVersion();
     return;
   }
   if (clientVersion && serverVersion === clientVersion) markClientVersionRefreshSettled(clientVersion);
   hideRefreshNotice();
+  if (typeof renderClientVersion === "function") renderClientVersion();
 }
 
 async function checkClientVersion(reason = "manual") {

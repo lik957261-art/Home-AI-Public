@@ -16,14 +16,30 @@ function renderClientVersion() {
   const badge = $("clientVersion");
   if (!badge) return;
   const version = normalizeClientVersion(state.clientVersion);
+  const serverVersion = normalizeClientVersion(state.serverClientVersion);
+  const clientRefreshAvailable = Boolean(version && serverVersion && serverVersion !== version);
   const update = state.appUpdate || {};
   const updateAvailable = Boolean(update.updateAvailable);
-  badge.textContent = updateAvailable ? "更新" : (version ? `v${compactClientVersion(version)}` : "");
+  badge.textContent = clientRefreshAvailable ? "刷新" : (updateAvailable ? "更新" : (version ? `v${compactClientVersion(version)}` : ""));
   badge.title = updateAvailable
     ? `Update available: ${update.latestVersion || update.latestCommit || "latest"}`
-    : (version ? `Client version ${version}` : "");
-  badge.classList.toggle("update-available", updateAvailable);
-  badge.toggleAttribute("data-update-available", updateAvailable);
+    : (clientRefreshAvailable ? `Client update available: ${serverVersion}` : (version ? `Client version ${version}` : ""));
+  badge.classList.toggle("update-available", Boolean(updateAvailable || clientRefreshAvailable));
+  badge.toggleAttribute("data-update-available", Boolean(updateAvailable || clientRefreshAvailable));
+}
+
+function clientVersionRefreshAvailable() {
+  const version = normalizeClientVersion(state.clientVersion);
+  const serverVersion = normalizeClientVersion(state.serverClientVersion);
+  return Boolean(version && serverVersion && serverVersion !== version);
+}
+
+function handleClientVersionBadgeClick() {
+  if (clientVersionRefreshAvailable()) {
+    reloadForClientUpdate("client-version-badge");
+    return;
+  }
+  applyAppUpdateFromBadge();
 }
 
 async function checkAppUpdate(reason = "login") {
