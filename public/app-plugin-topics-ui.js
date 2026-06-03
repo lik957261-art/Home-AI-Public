@@ -129,6 +129,8 @@ function exitPluginContextToTopicHome() {
   hideActivePluginHostsForPluginTopicNavigation();
   if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
   clearQuotedReply({ render: false });
+  state.scrollFeedback = null;
+  state.sidebarSwipe = null;
   state.pluginContextNavPluginId = "";
   state.viewMode = "tasks";
   state.currentTaskGroupId = "";
@@ -136,6 +138,8 @@ function exitPluginContextToTopicHome() {
   state.pendingTaskDirectory = null;
   state.pendingTaskReasoningEffort = "";
   localStorage.setItem("hermesWebViewMode", state.viewMode);
+  if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
+  if (typeof applyViewMode === "function") applyViewMode();
   renderPluginContextTopicHomeAfterExit();
 }
 

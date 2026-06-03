@@ -170,6 +170,14 @@ function ensureVerticalScrollAffordance(container = $("conversation")) {
   });
 }
 
+function currentTaskListScrollTarget(target = null, container = $("conversation")) {
+  const nested = target?.closest?.(".thread-list");
+  if (nested && nested.scrollHeight > nested.clientHeight + 1) return nested;
+  const childScroller = container?.querySelector?.(".thread-list");
+  if (childScroller && childScroller.scrollHeight > childScroller.clientHeight + 1) return childScroller;
+  return container;
+}
+
 function currentScrollFeedbackSurface(container = $("conversation")) {
   if (!isTaskListView()) return null;
   return container?.querySelector?.(".task-grid") || container?.querySelector?.(".empty-state") || null;
@@ -227,9 +235,10 @@ function wireConversationScrollFeedback() {
       if (vertical < 10 || vertical < horizontal * 1.2) return;
       feedback.dragging = true;
     }
-    const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight);
-    const atTopPull = container.scrollTop <= 0 && dy > 0;
-    const atBottomPush = container.scrollTop >= maxScroll - 1 && dy < 0;
+    const scrollTarget = currentTaskListScrollTarget(event.target, container);
+    const maxScroll = Math.max(0, scrollTarget.scrollHeight - scrollTarget.clientHeight);
+    const atTopPull = scrollTarget.scrollTop <= 0 && dy > 0;
+    const atBottomPush = scrollTarget.scrollTop >= maxScroll - 1 && dy < 0;
     const shortList = maxScroll <= 1;
     if (!shortList && !atTopPull && !atBottomPush) return;
     applyScrollFeedback(feedback.surface, dy);

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260603-plugin-no-header-v515";
+const CLIENT_VERSION = "20260603-directory-topic-scroll-v518";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -176,8 +176,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260603-plugin-no-header-v515" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260603-plugin-no-header-v515"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260603-directory-topic-scroll-v518" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260603-directory-topic-scroll-v518"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2183,6 +2183,8 @@ assert.match(appJs, /target === "plugin-context-home"[\s\S]*exitPluginContextToT
 assert.match(appJs, /function exitPluginContextToTopicHome\(\)/);
 assert.match(appJs, /state\.pluginContextNavPluginId = "";/);
 assert.match(appJs, /state\.viewMode = "tasks";[\s\S]*state\.currentTaskGroupId = "";/);
+assert.match(appJs, /state\.scrollFeedback = null;[\s\S]*state\.sidebarSwipe = null;[\s\S]*state\.pluginContextNavPluginId = "";/);
+assert.match(appJs, /state\.viewMode = "tasks";[\s\S]*localStorage\.setItem\("hermesWebViewMode", state\.viewMode\);[\s\S]*if \(typeof normalizeMobileViewportAfterViewChange === "function"\) normalizeMobileViewportAfterViewChange\(\);[\s\S]*if \(typeof applyViewMode === "function"\) applyViewMode\(\);[\s\S]*renderPluginContextTopicHomeAfterExit\(\);/);
 assert.match(appJs, /function renderPluginContextTopicHomeAfterExit\(\)/);
 const pluginContextExitBody = (appJs.match(/function exitPluginContextToTopicHome\(\) \{[\s\S]*?\n\}\n\nfunction renderPluginContextTopicHomeAfterExit/) || [""])[0];
 assert.match(pluginContextExitBody, /renderPluginContextTopicHomeAfterExit\(\)/);
@@ -2239,10 +2241,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260603-plugin-no-header-v515/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260603-plugin-no-header-v515/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260603-plugin-no-header-v515/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260603-plugin-no-header-v515/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260603-directory-topic-scroll-v518/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260603-directory-topic-scroll-v518/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260603-directory-topic-scroll-v518/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260603-directory-topic-scroll-v518/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2395,6 +2397,11 @@ assert.match(appJs, /conversation\.scrollTop = Math\.min\(maxTop, Math\.max\(0, 
 assert.match(appJs, /scheduleDeferredDirectoryTopicRender\(thread\.id, options\.restoreScrollTop\)/);
 assert.match(appJs, /function scheduleDeferredDirectoryTopicRender\(threadId = "", restoreScrollTop = null\)/);
 assert.match(appJs, /const nextRestoreScrollTop = Number\.isFinite\(Number\(restoreScrollTop\)\)[\s\S]*?restoreScrollTop: nextRestoreScrollTop/);
+assert.match(appJs, /if \(state\.scrollFeedback\?\.dragging \|\| state\.taskSwipe\?\.dragging \|\| state\.sidebarSwipe\?\.dragging\) \{[\s\S]*?scheduleDeferredDirectoryTopicRender\(threadId, \$\("conversation"\)\?\.scrollTop \|\| nextRestoreScrollTop\);/);
+assert.match(appJs, /function currentTaskListScrollTarget\(target = null, container = \$\("conversation"\)\) \{[\s\S]*?const nested = target\?\.closest\?\.\("\.thread-list"\);[\s\S]*?if \(nested && nested\.scrollHeight > nested\.clientHeight \+ 1\) return nested;[\s\S]*?const childScroller = container\?\.querySelector\?\.\("\.thread-list"\);[\s\S]*?if \(childScroller && childScroller\.scrollHeight > childScroller\.clientHeight \+ 1\) return childScroller;[\s\S]*?return container;/);
+assert.match(appJs, /const scrollTarget = currentTaskListScrollTarget\(event\.target, container\);[\s\S]*?const maxScroll = Math\.max\(0, scrollTarget\.scrollHeight - scrollTarget\.clientHeight\);/);
+assert.match(appJs, /const taskListScrollSelector = "\.task-list-mode \.conversation, \.task-list-mode \.thread-list";/);
+assert.match(appJs, /if \(event\.target\?\.closest\?\.\(taskListScrollSelector\) && vertical >= horizontal \* 0\.9\) return;/);
 assert.match(appJs, /taskListScrollTop: 0/);
 assert.match(appJs, /function rememberTaskListScrollPosition\(\)/);
 assert.match(appJs, /state\.taskListScrollTop = Math\.max\(0, Number\(conversation\.scrollTop\) \|\| 0\)/);

@@ -208,6 +208,10 @@ Likely focused checks:
 - Mobile topic-list scrolling uses native vertical pan behavior. Sidebar touch
   guards may block edge/back gestures or over-scroll boundaries, but must not
   `preventDefault()` during normal vertical scrolling inside `.thread-list`.
+- Directory-topic aggregation may render after the first topic-list frame, but
+  it must not replace the topic-list DOM while a scroll, task-card swipe, or
+  sidebar swipe is in progress. Defer that render until the gesture settles so
+  directory-bound topic cards remain consistently scrollable on mobile.
 - Static v453 moves the primary Directory entry out of the mobile bottom
   navigation and into the topic application grid as a built-in plugin card.
   Existing directory routes and sidebar directory entry remain compatible.

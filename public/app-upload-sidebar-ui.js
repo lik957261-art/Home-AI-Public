@@ -250,6 +250,7 @@ function wireRightSwipeGuard() {
   document.documentElement.dataset.rightSwipeGuardBound = "1";
   let touch = null;
   const interactiveSelector = ".sidebar, .directory-shell, input, select, textarea, [contenteditable='true']";
+  const taskListScrollSelector = ".task-list-mode .conversation, .task-list-mode .thread-list";
   const clear = () => {
     touch = null;
   };
@@ -283,6 +284,7 @@ function wireRightSwipeGuard() {
     const dy = point.clientY - touch.startY;
     const horizontal = Math.abs(dx);
     const vertical = Math.abs(dy);
+    if (event.target?.closest?.(taskListScrollSelector) && vertical >= horizontal * 0.9) return;
     if (dx <= 0 || (!touch.blocked && (horizontal < 12 || horizontal < vertical * 1.1))) return;
     touch.blocked = true;
     touch.lastX = point.clientX;

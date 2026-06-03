@@ -463,16 +463,21 @@ function scheduleDeferredDirectoryTopicRender(threadId = "", restoreScrollTop = 
   const nextRestoreScrollTop = Number.isFinite(Number(restoreScrollTop))
     ? Math.max(0, Number(restoreScrollTop) || 0)
     : currentScrollTop;
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      state.directoryTopicRenderPending = false;
-      if (state.viewMode !== "tasks" || state.currentTaskGroupId) return;
-      if (threadId && state.currentThread?.id !== threadId) return;
-      renderCurrentThread({
-        stickToBottom: false,
-        restoreScrollTop: nextRestoreScrollTop,
-        directoryTopicCollectionsReady: true,
-      });
+  const renderDeferred = () => {
+    state.directoryTopicRenderPending = false;
+    if (state.viewMode !== "tasks" || state.currentTaskGroupId) return;
+    if (state.scrollFeedback?.dragging || state.taskSwipe?.dragging || state.sidebarSwipe?.dragging) {
+      scheduleDeferredDirectoryTopicRender(threadId, $("conversation")?.scrollTop || nextRestoreScrollTop);
+      return;
+    }
+    if (threadId && state.currentThread?.id !== threadId) return;
+    renderCurrentThread({
+      stickToBottom: false,
+      restoreScrollTop: nextRestoreScrollTop,
+      directoryTopicCollectionsReady: true,
     });
+  };
+  requestAnimationFrame(() => {
+    requestAnimationFrame(renderDeferred);
   });
 }
