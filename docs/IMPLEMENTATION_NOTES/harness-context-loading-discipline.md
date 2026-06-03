@@ -174,7 +174,7 @@ Use these scripts to keep all known workspaces aligned:
 - `scripts/powershell/sync-hanes-context-rule.ps1`
   - copies the current HANES template to known workspaces;
   - adds the HANES pointer where missing;
-  - verifies the global `C:\Users\xuxin\.codex\AGENTS.md` pointer.
+  - verifies the global `%USERPROFILE%\.codex\AGENTS.md` pointer.
 - `scripts/powershell/audit-workspace-context-rules.ps1`
   - reports `OK`, `NeedsSync`, or `WorkspaceMissing` for each known workspace;
   - checks for `## Tool Output Budget`, the `PROJECT_CONTEXT.md` pointer, and

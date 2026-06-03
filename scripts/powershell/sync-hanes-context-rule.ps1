@@ -26,7 +26,7 @@ function Write-Utf8File {
 }
 
 function Default-WorkspacePaths {
-  $documents = "C:\Users\xuxin\Documents"
+  $documents = Join-Path $env:USERPROFILE "Documents"
   $wardrobe = -join ([char[]](0x7537, 0x88C5, 0x8863, 0x6A71))
   $systemTools = -join ([char[]](0x7CFB, 0x7EDF, 0x5DE5, 0x5177))
   $finance = -join ([char[]](0x8D22, 0x52A1))
@@ -116,7 +116,8 @@ $results = foreach ($workspace in $targets) {
   }
 }
 
-$globalStatus = if ($SkipGlobalCodexAgents) { "skipped" } else { Ensure-GlobalCodexPointer "C:\Users\xuxin\.codex\AGENTS.md" }
+$globalAgentsPath = Join-Path $env:USERPROFILE ".codex\AGENTS.md"
+$globalStatus = if ($SkipGlobalCodexAgents) { "skipped" } else { Ensure-GlobalCodexPointer $globalAgentsPath }
 
 $results
-[pscustomobject]@{ WorkspacePath = "C:\Users\xuxin\.codex\AGENTS.md"; Status = "global_agents"; Hanes = $true; ProjectPointer = $globalStatus }
+[pscustomobject]@{ WorkspacePath = $globalAgentsPath; Status = "global_agents"; Hanes = $true; ProjectPointer = $globalStatus }

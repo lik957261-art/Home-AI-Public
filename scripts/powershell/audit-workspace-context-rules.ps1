@@ -10,7 +10,7 @@ function Read-Utf8File {
 }
 
 function Default-WorkspacePaths {
-  $documents = "C:\Users\xuxin\Documents"
+  $documents = Join-Path $env:USERPROFILE "Documents"
   $wardrobe = -join ([char[]](0x7537, 0x88C5, 0x8863, 0x6A71))
   $systemTools = -join ([char[]](0x7CFB, 0x7EDF, 0x5DE5, 0x5177))
   $finance = -join ([char[]](0x8D22, 0x52A1))
@@ -60,7 +60,7 @@ foreach ($workspace in $targets) {
   }
 }
 
-$agentsPath = "C:\Users\xuxin\.codex\AGENTS.md"
+$agentsPath = Join-Path $env:USERPROFILE ".codex\AGENTS.md"
 $globalOk = (Test-Contains $agentsPath "HANES_CONTEXT_LOADING\.md") -and (Test-Contains $agentsPath "Context and tool-output budget")
 [pscustomobject]@{
   WorkspacePath = $agentsPath

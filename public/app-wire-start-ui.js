@@ -171,7 +171,7 @@ function wireUi() {
     }
     const pluginContextDef = typeof pluginTopicDefForViewMode === "function" ? pluginTopicDefForViewMode(state.viewMode) : null;
     if (pluginContextDef) {
-      await openPluginTopicChat(pluginContextDef.id);
+      if (typeof exitPluginContextToTopicHome === "function") exitPluginContextToTopicHome();
       return;
     }
     preparePrimaryNavigationChange();
