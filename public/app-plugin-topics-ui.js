@@ -98,6 +98,10 @@ function pluginTopicDefForViewMode(viewMode = state.viewMode) {
   if (!mode) return null;
   const viewModeDef = PLUGIN_TOPIC_DEFS.find((item) => !item.builtinKind && item.viewMode === mode) || null;
   if (viewModeDef) return viewModeDef;
+  if (mode === "tasks") {
+    const groupDef = pluginTopicDefForGroupId(state.currentTaskGroupId);
+    if (groupDef && !groupDef.builtinKind) return groupDef;
+  }
   const contextDef = pluginTopicDefById(state.pluginContextNavPluginId);
   if (!contextDef || contextDef.builtinKind) return null;
   if (mode === "tasks" && state.currentTaskGroupId === pluginTopicGroupId(contextDef.id)) return contextDef;

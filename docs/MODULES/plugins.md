@@ -175,6 +175,12 @@ plugin surface to that plugin's bound Hermes topic conversation, for example
 application until after `loadSingleWindow()` has loaded the bound conversation,
 so the user does not see a transient wrong page before the correct topic surface
 appears.
+The three-entry plugin-context footer must be derived from the active
+`plugin:<id>` task group as well as the explicit `pluginContextNavPluginId`.
+The task-group fallback is required because a loaded plugin-bound topic
+conversation is itself enough evidence that the host is in plugin-context mode;
+the footer must not fall back to the ordinary bottom navigation if the explicit
+context id is cleared during a re-entry or refresh.
 Codex Mobile is the exception to plugin-context bottom navigation. It is an
 Owner-critical workbench plugin and should run as a full-screen embedded
 surface. When the Codex iframe is active, Hermes must not show the ordinary

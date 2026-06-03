@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260603-plugin-topic-tab-chat-v525";
+const CLIENT_VERSION = "20260603-plugin-context-nav-group-v526";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -176,8 +176,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260603-plugin-topic-tab-chat-v525" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260603-plugin-topic-tab-chat-v525"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260603-plugin-context-nav-group-v526" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260603-plugin-context-nav-group-v526"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2171,6 +2171,7 @@ assert.match(appJs, /node\.setAttribute\("aria-hidden", hidden \? "true" : "fals
 assert.match(appJs, /setBottomTabHidden\(node, hiddenBottomTabs\.has\(id\)\)/);
 assert.match(appJs, /document\.querySelectorAll\("\.bottom-tab"\)\.forEach\(\(node\) => \{[\s\S]*?setBottomTabHidden\(node, !visible\);/);
 assert.match(appJs, /const contextDef = pluginTopicDefById\(state\.pluginContextNavPluginId\)/);
+assert.match(appJs, /if \(mode === "tasks"\) \{[\s\S]*?const groupDef = pluginTopicDefForGroupId\(state\.currentTaskGroupId\);[\s\S]*?if \(groupDef && !groupDef\.builtinKind\) return groupDef;[\s\S]*?\}/);
 assert.match(appJs, /if \(mode === "tasks" && state\.currentTaskGroupId === pluginTopicGroupId\(contextDef\.id\)\) return contextDef;/);
 assert.match(appJs, /if \(mode === "projects"\) return contextDef;/);
 assert.match(appJs, /openPluginTopicApp\(pluginId\)[\s\S]*?state\.pluginContextNavPluginId = def\.id;[\s\S]*?rememberWardrobePluginReturnRoute\(\)/);
@@ -2262,10 +2263,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260603-plugin-topic-tab-chat-v525/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260603-plugin-topic-tab-chat-v525/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260603-plugin-topic-tab-chat-v525/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260603-plugin-topic-tab-chat-v525/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260603-plugin-context-nav-group-v526/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260603-plugin-context-nav-group-v526/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260603-plugin-context-nav-group-v526/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260603-plugin-context-nav-group-v526/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
