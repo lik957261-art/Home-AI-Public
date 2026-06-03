@@ -51,6 +51,11 @@ function Write-CronTickLog {
 function Invoke-CronTick {
     $pythonPath = "$RuntimeRoot/official-clean"
     $pythonExe = "$RuntimeRoot/venv/bin/python"
+    $cronModelProxyUrl = $env:HERMES_MOBILE_CRON_MODEL_PROXY_URL
+    if (-not $cronModelProxyUrl) { $cronModelProxyUrl = $env:HERMES_WEB_CRON_MODEL_PROXY_URL }
+    if (-not $cronModelProxyUrl) { $cronModelProxyUrl = $env:HTTPS_PROXY }
+    if (-not $cronModelProxyUrl) { $cronModelProxyUrl = $env:HTTP_PROXY }
+    if (-not $cronModelProxyUrl) { $cronModelProxyUrl = $env:ALL_PROXY }
     $dispatcherWslPath = ""
     if ($DispatcherScript -match '^([A-Za-z]):\\(.*)$') {
         $drive = $Matches[1].ToLowerInvariant()
@@ -75,6 +80,25 @@ function Invoke-CronTick {
         $dispatcherWslPath,
         "--dispatch"
     )
+    if ($cronModelProxyUrl) {
+        $wslArgs = @(
+            "-d", $DistroName,
+            "-u", $WslUser,
+            "--",
+            "env",
+            "HERMES_HOME=$HermesHome",
+            "PYTHONPATH=$pythonPath",
+            "HERMES_ACCEPT_HOOKS=1",
+            "HERMES_MOBILE_CRON_TICK_SIDE=windows-wsl",
+            "HERMES_MOBILE_CRON_MODEL_PROXY_URL=$cronModelProxyUrl",
+            "HTTPS_PROXY=$cronModelProxyUrl",
+            "HTTP_PROXY=$cronModelProxyUrl",
+            "ALL_PROXY=$cronModelProxyUrl",
+            $pythonExe,
+            $dispatcherWslPath,
+            "--dispatch"
+        )
+    }
 
     $started = Get-Date
     Write-CronTickLog "dispatch start dispatcher=$dispatcherWslPath distro=$DistroName user=$WslUser hermes_home=$HermesHome dispatch_timeout_seconds=$DispatchTimeoutSeconds"

@@ -131,6 +131,15 @@ only after all of these preflight checks pass:
   8 second timeout unless explicitly overridden. A stale
   `$HERMES_HOME/config.yaml`, `.env`, or generated profile must be treated as a
   failed deploy/preflight, not as a harmless local default.
+- NAS official CRON is allowed to use official Hermes `cron.scheduler.run_job()`
+  only through the Hermes Mobile cron dispatcher wrapper. Model-backed CRON
+  jobs must receive a configured outbound proxy through
+  `HERMES_MOBILE_CRON_MODEL_PROXY_URL` or standard `HTTPS_PROXY` /
+  `HTTP_PROXY` / `ALL_PROXY`; on the maintained NAS this defaults to
+  `http://127.0.0.1:7890`. If that proxy is missing or unreachable, the job
+  must fail before official `run_job()` starts with a bounded
+  `cron_model_proxy_*` diagnostic. A plain official `hermes cron` model run
+  that bypasses this wrapper is not production parity.
 - Runtime model selection is two-level in the Owner settings UI: first choose
   the provider/family such as `ChatGPT`, then choose the concrete family model
   version such as `gpt-5.4` or `gpt-5.5`. The persisted value remains the final

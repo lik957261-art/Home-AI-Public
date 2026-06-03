@@ -590,6 +590,11 @@ Required harness dimensions:
 
 - Cron-triggered and manually-triggered runs follow the same terminal status
   contract.
+- Official CRON model jobs enter through the Hermes Mobile dispatcher wrapper
+  with an outbound model proxy. Missing or unreachable proxy is a bounded
+  `cron_model_proxy_*` failure before official `cron.scheduler.run_job()` starts;
+  it must not become a long direct-provider timeout. `no_agent` script jobs are
+  exempt because they do not create an `AIAgent`.
 - Tool failure markers, including `x_search` failures, cannot be projected as
   successful runs.
 - Bridge-host/Gateway worker failure is visible and recoverable.

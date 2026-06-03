@@ -14,14 +14,32 @@ import json
 import logging
 import os
 import signal
+import socket
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 
 LOG = logging.getLogger("hermes_mobile_cron_dispatcher")
+PROXY_ENV_KEYS = (
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "ALL_PROXY",
+    "https_proxy",
+    "http_proxy",
+    "all_proxy",
+)
+CRON_MODEL_PROXY_ENV_KEYS = (
+    "HERMES_MOBILE_CRON_MODEL_PROXY_URL",
+    "HERMES_WEB_CRON_MODEL_PROXY_URL",
+    "HERMES_MOBILE_OUTBOUND_PROXY_URL",
+    "HERMES_WEB_OUTBOUND_PROXY_URL",
+)
+DEFAULT_PROXY_PORT = "7890"
+LOCAL_NO_PROXY_HOSTS = ("127.0.0.1", "localhost", "::1")
 
 
 def _hermes_home() -> Path:
@@ -174,9 +192,104 @@ def _default_windows_host_gateway() -> str:
     return ""
 
 
+def _env_flag_enabled(name: str, default: bool = True) -> bool:
+    value = os.environ.get(name, "").strip().lower()
+    if not value:
+        return default
+    return value not in {"0", "false", "no", "off"}
+
+
+def _first_env_value(env: dict[str, str], keys: tuple[str, ...]) -> str:
+    for key in keys:
+        value = str(env.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _default_cron_model_proxy_url(env: dict[str, str]) -> str:
+    side = str(env.get("HERMES_MOBILE_CRON_TICK_SIDE") or "").strip().lower()
+    port = str(env.get("HERMES_MOBILE_CRON_MODEL_PROXY_PORT") or DEFAULT_PROXY_PORT).strip() or DEFAULT_PROXY_PORT
+    if side == "nas":
+        return f"http://127.0.0.1:{port}"
+    if side not in {"windows-wsl", "wsl"}:
+        return ""
+    windows_host = _default_windows_host_gateway()
+    if windows_host:
+        return f"http://{windows_host}:{port}"
+    return ""
+
+
+def _configured_model_proxy_url(env: dict[str, str]) -> str:
+    return (
+        _first_env_value(env, CRON_MODEL_PROXY_ENV_KEYS)
+        or _first_env_value(env, PROXY_ENV_KEYS)
+        or _default_cron_model_proxy_url(env)
+    ).strip()
+
+
+def _merge_no_proxy(current: str) -> str:
+    existing = [item.strip() for item in str(current or "").split(",") if item.strip()]
+    seen = {item.lower() for item in existing}
+    for host in LOCAL_NO_PROXY_HOSTS:
+        if host.lower() not in seen:
+            existing.append(host)
+            seen.add(host.lower())
+    return ",".join(existing)
+
+
+def _apply_model_proxy_env(env: dict[str, str]) -> str:
+    proxy_url = _configured_model_proxy_url(env)
+    if not proxy_url:
+        return ""
+    for key in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY"):
+        env[key] = proxy_url
+    env["NO_PROXY"] = _merge_no_proxy(env.get("NO_PROXY", ""))
+    env["HERMES_MOBILE_CRON_MODEL_PROXY_APPLIED"] = "1"
+    return proxy_url
+
+
+def _proxy_endpoint_available(proxy_url: str) -> bool:
+    parsed = urlparse(proxy_url)
+    host = parsed.hostname
+    if not host:
+        return False
+    if parsed.port:
+        port = parsed.port
+    elif parsed.scheme == "https":
+        port = 443
+    else:
+        port = 80
+    try:
+        with socket.create_connection((host, port), timeout=2):
+            return True
+    except OSError:
+        return False
+
+
+def _job_requires_model_proxy(job: dict[str, Any]) -> bool:
+    return not bool(job.get("no_agent"))
+
+
+def _ensure_model_proxy_for_job(job: dict[str, Any]) -> str:
+    if not _job_requires_model_proxy(job):
+        return ""
+    proxy_url = _apply_model_proxy_env(os.environ)
+    if not proxy_url:
+        return (
+            "cron_model_proxy_required: official CRON model jobs must run through "
+            "Hermes Mobile's configured outbound proxy; no HTTPS_PROXY/HTTP_PROXY/"
+            "ALL_PROXY or HERMES_MOBILE_CRON_MODEL_PROXY_URL was available"
+        )
+    if _env_flag_enabled("HERMES_MOBILE_CRON_REQUIRE_PROXY_HEALTH", True) and not _proxy_endpoint_available(proxy_url):
+        return f"cron_model_proxy_unreachable: configured CRON model proxy is not reachable ({proxy_url})"
+    return ""
+
+
 def _cron_child_env() -> dict[str, str]:
     env = os.environ.copy()
     env["HERMES_MOBILE_CRON_CHILD"] = "1"
+    _apply_model_proxy_env(env)
     existing_proxy = env.get("HERMES_MOBILE_X_SEARCH_PROXY_URL", "").strip()
     if (not existing_proxy) or "127.0.0.1" in existing_proxy or "localhost" in existing_proxy.lower():
         bridge_host = (
@@ -291,7 +404,6 @@ def _load_job(job_id: str) -> dict[str, Any] | None:
 
 def run_one_job(job_id: str) -> int:
     from cron.jobs import mark_job_run, save_job_output
-    from cron.scheduler import SILENT_MARKER, _deliver_result, run_job
 
     job = _load_job(job_id)
     if not job:
@@ -301,6 +413,14 @@ def run_one_job(job_id: str) -> int:
 
     print(f"mobile cron runner: start job {job_id} name={job.get('name', '')!r}")
     try:
+        proxy_error = _ensure_model_proxy_for_job(job)
+        if proxy_error:
+            print(f"mobile cron runner: proxy check failed job {job_id}: {proxy_error}")
+            mark_job_run(job_id, False, proxy_error)
+            return 1
+
+        from cron.scheduler import SILENT_MARKER, _deliver_result, run_job
+
         success, output, final_response, error = run_job(job)
         output_file = save_job_output(job_id, output)
         print(f"mobile cron runner: output saved {output_file}")

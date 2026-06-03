@@ -75,6 +75,14 @@ canonical scheduler, not a replacement scheduler.
   model errors while Gateway chat uses the correct model, inspect the official
   Hermes home config first instead of reviving Hermes Mobile SQLite automation
   rows.
+- Official CRON model jobs must not call the provider directly without the
+  Hermes Mobile configured outbound proxy. Hermes Mobile does not patch the
+  official scheduler source; the product wrapper injects
+  `HERMES_MOBILE_CRON_MODEL_PROXY_URL` into `HTTPS_PROXY`, `HTTP_PROXY`, and
+  `ALL_PROXY` before invoking `cron.scheduler.run_job()`. If a model job has no
+  configured/reachable proxy, the dispatcher must mark it failed with a bounded
+  `cron_model_proxy_*` diagnostic before official `run_job()` starts. Pure
+  `no_agent` script jobs are exempt because they do not create an `AIAgent`.
 - NAS official CRON helper scripts must be installed into
   `$HERMES_HOME/scripts` by the cron sidecar. For example,
   `tokenusage001` calls `hermes-mobile-token-usage-daily.py`, which is a
@@ -84,6 +92,14 @@ canonical scheduler, not a replacement scheduler.
 ## Cron Dispatcher
 
 Hermes Mobile uses `scripts/hermes-mobile-cron-dispatcher.py` as a product-layer wrapper. It dispatches due jobs into detached runners and returns quickly.
+
+For model-backed jobs, the dispatcher is also the boundary that turns official
+CRON into a proxied execution path without modifying official Hermes source.
+The accepted proxy sources are `HERMES_MOBILE_CRON_MODEL_PROXY_URL`,
+`HERMES_WEB_CRON_MODEL_PROXY_URL`, existing standard proxy variables, or the
+deployment default. On the maintained NAS deployment the default is
+`http://127.0.0.1:7890`, and the dispatcher checks the endpoint before calling
+official `run_job()`.
 
 Detached cron runners may execute from the interactive Ubuntu distro while the dedicated Grok Gateway listens behind the Windows host / worker-distro loopback boundary. For `x_search`, the dispatcher should pass `HERMES_MOBILE_X_SEARCH_PROXY_URL` pointing at the bridge-host proxy prefix `/bridge/grok-gateway-proxy`; runners should not assume `127.0.0.1:<grok-port>` reaches the Grok worker.
 
@@ -103,6 +119,7 @@ Do not patch official Hermes runtime cron source for this behavior unless explic
 
 - `node tests\automation-api-routes.test.js`
 - `node tests\cron-bridge.test.js`
+- `node tests\cron-dispatcher-proxy-harness.test.js`
 - `node tests\mobile-runtime-environment-service.test.js`
 - `node tests\startup-scripts.test.js`
 - `node tests\task-list-ui.test.js`
