@@ -45,6 +45,12 @@ assert.ok(
   "NAS tracked-source deploy must run first-start preflight",
 );
 assert.ok(
+  deployScript.includes("get('/api/owner-elevation')")
+    && deployScript.includes("owner_elevation_unavailable")
+    && deployScript.includes("'ownerElevationAvailable': owner_elevation.get('available')"),
+  "NAS version smoke must fail when Owner elevation is disabled by production configuration",
+);
+assert.ok(
   deployScript.includes("start-nas-gateway-pool.sh")
     && deployScript.includes("--start-profiles nasgw1")
     && deployScript.includes("--no-stop-existing"),

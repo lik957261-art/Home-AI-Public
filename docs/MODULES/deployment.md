@@ -418,6 +418,11 @@ The script:
 - It smokes `/api/client-version?clientVersion=<version>` and verifies the
   public origin HTML at `https://wardrobe-xuxin.synology.me:8555` contains the
   deployed version.
+- It must also smoke `/api/owner-elevation` with Owner auth and fail if
+  `ownerElevation.available` is not `true`. On the maintained NAS production
+  host, `config/hermes-mobile.env` must set
+  `HERMES_MOBILE_ALLOW_OWNER_MAINTENANCE_RUNS=1`; putting this export after the
+  `exec node server.js` line in `config/start-hermes-mobile.sh` is ineffective.
 
 The harness does not print Owner keys, plugin keys, launch tokens, cookies, or
 push endpoints. If a future NAS static deploy needs a different file set, add it

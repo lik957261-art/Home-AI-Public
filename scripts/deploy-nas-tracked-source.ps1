@@ -329,12 +329,16 @@ def get(path):
         return json.loads(resp.read().decode('utf-8'))
 status = get('/api/status?detail=1')
 client = get('/api/client-version?clientVersion=$Version')
+owner_elevation = get('/api/owner-elevation').get('ownerElevation') or {}
+if owner_elevation.get('available') is not True:
+    raise SystemExit('owner_elevation_unavailable:' + str(owner_elevation.get('reason') or 'unknown'))
 print(json.dumps({
     'ok': status.get('ok'),
     'health': (status.get('health') or {}).get('status'),
     'activeGlobal': (status.get('concurrency') or {}).get('activeGlobal'),
     'clientVersion': (status.get('clientVersion') or {}).get('version'),
     'refreshRequired': client.get('refreshRequired'),
+    'ownerElevationAvailable': owner_elevation.get('available'),
     'gatewayMode': (status.get('gatewayPool') or {}).get('mode'),
     'workerCount': (status.get('gatewayPool') or {}).get('workerCount'),
 }, ensure_ascii=False))

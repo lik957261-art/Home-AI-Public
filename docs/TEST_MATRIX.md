@@ -151,6 +151,11 @@ fail Finance partial provisioning: a workspace with
 must report `nas_finance_config_missing:<workspaceId>` instead of being treated
 as an active plugin/MCP binding. Focused check:
 `node tests\nas-deploy-harness.test.js`.
+The same NAS version smoke must call `/api/owner-elevation` with Owner auth and
+fail if `ownerElevation.available` is false. The maintained NAS launcher must
+set `HERMES_MOBILE_ALLOW_OWNER_MAINTENANCE_RUNS=1` in
+`config/hermes-mobile.env`, not after the `exec node server.js` line in
+`config/start-hermes-mobile.sh`.
 The same NAS deploy/preflight harness must verify runtime model parity across
 all execution entrances: generated OpenAI/Codex Gateway profiles, NAS
 `$HERMES_HOME/config.yaml`, NAS `.env`, and official CRON dispatcher startup
