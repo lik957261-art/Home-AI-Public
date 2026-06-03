@@ -87,7 +87,8 @@ function pluginContextBackTarget() {
 function isDirectoryTopicDraftActive() {
   return state.viewMode === "tasks"
     && !state.currentTaskGroupId
-    && Boolean(state.pendingTaskDirectory?.projectId);
+    && Boolean(state.pendingTaskDirectory?.projectId)
+    && Boolean(state.directoryReturnRoute);
 }
 
 function discardDirectoryTopicDraftState() {

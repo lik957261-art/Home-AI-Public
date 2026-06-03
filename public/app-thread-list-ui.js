@@ -317,13 +317,14 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     $("threadTitle").textContent = "话题列表";
     $("threadMeta").textContent = "";
     $("interruptRun").disabled = !allActiveRuns.length;
-    const directoryTopicComposerOpen = Boolean(state.taskDirectoryFilter?.projectId || state.pendingTaskDirectory?.projectId);
+    const directoryTopicDraftOpen = typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive();
+    const directoryTopicComposerOpen = Boolean(state.taskDirectoryFilter?.projectId || directoryTopicDraftOpen);
     configureComposer({
       enabled: directoryTopicComposerOpen,
       hidden: !directoryTopicComposerOpen,
       placeholder: directoryTopicComposerOpen ? "Start a topic in this directory..." : "Open a directory to bind a topic",
     });
-    if (directoryTopicComposerOpen && state.pendingTaskDirectory?.projectId) {
+    if (directoryTopicDraftOpen && state.pendingTaskDirectory?.projectId) {
       const label = String(state.pendingTaskDirectory.label || state.pendingTaskDirectory.projectId || "").trim();
       $("threadTitle").textContent = "新建话题";
       conversation.innerHTML = `<div class="empty-state">${escapeHtml(label ? `Start a topic for ${label}.` : "Start a topic for this directory.")}</div>`;

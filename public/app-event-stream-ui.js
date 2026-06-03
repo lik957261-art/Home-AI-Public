@@ -55,9 +55,12 @@ async function sendMessage(event) {
     if (ownerElevationOnceTag) clearOwnerElevationOnce();
     return;
   }
-  const directoryTopicDraftSend = state.viewMode === "tasks"
-    && !state.currentTaskGroupId
-    && Boolean(state.pendingTaskDirectory?.projectId);
+  const directoryTopicDraftSend = typeof isDirectoryTopicDraftActive === "function"
+    ? isDirectoryTopicDraftActive()
+    : state.viewMode === "tasks"
+      && !state.currentTaskGroupId
+      && Boolean(state.pendingTaskDirectory?.projectId)
+      && Boolean(state.directoryReturnRoute);
   if (directoryTopicDraftSend && state.directoryTopicDraftSendInFlight) {
     return;
   }
@@ -156,9 +159,9 @@ async function sendMessage(event) {
       body.replyToMessageId = quotedReply.messageId;
     }
     createsNewTask = state.viewMode === "tasks" && !body.taskGroupId;
-    consumedPendingDirectory = Boolean(state.pendingTaskDirectory?.projectId);
+    consumedPendingDirectory = directoryTopicDraftSend && Boolean(state.pendingTaskDirectory?.projectId);
     if (createsNewTask) {
-      const directory = state.pendingTaskDirectory;
+      const directory = directoryTopicDraftSend ? state.pendingTaskDirectory : null;
       if (directory?.projectId) body.directory = directory;
     }
     requestBody = body;

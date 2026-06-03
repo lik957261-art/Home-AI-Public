@@ -163,6 +163,12 @@ active, and discarding the empty draft must also clear the directory topic
 filter so the ordinary topic list does not remain in a phantom directory-create
 state. Switching to a plugin app must also discard the empty draft before
 opening the plugin so the plugin context footer does not lock up.
+Embedded plugin-bound topics can also carry a `pendingTaskDirectory` attachment
+for model/tool delivery, for example Finance topic messages. That attachment is
+not a Directory-plugin draft unless Hermes also has a `directoryReturnRoute`.
+Topic-list rendering, send duplicate guards, and right-swipe/back selection must
+therefore use the explicit directory-draft predicate instead of treating any
+pending directory attachment as a new-topic page.
 Codex Mobile is the exception to plugin-context bottom navigation. It is an
 Owner-critical workbench plugin and should run as a full-screen embedded
 surface. When the Codex iframe is active, Hermes must not show the ordinary
