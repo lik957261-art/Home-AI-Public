@@ -78,6 +78,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Tongbao platform currency and Growth coin exchange design: `docs/IMPLEMENTATION_NOTES/tongbao-platform-currency-design.md`
 - Gateway elastic worker scheduling: `docs/IMPLEMENTATION_NOTES/gateway-elastic-worker-scheduling.md`
 - Plugin topic binding: `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md`
+- Embedded plugin UI contract: `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`
 - Directory topic collections: `docs/IMPLEMENTATION_NOTES/directory-topic-collections.md`
 - NAS deployment plan: `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`
 - macOS production deployment plan: `docs/IMPLEMENTATION_NOTES/macos-production-deployment-plan.md`

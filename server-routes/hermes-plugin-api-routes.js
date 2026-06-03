@@ -584,14 +584,39 @@ function createHermesPluginApiRoutes(deps = {}) {
       || text.startsWith("/static/");
   }
 
-  function rewritePluginProxyJsonString(value = "", pluginId = "", upstreamBase = "", workspaceId = "") {
+  function jsonKeyLooksLikePluginUrl(key = "") {
+    const text = String(key || "");
+    return /(?:^|_|\b)(url|uri|href|src|image|thumb|thumbnail|preview|avatar|icon|attachment|file|download|content)(?:$|_|\b)/i.test(text);
+  }
+
+  function jsonKeyLooksLikeHtmlContent(key = "") {
+    return /^(body|html|content|description|detail|richText|rich_text)$/i.test(String(key || ""));
+  }
+
+  function looksLikeLocalPluginResourcePath(value = "", pluginId = "") {
+    const text = String(value || "");
+    if (!text.startsWith("/") || text.startsWith("//")) return false;
+    if (text === pluginProxyPrefix(pluginId) || text.startsWith(`${pluginProxyPrefix(pluginId)}/`)) return false;
+    return true;
+  }
+
+  function rewritePluginProxyJsonString(value = "", pluginId = "", upstreamBase = "", workspaceId = "", key = "") {
     const text = String(value || "");
     if (!text) return text;
     if (shouldProxyJsonResourcePath(text, pluginId)) return pluginProxyResourcePath(pluginId, text, workspaceId);
+    if (jsonKeyLooksLikePluginUrl(key) && looksLikeLocalPluginResourcePath(text, pluginId)) {
+      return pluginProxyResourcePath(pluginId, text, workspaceId);
+    }
+    if (jsonKeyLooksLikeHtmlContent(key) && /(?:\bsrc=|\bhref=|url\()/i.test(text)) {
+      return rewritePluginProxyText(text, pluginId, upstreamBase, workspaceId);
+    }
     try {
       const upstreamOrigin = new URL(upstreamBase).origin;
       const parsed = new URL(text);
-      if (upstreamOrigin && parsed.origin === upstreamOrigin && shouldProxyJsonResourcePath(parsed.pathname, pluginId)) {
+      if (upstreamOrigin && parsed.origin === upstreamOrigin && (
+        shouldProxyJsonResourcePath(parsed.pathname, pluginId)
+        || jsonKeyLooksLikePluginUrl(key)
+      )) {
         return pluginProxyResourcePath(pluginId, `${parsed.pathname}${parsed.search}${parsed.hash}`, workspaceId);
       }
     } catch (_) {
@@ -600,13 +625,13 @@ function createHermesPluginApiRoutes(deps = {}) {
     return text;
   }
 
-  function rewritePluginProxyJsonValue(value, pluginId = "", upstreamBase = "", workspaceId = "") {
-    if (typeof value === "string") return rewritePluginProxyJsonString(value, pluginId, upstreamBase, workspaceId);
-    if (Array.isArray(value)) return value.map((item) => rewritePluginProxyJsonValue(item, pluginId, upstreamBase, workspaceId));
+  function rewritePluginProxyJsonValue(value, pluginId = "", upstreamBase = "", workspaceId = "", key = "") {
+    if (typeof value === "string") return rewritePluginProxyJsonString(value, pluginId, upstreamBase, workspaceId, key);
+    if (Array.isArray(value)) return value.map((item) => rewritePluginProxyJsonValue(item, pluginId, upstreamBase, workspaceId, key));
     if (value && typeof value === "object") {
       const next = {};
       for (const [key, item] of Object.entries(value)) {
-        next[key] = rewritePluginProxyJsonValue(item, pluginId, upstreamBase, workspaceId);
+        next[key] = rewritePluginProxyJsonValue(item, pluginId, upstreamBase, workspaceId, key);
       }
       return next;
     }

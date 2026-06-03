@@ -597,6 +597,63 @@ async function testFinanceProxyRewritesFinanceApiJsonUrls() {
   assert.match(res.body, /"note":"Do not rewrite prose mentioning \/api\/not-a-resource\."/);
 }
 
+async function testNoteProxyRewritesAttachmentJsonUrls() {
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "note", manifestUrl: "http://127.0.0.1:4181/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest(input) {
+        assert.equal(input.id, "note");
+        return Promise.resolve({ ok: true, available: true, id: "note", entry: { url: "http://127.0.0.1:4181/?embed=hermes" } });
+      },
+      pluginManifestUrl(id) {
+        assert.equal(id, "note");
+        return "http://127.0.0.1:4181/api/v1/hermes/plugin/manifest";
+      },
+    },
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:4181/api/v1/app/notes/note-1?workspaceId=owner");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify({
+          note: {
+            id: "note-1",
+            body: '<img src="/api/v1/app/attachments/att-1" alt="">',
+            attachments: [{
+              id: "att-1",
+              kind: "image",
+              url: "/api/v1/app/attachments/att-1",
+            }],
+            prose: "Do not rewrite prose mentioning /api/v1/app/attachments/att-text.",
+          },
+        })),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/note/proxy/api/v1/app/notes/note-1?workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  const body = parseBody(res);
+  assert.equal(
+    body.note.attachments[0].url,
+    "/api/hermes-plugins/note/proxy/api/v1/app/attachments/att-1?workspaceId=owner",
+  );
+  assert.match(
+    body.note.body,
+    /src="\/api\/hermes-plugins\/note\/proxy\/api\/v1\/app\/attachments\/att-1\?workspaceId=owner"/,
+  );
+  assert.equal(body.note.prose, "Do not rewrite prose mentioning /api/v1/app/attachments/att-text.");
+}
+
 async function testFinanceProxyForwardsOnlyCurrentWorkspaceSessionCookie() {
   const fetchCalls = [];
   const { routes } = makeRoutes({
@@ -1281,6 +1338,7 @@ async function run() {
   await testFinanceProxyUsesConfiguredLocalUpstreamAndForwardsOrigin();
   await testFinanceProxyNamespacesSessionCookieAndRedirectForWorkspace();
   await testFinanceProxyRewritesFinanceApiJsonUrls();
+  await testNoteProxyRewritesAttachmentJsonUrls();
   await testFinanceProxyForwardsOnlyCurrentWorkspaceSessionCookie();
   await testFinanceProxyRewritesBrowserApiCallsWithWorkspaceId();
   await testFinanceProxyRejectsAmbiguousWorkspaceCookiesWithoutWorkspaceHint();

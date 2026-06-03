@@ -90,6 +90,16 @@ PWA refresh, and plugin iframe/tab transitions. Because the device renders as
 black/white or grayscale, color, saturation, and brand-icon color decisions must
 still be checked with Playwright/Chrome or a normal color phone.
 
+Android Access Key setup for smoke must not use `adb input text` for Access Key
+entry. Access Keys may include characters that ADB text injection or the active
+IME can transform, which creates false login failures. Use the CDP-backed
+harness `node scripts\android-pwa-plugin-dock-smoke.js --access-key-path <path>
+--expect-version <version> --screenshot <file>` for plugin Dock visual checks:
+it launches Chrome over ADB, forwards `chrome_devtools_remote`, writes the key
+into same-origin `localStorage` and the `hermes_web_key` cookie without printing
+the key, reloads the app, and verifies the Dock has one horizontally scrollable
+row.
+
 Startup harnesses must also verify that workspace/project bootstrap failures do
 not reveal a half-initialized shell with an empty workspace selector. The client
 should retry bounded startup loading and then show an explicit recovery/retry
@@ -593,10 +603,25 @@ consume bottom navigation hit targets.
 Plugin-context bottom navigation must remain a three-entry browser-style footer.
 It is not the ordinary five-entry app navigation: it should be icon-first,
 compact, fixed outside the embedded browser viewport, and visually separated by
-a clear top divider with minimal wasted vertical space. It must not add
-host-owned bottom padding to the embedded iframe. The iframe must end at the
-footer's top edge and plugin-context iframe/shell min-height must be cleared so
-standalone `100dvh` plugin layouts cannot slide under the Hermes buttons. The
+a clear top divider with minimal wasted vertical space. Embedded plugin iframes
+must hide the normal Hermes topbar/header; plugin-specific headers belong inside
+the iframe. It must not add host-owned bottom padding to the embedded iframe.
+The host plugin viewport must subtract the plugin-context footer height so the
+iframe starts at the host viewport top and ends at the footer's top edge, and
+plugin-context iframe/shell min-height must be cleared so standalone `100dvh`
+plugin layouts cannot slide under the Hermes buttons. The
+plugin-side UI harness must also follow
+`docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`: iframe app roots use
+iframe-relative `height: 100%` sizing in `embed=hermes`, plugin-owned bottom nav
+or floating action bars reserve only plugin-owned footer space, and device/CDP
+checks measure both the iframe/footer gap and the plugin local-nav/iframe-bottom
+gap. If Finance-like plugin pages align while another plugin floats above the
+footer, treat that as a plugin-side embedded layout failure unless host geometry
+shows the iframe still extends under the Hermes footer. The
+same-origin proxy harness must also cover plugin-owned JSON image paths,
+including Note `/api/v1/app/attachments/<id>` URLs in note bodies and
+attachment metadata; these URLs must be rewritten to
+`/api/hermes-plugins/note/proxy/...` with the selected workspace id. The
 harness must also assert that an empty directory-bound topic draft can be
 dismissed by top-left or right-swipe back, and that switching from that empty
 draft to a plugin app discards only the pending draft state instead of locking
@@ -1337,7 +1362,7 @@ The guard test is:
 | Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js` |
 | Embedded plugin host / Wardrobe, Codex, Finance, Email, Health, and Note plugin tabs | `node tests\hermes-plugin-authorization-service.test.js`, `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\embedded-plugin-refresh-harness.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\wardrobe-plugin-navigation-ui.test.js`, `node tests\wardrobe-plugin-provisioning-service.test.js`, `node tests\email-plugin-provisioning-service.test.js` when Email behavior changes, `node tests\health-plugin-provisioning-service.test.js` when Health behavior changes, `node tests\note-plugin-provisioning-service.test.js` when Note behavior changes, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes. First-run plugin enablement must verify Owner and one non-Owner workspace cannot project `active` until workspace-local key/config, plugin-side bind/register, required Skill/MCP setup, and manifest/launch smoke pass. Plugin-manager projection must also prove Owner records can be persisted, Owner workspace-local key/config discovery is reflected as already enabled, and failed Owner provisioning remains a retryable diagnostic instead of reverting to a plain unopened button. |
-| Plugin-bound application topics | Current frontend projection: `node tests\task-list-ui.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\static-cache-version-harness.test.js`. Planned service/runtime phases: `node tests\plugin-topic-binding-service.test.js`, `node tests\plugin-topic-delivery-directory-service.test.js`, `node tests\plugin-topic-context-service.test.js`, `node tests\plugin-topic-api-routes.test.js`, `node tests\app-plugin-topics-ui.test.js`, plus `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\directory-browser-api-routes.test.js`, and `node tests\architecture-refactor-boundary.test.js` when implementation touches services/routes/runtime. Frontend harness must cover direct app launch from the topic-page plugin Dock, the Directory special card with no mini actions, compact single-surface plugin cards without nested framed panels, five-slot bottom navigation with Topics centered, default launch to Topics when no saved view exists, fixed `plugin:<pluginId>` topic ids, automatic `插件/<plugin title>` directory creation through the directory API, returning from that directory to the topic list, restoring topic-list scroll position after topic-detail back/right-swipe, clearing stale plugin view-mode classes before opening the topic detail so the message composer is visible, hiding the bottom navigation on ordinary plugin-topic secondary pages, preserving the three-item plugin-context bar inside plugin app/topic/directory context, and making plugin-context right-swipe/browser-back exit through the dedicated topic-root renderer without calling `openTaskList()`, `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`. |
+| Plugin-bound application topics | Current frontend projection: `node tests\task-list-ui.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\static-cache-version-harness.test.js`. Planned service/runtime phases: `node tests\plugin-topic-binding-service.test.js`, `node tests\plugin-topic-delivery-directory-service.test.js`, `node tests\plugin-topic-context-service.test.js`, `node tests\plugin-topic-api-routes.test.js`, `node tests\app-plugin-topics-ui.test.js`, plus `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\directory-browser-api-routes.test.js`, and `node tests\architecture-refactor-boundary.test.js` when implementation touches services/routes/runtime. Frontend harness must cover direct app launch from the topic-page plugin Dock; the Dock must be a single horizontally scrollable row sorted by local plugin usage recency/count and must not wrap into multiple rows as plugins increase. The same harness must cover the Directory special card with no mini actions, compact single-surface plugin cards without nested framed panels, five-slot bottom navigation with Topics centered, default launch to Topics when no saved view exists, fixed `plugin:<pluginId>` topic ids, automatic `插件/<plugin title>` directory creation through the directory API, returning from that directory to the topic list, restoring topic-list scroll position after topic-detail back/right-swipe, clearing stale plugin view-mode classes before opening the topic detail so the message composer is visible, hiding the bottom navigation on ordinary plugin-topic secondary pages, preserving the three-item plugin-context bar inside plugin app/topic/directory context, and making plugin-context right-swipe/browser-back exit through the dedicated topic-root renderer without calling `openTaskList()`, `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`. |
 | Directory-bound topic collections | Planned: `node tests\directory-topic-binding-service.test.js`, `node tests\directory-topic-context-service.test.js`, `node tests\directory-topic-api-routes.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\context-assembly-service.test.js`, and `node tests\task-list-ui.test.js`. Harness must cover multiple topics per directory, one default topic per directory, default-topic reassignment without deleting secondary topics, explicit open-directory/open-default-topic/open-topic-picker actions, workspace isolation, cleaned/selected/bounded directory context, and exclusion of fixed plugin topics from directory collections. Frontend harness must also prove the topic list can render its first frame before directory-topic aggregation runs, that directory collections are visually attached below the Directory special application card, that the directory action sits on the same row as the main topic entry, and that background aggregation/API refresh preserves the user's current topic-list scroll position, because directory route extraction may scan many existing messages on large accounts. |
 | Directory/files/artifacts | `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js` |
 | Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\gateway-workspace-provisioning-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\link-skill-profile-store.test.js`, `node tests\task-list-ui.test.js` |

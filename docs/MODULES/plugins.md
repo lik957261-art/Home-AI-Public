@@ -17,6 +17,11 @@ the next standard workspace-private plugins. These rules are generic and apply
 to future embedded apps such as watches, health, notes, or other private
 workspace tools.
 
+The embedded UI layout contract is tracked separately in
+`docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`. Plugin projects must
+follow that contract for iframe-root sizing, plugin-owned bottom navigation,
+floating action buttons, local action bars, and device visual harnesses.
+
 Health/健康 is now an embedded-app plugin in the same workspace-private class as
 Wardrobe, Finance, and Email. Hermes Mobile owns its host registration, manifest
 normalization, same-origin proxy, plugin Dock entry, topic binding, and
@@ -119,15 +124,30 @@ without the selected workspace's matching Gateway schema. See
 `docs/MODULES/plugin-topics.md` and
 `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md`.
 
+The bottom `插件` tab opens a host-owned plugin Dock, not a multi-row app grid.
+The Dock is a single horizontally scrollable row above the ordinary bottom
+navigation. It sorts visible embedded-app plugins by local usage recency and
+count, then falls back to the stable manifest order. Adding new plugins must not
+increase the Dock height or wrap icons into a second row; lower-frequency
+plugins remain reachable by horizontal swipe so the topic list keeps enough
+vertical space.
+
 When a plugin is opened from a plugin-bound topic, Hermes shows a three-entry
 plugin context browser-style footer: Topic, the current plugin, and Directory.
 This context navigation keeps only three columns and stays outside the embedded
-browser viewport. It should be visually closer to a mobile browser toolbar than
-to the ordinary five-entry app navigation: icon-first, compact, fixed, with a
-clear top divider and minimal wasted vertical space. The plugin iframe must end
-at the footer's top edge, not continue behind the Hermes buttons. In plugin
-context mode the iframe/shell must also drop any standalone `100dvh` min-height
-so it obeys the host viewport slice.
+browser viewport. Hermes must hide its normal topbar/header whenever an
+embedded plugin iframe is open; the plugin owns its own header or in-app title
+inside the iframe. The footer should be visually closer to a mobile browser
+toolbar than to the ordinary five-entry app navigation: icon-first, compact,
+fixed, with a clear top divider and minimal wasted vertical space. The plugin
+iframe must start at the top of the available host viewport and end at the
+footer's top edge, not continue behind the Hermes buttons. In plugin context
+mode the iframe/shell must also drop any standalone `100dvh` min-height so it
+obeys the host viewport slice. The host must subtract the plugin-context footer
+height from the embedded app viewport instead of using only `padding-bottom`;
+otherwise the iframe can extend behind the Hermes footer while the plugin app
+also reserves its own bottom navigation area, creating a visible blank band
+between the plugin's native bottom bar and the Hermes footer.
 
 The built-in Directory plugin is different from embedded iframe plugins. When a
 user opens a folder and chooses to start a topic, Hermes must keep the directory
@@ -1121,6 +1141,17 @@ Mobile tests. The plugin-side harness should prove:
   must drop upstream `Domain` and rewrite `Path` to the plugin proxy prefix, for
   example `/api/hermes-plugins/<plugin-id>/proxy`, so the installed PWA iframe
   keeps the plugin session instead of falling back to a username/password page.
+  JSON resource fields must also be rewritten for plugin-owned image,
+  attachment, file, thumbnail, preview, icon, and download endpoints. This must
+  be generic for newly installed plugins: if a plugin returns a bounded JSON
+  field whose key is clearly URL-like, such as `url`, `imageUrl`, `attachmentUrl`,
+  `thumbnailUrl`, `previewContentUrl`, `fileUrl`, `downloadUrl`, `src`, or
+  `href`, and the value is a local absolute path, Hermes rewrites it to the
+  same plugin proxy prefix. HTML-like JSON fields such as `body` may also have
+  `src`/`href`/`url(...)` references rewritten. Ordinary prose fields must not
+  be changed. For Note this means `/api/v1/app/attachments/<attachmentId>` image
+  URLs in imported-note bodies and attachment metadata load through the Hermes
+  same-origin proxy instead of falling back to the Hermes host root.
 - Embed mode: `/?embed=hermes` hides standalone app chrome and does not show a
   username/password login after a valid launch.
 - Navigation event: entering a secondary page sends

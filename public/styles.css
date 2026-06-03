@@ -1279,11 +1279,11 @@ button {
 }
 
 .app.plugin-context-nav-mode.wardrobe-plugin-host-active {
-  padding-bottom: var(--plugin-context-bottom-nav-height);
+  padding-bottom: 0;
 }
 
 .wardrobe-plugin-host-active .topbar {
-  display: flex !important;
+  display: none !important;
 }
 
 .wardrobe-plugin-host-active .wardrobe-plugin-host {
@@ -1388,7 +1388,17 @@ button {
 }
 
 .app.plugin-context-nav-mode.embedded-plugin-host-active {
-  padding-bottom: var(--plugin-context-bottom-nav-height);
+  padding-bottom: 0;
+}
+
+.plugin-context-nav-mode.wardrobe-plugin-host-active .main,
+.plugin-context-nav-mode.embedded-plugin-host-active .main {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: var(--plugin-context-main-bottom, var(--plugin-context-bottom-nav-height));
+  left: 0;
+  min-height: 0;
 }
 
 .plugin-context-nav-mode .wardrobe-plugin-shell,
@@ -1407,7 +1417,7 @@ button {
 }
 
 .embedded-plugin-host-active .topbar {
-  display: flex !important;
+  display: none !important;
 }
 
 .embedded-plugin-host-active .embedded-plugin-host {
@@ -5259,14 +5269,26 @@ button.directory-alias-chip {
   border-top: 1px solid rgba(95, 139, 148, 0.18);
 }
 
-.plugin-app-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
+.plugin-app-strip {
+  min-width: 0;
+  display: flex;
+  flex-wrap: nowrap;
   gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.plugin-app-strip::-webkit-scrollbar {
+  display: none;
 }
 
 .plugin-app-card {
-  min-width: 0;
+  flex: 0 0 70px;
+  width: 70px;
   min-height: 76px;
   display: grid;
   justify-items: center;
@@ -5278,6 +5300,7 @@ button.directory-alias-chip {
   border: 0;
   border-radius: 10px;
   cursor: pointer;
+  scroll-snap-align: start;
 }
 
 .plugin-app-card:active {
@@ -5333,13 +5356,15 @@ button.directory-alias-chip {
   border-top: 0;
 }
 
-.task-list-mode .plugin-app-grid {
-  width: min(448px, 100%);
+.task-list-mode .plugin-app-strip {
+  width: 100%;
   margin: 0 auto;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 0 max(0px, calc((100vw - 448px) / 2));
 }
 
 .task-list-mode .plugin-app-card {
+  flex-basis: 64px;
+  width: 64px;
   min-height: 66px;
   padding: 4px;
 }
@@ -15710,16 +15735,17 @@ body.task-markdown-preview-open {
     padding-top: 10px;
   }
 
-  .plugin-app-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .plugin-app-strip {
     gap: 6px;
   }
 
-  .task-list-mode .plugin-app-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .task-list-mode .plugin-app-strip {
+    padding: 0;
   }
 
   .plugin-app-card {
+    flex-basis: 62px;
+    width: 62px;
     min-height: 70px;
     padding: 5px 4px;
   }

@@ -251,11 +251,13 @@ function updateMobileBottomNavReservation() {
   if (!nav || !isMobileLayout()) {
     root.style.removeProperty("--mobile-bottom-nav-offset-height-runtime");
     root.style.removeProperty("--mobile-bottom-nav-reserved-height-runtime");
+    updatePluginContextViewportReservation();
     return;
   }
   if (nav.hidden || window.getComputedStyle?.(nav).display === "none") {
     root.style.removeProperty("--mobile-bottom-nav-offset-height-runtime");
     root.style.removeProperty("--mobile-bottom-nav-reserved-height-runtime");
+    updatePluginContextViewportReservation();
     return;
   }
   const rectHeight = Math.ceil(nav.getBoundingClientRect?.().height || 0);
@@ -269,12 +271,46 @@ function updateMobileBottomNavReservation() {
     : Math.max(76, rectHeight + 10, contentHeight + 10);
   root.style.setProperty("--mobile-bottom-nav-offset-height-runtime", `${offset}px`);
   root.style.setProperty("--mobile-bottom-nav-reserved-height-runtime", `${reserve}px`);
+  updatePluginContextViewportReservation();
+}
+
+function updatePluginContextViewportReservation() {
+  const root = document.documentElement;
+  const app = $("app");
+  const nav = $("bottomNav");
+  const active = Boolean(
+    app?.classList.contains("plugin-context-nav-mode")
+    && (
+      app.classList.contains("wardrobe-plugin-host-active")
+      || app.classList.contains("embedded-plugin-host-active")
+    )
+  );
+  if (!active || !nav || nav.hidden || window.getComputedStyle?.(nav).display === "none") {
+    root.style.removeProperty("--plugin-context-main-bottom");
+    return;
+  }
+  const navHeight = Math.ceil(nav.getBoundingClientRect?.().height || 0);
+  const appHeight = Math.ceil(app.getBoundingClientRect?.().height || 0);
+  const viewportHeight = Math.ceil(
+    window.visualViewport?.height
+    || window.innerHeight
+    || document.documentElement?.clientHeight
+    || appHeight
+    || 0
+  );
+  const viewportOverflow = Math.max(0, appHeight - viewportHeight);
+  const bottomInset = Math.max(navHeight, navHeight + viewportOverflow);
+  if (bottomInset > 0) root.style.setProperty("--plugin-context-main-bottom", `${bottomInset}px`);
+  else root.style.removeProperty("--plugin-context-main-bottom");
 }
 
 function normalizeMobileViewportAfterViewChange() {
   state.composerFocused = false;
   clearKeyboardViewportMetrics();
-  [0, 80, 240].forEach((delay) => window.setTimeout(updateMobileBottomNavReservation, delay));
+  [0, 80, 240].forEach((delay) => window.setTimeout(() => {
+    updateMobileBottomNavReservation();
+    updatePluginContextViewportReservation();
+  }, delay));
 }
 
 function refreshKeyboardViewportSoon(delay = 0) {

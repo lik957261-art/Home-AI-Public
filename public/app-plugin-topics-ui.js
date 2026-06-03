@@ -69,6 +69,7 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     deliveryHints: ["directory", "\u76ee\u5f55", "\u6587\u4ef6", "\u8d44\u6599"],
   }),
 ]);
+const PLUGIN_TOPIC_USAGE_STORAGE_KEY = "hermesPluginTopicUsage";
 
 function pluginTopicId(value = "") {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -177,6 +178,57 @@ function pluginTopicNavigationAvailable(def) {
 
 function availablePluginTopicDefs() {
   return PLUGIN_TOPIC_DEFS.filter(pluginTopicNavigationAvailable);
+}
+
+function readPluginTopicUsage() {
+  try {
+    const raw = localStorage.getItem(PLUGIN_TOPIC_USAGE_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writePluginTopicUsage(usage) {
+  try {
+    localStorage.setItem(PLUGIN_TOPIC_USAGE_STORAGE_KEY, JSON.stringify(usage || {}));
+  } catch {
+    // Best-effort ordering hint only; navigation must not depend on localStorage.
+  }
+}
+
+function recordPluginTopicUsage(pluginId) {
+  const def = pluginTopicDefById(pluginId);
+  if (!def || def.builtinKind) return;
+  const usage = readPluginTopicUsage();
+  const current = usage[def.id] && typeof usage[def.id] === "object" ? usage[def.id] : {};
+  usage[def.id] = {
+    count: Math.max(0, Number(current.count) || 0) + 1,
+    lastUsedAt: Date.now(),
+  };
+  writePluginTopicUsage(usage);
+}
+
+function pluginTopicDefinitionIndex(pluginId) {
+  const id = pluginTopicId(pluginId);
+  const index = PLUGIN_TOPIC_DEFS.findIndex((item) => item.id === id);
+  return index >= 0 ? index : Number.MAX_SAFE_INTEGER;
+}
+
+function sortPluginAppDefsByUsage(defs = []) {
+  const usage = readPluginTopicUsage();
+  return [...defs].sort((a, b) => {
+    const aUsage = usage[a.id] || {};
+    const bUsage = usage[b.id] || {};
+    const aLast = Number(aUsage.lastUsedAt) || 0;
+    const bLast = Number(bUsage.lastUsedAt) || 0;
+    if (aLast !== bLast) return bLast - aLast;
+    const aCount = Number(aUsage.count) || 0;
+    const bCount = Number(bUsage.count) || 0;
+    if (aCount !== bCount) return bCount - aCount;
+    return pluginTopicDefinitionIndex(a.id) - pluginTopicDefinitionIndex(b.id);
+  });
 }
 
 function pluginTopicSearchText(def) {
@@ -344,12 +396,12 @@ function renderPluginTopicCards(options = {}) {
 }
 
 function renderPluginAppLauncher() {
-  const defs = availablePluginTopicDefs().filter((def) => !def.builtinKind);
+  const defs = sortPluginAppDefsByUsage(availablePluginTopicDefs().filter((def) => !def.builtinKind));
   if (!defs.length) return "";
   return `<section class="plugin-app-launcher" aria-label="\u63d2\u4ef6\u5e94\u7528">
-    <div class="plugin-app-grid">
+    <div class="plugin-app-strip" role="list">
       ${defs.map((def) => `
-        <button class="plugin-app-card" type="button" data-plugin-topic-open-app="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u63d2\u4ef6`)}">
+        <button class="plugin-app-card" type="button" role="listitem" data-plugin-topic-open-app="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u63d2\u4ef6`)}">
           <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
           <span class="plugin-app-label">${escapeHtml(def.label)}</span>
         </button>
@@ -392,6 +444,7 @@ async function openPluginTopicApp(pluginId) {
     await openBuiltInDirectoryPlugin();
     return;
   }
+  recordPluginTopicUsage(def.id);
   if (typeof preparePrimaryNavigationChange === "function") preparePrimaryNavigationChange();
   else if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
   clearQuotedReply({ render: false });

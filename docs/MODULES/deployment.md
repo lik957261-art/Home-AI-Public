@@ -141,6 +141,17 @@ The first supported NAS direction is a split deployment, documented in
   plugin-side user/space, required Skill/MCP registration, and a successful
   manifest/launch smoke. Do not mark a plugin `active` just because the Hermes
   authorization record exists.
+- New plugin deployment must also verify browser-facing resource paths through
+  the Hermes same-origin proxy before the plugin is considered usable. Plugin
+  JSON fields whose names clearly represent URLs, images, thumbnails,
+  attachments, files, previews, icons, downloads, `src`, or `href` should return
+  local absolute paths that Hermes rewrites under
+  `/api/hermes-plugins/<plugin-id>/proxy/...`; HTML-like JSON fields such as
+  `body` may include `src`/`href`/`url(...)` references that receive the same
+  rewrite. Deployment/preflight must include at least one plugin-owned static
+  asset and one plugin-owned private attachment/image route. A new plugin should
+  not require hand-editing Hermes for each attachment directory; if it does, the
+  plugin contract or proxy harness is incomplete.
 - The maintained Windows/local development launcher may point Wardrobe at a
   different local service from NAS. As of 2026-06-01, its
   `HERMES_MOBILE_WARDROBE_PLUGIN_MANIFEST_URL` was changed from the NAS
