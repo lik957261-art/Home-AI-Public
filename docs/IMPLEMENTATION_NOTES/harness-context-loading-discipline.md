@@ -122,6 +122,42 @@ Stop loading more context when:
 If additional context would materially change the fix, state the missing fact
 and load only that source.
 
+## Tool Output Budget
+
+Context can grow quickly even in a fresh continuation thread when a command
+prints a large assertion body, a concatenated frontend bundle, a broad grep
+context, or a long diff. HANES therefore treats tool output as part of context
+loading, not as free scratch space.
+
+Before running a test that may fail with large source text, prefer one of these
+bounded patterns:
+
+- run a focused test or harness assertion that prints only the failing contract;
+- pipe or configure failure output so only the first useful error block is
+  shown;
+- for regex-contract tests over concatenated frontend source, inspect and patch
+  the nearby assertion directly instead of repeatedly allowing Node to dump the
+  entire concatenated string;
+- when a full failure log is needed, write it to a temporary ignored file and
+  read only the relevant lines.
+
+Before searching or reading files, prefer bounded output:
+
+- use exact file names and exact patterns before broad `public/*.js` or repo-wide
+  searches;
+- avoid large `Select-String -Context` or equivalent context windows unless the
+  surrounding lines are necessary;
+- read explicit line ranges or small head/tail slices instead of whole large
+  files;
+- for diffs, start with `git diff --stat` and then inspect only the affected
+  files or hunks;
+- never paste or preserve long logs, full generated bundles, full assertion
+  inputs, raw private data, or repeated historical context in handoffs.
+
+If a command unexpectedly emits a very large result, do not keep iterating with
+the same command shape. Switch to a narrower command and summarize only the
+actionable lines.
+
 ## Handoff Rules
 
 `.agent-context/HANDOFF.md` should record current rollout state, not become a
