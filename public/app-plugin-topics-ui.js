@@ -70,6 +70,8 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
   }),
 ]);
 const PLUGIN_TOPIC_USAGE_STORAGE_KEY = "hermesPluginTopicUsage";
+const PLUGIN_TOPIC_ORDER_STORAGE_KEY = "hermesPluginTopicOrder";
+let pluginAppSortDrag = null;
 
 function pluginTopicId(value = "") {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -220,19 +222,40 @@ function pluginTopicDefinitionIndex(pluginId) {
   return index >= 0 ? index : Number.MAX_SAFE_INTEGER;
 }
 
-function sortPluginAppDefsByUsage(defs = []) {
-  const usage = readPluginTopicUsage();
+function readPluginTopicOrder() {
+  try {
+    const raw = localStorage.getItem(PLUGIN_TOPIC_ORDER_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(pluginTopicId).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePluginTopicOrder(ids = []) {
+  try {
+    localStorage.setItem(PLUGIN_TOPIC_ORDER_STORAGE_KEY, JSON.stringify(ids.map(pluginTopicId).filter(Boolean)));
+  } catch {
+    // Manual order is a local preference; navigation must still work without it.
+  }
+}
+
+function orderedPluginAppDefs(defs = []) {
+  const manualOrder = readPluginTopicOrder();
+  const manualIndex = new Map(manualOrder.map((id, index) => [id, index]));
   return [...defs].sort((a, b) => {
-    const aUsage = usage[a.id] || {};
-    const bUsage = usage[b.id] || {};
-    const aLast = Number(aUsage.lastUsedAt) || 0;
-    const bLast = Number(bUsage.lastUsedAt) || 0;
-    if (aLast !== bLast) return bLast - aLast;
-    const aCount = Number(aUsage.count) || 0;
-    const bCount = Number(bUsage.count) || 0;
-    if (aCount !== bCount) return bCount - aCount;
+    const aManual = manualIndex.has(a.id) ? manualIndex.get(a.id) : Number.MAX_SAFE_INTEGER;
+    const bManual = manualIndex.has(b.id) ? manualIndex.get(b.id) : Number.MAX_SAFE_INTEGER;
+    if (aManual !== bManual) return aManual - bManual;
     return pluginTopicDefinitionIndex(a.id) - pluginTopicDefinitionIndex(b.id);
   });
+}
+
+function persistPluginAppOrderFromStrip(strip) {
+  const ids = [...(strip?.querySelectorAll?.("[data-plugin-topic-sort-id]") || [])]
+    .map((item) => item.dataset.pluginTopicSortId || "")
+    .filter(Boolean);
+  if (ids.length) writePluginTopicOrder(ids);
 }
 
 function pluginTopicSearchText(def) {
@@ -400,12 +423,12 @@ function renderPluginTopicCards(options = {}) {
 }
 
 function renderPluginAppLauncher() {
-  const defs = sortPluginAppDefsByUsage(availablePluginTopicDefs().filter((def) => !def.builtinKind));
+  const defs = orderedPluginAppDefs(availablePluginTopicDefs().filter((def) => !def.builtinKind));
   if (!defs.length) return "";
   return `<section class="plugin-app-launcher" aria-label="\u63d2\u4ef6\u5e94\u7528">
     <div class="plugin-app-strip" role="list">
       ${defs.map((def) => `
-        <button class="plugin-app-card" type="button" role="listitem" data-plugin-topic-open-app="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u63d2\u4ef6`)}">
+        <button class="plugin-app-card" type="button" role="listitem" data-plugin-topic-open-app="${escapeHtml(def.id)}" data-plugin-topic-sort-id="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u63d2\u4ef6`)}">
           <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
           <span class="plugin-app-label">${escapeHtml(def.label)}</span>
         </button>
@@ -556,9 +579,78 @@ function pluginTopicInstruction(def) {
   ].join(" ");
 }
 
+function wirePluginAppManualSorting(root) {
+  root?.querySelectorAll?.("[data-plugin-topic-sort-id]").forEach((card) => {
+    if (card.dataset.pluginAppSortBound) return;
+    card.dataset.pluginAppSortBound = "1";
+    card.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      const strip = card.closest(".plugin-app-strip");
+      if (!strip) return;
+      pluginAppSortDrag = {
+        card,
+        strip,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        dragging: false,
+      };
+      try {
+        card.setPointerCapture?.(event.pointerId);
+      } catch (_) {}
+    });
+    card.addEventListener("pointermove", (event) => {
+      const drag = pluginAppSortDrag;
+      if (!drag || drag.card !== card || drag.pointerId !== event.pointerId) return;
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
+      if (!drag.dragging) {
+        if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+        drag.dragging = true;
+        card.classList.add("plugin-app-card-dragging");
+        drag.strip.classList.add("plugin-app-strip-sorting");
+      }
+      event.preventDefault();
+      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.("[data-plugin-topic-sort-id]");
+      if (target && target !== card && target.closest(".plugin-app-strip") === drag.strip) {
+        const rect = target.getBoundingClientRect();
+        const before = event.clientX < rect.left + rect.width / 2;
+        drag.strip.insertBefore(card, before ? target : target.nextSibling);
+        persistPluginAppOrderFromStrip(drag.strip);
+      }
+    }, { passive: false });
+    const finish = (event) => {
+      const drag = pluginAppSortDrag;
+      if (!drag || drag.card !== card || drag.pointerId !== event.pointerId) return;
+      pluginAppSortDrag = null;
+      try {
+        card.releasePointerCapture?.(event.pointerId);
+      } catch (_) {}
+      card.classList.remove("plugin-app-card-dragging");
+      drag.strip.classList.remove("plugin-app-strip-sorting");
+      if (drag.dragging) {
+        persistPluginAppOrderFromStrip(drag.strip);
+        card.dataset.pluginAppDragMoved = "1";
+        window.setTimeout(() => {
+          if (card.dataset.pluginAppDragMoved === "1") card.dataset.pluginAppDragMoved = "";
+        }, 0);
+      }
+    };
+    card.addEventListener("pointerup", finish);
+    card.addEventListener("pointercancel", finish);
+  });
+}
+
 function wirePluginTopicCards(root) {
   root?.querySelectorAll?.("[data-plugin-topic-open-app]").forEach((button) => {
-    button.addEventListener("click", () => openPluginTopicApp(button.dataset.pluginTopicOpenApp).catch(showError));
+    button.addEventListener("click", (event) => {
+      if (button.dataset.pluginAppDragMoved === "1") {
+        event.preventDefault();
+        button.dataset.pluginAppDragMoved = "";
+        return;
+      }
+      openPluginTopicApp(button.dataset.pluginTopicOpenApp).catch(showError);
+    });
   });
   root?.querySelectorAll?.("[data-plugin-topic-open-topic]").forEach((button) => {
     button.addEventListener("click", () => openPluginTopicChat(button.dataset.pluginTopicOpenTopic).catch(showError));
@@ -566,4 +658,5 @@ function wirePluginTopicCards(root) {
   root?.querySelectorAll?.("[data-plugin-topic-open-delivery]").forEach((button) => {
     button.addEventListener("click", () => openPluginTopicDelivery(button.dataset.pluginTopicOpenDelivery).catch(showError));
   });
+  wirePluginAppManualSorting(root);
 }

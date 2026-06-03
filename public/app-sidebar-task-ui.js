@@ -140,6 +140,11 @@ function backSwipeTarget() {
 
 function backSwipeSurface(target) { return document.querySelector(target === "directory" ? ".directory-shell" : ".main"); }
 
+function navigateDirectoryBackFromShell(options = {}) {
+  if (typeof navigateDirectoryUp !== "function") return Promise.resolve(false);
+  return navigateDirectoryUp(options);
+}
+
 function clearBackSwipeSurface(surface) {
   if (!surface) return;
   surface.classList.remove("page-back-dragging", "page-back-settling");
@@ -169,7 +174,7 @@ function performBackSwipeAction(target) {
     renderLearningCoinsView();
   }
   else if (target === "directory-topic-draft") closeDirectoryTopicDraft();
-  else if (target === "directory") state.directoryReturnRoute ? restoreDirectoryReturnRoute() : navigateDirectoryUp({ animateEntry: true }).catch(showError);
+  else if (target === "directory") navigateDirectoryBackFromShell({ animateEntry: true }).catch(showError);
   else if (target === "wardrobe-plugin" && typeof sendWardrobePluginBack === "function") sendWardrobePluginBack();
   else if (target === "wardrobe-plugin-outer" && typeof restoreWardrobePluginReturnRoute === "function") restoreWardrobePluginReturnRoute();
   else if (target === "codex-plugin" && typeof sendCodexPluginBackOrReturn === "function") sendCodexPluginBackOrReturn();
@@ -196,7 +201,7 @@ async function handleInAppBackNavigation(options = {}) {
   const target = backSwipeTarget();
   if (!target) return false;
   if (target === "directory-topic-draft") return closeDirectoryTopicDraft();
-  if (target === "directory") state.directoryReturnRoute ? restoreDirectoryReturnRoute() : await navigateDirectoryUp({ animateEntry: Boolean(options.animateEntry) });
+  if (target === "directory") await navigateDirectoryBackFromShell({ animateEntry: Boolean(options.animateEntry) });
   else performBackSwipeAction(target);
   return true;
 }

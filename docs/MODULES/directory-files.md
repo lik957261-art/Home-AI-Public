@@ -43,6 +43,9 @@ The same ACL boundary must protect listing, preview, upload, delete, task direct
 - Upload must not overwrite existing files by default.
 - Delete must be explicit and non-recursive unless a dedicated audited policy says otherwise.
 - Protected roots include workspace root, sync/download roots, cache/delivery roots, hidden roots, and allowed-root boundaries.
+- When Directory is opened as the built-in plugin, right-swipe/back must return
+  through directory levels first. Only after the current directory has reached
+  its route root should the same gesture restore the outer plugin/topic route.
 
 ## Directory Topic Collections
 

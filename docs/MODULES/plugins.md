@@ -189,6 +189,13 @@ Finance bill detail can return to the plugin list page. Only when the plugin has
 no in-frame back target should Hermes leave the plugin surface and return to the
 bound Hermes topic page.
 
+The topic-page plugin Dock must keep a stable order during normal use. Opening
+a plugin may record usage for diagnostics, but it must not automatically move
+the plugin icon. Users can manually reorder plugin icons by dragging them in
+the Dock; the order is stored locally in `hermesPluginTopicOrder`. Newly
+available plugins that are not in the manual order append by the product's
+definition order.
+
 ## Manifest Contract
 
 The plugin project should publish a bounded manifest endpoint. Hermes Mobile

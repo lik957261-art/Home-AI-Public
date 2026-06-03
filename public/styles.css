@@ -5294,6 +5294,10 @@ button.directory-alias-chip {
   -webkit-overflow-scrolling: touch;
 }
 
+.plugin-app-strip-sorting {
+  scroll-snap-type: none;
+}
+
 .plugin-app-strip::-webkit-scrollbar {
   display: none;
 }
@@ -5313,10 +5317,21 @@ button.directory-alias-chip {
   border-radius: 10px;
   cursor: pointer;
   scroll-snap-align: start;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 140ms ease, background 140ms ease;
 }
 
 .plugin-app-card:active {
   transform: translateY(1px);
+}
+
+.plugin-app-card-dragging {
+  z-index: 2;
+  background: color-mix(in srgb, var(--ui-surface) 82%, transparent);
+  transform: scale(1.04);
+  box-shadow: 0 8px 18px rgba(31, 49, 54, 0.14);
 }
 
 .plugin-app-label {
