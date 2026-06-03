@@ -91,6 +91,10 @@ if (changedCacheSensitiveFiles.length > 0 && headVersion) {
 assert.match(testMatrix, /real client loaded the new\s+version after refresh/);
 assert.match(testMatrix, /document\.documentElement\.dataset\.clientVersion/);
 assert.match(testMatrix, /previous deployed static version returns\s+`refreshRequired=true`/);
+assert.match(testMatrix, /production_origin_identity_mismatch/);
+assert.match(testMatrix, /must first prove the target origin\s+is Hermes Mobile/);
+assert.match(read("docs/RUNBOOKS/static-client-cache-version.md"), /Prove the production origin identity before any API smoke/);
+assert.match(read("docs/RUNBOOKS/static-client-cache-version.md"), /do not keep trying common local ports/);
 assert.match(harnessMatrix, /verify the client refresh contract on\s+the actual target origin/);
 assert.match(harnessMatrix, /read the loaded page's `data-client-version`/);
 assert.match(harnessMatrix, /correction must use another static version/);

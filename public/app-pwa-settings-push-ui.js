@@ -80,14 +80,8 @@ function shouldAutoResetForClientVersionMismatch(serverVersion, source = "") {
 
 function scheduleClientVersionAutoReset(serverVersion, source = "") {
   const version = normalizeClientVersion(serverVersion);
-  if (!shouldAutoResetForClientVersionMismatch(version, source)) return false;
-  showBootSplash("正在更新客户端");
-  window.setTimeout(() => {
-    resetClientAndReload(`client-version-${String(source || "mismatch").slice(0, 40)}`, {
-      targetVersion: version,
-    });
-  }, 120);
-  return true;
+  if (version && shouldAutoResetForClientVersionMismatch(version, source)) return false;
+  return false;
 }
 
 function handleClientVersion(info, source = "") {
@@ -162,27 +156,15 @@ function resetClientAndReload(reason = "", options = {}) {
 }
 
 function reloadForClientUpdate(reason = "") {
-  showBootSplash("正在更新客户端");
-  if (!("serviceWorker" in navigator)) {
-    reloadWithoutBfcache(reason);
-    return;
-  }
-  navigator.serviceWorker.getRegistration("/")
-    .then(async (registration) => {
-      if (!registration) return;
-      await registration.update?.();
-      const worker = registration.waiting || registration.installing;
-      if (worker) {
-        try {
-          worker.postMessage({ type: "HERMES_SKIP_WAITING" });
-        } catch (_) {
-          // Continue with a timed reload if the worker cannot receive the message.
-        }
-      }
-      await waitForServiceWorkerControllerChange();
-    })
-    .catch(() => {})
-    .finally(() => reloadWithoutBfcache(reason));
+  const targetVersion = normalizeClientVersion(state.serverClientVersion || "");
+  showBootSplash(refreshNoticeText(targetVersion));
+  window.setTimeout(() => {
+    resetClientAndReload(reason || "manual-client-update", {
+      hard: true,
+      targetVersion,
+    });
+  }, 80);
+  return;
 }
 
 function isStandalonePwa() {

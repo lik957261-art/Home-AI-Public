@@ -48,6 +48,15 @@ The minimum accepted evidence is a browser/Playwright or installed-PWA read of
 reload, plus the `/api/client-version` old/new smoke above. If the loaded client
 still reports the old version after a kill/reopen or reload, the deploy is not
 complete and the corrective deploy must issue another static version.
+Before any production API smoke, the harness must first prove the target origin
+is Hermes Mobile, not another local service on a reused port. The identity proof
+must use the exact origin that will be smoked and must verify a Hermes-specific
+app-shell or public-config marker such as `Hermes Mobile`, the expected
+`data-client-version`, or `/api/public-config` fields belonging to Hermes. If
+the proof fails, stop and report `production_origin_identity_mismatch`; do not
+continue by trying common ports such as `8787`, `8999`, or a first listening
+Node process. This check is required before `/api/client-version`,
+`/api/status?detail=1`, Playwright, Android/CDP, or plugin proxy smokes.
 The required PWA smoke sequence is:
 
 1. Verify an Android emulator or target device is connected with `adb devices`.

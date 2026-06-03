@@ -11,11 +11,17 @@ Phone UI does not show a recent static/front-end change, or behavior differs bet
    - `public/service-worker.js`
    - `public/directory-viewer.html`
    - `tests/task-list-ui.test.js`
-2. Check production:
+2. Prove the production origin identity before any API smoke. Use the exact
+   origin that will be tested and verify it is Hermes Mobile, for example by
+   reading a Hermes app-shell `data-client-version` or Hermes-specific
+   `/api/public-config` fields. If this proof fails, stop with
+   `production_origin_identity_mismatch`; do not keep trying common local ports
+   or the first listening Node process.
+3. Check production:
    - `/api/status?detail=1`
    - `/api/client-version?clientVersion=<expected-version>`
-3. If a phone still shows old behavior, confirm it refreshed to the expected version.
-4. If a missed file is copied later under the same `?v=<client-version>` URL,
+4. If a phone still shows old behavior, confirm it refreshed to the expected version.
+5. If a missed file is copied later under the same `?v=<client-version>` URL,
    treat the deployment as cache-tainted and issue a new static version. Do not
    rely on overwriting the production file with the unchanged query string.
 
@@ -30,15 +36,16 @@ Static-only sync:
 
 When a stale PWA shell is suspected, verify the old version reports
 `refreshRequired=true` and the new version reports `refreshRequired=false` from
-`/api/client-version`. Current clients run a one-time session-scoped
-same-shell recovery on startup/foreground/API-response version mismatch by
-navigating the current app URL with `resetClient=1` and
-`targetVersion=<server-version>`. The inline app-shell reset clears bounded
-static caches, unregisters Service Workers, preserves the stored Access
-Key/theme/font preferences, and returns to the app with a cache-busting query.
-Automatic update recovery must not use `/client-reset.html`, because mobile PWA
-clients can open that page in a browser wrapper. If that does not happen,
-inspect whether the client is still executing a pre-recovery static version.
+`/api/client-version`. Current clients should show a refresh notice on
+startup/foreground/API-response version mismatch and should not automatically
+reload or reset the client. The visible refresh action navigates the current app
+URL with `resetClient=1` and `targetVersion=<server-version>`. The inline
+app-shell reset clears bounded static caches, unregisters Service Workers for
+explicit hard refresh, preserves the stored Access Key/theme/font preferences,
+and returns to the app with a cache-busting query. Manual update recovery must
+not use `/client-reset.html`, because mobile PWA clients can open that page in a
+browser wrapper. If that does not happen, inspect whether the client is still
+executing a pre-recovery static version.
 The Service Worker must fetch app-shell requests (`/`, `/index.html`, and
 `/hermes-mobile/`) network-first with `cache: "no-store"` so killing and
 reopening the PWA does not replay an old cached shell before checking the
