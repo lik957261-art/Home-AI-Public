@@ -280,6 +280,7 @@ function updatePluginContextViewportReservation() {
   const nav = $("bottomNav");
   const active = Boolean(
     app?.classList.contains("plugin-context-nav-mode")
+    && !app.classList.contains("embedded-plugin-preview-fullscreen-active")
     && (
       app.classList.contains("wardrobe-plugin-host-active")
       || app.classList.contains("embedded-plugin-host-active")

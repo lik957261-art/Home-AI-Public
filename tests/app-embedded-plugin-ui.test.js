@@ -76,9 +76,14 @@ assert.match(embeddedPluginUi, /function requestEmbeddedPluginHealthRefresh\(def
 assert.match(embeddedPluginUi, /requestEmbeddedPluginHealthRefresh\(def\)/);
 assert.match(embeddedPluginUi, /function ensureEmbeddedPluginNavigationBridge\(def\)/);
 assert.match(embeddedPluginUi, /def\.navigationEventType/);
+assert.match(embeddedPluginUi, /function embeddedPluginPreviewFullscreenRequested\(payload = \{\}\)/);
+assert.match(embeddedPluginUi, /payload\.previewFullscreen[\s\S]*?payload\.fullscreenPreview[\s\S]*?payload\.imagePreviewFullscreen/);
+assert.match(embeddedPluginUi, /data\.type === "hermes\.plugin\.preview" \|\| data\.type === "hermes\.plugin\.fullscreen" \|\| data\.type === `\$\{def\.id\}\.plugin\.preview`/);
+assert.match(embeddedPluginUi, /function embeddedPluginPreviewFullscreenActive\(def = embeddedPluginDefByView\(\)\)/);
 assert.match(embeddedPluginUi, /function updateEmbeddedPluginBackResultState\(def, payload = {}\)/);
 assert.match(embeddedPluginUi, /def\.backResultEventType/);
 assert.match(embeddedPluginUi, /record\.canGoBack = false/);
+assert.match(embeddedPluginUi, /record\.previewFullscreen = false/);
 assert.match(embeddedPluginUi, /function requestEmbeddedPluginRefresh\(def, payload = {}\)/);
 assert.match(embeddedPluginUi, /function embeddedPluginRefreshRequiredEventType\(def\)/);
 assert.match(embeddedPluginUi, /def\?\.refreshRequiredEventType \|\| `\$\{def\?\.id \|\| "plugin"\}\.plugin\.refresh_required`/);
@@ -191,6 +196,8 @@ assert.match(navigationSearchUi, /sidebarOpen = \$\("sidebar"\)\?\.classList\.co
 assert.match(navigationSearchUi, /pluginTopicDefForViewMode\(state\.viewMode\)/);
 assert.match(navigationSearchUi, /pluginTopicBottomButtonId\(pluginContextDef\)/);
 assert.match(navigationSearchUi, /plugin-context-nav-mode/);
+assert.match(navigationSearchUi, /embeddedPluginPreviewFullscreenActive\(\)/);
+assert.match(navigationSearchUi, /app\?\.classList\.toggle\("embedded-plugin-preview-fullscreen-active", embeddedPluginPreviewFullscreen\)/);
 assert.match(navigationSearchUi, /const pluginBack = wardrobePluginBack \|\| wardrobePluginOuterBack/);
 assert.match(navigationSearchUi, /\|\| \(!pluginContextNav && pluginBack\);/);
 assert.match(pluginTopicsUi, /const contextDef = pluginTopicDefById\(state\.pluginContextNavPluginId\)/);
@@ -284,6 +291,8 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode\s*\{[\s\S]*o
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomWardrobeMode,[\s\S]*#bottomFinanceMode,[\s\S]*#bottomEmailMode,[\s\S]*#bottomHealthMode,[\s\S]*#bottomNoteMode\s*\{[\s\S]*order: 2;/);
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode\s*\{[\s\S]*order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav\s*\{[\s\S]*display: grid;/);
+assert.match(stylesCss, /\.embedded-plugin-preview-fullscreen-active \.bottom-nav\s*\{[\s\S]*display: none !important;/);
+assert.match(stylesCss, /\.plugin-context-nav-mode\.embedded-plugin-preview-fullscreen-active\.embedded-plugin-host-active \.main\s*\{[\s\S]*bottom: 0;/);
 assert.match(stylesCss, /--plugin-context-bottom-nav-height: calc\(54px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(stylesCss, /\.plugin-context-nav-mode\.plugin-topic-detail-mode \.composer\s*\{[\s\S]*margin-bottom: var\(--plugin-context-bottom-nav-height\);/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-tab-label\s*\{[\s\S]*display: none;/);

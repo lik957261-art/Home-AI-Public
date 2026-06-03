@@ -282,6 +282,7 @@ function updateNavigationControls() {
   const pluginContextDef = typeof pluginTopicDefForViewMode === "function" ? pluginTopicDefForViewMode(state.viewMode) : null;
   const pluginContextButtonId = typeof pluginTopicBottomButtonId === "function" ? pluginTopicBottomButtonId(pluginContextDef) : "";
   const pluginContextNav = Boolean(pluginContextDef && pluginContextButtonId);
+  const embeddedPluginPreviewFullscreen = typeof embeddedPluginPreviewFullscreenActive === "function" && embeddedPluginPreviewFullscreenActive();
   const wardrobePluginBack = typeof wardrobePluginBackActive === "function" && wardrobePluginBackActive();
   const wardrobePluginOuterBack = typeof wardrobePluginOuterBackActive === "function" && wardrobePluginOuterBackActive();
   const codexPluginBack = typeof codexPluginBackActive === "function" && codexPluginBackActive();
@@ -324,6 +325,7 @@ function updateNavigationControls() {
   app?.classList.toggle("skill-detail-mode", skillDetail);
   app?.classList.toggle("task-list-mode", taskList);
   app?.classList.toggle("plugin-context-nav-mode", pluginContextNav);
+  app?.classList.toggle("embedded-plugin-preview-fullscreen-active", embeddedPluginPreviewFullscreen);
   app?.classList.toggle("learning-mode", state.viewMode === "learning");
   app?.classList.toggle("learning-settings-mode", learningGrowthSettings);
   app?.classList.toggle("centered-top-title-mode", centeredTopTitle);

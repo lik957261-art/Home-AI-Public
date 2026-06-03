@@ -26,6 +26,8 @@ Hermes Mobile owns these behaviors:
 - keep the three-entry plugin-context footer outside the iframe viewport;
 - let the iframe start at the top of the available host viewport;
 - ensure the iframe bottom edge stops at the Hermes footer top edge;
+- hide the plugin-context footer and reserve zero bottom space while the plugin
+  reports a full-screen image/file preview state;
 - recompute the iframe viewport when mobile browser chrome, PWA viewport,
   orientation, keyboard, or bottom navigation metrics change;
 - send only bounded theme/visibility/back/navigation postMessage events;
@@ -56,6 +58,10 @@ Each plugin owns the layout inside its iframe:
 - the plugin footer must not create an extra spacer below itself;
 - plugin secondary pages should use plugin-owned back/navigation first and
   report `canGoBack` through the postMessage navigation contract when possible.
+- plugin full-screen image/file previews should report the temporary preview
+  state through `previewFullscreen`, `fullscreenPreview`,
+  `imagePreviewFullscreen`, `hermes.plugin.preview`, or
+  `hermes.plugin.fullscreen`, then clear it when the preview closes.
 
 ## Floating Buttons And Local Action Bars
 

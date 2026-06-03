@@ -84,6 +84,7 @@ function embeddedPluginRecord(pluginId) {
       frameOrigin: "",
       shellNode: null,
       canGoBack: false,
+      previewFullscreen: false,
       navigationRoute: null,
       navigationLastAt: 0,
       bridgeBound: false,
@@ -312,7 +313,28 @@ function embeddedPluginManifestMatchesLaunchContext(record, workspaceId, appeara
 function updateEmbeddedPluginNavigationState(def, payload = {}) {
   const record = embeddedPluginRecord(def.id);
   record.canGoBack = Boolean(payload.canGoBack);
+  record.previewFullscreen = embeddedPluginPreviewFullscreenRequested(payload);
   record.navigationRoute = payload.route && typeof payload.route === "object" ? payload.route : null;
+  record.navigationLastAt = Date.now();
+  updateNavigationControls();
+}
+
+function embeddedPluginPreviewFullscreenRequested(payload = {}) {
+  const preview = payload.preview && typeof payload.preview === "object" ? payload.preview : {};
+  return Boolean(
+    payload.previewFullscreen
+    || payload.fullscreenPreview
+    || payload.imagePreviewFullscreen
+    || payload.fullscreen === true
+    || preview.fullscreen === true
+    || preview.mode === "fullscreen"
+    || preview.kind === "image"
+  );
+}
+
+function updateEmbeddedPluginPreviewFullscreenState(def, payload = {}) {
+  const record = embeddedPluginRecord(def.id);
+  record.previewFullscreen = embeddedPluginPreviewFullscreenRequested(payload);
   record.navigationLastAt = Date.now();
   updateNavigationControls();
 }
@@ -321,11 +343,15 @@ function updateEmbeddedPluginBackResultState(def, payload = {}) {
   const record = embeddedPluginRecord(def.id);
   record.navigationLastAt = Date.now();
   if (payload.route && typeof payload.route === "object") record.navigationRoute = payload.route;
+  if (Object.prototype.hasOwnProperty.call(payload, "previewFullscreen") || Object.prototype.hasOwnProperty.call(payload, "fullscreenPreview")) {
+    record.previewFullscreen = embeddedPluginPreviewFullscreenRequested(payload);
+  }
   if (payload.handled) {
     updateNavigationControls();
     return;
   }
   record.canGoBack = false;
+  record.previewFullscreen = false;
   updateNavigationControls();
 }
 
@@ -364,6 +390,7 @@ function requestEmbeddedPluginRefresh(def, payload = {}) {
   const route = embeddedPluginRouteFromRefreshPayload(payload);
   if (Object.keys(route).length) record.openRoute = route;
   record.canGoBack = false;
+  record.previewFullscreen = false;
   record.navigationRoute = null;
   record.navigationLastAt = 0;
   record.manifestFreshForFrame = false;
@@ -439,6 +466,7 @@ function restoreEmbeddedPluginReturnRoute(def = embeddedPluginDefByView()) {
   if (!route) return false;
   record.returnRoute = null;
   record.canGoBack = false;
+  record.previewFullscreen = false;
   parkEmbeddedPluginShell(def);
   state.viewMode = route.viewMode || "single";
   state.pluginContextNavPluginId = route.pluginContextNavPluginId || "";
@@ -513,6 +541,10 @@ function ensureEmbeddedPluginNavigationBridge(def) {
       updateEmbeddedPluginNavigationState(def, data);
       return;
     }
+    if (data.type === "hermes.plugin.preview" || data.type === "hermes.plugin.fullscreen" || data.type === `${def.id}.plugin.preview`) {
+      updateEmbeddedPluginPreviewFullscreenState(def, data);
+      return;
+    }
     if (def.backResultEventType && data.type === def.backResultEventType) {
       updateEmbeddedPluginBackResultState(def, data);
       return;
@@ -526,6 +558,11 @@ function ensureEmbeddedPluginNavigationBridge(def) {
 function embeddedPluginBackActive(def = embeddedPluginDefByView()) {
   if (!def) return false;
   return state.viewMode === def.viewMode && Boolean(embeddedPluginRecord(def.id).canGoBack);
+}
+
+function embeddedPluginPreviewFullscreenActive(def = embeddedPluginDefByView()) {
+  if (!def) return false;
+  return state.viewMode === def.viewMode && Boolean(embeddedPluginRecord(def.id).previewFullscreen);
 }
 
 function embeddedPluginHost(def) {
@@ -584,6 +621,7 @@ function discardEmbeddedPluginShell(def) {
   Object.assign(record, {
     shellNode: null,
     canGoBack: false,
+    previewFullscreen: false,
     navigationRoute: null,
     navigationLastAt: 0,
     frameHealthSeq: (record.frameHealthSeq || 0) + 1,
@@ -605,6 +643,7 @@ function resetEmbeddedPluginsForWorkspaceChange() {
       returnRoute: null,
       checked: false,
       loading: false,
+      previewFullscreen: false,
     });
     embeddedPluginHost(def).innerHTML = "";
     setEmbeddedPluginHostVisible(def, false);
@@ -674,6 +713,7 @@ function sendEmbeddedPluginBack(def = embeddedPluginDefByView()) {
     if (record.backRequestSeq !== seq) return;
     if (Number(record.navigationLastAt || 0) > requestedAt) return;
     record.canGoBack = false;
+    record.previewFullscreen = false;
     const pluginContextBack = typeof pluginContextBackNavigationActive === "function" && pluginContextBackNavigationActive();
     if (record.returnRoute && !pluginContextBack) {
       restoreEmbeddedPluginReturnRoute(def);

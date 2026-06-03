@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260603-directory-topic-draft-v519";
+const CLIENT_VERSION = "20260603-plugin-preview-fullscreen-v520";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -176,8 +176,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260603-directory-topic-draft-v519" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260603-directory-topic-draft-v519"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260603-plugin-preview-fullscreen-v520" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260603-plugin-preview-fullscreen-v520"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2239,14 +2239,21 @@ assert.match(appJs, /if \(typeof updatePluginContextViewportReservation === "fun
 assert.match(stylesCss, /\.plugin-context-nav-mode \.wardrobe-plugin-shell,[\s\S]*?\.plugin-context-nav-mode \.embedded-plugin-frame \{[\s\S]*?min-height: 0;/);
 assert.match(stylesCss, /\.app\.codex-mode\.embedded-plugin-host-active \{[\s\S]*?padding-bottom: 0;/);
 assert.match(stylesCss, /\.codex-mode\.embedded-plugin-host-active \.bottom-nav \{[\s\S]*?display: none !important;/);
+assert.match(appJs, /function embeddedPluginPreviewFullscreenRequested\(payload = \{\}\)/);
+assert.match(appJs, /payload\.previewFullscreen[\s\S]*?payload\.fullscreenPreview[\s\S]*?payload\.imagePreviewFullscreen/);
+assert.match(appJs, /data\.type === "hermes\.plugin\.preview" \|\| data\.type === "hermes\.plugin\.fullscreen" \|\| data\.type === `\$\{def\.id\}\.plugin\.preview`/);
+assert.match(appJs, /app\?\.classList\.toggle\("embedded-plugin-preview-fullscreen-active", embeddedPluginPreviewFullscreen\)/);
+assert.match(appJs, /!app\.classList\.contains\("embedded-plugin-preview-fullscreen-active"\)/);
+assert.match(stylesCss, /\.embedded-plugin-preview-fullscreen-active \.bottom-nav \{[\s\S]*?display: none !important;/);
+assert.match(stylesCss, /\.plugin-context-nav-mode\.embedded-plugin-preview-fullscreen-active\.embedded-plugin-host-active \.main \{[\s\S]*?bottom: 0;/);
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?order: 1;/);
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260603-directory-topic-draft-v519/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260603-directory-topic-draft-v519/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260603-directory-topic-draft-v519/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260603-directory-topic-draft-v519/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260603-plugin-preview-fullscreen-v520/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260603-plugin-preview-fullscreen-v520/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260603-plugin-preview-fullscreen-v520/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260603-plugin-preview-fullscreen-v520/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);

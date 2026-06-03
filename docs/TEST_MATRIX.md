@@ -645,6 +645,12 @@ iframe is active, Hermes must hide both ordinary bottom navigation and the
 plugin-context three-entry bar, reserve zero bottom-nav space, and let the Codex
 iframe occupy the bottom of the viewport. This must hold even on mobile
 secondary/back-visible states that normally re-show plugin-context navigation.
+Plugin-owned full-screen image/file previews must use the embedded plugin
+postMessage contract to hide the Hermes plugin-context footer and reserve zero
+bottom space until the preview closes. Frontend harnesses must assert the host
+accepts `previewFullscreen` / `fullscreenPreview` navigation state, hides the
+bottom nav even when mobile back-visible rules would normally re-show it, and
+sets the embedded iframe viewport bottom to `0`.
 Right-swipe/back from a plugin context must prefer plugin-owned navigation over
 host exit: when `canGoBack=true`, the swipe target sends `hermes.plugin.back` to
 the iframe, and only falls back to `plugin-context-home` after the plugin has no

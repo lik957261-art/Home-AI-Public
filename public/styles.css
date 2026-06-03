@@ -1416,6 +1416,18 @@ button {
   display: none !important;
 }
 
+.app.embedded-plugin-preview-fullscreen-active {
+  padding-bottom: 0;
+}
+
+.embedded-plugin-preview-fullscreen-active .bottom-nav {
+  display: none !important;
+}
+
+.plugin-context-nav-mode.embedded-plugin-preview-fullscreen-active.embedded-plugin-host-active .main {
+  bottom: 0;
+}
+
 .embedded-plugin-host-active .topbar {
   display: none !important;
 }

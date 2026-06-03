@@ -171,6 +171,17 @@ bottom navigation space under the iframe. Codex-owned navigation remains inside
 the Codex iframe; leaving the surface belongs to Hermes back/right-swipe or the
 host menu, not to a visible bottom-tab row.
 
+Plugin-owned full-screen image or file previews are a temporary chrome-free
+state inside the same embedded iframe. When a plugin opens such a preview, it
+must notify Hermes through its navigation postMessage payload
+(`previewFullscreen`, `fullscreenPreview`, or `imagePreviewFullscreen`) or the
+generic `hermes.plugin.preview` / `hermes.plugin.fullscreen` message. While that
+state is active Hermes hides its plugin-context footer and reserves zero bottom
+space so the iframe can inspect the image to the viewport edge. Closing the
+preview, iframe refresh, back fallback, or leaving the plugin must clear the
+state. These payloads are state-only signals and must not contain raw keys,
+launch tokens, note bodies, attachment content, or private file URLs.
+
 Right-swipe/back inside this context is ordered from inside to outside. If the
 embedded plugin has reported `canGoBack=true`, Hermes must first post
 `hermes.plugin.back` to the iframe so plugin-owned secondary pages such as a
