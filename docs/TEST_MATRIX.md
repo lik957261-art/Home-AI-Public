@@ -1212,7 +1212,10 @@ folder enters a directory-bound draft detail page in place, not the ordinary
 topic-list root. The draft page must keep the composer visible and enabled,
 hide the normal bottom navigation, preserve the pending directory attachment,
 and restore the same directory view through top-left back or right-swipe before
-the first message is sent.
+the first message is sent. The first message from that draft must be guarded by
+a draft-local in-flight state so repeated click/Enter submits cannot create
+multiple topics for the same pending directory; after success, later messages
+must target the created topic group rather than creating another one.
 
 Toolset escalation and retry harnesses must assert that
 `HERMES_TOOLSET_ESCALATION_REQUIRED` is stripped from visible chat content,

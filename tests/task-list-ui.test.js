@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260603-directory-topic-scroll-v518";
+const CLIENT_VERSION = "20260603-directory-topic-draft-v519";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -176,8 +176,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260603-directory-topic-scroll-v518" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260603-directory-topic-scroll-v518"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260603-directory-topic-draft-v519" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260603-directory-topic-draft-v519"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -1505,9 +1505,11 @@ assert.match(appJs, /else if \(state\.viewMode === "projects"\) \{[\s\S]*?loadDi
 assert.match(appJs, /const returnRoute = typeof captureCurrentDirectoryRoute === "function"[\s\S]*?state\.directoryReturnRoute = returnRoute \|\| state\.directoryReturnRoute;/);
 assert.match(appJs, /function isDirectoryTopicDraftActive\(\) \{[\s\S]*?Boolean\(state\.pendingTaskDirectory\?\.projectId\);/);
 assert.match(appJs, /function discardDirectoryTopicDraftState\(\) \{[\s\S]*?state\.pendingTaskDirectory = null;[\s\S]*?state\.taskDirectoryFilter = null;/);
-assert.match(appJs, /function closeDirectoryTopicDraft\(\) \{[\s\S]*?discardDirectoryTopicDraftState\(\);[\s\S]*?restoreDirectoryReturnRoute\(\)/);
+assert.match(appJs, /function closeDirectoryTopicDraft\(\) \{[\s\S]*?discardDirectoryTopicDraftState\(\);[\s\S]*?state\.directoryTopicDraftSendInFlight = false;[\s\S]*?restoreDirectoryReturnRoute\(\)/);
+assert.match(appJs, /function closeDirectoryTopicDraft\(\) \{[\s\S]*?if \(typeof openTaskList === "function"\) \{[\s\S]*?openTaskList\(\);[\s\S]*?return true;/);
 assert.match(appJs, /if \(isDirectoryTopicDraftActive\(\)\) return "directory-topic-draft";/);
 assert.match(appJs, /else if \(target === "directory-topic-draft"\) closeDirectoryTopicDraft\(\);/);
+assert.match(appJs, /function activateTopNavButton\(\) \{[\s\S]*?isDirectoryTopicDraftActive\(\)[\s\S]*?closeDirectoryTopicDraft\(\);[\s\S]*?return;/);
 assert.match(appJs, /const directoryTopicDraft = typeof isDirectoryTopicDraftActive === "function"[\s\S]*?isDirectoryTopicDraftActive\(\)/);
 assert.match(appJs, /const directoryTopicDraft = typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive\(\);[\s\S]*?if \(state\.viewMode !== "projects" && !directoryTopicDraft\) state\.directoryReturnRoute = null;/);
 assert.match(appJs, /app\?\.classList\.toggle\("directory-topic-draft-mode", directoryTopicDraft\);/);
@@ -2241,10 +2243,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260603-directory-topic-scroll-v518/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260603-directory-topic-scroll-v518/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260603-directory-topic-scroll-v518/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260603-directory-topic-scroll-v518/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260603-directory-topic-draft-v519/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260603-directory-topic-draft-v519/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260603-directory-topic-draft-v519/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260603-directory-topic-draft-v519/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2569,6 +2571,11 @@ assert.match(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landsca
 assert.match(appJs, /COMPOSER_MAX_TEXT_CHARS = 240000/);
 assert.match(appJs, /COMPOSER_MAX_BODY_BYTES = 1900000/);
 assert.match(appJs, /function composerRequestSizeError\(text, serializedBody\)/);
+assert.match(appJs, /directoryTopicDraftSendInFlight: false/);
+assert.match(appJs, /const directoryTopicDraftSend = state\.viewMode === "tasks"[\s\S]*?!state\.currentTaskGroupId[\s\S]*?Boolean\(state\.pendingTaskDirectory\?\.projectId\);/);
+assert.match(appJs, /if \(directoryTopicDraftSend && state\.directoryTopicDraftSendInFlight\) \{[\s\S]*?return;[\s\S]*?\}/);
+assert.match(appJs, /if \(directoryTopicDraftSend\) \{[\s\S]*?state\.directoryTopicDraftSendInFlight = true;[\s\S]*?\}/);
+assert.match(appJs, /finally \{[\s\S]*?if \(directoryTopicDraftSend\) state\.directoryTopicDraftSendInFlight = false;[\s\S]*?\$\("sendMessage"\)\.disabled = false;/);
 assert.match(appJs, /const serializedBody = JSON\.stringify\(body\)/);
 assert.match(appJs, /body: serializedBody/);
 assert.match(indexHtml, /hermesWebFontFamily/);

@@ -212,6 +212,13 @@ Likely focused checks:
   it must not replace the topic-list DOM while a scroll, task-card swipe, or
   sidebar swipe is in progress. Defer that render until the gesture settles so
   directory-bound topic cards remain consistently scrollable on mobile.
+- A directory-bound topic draft creates the actual topic only on the first
+  message. That first send must be serialized with a draft-local in-flight
+  guard so rapid consecutive click/Enter sends cannot create two separate
+  topics for the same pending directory. The draft can be cancelled before the
+  first message through the top-left back button or right-swipe; cancelling must
+  clear the pending directory, directory filter, reasoning state, and any
+  draft-send in-flight flag before restoring the directory route.
 - Static v453 moves the primary Directory entry out of the mobile bottom
   navigation and into the topic application grid as a built-in plugin card.
   Existing directory routes and sidebar directory entry remain compatible.

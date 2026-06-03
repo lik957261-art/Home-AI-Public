@@ -55,6 +55,15 @@ async function sendMessage(event) {
     if (ownerElevationOnceTag) clearOwnerElevationOnce();
     return;
   }
+  const directoryTopicDraftSend = state.viewMode === "tasks"
+    && !state.currentTaskGroupId
+    && Boolean(state.pendingTaskDirectory?.projectId);
+  if (directoryTopicDraftSend && state.directoryTopicDraftSendInFlight) {
+    return;
+  }
+  if (directoryTopicDraftSend) {
+    state.directoryTopicDraftSendInFlight = true;
+  }
   const aiMention = composerAiMentionInfo(text);
   const searchSourceFields = composerSearchSourceBodyFields(text);
   const chatGptProRequested = Boolean(aiMention.chatGptPro);
@@ -217,6 +226,7 @@ async function sendMessage(event) {
     showError(err);
   } finally {
     if (ownerElevationOnceRequested) clearOwnerElevationOnce();
+    if (directoryTopicDraftSend) state.directoryTopicDraftSendInFlight = false;
     $("sendMessage").disabled = false;
     updateComposerAction();
   }

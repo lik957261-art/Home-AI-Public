@@ -472,6 +472,10 @@ function eventInTopNavHitZone(event) {
 }
 
 function activateTopNavButton() {
+  if (typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive()) {
+    if (typeof closeDirectoryTopicDraft === "function") closeDirectoryTopicDraft();
+    return;
+  }
   if (isSkillDetailView()) {
     closeSkillDetail();
     return;

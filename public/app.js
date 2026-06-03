@@ -627,6 +627,7 @@ const state = {
   composerComposing: false,
   composerSendAfterComposition: false,
   composerSendAfterCompositionTimer: null,
+  directoryTopicDraftSendInFlight: false,
   keyboardContextMode: false,
   keyboardContextTopPx: 0,
   keyboardViewportActive: false,

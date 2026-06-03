@@ -100,7 +100,13 @@ function discardDirectoryTopicDraftState() {
 function closeDirectoryTopicDraft() {
   if (!isDirectoryTopicDraftActive()) return false;
   discardDirectoryTopicDraftState();
-  return state.directoryReturnRoute ? restoreDirectoryReturnRoute() : false;
+  state.directoryTopicDraftSendInFlight = false;
+  if (state.directoryReturnRoute) return restoreDirectoryReturnRoute();
+  if (typeof openTaskList === "function") {
+    openTaskList();
+    return true;
+  }
+  return false;
 }
 
 function backSwipeTarget() {
