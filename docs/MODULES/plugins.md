@@ -381,13 +381,24 @@ It also includes explicit plugin resource APIs such as `/api/uploads/file` and
 Wardrobe photo APIs such as
 `/api/photos/<id>/content`, `/api/outfit-photos/<id>/content`,
 `/api/featured-look-photos/<id>/content`, and
-`/api/v1/items/<code>/photos/...`.
+`/api/v1/items/<code>/photos/...`. Note attachment asset APIs under
+`/api/v1/app/`, including raw attachment streams and text preview routes, are
+also plugin-owned resource routes and must be proxied.
 The rewritten browser-facing path must stay under
 `/api/hermes-plugins/<plugin-id>/proxy/...`. Binary image responses are then
 fetched through that proxy path and streamed back with their original content
 type. Without this, HTTPS Hermes Mobile PWAs can load the plugin shell while
 plugin-supplied images remain broken because the browser is asked to fetch the
 HTTP/LAN upstream directly.
+
+For JSON responses, URL-like keys must include camelCase and separator-based
+variants such as `url`, `previewUrl`, `thumbnailUrl`, `downloadUrl`, `href`,
+`src`, `attachmentUrl`, and `fileUrl`. A root-relative value in these fields
+must not leak to the Home AI root namespace. For example, a Note attachment
+`previewUrl` of `/api/v1/app/attachments/<id>/preview` must become a proxied
+Home AI path; otherwise Markdown and Word preview iframes request
+`/api/v1/app/...` from the Home AI server and surface `Not found`, while raw
+PDF or image streams may still appear healthy.
 
 CSS `url(...)` rewriting must preserve the original URL quoting and closing
 delimiter. For example, `url("/assets/bg.svg")` must become

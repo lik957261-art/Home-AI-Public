@@ -627,6 +627,9 @@ async function testNoteProxyRewritesAttachmentJsonUrls() {
               id: "att-1",
               kind: "image",
               url: "/api/v1/app/attachments/att-1",
+              previewUrl: "/api/v1/app/attachments/att-1/preview",
+              thumbnailUrl: "/api/v1/app/attachments/att-1/thumbnail",
+              downloadUrl: "/api/v1/app/attachments/att-1?download=1",
             }],
             prose: "Do not rewrite prose mentioning /api/v1/app/attachments/att-text.",
           },
@@ -646,6 +649,18 @@ async function testNoteProxyRewritesAttachmentJsonUrls() {
   assert.equal(
     body.note.attachments[0].url,
     "/api/hermes-plugins/note/proxy/api/v1/app/attachments/att-1?workspaceId=owner",
+  );
+  assert.equal(
+    body.note.attachments[0].previewUrl,
+    "/api/hermes-plugins/note/proxy/api/v1/app/attachments/att-1/preview?workspaceId=owner",
+  );
+  assert.equal(
+    body.note.attachments[0].thumbnailUrl,
+    "/api/hermes-plugins/note/proxy/api/v1/app/attachments/att-1/thumbnail?workspaceId=owner",
+  );
+  assert.equal(
+    body.note.attachments[0].downloadUrl,
+    "/api/hermes-plugins/note/proxy/api/v1/app/attachments/att-1?download=1&workspaceId=owner",
   );
   assert.match(
     body.note.body,

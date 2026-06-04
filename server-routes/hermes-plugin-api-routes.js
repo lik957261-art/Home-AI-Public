@@ -569,6 +569,7 @@ function createHermesPluginApiRoutes(deps = {}) {
     if (!text.startsWith("/") || text.startsWith("//")) return false;
     if (text === pluginProxyPrefix(pluginId) || text.startsWith(`${pluginProxyPrefix(pluginId)}/`)) return false;
     return text.startsWith("/icons/")
+      || text.startsWith("/api/v1/app/")
       || text.startsWith("/api/uploads/")
       || text.startsWith("/api/generated-images/file")
       || text.startsWith("/api/files/preview/content")
@@ -585,8 +586,12 @@ function createHermesPluginApiRoutes(deps = {}) {
   }
 
   function jsonKeyLooksLikePluginUrl(key = "") {
-    const text = String(key || "");
-    return /(?:^|_|\b)(url|uri|href|src|image|thumb|thumbnail|preview|avatar|icon|attachment|file|download|content)(?:$|_|\b)/i.test(text);
+    const text = String(key || "")
+      .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+      .replace(/[^a-z0-9]+/gi, "_")
+      .replace(/^_+|_+$/g, "")
+      .toLowerCase();
+    return /(?:^|_)(url|uri|href|src|image|thumb|thumbnail|preview|avatar|icon|attachment|file|download|content)(?:$|_)/.test(text);
   }
 
   function jsonKeyLooksLikeHtmlContent(key = "") {
