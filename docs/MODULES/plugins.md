@@ -109,6 +109,12 @@ Hermes Mobile distinguishes durable authorization from per-run prompt/schema
 activation. The selected workspace profile should retain the full authorized
 plugin capability set for that workspace, permission tier, and provider, but a
 single model run should inject only the active schema set required for that run.
+The authorized plugin toolset projection is workspace-local: Hermes Mobile uses
+the effective workspace's `.hermes-*` binding files and plugin completeness
+rules before it adds plugin toolsets to `allowed_toolsets`. Owner authentication
+does not make Owner plugin bindings available while viewing another workspace,
+and a partial key-only binding such as `.hermes-finance/access-key.txt` without
+`config.json` is not treated as an active model capability.
 
 The host builds a compact capability catalog for authorized plugins that are
 not active in the current run. A catalog entry may name the plugin, the toolset,

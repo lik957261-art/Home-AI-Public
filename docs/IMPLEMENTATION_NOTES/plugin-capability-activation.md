@@ -50,6 +50,12 @@ The first implementation is intentionally service-first and run-assembly scoped:
   from `enabled_toolsets`, marks its catalog entry `unavailable`, and emits a
   bounded `plugin_capability_unavailable` event. A successful probe emits
   `plugin_capability_activated`.
+- `adapters/plugin-authorized-toolset-service.js` projects the effective
+  workspace's locally complete plugin bindings into the authorization boundary
+  before run activation. It currently exposes only Gateway-materialized plugin
+  MCP toolsets such as Wardrobe, Finance, and Note, and it requires the matching
+  workspace `.hermes-*` config/key pair where the plugin contract requires one.
+  A key-only partial Finance binding is not authorized for model runs.
 - `adapters/gateway-runtime-composition-service.js` and
   `mobile-server-runtime.js` wire the service into production runtime
   composition.
@@ -194,6 +200,9 @@ The default activation budget should be narrow:
 Gateway profiles and Skill Stores remain full-authorized per workspace and
 permission tier. A profile must know how to activate every authorized plugin for
 that workspace, including workspace-local MCP config and Skill Store binding.
+Hermes Mobile derives that authorization from the effective workspace, not from
+the authenticated browser principal alone; Owner-authenticated access to a
+non-Owner workspace must still use the target workspace's plugin bindings.
 
 The active run does not need to inject every profile capability. Runtime should
 materialize or reuse a Gateway slot whose authorized capability set matches the

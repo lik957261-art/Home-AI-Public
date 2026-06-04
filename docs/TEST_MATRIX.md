@@ -1,6 +1,6 @@
 # Hermes Mobile Test Matrix
 
-Last updated: 2026-06-01.
+Last updated: 2026-06-04.
 
 Use this matrix to pick focused tests before broader gates. Always add syntax checks for touched JS/Python/PowerShell files.
 
@@ -216,6 +216,13 @@ Runtime-state backup harnesses must reject a design where every normal message
 increase creates a full state backup or performs a forced SQLite full
 replacement before run progress becomes visible. Focused check:
 `node tests\runtime-state-persistence-service.test.js`.
+Workspace-local plugin toolset projection must be covered before changing
+ordinary-chat or plugin-topic activation. Focused checks:
+`node tests\plugin-authorized-toolset-service.test.js`,
+`node tests\access-policy-provider.test.js`, and the plugin capability run
+assembly tests. The service must prove complete `.hermes-*` bindings become
+authorized toolsets for the effective workspace, while partial key-only
+bindings do not.
 Gateway profile template materialization is an H1 Gateway workflow change. The
 focused implementation harness must prove canonical template generation,
 same-template toolset/MCP equality, no cross-tier slot reuse, stopped-slot

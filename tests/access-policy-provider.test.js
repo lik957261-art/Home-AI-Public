@@ -128,6 +128,26 @@ function testWardrobeProjectAuthorizesWardrobeToolset() {
   assert.ok(policy.allowed_toolsets.includes("wardrobe"));
 }
 
+function testWorkspacePluginToolsetsAreProjectedIntoPolicy() {
+  const provider = createAccessPolicyProvider({
+    pluginToolsetsForWorkspace: (workspaceId) => (workspaceId === "child_workspace" ? ["finance", "note"] : []),
+  });
+  const policy = provider.build({
+    principal_id: "owner",
+    access_mode: "unrestricted",
+    default_workspace: "/owner",
+  }, {}, {
+    id: "child-project",
+    workspaceId: "child_workspace",
+    root: "/workspace/child",
+  });
+
+  assert.equal(policy.access_mode, "unrestricted");
+  assert.ok(policy.allowed_toolsets.includes("finance"));
+  assert.ok(policy.allowed_toolsets.includes("note"));
+  assert.equal(policy.default_workspace, "/workspace/child");
+}
+
 function testSanitizeTypes() {
   const provider = createAccessPolicyProvider();
   const policy = provider.sanitize({
@@ -151,5 +171,6 @@ testRestrictedPolicyMergesRootsAndDelivery();
 testOwnerPolicyStaysUnrestricted();
 testRestrictedPolicyAddsWebSearchByDefault();
 testWardrobeProjectAuthorizesWardrobeToolset();
+testWorkspacePluginToolsetsAreProjectedIntoPolicy();
 testSanitizeTypes();
 console.log("access-policy-provider tests passed");

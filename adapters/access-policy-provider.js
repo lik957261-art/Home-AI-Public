@@ -40,6 +40,21 @@ function projectLooksWardrobe(project = {}) {
   return /(?:\bwardrobe\b|\bcloset\b|\boutfit\b|\u8863\u6a71|\u7a7f\u642d)/i.test(text);
 }
 
+function effectiveWorkspaceId(policy = {}, route = {}, user = {}, project = {}) {
+  return String(
+    project?.workspaceId
+    || project?.workspace_id
+    || route?.workspaceId
+    || route?.workspace_id
+    || user?.workspaceId
+    || user?.workspace_id
+    || policy.principal_id
+    || route?.principal_id
+    || user?.principal_id
+    || "",
+  ).trim() || "owner";
+}
+
 function createAccessPolicyProvider(options = {}) {
   const dedupe = options.dedupe || defaultDedupe;
   const uploadCacheRoot = () => String(
@@ -48,6 +63,10 @@ function createAccessPolicyProvider(options = {}) {
   const sharedRoots = (principalId) => {
     if (typeof options.sharedRoots !== "function") return [];
     return dedupe(options.sharedRoots(principalId) || []);
+  };
+  const pluginToolsetsForWorkspace = (workspaceId, context) => {
+    if (typeof options.pluginToolsetsForWorkspace !== "function") return [];
+    return dedupe(options.pluginToolsetsForWorkspace(workspaceId, context) || []);
   };
 
   const listKeys = new Set([
@@ -105,9 +124,11 @@ function createAccessPolicyProvider(options = {}) {
       reason: "hermes_web",
     };
     const policy = sanitize(Object.assign({}, merged, source));
+    const workspaceId = effectiveWorkspaceId(policy, route, user, project);
     policy.allowed_toolsets = dedupe([
       ...(policy.allowed_toolsets || []),
       ...DEFAULT_LOW_PERMISSION_TOOLSETS,
+      ...pluginToolsetsForWorkspace(workspaceId, { policy, route, user, project }),
       ...(projectLooksWardrobe(project) ? ["wardrobe"] : []),
     ]);
     if (project && project.root) {

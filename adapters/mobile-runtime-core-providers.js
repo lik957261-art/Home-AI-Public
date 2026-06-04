@@ -12,6 +12,7 @@ const { createFilesystemMountProvider } = require("./filesystem-mount-provider")
 const { createGatewayStatusProjection } = require("./gateway-status-projection");
 const { createLearningCoinService } = require("./learning-coin-service");
 const { createPathPolicyProvider } = require("./path-policy-provider");
+const { createPluginAuthorizedToolsetService } = require("./plugin-authorized-toolset-service");
 const { createProjectDiscoveryProvider } = require("./project-discovery-provider");
 const { createRunConcurrencyPolicy } = require("./run-concurrency-policy");
 const { createSecurityBoundaryProvider } = require("./security-boundary-provider");
@@ -238,9 +239,16 @@ function createMobileRuntimeCoreProviders(deps = {}) {
   });
   deps.bootTrace?.("path policy ready");
 
+  const pluginAuthorizedToolsetService = createPluginAuthorizedToolsetService({
+    dataDir: () => runtimeEnv.DATA_DIR,
+    env,
+  });
+  deps.bootTrace?.("plugin authorized toolsets ready");
+
   const accessPolicyProvider = createAccessPolicyProvider({
     uploadCacheRoot: () => deps.path.join(runtimeEnv.DATA_DIR, "uploads"),
     sharedRoots: (principalId) => deps.sharedDirectoryRoots(principalId),
+    pluginToolsetsForWorkspace: (workspaceId) => pluginAuthorizedToolsetService.toolsetsForWorkspace(workspaceId),
   });
   deps.bootTrace?.("access policy ready");
 
@@ -273,6 +281,7 @@ function createMobileRuntimeCoreProviders(deps = {}) {
     gatewayStatusProjection,
     learningCoinService,
     pathPolicyProvider,
+    pluginAuthorizedToolsetService,
     projectDiscoveryProvider,
     runConcurrencyPolicy,
     securityBoundaryProvider,
