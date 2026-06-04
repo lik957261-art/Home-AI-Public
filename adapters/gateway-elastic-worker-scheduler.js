@@ -1,5 +1,9 @@
 "use strict";
 
+const {
+  normalizeGatewayWorkerReplica,
+} = require("./gateway-profile-replica-model");
+
 const DEFAULT_CONFIG = Object.freeze({
   ownerMinWarm: 1,
   ownerMaxWorkers: 4,
@@ -126,15 +130,14 @@ function buildGatewayWorkerCompatibilityKey(worker = {}, hints = {}) {
     `workspace=${workspaceId}`,
     `actor=${actorClassForWorkspace(workspaceId)}`,
     `template=${buildGatewayWorkerTemplateKey(worker, hints)}`,
-    `profile=${cleanString(worker.profile || hints.worker_profile || hints.profile)}`,
     `provider=${providerKey(worker, hints)}`,
     `tier=${permissionTier(worker, hints)}`,
     `toolsets=${listKey(hints.enabledToolsets || hints.enabled_toolsets || hints.toolsets || [])}`,
+    `mcpBindings=${listKey(hints.mcpBindings || hints.mcp_bindings || hints.mcpServers || hints.mcp_servers || [])}`,
     `schema=${cleanString(hints.toolSchemaEpoch || hints.tool_schema_epoch || "")}`,
     `capability=${workerCapabilityHash(worker)}`,
     `skill=${cleanString(hints.skillProfile || hints.skill_profile || worker.skillProfile || "")}`,
-    `skillWorkspaces=${listKey(hints.skillWorkspaceId || hints.skill_workspace_id || worker.skillWorkspaceIds || [])}`,
-    `api=${cleanString(worker.apiBase)}`,
+    `skillWorkspaces=${listKey(hints.skillWorkspaceIds || hints.skill_workspace_ids || hints.skillWorkspaceId || hints.skill_workspace_id || worker.skillWorkspaceIds || [])}`,
   ].join("|");
 }
 
@@ -144,6 +147,10 @@ function buildGatewayWorkerTemplateKey(worker = {}, hints = {}) {
     permissionTier(worker, hints),
     providerKey(worker, hints),
   ].join("|");
+}
+
+function replicaProjection(worker = {}, hints = {}) {
+  return normalizeGatewayWorkerReplica(worker, hints);
 }
 
 function workerCapabilityHash(worker = {}) {
@@ -222,10 +229,15 @@ function publicState(worker, state = null, nowMs = Date.now()) {
   const healthy = lifecycle === "configured" || lifecycle === "retired"
     ? null
     : (state?.healthy == null ? null : Boolean(state.healthy));
+  const replica = replicaProjection(worker);
   return {
     id: worker.id,
     name: worker.name,
     profile: worker.profile,
+    replicaId: replica.replicaId,
+    profileAlias: replica.profileAlias,
+    poolKey: replica.poolKey,
+    profileTemplateKey: replica.profileTemplateKey,
     apiBase: worker.apiBase,
     provider: worker.provider,
     tags: worker.tags || [],
@@ -343,10 +355,13 @@ function createGatewayElasticWorkerScheduler(options = {}) {
 
   function schedulerEvent(eventName, worker, state, hints, extra = {}) {
     const workspaceId = actorWorkspaceId(hints, worker);
+    const replica = replicaProjection(worker, hints);
     return Object.assign({
       event: eventName,
       reason: extra.reason || "",
       workerId: cleanString(worker?.id),
+      replicaId: replica.replicaId,
+      poolKey: replica.poolKey,
       profileId: cleanString(worker?.profile),
       provider: providerKey(worker, hints),
       workspaceId,
@@ -368,11 +383,14 @@ function createGatewayElasticWorkerScheduler(options = {}) {
 
   function decisionTraceEntry(worker, state, hints, reason, extra = {}) {
     const expectedKey = buildGatewayWorkerCompatibilityKey(worker, hints);
+    const replica = replicaProjection(worker, hints);
     let compatibility = "unset";
     if (state?.compatibilityKey) {
       compatibility = state.compatibilityKey === expectedKey ? "match" : "mismatch";
     }
     return Object.assign({
+      replicaId: replica.replicaId,
+      poolKey: replica.poolKey,
       profileId: cleanString(worker?.profile),
       provider: providerKey(worker, hints),
       workspaceId: actorWorkspaceId(hints, worker),

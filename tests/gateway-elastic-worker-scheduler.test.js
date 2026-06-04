@@ -106,7 +106,41 @@ async function testWarmCompatibleWorkerIsReusedWithoutStarting() {
   assert.equal(target.schedulerEvent.reason, "worker_reused");
   assert.deepEqual(calls.starts, []);
   assert.equal(calls.events[0].event, "run.gateway_worker_reused");
+  assert.equal(calls.events[0].poolKey, "owner|user|openai-codex");
+  assert.equal(calls.events[0].replicaId, "lowgw1");
   assert.equal(JSON.stringify(calls.events).includes("lowgw1-secret"), false);
+}
+
+function testRuntimeCompatibilityDoesNotDependOnReplicaAliasOrEndpoint() {
+  const hints = {
+    workspaceId: "owner",
+    provider: "openai-codex",
+    securityLevel: "user",
+    enabledToolsets: ["finance", "note"],
+    toolSchemaEpoch: "schema-test",
+    skillWorkspaceId: "owner",
+  };
+  const first = worker("lowgw1", {
+    allowedWorkspaceIds: ["owner"],
+    skillWorkspaceIds: ["owner"],
+    apiBase: "http://127.0.0.1:18751",
+    capabilityHash: "same-capability",
+  });
+  const second = worker("lowgw10", {
+    allowedWorkspaceIds: ["owner"],
+    skillWorkspaceIds: ["owner"],
+    apiBase: "http://127.0.0.1:18760",
+    capabilityHash: "same-capability",
+  });
+
+  const firstKey = buildGatewayWorkerCompatibilityKey(first, hints);
+  const secondKey = buildGatewayWorkerCompatibilityKey(second, hints);
+
+  assert.equal(firstKey, secondKey);
+  assert.equal(firstKey.includes("lowgw"), false);
+  assert.equal(firstKey.includes("18751"), false);
+  assert.equal(firstKey.includes("18760"), false);
+  assert.equal(firstKey.includes("secret"), false);
 }
 
 async function testAlreadyRunningConfiguredWorkerIsReusedWithoutRestart() {
@@ -126,6 +160,8 @@ async function testAlreadyRunningConfiguredWorkerIsReusedWithoutRestart() {
   assert.deepEqual(calls.starts, []);
   assert.deepEqual(calls.healthy, ["lowgw1"]);
   assert.equal(calls.events[0].event, "run.gateway_worker_reused");
+  assert.equal(calls.events[0].poolKey, "owner|user|openai-codex");
+  assert.equal(calls.events[0].decisionTrace[0].poolKey, "owner|user|openai-codex");
 }
 
 async function testExternallyWarmLaterCandidateIsReusedBeforeColdStart() {
@@ -613,6 +649,7 @@ function testConfigDefaultsAndAliases() {
   testConfigDefaultsAndAliases();
   await testStartupPlanKeepsOnlyOwnerWarmBaseline();
   await testWarmCompatibleWorkerIsReusedWithoutStarting();
+  testRuntimeCompatibilityDoesNotDependOnReplicaAliasOrEndpoint();
   await testAlreadyRunningConfiguredWorkerIsReusedWithoutRestart();
   await testExternallyWarmLaterCandidateIsReusedBeforeColdStart();
   await testWarmWorkerWithStaleMaterializedHashIsNotReused();

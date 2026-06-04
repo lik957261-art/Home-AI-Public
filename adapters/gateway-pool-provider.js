@@ -9,6 +9,9 @@ const {
 const {
   createGatewayProfileTemplateIdentityService,
 } = require("./gateway-profile-template-identity-service");
+const {
+  normalizeGatewayWorkerReplica,
+} = require("./gateway-profile-replica-model");
 
 function stripTrailingSlash(value) {
   return String(value || "").replace(/\/+$/, "");
@@ -191,10 +194,15 @@ function readManifestFile(paths) {
 }
 
 function publicWorker(worker, health = null) {
+  const replica = normalizeGatewayWorkerReplica(worker);
   return {
     id: worker.id,
     name: worker.name,
     profile: worker.profile,
+    replicaId: replica.replicaId,
+    profileAlias: replica.profileAlias,
+    poolKey: replica.poolKey,
+    profileTemplateKey: replica.profileTemplateKey,
     apiBase: worker.apiBase,
     provider: worker.provider,
     tags: worker.tags,

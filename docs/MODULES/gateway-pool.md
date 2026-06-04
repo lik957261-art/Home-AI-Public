@@ -236,6 +236,15 @@ same template key must expose the same top-level `toolsets`,
 and workspace-local plugin binding. Slot-specific differences are limited to
 runtime identity such as port, pid, telemetry DB path, logs, and health state.
 
+Runtime scheduler compatibility is now template-scoped. It includes workspace,
+permission tier, provider, template key, capability hash, tool schema epoch,
+active toolsets, MCP bindings, and Skill workspace/profile bindings. It does
+not include legacy slot aliases such as `lowgw1` / `lowgw10`, API endpoints,
+ports, or raw keys. Status and scheduler events may expose bounded
+`poolKey`, `profileTemplateKey`, `replicaId`, and `profileAlias` metadata so
+operators can still map a selected replica back to launch scripts and logs
+without treating that alias as capability ownership.
+
 A plugin-bound run such as `taskGroupId=plugin:finance` must request the plugin
 toolset as a required routing hint. Target selection may then choose only a warm
 slot whose currently materialized template includes that toolset, or start a
@@ -298,6 +307,20 @@ current capability hash, even if `/health` is still `ok`.
 Detailed template/materialization design:
 
 - `docs/IMPLEMENTATION_NOTES/gateway-profile-template-materialization.md`
+
+The next Gateway Pool identity boundary separates capability templates from
+runnable worker replicas. A ProfileTemplate is owned by workspace, permission
+tier, and provider, while a WorkerReplica is only a process identity with a
+replica id, port/API endpoint, health state, active-run count, idle TTL, and
+materialized template hash. Legacy names such as `lowgw1`, `lowgw2`, and
+`lowgw10` may remain as replica aliases during migration, but they must not
+decide capability ownership. Owner should own a pool such as
+`owner|user|openai-codex` with `minWarm` and `maxWorkers`; it should not own
+special semantic slot numbers.
+
+Detailed replica-pool design and harness:
+
+- `docs/IMPLEMENTATION_NOTES/gateway-profile-replica-pools.md`
 
 Status reconciliation must not erase a running worker's materialized template
 identity. A health check that discovers `allowedWorkspaceIds=["*"]`, such as

@@ -792,6 +792,10 @@ async function testHybridStatusProjectsProfileTemplateIdentityWithoutSecrets() {
   const owner = status.workers.find((item) => item.profile === "lowgw1");
   const extra = status.workers.find((item) => item.profile === "lowgw2");
   assert.equal(owner.templateKey, "owner|user|openai-codex");
+  assert.equal(owner.poolKey, "owner|user|openai-codex");
+  assert.equal(owner.profileTemplateKey, "owner|user|openai-codex");
+  assert.equal(owner.replicaId, "lowgw1");
+  assert.equal(owner.profileAlias, "lowgw1");
   assert.equal(owner.capabilityStatus, "ok");
   assert.equal(owner.capabilityHash.length, 16);
   assert.equal(owner.materializedTemplateKey, "owner|user|openai-codex");

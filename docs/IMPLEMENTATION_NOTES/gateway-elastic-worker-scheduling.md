@@ -62,6 +62,20 @@ turn that expected stopped state back into a permanent warm pool. Owner
 maintenance capacity must not prevent Owner's normal low-permission work from
 expanding from `lowgw1` to `lowgw2`/`lowgw3`/`lowgw4`.
 
+The current scheduler migration separates ProfileTemplate identity from
+WorkerReplica identity. The scheduler selects a pool by
+`workspaceId|permissionTier|provider`, then reuse or start a replica inside that
+pool. Legacy names such as `lowgw1`, `lowgw2`, and `lowgw10` may remain as
+replica aliases for ports, keys, telemetry, and process lifecycle, but they
+must not be capability/profile semantics. In particular, Owner OpenAI/Codex is
+the `owner|user|openai-codex` pool with `minWarm=1` and `maxWorkers=4`; it is
+not a special set of hard-coded slot numbers.
+
+Design and first harness:
+
+- `docs/IMPLEMENTATION_NOTES/gateway-profile-replica-pools.md`
+- `node tests\gateway-profile-replica-model-harness.test.js`
+
 Recommended first defaults:
 
 - `HERMES_MOBILE_GATEWAY_POOL_START_MODE=hybrid`
@@ -161,16 +175,20 @@ on-demand single-profile operations.
 ## Worker Compatibility Key
 
 A running worker can only be reused when it is compatible with the requested
-run. The compatibility key must include at least:
+run. Runtime compatibility is template-scoped and must include at least:
 
 - workspace id / actor class;
-- profile id;
 - provider family, such as OpenAI/Codex, DeepSeek, Grok/XAI;
 - permission tier, such as low-permission versus Owner maintenance;
 - effective enabled toolset set and schema epoch;
 - MCP/plugin workspace binding, such as Wardrobe or future plugin-owned MCP
   servers;
-- manifest `profile` / `port` / `api_key` identity.
+- capability hash and Skill workspace/profile binding.
+
+The compatibility key must not include legacy replica aliases such as `lowgw1`
+or `officialclean1`, API base URLs, ports, process ids, or raw API keys. Those
+belong to WorkerReplica identity and process lifecycle, not capability
+compatibility.
 
 Do not reuse a worker merely because it is healthy. A healthy but mismatched
 worker can expose the wrong callable schema, wrong provider, or wrong
