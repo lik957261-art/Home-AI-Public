@@ -7,6 +7,7 @@ const path = require("node:path");
 const {
   MAX_NOTE_RECEIPT_ATTACHMENTS,
   createNoteReceiptSaveService,
+  receiptNoteTags,
   summarizeReceiptTitle,
 } = require("../adapters/note-receipt-save-service");
 
@@ -92,6 +93,48 @@ async function testSaveReceiptPostsBoundedBodyAndAttachments() {
   assert.equal(Object.hasOwn(fetchCalls[0].body.attachments[0], "url"), false);
 }
 
+async function testPluginReceiptUsesPluginTag() {
+  const dataDir = tempRoot();
+  writeNoteBinding(dataDir, "owner");
+  const fetchCalls = [];
+  const service = createNoteReceiptSaveService({
+    dataDir,
+    fetch(url, options) {
+      fetchCalls.push({ url, body: JSON.parse(options.body) });
+      return Promise.resolve({
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({ note: { id: "note-wardrobe" } }),
+      });
+    },
+    resolveArtifactForRequest() {
+      throw new Error("unexpected resolver");
+    },
+  });
+
+  await service.saveReceipt({
+    workspaceId: "owner",
+    thread: { id: "thread-1", title: "wardrobe topic" },
+    message: {
+      id: "msg-1",
+      role: "assistant",
+      taskGroupId: "plugin:wardrobe",
+      content: "Wardrobe receipt body",
+      artifacts: [],
+    },
+  });
+
+  assert.equal(fetchCalls.length, 1);
+  assert.deepEqual(fetchCalls[0].body.tags, ["\u8863\u6a71"]);
+}
+
+function testReceiptNoteTagsFallbackAndPluginMapping() {
+  assert.deepEqual(receiptNoteTags({ taskGroupId: "chat" }, {}), ["hermes-receipt"]);
+  assert.deepEqual(receiptNoteTags({ taskGroupId: "plugin:finance" }, {}), ["\u8bb0\u8d26"]);
+  assert.deepEqual(receiptNoteTags({}, { taskGroupMeta: { "topic-1": { pluginId: "health" } } }), ["hermes-receipt"]);
+  assert.deepEqual(receiptNoteTags({ taskGroupId: "topic-1" }, { taskGroupMeta: { "topic-1": { pluginId: "health" } } }), ["\u5065\u5eb7"]);
+}
+
 async function testMissingNoteBindingIsControlled() {
   const dataDir = tempRoot();
   const service = createNoteReceiptSaveService({
@@ -148,6 +191,8 @@ function testTitleSummaryIsCompactForChineseText() {
 
 async function run() {
   await testSaveReceiptPostsBoundedBodyAndAttachments();
+  await testPluginReceiptUsesPluginTag();
+  testReceiptNoteTagsFallbackAndPluginMapping();
   await testMissingNoteBindingIsControlled();
   await testTooManyAttachmentsFailsBeforeRemoteCall();
   testTitleSummaryIsCompactForChineseText();

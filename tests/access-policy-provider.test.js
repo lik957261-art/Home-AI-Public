@@ -130,7 +130,7 @@ function testWardrobeProjectAuthorizesWardrobeToolset() {
 
 function testWorkspacePluginToolsetsAreProjectedIntoPolicy() {
   const provider = createAccessPolicyProvider({
-    pluginToolsetsForWorkspace: (workspaceId) => (workspaceId === "child_workspace" ? ["finance", "note"] : []),
+    pluginToolsetsForWorkspace: (workspaceId) => (workspaceId === "child_workspace" ? ["finance", "note", "health"] : []),
   });
   const policy = provider.build({
     principal_id: "owner",
@@ -145,6 +145,7 @@ function testWorkspacePluginToolsetsAreProjectedIntoPolicy() {
   assert.equal(policy.access_mode, "unrestricted");
   assert.ok(policy.allowed_toolsets.includes("finance"));
   assert.ok(policy.allowed_toolsets.includes("note"));
+  assert.ok(policy.allowed_toolsets.includes("health"));
   assert.equal(policy.default_workspace, "/workspace/child");
 }
 

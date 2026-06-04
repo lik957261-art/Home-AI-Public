@@ -11,6 +11,15 @@ const {
 const MAX_NOTE_RECEIPT_ATTACHMENTS = 8;
 const MAX_NOTE_RECEIPT_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 const DEFAULT_NOTE_RECEIPT_TIMEOUT_MS = 30000;
+const DEFAULT_NOTE_RECEIPT_TAG = "hermes-receipt";
+const PLUGIN_NOTE_RECEIPT_TAGS = Object.freeze({
+  wardrobe: "\u8863\u6a71",
+  finance: "\u8bb0\u8d26",
+  email: "\u90ae\u7bb1",
+  health: "\u5065\u5eb7",
+  note: "\u7b14\u8bb0",
+  "codex-mobile": "Codex",
+});
 
 function stringValue(value) {
   return String(value || "").trim();
@@ -18,6 +27,48 @@ function stringValue(value) {
 
 function boundedError(value, fallback = "note_receipt_save_failed") {
   return stringValue(value).replace(/\s+/g, " ").slice(0, 180) || fallback;
+}
+
+function normalizePluginId(value) {
+  return stringValue(value).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function pluginIdFromTaskGroupId(taskGroupId = "") {
+  const match = stringValue(taskGroupId).match(/^plugin:([a-z0-9_-]+)$/i);
+  return match ? normalizePluginId(match[1]) : "";
+}
+
+function pluginReceiptTagForId(pluginId = "") {
+  return PLUGIN_NOTE_RECEIPT_TAGS[normalizePluginId(pluginId)] || "";
+}
+
+function receiptPluginId(message = {}, thread = {}, input = {}) {
+  const direct = normalizePluginId(input.pluginId || input.plugin_id || message.pluginId || message.plugin_id || thread.pluginId || thread.plugin_id);
+  if (direct) return direct;
+
+  const taskGroupCandidates = [
+    message.taskGroupId,
+    message.task_group_id,
+    message.run?.taskGroupId,
+    message.run?.task_group_id,
+    thread.currentTaskGroupId,
+    thread.current_task_group_id,
+    thread.taskGroupId,
+    thread.task_group_id,
+  ];
+  for (const candidate of taskGroupCandidates) {
+    const pluginId = pluginIdFromTaskGroupId(candidate);
+    if (pluginId) return pluginId;
+  }
+
+  const groupId = stringValue(message.taskGroupId || message.task_group_id);
+  const meta = groupId && thread.taskGroupMeta && typeof thread.taskGroupMeta === "object" ? thread.taskGroupMeta[groupId] : null;
+  return normalizePluginId(meta?.pluginId || meta?.plugin_id);
+}
+
+function receiptNoteTags(message = {}, thread = {}, input = {}) {
+  const pluginTag = pluginReceiptTagForId(receiptPluginId(message, thread, input));
+  return [pluginTag || DEFAULT_NOTE_RECEIPT_TAG];
 }
 
 function serviceError(code, message, status = 400) {
@@ -274,7 +325,7 @@ function createNoteReceiptSaveService(options = {}) {
     const payload = {
       title,
       body,
-      tags: ["hermes-receipt"],
+      tags: receiptNoteTags(message, thread, input),
       notebookId: "hermes",
       attachments,
     };
@@ -303,5 +354,6 @@ module.exports = {
   MAX_NOTE_RECEIPT_ATTACHMENTS,
   createNoteReceiptSaveService,
   messageNoteBody,
+  receiptNoteTags,
   summarizeReceiptTitle,
 };

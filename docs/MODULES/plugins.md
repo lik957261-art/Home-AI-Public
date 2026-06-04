@@ -1,6 +1,6 @@
 # Embedded App Plugins
 
-Last updated: 2026-06-03.
+Last updated: 2026-06-04.
 
 This module describes the Hermes Mobile embedded-app plugin contract. A plugin
 is an external product surface mounted inside Hermes Mobile. Hermes owns the
@@ -73,12 +73,15 @@ the authorized message from Hermes runtime state, resolves any message
 artifacts through the existing artifact access boundary, and sends Note only a
 compact title, body, and bounded base64 attachments via Note's
 `POST /api/v1/notes` API. The default target notebook id for Hermes-generated
-receipt notes is `hermes`, with the `hermes-receipt` tag retained for filtering.
-The chat footer action keeps a message-level in-flight guard so repeated taps
-or rerenders do not submit the same receipt twice while the first save is still
-running. Hermes must not pass local file paths, private URLs, workspace
-overrides, launch tokens, or raw access keys to Note. Note remains the owner of
-attachment storage, note rows, and attachment asset indexing.
+receipt notes is `hermes`. Receipt tags are derived server-side from the
+authorized message context: plugin-bound topic receipts use the plugin's Chinese
+category tag, such as `衣橱` for `plugin:wardrobe`, while ordinary non-plugin
+chat receipts keep the fallback `hermes-receipt` tag. The chat footer action
+keeps a message-level in-flight guard so repeated taps or rerenders do not
+submit the same receipt twice while the first save is still running. Hermes must
+not pass local file paths, private URLs, workspace overrides, launch tokens, or
+raw access keys to Note. Note remains the owner of attachment storage, note
+rows, and attachment asset indexing.
 
 Note MCP uses the common single-prefix stdio contract. Gateway profiles may add
 `mcp_servers.note`, `toolsets: [note]`, and
@@ -694,13 +697,14 @@ workspace-local isolation pattern as the default host contract:
   messages from `mcp.client.stdio`; a wrapper that only parses
   `Content-Length` framed test messages can pass plugin-local tests while
   failing to connect in real Gateway profiles.
-- Tool names returned by a plugin MCP server should be local names such as
-  `list_ledgers`. Hermes Agent prefixes them as `mcp_<server>_<tool>` in the
-  model schema. Returning already-prefixed names such as
-  `mcp_finance_list_ledgers` from the wrapper creates double-prefixed callables
-  like `mcp_finance_mcp_finance_list_ledgers`; Health has the same rule, so
-  the wrapper should expose `records_get_summary`, not
-  `mcp_health_records_get_summary`, to produce the final callable
+- Tool names returned by a plugin MCP server in Gateway registration mode
+  should be local names such as `list_ledgers`. Hermes Agent prefixes them as
+  `mcp_<server>_<tool>` in the model schema. Returning already-prefixed names
+  such as `mcp_finance_list_ledgers` from the wrapper creates double-prefixed
+  callables like `mcp_finance_mcp_finance_list_ledgers`. Health direct wrapper
+  mode may keep the legacy `mcp_health_*` names for standalone callers, but
+  Gateway profiles must launch it with `--gateway-tool-names` so it exposes
+  local names such as `records_get_summary` and the final callable remains
   `mcp_health_records_get_summary`.
 - The Gateway profile registers that plugin MCP with `--workspace` or an
   equivalent fixed workspace-root argument pointing to the target Hermes

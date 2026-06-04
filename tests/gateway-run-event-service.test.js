@@ -694,6 +694,9 @@ function testToolsetEscalationAutoRetriesWithExpandedAuthorizedToolsets() {
   );
   assert.equal(harness.thread.events.at(-2).event, "run.toolset_escalation_required");
   assert.equal(harness.thread.events.at(-1).event, "run.toolset_escalation_retrying");
+  assert.equal(harness.calls.broadcasts.some((payload) => payload.type === "run.completed"), false);
+  assert.equal(JSON.stringify(harness.calls.broadcasts).includes("当前运行需要额外工具集"), false);
+  assert.equal(JSON.stringify(harness.calls.broadcasts).includes("HERMES_TOOLSET_ESCALATION_REQUIRED"), false);
   assert.deepEqual(harness.calls.enqueued, []);
   assert.deepEqual(harness.calls.notified, []);
   assert.deepEqual(harness.calls.scheduled, []);
@@ -748,6 +751,50 @@ function testOutputItemFinalMessageCanTriggerToolsetEscalationRetryWithoutDeltas
   assert.equal(harness.message.pendingToolsetEscalationRequest, undefined);
   assert.equal(starts.length, 1);
   assert.deepEqual(starts[0].modelFirstToolsetSelection.selectedToolsets, ["file", "wardrobe"]);
+}
+
+function testToolsetEscalationRetryCapStopsAfterOneInternalRetry() {
+  const starts = [];
+  const harness = makeHarness({
+    setImmediate: (fn) => fn(),
+    startToolsetEscalationRun: (_thread, _userMessage, _assistantMessage, runOptions) => {
+      starts.push(runOptions);
+      return { status: "started" };
+    },
+  });
+  harness.message.toolsetEscalationAttempts = 1;
+  harness.message.runOptions = {
+    toolsetRouting: {
+      mode: "model_first",
+      selected_toolsets: ["file"],
+      omitted_authorized_toolsets: ["health"],
+    },
+    access_policy_context: {
+      allowed_toolsets: ["file"],
+      toolset_routing: {
+        mode: "model_first",
+        selected_toolsets: ["file"],
+        omitted_authorized_toolsets: ["health"],
+      },
+    },
+  };
+
+  const result = harness.service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    output: "HERMES_TOOLSET_ESCALATION_REQUIRED {\"toolsets\":[\"health\"],\"reason\":\"needs health MCP\"}",
+  });
+
+  assert.equal(result.action, "completed");
+  assert.equal(starts.length, 0);
+  assert.equal(harness.message.status, "done");
+  assert.equal(harness.message.content.includes("HERMES_TOOLSET_ESCALATION_REQUIRED"), false);
+  assert.match(harness.message.content, /当前运行需要额外工具集/);
+  assert.equal(harness.message.toolsetEscalationRequired, true);
+  assert.deepEqual(harness.message.toolsetEscalationToolsets, ["health"]);
+  assert.equal(harness.calls.broadcasts.filter((payload) => payload.type === "run.completed").length, 1);
+  assert.deepEqual(harness.calls.enqueued, [{ threadId: "thread_1", messageId: "assistant_1", status: "done" }]);
+  assert.deepEqual(harness.calls.notified, [{ threadId: "thread_1", messageId: "assistant_1", status: "done" }]);
 }
 
 function testAlreadySelectedToolsetEscalationIsSanitizedWithoutRetry() {
@@ -832,6 +879,7 @@ testToolsetEscalationMarkerIsHiddenAndStored();
 testStreamingToolsetEscalationMarkerIsSuppressedBeforeCompletion();
 testToolsetEscalationAutoRetriesWithExpandedAuthorizedToolsets();
 testOutputItemFinalMessageCanTriggerToolsetEscalationRetryWithoutDeltas();
+testToolsetEscalationRetryCapStopsAfterOneInternalRetry();
 testAlreadySelectedToolsetEscalationIsSanitizedWithoutRetry();
 testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued();
 

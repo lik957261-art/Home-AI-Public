@@ -6,6 +6,7 @@ const DEFAULT_GATEWAY_PLUGIN_TOOLSETS = Object.freeze({
   wardrobe: "wardrobe",
   finance: "finance",
   note: "note",
+  health: "health",
 });
 const DEFAULT_CACHE_TTL_MS = 30 * 1000;
 

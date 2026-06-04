@@ -595,17 +595,20 @@ Current runtime behavior:
 - `HERMES_TOOLSET_ESCALATION_REQUIRED` is an internal control marker, not a
   user-facing answer. Streaming delta and completion handling must strip the raw
   marker, persist `toolsetEscalationRequired` metadata and
-  `run.toolset_escalation_required`, and show a controlled explanation with the
-  requested toolset ids. This applies even when the requested toolset is already
-  selected in the current execution round; that case is a schema mismatch or
-  non-retryable escalation state, not permission to leak the raw marker.
+  `run.toolset_escalation_required`, and keep retry progress in run-status
+  events instead of assistant receipt text. This applies even when the requested
+  toolset is already selected in the current execution round; that case is a
+  schema mismatch or non-retryable escalation state, not permission to leak the
+  raw marker.
 - When the requested toolsets are in the omitted authorized set, Mobile must
   automatically retry the same assistant message with the previous selected
   toolsets plus the requested authorized toolsets. This retry bypasses the
   selector so the model's explicit runtime finding is not lost to a second
-  selector mistake. If the request is blocked, unauthorized, repeats without
-  adding a new toolset, or exceeds the retry cap, Mobile keeps the controlled
-  insufficient-toolset message instead of leaking the raw marker.
+  selector mistake. The default retry cap is one internal retry; this prevents
+  the old selector failure mode where repeated preflights bounce without making
+  user-visible progress. If the request is blocked, unauthorized, repeats
+  without adding a new toolset, or exceeds the retry cap, Mobile keeps a
+  controlled insufficient-toolset message instead of leaking the raw marker.
 - `web`, `search`, and `browser` are one common lightweight companion set. If
   routing, selector output, or an escalation request includes any authorized
   member of that set, execution should keep all authorized members together so a
@@ -981,6 +984,21 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   `mcp_note_notes_search` or `mcp_note_notes_create`; a missing schema,
   double-prefix, or Owner-bound Note wrapper in a non-Owner workspace is a
   profile/provisioning failure, not a model issue.
+- Health MCP follows the same workspace-bound rule with `.hermes-health`.
+  Windows production installs the Health wrapper subset under
+  `C:\ProgramData\HermesMobile\gateway-worker\health-mcp`. Gateway profile
+  generation must require both `.hermes-health/config.json` and
+  `.hermes-health/access-key.txt` in the effective workspace root before
+  exposing `health` in `toolsets`, `platform_toolsets.api_server`, or
+  `mcp_servers.health`. The Health wrapper is Node-based; launch it with
+  `node`, `mcp-health-wrapper.js`, `--workspace <target-user-root>`,
+  `--no-workspace-override`, `--gateway-tool-names`, and the deployment-specific
+  `--api-base-url`. On Windows/WSL production that API base must use the WSL
+  default gateway address for the Windows Health service, not WSL
+  `127.0.0.1`. Valid schema evidence is a selected-profile callable such as
+  `mcp_health_lab_result_record`; double-prefixed callables such as
+  `mcp_health_mcp_health_lab_result_record` mean the wrapper was registered
+  without Gateway tool-name mode.
 - The generator script in the source repo is the durable source of truth. Do not rely on one-off edits to live `telemetry/profiles/<profile>/config.yaml`: a later Gateway Pool reconfigure/restart rewrites those files from `scripts/configure-low-gateways.sh` and will silently drop Wardrobe MCP registration if the source script no longer contains the wardrobe block.
 - Targeted starts such as `-StartProfiles lowgw13,lowgw14 -ForceConfigure`
   must pass `HERMES_GATEWAY_START_PROFILES` through to

@@ -254,6 +254,29 @@ function mcpServersForProfile(values = {}) {
       },
     });
   }
+  if (boolValue(values.health_enabled)) {
+    servers.push({
+      name: "health",
+      command: valueMapValue(values, "health_mcp_command", "node"),
+      args: [
+        valueMapValue(values, "health_mcp_path"),
+        "--workspace",
+        valueMapValue(values, "health_workspace"),
+        "--no-workspace-override",
+        "--gateway-tool-names",
+        "--api-base-url",
+        valueMapValue(values, "health_mcp_api_base_url"),
+      ],
+      env: {
+        HERMES_HOME: profileLink,
+        HERMES_PROFILE: profile,
+      },
+      extra: {
+        startup_timeout: "60",
+        connect_timeout: "60",
+      },
+    });
+  }
   if (boolValue(values.outlook_graph_enabled)) {
     servers.push({
       name: "outlook_graph",
@@ -301,6 +324,7 @@ function renderProfileConfigYaml(values = {}) {
   if (boolValue(values.wardrobe_enabled)) extras.push("wardrobe");
   if (boolValue(values.finance_enabled)) extras.push("finance");
   if (boolValue(values.note_enabled)) extras.push("note");
+  if (boolValue(values.health_enabled)) extras.push("health");
   if (boolValue(values.outlook_graph_enabled)) extras.push("outlook_graph");
   appendStandardBase(lines, [...STANDARD_TOOLSETS, ...extras], [...STANDARD_TOOLSETS, ...extras], standardPluginNames(values));
   appendRuntimeSections(lines, port);
@@ -340,6 +364,7 @@ function renderMaintenanceConfigYaml(values = {}) {
   if (boolValue(values.wardrobe_enabled)) extras.push("wardrobe");
   if (boolValue(values.finance_enabled)) extras.push("finance");
   if (boolValue(values.note_enabled)) extras.push("note");
+  if (boolValue(values.health_enabled)) extras.push("health");
   if (boolValue(values.outlook_graph_enabled)) extras.push("outlook_graph");
   const toolsets = [
     ...STANDARD_TOOLSETS,

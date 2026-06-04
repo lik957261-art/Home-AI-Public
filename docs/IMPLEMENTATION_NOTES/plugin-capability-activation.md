@@ -53,9 +53,10 @@ The first implementation is intentionally service-first and run-assembly scoped:
 - `adapters/plugin-authorized-toolset-service.js` projects the effective
   workspace's locally complete plugin bindings into the authorization boundary
   before run activation. It currently exposes only Gateway-materialized plugin
-  MCP toolsets such as Wardrobe, Finance, and Note, and it requires the matching
-  workspace `.hermes-*` config/key pair where the plugin contract requires one.
-  A key-only partial Finance binding is not authorized for model runs.
+  MCP toolsets such as Wardrobe, Finance, Note, and Health, and it requires the
+  matching workspace `.hermes-*` config/key pair where the plugin contract
+  requires one. A key-only partial plugin binding is not authorized for model
+  runs.
 - `adapters/gateway-runtime-composition-service.js` and
   `mobile-server-runtime.js` wire the service into production runtime
   composition.
@@ -235,6 +236,10 @@ Implementation should add or update focused tests for:
   tests\plugin-capability-activation-service.test.js`, `node
   tests\gateway-run-start-service.test.js`, `node
   tests\gateway-pool-provider.test.js`);
+- Health profile/history import requests activate `health` before streaming and
+  prove the active schema set reaches Gateway routing, `enabled_toolsets`,
+  `access_policy_context`, plugin catalog status, assistant `runOptions`, and
+  bounded activation telemetry (`node tests\gateway-run-start-service.test.js`);
 - required plugin failure emits a bounded diagnostic and blocks generic
   fallback;
 - optional plugin failure does not slow or fail unrelated ordinary chat;

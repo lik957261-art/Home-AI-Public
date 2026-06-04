@@ -11,7 +11,7 @@ function cleanString(value) {
 }
 
 const TOOLSET_ESCALATION_MARKER = "HERMES_TOOLSET_ESCALATION_REQUIRED";
-const DEFAULT_MAX_TOOLSET_ESCALATION_RETRIES = 2;
+const DEFAULT_MAX_TOOLSET_ESCALATION_RETRIES = 1;
 const COMMON_WEB_COMPANION_TOOLSETS = Object.freeze(["web", "search", "browser"]);
 
 function compactFallback(value) {
@@ -135,9 +135,9 @@ function toolsetEscalationMessage(request = {}) {
   const blockedText = blockedToolsets.length ? `\n\nBlocked toolsets: ${blockedToolsets.join(", ")}` : "";
   const reasonText = reason ? `\n\nReason: ${reason}` : "";
   if (!retryableToolsets.length) {
-    return `Toolset/schema mismatch: the model requested ${toolsetText}, but Hermes Mobile could not safely expand the current run because the requested toolset was already selected or was not in the omitted authorized set. Hermes Mobile intercepted the internal toolset escalation marker and did not display the raw marker.${blockedText}${reasonText}`;
+    return `当前运行需要的工具集无法在本轮继续扩展：${toolsetText}。请重新发起任务，或进入对应插件话题后重试。${blockedText}${reasonText}`;
   }
-  return `\u5f53\u524d\u6267\u884c\u5de5\u5177\u96c6\u4e0d\u8db3\uff0c\u9700\u8981\u91cd\u65b0\u5f00\u653e\u5de5\u5177\u96c6\uff1a${toolsetText}\u3002Hermes Mobile \u5df2\u62e6\u622a\u5185\u90e8\u5de5\u5177\u96c6\u5347\u7ea7\u6807\u8bb0\uff0c\u6ca1\u6709\u628a\u539f\u59cb\u6807\u8bb0\u4f5c\u4e3a\u7b54\u6848\u7ee7\u7eed\u5c55\u793a\u3002${reasonText}`;
+  return `当前运行需要额外工具集：${toolsetText}。自动升级重试未能继续执行。请重新发起任务，或进入对应插件话题后重试。${reasonText}`;
 }
 
 function sanitizeToolsetEscalationVisibleText(text = "") {
@@ -895,6 +895,33 @@ function createGatewayRunEventService(options = {}) {
     const toolsetEscalationRequest = parseToolsetEscalationRequest(output, message) || message.pendingToolsetEscalationRequest || null;
     const approvalRequest = modelPermissionApprovalRequest(output, message);
     const validApprovalRequest = isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message) ? null : approvalRequest;
+    if (toolsetEscalationRequest) {
+      delete message.pendingToolsetEscalationRequest;
+      message.toolsetEscalationRequired = true;
+      message.toolsetEscalationToolsets = toolsetEscalationRequest.toolsets;
+      message.toolsetEscalationReason = toolsetEscalationRequest.reason;
+      message.toolsetEscalationSource = toolsetEscalationRequest.source;
+      addThreadEvent(thread, {
+        event: "run.toolset_escalation_required",
+        timestamp: nowMs() / 1000,
+        runId: responseRunId || message.runId || runId,
+        tool: "toolset",
+        preview: JSON.stringify({
+          toolsets: toolsetEscalationRequest.toolsets,
+          requested_toolsets: toolsetEscalationRequest.requestedToolsets || toolsetEscalationRequest.toolsets,
+          retryable_toolsets: toolsetEscalationRequest.retryableToolsets || [],
+          blocked_toolsets: toolsetEscalationRequest.blockedToolsets || [],
+          reason: toolsetEscalationRequest.reason,
+        }),
+        error: false,
+      });
+      removeThreadActiveRun(thread, runId, "idle");
+      if (startEscalatedToolsetRetry(thread, message, toolsetEscalationRequest, responseRunId || message.runId || runId)) {
+        saveState();
+        broadcast({ type: "run.event", threadId: thread.id, runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
+        return { action: "toolset_escalation_retrying", toolsets: toolsetEscalationRequest.toolsets };
+      }
+    }
     const visibleOutput = toolsetEscalationRequest
       ? toolsetEscalationMessage(toolsetEscalationRequest)
       : (approvalRequest ? stripPermissionApprovalMarkers(output) : output);
@@ -939,33 +966,7 @@ function createGatewayRunEventService(options = {}) {
       message.elevationReason = "";
       message.elevationSource = "";
     }
-    if (toolsetEscalationRequest) {
-      delete message.pendingToolsetEscalationRequest;
-      message.toolsetEscalationRequired = true;
-      message.toolsetEscalationToolsets = toolsetEscalationRequest.toolsets;
-      message.toolsetEscalationReason = toolsetEscalationRequest.reason;
-      message.toolsetEscalationSource = toolsetEscalationRequest.source;
-      addThreadEvent(thread, {
-        event: "run.toolset_escalation_required",
-        timestamp: nowMs() / 1000,
-        runId: responseRunId || message.runId || runId,
-        tool: "toolset",
-        preview: JSON.stringify({
-          toolsets: toolsetEscalationRequest.toolsets,
-          requested_toolsets: toolsetEscalationRequest.requestedToolsets || toolsetEscalationRequest.toolsets,
-          retryable_toolsets: toolsetEscalationRequest.retryableToolsets || [],
-          blocked_toolsets: toolsetEscalationRequest.blockedToolsets || [],
-          reason: toolsetEscalationRequest.reason,
-        }),
-        error: false,
-      });
-      removeThreadActiveRun(thread, runId, "idle");
-      if (startEscalatedToolsetRetry(thread, message, toolsetEscalationRequest, responseRunId || message.runId || runId)) {
-        saveState();
-        broadcast({ type: "run.event", threadId: thread.id, runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
-        return { action: "toolset_escalation_retrying", toolsets: toolsetEscalationRequest.toolsets };
-      }
-    } else {
+    if (!toolsetEscalationRequest) {
       delete message.pendingToolsetEscalationRequest;
       message.toolsetEscalationRequired = false;
       message.toolsetEscalationToolsets = [];

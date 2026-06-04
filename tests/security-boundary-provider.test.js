@@ -81,6 +81,17 @@ function run() {
   assert.ok(genericMcpPolicy.blocked_toolsets.includes("mcp"));
   assert.ok(genericMcpPolicy.blocked_toolsets.includes("terminal"));
 
+  for (const productToolset of ["wardrobe", "finance", "note", "health"]) {
+    const productMcpPolicy = provider.hardenAccessPolicy({
+      principal_id: "owner",
+      access_mode: "restricted",
+      allowed_roots: ["/Users/alice/HermesDrive"],
+      allowed_toolsets: ["file", productToolset],
+    });
+    assert.ok(productMcpPolicy.allowed_toolsets.includes(productToolset));
+    assert.ok(!productMcpPolicy.blocked_toolsets.includes("mcp"));
+  }
+
   const defaultToolPolicy = provider.hardenAccessPolicy({
     principal_id: "owner",
     access_mode: "restricted",

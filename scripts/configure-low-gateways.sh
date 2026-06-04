@@ -70,25 +70,33 @@ finance_mcp_python="${HERMES_MOBILE_FINANCE_MCP_PYTHON:-/opt/hermes-gateway-runt
 finance_mcp_path="${HERMES_MOBILE_FINANCE_MCP_PATH:-$gateway_worker_root/finance-mcp/scripts/finance_mcp_stdio.py}"
 note_mcp_python="${HERMES_MOBILE_NOTE_MCP_PYTHON:-/opt/hermes-gateway-runtime/venv/bin/python}"
 note_mcp_path="${HERMES_MOBILE_NOTE_MCP_PATH:-$gateway_worker_root/note-mcp/scripts/note_mcp_stdio.py}"
+health_mcp_command="${HERMES_MOBILE_HEALTH_MCP_COMMAND:-node}"
+health_mcp_path="${HERMES_MOBILE_HEALTH_MCP_PATH:-$gateway_worker_root/health-mcp/scripts/mcp-health-wrapper.js}"
 detect_windows_host_gateway() {
   ip route 2>/dev/null | awk '/^default[[:space:]]/ { print $3; exit }'
 }
 windows_host_gateway="$(detect_windows_host_gateway || true)"
 default_finance_mcp_api_base_url="http://127.0.0.1:8791"
 default_note_mcp_api_base_url="http://127.0.0.1:4181"
+default_health_mcp_api_base_url="http://127.0.0.1:4877"
 if [[ "$gateway_worker_root" == /mnt/* ]] && [ -n "$windows_host_gateway" ]; then
   default_finance_mcp_api_base_url="http://${windows_host_gateway}:8791"
   default_note_mcp_api_base_url="http://${windows_host_gateway}:4181"
+  default_health_mcp_api_base_url="http://${windows_host_gateway}:4877"
 fi
 finance_mcp_api_base_url="${HERMES_MOBILE_FINANCE_MCP_API_BASE_URL:-$default_finance_mcp_api_base_url}"
 finance_mcp_schema_probe_timeout_seconds="${HERMES_MOBILE_FINANCE_MCP_SCHEMA_PROBE_TIMEOUT_SECONDS:-3}"
 note_mcp_api_base_url="${HERMES_MOBILE_NOTE_MCP_API_BASE_URL:-$default_note_mcp_api_base_url}"
+health_mcp_api_base_url="${HERMES_MOBILE_HEALTH_MCP_API_BASE_URL:-$default_health_mcp_api_base_url}"
 finance_user_drive_root="${HERMES_MOBILE_FINANCE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_finance_workspace_override="${HERMES_MOBILE_OWNER_FINANCE_WORKSPACE:-}"
 wuping_finance_workspace_override="${HERMES_MOBILE_WUPING_FINANCE_WORKSPACE:-}"
 note_user_drive_root="${HERMES_MOBILE_NOTE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_note_workspace_override="${HERMES_MOBILE_OWNER_NOTE_WORKSPACE:-}"
 wuping_note_workspace_override="${HERMES_MOBILE_WUPING_NOTE_WORKSPACE:-}"
+health_user_drive_root="${HERMES_MOBILE_HEALTH_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
+owner_health_workspace_override="${HERMES_MOBILE_OWNER_HEALTH_WORKSPACE:-}"
+wuping_health_workspace_override="${HERMES_MOBILE_WUPING_HEALTH_WORKSPACE:-}"
 gateway_start_profiles="${HERMES_GATEWAY_START_PROFILES:-}"
 
 profile_selected_for_configure() {
@@ -350,12 +358,34 @@ if config.exists() and key.exists():
 PY
 }
 
+find_first_health_workspace_root() {
+  local workspace_id="${1:-}"
+  local drive_root="${2:-$health_user_drive_root}"
+  python3 - "$workspace_id" "$drive_root" <<'PY' 2>/dev/null || true
+from pathlib import Path
+import sys
+workspace_id = (sys.argv[1] or "").strip()
+drive_root = Path(sys.argv[2])
+if not workspace_id:
+    raise SystemExit(0)
+user_root = drive_root / workspace_id
+if not user_root.exists():
+    raise SystemExit(0)
+config = user_root / ".hermes-health" / "config.json"
+key = user_root / ".hermes-health" / "access-key.txt"
+if config.exists() and key.exists():
+    print(str(user_root))
+PY
+}
+
 owner_wardrobe_workspace="${owner_wardrobe_workspace_override:-$(find_first_wardrobe_workspace_root owner)}"
 wuping_wardrobe_workspace="${wuping_wardrobe_workspace_override:-$(find_first_wardrobe_workspace_root weixin_wuping)}"
 owner_finance_workspace="${owner_finance_workspace_override:-$(find_first_finance_workspace_root owner)}"
 wuping_finance_workspace="${wuping_finance_workspace_override:-$(find_first_finance_workspace_root weixin_wuping)}"
 owner_note_workspace="${owner_note_workspace_override:-$(find_first_note_workspace_root owner)}"
 wuping_note_workspace="${wuping_note_workspace_override:-$(find_first_note_workspace_root weixin_wuping)}"
+owner_health_workspace="${owner_health_workspace_override:-$(find_first_health_workspace_root owner)}"
+wuping_health_workspace="${wuping_health_workspace_override:-$(find_first_health_workspace_root weixin_wuping)}"
 
 skill_store_for_gateway_profile() {
   local profile="$1"
@@ -1019,6 +1049,8 @@ ${plugin_enabled_lines%$'\n'}"
   finance_api_toolset_block=""
   note_toolset_block=""
   note_api_toolset_block=""
+  health_toolset_block=""
+  health_api_toolset_block=""
   mcp_server_lines=""
   profile_wardrobe_workspace=""
   profile_workspace_id=""
@@ -1116,6 +1148,39 @@ ${plugin_enabled_lines%$'\n'}"
     startup_timeout: 60
     connect_timeout: 60"$'\n'
   fi
+  profile_health_workspace=""
+  if is_owner_connector_profile "$profile"; then
+    profile_health_workspace="$owner_health_workspace"
+  else
+    if [ -z "$profile_workspace_id" ]; then
+      profile_workspace_id="$(workspace_id_for_gateway_profile "$profile")"
+    fi
+    if [ -n "$profile_workspace_id" ]; then
+      profile_health_workspace="$(find_first_health_workspace_root "$profile_workspace_id")"
+      if [ -z "$profile_health_workspace" ] && [ "$profile_workspace_id" = "weixin_wuping" ]; then
+        profile_health_workspace="$wuping_health_workspace"
+      fi
+    fi
+  fi
+  if [ -n "$profile_health_workspace" ] && [ -f "$health_mcp_path" ]; then
+    health_toolset_block="  - health"
+    health_api_toolset_block="    - health"
+    mcp_server_lines="${mcp_server_lines}  health:
+    command: $health_mcp_command
+    args:
+      - $health_mcp_path
+      - --workspace
+      - $profile_health_workspace
+      - --no-workspace-override
+      - --gateway-tool-names
+      - --api-base-url
+      - $health_mcp_api_base_url
+    env:
+      HERMES_HOME: $profile_link
+      HERMES_PROFILE: $profile
+    startup_timeout: 60
+    connect_timeout: 60"$'\n'
+  fi
   if is_owner_connector_profile "$profile" && [ -f "$outlook_graph_mcp_path" ]; then
     outlook_toolset_block="  - outlook_graph"
     outlook_api_toolset_block="    - outlook_graph"
@@ -1168,6 +1233,11 @@ ${mcp_server_lines%$'\n'}"
     --value "note_mcp_path=$note_mcp_path" \
     --value "note_workspace=$profile_note_workspace" \
     --value "note_mcp_api_base_url=$note_mcp_api_base_url" \
+    --value "health_enabled=${health_toolset_block:+1}" \
+    --value "health_mcp_command=$health_mcp_command" \
+    --value "health_mcp_path=$health_mcp_path" \
+    --value "health_workspace=$profile_health_workspace" \
+    --value "health_mcp_api_base_url=$health_mcp_api_base_url" \
     --value "outlook_graph_enabled=${outlook_toolset_block:+1}" \
     --value "outlook_graph_mcp_path=$outlook_graph_mcp_path"; then
   cat > "$profile_link/config.yaml" <<YAML
@@ -1199,6 +1269,7 @@ ${cronjob_mobile_toolset_block}
 ${wardrobe_toolset_block}
 ${finance_toolset_block}
 ${note_toolset_block}
+${health_toolset_block}
 ${outlook_toolset_block}
 platform_toolsets:
   api_server:
@@ -1225,6 +1296,7 @@ ${cronjob_mobile_api_toolset_block}
 ${wardrobe_api_toolset_block}
 ${finance_api_toolset_block}
 ${note_api_toolset_block}
+${health_api_toolset_block}
 ${outlook_api_toolset_block}
 agent:
   max_turns: 60

@@ -115,6 +115,9 @@ const SAFE_RESTRICTED_TOOLSETS = Object.freeze([
 
 const PRODUCT_MCP_TOOLSETS = Object.freeze([
   "wardrobe",
+  "finance",
+  "note",
+  "health",
 ]);
 
 const DEVELOPER_TOOLSETS = Object.freeze([

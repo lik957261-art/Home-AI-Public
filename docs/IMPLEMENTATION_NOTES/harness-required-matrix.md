@@ -700,8 +700,12 @@ Required harness dimensions:
   the previous selected toolsets plus the requested authorized toolsets, skips a
   second selector pass for that retry, emits `run.toolset_escalation_retrying`,
   and does not enqueue/notify a terminal successful answer before the retry
-  finishes. Unauthorized, blocked, duplicate, or over-limit escalation requests
-  must remain a controlled insufficient-toolset result.
+  finishes. Retry progress must appear only in run-status events and must not be
+  broadcast as assistant receipt text. Unauthorized, blocked, duplicate, or
+  over-limit escalation requests must remain a controlled insufficient-toolset
+  result. The default automatic retry cap is one internal retry; a second
+  escalation marker from the retry is terminal instead of starting a selector or
+  retry loop.
 - Harness scenarios must cover the common lightweight web companion group:
   `web`, `search`, and `browser` should be suggested/retained/retried together
   when any authorized member is needed. The negative case is required: `browser`
@@ -716,6 +720,14 @@ Required harness dimensions:
   catalog when the selected Gateway profile exposes Wardrobe MCP; otherwise the
   model cannot choose the correct MCP path and may over-use generic web/http/file
   tooling.
+- Health profile/history import is a required run-assembly harness scenario.
+  A single-window or directory-bound request to write Health Profile, historical
+  medical records, or strength-training history into Health MCP must activate
+  `health` before streaming and prove that `health` appears in the active schema
+  set, Gateway `preferredToolsets`, stream `enabled_toolsets`,
+  `access_policy_context`, plugin catalog status, assistant `runOptions`, and
+  bounded `plugin_capability_activated` telemetry. The same harness must prove
+  unrelated product plugins remain catalog-only unless independently activated.
 - Wardrobe callable-schema harnesses must include
   `mcp_wardrobe_wardrobe_write_history` for actual-wear history writeback, in
   addition to item write, search, readback, and photo functions.

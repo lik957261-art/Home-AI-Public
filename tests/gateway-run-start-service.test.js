@@ -373,8 +373,8 @@ async function testOrdinaryRunPublishesPluginCapabilityCatalogWithoutEagerPlugin
     buildAccessPolicy: (routePolicy, _user, project) => ({
       principal_id: routePolicy.principal_id || "unknown",
       allowed_roots: [project.root],
-      allowed_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note"],
-      authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note"],
+      allowed_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health"],
+      authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health"],
       connector_profiles: { base: { type: "profile" } },
     }),
   });
@@ -392,12 +392,14 @@ async function testOrdinaryRunPublishesPluginCapabilityCatalogWithoutEagerPlugin
   );
 
   assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["file", "web", "vision", "skills"]);
-  assert.deepEqual(calls.streams[0].body.access_policy_context.authorized_toolsets, ["file", "web", "wardrobe", "vision", "skills", "finance", "note"]);
-  assert.deepEqual(calls.streams[0].body.access_policy_context.active_schema_set.omitted_plugin_toolsets, ["wardrobe", "finance", "note"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.authorized_toolsets, ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.active_schema_set.omitted_plugin_toolsets, ["wardrobe", "finance", "note", "health"]);
   assert.deepEqual(calls.gatewayRouting[0].activeSchemaSet.active_toolsets, ["file", "web", "vision", "skills"]);
   assert.equal(calls.gatewayRouting[0].pluginCapabilityCatalog.find((entry) => entry.pluginId === "finance").status, "catalog_only");
+  assert.equal(calls.gatewayRouting[0].pluginCapabilityCatalog.find((entry) => entry.pluginId === "health").status, "catalog_only");
   assert.equal(calls.hermesInstructions[0].buildOptions.pluginCapabilityContext.catalog.find((entry) => entry.pluginId === "wardrobe").status, "catalog_only");
   assert.equal(assistant.runOptions.pluginCapabilityCatalog.find((entry) => entry.pluginId === "note").status, "catalog_only");
+  assert.equal(assistant.runOptions.pluginCapabilityCatalog.find((entry) => entry.pluginId === "health").status, "catalog_only");
   assert.deepEqual(assistant.runOptions.activeSchemaSet.active_toolsets, ["file", "web", "vision", "skills"]);
 }
 
@@ -483,6 +485,67 @@ async function testOptionalPluginProbeFailureRemovesPluginBeforeStream() {
   assert.equal(event.error, true);
   assert.equal(JSON.parse(event.preview).toolset, "finance");
   assert.deepEqual(assistant.runOptions.activeSchemaSet.unavailable_plugin_ids, ["finance"]);
+}
+
+async function testHealthProfileImportActivatesHealthMcpThroughRunAssemblyHarness() {
+  const { calls, service } = makeHarness({
+    taskDirectoryAttachmentForMessage: (_thread, message) => message.directoryRoute || null,
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health"],
+      authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+    chooseGatewayRunTarget: async (routing) => {
+      calls.gatewayRouting.push(routing);
+      return {
+        apiBase: "http://worker.gateway",
+        apiKey: "worker-key",
+        name: "lowgw-health",
+        profile: "lowgw-health",
+        source: "worker_pool",
+        toolsets: ["file", "web", "vision", "skills", "health"],
+      };
+    },
+  });
+  const assistant = baseAssistantMessage();
+
+  await service.startRunForThread(
+    baseThread({
+      workspaceId: "owner",
+      projectId: "xuxin-health-root",
+      singleWindow: true,
+    }),
+    baseUserMessage({
+      senderWorkspaceId: "owner",
+      taskGroupId: "task_health_history",
+      content: "\u628a Health Profile \u548c\u5386\u53f2\u533b\u7597/\u529b\u91cf\u8bad\u7ec3\u6570\u636e\u5199\u5165\u5065\u5eb7 MCP",
+      directoryRoute: {
+        projectId: "xuxin-health-root",
+        label: "\u5065\u5eb7",
+        path: "/workspace/owner/\u5065\u8eab\uff0c\u5065\u5eb7",
+        root: "/workspace/owner/\u5065\u8eab\uff0c\u5065\u5eb7",
+      },
+    }),
+    assistant,
+    { actorWorkspaceId: "owner", model: "gpt-test", provider: "openai-codex" },
+  );
+
+  assert.deepEqual(calls.gatewayRouting[0].preferredToolsets, ["health"]);
+  assert.deepEqual(calls.gatewayRouting[0].activeSchemaSet.active_plugin_toolsets, ["health"]);
+  assert.deepEqual(calls.gatewayRouting[0].activeSchemaSet.omitted_plugin_toolsets, ["wardrobe", "finance", "note"]);
+  assert.equal(calls.gatewayRouting[0].pluginCapabilityCatalog.find((entry) => entry.pluginId === "health").status, "active");
+  assert.equal(calls.gatewayRouting[0].pluginCapabilityCatalog.find((entry) => entry.pluginId === "finance").status, "catalog_only");
+  assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["file", "web", "vision", "skills", "health"]);
+  assert.ok(calls.streams[0].body.access_policy_context.allowed_toolsets.includes("health"));
+  assert.ok(calls.streams[0].body.access_policy_context.authorized_toolsets.includes("health"));
+  assert.deepEqual(calls.streams[0].body.access_policy_context.active_schema_set.active_plugin_toolsets, ["health"]);
+  assert.equal(calls.streams[0].body.access_policy_context.plugin_capability_catalog.find((entry) => entry.pluginId === "health").status, "active");
+  assert.equal(calls.events.find((event) => event.event === "plugin_capability_activated").error, false);
+  assert.deepEqual(assistant.runOptions.activeSchemaSet.active_plugin_toolsets, ["health"]);
+  assert.deepEqual(assistant.runOptions.pluginCapabilityProbeResults.map((item) => item.pluginId), ["health"]);
+  assert.equal(calls.hermesInstructions[0].taskDirectory.label, "\u5065\u5eb7");
 }
 
 async function testWardrobePluginTopicForcesSkillMcpStackAndPluginContext() {
@@ -1386,6 +1449,7 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testOrdinaryRunPublishesPluginCapabilityCatalogWithoutEagerPluginMcp();
   await testOptionalPluginProbeKeepsAvailablePluginActive();
   await testOptionalPluginProbeFailureRemovesPluginBeforeStream();
+  await testHealthProfileImportActivatesHealthMcpThroughRunAssemblyHarness();
   await testWardrobePluginTopicForcesSkillMcpStackAndPluginContext();
   testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext();
   await testStartRunPreservesSearchSourceRouting();

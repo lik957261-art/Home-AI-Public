@@ -32,7 +32,7 @@ function testWorkspaceLocalPluginBindingsBecomeToolsets() {
 
   const service = createPluginAuthorizedToolsetService({ dataDir: dir, env: {}, cacheTtlMs: 0 });
 
-  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["wardrobe", "finance", "note"]);
+  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["wardrobe", "finance", "note", "health"]);
 }
 
 function testKeyOnlyFinanceBindingDoesNotBecomeToolset() {
