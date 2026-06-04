@@ -138,6 +138,18 @@ The WSL script can return just before the Mobile-side health probe observes the
 new listener; a single immediate failed probe is not sufficient evidence of
 startup failure.
 
+On-demand cold-start requests also carry bounded template materialization
+metadata from the selected scheduler target into the launch path. This metadata
+is diagnostic and consistency context, not an authorization source. Scheduled
+task request JSON and direct `start-gateway-pool.ps1` arguments may include
+`poolKey`, `profileTemplateKey` / `templateKey`, `replicaId`, `profileAlias`,
+workspace id, permission tier, provider, capability hash, and tool schema
+epoch. The launcher validates and logs only those bounded values before passing
+them to the WSL child as `HERMES_GATEWAY_REQUEST_*`. It must not write raw API
+keys, workspace keys, OAuth tokens, MCP access keys, plugin launch tokens,
+prompts, model output, or full config YAML into request/result files, process
+args, logs, or status events.
+
 ## Source Implementation
 
 The v404 source implementation adds these boundaries:

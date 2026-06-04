@@ -170,12 +170,43 @@ stopped replica can be rebuilt from the current template regardless of its old
 alias. A warm replica can be reused only when its materialized template
 key/hash/schema still matches.
 
+Initial runtime materialization context is implemented. When the scheduler cold
+starts a stopped replica, `startWorkerProfile()` now derives bounded launch
+metadata from the selected worker and scheduler hints:
+
+- `poolKey`;
+- `profileTemplateKey` / `templateKey`;
+- `replicaId`;
+- `profileAlias`;
+- workspace id;
+- permission tier;
+- provider;
+- optional capability hash and tool schema epoch.
+
+The standard Windows listener launch path writes that metadata into scheduled
+task request files and direct `start-gateway-pool.ps1` arguments. The
+PowerShell launcher validates the values with a narrow safe character set,
+logs only bounded metadata, and passes the template request into
+`start-low-gateways-child.ps1`, which exposes it to the WSL start script as
+`HERMES_GATEWAY_REQUEST_*` environment variables. The WSL script records a
+`lowgw-template-request` line before its existing builder-backed template peer
+expansion and config rendering. Custom profile launch scripts are not forced to
+accept new arguments; they keep the legacy `--start-profiles` contract for
+rollback and NAS compatibility.
+
 ### Phase E: Cleanup
 
 After production has run with pool-key scheduling, remove user-facing semantic
 references to `lowgw1`, `lowgw2`, and similar names. They may remain in bounded
 diagnostic output as replica aliases until all launch scripts and telemetry
 paths are migrated.
+
+Initial cleanup is conservative: product logic and scheduler compatibility use
+pool/template identity, while `lowgw*`, `officialclean*`, and `deepseekgw*`
+remain only as `replicaId` / `profileAlias` metadata for launch scripts,
+telemetry paths, port mapping, and bounded diagnostics. Do not remove those
+aliases from scripts until the manifest and process lifecycle no longer depend
+on them.
 
 ## Harness Coverage
 
@@ -205,6 +236,17 @@ These tests prove runtime compatibility keys do not include legacy slot aliases
 or endpoints, scheduler events/status expose bounded pool/replica metadata,
 same-pool warm workers are reused before cold-starting another replica, and
 status projection does not expose raw API keys or config bodies.
+
+Phase D/E launch context coverage is in:
+
+- `node tests\gateway-worker-profile-launch-service.test.js`
+- `node tests\startup-scripts.test.js`
+
+These tests prove scheduled-task requests and direct standard launcher calls
+carry bounded template metadata, custom launch scripts remain backward
+compatible, PowerShell/WSL child scripts pass only `HERMES_GATEWAY_REQUEST_*`
+metadata, and the shell start script records the template materialization
+request before using the existing builder-backed peer expansion.
 
 ## Privacy Boundary
 

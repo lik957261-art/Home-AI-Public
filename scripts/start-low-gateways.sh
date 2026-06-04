@@ -44,6 +44,24 @@ gateway_stop_only="${HERMES_GATEWAY_STOP_ONLY:-0}"
 gateway_skip_configure_if_ready="${HERMES_GATEWAY_SKIP_CONFIGURE_IF_READY:-0}"
 gateway_force_configure="${HERMES_GATEWAY_FORCE_CONFIGURE:-0}"
 
+safe_template_metadata_value() {
+  local value="${1:-}"
+  if [[ "$value" =~ ^[-A-Za-z0-9_.\|:+]{1,160}$ ]]; then
+    printf '%s' "$value"
+  fi
+}
+
+gateway_request_pool_key="$(safe_template_metadata_value "${HERMES_GATEWAY_REQUEST_POOL_KEY:-}")"
+gateway_request_profile_template_key="$(safe_template_metadata_value "${HERMES_GATEWAY_REQUEST_PROFILE_TEMPLATE_KEY:-}")"
+gateway_request_template_key="$(safe_template_metadata_value "${HERMES_GATEWAY_REQUEST_TEMPLATE_KEY:-}")"
+gateway_request_replica_id="$(safe_template_metadata_value "${HERMES_GATEWAY_REQUEST_REPLICA_ID:-}")"
+if [ -z "$gateway_request_template_key" ]; then
+  gateway_request_template_key="$gateway_request_profile_template_key"
+fi
+if [ -n "$gateway_request_pool_key" ] || [ -n "$gateway_request_template_key" ] || [ -n "$gateway_request_replica_id" ]; then
+  log_step "lowgw-template-request profiles=${gateway_start_profiles:-all} pool=${gateway_request_pool_key} template=${gateway_request_template_key} replica=${gateway_request_replica_id}"
+fi
+
 profile_selected() {
   local profile="$1"
   local selected="$gateway_start_profiles"

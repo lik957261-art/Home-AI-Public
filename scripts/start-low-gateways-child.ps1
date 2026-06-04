@@ -1,6 +1,10 @@
 param(
   [string]$DistroName = "",
   [string]$StartProfiles = "",
+  [string]$PoolKey = "",
+  [string]$ProfileTemplateKey = "",
+  [string]$TemplateKey = "",
+  [string]$ReplicaId = "",
   [switch]$SkipConfigureIfReady,
   [switch]$ForceConfigure,
   [switch]$StopOnly
@@ -20,6 +24,10 @@ if (-not (Test-Path -LiteralPath $scriptPath)) {
 
 $envArgs = @()
 if ($StartProfiles) { $envArgs += "HERMES_GATEWAY_START_PROFILES=$StartProfiles" }
+if ($PoolKey) { $envArgs += "HERMES_GATEWAY_REQUEST_POOL_KEY=$PoolKey" }
+if ($ProfileTemplateKey) { $envArgs += "HERMES_GATEWAY_REQUEST_PROFILE_TEMPLATE_KEY=$ProfileTemplateKey" }
+if ($TemplateKey) { $envArgs += "HERMES_GATEWAY_REQUEST_TEMPLATE_KEY=$TemplateKey" }
+if ($ReplicaId) { $envArgs += "HERMES_GATEWAY_REQUEST_REPLICA_ID=$ReplicaId" }
 if ($SkipConfigureIfReady) { $envArgs += "HERMES_GATEWAY_SKIP_CONFIGURE_IF_READY=1" }
 if ($ForceConfigure) { $envArgs += "HERMES_GATEWAY_FORCE_CONFIGURE=1" }
 if ($StopOnly) { $envArgs += "HERMES_GATEWAY_STOP_ONLY=1" }

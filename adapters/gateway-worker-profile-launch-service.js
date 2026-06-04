@@ -3,6 +3,9 @@
 const defaultFs = require("node:fs");
 const defaultPath = require("node:path");
 const { spawn: defaultSpawn } = require("node:child_process");
+const {
+  normalizeGatewayWorkerReplica,
+} = require("./gateway-profile-replica-model");
 
 function cleanString(value) {
   return String(value || "").trim();
@@ -46,6 +49,67 @@ function readConfigString(config = {}, ...keys) {
 function safeGatewayProfileName(value) {
   const text = cleanString(value);
   return /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(text) ? text : "";
+}
+
+function safeMetadataValue(value, maxLength = 160) {
+  const text = cleanString(value);
+  if (!text || text.length > maxLength) return "";
+  return /^[A-Za-z0-9_.|:+-]+$/.test(text) ? text : "";
+}
+
+function gatewayLaunchMetadata(worker = {}, context = {}) {
+  const hints = context.hints || {};
+  const hasTemplateContext = Object.keys(hints).length
+    || worker.templateKey
+    || worker.profileTemplateKey
+    || worker.poolKey
+    || worker.capabilityHash
+    || worker.capability_hash
+    || worker.toolSchemaEpoch
+    || worker.tool_schema_epoch;
+  if (!hasTemplateContext) return {};
+  const replica = normalizeGatewayWorkerReplica(worker, hints);
+  const capabilityHash = safeMetadataValue(
+    hints.capabilityHash
+    || hints.capability_hash
+    || worker.capabilityHash
+    || worker.capability_hash,
+    80,
+  );
+  const toolSchemaEpoch = safeMetadataValue(
+    hints.toolSchemaEpoch
+    || hints.tool_schema_epoch
+    || worker.toolSchemaEpoch
+    || worker.tool_schema_epoch,
+    80,
+  );
+  const metadata = {
+    poolKey: safeMetadataValue(replica.poolKey),
+    profileTemplateKey: safeMetadataValue(replica.profileTemplateKey),
+    templateKey: safeMetadataValue(replica.profileTemplateKey),
+    replicaId: safeMetadataValue(replica.replicaId, 80),
+    profileAlias: safeGatewayProfileName(replica.profileAlias),
+    workspaceId: safeMetadataValue(replica.workspaceId, 80),
+    permissionTier: safeMetadataValue(replica.permissionTier, 80),
+    provider: safeMetadataValue(replica.provider, 80),
+    capabilityHash,
+    toolSchemaEpoch,
+  };
+  return Object.fromEntries(Object.entries(metadata).filter(([, value]) => Boolean(value)));
+}
+
+function metadataArgs(metadata = {}) {
+  const out = [];
+  const mapping = [
+    ["-PoolKey", metadata.poolKey],
+    ["-ProfileTemplateKey", metadata.profileTemplateKey || metadata.templateKey],
+    ["-TemplateKey", metadata.templateKey || metadata.profileTemplateKey],
+    ["-ReplicaId", metadata.replicaId],
+  ];
+  for (const [key, value] of mapping) {
+    if (value) out.push(key, value);
+  }
+  return out;
 }
 
 function createGatewayWorkerProfileLaunchService(options = {}) {
@@ -343,8 +407,13 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
       action: cleanString(action),
       profiles: safeProfiles,
       noStopExisting: Boolean(extra.noStopExisting),
+      forceConfigure: Boolean(extra.forceConfigure),
       createdAt: new Date().toISOString(),
     };
+    const metadata = extra.metadata && typeof extra.metadata === "object" ? extra.metadata : {};
+    for (const key of ["poolKey", "profileTemplateKey", "templateKey", "replicaId", "profileAlias", "workspaceId", "permissionTier", "provider", "capabilityHash", "toolSchemaEpoch"]) {
+      if (metadata[key]) request[key] = metadata[key];
+    }
     const pendingDir = path.join(launchRequestRoot, "pending");
     const resultPath = path.join(launchRequestRoot, "results", `${requestId}.json`);
     const requestPath = path.join(pendingDir, `${requestId}.json`);
@@ -372,16 +441,17 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
       err.code = "profile_missing";
       throw err;
     }
+    const metadata = gatewayLaunchMetadata(worker, context);
     if (cleanString(worker.securityLevel).toLowerCase() === "owner-maintenance" || worker.allowMaintenance) {
-      const scheduledResult = await runScheduledGatewayRequest("ownerMaintenance", [profile], startTimeoutMs(context), { noStopExisting: true });
+      const scheduledResult = await runScheduledGatewayRequest("ownerMaintenance", [profile], startTimeoutMs(context), { noStopExisting: true, metadata });
       if (scheduledResult) return scheduledResult;
-      return runGatewayPoolScript(["-OwnerMaintenanceOnly", "-StartProfiles", profile], startTimeoutMs(context));
+      return runGatewayPoolScript(["-OwnerMaintenanceOnly", "-StartProfiles", profile, ...metadataArgs(metadata)], startTimeoutMs(context));
     }
-    const scheduledResult = await runScheduledGatewayRequest("start", [profile], startTimeoutMs(context), { noStopExisting: true });
+    const scheduledResult = await runScheduledGatewayRequest("start", [profile], startTimeoutMs(context), { noStopExisting: true, metadata });
     if (scheduledResult) return scheduledResult;
     const scriptResult = runProfileLaunchScript(["--start-profiles", profile, "--no-stop-existing"], startTimeoutMs(context));
     if (scriptResult) return scriptResult;
-    return runGatewayPoolScript(["-StartProfiles", profile, "-NoStopExisting"], startTimeoutMs(context));
+    return runGatewayPoolScript(["-StartProfiles", profile, "-NoStopExisting", ...metadataArgs(metadata)], startTimeoutMs(context));
   }
 
   async function stopWorkerProfile(worker = {}, context = {}) {
@@ -410,7 +480,9 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
 
 module.exports = {
   createGatewayWorkerProfileLaunchService,
+  gatewayLaunchMetadata,
   publicArgs,
   sanitizeProcessText,
   safeGatewayProfileName,
+  safeMetadataValue,
 };

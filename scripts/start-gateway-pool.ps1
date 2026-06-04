@@ -19,6 +19,10 @@ param(
   [switch]$NoStopExisting,
   [switch]$ForceConfigure,
   [switch]$OwnerMaintenanceOnly,
+  [string]$PoolKey = "",
+  [string]$ProfileTemplateKey = "",
+  [string]$TemplateKey = "",
+  [string]$ReplicaId = "",
   [switch]$OnlyWhenOwnerMaintenanceUnhealthy
 )
 
@@ -354,6 +358,18 @@ function Assert-SafeWslDistroName {
   if (-not $DistroName -or $DistroName -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') {
     throw "Unsafe WSL distro name: $DistroName"
   }
+}
+
+function Normalize-GatewayTemplateMetadataValue {
+  param(
+    [string]$Value,
+    [int]$MaxLength = 160
+  )
+  $text = ([string]$Value).Trim()
+  if (-not $text) { return "" }
+  if ($text.Length -gt $MaxLength) { throw "Gateway template metadata value is too long." }
+  if ($text -notmatch '^[A-Za-z0-9_.|:+-]+$') { throw "Unsafe Gateway template metadata value." }
+  return $text
 }
 
 function Is-OwnerMaintenanceWorker {
@@ -937,18 +953,31 @@ function Start-LowGateways {
   param(
     [string[]]$Profiles = @(),
     [switch]$NoStopExisting,
-    [switch]$ForceConfigure
+    [switch]$ForceConfigure,
+    [string]$PoolKey = "",
+    [string]$ProfileTemplateKey = "",
+    [string]$TemplateKey = "",
+    [string]$ReplicaId = ""
   )
   $child = Join-Path $GatewayWorkerRoot "start-low-gateways-child.ps1"
   if (-not (Test-Path -LiteralPath $child)) { throw "Missing low gateway child script: $child" }
   Ensure-LowGatewayProfileEnv
   $profiles = Normalize-GatewayProfileList -Profiles $Profiles
+  $safePoolKey = Normalize-GatewayTemplateMetadataValue -Value $PoolKey
+  $safeProfileTemplateKey = Normalize-GatewayTemplateMetadataValue -Value $ProfileTemplateKey
+  $safeTemplateKey = Normalize-GatewayTemplateMetadataValue -Value ($(if ($TemplateKey) { $TemplateKey } else { $ProfileTemplateKey }))
+  $safeReplicaId = Normalize-GatewayTemplateMetadataValue -Value $ReplicaId -MaxLength 80
   if (-not $NoStopExisting) { Stop-LowGateways }
   $profileArgs = @()
   if ($profiles.Count -gt 0) { $profileArgs += @("-StartProfiles", ($profiles -join ",")) }
   if ($NoStopExisting) { $profileArgs += "-SkipConfigureIfReady" }
   if ($ForceConfigure) { $profileArgs += "-ForceConfigure" }
-  Write-GatewayPoolLog ("Starting low gateway pool profiles: {0}" -f ($(if ($profiles.Count) { $profiles -join "," } else { "all" })))
+  if ($safePoolKey -or $safeTemplateKey -or $safeReplicaId) {
+    $profileArgs += @("-PoolKey", $safePoolKey, "-ProfileTemplateKey", $safeProfileTemplateKey, "-TemplateKey", $safeTemplateKey, "-ReplicaId", $safeReplicaId)
+    Write-GatewayPoolLog ("Starting low gateway pool profiles: {0} pool={1} template={2} replica={3}" -f ($(if ($profiles.Count) { $profiles -join "," } else { "all" })), $safePoolKey, $safeTemplateKey, $safeReplicaId)
+  } else {
+    Write-GatewayPoolLog ("Starting low gateway pool profiles: {0}" -f ($(if ($profiles.Count) { $profiles -join "," } else { "all" })))
+  }
   $output = & powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $child -DistroName $LowGatewayDistroName @profileArgs 2>&1
   foreach ($line in $output) { Write-GatewayPoolLog ("lowgw: {0}" -f $line) }
   if ($LASTEXITCODE -ne 0) { throw "Low gateway pool start failed with exit code $LASTEXITCODE" }
@@ -1262,10 +1291,18 @@ function Invoke-GatewayPoolElasticRequests {
       }
       $action = ([string]$request.action).Trim()
       $profiles = Normalize-GatewayProfileList -Profiles @($request.profiles)
-      Write-GatewayPoolLog ("elastic-request-start id={0} action={1} profiles={2}" -f $requestId, $action, ($profiles -join ","))
+      $requestPoolKey = Normalize-GatewayTemplateMetadataValue -Value ([string]$request.poolKey)
+      $requestProfileTemplateKey = Normalize-GatewayTemplateMetadataValue -Value ([string]$request.profileTemplateKey)
+      $requestTemplateKey = Normalize-GatewayTemplateMetadataValue -Value ($(if ($request.templateKey) { [string]$request.templateKey } else { [string]$request.profileTemplateKey }))
+      $requestReplicaId = Normalize-GatewayTemplateMetadataValue -Value ([string]$request.replicaId) -MaxLength 80
+      if ($requestPoolKey -or $requestTemplateKey -or $requestReplicaId) {
+        Write-GatewayPoolLog ("elastic-request-start id={0} action={1} profiles={2} pool={3} template={4} replica={5}" -f $requestId, $action, ($profiles -join ","), $requestPoolKey, $requestTemplateKey, $requestReplicaId)
+      } else {
+        Write-GatewayPoolLog ("elastic-request-start id={0} action={1} profiles={2}" -f $requestId, $action, ($profiles -join ","))
+      }
       if ($action -eq "start") {
         if ($profiles.Count -eq 0) { throw "Gateway elastic start request missing profile." }
-        Start-LowGateways -Profiles $profiles -NoStopExisting:([bool]$request.noStopExisting) -ForceConfigure:([bool]$request.forceConfigure)
+        Start-LowGateways -Profiles $profiles -NoStopExisting:([bool]$request.noStopExisting) -ForceConfigure:([bool]$request.forceConfigure) -PoolKey $requestPoolKey -ProfileTemplateKey $requestProfileTemplateKey -TemplateKey $requestTemplateKey -ReplicaId $requestReplicaId
       } elseif ($action -eq "stop") {
         if ($profiles.Count -eq 0) { throw "Gateway elastic stop request missing profile." }
         Stop-LowGatewayProfiles -Profiles $profiles
@@ -1329,7 +1366,7 @@ try {
     exit 0
   }
   if ($StartProfiles.Count -gt 0) {
-    Start-LowGateways -Profiles $StartProfiles -NoStopExisting:$NoStopExisting -ForceConfigure:$ForceConfigure
+    Start-LowGateways -Profiles $StartProfiles -NoStopExisting:$NoStopExisting -ForceConfigure:$ForceConfigure -PoolKey $PoolKey -ProfileTemplateKey $ProfileTemplateKey -TemplateKey $TemplateKey -ReplicaId $ReplicaId
     exit 0
   }
 

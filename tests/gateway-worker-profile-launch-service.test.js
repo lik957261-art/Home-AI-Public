@@ -157,6 +157,92 @@ async function testScheduledTaskLaunchRequest() {
   fs.rmSync(toolRoot, { recursive: true, force: true });
 }
 
+async function testScheduledTaskLaunchRequestCarriesTemplateMetadata() {
+  const calls = [];
+  const toolRoot = tempToolRoot();
+  const launchRequestRoot = path.join(toolRoot, "elastic-requests");
+  let capturedRequest = null;
+  const service = createGatewayWorkerProfileLaunchService({
+    toolRoot,
+    launchRequestRoot,
+    scheduledTaskName: "Hermes Mobile Gateway Pool",
+    spawn: fakeSpawnFactory(calls, {
+      onSpawn: ({ command }) => {
+        if (command === "schtasks.exe") {
+          capturedRequest = writeFirstScheduledResult(launchRequestRoot);
+        }
+      },
+    }),
+  });
+
+  await service.startWorkerProfile({
+    profile: "lowgw10",
+    securityLevel: "user",
+    provider: "openai-codex",
+    allowedWorkspaceIds: ["owner"],
+    skillWorkspaceIds: ["owner"],
+    capabilityHash: "89b53f15d7138024",
+    apiKey: "secret-value-that-must-not-leak",
+  }, {
+    timeoutMs: 9000,
+    hints: {
+      workspaceId: "owner",
+      securityLevel: "user",
+      provider: "openai-codex",
+      toolSchemaEpoch: "epoch-20260604",
+    },
+  });
+
+  assert.equal(capturedRequest.poolKey, "owner|user|openai-codex");
+  assert.equal(capturedRequest.profileTemplateKey, "owner|user|openai-codex");
+  assert.equal(capturedRequest.templateKey, "owner|user|openai-codex");
+  assert.equal(capturedRequest.replicaId, "lowgw10");
+  assert.equal(capturedRequest.profileAlias, "lowgw10");
+  assert.equal(capturedRequest.workspaceId, "owner");
+  assert.equal(capturedRequest.permissionTier, "user");
+  assert.equal(capturedRequest.provider, "openai-codex");
+  assert.equal(capturedRequest.capabilityHash, "89b53f15d7138024");
+  assert.equal(capturedRequest.toolSchemaEpoch, "epoch-20260604");
+  assert.equal(JSON.stringify(capturedRequest).includes("secret-value"), false);
+  fs.rmSync(toolRoot, { recursive: true, force: true });
+}
+
+async function testDirectLaunchCarriesTemplateMetadataToPowerShell() {
+  const calls = [];
+  const toolRoot = tempToolRoot();
+  const service = createGatewayWorkerProfileLaunchService({
+    toolRoot,
+    spawn: fakeSpawnFactory(calls),
+  });
+
+  await service.startWorkerProfile({
+    profile: "lowgw10",
+    securityLevel: "user",
+    provider: "openai-codex",
+    allowedWorkspaceIds: ["owner"],
+    skillWorkspaceIds: ["owner"],
+  }, {
+    timeoutMs: 9000,
+    hints: {
+      workspaceId: "owner",
+      securityLevel: "user",
+      provider: "openai-codex",
+    },
+  });
+
+  const startIndex = calls[0].args.indexOf("-StartProfiles");
+  assert.notEqual(startIndex, -1);
+  assert.deepEqual(calls[0].args.slice(startIndex), [
+    "-StartProfiles", "lowgw10",
+    "-NoStopExisting",
+    "-PoolKey", "owner|user|openai-codex",
+    "-ProfileTemplateKey", "owner|user|openai-codex",
+    "-TemplateKey", "owner|user|openai-codex",
+    "-ReplicaId", "lowgw10",
+  ]);
+  fs.rmSync(toolRoot, { recursive: true, force: true });
+}
+
 async function testCustomProfileLaunchScriptForNasHybrid() {
   const calls = [];
   const toolRoot = tempToolRoot();
@@ -253,6 +339,8 @@ function testHelpersSanitizePublicState() {
   await testOwnerMaintenanceStartAndStopPolicy();
   await testScheduledOwnerMaintenanceLaunchRequestTargetsProfile();
   await testScheduledTaskLaunchRequest();
+  await testScheduledTaskLaunchRequestCarriesTemplateMetadata();
+  await testDirectLaunchCarriesTemplateMetadataToPowerShell();
   await testCustomProfileLaunchScriptForNasHybrid();
   await testScheduledTaskFailureDiagnosticsAreBounded();
   await testFailureDiagnosticsAreBounded();

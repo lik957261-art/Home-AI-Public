@@ -245,6 +245,17 @@ ports, or raw keys. Status and scheduler events may expose bounded
 operators can still map a selected replica back to launch scripts and logs
 without treating that alias as capability ownership.
 
+Cold-start launch requests must carry the same bounded template metadata into
+the process startup path. The standard listener path sends `poolKey`,
+`profileTemplateKey` / `templateKey`, `replicaId`, `profileAlias`, workspace
+id, permission tier, provider, and optional capability/schema hashes through
+scheduled-task request JSON or `start-gateway-pool.ps1` arguments. The launcher
+validates those values, logs only bounded metadata, and passes them to
+`start-low-gateways-child.ps1` / `start-low-gateways.sh` as
+`HERMES_GATEWAY_REQUEST_*` environment variables. These files must never carry
+raw API keys, workspace keys, OAuth tokens, MCP access keys, prompts, model
+output, or full generated config bodies.
+
 A plugin-bound run such as `taskGroupId=plugin:finance` must request the plugin
 toolset as a required routing hint. Target selection may then choose only a warm
 slot whose currently materialized template includes that toolset, or start a
