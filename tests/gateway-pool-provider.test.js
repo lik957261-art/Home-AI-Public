@@ -179,6 +179,42 @@ function testOrderingHonorsRequiredToolsetsWithinWorkspaceProfilePool() {
   );
 }
 
+function testOrderingPrefersOptionalToolsetsWithoutHardFiltering() {
+  const workers = [
+    normalizeWorker({
+      name: "owner-basic",
+      profile: "lowgw1",
+      port: 18751,
+      provider: "openai-codex",
+      securityLevel: "user",
+      allowedWorkspaceIds: ["owner"],
+      skillWorkspaceIds: ["owner"],
+      toolsets: ["web", "search"],
+    }),
+    normalizeWorker({
+      name: "owner-finance",
+      profile: "lowgw2",
+      port: 18752,
+      provider: "openai-codex",
+      securityLevel: "user",
+      allowedWorkspaceIds: ["owner"],
+      skillWorkspaceIds: ["owner"],
+      toolsets: ["web", "search", "finance"],
+    }),
+  ];
+  assert.deepEqual(
+    orderedWorkers(workers, 0, {
+      provider: "openai-codex",
+      securityLevel: "user",
+      workspaceId: "owner",
+      skillWorkspaceId: "owner",
+      requireSkillProfile: true,
+      preferredToolsets: ["finance"],
+    }).map((w) => w.name),
+    ["owner-finance", "owner-basic"],
+  );
+}
+
 async function testChooseTargetHonorsProfileConfigToolsets() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-gateway-profile-config-"));
   const goodProfileDir = path.join(dir, "telemetry", "profiles", "lowgw1");
@@ -694,6 +730,7 @@ async function testHybridStatusClearsStoppedWarmWorker() {
   testOrderingHonorsProviderAndPreferredProfileHints();
   testOrderingHonorsSkillWorkspaceHints();
   testOrderingHonorsRequiredToolsetsWithinWorkspaceProfilePool();
+  testOrderingPrefersOptionalToolsetsWithoutHardFiltering();
   await testChooseHealthyWorkerAndLookupSecretByUrl();
   await testChooseHonorsSkillWorkspaceIds();
   await testChooseTargetHonorsProfileConfigToolsets();

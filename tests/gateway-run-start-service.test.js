@@ -401,6 +401,90 @@ async function testOrdinaryRunPublishesPluginCapabilityCatalogWithoutEagerPlugin
   assert.deepEqual(assistant.runOptions.activeSchemaSet.active_toolsets, ["file", "web", "vision", "skills"]);
 }
 
+async function testOptionalPluginProbeKeepsAvailablePluginActive() {
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "web", "finance"],
+      authorized_toolsets: ["file", "web", "finance"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+    chooseGatewayRunTarget: async (routing) => {
+      calls.gatewayRouting.push(routing);
+      return {
+        apiBase: "http://worker.gateway",
+        apiKey: "worker-key",
+        name: "lowgw-finance",
+        profile: "lowgw-finance",
+        source: "worker_pool",
+        toolsets: ["file", "web", "finance"],
+      };
+    },
+  });
+  const assistant = baseAssistantMessage();
+
+  await service.startRunForThread(
+    baseThread({ workspaceId: "owner" }),
+    baseUserMessage({
+      senderWorkspaceId: "owner",
+      content: "\u67e5\u4e00\u4e0b\u8fd9\u4e2a\u6708\u6d88\u8d39",
+    }),
+    assistant,
+    { actorWorkspaceId: "owner" },
+  );
+
+  assert.deepEqual(calls.gatewayRouting[0].preferredToolsets, ["finance"]);
+  assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["file", "web", "finance"]);
+  assert.equal(calls.streams[0].body.access_policy_context.plugin_capability_catalog.find((entry) => entry.pluginId === "finance").status, "active");
+  assert.equal(calls.events.find((event) => event.event === "plugin_capability_activated").error, false);
+  assert.deepEqual(assistant.runOptions.pluginCapabilityProbeResults.map((item) => item.pluginId), ["finance"]);
+}
+
+async function testOptionalPluginProbeFailureRemovesPluginBeforeStream() {
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "web", "finance"],
+      authorized_toolsets: ["file", "web", "finance"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+    chooseGatewayRunTarget: async (routing) => {
+      calls.gatewayRouting.push(routing);
+      return {
+        apiBase: "http://worker.gateway",
+        apiKey: "worker-key",
+        name: "lowgw-basic",
+        profile: "lowgw-basic",
+        source: "worker_pool",
+        toolsets: ["file", "web"],
+      };
+    },
+  });
+  const assistant = baseAssistantMessage();
+
+  await service.startRunForThread(
+    baseThread({ workspaceId: "owner" }),
+    baseUserMessage({
+      senderWorkspaceId: "owner",
+      content: "\u67e5\u4e00\u4e0b\u8fd9\u4e2a\u6708\u6d88\u8d39",
+    }),
+    assistant,
+    { actorWorkspaceId: "owner" },
+  );
+
+  assert.deepEqual(calls.gatewayRouting[0].preferredToolsets, ["finance"]);
+  assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["file", "web"]);
+  const finance = calls.streams[0].body.access_policy_context.plugin_capability_catalog.find((entry) => entry.pluginId === "finance");
+  assert.equal(finance.status, "unavailable");
+  assert.equal(finance.diagnostic, "gateway_worker_missing_toolset");
+  const event = calls.events.find((item) => item.event === "plugin_capability_unavailable");
+  assert.equal(event.error, true);
+  assert.equal(JSON.parse(event.preview).toolset, "finance");
+  assert.deepEqual(assistant.runOptions.activeSchemaSet.unavailable_plugin_ids, ["finance"]);
+}
+
 async function testWardrobePluginTopicForcesSkillMcpStackAndPluginContext() {
   const preloadCalls = [];
   const requiredSkillPreloads = [{
@@ -1300,6 +1384,8 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testPluginTopicRequiresItsMcpToolsetForPolicyAndGatewayRouting();
   await testPluginTopicKeepsRequiredMcpWhenModelFirstNarrowsToolsets();
   await testOrdinaryRunPublishesPluginCapabilityCatalogWithoutEagerPluginMcp();
+  await testOptionalPluginProbeKeepsAvailablePluginActive();
+  await testOptionalPluginProbeFailureRemovesPluginBeforeStream();
   await testWardrobePluginTopicForcesSkillMcpStackAndPluginContext();
   testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext();
   await testStartRunPreservesSearchSourceRouting();

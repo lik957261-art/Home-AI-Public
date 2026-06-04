@@ -219,6 +219,10 @@ function requiredToolsetsForHints(hints = {}) {
   ]);
 }
 
+function preferredToolsetsForHints(hints = {}) {
+  return dedupeList(cleanList(hints.preferredToolsets || hints.preferred_toolsets));
+}
+
 function matchesExact(worker, hints = {}) {
   const profiles = new Set([...cleanList(hints.worker_profile), ...cleanList(hints.worker_profiles)]);
   const names = new Set([...cleanList(hints.worker_name), ...cleanList(hints.worker_names)]);
@@ -288,6 +292,26 @@ function orderedWorkers(workers, nextIndex, hints = {}) {
   }
 
   const ordered = [...preferred];
+  const preferredToolsets = preferredToolsetsForHints(hints);
+  if (preferredToolsets.length) {
+    const remaining = [];
+    for (let offset = 0; offset < workers.length; offset += 1) {
+      const worker = workers[(nextIndex + offset) % workers.length];
+      if (!seen.has(worker.id) && satisfiesFilter(worker, hints)) remaining.push(worker);
+    }
+    remaining.sort((left, right) => {
+      const leftToolsets = new Set(left.toolsets || []);
+      const rightToolsets = new Set(right.toolsets || []);
+      const leftScore = preferredToolsets.filter((toolset) => leftToolsets.has(toolset)).length;
+      const rightScore = preferredToolsets.filter((toolset) => rightToolsets.has(toolset)).length;
+      return rightScore - leftScore;
+    });
+    for (const worker of remaining) {
+      seen.add(worker.id);
+      ordered.push(worker);
+    }
+    return ordered;
+  }
   for (let offset = 0; offset < workers.length; offset += 1) {
     const worker = workers[(nextIndex + offset) % workers.length];
     if (!seen.has(worker.id) && satisfiesFilter(worker, hints)) {

@@ -1,6 +1,7 @@
 "use strict";
 
 const { createPluginCapabilityActivationService } = require("./plugin-capability-activation-service");
+const { createPluginCapabilityProbeService } = require("./plugin-capability-probe-service");
 
 const DEFAULT_TOOL_SCHEMA_EPOCH = "20260513-audio-file-v1";
 const DEFAULT_SINGLE_WINDOW_PROJECT_ID = "single-window";
@@ -277,11 +278,18 @@ function createGatewayRunStartService(options = {}) {
   const buildConversationHistory = maybeCall(options.buildConversationHistory, () => []);
   const buildHermesInstructions = maybeCall(options.buildHermesInstructions, () => "");
   const loadRequiredSkillPreloads = maybeCall(options.loadRequiredSkillPreloads, () => []);
+  const nowMs = maybeCall(options.nowMs, () => Date.now());
   const pluginCapabilityActivationService = options.pluginCapabilityActivationService
     || createPluginCapabilityActivationService({ dedupe });
   const buildPluginCapabilityContext = maybeCall(
     options.buildPluginCapabilityContext,
     (...args) => pluginCapabilityActivationService.buildRunPluginCapabilityContext(...args),
+  );
+  const pluginCapabilityProbeService = options.pluginCapabilityProbeService
+    || createPluginCapabilityProbeService({ dedupe, nowMs });
+  const probePluginCapabilities = maybeCall(
+    options.probePluginCapabilities,
+    (...args) => pluginCapabilityProbeService.probePluginCapabilities(...args),
   );
   const routeRunToolsets = maybeCall(options.routeRunToolsets, ({ policy }) => ({ policy: objectValue(policy), routing: null }));
   const makePublicTaskId = maybeCall(options.makePublicTaskId, () => `web_${Date.now()}`);
@@ -300,7 +308,6 @@ function createGatewayRunStartService(options = {}) {
   const threadSummary = maybeCall(options.threadSummary, (thread) => thread);
   const streamResponse = maybeCall(options.streamResponse, () => null);
   const selectRunToolsetsWithModel = typeof options.selectRunToolsetsWithModel === "function" ? options.selectRunToolsetsWithModel : null;
-  const nowMs = maybeCall(options.nowMs, () => Date.now());
   const runWebSearchMaxCalls = Math.max(0, Math.floor(Number(options.runWebSearchMaxCalls) || 0));
   const runExplicitWebSearchMaxCalls = Math.max(0, Math.floor(Number(options.runExplicitWebSearchMaxCalls) || 0));
 
@@ -494,6 +501,12 @@ function createGatewayRunStartService(options = {}) {
     if (pluginCapabilityContext) {
       gatewayRouting.activeSchemaSet = pluginCapabilityContext.activeSchemaSet;
       gatewayRouting.pluginCapabilityCatalog = pluginCapabilityContext.catalog;
+      if (pluginCapabilityContext.probeRequests?.length) {
+        gatewayRouting.preferredToolsets = dedupe([
+          ...(gatewayRouting.preferredToolsets || gatewayRouting.preferred_toolsets || []),
+          ...pluginCapabilityContext.probeRequests.map((item) => item.toolset),
+        ]);
+      }
       if (pluginCapabilityContext.omittedPluginToolsets?.length) {
         gatewayRouting.omittedPluginToolsets = pluginCapabilityContext.omittedPluginToolsets;
       }
@@ -583,6 +596,40 @@ function createGatewayRunStartService(options = {}) {
       event: thread.events?.[thread.events.length - 1],
       thread: threadSummary(thread),
     });
+  }
+
+  function appendPluginCapabilityProbeEvents(thread, assistantMessage, probeResults = []) {
+    const runId = cleanString(assistantMessage?.runId || assistantMessage?.taskId);
+    if (!thread || !runId) return;
+    for (const item of Array.isArray(probeResults) ? probeResults : []) {
+      const pluginId = cleanString(item?.pluginId || item?.plugin_id);
+      const toolset = cleanString(item?.toolset);
+      if (!pluginId || !toolset) continue;
+      const ok = item.ok === true || cleanString(item.status).toLowerCase() === "activated";
+      addThreadEvent(thread, {
+        event: ok ? "plugin_capability_activated" : "plugin_capability_unavailable",
+        timestamp: nowMs() / 1000,
+        runId,
+        tool: "plugin_capability",
+        preview: JSON.stringify({
+          pluginId,
+          toolset,
+          status: ok ? "activated" : "unavailable",
+          diagnostic: cleanString(item.diagnostic).slice(0, 120),
+          evidence: cleanString(item.evidence).slice(0, 80),
+          gatewayProfile: cleanString(item.gatewayProfile || item.gateway_profile).slice(0, 80),
+          duration_ms: Math.max(0, Number(item.durationMs || item.duration_ms || 0) || 0),
+        }),
+        error: !ok,
+      });
+      broadcast({
+        type: "run.event",
+        threadId: thread.id,
+        runId,
+        event: thread.events?.[thread.events.length - 1],
+        thread: threadSummary(thread),
+      });
+    }
   }
 
   function contextReadyPreview(request = {}) {
@@ -744,6 +791,9 @@ function createGatewayRunStartService(options = {}) {
     if (request.pluginCapabilityContext) {
       assistantMessage.runOptions.activeSchemaSet = request.pluginCapabilityContext.activeSchemaSet;
       assistantMessage.runOptions.pluginCapabilityCatalog = request.pluginCapabilityContext.catalog;
+      if (request.pluginCapabilityContext.probeResults?.length) {
+        assistantMessage.runOptions.pluginCapabilityProbeResults = request.pluginCapabilityContext.probeResults;
+      }
     }
     if (request.toolsetRouting) assistantMessage.runOptions.toolsetRouting = request.toolsetRouting;
     if (sourceRunOptions.searchSource) assistantMessage.runOptions.searchSource = cleanString(sourceRunOptions.searchSource);
@@ -829,8 +879,9 @@ function createGatewayRunStartService(options = {}) {
     broadcastMessageUpdated(thread, assistantMessage);
     appendRunStartEvent(thread, assistantMessage, "run.request_preparing", "正在准备上下文和选择 Gateway");
 
-    let request = buildRunRequest(thread, userMessage, assistantMessage, runOptions);
-    applyAssistantRunOptions(assistantMessage, request, runOptions);
+    let effectiveRunOptions = runOptions;
+    let request = buildRunRequest(thread, userMessage, assistantMessage, effectiveRunOptions);
+    applyAssistantRunOptions(assistantMessage, request, effectiveRunOptions);
     appendRequiredSkillPreloadEvents(thread, assistantMessage, request);
 
     const gatewayTarget = await chooseGatewayRunTarget(request.gatewayRouting, {
@@ -845,8 +896,39 @@ function createGatewayRunStartService(options = {}) {
     }
     saveState();
     broadcastMessageUpdated(thread, assistantMessage);
-    appendRunStartEvent(thread, assistantMessage, "run.context_ready", contextReadyPreview(request));
+    const probeRequests = Array.isArray(request.pluginCapabilityContext?.probeRequests)
+      ? request.pluginCapabilityContext.probeRequests
+      : [];
+    const hasGatewayToolsetMetadata = Array.isArray(gatewayTarget?.toolsets)
+      || Array.isArray(gatewayTarget?.enabledToolsets)
+      || Array.isArray(gatewayTarget?.enabled_toolsets);
+    const shouldProbePluginCapabilities = probeRequests.length
+      && (typeof options.probePluginCapabilities === "function" || hasGatewayToolsetMetadata);
+    if (!shouldProbePluginCapabilities) {
+      appendRunStartEvent(thread, assistantMessage, "run.context_ready", contextReadyPreview(request));
+    }
     appendRunStartEvent(thread, assistantMessage, "run.gateway_selected", gatewaySelectedPreview(gatewayTarget, request));
+    if (shouldProbePluginCapabilities) {
+      const probeResult = await probePluginCapabilities({
+        requests: probeRequests,
+        request,
+        gatewayTarget,
+        thread,
+        userMessage,
+        assistantMessage,
+        runOptions: effectiveRunOptions,
+      }) || {};
+      const probeResults = Array.isArray(probeResult.probes) ? probeResult.probes : [];
+      if (probeResults.length) {
+        effectiveRunOptions = Object.assign({}, effectiveRunOptions, {
+          pluginCapabilityProbeResults: probeResults,
+        });
+        request = buildRunRequest(thread, userMessage, assistantMessage, effectiveRunOptions);
+        applyAssistantRunOptions(assistantMessage, request, effectiveRunOptions);
+        appendPluginCapabilityProbeEvents(thread, assistantMessage, probeResults);
+      }
+      appendRunStartEvent(thread, assistantMessage, "run.context_ready", contextReadyPreview(request));
+    }
     const streamOptions = {
       gatewayUrl,
       gatewayApiKey: gatewayTarget?.apiKey || "",
@@ -865,7 +947,7 @@ function createGatewayRunStartService(options = {}) {
       streamOptions.runLivenessStaleAfterMs = 0;
       streamOptions.modelFirstByteWarningMs = CHATGPT_PRO_MIN_WAIT_MS;
     }
-    const forcedModelFirstSelection = objectValue(runOptions.modelFirstToolsetSelection, null);
+    const forcedModelFirstSelection = objectValue(effectiveRunOptions.modelFirstToolsetSelection, null);
     const forcedSelectedToolsets = dedupe(
       forcedModelFirstSelection?.selectedToolsets
       || forcedModelFirstSelection?.selected_toolsets
@@ -874,7 +956,7 @@ function createGatewayRunStartService(options = {}) {
     const skipModelFirstSelector = Boolean(
       forcedSelectedToolsets.length
       && (
-        runOptions.skipModelFirstToolsetSelection
+        effectiveRunOptions.skipModelFirstToolsetSelection
         || forcedModelFirstSelection?.skipSelector
         || forcedModelFirstSelection?.force
       ),
@@ -893,9 +975,9 @@ function createGatewayRunStartService(options = {}) {
       request.runPolicy = Object.assign({}, request.runPolicy || {}, { toolset_routing: request.toolsetRouting });
       request.body.access_policy_context = Object.assign({}, request.body.access_policy_context || {}, { toolset_routing: request.toolsetRouting });
       request.body.enabled_toolsets = dedupe(request.runPolicy?.allowed_toolsets || request.runPolicy?.allowedToolsets || request.body.enabled_toolsets || []);
-      applyAssistantRunOptions(assistantMessage, request, runOptions);
+      applyAssistantRunOptions(assistantMessage, request, effectiveRunOptions);
       appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_done", toolsetSelectionPreview(selection, forcedSelectedToolsets));
-    } else if (selectRunToolsetsWithModel && !isChatGptProRunOptions(runOptions)) {
+    } else if (selectRunToolsetsWithModel && !isChatGptProRunOptions(effectiveRunOptions)) {
       appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_started", "");
       let selection = null;
       try {
@@ -903,7 +985,7 @@ function createGatewayRunStartService(options = {}) {
           thread,
           userMessage,
           assistantMessage,
-          runOptions,
+          runOptions: effectiveRunOptions,
           request,
           gatewayTarget,
           taskId,
@@ -929,7 +1011,7 @@ function createGatewayRunStartService(options = {}) {
       }
       if (selection?.enabled && selection.ok && selectedToolsets.length) {
         const routing = toolsetSelectionRouting(selection, selectedToolsets);
-        const selectedRunOptions = Object.assign({}, runOptions, {
+        const selectedRunOptions = Object.assign({}, effectiveRunOptions, {
           modelFirstToolsetSelection: {
             selectedToolsets,
             toolsetSelectionDisabled: Boolean(selection.toolsetSelectionDisabled),

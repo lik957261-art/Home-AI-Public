@@ -298,8 +298,9 @@ function createGatewayRunInstructionService(options = {}) {
       const toolset = String(entry.toolset || entry.primaryToolset || entry.primary_toolset || "").trim();
       const status = String(entry.status || "catalog_only").trim();
       const summary = String(entry.summary || "Authorized plugin capability.").trim();
+      const diagnostic = String(entry.diagnostic || "").trim();
       if (!pluginId || !toolset) continue;
-      lines.push(`- ${pluginId} (${label}): ${status}; toolset=${toolset}; ${summary}`);
+      lines.push(`- ${pluginId} (${label}): ${status}; toolset=${toolset}; ${summary}${diagnostic ? ` Diagnostic: ${diagnostic}` : ""}`);
     }
     return lines.join("\n");
   }

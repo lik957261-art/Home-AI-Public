@@ -200,6 +200,16 @@ start that plugin MCP for unrelated ordinary chats; failed optional schema
 probes should mark the catalog entry unavailable and omit the optional MCP from
 the active schema set.
 
+Optional plugin activation is a soft scheduling preference before execution.
+Gateway run assembly may pass `preferredToolsets` for optional plugin candidates
+such as `finance` or `note`; Gateway Pool should prefer workers that declare
+those toolsets, but it must not hard-filter all candidates unless the toolset is
+also in `requiredToolsets` or `pluginToolsets`. After a target is selected,
+Hermes Mobile probes the selected worker's declared toolsets before streaming.
+If the selected worker lacks an optional plugin toolset, the run downgrades that
+plugin to catalog `unavailable`, emits `plugin_capability_unavailable`, and
+sends the model request without that optional MCP schema.
+
 Gateway capability should be template-owned, while Gateway profile instances
 should become reusable process/port slots. The target architecture uses a
 canonical template key of `workspaceId + securityLevel + provider`; for example

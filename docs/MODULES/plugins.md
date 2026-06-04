@@ -141,6 +141,13 @@ a bounded unavailable-plugin diagnostic instead of answering as if plugin data
 was inspected. Optional plugin failure must not poison unrelated ordinary chats
 or the current plugin's required bundle.
 
+Current run assembly performs a selected-worker availability gate for optional
+plugin activation. It prefers a worker that declares the optional plugin toolset
+but does not hard-fail ordinary chat when none is available. If the selected
+worker does not declare the optional plugin toolset, the plugin catalog entry is
+marked `unavailable`, a bounded `plugin_capability_unavailable` event is
+recorded, and the model request is sent without that optional MCP schema.
+
 Detailed design:
 
 - `docs/IMPLEMENTATION_NOTES/plugin-capability-activation.md`

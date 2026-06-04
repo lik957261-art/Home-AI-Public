@@ -135,6 +135,10 @@ or raw plugin credentials.
   activation. For example, a Wardrobe topic may activate Finance or Note when
   the newest request needs spending or note evidence, but those optional plugin
   schemas should not be injected into every Wardrobe run by default.
+- Optional cross-plugin activation failure is scoped to that optional plugin:
+  the catalog entry becomes `unavailable` and runtime emits a bounded
+  `plugin_capability_unavailable` event, while the current plugin topic's
+  required MCP/Skill bundle remains active.
 - Fixed plugin topics preload required Skill content server-side during Gateway
   run assembly. The model should not have to decide to call `skill_view` before
   seeing the required plugin rules. If a required Skill cannot be read from the

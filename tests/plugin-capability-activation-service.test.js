@@ -79,6 +79,7 @@ function testLatestTextCanDeterministicallyActivateFinancePlugin() {
 
   assert.deepEqual(result.policy.allowed_toolsets, ["file", "web", "vision", "skills", "finance"]);
   assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, ["finance"]);
+  assert.deepEqual(result.context.probeRequests.map((item) => item.pluginId), ["finance"]);
   assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "note"]);
   assert.equal(catalogByPlugin(result.context).finance.status, "active");
 }
@@ -103,9 +104,61 @@ function testForcedEscalationRetryActivatesSelectedPluginToolset() {
   assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "note"]);
 }
 
+function testFailedProbeResultRemovesOptionalPluginFromActiveSchema() {
+  const service = createService();
+  const result = service.buildRunPluginCapabilityContext({
+    policy: basePolicy(),
+    userMessage: { content: "\u67e5\u4e00\u4e0b\u8fd9\u4e2a\u6708\u6d88\u8d39" },
+    runOptions: {
+      pluginCapabilityProbeResults: [{
+        pluginId: "finance",
+        toolset: "finance",
+        ok: false,
+        diagnostic: "gateway_worker_missing_toolset",
+        evidence: "gateway_worker_manifest_toolsets",
+      }],
+    },
+  });
+
+  assert.deepEqual(result.policy.allowed_toolsets, ["file", "web", "vision", "skills"]);
+  assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, []);
+  assert.deepEqual(result.context.activeSchemaSet.unavailable_plugin_ids, ["finance"]);
+  assert.deepEqual(result.context.probeRequests, []);
+  const catalog = catalogByPlugin(result.context);
+  assert.equal(catalog.finance.status, "unavailable");
+  assert.equal(catalog.finance.availability, "unavailable");
+  assert.equal(catalog.finance.diagnostic, "gateway_worker_missing_toolset");
+}
+
+function testSuccessfulProbeResultKeepsOptionalPluginActiveWithEvidence() {
+  const service = createService();
+  const result = service.buildRunPluginCapabilityContext({
+    policy: basePolicy(),
+    userMessage: { content: "\u67e5\u4e00\u4e0b\u8fd9\u4e2a\u6708\u6d88\u8d39" },
+    runOptions: {
+      pluginCapabilityProbeResults: [{
+        pluginId: "finance",
+        toolset: "finance",
+        ok: true,
+        diagnostic: "gateway_worker_declares_toolset",
+        evidence: "gateway_worker_manifest_toolsets",
+      }],
+    },
+  });
+
+  assert.deepEqual(result.policy.allowed_toolsets, ["file", "web", "vision", "skills", "finance"]);
+  assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, ["finance"]);
+  assert.deepEqual(result.context.probeRequests, []);
+  const catalog = catalogByPlugin(result.context);
+  assert.equal(catalog.finance.status, "active");
+  assert.equal(catalog.finance.activationEvidence, "gateway_worker_manifest_toolsets");
+}
+
 testOrdinaryChatKeepsAuthorizedPluginCatalogButDoesNotActivatePluginMcps();
 testPluginTopicForcesCurrentPluginAndLeavesOtherPluginsCatalogOnly();
 testLatestTextCanDeterministicallyActivateFinancePlugin();
 testForcedEscalationRetryActivatesSelectedPluginToolset();
+testFailedProbeResultRemovesOptionalPluginFromActiveSchema();
+testSuccessfulProbeResultKeepsOptionalPluginActiveWithEvidence();
 
 console.log("plugin capability activation service tests passed");

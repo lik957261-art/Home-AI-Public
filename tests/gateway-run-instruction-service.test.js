@@ -270,7 +270,7 @@ function testPluginCapabilityCatalogInstructionsSeparateActiveAndCatalogOnlyPlug
         omittedPluginToolsets: ["finance", "note"],
         catalog: [
           { pluginId: "wardrobe", label: "Wardrobe", toolset: "wardrobe", status: "active", summary: "Inspect wardrobe state." },
-          { pluginId: "finance", label: "Finance", toolset: "finance", status: "catalog_only", summary: "Inspect ledgers." },
+          { pluginId: "finance", label: "Finance", toolset: "finance", status: "unavailable", diagnostic: "gateway_worker_missing_toolset", summary: "Inspect ledgers." },
           { pluginId: "note", label: "Notes", toolset: "note", status: "catalog_only", summary: "Inspect notes." },
         ],
       },
@@ -281,7 +281,8 @@ function testPluginCapabilityCatalogInstructionsSeparateActiveAndCatalogOnlyPlug
   assert.match(text, /Active plugin MCP\/toolsets: wardrobe/);
   assert.match(text, /Catalog-only plugin MCP\/toolsets: finance, note/);
   assert.match(text, /HERMES_TOOLSET_ESCALATION_REQUIRED/);
-  assert.match(text, /finance \(Finance\): catalog_only; toolset=finance/);
+  assert.match(text, /finance \(Finance\): unavailable; toolset=finance/);
+  assert.match(text, /Diagnostic: gateway_worker_missing_toolset/);
   assert.doesNotMatch(text, /`finance` toolset is enabled/);
   assert.doesNotMatch(text, /mcp_finance_list_ledgers/);
 }

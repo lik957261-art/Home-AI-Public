@@ -1,8 +1,9 @@
 # Plugin Capability Activation And Lazy MCP Loading
 
-Status: first runtime phase implemented for run assembly, prompt injection, and
-focused unit coverage. Live optional-plugin health/schema probing remains a
-follow-up phase.
+Status: runtime activation, prompt injection, selected-worker availability
+probing, bounded events, production sync, and focused unit coverage are
+implemented. Full per-plugin deep schema smoke remains a separate operations
+probe and is not run on every ordinary chat.
 
 ## Goal
 
@@ -43,16 +44,23 @@ The first implementation is intentionally service-first and run-assembly scoped:
 - `adapters/gateway-run-instruction-service.js` injects catalog-only plugin
   instructions separately from active callable hints, so catalog entries do not
   look like loaded MCP schemas.
+- `adapters/plugin-capability-probe-service.js` validates optional active
+  plugin candidates against the selected Gateway worker's declared toolsets
+  before the model request is sent. A failed optional probe removes that plugin
+  from `enabled_toolsets`, marks its catalog entry `unavailable`, and emits a
+  bounded `plugin_capability_unavailable` event. A successful probe emits
+  `plugin_capability_activated`.
 - `adapters/gateway-runtime-composition-service.js` and
   `mobile-server-runtime.js` wire the service into production runtime
   composition.
 
-The current phase does not start optional plugin MCPs during the first run.
 Optional plugins stay catalog-only unless the deterministic policy activates
 them from fixed plugin context, high-confidence aliases, suggested toolsets, or
-an explicit escalation retry. A catalog-only plugin that becomes necessary must
-still use the existing `HERMES_TOOLSET_ESCALATION_REQUIRED` retry path before
-the model claims plugin facts.
+an explicit escalation retry. Optional activation is soft: Gateway Pool receives
+`preferredToolsets` to favor a compatible worker, but the worker choice does not
+fail the entire run merely because an optional plugin is absent. If the selected
+worker cannot prove the optional plugin toolset is available, runtime downgrades
+that plugin to catalog `unavailable` before streaming.
 
 ### Ordinary Chat
 
@@ -212,8 +220,12 @@ Implementation should add or update focused tests for:
   catalog entries for other plugins (`node
   tests\plugin-capability-activation-service.test.js`, `node
   tests\gateway-run-start-service.test.js`);
-- optional plugin activation checks workspace authorization, config/key
-  completeness, health/schema probe, and no Owner fallback;
+- optional plugin activation checks workspace authorization, worker schema
+  availability, and no Owner fallback (`node
+  tests\plugin-capability-probe-service.test.js`, `node
+  tests\plugin-capability-activation-service.test.js`, `node
+  tests\gateway-run-start-service.test.js`, `node
+  tests\gateway-pool-provider.test.js`);
 - required plugin failure emits a bounded diagnostic and blocks generic
   fallback;
 - optional plugin failure does not slow or fail unrelated ordinary chat;
