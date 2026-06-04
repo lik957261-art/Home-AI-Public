@@ -482,20 +482,88 @@ function Ensure-OwnerMaintenanceProfileConfig {
   if ($parent -and -not (Test-Path -LiteralPath $parent)) {
     New-Item -ItemType Directory -Force -Path $parent | Out-Null
   }
+  $profile = Split-Path -Leaf $parent
+  if (-not $profile) { $profile = "owner-maintenance" }
+  $profileRoot = "/home/$OfficialUser/.hermes/profiles/$profile"
+  try {
+    $gatewayWorkerRootWsl = Convert-GatewayPoolWindowsPathToWslPath -Distro $OfficialDistro -User $OfficialUser -WindowsPath $GatewayWorkerRoot
+  } catch {
+    $gatewayWorkerRootWsl = "/mnt/c/ProgramData/HermesMobile/gateway-worker"
+  }
+  $programDataRoot = Split-Path -Parent $GatewayWorkerRoot
+  $ownerWorkspaceWindows = Join-Path $programDataRoot "data\drive\users\owner"
+  try {
+    $ownerWorkspace = Convert-GatewayPoolWindowsPathToWslPath -Distro $OfficialDistro -User $OfficialUser -WindowsPath $ownerWorkspaceWindows
+  } catch {
+    $ownerWorkspace = "/mnt/c/ProgramData/HermesMobile/data/drive/users/owner"
+  }
+  $financeApiBaseUrl = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_FINANCE_MCP_API_BASE_URL")
+  if (-not $financeApiBaseUrl) { $financeApiBaseUrl = [Environment]::GetEnvironmentVariable("HERMES_WEB_FINANCE_MCP_API_BASE_URL") }
+  if (-not $financeApiBaseUrl) { $financeApiBaseUrl = "http://127.0.0.1:8791" }
+  $noteApiBaseUrl = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_NOTE_MCP_API_BASE_URL")
+  if (-not $noteApiBaseUrl) { $noteApiBaseUrl = [Environment]::GetEnvironmentVariable("HERMES_WEB_NOTE_MCP_API_BASE_URL") }
+  if (-not $noteApiBaseUrl) { $noteApiBaseUrl = "http://127.0.0.1:4181" }
   $normalizedProvider = ([string]$Provider).Trim().ToLowerInvariant()
   if ($normalizedProvider -eq "deepseek") {
     $modelBlock = "model:`n  default: deepseek-chat`n  provider: deepseek"
-    $skillsToolset = "`n  - skills"
   } else {
     $modelBlock = "model:`n  default: gpt-5.5`n  provider: openai-codex`n  base_url: https://chatgpt.com/backend-api/codex"
-    $skillsToolset = ""
   }
   $text = @"
 $modelBlock
 toolsets:
+  - web
+  - search
+  - x_search
+  - browser
+  - file
+  - vision
+  - video
+  - image_gen
+  - messaging
+  - tts
+  - skills
+  - todo
+  - kanban
+  - cronjob
+  - memory
+  - session_search
+  - clarify
+  - weather
+  - http
+  - cronjob_mobile
+  - wardrobe
+  - finance
+  - note
   - chatgpt_pro
   - hermes-cli
-$skillsToolset
+platform_toolsets:
+  api_server:
+    - web
+    - search
+    - x_search
+    - browser
+    - file
+    - vision
+    - video
+    - image_gen
+    - messaging
+    - tts
+    - skills
+    - todo
+    - kanban
+    - cronjob
+    - memory
+    - session_search
+    - clarify
+    - weather
+    - http
+    - cronjob_mobile
+    - wardrobe
+    - finance
+    - note
+    - chatgpt_pro
+    - hermes-cli
 agent:
   max_turns: 60
   reasoning_effort: medium
@@ -511,11 +579,60 @@ platforms:
       port: $Port
 plugins:
   enabled:
+    - hermes-mobile-weather
+    - hermes-mobile-web
+    - hermes-mobile-http
+    - hermes-mobile-docx
+    - hermes-mobile-audio
+    - hermes-mobile-image
+    - hermes-mobile-cronjob
     - hermes-mobile-chatgpt-pro
 worker_pool:
   enabled: false
 cron:
   enabled: false
+mcp_servers:
+  wardrobe:
+    command: /opt/hermes-gateway-runtime/venv/bin/python
+    args:
+      - $gatewayWorkerRootWsl/wardrobe-mcp/scripts/wardrobe-mcp.py
+      - --workspace
+      - $ownerWorkspace
+      - --no-workspace-override
+    env:
+      HERMES_HOME: $profileRoot
+      PYTHONPATH: /opt/hermes-gateway-runtime/official-clean
+    enabled: true
+    timeout: 180
+    connect_timeout: 60
+  finance:
+    command: /opt/hermes-gateway-runtime/venv/bin/python
+    args:
+      - $gatewayWorkerRootWsl/finance-mcp/scripts/finance_mcp_stdio.py
+      - --workspace
+      - $ownerWorkspace
+      - --no-workspace-override
+      - --api-base-url
+      - $financeApiBaseUrl
+    env:
+      HERMES_HOME: $profileRoot
+    enabled: true
+    timeout: 180
+    connect_timeout: 60
+  note:
+    command: /opt/hermes-gateway-runtime/venv/bin/python
+    args:
+      - $gatewayWorkerRootWsl/note-mcp/scripts/note_mcp_stdio.py
+      - --workspace
+      - $ownerWorkspace
+      - --no-workspace-override
+      - --api-base-url
+      - $noteApiBaseUrl
+    env:
+      HERMES_HOME: $profileRoot
+      HERMES_PROFILE: $profile
+    startup_timeout: 60
+    connect_timeout: 60
 "@
   $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
   [System.IO.File]::WriteAllText($ConfigPath, $text, $utf8NoBom)
@@ -526,37 +643,53 @@ function Install-OwnerMaintenanceChatGptProPlugin {
   $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
   $workers = @($manifest.workers | Where-Object { Is-OwnerMaintenanceWorker -Worker $_ })
   if ($workers.Count -eq 0) { return }
-  $pluginName = "hermes-mobile-chatgpt-pro"
-  $programRoot = Split-Path -Parent $PSScriptRoot
-  $sourceCandidates = @(
-    (Join-Path $programRoot "app\gateway-plugins\$pluginName"),
-    (Join-Path $programRoot "gateway-plugins\$pluginName"),
-    (Join-Path (Split-Path -Parent $programRoot) "gateway-plugins\$pluginName")
+  $pluginNames = @(
+    "hermes-mobile-weather",
+    "hermes-mobile-web",
+    "hermes-mobile-http",
+    "hermes-mobile-docx",
+    "hermes-mobile-audio",
+    "hermes-mobile-image",
+    "hermes-mobile-cronjob",
+    "hermes-mobile-chatgpt-pro"
   )
-  $source = [string]($sourceCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1)
-  if (-not (Test-Path -LiteralPath $source)) { throw "Missing ChatGPT Pro plugin source: $source" }
+  $programRoot = Split-Path -Parent $PSScriptRoot
   $pluginsRoot = "\\wsl.localhost\$OfficialDistro\home\$OfficialUser\.hermes\plugins"
   if (-not (Test-Path -LiteralPath $pluginsRoot)) {
     New-Item -ItemType Directory -Force -Path $pluginsRoot | Out-Null
   }
-  $target = Join-Path $pluginsRoot $pluginName
-  if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
-  Copy-Item -LiteralPath $source -Destination $target -Recurse -Force
+  foreach ($pluginName in $pluginNames) {
+    $sourceCandidates = @(
+      (Join-Path $programRoot "app\gateway-plugins\$pluginName"),
+      (Join-Path $programRoot "gateway-plugins\$pluginName"),
+      (Join-Path (Split-Path -Parent $programRoot) "gateway-plugins\$pluginName")
+    )
+    $source = [string]($sourceCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1)
+    if (-not (Test-Path -LiteralPath $source)) { throw "Missing owner-maintenance plugin source: $pluginName" }
+    $target = Join-Path $pluginsRoot $pluginName
+    if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
+    Copy-Item -LiteralPath $source -Destination $target -Recurse -Force
+    foreach ($worker in $workers) {
+      $profile = [string]$worker.profile
+      Assert-SafeGatewayProfileName -Profile $profile
+      $configPath = "\\wsl.localhost\$OfficialDistro\home\$OfficialUser\.hermes\profiles\$profile\config.yaml"
+      $profilePluginRoot = "\\wsl.localhost\$OfficialDistro\home\$OfficialUser\.hermes\profiles\$profile\plugins"
+      if (-not (Test-Path -LiteralPath $profilePluginRoot)) {
+        New-Item -ItemType Directory -Force -Path $profilePluginRoot | Out-Null
+      }
+      $profilePluginTarget = Join-Path $profilePluginRoot $pluginName
+      if (Test-Path -LiteralPath $profilePluginTarget) { Remove-Item -LiteralPath $profilePluginTarget -Recurse -Force }
+      Copy-Item -LiteralPath $source -Destination $profilePluginTarget -Recurse -Force
+      Ensure-ProfilePluginEnabled -ConfigPath $configPath -PluginName $pluginName
+    }
+  }
   foreach ($worker in $workers) {
     $profile = [string]$worker.profile
     Assert-SafeGatewayProfileName -Profile $profile
     $configPath = "\\wsl.localhost\$OfficialDistro\home\$OfficialUser\.hermes\profiles\$profile\config.yaml"
-    $profilePluginRoot = "\\wsl.localhost\$OfficialDistro\home\$OfficialUser\.hermes\profiles\$profile\plugins"
-    if (-not (Test-Path -LiteralPath $profilePluginRoot)) {
-      New-Item -ItemType Directory -Force -Path $profilePluginRoot | Out-Null
-    }
-    $profilePluginTarget = Join-Path $profilePluginRoot $pluginName
-    if (Test-Path -LiteralPath $profilePluginTarget) { Remove-Item -LiteralPath $profilePluginTarget -Recurse -Force }
-    Copy-Item -LiteralPath $source -Destination $profilePluginTarget -Recurse -Force
-    Ensure-ProfilePluginEnabled -ConfigPath $configPath -PluginName $pluginName
     Ensure-ProfileToolsetEnabled -ConfigPath $configPath -ToolsetName "chatgpt_pro"
   }
-  Write-GatewayPoolLog "Installed ChatGPT Pro plugin for owner-maintenance profiles."
+  Write-GatewayPoolLog "Installed owner-maintenance plugins."
 }
 
 function Ensure-LowGatewayProfileEnv {
@@ -916,6 +1049,8 @@ PY
     $provider = ([string]$worker.provider).Trim().ToLowerInvariant()
     $configPath = "\\wsl.localhost\$OfficialDistro\home\$OfficialUser\.hermes\profiles\$profile\config.yaml"
     Ensure-OwnerMaintenanceProfileConfig -ConfigPath $configPath -Port ([int]$worker.port) -Provider $provider
+    $telemetryConfigPath = Join-Path (Join-Path (Join-Path $GatewayWorkerRoot "telemetry\profiles") $profile) "config.yaml"
+    Ensure-OwnerMaintenanceProfileConfig -ConfigPath $telemetryConfigPath -Port ([int]$worker.port) -Provider $provider
     $profileRoot = "/home/$OfficialUser/.hermes/profiles/$profile"
     $profileMemoryPath = "$profileRoot/memories"
     [void]$commands.Add("mkdir -p /home/$OfficialUser/.hermes/profiles/$profile/logs")
@@ -925,10 +1060,10 @@ PY
     if ($sharedMemoryEnabled) {
       Add-OwnerMaintenanceSharedMemoryCommands -Commands $commands -ProfileRoot $profileRoot -ProfileMemoryPath $profileMemoryPath -SharedMemoryPath $sharedMemoryPath
     }
+    [void]$commands.Add("mkdir -p $ownerSkillStore")
+    [void]$commands.Add("if [ -L $profileRoot/skills ]; then rm -f $profileRoot/skills; fi; if [ ! -e $profileRoot/skills ]; then ln -sfn $ownerSkillStore $profileRoot/skills; elif [ ! -L $profileRoot/skills ]; then echo owner_maintenance_skills_directory_exists_keeping_profile_local:$profileRoot/skills >&2; fi")
     if ($provider -eq "deepseek") {
       [void]$commands.Add("if [ -z `"`$deepseek_api_key`" ]; then echo missing DeepSeek API key for $profile >&2; exit 1; fi")
-      [void]$commands.Add("mkdir -p $ownerSkillStore")
-      [void]$commands.Add("if [ -L $profileRoot/skills ]; then rm -f $profileRoot/skills; fi; if [ ! -e $profileRoot/skills ]; then ln -sfn $ownerSkillStore $profileRoot/skills; elif [ ! -L $profileRoot/skills ]; then echo owner_maintenance_skills_directory_exists_keeping_profile_local:$profileRoot/skills >&2; fi")
     }
     [void]$commands.Add("api_server_key=`$(manifest_api_key $profile)")
     [void]$commands.Add("if [ -z `"`$api_server_key`" ]; then echo owner-maintenance gateway API key missing for $profile >&2; exit 1; fi")

@@ -59,7 +59,7 @@ the verifier.
 Phase 4 adds actual template YAML rendering:
 
 - `scripts/build-gateway-profile-template.js` now supports
-  `--render-config-yaml --config-kind <base|profile|grok>` with repeated
+  `--render-config-yaml --config-kind <base|profile|grok|maintenance>` with repeated
   `--value key=value` inputs.
 - `scripts/configure-low-gateways.sh` writes the base low-permission config,
   `lowgw*` / `deepseekgw*` profile configs, and `grokgw*` profile configs
@@ -120,6 +120,41 @@ Production validation confirmed:
   `owner|user|openai-codex` with capability hash `89b53f15d7138024`;
 - no raw config body, manifest API key, or test secret marker appeared in the
   status projection.
+
+Phase 6 completes the production high-permission profile coverage:
+
+- `--config-kind maintenance` renders Owner maintenance configs for
+  `officialclean*` and `deepseekmaint*`.
+- ChatGPT Codex maintenance profiles are no longer a narrow
+  `chatgpt_pro + hermes-cli` surface. They include the Owner low standard
+  toolsets, Owner MCP bindings (`wardrobe`, `finance`, `note`), the standard
+  Hermes Mobile plugins, `skills`, `chatgpt_pro`, and `hermes-cli`.
+- DeepSeek maintenance stays provider-specific (`provider: deepseek`,
+  `default: deepseek-chat`) while keeping the same high-permission public
+  tool/schema surface.
+- `scripts/start-gateway-pool.ps1` now writes both the WSL `HERMES_HOME`
+  `config.yaml` and the telemetry profile mirror for Owner maintenance workers.
+  It also links `officialclean*` and `deepseekmaint*` to
+  `owner-full/skills`, instead of linking only DeepSeek maintenance profiles.
+- Owner maintenance startup now installs the full maintenance plugin set into
+  each maintenance profile, not only `hermes-mobile-chatgpt-pro`.
+
+The maintained local Windows production sync for Phase 6 backed up the prior
+runtime scripts under
+`C:\ProgramData\HermesMobile\backups\20260604-maintenance-profile-complete-20260604-090144`.
+Production validation confirmed:
+
+- `officialclean1`, `officialclean2`, and `deepseekmaint1` configs were
+  materialized in both telemetry profile roots and WSL profile homes;
+- each maintenance profile had `config.yaml`, an `owner-full/skills` symlink,
+  and 8 plugin directories;
+- the production full verifier passed with 28 profiles, 19 template groups, and
+  no issues;
+- the production owner-maintenance start path started
+  `officialclean1,officialclean2,deepseekmaint1` to healthy and then stopped
+  them successfully;
+- authenticated status on port `8797` returned `ok=true`, `health=ok`,
+  `activeGlobal=0`, and `queueDepth=0` after cleanup.
 
 ## Problem
 
@@ -292,7 +327,8 @@ Required focused tests/harnesses:
    materialized same-template peer groups through the existing shell generator.
    Phase 3 added the dedicated builder/query utility. Phase 4 moved low Gateway
    YAML body rendering for base, low/deepseek, and Grok profiles into that
-   builder while keeping shell fallback.
+   builder while keeping shell fallback. Phase 6 added Owner maintenance
+   high-permission rendering for `officialclean*` and `deepseekmaint*`.
 3. Make startup materialize the selected template into a stopped slot before
    process launch. Completed for low Gateway same-template peer groups in Phase
    2 while preserving existing slot ids.

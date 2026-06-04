@@ -325,10 +325,43 @@ function renderGrokConfigYaml(values = {}) {
   return `${lines.join("\n")}\n`;
 }
 
+function renderMaintenanceConfigYaml(values = {}) {
+  const profile = valueMapValue(values, "profile");
+  const port = valueMapValue(values, "port");
+  const provider = valueMapValue(values, "provider").toLowerCase();
+  const isDeepSeek = provider === "deepseek" || /^deepseekmaint\d+$/i.test(profile);
+  const lines = [
+    "model:",
+    `  default: ${isDeepSeek ? "deepseek-chat" : "gpt-5.5"}`,
+    `  provider: ${isDeepSeek ? "deepseek" : "openai-codex"}`,
+  ];
+  if (!isDeepSeek) lines.push("  base_url: https://chatgpt.com/backend-api/codex");
+  const extras = standardExtraToolsets(values);
+  if (boolValue(values.wardrobe_enabled)) extras.push("wardrobe");
+  if (boolValue(values.finance_enabled)) extras.push("finance");
+  if (boolValue(values.note_enabled)) extras.push("note");
+  if (boolValue(values.outlook_graph_enabled)) extras.push("outlook_graph");
+  const toolsets = [
+    ...STANDARD_TOOLSETS,
+    ...extras,
+    "chatgpt_pro",
+    "hermes-cli",
+  ];
+  appendStandardBase(lines, toolsets, toolsets, dedupe([
+    ...standardPluginNames(values),
+    "hermes-mobile-chatgpt-pro",
+  ]));
+  appendRuntimeSections(lines, port);
+  appendWorkerPoolSections(lines);
+  appendMcpServers(lines, mcpServersForProfile(values));
+  return `${lines.join("\n")}\n`;
+}
+
 function renderGatewayConfigYaml(options = {}) {
   const kind = cleanString(options.configKind || options.values?.config_kind || "profile").toLowerCase();
   if (kind === "base") return renderBaseConfigYaml(options.values || {});
   if (kind === "grok") return renderGrokConfigYaml(options.values || {});
+  if (kind === "maintenance") return renderMaintenanceConfigYaml(options.values || {});
   if (kind === "profile") return renderProfileConfigYaml(options.values || {});
   throw new Error(`unsupported_config_kind:${kind}`);
 }
@@ -542,7 +575,7 @@ function parseArgs(argv = []) {
         "  --json                            Print JSON result",
         "  --print-configure-profiles        Print selected template peer profiles as CSV",
         "  --render-config-yaml              Render a config.yaml body from canonical template rules",
-        "  --config-kind <base|profile|grok> Config type for --render-config-yaml",
+        "  --config-kind <base|profile|grok|maintenance> Config type for --render-config-yaml",
         "  --value <key=value>               Template render value; repeat as needed",
       ].join("\n"));
       process.exit(0);

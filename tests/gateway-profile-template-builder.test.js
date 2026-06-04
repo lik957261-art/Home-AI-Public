@@ -144,7 +144,7 @@ function testRenderProfileConfigYaml() {
       values: {
         profile: "lowgw10",
         port: "18760",
-        profile_link: "/home/hermes/.hermes/profiles/lowgw10",
+        profile_link: "/profiles/lowgw10",
         weather_plugin_enabled: "1",
         web_plugin_enabled: "1",
         http_plugin_enabled: "1",
@@ -166,7 +166,7 @@ function testRenderProfileConfigYaml() {
         note_workspace: "/mnt/c/ProgramData/HermesMobile/data/drive/users/owner",
         note_mcp_api_base_url: "http://127.0.0.1:4181",
         outlook_graph_enabled: "1",
-        outlook_graph_mcp_path: "/home/hermes/scripts/outlook_graph_mcp.py",
+        outlook_graph_mcp_path: "/runtime/scripts/outlook_graph_mcp.py",
       },
     });
     const capabilities = readRenderedCapabilities(root, "profile", yaml);
@@ -196,7 +196,7 @@ function testRenderDeepSeekAndGrokConfigYaml() {
       values: {
         profile: "deepseekgw1",
         port: "18770",
-        profile_link: "/home/hermes/.hermes/profiles/deepseekgw1",
+        profile_link: "/profiles/deepseekgw1",
         wardrobe_enabled: "1",
         wardrobe_mcp_path: "/mnt/c/wardrobe.py",
         wardrobe_workspace: "/mnt/c/owner",
@@ -221,10 +221,65 @@ function testRenderDeepSeekAndGrokConfigYaml() {
   });
 }
 
+function testRenderMaintenanceConfigYaml() {
+  withFixture((root) => {
+    const official = readRenderedCapabilities(root, "officialclean", renderGatewayConfigYaml({
+      configKind: "maintenance",
+      values: {
+        profile: "officialclean1",
+        port: "18651",
+        provider: "openai-codex",
+        profile_link: "/profiles/officialclean1",
+        weather_plugin_enabled: "1",
+        web_plugin_enabled: "1",
+        http_plugin_enabled: "1",
+        docx_plugin_enabled: "1",
+        audio_plugin_enabled: "1",
+        image_plugin_enabled: "1",
+        cronjob_plugin_enabled: "1",
+        wardrobe_enabled: "1",
+        wardrobe_mcp_path: "/mnt/c/wardrobe.py",
+        wardrobe_workspace: "/mnt/c/owner",
+        finance_enabled: "1",
+        finance_mcp_python: "/opt/hermes-gateway-runtime/venv/bin/python",
+        finance_mcp_path: "/mnt/c/finance.py",
+        finance_workspace: "/mnt/c/owner",
+        finance_mcp_api_base_url: "http://127.0.0.1:8791",
+        note_enabled: "1",
+        note_mcp_python: "/opt/hermes-gateway-runtime/venv/bin/python",
+        note_mcp_path: "/mnt/c/note.py",
+        note_workspace: "/mnt/c/owner",
+        note_mcp_api_base_url: "http://127.0.0.1:4181",
+      },
+    }));
+    assert.equal(official.modelProvider, "openai-codex");
+    for (const toolset of ["web", "file", "skills", "wardrobe", "finance", "note", "weather", "http", "cronjob_mobile", "chatgpt_pro", "hermes-cli"]) {
+      assert.equal(official.toolsets.includes(toolset), true, `missing maintenance toolset ${toolset}`);
+      assert.equal(official.apiServerToolsets.includes(toolset), true, `missing maintenance api toolset ${toolset}`);
+    }
+    assert.deepEqual(official.mcpServers, ["finance", "note", "wardrobe"]);
+    assert.equal(official.plugins.includes("hermes-mobile-chatgpt-pro"), true);
+    assert.equal(official.plugins.includes("hermes-mobile-web"), true);
+
+    const deepseekMaintenance = readRenderedCapabilities(root, "deepseekmaint", renderGatewayConfigYaml({
+      configKind: "maintenance",
+      values: {
+        profile: "deepseekmaint1",
+        port: "18653",
+      },
+    }));
+    assert.equal(deepseekMaintenance.modelDefault, "deepseek-chat");
+    assert.equal(deepseekMaintenance.modelProvider, "deepseek");
+    assert.equal(deepseekMaintenance.toolsets.includes("skills"), true);
+    assert.equal(deepseekMaintenance.toolsets.includes("chatgpt_pro"), true);
+  });
+}
+
 testSelectedProfileExpandsToTemplatePeers();
 testProviderAndTierStaySeparate();
 testDriftIsReportedWithoutRawConfig();
 testRenderProfileConfigYaml();
 testRenderDeepSeekAndGrokConfigYaml();
+testRenderMaintenanceConfigYaml();
 
 console.log("gateway profile template builder tests passed");
