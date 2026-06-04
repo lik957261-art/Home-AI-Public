@@ -5298,13 +5298,17 @@ button.directory-alias-chip {
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: contain;
+  scroll-behavior: smooth;
   scroll-snap-type: x proximity;
   scrollbar-width: none;
+  touch-action: pan-x;
   -webkit-overflow-scrolling: touch;
 }
 
 .plugin-app-strip-sorting {
   scroll-snap-type: none;
+  touch-action: none;
+  cursor: grabbing;
 }
 
 .plugin-app-strip::-webkit-scrollbar {
@@ -5326,10 +5330,14 @@ button.directory-alias-chip {
   border-radius: 10px;
   cursor: pointer;
   scroll-snap-align: start;
-  touch-action: pan-y;
+  touch-action: pan-x;
   user-select: none;
   -webkit-user-select: none;
   transition: transform 140ms ease, background 140ms ease;
+}
+
+.plugin-app-strip-sorting .plugin-app-card {
+  touch-action: none;
 }
 
 .plugin-app-card:active {
@@ -5339,6 +5347,7 @@ button.directory-alias-chip {
 .plugin-app-card-dragging {
   z-index: 2;
   background: color-mix(in srgb, var(--ui-surface) 82%, transparent);
+  cursor: grabbing;
   transform: scale(1.04);
   box-shadow: 0 8px 18px rgba(31, 49, 54, 0.14);
 }
@@ -5427,6 +5436,11 @@ button.directory-alias-chip {
 .task-list-mode .plugin-app-strip[data-plugin-fill-count="4"] .plugin-app-card {
   flex-basis: calc((100% - var(--plugin-app-gap) - var(--plugin-app-gap) - var(--plugin-app-gap)) / 4);
   width: calc((100% - var(--plugin-app-gap) - var(--plugin-app-gap) - var(--plugin-app-gap)) / 4);
+}
+
+.task-list-mode .plugin-app-strip[data-plugin-fill-count="5"] .plugin-app-card {
+  flex-basis: calc((100% - (var(--plugin-app-gap) * 4)) / 5);
+  width: calc((100% - (var(--plugin-app-gap) * 4)) / 5);
 }
 
 .task-list-mode .plugin-app-card .plugin-topic-app-icon,

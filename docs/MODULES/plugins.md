@@ -193,9 +193,11 @@ navigation. It sorts visible embedded-app plugins by local usage recency and
 count, then falls back to the stable manifest order. Adding new plugins must not
 increase the Dock height or wrap icons into a second row; lower-frequency
 plugins remain reachable by horizontal swipe so the topic list keeps enough
-vertical space. When one to four plugins are visible, the row should divide the
-available width evenly across those visible plugins; when more than four are
-visible, the four-slot sizing remains and the row scrolls horizontally.
+vertical space. When one to five plugins are visible, the row should divide the
+available width evenly across those visible plugins; when more than five are
+visible, the five-slot sizing remains and the row scrolls horizontally.
+Normal horizontal swipes scroll the Dock. Manual reordering starts only after a
+long press on an icon, then direct dragging to the desired position.
 
 When a plugin is opened from a plugin-bound topic, Hermes shows a three-entry
 plugin context browser-style footer: Topic, the current plugin, and Directory.
@@ -274,8 +276,9 @@ bound Hermes topic page.
 
 The topic-page plugin Dock must keep a stable order during normal use. Opening
 a plugin may record usage for diagnostics, but it must not automatically move
-the plugin icon. Users can manually reorder plugin icons by dragging them in
-the Dock; the order is stored locally in `hermesPluginTopicOrder`. Newly
+the plugin icon. Users can manually reorder plugin icons by long-pressing an
+icon and dragging it in the Dock; the order is stored locally in
+`hermesPluginTopicOrder`. Newly
 available plugins that are not in the manual order append by the product's
 definition order.
 

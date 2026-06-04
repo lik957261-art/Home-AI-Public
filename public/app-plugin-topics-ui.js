@@ -71,7 +71,10 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
 ]);
 const PLUGIN_TOPIC_USAGE_STORAGE_KEY = "hermesPluginTopicUsage";
 const PLUGIN_TOPIC_ORDER_STORAGE_KEY = "hermesPluginTopicOrder";
+const PLUGIN_APP_REORDER_HOLD_MS = 450;
+const PLUGIN_APP_REORDER_CANCEL_PX = 10;
 let pluginAppSortDrag = null;
+let pluginAppSortGlobalBound = false;
 
 function pluginTopicId(value = "") {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -429,7 +432,7 @@ function renderPluginTopicCards(options = {}) {
 function renderPluginAppLauncher() {
   const defs = orderedPluginAppDefs(availablePluginTopicDefs().filter((def) => !def.builtinKind));
   if (!defs.length) return "";
-  const fillCount = Math.min(Math.max(defs.length, 1), 4);
+  const fillCount = Math.min(Math.max(defs.length, 1), 5);
   return `<section class="plugin-app-launcher" aria-label="\u63d2\u4ef6\u5e94\u7528">
     <div class="plugin-app-strip" role="list" data-plugin-count="${defs.length}" data-plugin-fill-count="${fillCount}">
       ${defs.map((def) => `
@@ -586,7 +589,111 @@ function pluginTopicInstruction(def) {
   ].join(" ");
 }
 
+function clearPluginAppSortHold(drag) {
+  if (!drag?.holdTimer) return;
+  window.clearTimeout(drag.holdTimer);
+  drag.holdTimer = null;
+}
+
+function markPluginAppSortMoved(card) {
+  card.dataset.pluginAppDragMoved = "1";
+  window.setTimeout(() => {
+    if (card.dataset.pluginAppDragMoved === "1") card.dataset.pluginAppDragMoved = "";
+  }, 0);
+}
+
+function cancelPluginAppSortDrag(event = null) {
+  const drag = pluginAppSortDrag;
+  if (!drag) return;
+  pluginAppSortDrag = null;
+  clearPluginAppSortHold(drag);
+  drag.card.classList.remove("plugin-app-card-dragging");
+  drag.strip.classList.remove("plugin-app-strip-sorting");
+  if (event?.pointerId === drag.pointerId) {
+    try {
+      drag.card.releasePointerCapture?.(event.pointerId);
+    } catch (_) {}
+  }
+}
+
+function startPluginAppSortDrag(drag) {
+  if (!drag || pluginAppSortDrag !== drag || drag.dragging) return;
+  clearPluginAppSortHold(drag);
+  drag.dragging = true;
+  drag.card.classList.add("plugin-app-card-dragging");
+  drag.strip.classList.add("plugin-app-strip-sorting");
+  try {
+    drag.card.setPointerCapture?.(drag.pointerId);
+  } catch (_) {}
+}
+
+function maybeScrollPluginAppStripDuringSort(strip, clientX) {
+  if (!strip || strip.scrollWidth <= strip.clientWidth) return;
+  const rect = strip.getBoundingClientRect();
+  const edge = Math.min(56, rect.width * 0.2);
+  const step = 18;
+  if (clientX < rect.left + edge) {
+    strip.scrollLeft = Math.max(0, strip.scrollLeft - step);
+  } else if (clientX > rect.right - edge) {
+    strip.scrollLeft = Math.min(strip.scrollWidth - strip.clientWidth, strip.scrollLeft + step);
+  }
+}
+
+function movePluginAppSortCard(drag, clientX, clientY) {
+  maybeScrollPluginAppStripDuringSort(drag.strip, clientX);
+  const target = document.elementFromPoint(clientX, clientY)?.closest?.("[data-plugin-topic-sort-id]");
+  if (target && target !== drag.card && target.closest(".plugin-app-strip") === drag.strip) {
+    const rect = target.getBoundingClientRect();
+    const before = clientX < rect.left + rect.width / 2;
+    drag.strip.insertBefore(drag.card, before ? target : target.nextSibling);
+    persistPluginAppOrderFromStrip(drag.strip);
+  }
+}
+
+function handlePluginAppSortPointerMove(event) {
+  const drag = pluginAppSortDrag;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+  const dx = event.clientX - drag.startX;
+  const dy = event.clientY - drag.startY;
+  if (!drag.dragging) {
+    if (Math.abs(dx) < PLUGIN_APP_REORDER_CANCEL_PX && Math.abs(dy) < PLUGIN_APP_REORDER_CANCEL_PX) return;
+    cancelPluginAppSortDrag(event);
+    return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  movePluginAppSortCard(drag, event.clientX, event.clientY);
+}
+
+function finishPluginAppSortPointer(event) {
+  const drag = pluginAppSortDrag;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+  pluginAppSortDrag = null;
+  clearPluginAppSortHold(drag);
+  try {
+    drag.card.releasePointerCapture?.(event.pointerId);
+  } catch (_) {}
+  drag.card.classList.remove("plugin-app-card-dragging");
+  drag.strip.classList.remove("plugin-app-strip-sorting");
+  if (drag.dragging) {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    persistPluginAppOrderFromStrip(drag.strip);
+    markPluginAppSortMoved(drag.card);
+  }
+}
+
+function wirePluginAppSortDocumentEvents(root) {
+  if (pluginAppSortGlobalBound) return;
+  const doc = root?.nodeType === 9 ? root : root?.ownerDocument || document;
+  pluginAppSortGlobalBound = true;
+  doc.addEventListener("pointermove", handlePluginAppSortPointerMove, { passive: false, capture: true });
+  doc.addEventListener("pointerup", finishPluginAppSortPointer, { capture: true });
+  doc.addEventListener("pointercancel", finishPluginAppSortPointer, { capture: true });
+}
+
 function wirePluginAppManualSorting(root) {
+  wirePluginAppSortDocumentEvents(root);
   root?.querySelectorAll?.("[data-plugin-topic-sort-id]").forEach((card) => {
     if (card.dataset.pluginAppSortBound) return;
     card.dataset.pluginAppSortBound = "1";
@@ -594,6 +701,7 @@ function wirePluginAppManualSorting(root) {
       if (event.pointerType === "mouse" && event.button !== 0) return;
       const strip = card.closest(".plugin-app-strip");
       if (!strip) return;
+      cancelPluginAppSortDrag();
       pluginAppSortDrag = {
         card,
         strip,
@@ -602,49 +710,12 @@ function wirePluginAppManualSorting(root) {
         startY: event.clientY,
         dragging: false,
       };
-      try {
-        card.setPointerCapture?.(event.pointerId);
-      } catch (_) {}
+      const drag = pluginAppSortDrag;
+      drag.holdTimer = window.setTimeout(() => startPluginAppSortDrag(drag), PLUGIN_APP_REORDER_HOLD_MS);
     });
-    card.addEventListener("pointermove", (event) => {
-      const drag = pluginAppSortDrag;
-      if (!drag || drag.card !== card || drag.pointerId !== event.pointerId) return;
-      const dx = event.clientX - drag.startX;
-      const dy = event.clientY - drag.startY;
-      if (!drag.dragging) {
-        if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
-        drag.dragging = true;
-        card.classList.add("plugin-app-card-dragging");
-        drag.strip.classList.add("plugin-app-strip-sorting");
-      }
-      event.preventDefault();
-      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.("[data-plugin-topic-sort-id]");
-      if (target && target !== card && target.closest(".plugin-app-strip") === drag.strip) {
-        const rect = target.getBoundingClientRect();
-        const before = event.clientX < rect.left + rect.width / 2;
-        drag.strip.insertBefore(card, before ? target : target.nextSibling);
-        persistPluginAppOrderFromStrip(drag.strip);
-      }
-    }, { passive: false });
-    const finish = (event) => {
-      const drag = pluginAppSortDrag;
-      if (!drag || drag.card !== card || drag.pointerId !== event.pointerId) return;
-      pluginAppSortDrag = null;
-      try {
-        card.releasePointerCapture?.(event.pointerId);
-      } catch (_) {}
-      card.classList.remove("plugin-app-card-dragging");
-      drag.strip.classList.remove("plugin-app-strip-sorting");
-      if (drag.dragging) {
-        persistPluginAppOrderFromStrip(drag.strip);
-        card.dataset.pluginAppDragMoved = "1";
-        window.setTimeout(() => {
-          if (card.dataset.pluginAppDragMoved === "1") card.dataset.pluginAppDragMoved = "";
-        }, 0);
-      }
-    };
-    card.addEventListener("pointerup", finish);
-    card.addEventListener("pointercancel", finish);
+    card.addEventListener("contextmenu", (event) => {
+      if (pluginAppSortDrag?.card === card || card.dataset.pluginAppDragMoved === "1") event.preventDefault();
+    });
   });
 }
 

@@ -53,10 +53,12 @@ or raw plugin credentials.
   directory-bound topic cards. It does not create a separate bottom Plugin tab,
   does not open a floating plugin drawer from the Topics tab, and does not
   create new plugin grants.
-- The Dock remains single-row. When one to four external plugin entries are
+- The Dock remains single-row. When one to five external plugin entries are
   visible, the row divides the available width evenly across those entries; when
-  more than four entries are visible, the same four-slot sizing is kept and the
+  more than five entries are visible, the same five-slot sizing is kept and the
   row scrolls horizontally.
+- Manual Dock reordering is long-press gated: a normal horizontal swipe must
+  scroll the Dock, and only a held icon can be dragged to a new position.
 - External plugin entries in the topic-page plugin Dock are app launch targets
   only. They do not expose separate topic or file-directory mini actions in the
   topic list. Plugin-specific topic and directory surfaces remain reachable from
