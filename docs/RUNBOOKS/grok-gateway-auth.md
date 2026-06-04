@@ -21,6 +21,13 @@ Do not print OAuth tokens, auth files, cookies, or raw headers.
 
 - Hermes Mobile selected a generic lowgw profile instead of Grok profile.
 - The Grok profile exists but xAI OAuth is not authenticated.
+- The selected Grok profile points at an isolated auth store whose
+  `providers.xai-oauth` or `credential_pool.xai-oauth` entry shadows the
+  shared owner auth store.
+- xAI returns `invalid_grant` / `Refresh token has been revoked` during token
+  refresh. This is not recoverable by copying provider token fields back into
+  `auth.json`; the account must re-authenticate or switch to a valid API-key
+  provider.
 - A stale UI exposes a Grok model variant that no live profile supports.
 - DNS/proxy rules affect xAI endpoints.
 - The cron runner's `HERMES_MOBILE_X_SEARCH_PROXY_URL` points at the runner's own loopback instead of the Windows bridge-host proxy prefix.
@@ -33,6 +40,14 @@ Do not print OAuth tokens, auth files, cookies, or raw headers.
 
 - Fix routing in Hermes Mobile profile selection if the wrong worker is chosen.
 - Fix xAI OAuth in the Gateway profile if the right worker is chosen but auth fails.
+- On Windows local production, `grokgw1` should normally share
+  `C:\ProgramData\HermesMobile\gateway-worker\telemetry\profiles\shared-auth\auth.json`
+  with the other low-permission workers. Confirm:
+  `/home/hermes/.hermes/profiles/grokgw1/auth.json ->
+  /mnt/c/ProgramData/HermesMobile/gateway-worker/telemetry/profiles/shared-auth/auth.json`.
+- If xAI reports a revoked refresh token, run the xAI OAuth login for the
+  `hermes` worker profile so the shared auth store is rewritten:
+  `HERMES_HOME=/home/hermes/.hermes/profiles/grokgw1 HERMES_PROFILE=grokgw1 hermes auth add xai-oauth --type oauth --label shared-xai-oauth`.
 - Remove unsupported model variants from UI/config until backed by live profiles.
 - For cross-distro cron runners, set or let the dispatcher set `HERMES_MOBILE_X_SEARCH_PROXY_URL` to the proxy prefix `http://<windows-host>:8798/bridge/grok-gateway-proxy`.
 - For hybrid cold starts, keep bridge-host Grok proxy autostart enabled so the

@@ -922,7 +922,7 @@ assert.match(configureLowGateways, /legacy_auth_real/);
 assert.match(configureLowGateways, /legacy_shared_auth_path\}\.profile-local-backup-\$\(date \+%Y%m%d-%H%M%S\)/);
 assert.match(configureLowGateways, /ln -s "\$shared_auth_path" "\$legacy_shared_auth_path"/);
 assert.match(configureLowGateways, /ln -s "\$shared_auth_lock_path" "\$legacy_shared_auth_lock_path"/);
-assert.match(configureLowGateways, /grok_auth_default_root="\$\{HERMES_GROK_GATEWAY_AUTH_ROOT:-\$telemetry_profiles_root\/shared-auth-grok\}"/);
+assert.match(configureLowGateways, /grok_auth_default_root="\$\{HERMES_GROK_GATEWAY_AUTH_ROOT:-\$shared_auth_default_root\}"/);
 assert.match(configureLowGateways, /grok_auth_path="\$\{HERMES_GROK_GATEWAY_AUTH_PATH:-\$grok_auth_default_root\/auth\.json\}"/);
 assert.match(configureLowGateways, /grok_auth_lock_path="\$\{HERMES_GROK_GATEWAY_AUTH_LOCK_PATH:-\$grok_auth_default_root\/auth\.lock\}"/);
 assert.match(configureLowGateways, /Missing shared low Gateway Codex auth/);

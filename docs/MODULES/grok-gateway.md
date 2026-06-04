@@ -76,6 +76,19 @@ If `scripts/hermes-mobile-cron-dispatcher.py` changes, restart the cron sidecar.
 ## Auth Boundary
 
 - xAI/Grok auth lives in the Gateway profile/auth store, not in browser payloads or Hermes Mobile docs.
+- Windows local production should default `grokgw1` to the same owner/workspace
+  shared auth store as the other low-permission Gateways:
+  `C:\ProgramData\HermesMobile\gateway-worker\telemetry\profiles\shared-auth\auth.json`.
+  This keeps the same authorized tool/provider set available across workers and
+  avoids a Grok-only auth store drifting out of date.
+- `HERMES_GROK_GATEWAY_AUTH_ROOT`, `HERMES_GROK_GATEWAY_AUTH_PATH`, and
+  `HERMES_GROK_GATEWAY_AUTH_LOCK_PATH` remain explicit override knobs for a
+  deployment that intentionally isolates Grok credentials.
+- A profile-local `providers.xai-oauth` or `credential_pool.xai-oauth` entry
+  shadows global fallback. If an isolated Grok auth store has a revoked
+  refresh token, it can keep failing even when the shared owner auth store is
+  usable; either re-authenticate that isolated store or point Grok back at the
+  shared store.
 - Do not copy OAuth tokens into profile-local files unless the deployment explicitly uses that layout.
 - Do not add local hosts overrides for xAI/Grok domains unless DNS comparison against public resolvers proves a real local resolution problem.
 
