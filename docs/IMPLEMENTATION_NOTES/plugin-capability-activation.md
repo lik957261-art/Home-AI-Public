@@ -53,7 +53,7 @@ The first implementation is intentionally service-first and run-assembly scoped:
 - `adapters/plugin-authorized-toolset-service.js` projects the effective
   workspace's locally complete plugin bindings into the authorization boundary
   before run activation. It currently exposes only Gateway-materialized plugin
-  MCP toolsets such as Wardrobe, Finance, Note, and Health, and it requires the
+  MCP toolsets such as Wardrobe, Finance, Email, Note, and Health, and it requires the
   matching workspace `.hermes-*` config/key pair where the plugin contract
   requires one. A key-only partial plugin binding is not authorized for model
   runs.
@@ -81,7 +81,8 @@ Ordinary chat starts with:
 The ordinary-chat prompt must not include every plugin MCP schema or every
 plugin Skill. The catalog is only a routing affordance, not evidence. It may
 say that Finance can inspect spending, Wardrobe can inspect clothing/outfits,
-Note can inspect notes and links, or a relationship plugin can inspect people
+Email can inspect bounded mailbox summaries, Note can inspect notes and links,
+or a relationship plugin can inspect people
 and relationships. It must not include raw ledger rows, wardrobe inventories,
 note bodies, relationship graphs, access keys, launch tokens, plugin cookies,
 or full MCP schema definitions.

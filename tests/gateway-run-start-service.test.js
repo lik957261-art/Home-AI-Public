@@ -373,8 +373,8 @@ async function testOrdinaryRunPublishesPluginCapabilityCatalogWithoutEagerPlugin
     buildAccessPolicy: (routePolicy, _user, project) => ({
       principal_id: routePolicy.principal_id || "unknown",
       allowed_roots: [project.root],
-      allowed_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health"],
-      authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health"],
+      allowed_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email"],
+      authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email"],
       connector_profiles: { base: { type: "profile" } },
     }),
   });
@@ -392,14 +392,16 @@ async function testOrdinaryRunPublishesPluginCapabilityCatalogWithoutEagerPlugin
   );
 
   assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["file", "web", "vision", "skills"]);
-  assert.deepEqual(calls.streams[0].body.access_policy_context.authorized_toolsets, ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health"]);
-  assert.deepEqual(calls.streams[0].body.access_policy_context.active_schema_set.omitted_plugin_toolsets, ["wardrobe", "finance", "note", "health"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.authorized_toolsets, ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.active_schema_set.omitted_plugin_toolsets, ["wardrobe", "finance", "note", "health", "email"]);
   assert.deepEqual(calls.gatewayRouting[0].activeSchemaSet.active_toolsets, ["file", "web", "vision", "skills"]);
   assert.equal(calls.gatewayRouting[0].pluginCapabilityCatalog.find((entry) => entry.pluginId === "finance").status, "catalog_only");
   assert.equal(calls.gatewayRouting[0].pluginCapabilityCatalog.find((entry) => entry.pluginId === "health").status, "catalog_only");
+  assert.equal(calls.gatewayRouting[0].pluginCapabilityCatalog.find((entry) => entry.pluginId === "email").status, "catalog_only");
   assert.equal(calls.hermesInstructions[0].buildOptions.pluginCapabilityContext.catalog.find((entry) => entry.pluginId === "wardrobe").status, "catalog_only");
   assert.equal(assistant.runOptions.pluginCapabilityCatalog.find((entry) => entry.pluginId === "note").status, "catalog_only");
   assert.equal(assistant.runOptions.pluginCapabilityCatalog.find((entry) => entry.pluginId === "health").status, "catalog_only");
+  assert.equal(assistant.runOptions.pluginCapabilityCatalog.find((entry) => entry.pluginId === "email").status, "catalog_only");
   assert.deepEqual(assistant.runOptions.activeSchemaSet.active_toolsets, ["file", "web", "vision", "skills"]);
 }
 
@@ -493,8 +495,8 @@ async function testHealthProfileImportActivatesHealthMcpThroughRunAssemblyHarnes
     buildAccessPolicy: (routePolicy, _user, project) => ({
       principal_id: routePolicy.principal_id || "unknown",
       allowed_roots: [project.root],
-      allowed_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health"],
-      authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health"],
+      allowed_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email"],
+      authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email"],
       connector_profiles: { base: { type: "profile" } },
     }),
     chooseGatewayRunTarget: async (routing) => {
@@ -534,7 +536,7 @@ async function testHealthProfileImportActivatesHealthMcpThroughRunAssemblyHarnes
 
   assert.deepEqual(calls.gatewayRouting[0].preferredToolsets, ["health"]);
   assert.deepEqual(calls.gatewayRouting[0].activeSchemaSet.active_plugin_toolsets, ["health"]);
-  assert.deepEqual(calls.gatewayRouting[0].activeSchemaSet.omitted_plugin_toolsets, ["wardrobe", "finance", "note"]);
+  assert.deepEqual(calls.gatewayRouting[0].activeSchemaSet.omitted_plugin_toolsets, ["wardrobe", "finance", "note", "email"]);
   assert.equal(calls.gatewayRouting[0].pluginCapabilityCatalog.find((entry) => entry.pluginId === "health").status, "active");
   assert.equal(calls.gatewayRouting[0].pluginCapabilityCatalog.find((entry) => entry.pluginId === "finance").status, "catalog_only");
   assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["file", "web", "vision", "skills", "health"]);
@@ -546,6 +548,55 @@ async function testHealthProfileImportActivatesHealthMcpThroughRunAssemblyHarnes
   assert.deepEqual(assistant.runOptions.activeSchemaSet.active_plugin_toolsets, ["health"]);
   assert.deepEqual(assistant.runOptions.pluginCapabilityProbeResults.map((item) => item.pluginId), ["health"]);
   assert.equal(calls.hermesInstructions[0].taskDirectory.label, "\u5065\u5eb7");
+}
+
+async function testEmailRequestActivatesEmailMcpThroughRunAssemblyHarness() {
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email"],
+      authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+    chooseGatewayRunTarget: async (routing) => {
+      calls.gatewayRouting.push(routing);
+      return {
+        apiBase: "http://worker.gateway",
+        apiKey: "worker-key",
+        name: "lowgw-email",
+        profile: "lowgw-email",
+        source: "worker_pool",
+        toolsets: ["file", "web", "vision", "skills", "email"],
+      };
+    },
+  });
+  const assistant = baseAssistantMessage();
+
+  await service.startRunForThread(
+    baseThread({ workspaceId: "owner" }),
+    baseUserMessage({
+      senderWorkspaceId: "owner",
+      taskGroupId: "single-window-chat",
+      content: "\u67e5\u4e00\u4e0b\u6536\u4ef6\u7bb1\u6700\u8fd1\u7684\u90ae\u4ef6",
+    }),
+    assistant,
+    { actorWorkspaceId: "owner", model: "gpt-test", provider: "openai-codex" },
+  );
+
+  assert.deepEqual(calls.gatewayRouting[0].preferredToolsets, ["email"]);
+  assert.deepEqual(calls.gatewayRouting[0].activeSchemaSet.active_plugin_toolsets, ["email"]);
+  assert.deepEqual(calls.gatewayRouting[0].activeSchemaSet.omitted_plugin_toolsets, ["wardrobe", "finance", "note", "health"]);
+  assert.equal(calls.gatewayRouting[0].pluginCapabilityCatalog.find((entry) => entry.pluginId === "email").status, "active");
+  assert.equal(calls.gatewayRouting[0].pluginCapabilityCatalog.find((entry) => entry.pluginId === "finance").status, "catalog_only");
+  assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["file", "web", "vision", "skills", "email"]);
+  assert.ok(calls.streams[0].body.access_policy_context.allowed_toolsets.includes("email"));
+  assert.ok(calls.streams[0].body.access_policy_context.authorized_toolsets.includes("email"));
+  assert.deepEqual(calls.streams[0].body.access_policy_context.active_schema_set.active_plugin_toolsets, ["email"]);
+  assert.equal(calls.streams[0].body.access_policy_context.plugin_capability_catalog.find((entry) => entry.pluginId === "email").status, "active");
+  assert.equal(calls.events.find((event) => event.event === "plugin_capability_activated").error, false);
+  assert.deepEqual(assistant.runOptions.activeSchemaSet.active_plugin_toolsets, ["email"]);
+  assert.deepEqual(assistant.runOptions.pluginCapabilityProbeResults.map((item) => item.pluginId), ["email"]);
 }
 
 async function testWardrobePluginTopicForcesSkillMcpStackAndPluginContext() {
@@ -1450,6 +1501,7 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testOptionalPluginProbeKeepsAvailablePluginActive();
   await testOptionalPluginProbeFailureRemovesPluginBeforeStream();
   await testHealthProfileImportActivatesHealthMcpThroughRunAssemblyHarness();
+  await testEmailRequestActivatesEmailMcpThroughRunAssemblyHarness();
   await testWardrobePluginTopicForcesSkillMcpStackAndPluginContext();
   testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext();
   await testStartRunPreservesSearchSourceRouting();

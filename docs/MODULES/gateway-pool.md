@@ -972,7 +972,21 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   the wrapper process starts.
 - Email MCP follows the same rule with `.hermes-email`; provider OAuth tokens
   and mailbox credentials remain inside the Email plugin, while the MCP uses
-  only the workspace-local Email plugin key to call Email APIs.
+  only the workspace-local Email plugin key to call Email APIs. Windows
+  production installs the Hermes-side Email wrapper under
+  `C:\ProgramData\HermesMobile\gateway-worker\email-mcp`. Gateway profile
+  generation must require both `.hermes-email/config.json` and
+  `.hermes-email/access-key.txt` in the effective workspace root before
+  exposing `email` in `toolsets`, `platform_toolsets.api_server`, or
+  `mcp_servers.email`. The wrapper is Python-based; launch it with the
+  configured Python runtime, `email-mcp-wrapper.py`,
+  `--workspace <target-user-root>`, `--no-workspace-override`, and the
+  deployment-specific `--api-base-url`. On Windows/WSL production that API base
+  must use the WSL default gateway address for the Windows Email service on
+  port `5175`, not WSL `127.0.0.1`. Valid schema evidence is a
+  selected-profile callable such as `mcp_email_search_messages`; provider
+  credentials, workspace keys, launch tokens, full bodies, and attachment
+  content must not appear in Gateway logs or MCP responses.
 - Note MCP follows the same rule with `.hermes-note`. Gateway profile generation
   must require both `.hermes-note/config.json` and `.hermes-note/access-key.txt`
   in the effective workspace root before exposing `note` in `toolsets`,

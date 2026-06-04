@@ -277,6 +277,28 @@ function mcpServersForProfile(values = {}) {
       },
     });
   }
+  if (boolValue(values.email_enabled)) {
+    servers.push({
+      name: "email",
+      command: valueMapValue(values, "email_mcp_python", "/opt/hermes-gateway-runtime/venv/bin/python"),
+      args: [
+        valueMapValue(values, "email_mcp_path"),
+        "--workspace",
+        valueMapValue(values, "email_workspace"),
+        "--no-workspace-override",
+        "--api-base-url",
+        valueMapValue(values, "email_mcp_api_base_url"),
+      ],
+      env: {
+        HERMES_HOME: profileLink,
+        HERMES_PROFILE: profile,
+      },
+      extra: {
+        startup_timeout: "60",
+        connect_timeout: "60",
+      },
+    });
+  }
   if (boolValue(values.outlook_graph_enabled)) {
     servers.push({
       name: "outlook_graph",
@@ -325,6 +347,7 @@ function renderProfileConfigYaml(values = {}) {
   if (boolValue(values.finance_enabled)) extras.push("finance");
   if (boolValue(values.note_enabled)) extras.push("note");
   if (boolValue(values.health_enabled)) extras.push("health");
+  if (boolValue(values.email_enabled)) extras.push("email");
   if (boolValue(values.outlook_graph_enabled)) extras.push("outlook_graph");
   appendStandardBase(lines, [...STANDARD_TOOLSETS, ...extras], [...STANDARD_TOOLSETS, ...extras], standardPluginNames(values));
   appendRuntimeSections(lines, port);
@@ -365,6 +388,7 @@ function renderMaintenanceConfigYaml(values = {}) {
   if (boolValue(values.finance_enabled)) extras.push("finance");
   if (boolValue(values.note_enabled)) extras.push("note");
   if (boolValue(values.health_enabled)) extras.push("health");
+  if (boolValue(values.email_enabled)) extras.push("email");
   if (boolValue(values.outlook_graph_enabled)) extras.push("outlook_graph");
   const toolsets = [
     ...STANDARD_TOOLSETS,

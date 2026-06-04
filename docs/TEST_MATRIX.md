@@ -807,14 +807,20 @@ workspace-local `.hermes-email/config.json` and `.hermes-email/access-key.txt`
 are the only long-lived launch materials Hermes should use; Email owns mailbox
 credentials, local mail storage, sync cursors, and per-user account filtering.
 The Email MCP harness must prove the `email` toolset and `mcp_servers.email`
-are bound to the target workspace directory, reject workspace override, and do
-not expose provider OAuth/token material to Hermes or the model.
+are bound to the target workspace directory, reject workspace override, expose
+single-prefixed Gateway callables such as `mcp_email_search_messages`, and do
+not expose provider OAuth/token material to Hermes or the model. Ordinary chat
+must keep Email catalog-only, while explicit mailbox intent must activate
+Email before the Gateway stream begins.
 Harnesses must assert the raw Email Owner key, workspace key, launch token, full
 mail body, attachment content, and provider credentials are not returned in the
 grant result, manifest, frontend state, iframe URL, postMessage payload, docs,
 logs, or screenshots. Pending or failed Email provisioning must block non-Owner
 list/manifest/launch. Focused checks include
 `node tests\email-plugin-provisioning-service.test.js`,
+`node tests\email-mcp-wrapper.test.js`,
+`node tests\gateway-profile-template-builder.test.js`,
+`node tests\gateway-run-start-service.test.js`,
 `node tests\hermes-plugin-service.test.js`,
 `node tests\app-embedded-plugin-ui.test.js`, and
 `node tests\task-list-ui.test.js`.

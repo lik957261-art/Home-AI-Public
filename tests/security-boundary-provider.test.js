@@ -81,7 +81,7 @@ function run() {
   assert.ok(genericMcpPolicy.blocked_toolsets.includes("mcp"));
   assert.ok(genericMcpPolicy.blocked_toolsets.includes("terminal"));
 
-  for (const productToolset of ["wardrobe", "finance", "note", "health"]) {
+  for (const productToolset of ["wardrobe", "finance", "note", "health", "email"]) {
     const productMcpPolicy = provider.hardenAccessPolicy({
       principal_id: "owner",
       access_mode: "restricted",

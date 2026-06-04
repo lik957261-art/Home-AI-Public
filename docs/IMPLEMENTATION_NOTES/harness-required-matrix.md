@@ -1650,6 +1650,18 @@ Required contract dimensions:
   single-prefixed selected-profile callables such as `mcp_note_notes_search`,
   no raw Note registration key or workspace key leakage, and no Owner fallback
   when Owner switches into a non-Owner workspace.
+- Email MCP profile registration is part of the Email H1 provisioning surface.
+  Granting or using `email` must create or reuse the target workspace's
+  `.hermes-email/config.json` and `.hermes-email/access-key.txt`; Gateway
+  profiles may expose `email` only from that effective workspace root. The
+  maintained local wrapper is `email-mcp-wrapper.py`; it must exchange the
+  workspace-local key for a short-lived Email launch session internally and
+  expose single-prefixed Gateway callables such as
+  `mcp_email_search_messages`. Harnesses must prove ordinary chat keeps Email
+  catalog-only, mailbox intent activates Email before streaming, selected
+  Gateway profiles declare `mcp_servers.email`, and MCP responses do not expose
+  workspace keys, launch tokens, full message bodies, attachment content, or
+  provider credentials.
 - Generic plugin provisioning status is part of the same contract. A grant may
   enter `pending` only when Hermes owns the automatic provisioning service for
   that plugin. Plugins with manual or external binding must store

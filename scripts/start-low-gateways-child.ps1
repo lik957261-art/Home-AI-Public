@@ -102,6 +102,31 @@ function Resolve-DefaultNoteMcpApiBaseUrl {
   return "http://$($preferred[0]):$port"
 }
 
+function Resolve-DefaultEmailMcpApiBaseUrl {
+  $configured = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_EMAIL_MCP_API_BASE_URL", "Process")
+  if ($configured) { return $configured }
+  $port = [Environment]::GetEnvironmentVariable("EMAIL_SERVICE_PORT", "Process")
+  if (-not $port) { $port = "5175" }
+  $wslHost = Resolve-WslHostGatewayAddress
+  if ($wslHost) { return "http://${wslHost}:$port" }
+  $addresses = @()
+  try {
+    $addresses = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
+      Where-Object {
+        $_.IPAddress -and
+        $_.IPAddress -ne "127.0.0.1" -and
+        $_.IPAddress -notmatch "^169\.254\." -and
+        ($_.AddressState -eq "Preferred" -or -not $_.AddressState)
+      } |
+      Select-Object -ExpandProperty IPAddress)
+  } catch {
+    $addresses = @()
+  }
+  $preferred = @($addresses | Where-Object { $_ -match "^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)" } | Select-Object -First 1)
+  if ($preferred.Count -eq 0) { return "" }
+  return "http://$($preferred[0]):$port"
+}
+
 if (-not [Environment]::GetEnvironmentVariable("HERMES_MOBILE_FINANCE_MCP_API_BASE_URL", "Process")) {
   $financeApiBase = Resolve-DefaultFinanceMcpApiBaseUrl
   if ($financeApiBase) {
@@ -113,6 +138,13 @@ if (-not [Environment]::GetEnvironmentVariable("HERMES_MOBILE_NOTE_MCP_API_BASE_
   $noteApiBase = Resolve-DefaultNoteMcpApiBaseUrl
   if ($noteApiBase) {
     [Environment]::SetEnvironmentVariable("HERMES_MOBILE_NOTE_MCP_API_BASE_URL", $noteApiBase, "Process")
+  }
+}
+
+if (-not [Environment]::GetEnvironmentVariable("HERMES_MOBILE_EMAIL_MCP_API_BASE_URL", "Process")) {
+  $emailApiBase = Resolve-DefaultEmailMcpApiBaseUrl
+  if ($emailApiBase) {
+    [Environment]::SetEnvironmentVariable("HERMES_MOBILE_EMAIL_MCP_API_BASE_URL", $emailApiBase, "Process")
   }
 }
 
@@ -128,7 +160,13 @@ $passthroughEnvNames = @(
   "HERMES_MOBILE_NOTE_MCP_PYTHON",
   "HERMES_MOBILE_NOTE_USER_DRIVE_ROOT",
   "HERMES_MOBILE_OWNER_NOTE_WORKSPACE",
-  "HERMES_MOBILE_WUPING_NOTE_WORKSPACE"
+  "HERMES_MOBILE_WUPING_NOTE_WORKSPACE",
+  "HERMES_MOBILE_EMAIL_MCP_API_BASE_URL",
+  "HERMES_MOBILE_EMAIL_MCP_PATH",
+  "HERMES_MOBILE_EMAIL_MCP_PYTHON",
+  "HERMES_MOBILE_EMAIL_USER_DRIVE_ROOT",
+  "HERMES_MOBILE_OWNER_EMAIL_WORKSPACE",
+  "HERMES_MOBILE_WUPING_EMAIL_WORKSPACE"
 )
 foreach ($name in $passthroughEnvNames) {
   $value = [Environment]::GetEnvironmentVariable($name, "Process")

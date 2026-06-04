@@ -29,10 +29,15 @@ function testWorkspaceLocalPluginBindingsBecomeToolsets() {
     workspace_id: "health:owner",
     access_key_file: "access-key.txt",
   }));
+  writeText(path.join(dir, "drive", "users", "owner", ".hermes-email", "access-key.txt"), "email-key\n");
+  writeText(path.join(dir, "drive", "users", "owner", ".hermes-email", "config.json"), JSON.stringify({
+    workspace_id: "owner",
+    access_key_file: "access-key.txt",
+  }));
 
   const service = createPluginAuthorizedToolsetService({ dataDir: dir, env: {}, cacheTtlMs: 0 });
 
-  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["wardrobe", "finance", "note", "health"]);
+  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["wardrobe", "finance", "note", "health", "email"]);
 }
 
 function testKeyOnlyFinanceBindingDoesNotBecomeToolset() {

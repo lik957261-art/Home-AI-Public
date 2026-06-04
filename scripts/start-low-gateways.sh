@@ -241,17 +241,22 @@ note_mcp_python="${HERMES_MOBILE_NOTE_MCP_PYTHON:-/opt/hermes-gateway-runtime/ve
 note_mcp_path="${HERMES_MOBILE_NOTE_MCP_PATH:-$gateway_worker_root/note-mcp/scripts/note_mcp_stdio.py}"
 health_mcp_command="${HERMES_MOBILE_HEALTH_MCP_COMMAND:-node}"
 health_mcp_path="${HERMES_MOBILE_HEALTH_MCP_PATH:-$gateway_worker_root/health-mcp/scripts/mcp-health-wrapper.js}"
+email_mcp_python="${HERMES_MOBILE_EMAIL_MCP_PYTHON:-/opt/hermes-gateway-runtime/venv/bin/python}"
+email_mcp_path="${HERMES_MOBILE_EMAIL_MCP_PATH:-$gateway_worker_root/email-mcp/scripts/email-mcp-wrapper.py}"
 default_finance_mcp_api_base_url="http://127.0.0.1:8791"
 default_note_mcp_api_base_url="http://127.0.0.1:4181"
 default_health_mcp_api_base_url="http://127.0.0.1:4877"
+default_email_mcp_api_base_url="http://127.0.0.1:5175"
 if [[ "$gateway_worker_root" == /mnt/* ]] && [ -n "${windows_host_gateway:-}" ]; then
   default_finance_mcp_api_base_url="http://${windows_host_gateway}:8791"
   default_note_mcp_api_base_url="http://${windows_host_gateway}:4181"
   default_health_mcp_api_base_url="http://${windows_host_gateway}:4877"
+  default_email_mcp_api_base_url="http://${windows_host_gateway}:5175"
 fi
 finance_mcp_api_base_url="${HERMES_MOBILE_FINANCE_MCP_API_BASE_URL:-$default_finance_mcp_api_base_url}"
 note_mcp_api_base_url="${HERMES_MOBILE_NOTE_MCP_API_BASE_URL:-$default_note_mcp_api_base_url}"
 health_mcp_api_base_url="${HERMES_MOBILE_HEALTH_MCP_API_BASE_URL:-$default_health_mcp_api_base_url}"
+email_mcp_api_base_url="${HERMES_MOBILE_EMAIL_MCP_API_BASE_URL:-$default_email_mcp_api_base_url}"
 finance_user_drive_root="${HERMES_MOBILE_FINANCE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_finance_workspace_override="${HERMES_MOBILE_OWNER_FINANCE_WORKSPACE:-}"
 wuping_finance_workspace_override="${HERMES_MOBILE_WUPING_FINANCE_WORKSPACE:-}"
@@ -261,6 +266,9 @@ wuping_note_workspace_override="${HERMES_MOBILE_WUPING_NOTE_WORKSPACE:-}"
 health_user_drive_root="${HERMES_MOBILE_HEALTH_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_health_workspace_override="${HERMES_MOBILE_OWNER_HEALTH_WORKSPACE:-}"
 wuping_health_workspace_override="${HERMES_MOBILE_WUPING_HEALTH_WORKSPACE:-}"
+email_user_drive_root="${HERMES_MOBILE_EMAIL_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
+owner_email_workspace_override="${HERMES_MOBILE_OWNER_EMAIL_WORKSPACE:-}"
+wuping_email_workspace_override="${HERMES_MOBILE_WUPING_EMAIL_WORKSPACE:-}"
 
 if ! id -u "$worker_user" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "$worker_user"
@@ -350,6 +358,11 @@ compute_configure_signature() {
     --value "health_user_drive_root=$health_user_drive_root" \
     --value "owner_health_workspace_override=$owner_health_workspace_override" \
     --value "wuping_health_workspace_override=$wuping_health_workspace_override" \
+    --value "email_mcp_python=$email_mcp_python" \
+    --value "email_mcp_api_base_url=$email_mcp_api_base_url" \
+    --value "email_user_drive_root=$email_user_drive_root" \
+    --value "owner_email_workspace_override=$owner_email_workspace_override" \
+    --value "wuping_email_workspace_override=$wuping_email_workspace_override" \
     --path "$configure_low_gateway_script" \
     --path "$gateway_pool_manifest_path" \
     --path "$runtime_overrides_source" \
@@ -365,6 +378,7 @@ compute_configure_signature() {
     --path "$finance_mcp_path" \
     --path "$note_mcp_path" \
     --path "$health_mcp_path" \
+    --path "$email_mcp_path" \
     --path "$outlook_graph_mcp_path" <<'PY'
 import hashlib
 import os

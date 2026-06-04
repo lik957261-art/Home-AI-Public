@@ -1480,6 +1480,20 @@ session switches into another workspace and no Email-bound profile exists for
 that workspace, Hermes must omit the Email MCP/toolset rather than using
 Owner's Email MCP.
 
+Local Windows production Gateway profiles run Email MCP through
+`email-mcp/scripts/email-mcp-wrapper.py` under the Gateway worker root. The
+wrapper exchanges the workspace-local key for a short-lived Email launch
+session through `POST /api/v1/hermes/plugin/launch`, then uses that session for
+Email API calls. It exposes Gateway-local tool names such as `list_accounts`,
+`search_messages`, `get_digest`, and `get_message`, so the final model callables
+are single-prefixed names such as `mcp_email_search_messages`. The generated
+profile passes `--workspace <target-user-root>`, `--no-workspace-override`, and
+`--api-base-url <Email service URL reachable from the Gateway worker>`. On WSL
+local production the API base should use the Windows host gateway on port
+`5175`, not WSL loopback. Owner maintenance profiles must include the same Email
+MCP binding when the Owner workspace has `.hermes-email/config.json` plus
+`access-key.txt`.
+
 Raw Email Owner keys, workspace keys, launch tokens, session cookies, full mail
 bodies, attachment content, and provider credentials must not appear in
 manifests, iframe URLs, postMessage payloads, frontend state, docs, handoffs,

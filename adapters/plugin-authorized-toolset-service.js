@@ -7,6 +7,7 @@ const DEFAULT_GATEWAY_PLUGIN_TOOLSETS = Object.freeze({
   finance: "finance",
   note: "note",
   health: "health",
+  email: "email",
 });
 const DEFAULT_CACHE_TTL_MS = 30 * 1000;
 

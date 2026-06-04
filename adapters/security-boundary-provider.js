@@ -118,6 +118,7 @@ const PRODUCT_MCP_TOOLSETS = Object.freeze([
   "finance",
   "note",
   "health",
+  "email",
 ]);
 
 const DEVELOPER_TOOLSETS = Object.freeze([

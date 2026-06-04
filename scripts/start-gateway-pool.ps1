@@ -540,6 +540,14 @@ function Ensure-OwnerMaintenanceProfileConfig {
   if (-not $noteApiBaseUrl) { $noteApiBaseUrl = [Environment]::GetEnvironmentVariable("HERMES_WEB_NOTE_MCP_API_BASE_URL") }
   if (-not $noteApiBaseUrl) { $noteApiBaseUrl = Resolve-GatewayPoolWslHostApiBaseUrl -Port 4181 }
   if (-not $noteApiBaseUrl) { $noteApiBaseUrl = "http://127.0.0.1:4181" }
+  $healthApiBaseUrl = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_HEALTH_MCP_API_BASE_URL")
+  if (-not $healthApiBaseUrl) { $healthApiBaseUrl = [Environment]::GetEnvironmentVariable("HERMES_WEB_HEALTH_MCP_API_BASE_URL") }
+  if (-not $healthApiBaseUrl) { $healthApiBaseUrl = Resolve-GatewayPoolWslHostApiBaseUrl -Port 4877 }
+  if (-not $healthApiBaseUrl) { $healthApiBaseUrl = "http://127.0.0.1:4877" }
+  $emailApiBaseUrl = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_EMAIL_MCP_API_BASE_URL")
+  if (-not $emailApiBaseUrl) { $emailApiBaseUrl = [Environment]::GetEnvironmentVariable("HERMES_WEB_EMAIL_MCP_API_BASE_URL") }
+  if (-not $emailApiBaseUrl) { $emailApiBaseUrl = Resolve-GatewayPoolWslHostApiBaseUrl -Port 5175 }
+  if (-not $emailApiBaseUrl) { $emailApiBaseUrl = "http://127.0.0.1:5175" }
   $normalizedProvider = ([string]$Provider).Trim().ToLowerInvariant()
   if ($normalizedProvider -eq "deepseek") {
     $modelBlock = "model:`n  default: deepseek-chat`n  provider: deepseek"
@@ -572,6 +580,8 @@ toolsets:
   - wardrobe
   - finance
   - note
+  - health
+  - email
   - chatgpt_pro
   - hermes-cli
 platform_toolsets:
@@ -599,6 +609,8 @@ platform_toolsets:
     - wardrobe
     - finance
     - note
+    - health
+    - email
     - chatgpt_pro
     - hermes-cli
 agent:
@@ -665,6 +677,35 @@ mcp_servers:
       - --no-workspace-override
       - --api-base-url
       - $noteApiBaseUrl
+    env:
+      HERMES_HOME: $profileRoot
+      HERMES_PROFILE: $profile
+    startup_timeout: 60
+    connect_timeout: 60
+  health:
+    command: node
+    args:
+      - $gatewayWorkerRootWsl/health-mcp/scripts/mcp-health-wrapper.js
+      - --workspace
+      - $ownerWorkspace
+      - --no-workspace-override
+      - --gateway-tool-names
+      - --api-base-url
+      - $healthApiBaseUrl
+    env:
+      HERMES_HOME: $profileRoot
+      HERMES_PROFILE: $profile
+    startup_timeout: 60
+    connect_timeout: 60
+  email:
+    command: /opt/hermes-gateway-runtime/venv/bin/python
+    args:
+      - $gatewayWorkerRootWsl/email-mcp/scripts/email-mcp-wrapper.py
+      - --workspace
+      - $ownerWorkspace
+      - --no-workspace-override
+      - --api-base-url
+      - $emailApiBaseUrl
     env:
       HERMES_HOME: $profileRoot
       HERMES_PROFILE: $profile
