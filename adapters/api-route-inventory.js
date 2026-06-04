@@ -236,6 +236,12 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     riskLevel: "medium",
     summary: "Accept a plugin event and let Hermes own Inbox/Web Push delivery.",
   })),
+  exact("note-receipt-save", "POST", "/api/note/receipts", "note", routeOptions("note-receipt", {
+    workspaceScoped: true,
+    resourceTypes: ["note", "message", "artifact"],
+    riskLevel: "medium",
+    summary: "Save a Hermes assistant receipt and bounded attachments into Note.",
+  })),
 
   exact("action-inbox-list", "GET", "/api/action-inbox", "action-inbox", routeOptions("action-inbox", {
     workspaceScoped: true,

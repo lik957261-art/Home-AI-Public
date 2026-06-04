@@ -3186,9 +3186,9 @@ button {
 }
 
 .message-action-strip {
-  flex: 0 0 72px;
-  width: 72px;
-  min-width: 72px;
+  flex: 0 0 auto;
+  width: max-content;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -4110,7 +4110,7 @@ button.directory-alias-chip {
 
 .message-footer-row {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr);
   align-items: flex-end;
   column-gap: 6px;
   margin-top: 12px;

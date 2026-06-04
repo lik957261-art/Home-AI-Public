@@ -394,11 +394,17 @@ function renderMessageImageButton(message) {
   return `<button class="message-mini-action-button" type="button" data-share-message-image="${escapeHtml(message.id)}" aria-label="Share reply image" title="Share reply image"><svg class="message-line-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 4v11"></path><path d="M8.5 7.5 12 4l3.5 3.5"></path><path d="M6 14v4a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-4"></path></svg></button>`;
 }
 
+function renderMessageNoteButton(message) {
+  if (!canUseMessageReplyActions(message)) return "";
+  return `<button class="message-mini-action-button" type="button" data-save-message-note="${escapeHtml(message.id)}" aria-label="保存到 Note" title="保存到 Note"><svg class="message-line-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M7 3h10a2 2 0 0 1 2 2v16l-3.5-2-3.5 2-3.5-2L5 21V5a2 2 0 0 1 2-2Z"></path><path d="M9 8h6"></path><path d="M9 12h5"></path></svg></button>`;
+}
+
 function renderMessageActionStrip(message, scrollPosition) {
   const controls = [
     renderMessageScrollButton(message, scrollPosition),
     renderMessageCopyButton(message),
     renderMessageImageButton(message),
+    renderMessageNoteButton(message),
   ].filter(Boolean).join("");
   return controls ? `<span class="message-action-strip">${controls}</span>` : "";
 }
@@ -613,6 +619,22 @@ function wireMessageReplyActionButtons(root) {
       button.disabled = true;
       try {
         await shareMessageImage(button.dataset.shareMessageImage || "");
+      } catch (err) {
+        if (err?.name !== "AbortError") showError(err);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+  root?.querySelectorAll?.("[data-save-message-note]").forEach((button) => {
+    if (button.dataset.boundSaveMessageNote) return;
+    button.dataset.boundSaveMessageNote = "1";
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      button.disabled = true;
+      try {
+        await saveMessageToNote(button.dataset.saveMessageNote || "");
       } catch (err) {
         if (err?.name !== "AbortError") showError(err);
       } finally {

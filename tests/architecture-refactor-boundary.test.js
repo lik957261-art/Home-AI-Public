@@ -101,6 +101,7 @@ const mobileRuntimeCoreProviders = require("../adapters/mobile-runtime-core-prov
 const mobileRuntimeEnvironmentService = require("../adapters/mobile-runtime-environment-service");
 const markdownRenderer = require("../adapters/markdown-renderer");
 const naturalLanguageDraftService = require("../adapters/natural-language-draft-service");
+const noteReceiptSaveService = require("../adapters/note-receipt-save-service");
 const ownerElevationGrantService = require("../adapters/owner-elevation-grant-service");
 const ownerElevationRoutingService = require("../adapters/owner-elevation-routing-service");
 const programmingAssessmentTemplateService = require("../adapters/programming-assessment-template-service");
@@ -151,6 +152,7 @@ const learningParentReviewApiRoutes = require("../server-routes/learning-parent-
 const learningProgramApiRoutes = require("../server-routes/learning-program-api-routes");
 const mobileApiDispatcher = require("../server-routes/mobile-api-dispatcher");
 const mobileApiComposition = require("../server-routes/mobile-api-composition");
+const noteReceiptApiRoutes = require("../server-routes/note-receipt-api-routes");
 const ownerElevationApiRoutes = require("../server-routes/owner-elevation-api-routes");
 const publicApiRoutes = require("../server-routes/public-api-routes");
 const pushApiRoutes = require("../server-routes/push-api-routes");
@@ -319,6 +321,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof markdownRenderer.renderWeixinMarkdownForwardHtml, "function");
   assert.equal(typeof naturalLanguageDraftService.createNaturalLanguageDraftService, "function");
   assert.equal(typeof naturalLanguageDraftService.extractJsonObject, "function");
+  assert.equal(typeof noteReceiptSaveService.createNoteReceiptSaveService, "function");
   assert.equal(typeof ownerElevationGrantService.createOwnerElevationGrantService, "function");
   assert.equal(typeof ownerElevationRoutingService.createOwnerElevationRoutingService, "function");
   assert.equal(typeof programmingAssessmentTemplateService.buildProgrammingAssessmentLogMarkdown, "function");
@@ -396,6 +399,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof mobileApiComposition.createMobileApiComposition, "function");
   assert.equal(typeof mobileApiDispatcher.createMobileApiDispatcher, "function");
   assert.equal(typeof fileArtifactApiRoutes.createFileArtifactApiRoutes, "function");
+  assert.equal(typeof noteReceiptApiRoutes.createNoteReceiptApiRoutes, "function");
   assert.equal(typeof appLearningCoinsUi.renderCoinsSubsystem, "function");
   assert.equal(typeof appLearningGrowthUi.renderLearningGrowthView, "function");
   assert.equal(typeof appLearningProgramUi.renderProgramSubsystem, "function");
@@ -574,6 +578,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(dispatcher, /key: "learningCoinApiRoutes"/);
   assert.match(mobileComposition, /createFileArtifactApiRoutes/);
   assert.match(dispatcher, /key: "fileArtifactApiRoutes"/);
+  assert.match(mobileComposition, /createNoteReceiptApiRoutes/);
+  assert.match(mobileComposition, /createNoteReceiptSaveService/);
+  assert.match(dispatcher, /key: "noteReceiptApiRoutes"/);
   assert.match(server, /createArtifactTextRegistrationService/);
   assert.match(server, /getArtifactTextRegistrationService\(\)\.registerArtifactsFromText/);
   assert.match(server, /buildRequestContext/);

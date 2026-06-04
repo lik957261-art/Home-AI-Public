@@ -11,6 +11,7 @@ const { createDirectoryShareApiRoutes } = require("./directory-share-api-routes"
 const { createEventStreamApiRoutes } = require("./event-stream-api-routes");
 const { createFileArtifactApiRoutes } = require("./file-artifact-api-routes");
 const { createHermesPluginApiRoutes } = require("./hermes-plugin-api-routes");
+const { createNoteReceiptApiRoutes } = require("./note-receipt-api-routes");
 const { createKanbanCardApiRoutes } = require("./kanban-card-api-routes");
 const { createKanbanLearningGuidanceApiRoutes } = require("./kanban-learning-guidance-api-routes");
 const { createKanbanStudyApiRoutes } = require("./kanban-study-api-routes");
@@ -58,6 +59,7 @@ const { createWorkspaceApiRoutes } = require("./workspace-api-routes");
 const { createHermesPluginService } = require("../adapters/hermes-plugin-service");
 const { createHermesPluginNotificationService } = require("../adapters/hermes-plugin-notification-service");
 const { createFinanceLedgerJoinApprovalService } = require("../adapters/finance-ledger-join-approval-service");
+const { createNoteReceiptSaveService } = require("../adapters/note-receipt-save-service");
 const { createPlatformCurrencyService } = require("../adapters/platform-currency-service");
 
 function callBootTrace(deps, label) {
@@ -254,6 +256,20 @@ function createMobileApiComposition(deps = {}) {
     resolveFileForBrowserRequest: deps.resolveFileForBrowserRequest,
     sendJson: deps.sendJson,
     textFilePreview: deps.textFilePreview,
+  });
+  const noteReceiptSaveService = deps.noteReceiptSaveService || createNoteReceiptSaveService({
+    dataDir: deps.dataDir,
+    env: deps.env,
+    fetch: deps.fetch || global.fetch,
+    mimeFor: deps.mimeFor,
+    resolveArtifactForRequest: deps.resolveArtifactForRequest,
+  });
+  const noteReceiptApiRoutes = createNoteReceiptApiRoutes({
+    findThreadForRequest: (...args) => deps.getRuntimeStateThreadService().findThreadForRequest(...args),
+    noteReceiptSaveService,
+    readBody: deps.readBody,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
   });
 
   const directoryBrowserApiRoutes = createDirectoryBrowserApiRoutes({
@@ -826,6 +842,7 @@ function createMobileApiComposition(deps = {}) {
     learningGrowthCardApiRoutes,
     learningParentReviewApiRoutes,
     learningProgramApiRoutes,
+    noteReceiptApiRoutes,
     ownerElevationApiRoutes,
     publicApiRoutes,
     pushApiRoutes,
@@ -857,6 +874,7 @@ function createMobileApiComposition(deps = {}) {
       learningGrowthStageAssessmentService,
       hermesPluginService,
       hermesPluginNotificationService,
+      noteReceiptSaveService,
     },
     routes: {
       accessKeyApiRoutes,

@@ -66,6 +66,16 @@ model context. Note's canonical plugin workspace id is
 `note:<hermesWorkspaceId>`, and Hermes writes that canonical id into
 `.hermes-note/config.json`.
 
+Hermes Mobile can save an assistant chat receipt into Note through the host
+route `POST /api/note/receipts`. The frontend sends only the current
+`threadId`, `messageId`, and effective Hermes `workspaceId`; the server reads
+the authorized message from Hermes runtime state, resolves any message
+artifacts through the existing artifact access boundary, and sends Note only a
+compact title, body, and bounded base64 attachments via Note's
+`POST /api/v1/notes` API. Hermes must not pass local file paths, private URLs,
+workspace overrides, launch tokens, or raw access keys to Note. Note remains
+the owner of attachment storage, note rows, and attachment asset indexing.
+
 Note MCP uses the common single-prefix stdio contract. Gateway profiles may add
 `mcp_servers.note`, `toolsets: [note]`, and
 `platform_toolsets.api_server: [note]` only when the effective workspace has

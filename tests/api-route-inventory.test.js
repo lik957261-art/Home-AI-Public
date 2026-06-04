@@ -158,6 +158,15 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "note-receipt-api-routes",
+    exportName: "createNoteReceiptApiRoutes",
+    required: false,
+    minRoutes: 1,
+    probes: [
+      { method: "POST", path: "/api/note/receipts", id: "note-receipt-save" },
+    ],
+  },
+  {
     key: "thread-read-upload-api-routes",
     exportName: "createThreadReadUploadApiRoutes",
     required: false,
@@ -392,6 +401,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/hermes-plugins/wardrobe/manifest" }).id, "hermes-plugin-manifest");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/hermes-plugins/codex-mobile/manifest" }).id, "hermes-plugin-manifest");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/hermes-plugins/wardrobe/notifications" }).id, "hermes-plugin-notification");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/note/receipts" }).id, "note-receipt-save");
   assert.equal(matchHermesMobileApiRoute({ method: "PATCH", path: "/api/workspaces/child-a" }).id, "workspaces-admin");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/automations/job-1/pause" }).id, "automations-action");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/kanban/cards/card-1/study-quiz" }).id, "kanban-reading-quiz");

@@ -134,6 +134,10 @@ Use this file to locate the responsible frontend files before debugging a screen
   The root-list harness must cover both first-party task groups carrying
   `kanbanCaseId`/`kanbanCaseMode` and shared case-topic threads.
 - Message actions, Usage, Skill, and terminal run-status chips: `public/app-message-actions-ui.js`, `public/app-message-usage-ui.js`, `public/app-message-skill-ui.js`, `public/app-run-progress-ui.js`
+  - Assistant receipt footer actions include copy, share image, and save to
+    Note. Save-to-Note click handling lives with the share/copy helpers in
+    `public/app-share-image-ui.js` and calls `POST /api/note/receipts` with
+    IDs only; the server owns message lookup and attachment materialization.
 - Search: `public/app-navigation-search-ui.js`
 - Group/topic UI: `public/app-group-topic-ui.js`
 
