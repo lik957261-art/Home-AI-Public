@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260603-directory-topic-mobile-fix-v548";
+const CLIENT_VERSION = "20260604-plugin-dock-fill-v549";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -182,8 +182,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260603-directory-topic-mobile-fix-v548" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260603-directory-topic-mobile-fix-v548"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260604-plugin-dock-fill-v549" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260604-plugin-dock-fill-v549"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2289,10 +2289,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260603-directory-topic-mobile-fix-v548/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260603-directory-topic-mobile-fix-v548/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260603-directory-topic-mobile-fix-v548/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260603-directory-topic-mobile-fix-v548/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260604-plugin-dock-fill-v549/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260604-plugin-dock-fill-v549/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260604-plugin-dock-fill-v549/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260604-plugin-dock-fill-v549/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2325,12 +2325,13 @@ assert.match(appJs, /const PLUGIN_TOPIC_ORDER_STORAGE_KEY = "hermesPluginTopicOr
 assert.match(appJs, /function recordPluginTopicUsage\(pluginId\)/);
 assert.match(appJs, /function orderedPluginAppDefs\(defs = \[\]\)/);
 assert.match(appJs, /orderedPluginAppDefs\(availablePluginTopicDefs\(\)\.filter\(\(def\) => !def\.builtinKind\)\)/);
+assert.match(appJs, /const fillCount = Math\.min\(Math\.max\(defs\.length, 1\), 4\);/);
 assert.match(appJs, /function wirePluginAppManualSorting\(root\)/);
 assert.match(appJs, /persistPluginAppOrderFromStrip\(drag\.strip\)/);
 assert.doesNotMatch(appJs, /function sortPluginAppDefsByUsage\(defs = \[\]\)/);
 assert.doesNotMatch(appJs, /const aLast = Number\(aUsage\.lastUsedAt\)/);
 assert.match(appJs, /<section class="plugin-app-launcher"/);
-assert.match(appJs, /class="plugin-app-strip" role="list"/);
+assert.match(appJs, /class="plugin-app-strip" role="list" data-plugin-count="\$\{defs\.length\}" data-plugin-fill-count="\$\{fillCount\}"/);
 assert.match(appJs, /class="plugin-app-card"[\s\S]*?data-plugin-topic-open-app[\s\S]*?data-plugin-topic-sort-id/);
 assert.doesNotMatch((appJs.match(/function renderPluginAppLauncher\(\)[\s\S]*?async function openBuiltInDirectoryPlugin\(\)/) || [""])[0], /data-plugin-topic-open-topic|data-plugin-topic-open-delivery/);
 assert.match(appJs, /function openPluginTopicApp\(pluginId\)[\s\S]*?recordPluginTopicUsage\(def\.id\)/);
@@ -2371,13 +2372,14 @@ assert.match(appJs, /pluginTopicInstruction\(pluginTopicDef\)/);
 assert.match(stylesCss, /\.plugin-topic-launcher \{/);
 assert.match(stylesCss, /\.plugin-topic-grid \{[\s\S]*?grid-template-columns: repeat\(auto-fit, minmax\(168px, 1fr\)\)/);
 assert.match(stylesCss, /\.plugin-app-launcher \{[\s\S]*?border-top: 1px solid rgba\(95, 139, 148, 0\.18\);/);
-assert.match(stylesCss, /\.plugin-app-strip \{[\s\S]*?display: flex;[\s\S]*?flex-wrap: nowrap;[\s\S]*?overflow-x: auto;[\s\S]*?scroll-snap-type: x proximity;/);
+assert.match(stylesCss, /\.plugin-app-strip \{[\s\S]*?--plugin-app-gap: 8px;[\s\S]*?display: flex;[\s\S]*?flex-wrap: nowrap;[\s\S]*?gap: var\(--plugin-app-gap\);[\s\S]*?overflow-x: auto;[\s\S]*?scroll-snap-type: x proximity;/);
 assert.match(stylesCss, /\.plugin-app-strip-sorting \{[\s\S]*?scroll-snap-type: none;/);
 assert.match(stylesCss, /\.plugin-app-strip::-webkit-scrollbar \{[\s\S]*?display: none;/);
 assert.match(stylesCss, /\.task-list-mode \.plugin-app-strip \{[\s\S]*?width: 100%;[\s\S]*?padding: 0 max\(0px, calc\(\(100vw - 448px\) \/ 2\)\);/);
 assert.match(stylesCss, /\.plugin-app-card \{[\s\S]*?flex: 0 0 70px;[\s\S]*?min-height: 76px;[\s\S]*?background: transparent;[\s\S]*?border: 0;[\s\S]*?scroll-snap-align: start;/);
 assert.match(stylesCss, /\.plugin-app-card-dragging \{[\s\S]*?transform: scale\(1\.04\);/);
 assert.doesNotMatch(stylesCss, /\.plugin-app-grid \{/);
+assert.match(stylesCss, /\.task-list-mode \.plugin-app-strip\[data-plugin-fill-count="4"\] \.plugin-app-card \{[\s\S]*?flex-basis: calc\(\(100% - var\(--plugin-app-gap\) - var\(--plugin-app-gap\) - var\(--plugin-app-gap\)\) \/ 4\);[\s\S]*?width: calc\(\(100% - var\(--plugin-app-gap\) - var\(--plugin-app-gap\) - var\(--plugin-app-gap\)\) \/ 4\);/);
 assert.match(stylesCss, /\.topic-plugin-dock:not\(\[hidden\]\) \{[\s\S]*?display: block;/);
 assert.match(stylesCss, /--mobile-bottom-nav-offset-height: var\(--mobile-bottom-nav-offset-height-runtime, var\(--mobile-bottom-nav-height\)\);/);
 assert.match(stylesCss, /--topic-plugin-dock-reserved-height: calc\(var\(--mobile-bottom-nav-offset-height\) \+ var\(--topic-plugin-dock-height\)\);/);

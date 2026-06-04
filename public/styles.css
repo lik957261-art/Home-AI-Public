@@ -5290,10 +5290,11 @@ button.directory-alias-chip {
 }
 
 .plugin-app-strip {
+  --plugin-app-gap: 8px;
   min-width: 0;
   display: flex;
   flex-wrap: nowrap;
-  gap: 8px;
+  gap: var(--plugin-app-gap);
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: contain;
@@ -5402,6 +5403,30 @@ button.directory-alias-chip {
   width: 64px;
   min-height: 66px;
   padding: 4px;
+}
+
+.task-list-mode .plugin-app-strip[data-plugin-fill-count] .plugin-app-card {
+  min-width: 0;
+}
+
+.task-list-mode .plugin-app-strip[data-plugin-fill-count="1"] .plugin-app-card {
+  flex-basis: 100%;
+  width: 100%;
+}
+
+.task-list-mode .plugin-app-strip[data-plugin-fill-count="2"] .plugin-app-card {
+  flex-basis: calc((100% - var(--plugin-app-gap)) / 2);
+  width: calc((100% - var(--plugin-app-gap)) / 2);
+}
+
+.task-list-mode .plugin-app-strip[data-plugin-fill-count="3"] .plugin-app-card {
+  flex-basis: calc((100% - var(--plugin-app-gap) - var(--plugin-app-gap)) / 3);
+  width: calc((100% - var(--plugin-app-gap) - var(--plugin-app-gap)) / 3);
+}
+
+.task-list-mode .plugin-app-strip[data-plugin-fill-count="4"] .plugin-app-card {
+  flex-basis: calc((100% - var(--plugin-app-gap) - var(--plugin-app-gap) - var(--plugin-app-gap)) / 4);
+  width: calc((100% - var(--plugin-app-gap) - var(--plugin-app-gap) - var(--plugin-app-gap)) / 4);
 }
 
 .task-list-mode .plugin-app-card .plugin-topic-app-icon,
@@ -15837,7 +15862,7 @@ body.task-markdown-preview-open {
   }
 
   .plugin-app-strip {
-    gap: 6px;
+    --plugin-app-gap: 6px;
   }
 
   .task-list-mode .plugin-app-strip {

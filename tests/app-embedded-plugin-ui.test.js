@@ -222,7 +222,7 @@ assert.match(navigationSearchUi, /pluginContextBottomTabs\.forEach\(\(id\) => \{
 assert.match(pluginTopicsUi, /function hideActivePluginHostsForPluginTopicNavigation\(\)/);
 assert.match(pluginTopicsUi, /setWardrobePluginHostVisible\(false\)/);
 assert.match(pluginTopicsUi, /setEmbeddedPluginHostVisible\(def, false\)/);
-assert.match(pluginTopicsUi, /openPluginTopicChat\(pluginId\)[\s\S]*?hideActivePluginHostsForPluginTopicNavigation\(\)/);
+assert.match(pluginTopicsUi, /openPluginTopicChat\(pluginId, options = \{\}\)[\s\S]*?hideActivePluginHostsForPluginTopicNavigation\(\)/);
 assert.match(pluginTopicsUi, /openPluginTopicDelivery\(pluginId\)[\s\S]*?hideActivePluginHostsForPluginTopicNavigation\(\)/);
 assert.match(sidebarTaskUi, /sendCodexPluginBackOrReturn\(\)/);
 assert.match(sidebarTaskUi, /sendFinancePluginBackOrReturn\(\)/);
@@ -294,7 +294,7 @@ assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-n
 assert.match(stylesCss, /\.embedded-plugin-preview-fullscreen-active \.bottom-nav\s*\{[\s\S]*display: none !important;/);
 assert.match(stylesCss, /\.plugin-context-nav-mode\.embedded-plugin-preview-fullscreen-active\.embedded-plugin-host-active \.main\s*\{[\s\S]*bottom: 0;/);
 assert.match(stylesCss, /--plugin-context-bottom-nav-height: calc\(54px \+ env\(safe-area-inset-bottom\)\)/);
-assert.match(stylesCss, /\.plugin-context-nav-mode\.plugin-topic-detail-mode \.composer\s*\{[\s\S]*margin-bottom: var\(--plugin-context-bottom-nav-height\);/);
+assert.match(stylesCss, /\.app\.main-back-visible\.plugin-context-nav-mode\.plugin-topic-detail-mode \.composer\s*\{[\s\S]*bottom: var\(--plugin-context-bottom-nav-height\);/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-tab-label\s*\{[\s\S]*display: none;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.topic-plugin-dock\s*\{[\s\S]*display: none !important;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav\s*\{[\s\S]*display: none !important;/);

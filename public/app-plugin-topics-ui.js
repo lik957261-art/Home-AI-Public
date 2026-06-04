@@ -429,8 +429,9 @@ function renderPluginTopicCards(options = {}) {
 function renderPluginAppLauncher() {
   const defs = orderedPluginAppDefs(availablePluginTopicDefs().filter((def) => !def.builtinKind));
   if (!defs.length) return "";
+  const fillCount = Math.min(Math.max(defs.length, 1), 4);
   return `<section class="plugin-app-launcher" aria-label="\u63d2\u4ef6\u5e94\u7528">
-    <div class="plugin-app-strip" role="list">
+    <div class="plugin-app-strip" role="list" data-plugin-count="${defs.length}" data-plugin-fill-count="${fillCount}">
       ${defs.map((def) => `
         <button class="plugin-app-card" type="button" role="listitem" data-plugin-topic-open-app="${escapeHtml(def.id)}" data-plugin-topic-sort-id="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u63d2\u4ef6`)}">
           <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>

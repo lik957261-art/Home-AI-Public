@@ -193,7 +193,9 @@ navigation. It sorts visible embedded-app plugins by local usage recency and
 count, then falls back to the stable manifest order. Adding new plugins must not
 increase the Dock height or wrap icons into a second row; lower-frequency
 plugins remain reachable by horizontal swipe so the topic list keeps enough
-vertical space.
+vertical space. When one to four plugins are visible, the row should divide the
+available width evenly across those visible plugins; when more than four are
+visible, the four-slot sizing remains and the row scrolls horizontally.
 
 When a plugin is opened from a plugin-bound topic, Hermes shows a three-entry
 plugin context browser-style footer: Topic, the current plugin, and Directory.
