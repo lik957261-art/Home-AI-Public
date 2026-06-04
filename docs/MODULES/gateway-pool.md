@@ -200,6 +200,13 @@ start that plugin MCP for unrelated ordinary chats; failed optional schema
 probes should mark the catalog entry unavailable and omit the optional MCP from
 the active schema set.
 
+Request-level toolset hints must not strand an otherwise compatible idle slot.
+When a worker is `warm` or `idle`, has no active run, and its materialized
+template identity still matches the requested workspace/profile/provider/tier,
+the scheduler may refresh the worker's compatibility key for the next run
+instead of queuing forever behind a single already-warm profile. Busy workers
+remain protected by the original compatibility and active-run checks.
+
 Optional plugin activation is a soft scheduling preference before execution.
 Gateway run assembly may pass `preferredToolsets` for optional plugin candidates
 such as `finance` or `note`; Gateway Pool should prefer workers that declare

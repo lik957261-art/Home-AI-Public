@@ -435,8 +435,11 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       if (!STARTED_STATES.has(state.state)) continue;
       if (state.activeRunIds.size > 0) continue;
       const expectedKey = key(worker);
-      if (state.compatibilityKey && state.compatibilityKey !== expectedKey) continue;
       if (!materializedIdentityMatches(worker, state, hints)) continue;
+      if (state.compatibilityKey && state.compatibilityKey !== expectedKey) {
+        if (!["warm", "idle"].includes(state.state)) continue;
+        state.compatibilityKey = expectedKey;
+      }
       return { worker, state };
     }
     return null;

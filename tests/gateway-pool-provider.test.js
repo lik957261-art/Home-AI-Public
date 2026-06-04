@@ -507,6 +507,69 @@ async function testHybridModeStartsCompatibleWorkerAndEmitsBoundedEvents() {
   fs.rmSync(manifest.dir, { recursive: true, force: true });
 }
 
+async function testHybridModeReusesIdleWorkerAcrossRequestToolsetHints() {
+  const manifest = tempManifest({
+    enabled: true,
+    workers: [
+      { name: "grok", profile: "grokgw1", port: 18761, api_key: "grok-secret", provider: "xai-oauth", securityLevel: "user", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] },
+    ],
+  });
+  const healthyProfiles = new Set();
+  const started = [];
+  const events = [];
+  const provider = createGatewayPoolProvider({
+    enabled: "auto",
+    startMode: "hybrid",
+    elastic: { ownerMaxWorkers: 4, globalMaxWorkers: 4, queueWaitTimeoutMs: 50 },
+    manifestPaths: [manifest.file],
+    fallbackApiBase: "http://fallback.example.test",
+    createGatewayRunner,
+    startWorkerProfile: async (worker) => {
+      started.push(worker.profile);
+      healthyProfiles.add(worker.profile);
+    },
+    fetchImpl: async (url) => {
+      if (url.includes(":18761/") && healthyProfiles.has("grokgw1")) return jsonResponse({ status: "ok" });
+      return jsonResponse({ error: "down" }, { status: 503 });
+    },
+  });
+
+  const first = await provider.chooseTarget({
+    provider: "xai-oauth",
+    securityLevel: "user",
+    workspaceId: "owner",
+    skillWorkspaceId: "owner",
+    enabledToolsets: ["wardrobe", "vision", "file", "skills"],
+    preferred_worker_profiles: ["grokgw1"],
+  }, {
+    runId: "run-grok-wardrobe",
+    onEvent: (event) => events.push(event),
+  });
+  assert.equal(first.profile, "grokgw1");
+  assert.equal(provider.releaseRun("run-grok-wardrobe"), true);
+
+  const second = await provider.chooseTarget({
+    provider: "xai-oauth",
+    securityLevel: "user",
+    workspaceId: "owner",
+    skillWorkspaceId: "owner",
+    enabledToolsets: ["finance"],
+    preferred_worker_profiles: ["grokgw1"],
+  }, {
+    runId: "run-grok-finance",
+    onEvent: (event) => events.push(event),
+  });
+
+  assert.equal(second.profile, "grokgw1");
+  assert.deepEqual(started, ["grokgw1"]);
+  assert.equal(events.some((event) => event.event === "run.gateway_worker_queued"), false);
+  assert.deepEqual(
+    events.map((event) => event.event),
+    ["run.gateway_worker_starting", "run.gateway_worker_started", "run.gateway_worker_reused"],
+  );
+  fs.rmSync(manifest.dir, { recursive: true, force: true });
+}
+
 async function testHybridModeStartsOwnerMaintenanceProfileOnDemand() {
   const manifest = tempManifest({
     enabled: true,
@@ -740,6 +803,7 @@ async function testHybridStatusClearsStoppedWarmWorker() {
   await testProviderSpecificOwnerMaintenanceChoosesDeepSeekWorker();
   await testUserRunsFailClosedWithoutUserWorker();
   await testHybridModeStartsCompatibleWorkerAndEmitsBoundedEvents();
+  await testHybridModeReusesIdleWorkerAcrossRequestToolsetHints();
   await testHybridModeStartsOwnerMaintenanceProfileOnDemand();
   await testHybridStatusReportsConfiguredStoppedAsExpectedState();
   await testHybridStatusObservesAlreadyRunningWarmWorker();
