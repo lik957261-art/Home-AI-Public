@@ -79,6 +79,10 @@ Gateway plugin/schema/profile changes:
 ## Constraints
 
 - Mobile UI must preserve the OS status bar, safe areas, bottom navigation, stable action icons, and readable compact panels.
+- Touch tablets up to `1366px` wide use the same mobile shell as phone portrait:
+  a single-column app, bottom navigation, and an overlay sidebar. Do not let
+  iPad-like landscape layouts fall back to the desktop fixed sidebar or hide the
+  primary bottom navigation.
 - Top-level PWA shell changes must keep time, battery, and Wi-Fi indicators visible on mobile; browser-shell guards and full-viewport overlays need explicit status-bar/safe-area checks.
 - The settings sheet owns device-local display preferences. Theme mode is a
   three-state client preference: `system`, `light`, or `dark`. The shell must

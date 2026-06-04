@@ -72,9 +72,13 @@ route `POST /api/note/receipts`. The frontend sends only the current
 the authorized message from Hermes runtime state, resolves any message
 artifacts through the existing artifact access boundary, and sends Note only a
 compact title, body, and bounded base64 attachments via Note's
-`POST /api/v1/notes` API. Hermes must not pass local file paths, private URLs,
-workspace overrides, launch tokens, or raw access keys to Note. Note remains
-the owner of attachment storage, note rows, and attachment asset indexing.
+`POST /api/v1/notes` API. The default target notebook id for Hermes-generated
+receipt notes is `hermes`, with the `hermes-receipt` tag retained for filtering.
+The chat footer action keeps a message-level in-flight guard so repeated taps
+or rerenders do not submit the same receipt twice while the first save is still
+running. Hermes must not pass local file paths, private URLs, workspace
+overrides, launch tokens, or raw access keys to Note. Note remains the owner of
+attachment storage, note rows, and attachment asset indexing.
 
 Note MCP uses the common single-prefix stdio contract. Gateway profiles may add
 `mcp_servers.note`, `toolsets: [note]`, and

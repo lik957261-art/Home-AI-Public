@@ -275,7 +275,7 @@ function createNoteReceiptSaveService(options = {}) {
       title,
       body,
       tags: ["hermes-receipt"],
-      notebookId: "inbox",
+      notebookId: "hermes",
       attachments,
     };
     const result = await postNote(binding, payload);

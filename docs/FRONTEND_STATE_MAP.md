@@ -114,6 +114,14 @@ Use this file to locate the responsible frontend files before debugging a screen
   - Skill footer tags are evidence-based. Do not synthesize a Response Skill
     fallback when no real Skill was loaded or no `skill_view` event exists.
 - Static shell/cache: `public/index.html`, `public/service-worker.js`, `public/directory-viewer.html`
+- Mobile shell breakpoint: `public/app-chat-composer-ui.js`,
+  `public/app-composer-context-ui.js`, and `public/styles.css`
+  - The mobile shell applies at `max-width: 1099px` and also on coarse-pointer
+    touch tablets up to `1366px` wide. iPad-like landscape layouts therefore
+    use the same single-column shell and bottom navigation as portrait instead
+    of the desktop fixed sidebar.
+  - The old narrow-landscape compact footer variant is intentionally absent;
+    landscape keeps the normal bottom-tab labels and bottom navigation height.
 
 ## Chat And Topics
 
@@ -138,6 +146,8 @@ Use this file to locate the responsible frontend files before debugging a screen
     Note. Save-to-Note click handling lives with the share/copy helpers in
     `public/app-share-image-ui.js` and calls `POST /api/note/receipts` with
     IDs only; the server owns message lookup and attachment materialization.
+    The client keeps a per-message in-flight guard to prevent duplicate Note
+    saves from repeated taps while the first request is pending.
 - Search: `public/app-navigation-search-ui.js`
 - Group/topic UI: `public/app-group-topic-ui.js`
 

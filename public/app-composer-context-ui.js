@@ -262,13 +262,8 @@ function updateMobileBottomNavReservation() {
   }
   const rectHeight = Math.ceil(nav.getBoundingClientRect?.().height || 0);
   const contentHeight = Math.ceil(nav.scrollHeight || 0);
-  const compact = isMobileLandscapeCompactLayout();
-  const offset = compact
-    ? Math.max(50, rectHeight)
-    : Math.max(58, rectHeight);
-  const reserve = compact
-    ? Math.max(58, rectHeight + 8, contentHeight + 8)
-    : Math.max(76, rectHeight + 10, contentHeight + 10);
+  const offset = Math.max(58, rectHeight);
+  const reserve = Math.max(76, rectHeight + 10, contentHeight + 10);
   root.style.setProperty("--mobile-bottom-nav-offset-height-runtime", `${offset}px`);
   root.style.setProperty("--mobile-bottom-nav-reserved-height-runtime", `${reserve}px`);
   updatePluginContextViewportReservation();

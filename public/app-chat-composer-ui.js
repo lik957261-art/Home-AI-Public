@@ -39,11 +39,8 @@ function sidebarBackToMenu() {
 }
 
 function isMobileLayout() {
-  return window.matchMedia("(max-width: 1099px)").matches;
-}
-
-function isMobileLandscapeCompactLayout() {
-  return window.matchMedia("(max-width: 1099px) and (orientation: landscape) and (max-height: 620px)").matches;
+  return window.matchMedia("(max-width: 1099px)").matches
+    || window.matchMedia("(pointer: coarse) and (max-width: 1366px)").matches;
 }
 
 function isCurrentSingleWindowLoaded() {

@@ -1,5 +1,7 @@
 "use strict";
 
+const noteReceiptSaveInFlightIds = new Set();
+
 function messageShareText(message) {
   if (!message) return "";
   const content = cleanDisplayText(rewriteDirectoryPathsForDisplay(message.content || ""));
@@ -379,23 +381,31 @@ async function shareMessageImage(messageId) {
 }
 
 async function saveMessageToNote(messageId) {
-  const message = currentMessageById(messageId);
-  if (!message) throw new Error("Message not found");
-  const text = messageShareText(message);
-  const hasAttachments = Array.isArray(message.artifacts) && message.artifacts.length > 0;
-  if (!text && !hasAttachments) throw new Error("没有可保存的内容");
-  const result = await api("/api/note/receipts", {
-    method: "POST",
-    timeoutMs: 45000,
-    body: JSON.stringify({
-      threadId: state.currentThreadId || state.currentThread?.id || "",
-      messageId,
-      workspaceId: state.currentThread?.workspaceId || state.selectedWorkspaceId || "owner",
-    }),
-  });
-  const count = Number(result?.note?.attachmentCount || 0) || 0;
-  showPushToast(count ? `已保存到 Note · ${count} 个附件` : "已保存到 Note", "success");
-  return result;
+  const noteMessageId = String(messageId || "").trim();
+  if (!noteMessageId) throw new Error("Message not found");
+  if (noteReceiptSaveInFlightIds.has(noteMessageId)) return { ok: false, duplicate: true };
+  noteReceiptSaveInFlightIds.add(noteMessageId);
+  try {
+    const message = currentMessageById(noteMessageId);
+    if (!message) throw new Error("Message not found");
+    const text = messageShareText(message);
+    const hasAttachments = Array.isArray(message.artifacts) && message.artifacts.length > 0;
+    if (!text && !hasAttachments) throw new Error("没有可保存的内容");
+    const result = await api("/api/note/receipts", {
+      method: "POST",
+      timeoutMs: 45000,
+      body: JSON.stringify({
+        threadId: state.currentThreadId || state.currentThread?.id || "",
+        messageId: noteMessageId,
+        workspaceId: state.currentThread?.workspaceId || state.selectedWorkspaceId || "owner",
+      }),
+    });
+    const count = Number(result?.note?.attachmentCount || 0) || 0;
+    showPushToast(count ? `已保存到 Note · ${count} 个附件` : "已保存到 Note", "success");
+    return result;
+  } finally {
+    noteReceiptSaveInFlightIds.delete(noteMessageId);
+  }
 }
 
 function learningGrowthCardRoleShareLabel(role) {

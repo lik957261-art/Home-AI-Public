@@ -82,6 +82,7 @@ async function testSaveReceiptPostsBoundedBodyAndAttachments() {
   assert.equal(fetchCalls[0].body.title.length <= 10, true);
   assert.match(fetchCalls[0].body.body, /今天的穿搭建议/);
   assert.deepEqual(fetchCalls[0].body.tags, ["hermes-receipt"]);
+  assert.equal(fetchCalls[0].body.notebookId, "hermes");
   assert.equal(fetchCalls[0].body.attachments.length, 1);
   assert.equal(fetchCalls[0].body.attachments[0].name, "receipt.md");
   assert.equal(fetchCalls[0].body.attachments[0].kind, "document");
