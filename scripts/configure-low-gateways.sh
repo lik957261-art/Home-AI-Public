@@ -107,6 +107,59 @@ owner_email_workspace_override="${HERMES_MOBILE_OWNER_EMAIL_WORKSPACE:-}"
 wuping_email_workspace_override="${HERMES_MOBILE_WUPING_EMAIL_WORKSPACE:-}"
 gateway_start_profiles="${HERMES_GATEWAY_START_PROFILES:-}"
 
+safe_request_workspace_id() {
+  local value="${1:-}"
+  value="${value#workspace:}"
+  if [[ "$value" =~ ^[A-Za-z0-9_-]{1,80}$ ]]; then
+    printf '%s' "${value,,}"
+  fi
+}
+
+gateway_request_workspace_id="$(safe_request_workspace_id "${HERMES_GATEWAY_REQUEST_WORKSPACE_ID:-}")"
+
+write_materialized_identity() {
+  local identity_dir="$1"
+  local profile="$2"
+  local workspace_id="$3"
+  local permission_tier="$4"
+  local provider="$5"
+  python3 - "$identity_dir" "$profile" "$workspace_id" "$permission_tier" "$provider" <<'PY' 2>/dev/null || true
+import json
+import re
+import sys
+from pathlib import Path
+
+identity_dir, profile, workspace_id, permission_tier, provider = sys.argv[1:6]
+
+def safe_text(value, pattern, fallback=""):
+    text = str(value or "").strip()
+    if not text:
+        return fallback
+    if not re.match(pattern, text):
+        return fallback
+    return text
+
+profile = safe_text(profile, r"^[A-Za-z0-9_-]{1,80}$")
+workspace_id = safe_text(workspace_id, r"^[A-Za-z0-9_-]{1,80}$", "owner").lower()
+permission_tier = safe_text(permission_tier, r"^[A-Za-z0-9_.:-]{1,80}$", "user")
+provider = safe_text(provider, r"^[A-Za-z0-9_.:-]{1,80}$", "openai-codex")
+if not profile:
+    raise SystemExit(0)
+
+path = Path(identity_dir) / "materialized-identity.json"
+payload = {
+    "profile": profile,
+    "workspaceId": workspace_id,
+    "skillWorkspaceId": workspace_id,
+    "memoryWorkspaceId": workspace_id,
+    "permissionTier": permission_tier,
+    "provider": provider,
+}
+path.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+PY
+  chmod 600 "$identity_dir/materialized-identity.json" 2>/dev/null || true
+}
+
 profile_selected_for_configure() {
   local profile="$1"
   if [ -z "$gateway_start_profiles" ]; then
@@ -225,6 +278,9 @@ file_size_or_zero() {
 
 is_owner_connector_profile() {
   local candidate="$1"
+  if [ -n "$gateway_request_workspace_id" ] && [ "$gateway_request_workspace_id" != "owner" ]; then
+    return 1
+  fi
   local profile
   for profile in $owner_connector_profiles; do
     if [ "$profile" = "$candidate" ]; then
@@ -419,12 +475,12 @@ wuping_email_workspace="${wuping_email_workspace_override:-$(find_first_email_wo
 
 skill_store_for_gateway_profile() {
   local profile="$1"
-  python3 - "$gateway_pool_manifest_path" "$profile" "$owner_skill_store" "$skill_profiles_root" <<'PY' 2>/dev/null || printf '%s\n' "$owner_skill_store"
+  python3 - "$gateway_pool_manifest_path" "$profile" "$owner_skill_store" "$skill_profiles_root" "$gateway_request_workspace_id" <<'PY' 2>/dev/null || printf '%s\n' "$owner_skill_store"
 import json
 import re
 import sys
 
-manifest_path, profile, owner_skill_store, skill_profiles_root = sys.argv[1:5]
+manifest_path, profile, owner_skill_store, skill_profiles_root, request_workspace = sys.argv[1:6]
 
 def clean_workspace_id(value):
     text = str(value or "").strip().lower()
@@ -432,6 +488,14 @@ def clean_workspace_id(value):
         text = text.split(":", 1)[1]
     text = re.sub(r"[^a-z0-9_-]+", "-", text).strip("-")
     return text[:80]
+
+request_workspace = clean_workspace_id(request_workspace)
+if request_workspace and request_workspace not in ("owner", "*"):
+    print(f"{skill_profiles_root.rstrip('/')}/{request_workspace}/skills")
+    raise SystemExit(0)
+if request_workspace == "owner":
+    print(owner_skill_store)
+    raise SystemExit(0)
 
 try:
     data = json.load(open(manifest_path, encoding="utf-8"))
@@ -464,14 +528,14 @@ else:
 PY
 }
 
-workspace_id_for_gateway_profile() {
+memory_store_for_gateway_profile() {
   local profile="$1"
-  python3 - "$gateway_pool_manifest_path" "$profile" <<'PY' 2>/dev/null || true
+  python3 - "$gateway_pool_manifest_path" "$profile" "$owner_skill_store" "$skill_profiles_root" "$gateway_request_workspace_id" <<'PY' 2>/dev/null || printf '%s\n' "$(dirname "$owner_skill_store")/memories"
 import json
 import re
 import sys
 
-manifest_path, profile = sys.argv[1:3]
+manifest_path, profile, owner_skill_store, skill_profiles_root, request_workspace = sys.argv[1:6]
 
 def clean_workspace_id(value):
     text = str(value or "").strip().lower()
@@ -479,6 +543,67 @@ def clean_workspace_id(value):
         text = text.split(":", 1)[1]
     text = re.sub(r"[^a-z0-9_-]+", "-", text).strip("-")
     return text[:80]
+
+owner_memory_store = f"{owner_skill_store.rstrip('/').rsplit('/', 1)[0]}/memories"
+request_workspace = clean_workspace_id(request_workspace)
+if request_workspace and request_workspace not in ("owner", "*"):
+    print(f"{skill_profiles_root.rstrip('/')}/{request_workspace}/memories")
+    raise SystemExit(0)
+if request_workspace == "owner":
+    print(owner_memory_store)
+    raise SystemExit(0)
+
+try:
+    data = json.load(open(manifest_path, encoding="utf-8"))
+except Exception:
+    print(owner_memory_store)
+    raise SystemExit(0)
+
+target = ""
+for worker in data.get("workers") or []:
+    worker_profile = str(worker.get("profile") or worker.get("name") or "").strip()
+    if worker_profile != profile:
+        continue
+    skill_workspace_ids = worker.get("skillWorkspaceIds") or worker.get("skill_workspace_ids") or []
+    if isinstance(skill_workspace_ids, str):
+        skill_workspace_ids = [item.strip() for item in skill_workspace_ids.split(",") if item.strip()]
+    private_ids = [clean_workspace_id(item) for item in skill_workspace_ids if clean_workspace_id(item) not in ("", "owner", "*")]
+    if len(private_ids) == 1:
+        target = private_ids[0]
+        break
+    skill_profile = str(worker.get("skillProfile") or worker.get("skill_profile") or "").strip()
+    if skill_profile.lower().startswith("workspace:"):
+        target = clean_workspace_id(skill_profile)
+        break
+    break
+
+if target:
+    print(f"{skill_profiles_root.rstrip('/')}/{target}/memories")
+else:
+    print(owner_memory_store)
+PY
+}
+
+workspace_id_for_gateway_profile() {
+  local profile="$1"
+  python3 - "$gateway_pool_manifest_path" "$profile" "$gateway_request_workspace_id" <<'PY' 2>/dev/null || true
+import json
+import re
+import sys
+
+manifest_path, profile, request_workspace = sys.argv[1:4]
+
+def clean_workspace_id(value):
+    text = str(value or "").strip().lower()
+    if text.startswith("workspace:"):
+        text = text.split(":", 1)[1]
+    text = re.sub(r"[^a-z0-9_-]+", "-", text).strip("-")
+    return text[:80]
+
+request_workspace = clean_workspace_id(request_workspace)
+if request_workspace and request_workspace not in ("*",):
+    print(request_workspace)
+    raise SystemExit(0)
 
 try:
     data = json.load(open(manifest_path, encoding="utf-8"))
@@ -529,6 +654,12 @@ ensure_low_gateway_skill_link() {
     mv "$skill_dir" "$backup_root/skills-before-profile-link-${stamp}"
   fi
   ln -s "$target_skill_store" "$skill_dir"
+}
+
+ensure_low_gateway_memory_link() {
+  local profile="$1"
+  local memory_dir="$2"
+  link_low_gateway_profile_subdir "$memory_dir" "$(memory_store_for_gateway_profile "$profile")" "memories"
 }
 
 link_low_gateway_profile_subdir() {
@@ -979,9 +1110,8 @@ while IFS=$'\t' read -r profile port; do
   repair_low_gateway_sqlite "$profile" "$profile_dir" "response_store.db"
   ln -s "$profile_dir" "$profile_link"
   companion_low_profile="$(deepseek_companion_low_profile "$profile")"
+  ensure_low_gateway_memory_link "$profile" "$profile_dir/memories"
   if [ -n "$companion_low_profile" ]; then
-    companion_profile_dir="${telemetry_profiles_root}/${companion_low_profile}"
-    link_low_gateway_profile_subdir "$profile_dir/memories" "$companion_profile_dir/memories" "memories"
     if is_owner_connector_profile "$profile"; then
       link_low_gateway_profile_subdir "$profile_dir/skills" "$owner_skill_store" "skills"
     else
@@ -1272,6 +1402,16 @@ ${mcp_server_lines%$'\n'}"
     profile_model_provider="deepseek"
     profile_base_url_block=""
   fi
+  profile_materialized_workspace_id="$profile_workspace_id"
+  if [ -z "$profile_materialized_workspace_id" ]; then
+    profile_materialized_workspace_id="$(workspace_id_for_gateway_profile "$profile")"
+  fi
+  if [ -z "$profile_materialized_workspace_id" ] && is_owner_connector_profile "$profile"; then
+    profile_materialized_workspace_id="owner"
+  fi
+  if [ -z "$profile_materialized_workspace_id" ]; then
+    profile_materialized_workspace_id="owner"
+  fi
   if ! render_gateway_template_yaml "$profile_link/config.yaml" \
     --config-kind profile \
     --value "profile=$profile" \
@@ -1391,6 +1531,7 @@ cron:
 ${mcp_servers_block}
 YAML
   fi
+  write_materialized_identity "$profile_dir" "$profile" "$profile_materialized_workspace_id" "user" "$profile_model_provider"
 
   if [ "$shared_auth_enabled" = "1" ]; then
     rm -f "$profile_link/auth.json" "$profile_link/auth.lock"
@@ -1508,6 +1649,8 @@ cron:
   enabled: false
 YAML
     fi
+    grok_materialized_workspace_id="${gateway_request_workspace_id:-owner}"
+    write_materialized_identity "$profile_dir" "$profile" "$grok_materialized_workspace_id" "user" "xai-oauth"
     if [ "$shared_auth_enabled" = "1" ]; then
       rm -f "$profile_link/auth.json" "$profile_link/auth.lock"
       ln -s "$grok_auth_path" "$profile_link/auth.json"

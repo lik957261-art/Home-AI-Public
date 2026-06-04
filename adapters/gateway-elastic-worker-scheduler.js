@@ -195,8 +195,8 @@ function clearMaterializedIdentity(state) {
 function materializedIdentityMatches(worker = {}, state = {}, hints = {}) {
   const expectedTemplateKey = buildGatewayWorkerTemplateKey(worker, hints);
   const configuredTemplateKey = cleanString(worker.templateKey || "");
-  if (configuredTemplateKey && configuredTemplateKey !== expectedTemplateKey) return false;
   if (state.materializedTemplateKey && state.materializedTemplateKey !== expectedTemplateKey) return false;
+  if (!state.materializedTemplateKey && configuredTemplateKey && configuredTemplateKey !== expectedTemplateKey) return false;
   const expectedHash = workerCapabilityHash(worker);
   if (state.materializedCapabilityHash && expectedHash && state.materializedCapabilityHash !== expectedHash) return false;
   return true;
@@ -476,6 +476,15 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     return true;
   }
 
+  async function markExternallyHealthyWithCurrentIdentity(worker, state, trace, hints) {
+    const healthy = await isHealthy(worker);
+    state.healthy = healthy;
+    if (!healthy) return false;
+    markHealthyState(worker, state, {});
+    appendDecisionTrace(trace, worker, state, hints, "external_health_identity_mismatch");
+    return true;
+  }
+
   async function waitForStartedHealthy(worker) {
     if (await isHealthy(worker)) return true;
     const waitMs = Math.max(0, Number(config.startHealthWaitMs || 0) || 0);
@@ -709,27 +718,37 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       const requestedTier = permissionTier(startable?.worker || candidates[0], hints);
       const requestedProvider = providerKey(startable?.worker || candidates[0], hints);
       const maxWorkspace = maxForWorkspace(workspaceId, requestedTier, requestedProvider);
-      if (startable && startable.state.healthy !== false && await markExistingHealthy(startable.worker, startable.state, hints)) {
-        if (!materializedIdentityMatches(startable.worker, startable.state, hints)) {
-          appendDecisionTrace(decisionTrace, startable.worker, startable.state, hints, "materialized_identity_mismatch_after_startable_probe");
+      if (startable && startable.state.healthy !== false) {
+        if (!materializedIdentityMatches(startable.worker, startable.state, hints)
+          && await markExternallyHealthyWithCurrentIdentity(startable.worker, startable.state, decisionTrace, hints)) {
           continue;
         }
-        appendDecisionTrace(decisionTrace, startable.worker, startable.state, hints, "startable_health_probe_reusable", { selected: true });
-        const target = assignRun(
-          startable.worker,
-          startable.state,
-          runId,
-          hints,
-          "worker_reused",
-          eventExtraWithTrace({}, decisionTrace),
-        );
-        emit(onEvent, Object.assign({}, target.schedulerEvent, { runId }));
-        return target;
+        if (await markExistingHealthy(startable.worker, startable.state, hints)) {
+          if (!materializedIdentityMatches(startable.worker, startable.state, hints)) {
+            appendDecisionTrace(decisionTrace, startable.worker, startable.state, hints, "materialized_identity_mismatch_after_startable_probe");
+            continue;
+          }
+          appendDecisionTrace(decisionTrace, startable.worker, startable.state, hints, "startable_health_probe_reusable", { selected: true });
+          const target = assignRun(
+            startable.worker,
+            startable.state,
+            runId,
+            hints,
+            "worker_reused",
+            eventExtraWithTrace({}, decisionTrace),
+          );
+          emit(onEvent, Object.assign({}, target.schedulerEvent, { runId }));
+          return target;
+        }
       }
       const canStart = startable
         && (!config.globalMaxWorkers || startedStates().length < config.globalMaxWorkers)
         && (!maxWorkspace || runningCountForWorkspace(workspaceId, requestedTier, requestedProvider) < maxWorkspace);
       if (canStart) {
+        if (!materializedIdentityMatches(startable.worker, startable.state, hints)
+          && await markExternallyHealthyWithCurrentIdentity(startable.worker, startable.state, decisionTrace, hints)) {
+          continue;
+        }
         appendDecisionTrace(decisionTrace, startable.worker, startable.state, hints, "cold_start_selected", { selected: true });
         const target = await startAndAssign(startable.worker, startable.state, hints, runId, onEvent, decisionTrace);
         emit(onEvent, Object.assign({}, target.schedulerEvent, { runId }));

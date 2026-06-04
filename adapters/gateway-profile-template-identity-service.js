@@ -1,6 +1,7 @@
 "use strict";
 
 const fs = require("node:fs");
+const path = require("node:path");
 
 const {
   capabilityFingerprint,
@@ -16,6 +17,55 @@ function cleanString(value) {
 function valueFrom(value, fallback = "") {
   if (typeof value === "function") return value() ?? fallback;
   return value ?? fallback;
+}
+
+function normalizeWorkspaceId(value) {
+  const text = cleanString(value).toLowerCase().replace(/^workspace:/, "");
+  if (!text || text === "*" || text === "all") return "";
+  return text.replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+}
+
+function normalizeSecurityLevel(value) {
+  const text = cleanString(value).toLowerCase().replaceAll("_", "-");
+  if (["owner", "owner-maintenance", "maintenance", "admin", "high", "high-privilege"].includes(text)) {
+    return "owner-maintenance";
+  }
+  return text ? "user" : "";
+}
+
+function normalizeProvider(value) {
+  const text = cleanString(value).toLowerCase();
+  if (!text) return "";
+  return text.replace(/[^a-z0-9_.:-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+}
+
+function readMaterializedIdentity(fsImpl, configPath) {
+  if (!configPath) return {};
+  const identityPath = path.join(path.dirname(configPath), "materialized-identity.json");
+  if (!fsImpl.existsSync(identityPath)) return {};
+  const parsed = JSON.parse(fsImpl.readFileSync(identityPath, "utf8"));
+  if (!parsed || typeof parsed !== "object") return {};
+  return {
+    workspaceId: normalizeWorkspaceId(parsed.workspaceId || parsed.workspace_id),
+    permissionTier: normalizeSecurityLevel(parsed.permissionTier || parsed.permission_tier || parsed.securityLevel || parsed.security_level),
+    provider: normalizeProvider(parsed.provider),
+  };
+}
+
+function workerWithMaterializedIdentity(worker = {}, materialized = {}) {
+  const identityWorker = Object.assign({}, worker);
+  if (materialized.workspaceId) {
+    identityWorker.allowedWorkspaceIds = [materialized.workspaceId];
+    identityWorker.allowed_workspace_ids = [materialized.workspaceId];
+    identityWorker.skillWorkspaceIds = [materialized.workspaceId];
+    identityWorker.skill_workspace_ids = [materialized.workspaceId];
+  }
+  if (materialized.permissionTier) {
+    identityWorker.securityLevel = materialized.permissionTier;
+    identityWorker.security_level = materialized.permissionTier;
+  }
+  if (materialized.provider) identityWorker.provider = materialized.provider;
+  return identityWorker;
 }
 
 function createGatewayProfileTemplateIdentityService(options = {}) {
@@ -44,8 +94,10 @@ function createGatewayProfileTemplateIdentityService(options = {}) {
     try {
       const capabilities = readCapabilities(configPath);
       const fingerprint = capabilityFingerprint(capabilities);
+      const materialized = readMaterializedIdentity(fsImpl, configPath);
+      const identityWorker = workerWithMaterializedIdentity(worker, materialized);
       return {
-        templateKey: templateKeyForWorker(worker, capabilities),
+        templateKey: templateKeyForWorker(identityWorker, capabilities),
         capabilityHash: fingerprint.hash,
         capabilityStatus: "ok",
         toolSchemaEpoch: schemaEpoch,

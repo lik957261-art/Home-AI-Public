@@ -24,6 +24,11 @@ Gateway Pool owns official-clean Hermes worker startup, health checks, routing t
 - Gateway worker root: `C:\ProgramData\HermesMobile\gateway-worker`
 - Owner-maintenance profiles: `/home/<owner>/.hermes/profiles/officialclean1`, `/home/<owner>/.hermes/profiles/officialclean2`
 - Low Gateway profiles: `C:\ProgramData\HermesMobile\gateway-worker\telemetry\profiles\lowgw*`
+- Workspace Skill Stores and memory stores:
+  `C:\ProgramData\HermesMobile\data\skill-profiles\<workspaceId>\skills` and
+  `C:\ProgramData\HermesMobile\data\skill-profiles\<workspaceId>\memories`.
+  A materialized low-permission Gateway profile must symlink both `skills` and
+  `memories` to the requested workspace, not to the physical replica slot.
 - Owner-maintenance runtime tree: `/opt/hermes-gateway-runtime/official-clean`
   in the owner WSL distro.
 - Low Gateway runtime tree: `/opt/hermes-gateway-runtime/official-clean`.
@@ -105,9 +110,12 @@ set above zero.
 Hybrid mode is enabled through `HERMES_MOBILE_GATEWAY_POOL_START_MODE=hybrid`
 or the compatibility alias `HERMES_WEB_GATEWAY_POOL_START_MODE=hybrid`. The
 source default remains eager until the production launcher explicitly changes
-mode. `scripts/start-gateway-pool.ps1 -StartProfiles <profile> -NoStopExisting`
-starts a single worker profile, while `-StopProfiles <profile>`
-stops only the selected idle profile. High-permission workers use
+mode. Replica-aware callers should use
+`scripts/start-gateway-pool.ps1 -StartReplicas <replicaId> -NoStopExisting`
+and `-StopReplicas <replicaId>` so launch policy is not tied to capability
+profile names. Legacy `-StartProfiles <profile>` / `-StopProfiles <profile>`
+remain compatibility aliases for the current process scripts.
+High-permission workers use
 `-OwnerMaintenanceOnly -StartProfiles <profile>` and
 `-OwnerMaintenanceOnly -StopProfiles <profile>` so on-demand startup and idle
 retirement target one maintenance profile instead of the whole maintenance
@@ -117,7 +125,7 @@ Maintained production hybrid deployments should prefer running the Hermes
 Mobile listener under the same Windows account that owns the WSL Gateway/Codex
 runtime. On this maintained machine, that means starting the listener in caller
 context as `GMK\xuxin`; then on-demand single-profile starts can invoke
-`start-gateway-pool.ps1 -StartProfiles <profile> -NoStopExisting` directly and
+`start-gateway-pool.ps1 -StartReplicas <replicaId> -NoStopExisting` directly and
 no scheduled-task relay is needed.
 
 `scripts/start-worker-host.ps1` also honors
@@ -183,6 +191,20 @@ reuse a healthy worker across incompatible providers, permission tiers, or
 workspace-bound MCP registrations. Provider selection remains user intent: a
 DeepSeek request must not be silently rerouted to OpenAI/Codex or Grok merely
 because those workers are already warm.
+
+Profile/replica decoupling must also decouple persistent workspace state from
+the physical replica. When a stopped replica is materialized for a requested
+workspace, `configure-low-gateways.sh` writes a non-secret
+`materialized-identity.json` next to `config.yaml` and links both:
+
+- `skills -> <skillProfilesRoot>/<workspaceId>/skills`
+- `memories -> <skillProfilesRoot>/<workspaceId>/memories`
+
+`start-low-gateways.sh` verifies and repairs both symlinks immediately before
+launch, even when configure is skipped. If `lowgw14` is stopped after serving
+`xuyan` and later reused for `weixin_test_1`, Skill create/update behavior and
+memory reads/writes must move with the requested workspace instead of staying in
+the old physical profile directory.
 
 Gateway Pool must distinguish the profile's authorized capability set from the
 run's active schema set. A workspace/tier/provider template may know about all

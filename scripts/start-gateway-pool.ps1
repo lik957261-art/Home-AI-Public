@@ -16,6 +16,8 @@ param(
   [string]$StartMode = $(if ($env:HERMES_MOBILE_GATEWAY_POOL_START_MODE) { $env:HERMES_MOBILE_GATEWAY_POOL_START_MODE } elseif ($env:HERMES_WEB_GATEWAY_POOL_START_MODE) { $env:HERMES_WEB_GATEWAY_POOL_START_MODE } else { "eager" }),
   [string[]]$StartProfiles = @(),
   [string[]]$StopProfiles = @(),
+  [string[]]$StartReplicas = @(),
+  [string[]]$StopReplicas = @(),
   [switch]$NoStopExisting,
   [switch]$ForceConfigure,
   [switch]$OwnerMaintenanceOnly,
@@ -23,6 +25,12 @@ param(
   [string]$ProfileTemplateKey = "",
   [string]$TemplateKey = "",
   [string]$ReplicaId = "",
+  [string]$ProfileAlias = "",
+  [string]$WorkspaceId = "",
+  [string]$PermissionTier = "",
+  [string]$Provider = "",
+  [string]$CapabilityHash = "",
+  [string]$ToolSchemaEpoch = "",
   [switch]$OnlyWhenOwnerMaintenanceUnhealthy
 )
 
@@ -78,6 +86,7 @@ function Write-GatewayPoolElasticResult {
     requestId = $requestId
     action = ([string]$Request.action).Trim()
     profiles = @($Request.profiles)
+    replicas = @($Request.replicas)
     code = $Code
     message = Limit-GatewayPoolPublicText -Value $Message
     stdout = Limit-GatewayPoolPublicText -Value $Stdout
@@ -393,9 +402,67 @@ function Normalize-GatewayProfileList {
   return @($items | Select-Object -Unique)
 }
 
-function Get-HybridOwnerWarmProfiles {
+function Normalize-GatewayReplicaList {
+  param([string[]]$Replicas)
+  $items = @()
+  foreach ($replica in @($Replicas)) {
+    foreach ($part in ([string]$replica -split ",")) {
+      $text = Normalize-GatewayTemplateMetadataValue -Value $part -MaxLength 80
+      if (-not $text) { continue }
+      $items += $text
+    }
+  }
+  return @($items | Select-Object -Unique)
+}
+
+function Read-GatewayPoolManifest {
   if (-not (Test-Path -LiteralPath $ManifestPath)) { throw "Missing gateway pool manifest: $ManifestPath" }
-  $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
+  return (Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json)
+}
+
+function Gateway-WorkerIdentityValues {
+  param($Worker)
+  $values = @()
+  foreach ($key in @("replicaId", "replica_id", "profileAlias", "profile_alias", "profile", "name", "id")) {
+    $value = ""
+    if ($Worker.PSObject.Properties.Name -contains $key) { $value = ([string]$Worker.$key).Trim() }
+    if ($value) { $values += $value }
+  }
+  return @($values | Select-Object -Unique)
+}
+
+function Resolve-GatewayReplicasToProfiles {
+  param([string[]]$Replicas)
+  $normalized = Normalize-GatewayReplicaList -Replicas $Replicas
+  if ($normalized.Count -eq 0) { return @() }
+  $manifest = Read-GatewayPoolManifest
+  $profiles = @()
+  foreach ($replica in $normalized) {
+    $matches = @($manifest.workers | Where-Object {
+      ($_.enabled -ne $false) -and (@(Gateway-WorkerIdentityValues -Worker $_) -contains $replica)
+    })
+    if ($matches.Count -eq 0) { throw "Gateway replica not found in manifest: $replica" }
+    if ($matches.Count -gt 1) { throw "Gateway replica is ambiguous in manifest: $replica" }
+    $profile = ([string]$matches[0].profile).Trim()
+    if (-not $profile) { $profile = ([string]$matches[0].name).Trim() }
+    Assert-SafeGatewayProfileName -Profile $profile
+    $profiles += $profile
+  }
+  return @($profiles | Select-Object -Unique)
+}
+
+function Resolve-GatewayProfileOrReplicaList {
+  param(
+    [string[]]$Profiles = @(),
+    [string[]]$Replicas = @()
+  )
+  $resolvedReplicas = @(Resolve-GatewayReplicasToProfiles -Replicas $Replicas)
+  if ($resolvedReplicas.Count -gt 0) { return $resolvedReplicas }
+  return @(Normalize-GatewayProfileList -Profiles $Profiles)
+}
+
+function Get-HybridOwnerWarmProfiles {
+  $manifest = Read-GatewayPoolManifest
   $limit = 1
   $envLimit = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM")
   if (-not $envLimit) { $envLimit = [Environment]::GetEnvironmentVariable("HERMES_WEB_GATEWAY_OWNER_MIN_WARM") }
@@ -420,8 +487,7 @@ function Get-HybridOwnerWarmProfiles {
 }
 
 function Get-OwnerMaintenanceWorkers {
-  if (-not (Test-Path -LiteralPath $ManifestPath)) { throw "Missing gateway pool manifest: $ManifestPath" }
-  $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
+  $manifest = Read-GatewayPoolManifest
   return @($manifest.workers | Where-Object { Is-OwnerMaintenanceWorker -Worker $_ })
 }
 
@@ -952,29 +1018,52 @@ sleep 1
 function Start-LowGateways {
   param(
     [string[]]$Profiles = @(),
+    [string[]]$Replicas = @(),
     [switch]$NoStopExisting,
     [switch]$ForceConfigure,
     [string]$PoolKey = "",
     [string]$ProfileTemplateKey = "",
     [string]$TemplateKey = "",
-    [string]$ReplicaId = ""
+    [string]$ReplicaId = "",
+    [string]$ProfileAlias = "",
+    [string]$WorkspaceId = "",
+    [string]$PermissionTier = "",
+    [string]$Provider = "",
+    [string]$CapabilityHash = "",
+    [string]$ToolSchemaEpoch = ""
   )
   $child = Join-Path $GatewayWorkerRoot "start-low-gateways-child.ps1"
   if (-not (Test-Path -LiteralPath $child)) { throw "Missing low gateway child script: $child" }
   Ensure-LowGatewayProfileEnv
-  $profiles = Normalize-GatewayProfileList -Profiles $Profiles
+  $replicas = Normalize-GatewayReplicaList -Replicas $Replicas
+  $profiles = Resolve-GatewayProfileOrReplicaList -Profiles $Profiles -Replicas $replicas
   $safePoolKey = Normalize-GatewayTemplateMetadataValue -Value $PoolKey
   $safeProfileTemplateKey = Normalize-GatewayTemplateMetadataValue -Value $ProfileTemplateKey
   $safeTemplateKey = Normalize-GatewayTemplateMetadataValue -Value ($(if ($TemplateKey) { $TemplateKey } else { $ProfileTemplateKey }))
-  $safeReplicaId = Normalize-GatewayTemplateMetadataValue -Value $ReplicaId -MaxLength 80
+  $safeReplicaId = Normalize-GatewayTemplateMetadataValue -Value ($(if ($ReplicaId) { $ReplicaId } elseif ($replicas.Count -eq 1) { $replicas[0] } else { "" })) -MaxLength 80
+  $safeProfileAlias = Normalize-GatewayTemplateMetadataValue -Value $ProfileAlias -MaxLength 80
+  $safeWorkspaceId = Normalize-GatewayTemplateMetadataValue -Value $WorkspaceId -MaxLength 80
+  $safePermissionTier = Normalize-GatewayTemplateMetadataValue -Value $PermissionTier -MaxLength 80
+  $safeProvider = Normalize-GatewayTemplateMetadataValue -Value $Provider -MaxLength 80
+  $safeCapabilityHash = Normalize-GatewayTemplateMetadataValue -Value $CapabilityHash -MaxLength 80
+  $safeToolSchemaEpoch = Normalize-GatewayTemplateMetadataValue -Value $ToolSchemaEpoch -MaxLength 80
   if (-not $NoStopExisting) { Stop-LowGateways }
   $profileArgs = @()
   if ($profiles.Count -gt 0) { $profileArgs += @("-StartProfiles", ($profiles -join ",")) }
   if ($NoStopExisting) { $profileArgs += "-SkipConfigureIfReady" }
   if ($ForceConfigure) { $profileArgs += "-ForceConfigure" }
-  if ($safePoolKey -or $safeTemplateKey -or $safeReplicaId) {
-    $profileArgs += @("-PoolKey", $safePoolKey, "-ProfileTemplateKey", $safeProfileTemplateKey, "-TemplateKey", $safeTemplateKey, "-ReplicaId", $safeReplicaId)
-    Write-GatewayPoolLog ("Starting low gateway pool profiles: {0} pool={1} template={2} replica={3}" -f ($(if ($profiles.Count) { $profiles -join "," } else { "all" })), $safePoolKey, $safeTemplateKey, $safeReplicaId)
+  if ($safePoolKey -or $safeTemplateKey -or $safeReplicaId -or $safeWorkspaceId) {
+    if ($safePoolKey) { $profileArgs += @("-PoolKey", $safePoolKey) }
+    if ($safeProfileTemplateKey) { $profileArgs += @("-ProfileTemplateKey", $safeProfileTemplateKey) }
+    if ($safeTemplateKey) { $profileArgs += @("-TemplateKey", $safeTemplateKey) }
+    if ($safeReplicaId) { $profileArgs += @("-ReplicaId", $safeReplicaId) }
+    if ($safeProfileAlias) { $profileArgs += @("-ProfileAlias", $safeProfileAlias) }
+    if ($safeWorkspaceId) { $profileArgs += @("-WorkspaceId", $safeWorkspaceId) }
+    if ($safePermissionTier) { $profileArgs += @("-PermissionTier", $safePermissionTier) }
+    if ($safeProvider) { $profileArgs += @("-Provider", $safeProvider) }
+    if ($safeCapabilityHash) { $profileArgs += @("-CapabilityHash", $safeCapabilityHash) }
+    if ($safeToolSchemaEpoch) { $profileArgs += @("-ToolSchemaEpoch", $safeToolSchemaEpoch) }
+    Write-GatewayPoolLog ("Starting low gateway pool profiles: {0} replicas={1} pool={2} template={3} replica={4} workspace={5}" -f ($(if ($profiles.Count) { $profiles -join "," } else { "all" })), ($(if ($replicas.Count) { $replicas -join "," } else { "" })), $safePoolKey, $safeTemplateKey, $safeReplicaId, $safeWorkspaceId)
   } else {
     Write-GatewayPoolLog ("Starting low gateway pool profiles: {0}" -f ($(if ($profiles.Count) { $profiles -join "," } else { "all" })))
   }
@@ -984,13 +1073,17 @@ function Start-LowGateways {
 }
 
 function Stop-LowGatewayProfiles {
-  param([string[]]$Profiles = @())
-  $profiles = Normalize-GatewayProfileList -Profiles $Profiles
+  param(
+    [string[]]$Profiles = @(),
+    [string[]]$Replicas = @()
+  )
+  $replicas = Normalize-GatewayReplicaList -Replicas $Replicas
+  $profiles = Resolve-GatewayProfileOrReplicaList -Profiles $Profiles -Replicas $replicas
   if ($profiles.Count -eq 0) { return }
   $child = Join-Path $GatewayWorkerRoot "start-low-gateways-child.ps1"
   if (-not (Test-Path -LiteralPath $child)) { throw "Missing low gateway child script: $child" }
   Ensure-LowGatewayProfileEnv
-  Write-GatewayPoolLog ("Stopping low gateway profiles: {0}" -f ($profiles -join ","))
+  Write-GatewayPoolLog ("Stopping low gateway profiles: {0} replicas={1}" -f ($profiles -join ","), ($(if ($replicas.Count) { $replicas -join "," } else { "" })))
   $output = & powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $child -DistroName $LowGatewayDistroName -StartProfiles ($profiles -join ",") -StopOnly 2>&1
   foreach ($line in $output) { Write-GatewayPoolLog ("lowgw-stop-profile: {0}" -f $line) }
   if ($LASTEXITCODE -ne 0) { throw "Low gateway profile stop failed with exit code $LASTEXITCODE" }
@@ -1290,22 +1383,31 @@ function Invoke-GatewayPoolElasticRequests {
         throw "Invalid Gateway elastic request id."
       }
       $action = ([string]$request.action).Trim()
-      $profiles = Normalize-GatewayProfileList -Profiles @($request.profiles)
+      $replicaInputs = @($request.replicas)
+      if ($request.replicaId) { $replicaInputs += [string]$request.replicaId }
+      $replicas = Normalize-GatewayReplicaList -Replicas $replicaInputs
+      $profiles = Resolve-GatewayProfileOrReplicaList -Profiles @($request.profiles) -Replicas $replicas
       $requestPoolKey = Normalize-GatewayTemplateMetadataValue -Value ([string]$request.poolKey)
       $requestProfileTemplateKey = Normalize-GatewayTemplateMetadataValue -Value ([string]$request.profileTemplateKey)
       $requestTemplateKey = Normalize-GatewayTemplateMetadataValue -Value ($(if ($request.templateKey) { [string]$request.templateKey } else { [string]$request.profileTemplateKey }))
-      $requestReplicaId = Normalize-GatewayTemplateMetadataValue -Value ([string]$request.replicaId) -MaxLength 80
+      $requestReplicaId = Normalize-GatewayTemplateMetadataValue -Value ($(if ($request.replicaId) { [string]$request.replicaId } elseif ($replicas.Count -eq 1) { $replicas[0] } else { "" })) -MaxLength 80
+      $requestProfileAlias = Normalize-GatewayTemplateMetadataValue -Value ([string]$request.profileAlias) -MaxLength 80
+      $requestWorkspaceId = Normalize-GatewayTemplateMetadataValue -Value ([string]$request.workspaceId) -MaxLength 80
+      $requestPermissionTier = Normalize-GatewayTemplateMetadataValue -Value ([string]$request.permissionTier) -MaxLength 80
+      $requestProvider = Normalize-GatewayTemplateMetadataValue -Value ([string]$request.provider) -MaxLength 80
+      $requestCapabilityHash = Normalize-GatewayTemplateMetadataValue -Value ([string]$request.capabilityHash) -MaxLength 80
+      $requestToolSchemaEpoch = Normalize-GatewayTemplateMetadataValue -Value ([string]$request.toolSchemaEpoch) -MaxLength 80
       if ($requestPoolKey -or $requestTemplateKey -or $requestReplicaId) {
-        Write-GatewayPoolLog ("elastic-request-start id={0} action={1} profiles={2} pool={3} template={4} replica={5}" -f $requestId, $action, ($profiles -join ","), $requestPoolKey, $requestTemplateKey, $requestReplicaId)
+        Write-GatewayPoolLog ("elastic-request-start id={0} action={1} profiles={2} replicas={3} pool={4} template={5} replica={6} workspace={7}" -f $requestId, $action, ($profiles -join ","), ($replicas -join ","), $requestPoolKey, $requestTemplateKey, $requestReplicaId, $requestWorkspaceId)
       } else {
-        Write-GatewayPoolLog ("elastic-request-start id={0} action={1} profiles={2}" -f $requestId, $action, ($profiles -join ","))
+        Write-GatewayPoolLog ("elastic-request-start id={0} action={1} profiles={2} replicas={3}" -f $requestId, $action, ($profiles -join ","), ($replicas -join ","))
       }
       if ($action -eq "start") {
-        if ($profiles.Count -eq 0) { throw "Gateway elastic start request missing profile." }
-        Start-LowGateways -Profiles $profiles -NoStopExisting:([bool]$request.noStopExisting) -ForceConfigure:([bool]$request.forceConfigure) -PoolKey $requestPoolKey -ProfileTemplateKey $requestProfileTemplateKey -TemplateKey $requestTemplateKey -ReplicaId $requestReplicaId
+        if ($profiles.Count -eq 0) { throw "Gateway elastic start request missing profile or replica." }
+        Start-LowGateways -Profiles $profiles -Replicas $replicas -NoStopExisting:([bool]$request.noStopExisting) -ForceConfigure:([bool]$request.forceConfigure) -PoolKey $requestPoolKey -ProfileTemplateKey $requestProfileTemplateKey -TemplateKey $requestTemplateKey -ReplicaId $requestReplicaId -ProfileAlias $requestProfileAlias -WorkspaceId $requestWorkspaceId -PermissionTier $requestPermissionTier -Provider $requestProvider -CapabilityHash $requestCapabilityHash -ToolSchemaEpoch $requestToolSchemaEpoch
       } elseif ($action -eq "stop") {
-        if ($profiles.Count -eq 0) { throw "Gateway elastic stop request missing profile." }
-        Stop-LowGatewayProfiles -Profiles $profiles
+        if ($profiles.Count -eq 0) { throw "Gateway elastic stop request missing profile or replica." }
+        Stop-LowGatewayProfiles -Profiles $profiles -Replicas $replicas
       } elseif ($action -eq "ownerMaintenance") {
         if ($profiles.Count -gt 0) {
           Start-OwnerMaintenanceProfiles -Profiles $profiles
@@ -1313,7 +1415,7 @@ function Invoke-GatewayPoolElasticRequests {
           Repair-OwnerMaintenanceGateways
         }
       } elseif ($action -eq "ownerMaintenanceStop") {
-        if ($profiles.Count -eq 0) { throw "Gateway elastic owner-maintenance stop request missing profile." }
+        if ($profiles.Count -eq 0) { throw "Gateway elastic owner-maintenance stop request missing profile or replica." }
         Stop-OwnerMaintenanceProfiles -Profiles $profiles
       } else {
         throw "Unsupported Gateway elastic request action: $action"
@@ -1327,6 +1429,7 @@ function Invoke-GatewayPoolElasticRequests {
           requestId = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
           action = ""
           profiles = @()
+          replicas = @()
         }
       }
       Write-GatewayPoolElasticResult -Request $request -Ok $false -Code "gateway_elastic_request_failed" -Message $message -Stderr $message -StartedAt $started
@@ -1343,30 +1446,35 @@ function Invoke-GatewayPoolElasticRequests {
 
 Acquire-GatewayPoolRunMutex
 try {
-  if ($StopProfiles.Count -eq 0 -and $StartProfiles.Count -eq 0 -and -not $OwnerMaintenanceOnly) {
+  $resolvedStartReplicas = Normalize-GatewayReplicaList -Replicas $StartReplicas
+  $resolvedStopReplicas = Normalize-GatewayReplicaList -Replicas $StopReplicas
+  $resolvedStartProfiles = Resolve-GatewayProfileOrReplicaList -Profiles $StartProfiles -Replicas $resolvedStartReplicas
+  $resolvedStopProfiles = Resolve-GatewayProfileOrReplicaList -Profiles $StopProfiles -Replicas $resolvedStopReplicas
+
+  if ($resolvedStopProfiles.Count -eq 0 -and $resolvedStartProfiles.Count -eq 0 -and $resolvedStopReplicas.Count -eq 0 -and $resolvedStartReplicas.Count -eq 0 -and -not $OwnerMaintenanceOnly) {
     if (Invoke-GatewayPoolElasticRequests) {
       exit 0
     }
   }
   if ($OwnerMaintenanceOnly) {
-    if ($StopProfiles.Count -gt 0) {
-      Stop-OwnerMaintenanceProfiles -Profiles $StopProfiles
+    if ($resolvedStopProfiles.Count -gt 0) {
+      Stop-OwnerMaintenanceProfiles -Profiles $resolvedStopProfiles
       exit 0
     }
-    if ($StartProfiles.Count -gt 0) {
-      Start-OwnerMaintenanceProfiles -Profiles $StartProfiles
+    if ($resolvedStartProfiles.Count -gt 0) {
+      Start-OwnerMaintenanceProfiles -Profiles $resolvedStartProfiles
       exit 0
     }
     Write-GatewayPoolLog "Owner-maintenance gateway repair begin."
     Repair-OwnerMaintenanceGateways
     exit 0
   }
-  if ($StopProfiles.Count -gt 0) {
-    Stop-LowGatewayProfiles -Profiles $StopProfiles
+  if ($resolvedStopProfiles.Count -gt 0) {
+    Stop-LowGatewayProfiles -Profiles $resolvedStopProfiles -Replicas $resolvedStopReplicas
     exit 0
   }
-  if ($StartProfiles.Count -gt 0) {
-    Start-LowGateways -Profiles $StartProfiles -NoStopExisting:$NoStopExisting -ForceConfigure:$ForceConfigure -PoolKey $PoolKey -ProfileTemplateKey $ProfileTemplateKey -TemplateKey $TemplateKey -ReplicaId $ReplicaId
+  if ($resolvedStartProfiles.Count -gt 0) {
+    Start-LowGateways -Profiles $resolvedStartProfiles -Replicas $resolvedStartReplicas -NoStopExisting:$NoStopExisting -ForceConfigure:$ForceConfigure -PoolKey $PoolKey -ProfileTemplateKey $ProfileTemplateKey -TemplateKey $TemplateKey -ReplicaId $ReplicaId -ProfileAlias $ProfileAlias -WorkspaceId $WorkspaceId -PermissionTier $PermissionTier -Provider $Provider -CapabilityHash $CapabilityHash -ToolSchemaEpoch $ToolSchemaEpoch
     exit 0
   }
 

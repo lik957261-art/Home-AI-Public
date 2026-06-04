@@ -235,6 +235,50 @@ function preferredToolsetsForHints(hints = {}) {
   return dedupeList(cleanList(hints.preferredToolsets || hints.preferred_toolsets));
 }
 
+function hasWorkspaceHint(hints = {}) {
+  return Boolean(String(
+    hints.workspaceId
+    || hints.workspace_id
+    || hints.skillWorkspaceId
+    || hints.skill_workspace_id
+    || "",
+  ).trim());
+}
+
+function rematerializationEnabled(hints = {}) {
+  if (hints.allowReplicaRematerialization === false || hints.allow_replica_rematerialization === false) return false;
+  return Boolean(hints.allowReplicaRematerialization || hints.allow_replica_rematerialization);
+}
+
+function workerCanRematerializeForHints(worker, hints = {}) {
+  if (!rematerializationEnabled(hints) || !hasWorkspaceHint(hints)) return false;
+  const requestedSecurityLevel = normalizeSecurityLevel(hints.securityLevel || hints.security_level || "user");
+  if (requestedSecurityLevel !== "user" || worker.securityLevel !== "user") return false;
+  if (worker.allowMaintenance) return false;
+  const provider = cleanProvider(hints.provider);
+  if (provider && worker.provider !== provider) return false;
+  if (!provider && worker.provider && worker.provider !== "openai-codex" && !matchesExact(worker, hints)) return false;
+  return true;
+}
+
+function workerNeedsRematerializationForHints(worker, hints = {}) {
+  if (!workerCanRematerializeForHints(worker, hints)) return false;
+  const workspaceId = String(hints.workspaceId || hints.workspace_id || "").trim();
+  if (workspaceId && Array.isArray(worker.allowedWorkspaceIds) && worker.allowedWorkspaceIds.length) {
+    if (!worker.allowedWorkspaceIds.includes("*") && !worker.allowedWorkspaceIds.includes(workspaceId)) return true;
+  }
+  const skillWorkspaceId = String(hints.skillWorkspaceId || hints.skill_workspace_id || "").trim();
+  if (skillWorkspaceId && Array.isArray(worker.skillWorkspaceIds) && worker.skillWorkspaceIds.length) {
+    if (!worker.skillWorkspaceIds.includes("*") && !worker.skillWorkspaceIds.includes(skillWorkspaceId)) return true;
+  }
+  const requiredToolsets = requiredToolsetsForHints(hints);
+  if (requiredToolsets.length) {
+    const toolsets = new Set(worker.toolsets || []);
+    if (!requiredToolsets.every((toolset) => toolsets.has(toolset))) return true;
+  }
+  return false;
+}
+
 function matchesExact(worker, hints = {}) {
   const profiles = new Set([...cleanList(hints.worker_profile), ...cleanList(hints.worker_profiles)]);
   const names = new Set([...cleanList(hints.worker_name), ...cleanList(hints.worker_names)]);
@@ -251,7 +295,7 @@ function satisfiesFilter(worker, hints = {}) {
   if (requiredSecurityLevel !== "unspecified" && worker.securityLevel !== requiredSecurityLevel) return false;
   const workspaceId = String(hints.workspaceId || hints.workspace_id || "").trim();
   if (workspaceId && Array.isArray(worker.allowedWorkspaceIds) && worker.allowedWorkspaceIds.length) {
-    if (!worker.allowedWorkspaceIds.includes("*") && !worker.allowedWorkspaceIds.includes(workspaceId)) return false;
+    if (!worker.allowedWorkspaceIds.includes("*") && !worker.allowedWorkspaceIds.includes(workspaceId) && !workerCanRematerializeForHints(worker, hints)) return false;
   }
   const skillProfile = String(hints.skillProfile || hints.skill_profile || "").trim();
   const requireSkillProfile = Boolean(hints.requireSkillProfile || hints.require_skill_profile);
@@ -259,9 +303,9 @@ function satisfiesFilter(worker, hints = {}) {
   const skillWorkspaceId = String(hints.skillWorkspaceId || hints.skill_workspace_id || "").trim();
   if (skillWorkspaceId) {
     if (!Array.isArray(worker.skillWorkspaceIds) || !worker.skillWorkspaceIds.length) {
-      if (requireSkillProfile) return false;
+      if (requireSkillProfile && !workerCanRematerializeForHints(worker, hints)) return false;
     } else if (!worker.skillWorkspaceIds.includes("*") && !worker.skillWorkspaceIds.includes(skillWorkspaceId)) {
-      return false;
+      if (!workerCanRematerializeForHints(worker, hints)) return false;
     }
   }
   const maintenance = Boolean(hints.maintenance || hints.allowMaintenance || hints.allow_maintenance);
@@ -275,7 +319,7 @@ function satisfiesFilter(worker, hints = {}) {
   const requiredToolsets = requiredToolsetsForHints(hints);
   if (requiredToolsets.length) {
     const toolsets = new Set(worker.toolsets || []);
-    if (!requiredToolsets.every((toolset) => toolsets.has(toolset))) return false;
+    if (!requiredToolsets.every((toolset) => toolsets.has(toolset)) && !workerCanRematerializeForHints(worker, hints)) return false;
   }
   return true;
 }
@@ -305,6 +349,17 @@ function orderedWorkers(workers, nextIndex, hints = {}) {
 
   const ordered = [...preferred];
   const preferredToolsets = preferredToolsetsForHints(hints);
+  const appendOrderedWorkers = (items) => {
+    const compatible = [];
+    const rematerializable = [];
+    for (const worker of items) {
+      if (seen.has(worker.id) || !satisfiesFilter(worker, hints)) continue;
+      seen.add(worker.id);
+      if (workerNeedsRematerializationForHints(worker, hints)) rematerializable.push(worker);
+      else compatible.push(worker);
+    }
+    ordered.push(...compatible, ...rematerializable);
+  };
   if (preferredToolsets.length) {
     const remaining = [];
     for (let offset = 0; offset < workers.length; offset += 1) {
@@ -318,19 +373,12 @@ function orderedWorkers(workers, nextIndex, hints = {}) {
       const rightScore = preferredToolsets.filter((toolset) => rightToolsets.has(toolset)).length;
       return rightScore - leftScore;
     });
-    for (const worker of remaining) {
-      seen.add(worker.id);
-      ordered.push(worker);
-    }
+    appendOrderedWorkers(remaining);
     return ordered;
   }
-  for (let offset = 0; offset < workers.length; offset += 1) {
-    const worker = workers[(nextIndex + offset) % workers.length];
-    if (!seen.has(worker.id) && satisfiesFilter(worker, hints)) {
-      seen.add(worker.id);
-      ordered.push(worker);
-    }
-  }
+  const remaining = [];
+  for (let offset = 0; offset < workers.length; offset += 1) remaining.push(workers[(nextIndex + offset) % workers.length]);
+  appendOrderedWorkers(remaining);
   return ordered;
 }
 
@@ -453,6 +501,9 @@ function createGatewayPoolProvider(options = {}) {
       delete effectiveHints.skill_workspace_id;
     } else if (skillRoutingRequested && skillRoutingConfigured) {
       effectiveHints.requireSkillProfile = true;
+    }
+    if (startMode() === "hybrid" && hasWorkspaceHint(effectiveHints) && effectiveHints.allowReplicaRematerialization !== false && effectiveHints.allow_replica_rematerialization !== false) {
+      effectiveHints.allowReplicaRematerialization = true;
     }
     return effectiveHints;
   }

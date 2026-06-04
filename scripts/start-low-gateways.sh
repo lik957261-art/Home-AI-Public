@@ -55,11 +55,12 @@ gateway_request_pool_key="$(safe_template_metadata_value "${HERMES_GATEWAY_REQUE
 gateway_request_profile_template_key="$(safe_template_metadata_value "${HERMES_GATEWAY_REQUEST_PROFILE_TEMPLATE_KEY:-}")"
 gateway_request_template_key="$(safe_template_metadata_value "${HERMES_GATEWAY_REQUEST_TEMPLATE_KEY:-}")"
 gateway_request_replica_id="$(safe_template_metadata_value "${HERMES_GATEWAY_REQUEST_REPLICA_ID:-}")"
+gateway_request_workspace_id="$(safe_template_metadata_value "${HERMES_GATEWAY_REQUEST_WORKSPACE_ID:-}")"
 if [ -z "$gateway_request_template_key" ]; then
   gateway_request_template_key="$gateway_request_profile_template_key"
 fi
-if [ -n "$gateway_request_pool_key" ] || [ -n "$gateway_request_template_key" ] || [ -n "$gateway_request_replica_id" ]; then
-  log_step "lowgw-template-request profiles=${gateway_start_profiles:-all} pool=${gateway_request_pool_key} template=${gateway_request_template_key} replica=${gateway_request_replica_id}"
+if [ -n "$gateway_request_pool_key" ] || [ -n "$gateway_request_template_key" ] || [ -n "$gateway_request_replica_id" ] || [ -n "$gateway_request_workspace_id" ]; then
+  log_step "lowgw-template-request profiles=${gateway_start_profiles:-all} pool=${gateway_request_pool_key} template=${gateway_request_template_key} replica=${gateway_request_replica_id} workspace=${gateway_request_workspace_id}"
 fi
 
 profile_selected() {
@@ -124,12 +125,12 @@ PY
 
 manifest_skill_store_for_profile() {
   local profile="$1"
-  python3 - "$gateway_pool_manifest_path" "$profile" "$owner_skill_store" "$skill_profiles_root" <<'PY' 2>/dev/null || true
+  python3 - "$gateway_pool_manifest_path" "$profile" "$owner_skill_store" "$skill_profiles_root" "$gateway_request_workspace_id" <<'PY' 2>/dev/null || true
 import json
 import re
 import sys
 
-manifest_path, profile, owner_skill_store, skill_profiles_root = sys.argv[1:5]
+manifest_path, profile, owner_skill_store, skill_profiles_root, request_workspace = sys.argv[1:6]
 
 def clean_profile(value):
     text = str(value or "").strip().lower()
@@ -137,6 +138,14 @@ def clean_profile(value):
         text = text.split(":", 1)[1]
     text = re.sub(r"[^a-z0-9_-]+", "-", text).strip("-")
     return text[:80]
+
+request_workspace = clean_profile(request_workspace)
+if request_workspace and request_workspace not in ("owner", "*"):
+    print(f"{skill_profiles_root.rstrip('/')}/{request_workspace}/skills")
+    raise SystemExit(0)
+if request_workspace == "owner":
+    print(owner_skill_store)
+    raise SystemExit(0)
 
 def profile_from_worker(worker):
     skill_profile = str(worker.get("skillProfile") or worker.get("skill_profile") or "").strip()
@@ -173,6 +182,70 @@ for worker in data.get("workers") or []:
         print(owner_skill_store)
     else:
         print(f"{skill_profiles_root.rstrip('/')}/{skill_profile}/skills")
+    break
+PY
+}
+
+manifest_memory_store_for_profile() {
+  local profile="$1"
+  python3 - "$gateway_pool_manifest_path" "$profile" "$owner_skill_store" "$skill_profiles_root" "$gateway_request_workspace_id" <<'PY' 2>/dev/null || true
+import json
+import re
+import sys
+
+manifest_path, profile, owner_skill_store, skill_profiles_root, request_workspace = sys.argv[1:6]
+owner_memory_store = f"{owner_skill_store.rstrip('/').rsplit('/', 1)[0]}/memories"
+
+def clean_profile(value):
+    text = str(value or "").strip().lower()
+    if text.startswith("workspace:"):
+        text = text.split(":", 1)[1]
+    text = re.sub(r"[^a-z0-9_-]+", "-", text).strip("-")
+    return text[:80]
+
+request_workspace = clean_profile(request_workspace)
+if request_workspace and request_workspace not in ("owner", "*"):
+    print(f"{skill_profiles_root.rstrip('/')}/{request_workspace}/memories")
+    raise SystemExit(0)
+if request_workspace == "owner":
+    print(owner_memory_store)
+    raise SystemExit(0)
+
+def profile_from_worker(worker):
+    skill_profile = str(worker.get("skillProfile") or worker.get("skill_profile") or "").strip()
+    if skill_profile.lower().startswith("workspace:"):
+        value = clean_profile(skill_profile)
+        if value:
+            return value
+    candidates = []
+    for key in ("skillWorkspaceIds", "skill_workspace_ids", "allowedWorkspaceIds", "allowed_workspace_ids"):
+        raw = worker.get(key) or []
+        if isinstance(raw, str):
+            raw = [item.strip() for item in raw.split(",") if item.strip()]
+        candidates.extend(clean_profile(item) for item in raw)
+    private_ids = []
+    for item in candidates:
+        if item and item not in ("owner", "owner-full", "*") and item not in private_ids:
+            private_ids.append(item)
+    if len(private_ids) == 1:
+        return private_ids[0]
+    return "owner-full"
+
+try:
+    data = json.load(open(manifest_path, encoding="utf-8-sig"))
+except Exception:
+    print(owner_memory_store)
+    raise SystemExit(0)
+
+for worker in data.get("workers") or []:
+    candidate = str(worker.get("profile") or worker.get("name") or "").strip()
+    if candidate != profile:
+        continue
+    memory_profile = profile_from_worker(worker)
+    if memory_profile == "owner-full":
+        print(owner_memory_store)
+    else:
+        print(f"{skill_profiles_root.rstrip('/')}/{memory_profile}/memories")
     break
 PY
 }
@@ -890,10 +963,10 @@ run_configure_low_gateways() {
     if [ "$gateway_configure_profiles" != "$gateway_start_profiles" ]; then
       log_step "lowgw-configure-template-peers requested=${gateway_start_profiles} configure=${gateway_configure_profiles}"
     fi
-    HERMES_GATEWAY_START_PROFILES="$gateway_configure_profiles" bash "$configure_low_gateway_script"
+    HERMES_GATEWAY_REQUEST_WORKSPACE_ID="$gateway_request_workspace_id" HERMES_GATEWAY_START_PROFILES="$gateway_configure_profiles" bash "$configure_low_gateway_script"
     return
   fi
-  bash "$configure_low_gateway_script"
+  HERMES_GATEWAY_REQUEST_WORKSPACE_ID="$gateway_request_workspace_id" bash "$configure_low_gateway_script"
 }
 
 if is_gateway_stop_only; then
@@ -965,11 +1038,15 @@ verify_gateway_profile() {
   local profile_link="$worker_home_dir/profiles/$profile"
   local expected_target="$gateway_worker_root/telemetry/profiles/$profile"
   local expected_skill_store=""
+  local expected_memory_store=""
   local skill_dir=""
+  local memory_dir=""
   local resolved_profile=""
   local resolved_expected=""
   local resolved_skills=""
   local resolved_skill_store=""
+  local resolved_memories=""
+  local resolved_memory_store=""
 
   repair_gateway_profile_link "$profile"
   if [ ! -L "$profile_link" ]; then
@@ -1006,6 +1083,27 @@ verify_gateway_profile() {
     fi
     ln -sfn "$expected_skill_store" "$skill_dir"
     chown -h "$worker_user:$worker_user" "$skill_dir" || true
+  fi
+  expected_memory_store="$(manifest_memory_store_for_profile "$profile")"
+  if [ -z "$expected_memory_store" ]; then
+    echo "missing memory store mapping for low gateway profile: $profile" >&2
+    exit 1
+  fi
+  install -d -m 700 -o "$worker_user" -g "$worker_user" "$expected_memory_store"
+  memory_dir="$expected_target/memories"
+  resolved_memory_store="$(readlink -f "$expected_memory_store" || true)"
+  resolved_memories="$(readlink -f "$memory_dir" 2>/dev/null || true)"
+  if [ -z "$resolved_memories" ] || [ "$resolved_memories" != "$resolved_memory_store" ]; then
+    local stamp
+    local backup_root
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    backup_root="$expected_target/memory-store-backups"
+    install -d -m 700 -o "$worker_user" -g "$worker_user" "$backup_root"
+    if [ -e "$memory_dir" ] || [ -L "$memory_dir" ]; then
+      mv "$memory_dir" "$backup_root/memories-before-workspace-link-${stamp}"
+    fi
+    ln -sfn "$expected_memory_store" "$memory_dir"
+    chown -h "$worker_user:$worker_user" "$memory_dir" || true
   fi
   if [ ! -s "$profile_link/config.yaml" ]; then
     echo "missing low gateway profile config: $profile_link/config.yaml" >&2

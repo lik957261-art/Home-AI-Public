@@ -5,6 +5,12 @@ param(
   [string]$ProfileTemplateKey = "",
   [string]$TemplateKey = "",
   [string]$ReplicaId = "",
+  [string]$ProfileAlias = "",
+  [string]$WorkspaceId = "",
+  [string]$PermissionTier = "",
+  [string]$Provider = "",
+  [string]$CapabilityHash = "",
+  [string]$ToolSchemaEpoch = "",
   [switch]$SkipConfigureIfReady,
   [switch]$ForceConfigure,
   [switch]$StopOnly
@@ -28,6 +34,12 @@ if ($PoolKey) { $envArgs += "HERMES_GATEWAY_REQUEST_POOL_KEY=$PoolKey" }
 if ($ProfileTemplateKey) { $envArgs += "HERMES_GATEWAY_REQUEST_PROFILE_TEMPLATE_KEY=$ProfileTemplateKey" }
 if ($TemplateKey) { $envArgs += "HERMES_GATEWAY_REQUEST_TEMPLATE_KEY=$TemplateKey" }
 if ($ReplicaId) { $envArgs += "HERMES_GATEWAY_REQUEST_REPLICA_ID=$ReplicaId" }
+if ($ProfileAlias) { $envArgs += "HERMES_GATEWAY_REQUEST_PROFILE_ALIAS=$ProfileAlias" }
+if ($WorkspaceId) { $envArgs += "HERMES_GATEWAY_REQUEST_WORKSPACE_ID=$WorkspaceId" }
+if ($PermissionTier) { $envArgs += "HERMES_GATEWAY_REQUEST_PERMISSION_TIER=$PermissionTier" }
+if ($Provider) { $envArgs += "HERMES_GATEWAY_REQUEST_PROVIDER=$Provider" }
+if ($CapabilityHash) { $envArgs += "HERMES_GATEWAY_REQUEST_CAPABILITY_HASH=$CapabilityHash" }
+if ($ToolSchemaEpoch) { $envArgs += "HERMES_GATEWAY_REQUEST_TOOL_SCHEMA_EPOCH=$ToolSchemaEpoch" }
 if ($SkipConfigureIfReady) { $envArgs += "HERMES_GATEWAY_SKIP_CONFIGURE_IF_READY=1" }
 if ($ForceConfigure) { $envArgs += "HERMES_GATEWAY_FORCE_CONFIGURE=1" }
 if ($StopOnly) { $envArgs += "HERMES_GATEWAY_STOP_ONLY=1" }

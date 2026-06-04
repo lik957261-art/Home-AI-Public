@@ -522,6 +522,82 @@ async function testHybridModeStartsCompatibleWorkerAndEmitsBoundedEvents() {
   fs.rmSync(manifest.dir, { recursive: true, force: true });
 }
 
+async function testHybridModeRematerializesRetiredReplicaForAnotherWorkspace() {
+  const manifest = tempManifest({
+    enabled: true,
+    workers: [
+      {
+        name: "shared-replica",
+        profile: "lowgw5",
+        replicaId: "shared-low-replica-1",
+        port: 18755,
+        api_key: "shared-secret",
+        provider: "openai-codex",
+        securityLevel: "user",
+        allowedWorkspaceIds: ["workspace_a"],
+        skillWorkspaceIds: ["workspace_a"],
+      },
+    ],
+  });
+  const healthyProfiles = new Set();
+  const starts = [];
+  const events = [];
+  const provider = createGatewayPoolProvider({
+    enabled: "auto",
+    startMode: "hybrid",
+    elastic: { workspaceMaxWorkers: 1, globalMaxWorkers: 1 },
+    manifestPaths: [manifest.file],
+    fallbackApiBase: "http://fallback.example.test",
+    createGatewayRunner,
+    startWorkerProfile: async (worker, context) => {
+      starts.push({ profile: worker.profile, workspaceId: context.hints.workspaceId });
+      healthyProfiles.add(worker.profile);
+    },
+    stopWorkerProfile: async (worker) => {
+      healthyProfiles.delete(worker.profile);
+    },
+    fetchImpl: async (url) => {
+      if (url.includes(":18755/") && healthyProfiles.has("lowgw5")) return jsonResponse({ status: "ok" });
+      return jsonResponse({ error: "down" }, { status: 503 });
+    },
+  });
+
+  const first = await provider.chooseTarget({
+    provider: "openai-codex",
+    securityLevel: "user",
+    workspaceId: "workspace_a",
+    skillWorkspaceId: "workspace_a",
+  }, {
+    runId: "run-workspace-a",
+    onEvent: (event) => events.push(event),
+  });
+  assert.equal(first.profile, "lowgw5");
+  assert.equal(first.schedulerEvent.reason, "worker_started");
+  assert.equal(provider.releaseRun("run-workspace-a", "retired"), true);
+  healthyProfiles.delete("lowgw5");
+
+  const second = await provider.chooseTarget({
+    provider: "openai-codex",
+    securityLevel: "user",
+    workspaceId: "workspace_b",
+    skillWorkspaceId: "workspace_b",
+    requiredToolsets: ["health"],
+  }, {
+    runId: "run-workspace-b",
+    onEvent: (event) => events.push(event),
+  });
+
+  assert.equal(second.profile, "lowgw5");
+  assert.equal(second.schedulerEvent.reason, "worker_started");
+  assert.deepEqual(starts, [
+    { profile: "lowgw5", workspaceId: "workspace_a" },
+    { profile: "lowgw5", workspaceId: "workspace_b" },
+  ]);
+  assert.equal(events.some((event) => event.workspaceId === "workspace_b" && event.replicaId === "shared-low-replica-1"), true);
+  assert.equal(JSON.stringify(events).includes("shared-secret"), false);
+  fs.rmSync(manifest.dir, { recursive: true, force: true });
+}
+
 async function testHybridModeReusesExternallyWarmWorkerBeforeStartingEarlierCandidate() {
   const manifest = tempManifest({
     enabled: true,
@@ -872,6 +948,7 @@ async function testHybridStatusClearsStoppedWarmWorker() {
   await testProviderSpecificOwnerMaintenanceChoosesDeepSeekWorker();
   await testUserRunsFailClosedWithoutUserWorker();
   await testHybridModeStartsCompatibleWorkerAndEmitsBoundedEvents();
+  await testHybridModeRematerializesRetiredReplicaForAnotherWorkspace();
   await testHybridModeReusesExternallyWarmWorkerBeforeStartingEarlierCandidate();
   await testHybridModeReusesIdleWorkerAcrossRequestToolsetHints();
   await testHybridModeStartsOwnerMaintenanceProfileOnDemand();

@@ -74,8 +74,8 @@ async function testStartsAndStopsSpecificProfilesHidden() {
     "-ExecutionPolicy", "Bypass",
     "-File", path.join(toolRoot, "scripts", "start-gateway-pool.ps1"),
   ]);
-  assert.deepEqual(calls[0].args.slice(-3), ["-StartProfiles", "lowgw5", "-NoStopExisting"]);
-  assert.deepEqual(calls[1].args.slice(-2), ["-StopProfiles", "lowgw5"]);
+  assert.deepEqual(calls[0].args.slice(-3), ["-StartReplicas", "lowgw5", "-NoStopExisting"]);
+  assert.deepEqual(calls[1].args.slice(-2), ["-StopReplicas", "lowgw5"]);
   assert.equal(calls[0].spawnOptions.cwd, toolRoot);
   assert.equal(calls[0].spawnOptions.windowsHide, true);
   fs.rmSync(toolRoot, { recursive: true, force: true });
@@ -92,8 +92,8 @@ async function testOwnerMaintenanceStartAndStopPolicy() {
   await service.startWorkerProfile({ profile: "officialclean1", securityLevel: "owner-maintenance" });
   const stop = await service.stopWorkerProfile({ profile: "officialclean1", securityLevel: "owner-maintenance" });
 
-  assert.deepEqual(calls[0].args.slice(-3), ["-OwnerMaintenanceOnly", "-StartProfiles", "officialclean1"]);
-  assert.deepEqual(calls[1].args.slice(-3), ["-OwnerMaintenanceOnly", "-StopProfiles", "officialclean1"]);
+  assert.deepEqual(calls[0].args.slice(-3), ["-OwnerMaintenanceOnly", "-StartReplicas", "officialclean1"]);
+  assert.deepEqual(calls[1].args.slice(-3), ["-OwnerMaintenanceOnly", "-StopReplicas", "officialclean1"]);
   assert.equal(stop.ok, true);
   assert.equal(calls.length, 2);
   fs.rmSync(toolRoot, { recursive: true, force: true });
@@ -123,6 +123,7 @@ async function testScheduledOwnerMaintenanceLaunchRequestTargetsProfile() {
   assert.equal(calls.length, 1);
   assert.equal(capturedRequest.action, "ownerMaintenance");
   assert.deepEqual(capturedRequest.profiles, ["officialclean1"]);
+  assert.deepEqual(capturedRequest.replicas, ["officialclean1"]);
   assert.equal(capturedRequest.noStopExisting, true);
   fs.rmSync(toolRoot, { recursive: true, force: true });
 }
@@ -153,6 +154,7 @@ async function testScheduledTaskLaunchRequest() {
   assert.deepEqual(calls[0].args, ["/Run", "/TN", "Hermes Mobile Gateway Pool"]);
   assert.equal(capturedRequest.action, "start");
   assert.deepEqual(capturedRequest.profiles, ["lowgw6"]);
+  assert.deepEqual(capturedRequest.replicas, ["lowgw6"]);
   assert.equal(capturedRequest.noStopExisting, true);
   fs.rmSync(toolRoot, { recursive: true, force: true });
 }
@@ -197,6 +199,7 @@ async function testScheduledTaskLaunchRequestCarriesTemplateMetadata() {
   assert.equal(capturedRequest.profileTemplateKey, "owner|user|openai-codex");
   assert.equal(capturedRequest.templateKey, "owner|user|openai-codex");
   assert.equal(capturedRequest.replicaId, "lowgw10");
+  assert.deepEqual(capturedRequest.replicas, ["lowgw10"]);
   assert.equal(capturedRequest.profileAlias, "lowgw10");
   assert.equal(capturedRequest.workspaceId, "owner");
   assert.equal(capturedRequest.permissionTier, "user");
@@ -230,15 +233,20 @@ async function testDirectLaunchCarriesTemplateMetadataToPowerShell() {
     },
   });
 
-  const startIndex = calls[0].args.indexOf("-StartProfiles");
+  const startIndex = calls[0].args.indexOf("-StartReplicas");
   assert.notEqual(startIndex, -1);
   assert.deepEqual(calls[0].args.slice(startIndex), [
-    "-StartProfiles", "lowgw10",
+    "-StartReplicas", "lowgw10",
     "-NoStopExisting",
+    "-ForceConfigure",
     "-PoolKey", "owner|user|openai-codex",
     "-ProfileTemplateKey", "owner|user|openai-codex",
     "-TemplateKey", "owner|user|openai-codex",
     "-ReplicaId", "lowgw10",
+    "-ProfileAlias", "lowgw10",
+    "-WorkspaceId", "owner",
+    "-PermissionTier", "user",
+    "-Provider", "openai-codex",
   ]);
   fs.rmSync(toolRoot, { recursive: true, force: true });
 }

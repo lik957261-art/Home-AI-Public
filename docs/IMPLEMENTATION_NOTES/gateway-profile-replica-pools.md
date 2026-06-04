@@ -1,8 +1,8 @@
 # Gateway Profile Replica Pools
 
-Status: design, harness, runtime scheduler migration, launch metadata, and
-manifest replica metadata backfill are enabled. Legacy launch script aliases
-remain compatible.
+Status: design, harness, runtime scheduler migration, launch metadata, manifest
+replica metadata backfill, and workspace-bound replica rematerialization are
+enabled. Legacy launch script aliases remain compatible.
 
 ## Problem
 
@@ -194,6 +194,30 @@ logs only bounded metadata, and passes the template request into
 expansion and config rendering. Custom profile launch scripts are not forced to
 accept new arguments; they keep the legacy `--start-profiles` contract for
 rollback and NAS compatibility.
+
+The replica-aware production path now prefers `-StartReplicas` and
+`-StopReplicas`. `start-gateway-pool.ps1` resolves replica ids to the current
+physical profile alias only at the process-control boundary, then passes the
+requested workspace/tier/provider into WSL materialization. `-StartProfiles` and
+`-StopProfiles` remain compatibility entrypoints for older scripts and manual
+diagnostics.
+
+Materialization writes a non-secret `materialized-identity.json` next to the
+replica `config.yaml`. It contains only bounded identity fields such as
+`workspaceId`, `skillWorkspaceId`, `memoryWorkspaceId`, `permissionTier`,
+`provider`, and the replica profile label. It must not contain API keys, token
+paths, launch tokens, prompts, model outputs, MCP env bodies, or full config
+YAML.
+
+Workspace state is materialized alongside the config:
+
+- `skills` links to `<skillProfilesRoot>/<workspaceId>/skills`.
+- `memories` links to `<skillProfilesRoot>/<workspaceId>/memories`.
+- Owner requests use the Owner profile root, currently `owner-full`.
+
+Both links are verified immediately before launch. This keeps official Hermes
+Skill create/update behavior and the `memory` toolset workspace-bound when the
+same physical replica is stopped and later reused for another user.
 
 ### Phase E: Cleanup
 

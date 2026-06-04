@@ -178,6 +178,43 @@ Phase 7 adds manifest replica metadata and replica-first scheduler state:
   tier, provider, and runtime hints before scheduling; the manifest fields are
   compatibility metadata, not an authorization source.
 
+Phase 8 adds stopped-replica workspace rematerialization:
+
+- `scripts/start-gateway-pool.ps1` accepts `-StartReplicas` and
+  `-StopReplicas`, resolves those replica ids to the current physical profile
+  aliases, and forwards bounded workspace/tier/provider metadata to the WSL
+  bootstrap path.
+- `scripts/configure-low-gateways.sh` honors
+  `HERMES_GATEWAY_REQUEST_WORKSPACE_ID` when selecting plugin workspaces,
+  Skill Store roots, and memory store roots. It writes
+  `materialized-identity.json` with only non-secret identity fields.
+- `scripts/start-low-gateways.sh` verifies both `skills` and `memories` symlinks
+  before launch. If either points at the wrong workspace, the old directory/link
+  is backed up under the replica telemetry profile and replaced with the
+  workspace-bound store.
+- `adapters/gateway-profile-template-identity-service.js` reads the
+  `materialized-identity.json` sidecar when projecting template identity. This
+  lets the listener see that a manifest worker formerly bound to
+  `weixin_test_1` is currently materialized as `xuyan|user|openai-codex`.
+- The provider/scheduler can then reuse an externally healthy replica after a
+  listener restart or manual/scripted start when the sidecar identity, capability
+  hash, and requested workspace/provider/tier match.
+
+Maintained local Windows production validation for Phase 8 confirmed:
+
+- `lowgw14` was stopped, materialized as `xuyan|user|openai-codex`, and started
+  healthy in about 48 seconds.
+- `lowgw14/skills` and `lowgw14/memories` both pointed at
+  `data/skill-profiles/xuyan/...`, and the sidecar recorded `xuyan` for
+  workspace, Skill workspace, and memory workspace.
+- A production provider smoke with the real Gateway runner returned
+  `run.gateway_worker_reused` for `lowgw14` and did not call the start hook.
+- The same physical replica was then stopped, rematerialized back to
+  `weixin_test_1|user|openai-codex`, and warm-reuse smoke again returned
+  `run.gateway_worker_reused` without start.
+- Final cleanup stopped `lowgw14` and left it materialized for its original
+  `weixin_test_1` workspace.
+
 ## Problem
 
 The current Gateway Pool treats each manifest profile, such as `lowgw1`,

@@ -105,11 +105,24 @@ function metadataArgs(metadata = {}) {
     ["-ProfileTemplateKey", metadata.profileTemplateKey || metadata.templateKey],
     ["-TemplateKey", metadata.templateKey || metadata.profileTemplateKey],
     ["-ReplicaId", metadata.replicaId],
+    ["-ProfileAlias", metadata.profileAlias],
+    ["-WorkspaceId", metadata.workspaceId],
+    ["-PermissionTier", metadata.permissionTier],
+    ["-Provider", metadata.provider],
+    ["-CapabilityHash", metadata.capabilityHash],
+    ["-ToolSchemaEpoch", metadata.toolSchemaEpoch],
   ];
   for (const [key, value] of mapping) {
     if (value) out.push(key, value);
   }
   return out;
+}
+
+function launchIdentity(worker = {}, context = {}) {
+  const profile = safeGatewayProfileName(worker.profile || worker.name);
+  const metadata = gatewayLaunchMetadata(worker, context);
+  const replica = safeMetadataValue(metadata.replicaId || worker.replicaId || worker.replica_id || profile, 80);
+  return { profile, replica, metadata };
 }
 
 function createGatewayWorkerProfileLaunchService(options = {}) {
@@ -364,6 +377,7 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
               requestId: cleanString(result?.requestId),
               action: cleanString(result?.action),
               profiles: Array.isArray(result?.profiles) ? result.profiles.map(cleanString).filter(Boolean) : [],
+              replicas: Array.isArray(result?.replicas) ? result.replicas.map(cleanString).filter(Boolean) : [],
               stderr: sanitizeProcessText(result?.stderr),
               stdout: sanitizeProcessText(result?.stdout),
             };
@@ -399,13 +413,21 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
       err.code = "gateway_profile_unsafe";
       throw err;
     }
+    const requestedReplicas = Array.isArray(extra.replicas) ? extra.replicas : [];
+    const safeReplicas = requestedReplicas.map((item) => safeMetadataValue(item, 80)).filter(Boolean);
+    if (requestedReplicas.length !== safeReplicas.length) {
+      const err = new Error("Gateway scheduled launch request contains an unsafe replica id.");
+      err.code = "gateway_replica_unsafe";
+      throw err;
+    }
     ensureLaunchRequestDirs();
-    const requestId = requestIdFor(action, safeProfiles);
+    const requestId = requestIdFor(action, safeReplicas.length ? safeReplicas : safeProfiles);
     const request = {
       version: 1,
       requestId,
       action: cleanString(action),
       profiles: safeProfiles,
+      replicas: safeReplicas,
       noStopExisting: Boolean(extra.noStopExisting),
       forceConfigure: Boolean(extra.forceConfigure),
       createdAt: new Date().toISOString(),
@@ -435,38 +457,38 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
   }
 
   async function startWorkerProfile(worker = {}, context = {}) {
-    const profile = cleanString(worker.profile || worker.name);
+    const { profile, replica, metadata } = launchIdentity(worker, context);
     if (!profile) {
       const err = new Error("Gateway worker profile is missing.");
       err.code = "profile_missing";
       throw err;
     }
-    const metadata = gatewayLaunchMetadata(worker, context);
+    const forceConfigure = Boolean(metadata.workspaceId);
     if (cleanString(worker.securityLevel).toLowerCase() === "owner-maintenance" || worker.allowMaintenance) {
-      const scheduledResult = await runScheduledGatewayRequest("ownerMaintenance", [profile], startTimeoutMs(context), { noStopExisting: true, metadata });
+      const scheduledResult = await runScheduledGatewayRequest("ownerMaintenance", [profile], startTimeoutMs(context), { noStopExisting: true, forceConfigure, metadata, replicas: [replica] });
       if (scheduledResult) return scheduledResult;
-      return runGatewayPoolScript(["-OwnerMaintenanceOnly", "-StartProfiles", profile, ...metadataArgs(metadata)], startTimeoutMs(context));
+      return runGatewayPoolScript(["-OwnerMaintenanceOnly", "-StartReplicas", replica, ...metadataArgs(metadata)], startTimeoutMs(context));
     }
-    const scheduledResult = await runScheduledGatewayRequest("start", [profile], startTimeoutMs(context), { noStopExisting: true, metadata });
+    const scheduledResult = await runScheduledGatewayRequest("start", [profile], startTimeoutMs(context), { noStopExisting: true, forceConfigure, metadata, replicas: [replica] });
     if (scheduledResult) return scheduledResult;
     const scriptResult = runProfileLaunchScript(["--start-profiles", profile, "--no-stop-existing"], startTimeoutMs(context));
     if (scriptResult) return scriptResult;
-    return runGatewayPoolScript(["-StartProfiles", profile, "-NoStopExisting", ...metadataArgs(metadata)], startTimeoutMs(context));
+    return runGatewayPoolScript(["-StartReplicas", replica, "-NoStopExisting", ...(forceConfigure ? ["-ForceConfigure"] : []), ...metadataArgs(metadata)], startTimeoutMs(context));
   }
 
   async function stopWorkerProfile(worker = {}, context = {}) {
-    const profile = cleanString(worker.profile || worker.name);
+    const { profile, replica, metadata } = launchIdentity(worker, context);
     if (!profile) return { ok: false, reason: "profile_missing" };
     if (cleanString(worker.securityLevel).toLowerCase() === "owner-maintenance" || worker.allowMaintenance) {
-      const scheduledResult = await runScheduledGatewayRequest("ownerMaintenanceStop", [profile], stopTimeoutMs(context));
+      const scheduledResult = await runScheduledGatewayRequest("ownerMaintenanceStop", [profile], stopTimeoutMs(context), { metadata, replicas: [replica] });
       if (scheduledResult) return scheduledResult;
-      return runGatewayPoolScript(["-OwnerMaintenanceOnly", "-StopProfiles", profile], stopTimeoutMs(context));
+      return runGatewayPoolScript(["-OwnerMaintenanceOnly", "-StopReplicas", replica, ...metadataArgs(metadata)], stopTimeoutMs(context));
     }
-    const scheduledResult = await runScheduledGatewayRequest("stop", [profile], stopTimeoutMs(context));
+    const scheduledResult = await runScheduledGatewayRequest("stop", [profile], stopTimeoutMs(context), { metadata, replicas: [replica] });
     if (scheduledResult) return scheduledResult;
     const scriptResult = runProfileLaunchScript(["--stop-profiles", profile], stopTimeoutMs(context));
     if (scriptResult) return scriptResult;
-    return runGatewayPoolScript(["-StopProfiles", profile], stopTimeoutMs(context));
+    return runGatewayPoolScript(["-StopReplicas", replica, ...metadataArgs(metadata)], stopTimeoutMs(context));
   }
 
   return {
