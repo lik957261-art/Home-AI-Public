@@ -122,7 +122,7 @@ async function testRouteMetadataAndMatching() {
 
   const summary = routes.summary({ public: true });
   assert.equal(summary.total, 4);
-  assert.deepEqual(summary.byAuthMode, { "access-key": 2, owner: 2 });
+  assert.deepEqual(summary.byAuthMode, { none: 1, "access-key": 1, owner: 2 });
   assert.equal(JSON.stringify(summary).includes("/api/status"), false);
 }
 
@@ -143,6 +143,23 @@ async function testAuthFailureAndFallthrough() {
 
 async function testClientVersionShape() {
   const { routes } = makeRoutes();
+  const anonRes = makeResponse();
+  const anonResult = await routes.handle({
+    method: "GET",
+    url: "/api/client-version?clientVersion=old",
+    queryClientVersion: "old",
+    headers: {},
+  }, anonRes, { pathname: "/api/client-version" });
+
+  assert.equal(anonResult.handled, true);
+  assert.equal(anonRes.statusCode, 200);
+  assert.deepEqual(JSON.parse(anonRes.body), {
+    version: "20260514-2130",
+    clientVersion: "old",
+    refreshRequired: true,
+    checkedAt: "2026-05-14T13:30:00.000Z",
+  });
+
   const res = makeResponse();
   const result = await routes.handle({
     method: "GET",

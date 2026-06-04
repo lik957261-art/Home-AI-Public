@@ -2,6 +2,9 @@
 
 const WEIXIN_INGRESS_PATH_PREFIX = "/api/ingress/weixin/";
 const EMBEDDED_PLUGIN_PROXY_PATH_REGEX = /^\/api\/hermes-plugins\/[^/]+\/proxy(?:\/|$)/;
+const PRE_AUTH_SYSTEM_PATHS = Object.freeze(new Set([
+  "/api/client-version",
+]));
 
 const MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE = Object.freeze([
   Object.freeze({ key: "systemApiRoutes", passAuth: false }),
@@ -93,6 +96,7 @@ function createMobileApiDispatcher(deps = {}) {
 
   const publicApiRoutes = ensureRouteHandler(deps, "publicApiRoutes");
   const weixinApiRoutes = ensureRouteHandler(deps, "weixinApiRoutes");
+  const systemApiRoutes = ensureRouteHandler(deps, "systemApiRoutes");
   const authenticatedRoutes = (deps.authenticatedRoutePipeline || MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE)
     .map((entry) => normalizeAuthenticatedRouteEntry(deps, entry));
 
@@ -111,6 +115,11 @@ function createMobileApiDispatcher(deps = {}) {
     if (EMBEDDED_PLUGIN_PROXY_PATH_REGEX.test(url.pathname)) {
       const proxyResult = await deps.hermesPluginApiRoutes.handle(req, res, url);
       if (routeWasHandled(proxyResult)) return proxyResult;
+    }
+
+    if (PRE_AUTH_SYSTEM_PATHS.has(url.pathname)) {
+      const systemResult = await systemApiRoutes.handle(req, res, url);
+      if (routeWasHandled(systemResult)) return systemResult;
     }
 
     const auth = authenticateRequest(req);
@@ -146,5 +155,6 @@ module.exports = {
   WEIXIN_INGRESS_PATH_PREFIX,
   MOBILE_API_AUTHENTICATED_ROUTE_KEYS,
   MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE,
+  PRE_AUTH_SYSTEM_PATHS,
   createMobileApiDispatcher,
 };

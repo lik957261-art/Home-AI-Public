@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
   EMBEDDED_PLUGIN_PROXY_PATH_REGEX,
   MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE,
+  PRE_AUTH_SYSTEM_PATHS,
   WEIXIN_INGRESS_PATH_PREFIX,
   createMobileApiDispatcher,
 } = require("../server-routes/mobile-api-dispatcher");
@@ -107,6 +108,42 @@ async function testPublicRoutesRunBeforeAuthAndStopPipeline() {
     "route",
   ]);
   assert.equal(routeCalls(calls)[0].key, "publicApiRoutes");
+}
+
+async function testClientVersionSystemRouteRunsBeforeBrowserAuth() {
+  const { deps, calls } = makeDeps({
+    routeBehaviors: {
+      systemApiRoutes: ({ url, context }) => ({
+        handled: url.pathname === "/api/client-version" && !context,
+        status: 200,
+        writeJson: { version: "server-version", refreshRequired: true },
+      }),
+    },
+  });
+  const dispatcher = createMobileApiDispatcher(deps);
+  const res = makeResponse();
+  const req = {
+    method: "GET",
+    url: "/api/client-version?clientVersion=old",
+    headers: {},
+    authResult: { ok: false },
+  };
+
+  const result = await dispatcher.handleApi(req, res);
+
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(JSON.parse(res.body), { version: "server-version", refreshRequired: true });
+  assert.equal(req.hermesRequestContext, undefined);
+  assert.deepEqual(calls.map((call) => call.type), [
+    "getUrl",
+    "attachClientVersionHeaders",
+    "route",
+    "route",
+  ]);
+  assert.deepEqual(routeCalls(calls).map((call) => call.key), ["publicApiRoutes", "systemApiRoutes"]);
+  assert.equal(routeCalls(calls)[1].contextArgCount, 3);
+  assert.equal(PRE_AUTH_SYSTEM_PATHS.has("/api/client-version"), true);
 }
 
 async function testWeixinIngressRunsBeforeBrowserAuth() {
@@ -335,6 +372,7 @@ function testDependencyValidation() {
 
 async function run() {
   await testPublicRoutesRunBeforeAuthAndStopPipeline();
+  await testClientVersionSystemRouteRunsBeforeBrowserAuth();
   await testWeixinIngressRunsBeforeBrowserAuth();
   await testUnauthorizedRequestStopsAfterAuthFailure();
   await testCodexPluginProxyRunsBeforeBrowserAuth();

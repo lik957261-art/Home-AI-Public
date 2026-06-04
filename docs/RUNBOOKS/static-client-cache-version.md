@@ -19,7 +19,7 @@ Phone UI does not show a recent static/front-end change, or behavior differs bet
    or the first listening Node process.
 3. Check production:
    - `/api/status?detail=1`
-   - `/api/client-version?clientVersion=<expected-version>`
+   - unauthenticated `/api/client-version?clientVersion=<expected-version>`
 4. If a phone still shows old behavior, confirm it refreshed to the expected version.
 5. If a missed file is copied later under the same `?v=<client-version>` URL,
    treat the deployment as cache-tainted and issue a new static version. Do not
@@ -36,10 +36,10 @@ Static-only sync:
 
 When a stale PWA shell is suspected, verify the old version reports
 `refreshRequired=true` and the new version reports `refreshRequired=false` from
-`/api/client-version`. Current clients should show a refresh notice on
-startup/foreground/API-response version mismatch and should not automatically
-reload or reset the client. The visible refresh action navigates the current app
-URL with `resetClient=1` and `targetVersion=<server-version>`. The inline
+unauthenticated `/api/client-version`. Current clients should show a refresh
+notice on startup/foreground/API-response version mismatch and should not
+automatically reload or reset the client. The visible refresh action navigates
+the current app URL with `resetClient=1` and `targetVersion=<server-version>`. The inline
 app-shell reset clears bounded static caches, unregisters Service Workers for
 explicit hard refresh, preserves the stored Access Key/theme/font preferences,
 and returns to the app with a cache-busting query. Manual update recovery must

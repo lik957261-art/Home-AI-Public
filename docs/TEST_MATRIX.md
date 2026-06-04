@@ -34,7 +34,7 @@ target device. Browser address-bar navigation is not a valid substitute; it is
 browser-mode evidence only and may intentionally show the browser-shell guard
 page.
 Static-client cache fixes must prove both sides of the version contract:
-`/api/client-version?clientVersion=<new-version>` returns
+unauthenticated `/api/client-version?clientVersion=<new-version>` returns
 `refreshRequired=false`, the previous deployed static version returns
 `refreshRequired=true`, and cache-sensitive JavaScript changes use a new
 `?v=<client-version>` query string. If a production sync missed a script and the

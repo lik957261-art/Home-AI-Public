@@ -11,9 +11,9 @@ const SYSTEM_API_ROUTE_SPECS = Object.freeze([
     moduleKey: "system",
     handlerKey: "clientVersion",
     summary: "Report server/client version compatibility.",
-    riskLevel: "low",
-    authMode: "access-key",
-    authRequired: true,
+    riskLevel: "public",
+    authMode: "none",
+    authRequired: false,
     tags: ["client-version", "status"],
   },
   {

@@ -10,8 +10,9 @@ This is a hand-maintained route ownership and auth reference. The executable inv
 
 1. Public routes.
 2. Weixin ingress routes under `/api/ingress/weixin/`, authenticated by the ingress key instead of browser Access Keys.
-3. Browser/API Access Key authentication.
-4. Authenticated route pipeline.
+3. Public system probes, currently only `/api/client-version`, before browser Access Key authentication.
+4. Browser/API Access Key authentication.
+5. Authenticated route pipeline.
 
 The authenticated pipeline is defined by `MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE`. Route modules marked `passAuth: true` receive `{ auth }` and must enforce workspace/resource rules inside the module or service layer.
 
@@ -29,7 +30,7 @@ The authenticated pipeline is defined by `MOBILE_API_AUTHENTICATED_ROUTE_PIPELIN
 | Module | Main Surface | Auth Mode | Notes |
 | --- | --- | --- | --- |
 | `public-api-routes.js` | `/api/public-config`, login/setup | public | First-run setup may create Owner key; do not expose secrets. |
-| `system-api-routes.js` | status, client version, app update | access-key / owner for mutations | Status projections must redact worker URLs and secret paths for non-Owner. |
+| `system-api-routes.js` | status, client version, app update | public client-version probe; access-key status; owner mutations | `/api/client-version` must remain reachable without a browser Access Key and returns only version compatibility metadata unless an authenticated key is also present. Status projections must redact worker URLs and secret paths for non-Owner. |
 | `runtime-config-api-routes.js` | runtime Gateway, Web Push, VAPID config | owner | Stores config metadata/paths, not plaintext key material. |
 | `push-api-routes.js` | VAPID public key, subscriptions, tests, receipts | access-key, owner for admin views | Payloads and receipts must not expose endpoints or secrets to unauthorized users. |
 | `weixin-api-routes.js` | Weixin ingress/outbound, forward targets | ingress-key or workspace-scoped | Ingress events use sidecar auth; browser forward target reads are workspace-scoped. |

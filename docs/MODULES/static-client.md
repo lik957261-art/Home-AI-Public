@@ -26,7 +26,7 @@ Any client-visible static change must bump the static version consistently in:
 After deployment, verify:
 
 - `/api/status?detail=1`
-- `/api/client-version?clientVersion=<new-version>`
+- unauthenticated `/api/client-version?clientVersion=<new-version>`
 
 If a cache-sensitive static file was missed during a production sync and is
 then copied under the same `?v=<client-version>` URL, bump the client version
