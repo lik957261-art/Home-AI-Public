@@ -24,6 +24,30 @@ if ($SkipConfigureIfReady) { $envArgs += "HERMES_GATEWAY_SKIP_CONFIGURE_IF_READY
 if ($ForceConfigure) { $envArgs += "HERMES_GATEWAY_FORCE_CONFIGURE=1" }
 if ($StopOnly) { $envArgs += "HERMES_GATEWAY_STOP_ONLY=1" }
 
+function Resolve-WslHostGatewayAddress {
+  $addresses = @()
+  try {
+    $addresses = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
+      Where-Object {
+        $_.IPAddress -and
+        $_.IPAddress -ne "127.0.0.1" -and
+        $_.IPAddress -notmatch "^169\.254\." -and
+        ($_.AddressState -eq "Preferred" -or -not $_.AddressState)
+      } |
+      Select-Object InterfaceAlias, IPAddress)
+  } catch {
+    $addresses = @()
+  }
+  $preferred = @($addresses |
+    Where-Object {
+      $_.InterfaceAlias -match "WSL" -and
+      $_.IPAddress -match "^172\.(1[6-9]|2[0-9]|3[0-1])\."
+    } |
+    Select-Object -First 1)
+  if ($preferred.Count -eq 0) { return "" }
+  return $preferred[0].IPAddress
+}
+
 function Resolve-DefaultFinanceMcpApiBaseUrl {
   $configured = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_FINANCE_MCP_API_BASE_URL", "Process")
   if ($configured) { return $configured }
@@ -55,6 +79,8 @@ function Resolve-DefaultNoteMcpApiBaseUrl {
   if ($configured) { return $configured }
   $port = [Environment]::GetEnvironmentVariable("NOTE_MCP_PORT", "Process")
   if (-not $port) { $port = "4181" }
+  $wslHost = Resolve-WslHostGatewayAddress
+  if ($wslHost) { return "http://${wslHost}:$port" }
   $addresses = @()
   try {
     $addresses = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |

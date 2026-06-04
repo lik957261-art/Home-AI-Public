@@ -124,6 +124,31 @@ function Convert-GatewayPoolWindowsPathToWslPath {
   return ($output | Select-Object -First 1)
 }
 
+function Resolve-GatewayPoolWslHostApiBaseUrl {
+  param([int]$Port)
+  $addresses = @()
+  try {
+    $addresses = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
+      Where-Object {
+        $_.IPAddress -and
+        $_.IPAddress -ne "127.0.0.1" -and
+        $_.IPAddress -notmatch "^169\.254\." -and
+        ($_.AddressState -eq "Preferred" -or -not $_.AddressState)
+      } |
+      Select-Object InterfaceAlias, IPAddress)
+  } catch {
+    $addresses = @()
+  }
+  $preferred = @($addresses |
+    Where-Object {
+      $_.InterfaceAlias -match "WSL" -and
+      $_.IPAddress -match "^172\.(1[6-9]|2[0-9]|3[0-1])\."
+    } |
+    Select-Object -First 1)
+  if ($preferred.Count -eq 0) { return "" }
+  return "http://$($preferred[0].IPAddress):$Port"
+}
+
 function Convert-GatewayPoolBashSingleQuotedLiteral {
   param([string]$Value)
   return "'" + $Value.Replace("'", "'\''") + "'"
@@ -513,6 +538,7 @@ function Ensure-OwnerMaintenanceProfileConfig {
   if (-not $financeApiBaseUrl) { $financeApiBaseUrl = "http://127.0.0.1:8791" }
   $noteApiBaseUrl = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_NOTE_MCP_API_BASE_URL")
   if (-not $noteApiBaseUrl) { $noteApiBaseUrl = [Environment]::GetEnvironmentVariable("HERMES_WEB_NOTE_MCP_API_BASE_URL") }
+  if (-not $noteApiBaseUrl) { $noteApiBaseUrl = Resolve-GatewayPoolWslHostApiBaseUrl -Port 4181 }
   if (-not $noteApiBaseUrl) { $noteApiBaseUrl = "http://127.0.0.1:4181" }
   $normalizedProvider = ([string]$Provider).Trim().ToLowerInvariant()
   if ($normalizedProvider -eq "deepseek") {

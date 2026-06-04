@@ -1101,6 +1101,10 @@ such as `mcp_note_notes_search` and `mcp_note_notes_create`; a profile that
 lists `note` but lacks `mcp_note_notes_*`, double-prefixes the tools, or binds
 to Owner's `.hermes-note` while viewing another workspace is a failing
 workspace/provisioning state.
+Local Windows Note MCP validation must also include a WSL-to-Note API
+reachability probe. A profile that exposes `mcp_note_notes_create` but points
+the wrapper at Windows-only loopback or an unreachable LAN address is failing,
+because create/update calls can time out even though schema discovery succeeds.
 Switching away from a plugin tab must force-hide the plugin host and clear the
 active host class even if the iframe shell record is missing, stale, or still
 loading; a plugin iframe must not remain above chat/topic content after a

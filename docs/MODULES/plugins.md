@@ -78,6 +78,14 @@ produce final callable names such as `mcp_note_notes_search` and
 callables while policy says `note` is enabled, or an Owner fallback when viewing
 a non-Owner workspace is a failing integration state.
 
+For local Windows production, Note MCP calls originate from WSL Gateway workers.
+The Note plugin service must listen on a Windows address reachable from WSL,
+normally `0.0.0.0:4181`, and low Gateway profile generation should prefer the
+WSL host gateway address such as `172.27.192.1` over LAN addresses for the Note
+MCP API base URL. A profile can expose Note schemas while still timing out on
+create/update if the wrapper points at Windows-only loopback or an unreachable
+LAN address.
+
 Finance uses the same workspace-local completeness rule for Hermes Mobile
 projection. A `.hermes-finance/access-key.txt` without the sibling
 `.hermes-finance/config.json` is a partial provisioning artifact, not an active
