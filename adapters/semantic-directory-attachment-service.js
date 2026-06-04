@@ -37,6 +37,15 @@ function defaultTextIncludesPath(text, root, comparablePath = defaultComparableP
   );
 }
 
+function pluginIdForTaskGroupId(taskGroupId = "") {
+  const match = String(taskGroupId || "").trim().match(/^plugin:([a-z0-9_-]+)$/i);
+  return match ? match[1].toLowerCase() : "";
+}
+
+function isPluginTaskGroupId(taskGroupId = "") {
+  return Boolean(pluginIdForTaskGroupId(taskGroupId));
+}
+
 function createSemanticDirectoryAttachmentService(options = {}) {
   for (const name of [
     "allProjectsForWorkspaceSync",
@@ -308,6 +317,7 @@ function createSemanticDirectoryAttachmentService(options = {}) {
 
   function taskDirectoryAttachmentForGroup(thread, taskGroupId) {
     if (!taskGroupId) return null;
+    if (isPluginTaskGroupId(taskGroupId)) return null;
     for (const message of thread?.messages || []) {
       if (message.taskGroupId !== taskGroupId) continue;
       const candidates = taskDirectoryAttachmentCandidatesForMessage(thread, message);
@@ -318,6 +328,7 @@ function createSemanticDirectoryAttachmentService(options = {}) {
   }
 
   function taskDirectoryAttachmentForMessage(thread, message) {
+    if (isPluginTaskGroupId(message?.taskGroupId)) return null;
     const direct = normalizeTaskDirectoryAttachment(thread, message?.directoryRoute || {});
     if (direct) return direct;
     if (thread?.singleWindow && isSingleWindowConversationTaskGroupId(message?.taskGroupId)) return null;
@@ -357,9 +368,11 @@ function createSemanticDirectoryAttachmentService(options = {}) {
     isContextAnchorProjectMatch,
     isDeliveryProjectMatch,
     isGenericOwnerTopicProjectId,
+    isPluginTaskGroupId,
     messageTaskDirectoryHaystack,
     normalizeTaskDirectoryAttachment,
     pathInsideAnyRoot,
+    pluginIdForTaskGroupId,
     pathMatchesRoot,
     projectForTaskDirectoryAttachment,
     projectSearchLabels,

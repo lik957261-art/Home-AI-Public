@@ -1,6 +1,6 @@
 # Module: Plugin Topics
 
-Last updated: 2026-06-02.
+Last updated: 2026-06-04.
 
 ## Responsibility
 
@@ -118,11 +118,36 @@ or raw plugin credentials.
 - Runs started in the plugin topic should include the plugin MCP/toolset only
   when the selected workspace has an active plugin binding and matching Gateway
   callable schema.
+- Fixed plugin task groups such as `plugin:wardrobe`, `plugin:finance`,
+  `plugin:email`, and `plugin:health` must not enter the ordinary
+  directory-bound topic attachment path. Even when a plugin-topic message
+  carries a delivery `directoryRoute`, Gateway run context must treat
+  `taskDirectory` as absent for normal plugin work.
+- Plugin-topic run context is plugin-first: configured plugin MCP/toolsets and
+  exact plugin Skill paths are mandatory run context. Wardrobe is currently
+  configured as `wardrobe`, `vision`, `file`, and `skills` with required Skill
+  `productivity/wardrobe-style-operations`.
+- Plugin-topic run context is not all-plugin eager context. The current plugin's
+  required MCP/toolset and Skill rules are loaded eagerly, while other
+  authorized plugins are represented by the compact capability catalog until the
+  run needs cross-plugin access.
+- Cross-plugin access from a plugin topic must use server-validated lazy
+  activation. For example, a Wardrobe topic may activate Finance or Note when
+  the newest request needs spending or note evidence, but those optional plugin
+  schemas should not be injected into every Wardrobe run by default.
+- Fixed plugin topics preload required Skill content server-side during Gateway
+  run assembly. The model should not have to decide to call `skill_view` before
+  seeing the required plugin rules. If a required Skill cannot be read from the
+  selected workspace Skill Store, the run context must expose a missing-Skill
+  diagnostic instead of silently falling back to generic chat behavior.
 - A standard plugin file directory is created for user-facing outputs and
   cleaned summaries. The current frontend path is `插件/<plugin title>` under the
   effective workspace directory.
 - Directory files are supporting context; structured plugin MCP remains the
-  primary source for live domain data.
+  primary source for live domain data. They must not trigger
+  `productivity/directory-context-cleaning` for routine plugin-topic runs unless
+  the newest user request explicitly asks to clean or analyze files inside the
+  delivery directory.
 - Owner viewing a non-Owner workspace must see that workspace's plugin topic,
   plugin app, file directory, and MCP binding, not Owner's.
 
@@ -138,14 +163,17 @@ The first frontend increment is implemented in:
 
 Further persistence, route, and context work should use focused services:
 
+- `adapters/plugin-required-skill-preload-service.js`
 - `adapters/plugin-topic-binding-service.js`
 - `adapters/plugin-topic-delivery-directory-service.js`
 - `adapters/plugin-topic-context-service.js`
+- `adapters/plugin-capability-activation-service.js`
 - `server-routes/plugin-topic-api-routes.js`
 - `public/app-plugin-topics-ui.js` or an existing topic/navigation UI module
 - `tests/plugin-topic-binding-service.test.js`
 - `tests/plugin-topic-delivery-directory-service.test.js`
 - `tests/plugin-topic-context-service.test.js`
+- `tests/plugin-capability-activation-service.test.js`
 - `tests/plugin-topic-api-routes.test.js`
 - `tests/app-plugin-topics-ui.test.js`
 
@@ -171,11 +199,17 @@ Context assembly for plugin topics should prefer:
 1. current user request;
 2. recent topic messages;
 3. binding metadata;
-4. live structured plugin MCP access;
-5. cleaned delivery-directory summaries and selected reports;
-6. existing layered topic summaries and refs.
+4. server-side preloaded required plugin Skill rules;
+5. live structured plugin MCP access;
+6. cleaned delivery-directory summaries and selected reports;
+7. existing layered topic summaries and refs.
 
 The delivery directory is a curated evidence layer, not a bulk-import source.
+Runtime assembly must keep plugin delivery-directory routes separate from
+normal task-directory attachments. The plugin topic may still use the delivery
+directory for Markdown receipts and curated exports, but item facts, ledger
+rows, mailbox state, health facts, or other live domain records should come
+from the plugin MCP and required plugin Skill rules first.
 
 ## Harness
 
@@ -193,6 +227,12 @@ Focused validation should include:
   `openTaskList()` or `loadSingleWindow()`;
 - missing or unprovisioned plugin diagnostics;
 - plugin MCP schema presence for the selected workspace;
+- plugin delivery-directory routes do not become ordinary `taskDirectory`
+  bindings, and fixed plugin topics do not emit directory-cleaning instructions;
+- configured plugin Skill and MCP requirements reach Gateway routing; required
+  plugin `SKILL.md` content is preloaded into the model instruction context,
+  with Wardrobe requiring
+  `productivity/wardrobe-style-operations`;
 - no Owner fallback;
 - no raw secret or private-data leakage in docs, prompts, postMessage, frontend
   state, or handoff.

@@ -1023,6 +1023,8 @@ assert.match(mobileRuntimeEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PER
 assert.match(serverJs, /enabled: GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED \|\| GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED/);
 assert.match(serverJs, /permissionPreflightTimeoutMs: GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS/);
 assert.match(serverJs, /toolsetSelectionEnabled: GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED/);
+assert.match(serverJs, /gatewayModelPreflightEnabled = GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED \|\| GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED/);
+assert.match(serverJs, /selectRunToolsetsWithModel: gatewayModelPreflightEnabled \? \(\(\.\.\.args\) => gatewayRunModelToolsetSelectionService\.selectToolsetsForRun\(\.\.\.args\)\) : null/);
 assert.match(mobileRuntimeEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION[\s\S]*\|\| "0"/);
 assert.match(serverJs, /function gatewayConversationId\(thread, userMessage, runPolicy = \{\}\)/);
 assert.match(gatewayRunInstructionServiceJs, /const signature = toolsets\.slice\(\)\.sort\(\)\.join\("-"\)/);

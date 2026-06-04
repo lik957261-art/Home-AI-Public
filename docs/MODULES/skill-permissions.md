@@ -11,11 +11,15 @@ deployment-wide shared Skills use `shared-global`.
 
 - `adapters/skill-permission-service.js`
 - `adapters/skill-detail-provider.js`
+- `adapters/plugin-required-skill-preload-service.js`
+- `adapters/plugin-capability-activation-service.js`
 - `server-routes/resource-api-routes.js`
 - `public/app-task-groups-ui.js`
 - `adapters/gateway-workspace-provisioning-service.js`
 - `scripts/configure-low-gateways.sh`
 - `tests/skill-detail-provider.test.js`
+- `tests/plugin-required-skill-preload-service.test.js`
+- `tests/plugin-capability-activation-service.test.js`
 - `tests/resource-api-routes.test.js`
 - `tests/gateway-workspace-provisioning-service.test.js`
 - `tests/startup-scripts.test.js`
@@ -39,12 +43,35 @@ deployment-wide shared Skills use `shared-global`.
   `data/skill-profiles/<workspaceId>/skills` directory. Gateway launch scripts
   must link each ordinary user worker's `skills` directory to the matching
   workspace Skill Store based on manifest `skillWorkspaceIds`.
+- Gateway `HERMES_HOME/skills` is not an independent profile-local Skill Store.
+  It must be a link to the workspace Skill Store for that Gateway template:
+  Owner resolves to `owner-full`, non-Owner workspaces resolve to
+  `<workspaceId>`, and deployment-wide shared Skills remain `shared-global`.
+  Provider labels or legacy profile aliases such as `grok`, `deepseek`, or a
+  slot name are not Skill Store ids; the Skill Store dimension is workspace,
+  not model provider.
+  Official Hermes Skill create/update flows that write under
+  `HERMES_HOME/skills` must therefore land in the workspace store so sibling
+  Gateways for the same workspace receive the same updated Skill bundle.
+- Startup must treat a real profile-local `skills` directory as drift. The
+  launcher should back it up under the profile's `skill-store-backups` directory
+  and replace it with the correct workspace Skill Store link, instead of
+  preserving or merging it implicitly at run time.
 - Product plugin provisioners that install Skills must install the complete
   keyless bundle required by that plugin into the target workspace's private
   Skill Store. Wardrobe onboarding specifically requires the full
   `productivity/wardrobe-style-operations` bundle with `references/` and
   `scripts/`; a minimal placeholder `SKILL.md` is a provisioning failure, not a
   usable grant.
+- Required plugin Skill preloading may read only the selected workspace profile
+  and `shared-global`; Owner maps to `owner-full` and `shared-global`. It must
+  not enumerate every `skill-profiles/*` root to satisfy a missing required
+  Skill for an ordinary user request.
+- Capability catalog generation may mention authorized plugin Skill ids and
+  short non-secret summaries, but it must not preload full optional plugin
+  Skill bodies. Full plugin Skill content is loaded only for the current
+  plugin's required bundle or after server-validated lazy activation of that
+  plugin.
 
 ## API/UI
 
@@ -55,6 +82,7 @@ deployment-wide shared Skills use `shared-global`.
 ## Validation
 
 - `node tests\skill-detail-provider.test.js`
+- `node tests\plugin-required-skill-preload-service.test.js`
 - `node tests\resource-api-routes.test.js`
 - `node tests\gateway-workspace-provisioning-service.test.js`
 - `node tests\startup-scripts.test.js`

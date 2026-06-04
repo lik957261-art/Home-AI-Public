@@ -184,6 +184,22 @@ workspace-bound MCP registrations. Provider selection remains user intent: a
 DeepSeek request must not be silently rerouted to OpenAI/Codex or Grok merely
 because those workers are already warm.
 
+Gateway Pool must distinguish the profile's authorized capability set from the
+run's active schema set. A workspace/tier/provider template may know about all
+authorized plugin MCPs and Skill bundles, while an ordinary chat run injects
+only baseline schemas plus the compact capability catalog. A plugin-bound run
+injects the current plugin's required bundle and keeps other plugins as catalog
+entries until lazy activation is requested and server-side checks pass.
+
+The active schema set is part of scheduler compatibility for a busy/warm
+worker, but it is narrower than the durable authorized capability set. Reusing
+a warm worker is allowed only when the worker can satisfy the requested
+required bundles and any already-activated optional bundles. A healthy worker
+whose authorized profile includes a broken optional plugin must not repeatedly
+start that plugin MCP for unrelated ordinary chats; failed optional schema
+probes should mark the catalog entry unavailable and omit the optional MCP from
+the active schema set.
+
 Gateway capability should be template-owned, while Gateway profile instances
 should become reusable process/port slots. The target architecture uses a
 canonical template key of `workspaceId + securityLevel + provider`; for example
@@ -415,18 +431,26 @@ system-hard-pruned. Hermes Mobile may reduce latency by splitting a run into
 selection and execution phases, but it must not irreversibly remove authorized
 callable toolsets before the model has judged the task.
 
+This legacy selector is separate from plugin capability activation. Disabling
+model-first toolset selection must not be interpreted as "eagerly inject every
+authorized plugin MCP schema." The active schema set is first constrained by
+the deterministic capability-activation policy: ordinary chat gets baseline
+schemas plus catalog, plugin topics get the current plugin required bundle plus
+catalog, and optional plugins are activated later only after server-side checks.
+
 As of the 2026-05-30 Wardrobe MCP incident, model-first toolset selection is
-disabled by default. The immediate production rule is conservative: execute
-with the full authorized route/access toolset set unless the model-first
-toolset selector is explicitly enabled and the request-level schema harness
-below passes. Product-specific routing such as Wardrobe may still write a
-bounded `suggested_toolsets` hint (`wardrobe`/`vision`/`file`/`skills`, plus
-`weather` for outfit recommendation), but with the selector off that hint is
-telemetry and future-selector input only; it must not prune the execution
-`allowed_toolsets`. The model-side permission preflight remains enabled by
-default and is configured independently. This preserves the user's manually
-selected provider; do not route an OpenAI run to DeepSeek, or a DeepSeek run to
-OpenAI, to compensate for missing callable schema.
+disabled by default. The conservative fallback is now scoped to the active
+schema set selected by capability activation: if the model-first selector is
+off, execution uses all schemas already active for this run, not every
+authorized optional plugin schema in the workspace. Product-specific routing
+such as Wardrobe may still write a bounded `suggested_toolsets` hint
+(`wardrobe`/`vision`/`file`/`skills`, plus `weather` for outfit
+recommendation), but with the selector off that hint is telemetry and
+future-selector input only; it must not prune required plugin bundles or force
+optional plugin eager loading. The model-side permission preflight remains
+configured independently. This preserves the user's manually selected provider;
+do not route an OpenAI run to DeepSeek, or a DeepSeek run to OpenAI, to
+compensate for missing callable schema.
 
 Required flow:
 
@@ -435,11 +459,12 @@ Required flow:
    decision. When toolset selection is explicitly enabled, it may also choose
    the toolsets needed for the task; otherwise it must not choose or omit
    toolsets.
-2. Execution round: expose the full authorized route/access toolsets when
-   toolset selection is disabled, or only the selected authorized toolsets when
-   selection is explicitly enabled and proven safe. Wardrobe routing may
-   suggest the Wardrobe/weather companion set, but must not narrow execution
-   while the selector is disabled.
+2. Execution round: expose the full active schema set when toolset selection is
+   disabled, or only the selected authorized schemas within that active set when
+   selection is explicitly enabled and proven safe. Wardrobe routing may suggest
+   the Wardrobe/weather companion set, but must not narrow required execution
+   while the selector is disabled or eagerly load unrelated optional plugin
+   schemas.
 3. Escalation: if the model determines an additional authorized toolset is
    needed, it must request expansion explicitly and continue with the expanded
    schema. Escalation to blocked or cross-boundary toolsets is denied unless the
@@ -536,19 +561,20 @@ Current runtime behavior:
   the best-effort stop request for a selector run id that was observed before a
   selector failure; default is `2000`.
 - If model-first toolset selection fails, times out, or returns no authorized
-  toolsets, Hermes Mobile falls back to the full originally authorized toolset
-  list and records `run.toolset_selection_failed`.
+  toolsets, Hermes Mobile falls back to the full originally active schema set
+  and records `run.toolset_selection_failed`.
 - If model-side preflight returns a permission-elevation decision, Hermes Mobile
   marks the assistant message as requiring Owner approval and does not start the
   execution round.
 - If permission preflight succeeds while toolset selection is disabled,
-  execution receives the full authorized route/access toolset set. Routing
-  services may record narrower `suggested_toolsets` such as the Wardrobe stack
-  or Wardrobe plus `weather`, but those suggestions must not change execution
-  `allowed_toolsets` while the selector is off. If explicit selection succeeds,
-  execution receives only the selected authorized toolsets, and the prompt
+  execution receives the full active schema set selected by capability
+  activation. Routing services may record narrower `suggested_toolsets` such as
+  the Wardrobe stack or Wardrobe plus `weather`, but those suggestions must not
+  remove required plugin bundles or force unrelated optional plugin schemas
+  while the selector is off. If explicit selection succeeds, execution receives
+  only the selected authorized schemas within the active set, and the prompt
   includes `HERMES_TOOLSET_ESCALATION_REQUIRED` as the explicit path for
-  requesting omitted authorized toolsets.
+  requesting omitted authorized schemas.
 - `HERMES_TOOLSET_ESCALATION_REQUIRED` is an internal control marker, not a
   user-facing answer. Streaming delta and completion handling must strip the raw
   marker, persist `toolsetEscalationRequired` metadata and
@@ -571,7 +597,7 @@ Current runtime behavior:
   absent from the authorized catalog.
 - The selector must not select every authorized toolset merely because the task
   is ambiguous, a ping, or a plain test message. If a selector response chooses
-  the full authorized set only due uncertainty, Hermes Mobile narrows it to the
+  the full active set only due uncertainty, Hermes Mobile narrows it to the
   existing suggested lightweight set before execution, preserving the later
   escalation path instead of exposing broad schemas up front.
 - Product-specific MCP toolsets that are ordinary current-workspace capabilities
@@ -623,6 +649,21 @@ single non-Owner workspace binding. Owner and wildcard/shared profiles keep the
 Owner full Skill Store unless the deployment is intentionally moved to a
 separate shared store.
 
+`scripts/start-low-gateways.sh` must also verify the `skills` link on every
+selected low/Grok/DeepSeek profile start, even when configure is skipped by the
+signature cache. This keeps official Hermes Skill auto-create and auto-update
+behavior workspace-scoped: writes under a running Gateway's `HERMES_HOME/skills`
+land in the workspace Skill Store, not in a private profile directory. If the
+start script finds a real or wrong-target `skills` path, it backs that path up
+under the profile's `skill-store-backups` directory and replaces it with the
+manifest-derived Skill Store link.
+
+Provider-specific workers do not get provider-specific Skill Stores. A legacy
+manifest value such as `skillProfile: grok` is a provider/profile alias, not a
+workspace id; unless the value is explicitly `workspace:<workspaceId>` or the
+worker has exactly one non-Owner `skillWorkspaceIds` entry, startup resolves the
+profile to the Owner `owner-full` Skill Store.
+
 Owner high-permission DeepSeek runs use a separate Owner-only
 owner-maintenance Gateway profile, currently `deepseekmaint1`, instead of
 sharing the normal user-level `deepseekgw*` workers. The profile must be in
@@ -634,6 +675,12 @@ profile config, enable the `skills` toolset for the profile, link the profile's
 DeepSeek key file is missing. A DeepSeek Owner maintenance request must not fall
 back to `officialclean*` or any `openai-codex` profile when DeepSeek is
 selected.
+
+Owner-maintenance OpenAI/Codex and DeepSeek launch commands follow the same
+Skill Store rule. `scripts/start-gateway-pool.ps1` must back up and replace a
+profile-local `officialclean*` or `deepseekmaint*` `skills` directory with the
+Owner `owner-full/skills` link before starting the worker. Do not keep a
+profile-local maintenance Skill Store as a compatibility fallback.
 
 Owner status surfaces show provider availability by tier: normal user-level
 Gateway workers and Owner high-permission Gateway workers. The matrix is only
@@ -880,6 +927,14 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   `--no-workspace-override`, and the server-side `--api-base-url`. A Finance
   plugin UI/proxy that launches correctly does not by itself prove model-side
   Finance MCP registration.
+- Before registering `mcp_servers.finance`, profile generation must probe
+  `/api/finance/mcp/schemas` through the configured Finance API base with the
+  workspace-local Finance key and confirm at least one `finance.*` schema. If
+  the probe fails, returns no Finance schema, or is rejected by the Finance
+  service trust boundary, the generated profile must omit the `finance` toolset
+  and MCP server until the service is repaired and the selected profiles are
+  forcibly reconfigured. A failed optional Finance MCP must not add repeated
+  connection retries to unrelated ordinary chat runs.
 - On Windows deployments where low Gateways run inside WSL and the Finance
   service runs as a Windows process, `127.0.0.1` inside the MCP wrapper is the
   WSL loopback, not the Windows loopback. The Finance MCP bridge must either run

@@ -104,6 +104,61 @@ for worker in data.get("workers") or []:
 PY
 }
 
+manifest_skill_store_for_profile() {
+  local profile="$1"
+  python3 - "$gateway_pool_manifest_path" "$profile" "$owner_skill_store" "$skill_profiles_root" <<'PY' 2>/dev/null || true
+import json
+import re
+import sys
+
+manifest_path, profile, owner_skill_store, skill_profiles_root = sys.argv[1:5]
+
+def clean_profile(value):
+    text = str(value or "").strip().lower()
+    if text.startswith("workspace:"):
+        text = text.split(":", 1)[1]
+    text = re.sub(r"[^a-z0-9_-]+", "-", text).strip("-")
+    return text[:80]
+
+def profile_from_worker(worker):
+    skill_profile = str(worker.get("skillProfile") or worker.get("skill_profile") or "").strip()
+    if skill_profile.lower().startswith("workspace:"):
+        value = clean_profile(skill_profile)
+        if value:
+            return value
+    candidates = []
+    for key in ("skillWorkspaceIds", "skill_workspace_ids", "allowedWorkspaceIds", "allowed_workspace_ids"):
+        raw = worker.get(key) or []
+        if isinstance(raw, str):
+            raw = [item.strip() for item in raw.split(",") if item.strip()]
+        candidates.extend(clean_profile(item) for item in raw)
+    private_ids = []
+    for item in candidates:
+        if item and item not in ("owner", "owner-full", "*") and item not in private_ids:
+            private_ids.append(item)
+    if len(private_ids) == 1:
+        return private_ids[0]
+    return "owner-full"
+
+try:
+    data = json.load(open(manifest_path, encoding="utf-8-sig"))
+except Exception:
+    print(owner_skill_store)
+    raise SystemExit(0)
+
+for worker in data.get("workers") or []:
+    candidate = str(worker.get("profile") or worker.get("name") or "").strip()
+    if candidate != profile:
+        continue
+    skill_profile = profile_from_worker(worker)
+    if skill_profile == "owner-full":
+        print(owner_skill_store)
+    else:
+        print(f"{skill_profiles_root.rstrip('/')}/{skill_profile}/skills")
+    break
+PY
+}
+
 legacy_gateway_specs() {
   for idx in $(seq 1 "$low_gateway_count"); do
     printf 'lowgw%s\t%s\n' "$idx" "$((low_gateway_base_port + idx))"
@@ -852,7 +907,7 @@ repair_gateway_profile_link() {
     backup_root="$worker_home_dir/profile-directory-backups"
     backup_path="${backup_root}/${profile}-start-repair-${stamp}"
     install -d -m 700 -o "$worker_user" -g "$worker_user" "$backup_root"
-    echo "WARNING: moving real low Gateway profile directory for ${profile} to ${backup_path}" >&2
+    echo "WARNING: moving real low Gateway profile directory for ${profile} to ${backup_path}"
     mv "$profile_link" "$backup_path"
   fi
   ln -sfn "$expected_target" "$profile_link"
@@ -863,8 +918,12 @@ verify_gateway_profile() {
   local profile="$1"
   local profile_link="$worker_home_dir/profiles/$profile"
   local expected_target="$gateway_worker_root/telemetry/profiles/$profile"
+  local expected_skill_store=""
+  local skill_dir=""
   local resolved_profile=""
   local resolved_expected=""
+  local resolved_skills=""
+  local resolved_skill_store=""
 
   repair_gateway_profile_link "$profile"
   if [ ! -L "$profile_link" ]; then
@@ -880,6 +939,27 @@ verify_gateway_profile() {
   if [ -z "$resolved_profile" ] || [ -z "$resolved_expected" ] || [ "$resolved_profile" != "$resolved_expected" ]; then
     echo "low gateway profile target mismatch: $profile_link -> $resolved_profile, expected $resolved_expected" >&2
     exit 1
+  fi
+  expected_skill_store="$(manifest_skill_store_for_profile "$profile")"
+  if [ -z "$expected_skill_store" ]; then
+    echo "missing Skill Store mapping for low gateway profile: $profile" >&2
+    exit 1
+  fi
+  install -d -m 700 -o "$worker_user" -g "$worker_user" "$expected_skill_store"
+  skill_dir="$expected_target/skills"
+  resolved_skill_store="$(readlink -f "$expected_skill_store" || true)"
+  resolved_skills="$(readlink -f "$skill_dir" 2>/dev/null || true)"
+  if [ -z "$resolved_skills" ] || [ "$resolved_skills" != "$resolved_skill_store" ]; then
+    local stamp
+    local backup_root
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    backup_root="$expected_target/skill-store-backups"
+    install -d -m 700 -o "$worker_user" -g "$worker_user" "$backup_root"
+    if [ -e "$skill_dir" ] || [ -L "$skill_dir" ]; then
+      mv "$skill_dir" "$backup_root/skills-before-workspace-link-${stamp}"
+    fi
+    ln -sfn "$expected_skill_store" "$skill_dir"
+    chown -h "$worker_user:$worker_user" "$skill_dir" || true
   fi
   if [ ! -s "$profile_link/config.yaml" ]; then
     echo "missing low gateway profile config: $profile_link/config.yaml" >&2

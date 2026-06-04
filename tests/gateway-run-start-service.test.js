@@ -368,6 +368,120 @@ async function testPluginTopicKeepsRequiredMcpWhenModelFirstNarrowsToolsets() {
   assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["web", "finance"]);
 }
 
+async function testOrdinaryRunPublishesPluginCapabilityCatalogWithoutEagerPluginMcp() {
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note"],
+      authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+  });
+  const assistant = baseAssistantMessage();
+
+  await service.startRunForThread(
+    baseThread({ workspaceId: "owner" }),
+    baseUserMessage({
+      senderWorkspaceId: "owner",
+      taskGroupId: "single-window-chat",
+      content: "test",
+    }),
+    assistant,
+    { actorWorkspaceId: "owner", model: "gpt-test", provider: "openai-codex" },
+  );
+
+  assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["file", "web", "vision", "skills"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.authorized_toolsets, ["file", "web", "wardrobe", "vision", "skills", "finance", "note"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.active_schema_set.omitted_plugin_toolsets, ["wardrobe", "finance", "note"]);
+  assert.deepEqual(calls.gatewayRouting[0].activeSchemaSet.active_toolsets, ["file", "web", "vision", "skills"]);
+  assert.equal(calls.gatewayRouting[0].pluginCapabilityCatalog.find((entry) => entry.pluginId === "finance").status, "catalog_only");
+  assert.equal(calls.hermesInstructions[0].buildOptions.pluginCapabilityContext.catalog.find((entry) => entry.pluginId === "wardrobe").status, "catalog_only");
+  assert.equal(assistant.runOptions.pluginCapabilityCatalog.find((entry) => entry.pluginId === "note").status, "catalog_only");
+  assert.deepEqual(assistant.runOptions.activeSchemaSet.active_toolsets, ["file", "web", "vision", "skills"]);
+}
+
+async function testWardrobePluginTopicForcesSkillMcpStackAndPluginContext() {
+  const preloadCalls = [];
+  const requiredSkillPreloads = [{
+    path: "productivity/wardrobe-style-operations",
+    id: "wardrobe-style-operations",
+    label: "wardrobe-style-operations",
+    namespace: "productivity",
+    profileId: "owner-full",
+    content: "Wardrobe skill content",
+    loadedChars: 22,
+    totalChars: 22,
+    truncated: false,
+  }];
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "web"],
+      authorized_toolsets: ["file", "web"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+    loadRequiredSkillPreloads: (payload) => {
+      preloadCalls.push(payload);
+      return requiredSkillPreloads;
+    },
+  });
+  const assistant = baseAssistantMessage();
+
+  await service.startRunForThread(
+    baseThread({ workspaceId: "owner" }),
+    baseUserMessage({
+      senderWorkspaceId: "owner",
+      taskGroupId: "plugin:wardrobe",
+      content: "Style these wardrobe items",
+      directoryRoute: {
+        label: "Wardrobe delivery",
+        root: "C:/delivery/wardrobe",
+        path: "C:/delivery/wardrobe",
+      },
+    }),
+    assistant,
+    { actorWorkspaceId: "owner", model: "gpt-test", provider: "openai-codex" },
+  );
+
+  assert.equal(preloadCalls.length, 1);
+  assert.deepEqual(preloadCalls[0].skills, ["productivity/wardrobe-style-operations"]);
+  assert.equal(preloadCalls[0].workspaceId, "owner");
+  assert.deepEqual(calls.gatewayRouting[0].requiredToolsets, ["wardrobe", "vision", "file", "skills"]);
+  assert.deepEqual(calls.gatewayRouting[0].enabledToolsets, ["wardrobe", "vision", "file", "skills"]);
+  assert.deepEqual(calls.gatewayRouting[0].requiredSkills, ["productivity/wardrobe-style-operations"]);
+  assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["file", "web", "wardrobe", "vision", "skills"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.required_toolsets, ["wardrobe", "vision", "file", "skills"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_skills, ["productivity/wardrobe-style-operations"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.required_skills, ["productivity/wardrobe-style-operations"]);
+  assert.equal(calls.hermesInstructions[0].taskDirectory, null);
+  assert.deepEqual(calls.hermesInstructions[0].buildOptions.requiredSkillPreloads, requiredSkillPreloads);
+  assert.deepEqual(calls.hermesInstructions[0].buildOptions.pluginTopicContext.requiredToolsets, ["wardrobe", "vision", "file", "skills"]);
+  assert.deepEqual(calls.hermesInstructions[0].buildOptions.pluginTopicContext.requiredSkills, ["productivity/wardrobe-style-operations"]);
+  assert.deepEqual(calls.hermesInstructions[0].buildOptions.pluginTopicContext.deliveryDirectory, {
+    label: "Wardrobe delivery",
+    path: "C:/delivery/wardrobe",
+    root: "C:/delivery/wardrobe",
+    projectId: "",
+    subprojectId: "",
+  });
+  assert.deepEqual(assistant.loadedSkills, [{
+    id: "wardrobe-style-operations",
+    label: "wardrobe-style-operations",
+    path: "productivity/wardrobe-style-operations",
+    namespace: "productivity",
+  }]);
+  assert.equal(assistant.runOptions.requiredSkillPreloads[0].source, "required_preload");
+  assert.equal(assistant.runOptions.requiredSkillPreloads[0].profileId, "owner-full");
+  const preloadEvent = calls.events.find((event) => event.event === "run.skill_preloaded");
+  assert.equal(preloadEvent.tool, "skill_view");
+  assert.deepEqual(JSON.parse(preloadEvent.preview), {
+    name: "productivity/wardrobe-style-operations",
+    source: "required_preload",
+  });
+}
+
 function testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext() {
   const copies = [{ name: "shared.pdf", copyPathForModel: "/mnt/c/delivery/shared.pdf" }];
   const { calls, service } = makeHarness({
@@ -1022,8 +1136,8 @@ async function testStartRunFallsBackWhenModelFirstSelectionFails() {
 
   await service.startRunForThread(baseThread(), baseUserMessage(), baseAssistantMessage(), {});
 
-  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["file", "weather", "x_search", "web"]);
-  assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["file", "weather", "x_search", "web"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["file", "weather"]);
+  assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["file", "weather"]);
   assert.deepEqual(calls.events.map((event) => event.event), [
     "run.request_preparing",
     "run.context_ready",
@@ -1185,6 +1299,8 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testStartRunPublishesRunIdBeforeRequestBuild();
   await testPluginTopicRequiresItsMcpToolsetForPolicyAndGatewayRouting();
   await testPluginTopicKeepsRequiredMcpWhenModelFirstNarrowsToolsets();
+  await testOrdinaryRunPublishesPluginCapabilityCatalogWithoutEagerPluginMcp();
+  await testWardrobePluginTopicForcesSkillMcpStackAndPluginContext();
   testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext();
   await testStartRunPreservesSearchSourceRouting();
   await testOrdinaryRunUsesDefaultWebSearchBudgetWhenConfigured();

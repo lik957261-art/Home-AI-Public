@@ -1,5 +1,7 @@
 "use strict";
 
+const { createPluginCapabilityActivationService } = require("./plugin-capability-activation-service");
+
 const DEFAULT_TOOL_SCHEMA_EPOCH = "20260513-audio-file-v1";
 const DEFAULT_SINGLE_WINDOW_PROJECT_ID = "single-window";
 const DEFAULT_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
@@ -9,6 +11,15 @@ const PLUGIN_TOPIC_TOOLSETS = Object.freeze({
   finance: "finance",
   email: "email",
   health: "health",
+});
+const PLUGIN_TOPIC_CONTEXTS = Object.freeze({
+  wardrobe: Object.freeze({
+    pluginId: "wardrobe",
+    label: "Wardrobe",
+    primaryToolset: "wardrobe",
+    requiredToolsets: Object.freeze(["wardrobe", "vision", "file", "skills"]),
+    requiredSkills: Object.freeze(["productivity/wardrobe-style-operations"]),
+  }),
 });
 
 function cleanString(value, fallback = "") {
@@ -28,11 +39,37 @@ function defaultDedupe(values = []) {
   return out;
 }
 
-function pluginToolsetsForTaskGroup(taskGroupId = "") {
+function pluginIdForTaskGroupId(taskGroupId = "") {
   const match = cleanString(taskGroupId).match(/^plugin:([a-z0-9_-]+)$/i);
-  if (!match) return [];
-  const toolset = PLUGIN_TOPIC_TOOLSETS[match[1].toLowerCase()];
-  return toolset ? [toolset] : [];
+  return match ? match[1].toLowerCase() : "";
+}
+
+function pluginTopicContextForTaskGroup(taskGroupId = "") {
+  const pluginId = pluginIdForTaskGroupId(taskGroupId);
+  if (!pluginId) return null;
+  const configured = PLUGIN_TOPIC_CONTEXTS[pluginId];
+  if (configured) {
+    return {
+      pluginId,
+      label: cleanString(configured.label, pluginId),
+      primaryToolset: cleanString(configured.primaryToolset || PLUGIN_TOPIC_TOOLSETS[pluginId]),
+      requiredToolsets: defaultDedupe(configured.requiredToolsets || []),
+      requiredSkills: defaultDedupe(configured.requiredSkills || []),
+    };
+  }
+  const toolset = PLUGIN_TOPIC_TOOLSETS[pluginId];
+  return {
+    pluginId,
+    label: pluginId,
+    primaryToolset: toolset || "",
+    requiredToolsets: toolset ? [toolset] : [],
+    requiredSkills: [],
+  };
+}
+
+function pluginToolsetsForTaskGroup(taskGroupId = "") {
+  const context = pluginTopicContextForTaskGroup(taskGroupId);
+  return context ? context.requiredToolsets : [];
 }
 
 function mergeRequiredToolsetsIntoPolicy(policy = {}, requiredToolsets = []) {
@@ -55,6 +92,83 @@ function mergeRequiredToolsetsIntoPolicy(policy = {}, requiredToolsets = []) {
     authorized_toolsets: authorized,
     required_toolsets: requiredCurrent,
   });
+}
+
+function mergeRequiredSkillsIntoPolicy(policy = {}, requiredSkills = []) {
+  const required = defaultDedupe(requiredSkills);
+  if (!required.length) return policy;
+  return Object.assign({}, policy, {
+    allowed_skills: defaultDedupe([
+      ...(policy.allowed_skills || policy.allowedSkills || []),
+      ...required,
+    ]),
+    required_skills: defaultDedupe([
+      ...(policy.required_skills || policy.requiredSkills || []),
+      ...required,
+    ]),
+  });
+}
+
+function pluginDeliveryDirectoryForMessage(message = {}) {
+  const route = objectValue(message.directoryRoute, null);
+  if (!route) return null;
+  const pathValue = cleanString(route.path || route.root);
+  const root = cleanString(route.root || route.path);
+  if (!pathValue && !root) return null;
+  return {
+    label: cleanString(route.label, "Plugin delivery directory"),
+    path: pathValue || root,
+    root: root || pathValue,
+    projectId: cleanString(route.projectId),
+    subprojectId: cleanString(route.subprojectId),
+  };
+}
+
+function skillEntryForPreload(item = {}) {
+  const skillPath = cleanString(item.path || item.skillPath || item.name || item.id);
+  if (!skillPath || item.missing) return null;
+  const parts = skillPath.split(/[\\/]+/).filter(Boolean);
+  const id = cleanString(item.id || parts[parts.length - 1] || skillPath);
+  const namespace = cleanString(item.namespace || (parts.length > 1 ? parts.slice(0, -1).join("/") : ""));
+  return {
+    id,
+    label: cleanString(item.label, id || skillPath),
+    path: skillPath,
+    namespace,
+  };
+}
+
+function mergeSkillEntries(...sources) {
+  const byPath = new Map();
+  for (const source of sources) {
+    const list = Array.isArray(source) ? source : [source];
+    for (const item of list) {
+      const entry = skillEntryForPreload(item);
+      if (entry && !byPath.has(entry.path)) byPath.set(entry.path, entry);
+    }
+  }
+  return [...byPath.values()];
+}
+
+function skillPreloadRunOptionsMetadata(preloads = []) {
+  return (Array.isArray(preloads) ? preloads : [])
+    .map((item) => {
+      const skillPath = cleanString(item?.path || item?.skillPath);
+      if (!skillPath) return null;
+      return {
+        path: skillPath,
+        id: cleanString(item.id || skillPath.split(/[\\/]+/).filter(Boolean).pop()),
+        namespace: cleanString(item.namespace),
+        profileId: cleanString(item.profileId),
+        loadedChars: Math.max(0, Number(item.loadedChars || 0) || 0),
+        totalChars: Math.max(0, Number(item.totalChars || 0) || 0),
+        truncated: Boolean(item.truncated),
+        missing: Boolean(item.missing),
+        error: cleanString(item.error).slice(0, 160),
+        source: "required_preload",
+      };
+    })
+    .filter(Boolean);
 }
 
 function objectValue(value, fallback = {}) {
@@ -162,6 +276,13 @@ function createGatewayRunStartService(options = {}) {
   const gatewayConversationId = maybeCall(options.gatewayConversationId, () => "");
   const buildConversationHistory = maybeCall(options.buildConversationHistory, () => []);
   const buildHermesInstructions = maybeCall(options.buildHermesInstructions, () => "");
+  const loadRequiredSkillPreloads = maybeCall(options.loadRequiredSkillPreloads, () => []);
+  const pluginCapabilityActivationService = options.pluginCapabilityActivationService
+    || createPluginCapabilityActivationService({ dedupe });
+  const buildPluginCapabilityContext = maybeCall(
+    options.buildPluginCapabilityContext,
+    (...args) => pluginCapabilityActivationService.buildRunPluginCapabilityContext(...args),
+  );
   const routeRunToolsets = maybeCall(options.routeRunToolsets, ({ policy }) => ({ policy: objectValue(policy), routing: null }));
   const makePublicTaskId = maybeCall(options.makePublicTaskId, () => `web_${Date.now()}`);
   const gatewaySkillRoutingForWorkspace = maybeCall(options.gatewaySkillRoutingForWorkspace, () => ({}));
@@ -212,9 +333,36 @@ function createGatewayRunStartService(options = {}) {
     };
   }
 
+  function safeLoadRequiredSkillPreloads(payload = {}, requiredSkills = []) {
+    try {
+      const preloads = loadRequiredSkillPreloads(payload);
+      return Array.isArray(preloads) ? preloads : [];
+    } catch (err) {
+      const error = cleanString(err?.message || err, "required_skill_preload_failed").slice(0, 160);
+      return defaultDedupe(requiredSkills).map((skill) => ({
+        path: skill,
+        id: skill.split(/[\\/]+/).filter(Boolean).pop() || skill,
+        missing: true,
+        error,
+      }));
+    }
+  }
+
   function buildRunRequest(thread, userMessage, assistantMessage, runOptions = {}) {
     const actorWorkspaceId = resolveActorWorkspaceId(thread, userMessage, runOptions);
-    const requiredPluginToolsets = pluginToolsetsForTaskGroup(userMessage?.taskGroupId);
+    const pluginTopicContext = pluginTopicContextForTaskGroup(userMessage?.taskGroupId);
+    const requiredPluginToolsets = pluginTopicContext ? pluginTopicContext.requiredToolsets : [];
+    const requiredPluginSkills = pluginTopicContext ? pluginTopicContext.requiredSkills : [];
+    const pluginDeliveryDirectory = pluginTopicContext ? pluginDeliveryDirectoryForMessage(userMessage) : null;
+    const requiredSkillPreloads = requiredPluginSkills.length
+      ? safeLoadRequiredSkillPreloads({
+        skills: requiredPluginSkills,
+        workspaceId: actorWorkspaceId,
+        pluginTopicContext,
+        userMessage,
+        runOptions,
+      }, requiredPluginSkills)
+      : [];
     const requestedGatewayRouting = Object.assign({}, objectValue(runOptions.gatewayRouting));
     const policyHardeningOptions = accessPolicyHardeningOptionsForGatewayRouting(requestedGatewayRouting);
     const policyThread = policyThreadForRun(thread, actorWorkspaceId, singleWindowProjectId);
@@ -244,6 +392,7 @@ function createGatewayRunStartService(options = {}) {
     }) || {};
     runPolicy = sanitizePolicy(objectValue(routedPolicy.policy, runPolicy), policyHardeningOptions);
     runPolicy = sanitizePolicy(mergeRequiredToolsetsIntoPolicy(runPolicy, requiredPluginToolsets), policyHardeningOptions);
+    runPolicy = sanitizePolicy(mergeRequiredSkillsIntoPolicy(runPolicy, requiredPluginSkills), policyHardeningOptions);
     const modelFirstSelection = objectValue(runOptions.modelFirstToolsetSelection, null);
     const rawModelFirstToolsets = dedupe(modelFirstSelection?.selectedToolsets || modelFirstSelection?.selected_toolsets || []);
     const modelFirstSelectionDisabled = Boolean(
@@ -265,7 +414,23 @@ function createGatewayRunStartService(options = {}) {
         },
       }), policyHardeningOptions);
       runPolicy = sanitizePolicy(mergeRequiredToolsetsIntoPolicy(runPolicy, requiredPluginToolsets), policyHardeningOptions);
+      runPolicy = sanitizePolicy(mergeRequiredSkillsIntoPolicy(runPolicy, requiredPluginSkills), policyHardeningOptions);
     }
+    const pluginCapabilityResult = buildPluginCapabilityContext({
+      policy: runPolicy,
+      thread,
+      policyThread,
+      userMessage,
+      assistantMessage,
+      runOptions,
+      project,
+      taskDirectory,
+      pluginTopicContext,
+      requiredPluginToolsets,
+      requiredPluginSkills,
+    }) || {};
+    const pluginCapabilityContext = pluginCapabilityResult.context || null;
+    runPolicy = sanitizePolicy(objectValue(pluginCapabilityResult.policy, runPolicy), policyHardeningOptions);
     const conversation = gatewayConversationId(thread, userMessage, runPolicy);
     const instructions = [
       buildHermesInstructions(
@@ -277,6 +442,11 @@ function createGatewayRunStartService(options = {}) {
         Object.assign({}, runOptions, {
           groupChatDeliveryRoot: groupChat.groupChatDeliveryRootForModel,
           groupChatAttachmentCopies: groupChat.groupChatAttachmentCopies,
+          pluginTopicContext: pluginTopicContext
+            ? Object.assign({}, pluginTopicContext, { deliveryDirectory: pluginDeliveryDirectory })
+            : null,
+          pluginCapabilityContext,
+          requiredSkillPreloads,
         }),
       ),
       isPlainProbeMessage(userMessage?.content)
@@ -318,6 +488,16 @@ function createGatewayRunStartService(options = {}) {
       gatewayRouting.requiredToolsets = requiredPluginToolsets;
       gatewayRouting.enabledToolsets = requiredPluginToolsets;
     }
+    if (requiredPluginSkills.length) {
+      gatewayRouting.requiredSkills = requiredPluginSkills;
+    }
+    if (pluginCapabilityContext) {
+      gatewayRouting.activeSchemaSet = pluginCapabilityContext.activeSchemaSet;
+      gatewayRouting.pluginCapabilityCatalog = pluginCapabilityContext.catalog;
+      if (pluginCapabilityContext.omittedPluginToolsets?.length) {
+        gatewayRouting.omittedPluginToolsets = pluginCapabilityContext.omittedPluginToolsets;
+      }
+    }
     Object.assign(gatewayRouting, gatewaySkillRoutingForWorkspace(actorWorkspaceId, gatewayRouting));
 
     return {
@@ -327,9 +507,13 @@ function createGatewayRunStartService(options = {}) {
       groupChat,
       policyHardeningOptions,
       policyThread,
+      pluginTopicContext,
+      pluginCapabilityContext,
+      pluginDeliveryDirectory,
+      requiredSkillPreloads,
       project,
       requestedGatewayRouting,
-      toolsetRouting: runPolicy.toolset_routing || routedPolicy.routing || null,
+      toolsetRouting: pluginCapabilityResult.routing || runPolicy.toolset_routing || routedPolicy.routing || null,
       runPolicy,
       taskDirectory,
       toolSchemaEpoch,
@@ -459,16 +643,37 @@ function createGatewayRunStartService(options = {}) {
       || request.body?.access_policy_context?.authorizedToolsets
       || [],
     );
-    if (!authorized.length) return request;
+    const active = dedupe(
+      selection.activeToolsets
+      || selection.active_toolsets
+      || request.runPolicy?.active_schema_set?.active_toolsets
+      || request.body?.access_policy_context?.active_schema_set?.active_toolsets
+      || request.runPolicy?.allowed_toolsets
+      || request.runPolicy?.allowedToolsets
+      || request.body?.access_policy_context?.allowed_toolsets
+      || request.body?.access_policy_context?.allowedToolsets
+      || [],
+    );
+    const allowed = active.length ? active : authorized;
+    if (!allowed.length) return request;
+    const nextActiveSchemaSet = request.runPolicy?.active_schema_set
+      ? Object.assign({}, request.runPolicy.active_schema_set, {
+        active_toolsets: allowed,
+        omitted_plugin_toolsets: (request.runPolicy.active_schema_set.omitted_plugin_toolsets || [])
+          .filter((toolset) => !allowed.includes(toolset)),
+      })
+      : null;
     request.runPolicy = Object.assign({}, request.runPolicy || {}, {
-      authorized_toolsets: authorized,
-      allowed_toolsets: authorized,
+      authorized_toolsets: authorized.length ? authorized : allowed,
+      allowed_toolsets: allowed,
     });
+    if (nextActiveSchemaSet) request.runPolicy.active_schema_set = nextActiveSchemaSet;
     request.body.access_policy_context = Object.assign({}, request.body.access_policy_context || {}, {
-      authorized_toolsets: authorized,
-      allowed_toolsets: authorized,
+      authorized_toolsets: authorized.length ? authorized : allowed,
+      allowed_toolsets: allowed,
     });
-    request.body.enabled_toolsets = authorized;
+    if (nextActiveSchemaSet) request.body.access_policy_context.active_schema_set = nextActiveSchemaSet;
+    request.body.enabled_toolsets = allowed;
     return request;
   }
 
@@ -531,10 +736,37 @@ function createGatewayRunStartService(options = {}) {
       gatewayConversation: request.body.conversation,
       toolSchemaEpoch,
     });
+    const preloadMetadata = skillPreloadRunOptionsMetadata(request.requiredSkillPreloads);
+    if (preloadMetadata.length) {
+      assistantMessage.runOptions.requiredSkillPreloads = preloadMetadata;
+      assistantMessage.loadedSkills = mergeSkillEntries(assistantMessage.loadedSkills, preloadMetadata);
+    }
+    if (request.pluginCapabilityContext) {
+      assistantMessage.runOptions.activeSchemaSet = request.pluginCapabilityContext.activeSchemaSet;
+      assistantMessage.runOptions.pluginCapabilityCatalog = request.pluginCapabilityContext.catalog;
+    }
     if (request.toolsetRouting) assistantMessage.runOptions.toolsetRouting = request.toolsetRouting;
     if (sourceRunOptions.searchSource) assistantMessage.runOptions.searchSource = cleanString(sourceRunOptions.searchSource);
     if (sourceRunOptions.sourceIntent) assistantMessage.runOptions.sourceIntent = cleanString(sourceRunOptions.sourceIntent);
     if (sourceRunOptions.sourceMode) assistantMessage.runOptions.sourceMode = cleanString(sourceRunOptions.sourceMode);
+  }
+
+  function appendRequiredSkillPreloadEvents(thread, assistantMessage, request = {}) {
+    const metadata = skillPreloadRunOptionsMetadata(request.requiredSkillPreloads);
+    if (!metadata.length) return;
+    const runId = cleanString(assistantMessage?.runId || assistantMessage?.taskId);
+    if (!thread || !runId) return;
+    for (const item of metadata.filter((entry) => !entry.missing)) {
+      addThreadEvent(thread, {
+        event: "run.skill_preloaded",
+        timestamp: nowMs() / 1000,
+        runId,
+        tool: "skill_view",
+        preview: JSON.stringify({ name: item.path, source: "required_preload" }),
+        error: false,
+      });
+    }
+    broadcast({ type: "thread.updated", thread: threadSummary(thread) });
   }
 
   function ensureActiveRun(thread, taskId) {
@@ -599,6 +831,7 @@ function createGatewayRunStartService(options = {}) {
 
     let request = buildRunRequest(thread, userMessage, assistantMessage, runOptions);
     applyAssistantRunOptions(assistantMessage, request, runOptions);
+    appendRequiredSkillPreloadEvents(thread, assistantMessage, request);
 
     const gatewayTarget = await chooseGatewayRunTarget(request.gatewayRouting, {
       runId: taskId,

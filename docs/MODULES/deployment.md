@@ -8,6 +8,11 @@
 - Backups: `C:\ProgramData\HermesMobile\backups`
 - Listener HTTP: `http://127.0.0.1:8797`
 - Bridge host: `http://127.0.0.1:8798`
+- Local port identity guard: `http://127.0.0.1:8787` is Codex Mobile Web, not
+  Hermes Mobile. Do not discover the Hermes origin by trying common ports or
+  the first listening Node process; use the configured Hermes listener above
+  and prove origin identity with Hermes-specific `/api/public-config` or app
+  shell markers before smoke tests.
 
 ## macOS Production Direction
 

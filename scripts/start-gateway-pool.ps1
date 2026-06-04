@@ -434,6 +434,17 @@ function Add-OwnerMaintenanceSharedMemoryCommands {
   [void]$Commands.Add("if [ -L $ProfileMemoryPath ]; then rm -f $ProfileMemoryPath; elif [ -d $ProfileMemoryPath ]; then mkdir -p $backupDir; find $ProfileMemoryPath -maxdepth 1 -type f -name \*.md -exec cp -n {} $SharedMemoryPath/ \; -exec cp -n {} $backupDir/ \; -delete; find $ProfileMemoryPath -maxdepth 1 -type f -name \*.md.lock -size 0 -delete; if ! rmdir $ProfileMemoryPath 2>/dev/null; then echo profile_memories_contains_non_markdown_files_keeping_profile_local_directory:$ProfileMemoryPath >&2; fi; elif [ -e $ProfileMemoryPath ]; then echo profile_memories_path_is_not_directory_or_symlink:$ProfileMemoryPath >&2; fi; if [ ! -e $ProfileMemoryPath ]; then ln -sfn $SharedMemoryPath $ProfileMemoryPath; fi")
 }
 
+function Add-OwnerMaintenanceSkillStoreCommands {
+  param(
+    [System.Collections.ArrayList]$Commands,
+    [string]$ProfileRoot,
+    [string]$OwnerSkillStore
+  )
+  $profileSkillsPath = "$ProfileRoot/skills"
+  [void]$Commands.Add("mkdir -p $OwnerSkillStore")
+  [void]$Commands.Add("resolved_profile_skills=`$(readlink -f $profileSkillsPath 2>/dev/null || true); resolved_owner_skills=`$(readlink -f $OwnerSkillStore 2>/dev/null || true); if [ -z `"`$resolved_profile_skills`" ] || [ `"`$resolved_profile_skills`" != `"`$resolved_owner_skills`" ]; then backup_root=$ProfileRoot/skill-store-backups; stamp=`$(date +%Y%m%d-%H%M%S); mkdir -p `"`$backup_root`"; if [ -e $profileSkillsPath ] || [ -L $profileSkillsPath ]; then mv $profileSkillsPath `"`$backup_root/skills-before-owner-link-`$stamp`"; fi; ln -sfn $OwnerSkillStore $profileSkillsPath; fi")
+}
+
 function Ensure-ProfilePluginEnabled {
   param(
     [string]$ConfigPath,
@@ -1060,8 +1071,7 @@ PY
     if ($sharedMemoryEnabled) {
       Add-OwnerMaintenanceSharedMemoryCommands -Commands $commands -ProfileRoot $profileRoot -ProfileMemoryPath $profileMemoryPath -SharedMemoryPath $sharedMemoryPath
     }
-    [void]$commands.Add("mkdir -p $ownerSkillStore")
-    [void]$commands.Add("if [ -L $profileRoot/skills ]; then rm -f $profileRoot/skills; fi; if [ ! -e $profileRoot/skills ]; then ln -sfn $ownerSkillStore $profileRoot/skills; elif [ ! -L $profileRoot/skills ]; then echo owner_maintenance_skills_directory_exists_keeping_profile_local:$profileRoot/skills >&2; fi")
+    Add-OwnerMaintenanceSkillStoreCommands -Commands $commands -ProfileRoot $profileRoot -OwnerSkillStore $ownerSkillStore
     if ($provider -eq "deepseek") {
       [void]$commands.Add("if [ -z `"`$deepseek_api_key`" ]; then echo missing DeepSeek API key for $profile >&2; exit 1; fi")
     }

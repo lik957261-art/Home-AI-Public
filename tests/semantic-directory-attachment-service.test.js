@@ -222,6 +222,45 @@ function testMessageAndGroupDirectoryAttachmentDiscovery() {
   assert.equal(direct.path, "C:/Data/Loose/Input");
 }
 
+function testPluginTopicDirectoryRoutesAreNotOrdinaryTaskDirectories() {
+  const service = createService();
+  const pluginRoute = {
+    projectId: "plugin-wardrobe",
+    label: "Wardrobe delivery",
+    root: "C:/Data/Plugin/Wardrobe",
+    path: "C:/Data/Plugin/Wardrobe",
+  };
+  const thread = {
+    workspaceId: "owner",
+    singleWindow: true,
+    messages: [
+      {
+        id: "plugin_1",
+        role: "user",
+        taskGroupId: "plugin:wardrobe",
+        content: "Style these items",
+        directoryRoute: pluginRoute,
+      },
+      {
+        id: "ordinary_1",
+        role: "user",
+        taskGroupId: "task-ordinary",
+        content: "Use this folder",
+        directoryRoute: pluginRoute,
+      },
+    ],
+  };
+
+  assert.equal(service.pluginIdForTaskGroupId("plugin:wardrobe"), "wardrobe");
+  assert.equal(service.isPluginTaskGroupId("plugin:wardrobe"), true);
+  assert.equal(service.taskDirectoryAttachmentForMessage(thread, thread.messages[0]), null);
+  assert.equal(service.taskDirectoryAttachmentForGroup(thread, "plugin:wardrobe"), null);
+
+  const ordinary = service.taskDirectoryAttachmentForMessage(thread, thread.messages[1]);
+  assert.equal(ordinary.label, "Wardrobe delivery");
+  assert.equal(ordinary.path, "C:/Data/Plugin/Wardrobe");
+}
+
 function testProjectForTaskDirectoryAttachmentUsesSubprojectAndFallback() {
   const service = createService();
   const thread = { workspaceId: "owner", projectId: "fallback" };
@@ -256,6 +295,7 @@ testSemanticProjectMatchesUseAliasesSpecificityAndGenericSuppression();
 testDirectoryAttachmentResolutionHonorsCandidatesAndPathBoundary();
 testSemanticTaskAttachmentAndRoutingInstructions();
 testMessageAndGroupDirectoryAttachmentDiscovery();
+testPluginTopicDirectoryRoutesAreNotOrdinaryTaskDirectories();
 testProjectForTaskDirectoryAttachmentUsesSubprojectAndFallback();
 testServiceRequiresBoundaryDependencies();
 

@@ -1,6 +1,6 @@
 # Wardrobe Plugin
 
-Last updated: 2026-06-01.
+Last updated: 2026-06-04.
 
 This module describes the Hermes Mobile Wardrobe entry. The generic embedded
 plugin host contract is defined in `docs/MODULES/plugins.md`; this file records
@@ -253,6 +253,21 @@ as a successful embedded plugin load.
 - Image-backed ingestion or verification should keep the companion set
   `wardrobe`, `vision`, and `file` in the suggested set when those toolsets are
   already authorized by policy.
+- Fixed Wardrobe topic runs (`plugin:wardrobe`) are stronger than a suggestion:
+  execution must require `wardrobe`, `vision`, `file`, and `skills`, and the
+  instruction context must include a server-side preload of exact Skill path
+  `productivity/wardrobe-style-operations`. This preload reads the selected
+  workspace Skill Store before model execution, so Wardrobe topic quality does
+  not depend on the model voluntarily calling `skill_view` first.
+- Wardrobe topic delivery directories are output/receipt locations only. They
+  must not be treated as the Wardrobe database and must not trigger the ordinary
+  directory-topic `productivity/directory-context-cleaning` workflow for routine
+  outfit, item lookup, or styling tasks.
+- For concrete item facts, materials, colors, ownership state, outfit history,
+  and image-backed checks, the model must use Wardrobe MCP callables and the
+  Wardrobe Skill rules first. If the required Skill or `mcp_wardrobe_*`
+  callables are absent despite required routing, the correct result is a
+  schema/profile mismatch diagnostic, not a guessed fashion answer.
 - Markdown/file receipts require `file` to remain available for the execution
   round when the workspace policy authorizes it.
 - The selector may narrow callable tools only when explicitly enabled. If it is

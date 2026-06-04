@@ -138,6 +138,12 @@ Phase 6 completes the production high-permission profile coverage:
   `owner-full/skills`, instead of linking only DeepSeek maintenance profiles.
 - Owner maintenance startup now installs the full maintenance plugin set into
   each maintenance profile, not only `hermes-mobile-chatgpt-pro`.
+- Phase 6 hardening treats profile-local `skills` directories as materialization
+  drift. Low/Grok/DeepSeek selected-profile startup now verifies the manifest
+  Skill Store link even when configure is skipped, and Owner maintenance startup
+  backs up/replaces wrong `skills` paths before launch. This keeps official
+  Hermes Skill create/update behavior anchored to the workspace Skill Store
+  rather than to a single warm Gateway slot.
 
 The maintained local Windows production sync for Phase 6 backed up the prior
 runtime scripts under
@@ -165,9 +171,9 @@ allows profile-instance drift: two Owner low-permission OpenAI/Codex workers can
 serve the same workspace and permission tier while exposing different
 `toolsets`, MCP servers, or workspace plugin bindings.
 
-That drift is unsafe when model-first toolset narrowing is disabled and Mobile
-sends the full authorized toolset set. A run can fail even though another
-sibling profile would have had the required tools.
+That drift is unsafe when runtime sends a broad active schema set or a required
+plugin bundle depends on a sibling profile's missing MCP registration. A run
+can fail even though another sibling profile would have had the required tools.
 
 ## Target Model
 
@@ -189,6 +195,24 @@ The difference is that a new slot is not allowed to own an independent toolset
 decision. Before startup, the slot must materialize the canonical template for
 the requested `workspaceId + securityLevel + provider` into that slot's
 `HERMES_HOME`.
+
+Template materialization is not the same thing as per-run prompt/schema
+injection. The template represents the durable authorized capability boundary
+for a workspace, permission tier, and provider. The run context may select a
+narrower active schema set:
+
+- ordinary chat: baseline Hermes chat tools plus the compact plugin capability
+  catalog;
+- plugin-bound topic: the current plugin's required MCP/Skill bundle plus the
+  compact catalog for other authorized plugins;
+- explicit or deterministic cross-plugin work: activated optional plugin
+  bundles after server-side authorization, config/key, and health/schema checks.
+
+This keeps slots reusable and authorization complete while avoiding all-plugin
+MCP schema injection in every prompt. Optional plugin health failures should be
+recorded as catalog availability diagnostics and omitted from unrelated active
+schema sets. Required plugin bundle failures remain fail-closed for that plugin
+topic.
 
 ## Template Keys
 
@@ -239,6 +263,9 @@ When the scheduler chooses a slot, startup should:
 3. Write the slot-local `config.yaml` from the template.
 4. Link/copy slot-local plugin directories required by the template.
 5. Link the correct Skill Store and memory store for that workspace/tier.
+   The `skills` path inside `HERMES_HOME` must be only a link to the template's
+   workspace store. Startup must back up and replace any real profile-local
+   `skills` directory before launching the process.
 6. Link the correct auth material for that provider and tier.
 7. Start the Gateway process with `HERMES_HOME` pointing at the slot directory.
 8. Poll `/health` until ready.

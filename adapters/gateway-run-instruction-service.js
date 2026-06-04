@@ -91,6 +91,8 @@ function createGatewayRunInstructionService(options = {}) {
       ...(policy.allowed_roots || policy.allowedRoots || []),
     ].filter(Boolean));
     const toolsets = policyToolsets(policy);
+    const allowedSkills = dedupe(policy.allowed_skills || policy.allowedSkills || []);
+    const requiredSkills = dedupe(policy.required_skills || policy.requiredSkills || []);
     const connectorProfiles = policy.connector_profiles && typeof policy.connector_profiles === "object"
       ? Object.keys(policy.connector_profiles).sort()
       : [];
@@ -107,6 +109,8 @@ function createGatewayRunInstructionService(options = {}) {
       if (toolsets.includes("file")) lines.push("- For MP3/M4A/WAV/AAC/OGG/OPUS/AMR/FLAC voice notes or reading-retelling audio, use `audio_transcribe`; do not route audio-only files through `video_analyze` or ask the user to convert audio to video.");
       if (toolsets.includes("cronjob")) lines.push("- For Hermes Mobile automation jobs, use `cronjob_mobile` when available; if it is absent, use `http_request` with url `hermes-mobile://cron` and the automation action/job fields in `json`; raw `cronjob` may point at an empty profile-local scheduler namespace.");
     }
+    if (allowedSkills.length) lines.push(`- Allowed Skills: ${allowedSkills.join(", ")}`);
+    if (requiredSkills.length) lines.push(`- Required Skills: ${requiredSkills.join(", ")}`);
     if (connectorProfiles.length) lines.push(`- External connector profiles: ${connectorProfiles.join(", ")}`);
     else lines.push("- External connector profiles: none");
     return lines.join("\n");
@@ -233,6 +237,102 @@ function createGatewayRunInstructionService(options = {}) {
     return lines.join("\n");
   }
 
+  function pluginTopicContextInstructions(buildOptions = {}) {
+    const context = buildOptions.pluginTopicContext && typeof buildOptions.pluginTopicContext === "object"
+      ? buildOptions.pluginTopicContext
+      : null;
+    const pluginId = String(context?.pluginId || "").trim().toLowerCase();
+    if (!pluginId) return "";
+    const requiredToolsets = dedupe(context.requiredToolsets || context.required_toolsets || []);
+    const requiredSkills = dedupe(context.requiredSkills || context.required_skills || []);
+    const deliveryDirectory = context.deliveryDirectory && typeof context.deliveryDirectory === "object"
+      ? context.deliveryDirectory
+      : null;
+    const deliveryPath = String(deliveryDirectory?.path || deliveryDirectory?.root || "").trim();
+    const deliveryLabel = String(deliveryDirectory?.label || "Plugin delivery directory").trim();
+    const lines = [
+      `Plugin topic context: ${pluginId}. Fixed plugin topics are separate from ordinary directory-bound topics.`,
+      "Do not treat a plugin delivery directory as the plugin database or as cleaned source data. Do not run `productivity/directory-context-cleaning` for routine plugin-topic tasks unless the newest user message explicitly asks to clean/analyze files inside that delivery directory.",
+    ];
+    if (requiredToolsets.length) {
+      lines.push(`Required plugin MCP/toolsets for this run: ${requiredToolsets.join(", ")}. Check the current callable schema and use the plugin MCP callables when present.`);
+    }
+    if (requiredSkills.length) {
+      lines.push(`Required plugin Skill path(s): ${requiredSkills.join(", ")}. Load these exact Skill paths before plugin analysis or the final answer; do not substitute shorter or older Skill names.`);
+    }
+    if (deliveryPath) {
+      lines.push(`Plugin delivery directory: ${deliveryLabel} => ${deliveryPath}. Use it only for user-facing outputs, curated receipts, and final Markdown artifacts; include MEDIA:<path> for files written there.`);
+    }
+    if (pluginId === "wardrobe") {
+      lines.push(
+        "Wardrobe plugin source of truth: use `productivity/wardrobe-style-operations` plus the `mcp_wardrobe_*` callable functions for item lookup, material/color/size facts, wardrobe history, photo checks, outfit reasoning, writeback, and readback verification.",
+        "Before giving a wardrobe answer about concrete items, call Wardrobe MCP lookups/searches for the referenced items. Do not infer SKU, fabric, color, ownership state, or styling constraints from memory, generic fashion knowledge, or an empty delivery folder.",
+        "If the `skills` toolset is enabled but `skill_view` cannot load `productivity/wardrobe-style-operations`, or the `wardrobe` toolset is enabled but `mcp_wardrobe_*` functions are absent, report that schema/profile mismatch instead of fabricating item facts.",
+        "For Wardrobe Markdown deliverables, write a real `.md` file under the plugin delivery directory when available and return a MEDIA:<path> line. Do not provide only a non-resolvable placeholder link."
+      );
+    }
+    return lines.join("\n");
+  }
+
+  function pluginCapabilityCatalogInstructions(buildOptions = {}) {
+    const context = buildOptions.pluginCapabilityContext && typeof buildOptions.pluginCapabilityContext === "object"
+      ? buildOptions.pluginCapabilityContext
+      : null;
+    const catalog = Array.isArray(context?.catalog) ? context.catalog : [];
+    if (!catalog.length) return "";
+    const activeToolsets = dedupe(context.activeSchemaSet?.active_toolsets || []);
+    const activePluginToolsets = dedupe(context.activePluginToolsets || context.activeSchemaSet?.active_plugin_toolsets || []);
+    const omittedPluginToolsets = dedupe(context.omittedPluginToolsets || context.activeSchemaSet?.omitted_plugin_toolsets || []);
+    const lines = [
+      "Plugin capability catalog: this is a compact catalog of authorized plugin capabilities for this workspace, not proof that their MCP schemas or data have been loaded in the current run.",
+    ];
+    if (activeToolsets.length) lines.push(`Active schema toolsets for this run: ${activeToolsets.join(", ")}.`);
+    if (activePluginToolsets.length) lines.push(`Active plugin MCP/toolsets: ${activePluginToolsets.join(", ")}.`);
+    if (omittedPluginToolsets.length) {
+      lines.push(`Catalog-only plugin MCP/toolsets: ${omittedPluginToolsets.join(", ")}.`);
+      lines.push("If the newest task genuinely needs a catalog-only plugin MCP/toolset, stop and emit HERMES_TOOLSET_ESCALATION_REQUIRED with compact JSON like {\"toolsets\":[\"finance\"],\"reason\":\"short reason\"}. Do not claim plugin facts from a catalog-only plugin before the escalation run activates that toolset and the callable schema is present.");
+    }
+    for (const entry of catalog.slice(0, 12)) {
+      const pluginId = String(entry.pluginId || entry.plugin_id || "").trim();
+      const label = String(entry.label || pluginId).trim();
+      const toolset = String(entry.toolset || entry.primaryToolset || entry.primary_toolset || "").trim();
+      const status = String(entry.status || "catalog_only").trim();
+      const summary = String(entry.summary || "Authorized plugin capability.").trim();
+      if (!pluginId || !toolset) continue;
+      lines.push(`- ${pluginId} (${label}): ${status}; toolset=${toolset}; ${summary}`);
+    }
+    return lines.join("\n");
+  }
+
+  function requiredSkillPreloadInstructions(buildOptions = {}) {
+    const preloads = Array.isArray(buildOptions.requiredSkillPreloads)
+      ? buildOptions.requiredSkillPreloads
+      : [];
+    if (!preloads.length) return "";
+    const lines = [
+      "Server-side required Skill preload: the following required Skill content has already been loaded into this run. Treat it as authoritative workflow context for this run; do not ignore it merely because no model-side `skill_view` call appears in the current turn.",
+    ];
+    for (const item of preloads) {
+      const skillPath = String(item?.path || item?.skillPath || "").trim();
+      if (!skillPath) continue;
+      if (item.missing || !item.content) {
+        lines.push(
+          `Required Skill preload failed: ${skillPath}. Error: ${String(item.error || "required_skill_missing").slice(0, 160)}.`,
+          "For plugin work that depends on this Skill, stop and report the missing Skill/schema problem instead of continuing from generic knowledge."
+        );
+        continue;
+      }
+      const loadedChars = Math.max(0, Number(item.loadedChars || String(item.content || "").length) || 0);
+      const totalChars = Math.max(0, Number(item.totalChars || loadedChars) || 0);
+      lines.push(
+        `BEGIN REQUIRED SKILL: ${skillPath} (${loadedChars}/${totalChars} chars${item.truncated ? ", truncated" : ""})`,
+        String(item.content || ""),
+        `END REQUIRED SKILL: ${skillPath}`
+      );
+    }
+    return lines.join("\n");
+  }
+
   function buildHermesInstructions(thread, policy, project, latestText = "", taskDirectory = null, buildOptions = {}) {
     const singleWindowMode = normalizeSingleWindowMode(buildOptions.singleWindowMode || buildOptions.single_window_mode || "");
     const groupChatDeliveryRoot = String(buildOptions.groupChatDeliveryRoot || buildOptions.group_chat_delivery_root || "").trim();
@@ -249,12 +349,16 @@ function createGatewayRunInstructionService(options = {}) {
       formatAccessPolicyInstructionSummary(policy),
       permissionBoundarySkillInstructions(policy),
       currentToolSchemaOverrideInstructions(policy, buildOptions),
+      pluginTopicContextInstructions(buildOptions),
+      pluginCapabilityCatalogInstructions(buildOptions),
+      requiredSkillPreloadInstructions(buildOptions),
       "For current-account Kanban/Todo requests, use Hermes Mobile's Todo/Kanban capability in the current workspace. Do not run raw `hermes kanban` CLI commands or write directly under `~/.hermes/kanban`, because that can target a different local profile than the Mobile app.",
       "Prefer a concise final receipt in the mobile UI. If you create a user-facing artifact, include a MEDIA:<local_path> line so Hermes Mobile can render it as a link card.",
       "Do not send external chat/app messages unless the user explicitly asks for external delivery.",
       createDeliveryBoundaryInstructions(deliveryBoundaryOptions),
     ].filter(Boolean);
-    if (taskDirectory?.path) {
+    const hasPluginTopicContext = Boolean(buildOptions.pluginTopicContext?.pluginId || buildOptions.pluginTopicContext?.plugin_id);
+    if (taskDirectory?.path && !hasPluginTopicContext) {
       lines.push(`Attached task directory: ${taskDirectory.label || "Directory"} => ${taskDirectory.path}.`);
       lines.push("For this task group, the attached task directory is the frozen working directory. Do not switch the task to a later semantic project match, delivery folder, or unrelated path mentioned in follow-up text unless the user starts a new task from that directory.");
       lines.push("Base this task on the cleaned/normalized data in the attached directory first; use broader allowed roots only when the user request clearly requires it.");
@@ -292,7 +396,7 @@ function createGatewayRunInstructionService(options = {}) {
     if (Array.isArray(policy.allowed_roots) && policy.allowed_roots.length) {
       lines.push(`Allowed roots: ${policy.allowed_roots.join("; ")}.`);
     }
-    const routingInstructions = singleWindowMode === "chat" || taskDirectory?.path
+    const routingInstructions = singleWindowMode === "chat" || taskDirectory?.path || hasPluginTopicContext
       ? ""
       : semanticProjectRoutingInstructions(thread, latestText);
     if (routingInstructions) lines.push(routingInstructions);
@@ -306,6 +410,7 @@ function createGatewayRunInstructionService(options = {}) {
     currentToolSchemaOverrideInstructions,
     formatAccessPolicyInstructionSummary,
     gatewayConversationId,
+    pluginCapabilityCatalogInstructions,
     policyHasToolset,
     buildHermesInstructions,
     toolSchemaEpoch,

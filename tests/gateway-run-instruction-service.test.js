@@ -28,6 +28,8 @@ function testPolicySummaryIncludesCallableToolHints() {
     default_workspace: "C:/workspace",
     allowed_roots: ["C:/workspace", "D:/shared"],
     allowed_toolsets: ["http", "file", "image_gen", "x_search", "cronjob", "wardrobe", "finance", "health", "http"],
+    allowed_skills: ["productivity/wardrobe-style-operations"],
+    required_skills: ["productivity/wardrobe-style-operations"],
     connector_profiles: { google: {}, outlook: {} },
   });
 
@@ -48,6 +50,8 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /For MP3\/M4A\/WAV\/AAC\/OGG\/OPUS\/AMR\/FLAC voice notes/);
   assert.match(summary, /use `cronjob_mobile` when available/);
   assert.match(summary, /hermes-mobile:\/\/cron/);
+  assert.match(summary, /Allowed Skills: productivity\/wardrobe-style-operations/);
+  assert.match(summary, /Required Skills: productivity\/wardrobe-style-operations/);
   assert.match(summary, /External connector profiles: google, outlook/);
 }
 
@@ -189,6 +193,99 @@ function testBuildHermesInstructionsIncludesSemanticRoutingForTaskStream() {
   assert.match(text, /SEMANTIC_ROUTE/);
 }
 
+function testWardrobePluginTopicContextForcesSkillMcpAndSkipsDirectoryCleaning() {
+  const service = createService();
+  const text = service.buildHermesInstructions(
+    { hermesSessionId: "s", singleWindow: true },
+    {
+      principal_id: "owner",
+      allowed_roots: ["C:/workspace"],
+      allowed_toolsets: ["wardrobe", "vision", "file", "skills"],
+      allowed_skills: ["productivity/wardrobe-style-operations"],
+      required_skills: ["productivity/wardrobe-style-operations"],
+    },
+    { root: "C:/workspace", singleWindow: true },
+    "Style these items",
+    { label: "Plugin delivery", path: "C:/workspace/plugins/wardrobe" },
+    {
+      singleWindowMode: "task",
+      pluginTopicContext: {
+        pluginId: "wardrobe",
+        requiredToolsets: ["wardrobe", "vision", "file", "skills"],
+        requiredSkills: ["productivity/wardrobe-style-operations"],
+        deliveryDirectory: {
+          label: "Wardrobe",
+          path: "C:/workspace/plugins/wardrobe",
+        },
+      },
+      requiredSkillPreloads: [
+        {
+          path: "productivity/wardrobe-style-operations",
+          profileId: "owner-full",
+          content: "Wardrobe Skill body: call Wardrobe MCP before facts and write real Markdown deliverables.",
+          loadedChars: 86,
+          totalChars: 86,
+        },
+      ],
+    },
+  );
+
+  assert.match(text, /Plugin topic context: wardrobe/);
+  assert.match(text, /Required plugin MCP\/toolsets.*wardrobe, vision, file, skills/);
+  assert.match(text, /Required plugin Skill path\(s\): productivity\/wardrobe-style-operations/);
+  assert.match(text, /Server-side required Skill preload/);
+  assert.match(text, /BEGIN REQUIRED SKILL: productivity\/wardrobe-style-operations/);
+  assert.match(text, /Wardrobe Skill body: call Wardrobe MCP before facts/);
+  assert.match(text, /END REQUIRED SKILL: productivity\/wardrobe-style-operations/);
+  assert.match(text, /Wardrobe plugin source of truth/);
+  assert.match(text, /Before giving a wardrobe answer about concrete items, call Wardrobe MCP/);
+  assert.match(text, /write a real `\.md` file under the plugin delivery directory/);
+  assert.doesNotMatch(text, /Attached task directory/);
+  assert.doesNotMatch(text, /Use Skill: productivity\/directory-context-cleaning/);
+  assert.doesNotMatch(text, /SEMANTIC_ROUTE/);
+}
+
+function testPluginCapabilityCatalogInstructionsSeparateActiveAndCatalogOnlyPlugins() {
+  const service = createService();
+  const text = service.buildHermesInstructions(
+    { hermesSessionId: "s", singleWindow: true },
+    {
+      principal_id: "owner",
+      allowed_roots: ["C:/workspace"],
+      allowed_toolsets: ["file", "web", "wardrobe", "vision", "skills"],
+      authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note"],
+    },
+    { root: "C:/workspace", singleWindow: true },
+    "Style these items",
+    null,
+    {
+      singleWindowMode: "chat",
+      pluginCapabilityContext: {
+        activeSchemaSet: {
+          active_toolsets: ["file", "web", "wardrobe", "vision", "skills"],
+          active_plugin_toolsets: ["wardrobe"],
+          omitted_plugin_toolsets: ["finance", "note"],
+        },
+        activePluginToolsets: ["wardrobe"],
+        omittedPluginToolsets: ["finance", "note"],
+        catalog: [
+          { pluginId: "wardrobe", label: "Wardrobe", toolset: "wardrobe", status: "active", summary: "Inspect wardrobe state." },
+          { pluginId: "finance", label: "Finance", toolset: "finance", status: "catalog_only", summary: "Inspect ledgers." },
+          { pluginId: "note", label: "Notes", toolset: "note", status: "catalog_only", summary: "Inspect notes." },
+        ],
+      },
+    },
+  );
+
+  assert.match(text, /Plugin capability catalog/);
+  assert.match(text, /Active plugin MCP\/toolsets: wardrobe/);
+  assert.match(text, /Catalog-only plugin MCP\/toolsets: finance, note/);
+  assert.match(text, /HERMES_TOOLSET_ESCALATION_REQUIRED/);
+  assert.match(text, /finance \(Finance\): catalog_only; toolset=finance/);
+  assert.doesNotMatch(text, /`finance` toolset is enabled/);
+  assert.doesNotMatch(text, /mcp_finance_list_ledgers/);
+}
+
 testPolicySummaryIncludesCallableToolHints();
 testSchemaOverrideInstructionsCoverOrdinaryLowTools();
 testExplicitWebSearchPrioritizesQualityAndUsesLargerBudget();
@@ -196,5 +293,7 @@ testWebSearchBudgetInstructionCanBeDisabled();
 testGatewayConversationIdEpochForSchemaSensitiveToolsets();
 testBuildHermesInstructionsPreservesChatAndAttachmentGuidance();
 testBuildHermesInstructionsIncludesSemanticRoutingForTaskStream();
+testWardrobePluginTopicContextForcesSkillMcpAndSkipsDirectoryCleaning();
+testPluginCapabilityCatalogInstructionsSeparateActiveAndCatalogOnlyPlugins();
 
 console.log("gateway-run-instruction-service tests passed");

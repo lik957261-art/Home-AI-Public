@@ -53,6 +53,17 @@ This file records durable product rules that implementation must preserve.
   module services and authorization boundaries.
 - A plugin topic must not authorize a plugin by itself; visibility, launch, MCP/toolset exposure, and delivery directory access must all resolve through the effective workspace.
 - A plugin topic run should use the plugin MCP as the primary structured data access path when the selected workspace has active provisioning and callable schema evidence. Directory context is supporting evidence only.
+- Plugin topics must eagerly load the current plugin's required MCP/toolset and
+  required Skill rules. Other authorized plugins should remain visible through a
+  compact capability catalog and activate only when the run needs cross-plugin
+  access.
+- Ordinary chat should know the full authorized plugin capability catalog for
+  the effective workspace, but must not inject every plugin MCP schema or full
+  plugin Skill body by default. Cross-plugin access is enabled through bounded
+  deterministic or server-validated lazy activation.
+- Capability catalogs are routing hints, not evidence. If a requested plugin
+  cannot be activated, Hermes Mobile must report a bounded unavailable-plugin
+  diagnostic instead of answering as though it inspected that plugin's data.
 - Every plugin topic should have a standard workspace-local delivery directory for cleaned reports and user-facing outputs. That directory must not store raw plugin keys, launch tokens, browser cookies, provider credentials, full mailbox bodies, raw ledger rows, private inventories, health record dumps, or plugin database files.
 - Owner switching into a non-Owner workspace must use the target workspace's plugin topic, plugin app, delivery directory, and MCP binding. Owner fallback is a permission failure.
 

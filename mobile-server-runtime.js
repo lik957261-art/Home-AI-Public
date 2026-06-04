@@ -62,7 +62,7 @@ const {
   createSystemRuntimeStatusService,
 } = require("./adapters/system-runtime-status-service");
 const { deriveKanbanWorkflowState } = require("./adapters/study-workflow-provider");
-const { createSkillDetailProvider } = require("./adapters/skill-detail-provider");
+const { createSkillDetailProvider } = require("./adapters/skill-detail-provider"); const { createPluginRequiredSkillPreloadService } = require("./adapters/plugin-required-skill-preload-service"); const { createPluginCapabilityActivationService } = require("./adapters/plugin-capability-activation-service");
 const { buildRequestContext } = require("./adapters/request-context-provider");
 const { createThreadRuntimeCompositionService } = require("./adapters/thread-runtime-composition-service");
 const { createThreadViewService } = require("./adapters/thread-view-service");
@@ -158,20 +158,20 @@ let webPushDeliveryService = null;
 const eventFanoutService = createEventFanoutService({
   clients, authCanAccessWorkspace, isOwnerAuth, state: () => state,
   threadAccessibleToAuth: (...args) => getRuntimeStateThreadService().threadAccessibleToAuth(...args),
-});
+}); const pluginCapabilityActivationService = createPluginCapabilityActivationService({ dedupe }); const pluginRequiredSkillPreloadService = createPluginRequiredSkillPreloadService({ dataDirs: [DATA_DIR], env: process.env, maxSkillChars: 80000, maxTotalChars: 120000 }); const gatewayModelPreflightEnabled = GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED || GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED;
 function getGatewayRuntimeCompositionService() {
   if (!gatewayRuntimeCompositionService) {
     gatewayRuntimeCompositionService = createGatewayRuntimeCompositionService({
       accessPolicyHardeningOptionsForGatewayRouting, activeStreams, addThreadEvent, apiTimeoutMs: HERMES_API_TIMEOUT_MS,
-      appendBounded, assertRunConcurrencyCapacity, buildAccessPolicy, buildConversationHistory, buildHermesInstructions,
+      appendBounded, assertRunConcurrencyCapacity, buildAccessPolicy, buildConversationHistory, buildHermesInstructions, buildPluginCapabilityContext: (...args) => pluginCapabilityActivationService.buildRunPluginCapabilityContext(...args),
       broadcast, chooseGatewayRunTarget, compactFullContent, compactMessage, dedupe, effectiveProjectForThread,
       ensureGroupChatSharedArtifactCopies, enqueueExternalDeliveryForTerminalMessage, findWorkspace, gatewayConversationId,
       gatewayPool, gatewaySkillRoutingForWorkspace, routeRunToolsets: (...args) => gatewayRunToolsetRoutingService.routePolicy(...args),
       gatewayUrlForRun: (...args) => getRuntimeStateThreadService().storedGatewayUrlForRun(...args),
       groupChatDeliveryRootForThread, groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
-      isOrdinaryToolSchemaElevationRequest, logger: console, makePublicTaskId, maxMessageChars: MAX_MESSAGE_CHARS,
+      isOrdinaryToolSchemaElevationRequest, loadRequiredSkillPreloads: (...args) => pluginRequiredSkillPreloadService.preloadRequiredSkills(...args), logger: console, makePublicTaskId, maxMessageChars: MAX_MESSAGE_CHARS,
       mergeAccessPolicyOverride, mkdirSync: (targetPath, options) => fs.mkdirSync(targetPath, options),
-      modelPermissionApprovalRequest, nowIso, nowMs: () => Date.now(), selectRunToolsetsWithModel: (...args) => gatewayRunModelToolsetSelectionService.selectToolsetsForRun(...args),
+      modelPermissionApprovalRequest, nowIso, nowMs: () => Date.now(), selectRunToolsetsWithModel: gatewayModelPreflightEnabled ? ((...args) => gatewayRunModelToolsetSelectionService.selectToolsetsForRun(...args)) : null,
       notifyTaskTerminal: (...args) => webPushDeliveryService.notifyTaskTerminal(...args),
       releaseGatewayRunTarget, replaceGatewayRunTarget,
       projectForTaskDirectoryAttachment: (...args) => getSemanticDirectoryAttachmentService().projectForTaskDirectoryAttachment(...args),

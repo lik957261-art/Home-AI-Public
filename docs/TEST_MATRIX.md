@@ -255,6 +255,16 @@ only non-secret `templateKey`, `capabilityHash`, `capabilityStatus`,
 `toolSchemaEpoch`, `materializedTemplateKey`, and
 `materializedCapabilityHash`; a warm worker with a stale materialized hash must
 not be reused merely because `/health` is `ok`.
+Plugin capability activation and lazy MCP loading is an H1 Gateway/context
+workflow change. Focused tests must prove ordinary chat receives the compact
+capability catalog without full optional plugin MCP schemas or Skill bodies;
+plugin-bound topics receive the current plugin required MCP/Skill bundle while
+other authorized plugins remain catalog-only; lazy activation validates
+workspace authorization, config/key completeness, health/schema probe, and no
+Owner fallback; required plugin failure blocks generic fallback with a bounded
+diagnostic; optional plugin failure does not slow or fail unrelated ordinary
+chat; explicit wide mode probes each authorized plugin once and reports
+unavailable plugins without raw secrets.
 NAS Growth audio parity must cover the platform-specific transcription path:
 Windows may use `scripts\transcribe-reading-audio.ps1`, while Linux/NAS must use
 `scripts\transcribe-reading-audio.js` against the local Whisper large v3 Turbo
@@ -522,8 +532,9 @@ before a first-round model selection. A first round may use a compact
 capability catalog, and the execution round may expand only the selected
 authorized toolsets, but the model must have an explicit escalation path for
 additional authorized toolsets. If request-level schema proof is missing,
-model-first toolset selection stays disabled and execution uses the full
-authorized route/access toolset set. Narrow `suggested_toolsets` remain
+model-first toolset selection stays disabled and execution uses the full active
+schema set chosen by plugin capability activation, not every authorized
+optional plugin MCP schema in the workspace. Narrow `suggested_toolsets` remain
 telemetry only unless the selector succeeds. The model-side permission
 preflight is a separate switch and remains enabled by default.
 The harness must cover selected narrow execution, allowed escalation, denied
@@ -533,10 +544,10 @@ Selector failure is explicitly recoverable: timeout, invalid JSON, missing
 runner, or unauthorized selections must fall back to the originally authorized
 toolset list. Permission and optional toolset choice must share the same
 model-side preflight when both are enabled; when toolset choice is disabled,
-that same preflight returns only the permission decision and execution keeps
-the full authorized toolsets. Selector failure has the same fallback rule:
-execution restores the full originally authorized toolset list, not the
-suggested subset. The selector should use a ChatGPT low-cost model, a bounded
+that same preflight returns only the permission decision and execution keeps the
+full active schema set. Selector failure has the same fallback rule: execution
+restores the full originally active schema set, not the suggested subset. The
+selector should use a ChatGPT low-cost model, a bounded
 timeout of 30000ms by default, and best-effort cancellation when a selector run
 id is known. Do not add local
 natural-language permission routing before the model. If the model-side
@@ -621,11 +632,12 @@ normal pass evidence. Provider selection remains user intent: if the selected
 provider is OpenAI/ChatGPT, repair that OpenAI profile's schema exposure rather
 than auto-routing to DeepSeek; the reverse is also true.
 When model-first toolset selection is disabled, Wardrobe-intent or
-wardrobe-bound-topic runs must still execute with the full authorized
-route/access toolset set. The deterministic route may record a narrower
-`suggested_toolsets` hint such as `wardrobe`, `vision`, `file`, `skills`, and
-weather-sensitive `weather`, but tests must assert that this hint does not
-prune `access_policy_context.allowed_toolsets` or top-level `enabled_toolsets`.
+wardrobe-bound-topic runs must still execute with the full active Wardrobe
+required bundle plus baseline schemas selected by capability activation. The
+deterministic route may record a narrower `suggested_toolsets` hint such as
+`wardrobe`, `vision`, `file`, `skills`, and weather-sensitive `weather`, but
+tests must assert that this hint does not prune the required plugin bundle or
+force unrelated optional plugin schemas into the run.
 For selector/runtime-overlay changes, standalone schema smoke is not sufficient.
 The harness must also exercise the real `/v1/responses` request path and prove
 that Mobile's top-level `enabled_toolsets` becomes the effective
@@ -1161,7 +1173,7 @@ Wardrobe routing harnesses must include weather-sensitive outfit recommendation:
 a wardrobe-bound topic asking for an outfit should add authorized `weather` to
 the Wardrobe companion `suggested_toolsets`. With the selector disabled or
 after selector fallback, the same test must prove execution still receives the
-full authorized toolset set rather than the suggested subset.
+full active Wardrobe required bundle rather than the suggested subset.
 Long-reply jump control harnesses must cover terminal DOM replacement and
 historical scrolling: arrow visibility recalculation must resolve the current
 conversation/message node when the queued callback executes, fall back from a
@@ -1428,7 +1440,7 @@ The guard test is:
 | Multi-user/task platform | `node tests\auth-provider.test.js`, `node tests\access-key-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\conversation-history-service.test.js`, `node tests\action-inbox-service.test.js`, `node tests\web-push-delivery-service.test.js` |
 | Auth/workspace/access keys | `node tests\auth-provider.test.js`, `node tests\access-key-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\workspace-public-projection-service.test.js`, `node tests\mobile-http-runtime-service.test.js` |
 | Public reverse-proxy security | `node tests\auth-provider.test.js`, `node tests\mobile-http-runtime-service.test.js`, `node tests\chatgpt-pro-codex-bridge-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\api-route-inventory.test.js`, `node tests\architecture-refactor-boundary.test.js`, `npm.cmd run security:invariants`, `npm.cmd run privacy:scan`, production smoke: `/api/public-config` headers, query-string key denial, header-authenticated `/api/status?detail=1`, anonymous plugin proxy denial, and Windows firewall state |
-| Gateway run lifecycle | `node tests\gateway-run-model-toolset-selection-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\gateway-run-stream-service.test.js`, `node tests\gateway-run-lifecycle-service.test.js`, `node tests\gateway-run-queue-service.test.js`, `node tests\run-liveness.test.js`, `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js` |
+| Gateway run lifecycle | `node tests\plugin-capability-activation-service.test.js`, `node tests\gateway-run-model-toolset-selection-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\gateway-run-stream-service.test.js`, `node tests\gateway-run-lifecycle-service.test.js`, `node tests\gateway-run-queue-service.test.js`, `node tests\run-liveness.test.js`, `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js` |
 | Chat context/compaction | `node tests\conversation-history-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\topic-context-compaction-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\mobile-sqlite-store.test.js` |
 | Gateway Pool/scripts | `node tests\gateway-elastic-worker-scheduler.test.js`, `node tests\gateway-pool-provider.test.js`, `node tests\gateway-profile-template-sync.test.js`, `node tests\gateway-profile-template-builder.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\cross-shell-command-harness.test.js`, `node tests\hermes-mobile-image-plugin.test.js` |
 | Gateway MCP callable schema | `python -m py_compile gateway-runtime-overrides\sitecustomize.py gateway-runtime-overrides\model_tools.py`, `node scripts\probe-lowgw1-wardrobe-mcp.js`, `node tests\no-window-command-harness.test.js` |
@@ -1439,10 +1451,10 @@ The guard test is:
 | Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js` |
 | Embedded plugin host / Wardrobe, Codex, Finance, Email, Health, and Note plugin tabs | `node tests\hermes-plugin-authorization-service.test.js`, `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\embedded-plugin-refresh-harness.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\wardrobe-plugin-navigation-ui.test.js`, `node tests\wardrobe-plugin-provisioning-service.test.js`, `node tests\email-plugin-provisioning-service.test.js` when Email behavior changes, `node tests\health-plugin-provisioning-service.test.js` when Health behavior changes, `node tests\note-plugin-provisioning-service.test.js` when Note behavior changes, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes. First-run plugin enablement must verify Owner and one non-Owner workspace cannot project `active` until workspace-local key/config, plugin-side bind/register, required Skill/MCP setup, and manifest/launch smoke pass. Plugin-manager projection must also prove Owner records can be persisted, Owner workspace-local key/config discovery is reflected as already enabled, and failed Owner provisioning remains a retryable diagnostic instead of reverting to a plain unopened button. |
-| Plugin-bound application topics | Current frontend projection: `node tests\task-list-ui.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\static-cache-version-harness.test.js`. Planned service/runtime phases: `node tests\plugin-topic-binding-service.test.js`, `node tests\plugin-topic-delivery-directory-service.test.js`, `node tests\plugin-topic-context-service.test.js`, `node tests\plugin-topic-api-routes.test.js`, `node tests\app-plugin-topics-ui.test.js`, plus `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\directory-browser-api-routes.test.js`, and `node tests\architecture-refactor-boundary.test.js` when implementation touches services/routes/runtime. Frontend harness must cover direct app launch from the topic-page plugin Dock; the Dock must be a single horizontally scrollable row with stable manual drag ordering stored in local preference, and it must not wrap into multiple rows as plugins increase. The same harness must cover the Directory special card with no mini actions, compact single-surface plugin cards without nested framed panels, five-slot bottom navigation with Topics centered, default launch to Topics when no saved view exists, fixed `plugin:<pluginId>` topic ids, automatic `插件/<plugin title>` directory creation through the directory API, returning from that directory to the topic list, restoring topic-list scroll position after topic-detail back/right-swipe, clearing stale plugin view-mode classes before opening the topic detail so the message composer is visible, hiding the bottom navigation on ordinary plugin-topic secondary pages, preserving the three-item plugin-context bar inside plugin app/topic/directory context, and making plugin-context right-swipe/browser-back exit through the dedicated topic-root renderer without calling `openTaskList()`, `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`. |
+| Plugin-bound application topics | Current frontend projection: `node tests\task-list-ui.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\static-cache-version-harness.test.js`. Service/runtime phases: `node tests\plugin-capability-activation-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-instruction-service.test.js`, `node tests\plugin-topic-binding-service.test.js`, `node tests\plugin-topic-delivery-directory-service.test.js`, `node tests\plugin-topic-context-service.test.js`, `node tests\plugin-topic-api-routes.test.js`, `node tests\app-plugin-topics-ui.test.js`, plus `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\directory-browser-api-routes.test.js`, and `node tests\architecture-refactor-boundary.test.js` when implementation touches services/routes/runtime. Frontend harness must cover direct app launch from the topic-page plugin Dock; the Dock must be a single horizontally scrollable row with stable manual drag ordering stored in local preference, and it must not wrap into multiple rows as plugins increase. The same harness must cover the Directory special card with no mini actions, compact single-surface plugin cards without nested framed panels, five-slot bottom navigation with Topics centered, default launch to Topics when no saved view exists, fixed `plugin:<pluginId>` topic ids, automatic `插件/<plugin title>` directory creation through the directory API, returning from that directory to the topic list, restoring topic-list scroll position after topic-detail back/right-swipe, clearing stale plugin view-mode classes before opening the topic detail so the message composer is visible, hiding the bottom navigation on ordinary plugin-topic secondary pages, preserving the three-item plugin-context bar inside plugin app/topic/directory context, and making plugin-context right-swipe/browser-back exit through the dedicated topic-root renderer without calling `openTaskList()`, `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`. |
 | Directory-bound topic collections | Planned: `node tests\directory-topic-binding-service.test.js`, `node tests\directory-topic-context-service.test.js`, `node tests\directory-topic-api-routes.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\context-assembly-service.test.js`, and `node tests\task-list-ui.test.js`. Harness must cover multiple topics per directory, one default topic per directory, default-topic reassignment without deleting secondary topics, explicit open-directory/open-default-topic/open-topic-picker actions, workspace isolation, cleaned/selected/bounded directory context, and exclusion of fixed plugin topics from directory collections. Frontend harness must also prove the topic list can render its first frame before directory-topic aggregation runs, that directory collections are visually attached below the Directory special application card, that the directory action sits on the same row as the main topic entry, that background aggregation/API refresh preserves the user's current topic-list scroll position, that deferred directory-topic rendering waits while scroll/swipe gestures are active, and that task-list vertical pan is not captured by sidebar right-swipe handling, because directory route extraction may scan many existing messages on large accounts. |
 | Directory/files/artifacts | `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js` |
-| Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\gateway-workspace-provisioning-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\link-skill-profile-store.test.js`, `node tests\task-list-ui.test.js` |
+| Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\plugin-required-skill-preload-service.test.js`, `node tests\plugin-capability-activation-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\gateway-workspace-provisioning-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\link-skill-profile-store.test.js`, `node tests\task-list-ui.test.js` |
 | Automation/Cron | `node tests\automation-api-routes.test.js`, `node tests\automation-provider.test.js`, `node tests\cron-bridge.test.js`, `node tests\cron-dispatcher-proxy-harness.test.js`, `node tests\local-automation-bridge-service.test.js`, `node tests\mobile-runtime-environment-service.test.js`, `node tests\startup-scripts.test.js`; production/NAS smoke must verify that `/api/automations?detail=summary&refresh=1` reads the configured canonical scheduler and does not silently report an empty SQLite mirror when official CRON has jobs |
 | Weixin ingress/delivery | `node tests\weixin-api-routes.test.js`, `node tests\weixin-ingress-event-service.test.js`, `node tests\weixin-ingress-provider.test.js`, `node tests\weixin-outbound-delivery-service.test.js`, `node tests\weixin-runtime-composition-service.test.js` |
 | Group chat | `node tests\single-window-group-chat-api-routes.test.js`, `node tests\group-chat-ui.test.js`, `node tests\group-chat-shared-attachment-service.test.js`, `node tests\web-push-delivery-service.test.js` |

@@ -119,6 +119,13 @@ Context assembly may read bounded summaries and selected report metadata from
 the directory, but authoritative live data should come from the plugin MCP when
 available.
 
+Runtime task-directory attachment explicitly excludes fixed plugin task groups
+such as `plugin:wardrobe`, `plugin:finance`, `plugin:email`, and
+`plugin:health`. A plugin delivery `directoryRoute` can remain on the message
+for UI navigation and artifact receipts, but it must not become the ordinary
+`taskDirectory` that triggers directory-topic cleaning or frozen-directory
+instructions.
+
 ## Preview Rules
 
 - Preview access must be resolved through thread/message/group/automation ACLs, not by raw filesystem path.

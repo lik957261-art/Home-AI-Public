@@ -81,6 +81,8 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Gateway elastic worker scheduling: `docs/IMPLEMENTATION_NOTES/gateway-elastic-worker-scheduling.md`
 - Gateway profile template materialization: `docs/IMPLEMENTATION_NOTES/gateway-profile-template-materialization.md`
 - Plugin topic binding: `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md`
+- Plugin capability activation and lazy MCP loading:
+  `docs/IMPLEMENTATION_NOTES/plugin-capability-activation.md`
 - Embedded plugin UI contract: `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`
 - Embedded surface bottom layout standard: `docs/IMPLEMENTATION_NOTES/embedded-surface-bottom-layout-standard.md`
 - Directory topic collections: `docs/IMPLEMENTATION_NOTES/directory-topic-collections.md`

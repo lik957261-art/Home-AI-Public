@@ -103,6 +103,48 @@ in manifest provisioning.
   Gateway/Hermes Agent profile; it does not vendor or maintain each plugin's MCP
   server implementation as host code.
 
+## Model Capability Activation
+
+Hermes Mobile distinguishes durable authorization from per-run prompt/schema
+activation. The selected workspace profile should retain the full authorized
+plugin capability set for that workspace, permission tier, and provider, but a
+single model run should inject only the active schema set required for that run.
+
+The host builds a compact capability catalog for authorized plugins that are
+not active in the current run. A catalog entry may name the plugin, the toolset,
+the domain it can inspect, required Skill ids, activation hints, and bounded
+availability state. It must not include full MCP schema JSON, full Skill bodies,
+raw plugin data, access keys, launch tokens, plugin session cookies, private
+inventories, ledger rows, note bodies, or local secret paths.
+
+Plugin-bound topics are plugin-first. A run in `plugin:<id>` must eagerly load
+that plugin's required MCP/toolset and required Skill rules from the effective
+workspace Skill Store, or surface a bounded missing-capability diagnostic. Other
+authorized plugins remain catalog-only until the run explicitly needs
+cross-plugin access. A Wardrobe topic therefore starts with Wardrobe MCP and
+`productivity/wardrobe-style-operations`, while Finance, Note, Health, and
+future plugins are represented by compact catalog hints until activated.
+
+Ordinary chat is catalog-first. It should include baseline Hermes chat
+capabilities plus the effective workspace's compact plugin capability catalog.
+It may eagerly activate a small bounded set of plugins when deterministic
+signals are strong, such as a concrete plugin link, an active plugin context,
+or explicit user wording. It must not load every plugin MCP schema simply
+because the workspace is authorized for every plugin.
+
+Cross-plugin access is a server-validated lazy activation, not a model-side
+guess. Before adding an optional plugin MCP/Skill bundle to a run, Hermes must
+validate workspace authorization, prove workspace-local config/key completeness
+without exposing the key, and perform the same health/schema probe that the
+Gateway will use. If activation fails for a requested plugin, Hermes must report
+a bounded unavailable-plugin diagnostic instead of answering as if plugin data
+was inspected. Optional plugin failure must not poison unrelated ordinary chats
+or the current plugin's required bundle.
+
+Detailed design:
+
+- `docs/IMPLEMENTATION_NOTES/plugin-capability-activation.md`
+
 ## Host Navigation
 
 The mobile bottom navigation should keep only high-frequency app destinations at
@@ -672,6 +714,15 @@ through to WSL when running `configure-low-gateways.sh`. If the launcher value
 is absent, the child script must resolve a Windows LAN API base such as
 `http://192.168.10.x:8791` before WSL profile generation. Otherwise Finance UI
 may launch while the selected Gateway model schema omits `mcp_finance_*`.
+Gateway profile generation must also probe the Finance MCP schema through the
+same WSL-reachable API base before registering `mcp_servers.finance`. A
+workspace-local `.hermes-finance/config.json` and key are necessary but not
+sufficient: if `/api/finance/mcp/schemas` fails, returns no `finance.*` schema,
+or is rejected by the Finance service trust boundary, the generated Gateway
+profile must omit the `finance` toolset and MCP server for that materialization.
+This keeps ordinary chats from repeatedly paying failed Finance MCP connection
+retries. After Finance service trust or health is repaired, force a low Gateway
+reconfigure/restart so the workspace template can include Finance again.
 Pending or failed Finance provisioning must block non-Owner list/manifest/launch
 access; failed Owner first-use provisioning must block the Owner manifest with a
 bounded diagnostic instead of falling back to the Hermes Owner web key. The

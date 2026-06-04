@@ -81,6 +81,7 @@ if [[ "$gateway_worker_root" == /mnt/* ]] && [ -n "$windows_host_gateway" ]; the
   default_note_mcp_api_base_url="http://${windows_host_gateway}:4181"
 fi
 finance_mcp_api_base_url="${HERMES_MOBILE_FINANCE_MCP_API_BASE_URL:-$default_finance_mcp_api_base_url}"
+finance_mcp_schema_probe_timeout_seconds="${HERMES_MOBILE_FINANCE_MCP_SCHEMA_PROBE_TIMEOUT_SECONDS:-3}"
 note_mcp_api_base_url="${HERMES_MOBILE_NOTE_MCP_API_BASE_URL:-$default_note_mcp_api_base_url}"
 finance_user_drive_root="${HERMES_MOBILE_FINANCE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_finance_workspace_override="${HERMES_MOBILE_OWNER_FINANCE_WORKSPACE:-}"
@@ -252,6 +253,80 @@ config = user_root / ".hermes-finance" / "config.json"
 key_dir = config.parent
 if config.exists() and ((key_dir / "access-key.txt").exists() or (key_dir / "workspace-key.txt").exists()):
     print(user_root.as_posix())
+PY
+}
+
+finance_mcp_schema_ready() {
+  local workspace_root="${1:-}"
+  local api_base_url="${2:-$finance_mcp_api_base_url}"
+  local timeout_seconds="${3:-$finance_mcp_schema_probe_timeout_seconds}"
+  python3 - "$workspace_root" "$api_base_url" "$timeout_seconds" <<'PY' 2>/dev/null
+import json
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+workspace_root = Path(sys.argv[1])
+api_base_url = str(sys.argv[2] or "").rstrip("/")
+try:
+    timeout_seconds = max(1.0, min(15.0, float(sys.argv[3] or "3")))
+except Exception:
+    timeout_seconds = 3.0
+
+config_dir = workspace_root / ".hermes-finance"
+config_path = config_dir / "config.json"
+try:
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(1)
+if not isinstance(config, dict):
+    raise SystemExit(1)
+key_file = str(config.get("access_key_file") or config.get("accessKeyFile") or "access-key.txt").strip()
+if not key_file:
+    raise SystemExit(1)
+key_path = Path(key_file)
+if key_path.is_absolute():
+    raise SystemExit(1)
+resolved_key = (config_dir / key_path).resolve()
+try:
+    resolved_key.relative_to(config_dir.resolve())
+except Exception:
+    raise SystemExit(1)
+try:
+    workspace_key = resolved_key.read_text(encoding="utf-8").strip()
+except Exception:
+    raise SystemExit(1)
+workspace_id = str(
+    config.get("workspace_id")
+    or config.get("workspaceId")
+    or config.get("hermes_workspace_id")
+    or config.get("hermesWorkspaceId")
+    or workspace_root.name
+).strip()
+if not api_base_url or not workspace_id or not workspace_key:
+    raise SystemExit(1)
+request = urllib.request.Request(
+    f"{api_base_url}/api/finance/mcp/schemas",
+    headers={
+        "Content-Type": "application/json",
+        "X-Finance-MCP-Workspace-Id": workspace_id,
+        "X-Finance-MCP-Workspace-Key": workspace_key,
+    },
+    method="GET",
+)
+try:
+    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+        parsed = json.loads((response.read(2 * 1024 * 1024) or b"{}").decode("utf-8"))
+except urllib.error.HTTPError:
+    raise SystemExit(1)
+except Exception:
+    raise SystemExit(1)
+schemas = parsed.get("schemas") if isinstance(parsed, dict) else None
+if not isinstance(schemas, list) or not schemas:
+    raise SystemExit(1)
+if not any(isinstance(item, dict) and str(item.get("name") or "").startswith("finance.") for item in schemas):
+    raise SystemExit(1)
 PY
 }
 
@@ -536,7 +611,7 @@ prepare_low_gateway_profile_link() {
     backup_root="$worker_home_dir/profile-directory-backups"
     backup_path="${backup_root}/${profile}-${stamp}"
     install -d -m 700 -o "$worker_user" -g "$worker_user" "$backup_root"
-    echo "WARNING: moving real low Gateway profile directory for ${profile} to ${backup_path}" >&2
+    echo "WARNING: moving real low Gateway profile directory for ${profile} to ${backup_path}"
     mv "$profile_link" "$backup_path"
   fi
 }
@@ -989,7 +1064,7 @@ ${plugin_enabled_lines%$'\n'}"
       fi
     fi
   fi
-  if [ -n "$profile_finance_workspace" ] && [ -f "$finance_mcp_path" ]; then
+  if [ -n "$profile_finance_workspace" ] && [ -f "$finance_mcp_path" ] && finance_mcp_schema_ready "$profile_finance_workspace" "$finance_mcp_api_base_url"; then
     finance_toolset_block="  - finance"
     finance_api_toolset_block="    - finance"
     mcp_server_lines="${mcp_server_lines}  finance:
@@ -1006,6 +1081,8 @@ ${plugin_enabled_lines%$'\n'}"
     enabled: true
     timeout: 180
     connect_timeout: 60"$'\n'
+  elif [ -n "$profile_finance_workspace" ] && [ -f "$finance_mcp_path" ]; then
+    echo "[WARN] Skipping finance MCP for $profile: schema probe failed for configured workspace"
   fi
   profile_note_workspace=""
   if is_owner_connector_profile "$profile"; then
