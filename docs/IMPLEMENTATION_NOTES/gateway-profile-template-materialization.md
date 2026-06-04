@@ -162,6 +162,22 @@ Production validation confirmed:
 - authenticated status on port `8797` returned `ok=true`, `health=ok`,
   `activeGlobal=0`, and `queueDepth=0` after cleanup.
 
+Phase 7 adds manifest replica metadata and replica-first scheduler state:
+
+- Manifest workers can carry non-secret `replicaId`, `profileAlias`,
+  `profileTemplateKey`, and `poolKey` fields.
+- New workspace provisioning writes those fields, and existing manifests can
+  be backfilled with
+  `node scripts\normalize-gateway-pool-manifest-replica-metadata.js --manifest <path> --write`.
+- Gateway Pool provider normalization preserves explicit `replicaId` and
+  alias metadata.
+- The elastic scheduler keys state and run assignment by `replicaId` first,
+  so a future manifest row id can diverge from the runnable replica label
+  without losing warm/busy/idle state.
+- Template and pool identity are still re-derived from workspace, permission
+  tier, provider, and runtime hints before scheduling; the manifest fields are
+  compatibility metadata, not an authorization source.
+
 ## Problem
 
 The current Gateway Pool treats each manifest profile, such as `lowgw1`,
@@ -364,7 +380,9 @@ Required focused tests/harnesses:
 5. Enforce same-template equality and fail closed on drift. Completed in Phase
    5 for warm-worker reuse; stopped-slot rematerialization remains constrained
    by the existing startup scripts and manifest slot classes.
-6. Later, reduce durable profile maintenance to templates while keeping slots
+6. Add explicit replica/template metadata to manifest workers while keeping
+   `profile` as the current launch-script handle. Completed in Phase 7.
+7. Later, reduce durable profile maintenance to templates while keeping slots
    as process/port capacity.
 
 Do not delete existing profile directories or renumber manifest workers during

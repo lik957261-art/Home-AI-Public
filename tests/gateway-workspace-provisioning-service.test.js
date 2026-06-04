@@ -78,6 +78,7 @@ function testProvisionNewWorkspaceWorkerAppendsAfterStableGrokPort() {
     assert.deepEqual(result.profiles, ["lowgw3", "lowgw4", "deepseekgw3"]);
     assert.equal(result.openAiWorkerCount, 2);
     assert.equal(result.deepseekWorkerCount, 1);
+    assert.equal(result.replicaMetadataUpdated, true);
     assert.equal(result.port, 18755);
     assert.equal(result.restartRequired, true);
     assert.equal(result.skillStoreProvisioned, true);
@@ -89,6 +90,10 @@ function testProvisionNewWorkspaceWorkerAppendsAfterStableGrokPort() {
     const secondWorker = manifest.workers.find((item) => item.profile === "lowgw4");
     const deepseek = manifest.workers.find((item) => item.profile === "deepseekgw3");
     assert.equal(worker.provider, "openai-codex");
+    assert.equal(worker.replicaId, "lowgw3");
+    assert.equal(worker.profileAlias, "lowgw3");
+    assert.equal(worker.profileTemplateKey, "xuyan|user|openai-codex");
+    assert.equal(worker.poolKey, "xuyan|user|openai-codex");
     assert.deepEqual(worker.allowedWorkspaceIds, ["xuyan"]);
     assert.deepEqual(worker.skillWorkspaceIds, ["xuyan"]);
     assert.equal(worker.skillProfile, "workspace:xuyan");
@@ -96,7 +101,11 @@ function testProvisionNewWorkspaceWorkerAppendsAfterStableGrokPort() {
     assert.equal(worker.telemetryStateDbPath.endsWith("\\lowgw3\\state.db"), true);
     assert.equal(manifest.workers.find((item) => item.profile === "grokgw1").port, 18753);
     assert.deepEqual(secondWorker.allowedWorkspaceIds, ["xuyan"]);
+    assert.equal(secondWorker.profileTemplateKey, "xuyan|user|openai-codex");
     assert.equal(deepseek.provider, "deepseek");
+    assert.equal(deepseek.replicaId, "deepseekgw3");
+    assert.equal(deepseek.profileTemplateKey, "xuyan|user|deepseek");
+    assert.equal(deepseek.poolKey, "xuyan|user|deepseek");
     assert.deepEqual(deepseek.allowedWorkspaceIds, ["xuyan"]);
     assert.deepEqual(deepseek.skillWorkspaceIds, ["xuyan"]);
     assert.equal(deepseek.skillProfile, "workspace:xuyan");
@@ -118,6 +127,7 @@ function testExistingWorkspaceIsIdempotent() {
     assert.deepEqual(result.provisionedWorkers, ["lowgw8"]);
     assert.equal(result.openAiWorkerCount, 2);
     assert.equal(result.deepseekWorkerCount, 1);
+    assert.equal(result.replicaMetadataUpdated, true);
     assert.equal(result.restartRequired, true);
     assert.equal(result.skillStoreProvisioned, true);
     assert.equal(fs.existsSync(result.skillStorePath), true);
@@ -127,6 +137,7 @@ function testExistingWorkspaceIsIdempotent() {
     assert.equal(second.provisioned, false);
     assert.equal(second.restartRequired, false);
     assert.equal(second.skillStoreProvisioned, false);
+    assert.equal(second.replicaMetadataUpdated, false);
     assert.equal(second.openAiWorkerCount, 2);
     assert.equal(second.deepseekWorkerCount, 1);
   });
@@ -148,12 +159,15 @@ function testRefreshProfileBindingMarksExistingWorkspaceProfiles() {
     assert.equal(result.ok, true);
     assert.equal(result.provisioned, false);
     assert.equal(result.profileBindingRefreshed, true);
+    assert.equal(result.replicaMetadataUpdated, true);
     assert.equal(result.restartRequired, true);
     assert.deepEqual(result.provisionedWorkers, []);
     const manifest = readManifest(manifestPath);
     assert.equal(manifest.updatedAt, "2026-05-22T12:00:00.000Z");
     assert.equal(manifest.workers.find((item) => item.profile === "lowgw9").pluginBindingUpdatedAt, "2026-05-22T12:00:00.000Z");
+    assert.equal(manifest.workers.find((item) => item.profile === "lowgw9").profileTemplateKey, "weixin_wuping|user|openai-codex");
     assert.equal(manifest.workers.find((item) => item.profile === "deepseekgw9").pluginBindingUpdatedAt, "2026-05-22T12:00:00.000Z");
+    assert.equal(manifest.workers.find((item) => item.profile === "deepseekgw9").profileTemplateKey, "weixin_wuping|user|deepseek");
   });
 }
 

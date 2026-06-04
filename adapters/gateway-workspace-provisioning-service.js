@@ -1,5 +1,10 @@
 "use strict";
 
+const {
+  annotateGatewayManifestReplicaMetadata,
+  annotateGatewayWorkerReplicaMetadata,
+} = require("./gateway-pool-manifest-replica-metadata-service");
+
 function cleanWorkspaceId(value) {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
 }
@@ -174,7 +179,7 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
       while (existing.length < minimum) {
         const nextIndex = nextGatewayIndexForProvider(workers, provider, preferredIndex);
         const profile = `${profilePrefixForProvider(provider)}${nextIndex}`;
-        const newWorker = Object.assign({}, providerTemplate, {
+        const newWorker = annotateGatewayWorkerReplicaMetadata(Object.assign({}, providerTemplate, {
           name: profile,
           profile,
           host: providerTemplate.host || "127.0.0.1",
@@ -189,7 +194,7 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
           tags: tagsForProvider(providerTemplate, provider),
           telemetryStateDbPath: replaceProfileInPath(providerTemplate.telemetryStateDbPath, profile),
           telemetryResponseStoreDbPath: replaceProfileInPath(providerTemplate.telemetryResponseStoreDbPath, profile),
-        });
+        }));
         workers.push(newWorker);
         existing.push(newWorker);
         provisionedWorkers.push(newWorker);
@@ -209,7 +214,12 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
       const refreshedAt = nowIso();
       for (const worker of allWorkspaceWorkers) worker.pluginBindingUpdatedAt = refreshedAt;
     }
-    if (provisionedWorkers.length || profileBindingRefreshed) {
+    const annotatedManifest = annotateGatewayManifestReplicaMetadata(Object.assign({}, manifest, { workers }));
+    if (annotatedManifest.changed) {
+      workers.splice(0, workers.length, ...annotatedManifest.manifest.workers);
+      manifest.workers = workers;
+    }
+    if (provisionedWorkers.length || profileBindingRefreshed || annotatedManifest.changed) {
       manifest.enabled = manifest.enabled !== false;
       manifest.workers = workers;
       manifest.updatedAt = nowIso();
@@ -229,6 +239,8 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
       openAiWorkerCount: openAiWorkers.length,
       deepseekWorkerCount: deepseekWorkers.length,
       provisionedWorkers: provisionedWorkers.map((worker) => worker.profile).filter(Boolean),
+      replicaMetadataUpdated: annotatedManifest.changed,
+      replicaMetadataUpdatedCount: annotatedManifest.updatedWorkerCount,
       lowGatewayCount: lowCount,
       deepseekGatewayCount: deepseekCount,
       restartRequired: Boolean(provisionedWorkers.length || skillStore.skillStoreProvisioned || profileBindingRefreshed),

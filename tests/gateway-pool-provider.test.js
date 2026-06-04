@@ -26,6 +26,10 @@ function testNormalizeWorker() {
     id: "worker1",
     name: "worker1",
     profile: "worker1",
+    replicaId: "",
+    profileAlias: "worker1",
+    profileTemplateKey: "",
+    poolKey: "",
     apiBase: "http://127.0.0.1:8651",
     apiKey: "k",
     provider: "",
@@ -49,6 +53,17 @@ function testNormalizeWorker() {
   });
   assert.equal(skillWorker.skillProfile, "workspace:weixin_example_user");
   assert.deepEqual(skillWorker.skillWorkspaceIds, ["weixin_example_user", "weixin_test"]);
+  const replicaWorker = normalizeWorker({
+    profile: "lowgw5",
+    port: 18755,
+    replica_id: "replica-weixin-test-1",
+    profile_template_key: "weixin_test_1|user|openai-codex",
+    pool_key: "weixin_test_1|user|openai-codex",
+  });
+  assert.equal(replicaWorker.replicaId, "replica-weixin-test-1");
+  assert.equal(replicaWorker.profileAlias, "lowgw5");
+  assert.equal(replicaWorker.profileTemplateKey, "weixin_test_1|user|openai-codex");
+  assert.equal(replicaWorker.poolKey, "weixin_test_1|user|openai-codex");
   assert.deepEqual(normalizeWorker({ profile: "toolgw", port: 18777, toolsets: ["web", "finance"] }).toolsets, ["web", "finance"]);
   assert.equal(normalizeSecurityLevel("low-privilege"), "user");
   assert.equal(normalizeSecurityLevel("admin"), "owner-maintenance");

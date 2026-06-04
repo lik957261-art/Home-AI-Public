@@ -1,7 +1,8 @@
 # Gateway Profile Replica Pools
 
-Status: design, harness, and first runtime scheduler migration are enabled.
-The manifest format and legacy launch script aliases remain compatible.
+Status: design, harness, runtime scheduler migration, launch metadata, and
+manifest replica metadata backfill are enabled. Legacy launch script aliases
+remain compatible.
 
 ## Problem
 
@@ -208,6 +209,31 @@ telemetry paths, port mapping, and bounded diagnostics. Do not remove those
 aliases from scripts until the manifest and process lifecycle no longer depend
 on them.
 
+### Phase F: Manifest Metadata And Replica-First Scheduler State
+
+Implemented in this change:
+
+- `adapters/gateway-pool-manifest-replica-metadata-service.js` derives
+  secret-free `replicaId`, `profileAlias`, `profileTemplateKey`, and `poolKey`
+  fields for manifest workers.
+- `scripts/normalize-gateway-pool-manifest-replica-metadata.js` can dry-run or
+  write those fields into an existing manifest without printing worker bodies
+  or API keys.
+- `adapters/gateway-workspace-provisioning-service.js` writes replica metadata
+  for new workspace workers and backfills existing manifest workers when a
+  provisioning or binding-refresh operation touches the manifest.
+- `adapters/gateway-pool-provider.js` preserves manifest replica metadata when
+  normalizing workers.
+- `adapters/gateway-elastic-worker-scheduler.js` now keys scheduler state and
+  run assignment by `replicaId` before falling back to legacy worker/profile
+  fields. This keeps an explicit replica id from losing warm/busy/idle state
+  when it differs from the manifest row id.
+
+The profile alias remains the launch-script handle. The manifest metadata is
+not trusted as an authorization source: template/pool identity is still
+re-derived from workspace, permission tier, provider, and runtime hints before
+selection and status projection.
+
 ## Harness Coverage
 
 `node tests\gateway-profile-replica-model-harness.test.js` covers:
@@ -247,6 +273,20 @@ carry bounded template metadata, custom launch scripts remain backward
 compatible, PowerShell/WSL child scripts pass only `HERMES_GATEWAY_REQUEST_*`
 metadata, and the shell start script records the template materialization
 request before using the existing builder-backed peer expansion.
+
+Phase F manifest/state coverage is in:
+
+- `node tests\gateway-pool-manifest-replica-metadata-service.test.js`
+- `node tests\gateway-pool-manifest-replica-metadata-script.test.js`
+- `node tests\gateway-workspace-provisioning-service.test.js`
+- `node tests\gateway-pool-provider.test.js`
+- `node tests\gateway-elastic-worker-scheduler.test.js`
+
+These tests prove manifest metadata is derived without leaking API keys,
+stale manifest template fields are overwritten by canonical tuple metadata,
+workspace provisioning writes and backfills replica metadata, provider
+normalization preserves it, and scheduler state/release uses `replicaId` when
+it differs from the manifest row id.
 
 ## Privacy Boundary
 

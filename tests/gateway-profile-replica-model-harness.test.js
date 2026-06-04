@@ -102,10 +102,32 @@ function testTemplateKeyMatchesCurrentGatewayTemplateTuple() {
   }), "owner|user|openai-codex");
 }
 
+function testExplicitReplicaIdCanDifferFromProfileAlias() {
+  const replica = normalizeGatewayWorkerReplica(worker("lowgw1", {
+    id: "manifest-row-owner-1",
+    replicaId: "replica-owner-1",
+    profileAlias: "lowgw1",
+  }));
+
+  assert.equal(replica.replicaId, "replica-owner-1");
+  assert.equal(replica.profileAlias, "lowgw1");
+  assert.equal(replica.profileTemplateKey, "owner|user|openai-codex");
+  assert.equal(buildGatewayReplicaIdentityKey({
+    id: "manifest-row-owner-1",
+    profile: "lowgw1",
+    replicaId: "replica-owner-1",
+    provider: "openai-codex",
+    securityLevel: "user",
+    allowedWorkspaceIds: ["owner"],
+    skillWorkspaceIds: ["owner"],
+  }).includes("replica=replica-owner-1"), true);
+}
+
 testLegacyOwnerAliasesShareTemplateButNotReplicaIdentity();
 testRunCompatibilityDoesNotDependOnLegacySlotNumberOrEndpoint();
 testProviderWorkspaceAndPermissionRemainPoolBoundaries();
 testReplicaPoolSummaryIsBoundedAndSecretFree();
 testTemplateKeyMatchesCurrentGatewayTemplateTuple();
+testExplicitReplicaIdCanDifferFromProfileAlias();
 
 console.log("gateway profile replica model harness passed");

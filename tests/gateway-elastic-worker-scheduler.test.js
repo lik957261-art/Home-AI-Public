@@ -111,6 +111,34 @@ async function testWarmCompatibleWorkerIsReusedWithoutStarting() {
   assert.equal(JSON.stringify(calls.events).includes("lowgw1-secret"), false);
 }
 
+async function testSchedulerStateUsesReplicaIdWhenWorkerIdDiffers() {
+  const { calls, scheduler } = createHarness({ initialHealthy: ["lowgw1"] });
+  const workers = [worker("lowgw1", {
+    id: "manifest-row-owner-1",
+    replicaId: "replica-owner-1",
+    allowedWorkspaceIds: ["owner"],
+    skillWorkspaceIds: ["owner"],
+  })];
+  scheduler.markWorkerWarm(workers[0], { workspaceId: "owner" });
+  assert.equal(scheduler.status(workers).workers[0].state, "warm");
+
+  const target = await scheduler.chooseTarget({
+    allWorkers: workers,
+    candidates: workers,
+    hints: { workspaceId: "owner", provider: "openai-codex", securityLevel: "user" },
+    runId: "run-replica-id",
+    onEvent: (event) => calls.events.push(event),
+  });
+
+  assert.equal(target.profile, "lowgw1");
+  assert.equal(target.schedulerEvent.workerId, "replica-owner-1");
+  assert.equal(target.schedulerEvent.replicaId, "replica-owner-1");
+  assert.equal(scheduler.status(workers).workers[0].state, "busy");
+  assert.equal(scheduler.releaseRun("run-replica-id"), true);
+  assert.equal(scheduler.status(workers).workers[0].state, "idle");
+  assert.equal(JSON.stringify(calls.events).includes("lowgw1-secret"), false);
+}
+
 function testRuntimeCompatibilityDoesNotDependOnReplicaAliasOrEndpoint() {
   const hints = {
     workspaceId: "owner",
@@ -649,6 +677,7 @@ function testConfigDefaultsAndAliases() {
   testConfigDefaultsAndAliases();
   await testStartupPlanKeepsOnlyOwnerWarmBaseline();
   await testWarmCompatibleWorkerIsReusedWithoutStarting();
+  await testSchedulerStateUsesReplicaIdWhenWorkerIdDiffers();
   testRuntimeCompatibilityDoesNotDependOnReplicaAliasOrEndpoint();
   await testAlreadyRunningConfiguredWorkerIsReusedWithoutRestart();
   await testExternallyWarmLaterCandidateIsReusedBeforeColdStart();

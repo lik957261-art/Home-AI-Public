@@ -86,7 +86,7 @@ function normalizeGatewayWorkerReplica(worker = {}, hints = {}) {
   const replicaId = replicaIdForWorker(worker);
   return {
     replicaId,
-    profileAlias: cleanString(worker.profile || ""),
+    profileAlias: cleanString(worker.profileAlias || worker.profile_alias || worker.profile || ""),
     profileTemplateKey,
     poolKey,
     workspaceId: workspaceIdForProfileTemplate(worker, hints),

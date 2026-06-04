@@ -153,6 +153,11 @@ function replicaProjection(worker = {}, hints = {}) {
   return normalizeGatewayWorkerReplica(worker, hints);
 }
 
+function schedulerWorkerStateId(worker = {}, hints = {}) {
+  const replica = replicaProjection(worker, hints);
+  return cleanString(replica.replicaId || worker.id || worker.profile || worker.apiBase || worker.api_base);
+}
+
 function workerCapabilityHash(worker = {}) {
   return cleanString(worker.capabilityHash || worker.materializedCapabilityHash || "");
 }
@@ -288,7 +293,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
   let nextSyntheticRunId = 1;
 
   function getState(worker) {
-    const id = cleanString(worker?.id || worker?.profile || worker?.apiBase);
+    const id = schedulerWorkerStateId(worker);
     if (!id) return null;
     workerById.set(id, worker);
     if (!stateByWorkerId.has(id)) {
@@ -359,7 +364,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     return Object.assign({
       event: eventName,
       reason: extra.reason || "",
-      workerId: cleanString(worker?.id),
+      workerId: schedulerWorkerStateId(worker, hints),
       replicaId: replica.replicaId,
       poolKey: replica.poolKey,
       profileId: cleanString(worker?.profile),
@@ -893,7 +898,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
 
   function status(workers = []) {
     const now = nowMs();
-    const publicWorkers = (Array.isArray(workers) ? workers : []).map((worker) => publicState(worker, stateByWorkerId.get(worker.id), now));
+    const publicWorkers = (Array.isArray(workers) ? workers : []).map((worker) => publicState(worker, stateByWorkerId.get(schedulerWorkerStateId(worker)), now));
     return {
       mode: "hybrid",
       elastic: true,

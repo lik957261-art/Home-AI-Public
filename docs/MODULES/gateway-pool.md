@@ -245,6 +245,17 @@ ports, or raw keys. Status and scheduler events may expose bounded
 operators can still map a selected replica back to launch scripts and logs
 without treating that alias as capability ownership.
 
+Manifest workers may carry explicit non-secret replica metadata:
+`replicaId`, `profileAlias`, `profileTemplateKey`, and `poolKey`. New
+workspace provisioning writes these fields, and existing manifests can be
+backfilled with
+`node scripts\normalize-gateway-pool-manifest-replica-metadata.js --manifest <path> --write`.
+The script defaults to dry-run and prints only bounded counts. Runtime still
+re-derives template and pool identity from worker metadata and routing hints;
+the manifest fields are compatibility metadata, not an authorization source.
+Scheduler state and run assignment now use a replica-first state key, falling
+back to the legacy `profile` only when `replicaId` is absent.
+
 Cold-start launch requests must carry the same bounded template metadata into
 the process startup path. The standard listener path sends `poolKey`,
 `profileTemplateKey` / `templateKey`, `replicaId`, `profileAlias`, workspace

@@ -20,6 +20,10 @@ This reference documents public-safe manifest fields. The example file is `examp
 | --- | --- | --- |
 | `name` | yes | Public-safe worker label shown in status/debug projections. |
 | `profile` | yes | Official Hermes Gateway profile name. |
+| `replicaId` | recommended | Stable runnable replica identity. During migration this usually equals `profile`, but scheduler state uses it before falling back to legacy aliases. |
+| `profileAlias` | recommended | Legacy Gateway profile alias used by launch scripts, telemetry paths, and bounded diagnostics. It must not be treated as capability ownership. |
+| `profileTemplateKey` | recommended | Derived capability template key in the current `<workspaceId>|<securityLevel>|<provider>` form. Runtime re-derives this value from worker metadata and routing hints before scheduling. |
+| `poolKey` | recommended | Derived pool identity. In the current implementation it equals `profileTemplateKey`. |
 | `host` | yes | Host used by Hermes Mobile to reach the Gateway API. |
 | `port` | yes | Gateway API port. |
 | `api_key` | deployment-only | Worker API key. Never commit real values. Prefer key-file/env injection in stricter deployments. |
@@ -105,10 +109,18 @@ This reference documents public-safe manifest fields. The example file is `examp
   `profile`/`port` pairs.
 - Do not use a broad `allowedWorkspaceIds: ["*"]` plus shared writable Skill store unless the deployment intentionally accepts that sharing model.
 - Keep manifest diagnostics non-secret in browser status projections.
+- Keep `replicaId`, `profileAlias`, `profileTemplateKey`, and `poolKey`
+  secret-free. These fields are metadata only. Do not place API keys, token
+  paths, launch URLs, prompts, model output, or full config bodies in them.
+- `profile` remains the process launch name while migration is in progress.
+  Do not remove or rename it until the startup scripts no longer use profile
+  directories and `-StartProfiles` / `-StopProfiles` arguments.
 
 ## Validation
 
 - `node tests\gateway-pool-provider.test.js`
+- `node tests\gateway-pool-manifest-replica-metadata-service.test.js`
+- `node tests\gateway-pool-manifest-replica-metadata-script.test.js`
 - `node tests\gateway-run-start-service.test.js`
 - `node tests\gateway-run-toolset-routing-service.test.js`
 - `node tests\startup-scripts.test.js`
