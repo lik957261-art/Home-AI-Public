@@ -507,6 +507,56 @@ async function testHybridModeStartsCompatibleWorkerAndEmitsBoundedEvents() {
   fs.rmSync(manifest.dir, { recursive: true, force: true });
 }
 
+async function testHybridModeReusesExternallyWarmWorkerBeforeStartingEarlierCandidate() {
+  const manifest = tempManifest({
+    enabled: true,
+    workers: [
+      { name: "owner-extra", profile: "lowgw2", port: 18752, api_key: "extra-secret", provider: "openai-codex", securityLevel: "user", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"], toolsets: ["email"] },
+      { name: "owner-warm", profile: "lowgw1", port: 18751, api_key: "warm-secret", provider: "openai-codex", securityLevel: "user", allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"], toolsets: ["email"] },
+    ],
+  });
+  const healthyProfiles = new Set(["lowgw1"]);
+  const started = [];
+  const events = [];
+  const provider = createGatewayPoolProvider({
+    enabled: "auto",
+    startMode: "hybrid",
+    elastic: { ownerMaxWorkers: 4, workspaceMaxWorkers: 2, globalMaxWorkers: 4 },
+    manifestPaths: [manifest.file],
+    fallbackApiBase: "http://fallback.example.test",
+    createGatewayRunner,
+    startWorkerProfile: async (worker) => {
+      started.push(worker.profile);
+      healthyProfiles.add(worker.profile);
+    },
+    fetchImpl: async (url) => {
+      if (url.includes(":18751/") && healthyProfiles.has("lowgw1")) return jsonResponse({ status: "ok" });
+      if (url.includes(":18752/") && healthyProfiles.has("lowgw2")) return jsonResponse({ status: "ok" });
+      return jsonResponse({ error: "down" }, { status: 503 });
+    },
+  });
+
+  const chosen = await provider.chooseTarget({
+    provider: "openai-codex",
+    securityLevel: "user",
+    workspaceId: "owner",
+    skillWorkspaceId: "owner",
+    pluginToolsets: ["email"],
+  }, {
+    runId: "run-email",
+    onEvent: (event) => events.push(event),
+  });
+
+  assert.equal(chosen.profile, "lowgw1");
+  assert.deepEqual(started, []);
+  assert.deepEqual(events.map((event) => event.event), ["run.gateway_worker_reused"]);
+  assert.equal(events[0].decisionTrace.some((item) => item.profileId === "lowgw2" && item.reason === "external_health_probe_failed"), true);
+  assert.equal(events[0].decisionTrace.some((item) => item.profileId === "lowgw1" && item.reason === "external_health_probe_reusable"), true);
+  assert.equal(JSON.stringify(events).includes("warm-secret"), false);
+  assert.equal(JSON.stringify(events).includes("extra-secret"), false);
+  fs.rmSync(manifest.dir, { recursive: true, force: true });
+}
+
 async function testHybridModeReusesIdleWorkerAcrossRequestToolsetHints() {
   const manifest = tempManifest({
     enabled: true,
@@ -803,6 +853,7 @@ async function testHybridStatusClearsStoppedWarmWorker() {
   await testProviderSpecificOwnerMaintenanceChoosesDeepSeekWorker();
   await testUserRunsFailClosedWithoutUserWorker();
   await testHybridModeStartsCompatibleWorkerAndEmitsBoundedEvents();
+  await testHybridModeReusesExternallyWarmWorkerBeforeStartingEarlierCandidate();
   await testHybridModeReusesIdleWorkerAcrossRequestToolsetHints();
   await testHybridModeStartsOwnerMaintenanceProfileOnDemand();
   await testHybridStatusReportsConfiguredStoppedAsExpectedState();

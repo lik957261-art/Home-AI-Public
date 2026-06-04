@@ -931,6 +931,12 @@ Required harness dimensions:
 - A compatible warm worker must be reused instead of starting a new process;
   an already-running configured worker discovered by health check must also be
   marked warm and reused rather than restarted.
+- If the scheduler's in-memory state says an earlier candidate is `configured`
+  but a later compatible candidate is already healthy, the later warm process
+  must be reused before any cold start. The run-progress scheduler event must
+  carry a bounded `decisionTrace` that explains the skipped candidate and the
+  selected worker without exposing API keys, workspace keys, plugin launch
+  tokens, prompts, model output, or long logs.
 - Provider/profile selection is part of compatibility. A DeepSeek, Grok, or
   OpenAI/Codex request must select or start a compatible profile and must not
   silently reroute to another provider merely to reuse a warm worker.

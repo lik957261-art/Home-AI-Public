@@ -17,6 +17,7 @@ const DEFAULT_CONFIG = Object.freeze({
 });
 
 const STARTED_STATES = new Set(["starting", "warm", "busy", "idle", "idle_stopping"]);
+const DECISION_TRACE_LIMIT = 12;
 
 function cleanString(value) {
   return String(value || "").trim();
@@ -365,7 +366,53 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     }, extra);
   }
 
-  function assignRun(worker, state, runId, hints, reason) {
+  function decisionTraceEntry(worker, state, hints, reason, extra = {}) {
+    const expectedKey = buildGatewayWorkerCompatibilityKey(worker, hints);
+    let compatibility = "unset";
+    if (state?.compatibilityKey) {
+      compatibility = state.compatibilityKey === expectedKey ? "match" : "mismatch";
+    }
+    return Object.assign({
+      profileId: cleanString(worker?.profile),
+      provider: providerKey(worker, hints),
+      workspaceId: actorWorkspaceId(hints, worker),
+      permissionTier: permissionTier(worker, hints),
+      state: state?.state || "configured",
+      expectedRunning: STARTED_STATES.has(state?.state || "configured"),
+      healthy: state?.healthy == null ? null : Boolean(state.healthy),
+      activeRunCount: state?.activeRunIds?.size || 0,
+      identity: materializedIdentityMatches(worker, state || {}, hints) ? "match" : "mismatch",
+      compatibility,
+      reason,
+    }, extra);
+  }
+
+  function appendDecisionTrace(trace, worker, state, hints, reason, extra = {}) {
+    if (!Array.isArray(trace) || trace.length >= DECISION_TRACE_LIMIT) return;
+    trace.push(decisionTraceEntry(worker, state, hints, reason, extra));
+  }
+
+  function markHealthyState(worker, state, hints) {
+    state.healthy = true;
+    if (!STARTED_STATES.has(state.state) || state.state === "configured" || state.state === "failed" || state.state === "retired") {
+      state.state = "warm";
+      state.workspaceId = actorWorkspaceId(hints, worker);
+      state.actorClass = actorClassForWorkspace(state.workspaceId);
+      state.provider = providerKey(worker, hints);
+      state.permissionTier = permissionTier(worker, hints);
+      state.compatibilityKey = buildGatewayWorkerCompatibilityKey(worker, hints);
+    }
+    rememberMaterializedIdentity(state, worker, hints);
+  }
+
+  function eventExtraWithTrace(extra = {}, trace = []) {
+    if (!Array.isArray(trace) || !trace.length) return extra;
+    return Object.assign({}, extra, {
+      decisionTrace: trace.slice(0, DECISION_TRACE_LIMIT),
+    });
+  }
+
+  function assignRun(worker, state, runId, hints, reason, extra = {}) {
     const id = cleanString(runId);
     if (id) {
       state.activeRunIds.add(id);
@@ -393,7 +440,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
         worker,
         state,
         hints,
-        { reason },
+        Object.assign({ reason }, extra),
       ),
     });
   }
@@ -402,15 +449,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     const healthy = await isHealthy(worker);
     state.healthy = healthy;
     if (!healthy) return false;
-    if (!STARTED_STATES.has(state.state) || state.state === "configured" || state.state === "failed" || state.state === "retired") {
-      state.state = "warm";
-      state.workspaceId = actorWorkspaceId(hints, worker);
-      state.actorClass = actorClassForWorkspace(state.workspaceId);
-      state.provider = providerKey(worker, hints);
-      state.permissionTier = permissionTier(worker, hints);
-      state.compatibilityKey = buildGatewayWorkerCompatibilityKey(worker, hints);
-    }
-    rememberMaterializedIdentity(state, worker, hints);
+    markHealthyState(worker, state, hints);
     return true;
   }
 
@@ -427,19 +466,72 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     return false;
   }
 
-  function chooseReusable(candidates, hints) {
+  function chooseReusable(candidates, hints, trace = []) {
     const key = (worker) => buildGatewayWorkerCompatibilityKey(worker, hints);
     for (const worker of candidates) {
       const state = getState(worker);
-      if (!state || state.state === "failed" || state.state === "retired" || state.state === "starting") continue;
-      if (!STARTED_STATES.has(state.state)) continue;
-      if (state.activeRunIds.size > 0) continue;
-      const expectedKey = key(worker);
-      if (!materializedIdentityMatches(worker, state, hints)) continue;
-      if (state.compatibilityKey && state.compatibilityKey !== expectedKey) {
-        if (!["warm", "idle"].includes(state.state)) continue;
-        state.compatibilityKey = expectedKey;
+      if (!state) {
+        appendDecisionTrace(trace, worker, state, hints, "missing_state");
+        continue;
       }
+      if (state.state === "failed" || state.state === "retired" || state.state === "starting") {
+        appendDecisionTrace(trace, worker, state, hints, `state_${state.state}`);
+        continue;
+      }
+      if (!STARTED_STATES.has(state.state)) {
+        appendDecisionTrace(trace, worker, state, hints, "not_started_in_scheduler");
+        continue;
+      }
+      if (state.activeRunIds.size > 0) {
+        appendDecisionTrace(trace, worker, state, hints, "busy");
+        continue;
+      }
+      const expectedKey = key(worker);
+      if (!materializedIdentityMatches(worker, state, hints)) {
+        appendDecisionTrace(trace, worker, state, hints, "materialized_identity_mismatch");
+        continue;
+      }
+      if (state.compatibilityKey && state.compatibilityKey !== expectedKey) {
+        if (!["warm", "idle"].includes(state.state)) {
+          appendDecisionTrace(trace, worker, state, hints, "compatibility_mismatch_busy_or_starting");
+          continue;
+        }
+        state.compatibilityKey = expectedKey;
+        appendDecisionTrace(trace, worker, state, hints, "compatibility_refreshed");
+      } else {
+        appendDecisionTrace(trace, worker, state, hints, "reusable_candidate");
+      }
+      return { worker, state };
+    }
+    return null;
+  }
+
+  async function chooseExternallyHealthy(candidates, hints, trace = []) {
+    for (const worker of candidates) {
+      const state = getState(worker);
+      if (!state) {
+        appendDecisionTrace(trace, worker, state, hints, "missing_state_external_probe");
+        continue;
+      }
+      if (STARTED_STATES.has(state.state) || state.state === "starting" || state.state === "retired") {
+        continue;
+      }
+      if (!materializedIdentityMatches(worker, state, hints)) {
+        appendDecisionTrace(trace, worker, state, hints, "materialized_identity_mismatch_external_probe");
+        continue;
+      }
+      const healthy = await isHealthy(worker);
+      state.healthy = healthy;
+      if (!healthy) {
+        appendDecisionTrace(trace, worker, state, hints, "external_health_probe_failed");
+        continue;
+      }
+      markHealthyState(worker, state, hints);
+      if (!materializedIdentityMatches(worker, state, hints)) {
+        appendDecisionTrace(trace, worker, state, hints, "materialized_identity_mismatch_after_external_probe");
+        continue;
+      }
+      appendDecisionTrace(trace, worker, state, hints, "external_health_probe_reusable", { selected: true });
       return { worker, state };
     }
     return null;
@@ -469,12 +561,12 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     if (next) next.resolve();
   }
 
-  async function waitForCapacity(candidates, hints, runId, onEvent, reason) {
+  async function waitForCapacity(candidates, hints, runId, onEvent, reason, trace = []) {
     const workspaceId = actorWorkspaceId(hints, candidates[0]);
-    emit(onEvent, schedulerEvent("run.gateway_worker_queued", candidates[0] || {}, null, hints, {
+    emit(onEvent, schedulerEvent("run.gateway_worker_queued", candidates[0] || {}, null, hints, eventExtraWithTrace({
       reason,
       runId: cleanString(runId),
-    }));
+    }, trace)));
     await new Promise((resolve, reject) => {
       const waiter = { workspaceId, resolve, reject };
       waiter.resolve = () => {
@@ -498,17 +590,17 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     });
   }
 
-  async function startAndAssign(worker, state, hints, runId, onEvent) {
+  async function startAndAssign(worker, state, hints, runId, onEvent, trace = []) {
     const startedAt = nowMs();
     state.state = "starting";
     state.workspaceId = actorWorkspaceId(hints, worker);
     state.actorClass = actorClassForWorkspace(state.workspaceId);
     state.compatibilityKey = buildGatewayWorkerCompatibilityKey(worker, hints);
     state.healthy = null;
-    emit(onEvent, schedulerEvent("run.gateway_worker_starting", worker, state, hints, {
+    emit(onEvent, schedulerEvent("run.gateway_worker_starting", worker, state, hints, eventExtraWithTrace({
       reason: "worker_starting",
       runId: cleanString(runId),
-    }));
+    }, trace)));
     try {
       await startWorker(worker, { hints, runId, timeoutMs: config.startTimeoutMs });
       const healthy = await waitForStartedHealthy(worker);
@@ -522,18 +614,18 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       state.lastFailureCode = "";
       state.lastFailureAt = null;
       rememberMaterializedIdentity(state, worker, hints, { overwrite: true });
-      return assignRun(worker, state, runId, hints, "worker_started");
+      return assignRun(worker, state, runId, hints, "worker_started", eventExtraWithTrace({}, trace));
     } catch (err) {
       state.state = "failed";
       state.healthy = false;
       state.lastFailureCode = cleanString(err?.code || "start_failed");
       state.lastFailureAt = nowMs();
-      const event = schedulerEvent("run.gateway_worker_start_failed", worker, state, hints, {
+      const event = schedulerEvent("run.gateway_worker_start_failed", worker, state, hints, eventExtraWithTrace({
         reason: "worker_start_failed",
         runId: cleanString(runId),
         failureCode: state.lastFailureCode,
         diagnostic: sanitizeFailureMessage(err),
-      });
+      }, trace));
       emit(onEvent, event);
       const out = new Error("Gateway worker failed to start.");
       out.status = 503;
@@ -556,10 +648,35 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     }
 
     while (true) {
-      const reusable = chooseReusable(candidates, hints);
+      const decisionTrace = [];
+      const reusable = chooseReusable(candidates, hints, decisionTrace);
       if (reusable && await markExistingHealthy(reusable.worker, reusable.state, hints)) {
-        if (!materializedIdentityMatches(reusable.worker, reusable.state, hints)) continue;
-        const target = assignRun(reusable.worker, reusable.state, runId, hints, "worker_reused");
+        if (!materializedIdentityMatches(reusable.worker, reusable.state, hints)) {
+          appendDecisionTrace(decisionTrace, reusable.worker, reusable.state, hints, "materialized_identity_mismatch_after_reuse_probe");
+          continue;
+        }
+        const target = assignRun(
+          reusable.worker,
+          reusable.state,
+          runId,
+          hints,
+          "worker_reused",
+          eventExtraWithTrace({}, decisionTrace),
+        );
+        emit(onEvent, Object.assign({}, target.schedulerEvent, { runId }));
+        return target;
+      }
+
+      const externallyHealthy = await chooseExternallyHealthy(candidates, hints, decisionTrace);
+      if (externallyHealthy) {
+        const target = assignRun(
+          externallyHealthy.worker,
+          externallyHealthy.state,
+          runId,
+          hints,
+          "worker_reused",
+          eventExtraWithTrace({}, decisionTrace),
+        );
         emit(onEvent, Object.assign({}, target.schedulerEvent, { runId }));
         return target;
       }
@@ -569,9 +686,20 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       const requestedTier = permissionTier(startable?.worker || candidates[0], hints);
       const requestedProvider = providerKey(startable?.worker || candidates[0], hints);
       const maxWorkspace = maxForWorkspace(workspaceId, requestedTier, requestedProvider);
-      if (startable && await markExistingHealthy(startable.worker, startable.state, hints)) {
-        if (!materializedIdentityMatches(startable.worker, startable.state, hints)) continue;
-        const target = assignRun(startable.worker, startable.state, runId, hints, "worker_reused");
+      if (startable && startable.state.healthy !== false && await markExistingHealthy(startable.worker, startable.state, hints)) {
+        if (!materializedIdentityMatches(startable.worker, startable.state, hints)) {
+          appendDecisionTrace(decisionTrace, startable.worker, startable.state, hints, "materialized_identity_mismatch_after_startable_probe");
+          continue;
+        }
+        appendDecisionTrace(decisionTrace, startable.worker, startable.state, hints, "startable_health_probe_reusable", { selected: true });
+        const target = assignRun(
+          startable.worker,
+          startable.state,
+          runId,
+          hints,
+          "worker_reused",
+          eventExtraWithTrace({}, decisionTrace),
+        );
         emit(onEvent, Object.assign({}, target.schedulerEvent, { runId }));
         return target;
       }
@@ -579,12 +707,13 @@ function createGatewayElasticWorkerScheduler(options = {}) {
         && (!config.globalMaxWorkers || startedStates().length < config.globalMaxWorkers)
         && (!maxWorkspace || runningCountForWorkspace(workspaceId, requestedTier, requestedProvider) < maxWorkspace);
       if (canStart) {
-        const target = await startAndAssign(startable.worker, startable.state, hints, runId, onEvent);
+        appendDecisionTrace(decisionTrace, startable.worker, startable.state, hints, "cold_start_selected", { selected: true });
+        const target = await startAndAssign(startable.worker, startable.state, hints, runId, onEvent, decisionTrace);
         emit(onEvent, Object.assign({}, target.schedulerEvent, { runId }));
         return target;
       }
 
-      await waitForCapacity(candidates, hints, runId, onEvent, capacityReason(candidates, hints));
+      await waitForCapacity(candidates, hints, runId, onEvent, capacityReason(candidates, hints), decisionTrace);
     }
   }
 

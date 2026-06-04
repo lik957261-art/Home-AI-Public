@@ -209,8 +209,11 @@ continuing to report a stopped process as warm.
 
 1. Normalize the run target from request, route, workspace policy, provider
    selection, toolset policy, and permission tier.
-2. Search for a compatible `warm`, `idle`, or already-running configured worker
-   with spare execution capacity.
+2. Search for a compatible `warm` or `idle` worker with spare execution
+   capacity. If scheduler memory still marks a candidate `configured`, probe all
+   compatible candidates for external health before cold-starting the first
+   stopped profile; a healthy already-running process must be marked `warm` and
+   reused.
 3. If found, assign the run and emit a bounded status event such as
    `run.gateway_worker_reused`.
 4. If none is found, check the workspace actor cap and the global elastic cap.
@@ -260,6 +263,14 @@ The status payload should include only non-secret metadata:
 It must not expose raw API keys, workspace keys, browser cookies, OAuth tokens,
 plugin launch tokens, push endpoints, raw prompts, raw model output, or long
 logs.
+
+Scheduler events that select, start, queue, or fail a worker may include a
+bounded `decisionTrace`. The trace is diagnostic metadata only: profile id,
+provider, workspace id, permission tier, scheduler state, health-known state,
+active-run count, materialized identity match, compatibility status, skip
+reason, and selected flag. It must not include API keys, workspace keys,
+browser cookies, OAuth tokens, plugin launch tokens, push endpoints, prompts,
+model output, or long logs.
 
 ## Production Startup
 

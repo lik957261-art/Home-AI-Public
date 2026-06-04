@@ -72,6 +72,10 @@ function createHarness(overrides = {}) {
   };
 }
 
+async function flushSchedulerMicrotasks(count = 8) {
+  for (let index = 0; index < count; index += 1) await Promise.resolve();
+}
+
 async function testStartupPlanKeepsOnlyOwnerWarmBaseline() {
   const { scheduler } = createHarness();
   const workers = [
@@ -122,6 +126,33 @@ async function testAlreadyRunningConfiguredWorkerIsReusedWithoutRestart() {
   assert.deepEqual(calls.starts, []);
   assert.deepEqual(calls.healthy, ["lowgw1"]);
   assert.equal(calls.events[0].event, "run.gateway_worker_reused");
+}
+
+async function testExternallyWarmLaterCandidateIsReusedBeforeColdStart() {
+  const { calls, scheduler } = createHarness({ initialHealthy: ["lowgw1"] });
+  const stoppedFirst = worker("lowgw2", { allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] });
+  const externallyWarm = worker("lowgw1", { allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] });
+  const workers = [stoppedFirst, externallyWarm];
+
+  const target = await scheduler.chooseTarget({
+    allWorkers: workers,
+    candidates: workers,
+    hints: { workspaceId: "owner", provider: "openai-codex", securityLevel: "user" },
+    runId: "run-owner-external-warm",
+    onEvent: (event) => calls.events.push(event),
+  });
+
+  assert.equal(target.profile, "lowgw1");
+  assert.equal(target.schedulerEvent.reason, "worker_reused");
+  assert.deepEqual(calls.starts, []);
+  assert.deepEqual(calls.healthy, ["lowgw2", "lowgw1"]);
+  const event = calls.events.at(-1);
+  assert.equal(event.event, "run.gateway_worker_reused");
+  assert.equal(Array.isArray(event.decisionTrace), true);
+  assert.equal(event.decisionTrace.some((item) => item.profileId === "lowgw2" && item.reason === "external_health_probe_failed"), true);
+  assert.equal(event.decisionTrace.some((item) => item.profileId === "lowgw1" && item.reason === "external_health_probe_reusable" && item.selected === true), true);
+  assert.equal(JSON.stringify(event).includes("lowgw1-secret"), false);
+  assert.equal(JSON.stringify(event).includes("lowgw2-secret"), false);
 }
 
 async function testWarmWorkerWithStaleMaterializedHashIsNotReused() {
@@ -180,8 +211,7 @@ async function testOwnerExpandsToFourThenQueuesUntilRelease() {
     settled = true;
     return target;
   });
-  await Promise.resolve();
-  await Promise.resolve();
+  await flushSchedulerMicrotasks();
   assert.equal(settled, false);
   assert.equal(calls.events.at(-1).event, "run.gateway_worker_queued");
   assert.equal(calls.events.at(-1).reason, "workspace_capacity");
@@ -222,8 +252,7 @@ async function testOwnerMaintenanceWorkersDoNotConsumeUserWorkerCap() {
   assert.equal((await choose("run-owner-user-4")).profile, "lowgw4");
 
   const queued = choose("run-owner-user-5");
-  await Promise.resolve();
-  await Promise.resolve();
+  await flushSchedulerMicrotasks();
   assert.equal(calls.events.at(-1).reason, "workspace_capacity");
   scheduler.releaseRun("run-owner-user-1", "idle");
   assert.equal((await queued).profile, "lowgw1");
@@ -250,8 +279,7 @@ async function testOwnerMaintenanceUsesSeparateOnDemandCap() {
   assert.equal((await choose("run-maint-2")).profile, "officialclean2");
 
   const queued = choose("run-maint-3");
-  await Promise.resolve();
-  await Promise.resolve();
+  await flushSchedulerMicrotasks();
   assert.equal(calls.events.at(-1).event, "run.gateway_worker_queued");
   assert.equal(calls.events.at(-1).reason, "workspace_capacity");
   assert.deepEqual(calls.starts, ["officialclean1", "officialclean2"]);
@@ -276,8 +304,7 @@ async function testNonOwnerExpandsToTwoThenQueues() {
   assert.equal((await choose("run-a")).profile, "lowgw5");
   assert.equal((await choose("run-b")).profile, "lowgw6");
   const queued = choose("run-c");
-  await Promise.resolve();
-  await Promise.resolve();
+  await flushSchedulerMicrotasks();
   assert.equal(calls.events.at(-1).reason, "workspace_capacity");
   scheduler.releaseRun("run-a", "idle");
   assert.equal((await queued).profile, "lowgw5");
@@ -321,8 +348,7 @@ async function testGlobalCapQueuesBeforeWorkspaceCap() {
     runId: "run-3",
     onEvent: (event) => calls.events.push(event),
   });
-  await Promise.resolve();
-  await Promise.resolve();
+  await flushSchedulerMicrotasks();
   assert.equal(calls.events.at(-1).reason, "global_capacity");
   scheduler.releaseRun("run-1", "retired");
   assert.equal((await queued).profile, "lowgw5");
@@ -384,8 +410,7 @@ async function testOwnerDeepSeekUsesSeparateTwoWorkerCapAndNoWarmBaseline() {
   assert.equal((await chooseDeepSeek("run-deepseek-2")).profile, "deepseekgw2");
 
   const queued = chooseDeepSeek("run-deepseek-3");
-  await Promise.resolve();
-  await Promise.resolve();
+  await flushSchedulerMicrotasks();
   assert.equal(calls.events.at(-1).event, "run.gateway_worker_queued");
   assert.equal(calls.events.at(-1).reason, "workspace_capacity");
   scheduler.releaseRun("run-deepseek-1", "idle");
@@ -422,8 +447,7 @@ async function testNonOwnerDeepSeekUsesSingleWorkerCapSeparateFromOpenAi() {
   assert.equal((await chooseDeepSeek("run-deepseek-a")).profile, "deepseekgw5");
 
   const queued = chooseDeepSeek("run-deepseek-b");
-  await Promise.resolve();
-  await Promise.resolve();
+  await flushSchedulerMicrotasks();
   assert.equal(calls.events.at(-1).reason, "workspace_capacity");
   scheduler.releaseRun("run-deepseek-a", "idle");
   assert.equal((await queued).profile, "deepseekgw5");
@@ -590,6 +614,7 @@ function testConfigDefaultsAndAliases() {
   await testStartupPlanKeepsOnlyOwnerWarmBaseline();
   await testWarmCompatibleWorkerIsReusedWithoutStarting();
   await testAlreadyRunningConfiguredWorkerIsReusedWithoutRestart();
+  await testExternallyWarmLaterCandidateIsReusedBeforeColdStart();
   await testWarmWorkerWithStaleMaterializedHashIsNotReused();
   await testOwnerExpandsToFourThenQueuesUntilRelease();
   await testOwnerMaintenanceWorkersDoNotConsumeUserWorkerCap();

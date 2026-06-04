@@ -207,6 +207,15 @@ the scheduler may refresh the worker's compatibility key for the next run
 instead of queuing forever behind a single already-warm profile. Busy workers
 remain protected by the original compatibility and active-run checks.
 
+Before cold-starting a stopped candidate, hybrid scheduling must also probe the
+same compatible candidate set for externally healthy workers that the current
+listener process still marks `configured`. This covers manual/profile-script
+starts and listener restarts where the Gateway process is warm but scheduler
+memory has not yet learned it. A healthy compatible process must be marked
+`warm`, reused, and reported with a bounded `decisionTrace`; the trace must not
+contain API keys, workspace keys, launch tokens, prompts, model output, or long
+logs.
+
 Optional plugin activation is a soft scheduling preference before execution.
 Gateway run assembly may pass `preferredToolsets` for optional plugin candidates
 such as `finance` or `note`; Gateway Pool should prefer workers that declare

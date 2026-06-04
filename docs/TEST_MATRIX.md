@@ -447,7 +447,8 @@ cover Owner OpenAI/Codex `minWarm=1` / `maxWorkers=4`, Owner DeepSeek
 `minWarm=0` / `maxWorkers=2`, owner-maintenance `minWarm=0` / `maxWorkers=2`,
 non-Owner OpenAI/Codex `minWarm=0` / `maxWorkers=2`, non-Owner DeepSeek
 `minWarm=0` / `maxWorkers=1`, compatible warm-worker reuse, already-running
-warm discovery, profile/provider-compatible cold start, provider-scoped
+warm discovery, externally healthy later-candidate reuse before cold start,
+bounded scheduler `decisionTrace`, profile/provider-compatible cold start, provider-scoped
 workspace cap queueing, global cap queueing, idle TTL retirement, active-run
 protection, bounded launch-failure diagnostics, public-to-real run id
 replacement without worker-slot leakage, tier-scoped worker caps so
