@@ -5,6 +5,7 @@ const {
   DEEPSEEK_PROVIDER,
   resolveGatewayModelRoute: defaultResolveGatewayModelRoute,
 } = require("./gateway-model-routing-service");
+const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
 const { resolveSearchSourceForMessage: defaultResolveSearchSourceForMessage } = require("./search-source-routing-service");
 
 const DEFAULT_SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
@@ -705,7 +706,7 @@ function createThreadMessageCreateService(options = {}) {
   function markRunStartFailed(thread, assistantMessage, err) {
     const failedAt = nowIso();
     assistantMessage.status = "failed";
-    assistantMessage.error = err?.message || String(err);
+    assistantMessage.error = gatewayRunUserFacingError(err);
     assistantMessage.failedAt = failedAt;
     assistantMessage.updatedAt = failedAt;
     removeThreadActiveRun(thread, assistantMessage.runId, "failed");

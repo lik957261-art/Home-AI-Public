@@ -467,6 +467,8 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
     if (cleanString(worker.securityLevel).toLowerCase() === "owner-maintenance" || worker.allowMaintenance) {
       const scheduledResult = await runScheduledGatewayRequest("ownerMaintenance", [profile], startTimeoutMs(context), { noStopExisting: true, forceConfigure, metadata, replicas: [replica] });
       if (scheduledResult) return scheduledResult;
+      const scriptResult = runProfileLaunchScript(["--owner-maintenance-only", "--start-replicas", replica, "--no-stop-existing", ...metadataArgs(metadata)], startTimeoutMs(context));
+      if (scriptResult) return scriptResult;
       return runGatewayPoolScript(["-OwnerMaintenanceOnly", "-StartReplicas", replica, ...metadataArgs(metadata)], startTimeoutMs(context));
     }
     const scheduledResult = await runScheduledGatewayRequest("start", [profile], startTimeoutMs(context), { noStopExisting: true, forceConfigure, metadata, replicas: [replica] });
@@ -482,6 +484,8 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
     if (cleanString(worker.securityLevel).toLowerCase() === "owner-maintenance" || worker.allowMaintenance) {
       const scheduledResult = await runScheduledGatewayRequest("ownerMaintenanceStop", [profile], stopTimeoutMs(context), { metadata, replicas: [replica] });
       if (scheduledResult) return scheduledResult;
+      const scriptResult = runProfileLaunchScript(["--owner-maintenance-only", "--stop-replicas", replica, ...metadataArgs(metadata)], stopTimeoutMs(context));
+      if (scriptResult) return scriptResult;
       return runGatewayPoolScript(["-OwnerMaintenanceOnly", "-StopReplicas", replica, ...metadataArgs(metadata)], stopTimeoutMs(context));
     }
     const scheduledResult = await runScheduledGatewayRequest("stop", [profile], stopTimeoutMs(context), { metadata, replicas: [replica] });

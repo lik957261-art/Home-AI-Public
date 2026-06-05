@@ -254,6 +254,19 @@ function testMarkQueuedRunStartFailedPreservesMutationAndBroadcast() {
   }]);
 }
 
+function testMarkQueuedRunStartFailedFormatsGatewayCapacityError() {
+  const thread = queuedThread();
+  const { service } = makeHarness();
+  const err = new Error("Gateway worker queue timed out for workspace_capacity.");
+  err.code = "gateway_elastic_queue_timeout";
+  err.details = { reason: "workspace_capacity", queueDepth: 2 };
+
+  service.markQueuedRunStartFailed(thread, "chat", err);
+
+  assert.match(thread.messages[1].error, /工作区的 AI 执行通道已满/);
+  assert.doesNotMatch(thread.messages[1].error, /workspace_capacity/);
+}
+
 async function testScheduleNextQueuedRunUsesImmediateAndFailsQueuedStart() {
   const thread = queuedThread();
   const { calls, service } = makeHarness({
@@ -329,6 +342,7 @@ function testQueuedAssistantFactoryAndHistoryCompactionAreInjected() {
   await testStartNextQueuedRunWaitsWhenTaskGroupIsRunning();
   await testStartNextQueuedRunSetsIdleWhenQueueIsEmpty();
   testMarkQueuedRunStartFailedPreservesMutationAndBroadcast();
+  testMarkQueuedRunStartFailedFormatsGatewayCapacityError();
   await testScheduleNextQueuedRunUsesImmediateAndFailsQueuedStart();
   testQueuedAssistantFactoryAndHistoryCompactionAreInjected();
   console.log("gateway-run-queue-service tests passed");

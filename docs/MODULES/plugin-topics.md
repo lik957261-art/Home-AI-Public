@@ -64,6 +64,14 @@ or raw plugin credentials.
   topic list. Plugin-specific topic and directory surfaces remain reachable from
   the plugin context/navigation rules instead of as small buttons beside the app
   icon.
+- The next product direction for the root Topics tab is the Capability Entry
+  Hub described in
+  `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md`. In that model, the
+  plugin icon still consistently opens the plugin app, while a frequent-action
+  grid and long-press plugin menu expose task-specific shortcuts. Shortcuts can
+  open topics, plugin routes, directories, quick forms, or MCP-backed Home AI
+  intents. The first implementation maps shortcuts to existing host routes;
+  direct MCP intent execution remains a separate H1 extension.
 - The topic-page plugin Dock is visible only on the root topic list. It must be
   hidden when the sidebar menu is open, when a plugin app is active, and on any
   secondary page, so it cannot cover the navigation menu or plugin iframe.

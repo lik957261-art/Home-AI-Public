@@ -132,6 +132,13 @@ the change is part of a dedicated infrastructure rename.
 - Composer: `public/app-chat-composer-ui.js`, `public/app-composer-send-ui.js`, `public/app-composer-context-ui.js`, `public/app-composer-source-ui.js`
 - Thread list/message rendering: `public/app-thread-list-ui.js`, `public/app-thread-message-ui.js`, `public/app-thread-card-message-ui.js`
 - Task group UI: `public/app-task-groups-ui.js`, `public/app-task-preview-ui.js`
+- Capability Entry Hub product direction:
+  `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md`
+  - Root Topics should present a frequent quick-action grid followed by a
+    plugin desktop grid instead of a separate bottom plugin Dock. Plugin icon
+    clicks should consistently open the plugin app. Quick actions and
+    long-press menus carry task-specific routes such as topic, directory,
+    plugin route, quick form, or MCP-backed Home AI intent.
 - Single Window topic replies must carry the currently selected `taskGroupId`
   just like the standalone Tasks view. If the composer says "Reply in this
   task...", the post must remain in that selected topic instead of creating a

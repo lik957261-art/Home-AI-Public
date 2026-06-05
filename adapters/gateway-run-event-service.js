@@ -5,6 +5,7 @@ const {
   withActiveRunRemoved,
   withActiveRunReplaced,
 } = require("./gateway-run-lifecycle-service");
+const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
 
 function cleanString(value) {
   return String(value || "").trim();
@@ -23,7 +24,7 @@ function defaultState() {
 }
 
 function safeErrorMessage(err) {
-  return err?.message || String(err || "");
+  return gatewayRunUserFacingError(err);
 }
 
 function isSyntheticHermesMobileRunEvent(event = {}) {
@@ -1047,7 +1048,7 @@ function createGatewayRunEventService(options = {}) {
 
     if (eventName === "run.completed" || eventName === "response.completed") return markRunCompleted(context, event);
     if (eventName === "run.failed" || eventName === "response.failed") {
-      return markRunFailed(thread.id, message.id, runId, event.error?.message || event.error || "run failed");
+      return markRunFailed(thread.id, message.id, runId, event.error || "run failed");
     }
     if (eventName === "run.cancelled" || eventName === "response.incomplete") {
       return markRunCancelled(thread.id, message.id, runId);

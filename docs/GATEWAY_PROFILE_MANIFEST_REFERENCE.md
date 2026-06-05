@@ -26,7 +26,9 @@ This reference documents public-safe manifest fields. The example file is `examp
 | `poolKey` | recommended | Derived pool identity. In the current implementation it equals `profileTemplateKey`. |
 | `host` | yes | Host used by Hermes Mobile to reach the Gateway API. |
 | `port` | yes | Gateway API port. |
-| `api_key` | deployment-only | Worker API key. Never commit real values. Prefer key-file/env injection in stricter deployments. |
+| `api_key` | deployment-only | Inline worker API key. Never commit real values. Prefer key-file/env injection in stricter deployments. |
+| `apiKeyFile` / `api_key_file` | deployment-only | Path to the worker API key file. The Gateway Pool provider reads and trims this file before calling the worker. This is the preferred Mac production shape. |
+| `apiKeyPath` / `api_key_path` | deployment-only | Compatibility alias for a worker API key file path. |
 | `enabled` | yes | Whether the worker is schedulable. |
 | `securityLevel` | yes | `user` or `owner-maintenance`. |
 | `allowedWorkspaceIds` | recommended | Workspaces this worker can serve. Use `["*"]` only for truly shared low-permission workers. |
@@ -109,6 +111,9 @@ This reference documents public-safe manifest fields. The example file is `examp
   `profile`/`port` pairs.
 - Do not use a broad `allowedWorkspaceIds: ["*"]` plus shared writable Skill store unless the deployment intentionally accepts that sharing model.
 - Keep manifest diagnostics non-secret in browser status projections.
+- Manifest key-file paths are deployment metadata, not key contents. Browser
+  status projections must not expose raw key values, and docs/handoffs should
+  record only the field names and storage pattern.
 - Keep `replicaId`, `profileAlias`, `profileTemplateKey`, and `poolKey`
   secret-free. These fields are metadata only. Do not place API keys, token
   paths, launch URLs, prompts, model output, or full config bodies in them.

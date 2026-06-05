@@ -13,6 +13,7 @@ Hermes Mobile should select the correct profile; it should not assume that passi
 - `adapters/gateway-run-stream-service.js`
 - `gateway-plugins/hermes-mobile-web/__init__.py`
 - `scripts/bridge-host.js`
+- `scripts/grok-auth-metadata-smoke.js`
 - `scripts/hermes-mobile-cron-dispatcher.py`
 - `scripts/start-gateway-pool.ps1`
 - `scripts/start-low-gateways.sh`
@@ -84,17 +85,41 @@ If `scripts/hermes-mobile-cron-dispatcher.py` changes, restart the cron sidecar.
 - `HERMES_GROK_GATEWAY_AUTH_ROOT`, `HERMES_GROK_GATEWAY_AUTH_PATH`, and
   `HERMES_GROK_GATEWAY_AUTH_LOCK_PATH` remain explicit override knobs for a
   deployment that intentionally isolates Grok credentials.
+- `scripts/grok-auth-metadata-smoke.js` also recognizes
+  `HERMES_GROK_GATEWAY_SHARED_AUTH_PATH`,
+  `HERMES_MOBILE_GROK_SHARED_AUTH_PATH`, and
+  `HERMES_WEB_GROK_SHARED_AUTH_PATH` for the shared fallback store. These are
+  diagnostic inputs only; the smoke reports metadata booleans and must not
+  print the configured file paths.
 - A profile-local `providers.xai-oauth` or `credential_pool.xai-oauth` entry
   shadows global fallback. If an isolated Grok auth store has a revoked
   refresh token, it can keep failing even when the shared owner auth store is
   usable; either re-authenticate that isolated store or point Grok back at the
   shared store.
+- Use `scripts/grok-auth-metadata-smoke.js` to inspect only non-secret xAI
+  OAuth metadata for the profile-local and shared auth stores. With
+  `--require-access-token`, it fails as
+  `grok_xai_oauth_access_token_missing` when no configured store has an
+  `access_token`. The script must not print auth paths or token values.
+- On macOS production, `scripts/macos-grok-xai-reauth.sh` is the bounded
+  operator entrypoint for re-authenticating the `grokgw1` xAI OAuth profile.
+  It uses Hermes' `auth add xai-oauth --type oauth --manual-paste` flow under
+  the target `hm-owner` profile environment, then immediately reruns the
+  metadata smoke. The callback URL or authorization code belongs only in that
+  terminal session and must not be pasted into chat, docs, logs, or handoffs.
+  The same helper can be launched from the installed desktop wrapper
+  `HomeAI-Grok-XAI-Reauth.command`; the wrapper only calls the live helper and
+  does not contain secrets or OAuth material.
+- The aggregate Mac production closure harness marks Grok/xAI as
+  `deferred_manual_oauth_not_included`. Treat that as a scoped production gate,
+  not as a successful Grok provider-auth result.
 - Do not copy OAuth tokens into profile-local files unless the deployment explicitly uses that layout.
 - Do not add local hosts overrides for xAI/Grok domains unless DNS comparison against public resolvers proves a real local resolution problem.
 
 ## Validation
 
 - Check `/api/status?detail=1` for worker health and selected profiles.
+- Run `node scripts\grok-auth-metadata-smoke.js --profile-auth-file <file> --shared-auth-file <file> --require-access-token --json` before changing routing when logs say xAI OAuth is missing token state.
 - For live smoke, use a short authenticated Grok request through Hermes Mobile or the relevant live Gateway endpoint.
 - For Automation/Cron `x_search`, validate through a cron/Automation path or a controlled plugin call that uses the bridge-host proxy prefix, not only ordinary `@Grok`.
 - In hybrid mode, validate the cold proxy path too: stop or leave `grokgw1`

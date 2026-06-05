@@ -539,6 +539,24 @@ function testFailedAndCancelledRunsUseTerminalHelpers() {
   assert.equal(harness.calls.broadcasts[0].type, "run.cancelled");
 }
 
+function testFailedRunFormatsGatewayCapacityError() {
+  const harness = makeHarness();
+
+  const result = harness.service.applyHermesRunEvent({
+    event: "run.failed",
+    run_id: "public_run",
+    error: {
+      message: "Gateway worker queue timed out for workspace_capacity.",
+      code: "gateway_elastic_queue_timeout",
+      details: { reason: "workspace_capacity", queueDepth: 2 },
+    },
+  });
+
+  assert.equal(result.action, "failed");
+  assert.match(harness.message.error, /工作区的 AI 执行通道已满/);
+  assert.doesNotMatch(harness.message.error, /workspace_capacity/);
+}
+
 function testSyntheticRunStatusDoesNotRefreshGatewayLastEventTime() {
   const { activeStreams, calls, service, thread } = makeHarness();
   const stream = activeStreams.get("public_run");
@@ -873,6 +891,7 @@ testOutputItemEventsStoreReadableSummariesOnly();
 testOutputItemEventsUseAliasedResponseRunId();
 testFinalMessageTelemetryDoesNotStoreResponseText();
 testFailedAndCancelledRunsUseTerminalHelpers();
+testFailedRunFormatsGatewayCapacityError();
 testSyntheticRunStatusDoesNotRefreshGatewayLastEventTime();
 testApprovalMarkersAreHiddenButValidRequestIsStored();
 testToolsetEscalationMarkerIsHiddenAndStored();

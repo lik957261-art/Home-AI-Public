@@ -391,6 +391,18 @@ function runEventRowClass(event) {
   return classes.join(" ");
 }
 
+function runGatewayWorkerReasonLabel(reason) {
+  const value = String(reason || "").trim();
+  if (value === "global_capacity") return "\u5168\u5c40\u901a\u9053\u5df2\u6ee1";
+  if (value === "workspace_capacity") return "\u5de5\u4f5c\u533a\u901a\u9053\u5df2\u6ee1";
+  if (value === "profile_affinity") return "\u5339\u914d\u901a\u9053\u6682\u4e0d\u53ef\u7528";
+  if (value === "worker_start_failed") return "\u542f\u52a8\u5931\u8d25";
+  if (value === "health_check_failed") return "\u5065\u5eb7\u68c0\u67e5\u5931\u8d25";
+  if (value === "port_busy") return "\u7aef\u53e3\u88ab\u5360\u7528";
+  if (value === "start_worker_unavailable") return "\u542f\u52a8\u811a\u672c\u4e0d\u53ef\u7528";
+  return "";
+}
+
 function runGatewayWorkerPreviewLabel(event) {
   const name = String(event?.event || "");
   if (!name.startsWith("run.gateway_worker_")) return "";
@@ -398,14 +410,15 @@ function runGatewayWorkerPreviewLabel(event) {
   const parts = [];
   const profile = String(parsed.profileId || "").trim();
   const provider = String(parsed.provider || "").trim();
-  const reason = String(parsed.reason || parsed.failureCode || "").trim();
+  const reason = String(parsed.failureCode || parsed.reason || "").trim();
   const queueDepth = Number(parsed.queueDepth || 0) || 0;
   const reusableUntil = String(parsed.idleExpiresAt || parsed.warmUntil || "").trim();
   if (profile || provider) parts.push([provider, profile].filter(Boolean).join(" / "));
   const reasonLabel = name === "run.gateway_worker_starting"
     ? "\u542f\u52a8\u4e2d"
-    : (name === "run.gateway_worker_queued" ? "\u6392\u961f" : reason.replaceAll("_", " "));
+    : (runGatewayWorkerReasonLabel(reason) || (name === "run.gateway_worker_queued" ? "\u6392\u961f" : reason.replaceAll("_", " ")));
   if (name === "run.gateway_worker_queued" && queueDepth) {
+    if (reasonLabel && reasonLabel !== "\u6392\u961f") parts.push(reasonLabel);
     parts.push(`\u6392\u961f ${queueDepth}`);
   } else if (reasonLabel) {
     parts.push(reasonLabel);

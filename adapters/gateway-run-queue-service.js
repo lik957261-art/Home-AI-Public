@@ -1,6 +1,7 @@
 "use strict";
 
 const gatewayRunLifecycle = require("./gateway-run-lifecycle-service");
+const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
 
 const QUEUED_CHAT_INSTRUCTIONS = "The latest user message is a queued Hermes Mobile continuous-chat turn. Treat it as the next message in the supplied same-task conversation_history.";
 const QUEUED_TASK_INSTRUCTIONS = "The latest user message is a queued mobile follow-up to an existing task group. Treat it as a follow-up to the supplied same-task conversation_history, not as a new independent task.";
@@ -40,7 +41,7 @@ function normalizeSingleWindowMode(value) {
 }
 
 function safeErrorMessage(err) {
-  return err?.message || String(err || "");
+  return gatewayRunUserFacingError(err);
 }
 
 function lifecycleHelpers(options = {}) {

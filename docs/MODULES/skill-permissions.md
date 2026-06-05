@@ -53,10 +53,24 @@ deployment-wide shared Skills use `shared-global`.
   Official Hermes Skill create/update flows that write under
   `HERMES_HOME/skills` must therefore land in the workspace store so sibling
   Gateways for the same workspace receive the same updated Skill bundle.
+- Mac production worker home roots must follow the same rule. Profile-local
+  `skills` and `memories` links may point through `/Users/hm-*/HermesWorkspace`,
+  but their realpath must resolve to
+  `/Users/hermes-host/HermesMobile/data/skill-profiles/<profileId>/skills` and
+  `/Users/hermes-host/HermesMobile/data/skill-profiles/<profileId>/memories`.
+  The corresponding isolated macOS worker user must be able to read and write
+  the resolved store; otherwise official Hermes Skill creation, memory writes,
+  plugin-required Skill preload, or Response grounding can drift back into a
+  worker-local copy.
 - Startup must treat a real profile-local `skills` directory as drift. The
   launcher should back it up under the profile's `skill-store-backups` directory
   and replace it with the correct workspace Skill Store link, instead of
   preserving or merging it implicitly at run time.
+- Stale profile roots for deleted users must be backed up and removed instead
+  of left as discoverable `skill-profiles/*` entries. A profile alias migrated
+  to a stable workspace id, such as an old `xuyan` root after migration to
+  `user-981731fe`, is also stale once the new root has been populated and worker
+  links resolve to the new root.
 - Product plugin provisioners that install Skills must install the complete
   keyless bundle required by that plugin into the target workspace's private
   Skill Store. Wardrobe onboarding specifically requires the full
@@ -86,6 +100,9 @@ deployment-wide shared Skills use `shared-global`.
 - `node tests\resource-api-routes.test.js`
 - `node tests\gateway-workspace-provisioning-service.test.js`
 - `node tests\startup-scripts.test.js`
+- `node tests\macos-production-profile-audit.test.js`
+- Mac production profile audit:
+  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-profile-audit.js --root /Users/hermes-host/HermesMobile --json`
 - `node tests\task-list-ui.test.js`
 
 ## Constraints

@@ -96,6 +96,14 @@ Recommended first defaults:
 The `HERMES_WEB_*` aliases should remain accepted for existing production
 launchers until the deployment scripts are fully migrated.
 
+The source default health wait is 30 seconds, but maintained Mac production
+must explicitly set `HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS=90000` and the
+matching `HERMES_WEB_*` alias. This is based on observed Mac cold-start
+behavior where the profile launcher returned, the user run failed at the
+30-second health window, and the worker port became healthy shortly afterward.
+The acceptance smoke must therefore prove the configured production value and a
+real stopped-profile cold start, not only warm-worker reuse.
+
 When the maintained Windows listener runs under an account that cannot see the
 registered WSL distro, hybrid on-demand starts must set:
 
@@ -131,6 +139,27 @@ The scheduled task principal should remain the WSL-owning Windows account, but
 the listener account must be able to demand-run that task. If `schtasks.exe
 /Run` fails before the request is consumed, the relay is not active even though
 the operator can start the same profile manually.
+
+macOS production does not use the Windows PowerShell or scheduled-task launch
+path. Hybrid cold-start must be wired through a Mac-native profile launcher by
+setting `HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT` or
+`HERMES_WEB_GATEWAY_PROFILE_LAUNCH_SCRIPT` in the launchd listener
+environment, and `createMobileRuntimeEnvironment()` must carry that value into
+`GATEWAY_POOL_ELASTIC_CONFIG`. A missing or filtered profile launch script is a
+production failure even when warm workers pass `/health`, because the first
+elastic cold start will fall back to `powershell.exe` and fail on macOS with
+`ENOENT`.
+
+The source Mac launcher is `scripts/macos-launch-gateway-profile.sh`. It is the
+macOS equivalent of the single-profile PowerShell path and must support the
+same scheduler-facing contract: profile aliases, replica ids, owner-maintenance
+mode, no-stop-existing, force-configure no-op consumption, and bounded template
+metadata arguments. The launcher must resolve target ids only through the
+production manifest, validate launchd labels, and reject
+`--owner-maintenance-only` requests that resolve to a non-maintenance profile.
+This keeps ordinary Owner cold starts, DeepSeek/Grok provider starts, and
+Owner maintenance starts on the same tested launch path instead of relying on
+manual `launchctl kickstart` commands.
 
 After the profile startup script exits successfully, the scheduler must still
 poll `/health` for a short bounded window before declaring the user run failed.
@@ -301,6 +330,15 @@ active-run count, materialized identity match, compatibility status, skip
 reason, and selected flag. It must not include API keys, workspace keys,
 browser cookies, OAuth tokens, plugin launch tokens, push endpoints, prompts,
 model output, or long logs.
+
+Terminal user-facing errors must be derived from the scheduler's structured
+`code`, `details.reason`, and `details.failureCode` through
+`adapters/gateway-run-error-message-service.js`. Capacity exhaustion,
+profile-affinity waits, missing/unhealthy workers, invalid API keys, and worker
+start failures must not collapse to the generic `Gateway worker failed to
+start` message. Raw diagnostics remain in bounded internal scheduler events;
+assistant-message errors, Web Push/external terminal delivery, and run-progress
+previews should show short localized cause labels.
 
 ## Production Startup
 

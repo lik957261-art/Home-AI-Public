@@ -363,7 +363,11 @@ assert.doesNotMatch(startingPreview, /queue|\u6392\u961f/);
 assert.match(runGatewayWorkerPreviewLabel({
   event: "run.gateway_worker_queued",
   preview: JSON.stringify({ profileId: "lowgw13", provider: "openai-codex", reason: "workspace_capacity", queueDepth: 2 }),
-}), /\u6392\u961f 2/);
+}), /\u5de5\u4f5c\u533a\u901a\u9053\u5df2\u6ee1.*\u6392\u961f 2/);
+assert.match(runGatewayWorkerPreviewLabel({
+  event: "run.gateway_worker_start_failed",
+  preview: JSON.stringify({ profileId: "lowgw13", provider: "openai-codex", reason: "worker_start_failed", failureCode: "health_check_failed" }),
+}), /\u5065\u5eb7\u68c0\u67e5\u5931\u8d25/);
 
 const coldStartThread = {
   id: "thread_cold_start",
@@ -443,6 +447,7 @@ const gatewayQueuedThread = {
 const gatewayQueuedHtml = renderMessageRunProgress(gatewayQueuedThread, gatewayQueuedThread.messages[0]);
 assert.match(gatewayQueuedHtml, /run-progress-panel inline/);
 assert.match(gatewayQueuedHtml, /Gateway \u6392\u961f\u7b49\u5f85/);
+assert.match(gatewayQueuedHtml, /\u5de5\u4f5c\u533a\u901a\u9053\u5df2\u6ee1/);
 assert.match(gatewayQueuedHtml, /\u6392\u961f 1/);
 
 const queuedBeforeRunIdThread = {

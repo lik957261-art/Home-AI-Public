@@ -345,17 +345,14 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
       ? directoryTopicCollectionGroupIds(directoryTopicCollections)
       : new Set();
     const filterBanner = renderTaskDirectoryFilterBanner();
-    const pluginTopicCards = typeof renderPluginTopicCards === "function"
-      ? renderPluginTopicCards({
+    const capabilityEntryHub = typeof renderCapabilityEntryHub === "function"
+      ? renderCapabilityEntryHub({
         directoryRootCount: Array.isArray(state.projects) ? state.projects.length : 0,
         directoryTopicCount: directoryTopicCollectionsReady ? directoryTopicGroupIds.size : 0,
       })
       : "";
     const directoryTopicCards = typeof renderDirectoryTopicCards === "function"
       ? renderDirectoryTopicCards(directoryTopicCollections, { associatedWithDirectoryPlugin: true })
-      : "";
-    const pluginAppCards = typeof renderPluginAppLauncher === "function"
-      ? renderPluginAppLauncher()
       : "";
     const regularGroups = groups.filter((group) => {
       if (typeof isPluginTopicTaskGroup === "function" ? isPluginTopicTaskGroup(group) : group.pluginTopic) return false;
@@ -364,10 +361,10 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
         : false;
       return directoryTopicCollectionsReady ? !directoryTopicGroupIds.has(group.id) : !hasDirectoryTopicRoute;
     });
-    conversation.innerHTML = regularGroups.length || pluginTopicCards || directoryTopicCards
-      ? `${filterBanner}${pluginTopicCards}${directoryTopicCards}<div class="task-grid">${regularGroups.map(renderTaskCard).join("")}</div>`
-      : `${filterBanner}${pluginTopicCards}${directoryTopicCards}<div class="empty-state">${state.taskDirectoryFilter ? "No topics in this directory." : "No topics yet. Send a message to create one."}</div>`;
-    setTopicPluginDock(pluginAppCards);
+    conversation.innerHTML = regularGroups.length || capabilityEntryHub || directoryTopicCards
+      ? `${filterBanner}${capabilityEntryHub}${directoryTopicCards}<div class="task-grid">${regularGroups.map(renderTaskCard).join("")}</div>`
+      : `${filterBanner}${capabilityEntryHub}${directoryTopicCards}<div class="empty-state">${state.taskDirectoryFilter ? "No topics in this directory." : "No topics yet. Send a message to create one."}</div>`;
+    setTopicPluginDock("");
     conversation.querySelectorAll("[data-open-task]").forEach((button) => {
       button.addEventListener("click", () => {
         const sourceThreadId = String(button.dataset.openTaskThread || "");

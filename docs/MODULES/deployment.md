@@ -46,8 +46,248 @@ Key decisions:
   mode. In direct mode, no proxy is required; in proxy mode, missing/unreachable
   proxy remains fail-closed before official `cron.scheduler.run_job()`.
 
-Do not treat the Mac plan as implemented until a Mac-specific installer,
-launchd services, first-start preflight, and workspace isolation harness exist.
+Do not treat the Mac plan as fully closed until a Mac-specific installer,
+launchd services, first-start preflight, Gateway validation, and workspace
+isolation harness exist.
+
+### Current Mac Studio Production State
+
+As of 2026-06-05, Mac Studio is the Home AI production host for Web/data/plugin
+serving and model-turn execution at `http://192.168.10.110:8797/`. It is also
+reachable inside the tailnet at `https://mac-studio.tail62e8ce.ts.net/`.
+After the workspace-isolation cutover, the live production root is the
+`hermes-host` root below. The previous user-level `/Users/xuxin/HermesMobile`
+root remains source/rollback material and must not be treated as the live
+service root.
+
+- Host: `xuxin@192.168.10.110`
+- Hostname: `xuxindeMac-Studio.local`
+- macOS: `26.4`, arm64
+- Deployment root: `/Users/hermes-host/HermesMobile`
+- App path: `/Users/hermes-host/HermesMobile/app`
+- Data path: `/Users/hermes-host/HermesMobile/data`
+- Plugin root: `/Users/hermes-host/HermesMobile/plugins`
+- Logs: `/Users/hermes-host/HermesMobile/logs`
+- launchd scope: system LaunchDaemons
+- Listener launchd label: `com.hermesmobile.listener`
+- Node runtime: `/Users/hermes-host/HermesMobile/runtime/node-current`
+- Official Hermes release runtime:
+  `/Users/hermes-host/HermesMobile/runtime/hermes-agent-official`
+- Official Hermes release: `v2026.5.29.2` / `hermes-agent 0.15.2`
+- Mac Gateway Pool manifest:
+  `/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json`
+- Mac Gateway workers: six warm `hm-*` workers listen on `18751` through
+  `18756`; cold candidates are defined in the same manifest and should not
+  remain listening after cold-start cleanup.
+- Mac Gateway workers run as isolated OS users with workspace roots such as
+  `/Users/hm-owner/HermesWorkspace`, but Home AI run policy uses live data
+  paths such as `/Users/hermes-host/HermesMobile/data/drive`. The macOS ACL
+  layer must therefore allow each worker user to traverse the live root and
+  read/write only the live data roots authorized for that worker. Otherwise the
+  Gateway file tool can return `Permission denied` or `Path not found` even
+  when `access_policy_context.allowed_roots` is correct.
+- Mac worker filesystem access harness:
+  `scripts/macos-worker-filesystem-access-harness.js`. Run it on Mac
+  production with the pinned Node runtime after deployment, data migration,
+  worker-user creation, ACL repair, or workspace-isolation changes:
+  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-worker-filesystem-access-harness.js --root /Users/hermes-host/HermesMobile`.
+  The pass condition is not only positive read/write access for each workspace
+  worker. The harness must also prove cross-user deny checks for Owner
+  Skill/Memory stores, other users' drive roots, and `.hermes-*` plugin private
+  directories. Do not leave workspace-private roots as `drwxr-xr-x+`; remove
+  default group/other access and grant only `hermes-host`, the matching
+  workspace OS user, and Owner operations.
+  See `docs/RUNBOOKS/macos-worker-filesystem-access.md`.
+- Mac profile/Skill/Memory/MCP audit:
+  `scripts/macos-production-profile-audit.js`. Run it after user migration,
+  plugin provisioning, worker profile repair, stale-user cleanup, or Access Key
+  rotation:
+  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-profile-audit.js --root /Users/hermes-host/HermesMobile --json`.
+  Passing production output must have `ok=true`, empty `issues`, empty
+  `warnings`, the expected active workspace keys, the shared Response baseline,
+  complete required Wardrobe Skill bundles for workspaces that require
+  Wardrobe, and profile `skills`/`memories` links whose realpath resolves to
+  the matching `data/skill-profiles/<profileId>` store. The audit reads only
+  bounded metadata and must not print key contents, token contents, plugin
+  access-key values, or raw prompts.
+- Mac production closure validation:
+  `scripts/macos-production-closure-validation.js`. Run it after Mac
+  deployment, data migration, Gateway/Profile repair, plugin provisioning,
+  Weixin route repair, ACL repair, or before declaring Mac production closed:
+  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-closure-validation.js --json`.
+  It composes the checked status, profile audit, ACL, native MCP schema,
+  DeepSeek user/maintenance, Weixin heartbeat, Owner/OpenAI concurrent
+  product-route, and final-status smokes. Passing output must have top-level
+  `ok=true`, `activeGlobal=0` before and after, zero profile issues/warnings,
+  zero ACL failures, expected DeepSeek profiles, wrong browser/API auth header
+  denied with `401`, and no OAuth re-auth process. Grok/xAI remains a deferred
+  manual OAuth follow-up and is not part of this default closure gate.
+  See `docs/RUNBOOKS/macos-production-closure-validation.md`.
+- Shared Windows SSH aliases for all local workspaces and plugin projects:
+  `homeai-mac`, `homeai-macstudio-prod`, and `macstudio-110`
+- Shared Windows SSH identity:
+  `C:\Users\xuxin\.ssh\homeai_macstudio_prod_ed25519`
+- Tailscale node DNS: `mac-studio.tail62e8ce.ts.net.`
+- Tailscale Serve: tailnet-only HTTPS `https://mac-studio.tail62e8ce.ts.net/`
+  proxies `/` to `http://127.0.0.1:8797`.
+- Tailscale certificate files:
+  `/Users/hermes-host/HermesMobile/config/tailscale-cert/mac-studio.tail62e8ce.ts.net.crt`
+  and
+  `/Users/hermes-host/HermesMobile/config/tailscale-cert/mac-studio.tail62e8ce.ts.net.key`.
+  The key is owned by `hermes-host` and must remain mode `0600`. Do not record
+  PEM contents in docs, handoffs, logs, screenshots, or harness output.
+- Tailscale CLI path on the Mac:
+  `/Applications/Tailscale.app/Contents/MacOS/Tailscale`. On this Mac,
+  `tailscale cert --cert-file <path> --key-file <path>` cannot write directly
+  to arbitrary paths because the app CLI receives `operation not permitted`.
+  Use `--cert-file - --key-file -` with shell-side redirection/splitting when
+  renewing certificate files.
+
+The current isolated production deployment runs these launchd labels:
+
+- `com.hermesmobile.listener`
+- `com.hermesmobile.gateway.hm-*.openai.1` for the six warm workspace workers
+- `com.hermesmobile.plugin.wardrobe`
+- `com.hermesmobile.plugin.finance`
+- `com.hermesmobile.plugin.email`
+- `com.hermesmobile.plugin.health`
+- `com.hermesmobile.plugin.note`
+- `com.hermesmobile.plugin.codex-mobile`
+
+The Hermes Mobile launchd environment uses
+`HERMES_WEB_HOST=0.0.0.0`, `HERMES_WEB_PORT=8797`,
+`HERMES_WEB_DATA_DIR=/Users/hermes-host/HermesMobile/data`,
+`HERMES_MOBILE_DATA_DIR=/Users/hermes-host/HermesMobile/data`,
+`HERMES_WEB_AUTH_KEY_PATH=/Users/hermes-host/HermesMobile/data/secrets/owner-web-key.secret`,
+`HERMES_WEB_SERVICE_STORE=sqlite`, and
+`HERMES_WEB_DB_PATH=/Users/hermes-host/HermesMobile/data/hermes-mobile.sqlite3`.
+Gateway environment points to the workspace-aware Mac-native Gateway Pool:
+`HERMES_WEB_GATEWAY_POOL_ENABLED=1`,
+`HERMES_WEB_GATEWAY_POOL_MANIFEST=/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json`,
+`HERMES_MOBILE_GATEWAY_POOL_MANIFEST=/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json`,
+and
+`HERMES_GATEWAY_POOL_MANIFEST_PATH=/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json`.
+Hybrid Mac cold-start also requires the launchd listener environment to pass
+`HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT` to the runtime config, pointing
+at the Mac-native profile launcher under the live Gateway worker root. This is
+not optional on macOS: if the variable is absent or dropped before
+`GATEWAY_POOL_ELASTIC_CONFIG`, the worker launcher falls back to the Windows
+PowerShell path and cold workers fail with a bounded `spawn powershell.exe
+ENOENT` diagnostic. The focused source harness is
+`node tests\mobile-runtime-environment-service.test.js` plus
+`node tests\gateway-worker-profile-launch-service.test.js`.
+Mac production also explicitly sets
+`HERMES_MOBILE_GATEWAY_START_TIMEOUT_MS=300000`,
+`HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS=90000`, and
+`HERMES_MOBILE_GATEWAY_START_HEALTH_POLL_MS=1000`, with matching
+`HERMES_WEB_*` aliases. Do not rely on the source default 30-second health
+window for Mac cold-start validation: a cold worker can become healthy after
+the default window, which otherwise creates a user-visible failed task while
+the worker becomes reusable moments later.
+
+Mac production also must explicitly connect the listener workspace catalog to
+the live Weixin route data:
+
+- `HERMES_WEB_WORKSPACE_USERS_PATH=/Users/hermes-host/HermesMobile/data/config/access-control/weixin-users.json`
+- `HERMES_MOBILE_WORKSPACE_USERS_PATH=/Users/hermes-host/HermesMobile/data/config/access-control/weixin-users.json`
+- `HERMES_WEB_WORKSPACE_ROUTE_MAP_PATH=/Users/hermes-host/HermesMobile/data/config/access-control/weixin-routing-map.json`
+- `HERMES_MOBILE_WORKSPACE_ROUTE_MAP_PATH=/Users/hermes-host/HermesMobile/data/config/access-control/weixin-routing-map.json`
+
+Without these explicit LaunchDaemon variables, the runtime catalog checks
+`/Users/hermes-host/HermesMobile/config/access-control/workspace-*.json` by
+default, while the maintained Mac route files live under `data/config`. In that
+drift state `scripts/weixin-ingress-production-smoke.js` will authenticate but
+return `skipped=true` with `reason=unmatched_workspace_route` for valid
+`weixin_*` route workspaces.
+Plugin manifest URLs point to Mac loopback ports:
+
+- Wardrobe: `127.0.0.1:8765`
+- Finance: `127.0.0.1:8791`
+- Email: `127.0.0.1:5175`
+- Health: `127.0.0.1:4877`
+- Note: `127.0.0.1:4181`
+- Codex Mobile: `127.0.0.1:8787`
+
+Migration evidence recorded during the cutover:
+
+- Windows production Hermes data was copied from
+  `C:\ProgramData\HermesMobile\data` to `/Users/hermes-host/HermesMobile/data`.
+- Plugin workspaces were copied to `/Users/hermes-host/HermesMobile/plugins`:
+  Wardrobe, Finance, Email, Health, Note, and Codex Mobile Web.
+- Codex runtime state was copied to `/Users/xuxin/.codex` and
+  `/Users/xuxin/.codex-mobile-web`. This was a live snapshot because the
+  Windows Codex Mobile Web listener was kept running to preserve the active
+  operator channel.
+- SQLite `quick_check` passed on migrated Hermes, Growth, Wardrobe, Finance,
+  Finance image, Email, Health, Note, and Note attachment databases.
+- Direct plugin manifests returned `200` for Wardrobe, Finance, Email, Health,
+  and Note during the isolation closure. Codex Mobile plugin repair is handled
+  in a separate thread and should not be used as a blocker unless explicitly
+  reopened.
+- On 2026-06-05, a Wardrobe Markdown delivery failure was traced to missing
+  macOS ACL access for `hm-owner` against live
+  `/Users/hermes-host/HermesMobile/data/drive`. The run policy already included
+  `file`, `skills`, `weather`, `wardrobe`, and
+  `allowed_roots=["/Users/hermes-host/HermesMobile/data/drive"]`; the failure
+  was at the OS filesystem layer. The repair granted parent traversal ACLs and
+  live-root write ACLs for the relevant worker users, then passed an
+  `hm-owner` write/delete smoke under `data/drive/插件/衣橱`.
+- Authenticated Hermes plugin manifests returned `available=true` and
+  `tokenStatus=launch_token_issued` for the product plugins using the migrated
+  owner access-key file. Raw keys and launch tokens were not recorded.
+- Windows LAN smoke to `http://192.168.10.110:8797/` returned `200`; the
+  migrated plugin list contains six plugins.
+- Official Hermes release `v2026.5.29.2` was installed under
+  `/Users/hermes-host/HermesMobile/runtime/hermes-agent-official` with a
+  uv-managed Python runtime.
+- `/api/status?detail=1` returned Gateway Pool enabled with `workerCount=30`,
+  `runningWorkerCount=6`, and `healthy=6` after the isolation cutover.
+- Direct Gateway smoke through `/v1/responses` returned the expected marker
+  with `modelRun=ok`, without printing the Gateway key.
+- Home AI API smoke created a temporary Owner thread, posted a minimal message,
+  and later read back two `done` messages with the expected assistant marker.
+- SQLite `quick_check` passed on the corrected Mac paths for Wardrobe
+  (`/Users/hermes-host/HermesMobile/plugins/wardrobe/data/wardrobe.db`) and
+  Email
+  (`/Users/hermes-host/HermesMobile/plugins/email/runtime/data/mail.sqlite`) in
+  addition to Hermes, Growth, Finance, Finance images, Health, Note, and Note
+  attachments.
+- The temporary migration SSH key was removed after the shared production SSH
+  alias was verified. Future local deployments should use the OS-level SSH
+  config aliases, not project-local key setup.
+- Tailscale certificate validation on 2026-06-05:
+  `subject=/CN=mac-studio.tail62e8ce.ts.net`,
+  `issuer=/C=US/O=Let's Encrypt/CN=YE1`,
+  `notBefore=Jun 5 12:24:36 2026 GMT`, and
+  `notAfter=Sep 3 12:24:35 2026 GMT`. Certificate/key public keys matched.
+- Tailscale HTTPS validation on 2026-06-05: `tailscale serve status` reported
+  `https://mac-studio.tail62e8ce.ts.net` tailnet-only with `/` proxying to
+  `http://127.0.0.1:8797`; Mac `curl -I` returned `HTTP/2 200`; and
+  `/api/public-config` returned HTTP `200` with parseable JSON.
+- Windows-side `curl` could not resolve `mac-studio.tail62e8ce.ts.net` during
+  the same check. Treat Windows MagicDNS resolution as a separate local
+  Tailscale DNS configuration issue; it does not invalidate Mac-local Serve or
+  iOS Simulator checks that use the Mac network stack.
+
+Remaining Mac production follow-ups:
+
+- Stage 1 OS-level workspace isolation is implemented. The stronger Stage 2
+  workspace file broker remains future work.
+- Web Push state and VAPID material were migrated and `HERMES_WEB_PUSH_ENABLED`
+  is enabled, but external-origin delivery and device re-registration have not
+  been validated after the host move.
+- Grok/xAI OAuth is a deferred manual re-authentication follow-up. It is not
+  part of the default Mac production closure gate; use
+  `docs/RUNBOOKS/grok-gateway-auth.md` and the desktop
+  `HomeAI-Grok-XAI-Reauth.command` wrapper when the operator is ready.
+- Windows scheduled tasks were disabled during cutover, then restored as
+  development services after the Mac production closure. Treat Windows services
+  as local development surfaces, not production rollback evidence. A rollback
+  must be explicit and must not infer production authority merely from Windows
+  task state.
+- Windows development task actions should run hidden. The restored PowerShell
+  scheduled tasks use `-WindowStyle Hidden`; Codex Desktop itself may still have
+  an intentional visible app window.
 
 ## NAS Deployment Direction
 
@@ -491,7 +731,30 @@ the plugin appends `/v1/responses`.
 - `node tests\architecture-refactor-boundary.test.js` for server/runtime boundaries
 - `git diff --check`
 - production focused checks after sync
-- `/api/status?detail=1`
+- authenticated status smoke through the checked harness:
+  `node scripts\production-status-smoke.js --access-key-file <owner-key-file> --base <origin> --expected-version <version> --json`
+- origin identity must be checked on the same origin before authenticated API
+  status; the checked harness does this through `/api/public-config` and fails
+  with `production_origin_identity_mismatch` rather than trying another port.
+- `/api/status?detail=1` only through `X-Hermes-Web-Key` or the
+  `hermes_web_key` cookie. `X-Hermes-Access-Key` is a wrong-header negative
+  case; it must not be used for deployment status checks.
+
+`scripts\production-status-smoke.js` reads the key from a file, does not print
+the key or raw key path, proves the target origin is Home AI before sending the
+key, verifies `activeGlobal` before restart-sensitive work, and by default
+confirms that the wrong-header probe using `X-Hermes-Access-Key` is rejected.
+Its JSON output includes only bounded metadata, including the non-secret
+`authHeader` and `wrongAuthHeader` names, so a reviewer can see which transport
+header was actually exercised without exposing key material.
+Do not replace it with a one-off inline Node/Python status script unless the
+new script is added to source and covered by a harness.
+- Mac production profile audit after deployment or profile repair:
+  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-profile-audit.js --root /Users/hermes-host/HermesMobile --json`.
+  Treat non-empty `issues` as a blocker. Non-empty `warnings` are not a user
+  login failure by themselves, but stale profile roots or unexpected profile
+  link targets must be backed up and resolved before considering migration
+  closed.
 
 ## Production Launcher Toggles
 

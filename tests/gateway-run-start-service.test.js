@@ -1300,6 +1300,56 @@ async function testWebSelectionKeepsBrowserCompanionWhenSelectorNarrows() {
   assert.deepEqual(JSON.parse(calls.events[4].preview).selected_toolsets, ["web", "search", "browser"]);
 }
 
+async function testPlainChatSelectionKeepsLightSearchCompanionsWhenSelectorMisnarrows() {
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["web", "search", "browser", "x_search", "http", "clarify", "file", "vision", "image_gen"],
+    }),
+    routeRunToolsets: ({ policy }) => ({
+      policy: Object.assign({}, policy, {
+        authorized_toolsets: ["web", "search", "browser", "x_search", "http", "clarify", "file", "vision", "image_gen"],
+        allowed_toolsets: ["web", "search", "browser", "x_search", "http", "clarify", "file", "vision", "image_gen"],
+        toolset_routing: {
+          mode: "disabled",
+          reason: "toolset_pruning_disabled",
+          suggested_toolsets: ["web", "search", "browser", "x_search", "http", "clarify"],
+          suggested_mode: "minimal",
+          suggested_reason: "plain_chat_light_tools",
+        },
+      }),
+      routing: {
+        mode: "disabled",
+        reason: "toolset_pruning_disabled",
+        suggested_toolsets: ["web", "search", "browser", "x_search", "http", "clarify"],
+      },
+    }),
+    selectRunToolsetsWithModel: async () => ({
+      enabled: true,
+      ok: true,
+      reason: "mistaken file-only choice",
+      selectedToolsets: ["file"],
+      authorizedToolsets: ["web", "search", "browser", "x_search", "http", "clarify", "file", "vision", "image_gen"],
+      durationMs: 3000,
+    }),
+  });
+
+  await service.startRunForThread(
+    baseThread(),
+    baseUserMessage({ content: "plain chat" }),
+    baseAssistantMessage(),
+    {},
+  );
+
+  assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["web", "search", "browser", "x_search", "http", "clarify", "file"]);
+  assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["web", "search", "browser", "x_search", "http", "clarify", "file"]);
+  assert.match(calls.streams[0].body.instructions, /Enabled toolsets: web, search, browser, x_search, http, clarify, file/);
+  assert.doesNotMatch(calls.streams[0].body.instructions, /Omitted authorized toolsets: web/);
+  assert.doesNotMatch(calls.streams[0].body.instructions, /Omitted authorized toolsets: x_search/);
+  assert.deepEqual(JSON.parse(calls.events[4].preview).selected_toolsets, ["web", "search", "browser", "x_search", "http", "clarify", "file"]);
+}
+
 async function testStartRunFallsBackWhenModelFirstSelectionFails() {
   const { calls, service } = makeHarness({
     buildAccessPolicy: (routePolicy, _user, project) => ({
@@ -1491,6 +1541,21 @@ function testMarkStartFailedUsesInjectedHooks() {
   assert.equal(calls.broadcasts[0].type, "run.failed");
 }
 
+function testMarkStartFailedFormatsGatewayCapacityError() {
+  const { service } = makeHarness();
+  const thread = baseThread({ status: "running" });
+  const assistant = baseAssistantMessage({ runId: "web_capacity_1", status: "running" });
+  const err = new Error("Gateway worker queue timed out for workspace_capacity.");
+  err.code = "gateway_elastic_queue_timeout";
+  err.details = { reason: "workspace_capacity", workspaceId: "owner", queueDepth: 2 };
+
+  const result = service.markStartFailed(thread, assistant, err);
+
+  assert.match(result.error, /工作区的 AI 执行通道已满/);
+  assert.equal(assistant.error, result.error);
+  assert.doesNotMatch(assistant.error, /workspace_capacity/);
+}
+
 (async () => {
   testPureWorkspaceHelpers();
   await testStartRunBuildsGatewayRequestAndMutatesStartState();
@@ -1517,6 +1582,7 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testWardrobeSelectionKeepsFileWhenSelectorChoosesVisionOnly();
   await testWardrobeSelectionKeepsMcpStackWhenSelectorChoosesClarifyOnly();
   await testWebSelectionKeepsBrowserCompanionWhenSelectorNarrows();
+  await testPlainChatSelectionKeepsLightSearchCompanionsWhenSelectorMisnarrows();
   await testStartRunFallsBackWhenModelFirstSelectionFails();
   await testStartRunStopsBeforeExecutionWhenModelPermissionRequiresElevation();
   testBuildRunRequestRoutesPlainChatToMinimalToolsBeforeInstructions();
@@ -1526,6 +1592,7 @@ function testMarkStartFailedUsesInjectedHooks() {
   await testChatGptProRunExtendsStreamWaits();
   await testConcurrencyErrorStopsBeforeGatewaySelection();
   testMarkStartFailedUsesInjectedHooks();
+  testMarkStartFailedFormatsGatewayCapacityError();
   console.log("gateway-run-start-service tests passed");
 })().catch((err) => {
   console.error(err);

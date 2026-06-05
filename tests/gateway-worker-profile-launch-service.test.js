@@ -275,6 +275,79 @@ async function testCustomProfileLaunchScriptForNasHybrid() {
   fs.rmSync(toolRoot, { recursive: true, force: true });
 }
 
+async function testCustomProfileLaunchScriptHandlesOwnerMaintenance() {
+  const calls = [];
+  const toolRoot = tempToolRoot();
+  const script = path.join(toolRoot, "macos-launch-gateway-profile.sh");
+  fs.writeFileSync(script, "#!/bin/sh\n", "utf8");
+  const service = createGatewayWorkerProfileLaunchService({
+    toolRoot,
+    elasticConfig: {
+      HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT: script,
+    },
+    spawn: fakeSpawnFactory(calls),
+  });
+
+  await service.startWorkerProfile({
+    profile: "deepseekmaint1",
+    replicaId: "deepseekmaint1",
+    securityLevel: "owner-maintenance",
+    provider: "deepseek",
+    allowedWorkspaceIds: ["owner"],
+  }, {
+    timeoutMs: 9000,
+    hints: {
+      workspaceId: "owner",
+      securityLevel: "owner-maintenance",
+      provider: "deepseek",
+    },
+  });
+  await service.stopWorkerProfile({
+    profile: "deepseekmaint1",
+    replicaId: "deepseekmaint1",
+    securityLevel: "owner-maintenance",
+    provider: "deepseek",
+    allowedWorkspaceIds: ["owner"],
+  }, {
+    timeoutMs: 8000,
+    hints: {
+      workspaceId: "owner",
+      securityLevel: "owner-maintenance",
+      provider: "deepseek",
+    },
+  });
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].command, script);
+  assert.deepEqual(calls[0].args, [
+    "--owner-maintenance-only",
+    "--start-replicas", "deepseekmaint1",
+    "--no-stop-existing",
+    "-PoolKey", "owner|owner-maintenance|deepseek",
+    "-ProfileTemplateKey", "owner|owner-maintenance|deepseek",
+    "-TemplateKey", "owner|owner-maintenance|deepseek",
+    "-ReplicaId", "deepseekmaint1",
+    "-ProfileAlias", "deepseekmaint1",
+    "-WorkspaceId", "owner",
+    "-PermissionTier", "owner-maintenance",
+    "-Provider", "deepseek",
+  ]);
+  assert.deepEqual(calls[1].args, [
+    "--owner-maintenance-only",
+    "--stop-replicas", "deepseekmaint1",
+    "-PoolKey", "owner|owner-maintenance|deepseek",
+    "-ProfileTemplateKey", "owner|owner-maintenance|deepseek",
+    "-TemplateKey", "owner|owner-maintenance|deepseek",
+    "-ReplicaId", "deepseekmaint1",
+    "-ProfileAlias", "deepseekmaint1",
+    "-WorkspaceId", "owner",
+    "-PermissionTier", "owner-maintenance",
+    "-Provider", "deepseek",
+  ]);
+  assert.equal(calls.some((call) => call.command === "powershell.exe"), false);
+  fs.rmSync(toolRoot, { recursive: true, force: true });
+}
+
 async function testScheduledTaskFailureDiagnosticsAreBounded() {
   const calls = [];
   const toolRoot = tempToolRoot();
@@ -350,6 +423,7 @@ function testHelpersSanitizePublicState() {
   await testScheduledTaskLaunchRequestCarriesTemplateMetadata();
   await testDirectLaunchCarriesTemplateMetadataToPowerShell();
   await testCustomProfileLaunchScriptForNasHybrid();
+  await testCustomProfileLaunchScriptHandlesOwnerMaintenance();
   await testScheduledTaskFailureDiagnosticsAreBounded();
   await testFailureDiagnosticsAreBounded();
   await testMissingProfileAndMissingScriptFailClosed();

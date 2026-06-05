@@ -166,6 +166,34 @@ leaves
 `/api/status?detail=1` healthy, and does not require manual `-StartProfiles`
 execution.
 
+macOS production is a separate launch path. A Mac listener must set
+`HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT` or
+`HERMES_WEB_GATEWAY_PROFILE_LAUNCH_SCRIPT` to the Mac-native profile launcher,
+and `createMobileRuntimeEnvironment()` must preserve that value inside
+`GATEWAY_POOL_ELASTIC_CONFIG`. If the variable is absent or filtered out, the
+launch service has no Mac script and falls back to the historical Windows
+`powershell.exe` script path; on macOS that fails as `spawn powershell.exe
+ENOENT` during cold-worker startup. This is a harnessed contract, not an
+operator memory rule: keep `node tests\mobile-runtime-environment-service.test.js`
+and `node tests\gateway-worker-profile-launch-service.test.js` passing whenever
+Gateway launch configuration changes.
+
+The maintained Mac launcher is `scripts/macos-launch-gateway-profile.sh`,
+installed in production as
+`/Users/hermes-host/HermesMobile/gateway-worker/macos-launch-gateway-profile.sh`.
+It must accept both compatibility profile arguments and replica-aware
+arguments: `--start-profiles` / `-StartProfiles`, `--stop-profiles` /
+`-StopProfiles`, `--start-replicas` / `-StartReplicas`, and `--stop-replicas` /
+`-StopReplicas`. It must also consume `--owner-maintenance-only` /
+`-OwnerMaintenanceOnly`, `--no-stop-existing` / `-NoStopExisting`,
+`--force-configure` / `-ForceConfigure`, and the bounded metadata arguments
+used by the scheduler. The metadata is diagnostic context only; the launcher
+resolves the target through the production manifest's profile/replica id and
+starts the matching launchd label. Owner-maintenance mode must reject non
+`owner-maintenance` targets. Keep
+`node tests\macos-gateway-profile-launcher.test.js` passing whenever the Mac
+launcher contract changes.
+
 Gateway startup must keep the configure path narrow. `start-low-gateways.sh`
 stores a non-secret configure signature under the worker root and skips
 `configure-low-gateways.sh` when the selected profiles are already ready and
@@ -180,10 +208,11 @@ the first post-deploy configure case; the maintained default is now 300 seconds.
 
 After a start script returns success, Mobile must poll the selected Gateway
 worker's `/health` for a bounded propagation window before failing the user run.
-The maintained defaults are `HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS=30000`
-and `HERMES_MOBILE_GATEWAY_START_HEALTH_POLL_MS=1000`. A one-shot immediate
-health miss after script success is a scheduler race, not proof the worker failed
-to start.
+The source defaults are `HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS=30000` and
+`HERMES_MOBILE_GATEWAY_START_HEALTH_POLL_MS=1000`. Mac production must override
+the health wait to `90000` because the official Hermes cold-start path can
+become healthy after the 30-second default. A one-shot immediate health miss
+after script success is a scheduler race, not proof the worker failed to start.
 
 Worker reuse must be keyed by workspace, profile, provider, permission tier,
 effective toolset/schema set, MCP/plugin binding, and manifest identity. Do not
@@ -445,6 +474,14 @@ Hermes Mobile also projects stream wait states into the run-progress panel:
   starting runs immediately, so cold-start and preflight timeout time are part of
   the visible command/run frame instead of appearing only after the worker is
   selected.
+- Gateway capacity, worker-start, missing-profile, unhealthy-worker, and invalid
+  API-key failures must be projected through
+  `adapters/gateway-run-error-message-service.js`. The user-visible assistant
+  error, Web Push/external terminal delivery, and run-progress preview should
+  explain the stable cause, such as workspace capacity, global capacity,
+  profile affinity, health-check failure, or invalid API key. They must not
+  show only a generic `Gateway worker failed to start` string or expose raw
+  diagnostic text.
 - Thread active ids are a targeting fallback, not a general render input.
   A run-progress panel should render only the current message's own run ids and
   any response run id that was explicitly remembered for that message through

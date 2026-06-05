@@ -28,7 +28,10 @@ iLink / Weixin sender sidecar
 - `HERMES_MOBILE_WEIXIN_INGRESS_DEFAULT_WORKSPACE`
 
 The ingress key is separate from browser Owner/workspace Access Keys. Do not
-commit the key or the key file.
+commit the key or the key file. Sidecar ingress requests use
+`X-Hermes-Mobile-Ingress-Key`; the browser/API `X-Hermes-Web-Key` header is a
+wrong-header negative probe for ingress and must not authenticate
+`/api/ingress/weixin/*`.
 
 ## Cutover Rule
 
@@ -69,7 +72,8 @@ Routing priority:
 3. Account/chat/user fields matched against workspace policy/route metadata.
 4. Optional `HERMES_MOBILE_WEIXIN_INGRESS_DEFAULT_WORKSPACE`.
 
-If no route matches, Mobile returns `404` and does not create a run.
+If no route matches, Mobile returns an accepted skipped result with
+`skipped=true` and `reason=unmatched_workspace_route`; it does not create a run.
 
 ## Delivery Shape
 
@@ -95,6 +99,18 @@ python scripts\weixin-ingress-sidecar.py --base http://127.0.0.1:8797 --key-file
 python scripts\weixin-ingress-sidecar.py --base http://127.0.0.1:8797 --key-file <ingress-key-file> poll-outbound --once
 python scripts\weixin-ingress-sidecar.py --base http://127.0.0.1:8797 --key-file <ingress-key-file> ack --delivery-id <id> --status sent
 ```
+
+For production route/auth smoke, prefer the checked heartbeat harness:
+
+```powershell
+node scripts\weixin-ingress-production-smoke.js --base http://127.0.0.1:8797 --ingress-key-file <ingress-key-file> --workspaces weixin_wuping,weixin_stephen,weixin_test_1 --json
+```
+
+That harness posts only `#` heartbeat events. A heartbeat proves ingress auth
+and route matching without creating a thread, message, Gateway run, or outbound
+delivery. Normal text-message E2E checks are stronger evidence but can create
+real outbound delivery state, so run them only as controlled user-approved
+checks for a specific route.
 
 Production can use `scripts\weixin-mobile-ingress-bridge.py` through
 `scripts\start-weixin-mobile-ingress-bridge.ps1` for the native iLink

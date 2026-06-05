@@ -1,6 +1,6 @@
 # Hermes Mobile API Route Reference
 
-Last updated: 2026-06-04.
+Last updated: 2026-06-06.
 
 This is a hand-maintained route ownership and auth reference. The executable inventory contract lives in `adapters/api-route-inventory`, `adapters/api-route-registry`, and `tests/api-route-inventory.test.js`.
 
@@ -24,6 +24,34 @@ The authenticated pipeline is defined by `MOBILE_API_AUTHENTICATED_ROUTE_PIPELIN
 - `owner`: Owner Access Key required.
 - `workspace-scoped`: Access Key required, then route/service clamps to the authenticated workspace unless Owner is allowed to select another workspace.
 - `resource-scoped`: Access Key required, then a service validates thread, message, group, directory, artifact, automation, Skill, or learning resource access.
+
+## Browser/API Auth Transport Contract
+
+The product credential may be called an Access Key, but the HTTP transport
+contract for browser/API smokes is `X-Hermes-Web-Key` or the same-origin
+`hermes_web_key` cookie. `X-Hermes-Access-Key` is not a Hermes Mobile API auth
+header and must not be used as the positive auth path for `/api/status`,
+Gateway Pool smokes, deployment checks, plugin APIs, or ad-hoc diagnostics.
+Do not derive the header name from the credential label, secret file name,
+environment variable name, or old internal Hermes naming. "Access Key" is the
+credential class; `X-Hermes-Web-Key` is the transport header.
+Do not add `X-Hermes-Access-Key` as an accepted alias. It is intentionally kept
+as a wrong-header probe so that harnesses can prove the auth boundary rejects
+plausible but unsupported transport names.
+
+Production status checks must use
+`node scripts\production-status-smoke.js --access-key-file <file> --base <origin> --json`
+or an equivalent committed harness. The checked harness first proves
+`/api/public-config` on the same origin, then authenticates `/api/status?detail=1`
+with `X-Hermes-Web-Key`, then proves the same key is rejected when sent under
+`X-Hermes-Access-Key`. Harness output may include non-secret header names such
+as `authHeader` and `wrongAuthHeader`, but must not print key contents or raw
+key file paths.
+
+If a status probe reports an invalid key after using `X-Hermes-Access-Key`,
+treat that as a transport-header failure until the canonical smoke proves
+otherwise. If `X-Hermes-Access-Key` is accepted, that is an auth-boundary
+regression. See `docs/RUNBOOKS/production-api-auth-header.md`.
 
 ## Route Modules
 

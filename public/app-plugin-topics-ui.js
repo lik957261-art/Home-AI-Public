@@ -9,8 +9,15 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     iconClass: "nav-wardrobe-icon",
     appIconClass: "wardrobe",
     appIconGlyph: "\u8863",
+    sourceBadge: "\u8863",
     toolset: "wardrobe",
     deliveryHints: ["wardrobe", "\u8863\u6a71", "\u642d\u914d", "\u7a7f\u642d"],
+    quickActions: Object.freeze([
+      Object.freeze({ id: "style", label: "\u914d\u8863\u670d", type: "open_topic", glyph: "\u8863" }),
+      Object.freeze({ id: "today", label: "\u4eca\u65e5\u7a7f\u642d", type: "open_topic", glyph: "\u65e5" }),
+      Object.freeze({ id: "add", label: "\u5165\u5e93", type: "open_plugin", glyph: "+" }),
+      Object.freeze({ id: "inventory", label: "\u8863\u7269\u76ee\u5f55", type: "open_directory", glyph: "\u76ee" }),
+    ]),
   }),
   Object.freeze({
     id: "finance",
@@ -20,8 +27,15 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     iconClass: "nav-finance-icon",
     appIconClass: "finance",
     appIconGlyph: "\u00a5",
+    sourceBadge: "\u8d26",
     toolset: "finance",
     deliveryHints: ["finance", "\u8bb0\u8d26", "\u8d22\u52a1", "\u8d26\u672c"],
+    quickActions: Object.freeze([
+      Object.freeze({ id: "record", label: "\u8bb0\u4e00\u7b14", type: "open_plugin", glyph: "+" }),
+      Object.freeze({ id: "voice", label: "\u4e00\u53e5\u8bdd\u8bb0\u8d26", type: "open_topic", glyph: "\u8bf4" }),
+      Object.freeze({ id: "month", label: "\u672c\u6708\u8d26\u5355", type: "open_topic", glyph: "\u6708" }),
+      Object.freeze({ id: "budget", label: "\u9884\u7b97\u68c0\u67e5", type: "open_topic", glyph: "\u9884" }),
+    ]),
   }),
   Object.freeze({
     id: "email",
@@ -31,8 +45,14 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     iconClass: "nav-email-icon",
     appIconClass: "outlook",
     appIconGlyph: "O",
+    sourceBadge: "\u90ae",
     toolset: "email",
     deliveryHints: ["email", "\u90ae\u7bb1", "\u90ae\u4ef6", "\u6536\u4ef6"],
+    quickActions: Object.freeze([
+      Object.freeze({ id: "reply", label: "\u5f85\u56de\u590d", type: "open_plugin", glyph: "\u56de" }),
+      Object.freeze({ id: "search", label: "\u641c\u90ae\u4ef6", type: "open_plugin", glyph: "\u641c" }),
+      Object.freeze({ id: "draft", label: "\u5199\u56de\u590d", type: "open_topic", glyph: "\u5199" }),
+    ]),
   }),
   Object.freeze({
     id: "health",
@@ -42,8 +62,14 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     iconClass: "nav-health-icon",
     appIconClass: "health",
     appIconGlyph: "+",
+    sourceBadge: "\u5eb7",
     toolset: "health",
     deliveryHints: ["health", "\u5065\u5eb7", "\u8bad\u7ec3", "\u4f53\u91cd", "\u7528\u836f"],
+    quickActions: Object.freeze([
+      Object.freeze({ id: "record", label: "\u8bb0\u5f55\u5065\u5eb7", type: "open_plugin", glyph: "+" }),
+      Object.freeze({ id: "trend", label: "\u8d8b\u52bf", type: "open_plugin", glyph: "\u52bf" }),
+      Object.freeze({ id: "advice", label: "\u95ee\u5efa\u8bae", type: "open_topic", glyph: "?" }),
+    ]),
   }),
   Object.freeze({
     id: "note",
@@ -53,8 +79,15 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     iconClass: "nav-note-icon",
     appIconClass: "note",
     appIconGlyph: "N",
+    sourceBadge: "\u7b14",
     toolset: "note",
     deliveryHints: ["note", "\u7b14\u8bb0", "\u6458\u8981", "\u8d44\u6599"],
+    quickActions: Object.freeze([
+      Object.freeze({ id: "new", label: "\u8bb0\u4e00\u6761", type: "open_plugin", glyph: "+" }),
+      Object.freeze({ id: "search", label: "\u641c\u7b14\u8bb0", type: "open_plugin", glyph: "\u641c" }),
+      Object.freeze({ id: "recent", label: "\u6700\u8fd1\u7b14\u8bb0", type: "open_plugin", glyph: "\u8fd1" }),
+      Object.freeze({ id: "topic", label: "\u7b14\u8bb0\u8bdd\u9898", type: "open_topic", glyph: "\u8bdd" }),
+    ]),
   }),
   Object.freeze({
     id: "directory",
@@ -65,16 +98,24 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     iconClass: "nav-directory-icon",
     appIconClass: "directory",
     appIconGlyph: "\u76ee",
+    sourceBadge: "\u76ee",
     toolset: "",
     deliveryHints: ["directory", "\u76ee\u5f55", "\u6587\u4ef6", "\u8d44\u6599"],
+    quickActions: Object.freeze([
+      Object.freeze({ id: "recent", label: "\u6700\u8fd1\u76ee\u5f55", type: "open_plugin", glyph: "\u8fd1" }),
+      Object.freeze({ id: "topics", label: "\u6587\u4ef6\u8bdd\u9898", type: "open_topic", glyph: "\u8bdd" }),
+      Object.freeze({ id: "new-topic", label: "\u65b0\u5efa\u8bdd\u9898", type: "open_topic", glyph: "+" }),
+    ]),
   }),
 ]);
 const PLUGIN_TOPIC_USAGE_STORAGE_KEY = "hermesPluginTopicUsage";
 const PLUGIN_TOPIC_ORDER_STORAGE_KEY = "hermesPluginTopicOrder";
 const PLUGIN_APP_REORDER_HOLD_MS = 450;
 const PLUGIN_APP_REORDER_CANCEL_PX = 10;
+const CAPABILITY_QUICK_ACTION_LIMIT = 12;
 let pluginAppSortDrag = null;
 let pluginAppSortGlobalBound = false;
+let pluginActionMenuCloseBound = false;
 
 function pluginTopicId(value = "") {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -258,11 +299,113 @@ function orderedPluginAppDefs(defs = []) {
   });
 }
 
+function pluginTopicQuickActions(def) {
+  return Array.isArray(def?.quickActions) ? def.quickActions : [];
+}
+
+function pluginTopicActionById(pluginId = "", actionId = "") {
+  const def = pluginTopicDefById(pluginId);
+  if (!def) return null;
+  const id = String(actionId || "").trim();
+  const action = pluginTopicQuickActions(def).find((item) => String(item.id || "") === id) || null;
+  return action ? { def, action } : null;
+}
+
+function capabilityHubQuickActions(defs = []) {
+  const preferred = [
+    ["finance", "record"],
+    ["wardrobe", "style"],
+    ["directory", "recent"],
+    ["note", "search"],
+    ["email", "reply"],
+    ["wardrobe", "today"],
+    ["finance", "month"],
+    ["health", "record"],
+    ["directory", "topics"],
+    ["note", "new"],
+    ["finance", "budget"],
+    ["wardrobe", "inventory"],
+  ];
+  const available = new Map(defs.map((def) => [def.id, def]));
+  const result = [];
+  const seen = new Set();
+  preferred.forEach(([pluginId, actionId]) => {
+    const def = available.get(pluginId);
+    const action = pluginTopicQuickActions(def).find((item) => item.id === actionId);
+    if (!def || !action) return;
+    const key = `${def.id}:${action.id}`;
+    seen.add(key);
+    result.push({ def, action });
+  });
+  defs.forEach((def) => {
+    pluginTopicQuickActions(def).forEach((action) => {
+      const key = `${def.id}:${action.id}`;
+      if (seen.has(key) || result.length >= CAPABILITY_QUICK_ACTION_LIMIT) return;
+      seen.add(key);
+      result.push({ def, action });
+    });
+  });
+  return result.slice(0, CAPABILITY_QUICK_ACTION_LIMIT);
+}
+
+function pluginTopicActionLabel(def, action) {
+  return String(action?.label || def?.label || "").trim();
+}
+
+function renderCapabilityQuickAction(def, action, options = {}) {
+  const sourceBadge = String(def?.sourceBadge || def?.label || "").trim().slice(0, 2);
+  const sourceText = options.showSource === false ? "" : `<span class="capability-action-source" aria-hidden="true">${escapeHtml(sourceBadge)}</span>`;
+  return `<button class="capability-quick-action" type="button" data-plugin-topic-action-plugin="${escapeHtml(def.id)}" data-plugin-topic-action-id="${escapeHtml(action.id)}" aria-label="${escapeHtml(`${pluginTopicActionLabel(def, action)}\uff0c${def.label}`)}">
+    <span class="capability-action-glyph" aria-hidden="true">${escapeHtml(action.glyph || sourceBadge || "")}</span>
+    <span class="capability-action-label">${escapeHtml(pluginTopicActionLabel(def, action))}</span>
+    ${sourceText}
+  </button>`;
+}
+
+function renderCapabilityActionMenu(def) {
+  const actions = pluginTopicQuickActions(def);
+  const menuActions = actions.map((action) => `
+    <button class="capability-menu-item" type="button" data-plugin-topic-action-plugin="${escapeHtml(def.id)}" data-plugin-topic-action-id="${escapeHtml(action.id)}">
+      <span class="capability-menu-glyph" aria-hidden="true">${escapeHtml(action.glyph || def.sourceBadge || "")}</span>
+      <span class="capability-menu-text">${escapeHtml(pluginTopicActionLabel(def, action))}</span>
+    </button>
+  `).join("");
+  return `<div class="capability-action-menu" role="menu" aria-label="${escapeHtml(`${def.label}\u5feb\u6377\u64cd\u4f5c`)}" data-plugin-topic-action-menu="${escapeHtml(def.id)}" hidden>
+    <div class="capability-menu-head">
+      <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
+      <span class="capability-menu-title">${escapeHtml(def.label)}</span>
+    </div>
+    ${menuActions}
+    <button class="capability-menu-item" type="button" data-plugin-topic-open-app="${escapeHtml(def.id)}">
+      <span class="capability-menu-glyph" aria-hidden="true">\u2197</span>
+      <span class="capability-menu-text">\u6253\u5f00\u63d2\u4ef6</span>
+    </button>
+    <div class="capability-menu-order">
+      <button class="capability-menu-order-button" type="button" data-plugin-topic-move="${escapeHtml(def.id)}" data-plugin-topic-move-dir="up">\u524d\u79fb</button>
+      <button class="capability-menu-order-button" type="button" data-plugin-topic-move="${escapeHtml(def.id)}" data-plugin-topic-move-dir="down">\u540e\u79fb</button>
+    </div>
+  </div>`;
+}
+
 function persistPluginAppOrderFromStrip(strip) {
   const ids = [...(strip?.querySelectorAll?.("[data-plugin-topic-sort-id]") || [])]
     .map((item) => item.dataset.pluginTopicSortId || "")
     .filter(Boolean);
   if (ids.length) writePluginTopicOrder(ids);
+}
+
+function movePluginAppOrder(pluginId = "", direction = "up") {
+  const defs = orderedPluginAppDefs(availablePluginTopicDefs().filter((def) => !def.builtinKind));
+  const ids = defs.map((def) => def.id);
+  const id = pluginTopicId(pluginId);
+  const index = ids.indexOf(id);
+  if (index < 0) return;
+  const nextIndex = direction === "down" ? Math.min(ids.length - 1, index + 1) : Math.max(0, index - 1);
+  if (nextIndex === index) return;
+  const [item] = ids.splice(index, 1);
+  ids.splice(nextIndex, 0, item);
+  writePluginTopicOrder(ids);
+  if (typeof renderCurrentThread === "function") renderCurrentThread({ stickToBottom: false, restoreScrollTop: $("conversation")?.scrollTop || 0 });
 }
 
 function pluginTopicSearchText(def) {
@@ -429,6 +572,49 @@ function renderPluginTopicCards(options = {}) {
   </section>`;
 }
 
+function renderPluginAppDesktop(defs = []) {
+  if (!defs.length) return "";
+  return `<section class="capability-plugin-desktop" aria-label="\u63d2\u4ef6">
+    <div class="capability-section-head">
+      <h3>\u63d2\u4ef6</h3>
+      <span>\u70b9\u56fe\u6807\u6253\u5f00\uff0c\u957f\u6309\u9009\u62e9\u5feb\u6377\u52a8\u4f5c</span>
+    </div>
+    <div class="capability-plugin-grid" role="list" data-plugin-count="${defs.length}">
+      ${defs.map((def) => `
+        <div class="capability-plugin-cell" role="listitem">
+          <button class="plugin-app-card capability-plugin-icon-button" type="button" data-plugin-topic-open-app="${escapeHtml(def.id)}" data-plugin-topic-sort-id="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}`)}">
+            <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
+            <span class="plugin-app-label">${escapeHtml(def.label)}</span>
+          </button>
+          ${renderCapabilityActionMenu(def)}
+        </div>
+      `).join("")}
+    </div>
+  </section>`;
+}
+
+function renderCapabilityEntryHub(options = {}) {
+  const defs = orderedPluginAppDefs(availablePluginTopicDefs());
+  if (!defs.length) return "";
+  const quickActions = capabilityHubQuickActions(defs);
+  return `<section class="capability-entry-hub" aria-label="\u80fd\u529b\u5165\u53e3">
+    <div class="capability-section-head capability-hub-title">
+      <h2>\u80fd\u529b</h2>
+      <span>\u5e38\u7528\u52a8\u4f5c\u4f18\u5148\uff0c\u63d2\u4ef6\u56fe\u6807\u7edf\u4e00\u6253\u5f00\u5e94\u7528</span>
+    </div>
+    ${quickActions.length ? `<section class="capability-frequent" aria-label="\u5e38\u7528\u80fd\u529b">
+      <div class="capability-section-head">
+        <h3>\u5e38\u7528</h3>
+        <span>\u5feb\u6377\u5165\u53e3\u53ef\u6309\u4f7f\u7528\u4e60\u60ef\u6392\u5e8f</span>
+      </div>
+      <div class="capability-quick-grid">
+        ${quickActions.map(({ def, action }) => renderCapabilityQuickAction(def, action)).join("")}
+      </div>
+    </section>` : ""}
+    ${renderPluginAppDesktop(defs)}
+  </section>`;
+}
+
 function renderPluginAppLauncher() {
   const defs = orderedPluginAppDefs(availablePluginTopicDefs().filter((def) => !def.builtinKind));
   if (!defs.length) return "";
@@ -580,6 +766,23 @@ async function openPluginTopicDelivery(pluginId) {
   await loadDirectoryView({ resetPath: true });
 }
 
+async function runPluginTopicAction(pluginId, actionId) {
+  const resolved = pluginTopicActionById(pluginId, actionId);
+  if (!resolved) return;
+  const { def, action } = resolved;
+  const type = String(action.type || "").trim();
+  recordPluginTopicUsage(def.id);
+  if (type === "open_topic" || type === "start_chat_with_context" || type === "invoke_mcp_intent") {
+    await openPluginTopicChat(def.id);
+    return;
+  }
+  if (type === "open_directory") {
+    await openPluginTopicDelivery(def.id);
+    return;
+  }
+  await openPluginTopicApp(def.id);
+}
+
 function pluginTopicInstruction(def) {
   if (!def?.id) return "";
   return [
@@ -694,7 +897,7 @@ function wirePluginAppSortDocumentEvents(root) {
 
 function wirePluginAppManualSorting(root) {
   wirePluginAppSortDocumentEvents(root);
-  root?.querySelectorAll?.("[data-plugin-topic-sort-id]").forEach((card) => {
+  root?.querySelectorAll?.(".plugin-app-strip [data-plugin-topic-sort-id]").forEach((card) => {
     if (card.dataset.pluginAppSortBound) return;
     card.dataset.pluginAppSortBound = "1";
     card.addEventListener("pointerdown", (event) => {
@@ -719,6 +922,59 @@ function wirePluginAppManualSorting(root) {
   });
 }
 
+function closePluginActionMenus(root = document) {
+  root?.querySelectorAll?.(".capability-action-menu:not([hidden])").forEach((menu) => {
+    menu.hidden = true;
+    menu.closest(".capability-plugin-cell")?.classList.remove("menu-open");
+  });
+}
+
+function openPluginActionMenu(button, event = null) {
+  const cell = button?.closest?.(".capability-plugin-cell");
+  const menu = cell?.querySelector?.(".capability-action-menu");
+  if (!cell || !menu) return;
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  closePluginActionMenus(cell.closest(".capability-entry-hub") || document);
+  menu.hidden = false;
+  cell.classList.add("menu-open");
+  if (!pluginActionMenuCloseBound) {
+    pluginActionMenuCloseBound = true;
+    document.addEventListener("click", (clickEvent) => {
+      if (clickEvent.target?.closest?.(".capability-plugin-cell.menu-open")) return;
+      closePluginActionMenus(document);
+    }, { capture: true });
+    document.addEventListener("keydown", (keyEvent) => {
+      if (keyEvent.key === "Escape") closePluginActionMenus(document);
+    });
+  }
+}
+
+function wireCapabilityPluginMenus(root) {
+  root?.querySelectorAll?.(".capability-plugin-icon-button").forEach((button) => {
+    if (button.dataset.capabilityMenuBound) return;
+    button.dataset.capabilityMenuBound = "1";
+    let timer = null;
+    const clearTimer = () => {
+      if (!timer) return;
+      window.clearTimeout(timer);
+      timer = null;
+    };
+    button.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      clearTimer();
+      timer = window.setTimeout(() => {
+        timer = null;
+        openPluginActionMenu(button, event);
+      }, PLUGIN_APP_REORDER_HOLD_MS);
+    });
+    button.addEventListener("pointerup", clearTimer);
+    button.addEventListener("pointercancel", clearTimer);
+    button.addEventListener("pointerleave", clearTimer);
+    button.addEventListener("contextmenu", (event) => openPluginActionMenu(button, event));
+  });
+}
+
 function wirePluginTopicCards(root) {
   root?.querySelectorAll?.("[data-plugin-topic-open-app]").forEach((button) => {
     button.addEventListener("click", (event) => {
@@ -730,11 +986,24 @@ function wirePluginTopicCards(root) {
       openPluginTopicApp(button.dataset.pluginTopicOpenApp).catch(showError);
     });
   });
+  root?.querySelectorAll?.("[data-plugin-topic-action-plugin][data-plugin-topic-action-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      closePluginActionMenus(root);
+      runPluginTopicAction(button.dataset.pluginTopicActionPlugin, button.dataset.pluginTopicActionId).catch(showError);
+    });
+  });
+  root?.querySelectorAll?.("[data-plugin-topic-move]").forEach((button) => {
+    button.addEventListener("click", () => {
+      closePluginActionMenus(root);
+      movePluginAppOrder(button.dataset.pluginTopicMove, button.dataset.pluginTopicMoveDir || "up");
+    });
+  });
   root?.querySelectorAll?.("[data-plugin-topic-open-topic]").forEach((button) => {
     button.addEventListener("click", () => openPluginTopicChat(button.dataset.pluginTopicOpenTopic).catch(showError));
   });
   root?.querySelectorAll?.("[data-plugin-topic-open-delivery]").forEach((button) => {
     button.addEventListener("click", () => openPluginTopicDelivery(button.dataset.pluginTopicOpenDelivery).catch(showError));
   });
+  wireCapabilityPluginMenus(root);
   wirePluginAppManualSorting(root);
 }

@@ -2,6 +2,7 @@
 
 const { createPluginCapabilityActivationService } = require("./plugin-capability-activation-service");
 const { createPluginCapabilityProbeService } = require("./plugin-capability-probe-service");
+const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
 
 const DEFAULT_TOOL_SCHEMA_EPOCH = "20260513-audio-file-v1";
 const DEFAULT_SINGLE_WINDOW_PROJECT_ID = "single-window";
@@ -208,18 +209,29 @@ function expandSelectedToolsetsWithCompanions(selectedToolsets = [], policy = {}
   const suggested = defaultDedupe(routing.suggested_toolsets || routing.suggestedToolsets || []);
   const allowed = new Set(defaultDedupe(policy.allowed_toolsets || policy.allowedToolsets || []));
   const selectedSet = new Set(selected);
+  const suggestedReason = cleanString(routing.suggested_reason || routing.suggestedReason);
+  if (suggestedReason === "plain_chat_light_tools" && suggested.length && selected.length) {
+    return defaultDedupe([
+      ...suggested.filter((toolset) => allowed.has(toolset)),
+      ...selected.filter((toolset) => allowed.has(toolset)),
+    ]);
+  }
   const companionGroups = [
     ["wardrobe", "vision", "file", "skills"],
     ["web", "search", "browser"],
+    ["file", "vision", "image_gen"],
   ];
   let out = selected;
   for (const companions of companionGroups) {
-    const hasCompanionSuggestion = companions.every((toolset) => suggested.includes(toolset));
+    if (companions.includes("image_gen") && (suggested.includes("wardrobe") || out.includes("wardrobe"))) continue;
+    const hasCompanionSuggestion = companions.length <= 3
+      ? companions.some((toolset) => suggested.includes(toolset))
+      : companions.every((toolset) => suggested.includes(toolset));
     const selectedAnyCompanion = companions.some((toolset) => selectedSet.has(toolset));
     const selectedOnlyClarify = selected.length === 1 && selectedSet.has("clarify");
     if (!hasCompanionSuggestion || (!selectedAnyCompanion && !selectedOnlyClarify)) continue;
     const companionSet = new Set(companions.filter((toolset) => allowed.has(toolset)));
-    const companionSelected = suggested.filter((toolset) => companionSet.has(toolset));
+    const companionSelected = companions.filter((toolset) => companionSet.has(toolset));
     const restSelected = selectedOnlyClarify ? [] : out.filter((toolset) => !companionSet.has(toolset));
     out = defaultDedupe([...companionSelected, ...restSelected]);
   }
@@ -1053,7 +1065,7 @@ function createGatewayRunStartService(options = {}) {
     const failedAt = nowIso();
     const runId = cleanString(options.runId || assistantMessage?.runId);
     assistantMessage.status = "failed";
-    assistantMessage.error = err?.message || String(err || "");
+    assistantMessage.error = gatewayRunUserFacingError(err);
     assistantMessage.failedAt = failedAt;
     assistantMessage.updatedAt = failedAt;
     removeThreadActiveRun(thread, runId, "failed");

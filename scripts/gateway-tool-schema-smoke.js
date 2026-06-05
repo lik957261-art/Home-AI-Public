@@ -193,17 +193,19 @@ function runAgentSchemaProbe(worker, options) {
   const telemetryProfile = String(worker.telemetryProfile || worker.telemetry_profile || worker.profile || "").trim();
   if (!telemetryProfile) throw new Error(`worker ${worker.profile || worker.name || "unknown"} has no telemetry profile for agent schema probe`);
   const profileHome = path.join(options.telemetryRoot, telemetryProfile);
-  const deepseekKeyPath = windowsPathToWslPath(options.deepseekApiKeyPath || "");
+  const useWsl = options.agentSchemaMode === "wsl" || (options.agentSchemaMode === "auto" && process.platform === "win32");
+  const pathForProbe = (value) => (useWsl ? windowsPathToWslPath(value) : String(value || ""));
+  const deepseekKeyPath = pathForProbe(options.deepseekApiKeyPath || "");
   const script = `#!/usr/bin/env bash
 set -euo pipefail
-cd ${bashSingleQuote(options.runtimeSource)}
-export HERMES_HOME=${bashSingleQuote(windowsPathToWslPath(profileHome))}
+cd ${bashSingleQuote(pathForProbe(options.runtimeSource))}
+export HERMES_HOME=${bashSingleQuote(pathForProbe(profileHome))}
 export HERMES_PROFILE=${bashSingleQuote(worker.profile || telemetryProfile)}
-export PYTHONPATH=${bashSingleQuote(`${options.runtimeOverrides}:${options.runtimeSource}`)}"\${PYTHONPATH:+:\$PYTHONPATH}"
+export PYTHONPATH=${bashSingleQuote(`${pathForProbe(options.runtimeOverrides)}:${pathForProbe(options.runtimeSource)}`)}"\${PYTHONPATH:+:\$PYTHONPATH}"
 if [ -n ${bashSingleQuote(deepseekKeyPath)} ] && [ -s ${bashSingleQuote(deepseekKeyPath)} ]; then
   export DEEPSEEK_API_KEY="$(tr -d '\\r\\n' < ${bashSingleQuote(deepseekKeyPath)})"
 fi
-${bashSingleQuote(options.runtimePython)} - <<'PY'
+${bashSingleQuote(pathForProbe(options.runtimePython))} - <<'PY'
 import json
 
 from gateway.run import _load_gateway_config, _resolve_gateway_model, _resolve_runtime_agent_kwargs
@@ -233,13 +235,17 @@ PY
 `;
   const tempScript = writeTempBashScript(script);
   try {
-    const result = spawnSync("wsl.exe", [
+    const result = useWsl ? spawnSync("wsl.exe", [
       "-d",
       options.wslDistro,
       "--",
       "bash",
       windowsPathToWslPath(tempScript),
     ], {
+      encoding: "utf8",
+      timeout: options.agentSchemaTimeoutMs,
+      maxBuffer: 10 * 1024 * 1024,
+    }) : spawnSync("bash", [tempScript], {
       encoding: "utf8",
       timeout: options.agentSchemaTimeoutMs,
       maxBuffer: 10 * 1024 * 1024,
@@ -422,6 +428,9 @@ async function main() {
     schemaOnly: hasFlag("--schema-only"),
     requireAgentSchema: hasFlag("--require-agent-schema"),
     allowMcpRuntimeLogEvidence: hasFlag("--allow-mcp-log-evidence"),
+    agentSchemaMode: ["wsl", "native"].includes(argValue("--agent-schema-mode", "").toLowerCase())
+      ? argValue("--agent-schema-mode", "").toLowerCase()
+      : "auto",
     wslDistro: argValue("--wsl-distro", "Ubuntu-24.04"),
     runtimeSource: argValue("--runtime-source", "/opt/hermes-gateway-runtime/official-clean"),
     runtimeOverrides: argValue("--runtime-overrides", "/opt/hermes-gateway-runtime/runtime-overrides"),

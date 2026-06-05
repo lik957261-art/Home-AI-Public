@@ -329,6 +329,68 @@ async function testChooseHealthyWorkerAndLookupSecretByUrl() {
   fs.rmSync(manifest.dir, { recursive: true, force: true });
 }
 
+async function testWorkerWithoutManifestKeyUsesFallbackSecret() {
+  const manifest = tempManifest({
+    enabled: true,
+    workers: [
+      { name: "mac-worker", profile: "hm-owner-openai-1", host: "127.0.0.1", port: 18751, enabled: true, securityLevel: "user" },
+    ],
+  });
+  const auth = [];
+  const provider = createGatewayPoolProvider({
+    enabled: "auto",
+    manifestPaths: [manifest.file],
+    fallbackApiBase: "http://fallback.example.test",
+    fallbackApiKey: "fallback-key",
+    createGatewayRunner,
+    fetchImpl: async (_url, options) => {
+      auth.push(options.headers.Authorization || "");
+      return jsonResponse({ status: "ok" });
+    },
+  });
+
+  const chosen = await provider.chooseTarget({ securityLevel: "user" });
+  assert.equal(chosen.name, "mac-worker");
+  assert.equal(chosen.apiKey, "fallback-key");
+  assert.equal(provider.targetForGatewayUrl("http://127.0.0.1:18751").apiKey, "fallback-key");
+  await provider.runnerFor(chosen).request("/v1/responses", { method: "POST", body: {} });
+  assert.deepEqual(auth, ["", "Bearer fallback-key"]);
+  fs.rmSync(manifest.dir, { recursive: true, force: true });
+}
+
+async function testWorkerApiKeyFileOverridesFallbackSecret() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-gateway-api-key-file-"));
+  const keyFile = path.join(dir, "worker.key");
+  fs.writeFileSync(keyFile, "worker-key\n", "utf8");
+  const manifest = tempManifest({
+    enabled: true,
+    workers: [
+      { name: "mac-worker", profile: "hm-wuping-openai-1", host: "127.0.0.1", port: 18752, apiKeyFile: keyFile, enabled: true, securityLevel: "user" },
+    ],
+  });
+  const auth = [];
+  const provider = createGatewayPoolProvider({
+    enabled: "auto",
+    manifestPaths: [manifest.file],
+    fallbackApiBase: "http://fallback.example.test",
+    fallbackApiKey: "fallback-key",
+    createGatewayRunner,
+    fetchImpl: async (_url, options) => {
+      auth.push(options.headers.Authorization || "");
+      return jsonResponse({ status: "ok" });
+    },
+  });
+
+  const chosen = await provider.chooseTarget({ securityLevel: "user" });
+  assert.equal(chosen.name, "mac-worker");
+  assert.equal(chosen.apiKey, "worker-key");
+  assert.equal(provider.targetForGatewayUrl("http://127.0.0.1:18752").apiKey, "worker-key");
+  await provider.runnerFor(chosen).request("/v1/responses", { method: "POST", body: {} });
+  assert.deepEqual(auth, ["Bearer worker-key", "Bearer worker-key"]);
+  fs.rmSync(manifest.dir, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
 async function testChooseHonorsSkillWorkspaceIds() {
   const manifest = tempManifest({
     enabled: true,
@@ -940,6 +1002,8 @@ async function testHybridStatusClearsStoppedWarmWorker() {
   testOrderingHonorsRequiredToolsetsWithinWorkspaceProfilePool();
   testOrderingPrefersOptionalToolsetsWithoutHardFiltering();
   await testChooseHealthyWorkerAndLookupSecretByUrl();
+  await testWorkerWithoutManifestKeyUsesFallbackSecret();
+  await testWorkerApiKeyFileOverridesFallbackSecret();
   await testChooseHonorsSkillWorkspaceIds();
   await testChooseTargetHonorsProfileConfigToolsets();
   await testSkillRoutingStaysCompatibleWithoutManifestFields();

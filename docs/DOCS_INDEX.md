@@ -64,6 +64,9 @@ identifiers until a separate infrastructure migration is planned.
 - Web Push opens the wrong page or embedded viewer: `docs/RUNBOOKS/web-push-wrong-page.md`
 - Growth submit button disabled or local submission is misleading: `docs/RUNBOOKS/growth-submit-button-disabled.md`
 - Grok Gateway authentication or routing failure: `docs/RUNBOOKS/grok-gateway-auth.md`
+- Production API auth header mismatch: `docs/RUNBOOKS/production-api-auth-header.md`
+- Mac production closure validation: `docs/RUNBOOKS/macos-production-closure-validation.md`
+- Mac worker filesystem access: `docs/RUNBOOKS/macos-worker-filesystem-access.md`
 - OpenAI Codex shared auth repair: `docs/RUNBOOKS/openai-codex-shared-auth.md`
 - Codex Responses stream output missing: `docs/RUNBOOKS/codex-responses-stream-output-none.md`
 - OpenAI Codex MCP callable schema missing: `docs/RUNBOOKS/openai-codex-mcp-schema-missing.md`
@@ -90,6 +93,8 @@ identifiers until a separate infrastructure migration is planned.
 - Plugin topic binding: `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md`
 - Plugin capability activation and lazy MCP loading:
   `docs/IMPLEMENTATION_NOTES/plugin-capability-activation.md`
+- Capability Entry Hub design:
+  `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md`
 - Embedded plugin UI contract: `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`
 - Embedded surface bottom layout standard: `docs/IMPLEMENTATION_NOTES/embedded-surface-bottom-layout-standard.md`
 - Directory topic collections: `docs/IMPLEMENTATION_NOTES/directory-topic-collections.md`

@@ -148,6 +148,30 @@ Raw plugin keys remain in `access-key.txt` files and must not enter frontend
 JavaScript, iframe URLs, model tool arguments, screenshots, docs, handoffs, or
 logs.
 
+Current Home AI production policy still exposes live data paths from
+`/Users/hermes-host/HermesMobile/data` to Gateway runs. A worker may have
+`HERMES_WORKSPACE_ROOT=/Users/hm-owner/HermesWorkspace`, but the official
+Gateway file tool can receive an `access_policy_context.allowed_roots` entry
+such as `/Users/hermes-host/HermesMobile/data/drive`. The macOS isolation model
+therefore has two required layers:
+
+- Home AI policy must authorize only the intended live data roots.
+- macOS ACLs must let the matching `hm-*` worker user traverse the live root
+  and read/write only those intended roots.
+
+Do not validate filesystem isolation only by checking launchd users or
+`allowed_roots`. Run the production harness after user creation, data
+migration, ACL repair, and deployment:
+
+```bash
+sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
+  /Users/hermes-host/HermesMobile/app/scripts/macos-worker-filesystem-access-harness.js \
+  --root /Users/hermes-host/HermesMobile
+```
+
+The detailed incident workflow is
+`docs/RUNBOOKS/macos-worker-filesystem-access.md`.
+
 ## Listener Boundary
 
 The long-term target is that `hermes-host` does not directly read every
@@ -425,8 +449,14 @@ The Mac first-start preflight must fail closed if any of these are false:
 
 Minimum smoke after install:
 
-- Owner login and `/api/status?detail=1`.
-- Owner normal ChatGPT run.
+- `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-closure-validation.js --json`.
+  This is the default Mac production closure gate after deployment, migration,
+  Gateway/Profile repair, plugin provisioning, Weixin route repair, or ACL
+  repair.
+- Owner login and `/api/status?detail=1`, either directly or through the
+  closure harness.
+- Owner normal ChatGPT run, including the Owner/OpenAI concurrent product-route
+  smoke in the closure harness.
 - WuPing/Stephen/XuYan normal run, when those workspaces exist.
 - Owner switching into WuPing proves target workspace data and plugin bindings.
 - Finance/Wardrobe/Health/Email plugin launch, if installed and provisioned.
@@ -443,14 +473,14 @@ Minimum smoke after install:
 The Mac deployment harness should be separate from the NAS harness because the
 failure modes differ.
 
-Suggested future focused checks:
+Focused checks:
 
 ```text
-node tests/macos-deploy-harness.test.js
-node tests/workspace-os-isolation-harness.test.js
+node tests/macos-production-closure-validation-harness.test.js
+node tests/macos-production-profile-audit.test.js
+node tests/macos-worker-filesystem-access-harness.test.js
 node tests/gateway-workspace-provisioning-service.test.js
 node tests/cron-dispatcher-proxy-harness.test.js
-node tests/plugin-workspace-isolation-harness.test.js
 ```
 
 Required scenarios:
@@ -463,6 +493,12 @@ Required scenarios:
 - direct/proxy network modes produce the correct CRON behavior;
 - plugin MCP schema smoke targets the exact selected Gateway profile;
 - missing plugin config/key omits the plugin toolset instead of falling back;
+- Owner/OpenAI concurrent product-route smoke finishes both runs and returns to
+  `activeGlobal=0`;
+- DeepSeek ordinary and Owner-maintenance routes use `deepseekgw1` and
+  `deepseekmaint1`, respectively;
+- Weixin heartbeat ingress uses `X-Hermes-Mobile-Ingress-Key`, rejects the
+  browser/API header, and does not create a run, thread, or message;
 - clean public install can create Owner and then provision plugins on demand.
 
 ## Deployment Flow For The New Mac

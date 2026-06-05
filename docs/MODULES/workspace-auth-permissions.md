@@ -49,6 +49,22 @@ Related route/provider boundaries:
   with the `X-Hermes-Web-Key` header and the existing same-origin cookie path;
   `?key=` is a compatibility path only for local/private deployments because it
   can leak through logs, browser history, and referrers.
+- Production API smokes must use `X-Hermes-Web-Key` or the same-origin
+  `hermes_web_key` cookie. `X-Hermes-Access-Key` is not a Hermes Mobile
+  authentication header and must not be used for `/api/status`,
+  `/api/threads`, plugin APIs, deployment checks, or harnesses. Use
+  `scripts/production-status-smoke.js --access-key-file <file>` instead of
+  hand-writing a status probe, so the correct header and wrong-header denial
+  check remain executable.
+- The repeated failure mode is transport-level: the key file can be correct
+  while the request fails because a plausible but unsupported header name was
+  used. Treat `X-Hermes-Access-Key` as a regression probe only. If a production
+  smoke succeeds with that header, the auth boundary is wrong; if a smoke uses
+  that header as the positive auth path, the harness is wrong.
+- Do not infer the HTTP header from the credential label. "Access Key" names the
+  stored credential class; it does not imply `X-Hermes-Access-Key`. The positive
+  browser/API transport remains `X-Hermes-Web-Key`, and every new production
+  key-file smoke must carry a wrong-header negative assertion.
 - Cookie/localStorage key storage remains a planned migration area. Do not
   remove cookie auth without first preserving embedded plugin iframe/proxy
   requests, because iframe navigations and static resource loads cannot attach

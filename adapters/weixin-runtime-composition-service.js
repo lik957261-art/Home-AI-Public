@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const weixinMarkdownForwardService = require("./weixin-markdown-forward-service");
+const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
 const { createWeixinFileForwardService } = require("./weixin-file-forward-service");
 const { createWeixinForwardService } = require("./weixin-forward-service");
 const { createWeixinIngressEventService } = require("./weixin-ingress-event-service");
@@ -123,7 +124,7 @@ function createWeixinRuntimeCompositionService(deps = {}) {
   }
 
   function userFacingRunError(err) {
-    const raw = redactWeixinRunErrorText(err?.message || err).trim();
+    const raw = redactWeixinRunErrorText(gatewayRunUserFacingError(err)).trim();
     if (!raw) return "Hermes run failed before producing a reply.";
     if (/terminated|cancelled|canceled|aborted/i.test(raw)) {
       return "\u8fd0\u884c\u88ab\u7ec8\u6b62\uff0c\u672a\u751f\u6210\u56de\u590d\u3002";

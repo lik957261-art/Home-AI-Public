@@ -41,7 +41,33 @@ function testRuntimeEnvironmentProjectsResolvedBackend() {
   assert.equal(explicitLocalRuntime.AUTOMATION_BACKEND, "local");
 }
 
+function testRuntimeEnvironmentProjectsGatewayProfileLaunchScript() {
+  const mobileScript = "/opt/homeai/gateway-worker/macos-launch-gateway-profile.sh";
+  const webScript = "/opt/homeai/gateway-worker/web-launch-gateway-profile.sh";
+  const mobileRuntime = createMobileRuntimeEnvironment({
+    env: {
+      HERMES_WEB_DATA_DIR: "C:\\tmp\\hermes-data",
+      HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT: mobileScript,
+      HERMES_WEB_GATEWAY_PROFILE_LAUNCH_SCRIPT: webScript,
+    },
+    toolRoot: process.cwd(),
+  });
+  assert.equal(mobileRuntime.GATEWAY_POOL_ELASTIC_CONFIG.HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT, mobileScript);
+  assert.equal(mobileRuntime.GATEWAY_POOL_ELASTIC_CONFIG.HERMES_WEB_GATEWAY_PROFILE_LAUNCH_SCRIPT, webScript);
+  assert.equal(mobileRuntime.GATEWAY_POOL_ELASTIC_CONFIG.profileLaunchScript, mobileScript);
+
+  const webRuntime = createMobileRuntimeEnvironment({
+    env: {
+      HERMES_WEB_DATA_DIR: "C:\\tmp\\hermes-data",
+      HERMES_WEB_GATEWAY_PROFILE_LAUNCH_SCRIPT: webScript,
+    },
+    toolRoot: process.cwd(),
+  });
+  assert.equal(webRuntime.GATEWAY_POOL_ELASTIC_CONFIG.profileLaunchScript, webScript);
+}
+
 testAutomationBackendDefaults();
 testRuntimeEnvironmentProjectsResolvedBackend();
+testRuntimeEnvironmentProjectsGatewayProfileLaunchScript();
 
 console.log("mobile runtime environment service tests passed");

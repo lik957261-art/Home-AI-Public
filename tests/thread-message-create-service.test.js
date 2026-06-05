@@ -397,6 +397,32 @@ async function testRunOptionsAndDispatchHooks() {
   assert.equal(calls.starts[0].runOptions, plan.runOptions);
 }
 
+async function testDispatchFormatsGatewayCapacityFailure() {
+  const err = new Error("Gateway worker queue timed out for workspace_capacity.");
+  err.status = 503;
+  err.code = "gateway_elastic_queue_timeout";
+  err.details = { reason: "workspace_capacity", queueDepth: 2 };
+  const { service } = makeHarness({
+    serviceOptions: {
+      startRunForThread: async () => { throw err; },
+    },
+  });
+  const thread = baseThread();
+  const plan = service.prepareThreadMessageCreate({
+    thread,
+    body: { text: "start run" },
+    auth: {},
+  });
+
+  const result = await service.commitRunMessageAndDispatch(thread, plan);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 503);
+  assert.match(result.error, /工作区的 AI 执行通道已满/);
+  assert.equal(plan.assistantMessage.error, result.error);
+  assert.doesNotMatch(plan.assistantMessage.error, /workspace_capacity/);
+}
+
 function testGrokModelRouteRequiresXaiGatewayProvider() {
   const { calls, service } = makeHarness();
   const plan = service.prepareThreadMessageCreate({
@@ -569,6 +595,7 @@ function testConcurrencyErrorBeforeStateMutation() {
   testDirectoryAttachmentPrecedence();
   testDirectCreateRoutingAndPayloads();
   await testRunOptionsAndDispatchHooks();
+  await testDispatchFormatsGatewayCapacityFailure();
 testGrokModelRouteRequiresXaiGatewayProvider();
 testNaturalLanguageGrokRouteOverridesDefaultChatGptModel();
 testDeepSeekOwnerMaintenanceRouteUsesHighPermissionProfile();

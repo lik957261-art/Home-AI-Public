@@ -119,6 +119,7 @@ async function main() {
   const accessKeyPath = argValue("--access-key-path", process.env.HERMES_VISUAL_SMOKE_ACCESS_KEY_PATH || process.env.HERMES_WEB_AUTH_KEY_PATH || "");
   const workspaceId = argValue("--workspace-id", process.env.HERMES_VISUAL_SMOKE_WORKSPACE_ID || "");
   const view = argValue("--view", process.env.HERMES_VISUAL_SMOKE_VIEW || "");
+  const openCapabilityMenu = argValue("--open-capability-menu", process.env.HERMES_VISUAL_SMOKE_OPEN_CAPABILITY_MENU || "");
   const waitForAuth = normalizeBooleanEnv(process.env.HERMES_VISUAL_SMOKE_WAIT_FOR_AUTH, Boolean(accessKeyPath))
     && !hasArg("--no-wait-for-auth");
   const strictLayout = normalizeBooleanEnv(process.env.HERMES_VISUAL_SMOKE_STRICT, true);
@@ -193,6 +194,19 @@ async function main() {
       await page.waitForTimeout(800);
     }
     const viewClicked = await clickTargetView(page, view);
+    let capabilityMenuOpened = false;
+    if (openCapabilityMenu) {
+      const pluginButton = page.locator(`[data-plugin-topic-open-app="${openCapabilityMenu}"].capability-plugin-icon-button`).first();
+      if (await pluginButton.count()) {
+        await pluginButton.dispatchEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          button: 2,
+        });
+        await page.waitForTimeout(250);
+        capabilityMenuOpened = await page.locator(`[data-plugin-topic-action-menu="${openCapabilityMenu}"]`).first().isVisible().catch(() => false);
+      }
+    }
     const clientVersion = await page.locator("html").getAttribute("data-client-version");
     const title = await page.title();
     const layout = await page.evaluate(({ expectAuthenticated, longTaskWarnMs, failOnLongTask }) => {
@@ -306,8 +320,18 @@ async function main() {
         chatScopeHeader: rect("#chatScopeHeader"),
         threadList: rect("#threadList"),
         topicPluginDock: rect("#topicPluginDock"),
+        capabilityHub: rect(".capability-entry-hub"),
+        capabilityQuickGrid: rect(".capability-quick-grid"),
+        capabilityPluginGrid: rect(".capability-plugin-grid"),
+        capabilityActionMenu: rect(".capability-action-menu:not([hidden])"),
         accessKeyOverlay: rect("#accessKeyOverlay"),
         bootSplash: rect("#bootSplash"),
+      };
+      const capability = {
+        quickActionCount: document.querySelectorAll(".capability-quick-action").length,
+        pluginIconCount: document.querySelectorAll(".capability-plugin-icon-button").length,
+        sourceBadgeCount: document.querySelectorAll(".capability-action-source").length,
+        openMenuCount: document.querySelectorAll(".capability-action-menu:not([hidden])").length,
       };
       const navButtons = Array.from(document.querySelectorAll("#bottomNav .bottom-tab")).map((button) => {
         const box = button.getBoundingClientRect();
@@ -384,6 +408,21 @@ async function main() {
         warnings.push({ code: "access_overlay_extends_below_viewport", rect: rects.accessKeyOverlay, viewport });
       }
 
+      if (rects.capabilityHub.visible) {
+        if (!capability.quickActionCount) failures.push({ code: "capability_quick_actions_missing", capability });
+        if (!capability.pluginIconCount) failures.push({ code: "capability_plugin_icons_missing", capability });
+        if (rects.capabilityHub.bottom > viewport.height + 4 && !rects.conversation.visible) {
+          warnings.push({ code: "capability_hub_extends_without_scroll_surface", rect: rects.capabilityHub, viewport });
+        }
+        if (rects.capabilityActionMenu.visible && rects.bottomNav.visible && overlaps(rects.capabilityActionMenu, rects.bottomNav)) {
+          failures.push({
+            code: "capability_menu_bottom_nav_overlap",
+            menu: rects.capabilityActionMenu,
+            bottomNav: rects.bottomNav,
+          });
+        }
+      }
+
       if (!Object.values(rects).some((entry) => entry?.visible)) {
         warnings.push({ code: "no_tracked_shell_surface_visible" });
       }
@@ -402,6 +441,7 @@ async function main() {
       return {
         viewport,
         rects,
+        capability,
         auth,
         navButtons,
         performance: performanceInfo,
@@ -429,6 +469,8 @@ async function main() {
       workspaceId,
       view,
       viewClicked,
+      openCapabilityMenu,
+      capabilityMenuOpened,
       browserContext: {
         viewport,
         isMobile,

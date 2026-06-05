@@ -49,6 +49,17 @@ function cleanProvider(value) {
   return String(value || "").trim();
 }
 
+function readSecretFile(value) {
+  const resolved = String(value || "").trim();
+  if (!resolved) return "";
+  try {
+    if (!fs.existsSync(resolved)) return "";
+    return fs.readFileSync(resolved, "utf8").trim();
+  } catch (_) {
+    return "";
+  }
+}
+
 function normalizeSecurityLevel(value) {
   const text = String(value || "").trim().toLowerCase().replaceAll("_", "-");
   if (["user", "restricted", "low", "low-privilege"].includes(text)) return "user";
@@ -145,6 +156,8 @@ function normalizeWorker(raw, index = 0) {
   if (!apiBase) return null;
   const profile = String(raw.profile || "").trim();
   const name = String(raw.name || profile || `worker${index + 1}`).trim();
+  const apiKey = String(raw.api_key || raw.apiKey || "").trim()
+    || readSecretFile(raw.apiKeyFile || raw.api_key_file || raw.apiKeyPath || raw.api_key_path);
   return {
     id: String(raw.id || name || profile || apiBase).trim(),
     name,
@@ -154,7 +167,7 @@ function normalizeWorker(raw, index = 0) {
     profileTemplateKey: String(raw.profileTemplateKey || raw.profile_template_key || raw.templateKey || raw.template_key || "").trim(),
     poolKey: String(raw.poolKey || raw.pool_key || "").trim(),
     apiBase: stripTrailingSlash(apiBase),
-    apiKey: String(raw.api_key || raw.apiKey || "").trim(),
+    apiKey,
     provider: String(raw.provider || "").trim(),
     tags: cleanList(raw.tags),
     toolsets: normalizeWorkerToolsets(raw, profile),
@@ -430,6 +443,13 @@ function createGatewayPoolProvider(options = {}) {
     };
   }
 
+  function withResolvedApiKey(worker) {
+    if (!worker || worker.apiKey) return worker;
+    const fallback = fallbackTarget();
+    if (!fallback.apiKey) return worker;
+    return Object.assign({}, worker, { apiKey: fallback.apiKey });
+  }
+
   function mode() {
     return envEnabled(typeof options.enabled === "function" ? options.enabled() : options.enabled);
   }
@@ -551,7 +571,7 @@ function createGatewayPoolProvider(options = {}) {
       });
       const idx = loaded.workers.findIndex((item) => item.id === target.id);
       nextIndex = idx >= 0 ? (idx + 1) % loaded.workers.length : (nextIndex + 1) % loaded.workers.length;
-      return Object.assign({}, target, {
+      return Object.assign({}, withResolvedApiKey(target), {
         manifestPath: loaded.manifestPath,
       });
     }
@@ -559,7 +579,7 @@ function createGatewayPoolProvider(options = {}) {
       if (await isHealthy(worker)) {
         const idx = loaded.workers.findIndex((item) => item.id === worker.id);
         nextIndex = idx >= 0 ? (idx + 1) % loaded.workers.length : (nextIndex + 1) % loaded.workers.length;
-        return Object.assign({}, worker, {
+        return Object.assign({}, withResolvedApiKey(worker), {
           pooled: true,
           source: "worker_pool",
           manifestPath: loaded.manifestPath,
@@ -584,7 +604,7 @@ function createGatewayPoolProvider(options = {}) {
     const loaded = load();
     const worker = loaded.workers.find((item) => item.apiBase === apiBase);
     if (worker) {
-      return Object.assign({}, worker, {
+      return Object.assign({}, withResolvedApiKey(worker), {
         pooled: true,
         source: "worker_pool",
         manifestPath: loaded.manifestPath,

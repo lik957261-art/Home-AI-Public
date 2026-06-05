@@ -1,6 +1,7 @@
 "use strict";
 
 const { livenessDecisionAfterCheck } = require("./gateway-run-lifecycle-service");
+const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
 
 function cleanString(value) {
   return String(value || "").trim();
@@ -85,7 +86,7 @@ function outputItemHasMessageText(item = {}) {
 }
 
 function safeErrorMessage(err) {
-  return err?.message || String(err || "");
+  return gatewayRunUserFacingError(err);
 }
 
 function modelStreamEventPreview(message, details = {}) {
