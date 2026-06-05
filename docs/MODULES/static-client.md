@@ -156,6 +156,17 @@ Gateway plugin/schema/profile changes:
   navigation bounds, and composer/bottom-nav overlap. Browser-mode visual smoke
   is useful for mechanical layout evidence, but installed-PWA behavior still
   requires the PWA/device harness when the issue is PWA-specific.
+- Authenticated visual smoke should pass the Access Key by file path only:
+  `--access-key-path <path>` or `HERMES_VISUAL_SMOKE_ACCESS_KEY_PATH`. The
+  harness injects `localStorage.hermesWebKey` and the `hermes_web_key` cookie
+  before app startup, may set `--workspace-id` and `--view`, and reports only
+  bounded auth/layout state. It must not print the key or raw local key file
+  contents.
+- The same harness records navigation timing, Chromium long-task entries, and
+  the bounded `localStorage.hermesStartupPerfLast` summary when present. Long
+  tasks above `--long-task-warn-ms` default to warnings; set
+  `HERMES_VISUAL_SMOKE_FAIL_ON_LONG_TASK=1` only for a calibrated performance
+  gate after measuring normal local production variance.
 - Dark mode should follow the mobile control-panel reference: near-black page
   background, slightly lifted charcoal cards, low-noise hairlines, high-contrast
   off-white text, and brighter low-saturation status colors. Hard-coded dark

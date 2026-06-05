@@ -4,30 +4,170 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { chromium } = require("playwright");
 
+function argValue(name, fallback = "") {
+  const index = process.argv.indexOf(name);
+  if (index >= 0 && index + 1 < process.argv.length) return process.argv[index + 1];
+  return fallback;
+}
+
+function hasArg(name) {
+  return process.argv.includes(name);
+}
+
 function normalizeBooleanEnv(value, defaultValue = true) {
   if (value === undefined || value === "") return defaultValue;
   return !/^(0|false|no)$/i.test(String(value).trim());
 }
 
+function normalizeNumberEnv(value, defaultValue) {
+  if (value === undefined || value === "") return defaultValue;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : defaultValue;
+}
+
+function readSecretFile(filePath, label) {
+  const resolved = path.resolve(filePath);
+  const value = fs.readFileSync(resolved, "utf8").trim();
+  if (!value) throw new Error(`${label} file is empty`);
+  return value;
+}
+
+function urlForCookie(rawUrl) {
+  const parsed = new URL(rawUrl);
+  return `${parsed.protocol}//${parsed.host}/`;
+}
+
+function safeUrlForOutput(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    for (const key of Array.from(parsed.searchParams.keys())) {
+      if (/key|token|secret|password|cookie/i.test(key)) parsed.searchParams.set(key, "REDACTED");
+    }
+    return parsed.toString();
+  } catch (_) {
+    return rawUrl;
+  }
+}
+
+function viewModeSettings(view) {
+  const normalized = String(view || "").trim().toLowerCase();
+  if (!normalized) return {};
+  if (["chat", "single-chat", "single"].includes(normalized)) {
+    return { hermesWebViewMode: "single", hermesWebSingleWindowMode: "chat" };
+  }
+  if (["topics", "tasks", "topic"].includes(normalized)) {
+    return { hermesWebViewMode: "tasks", hermesWebSingleWindowMode: "task" };
+  }
+  if (["inbox", "projects", "todos", "learning", "automation", "wardrobe", "finance", "email", "health", "note", "codex"].includes(normalized)) {
+    return { hermesWebViewMode: normalized };
+  }
+  return {};
+}
+
+async function clickTargetView(page, view) {
+  const normalized = String(view || "").trim().toLowerCase();
+  const selectorByView = {
+    chat: "#bottomChatMode",
+    "single-chat": "#bottomChatMode",
+    single: "#bottomChatMode",
+    inbox: "#bottomInboxMode",
+    topics: "#bottomTasksMode",
+    topic: "#bottomTasksMode",
+    tasks: "#bottomTasksMode",
+    projects: "#bottomProjectsMode",
+    directory: "#bottomProjectsMode",
+    todos: "#bottomTodosMode",
+    learning: "#bottomTodosMode",
+    wardrobe: "#bottomWardrobeMode",
+    finance: "#bottomFinanceMode",
+    email: "#bottomEmailMode",
+    health: "#bottomHealthMode",
+    note: "#bottomNoteMode",
+    codex: "#bottomCodexMode",
+    automation: "#bottomAutomationMode",
+  };
+  const selector = selectorByView[normalized];
+  if (!selector) return false;
+  const button = page.locator(selector).first();
+  if (!(await button.count())) return false;
+  if (!(await button.isVisible().catch(() => false))) return false;
+  await button.click({ timeout: 5000 });
+  await page.waitForTimeout(800);
+  return true;
+}
+
 async function main() {
-  const url = process.env.HERMES_VISUAL_SMOKE_URL || "http://127.0.0.1:8797/?_hmv=visual-smoke";
-  const screenshotPath = process.env.HERMES_VISUAL_SMOKE_SCREENSHOT
-    || path.join(process.cwd(), "tmp", "visual-smoke.png");
+  const url = argValue("--url", process.env.HERMES_VISUAL_SMOKE_URL || "http://127.0.0.1:8797/?_hmv=visual-smoke");
+  const screenshotPath = argValue("--screenshot", process.env.HERMES_VISUAL_SMOKE_SCREENSHOT
+    || path.join(process.cwd(), "tmp", "visual-smoke.png"));
+  const accessKeyPath = argValue("--access-key-path", process.env.HERMES_VISUAL_SMOKE_ACCESS_KEY_PATH || process.env.HERMES_WEB_AUTH_KEY_PATH || "");
+  const workspaceId = argValue("--workspace-id", process.env.HERMES_VISUAL_SMOKE_WORKSPACE_ID || "");
+  const view = argValue("--view", process.env.HERMES_VISUAL_SMOKE_VIEW || "");
+  const waitForAuth = normalizeBooleanEnv(process.env.HERMES_VISUAL_SMOKE_WAIT_FOR_AUTH, Boolean(accessKeyPath))
+    && !hasArg("--no-wait-for-auth");
   const strictLayout = normalizeBooleanEnv(process.env.HERMES_VISUAL_SMOKE_STRICT, true);
+  const longTaskWarnMs = normalizeNumberEnv(argValue("--long-task-warn-ms", process.env.HERMES_VISUAL_SMOKE_LONG_TASK_WARN_MS || ""), 200);
+  const failOnLongTask = normalizeBooleanEnv(process.env.HERMES_VISUAL_SMOKE_FAIL_ON_LONG_TASK, false);
+  const accessKey = accessKeyPath ? readSecretFile(accessKeyPath, "access key") : "";
+  const settings = viewModeSettings(view);
   fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
   const browser = await chromium.launch({ headless: true });
   try {
-    const page = await browser.newPage({
+    const context = await browser.newContext({
       viewport: { width: 390, height: 844 },
       isMobile: true,
       hasTouch: true,
       deviceScaleFactor: 2,
     });
+    if (accessKey) {
+      await context.addCookies([{
+        name: "hermes_web_key",
+        value: accessKey,
+        url: urlForCookie(url),
+        sameSite: "Lax",
+        secure: new URL(url).protocol === "https:",
+      }]);
+    }
+    const page = await context.newPage();
+    if (accessKey || workspaceId || Object.keys(settings).length) {
+      await page.addInitScript(({ key, workspace, storageSettings }) => {
+        if (key) localStorage.setItem("hermesWebKey", key);
+        if (workspace) localStorage.setItem("hermesWebWorkspace", workspace);
+        for (const [name, value] of Object.entries(storageSettings || {})) {
+          if (value) localStorage.setItem(name, value);
+        }
+      }, {
+        key: accessKey,
+        workspace: workspaceId,
+        storageSettings: settings,
+      });
+    }
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
-    await page.waitForTimeout(800);
+    if (waitForAuth) {
+      await page.waitForFunction(() => {
+        const app = document.getElementById("app");
+        const login = document.getElementById("login");
+        const appStyle = app ? window.getComputedStyle(app) : null;
+        const loginStyle = login ? window.getComputedStyle(login) : null;
+        const appVisible = Boolean(app)
+          && !app.classList.contains("hidden")
+          && appStyle?.display !== "none"
+          && app.getBoundingClientRect().width > 0
+          && app.getBoundingClientRect().height > 0;
+        const loginVisible = Boolean(login)
+          && !login.classList.contains("hidden")
+          && loginStyle?.display !== "none"
+          && login.getBoundingClientRect().width > 0
+          && login.getBoundingClientRect().height > 0;
+        return appVisible && !loginVisible;
+      }, { timeout: 15000 });
+    } else {
+      await page.waitForTimeout(800);
+    }
+    const viewClicked = await clickTargetView(page, view);
     const clientVersion = await page.locator("html").getAttribute("data-client-version");
     const title = await page.title();
-    const layout = await page.evaluate(() => {
+    const layout = await page.evaluate(({ expectAuthenticated, longTaskWarnMs, failOnLongTask }) => {
       function round(value) {
         return Math.round(Number(value || 0) * 100) / 100;
       }
@@ -68,6 +208,56 @@ async function main() {
         return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
       }
 
+      function navigationTiming() {
+        const entry = performance.getEntriesByType("navigation")[0];
+        if (!entry) return null;
+        return {
+          startTime: round(entry.startTime),
+          responseEnd: round(entry.responseEnd),
+          domContentLoadedEventEnd: round(entry.domContentLoadedEventEnd),
+          loadEventEnd: round(entry.loadEventEnd),
+          duration: round(entry.duration),
+          transferSize: Number(entry.transferSize || 0),
+          encodedBodySize: Number(entry.encodedBodySize || 0),
+          decodedBodySize: Number(entry.decodedBodySize || 0),
+        };
+      }
+
+      function longTasks() {
+        return performance.getEntriesByType("longtask")
+          .map((entry) => ({
+            startTime: round(entry.startTime),
+            duration: round(entry.duration),
+            name: String(entry.name || ""),
+          }))
+          .slice(-20);
+      }
+
+      function startupPerfSummary() {
+        try {
+          const raw = localStorage.getItem("hermesStartupPerfLast") || "";
+          if (!raw) return null;
+          const value = JSON.parse(raw);
+          const stages = Array.isArray(value.stages)
+            ? value.stages.slice(-30).map((stage) => ({
+              name: String(stage.name || ""),
+              durationMs: round(stage.durationMs || stage.duration || 0),
+              atMs: round(stage.atMs || stage.at || 0),
+            }))
+            : [];
+          return {
+            totalMs: round(value.totalMs || value.total || 0),
+            selectedWorkspaceId: String(value.selectedWorkspaceId || ""),
+            viewMode: String(value.viewMode || ""),
+            messageCount: Number(value.messageCount || 0),
+            pageTotal: Number(value.pageTotal || 0),
+            stages,
+          };
+        } catch (_) {
+          return { parseError: true };
+        }
+      }
+
       const viewport = {
         width: window.innerWidth,
         height: window.innerHeight,
@@ -78,16 +268,56 @@ async function main() {
       };
       const rects = {
         app: rect("#app"),
-        topBar: rect(".top-bar"),
+        login: rect("#login"),
+        topBar: rect(".topbar"),
         main: rect("main"),
         conversation: rect("#conversation"),
         bottomNav: rect("#bottomNav"),
         composer: rect("#composer"),
+        threadTitle: rect("#threadTitle"),
+        chatScopeHeader: rect("#chatScopeHeader"),
+        threadList: rect("#threadList"),
+        topicPluginDock: rect("#topicPluginDock"),
         accessKeyOverlay: rect("#accessKeyOverlay"),
         bootSplash: rect("#bootSplash"),
       };
+      const navButtons = Array.from(document.querySelectorAll("#bottomNav .bottom-tab")).map((button) => {
+        const box = button.getBoundingClientRect();
+        const style = window.getComputedStyle(button);
+        return {
+          id: button.id || "",
+          hidden: Boolean(button.hidden),
+          visible: !button.hidden
+            && style.display !== "none"
+            && style.visibility !== "hidden"
+            && box.width > 0
+            && box.height > 0,
+          active: button.classList.contains("active"),
+          width: round(box.width),
+          height: round(box.height),
+          left: round(box.left),
+          top: round(box.top),
+          label: button.getAttribute("aria-label") || button.textContent.trim(),
+        };
+      });
+      const auth = {
+        appVisible: Boolean(rects.app.visible),
+        loginVisible: Boolean(rects.login.visible),
+        visibleNavCount: navButtons.filter((item) => item.visible).length,
+        activeNavIds: navButtons.filter((item) => item.active).map((item) => item.id),
+      };
+      const performanceInfo = {
+        navigation: navigationTiming(),
+        longTasks: longTasks(),
+        startupPerfLast: startupPerfSummary(),
+      };
+      const maxLongTaskMs = performanceInfo.longTasks.reduce((max, entry) => Math.max(max, Number(entry.duration) || 0), 0);
       const failures = [];
       const warnings = [];
+
+      if (expectAuthenticated && (!auth.appVisible || auth.loginVisible)) {
+        failures.push({ code: "authenticated_shell_not_visible", auth });
+      }
 
       if (viewport.scrollWidth > viewport.width + 2) {
         failures.push({
@@ -130,12 +360,30 @@ async function main() {
         warnings.push({ code: "no_tracked_shell_surface_visible" });
       }
 
+      if (maxLongTaskMs > longTaskWarnMs) {
+        const payload = {
+          code: "long_task_detected",
+          thresholdMs: longTaskWarnMs,
+          maxLongTaskMs: round(maxLongTaskMs),
+          count: performanceInfo.longTasks.length,
+        };
+        if (failOnLongTask) failures.push(payload);
+        else warnings.push(payload);
+      }
+
       return {
         viewport,
         rects,
+        auth,
+        navButtons,
+        performance: performanceInfo,
         failures,
         warnings,
       };
+    }, {
+      expectAuthenticated: Boolean(waitForAuth || accessKey),
+      longTaskWarnMs,
+      failOnLongTask,
     });
     await page.screenshot({ path: screenshotPath, fullPage: true });
     if (strictLayout && layout.failures.length > 0) {
@@ -145,11 +393,17 @@ async function main() {
     }
     console.log(JSON.stringify({
       ok: true,
-      url,
+      url: safeUrlForOutput(url),
       title,
       clientVersion,
       screenshotPath,
+      authenticatedInput: Boolean(accessKey),
+      workspaceId,
+      view,
+      viewClicked,
       strictLayout,
+      longTaskWarnMs,
+      failOnLongTask,
       layout,
     }, null, 2));
   } finally {
