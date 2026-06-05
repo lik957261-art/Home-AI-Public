@@ -150,6 +150,12 @@ Gateway plugin/schema/profile changes:
   or danger cards, and the settings/access-key sheet in light, dark, and system
   mode. A dark-mode fix is incomplete if any of those surfaces still uses a
   hard-coded pale background with low-contrast foreground text.
+- Visual smoke checks should capture both screenshots and bounding rectangles
+  for the changed fixed/sticky surfaces. `scripts/playwright-visual-smoke.js`
+  records viewport metrics, key shell rectangles, horizontal overflow, bottom
+  navigation bounds, and composer/bottom-nav overlap. Browser-mode visual smoke
+  is useful for mechanical layout evidence, but installed-PWA behavior still
+  requires the PWA/device harness when the issue is PWA-specific.
 - Dark mode should follow the mobile control-panel reference: near-black page
   background, slightly lifted charcoal cards, low-noise hairlines, high-contrast
   off-white text, and brighter low-saturation status colors. Hard-coded dark

@@ -96,6 +96,7 @@ const requiredExistingReferences = [
   "scripts/playwright-visual-smoke.js",
   "scripts/android-pwa-plugin-dock-smoke.js",
   "tests/architecture-refactor-boundary.test.js",
+  "tests/playwright-visual-smoke-harness.test.js",
   "tests/api-route-registry.test.js",
   "tests/gateway-run-start-service.test.js",
   "tests/plugin-capability-activation-service.test.js",
