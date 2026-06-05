@@ -29,7 +29,7 @@ async function createAutomationFromForm(root) {
     state.automationRouteTargetId = "";
     state.automationRouteTargetPending = false;
     await loadAutomations({ detail: "full", refresh: true });
-    $("connectionState").textContent = "Hermes OK";
+    $("connectionState").textContent = "Home AI OK";
   } finally {
     if (submit) submit.disabled = false;
   }
@@ -50,16 +50,16 @@ function openAutomationEdit() {
 
 async function postAutomationAction(jobId, action, payload = {}) {
   if (!jobId || !action) return null;
-  $("connectionState").textContent = "Hermes CRON...";
+  $("connectionState").textContent = "Automation...";
   try {
     const result = await api(`/api/automations/${encodeURIComponent(jobId)}/${encodeURIComponent(action)}`, {
       method: "POST",
       body: JSON.stringify(Object.assign({ workspaceId: state.selectedWorkspaceId || "owner" }, payload)),
     });
-    $("connectionState").textContent = "Hermes OK";
+    $("connectionState").textContent = "Home AI OK";
     return result;
   } catch (err) {
-    $("connectionState").textContent = "Hermes error";
+    $("connectionState").textContent = "Home AI error";
     throw err;
   }
 }

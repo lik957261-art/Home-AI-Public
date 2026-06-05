@@ -135,7 +135,7 @@ async function blockTodo(todoId) {
   await api(boardActionApiPath(todoId, "block"), {
     method: "POST",
     body: kanbanCardActionBody(todoId, {
-      reason: "Blocked from Hermes Mobile Kanban view.",
+      reason: "Blocked from Home AI Kanban view.",
     }),
   });
   clearTodoListCache(kanbanCardWorkspaceId(todoId));

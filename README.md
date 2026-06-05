@@ -1,10 +1,11 @@
-# Hermes Mobile
+# Home AI
 
-Hermes Mobile is a mobile-first web app for using a local Hermes Gateway from a
-phone or desktop browser. It is separate from the official Hermes dashboard and
-does not use the dashboard terminal/PTY chat surface as its product model.
+Home AI is the repository/project name for a mobile-first private family AI
+center built on local Hermes Gateway runtime capabilities. The installed app visible brand is Home AI. It is separate from the official Hermes
+dashboard and does not use the dashboard terminal/PTY chat surface as its
+product model.
 
-This repository contains the public Hermes Mobile product source. Keep
+This repository contains the public Home AI product source. Keep
 deployment-specific secrets, runtime data, generated reports, logs, uploads,
 tokens, push endpoints, and adapter configuration outside the source
 checkout.
@@ -44,7 +45,7 @@ High-value entry points:
 
 ## 1.0.2 Public Release
 
-This release refreshes the public tree from the current Hermes Mobile source and
+This release refreshes the public tree from the current Home AI source and
 keeps the package metadata aligned with the public `v1.0.2` release tag.
 
 Highlights:
@@ -75,7 +76,7 @@ Validation for this public release:
 
 ## 2026-05-28 Public Update
 
-This update refreshes the public tree from the current Hermes Mobile source.
+This update refreshes the public tree from the current Home AI source.
 The exact source commit is recorded in `.public-export-report.json`.
 
 Highlights:
@@ -379,7 +380,7 @@ Create public releases from a clean export, not from runtime directories:
 
 ```powershell
 npm run productization:check
-npm run export:public -- --out workspace\public-export\hermes-mobile-public-smoke --force
+npm run export:public -- --out workspace\public-export\Home-AI-Public-smoke --force
 ```
 
 The export command copies tracked source files, excludes runtime/deployment

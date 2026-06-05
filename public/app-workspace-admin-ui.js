@@ -297,11 +297,11 @@ function renderRuntimeConfigManager() {
     ? `<div class="access-key-empty">正在读取运行配置...</div>`
     : `<section class="runtime-config-form">
           <label>
-            <span>Hermes Gateway URL</span>
+            <span>Gateway URL</span>
             <input id="runtimeHermesApiBase" type="url" autocomplete="off" value="${escapeHtml(config.hermesApiBase || "")}" placeholder="http://127.0.0.1:8642">
           </label>
           <label>
-            <span>Hermes API Key 文件路径</span>
+            <span>Gateway API Key 文件路径</span>
             <input id="runtimeHermesApiKeyPath" type="text" autocomplete="off" value="${escapeHtml(config.hermesApiKeyPath || "")}" placeholder="可留空，继续使用环境变量或默认路径">
           </label>
           <div class="runtime-config-subtitle">Model default</div>

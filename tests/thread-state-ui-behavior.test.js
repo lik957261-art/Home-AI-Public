@@ -33,6 +33,22 @@ const context = {
   showError: () => {},
   renderThreads: () => {},
   renderCurrentThread: () => {},
+  setComposerEnabled: () => {},
+  startupPerfMark: () => {},
+  summarizeThread: (thread) => ({
+    id: thread.id,
+    title: thread.title,
+    workspaceId: thread.workspaceId,
+    singleWindow: Boolean(thread.singleWindow),
+    status: thread.status,
+    activeRunId: thread.activeRunId,
+    activeRunIds: thread.activeRunIds || [],
+    updatedAt: thread.updatedAt,
+    preview: "",
+  }),
+  isThreadWeixinChat: (thread) => Boolean(thread?.externalIngress?.source === "weixin"),
+  selectedWorkspaceInThreadGroup: (thread) => Boolean(thread?.chatGroup?.memberWorkspaceIds?.includes(context.state.selectedWorkspaceId)),
+  currentUserCanUseGroupChatThread: (thread) => Boolean(thread?.chatGroup?.enabled && (thread.chatGroup.memberWorkspaceIds || []).includes(context.state.selectedWorkspaceId)),
   scheduleRunProgressRenderForRun: () => {},
   scheduleStreamingMessageRender: () => false,
   isChatSearchMode: () => false,
@@ -311,5 +327,55 @@ context.upsertMessage({
   updatedAt: "2026-06-01T07:42:04.000Z",
 });
 assert.deepEqual(Array.from(context.state.currentThread.messages.map((message) => message.id)), ["real_user_event", "real_assistant_event"]);
+
+let renderedThreadId = "";
+let renderedStickToBottom = null;
+let renderThreadCalls = 0;
+let composerEnabled = false;
+context.renderThreads = () => { renderThreadCalls += 1; };
+context.renderCurrentThread = (options = {}) => {
+  renderedThreadId = context.state.currentThreadId;
+  renderedStickToBottom = options.stickToBottom;
+};
+context.setComposerEnabled = (enabled) => { composerEnabled = Boolean(enabled); };
+context.state.selectedWorkspaceId = "owner";
+context.state.viewMode = "single";
+context.state.singleWindowMode = "chat";
+context.state.singleWindowRequestSeq = 12;
+context.state.currentThread = null;
+context.state.currentThreadId = "";
+context.state.privateChatThread = {
+  id: "private-chat-thread",
+  singleWindow: true,
+  workspaceId: "owner",
+  status: "idle",
+  updatedAt: "2026-06-04T08:00:00.000Z",
+  messages: [
+    {
+      id: "cached-user",
+      role: "user",
+      taskGroupId: "chat",
+      content: "cached",
+      createdAt: "2026-06-04T08:00:00.000Z",
+      updatedAt: "2026-06-04T08:00:00.000Z",
+    },
+  ],
+  messagesPage: { mode: "chat", taskGroupId: "chat", total: 1 },
+};
+assert.equal(context.renderCachedSingleWindowThreadForRequest({
+  seq: 12,
+  workspaceId: "owner",
+  viewMode: "single",
+  singleWindowMode: "chat",
+  messageMode: "chat",
+  groupChat: false,
+  weixinChat: false,
+}), true);
+assert.equal(renderedThreadId, "private-chat-thread");
+assert.equal(renderedStickToBottom, true);
+assert.equal(renderThreadCalls, 1);
+assert.equal(composerEnabled, true);
+assert.equal(context.state.threads.length, 1);
+assert.equal(context.state.threads[0].id, "private-chat-thread");
 
 console.log("thread-state-ui-behavior tests passed");

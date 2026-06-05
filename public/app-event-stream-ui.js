@@ -337,7 +337,7 @@ async function uploadFiles(files) {
     }
     renderPendingArtifacts();
     updateComposerAction();
-    $("connectionState").textContent = "Hermes OK";
+    $("connectionState").textContent = "Home AI OK";
   } catch (err) {
     showError(err);
   } finally {

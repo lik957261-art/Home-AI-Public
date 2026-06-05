@@ -618,7 +618,7 @@ function chatSearchContentForMessage(message) {
     ? message.artifacts.map((artifact) => [artifact.name, artifact.path, artifact.mime].filter(Boolean).join(" ")).join("\n")
     : "";
   return [
-    message?.role === "user" ? "You" : "Hermes",
+    message?.role === "user" ? "You" : "Home AI",
     text,
     message?.error || "",
     artifacts,

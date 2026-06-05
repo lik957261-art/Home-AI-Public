@@ -120,7 +120,7 @@ function renderAccessKeyManagerLegacy() {
       </section>` : "";
   const subtitle = isOwnerAccessManager
     ? "Owner 可查看全部账号；生产部署账号在这里只读，Access Key 仍可管理。"
-    : "只能查看并更换当前账号的 Hermes Mobile 登录 key。";
+    : "只能查看并更换当前账号的 Home AI 登录 key。";
   overlay.innerHTML = `
     <div class="access-key-sheet">
       <header class="access-key-header">
@@ -134,7 +134,7 @@ function renderAccessKeyManagerLegacy() {
       ${workspaceAdminList}
       ${showOwnerKey ? `<section class="access-key-web">
         <div>
-          <div class="access-key-row-title">Hermes Mobile Owner Key</div>
+          <div class="access-key-row-title">Home AI Owner Key</div>
           <div class="access-key-row-meta">当前来源：${escapeHtml(state.accessKeysAuth?.source || "unknown")}</div>
         </div>
         <button type="button" data-rotate-web-key${state.accessKeysAuth?.canRotateGlobal === false ? " disabled" : ""}>更换</button>
@@ -314,7 +314,7 @@ function renderAccessKeyManager() {
     </div>
     <article class="access-key-web owner-key-card">
       <div>
-        <div class="access-key-row-title">Hermes Mobile Owner Key</div>
+        <div class="access-key-row-title">Home AI Owner Key</div>
         <div class="access-key-row-meta">管理员入口 Key</div>
       </div>
       <button type="button" data-rotate-web-key${state.accessKeysAuth?.canRotateGlobal === false ? " disabled" : ""}>更换</button>
@@ -378,7 +378,7 @@ function renderAccessKeyManager() {
     }).join("")}</div></section>`;
   const subtitle = isOwnerAccessManager
     ? "账号、根目录、接口和登录 Key"
-    : "只能查看并更换当前账号的 Hermes Mobile 登录 Key。";
+    : "只能查看并更换当前账号的 Home AI 登录 Key。";
 
   overlay.innerHTML = `
     <div class="access-key-sheet owner-admin-sheet">
@@ -554,7 +554,7 @@ async function generateWorkspaceAccessKey(workspaceId) {
   const target = (state.accessKeys || []).find((item) => item.workspaceId === workspaceId);
   const label = target?.workspaceLabel || workspaceId || "workspace";
   if (!workspaceId) return;
-  if (target?.hasKey && !window.confirm(`更换 ${label} 的 Hermes Mobile Access Key？旧 key 会立即失效。`)) return;
+  if (target?.hasKey && !window.confirm(`更换 ${label} 的 Home AI Access Key？旧 key 会立即失效。`)) return;
   const result = await api("/api/access-keys/workspace", {
     method: "POST",
     body: JSON.stringify({ workspaceId }),
@@ -562,7 +562,7 @@ async function generateWorkspaceAccessKey(workspaceId) {
   state.generatedAccessKey = {
     kind: "workspace",
     key: result.key || "",
-    label: `${label} Hermes Mobile Access Key`,
+    label: `${label} Home AI Access Key`,
     workspaceId,
     focus: true,
   };
@@ -579,7 +579,7 @@ async function revokeWorkspaceAccessKey(workspaceId) {
   const target = (state.accessKeys || []).find((item) => item.workspaceId === workspaceId);
   const label = target?.workspaceLabel || workspaceId || "workspace";
   if (!workspaceId || !target?.hasKey) return;
-  if (!window.confirm(`撤销 ${label} 的 Hermes Mobile Access Key？该账号会在下次请求时需要重新登录。`)) return;
+  if (!window.confirm(`撤销 ${label} 的 Home AI Access Key？该账号会在下次请求时需要重新登录。`)) return;
   const result = await api(`/api/access-keys/workspace/${encodeURIComponent(workspaceId)}`, {
     method: "DELETE",
     body: JSON.stringify({}),
@@ -594,13 +594,13 @@ async function revokeWorkspaceAccessKey(workspaceId) {
 }
 
 async function rotateWebAccessKey() {
-  if (!window.confirm("更换 Hermes Mobile Owner Access Key？旧 Owner key 会立即失效。")) return;
+  if (!window.confirm("更换 Home AI Owner Access Key？旧 Owner key 会立即失效。")) return;
   const result = await api("/api/access-keys/web", { method: "POST", body: JSON.stringify({}) });
   storeAccessKey(result.key || "");
   state.generatedAccessKey = {
     kind: "owner",
     key: result.key || "",
-    label: "Hermes Mobile Owner Access Key",
+    label: "Home AI Owner Access Key",
     workspaceId: "owner",
     focus: true,
   };

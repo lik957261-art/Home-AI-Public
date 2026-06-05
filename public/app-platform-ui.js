@@ -217,7 +217,7 @@ async function createOwnerSetup() {
 
 async function enterAfterSetup() {
   if (!state.setupOwnerKey) return;
-  showBootSplash("正在打开 Hermes Mobile");
+  showBootSplash("正在打开 Home AI");
   await bootstrap();
   if (!state.mobileBrowserShellBlocked) showApp();
 }
@@ -231,7 +231,7 @@ async function login(key) {
     if (!res.ok) throw new Error("Access key is not valid");
   });
   storeAccessKey(key);
-  showBootSplash("正在打开 Hermes Mobile");
+  showBootSplash("正在打开 Home AI");
   try {
     await bootstrap();
     if (!state.mobileBrowserShellBlocked) showApp();
@@ -397,7 +397,7 @@ function mobileBrowserShellBlockedTitle() {
 }
 
 function mobileBrowserShellBlockedMessage() {
-  return "\u5f53\u524d\u9875\u9762\u6b63\u5728\u79fb\u52a8\u6d4f\u89c8\u5668\u58f3\u4e2d\u8fd0\u884c\u3002Hermes Mobile \u4e0d\u5728\u8fd9\u4e2a\u58f3\u91cc\u663e\u793a\u6536\u4ef6\u7bb1\u3001\u81ea\u52a8\u5316\u8be6\u60c5\u6216\u6587\u4ef6\u9884\u89c8\uff1b\u8bf7\u70b9\u5de6\u4e0a\u89d2\u5173\u95ed\uff0c\u7136\u540e\u4ece\u4e3b\u5c4f\u5e55 Hermes Mobile \u56fe\u6807\u6253\u5f00\u3002";
+  return "\u5f53\u524d\u9875\u9762\u6b63\u5728\u79fb\u52a8\u6d4f\u89c8\u5668\u58f3\u4e2d\u8fd0\u884c\u3002Home AI \u4e0d\u5728\u8fd9\u4e2a\u58f3\u91cc\u663e\u793a\u6536\u4ef6\u7bb1\u3001\u81ea\u52a8\u5316\u8be6\u60c5\u6216\u6587\u4ef6\u9884\u89c8\uff1b\u8bf7\u70b9\u5de6\u4e0a\u89d2\u5173\u95ed\uff0c\u7136\u540e\u4ece\u4e3b\u5c4f\u5e55 Home AI \u56fe\u6807\u6253\u5f00\u3002";
 }
 
 function mobileBrowserShellDiagnosticText() {
@@ -427,7 +427,7 @@ function showMobileBrowserShellBlocked() {
     const list = $("threadList");
     const conversation = $("conversation");
     const connectionState = $("connectionState");
-    if (title) title.textContent = "Hermes Mobile";
+    if (title) title.textContent = "Home AI";
     if (meta) meta.textContent = mobileBrowserShellBlockedTitle();
     if (list) list.innerHTML = "";
     if (connectionState) connectionState.textContent = "\u6d4f\u89c8\u5668\u58f3\u5df2\u963b\u6b62";
@@ -440,7 +440,7 @@ function showMobileBrowserShellBlocked() {
           <code class="mobile-browser-shell-block-diagnostic">${escapeHtml(mobileBrowserShellDiagnosticText())}</code>
           <div class="mobile-browser-shell-block-actions">
             <button class="secondary-small" type="button" data-mobile-browser-shell-copy>${"\u590d\u5236\u8bca\u65ad"}</button>
-            <button class="secondary-small" type="button" data-mobile-browser-shell-close>${"\u8fd4\u56de Hermes"}</button>
+            <button class="secondary-small" type="button" data-mobile-browser-shell-close>${"\u8fd4\u56de Home AI"}</button>
           </div>
         </section>
       `;
@@ -457,7 +457,7 @@ function showMobileBrowserShellBlocked() {
       });
       conversation.scrollTop = 0;
     }
-    if (typeof configureComposer === "function") configureComposer({ enabled: false, placeholder: "Hermes Mobile" });
+    if (typeof configureComposer === "function") configureComposer({ enabled: false, placeholder: "Home AI" });
   } catch (_) {}
 }
 
@@ -479,7 +479,7 @@ function blockMobileBrowserShellAppLaunch() {
 function showHermesAppWindowRequiredMessage() {
   const message = typeof hermesAppWindowRequiredText === "function"
     ? hermesAppWindowRequiredText()
-    : "Please reopen Hermes Mobile from the Home Screen app before opening internal detail pages.";
+    : "Please reopen Home AI from the Home Screen app before opening internal detail pages.";
   try {
     const connectionState = $("connectionState");
     if (connectionState) connectionState.textContent = message;
@@ -842,7 +842,7 @@ function applyReasoningInfo(info = {}) {
 
 async function loadStatus() {
   const status = await api("/api/status").catch((err) => ({ ok: false, error: err.message }));
-  $("connectionState").textContent = status.ok ? "Hermes OK" : `Hermes unavailable: ${status.error || "unknown"}`;
+  $("connectionState").textContent = status.ok ? "Home AI OK" : `Home AI unavailable: ${status.error || "unknown"}`;
   if (status.clientVersion) handleClientVersion(status.clientVersion, "status");
   state.gatewayPool = status.gatewayPool || null;
   state.concurrency = status.concurrency || null;
@@ -853,7 +853,7 @@ async function loadStatus() {
       : [];
     state.displayConfig = {
       ownerDriveRootNames: names.length ? names : state.displayConfig.ownerDriveRootNames,
-      ownerRootFallbackLabel: String(status.display.ownerRootFallbackLabel || state.displayConfig.ownerRootFallbackLabel || "Hermes Owner"),
+      ownerRootFallbackLabel: String(status.display.ownerRootFallbackLabel || state.displayConfig.ownerRootFallbackLabel || "Owner"),
     };
   }
   if (status.reasoning) applyReasoningInfo(status.reasoning);

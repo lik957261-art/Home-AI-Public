@@ -584,7 +584,7 @@ function updateComposerAction() {
   updateComposerSourceControl();
   if (input) {
     input.setAttribute("enterkeyhint", searchMode ? "search" : "send");
-    input.setAttribute("aria-label", searchMode ? "Search chat" : "Message Hermes");
+    input.setAttribute("aria-label", searchMode ? "Search chat" : "Message Home AI");
   }
   if (searchMode) {
     if (attach) {

@@ -10,7 +10,7 @@ function sharedProjectRootOwnerLabel(project) {
   const volumeIndex = parts.findIndex((part) => part.toLowerCase() === "volume1");
   if (volumeIndex >= 0 && parts[volumeIndex + 1]) return parts[volumeIndex + 1];
   const driveIndex = ownerDriveRootIndexForParts(parts);
-  if (driveIndex >= 0) return state.displayConfig.ownerRootFallbackLabel || "Hermes Owner";
+  if (driveIndex >= 0) return state.displayConfig.ownerRootFallbackLabel || "Owner";
   return "";
 }
 

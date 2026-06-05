@@ -53,7 +53,7 @@ function wireUi() {
     state.pwaInstallPrompt = null;
     closePwaInstall();
     updateTopMoreControls();
-    showPushToast("Hermes Mobile 已安装。", "success");
+    showPushToast("Home AI 已安装。", "success");
   });
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("message", (event) => {
@@ -669,7 +669,7 @@ async function start() {
   wireUi();
   state.pwaInstalled = isStandalonePwa();
   ensurePwaServiceWorker({ timeoutMs: 8000 }).catch(() => {});
-  showBootSplash("正在连接 Hermes Mobile");
+  showBootSplash("正在连接 Home AI");
   try {
     const config = await startupPerfStep("public-config", () => withTimeout(
       fetch("/api/public-config", { cache: "no-store" }).then((res) => res.json()),
@@ -703,7 +703,7 @@ async function start() {
 
 async function startFromBootRecovery() {
   startupPerfStart("boot-recovery");
-  showBootSplash("正在连接 Hermes Mobile");
+  showBootSplash("正在连接 Home AI");
   const config = await startupPerfStep("public-config", () => withTimeout(
     fetch("/api/public-config", { cache: "no-store" }).then((res) => res.json()),
     12000,

@@ -100,7 +100,7 @@
     const shareUrl = previewShareUrl(url);
     if (!shareUrl) return false;
     if (navigator.share) {
-      await navigator.share({ title: title || "Hermes Mobile", url: shareUrl });
+      await navigator.share({ title: title || "Home AI", url: shareUrl });
       return true;
     }
     return copyPreviewLink(shareUrl);

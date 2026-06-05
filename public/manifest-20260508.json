@@ -1,7 +1,7 @@
 {
-  "name": "Hermes Mobile",
-  "short_name": "Hermes",
-  "description": "Tailnet-only mobile Hermes task workspace.",
+  "name": "Home AI",
+  "short_name": "Home AI",
+  "description": "Tailnet-only Home AI task workspace.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

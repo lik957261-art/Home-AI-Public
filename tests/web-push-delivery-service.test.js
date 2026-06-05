@@ -211,7 +211,7 @@ function testIosBrowserSubscriptionsAreRejectedAndSkipped() {
       principalId: "owner",
       userAgent: iosSafariUa,
       clientContext: { displayMode: "browser", standalone: false, clientVersion: "client-browser" },
-    }), /installed Hermes Mobile app/);
+    }), /installed Home AI app/);
     assert.throws(() => service.savePushSubscription({
       endpoint: "endpoint-mobile-browser",
       keys: { p256dh: "p", auth: "a" },
@@ -219,7 +219,7 @@ function testIosBrowserSubscriptionsAreRejectedAndSkipped() {
       workspaceId: "owner",
       principalId: "owner",
       clientContext: { displayMode: "browser", standalone: false, clientVersion: "client-browser", platform: "iPhone" },
-    }), /installed Hermes Mobile app/);
+    }), /installed Home AI app/);
 
     state.pushSubscriptions.push({
       id: "push_ios_legacy",

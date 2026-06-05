@@ -48,7 +48,7 @@ async function testPublicConfigAndSetupStatus() {
   const publicResult = await routes.handle({ method: "POST", url: "/api/public-config", headers: {} }, publicRes, { pathname: "/api/public-config" });
   assert.equal(publicResult.handled, true);
   assert.equal(publicRes.statusCode, 200);
-  assert.deepEqual(JSON.parse(publicRes.body), { title: "Hermes Mobile", setupRequired: false, ownerConfigured: true });
+  assert.deepEqual(JSON.parse(publicRes.body), { title: "Home AI", setupRequired: false, ownerConfigured: true });
 
   const setupRes = makeResponse();
   const setupResult = await routes.handle({ method: "GET", url: "/api/setup/status", headers: {} }, setupRes, { pathname: "/api/setup/status" });

@@ -34,6 +34,13 @@ again before considering the hotfix deployed. Installed PWA clients can keep
 the old JavaScript under the old query string and will not see a refresh prompt
 when the server version has not changed.
 
+PWA install metadata changes, including the installed app name, short name, or
+manifest display fields, must publish a new fingerprinted manifest file and
+update `public/index.html`, `public/service-worker.js`, and
+`tests/task-list-ui.test.js` to reference it. Do not rely on mutating an older
+dated manifest file in place, because browser install flows can keep a cached
+manifest for the old URL.
+
 ## Deployment
 
 Static-only changes:
@@ -79,6 +86,12 @@ Gateway plugin/schema/profile changes:
 ## Constraints
 
 - Mobile UI must preserve the OS status bar, safe areas, bottom navigation, stable action icons, and readable compact panels.
+- Mobile bottom navigation must cap its bottom safe-area contribution to a
+  small visual buffer before it affects nav height or padding. A newly
+  installed iOS PWA can report a larger `env(safe-area-inset-bottom)` than the
+  prior container, and using that full value directly visibly lifts the
+  navigation row. Font-size preferences must not increase the bottom nav
+  container height beyond `--mobile-bottom-nav-height`.
 - Touch tablets up to `1366px` wide use the same mobile shell as phone portrait:
   a single-column app, bottom navigation, and an overlay sidebar. Do not let
   iPad-like landscape layouts fall back to the desktop fixed sidebar or hide the

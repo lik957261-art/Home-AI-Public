@@ -112,6 +112,41 @@ function singleWindowRequestStillCurrent(request = {}) {
   return true;
 }
 
+function cachedSingleWindowThreadForRequest(request = {}) {
+  if (String(request.messageMode || "") !== "chat") return null;
+  const workspaceId = String(request.workspaceId || "").trim();
+  const cached = request.weixinChat
+    ? state.weixinChatThread
+    : request.groupChat
+      ? state.groupChatThread
+      : state.privateChatThread;
+  if (!cached?.id || !cached.singleWindow) return null;
+  if (request.weixinChat) return isThreadWeixinChat(cached) ? cached : null;
+  if (request.groupChat) return currentUserCanUseGroupChatThread(cached) ? cached : null;
+  if (isThreadWeixinChat(cached) || selectedWorkspaceInThreadGroup(cached)) return null;
+  if (workspaceId && String(cached.workspaceId || "") !== workspaceId) return null;
+  return cached;
+}
+
+function renderCachedSingleWindowThreadForRequest(request = {}, options = {}) {
+  if (!singleWindowRequestStillCurrent(request)) return false;
+  const cached = cachedSingleWindowThreadForRequest(request);
+  if (!cached) return false;
+  if (state.currentThread?.id === cached.id && state.currentThreadId === cached.id) return false;
+  state.currentThread = cached;
+  state.currentThreadId = cached.id;
+  state.threads = [summarizeThread(cached)];
+  if (state.viewMode !== "tasks") state.currentTaskGroupId = "";
+  renderThreads();
+  renderCurrentThread({ stickToBottom: options.stickToBottom !== false });
+  setComposerEnabled(true);
+  startupPerfMark("single-window-cache-render", {
+    messages: Array.isArray(cached.messages) ? cached.messages.length : 0,
+    totalMessages: cached.messagesPage?.total || 0,
+  });
+  return true;
+}
+
 async function loadSingleWindow(options = {}) {
   const request = {
     seq: state.singleWindowRequestSeq + 1,
@@ -135,6 +170,7 @@ async function loadSingleWindow(options = {}) {
   request.weixinChat = weixinChat;
   request.groupChat = groupChat;
   const messageMode = request.messageMode;
+  renderCachedSingleWindowThreadForRequest(request, options);
   const result = await startupPerfStep("single-window-api", () => api("/api/single-window", {
     method: "POST",
     body: JSON.stringify({

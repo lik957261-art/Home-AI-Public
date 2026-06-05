@@ -226,7 +226,7 @@ async function loadAutomations(options = {}) {
   if (!options.silent || detail === "full") renderAutomationView({ preserveScroll: Boolean(options.silent) });
   if (detail !== "full") scheduleAutomationDetailHydration(summaryCacheKey);
   setComposerEnabled(false);
-  $("connectionState").textContent = "Hermes OK";
+  $("connectionState").textContent = "Home AI OK";
 }
 
 async function refreshAutomationAfterPush(eventData = {}) {
@@ -338,9 +338,9 @@ function automationTimeLine(job) {
 
 function automationSourceLine() {
   const source = state.automationSource || {};
-  if (source.available === false) return "Hermes CRON source unavailable";
+  if (source.available === false) return "Automation source unavailable";
   const count = Number(source.jobCount ?? state.automations.length);
-  return `Hermes CRON | ${count} job${count === 1 ? "" : "s"}`;
+  return `Automation | ${count} job${count === 1 ? "" : "s"}`;
 }
 
 function automationLatestDocument(job) { return (Array.isArray(job?.outputDocuments) ? job.outputDocuments : [])[0] || null; }
@@ -384,7 +384,7 @@ function renderAutomationDocumentPreview(doc, options = {}) {
   </a>`;
 }
 
-function renderAutomationLoading(message = "正在刷新 Hermes CRON") {
+function renderAutomationLoading(message = "正在刷新 Automation") {
   return `<div class="automation-loading" role="status" aria-live="polite">
     <span class="automation-loading-spinner" aria-hidden="true"></span>
     <span>${escapeHtml(message)}</span>
@@ -404,13 +404,13 @@ function renderAutomationPanel(options = {}) {
   const conversation = $("conversation");
   const previousScrollTop = conversation?.scrollTop || 0;
   const selected = currentAutomation();
-  $("threadTitle").textContent = "Hermes CRON";
+  $("threadTitle").textContent = "Automation";
   $("threadMeta").textContent = selected ? automationSourceLine() : "";
   $("interruptRun").disabled = true;
-  configureComposer({ enabled: false, placeholder: "Hermes CRON" });
+  configureComposer({ enabled: false, placeholder: "Automation" });
   updateNavigationControls();
   const warning = state.automationSource?.available === false || state.automationSource?.warning
-    ? `<div class="automation-warning">${escapeHtml(state.automationSource?.warning || "Hermes CRON source is unavailable.")}</div>`
+    ? `<div class="automation-warning">${escapeHtml(state.automationSource?.warning || "Automation source is unavailable.")}</div>`
     : "";
   const loading = state.automationLoading ? renderAutomationLoading(selected ? "正在刷新任务状态" : "正在刷新自动化列表") : "";
   const routeTargetLoading = !selected && state.selectedAutomationId && state.automationRouteTargetPending
@@ -501,7 +501,7 @@ function renderAutomationEditPanel(job) {
 
 function renderAutomationSections() {
   if (!state.automations.length) {
-    return `<div class="empty-state">No Hermes CRON jobs are available.</div>`;
+    return `<div class="empty-state">No automation jobs are available.</div>`;
   }
   const active = state.automations.filter((job) => automationStatusLabel(job) !== "paused");
   const paused = state.automations.filter((job) => automationStatusLabel(job) === "paused");

@@ -95,7 +95,7 @@ function renderMessage(message) {
   const useSenderLabel = messageUsesSenderLabel(message);
   const roleLabel = useSenderLabel && message.role === "user"
     ? userMessageSenderLabel(message)
-    : (message.role === "user" ? "You" : "Hermes");
+    : (message.role === "user" ? "You" : "Home AI");
   const kindLabel = useSenderLabel && message.role === "user" && message.messageKind === "ai" ? " · AI" : "";
   const status = !revoked && message.status && message.status !== "done" ? ` - ${message.status}` : "";
   const timeLabel = messageDisplayTimeLabel(message);
@@ -178,7 +178,7 @@ function setQuotedReply(message) {
     preview: quotePreviewForMessage(message, group),
   };
   renderQuotedReply();
-  configureComposer({ enabled: true, placeholder: "Message Hermes..." });
+  configureComposer({ enabled: true, placeholder: "Message Home AI..." });
   focusComposerSoon();
 }
 
@@ -186,7 +186,7 @@ function clearQuotedReply(options = {}) {
   state.quotedReply = null;
   if (options.render !== false) {
     renderQuotedReply();
-    configureComposer({ enabled: Boolean(state.currentThreadId), placeholder: "Message Hermes..." });
+    configureComposer({ enabled: Boolean(state.currentThreadId), placeholder: "Message Home AI..." });
   }
 }
 

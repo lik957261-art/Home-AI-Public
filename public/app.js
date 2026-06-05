@@ -57,7 +57,7 @@ const COMPOSER_MODEL_OPTIONS = Object.freeze([
     provider: "",
     mentionText: "@ChatGPT",
     aliases: ["ai", "chatgpt", "assistant", "default"],
-    description: "Hermes runtime default model",
+    description: "Default runtime model",
   },
   {
     id: "grok-4.3",
@@ -456,7 +456,7 @@ const state = {
   concurrency: null,
   displayConfig: {
     ownerDriveRootNames: ["ChatGPT-Drive"],
-    ownerRootFallbackLabel: "Hermes Owner",
+    ownerRootFallbackLabel: "Owner",
   },
   refreshCheckTimer: null,
   refreshNoticeDismissedVersion: "",
@@ -744,7 +744,7 @@ const TASK_SWIPE_REVEAL_PX = 88;
 const TASK_SWIPE_OPEN_THRESHOLD_PX = 42;
 const EDGE_SWIPE_HIT_PX = 32;
 const TASK_REASONING_OPTIONS = [
-  { value: "", label: "Hermes default" },
+  { value: "", label: "Default" },
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },

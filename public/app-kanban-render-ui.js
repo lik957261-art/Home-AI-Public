@@ -148,7 +148,7 @@ function restoreTodoDetailDraftFocus(focus = null) {
 
 function renderKanbanComposerMessage(message) {
   const role = String(message?.role || "assistant");
-  const label = role === "user" ? "\u4f60" : "Hermes";
+  const label = role === "user" ? "\u4f60" : "Home AI";
   return `<article class="kanban-composer-message ${escapeHtml(role)}">
     <strong>${escapeHtml(label)}</strong>
     <p>${escapeHtml(message?.content || "").replace(/\n/g, "<br>")}</p>
@@ -215,7 +215,7 @@ function renderKanbanReasoningOptions(selected = "") {
   configuredReasoningOptions().forEach(add);
   return [...known.values()].map((item) => {
     const value = String(item?.value || "").trim().toLowerCase();
-    const label = value ? reasoningEffortLabel(value) : `Hermes default (${defaultReasoningLabel()})`;
+    const label = value ? reasoningEffortLabel(value) : `Default (${defaultReasoningLabel()})`;
     return `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(label)}</option>`;
   }).join("");
 }

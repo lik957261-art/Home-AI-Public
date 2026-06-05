@@ -1,8 +1,12 @@
-# Hermes Mobile Frontend State Map
+# Home AI Frontend State Map
 
 Last updated: 2026-05-28.
 
 Use this file to locate the responsible frontend files before debugging a screenshot or mobile UI report.
+
+Visible user-facing product copy should use Home AI. Keep internal Hermes-prefixed
+JavaScript globals, cache keys, routes, and Gateway compatibility labels unless
+the change is part of a dedicated infrastructure rename.
 
 ## App Shell
 
@@ -136,6 +140,10 @@ Use this file to locate the responsible frontend files before debugging a screen
   incoming thread summary has no active run. Pending messages outside a paged
   response may be kept only while the incoming thread still reports an active
   run.
+- Returning to the Single Window chat should render the cached same-workspace
+  chat scope immediately when available, then refresh `/api/single-window` in
+  the background. Do not leave the chat header or recent messages absent until
+  the server response returns.
 - Topic root lists should not show Kanban-generated case-topic groups. Kanban
   study/case evidence should be reached from Growth, Todo/Kanban, Inbox source
   links, or explicit direct routes instead of being mixed into ordinary topics.
@@ -216,6 +224,10 @@ Use this file to locate the responsible frontend files before debugging a screen
 - Inbox detail must reuse the same compact status-action badge and action sheet
   as the list. Do not render a larger legacy status pill on the secondary page.
 - Inbox root page-level actions live in the top-right overflow menu. Inbox detail/create are secondary states and should use shared top-left back plus right-swipe back, not inline duplicate back/title controls.
+- When Inbox has cached rows, refreshes should keep the cached list visible and
+  update it in place after `/api/action-inbox` returns. A full loading state is
+  reserved for first load or explicit force-loading so mobile tab switches do
+  not blank the message area.
 
 ## Kanban/Todo
 

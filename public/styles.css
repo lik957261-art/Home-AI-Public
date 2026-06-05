@@ -51,8 +51,9 @@
   --motion-snap: cubic-bezier(0.22, 1, 0.36, 1);
   --app-font-scale: 1;
   --app-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
-  --mobile-bottom-nav-height: calc(58px + env(safe-area-inset-bottom));
-  --plugin-context-bottom-nav-height: calc(54px + env(safe-area-inset-bottom));
+  --mobile-bottom-safe-area: min(env(safe-area-inset-bottom), 8px);
+  --mobile-bottom-nav-height: calc(58px + var(--mobile-bottom-safe-area));
+  --plugin-context-bottom-nav-height: calc(54px + var(--mobile-bottom-safe-area));
   --mobile-bottom-nav-offset-height: var(--mobile-bottom-nav-offset-height-runtime, var(--mobile-bottom-nav-height));
   --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 10px));
   --topic-plugin-dock-height: 82px;
@@ -5453,7 +5454,7 @@ button.directory-alias-chip {
   grid-template-columns: repeat(3, minmax(var(--bottom-nav-column-min, 48px), 1fr));
   height: var(--plugin-context-bottom-nav-height);
   min-height: var(--plugin-context-bottom-nav-height);
-  padding: 5px max(22px, env(safe-area-inset-right)) calc(5px + env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-left));
+  padding: 5px max(22px, env(safe-area-inset-right)) calc(5px + var(--mobile-bottom-safe-area)) max(22px, env(safe-area-inset-left));
   border-top: 1px solid var(--ui-hairline);
   background: color-mix(in srgb, var(--ui-sheet) 94%, transparent);
   box-shadow: 0 -12px 26px rgba(26, 32, 35, 0.08);
@@ -15374,7 +15375,7 @@ body.task-markdown-preview-open {
     display: grid;
     grid-template-columns: repeat(5, minmax(var(--bottom-nav-column-min), 1fr));
     align-items: center;
-    padding: 4px env(safe-area-inset-right) calc(3px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
+    padding: 4px env(safe-area-inset-right) calc(3px + var(--mobile-bottom-safe-area)) env(safe-area-inset-left);
     overflow-x: hidden;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
@@ -16444,7 +16445,7 @@ body.task-markdown-preview-open {
 }
 
 :root[data-font-size] .bottom-nav {
-  min-height: calc(78px * var(--app-font-scale));
+  min-height: var(--mobile-bottom-nav-height);
 }
 
 .sidebar .field-label {

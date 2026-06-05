@@ -96,7 +96,7 @@ function configureComposer(options = {}) {
   }
   if (!enabled && typeof clearKeyboardViewportMetrics === "function") clearKeyboardViewportMetrics();
   setComposerEditorEnabled(enabled || searchMode);
-  setComposerPlaceholder(searchMode ? "搜索聊天" : composerPlaceholder(options.placeholder || "Message Hermes..."));
+  setComposerPlaceholder(searchMode ? "搜索聊天" : composerPlaceholder(options.placeholder || "Message Home AI..."));
   $("attachFile").disabled = searchMode ? false : !enabled;
   $("sendMessage").disabled = searchMode ? !currentChatSearchDraft() : !enabled;
   updateComposerAction();
@@ -104,7 +104,7 @@ function configureComposer(options = {}) {
 }
 
 function setComposerEnabled(enabled) {
-  configureComposer({ enabled, placeholder: $("messageInput")?.dataset.placeholder || "Message Hermes..." });
+  configureComposer({ enabled, placeholder: $("messageInput")?.dataset.placeholder || "Message Home AI..." });
 }
 
 function setComposerEditorEnabled(enabled) {

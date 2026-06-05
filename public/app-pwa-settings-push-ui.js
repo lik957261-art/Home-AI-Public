@@ -226,7 +226,7 @@ function hermesBrowserShellNavigationBlocked() {
 }
 
 function hermesAppWindowRequiredText() {
-  return "\u8bf7\u4ece\u4e3b\u5c4f\u5e55\u7684 Hermes Mobile \u5e94\u7528\u6253\u5f00\u540e\u518d\u8fdb\u5165\u8be6\u60c5\uff0c\u4e0d\u8981\u5728 Safari/\u6d4f\u89c8\u5668\u6846\u4e2d\u6253\u5f00\u5185\u90e8\u9875\u9762\u3002";
+  return "\u8bf7\u4ece\u4e3b\u5c4f\u5e55\u7684 Home AI \u5e94\u7528\u6253\u5f00\u540e\u518d\u8fdb\u5165\u8be6\u60c5\uff0c\u4e0d\u8981\u5728 Safari/\u6d4f\u89c8\u5668\u6846\u4e2d\u6253\u5f00\u5185\u90e8\u9875\u9762\u3002";
 }
 
 function requireHermesAppWindowForNavigation() {
@@ -315,7 +315,7 @@ function renderPwaInstallOverlay() {
   overlay.innerHTML = `<section class="access-key-sheet pwa-install-sheet">
     <header class="access-key-header">
       <div>
-        <div id="pwaInstallTitle" class="access-key-title">安装 Hermes Mobile</div>
+        <div id="pwaInstallTitle" class="access-key-title">安装 Home AI</div>
         <div class="access-key-subtitle">${escapeHtml(pwaRequirementHint())}</div>
       </div>
       <button class="access-key-close" type="button" data-close-pwa-install>完成</button>
@@ -324,7 +324,7 @@ function renderPwaInstallOverlay() {
       <div class="pwa-install-icon" aria-hidden="true">H</div>
       <div>
         <div class="access-key-row-title">桌面应用模式</div>
-        <div class="access-key-row-meta">安装后可以从主屏幕/桌面打开，使用独立窗口，并继续使用 Hermes Mobile 的通知和离线应用壳。</div>
+        <div class="access-key-row-meta">安装后可以从主屏幕/桌面打开，使用独立窗口，并继续使用 Home AI 的通知和离线应用壳。</div>
       </div>
     </section>
     ${canPrompt ? `<button class="pwa-install-primary" type="button" data-run-pwa-install>安装应用</button>` : ""}
@@ -360,7 +360,7 @@ async function runPwaInstallPrompt() {
   if (choice?.outcome === "accepted") {
     state.pwaInstalled = true;
     closePwaInstall();
-    showPushToast("Hermes Mobile 已提交安装。", "success");
+    showPushToast("Home AI 已提交安装。", "success");
   } else {
     renderPwaInstallOverlay();
   }
@@ -541,7 +541,7 @@ function renderSettingsOverlay() {
         <span>\u53ea\u6e05\u9664\u5f53\u524d\u8bbe\u5907\u4fdd\u5b58\u7684 Access Key\uff0c\u670d\u52a1\u5668\u4e0a\u7684 key \u4e0d\u4f1a\u88ab\u64a4\u9500\u3002</span>
       </div>
       <div class="settings-preview">
-        <div class="settings-preview-title">Hermes Mobile</div>
+        <div class="settings-preview-title">Home AI</div>
         <div class="settings-preview-body">聊天、话题、目录、看板、Markdown 阅读和自动化页面会使用这个显示偏好。</div>
       </div>
     </section>

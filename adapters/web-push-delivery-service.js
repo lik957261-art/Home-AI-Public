@@ -365,7 +365,7 @@ function createWebPushDeliveryService(options = {}) {
       webPushConfig = config;
       return config;
     } catch (err) {
-      logger.error?.(`Hermes Mobile Push disabled: ${err.message || String(err)}`);
+      logger.error?.(`Home AI Push disabled: ${err.message || String(err)}`);
       webPushConfig = null;
       return null;
     }
@@ -465,7 +465,7 @@ function createWebPushDeliveryService(options = {}) {
     const context = normalizePushClientContext(meta);
     const userAgent = context.userAgent || String(meta.userAgent || "");
     if ((isIosUserAgent(userAgent) || isMobilePushClient(context)) && !isStandalonePushClient(context)) {
-      const err = new Error("Mobile Web Push must be registered from the installed Hermes Mobile app.");
+      const err = new Error("Mobile Web Push must be registered from the installed Home AI app.");
       err.code = "ios_pwa_standalone_required";
       err.status = 400;
       throw err;
@@ -1483,7 +1483,7 @@ function createWebPushDeliveryService(options = {}) {
     }
     const mentionedWorkspaceIds = groupMentionWorkspaceIds(thread, userMessage.content || "", userMessage.senderWorkspaceId || "");
     if (!mentionedWorkspaceIds.length) return Promise.resolve([]);
-    const senderLabel = userMessage.senderLabel || workspaceLabel(userMessage.senderWorkspaceId || "") || "Hermes Mobile";
+    const senderLabel = userMessage.senderLabel || workspaceLabel(userMessage.senderWorkspaceId || "") || "Home AI";
     const body = compactText(String(userMessage.content || "").replace(/\s+/g, " ").trim(), 180);
     const jobs = mentionedWorkspaceIds.map((workspaceId) => {
       const principalId = workspacePrincipal(workspaceId);
@@ -1567,7 +1567,7 @@ function createWebPushDeliveryService(options = {}) {
       urgency: "high",
       ttl: 24 * 60 * 60,
     }).catch((err) => {
-      logger.error?.(`Hermes Mobile Push send failed: ${err.message || String(err)}`);
+      logger.error?.(`Home AI Push send failed: ${err.message || String(err)}`);
       return null;
     });
   }

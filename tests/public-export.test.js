@@ -28,13 +28,13 @@ function testPathFilters() {
 function testReadmeTransform() {
   const input = "This repository is the internal productization checkout. It was split from a larger integration workspace so Hermes Mobile can be stabilized, tested, packaged, and exported safely.";
   const output = transformPublicReadme(input);
-  assert.match(output, /public Hermes Mobile product source/);
+  assert.match(output, /public Home AI product source/);
   assert.doesNotMatch(output, /internal productization checkout/);
 }
 
 function testCreatesCleanExport() {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-mobile-public-export-test-"));
-  const outDir = path.join(tempRoot, "hermes-mobile-public");
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "home-ai-public-export-test-"));
+  const outDir = path.join(tempRoot, "Home-AI-Public");
   try {
     const output = execFileSync(process.execPath, [
       "scripts/create-public-export.js",

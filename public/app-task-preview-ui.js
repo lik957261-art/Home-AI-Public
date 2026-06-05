@@ -192,7 +192,7 @@
 
   async function handleFilePreviewAction(action, input = {}) {
     const root = input.root;
-    const title = input.title || "Hermes Mobile";
+    const title = input.title || "Home AI";
     const sourceUrl = input.sourceUrl || "";
     transientPreviewStatus(root, "");
     if (action === "weixin") {

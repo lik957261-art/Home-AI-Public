@@ -314,7 +314,7 @@
       ${refreshButton}
       <button type="submit" data-submit-reading="${escapeHtml(todo.id)}" ${submitting || !state.todoReadingRecorders?.[todo.id]?.file ? "disabled" : ""}>${escapeHtml(submitting ? "已提交处理中" : labels.submit)}</button>
     </div>
-    <p class="todo-detail-muted">${escapeHtml(submitting ? `处理可能需要几十秒到数分钟；正在等待语音转写、阅读分析和${labels.quiz}生成。` : `${labels.recording}提交后，Hermes 会先转写语音，再生成分析和${labels.quiz}；10 题全对后，本卡片才会完成。`)}</p>
+    <p class="todo-detail-muted">${escapeHtml(submitting ? `处理可能需要几十秒到数分钟；正在等待语音转写、阅读分析和${labels.quiz}生成。` : `${labels.recording}提交后，Home AI 会先转写语音，再生成分析和${labels.quiz}；10 题全对后，本卡片才会完成。`)}</p>
   </form>`;
   }
 

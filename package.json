@@ -1,17 +1,17 @@
 {
-  "name": "hermes-mobile",
+  "name": "home-ai",
   "version": "1.0.2",
   "private": false,
-  "description": "Mobile-first Hermes client bridge over the local Hermes API server.",
+  "description": "Mobile-first Home AI family workspace over the local Gateway runtime.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/pentiumxp/hermes-mobile-public.git"
+    "url": "https://github.com/pentiumxp/Home-AI-Public.git"
   },
   "bugs": {
-    "url": "https://github.com/pentiumxp/hermes-mobile-public/issues"
+    "url": "https://github.com/pentiumxp/Home-AI-Public/issues"
   },
-  "homepage": "https://github.com/pentiumxp/hermes-mobile-public#readme",
+  "homepage": "https://github.com/pentiumxp/Home-AI-Public#readme",
   "engines": {
     "node": ">=22"
   },

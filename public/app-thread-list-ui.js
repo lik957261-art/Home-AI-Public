@@ -160,8 +160,8 @@ function renderCurrentThreadUnsafe(options = {}) {
     $("threadTitle").textContent = "Select or create a thread";
     $("threadMeta").textContent = "";
     $("interruptRun").disabled = true;
-    configureComposer({ enabled: false, placeholder: "Message Hermes..." });
-    conversation.innerHTML = `<div class="empty-state">Create a thread to start a zero-context Hermes task.</div>`;
+    configureComposer({ enabled: false, placeholder: "Message Home AI..." });
+    conversation.innerHTML = `<div class="empty-state">Create a thread to start a zero-context Home AI task.</div>`;
     updateNavigationControls();
     ensureVerticalScrollAffordance(conversation);
     return;
@@ -171,7 +171,7 @@ function renderCurrentThreadUnsafe(options = {}) {
     return;
   }
   updateNavigationControls();
-  configureComposer({ enabled: true, placeholder: "Message Hermes..." });
+  configureComposer({ enabled: true, placeholder: "Message Home AI..." });
   const infoStream = isSingleWindowView();
   const weixinChat = isWeixinChatView();
   const groupChat = isGroupChatView();

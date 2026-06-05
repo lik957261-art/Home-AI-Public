@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>Hermes Mobile Reset</title>
+  <title>Home AI Reset</title>
   <style>
     html,
     body {
@@ -113,11 +113,11 @@
   <main>
     <section class="panel" aria-live="polite">
       <div class="mark" aria-hidden="true">H</div>
-      <h1>Hermes Mobile Reset</h1>
-      <p id="status">Refreshing Hermes Mobile client state...</p>
+      <h1>Home AI Reset</h1>
+      <p id="status">Refreshing Home AI client state...</p>
       <div class="actions">
         <button id="retry" class="primary" type="button" hidden>Retry</button>
-        <a id="openApp" href="/?source=pwa" hidden>Open Hermes Mobile</a>
+        <a id="openApp" href="/?source=pwa" hidden>Open Home AI</a>
       </div>
     </section>
   </main>
@@ -209,7 +209,7 @@
         try {
           var preserved = preserveClientState();
           if (!hardResetRequested()) {
-            setStatus("Refreshing Hermes Mobile client...");
+            setStatus("Refreshing Home AI client...");
             await withTimeout(clearCaches(), 2500, null);
             await withTimeout(refreshServiceWorkers(), 2500, null);
             restoreClientState(preserved);
@@ -220,7 +220,7 @@
           restoreClientState(preserved);
           await withTimeout(clearCaches(), 3500, null);
           await withTimeout(unregisterServiceWorkers(), 3500, null);
-          setStatus("Client reset complete. Reopening Hermes Mobile...");
+          setStatus("Client reset complete. Reopening Home AI...");
           window.location.replace(appTarget().href);
         } catch (err) {
           setStatus("Client reset failed: " + (err && err.message ? err.message : String(err || "unknown")));

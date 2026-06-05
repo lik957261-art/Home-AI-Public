@@ -63,7 +63,7 @@ function createPublicApiRoutes(deps = {}) {
     if (!route) return { handled: false };
 
     if (route.id === "public-config") {
-      sendJson(res, 200, Object.assign({ title: "Hermes Mobile" }, ownerSetupStatus()));
+      sendJson(res, 200, Object.assign({ title: "Home AI" }, ownerSetupStatus()));
       return { handled: true, route };
     }
 

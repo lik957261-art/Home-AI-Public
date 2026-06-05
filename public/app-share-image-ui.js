@@ -24,11 +24,11 @@ async function copyMessageContent(messageId) {
 }
 
 function messageShareTitle(message) {
-  if (!message) return "Hermes Mobile";
+  if (!message) return "Home AI";
   if (message.taskGroupId && !isSingleWindowConversationTaskGroupId(message.taskGroupId)) {
-    return `Hermes Mobile - ${shortTaskDisplayId(messageTaskDisplayId(message))}`;
+    return `Home AI - ${shortTaskDisplayId(messageTaskDisplayId(message))}`;
   }
-  return "Hermes Mobile";
+  return "Home AI";
 }
 
 function stripInlineMarkdownForShare(value) {
@@ -177,10 +177,10 @@ function layoutShareImagePayload(ctx, payload = {}) {
   const contentWidth = width - margin * 2;
   const items = [];
   let y = 72;
-  const title = String(payload.title || "Hermes Mobile").trim() || "Hermes Mobile";
+  const title = String(payload.title || "Home AI").trim() || "Home AI";
   const meta = String(payload.meta || "").trim();
-  const brand = String(payload.brand || "Hermes Mobile").trim() || "Hermes Mobile";
-  const footer = String(payload.footer || "Shared from Hermes Mobile").trim() || "Shared from Hermes Mobile";
+  const brand = String(payload.brand || "Home AI").trim() || "Home AI";
+  const footer = String(payload.footer || "Shared from Home AI").trim() || "Shared from Home AI";
   const text = String(payload.text || "").trim();
 
   setShareImageFont(ctx, 36, 800);
@@ -241,11 +241,11 @@ function layoutShareImagePayload(ctx, payload = {}) {
 
 function layoutShareImage(ctx, message, text) {
   return layoutShareImagePayload(ctx, {
-    brand: "Hermes Mobile",
+    brand: "Home AI",
     title: messageShareTitle(message),
     meta: [messageDisplayTimeLabel(message), state.currentThread?.title || ""].filter(Boolean).join(" - "),
     text,
-    footer: "Shared from Hermes Mobile",
+    footer: "Shared from Home AI",
   });
 }
 
@@ -487,7 +487,7 @@ function learningGrowthCardShareText(task = {}) {
       return `- ${compactLearningGrowthShareText([title, prompt].filter(Boolean).join(": "), 180)}`;
     }).join("\n"));
   }
-  return lines.filter(Boolean).join("\n\n").trim() || "\u8fd9\u662f\u4e00\u5f20 Hermes Growth \u5b66\u4e60\u5361\u3002";
+  return lines.filter(Boolean).join("\n\n").trim() || "\u8fd9\u662f\u4e00\u5f20 Home AI Growth \u5b66\u4e60\u5361\u3002";
 }
 
 function learningGrowthCardShareMeta(task = {}) {
@@ -503,11 +503,11 @@ async function renderLearningGrowthCardShareImageBlob(task = {}) {
   const measureCanvas = document.createElement("canvas");
   const measureCtx = measureCanvas.getContext("2d");
   const layout = layoutShareImagePayload(measureCtx, {
-    brand: "Hermes Growth",
+    brand: "Home AI Growth",
     title: task.title || task.taskCardId || task.id || "\u5b66\u4e60\u5361",
     meta: learningGrowthCardShareMeta(task),
     text: learningGrowthCardShareText(task),
-    footer: "Shared from Hermes Mobile",
+    footer: "Shared from Home AI",
   });
   if (layout.height > 30000) throw new Error("Learning card is too long for one image");
   const scale = shareImageRenderScale(layout);

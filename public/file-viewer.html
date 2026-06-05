@@ -821,7 +821,7 @@
   <div id="markdownShareSheet" class="viewer-sheet hidden" role="dialog" aria-modal="true" aria-labelledby="markdownShareTitle">
     <div class="viewer-sheet-panel">
       <h2 id="markdownShareTitle" class="viewer-sheet-title">Share Markdown as</h2>
-      <p class="viewer-sheet-note">Hermes Mobile keeps Markdown as the source document. Choose a generated format for external sharing.</p>
+      <p class="viewer-sheet-note">Home AI keeps Markdown as the source document. Choose a generated format for external sharing.</p>
       <div class="viewer-sheet-actions">
         <button class="primary" type="button" data-markdown-share="html">HTML preview file</button>
         <button type="button" data-markdown-share="word">Word-compatible document</button>
@@ -862,7 +862,7 @@
         <button id="forwardWeixin" class="button secondary" type="button">转发微信</button>
       </div>
       <div class="note">
-        This page keeps Hermes Mobile navigation available. Word/DOCX files are previewed inside Hermes Mobile; use Open Original only when you need the native viewer.
+        This page keeps Home AI navigation available. Word/DOCX files are previewed inside Home AI; use Open Original only when you need the native viewer.
       </div>
     </section>
   </main>
@@ -1784,7 +1784,7 @@ window.addEventListener("load", function () {
         setStatus(err.message || "Word preview failed.");
       });
     } else if (src && kind === "DOC") {
-      setStatus("Legacy .doc preview is not supported inside Hermes Mobile. Use Open Original.");
+      setStatus("Legacy .doc preview is not supported inside Home AI. Use Open Original.");
     } else if (src && kind === "MD") {
       enableTextDocumentMode();
       loadTextPreview("Markdown preview", { markdown: true }).catch((err) => {
@@ -1796,7 +1796,7 @@ window.addEventListener("load", function () {
         setStatus(err.message || "Text preview failed.");
       });
     } else if (src && (kind === "SHEET" || kind === "SLIDE")) {
-      setStatus("This Office format opens inside Hermes Mobile. Use the menu when you need sharing or the original file.");
+      setStatus("This Office format opens inside Home AI. Use the menu when you need sharing or the original file.");
     }
   </script>
 </body>

@@ -196,7 +196,7 @@ function renderAutomationPlaceholderView() {
   state.threads = [];
   const list = $("threadList");
   if (list) {
-    list.innerHTML = `<div class="empty-state small">自动化管理入口已预留；后续接入 Hermes CRON / automation API。</div>`;
+    list.innerHTML = `<div class="empty-state small">自动化管理入口已预留；后续接入 automation API。</div>`;
   }
   $("threadTitle").textContent = "自动化";
   $("threadMeta").textContent = "Automation management";
@@ -204,7 +204,7 @@ function renderAutomationPlaceholderView() {
   configureComposer({ enabled: false, placeholder: "Automation management" });
   $("conversation").innerHTML = `
     <div class="empty-state">
-      自动化入口已独立出来。当前版本尚未接入任务创建、暂停、运行接口；后续应直接桥接 Hermes CRON 的任务列表、运行状态和触发操作。
+      自动化入口已独立出来。当前版本尚未接入任务创建、暂停、运行接口；后续应直接桥接自动化任务列表、运行状态和触发操作。
     </div>`;
   updateNavigationControls();
   ensureVerticalScrollAffordance();

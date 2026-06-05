@@ -399,8 +399,8 @@ function sendWardrobePluginBackOrReturn() {
 function renderWardrobePluginSecurityNotice(manifest) {
   const entryOrigin = manifest?.entry?.origin || manifest?.entry?.url || "";
   const reason = manifest?.embed?.blockedByFrameAncestors
-    ? "\u8863\u6a71\u63d2\u4ef6\u5165\u53e3\u8fd8\u6ca1\u6709\u5141\u8bb8\u5f53\u524d Hermes \u57df\u540d\u5d4c\u5165\u3002\u9700\u8981\u5728\u8863\u6a71\u63d2\u4ef6\u670d\u52a1\u91cc\u653e\u884c\u8fd9\u4e2a origin\u3002"
-    : "\u5f53\u524d Hermes \u662f HTTPS \u9875\u9762\uff0c\u4e0d\u80fd\u5d4c\u5165 HTTP \u8863\u6a71\u5165\u53e3\u3002\u9700\u8981\u914d\u7f6e HTTPS \u63d2\u4ef6 manifest / entry\u3002";
+    ? "\u8863\u6a71\u63d2\u4ef6\u5165\u53e3\u8fd8\u6ca1\u6709\u5141\u8bb8\u5f53\u524d Home AI \u57df\u540d\u5d4c\u5165\u3002\u9700\u8981\u5728\u8863\u6a71\u63d2\u4ef6\u670d\u52a1\u91cc\u653e\u884c\u8fd9\u4e2a origin\u3002"
+    : "\u5f53\u524d Home AI \u662f HTTPS \u9875\u9762\uff0c\u4e0d\u80fd\u5d4c\u5165 HTTP \u8863\u6a71\u5165\u53e3\u3002\u9700\u8981\u914d\u7f6e HTTPS \u63d2\u4ef6 manifest / entry\u3002";
   return `
     <div class="wardrobe-plugin-notice">
       <strong>\u63d2\u4ef6\u5165\u53e3\u672a\u5d4c\u5165</strong>

@@ -28,7 +28,7 @@ const EXCLUDED_PREFIXES = [
 function parseArgs(argv) {
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
   const out = {
-    outDir: path.join(REPO_ROOT, "workspace", "public-export", `hermes-mobile-public-${stamp}`),
+    outDir: path.join(REPO_ROOT, "workspace", "public-export", `Home-AI-Public-${stamp}`),
     force: false,
     skipPrivacyScan: false,
     allowDirty: false,
@@ -102,7 +102,7 @@ function safeResetOutputDir(outDir, force) {
     os.homedir(),
     REPO_ROOT,
   ].map((item) => path.resolve(item)));
-  if (forbidden.has(resolved) || !basename.includes("hermes-mobile")) {
+  if (forbidden.has(resolved) || !basename.toLowerCase().includes("home-ai")) {
     throw new Error(`Refusing to reset unsafe export directory: ${resolved}`);
   }
   if (fs.existsSync(resolved)) fs.rmSync(resolved, { recursive: true, force: true });
@@ -111,7 +111,7 @@ function safeResetOutputDir(outDir, force) {
 
 function transformPublicReadme(text) {
   return String(text || "")
-    .replace(/This repository is the .*? productization checkout\.[^\n]+/s, "This repository contains the public Hermes Mobile product source. Keep deployment-specific secrets, runtime data, and adapter configuration outside the source checkout.")
+    .replace(/This repository is the .*? productization checkout\.[^\n]+/s, "This repository contains the public Home AI product source. Keep deployment-specific secrets, runtime data, and adapter configuration outside the source checkout.")
     .replace(/See \[docs\/ADAPTER_BOUNDARY\.md\]\(docs\/ADAPTER_BOUNDARY\.md\) for the current .*? adapter extraction map\./, "See [docs/ADAPTER_BOUNDARY.md](docs/ADAPTER_BOUNDARY.md) for the adapter extraction map.")
     .replace(/The public repository should be created from a privacy-scanned export of this .*? repository, not from .*?\./, "Public releases should be created from this privacy-scanned export workflow, not from deployment runtime directories.");
 }

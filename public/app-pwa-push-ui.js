@@ -175,7 +175,7 @@ async function enablePushNotifications(options = {}) {
     subscription = await withTimeout(registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(state.pushStatus.publicKey),
-    }), 15000, "创建通知订阅超时，请关闭后重新打开 Hermes Mobile 再试");
+    }), 15000, "创建通知订阅超时，请关闭后重新打开 Home AI 再试");
   }
   state.pushSubscription = subscription;
   progress("正在同步订阅");

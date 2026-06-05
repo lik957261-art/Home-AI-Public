@@ -342,10 +342,18 @@ function renderActionInboxActionSheet() {
   </div>`;
 }
 
+function actionInboxShouldShowLoading(options = {}) {
+  if (options.forceLoading) return true;
+  const hasItems = Array.isArray(state.actionInboxItems) && state.actionInboxItems.length > 0;
+  const hasCounts = Boolean(state.actionInboxCounts);
+  const hasDetail = Boolean(state.selectedActionInboxItemId && state.actionInboxDetail);
+  return !hasItems && !hasCounts && !hasDetail;
+}
+
 async function loadActionInbox(options = {}) {
   const seq = (state.actionInboxRequestSeq || 0) + 1;
   state.actionInboxRequestSeq = seq;
-  state.actionInboxLoading = !options.silent;
+  state.actionInboxLoading = !options.silent && actionInboxShouldShowLoading(options);
   if (!options.silent) renderActionInboxView({ preserveScroll: Boolean(options.preserveScroll) });
   try {
     const result = await api(`/api/action-inbox?${actionInboxFilterQuery()}`);

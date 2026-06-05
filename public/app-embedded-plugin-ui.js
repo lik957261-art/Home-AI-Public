@@ -727,8 +727,8 @@ function sendEmbeddedPluginBack(def = embeddedPluginDefByView()) {
 function renderEmbeddedPluginSecurityNotice(def, manifest) {
   const entryOrigin = manifest?.entry?.origin || manifest?.entry?.url || "";
   const reason = manifest?.embed?.blockedByFrameAncestors
-    ? `${def.title} 插件入口还没有允许当前 Hermes 域名嵌入。需要在插件服务里放行这个 origin。`
-    : `当前 Hermes 是 HTTPS 页面，不能嵌入 HTTP ${def.title} 入口。需要配置 HTTPS 插件 manifest / entry。`;
+    ? `${def.title} 插件入口还没有允许当前 Home AI 域名嵌入。需要在插件服务里放行这个 origin。`
+    : `当前 Home AI 是 HTTPS 页面，不能嵌入 HTTP ${def.title} 入口。需要配置 HTTPS 插件 manifest / entry。`;
   return `
     <div class="embedded-plugin-notice">
       <strong>插件入口未嵌入</strong>

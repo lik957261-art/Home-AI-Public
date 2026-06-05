@@ -167,7 +167,7 @@ function testRenderProfileConfigYaml() {
         note_mcp_api_base_url: "http://127.0.0.1:4181",
         health_enabled: "1",
         health_mcp_command: "node",
-        health_mcp_path: "/mnt/c/Users/xuxin/Documents/healthy/scripts/mcp-health-wrapper.js",
+        health_mcp_path: "/mnt/c/ProgramData/HermesMobile/gateway-worker/health-mcp/scripts/mcp-health-wrapper.js",
         health_workspace: "/mnt/c/ProgramData/HermesMobile/data/drive/users/owner",
         health_mcp_api_base_url: "http://172.27.192.1:4877",
         email_enabled: "1",

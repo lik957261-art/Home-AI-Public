@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Hermes Mobile",
-  "short_name": "Hermes",
-  "description": "Mobile workspace for Hermes chat, tasks, directories, todos, and automations.",
+  "name": "Home AI",
+  "short_name": "Home AI",
+  "description": "Home AI workspace for chat, tasks, directories, todos, and automations.",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",

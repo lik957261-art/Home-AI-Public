@@ -1,17 +1,17 @@
 <!doctype html>
-<html lang="en" data-client-version="20260604-note-receipt-save-v554">
+<html lang="en" data-client-version="20260605-ios-pwa-bottom-nav-v561">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>Hermes Mobile</title>
-  <meta name="hermes-web-client-version" content="20260604-note-receipt-save-v554">
-  <meta name="application-name" content="Hermes Mobile">
+  <title>Home AI</title>
+  <meta name="hermes-web-client-version" content="20260605-ios-pwa-bottom-nav-v561">
+  <meta name="application-name" content="Home AI">
   <meta name="theme-color" content="#f7f8f7">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Hermes">
+  <meta name="apple-mobile-web-app-title" content="Home AI">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="/manifest-20260509.json">
+  <link rel="manifest" href="/manifest-20260605.json">
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32-20260509.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180-20260509.png">
   <style id="hermesInitialThemeStyle">
@@ -244,16 +244,16 @@
       }
     }());
   </script>
-  <link rel="preload" href="/styles.css?v=20260604-note-receipt-save-v554" as="style" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="/styles.css?v=20260604-note-receipt-save-v554"></noscript>
+  <link rel="preload" href="/styles.css?v=20260605-ios-pwa-bottom-nav-v561" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="/styles.css?v=20260605-ios-pwa-bottom-nav-v561"></noscript>
 </head>
 <body>
   <main id="bootSplash" class="boot-splash" role="status" aria-live="polite">
     <div class="boot-splash-mark" aria-hidden="true">H</div>
     <div class="boot-splash-copy">
-      <div class="boot-splash-title">Hermes Mobile</div>
+      <div class="boot-splash-title">Home AI</div>
       <div id="bootSplashText" class="boot-splash-text">正在载入工作区</div>
-      <div id="bootSplashMeta" class="boot-splash-meta">client 20260604-note-receipt-save-v554</div>
+      <div id="bootSplashMeta" class="boot-splash-meta">client 20260605-ios-pwa-bottom-nav-v561</div>
       <button id="bootRetry" class="boot-retry hidden" type="button">重试</button>
       <button id="bootResetClient" class="boot-retry hidden" type="button">重置客户端</button>
       <a id="bootHardReset" class="boot-retry hidden" href="/client-reset.html?reason=boot_timeout">硬重置客户端</a>
@@ -286,7 +286,7 @@
         if (retry) retry.classList.remove("hidden");
         if (reset) reset.classList.remove("hidden");
         if (hardReset) hardReset.classList.remove("hidden");
-        if (meta) meta.textContent = "client 20260604-note-receipt-save-v554 · boot fallback";
+        if (meta) meta.textContent = "client 20260605-ios-pwa-bottom-nav-v561 · boot fallback";
       }, 12000);
       function isStandaloneAppWindow() {
         return Boolean(
@@ -343,7 +343,7 @@
   <main id="login" class="login hidden">
     <form id="loginForm" class="login-panel">
       <div class="eyebrow">Private local service</div>
-      <h1>Hermes Mobile</h1>
+      <h1>Home AI</h1>
       <p>Enter the Mobile access key. Keep this service behind Tailscale or localhost.</p>
       <input id="loginKey" type="password" autocomplete="current-password" placeholder="Access key">
       <button type="submit">Unlock</button>
@@ -364,7 +364,7 @@
           <button id="copySetupKey" type="button">复制</button>
         </div>
         <p>后续用户由管理员在侧边栏的账号 / 根目录 / 接口面板中创建工作区并生成 Access Key。</p>
-        <button id="enterAfterSetup" type="button">进入 Hermes Mobile</button>
+        <button id="enterAfterSetup" type="button">进入 Home AI</button>
       </section>
       <div id="setupError" class="error-text"></div>
     </form>
@@ -375,7 +375,7 @@
     <aside id="sidebar" class="sidebar">
       <div class="side-title">
         <div class="side-heading">
-          <div class="eyebrow">Hermes</div>
+          <div class="eyebrow">Home AI</div>
           <button id="clientVersion" class="client-version" type="button">v1956</button>
           <button id="pushToggle" class="push-button" type="button" hidden aria-label="启用通知" title="启用通知">🔔</button>
           <button id="topSettingsButton" class="push-button settings-button" type="button" aria-label="设置" title="设置">⚙</button>
@@ -617,7 +617,7 @@
       <div id="ownerElevationApprovalOverlay" class="access-key-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="ownerElevationApprovalTitle"></div>
       <div id="taskRenameOverlay" class="access-key-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="taskRenameTitle"></div>
       <section id="conversation" class="conversation">
-        <div class="empty-state">Create a thread to start a zero-context Hermes task.</div>
+        <div class="empty-state">Create a thread to start a zero-context Home AI task.</div>
       </section>
       <button id="conversationJumpBottom" class="conversation-jump-bottom hidden" type="button" aria-label="Jump to bottom" title="Bottom" aria-hidden="true" disabled>
         <span aria-hidden="true">&#8595;</span>
@@ -627,7 +627,7 @@
         <div id="groupMentionMenu" class="group-mention-menu" hidden></div>
         <div id="composerContext" class="composer-context" aria-live="polite" hidden></div>
         <button id="attachFile" class="secondary-button" type="button" disabled aria-label="添加文件" title="添加文件">+</button>
-        <textarea id="messageInput" class="composer-editor" rows="1" disabled aria-label="Message Hermes" aria-multiline="true" data-placeholder="Message Hermes..." placeholder="Message Hermes..." inputmode="text" enterkeyhint="send" autocorrect="off" autocapitalize="sentences" spellcheck="false"></textarea>
+        <textarea id="messageInput" class="composer-editor" rows="1" disabled aria-label="Message Home AI" aria-multiline="true" data-placeholder="Message Home AI..." placeholder="Message Home AI..." inputmode="text" enterkeyhint="send" autocorrect="off" autocapitalize="sentences" spellcheck="false"></textarea>
         <button id="chatSearchPrev" class="composer-search-nav" type="button" aria-label="Previous match" title="Previous match" hidden disabled>&uarr;</button>
         <button id="chatSearchNext" class="composer-search-nav" type="button" aria-label="Next match" title="Next match" hidden disabled>&darr;</button>
         <span id="chatSearchStatus" class="composer-search-status" aria-live="polite" hidden></span>
@@ -637,81 +637,81 @@
   </div>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/markdown-renderer-client.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-task-artifact-helpers.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-kanban-story-helpers.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-learning-reading-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-learning-coins-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-learning-program-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-learning-growth-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-learning-growth-task-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-learning-growth-reflection-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-api-client.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-shell-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-task-groups-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-navigation-view-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-chat-composer-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-composer-source-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-composer-context-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-run-progress-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-navigation-search-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-task-preview-helpers-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-task-preview-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-sidebar-task-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-message-skill-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-message-actions-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-platform-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-platform-status-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-pwa-settings-push-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-pwa-push-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-workspace-admin-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-access-key-manager-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-plugin-admin-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-share-image-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-draft-thread-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-directory-automation-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-shared-directory-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-embedded-plugin-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-wardrobe-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-plugin-topics-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-directory-topics-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-action-inbox-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-automation-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-learning-native-growth-submission-controller.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-learning-growth-ai-controller.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-learning-growth-reward-controller.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-learning-growth-settings-controller.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-learning-growth-teaching-controller.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-learning-growth-controller.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-automation-controller-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-automation-actions-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-thread-state-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-group-topic-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-kanban-core-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-kanban-story-core-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-kanban-todo-core-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-kanban-render-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-kanban-list-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-kanban-learning-panel-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-kanban-recorder-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-todo-detail-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-kanban-actions-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-kanban-composer-actions-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-kanban-card-actions-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-kanban-study-actions-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-thread-message-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-thread-list-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-thread-directory-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-thread-card-message-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-long-message-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-rich-text-directory-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-message-usage-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-events-composer-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-event-stream-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-upload-sidebar-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-composer-send-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-wire-start-ui.js?v=20260604-note-receipt-save-v554"></script>
-  <script src="/app-start.js?v=20260604-note-receipt-save-v554"></script>
+  <script src="/markdown-renderer-client.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-task-artifact-helpers.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-kanban-story-helpers.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-learning-reading-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-learning-coins-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-learning-program-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-learning-growth-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-learning-growth-task-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-learning-growth-reflection-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-api-client.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-shell-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-task-groups-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-navigation-view-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-chat-composer-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-composer-source-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-composer-context-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-run-progress-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-navigation-search-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-task-preview-helpers-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-task-preview-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-sidebar-task-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-message-skill-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-message-actions-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-platform-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-platform-status-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-pwa-settings-push-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-pwa-push-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-workspace-admin-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-access-key-manager-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-plugin-admin-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-share-image-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-draft-thread-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-directory-automation-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-shared-directory-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-embedded-plugin-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-wardrobe-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-plugin-topics-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-directory-topics-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-action-inbox-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-automation-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-learning-native-growth-submission-controller.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-learning-growth-ai-controller.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-learning-growth-reward-controller.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-learning-growth-settings-controller.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-learning-growth-teaching-controller.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-learning-growth-controller.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-automation-controller-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-automation-actions-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-thread-state-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-group-topic-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-kanban-core-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-kanban-story-core-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-kanban-todo-core-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-kanban-render-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-kanban-list-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-kanban-learning-panel-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-kanban-recorder-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-todo-detail-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-kanban-actions-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-kanban-composer-actions-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-kanban-card-actions-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-kanban-study-actions-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-thread-message-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-thread-list-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-thread-directory-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-thread-card-message-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-long-message-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-rich-text-directory-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-message-usage-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-events-composer-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-event-stream-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-upload-sidebar-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-composer-send-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-wire-start-ui.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
+  <script src="/app-start.js?v=20260605-ios-pwa-bottom-nav-v561"></script>
 </body>
 </html>

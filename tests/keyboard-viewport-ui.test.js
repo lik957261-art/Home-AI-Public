@@ -21,7 +21,7 @@ assert.match(appJs, /state\.keyboardContextMode = false/);
 assert.match(appJs, /root\.style\.removeProperty\("--keyboard-context-top"\)/);
 assert.match(appJs, /\$\("composer"\)\?\.classList\.remove\("keyboard-context-mode"\)/);
 assert.match(appJs, /function normalizeMobileViewportAfterViewChange\(\)/);
-assert.match(appJs, /\[0, 80, 240\]\.forEach\(\(delay\) => window\.setTimeout\(updateMobileBottomNavReservation, delay\)\)/);
+assert.match(appJs, /\[0, 80, 240\]\.forEach\(\(delay\) => window\.setTimeout\(\(\) => \{[\s\S]*?updateMobileBottomNavReservation\(\);[\s\S]*?updatePluginContextViewportReservation\(\);[\s\S]*?\}, delay\)\);/);
 assert.match(appJs, /function keyboardViewportShouldClearAfterOrientation\(\)/);
 assert.match(appJs, /document\.activeElement === input/);
 assert.match(appJs, /function updateKeyboardViewportMetrics\(\)/);

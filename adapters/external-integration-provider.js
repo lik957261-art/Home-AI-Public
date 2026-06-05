@@ -61,7 +61,7 @@ function createExternalIntegrationProvider(options = {}) {
     }
 
     if (/hotmail\.com/i.test(String(env.EMAIL_HOME_CHANNEL || env.EMAIL_HOME_ADDRESS || ""))) {
-      bindings.push({ id: "owner_hotmail", label: "Hotmail", category: "邮箱", detail: "Home Channel" });
+      bindings.push({ id: "owner_hotmail", label: "Hotmail", category: "邮箱", detail: "Home AI Channel" });
     }
 
     const seen = new Set();

@@ -47,6 +47,7 @@ this.ActionInboxUiTest = {
   renderActionInboxActionSheet,
   renderActionInboxDetail,
   renderActionInboxItem,
+  actionInboxShouldShowLoading,
 };`, sandbox);
 
 const ui = sandbox.ActionInboxUiTest;
@@ -142,6 +143,16 @@ assert.equal(ui.actionInboxTodoDueText(openTodo), "05/27 16:00");
 assert.equal(ui.actionInboxDisplaySummary(openTodo), "");
 assert.equal(ui.actionInboxStatusActionLabel(openTodo), "\u5f85\u5904\u7406");
 assert.equal(ui.actionInboxStatusActionLabel(Object.assign({}, openTodo, { status: "waiting" })), "\u7a0d\u540e");
+sandbox.state.selectedActionInboxItemId = "";
+sandbox.state.actionInboxDetail = null;
+sandbox.state.actionInboxItems = [];
+assert.equal(ui.actionInboxShouldShowLoading({}), true);
+sandbox.state.actionInboxItems = [openTodo];
+assert.equal(ui.actionInboxShouldShowLoading({}), false);
+sandbox.state.actionInboxItems = [];
+sandbox.state.actionInboxCounts = { byStatus: { open: 0, waiting: 0, done: 0 } };
+assert.equal(ui.actionInboxShouldShowLoading({}), false);
+sandbox.state.actionInboxCounts = null;
 
 const legacyDeepLinkTodo = Object.assign({}, openTodo, {
   id: "ainb-todo-legacy",
