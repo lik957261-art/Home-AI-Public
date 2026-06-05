@@ -1,6 +1,10 @@
-# Hermes Mobile Documentation Index
+# Home AI Documentation Index
 
-This index is the first repo document to read after `.agent-context/PROJECT_CONTEXT.md` and `.agent-context/HANDOFF.md` for non-trivial Hermes Mobile work.
+This index is the first repo document to read after `.agent-context/PROJECT_CONTEXT.md` and `.agent-context/HANDOFF.md` for non-trivial Home AI work.
+
+The repository/project name and visible installed-app brand are Home AI. Internal runtime paths, environment variable prefixes, compatibility
+routes, and Gateway integration names may still use Hermes/Hermes Mobile
+identifiers until a separate infrastructure migration is planned.
 
 ## Doc Layers
 
@@ -14,6 +18,7 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 ## Cross-Cutting Reference Docs
 
 - API route/auth reference: `docs/API_ROUTE_REFERENCE.md`
+- Architecture-code-test-harness map: `docs/ARCHITECTURE_CODE_TEST_HARNESS_MAP.md`
 - Frontend tab/state map: `docs/FRONTEND_STATE_MAP.md`
 - Runtime and learning SQLite data dictionary: `docs/DATA_DICTIONARY.md`
 - Gateway Pool manifest reference: `docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md`
@@ -80,6 +85,8 @@ This index is the first repo document to read after `.agent-context/PROJECT_CONT
 - Tongbao platform currency and Growth coin exchange design: `docs/IMPLEMENTATION_NOTES/tongbao-platform-currency-design.md`
 - Gateway elastic worker scheduling: `docs/IMPLEMENTATION_NOTES/gateway-elastic-worker-scheduling.md`
 - Gateway profile template materialization: `docs/IMPLEMENTATION_NOTES/gateway-profile-template-materialization.md`
+- Gateway profile replica pools:
+  `docs/IMPLEMENTATION_NOTES/gateway-profile-replica-pools.md`
 - Plugin topic binding: `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md`
 - Plugin capability activation and lazy MCP loading:
   `docs/IMPLEMENTATION_NOTES/plugin-capability-activation.md`

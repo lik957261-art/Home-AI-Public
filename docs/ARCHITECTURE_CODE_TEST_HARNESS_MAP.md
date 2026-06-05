@@ -1,0 +1,106 @@
+# Home AI Architecture, Code, Test, And Harness Map
+
+This document maps durable architecture intent to implementation files and
+verification gates. Use it after `docs/DOCS_INDEX.md` when a change crosses
+module boundaries or when the owner asks for architecture, code, tests, and
+harnesses to stay aligned.
+
+It is not a replacement for module docs. It is the dispatch map that tells an
+agent which smaller docs, services, route modules, client files, tests, and
+harnesses should move together.
+
+## Operating Rules
+
+- Start with `.agent-context/PROJECT_CONTEXT.md`, `.agent-context/HANDOFF.md`,
+  and `docs/DOCS_INDEX.md`.
+- Classify the change with
+  `docs/IMPLEMENTATION_NOTES/harness-required-matrix.md`.
+- Use `docs/TEST_MATRIX.md` to select focused tests before broad gates.
+- Keep business logic in `adapters/` services/providers and HTTP wiring in
+  `server-routes/`.
+- Keep `server.js`, `mobile-server-runtime.js`, and `public/app.js` as thin
+  composition shells. Do not grow them to hide missing module ownership.
+- Use CodeGraph for backend structural triage, then use text search/direct reads
+  for frontend DOM strings, static versions, service-worker behavior, and docs.
+- Do not store raw secrets, access keys, cookies, launch tokens, push endpoints,
+  private plugin data, full model prompts, or long logs in docs or tests.
+
+## Harness Classes
+
+| Class | Meaning | Completion Rule |
+| --- | --- | --- |
+| H1 | Async workflow, permissions, delivery, Gateway, plugin MCP, persistence, production deploy, or user-visible completion can fail across process boundaries. | Add or update the workflow harness scenario and run focused service/route/UI tests. |
+| H2 | Projection, navigation, visible status, scroll, cache, or cross-surface consistency changes. | Add or update DOM/projection/route coverage and visual evidence when UI is involved. |
+| H3 | Isolated deterministic helper, copy, or styling with no state, routing, async, release, or permission change. | Focused syntax/unit/UI tests are enough. |
+
+If a change touches multiple classes, use the highest class.
+
+## Runtime Module Map
+
+| Surface | Durable Docs | Primary Code | Focused Tests And Harnesses |
+| --- | --- | --- | --- |
+| Architecture boundary and API registry | `docs/ARCHITECTURE.md`, `docs/ARCHITECTURE_BOUNDARY.md`, `docs/API_ROUTE_REFERENCE.md` | `server.js`, `mobile-server-runtime.js`, `adapters/api-route-registry.js`, `adapters/api-route-inventory.js`, `server-routes/mobile-api-dispatcher.js`, `server-routes/mobile-api-composition.js` | `node tests/architecture-refactor-boundary.test.js`, `node tests/api-route-registry.test.js`, `node tests/api-route-inventory.test.js`, `node tests/mobile-api-dispatcher.test.js` |
+| Workspace, auth, access policy, and public projection | `docs/MODULES/multi-user-task-platform.md`, `docs/MODULES/workspace-auth-permissions.md`, `docs/API_ROUTE_REFERENCE.md` | `adapters/auth-provider.js`, `adapters/request-context-provider.js`, `adapters/access-policy-provider.js`, `adapters/security-boundary-provider.js`, `adapters/workspace-public-projection-service.js`, `server-routes/access-key-api-routes.js`, `server-routes/workspace-api-routes.js` | `node tests/auth-provider.test.js`, `node tests/access-policy-provider.test.js`, `node tests/access-key-api-routes.test.js`, `node tests/workspace-api-routes.test.js`, `node tests/security-boundary-provider.test.js` |
+| Gateway Pool, run lifecycle, provider routing, and profile materialization | `docs/MODULES/gateway-pool.md`, `docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md`, `docs/IMPLEMENTATION_NOTES/gateway-elastic-worker-scheduling.md`, `docs/IMPLEMENTATION_NOTES/gateway-profile-replica-pools.md`, `docs/IMPLEMENTATION_NOTES/gateway-profile-template-materialization.md` | `adapters/gateway-elastic-worker-scheduler.js`, `adapters/gateway-pool-provider.js`, `adapters/gateway-run-start-service.js`, `adapters/gateway-run-lifecycle-service.js`, `adapters/gateway-run-stream-service.js`, `adapters/gateway-run-toolset-routing-service.js`, `adapters/gateway-profile-template-identity-service.js`, `scripts/start-gateway-pool.ps1`, `scripts/configure-low-gateways.sh`, `scripts/start-low-gateways.sh`, `scripts/build-gateway-profile-template.js` | `node tests/gateway-elastic-worker-scheduler.test.js`, `node tests/gateway-pool-provider.test.js`, `node tests/gateway-run-start-service.test.js`, `node tests/gateway-run-lifecycle-service.test.js`, `node tests/gateway-run-stream-service.test.js`, `node tests/gateway-run-toolset-routing-service.test.js`, `node tests/gateway-profile-replica-model-harness.test.js`, `node tests/startup-scripts.test.js`, `node tests/cross-shell-command-harness.test.js` |
+| Plugin host, plugin topics, and lazy plugin MCP activation | `docs/MODULES/plugins.md`, `docs/MODULES/plugin-topics.md`, `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`, `docs/IMPLEMENTATION_NOTES/plugin-capability-activation.md`, `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md` | `adapters/hermes-plugin-service.js`, `adapters/hermes-plugin-authorization-service.js`, `adapters/hermes-plugin-notification-service.js`, `adapters/plugin-authorized-toolset-service.js`, `adapters/plugin-capability-activation-service.js`, `adapters/plugin-capability-probe-service.js`, `adapters/plugin-required-skill-preload-service.js`, `server-routes/hermes-plugin-api-routes.js`, `public/app-embedded-plugin-ui.js` | `node tests/hermes-plugin-service.test.js`, `node tests/hermes-plugin-authorization-service.test.js`, `node tests/hermes-plugin-notification-service.test.js`, `node tests/hermes-plugin-api-routes.test.js`, `node tests/plugin-authorized-toolset-service.test.js`, `node tests/plugin-capability-activation-service.test.js`, `node tests/plugin-capability-probe-service.test.js`, `node tests/app-embedded-plugin-ui.test.js`, `node tests/embedded-plugin-refresh-harness.test.js` |
+| Product plugin provisioning and workspace-local MCP bindings | `docs/MODULES/plugins.md`, `docs/MODULES/wardrobe.md`, `docs/IMPLEMENTATION_NOTES/plugin-capability-activation.md` | `adapters/wardrobe-plugin-provisioning-service.js`, `adapters/finance-plugin-provisioning-service.js`, `adapters/email-plugin-provisioning-service.js`, `adapters/health-plugin-provisioning-service.js`, `adapters/note-plugin-provisioning-service.js`, `scripts/gateway-tool-schema-smoke.js` | `node tests/wardrobe-plugin-provisioning-service.test.js`, `node tests/finance-plugin-provisioning-service.test.js`, `node tests/email-plugin-provisioning-service.test.js`, `node tests/health-plugin-provisioning-service.test.js`, `node tests/note-plugin-provisioning-service.test.js`, `node tests/email-mcp-wrapper.test.js`, schema smoke with `scripts/gateway-tool-schema-smoke.js` when MCP toolsets change |
+| Static PWA shell, navigation, cache, visual stability, and installed-app metadata | `docs/MODULES/static-client.md`, `docs/FRONTEND_STATE_MAP.md`, `docs/RUNBOOKS/static-client-cache-version.md` | `public/index.html`, `public/service-worker.js`, `public/directory-viewer.html`, `public/styles.css`, `public/app-start.js`, `public/app-platform-ui.js`, `public/app-thread-message-ui.js`, `public/app-run-progress-ui.js`, `public/app-thread-state-ui.js`, `public/app-chat-composer-ui.js` | `node tests/task-list-ui.test.js`, `node tests/static-cache-version-harness.test.js`, `node tests/keyboard-viewport-ui.test.js`, `node tests/viewport-scroll-ui.test.js`, `node tests/run-progress-ui-behavior.test.js`, `node tests/thread-state-ui-behavior.test.js`, `node scripts/playwright-visual-smoke.js`, `node scripts/android-pwa-plugin-dock-smoke.js` for installed-PWA plugin Dock/UI changes |
+| Chat, threads, group chat, and context assembly | `docs/MODULES/chat-context.md`, `docs/MODULES/group-chat.md`, `docs/IMPLEMENTATION_NOTES/topic-context-layered-compaction.md` | `adapters/conversation-history-service.js`, `adapters/context-assembly-service.js`, `adapters/topic-context-compaction-service.js`, `adapters/thread-message-create-service.js`, `adapters/thread-message-run-route-service.js`, `adapters/thread-view-service.js`, `adapters/single-window-thread-service.js`, `server-routes/thread-message-run-api-routes.js`, `server-routes/single-window-group-chat-api-routes.js` | `node tests/conversation-history-service.test.js`, `node tests/context-assembly-service.test.js`, `node tests/topic-context-compaction-service.test.js`, `node tests/thread-message-create-service.test.js`, `node tests/thread-message-run-route-service.test.js`, `node tests/thread-view-service.test.js`, `node tests/single-window-group-chat-api-routes.test.js`, `node tests/group-chat-ui.test.js` |
+| Action Inbox, Automation, Web Push, and delivery routing | `docs/MODULES/action-inbox.md`, `docs/MODULES/automation.md`, `docs/MODULES/web-push.md`, `docs/RUNBOOKS/web-push-wrong-page.md` | `adapters/action-inbox-service.js`, `adapters/automation-provider.js`, `adapters/web-push-delivery-service.js`, `adapters/delivery-boundary-provider.js`, `server-routes/action-inbox-api-routes.js`, `server-routes/automation-api-routes.js`, `server-routes/push-api-routes.js`, `public/app-action-inbox-ui.js`, `public/app-automation-ui.js`, `public/app-pwa-settings-push-ui.js` | `node tests/action-inbox-service.test.js`, `node tests/action-inbox-api-routes.test.js`, `node tests/automation-provider.test.js`, `node tests/automation-api-routes.test.js`, `node tests/web-push-delivery-service.test.js`, `node tests/push-api-routes.test.js`, `node tests/app-action-inbox-ui.test.js`, `node tests/same-window-navigation-harness.test.js` |
+| Directory, file preview, artifacts, and shared roots | `docs/MODULES/directory-files.md`, `docs/IMPLEMENTATION_NOTES/directory-topic-collections.md`, `docs/SCREENSHOT_DEBUG_MAP.md` | `adapters/directory-browser-boundary-service.js`, `adapters/directory-delete-policy-service.js`, `adapters/file-artifact-access-service.js`, `adapters/file-artifact-resolver-service.js`, `adapters/file-resource-service.js`, `adapters/document-preview-service.js`, `server-routes/directory-browser-api-routes.js`, `server-routes/directory-mutation-api-routes.js`, `server-routes/file-artifact-api-routes.js`, `public/app-thread-directory-ui.js`, `public/app-task-preview-ui.js`, `public/file-viewer.html` | `node tests/directory-browser-api-routes.test.js`, `node tests/directory-mutation-api-routes.test.js`, `node tests/directory-share-api-routes.test.js`, `node tests/file-artifact-access-service.test.js`, `node tests/file-artifact-api-routes.test.js`, `node tests/document-preview-service.test.js`, `node scripts/pdf-viewer-render-harness.js` for PDF visual preview changes |
+| Growth learning, mastery, card workflow, and rewards | `docs/MODULES/growth-learning.md`, `docs/IMPLEMENTATION_NOTES/growth-learning-workflow-contract-harness.md`, `docs/IMPLEMENTATION_NOTES/growth-teaching-card-flow.md`, `docs/IMPLEMENTATION_NOTES/growth-teaching-card-implementation.md`, `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-requirements.md`, `docs/IMPLEMENTATION_NOTES/learning-mastery-profile.md` | `adapters/learning-growth-service.js`, `adapters/learning-growth-submission-service.js`, `adapters/learning-growth-task-evaluation-service.js`, `adapters/learning-growth-mastery-profile-service.js`, `adapters/learning-growth-next-card-strategy-service.js`, `adapters/learning-program-service.js`, `adapters/learning-reward-settlement-service.js`, `server-routes/learning-growth-card-api-routes.js`, `server-routes/learning-program-api-routes.js`, `public/app-learning-growth-ui.js`, `public/app-learning-growth-task-ui.js`, `public/app-learning-program-ui.js` | `node tests/learning-growth-service.test.js`, `node tests/learning-growth-submission-service.test.js`, `node tests/learning-growth-task-evaluation-service.test.js`, `node tests/learning-growth-mastery-profile-service.test.js`, `node tests/learning-growth-next-card-strategy-service.test.js`, `node tests/learning-program-service.test.js`, `node tests/app-learning-growth-ui.test.js`, `node tests/app-learning-growth-task-ui.test.js`, `node tests/learning-growth-knowledge-graph-docs.test.js` |
+| Runtime SQLite, persistence, backup, and deployment | `docs/MODULES/runtime-state-backup.md`, `docs/MODULES/deployment.md`, `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`, `docs/IMPLEMENTATION_NOTES/macos-production-deployment-plan.md` | `adapters/mobile-sqlite-store.js`, `adapters/runtime-state-repository.js`, `adapters/runtime-state-persistence-service.js`, `adapters/runtime-state-store-service.js`, `adapters/runtime-state-normalization-service.js`, `scripts/create-hermes-mobile-disaster-backup.ps1`, `scripts/deploy-nas-static-assets.ps1`, `scripts/deploy-nas-tracked-source.ps1`, `scripts/sqlite-maintenance.js` | `node tests/mobile-sqlite-store.test.js`, `node tests/runtime-state-repository.test.js`, `node tests/runtime-state-persistence-service.test.js`, `node tests/runtime-state-store-service.test.js`, `node tests/runtime-state-normalization-service.test.js`, `node tests/nas-static-deploy-harness.test.js`, `node tests/nas-deploy-harness.test.js`, `node tests/cross-shell-command-harness.test.js` |
+| Weixin ingress and outbound delivery | `docs/MODULES/weixin-ingress.md` | `adapters/weixin-ingress-provider.js`, `adapters/weixin-ingress-event-service.js`, `adapters/weixin-outbound-delivery-service.js`, `adapters/weixin-runtime-composition-service.js`, `server-routes/weixin-api-routes.js`, `scripts/weixin-ingress-sidecar.py`, `scripts/weixin-mobile-ingress-bridge.py` | `node tests/weixin-api-routes.test.js`, `node tests/weixin-ingress-provider.test.js`, `node tests/weixin-ingress-event-service.test.js`, `node tests/weixin-outbound-delivery-service.test.js`, `node tests/weixin-runtime-composition-service.test.js` |
+| ChatGPT Pro, Grok, and provider-specific bridges | `docs/MODULES/chatgpt-pro.md`, `docs/MODULES/grok-gateway.md`, `docs/RUNBOOKS/grok-gateway-auth.md`, `docs/RUNBOOKS/openai-codex-shared-auth.md` | `adapters/chatgpt-pro-codex-bridge-service.js`, `adapters/owner-elevation-routing-service.js`, `adapters/gateway-model-routing-service.js`, `adapters/bridge-command-provider.js`, `scripts/bridge-host.js` | `node tests/chatgpt-pro-codex-bridge-service.test.js`, `node tests/owner-elevation-routing-service.test.js`, `node tests/gateway-model-routing-service.test.js`, `node tests/bridge-host-grok-proxy.test.js`, `node tests/gateway-run-start-service.test.js` |
+
+## Client Efficiency And Visual Stability Gates
+
+Client performance is a correctness requirement. A change is not complete if it
+passes unit tests but causes visible blanking, flicker, afterimage-like stale
+layers, missing bottom navigation, or slow full re-render behavior.
+
+Use these gates for any `public/` change:
+
+| Risk | Required Pattern | Focused Verification |
+| --- | --- | --- |
+| Static cache drift | Bump the static version in `public/index.html`, `public/service-worker.js`, `public/directory-viewer.html`, and `tests/task-list-ui.test.js`. Publish a new fingerprinted manifest when install metadata changes. | `node tests/task-list-ui.test.js`, `node tests/static-cache-version-harness.test.js`, `/api/client-version` old/new smoke after production sync |
+| Mobile blanking or tab-switch flicker | Keep cached rows/messages visible while refreshing in the background. Reserve full loading surfaces for first load, explicit force-load, or confirmed recovery states. | Module UI tests plus `node tests/thread-state-ui-behavior.test.js` and `node tests/app-action-inbox-ui.test.js` when affected |
+| Run-status jank | Coalesce high-frequency preflight/run events, update inline status in place, avoid full thread renders for every event, and preserve scroll intent when the user is pinned near the bottom. | `node tests/run-progress-ui-behavior.test.js`, `node tests/thread-state-ui-behavior.test.js`, relevant Gateway event-service tests |
+| Viewport, keyboard, safe-area, and bottom nav drift | Recompute viewport and bottom navigation reservation after orientation, keyboard blur, PWA resume, and font-size mode. Cap bottom safe-area contribution before it changes nav height. | `node tests/keyboard-viewport-ui.test.js`, `node tests/viewport-scroll-ui.test.js`, Playwright/mobile screenshot with bounding rectangles |
+| Embedded plugin frame afterimages | Clear host plugin classes and stale iframe state when leaving plugin context. Use same-origin proxy and launch-health refresh paths instead of rendering blank or stale iframes. | `node tests/app-embedded-plugin-ui.test.js`, `node tests/embedded-plugin-refresh-harness.test.js`, Android installed-PWA smoke when practical |
+| Scroll or gesture conflicts | Defer expensive topic/directory aggregation while scroll/swipe gestures are active, preserve scroll position on background refresh, and keep back/right-swipe behavior scoped to the active secondary surface. | `node tests/same-window-navigation-harness.test.js`, `node tests/task-list-ui.test.js`, relevant module UI tests |
+
+For visual layout changes, static DOM tests are necessary but not sufficient.
+Capture visual evidence with `scripts/playwright-visual-smoke.js`, and use the
+installed Android PWA path when the connected device is available. Browser-mode
+Chrome evidence must be labeled as browser-mode and cannot replace installed PWA
+evidence for PWA-specific behavior.
+
+## Extension Checklist
+
+Before implementing a new feature or refactor:
+
+1. Identify the owning module in the map above.
+2. Classify the change as H1, H2, or H3.
+3. Read the smallest durable docs for that module.
+4. Use CodeGraph for backend structural triage when services/routes are touched.
+5. Implement business logic in `adapters/` and HTTP glue in `server-routes/`.
+6. Put frontend behavior in focused `public/app-<domain>.js` helpers instead of
+   expanding `public/app.js`.
+7. Add or update focused service/route/UI tests.
+8. Add or update the required harness scenario for H1/H2 flows.
+9. For static client changes, bump the client version and run the visual/cache
+   gates.
+10. Update the matching durable docs and `.agent-context/HANDOFF.md`.
+
+## Map Maintenance Contract
+
+This map is guarded by:
+
+```powershell
+node tests\architecture-code-test-harness-map.test.js
+```
+
+Update that test whenever this map intentionally adds a new required module,
+critical source path, or verification gate. The test should check existence and
+index linkage only; it should not duplicate full module behavior.
