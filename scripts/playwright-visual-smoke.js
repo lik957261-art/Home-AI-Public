@@ -25,6 +25,22 @@ function normalizeNumberEnv(value, defaultValue) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : defaultValue;
 }
 
+function normalizePositiveNumberEnv(value, defaultValue) {
+  if (value === undefined || value === "") return defaultValue;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
+}
+
+function parseViewport(value, fallback) {
+  const text = String(value || "").trim().toLowerCase();
+  const match = text.match(/^(\d{2,5})x(\d{2,5})$/);
+  if (!match) return fallback;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return fallback;
+  return { width, height };
+}
+
 function readSecretFile(filePath, label) {
   const resolved = path.resolve(filePath);
   const value = fs.readFileSync(resolved, "utf8").trim();
@@ -108,16 +124,28 @@ async function main() {
   const strictLayout = normalizeBooleanEnv(process.env.HERMES_VISUAL_SMOKE_STRICT, true);
   const longTaskWarnMs = normalizeNumberEnv(argValue("--long-task-warn-ms", process.env.HERMES_VISUAL_SMOKE_LONG_TASK_WARN_MS || ""), 200);
   const failOnLongTask = normalizeBooleanEnv(process.env.HERMES_VISUAL_SMOKE_FAIL_ON_LONG_TASK, false);
+  const viewportBase = parseViewport(argValue("--viewport", process.env.HERMES_VISUAL_SMOKE_VIEWPORT || ""), { width: 390, height: 844 });
+  const viewport = {
+    width: normalizePositiveNumberEnv(argValue("--viewport-width", process.env.HERMES_VISUAL_SMOKE_VIEWPORT_WIDTH || ""), viewportBase.width),
+    height: normalizePositiveNumberEnv(argValue("--viewport-height", process.env.HERMES_VISUAL_SMOKE_VIEWPORT_HEIGHT || ""), viewportBase.height),
+  };
+  const isMobile = hasArg("--mobile")
+    ? true
+    : (hasArg("--desktop") ? false : normalizeBooleanEnv(process.env.HERMES_VISUAL_SMOKE_MOBILE, true));
+  const hasTouch = hasArg("--no-touch")
+    ? false
+    : normalizeBooleanEnv(process.env.HERMES_VISUAL_SMOKE_TOUCH, isMobile);
+  const deviceScaleFactor = normalizePositiveNumberEnv(argValue("--device-scale-factor", process.env.HERMES_VISUAL_SMOKE_DEVICE_SCALE_FACTOR || ""), isMobile ? 2 : 1);
   const accessKey = accessKeyPath ? readSecretFile(accessKeyPath, "access key") : "";
   const settings = viewModeSettings(view);
   fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({
-      viewport: { width: 390, height: 844 },
-      isMobile: true,
-      hasTouch: true,
-      deviceScaleFactor: 2,
+      viewport,
+      isMobile,
+      hasTouch,
+      deviceScaleFactor,
     });
     if (accessKey) {
       await context.addCookies([{
@@ -401,6 +429,12 @@ async function main() {
       workspaceId,
       view,
       viewClicked,
+      browserContext: {
+        viewport,
+        isMobile,
+        hasTouch,
+        deviceScaleFactor,
+      },
       strictLayout,
       longTaskWarnMs,
       failOnLongTask,

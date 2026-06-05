@@ -167,6 +167,11 @@ Gateway plugin/schema/profile changes:
   tasks above `--long-task-warn-ms` default to warnings; set
   `HERMES_VISUAL_SMOKE_FAIL_ON_LONG_TASK=1` only for a calibrated performance
   gate after measuring normal local production variance.
+- For mobile and tablet layout work, run at least the default phone portrait
+  viewport and one explicit wider viewport with `--viewport <width>x<height>`.
+  Use `--mobile` or `--desktop` only when the target shell mode needs to be
+  forced; otherwise the harness keeps the mobile/touch browser context by
+  default so tablet PWA-style checks do not accidentally become desktop checks.
 - Dark mode should follow the mobile control-panel reference: near-black page
   background, slightly lifted charcoal cards, low-noise hairlines, high-contrast
   off-white text, and brighter low-saturation status colors. Hard-coded dark
