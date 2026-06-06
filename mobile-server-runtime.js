@@ -60,6 +60,7 @@ const { createMobileRuntimeFileHelperService } = require("./adapters/mobile-runt
 const { createMobileRuntimePublicStatusService } = require("./adapters/mobile-runtime-public-status-service");
 const { createMobileRuntimeStateFacadeService } = require("./adapters/mobile-runtime-state-facade-service");
 const { createMobileRuntimeSystemStatusFacadeService } = require("./adapters/mobile-runtime-system-status-facade-service");
+const { createMobileRuntimeThreadFacadeService } = require("./adapters/mobile-runtime-thread-facade-service");
 const { createMobileRuntimeWeixinFacadeService } = require("./adapters/mobile-runtime-weixin-facade-service");
 const { createMobileRuntimeWorkspaceCatalogFacade } = require("./adapters/mobile-runtime-workspace-catalog-facade");
 const { createRuntimeWorkspaceCatalogService } = require("./adapters/runtime-workspace-catalog-service");
@@ -71,7 +72,6 @@ const {
 const { deriveKanbanWorkflowState } = require("./adapters/study-workflow-provider");
 const { createSkillDetailProvider } = require("./adapters/skill-detail-provider"); const { createPluginRequiredSkillPreloadService } = require("./adapters/plugin-required-skill-preload-service"); const { createPluginCapabilityActivationService } = require("./adapters/plugin-capability-activation-service");
 const { buildRequestContext } = require("./adapters/request-context-provider");
-const { createThreadRuntimeCompositionService } = require("./adapters/thread-runtime-composition-service");
 const { createThreadViewService } = require("./adapters/thread-view-service");
 const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindings-provider");
 const { createWorkspaceDisplayPathService } = require("./adapters/workspace-display-path-service");
@@ -207,7 +207,6 @@ let kanbanCaseTopicService = null;
 let kanbanPlanCardCreationService = null;
 let runtimeStateThreadService = null;
 let ownerElevationGrantService = null;
-let threadRuntimeCompositionService = null;
 let webPushDeliveryService = null;
 const eventFanoutService = createEventFanoutService({
   clients, authCanAccessWorkspace, isOwnerAuth, state: () => state,
@@ -2137,77 +2136,25 @@ function sendResolvedFilePreview(res, file) {
 function sendResolvedBridgeFilePreview(res, file) {
   return fileResponseService.sendResolvedBridgeFilePreview(res, file);
 }
-function getThreadRuntimeCompositionService() {
-  if (!threadRuntimeCompositionService) {
-    threadRuntimeCompositionService = createThreadRuntimeCompositionService({
-      attachUploadedArtifactsToMessage,
-      authCanAccessWorkspace,
-      authenticateRequest, actionInboxService,
-      broadcast,
-      buildUserMessageContent: (...args) => getRuntimeStateThreadService().buildUserMessageContent(...args),
-      chatGroupMemberWorkspaceIds,
-      compactMessage,
-      compactThread,
-      compactThreadWithMessagePage,
-      deriveTitle,
-      detectDirectKanbanCreateRequest,
-      detectDirectTodoCreateIntent,
-      detectDirectTodoCreateIntentForWeb,
-      directTodoCreateEnabled,
-      findThreadForRequest: (...args) => getRuntimeStateThreadService().findThreadForRequest(...args),
-      findWorkspace,
-      formatDirectTodoCreateSuccessMessage,
-      gatewayRoutingForModelRun,
-      groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
-      interpretKanbanNaturalLanguage,
-      isKanbanCaseTopicThread: (...args) => getSingleWindowThreadService().isKanbanCaseTopicThread(...args),
-      isOwnerAuth,
-      kanbanCardProvider,
-      kanbanCaseTopicPermissionsForTaskGroup,
-      kanbanSingleCardCasePayload,
-      makeId,
-      maxMessageChars: MAX_MESSAGE_CHARS,
-      normalizeTaskGroupMeta: (...args) => getRuntimeStateNormalizationService().normalizeTaskGroupMeta(...args),
-      notifyGroupChatMentions: webPushDeliveryService.notifyGroupChatMentions,
-      notifyTodoCreated: webPushDeliveryService.notifyTodoCreated,
-      nowIso,
-      ownerElevationInstructions,
-      precedingUserMessageForAssistant,
-      publicArtifactFromClient,
-      publicTodo,
-      readBody,
-      removeThreadActiveRun,
-      requireOwner,
-      resolveTaskDirectoryAttachment: (...args) => getSemanticDirectoryAttachmentService().resolveTaskDirectoryAttachment(...args),
-      runConcurrencyError,
-      runConcurrencySnapshot,
-      sanitizeElevationScope,
-      sanitizeTaskGroupId: (...args) => getRuntimeStateNormalizationService().sanitizeTaskGroupId(...args),
-      saveState,
-      semanticTaskDirectoryAttachment: (...args) => getSemanticDirectoryAttachmentService().semanticTaskDirectoryAttachment(...args),
-      sendJson,
-      senderInfoForWorkspace,
-      singleWindowChatTaskGroupId,
-      startRunForThread,
-      taskDirectoryAttachmentForGroup: (...args) => getSemanticDirectoryAttachmentService().taskDirectoryAttachmentForGroup(...args),
-      taskGroupHasRunningRun,
-      threadMessageInitialLimit: THREAD_MESSAGE_INITIAL_LIMIT,
-      threadSummary,
-      todoAssigneeLabel,
-      todoProvider,
-      useKanbanTodoBackend,
-      validReasoningEfforts: VALID_REASONING_EFFORTS,
-      verifyDirectTodoCreateResult,
-      workspaceIdForPrincipal,
-      workspacePrincipal,
-    });
-  }
-  return threadRuntimeCompositionService;
-}
-const getThreadOwnerElevationRetryService = (...args) => getThreadRuntimeCompositionService().getThreadOwnerElevationRetryService(...args);
-const getThreadMessageCreateService = (...args) => getThreadRuntimeCompositionService().getThreadMessageCreateService(...args);
-const getThreadDirectCreateExecutionService = (...args) => getThreadRuntimeCompositionService().getThreadDirectCreateExecutionService(...args);
-const getThreadMessageRunRouteService = (...args) => getThreadRuntimeCompositionService().getThreadMessageRunRouteService(...args);
+const mobileRuntimeThreadFacadeService = createMobileRuntimeThreadFacadeService({
+  actionInboxService, attachUploadedArtifactsToMessage, authCanAccessWorkspace, authenticateRequest, broadcast,
+  chatGroupMemberWorkspaceIds, compactMessage, compactThread, compactThreadWithMessagePage, deriveTitle,
+  detectDirectKanbanCreateRequest, detectDirectTodoCreateIntent, detectDirectTodoCreateIntentForWeb, directTodoCreateEnabled,
+  findWorkspace, formatDirectTodoCreateSuccessMessage, gatewayRoutingForModelRun,
+  getRuntimeStateNormalizationService, getRuntimeStateThreadService, getSemanticDirectoryAttachmentService, getSingleWindowThreadService,
+  groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID, interpretKanbanNaturalLanguage, isOwnerAuth, kanbanCardProvider,
+  kanbanCaseTopicPermissionsForTaskGroup, kanbanSingleCardCasePayload, makeId, maxMessageChars: MAX_MESSAGE_CHARS, nowIso,
+  ownerElevationInstructions, precedingUserMessageForAssistant, publicArtifactFromClient, publicTodo, readBody, removeThreadActiveRun,
+  requireOwner, runConcurrencyError, runConcurrencySnapshot, sanitizeElevationScope, saveState, sendJson, senderInfoForWorkspace,
+  singleWindowChatTaskGroupId, startRunForThread, taskGroupHasRunningRun, threadMessageInitialLimit: THREAD_MESSAGE_INITIAL_LIMIT,
+  threadSummary, todoAssigneeLabel, todoProvider, useKanbanTodoBackend, validReasoningEfforts: VALID_REASONING_EFFORTS,
+  verifyDirectTodoCreateResult, webPushDeliveryService: () => webPushDeliveryService, workspaceIdForPrincipal, workspacePrincipal,
+});
+const getThreadRuntimeCompositionService = (...args) => mobileRuntimeThreadFacadeService.getThreadRuntimeCompositionService(...args);
+const getThreadOwnerElevationRetryService = (...args) => mobileRuntimeThreadFacadeService.getThreadOwnerElevationRetryService(...args);
+const getThreadMessageCreateService = (...args) => mobileRuntimeThreadFacadeService.getThreadMessageCreateService(...args);
+const getThreadDirectCreateExecutionService = (...args) => mobileRuntimeThreadFacadeService.getThreadDirectCreateExecutionService(...args);
+const getThreadMessageRunRouteService = (...args) => mobileRuntimeThreadFacadeService.getThreadMessageRunRouteService(...args);
 const { eventStreamApiRoutes, mobileApiDispatcher, services: mobileApiServices = {} } = createMobileApiComposition({
   accessToken: null, actionInboxService, activeStreams: () => activeStreams, ackWeixinOutboundDelivery, appRouteUrl, appUpdateStatus,
   applyAppUpdate, attachClientVersionHeaders, authCanAccessWorkspace, authenticateRequest, authProvider,
