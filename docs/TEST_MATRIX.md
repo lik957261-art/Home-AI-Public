@@ -151,14 +151,18 @@ show `changed=false` after repair before directory-topic chip or artifact-card
 If Mac metadata has rootless drive paths such as
 `<root>/data/drive/<top>/...`, run the enhanced
 `--repair-rootless-drive` mode and then run:
-`sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-bound-directory-preview-smoke.js --root /Users/hermes-host/HermesMobile --json`.
+`sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-bound-directory-preview-smoke.js --root /Users/hermes-host/HermesMobile --all-workspaces --json`.
 That smoke must return `ok=true` for the current non-chat topic/plugin binding
-surface. Use `--include-chat` only for historical stale-reference cleanup. The
+surface in every active workspace with current bound-directory metadata.
+Unknown/decommissioned workspaces may be reported as `skipped:
+unknown-workspace`; active workspaces must not be skipped. Use `--include-chat`
+only for historical stale-reference cleanup. The
 local checked harness is
 `node tests\macos-bound-directory-preview-smoke-harness.test.js`. Production
-write repairs must stop the listener before the SQLite transaction, then start
-it again before the final dry-run and bound-directory smoke, so stale in-memory
-runtime state cannot overwrite repaired metadata.
+write repairs must stop the listener before the SQLite transaction, use
+`--reset-state-snapshot`, then start it again before the final dry-run and
+bound-directory smoke, so stale in-memory runtime state or a newer `state.json`
+snapshot cannot overwrite repaired metadata.
 Source changes to this closure contract must run
 `node tests\macos-production-closure-validation-harness.test.js` and
 `node tests\macos-plugin-directory-production-smoke-harness.test.js`, and
@@ -1637,7 +1641,7 @@ The guard test is:
 | Area | Focused Tests |
 | --- | --- |
 | Architecture/code/test/harness map | `node tests\architecture-code-test-harness-map.test.js`, `node tests\architecture-refactor-boundary.test.js`, `node tests\codegraph-harness-discipline.test.js` |
-| Mobile runtime composition | `node tests\mobile-runtime-file-helper-service.test.js`, `node tests\mobile-runtime-workspace-catalog-facade.test.js`, `node tests\mobile-runtime-http-server-service.test.js`, `node tests\mobile-server-runtime-startup-smoke.test.js`, `node tests\mobile-http-runtime-service.test.js`, `node tests\architecture-refactor-boundary.test.js` |
+| Mobile runtime composition | `node tests\mobile-runtime-file-helper-service.test.js`, `node tests\mobile-runtime-workspace-catalog-facade.test.js`, `node tests\mobile-runtime-http-server-service.test.js`, `node tests\system-runtime-status-service.test.js`, `node tests\mobile-server-runtime-startup-smoke.test.js`, `node tests\mobile-http-runtime-service.test.js`, `node tests\architecture-refactor-boundary.test.js` |
 | API registry/dispatcher | `node tests\api-route-registry.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js` |
 | Multi-user/task platform | `node tests\auth-provider.test.js`, `node tests\access-key-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\conversation-history-service.test.js`, `node tests\action-inbox-service.test.js`, `node tests\web-push-delivery-service.test.js` |
 | Auth/workspace/access keys | `node tests\auth-provider.test.js`, `node tests\access-key-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\workspace-public-projection-service.test.js`, `node tests\mobile-http-runtime-service.test.js` |

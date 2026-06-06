@@ -876,20 +876,6 @@ function readClientVersion() {
 function clientVersionInfo(clientVersion = "") {
   return getSystemRuntimeStatusService().clientVersionInfo(clientVersion);
 }
-function runGitSync(args, options = {}) {
-  const result = spawnSync("git", args, {
-    cwd: options.cwd || REPO_ROOT,
-    encoding: "utf8",
-    windowsHide: true,
-    timeout: options.timeoutMs || UPDATE_CHECK_TIMEOUT_MS,
-  });
-  return {
-    ok: result.status === 0,
-    status: result.status,
-    stdout: String(result.stdout || "").trim(),
-    stderr: compactText(String(result.stderr || result.error?.message || "").trim(), 600),
-  };
-}
 async function fetchTextWithTimeout(url, timeoutMs = UPDATE_CHECK_TIMEOUT_MS) {
   const response = await fetch(url, { signal: AbortSignal.timeout(Math.max(1000, timeoutMs)), cache: "no-store" });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
@@ -899,31 +885,7 @@ async function appUpdateStatus() {
   return getSystemRuntimeStatusService().appUpdateStatus();
 }
 async function applyAppUpdate() {
-  const status = await appUpdateStatus();
-  if (!status.repository.available) return Object.assign({}, status, { ok: false, error: status.warning || "App directory is not a git checkout." });
-  if (!status.repository.clean) return Object.assign({}, status, { ok: false, error: "Working tree is not clean; update was not applied." });
-  const fetchResult = runGitSync(["fetch", UPDATE_REMOTE_NAME, UPDATE_BRANCH], { timeoutMs: 30000 });
-  if (!fetchResult.ok) return Object.assign({}, status, { ok: false, error: fetchResult.stderr || "git fetch failed." });
-  const remoteRef = `${UPDATE_REMOTE_NAME}/${UPDATE_BRANCH}`;
-  const localHead = runGitSync(["rev-parse", "HEAD"]);
-  const remoteHead = runGitSync(["rev-parse", remoteRef]);
-  if (!remoteHead.ok) return Object.assign({}, status, { ok: false, error: `Cannot resolve ${remoteRef}.` });
-  if (localHead.ok && localHead.stdout === remoteHead.stdout) {
-    return Object.assign({}, status, { ok: true, updated: false, upToDate: true, latestCommit: remoteHead.stdout });
-  }
-  const ancestor = runGitSync(["merge-base", "--is-ancestor", "HEAD", remoteRef]);
-  if (!ancestor.ok) {
-    return Object.assign({}, status, { ok: false, error: "Remote branch is not a fast-forward from the current checkout." });
-  }
-  const merge = runGitSync(["merge", "--ff-only", remoteRef], { timeoutMs: 30000 });
-  if (!merge.ok) return Object.assign({}, status, { ok: false, error: merge.stderr || "git fast-forward failed." });
-  getSystemRuntimeStatusService().resetCaches();
-  return Object.assign({}, await appUpdateStatus(), {
-    ok: true,
-    updated: true,
-    restartRequired: true,
-    message: "Updated by git fast-forward. Restart Hermes Mobile if server code changed.",
-  });
+  return getSystemRuntimeStatusService().applyAppUpdate();
 }
 function requestClientVersion(req) { return httpRuntimeService.requestClientVersion(req); }
 function attachClientVersionHeaders(req, res) { return httpRuntimeService.attachClientVersionHeaders(req, res); }

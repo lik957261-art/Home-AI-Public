@@ -428,12 +428,59 @@ function createSystemRuntimeStatusService(options = {}) {
     };
   }
 
+  async function applyAppUpdate() {
+    const status = await appUpdateStatus();
+    if (!status.repository.available) {
+      return Object.assign({}, status, {
+        ok: false,
+        error: status.warning || "App directory is not a git checkout.",
+      });
+    }
+    if (!status.repository.clean) {
+      return Object.assign({}, status, {
+        ok: false,
+        error: "Working tree is not clean; update was not applied.",
+      });
+    }
+
+    const fetchResult = await runGit(["fetch", deps.updateRemoteName, deps.updateBranch], { timeoutMs: 30000 });
+    if (!fetchResult.ok) return Object.assign({}, status, { ok: false, error: fetchResult.stderr || "git fetch failed." });
+
+    const remoteRef = `${deps.updateRemoteName}/${deps.updateBranch}`;
+    const localHead = await runGit(["rev-parse", "HEAD"]);
+    const remoteHead = await runGit(["rev-parse", remoteRef]);
+    if (!remoteHead.ok) return Object.assign({}, status, { ok: false, error: `Cannot resolve ${remoteRef}.` });
+    if (localHead.ok && localHead.stdout === remoteHead.stdout) {
+      return Object.assign({}, status, { ok: true, updated: false, upToDate: true, latestCommit: remoteHead.stdout });
+    }
+
+    const ancestor = await runGit(["merge-base", "--is-ancestor", "HEAD", remoteRef]);
+    if (!ancestor.ok) {
+      return Object.assign({}, status, {
+        ok: false,
+        error: "Remote branch is not a fast-forward from the current checkout.",
+      });
+    }
+
+    const merge = await runGit(["merge", "--ff-only", remoteRef], { timeoutMs: 30000 });
+    if (!merge.ok) return Object.assign({}, status, { ok: false, error: merge.stderr || "git fast-forward failed." });
+
+    resetCaches();
+    return Object.assign({}, await appUpdateStatus(), {
+      ok: true,
+      updated: true,
+      restartRequired: true,
+      message: "Updated by git fast-forward. Restart Hermes Mobile if server code changed.",
+    });
+  }
+
   function resetCaches() {
     defaultReasoningCache = { cacheKey: "", value: null };
     clientVersionCache = { mtimeMs: 0, version: "" };
   }
 
   return {
+    applyAppUpdate,
     appUpdateStatus,
     clientVersionInfo,
     compareClientVersions,

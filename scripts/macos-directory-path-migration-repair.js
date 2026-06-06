@@ -24,6 +24,7 @@ function parseArgs(argv) {
     write: false,
     json: false,
     repairRootlessDrive: false,
+    resetStateSnapshot: false,
     sampleLimit: 20,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -33,6 +34,7 @@ function parseArgs(argv) {
     else if (arg === "--write") out.write = true;
     else if (arg === "--json") out.json = true;
     else if (arg === "--repair-rootless-drive") out.repairRootlessDrive = true;
+    else if (arg === "--reset-state-snapshot") out.resetStateSnapshot = true;
     else if (arg === "--sample-limit") out.sampleLimit = Number(argv[++index] || out.sampleLimit);
     else if (arg === "--help") {
       console.log([
@@ -43,6 +45,9 @@ function parseArgs(argv) {
         "  --repair-rootless-drive",
         "                      Also remap <root>/data/drive/<top>/... metadata",
         "                      when exactly one matching owner workspace path exists",
+        "  --reset-state-snapshot",
+        "                      With --write, back up and remove <root>/data/state.json",
+        "                      so listener restart regenerates it from repaired SQLite",
         "  --sample-limit <n>  Maximum sample rows in JSON output, default 20",
         "  --json              Print bounded JSON metadata",
         "",
@@ -262,6 +267,20 @@ function createBackups(dbPath) {
   return backups;
 }
 
+function resetStateSnapshot(options) {
+  if (!options.write || !options.resetStateSnapshot) return null;
+  const statePath = path.join(options.root, "data", "state.json");
+  if (!fs.existsSync(statePath)) return { reset: false, reason: "missing" };
+  const backup = `${statePath}.${timestamp()}.bak`;
+  fs.copyFileSync(statePath, backup);
+  fs.unlinkSync(statePath);
+  return {
+    reset: true,
+    path: compactPath(statePath, options.root),
+    backup: compactPath(backup, options.root),
+  };
+}
+
 function emptyTableStats() {
   return {
     scannedRows: 0,
@@ -346,6 +365,7 @@ function repair(options) {
     dbPath: options.dbPath || path.join(String(options.root || DEFAULT_ROOT).replace(/\/+$/, ""), "data", "hermes-mobile.sqlite3"),
     sampleLimit: Number.isFinite(options.sampleLimit) ? options.sampleLimit : 20,
     repairRootlessDrive: Boolean(options.repairRootlessDrive),
+    resetStateSnapshot: Boolean(options.resetStateSnapshot),
     rootlessCandidateCache: new Map(),
   });
   const samples = [];
@@ -393,18 +413,21 @@ function repair(options) {
   } finally {
     db.close();
   }
+  const stateSnapshot = resetStateSnapshot(normalizedOptions);
   const totals = emptyTableStats();
   for (const stats of Object.values(results)) addStats(totals, stats);
   return {
     ok: issues.length === 0,
     mode: normalizedOptions.write ? "write" : "dry-run",
     repairRootlessDrive: normalizedOptions.repairRootlessDrive,
+    resetStateSnapshot: normalizedOptions.resetStateSnapshot,
     wrote: Boolean(normalizedOptions.write && changed),
     changed,
     dbPath: compactPath(normalizedOptions.dbPath, normalizedOptions.root),
     macDriveUsers: compactPath(macDriveUsersPrefix(normalizedOptions.root), normalizedOptions.root),
     legacyDrivePrefixes: LEGACY_DRIVE_PREFIXES,
     backups: backups.map((item) => compactPath(item, normalizedOptions.root)),
+    stateSnapshot,
     results,
     totals,
     samples,

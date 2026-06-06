@@ -46,6 +46,9 @@ out of the composition root. Current focused runtime adapters include:
 - `adapters/mobile-runtime-http-server-service.js` for request dispatch,
   startup logging, stream abort shutdown, Web Push dispatch startup, and
   evaluation-queue bootstrap.
+- `adapters/system-runtime-status-service.js` for runtime model/config
+  projection, client-version checks, repository update status, and guarded
+  Git fast-forward update application.
 
 Run `node tests\architecture-refactor-boundary.test.js` for non-trivial server/runtime changes.
 

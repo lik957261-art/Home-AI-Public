@@ -232,6 +232,96 @@ async function testAppUpdateStatusPreservesVersionCheckFailureFirst() {
   assert.equal(JSON.stringify(status).includes("raw-secret"), false);
 }
 
+async function testApplyAppUpdateRejectsDirtyRepository() {
+  const root = tempRoot();
+  const indexHtmlPath = makeIndex(root, "20260514-2100");
+  const calls = [];
+  const service = createSystemRuntimeStatusService({
+    repoRoot: root,
+    indexHtmlPath,
+    git: {
+      run: gitRunner({
+        "rev-parse --is-inside-work-tree": { ok: true, status: 0, stdout: "true", stderr: "" },
+        "rev-parse HEAD": { ok: true, status: 0, stdout: "local-sha", stderr: "" },
+        "rev-parse --abbrev-ref HEAD": { ok: true, status: 0, stdout: "main", stderr: "" },
+        "remote get-url origin": { ok: true, status: 0, stdout: "https://github.com/acme/mobile.git", stderr: "" },
+        "status --porcelain --untracked-files=normal": { ok: true, status: 0, stdout: " M server.js", stderr: "" },
+        "ls-remote origin refs/heads/main": { ok: true, status: 0, stdout: "remote-sha\trefs/heads/main", stderr: "" },
+      }, calls),
+    },
+    fetchText: async () => '<meta name="hermes-web-client-version" content="20260514-2130">',
+    nowIso: () => "2026-05-15T00:04:00.000Z",
+  });
+
+  const result = await service.applyAppUpdate();
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "Working tree is not clean; update was not applied.");
+  assert.equal(calls.some((call) => call.key === "fetch origin main"), false);
+}
+
+async function testApplyAppUpdateRejectsNonFastForward() {
+  const root = tempRoot();
+  const indexHtmlPath = makeIndex(root, "20260514-2100");
+  const calls = [];
+  const service = createSystemRuntimeStatusService({
+    repoRoot: root,
+    indexHtmlPath,
+    git: {
+      run: gitRunner({
+        "rev-parse --is-inside-work-tree": { ok: true, status: 0, stdout: "true", stderr: "" },
+        "rev-parse HEAD": { ok: true, status: 0, stdout: "local-sha", stderr: "" },
+        "rev-parse --abbrev-ref HEAD": { ok: true, status: 0, stdout: "main", stderr: "" },
+        "remote get-url origin": { ok: true, status: 0, stdout: "https://github.com/acme/mobile.git", stderr: "" },
+        "status --porcelain --untracked-files=normal": { ok: true, status: 0, stdout: "", stderr: "" },
+        "ls-remote origin refs/heads/main": { ok: true, status: 0, stdout: "remote-sha\trefs/heads/main", stderr: "" },
+        "fetch origin main": { ok: true, status: 0, stdout: "", stderr: "" },
+        "rev-parse origin/main": { ok: true, status: 0, stdout: "remote-sha", stderr: "" },
+        "merge-base --is-ancestor HEAD origin/main": { ok: false, status: 1, stdout: "", stderr: "" },
+      }, calls),
+    },
+    fetchText: async () => '<meta name="hermes-web-client-version" content="20260514-2130">',
+    nowIso: () => "2026-05-15T00:05:00.000Z",
+  });
+
+  const result = await service.applyAppUpdate();
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "Remote branch is not a fast-forward from the current checkout.");
+  assert.equal(calls.some((call) => call.key === "merge --ff-only origin/main"), false);
+}
+
+async function testApplyAppUpdateFastForwardSuccess() {
+  const root = tempRoot();
+  const indexHtmlPath = makeIndex(root, "20260514-2100");
+  const calls = [];
+  const service = createSystemRuntimeStatusService({
+    repoRoot: root,
+    indexHtmlPath,
+    git: {
+      run: gitRunner({
+        "rev-parse --is-inside-work-tree": { ok: true, status: 0, stdout: "true", stderr: "" },
+        "rev-parse HEAD": { ok: true, status: 0, stdout: "local-sha", stderr: "" },
+        "rev-parse --abbrev-ref HEAD": { ok: true, status: 0, stdout: "main", stderr: "" },
+        "remote get-url origin": { ok: true, status: 0, stdout: "https://github.com/acme/mobile.git", stderr: "" },
+        "status --porcelain --untracked-files=normal": { ok: true, status: 0, stdout: "", stderr: "" },
+        "ls-remote origin refs/heads/main": { ok: true, status: 0, stdout: "remote-sha\trefs/heads/main", stderr: "" },
+        "fetch origin main": { ok: true, status: 0, stdout: "", stderr: "" },
+        "rev-parse origin/main": { ok: true, status: 0, stdout: "remote-sha", stderr: "" },
+        "merge-base --is-ancestor HEAD origin/main": { ok: true, status: 0, stdout: "", stderr: "" },
+        "merge --ff-only origin/main": { ok: true, status: 0, stdout: "fast-forward", stderr: "" },
+      }, calls),
+    },
+    fetchText: async () => '<meta name="hermes-web-client-version" content="20260514-2130">',
+    nowIso: () => "2026-05-15T00:06:00.000Z",
+  });
+
+  const result = await service.applyAppUpdate();
+  assert.equal(result.ok, true);
+  assert.equal(result.updated, true);
+  assert.equal(result.restartRequired, true);
+  assert.match(result.message, /Restart Hermes Mobile/);
+  assert.equal(calls.some((call) => call.key === "merge --ff-only origin/main"), true);
+}
+
 async function testClientVersionInfoUsesCachedFallback() {
   const root = tempRoot();
   const indexHtmlPath = makeIndex(root, "20260514-2100");
@@ -257,6 +347,9 @@ async function run() {
   await testAppUpdateStatusProjectsRepositoryWithoutRemoteUrl();
   await testAppUpdateStatusNotGitFallback();
   await testAppUpdateStatusPreservesVersionCheckFailureFirst();
+  await testApplyAppUpdateRejectsDirtyRepository();
+  await testApplyAppUpdateRejectsNonFastForward();
+  await testApplyAppUpdateFastForwardSuccess();
   await testClientVersionInfoUsesCachedFallback();
   console.log("system runtime status service tests passed");
 }

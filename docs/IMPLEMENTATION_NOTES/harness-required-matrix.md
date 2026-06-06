@@ -196,12 +196,17 @@ Required harness dimensions:
   parse errors before treating directory-topic chip or artifact-card `404`
   failures as ACL bugs. If Mac rootless drive metadata exists, run the same
   repair with `--repair-rootless-drive`, then run
-  `scripts/macos-bound-directory-preview-smoke.js` and require `ok=true` for
-  non-chat topic/plugin directory bindings. Use its `--include-chat` mode only
-  for separate historical stale-reference cleanup. Production write repairs
-  must stop the listener before the SQLite transaction and restart it before
-  the final dry-run/smoke, because stale in-memory runtime state can otherwise
-  rewrite repaired metadata.
+  `scripts/macos-bound-directory-preview-smoke.js --all-workspaces` and require
+  `ok=true` for non-chat topic/plugin directory bindings in every workspace that
+  has current bound-directory metadata. Owner-only smoke is insufficient because
+  Weixin workspace bindings can drift independently. Unknown/decommissioned
+  workspaces may be reported as `skipped: unknown-workspace`; active workspaces
+  must not be skipped. Use its `--include-chat` mode only for separate
+  historical stale-reference cleanup. Production write repairs must stop the
+  listener before the SQLite transaction, use `--reset-state-snapshot`, and
+  restart it before the final dry-run/smoke, because stale in-memory runtime
+  state or a newer `state.json` snapshot can otherwise rewrite repaired
+  metadata.
 - A clean install may start with no plugin data. Owner must be able to enable
   plugins on demand through the standard provisioning contract instead of
   relying on pre-bound development data.

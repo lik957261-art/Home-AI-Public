@@ -13,6 +13,7 @@ function parseArgs(argv) {
     base: process.env.HERMES_MOBILE_SMOKE_BASE || "http://127.0.0.1:8797",
     accessKeyFile: process.env.HERMES_WEB_AUTH_KEY_PATH || "",
     workspaceId: process.env.HERMES_MOBILE_SMOKE_WORKSPACE || "owner",
+    allWorkspaces: false,
     includeChat: false,
     limit: 1000,
     json: false,
@@ -24,6 +25,7 @@ function parseArgs(argv) {
     else if (arg === "--base") out.base = argv[++index] || out.base;
     else if (arg === "--access-key-file") out.accessKeyFile = argv[++index] || out.accessKeyFile;
     else if (arg === "--workspace") out.workspaceId = argv[++index] || out.workspaceId;
+    else if (arg === "--all-workspaces") out.allWorkspaces = true;
     else if (arg === "--include-chat") out.includeChat = true;
     else if (arg === "--limit") out.limit = Number(argv[++index] || out.limit);
     else if (arg === "--json") out.json = true;
@@ -35,6 +37,7 @@ function parseArgs(argv) {
         "  --base <url>             Hermes Mobile base URL",
         "  --access-key-file <file> Access key file; key contents are never printed",
         "  --workspace <id>         Workspace to inspect, default owner",
+        "  --all-workspaces         Inspect each workspace with current bound directory metadata",
         "  --include-chat           Also test chat/group-chat directory references",
         "  --limit <n>              Maximum unique bound paths to test",
         "  --json                   Print bounded JSON evidence",
@@ -123,6 +126,26 @@ function collectBoundDirectoryPaths(options) {
   }
 }
 
+function collectBoundDirectoryWorkspaceIds(options) {
+  const db = new DatabaseSync(options.dbPath, { open: true, readOnly: true });
+  try {
+    const chatFilter = options.includeChat
+      ? ""
+      : "AND COALESCE(m.task_group_id, '') NOT IN ('chat', 'group-chat')";
+    return db.prepare(`
+      SELECT DISTINCT t.workspace_id AS workspace_id
+      FROM messages m
+      LEFT JOIN threads t ON t.id = m.thread_id
+      WHERE COALESCE(t.workspace_id, '') <> ''
+        ${chatFilter}
+        AND (COALESCE(m.directory_route_json, '') <> '' OR COALESCE(m.directory_aliases_json, '') <> '')
+      ORDER BY t.workspace_id
+    `).all().map((row) => String(row.workspace_id || "")).filter(Boolean);
+  } finally {
+    db.close();
+  }
+}
+
 function readAccessKey(options) {
   const candidates = [
     options.accessKeyFile,
@@ -189,10 +212,48 @@ async function smoke(options) {
   };
 }
 
+async function smokeAllWorkspaces(options) {
+  const normalized = Object.assign({}, options);
+  const workspaceIds = collectBoundDirectoryWorkspaceIds(normalized);
+  const results = [];
+  for (const workspaceId of workspaceIds) {
+    try {
+      results.push(await smoke(Object.assign({}, normalized, { workspaceId })));
+    } catch (err) {
+      const boundPaths = collectBoundDirectoryPaths(Object.assign({}, normalized, { workspaceId }));
+      const projectProbe = await api(Object.assign({}, normalized, { accessKey: readAccessKey(normalized) }), `/api/projects?workspaceId=${encodeURIComponent(workspaceId)}`)
+        .catch(() => null);
+      const unknownWorkspace = projectProbe?.response?.status === 400
+        && String(projectProbe?.payload?.error || "").toLowerCase().includes("unknown workspace");
+      results.push({
+        ok: false,
+        workspaceId,
+        includeChat: Boolean(normalized.includeChat),
+        skipped: unknownWorkspace,
+        skipReason: unknownWorkspace ? "unknown-workspace" : "",
+        uniquePaths: boundPaths.length,
+        okCount: 0,
+        failed: 0,
+        error: String(err?.message || err || "").slice(0, 240),
+        failures: [],
+      });
+    }
+  }
+  return {
+    ok: results.every((result) => result.ok || result.skipped),
+    allWorkspaces: true,
+    includeChat: Boolean(normalized.includeChat),
+    workspaceCount: workspaceIds.length,
+    results,
+  };
+}
+
 if (require.main === module) {
   const options = parseArgs(process.argv.slice(2));
-  smoke(options).then((result) => {
+  const runner = options.allWorkspaces ? smokeAllWorkspaces : smoke;
+  runner(options).then((result) => {
     if (options.json) console.log(JSON.stringify(result, null, 2));
+    else if (options.allWorkspaces) console.log(`ok=${result.ok} workspaces=${result.workspaceCount}`);
     else console.log(`ok=${result.ok} uniquePaths=${result.uniquePaths} failed=${result.failed}`);
     process.exit(result.ok ? 0 : 1);
   }).catch((error) => {
@@ -203,7 +264,9 @@ if (require.main === module) {
 
 module.exports = {
   collectBoundDirectoryPaths,
+  collectBoundDirectoryWorkspaceIds,
   compactPath,
   parseArgs,
   smoke,
+  smokeAllWorkspaces,
 };

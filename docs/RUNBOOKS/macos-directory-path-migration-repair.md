@@ -55,6 +55,12 @@ It rewrites only when exactly one matching Owner workspace candidate exists and
 the target exists. Missing or ambiguous old directory names remain unchanged and
 must be treated as stale-reference cleanup, not automatic migration.
 
+In SQLite-backed production, `data/state.json` is still a runtime snapshot. If
+that snapshot is newer than SQLite, listener startup imports it back into
+SQLite. Production write repairs therefore must use `--reset-state-snapshot`
+while the listener is stopped so restart regenerates `state.json` from the
+repaired SQLite state.
+
 ## Checked Harness
 
 Local source harness:
@@ -120,6 +126,7 @@ sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
   /Users/hermes-host/HermesMobile/app/scripts/macos-directory-path-migration-repair.js \
   --root /Users/hermes-host/HermesMobile \
   --repair-rootless-drive \
+  --reset-state-snapshot \
   --write \
   --sample-limit 5 \
   --json
@@ -154,13 +161,19 @@ totals.parseErrors=0
 sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
   /Users/hermes-host/HermesMobile/app/scripts/macos-bound-directory-preview-smoke.js \
   --root /Users/hermes-host/HermesMobile \
+  --all-workspaces \
   --json
 ```
 
-Use `--include-chat` only for historical cleanup audits. Old chat or group-chat
-messages may reference deleted or renamed directories and should not block the
-current topic/plugin binding closure unless those references are still surfaced
-as actionable directory-topic cards.
+Production closure must use `--all-workspaces`; Owner-only smoke can miss
+directory-bound topics in inserted Weixin or plugin-authorized workspaces.
+Unknown or decommissioned workspaces are reported as `skipped:
+unknown-workspace`; if such a workspace should still be active, restore its
+workspace registration before treating the smoke as closed. Use `--include-chat`
+only for historical cleanup audits. Old chat or group-chat messages may
+reference deleted or renamed directories and should not block the current
+topic/plugin binding closure unless those references are still surfaced as
+actionable directory-topic cards.
 
 ## 2026-06-06 Production Evidence
 
@@ -219,7 +232,10 @@ Follow-up on the same day showed two important closure rules:
   `<root>/data/drive/<top>/...` values;
 - a production write should stop the listener before the SQLite transaction,
   otherwise stale in-memory state can be saved later and reintroduce old path
-  metadata.
+  metadata;
+- `data/state.json` must be backed up and reset in the same stopped-listener
+  write window; otherwise a newer stale snapshot can be imported on startup and
+  reintroduce old path metadata into SQLite.
 
 After updating the repair harness for mixed JSON rows and running the
 stop-repair-start procedure, production closure was:
@@ -230,3 +246,30 @@ stop-repair-start procedure, production closure was:
   `uniquePaths=19`, `okCount=19`, `failed=0`;
 - `--include-chat` audit: `uniquePaths=26`, `okCount=24`, `failed=2`, both
   failures are historical chat/group-chat references to missing old directories.
+
+## 2026-06-07 Cross-Workspace Binding Repair
+
+Owner-only bound-directory smoke later missed a Weixin workspace regression:
+`weixin_wuping` had persisted directory-topic metadata pointing at the missing
+workspace-local path
+`$DRIVE/users/weixin_wuping/Hermes-吴萍/健康/体检报告`, while the current
+authorized shared root was
+`$DRIVE/users/owner/Hermes-徐欣/吴萍.健康/体检报告`.
+
+The production repair sequence must keep both repairs in the same stopped
+listener window when legacy path drift is also present:
+
+1. Stop `com.hermesmobile.listener`.
+2. Run `macos-directory-path-migration-repair.js --repair-rootless-drive --reset-state-snapshot --write`.
+3. Apply any exact shared-directory metadata repair for the affected workspace.
+4. Start and kickstart `com.hermesmobile.listener`.
+5. Re-run the dry-run and bound-directory preview smoke with
+   `--all-workspaces`.
+
+After this repair, production evidence was:
+
+- path repair dry-run: `changed=false`, `affectedRows=0`,
+  `valueReplacements=0`, `parseErrors=0`;
+- status smoke: `ok=true`, `activeGlobal=0`;
+- bound-directory preview smoke with `--all-workspaces`: Owner `19/19`,
+  `weixin_wuping` `7/7`, `weixin_test_1` `2/2`, and `weixin_stephen` `1/1`.

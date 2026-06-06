@@ -128,6 +128,7 @@ try {
   assert.equal(parsed.dbPath, dbPath);
   assert.equal(parsed.json, true);
   assert.equal(parseArgs(["--root", root, "--repair-rootless-drive"]).repairRootlessDrive, true);
+  assert.equal(parseArgs(["--root", root, "--reset-state-snapshot"]).resetStateSnapshot, true);
   assert.equal(compactPath(`${driveUsers}owner/Hermes-Owner`, root), "$DRIVE/users/owner/Hermes-Owner");
   assert.equal(containsLegacyDrivePath("/mnt/c/ProgramData/HermesMobile/data/drive/users/owner/a"), true);
   assert.equal(
@@ -183,10 +184,16 @@ try {
   assert.equal(rootlessDryRun.results["messages.directory_route_json"].affectedRows, 1);
   assert.equal(rootlessDryRun.results["messages.directory_aliases_json"].affectedRows, 1);
 
-  const rootlessWritten = repair({ root, dbPath, write: true, sampleLimit: 10, repairRootlessDrive: true });
+  const statePath = path.join(root, "data", "state.json");
+  fs.writeFileSync(statePath, JSON.stringify({ schemaVersion: 1, threads: [] }), "utf8");
+  const rootlessWritten = repair({ root, dbPath, write: true, sampleLimit: 10, repairRootlessDrive: true, resetStateSnapshot: true });
   assert.equal(rootlessWritten.ok, true);
   assert.equal(rootlessWritten.changed, true);
   assert.equal(rootlessWritten.wrote, true);
+  assert.equal(rootlessWritten.stateSnapshot.reset, true);
+  assert.equal(rootlessWritten.stateSnapshot.path, "<root>/data/state.json");
+  assert.equal(fs.existsSync(statePath), false);
+  assert.equal(fs.existsSync(rootlessWritten.stateSnapshot.backup.replace("<root>", root)), true);
   const rootlessMessage = readValue("SELECT directory_route_json, directory_aliases_json FROM messages WHERE id = ?", "msg_rootless");
   assert.equal(
     JSON.parse(rootlessMessage.directory_route_json).path,
