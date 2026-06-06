@@ -1,6 +1,6 @@
 # Home AI Frontend State Map
 
-Last updated: 2026-05-28.
+Last updated: 2026-06-06.
 
 Use this file to locate the responsible frontend files before debugging a screenshot or mobile UI report.
 
@@ -134,15 +134,27 @@ the change is part of a dedicated infrastructure rename.
 - Task group UI: `public/app-task-groups-ui.js`, `public/app-task-preview-ui.js`
 - Capability Entry Hub product direction:
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md`
-  - Root Topics should present a frequent quick-action grid followed by a
-    plugin desktop grid instead of a separate bottom plugin Dock. Plugin icon
-    clicks should consistently open the plugin app. Quick actions and
-    long-press menus carry task-specific routes such as topic, directory,
-    plugin route, quick form, or MCP-backed Home AI intent.
+  - Root Topics should present a compact frequent quick-action grid followed
+    by Directory-bound topic collections in the scrollable page body. Plugin and
+    built-in Directory icons stay in the fixed bottom topic-page Dock above the
+    primary bottom navigation, matching the earlier topic icon form. Icon clicks
+    consistently open the app/capability, while long-press/context-click opens
+    the compact quick-action menu. Touch-shell validation must verify the
+    `touchstart` long-press path directly because desktop `contextmenu` evidence
+    alone does not prove iOS/PWA behavior. Quick actions carry task-specific
+    routes such as topic, directory, plugin route, quick form, or MCP-backed
+    Home AI intent.
 - Single Window topic replies must carry the currently selected `taskGroupId`
   just like the standalone Tasks view. If the composer says "Reply in this
   task...", the post must remain in that selected topic instead of creating a
   new topic group.
+- Composer send uses local optimistic user/assistant messages only until the
+  `POST /api/threads/:id/messages` call is acknowledged. If that POST rejects,
+  times out, or otherwise fails before the server returns a thread, the client
+  must remove the local pending messages, restore the composer text, and request
+  a bounded thread refresh. A local optimistic `queued` placeholder must never
+  remain as the source of a visible `Home AI - queued` message or bottom
+  `queued` badge when the server has no corresponding active assistant message.
 - Thread refresh/merge must not preserve a locally running message once the
   incoming thread summary has no active run. Pending messages outside a paged
   response may be kept only while the incoming thread still reports an active

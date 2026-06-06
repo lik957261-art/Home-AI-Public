@@ -46,32 +46,38 @@ or raw plugin credentials.
 - When there is no saved launch view, Hermes Mobile opens the topic page first.
   The mobile bottom navigation keeps five primary slots with Topics in the
   center position.
-- The current frontend projection renders Wardrobe, Finance, Email, and Health in a
-  topic-page plugin Dock row directly above the mobile bottom navigation when
-  those plugins are visible in the effective workspace. The Dock is a dedicated
-  layout row outside the scrollable topic list, so it must not cover
-  directory-bound topic cards. It does not create a separate bottom Plugin tab,
-  does not open a floating plugin drawer from the Topics tab, and does not
-  create new plugin grants.
-- The Dock remains single-row. When one to five external plugin entries are
-  visible, the row divides the available width evenly across those entries; when
-  more than five entries are visible, the same five-slot sizing is kept and the
-  row scrolls horizontally.
-- Manual Dock reordering is long-press gated: a normal horizontal swipe must
-  scroll the Dock, and only a held icon can be dragged to a new position.
-- External plugin entries in the topic-page plugin Dock are app launch targets
-  only. They do not expose separate topic or file-directory mini actions in the
-  topic list. Plugin-specific topic and directory surfaces remain reachable from
-  the plugin context/navigation rules instead of as small buttons beside the app
-  icon.
+- The current frontend projection renders Wardrobe, Finance, Email, Health,
+  Note, and the built-in Directory capability in a topic-page Dock row directly
+  above the mobile bottom navigation when they are visible in the effective
+  workspace. The Dock is a dedicated layout row outside the scrollable topic
+  list, so it must not cover directory-bound topic cards. It does not create a
+  separate bottom Plugin tab, does not open a floating plugin drawer from the
+  Topics tab, and does not create new plugin grants.
+- The Dock remains single-row. When one to six capability entries are visible,
+  the row divides the available width evenly across those entries; when more
+  than six entries are visible, the row may scroll horizontally.
+- Dock reordering is available through the long-press/context action menu with
+  bounded move controls. A normal horizontal swipe must scroll the Dock, and the
+  daily long-press gesture must open the action menu instead of being consumed
+  by drag sorting when that menu exists.
+- The Dock action menu must be bound to the touch long-press path as well as
+  pointer/context interactions. The frontend CSS must suppress WebKit native
+  touch callout on Dock icons so iOS/PWA long-press can reach the Home AI menu.
+- Dock entries are app/capability launch targets on tap. They do not expose
+  permanent topic or file-directory mini actions in the topic list. Plugin- and
+  Directory-specific secondary surfaces remain reachable from quick actions,
+  long-press/context menus, and plugin context/navigation rules instead of as
+  small buttons beside the app icon.
 - The next product direction for the root Topics tab is the Capability Entry
   Hub described in
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md`. In that model, the
-  plugin icon still consistently opens the plugin app, while a frequent-action
-  grid and long-press plugin menu expose task-specific shortcuts. Shortcuts can
-  open topics, plugin routes, directories, quick forms, or MCP-backed Home AI
-  intents. The first implementation maps shortcuts to existing host routes;
-  direct MCP intent execution remains a separate H1 extension.
+  plugin icon still consistently opens the plugin app, but plugin icons remain
+  in the fixed bottom Dock instead of moving into the middle of the page body.
+  The page body shows a compact frequent-action grid followed by
+  Directory-bound topic collections. Shortcuts can open topics, plugin routes,
+  directories, quick forms, or MCP-backed Home AI intents. The first
+  implementation maps shortcuts to existing host routes; direct MCP intent
+  execution remains a separate H1 extension.
 - The topic-page plugin Dock is visible only on the root topic list. It must be
   hidden when the sidebar menu is open, when a plugin app is active, and on any
   secondary page, so it cannot cover the navigation menu or plugin iframe.
@@ -102,16 +108,16 @@ or raw plugin credentials.
   is set, right-swipe/browser-back resolves first to plugin-context home. After
   that transition, ordinary five-tab navigation and topic-root scroll state are
   restored; the three-item plugin-context bar is removed.
-- The current frontend projection renders Directory as a built-in large-icon
-  card for every authenticated workspace, keeps it in the topic page body above
-  directory-bound topic collections, and hides the separate mobile bottom
-  Directory tab.
-- The Directory built-in card opens the Directory application from the large
-  icon only. It does not show the plugin topic or file-directory mini actions,
-  because directory-bound topics are represented by the associated Directory
-  topic collection below the card.
-- Directory-bound topic collections are visually attached to the Directory
-  built-in card and must exclude fixed plugin topics such as `plugin:wardrobe`,
+- The current frontend projection renders Directory as a built-in Dock
+  capability for every authenticated workspace, keeps it in the fixed bottom
+  capability Dock, and hides the separate mobile bottom Directory tab.
+- The Directory Dock icon opens the Directory application on tap. Its
+  long-press/context menu exposes Directory quick actions such as recent
+  directories, file topics, and new topic. Directory-bound topics remain in the
+  scrollable page body, not as mini buttons attached to the icon.
+- Directory-bound topic collections are visually attached to the root
+  Capability Entry Hub body and must exclude fixed plugin topics such as
+  `plugin:wardrobe`,
   `plugin:finance`, `plugin:email`, and `plugin:health`.
 - Directory-bound topic collections render as compact collapsible folder-tree
   rows followed by an indented child-topic list. The folder/directory icon lives
@@ -125,10 +131,10 @@ or raw plugin credentials.
   free-floating topic. New topic creation must enter through a Directory binding
   or another explicit binding flow, so every new topic has a durable context
   anchor.
-- The Directory special card uses the same standard folder icon asset as Growth
-  delivery-directory links. Directory-bound topic cards must not reuse that
-  Directory icon; they use a smaller topic/chat icon so the directory app and
-  its bound topics remain visually distinct.
+- The Directory Dock icon uses the same standard folder icon asset as Growth
+  delivery-directory links. Directory-bound topic cards use the smaller folder
+  row icon and child topic/chat icons so the Directory app and its bound topics
+  remain visually distinct.
 - Runs started in the plugin topic should include the plugin MCP/toolset only
   when the selected workspace has an active plugin binding and matching Gateway
   callable schema.
@@ -257,12 +263,12 @@ Focused validation should include:
 
 The current frontend projection is covered by `node tests\task-list-ui.test.js`
 and `node tests\static-cache-version-harness.test.js`: the harness asserts the
-topic-page plugin Dock row above the bottom navigation, the absence of a separate
-bottom Plugin tab and floating plugin drawer, the built-in Directory card, the hidden mobile
+topic-page capability Dock row above the bottom navigation, the absence of a separate
+bottom Plugin tab and floating plugin drawer, the built-in Directory Dock icon, the hidden mobile
 bottom Directory tab, the plugin-topic script in the app shell/service worker
-cache, Dock app launch actions for external plugins without
-topic/file-directory mini actions, the Directory special card without mini actions,
-Directory-bound topic collections associated below the compact Directory card,
+cache, Dock app/capability launch actions with long-press/context quick-action
+menus, no permanent topic/file-directory mini actions beside Dock icons,
+Directory-bound topic collections associated below the Capability Entry Hub body,
 collapsible folder-tree rows excluding plugin topics, bottom navigation with
 Topics centered, default launch to Topics when no saved view exists, fixed
 `plugin:<pluginId>` topic entry,
@@ -283,6 +289,12 @@ first-paint
 topic-list rendering that does not synchronously wait for directory-topic
 aggregation, preserving topic-list scroll position after that background
 aggregation/refresh completes, and the static version bump.
+
+The visual regression harness must also cover the Dock action menu with
+`scripts/playwright-visual-smoke.js --open-capability-menu <capability>`. Passing
+output must include `capabilityMenuOpened=true` and
+`capabilityMenuGesture=touch-longpress`; a desktop-only `contextmenu` dispatch is
+not sufficient evidence for iOS/PWA long-press behavior.
 
 Mac production must also run
 `scripts/macos-plugin-directory-production-smoke.js` through the aggregate

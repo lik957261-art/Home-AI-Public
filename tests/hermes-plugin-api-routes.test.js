@@ -789,17 +789,17 @@ async function testWardrobeProxyRewritesSessionCookieScope() {
   const { routes } = makeRoutes({
     hermesPluginService: {
       list() {
-        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+        return [{ id: "wardrobe", manifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" }];
       },
       manifest() {
         return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
       },
       pluginManifestUrl(id) {
-        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+        return id === "wardrobe" ? "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" : "";
       },
     },
     fetch(url, options = {}) {
-      assert.equal(url, "http://192.168.10.99:8765/?embed=hermes&launch=wpl_once&workspaceId=weixin_test_1");
+      assert.equal(url, "http://127.0.0.1:8765/?embed=hermes&launch=wpl_once&workspaceId=weixin_test_1");
       assert.equal(options.redirect, "manual");
       return Promise.resolve({
         ok: false,
@@ -808,7 +808,7 @@ async function testWardrobeProxyRewritesSessionCookieScope() {
           get(name) {
             const lower = name.toLowerCase();
             if (lower === "content-type") return "text/plain";
-            if (lower === "location") return "http://192.168.10.99:8765/?embed=hermes";
+            if (lower === "location") return "http://127.0.0.1:8765/?embed=hermes";
             return "";
           },
           getSetCookie() {
@@ -842,17 +842,17 @@ async function testPluginLaunchProxyDoesNotForwardExistingSessionCookiesAndClear
   const { routes } = makeRoutes({
     hermesPluginService: {
       list() {
-        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+        return [{ id: "wardrobe", manifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" }];
       },
       manifest() {
         return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
       },
       pluginManifestUrl(id) {
-        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+        return id === "wardrobe" ? "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" : "";
       },
     },
     fetch(url, options = {}) {
-      assert.equal(url, "http://192.168.10.99:8765/?embed=hermes&launch=wpl_once&workspaceId=weixin_test_1");
+      assert.equal(url, "http://127.0.0.1:8765/?embed=hermes&launch=wpl_once&workspaceId=weixin_test_1");
       assert.equal(Object.hasOwn(options.headers, "cookie"), false);
       return Promise.resolve({
         ok: true,
@@ -861,7 +861,7 @@ async function testPluginLaunchProxyDoesNotForwardExistingSessionCookiesAndClear
           get(name) {
             const lower = name.toLowerCase();
             if (lower === "content-type") return "text/plain";
-            if (lower === "location") return "http://192.168.10.99:8765/?embed=hermes";
+            if (lower === "location") return "http://127.0.0.1:8765/?embed=hermes";
             return "";
           },
           getSetCookie() {
@@ -901,18 +901,18 @@ async function testWardrobeProxyForwardsOnlyCurrentWorkspaceSessionCookie() {
   const { routes } = makeRoutes({
     hermesPluginService: {
       list() {
-        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+        return [{ id: "wardrobe", manifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" }];
       },
       manifest() {
         return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
       },
       pluginManifestUrl(id) {
-        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+        return id === "wardrobe" ? "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" : "";
       },
     },
     fetch(url, options = {}) {
       fetchCalls.push({ url, options });
-      assert.equal(url, "http://192.168.10.99:8765/api/items?workspaceId=weixin_test_1");
+      assert.equal(url, "http://127.0.0.1:8765/api/items?workspaceId=weixin_test_1");
       assert.equal(options.headers.cookie, "wardrobe_session=test-session");
       return Promise.resolve({
         ok: true,
@@ -945,18 +945,18 @@ async function testWardrobeProxyUsesConfiguredLanUpstream() {
   const { routes } = makeRoutes({
     hermesPluginService: {
       list() {
-        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+        return [{ id: "wardrobe", manifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" }];
       },
       manifest() {
         return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
       },
       pluginManifestUrl(id) {
-        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+        return id === "wardrobe" ? "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" : "";
       },
     },
     fetch(url, options = {}) {
       fetchCalls.push({ url, options });
-      assert.equal(url, "http://192.168.10.99:8765/?embed=hermes&launch=wpl_once&workspaceId=owner");
+      assert.equal(url, "http://127.0.0.1:8765/?embed=hermes&launch=wpl_once&workspaceId=owner");
       return Promise.resolve({
         ok: true,
         status: 200,
@@ -982,17 +982,17 @@ async function testWardrobeProxyPreservesTemplateLiteralApiUrls() {
   const { routes } = makeRoutes({
     hermesPluginService: {
       list() {
-        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+        return [{ id: "wardrobe", manifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" }];
       },
       manifest() {
         return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
       },
       pluginManifestUrl(id) {
-        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+        return id === "wardrobe" ? "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" : "";
       },
     },
     fetch(url) {
-      assert.equal(url, "http://192.168.10.99:8765/app.js?workspaceId=owner");
+      assert.equal(url, "http://127.0.0.1:8765/app.js?workspaceId=owner");
       return Promise.resolve({
         ok: true,
         status: 200,
@@ -1026,21 +1026,21 @@ async function testWardrobeProxyNormalizesUnsafeOriginForUpload() {
   const { routes } = makeRoutes({
     hermesPluginService: {
       list() {
-        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+        return [{ id: "wardrobe", manifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" }];
       },
       manifest() {
         return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
       },
       pluginManifestUrl(id) {
-        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+        return id === "wardrobe" ? "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" : "";
       },
     },
     fetch(url, options = {}) {
       fetchCalls.push({ url, options });
-      assert.equal(url, "http://192.168.10.99:8765/api/items/1/photos?workspaceId=owner");
+      assert.equal(url, "http://127.0.0.1:8765/api/items/1/photos?workspaceId=owner");
       assert.equal(options.method, "POST");
-      assert.equal(options.headers.origin, "http://192.168.10.99:8765");
-      assert.equal(options.headers.referer, "http://192.168.10.99:8765/api/items/1/photos?workspaceId=owner");
+      assert.equal(options.headers.origin, "http://127.0.0.1:8765");
+      assert.equal(options.headers.referer, "http://127.0.0.1:8765/api/items/1/photos?workspaceId=owner");
       assert.equal(options.headers["x-hermes-public-origin"], "https://hermes-xuxin.synology.me:8445");
       assert.equal(options.headers["x-forwarded-origin"], "https://hermes-xuxin.synology.me:8445");
       assert.equal(options.headers["content-type"], "multipart/form-data; boundary=boundary");
@@ -1076,24 +1076,24 @@ async function testPluginProxyRewritesJsonImageUrls() {
   const { routes } = makeRoutes({
     hermesPluginService: {
       list() {
-        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+        return [{ id: "wardrobe", manifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" }];
       },
       manifest() {
         return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
       },
       pluginManifestUrl(id) {
-        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+        return id === "wardrobe" ? "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" : "";
       },
     },
     fetch(url, options = {}) {
-      assert.equal(url, "http://192.168.10.99:8765/api/items/1?workspaceId=owner");
+      assert.equal(url, "http://127.0.0.1:8765/api/items/1?workspaceId=owner");
       assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
       return Promise.resolve({
         ok: true,
         status: 200,
         headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
         text: () => Promise.resolve(JSON.stringify({
-          imageUrl: "http://192.168.10.99:8765/uploads/item-1.jpg",
+          imageUrl: "http://127.0.0.1:8765/uploads/item-1.jpg",
           thumb: "/media/thumb-1.webp",
           icon: "/static/icon.png",
         })),
@@ -1218,17 +1218,17 @@ async function testWardrobeProxyNormalizesThumbnailQuerySuffix() {
   const { calls, routes } = makeRoutes({
     hermesPluginService: {
       list() {
-        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+        return [{ id: "wardrobe", manifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" }];
       },
       manifest() {
         return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
       },
       pluginManifestUrl(id) {
-        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+        return id === "wardrobe" ? "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" : "";
       },
     },
     fetch(url, options = {}) {
-      assert.equal(url, "http://192.168.10.99:8765/api/photos/584/content?workspaceId=owner&thumb=1");
+      assert.equal(url, "http://127.0.0.1:8765/api/photos/584/content?workspaceId=owner&thumb=1");
       assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
       return Promise.resolve({
         ok: true,
@@ -1256,17 +1256,17 @@ async function testWardrobeProxyInjectsUploadFileInputCompatibilityCss() {
   const { routes } = makeRoutes({
     hermesPluginService: {
       list() {
-        return [{ id: "wardrobe", manifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" }];
+        return [{ id: "wardrobe", manifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" }];
       },
       manifest() {
         return Promise.resolve({ ok: true, available: true, id: "wardrobe" });
       },
       pluginManifestUrl(id) {
-        return id === "wardrobe" ? "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest" : "";
+        return id === "wardrobe" ? "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" : "";
       },
     },
     fetch(url) {
-      assert.equal(url, "http://192.168.10.99:8765/styles.css?v=1");
+      assert.equal(url, "http://127.0.0.1:8765/styles.css?v=1");
       return Promise.resolve({
         ok: true,
         status: 200,

@@ -203,7 +203,7 @@ const wardrobeBinding = compactWardrobeBinding({
   ok: true,
   authHeader: "X-Hermes-Web-Key",
   expectedOrigin: "http://127.0.0.1:8765",
-  legacyOrigin: "http://192.168.10.99:8765",
+  legacyOrigin: "http://127.0.0.1:8765",
   bindingCount: 1,
   bindings: [{
     path: "<HERMES_MOBILE_ROOT>/data/drive/users/weixin_wuping/.hermes-wardrobe/config.json",

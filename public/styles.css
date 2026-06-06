@@ -52,11 +52,12 @@
   --app-font-scale: 1;
   --app-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
   --mobile-bottom-safe-area: min(env(safe-area-inset-bottom), 8px);
+  --mobile-bottom-nav-content-safe-area: max(0px, calc(var(--mobile-bottom-safe-area) - 5px));
   --mobile-bottom-nav-height: calc(58px + var(--mobile-bottom-safe-area));
   --plugin-context-bottom-nav-height: calc(54px + var(--mobile-bottom-safe-area));
   --mobile-bottom-nav-offset-height: var(--mobile-bottom-nav-offset-height-runtime, var(--mobile-bottom-nav-height));
   --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 10px));
-  --topic-plugin-dock-height: 82px;
+  --topic-plugin-dock-height: 90px;
   --topic-plugin-dock-reserved-height: calc(var(--mobile-bottom-nav-offset-height) + var(--topic-plugin-dock-height));
   font-family: var(--app-font-family);
 }
@@ -5286,8 +5287,8 @@ button.directory-alias-chip {
   width: min(920px, 100%);
   max-width: 100%;
   display: grid;
-  gap: 16px;
-  margin: 0 auto 18px;
+  gap: 12px;
+  margin: 0 auto 14px;
   padding: 0;
 }
 
@@ -5431,9 +5432,16 @@ button.directory-alias-chip {
   width: 72px;
   min-height: 84px;
   touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .capability-plugin-cell.menu-open .capability-plugin-icon-button {
+  background: color-mix(in srgb, var(--ui-accent-soft) 80%, transparent);
+}
+
+.plugin-app-card.menu-open {
   background: color-mix(in srgb, var(--ui-accent-soft) 80%, transparent);
 }
 
@@ -5479,6 +5487,18 @@ button.directory-alias-chip {
     max-height: min(340px, calc(100vh - var(--mobile-bottom-nav-offset-height) - 84px));
     overflow-y: auto;
     transform: translateX(-50%);
+  }
+}
+
+@media (max-width: 1099px) {
+  .task-list-mode .topic-plugin-dock .capability-action-menu {
+    position: absolute;
+    left: 50%;
+    right: auto;
+    top: auto;
+    bottom: calc(100% + 10px);
+    z-index: 80;
+    max-height: min(340px, calc(100vh - var(--topic-plugin-dock-reserved-height) - 32px));
   }
 }
 
@@ -5621,6 +5641,7 @@ button.directory-alias-chip {
   touch-action: pan-x;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-touch-callout: none;
   transition: transform 140ms ease, background 140ms ease;
 }
 
@@ -5664,7 +5685,7 @@ button.directory-alias-chip {
 }
 
 .app.task-list-mode {
-  padding-bottom: var(--mobile-bottom-nav-offset-height);
+  padding-bottom: var(--topic-plugin-dock-reserved-height);
 }
 
 .task-list-mode .topic-plugin-dock {
@@ -5690,9 +5711,16 @@ button.directory-alias-chip {
 }
 
 .task-list-mode .plugin-app-strip {
+  position: relative;
   width: 100%;
   margin: 0 auto;
   padding: 0 max(0px, calc((100vw - 448px) / 2));
+}
+
+.task-list-mode .topic-plugin-dock.capability-menu-open,
+.task-list-mode .topic-plugin-dock.capability-menu-open .plugin-app-launcher,
+.task-list-mode .topic-plugin-dock.capability-menu-open .plugin-app-strip {
+  overflow: visible;
 }
 
 .task-list-mode .plugin-app-card {
@@ -5731,6 +5759,11 @@ button.directory-alias-chip {
   width: calc((100% - (var(--plugin-app-gap) * 4)) / 5);
 }
 
+.task-list-mode .plugin-app-strip[data-plugin-fill-count="6"] .plugin-app-card {
+  flex-basis: calc((100% - (var(--plugin-app-gap) * 5)) / 6);
+  width: calc((100% - (var(--plugin-app-gap) * 5)) / 6);
+}
+
 .task-list-mode .plugin-app-card .plugin-topic-app-icon,
 .task-list-mode .plugin-app-card .bottom-plugin-menu-icon {
   width: 48px;
@@ -5747,7 +5780,7 @@ button.directory-alias-chip {
   grid-template-columns: repeat(3, minmax(var(--bottom-nav-column-min, 48px), 1fr));
   height: var(--plugin-context-bottom-nav-height);
   min-height: var(--plugin-context-bottom-nav-height);
-  padding: 5px max(22px, env(safe-area-inset-right)) calc(5px + var(--mobile-bottom-safe-area)) max(22px, env(safe-area-inset-left));
+  padding: 5px max(22px, env(safe-area-inset-right)) calc(5px + var(--mobile-bottom-nav-content-safe-area)) max(22px, env(safe-area-inset-left));
   border-top: 1px solid var(--ui-hairline);
   background: color-mix(in srgb, var(--ui-sheet) 94%, transparent);
   box-shadow: 0 -12px 26px rgba(26, 32, 35, 0.08);
@@ -5911,19 +5944,76 @@ button.directory-alias-chip {
 }
 
 .plugin-topic-app-icon.directory {
-  width: 56px;
-  height: 56px;
-  background: transparent url("/icons/file-folder.svg") center / contain no-repeat;
-  border-radius: 0;
-  box-shadow: none;
+  width: 58px;
+  height: 58px;
+  --directory-folder-tab-left: 8px;
+  --directory-folder-tab-top: 14px;
+  --directory-folder-tab-width: 25px;
+  --directory-folder-tab-height: 9px;
+  --directory-folder-body-left: 5px;
+  --directory-folder-body-top: 20px;
+  --directory-folder-body-width: 48px;
+  --directory-folder-body-height: 29px;
+  --directory-folder-radius: 8px;
+  background: linear-gradient(135deg, #5cc7de 0%, #288db8 52%, #325a87 100%);
+  border-radius: 17px;
+  box-shadow: 0 10px 20px rgba(24, 31, 37, 0.12), inset 0 1px 0 rgba(255,255,255,0.32);
 }
 
 .plugin-topic-app-icon.directory::before {
-  content: none;
+  content: "";
+  position: absolute;
+  z-index: 1;
+  left: var(--directory-folder-tab-left);
+  top: var(--directory-folder-tab-top);
+  width: var(--directory-folder-tab-width);
+  height: var(--directory-folder-tab-height);
+  background: rgba(255,255,255,0.92);
+  border-radius: var(--directory-folder-radius) var(--directory-folder-radius) 3px 3px;
+  box-shadow: 0 2px 5px rgba(16, 54, 82, 0.18);
 }
 
 .plugin-topic-app-icon.directory::after {
-  content: none;
+  content: "";
+  position: absolute;
+  z-index: 2;
+  left: var(--directory-folder-body-left);
+  top: var(--directory-folder-body-top);
+  width: var(--directory-folder-body-width);
+  height: var(--directory-folder-body-height);
+  background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(234, 248, 255, 0.96) 100%);
+  border-radius: var(--directory-folder-radius);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.76), inset 0 -2px 0 rgba(51, 122, 152, 0.12), 0 4px 9px rgba(16, 54, 82, 0.2);
+}
+
+.capability-menu-head .plugin-topic-app-icon.directory {
+  width: 34px;
+  height: 34px;
+  --directory-folder-tab-left: 5px;
+  --directory-folder-tab-top: 8px;
+  --directory-folder-tab-width: 15px;
+  --directory-folder-tab-height: 5px;
+  --directory-folder-body-left: 3px;
+  --directory-folder-body-top: 12px;
+  --directory-folder-body-width: 28px;
+  --directory-folder-body-height: 17px;
+  --directory-folder-radius: 5px;
+  border-radius: 10px;
+}
+
+.task-list-mode .plugin-app-card .plugin-topic-app-icon.directory {
+  width: 48px;
+  height: 48px;
+  --directory-folder-tab-left: 7px;
+  --directory-folder-tab-top: 11px;
+  --directory-folder-tab-width: 21px;
+  --directory-folder-tab-height: 8px;
+  --directory-folder-body-left: 4px;
+  --directory-folder-body-top: 17px;
+  --directory-folder-body-width: 40px;
+  --directory-folder-body-height: 24px;
+  --directory-folder-radius: 7px;
+  border-radius: 14px;
 }
 
 .plugin-topic-app-icon.finance::after {
@@ -15668,7 +15758,7 @@ body.task-markdown-preview-open {
     display: grid;
     grid-template-columns: repeat(5, minmax(var(--bottom-nav-column-min), 1fr));
     align-items: center;
-    padding: 4px env(safe-area-inset-right) calc(3px + var(--mobile-bottom-safe-area)) env(safe-area-inset-left);
+    padding: 4px env(safe-area-inset-right) calc(3px + var(--mobile-bottom-nav-content-safe-area)) env(safe-area-inset-left);
     overflow-x: hidden;
     overflow-y: hidden;
     overscroll-behavior-x: contain;

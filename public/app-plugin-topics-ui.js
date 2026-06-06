@@ -112,10 +112,11 @@ const PLUGIN_TOPIC_USAGE_STORAGE_KEY = "hermesPluginTopicUsage";
 const PLUGIN_TOPIC_ORDER_STORAGE_KEY = "hermesPluginTopicOrder";
 const PLUGIN_APP_REORDER_HOLD_MS = 450;
 const PLUGIN_APP_REORDER_CANCEL_PX = 10;
-const CAPABILITY_QUICK_ACTION_LIMIT = 12;
+const CAPABILITY_QUICK_ACTION_LIMIT = 8;
 let pluginAppSortDrag = null;
 let pluginAppSortGlobalBound = false;
 let pluginActionMenuCloseBound = false;
+let pluginActionMenuSwipe = null;
 
 function pluginTopicId(value = "") {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -395,7 +396,7 @@ function persistPluginAppOrderFromStrip(strip) {
 }
 
 function movePluginAppOrder(pluginId = "", direction = "up") {
-  const defs = orderedPluginAppDefs(availablePluginTopicDefs().filter((def) => !def.builtinKind));
+  const defs = orderedPluginAppDefs(availablePluginTopicDefs());
   const ids = defs.map((def) => def.id);
   const id = pluginTopicId(pluginId);
   const index = ids.indexOf(id);
@@ -598,27 +599,18 @@ function renderCapabilityEntryHub(options = {}) {
   if (!defs.length) return "";
   const quickActions = capabilityHubQuickActions(defs);
   return `<section class="capability-entry-hub" aria-label="\u80fd\u529b\u5165\u53e3">
-    <div class="capability-section-head capability-hub-title">
-      <h2>\u80fd\u529b</h2>
-      <span>\u5e38\u7528\u52a8\u4f5c\u4f18\u5148\uff0c\u63d2\u4ef6\u56fe\u6807\u7edf\u4e00\u6253\u5f00\u5e94\u7528</span>
-    </div>
-    ${quickActions.length ? `<section class="capability-frequent" aria-label="\u5e38\u7528\u80fd\u529b">
-      <div class="capability-section-head">
-        <h3>\u5e38\u7528</h3>
-        <span>\u5feb\u6377\u5165\u53e3\u53ef\u6309\u4f7f\u7528\u4e60\u60ef\u6392\u5e8f</span>
-      </div>
-      <div class="capability-quick-grid">
+    ${quickActions.length ? `<section class="capability-frequent" aria-label="\u5feb\u6377\u5165\u53e3">
+      <div class="capability-quick-grid" data-capability-quick-rows="4">
         ${quickActions.map(({ def, action }) => renderCapabilityQuickAction(def, action)).join("")}
       </div>
     </section>` : ""}
-    ${renderPluginAppDesktop(defs)}
   </section>`;
 }
 
 function renderPluginAppLauncher() {
-  const defs = orderedPluginAppDefs(availablePluginTopicDefs().filter((def) => !def.builtinKind));
+  const defs = orderedPluginAppDefs(availablePluginTopicDefs());
   if (!defs.length) return "";
-  const fillCount = Math.min(Math.max(defs.length, 1), 5);
+  const fillCount = Math.min(Math.max(defs.length, 1), 6);
   return `<section class="plugin-app-launcher" aria-label="\u63d2\u4ef6\u5e94\u7528">
     <div class="plugin-app-strip" role="list" data-plugin-count="${defs.length}" data-plugin-fill-count="${fillCount}">
       ${defs.map((def) => `
@@ -626,6 +618,7 @@ function renderPluginAppLauncher() {
           <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
           <span class="plugin-app-label">${escapeHtml(def.label)}</span>
         </button>
+        ${renderCapabilityActionMenu(def)}
       `).join("")}
     </div>
   </section>`;
@@ -642,6 +635,8 @@ async function openBuiltInDirectoryPlugin() {
   state.currentTaskGroupId = "";
   state.currentThread = null;
   state.currentThreadId = "";
+  if (typeof applyViewMode === "function") applyViewMode();
+  if (typeof updateNavigationControls === "function") updateNavigationControls();
   if (typeof resetDirectoryPath === "function") resetDirectoryPath();
   await loadProjects();
   await loadDirectoryView({ resetPath: true });
@@ -703,10 +698,13 @@ async function openPluginTopicChat(pluginId, options = {}) {
   state.pendingTaskDirectory = pluginTopicDeliveryAttachment(def);
   state.pendingTaskReasoningEffort = "";
   state.pendingTaskReasoningExplicit = false;
+  state.forceChatStickToBottomUntil = Date.now() + 12000;
+  state.conversationPinnedToBottom = true;
   if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
   if (!deferViewModeApplyUntilLoaded && typeof applyViewMode === "function") applyViewMode();
   await loadSingleWindow();
   if (deferViewModeApplyUntilLoaded && typeof applyViewMode === "function") applyViewMode();
+  if (typeof scheduleConversationBottomStick === "function") scheduleConversationBottomStick();
   ensurePluginTopicDirectory(def)
     .then((directory) => {
       if (state.viewMode === "tasks" && state.currentTaskGroupId === pluginTopicGroupId(def.id)) {
@@ -899,6 +897,7 @@ function wirePluginAppManualSorting(root) {
   wirePluginAppSortDocumentEvents(root);
   root?.querySelectorAll?.(".plugin-app-strip [data-plugin-topic-sort-id]").forEach((card) => {
     if (card.dataset.pluginAppSortBound) return;
+    if (pluginAppCardHasActionMenu(card)) return;
     card.dataset.pluginAppSortBound = "1";
     card.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -923,27 +922,164 @@ function wirePluginAppManualSorting(root) {
 }
 
 function closePluginActionMenus(root = document) {
+  pluginActionMenuSwipe = null;
   root?.querySelectorAll?.(".capability-action-menu:not([hidden])").forEach((menu) => {
     menu.hidden = true;
     menu.closest(".capability-plugin-cell")?.classList.remove("menu-open");
   });
+  root?.querySelectorAll?.(".plugin-app-card.menu-open").forEach((button) => {
+    button.classList.remove("menu-open");
+  });
+  root?.querySelectorAll?.(".capability-menu-open").forEach((scope) => {
+    scope.classList.remove("capability-menu-open");
+  });
+}
+
+function pluginActionMenuIsOpen(root = document) {
+  return Boolean(root?.querySelector?.(".capability-action-menu:not([hidden])"));
+}
+
+function pluginActionMenuDismissPoint(event) {
+  const touch = event?.touches?.[0] || event?.changedTouches?.[0];
+  if (touch) return { x: touch.clientX, y: touch.clientY };
+  if (typeof event?.clientX === "number" && typeof event?.clientY === "number") {
+    return { x: event.clientX, y: event.clientY };
+  }
+  return null;
+}
+
+function targetInsidePluginActionMenu(target) {
+  return Boolean(target?.closest?.(".capability-plugin-cell.menu-open, .plugin-app-card.menu-open, .capability-action-menu:not([hidden])"));
+}
+
+function wirePluginActionMenuSwipeDismiss(menu) {
+  if (!menu || menu.dataset.pluginActionMenuSwipeDismissBound === "1") return;
+  menu.dataset.pluginActionMenuSwipeDismissBound = "1";
+  let startPoint = null;
+  let pointerStartPoint = null;
+  menu.addEventListener("touchstart", (touchEvent) => {
+    if (touchEvent.touches?.length > 1) {
+      startPoint = null;
+      return;
+    }
+    startPoint = pluginActionMenuDismissPoint(touchEvent);
+  }, { passive: true });
+  menu.addEventListener("touchmove", (touchEvent) => {
+    if (!startPoint) return;
+    const point = pluginActionMenuDismissPoint(touchEvent);
+    if (!point) return;
+    const dx = point.x - startPoint.x;
+    const dy = point.y - startPoint.y;
+    if (dx >= 48 && Math.abs(dy) <= 40) {
+      closePluginActionMenus(document);
+    }
+  }, { passive: true });
+  const clear = () => {
+    startPoint = null;
+  };
+  menu.addEventListener("touchend", clear, { passive: true });
+  menu.addEventListener("touchcancel", clear, { passive: true });
+  menu.addEventListener("pointerdown", (pointerEvent) => {
+    if (pointerEvent.pointerType === "mouse" && pointerEvent.button !== 0) return;
+    pointerStartPoint = pluginActionMenuDismissPoint(pointerEvent);
+  });
+  menu.addEventListener("pointermove", (pointerEvent) => {
+    if (!pointerStartPoint) return;
+    const point = pluginActionMenuDismissPoint(pointerEvent);
+    if (!point) return;
+    const dx = point.x - pointerStartPoint.x;
+    const dy = point.y - pointerStartPoint.y;
+    if (dx >= 48 && Math.abs(dy) <= 40) {
+      closePluginActionMenus(document);
+    }
+  });
+  const clearPointer = () => {
+    pointerStartPoint = null;
+  };
+  menu.addEventListener("pointerup", clearPointer);
+  menu.addEventListener("pointercancel", clearPointer);
+}
+
+function pluginActionMenuForButton(button) {
+  const pluginId = pluginTopicId(button?.dataset?.pluginTopicOpenApp || button?.dataset?.pluginTopicSortId || "");
+  const cell = button?.closest?.(".capability-plugin-cell");
+  if (cell) {
+    return {
+      host: cell,
+      scope: cell.closest(".capability-entry-hub") || cell,
+      menu: cell.querySelector(".capability-action-menu"),
+    };
+  }
+  const strip = button?.closest?.(".plugin-app-strip");
+  if (!strip || !pluginId) return { host: null, scope: null, menu: null };
+  const menus = [...strip.querySelectorAll(".capability-action-menu")];
+  const menu = menus.find((item) => pluginTopicId(item.dataset.pluginTopicActionMenu || "") === pluginId) || null;
+  return {
+    host: button,
+    scope: strip.closest(".topic-plugin-dock") || strip.closest(".plugin-app-launcher") || strip,
+    menu,
+  };
+}
+
+function pluginAppCardHasActionMenu(card) {
+  return Boolean(pluginActionMenuForButton(card).menu);
 }
 
 function openPluginActionMenu(button, event = null) {
-  const cell = button?.closest?.(".capability-plugin-cell");
-  const menu = cell?.querySelector?.(".capability-action-menu");
-  if (!cell || !menu) return;
+  const { host, scope, menu } = pluginActionMenuForButton(button);
+  if (!host || !menu) return;
   event?.preventDefault?.();
   event?.stopPropagation?.();
-  closePluginActionMenus(cell.closest(".capability-entry-hub") || document);
+  closePluginActionMenus(scope || document);
   menu.hidden = false;
-  cell.classList.add("menu-open");
+  wirePluginActionMenuSwipeDismiss(menu);
+  host.classList.add("menu-open");
+  scope?.classList?.add("capability-menu-open");
+  if (button) {
+    button.dataset.pluginActionMenuOpened = "1";
+    window.setTimeout(() => {
+      if (button.dataset.pluginActionMenuOpened === "1") button.dataset.pluginActionMenuOpened = "";
+    }, 1200);
+  }
   if (!pluginActionMenuCloseBound) {
     pluginActionMenuCloseBound = true;
-    document.addEventListener("click", (clickEvent) => {
-      if (clickEvent.target?.closest?.(".capability-plugin-cell.menu-open")) return;
+    document.addEventListener("pointerdown", (pointerEvent) => {
+      if (!pluginActionMenuIsOpen(document)) return;
+      if (targetInsidePluginActionMenu(pointerEvent.target)) return;
       closePluginActionMenus(document);
     }, { capture: true });
+    document.addEventListener("click", (clickEvent) => {
+      if (targetInsidePluginActionMenu(clickEvent.target)) return;
+      closePluginActionMenus(document);
+    }, { capture: true });
+    document.addEventListener("touchstart", (touchEvent) => {
+      if (!pluginActionMenuIsOpen(document) || touchEvent.touches?.length > 1) {
+        pluginActionMenuSwipe = null;
+        return;
+      }
+      if (!targetInsidePluginActionMenu(touchEvent.target)) {
+        closePluginActionMenus(document);
+        return;
+      }
+      const point = pluginActionMenuDismissPoint(touchEvent);
+      pluginActionMenuSwipe = point ? { x: point.x, y: point.y } : null;
+    }, { capture: true, passive: true });
+    document.addEventListener("touchmove", (touchEvent) => {
+      if (!pluginActionMenuSwipe || !pluginActionMenuIsOpen(document)) return;
+      const point = pluginActionMenuDismissPoint(touchEvent);
+      if (!point) return;
+      const dx = point.x - pluginActionMenuSwipe.x;
+      const dy = point.y - pluginActionMenuSwipe.y;
+      if (dx >= 48 && Math.abs(dy) <= 40) {
+        closePluginActionMenus(document);
+      }
+    }, { capture: true, passive: true });
+    document.addEventListener("touchend", () => {
+      pluginActionMenuSwipe = null;
+    }, { capture: true, passive: true });
+    document.addEventListener("touchcancel", () => {
+      pluginActionMenuSwipe = null;
+    }, { capture: true, passive: true });
     document.addEventListener("keydown", (keyEvent) => {
       if (keyEvent.key === "Escape") closePluginActionMenus(document);
     });
@@ -951,26 +1087,53 @@ function openPluginActionMenu(button, event = null) {
 }
 
 function wireCapabilityPluginMenus(root) {
-  root?.querySelectorAll?.(".capability-plugin-icon-button").forEach((button) => {
+  root?.querySelectorAll?.(".capability-plugin-icon-button, .plugin-app-card[data-plugin-topic-open-app]").forEach((button) => {
     if (button.dataset.capabilityMenuBound) return;
+    if (!pluginActionMenuForButton(button).menu) return;
     button.dataset.capabilityMenuBound = "1";
     let timer = null;
+    let startPoint = null;
     const clearTimer = () => {
       if (!timer) return;
       window.clearTimeout(timer);
       timer = null;
     };
-    button.addEventListener("pointerdown", (event) => {
-      if (event.pointerType === "mouse" && event.button !== 0) return;
+    const pointFromEvent = (event) => {
+      const touch = event?.touches?.[0] || event?.changedTouches?.[0];
+      if (touch) return { x: touch.clientX, y: touch.clientY };
+      if (typeof event?.clientX === "number" && typeof event?.clientY === "number") return { x: event.clientX, y: event.clientY };
+      const box = button.getBoundingClientRect();
+      return { x: box.left + (box.width / 2), y: box.top + (box.height / 2) };
+    };
+    const armLongPress = (event) => {
       clearTimer();
+      startPoint = pointFromEvent(event);
       timer = window.setTimeout(() => {
         timer = null;
-        openPluginActionMenu(button, event);
+        openPluginActionMenu(button);
       }, PLUGIN_APP_REORDER_HOLD_MS);
+    };
+    const clearOnMove = (event) => {
+      if (!timer || !startPoint) return;
+      const point = pointFromEvent(event);
+      const dx = point.x - startPoint.x;
+      const dy = point.y - startPoint.y;
+      if (Math.abs(dx) >= PLUGIN_APP_REORDER_CANCEL_PX || Math.abs(dy) >= PLUGIN_APP_REORDER_CANCEL_PX) clearTimer();
+    };
+    button.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      armLongPress(event);
     });
+    button.addEventListener("touchstart", (event) => {
+      if (event.touches && event.touches.length > 1) return;
+      armLongPress(event);
+    }, { passive: true });
+    button.addEventListener("touchmove", clearOnMove, { passive: true });
     button.addEventListener("pointerup", clearTimer);
     button.addEventListener("pointercancel", clearTimer);
     button.addEventListener("pointerleave", clearTimer);
+    button.addEventListener("touchend", clearTimer);
+    button.addEventListener("touchcancel", clearTimer);
     button.addEventListener("contextmenu", (event) => openPluginActionMenu(button, event));
   });
 }
@@ -978,6 +1141,11 @@ function wireCapabilityPluginMenus(root) {
 function wirePluginTopicCards(root) {
   root?.querySelectorAll?.("[data-plugin-topic-open-app]").forEach((button) => {
     button.addEventListener("click", (event) => {
+      if (button.dataset.pluginActionMenuOpened === "1") {
+        event.preventDefault();
+        button.dataset.pluginActionMenuOpened = "";
+        return;
+      }
       if (button.dataset.pluginAppDragMoved === "1") {
         event.preventDefault();
         button.dataset.pluginAppDragMoved = "";

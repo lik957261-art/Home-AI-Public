@@ -1,5 +1,7 @@
 "use strict";
 
+const COMPOSER_SEND_TIMEOUT_MS = 30000;
+
 function connectEvents() {
   if (state.events) state.events.close();
   const params = new URLSearchParams();
@@ -100,6 +102,7 @@ async function sendMessage(event) {
   let requestBody = null;
   let createsNewTask = false;
   let consumedPendingDirectory = false;
+  let optimisticSend = null;
   try {
     const body = { text, artifacts: state.pendingArtifacts, workspaceId: state.selectedWorkspaceId };
     if (searchSourceFields) Object.assign(body, searchSourceFields);
@@ -173,15 +176,19 @@ async function sendMessage(event) {
     }
     setComposerText("");
     lockComposerSendToBottom();
-    const optimisticSend = appendOptimisticSendMessages(body, text);
+    optimisticSend = appendOptimisticSendMessages(body, text);
     const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages`, {
       method: "POST",
       body: serializedBody,
+      timeoutMs: COMPOSER_SEND_TIMEOUT_MS,
     });
     clearOptimisticSendMessages(optimisticSend, { render: false });
     handleSendMessageResult(result, createsNewTask, consumedPendingDirectory);
   } catch (err) {
-    clearOptimisticSendMessages(typeof optimisticSend !== "undefined" ? optimisticSend : null, { render: true });
+    const clearedOptimisticSend = clearOptimisticSendMessages(optimisticSend, { render: true });
+    if (clearedOptimisticSend && typeof requestCurrentThreadRefresh === "function") {
+      requestCurrentThreadRefresh({ stickToBottom: true, delayMs: 500 });
+    }
     if (shouldOfferOwnerElevation(err) && requestBody) {
       const prompt = ownerElevationConfirmMessage(err);
       const ok = await openOwnerElevationApprovalDialog({

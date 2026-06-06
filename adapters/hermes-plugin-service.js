@@ -29,7 +29,7 @@ const {
   readWardrobeWorkspaceConfig,
 } = require("./wardrobe-plugin-provisioning-service");
 
-const DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL = "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest";
+const DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest";
 const DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest";
 const DEFAULT_FINANCE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest";
 const DEFAULT_EMAIL_PLUGIN_MANIFEST_URL = "http://127.0.0.1:5175/api/v1/hermes/plugin/manifest";

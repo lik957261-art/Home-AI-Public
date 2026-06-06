@@ -195,15 +195,18 @@ async function main() {
     }
     const viewClicked = await clickTargetView(page, view);
     let capabilityMenuOpened = false;
+    let capabilityMenuGesture = "";
     if (openCapabilityMenu) {
-      const pluginButton = page.locator(`[data-plugin-topic-open-app="${openCapabilityMenu}"].capability-plugin-icon-button`).first();
+      const pluginButton = page.locator([
+        `[data-plugin-topic-open-app="${openCapabilityMenu}"].capability-plugin-icon-button`,
+        `#topicPluginDock .plugin-app-card[data-plugin-topic-open-app="${openCapabilityMenu}"]`,
+      ].join(", ")).first();
       if (await pluginButton.count()) {
-        await pluginButton.dispatchEvent("contextmenu", {
-          bubbles: true,
-          cancelable: true,
-          button: 2,
-        });
-        await page.waitForTimeout(250);
+        capabilityMenuGesture = "touch-longpress";
+        await pluginButton.dispatchEvent("touchstart", { bubbles: true, cancelable: true });
+        await page.waitForTimeout(550);
+        await pluginButton.dispatchEvent("touchend", { bubbles: true, cancelable: true });
+        await page.waitForTimeout(150);
         capabilityMenuOpened = await page.locator(`[data-plugin-topic-action-menu="${openCapabilityMenu}"]`).first().isVisible().catch(() => false);
       }
     }
@@ -329,7 +332,9 @@ async function main() {
       };
       const capability = {
         quickActionCount: document.querySelectorAll(".capability-quick-action").length,
-        pluginIconCount: document.querySelectorAll(".capability-plugin-icon-button").length,
+        capabilityPluginIconCount: document.querySelectorAll(".capability-plugin-icon-button").length,
+        dockPluginIconCount: document.querySelectorAll("#topicPluginDock .plugin-app-card").length,
+        pluginIconCount: document.querySelectorAll(".capability-plugin-icon-button, #topicPluginDock .plugin-app-card").length,
         sourceBadgeCount: document.querySelectorAll(".capability-action-source").length,
         openMenuCount: document.querySelectorAll(".capability-action-menu:not([hidden])").length,
       };
@@ -404,6 +409,23 @@ async function main() {
         });
       }
 
+      if (rects.topicPluginDock.visible) {
+        if (rects.bottomNav.visible && overlaps(rects.topicPluginDock, rects.bottomNav)) {
+          failures.push({
+            code: "topic_plugin_dock_bottom_nav_overlap",
+            topicPluginDock: rects.topicPluginDock,
+            bottomNav: rects.bottomNav,
+          });
+        }
+        if (rects.conversation.visible && overlaps(rects.topicPluginDock, rects.conversation)) {
+          failures.push({
+            code: "topic_plugin_dock_conversation_overlap",
+            topicPluginDock: rects.topicPluginDock,
+            conversation: rects.conversation,
+          });
+        }
+      }
+
       if (rects.accessKeyOverlay.visible && rects.accessKeyOverlay.bottom > viewport.height + 2) {
         warnings.push({ code: "access_overlay_extends_below_viewport", rect: rects.accessKeyOverlay, viewport });
       }
@@ -419,6 +441,13 @@ async function main() {
             code: "capability_menu_bottom_nav_overlap",
             menu: rects.capabilityActionMenu,
             bottomNav: rects.bottomNav,
+          });
+        }
+        if (rects.capabilityActionMenu.visible && rects.topicPluginDock.visible && overlaps(rects.capabilityActionMenu, rects.topicPluginDock)) {
+          failures.push({
+            code: "capability_menu_topic_plugin_dock_overlap",
+            menu: rects.capabilityActionMenu,
+            topicPluginDock: rects.topicPluginDock,
           });
         }
       }
@@ -471,6 +500,7 @@ async function main() {
       viewClicked,
       openCapabilityMenu,
       capabilityMenuOpened,
+      capabilityMenuGesture,
       browserContext: {
         viewport,
         isMobile,

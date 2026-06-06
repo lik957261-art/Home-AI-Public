@@ -49,6 +49,9 @@ It validates:
   `owner_high_privilege`.
 - Weixin heartbeat ingress uses `X-Hermes-Mobile-Ingress-Key`, rejects
   `X-Hermes-Web-Key`, and does not create a run, thread, or message.
+- After static UI changes, `/api/client-version` reports the deployed client
+  version from the live Mac listener, and visual smoke verifies the changed
+  surface against the live Mac URL rather than only the development checkout.
 - Owner/OpenAI concurrent product-route smokes complete without the second run
   becoming a Gateway startup failure.
 - Final status returns to `activeGlobal=0`.
@@ -133,9 +136,24 @@ sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
   --root /Users/hermes-host/HermesMobile \
   --base http://127.0.0.1:8797 \
   --json
+
+/Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
+  /Users/hermes-host/HermesMobile/app/scripts/playwright-visual-smoke.js \
+  --url http://127.0.0.1:8797/?_hmv=<smoke-id> \
+  --access-key-path /Users/hermes-host/HermesMobile/data/secrets/owner-web-key.secret \
+  --view topics \
+  --workspace-id owner \
+  --viewport 390x844 \
+  --open-capability-menu directory \
+  --screenshot /tmp/homeai-capability-dock-smoke.png
 ```
 
 Do not replace the checked closure harness with an ad hoc inline Node/Python or
 shell script. If a new Mac production failure mode needs closure coverage, add
 it to `scripts/macos-production-closure-validation.js` and extend
 `tests/macos-production-closure-validation-harness.test.js`.
+
+For Capability Entry Hub or fixed Dock changes, the visual smoke output must
+include `clientVersion=<expected-version>`, `capabilityMenuOpened=true`, and
+`capabilityMenuGesture=touch-longpress`. A `contextmenu`-only check is not
+sufficient for iOS/PWA long-press behavior.

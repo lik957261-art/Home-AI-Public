@@ -16,8 +16,8 @@ from typing import Any
 
 
 DEFAULT_ALLOWED_ORIGINS = (
-    "http://192.168.10.99:8765",
-    "https://wardrobe-xuxin.synology.me",
+    "http://127.0.0.1:8765",
+    "http://127.0.0.1:8765",
 )
 DEFAULT_CREDENTIAL_ROOTS = (
     "/mnt/c/ProgramData/HermesMobile/data/drive/users",

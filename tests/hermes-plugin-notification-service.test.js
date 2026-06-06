@@ -19,7 +19,7 @@ function createHarness(overrides = {}) {
     },
     hermesPluginService: {
       pluginManifestUrl(id) {
-        if (id === "wardrobe") return "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest";
+        if (id === "wardrobe") return "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest";
         if (id === "codex-mobile") return "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest";
         if (id === "finance") return "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest";
         return "";

@@ -701,7 +701,7 @@ use for the deployment.
 
 As of 2026-06-01, NAS `192.168.10.99` uses this first plugin deployment shape:
 
-- Public entry `https://wardrobe-xuxin.synology.me:8555` is Hermes Mobile. The
+- Public entry `http://127.0.0.1:8765` is Hermes Mobile. The
   router forwards external `8555` to NAS `443`; DSM nginx terminates HTTPS and
   proxies to Hermes Mobile `127.0.0.1:8797`.
 - Finance runs as a NAS Docker/Container Manager container named

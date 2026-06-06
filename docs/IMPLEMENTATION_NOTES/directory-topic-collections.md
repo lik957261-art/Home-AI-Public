@@ -1,6 +1,6 @@
 # Directory Topic Collections Design
 
-Last updated: 2026-06-01.
+Last updated: 2026-06-06.
 
 This document defines how Hermes Mobile should present and manage topics that
 are bound to directories. It is intentionally separate from
@@ -214,6 +214,17 @@ Likely focused checks:
   it must not replace the topic-list DOM while a scroll, task-card swipe, or
   sidebar swipe is in progress. Defer that render until the gesture settles so
   directory-bound topic cards remain consistently scrollable on mobile.
+- After a directory-topic collection has been aggregated for the current
+  thread/group/update signature, later ordinary task-list re-renders should
+  keep that ready state instead of briefly removing the directory collection and
+  scheduling another two-frame deferred render. This prevents intermittent
+  high-frequency flicker where only the directory-bound topic area refreshes
+  repeatedly while the underlying groups have not changed.
+- Production cleanup of stale directory-bound topics must use
+  `DELETE /api/threads/:threadId/tasks/:taskGroupId` or an equivalent
+  state-service path. Direct SQLite deletion is insufficient evidence while the
+  listener keeps task/thread state in memory, and the UI can continue to render
+  stale rows until the product state is updated through the service boundary.
 - A directory-bound topic draft creates the actual topic only on the first
   message. That first send must be serialized with a draft-local in-flight
   guard so rapid consecutive click/Enter sends cannot create two separate

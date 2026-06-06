@@ -125,7 +125,7 @@ async function testProvisionCreatesKeyConfigRegistrationSkillAndGatewayBinding()
   const result = await service.provisionWorkspace({
     workspaceId: "weixin_test_wardrobe",
     displayName: "Test Wardrobe",
-    wardrobeManifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest",
+    wardrobeManifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest",
   });
   assert.equal(result.ok, true);
   assert.equal(result.keyCreated, true);
@@ -149,7 +149,7 @@ async function testProvisionCreatesKeyConfigRegistrationSkillAndGatewayBinding()
   const rawKey = fs.readFileSync(keyPath, "utf8").trim();
   assert.match(rawKey, /^wd_live_/);
   const config = readWardrobeWorkspaceConfig({ dataDir, workspaceId: "weixin_test_wardrobe" });
-  assert.equal(config.api_base_url, "http://192.168.10.99:8765");
+  assert.equal(config.api_base_url, "http://127.0.0.1:8765");
   assert.equal(config.workspace_id, wardrobeWorkspaceIdForHermesWorkspace("weixin_test_wardrobe"));
   assert.equal(config.hermes_workspace_id, "weixin_test_wardrobe");
   assert.equal(config.owner_display_name, "Test Wardrobe");
@@ -158,7 +158,7 @@ async function testProvisionCreatesKeyConfigRegistrationSkillAndGatewayBinding()
   assert.deepEqual(config.scopes, DEFAULT_WARDROBE_SCOPES);
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, "http://192.168.10.99:8765/api/v1/hermes/plugin/workspaces");
+  assert.equal(calls[0].url, "http://127.0.0.1:8765/api/v1/hermes/plugin/workspaces");
   assert.equal(calls[0].options.headers.Authorization, `Bearer ${registrationKey}`);
   assert.equal(calls[0].options.headers["Content-Type"], "application/json; charset=utf-8");
   assert.equal(calls[0].body.workspace_id, "wardrobe:weixin_test_wardrobe");
@@ -206,7 +206,7 @@ async function testRegistrationFailureKeepsRawKeyOutOfResult() {
   const result = await service.provisionWorkspace({
     workspaceId: "weixin_wardrobe_fail",
     displayName: "Fail",
-    wardrobeManifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest",
+    wardrobeManifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest",
   });
   assert.equal(result.ok, false);
   assert.equal(result.error, "wardrobe_registration_failed_503");
@@ -227,7 +227,7 @@ async function testRegistrationKeyMissingReturnsBoundedFailure() {
   const result = await service.provisionWorkspace({
     workspaceId: "weixin_wardrobe_missing_registration",
     displayName: "Missing Registration",
-    wardrobeManifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest",
+    wardrobeManifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest",
   });
   assert.equal(result.ok, false);
   assert.equal(result.error, "wardrobe_registration_key_missing");
@@ -264,7 +264,7 @@ async function testInvalidExistingWorkspaceKeyIsReplacedBeforeRegistration() {
   const result = await service.provisionWorkspace({
     workspaceId: "weixin_invalid_key",
     displayName: "Invalid Key",
-    wardrobeManifestUrl: "http://192.168.10.99:8765/api/v1/hermes/plugin/manifest",
+    wardrobeManifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest",
   });
   assert.equal(result.ok, true);
   const rawKey = fs.readFileSync(keyPath, "utf8").trim();
@@ -307,8 +307,8 @@ function testSensitiveTemplateFailsClosed() {
 
 function testRegistrationUrlFromManifestOrigin() {
   assert.equal(
-    wardrobeRegistrationUrl("http://192.168.10.99:8765/api/v1/hermes/plugin/manifest"),
-    "http://192.168.10.99:8765/api/v1/hermes/plugin/workspaces",
+    wardrobeRegistrationUrl("http://127.0.0.1:8765/api/v1/hermes/plugin/manifest"),
+    "http://127.0.0.1:8765/api/v1/hermes/plugin/workspaces",
   );
 }
 

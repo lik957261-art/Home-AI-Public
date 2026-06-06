@@ -88,7 +88,7 @@ render a partial dashboard.
 Current registration and production upstream rules:
 
 - Historical/default fallback manifest URL:
-  `http://192.168.10.99:8765/api/v1/hermes/plugin/manifest`
+  `http://127.0.0.1:8765/api/v1/hermes/plugin/manifest`
 - Mac production must not rely on that fallback. The Mac listener launchd
   environment must explicitly set
   `HERMES_MOBILE_WARDROBE_PLUGIN_MANIFEST_URL` and
@@ -141,7 +141,7 @@ sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
 ```
 
 Passing output must show no live drive `.hermes-wardrobe/config.json` with the
-legacy `192.168.10.99:8765` origin, Home manifest
+legacy `127.0.0.1:8765` origin, Home manifest
 `programApi.origin="http://127.0.0.1:8765"`, `tokenStatus="launch_token_issued"`,
 a nonblank proxied entry response, and a positive bounded bootstrap
 `item_count` for the launched workspace. This smoke prints only metadata; it
@@ -160,7 +160,7 @@ node scripts\macos-wardrobe-binding-production-smoke.js `
   --json
 ```
 
-A passing local result must also show no `192.168.10.99:8765` legacy origin in
+A passing local result must also show no `127.0.0.1:8765` legacy origin in
 workspace-local `.hermes-wardrobe/config.json` files, a loopback
 `programApi.origin`, a launch token status, nonblank proxied plugin HTML, and
 positive bootstrap counts for the relevant workspaces. If only the nested

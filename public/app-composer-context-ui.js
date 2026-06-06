@@ -137,7 +137,7 @@ function activeRunGatewayPermissionLabel() {
   const active = activeComposerAssistantMessage();
   if (!active) return null;
   const gatewayName = messageGatewayDisplayName(active);
-  return gatewayName ? { label: `Gateway ${gatewayName}`, tone: "active" } : null;
+  return gatewayName ? { label: gatewayName, tone: "active" } : null;
 }
 
 function composerGatewayPermissionLabel() {

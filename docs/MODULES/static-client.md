@@ -92,6 +92,11 @@ Gateway plugin/schema/profile changes:
   prior container, and using that full value directly visibly lifts the
   navigation row. Font-size preferences must not increase the bottom nav
   container height beyond `--mobile-bottom-nav-height`.
+- The bottom navigation may reserve capped bottom safe-area in the container
+  height, but the content padding should use the reduced
+  `--mobile-bottom-nav-content-safe-area` buffer so labels and icons are not
+  visibly lifted on iOS PWA/HTTPS containers that report a nonzero bottom safe
+  area.
 - Touch tablets up to `1366px` wide use the same mobile shell as phone portrait:
   a single-column app, bottom navigation, and an overlay sidebar. Do not let
   iPad-like landscape layouts fall back to the desktop fixed sidebar or hide the
