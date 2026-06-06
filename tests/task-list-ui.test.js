@@ -109,6 +109,7 @@ const directoryBrowserBoundaryServiceJs = fs.readFileSync(path.join(repoRoot, "a
 const gatewayRunInstructionServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-instruction-service.js"), "utf8");
 const gatewayRunStartServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-start-service.js"), "utf8");
 const groupChatSharedAttachmentServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "group-chat-shared-attachment-service.js"), "utf8");
+const mobileRuntimeGroupChatAttachmentServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "mobile-runtime-group-chat-attachment-service.js"), "utf8");
 const ownerElevationGrantServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "owner-elevation-grant-service.js"), "utf8");
 const ownerElevationRoutingServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "owner-elevation-routing-service.js"), "utf8");
 const chatGptProPluginPy = fs.readFileSync(path.join(repoRoot, "gateway-plugins", "hermes-mobile-chatgpt-pro", "__init__.py"), "utf8");
@@ -1077,7 +1078,9 @@ assert.match(gatewayRunStartServiceJs, /appendRunStartEvent\(thread, assistantMe
 assert.match(gatewayRunStartServiceJs, /appendRunStartEvent\(thread, assistantMessage, "run\.permission_required"/);
 assert.match(gatewayRunStartServiceJs, /appendRunStartEvent\(thread, assistantMessage, "run\.request_sent"/);
 assert.match(gatewayRunStartServiceJs, /selectRunToolsetsWithModel && !isChatGptProRunOptions/);
-assert.match(serverJs, /function ensureGroupChatSharedArtifactCopies\(thread, latestUserMessage, deliveryRoot\)/);
+assert.match(serverJs, /createMobileRuntimeGroupChatAttachmentService/);
+assert.match(mobileRuntimeGroupChatAttachmentServiceJs, /ensureGroupChatSharedArtifactCopies\(thread, latestUserMessage, deliveryRoot\)/);
+assert.match(mobileRuntimeGroupChatAttachmentServiceJs, /createGroupChatSharedAttachmentService/);
 assert.match(gatewayRunInstructionServiceJs, /Group-chat shared attachments authorized for this run/);
 assert.match(gatewayRunStartServiceJs, /groupChatAttachmentCopies/);
 assert.match(groupChatSharedAttachmentServiceJs, /shared-attachments/);

@@ -26,7 +26,7 @@ const { createGatewayRunInstructionService } = require("./adapters/gateway-run-i
 const { createGatewayRuntimeCompositionService } = require("./adapters/gateway-runtime-composition-service");
 const { gatewayPoolStatusHealthy } = require("./adapters/gateway-status-projection");
 const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
-const { createGroupChatSharedAttachmentService } = require("./adapters/group-chat-shared-attachment-service");
+const { createMobileRuntimeGroupChatAttachmentService } = require("./adapters/mobile-runtime-group-chat-attachment-service");
 const { createOwnerElevationGrantService } = require("./adapters/owner-elevation-grant-service");
 const { createRuntimeStatePersistenceService } = require("./adapters/runtime-state-persistence-service");
 const {
@@ -170,7 +170,6 @@ let assessmentExamWorkflowService = null;
 let directoryBrowserBoundaryService = null;
 let artifactTextRegistrationService = null;
 let gatewayUsageTelemetryProvider = null;
-let groupChatSharedAttachmentService = null;
 let runtimeWorkspaceCatalogService = null;
 const sourceMarkdownSearchCache = new Map();
 let state = null;
@@ -266,6 +265,22 @@ const {
   state: () => state, textBufferPreview, textFilePreview, uploadRootsForThread, useSqliteServiceStore,
   windowsPathToWsl, workspacePrincipal,
 });
+const mobileRuntimeGroupChatAttachmentService = createMobileRuntimeGroupChatAttachmentService({
+  groupDeliveriesDir: GROUP_DELIVERIES_DIR,
+  groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+  safeFileName: (...args) => safeFileName(...args),
+  normalizeLocalPath: (...args) => normalizeLocalPath(...args),
+  isProtectedPath: (value) => securityBoundaryProvider.isProtectedPath(value),
+  windowsPathToWsl,
+  listArtifacts: () => state.artifacts || [],
+});
+const {
+  ensureGroupChatSharedArtifactCopies,
+  groupChatDeliveryRootForThread,
+  safeArtifactCopyName,
+  safeStorageSegment,
+  storedArtifactForMessageArtifact,
+} = mobileRuntimeGroupChatAttachmentService;
 const learningCoinAwardService = createLearningCoinAwardService({
   learningCoinService,
   logger: console,
@@ -912,40 +927,6 @@ function sendJson(res, status, data) { return httpRuntimeService.sendJson(res, s
 function readBody(req, maxBytes = MAX_BODY_BYTES) { return httpRuntimeService.readBody(req, maxBytes); }
 function windowsPathToWsl(value) {
   return filesystemMountProvider.windowsPathToWsl(value);
-}
-function safeStorageSegment(value, fallback = "item") {
-  return String(value || fallback)
-    .replace(/[^A-Za-z0-9_.:-]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 96) || fallback;
-}
-function getGroupChatSharedAttachmentService() {
-  if (!groupChatSharedAttachmentService) {
-    groupChatSharedAttachmentService = createGroupChatSharedAttachmentService({
-      groupDeliveriesDir: GROUP_DELIVERIES_DIR,
-      groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
-      safeStorageSegment,
-      safeFileName,
-      normalizeLocalPath,
-      isProtectedPath: (value) => securityBoundaryProvider.isProtectedPath(value),
-      samePath,
-      windowsPathToWsl,
-      listArtifacts: () => state.artifacts || [],
-    });
-  }
-  return groupChatSharedAttachmentService;
-}
-function groupChatDeliveryRootForThread(thread) {
-  return getGroupChatSharedAttachmentService().deliveryRootForThread(thread);
-}
-function storedArtifactForMessageArtifact(artifact = {}) {
-  return getGroupChatSharedAttachmentService().storedArtifactForMessageArtifact(artifact);
-}
-function safeArtifactCopyName(artifact = {}, index = 0) {
-  return getGroupChatSharedAttachmentService().safeArtifactCopyName(artifact, index);
-}
-function ensureGroupChatSharedArtifactCopies(thread, latestUserMessage, deliveryRoot) {
-  return getGroupChatSharedAttachmentService().ensureSharedArtifactCopies(thread, latestUserMessage, deliveryRoot);
 }
 function mobileSqliteStore() {
   if (!sqliteServiceStore) {
