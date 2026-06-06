@@ -981,7 +981,8 @@ async function testHybridStatusClearsStoppedWarmWorker() {
   });
 
   const warmStatus = await provider.status();
-  assert.equal(warmStatus.workers[0].state, "warm");
+  assert.equal(warmStatus.workers[0].state, "idle");
+  assert.equal(warmStatus.workers[0].requiredWarm, false);
   assert.equal(warmStatus.workers[0].expectedRunning, true);
   assert.equal(warmStatus.workers[0].healthy, true);
 

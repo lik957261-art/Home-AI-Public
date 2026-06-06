@@ -69,7 +69,9 @@ node scripts\mcp-tool-upgrade-closure-smoke.js `
 ```
 
 On Mac production, run the same harness with the Mac manifest/profile and native
-Gateway runtime arguments, for example:
+Gateway runtime arguments. The `--telemetry-root` must be the selected worker
+OS user's real Gateway profile root, not root's home and not the shared app
+root. For `hm-owner-openai-1`, that is the Owner worker profile root:
 
 ```bash
 node scripts/mcp-tool-upgrade-closure-smoke.js \
@@ -83,11 +85,16 @@ node scripts/mcp-tool-upgrade-closure-smoke.js \
   --manifest /Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json \
   --profile hm-owner-openai-1 \
   --agent-schema-mode native \
-  --telemetry-root /Users/hermes-host/HermesMobile/data/gateway-worker/telemetry/profiles \
+  --telemetry-root /Users/hm-owner/HermesWorkspace/.hermes-gateway/profiles \
   --runtime-source /Users/hermes-host/HermesMobile/runtime/hermes-agent-official \
   --runtime-overrides /Users/hermes-host/HermesMobile/app/gateway-runtime-overrides \
   --runtime-python /Users/hermes-host/HermesMobile/runtime/hermes-agent-official/venv/bin/python
 ```
+
+Do not accept a Mac schema probe that runs against the wrong profile root. A
+root/default `HERMES_HOME` can fail provider auth or prove the wrong tool
+schema. The closure evidence must bind the same workspace, OS user, profile id,
+and MCP service key that the real Mobile route will select.
 
 Do not add keys, tokens, cookies, or raw user content to harness output. If a
 service schema endpoint requires authorization, pass it through an existing

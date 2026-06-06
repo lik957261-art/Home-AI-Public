@@ -76,9 +76,11 @@ service root.
 - Official Hermes release: `v2026.5.29.2` / `hermes-agent 0.15.2`
 - Mac Gateway Pool manifest:
   `/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json`
-- Mac Gateway workers: six warm `hm-*` workers listen on `18751` through
-  `18756`; cold candidates are defined in the same manifest and should not
-  remain listening after cold-start cleanup.
+- Mac Gateway workers: only the required warm baseline should remain
+  always-on. Current hybrid policy keeps the Owner OpenAI/Codex baseline warm;
+  other `hm-*`, DeepSeek, and maintenance candidates are launchd-loaded cold
+  candidates that may start on demand and must cool down after the configured
+  idle TTL.
 - Mac Gateway workers run as isolated OS users with workspace roots such as
   `/Users/hm-owner/HermesWorkspace`, but Home AI run policy uses live data
   paths such as `/Users/hermes-host/HermesMobile/data/drive`. The macOS ACL
@@ -213,6 +215,16 @@ Mac production also explicitly sets
 window for Mac cold-start validation: a cold worker can become healthy after
 the default window, which otherwise creates a user-visible failed task while
 the worker becomes reusable moments later.
+
+Mac Gateway worker LaunchDaemons must stay loaded for every enabled manifest
+worker, but loaded does not mean always running. Only profiles in the required
+warm baseline may use `RunAtLoad=true` and `KeepAlive=true`. Every other
+on-demand worker plist must keep both values false or absent; otherwise
+`launchctl kill` from the idle reaper is immediately undone by launchd and the
+60-minute cooldown is ineffective. The audit guard is
+`node tests\macos-production-profile-audit.test.js` and the production audit
+issue names are `launchd_run_at_load_unexpected:<profile>` and
+`launchd_keepalive_unexpected:<profile>`.
 
 Mac production also must explicitly connect the listener workspace catalog to
 the live Weixin route data:

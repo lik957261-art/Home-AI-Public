@@ -21,7 +21,11 @@ assert.match(script, /profile_memories_not_linked/);
 assert.match(script, /launchctl/);
 assert.match(script, /launchd_service_not_loaded/);
 assert.match(script, /launchd_plist_missing/);
+assert.match(script, /launchd_keepalive_unexpected/);
+assert.match(script, /launchd_run_at_load_unexpected/);
+assert.match(script, /launchd_required_warm_keepalive_missing/);
 assert.match(script, /launchdProbe/);
+assert.match(script, /launchdPlistProbe/);
 assert.match(script, /deepseek_user_worker_missing/);
 assert.match(script, /plugin_binding_missing/);
 assert.match(script, /plugin_local_binding_incomplete/);
@@ -112,9 +116,17 @@ try {
     expectedPlugins: ["wardrobe"],
     strict: true,
     launchdProbe: (label) => !label.includes("deepseek"),
+    launchdPlistProbe: (label) => ({
+      plistExists: true,
+      runAtLoad: label.includes("owner.openai.1") || label.includes("wuping.openai.1"),
+      keepAlive: label.includes("owner.openai.1") || label.includes("wuping.openai.1"),
+    }),
   });
   assert.ok(launchdAudit.issues.includes("launchd_service_not_loaded:deepseekgw1"));
   assert.ok(!launchdAudit.issues.includes("launchd_service_not_loaded:hm-owner-openai-1"));
+  assert.ok(!launchdAudit.issues.includes("launchd_keepalive_unexpected:hm-owner-openai-1"));
+  assert.ok(launchdAudit.issues.includes("launchd_keepalive_unexpected:hm-wuping-openai-1"));
+  assert.ok(launchdAudit.issues.includes("launchd_run_at_load_unexpected:hm-wuping-openai-1"));
   assert.equal(launchdServiceStatus({ launchdLabel: "com.hermesmobile.fixture.1" }, { launchdProbe: () => true }).loaded, true);
   assert.equal(launchdServiceStatus({ launchdLabel: "com.hermesmobile.fixture.2" }, { checkLaunchd: false }).checked, false);
 } finally {

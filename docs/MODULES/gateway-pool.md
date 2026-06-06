@@ -84,8 +84,12 @@ Default hybrid policy:
   expand to `2` high-permission workers for explicit maintenance/elevation
   runs.
 - A global elastic cap limits total started workers; the first default is `8`.
-- Idle workers remain reusable for several hours; the first default is `180`
-  minutes.
+- Idle workers remain reusable for a bounded cooldown period; the default is
+  `60` minutes unless production explicitly overrides
+  `HERMES_MOBILE_GATEWAY_WORKER_IDLE_TTL_MINUTES` or the `HERMES_WEB_*` alias.
+- Only the required warm baseline is protected from idle retirement. Healthy
+  on-demand workers discovered by status reconciliation must enter the same
+  idle countdown as workers released from a completed run.
 - A configured but stopped on-demand worker is expected state, not Gateway Pool
   degradation.
 - If a worker was previously warm and later `/health` no longer responds with
@@ -201,6 +205,13 @@ still fail user runs if `launchctl print system/<label>` cannot find the
 service. `scripts/macos-production-profile-audit.js` reports this as
 `launchd_service_not_loaded:<profile>` and the aggregate closure gate treats it
 as a production blocker.
+
+Loaded is not the same as always-on. Only the required warm baseline may use
+`RunAtLoad=true` and `KeepAlive=true` in its worker plist. Every on-demand
+worker must keep those values false or absent so `launchctl kill` can actually
+leave the process stopped after idle retirement. The Mac profile audit reports
+violations as `launchd_run_at_load_unexpected:<profile>` and
+`launchd_keepalive_unexpected:<profile>`.
 
 Mac named workspace profiles such as `hm-owner-openai-1` and
 `hm-wuping-openai-1` must be treated as normal materialized low-permission

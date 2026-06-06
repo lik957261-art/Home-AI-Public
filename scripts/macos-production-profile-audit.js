@@ -92,6 +92,12 @@ function exists(file) {
   }
 }
 
+function readPositiveInteger(value, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) return fallback;
+  return Math.floor(number);
+}
+
 function countEntries(dir) {
   try {
     return fs.readdirSync(dir).filter((name) => !name.startsWith(".")).length;
@@ -135,13 +141,26 @@ function launchdServiceStatus(worker = {}, options = {}) {
     label,
     plistChecked: false,
     plistExists: false,
+    runAtLoad: null,
+    keepAlive: null,
     loaded: false,
     checked: false,
   };
   if (!label) return status;
-  if (process.platform === "darwin") {
+  if (typeof options.launchdPlistProbe === "function") {
+    const probe = options.launchdPlistProbe(label, worker) || {};
     status.plistChecked = true;
-    status.plistExists = exists(path.join("/Library/LaunchDaemons", `${label}.plist`));
+    status.plistExists = Boolean(probe.plistExists ?? probe.exists);
+    status.runAtLoad = probe.runAtLoad == null ? null : Boolean(probe.runAtLoad);
+    status.keepAlive = probe.keepAlive == null ? null : Boolean(probe.keepAlive);
+  } else if (process.platform === "darwin") {
+    status.plistChecked = true;
+    const plistFile = path.join("/Library/LaunchDaemons", `${label}.plist`);
+    status.plistExists = exists(plistFile);
+    if (status.plistExists) {
+      status.runAtLoad = readLaunchdPlistBoolean(plistFile, "RunAtLoad");
+      status.keepAlive = readLaunchdPlistBoolean(plistFile, "KeepAlive");
+    }
   }
   if (options.checkLaunchd === false) return status;
   if (typeof options.launchdProbe === "function") {
@@ -159,6 +178,18 @@ function launchdServiceStatus(worker = {}, options = {}) {
   return status;
 }
 
+function readLaunchdPlistBoolean(plistFile, key) {
+  const result = spawnSync("plutil", ["-extract", key, "raw", "-o", "-", plistFile], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (result.status !== 0) return null;
+  const text = String(result.stdout || "").trim().toLowerCase();
+  if (["1", "true", "yes"].includes(text)) return true;
+  if (["0", "false", "no"].includes(text)) return false;
+  return null;
+}
+
 function compactPath(value, root) {
   return String(value || "").replaceAll(root, "<root>");
 }
@@ -172,6 +203,25 @@ function workerWorkspaceIds(worker = {}) {
     }
   }
   return [...out];
+}
+
+function ownerRequiredWarmProfiles(workers = [], options = {}) {
+  const minWarm = readPositiveInteger(
+    options.ownerMinWarm
+      ?? process.env.HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM
+      ?? process.env.HERMES_WEB_GATEWAY_OWNER_MIN_WARM,
+    1,
+  );
+  if (!minWarm) return new Set();
+  const candidates = (Array.isArray(workers) ? workers : [])
+    .filter((worker) => worker.enabled !== false)
+    .filter((worker) => String(worker.securityLevel || worker.security_level || "user").trim().toLowerCase() === "user")
+    .filter((worker) => String(worker.provider || "openai-codex").trim() === "openai-codex")
+    .filter((worker) => {
+      const workspaceIds = workerWorkspaceIds(worker);
+      return workspaceIds.includes("owner") || String(worker.profile || "") === "lowgw1";
+    });
+  return new Set(candidates.slice(0, minWarm).map((worker) => String(worker.profile || worker.name || "").trim()).filter(Boolean));
 }
 
 function workspaceProfileId(workspaceId) {
@@ -288,6 +338,7 @@ function buildAudit(options) {
   const enabledPluginSet = new Set(plugins.filter((row) => row.enabled).map((row) => `${row.workspaceId}:${row.pluginId}`));
   const issueSet = new Set();
   const warnings = [];
+  const requiredWarmProfiles = ownerRequiredWarmProfiles(workers, options);
 
   function issue(code) {
     issueSet.add(code);
@@ -390,12 +441,14 @@ function buildAudit(options) {
     const memories = linkInfo(path.join(profileDir, "memories"), root, expectedMemoryRoot);
     const configExists = exists(path.join(profileDir, "config.yaml"));
     const launchd = launchdServiceStatus(worker, options);
+    const requiredWarm = requiredWarmProfiles.has(profile);
     const check = {
       profile,
       provider: worker.provider || "openai-codex",
       securityLevel: worker.securityLevel || "",
       workspaceId,
       osUser,
+      requiredWarm,
       profileDir: compactPath(profileDir, root),
       configExists,
       skills,
@@ -409,6 +462,15 @@ function buildAudit(options) {
     if (!launchd.label) issue(`launchd_label_missing:${profile}`);
     if (launchd.label && launchd.plistChecked && !launchd.plistExists) issue(`launchd_plist_missing:${profile}`);
     if (launchd.checked && !launchd.loaded) issue(`launchd_service_not_loaded:${profile}`);
+    if (launchd.plistChecked && launchd.plistExists) {
+      if (requiredWarm) {
+        if (launchd.runAtLoad === false) issue(`launchd_required_warm_run_at_load_missing:${profile}`);
+        if (launchd.keepAlive === false) issue(`launchd_required_warm_keepalive_missing:${profile}`);
+      } else {
+        if (launchd.runAtLoad === true) issue(`launchd_run_at_load_unexpected:${profile}`);
+        if (launchd.keepAlive === true) issue(`launchd_keepalive_unexpected:${profile}`);
+      }
+    }
     if (skills.exists && !skills.isSymbolicLink) issue(`profile_skills_not_linked:${profile}`);
     if (memories.exists && !memories.isSymbolicLink) issue(`profile_memories_not_linked:${profile}`);
     if (skills.isSymbolicLink && !skills.targetMatchesExpected) {

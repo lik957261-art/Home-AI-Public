@@ -626,6 +626,7 @@ function createGatewayPoolProvider(options = {}) {
           elasticScheduler.markWorkerUnavailable(worker);
         }
       }
+      await elasticScheduler.reapIdle(loaded.workers);
       const schedulerStatus = elasticScheduler.status(loaded.workers);
       return Object.assign({}, schedulerStatus, {
         enabled: loaded.enabled,

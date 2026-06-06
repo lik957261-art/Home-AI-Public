@@ -88,7 +88,7 @@ Recommended first defaults:
 - `HERMES_MOBILE_GATEWAY_WORKSPACE_MAX_WORKERS=2`
 - `HERMES_MOBILE_GATEWAY_WORKSPACE_DEEPSEEK_MAX_WORKERS=1`
 - `HERMES_MOBILE_GATEWAY_ELASTIC_MAX_WORKERS=8`
-- `HERMES_MOBILE_GATEWAY_WORKER_IDLE_TTL_MINUTES=180`
+- `HERMES_MOBILE_GATEWAY_WORKER_IDLE_TTL_MINUTES=60`
 - `HERMES_MOBILE_GATEWAY_START_TIMEOUT_MS=300000`
 - `HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS=30000`
 - `HERMES_MOBILE_GATEWAY_START_HEALTH_POLL_MS=1000`
@@ -285,11 +285,16 @@ continuing to report a stopped process as warm.
    public Mobile run id assignment with that real id. Terminal events often
    carry the real response id, so failing to mirror this alias leaks the worker
    slot and leaves later compatible runs queued.
-8. When a run reaches terminal state, update the worker to `warm` or `idle` and
-   schedule idle retirement.
+8. When a run reaches terminal state, keep only required warm-baseline workers
+   in `warm`; move every other idle worker to `idle` and schedule idle
+   retirement.
 9. The reaper stops only workers whose idle TTL has expired and which have no
    active run, no protected maintenance operation, and no startup/recovery
    action in progress.
+10. Status reconciliation must apply the same cooldown to externally started
+    healthy workers. A worker that was started by launchd, a manual command, or
+    a previous process lifetime must not stay permanently `warm` unless it is
+    part of the required warm baseline.
 
 Provider selection is user intent. If a user selects DeepSeek and no compatible
 DeepSeek worker can be started, the run should fail or queue with a clear
@@ -442,7 +447,10 @@ Minimum H1 scenarios for implementation:
 - The global cap queues new work after the configured limit.
 - Queue events distinguish workspace cap, global cap, and profile-affinity
   waits.
-- Idle TTL stops only idle workers after the configured duration.
+- Idle TTL stops only idle workers after the configured duration, including
+  externally discovered healthy on-demand workers.
+- Required warm-baseline workers remain `warm` after release and are not
+  assigned an idle retirement deadline.
 - Active, starting, and maintenance-protected workers are not stopped by the
   reaper.
 - A launch failure records a bounded diagnostic and releases or preserves the

@@ -13,7 +13,7 @@ const DEFAULT_CONFIG = Object.freeze({
   workspaceMaxWorkers: 2,
   workspaceDeepSeekMaxWorkers: 1,
   globalMaxWorkers: 8,
-  idleTtlMs: 180 * 60 * 1000,
+  idleTtlMs: 60 * 60 * 1000,
   startTimeoutMs: 300_000,
   startHealthWaitMs: 30_000,
   startHealthPollMs: 1_000,
@@ -263,6 +263,7 @@ function publicState(worker, state = null, nowMs = Date.now()) {
     expectedRunning,
     activeRunCount: state?.activeRunIds?.size || 0,
     queueDepth: 0,
+    requiredWarm: Boolean(state?.requiredWarm),
     idleSince: state?.idleSince || null,
     idleExpiresAt: state?.idleExpiresAt || null,
     lastStartDurationMs: state?.lastStartDurationMs || 0,
@@ -317,9 +318,66 @@ function createGatewayElasticWorkerScheduler(options = {}) {
         lastFailureCode: "",
         lastFailureAt: null,
         idleCancel: null,
+        requiredWarm: false,
       });
     }
     return stateByWorkerId.get(id);
+  }
+
+  function cancelIdleStop(state) {
+    if (!state?.idleCancel) return;
+    state.idleCancel();
+    state.idleCancel = null;
+  }
+
+  function clearIdleDeadline(state) {
+    if (!state) return;
+    cancelIdleStop(state);
+    state.idleSince = null;
+    state.idleExpiresAt = null;
+  }
+
+  function clearRuntimeAffinity(state) {
+    if (!state) return;
+    state.compatibilityKey = "";
+    state.workspaceId = "";
+    state.actorClass = "";
+    state.requiredWarm = false;
+    clearMaterializedIdentity(state);
+    clearIdleDeadline(state);
+  }
+
+  function requiredWarmWorkerIds(workers = []) {
+    const startProfiles = new Set(planHybridStartup(workers).startProfiles);
+    const ids = new Set();
+    for (const worker of Array.isArray(workers) ? workers : []) {
+      const aliases = [
+        worker?.profile,
+        worker?.id,
+        worker?.replicaId,
+        worker?.replica_id,
+        replicaProjection(worker).replicaId,
+      ].map((item) => cleanString(item)).filter(Boolean);
+      if (aliases.some((item) => startProfiles.has(item))) {
+        const id = schedulerWorkerStateId(worker);
+        if (id) ids.add(id);
+      }
+    }
+    return ids;
+  }
+
+  function reconcileRequiredWarmWorkers(workers = []) {
+    const requiredIds = requiredWarmWorkerIds(workers);
+    for (const worker of Array.isArray(workers) ? workers : []) {
+      const state = getState(worker);
+      if (!state) continue;
+      state.requiredWarm = requiredIds.has(state.workerId);
+      if (state.requiredWarm && state.state === "idle" && !state.activeRunIds.size) {
+        state.state = "warm";
+        clearIdleDeadline(state);
+      }
+    }
+    return requiredIds;
   }
 
   function startedStates() {
@@ -448,12 +506,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     state.permissionTier = permissionTier(worker, hints);
     state.compatibilityKey = buildGatewayWorkerCompatibilityKey(worker, hints);
     rememberMaterializedIdentity(state, worker, hints);
-    state.idleSince = null;
-    state.idleExpiresAt = null;
-    if (state.idleCancel) {
-      state.idleCancel();
-      state.idleCancel = null;
-    }
+    clearIdleDeadline(state);
     return Object.assign({}, worker, {
       pooled: true,
       source: "worker_pool",
@@ -678,6 +731,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       err.code = "gateway_elastic_no_matching_worker";
       throw err;
     }
+    reconcileRequiredWarmWorkers(input.allWorkers || candidates);
 
     while (true) {
       const decisionTrace = [];
@@ -760,10 +814,37 @@ function createGatewayElasticWorkerScheduler(options = {}) {
   }
 
   function scheduleIdleStop(worker, state) {
-    if (!config.idleTtlMs) return;
-    state.idleCancel = createTimeout(setTimeoutFn, clearTimeoutFn, config.idleTtlMs, () => {
+    if (!config.idleTtlMs || !state?.idleExpiresAt) return;
+    cancelIdleStop(state);
+    const delayMs = Math.max(0, state.idleExpiresAt - nowMs());
+    state.idleCancel = createTimeout(setTimeoutFn, clearTimeoutFn, delayMs, () => {
       reapIdle([worker]).catch(() => {});
     });
+  }
+
+  function markWorkerIdleOrWarm(worker, state) {
+    if (!state) return;
+    if (state.requiredWarm || !config.idleTtlMs) {
+      state.state = "warm";
+      clearIdleDeadline(state);
+      return;
+    }
+    state.state = "idle";
+    if (!state.idleSince) state.idleSince = nowMs();
+    if (!state.idleExpiresAt || state.idleExpiresAt <= state.idleSince) {
+      state.idleExpiresAt = state.idleSince + config.idleTtlMs;
+    }
+    if (worker && workerHasWildcardWorkspace(worker)) state.compatibilityKey = "";
+    if (worker) scheduleIdleStop(worker, state);
+  }
+
+  function reconcileWarmCooldowns(workers = []) {
+    reconcileRequiredWarmWorkers(workers);
+    for (const worker of Array.isArray(workers) ? workers : []) {
+      const state = getState(worker);
+      if (!state || state.state !== "warm" || state.activeRunIds.size) continue;
+      markWorkerIdleOrWarm(worker, state);
+    }
   }
 
   function releaseRun(runId, idleStatus = "idle") {
@@ -792,16 +873,9 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     } else if (idleStatus === "retired") {
       state.state = "configured";
       state.healthy = null;
-      state.compatibilityKey = "";
-      state.workspaceId = "";
-      state.actorClass = "";
-      clearMaterializedIdentity(state);
+      clearRuntimeAffinity(state);
     } else {
-      state.state = "idle";
-      state.idleSince = nowMs();
-      state.idleExpiresAt = state.idleSince + config.idleTtlMs;
-      if (worker && workerHasWildcardWorkspace(worker)) state.compatibilityKey = "";
-      if (worker) scheduleIdleStop(worker, state);
+      markWorkerIdleOrWarm(worker, state);
     }
     drainQueue();
     return true;
@@ -838,12 +912,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
         await stopWorker(worker);
         state.state = "configured";
         state.healthy = null;
-        state.compatibilityKey = "";
-        state.workspaceId = "";
-        state.actorClass = "";
-        clearMaterializedIdentity(state);
-        state.idleSince = null;
-        state.idleExpiresAt = null;
+        clearRuntimeAffinity(state);
         stopped.push(worker.profile || worker.id);
       } catch (err) {
         state.state = "failed";
@@ -863,7 +932,8 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       state.healthy = true;
       return state;
     }
-    state.state = "warm";
+    const preserveIdleCountdown = state.state === "idle" && !state.requiredWarm;
+    state.state = preserveIdleCountdown ? "idle" : "warm";
     state.healthy = true;
     state.workspaceId = actorWorkspaceId(hints, worker);
     state.actorClass = actorClassForWorkspace(state.workspaceId);
@@ -873,6 +943,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
       ? buildGatewayWorkerCompatibilityKey(worker, hints)
       : (state.compatibilityKey || "");
     rememberMaterializedIdentity(state, worker, hints);
+    if (!preserveIdleCountdown) clearIdleDeadline(state);
     drainQueue();
     return state;
   }
@@ -883,16 +954,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
     state.healthy = false;
     if (!state.activeRunIds.size && state.state !== "starting") {
       state.state = "configured";
-      state.compatibilityKey = "";
-      state.workspaceId = "";
-      state.actorClass = "";
-      clearMaterializedIdentity(state);
-      state.idleSince = null;
-      state.idleExpiresAt = null;
-      if (state.idleCancel) {
-        state.idleCancel();
-        state.idleCancel = null;
-      }
+      clearRuntimeAffinity(state);
     }
     return state;
   }
@@ -916,6 +978,7 @@ function createGatewayElasticWorkerScheduler(options = {}) {
   }
 
   function status(workers = []) {
+    reconcileWarmCooldowns(workers);
     const now = nowMs();
     const publicWorkers = (Array.isArray(workers) ? workers : []).map((worker) => publicState(worker, stateByWorkerId.get(schedulerWorkerStateId(worker)), now));
     return {

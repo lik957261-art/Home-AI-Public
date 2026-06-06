@@ -102,8 +102,10 @@ baseline presence, and profile `skills`/`memories` links whose realpath points
 at the matching `data/skill-profiles/<profileId>` store. On macOS it must also
 prove every enabled manifest worker's system LaunchDaemon is loaded; any
 `launchd_service_not_loaded:<profile>` issue is a cold-start blocker. It must
-not print raw Access Keys, token contents, key files, prompt bodies, or plugin
-launch tokens.
+also reject `RunAtLoad=true` or `KeepAlive=true` on any worker that is not part
+of the required warm baseline, because that launchd policy defeats Gateway idle
+cooldown. It must not print raw Access Keys, token contents, key files, prompt
+bodies, or plugin launch tokens.
 Mac MCP callable schema evidence must use the real production manifest and
 native agent schema probe, for example
 `node scripts\gateway-tool-schema-smoke.js --manifest /Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json --profile <profile> --schema-only --agent-schema-mode native --runtime-source /Users/hermes-host/HermesMobile/runtime/hermes-agent-official/source --runtime-overrides /Users/hermes-host/HermesMobile/app/gateway-runtime-overrides --runtime-python /Users/hermes-host/HermesMobile/runtime/hermes-agent-official/venv/bin/python`. Do not treat a Windows-only WSL schema probe as Mac production evidence.
@@ -559,8 +561,11 @@ hidden single-profile start/stop launchers, and
 `/api/status?detail=1` treating configured-but-stopped workers as expected state
 rather than unhealthy Gateway Pool degradation, including clearing a previously
 warm worker after the process stops and `/health` no longer responds. It must
-also cover wildcard profiles such as `grokgw1`: status reconciliation may mark
-the process warm, but must preserve the materialized template key/hash and must
+also cover externally discovered healthy on-demand workers: status
+reconciliation may mark the process healthy, but non-baseline workers must enter
+idle TTL countdown and required warm-baseline workers must not. It must also
+cover wildcard profiles such as `grokgw1`: status reconciliation may mark the
+process healthy, but must preserve the materialized template key/hash and must
 not wake or reuse the worker for an incompatible request template. The
 run-progress UI must
 distinguish starting, reused, queued, idle-retirement, and failed states without

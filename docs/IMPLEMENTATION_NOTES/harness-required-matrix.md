@@ -182,6 +182,10 @@ Required harness dimensions:
 - launchd services must use explicit absolute command paths, working
   directories, environment variables, and log paths. They must not depend on
   `.zshrc`, `.bashrc`, or an interactive shell.
+- Worker LaunchDaemons for enabled manifest rows must stay loaded, but
+  non-baseline on-demand workers must not use `RunAtLoad=true` or
+  `KeepAlive=true`; otherwise idle retirement cannot stop them. Only the
+  required warm baseline may be always-on.
 - First-start preflight must prove listener health, model egress, Owner key
   storage, workspace users/directories, Gateway worker selection, plugin MCP
   schema for provisioned plugins, CRON wrapper use, and restart recovery.
@@ -936,7 +940,7 @@ Required harness dimensions:
   same bounded capacity semantics.
 - A compatible warm worker must be reused instead of starting a new process;
   an already-running configured worker discovered by health check must also be
-  marked warm and reused rather than restarted.
+  marked healthy and reused rather than restarted.
 - If the scheduler's in-memory state says an earlier candidate is `configured`
   but a later compatible candidate is already healthy, the later warm process
   must be reused before any cold start. The run-progress scheduler event must
@@ -962,6 +966,10 @@ Required harness dimensions:
 - Idle TTL retirement must stop only workers with no active run and no
   protected maintenance action. Active, starting, and maintenance-protected
   workers must survive the reaper.
+- Required warm-baseline workers must remain `warm` after a run is released.
+  Every other healthy on-demand worker, including one discovered by status
+  reconciliation rather than by a tracked run release, must enter the configured
+  idle TTL countdown.
 - Launch failure must record a bounded diagnostic, release or preserve the
   queue according to terminal state, and never leave a user task indefinitely
   `running`.

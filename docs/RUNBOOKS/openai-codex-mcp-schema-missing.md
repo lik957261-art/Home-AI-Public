@@ -41,6 +41,10 @@ incident until all of these pass:
   attachment fields.
 - The selected Gateway worker callable schema includes
   `mcp_finance_add_transaction_attachment`.
+- On macOS, that callable schema probe must use the selected worker OS user's
+  real Gateway profile root as `--telemetry-root`. A root/default
+  `HERMES_HOME` is invalid evidence because it can prove the wrong user/profile
+  schema or fail provider auth for the wrong reason.
 - Mobile's `adapters/gateway-run-instruction-service.js` Finance callable hints
   and current tool schema override include
   `mcp_finance_add_transaction_attachment`.

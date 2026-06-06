@@ -135,7 +135,8 @@ async function testSchedulerStateUsesReplicaIdWhenWorkerIdDiffers() {
   assert.equal(target.schedulerEvent.replicaId, "replica-owner-1");
   assert.equal(scheduler.status(workers).workers[0].state, "busy");
   assert.equal(scheduler.releaseRun("run-replica-id"), true);
-  assert.equal(scheduler.status(workers).workers[0].state, "idle");
+  assert.equal(scheduler.status(workers).workers[0].state, "warm");
+  assert.equal(scheduler.status(workers).workers[0].requiredWarm, true);
   assert.equal(JSON.stringify(calls.events).includes("lowgw1-secret"), false);
 }
 
@@ -607,7 +608,8 @@ async function testStatusReconciliationPreservesMaterializedTemplateAffinity() {
   const publicWorker = scheduler.status([grok]).workers[0];
   assert.equal(publicWorker.templateKey, buildGatewayWorkerTemplateKey(grok));
   assert.equal(publicWorker.materializedTemplateKey, "other_workspace|user|xai-oauth");
-  assert.equal(publicWorker.state, "warm");
+  assert.equal(publicWorker.state, "idle");
+  assert.equal(publicWorker.requiredWarm, false);
 }
 
 async function testIdleReaperStopsOnlyExpiredIdleWorkers() {
@@ -620,6 +622,62 @@ async function testIdleReaperStopsOnlyExpiredIdleWorkers() {
   await scheduler.reapIdle(workers);
   assert.deepEqual(calls.stops, ["lowgw2"]);
   assert.equal(scheduler.status(workers).workers.find((item) => item.profile === "lowgw1").state, "busy");
+}
+
+async function testRequiredWarmBaselineDoesNotEnterIdleCooldownAfterRelease() {
+  const { calls, scheduler, tick } = createHarness();
+  const workers = [
+    worker("lowgw1", { allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] }),
+    worker("lowgw2", { allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] }),
+  ];
+
+  await scheduler.chooseTarget({
+    allWorkers: workers,
+    candidates: workers,
+    hints: { workspaceId: "owner", provider: "openai-codex", securityLevel: "user" },
+    runId: "run-owner-baseline",
+  });
+  assert.equal(scheduler.releaseRun("run-owner-baseline", "idle"), true);
+
+  let status = scheduler.status(workers).workers;
+  const baseline = status.find((item) => item.profile === "lowgw1");
+  assert.equal(baseline.state, "warm");
+  assert.equal(baseline.requiredWarm, true);
+  assert.equal(baseline.idleExpiresAt, null);
+
+  tick(61_000);
+  await scheduler.reapIdle(workers);
+  status = scheduler.status(workers).workers;
+  assert.deepEqual(calls.stops, []);
+  assert.equal(status.find((item) => item.profile === "lowgw1").state, "warm");
+}
+
+async function testExternallyWarmNonBaselineEntersIdleCooldownFromStatus() {
+  const { calls, scheduler, tick } = createHarness();
+  const workers = [
+    worker("lowgw1", { allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] }),
+    worker("lowgw2", { allowedWorkspaceIds: ["owner"], skillWorkspaceIds: ["owner"] }),
+  ];
+
+  scheduler.markWorkerWarm(workers[0], { workspaceId: "owner", provider: "openai-codex", securityLevel: "user" });
+  scheduler.markWorkerWarm(workers[1], { workspaceId: "owner", provider: "openai-codex", securityLevel: "user" });
+
+  let status = scheduler.status(workers).workers;
+  const baseline = status.find((item) => item.profile === "lowgw1");
+  const extra = status.find((item) => item.profile === "lowgw2");
+  assert.equal(baseline.state, "warm");
+  assert.equal(baseline.requiredWarm, true);
+  assert.equal(extra.state, "idle");
+  assert.equal(extra.requiredWarm, false);
+  assert.equal(typeof extra.idleSince, "number");
+  assert.equal(typeof extra.idleExpiresAt, "number");
+
+  tick(61_000);
+  await scheduler.reapIdle(workers);
+  status = scheduler.status(workers).workers;
+  assert.deepEqual(calls.stops, ["lowgw2"]);
+  assert.equal(status.find((item) => item.profile === "lowgw1").state, "warm");
+  assert.equal(status.find((item) => item.profile === "lowgw2").state, "configured");
 }
 
 async function testLaunchFailureUsesBoundedDiagnosticWithoutSecrets() {
@@ -669,6 +727,7 @@ function testConfigDefaultsAndAliases() {
   assert.equal(config.ownerDeepSeekMaxWorkers, 2);
   assert.equal(config.workspaceDeepSeekMaxWorkers, 1);
   assert.equal(config.idleTtlMs, 180 * 60 * 1000);
+  assert.equal(normalizeElasticSchedulerConfig({}).idleTtlMs, 60 * 60 * 1000);
   assert.equal(normalizeElasticSchedulerConfig({}).startTimeoutMs, 300_000);
   assert.equal(normalizeElasticSchedulerConfig({}).startHealthWaitMs, 30_000);
 }
@@ -695,6 +754,8 @@ function testConfigDefaultsAndAliases() {
   await testWildcardWarmWorkerDoesNotPinSyntheticWorkspace();
   await testStatusReconciliationPreservesMaterializedTemplateAffinity();
   await testIdleReaperStopsOnlyExpiredIdleWorkers();
+  await testRequiredWarmBaselineDoesNotEnterIdleCooldownAfterRelease();
+  await testExternallyWarmNonBaselineEntersIdleCooldownFromStatus();
   await testLaunchFailureUsesBoundedDiagnosticWithoutSecrets();
   console.log("gateway elastic worker scheduler tests passed");
 })().catch((err) => {
