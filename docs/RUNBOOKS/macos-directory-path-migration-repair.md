@@ -74,6 +74,11 @@ node tests\macos-directory-path-migration-repair.test.js
 node tests\macos-bound-directory-preview-smoke-harness.test.js
 ```
 
+If the live production app is missing these tracked scripts or tests, sync the
+source versions into `/Users/hermes-host/HermesMobile/app` and run the same
+syntax and harness checks there before declaring closure. `/tmp` copies are
+valid for triage only, not durable production evidence.
+
 Mac production dry-run:
 
 ```bash
@@ -285,17 +290,20 @@ The same failure mode recurred after later production state churn. A fresh
 dry-run again found Windows/WSL path drift in `messages.directory_route_json`,
 `messages.directory_aliases_json`, `messages.artifacts_json`,
 `threads.task_group_meta_json`, `artifacts.path`, and `artifacts.raw_json`.
-The write repair updated 1320 rows and 2606 path values, backed up SQLite, and
-reset `data/state.json`. A second exact repair then moved 7
-`weixin_wuping` health report bindings from the missing workspace-local path to
-the authorized Owner shared path. Closure evidence was: migration dry-run
-`changed=false`, `affectedRows=0`, `valueReplacements=0`, `parseErrors=0`;
-status `ok=true`, `activeGlobal=0`; path-only all-workspaces smoke Owner
-`19/19`, `user-981731fe` `2/2`, `weixin_stephen` `1/1`, `weixin_test_1`
-`2/2`, `weixin_wuping` `7/7`; UI-route all-workspaces smoke Owner `25/25`,
-`user-981731fe` `2/2`, `weixin_stephen` `1/1`, `weixin_test_1` `2/2`, and
-`weixin_wuping` `12/12`. `weixin_xiaonan` remained skipped as
-`unknown-workspace`.
+The write repair updated 1372 rows and 2658 path values, backed up SQLite, and
+reset `data/state.json`; backup timestamp: `20260606T190144Z`. A second exact
+repair then moved 7 `weixin_wuping` health report message bindings from the
+missing workspace-local path to the authorized Owner shared path, replacing 28
+path values; backup timestamp: `20260606T190521Z`. Closure evidence was:
+migration dry-run `changed=false`, `affectedRows=0`, `valueReplacements=0`,
+`parseErrors=0`; status `ok=true`, `activeGlobal=0`; path-only all-workspaces
+smoke Owner `19/19`, `user-981731fe` `2/2`, `weixin_stephen` `1/1`,
+`weixin_test_1` `2/2`, `weixin_wuping` `7/7`; UI-route all-workspaces smoke
+Owner `25/25`, `user-981731fe` `2/2`, `weixin_stephen` `1/1`,
+`weixin_test_1` `2/2`, and `weixin_wuping` `12/12`. `weixin_xiaonan` remained
+skipped as `unknown-workspace`. The live app was also repaired to include the
+tracked directory migration scripts and harness tests; backup:
+`/Users/hermes-host/HermesMobile/app/.deploy-backups/20260606T190655Z-directory-harness-sync`.
 
 ## 2026-06-07 UI Route Context Guard
 
