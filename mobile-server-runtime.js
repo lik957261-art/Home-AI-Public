@@ -54,6 +54,7 @@ const { createLocalWorkspaceStoreService } = require("./adapters/local-workspace
 const { createMobileHttpRuntimeService } = require("./adapters/mobile-http-runtime-service");
 const { createMobileRuntimeHttpServerService } = require("./adapters/mobile-runtime-http-server-service");
 const { createMobileRuntimeCoreProviders } = require("./adapters/mobile-runtime-core-providers");
+const { createMobileRuntimeLocalBridgeFacadeService } = require("./adapters/mobile-runtime-local-bridge-facade-service");
 const { createOwnerElevationRoutingService } = require("./adapters/owner-elevation-routing-service");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
 const { createMobileRuntimeBackendPolicyService } = require("./adapters/mobile-runtime-backend-policy-service");
@@ -202,7 +203,6 @@ const sourceMarkdownSearchCache = new Map();
 let state = null;
 let sqliteServiceStore = null;
 let threadViewService = null;
-let localBridgeRuntimeService = null;
 let todoPublicProjectionService = null;
 let kanbanOutputProjectionService = null;
 let singleWindowThreadService = null;
@@ -839,9 +839,7 @@ function requestClientVersion(req) { return httpRuntimeService.requestClientVers
 function attachClientVersionHeaders(req, res) { return httpRuntimeService.attachClientVersionHeaders(req, res); }
 function sendJson(res, status, data) { return httpRuntimeService.sendJson(res, status, data); }
 function readBody(req, maxBytes = MAX_BODY_BYTES) { return httpRuntimeService.readBody(req, maxBytes); }
-function windowsPathToWsl(value) {
-  return filesystemMountProvider.windowsPathToWsl(value);
-}
+function windowsPathToWsl(value) { return filesystemMountProvider.windowsPathToWsl(value); }
 function mobileSqliteStore() {
   if (!sqliteServiceStore) {
     const { createMobileSqliteStore } = require("./adapters/mobile-sqlite-store");
@@ -850,41 +848,40 @@ function mobileSqliteStore() {
   }
   return sqliteServiceStore;
 }
+const mobileRuntimeLocalBridgeFacadeService = createMobileRuntimeLocalBridgeFacadeService({
+  bridgeCommandProvider,
+  bridgeHostKeyPath: BRIDGE_HOST_KEY_PATH,
+  bridgeHostUrl: () => BRIDGE_HOST_URL,
+  compactText,
+  createAutomationId: () => `auto_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
+  createLocalBridgeRuntimeService,
+  cronBridgeScript: CRON_BRIDGE_SCRIPT,
+  cronStdoutLimitBytes: 2_000_000,
+  cronTimeoutMs: CRON_BRIDGE_TIMEOUT_MS,
+  directoryBridgeScript: DIRECTORY_BRIDGE_SCRIPT,
+  directoryStdoutLimitBytes: 4_000_000,
+  directoryTimeoutMs: DIRECTORY_BRIDGE_TIMEOUT_MS,
+  env: process.env,
+  formatLocalDateTime,
+  kanbanTodoBridge: () => kanbanTodoBridge,
+  localAutomationStorePath: LOCAL_AUTOMATION_STORE_PATH,
+  localTodoStorePath: LOCAL_TODO_STORE_PATH,
+  mobileSqliteStore,
+  nowIso,
+  readJsonStore,
+  sortJobs: (...args) => webPushDeliveryService.automationListSortByLatestDeliverable(...args),
+  spawn,
+  todoBridgeScript: TODO_BRIDGE_SCRIPT,
+  todoStdoutLimitBytes: CRON_BRIDGE_STDOUT_LIMIT_BYTES,
+  todoTimeoutMs: TODO_BRIDGE_TIMEOUT_MS,
+  useKanbanTodoBackend,
+  useLocalAutomationBackend,
+  useLocalTodoBackend,
+  useSqliteServiceStore,
+  writeJsonStore,
+});
 function getLocalBridgeRuntimeService() {
-  if (!localBridgeRuntimeService) {
-    localBridgeRuntimeService = createLocalBridgeRuntimeService({
-      bridgeCommandProvider,
-      bridgeHostKeyPath: BRIDGE_HOST_KEY_PATH,
-      bridgeHostUrl: () => BRIDGE_HOST_URL,
-      compactText,
-      createAutomationId: () => `auto_${Date.now().toString(36)}_${crypto.randomBytes(3).toString("hex")}`,
-      cronBridgeScript: CRON_BRIDGE_SCRIPT,
-      cronStdoutLimitBytes: 2_000_000,
-      cronTimeoutMs: CRON_BRIDGE_TIMEOUT_MS,
-      directoryBridgeScript: DIRECTORY_BRIDGE_SCRIPT,
-      directoryStdoutLimitBytes: 4_000_000,
-      directoryTimeoutMs: DIRECTORY_BRIDGE_TIMEOUT_MS,
-      env: process.env,
-      formatLocalDateTime,
-      kanbanTodoBridge: () => kanbanTodoBridge,
-      localAutomationStorePath: LOCAL_AUTOMATION_STORE_PATH,
-      localTodoStorePath: LOCAL_TODO_STORE_PATH,
-      mobileSqliteStore,
-      nowIso,
-      readJsonStore,
-      sortJobs: webPushDeliveryService.automationListSortByLatestDeliverable,
-      spawn,
-      todoBridgeScript: TODO_BRIDGE_SCRIPT,
-      todoStdoutLimitBytes: CRON_BRIDGE_STDOUT_LIMIT_BYTES,
-      todoTimeoutMs: TODO_BRIDGE_TIMEOUT_MS,
-      useKanbanTodoBackend,
-      useLocalAutomationBackend,
-      useLocalTodoBackend,
-      useSqliteServiceStore,
-      writeJsonStore,
-    });
-  }
-  return localBridgeRuntimeService;
+  return mobileRuntimeLocalBridgeFacadeService.getLocalBridgeRuntimeService();
 }
 function runTodoBridge(payload) {
   return getLocalBridgeRuntimeService().runTodoBridge(payload);

@@ -103,6 +103,7 @@ const mobileRuntimeBackendPolicyService = require("../adapters/mobile-runtime-ba
 const mobileRuntimeConfigFacadeService = require("../adapters/mobile-runtime-config-facade-service");
 const mobileRuntimeFileHelperService = require("../adapters/mobile-runtime-file-helper-service");
 const mobileRuntimeHttpServerService = require("../adapters/mobile-runtime-http-server-service");
+const mobileRuntimeLocalBridgeFacadeService = require("../adapters/mobile-runtime-local-bridge-facade-service");
 const mobileRuntimeCoreProviders = require("../adapters/mobile-runtime-core-providers");
 const mobileRuntimeEnvironmentService = require("../adapters/mobile-runtime-environment-service");
 const mobileRuntimePublicStatusService = require("../adapters/mobile-runtime-public-status-service");
@@ -331,6 +332,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof mobileRuntimeConfigFacadeService.createMobileRuntimeConfigFacadeService, "function");
   assert.equal(typeof mobileRuntimeFileHelperService.createMobileRuntimeFileHelperService, "function");
   assert.equal(typeof mobileRuntimeHttpServerService.createMobileRuntimeHttpServerService, "function");
+  assert.equal(typeof mobileRuntimeLocalBridgeFacadeService.createMobileRuntimeLocalBridgeFacadeService, "function");
   assert.equal(typeof mobileRuntimeCoreProviders.createMobileRuntimeCoreProviders, "function");
   assert.equal(typeof mobileRuntimeEnvironmentService.createMobileRuntimeEnvironment, "function");
   assert.equal(typeof mobileRuntimePublicStatusService.createMobileRuntimePublicStatusService, "function");
@@ -440,6 +442,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const fileHelpers = fileText("adapters/mobile-runtime-file-helper-service.js");
   const groupChatAttachment = fileText("adapters/mobile-runtime-group-chat-attachment-service.js");
   const httpServer = fileText("adapters/mobile-runtime-http-server-service.js");
+  const localBridgeFacade = fileText("adapters/mobile-runtime-local-bridge-facade-service.js");
   const kanbanRuntime = fileText("adapters/kanban-runtime-services.js");
   const workspaceCatalog = fileText("adapters/runtime-workspace-catalog-service.js");
   const workspaceCatalogFacade = fileText("adapters/mobile-runtime-workspace-catalog-facade.js");
@@ -468,6 +471,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createGatewayWorkerProfileLaunchService/);
   assert.match(server, /createMobileRuntimeFileHelperService/);
   assert.match(server, /createMobileRuntimeHttpServerService/);
+  assert.match(server, /createMobileRuntimeLocalBridgeFacadeService/);
+  assert.match(localBridgeFacade, /createLocalBridgeRuntimeService/);
+  assert.doesNotMatch(server, /localBridgeRuntimeService = createLocalBridgeRuntimeService/);
   assert.match(server, /createMobileRuntimeWorkspaceCatalogFacade/);
   assert.match(fileHelpers, /readJsonFirst/);
   assert.match(fileHelpers, /readJsonStore/);
@@ -730,7 +736,7 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
-  assert.match(doc, /2,305 lines/);
+  assert.match(doc, /2,300 lines/);
   assert.match(doc, /430/);
   assert.match(doc, /public\/app\.js/);
   assert.match(doc, /10,000 lines/);
@@ -759,7 +765,7 @@ function testServiceFirstArchitectureContract() {
   const appTopLevelFunctionCount = (app.match(/^function\s+/gm) || []).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 2305, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2305`);
+  assert.ok(runtimeLineCount <= 2300, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2300`);
   assert.ok(runtimeTopLevelFunctionCount <= 430, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 430`);
   assert.ok(appLineCount <= 10000, `public/app.js line budget exceeded: ${appLineCount} > 10000`);
   assert.ok(appTopLevelFunctionCount <= 120, `public/app.js top-level function budget exceeded: ${appTopLevelFunctionCount} > 120`);

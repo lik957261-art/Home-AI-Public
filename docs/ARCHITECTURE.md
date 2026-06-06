@@ -48,6 +48,8 @@ out of the composition root. Current focused runtime adapters include:
   runtime config projection inputs.
 - `adapters/mobile-runtime-group-chat-attachment-service.js` for lazy
   group-chat shared-attachment runtime wiring and storage segment helpers.
+- `adapters/mobile-runtime-local-bridge-facade-service.js` for lazy Local
+  Bridge runtime wiring and Todo/Cron/Directory/process bridge delegation.
 - `adapters/mobile-runtime-public-status-service.js` for public reasoning,
   Gateway pool, and run-concurrency status projections.
 - `adapters/mobile-runtime-system-status-facade-service.js` for lazy system
