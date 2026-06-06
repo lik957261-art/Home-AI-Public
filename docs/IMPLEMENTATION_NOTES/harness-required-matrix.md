@@ -1,6 +1,6 @@
 # Harness Required Matrix
 
-Last updated: 2026-06-01.
+Last updated: 2026-06-06.
 
 This document defines when Hermes Mobile changes must add or run a workflow
 harness instead of relying only on unit tests, focused UI tests, or manual
@@ -200,6 +200,62 @@ Reference docs:
 - `docs/MODULES/gateway-pool.md`
 - `docs/MODULES/plugins.md`
 
+### Cross-Workspace Plugin Platform Contract
+
+Applies to plugin workspace onboarding, plugin-local platform pointer files,
+shared Mac SSH/sudo access, plugin deployment scripts, MCP upgrade closure,
+mobile visual/Appium harness adoption, and Reference Contract adoption across
+Finance, Wardrobe, Note, People, Email, Directory, Growth-adjacent plugin
+surfaces, and future plugins.
+
+This flow is H1 because it crosses workspace boundaries, production access,
+privilege escalation, service deployment, Gateway/MCP schema, plugin data,
+mobile visual validation, and cross-plugin memory references.
+
+Required harness dimensions:
+
+- Every plugin workspace must either have `docs/HOME_AI_PLATFORM_CONTRACT.md`
+  or an equivalent local pointer naming the current platform contract version.
+- Plugin-local facts must declare plugin id, local workspace path, production
+  source/data paths, service URL/port, launchd or process identity, MCP command
+  and schema endpoint when applicable, deployment command, local tests,
+  production smokes, Reference Contract status, and mobile visual harness
+  status.
+- Shared Mac production access must use the central access contract. Plugin
+  scripts may accept `--ssh-alias` and `--password-file`, but must not print or
+  persist raw passwords, key contents, access keys, cookies, tokens, or private
+  payloads.
+- Privileged Mac commands must use explicit absolute paths and bounded
+  operation-specific sudo. Do not rely on interactive shell startup files or
+  `sudo node`.
+- MCP plugins must run service schema and Gateway selected-profile callable
+  schema closure when a tool changes.
+- Embedded UI plugins must declare and run the appropriate visual evidence path:
+  Playwright, Mac iOS Simulator Appium, installed PWA, or real device depending
+  on the risk.
+- Embedded UI plugins must follow the shared mobile UI contract so bottom
+  ownership, iframe sizing, safe-area behavior, long-press menus, blank-surface
+  handling, and visual evidence do not diverge per workspace.
+- Structured fact plugins must declare Reference Contract status and avoid
+  ad-hoc object reference formats that conflict with the platform Reference /
+  Memory Graph contract.
+- Production closure must report bounded commit/status/URL/schema/readback
+  evidence and backup paths where relevant.
+- The eventual platform checker must fail missing pointers, missing local
+  facts, missing deployment validation, missing MCP closure, missing visual
+  harness status, missing Reference Contract status, or raw-looking secrets in
+  docs.
+
+Primary docs:
+
+- `docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md`
+- `docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md`
+- `docs/IMPLEMENTATION_NOTES/plugin-workspace-contract-rollout-plan.md`
+- `docs/RUNBOOKS/macos-production-access.md`
+- `docs/RUNBOOKS/mcp-tool-upgrade-closure.md`
+- `docs/RUNBOOKS/macos-ios-simulator-appium.md`
+- `docs/IMPLEMENTATION_NOTES/reference-memory-graph-v1.md`
+
 ### Growth Learning Card Workflow
 
 Applies to teaching cards, practice cards, weekly/stage assessment cards,
@@ -250,6 +306,53 @@ Primary docs:
 - `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-architecture.md`
 - `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-design.md`
 - `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-implementation.md`
+
+### Reference / Memory Graph And Note Links
+
+Applies to Reference / Memory Graph repositories, graph services, Note links,
+plugin object references, cross-plugin backlinks, event grouping, provenance,
+idempotent orchestration, permission trimming, and Gateway/MCP graph tool
+exposure.
+
+This flow is H1 because it connects multiple plugin fact stores and can leak
+private data or create duplicate facts if retries, permissions, or profile
+selection are wrong.
+
+Required harness dimensions:
+
+- Native graph schema and migrations must be validated with SQLite
+  `quick_check`, expected table/index existence, and duplicate-prevention
+  constraints for object refs and idempotent edges.
+- Stable object refs must preserve `workspace_id + plugin_id + object_type +
+  object_id` without copying full plugin facts into the graph.
+- Note-to-Finance link and backlink must prove create, list, backlink, retry,
+  and delete behavior with bounded display fields only.
+- Multi-plugin event grouping must connect Note, Finance, Wardrobe, and People
+  references through one `event_key` or event node without generating
+  uncontrolled N-to-N links.
+- Permission trimming must prove restricted principals cannot read full target
+  details through display snapshots, provenance, metadata, or backlink lists.
+- `reference_get` detail reads must route back to the owning plugin/service for
+  final permission checks.
+- Partial failure recovery must prove Note/object/event/edge creation remains
+  idempotent when a graph write, plugin write, or Note write fails mid-flow.
+- Relation types must remain from the approved small vocabulary unless the
+  design doc is updated and the harness proves why a new type is needed.
+- Graph and Note link writes must record bounded provenance and an
+  `idempotency_key`; they must not store raw prompts, raw model responses,
+  full private notes, full emails, full transaction details, tokens, cookies,
+  push endpoints, or long logs.
+- Gateway/MCP schema harness must prove the selected profile exposes the graph
+  and Note link tools through the same profile and telemetry root used by real
+  runs. Root/default Hermes homes are invalid evidence.
+- Production closure must include one bounded create/read backlink smoke,
+  duplicate retry proof, permission-trimmed restricted read, selected profile
+  identity in bounded form, and backup/rollback notes for data migrations.
+
+Primary docs:
+
+- `docs/IMPLEMENTATION_NOTES/reference-memory-graph-v1.md`
+- `docs/IMPLEMENTATION_NOTES/reference-memory-graph-harness-plan.md`
 
 ### Tongbao Platform Currency And Growth Coin Exchange
 
@@ -1022,6 +1125,12 @@ Required harness dimensions:
   broadcast before `chooseGatewayRunTarget()` emits scheduler events. UI
   harnesses must render queued/cold-start and permission preflight timeout rows
   in the inline run-progress panel before a worker has been selected.
+- Composer optimistic-send harnesses must cover the negative path before any
+  run exists: if `POST /api/threads/:id/messages` fails or times out, the local
+  pending user/assistant placeholders are removed, draft text is restored, and a
+  bounded thread refresh is scheduled. A client-only `queued` placeholder must
+  not remain visible as `Home AI - queued` or as a bottom queued badge when the
+  server has no corresponding active message.
 
 Primary docs and tests:
 
@@ -1034,6 +1143,7 @@ Primary docs and tests:
 - `node tests\gateway-run-start-service.test.js`
 - `node tests\gateway-run-lifecycle-service.test.js`
 - `node tests\gateway-status-projection.test.js`
+- `node tests\composer-send-pending-feedback.test.js`
 - `node tests\system-api-routes.test.js`
 - `node tests\task-list-ui.test.js`
 - `node tests\startup-scripts.test.js`

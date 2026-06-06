@@ -19,6 +19,10 @@ identifiers until a separate infrastructure migration is planned.
 
 - API route/auth reference: `docs/API_ROUTE_REFERENCE.md`
 - Architecture-code-test-harness map: `docs/ARCHITECTURE_CODE_TEST_HARNESS_MAP.md`
+- Plugin workspace platform contract:
+  `docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md`
+- Plugin mobile UI and visual harness contract:
+  `docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md`
 - Frontend tab/state map: `docs/FRONTEND_STATE_MAP.md`
 - Runtime and learning SQLite data dictionary: `docs/DATA_DICTIONARY.md`
 - Gateway Pool manifest reference: `docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md`
@@ -66,6 +70,9 @@ identifiers until a separate infrastructure migration is planned.
 - Grok Gateway authentication or routing failure: `docs/RUNBOOKS/grok-gateway-auth.md`
 - Production API auth header mismatch: `docs/RUNBOOKS/production-api-auth-header.md`
 - Mac production closure validation: `docs/RUNBOOKS/macos-production-closure-validation.md`
+- Mac production access and sudo/SSH rules:
+  `docs/RUNBOOKS/macos-production-access.md`
+- Mac iOS Simulator Appium QA: `docs/RUNBOOKS/macos-ios-simulator-appium.md`
 - Mac plugin delivery-directory production smoke:
   `scripts/macos-plugin-directory-production-smoke.js`,
   `tests/macos-plugin-directory-production-smoke-harness.test.js`
@@ -89,6 +96,16 @@ identifiers until a separate infrastructure migration is planned.
 - Growth knowledge graph architecture: `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-architecture.md`
 - Growth knowledge graph design: `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-design.md`
 - Growth knowledge graph implementation plan: `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-implementation.md`
+- Reference and Memory Graph V1: `docs/IMPLEMENTATION_NOTES/reference-memory-graph-v1.md`
+- Reference and Memory Graph harness plan:
+  `docs/IMPLEMENTATION_NOTES/reference-memory-graph-harness-plan.md`
+- Plugin workspace contract rollout plan:
+  `docs/IMPLEMENTATION_NOTES/plugin-workspace-contract-rollout-plan.md`
+- Plugin workspace contract rollout status:
+  `docs/IMPLEMENTATION_NOTES/plugin-workspace-contract-rollout-status.md`
+- Plugin workspace platform contract checker:
+  `scripts/plugin-workspace-platform-contract-check.js`,
+  `tests/plugin-workspace-platform-contract-check.test.js`
 - Tongbao platform currency and Growth coin exchange design: `docs/IMPLEMENTATION_NOTES/tongbao-platform-currency-design.md`
 - Gateway elastic worker scheduling: `docs/IMPLEMENTATION_NOTES/gateway-elastic-worker-scheduling.md`
 - Gateway profile template materialization: `docs/IMPLEMENTATION_NOTES/gateway-profile-template-materialization.md`

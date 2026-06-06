@@ -163,6 +163,14 @@ when needed, Chrome DevTools attached to the PWA WebView. UIAutomator may return
 only a generic WebView node for rendered web content, so an empty accessibility
 tree alone is not proof that Hermes failed to load.
 
+Mac-side iOS Simulator gesture diagnostics may use Appium/XCUITest after the
+Mac QA toolchain is installed. Start the local server with
+`bash scripts/macos-ios-appium-start.sh` on the Mac and run
+`node scripts/macos-ios-appium-smoke.js` for a bounded direct-control smoke.
+Keep Appium at `--log-level warn` or quieter before any script enters Home AI
+credentials, because verbose WebDriver logs can include request bodies. The
+checked guard is `node tests\macos-ios-appium-smoke-harness.test.js`.
+
 All Hermes Mobile UI changes require visual verification evidence before they
 are treated as done. At minimum, run a Playwright mobile viewport check that
 captures a screenshot and records relevant bounding rectangles for the changed
@@ -449,9 +457,14 @@ coverage for that increment:
 - Plugin fixed topics such as `plugin:wardrobe`, `plugin:finance`,
   `plugin:email`, `plugin:health`, and `plugin:note` must not be included in directory-topic
   collection cards.
-- The Directory built-in application card is shown with the plugin application
-  cards but placed after external plugins. It has no chat/file mini actions;
-  directory-bound topic collections are visually associated below it instead.
+- The current Capability Entry Hub projection keeps the Directory capability in
+  the fixed bottom capability Dock with the external plugin icons. It has no
+  permanent chat/file mini actions beside the icon; Directory quick actions live
+  in the long-press/context menu and in the frequent quick-action grid.
+- Mobile Capability Entry Hub visual evidence must open that Dock menu through
+  the touch long-press harness path and report
+  `capabilityMenuGesture=touch-longpress`; desktop `contextmenu` evidence alone
+  is not enough for iOS/PWA regressions.
 - Directory-bound cards render a directory header with the folder icon on the
   left and the explicit directory name/path beside it. They must not render a
   second right-side directory icon. Bound child topics render below as an
@@ -584,6 +597,11 @@ ProfileTemplate / WorkerReplica split: legacy aliases such as `lowgw1` and
 legacy slot aliases, ports, API bases, raw API keys, or other process identity.
 Provider, workspace, and permission tier remain hard pool boundaries. Focused
 contract check: `node tests\gateway-profile-replica-model-harness.test.js`.
+Composer optimistic-send coverage must also prove that a failed or timed-out
+`POST /api/threads/:id/messages` clears the local pending user/assistant
+messages, restores the draft text, and schedules a bounded thread refresh so a
+client-only `queued` placeholder cannot masquerade as a real Gateway queue.
+Focused check: `node tests\composer-send-pending-feedback.test.js`.
 Before switching production from eager startup to hybrid/on-demand startup,
 rerun these checks after syncing scripts into the production worker root and
 then smoke `/api/status?detail=1` plus a real Owner run. Full hybrid/eager
@@ -1009,7 +1027,7 @@ embedded-mode tests.
 The first NAS-backed registration uses
 `GET /api/hermes-plugins/wardrobe/manifest` as the Mobile-side contract and
 defaults the live source to
-`http://192.168.10.99:8765/api/v1/hermes/plugin/manifest`, with an environment
+`http://127.0.0.1:8765/api/v1/hermes/plugin/manifest`, with an environment
 override for later local/production source changes. Codex Mobile Web uses the
 same generic route shape through `GET /api/hermes-plugins/codex-mobile/manifest`
 and defaults to the local Codex plugin manifest at
@@ -1591,9 +1609,9 @@ The guard test is:
 | Web Push | `node tests\web-push-delivery-service.test.js`, `node tests\push-api-routes.test.js`, `node tests\task-list-ui.test.js`, `node tests\same-window-navigation-harness.test.js` |
 | Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js`, `node tests\playwright-visual-smoke-harness.test.js`, `node scripts\playwright-visual-smoke.js` |
 | Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js` |
-| Embedded plugin host / Wardrobe, Codex, Finance, Email, Health, and Note plugin tabs | `node tests\hermes-plugin-authorization-service.test.js`, `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\embedded-plugin-refresh-harness.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\wardrobe-plugin-navigation-ui.test.js`, `node tests\wardrobe-plugin-provisioning-service.test.js`, `node tests\macos-wardrobe-binding-production-smoke-harness.test.js`, `node scripts\macos-wardrobe-binding-production-smoke.js` on Mac production after Wardrobe binding repairs, `node tests\email-plugin-provisioning-service.test.js` when Email behavior changes, `node tests\health-plugin-provisioning-service.test.js` when Health behavior changes, `node tests\note-plugin-provisioning-service.test.js` when Note behavior changes, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes. First-run plugin enablement must verify Owner and one non-Owner workspace cannot project `active` until workspace-local key/config, plugin-side bind/register, required Skill/MCP setup, and manifest/launch smoke pass. Plugin-manager projection must also prove Owner records can be persisted, Owner workspace-local key/config discovery is reflected as already enabled, and failed Owner provisioning remains a retryable diagnostic instead of reverting to a plain unopened button. |
-| Plugin-bound application topics | Current frontend projection: `node tests\task-list-ui.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\static-cache-version-harness.test.js`. Service/runtime phases: `node tests\plugin-capability-probe-service.test.js`, `node tests\plugin-capability-activation-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-instruction-service.test.js`, `node tests\plugin-topic-binding-service.test.js`, `node tests\plugin-topic-delivery-directory-service.test.js`, `node tests\plugin-topic-context-service.test.js`, `node tests\plugin-topic-api-routes.test.js`, `node tests\app-plugin-topics-ui.test.js`, plus `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\directory-browser-api-routes.test.js`, and `node tests\architecture-refactor-boundary.test.js` when implementation touches services/routes/runtime. Frontend harness must cover direct app launch from the Capability Entry Hub plugin desktop, stable manual drag ordering stored in local preference, frequent quick actions with bounded source badges, and long-press/context-menu access to plugin-specific actions. The root Topics page must not use a separate fixed bottom plugin Dock for daily plugin launch. The same harness must cover the Directory capability with no generic mini-button stack, compact plugin desktop icons without nested framed panels, five-slot bottom navigation with Topics centered, default launch to Topics when no saved view exists, fixed `plugin:<pluginId>` topic ids, automatic `插件/<plugin title>` directory creation through the directory API, returning from that directory to the topic list, restoring topic-list scroll position after topic-detail back/right-swipe, clearing stale plugin view-mode classes before opening the topic detail so the message composer is visible, hiding the bottom navigation on ordinary plugin-topic secondary pages, preserving the three-item plugin-context bar inside plugin app/topic/directory context, and making plugin-context right-swipe/browser-back exit through the dedicated topic-root renderer without calling `openTaskList()`, `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`. |
-| Directory-bound topic collections | Planned: `node tests\directory-topic-binding-service.test.js`, `node tests\directory-topic-context-service.test.js`, `node tests\directory-topic-api-routes.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\context-assembly-service.test.js`, and `node tests\task-list-ui.test.js`. Harness must cover multiple topics per directory, one default topic per directory, default-topic reassignment without deleting secondary topics, explicit open-directory/open-default-topic/open-topic-picker actions, workspace isolation, cleaned/selected/bounded directory context, and exclusion of fixed plugin topics from directory collections. Frontend harness must also prove the topic list can render its first frame before directory-topic aggregation runs, that directory collections are visually attached below the Directory special application card, that the directory action sits on the same row as the main topic entry, that background aggregation/API refresh preserves the user's current topic-list scroll position, that deferred directory-topic rendering waits while scroll/swipe gestures are active, and that task-list vertical pan is not captured by sidebar right-swipe handling, because directory route extraction may scan many existing messages on large accounts. |
+| Embedded plugin host / Wardrobe, Codex, Finance, Email, Health, and Note plugin tabs | `node tests\hermes-plugin-authorization-service.test.js`, `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\embedded-plugin-refresh-harness.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\wardrobe-plugin-navigation-ui.test.js`, `node tests\wardrobe-plugin-provisioning-service.test.js`, `node tests\macos-wardrobe-binding-production-smoke-harness.test.js`, `node scripts\macos-wardrobe-binding-production-smoke.js` on Mac production after Wardrobe binding repairs, `node tests\email-plugin-provisioning-service.test.js` when Email behavior changes, `node tests\health-plugin-provisioning-service.test.js` when Health behavior changes, `node tests\note-plugin-provisioning-service.test.js` when Note behavior changes, `node tests\mcp-tool-upgrade-closure-harness.test.js` and `node scripts\mcp-tool-upgrade-closure-smoke.js` when plugin MCP tools change, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes. First-run plugin enablement must verify Owner and one non-Owner workspace cannot project `active` until workspace-local key/config, plugin-side bind/register, required Skill/MCP setup, and manifest/launch smoke pass. Plugin-manager projection must also prove Owner records can be persisted, Owner workspace-local key/config discovery is reflected as already enabled, and failed Owner provisioning remains a retryable diagnostic instead of reverting to a plain unopened button. |
+| Plugin-bound application topics | Current frontend projection: `node tests\task-list-ui.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\static-cache-version-harness.test.js`. Service/runtime phases: `node tests\plugin-capability-probe-service.test.js`, `node tests\plugin-capability-activation-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-instruction-service.test.js`, `node tests\plugin-topic-binding-service.test.js`, `node tests\plugin-topic-delivery-directory-service.test.js`, `node tests\plugin-topic-context-service.test.js`, `node tests\plugin-topic-api-routes.test.js`, `node tests\app-plugin-topics-ui.test.js`, plus `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\directory-browser-api-routes.test.js`, and `node tests\architecture-refactor-boundary.test.js` when implementation touches services/routes/runtime. Frontend harness must cover direct app/capability launch from the fixed bottom capability Dock, the built-in Directory icon in that Dock, touch long-press/context quick-action menus including bounded move controls and `capabilityMenuGesture=touch-longpress`, frequent quick actions with bounded source badges, and the absence of mid-page plugin desktop icons. The root Topics page should keep daily app/capability launch in the fixed bottom Dock while the scrollable page body carries quick actions and Directory-bound topic collections. The same harness must cover the Directory capability with no generic mini-button stack, bottom Dock icons without nested framed panels, six visible Dock entries before horizontal scrolling, five-slot primary bottom navigation with Topics centered, default launch to Topics when no saved view exists, fixed `plugin:<pluginId>` topic ids, automatic `插件/<plugin title>` directory creation through the directory API, returning from that directory to the topic list, restoring topic-list scroll position after topic-detail back/right-swipe, clearing stale plugin view-mode classes before opening the topic detail so the message composer is visible, hiding the bottom navigation on ordinary plugin-topic secondary pages, preserving the three-item plugin-context bar inside plugin app/topic/directory context, and making plugin-context right-swipe/browser-back exit through the dedicated topic-root renderer without calling `openTaskList()`, `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`. |
+| Directory-bound topic collections | Planned: `node tests\directory-topic-binding-service.test.js`, `node tests\directory-topic-context-service.test.js`, `node tests\directory-topic-api-routes.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\context-assembly-service.test.js`, and `node tests\task-list-ui.test.js`. Harness must cover multiple topics per directory, one default topic per directory, default-topic reassignment without deleting secondary topics, explicit open-directory/open-default-topic/open-topic-picker actions, workspace isolation, cleaned/selected/bounded directory context, and exclusion of fixed plugin topics from directory collections. Frontend harness must also prove the topic list can render its first frame before directory-topic aggregation runs, that directory collections are visually attached below the Capability Entry Hub quick-action area, that the directory header keeps the folder icon on the left with bound topic chips below, that background aggregation/API refresh preserves the user's current topic-list scroll position, that deferred directory-topic rendering waits while scroll/swipe gestures are active, and that task-list vertical pan is not captured by sidebar right-swipe handling, because directory route extraction may scan many existing messages on large accounts. |
 | Directory/files/artifacts | `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js` |
 | Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\plugin-required-skill-preload-service.test.js`, `node tests\plugin-capability-activation-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\gateway-workspace-provisioning-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\link-skill-profile-store.test.js`, `node tests\macos-production-profile-audit.test.js`, `node tests\task-list-ui.test.js` |
 | Automation/Cron | `node tests\automation-api-routes.test.js`, `node tests\automation-provider.test.js`, `node tests\cron-bridge.test.js`, `node tests\cron-dispatcher-proxy-harness.test.js`, `node tests\local-automation-bridge-service.test.js`, `node tests\mobile-runtime-environment-service.test.js`, `node tests\startup-scripts.test.js`; production/NAS smoke must verify that `/api/automations?detail=summary&refresh=1` reads the configured canonical scheduler and does not silently report an empty SQLite mirror when official CRON has jobs |
@@ -1639,6 +1657,93 @@ should run:
 - `node tests\learning-card-graph-binding-service.test.js`
 - `node tests\learning-growth-knowledge-graph-harness.test.js`
 - the relevant Growth publish/JIT/projection/UI tests from the module table.
+
+## Planned Reference / Memory Graph Gate
+
+The cross-plugin Reference / Memory Graph design in
+`docs\IMPLEMENTATION_NOTES\reference-memory-graph-v1.md` is the required
+pre-coding gate for future Note links, plugin object references, event links,
+cross-plugin backlinks, and graph-backed memory recall.
+
+The detailed harness plan is:
+
+- `docs\IMPLEMENTATION_NOTES\reference-memory-graph-harness-plan.md`
+
+This work is strategic P1. It should not preempt active P0 closure for Mac
+production stability, mobile visual/interaction stability, and MCP/schema
+deployment harnesses. It still applies immediately as an architecture
+constraint: new plugin and Note features must not introduce incompatible ad-hoc
+reference formats.
+
+Reference / Memory Graph changes are H1 because they cross plugin boundaries,
+permissions, persistence, idempotency, Gateway/MCP tool exposure, and production
+profile selection.
+
+Once graph services are implemented, changes that touch reference nodes, object
+refs, graph edges, Note links, backlinks, event grouping, permission trimming,
+or plugin reference contracts should run:
+
+- `node tests\reference-graph-repository.test.js`
+- `node tests\reference-graph-service.test.js`
+- `node tests\reference-graph-permission.test.js`
+- `node tests\reference-graph-idempotency.test.js`
+- `node tests\reference-graph-mcp-schema-harness.test.js`
+- `node tests\note-reference-link-service.test.js`
+- the relevant plugin reference contract tests for Finance, Wardrobe, People,
+  Email, Note, Directory, or Growth.
+
+The first production-grade harness must prove:
+
+- Note can link to a Finance transaction and list backlinks;
+- one event can connect Note, Finance, Wardrobe, and People references;
+- permission-trimmed listing does not leak restricted plugin details;
+- retries with the same idempotency key do not duplicate notes, objects, events,
+  or edges;
+- the selected Gateway profile exposes the graph and Note link MCP tools.
+
+## Plugin Workspace Platform Contract Gate
+
+The cross-workspace plugin platform contract in
+`docs\PLATFORM_CONTRACTS\plugin-workspace-platform-contract.md`, the mobile UI
+contract in `docs\PLATFORM_CONTRACTS\plugin-mobile-ui-visual-contract.md`, and
+the rollout plan in
+`docs\IMPLEMENTATION_NOTES\plugin-workspace-contract-rollout-plan.md` are the
+required pre-work gate for standardizing plugin repositories.
+
+This gate applies before changing plugin workspace docs, deployment scripts,
+MCP schema upgrade flows, mobile visual harnesses, Reference Contract surfaces,
+or Mac production access in Finance, Wardrobe, Note, People, Email, Directory,
+Growth-adjacent plugin surfaces, or future plugins.
+
+The gate must verify:
+
+- plugin-local `docs\HOME_AI_PLATFORM_CONTRACT.md` or equivalent pointer exists;
+- plugin-local facts are declared;
+- shared Mac access follows `docs\RUNBOOKS\macos-production-access.md`;
+- deployment command and production smoke are declared;
+- MCP service and Gateway selected-profile schema closure are declared for MCP
+  plugins;
+- visual harness status is declared for embedded UI plugins;
+- embedded UI changes follow the shared bottom-layout, safe-area, long-press,
+  blank-surface, and evidence rules in the mobile UI contract;
+- Reference Contract status is declared for structured fact plugins;
+- docs contain no raw-looking secrets, tokens, cookies, access keys, or private
+  long payloads.
+
+Current checker commands:
+
+- `node tests\plugin-workspace-platform-contract-check.test.js`
+- `node scripts\plugin-workspace-platform-contract-check.js --json`
+- optional Mac read-only production evidence:
+  `node scripts\plugin-workspace-platform-contract-check.js --probe-mac --require-mac-ok --json`
+
+This checker verifies the standard inserted plugin set, explicitly excludes
+Codex Mobile Web when it is not part of the standard plugin rollout, validates
+plugin-local `docs\HOME_AI_PLATFORM_CONTRACT.md` pointers and handoff adoption,
+and performs read-only Mac source/launchd/manifest probes when requested.
+Plugin MCP callable changes still require `node tests\mcp-tool-upgrade-closure-harness.test.js`
+and the checked `scripts\mcp-tool-upgrade-closure-smoke.js` path. Embedded UI
+changes still require visual/Appium evidence under the mobile UI contract.
 
 ## Production Verification Tiers
 
