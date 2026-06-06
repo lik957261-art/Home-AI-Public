@@ -43,6 +43,9 @@ out of the composition root. Current focused runtime adapters include:
 - `adapters/mobile-runtime-backend-policy-service.js` for deterministic
   Todo/Automation/SQLite backend mode decisions and direct Todo create switch
   parsing.
+- `adapters/mobile-runtime-config-facade-service.js` for runtime config
+  provider delegation, effective Gateway/Web Push config access, and public
+  runtime config projection inputs.
 - `adapters/mobile-runtime-group-chat-attachment-service.js` for lazy
   group-chat shared-attachment runtime wiring and storage segment helpers.
 - `adapters/mobile-runtime-public-status-service.js` for public reasoning,

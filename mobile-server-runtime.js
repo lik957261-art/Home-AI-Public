@@ -57,6 +57,7 @@ const { createMobileRuntimeCoreProviders } = require("./adapters/mobile-runtime-
 const { createOwnerElevationRoutingService } = require("./adapters/owner-elevation-routing-service");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
 const { createMobileRuntimeBackendPolicyService } = require("./adapters/mobile-runtime-backend-policy-service");
+const { createMobileRuntimeConfigFacadeService } = require("./adapters/mobile-runtime-config-facade-service");
 const { createMobileRuntimeFileHelperService } = require("./adapters/mobile-runtime-file-helper-service");
 const { createMobileRuntimePublicStatusService } = require("./adapters/mobile-runtime-public-status-service");
 const { createMobileRuntimeWorkspaceCatalogFacade } = require("./adapters/mobile-runtime-workspace-catalog-facade");
@@ -291,7 +292,10 @@ const runtimeConfigProvider = createRuntimeConfigProvider({
   storagePath: () => RUNTIME_CONFIG_PATH, ensureDataDir, nowIso, defaultHermesApiBase: () => HERMES_API_BASE,
   apiKeyPaths: () => HERMES_API_KEY_PATHS, envPaths: () => HERMES_ENV_PATHS,
   defaultWebPushSubject: () => WEB_PUSH_SUBJECT, defaultWebPushVapidPath: () => WEB_PUSH_VAPID_PATH,
-}); const actionInboxService = createActionInboxService({ compactText, makeId, nowIso, store: mobileSqliteStore });
+});
+const mobileRuntimeConfigFacadeService = createMobileRuntimeConfigFacadeService({ runtimeConfigProvider, pushStatus: () => webPushDeliveryService?.publicPushStatus?.() || {}, webPushConfig: () => webPushDeliveryService?.getWebPushConfig?.() || null, webPushEnabled: () => WEB_PUSH_ENABLED });
+const { effectiveHermesApiBase, effectiveWebPushSubject, effectiveWebPushVapidPath, loadHermesApiKey, loadRuntimeConfig, publicRuntimeConfig, saveRuntimeConfig } = mobileRuntimeConfigFacadeService;
+const actionInboxService = createActionInboxService({ compactText, makeId, nowIso, store: mobileSqliteStore });
 webPushDeliveryService = createWebPushDeliveryService({
   actionInboxService: () => actionInboxService, appRouteUrl, automationProvider: () => automationProvider, chatGroupMemberWorkspaceIds, compactText, dedupe,
   effectiveWebPushSubject, effectiveWebPushVapidPath, hashValue, findWorkspace: (...args) => findWorkspace(...args),
@@ -438,17 +442,6 @@ function getRuntimeWorkspaceCatalogService() {
   }
   return runtimeWorkspaceCatalogService;
 }
-function loadRuntimeConfig() {
-  return runtimeConfigProvider.load();
-}
-function saveRuntimeConfig(input, actor = "owner") {
-  return runtimeConfigProvider.save(input, actor);
-}
-function effectiveHermesApiBase(config = loadRuntimeConfig()) { return runtimeConfigProvider.effectiveHermesApiBase(config); }
-function effectiveWebPushSubject(config = loadRuntimeConfig()) { return runtimeConfigProvider.effectiveWebPushSubject(config); }
-function effectiveWebPushVapidPath(config = loadRuntimeConfig()) { return runtimeConfigProvider.effectiveWebPushVapidPath(config); }
-function publicRuntimeConfig() { return runtimeConfigProvider.publicConfig({ pushStatus: webPushDeliveryService.publicPushStatus(), webPushConfig: webPushDeliveryService?.getWebPushConfig?.() || null, webPushEnabled: WEB_PUSH_ENABLED }); }
-function loadHermesApiKey() { return runtimeConfigProvider.loadHermesApiKey(); }
 function singleGatewayRunner() {
   if (!gatewayRunner) gatewayRunner = createGatewayRunner({ apiBase: () => effectiveHermesApiBase(), apiKey: () => loadHermesApiKey(), timeoutMs: () => HERMES_API_TIMEOUT_MS });
   return gatewayRunner;
