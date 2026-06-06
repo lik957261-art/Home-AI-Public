@@ -112,6 +112,7 @@ const mobileRuntimeStateFacadeService = require("../adapters/mobile-runtime-stat
 const mobileRuntimeSystemStatusFacadeService = require("../adapters/mobile-runtime-system-status-facade-service");
 const mobileRuntimeThreadFacadeService = require("../adapters/mobile-runtime-thread-facade-service");
 const mobileRuntimeWeixinFacadeService = require("../adapters/mobile-runtime-weixin-facade-service");
+const mobileRuntimeWorkspaceFacadeService = require("../adapters/mobile-runtime-workspace-facade-service");
 const mobileRuntimeWorkspaceCatalogFacade = require("../adapters/mobile-runtime-workspace-catalog-facade");
 const markdownRenderer = require("../adapters/markdown-renderer");
 const naturalLanguageDraftService = require("../adapters/natural-language-draft-service");
@@ -345,6 +346,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof mobileRuntimeSystemStatusFacadeService.createMobileRuntimeSystemStatusFacadeService, "function");
   assert.equal(typeof mobileRuntimeThreadFacadeService.createMobileRuntimeThreadFacadeService, "function");
   assert.equal(typeof mobileRuntimeWeixinFacadeService.createMobileRuntimeWeixinFacadeService, "function");
+  assert.equal(typeof mobileRuntimeWorkspaceFacadeService.createMobileRuntimeWorkspaceFacadeService, "function");
   assert.equal(typeof mobileRuntimeWorkspaceCatalogFacade.createMobileRuntimeWorkspaceCatalogFacade, "function");
   assert.equal(typeof markdownRenderer.renderMarkdownDocument, "function");
   assert.equal(typeof markdownRenderer.renderWeixinMarkdownForwardHtml, "function");
@@ -461,6 +463,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const threadFacade = fileText("adapters/mobile-runtime-thread-facade-service.js");
   const weixinFacade = fileText("adapters/mobile-runtime-weixin-facade-service.js");
   const weixinRuntime = fileText("adapters/weixin-runtime-composition-service.js");
+  const workspaceFacade = fileText("adapters/mobile-runtime-workspace-facade-service.js");
   const threadRuntime = fileText("adapters/thread-runtime-composition-service.js");
   const threadRouteService = fileText("adapters/thread-message-run-route-service.js");
   assert.match(entrypoint, /require\("\.\/mobile-server-runtime"\)/);
@@ -513,8 +516,10 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createDirectKanbanCreateService/);
   assert.match(server, /directKanbanCreateService\.detectDirectTodoCreateIntentForWeb/);
   assert.match(server, /directKanbanCreateService\.verifyDirectTodoCreateResult/);
-  assert.match(server, /createLocalWorkspaceStoreService/);
-  assert.match(server, /getLocalWorkspaceStoreService\(\)\.upsertLocalWorkspace/);
+  assert.match(server, /createMobileRuntimeWorkspaceFacadeService/);
+  assert.match(workspaceFacade, /defaultCreateLocalWorkspaceStoreService/);
+  assert.match(workspaceFacade, /getLocalWorkspaceStoreService\(\)\.upsertLocalWorkspace/);
+  assert.doesNotMatch(server, /createLocalWorkspaceStoreService/);
   assert.match(server, /createMobileRuntimeGroupChatAttachmentService/);
   assert.match(groupChatAttachment, /createGroupChatSharedAttachmentService/);
   assert.doesNotMatch(server, /function getGroupChatSharedAttachmentService/);
@@ -570,8 +575,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /getOwnerElevationGrantService\(\)\.consumeOnce\(auth, token\)/);
   assert.match(mobileComposition, /createWorkspaceApiRoutes/);
   assert.match(dispatcher, /key: "workspaceApiRoutes"/);
-  assert.match(server, /createWorkspacePublicProjectionService/);
-  assert.match(server, /getWorkspacePublicProjectionService\(\)\.publicWorkspace/);
+  assert.match(workspaceFacade, /defaultCreateWorkspacePublicProjectionService/);
+  assert.match(workspaceFacade, /getWorkspacePublicProjectionService\(\)\.publicWorkspace/);
+  assert.doesNotMatch(server, /createWorkspacePublicProjectionService/);
   assert.match(mobileComposition, /createAccessKeyApiRoutes/);
   assert.match(dispatcher, /key: "accessKeyApiRoutes"/);
   assert.match(mobileComposition, /createResourceApiRoutes/);
@@ -768,8 +774,8 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
-  assert.match(doc, /2,210 lines/);
-  assert.match(doc, /260/);
+  assert.match(doc, /2,200 lines/);
+  assert.match(doc, /250/);
   assert.match(doc, /public\/app\.js/);
   assert.match(doc, /10,000 lines/);
   assert.match(doc, /120/);
@@ -797,8 +803,8 @@ function testServiceFirstArchitectureContract() {
   const appTopLevelFunctionCount = (app.match(/^function\s+/gm) || []).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 2210, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2210`);
-  assert.ok(runtimeTopLevelFunctionCount <= 260, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 260`);
+  assert.ok(runtimeLineCount <= 2200, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2200`);
+  assert.ok(runtimeTopLevelFunctionCount <= 250, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 250`);
   assert.ok(appLineCount <= 10000, `public/app.js line budget exceeded: ${appLineCount} > 10000`);
   assert.ok(appTopLevelFunctionCount <= 120, `public/app.js top-level function budget exceeded: ${appTopLevelFunctionCount} > 120`);
 

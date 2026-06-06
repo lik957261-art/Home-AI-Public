@@ -47,7 +47,6 @@ const {
 } = require("./adapters/kanban-story-provider");
 const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
 const { createLocalBridgeRuntimeService } = require("./adapters/local-bridge-runtime-service");
-const { createLocalWorkspaceStoreService } = require("./adapters/local-workspace-store-service");
 const { createMobileHttpRuntimeService } = require("./adapters/mobile-http-runtime-service");
 const { createMobileRuntimeHttpServerService } = require("./adapters/mobile-runtime-http-server-service");
 const { createMobileRuntimeCoreProviders } = require("./adapters/mobile-runtime-core-providers");
@@ -62,6 +61,7 @@ const { createMobileRuntimeStateFacadeService } = require("./adapters/mobile-run
 const { createMobileRuntimeSystemStatusFacadeService } = require("./adapters/mobile-runtime-system-status-facade-service");
 const { createMobileRuntimeThreadFacadeService } = require("./adapters/mobile-runtime-thread-facade-service");
 const { createMobileRuntimeWeixinFacadeService } = require("./adapters/mobile-runtime-weixin-facade-service");
+const { createMobileRuntimeWorkspaceFacadeService } = require("./adapters/mobile-runtime-workspace-facade-service");
 const { createMobileRuntimeWorkspaceCatalogFacade } = require("./adapters/mobile-runtime-workspace-catalog-facade");
 const { createRuntimeWorkspaceCatalogService } = require("./adapters/runtime-workspace-catalog-service");
 const { createSemanticDirectoryAttachmentService } = require("./adapters/semantic-directory-attachment-service");
@@ -75,7 +75,6 @@ const { buildRequestContext } = require("./adapters/request-context-provider");
 const { createThreadViewService } = require("./adapters/thread-view-service");
 const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindings-provider");
 const { createWorkspaceDisplayPathService } = require("./adapters/workspace-display-path-service");
-const { createWorkspacePublicProjectionService } = require("./adapters/workspace-public-projection-service");
 const { createTodoProvider } = require("./adapters/todo-provider");
 const { createTodoPublicProjectionService } = require("./adapters/todo-public-projection-service");
 const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
@@ -200,8 +199,6 @@ let threadViewService = null;
 let todoPublicProjectionService = null;
 let kanbanOutputProjectionService = null;
 let singleWindowThreadService = null;
-let localWorkspaceStoreService = null;
-let workspacePublicProjectionService = null;
 let semanticDirectoryAttachmentService = null;
 let kanbanCaseTopicService = null;
 let kanbanPlanCardCreationService = null;
@@ -608,40 +605,44 @@ function createInitialOwnerKey() {
   return authProvider.createInitialOwnerKey();
 }
 function getUrl(req) { return httpRuntimeService.getUrl(req); }
-function getLocalWorkspaceStoreService() {
-  if (!localWorkspaceStoreService) {
-    localWorkspaceStoreService = createLocalWorkspaceStoreService({
-      storagePath: LOCAL_WORKSPACES_PATH,
-      ownerDefaultWorkspace: OWNER_DEFAULT_WORKSPACE,
-      ensureDataDir,
-      nowIso,
-      normalizeStringList,
-      normalizeStringMap,
-      findWorkspace: (...args) => findWorkspace(...args),
-      deleteWorkspaceAccessKey: (workspaceId) => authProvider.deleteWorkspaceAccessKey(workspaceId),
-      invalidateCatalogCache,
-      clearDynamicProjectCache: (workspaceId) => getRuntimeWorkspaceCatalogService().clearDynamicProjectCache(workspaceId),
-      rootConflictsWithProtected: (root) => securityBoundaryProvider.rootConflictsWithProtected(root),
-      filterRoots: (roots) => securityBoundaryProvider.filterRoots(roots),
-    });
-  }
-  return localWorkspaceStoreService;
-}
+const mobileRuntimeWorkspaceFacadeService = createMobileRuntimeWorkspaceFacadeService({
+  clearDynamicProjectCache: (workspaceId) => getRuntimeWorkspaceCatalogService().clearDynamicProjectCache(workspaceId),
+  dedupe,
+  deleteWorkspaceAccessKey: (workspaceId) => authProvider.deleteWorkspaceAccessKey(workspaceId),
+  ensureDataDir,
+  ensureWorkspaceGateway: (...args) => getGatewayWorkspaceProvisioningService().ensureWorkspaceGateway(...args),
+  filterRoots: (roots) => securityBoundaryProvider.filterRoots(roots),
+  findWorkspace: (...args) => findWorkspace(...args),
+  invalidateCatalogCache,
+  isOwnerAuth,
+  loadCatalog,
+  normalizeStringList,
+  normalizeStringMap,
+  nowIso,
+  ownerDefaultWorkspace: OWNER_DEFAULT_WORKSPACE,
+  publicWorkspaceAccessKeyStatus: (workspace) => authProvider.publicWorkspaceAccessKeyStatus(workspace),
+  publicWorkspaceBindings: (workspace) => workspaceBindingsProvider.publicBindings(workspace),
+  rootConflictsWithProtected: (root) => securityBoundaryProvider.rootConflictsWithProtected(root),
+  storagePath: LOCAL_WORKSPACES_PATH,
+});
+const getLocalWorkspaceStoreService = (...args) => mobileRuntimeWorkspaceFacadeService.getLocalWorkspaceStoreService(...args);
 function workspaceIdSlug(value) {
-  return getLocalWorkspaceStoreService().workspaceIdSlug(value);
+  return mobileRuntimeWorkspaceFacadeService.workspaceIdSlug(value);
 }
 function workspaceIdFromUsername(value) {
-  return getLocalWorkspaceStoreService().workspaceIdFromUsername(value);
+  return mobileRuntimeWorkspaceFacadeService.workspaceIdFromUsername(value);
 }
 function localWorkspaceDefaults(input = {}, previous = {}) {
-  return getLocalWorkspaceStoreService().localWorkspaceDefaults(input, previous);
+  return mobileRuntimeWorkspaceFacadeService.localWorkspaceDefaults(input, previous);
 }
 function localWorkspaceRecords() {
-  return getLocalWorkspaceStoreService().localWorkspaceRecords();
+  return mobileRuntimeWorkspaceFacadeService.localWorkspaceRecords();
 }
-function upsertLocalWorkspace(input, actor = "owner") { const record = getLocalWorkspaceStoreService().upsertLocalWorkspace(input, actor); record.gatewayProvisioning = getGatewayWorkspaceProvisioningService().ensureWorkspaceGateway({ workspaceId: record.id }); return record; }
+function upsertLocalWorkspace(input, actor = "owner") {
+  return mobileRuntimeWorkspaceFacadeService.upsertLocalWorkspace(input, actor);
+}
 function deleteLocalWorkspace(workspaceId) {
-  return getLocalWorkspaceStoreService().deleteLocalWorkspace(workspaceId);
+  return mobileRuntimeWorkspaceFacadeService.deleteLocalWorkspace(workspaceId);
 }
 function authenticateRequest(req) {
   return authProvider.authenticateRequest(req);
@@ -721,22 +722,9 @@ function pushWorkspaceForAuth(auth, requestedWorkspaceId = "owner") {
   if (isOwnerAuth(auth)) return findWorkspace(requested) ? requested : "owner";
   return String(auth?.workspaceId || requestedWorkspaceId || "owner").trim() || "owner";
 }
-function getWorkspacePublicProjectionService() {
-  if (!workspacePublicProjectionService) {
-    workspacePublicProjectionService = createWorkspacePublicProjectionService({
-      dedupe,
-      filterRoots: (roots) => securityBoundaryProvider.filterRoots(roots),
-      isOwnerAuth,
-      loadCatalog,
-      publicWorkspaceAccessKeyStatus: (workspace) => authProvider.publicWorkspaceAccessKeyStatus(workspace),
-      publicWorkspaceBindings: (workspace) => workspaceBindingsProvider.publicBindings(workspace),
-      rootConflictsWithProtected: (root) => securityBoundaryProvider.rootConflictsWithProtected(root),
-    });
-  }
-  return workspacePublicProjectionService;
-}
+const getWorkspacePublicProjectionService = (...args) => mobileRuntimeWorkspaceFacadeService.getWorkspacePublicProjectionService(...args);
 function publicWorkspacesForAuth(auth) {
-  return getWorkspacePublicProjectionService().publicWorkspacesForAuth(auth);
+  return mobileRuntimeWorkspaceFacadeService.publicWorkspacesForAuth(auth);
 }
 function requireOwner(req, res) {
   const auth = authenticateRequest(req);
@@ -1544,7 +1532,7 @@ function ownerExternalAccessPolicy() {
   return externalIntegrationProvider.ownerAccessPolicy();
 }
 function publicWorkspace(workspace) {
-  return getWorkspacePublicProjectionService().publicWorkspace(workspace);
+  return mobileRuntimeWorkspaceFacadeService.publicWorkspace(workspace);
 }
 function publicAccessKeyStatus(workspace, record = null) {
   return authProvider.publicAccessKeyStatus(workspace, record);
