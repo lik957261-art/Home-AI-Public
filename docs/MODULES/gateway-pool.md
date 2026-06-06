@@ -645,6 +645,13 @@ still names an older integration, such as a Wardrobe-only epoch after Finance
 or Health MCP changes, a plugin topic may show `Enabled toolsets: finance`
 while the model still runs on a cached conversation schema that lacks
 `mcp_finance_*`.
+For Finance attachment changes, the accepted callable set includes
+`mcp_finance_add_transaction_attachment` in addition to
+`mcp_finance_create_transaction`. A deployment that updates the Finance plugin
+service and Gateway wrapper but leaves Mobile's instruction-service Finance
+callable hints or schema epoch at an older value is incomplete: the model may
+still conclude that the attachment upload interface is not exposed even though
+`/api/finance/mcp/schemas` is current.
 
 This keeps task success safer than regex or route-level pruning when the
 selector is disabled. If the selector is later re-enabled, it must satisfy the
@@ -1103,6 +1110,18 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   launcher has not already set `HERMES_MOBILE_FINANCE_MCP_API_BASE_URL`. A
   profile smoke must prove `tools/list` returns `mcp_finance_*`, not only that
   the wrapper process starts.
+- Finance image/file attachment support requires all four layers to agree:
+  Finance service `/api/finance/mcp/schemas`, Gateway worker `tools/list`,
+  Mobile `adapters/gateway-run-instruction-service.js` Finance callable hints,
+  and the current `GATEWAY_TOOL_SCHEMA_EPOCH`. A live run that has
+  `Enabled toolsets: finance` but lacks
+  `mcp_finance_add_transaction_attachment` in the model-facing schema/hints is
+  a Mobile/Gateway schema-sync failure, not a successful Finance deployment.
+  The reusable closure harness is
+  `node scripts/mcp-tool-upgrade-closure-smoke.js`; it must be run with the
+  service-local tool name, the Gateway `mcp_<server>_<tool>` callable, the new
+  epoch, and the selected production profile whenever a plugin MCP callable is
+  added or renamed.
 - Email MCP follows the same rule with `.hermes-email`; provider OAuth tokens
   and mailbox credentials remain inside the Email plugin, while the MCP uses
   only the workspace-local Email plugin key to call Email APIs. Windows

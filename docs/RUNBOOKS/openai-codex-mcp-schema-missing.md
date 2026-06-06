@@ -29,6 +29,37 @@ The lowgw1 evidence after the fix:
 4. Check local outgoing tool schema and actual model callable behavior separately. Local schema presence alone is insufficient.
 5. Use `scripts/probe-lowgw1-wardrobe-mcp.js` for a bounded live callable test against lowgw1.
 
+## 2026-06-06 Finance Attachment Variant
+
+A Finance run can report that an upload/attachment interface is not exposed even
+after the Finance plugin service and wrapper expose
+`finance.add_transaction_attachment`. Treat this as a schema synchronization
+incident until all of these pass:
+
+- Finance service `/api/finance/mcp/schemas` includes
+  `finance.add_transaction_attachment` and `finance.create_transaction`
+  attachment fields.
+- The selected Gateway worker callable schema includes
+  `mcp_finance_add_transaction_attachment`.
+- Mobile's `adapters/gateway-run-instruction-service.js` Finance callable hints
+  and current tool schema override include
+  `mcp_finance_add_transaction_attachment`.
+- `mobile-server-runtime.js` `GATEWAY_TOOL_SCHEMA_EPOCH` and the instruction
+  service default epoch have been bumped for the new plugin callable schema, so
+  plugin-topic conversation ids cannot reuse an older cached callable set.
+
+The Home AI message DB can show this failure without dumping user content:
+query the failed assistant message by `run_id` or transaction id and check
+whether `raw_json` / `run_options_json` contain the new callable name. If the
+run says Finance is enabled but no stored run metadata references
+`mcp_finance_add_transaction_attachment`, the model was not given the new
+attachment callable in that run.
+
+Use `docs/RUNBOOKS/mcp-tool-upgrade-closure.md` and
+`node scripts/mcp-tool-upgrade-closure-smoke.js` for future plugin MCP tool
+additions or renames. That closure checks service schema, Gateway callable
+schema, Mobile instruction hints, and schema epoch together.
+
 ## Restart Scope
 
 When only a test worker is being validated, restart only the named worker, for example `lowgw1`. Do not restart the full Gateway Pool unless the change is a production-wide plugin/schema/profile change or the user explicitly asks for a pool restart.

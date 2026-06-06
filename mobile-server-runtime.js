@@ -1774,7 +1774,7 @@ function policyHasToolset(policy = {}, toolset = "") {
 function callableFunctionHintsForToolsets(toolsets = []) {
   return gatewayRunInstructionService.callableFunctionHintsForToolsets(toolsets);
 }
-const GATEWAY_TOOL_SCHEMA_EPOCH = "20260603-plugin-mcp-finance-health-v3"; const gatewayRunInstructionService = createGatewayRunInstructionService({
+const GATEWAY_TOOL_SCHEMA_EPOCH = "20260606-finance-attachment-mcp-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
   dedupe,
   toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH,
   normalizeSingleWindowMode,

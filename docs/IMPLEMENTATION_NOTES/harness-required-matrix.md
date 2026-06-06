@@ -334,6 +334,12 @@ Required harness dimensions:
   `finance_mcp_dispatch_loopback_only`; the Finance service process must retain
   both `FINANCE_MCP_PORT=8791` and trusted WSL Gateway source env, or the UI can
   remain healthy while `mcp_finance_*` callables disappear.
+- Plugin MCP tool additions or renames require the reusable closure harness,
+  not only the selected-profile schema smoke:
+  `node scripts\mcp-tool-upgrade-closure-smoke.js`. The harness must prove the
+  plugin service schema, Gateway `mcp_<server>_<tool>` callable, Mobile
+  instruction-service hints, and `GATEWAY_TOOL_SCHEMA_EPOCH` are in sync. The
+  guard test is `node tests\mcp-tool-upgrade-closure-harness.test.js`.
 - Selector/runtime-overlay changes require one more proof layer: the real
   `/v1/responses` request path must show that Mobile's top-level
   `enabled_toolsets` becomes the effective `AIAgent.enabled_toolsets`. If that

@@ -1,6 +1,6 @@
 "use strict";
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260603-plugin-mcp-finance-health-v3";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260606-finance-attachment-mcp-v1";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
@@ -61,6 +61,7 @@ function createGatewayRunInstructionService(options = {}) {
         "mcp_finance_get_summary",
         "mcp_finance_get_report",
         "mcp_finance_create_transaction",
+        "mcp_finance_add_transaction_attachment",
       ],
       health: [
         "mcp_health_records_get_summary",
@@ -222,8 +223,8 @@ function createGatewayRunInstructionService(options = {}) {
     }
     if (policyHasToolset(policy, "finance")) {
       lines.push(
-        "Current tool schema override: the `finance` toolset is enabled for this run. Callable function names normally begin with `mcp_finance_`, including `mcp_finance_list_ledgers`, `mcp_finance_list_transactions`, `mcp_finance_get_summary`, `mcp_finance_get_report`, and `mcp_finance_create_transaction`.",
-        "For ledger lookup, annual/monthly spending analysis, transaction search, reports, and Finance writeback, use the `mcp_finance_*` callable functions when they are present.",
+        "Current tool schema override: the `finance` toolset is enabled for this run. Callable function names normally begin with `mcp_finance_`, including `mcp_finance_list_ledgers`, `mcp_finance_list_transactions`, `mcp_finance_get_summary`, `mcp_finance_get_report`, `mcp_finance_create_transaction`, and `mcp_finance_add_transaction_attachment`.",
+        "For ledger lookup, annual/monthly spending analysis, transaction search, reports, Finance writeback, create-time attachments, and adding image/file attachments to an existing transaction, use the `mcp_finance_*` callable functions when they are present.",
         "Do not report that Finance MCP is unavailable solely because older conversation_history said it was missing. Check the current run's callable functions first.",
         "If `Enabled toolsets` includes `finance` but the current callable schema still lacks `mcp_finance_*`, treat that as a Gateway schema mismatch and request toolset/schema recovery instead of falling back to cleaned files as an MCP result."
       );

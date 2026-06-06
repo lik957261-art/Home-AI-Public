@@ -73,6 +73,7 @@ identifiers until a separate infrastructure migration is planned.
 - OpenAI Codex shared auth repair: `docs/RUNBOOKS/openai-codex-shared-auth.md`
 - Codex Responses stream output missing: `docs/RUNBOOKS/codex-responses-stream-output-none.md`
 - OpenAI Codex MCP callable schema missing: `docs/RUNBOOKS/openai-codex-mcp-schema-missing.md`
+- MCP tool upgrade closure: `docs/RUNBOOKS/mcp-tool-upgrade-closure.md`
 - Finance embedded plugin token error: `docs/RUNBOOKS/finance-plugin-token-error.md`
 - Disaster recovery backup verification: `docs/RUNBOOKS/disaster-recovery-backup.md`
 - Context compaction and chat history debugging: `docs/RUNBOOKS/context-compaction-debug.md`
