@@ -163,7 +163,7 @@ if (require.main === module) {
       }
     } catch (err) {
       if (options.json && err?.payload) {
-        console.error(JSON.stringify(Object.assign({ ok: false, error: err.message }, err.payload), null, 2));
+        console.error(JSON.stringify(Object.assign({}, err.payload, { ok: false, error: err.message }), null, 2));
       } else {
         console.error(err?.message || String(err));
       }

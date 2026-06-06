@@ -26,6 +26,7 @@ function parseArgs(argv) {
     concurrentOwnerRuns: 2,
     skipSchema: false,
     skipPluginDirectory: false,
+    skipWardrobeBinding: false,
     skipDeepseek: false,
     skipWeixin: false,
     skipConcurrency: false,
@@ -49,6 +50,7 @@ function parseArgs(argv) {
     else if (arg === "--concurrent-owner-runs") out.concurrentOwnerRuns = Number(argv[++index] || out.concurrentOwnerRuns);
     else if (arg === "--skip-schema") out.skipSchema = true;
     else if (arg === "--skip-plugin-directory") out.skipPluginDirectory = true;
+    else if (arg === "--skip-wardrobe-binding") out.skipWardrobeBinding = true;
     else if (arg === "--skip-deepseek") out.skipDeepseek = true;
     else if (arg === "--skip-weixin") out.skipWeixin = true;
     else if (arg === "--skip-concurrency") out.skipConcurrency = true;
@@ -64,6 +66,7 @@ function parseArgs(argv) {
         "  --ingress-key-file <file> Weixin ingress key file; path and contents are not printed",
         "  --skip-schema             Skip native Gateway schema probes",
         "  --skip-plugin-directory   Skip plugin delivery-directory creation and preview smoke",
+        "  --skip-wardrobe-binding   Skip Wardrobe manifest/binding/proxy content smoke",
         "  --skip-deepseek           Skip product-route DeepSeek provider smokes",
         "  --skip-weixin             Skip Weixin ingress heartbeat smoke",
         "  --skip-concurrency        Skip two-run Owner/OpenAI concurrency smoke",
@@ -274,6 +277,33 @@ function compactPluginDirectory(pluginDirectory) {
   };
 }
 
+function compactWardrobeBinding(wardrobeBinding) {
+  return {
+    ok: Boolean(wardrobeBinding.ok),
+    authHeader: wardrobeBinding.authHeader || "",
+    expectedOrigin: wardrobeBinding.expectedOrigin || "",
+    legacyOrigin: wardrobeBinding.legacyOrigin || "",
+    bindingCount: Number(wardrobeBinding.bindingCount || 0),
+    bindings: (wardrobeBinding.bindings || []).map((row) => ({
+      path: row.path || "",
+      ok: Boolean(row.ok),
+      configReadable: Boolean(row.configReadable),
+      workspaceId: row.workspaceId || "",
+      hermesWorkspaceId: row.hermesWorkspaceId || "",
+      apiBaseOrigin: row.apiBaseOrigin || "",
+      keyShape: row.keyShape || {},
+      legacyOriginPresent: Boolean(row.legacyOriginPresent),
+    })),
+    workspaces: (wardrobeBinding.workspaces || []).map((row) => ({
+      workspaceId: row.workspaceId || "",
+      ok: Boolean(row.ok),
+      manifest: row.manifest || {},
+      entry: row.entry || {},
+      bootstrap: row.bootstrap || {},
+    })),
+  };
+}
+
 async function runSchema(options, name, profile, telemetryRoot, requiredTools) {
   const data = await runNodeJson(`schema:${name}`, options, "gateway-tool-schema-smoke.js", [
     "--manifest", options.manifest,
@@ -339,6 +369,13 @@ async function runClosure(options) {
   ]));
 
   const pluginDirectory = options.skipPluginDirectory ? null : compactPluginDirectory(await runNodeJson("plugin-directory", options, "macos-plugin-directory-production-smoke.js", [
+    "--root", options.root,
+    "--base", options.base,
+    "--access-key-file", options.ownerKeyFile,
+    "--json",
+  ]));
+
+  const wardrobeBinding = options.skipWardrobeBinding ? null : compactWardrobeBinding(await runNodeJson("wardrobe-binding", options, "macos-wardrobe-binding-production-smoke.js", [
     "--root", options.root,
     "--base", options.base,
     "--access-key-file", options.ownerKeyFile,
@@ -415,6 +452,7 @@ async function runClosure(options) {
     && acl.ok
     && acl.failedCount === 0
     && (!pluginDirectory || (pluginDirectory.ok && pluginDirectory.rows.every((row) => row.ok)))
+    && (!wardrobeBinding || (wardrobeBinding.ok && wardrobeBinding.bindings.every((row) => row.ok) && wardrobeBinding.workspaces.every((row) => row.ok)))
     && schemas.every((row) => row.ok)
     && (!deepseek || (deepseek.user.ok && deepseek.user.gatewayProfile === "deepseekgw1" && !deepseek.user.maintenance
       && deepseek.maintenance.ok && deepseek.maintenance.gatewayProfile === "deepseekmaint1" && deepseek.maintenance.maintenance))
@@ -431,6 +469,7 @@ async function runClosure(options) {
       grokXai: "deferred_manual_oauth_not_included",
       schema: options.skipSchema ? "skipped" : "included",
       pluginDirectory: options.skipPluginDirectory ? "skipped" : "included",
+      wardrobeBinding: options.skipWardrobeBinding ? "skipped" : "included",
       deepseek: options.skipDeepseek ? "skipped" : "included",
       weixin: options.skipWeixin ? "skipped" : "included",
       ownerConcurrency: options.skipConcurrency ? "skipped" : "included",
@@ -440,6 +479,7 @@ async function runClosure(options) {
     profileAudit,
     acl,
     pluginDirectory,
+    wardrobeBinding,
     schemas,
     deepseek,
     weixin,
@@ -475,6 +515,7 @@ module.exports = {
   compactStatus,
   compactWeixin,
   compactPluginDirectory,
+  compactWardrobeBinding,
   parseArgs,
   runClosure,
   sanitize,

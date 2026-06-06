@@ -40,6 +40,8 @@ assert.match(script, /\[WRONG_AUTH_HEADER\]: key/);
 assert.match(script, /payload\.authHeader = AUTH_HEADER/);
 assert.match(script, /payload\.wrongAuthHeader = WRONG_AUTH_HEADER/);
 assert.match(script, /production_status_smoke_wrong_header_accepted/);
+assert.match(script, /Object\.assign\(\{\}, err\.payload, \{ ok: false, error: err\.message \}\)/);
+assert.doesNotMatch(script, /Object\.assign\(\{ ok: false, error: err\.message \}, err\.payload\)/);
 assert.match(script, /--access-key-file <file>/);
 assert.match(script, /path and contents are not printed/);
 assert.match(script, /Auth contract: send the key with X-Hermes-Web-Key only/);

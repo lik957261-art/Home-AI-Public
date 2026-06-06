@@ -33,6 +33,11 @@ It validates:
 - Workspace catalog paths resolve to the Mac live drive, and all active
   workspaces can create and preview the standard plugin delivery directories
   under `插件/<plugin title>`.
+- Wardrobe binding/proxy content smoke verifies live `.hermes-wardrobe`
+  configs do not point at the legacy `192.168.10.99:8765` origin, Home manifest
+  launches Wardrobe through `http://127.0.0.1:8765`, the same-origin proxy entry
+  returns nonblank HTML, and the launched workspace exposes a positive bounded
+  bootstrap `item_count`.
 - Native Gateway schema probes expose the required MCP callables for Wuping,
   Owner, and test profiles.
 - DeepSeek ordinary Owner routing uses `deepseekgw1`.
@@ -74,14 +79,21 @@ With `--json`, the top-level shape is bounded metadata:
   "pluginDirectory": {
     "ok": true,
     "workspaceCount": 6
+  },
+  "wardrobeBinding": {
+    "ok": true,
+    "expectedOrigin": "http://127.0.0.1:8765",
+    "bindingCount": 4
   }
 }
 ```
 
 Treat any top-level `ok=false`, nonzero profile issue/warning count, failed ACL
 row, failed plugin delivery-directory creation/preview row, missing schema
-callable, wrong DeepSeek profile, failed Weixin route, or nonzero final
-`activeGlobal` as a production blocker for the non-Grok closure gate.
+callable, Wardrobe binding row with a legacy origin, Wardrobe manifest launch
+failure, zero/negative Wardrobe bootstrap item count, wrong DeepSeek profile,
+failed Weixin route, or nonzero final `activeGlobal` as a production blocker for
+the non-Grok closure gate.
 
 ## Focused Alternatives
 
@@ -106,6 +118,12 @@ sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
 
 sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
   /Users/hermes-host/HermesMobile/app/scripts/macos-plugin-directory-production-smoke.js \
+  --root /Users/hermes-host/HermesMobile \
+  --base http://127.0.0.1:8797 \
+  --json
+
+sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
+  /Users/hermes-host/HermesMobile/app/scripts/macos-wardrobe-binding-production-smoke.js \
   --root /Users/hermes-host/HermesMobile \
   --base http://127.0.0.1:8797 \
   --json

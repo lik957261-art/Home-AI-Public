@@ -116,11 +116,14 @@ service root.
   Weixin route repair, ACL repair, or before declaring Mac production closed:
   `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-closure-validation.js --json`.
   It composes the checked status, profile audit, ACL, native MCP schema,
-  plugin delivery-directory, DeepSeek user/maintenance, Weixin heartbeat,
-  Owner/OpenAI concurrent product-route, and final-status smokes. Passing output must have top-level
+  plugin delivery-directory, Wardrobe binding/proxy content, DeepSeek
+  user/maintenance, Weixin heartbeat, Owner/OpenAI concurrent product-route,
+  and final-status smokes. Passing output must have top-level
   `ok=true`, `activeGlobal=0` before and after, zero profile issues/warnings,
   zero ACL failures, plugin delivery-directory creation/preview passing for
-  every active workspace, expected DeepSeek profiles, wrong browser/API auth
+  every active workspace, Wardrobe manifest `programApi.origin` on Mac loopback
+  with a launched proxied entry and positive bounded bootstrap content for the
+  checked workspace, expected DeepSeek profiles, wrong browser/API auth
   header denied with `401`, and no OAuth re-auth process. Grok/xAI remains a deferred
   manual OAuth follow-up and is not part of this default closure gate.
   See `docs/RUNBOOKS/macos-production-closure-validation.md`.
@@ -134,6 +137,17 @@ service root.
   `C:\ProgramData\HermesMobile\data\drive` or
   `/mnt/c/ProgramData/HermesMobile/data/drive`, as well as macOS ownership/ACL
   failures that surface as directory `404` or `500` responses.
+- Mac Wardrobe binding smoke:
+  `scripts/macos-wardrobe-binding-production-smoke.js`. Run it after Mac
+  listener launchd edits, Wardrobe plugin data migration, Wardrobe workspace
+  authorization/key repair, or a report that an embedded Wardrobe plugin opens
+  but shows no content:
+  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-wardrobe-binding-production-smoke.js --root /Users/hermes-host/HermesMobile --base http://127.0.0.1:8797 --json`.
+  It scans live drive `.hermes-wardrobe/config.json` files for stale legacy
+  Wardrobe origins, verifies the Home manifest launches through
+  `http://127.0.0.1:8765`, opens the same-origin proxy entry, and reads only
+  bounded bootstrap counts. It must not print raw keys, key paths, launch
+  tokens, or item details.
 - Shared Windows SSH aliases for all local workspaces and plugin projects:
   `homeai-mac`, `homeai-macstudio-prod`, and `macstudio-110`
 - Shared Windows SSH identity:
@@ -218,6 +232,14 @@ Plugin manifest URLs point to Mac loopback ports:
 - Health: `127.0.0.1:4877`
 - Note: `127.0.0.1:4181`
 - Codex Mobile: `127.0.0.1:8787`
+
+For Wardrobe specifically, the Mac listener LaunchDaemon must explicitly set
+both `HERMES_MOBILE_WARDROBE_PLUGIN_MANIFEST_URL` and
+`HERMES_MOBILE_PLUGIN_WARDROBE_MANIFEST_URL` to
+`http://127.0.0.1:8765/api/v1/hermes/plugin/manifest`. The source-code fallback
+for Wardrobe remains the historical NAS URL `192.168.10.99:8765`, so omitting
+the Mac override can make Home fetch a launch token from the wrong host even
+when the Mac plugin service and local database are healthy.
 
 Migration evidence recorded during the cutover:
 

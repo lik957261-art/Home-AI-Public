@@ -85,10 +85,20 @@ Mobile shows a compact diagnostic and a retry action. It must not call a local
 `/api/wardrobe/overview` route, launch the MCP stdio wrapper from the tab, or
 render a partial dashboard.
 
-Current NAS registration:
+Current registration and production upstream rules:
 
-- Default manifest URL:
+- Historical/default fallback manifest URL:
   `http://192.168.10.99:8765/api/v1/hermes/plugin/manifest`
+- Mac production must not rely on that fallback. The Mac listener launchd
+  environment must explicitly set
+  `HERMES_MOBILE_WARDROBE_PLUGIN_MANIFEST_URL` and
+  `HERMES_MOBILE_PLUGIN_WARDROBE_MANIFEST_URL` to
+  `http://127.0.0.1:8765/api/v1/hermes/plugin/manifest`, because the Mac
+  plugin service runs as `com.hermesmobile.plugin.wardrobe` on loopback.
+- Mac workspace-local `.hermes-wardrobe/config.json` files must also use
+  `api_base_url: "http://127.0.0.1:8765"`. The access key must be a Wardrobe
+  Program API key accepted by the Mac Wardrobe SQLite `api_tokens` table; a
+  key that works against the old NAS/Windows service is not valid Mac evidence.
 - Production HTTPS PWA deployments should override the manifest URL with an
   HTTPS endpoint through environment configuration. An HTTPS Hermes page must
   not iframe an HTTP plugin entry; Chromium blocks that as mixed content and the
@@ -119,6 +129,23 @@ The long-lived workspace Access Key must never be sent to frontend JavaScript,
 iframe URLs, docs, handoffs, screenshots, or logs. If launch fails or the local
 key file is missing, the tab should show a plugin diagnostic instead of falling
 back to username/password login or a local MCP overview.
+
+Mac production has a focused smoke for this exact binding class:
+
+```bash
+sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
+  /Users/hermes-host/HermesMobile/app/scripts/macos-wardrobe-binding-production-smoke.js \
+  --root /Users/hermes-host/HermesMobile \
+  --base http://127.0.0.1:8797 \
+  --json
+```
+
+Passing output must show no live drive `.hermes-wardrobe/config.json` with the
+legacy `192.168.10.99:8765` origin, Home manifest
+`programApi.origin="http://127.0.0.1:8765"`, `tokenStatus="launch_token_issued"`,
+a nonblank proxied entry response, and a positive bounded bootstrap
+`item_count` for the launched workspace. This smoke prints only metadata; it
+must not print raw keys, launch tokens, or item details.
 
 If the frontend receives an HTTP plugin entry while the Hermes page is HTTPS,
 it must not render a blank iframe or open a browser window. It should show a
