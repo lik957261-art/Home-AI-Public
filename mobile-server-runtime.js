@@ -11,7 +11,6 @@ const { assessmentConfigLine, createAssessmentExamWorkflowService } = require(".
 const studyAssessmentService = require("./adapters/study-assessment-service");
 const { createConversationHistoryService } = require("./adapters/conversation-history-service"); const { createTopicContextCompactionService } = require("./adapters/topic-context-compaction-service");
 const { createDocumentPreviewService } = require("./adapters/document-preview-service");
-const { createDirectKanbanCreateService } = require("./adapters/direct-kanban-create-service");
 const { createDirectoryBrowserBoundaryService } = require("./adapters/directory-browser-boundary-service");
 const { createEventFanoutService } = require("./adapters/event-fanout-service");
 const fileResourceService = require("./adapters/file-resource-service");
@@ -60,6 +59,7 @@ const { createMobileRuntimeStateFacadeService } = require("./adapters/mobile-run
 const { createMobileRuntimeSystemStatusFacadeService } = require("./adapters/mobile-runtime-system-status-facade-service");
 const { createMobileRuntimeThreadFacadeService } = require("./adapters/mobile-runtime-thread-facade-service");
 const { createMobileRuntimeThreadViewFacadeService } = require("./adapters/mobile-runtime-thread-view-facade-service");
+const { createMobileRuntimeTodoFacadeService } = require("./adapters/mobile-runtime-todo-facade-service");
 const { createMobileRuntimeWeixinFacadeService } = require("./adapters/mobile-runtime-weixin-facade-service");
 const { createMobileRuntimeWorkspaceFacadeService } = require("./adapters/mobile-runtime-workspace-facade-service");
 const { createMobileRuntimeWorkspaceCatalogFacade } = require("./adapters/mobile-runtime-workspace-catalog-facade");
@@ -222,6 +222,27 @@ const threadViewFacade = () => {
 const threadViewMethod = (methodName) => (...args) => threadViewFacade()[methodName](...args);
 const threadViewDelegates = Object.fromEntries("threadSummary taskGroupsForThread messageOwnerWorkspaceId taskGroupOwnerWorkspaceId taskGroupTaskId taskGroupPrompt taskGroupTitle taskGroupPreview taskGroupStatus taskGroupHaystack textIncludesPath taskGroupMatchesProject singleWindowProjectTaskSummaries messagesForThreadMode messagePageTaskGroupId threadMessagesPage searchThreadMessages compactThread compactThreadWithMessagePage compactMessage compactEventPreview addThreadEvent".split(" ").map((methodName) => [methodName, threadViewMethod(methodName)]));
 const { threadSummary, taskGroupsForThread, messageOwnerWorkspaceId, taskGroupOwnerWorkspaceId, taskGroupTaskId, taskGroupPrompt, taskGroupTitle, taskGroupPreview, taskGroupStatus, taskGroupHaystack, textIncludesPath, taskGroupMatchesProject, singleWindowProjectTaskSummaries, messagesForThreadMode, messagePageTaskGroupId, threadMessagesPage, searchThreadMessages, compactThread, compactThreadWithMessagePage, compactMessage, compactEventPreview, addThreadEvent } = threadViewDelegates;
+const mobileRuntimeTodoFacadeService = createMobileRuntimeTodoFacadeService({
+  findWorkspace: (...args) => findWorkspace(...args),
+  loadCatalog: (...args) => loadCatalog(...args),
+  principalLabelPrefixes: PRINCIPAL_LABEL_PREFIXES,
+  useKanbanTodoBackend,
+});
+const {
+  detectDirectKanbanCreateRequest,
+  detectDirectTodoCreateIntentForWeb,
+  directTodoCreateNeedsKanbanFields,
+  formatDirectTodoCreateSuccessMessage,
+  formatLocalDateTime,
+  parseWebTodoDueFromText,
+  resolveTodoAssigneeFromText,
+  todoAssigneeLabel,
+  todoAssigneesForWorkspace,
+  verifyDirectTodoCreateResult,
+  workspacePrincipal,
+} = mobileRuntimeTodoFacadeService;
+const parseTodoDueFromText = parseWebTodoDueFromText;
+const detectDirectTodoCreateIntent = detectDirectTodoCreateIntentForWeb;
 const mobileRuntimeStateFacadeService = createMobileRuntimeStateFacadeService({
   bootTrace,
   chatGroupMemberWorkspaceIds,
@@ -819,13 +840,6 @@ function scopedPushWorkspaceIds(principalId, workspaceIds = [], options = {}) {
 function pushSubscriptionScopeSignature(items) {
   return mobileRuntimeStateFacadeService.pushSubscriptionScopeSignature(items);
 }
-function stripPrincipalLabelPrefixes(value) {
-  let text = String(value || "").trim();
-  for (const prefix of PRINCIPAL_LABEL_PREFIXES) {
-    if (prefix && text.startsWith(prefix)) text = text.slice(prefix.length);
-  }
-  return text;
-}
 function normalizeChatGroup(value, ownerWorkspaceId = "owner", options = {}) {
   return mobileRuntimeStateFacadeService.normalizeChatGroup(value, ownerWorkspaceId, options);
 }
@@ -897,11 +911,16 @@ const mobileRuntimeLocalBridgeFacadeService = createMobileRuntimeLocalBridgeFaca
   useSqliteServiceStore,
   writeJsonStore,
 });
-function getLocalBridgeRuntimeService() {
-  return mobileRuntimeLocalBridgeFacadeService.getLocalBridgeRuntimeService();
+const {
+  getLocalBridgeRuntimeService,
+  runCronBridge,
+  runTodoBridge,
+} = mobileRuntimeLocalBridgeFacadeService;
+function runDirectoryBridge(payload) {
+  return mobileRuntimeLocalBridgeFacadeService.runDirectoryBridge(payload);
 }
-function runTodoBridge(payload) {
-  return getLocalBridgeRuntimeService().runTodoBridge(payload);
+function runProcessText(command, args = [], options = {}) {
+  return mobileRuntimeLocalBridgeFacadeService.runProcessText(command, args, options);
 }
 const todoProvider = createTodoProvider({
   runBridge: runTodoBridge,
@@ -912,9 +931,6 @@ const todoProvider = createTodoProvider({
     ? (useSqliteServiceStore() ? "sqlite_todos" : "local_todos")
     : (useKanbanTodoBackend() ? "hermes_kanban" : (process.env.HERMES_WEB_TODO_PLUGIN_NAME || "hermes_todos")),
 });
-function runCronBridge(payload) {
-  return getLocalBridgeRuntimeService().runCronBridge(payload);
-}
 const automationProvider = createAutomationProvider({
   runBridge: runCronBridge,
   cacheTtlMs: CRON_LIST_CACHE_TTL_MS,
@@ -946,9 +962,6 @@ function clearCronListCache() {
 }
 async function runCronListBridgeCached(options = {}) {
   return automationProvider.listJobs(Object.assign({ limit: 0 }, options));
-}
-function runDirectoryBridge(payload) {
-  return getLocalBridgeRuntimeService().runDirectoryBridge(payload);
 }
 const skillDetailProvider = createSkillDetailProvider({
   timeoutMs: SKILL_BRIDGE_TIMEOUT_MS,
@@ -997,85 +1010,6 @@ const kanbanCardProvider = createKanbanCardProvider({
   publicCard: publicTodo,
   sourceName: () => "hermes_kanban",
 });
-function workspacePrincipal(workspaceId) {
-  const workspace = findWorkspace(workspaceId || "owner");
-  return String(workspace?.policy?.principal_id || workspace?.id || "owner");
-}
-function todoAssigneesForWorkspace(workspaceId) {
-  const catalog = loadCatalog();
-  const source = workspacePrincipal(workspaceId);
-  const allowedMap = catalog.routeMap?.principal_allowed_targets || {};
-  let allowed = allowedMap[source];
-  if (!Array.isArray(allowed)) allowed = allowed ? [allowed] : [source];
-  const allowAll = allowed.includes("*") || source === "owner";
-  const ids = new Set(allowAll ? catalog.workspaces.map((item) => item.id) : allowed.map(String));
-  ids.add(source);
-  return catalog.workspaces
-    .filter((item) => ids.has(item.id))
-    .map((item) => ({
-      id: item.id,
-      label: item.label || item.id,
-      role: item.role || "user",
-    }));
-}
-function pad2(value) {
-  return String(value).padStart(2, "0");
-}
-function formatLocalDateTime(date) {
-  return [
-    date.getFullYear(),
-    "-",
-    pad2(date.getMonth() + 1),
-    "-",
-    pad2(date.getDate()),
-    " ",
-    pad2(date.getHours()),
-    ":",
-    pad2(date.getMinutes()),
-  ].join("");
-}
-function todoAssigneeLabel(workspaceId, principalId) {
-  return todoAssigneesForWorkspace(workspaceId).find((item) => item.id === principalId)?.label || principalId;
-}
-function resolveTodoAssigneeFromText(text, workspaceId) {
-  const source = workspacePrincipal(workspaceId);
-  const candidates = [];
-  for (const item of todoAssigneesForWorkspace(workspaceId)) {
-    const labels = [item.label, item.id, stripPrincipalLabelPrefixes(item.id)].filter(Boolean);
-    for (const label of labels) candidates.push({ id: item.id, label: String(label) });
-  }
-  candidates.sort((a, b) => b.label.length - a.label.length);
-  const rawText = String(text || "");
-  const matched = candidates.find((item) => item.label && rawText.includes(item.label));
-  return matched?.id || source;
-}
-const directKanbanCreateService = createDirectKanbanCreateService({
-  formatLocalDateTime,
-  resolveTodoAssigneeFromText,
-  todoAssigneeLabel,
-  stripPrincipalLabelPrefixes,
-  useKanbanTodoBackend,
-});
-const parseTodoDueFromText = (...args) => directKanbanCreateService.parseWebTodoDueFromText(...args);
-const detectDirectTodoCreateIntent = (...args) => directKanbanCreateService.detectDirectTodoCreateIntentForWeb(...args);
-function parseWebTodoDueFromText(text, now = new Date()) {
-  return directKanbanCreateService.parseWebTodoDueFromText(text, now);
-}
-function detectDirectTodoCreateIntentForWeb(text, workspaceId) {
-  return directKanbanCreateService.detectDirectTodoCreateIntentForWeb(text, workspaceId);
-}
-function detectDirectKanbanCreateRequest(text) {
-  return directKanbanCreateService.detectDirectKanbanCreateRequest(text);
-}
-function directTodoCreateNeedsKanbanFields(todo) {
-  return directKanbanCreateService.directTodoCreateNeedsKanbanFields(todo);
-}
-function verifyDirectTodoCreateResult(todo) {
-  return directKanbanCreateService.verifyDirectTodoCreateResult(todo);
-}
-function formatDirectTodoCreateSuccessMessage(intent, todo) {
-  return directKanbanCreateService.formatDirectTodoCreateSuccessMessage(intent, todo);
-}
 function isKanbanStudyCaseMode(mode) {
   return KANBAN_STUDY_CASE_MODES.has(String(mode || "").trim());
 }
@@ -1280,9 +1214,6 @@ async function hermesModelText(body, timeoutMs = AUTOMATION_CREATE_TIMEOUT_MS) {
     releaseGatewayRunTarget(gatewayTarget.schedulerRunId || runId, "failed");
     throw err;
   }
-}
-function runProcessText(command, args = [], options = {}) {
-  return getLocalBridgeRuntimeService().runProcessText(command, args, options);
 }
 function normalizeAutomationDraft(raw, sourceText) {
   return naturalLanguageDraftService.normalizeAutomationDraft(raw, sourceText);

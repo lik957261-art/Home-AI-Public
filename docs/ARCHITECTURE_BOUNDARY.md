@@ -55,6 +55,7 @@ focused adapters such as `mobile-runtime-file-helper-service.js`,
 `mobile-runtime-system-status-facade-service.js`,
 `mobile-runtime-thread-facade-service.js`,
 `mobile-runtime-thread-view-facade-service.js`,
+`mobile-runtime-todo-facade-service.js`,
 `mobile-runtime-weixin-facade-service.js`,
 `mobile-runtime-workspace-facade-service.js`,
 `mobile-runtime-workspace-catalog-facade.js`, and
@@ -68,8 +69,9 @@ runtime lazy delegation, Owner elevation grant/routing lazy delegation,
 WSL/config path candidate parsing, public status projections, runtime state
 normalization/persistence lazy delegation, DATA_DIR-derived state/storage path
 parsing, system status lazy delegation, thread runtime composition delegation,
-thread view projection lazy delegation, Weixin runtime composition delegation,
-local workspace store/projection lazy delegation, workspace catalog lazy
+thread view projection lazy delegation, Todo/direct-create runtime delegation,
+Weixin runtime composition delegation, local workspace store/projection lazy
+delegation, workspace catalog lazy
 delegation, and process HTTP lifecycle wiring
 addressable through CodeGraph without loading the full runtime root.
 
@@ -85,6 +87,12 @@ over `thread-view-service.js` plus bounded thread event append/preview
 retention. It must not implement message filtering, message pagination,
 task-group projection, external-delivery projection, or public thread shape
 rules; those stay in `thread-view-service.js`.
+
+`mobile-runtime-todo-facade-service.js` is only a runtime wiring facade for
+workspace-principal lookup, Todo assignee projection, and direct Todo/Kanban
+create parsing delegates. It must not implement Todo persistence, Kanban card
+creation, Local Bridge execution, or Gateway/tool routing; those stay in their
+own providers and route/runtime services.
 
 `server.js` and `mobile-server-runtime.js` must not own new business behavior such as:
 
@@ -117,13 +125,16 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 2,050 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 190;
+- `mobile-server-runtime.js` must stay at or below 1,960 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 175;
 - `mobile-runtime-artifact-facade-service.js` must stay at or below 140 lines
   and remain a facade over `file-artifact-access-service.js` and
   `artifact-text-registration-service.js`;
 - `mobile-runtime-thread-view-facade-service.js` must stay at or below 140
   lines and remain a facade over `thread-view-service.js`;
+- `mobile-runtime-todo-facade-service.js` must stay at or below 120 lines and
+  remain a facade over `direct-kanban-create-service.js` plus workspace catalog
+  lookup delegates;
 - `mobile-api-composition.js` must stay at or below 650 lines and remain the
   platform-level API aggregator, not a domain service graph;
 - `mobile-api-learning-composition.js` must stay at or below 350 lines and

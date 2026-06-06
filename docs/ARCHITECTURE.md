@@ -105,6 +105,11 @@ out of the composition root. Current focused runtime adapters include:
   event append/preview retention. It must delegate public projection to
   `thread-view-service.js` and must not own message filtering, pagination, or
   task-group projection rules.
+- `adapters/mobile-runtime-todo-facade-service.js` for workspace-principal and
+  Todo assignee projection plus direct Todo/Kanban create parsing delegates.
+  It must delegate natural-language parsing and Kanban result validation to
+  `direct-kanban-create-service.js` and must not own Todo persistence, Kanban
+  card creation, or bridge execution.
 - `adapters/mobile-runtime-weixin-facade-service.js` for lazy Weixin runtime
   composition wiring and Weixin ingress, outbound delivery, retry, wake, and
   file-forward delegate wrappers.

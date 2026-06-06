@@ -104,6 +104,7 @@ const kanbanExecutableProfileServiceJs = fs.readFileSync(path.join(repoRoot, "ad
 const kanbanReadingWorkflowServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-reading-workflow-service.js"), "utf8");
 const kanbanStudyArtifactServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-study-artifact-service.js"), "utf8");
 const directKanbanCreateServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "direct-kanban-create-service.js"), "utf8");
+const mobileRuntimeTodoFacadeServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "mobile-runtime-todo-facade-service.js"), "utf8");
 const kanbanRuntimeServicesJs = fs.readFileSync(path.join(repoRoot, "adapters", "kanban-runtime-services.js"), "utf8");
 const assessmentExamServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "assessment-exam-service.js"), "utf8");
 const assessmentExamWorkflowServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "assessment-exam-workflow-service.js"), "utf8");
@@ -3080,8 +3081,9 @@ assert.match(mobileRuntimeBackendPolicyServiceJs, /function directSettingEnabled
 assert.match(mobileRuntimeBackendPolicyServiceJs, /if \(\/\^\(0\|false\|no\|off\)\$\/i\.test\(setting\)\) return false;/);
 assert.match(mobileRuntimeBackendPolicyServiceJs, /if \(\/\^\(1\|true\|yes\|on\)\$\/i\.test\(setting\)\) return true;/);
 assert.match(mobileRuntimeBackendPolicyServiceJs, /useLocalAutomationBackend\(\) \{/);
-assert.match(serverJs, /function detectDirectKanbanCreateRequest\(text\)/);
-assert.match(serverJs, /directKanbanCreateService\.detectDirectKanbanCreateRequest\(text\)/);
+assert.match(serverJs, /createMobileRuntimeTodoFacadeService/);
+assert.match(mobileRuntimeTodoFacadeServiceJs, /detectDirectKanbanCreateRequest/);
+assert.doesNotMatch(serverJs, /directKanbanCreateService\.detectDirectKanbanCreateRequest/);
 assert.match(serverJs, /async function interpretKanbanNaturalLanguage\(text, workspace, ownerPrincipalId\)/);
 assert.match(kanbanCardApiRoutes, /path: "\/api\/kanban\/cards"/);
 assert.ok(directKanbanCreateServiceJs.includes("\\u770b\\u677f"));
@@ -3157,11 +3159,11 @@ assert.match(appJs, /\/messages\?\$\{params\}/);
 assert.match(appJs, /function renderChatHistoryPager\(thread\)/);
 assert.match(appJs, /body\.messageLimit = CHAT_MESSAGE_INITIAL_LIMIT/);
 assert.match(stylesCss, /\.chat-history-pager/);
-assert.match(serverJs, /function verifyDirectTodoCreateResult\(todo\)/);
-assert.match(serverJs, /directKanbanCreateService\.verifyDirectTodoCreateResult\(todo\)/);
+assert.match(mobileRuntimeTodoFacadeServiceJs, /verifyDirectTodoCreateResult/);
+assert.doesNotMatch(serverJs, /directKanbanCreateService\.verifyDirectTodoCreateResult/);
 assert.match(directKanbanCreateServiceJs, /Todo created but no visible card id returned\./);
-assert.match(serverJs, /function formatDirectTodoCreateSuccessMessage\(intent, todo\)/);
-assert.match(serverJs, /directKanbanCreateService\.formatDirectTodoCreateSuccessMessage\(intent, todo\)/);
+assert.match(mobileRuntimeTodoFacadeServiceJs, /formatDirectTodoCreateSuccessMessage/);
+assert.doesNotMatch(serverJs, /directKanbanCreateService\.formatDirectTodoCreateSuccessMessage/);
 assert.match(directKanbanCreateServiceJs, /ID: \$\{id\}/);
 assert.match(threadDirectCreateExecutionServiceJs, /verification: normalized\.verification/);
 
