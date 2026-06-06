@@ -251,6 +251,15 @@ Likely focused checks:
   so tab switches or route restores cannot reopen input until a concrete topic
   detail is selected. The composer context bar also omits the model/reasoning
   chip to reduce bottom-chrome density.
+- 2026-06-06 Mac production data repair: directory-bound topics created while
+  production used Windows/WSL paths can preserve legacy physical drive prefixes
+  inside `messages.directory_route_json` and `messages.directory_aliases_json`.
+  After migrating files to Mac, run
+  `scripts/macos-directory-path-migration-repair.js` and the runbook
+  `docs/RUNBOOKS/macos-directory-path-migration-repair.md` before diagnosing the
+  topic binding as a permissions or workspace-mixing bug. The repair is a
+  metadata path-prefix migration; it does not change the product rule that one
+  directory can collect multiple topics.
 
 Remaining service-layer work:
 

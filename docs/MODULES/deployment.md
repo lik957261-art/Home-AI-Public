@@ -147,6 +147,17 @@ service root.
   `C:\ProgramData\HermesMobile\data\drive` or
   `/mnt/c/ProgramData/HermesMobile/data/drive`, as well as macOS ownership/ACL
   failures that surface as directory `404` or `500` responses.
+- Mac directory path migration repair:
+  `scripts/macos-directory-path-migration-repair.js`. Run it after a
+  Windows/WSL-to-Mac data copy when existing directory-topic chips or artifact
+  cards still point at legacy drive prefixes:
+  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-directory-path-migration-repair.js --root /Users/hermes-host/HermesMobile --json`.
+  Dry-run is the default. The checked local harness is
+  `node tests\macos-directory-path-migration-repair.test.js`. Before writing,
+  prefer `activeGlobal=0`; after writing, rerun dry-run and restart
+  `system/com.hermesmobile.listener` if artifact cards or already-loaded topic
+  state were affected. See
+  `docs/RUNBOOKS/macos-directory-path-migration-repair.md`.
 - Mac Wardrobe binding smoke:
   `scripts/macos-wardrobe-binding-production-smoke.js`. Run it after Mac
   listener launchd edits, Wardrobe plugin data migration, Wardrobe workspace

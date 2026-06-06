@@ -156,4 +156,13 @@ instructions.
 
 ## Debug Pointers
 
-If a directory is invisible, inspect root projection and share filtering. If a file previews for the wrong user, inspect `file-artifact-access-service` and the route auth context. If Web Push opens a viewer inside another viewer, use `docs/RUNBOOKS/web-push-wrong-page.md`.
+If a directory is invisible, inspect root projection and share filtering. If
+directory-topic chips or artifact cards fail only after a Windows/WSL-to-Mac
+data migration, first run the checked dry-run in
+`docs/RUNBOOKS/macos-directory-path-migration-repair.md`; persisted
+`messages.*directory*` and `artifacts.*` metadata can still contain
+`/mnt/c/ProgramData/HermesMobile/data/drive/users/` or
+`C:\ProgramData\HermesMobile\data\drive\users\` even when the actual files were
+copied to the Mac drive root. If a file previews for the wrong user, inspect
+`file-artifact-access-service` and the route auth context. If Web Push opens a
+viewer inside another viewer, use `docs/RUNBOOKS/web-push-wrong-page.md`.

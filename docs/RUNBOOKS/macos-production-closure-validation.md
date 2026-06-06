@@ -137,6 +137,11 @@ sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
   --json
 
 sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
+  /Users/hermes-host/HermesMobile/app/scripts/macos-directory-path-migration-repair.js \
+  --root /Users/hermes-host/HermesMobile \
+  --json
+
+sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
   /Users/hermes-host/HermesMobile/app/scripts/macos-wardrobe-binding-production-smoke.js \
   --root /Users/hermes-host/HermesMobile \
   --base http://127.0.0.1:8797 \

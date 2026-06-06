@@ -189,6 +189,12 @@ Required harness dimensions:
 - First-start preflight must prove listener health, model egress, Owner key
   storage, workspace users/directories, Gateway worker selection, plugin MCP
   schema for provisioned plugins, CRON wrapper use, and restart recovery.
+- Windows/WSL-to-Mac data migration must prove persisted directory and artifact
+  metadata no longer carries legacy drive prefixes. Run
+  `scripts/macos-directory-path-migration-repair.js` in dry-run mode after
+  repair and require `changed=false`, zero value replacements, and zero JSON
+  parse errors before treating directory-topic chip or artifact-card `404`
+  failures as ACL bugs.
 - A clean install may start with no plugin data. Owner must be able to enable
   plugins on demand through the standard provisioning contract instead of
   relying on pre-bound development data.
