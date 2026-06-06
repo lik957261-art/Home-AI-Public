@@ -103,7 +103,7 @@ assert.match(platformUi, /if \(hermesRouteMobileBrowserShell\(\)\) \{[\s\S]*?mob
 assert.match(platformUi, /state\.viewMode === "automation"[\s\S]*?state\.selectedAutomationId/);
 assert.match(platformUi, /selectedAutomationId: ""[\s\S]*?automationRouteTargetPending: false/);
 const automationUi = read("public/app-automation-ui.js");
-assert.match(automationUi, /function loadSelectedView\(\) \{[\s\S]*?guardHermesOwnedSelectedDetailNavigation\(\);/);
+assert.match(automationUi, /async function loadSelectedView\(options = \{\}\) \{[\s\S]*?guardHermesOwnedSelectedDetailNavigation\(\);/);
 assert.match(platformUi, /function applyRouteFromUrl\(value\) \{[\s\S]*?const params = new URLSearchParams\(parsed\.search \|\| ""\);[\s\S]*?if \(!requireHermesAppWindowForRoute\(params\)\) return false;[\s\S]*?return applyRouteParams\(params\);/);
 assert.match(platformUi, /async function openHermesInternalRoute\(value\) \{/);
 assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_route_start"/);

@@ -77,7 +77,7 @@ assert.match(wardrobeUi, /function renderWardrobePluginUnavailable\(manifest = c
 assert.match(wardrobeUi, /data-wardrobe-plugin-refresh/);
 assert.match(wardrobeUi, /class="wardrobe-plugin-frame"/);
 assert.match(wardrobeUi, /sandbox="allow-same-origin allow-scripts allow-forms allow-downloads allow-modals"/);
-assert.match(wardrobeUi, /\\u8863\\u6a71\\u63d2\\u4ef6\\u5165\\u53e3\\u8fd8\\u6ca1\\u6709\\u5141\\u8bb8\\u5f53\\u524d Hermes/);
+assert.match(wardrobeUi, /\\u8863\\u6a71\\u63d2\\u4ef6\\u5165\\u53e3\\u8fd8\\u6ca1\\u6709\\u5141\\u8bb8\\u5f53\\u524d Home AI/);
 
 assert.doesNotMatch(wardrobeUi, /target="_blank"/);
 assert.doesNotMatch(wardrobeUi, /window\.open/);
@@ -111,7 +111,7 @@ assert.doesNotMatch(indexHtml, /topWardrobe(?:Overview|Watches|Maintenance|Wear|
 assert.doesNotMatch(navigationSearchUi, /topWardrobe(?:Overview|Watches|Maintenance|Wear|Looks|Log)/);
 assert.match(platformUi, /view === "wardrobe"/);
 
-assert.match(stylesCss, /\.bottom-nav\.wardrobe-visible/);
+assert.match(stylesCss, /\.app\.wardrobe-plugin-host-active\s*\{[\s\S]*padding-bottom: var\(--mobile-bottom-nav-reserved-height\);/);
 assert.match(stylesCss, /\.nav-wardrobe-icon::before/);
 assert.match(stylesCss, /\.wardrobe-plugin-shell\s*\{[\s\S]*?color-scheme: light dark;[\s\S]*?background: var\(--ui-page\);/);
 assert.match(stylesCss, /\.wardrobe-plugin-frame\s*\{[\s\S]*?background: var\(--ui-page\);[\s\S]*?opacity: 1;[\s\S]*?transition: opacity 120ms ease;/);
@@ -119,9 +119,10 @@ assert.match(stylesCss, /\.wardrobe-plugin-shell\.is-loading::before\s*\{[\s\S]*
 assert.match(stylesCss, /\.wardrobe-plugin-shell\.is-loading \.wardrobe-plugin-frame\s*\{[\s\S]*?opacity: 0;/);
 assert.match(stylesCss, /\.wardrobe-plugin-host-active \.conversation\s*\{[\s\S]*display: none;/);
 assert.match(stylesCss, /\.wardrobe-plugin-host-active \.topbar\s*\{[\s\S]*display: none !important;/);
-assert.match(stylesCss, /\.app\.wardrobe-plugin-host-active\s*\{[\s\S]*padding-bottom: 0;/);
-assert.match(stylesCss, /\.wardrobe-plugin-host-active \.bottom-nav\s*\{[\s\S]*display: none !important;/);
-assert.match(stylesCss, /\.wardrobe-plugin-host-active \.main\s*\{[\s\S]*grid-template-rows: minmax\(0, 1fr\);/);
+assert.match(stylesCss, /\.app\.plugin-context-nav-mode\.wardrobe-plugin-host-active\s*\{[\s\S]*padding-bottom: 0;/);
+assert.match(stylesCss, /\.main-back-visible\.wardrobe-plugin-host-active \.bottom-nav,[\s\S]*display: grid;/);
+assert.match(stylesCss, /\.wardrobe-plugin-host-active \.main\s*\{[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);/);
+assert.match(stylesCss, /\.plugin-context-nav-mode\.wardrobe-plugin-host-active \.main,[\s\S]*bottom: var\(--plugin-context-main-bottom, var\(--plugin-context-bottom-nav-height\)\);/);
 assert.match(stylesCss, /\.wardrobe-mode \.conversation\s*\{[\s\S]*padding: 0;[\s\S]*overflow: hidden;[\s\S]*background: var\(--ui-page\);/);
 assert.match(stylesCss, /\.wardrobe-plugin-notice/);
 assert.match(stylesCss, /\.wardrobe-mode \.composer/);

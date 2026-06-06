@@ -233,7 +233,7 @@ cd /Users/hermes-host/HermesMobile/app
 export NODE_PATH=/Users/hermes-host/HermesMobile/qa-playwright/node_modules
 /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
   scripts/playwright-visual-smoke.js \
-  --url https://mac-studio.tail62e8ce.ts.net/?_hmv=<smoke-id> \
+  --url <tailnet-https-origin>/?_hmv=<smoke-id> \
   --access-key-path <owner-web-key-file> \
   --view learning \
   --workspace-id owner \

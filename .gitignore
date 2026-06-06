@@ -12,6 +12,7 @@ logs/
 outbox/
 tmp/
 temp/
+.tmp/
 *.log
 *.log.err
 

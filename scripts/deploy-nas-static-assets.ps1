@@ -120,12 +120,14 @@ function Push-NasArchive {
     throw "base64 upload failed with exit code $LASTEXITCODE"
   }
   Invoke-NasSsh "set -e
-python3 - <<'PY'
-import base64, pathlib
-b64_path = pathlib.Path('$remoteB64')
-tar_path = pathlib.Path('$remoteTar')
-tar_path.write_bytes(base64.b64decode(b64_path.read_text().strip()))
-PY
+if command -v base64 >/dev/null 2>&1; then
+  base64 -d '$remoteB64' > '$remoteTar'
+elif command -v openssl >/dev/null 2>&1; then
+  openssl base64 -d -in '$remoteB64' -out '$remoteTar'
+else
+  echo 'base64 decoder unavailable' >&2
+  exit 127
+fi
 tar -xf '$remoteTar' -C '$RemoteRoot/app'
 tar -xf '$remoteTar' -C '$RemoteRoot/source'
 rm -f '$remoteTar' '$remoteB64'"

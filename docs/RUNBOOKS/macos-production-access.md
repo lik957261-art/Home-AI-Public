@@ -19,8 +19,8 @@ Current Mac Studio production facts:
 
 ```text
 LAN host: 192.168.10.110
-Tailnet HTTPS: https://mac-studio.tail62e8ce.ts.net/
-Default SSH user: xuxin
+Tailnet HTTPS: <tailnet-https-origin>
+Default SSH user: <mac-admin-user>
 Production root: /Users/hermes-host/HermesMobile
 Production app: /Users/hermes-host/HermesMobile/app
 Production data: /Users/hermes-host/HermesMobile/data
@@ -29,8 +29,8 @@ Listener URL on Mac loopback: http://127.0.0.1:8797
 Listener launchd label: com.hermesmobile.listener
 ```
 
-Treat `http://192.168.10.110:8797/` and
-`https://mac-studio.tail62e8ce.ts.net/` as production user-facing origins.
+Treat `http://192.168.10.110:8797/` and the configured
+`<tailnet-https-origin>` as production user-facing origins.
 Production scripts running on the Mac should usually use loopback
 `http://127.0.0.1:8797`.
 
@@ -55,7 +55,7 @@ The shared SSH private key location may be referenced in docs or scripts as a
 file path, but private key contents must never be printed or copied:
 
 ```text
-C:\Users\xuxin\.ssh\homeai_macstudio_prod_ed25519
+%USERPROFILE%\.ssh\homeai_macstudio_prod_ed25519
 ```
 
 If the shared aliases are missing in a future Windows workspace, the fix belongs
@@ -114,8 +114,8 @@ Recommended future SSH config properties:
 ```sshconfig
 Host homeai-mac
   HostName 192.168.10.110
-  User xuxin
-  IdentityFile C:/Users/xuxin/.ssh/homeai_macstudio_prod_ed25519
+  User <mac-admin-user>
+  IdentityFile %USERPROFILE%/.ssh/homeai_macstudio_prod_ed25519
   IdentitiesOnly yes
   ServerAliveInterval 30
   ServerAliveCountMax 4

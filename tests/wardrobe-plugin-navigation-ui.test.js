@@ -14,6 +14,12 @@ const source = [
 function classList() {
   const values = new Set();
   return {
+    add(name) {
+      values.add(name);
+    },
+    remove(name) {
+      values.delete(name);
+    },
     toggle(name, enabled) {
       if (enabled) values.add(name);
       else values.delete(name);
@@ -25,6 +31,7 @@ function classList() {
 }
 
 function createHarness(overrides = {}) {
+  const bottomPluginAvailability = [];
   const nodes = {
     bottomWardrobeMode: {
       hidden: true,
@@ -71,14 +78,20 @@ function createHarness(overrides = {}) {
     },
     $: (id) => nodes[id] || null,
     api: overrides.api || (async () => ({ plugins: [] })),
+    setBottomPluginMenuItemAvailability(id, available) {
+      bottomPluginAvailability.push({ id, available });
+    },
+    updateBottomPluginMenuAvailability() {},
     updateNavigationControls() {},
   };
+  if (typeof overrides.pluginTopicDefForViewMode === "function") sandbox.pluginTopicDefForViewMode = overrides.pluginTopicDefForViewMode;
+  if (typeof overrides.pluginTopicBottomButtonId === "function") sandbox.pluginTopicBottomButtonId = overrides.pluginTopicBottomButtonId;
   vm.runInNewContext(source, sandbox);
-  return { sandbox, nodes };
+  return { sandbox, nodes, bottomPluginAvailability };
 }
 
 {
-  const { sandbox, nodes } = createHarness({
+  const { sandbox, nodes, bottomPluginAvailability } = createHarness({
     state: {
       embeddedPluginList: {
         workspaceId: "weixin_test_1",
@@ -92,13 +105,14 @@ function createHarness(overrides = {}) {
     },
   });
   assert.equal(sandbox.updateWardrobeNavigationAvailability(), true);
-  assert.equal(nodes.bottomWardrobeMode.hidden, false);
-  assert.equal(nodes.bottomWardrobeMode.attrs["aria-hidden"], "false");
-  assert.equal(nodes.bottomNav.classList.contains("wardrobe-visible"), true);
+  assert.equal(nodes.bottomWardrobeMode.hidden, true);
+  assert.equal(nodes.bottomWardrobeMode.attrs["aria-hidden"], "true");
+  assert.equal(nodes.bottomNav.classList.contains("wardrobe-visible"), false);
+  assert.deepEqual(bottomPluginAvailability.at(-1), { id: "wardrobe", available: true });
 }
 
 {
-  const { sandbox, nodes } = createHarness({
+  const { sandbox, nodes, bottomPluginAvailability } = createHarness({
     state: {
       workspaces: [
         { id: "weixin_test_1", localConfig: { allowedToolsets: ["wardrobe"] } },
@@ -118,6 +132,7 @@ function createHarness(overrides = {}) {
   assert.equal(nodes.bottomWardrobeMode.hidden, true);
   assert.equal(nodes.bottomWardrobeMode.attrs["aria-hidden"], "true");
   assert.equal(nodes.bottomNav.classList.contains("wardrobe-visible"), false);
+  assert.deepEqual(bottomPluginAvailability.at(-1), { id: "wardrobe", available: false });
 }
 
 {
@@ -151,11 +166,12 @@ function createHarness(overrides = {}) {
   });
   assert.equal(sandbox.embeddedPluginManifestMatchesLaunchContext(record, "weixin_test_1", "light/default"), false);
   record.manifest.entry.url = "/api/hermes-plugins/finance/proxy/finance.html?launch=fresh&workspaceId=weixin_test_1";
+  record.manifestFetchedAt = Date.now();
   assert.equal(sandbox.embeddedPluginManifestMatchesLaunchContext(record, "weixin_test_1", "light/default"), true);
 }
 
 {
-  const { sandbox, nodes } = createHarness({
+  const { sandbox, nodes, bottomPluginAvailability } = createHarness({
     state: {
       selectedWorkspaceId: "owner",
       embeddedPluginList: {
@@ -168,6 +184,21 @@ function createHarness(overrides = {}) {
         error: "",
       },
     },
+  });
+  assert.equal(sandbox.updateWardrobeNavigationAvailability(), true);
+  assert.equal(nodes.bottomWardrobeMode.hidden, true);
+  assert.equal(nodes.bottomWardrobeMode.attrs["aria-hidden"], "true");
+  assert.deepEqual(bottomPluginAvailability.at(-1), { id: "wardrobe", available: true });
+}
+
+{
+  const { sandbox, nodes } = createHarness({
+    state: {
+      selectedWorkspaceId: "owner",
+      viewMode: "wardrobe",
+    },
+    pluginTopicDefForViewMode: () => ({ pluginId: "wardrobe" }),
+    pluginTopicBottomButtonId: () => "bottomWardrobeMode",
   });
   assert.equal(sandbox.updateWardrobeNavigationAvailability(), true);
   assert.equal(nodes.bottomWardrobeMode.hidden, false);

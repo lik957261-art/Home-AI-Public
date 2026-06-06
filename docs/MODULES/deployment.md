@@ -57,13 +57,13 @@ isolation harness exist.
 
 As of 2026-06-05, Mac Studio is the Home AI production host for Web/data/plugin
 serving and model-turn execution at `http://192.168.10.110:8797/`. It is also
-reachable inside the tailnet at `https://mac-studio.tail62e8ce.ts.net/`.
+reachable inside the tailnet at the configured `<tailnet-https-origin>`.
 After the workspace-isolation cutover, the live production root is the
-`hermes-host` root below. The previous user-level `/Users/xuxin/HermesMobile`
+`hermes-host` root below. The previous user-level `/Users/<mac-admin-user>/HermesMobile`
 root remains source/rollback material and must not be treated as the live
 service root.
 
-- Host: `xuxin@192.168.10.110`
+- Host: `<mac-admin-user>@192.168.10.110`
 - Hostname: `xuxindeMac-Studio.local`
 - macOS: `26.4`, arm64
 - Deployment root: `/Users/hermes-host/HermesMobile`
@@ -181,14 +181,14 @@ service root.
 - Shared Windows SSH aliases for all local workspaces and plugin projects:
   `homeai-mac`, `homeai-macstudio-prod`, and `macstudio-110`
 - Shared Windows SSH identity:
-  `C:\Users\xuxin\.ssh\homeai_macstudio_prod_ed25519`
-- Tailscale node DNS: `mac-studio.tail62e8ce.ts.net.`
-- Tailscale Serve: tailnet-only HTTPS `https://mac-studio.tail62e8ce.ts.net/`
+  `%USERPROFILE%\.ssh\homeai_macstudio_prod_ed25519`
+- Tailscale node DNS: `<tailnet-magicdns-host>.`
+- Tailscale Serve: tailnet-only HTTPS `<tailnet-https-origin>`
   proxies `/` to `http://127.0.0.1:8797`.
 - Tailscale certificate files:
-  `/Users/hermes-host/HermesMobile/config/tailscale-cert/mac-studio.tail62e8ce.ts.net.crt`
+  `/Users/hermes-host/HermesMobile/config/tailscale-cert/<tailnet-cert-name>.crt`
   and
-  `/Users/hermes-host/HermesMobile/config/tailscale-cert/mac-studio.tail62e8ce.ts.net.key`.
+  `/Users/hermes-host/HermesMobile/config/tailscale-cert/<tailnet-cert-name>.key`.
   The key is owned by `hermes-host` and must remain mode `0600`. Do not record
   PEM contents in docs, handoffs, logs, screenshots, or harness output.
 - Tailscale CLI path on the Mac:
@@ -302,8 +302,8 @@ Migration evidence recorded during the cutover:
   `C:\ProgramData\HermesMobile\data` to `/Users/hermes-host/HermesMobile/data`.
 - Plugin workspaces were copied to `/Users/hermes-host/HermesMobile/plugins`:
   Wardrobe, Finance, Email, Health, Note, and Codex Mobile Web.
-- Codex runtime state was copied to `/Users/xuxin/.codex` and
-  `/Users/xuxin/.codex-mobile-web`. This was a live snapshot because the
+- Codex runtime state was copied to `/Users/<mac-admin-user>/.codex` and
+  `/Users/<mac-admin-user>/.codex-mobile-web`. This was a live snapshot because the
   Windows Codex Mobile Web listener was kept running to preserve the active
   operator channel.
 - The local workspace `user-a87aaa61` is named `Eileen` in Mac production.
@@ -358,15 +358,15 @@ Migration evidence recorded during the cutover:
   alias was verified. Future local deployments should use the OS-level SSH
   config aliases, not project-local key setup.
 - Tailscale certificate validation on 2026-06-05:
-  `subject=/CN=mac-studio.tail62e8ce.ts.net`,
+  `subject=/CN=<tailnet-cert-name>`,
   `issuer=/C=US/O=Let's Encrypt/CN=YE1`,
   `notBefore=Jun 5 12:24:36 2026 GMT`, and
   `notAfter=Sep 3 12:24:35 2026 GMT`. Certificate/key public keys matched.
 - Tailscale HTTPS validation on 2026-06-05: `tailscale serve status` reported
-  `https://mac-studio.tail62e8ce.ts.net` tailnet-only with `/` proxying to
+  `<tailnet-https-origin>` tailnet-only with `/` proxying to
   `http://127.0.0.1:8797`; Mac `curl -I` returned `HTTP/2 200`; and
   `/api/public-config` returned HTTP `200` with parseable JSON.
-- Windows-side `curl` could not resolve `mac-studio.tail62e8ce.ts.net` during
+- Windows-side `curl` could not resolve `<tailnet-magicdns-host>` during
   the same check. Treat Windows MagicDNS resolution as a separate local
   Tailscale DNS configuration issue; it does not invalidate Mac-local Serve or
   iOS Simulator checks that use the Mac network stack.
@@ -609,7 +609,8 @@ only after all of these preflight checks pass:
   wildcard bridge is not production parity.
 - Every worker profile binds `skills` to the NAS-local per-workspace Skill
   Store under `/volume1/docker/hermes-mobile/data/skill-profiles/<profile>/skills`.
-  It must not symlink all users to `/var/services/homes/xuxinxp/.hermes/skills`.
+  It must not symlink all users to one personal NAS home such as
+  `/var/services/homes/<nas-user>/.hermes/skills`.
 - Every worker profile binds `memories` to a per-workspace Memory Store, either
   under the same skill profile or under
   `/volume1/docker/hermes-mobile/data/gateway-memories/<profile>`. It must not
@@ -670,7 +671,7 @@ unless actively needed.
 Codex Mobile bridge keys should remain local to the service account that runs
 the Codex Mobile plugin process. On the maintained deployment,
 `%USERPROFILE%\.codex-mobile-web\access_key` should be readable only by
-`GMK\xuxin`, `SYSTEM`, and `Administrators`; do not grant shared user accounts
+`<windows-admin-domain>\<windows-admin-user>`, `SYSTEM`, and `Administrators`; do not grant shared user accounts
 read/write access to this key file or its parent directory.
 
 ## Restart Tiers

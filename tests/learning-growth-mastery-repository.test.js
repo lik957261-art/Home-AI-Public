@@ -21,14 +21,15 @@ function createRepo() {
 function testSchemaCreatesAuditableMasteryTables() {
   const repo = createRepo();
   repo.migrate();
-  assert.equal(CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION, 11);
+  assert.equal(CURRENT_LEARNING_PROGRAM_SCHEMA_VERSION, 12);
   const tables = repo.open().prepare(`
     SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (
       'learning_growth_mastery_states',
-      'learning_growth_card_trajectories'
+      'learning_growth_card_trajectories',
+      'learning_task_audio_blobs'
     ) ORDER BY name
   `).all().map((row) => row.name);
-  assert.deepEqual(tables, ["learning_growth_card_trajectories", "learning_growth_mastery_states"]);
+  assert.deepEqual(tables, ["learning_growth_card_trajectories", "learning_growth_mastery_states", "learning_task_audio_blobs"]);
   assert.equal(repo.integritySummary().counts.growthMasteryStates, 0);
   assert.equal(repo.integritySummary().counts.growthCardTrajectories, 0);
   repo.close();

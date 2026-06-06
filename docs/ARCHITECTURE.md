@@ -58,6 +58,9 @@ out of the composition root. Current focused runtime adapters include:
 - `adapters/mobile-runtime-system-status-facade-service.js` for lazy system
   runtime status wiring, config-path candidate derivation, client-version
   delegation, and app-update delegation.
+- `adapters/mobile-runtime-weixin-facade-service.js` for lazy Weixin runtime
+  composition wiring and Weixin ingress, outbound delivery, retry, wake, and
+  file-forward delegate wrappers.
 - `adapters/mobile-runtime-workspace-catalog-facade.js` for lazy workspace
   catalog delegation without forcing the full catalog service to initialize at
   module load time.

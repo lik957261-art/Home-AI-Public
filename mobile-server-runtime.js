@@ -63,6 +63,7 @@ const { createMobileRuntimeFileHelperService } = require("./adapters/mobile-runt
 const { createMobileRuntimePublicStatusService } = require("./adapters/mobile-runtime-public-status-service");
 const { createMobileRuntimeStateFacadeService } = require("./adapters/mobile-runtime-state-facade-service");
 const { createMobileRuntimeSystemStatusFacadeService } = require("./adapters/mobile-runtime-system-status-facade-service");
+const { createMobileRuntimeWeixinFacadeService } = require("./adapters/mobile-runtime-weixin-facade-service");
 const { createMobileRuntimeWorkspaceCatalogFacade } = require("./adapters/mobile-runtime-workspace-catalog-facade");
 const { createRuntimeWorkspaceCatalogService } = require("./adapters/runtime-workspace-catalog-service");
 const { createSemanticDirectoryAttachmentService } = require("./adapters/semantic-directory-attachment-service");
@@ -215,7 +216,6 @@ let kanbanPlanCardCreationService = null;
 let runtimeStateThreadService = null;
 let ownerElevationGrantService = null;
 let threadRuntimeCompositionService = null;
-let weixinRuntimeCompositionService = null;
 let webPushDeliveryService = null;
 const eventFanoutService = createEventFanoutService({
   clients, authCanAccessWorkspace, isOwnerAuth, state: () => state,
@@ -384,6 +384,65 @@ const weixinIngressProvider = createWeixinIngressProvider({
   listWorkspaces: () => loadCatalog().workspaces,
   workspaceIdForPrincipal,
   defaultWorkspaceId: () => WEIXIN_INGRESS_DEFAULT_WORKSPACE,
+});
+const mobileRuntimeWeixinFacadeService = createMobileRuntimeWeixinFacadeService({
+  attachmentContextWindowMs: WEIXIN_INGRESS_ATTACHMENT_CONTEXT_WINDOW_MS,
+  authCanAccessWorkspace,
+  bridgeFileBuffer: (...args) => fileResponseService.bridgeFileBuffer(...args),
+  broadcast,
+  chatGroupMemberWorkspaceIds,
+  classifyMaintenanceIntent: (text) => securityBoundaryProvider.classifyMaintenanceIntent(text),
+  compactMessage,
+  compactText,
+  compactThread,
+  createWeixinRuntimeCompositionService,
+  dataDir: DATA_DIR,
+  deliveryId: (threadId, messageId) => weixinIngressProvider.deliveryId(threadId, messageId),
+  egressDecide: (payload) => egressPolicyProvider.decide(payload),
+  egressPolicyProvider,
+  ensureThreadForEvent: (event, workspaceId) => getSingleWindowThreadService().ensureWeixinSingleWindowThread(workspaceId, event),
+  ensureWeixinSingleWindowThread: (...args) => getSingleWindowThreadService().ensureWeixinSingleWindowThread(...args),
+  findExistingIngressEvent: (...args) => getRuntimeStateThreadService().findExistingWeixinIngressEvent(...args),
+  findThreadForAuth: (...args) => getRuntimeStateThreadService().findThreadForAuth(...args),
+  findWorkspace: (...args) => findWorkspace(...args),
+  forwardMarkdownMaxBytes: WEIXIN_FORWARD_MARKDOWN_MAX_BYTES,
+  hashValue,
+  ingressKeyPaths: WEIXIN_INGRESS_KEY_PATHS,
+  isOwnerAuth,
+  isStaleHttpToolAvailabilityClaim,
+  isStaleImageToolAvailabilityClaim,
+  isWeixinSingleWindowThread: (...args) => getSingleWindowThreadService().isWeixinSingleWindowThread(...args),
+  makeId,
+  maxMessageChars: MAX_MESSAGE_CHARS,
+  mimeFor,
+  normalizeExternalDelivery: (...args) => getRuntimeStateNormalizationService().normalizeExternalDelivery(...args),
+  normalizeExternalIngress: (...args) => getRuntimeStateNormalizationService().normalizeExternalIngress(...args),
+  normalizeLocalPath,
+  nowIso,
+  removeThreadActiveRun,
+  resolveArtifactForRequest,
+  resolveAuthorizedCronDeliverableFile,
+  resolveAuthorizedCronOutputFile,
+  resolveFileForBrowserRequest,
+  resolveKanbanOutputFile: (...args) => resolveKanbanOutputFile(...args),
+  retryBaseMs: WEIXIN_DELIVERY_RETRY_BASE_MS,
+  retryLimit: WEIXIN_DELIVERY_RETRY_LIMIT,
+  retryMaxMs: WEIXIN_DELIVERY_RETRY_MAX_MS,
+  runConcurrencyError,
+  safeFileName,
+  saveState,
+  sendJson,
+  senderInfoForWorkspace,
+  singleWindowChatTaskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+  spawnSync,
+  startRunForThread: (...args) => startRunForThread(...args),
+  state: () => state,
+  taskGroupHasRunningRun,
+  taskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+  threadAccessibleToAuth: (...args) => getRuntimeStateThreadService().threadAccessibleToAuth(...args),
+  threadSummary,
+  weixinIngressProvider,
+  workspaceLabel,
 });
 bootTrace("before loadState");
 state = loadState();
@@ -1712,86 +1771,24 @@ function findThreadForMessage(message) {
 function compactArtifactsForMessage(message, thread = null) {
   return getArtifactTextRegistrationService().compactArtifactsForMessage(message, thread);
 }
-function getWeixinRuntimeCompositionService() {
-  if (!weixinRuntimeCompositionService) {
-    weixinRuntimeCompositionService = createWeixinRuntimeCompositionService({
-      attachmentContextWindowMs: WEIXIN_INGRESS_ATTACHMENT_CONTEXT_WINDOW_MS,
-      authCanAccessWorkspace,
-      bridgeFileBuffer: (...args) => fileResponseService.bridgeFileBuffer(...args),
-      broadcast,
-      chatGroupMemberWorkspaceIds,
-      classifyMaintenanceIntent: (text) => securityBoundaryProvider.classifyMaintenanceIntent(text),
-      compactMessage,
-      compactText,
-      compactThread,
-      dataDir: DATA_DIR,
-      deliveryId: (threadId, messageId) => weixinIngressProvider.deliveryId(threadId, messageId),
-      egressDecide: (payload) => egressPolicyProvider.decide(payload),
-      egressPolicyProvider,
-      ensureThreadForEvent: (event, workspaceId) => getSingleWindowThreadService().ensureWeixinSingleWindowThread(workspaceId, event),
-      ensureWeixinSingleWindowThread: (...args) => getSingleWindowThreadService().ensureWeixinSingleWindowThread(...args),
-      findExistingIngressEvent: (...args) => getRuntimeStateThreadService().findExistingWeixinIngressEvent(...args),
-      findThreadForAuth: (...args) => getRuntimeStateThreadService().findThreadForAuth(...args),
-      findWorkspace,
-      forwardMarkdownMaxBytes: WEIXIN_FORWARD_MARKDOWN_MAX_BYTES,
-      hashValue,
-      ingressKeyPaths: WEIXIN_INGRESS_KEY_PATHS,
-      isOwnerAuth,
-      isStaleHttpToolAvailabilityClaim,
-      isStaleImageToolAvailabilityClaim,
-      isWeixinSingleWindowThread: (...args) => getSingleWindowThreadService().isWeixinSingleWindowThread(...args),
-      makeId,
-      maxMessageChars: MAX_MESSAGE_CHARS,
-      mimeFor,
-      normalizeExternalDelivery: (...args) => getRuntimeStateNormalizationService().normalizeExternalDelivery(...args),
-      normalizeExternalIngress: (...args) => getRuntimeStateNormalizationService().normalizeExternalIngress(...args),
-      normalizeLocalPath,
-      nowIso,
-      removeThreadActiveRun,
-      resolveArtifactForRequest,
-      resolveAuthorizedCronDeliverableFile,
-      resolveAuthorizedCronOutputFile,
-      resolveFileForBrowserRequest,
-      resolveKanbanOutputFile,
-      retryBaseMs: WEIXIN_DELIVERY_RETRY_BASE_MS,
-      retryLimit: WEIXIN_DELIVERY_RETRY_LIMIT,
-      retryMaxMs: WEIXIN_DELIVERY_RETRY_MAX_MS,
-      runConcurrencyError,
-      safeFileName,
-      saveState,
-      sendJson,
-      senderInfoForWorkspace,
-      singleWindowChatTaskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
-      spawnSync,
-      startRunForThread,
-      state: () => state,
-      taskGroupHasRunningRun,
-      taskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
-      threadAccessibleToAuth: (...args) => getRuntimeStateThreadService().threadAccessibleToAuth(...args),
-      threadSummary,
-      weixinIngressProvider,
-      workspaceLabel,
-    });
-  }
-  return weixinRuntimeCompositionService;
-}
-const requireWeixinIngress = (...args) => getWeixinRuntimeCompositionService().requireWeixinIngress(...args);
-const weixinIngressIsAttachmentOnlyEvent = (...args) => getWeixinRuntimeCompositionService().weixinIngressIsAttachmentOnlyEvent(...args);
-const consumeWeixinPendingAttachmentMessages = (...args) => getWeixinRuntimeCompositionService().consumeWeixinPendingAttachmentMessages(...args);
-const weixinIngressInstructions = (...args) => getWeixinRuntimeCompositionService().weixinIngressInstructions(...args);
-const enqueueExternalDeliveryForTerminalMessage = (...args) => getWeixinRuntimeCompositionService().enqueueExternalDeliveryForTerminalMessage(...args);
+const getWeixinRuntimeCompositionService = () => mobileRuntimeWeixinFacadeService.getWeixinRuntimeCompositionService();
+const requireWeixinIngress = (...args) => mobileRuntimeWeixinFacadeService.requireWeixinIngress(...args);
+const weixinIngressIsAttachmentOnlyEvent = (...args) => mobileRuntimeWeixinFacadeService.weixinIngressIsAttachmentOnlyEvent(...args);
+const consumeWeixinPendingAttachmentMessages = (...args) => mobileRuntimeWeixinFacadeService.consumeWeixinPendingAttachmentMessages(...args);
+const weixinIngressInstructions = (...args) => mobileRuntimeWeixinFacadeService.weixinIngressInstructions(...args);
+const enqueueExternalDeliveryForTerminalMessage = (...args) => mobileRuntimeWeixinFacadeService.enqueueExternalDeliveryForTerminalMessage(...args);
 function publicWeixinOutboundDelivery(...args) {
-  return getWeixinRuntimeCompositionService().publicWeixinOutboundDelivery(...args);
+  return mobileRuntimeWeixinFacadeService.publicWeixinOutboundDelivery(...args);
 }
-const weixinTargetFromWorkspace = (...args) => getWeixinRuntimeCompositionService().weixinTargetFromWorkspace(...args);
-const collectRecentWeixinForwardTargets = (...args) => getWeixinRuntimeCompositionService().collectRecentWeixinForwardTargets(...args);
-const weixinForwardTargetsForWorkspace = (...args) => getWeixinRuntimeCompositionService().weixinForwardTargetsForWorkspace(...args);
-const resolveWeixinForwardTarget = (...args) => getWeixinRuntimeCompositionService().resolveWeixinForwardTarget(...args);
-const resolveFileFromSourceUrlForRequest = (...args) => getWeixinRuntimeCompositionService().resolveFileFromSourceUrlForRequest(...args);
-const resolveWeixinForwardFile = (...args) => getWeixinRuntimeCompositionService().resolveWeixinForwardFile(...args);
-const publicArtifactForWeixinForward = (...args) => getWeixinRuntimeCompositionService().publicArtifactForWeixinForward(...args);
-const createWeixinFileForwardDelivery = (...args) => getWeixinRuntimeCompositionService().createWeixinFileForwardDelivery(...args);
-const redactWeixinRunErrorText = (...args) => getWeixinRuntimeCompositionService().redactWeixinRunErrorText(...args);
+const weixinTargetFromWorkspace = (...args) => mobileRuntimeWeixinFacadeService.weixinTargetFromWorkspace(...args);
+const collectRecentWeixinForwardTargets = (...args) => mobileRuntimeWeixinFacadeService.collectRecentWeixinForwardTargets(...args);
+const weixinForwardTargetsForWorkspace = (...args) => mobileRuntimeWeixinFacadeService.weixinForwardTargetsForWorkspace(...args);
+const resolveWeixinForwardTarget = (...args) => mobileRuntimeWeixinFacadeService.resolveWeixinForwardTarget(...args);
+const resolveFileFromSourceUrlForRequest = (...args) => mobileRuntimeWeixinFacadeService.resolveFileFromSourceUrlForRequest(...args);
+const resolveWeixinForwardFile = (...args) => mobileRuntimeWeixinFacadeService.resolveWeixinForwardFile(...args);
+const publicArtifactForWeixinForward = (...args) => mobileRuntimeWeixinFacadeService.publicArtifactForWeixinForward(...args);
+const createWeixinFileForwardDelivery = (...args) => mobileRuntimeWeixinFacadeService.createWeixinFileForwardDelivery(...args);
+const redactWeixinRunErrorText = (...args) => mobileRuntimeWeixinFacadeService.redactWeixinRunErrorText(...args);
 function userFacingWeixinRunError(err) {
   const raw = redactWeixinRunErrorText(err?.message || err).trim();
   if (!raw) return "Hermes run failed before producing a reply.";
@@ -1800,15 +1797,15 @@ function userFacingWeixinRunError(err) {
   }
   return raw;
 }
-const weixinDeliveryRetryCount = (...args) => getWeixinRuntimeCompositionService().weixinDeliveryRetryCount(...args);
-const weixinDeliveryRetryDelayMs = (...args) => getWeixinRuntimeCompositionService().weixinDeliveryRetryDelayMs(...args);
-const isWeixinInboundWakeRequiredFailure = (...args) => getWeixinRuntimeCompositionService().isWeixinInboundWakeRequiredFailure(...args);
-const isWeixinDeliveryRetryable = (...args) => getWeixinRuntimeCompositionService().isWeixinDeliveryRetryable(...args);
-const weixinDeliveryMatchesInboundEvent = (...args) => getWeixinRuntimeCompositionService().weixinDeliveryMatchesInboundEvent(...args);
-const wakeWeixinOutboundDeliveriesForInboundEvent = (...args) => getWeixinRuntimeCompositionService().wakeWeixinOutboundDeliveriesForInboundEvent(...args);
-const pendingWeixinOutboundDeliveries = (...args) => getWeixinRuntimeCompositionService().pendingWeixinOutboundDeliveries(...args);
-const ackWeixinOutboundDelivery = (...args) => getWeixinRuntimeCompositionService().ackWeixinOutboundDelivery(...args);
-const startWeixinIngressEvent = (...args) => getWeixinRuntimeCompositionService().startWeixinIngressEvent(...args);
+const weixinDeliveryRetryCount = (...args) => mobileRuntimeWeixinFacadeService.weixinDeliveryRetryCount(...args);
+const weixinDeliveryRetryDelayMs = (...args) => mobileRuntimeWeixinFacadeService.weixinDeliveryRetryDelayMs(...args);
+const isWeixinInboundWakeRequiredFailure = (...args) => mobileRuntimeWeixinFacadeService.isWeixinInboundWakeRequiredFailure(...args);
+const isWeixinDeliveryRetryable = (...args) => mobileRuntimeWeixinFacadeService.isWeixinDeliveryRetryable(...args);
+const weixinDeliveryMatchesInboundEvent = (...args) => mobileRuntimeWeixinFacadeService.weixinDeliveryMatchesInboundEvent(...args);
+const wakeWeixinOutboundDeliveriesForInboundEvent = (...args) => mobileRuntimeWeixinFacadeService.wakeWeixinOutboundDeliveriesForInboundEvent(...args);
+const pendingWeixinOutboundDeliveries = (...args) => mobileRuntimeWeixinFacadeService.pendingWeixinOutboundDeliveries(...args);
+const ackWeixinOutboundDelivery = (...args) => mobileRuntimeWeixinFacadeService.ackWeixinOutboundDelivery(...args);
+const startWeixinIngressEvent = (...args) => mobileRuntimeWeixinFacadeService.startWeixinIngressEvent(...args);
 function threadSummary(thread) {
   return threadViewService.threadSummary(thread);
 }

@@ -38,14 +38,15 @@ focused adapters such as `mobile-runtime-file-helper-service.js`,
 `mobile-runtime-public-status-service.js`,
 `mobile-runtime-state-facade-service.js`,
 `mobile-runtime-system-status-facade-service.js`,
+`mobile-runtime-weixin-facade-service.js`,
 `mobile-runtime-workspace-catalog-facade.js`, and
 `mobile-runtime-http-server-service.js`. These modules keep static file
 helpers and JSON store file IO, backend mode policy, runtime config facade
 delegation, group-chat attachment runtime wiring, Local Bridge runtime lazy
 delegation, public status projections, runtime state normalization/persistence
-lazy delegation, system status lazy delegation, workspace catalog lazy
-delegation, and process HTTP lifecycle wiring addressable through CodeGraph
-without loading the full runtime root.
+lazy delegation, system status lazy delegation, Weixin runtime composition
+delegation, workspace catalog lazy delegation, and process HTTP lifecycle wiring
+addressable through CodeGraph without loading the full runtime root.
 
 `server.js` and `mobile-server-runtime.js` must not own new business behavior such as:
 
@@ -78,7 +79,7 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 2,290 lines while it is being split further;
+- `mobile-server-runtime.js` must stay at or below 2,285 lines while it is being split further;
 - top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 430;
 - if a feature would exceed either budget, extract route modules and services first.
 

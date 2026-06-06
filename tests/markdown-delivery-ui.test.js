@@ -55,7 +55,7 @@ assert.match(artifactTextRegistrationServiceJs, /\/api\/files\?\$\{params\.toStr
 assert.match(systemApiRoutes, /\/api\/app-update\/status/);
 assert.match(systemApiRoutes, /\/api\/app-update\/apply/);
 assert.match(systemRuntimeStatusServiceJs, /async function gitRepositoryStatus\(\)/);
-assert.match(serverJs, /merge", "--ff-only"/);
+assert.match(systemRuntimeStatusServiceJs, /merge", "--ff-only"/);
 
 assert.match(appJs, /function isMarkdownArtifact\(artifact\)/);
 assert.match(appJs, /function displayArtifacts\(artifacts\)/);
