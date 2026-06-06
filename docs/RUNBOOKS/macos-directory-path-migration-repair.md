@@ -44,9 +44,17 @@ The repair rewrites these fields:
 - `messages.directory_route_json`
 - `messages.directory_aliases_json`
 - `messages.artifacts_json`
+- `messages.raw_json`
 - `threads.task_group_meta_json`
+- `threads.raw_json`
 - `artifacts.path`
 - `artifacts.raw_json`
+
+The `raw_json` columns are part of the runtime compatibility snapshot. They
+must be repaired together with the structured columns. Otherwise listener
+startup can export the repaired SQLite rows back through stale raw JSON,
+regenerate `state.json` with old Windows/WSL paths, and then import that newer
+snapshot back into SQLite on the next startup.
 
 The enhanced rootless-drive mode also repairs a Mac-only migration residue:
 metadata paths under `<root>/data/drive/<top>/...` that should point at the
@@ -89,6 +97,21 @@ sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
   --sample-limit 5 \
   --json
 ```
+
+For a known shared-directory migration mismatch, add one or more exact
+replacement pairs instead of writing ad hoc SQL:
+
+```bash
+sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
+  /Users/hermes-host/HermesMobile/app/scripts/macos-directory-path-migration-repair.js \
+  --root /Users/hermes-host/HermesMobile \
+  --replace-path "/old/workspace-local/path" "/authorized/shared/path" \
+  --sample-limit 5 \
+  --json
+```
+
+`--replace-path` uses the same checked column set as the normal migration,
+including `messages.raw_json` and `threads.raw_json`.
 
 The dry-run must report bounded metadata only: affected row counts,
 replacement counts, parse errors, missing-after-remap counts, and compacted
@@ -179,6 +202,11 @@ static client uses and previews the computed `projectId/subprojectId/path`
 target, not only the saved physical `path`. A path-only smoke can pass while a
 stale project id would make the UI open the wrong root or hit a directory ACL
 failure.
+If a stopped-listener write is clean but dry-run becomes dirty immediately
+after listener startup, inspect for unrepaired runtime compatibility JSON first:
+`messages.raw_json` and `threads.raw_json` can resurrect old directory paths
+even when `messages.directory_route_json`, `messages.directory_aliases_json`,
+and `threads.task_group_meta_json` were clean in the stopped database.
 Unknown or decommissioned workspaces are reported as `skipped:
 unknown-workspace`; if such a workspace should still be active, restore its
 workspace registration before treating the smoke as closed. Use `--include-chat`
@@ -278,6 +306,11 @@ listener window when legacy path drift is also present:
 5. Re-run the dry-run and bound-directory preview smoke with
    `--all-workspaces --simulate-ui-route`.
 
+Exact shared-directory metadata repair should now use the checked migration
+script with `--replace-path <old> <new> --write --reset-state-snapshot`, not a
+one-off SQLite edit, so the structured fields and raw JSON compatibility fields
+stay consistent.
+
 After this repair, production evidence was:
 
 - path repair dry-run: `changed=false`, `affectedRows=0`,
@@ -340,3 +373,41 @@ If both pass but a phone still fails, the next facts to capture are the loaded
 group id, clicked chip `data-project-id`, `data-subproject-id`, and
 `data-directory-path`. Do not treat a path-only smoke pass as sufficient UI
 evidence in that case.
+
+## 2026-06-07 Raw JSON Re-Import Guard
+
+A later production repair proved that a stopped-listener write can be clean and
+still become dirty immediately after listener startup if `messages.raw_json` or
+`threads.raw_json` keep Windows/WSL directory paths. The SQLite runtime exports
+runtime state through those raw compatibility fields; a newer regenerated
+`state.json` can then import the stale raw values back into structured SQLite
+columns.
+
+The repair script was updated to scan and write:
+
+- `messages.raw_json`;
+- `threads.raw_json`;
+- the existing structured directory/artifact columns.
+
+The same update added `--replace-path <from> <to>` so exact shared-directory
+repairs use the same checked column set instead of a one-off SQLite edit.
+
+Production evidence:
+
+- raw JSON-aware write backup timestamp: `20260606T193555Z`;
+- generic write affected 3025 rows and 15043 path values, including
+  `messages.raw_json` and `threads.raw_json`;
+- stopped-listener dry-run immediately after write returned `changed=false`;
+- listener startup no longer reintroduced the generic Windows/rootless drift;
+- exact `weixin_wuping` health-report shared-directory repair backup
+  timestamp: `20260606T193928Z`;
+- exact repair moved the stale workspace-local health-report binding to the
+  authorized Owner shared directory and updated structured fields plus raw JSON;
+- post-start generic dry-run and exact dry-run both returned
+  `changed=false`, `affectedRows=0`, `parseErrors=0`;
+- all-workspaces bound-directory smoke passed for every active workspace:
+  path-only Owner `19/19`, `user-981731fe` `2/2`, `weixin_stephen` `1/1`,
+  `weixin_test_1` `2/2`, `weixin_wuping` `7/7`;
+  UI-route Owner `25/25`, `user-981731fe` `2/2`, `weixin_stephen` `1/1`,
+  `weixin_test_1` `2/2`, `weixin_wuping` `12/12`;
+- `weixin_xiaonan` remained skipped as `unknown-workspace`.

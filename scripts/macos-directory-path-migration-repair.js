@@ -25,6 +25,7 @@ function parseArgs(argv) {
     json: false,
     repairRootlessDrive: false,
     resetStateSnapshot: false,
+    exactPathReplacements: [],
     sampleLimit: 20,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -35,6 +36,12 @@ function parseArgs(argv) {
     else if (arg === "--json") out.json = true;
     else if (arg === "--repair-rootless-drive") out.repairRootlessDrive = true;
     else if (arg === "--reset-state-snapshot") out.resetStateSnapshot = true;
+    else if (arg === "--replace-path") {
+      const from = argv[++index] || "";
+      const to = argv[++index] || "";
+      if (!from || !to) throw new Error("--replace-path requires <from> <to>");
+      out.exactPathReplacements.push({ from, to });
+    }
     else if (arg === "--sample-limit") out.sampleLimit = Number(argv[++index] || out.sampleLimit);
     else if (arg === "--help") {
       console.log([
@@ -48,6 +55,9 @@ function parseArgs(argv) {
         "  --reset-state-snapshot",
         "                      With --write, back up and remove <root>/data/state.json",
         "                      so listener restart regenerates it from repaired SQLite",
+        "  --replace-path <from> <to>",
+        "                      Also replace an exact persisted directory path, useful",
+        "                      for one-off shared-directory repairs after migration",
         "  --sample-limit <n>  Maximum sample rows in JSON output, default 20",
         "  --json              Print bounded JSON metadata",
         "",
@@ -83,13 +93,22 @@ function repairContext(rootOrOptions = DEFAULT_ROOT) {
       root: String(rootOrOptions.root || DEFAULT_ROOT).replace(/\/+$/, ""),
       repairRootlessDrive: Boolean(rootOrOptions.repairRootlessDrive),
       rootlessCandidateCache: rootOrOptions.rootlessCandidateCache || new Map(),
+      exactPathReplacements: normalizeExactPathReplacements(rootOrOptions.exactPathReplacements),
     };
   }
   return {
     root: String(rootOrOptions || DEFAULT_ROOT).replace(/\/+$/, ""),
     repairRootlessDrive: false,
     rootlessCandidateCache: new Map(),
+    exactPathReplacements: [],
   };
+}
+
+function normalizeExactPathReplacements(items) {
+  return (Array.isArray(items) ? items : []).map((item) => ({
+    from: String(item?.from || "").replace(/\\/g, "/"),
+    to: String(item?.to || "").replace(/\\/g, "/"),
+  })).filter((item) => item.from && item.to && item.from !== item.to);
 }
 
 function compactPath(value, root = DEFAULT_ROOT) {
@@ -127,9 +146,36 @@ function containsRootlessDrivePath(value, root = DEFAULT_ROOT) {
   return false;
 }
 
+function containsExactReplacementPath(value, context) {
+  const text = String(value || "").replace(/\\/g, "/");
+  return normalizeExactPathReplacements(context.exactPathReplacements)
+    .some((item) => text.includes(item.from));
+}
+
 function containsRepairablePath(value, context) {
   return containsLegacyDrivePath(value)
+    || containsExactReplacementPath(value, context)
     || (context.repairRootlessDrive && containsRootlessDrivePath(value, context.root));
+}
+
+function remapExactReplacementString(value, context) {
+  let output = String(value || "");
+  const replacements = [];
+  for (const item of normalizeExactPathReplacements(context.exactPathReplacements)) {
+    let normalizedOutput = output.replace(/\\/g, "/");
+    let nextIndex = normalizedOutput.indexOf(item.from);
+    while (nextIndex >= 0) {
+      normalizedOutput = `${normalizedOutput.slice(0, nextIndex)}${item.to}${normalizedOutput.slice(nextIndex + item.from.length)}`;
+      replacements.push({ legacyPrefix: item.from, offset: nextIndex, kind: "exact-path" });
+      nextIndex = normalizedOutput.indexOf(item.from, nextIndex + item.to.length);
+    }
+    output = normalizedOutput;
+  }
+  return {
+    value: output,
+    changed: replacements.length > 0,
+    replacements,
+  };
 }
 
 function resolveRootlessDriveCandidate(value, context) {
@@ -172,8 +218,9 @@ function remapLegacyDriveString(value, rootOrOptions = DEFAULT_ROOT) {
   const root = context.root;
   const input = String(value || "");
   if (!input) return { value: input, changed: false, replacements: [] };
-  let output = input;
-  const replacements = [];
+  const exact = remapExactReplacementString(input, context);
+  let output = exact.value;
+  const replacements = [...exact.replacements];
   const targetPrefix = macDriveUsersPrefix(root);
   for (const legacyPrefix of LEGACY_DRIVE_PREFIXES) {
     let nextIndex = output.indexOf(legacyPrefix);
@@ -386,7 +433,9 @@ function repair(options) {
       ["messages", "id", "directory_route_json", "json"],
       ["messages", "id", "directory_aliases_json", "json"],
       ["messages", "id", "artifacts_json", "json"],
+      ["messages", "id", "raw_json", "json"],
       ["threads", "id", "task_group_meta_json", "json"],
+      ["threads", "id", "raw_json", "json"],
       ["artifacts", "id", "path", "string"],
       ["artifacts", "id", "raw_json", "json"],
     ];
