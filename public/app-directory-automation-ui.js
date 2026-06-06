@@ -342,6 +342,8 @@ async function navigateDirectoryUp(options = {}) {
 }
 
 async function ensureDirectoryThread() {
+  const routeThreadId = String(state.directoryReturnRoute?.currentThreadId || state.directoryReturnRoute?.currentThread?.id || "").trim();
+  if (routeThreadId) return routeThreadId;
   if (state.directoryThreadId && state.directoryThreadWorkspaceId === state.selectedWorkspaceId) {
     return state.directoryThreadId;
   }

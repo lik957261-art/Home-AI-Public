@@ -15,6 +15,7 @@ function parseArgs(argv) {
     workspaceId: process.env.HERMES_MOBILE_SMOKE_WORKSPACE || "owner",
     allWorkspaces: false,
     includeChat: false,
+    simulateUiRoute: false,
     limit: 1000,
     json: false,
   };
@@ -27,6 +28,7 @@ function parseArgs(argv) {
     else if (arg === "--workspace") out.workspaceId = argv[++index] || out.workspaceId;
     else if (arg === "--all-workspaces") out.allWorkspaces = true;
     else if (arg === "--include-chat") out.includeChat = true;
+    else if (arg === "--simulate-ui-route") out.simulateUiRoute = true;
     else if (arg === "--limit") out.limit = Number(argv[++index] || out.limit);
     else if (arg === "--json") out.json = true;
     else if (arg === "--help") {
@@ -39,6 +41,7 @@ function parseArgs(argv) {
         "  --workspace <id>         Workspace to inspect, default owner",
         "  --all-workspaces         Inspect each workspace with current bound directory metadata",
         "  --include-chat           Also test chat/group-chat directory references",
+        "  --simulate-ui-route      Resolve projectId/subprojectId/path like the static client before previewing",
         "  --limit <n>              Maximum unique bound paths to test",
         "  --json                   Print bounded JSON evidence",
       ].join("\n"));
@@ -71,11 +74,23 @@ function parseJson(value, fallback) {
   }
 }
 
+function comparableDirectoryPath(value) {
+  return String(value || "").replace(/\\/g, "/").replace(/\/+$/g, "").toLowerCase();
+}
+
+function pathMatchesDirectoryRoot(value, root) {
+  const pathText = comparableDirectoryPath(value);
+  const rootText = comparableDirectoryPath(root);
+  return Boolean(pathText && rootText && (pathText === rootText || pathText.startsWith(`${rootText}/`)));
+}
+
 function addRoute(target, route, source, row, root) {
   if (!route || typeof route !== "object") return;
   const routePath = String(route.path || route.root || "").trim();
   if (!routePath || !routePath.replace(/\\/g, "/").startsWith(root.replace(/\\/g, "/"))) return;
-  const key = routePath.replace(/\\/g, "/");
+  const key = target.simulateUiRoute
+    ? `${String(route.projectId || "")}|${String(route.subprojectId || "")}|${routePath.replace(/\\/g, "/")}`
+    : routePath.replace(/\\/g, "/");
   if (!target.has(key)) {
     target.set(key, {
       path: routePath,
@@ -113,6 +128,7 @@ function collectBoundDirectoryPaths(options) {
       ORDER BY m.updated_at DESC
     `).all(options.workspaceId);
     const paths = new Map();
+    paths.simulateUiRoute = Boolean(options.simulateUiRoute);
     for (const row of rows) {
       addRoute(paths, parseJson(row.directory_route_json, null), "route", row, options.root);
       const aliases = parseJson(row.directory_aliases_json, []);
@@ -171,6 +187,84 @@ async function api(options, apiPath, requestOptions = {}) {
   return { response, payload };
 }
 
+function flattenProjects(payload) {
+  const projects = Array.isArray(payload?.data)
+    ? payload.data
+    : (Array.isArray(payload?.projects) ? payload.projects : []);
+  const out = [];
+  for (const project of projects) {
+    out.push({
+      projectId: String(project?.id || ""),
+      subprojectId: "",
+      label: String(project?.label || project?.id || ""),
+      root: String(project?.root || ""),
+    });
+    for (const child of project?.children || []) {
+      out.push({
+        projectId: String(project?.id || ""),
+        subprojectId: String(child?.id || ""),
+        label: `${project?.label || project?.id || ""} / ${child?.label || child?.id || ""}`,
+        root: String(child?.root || ""),
+      });
+    }
+  }
+  return out.filter((item) => item.projectId && item.root);
+}
+
+function resolveUiDirectoryRoute(item, candidates) {
+  const requestedProjectId = String(item?.projectId || "").trim();
+  const requestedSubprojectId = String(item?.subprojectId || "").trim();
+  if (requestedProjectId) {
+    const exact = candidates.find((candidate) =>
+      candidate.projectId === requestedProjectId && String(candidate.subprojectId || "") === requestedSubprojectId);
+    if (exact) return { route: exact, reason: "project-subproject" };
+    if (!requestedSubprojectId) {
+      const rootProject = candidates.find((candidate) => candidate.projectId === requestedProjectId && !candidate.subprojectId);
+      if (rootProject) return { route: rootProject, reason: "project-root" };
+    }
+    const projectMatches = candidates
+      .filter((candidate) => candidate.projectId === requestedProjectId
+        && (!requestedSubprojectId || candidate.subprojectId === requestedSubprojectId))
+      .sort((a, b) => comparableDirectoryPath(b.root).length - comparableDirectoryPath(a.root).length);
+    if (projectMatches.length) return { route: projectMatches[0], reason: "project-match" };
+  }
+  const pathMatches = String(item?.path || "")
+    ? candidates
+      .filter((candidate) => pathMatchesDirectoryRoot(item.path, candidate.root))
+      .sort((a, b) => comparableDirectoryPath(b.root).length - comparableDirectoryPath(a.root).length)
+    : [];
+  if (pathMatches.length) return { route: pathMatches[0], reason: "path-match" };
+  return { route: null, reason: "unresolved" };
+}
+
+async function projectCandidatesForWorkspace(options) {
+  if (!options.simulateUiRoute) return [];
+  const result = await api(options, `/api/projects?workspaceId=${encodeURIComponent(options.workspaceId)}`);
+  if (!result.response.ok) {
+    throw new Error(`Could not resolve directory project routes for workspace ${options.workspaceId}.`);
+  }
+  return flattenProjects(result.payload);
+}
+
+function previewTargetForBoundDirectory(item, projectCandidates, options) {
+  if (!options.simulateUiRoute) return { path: item.path, uiRoute: null };
+  const resolved = resolveUiDirectoryRoute(item, projectCandidates);
+  const routeRoot = resolved.route?.root || "";
+  const targetPath = item.path && (!routeRoot || pathMatchesDirectoryRoot(item.path, routeRoot))
+    ? item.path
+    : routeRoot;
+  return {
+    path: targetPath || item.path,
+    uiRoute: {
+      reason: resolved.reason,
+      projectId: resolved.route?.projectId || "",
+      subprojectId: resolved.route?.subprojectId || "",
+      root: compactPath(routeRoot, options.root),
+      targetPath: compactPath(targetPath || item.path, options.root),
+    },
+  };
+}
+
 async function smoke(options) {
   const normalized = Object.assign({}, options, { accessKey: readAccessKey(options) });
   if (!normalized.accessKey) throw new Error("Missing access key. Use --access-key-file or HERMES_WEB_AUTH_KEY_PATH.");
@@ -180,11 +274,13 @@ async function smoke(options) {
   });
   const threadId = String(single.payload?.thread?.id || "");
   if (!single.response.ok || !threadId) throw new Error("Could not resolve directory smoke thread.");
+  const projectCandidates = await projectCandidatesForWorkspace(normalized);
   const boundPaths = collectBoundDirectoryPaths(normalized);
   const failures = [];
   let okCount = 0;
   for (const item of boundPaths) {
-    const params = new URLSearchParams({ threadId, path: item.path });
+    const target = previewTargetForBoundDirectory(item, projectCandidates, normalized);
+    const params = new URLSearchParams({ threadId, path: target.path });
     const result = await api(normalized, `/api/directories/preview?${params.toString()}`);
     if (result.response.ok) {
       okCount += 1;
@@ -195,6 +291,7 @@ async function smoke(options) {
       projectId: item.projectId,
       subprojectId: item.subprojectId,
       path: compactPath(item.path, normalized.root),
+      uiRoute: target.uiRoute,
       count: item.count,
       examples: item.examples,
       status: result.response.status,
@@ -205,6 +302,7 @@ async function smoke(options) {
     ok: failures.length === 0,
     workspaceId: normalized.workspaceId,
     includeChat: Boolean(normalized.includeChat),
+    simulateUiRoute: Boolean(normalized.simulateUiRoute),
     uniquePaths: boundPaths.length,
     okCount,
     failed: failures.length,
@@ -229,6 +327,7 @@ async function smokeAllWorkspaces(options) {
         ok: false,
         workspaceId,
         includeChat: Boolean(normalized.includeChat),
+        simulateUiRoute: Boolean(normalized.simulateUiRoute),
         skipped: unknownWorkspace,
         skipReason: unknownWorkspace ? "unknown-workspace" : "",
         uniquePaths: boundPaths.length,
@@ -243,6 +342,7 @@ async function smokeAllWorkspaces(options) {
     ok: results.every((result) => result.ok || result.skipped),
     allWorkspaces: true,
     includeChat: Boolean(normalized.includeChat),
+    simulateUiRoute: Boolean(normalized.simulateUiRoute),
     workspaceCount: workspaceIds.length,
     results,
   };
@@ -267,6 +367,8 @@ module.exports = {
   collectBoundDirectoryWorkspaceIds,
   compactPath,
   parseArgs,
+  previewTargetForBoundDirectory,
+  resolveUiDirectoryRoute,
   smoke,
   smokeAllWorkspaces,
 };

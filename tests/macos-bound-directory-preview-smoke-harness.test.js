@@ -12,6 +12,8 @@ const {
   collectBoundDirectoryWorkspaceIds,
   compactPath,
   parseArgs,
+  previewTargetForBoundDirectory,
+  resolveUiDirectoryRoute,
   smoke,
   smokeAllWorkspaces,
 } = require("../scripts/macos-bound-directory-preview-smoke");
@@ -22,6 +24,8 @@ const secretPath = path.join(root, "data", "secrets", "owner-web-key.secret");
 const okPath = path.join(root, "data", "drive", "users", "owner", "Hermes-Owner", "Projects", "Ok");
 const badPath = path.join(root, "data", "drive", "users", "owner", "Hermes-Owner", "Projects", "Bad");
 const chatPath = path.join(root, "data", "drive", "users", "owner", "Hermes-Owner", "Projects", "Chat");
+const uiOkPath = path.join(root, "data", "drive", "users", "owner", "Hermes-Owner", "Projects", "UiOk");
+const uiWrongRootPath = path.join(root, "data", "drive", "users", "owner", "Hermes-Owner", "Projects", "WrongRoot");
 const wupingOkPath = path.join(root, "data", "drive", "users", "weixin_wuping", "Hermes-Wuping", "Projects", "Ok");
 const xiaonanStalePath = path.join(root, "data", "drive", "users", "weixin_xiaonan", "Hermes-Xiaonan", "Projects", "Stale");
 
@@ -29,6 +33,7 @@ function setupDb() {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   fs.mkdirSync(path.dirname(secretPath), { recursive: true });
   fs.mkdirSync(okPath, { recursive: true });
+  fs.mkdirSync(uiOkPath, { recursive: true });
   fs.mkdirSync(wupingOkPath, { recursive: true });
   fs.mkdirSync(xiaonanStalePath, { recursive: true });
   fs.writeFileSync(secretPath, "test-key\n", "utf8");
@@ -53,6 +58,7 @@ function setupDb() {
   `);
   insert.run("msg-ok", "thread-owner", "plugin:wardrobe", JSON.stringify({ label: "Ok", path: okPath }), "[]", "2026-01-01T00:00:00Z");
   insert.run("msg-bad", "thread-owner", "plugin:finance", JSON.stringify({ label: "Bad", path: badPath }), "[]", "2026-01-01T00:00:01Z");
+  insert.run("msg-ui-route", "thread-owner", "plugin:note", JSON.stringify({ label: "Ui mismatch", path: uiOkPath, projectId: "wrong-project" }), "[]", "2026-01-01T00:00:01Z");
   insert.run("msg-chat", "thread-owner", "chat", JSON.stringify({ label: "Chat", path: chatPath }), "[]", "2026-01-01T00:00:02Z");
   insert.run("msg-wuping-ok", "thread-wuping", "plugin:health", JSON.stringify({ label: "Wuping Ok", path: wupingOkPath }), "[]", "2026-01-01T00:00:03Z");
   insert.run("msg-xiaonan-stale", "thread-xiaonan", "plugin:health", JSON.stringify({ label: "Xiaonan Stale", path: xiaonanStalePath }), "[]", "2026-01-01T00:00:04Z");
@@ -86,12 +92,17 @@ function startServer() {
         return;
       }
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ projects: [] }));
+      res.end(JSON.stringify({
+        data: [
+          { id: "ok-project", label: "Ok project", root: okPath },
+          { id: "wrong-project", label: "Wrong project", root: uiWrongRootPath },
+        ],
+      }));
       return;
     }
     if (url.pathname === "/api/directories/preview") {
       const targetPath = url.searchParams.get("path") || "";
-      if (targetPath === okPath || targetPath === wupingOkPath) {
+      if (targetPath === okPath || targetPath === uiOkPath || targetPath === wupingOkPath) {
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ entryCount: 0 }));
         return;
@@ -113,12 +124,24 @@ function startServer() {
     setupDb();
     assert.equal(parseArgs(["--root", root, "--include-chat"]).includeChat, true);
     assert.equal(parseArgs(["--root", root, "--all-workspaces"]).allWorkspaces, true);
+    assert.equal(parseArgs(["--root", root, "--simulate-ui-route"]).simulateUiRoute, true);
     assert.equal(compactPath(okPath, root), "$DRIVE/users/owner/Hermes-Owner/Projects/Ok");
 
     const defaultPaths = collectBoundDirectoryPaths({ root, dbPath, workspaceId: "owner", includeChat: false, limit: 100 });
-    assert.deepEqual(defaultPaths.map((item) => item.label).sort(), ["Bad", "Ok"]);
+    assert.deepEqual(defaultPaths.map((item) => item.label).sort(), ["Bad", "Ok", "Ui mismatch"]);
     const allPaths = collectBoundDirectoryPaths({ root, dbPath, workspaceId: "owner", includeChat: true, limit: 100 });
-    assert.deepEqual(allPaths.map((item) => item.label).sort(), ["Bad", "Chat", "Ok"]);
+    assert.deepEqual(allPaths.map((item) => item.label).sort(), ["Bad", "Chat", "Ok", "Ui mismatch"]);
+    const resolvedUi = resolveUiDirectoryRoute(
+      { projectId: "wrong-project", path: uiOkPath },
+      [{ projectId: "wrong-project", subprojectId: "", root: uiWrongRootPath }],
+    );
+    assert.equal(resolvedUi.reason, "project-subproject");
+    const uiTarget = previewTargetForBoundDirectory(
+      { projectId: "wrong-project", path: uiOkPath },
+      [{ projectId: "wrong-project", subprojectId: "", root: uiWrongRootPath }],
+      { root, simulateUiRoute: true },
+    );
+    assert.equal(uiTarget.path, uiWrongRootPath);
     const workspaceIds = collectBoundDirectoryWorkspaceIds({ root, dbPath, includeChat: false });
     assert.deepEqual(workspaceIds, ["owner", "weixin_wuping", "weixin_xiaonan"]);
 
@@ -127,10 +150,17 @@ function startServer() {
       const base = `http://127.0.0.1:${server.address().port}`;
       const result = await smoke({ root, dbPath, base, accessKeyFile: secretPath, workspaceId: "owner", includeChat: false, limit: 100 });
       assert.equal(result.ok, false);
-      assert.equal(result.uniquePaths, 2);
+      assert.equal(result.uniquePaths, 3);
       assert.equal(result.failed, 1);
       assert.equal(result.failures[0].label, "Bad");
       assert.equal(result.failures[0].path, "$DRIVE/users/owner/Hermes-Owner/Projects/Bad");
+      const uiResult = await smoke({ root, dbPath, base, accessKeyFile: secretPath, workspaceId: "owner", includeChat: false, simulateUiRoute: true, limit: 100 });
+      assert.equal(uiResult.ok, false);
+      assert.equal(uiResult.uniquePaths, 3);
+      assert.equal(uiResult.failed, 2);
+      const uiFailure = uiResult.failures.find((item) => item.label === "Ui mismatch");
+      assert.equal(uiFailure.uiRoute.reason, "project-subproject");
+      assert.equal(uiFailure.uiRoute.targetPath, "$DRIVE/users/owner/Hermes-Owner/Projects/WrongRoot");
       const allResult = await smokeAllWorkspaces({ root, dbPath, base, accessKeyFile: secretPath, includeChat: false, limit: 100 });
       assert.equal(allResult.ok, false);
       assert.equal(allResult.workspaceCount, 3);

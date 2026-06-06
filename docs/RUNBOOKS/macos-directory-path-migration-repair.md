@@ -162,11 +162,18 @@ sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
   /Users/hermes-host/HermesMobile/app/scripts/macos-bound-directory-preview-smoke.js \
   --root /Users/hermes-host/HermesMobile \
   --all-workspaces \
+  --simulate-ui-route \
   --json
 ```
 
 Production closure must use `--all-workspaces`; Owner-only smoke can miss
 directory-bound topics in inserted Weixin or plugin-authorized workspaces.
+After Windows-origin bindings are migrated to Mac, closure should also use
+`--simulate-ui-route`. That mode fetches the same `/api/projects` projection the
+static client uses and previews the computed `projectId/subprojectId/path`
+target, not only the saved physical `path`. A path-only smoke can pass while a
+stale project id would make the UI open the wrong root or hit a directory ACL
+failure.
 Unknown or decommissioned workspaces are reported as `skipped:
 unknown-workspace`; if such a workspace should still be active, restore its
 workspace registration before treating the smoke as closed. Use `--include-chat`
@@ -264,7 +271,7 @@ listener window when legacy path drift is also present:
 3. Apply any exact shared-directory metadata repair for the affected workspace.
 4. Start and kickstart `com.hermesmobile.listener`.
 5. Re-run the dry-run and bound-directory preview smoke with
-   `--all-workspaces`.
+   `--all-workspaces --simulate-ui-route`.
 
 After this repair, production evidence was:
 
@@ -273,3 +280,39 @@ After this repair, production evidence was:
 - status smoke: `ok=true`, `activeGlobal=0`;
 - bound-directory preview smoke with `--all-workspaces`: Owner `19/19`,
   `weixin_wuping` `7/7`, `weixin_test_1` `2/2`, and `weixin_stephen` `1/1`.
+
+## 2026-06-07 UI Route Context Guard
+
+Topic or message directory chips enter the Directory manager through the static
+client route helpers. From a topic detail, directory preview must use the
+current topic thread as the ACL context when a directory return route exists.
+It must not always create a new single-window directory thread from the current
+workspace selector, because shared topics and Windows-origin migrated bindings
+can otherwise combine a topic from one workspace with a directory preview
+thread from another workspace.
+
+The production smoke should therefore be run in both forms when debugging a
+chip-only failure:
+
+```bash
+sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
+  /Users/hermes-host/HermesMobile/app/scripts/macos-bound-directory-preview-smoke.js \
+  --root /Users/hermes-host/HermesMobile \
+  --all-workspaces \
+  --json
+```
+
+```bash
+sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
+  /Users/hermes-host/HermesMobile/app/scripts/macos-bound-directory-preview-smoke.js \
+  --root /Users/hermes-host/HermesMobile \
+  --all-workspaces \
+  --simulate-ui-route \
+  --json
+```
+
+If both pass but a phone still fails, the next facts to capture are the loaded
+`data-client-version`, selected workspace id, current thread id, current task
+group id, clicked chip `data-project-id`, `data-subproject-id`, and
+`data-directory-path`. Do not treat a path-only smoke pass as sufficient UI
+evidence in that case.

@@ -186,6 +186,13 @@ the change is part of a dedicated infrastructure rename.
 - Directory automation links: `public/app-directory-automation-ui.js`
 - File/artifact preview helpers: `public/app-task-artifact-helpers.js`, `public/app-task-preview-ui.js`
 - Standalone viewer shells: `public/file-viewer.html`, `public/directory-viewer.html`
+- Directory preview thread context:
+  - `ensureDirectoryThread()` uses `state.directoryReturnRoute.currentThreadId`
+    while returning from a topic/message into Directory. This keeps clicked
+    directory chips scoped to the topic thread ACL instead of the currently
+    selected workspace's generic single-window directory thread.
+  - Without a directory return route, Directory keeps the original cached
+    `state.directoryThreadId` per `state.selectedWorkspaceId` behavior.
 
 ## Wardrobe
 

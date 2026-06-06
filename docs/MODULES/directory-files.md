@@ -46,6 +46,12 @@ The same ACL boundary must protect listing, preview, upload, delete, task direct
 - When Directory is opened as the built-in plugin, right-swipe/back must return
   through directory levels first. Only after the current directory has reached
   its route root should the same gesture restore the outer plugin/topic route.
+- When a directory chip is opened from a topic or message, Directory preview
+  uses the current topic thread as the ACL context while a directory return
+  route exists. It must not blindly create a new single-window directory thread
+  from the current workspace selector, because shared topics and migrated
+  Windows-origin bindings can otherwise combine a topic from one workspace with
+  a preview context from another workspace.
 
 ## Directory Topic Collections
 
@@ -170,8 +176,12 @@ repairs must also use `--reset-state-snapshot` so a newer stale `state.json`
 snapshot cannot re-import old paths after listener restart. Closure must include
 `scripts/macos-bound-directory-preview-smoke.js --all-workspaces` with
 `includeChat=false` so current topic/plugin bindings prove previewable in every
-active workspace that has directory-bound metadata; unknown/decommissioned
-workspaces may be reported as `skipped: unknown-workspace`. Use
-`--include-chat` only for separate historical stale-reference cleanup. If a file previews for the wrong user, inspect
+active workspace that has directory-bound metadata. For UI chip failures after
+Windows-to-Mac migration, add `--simulate-ui-route` so the smoke resolves
+`projectId/subprojectId/path` through `/api/projects` like the static client
+before previewing; path-only preview is not sufficient evidence for clicked
+chips. Unknown/decommissioned workspaces may be reported as `skipped:
+unknown-workspace`. Use `--include-chat` only for separate historical
+stale-reference cleanup. If a file previews for the wrong user, inspect
 `file-artifact-access-service` and the route auth context. If Web Push opens a
 viewer inside another viewer, use `docs/RUNBOOKS/web-push-wrong-page.md`.
