@@ -41,6 +41,8 @@ incident until all of these pass:
   attachment fields.
 - The selected Gateway worker callable schema includes
   `mcp_finance_add_transaction_attachment`.
+- Both the service schema and Gateway callable schema expose the path attachment
+  properties `file_path` and `upload_path`; a tool-name-only pass is not enough.
 - On macOS, that callable schema probe must use the selected worker OS user's
   real Gateway profile root as `--telemetry-root`. A root/default
   `HERMES_HOME` is invalid evidence because it can prove the wrong user/profile
@@ -59,10 +61,19 @@ run says Finance is enabled but no stored run metadata references
 `mcp_finance_add_transaction_attachment`, the model was not given the new
 attachment callable in that run.
 
+If stored run metadata and a live agent-schema probe both include
+`mcp_finance_add_transaction_attachment:file_path` and `:upload_path`, but
+Finance returns `attachment_data_required`, the selected tool was present and the
+failure is an argument-source failure: the model called the tool without
+`file_path`, `upload_path`, `data_url`, or `data_base64`. Fix the Mobile
+instruction layer and add a file-path attachment smoke; do not reclassify that
+case as missing Finance schema.
+
 Use `docs/RUNBOOKS/mcp-tool-upgrade-closure.md` and
 `node scripts/mcp-tool-upgrade-closure-smoke.js` for future plugin MCP tool
 additions or renames. That closure checks service schema, Gateway callable
-schema, Mobile instruction hints, and schema epoch together.
+schema, required callable properties, Mobile instruction hints, and schema epoch
+together.
 
 ## Restart Scope
 

@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const DEFAULT_EPOCH = "20260606-finance-attachment-mcp-v1";
+const DEFAULT_EPOCH = "20260606-finance-reference-mcp-v1";
 const DEFAULT_GATEWAY_TOOL = "mcp_finance_add_transaction_attachment";
 const DEFAULT_SERVICE_TOOL = "finance.add_transaction_attachment";
 
@@ -71,6 +71,33 @@ function parseNameValue(value, label) {
   };
 }
 
+function parseToolProperty(value, label) {
+  const text = String(value || "");
+  const separator = text.indexOf(":");
+  if (separator <= 0) {
+    throw new Error(`Invalid ${label} value. Use <tool>:<property>: ${text}`);
+  }
+  return {
+    tool: text.slice(0, separator).trim(),
+    property: text.slice(separator + 1).trim(),
+  };
+}
+
+function toolName(tool = {}) {
+  return tool.name || tool?.function?.name || "";
+}
+
+function toolParameters(tool = {}) {
+  return tool.parameters || tool.inputSchema || tool.input_schema || tool?.function?.parameters || {};
+}
+
+function schemaTools(schema) {
+  if (Array.isArray(schema)) return schema;
+  if (Array.isArray(schema?.tools)) return schema.tools;
+  if (Array.isArray(schema?.schemas)) return schema.schemas;
+  return [];
+}
+
 function serviceHeaders(options) {
   const headers = {};
   for (const item of options.serviceHeaders) {
@@ -112,11 +139,22 @@ async function checkServiceSchema(options) {
   const schema = await fetchJson(options.serviceSchemaUrl, options.timeoutMs, headers);
   const text = JSON.stringify(schema);
   includesAll(text, [...options.serviceTools, ...options.serviceContains], "service schema");
+  const tools = schemaTools(schema);
+  for (const check of options.serviceToolProperties) {
+    const tool = tools.find((candidate) => toolName(candidate) === check.tool);
+    if (!tool) throw new Error(`service schema missing tool for property check: ${check.tool}`);
+    const properties = toolParameters(tool)?.properties || {};
+    if (!Object.prototype.hasOwnProperty.call(properties, check.property)) {
+      const got = Object.keys(properties).sort().join(", ");
+      throw new Error(`service schema tool ${check.tool} missing required property: ${check.property}; got ${got}`);
+    }
+  }
   return {
     ok: true,
     skipped: false,
     requiredTools: options.serviceTools,
     requiredText: options.serviceContains,
+    requiredProperties: options.serviceToolProperties,
     headerNames: Object.keys(headers).sort(),
   };
 }
@@ -161,6 +199,9 @@ function gatewaySmokeArgs(options) {
   if (options.runtimeOverrides) args.push("--runtime-overrides", options.runtimeOverrides);
   if (options.runtimePython) args.push("--runtime-python", options.runtimePython);
   if (options.agentSchemaTimeoutMs) args.push("--agent-schema-timeout-ms", String(options.agentSchemaTimeoutMs));
+  if (options.gatewayToolProperties.length) {
+    args.push("--require-tool-property", options.gatewayToolProperties.map((check) => `${check.tool}:${check.property}`).join(","));
+  }
   return args;
 }
 
@@ -184,12 +225,21 @@ function checkGatewaySchema(options) {
     ok: true,
     skipped: false,
     requiredTools: parsed.requiredTools || options.gatewayTools,
+    requiredProperties: options.gatewayToolProperties,
     workers: (parsed.workers || []).map(compactWorker),
   };
 }
 
 async function main() {
   const repoRoot = path.resolve(argValue("--repo-root", path.resolve(__dirname, "..")));
+  const serviceTools = cleanList(argValues("--require-service-tool"), [DEFAULT_SERVICE_TOOL]);
+  const gatewayTools = cleanList(argValues("--gateway-tool"), [DEFAULT_GATEWAY_TOOL]);
+  const defaultServiceToolProperties = serviceTools.includes(DEFAULT_SERVICE_TOOL)
+    ? [`${DEFAULT_SERVICE_TOOL}:file_path`, `${DEFAULT_SERVICE_TOOL}:upload_path`]
+    : [];
+  const defaultGatewayToolProperties = gatewayTools.includes(DEFAULT_GATEWAY_TOOL)
+    ? [`${DEFAULT_GATEWAY_TOOL}:file_path`, `${DEFAULT_GATEWAY_TOOL}:upload_path`]
+    : [];
   const options = {
     repoRoot,
     toolset: argValue("--toolset", "finance"),
@@ -199,9 +249,13 @@ async function main() {
     serviceSchemaUrl: argValue("--service-schema-url", ""),
     serviceHeaders: argValues("--service-header"),
     serviceHeaderFiles: argValues("--service-header-file"),
-    serviceTools: cleanList(argValues("--require-service-tool"), [DEFAULT_SERVICE_TOOL]),
+    serviceTools,
     serviceContains: cleanList(argValues("--service-schema-contains"), []),
-    gatewayTools: cleanList(argValues("--gateway-tool"), [DEFAULT_GATEWAY_TOOL]),
+    serviceToolProperties: cleanList(argValues("--require-service-tool-property"), defaultServiceToolProperties)
+      .map((value) => parseToolProperty(value, "--require-service-tool-property")),
+    gatewayTools,
+    gatewayToolProperties: cleanList(argValues("--require-gateway-tool-property"), defaultGatewayToolProperties)
+      .map((value) => parseToolProperty(value, "--require-gateway-tool-property")),
     docContains: argValues("--doc-contains"),
     skipGateway: hasFlag("--skip-gateway"),
     manifest: argValue("--manifest", ""),

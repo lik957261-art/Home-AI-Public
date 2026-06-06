@@ -50,21 +50,25 @@ function runAsync(args, cwd = repoRoot) {
   });
 }
 
-async function withSchemaServer(handler) {
+async function withSchemaServer(handler, schema = null) {
+  const responseSchema = schema || {
+    tools: [{
+      name: "finance.add_transaction_attachment",
+      inputSchema: {
+        properties: {
+          transaction_id: { type: "string" },
+          data_base64: { type: "string" },
+          data_url: { type: "string" },
+          file_path: { type: "string" },
+          upload_path: { type: "string" },
+          attachments: { type: "array" },
+        },
+      },
+    }],
+  };
   const server = http.createServer((_, res) => {
     res.setHeader("content-type", "application/json");
-    res.end(JSON.stringify({
-      tools: [{
-        name: "finance.add_transaction_attachment",
-        inputSchema: {
-          properties: {
-            transaction_id: { type: "string" },
-            data_base64: { type: "string" },
-            attachments: { type: "array" },
-          },
-        },
-      }],
-    }));
+    res.end(JSON.stringify(responseSchema));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
@@ -78,15 +82,15 @@ async function withSchemaServer(handler) {
 function makeFixtureRoot() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-mcp-upgrade-"));
   write(path.join(root, "adapters", "gateway-run-instruction-service.js"), [
-    'const DEFAULT_TOOL_SCHEMA_EPOCH = "20260606-finance-attachment-mcp-v1";',
+    'const DEFAULT_TOOL_SCHEMA_EPOCH = "20260606-finance-reference-mcp-v1";',
     'const finance = ["mcp_finance_create_transaction", "mcp_finance_add_transaction_attachment"];',
     'const override = "mcp_finance_add_transaction_attachment";',
   ].join("\n"));
-  write(path.join(root, "mobile-server-runtime.js"), 'const GATEWAY_TOOL_SCHEMA_EPOCH = "20260606-finance-attachment-mcp-v1";\n');
+  write(path.join(root, "mobile-server-runtime.js"), 'const GATEWAY_TOOL_SCHEMA_EPOCH = "20260606-finance-reference-mcp-v1";\n');
   write(path.join(root, "docs", "RUNBOOK.md"), [
     "MCP upgrade closure.",
     "mcp_finance_add_transaction_attachment",
-    "20260606-finance-attachment-mcp-v1",
+    "20260606-finance-reference-mcp-v1",
   ].join("\n"));
   return root;
 }
@@ -101,27 +105,58 @@ async function testScriptPassesSourceServiceAndDocsWithoutGateway() {
       "--require-service-tool", "finance.add_transaction_attachment",
       "--service-schema-contains", "attachments",
       "--gateway-tool", "mcp_finance_add_transaction_attachment",
-      "--epoch", "20260606-finance-attachment-mcp-v1",
+      "--epoch", "20260606-finance-reference-mcp-v1",
       "--doc-contains", `${path.join(root, "docs", "RUNBOOK.md")}::mcp_finance_add_transaction_attachment`,
-      "--doc-contains", `${path.join(root, "docs", "RUNBOOK.md")}::20260606-finance-attachment-mcp-v1`,
+      "--doc-contains", `${path.join(root, "docs", "RUNBOOK.md")}::20260606-finance-reference-mcp-v1`,
     ]);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const parsed = JSON.parse(result.stdout);
     assert.equal(parsed.ok, true);
     assert.equal(parsed.service.skipped, false);
+    assert.deepEqual(parsed.service.requiredProperties, [
+      { tool: "finance.add_transaction_attachment", property: "file_path" },
+      { tool: "finance.add_transaction_attachment", property: "upload_path" },
+    ]);
     assert.equal(parsed.gateway.skipped, true);
     assert.deepEqual(parsed.source.gatewayTools, ["mcp_finance_add_transaction_attachment"]);
   });
 }
 
+async function testScriptFailsWhenServiceSchemaMissesRequiredAttachmentPathProperty() {
+  const root = makeFixtureRoot();
+  await withSchemaServer(async (url) => {
+    const result = await runAsync([
+      "--repo-root", root,
+      "--skip-gateway",
+      "--service-schema-url", url,
+      "--require-service-tool", "finance.add_transaction_attachment",
+      "--gateway-tool", "mcp_finance_add_transaction_attachment",
+      "--epoch", "20260606-finance-reference-mcp-v1",
+    ]);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /missing required property: file_path/);
+  }, {
+    tools: [{
+      name: "finance.add_transaction_attachment",
+      inputSchema: {
+        properties: {
+          transaction_id: { type: "string" },
+          data_base64: { type: "string" },
+          data_url: { type: "string" },
+        },
+      },
+    }],
+  });
+}
+
 function testScriptFailsWhenInstructionHintsMissGatewayTool() {
   const root = makeFixtureRoot();
-  write(path.join(root, "adapters", "gateway-run-instruction-service.js"), 'const DEFAULT_TOOL_SCHEMA_EPOCH = "20260606-finance-attachment-mcp-v1";\n');
+  write(path.join(root, "adapters", "gateway-run-instruction-service.js"), 'const DEFAULT_TOOL_SCHEMA_EPOCH = "20260606-finance-reference-mcp-v1";\n');
   const result = run([
     "--repo-root", root,
     "--skip-gateway",
     "--gateway-tool", "mcp_finance_add_transaction_attachment",
-    "--epoch", "20260606-finance-attachment-mcp-v1",
+    "--epoch", "20260606-finance-reference-mcp-v1",
   ]);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Mobile instruction-service missing required text/);
@@ -130,6 +165,7 @@ function testScriptFailsWhenInstructionHintsMissGatewayTool() {
 
 function testRepositoryDocsAndHarnessContractMentionUpgradeClosure() {
   const script = read("scripts/mcp-tool-upgrade-closure-smoke.js");
+  const gatewaySmoke = read("scripts/gateway-tool-schema-smoke.js");
   const runbook = read("docs/RUNBOOKS/mcp-tool-upgrade-closure.md");
   const docsIndex = read("docs/DOCS_INDEX.md");
   const testMatrix = read("docs/TEST_MATRIX.md");
@@ -140,8 +176,14 @@ function testRepositoryDocsAndHarnessContractMentionUpgradeClosure() {
   assert.match(script, /--require/);
   assert.match(script, /service-schema-url/);
   assert.match(script, /service-header-file/);
+  assert.match(script, /require-service-tool-property/);
+  assert.match(script, /require-gateway-tool-property/);
+  assert.match(script, /file_path/);
+  assert.match(script, /upload_path/);
   assert.match(script, /mcp_finance_add_transaction_attachment/);
   assert.doesNotMatch(script, /console\.log\(.*key/i);
+  assert.match(gatewaySmoke, /require-tool-property/);
+  assert.match(gatewaySmoke, /missing required property/);
 
   assert.match(runbook, /mcp-tool-upgrade-closure-smoke\.js/);
   assert.match(runbook, /Gateway worker callable schema/);
@@ -157,6 +199,7 @@ function testRepositoryDocsAndHarnessContractMentionUpgradeClosure() {
 
 (async () => {
   await testScriptPassesSourceServiceAndDocsWithoutGateway();
+  await testScriptFailsWhenServiceSchemaMissesRequiredAttachmentPathProperty();
   testScriptFailsWhenInstructionHintsMissGatewayTool();
   testRepositoryDocsAndHarnessContractMentionUpgradeClosure();
   console.log("mcp tool upgrade closure harness tests passed");

@@ -1218,7 +1218,7 @@ Focused checks for this contract include
 `node tests\app-embedded-plugin-ui.test.js`.
 Finance MCP registration checks must also prove the real Gateway callable schema,
 not only generated profile files or MCP registration logs:
-`node scripts\gateway-tool-schema-smoke.js --profile <finance-capable-profile> --schema-only --require mcp_finance_list_ledgers --require mcp_finance_add_transaction_attachment`.
+`node scripts\gateway-tool-schema-smoke.js --profile <finance-capable-profile> --schema-only --require mcp_finance_list_ledgers,mcp_finance_add_transaction_attachment --require-tool-property mcp_finance_add_transaction_attachment:file_path,mcp_finance_add_transaction_attachment:upload_path`.
 This smoke is required after changing Finance provisioning, MCP wrapper framing,
 Gateway profile generation, WSL/NAS MCP API-base propagation, or startup scripts.
 Plugin MCP schema changes must also bump the Mobile `GATEWAY_TOOL_SCHEMA_EPOCH`
@@ -1228,13 +1228,19 @@ older Wardrobe-only epoch paired with `Enabled toolsets: finance` is a failing
 state because it can reuse a cached callable schema without `mcp_finance_*`.
 Finance attachment support is not accepted unless the Mobile instruction-service
 Finance callable hints and current tool schema override both name
-`mcp_finance_add_transaction_attachment`; a plugin service `/schemas` pass alone
-does not prove the model can call the attachment tool in a live run.
+`mcp_finance_add_transaction_attachment`, the service schema includes
+`finance.add_transaction_attachment:file_path` and `:upload_path`, and the
+Gateway callable schema includes
+`mcp_finance_add_transaction_attachment:file_path` and `:upload_path`. A plugin
+service `/schemas` pass alone, or a Gateway tool-name-only pass, does not prove
+the model can call the attachment tool with a server-local upload path in a live
+run.
 For any plugin MCP tool addition or rename, run
 `node scripts\mcp-tool-upgrade-closure-smoke.js` with the plugin service schema
 URL, the local service tool name, the Gateway `mcp_<server>_<tool>` callable,
-the new `GATEWAY_TOOL_SCHEMA_EPOCH`, and the selected production profile when a
-live Gateway is available. The source guard for that closure is
+any required tool properties, the new `GATEWAY_TOOL_SCHEMA_EPOCH`, and the
+selected production profile when a live Gateway is available. The source guard
+for that closure is
 `node tests\mcp-tool-upgrade-closure-harness.test.js`.
 Health MCP registration follows the same rule. A passing Health integration must
 prove the selected profile exposes the single-prefixed callable

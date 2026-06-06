@@ -1128,6 +1128,13 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   `Enabled toolsets: finance` but lacks
   `mcp_finance_add_transaction_attachment` in the model-facing schema/hints is
   a Mobile/Gateway schema-sync failure, not a successful Finance deployment.
+  The closure must also assert fields, not only names:
+  `finance.add_transaction_attachment` and
+  `mcp_finance_add_transaction_attachment` must expose `file_path` and
+  `upload_path`. If those fields are present but Finance returns
+  `attachment_data_required`, the model called the tool without any attachment
+  source field; repair the Mobile instruction layer and run a live file-path
+  attachment smoke rather than redeploying Finance.
   The reusable closure harness is
   `node scripts/mcp-tool-upgrade-closure-smoke.js`; it must be run with the
   service-local tool name, the Gateway `mcp_<server>_<tool>` callable, the new

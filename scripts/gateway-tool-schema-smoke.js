@@ -37,6 +37,17 @@ function cleanToolDescriptionChecks(value) {
   }).filter((item) => item.tool && item.pattern);
 }
 
+function cleanToolPropertyChecks(value) {
+  return cleanList(value).map((item) => {
+    const index = item.indexOf(":");
+    if (index <= 0) throw new Error(`Invalid --require-tool-property item: ${item}`);
+    return {
+      tool: item.slice(0, index).trim(),
+      property: item.slice(index + 1).trim(),
+    };
+  }).filter((item) => item.tool && item.property);
+}
+
 function defaultManifestPaths() {
   return [
     "C:/ProgramData/HermesMobile/data/gateway-pool-manifest.json",
@@ -132,7 +143,11 @@ function toolNamesFromDefinitions(toolDefinitions) {
     .sort();
 }
 
-function validateToolDefinitions(worker, toolDefinitions, requiredTools, forbiddenTools, requiredDescriptionChecks, evidence) {
+function toolParameters(tool = {}) {
+  return tool?.function?.parameters || tool?.parameters || tool?.input_schema || tool?.inputSchema || {};
+}
+
+function validateToolDefinitions(worker, toolDefinitions, requiredTools, forbiddenTools, requiredDescriptionChecks, requiredPropertyChecks, evidence) {
   const tools = toolNamesFromDefinitions(toolDefinitions);
   const missing = requiredTools.filter((tool) => !tools.includes(tool));
   if (missing.length) {
@@ -149,6 +164,16 @@ function validateToolDefinitions(worker, toolDefinitions, requiredTools, forbidd
     const description = String(tool?.function?.description || tool?.description || "");
     if (!description.includes(check.pattern)) {
       throw new Error(`worker ${worker.profile || worker.name} tool ${check.tool} description missing required text in ${evidence}: ${check.pattern}`);
+    }
+  }
+  for (const check of requiredPropertyChecks) {
+    const tool = toolDefinitions.find((definition) => (
+      (definition?.function?.name || definition?.name || "") === check.tool
+    ));
+    const properties = toolParameters(tool)?.properties || {};
+    if (!Object.prototype.hasOwnProperty.call(properties, check.property)) {
+      const got = Object.keys(properties).sort().join(", ");
+      throw new Error(`worker ${worker.profile || worker.name} tool ${check.tool} missing required property in ${evidence}: ${check.property}; got ${got}`);
     }
   }
   return tools;
@@ -316,7 +341,7 @@ function workerTargets(manifest) {
   return first ? [first] : [];
 }
 
-async function smokeWorker(worker, requiredTools, forbiddenTools, requiredDescriptionChecks, options) {
+async function smokeWorker(worker, requiredTools, forbiddenTools, requiredDescriptionChecks, requiredPropertyChecks, options) {
   const marker = `hermes-mobile-tool-schema-smoke-${worker.profile || worker.name}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const port = Number(worker.port || 0);
   if (!port) throw new Error(`worker ${worker.name || worker.profile || "unknown"} has no port`);
@@ -333,6 +358,7 @@ async function smokeWorker(worker, requiredTools, forbiddenTools, requiredDescri
       requiredTools,
       forbiddenTools,
       requiredDescriptionChecks,
+      requiredPropertyChecks,
       agentSchema.evidence,
     );
     if (options.schemaOnly) {
@@ -398,6 +424,7 @@ async function smokeWorker(worker, requiredTools, forbiddenTools, requiredDescri
     requiredTools,
     forbiddenTools,
     requiredDescriptionChecks,
+    requiredPropertyChecks,
     evidence,
   );
   return {
@@ -422,6 +449,7 @@ async function main() {
   ));
   const forbiddenTools = forbidToolsFromArgs();
   const requiredDescriptionChecks = cleanToolDescriptionChecks(argValue("--require-tool-description", ""));
+  const requiredPropertyChecks = cleanToolPropertyChecks(argValue("--require-tool-property", ""));
   const options = {
     telemetryRoot: argValue("--telemetry-root", "C:/ProgramData/HermesMobile/gateway-worker/telemetry/profiles"),
     timeoutMs: Number(argValue("--timeout-ms", "120000")) || 120000,
@@ -440,13 +468,14 @@ async function main() {
   };
   const results = [];
   for (const worker of targets) {
-    results.push(await smokeWorker(worker, requiredTools, forbiddenTools, requiredDescriptionChecks, options));
+    results.push(await smokeWorker(worker, requiredTools, forbiddenTools, requiredDescriptionChecks, requiredPropertyChecks, options));
   }
   console.log(JSON.stringify({
     ok: true,
     manifestPath,
     requiredTools,
     forbiddenTools,
+    requiredToolProperties: requiredPropertyChecks,
     workers: results.map((result) => ({
       worker: result.worker,
       sessionPath: result.sessionPath,

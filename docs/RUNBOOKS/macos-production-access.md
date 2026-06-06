@@ -164,6 +164,36 @@ Rules:
 - delete temporary scripts after use unless they are promoted to tracked tools;
 - record bounded command status, not full raw logs.
 
+## HANES Mac Command Guardrails
+
+Use these guardrails before production SSH/sudo commands. They are part of the
+HANES discipline for normalized evidence and should prevent repeated
+permission/quoting retries.
+
+- If a production path is known to be unreadable by the control user, do not
+  first run a non-sudo `cd`, `ls`, `node`, or `sqlite3` command against it. Run
+  the full bounded operation under `sudo /bin/sh -c '...'`.
+- When feeding a sudo password through stdin, do not also use shell input
+  redirection such as `< script.sql` in the same remote command. That
+  redirection steals stdin from `sudo -S`. Use `sqlite3 database '.read
+  /tmp/script.sql'` or a temporary script instead.
+- If a command needs `cd /Users/hermes-host/HermesMobile/app`, put the `cd` and
+  the command inside the same sudo shell. `ssh homeai-mac "cd <prod> && sudo
+  ..."` fails before sudo because the control user cannot traverse the app root.
+- Apply sudo to the whole command chain. `sudo cmd1 && cmd2` leaves `cmd2`
+  non-sudo and can look like a missing file when it is actually a traversal
+  permission problem.
+- Use pinned absolute paths for critical tools. On macOS, do not assume Linux
+  paths such as `/bin/find`; prefer checked paths such as `/usr/bin/find`,
+  `/usr/bin/head`, `/usr/bin/grep`, `/usr/bin/sqlite3`, and the pinned Home AI
+  Node path.
+- For complex probes, write a short temporary script, copy it to `/tmp`, execute
+  it with sudo, and delete it. Do not stack PowerShell, zsh, sudo, Node, and
+  SQL/Python quoting in one inline command.
+- Temporary probes must output bounded evidence only: ids, counts, field names,
+  statuses, and booleans. They must not print raw key values, password contents,
+  private payloads, full prompts, full logs, or raw user data.
+
 ## Plugin Deployment Access
 
 Plugin deployment scripts should expose one shared access interface:

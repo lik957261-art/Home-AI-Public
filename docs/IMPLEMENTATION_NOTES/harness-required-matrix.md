@@ -444,9 +444,14 @@ Required harness dimensions:
 - Plugin MCP tool additions or renames require the reusable closure harness,
   not only the selected-profile schema smoke:
   `node scripts\mcp-tool-upgrade-closure-smoke.js`. The harness must prove the
-  plugin service schema, Gateway `mcp_<server>_<tool>` callable, Mobile
-  instruction-service hints, and `GATEWAY_TOOL_SCHEMA_EPOCH` are in sync. The
-  guard test is `node tests\mcp-tool-upgrade-closure-harness.test.js`.
+  plugin service schema, Gateway `mcp_<server>_<tool>` callable, required
+  callable properties, Mobile instruction-service hints, and
+  `GATEWAY_TOOL_SCHEMA_EPOCH` are in sync. For Finance attachments this includes
+  `finance.add_transaction_attachment:file_path`,
+  `finance.add_transaction_attachment:upload_path`,
+  `mcp_finance_add_transaction_attachment:file_path`, and
+  `mcp_finance_add_transaction_attachment:upload_path`. The guard test is
+  `node tests\mcp-tool-upgrade-closure-harness.test.js`.
 - Selector/runtime-overlay changes require one more proof layer: the real
   `/v1/responses` request path must show that Mobile's top-level
   `enabled_toolsets` becomes the effective `AIAgent.enabled_toolsets`. If that
