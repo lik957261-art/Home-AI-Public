@@ -122,7 +122,7 @@ function createThreadTaskApiRoutes(deps = {}) {
     }
     const updatedAt = deps.nowIso();
     thread.taskGroupMeta = deps.normalizeTaskGroupMeta(thread.taskGroupMeta);
-    thread.taskGroupMeta[taskGroupId] = { title, updatedAt };
+    thread.taskGroupMeta[taskGroupId] = Object.assign({}, thread.taskGroupMeta[taskGroupId] || {}, { title, updatedAt });
     thread.updatedAt = updatedAt;
     deps.saveState();
     deps.broadcast({ type: "task.renamed", threadId: thread.id, taskGroupId, title, thread: deps.compactThread(thread) });

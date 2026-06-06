@@ -156,6 +156,30 @@ async function main() {
   }
 
   {
+    const directoryRoute = {
+      projectId: "health-root",
+      subprojectId: "",
+      label: "Health",
+      root: "/data/drive/users/owner/Hermes-Owner/Health",
+      path: "/data/drive/users/owner/Hermes-Owner/Health",
+    };
+    const { routes, state } = makeRoutes();
+    state.threads[0].taskGroupMeta["task-a"] = {
+      title: "Old title",
+      directoryRoute,
+      sharedTopic: true,
+      performerWorkspaceIds: ["owner"],
+      viewerWorkspaceIds: ["weixin_wuping"],
+    };
+    const got = await request(routes, "PATCH", "/api/threads/thread-a/tasks/task-a", { body: { title: "Renamed" } });
+    assert.equal(got.res.statusCode, 200);
+    assert.equal(state.threads[0].taskGroupMeta["task-a"].title, "Renamed");
+    assert.deepEqual(state.threads[0].taskGroupMeta["task-a"].directoryRoute, directoryRoute);
+    assert.equal(state.threads[0].taskGroupMeta["task-a"].sharedTopic, true);
+    assert.deepEqual(state.threads[0].taskGroupMeta["task-a"].viewerWorkspaceIds, ["weixin_wuping"]);
+  }
+
+  {
     const { routes } = makeRoutes();
     const chatGot = await request(routes, "PATCH", "/api/threads/thread-a/tasks/chat", { body: { title: "No" } });
     assert.equal(chatGot.res.statusCode, 400);

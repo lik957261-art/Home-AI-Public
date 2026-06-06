@@ -9,9 +9,9 @@ when directory chips, directory-bound topics, or Markdown/file artifacts return
 `Directory not found or not allowed`, `Artifact not found`, or equivalent
 `404` errors even though the files were copied to the Mac drive root.
 
-The repair is data-only. It rewrites persisted metadata paths from legacy
-Windows/WSL drive prefixes to the Mac production drive root. It does not modify
-user files.
+The primary repair is data-only. It rewrites persisted metadata paths from
+legacy Windows/WSL drive prefixes to the Mac production drive root. It does not
+modify user files.
 
 ## Symptoms
 
@@ -23,6 +23,11 @@ user files.
   Mac migration, usually while production still used Windows/WSL paths.
 - Existing Markdown/PDF/file artifact cards can return `404` until the
   artifact metadata path and listener runtime state are refreshed.
+- A directory-bound topic can still display a directory chip from message-level
+  metadata while its `taskGroupMeta.<taskGroupId>.directoryRoute` is missing.
+  This is common for older single-window task topics after a rename, because a
+  pre-2026-06-07 rename bug overwrote task metadata with only
+  `{ title, updatedAt }`.
 
 ## Root Cause
 
@@ -86,6 +91,14 @@ If the live production app is missing these tracked scripts or tests, sync the
 source versions into `/Users/hermes-host/HermesMobile/app` and run the same
 syntax and harness checks there before declaring closure. `/tmp` copies are
 valid for triage only, not durable production evidence.
+
+Task metadata route backfill harness:
+
+```powershell
+node --check scripts\macos-task-directory-route-backfill.js
+node --check tests\macos-task-directory-route-backfill.test.js
+node tests\macos-task-directory-route-backfill.test.js
+```
 
 Mac production dry-run:
 
@@ -194,6 +207,38 @@ sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
   --use-bound-thread-context \
   --json
 ```
+
+If the path repair is clean but current directory-bound topics have route chips
+with missing task-level directory metadata, run the task route backfill dry-run:
+
+```bash
+sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
+  /Users/hermes-host/HermesMobile/app/scripts/macos-task-directory-route-backfill.js \
+  --root /Users/hermes-host/HermesMobile \
+  --sample-limit 10 \
+  --json
+```
+
+When the dry-run reports only expected current task groups, apply it with the
+listener stopped and reset the runtime snapshot so stale `state.json` cannot
+re-import the old metadata:
+
+```bash
+sudo launchctl bootout system /Library/LaunchDaemons/com.hermesmobile.listener.plist
+sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
+  /Users/hermes-host/HermesMobile/app/scripts/macos-task-directory-route-backfill.js \
+  --root /Users/hermes-host/HermesMobile \
+  --reset-state-snapshot \
+  --write \
+  --sample-limit 10 \
+  --json
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.hermesmobile.listener.plist
+sudo launchctl kickstart -k system/com.hermesmobile.listener
+```
+
+Closure for this backfill is a later dry-run with `changed=false` and
+`stats.changedTaskGroups=0`, followed by the bound-directory preview smoke with
+`--all-workspaces --simulate-ui-route --use-bound-thread-context`.
 
 Production closure must use `--all-workspaces`; Owner-only smoke can miss
 directory-bound topics in inserted Weixin or plugin-authorized workspaces.

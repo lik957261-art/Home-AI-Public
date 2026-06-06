@@ -52,6 +52,10 @@ The same ACL boundary must protect listing, preview, upload, delete, task direct
   from the current workspace selector, because shared topics and migrated
   Windows-origin bindings can otherwise combine a topic from one workspace with
   a preview context from another workspace.
+- Renaming a single-window task/topic must preserve the existing
+  `taskGroupMeta.<taskGroupId>` object. It must update only the title and
+  timestamp fields, because directory-bound topics, shared-topic ACL metadata,
+  and future topic references may be stored on the same metadata object.
 
 ## Directory Topic Collections
 
@@ -187,3 +191,8 @@ unknown-workspace`. Use `--include-chat` only for separate historical
 stale-reference cleanup. If a file previews for the wrong user, inspect
 `file-artifact-access-service` and the route auth context. If Web Push opens a
 viewer inside another viewer, use `docs/RUNBOOKS/web-push-wrong-page.md`.
+If the migration path dry-run and bound-directory preview smoke are clean but
+older directory-bound task topics still have chips with missing task-level
+routes, run `scripts/macos-task-directory-route-backfill.js`. This backfills
+`taskGroupMeta.<taskGroupId>.directoryRoute` from existing message-level
+directory routes and should be treated as a one-time compatibility repair.
