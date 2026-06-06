@@ -58,6 +58,7 @@ const { createOwnerElevationRoutingService } = require("./adapters/owner-elevati
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
 const { createMobileRuntimeBackendPolicyService } = require("./adapters/mobile-runtime-backend-policy-service");
 const { createMobileRuntimeFileHelperService } = require("./adapters/mobile-runtime-file-helper-service");
+const { createMobileRuntimePublicStatusService } = require("./adapters/mobile-runtime-public-status-service");
 const { createMobileRuntimeWorkspaceCatalogFacade } = require("./adapters/mobile-runtime-workspace-catalog-facade");
 const { createRuntimeWorkspaceCatalogService } = require("./adapters/runtime-workspace-catalog-service");
 const { createSemanticDirectoryAttachmentService } = require("./adapters/semantic-directory-attachment-service");
@@ -310,6 +311,15 @@ webPushDeliveryService = createWebPushDeliveryService({
   todoPushRecentCreateMinutes: TODO_WEB_PUSH_RECENT_CREATE_MINUTES, todoPushStartDelayMs: TODO_WEB_PUSH_START_DELAY_MS,
   webPushEnabled: WEB_PUSH_ENABLED, webPushSubject: WEB_PUSH_SUBJECT, webPushVapidPath: WEB_PUSH_VAPID_PATH,
 });
+const mobileRuntimePublicStatusService = createMobileRuntimePublicStatusService({
+  defaultReasoningInfo: () => defaultReasoningInfo(),
+  gatewayStatusProjection,
+  isOwnerAuth: (...args) => isOwnerAuth(...args),
+  loadRuntimeConfig: () => loadRuntimeConfig(),
+  reasoningEffortOptions: REASONING_EFFORT_OPTIONS,
+  runConcurrencySnapshot: () => runConcurrencySnapshot(),
+  runtimeConfigProvider,
+});
 const weixinIngressProvider = createWeixinIngressProvider({
   listWorkspaces: () => loadCatalog().workspaces,
   workspaceIdForPrincipal,
@@ -489,47 +499,9 @@ function assertRunConcurrencyCapacity(workspaceId) {
   err.details = error;
   throw err;
 }
-function publicReasoningInfoForAuth(auth) {
-  const info = defaultReasoningInfo();
-  const runtimeConfig = loadRuntimeConfig();
-  const runtimeModel = runtimeConfig.defaultModel || info.defaultModel || "";
-  const runtimeProvider = runtimeConfig.defaultModelProvider || info.provider || "";
-  const runtimeEffort = runtimeConfig.defaultReasoningEffort || info.defaultEffort || "medium";
-  const runtimePublicConfig = runtimeConfigProvider.publicConfig();
-  const shared = {
-    defaultEffort: runtimeEffort,
-    efforts: REASONING_EFFORT_OPTIONS,
-    assistantLabel: info.assistantLabel || "AI",
-    defaultModelId: runtimeConfig.defaultModelId || runtimePublicConfig.defaultModelId || "",
-    modelOptions: runtimePublicConfig.modelOptions || [],
-    model: {
-      default: runtimeModel,
-      provider: runtimeProvider,
-      label: info.assistantLabel || "AI",
-    },
-  };
-  if (isOwnerAuth(auth)) {
-    return Object.assign({}, shared, {
-      source: info.source || "",
-      model: Object.assign({}, shared.model, {
-        baseUrl: info.baseUrl || "",
-      }),
-    });
-  }
-  return shared;
-}
-function publicGatewayPoolStatusForAuth(auth, pool) {
-  return gatewayStatusProjection.publicGatewayPoolStatusForAuth(auth, pool);
-}
-function publicConcurrencyForAuth(auth) {
-  if (isOwnerAuth(auth)) return runConcurrencySnapshot();
-  const snapshot = runConcurrencySnapshot();
-  const workspaceId = String(auth?.workspaceId || "").trim();
-  return {
-    maxPerWorkspace: snapshot.maxPerWorkspace,
-    activeForWorkspace: workspaceId ? (snapshot.activeByWorkspace[workspaceId] || 0) : 0,
-  };
-}
+const publicReasoningInfoForAuth = (...args) => mobileRuntimePublicStatusService.publicReasoningInfoForAuth(...args);
+const publicGatewayPoolStatusForAuth = (...args) => mobileRuntimePublicStatusService.publicGatewayPoolStatusForAuth(...args);
+const publicConcurrencyForAuth = (...args) => mobileRuntimePublicStatusService.publicConcurrencyForAuth(...args);
 const ownerElevationRoutingService = createOwnerElevationRoutingService({
   compactText,
   consumeOwnerElevationOnce,
