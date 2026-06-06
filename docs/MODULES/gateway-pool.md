@@ -202,6 +202,18 @@ service. `scripts/macos-production-profile-audit.js` reports this as
 `launchd_service_not_loaded:<profile>` and the aggregate closure gate treats it
 as a production blocker.
 
+Mac named workspace profiles such as `hm-owner-openai-1` and
+`hm-wuping-openai-1` must be treated as normal materialized low-permission
+Gateway profiles for standard Hermes Mobile profile-local plugins. The manifest
+and config may list `web`, `http`, `weather`, `image_gen`, `file`, `vision`,
+and related toolsets, but the native agent schema will still omit tools such as
+`mobile_web_search`, `http_request`, `weather`, `chatgpt_image_edit`,
+`docx_extract_text`, and `audio_transcribe` if the corresponding
+`gateway-plugins/hermes-mobile-*` directories are not copied into the profile's
+local `plugins/` directory. The Mac closure schema probe must therefore require
+both MCP tools and these base profile-local plugin tools; selector state is not
+evidence for or against this class of failure.
+
 Gateway startup must keep the configure path narrow. `start-low-gateways.sh`
 stores a non-secret configure signature under the worker root and skips
 `configure-low-gateways.sh` when the selected profiles are already ready and

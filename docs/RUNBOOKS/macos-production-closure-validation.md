@@ -40,7 +40,10 @@ It validates:
   returns nonblank HTML, and the launched workspace exposes a positive bounded
   bootstrap `item_count`.
 - Native Gateway schema probes expose the required MCP callables for Wuping,
-  Owner, and test profiles.
+  Owner, and test profiles, plus the standard profile-local base tools
+  `http_request`, `weather`, `mobile_web_search`, `mobile_web_extract`,
+  `image_generate`, `chatgpt_image_edit`, `chatgpt_image_erase`,
+  `docx_extract_text`, and `audio_transcribe`.
 - DeepSeek ordinary Owner routing uses `deepseekgw1`.
 - DeepSeek Owner maintenance routing uses `deepseekmaint1` with
   `owner_high_privilege`.
@@ -91,8 +94,9 @@ With `--json`, the top-level shape is bounded metadata:
 
 Treat any top-level `ok=false`, nonzero profile issue/warning count,
 `launchd_service_not_loaded:<profile>`, failed ACL row, failed plugin
-delivery-directory creation/preview row, missing schema callable, Wardrobe
-binding row with a legacy origin, Wardrobe manifest launch failure,
+delivery-directory creation/preview row, missing MCP schema callable, missing
+standard profile-local base tool, Wardrobe binding row with a legacy origin,
+Wardrobe manifest launch failure,
 zero/negative Wardrobe bootstrap item count, wrong DeepSeek profile, failed
 Weixin route, or nonzero final `activeGlobal` as a production blocker for the
 non-Grok closure gate.

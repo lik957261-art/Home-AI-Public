@@ -182,7 +182,7 @@ for worker in data.get("workers") or []:
     if worker.get("enabled") is False:
         continue
     profile = str(worker.get("profile") or worker.get("name") or "").strip()
-    if not re.match(r"^(lowgw|grokgw|deepseekgw)\d+$", profile, re.I):
+    if not re.match(r"^(?:(lowgw|grokgw|deepseekgw)\d+|hm-[a-z0-9-]+-(openai|deepseek)-\d+)$", profile, re.I):
         continue
     try:
         port = int(worker.get("port") or 0)
@@ -1094,7 +1094,7 @@ chmod 600 "$worker_home_dir/config.yaml" || true
 chown "$worker_user:$worker_user" "$worker_home_dir/config.yaml" 2>/dev/null || true
 
 while IFS=$'\t' read -r profile port; do
-  if [[ ! "$profile" =~ ^(lowgw|deepseekgw)[0-9]+$ ]]; then
+  if [[ ! "$profile" =~ ^((lowgw|deepseekgw)[0-9]+|hm-[a-z0-9-]+-(openai|deepseek)-[0-9]+)$ ]]; then
     continue
   fi
   if ! profile_selected_for_configure "$profile"; then

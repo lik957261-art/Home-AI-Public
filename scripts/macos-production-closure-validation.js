@@ -7,6 +7,17 @@ const DEFAULT_ROOT = "/Users/hermes-host/HermesMobile";
 const DEFAULT_BASE = "http://127.0.0.1:8797";
 const AUTH_PROCESS_PATTERN = "[a]uth add xai-oauth|[m]acos-grok-xai-reauth";
 const macPath = path.posix;
+const MAC_BASE_SCHEMA_TOOLS = [
+  "http_request",
+  "weather",
+  "mobile_web_search",
+  "mobile_web_extract",
+  "image_generate",
+  "chatgpt_image_edit",
+  "chatgpt_image_erase",
+  "docx_extract_text",
+  "audio_transcribe",
+];
 
 function parseArgs(argv) {
   const out = {
@@ -96,6 +107,10 @@ function parseArgs(argv) {
 
 function scriptPath(options, scriptName) {
   return macPath.join(options.app, "scripts", scriptName);
+}
+
+function requiredTools(...groups) {
+  return groups.flat().join(",");
 }
 
 function sanitize(text, options) {
@@ -388,21 +403,33 @@ async function runClosure(options) {
       "wuping",
       "hm-wuping-openai-1",
       "/Users/hm-wuping/HermesWorkspace/.hermes-gateway/profiles",
-      "mcp_wardrobe_wardrobe_search_items,mcp_wardrobe_wardrobe_write_history,mcp_finance_list_ledgers,mcp_note_notes_create,mcp_email_search_messages",
+      requiredTools(MAC_BASE_SCHEMA_TOOLS, [
+        "mcp_wardrobe_wardrobe_search_items",
+        "mcp_wardrobe_wardrobe_write_history",
+        "mcp_finance_list_ledgers",
+        "mcp_note_notes_create",
+        "mcp_email_search_messages",
+      ]),
     ),
     await runSchema(
       options,
       "owner",
       "hm-owner-openai-1",
       "/Users/hm-owner/HermesWorkspace/.hermes-gateway/profiles",
-      "mcp_health_records_get_summary,mcp_note_notes_create",
+      requiredTools(MAC_BASE_SCHEMA_TOOLS, [
+        "mcp_health_records_get_summary",
+        "mcp_note_notes_create",
+      ]),
     ),
     await runSchema(
       options,
       "test",
       "hm-test-openai-1",
       "/Users/hm-test/HermesWorkspace/.hermes-gateway/profiles",
-      "mcp_wardrobe_wardrobe_search_items,mcp_finance_list_ledgers",
+      requiredTools(MAC_BASE_SCHEMA_TOOLS, [
+        "mcp_wardrobe_wardrobe_search_items",
+        "mcp_finance_list_ledgers",
+      ]),
     ),
   ];
 

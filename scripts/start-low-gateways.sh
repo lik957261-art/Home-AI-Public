@@ -91,7 +91,7 @@ for worker in data.get("workers") or []:
     if worker.get("enabled") is False:
         continue
     profile = str(worker.get("profile") or worker.get("name") or "").strip()
-    if not re.match(r"^(lowgw|grokgw|deepseekgw)\d+$", profile, re.I):
+    if not re.match(r"^(?:(lowgw|grokgw|deepseekgw)\d+|hm-[a-z0-9-]+-(openai|deepseek)-\d+)$", profile, re.I):
         continue
     try:
         port = int(worker.get("port") or 0)

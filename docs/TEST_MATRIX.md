@@ -107,6 +107,12 @@ launch tokens.
 Mac MCP callable schema evidence must use the real production manifest and
 native agent schema probe, for example
 `node scripts\gateway-tool-schema-smoke.js --manifest /Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json --profile <profile> --schema-only --agent-schema-mode native --runtime-source /Users/hermes-host/HermesMobile/runtime/hermes-agent-official/source --runtime-overrides /Users/hermes-host/HermesMobile/app/gateway-runtime-overrides --runtime-python /Users/hermes-host/HermesMobile/runtime/hermes-agent-official/venv/bin/python`. Do not treat a Windows-only WSL schema probe as Mac production evidence.
+For Mac named profiles such as `hm-owner-openai-1`, the schema probe must also
+require the standard profile-local base tools `http_request`, `weather`,
+`mobile_web_search`, `mobile_web_extract`, `image_generate`,
+`chatgpt_image_edit`, `chatgpt_image_erase`, `docx_extract_text`, and
+`audio_transcribe`. A manifest `toolsets` list is insufficient if the
+profile-local `gateway-plugins/hermes-mobile-*` directories were not copied.
 Provider-specific Mac production smokes should use the checked Gateway Pool
 smoke instead of one-off message scripts. Examples:
 `node scripts\gateway-pool-production-smoke.js --key-file <file> --model deepseek-chat --provider deepseek --expected-profile deepseekgw1`,
