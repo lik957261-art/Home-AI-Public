@@ -50,6 +50,22 @@ out of the composition root. Current focused runtime adapters include:
 - `adapters/mobile-runtime-config-facade-service.js` for runtime config
   provider delegation, effective Gateway/Web Push config access, and public
   runtime config projection inputs.
+- `adapters/mobile-runtime-environment-service.js` for compatibility assembly
+  of the runtime environment object. It should stay as a small aggregator and
+  delegate parseable config groups to focused environment services.
+- `adapters/mobile-runtime-env-value-service.js` for shared environment value
+  parsing helpers such as boolean-like auto modes and non-negative numeric
+  fallbacks.
+- `adapters/mobile-runtime-gateway-environment-service.js` for Gateway Pool,
+  Gateway elastic worker, usage telemetry, run timeout, selector, permission
+  preflight, search-call, and run-concurrency environment parsing.
+- `adapters/mobile-runtime-path-candidate-environment-service.js` for WSL UNC
+  candidate generation and config/token/catalog path candidate arrays.
+- `adapters/mobile-runtime-state-path-environment-service.js` for `DATA_DIR`
+  derived runtime state, workspace, audit, Access Key, Web Push, Weixin,
+  SQLite, Todo, and Automation store paths.
+- `adapters/mobile-runtime-kanban-environment-service.js` for Kanban, reading,
+  assessment, multi-agent, and case-topic runtime environment constants.
 - `adapters/mobile-runtime-group-chat-attachment-service.js` for lazy
   group-chat shared-attachment runtime wiring and storage segment helpers.
 - `adapters/mobile-runtime-local-bridge-facade-service.js` for lazy Local

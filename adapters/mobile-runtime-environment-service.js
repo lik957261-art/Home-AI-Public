@@ -2,6 +2,11 @@
 
 const path = require("node:path");
 const os = require("node:os");
+const { nonNegativeMilliseconds } = require("./mobile-runtime-env-value-service");
+const { createMobileRuntimeGatewayEnvironment } = require("./mobile-runtime-gateway-environment-service");
+const { createMobileRuntimeKanbanEnvironment } = require("./mobile-runtime-kanban-environment-service");
+const { createMobileRuntimePathCandidateEnvironment } = require("./mobile-runtime-path-candidate-environment-service");
+const { createMobileRuntimeStatePathEnvironment } = require("./mobile-runtime-state-path-environment-service");
 const { normalizeStringList } = require("./runtime-state-normalization-service");
 
 function normalizeOwnerElevationDurations(value) {
@@ -27,27 +32,6 @@ function resolveAutomationBackend(env = {}) {
 
 function createMobileRuntimeEnvironment(options = {}) {
   const env = options.env || process.env;
-  function normalizeAutoMode(value) {
-    const text = String(value || "").trim();
-    if (!text) return "auto";
-    if (/^(1|true|yes|on)$/i.test(text)) return "on";
-    if (/^(0|false|no|off)$/i.test(text)) return "off";
-    if (/^auto$/i.test(text)) return "auto";
-    return "auto";
-  }
-  
-  function nonNegativeMilliseconds(value, fallback) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed) && parsed >= 0) return parsed;
-    return fallback;
-  }
-
-  function nonNegativeInteger(value, fallback) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed) && parsed >= 0) return Math.floor(parsed);
-    return fallback;
-  }
-  
   const TOOL_ROOT = options.toolRoot || path.resolve(__dirname, "..");
   const REPO_ROOT = path.resolve(env.HERMES_WEB_REPO_ROOT || env.HERMES_MOBILE_ROOT || TOOL_ROOT);
   const PUBLIC_ROOT = path.join(TOOL_ROOT, "public");
@@ -69,198 +53,24 @@ function createMobileRuntimeEnvironment(options = {}) {
     env.HERMES_WEB_HERMES_API_BASE || env.HERMES_API_BASE || "http://127.0.0.1:8642",
   );
   const HERMES_API_TIMEOUT_MS = Number(env.HERMES_WEB_HERMES_API_TIMEOUT_MS || "8000");
-  const GATEWAY_POOL_ENABLED = env.HERMES_WEB_GATEWAY_POOL_ENABLED || "auto";
-  const GATEWAY_POOL_START_MODE = String(env.HERMES_MOBILE_GATEWAY_POOL_START_MODE || env.HERMES_WEB_GATEWAY_POOL_START_MODE || "eager").trim();
-  const GATEWAY_POOL_ELASTIC_CONFIG = {
-    HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM: env.HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM,
-    HERMES_WEB_GATEWAY_OWNER_MIN_WARM: env.HERMES_WEB_GATEWAY_OWNER_MIN_WARM,
-    HERMES_MOBILE_GATEWAY_OWNER_MAX_WORKERS: env.HERMES_MOBILE_GATEWAY_OWNER_MAX_WORKERS,
-    HERMES_WEB_GATEWAY_OWNER_MAX_WORKERS: env.HERMES_WEB_GATEWAY_OWNER_MAX_WORKERS,
-    HERMES_MOBILE_GATEWAY_WORKSPACE_MIN_WARM: env.HERMES_MOBILE_GATEWAY_WORKSPACE_MIN_WARM,
-    HERMES_WEB_GATEWAY_WORKSPACE_MIN_WARM: env.HERMES_WEB_GATEWAY_WORKSPACE_MIN_WARM,
-    HERMES_MOBILE_GATEWAY_WORKSPACE_MAX_WORKERS: env.HERMES_MOBILE_GATEWAY_WORKSPACE_MAX_WORKERS,
-    HERMES_WEB_GATEWAY_WORKSPACE_MAX_WORKERS: env.HERMES_WEB_GATEWAY_WORKSPACE_MAX_WORKERS,
-    HERMES_MOBILE_GATEWAY_ELASTIC_MAX_WORKERS: env.HERMES_MOBILE_GATEWAY_ELASTIC_MAX_WORKERS,
-    HERMES_WEB_GATEWAY_ELASTIC_MAX_WORKERS: env.HERMES_WEB_GATEWAY_ELASTIC_MAX_WORKERS,
-    HERMES_MOBILE_GATEWAY_WORKER_IDLE_TTL_MINUTES: env.HERMES_MOBILE_GATEWAY_WORKER_IDLE_TTL_MINUTES,
-    HERMES_WEB_GATEWAY_WORKER_IDLE_TTL_MINUTES: env.HERMES_WEB_GATEWAY_WORKER_IDLE_TTL_MINUTES,
-    HERMES_MOBILE_GATEWAY_START_TIMEOUT_MS: env.HERMES_MOBILE_GATEWAY_START_TIMEOUT_MS,
-    HERMES_WEB_GATEWAY_START_TIMEOUT_MS: env.HERMES_WEB_GATEWAY_START_TIMEOUT_MS,
-    HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS: env.HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS,
-    HERMES_WEB_GATEWAY_START_HEALTH_WAIT_MS: env.HERMES_WEB_GATEWAY_START_HEALTH_WAIT_MS,
-    HERMES_MOBILE_GATEWAY_START_HEALTH_POLL_MS: env.HERMES_MOBILE_GATEWAY_START_HEALTH_POLL_MS,
-    HERMES_WEB_GATEWAY_START_HEALTH_POLL_MS: env.HERMES_WEB_GATEWAY_START_HEALTH_POLL_MS,
-    HERMES_MOBILE_GATEWAY_QUEUE_WAIT_TIMEOUT_MS: env.HERMES_MOBILE_GATEWAY_QUEUE_WAIT_TIMEOUT_MS,
-    HERMES_WEB_GATEWAY_QUEUE_WAIT_TIMEOUT_MS: env.HERMES_WEB_GATEWAY_QUEUE_WAIT_TIMEOUT_MS,
-    HERMES_MOBILE_GATEWAY_WORKER_ROOT: env.HERMES_MOBILE_GATEWAY_WORKER_ROOT,
-    HERMES_WEB_GATEWAY_WORKER_ROOT: env.HERMES_WEB_GATEWAY_WORKER_ROOT,
-    HERMES_MOBILE_GATEWAY_LAUNCH_REQUEST_ROOT: env.HERMES_MOBILE_GATEWAY_LAUNCH_REQUEST_ROOT,
-    HERMES_WEB_GATEWAY_LAUNCH_REQUEST_ROOT: env.HERMES_WEB_GATEWAY_LAUNCH_REQUEST_ROOT,
-    HERMES_MOBILE_GATEWAY_START_SCHEDULED_TASK_NAME: env.HERMES_MOBILE_GATEWAY_START_SCHEDULED_TASK_NAME,
-    HERMES_WEB_GATEWAY_START_SCHEDULED_TASK_NAME: env.HERMES_WEB_GATEWAY_START_SCHEDULED_TASK_NAME,
-    HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT: env.HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT,
-    HERMES_WEB_GATEWAY_PROFILE_LAUNCH_SCRIPT: env.HERMES_WEB_GATEWAY_PROFILE_LAUNCH_SCRIPT,
-    profileLaunchScript: env.HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT || env.HERMES_WEB_GATEWAY_PROFILE_LAUNCH_SCRIPT,
-  };
-  const GATEWAY_SKILL_PROFILE_ROUTING = normalizeAutoMode(
-    env.HERMES_MOBILE_GATEWAY_SKILL_PROFILE_ROUTING
-    || env.HERMES_WEB_GATEWAY_SKILL_PROFILE_ROUTING
-    || "auto",
-  );
-  const GATEWAY_USAGE_TELEMETRY_ENABLED = (
-    env.HERMES_MOBILE_GATEWAY_USAGE_TELEMETRY_ENABLED
-    || env.HERMES_WEB_GATEWAY_USAGE_TELEMETRY_ENABLED
-    || "auto"
-  );
-  const GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS = normalizeStringList(
-    env.HERMES_MOBILE_GATEWAY_TELEMETRY_PROFILES_ROOTS
-    || env.HERMES_WEB_GATEWAY_TELEMETRY_PROFILES_ROOTS
-    || "",
-  );
-  const GATEWAY_POOL_HEALTH_TIMEOUT_MS = Number(env.HERMES_WEB_GATEWAY_POOL_HEALTH_TIMEOUT_MS || "5000");
-  const RUN_START_TIMEOUT_MS = Number(env.HERMES_WEB_RUN_START_TIMEOUT_MS || "90000");
-  const RUN_STREAMING_SAVE_THROTTLE_MS = nonNegativeMilliseconds(env.HERMES_MOBILE_RUN_STREAMING_SAVE_THROTTLE_MS || env.HERMES_WEB_RUN_STREAMING_SAVE_THROTTLE_MS, 1200);
-  const RUN_LIVENESS_CHECK_AFTER_MS = Number(env.HERMES_WEB_RUN_LIVENESS_CHECK_AFTER_MS || "120000");
-  const RUN_LIVENESS_CHECK_INTERVAL_MS = Number(env.HERMES_WEB_RUN_LIVENESS_CHECK_INTERVAL_MS || "45000");
-  const RUN_LIVENESS_STALE_AFTER_MS = Number(env.HERMES_WEB_RUN_LIVENESS_STALE_AFTER_MS || "600000");
-  const RUN_MODEL_FIRST_BYTE_WARNING_MS = Number(env.HERMES_MOBILE_RUN_MODEL_FIRST_BYTE_WARNING_MS || env.HERMES_WEB_RUN_MODEL_FIRST_BYTE_WARNING_MS || "45000");
-  const RUN_WEB_SEARCH_MAX_CALLS = nonNegativeInteger(env.HERMES_MOBILE_RUN_WEB_SEARCH_MAX_CALLS || env.HERMES_WEB_RUN_WEB_SEARCH_MAX_CALLS || "6", 6);
-  const RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS = nonNegativeInteger(env.HERMES_MOBILE_RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS || env.HERMES_WEB_RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS || "12", 12);
-  const GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED = /^(1|true|yes|on)$/i.test(env.HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT || env.HERMES_WEB_GATEWAY_MODEL_PERMISSION_PREFLIGHT || "0");
-  const GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS = Math.max(1000, Number(env.HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS || env.HERMES_WEB_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS || "8000") || 8000);
-  const GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED = /^(1|true|yes|on)$/i.test(env.HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION || env.HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION || "0");
-  const GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS = Math.max(1000, Number(env.HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS || env.HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS || "30000") || 30000);
-  const GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_STOP_TIMEOUT_MS = Math.max(500, Number(env.HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_STOP_TIMEOUT_MS || env.HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_STOP_TIMEOUT_MS || "2000") || 2000);
-  const GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_MODEL = String(env.HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_MODEL || env.HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_MODEL || "gpt-5.4-mini").trim();
-  const GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_PROVIDER = String(env.HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_PROVIDER || env.HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_PROVIDER || "").trim();
-  const GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_REASONING_EFFORT = String(env.HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_REASONING_EFFORT || env.HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_REASONING_EFFORT || "low").trim();
-  const RUN_CONCURRENCY_MAX_GLOBAL = Number(env.HERMES_WEB_MAX_ACTIVE_RUNS || "0");
-  const RUN_CONCURRENCY_MAX_PER_WORKSPACE = Number(env.HERMES_WEB_MAX_ACTIVE_RUNS_PER_WORKSPACE || "0");
+  const gatewayRuntimeEnvironment = createMobileRuntimeGatewayEnvironment({ env });
   const DISABLE_AUTH = /^(1|true|yes|on)$/i.test(env.HERMES_WEB_DISABLE_AUTH || "");
-  const DATA_DIR = path.resolve(env.HERMES_WEB_DATA_DIR || path.join(REPO_ROOT, "workspace", "hermes-web"));
-  const STATE_PATH = path.join(DATA_DIR, "state.json");
-  const STATE_BACKUP_DIR = path.join(DATA_DIR, "backups");
-  const SHARED_DIRECTORIES_PATH = path.join(DATA_DIR, "shared-directories.json");
-  const AUDIT_EVENT_LOG_PATH = path.resolve(env.HERMES_MOBILE_AUDIT_EVENT_LOG_PATH || env.HERMES_WEB_AUDIT_EVENT_LOG_PATH || path.join(DATA_DIR, "audit-events.jsonl"));
-  const ACCESS_KEYS_PATH = path.join(DATA_DIR, "access-keys.json");
-  const LOCAL_WORKSPACES_PATH = path.join(DATA_DIR, "workspaces.json");
-  const RUNTIME_CONFIG_PATH = path.join(DATA_DIR, "runtime-config.json");
-  const LEARNING_COIN_STORE_PATH = path.resolve(env.HERMES_MOBILE_LEARNING_COIN_STORE_PATH || env.HERMES_WEB_LEARNING_COIN_STORE_PATH || path.join(DATA_DIR, "learning-coins.json"));
-  const WEIXIN_INGRESS_KEY_PATHS = [
-    env.HERMES_MOBILE_WEIXIN_INGRESS_KEY_PATH,
-    env.HERMES_WEB_WEIXIN_INGRESS_KEY_PATH,
-    path.join(DATA_DIR, "weixin-ingress.secret"),
-  ].filter(Boolean);
-  const WEIXIN_INGRESS_DEFAULT_WORKSPACE = String(
-    env.HERMES_MOBILE_WEIXIN_INGRESS_DEFAULT_WORKSPACE
-      || env.HERMES_WEB_WEIXIN_INGRESS_DEFAULT_WORKSPACE
-      || "",
-  ).trim();
-  const GROUP_DELIVERIES_DIR = path.join(DATA_DIR, "artifacts", "group-deliveries");
-  const OWNER_DEFAULT_WORKSPACE = path.resolve(env.HERMES_WEB_OWNER_DEFAULT_WORKSPACE || path.join(DATA_DIR, "drive"));
-  const WORKSPACE_UPLOAD_DIR_NAME = ".hermes-mobile";
-  const WORKSPACE_UPLOAD_SUBDIR = "uploads";
-  const AUTH_KEY_PATH = path.resolve(env.HERMES_WEB_AUTH_KEY_PATH || path.join(REPO_ROOT, ".hermes_web_secret_key"));
-  const WEB_PUSH_VAPID_PATH = path.resolve(
-    env.HERMES_WEB_VAPID_PATH || env.WEB_PUSH_VAPID_PATH || path.join(DATA_DIR, "web-push-vapid.json"),
-  );
+  const statePathEnvironment = createMobileRuntimeStatePathEnvironment({ env, repoRoot: REPO_ROOT });
+  const { DATA_DIR } = statePathEnvironment;
   const WSL_DISTRO = env.HERMES_WEB_WSL_DISTRO || "Ubuntu-24.04";
   const WINDOWS_HOME = env.USERPROFILE || os.homedir() || "";
   const WSL_USER = env.HERMES_WEB_WSL_USER || env.WSL_USER || env.USER || "hermes";
   const WSL_HOME = stripTrailingSlash(env.HERMES_WEB_WSL_HOME || `/home/${WSL_USER}`);
   const WSL_HERMES_HOME = stripTrailingSlash(env.HERMES_WEB_WSL_HERMES_HOME || `${WSL_HOME}/.hermes`);
-  function wslUncPathCandidates(root, ...parts) {
-    const allowWslUnc = /^(1|true|yes|on)$/i.test(
-      env.HERMES_MOBILE_ALLOW_WSL_UNC_PROBES
-      || env.HERMES_WEB_ALLOW_WSL_UNC_PROBES
-      || "",
-    );
-    if (!allowWslUnc) return [];
-    const normalizedRoot = String(root || "").replaceAll("\\", "/").replace(/^\/+/, "").replace(/\/+$/, "");
-    if (!normalizedRoot) return [];
-    const suffix = parts
-      .map((part) => String(part || "").replaceAll("\\", "/").replace(/^\/+|\/+$/g, ""))
-      .filter(Boolean)
-      .join("/");
-    const full = [normalizedRoot, suffix].filter(Boolean).join("/").replaceAll("/", "\\");
-    return [
-      `\\\\wsl.localhost\\${WSL_DISTRO}\\${full}`,
-      `\\\\wsl$\\${WSL_DISTRO}\\${full}`,
-    ];
-  }
-  const ENABLE_LEGACY_WEIXIN_COMPAT = /^(1|true|yes|on)$/i.test(
-    env.HERMES_WEB_ENABLE_LEGACY_WEIXIN_COMPAT || env.HERMES_WEB_LEGACY_WEIXIN_COMPAT || "",
-  );
-  const HERMES_ENV_PATHS = [
-    env.HERMES_WEB_HERMES_ENV_PATH,
-    ...wslUncPathCandidates(WSL_HERMES_HOME, ".env"),
-  ].filter(Boolean);
-  const HERMES_API_KEY_PATHS = [
-    env.HERMES_WEB_HERMES_API_KEY_PATH,
-    path.join(WINDOWS_HOME, ".hermes-windows", "hermes-api-server-key.secret"),
-  ].filter(Boolean);
-  const WORKSPACE_USERS_PATHS = [
-    env.HERMES_WEB_WORKSPACE_USERS_PATH,
-    ...wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "workspace-users.json"),
-    path.join(LOCAL_CONFIG_ROOT, "access-control", "workspace-users.json"),
-    env.HERMES_WEB_WEIXIN_USERS_PATH,
-    ...(ENABLE_LEGACY_WEIXIN_COMPAT ? wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "weixin-users.json") : []),
-    ...(ENABLE_LEGACY_WEIXIN_COMPAT ? [path.join(LOCAL_CONFIG_ROOT, "access-control", "weixin-users.json")] : []),
-  ].filter(Boolean);
-  const WORKSPACE_ROUTE_MAP_PATHS = [
-    env.HERMES_WEB_WORKSPACE_ROUTE_MAP_PATH,
-    ...wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "workspace-routing-map.json"),
-    path.join(LOCAL_CONFIG_ROOT, "access-control", "workspace-routing-map.json"),
-    env.HERMES_WEB_WEIXIN_ROUTE_MAP_PATH,
-    ...(ENABLE_LEGACY_WEIXIN_COMPAT ? wslUncPathCandidates(WSL_HERMES_HOME, "access-control", "weixin-routing-map.json") : []),
-    ...(ENABLE_LEGACY_WEIXIN_COMPAT ? [path.join(LOCAL_CONFIG_ROOT, "access-control", "weixin-routing-map.json")] : []),
-  ].filter(Boolean);
-  const HERMES_CONFIG_PATHS = [
-    env.HERMES_WEB_HERMES_CONFIG_PATH,
-    env.HERMES_CONFIG_PATH,
-    ...wslUncPathCandidates(WSL_HERMES_HOME, "config.yaml"),
-    path.join(LOCAL_CONFIG_ROOT, "hermes-config.yaml"),
-    path.join(LOCAL_CONFIG_ROOT, "config.yaml"),
-  ].filter(Boolean);
-  const EXPLICIT_HERMES_CONFIG_PATHS = new Set([
-    env.HERMES_WEB_HERMES_CONFIG_PATH,
-    env.HERMES_CONFIG_PATH,
-  ].map((item) => String(item || "").trim()).filter(Boolean));
-  const ALLOW_WSL_REASONING_CONFIG_LOOKUP = /^(1|true|yes|on)$/i.test(
-    env.HERMES_MOBILE_ALLOW_WSL_REASONING_CONFIG_LOOKUP
-    || env.HERMES_WEB_ALLOW_WSL_REASONING_CONFIG_LOOKUP
-    || "",
-  );
-  const STATUS_INCLUDE_CATALOG = /^(1|true|yes|on)$/i.test(
-    env.HERMES_MOBILE_STATUS_INCLUDE_CATALOG
-    || env.HERMES_WEB_STATUS_INCLUDE_CATALOG
-    || "",
-  );
-  const GATEWAY_POOL_MANIFEST_PATHS = [
-    env.HERMES_WEB_GATEWAY_POOL_MANIFEST,
-    ...wslUncPathCandidates(WSL_HERMES_HOME, "worker-pool.json"),
-  ].filter(Boolean);
-  const GOOGLE_TOKEN_PATHS = [
-    env.HERMES_WEB_GOOGLE_TOKEN_PATH,
-    ...wslUncPathCandidates(WSL_HERMES_HOME, "google_token.json"),
-  ].filter(Boolean);
-  const GOOGLE_CLIENT_SECRET_PATHS = [
-    env.HERMES_WEB_GOOGLE_CLIENT_SECRET_PATH,
-    ...wslUncPathCandidates(WSL_HERMES_HOME, "google_client_secret.json"),
-  ].filter(Boolean);
-  const OUTLOOK_GRAPH_TOKEN_PATHS = [
-    env.HERMES_WEB_OUTLOOK_GRAPH_TOKEN_PATH,
-    ...wslUncPathCandidates(WSL_HERMES_HOME, "microsoft-graph-outlook-mail", "token.json"),
-  ].filter(Boolean);
-  const GITHUB_CLI_HOSTS_PATHS = [
-    env.HERMES_WEB_GITHUB_CLI_HOSTS_PATH,
-    path.join(WINDOWS_HOME, "AppData", "Roaming", "GitHub CLI", "hosts.yml"),
-    ...wslUncPathCandidates(WSL_HOME, ".config", "gh", "hosts.yml"),
-  ].filter(Boolean);
-  const PROJECT_MAP_PATHS = [
-    env.HERMES_WEB_PROJECT_MAP_PATH,
-    path.join(LOCAL_CONFIG_ROOT, "project-directory-map.json"),
-  ].filter(Boolean);
+  const pathCandidateEnvironment = createMobileRuntimePathCandidateEnvironment({
+    env,
+    localConfigRoot: LOCAL_CONFIG_ROOT,
+    windowsHome: WINDOWS_HOME,
+    wslDistro: WSL_DISTRO,
+    wslHome: WSL_HOME,
+    wslHermesHome: WSL_HERMES_HOME,
+  });
+  const { ENABLE_LEGACY_WEIXIN_COMPAT } = pathCandidateEnvironment;
   
   const MAX_BODY_BYTES = 2_000_000;
   const MAX_HISTORY_MESSAGES = 30;
@@ -288,7 +98,6 @@ function createMobileRuntimeEnvironment(options = {}) {
     || String(2 * 1024 * 1024),
   );
   const TODO_BRIDGE_TIMEOUT_MS = Number(env.HERMES_WEB_TODO_BRIDGE_TIMEOUT_MS || "15000");
-  const KANBAN_BRIDGE_TIMEOUT_MS = Number(env.HERMES_MOBILE_KANBAN_BRIDGE_TIMEOUT_MS || env.HERMES_WEB_KANBAN_BRIDGE_TIMEOUT_MS || "20000");
   const CRON_BRIDGE_TIMEOUT_MS = Number(env.HERMES_WEB_CRON_BRIDGE_TIMEOUT_MS || "15000");
   const CRON_BRIDGE_STDOUT_LIMIT_BYTES = Number(env.HERMES_MOBILE_CRON_BRIDGE_STDOUT_LIMIT_BYTES || env.HERMES_WEB_CRON_BRIDGE_STDOUT_LIMIT_BYTES || "50000000");
   const CRON_LIST_CACHE_TTL_MS = Number(env.HERMES_WEB_CRON_LIST_CACHE_TTL_MS || "12000");
@@ -301,42 +110,14 @@ function createMobileRuntimeEnvironment(options = {}) {
   const CRON_OUTPUT_ROOT = stripTrailingSlash(env.HERMES_WEB_CRON_OUTPUT_ROOT || `${WSL_HERMES_HOME}/cron/output`);
   const CRON_RUN_LOG_ROOT = stripTrailingSlash(env.HERMES_WEB_RUN_LOG_ROOT || `${WSL_HERMES_HOME}/run-logs`);
   const TODO_BACKEND = String(env.HERMES_WEB_TODO_BACKEND || "local").trim().toLowerCase();
-  const KANBAN_COMMAND = String(env.HERMES_MOBILE_KANBAN_COMMAND || env.HERMES_WEB_KANBAN_COMMAND || "hermes").trim() || "hermes";
-  const KANBAN_COMMAND_ARGS = String(env.HERMES_MOBILE_KANBAN_COMMAND_ARGS || env.HERMES_WEB_KANBAN_COMMAND_ARGS || "").trim();
-  const KANBAN_TODO_META_PATH = path.resolve(env.HERMES_MOBILE_KANBAN_TODO_META_PATH || env.HERMES_WEB_KANBAN_TODO_META_PATH || path.join(DATA_DIR, "kanban-todo-meta.json"));
-  const KANBAN_CARD_LIST_CACHE_PATH = path.resolve(env.HERMES_MOBILE_KANBAN_CARD_LIST_CACHE_PATH || env.HERMES_WEB_KANBAN_CARD_LIST_CACHE_PATH || path.join(DATA_DIR, "kanban-card-list-cache.json"));
-  const KANBAN_CASE_SHARE_PATH = path.resolve(env.HERMES_MOBILE_KANBAN_CASE_SHARE_PATH || env.HERMES_WEB_KANBAN_CASE_SHARE_PATH || path.join(DATA_DIR, "kanban-case-shares.json"));
-  const KANBAN_WORKSPACE_PATH_STYLE = String(env.HERMES_MOBILE_KANBAN_WORKSPACE_PATH_STYLE || env.HERMES_WEB_KANBAN_WORKSPACE_PATH_STYLE || "").trim().toLowerCase();
-  const KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS = Math.max(5000, Number(env.HERMES_MOBILE_KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS || env.HERMES_WEB_KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS || "30000") || 30000);
-  const KANBAN_CARD_LIST_CACHE_TTL_MS = Math.max(0, Number(env.HERMES_MOBILE_KANBAN_CARD_LIST_CACHE_TTL_MS || env.HERMES_WEB_KANBAN_CARD_LIST_CACHE_TTL_MS || String(30 * 60 * 1000)) || 0);
-  const KANBAN_BLOCKED_PUSH_DELAY_MINUTES = Math.max(0, Number(env.HERMES_MOBILE_KANBAN_BLOCKED_PUSH_DELAY_MINUTES || env.HERMES_WEB_KANBAN_BLOCKED_PUSH_DELAY_MINUTES || "10") || 0);
-  const KANBAN_MULTI_AGENT_DEFAULT_PARALLEL = 3;
-  const KANBAN_MULTI_AGENT_MAX_PARALLEL = Math.max(KANBAN_MULTI_AGENT_DEFAULT_PARALLEL, Math.min(12, Number(env.HERMES_MOBILE_KANBAN_MULTI_AGENT_MAX_PARALLEL || env.HERMES_WEB_KANBAN_MULTI_AGENT_MAX_PARALLEL || "8") || 8));
-  const KANBAN_MULTI_AGENT_MAX_CARDS = 8;
-  const KANBAN_MULTI_AGENT_PLAN_TIMEOUT_MS = Number(env.HERMES_MOBILE_KANBAN_PLAN_TIMEOUT_MS || env.HERMES_WEB_KANBAN_PLAN_TIMEOUT_MS || "90000");
-  const KANBAN_READING_PLAN_MAX_SESSIONS = Math.max(1, Math.min(60, Number(env.HERMES_MOBILE_READING_PLAN_MAX_SESSIONS || env.HERMES_WEB_READING_PLAN_MAX_SESSIONS || "31") || 31));
-  const KANBAN_READING_ANALYSIS_TIMEOUT_MS = Number(env.HERMES_MOBILE_READING_ANALYSIS_TIMEOUT_MS || env.HERMES_WEB_READING_ANALYSIS_TIMEOUT_MS || "120000");
-  const KANBAN_READING_TRANSCRIBE_TIMEOUT_MS = Number(env.HERMES_MOBILE_READING_TRANSCRIBE_TIMEOUT_MS || env.HERMES_WEB_READING_TRANSCRIBE_TIMEOUT_MS || "240000");
-  const defaultKanbanReadingTranscribeScript = process.platform === "win32"
-    ? path.join(TOOL_ROOT, "scripts", "transcribe-reading-audio.ps1")
-    : path.join(TOOL_ROOT, "scripts", "transcribe-reading-audio.js");
-  const KANBAN_READING_TRANSCRIBE_SCRIPT = path.resolve(env.HERMES_MOBILE_READING_TRANSCRIBE_SCRIPT || env.HERMES_WEB_READING_TRANSCRIBE_SCRIPT || defaultKanbanReadingTranscribeScript);
-  const KANBAN_READING_ARTIFACT_ROOT = path.resolve(env.HERMES_MOBILE_READING_ARTIFACT_ROOT || env.HERMES_WEB_READING_ARTIFACT_ROOT || path.join(DATA_DIR, "artifacts", "kanban-reading"));
-  const KANBAN_READING_COVER_MAX_BYTES = Math.max(1, Math.min(MAX_UPLOAD_BYTES, Number(env.HERMES_MOBILE_READING_COVER_MAX_BYTES || env.HERMES_WEB_READING_COVER_MAX_BYTES || String(20 * 1024 * 1024)) || (20 * 1024 * 1024)));
-  const KANBAN_SOURCE_DOCUMENT_MAX_BYTES = Math.max(1, Math.min(MAX_UPLOAD_BYTES, Number(env.HERMES_MOBILE_KANBAN_SOURCE_DOCUMENT_MAX_BYTES || env.HERMES_WEB_KANBAN_SOURCE_DOCUMENT_MAX_BYTES || String(20 * 1024 * 1024)) || (20 * 1024 * 1024)));
-  const KANBAN_READING_QUIZ_TARGETING_VERSION = "20260513-score-weakness-v1";
-  const KANBAN_STUDY_CASE_MODES = new Set(["study-plan"]);
-  const KANBAN_ASSESSMENT_CASE_MODES = new Set(["assessment-plan"]);
-  const KANBAN_STUDY_SHARED_FOLDER_NAME = "\u5b66\u4e60\u8ba1\u5212";
-  const KANBAN_CASE_TOPIC_KIND = "case-topic";
-  const KANBAN_ASSESSMENT_PLAN_MAX_EXAMS = Math.max(1, Math.min(30, Number(env.HERMES_MOBILE_ASSESSMENT_PLAN_MAX_EXAMS || "30") || 30));
-  const KANBAN_ASSESSMENT_MAX_QUESTIONS = Math.max(5, Math.min(40, Number(env.HERMES_MOBILE_ASSESSMENT_MAX_QUESTIONS || "40") || 40));
-  const KANBAN_ASSESSMENT_MODEL_TIMEOUT_MS = Number(env.HERMES_MOBILE_ASSESSMENT_MODEL_TIMEOUT_MS || "180000");
+  const kanbanEnvironment = createMobileRuntimeKanbanEnvironment({
+    env,
+    dataDir: DATA_DIR,
+    maxUploadBytes: MAX_UPLOAD_BYTES,
+    platform: process.platform,
+    toolRoot: TOOL_ROOT,
+  });
   const AUTOMATION_BACKEND = resolveAutomationBackend(env);
-  const LOCAL_TODO_STORE_PATH = path.resolve(env.HERMES_WEB_TODO_STORE_PATH || path.join(DATA_DIR, "todos.json"));
-  const LOCAL_AUTOMATION_STORE_PATH = path.resolve(env.HERMES_WEB_AUTOMATION_STORE_PATH || path.join(DATA_DIR, "automations.json"));
-  const SERVICE_STORE_BACKEND = String(env.HERMES_WEB_SERVICE_STORE || "").trim().toLowerCase();
-  const MOBILE_SQLITE_DB_PATH = path.resolve(env.HERMES_WEB_DB_PATH || path.join(DATA_DIR, "hermes-mobile.sqlite3"));
   const BRIDGE_HOST_URL = stripTrailingSlash(env.HERMES_MOBILE_BRIDGE_HOST_URL || env.HERMES_WEB_BRIDGE_HOST_URL || "");
   const BRIDGE_HOST_KEY_PATH = env.HERMES_MOBILE_BRIDGE_HOST_KEY_PATH || env.HERMES_WEB_BRIDGE_HOST_KEY_PATH || "";
   const OWNER_MAINTENANCE_RUNS_ENABLED = /^(1|true|yes|on)$/i.test(env.HERMES_MOBILE_ALLOW_OWNER_MAINTENANCE_RUNS || env.HERMES_WEB_ALLOW_OWNER_MAINTENANCE_RUNS || "");
@@ -492,69 +273,15 @@ function createMobileRuntimeEnvironment(options = {}) {
     PORT,
     HERMES_API_BASE,
     HERMES_API_TIMEOUT_MS,
-    GATEWAY_POOL_ENABLED,
-    GATEWAY_POOL_START_MODE,
-    GATEWAY_POOL_ELASTIC_CONFIG,
-    GATEWAY_SKILL_PROFILE_ROUTING,
-    GATEWAY_USAGE_TELEMETRY_ENABLED,
-    GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS,
-    GATEWAY_POOL_HEALTH_TIMEOUT_MS,
-    RUN_START_TIMEOUT_MS,
-    RUN_STREAMING_SAVE_THROTTLE_MS,
-    RUN_LIVENESS_CHECK_AFTER_MS,
-    RUN_LIVENESS_CHECK_INTERVAL_MS,
-    RUN_LIVENESS_STALE_AFTER_MS,
-    RUN_MODEL_FIRST_BYTE_WARNING_MS,
-    RUN_WEB_SEARCH_MAX_CALLS,
-    RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS,
-    GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED,
-    GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS,
-    GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED,
-    GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS,
-    GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_STOP_TIMEOUT_MS,
-    GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_MODEL,
-    GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_PROVIDER,
-    GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_REASONING_EFFORT,
-    RUN_CONCURRENCY_MAX_GLOBAL,
-    RUN_CONCURRENCY_MAX_PER_WORKSPACE,
+    ...gatewayRuntimeEnvironment,
     DISABLE_AUTH,
-    DATA_DIR,
-    STATE_PATH,
-    STATE_BACKUP_DIR,
-    SHARED_DIRECTORIES_PATH,
-    AUDIT_EVENT_LOG_PATH,
-    ACCESS_KEYS_PATH,
-    LOCAL_WORKSPACES_PATH,
-    RUNTIME_CONFIG_PATH,
-    LEARNING_COIN_STORE_PATH,
-    WEIXIN_INGRESS_KEY_PATHS,
-    WEIXIN_INGRESS_DEFAULT_WORKSPACE,
-    GROUP_DELIVERIES_DIR,
-    OWNER_DEFAULT_WORKSPACE,
-    WORKSPACE_UPLOAD_DIR_NAME,
-    WORKSPACE_UPLOAD_SUBDIR,
-    AUTH_KEY_PATH,
-    WEB_PUSH_VAPID_PATH,
+    ...statePathEnvironment,
     WSL_DISTRO,
     WINDOWS_HOME,
     WSL_USER,
     WSL_HOME,
     WSL_HERMES_HOME,
-    ENABLE_LEGACY_WEIXIN_COMPAT,
-    HERMES_ENV_PATHS,
-    HERMES_API_KEY_PATHS,
-    WORKSPACE_USERS_PATHS,
-    WORKSPACE_ROUTE_MAP_PATHS,
-    HERMES_CONFIG_PATHS,
-    EXPLICIT_HERMES_CONFIG_PATHS,
-    ALLOW_WSL_REASONING_CONFIG_LOOKUP,
-    STATUS_INCLUDE_CATALOG,
-    GATEWAY_POOL_MANIFEST_PATHS,
-    GOOGLE_TOKEN_PATHS,
-    GOOGLE_CLIENT_SECRET_PATHS,
-    OUTLOOK_GRAPH_TOKEN_PATHS,
-    GITHUB_CLI_HOSTS_PATHS,
-    PROJECT_MAP_PATHS,
+    ...pathCandidateEnvironment,
     MAX_BODY_BYTES,
     MAX_HISTORY_MESSAGES,
     CHAT_CONTEXT_MAX_MESSAGES,
@@ -573,7 +300,7 @@ function createMobileRuntimeEnvironment(options = {}) {
     SOURCE_MARKDOWN_SEARCH_LIMIT,
     WEIXIN_FORWARD_MARKDOWN_MAX_BYTES,
     TODO_BRIDGE_TIMEOUT_MS,
-    KANBAN_BRIDGE_TIMEOUT_MS,
+    ...kanbanEnvironment,
     CRON_BRIDGE_TIMEOUT_MS,
     CRON_BRIDGE_STDOUT_LIMIT_BYTES,
     CRON_LIST_CACHE_TTL_MS,
@@ -586,39 +313,7 @@ function createMobileRuntimeEnvironment(options = {}) {
     CRON_OUTPUT_ROOT,
     CRON_RUN_LOG_ROOT,
     TODO_BACKEND,
-    KANBAN_COMMAND,
-    KANBAN_COMMAND_ARGS,
-    KANBAN_TODO_META_PATH,
-    KANBAN_CARD_LIST_CACHE_PATH,
-    KANBAN_CASE_SHARE_PATH,
-    KANBAN_WORKSPACE_PATH_STYLE,
-    KANBAN_DEPENDENCY_RECONCILE_INTERVAL_MS,
-    KANBAN_CARD_LIST_CACHE_TTL_MS,
-    KANBAN_BLOCKED_PUSH_DELAY_MINUTES,
-    KANBAN_MULTI_AGENT_DEFAULT_PARALLEL,
-    KANBAN_MULTI_AGENT_MAX_PARALLEL,
-    KANBAN_MULTI_AGENT_MAX_CARDS,
-    KANBAN_MULTI_AGENT_PLAN_TIMEOUT_MS,
-    KANBAN_READING_PLAN_MAX_SESSIONS,
-    KANBAN_READING_ANALYSIS_TIMEOUT_MS,
-    KANBAN_READING_TRANSCRIBE_TIMEOUT_MS,
-    KANBAN_READING_TRANSCRIBE_SCRIPT,
-    KANBAN_READING_ARTIFACT_ROOT,
-    KANBAN_READING_COVER_MAX_BYTES,
-    KANBAN_SOURCE_DOCUMENT_MAX_BYTES,
-    KANBAN_READING_QUIZ_TARGETING_VERSION,
-    KANBAN_STUDY_CASE_MODES,
-    KANBAN_ASSESSMENT_CASE_MODES,
-    KANBAN_STUDY_SHARED_FOLDER_NAME,
-    KANBAN_CASE_TOPIC_KIND,
-    KANBAN_ASSESSMENT_PLAN_MAX_EXAMS,
-    KANBAN_ASSESSMENT_MAX_QUESTIONS,
-    KANBAN_ASSESSMENT_MODEL_TIMEOUT_MS,
     AUTOMATION_BACKEND,
-    LOCAL_TODO_STORE_PATH,
-    LOCAL_AUTOMATION_STORE_PATH,
-    SERVICE_STORE_BACKEND,
-    MOBILE_SQLITE_DB_PATH,
     BRIDGE_HOST_URL,
     BRIDGE_HOST_KEY_PATH,
     OWNER_MAINTENANCE_RUNS_ENABLED,

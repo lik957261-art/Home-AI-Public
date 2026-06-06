@@ -33,12 +33,18 @@ Current runtime glue that should stay out of the composition root lives in
 focused adapters such as `mobile-runtime-file-helper-service.js`,
 `mobile-runtime-backend-policy-service.js`,
 `mobile-runtime-config-facade-service.js`,
+`mobile-runtime-environment-service.js`,
+`mobile-runtime-env-value-service.js`,
+`mobile-runtime-gateway-environment-service.js`,
 `mobile-runtime-gateway-facade-service.js`,
 `mobile-runtime-group-chat-attachment-service.js`,
+`mobile-runtime-kanban-environment-service.js`,
 `mobile-runtime-local-bridge-facade-service.js`,
 `mobile-runtime-owner-elevation-facade-service.js`,
+`mobile-runtime-path-candidate-environment-service.js`,
 `mobile-runtime-public-status-service.js`,
 `mobile-runtime-state-facade-service.js`,
+`mobile-runtime-state-path-environment-service.js`,
 `mobile-runtime-system-status-facade-service.js`,
 `mobile-runtime-thread-facade-service.js`,
 `mobile-runtime-weixin-facade-service.js`,
@@ -46,13 +52,16 @@ focused adapters such as `mobile-runtime-file-helper-service.js`,
 `mobile-runtime-workspace-catalog-facade.js`, and
 `mobile-runtime-http-server-service.js`. These modules keep static file
 helpers and JSON store file IO, backend mode policy, runtime config facade
-delegation, Gateway runner/pool/launcher/provisioning/telemetry lazy
-delegation, group-chat attachment runtime wiring, Local Bridge runtime lazy
-delegation, Owner elevation grant/routing lazy delegation, public status
-projections, runtime state normalization/persistence lazy delegation, system
-status lazy delegation, thread runtime composition delegation, Weixin runtime
-composition delegation, local workspace store/projection lazy delegation,
-workspace catalog lazy delegation, and process HTTP lifecycle wiring
+delegation, runtime environment aggregation, shared environment value parsing,
+Gateway/run environment parsing, Gateway runner/pool/launcher/provisioning/
+telemetry lazy delegation, group-chat attachment runtime wiring, Kanban/reading
+environment parsing, Local Bridge runtime lazy delegation, Owner elevation
+grant/routing lazy delegation, WSL/config path candidate parsing, public status
+projections, runtime state normalization/persistence lazy delegation,
+DATA_DIR-derived state/storage path parsing, system status lazy delegation,
+thread runtime composition delegation, Weixin runtime composition delegation,
+local workspace store/projection lazy delegation, workspace catalog lazy
+delegation, and process HTTP lifecycle wiring
 addressable through CodeGraph without loading the full runtime root.
 
 `server.js` and `mobile-server-runtime.js` must not own new business behavior such as:
@@ -88,6 +97,13 @@ Current CI guardrails:
 - top-level `function` declarations in `server.js` must stay at or below 5;
 - `mobile-server-runtime.js` must stay at or below 2,175 lines while it is being split further;
 - top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 240;
+- `mobile-runtime-environment-service.js` must stay at or below 380 lines and
+  remain an environment aggregation adapter, not a place for new config groups;
+- `mobile-runtime-gateway-environment-service.js` must stay at or below 130 lines;
+- `mobile-runtime-path-candidate-environment-service.js` must stay at or below 150 lines;
+- `mobile-runtime-state-path-environment-service.js` must stay at or below 90 lines;
+- `mobile-runtime-kanban-environment-service.js` must stay at or below 100 lines;
+- `mobile-runtime-env-value-service.js` must stay at or below 40 lines;
 - if a feature would exceed either budget, extract route modules and services first.
 
 These budgets are intentionally temporary ceilings. Lower them after each successful extraction round.
