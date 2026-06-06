@@ -201,8 +201,11 @@ Required harness dimensions:
   has current bound-directory metadata. For directory chip or Windows-origin
   binding failures, add `--simulate-ui-route` so the smoke validates the static
   client's `projectId/subprojectId/path` target through `/api/projects`; a
-  path-only preview can miss stale project ids or workspace-selector/thread
-  context drift. Owner-only smoke is insufficient because Weixin workspace
+  path-only preview can miss stale project ids. Add
+  `--use-bound-thread-context` when closing user-clicked chip failures so the
+  smoke previews each binding through its persisted message thread rather than
+  only a fresh single-window thread; otherwise topic/shared-workspace context
+  drift can be missed. Owner-only smoke is insufficient because Weixin workspace
   bindings can drift independently. Unknown/decommissioned workspaces may be
   reported as `skipped: unknown-workspace`; active workspaces must not be
   skipped. Use its `--include-chat` mode only for separate historical

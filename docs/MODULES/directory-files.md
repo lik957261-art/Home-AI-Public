@@ -179,8 +179,10 @@ snapshot cannot re-import old paths after listener restart. Closure must include
 active workspace that has directory-bound metadata. For UI chip failures after
 Windows-to-Mac migration, add `--simulate-ui-route` so the smoke resolves
 `projectId/subprojectId/path` through `/api/projects` like the static client
-before previewing; path-only preview is not sufficient evidence for clicked
-chips. Unknown/decommissioned workspaces may be reported as `skipped:
+before previewing; also add `--use-bound-thread-context` so the preview uses
+the persisted message thread for each binding rather than only a fresh
+single-window thread. Path-only or single-window-only preview is not sufficient
+evidence for clicked chips. Unknown/decommissioned workspaces may be reported as `skipped:
 unknown-workspace`. Use `--include-chat` only for separate historical
 stale-reference cleanup. If a file previews for the wrong user, inspect
 `file-artifact-access-service` and the route auth context. If Web Push opens a

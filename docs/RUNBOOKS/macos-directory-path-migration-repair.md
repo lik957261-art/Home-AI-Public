@@ -191,6 +191,7 @@ sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
   --root /Users/hermes-host/HermesMobile \
   --all-workspaces \
   --simulate-ui-route \
+  --use-bound-thread-context \
   --json
 ```
 
@@ -202,6 +203,12 @@ static client uses and previews the computed `projectId/subprojectId/path`
 target, not only the saved physical `path`. A path-only smoke can pass while a
 stale project id would make the UI open the wrong root or hit a directory ACL
 failure.
+Closure for user-clicked directory chips should also use
+`--use-bound-thread-context`. That mode previews each persisted binding through
+the message thread that created the binding, not only a fresh single-window
+thread. It catches cases where the physical path is valid but the actual topic
+thread, shared workspace, or migrated binding context would fail the directory
+ACL.
 If a stopped-listener write is clean but dry-run becomes dirty immediately
 after listener startup, inspect for unrepaired runtime compatibility JSON first:
 `messages.raw_json` and `threads.raw_json` can resurrect old directory paths

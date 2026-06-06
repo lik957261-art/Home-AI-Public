@@ -16,6 +16,7 @@ function parseArgs(argv) {
     allWorkspaces: false,
     includeChat: false,
     simulateUiRoute: false,
+    useBoundThreadContext: false,
     limit: 1000,
     json: false,
   };
@@ -29,6 +30,7 @@ function parseArgs(argv) {
     else if (arg === "--all-workspaces") out.allWorkspaces = true;
     else if (arg === "--include-chat") out.includeChat = true;
     else if (arg === "--simulate-ui-route") out.simulateUiRoute = true;
+    else if (arg === "--use-bound-thread-context") out.useBoundThreadContext = true;
     else if (arg === "--limit") out.limit = Number(argv[++index] || out.limit);
     else if (arg === "--json") out.json = true;
     else if (arg === "--help") {
@@ -42,6 +44,7 @@ function parseArgs(argv) {
         "  --all-workspaces         Inspect each workspace with current bound directory metadata",
         "  --include-chat           Also test chat/group-chat directory references",
         "  --simulate-ui-route      Resolve projectId/subprojectId/path like the static client before previewing",
+        "  --use-bound-thread-context Preview each path with its persisted bound message thread",
         "  --limit <n>              Maximum unique bound paths to test",
         "  --json                   Print bounded JSON evidence",
       ].join("\n"));
@@ -88,15 +91,18 @@ function addRoute(target, route, source, row, root) {
   if (!route || typeof route !== "object") return;
   const routePath = String(route.path || route.root || "").trim();
   if (!routePath || !routePath.replace(/\\/g, "/").startsWith(root.replace(/\\/g, "/"))) return;
+  const threadId = String(row.thread_id || "").trim();
+  const contextPrefix = target.useBoundThreadContext ? `${threadId}|` : "";
   const key = target.simulateUiRoute
-    ? `${String(route.projectId || "")}|${String(route.subprojectId || "")}|${routePath.replace(/\\/g, "/")}`
-    : routePath.replace(/\\/g, "/");
+    ? `${contextPrefix}${String(route.projectId || "")}|${String(route.subprojectId || "")}|${routePath.replace(/\\/g, "/")}`
+    : `${contextPrefix}${routePath.replace(/\\/g, "/")}`;
   if (!target.has(key)) {
     target.set(key, {
       path: routePath,
       label: String(route.label || ""),
       projectId: String(route.projectId || ""),
       subprojectId: String(route.subprojectId || ""),
+      threadId,
       count: 0,
       examples: [],
     });
@@ -106,6 +112,7 @@ function addRoute(target, route, source, row, root) {
   if (item.examples.length < 3) {
     item.examples.push({
       messageId: row.id,
+      threadId,
       taskGroupId: row.task_group_id || "",
       source,
     });
@@ -119,7 +126,7 @@ function collectBoundDirectoryPaths(options) {
       ? ""
       : "AND COALESCE(m.task_group_id, '') NOT IN ('chat', 'group-chat')";
     const rows = db.prepare(`
-      SELECT m.id, m.task_group_id, m.directory_route_json, m.directory_aliases_json
+      SELECT m.id, m.thread_id, m.task_group_id, m.directory_route_json, m.directory_aliases_json
       FROM messages m
       LEFT JOIN threads t ON t.id = m.thread_id
       WHERE t.workspace_id = ?
@@ -129,6 +136,7 @@ function collectBoundDirectoryPaths(options) {
     `).all(options.workspaceId);
     const paths = new Map();
     paths.simulateUiRoute = Boolean(options.simulateUiRoute);
+    paths.useBoundThreadContext = Boolean(options.useBoundThreadContext);
     for (const row of rows) {
       addRoute(paths, parseJson(row.directory_route_json, null), "route", row, options.root);
       const aliases = parseJson(row.directory_aliases_json, []);
@@ -268,18 +276,25 @@ function previewTargetForBoundDirectory(item, projectCandidates, options) {
 async function smoke(options) {
   const normalized = Object.assign({}, options, { accessKey: readAccessKey(options) });
   if (!normalized.accessKey) throw new Error("Missing access key. Use --access-key-file or HERMES_WEB_AUTH_KEY_PATH.");
-  const single = await api(normalized, "/api/single-window", {
-    method: "POST",
-    body: JSON.stringify({ workspaceId: normalized.workspaceId }),
-  });
-  const threadId = String(single.payload?.thread?.id || "");
-  if (!single.response.ok || !threadId) throw new Error("Could not resolve directory smoke thread.");
+  let fallbackThreadId = "";
+  async function ensureFallbackThreadId() {
+    if (fallbackThreadId) return fallbackThreadId;
+    const single = await api(normalized, "/api/single-window", {
+      method: "POST",
+      body: JSON.stringify({ workspaceId: normalized.workspaceId }),
+    });
+    fallbackThreadId = String(single.payload?.thread?.id || "");
+    if (!single.response.ok || !fallbackThreadId) throw new Error("Could not resolve directory smoke thread.");
+    return fallbackThreadId;
+  }
+  if (!normalized.useBoundThreadContext) await ensureFallbackThreadId();
   const projectCandidates = await projectCandidatesForWorkspace(normalized);
   const boundPaths = collectBoundDirectoryPaths(normalized);
   const failures = [];
   let okCount = 0;
   for (const item of boundPaths) {
     const target = previewTargetForBoundDirectory(item, projectCandidates, normalized);
+    const threadId = normalized.useBoundThreadContext && item.threadId ? item.threadId : await ensureFallbackThreadId();
     const params = new URLSearchParams({ threadId, path: target.path });
     const result = await api(normalized, `/api/directories/preview?${params.toString()}`);
     if (result.response.ok) {
@@ -290,6 +305,7 @@ async function smoke(options) {
       label: item.label,
       projectId: item.projectId,
       subprojectId: item.subprojectId,
+      threadId,
       path: compactPath(item.path, normalized.root),
       uiRoute: target.uiRoute,
       count: item.count,
@@ -303,6 +319,7 @@ async function smoke(options) {
     workspaceId: normalized.workspaceId,
     includeChat: Boolean(normalized.includeChat),
     simulateUiRoute: Boolean(normalized.simulateUiRoute),
+    useBoundThreadContext: Boolean(normalized.useBoundThreadContext),
     uniquePaths: boundPaths.length,
     okCount,
     failed: failures.length,
@@ -328,6 +345,7 @@ async function smokeAllWorkspaces(options) {
         workspaceId,
         includeChat: Boolean(normalized.includeChat),
         simulateUiRoute: Boolean(normalized.simulateUiRoute),
+        useBoundThreadContext: Boolean(normalized.useBoundThreadContext),
         skipped: unknownWorkspace,
         skipReason: unknownWorkspace ? "unknown-workspace" : "",
         uniquePaths: boundPaths.length,
@@ -343,6 +361,7 @@ async function smokeAllWorkspaces(options) {
     allWorkspaces: true,
     includeChat: Boolean(normalized.includeChat),
     simulateUiRoute: Boolean(normalized.simulateUiRoute),
+    useBoundThreadContext: Boolean(normalized.useBoundThreadContext),
     workspaceCount: workspaceIds.length,
     results,
   };

@@ -155,7 +155,9 @@ If Mac metadata has rootless drive paths such as
 For directory chip failures or Windows-origin topic bindings, also run the same
 smoke with `--simulate-ui-route` so it validates the static client's
 `projectId/subprojectId/path` resolution through `/api/projects`, not only the
-saved physical path.
+saved physical path. Add `--use-bound-thread-context` for user-clicked chip
+closures so each persisted binding is previewed with its own message thread
+instead of only a fresh single-window thread.
 That smoke must return `ok=true` for the current non-chat topic/plugin binding
 surface in every active workspace with current bound-directory metadata.
 Unknown/decommissioned workspaces may be reported as `skipped:
