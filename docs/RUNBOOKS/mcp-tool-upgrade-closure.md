@@ -58,7 +58,7 @@ node scripts\mcp-tool-upgrade-closure-smoke.js `
   --gateway-tool mcp_finance_add_transaction_attachment `
   --require-gateway-tool-property mcp_finance_add_transaction_attachment:file_path `
   --require-gateway-tool-property mcp_finance_add_transaction_attachment:upload_path `
-  --epoch 20260606-finance-attachment-mcp-v1 `
+  --epoch 20260606-finance-reference-mcp-v1 `
   --doc-contains docs/RUNBOOKS/mcp-tool-upgrade-closure.md::mcp_finance_add_transaction_attachment
 ```
 
@@ -76,7 +76,7 @@ node scripts\mcp-tool-upgrade-closure-smoke.js `
   --gateway-tool mcp_finance_add_transaction_attachment `
   --require-gateway-tool-property mcp_finance_add_transaction_attachment:file_path `
   --require-gateway-tool-property mcp_finance_add_transaction_attachment:upload_path `
-  --epoch 20260606-finance-attachment-mcp-v1 `
+  --epoch 20260606-finance-reference-mcp-v1 `
   --manifest C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json `
   --profile lowgw1
 ```
@@ -98,7 +98,7 @@ node scripts/mcp-tool-upgrade-closure-smoke.js \
   --gateway-tool mcp_finance_add_transaction_attachment \
   --require-gateway-tool-property mcp_finance_add_transaction_attachment:file_path \
   --require-gateway-tool-property mcp_finance_add_transaction_attachment:upload_path \
-  --epoch 20260606-finance-attachment-mcp-v1 \
+  --epoch 20260606-finance-reference-mcp-v1 \
   --manifest /Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json \
   --profile hm-owner-openai-1 \
   --agent-schema-mode native \
