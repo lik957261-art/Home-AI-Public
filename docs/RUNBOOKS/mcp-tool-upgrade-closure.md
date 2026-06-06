@@ -12,12 +12,17 @@ Every MCP tool upgrade must verify these layers in order:
 1. Plugin service schema:
    - The plugin service endpoint, for example `/api/finance/mcp/schemas`,
      returns the new local tool name and any changed fields.
+   - Field-level changes must be asserted by name. A tool-name-only pass is not
+     enough for upgrades that add parameters such as `file_path` or
+     `upload_path`.
 2. Gateway wrapper/profile:
    - The selected Gateway worker exposes the `mcp_<server>_<tool>` callable
      through the agent-schema probe, session schema, or equivalent
      `gateway-tool-schema-smoke.js --schema-only` path.
    - This is the Gateway worker callable schema. Worker registration logs are
      diagnostic only and do not by themselves prove the model can call the tool.
+   - For parameter upgrades, the Gateway callable schema must expose the same
+     required properties as the plugin service schema.
 3. Mobile instruction-service:
    - `adapters/gateway-run-instruction-service.js` lists the new callable in
      `callableFunctionHintsForToolsets`.
@@ -47,8 +52,12 @@ node scripts\mcp-tool-upgrade-closure-smoke.js `
   --service-header X-Finance-MCP-Workspace-Id=owner `
   --service-header-file X-Finance-MCP-Workspace-Key=<workspace-finance-key-file> `
   --require-service-tool finance.add_transaction_attachment `
+  --require-service-tool-property finance.add_transaction_attachment:file_path `
+  --require-service-tool-property finance.add_transaction_attachment:upload_path `
   --service-schema-contains attachments `
   --gateway-tool mcp_finance_add_transaction_attachment `
+  --require-gateway-tool-property mcp_finance_add_transaction_attachment:file_path `
+  --require-gateway-tool-property mcp_finance_add_transaction_attachment:upload_path `
   --epoch 20260606-finance-attachment-mcp-v1 `
   --doc-contains docs/RUNBOOKS/mcp-tool-upgrade-closure.md::mcp_finance_add_transaction_attachment
 ```
@@ -61,8 +70,12 @@ node scripts\mcp-tool-upgrade-closure-smoke.js `
   --service-header X-Finance-MCP-Workspace-Id=owner `
   --service-header-file X-Finance-MCP-Workspace-Key=<workspace-finance-key-file> `
   --require-service-tool finance.add_transaction_attachment `
+  --require-service-tool-property finance.add_transaction_attachment:file_path `
+  --require-service-tool-property finance.add_transaction_attachment:upload_path `
   --service-schema-contains attachments `
   --gateway-tool mcp_finance_add_transaction_attachment `
+  --require-gateway-tool-property mcp_finance_add_transaction_attachment:file_path `
+  --require-gateway-tool-property mcp_finance_add_transaction_attachment:upload_path `
   --epoch 20260606-finance-attachment-mcp-v1 `
   --manifest C:\ProgramData\HermesMobile\data\gateway-pool-manifest.json `
   --profile lowgw1
@@ -79,8 +92,12 @@ node scripts/mcp-tool-upgrade-closure-smoke.js \
   --service-header X-Finance-MCP-Workspace-Id=owner \
   --service-header-file X-Finance-MCP-Workspace-Key=<workspace-finance-key-file> \
   --require-service-tool finance.add_transaction_attachment \
+  --require-service-tool-property finance.add_transaction_attachment:file_path \
+  --require-service-tool-property finance.add_transaction_attachment:upload_path \
   --service-schema-contains attachments \
   --gateway-tool mcp_finance_add_transaction_attachment \
+  --require-gateway-tool-property mcp_finance_add_transaction_attachment:file_path \
+  --require-gateway-tool-property mcp_finance_add_transaction_attachment:upload_path \
   --epoch 20260606-finance-attachment-mcp-v1 \
   --manifest /Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json \
   --profile hm-owner-openai-1 \
@@ -114,11 +131,30 @@ that run.
 The accepted fix is not only redeploying Finance. The closure requires:
 
 - Finance service schema includes `finance.add_transaction_attachment`.
-- Gateway callable schema includes `mcp_finance_add_transaction_attachment`.
+- Finance service schema includes the direct attachment path fields
+  `file_path` and `upload_path`.
+- Gateway callable schema includes `mcp_finance_add_transaction_attachment`
+  and the matching `file_path` / `upload_path` properties.
 - Mobile instruction-service hints include
   `mcp_finance_add_transaction_attachment`.
 - `GATEWAY_TOOL_SCHEMA_EPOCH` is bumped to a new plugin-MCP epoch.
 - The selected worker is restarted or agent-schema-smoked after the change.
+
+## Finance Reference Contract V1 Pattern
+
+The 2026-06-06 Finance Reference Contract V1 source change adds these callable
+names when the `finance` toolset is enabled:
+
+- `mcp_finance_reference_object_types`
+- `mcp_finance_reference_get`
+- `mcp_finance_reference_summarize`
+
+The Mobile schema epoch for this callable set is
+`20260606-finance-reference-mcp-v1`. Before production exposure, prove the
+Finance service schema, Gateway selected-profile callable schema, Mobile
+instruction hints, and selected worker schema all include these names. The
+Reference / Memory Graph may cache only bounded display snapshots; full Finance
+facts remain resolved through Finance.
 
 ## Failure Classification
 
@@ -127,9 +163,18 @@ The accepted fix is not only redeploying Finance. The closure requires:
 - Service schema present, Gateway callable missing:
   - Wrapper/profile generation, trust boundary, runtime overlay, or worker
     restart failure.
+- Service schema present but Gateway callable properties missing:
+  - Wrapper schema materialization, agent schema cache, or profile restart
+    failure. Do not accept a tool-name-only Gateway smoke for this upgrade.
 - Gateway callable present, Mobile hints/epoch stale:
   - Mobile schema synchronization failure. Bump hints and epoch before
     accepting the deployment.
+- Gateway callable properties present, but Finance returns
+  `attachment_data_required`:
+  - The model called the attachment tool without one of `file_path`,
+    `upload_path`, `data_url`, or `data_base64`. Fix the Mobile instruction
+    layer and run a live file-path attachment smoke rather than redeploying
+    Finance schema.
 - All layers present, model still does not call the tool:
   - Diagnose prompt/tool-choice behavior with bounded run metadata and a live
     callable probe. Do not claim the MCP upgrade is unavailable unless the

@@ -41,7 +41,7 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /x_search -> x_search/);
   assert.match(summary, /cronjob -> cronjob_mobile, http_request, cronjob/);
   assert.match(summary, /wardrobe -> mcp_wardrobe_wardrobe_write_item, mcp_wardrobe_wardrobe_write_history, mcp_wardrobe_wardrobe_upload_photo, mcp_wardrobe_wardrobe_set_primary_photo, mcp_wardrobe_wardrobe_get_item, mcp_wardrobe_wardrobe_search_items/);
-  assert.match(summary, /finance -> mcp_finance_list_ledgers, mcp_finance_list_transactions, mcp_finance_get_summary, mcp_finance_get_report, mcp_finance_create_transaction, mcp_finance_add_transaction_attachment/);
+  assert.match(summary, /finance -> mcp_finance_list_ledgers, mcp_finance_list_transactions, mcp_finance_get_summary, mcp_finance_get_report, mcp_finance_create_transaction, mcp_finance_add_transaction_attachment, mcp_finance_reference_object_types, mcp_finance_reference_get, mcp_finance_reference_summarize/);
   assert.match(summary, /health -> mcp_health_records_get_summary/);
   assert.match(summary, /For HTTP\/API Program calls, use `http_request`/);
   assert.match(summary, /http_request\.file_body/);
@@ -85,7 +85,13 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /`finance` toolset is enabled/);
   assert.match(text, /`mcp_finance_list_ledgers`/);
   assert.match(text, /`mcp_finance_add_transaction_attachment`/);
+  assert.match(text, /`mcp_finance_reference_get`/);
+  assert.match(text, /stable Finance object references/);
   assert.match(text, /adding image\/file attachments to an existing transaction/);
+  assert.match(text, /with `transaction_id` and `file_path` set to that server-local upload path/);
+  assert.match(text, /`upload_path` is an accepted alias/);
+  assert.match(text, /Do not put a local path, `MEDIA:<path>`, or `file:\/\/` URL into `data_url`/);
+  assert.match(text, /without one attachment source field: `file_path`, `upload_path`, `data_url`, or `data_base64`/);
   assert.match(text, /falling back to cleaned files as an MCP result/);
   assert.match(text, /`health` toolset is enabled/);
   assert.match(text, /double-prefixed/);
@@ -127,19 +133,19 @@ function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
 
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["file"] }),
-    "session_a_group_1_20260606-finance-attachment-mcp-v1_file",
+    "session_a_group_1_20260606-finance-reference-mcp-v1_file",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["memory"] }),
-    "session_a_group_1_20260606-finance-attachment-mcp-v1_memory",
+    "session_a_group_1_20260606-finance-reference-mcp-v1_memory",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["x_search"] }),
-    "session_a_group_1_20260606-finance-attachment-mcp-v1_x_search",
+    "session_a_group_1_20260606-finance-reference-mcp-v1_x_search",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["vision", "wardrobe", "file"] }),
-    "session_a_group_1_20260606-finance-attachment-mcp-v1_file-vision-wardrobe",
+    "session_a_group_1_20260606-finance-reference-mcp-v1_file-vision-wardrobe",
   );
 }
 

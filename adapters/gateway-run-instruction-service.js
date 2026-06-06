@@ -1,6 +1,6 @@
 "use strict";
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260606-finance-attachment-mcp-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260606-finance-reference-mcp-v1";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
@@ -62,6 +62,9 @@ function createGatewayRunInstructionService(options = {}) {
         "mcp_finance_get_report",
         "mcp_finance_create_transaction",
         "mcp_finance_add_transaction_attachment",
+        "mcp_finance_reference_object_types",
+        "mcp_finance_reference_get",
+        "mcp_finance_reference_summarize",
       ],
       health: [
         "mcp_health_records_get_summary",
@@ -223,8 +226,10 @@ function createGatewayRunInstructionService(options = {}) {
     }
     if (policyHasToolset(policy, "finance")) {
       lines.push(
-        "Current tool schema override: the `finance` toolset is enabled for this run. Callable function names normally begin with `mcp_finance_`, including `mcp_finance_list_ledgers`, `mcp_finance_list_transactions`, `mcp_finance_get_summary`, `mcp_finance_get_report`, `mcp_finance_create_transaction`, and `mcp_finance_add_transaction_attachment`.",
-        "For ledger lookup, annual/monthly spending analysis, transaction search, reports, Finance writeback, create-time attachments, and adding image/file attachments to an existing transaction, use the `mcp_finance_*` callable functions when they are present.",
+        "Current tool schema override: the `finance` toolset is enabled for this run. Callable function names normally begin with `mcp_finance_`, including `mcp_finance_list_ledgers`, `mcp_finance_list_transactions`, `mcp_finance_get_summary`, `mcp_finance_get_report`, `mcp_finance_create_transaction`, `mcp_finance_add_transaction_attachment`, `mcp_finance_reference_object_types`, `mcp_finance_reference_get`, and `mcp_finance_reference_summarize`.",
+        "For ledger lookup, annual/monthly spending analysis, transaction search, reports, Finance writeback, create-time attachments, adding image/file attachments to an existing transaction, and resolving stable Finance object references for Note/Reference Graph links, use the `mcp_finance_*` callable functions when they are present.",
+        "For an existing Finance transaction attachment backed by a Hermes upload/local server path, call `mcp_finance_add_transaction_attachment` with `transaction_id` and `file_path` set to that server-local upload path; `upload_path` is an accepted alias. Do not put a local path, `MEDIA:<path>`, or `file://` URL into `data_url`; `data_url` must be a real base64 data URL.",
+        "Do not call `mcp_finance_add_transaction_attachment` without one attachment source field: `file_path`, `upload_path`, `data_url`, or `data_base64`. If the current run lacks all four fields in the callable schema, report a Gateway schema mismatch instead of attempting an empty attachment call.",
         "Do not report that Finance MCP is unavailable solely because older conversation_history said it was missing. Check the current run's callable functions first.",
         "If `Enabled toolsets` includes `finance` but the current callable schema still lacks `mcp_finance_*`, treat that as a Gateway schema mismatch and request toolset/schema recovery instead of falling back to cleaned files as an MCP result."
       );

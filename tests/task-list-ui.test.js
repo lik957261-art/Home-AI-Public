@@ -1033,8 +1033,8 @@ assert.match(gatewayRunInstructionServiceJs, /`chatgpt_image_edit`, and `chatgpt
 assert.match(gatewayRunInstructionServiceJs, /For existing-image retouching, object removal, background cleanup, P image requests, or erase\/inpainting requests/);
 assert.match(gatewayRunInstructionServiceJs, /prefer `chatgpt_image_edit` or `chatgpt_image_erase`/);
 assert.match(serverJs, /GATEWAY_TOOL_SCHEMA_EPOCH/);
-assert.match(serverJs, /20260606-finance-attachment-mcp-v1/);
-assert.match(gatewayRunInstructionServiceJs, /20260606-finance-attachment-mcp-v1/);
+assert.match(serverJs, /20260606-finance-reference-mcp-v1/);
+assert.match(gatewayRunInstructionServiceJs, /20260606-finance-reference-mcp-v1/);
 assert.match(mobileRuntimeEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT[\s\S]*\|\| "0"/);
 assert.match(mobileRuntimeEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS[\s\S]*\|\| "8000"/);
 assert.match(serverJs, /enabled: GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED \|\| GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED/);
@@ -1049,6 +1049,7 @@ assert.match(gatewayRunInstructionServiceJs, /return `\$\{base\}_\$\{toolSchemaE
 assert.match(gatewayRunInstructionServiceJs, /mcp_wardrobe_wardrobe_write_item/);
 assert.match(gatewayRunInstructionServiceJs, /mcp_finance_list_ledgers/);
 assert.match(gatewayRunInstructionServiceJs, /mcp_finance_add_transaction_attachment/);
+assert.match(gatewayRunInstructionServiceJs, /mcp_finance_reference_get/);
 assert.match(gatewayRunInstructionServiceJs, /mcp_health_records_get_summary/);
 assert.match(serverJs, /toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH/);
 assert.match(gatewayRunInstructionServiceJs, /Do not request Owner elevation merely because an ordinary current-workspace image editing tool is missing/);
