@@ -29,6 +29,12 @@ modules. It may:
 - stream or return HTTP responses;
 - keep short compatibility wrappers while a larger extraction is in progress.
 
+Route composition modules should stay domain-scoped. The main
+`server-routes/mobile-api-composition.js` module owns platform-level route
+aggregation and dispatcher construction only. Domain-heavy route/service graphs,
+such as Growth/Learning and Kanban study wiring, belong in focused composition
+modules such as `server-routes/mobile-api-learning-composition.js`.
+
 Current runtime glue that should stay out of the composition root lives in
 focused adapters such as `mobile-runtime-file-helper-service.js`,
 `mobile-runtime-backend-policy-service.js`,
@@ -97,6 +103,10 @@ Current CI guardrails:
 - top-level `function` declarations in `server.js` must stay at or below 5;
 - `mobile-server-runtime.js` must stay at or below 2,175 lines while it is being split further;
 - top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 240;
+- `mobile-api-composition.js` must stay at or below 650 lines and remain the
+  platform-level API aggregator, not a domain service graph;
+- `mobile-api-learning-composition.js` must stay at or below 350 lines and
+  remain the Growth/Learning route/service wiring boundary;
 - `mobile-runtime-environment-service.js` must stay at or below 380 lines and
   remain an environment aggregation adapter, not a place for new config groups;
 - `mobile-runtime-gateway-environment-service.js` must stay at or below 130 lines;

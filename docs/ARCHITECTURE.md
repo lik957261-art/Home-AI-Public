@@ -34,6 +34,16 @@ Business logic belongs in focused services/providers under `adapters/` and route
 
 `server.js` is a thin process entrypoint. `mobile-server-runtime.js` remains a runtime composition root and should not accumulate new domain logic.
 
+Route composition that becomes domain-specific should also be split out of the
+main API aggregator. Current focused route composition modules include:
+
+- `server-routes/mobile-api-composition.js` for platform-level API route
+  aggregation, dispatcher construction, and compatibility service exposure.
+- `server-routes/mobile-api-learning-composition.js` for Growth/Learning,
+  Kanban study, learning program, parent review, and learning coin route and
+  service wiring. It owns the Growth evaluation queue startup wiring and keeps
+  that dependency graph out of the platform-level route aggregator.
+
 Runtime glue that is deterministic or independently testable should also move
 out of the composition root. Current focused runtime adapters include:
 
