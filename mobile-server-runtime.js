@@ -61,6 +61,7 @@ const { createMobileRuntimeBackendPolicyService } = require("./adapters/mobile-r
 const { createMobileRuntimeConfigFacadeService } = require("./adapters/mobile-runtime-config-facade-service");
 const { createMobileRuntimeFileHelperService } = require("./adapters/mobile-runtime-file-helper-service");
 const { createMobileRuntimePublicStatusService } = require("./adapters/mobile-runtime-public-status-service");
+const { createMobileRuntimeStateFacadeService } = require("./adapters/mobile-runtime-state-facade-service");
 const { createMobileRuntimeSystemStatusFacadeService } = require("./adapters/mobile-runtime-system-status-facade-service");
 const { createMobileRuntimeWorkspaceCatalogFacade } = require("./adapters/mobile-runtime-workspace-catalog-facade");
 const { createRuntimeWorkspaceCatalogService } = require("./adapters/runtime-workspace-catalog-service");
@@ -211,8 +212,6 @@ let workspacePublicProjectionService = null;
 let semanticDirectoryAttachmentService = null;
 let kanbanCaseTopicService = null;
 let kanbanPlanCardCreationService = null;
-let runtimeStateNormalizationService = null;
-let runtimeStatePersistenceService = null;
 let runtimeStateThreadService = null;
 let ownerElevationGrantService = null;
 let threadRuntimeCompositionService = null;
@@ -222,6 +221,39 @@ const eventFanoutService = createEventFanoutService({
   clients, authCanAccessWorkspace, isOwnerAuth, state: () => state,
   threadAccessibleToAuth: (...args) => getRuntimeStateThreadService().threadAccessibleToAuth(...args),
 }); const pluginCapabilityActivationService = createPluginCapabilityActivationService({ dedupe }); const pluginRequiredSkillPreloadService = createPluginRequiredSkillPreloadService({ dataDirs: [DATA_DIR], env: process.env, maxSkillChars: 80000, maxTotalChars: 120000 }); const gatewayModelPreflightEnabled = GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED || GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED;
+const mobileRuntimeStateFacadeService = createMobileRuntimeStateFacadeService({
+  bootTrace,
+  chatGroupMemberWorkspaceIds,
+  compactFullContent,
+  createRuntimeStateNormalizationService,
+  createRuntimeStatePersistenceService,
+  dataDir: DATA_DIR,
+  dedupe,
+  findWorkspace: (...args) => findWorkspace(...args),
+  fs,
+  groupMessageRevokedText: GROUP_MESSAGE_REVOKED_TEXT,
+  kanbanCaseTopicKind: KANBAN_CASE_TOPIC_KIND,
+  logError: (message) => console.error(message),
+  makeId,
+  maxStateBackups: MAX_STATE_BACKUPS,
+  maxStoredEventsPerThread: MAX_STORED_EVENTS_PER_THREAD,
+  messageTimeFields: MESSAGE_TIME_FIELDS,
+  mobileSqliteStore,
+  normalizeSingleWindowMode,
+  nowIso,
+  ownerDefaultWorkspace: OWNER_DEFAULT_WORKSPACE,
+  path,
+  singleWindowChatTaskGroupId,
+  singleWindowChatTaskGroupIdValue: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+  singleWindowGroupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+  stateBackupDir: STATE_BACKUP_DIR,
+  stateBackupMinIntervalMs: STATE_BACKUP_MIN_INTERVAL_MS,
+  statePath: STATE_PATH,
+  useSqliteServiceStore,
+  validReasoningEfforts: VALID_REASONING_EFFORTS,
+  webPushDeliveryService: () => webPushDeliveryService,
+  workspaceLabel,
+});
 function getGatewayRuntimeCompositionService() {
   if (!gatewayRuntimeCompositionService) {
     gatewayRuntimeCompositionService = createGatewayRuntimeCompositionService({
@@ -715,75 +747,31 @@ function findDirectoryThreadForRequest(req, threadId) {
   return isOwnerAuth(auth) ? ownerDirectoryBrowserThread() : null;
 }
 function ensureDataDir() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.mkdirSync(OWNER_DEFAULT_WORKSPACE, { recursive: true });
+  return mobileRuntimeStateFacadeService.ensureDataDir();
 }
 function getRuntimeStateNormalizationService() {
-  if (!runtimeStateNormalizationService) {
-    runtimeStateNormalizationService = createRuntimeStateNormalizationService({
-      bootTrace,
-      chatGroupMemberWorkspaceIds,
-      compactFullContent,
-      dedupe,
-      findWorkspace: (...args) => findWorkspace(...args),
-      groupMessageRevokedText: GROUP_MESSAGE_REVOKED_TEXT,
-      kanbanCaseTopicKind: KANBAN_CASE_TOPIC_KIND,
-      makeId,
-      maxStoredEventsPerThread: MAX_STORED_EVENTS_PER_THREAD,
-      messageTimeFields: MESSAGE_TIME_FIELDS,
-      normalizePushDelivery,
-      normalizePushReceipt,
-      normalizePushSubscription,
-      normalizeSingleWindowMode,
-      nowIso,
-      singleWindowChatTaskGroupId,
-      singleWindowChatTaskGroupIdValue: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
-      singleWindowGroupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
-      validReasoningEfforts: VALID_REASONING_EFFORTS,
-      workspaceLabel,
-    });
-  }
-  return runtimeStateNormalizationService;
+  return mobileRuntimeStateFacadeService.getRuntimeStateNormalizationService();
 }
 function getRuntimeStatePersistenceService() {
-  if (!runtimeStatePersistenceService) {
-    runtimeStatePersistenceService = createRuntimeStatePersistenceService({
-      fs,
-      path,
-      statePath: STATE_PATH,
-      dataDir: DATA_DIR,
-      stateBackupDir: STATE_BACKUP_DIR,
-      maxStateBackups: MAX_STATE_BACKUPS,
-      stateBackupMinIntervalMs: STATE_BACKUP_MIN_INTERVAL_MS,
-      bootTrace,
-      defaultState,
-      ensureDataDir,
-      logError: (message) => console.error(message),
-      mobileSqliteStore,
-      normalizeState,
-      pushSubscriptionScopeSignature,
-      useSqliteServiceStore,
-    });
-  }
-  return runtimeStatePersistenceService;
+  return mobileRuntimeStateFacadeService.getRuntimeStatePersistenceService();
 }
 function defaultState() {
-  return getRuntimeStateNormalizationService().defaultState();
+  return mobileRuntimeStateFacadeService.defaultState();
 }
 function loadState() {
-  return getRuntimeStatePersistenceService().loadState();
+  return mobileRuntimeStateFacadeService.loadState();
 }
 function normalizeState(value, options = {}) {
-  return getRuntimeStateNormalizationService().normalizeState(value, options);
+  return mobileRuntimeStateFacadeService.normalizeState(value, options);
 }
 function normalizePushDelivery(item) {
-  return webPushDeliveryService.normalizePushDelivery(item);
+  return mobileRuntimeStateFacadeService.normalizePushDelivery(item);
 }
 function normalizePushReceipt(item) {
-  return webPushDeliveryService.normalizePushReceipt(item);
+  return mobileRuntimeStateFacadeService.normalizePushReceipt(item);
 }
 function normalizePushSubscription(item, options = {}) {
-  return webPushDeliveryService.normalizePushSubscription(item, options);
+  return mobileRuntimeStateFacadeService.normalizePushSubscription(item, options);
 }
 function scopedPushPrincipalIds(principalIds) {
   const principals = normalizeStringList(principalIds);
@@ -800,7 +788,7 @@ function scopedPushWorkspaceIds(principalId, workspaceIds = [], options = {}) {
   return workspaceId ? [workspaceId] : [];
 }
 function pushSubscriptionScopeSignature(items) {
-  return webPushDeliveryService.pushSubscriptionScopeSignature(items);
+  return mobileRuntimeStateFacadeService.pushSubscriptionScopeSignature(items);
 }
 function stripPrincipalLabelPrefixes(value) {
   let text = String(value || "").trim();
@@ -810,10 +798,10 @@ function stripPrincipalLabelPrefixes(value) {
   return text;
 }
 function normalizeChatGroup(value, ownerWorkspaceId = "owner", options = {}) {
-  return getRuntimeStateNormalizationService().normalizeChatGroup(value, ownerWorkspaceId, options);
+  return mobileRuntimeStateFacadeService.normalizeChatGroup(value, ownerWorkspaceId, options);
 }
 function saveState(next = state, options = {}) {
-  return getRuntimeStatePersistenceService().saveState(next, options);
+  return mobileRuntimeStateFacadeService.saveState(next, options);
 }
 function hashValue(value) {
   return crypto.createHash("sha256").update(String(value || ""), "utf8").digest("hex");

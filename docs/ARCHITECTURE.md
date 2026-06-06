@@ -52,6 +52,9 @@ out of the composition root. Current focused runtime adapters include:
   Bridge runtime wiring and Todo/Cron/Directory/process bridge delegation.
 - `adapters/mobile-runtime-public-status-service.js` for public reasoning,
   Gateway pool, and run-concurrency status projections.
+- `adapters/mobile-runtime-state-facade-service.js` for lazy runtime state
+  normalization/persistence wiring, state snapshot directory preparation, and
+  Web Push state normalization delegation.
 - `adapters/mobile-runtime-system-status-facade-service.js` for lazy system
   runtime status wiring, config-path candidate derivation, client-version
   delegation, and app-update delegation.
