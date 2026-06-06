@@ -24,7 +24,7 @@ const { createGatewayRuntimeCompositionService } = require("./adapters/gateway-r
 const { gatewayPoolStatusHealthy } = require("./adapters/gateway-status-projection");
 const { createMobileRuntimeGatewayFacadeService } = require("./adapters/mobile-runtime-gateway-facade-service");
 const { createMobileRuntimeGroupChatAttachmentService } = require("./adapters/mobile-runtime-group-chat-attachment-service");
-const { createOwnerElevationGrantService } = require("./adapters/owner-elevation-grant-service");
+const { createMobileRuntimeOwnerElevationFacadeService } = require("./adapters/mobile-runtime-owner-elevation-facade-service");
 const { createRuntimeStatePersistenceService } = require("./adapters/runtime-state-persistence-service");
 const {
   createRuntimeStateNormalizationService,
@@ -51,7 +51,6 @@ const { createMobileHttpRuntimeService } = require("./adapters/mobile-http-runti
 const { createMobileRuntimeHttpServerService } = require("./adapters/mobile-runtime-http-server-service");
 const { createMobileRuntimeCoreProviders } = require("./adapters/mobile-runtime-core-providers");
 const { createMobileRuntimeLocalBridgeFacadeService } = require("./adapters/mobile-runtime-local-bridge-facade-service");
-const { createOwnerElevationRoutingService } = require("./adapters/owner-elevation-routing-service");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
 const { createMobileRuntimeBackendPolicyService } = require("./adapters/mobile-runtime-backend-policy-service");
 const { createMobileRuntimeConfigFacadeService } = require("./adapters/mobile-runtime-config-facade-service");
@@ -203,7 +202,6 @@ let semanticDirectoryAttachmentService = null;
 let kanbanCaseTopicService = null;
 let kanbanPlanCardCreationService = null;
 let runtimeStateThreadService = null;
-let ownerElevationGrantService = null;
 let webPushDeliveryService = null;
 const eventFanoutService = createEventFanoutService({
   clients, authCanAccessWorkspace, isOwnerAuth, state: () => state,
@@ -580,24 +578,27 @@ const assertRunConcurrencyCapacity = (...args) => mobileRuntimeGatewayFacadeServ
 const publicReasoningInfoForAuth = (...args) => mobileRuntimePublicStatusService.publicReasoningInfoForAuth(...args);
 const publicGatewayPoolStatusForAuth = (...args) => mobileRuntimePublicStatusService.publicGatewayPoolStatusForAuth(...args);
 const publicConcurrencyForAuth = (...args) => mobileRuntimePublicStatusService.publicConcurrencyForAuth(...args);
-const ownerElevationRoutingService = createOwnerElevationRoutingService({
+const mobileRuntimeOwnerElevationFacadeService = createMobileRuntimeOwnerElevationFacadeService({
+  audit: (eventType, payload) => auditEventProvider.audit(eventType, payload),
   compactText,
-  consumeOwnerElevationOnce,
+  defaultDurationMinutes: OWNER_ELEVATION_DEFAULT_MINUTES,
+  durationOptionsMinutes: OWNER_ELEVATION_DURATION_OPTIONS_MINUTES,
   gatewaySkillProfileRouting: GATEWAY_SKILL_PROFILE_ROUTING,
   isOwnerAuth,
-  isOwnerElevationActive,
   loadCatalog,
+  maintenanceRunsEnabled: () => OWNER_MAINTENANCE_RUNS_ENABLED,
+  onceTtlMs: OWNER_ELEVATION_ONCE_TTL_MS,
   permissionApprovalMarker: PERMISSION_APPROVAL_MARKER,
   securityBoundaryProvider,
 });
-const accessPolicyHardeningOptionsForGatewayRouting = (...args) => ownerElevationRoutingService.accessPolicyHardeningOptionsForGatewayRouting(...args);
-const gatewayRoutingForModelRun = (...args) => ownerElevationRoutingService.gatewayRoutingForModelRun(...args);
-const gatewaySkillRoutingForWorkspace = (...args) => ownerElevationRoutingService.gatewaySkillRoutingForWorkspace(...args);
-const modelPermissionApprovalRequest = (...args) => ownerElevationRoutingService.modelPermissionApprovalRequest(...args);
-const ownerElevationInstructions = (...args) => ownerElevationRoutingService.ownerElevationInstructions(...args);
-const precedingUserMessageForAssistant = (...args) => ownerElevationRoutingService.precedingUserMessageForAssistant(...args);
-const sanitizeElevationScope = (...args) => ownerElevationRoutingService.sanitizeElevationScope(...args);
-const stripPermissionApprovalMarkers = (...args) => ownerElevationRoutingService.stripPermissionApprovalMarkers(...args);
+const accessPolicyHardeningOptionsForGatewayRouting = (...args) => mobileRuntimeOwnerElevationFacadeService.accessPolicyHardeningOptionsForGatewayRouting(...args);
+const gatewayRoutingForModelRun = (...args) => mobileRuntimeOwnerElevationFacadeService.gatewayRoutingForModelRun(...args);
+const gatewaySkillRoutingForWorkspace = (...args) => mobileRuntimeOwnerElevationFacadeService.gatewaySkillRoutingForWorkspace(...args);
+const modelPermissionApprovalRequest = (...args) => mobileRuntimeOwnerElevationFacadeService.modelPermissionApprovalRequest(...args);
+const ownerElevationInstructions = (...args) => mobileRuntimeOwnerElevationFacadeService.ownerElevationInstructions(...args);
+const precedingUserMessageForAssistant = (...args) => mobileRuntimeOwnerElevationFacadeService.precedingUserMessageForAssistant(...args);
+const sanitizeElevationScope = (...args) => mobileRuntimeOwnerElevationFacadeService.sanitizeElevationScope(...args);
+const stripPermissionApprovalMarkers = (...args) => mobileRuntimeOwnerElevationFacadeService.stripPermissionApprovalMarkers(...args);
 function ownerSetupStatus() {
   return authProvider.ownerSetupStatus();
 }
@@ -650,37 +651,13 @@ function authenticateRequest(req) {
 function isOwnerAuth(auth) {
   return authProvider.isOwnerAuth(auth);
 }
-function getOwnerElevationGrantService() {
-  if (!ownerElevationGrantService) {
-    ownerElevationGrantService = createOwnerElevationGrantService({
-      isOwnerAuth,
-      maintenanceRunsEnabled: () => OWNER_MAINTENANCE_RUNS_ENABLED,
-      durationOptionsMinutes: OWNER_ELEVATION_DURATION_OPTIONS_MINUTES,
-      defaultDurationMinutes: OWNER_ELEVATION_DEFAULT_MINUTES,
-      onceTtlMs: OWNER_ELEVATION_ONCE_TTL_MS,
-      audit: (eventType, payload) => auditEventProvider.audit(eventType, payload),
-    });
-  }
-  return ownerElevationGrantService;
-}
-function isOwnerElevationActive(auth) {
-  return getOwnerElevationGrantService().isActive(auth);
-}
-function grantOwnerElevationOnce(auth) {
-  return getOwnerElevationGrantService().grantOnce(auth);
-}
-function consumeOwnerElevationOnce(auth, token) {
-  return getOwnerElevationGrantService().consumeOnce(auth, token);
-}
-function publicOwnerElevationStatus(auth) {
-  return getOwnerElevationGrantService().publicStatus(auth);
-}
-function grantOwnerElevation(auth, durationMinutes) {
-  return getOwnerElevationGrantService().grantTimed(auth, durationMinutes);
-}
-function revokeOwnerElevation(auth) {
-  return getOwnerElevationGrantService().revoke(auth);
-}
+const getOwnerElevationGrantService = (...args) => mobileRuntimeOwnerElevationFacadeService.getOwnerElevationGrantService(...args);
+const isOwnerElevationActive = (...args) => mobileRuntimeOwnerElevationFacadeService.isOwnerElevationActive(...args);
+const grantOwnerElevationOnce = (...args) => mobileRuntimeOwnerElevationFacadeService.grantOwnerElevationOnce(...args);
+const consumeOwnerElevationOnce = (...args) => mobileRuntimeOwnerElevationFacadeService.consumeOwnerElevationOnce(...args);
+const publicOwnerElevationStatus = (...args) => mobileRuntimeOwnerElevationFacadeService.publicOwnerElevationStatus(...args);
+const grantOwnerElevation = (...args) => mobileRuntimeOwnerElevationFacadeService.grantOwnerElevation(...args);
+const revokeOwnerElevation = (...args) => mobileRuntimeOwnerElevationFacadeService.revokeOwnerElevation(...args);
 function authCanAccessWorkspace(auth, workspaceId) {
   return authProvider.authCanAccessWorkspace(auth, workspaceId);
 }

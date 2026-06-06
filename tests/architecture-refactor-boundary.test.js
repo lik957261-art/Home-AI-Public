@@ -107,6 +107,7 @@ const mobileRuntimeHttpServerService = require("../adapters/mobile-runtime-http-
 const mobileRuntimeLocalBridgeFacadeService = require("../adapters/mobile-runtime-local-bridge-facade-service");
 const mobileRuntimeCoreProviders = require("../adapters/mobile-runtime-core-providers");
 const mobileRuntimeEnvironmentService = require("../adapters/mobile-runtime-environment-service");
+const mobileRuntimeOwnerElevationFacadeService = require("../adapters/mobile-runtime-owner-elevation-facade-service");
 const mobileRuntimePublicStatusService = require("../adapters/mobile-runtime-public-status-service");
 const mobileRuntimeStateFacadeService = require("../adapters/mobile-runtime-state-facade-service");
 const mobileRuntimeSystemStatusFacadeService = require("../adapters/mobile-runtime-system-status-facade-service");
@@ -341,6 +342,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof mobileRuntimeLocalBridgeFacadeService.createMobileRuntimeLocalBridgeFacadeService, "function");
   assert.equal(typeof mobileRuntimeCoreProviders.createMobileRuntimeCoreProviders, "function");
   assert.equal(typeof mobileRuntimeEnvironmentService.createMobileRuntimeEnvironment, "function");
+  assert.equal(typeof mobileRuntimeOwnerElevationFacadeService.createMobileRuntimeOwnerElevationFacadeService, "function");
   assert.equal(typeof mobileRuntimePublicStatusService.createMobileRuntimePublicStatusService, "function");
   assert.equal(typeof mobileRuntimeStateFacadeService.createMobileRuntimeStateFacadeService, "function");
   assert.equal(typeof mobileRuntimeSystemStatusFacadeService.createMobileRuntimeSystemStatusFacadeService, "function");
@@ -454,6 +456,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const groupChatAttachment = fileText("adapters/mobile-runtime-group-chat-attachment-service.js");
   const httpServer = fileText("adapters/mobile-runtime-http-server-service.js");
   const localBridgeFacade = fileText("adapters/mobile-runtime-local-bridge-facade-service.js");
+  const ownerElevationFacade = fileText("adapters/mobile-runtime-owner-elevation-facade-service.js");
   const stateFacade = fileText("adapters/mobile-runtime-state-facade-service.js");
   const kanbanRuntime = fileText("adapters/kanban-runtime-services.js");
   const workspaceCatalog = fileText("adapters/runtime-workspace-catalog-service.js");
@@ -570,9 +573,13 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(fileText("adapters/web-push-delivery-service.js"), /function notifyGroupChatMentions/);
   assert.match(mobileComposition, /createOwnerElevationApiRoutes/);
   assert.match(dispatcher, /key: "ownerElevationApiRoutes"/);
-  assert.match(server, /createOwnerElevationGrantService/);
-  assert.match(server, /getOwnerElevationGrantService\(\)\.publicStatus\(auth\)/);
-  assert.match(server, /getOwnerElevationGrantService\(\)\.consumeOnce\(auth, token\)/);
+  assert.match(server, /createMobileRuntimeOwnerElevationFacadeService/);
+  assert.match(ownerElevationFacade, /defaultCreateOwnerElevationGrantService/);
+  assert.match(ownerElevationFacade, /defaultCreateOwnerElevationRoutingService/);
+  assert.match(ownerElevationFacade, /callGrant\("publicStatus"/);
+  assert.match(ownerElevationFacade, /callGrant\("consumeOnce"/);
+  assert.doesNotMatch(server, /createOwnerElevationGrantService/);
+  assert.doesNotMatch(server, /createOwnerElevationRoutingService/);
   assert.match(mobileComposition, /createWorkspaceApiRoutes/);
   assert.match(dispatcher, /key: "workspaceApiRoutes"/);
   assert.match(workspaceFacade, /defaultCreateWorkspacePublicProjectionService/);
@@ -774,8 +781,8 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
-  assert.match(doc, /2,200 lines/);
-  assert.match(doc, /250/);
+  assert.match(doc, /2,175 lines/);
+  assert.match(doc, /240/);
   assert.match(doc, /public\/app\.js/);
   assert.match(doc, /10,000 lines/);
   assert.match(doc, /120/);
@@ -803,8 +810,8 @@ function testServiceFirstArchitectureContract() {
   const appTopLevelFunctionCount = (app.match(/^function\s+/gm) || []).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 2200, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2200`);
-  assert.ok(runtimeTopLevelFunctionCount <= 250, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 250`);
+  assert.ok(runtimeLineCount <= 2175, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2175`);
+  assert.ok(runtimeTopLevelFunctionCount <= 240, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 240`);
   assert.ok(appLineCount <= 10000, `public/app.js line budget exceeded: ${appLineCount} > 10000`);
   assert.ok(appTopLevelFunctionCount <= 120, `public/app.js top-level function budget exceeded: ${appTopLevelFunctionCount} > 120`);
 

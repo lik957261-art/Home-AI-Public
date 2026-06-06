@@ -90,7 +90,9 @@ function main() {
   assertContains(CORE_PROVIDERS_FILE, /createEgressPolicyProvider/, "egress policy provider must be wired");
   assertContains(CORE_PROVIDERS_FILE, /createAuditEventProvider/, "audit event provider must be wired");
   assertContains(RUNTIME_COMPOSITION_FILE, /deriveKanbanWorkflowState/, "study workflow state must be server-derived");
-  assertContains(RUNTIME_COMPOSITION_FILE, /createOwnerElevationGrantService/, "Owner elevation grant service must be wired");
+  assertContains(RUNTIME_COMPOSITION_FILE, /createMobileRuntimeOwnerElevationFacadeService/, "Owner elevation facade must be wired");
+  assertContains("adapters/mobile-runtime-owner-elevation-facade-service.js", /defaultCreateOwnerElevationGrantService/, "Owner elevation facade must retain grant service wiring");
+  assertContains("adapters/mobile-runtime-owner-elevation-facade-service.js", /consumeOwnerElevationOnce[\s\S]{0,600}isOwnerElevationActive/, "Owner elevation facade must pass grant checks into routing");
   assertContains("adapters/owner-elevation-grant-service.js", /grantId: `owner-(?:once|time)-/, "Owner elevation grants must carry stable grant ids");
   assertContains("adapters/owner-elevation-grant-service.js", /allowedWorkerSecurityLevel: "owner-maintenance"/, "Owner grants must name the allowed worker level");
   assertContains("adapters/owner-elevation-grant-service.js", /delete copy\.token/, "Owner elevation status and audit projections must redact one-shot tokens");

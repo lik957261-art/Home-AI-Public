@@ -54,6 +54,9 @@ out of the composition root. Current focused runtime adapters include:
   group-chat shared-attachment runtime wiring and storage segment helpers.
 - `adapters/mobile-runtime-local-bridge-facade-service.js` for lazy Local
   Bridge runtime wiring and Todo/Cron/Directory/process bridge delegation.
+- `adapters/mobile-runtime-owner-elevation-facade-service.js` for lazy Owner
+  elevation grant/routing wiring and Owner maintenance permission/routing
+  delegates.
 - `adapters/mobile-runtime-public-status-service.js` for public reasoning,
   Gateway pool, and run-concurrency status projections.
 - `adapters/mobile-runtime-state-facade-service.js` for lazy runtime state
