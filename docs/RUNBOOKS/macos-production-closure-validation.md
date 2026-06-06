@@ -38,6 +38,11 @@ It validates:
 - Workspace catalog paths resolve to the Mac live drive, and all active
   workspaces can create and preview the standard plugin delivery directories
   under `插件/<plugin title>`.
+- Directory-bound topics pass all-workspace preview in both path-only and
+  `--simulate-ui-route` modes. This catches Windows/WSL-to-Mac metadata drift,
+  rootless Mac drive paths, stale project/subproject ids, and shared-directory
+  repairs that are valid by physical path but fail when clicked from the static
+  client.
 - Wardrobe binding/proxy content smoke verifies live `.hermes-wardrobe`
   configs do not point at the legacy `192.168.10.99:8765` origin, Home manifest
   launches Wardrobe through `http://127.0.0.1:8765`, the same-origin proxy entry
@@ -93,6 +98,16 @@ With `--json`, the top-level shape is bounded metadata:
     "ok": true,
     "workspaceCount": 6
   },
+  "boundDirectory": {
+    "path": {
+      "ok": true,
+      "workspaceCount": 6
+    },
+    "uiRoute": {
+      "ok": true,
+      "workspaceCount": 6
+    }
+  },
   "wardrobeBinding": {
     "ok": true,
     "expectedOrigin": "http://127.0.0.1:8765",
@@ -104,7 +119,8 @@ With `--json`, the top-level shape is bounded metadata:
 Treat any top-level `ok=false`, nonzero profile issue count, nonzero
 `blockingWarningCount`, `launchd_service_not_loaded:<profile>`, failed ACL row,
 failed plugin delivery-directory creation/preview row, missing MCP schema
-callable, missing standard profile-local base tool, Wardrobe binding row with a
+callable, missing standard profile-local base tool, failed directory-bound topic
+preview row in either path-only or UI-route mode, Wardrobe binding row with a
 legacy origin, Wardrobe manifest launch failure, zero/negative Wardrobe
 bootstrap item count, wrong DeepSeek profile, failed Weixin route, or nonzero
 final `activeGlobal` as a production blocker for the non-Grok closure gate.
@@ -139,6 +155,13 @@ sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
 sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
   /Users/hermes-host/HermesMobile/app/scripts/macos-directory-path-migration-repair.js \
   --root /Users/hermes-host/HermesMobile \
+  --json
+
+sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
+  /Users/hermes-host/HermesMobile/app/scripts/macos-bound-directory-preview-smoke.js \
+  --root /Users/hermes-host/HermesMobile \
+  --all-workspaces \
+  --simulate-ui-route \
   --json
 
 sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \

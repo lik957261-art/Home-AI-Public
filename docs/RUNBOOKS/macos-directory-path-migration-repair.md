@@ -281,6 +281,22 @@ After this repair, production evidence was:
 - bound-directory preview smoke with `--all-workspaces`: Owner `19/19`,
   `weixin_wuping` `7/7`, `weixin_test_1` `2/2`, and `weixin_stephen` `1/1`.
 
+The same failure mode recurred after later production state churn. A fresh
+dry-run again found Windows/WSL path drift in `messages.directory_route_json`,
+`messages.directory_aliases_json`, `messages.artifacts_json`,
+`threads.task_group_meta_json`, `artifacts.path`, and `artifacts.raw_json`.
+The write repair updated 1320 rows and 2606 path values, backed up SQLite, and
+reset `data/state.json`. A second exact repair then moved 7
+`weixin_wuping` health report bindings from the missing workspace-local path to
+the authorized Owner shared path. Closure evidence was: migration dry-run
+`changed=false`, `affectedRows=0`, `valueReplacements=0`, `parseErrors=0`;
+status `ok=true`, `activeGlobal=0`; path-only all-workspaces smoke Owner
+`19/19`, `user-981731fe` `2/2`, `weixin_stephen` `1/1`, `weixin_test_1`
+`2/2`, `weixin_wuping` `7/7`; UI-route all-workspaces smoke Owner `25/25`,
+`user-981731fe` `2/2`, `weixin_stephen` `1/1`, `weixin_test_1` `2/2`, and
+`weixin_wuping` `12/12`. `weixin_xiaonan` remained skipped as
+`unknown-workspace`.
+
 ## 2026-06-07 UI Route Context Guard
 
 Topic or message directory chips enter the Directory manager through the static

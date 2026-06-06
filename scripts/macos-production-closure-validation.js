@@ -37,6 +37,7 @@ function parseArgs(argv) {
     concurrentOwnerRuns: 2,
     skipSchema: false,
     skipPluginDirectory: false,
+    skipBoundDirectory: false,
     skipWardrobeBinding: false,
     skipDeepseek: false,
     skipWeixin: false,
@@ -61,6 +62,7 @@ function parseArgs(argv) {
     else if (arg === "--concurrent-owner-runs") out.concurrentOwnerRuns = Number(argv[++index] || out.concurrentOwnerRuns);
     else if (arg === "--skip-schema") out.skipSchema = true;
     else if (arg === "--skip-plugin-directory") out.skipPluginDirectory = true;
+    else if (arg === "--skip-bound-directory") out.skipBoundDirectory = true;
     else if (arg === "--skip-wardrobe-binding") out.skipWardrobeBinding = true;
     else if (arg === "--skip-deepseek") out.skipDeepseek = true;
     else if (arg === "--skip-weixin") out.skipWeixin = true;
@@ -77,6 +79,7 @@ function parseArgs(argv) {
         "  --ingress-key-file <file> Weixin ingress key file; path and contents are not printed",
         "  --skip-schema             Skip native Gateway schema probes",
         "  --skip-plugin-directory   Skip plugin delivery-directory creation and preview smoke",
+        "  --skip-bound-directory    Skip all-workspace directory-topic binding preview smokes",
         "  --skip-wardrobe-binding   Skip Wardrobe manifest/binding/proxy content smoke",
         "  --skip-deepseek           Skip product-route DeepSeek provider smokes",
         "  --skip-weixin             Skip Weixin ingress heartbeat smoke",
@@ -300,6 +303,33 @@ function compactPluginDirectory(pluginDirectory) {
   };
 }
 
+function compactBoundDirectory(boundDirectory) {
+  return {
+    ok: Boolean(boundDirectory.ok),
+    allWorkspaces: Boolean(boundDirectory.allWorkspaces),
+    includeChat: Boolean(boundDirectory.includeChat),
+    simulateUiRoute: Boolean(boundDirectory.simulateUiRoute),
+    workspaceCount: Number(boundDirectory.workspaceCount || 0),
+    results: (boundDirectory.results || []).map((row) => ({
+      workspaceId: row.workspaceId || "",
+      ok: Boolean(row.ok),
+      skipped: Boolean(row.skipped),
+      skipReason: row.skipReason || "",
+      uniquePaths: Number(row.uniquePaths || 0),
+      okCount: Number(row.okCount || 0),
+      failed: Number(row.failed || 0),
+      failures: (row.failures || []).slice(0, 3).map((failure) => ({
+        label: failure.label || "",
+        projectId: failure.projectId || "",
+        subprojectId: failure.subprojectId || "",
+        path: failure.path || "",
+        status: Number(failure.status || 0),
+        error: failure.error || "",
+      })),
+    })),
+  };
+}
+
 function compactWardrobeBinding(wardrobeBinding) {
   return {
     ok: Boolean(wardrobeBinding.ok),
@@ -398,6 +428,20 @@ async function runClosure(options) {
     "--json",
   ]));
 
+  const boundDirectory = options.skipBoundDirectory ? null : {
+    path: compactBoundDirectory(await runNodeJson("bound-directory-path", options, "macos-bound-directory-preview-smoke.js", [
+      "--root", options.root,
+      "--all-workspaces",
+      "--json",
+    ])),
+    uiRoute: compactBoundDirectory(await runNodeJson("bound-directory-ui-route", options, "macos-bound-directory-preview-smoke.js", [
+      "--root", options.root,
+      "--all-workspaces",
+      "--simulate-ui-route",
+      "--json",
+    ])),
+  };
+
   const wardrobeBinding = options.skipWardrobeBinding ? null : compactWardrobeBinding(await runNodeJson("wardrobe-binding", options, "macos-wardrobe-binding-production-smoke.js", [
     "--root", options.root,
     "--base", options.base,
@@ -487,6 +531,7 @@ async function runClosure(options) {
     && acl.ok
     && acl.failedCount === 0
     && (!pluginDirectory || (pluginDirectory.ok && pluginDirectory.rows.every((row) => row.ok)))
+    && (!boundDirectory || (boundDirectory.path.ok && boundDirectory.uiRoute.ok))
     && (!wardrobeBinding || (wardrobeBinding.ok && wardrobeBinding.bindings.every((row) => row.ok) && wardrobeBinding.workspaces.every((row) => row.ok)))
     && schemas.every((row) => row.ok)
     && (!deepseek || (deepseek.user.ok && deepseek.user.gatewayProfile === "deepseekgw1" && !deepseek.user.maintenance
@@ -504,6 +549,7 @@ async function runClosure(options) {
       grokXai: "deferred_manual_oauth_not_included",
       schema: options.skipSchema ? "skipped" : "included",
       pluginDirectory: options.skipPluginDirectory ? "skipped" : "included",
+      boundDirectory: options.skipBoundDirectory ? "skipped" : "included",
       wardrobeBinding: options.skipWardrobeBinding ? "skipped" : "included",
       deepseek: options.skipDeepseek ? "skipped" : "included",
       weixin: options.skipWeixin ? "skipped" : "included",
@@ -514,6 +560,7 @@ async function runClosure(options) {
     profileAudit,
     acl,
     pluginDirectory,
+    boundDirectory,
     wardrobeBinding,
     schemas,
     deepseek,
@@ -545,6 +592,7 @@ module.exports = {
   AUTH_PROCESS_PATTERN,
   compactAcl,
   compactGatewaySmoke,
+  compactBoundDirectory,
   compactProfileAudit,
   compactSchema,
   compactStatus,

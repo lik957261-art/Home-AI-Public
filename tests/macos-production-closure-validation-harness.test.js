@@ -22,6 +22,7 @@ assert.match(script, /production-status-smoke\.js/);
 assert.match(script, /macos-production-profile-audit\.js/);
 assert.match(script, /macos-worker-filesystem-access-harness\.js/);
 assert.match(script, /macos-plugin-directory-production-smoke\.js/);
+assert.match(script, /macos-bound-directory-preview-smoke\.js/);
 assert.match(script, /macos-wardrobe-binding-production-smoke\.js/);
 assert.match(script, /gateway-tool-schema-smoke\.js/);
 assert.match(script, /gateway-pool-production-smoke\.js/);
@@ -50,6 +51,8 @@ assert.match(script, /activeGlobal === 0/);
 assert.match(script, /blockingWarningCount === 0/);
 assert.match(script, /skipPluginDirectory/);
 assert.match(script, /compactPluginDirectory/);
+assert.match(script, /skipBoundDirectory/);
+assert.match(script, /compactBoundDirectory/);
 assert.match(script, /skipWardrobeBinding/);
 assert.match(script, /compactWardrobeBinding/);
 assert.doesNotMatch(script, /console\.log\(.*ownerKeyFile/);
@@ -70,12 +73,14 @@ assert.match(runbook, /Owner\/OpenAI concurrent/);
 assert.match(runbook, /blockingWarningCount/);
 assert.match(runbook, /telemetry_state_db_missing/);
 assert.match(runbook, /plugin delivery directories/);
+assert.match(runbook, /Directory-bound topics/i);
 assert.match(runbook, /Wardrobe binding/);
 assert.match(runbook, /Do not paste OAuth callback URLs/);
 
 assert.match(docsIndex, /Mac production closure validation/);
 assert.match(deploymentDoc, /macos-production-closure-validation\.js/);
 assert.match(deploymentDoc, /macos-plugin-directory-production-smoke\.js/);
+assert.match(deploymentDoc, /macos-bound-directory-preview-smoke\.js/);
 assert.match(deploymentDoc, /macos-wardrobe-binding-production-smoke\.js/);
 assert.match(deploymentDoc, /Grok\/xAI remains a deferred\s+manual OAuth follow-up/);
 assert.match(macosPlan, /macos-production-closure-validation\.js/);
@@ -87,6 +92,7 @@ assert.match(architectureMap, /tests\/macos-production-closure-validation-harnes
 
 const {
   compactAcl,
+  compactBoundDirectory,
   compactGatewaySmoke,
   compactProfileAudit,
   compactPluginDirectory,
@@ -210,6 +216,22 @@ const pluginDirectory = compactPluginDirectory({
 });
 assert.equal(pluginDirectory.workspaceCount, 1);
 assert.equal(pluginDirectory.rows[0].base, "$DRIVE/users/owner/Hermes-徐欣");
+
+const boundDirectory = compactBoundDirectory({
+  ok: true,
+  allWorkspaces: true,
+  includeChat: false,
+  simulateUiRoute: true,
+  workspaceCount: 2,
+  results: [
+    { workspaceId: "owner", ok: true, uniquePaths: 25, okCount: 25, failed: 0, failures: [] },
+    { workspaceId: "weixin_xiaonan", ok: false, skipped: true, skipReason: "unknown-workspace", uniquePaths: 0, okCount: 0, failed: 0, failures: [] },
+  ],
+});
+assert.equal(boundDirectory.ok, true);
+assert.equal(boundDirectory.simulateUiRoute, true);
+assert.equal(boundDirectory.results[0].okCount, 25);
+assert.equal(boundDirectory.results[1].skipped, true);
 
 const wardrobeBinding = compactWardrobeBinding({
   ok: true,

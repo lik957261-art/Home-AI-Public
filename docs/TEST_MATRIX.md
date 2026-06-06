@@ -168,8 +168,9 @@ write repairs must stop the listener before the SQLite transaction, use
 bound-directory smoke, so stale in-memory runtime state or a newer `state.json`
 snapshot cannot overwrite repaired metadata.
 Source changes to this closure contract must run
-`node tests\macos-production-closure-validation-harness.test.js` and
-`node tests\macos-plugin-directory-production-smoke-harness.test.js`, and
+`node tests\macos-production-closure-validation-harness.test.js`,
+`node tests\macos-plugin-directory-production-smoke-harness.test.js`,
+`node tests\macos-bound-directory-preview-smoke-harness.test.js`, and
 `node tests\macos-wardrobe-binding-production-smoke-harness.test.js`. The
 aggregate harness composes the checked status, profile audit, ACL, plugin
 delivery-directory creation/preview, Wardrobe binding/proxy content, native MCP

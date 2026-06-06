@@ -125,13 +125,14 @@ service root.
   Weixin route repair, ACL repair, or before declaring Mac production closed:
   `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-closure-validation.js --json`.
   It composes the checked status, profile audit, ACL, native MCP schema,
-  plugin delivery-directory, Wardrobe binding/proxy content, DeepSeek
-  user/maintenance, Weixin heartbeat, Owner/OpenAI concurrent product-route,
-  and final-status smokes. Passing output must have top-level
+  plugin delivery-directory, all-workspace directory-bound topic previews,
+  Wardrobe binding/proxy content, DeepSeek user/maintenance, Weixin heartbeat,
+  Owner/OpenAI concurrent product-route, and final-status smokes. Passing output must have top-level
   `ok=true`, `activeGlobal=0` before and after, zero profile issues and zero
   blocking profile warnings,
   zero ACL failures, plugin delivery-directory creation/preview passing for
-  every active workspace, Wardrobe manifest `programApi.origin` on Mac loopback
+  every active workspace, directory-bound topics passing both path-only and
+  UI-route preview smokes for every active workspace, Wardrobe manifest `programApi.origin` on Mac loopback
   with a launched proxied entry and positive bounded bootstrap content for the
   checked workspace, expected DeepSeek profiles, wrong browser/API auth
   header denied with `401`, and no OAuth re-auth process. Grok/xAI remains a deferred
@@ -147,6 +148,14 @@ service root.
   `C:\ProgramData\HermesMobile\data\drive` or
   `/mnt/c/ProgramData/HermesMobile/data/drive`, as well as macOS ownership/ACL
   failures that surface as directory `404` or `500` responses.
+- Mac bound-directory preview smoke:
+  `scripts/macos-bound-directory-preview-smoke.js`. Run it after Mac data
+  migration, shared-directory repair, directory-topic UI routing changes, or
+  reports that directory-topic chips show `Directory not found or not allowed`:
+  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-bound-directory-preview-smoke.js --root /Users/hermes-host/HermesMobile --all-workspaces --simulate-ui-route --json`.
+  The aggregate Mac closure harness now runs both path-only and
+  `--simulate-ui-route` forms by default. The focused local harness is
+  `node tests\macos-bound-directory-preview-smoke-harness.test.js`.
 - Mac directory path migration repair:
   `scripts/macos-directory-path-migration-repair.js`. Run it after a
   Windows/WSL-to-Mac data copy when existing directory-topic chips or artifact
