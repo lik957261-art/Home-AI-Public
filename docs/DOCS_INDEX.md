@@ -66,6 +66,9 @@ identifiers until a separate infrastructure migration is planned.
 - Grok Gateway authentication or routing failure: `docs/RUNBOOKS/grok-gateway-auth.md`
 - Production API auth header mismatch: `docs/RUNBOOKS/production-api-auth-header.md`
 - Mac production closure validation: `docs/RUNBOOKS/macos-production-closure-validation.md`
+- Mac plugin delivery-directory production smoke:
+  `scripts/macos-plugin-directory-production-smoke.js`,
+  `tests/macos-plugin-directory-production-smoke-harness.test.js`
 - Mac worker filesystem access: `docs/RUNBOOKS/macos-worker-filesystem-access.md`
 - OpenAI Codex shared auth repair: `docs/RUNBOOKS/openai-codex-shared-auth.md`
 - Codex Responses stream output missing: `docs/RUNBOOKS/codex-responses-stream-output-none.md`

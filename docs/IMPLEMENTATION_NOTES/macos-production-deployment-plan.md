@@ -441,6 +441,11 @@ The Mac first-start preflight must fail closed if any of these are false:
   matching `.hermes-<plugin>` config/key.
 - a plugin-bound topic uses the target workspace MCP/schema or omits the
   plugin toolset; it never falls back to Owner.
+- workspace catalog paths resolve to the Mac live drive, not to Windows
+  `C:\ProgramData\HermesMobile\data\drive` or WSL
+  `/mnt/c/ProgramData/HermesMobile/data/drive` prefixes.
+- every active workspace can create and preview the standard plugin
+  delivery-directory roots under `插件/<plugin title>`.
 - CRON official model jobs enter through the Hermes Mobile dispatcher wrapper.
 - launchd services use explicit paths/env and do not depend on interactive
   shell configuration.
@@ -453,6 +458,10 @@ Minimum smoke after install:
   This is the default Mac production closure gate after deployment, migration,
   Gateway/Profile repair, plugin provisioning, Weixin route repair, or ACL
   repair.
+- `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-plugin-directory-production-smoke.js --root /Users/hermes-host/HermesMobile --base http://127.0.0.1:8797 --json`.
+  Use this focused smoke after workspace catalog path repair, local workspace
+  rename, directory ownership repair, or plugin-topic delivery-directory
+  failures.
 - Owner login and `/api/status?detail=1`, either directly or through the
   closure harness.
 - Owner normal ChatGPT run, including the Owner/OpenAI concurrent product-route
@@ -477,6 +486,7 @@ Focused checks:
 
 ```text
 node tests/macos-production-closure-validation-harness.test.js
+node tests/macos-plugin-directory-production-smoke-harness.test.js
 node tests/macos-production-profile-audit.test.js
 node tests/macos-worker-filesystem-access-harness.test.js
 node tests/gateway-workspace-provisioning-service.test.js
@@ -492,6 +502,8 @@ Required scenarios:
 - non-Owner `sudo -u hm-wuping` cannot read Owner sensitive files;
 - direct/proxy network modes produce the correct CRON behavior;
 - plugin MCP schema smoke targets the exact selected Gateway profile;
+- plugin delivery-directory smoke covers all active workspaces and fails on
+  Windows/WSL path drift or Mac ownership/ACL errors;
 - missing plugin config/key omits the plugin toolset instead of falling back;
 - Owner/OpenAI concurrent product-route smoke finishes both runs and returns to
   `activeGlobal=0`;

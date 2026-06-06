@@ -30,6 +30,9 @@ It validates:
 - Gateway Pool is enabled in hybrid mode and exposes the expected worker count.
 - Mac production profile audit has `ok=true`, no issues, and no warnings.
 - Mac worker filesystem ACL checks pass, including cross-workspace deny checks.
+- Workspace catalog paths resolve to the Mac live drive, and all active
+  workspaces can create and preview the standard plugin delivery directories
+  under `插件/<plugin title>`.
 - Native Gateway schema probes expose the required MCP callables for Wuping,
   Owner, and test profiles.
 - DeepSeek ordinary Owner routing uses `deepseekgw1`.
@@ -67,14 +70,18 @@ With `--json`, the top-level shape is bounded metadata:
   },
   "acl": {
     "failedCount": 0
+  },
+  "pluginDirectory": {
+    "ok": true,
+    "workspaceCount": 6
   }
 }
 ```
 
 Treat any top-level `ok=false`, nonzero profile issue/warning count, failed ACL
-row, missing schema callable, wrong DeepSeek profile, failed Weixin route, or
-nonzero final `activeGlobal` as a production blocker for the non-Grok closure
-gate.
+row, failed plugin delivery-directory creation/preview row, missing schema
+callable, wrong DeepSeek profile, failed Weixin route, or nonzero final
+`activeGlobal` as a production blocker for the non-Grok closure gate.
 
 ## Focused Alternatives
 
@@ -95,6 +102,12 @@ sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
 sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
   /Users/hermes-host/HermesMobile/app/scripts/macos-worker-filesystem-access-harness.js \
   --root /Users/hermes-host/HermesMobile \
+  --json
+
+sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
+  /Users/hermes-host/HermesMobile/app/scripts/macos-plugin-directory-production-smoke.js \
+  --root /Users/hermes-host/HermesMobile \
+  --base http://127.0.0.1:8797 \
   --json
 ```
 

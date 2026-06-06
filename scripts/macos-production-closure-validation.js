@@ -25,6 +25,7 @@ function parseArgs(argv) {
     commandTimeoutMs: 360000,
     concurrentOwnerRuns: 2,
     skipSchema: false,
+    skipPluginDirectory: false,
     skipDeepseek: false,
     skipWeixin: false,
     skipConcurrency: false,
@@ -47,6 +48,7 @@ function parseArgs(argv) {
     else if (arg === "--command-timeout-ms") out.commandTimeoutMs = Number(argv[++index] || out.commandTimeoutMs);
     else if (arg === "--concurrent-owner-runs") out.concurrentOwnerRuns = Number(argv[++index] || out.concurrentOwnerRuns);
     else if (arg === "--skip-schema") out.skipSchema = true;
+    else if (arg === "--skip-plugin-directory") out.skipPluginDirectory = true;
     else if (arg === "--skip-deepseek") out.skipDeepseek = true;
     else if (arg === "--skip-weixin") out.skipWeixin = true;
     else if (arg === "--skip-concurrency") out.skipConcurrency = true;
@@ -61,6 +63,7 @@ function parseArgs(argv) {
         "  --owner-key-file <file>   Owner Web key file; path and contents are not printed",
         "  --ingress-key-file <file> Weixin ingress key file; path and contents are not printed",
         "  --skip-schema             Skip native Gateway schema probes",
+        "  --skip-plugin-directory   Skip plugin delivery-directory creation and preview smoke",
         "  --skip-deepseek           Skip product-route DeepSeek provider smokes",
         "  --skip-weixin             Skip Weixin ingress heartbeat smoke",
         "  --skip-concurrency        Skip two-run Owner/OpenAI concurrency smoke",
@@ -251,6 +254,26 @@ function compactWeixin(weixin) {
   };
 }
 
+function compactPluginDirectory(pluginDirectory) {
+  return {
+    ok: Boolean(pluginDirectory.ok),
+    authHeader: pluginDirectory.authHeader || "",
+    workspaceCount: Number(pluginDirectory.workspaceCount || 0),
+    pluginFolders: pluginDirectory.pluginFolders || [],
+    rows: (pluginDirectory.rows || []).map((row) => ({
+      workspaceId: row.workspaceId || "",
+      label: row.label || "",
+      ok: Boolean(row.ok),
+      base: row.base || "",
+      projectCount: Number(row.projectCount || 0),
+      hasThread: Boolean(row.hasThread),
+      rootCreate: row.rootCreate || null,
+      preview: row.preview || null,
+      pluginCreates: row.pluginCreates || [],
+    })),
+  };
+}
+
 async function runSchema(options, name, profile, telemetryRoot, requiredTools) {
   const data = await runNodeJson(`schema:${name}`, options, "gateway-tool-schema-smoke.js", [
     "--manifest", options.manifest,
@@ -312,6 +335,13 @@ async function runClosure(options) {
   ]));
   const acl = compactAcl(await runNodeJson("acl", options, "macos-worker-filesystem-access-harness.js", [
     "--root", options.root,
+    "--json",
+  ]));
+
+  const pluginDirectory = options.skipPluginDirectory ? null : compactPluginDirectory(await runNodeJson("plugin-directory", options, "macos-plugin-directory-production-smoke.js", [
+    "--root", options.root,
+    "--base", options.base,
+    "--access-key-file", options.ownerKeyFile,
     "--json",
   ]));
 
@@ -384,6 +414,7 @@ async function runClosure(options) {
     && profileAudit.warningCount === 0
     && acl.ok
     && acl.failedCount === 0
+    && (!pluginDirectory || (pluginDirectory.ok && pluginDirectory.rows.every((row) => row.ok)))
     && schemas.every((row) => row.ok)
     && (!deepseek || (deepseek.user.ok && deepseek.user.gatewayProfile === "deepseekgw1" && !deepseek.user.maintenance
       && deepseek.maintenance.ok && deepseek.maintenance.gatewayProfile === "deepseekmaint1" && deepseek.maintenance.maintenance))
@@ -399,6 +430,7 @@ async function runClosure(options) {
     scope: {
       grokXai: "deferred_manual_oauth_not_included",
       schema: options.skipSchema ? "skipped" : "included",
+      pluginDirectory: options.skipPluginDirectory ? "skipped" : "included",
       deepseek: options.skipDeepseek ? "skipped" : "included",
       weixin: options.skipWeixin ? "skipped" : "included",
       ownerConcurrency: options.skipConcurrency ? "skipped" : "included",
@@ -407,6 +439,7 @@ async function runClosure(options) {
     status,
     profileAudit,
     acl,
+    pluginDirectory,
     schemas,
     deepseek,
     weixin,
@@ -441,6 +474,7 @@ module.exports = {
   compactSchema,
   compactStatus,
   compactWeixin,
+  compactPluginDirectory,
   parseArgs,
   runClosure,
   sanitize,

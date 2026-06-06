@@ -284,6 +284,16 @@ topic-list rendering that does not synchronously wait for directory-topic
 aggregation, preserving topic-list scroll position after that background
 aggregation/refresh completes, and the static version bump.
 
+Mac production must also run
+`scripts/macos-plugin-directory-production-smoke.js` through the aggregate
+Mac closure harness after migration, workspace catalog path repair, local
+workspace rename, ACL repair, or plugin delivery-directory failure. The smoke
+uses the Owner Web key file without printing key contents or raw key paths,
+then proves every active workspace can create/preview the standard
+`插件/<plugin title>` delivery directories. A `404` row usually means the
+workspace catalog still points at a Windows/WSL drive prefix; a `500` row with
+`EACCES` usually means the Mac live directory owner/ACL is wrong.
+
 See `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md` for the detailed design.
 See `docs/IMPLEMENTATION_NOTES/embedded-surface-bottom-layout-standard.md` for
 the shared Hermes-owned chat and plugin-owned iframe bottom-tab layout rules.

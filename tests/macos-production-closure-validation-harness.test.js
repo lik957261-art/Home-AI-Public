@@ -21,6 +21,7 @@ const architectureMap = read("docs/ARCHITECTURE_CODE_TEST_HARNESS_MAP.md");
 assert.match(script, /production-status-smoke\.js/);
 assert.match(script, /macos-production-profile-audit\.js/);
 assert.match(script, /macos-worker-filesystem-access-harness\.js/);
+assert.match(script, /macos-plugin-directory-production-smoke\.js/);
 assert.match(script, /gateway-tool-schema-smoke\.js/);
 assert.match(script, /gateway-pool-production-smoke\.js/);
 assert.match(script, /weixin-ingress-production-smoke\.js/);
@@ -37,6 +38,8 @@ assert.match(script, /macos_closure_oauth_reauth_process_present/);
 assert.match(script, /concurrentOwnerRuns/);
 assert.match(script, /wrongHeaderDenied/);
 assert.match(script, /activeGlobal === 0/);
+assert.match(script, /skipPluginDirectory/);
+assert.match(script, /compactPluginDirectory/);
 assert.doesNotMatch(script, /console\.log\(.*ownerKeyFile/);
 assert.doesNotMatch(script, /console\.log\(.*ingressKeyFile/);
 assert.doesNotMatch(script, /console\.error\(.*ownerKeyFile/);
@@ -52,10 +55,12 @@ assert.match(runbook, /X-Hermes-Web-Key/);
 assert.match(runbook, /X-Hermes-Access-Key/);
 assert.match(runbook, /X-Hermes-Mobile-Ingress-Key/);
 assert.match(runbook, /Owner\/OpenAI concurrent/);
+assert.match(runbook, /plugin delivery directories/);
 assert.match(runbook, /Do not paste OAuth callback URLs/);
 
 assert.match(docsIndex, /Mac production closure validation/);
 assert.match(deploymentDoc, /macos-production-closure-validation\.js/);
+assert.match(deploymentDoc, /macos-plugin-directory-production-smoke\.js/);
 assert.match(deploymentDoc, /Grok\/xAI remains a deferred\s+manual OAuth follow-up/);
 assert.match(macosPlan, /macos-production-closure-validation\.js/);
 assert.match(macosPlan, /Owner\/OpenAI concurrent/);
@@ -68,6 +73,7 @@ const {
   compactAcl,
   compactGatewaySmoke,
   compactProfileAudit,
+  compactPluginDirectory,
   compactSchema,
   compactStatus,
   compactWeixin,
@@ -158,6 +164,26 @@ const weixin = compactWeixin({
 assert.equal(weixin.workspaces[0].hasRun, false);
 assert.equal(weixin.workspaces[0].hasThread, false);
 assert.equal(weixin.workspaces[0].hasMessage, false);
+
+const pluginDirectory = compactPluginDirectory({
+  ok: true,
+  authHeader: "X-Hermes-Web-Key",
+  workspaceCount: 1,
+  pluginFolders: ["衣橱"],
+  rows: [{
+    workspaceId: "owner",
+    label: "徐欣",
+    ok: true,
+    base: "$DRIVE/users/owner/Hermes-徐欣",
+    projectCount: 2,
+    hasThread: true,
+    rootCreate: { status: 409, ok: true },
+    preview: { status: 200, names: ["衣橱"] },
+    pluginCreates: [{ folder: "衣橱", status: 409, ok: true }],
+  }],
+});
+assert.equal(pluginDirectory.workspaceCount, 1);
+assert.equal(pluginDirectory.rows[0].base, "$DRIVE/users/owner/Hermes-徐欣");
 
 const sanitized = sanitize("/Users/hermes-host/HermesMobile/data/secrets/owner-web-key.secret secret.abcdefghijklmnopqrstuvwxyz", parsed);
 assert.doesNotMatch(sanitized, /owner-web-key\.secret/);

@@ -116,13 +116,24 @@ service root.
   Weixin route repair, ACL repair, or before declaring Mac production closed:
   `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-closure-validation.js --json`.
   It composes the checked status, profile audit, ACL, native MCP schema,
-  DeepSeek user/maintenance, Weixin heartbeat, Owner/OpenAI concurrent
-  product-route, and final-status smokes. Passing output must have top-level
+  plugin delivery-directory, DeepSeek user/maintenance, Weixin heartbeat,
+  Owner/OpenAI concurrent product-route, and final-status smokes. Passing output must have top-level
   `ok=true`, `activeGlobal=0` before and after, zero profile issues/warnings,
-  zero ACL failures, expected DeepSeek profiles, wrong browser/API auth header
-  denied with `401`, and no OAuth re-auth process. Grok/xAI remains a deferred
+  zero ACL failures, plugin delivery-directory creation/preview passing for
+  every active workspace, expected DeepSeek profiles, wrong browser/API auth
+  header denied with `401`, and no OAuth re-auth process. Grok/xAI remains a deferred
   manual OAuth follow-up and is not part of this default closure gate.
   See `docs/RUNBOOKS/macos-production-closure-validation.md`.
+- Mac plugin delivery-directory smoke:
+  `scripts/macos-plugin-directory-production-smoke.js`. Run it after Mac data
+  migration, workspace catalog path repair, local workspace rename, directory
+  ACL repair, or plugin-topic delivery failure:
+  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-plugin-directory-production-smoke.js --root /Users/hermes-host/HermesMobile --base http://127.0.0.1:8797 --json`.
+  It must report bounded metadata only. It catches workspace catalog paths that
+  still point at Windows or WSL drive prefixes such as
+  `C:\ProgramData\HermesMobile\data\drive` or
+  `/mnt/c/ProgramData/HermesMobile/data/drive`, as well as macOS ownership/ACL
+  failures that surface as directory `404` or `500` responses.
 - Shared Windows SSH aliases for all local workspaces and plugin projects:
   `homeai-mac`, `homeai-macstudio-prod`, and `macstudio-110`
 - Shared Windows SSH identity:
@@ -218,6 +229,11 @@ Migration evidence recorded during the cutover:
   `/Users/xuxin/.codex-mobile-web`. This was a live snapshot because the
   Windows Codex Mobile Web listener was kept running to preserve the active
   operator channel.
+- The local workspace `user-a87aaa61` is named `Eileen` in Mac production.
+  Its Mac default workspace is under the live drive as
+  `$DRIVE/users/owner/Hermes-徐欣/Eileen`; its source data was migrated from the
+  Windows `路路` directory. Avoid reintroducing `徐路`, `徐璐`, or `路路` as the
+  Mac catalog label/root unless a separate rename task is opened.
 - SQLite `quick_check` passed on migrated Hermes, Growth, Wardrobe, Finance,
   Finance image, Email, Health, Note, and Note attachment databases.
 - Direct plugin manifests returned `200` for Wardrobe, Finance, Email, Health,
@@ -240,6 +256,15 @@ Migration evidence recorded during the cutover:
 - Official Hermes release `v2026.5.29.2` was installed under
   `/Users/hermes-host/HermesMobile/runtime/hermes-agent-official` with a
   uv-managed Python runtime.
+- Mac active Gateway profile `SOUL.md` files currently use the 513-byte
+  baseline soul hash that also exists in Windows profile backups. Windows still
+  has legacy 968-byte `lowgw1` through `lowgw5` `SOUL.md` files under
+  `C:\ProgramData\HermesMobile\gateway-worker\telemetry\profiles` and related
+  backups; those legacy custom soul files were not copied into active Mac
+  official profiles during the 2026-06-05 official-source migration. Do not
+  overwrite Mac active profile souls with those files as an incidental repair;
+  treat any legacy soul merge as a separate behavior-change task after
+  content/intent review.
 - `/api/status?detail=1` returned Gateway Pool enabled with `workerCount=30`,
   `runningWorkerCount=6`, and `healthy=6` after the isolation cutover.
 - Direct Gateway smoke through `/v1/responses` returned the expected marker
