@@ -147,6 +147,26 @@ a nonblank proxied entry response, and a positive bounded bootstrap
 `item_count` for the launched workspace. This smoke prints only metadata; it
 must not print raw keys, launch tokens, or item details.
 
+The same binding class can recur in local Windows production after a one-time
+Mac/NAS/Windows data migration. Use the same checked smoke with Windows paths:
+
+```powershell
+node scripts\macos-wardrobe-binding-production-smoke.js `
+  --root C:/ProgramData/HermesMobile `
+  --base http://127.0.0.1:8797 `
+  --access-key-file <owner-web-key-file> `
+  --workspace owner `
+  --workspace weixin_wuping `
+  --json
+```
+
+A passing local result must also show no `192.168.10.99:8765` legacy origin in
+workspace-local `.hermes-wardrobe/config.json` files, a loopback
+`programApi.origin`, a launch token status, nonblank proxied plugin HTML, and
+positive bootstrap counts for the relevant workspaces. If only the nested
+binding files are stale while the manifest/proxy smoke is healthy, repair the
+local config origin only and preserve existing workspace ids and key material.
+
 If the frontend receives an HTTP plugin entry while the Hermes page is HTTPS,
 it must not render a blank iframe or open a browser window. It should show a
 compact diagnostic notice. Deployment validation for embedded plugins must not

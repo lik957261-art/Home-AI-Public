@@ -169,6 +169,26 @@ composers, fixed panels, popups, plugin docks, and scroll containers. When an
 Android emulator or target device is available, also run the installed-PWA
 smoke path above. Static DOM/unit assertions are necessary but not sufficient
 for visual layout changes.
+For Mac production frontend incidents where the live app already has no local
+Playwright dependency, use the shared production QA install instead of adding
+Playwright to the live app package:
+
+```bash
+cd /Users/hermes-host/HermesMobile/app
+export NODE_PATH=/Users/hermes-host/HermesMobile/qa-playwright/node_modules
+/Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
+  scripts/playwright-visual-smoke.js \
+  --url https://mac-studio.tail62e8ce.ts.net/?_hmv=<smoke-id> \
+  --access-key-path <owner-web-key-file> \
+  --view learning \
+  --workspace-id owner \
+  --screenshot /tmp/<smoke-id>.png
+```
+
+Run this as `hermes-host` for production-owned key files and browser cache
+access. This is browser-mode evidence; if an iPhone installed PWA still fails
+while the Mac HTTP/HTTPS Playwright smoke passes, the next check is the
+device-side PWA cache/service-worker and exact workspace/view state.
 
 As of 2026-06-02, an ADB-connected Android 13 e-ink target device is available
 for Hermes Mobile mobile UI validation. For any UI/navigation/gesture/layout
