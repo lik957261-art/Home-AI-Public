@@ -13,14 +13,19 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), "hm-runtime-file-helper-"));
 try {
   const invalidJson = path.join(root, "invalid.json");
   const validJson = path.join(root, "valid.json");
+  const storePath = path.join(root, "store", "state.json");
   fs.writeFileSync(invalidJson, "{", "utf8");
   fs.writeFileSync(validJson, JSON.stringify({ ok: true, value: 42 }), "utf8");
 
   const traces = [];
+  let ensureDataDirCalls = 0;
   const helper = createMobileRuntimeFileHelperService({
     fs,
     path,
     bootTrace: (label) => traces.push(label),
+    ensureDataDir: () => {
+      ensureDataDirCalls += 1;
+    },
     documentPreviewService: {
       extractDocxText(filePath) {
         return { text: `docx:${path.basename(filePath)}` };
@@ -44,6 +49,8 @@ try {
       },
     },
     isUncPath: (value) => String(value || "").startsWith("//unc"),
+    nowMs: () => 123456,
+    processId: 777,
   });
 
   assert.equal(helper.mimeFor("a.md"), "mime:.md");
@@ -65,6 +72,17 @@ try {
 
   const fallback = helper.readJsonFirst([path.join(root, "missing-again.json")], { fallback: true });
   assert.deepEqual(fallback, { data: { fallback: true }, path: "" });
+
+  assert.deepEqual(helper.readJsonStore(path.join(root, "missing-store.json"), { fallback: true }), { fallback: true });
+  assert.deepEqual(helper.readJsonStore(invalidJson, { invalidFallback: true }), { invalidFallback: true });
+  assert.deepEqual(helper.readJsonStore(validJson, { fallback: true }), { ok: true, value: 42 });
+  helper.writeJsonStore(storePath, { nested: { value: 7 } });
+  assert.equal(
+    fs.readFileSync(storePath, "utf8"),
+    "{\n  \"nested\": {\n    \"value\": 7\n  }\n}\n",
+  );
+  assert.equal(fs.existsSync(`${storePath}.777.123456.tmp`), false);
+  assert.equal(ensureDataDirCalls, 4);
 
   assert.throws(
     () => createMobileRuntimeFileHelperService({ documentPreviewService: {} }),

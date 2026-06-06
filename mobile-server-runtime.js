@@ -129,16 +129,21 @@ const {
   extractDocxText,
   mimeFor,
   readJsonFirst,
+  readJsonStore,
   serveStatic,
   textBufferPreview,
   textFilePreview,
+  writeJsonStore,
 } = createMobileRuntimeFileHelperService({
   bootTrace,
   documentPreviewService,
+  ensureDataDir,
   fs,
   httpRuntimeService,
   isUncPath,
+  nowMs: () => Date.now(),
   path,
+  processId: process.pid,
 });
 let clients = new Set();
 let activeStreams = new Map();
@@ -956,22 +961,6 @@ function mobileSqliteStore() {
     sqliteServiceStore.migrate();
   }
   return sqliteServiceStore;
-}
-function readJsonStore(filePath, fallback) {
-  ensureDataDir();
-  try {
-    if (!fs.existsSync(filePath)) return fallback;
-    return JSON.parse(fs.readFileSync(filePath, "utf8"));
-  } catch (_) {
-    return fallback;
-  }
-}
-function writeJsonStore(filePath, value) {
-  ensureDataDir();
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const tmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-  fs.renameSync(tmp, filePath);
 }
 function getLocalBridgeRuntimeService() {
   if (!localBridgeRuntimeService) {

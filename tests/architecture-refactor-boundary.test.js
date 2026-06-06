@@ -449,6 +449,10 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createMobileRuntimeHttpServerService/);
   assert.match(server, /createMobileRuntimeWorkspaceCatalogFacade/);
   assert.match(fileHelpers, /readJsonFirst/);
+  assert.match(fileHelpers, /readJsonStore/);
+  assert.match(fileHelpers, /writeJsonStore/);
+  assert.doesNotMatch(server, /^function readJsonStore/gm);
+  assert.doesNotMatch(server, /^function writeJsonStore/gm);
   assert.match(httpServer, /http\.createServer\(requestHandler\)/);
   assert.match(workspaceCatalogFacade, /allProjectsForWorkspaceSync: call\("allProjectsForWorkspaceSync"\)/);
   assert.doesNotMatch(server, /http\.createServer\(async/);
@@ -700,7 +704,7 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
-  assert.match(doc, /2,430 lines/);
+  assert.match(doc, /2,420 lines/);
   assert.match(doc, /430/);
   assert.match(doc, /public\/app\.js/);
   assert.match(doc, /10,000 lines/);
@@ -729,7 +733,7 @@ function testServiceFirstArchitectureContract() {
   const appTopLevelFunctionCount = (app.match(/^function\s+/gm) || []).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 2430, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2430`);
+  assert.ok(runtimeLineCount <= 2420, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2420`);
   assert.ok(runtimeTopLevelFunctionCount <= 430, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 430`);
   assert.ok(appLineCount <= 10000, `public/app.js line budget exceeded: ${appLineCount} > 10000`);
   assert.ok(appTopLevelFunctionCount <= 120, `public/app.js top-level function budget exceeded: ${appTopLevelFunctionCount} > 120`);

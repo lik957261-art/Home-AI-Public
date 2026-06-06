@@ -6,7 +6,10 @@ function createMobileRuntimeFileHelperService(options = {}) {
   const httpRuntimeService = options.httpRuntimeService;
   const documentPreviewService = options.documentPreviewService;
   const bootTrace = typeof options.bootTrace === "function" ? options.bootTrace : () => {};
+  const ensureDataDir = typeof options.ensureDataDir === "function" ? options.ensureDataDir : () => {};
   const isUncPath = typeof options.isUncPath === "function" ? options.isUncPath : (value) => /^\\\\/.test(String(value || ""));
+  const nowMs = typeof options.nowMs === "function" ? options.nowMs : () => Date.now();
+  const processId = Number.isFinite(Number(options.processId)) ? Number(options.processId) : process.pid;
 
   if (!httpRuntimeService) throw new Error("mobile runtime file helper service requires httpRuntimeService");
   if (!documentPreviewService) throw new Error("mobile runtime file helper service requires documentPreviewService");
@@ -53,14 +56,34 @@ function createMobileRuntimeFileHelperService(options = {}) {
     return { data: fallback, path: "" };
   }
 
+  function readJsonStore(filePath, fallback) {
+    ensureDataDir();
+    try {
+      if (!fs.existsSync(filePath)) return fallback;
+      return JSON.parse(fs.readFileSync(filePath, "utf8"));
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function writeJsonStore(filePath, value) {
+    ensureDataDir();
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    const tmp = `${filePath}.${processId}.${nowMs()}.tmp`;
+    fs.writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    fs.renameSync(tmp, filePath);
+  }
+
   return {
     contentDisposition,
     extractDocxText,
     mimeFor,
     readJsonFirst,
+    readJsonStore,
     serveStatic,
     textBufferPreview,
     textFilePreview,
+    writeJsonStore,
   };
 }
 

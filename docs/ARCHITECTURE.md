@@ -39,7 +39,7 @@ out of the composition root. Current focused runtime adapters include:
 
 - `adapters/mobile-runtime-file-helper-service.js` for MIME/disposition,
   document preview delegation, static serving delegation, and first-readable
-  JSON config loading.
+  JSON config loading plus atomic JSON store read/write helpers.
 - `adapters/mobile-runtime-workspace-catalog-facade.js` for lazy workspace
   catalog delegation without forcing the full catalog service to initialize at
   module load time.
