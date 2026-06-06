@@ -28,6 +28,21 @@ function createResponseStore(dbPath, responseId, sessionId) {
   db.close();
 }
 
+function createResponseStoreRows(dbPath, rows) {
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  const db = new DatabaseSync(dbPath);
+  db.exec("CREATE TABLE responses(response_id TEXT PRIMARY KEY, data TEXT NOT NULL, accessed_at REAL)");
+  const insert = db.prepare("INSERT INTO responses(response_id, data, accessed_at) VALUES (?, ?, ?)");
+  for (const row of rows) {
+    insert.run(
+      row.responseId,
+      JSON.stringify({ id: row.responseId, session_id: row.sessionId }),
+      row.accessedAt || Date.now() / 1000,
+    );
+  }
+  db.close();
+}
+
 function createStateDb(dbPath, sessionId) {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new DatabaseSync(dbPath);
@@ -154,6 +169,83 @@ function testProviderSupplementsFromProfileDb() {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
+function testProviderSupplementsFromUniqueResponsePrefix() {
+  const root = tempDir();
+  const profile = path.join(root, "profiles", "hm-owner-openai-1");
+  const prefix = "resp_abcdef1234567890abc";
+  createResponseStoreRows(path.join(profile, "response_store.db"), [
+    { responseId: `${prefix}1234`, sessionId: "session_prefix" },
+  ]);
+  createStateDb(path.join(profile, "state.db"), "session_prefix");
+
+  const provider = createGatewayUsageTelemetryProvider({
+    enabled: "on",
+    profileRoots: [path.join(root, "profiles")],
+  });
+  const usage = provider.supplementUsage(
+    { input_tokens: 101084, output_tokens: 212, total_tokens: 999999 },
+    { responseId: `${prefix}ffffffffffffffffffffffff`, profile: "hm-owner-openai-1" },
+  );
+  assert.equal(usage.cache_read_tokens, 72192);
+  assert.equal(usage.cached_input_tokens, 72192);
+  assert.equal(usage.telemetry_source, "gateway_sessiondb");
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+function testProviderSupplementsFromManifestWorkerTelemetryPaths() {
+  const root = tempDir();
+  const profile = path.join(root, "profiles", "hm-owner-openai-1");
+  const manifestPath = path.join(root, "gateway-pool-manifest-mac.json");
+  const prefix = "resp_1234567890abcdefabc";
+  createResponseStoreRows(path.join(profile, "response_store.db"), [
+    { responseId: `${prefix}1234`, sessionId: "session_manifest" },
+  ]);
+  createStateDb(path.join(profile, "state.db"), "session_manifest");
+  fs.writeFileSync(manifestPath, JSON.stringify({
+    workers: [{
+      profile: "hm-owner-openai-1",
+      telemetryStateDbPath: path.join(profile, "state.db"),
+      telemetryResponseStoreDbPath: path.join(profile, "response_store.db"),
+    }],
+  }), "utf8");
+
+  const provider = createGatewayUsageTelemetryProvider({
+    enabled: "on",
+    manifestPaths: [manifestPath],
+  });
+  const usage = provider.supplementUsage(
+    { input_tokens: 101084, output_tokens: 212, total_tokens: 999999 },
+    { responseId: `${prefix}ffffffffffffffffffffffff`, profile: "hm-owner-openai-1" },
+  );
+  assert.equal(usage.cache_read_tokens, 72192);
+  assert.equal(usage.cached_input_tokens, 72192);
+  assert.equal(usage.telemetry_source, "gateway_sessiondb");
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+function testProviderDoesNotSupplementAmbiguousResponsePrefix() {
+  const root = tempDir();
+  const profile = path.join(root, "profiles", "hm-owner-openai-1");
+  const prefix = "resp_abcdef1234567890abc";
+  createResponseStoreRows(path.join(profile, "response_store.db"), [
+    { responseId: `${prefix}1234`, sessionId: "session_prefix_1", accessedAt: 2 },
+    { responseId: `${prefix}5678`, sessionId: "session_prefix_2", accessedAt: 1 },
+  ]);
+  createStateDb(path.join(profile, "state.db"), "session_prefix_1");
+
+  const provider = createGatewayUsageTelemetryProvider({
+    enabled: "on",
+    profileRoots: [path.join(root, "profiles")],
+  });
+  const base = { input_tokens: 101084, output_tokens: 212, total_tokens: 999999 };
+  const usage = provider.supplementUsage(
+    base,
+    { responseId: `${prefix}ffffffffffffffffffffffff`, profile: "hm-owner-openai-1" },
+  );
+  assert.deepEqual(usage, base);
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
 function testProviderFailsClosedWhenNoDb() {
   const provider = createGatewayUsageTelemetryProvider({
     enabled: "on",
@@ -167,6 +259,9 @@ testResponseSessionIdExtraction();
 testUsageFromSessionAddsCachedTokensCallsAndCost();
 testManifestProfileRoots();
 testProviderSupplementsFromProfileDb();
+testProviderSupplementsFromUniqueResponsePrefix();
+testProviderSupplementsFromManifestWorkerTelemetryPaths();
+testProviderDoesNotSupplementAmbiguousResponsePrefix();
 testProviderFailsClosedWhenNoDb();
 
 console.log("gateway-usage-telemetry-provider tests passed");

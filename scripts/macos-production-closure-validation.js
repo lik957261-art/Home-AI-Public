@@ -205,11 +205,19 @@ function compactStatus(status) {
   };
 }
 
+function isAllowedProfileAuditWarning(value) {
+  return /^telemetry_(state_db|response_store)_missing:/.test(String(value || ""));
+}
+
 function compactProfileAudit(profile) {
+  const warnings = Array.isArray(profile.warnings) ? profile.warnings : [];
+  const blockingWarnings = warnings.filter((warning) => !isAllowedProfileAuditWarning(warning));
   return {
     ok: Boolean(profile.ok),
     issueCount: (profile.issues || []).length,
-    warningCount: (profile.warnings || []).length,
+    warningCount: warnings.length,
+    blockingWarningCount: blockingWarnings.length,
+    allowedWarningCount: warnings.length - blockingWarnings.length,
     workerCount: profile.manifest?.workerCount || 0,
     activeWorkspaceKeys: profile.activeWorkspaceKeys || [],
     staleSkillProfiles: profile.staleSkillProfiles || [],
@@ -475,7 +483,7 @@ async function runClosure(options) {
     && status.wrongHeaderDenied
     && profileAudit.ok
     && profileAudit.issueCount === 0
-    && profileAudit.warningCount === 0
+    && profileAudit.blockingWarningCount === 0
     && acl.ok
     && acl.failedCount === 0
     && (!pluginDirectory || (pluginDirectory.ok && pluginDirectory.rows.every((row) => row.ok)))
@@ -543,6 +551,7 @@ module.exports = {
   compactWeixin,
   compactPluginDirectory,
   compactWardrobeBinding,
+  isAllowedProfileAuditWarning,
   parseArgs,
   runClosure,
   sanitize,

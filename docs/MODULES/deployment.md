@@ -108,7 +108,7 @@ service root.
   plugin provisioning, worker profile repair, stale-user cleanup, or Access Key
   rotation:
   `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-profile-audit.js --root /Users/hermes-host/HermesMobile --json`.
-  Passing production output must have `ok=true`, empty `issues`, empty
+  Passing production output must have `ok=true`, empty `issues`, no blocking
   `warnings`, the expected active workspace keys, the shared Response baseline,
   complete required Wardrobe Skill bundles for workspaces that require
   Wardrobe, and profile `skills`/`memories` links whose realpath resolves to
@@ -128,7 +128,8 @@ service root.
   plugin delivery-directory, Wardrobe binding/proxy content, DeepSeek
   user/maintenance, Weixin heartbeat, Owner/OpenAI concurrent product-route,
   and final-status smokes. Passing output must have top-level
-  `ok=true`, `activeGlobal=0` before and after, zero profile issues/warnings,
+  `ok=true`, `activeGlobal=0` before and after, zero profile issues and zero
+  blocking profile warnings,
   zero ACL failures, plugin delivery-directory creation/preview passing for
   every active workspace, Wardrobe manifest `programApi.origin` on Mac loopback
   with a launched proxied entry and positive bounded bootstrap content for the
@@ -201,6 +202,21 @@ Gateway environment points to the workspace-aware Mac-native Gateway Pool:
 `HERMES_MOBILE_GATEWAY_POOL_MANIFEST=/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json`,
 and
 `HERMES_GATEWAY_POOL_MANIFEST_PATH=/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json`.
+Every enabled Mac manifest worker must also carry explicit
+`telemetryStateDbPath` and `telemetryResponseStoreDbPath` values pointing at
+that worker's real profile DBs under
+`/Users/<hm-user>/HermesWorkspace/.hermes-gateway/profiles/<profile>/`. The
+listener user `hermes-host` must have read-only ACL access to the profile DB,
+WAL, SHM, and containing directories. Without these manifest fields and ACLs,
+Gateway runs can complete normally but Hermes Mobile cannot enrich the message
+usage from official Gateway `state.db` / `response_store.db`; the client will
+show cached input as `Not reported` even when the model actually used cached
+tokens. The checked repair entry is
+`sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-gateway-telemetry-repair.js --root /Users/hermes-host/HermesMobile --write --grant-listener-read --json`.
+The usage telemetry adapter also handles the official Gateway short-response-id
+store format by using a unique 24-character response-id prefix fallback after
+exact lookup fails. This fallback is intentionally narrow: ambiguous prefixes
+leave usage unchanged instead of guessing.
 Hybrid Mac cold-start also requires the launchd listener environment to pass
 `HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT` to the runtime config, pointing
 at the Mac-native profile launcher under the live Gateway worker root. This is

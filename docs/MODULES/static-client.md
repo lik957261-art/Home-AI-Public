@@ -86,17 +86,19 @@ Gateway plugin/schema/profile changes:
 ## Constraints
 
 - Mobile UI must preserve the OS status bar, safe areas, bottom navigation, stable action icons, and readable compact panels.
-- Mobile bottom navigation must cap its bottom safe-area contribution to a
-  small visual buffer before it affects nav height or padding. A newly
-  installed iOS PWA can report a larger `env(safe-area-inset-bottom)` than the
-  prior container, and using that full value directly visibly lifts the
-  navigation row. Font-size preferences must not increase the bottom nav
-  container height beyond `--mobile-bottom-nav-height`.
-- The bottom navigation may reserve capped bottom safe-area in the container
-  height, but the content padding should use the reduced
-  `--mobile-bottom-nav-content-safe-area` buffer so labels and icons are not
-  visibly lifted on iOS PWA/HTTPS containers that report a nonzero bottom safe
-  area.
+- Mobile bottom navigation must keep a fixed visual container height. Do not
+  add `env(safe-area-inset-bottom)` to `--mobile-bottom-nav-height` or
+  `--plugin-context-bottom-nav-height`. iOS reports safe-area values per
+  browser/PWA/origin context, so two deployments on the same physical phone can
+  expose different values. Native tab bars remain stable because the bar height
+  is fixed and the safe area is handled as background or internal spacing, not
+  as a layout-height multiplier.
+- Bottom safe-area may only contribute a small internal content buffer through
+  `--mobile-bottom-nav-content-safe-area`. Topic docks, plugin context bars,
+  composer offsets, and runtime bottom-nav measurements must be based on the
+  fixed bar height plus measured bounds, not a raw safe-area-expanded CSS
+  height. Font-size preferences must not increase the bottom nav container
+  height beyond `--mobile-bottom-nav-height`.
 - Touch tablets up to `1366px` wide use the same mobile shell as phone portrait:
   a single-column app, bottom navigation, and an overlay sidebar. Do not let
   iPad-like landscape layouts fall back to the desktop fixed sidebar or hide the

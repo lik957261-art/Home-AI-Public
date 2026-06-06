@@ -101,16 +101,24 @@ non-maintenance targets. Production sync must install it as executable under
 Mac production user/profile migration changes must run
 `node tests\macos-production-profile-audit.test.js` locally and the production
 profile audit on the Mac with the pinned runtime. The production audit must
-return `ok=true`, empty `issues`, empty `warnings`, active workspace keys for
-registered retained users, required plugin Skill bundles, shared Response
+return `ok=true`, empty `issues`, no blocking `warnings`, active workspace keys
+for registered retained users, required plugin Skill bundles, shared Response
 baseline presence, and profile `skills`/`memories` links whose realpath points
 at the matching `data/skill-profiles/<profileId>` store. On macOS it must also
 prove every enabled manifest worker's system LaunchDaemon is loaded; any
 `launchd_service_not_loaded:<profile>` issue is a cold-start blocker. It must
 also reject `RunAtLoad=true` or `KeepAlive=true` on any worker that is not part
 of the required warm baseline, because that launchd policy defeats Gateway idle
-cooldown. It must not print raw Access Keys, token contents, key files, prompt
-bodies, or plugin launch tokens.
+cooldown. It must also prove Mac Gateway usage telemetry is wired: every
+enabled worker needs manifest `telemetryStateDbPath` and
+`telemetryResponseStoreDbPath`, and existing DB files must be readable by the
+listener user. Missing telemetry paths are issues because they make cached
+input show as `Not reported`; missing DB files on never-started cold workers
+are warnings until a cold-start run creates them. The checked repair harness is
+`node tests\macos-gateway-telemetry-repair.test.js` plus the production command
+`sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-gateway-telemetry-repair.js --root /Users/hermes-host/HermesMobile --write --grant-listener-read --json`.
+It must not print raw Access Keys, token contents, key files, prompt bodies, or
+plugin launch tokens.
 Mac MCP callable schema evidence must use the real production manifest and
 native agent schema probe, for example
 `node scripts\gateway-tool-schema-smoke.js --manifest /Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json --profile <profile> --schema-only --agent-schema-mode native --runtime-source /Users/hermes-host/HermesMobile/runtime/hermes-agent-official/source --runtime-overrides /Users/hermes-host/HermesMobile/app/gateway-runtime-overrides --runtime-python /Users/hermes-host/HermesMobile/runtime/hermes-agent-official/venv/bin/python`. Do not treat a Windows-only WSL schema probe as Mac production evidence.

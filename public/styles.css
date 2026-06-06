@@ -52,9 +52,9 @@
   --app-font-scale: 1;
   --app-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Aptos", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
   --mobile-bottom-safe-area: min(env(safe-area-inset-bottom), 8px);
-  --mobile-bottom-nav-content-safe-area: max(0px, calc(var(--mobile-bottom-safe-area) - 5px));
-  --mobile-bottom-nav-height: calc(58px + var(--mobile-bottom-safe-area));
-  --plugin-context-bottom-nav-height: calc(54px + var(--mobile-bottom-safe-area));
+  --mobile-bottom-nav-content-safe-area: max(0px, min(var(--mobile-bottom-safe-area), 3px));
+  --mobile-bottom-nav-height: 58px;
+  --plugin-context-bottom-nav-height: 54px;
   --mobile-bottom-nav-offset-height: var(--mobile-bottom-nav-offset-height-runtime, var(--mobile-bottom-nav-height));
   --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 10px));
   --topic-plugin-dock-height: 90px;
@@ -15758,7 +15758,7 @@ body.task-markdown-preview-open {
     display: grid;
     grid-template-columns: repeat(5, minmax(var(--bottom-nav-column-min), 1fr));
     align-items: center;
-    padding: 4px env(safe-area-inset-right) calc(3px + var(--mobile-bottom-nav-content-safe-area)) env(safe-area-inset-left);
+    padding: 4px env(safe-area-inset-right) calc(6px + var(--mobile-bottom-nav-content-safe-area)) env(safe-area-inset-left);
     overflow-x: hidden;
     overflow-y: hidden;
     overscroll-behavior-x: contain;

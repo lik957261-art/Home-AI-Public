@@ -26,6 +26,10 @@ assert.match(script, /launchd_run_at_load_unexpected/);
 assert.match(script, /launchd_required_warm_keepalive_missing/);
 assert.match(script, /launchdProbe/);
 assert.match(script, /launchdPlistProbe/);
+assert.match(script, /telemetry_state_path_missing/);
+assert.match(script, /telemetry_response_path_missing/);
+assert.match(script, /telemetry_state_db_unreadable/);
+assert.match(script, /telemetryResponsePathCount/);
 assert.match(script, /deepseek_user_worker_missing/);
 assert.match(script, /plugin_binding_missing/);
 assert.match(script, /plugin_local_binding_incomplete/);
@@ -36,11 +40,11 @@ assert.match(script, /stale_skill_profile/);
 assert.doesNotMatch(script, /owner-web-key|Bearer|headers\[[^\]]*Authorization|headers\.[A-Za-z0-9_]*Authorization/);
 assert.doesNotMatch(script, /readFileSync\(.*apiKey/i);
 assert.match(deploymentDoc, /macos-production-profile-audit\.js/);
-assert.match(deploymentDoc, /empty `issues`, empty\s+`warnings`/);
+assert.match(deploymentDoc, /empty `issues`, no blocking\s+`warnings`/);
 assert.match(skillPermissionsDoc, /macOS worker user must be able to read and write/i);
 assert.match(skillPermissionsDoc, /stale profile roots/i);
 assert.match(testMatrix, /macos-production-profile-audit\.test\.js/);
-assert.match(testMatrix, /production audit must\s+return `ok=true`, empty `issues`, empty `warnings`/);
+assert.match(testMatrix, /production audit must\s+return `ok=true`, empty `issues`, no blocking `warnings`/);
 
 const { buildAudit, launchdServiceStatus } = require("../scripts/macos-production-profile-audit");
 
@@ -52,6 +56,12 @@ function writeJson(file, value) {
 const tempRoot = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "homeai-profile-audit-"));
 try {
   const data = path.join(tempRoot, "data");
+  const telemetryRoot = path.join(tempRoot, "telemetry");
+  const ownerStateDb = path.join(telemetryRoot, "hm-owner-openai-1", "state.db");
+  const ownerResponseDb = path.join(telemetryRoot, "hm-owner-openai-1", "response_store.db");
+  fs.mkdirSync(path.dirname(ownerStateDb), { recursive: true });
+  fs.writeFileSync(ownerStateDb, "");
+  fs.writeFileSync(ownerResponseDb, "");
   writeJson(path.join(data, "gateway-pool-manifest-mac.json"), {
     workers: [
       {
@@ -63,6 +73,8 @@ try {
         allowedWorkspaceIds: ["owner"],
         skillWorkspaceIds: ["owner"],
         apiKeyFile: "/secret/not-read",
+        telemetryStateDbPath: ownerStateDb,
+        telemetryResponseStoreDbPath: ownerResponseDb,
       },
       {
         profile: "deepseekgw1",
@@ -102,8 +114,14 @@ try {
     expectedWorkspaces: ["owner", "weixin_wuping"],
     expectedPlugins: ["wardrobe"],
     strict: true,
+    telemetryReadProbe: () => true,
   });
   assert.equal(audit.ok, false);
+  assert.equal(audit.manifest.telemetryStatePathCount, 1);
+  assert.equal(audit.manifest.telemetryResponsePathCount, 1);
+  assert.ok(!audit.issues.includes("telemetry_state_db_unreadable:hm-owner-openai-1"));
+  assert.ok(audit.issues.includes("telemetry_state_path_missing:deepseekgw1"));
+  assert.ok(audit.issues.includes("telemetry_response_path_missing:hm-wuping-openai-1"));
   assert.ok(audit.issues.includes("memory_root_missing:weixin_wuping"));
   assert.ok(audit.issues.includes("deepseek_user_worker_missing:weixin_wuping"));
   assert.ok(audit.issues.includes("plugin_local_binding_incomplete:weixin_wuping:wardrobe"));
@@ -121,10 +139,13 @@ try {
       runAtLoad: label.includes("owner.openai.1") || label.includes("wuping.openai.1"),
       keepAlive: label.includes("owner.openai.1") || label.includes("wuping.openai.1"),
     }),
+    telemetryReadProbe: () => false,
   });
+  assert.ok(launchdAudit.issues.includes("telemetry_state_db_unreadable:hm-owner-openai-1"));
   assert.ok(launchdAudit.issues.includes("launchd_service_not_loaded:deepseekgw1"));
   assert.ok(!launchdAudit.issues.includes("launchd_service_not_loaded:hm-owner-openai-1"));
-  assert.ok(!launchdAudit.issues.includes("launchd_keepalive_unexpected:hm-owner-openai-1"));
+  assert.ok(launchdAudit.issues.includes("launchd_keepalive_unexpected:hm-owner-openai-1"));
+  assert.ok(launchdAudit.issues.includes("launchd_run_at_load_unexpected:hm-owner-openai-1"));
   assert.ok(launchdAudit.issues.includes("launchd_keepalive_unexpected:hm-wuping-openai-1"));
   assert.ok(launchdAudit.issues.includes("launchd_run_at_load_unexpected:hm-wuping-openai-1"));
   assert.equal(launchdServiceStatus({ launchdLabel: "com.hermesmobile.fixture.1" }, { launchdProbe: () => true }).loaded, true);

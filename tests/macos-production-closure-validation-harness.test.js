@@ -47,6 +47,7 @@ assert.match(script, /macos_closure_oauth_reauth_process_present/);
 assert.match(script, /concurrentOwnerRuns/);
 assert.match(script, /wrongHeaderDenied/);
 assert.match(script, /activeGlobal === 0/);
+assert.match(script, /blockingWarningCount === 0/);
 assert.match(script, /skipPluginDirectory/);
 assert.match(script, /compactPluginDirectory/);
 assert.match(script, /skipWardrobeBinding/);
@@ -66,6 +67,8 @@ assert.match(runbook, /X-Hermes-Web-Key/);
 assert.match(runbook, /X-Hermes-Access-Key/);
 assert.match(runbook, /X-Hermes-Mobile-Ingress-Key/);
 assert.match(runbook, /Owner\/OpenAI concurrent/);
+assert.match(runbook, /blockingWarningCount/);
+assert.match(runbook, /telemetry_state_db_missing/);
 assert.match(runbook, /plugin delivery directories/);
 assert.match(runbook, /Wardrobe binding/);
 assert.match(runbook, /Do not paste OAuth callback URLs/);
@@ -91,6 +94,7 @@ const {
   compactSchema,
   compactStatus,
   compactWeixin,
+  isAllowedProfileAuditWarning,
   parseArgs,
   sanitize,
 } = require("../scripts/macos-production-closure-validation");
@@ -126,14 +130,22 @@ assert.deepEqual(status, {
 const profile = compactProfileAudit({
   ok: true,
   issues: [],
-  warnings: [],
+  warnings: [
+    "telemetry_state_db_missing:hm-owner-openai-3",
+    "telemetry_response_store_missing:hm-owner-openai-3",
+  ],
   manifest: { workerCount: 30 },
   activeWorkspaceKeys: ["weixin_wuping"],
   staleSkillProfiles: [],
 });
 assert.equal(profile.issueCount, 0);
-assert.equal(profile.warningCount, 0);
+assert.equal(profile.warningCount, 2);
+assert.equal(profile.allowedWarningCount, 2);
+assert.equal(profile.blockingWarningCount, 0);
 assert.equal(profile.workerCount, 30);
+assert.equal(isAllowedProfileAuditWarning("telemetry_state_db_missing:hm-owner-openai-3"), true);
+assert.equal(isAllowedProfileAuditWarning("telemetry_response_store_missing:hm-owner-openai-3"), true);
+assert.equal(isAllowedProfileAuditWarning("profile_skills_target_unexpected:hm-owner-openai-3"), false);
 
 const acl = compactAcl({
   ok: true,

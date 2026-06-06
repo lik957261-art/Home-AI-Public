@@ -137,7 +137,13 @@ function readSessionIdForResponse(responseStoreDbPath, responseId) {
   return withReadonlyDatabase(responseStoreDbPath, "response-store", (db) => {
     try {
       const row = db.prepare("SELECT data FROM responses WHERE response_id = ? LIMIT 1").get(id);
-      return responseSessionIdFromData(row?.data || "");
+      const exact = responseSessionIdFromData(row?.data || "");
+      if (exact) return exact;
+      if (!id.startsWith("resp_") || id.length < 28) return "";
+      const prefix = id.slice(0, 24);
+      const matches = db.prepare("SELECT data FROM responses WHERE response_id LIKE ? ORDER BY accessed_at DESC LIMIT 2").all(`${prefix}%`);
+      if (matches.length !== 1) return "";
+      return responseSessionIdFromData(matches[0]?.data || "");
     } catch (_) {
       return "";
     }
@@ -281,7 +287,55 @@ function profileNameCandidates(runRef = {}) {
   ]);
 }
 
-function dbCandidatesForRun(runRef = {}, profileRoots = []) {
+function workerTelemetryStateDbPath(worker = {}) {
+  return String(worker.telemetryStateDbPath || worker.telemetry_state_db_path || worker.stateDbPath || worker.state_db_path || "").trim();
+}
+
+function workerTelemetryResponseDbPath(worker = {}) {
+  return String(
+    worker.telemetryResponseStoreDbPath
+    || worker.telemetry_response_store_db_path
+    || worker.responseStoreDbPath
+    || worker.response_store_db_path
+    || "",
+  ).trim();
+}
+
+function manifestDbCandidatesForRun(runRef = {}, manifestPaths = []) {
+  const profiles = new Set(profileNameCandidates(runRef));
+  if (!profiles.size) return [];
+  const candidates = [];
+  for (const manifestPath of cleanList(manifestPaths)) {
+    let manifest = null;
+    try {
+      manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    } catch (_) {
+      continue;
+    }
+    for (const worker of Array.isArray(manifest?.workers) ? manifest.workers : []) {
+      if (!worker || typeof worker !== "object" || worker.enabled === false) continue;
+      const workerProfiles = cleanList([
+        worker.telemetryProfile,
+        worker.telemetry_profile,
+        worker.profile,
+        worker.name,
+        worker.id,
+      ]);
+      if (!workerProfiles.some((profile) => profiles.has(profile))) continue;
+      const stateDbPath = workerTelemetryStateDbPath(worker);
+      const responseStoreDbPath = workerTelemetryResponseDbPath(worker);
+      if (!stateDbPath || !responseStoreDbPath) continue;
+      candidates.push({
+        profile: workerProfiles.find((profile) => profiles.has(profile)) || "",
+        stateDbPath,
+        responseStoreDbPath,
+      });
+    }
+  }
+  return candidates;
+}
+
+function dbCandidatesForRun(runRef = {}, profileRoots = [], manifestPaths = []) {
   const candidates = [];
   const explicitState = String(runRef.telemetryStateDbPath || runRef.telemetry_state_db_path || "").trim();
   const explicitResponse = String(runRef.telemetryResponseStoreDbPath || runRef.telemetry_response_store_db_path || "").trim();
@@ -292,6 +346,7 @@ function dbCandidatesForRun(runRef = {}, profileRoots = []) {
       responseStoreDbPath: explicitResponse,
     });
   }
+  candidates.push(...manifestDbCandidatesForRun(runRef, manifestPaths));
   for (const profile of profileNameCandidates(runRef)) {
     for (const root of profileRoots) {
       const profileDir = path.join(root, profile);
@@ -322,7 +377,7 @@ function createGatewayUsageTelemetryProvider(options = {}) {
     const responseId = String(runRef.responseId || runRef.response_id || runRef.runId || runRef.run_id || "").trim();
     if (!responseId) return baseUsage || null;
     if (currentMode === "auto" && hasMeaningfulTelemetry(baseUsage || {})) return baseUsage || null;
-    const candidates = dbCandidatesForRun(runRef, profileRoots());
+    const candidates = dbCandidatesForRun(runRef, profileRoots(), readOption(options.manifestPaths));
     for (const candidate of candidates) {
       const sessionId = readSessionIdForResponse(candidate.responseStoreDbPath, responseId);
       if (!sessionId) continue;
@@ -342,6 +397,7 @@ function createGatewayUsageTelemetryProvider(options = {}) {
 module.exports = {
   createGatewayUsageTelemetryProvider,
   dbCandidatesForRun,
+  manifestDbCandidatesForRun,
   manifestProfileRootCandidates,
   responseSessionIdFromData,
   usageFromSession,

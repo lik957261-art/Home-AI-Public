@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
+const { telemetryPathsForWorker } = require("./macos-gateway-telemetry-repair");
 
 const DEFAULT_REQUIRED_WORKSPACE_PLUGINS = {
   weixin_wuping: ["wardrobe"],
@@ -21,6 +22,8 @@ function parseArgs(argv) {
     expectedPlugins: ["wardrobe", "finance", "note", "email", "health"],
     requiredWorkspacePlugins: DEFAULT_REQUIRED_WORKSPACE_PLUGINS,
     requiredSharedSkills: DEFAULT_REQUIRED_SHARED_SKILLS,
+    listenerUser: process.env.HERMES_MOBILE_LISTENER_USER || "hermes-host",
+    checkTelemetry: true,
     json: false,
     strict: true,
   };
@@ -35,6 +38,10 @@ function parseArgs(argv) {
       out.requiredWorkspacePlugins = parseMappingArg(argv[++index] || "");
     } else if (arg === "--required-shared-skills") {
       out.requiredSharedSkills = splitCsv(argv[++index] || "");
+    } else if (arg === "--listener-user") {
+      out.listenerUser = argv[++index] || out.listenerUser;
+    } else if (arg === "--no-telemetry-check") {
+      out.checkTelemetry = false;
     } else if (arg === "--json") out.json = true;
     else if (arg === "--no-strict") out.strict = false;
     else if (arg === "--help") {
@@ -46,6 +53,8 @@ function parseArgs(argv) {
         "                               Semicolon-separated workspace:plugin,plugin map",
         "  --required-shared-skills <ids>",
         "                               Comma-separated shared Skill paths relative to shared-global/skills",
+        "  --listener-user <user>       User that must read Gateway telemetry DBs",
+        "  --no-telemetry-check         Skip Gateway telemetry path/readability checks",
         "  --no-strict                  Report issues without failing",
         "  --json                       Print bounded JSON metadata",
       ].join("\n"));
@@ -194,6 +203,58 @@ function compactPath(value, root) {
   return String(value || "").replaceAll(root, "<root>");
 }
 
+function telemetryPathConfigured(worker = {}, field) {
+  if (field === "state") {
+    return Boolean(worker.telemetryStateDbPath || worker.telemetry_state_db_path || worker.stateDbPath || worker.state_db_path);
+  }
+  return Boolean(
+    worker.telemetryResponseStoreDbPath
+    || worker.telemetry_response_store_db_path
+    || worker.responseStoreDbPath
+    || worker.response_store_db_path
+  );
+}
+
+function listenerCanReadTelemetry(file, options = {}) {
+  const value = String(file || "").trim();
+  if (!value || !exists(value)) return false;
+  if (typeof options.telemetryReadProbe === "function") {
+    return Boolean(options.telemetryReadProbe(value, options.listenerUser || "hermes-host"));
+  }
+  if (process.platform === "darwin") {
+    const user = String(options.listenerUser || "hermes-host").trim();
+    if (user) {
+      const result = spawnSync("sudo", ["-u", user, "test", "-r", value], {
+        encoding: "utf8",
+        stdio: ["ignore", "ignore", "ignore"],
+      });
+      return result.status === 0;
+    }
+  }
+  try {
+    fs.accessSync(value, fs.constants.R_OK);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function telemetryStatus(worker = {}, root = "", options = {}) {
+  const paths = telemetryPathsForWorker(worker);
+  const stateExists = exists(paths.stateDbPath);
+  const responseExists = exists(paths.responseStoreDbPath);
+  return {
+    statePathConfigured: telemetryPathConfigured(worker, "state"),
+    responsePathConfigured: telemetryPathConfigured(worker, "response"),
+    stateDbPath: compactPath(paths.stateDbPath, root),
+    responseStoreDbPath: compactPath(paths.responseStoreDbPath, root),
+    stateExists,
+    responseExists,
+    listenerCanReadState: stateExists ? listenerCanReadTelemetry(paths.stateDbPath, options) : false,
+    listenerCanReadResponse: responseExists ? listenerCanReadTelemetry(paths.responseStoreDbPath, options) : false,
+  };
+}
+
 function workerWorkspaceIds(worker = {}) {
   const out = new Set();
   for (const key of ["allowedWorkspaceIds", "skillWorkspaceIds"]) {
@@ -210,7 +271,7 @@ function ownerRequiredWarmProfiles(workers = [], options = {}) {
     options.ownerMinWarm
       ?? process.env.HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM
       ?? process.env.HERMES_WEB_GATEWAY_OWNER_MIN_WARM,
-    1,
+    0,
   );
   if (!minWarm) return new Set();
   const candidates = (Array.isArray(workers) ? workers : [])
@@ -441,6 +502,7 @@ function buildAudit(options) {
     const memories = linkInfo(path.join(profileDir, "memories"), root, expectedMemoryRoot);
     const configExists = exists(path.join(profileDir, "config.yaml"));
     const launchd = launchdServiceStatus(worker, options);
+    const telemetry = options.checkTelemetry === false ? null : telemetryStatus(worker, root, options);
     const requiredWarm = requiredWarmProfiles.has(profile);
     const check = {
       profile,
@@ -454,6 +516,7 @@ function buildAudit(options) {
       skills,
       memories,
       launchd,
+      telemetry,
     };
     profileChecks.push(check);
     if (!configExists) issue(`profile_config_missing:${profile}`);
@@ -470,6 +533,14 @@ function buildAudit(options) {
         if (launchd.runAtLoad === true) issue(`launchd_run_at_load_unexpected:${profile}`);
         if (launchd.keepAlive === true) issue(`launchd_keepalive_unexpected:${profile}`);
       }
+    }
+    if (telemetry) {
+      if (!telemetry.statePathConfigured) issue(`telemetry_state_path_missing:${profile}`);
+      if (!telemetry.responsePathConfigured) issue(`telemetry_response_path_missing:${profile}`);
+      if (telemetry.statePathConfigured && !telemetry.stateExists) warnings.push(`telemetry_state_db_missing:${profile}`);
+      if (telemetry.responsePathConfigured && !telemetry.responseExists) warnings.push(`telemetry_response_store_missing:${profile}`);
+      if (telemetry.stateExists && !telemetry.listenerCanReadState) issue(`telemetry_state_db_unreadable:${profile}`);
+      if (telemetry.responseExists && !telemetry.listenerCanReadResponse) issue(`telemetry_response_store_unreadable:${profile}`);
     }
     if (skills.exists && !skills.isSymbolicLink) issue(`profile_skills_not_linked:${profile}`);
     if (memories.exists && !memories.isSymbolicLink) issue(`profile_memories_not_linked:${profile}`);
@@ -513,6 +584,8 @@ function buildAudit(options) {
         acc[key] = (acc[key] || 0) + 1;
         return acc;
       }, {}),
+      telemetryStatePathCount: workers.filter((worker) => telemetryPathConfigured(worker, "state")).length,
+      telemetryResponsePathCount: workers.filter((worker) => telemetryPathConfigured(worker, "response")).length,
     },
     activeWorkspaceKeys: [...activeKeys],
     pluginAuthorizations: plugins,
@@ -542,4 +615,5 @@ module.exports = {
   buildAudit,
   launchdServiceStatus,
   parseArgs,
+  telemetryStatus,
 };

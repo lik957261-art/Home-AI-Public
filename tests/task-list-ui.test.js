@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260606-topic-root-no-composer-v589";
+const CLIENT_VERSION = "20260606-bottom-nav-telemetry-v590";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -182,8 +182,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260606-topic-root-no-composer-v589" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260606-topic-root-no-composer-v589"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260606-bottom-nav-telemetry-v590" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260606-bottom-nav-telemetry-v590"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2264,9 +2264,10 @@ assert.match(appJs, /nav\.classList\.toggle\(`bottom-nav-count-\$\{index\}`, cou
 assert.match(appJs, /updateTopicPluginDockChrome\(taskList\);[\s\S]*?updateBottomNavVisibleCount\(\);[\s\S]*?updateTopMoreControls\(\);/);
 assert.match(appJs, /"bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomLearningMode", "bottomAutomationMode"/);
 assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bottom\), 8px\)/);
-assert.match(stylesCss, /--mobile-bottom-nav-content-safe-area: max\(0px, calc\(var\(--mobile-bottom-safe-area\) - 5px\)\)/);
-assert.match(stylesCss, /--mobile-bottom-nav-height: calc\(58px \+ var\(--mobile-bottom-safe-area\)\)/);
-assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?z-index: 40;[\s\S]*?--bottom-nav-column-min: 48px;[\s\S]*?grid-template-columns: repeat\(5, minmax\(var\(--bottom-nav-column-min\), 1fr\)\);[\s\S]*?padding: 4px env\(safe-area-inset-right\) calc\(3px \+ var\(--mobile-bottom-nav-content-safe-area\)\) env\(safe-area-inset-left\);[\s\S]*?overflow-x: hidden;/);
+assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bottom\), 8px\)/);
+assert.match(stylesCss, /--mobile-bottom-nav-content-safe-area: max\(0px, min\(var\(--mobile-bottom-safe-area\), 3px\)\)/);
+assert.match(stylesCss, /--mobile-bottom-nav-height: 58px/);
+assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?z-index: 40;[\s\S]*?--bottom-nav-column-min: 48px;[\s\S]*?grid-template-columns: repeat\(5, minmax\(var\(--bottom-nav-column-min\), 1fr\)\);[\s\S]*?padding: 4px env\(safe-area-inset-right\) calc\(6px \+ var\(--mobile-bottom-nav-content-safe-area\)\) env\(safe-area-inset-left\);[\s\S]*?overflow-x: hidden;/);
 assert.match(stylesCss, /\.bottom-nav::-webkit-scrollbar \{[\s\S]*?display: none;/);
 assert.match(stylesCss, /\.bottom-nav\.bottom-nav-count-4 \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(var\(--bottom-nav-column-min\), 1fr\)\);/);
 assert.match(stylesCss, /\.bottom-nav\.bottom-nav-count-5 \{[\s\S]*?grid-template-columns: repeat\(5, minmax\(var\(--bottom-nav-column-min\), 1fr\)\);/);
@@ -2274,7 +2275,7 @@ assert.doesNotMatch(stylesCss, /\.bottom-nav\.(?:codex-visible|plugins-visible|w
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-topic-detail-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.main-back-visible \.bottom-nav \{[\s\S]*?display: none;/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?grid-template-columns: repeat\(3, minmax/);
-assert.match(stylesCss, /--plugin-context-bottom-nav-height: calc\(54px \+ var\(--mobile-bottom-safe-area\)\)/);
+assert.match(stylesCss, /--plugin-context-bottom-nav-height: 54px/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?height: var\(--plugin-context-bottom-nav-height\);[\s\S]*?min-height: var\(--plugin-context-bottom-nav-height\);/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?padding: 5px max\(22px, env\(safe-area-inset-right\)\) calc\(5px \+ var\(--mobile-bottom-nav-content-safe-area\)\) max\(22px, env\(safe-area-inset-left\)\);/);
 assert.match(stylesCss, /:root\[data-font-size\] \.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?height: var\(--plugin-context-bottom-nav-height\);[\s\S]*?min-height: var\(--plugin-context-bottom-nav-height\);/);
@@ -2322,10 +2323,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260606-topic-root-no-composer-v589/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260606-topic-root-no-composer-v589/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260606-topic-root-no-composer-v589/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260606-topic-root-no-composer-v589/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260606-bottom-nav-telemetry-v590/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260606-bottom-nav-telemetry-v590/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260606-bottom-nav-telemetry-v590/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260606-bottom-nav-telemetry-v590/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2800,8 +2801,9 @@ assert.match(singleWindowGroupChatApiRoutes, /weixinChatAvailable/);
 assert.match(singleWindowGroupChatApiRoutes, /weixinChatThreadId/);
 assert.match(singleWindowGroupChatApiRoutes, /weixinChatThread/);
 assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bottom\), 8px\)/);
-assert.match(stylesCss, /--mobile-bottom-nav-content-safe-area: max\(0px, calc\(var\(--mobile-bottom-safe-area\) - 5px\)\)/);
-assert.match(stylesCss, /--mobile-bottom-nav-height: calc\(58px \+ var\(--mobile-bottom-safe-area\)\)/);
+assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bottom\), 8px\)/);
+assert.match(stylesCss, /--mobile-bottom-nav-content-safe-area: max\(0px, min\(var\(--mobile-bottom-safe-area\), 3px\)\)/);
+assert.match(stylesCss, /--mobile-bottom-nav-height: 58px/);
 assert.match(stylesCss, /--mobile-bottom-nav-offset-height-runtime/);
 assert.match(stylesCss, /--mobile-bottom-nav-reserved-height/);
 assert.match(stylesCss, /calc\(var\(--mobile-bottom-nav-height\) \+ 10px\)/);
@@ -2813,6 +2815,7 @@ assert.match(stylesCss, /\.thread-meta \{[\s\S]*?display: none/);
 assert.match(stylesCss, /\.bottom-tab-label \{[\s\S]*?line-height: 1\.05/);
 assert.match(stylesCss, /\.top-nav-button\.back-mode \.top-nav-button-glyph \{[\s\S]*?background: transparent[\s\S]*?font-size: 27px/);
 assert.doesNotMatch(stylesCss, /--mobile-bottom-nav-height: calc\(50px \+ env\(safe-area-inset-bottom\)\)/);
+assert.doesNotMatch(stylesCss, /--mobile-bottom-nav-height: calc\(58px \+ var\(--mobile-bottom-safe-area\)\)/);
 assert.doesNotMatch(stylesCss, /--mobile-bottom-nav-reserved-height-runtime, calc\(var\(--mobile-bottom-nav-height\) \+ 8px\)/);
 assert.doesNotMatch(stylesCss, /:root\[data-font-size\] \.bottom-nav \{[\s\S]*?min-height: calc\(78px \* var\(--app-font-scale\)\)/);
 assert.match(stylesCss, /:root\[data-font-size\] \.bottom-nav \{[\s\S]*?min-height: var\(--mobile-bottom-nav-height\);/);

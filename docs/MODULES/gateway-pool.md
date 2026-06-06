@@ -355,6 +355,25 @@ the manifest fields are compatibility metadata, not an authorization source.
 Scheduler state and run assignment now use a replica-first state key, falling
 back to the legacy `profile` only when `replicaId` is absent.
 
+Usage telemetry is separate from scheduling identity. Each worker should expose
+explicit `telemetryStateDbPath` and `telemetryResponseStoreDbPath` values for
+its actual Gateway profile DBs. Hermes Mobile uses these paths only as a
+read-only compatibility adapter after a run completes, so it can recover
+cached-input tokens, API call counts, and cost status when the Gateway response
+body only contains base `input_tokens` / `output_tokens` / `total_tokens`.
+On macOS the profile DBs live under each `hm-*` user's
+`HermesWorkspace/.hermes-gateway/profiles/<profile>/`; the listener user must
+have read-only ACL access to those DB files and containing directories. A
+manifest with healthy workers but zero telemetry DB paths is incomplete: runs
+may stream successfully while the client still shows cached input as
+`Not reported`.
+Official Gateway response stores may persist a shorter response id than the
+long response id projected into Hermes Mobile message state. The telemetry
+adapter may use a bounded prefix fallback only when exact lookup fails and the
+first 24 response-id characters match exactly one row in that worker's
+`response_store.db`. If the prefix is ambiguous, the adapter fails closed and
+leaves the base usage unchanged.
+
 Cold-start launch requests must carry the same bounded template metadata into
 the process startup path. The standard listener path sends `poolKey`,
 `profileTemplateKey` / `templateKey`, `replicaId`, `profileAlias`, workspace
