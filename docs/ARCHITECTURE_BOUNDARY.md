@@ -32,8 +32,18 @@ modules. It may:
 Route composition modules should stay domain-scoped. The main
 `server-routes/mobile-api-composition.js` module owns platform-level route
 aggregation and dispatcher construction only. Domain-heavy route/service graphs,
-such as Growth/Learning and Kanban study wiring, belong in focused composition
-modules such as `server-routes/mobile-api-learning-composition.js`.
+such as Directory/file/artifact/Note receipt wiring or Growth/Learning and
+Kanban study wiring, belong in focused composition modules such as
+`server-routes/mobile-api-directory-composition.js` and
+`server-routes/mobile-api-learning-composition.js`.
+
+`server-routes/mobile-api-directory-composition.js` is only the route
+composition boundary for Directory browser, Directory mutation/share,
+file/artifact read, and Note receipt routes. It may construct
+`note-receipt-save-service.js` and delegate Directory/shared-directory behavior
+through existing boundary services, but it must not implement Directory path
+authorization, file preview/transformation, artifact persistence, shared-root
+policy, or Note plugin business behavior.
 
 Current runtime glue that should stay out of the composition root lives in
 focused adapters such as `mobile-runtime-file-helper-service.js`,
@@ -135,8 +145,10 @@ Current CI guardrails:
 - `mobile-runtime-todo-facade-service.js` must stay at or below 120 lines and
   remain a facade over `direct-kanban-create-service.js` plus workspace catalog
   lookup delegates;
-- `mobile-api-composition.js` must stay at or below 650 lines and remain the
+- `mobile-api-composition.js` must stay at or below 550 lines and remain the
   platform-level API aggregator, not a domain service graph;
+- `mobile-api-directory-composition.js` must stay at or below 150 lines and
+  remain the Directory/file/artifact/Note receipt route wiring boundary;
 - `mobile-api-learning-composition.js` must stay at or below 350 lines and
   remain the Growth/Learning route/service wiring boundary;
 - `mobile-runtime-environment-service.js` must stay at or below 380 lines and

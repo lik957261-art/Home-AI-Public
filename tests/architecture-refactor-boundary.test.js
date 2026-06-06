@@ -176,6 +176,7 @@ const learningParentReviewApiRoutes = require("../server-routes/learning-parent-
 const learningProgramApiRoutes = require("../server-routes/learning-program-api-routes");
 const mobileApiDispatcher = require("../server-routes/mobile-api-dispatcher");
 const mobileApiComposition = require("../server-routes/mobile-api-composition");
+const mobileApiDirectoryComposition = require("../server-routes/mobile-api-directory-composition");
 const mobileApiLearningComposition = require("../server-routes/mobile-api-learning-composition");
 const noteReceiptApiRoutes = require("../server-routes/note-receipt-api-routes");
 const ownerElevationApiRoutes = require("../server-routes/owner-elevation-api-routes");
@@ -450,6 +451,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningParentReviewApiRoutes.createLearningParentReviewApiRoutes, "function");
   assert.equal(typeof learningProgramApiRoutes.createLearningProgramApiRoutes, "function");
   assert.equal(typeof mobileApiComposition.createMobileApiComposition, "function");
+  assert.equal(typeof mobileApiDirectoryComposition.createMobileApiDirectoryComposition, "function");
   assert.equal(typeof mobileApiLearningComposition.createMobileApiLearningComposition, "function");
   assert.equal(typeof mobileApiDispatcher.createMobileApiDispatcher, "function");
   assert.equal(typeof fileArtifactApiRoutes.createFileArtifactApiRoutes, "function");
@@ -468,6 +470,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const server = fileText("mobile-server-runtime.js");
   const dispatcher = fileText("server-routes/mobile-api-dispatcher.js");
   const mobileComposition = fileText("server-routes/mobile-api-composition.js");
+  const mobileDirectoryComposition = fileText("server-routes/mobile-api-directory-composition.js");
   const mobileLearningComposition = fileText("server-routes/mobile-api-learning-composition.js");
   const gatewayComposition = fileText("adapters/gateway-runtime-composition-service.js");
   const coreProviders = fileText("adapters/mobile-runtime-core-providers.js");
@@ -671,12 +674,16 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createRuntimeStateThreadService/);
   assert.match(threadFacade, /getRuntimeStateThreadService\(\)\.findThreadForRequest/);
   assert.match(server, /createDirectoryBrowserBoundaryService/);
-  assert.match(mobileComposition, /getDirectoryBrowserBoundaryService\(\)\.resolveBrowserPathAsync/);
-  assert.match(mobileComposition, /createDirectoryBrowserApiRoutes/);
+  assert.match(mobileComposition, /createMobileApiDirectoryComposition/);
+  assert.match(mobileDirectoryComposition, /getDirectoryBrowserBoundaryService\(\)\[methodName\]/);
+  assert.match(mobileDirectoryComposition, /createDirectoryBrowserApiRoutes/);
+  assert.doesNotMatch(mobileComposition, /createDirectoryBrowserApiRoutes/);
   assert.match(dispatcher, /key: "directoryBrowserApiRoutes"/);
-  assert.match(mobileComposition, /createDirectoryMutationApiRoutes/);
+  assert.match(mobileDirectoryComposition, /createDirectoryMutationApiRoutes/);
+  assert.doesNotMatch(mobileComposition, /createDirectoryMutationApiRoutes/);
   assert.match(dispatcher, /key: "directoryMutationApiRoutes"/);
-  assert.match(mobileComposition, /createDirectoryShareApiRoutes/);
+  assert.match(mobileDirectoryComposition, /createDirectoryShareApiRoutes/);
+  assert.doesNotMatch(mobileComposition, /createDirectoryShareApiRoutes/);
   assert.match(dispatcher, /key: "directoryShareApiRoutes"/);
   assert.match(mobileComposition, /createThreadReadUploadApiRoutes/);
   assert.match(dispatcher, /key: "threadReadUploadApiRoutes"/);
@@ -717,10 +724,13 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(mobileLearningComposition, /createLearningCoinApiRoutes/);
   assert.match(mobileLearningComposition, /learningCoinService: deps\.learningCoinService/);
   assert.match(dispatcher, /key: "learningCoinApiRoutes"/);
-  assert.match(mobileComposition, /createFileArtifactApiRoutes/);
+  assert.match(mobileDirectoryComposition, /createFileArtifactApiRoutes/);
+  assert.doesNotMatch(mobileComposition, /createFileArtifactApiRoutes/);
   assert.match(dispatcher, /key: "fileArtifactApiRoutes"/);
-  assert.match(mobileComposition, /createNoteReceiptApiRoutes/);
-  assert.match(mobileComposition, /createNoteReceiptSaveService/);
+  assert.match(mobileDirectoryComposition, /createNoteReceiptApiRoutes/);
+  assert.match(mobileDirectoryComposition, /createNoteReceiptSaveService/);
+  assert.doesNotMatch(mobileComposition, /createNoteReceiptApiRoutes/);
+  assert.doesNotMatch(mobileComposition, /createNoteReceiptSaveService/);
   assert.match(dispatcher, /key: "noteReceiptApiRoutes"/);
   assert.match(fileText("adapters/mobile-runtime-artifact-facade-service.js"), /defaultCreateArtifactTextRegistrationService/);
   assert.match(fileText("adapters/mobile-runtime-artifact-facade-service.js"), /registerArtifactsFromText: \(\.\.\.args\) => textArtifact\("registerArtifactsFromText", args\)/);
@@ -826,7 +836,8 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /mobile-runtime-artifact-facade-service\.js` must stay at or below 140 lines/);
   assert.match(doc, /mobile-runtime-thread-view-facade-service\.js` must stay at or below 140\s+lines/);
   assert.match(doc, /mobile-runtime-todo-facade-service\.js` must stay at or below 120 lines/);
-  assert.match(doc, /mobile-api-composition\.js` must stay at or below 650 lines/);
+  assert.match(doc, /mobile-api-composition\.js` must stay at or below 550 lines/);
+  assert.match(doc, /mobile-api-directory-composition\.js` must stay at or below 150 lines/);
   assert.match(doc, /mobile-api-learning-composition\.js` must stay at or below 350 lines/);
   assert.match(doc, /mobile-runtime-environment-service\.js` must stay at or below 380 lines/);
   assert.match(doc, /mobile-runtime-gateway-environment-service\.js` must stay at or below 130 lines/);
@@ -852,6 +863,7 @@ function testServiceFirstArchitectureContract() {
   const server = fileText("server.js");
   const runtime = fileText("mobile-server-runtime.js");
   const mobileApiCompositionSource = fileText("server-routes/mobile-api-composition.js");
+  const mobileApiDirectoryCompositionSource = fileText("server-routes/mobile-api-directory-composition.js");
   const mobileApiLearningCompositionSource = fileText("server-routes/mobile-api-learning-composition.js");
   const app = fileText("public/app.js");
   const artifactFacade = fileText("adapters/mobile-runtime-artifact-facade-service.js");
@@ -868,6 +880,7 @@ function testServiceFirstArchitectureContract() {
   const runtimeLineCount = runtime.split(/\r?\n/).length;
   const runtimeTopLevelFunctionCount = (runtime.match(/^function\s+/gm) || []).length;
   const mobileApiCompositionLineCount = mobileApiCompositionSource.split(/\r?\n/).length;
+  const mobileApiDirectoryCompositionLineCount = mobileApiDirectoryCompositionSource.split(/\r?\n/).length;
   const mobileApiLearningCompositionLineCount = mobileApiLearningCompositionSource.split(/\r?\n/).length;
   const runtimeEnvironmentLineCount = runtimeEnvironment.split(/\r?\n/).length;
   const gatewayEnvironmentLineCount = gatewayEnvironment.split(/\r?\n/).length;
@@ -887,7 +900,8 @@ function testServiceFirstArchitectureContract() {
   assert.ok(artifactFacadeLineCount <= 140, `mobile-runtime-artifact-facade-service.js line budget exceeded: ${artifactFacadeLineCount} > 140`);
   assert.ok(threadViewFacadeLineCount <= 140, `mobile-runtime-thread-view-facade-service.js line budget exceeded: ${threadViewFacadeLineCount} > 140`);
   assert.ok(todoFacadeLineCount <= 120, `mobile-runtime-todo-facade-service.js line budget exceeded: ${todoFacadeLineCount} > 120`);
-  assert.ok(mobileApiCompositionLineCount <= 650, `mobile-api-composition.js line budget exceeded: ${mobileApiCompositionLineCount} > 650`);
+  assert.ok(mobileApiCompositionLineCount <= 550, `mobile-api-composition.js line budget exceeded: ${mobileApiCompositionLineCount} > 550`);
+  assert.ok(mobileApiDirectoryCompositionLineCount <= 150, `mobile-api-directory-composition.js line budget exceeded: ${mobileApiDirectoryCompositionLineCount} > 150`);
   assert.ok(mobileApiLearningCompositionLineCount <= 350, `mobile-api-learning-composition.js line budget exceeded: ${mobileApiLearningCompositionLineCount} > 350`);
   assert.ok(runtimeEnvironmentLineCount <= 380, `mobile-runtime-environment-service.js line budget exceeded: ${runtimeEnvironmentLineCount} > 380`);
   assert.ok(gatewayEnvironmentLineCount <= 130, `mobile-runtime-gateway-environment-service.js line budget exceeded: ${gatewayEnvironmentLineCount} > 130`);

@@ -5,14 +5,10 @@ const path = require("node:path");
 const { createAccessKeyApiRoutes } = require("./access-key-api-routes");
 const { createActionInboxApiRoutes } = require("./action-inbox-api-routes");
 const { createAutomationApiRoutes } = require("./automation-api-routes");
-const { createDirectoryBrowserApiRoutes } = require("./directory-browser-api-routes");
-const { createDirectoryMutationApiRoutes } = require("./directory-mutation-api-routes");
-const { createDirectoryShareApiRoutes } = require("./directory-share-api-routes");
 const { createEventStreamApiRoutes } = require("./event-stream-api-routes");
-const { createFileArtifactApiRoutes } = require("./file-artifact-api-routes");
 const { createHermesPluginApiRoutes } = require("./hermes-plugin-api-routes");
-const { createNoteReceiptApiRoutes } = require("./note-receipt-api-routes");
 const { createActionInboxService } = require("../adapters/action-inbox-service");
+const { createMobileApiDirectoryComposition } = require("./mobile-api-directory-composition");
 const { createMobileApiDispatcher } = require("./mobile-api-dispatcher");
 const { createMobileApiLearningComposition } = require("./mobile-api-learning-composition");
 const { createOwnerElevationApiRoutes } = require("./owner-elevation-api-routes");
@@ -32,7 +28,6 @@ const { createWorkspaceApiRoutes } = require("./workspace-api-routes");
 const { createHermesPluginService } = require("../adapters/hermes-plugin-service");
 const { createHermesPluginNotificationService } = require("../adapters/hermes-plugin-notification-service");
 const { createFinanceLedgerJoinApprovalService } = require("../adapters/finance-ledger-join-approval-service");
-const { createNoteReceiptSaveService } = require("../adapters/note-receipt-save-service");
 const { createPlatformCurrencyService } = require("../adapters/platform-currency-service");
 
 function callBootTrace(deps, label) {
@@ -212,101 +207,17 @@ function createMobileApiComposition(deps = {}) {
       return workspaceId;
     },
   });
-  const fileArtifactApiRoutes = createFileArtifactApiRoutes({
-    contentDisposition: deps.contentDisposition,
-    extractDocxText: deps.extractDocxText,
-    mimeFor: deps.mimeFor,
-    resolveArtifactForRequest: deps.resolveArtifactForRequest,
-    resolveFileForBrowserRequest: deps.resolveFileForBrowserRequest,
-    sendJson: deps.sendJson,
-    textFilePreview: deps.textFilePreview,
-  });
-  const noteReceiptSaveService = deps.noteReceiptSaveService || createNoteReceiptSaveService({
-    dataDir: deps.dataDir,
-    env: deps.env,
-    fetch: deps.fetch || global.fetch,
-    mimeFor: deps.mimeFor,
-    resolveArtifactForRequest: deps.resolveArtifactForRequest,
-  });
-  const noteReceiptApiRoutes = createNoteReceiptApiRoutes({
-    findThreadForRequest: (...args) => deps.getRuntimeStateThreadService().findThreadForRequest(...args),
+  const directoryComposition = createMobileApiDirectoryComposition(deps);
+  const {
+    directoryBrowserApiRoutes,
+    directoryMutationApiRoutes,
+    directoryShareApiRoutes,
+    fileArtifactApiRoutes,
+    noteReceiptApiRoutes,
+  } = directoryComposition.routes;
+  const {
     noteReceiptSaveService,
-    readBody: deps.readBody,
-    requireWorkspaceAccess: deps.requireWorkspaceAccess,
-    sendJson: deps.sendJson,
-  });
-
-  const directoryBrowserApiRoutes = createDirectoryBrowserApiRoutes({
-    compareDirectoryEntriesNewestFirst: (...args) => deps.getDirectoryBrowserBoundaryService().compareDirectoryEntriesNewestFirst(...args),
-    findDirectoryThreadForRequest: deps.findDirectoryThreadForRequest,
-    publicDirectoryEntry: (...args) => deps.getDirectoryBrowserBoundaryService().publicDirectoryEntry(...args),
-    publicRemoteDirectoryEntry: (...args) => deps.getDirectoryBrowserBoundaryService().publicRemoteDirectoryEntry(...args),
-    resolveBrowserPathAsync: (...args) => deps.getDirectoryBrowserBoundaryService().resolveBrowserPathAsync(...args),
-    runDirectoryBridge: deps.runDirectoryBridge,
-    sendJson: deps.sendJson,
-  });
-
-  const directoryShareApiRoutes = createDirectoryShareApiRoutes({
-    basename: deps.basename,
-    clearDynamicProjectCache: deps.clearDynamicProjectCache,
-    directoryRequestParams: (...args) => deps.getDirectoryBrowserBoundaryService().directoryRequestParams(...args),
-    findDirectoryThreadForRequest: deps.findDirectoryThreadForRequest,
-    invalidateCatalogCache: deps.invalidateCatalogCache,
-    nowIso: deps.nowIso,
-    readBody: deps.readBody,
-    requireWorkspaceAccess: deps.requireWorkspaceAccess,
-    resolveBrowserPathAsync: (...args) => deps.getDirectoryBrowserBoundaryService().resolveBrowserPathAsync(...args),
-    sendJson: deps.sendJson,
-    sharedDirectoryProjectionService: {
-      normalizeSharePermission: (...args) => deps.getSharedDirectoryProjectionService().normalizeSharePermission(...args),
-      normalizeShareScope: (...args) => deps.getSharedDirectoryProjectionService().normalizeShareScope(...args),
-      normalizeShareTargets: (...args) => deps.getSharedDirectoryProjectionService().normalizeShareTargets(...args),
-      publicSharedDirectory: (...args) => deps.getSharedDirectoryProjectionService().publicSharedDirectory(...args),
-      removeSharedDirectoryRecord: (...args) => deps.getSharedDirectoryProjectionService().removeSharedDirectoryRecord(...args),
-      shareableRootProjectForPath: (...args) => deps.getSharedDirectoryProjectionService().shareableRootProjectForPath(...args),
-      sharedDirectoryLabel: (...args) => deps.getSharedDirectoryProjectionService().sharedDirectoryLabel(...args),
-      updateSharedDirectoryAccess: (...args) => deps.getSharedDirectoryProjectionService().updateSharedDirectoryAccess(...args),
-      upsertSharedDirectory: (...args) => deps.getSharedDirectoryProjectionService().upsertSharedDirectory(...args),
-    },
-    statSync: deps.statSync,
-    workspacePrincipal: deps.workspacePrincipal,
-  });
-
-  const directoryMutationApiRoutes = createDirectoryMutationApiRoutes({
-    assertChildPathInside: (...args) => deps.getDirectoryBrowserBoundaryService().assertChildPathInside(...args),
-    authenticateRequest: deps.authenticateRequest,
-    clearDynamicProjectCache: deps.clearDynamicProjectCacheForWorkspace,
-    directoryRequestParams: (...args) => deps.getDirectoryBrowserBoundaryService().directoryRequestParams(...args),
-    exists: deps.exists,
-    findDirectoryThreadForRequest: deps.findDirectoryThreadForRequest,
-    invalidateCatalogCache: deps.invalidateCatalogCache,
-    isDeletableWorkspaceRootChild: (...args) => deps.getDirectoryBrowserBoundaryService().isDeletableWorkspaceRootChild(...args),
-    isDirectoryBrowserPathAllowedForThread: deps.isDirectoryBrowserPathAllowedForThread,
-    isProtectedDirectoryRoot: (...args) => deps.getDirectoryBrowserBoundaryService().isProtectedDirectoryRoot(...args),
-    isSharedDirectoryWriteAllowed: (...args) => deps.getDirectoryBrowserBoundaryService().isSharedDirectoryWriteAllowed(...args),
-    joinDisplayPath: (...args) => deps.getDirectoryBrowserBoundaryService().joinDisplayPath(...args),
-    joinLocalPath: deps.joinLocalPath,
-    maxUploadBytes: deps.maxUploadBytes,
-    mimeFor: deps.mimeFor,
-    mkdir: deps.mkdir,
-    publicManagedEntry: (...args) => deps.getDirectoryBrowserBoundaryService().publicManagedEntry(...args),
-    publicRemoteDirectoryEntry: (...args) => deps.getDirectoryBrowserBoundaryService().publicRemoteDirectoryEntry(...args),
-    readBody: deps.readBody,
-    resolveBrowserPathAsync: (...args) => deps.getDirectoryBrowserBoundaryService().resolveBrowserPathAsync(...args),
-    rmdir: deps.rmdir,
-    rmDirRecursive: deps.rmDirRecursive,
-    runDirectoryBridge: deps.runDirectoryBridge,
-    safeDirectoryName: deps.safeDirectoryName,
-    safeFileName: deps.safeFileName,
-    sendJson: deps.sendJson,
-    stat: deps.statSync,
-    uniqueChildPath: deps.uniqueChildPath,
-    unlink: deps.unlink,
-    isOwnerAuth: deps.isOwnerAuth,
-    isOwnerElevationActive: deps.isOwnerElevationActive,
-    consumeOwnerElevationOnce: deps.consumeOwnerElevationOnce,
-    write: deps.writeFile,
-  });
+  } = directoryComposition.services;
 
   const eventStreamApiRoutes = createEventStreamApiRoutes({
     activeStreams: deps.activeStreams,

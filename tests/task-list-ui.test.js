@@ -83,6 +83,7 @@ const weixinApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "we
 const kanbanCardApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "kanban-card-api-routes.js"), "utf8");
 const kanbanStudyApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "kanban-study-api-routes.js"), "utf8");
 const mobileApiComposition = fs.readFileSync(path.join(repoRoot, "server-routes", "mobile-api-composition.js"), "utf8");
+const mobileApiDirectoryComposition = fs.readFileSync(path.join(repoRoot, "server-routes", "mobile-api-directory-composition.js"), "utf8");
 const mobileApiLearningComposition = fs.readFileSync(path.join(repoRoot, "server-routes", "mobile-api-learning-composition.js"), "utf8");
 const mobileApiDispatcher = fs.readFileSync(path.join(repoRoot, "server-routes", "mobile-api-dispatcher.js"), "utf8");
 const threadReadUploadApiRoutes = fs.readFileSync(path.join(repoRoot, "server-routes", "thread-read-upload-api-routes.js"), "utf8");
@@ -1008,7 +1009,7 @@ assert.match(appJs, /function deletedDirectoryWasRootListProject\(pathText\)/);
 assert.match(appJs, /const wasRootListProject = deletedDirectoryWasRootListProject\(path\)/);
 assert.match(appJs, /if \(!directoryActivePath\(\) \|\| wasRootListProject\) await loadProjects\(\);/);
 assert.match(directoryBrowserBoundaryServiceJs, /function isDeletableWorkspaceRootChild\(thread, localPath, displayPath = ""\)/);
-assert.match(mobileApiComposition, /getDirectoryBrowserBoundaryService\(\)\.isDeletableWorkspaceRootChild/);
+assert.match(mobileApiDirectoryComposition, /directoryBoundaryMethod\(deps, "isDeletableWorkspaceRootChild"\)/);
 assert.match(serverJs, /function pathDirectChildOfRoot\(candidate, root\)/);
 assert.equal(serverJs.includes("Workspace users can delete empty folders only"), false);
 assert.match(directoryMutationApiRoutes, /id: "directories-delete"/);

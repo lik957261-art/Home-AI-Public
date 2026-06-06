@@ -9,6 +9,7 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "u
 const RUNTIME_COMPOSITION_FILE = "mobile-server-runtime.js";
 const CORE_PROVIDERS_FILE = "adapters/mobile-runtime-core-providers.js";
 const API_COMPOSITION_FILE = "server-routes/mobile-api-composition.js";
+const API_DIRECTORY_COMPOSITION_FILE = "server-routes/mobile-api-directory-composition.js";
 const WEIXIN_RUNTIME_FILE = "adapters/weixin-runtime-composition-service.js";
 const APP_FRONTEND_FILES = [
   "public/app.js",
@@ -97,8 +98,9 @@ function main() {
   assertContains("adapters/owner-elevation-grant-service.js", /allowedWorkerSecurityLevel: "owner-maintenance"/, "Owner grants must name the allowed worker level");
   assertContains("adapters/owner-elevation-grant-service.js", /delete copy\.token/, "Owner elevation status and audit projections must redact one-shot tokens");
 
-  assertContains(API_COMPOSITION_FILE, /createFileArtifactApiRoutes[\s\S]{0,600}resolveArtifactForRequest/, "artifact read must be wired through the file artifact route module");
-  assertContains(API_COMPOSITION_FILE, /createFileArtifactApiRoutes[\s\S]{0,600}resolveFileForBrowserRequest/, "file read/preview must be wired through the file artifact route module");
+  assertContains(API_COMPOSITION_FILE, /createMobileApiDirectoryComposition/, "Directory/file composition must be wired into the platform API aggregator");
+  assertContains(API_DIRECTORY_COMPOSITION_FILE, /createFileArtifactApiRoutes[\s\S]{0,600}resolveArtifactForRequest/, "artifact read must be wired through the file artifact route module");
+  assertContains(API_DIRECTORY_COMPOSITION_FILE, /createFileArtifactApiRoutes[\s\S]{0,600}resolveFileForBrowserRequest/, "file read/preview must be wired through the file artifact route module");
   assertContains("server-routes/mobile-api-dispatcher.js", /key: "fileArtifactApiRoutes"/, "file artifact routes must be installed in the API router");
   assertRouteGuardInFile("server-routes/file-artifact-api-routes.js", /artifact-read/, /resolveArtifactForRequest/);
   assertRouteGuardInFile("server-routes/file-artifact-api-routes.js", /files-preview/, /resolveFileForBrowserRequest/);

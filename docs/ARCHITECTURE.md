@@ -39,6 +39,11 @@ main API aggregator. Current focused route composition modules include:
 
 - `server-routes/mobile-api-composition.js` for platform-level API route
   aggregation, dispatcher construction, and compatibility service exposure.
+- `server-routes/mobile-api-directory-composition.js` for Directory browser,
+  Directory mutation/share, file/artifact read, and Note receipt route wiring.
+  It owns the Directory boundary and shared-directory projection delegates plus
+  Note receipt save-service construction, keeping Directory/file dependencies
+  out of the platform-level route aggregator.
 - `server-routes/mobile-api-learning-composition.js` for Growth/Learning,
   Kanban study, learning program, parent review, and learning coin route and
   service wiring. It owns the Growth evaluation queue startup wiring and keeps
