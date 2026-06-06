@@ -407,6 +407,11 @@ Required harness dimensions:
   class-wide shared key. It must also assert source app scripts and
   `C:\ProgramData\HermesMobile\gateway-worker` runtime scripts are synced before
   a Gateway Pool restart.
+- Owner-maintenance routing must fail closed. A maintenance/high-permission
+  request that cannot find a matching owner-maintenance worker must return a
+  bounded unavailable diagnostic and must not select the `default` fallback
+  target. The fallback target is only valid for explicit legacy/diagnostic
+  `securityLevel=unspecified` requests, and the harness must cover both cases.
 - Gateway Pool restart latency is part of the startup/profile contract.
   `start-low-gateways.sh` must not run full profile reconfiguration on every
   restart when the selected profiles are already ready and the non-secret
@@ -1509,6 +1514,10 @@ Required contract dimensions:
 - Existing tabs do not disappear unintentionally.
 - Top-right menu availability follows the active view contract.
 - Stale clients are prompted to refresh through `/api/client-version`.
+- The topic root is an entry/index surface. It must keep the composer hidden
+  after initial load, Chat->Topics tab switching, cached task-list restore, and
+  route restore paths that call generic composer enable helpers. A concrete
+  topic detail remains the first surface where topic replies are enabled.
 - Client-version mismatch auto-recovery routes through the current app shell
   with `resetClient=1` and `targetVersion=<server-version>`, preserves Access
   Key/theme/font preferences, clears static caches, unregisters Service Workers,

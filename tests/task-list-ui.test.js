@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260606-directory-dock-consistent-v587";
+const CLIENT_VERSION = "20260606-topic-root-no-composer-v589";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -182,8 +182,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260606-directory-dock-consistent-v587" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260606-directory-dock-consistent-v587"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260606-topic-root-no-composer-v589" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260606-topic-root-no-composer-v589"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -557,6 +557,9 @@ assert.match(stylesCss, /\.chat-scope-header-button\.active \{[\s\S]*?color: var
 assert.match(stylesCss, /\.composer \{[\s\S]*?border-top: 1px solid var\(--ui-hairline\);[\s\S]*?background: var\(--ui-chrome\);/);
 assert.match(stylesCss, /#sendMessage \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-accent-fill\);[\s\S]*?box-shadow: none;/);
 assert.match(stylesCss, /\.composer-context-chip \{[\s\S]*?color: var\(--ui-accent-ink\);[\s\S]*?background: var\(--ui-control-bg\);[\s\S]*?border: 1px solid var\(--ui-hairline\);/);
+const composerContextItemsSource = appJs.match(/function composerContextItems\(counts = composerRunCounts\(\)\) \{[\s\S]*?function shouldShowComposerContext/)?.[0] || "";
+assert.ok(composerContextItemsSource, "composer context items source should be present");
+assert.doesNotMatch(composerContextItemsSource, /composerModelReasoningLabel\(\)/);
 assert.match(stylesCss, /\.top-more-menu \{[\s\S]*?border: 1px solid var\(--ui-hairline-strong\);[\s\S]*?box-shadow: 0 10px 24px rgba\(34, 28, 20, 0\.08\);/);
 assert.match(stylesCss, /\.task-card-menu \{[\s\S]*?border: 1px solid var\(--ui-hairline-strong\);[\s\S]*?box-shadow: 0 10px 24px rgba\(34, 28, 20, 0\.08\);/);
 assert.match(stylesCss, /\.settings-panel \{[\s\S]*?background: var\(--ui-surface\);[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;/);
@@ -1539,9 +1542,14 @@ assert.match(appJs, /bottomTasksMode"\)\?\.addEventListener\("click"[\s\S]*?awai
 assert.match(appJs, /tasksMode"\)\.addEventListener\("click"[\s\S]*?await loadSelectedView\(\{ skipTaskListWindowRefresh: true \}\)/);
 assert.doesNotMatch(appJs, /bottomTasksMode"\)\?\.addEventListener\("click"[\s\S]*?forceTaskListReload: true/);
 assert.match(appJs, /const directoryTopicDraftOpen = typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive\(\);/);
-assert.match(appJs, /const directoryTopicComposerOpen = Boolean\(state\.taskDirectoryFilter\?\.projectId \|\| directoryTopicDraftOpen\);/);
-assert.match(appJs, /configureComposer\(\{[\s\S]*?enabled: directoryTopicComposerOpen,[\s\S]*?hidden: !directoryTopicComposerOpen,[\s\S]*?placeholder: directoryTopicComposerOpen \? "Start a topic in this directory\.\.\." : "Open a directory to bind a topic"/);
-assert.match(appJs, /if \(directoryTopicDraftOpen && state\.pendingTaskDirectory\?\.projectId\) \{[\s\S]*?Start a topic for \$\{label\}\.[\s\S]*?focusComposerSoon\(\);[\s\S]*?return;/);
+assert.doesNotMatch(appJs, /const directoryTopicComposerOpen = Boolean\(state\.taskDirectoryFilter\?\.projectId \|\| directoryTopicDraftOpen\);/);
+assert.match(appJs, /if \(!state\.currentTaskGroupId\) \{[\s\S]*?configureComposer\(\{[\s\S]*?enabled: false,[\s\S]*?hidden: true,[\s\S]*?placeholder: "Open a topic to reply"/);
+assert.match(appJs, /function configureComposer\(options = \{\}\) \{[\s\S]*?const taskListRoot = state\.viewMode === "tasks" && !state\.currentTaskGroupId;[\s\S]*?const enabled = taskListRoot \? false : Boolean\(options\.enabled\);[\s\S]*?const hidden = taskListRoot \|\| Boolean\(options\.hidden\);[\s\S]*?composer\.hidden = Boolean\(hidden\) && !searchMode;/);
+assert.match(appJs, /function focusComposerSoon\(options = \{\}\) \{[\s\S]*?if \(\$\("composer"\)\?\.hidden\) return;[\s\S]*?\$\("messageInput"\)\?\.focus/);
+assert.match(appJs, /if \(directoryTopicDraftOpen && state\.pendingTaskDirectory\?\.projectId\) \{[\s\S]*?Start a topic for \$\{label\}\.[\s\S]*?return;/);
+const directoryTopicDraftBlock = appJs.match(/if \(directoryTopicDraftOpen && state\.pendingTaskDirectory\?\.projectId\) \{[\s\S]*?setTopicPluginDock\(""\);[\s\S]*?return;\s+\}/)?.[0] || "";
+assert.ok(directoryTopicDraftBlock, "directory topic draft branch should be present");
+assert.doesNotMatch(directoryTopicDraftBlock, /focusComposerSoon\(\)/);
 assert.match(appJs, /\$\("threadTitle"\)\.textContent = "新建话题";/);
 assert.match(appJs, /function captureCurrentDirectoryRoute\(\) \{[\s\S]*?viewMode: "projects"[\s\S]*?directoryPath: state\.directoryPath \|\| ""/);
 assert.match(appJs, /state\.directoryPath = route\.directoryPath \|\| "";/);
@@ -1563,7 +1571,7 @@ assert.doesNotMatch(appJs, /bottomTasksMode"\)\?\.addEventListener\("click"[\s\S
 assert.match(appJs, /bottomProjectsMode"\)\?\.addEventListener\("click"[\s\S]*?isDirectoryTopicDraftActive\(\)[\s\S]*?closeDirectoryTopicDraft\(\);[\s\S]*?return;/);
 assert.match(appJs, /bottomFinanceMode"\)\?\.addEventListener\("click"[\s\S]*?discardDirectoryTopicDraftState\(\);[\s\S]*?state\.viewMode = "finance"/);
 assert.doesNotMatch(appJs, /configureComposer\(\{ enabled: true, placeholder: "New topic\.\.\." \}\)/);
-assert.match(appThreadMessageUiJs, /composer\.hidden = Boolean\(options\.hidden\) && !searchMode;/);
+assert.match(appThreadMessageUiJs, /const hidden = taskListRoot \|\| Boolean\(options\.hidden\);[\s\S]*?composer\.hidden = Boolean\(hidden\) && !searchMode;/);
 assert.match(appThreadMessageUiJs, /composer\.setAttribute\("aria-hidden", composer\.hidden \? "true" : "false"\)/);
 assert.doesNotMatch(appJs, /tasksMode"\)\.addEventListener\("click"[\s\S]*?forceTaskListReload: true/);
 assert.match(appJs, /function sharedCaseTopicGroupsForTaskList\(currentThread\)/);
@@ -1728,7 +1736,7 @@ assert.ok(indexHtml.includes("\u65b0\u589e\u4efb\u52a1"));
 assert.ok(appJs.includes("\u5f00\u542f\u8bdd\u9898"));
 assert.equal(appJs.includes("\u5f00\u542f\u4efb\u52a1"), false);
 assert.equal(appJs.includes("New topic"), false);
-assert.ok(appJs.includes("Open a directory to bind a topic"));
+assert.ok(appJs.includes("Open a topic to reply"));
 assert.ok(appJs.includes("\u770b\u677f\u8be6\u60c5"));
 assert.ok(appJs.includes("\u65b0\u589e\u5361\u7247"));
 assert.match(appJs, /function renderLearningCoinsView\(\)/);
@@ -2314,10 +2322,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260606-directory-dock-consistent-v587/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260606-directory-dock-consistent-v587/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260606-directory-dock-consistent-v587/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260606-directory-dock-consistent-v587/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260606-topic-root-no-composer-v589/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260606-topic-root-no-composer-v589/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260606-topic-root-no-composer-v589/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260606-topic-root-no-composer-v589/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);

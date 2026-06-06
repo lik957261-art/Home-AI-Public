@@ -48,6 +48,13 @@ Ordinary runs without a provider hint should not be scheduled onto `xai-oauth`
 workers. Grok workers are selected only when model/provider routing explicitly
 requests `provider=xai-oauth`, such as `@Grok4.3`.
 
+Owner-maintenance routing is fail-closed. Any request that explicitly asks for
+`securityLevel=owner-maintenance`, maintenance mode, or an owner-maintenance
+provider/profile must select an owner-maintenance worker or return a bounded
+unavailable error. It must never fall back to the `default` Gateway target. The
+`default` fallback target is reserved only for explicit legacy/diagnostic
+requests whose security level is `unspecified`.
+
 Gateway startup and profile configuration must use the explicit
 `profile`/`port` pairs in `gateway-pool-manifest.json`. Do not derive the Grok
 port from the current maximum `lowgwN` index. New personal workspace workers

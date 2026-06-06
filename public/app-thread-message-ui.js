@@ -87,11 +87,13 @@ async function openProjectTask(sourceThreadId, taskGroupId) {
 }
 
 function configureComposer(options = {}) {
-  const enabled = Boolean(options.enabled);
+  const taskListRoot = state.viewMode === "tasks" && !state.currentTaskGroupId;
+  const enabled = taskListRoot ? false : Boolean(options.enabled);
   const searchMode = isChatSearchMode();
+  const hidden = taskListRoot || Boolean(options.hidden);
   const composer = $("composer");
   if (composer) {
-    composer.hidden = Boolean(options.hidden) && !searchMode;
+    composer.hidden = Boolean(hidden) && !searchMode;
     composer.setAttribute("aria-hidden", composer.hidden ? "true" : "false");
   }
   if (!enabled && typeof clearKeyboardViewportMetrics === "function") clearKeyboardViewportMetrics();

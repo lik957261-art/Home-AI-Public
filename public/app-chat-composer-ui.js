@@ -83,6 +83,7 @@ function handleAppForegrounded() {
 function focusComposerSoon(options = {}) {
   window.requestAnimationFrame(() => {
     if (!options.force && !composerAutoFocusAllowed()) return;
+    if ($("composer")?.hidden) return;
     $("messageInput")?.focus({ preventScroll: true });
   });
 }

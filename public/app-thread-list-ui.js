@@ -335,11 +335,10 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     $("threadMeta").textContent = "";
     $("interruptRun").disabled = !allActiveRuns.length;
     const directoryTopicDraftOpen = typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive();
-    const directoryTopicComposerOpen = Boolean(state.taskDirectoryFilter?.projectId || directoryTopicDraftOpen);
     configureComposer({
-      enabled: directoryTopicComposerOpen,
-      hidden: !directoryTopicComposerOpen,
-      placeholder: directoryTopicComposerOpen ? "Start a topic in this directory..." : "Open a directory to bind a topic",
+      enabled: false,
+      hidden: true,
+      placeholder: "Open a topic to reply",
     });
     if (directoryTopicDraftOpen && state.pendingTaskDirectory?.projectId) {
       const label = String(state.pendingTaskDirectory.label || state.pendingTaskDirectory.projectId || "").trim();
@@ -351,7 +350,6 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
       updateNavigationControls();
       ensureVerticalScrollAffordance(conversation);
       scheduleMessageScrollButtonVisibility(conversation);
-      focusComposerSoon();
       return;
     }
     const directoryTopicSignature = directoryTopicRenderSignature(thread.id, groups);

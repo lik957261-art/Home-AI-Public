@@ -35,6 +35,9 @@ topics in one visible place.
 - A directory may have at most one default primary topic.
 - The default primary topic is only the quick-entry topic; it does not prevent
   additional special-purpose topics.
+- The topic root is an entry/index surface, not a message-composer surface.
+  Composer input is hidden on the root topic page and on directory-topic draft
+  placeholders. Users can reply only after opening a concrete topic detail.
 - Directory cards should make the actions explicit:
   - open directory;
   - open default topic;
@@ -242,6 +245,12 @@ Likely focused checks:
   stores an explicit default topic, the frontend uses the most recently updated
   topic in the directory as the temporary default.
 - Static/client version: `20260603-directory-topic-tree-v547`.
+- Static v589 keeps the multi-topic-per-directory product contract while
+  simplifying the root entry surface: the root topic page and directory-topic
+  draft placeholders hide the composer through the shared composer controller,
+  so tab switches or route restores cannot reopen input until a concrete topic
+  detail is selected. The composer context bar also omits the model/reasoning
+  chip to reduce bottom-chrome density.
 
 Remaining service-layer work:
 

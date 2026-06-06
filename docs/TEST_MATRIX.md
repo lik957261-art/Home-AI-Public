@@ -75,6 +75,11 @@ smoke must keep the positive `X-Hermes-Web-Key` probe and the
 allows `X-Hermes-Access-Key` only in the checked negative-control status smoke.
 This prevents new one-off production scripts from reintroducing the wrong
 header as a positive auth path.
+Gateway Pool route selection must prove owner-maintenance requests fail closed
+instead of selecting the `default` fallback. The focused contract is
+`node tests\gateway-pool-provider.test.js`; the test must keep coverage for a
+legacy `securityLevel=unspecified` fallback and for owner-maintenance manifest
+missing/no-candidate cases returning bounded unavailable errors.
 The checked harness must prove `/api/public-config` on the same origin before
 sending the key and must fail as `production_origin_identity_mismatch` when the
 target is not Home AI. Mac Gateway cold-start changes must also run
@@ -179,6 +184,11 @@ composers, fixed panels, popups, plugin docks, and scroll containers. When an
 Android emulator or target device is available, also run the installed-PWA
 smoke path above. Static DOM/unit assertions are necessary but not sufficient
 for visual layout changes.
+Topic root UI changes must assert that the root topic entry page has no active
+composer, including after Chat->Topics tab switching or route restore paths that
+call generic composer enable helpers. `node tests\task-list-ui.test.js` is the
+focused DOM contract, and visual smoke must include composer bounds or absence
+on the topic root plus normal composer visibility inside a topic detail.
 For Mac production frontend incidents where the live app already has no local
 Playwright dependency, use the shared production QA install instead of adding
 Playwright to the live app package:

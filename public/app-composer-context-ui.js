@@ -345,8 +345,6 @@ function composerContextItems(counts = composerRunCounts()) {
   }
   const gatewayPermissionLabel = composerGatewayPermissionLabel();
   if (gatewayPermissionLabel?.label) items.push(gatewayPermissionLabel);
-  const modelReasoningLabel = composerModelReasoningLabel();
-  if (modelReasoningLabel) items.push({ label: modelReasoningLabel });
   const searchSourceLabel = composerSearchSourceLabel();
   if (searchSourceLabel?.label) items.push(searchSourceLabel);
   const directoryLabel = composerDirectoryLabel();

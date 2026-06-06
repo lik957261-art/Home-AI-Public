@@ -455,10 +455,52 @@ async function testFallsBackWhenManifestMissing() {
     createGatewayRunner,
     fetchImpl: async () => jsonResponse({ status: "ok" }),
   });
-  const chosen = await provider.chooseTarget({ securityLevel: "owner-maintenance", maintenance: true });
+  const chosen = await provider.chooseTarget({ securityLevel: "unspecified" });
   assert.equal(chosen.source, "fallback");
   assert.equal(chosen.apiBase, "http://fallback.example.test");
   assert.equal(chosen.apiKey, "fallback-key");
+}
+
+async function testOwnerMaintenanceFailsClosedWhenManifestMissing() {
+  const provider = createGatewayPoolProvider({
+    enabled: "auto",
+    manifestPaths: [path.join(os.tmpdir(), `missing-maint-${Date.now()}.json`)],
+    fallbackApiBase: "http://fallback.example.test/",
+    fallbackApiKey: "fallback-key",
+    createGatewayRunner,
+    fetchImpl: async () => jsonResponse({ status: "ok" }),
+  });
+  await assert.rejects(() => provider.chooseTarget({
+    securityLevel: "owner-maintenance",
+    maintenance: true,
+  }), {
+    code: "gateway_owner_maintenance_pool_unavailable",
+  });
+}
+
+async function testOwnerMaintenanceFailsClosedWithoutMatchingWorker() {
+  const manifest = tempManifest({
+    enabled: true,
+    workers: [
+      { name: "owner-user", profile: "lowgw1", host: "127.0.0.1", port: 18751, provider: "openai-codex", securityLevel: "user", allowedWorkspaceIds: ["owner"] },
+    ],
+  });
+  const provider = createGatewayPoolProvider({
+    enabled: "auto",
+    manifestPaths: [manifest.file],
+    fallbackApiBase: "http://fallback.example.test/",
+    fallbackApiKey: "fallback-key",
+    createGatewayRunner,
+    fetchImpl: async () => jsonResponse({ status: "ok" }),
+  });
+  await assert.rejects(() => provider.chooseTarget({
+    securityLevel: "owner-maintenance",
+    maintenance: true,
+    workspaceId: "owner",
+  }), {
+    code: "gateway_owner_maintenance_worker_unavailable",
+  });
+  fs.rmSync(manifest.dir, { recursive: true, force: true });
 }
 
 async function testProviderSpecificOwnerMaintenanceFailsClosedWithoutWorker() {
@@ -1009,6 +1051,8 @@ async function testHybridStatusClearsStoppedWarmWorker() {
   await testChooseTargetHonorsProfileConfigToolsets();
   await testSkillRoutingStaysCompatibleWithoutManifestFields();
   await testFallsBackWhenManifestMissing();
+  await testOwnerMaintenanceFailsClosedWhenManifestMissing();
+  await testOwnerMaintenanceFailsClosedWithoutMatchingWorker();
   await testProviderSpecificOwnerMaintenanceFailsClosedWithoutWorker();
   await testProviderSpecificOwnerMaintenanceChoosesDeepSeekWorker();
   await testUserRunsFailClosedWithoutUserWorker();
