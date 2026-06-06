@@ -96,6 +96,16 @@ Recommended first defaults:
 The `HERMES_WEB_*` aliases should remain accepted for existing production
 launchers until the deployment scripts are fully migrated.
 
+Maintained Mac Studio production override, as of 2026-06-06:
+
+- keep `HERMES_MOBILE_GATEWAY_POOL_START_MODE=hybrid`;
+- set Owner, workspace, and Owner-maintenance warm baselines to `0`;
+- set `HERMES_MOBILE_GATEWAY_WORKER_IDLE_TTL_MINUTES=1`;
+- set the matching `HERMES_WEB_*` aliases for the same values;
+- keep every Gateway worker LaunchDaemon loaded but without `RunAtLoad` or
+  `KeepAlive`, so configured-but-stopped workers are expected until a run starts
+  them on demand.
+
 The source default health wait is 30 seconds, but maintained Mac production
 must explicitly set `HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS=90000` and the
 matching `HERMES_WEB_*` alias. This is based on observed Mac cold-start

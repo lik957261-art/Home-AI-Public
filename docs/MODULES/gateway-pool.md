@@ -99,6 +99,16 @@ Default hybrid policy:
 These caps are provider-scoped upper bounds over compatible profiles. A
 workspace with one OpenAI/Codex worker and one DeepSeek worker still has only
 one ChatGPT-compatible slot; provider-dedicated profiles are not interchangeable.
+
+Maintained Mac Studio production keeps the hybrid mechanism but currently
+overrides all warm baselines to zero and the idle worker TTL to one minute:
+`HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM=0`,
+`HERMES_MOBILE_GATEWAY_WORKSPACE_MIN_WARM=0`,
+`HERMES_MOBILE_GATEWAY_OWNER_MAINTENANCE_MIN_WARM=0`, and
+`HERMES_MOBILE_GATEWAY_WORKER_IDLE_TTL_MINUTES=1`, with the matching
+`HERMES_WEB_*` aliases. Gateway worker LaunchDaemons on that host must be
+loaded but must not use `RunAtLoad` or `KeepAlive`; on-demand workers are
+started by the listener and retired by the idle TTL.
 Workspace provisioning must therefore create enough same-provider candidates:
 ordinary workspaces need two `openai-codex` `lowgw*` profiles and one
 `deepseekgw*` profile when DeepSeek is available.
