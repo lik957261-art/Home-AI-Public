@@ -18,10 +18,10 @@ const fileResourceService = require("./adapters/file-resource-service");
 const { createAutomationProvider } = require("./adapters/automation-provider");
 const { createAutomationDeliveryRequirement, createDeliveryBoundaryInstructions } = require("./adapters/delivery-boundary-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
-const { createArtifactTextRegistrationService } = require("./adapters/artifact-text-registration-service");
 const { createGatewayRunInstructionService } = require("./adapters/gateway-run-instruction-service"); const { createGatewayRunToolsetRoutingService } = require("./adapters/gateway-run-toolset-routing-service"); const { createGatewayRunModelToolsetSelectionService } = require("./adapters/gateway-run-model-toolset-selection-service");
 const { createGatewayRuntimeCompositionService } = require("./adapters/gateway-runtime-composition-service");
 const { gatewayPoolStatusHealthy } = require("./adapters/gateway-status-projection");
+const { createMobileRuntimeArtifactFacadeService } = require("./adapters/mobile-runtime-artifact-facade-service");
 const { createMobileRuntimeGatewayFacadeService } = require("./adapters/mobile-runtime-gateway-facade-service");
 const { createMobileRuntimeGroupChatAttachmentService } = require("./adapters/mobile-runtime-group-chat-attachment-service");
 const { createMobileRuntimeOwnerElevationFacadeService } = require("./adapters/mobile-runtime-owner-elevation-facade-service");
@@ -189,7 +189,7 @@ let activeStreams = new Map();
 let gatewayRuntimeCompositionService = null;
 let assessmentExamWorkflowService = null;
 let directoryBrowserBoundaryService = null;
-let artifactTextRegistrationService = null;
+let mobileRuntimeArtifactFacadeService = null;
 let runtimeWorkspaceCatalogService = null;
 const sourceMarkdownSearchCache = new Map();
 let state = null;
@@ -207,6 +207,14 @@ const eventFanoutService = createEventFanoutService({
   clients, authCanAccessWorkspace, isOwnerAuth, state: () => state,
   threadAccessibleToAuth: (...args) => getRuntimeStateThreadService().threadAccessibleToAuth(...args),
 }); const pluginCapabilityActivationService = createPluginCapabilityActivationService({ dedupe }); const pluginRequiredSkillPreloadService = createPluginRequiredSkillPreloadService({ dataDirs: [DATA_DIR], env: process.env, maxSkillChars: 80000, maxTotalChars: 120000 }); const gatewayModelPreflightEnabled = GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED || GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED;
+const artifactFacade = () => {
+  if (!mobileRuntimeArtifactFacadeService) throw new Error("Mobile runtime artifact facade is not initialized");
+  return mobileRuntimeArtifactFacadeService;
+};
+const artifactMethod = (methodName) => (...args) => artifactFacade()[methodName](...args);
+const artifactDelegates = Object.fromEntries("safeFileName safeDirectoryName uniqueChildPath workspaceDefaultRoot threadUploadRoot workspaceUploadRoot uploadWorkspaceAllowedForThread uploadWorkspaceIdForRequest uploadRootsForThread workspaceUploadDirectoryForRequest registerUploadArtifact publicArtifactFromClient attachUploadedArtifactsToMessage getArtifactTextRegistrationService compactArtifactForMessage compactArtifactPathKey compactArtifactStemKey publicMarkdownPreviewArtifact sourceMarkdownSearchRoots findMarkdownByStemUnderRoot findSourceMarkdownForArtifact companionMarkdownPathForArtifact findThreadForMessage compactArtifactsForMessage registerArtifactsFromText".split(" ").map((methodName) => [methodName, artifactMethod(methodName)]));
+const { safeFileName, safeDirectoryName, uniqueChildPath, workspaceDefaultRoot, threadUploadRoot, workspaceUploadRoot, uploadWorkspaceAllowedForThread, uploadWorkspaceIdForRequest, uploadRootsForThread, workspaceUploadDirectoryForRequest, registerUploadArtifact, publicArtifactFromClient, attachUploadedArtifactsToMessage, getArtifactTextRegistrationService, compactArtifactForMessage, compactArtifactPathKey, compactArtifactStemKey, publicMarkdownPreviewArtifact, sourceMarkdownSearchRoots, findMarkdownByStemUnderRoot, findSourceMarkdownForArtifact, companionMarkdownPathForArtifact, findThreadForMessage, compactArtifactsForMessage, registerArtifactsFromText } = artifactDelegates;
+const extractArtifactPaths = (...args) => fileResourceService.extractArtifactPaths(...args);
 const mobileRuntimeStateFacadeService = createMobileRuntimeStateFacadeService({
   bootTrace,
   chatGroupMemberWorkspaceIds,
@@ -308,6 +316,22 @@ const {
   runDirectoryBridge, runtimeEnv, sendJson, sharedDirectoryProjectsForWorkspace: (...args) => sharedDirectoryProjectsForWorkspace(...args), sharedDirectoryRoots: (...args) => sharedDirectoryRoots(...args),
   state: () => state, textBufferPreview, textFilePreview, uploadRootsForThread, useSqliteServiceStore,
   windowsPathToWsl, workspacePrincipal,
+});
+mobileRuntimeArtifactFacadeService = createMobileRuntimeArtifactFacadeService({
+  fileArtifactAccessService,
+  dedupe,
+  effectiveProjectForThread: (...args) => effectiveProjectForThread(...args),
+  extractArtifactPaths,
+  findProject: (...args) => findProject(...args),
+  findSubproject: (...args) => findSubproject(...args),
+  isPathAllowedForThread,
+  makeId,
+  mimeFor,
+  normalizeLocalPath,
+  nowIso,
+  sourceMarkdownSearchCache,
+  sourceMarkdownSearchLimit: SOURCE_MARKDOWN_SEARCH_LIMIT,
+  state: () => state,
 });
 const mobileRuntimeGatewayFacadeService = createMobileRuntimeGatewayFacadeService({
   apiTimeoutMs: () => HERMES_API_TIMEOUT_MS,
@@ -1620,95 +1644,6 @@ function currentToolSchemaOverrideInstructions(policy = {}) {
 function buildHermesInstructions(thread, policy, project, latestText = "", taskDirectory = null, options = {}) {
   return gatewayRunInstructionService.buildHermesInstructions(thread, policy, project, latestText, taskDirectory, options);
 }
-function safeFileName(value) {
-  return fileArtifactAccessService.safeFileName(value);
-}
-function safeDirectoryName(value) {
-  return fileArtifactAccessService.safeDirectoryName(value);
-}
-function uniqueChildPath(parentPath, filename) {
-  return fileArtifactAccessService.uniqueChildPath(parentPath, filename);
-}
-function workspaceDefaultRoot(workspaceId) {
-  return fileArtifactAccessService.workspaceDefaultRoot(workspaceId);
-}
-function threadUploadRoot(thread) {
-  return fileArtifactAccessService.threadUploadRoot(thread);
-}
-function workspaceUploadRoot(workspaceId, threadId) {
-  return fileArtifactAccessService.workspaceUploadRoot(workspaceId, threadId);
-}
-function uploadWorkspaceAllowedForThread(thread, workspaceId) {
-  return fileArtifactAccessService.uploadWorkspaceAllowedForThread(thread, workspaceId);
-}
-function uploadWorkspaceIdForRequest(auth, thread, body = {}) {
-  return fileArtifactAccessService.uploadWorkspaceIdForRequest(auth, thread, body);
-}
-function uploadRootsForThread(thread) {
-  return fileArtifactAccessService.uploadRootsForThread(thread);
-}
-function workspaceUploadDirectoryForRequest(auth, thread, body = {}) {
-  return fileArtifactAccessService.workspaceUploadDirectoryForRequest(auth, thread, body);
-}
-function registerUploadArtifact(thread, message, filePath, originalName, options = {}) {
-  return fileArtifactAccessService.registerUploadArtifact(thread, message, filePath, originalName, options);
-}
-function publicArtifactFromClient(value) {
-  return fileArtifactAccessService.publicArtifactFromClient(value);
-}
-function attachUploadedArtifactsToMessage(thread, message) {
-  return fileArtifactAccessService.attachUploadedArtifactsToMessage(thread, message);
-}
-function getArtifactTextRegistrationService() {
-  if (!artifactTextRegistrationService) {
-    artifactTextRegistrationService = createArtifactTextRegistrationService({
-      dedupe,
-      effectiveProjectForThread,
-      extractArtifactPaths,
-      findProject,
-      findSubproject,
-      isPathAllowedForThread,
-      makeId,
-      mimeFor,
-      normalizeLocalPath,
-      nowIso,
-      sourceMarkdownSearchCache,
-      sourceMarkdownSearchLimit: SOURCE_MARKDOWN_SEARCH_LIMIT,
-      state: () => state,
-    });
-  }
-  return artifactTextRegistrationService;
-}
-function compactArtifactForMessage(value) {
-  return getArtifactTextRegistrationService().compactArtifactForMessage(value);
-}
-function compactArtifactPathKey(value) {
-  return getArtifactTextRegistrationService().compactArtifactPathKey(value);
-}
-function compactArtifactStemKey(value) {
-  return getArtifactTextRegistrationService().compactArtifactStemKey(value);
-}
-function publicMarkdownPreviewArtifact(thread, rawPath, baseId = "") {
-  return getArtifactTextRegistrationService().publicMarkdownPreviewArtifact(thread, rawPath, baseId);
-}
-function sourceMarkdownSearchRoots(thread) {
-  return getArtifactTextRegistrationService().sourceMarkdownSearchRoots(thread);
-}
-function findMarkdownByStemUnderRoot(root, stem) {
-  return getArtifactTextRegistrationService().findMarkdownByStemUnderRoot(root, stem);
-}
-function findSourceMarkdownForArtifact(thread, value) {
-  return getArtifactTextRegistrationService().findSourceMarkdownForArtifact(thread, value);
-}
-function companionMarkdownPathForArtifact(thread, value) {
-  return getArtifactTextRegistrationService().companionMarkdownPathForArtifact(thread, value);
-}
-function findThreadForMessage(message) {
-  return getArtifactTextRegistrationService().findThreadForMessage(message);
-}
-function compactArtifactsForMessage(message, thread = null) {
-  return getArtifactTextRegistrationService().compactArtifactsForMessage(message, thread);
-}
 const getWeixinRuntimeCompositionService = () => mobileRuntimeWeixinFacadeService.getWeixinRuntimeCompositionService();
 const requireWeixinIngress = (...args) => mobileRuntimeWeixinFacadeService.requireWeixinIngress(...args);
 const weixinIngressIsAttachmentOnlyEvent = (...args) => mobileRuntimeWeixinFacadeService.weixinIngressIsAttachmentOnlyEvent(...args);
@@ -2026,12 +1961,6 @@ function appendBounded(current, delta, maxChars) {
 }
 function compactFullContent(value) {
   return compactText(value, MAX_MESSAGE_CHARS);
-}
-function registerArtifactsFromText(thread, message, text) {
-  return getArtifactTextRegistrationService().registerArtifactsFromText(thread, message, text);
-}
-function extractArtifactPaths(text) {
-  return fileResourceService.extractArtifactPaths(text);
 }
 function volume1WindowsMirrorPath(rawPath) {
   return filesystemMountProvider.volume1WindowsMirrorPath(rawPath);

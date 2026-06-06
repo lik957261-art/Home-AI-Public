@@ -47,6 +47,12 @@ main API aggregator. Current focused route composition modules include:
 Runtime glue that is deterministic or independently testable should also move
 out of the composition root. Current focused runtime adapters include:
 
+- `adapters/mobile-runtime-artifact-facade-service.js` for lazy Artifact and
+  Markdown registration wiring. It delegates upload access to
+  `file-artifact-access-service.js`, delegates Markdown/source companion
+  registration to `artifact-text-registration-service.js`, keeps the
+  process-level source Markdown search cache outside request scope, and must
+  not own file transformation, permission, or state persistence policy.
 - `adapters/mobile-runtime-file-helper-service.js` for MIME/disposition,
   document preview delegation, static serving delegation, and first-readable
   JSON config loading plus atomic JSON store read/write helpers.

@@ -37,6 +37,7 @@ modules such as `server-routes/mobile-api-learning-composition.js`.
 
 Current runtime glue that should stay out of the composition root lives in
 focused adapters such as `mobile-runtime-file-helper-service.js`,
+`mobile-runtime-artifact-facade-service.js`,
 `mobile-runtime-backend-policy-service.js`,
 `mobile-runtime-config-facade-service.js`,
 `mobile-runtime-environment-service.js`,
@@ -57,18 +58,25 @@ focused adapters such as `mobile-runtime-file-helper-service.js`,
 `mobile-runtime-workspace-facade-service.js`,
 `mobile-runtime-workspace-catalog-facade.js`, and
 `mobile-runtime-http-server-service.js`. These modules keep static file
-helpers and JSON store file IO, backend mode policy, runtime config facade
-delegation, runtime environment aggregation, shared environment value parsing,
-Gateway/run environment parsing, Gateway runner/pool/launcher/provisioning/
-telemetry lazy delegation, group-chat attachment runtime wiring, Kanban/reading
-environment parsing, Local Bridge runtime lazy delegation, Owner elevation
-grant/routing lazy delegation, WSL/config path candidate parsing, public status
-projections, runtime state normalization/persistence lazy delegation,
-DATA_DIR-derived state/storage path parsing, system status lazy delegation,
-thread runtime composition delegation, Weixin runtime composition delegation,
-local workspace store/projection lazy delegation, workspace catalog lazy
-delegation, and process HTTP lifecycle wiring
+helpers and JSON store file IO, Artifact/Markdown registration lazy delegation,
+backend mode policy, runtime config facade delegation, runtime environment
+aggregation, shared environment value parsing, Gateway/run environment parsing,
+Gateway runner/pool/launcher/provisioning/telemetry lazy delegation, group-chat
+attachment runtime wiring, Kanban/reading environment parsing, Local Bridge
+runtime lazy delegation, Owner elevation grant/routing lazy delegation,
+WSL/config path candidate parsing, public status projections, runtime state
+normalization/persistence lazy delegation, DATA_DIR-derived state/storage path
+parsing, system status lazy delegation, thread runtime composition delegation,
+Weixin runtime composition delegation, local workspace store/projection lazy
+delegation, workspace catalog lazy delegation, and process HTTP lifecycle wiring
 addressable through CodeGraph without loading the full runtime root.
+
+`mobile-runtime-artifact-facade-service.js` is only a runtime wiring facade. It
+may lazy-create `artifact-text-registration-service.js` and delegate upload
+access to `file-artifact-access-service.js`, but it must not implement file
+conversion, path authorization, Markdown discovery policy, artifact persistence,
+or `saveState` behavior. The source Markdown search cache must remain
+process-scoped, not per request.
 
 `server.js` and `mobile-server-runtime.js` must not own new business behavior such as:
 
@@ -101,8 +109,11 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 2,175 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 240;
+- `mobile-server-runtime.js` must stay at or below 2,100 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 220;
+- `mobile-runtime-artifact-facade-service.js` must stay at or below 140 lines
+  and remain a facade over `file-artifact-access-service.js` and
+  `artifact-text-registration-service.js`;
 - `mobile-api-composition.js` must stay at or below 650 lines and remain the
   platform-level API aggregator, not a domain service graph;
 - `mobile-api-learning-composition.js` must stay at or below 350 lines and

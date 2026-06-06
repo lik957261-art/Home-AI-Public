@@ -100,6 +100,7 @@ const learningTaskModelService = require("../adapters/learning-task-model-servic
 const learningTemplateRegistryService = require("../adapters/learning-template-registry-service");
 const mobileHttpRuntimeService = require("../adapters/mobile-http-runtime-service");
 const mobileRuntimeBackendPolicyService = require("../adapters/mobile-runtime-backend-policy-service");
+const mobileRuntimeArtifactFacadeService = require("../adapters/mobile-runtime-artifact-facade-service");
 const mobileRuntimeConfigFacadeService = require("../adapters/mobile-runtime-config-facade-service");
 const mobileRuntimeEnvValueService = require("../adapters/mobile-runtime-env-value-service");
 const mobileRuntimeFileHelperService = require("../adapters/mobile-runtime-file-helper-service");
@@ -340,6 +341,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningTaskModelService.nextActionForTaskModel, "function");
   assert.equal(typeof learningTemplateRegistryService.createLearningTemplateRegistryService, "function");
   assert.equal(typeof mobileHttpRuntimeService.createMobileHttpRuntimeService, "function");
+  assert.equal(typeof mobileRuntimeArtifactFacadeService.createMobileRuntimeArtifactFacadeService, "function");
   assert.equal(typeof mobileRuntimeBackendPolicyService.createMobileRuntimeBackendPolicyService, "function");
   assert.equal(typeof mobileRuntimeConfigFacadeService.createMobileRuntimeConfigFacadeService, "function");
   assert.equal(typeof mobileRuntimeEnvValueService.nonNegativeInteger, "function");
@@ -559,7 +561,10 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(coreProviders, /createGatewayStatusProjection/);
   assert.match(publicStatus, /gatewayStatusProjection\.publicGatewayPoolStatusForAuth/);
   assert.match(coreProviders, /createFileArtifactAccessService/);
-  assert.match(server, /fileArtifactAccessService\.registerUploadArtifact/);
+  assert.match(server, /createMobileRuntimeArtifactFacadeService/);
+  assert.match(server, /const artifactMethod = \(methodName\) => \(\.\.\.args\) => artifactFacade\(\)\[methodName\]\(\.\.\.args\)/);
+  assert.match(server, /registerUploadArtifact/);
+  assert.doesNotMatch(server, /fileArtifactAccessService\.registerUploadArtifact/);
   assert.match(coreProviders, /createFileArtifactResolverService/);
   assert.match(server, /fileArtifactResolverService\.resolveArtifactForRequest/);
   assert.match(coreProviders, /createFileResponseService/);
@@ -700,8 +705,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(mobileComposition, /createNoteReceiptApiRoutes/);
   assert.match(mobileComposition, /createNoteReceiptSaveService/);
   assert.match(dispatcher, /key: "noteReceiptApiRoutes"/);
-  assert.match(server, /createArtifactTextRegistrationService/);
-  assert.match(server, /getArtifactTextRegistrationService\(\)\.registerArtifactsFromText/);
+  assert.match(fileText("adapters/mobile-runtime-artifact-facade-service.js"), /defaultCreateArtifactTextRegistrationService/);
+  assert.match(fileText("adapters/mobile-runtime-artifact-facade-service.js"), /registerArtifactsFromText: \(\.\.\.args\) => textArtifact\("registerArtifactsFromText", args\)/);
+  assert.doesNotMatch(server, /createArtifactTextRegistrationService/);
   assert.match(server, /buildRequestContext/);
   assert.match(dispatcher, /req\.hermesRequestContext/);
   assert.match(kanbanRuntime, /createKanbanCaseShareService/);
@@ -756,7 +762,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createDocumentPreviewService/);
   assert.match(fileHelpers, /documentPreviewService\.extractDocxText/);
   assert.match(fileHelpers, /documentPreviewService\.textFilePreview/);
-  assert.match(server, /fileResourceService\.extractArtifactPaths/);
+  assert.match(server, /const extractArtifactPaths = \(\.\.\.args\) => fileResourceService\.extractArtifactPaths\(\.\.\.args\)/);
   assert.match(weixinRuntime, /createWeixinForwardService/);
   assert.match(weixinRuntime, /getForwardService\(\)\.targetsForWorkspace/);
   assert.match(weixinRuntime, /createWeixinFileForwardService/);
@@ -798,8 +804,9 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
-  assert.match(doc, /2,175 lines/);
-  assert.match(doc, /240/);
+  assert.match(doc, /2,100 lines/);
+  assert.match(doc, /220/);
+  assert.match(doc, /mobile-runtime-artifact-facade-service\.js` must stay at or below 140 lines/);
   assert.match(doc, /mobile-api-composition\.js` must stay at or below 650 lines/);
   assert.match(doc, /mobile-api-learning-composition\.js` must stay at or below 350 lines/);
   assert.match(doc, /mobile-runtime-environment-service\.js` must stay at or below 380 lines/);
@@ -828,6 +835,7 @@ function testServiceFirstArchitectureContract() {
   const mobileApiCompositionSource = fileText("server-routes/mobile-api-composition.js");
   const mobileApiLearningCompositionSource = fileText("server-routes/mobile-api-learning-composition.js");
   const app = fileText("public/app.js");
+  const artifactFacade = fileText("adapters/mobile-runtime-artifact-facade-service.js");
   const runtimeEnvironment = fileText("adapters/mobile-runtime-environment-service.js");
   const gatewayEnvironment = fileText("adapters/mobile-runtime-gateway-environment-service.js");
   const pathCandidateEnvironment = fileText("adapters/mobile-runtime-path-candidate-environment-service.js");
@@ -848,10 +856,12 @@ function testServiceFirstArchitectureContract() {
   const envValueServiceLineCount = envValueService.split(/\r?\n/).length;
   const appLineCount = app.split(/\r?\n/).length;
   const appTopLevelFunctionCount = (app.match(/^function\s+/gm) || []).length;
+  const artifactFacadeLineCount = artifactFacade.split(/\r?\n/).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 2175, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2175`);
-  assert.ok(runtimeTopLevelFunctionCount <= 240, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 240`);
+  assert.ok(runtimeLineCount <= 2100, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2100`);
+  assert.ok(runtimeTopLevelFunctionCount <= 220, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 220`);
+  assert.ok(artifactFacadeLineCount <= 140, `mobile-runtime-artifact-facade-service.js line budget exceeded: ${artifactFacadeLineCount} > 140`);
   assert.ok(mobileApiCompositionLineCount <= 650, `mobile-api-composition.js line budget exceeded: ${mobileApiCompositionLineCount} > 650`);
   assert.ok(mobileApiLearningCompositionLineCount <= 350, `mobile-api-learning-composition.js line budget exceeded: ${mobileApiLearningCompositionLineCount} > 350`);
   assert.ok(runtimeEnvironmentLineCount <= 380, `mobile-runtime-environment-service.js line budget exceeded: ${runtimeEnvironmentLineCount} > 380`);

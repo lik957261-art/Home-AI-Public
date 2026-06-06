@@ -3053,7 +3053,7 @@ assert.match(kanbanProviderJs, /workspace_id: String\(meta\.workspaceId \|\| met
 assert.match(kanbanProviderJs, /let runs = Array\.isArray\(show\?\.runs\) \? show\.runs : \[\]/);
 assert.match(kanbanProviderJs, /const includeLog = bool\(payload\.include_log \|\| payload\.includeLog\)/);
 assert.match(fileResourceServiceJs, /txt\|json\|csv\|html\?\|zip/);
-assert.match(serverJs, /fileResourceService\.extractArtifactPaths\(text\)/);
+assert.match(serverJs, /const extractArtifactPaths = \(\.\.\.args\) => fileResourceService\.extractArtifactPaths\(\.\.\.args\)/);
 assert.match(stylesCss, /\.todo-detail-outputs/);
 assert.match(stylesCss, /\.todo-detail-deliverables/);
 assert.match(stylesCss, /\.todo-detail-meta/);
