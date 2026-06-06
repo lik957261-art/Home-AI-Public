@@ -102,6 +102,7 @@ const mobileHttpRuntimeService = require("../adapters/mobile-http-runtime-servic
 const mobileRuntimeBackendPolicyService = require("../adapters/mobile-runtime-backend-policy-service");
 const mobileRuntimeConfigFacadeService = require("../adapters/mobile-runtime-config-facade-service");
 const mobileRuntimeFileHelperService = require("../adapters/mobile-runtime-file-helper-service");
+const mobileRuntimeGatewayFacadeService = require("../adapters/mobile-runtime-gateway-facade-service");
 const mobileRuntimeHttpServerService = require("../adapters/mobile-runtime-http-server-service");
 const mobileRuntimeLocalBridgeFacadeService = require("../adapters/mobile-runtime-local-bridge-facade-service");
 const mobileRuntimeCoreProviders = require("../adapters/mobile-runtime-core-providers");
@@ -333,6 +334,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof mobileRuntimeBackendPolicyService.createMobileRuntimeBackendPolicyService, "function");
   assert.equal(typeof mobileRuntimeConfigFacadeService.createMobileRuntimeConfigFacadeService, "function");
   assert.equal(typeof mobileRuntimeFileHelperService.createMobileRuntimeFileHelperService, "function");
+  assert.equal(typeof mobileRuntimeGatewayFacadeService.createMobileRuntimeGatewayFacadeService, "function");
   assert.equal(typeof mobileRuntimeHttpServerService.createMobileRuntimeHttpServerService, "function");
   assert.equal(typeof mobileRuntimeLocalBridgeFacadeService.createMobileRuntimeLocalBridgeFacadeService, "function");
   assert.equal(typeof mobileRuntimeCoreProviders.createMobileRuntimeCoreProviders, "function");
@@ -444,6 +446,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const backendPolicy = fileText("adapters/mobile-runtime-backend-policy-service.js");
   const configFacade = fileText("adapters/mobile-runtime-config-facade-service.js");
   const fileHelpers = fileText("adapters/mobile-runtime-file-helper-service.js");
+  const gatewayFacade = fileText("adapters/mobile-runtime-gateway-facade-service.js");
   const groupChatAttachment = fileText("adapters/mobile-runtime-group-chat-attachment-service.js");
   const httpServer = fileText("adapters/mobile-runtime-http-server-service.js");
   const localBridgeFacade = fileText("adapters/mobile-runtime-local-bridge-facade-service.js");
@@ -474,7 +477,13 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(configFacade, /publicRuntimeConfig/);
   assert.doesNotMatch(server, /function publicRuntimeConfig/);
   assert.match(server, /createGatewayRuntimeCompositionService/);
-  assert.match(server, /createGatewayWorkerProfileLaunchService/);
+  assert.match(server, /createMobileRuntimeGatewayFacadeService/);
+  assert.match(gatewayFacade, /defaultCreateGatewayPoolProvider/);
+  assert.match(gatewayFacade, /defaultCreateGatewayWorkerProfileLaunchService/);
+  assert.match(gatewayFacade, /defaultCreateGatewayWorkspaceProvisioningService/);
+  assert.match(gatewayFacade, /defaultCreateGatewayUsageTelemetryProvider/);
+  assert.doesNotMatch(server, /gatewayPoolProvider = createGatewayPoolProvider/);
+  assert.doesNotMatch(server, /gatewayWorkerProfileLaunchService = createGatewayWorkerProfileLaunchService/);
   assert.match(server, /createMobileRuntimeFileHelperService/);
   assert.match(server, /createMobileRuntimeHttpServerService/);
   assert.match(server, /createMobileRuntimeLocalBridgeFacadeService/);
@@ -753,8 +762,8 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
-  assert.match(doc, /2,285 lines/);
-  assert.match(doc, /430/);
+  assert.match(doc, /2,260 lines/);
+  assert.match(doc, /300/);
   assert.match(doc, /public\/app\.js/);
   assert.match(doc, /10,000 lines/);
   assert.match(doc, /120/);
@@ -782,8 +791,8 @@ function testServiceFirstArchitectureContract() {
   const appTopLevelFunctionCount = (app.match(/^function\s+/gm) || []).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 2285, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2285`);
-  assert.ok(runtimeTopLevelFunctionCount <= 430, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 430`);
+  assert.ok(runtimeLineCount <= 2260, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2260`);
+  assert.ok(runtimeTopLevelFunctionCount <= 300, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 300`);
   assert.ok(appLineCount <= 10000, `public/app.js line budget exceeded: ${appLineCount} > 10000`);
   assert.ok(appTopLevelFunctionCount <= 120, `public/app.js top-level function budget exceeded: ${appTopLevelFunctionCount} > 120`);
 

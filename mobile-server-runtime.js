@@ -19,13 +19,10 @@ const { createAutomationProvider } = require("./adapters/automation-provider");
 const { createAutomationDeliveryRequirement, createDeliveryBoundaryInstructions } = require("./adapters/delivery-boundary-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
 const { createArtifactTextRegistrationService } = require("./adapters/artifact-text-registration-service");
-const { createGatewayPoolProvider } = require("./adapters/gateway-pool-provider");
-const { createGatewayRunner } = require("./adapters/gateway-runner");
-const { createGatewayWorkerProfileLaunchService } = require("./adapters/gateway-worker-profile-launch-service");
 const { createGatewayRunInstructionService } = require("./adapters/gateway-run-instruction-service"); const { createGatewayRunToolsetRoutingService } = require("./adapters/gateway-run-toolset-routing-service"); const { createGatewayRunModelToolsetSelectionService } = require("./adapters/gateway-run-model-toolset-selection-service");
 const { createGatewayRuntimeCompositionService } = require("./adapters/gateway-runtime-composition-service");
 const { gatewayPoolStatusHealthy } = require("./adapters/gateway-status-projection");
-const { createGatewayUsageTelemetryProvider } = require("./adapters/gateway-usage-telemetry-provider");
+const { createMobileRuntimeGatewayFacadeService } = require("./adapters/mobile-runtime-gateway-facade-service");
 const { createMobileRuntimeGroupChatAttachmentService } = require("./adapters/mobile-runtime-group-chat-attachment-service");
 const { createOwnerElevationGrantService } = require("./adapters/owner-elevation-grant-service");
 const { createRuntimeStatePersistenceService } = require("./adapters/runtime-state-persistence-service");
@@ -50,7 +47,7 @@ const {
 } = require("./adapters/kanban-story-provider");
 const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
 const { createLocalBridgeRuntimeService } = require("./adapters/local-bridge-runtime-service");
-const { createLocalWorkspaceStoreService } = require("./adapters/local-workspace-store-service"); const { createGatewayWorkspaceProvisioningService } = require("./adapters/gateway-workspace-provisioning-service");
+const { createLocalWorkspaceStoreService } = require("./adapters/local-workspace-store-service");
 const { createMobileHttpRuntimeService } = require("./adapters/mobile-http-runtime-service");
 const { createMobileRuntimeHttpServerService } = require("./adapters/mobile-runtime-http-server-service");
 const { createMobileRuntimeCoreProviders } = require("./adapters/mobile-runtime-core-providers");
@@ -191,15 +188,10 @@ const {
 });
 let clients = new Set();
 let activeStreams = new Map();
-let gatewayRunner = null;
-let gatewayPoolProvider = null;
-let gatewayWorkerProfileLaunchService = null;
-let gatewayWorkspaceProvisioningService = null;
 let gatewayRuntimeCompositionService = null;
 let assessmentExamWorkflowService = null;
 let directoryBrowserBoundaryService = null;
 let artifactTextRegistrationService = null;
-let gatewayUsageTelemetryProvider = null;
 let runtimeWorkspaceCatalogService = null;
 const sourceMarkdownSearchCache = new Map();
 let state = null;
@@ -323,6 +315,25 @@ const {
   state: () => state, textBufferPreview, textFilePreview, uploadRootsForThread, useSqliteServiceStore,
   windowsPathToWsl, workspacePrincipal,
 });
+const mobileRuntimeGatewayFacadeService = createMobileRuntimeGatewayFacadeService({
+  apiTimeoutMs: () => HERMES_API_TIMEOUT_MS,
+  effectiveHermesApiBase: () => effectiveHermesApiBase(),
+  fs,
+  gatewayPoolElasticConfig: GATEWAY_POOL_ELASTIC_CONFIG,
+  gatewayPoolEnabled: () => GATEWAY_POOL_ENABLED,
+  gatewayPoolHealthTimeoutMs: GATEWAY_POOL_HEALTH_TIMEOUT_MS,
+  gatewayPoolManifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS,
+  gatewayPoolStartMode: () => GATEWAY_POOL_START_MODE,
+  gatewayToolSchemaEpoch: () => GATEWAY_TOOL_SCHEMA_EPOCH,
+  gatewayUsageTelemetryEnabled: () => GATEWAY_USAGE_TELEMETRY_ENABLED,
+  gatewayUsageTelemetryProfileRoots: () => GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS,
+  loadHermesApiKey: () => loadHermesApiKey(),
+  nowIso,
+  path,
+  runConcurrencyPolicy,
+  state: () => state,
+  toolRoot: TOOL_ROOT,
+});
 const mobileRuntimeGroupChatAttachmentService = createMobileRuntimeGroupChatAttachmentService({
   groupDeliveriesDir: GROUP_DELIVERIES_DIR,
   groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
@@ -428,7 +439,7 @@ const mobileRuntimeWeixinFacadeService = createMobileRuntimeWeixinFacadeService(
   retryBaseMs: WEIXIN_DELIVERY_RETRY_BASE_MS,
   retryLimit: WEIXIN_DELIVERY_RETRY_LIMIT,
   retryMaxMs: WEIXIN_DELIVERY_RETRY_MAX_MS,
-  runConcurrencyError,
+  runConcurrencyError: (...args) => runConcurrencyError(...args),
   safeFileName,
   saveState,
   sendJson,
@@ -557,56 +568,19 @@ function getRuntimeWorkspaceCatalogService() {
   }
   return runtimeWorkspaceCatalogService;
 }
-function singleGatewayRunner() {
-  if (!gatewayRunner) gatewayRunner = createGatewayRunner({ apiBase: () => effectiveHermesApiBase(), apiKey: () => loadHermesApiKey(), timeoutMs: () => HERMES_API_TIMEOUT_MS });
-  return gatewayRunner;
-}
-function gatewayWorkerProfileLauncher() {
-  if (!gatewayWorkerProfileLaunchService) gatewayWorkerProfileLaunchService = createGatewayWorkerProfileLaunchService({ toolRoot: TOOL_ROOT, fs, path, elasticConfig: GATEWAY_POOL_ELASTIC_CONFIG });
-  return gatewayWorkerProfileLaunchService;
-}
-function gatewayPool() {
-  if (!gatewayPoolProvider) gatewayPoolProvider = createGatewayPoolProvider({
-    enabled: () => GATEWAY_POOL_ENABLED, startMode: () => GATEWAY_POOL_START_MODE, elastic: GATEWAY_POOL_ELASTIC_CONFIG,
-    manifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS, fallbackApiBase: () => effectiveHermesApiBase(), fallbackApiKey: () => loadHermesApiKey(),
-    timeoutMs: () => HERMES_API_TIMEOUT_MS, healthTimeoutMs: GATEWAY_POOL_HEALTH_TIMEOUT_MS, createGatewayRunner, toolSchemaEpoch: () => GATEWAY_TOOL_SCHEMA_EPOCH,
-    startWorkerProfile: (...args) => gatewayWorkerProfileLauncher().startWorkerProfile(...args),
-    stopWorkerProfile: (...args) => gatewayWorkerProfileLauncher().stopWorkerProfile(...args),
-  });
-  return gatewayPoolProvider;
-}
-function getGatewayWorkspaceProvisioningService() { if (!gatewayWorkspaceProvisioningService) gatewayWorkspaceProvisioningService = createGatewayWorkspaceProvisioningService({ fs, path, manifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS, nowIso }); return gatewayWorkspaceProvisioningService; }
-function gatewayUsageTelemetry() {
-  if (!gatewayUsageTelemetryProvider) gatewayUsageTelemetryProvider = createGatewayUsageTelemetryProvider({ enabled: () => GATEWAY_USAGE_TELEMETRY_ENABLED, profileRoots: () => GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS, manifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS });
-  return gatewayUsageTelemetryProvider;
-}
-async function chooseGatewayRunTarget(hints = {}, context = {}) { return gatewayPool().chooseTarget(hints, context); }
-function releaseGatewayRunTarget(runId, idleStatus = "idle") {
-  if (!gatewayPoolProvider || typeof gatewayPoolProvider.releaseRun !== "function") return false;
-  return gatewayPoolProvider.releaseRun(runId, idleStatus);
-}
-function replaceGatewayRunTarget(oldRunId, newRunId) {
-  if (!gatewayPoolProvider || typeof gatewayPoolProvider.replaceRun !== "function") return false;
-  return gatewayPoolProvider.replaceRun(oldRunId, newRunId);
-}
+const singleGatewayRunner = (...args) => mobileRuntimeGatewayFacadeService.singleGatewayRunner(...args);
+const gatewayPool = (...args) => mobileRuntimeGatewayFacadeService.gatewayPool(...args);
+const getGatewayWorkspaceProvisioningService = (...args) => mobileRuntimeGatewayFacadeService.getGatewayWorkspaceProvisioningService(...args);
+const gatewayUsageTelemetry = (...args) => mobileRuntimeGatewayFacadeService.gatewayUsageTelemetry(...args);
+const chooseGatewayRunTarget = (...args) => mobileRuntimeGatewayFacadeService.chooseGatewayRunTarget(...args);
+const releaseGatewayRunTarget = (...args) => mobileRuntimeGatewayFacadeService.releaseGatewayRunTarget(...args);
+const replaceGatewayRunTarget = (...args) => mobileRuntimeGatewayFacadeService.replaceGatewayRunTarget(...args);
 function gatewayTargetForRun(runId) {
   return getGatewayRuntimeCompositionService().gatewayTargetForRun(runId);
 }
-function runConcurrencySnapshot() {
-  return runConcurrencyPolicy.snapshot(state?.threads || []);
-}
-function runConcurrencyError(workspaceId) {
-  return runConcurrencyPolicy.limitError(state?.threads || [], workspaceId);
-}
-function assertRunConcurrencyCapacity(workspaceId) {
-  const error = runConcurrencyError(workspaceId);
-  if (!error) return;
-  const err = new Error(error.message);
-  err.status = error.status || 429;
-  err.code = error.code;
-  err.details = error;
-  throw err;
-}
+const runConcurrencySnapshot = (...args) => mobileRuntimeGatewayFacadeService.runConcurrencySnapshot(...args);
+const runConcurrencyError = (...args) => mobileRuntimeGatewayFacadeService.runConcurrencyError(...args);
+const assertRunConcurrencyCapacity = (...args) => mobileRuntimeGatewayFacadeService.assertRunConcurrencyCapacity(...args);
 const publicReasoningInfoForAuth = (...args) => mobileRuntimePublicStatusService.publicReasoningInfoForAuth(...args);
 const publicGatewayPoolStatusForAuth = (...args) => mobileRuntimePublicStatusService.publicGatewayPoolStatusForAuth(...args);
 const publicConcurrencyForAuth = (...args) => mobileRuntimePublicStatusService.publicConcurrencyForAuth(...args);

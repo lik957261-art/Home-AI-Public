@@ -40,6 +40,10 @@ out of the composition root. Current focused runtime adapters include:
 - `adapters/mobile-runtime-file-helper-service.js` for MIME/disposition,
   document preview delegation, static serving delegation, and first-readable
   JSON config loading plus atomic JSON store read/write helpers.
+- `adapters/mobile-runtime-gateway-facade-service.js` for lazy Gateway runner,
+  pool, worker-profile launcher, workspace provisioning, usage telemetry, and
+  run-concurrency delegation without forcing the full runtime root into
+  CodeGraph context.
 - `adapters/mobile-runtime-backend-policy-service.js` for deterministic
   Todo/Automation/SQLite backend mode decisions and direct Todo create switch
   parsing.
