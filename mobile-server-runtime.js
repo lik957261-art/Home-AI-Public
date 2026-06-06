@@ -60,6 +60,7 @@ const { createMobileRuntimeBackendPolicyService } = require("./adapters/mobile-r
 const { createMobileRuntimeConfigFacadeService } = require("./adapters/mobile-runtime-config-facade-service");
 const { createMobileRuntimeFileHelperService } = require("./adapters/mobile-runtime-file-helper-service");
 const { createMobileRuntimePublicStatusService } = require("./adapters/mobile-runtime-public-status-service");
+const { createMobileRuntimeSystemStatusFacadeService } = require("./adapters/mobile-runtime-system-status-facade-service");
 const { createMobileRuntimeWorkspaceCatalogFacade } = require("./adapters/mobile-runtime-workspace-catalog-facade");
 const { createRuntimeWorkspaceCatalogService } = require("./adapters/runtime-workspace-catalog-service");
 const { createSemanticDirectoryAttachmentService } = require("./adapters/semantic-directory-attachment-service");
@@ -134,6 +135,30 @@ const documentPreviewService = createDocumentPreviewService({
   fs,
   maxPreviewChars: MAX_FILE_PREVIEW_CHARS,
 });
+const mobileRuntimeSystemStatusFacadeService = createMobileRuntimeSystemStatusFacadeService({
+  allowWslReasoningConfigLookup: ALLOW_WSL_REASONING_CONFIG_LOOKUP,
+  compactText,
+  createSystemRuntimeStatusService,
+  dedupe,
+  env: process.env,
+  explicitHermesConfigPaths: EXPLICIT_HERMES_CONFIG_PATHS,
+  fs,
+  gatewayPool: () => gatewayPool(),
+  gatewayUsageTelemetryProfileRoots: GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS,
+  hermesConfigPaths: HERMES_CONFIG_PATHS,
+  indexHtmlPath: INDEX_HTML_PATH,
+  isUncPath,
+  nowIso,
+  path,
+  process,
+  repoRoot: REPO_ROOT,
+  runProcessText,
+  updateBranch: UPDATE_BRANCH,
+  updateCheckTimeoutMs: UPDATE_CHECK_TIMEOUT_MS,
+  updateRemoteName: UPDATE_REMOTE_NAME,
+  updateVersionUrl: UPDATE_VERSION_URL,
+});
+const { appUpdateStatus, applyAppUpdate, clientVersionInfo, defaultReasoningInfo, readClientVersion, runtimeModelConfigInfo } = mobileRuntimeSystemStatusFacadeService;
 const httpRuntimeService = createMobileHttpRuntimeService({
   clientVersionInfo,
   maxBodyBytes: MAX_BODY_BYTES,
@@ -191,7 +216,6 @@ let runtimeStatePersistenceService = null;
 let runtimeStateThreadService = null;
 let ownerElevationGrantService = null;
 let threadRuntimeCompositionService = null;
-let systemRuntimeStatusService = null;
 let weixinRuntimeCompositionService = null;
 let webPushDeliveryService = null;
 const eventFanoutService = createEventFanoutService({
@@ -810,81 +834,6 @@ function normalizeOwnerElevationDurations(value) {
 }
 function normalizeSingleWindowMode(value) {
   return String(value || "").trim().toLowerCase() === "chat" ? "chat" : "task";
-}
-function configPathReadableForRuntimeInfo(configPath) {
-  const text = String(configPath || "").trim();
-  return Boolean(text && (
-    !isUncPath(text)
-    || EXPLICIT_HERMES_CONFIG_PATHS.has(text)
-    || ALLOW_WSL_REASONING_CONFIG_LOOKUP
-  ));
-}
-function gatewayPoolConfigPathCandidates() {
-  const candidates = [];
-  try {
-    const loaded = gatewayPool().load();
-    for (const worker of loaded.workers || []) {
-      for (const dbPath of [worker.telemetryStateDbPath, worker.telemetryResponseStoreDbPath]) {
-        if (dbPath) candidates.push(path.join(path.dirname(dbPath), "config.yaml"));
-      }
-      for (const root of GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS) {
-        if (worker.profile) candidates.push(path.join(root, worker.profile, "config.yaml"));
-        if (worker.telemetryProfile && worker.telemetryProfile !== worker.profile) {
-          candidates.push(path.join(root, worker.telemetryProfile, "config.yaml"));
-        }
-      }
-    }
-  } catch (_) {}
-  return candidates;
-}
-function runtimeConfigPathCandidates() {
-  const base = HERMES_CONFIG_PATHS.filter(configPathReadableForRuntimeInfo);
-  return dedupe([...gatewayPoolConfigPathCandidates(), ...base]).filter(configPathReadableForRuntimeInfo);
-}
-function getSystemRuntimeStatusService() {
-  if (!systemRuntimeStatusService) {
-    systemRuntimeStatusService = createSystemRuntimeStatusService({
-      compactText,
-      env: process.env,
-      fetchText: fetchTextWithTimeout,
-      fs,
-      indexHtmlPath: INDEX_HTML_PATH,
-      nowIso,
-      path,
-      process,
-      repoRoot: REPO_ROOT,
-      runProcessText,
-      runtimeConfigPathCandidates,
-      updateBranch: UPDATE_BRANCH,
-      updateCheckTimeoutMs: UPDATE_CHECK_TIMEOUT_MS,
-      updateRemoteName: UPDATE_REMOTE_NAME,
-      updateVersionUrl: UPDATE_VERSION_URL,
-    });
-  }
-  return systemRuntimeStatusService;
-}
-function runtimeModelConfigInfo() {
-  return getSystemRuntimeStatusService().runtimeModelConfigInfo();
-}
-function defaultReasoningInfo() {
-  return runtimeModelConfigInfo();
-}
-function readClientVersion() {
-  return getSystemRuntimeStatusService().readClientVersion();
-}
-function clientVersionInfo(clientVersion = "") {
-  return getSystemRuntimeStatusService().clientVersionInfo(clientVersion);
-}
-async function fetchTextWithTimeout(url, timeoutMs = UPDATE_CHECK_TIMEOUT_MS) {
-  const response = await fetch(url, { signal: AbortSignal.timeout(Math.max(1000, timeoutMs)), cache: "no-store" });
-  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-  return response.text();
-}
-async function appUpdateStatus() {
-  return getSystemRuntimeStatusService().appUpdateStatus();
-}
-async function applyAppUpdate() {
-  return getSystemRuntimeStatusService().applyAppUpdate();
 }
 function requestClientVersion(req) { return httpRuntimeService.requestClientVersion(req); }
 function attachClientVersionHeaders(req, res) { return httpRuntimeService.attachClientVersionHeaders(req, res); }

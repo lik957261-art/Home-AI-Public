@@ -50,6 +50,9 @@ out of the composition root. Current focused runtime adapters include:
   group-chat shared-attachment runtime wiring and storage segment helpers.
 - `adapters/mobile-runtime-public-status-service.js` for public reasoning,
   Gateway pool, and run-concurrency status projections.
+- `adapters/mobile-runtime-system-status-facade-service.js` for lazy system
+  runtime status wiring, config-path candidate derivation, client-version
+  delegation, and app-update delegation.
 - `adapters/mobile-runtime-workspace-catalog-facade.js` for lazy workspace
   catalog delegation without forcing the full catalog service to initialize at
   module load time.

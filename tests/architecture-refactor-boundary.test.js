@@ -106,6 +106,7 @@ const mobileRuntimeHttpServerService = require("../adapters/mobile-runtime-http-
 const mobileRuntimeCoreProviders = require("../adapters/mobile-runtime-core-providers");
 const mobileRuntimeEnvironmentService = require("../adapters/mobile-runtime-environment-service");
 const mobileRuntimePublicStatusService = require("../adapters/mobile-runtime-public-status-service");
+const mobileRuntimeSystemStatusFacadeService = require("../adapters/mobile-runtime-system-status-facade-service");
 const mobileRuntimeWorkspaceCatalogFacade = require("../adapters/mobile-runtime-workspace-catalog-facade");
 const markdownRenderer = require("../adapters/markdown-renderer");
 const naturalLanguageDraftService = require("../adapters/natural-language-draft-service");
@@ -333,6 +334,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof mobileRuntimeCoreProviders.createMobileRuntimeCoreProviders, "function");
   assert.equal(typeof mobileRuntimeEnvironmentService.createMobileRuntimeEnvironment, "function");
   assert.equal(typeof mobileRuntimePublicStatusService.createMobileRuntimePublicStatusService, "function");
+  assert.equal(typeof mobileRuntimeSystemStatusFacadeService.createMobileRuntimeSystemStatusFacadeService, "function");
   assert.equal(typeof mobileRuntimeWorkspaceCatalogFacade.createMobileRuntimeWorkspaceCatalogFacade, "function");
   assert.equal(typeof markdownRenderer.renderMarkdownDocument, "function");
   assert.equal(typeof markdownRenderer.renderWeixinMarkdownForwardHtml, "function");
@@ -442,6 +444,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const workspaceCatalog = fileText("adapters/runtime-workspace-catalog-service.js");
   const workspaceCatalogFacade = fileText("adapters/mobile-runtime-workspace-catalog-facade.js");
   const publicStatus = fileText("adapters/mobile-runtime-public-status-service.js");
+  const systemStatusFacade = fileText("adapters/mobile-runtime-system-status-facade-service.js");
   const weixinRuntime = fileText("adapters/weixin-runtime-composition-service.js");
   const threadRuntime = fileText("adapters/thread-runtime-composition-service.js");
   const threadRouteService = fileText("adapters/thread-message-run-route-service.js");
@@ -495,9 +498,10 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(dispatcher, /publicApiRoutes\.handle\(req, res, url\)/);
   assert.match(mobileComposition, /createSystemApiRoutes/);
   assert.match(dispatcher, /key: "systemApiRoutes"/);
-  assert.match(server, /createSystemRuntimeStatusService/);
-  assert.match(server, /getSystemRuntimeStatusService\(\)\.runtimeModelConfigInfo/);
-  assert.match(server, /getSystemRuntimeStatusService\(\)\.applyAppUpdate\(\)/);
+  assert.match(server, /createMobileRuntimeSystemStatusFacadeService/);
+  assert.match(systemStatusFacade, /createSystemRuntimeStatusService/);
+  assert.match(systemStatusFacade, /runtimeModelConfigInfo/);
+  assert.doesNotMatch(server, /function getSystemRuntimeStatusService/);
   assert.doesNotMatch(server, /function runGitSync/);
   assert.match(fileText("adapters/system-runtime-status-service.js"), /async function applyAppUpdate/);
   assert.match(coreProviders, /createGatewayStatusProjection/);
@@ -726,7 +730,7 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
-  assert.match(doc, /2,355 lines/);
+  assert.match(doc, /2,305 lines/);
   assert.match(doc, /430/);
   assert.match(doc, /public\/app\.js/);
   assert.match(doc, /10,000 lines/);
@@ -755,7 +759,7 @@ function testServiceFirstArchitectureContract() {
   const appTopLevelFunctionCount = (app.match(/^function\s+/gm) || []).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 2355, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2355`);
+  assert.ok(runtimeLineCount <= 2305, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2305`);
   assert.ok(runtimeTopLevelFunctionCount <= 430, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 430`);
   assert.ok(appLineCount <= 10000, `public/app.js line budget exceeded: ${appLineCount} > 10000`);
   assert.ok(appTopLevelFunctionCount <= 120, `public/app.js top-level function budget exceeded: ${appTopLevelFunctionCount} > 120`);
