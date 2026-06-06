@@ -56,6 +56,7 @@ const { createMobileRuntimeHttpServerService } = require("./adapters/mobile-runt
 const { createMobileRuntimeCoreProviders } = require("./adapters/mobile-runtime-core-providers");
 const { createOwnerElevationRoutingService } = require("./adapters/owner-elevation-routing-service");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
+const { createMobileRuntimeBackendPolicyService } = require("./adapters/mobile-runtime-backend-policy-service");
 const { createMobileRuntimeFileHelperService } = require("./adapters/mobile-runtime-file-helper-service");
 const { createMobileRuntimeWorkspaceCatalogFacade } = require("./adapters/mobile-runtime-workspace-catalog-facade");
 const { createRuntimeWorkspaceCatalogService } = require("./adapters/runtime-workspace-catalog-service");
@@ -100,6 +101,19 @@ const { BRIDGE_HOST_URL, BRIDGE_HOST_KEY_PATH, STATUS_INCLUDE_CATALOG, GOOGLE_TO
 const { SINGLE_WINDOW_CHAT_TASK_GROUP_ID, SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID, isSingleWindowConversationTaskGroupId, singleWindowChatTaskGroupId, GROUP_MESSAGE_REVOKED_TEXT, GROUP_AI_REPLY_REVOKED_TEXT, SINGLE_WINDOW_PROJECT_ID, SINGLE_WINDOW_THREAD_TITLE } = runtimeEnv;
 const { OWNER_LABEL, OWNER_ROOT_FALLBACK_LABEL, OWNER_DRIVE_ROOT_NAMES, GENERIC_OWNER_TOPIC_PROJECT_PREFIXES, GENERIC_OWNER_TOPIC_PROJECT_IDS, PRINCIPAL_LABEL_PREFIXES } = runtimeEnv;
 const { REASONING_EFFORT_OPTIONS, VALID_REASONING_EFFORTS, MESSAGE_TIME_FIELDS, MIME_BY_EXT, AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS, AUTOMATION_PUSH_DELIVERABLE_LOOKBACK_MS, AUTOMATION_PUSH_DELIVERABLE_FUTURE_GRACE_MS, AUTOMATION_PUSH_INITIAL_LOOKBACK_MS } = runtimeEnv;
+const mobileRuntimeBackendPolicyService = createMobileRuntimeBackendPolicyService({
+  automationBackend: AUTOMATION_BACKEND,
+  directTodoCreateSetting: DIRECT_TODO_CREATE_SETTING,
+  serviceStoreBackend: SERVICE_STORE_BACKEND,
+  todoBackend: TODO_BACKEND,
+});
+const {
+  directTodoCreateEnabled,
+  useKanbanTodoBackend,
+  useLocalAutomationBackend,
+  useLocalTodoBackend,
+  useSqliteServiceStore,
+} = mobileRuntimeBackendPolicyService;
 function dedupe(values) {
   return [...new Set((values || []).map((item) => String(item || "").trim()).filter(Boolean))];
 }
@@ -932,27 +946,6 @@ function safeArtifactCopyName(artifact = {}, index = 0) {
 }
 function ensureGroupChatSharedArtifactCopies(thread, latestUserMessage, deliveryRoot) {
   return getGroupChatSharedAttachmentService().ensureSharedArtifactCopies(thread, latestUserMessage, deliveryRoot);
-}
-function backendIsLocal(value, bridgeNames = []) {
-  const backend = String(value || "").trim().toLowerCase();
-  return !bridgeNames.includes(backend);
-}
-function useLocalTodoBackend() {
-  return backendIsLocal(TODO_BACKEND, ["bridge", "plugin", "hermes", "hermes_todos", "kanban", "hermes_kanban"]);
-}
-function useKanbanTodoBackend() {
-  return ["kanban", "hermes_kanban"].includes(TODO_BACKEND);
-}
-function directTodoCreateEnabled() {
-  if (/^(0|false|no|off)$/i.test(DIRECT_TODO_CREATE_SETTING)) return false;
-  if (/^(1|true|yes|on)$/i.test(DIRECT_TODO_CREATE_SETTING)) return true;
-  return true;
-}
-function useLocalAutomationBackend() {
-  return backendIsLocal(AUTOMATION_BACKEND, ["bridge", "cron", "hermes", "hermes_cron"]);
-}
-function useSqliteServiceStore() {
-  return SERVICE_STORE_BACKEND === "sqlite";
 }
 function mobileSqliteStore() {
   if (!sqliteServiceStore) {
