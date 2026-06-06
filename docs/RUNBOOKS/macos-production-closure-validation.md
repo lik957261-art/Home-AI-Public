@@ -28,7 +28,8 @@ It validates:
 - The positive browser/API auth header is `X-Hermes-Web-Key`.
 - The wrong browser/API header `X-Hermes-Access-Key` is rejected.
 - Gateway Pool is enabled in hybrid mode and exposes the expected worker count.
-- Mac production profile audit has `ok=true`, no issues, and no warnings.
+- Mac production profile audit has `ok=true`, no issues, and no warnings,
+  including loaded system LaunchDaemons for every enabled manifest worker.
 - Mac worker filesystem ACL checks pass, including cross-workspace deny checks.
 - Workspace catalog paths resolve to the Mac live drive, and all active
   workspaces can create and preview the standard plugin delivery directories
@@ -88,12 +89,13 @@ With `--json`, the top-level shape is bounded metadata:
 }
 ```
 
-Treat any top-level `ok=false`, nonzero profile issue/warning count, failed ACL
-row, failed plugin delivery-directory creation/preview row, missing schema
-callable, Wardrobe binding row with a legacy origin, Wardrobe manifest launch
-failure, zero/negative Wardrobe bootstrap item count, wrong DeepSeek profile,
-failed Weixin route, or nonzero final `activeGlobal` as a production blocker for
-the non-Grok closure gate.
+Treat any top-level `ok=false`, nonzero profile issue/warning count,
+`launchd_service_not_loaded:<profile>`, failed ACL row, failed plugin
+delivery-directory creation/preview row, missing schema callable, Wardrobe
+binding row with a legacy origin, Wardrobe manifest launch failure,
+zero/negative Wardrobe bootstrap item count, wrong DeepSeek profile, failed
+Weixin route, or nonzero final `activeGlobal` as a production blocker for the
+non-Grok closure gate.
 
 ## Focused Alternatives
 

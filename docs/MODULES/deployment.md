@@ -107,9 +107,13 @@ service root.
   `warnings`, the expected active workspace keys, the shared Response baseline,
   complete required Wardrobe Skill bundles for workspaces that require
   Wardrobe, and profile `skills`/`memories` links whose realpath resolves to
-  the matching `data/skill-profiles/<profileId>` store. The audit reads only
-  bounded metadata and must not print key contents, token contents, plugin
-  access-key values, or raw prompts.
+  the matching `data/skill-profiles/<profileId>` store. On macOS it also
+  verifies every enabled manifest worker's system LaunchDaemon is loaded.
+  `launchd_service_not_loaded:<profile>` means the worker can exist in the
+  manifest and have a plist file while still failing cold-start with
+  `Could not find service ...`. The audit reads only bounded metadata and must
+  not print key contents, token contents, plugin access-key values, or raw
+  prompts.
 - Mac production closure validation:
   `scripts/macos-production-closure-validation.js`. Run it after Mac
   deployment, data migration, Gateway/Profile repair, plugin provisioning,
@@ -801,7 +805,9 @@ new script is added to source and covered by a harness.
   Treat non-empty `issues` as a blocker. Non-empty `warnings` are not a user
   login failure by themselves, but stale profile roots or unexpected profile
   link targets must be backed up and resolved before considering migration
-  closed.
+  closed. `launchd_service_not_loaded:<profile>` is always a cold-start blocker:
+  bootstrap or repair the matching system LaunchDaemon before accepting the
+  deployment.
 
 ## Production Launcher Toggles
 

@@ -194,6 +194,14 @@ starts the matching launchd label. Owner-maintenance mode must reject non
 `node tests\macos-gateway-profile-launcher.test.js` passing whenever the Mac
 launcher contract changes.
 
+Mac production must also keep every enabled manifest worker's system
+LaunchDaemon loaded, even when that worker is cold/stopped. A cold worker can
+have a valid manifest row, plist file, profile directory, and start script but
+still fail user runs if `launchctl print system/<label>` cannot find the
+service. `scripts/macos-production-profile-audit.js` reports this as
+`launchd_service_not_loaded:<profile>` and the aggregate closure gate treats it
+as a production blocker.
+
 Gateway startup must keep the configure path narrow. `start-low-gateways.sh`
 stores a non-secret configure signature under the worker root and skips
 `configure-low-gateways.sh` when the selected profiles are already ready and

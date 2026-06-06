@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 
 const DEFAULT_REQUIRED_WORKSPACE_PLUGINS = {
   weixin_wuping: ["wardrobe"],
@@ -126,6 +127,36 @@ function linkInfo(file, root, expectedTarget = "") {
   } catch (_) {
     return { exists: false, isSymbolicLink: false, target: "", resolvedTarget: "", realTarget: "", targetMatchesExpected: false };
   }
+}
+
+function launchdServiceStatus(worker = {}, options = {}) {
+  const label = String(worker.launchdLabel || "");
+  const status = {
+    label,
+    plistChecked: false,
+    plistExists: false,
+    loaded: false,
+    checked: false,
+  };
+  if (!label) return status;
+  if (process.platform === "darwin") {
+    status.plistChecked = true;
+    status.plistExists = exists(path.join("/Library/LaunchDaemons", `${label}.plist`));
+  }
+  if (options.checkLaunchd === false) return status;
+  if (typeof options.launchdProbe === "function") {
+    status.checked = true;
+    status.loaded = Boolean(options.launchdProbe(label, worker));
+    return status;
+  }
+  if (process.platform !== "darwin") return status;
+  const result = spawnSync("launchctl", ["print", `system/${label}`], {
+    encoding: "utf8",
+    stdio: ["ignore", "ignore", "ignore"],
+  });
+  status.checked = true;
+  status.loaded = result.status === 0;
+  return status;
 }
 
 function compactPath(value, root) {
@@ -358,6 +389,7 @@ function buildAudit(options) {
     const skills = linkInfo(path.join(profileDir, "skills"), root, expectedSkillRoot);
     const memories = linkInfo(path.join(profileDir, "memories"), root, expectedMemoryRoot);
     const configExists = exists(path.join(profileDir, "config.yaml"));
+    const launchd = launchdServiceStatus(worker, options);
     const check = {
       profile,
       provider: worker.provider || "openai-codex",
@@ -368,11 +400,15 @@ function buildAudit(options) {
       configExists,
       skills,
       memories,
+      launchd,
     };
     profileChecks.push(check);
     if (!configExists) issue(`profile_config_missing:${profile}`);
     if (!skills.exists) issue(`profile_skills_missing:${profile}`);
     if (!memories.exists) issue(`profile_memories_missing:${profile}`);
+    if (!launchd.label) issue(`launchd_label_missing:${profile}`);
+    if (launchd.label && launchd.plistChecked && !launchd.plistExists) issue(`launchd_plist_missing:${profile}`);
+    if (launchd.checked && !launchd.loaded) issue(`launchd_service_not_loaded:${profile}`);
     if (skills.exists && !skills.isSymbolicLink) issue(`profile_skills_not_linked:${profile}`);
     if (memories.exists && !memories.isSymbolicLink) issue(`profile_memories_not_linked:${profile}`);
     if (skills.isSymbolicLink && !skills.targetMatchesExpected) {
@@ -442,5 +478,6 @@ if (require.main === module) {
 
 module.exports = {
   buildAudit,
+  launchdServiceStatus,
   parseArgs,
 };

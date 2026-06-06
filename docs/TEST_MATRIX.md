@@ -99,8 +99,11 @@ profile audit on the Mac with the pinned runtime. The production audit must
 return `ok=true`, empty `issues`, empty `warnings`, active workspace keys for
 registered retained users, required plugin Skill bundles, shared Response
 baseline presence, and profile `skills`/`memories` links whose realpath points
-at the matching `data/skill-profiles/<profileId>` store. It must not print raw
-Access Keys, token contents, key files, prompt bodies, or plugin launch tokens.
+at the matching `data/skill-profiles/<profileId>` store. On macOS it must also
+prove every enabled manifest worker's system LaunchDaemon is loaded; any
+`launchd_service_not_loaded:<profile>` issue is a cold-start blocker. It must
+not print raw Access Keys, token contents, key files, prompt bodies, or plugin
+launch tokens.
 Mac MCP callable schema evidence must use the real production manifest and
 native agent schema probe, for example
 `node scripts\gateway-tool-schema-smoke.js --manifest /Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json --profile <profile> --schema-only --agent-schema-mode native --runtime-source /Users/hermes-host/HermesMobile/runtime/hermes-agent-official/source --runtime-overrides /Users/hermes-host/HermesMobile/app/gateway-runtime-overrides --runtime-python /Users/hermes-host/HermesMobile/runtime/hermes-agent-official/venv/bin/python`. Do not treat a Windows-only WSL schema probe as Mac production evidence.

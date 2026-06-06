@@ -18,6 +18,10 @@ assert.match(script, /skill-profiles/);
 assert.match(script, /\.hermes-gateway/);
 assert.match(script, /profile_skills_not_linked/);
 assert.match(script, /profile_memories_not_linked/);
+assert.match(script, /launchctl/);
+assert.match(script, /launchd_service_not_loaded/);
+assert.match(script, /launchd_plist_missing/);
+assert.match(script, /launchdProbe/);
 assert.match(script, /deepseek_user_worker_missing/);
 assert.match(script, /plugin_binding_missing/);
 assert.match(script, /plugin_local_binding_incomplete/);
@@ -34,7 +38,7 @@ assert.match(skillPermissionsDoc, /stale profile roots/i);
 assert.match(testMatrix, /macos-production-profile-audit\.test\.js/);
 assert.match(testMatrix, /production audit must\s+return `ok=true`, empty `issues`, empty `warnings`/);
 
-const { buildAudit } = require("../scripts/macos-production-profile-audit");
+const { buildAudit, launchdServiceStatus } = require("../scripts/macos-production-profile-audit");
 
 function writeJson(file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -102,6 +106,17 @@ try {
   assert.ok(audit.issues.includes("plugin_required_skill_incomplete:weixin_wuping:wardrobe:productivity/wardrobe-style-operations"));
   assert.ok(audit.issues.includes("shared_skill_missing:shared/response-grounding-baseline"));
   assert.ok(audit.issues.some((item) => item.startsWith("profile_config_missing:")));
+  const launchdAudit = buildAudit({
+    root: tempRoot,
+    expectedWorkspaces: ["owner", "weixin_wuping"],
+    expectedPlugins: ["wardrobe"],
+    strict: true,
+    launchdProbe: (label) => !label.includes("deepseek"),
+  });
+  assert.ok(launchdAudit.issues.includes("launchd_service_not_loaded:deepseekgw1"));
+  assert.ok(!launchdAudit.issues.includes("launchd_service_not_loaded:hm-owner-openai-1"));
+  assert.equal(launchdServiceStatus({ launchdLabel: "com.hermesmobile.fixture.1" }, { launchdProbe: () => true }).loaded, true);
+  assert.equal(launchdServiceStatus({ launchdLabel: "com.hermesmobile.fixture.2" }, { checkLaunchd: false }).checked, false);
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
 }
