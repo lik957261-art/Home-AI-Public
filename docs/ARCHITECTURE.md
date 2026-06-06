@@ -100,6 +100,11 @@ out of the composition root. Current focused runtime adapters include:
 - `adapters/mobile-runtime-thread-facade-service.js` for lazy thread runtime
   composition wiring and thread message create/run/direct-create/owner-retry
   delegate wrappers.
+- `adapters/mobile-runtime-thread-view-facade-service.js` for lazy thread view
+  projection wiring, thread/task/message delegate wrappers, and bounded thread
+  event append/preview retention. It must delegate public projection to
+  `thread-view-service.js` and must not own message filtering, pagination, or
+  task-group projection rules.
 - `adapters/mobile-runtime-weixin-facade-service.js` for lazy Weixin runtime
   composition wiring and Weixin ingress, outbound delivery, retry, wake, and
   file-forward delegate wrappers.

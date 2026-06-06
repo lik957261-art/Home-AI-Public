@@ -118,6 +118,7 @@ const mobileRuntimeStateFacadeService = require("../adapters/mobile-runtime-stat
 const mobileRuntimeStatePathEnvironmentService = require("../adapters/mobile-runtime-state-path-environment-service");
 const mobileRuntimeSystemStatusFacadeService = require("../adapters/mobile-runtime-system-status-facade-service");
 const mobileRuntimeThreadFacadeService = require("../adapters/mobile-runtime-thread-facade-service");
+const mobileRuntimeThreadViewFacadeService = require("../adapters/mobile-runtime-thread-view-facade-service");
 const mobileRuntimeWeixinFacadeService = require("../adapters/mobile-runtime-weixin-facade-service");
 const mobileRuntimeWorkspaceFacadeService = require("../adapters/mobile-runtime-workspace-facade-service");
 const mobileRuntimeWorkspaceCatalogFacade = require("../adapters/mobile-runtime-workspace-catalog-facade");
@@ -363,6 +364,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof mobileRuntimeStatePathEnvironmentService.createMobileRuntimeStatePathEnvironment, "function");
   assert.equal(typeof mobileRuntimeSystemStatusFacadeService.createMobileRuntimeSystemStatusFacadeService, "function");
   assert.equal(typeof mobileRuntimeThreadFacadeService.createMobileRuntimeThreadFacadeService, "function");
+  assert.equal(typeof mobileRuntimeThreadViewFacadeService.createMobileRuntimeThreadViewFacadeService, "function");
   assert.equal(typeof mobileRuntimeWeixinFacadeService.createMobileRuntimeWeixinFacadeService, "function");
   assert.equal(typeof mobileRuntimeWorkspaceFacadeService.createMobileRuntimeWorkspaceFacadeService, "function");
   assert.equal(typeof mobileRuntimeWorkspaceCatalogFacade.createMobileRuntimeWorkspaceCatalogFacade, "function");
@@ -623,6 +625,11 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createMobileRuntimeThreadFacadeService/);
   assert.match(threadFacade, /defaultCreateThreadRuntimeCompositionService/);
   assert.doesNotMatch(server, /createThreadRuntimeCompositionService/);
+  assert.match(server, /createMobileRuntimeThreadViewFacadeService/);
+  assert.match(fileText("adapters/mobile-runtime-thread-view-facade-service.js"), /defaultCreateThreadViewService/);
+  assert.match(server, /const threadViewMethod = \(methodName\) => \(\.\.\.args\) => threadViewFacade\(\)\[methodName\]\(\.\.\.args\)/);
+  assert.doesNotMatch(server, /threadViewService\./);
+  assert.doesNotMatch(server, /createThreadViewService\(/);
   assert.match(threadRuntime, /createThreadMessageRunRouteService/);
   assert.match(mobileComposition, /getThreadMessageRunRouteService\(\)\.handleThreadMessageCreate/);
   assert.match(threadRuntime, /createThreadMessageCreateService/);
@@ -804,9 +811,10 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
-  assert.match(doc, /2,100 lines/);
-  assert.match(doc, /220/);
+  assert.match(doc, /2,050 lines/);
+  assert.match(doc, /190/);
   assert.match(doc, /mobile-runtime-artifact-facade-service\.js` must stay at or below 140 lines/);
+  assert.match(doc, /mobile-runtime-thread-view-facade-service\.js` must stay at or below 140\s+lines/);
   assert.match(doc, /mobile-api-composition\.js` must stay at or below 650 lines/);
   assert.match(doc, /mobile-api-learning-composition\.js` must stay at or below 350 lines/);
   assert.match(doc, /mobile-runtime-environment-service\.js` must stay at or below 380 lines/);
@@ -836,6 +844,7 @@ function testServiceFirstArchitectureContract() {
   const mobileApiLearningCompositionSource = fileText("server-routes/mobile-api-learning-composition.js");
   const app = fileText("public/app.js");
   const artifactFacade = fileText("adapters/mobile-runtime-artifact-facade-service.js");
+  const threadViewFacade = fileText("adapters/mobile-runtime-thread-view-facade-service.js");
   const runtimeEnvironment = fileText("adapters/mobile-runtime-environment-service.js");
   const gatewayEnvironment = fileText("adapters/mobile-runtime-gateway-environment-service.js");
   const pathCandidateEnvironment = fileText("adapters/mobile-runtime-path-candidate-environment-service.js");
@@ -857,11 +866,13 @@ function testServiceFirstArchitectureContract() {
   const appLineCount = app.split(/\r?\n/).length;
   const appTopLevelFunctionCount = (app.match(/^function\s+/gm) || []).length;
   const artifactFacadeLineCount = artifactFacade.split(/\r?\n/).length;
+  const threadViewFacadeLineCount = threadViewFacade.split(/\r?\n/).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 2100, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2100`);
-  assert.ok(runtimeTopLevelFunctionCount <= 220, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 220`);
+  assert.ok(runtimeLineCount <= 2050, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2050`);
+  assert.ok(runtimeTopLevelFunctionCount <= 190, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 190`);
   assert.ok(artifactFacadeLineCount <= 140, `mobile-runtime-artifact-facade-service.js line budget exceeded: ${artifactFacadeLineCount} > 140`);
+  assert.ok(threadViewFacadeLineCount <= 140, `mobile-runtime-thread-view-facade-service.js line budget exceeded: ${threadViewFacadeLineCount} > 140`);
   assert.ok(mobileApiCompositionLineCount <= 650, `mobile-api-composition.js line budget exceeded: ${mobileApiCompositionLineCount} > 650`);
   assert.ok(mobileApiLearningCompositionLineCount <= 350, `mobile-api-learning-composition.js line budget exceeded: ${mobileApiLearningCompositionLineCount} > 350`);
   assert.ok(runtimeEnvironmentLineCount <= 380, `mobile-runtime-environment-service.js line budget exceeded: ${runtimeEnvironmentLineCount} > 380`);

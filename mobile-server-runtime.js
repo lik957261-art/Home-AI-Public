@@ -59,6 +59,7 @@ const { createMobileRuntimePublicStatusService } = require("./adapters/mobile-ru
 const { createMobileRuntimeStateFacadeService } = require("./adapters/mobile-runtime-state-facade-service");
 const { createMobileRuntimeSystemStatusFacadeService } = require("./adapters/mobile-runtime-system-status-facade-service");
 const { createMobileRuntimeThreadFacadeService } = require("./adapters/mobile-runtime-thread-facade-service");
+const { createMobileRuntimeThreadViewFacadeService } = require("./adapters/mobile-runtime-thread-view-facade-service");
 const { createMobileRuntimeWeixinFacadeService } = require("./adapters/mobile-runtime-weixin-facade-service");
 const { createMobileRuntimeWorkspaceFacadeService } = require("./adapters/mobile-runtime-workspace-facade-service");
 const { createMobileRuntimeWorkspaceCatalogFacade } = require("./adapters/mobile-runtime-workspace-catalog-facade");
@@ -71,7 +72,6 @@ const {
 const { deriveKanbanWorkflowState } = require("./adapters/study-workflow-provider");
 const { createSkillDetailProvider } = require("./adapters/skill-detail-provider"); const { createPluginRequiredSkillPreloadService } = require("./adapters/plugin-required-skill-preload-service"); const { createPluginCapabilityActivationService } = require("./adapters/plugin-capability-activation-service");
 const { buildRequestContext } = require("./adapters/request-context-provider");
-const { createThreadViewService } = require("./adapters/thread-view-service");
 const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindings-provider");
 const { createWorkspaceDisplayPathService } = require("./adapters/workspace-display-path-service");
 const { createTodoProvider } = require("./adapters/todo-provider");
@@ -194,11 +194,11 @@ let runtimeWorkspaceCatalogService = null;
 const sourceMarkdownSearchCache = new Map();
 let state = null;
 let sqliteServiceStore = null;
-let threadViewService = null;
 let todoPublicProjectionService = null;
 let kanbanOutputProjectionService = null;
 let singleWindowThreadService = null;
 let semanticDirectoryAttachmentService = null;
+let mobileRuntimeThreadViewFacadeService = null;
 let kanbanCaseTopicService = null;
 let kanbanPlanCardCreationService = null;
 let runtimeStateThreadService = null;
@@ -215,6 +215,13 @@ const artifactMethod = (methodName) => (...args) => artifactFacade()[methodName]
 const artifactDelegates = Object.fromEntries("safeFileName safeDirectoryName uniqueChildPath workspaceDefaultRoot threadUploadRoot workspaceUploadRoot uploadWorkspaceAllowedForThread uploadWorkspaceIdForRequest uploadRootsForThread workspaceUploadDirectoryForRequest registerUploadArtifact publicArtifactFromClient attachUploadedArtifactsToMessage getArtifactTextRegistrationService compactArtifactForMessage compactArtifactPathKey compactArtifactStemKey publicMarkdownPreviewArtifact sourceMarkdownSearchRoots findMarkdownByStemUnderRoot findSourceMarkdownForArtifact companionMarkdownPathForArtifact findThreadForMessage compactArtifactsForMessage registerArtifactsFromText".split(" ").map((methodName) => [methodName, artifactMethod(methodName)]));
 const { safeFileName, safeDirectoryName, uniqueChildPath, workspaceDefaultRoot, threadUploadRoot, workspaceUploadRoot, uploadWorkspaceAllowedForThread, uploadWorkspaceIdForRequest, uploadRootsForThread, workspaceUploadDirectoryForRequest, registerUploadArtifact, publicArtifactFromClient, attachUploadedArtifactsToMessage, getArtifactTextRegistrationService, compactArtifactForMessage, compactArtifactPathKey, compactArtifactStemKey, publicMarkdownPreviewArtifact, sourceMarkdownSearchRoots, findMarkdownByStemUnderRoot, findSourceMarkdownForArtifact, companionMarkdownPathForArtifact, findThreadForMessage, compactArtifactsForMessage, registerArtifactsFromText } = artifactDelegates;
 const extractArtifactPaths = (...args) => fileResourceService.extractArtifactPaths(...args);
+const threadViewFacade = () => {
+  if (!mobileRuntimeThreadViewFacadeService) throw new Error("Mobile runtime thread view facade is not initialized");
+  return mobileRuntimeThreadViewFacadeService;
+};
+const threadViewMethod = (methodName) => (...args) => threadViewFacade()[methodName](...args);
+const threadViewDelegates = Object.fromEntries("threadSummary taskGroupsForThread messageOwnerWorkspaceId taskGroupOwnerWorkspaceId taskGroupTaskId taskGroupPrompt taskGroupTitle taskGroupPreview taskGroupStatus taskGroupHaystack textIncludesPath taskGroupMatchesProject singleWindowProjectTaskSummaries messagesForThreadMode messagePageTaskGroupId threadMessagesPage searchThreadMessages compactThread compactThreadWithMessagePage compactMessage compactEventPreview addThreadEvent".split(" ").map((methodName) => [methodName, threadViewMethod(methodName)]));
+const { threadSummary, taskGroupsForThread, messageOwnerWorkspaceId, taskGroupOwnerWorkspaceId, taskGroupTaskId, taskGroupPrompt, taskGroupTitle, taskGroupPreview, taskGroupStatus, taskGroupHaystack, textIncludesPath, taskGroupMatchesProject, singleWindowProjectTaskSummaries, messagesForThreadMode, messagePageTaskGroupId, threadMessagesPage, searchThreadMessages, compactThread, compactThreadWithMessagePage, compactMessage, compactEventPreview, addThreadEvent } = threadViewDelegates;
 const mobileRuntimeStateFacadeService = createMobileRuntimeStateFacadeService({
   bootTrace,
   chatGroupMemberWorkspaceIds,
@@ -476,12 +483,13 @@ const mobileRuntimeWeixinFacadeService = createMobileRuntimeWeixinFacadeService(
 bootTrace("before loadState");
 state = loadState();
 bootTrace("after loadState");
-threadViewService = createThreadViewService({
+mobileRuntimeThreadViewFacadeService = createMobileRuntimeThreadViewFacadeService({
   compactArtifactsForMessage,
   compactText,
   comparablePath,
   findThreadForMessage,
   isSingleWindowConversationTaskGroupId,
+  maxEventPreviewChars: MAX_EVENT_PREVIEW_CHARS,
   maxApiTextChars: MAX_API_TEXT_CHARS,
   maxStoredEventsPerThread: MAX_STORED_EVENTS_PER_THREAD,
   normalizeTaskGroupMeta: (...args) => getRuntimeStateNormalizationService().normalizeTaskGroupMeta(...args),
@@ -1679,96 +1687,12 @@ const wakeWeixinOutboundDeliveriesForInboundEvent = (...args) => mobileRuntimeWe
 const pendingWeixinOutboundDeliveries = (...args) => mobileRuntimeWeixinFacadeService.pendingWeixinOutboundDeliveries(...args);
 const ackWeixinOutboundDelivery = (...args) => mobileRuntimeWeixinFacadeService.ackWeixinOutboundDelivery(...args);
 const startWeixinIngressEvent = (...args) => mobileRuntimeWeixinFacadeService.startWeixinIngressEvent(...args);
-function threadSummary(thread) {
-  return threadViewService.threadSummary(thread);
-}
-function taskGroupsForThread(thread) {
-  return threadViewService.taskGroupsForThread(thread);
-}
-function messageOwnerWorkspaceId(message, fallback = "") {
-  return threadViewService.messageOwnerWorkspaceId(message, fallback);
-}
-function taskGroupOwnerWorkspaceId(group, fallback = "") {
-  return threadViewService.taskGroupOwnerWorkspaceId(group, fallback);
-}
-function taskGroupTaskId(group) {
-  return threadViewService.taskGroupTaskId(group);
-}
-function taskGroupPrompt(group) {
-  return threadViewService.taskGroupPrompt(group);
-}
-function taskGroupTitle(group) {
-  return threadViewService.taskGroupTitle(group);
-}
-function taskGroupPreview(group) {
-  return threadViewService.taskGroupPreview(group);
-}
-function taskGroupStatus(group) {
-  return threadViewService.taskGroupStatus(group);
-}
-function taskGroupHaystack(group) {
-  return threadViewService.taskGroupHaystack(group);
-}
-function textIncludesPath(text, root) {
-  return threadViewService.textIncludesPath(text, root);
-}
-function taskGroupMatchesProject(group, project, subproject = null) {
-  return threadViewService.taskGroupMatchesProject(group, project, subproject);
-}
-function singleWindowProjectTaskSummaries(workspaceId, project, subproject, search = "") {
-  return threadViewService.singleWindowProjectTaskSummaries(workspaceId, project, subproject, search);
-}
-function messagesForThreadMode(thread, options = {}) {
-  return threadViewService.messagesForThreadMode(thread, options);
-}
-function messagePageTaskGroupId(options = {}) {
-  return threadViewService.messagePageTaskGroupId(options);
-}
-function threadMessagesPage(thread, options = {}) {
-  return threadViewService.threadMessagesPage(thread, options);
-}
-function searchThreadMessages(thread, options = {}) {
-  return threadViewService.searchThreadMessages(thread, options);
-}
-function compactThread(thread, options = {}) {
-  return threadViewService.compactThread(thread, options);
-}
-function compactThreadWithMessagePage(thread, options = {}) {
-  return threadViewService.compactThreadWithMessagePage(thread, options);
-}
-function compactMessage(message, thread = null) {
-  return threadViewService.compactMessage(message, thread);
-}
 function compactText(value, maxChars) {
   const text = String(value || "");
   if (text.length <= maxChars) return text;
   const head = Math.floor(maxChars * 0.45);
   const tail = maxChars - head;
   return `${text.slice(0, head)}\n\n[truncated: ${text.length} chars total]\n\n${text.slice(-tail)}`;
-}
-function compactEventPreview(value) {
-  if (value == null) return "";
-  if (typeof value === "string") return value;
-  try {
-    return JSON.stringify(value);
-  } catch (_) {
-    return String(value || "");
-  }
-}
-function addThreadEvent(thread, event) {
-  thread.events = thread.events || [];
-  thread.events.push({
-    event: String(event.event || event.type || "event"),
-    timestamp: event.timestamp || Date.now() / 1000,
-    runId: event.runId || event.run_id || null,
-    tool: event.tool || null,
-    preview: compactText(compactEventPreview(event.preview || event.text || event.error || ""), MAX_EVENT_PREVIEW_CHARS),
-    duration: event.duration || null,
-    error: Boolean(event.error),
-  });
-  if (thread.events.length > MAX_STORED_EVENTS_PER_THREAD) {
-    thread.events = thread.events.slice(-MAX_STORED_EVENTS_PER_THREAD);
-  }
 }
 function broadcast(payload) {
   eventFanoutService.broadcast(payload);
