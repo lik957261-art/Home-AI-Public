@@ -163,6 +163,11 @@ data migration, first run the checked dry-run in
 `messages.*directory*` and `artifacts.*` metadata can still contain
 `/mnt/c/ProgramData/HermesMobile/data/drive/users/` or
 `C:\ProgramData\HermesMobile\data\drive\users\` even when the actual files were
-copied to the Mac drive root. If a file previews for the wrong user, inspect
+copied to the Mac drive root. On Mac, also run the enhanced
+`--repair-rootless-drive` mode when metadata points at
+`<root>/data/drive/<top>/...` instead of the Owner workspace drive. Closure must
+include `scripts/macos-bound-directory-preview-smoke.js` with `includeChat=false`
+so current topic/plugin bindings prove previewable; use `--include-chat` only
+for separate historical stale-reference cleanup. If a file previews for the wrong user, inspect
 `file-artifact-access-service` and the route auth context. If Web Push opens a
 viewer inside another viewer, use `docs/RUNBOOKS/web-push-wrong-page.md`.

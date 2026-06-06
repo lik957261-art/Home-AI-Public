@@ -52,9 +52,12 @@ const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
 const { createLocalBridgeRuntimeService } = require("./adapters/local-bridge-runtime-service");
 const { createLocalWorkspaceStoreService } = require("./adapters/local-workspace-store-service"); const { createGatewayWorkspaceProvisioningService } = require("./adapters/gateway-workspace-provisioning-service");
 const { createMobileHttpRuntimeService } = require("./adapters/mobile-http-runtime-service");
+const { createMobileRuntimeHttpServerService } = require("./adapters/mobile-runtime-http-server-service");
 const { createMobileRuntimeCoreProviders } = require("./adapters/mobile-runtime-core-providers");
 const { createOwnerElevationRoutingService } = require("./adapters/owner-elevation-routing-service");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
+const { createMobileRuntimeFileHelperService } = require("./adapters/mobile-runtime-file-helper-service");
+const { createMobileRuntimeWorkspaceCatalogFacade } = require("./adapters/mobile-runtime-workspace-catalog-facade");
 const { createRuntimeWorkspaceCatalogService } = require("./adapters/runtime-workspace-catalog-service");
 const { createSemanticDirectoryAttachmentService } = require("./adapters/semantic-directory-attachment-service");
 const { createSingleWindowThreadService } = require("./adapters/single-window-thread-service");
@@ -120,6 +123,22 @@ const httpRuntimeService = createMobileHttpRuntimeService({
   maxBodyBytes: MAX_BODY_BYTES,
   mimeByExt: MIME_BY_EXT,
   publicRoot: PUBLIC_ROOT,
+});
+const {
+  contentDisposition,
+  extractDocxText,
+  mimeFor,
+  readJsonFirst,
+  serveStatic,
+  textBufferPreview,
+  textFilePreview,
+} = createMobileRuntimeFileHelperService({
+  bootTrace,
+  documentPreviewService,
+  fs,
+  httpRuntimeService,
+  isUncPath,
+  path,
 });
 let clients = new Set();
 let activeStreams = new Map();
@@ -218,13 +237,13 @@ const {
   env: process.env, extractDocxText,
   findArtifactReference: (...args) => getRuntimeStateThreadService().findArtifactReference(...args),
   findArtifactReferenceById: (...args) => getRuntimeStateThreadService().findArtifactReferenceById(...args),
-  findWorkspace, fs, isOwnerAuth, isPathAllowed, isPathAllowedForThread, loadCatalog,
+  findWorkspace: (...args) => findWorkspace(...args), fs, isOwnerAuth, isPathAllowed, isPathAllowedForThread, loadCatalog: (...args) => loadCatalog(...args),
   logicalDirectoryDisplayPath: (...args) => workspaceDisplayPathService.logicalDirectoryDisplayPath(...args),
   logicalUserPathFallback: (...args) => workspaceDisplayPathService.logicalUserPathFallback(...args),
   makeId, mimeFor, mobileSqliteStore, normalizeLocalPath, normalizeStringList, nowIso, os, path,
-  pathInsideAnyRoot, policyForThread, readJsonFirst, resolveArtifactPathFromMessage,
+  pathInsideAnyRoot, policyForThread: (...args) => policyForThread(...args), readJsonFirst, resolveArtifactPathFromMessage,
   resolveBrowserPath: (...args) => getDirectoryBrowserBoundaryService().resolveBrowserPath(...args),
-  runDirectoryBridge, runtimeEnv, sendJson, sharedDirectoryProjectsForWorkspace, sharedDirectoryRoots,
+  runDirectoryBridge, runtimeEnv, sendJson, sharedDirectoryProjectsForWorkspace: (...args) => sharedDirectoryProjectsForWorkspace(...args), sharedDirectoryRoots: (...args) => sharedDirectoryRoots(...args),
   state: () => state, textBufferPreview, textFilePreview, uploadRootsForThread, useSqliteServiceStore,
   windowsPathToWsl, workspacePrincipal,
 });
@@ -240,9 +259,9 @@ const runtimeConfigProvider = createRuntimeConfigProvider({
 }); const actionInboxService = createActionInboxService({ compactText, makeId, nowIso, store: mobileSqliteStore });
 webPushDeliveryService = createWebPushDeliveryService({
   actionInboxService: () => actionInboxService, appRouteUrl, automationProvider: () => automationProvider, chatGroupMemberWorkspaceIds, compactText, dedupe,
-  effectiveWebPushSubject, effectiveWebPushVapidPath, hashValue, findWorkspace,
+  effectiveWebPushSubject, effectiveWebPushVapidPath, hashValue, findWorkspace: (...args) => findWorkspace(...args),
   isWeixinSingleWindowThread: (...args) => getSingleWindowThreadService().isWeixinSingleWindowThread(...args),
-  loadCatalog, loadRuntimeConfig, logger: console, makeId, maybeReconcileKanbanDependencyBlocks, normalizeStringList,
+  loadCatalog: (...args) => loadCatalog(...args), loadRuntimeConfig, logger: console, makeId, maybeReconcileKanbanDependencyBlocks, normalizeStringList,
   nowIso, publicTodo, saveState, state: () => state, todoProvider: () => todoProvider, useKanbanTodoBackend,
   webpush, workspaceLabel, workspaceIdForPrincipal, workspacePrincipal,
   automationDeliverableExtensions: AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS,
@@ -294,6 +313,43 @@ const workspaceBindingsProvider = createWorkspaceBindingsProvider({
   ownerExternalInterfaceBindings: () => ownerExternalInterfaceBindings(),
 });
 bootTrace("workspace bindings ready");
+const {
+  allProjectsForWorkspaceSync,
+  buildAccessPolicy,
+  cachedDynamicProjectsForWorkspace,
+  dedupeProjects,
+  effectiveProjectForThread,
+  findProject,
+  findSubproject,
+  findWorkspace,
+  getSharedDirectoryProjectionService,
+  getWorkspaceProjectProvider,
+  invalidateCatalogCache,
+  isShareableRootProject,
+  loadCatalog,
+  mergeAccessPolicyOverride,
+  mergeDefaultExternalAccessPolicy,
+  normalizeSharePermission,
+  normalizeShareScope,
+  normalizeShareTargets,
+  policyForThread,
+  projectsForWorkspace,
+  publicProjectsForWorkspace,
+  publicSharedDirectory,
+  remoteWorkspaceDirectoryProjects,
+  removeSharedDirectoryRecord,
+  setDynamicProjectsForWorkspace,
+  shareableRootProjectForPath,
+  sharedDirectoriesForWorkspace,
+  sharedDirectoryLabel,
+  sharedDirectoryProjectsForWorkspace,
+  sharedDirectoryRoots,
+  updateSharedDirectoryAccess,
+  upsertSharedDirectory,
+} = createMobileRuntimeWorkspaceCatalogFacade({
+  getRuntimeWorkspaceCatalogService,
+  projectDiscoveryProvider,
+});
 const workspaceDisplayPathService = createWorkspaceDisplayPathService({
   allProjectsForWorkspaceSync,
   comparablePath,
@@ -474,7 +530,7 @@ function getLocalWorkspaceStoreService() {
       nowIso,
       normalizeStringList,
       normalizeStringMap,
-      findWorkspace,
+      findWorkspace: (...args) => findWorkspace(...args),
       deleteWorkspaceAccessKey: (workspaceId) => authProvider.deleteWorkspaceAccessKey(workspaceId),
       invalidateCatalogCache,
       clearDynamicProjectCache: (workspaceId) => getRuntimeWorkspaceCatalogService().clearDynamicProjectCache(workspaceId),
@@ -646,7 +702,7 @@ function getRuntimeStateNormalizationService() {
       chatGroupMemberWorkspaceIds,
       compactFullContent,
       dedupe,
-      findWorkspace,
+      findWorkspace: (...args) => findWorkspace(...args),
       groupMessageRevokedText: GROUP_MESSAGE_REVOKED_TEXT,
       kanbanCaseTopicKind: KANBAN_CASE_TOPIC_KIND,
       makeId,
@@ -1555,8 +1611,6 @@ function todoErrorResponse(res, result, fallbackStatus = 400) {
 function kanbanErrorResponse(res, result, fallbackStatus = 400) {
   sendJson(res, fallbackStatus, { error: result?.error || "Kanban operation failed", result });
 }
-function mimeFor(file) { return httpRuntimeService.mimeFor(file); }
-function contentDisposition(disposition, filename) { return httpRuntimeService.contentDisposition(disposition, filename); }
 function loadVapidConfig() {
   return webPushDeliveryService.loadVapidConfig();
 }
@@ -1569,68 +1623,9 @@ function generateWebPushVapidConfig(options = {}) {
 function reloadWebPush() {
   return webPushDeliveryService.initializeWebPush();
 }
-function extractDocxText(filePath) {
-  return documentPreviewService.extractDocxText(filePath);
-}
-function textFilePreview(filePath) {
-  return documentPreviewService.textFilePreview(filePath);
-}
-function textBufferPreview(buffer) {
-  return documentPreviewService.textBufferPreview(buffer);
-}
-function serveStatic(req, res) { return httpRuntimeService.serveStatic(req, res); }
-function readJsonFirst(paths, fallback = {}) {
-  for (const candidate of paths) {
-    const p = String(candidate || "").trim();
-    if (!p) continue;
-    try {
-      bootTrace(`readJsonFirst candidate ${isUncPath(p) ? "unc" : "local"} ${path.basename(p) || "root"}`);
-      if (!fs.existsSync(p)) continue;
-      bootTrace(`readJsonFirst exists ${path.basename(p) || "root"}`);
-      const parsed = JSON.parse(fs.readFileSync(p, "utf8"));
-      bootTrace(`readJsonFirst parsed ${path.basename(p) || "root"}`);
-      return { data: parsed, path: p };
-    } catch (_) {
-      // Try the next candidate. Recovery copies can be stale or damaged.
-    }
-  }
-  return { data: fallback, path: "" };
-}
-function getSharedDirectoryProjectionService(...args) { return getRuntimeWorkspaceCatalogService().getSharedDirectoryProjectionService(...args); }
-function sharedDirectoryLabel(...args) { return getRuntimeWorkspaceCatalogService().sharedDirectoryLabel(...args); }
-function normalizeSharePermission(...args) { return getRuntimeWorkspaceCatalogService().normalizeSharePermission(...args); }
-function normalizeShareTargets(...args) { return getRuntimeWorkspaceCatalogService().normalizeShareTargets(...args); }
-function normalizeShareScope(...args) { return getRuntimeWorkspaceCatalogService().normalizeShareScope(...args); }
-function sharedDirectoryRoots(...args) { return getRuntimeWorkspaceCatalogService().sharedDirectoryRoots(...args); }
-function publicSharedDirectory(...args) { return getRuntimeWorkspaceCatalogService().publicSharedDirectory(...args); }
-function removeSharedDirectoryRecord(...args) { return getRuntimeWorkspaceCatalogService().removeSharedDirectoryRecord(...args); }
-function sharedDirectoriesForWorkspace(...args) { return getRuntimeWorkspaceCatalogService().sharedDirectoriesForWorkspace(...args); }
-function updateSharedDirectoryAccess(...args) { return getRuntimeWorkspaceCatalogService().updateSharedDirectoryAccess(...args); }
-function upsertSharedDirectory(...args) { return getRuntimeWorkspaceCatalogService().upsertSharedDirectory(...args); }
 function sanitizePolicy(policy, hardeningOptions = {}) {
   return securityBoundaryProvider.hardenAccessPolicy(accessPolicyProvider.sanitize(policy), hardeningOptions);
 }
-function getWorkspaceProjectProvider(...args) { return getRuntimeWorkspaceCatalogService().getWorkspaceProjectProvider(...args); }
-function invalidateCatalogCache(...args) { return getRuntimeWorkspaceCatalogService().invalidateCatalogCache(...args); }
-function loadCatalog(...args) { return getRuntimeWorkspaceCatalogService().loadCatalog(...args); }
-function mergeDefaultExternalAccessPolicy(...args) { return getRuntimeWorkspaceCatalogService().mergeDefaultExternalAccessPolicy(...args); }
-function mergeAccessPolicyOverride(...args) { return getRuntimeWorkspaceCatalogService().mergeAccessPolicyOverride(...args); }
-function buildAccessPolicy(...args) { return getRuntimeWorkspaceCatalogService().buildAccessPolicy(...args); }
-function sharedDirectoryProjectsForWorkspace(...args) { return getRuntimeWorkspaceCatalogService().sharedDirectoryProjectsForWorkspace(...args); }
-function projectsForWorkspace(...args) { return getRuntimeWorkspaceCatalogService().projectsForWorkspace(...args); }
-function cachedDynamicProjectsForWorkspace(...args) { return getRuntimeWorkspaceCatalogService().cachedDynamicProjectsForWorkspace(...args); }
-function setDynamicProjectsForWorkspace(...args) { return getRuntimeWorkspaceCatalogService().setDynamicProjectsForWorkspace(...args); }
-function allProjectsForWorkspaceSync(...args) { return getRuntimeWorkspaceCatalogService().allProjectsForWorkspaceSync(...args); }
-function publicProjectsForWorkspace(...args) { return getRuntimeWorkspaceCatalogService().publicProjectsForWorkspace(...args); }
-function isShareableRootProject(...args) { return getRuntimeWorkspaceCatalogService().isShareableRootProject(...args); }
-function shareableRootProjectForPath(...args) { return getRuntimeWorkspaceCatalogService().shareableRootProjectForPath(...args); }
-function remoteWorkspaceDirectoryProjects(...args) { return getRuntimeWorkspaceCatalogService().remoteWorkspaceDirectoryProjects(...args); }
-const dedupeProjects = (...args) => projectDiscoveryProvider.dedupeProjects(...args);
-function findWorkspace(...args) { return getRuntimeWorkspaceCatalogService().findWorkspace(...args); }
-function findProject(...args) { return getRuntimeWorkspaceCatalogService().findProject(...args); }
-function findSubproject(...args) { return getRuntimeWorkspaceCatalogService().findSubproject(...args); }
-function effectiveProjectForThread(...args) { return getRuntimeWorkspaceCatalogService().effectiveProjectForThread(...args); }
-function policyForThread(...args) { return getRuntimeWorkspaceCatalogService().policyForThread(...args); }
 function getSingleWindowThreadService() {
   if (!singleWindowThreadService) {
     singleWindowThreadService = createSingleWindowThreadService({
@@ -2460,40 +2455,8 @@ const { eventStreamApiRoutes, mobileApiDispatcher, services: mobileApiServices =
   repoRoot: TOOL_ROOT, writeFile: (filePath, buffer, options = {}) => fs.writeFileSync(filePath, buffer, { flag: options.flag || "w" }),
   writeKanbanCardListCache,
 });
-const server = http.createServer(async (req, res) => {
-  try {
-    httpRuntimeService.attachSecurityHeaders(req, res);
-    const url = getUrl(req);
-    if ((await eventStreamApiRoutes.handle(req, res, url)).handled) return;
-    if (url.pathname.startsWith("/api/")) {
-      await mobileApiDispatcher.handle(req, res);
-      return;
-    }
-    serveStatic(req, res);
-  } catch (err) {
-    console.error(`Hermes Mobile request failed ${req.method || ""} ${req.url || ""}: ${err.stack || err.message || String(err)}`);
-    sendJson(res, 500, { error: err.message || String(err) });
-  }
-});
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
-reconcileDetachedActiveRuns();
-function shutdown() {
-  for (const stream of activeStreams.values()) {
-    try {
-      stream.controller.abort();
-    } catch (_) {}
-  }
-  process.exit(0);
-}
-server.listen(PORT, HOST, () => {
-  console.log(`Hermes Mobile listening on http://${HOST}:${PORT}`);
-  console.log(`Hermes API base: ${effectiveHermesApiBase()}`);
-  console.log(`State directory: ${DATA_DIR}`);
-  console.log(DISABLE_AUTH ? "Authentication disabled by HERMES_WEB_DISABLE_AUTH." : `Authentication enabled; Owner key source is ${authProvider.ownerKeySource()}.`);
-  if (!DISABLE_AUTH && authProvider.ownerKeySource() !== "env") {
-    console.log("Current process login key is not printed; use the configured Owner key file or HERMES_WEB_KEY.");
-  }
-  webPushDeliveryService.startTodoWebPushDispatcher(); webPushDeliveryService.startAutomationWebPushDispatcher();
-  mobileApiServices.learningGrowthSubmissionService?.scheduleEvaluationQueue?.();
-});
+createMobileRuntimeHttpServerService({
+  activeStreams, authProvider, dataDir: DATA_DIR, disableAuth: DISABLE_AUTH, effectiveHermesApiBase, eventStreamApiRoutes,
+  getUrl, host: HOST, http, httpRuntimeService, logger: console, mobileApiDispatcher, mobileApiServices, port: PORT,
+  process, reconcileDetachedActiveRuns, sendJson, serveStatic, webPushDeliveryService,
+}).start();

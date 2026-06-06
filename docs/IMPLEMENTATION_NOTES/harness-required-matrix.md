@@ -194,7 +194,14 @@ Required harness dimensions:
   `scripts/macos-directory-path-migration-repair.js` in dry-run mode after
   repair and require `changed=false`, zero value replacements, and zero JSON
   parse errors before treating directory-topic chip or artifact-card `404`
-  failures as ACL bugs.
+  failures as ACL bugs. If Mac rootless drive metadata exists, run the same
+  repair with `--repair-rootless-drive`, then run
+  `scripts/macos-bound-directory-preview-smoke.js` and require `ok=true` for
+  non-chat topic/plugin directory bindings. Use its `--include-chat` mode only
+  for separate historical stale-reference cleanup. Production write repairs
+  must stop the listener before the SQLite transaction and restart it before
+  the final dry-run/smoke, because stale in-memory runtime state can otherwise
+  rewrite repaired metadata.
 - A clean install may start with no plugin data. Owner must be able to enable
   plugins on demand through the standard provisioning contract instead of
   relying on pre-bound development data.

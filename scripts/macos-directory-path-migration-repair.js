@@ -23,6 +23,7 @@ function parseArgs(argv) {
     dbPath: "",
     write: false,
     json: false,
+    repairRootlessDrive: false,
     sampleLimit: 20,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -31,6 +32,7 @@ function parseArgs(argv) {
     else if (arg === "--db") out.dbPath = argv[++index] || out.dbPath;
     else if (arg === "--write") out.write = true;
     else if (arg === "--json") out.json = true;
+    else if (arg === "--repair-rootless-drive") out.repairRootlessDrive = true;
     else if (arg === "--sample-limit") out.sampleLimit = Number(argv[++index] || out.sampleLimit);
     else if (arg === "--help") {
       console.log([
@@ -38,6 +40,9 @@ function parseArgs(argv) {
         "  --root <dir>        Mac production root, default /Users/hermes-host/HermesMobile",
         "  --db <file>         SQLite DB path, default <root>/data/hermes-mobile.sqlite3",
         "  --write             Apply updates after copying DB/WAL/SHM backups",
+        "  --repair-rootless-drive",
+        "                      Also remap <root>/data/drive/<top>/... metadata",
+        "                      when exactly one matching owner workspace path exists",
         "  --sample-limit <n>  Maximum sample rows in JSON output, default 20",
         "  --json              Print bounded JSON metadata",
         "",
@@ -63,6 +68,25 @@ function macDriveUsersPrefix(root) {
   return `${String(root || DEFAULT_ROOT).replace(/\/+$/, "")}/data/drive/users/`.replace(/\\/g, "/");
 }
 
+function macDriveRootPrefix(root) {
+  return `${String(root || DEFAULT_ROOT).replace(/\/+$/, "")}/data/drive/`.replace(/\\/g, "/");
+}
+
+function repairContext(rootOrOptions = DEFAULT_ROOT) {
+  if (rootOrOptions && typeof rootOrOptions === "object") {
+    return {
+      root: String(rootOrOptions.root || DEFAULT_ROOT).replace(/\/+$/, ""),
+      repairRootlessDrive: Boolean(rootOrOptions.repairRootlessDrive),
+      rootlessCandidateCache: rootOrOptions.rootlessCandidateCache || new Map(),
+    };
+  }
+  return {
+    root: String(rootOrOptions || DEFAULT_ROOT).replace(/\/+$/, ""),
+    repairRootlessDrive: false,
+    rootlessCandidateCache: new Map(),
+  };
+}
+
 function compactPath(value, root = DEFAULT_ROOT) {
   const text = String(value || "");
   if (!text) return "";
@@ -86,7 +110,61 @@ function containsLegacyDrivePath(value) {
   return LEGACY_DRIVE_SEARCH_PREFIXES.some((prefix) => text.includes(prefix));
 }
 
-function remapLegacyDriveString(value, root = DEFAULT_ROOT) {
+function containsRootlessDrivePath(value, root = DEFAULT_ROOT) {
+  const text = String(value || "").replace(/\\+/g, "/").replace(/\/{2,}/g, "/");
+  const rootlessPrefix = macDriveRootPrefix(root);
+  let index = text.indexOf(rootlessPrefix);
+  while (index >= 0) {
+    const relative = text.slice(index + rootlessPrefix.length).replace(/^\/+/, "");
+    if (relative && !relative.startsWith("users/")) return true;
+    index = text.indexOf(rootlessPrefix, index + rootlessPrefix.length);
+  }
+  return false;
+}
+
+function containsRepairablePath(value, context) {
+  return containsLegacyDrivePath(value)
+    || (context.repairRootlessDrive && containsRootlessDrivePath(value, context.root));
+}
+
+function resolveRootlessDriveCandidate(value, context) {
+  if (!context.repairRootlessDrive) return "";
+  const input = String(value || "").replace(/\\/g, "/");
+  const rootlessPrefix = macDriveRootPrefix(context.root);
+  const usersPrefix = macDriveUsersPrefix(context.root);
+  if (!input.startsWith(rootlessPrefix) || input.startsWith(usersPrefix)) return "";
+  const relative = input.slice(rootlessPrefix.length).replace(/^\/+/, "");
+  if (!relative || relative.startsWith("users/")) return "";
+  if (context.rootlessCandidateCache.has(relative)) return context.rootlessCandidateCache.get(relative);
+
+  const ownerUsersRoot = path.join(context.root, "data", "drive", "users", "owner");
+  const matches = [];
+  try {
+    for (const entry of fs.readdirSync(ownerUsersRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const candidate = path.join(ownerUsersRoot, entry.name, relative);
+      if (fs.existsSync(candidate)) matches.push(candidate.replace(/\\/g, "/"));
+    }
+  } catch (_) {}
+  const resolved = matches.length === 1 ? matches[0] : "";
+  context.rootlessCandidateCache.set(relative, resolved);
+  return resolved;
+}
+
+function remapRootlessDriveString(value, context) {
+  const input = String(value || "");
+  const candidate = resolveRootlessDriveCandidate(input, context);
+  if (!candidate || candidate === input) return { value: input, changed: false, replacements: [] };
+  return {
+    value: candidate,
+    changed: true,
+    replacements: [{ legacyPrefix: macDriveRootPrefix(context.root), offset: 0, kind: "rootless-drive" }],
+  };
+}
+
+function remapLegacyDriveString(value, rootOrOptions = DEFAULT_ROOT) {
+  const context = repairContext(rootOrOptions);
+  const root = context.root;
   const input = String(value || "");
   if (!input) return { value: input, changed: false, replacements: [] };
   let output = input;
@@ -101,6 +179,9 @@ function remapLegacyDriveString(value, root = DEFAULT_ROOT) {
       nextIndex = output.indexOf(legacyPrefix, nextIndex + targetPrefix.length);
       if (output === before) break;
     }
+  }
+  if (!replacements.length && context.repairRootlessDrive) {
+    return remapRootlessDriveString(input, context);
   }
   if (!replacements.length) return { value: input, changed: false, replacements: [] };
   return {
@@ -119,18 +200,18 @@ function parseJson(value) {
   }
 }
 
-function remapJsonValue(value, root, samples, sampleLimit, stats, location) {
+function remapJsonValue(value, context, samples, sampleLimit, stats, location) {
   if (typeof value === "string") {
-    const mapped = remapLegacyDriveString(value, root);
+    const mapped = remapLegacyDriveString(value, context);
     if (!mapped.changed) return { value, changed: false };
     stats.valueReplacements += mapped.replacements.length;
-    const exists = mapped.value.startsWith(macDriveUsersPrefix(root)) ? fs.existsSync(mapped.value) : null;
+    const exists = mapped.value.startsWith(macDriveUsersPrefix(context.root)) ? fs.existsSync(mapped.value) : null;
     if (exists === false) stats.missingAfterRemap += 1;
     if (samples.length < sampleLimit) {
       samples.push({
         location,
-        before: compactPath(value, root),
-        after: compactPath(mapped.value, root),
+        before: compactPath(value, context.root),
+        after: compactPath(mapped.value, context.root),
         exists,
       });
     }
@@ -139,7 +220,7 @@ function remapJsonValue(value, root, samples, sampleLimit, stats, location) {
   if (Array.isArray(value)) {
     let changed = false;
     const next = value.map((item, index) => {
-      const mapped = remapJsonValue(item, root, samples, sampleLimit, stats, `${location}[${index}]`);
+      const mapped = remapJsonValue(item, context, samples, sampleLimit, stats, `${location}[${index}]`);
       if (mapped.changed) changed = true;
       return mapped.value;
     });
@@ -149,7 +230,7 @@ function remapJsonValue(value, root, samples, sampleLimit, stats, location) {
     let changed = false;
     const next = {};
     for (const [key, item] of Object.entries(value)) {
-      const mapped = remapJsonValue(item, root, samples, sampleLimit, stats, `${location}.${key}`);
+      const mapped = remapJsonValue(item, context, samples, sampleLimit, stats, `${location}.${key}`);
       if (mapped.changed) changed = true;
       next[key] = mapped.value;
     }
@@ -205,7 +286,7 @@ function scanJsonColumn(db, options, table, idColumn, column, samples, issues) {
   const updates = [];
   for (const row of rows) {
     stats.scannedRows += 1;
-    if (!containsLegacyDrivePath(row.value)) continue;
+    if (!containsRepairablePath(row.value, options)) continue;
     const parsed = parseJson(row.value);
     if (!parsed.ok) {
       stats.parseErrors += 1;
@@ -213,7 +294,7 @@ function scanJsonColumn(db, options, table, idColumn, column, samples, issues) {
       continue;
     }
     const fieldStats = emptyTableStats();
-    const mapped = remapJsonValue(parsed.value, options.root, samples, options.sampleLimit, fieldStats, `${table}.${column}:${row.id}`);
+    const mapped = remapJsonValue(parsed.value, options, samples, options.sampleLimit, fieldStats, `${table}.${column}:${row.id}`);
     addStats(stats, fieldStats);
     if (!mapped.changed) continue;
     stats.affectedRows += 1;
@@ -235,7 +316,8 @@ function scanStringColumn(db, options, table, idColumn, column, samples) {
   const updates = [];
   for (const row of rows) {
     stats.scannedRows += 1;
-    const mapped = remapLegacyDriveString(row.value, options.root);
+    if (!containsRepairablePath(row.value, options)) continue;
+    const mapped = remapLegacyDriveString(row.value, options);
     if (!mapped.changed) continue;
     stats.affectedRows += 1;
     stats.valueReplacements += mapped.replacements.length;
@@ -263,6 +345,8 @@ function repair(options) {
     root: String(options.root || DEFAULT_ROOT).replace(/\/+$/, ""),
     dbPath: options.dbPath || path.join(String(options.root || DEFAULT_ROOT).replace(/\/+$/, ""), "data", "hermes-mobile.sqlite3"),
     sampleLimit: Number.isFinite(options.sampleLimit) ? options.sampleLimit : 20,
+    repairRootlessDrive: Boolean(options.repairRootlessDrive),
+    rootlessCandidateCache: new Map(),
   });
   const samples = [];
   const issues = [];
@@ -314,6 +398,7 @@ function repair(options) {
   return {
     ok: issues.length === 0,
     mode: normalizedOptions.write ? "write" : "dry-run",
+    repairRootlessDrive: normalizedOptions.repairRootlessDrive,
     wrote: Boolean(normalizedOptions.write && changed),
     changed,
     dbPath: compactPath(normalizedOptions.dbPath, normalizedOptions.root),

@@ -34,6 +34,19 @@ Business logic belongs in focused services/providers under `adapters/` and route
 
 `server.js` is a thin process entrypoint. `mobile-server-runtime.js` remains a runtime composition root and should not accumulate new domain logic.
 
+Runtime glue that is deterministic or independently testable should also move
+out of the composition root. Current focused runtime adapters include:
+
+- `adapters/mobile-runtime-file-helper-service.js` for MIME/disposition,
+  document preview delegation, static serving delegation, and first-readable
+  JSON config loading.
+- `adapters/mobile-runtime-workspace-catalog-facade.js` for lazy workspace
+  catalog delegation without forcing the full catalog service to initialize at
+  module load time.
+- `adapters/mobile-runtime-http-server-service.js` for request dispatch,
+  startup logging, stream abort shutdown, Web Push dispatch startup, and
+  evaluation-queue bootstrap.
+
 Run `node tests\architecture-refactor-boundary.test.js` for non-trivial server/runtime changes.
 
 ## Major Domains

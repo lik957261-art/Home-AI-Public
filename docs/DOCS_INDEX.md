@@ -73,7 +73,9 @@ identifiers until a separate infrastructure migration is planned.
 - Mac production access and sudo/SSH rules:
   `docs/RUNBOOKS/macos-production-access.md`
 - Mac directory path migration repair:
-  `docs/RUNBOOKS/macos-directory-path-migration-repair.md`
+  `docs/RUNBOOKS/macos-directory-path-migration-repair.md`,
+  `scripts/macos-bound-directory-preview-smoke.js`,
+  `tests/macos-bound-directory-preview-smoke-harness.test.js`
 - Mac iOS Simulator Appium QA: `docs/RUNBOOKS/macos-ios-simulator-appium.md`
 - Mac plugin delivery-directory production smoke:
   `scripts/macos-plugin-directory-production-smoke.js`,

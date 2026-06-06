@@ -98,8 +98,11 @@ const learningTaskCardService = require("../adapters/learning-task-card-service"
 const learningTaskModelService = require("../adapters/learning-task-model-service");
 const learningTemplateRegistryService = require("../adapters/learning-template-registry-service");
 const mobileHttpRuntimeService = require("../adapters/mobile-http-runtime-service");
+const mobileRuntimeFileHelperService = require("../adapters/mobile-runtime-file-helper-service");
+const mobileRuntimeHttpServerService = require("../adapters/mobile-runtime-http-server-service");
 const mobileRuntimeCoreProviders = require("../adapters/mobile-runtime-core-providers");
 const mobileRuntimeEnvironmentService = require("../adapters/mobile-runtime-environment-service");
+const mobileRuntimeWorkspaceCatalogFacade = require("../adapters/mobile-runtime-workspace-catalog-facade");
 const markdownRenderer = require("../adapters/markdown-renderer");
 const naturalLanguageDraftService = require("../adapters/natural-language-draft-service");
 const noteReceiptSaveService = require("../adapters/note-receipt-save-service");
@@ -318,8 +321,11 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningTaskModelService.nextActionForTaskModel, "function");
   assert.equal(typeof learningTemplateRegistryService.createLearningTemplateRegistryService, "function");
   assert.equal(typeof mobileHttpRuntimeService.createMobileHttpRuntimeService, "function");
+  assert.equal(typeof mobileRuntimeFileHelperService.createMobileRuntimeFileHelperService, "function");
+  assert.equal(typeof mobileRuntimeHttpServerService.createMobileRuntimeHttpServerService, "function");
   assert.equal(typeof mobileRuntimeCoreProviders.createMobileRuntimeCoreProviders, "function");
   assert.equal(typeof mobileRuntimeEnvironmentService.createMobileRuntimeEnvironment, "function");
+  assert.equal(typeof mobileRuntimeWorkspaceCatalogFacade.createMobileRuntimeWorkspaceCatalogFacade, "function");
   assert.equal(typeof markdownRenderer.renderMarkdownDocument, "function");
   assert.equal(typeof markdownRenderer.renderWeixinMarkdownForwardHtml, "function");
   assert.equal(typeof naturalLanguageDraftService.createNaturalLanguageDraftService, "function");
@@ -419,8 +425,11 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const mobileComposition = fileText("server-routes/mobile-api-composition.js");
   const gatewayComposition = fileText("adapters/gateway-runtime-composition-service.js");
   const coreProviders = fileText("adapters/mobile-runtime-core-providers.js");
+  const fileHelpers = fileText("adapters/mobile-runtime-file-helper-service.js");
+  const httpServer = fileText("adapters/mobile-runtime-http-server-service.js");
   const kanbanRuntime = fileText("adapters/kanban-runtime-services.js");
   const workspaceCatalog = fileText("adapters/runtime-workspace-catalog-service.js");
+  const workspaceCatalogFacade = fileText("adapters/mobile-runtime-workspace-catalog-facade.js");
   const weixinRuntime = fileText("adapters/weixin-runtime-composition-service.js");
   const threadRuntime = fileText("adapters/thread-runtime-composition-service.js");
   const threadRouteService = fileText("adapters/thread-message-run-route-service.js");
@@ -436,6 +445,13 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /gatewayRunInstructionService\.buildHermesInstructions/);
   assert.match(server, /createGatewayRuntimeCompositionService/);
   assert.match(server, /createGatewayWorkerProfileLaunchService/);
+  assert.match(server, /createMobileRuntimeFileHelperService/);
+  assert.match(server, /createMobileRuntimeHttpServerService/);
+  assert.match(server, /createMobileRuntimeWorkspaceCatalogFacade/);
+  assert.match(fileHelpers, /readJsonFirst/);
+  assert.match(httpServer, /http\.createServer\(requestHandler\)/);
+  assert.match(workspaceCatalogFacade, /allProjectsForWorkspaceSync: call\("allProjectsForWorkspaceSync"\)/);
+  assert.doesNotMatch(server, /http\.createServer\(async/);
   assert.match(gatewayComposition, /createGatewayRunLifecycleService/);
   assert.match(gatewayComposition, /createGatewayRunQueueService/);
   assert.match(gatewayComposition, /createGatewayRunStartService/);
@@ -449,7 +465,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createGroupChatSharedAttachmentService/);
   assert.match(server, /getGroupChatSharedAttachmentService\(\)\.ensureSharedArtifactCopies/);
   assert.match(mobileComposition, /createMobileApiDispatcher/);
-  assert.match(server, /mobileApiDispatcher\.handle\(req, res\)/);
+  assert.match(httpServer, /mobileApiDispatcher\.handle\(req, res\)/);
   assert.match(dispatcher, /publicApiRoutes\.handle\(req, res, url\)/);
   assert.match(mobileComposition, /createSystemApiRoutes/);
   assert.match(dispatcher, /key: "systemApiRoutes"/);
@@ -470,7 +486,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createEventFanoutService/);
   assert.match(server, /eventFanoutService\.broadcast/);
   assert.match(mobileComposition, /createEventStreamApiRoutes/);
-  assert.match(server, /eventStreamApiRoutes\.handle\(req, res, url\)/);
+  assert.match(httpServer, /eventStreamApiRoutes\.handle\(req, res, url\)/);
   assert.match(mobileComposition, /createWeixinApiRoutes/);
   assert.match(dispatcher, /weixinApiRoutes\.handle\(req, res, url/);
   assert.match(weixinRuntime, /createWeixinIngressEventService/);
@@ -637,8 +653,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createSemanticDirectoryAttachmentService/);
   assert.match(fileText("adapters/semantic-directory-attachment-service.js"), /projectForTaskDirectoryAttachment/);
   assert.match(server, /createDocumentPreviewService/);
-  assert.match(server, /documentPreviewService\.extractDocxText/);
-  assert.match(server, /documentPreviewService\.textFilePreview/);
+  assert.match(fileHelpers, /documentPreviewService\.extractDocxText/);
+  assert.match(fileHelpers, /documentPreviewService\.textFilePreview/);
   assert.match(server, /fileResourceService\.extractArtifactPaths/);
   assert.match(weixinRuntime, /createWeixinForwardService/);
   assert.match(weixinRuntime, /getForwardService\(\)\.targetsForWorkspace/);
@@ -681,7 +697,7 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
-  assert.match(doc, /2,500 lines/);
+  assert.match(doc, /2,470 lines/);
   assert.match(doc, /430/);
   assert.match(doc, /public\/app\.js/);
   assert.match(doc, /10,000 lines/);
@@ -710,7 +726,7 @@ function testServiceFirstArchitectureContract() {
   const appTopLevelFunctionCount = (app.match(/^function\s+/gm) || []).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 2500, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2500`);
+  assert.ok(runtimeLineCount <= 2470, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 2470`);
   assert.ok(runtimeTopLevelFunctionCount <= 430, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 430`);
   assert.ok(appLineCount <= 10000, `public/app.js line budget exceeded: ${appLineCount} > 10000`);
   assert.ok(appTopLevelFunctionCount <= 120, `public/app.js top-level function budget exceeded: ${appTopLevelFunctionCount} > 120`);

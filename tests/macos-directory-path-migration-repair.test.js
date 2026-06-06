@@ -23,6 +23,8 @@ const normalizedDriveUsers = driveUsers.replace(/\\/g, "/");
 function writeFixtureDb() {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   fs.mkdirSync(path.join(root, "data", "drive", "users", "owner", "Hermes-Owner", "Project"), { recursive: true });
+  fs.mkdirSync(path.join(root, "data", "drive", "users", "owner", "Hermes-Owner", "Plugins", "Wardrobe"), { recursive: true });
+  fs.mkdirSync(path.join(root, "data", "drive", "Plugins", "Wardrobe"), { recursive: true });
   fs.writeFileSync(path.join(root, "data", "drive", "users", "owner", "Hermes-Owner", "Project", "report.md"), "ok\n", "utf8");
   const db = new DatabaseSync(dbPath);
   db.exec(`
@@ -62,6 +64,24 @@ function writeFixtureDb() {
         path: "C:\\ProgramData\\HermesMobile\\data\\drive\\users\\owner\\Hermes-Owner\\Project\\report.md",
       },
     ]),
+  );
+  db.prepare("INSERT INTO messages(id, directory_route_json, directory_aliases_json, artifacts_json) VALUES (?, ?, ?, ?)").run(
+    "msg_rootless",
+    JSON.stringify({
+      label: "Wardrobe",
+      canonicalRoot: path.join(root, "data", "drive", "users", "owner", "Hermes-Owner"),
+      root: path.join(root, "data", "drive", "Plugins"),
+      path: path.join(root, "data", "drive", "Plugins", "Wardrobe"),
+    }),
+    JSON.stringify([
+      {
+        label: "Wardrobe",
+        canonicalRoot: path.join(root, "data", "drive", "users", "owner", "Hermes-Owner"),
+        root: path.join(root, "data", "drive", "Plugins"),
+        path: path.join(root, "data", "drive", "Plugins", "Wardrobe"),
+      },
+    ]),
+    JSON.stringify([]),
   );
   db.prepare("INSERT INTO threads(id, task_group_meta_json) VALUES (?, ?)").run(
     "thread_1",
@@ -107,6 +127,7 @@ try {
   assert.equal(parsed.root, root);
   assert.equal(parsed.dbPath, dbPath);
   assert.equal(parsed.json, true);
+  assert.equal(parseArgs(["--root", root, "--repair-rootless-drive"]).repairRootlessDrive, true);
   assert.equal(compactPath(`${driveUsers}owner/Hermes-Owner`, root), "$DRIVE/users/owner/Hermes-Owner");
   assert.equal(containsLegacyDrivePath("/mnt/c/ProgramData/HermesMobile/data/drive/users/owner/a"), true);
   assert.equal(
@@ -155,6 +176,29 @@ try {
   const secondDryRun = repair({ root, dbPath, write: false, sampleLimit: 10 });
   assert.equal(secondDryRun.changed, false);
   assert.equal(secondDryRun.totals.affectedRows, 0);
+
+  const rootlessDryRun = repair({ root, dbPath, write: false, sampleLimit: 10, repairRootlessDrive: true });
+  assert.equal(rootlessDryRun.changed, true);
+  assert.equal(rootlessDryRun.repairRootlessDrive, true);
+  assert.equal(rootlessDryRun.results["messages.directory_route_json"].affectedRows, 1);
+  assert.equal(rootlessDryRun.results["messages.directory_aliases_json"].affectedRows, 1);
+
+  const rootlessWritten = repair({ root, dbPath, write: true, sampleLimit: 10, repairRootlessDrive: true });
+  assert.equal(rootlessWritten.ok, true);
+  assert.equal(rootlessWritten.changed, true);
+  assert.equal(rootlessWritten.wrote, true);
+  const rootlessMessage = readValue("SELECT directory_route_json, directory_aliases_json FROM messages WHERE id = ?", "msg_rootless");
+  assert.equal(
+    JSON.parse(rootlessMessage.directory_route_json).path,
+    path.join(root, "data", "drive", "users", "owner", "Hermes-Owner", "Plugins", "Wardrobe").replace(/\\/g, "/"),
+  );
+  assert.equal(
+    JSON.parse(rootlessMessage.directory_aliases_json)[0].path,
+    path.join(root, "data", "drive", "users", "owner", "Hermes-Owner", "Plugins", "Wardrobe").replace(/\\/g, "/"),
+  );
+  const rootlessSecondDryRun = repair({ root, dbPath, write: false, sampleLimit: 10, repairRootlessDrive: true });
+  assert.equal(rootlessSecondDryRun.changed, false);
+  assert.equal(rootlessSecondDryRun.totals.affectedRows, 0);
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }
