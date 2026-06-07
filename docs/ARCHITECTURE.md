@@ -79,6 +79,11 @@ out of the composition root. Current focused runtime adapters include:
   usage supplementation delegates. It keeps Gateway context assembly glue out
   of `mobile-server-runtime.js` while preserving the existing instruction,
   history, runtime-composition, and usage telemetry services as the authority.
+- `adapters/mobile-runtime-group-chat-facade-service.js` for group chat public
+  projection, message revoker identity, revoke authorization, paired assistant
+  lookup, and revoke payload mutation. It keeps group chat message policy out
+  of `mobile-server-runtime.js` while preserving single-window group routes as
+  the HTTP boundary.
 - `adapters/mobile-runtime-backend-policy-service.js` for deterministic
   Todo/Automation/SQLite backend mode decisions and direct Todo create switch
   parsing.

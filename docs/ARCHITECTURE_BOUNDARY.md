@@ -65,6 +65,7 @@ focused adapters such as `mobile-runtime-file-helper-service.js`,
 `mobile-runtime-gateway-environment-service.js`,
 `mobile-runtime-gateway-context-facade-service.js`,
 `mobile-runtime-gateway-facade-service.js`,
+`mobile-runtime-group-chat-facade-service.js`,
 `mobile-runtime-group-chat-attachment-service.js`,
 `mobile-runtime-kanban-environment-service.js`,
 `mobile-runtime-kanban-facade-service.js`,
@@ -86,9 +87,10 @@ helpers and JSON store file IO, Artifact/Markdown registration lazy delegation,
 backend mode policy, runtime config facade delegation, runtime environment
 aggregation, shared environment value parsing, Gateway/run environment parsing,
 Gateway runner/pool/launcher/provisioning/telemetry lazy delegation, group-chat
-attachment runtime wiring, Kanban/reading environment parsing, Local Bridge
-runtime lazy delegation, Kanban topic/projection/plan/assessment lazy
-delegation, Owner elevation grant/routing lazy delegation,
+public projection/revoke policy, group-chat attachment runtime wiring,
+Kanban/reading environment parsing, Local Bridge runtime lazy delegation,
+Kanban topic/projection/plan/assessment lazy delegation, Owner elevation
+grant/routing lazy delegation,
 WSL/config path candidate parsing, public status projections, runtime state
 normalization/persistence lazy delegation, DATA_DIR-derived state/storage path
 parsing, system status lazy delegation, thread runtime composition delegation,
@@ -159,14 +161,17 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,610 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 95;
+- `mobile-server-runtime.js` must stay at or below 1,570 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 88;
 - `mobile-runtime-file-access-facade-service.js` must stay at or below 115
   lines and remain a facade over lazy Directory browser boundary construction,
   file/artifact resolver delegation, and file response delegation;
 - `mobile-runtime-gateway-context-facade-service.js` must stay at or below 90
   lines and remain a facade over Gateway instruction, conversation-history,
   stale tool-schema claim, run-target, and usage supplementation delegates;
+- `mobile-runtime-group-chat-facade-service.js` must stay at or below 95 lines
+  and remain a facade over group chat public projection, revoke authorization,
+  paired assistant lookup, and revoke payload mutation;
 - `mobile-runtime-artifact-facade-service.js` must stay at or below 140 lines
   and remain a facade over `file-artifact-access-service.js` and
   `artifact-text-registration-service.js`;

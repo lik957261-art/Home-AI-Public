@@ -51,6 +51,7 @@ const { createMobileRuntimeConfigFacadeService } = require("./adapters/mobile-ru
 const { createMobileRuntimeFileAccessFacadeService } = require("./adapters/mobile-runtime-file-access-facade-service");
 const { createMobileRuntimeFileHelperService } = require("./adapters/mobile-runtime-file-helper-service");
 const { createMobileRuntimeGatewayContextFacadeService } = require("./adapters/mobile-runtime-gateway-context-facade-service");
+const { createMobileRuntimeGroupChatFacadeService } = require("./adapters/mobile-runtime-group-chat-facade-service");
 const { createMobileRuntimePublicStatusService } = require("./adapters/mobile-runtime-public-status-service");
 const { createMobileRuntimeStateFacadeService } = require("./adapters/mobile-runtime-state-facade-service");
 const { createMobileRuntimeSystemStatusFacadeService } = require("./adapters/mobile-runtime-system-status-facade-service");
@@ -183,6 +184,7 @@ let clients = new Set();
 let activeStreams = new Map();
 let gatewayRuntimeCompositionService = null;
 let mobileRuntimeFileAccessFacadeService = null;
+let mobileRuntimeGroupChatFacadeService = null;
 let mobileRuntimeArtifactFacadeService = null;
 let mobileRuntimeKanbanFacadeService = null;
 let mobileRuntimeWorkspaceFacadeService = null;
@@ -510,6 +512,18 @@ const mobileRuntimeWeixinFacadeService = createMobileRuntimeWeixinFacadeService(
 bootTrace("before loadState");
 state = loadState();
 bootTrace("after loadState");
+mobileRuntimeGroupChatFacadeService = createMobileRuntimeGroupChatFacadeService({
+  groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+  groupMessageRevokedText: GROUP_MESSAGE_REVOKED_TEXT,
+  isOwnerAuth,
+  normalizeChatGroup,
+  senderInfoForWorkspace,
+  workspaceLabel,
+});
+const groupChatRuntimeMethod = (methodName) => (...args) => mobileRuntimeGroupChatFacadeService[methodName](...args);
+const groupChatRuntimeDelegates = Object.fromEntries("canRevokeGroupChatMessage groupAssistantReplyForUserMessage groupMessageRevoker publicChatGroup revokeGroupMessagePayload".split(" ").map((methodName) => [methodName, groupChatRuntimeMethod(methodName)]));
+const { canRevokeGroupChatMessage, groupAssistantReplyForUserMessage, groupMessageRevoker, publicChatGroup, revokeGroupMessagePayload } = groupChatRuntimeDelegates;
+bootTrace("group chat facade ready");
 mobileRuntimeThreadViewFacadeService = createMobileRuntimeThreadViewFacadeService({
   compactArtifactsForMessage,
   compactText,
@@ -1220,21 +1234,6 @@ function senderInfoForWorkspace(workspaceId) {
   const id = String(workspaceId || "owner").trim() || "owner";
   return { senderWorkspaceId: id, senderPrincipalId: workspacePrincipal(id), senderLabel: workspaceLabel(id) };
 }
-function publicChatGroup(thread) {
-  const group = normalizeChatGroup(thread?.chatGroup || {}, thread?.workspaceId || "owner");
-  return {
-    enabled: group.enabled,
-    kind: group.kind || "",
-    topicKey: group.topicKey || "",
-    memberWorkspaceIds: group.memberWorkspaceIds,
-    members: group.memberWorkspaceIds.map((workspaceId) => ({
-      workspaceId,
-      label: workspaceLabel(workspaceId),
-    })),
-    createdAt: group.createdAt || "",
-    updatedAt: group.updatedAt || "",
-  };
-}
 function ownerExternalInterfaceBindings() {
   return externalIntegrationProvider.ownerInterfaceBindings();
 }
@@ -1391,46 +1390,6 @@ function appRouteUrl(params = {}) {
   }
   const serialized = query.toString();
   return serialized ? `/?${serialized}` : "/";
-}
-function groupMessageRevoker(auth) {
-  const workspaceId = isOwnerAuth(auth) ? "owner" : String(auth?.workspaceId || "").trim();
-  return senderInfoForWorkspace(workspaceId || "owner");
-}
-function canRevokeGroupChatMessage(auth, thread, message) {
-  if (!auth?.ok || !thread?.singleWindow || !message) return false;
-  if (message.role !== "user") return false;
-  if (message.taskGroupId !== SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID) return false;
-  if (message.revokedAt) return false;
-  if (isOwnerAuth(auth)) return true;
-  const workspaceId = String(auth.workspaceId || "").trim();
-  return Boolean(workspaceId && workspaceId === String(message.senderWorkspaceId || "").trim());
-}
-function groupAssistantReplyForUserMessage(thread, userMessage) {
-  const messages = thread?.messages || [];
-  const index = messages.findIndex((message) => message.id === userMessage?.id);
-  if (index < 0) return null;
-  const assistant = messages[index + 1];
-  if (
-    assistant?.role === "assistant"
-    && assistant.taskGroupId === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
-    && assistant.messageKind !== "plain"
-  ) {
-    return assistant;
-  }
-  return null;
-}
-function revokeGroupMessagePayload(message, now, revoker, text) {
-  message.content = text || GROUP_MESSAGE_REVOKED_TEXT;
-  message.revokedAt = now;
-  message.revokedByWorkspaceId = revoker.senderWorkspaceId || "";
-  message.revokedByPrincipalId = revoker.senderPrincipalId || "";
-  message.revokedByLabel = revoker.senderLabel || "";
-  message.error = null;
-  message.artifacts = [];
-  message.usage = null;
-  message.directoryAliases = [];
-  message.directoryRoute = null;
-  message.updatedAt = now;
 }
 function workspaceIdForPrincipal(principalId) {
   if (mobileRuntimeWorkspaceFacadeService) return mobileRuntimeWorkspaceFacadeService.workspaceIdForPrincipal(principalId);
