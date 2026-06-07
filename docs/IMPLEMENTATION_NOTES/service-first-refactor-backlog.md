@@ -136,6 +136,12 @@ statements. Priority extraction areas:
   coordinator for queue/start/stream/event/lifecycle services, while the
   deterministic queue/start/stream/event constructor option mapping has focused
   coverage and architecture budgets.
+- completed 2026-06-08: Gateway run request construction moved into
+  `adapters/gateway-run-request-builder-service.js`. The start service now
+  delegates actor workspace resolution, policy-thread projection, plugin-topic
+  requirements, required Skill preload metadata, toolset companion expansion,
+  conversation body construction, and Gateway routing metadata to a focused
+  deterministic builder with its own coverage and architecture budgets.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

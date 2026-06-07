@@ -74,6 +74,7 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-gateway-facade-service.js`,
 `gateway-runtime-composition-service.js`,
 `gateway-runtime-subservice-options-service.js`,
+`gateway-run-request-builder-service.js`,
 `gateway-run-content-service.js`,
 `mobile-runtime-group-chat-facade-service.js`,
 `mobile-runtime-group-chat-attachment-service.js`,
@@ -176,6 +177,21 @@ dependency-to-option projection from the Gateway runtime composition dependency
 bag into the queue, start, stream, and event child-service constructors. It
 must not implement Gateway lifecycle transitions, queue mutation, stream
 parsing, event handling, toolset selection, or notification delivery.
+
+`gateway-run-request-builder-service.js` owns deterministic Gateway run request
+construction: actor workspace resolution, policy-thread projection, task
+directory and project selection, plugin-topic requirements, required Skill
+preload metadata, model-first toolset companion expansion, plugin capability
+context application, conversation history/instruction body construction, and
+Gateway routing metadata. It must not mutate thread/message state, choose a
+Gateway worker, run model preflight, emit/broadcast run events, or start a
+stream.
+
+`gateway-run-start-service.js` owns Gateway run preparation state transitions,
+worker selection orchestration, optional plugin capability probing, model-first
+toolset preflight orchestration, wardrobe workflow gate checkpoints, and stream
+startup handoff. It must delegate deterministic request construction to
+`gateway-run-request-builder-service.js`.
 
 `app-route-url-service.js` owns app-shell query URL serialization for Push,
 Web Push, plugin notification, and other route-link producers. Runtime
@@ -373,6 +389,13 @@ Current CI guardrails:
 - `gateway-runtime-subservice-options-service.js` must stay at or below
   145 lines and remain the child-service option projection boundary, not a
   Gateway lifecycle, queue, stream, event, selector, or notification module;
+- `gateway-run-request-builder-service.js` must stay at or below
+  530 lines and remain deterministic Gateway run request construction, not a
+  state-transition, worker-selection, model-preflight, event, or streaming
+  module;
+- `gateway-run-start-service.js` must stay at or below 750 lines and remain
+  Gateway run preparation orchestration, not a request-builder or broad
+  Gateway composition module;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 220 lines
   and remain a runtime Gateway facade over runner/pool/launcher/provisioning,
   telemetry, run concurrency, Gateway runtime composition singleton ownership,
