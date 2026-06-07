@@ -786,20 +786,6 @@ function normalizePushReceipt(item) {
 function normalizePushSubscription(item, options = {}) {
   return mobileRuntimeStateFacadeService.normalizePushSubscription(item, options);
 }
-function scopedPushPrincipalIds(principalIds) {
-  const principals = normalizeStringList(principalIds);
-  if (!principals.length) return ["owner"];
-  if (principals.includes("owner")) return ["owner"];
-  return [principals[principals.length - 1]];
-}
-function scopedPushWorkspaceIds(principalId, workspaceIds = [], options = {}) {
-  const principal = String(principalId || "owner").trim() || "owner";
-  if (principal === "owner") return ["owner"];
-  const workspaceId = options.skipCatalogLookups
-    ? (normalizeStringList(workspaceIds)[0] || principal)
-    : (workspaceIdForPrincipal(principal) || normalizeStringList(workspaceIds)[0] || "");
-  return workspaceId ? [workspaceId] : [];
-}
 function pushSubscriptionScopeSignature(items) {
   return mobileRuntimeStateFacadeService.pushSubscriptionScopeSignature(items);
 }
