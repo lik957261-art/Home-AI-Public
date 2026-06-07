@@ -5,6 +5,7 @@ const { createGatewayRunStreamCloseRecoveryService } = require("./gateway-run-st
 const { createGatewayRunStreamFailureService } = require("./gateway-run-stream-failure-service");
 const { createGatewayRunStreamFirstEventService } = require("./gateway-run-stream-first-event-service");
 const { createGatewayRunStreamLivenessService } = require("./gateway-run-stream-liveness-service");
+const { createGatewayRunStreamLivenessTimerService } = require("./gateway-run-stream-liveness-timer-service");
 const { createGatewayRunStreamRegistryService } = require("./gateway-run-stream-registry-service");
 const { createGatewayRunStreamStopService } = require("./gateway-run-stream-stop-service");
 
@@ -37,8 +38,6 @@ function createGatewayRunStreamService(options = {}) {
     : (() => {});
   const markRunFailed = typeof options.markRunFailed === "function" ? options.markRunFailed : (() => {});
   const markRunCancelled = typeof options.markRunCancelled === "function" ? options.markRunCancelled : (() => {});
-  const setIntervalFn = typeof options.setInterval === "function" ? options.setInterval : setInterval;
-  const clearIntervalFn = typeof options.clearInterval === "function" ? options.clearInterval : clearInterval;
   const setTimeoutFn = typeof options.setTimeout === "function" ? options.setTimeout : setTimeout;
   const clearTimeoutFn = typeof options.clearTimeout === "function" ? options.clearTimeout : clearTimeout;
   const abortControllerFactory = typeof options.abortControllerFactory === "function"
@@ -150,6 +149,15 @@ function createGatewayRunStreamService(options = {}) {
     markRunFailed,
   });
   const handleStreamFailure = (...args) => streamFailureService.handleStreamFailure(...args);
+  const streamLivenessTimerService = options.streamLivenessTimerService || createGatewayRunStreamLivenessTimerService({
+    checkActiveStreamLiveness,
+    clearInterval: options.clearInterval,
+    configured,
+    logger,
+    setInterval: options.setInterval,
+  });
+  const clearLivenessTimer = (...args) => streamLivenessTimerService.clearLivenessTimer(...args);
+  const scheduleLivenessTimer = (...args) => streamLivenessTimerService.scheduleLivenessTimer(...args);
 
   function recordGatewayEvent(runId, event = {}) {
     const fallbackRunId = cleanString(runId);
@@ -242,15 +250,7 @@ function createGatewayRunStreamService(options = {}) {
       webSearchMaxCalls: streamOptions.webSearchMaxCalls,
       toolBudgetCounters: Object.create(null),
     };
-    const livenessIntervalMs = Math.max(0, configured("runLivenessCheckIntervalMs", 0));
-    if (livenessIntervalMs > 0) {
-      streamState.livenessTimer = setIntervalFn(() => {
-        checkActiveStreamLiveness(id).catch((err) => {
-          logger.error?.(`Hermes Mobile run liveness check failed: ${err.message || String(err)}`);
-        });
-      }, Math.max(5000, livenessIntervalMs));
-      if (typeof streamState.livenessTimer?.unref === "function") streamState.livenessTimer.unref();
-    }
+    scheduleLivenessTimer(id, streamState);
     registerActiveStream(id, streamState);
     scheduleFirstEventWarning(id, streamState);
     readResponseEvents(id, body, controller.signal)
@@ -272,7 +272,7 @@ function createGatewayRunStreamService(options = {}) {
       })
       .finally(() => {
         const stream = activeStreamForRun(id);
-        if (stream?.livenessTimer) clearIntervalFn(stream.livenessTimer);
+        clearLivenessTimer(stream);
         clearFirstEventTimer(stream);
         cleanupRunAliases(id);
       });

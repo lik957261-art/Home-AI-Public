@@ -266,6 +266,11 @@ statements. Priority extraction areas:
   warning/stale event projection, miss counter mutation, and failed-abort
   handoff while retaining liveness timer scheduling and response stream
   orchestration.
+- completed 2026-06-08: Gateway run stream liveness timer lifecycle moved into
+  `adapters/gateway-run-stream-liveness-timer-service.js`. The stream service
+  now delegates interval reading, minimum timer enforcement, periodic liveness
+  check scheduling, rejected-check logging, unrefing, and cleanup while
+  retaining response stream orchestration.
 - completed 2026-06-08: Gateway run stream stop behavior moved into
   `adapters/gateway-run-stream-stop-service.js`. The stream service now
   delegates requested run-id dedupe, local active-stream abort, remote Gateway

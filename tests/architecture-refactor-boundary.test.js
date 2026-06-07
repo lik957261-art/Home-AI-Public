@@ -36,6 +36,7 @@ const gatewayRunStreamEventService = require("../adapters/gateway-run-stream-eve
 const gatewayRunStreamFailureService = require("../adapters/gateway-run-stream-failure-service");
 const gatewayRunStreamFirstEventService = require("../adapters/gateway-run-stream-first-event-service");
 const gatewayRunStreamLivenessService = require("../adapters/gateway-run-stream-liveness-service");
+const gatewayRunStreamLivenessTimerService = require("../adapters/gateway-run-stream-liveness-timer-service");
 const gatewayRunStreamRegistryService = require("../adapters/gateway-run-stream-registry-service");
 const gatewayRunStreamStopService = require("../adapters/gateway-run-stream-stop-service");
 const gatewayRunStartAssistantOptionsService = require("../adapters/gateway-run-start-assistant-options-service");
@@ -318,6 +319,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof gatewayRunStreamFirstEventService.createGatewayRunStreamFirstEventService, "function");
   assert.equal(typeof gatewayRunStreamLivenessService.createGatewayRunStreamLivenessService, "function");
   assert.equal(typeof gatewayRunStreamLivenessService.createTimeoutSignal, "function");
+  assert.equal(typeof gatewayRunStreamLivenessTimerService.createGatewayRunStreamLivenessTimerService, "function");
+  assert.equal(typeof gatewayRunStreamLivenessTimerService.readIntervalMs, "function");
   assert.equal(typeof gatewayRunStreamRegistryService.createGatewayRunStreamRegistryService, "function");
   assert.equal(typeof gatewayRunStreamRegistryService.gatewayTargetFromActiveStream, "function");
   assert.equal(typeof gatewayRunStreamStopService.createGatewayRunStreamStopService, "function");
@@ -630,6 +633,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const gatewayRunStreamFailure = fileText("adapters/gateway-run-stream-failure-service.js");
   const gatewayRunStreamFirstEvent = fileText("adapters/gateway-run-stream-first-event-service.js");
   const gatewayRunStreamLiveness = fileText("adapters/gateway-run-stream-liveness-service.js");
+  const gatewayRunStreamLivenessTimer = fileText("adapters/gateway-run-stream-liveness-timer-service.js");
   const gatewayRunStreamRegistry = fileText("adapters/gateway-run-stream-registry-service.js");
   const gatewayRunStreamStop = fileText("adapters/gateway-run-stream-stop-service.js");
   const gatewayRunStartAssistantOptions = fileText("adapters/gateway-run-start-assistant-options-service.js");
@@ -1033,6 +1037,13 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(gatewayRunStreamLiveness, /function createTimeoutSignal/);
   assert.match(gatewayRunStreamLiveness, /async function checkActiveStreamLiveness/);
   assert.match(gatewayRunStreamLiveness, /const decision = livenessDecision\(/);
+  assert.match(gatewayRunStream, /createGatewayRunStreamLivenessTimerService/);
+  assert.match(gatewayRunStream, /streamLivenessTimerService\.scheduleLivenessTimer/);
+  assert.match(gatewayRunStream, /streamLivenessTimerService\.clearLivenessTimer/);
+  assert.match(gatewayRunStreamLivenessTimer, /function readIntervalMs/);
+  assert.match(gatewayRunStreamLivenessTimer, /function scheduleLivenessTimer/);
+  assert.match(gatewayRunStreamLivenessTimer, /function clearLivenessTimer/);
+  assert.match(gatewayRunStreamLivenessTimer, /checkActiveStreamLiveness\(publicRunId\)/);
   assert.match(gatewayRunStream, /createGatewayRunStreamCloseRecoveryService/);
   assert.match(gatewayRunStream, /streamCloseRecoveryService\.handleStreamClosedWithoutTerminal/);
   assert.match(gatewayRunStreamCloseRecovery, /function handleStreamClosedWithoutTerminal/);
@@ -1061,6 +1072,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.doesNotMatch(gatewayRunStream, /"run\.stream_failed"/);
   assert.doesNotMatch(gatewayRunStream, /const decision = livenessDecision\(/);
   assert.doesNotMatch(gatewayRunStream, /function createTimeoutSignal/);
+  assert.doesNotMatch(gatewayRunStream, /runLivenessCheckIntervalMs/);
+  assert.doesNotMatch(gatewayRunStream, /Hermes Mobile run liveness check failed/);
+  assert.doesNotMatch(gatewayRunStream, /clearIntervalFn/);
   assert.doesNotMatch(gatewayRunStream, /function handleStreamClosedWithoutTerminal/);
   assert.doesNotMatch(gatewayRunStream, /async function stopRunIds/);
   assert.doesNotMatch(gatewayRunStream, /\.stopRun\(runId/);
@@ -1545,6 +1559,7 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /gateway-run-stream-failure-service\.js` must stay at or below 60\s+lines/);
   assert.match(doc, /gateway-run-stream-first-event-service\.js` must stay at or below 75\s+lines/);
   assert.match(doc, /gateway-run-stream-liveness-service\.js` must stay at or below 115\s+lines/);
+  assert.match(doc, /gateway-run-stream-liveness-timer-service\.js` must stay at or below 55\s+lines/);
   assert.match(doc, /gateway-run-stream-registry-service\.js` must stay at or below 115\s+lines/);
   assert.match(doc, /gateway-run-stream-stop-service\.js` must stay at or below 85\s+lines/);
   assert.match(doc, /gateway-run-stream-service\.js` must stay at or below 305\s+lines/);
@@ -1609,6 +1624,7 @@ function testServiceFirstArchitectureContract() {
   const gatewayRunStreamFailure = fileText("adapters/gateway-run-stream-failure-service.js");
   const gatewayRunStreamFirstEvent = fileText("adapters/gateway-run-stream-first-event-service.js");
   const gatewayRunStreamLiveness = fileText("adapters/gateway-run-stream-liveness-service.js");
+  const gatewayRunStreamLivenessTimer = fileText("adapters/gateway-run-stream-liveness-timer-service.js");
   const gatewayRunStreamRegistry = fileText("adapters/gateway-run-stream-registry-service.js");
   const gatewayRunStreamStop = fileText("adapters/gateway-run-stream-stop-service.js");
   const gatewayConcurrency = fileText("adapters/mobile-runtime-gateway-concurrency-service.js");
@@ -1703,6 +1719,7 @@ function testServiceFirstArchitectureContract() {
   const gatewayRunStreamFailureLineCount = gatewayRunStreamFailure.split(/\r?\n/).length;
   const gatewayRunStreamFirstEventLineCount = gatewayRunStreamFirstEvent.split(/\r?\n/).length;
   const gatewayRunStreamLivenessLineCount = gatewayRunStreamLiveness.split(/\r?\n/).length;
+  const gatewayRunStreamLivenessTimerLineCount = gatewayRunStreamLivenessTimer.split(/\r?\n/).length;
   const gatewayRunStreamRegistryLineCount = gatewayRunStreamRegistry.split(/\r?\n/).length;
   const gatewayRunStreamStopLineCount = gatewayRunStreamStop.split(/\r?\n/).length;
   const gatewayConcurrencyLineCount = gatewayConcurrency.split(/\r?\n/).length;
@@ -1787,6 +1804,7 @@ function testServiceFirstArchitectureContract() {
   assert.ok(gatewayRunStreamFailureLineCount <= 60, `gateway-run-stream-failure-service.js line budget exceeded: ${gatewayRunStreamFailureLineCount} > 60`);
   assert.ok(gatewayRunStreamFirstEventLineCount <= 75, `gateway-run-stream-first-event-service.js line budget exceeded: ${gatewayRunStreamFirstEventLineCount} > 75`);
   assert.ok(gatewayRunStreamLivenessLineCount <= 115, `gateway-run-stream-liveness-service.js line budget exceeded: ${gatewayRunStreamLivenessLineCount} > 115`);
+  assert.ok(gatewayRunStreamLivenessTimerLineCount <= 55, `gateway-run-stream-liveness-timer-service.js line budget exceeded: ${gatewayRunStreamLivenessTimerLineCount} > 55`);
   assert.ok(gatewayRunStreamRegistryLineCount <= 115, `gateway-run-stream-registry-service.js line budget exceeded: ${gatewayRunStreamRegistryLineCount} > 115`);
   assert.ok(gatewayRunStreamStopLineCount <= 85, `gateway-run-stream-stop-service.js line budget exceeded: ${gatewayRunStreamStopLineCount} > 85`);
   assert.ok(gatewayRunStreamLineCount <= 305, `gateway-run-stream-service.js line budget exceeded: ${gatewayRunStreamLineCount} > 305`);

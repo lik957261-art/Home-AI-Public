@@ -103,6 +103,7 @@ focused adapters such as `app-route-url-service.js`,
 `gateway-run-stream-failure-service.js`,
 `gateway-run-stream-first-event-service.js`,
 `gateway-run-stream-liveness-service.js`,
+`gateway-run-stream-liveness-timer-service.js`,
 `gateway-run-stream-registry-service.js`,
 `gateway-run-stream-stop-service.js`,
 `mobile-runtime-group-chat-facade-service.js`,
@@ -217,6 +218,14 @@ projection, miss counter mutation, and failed-abort handoff. It must not own
 active stream storage, read response streams, parse Gateway events, stop remote
 runs, or mark thread/message terminal state.
 
+`gateway-run-stream-liveness-timer-service.js` owns Gateway stream liveness
+timer lifecycle: reading the liveness interval setting, scheduling the periodic
+active-run liveness check, logging rejected checks, applying the minimum timer
+interval, unrefing timers, and clearing stored timer handles during stream
+cleanup. It must not check Gateway liveness itself, read response streams, parse
+Gateway events, own active stream storage, stop remote runs, or mutate
+thread/message terminal state.
+
 `gateway-run-stream-registry-service.js` owns the active Gateway stream
 registry: public run id lookup, real run id aliases, Gateway target/url lookup
 from active streams or the pool fallback, alias cleanup, active stream count,
@@ -246,7 +255,9 @@ stream-closed-without-terminal recovery to
 run stop handling to `gateway-run-stream-stop-service.js`. It must delegate
 first-event warning timer scheduling and clearing to
 `gateway-run-stream-first-event-service.js`. It must delegate stream reader
-failure projection to `gateway-run-stream-failure-service.js`.
+failure projection to `gateway-run-stream-failure-service.js`. It must delegate
+liveness interval scheduling and clearing to
+`gateway-run-stream-liveness-timer-service.js`.
 
 `mobile-runtime-gateway-context-facade-service.js` owns stale tool-availability
 claim detection delegates for HTTP, image, DOCX, and audio tool schemas. Weixin
@@ -768,6 +779,10 @@ Current CI guardrails:
 - `gateway-run-stream-liveness-service.js` must stay at or below 115 lines and
   remain active-run liveness checking, not stream parsing, active-stream
   storage, remote stop, or terminal thread/message mutation;
+- `gateway-run-stream-liveness-timer-service.js` must stay at or below 55
+  lines and remain liveness timer scheduling/cleanup, not active-run liveness
+  checking, stream parsing, active-stream storage, remote stop, or terminal
+  thread/message mutation;
 - `gateway-run-stream-registry-service.js` must stay at or below 115 lines and
   remain an active-stream registry and alias/target lookup service, not a
   stream parser, liveness checker, event projector, or lifecycle module;
