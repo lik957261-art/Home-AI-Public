@@ -30,12 +30,13 @@ modules. It may:
 - keep short compatibility wrappers while a larger extraction is in progress.
 
 Route composition modules should stay domain-scoped. The main
-`server-routes/mobile-api-composition.js` module owns platform-level route
-aggregation and dispatcher construction only. Domain-heavy route/service graphs,
-such as Directory/file/artifact/Note receipt wiring or Growth/Learning and
-Kanban study wiring, belong in focused composition modules such as
-`server-routes/mobile-api-directory-composition.js` and
-`server-routes/mobile-api-learning-composition.js`.
+`server-routes/mobile-api-composition.js` module owns top-level route
+aggregation, service collection, and dispatcher construction only. Platform
+route construction belongs in `server-routes/mobile-api-platform-composition.js`.
+Domain-heavy route/service graphs, such as Directory/file/artifact/Note receipt
+wiring or Growth/Learning and Kanban study wiring, belong in focused
+composition modules such as `server-routes/mobile-api-directory-composition.js`
+and `server-routes/mobile-api-learning-composition.js`.
 
 `server-routes/mobile-api-directory-composition.js` is only the route
 composition boundary for Directory browser, Directory mutation/share,
@@ -44,6 +45,14 @@ file/artifact read, and Note receipt routes. It may construct
 through existing boundary services, but it must not implement Directory path
 authorization, file preview/transformation, artifact persistence, shared-root
 policy, or Note plugin business behavior.
+
+`server-routes/mobile-api-platform-composition.js` is only the route composition
+boundary for public setup/status, system status, Owner elevation, access-key,
+runtime-config, Push, Workspace, platform-currency, Resource, and Weixin ingress
+routes. It may construct `platform-currency-service.js`, but it must not own
+plugin business services, thread/message runtime behavior, Directory path
+authorization, Growth/Learning graphs, Todo/Automation domain behavior, or
+dispatcher registration policy.
 
 Current runtime glue that should stay out of the composition root lives in
 focused adapters such as `mobile-runtime-file-helper-service.js`,
@@ -164,8 +173,12 @@ Current CI guardrails:
 - `mobile-runtime-workspace-facade-service.js` must stay at or below 190 lines
   and remain a facade over local workspace store/projection, workspace/auth
   gate helpers, access-key delegation, sender labels, and principal mapping;
-- `mobile-api-composition.js` must stay at or below 550 lines and remain the
-  platform-level API aggregator, not a domain service graph;
+- `mobile-api-composition.js` must stay at or below 410 lines and remain the
+  top-level API aggregator, service collector, and dispatcher constructor, not
+  a domain service graph;
+- `mobile-api-platform-composition.js` must stay at or below 210 lines and
+  remain the public/system/Owner/access-key/runtime-config/Push/Workspace/
+  platform-currency/Resource/Weixin route composition boundary;
 - `mobile-api-directory-composition.js` must stay at or below 150 lines and
   remain the Directory/file/artifact/Note receipt route wiring boundary;
 - `mobile-api-learning-composition.js` must stay at or below 350 lines and

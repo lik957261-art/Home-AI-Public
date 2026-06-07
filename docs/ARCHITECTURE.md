@@ -37,8 +37,12 @@ Business logic belongs in focused services/providers under `adapters/` and route
 Route composition that becomes domain-specific should also be split out of the
 main API aggregator. Current focused route composition modules include:
 
-- `server-routes/mobile-api-composition.js` for platform-level API route
-  aggregation, dispatcher construction, and compatibility service exposure.
+- `server-routes/mobile-api-composition.js` for top-level API route
+  aggregation, service collection, dispatcher construction, and compatibility
+  service exposure.
+- `server-routes/mobile-api-platform-composition.js` for public setup/status,
+  system status, Owner elevation, access-key, runtime-config, Push, Workspace,
+  platform-currency, Resource, and Weixin ingress route wiring.
 - `server-routes/mobile-api-directory-composition.js` for Directory browser,
   Directory mutation/share, file/artifact read, and Note receipt route wiring.
   It owns the Directory boundary and shared-directory projection delegates plus
