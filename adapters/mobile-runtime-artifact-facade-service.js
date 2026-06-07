@@ -1,5 +1,7 @@
 "use strict";
 
+const defaultFs = require("node:fs");
+const defaultPath = require("node:path");
 const {
   createArtifactTextRegistrationService: defaultCreateArtifactTextRegistrationService,
 } = require("./artifact-text-registration-service");
@@ -18,6 +20,10 @@ function requiredFactory(options, name, fallback = null) {
 
 function createMobileRuntimeArtifactFacadeService(options = {}) {
   const fileArtifactAccessService = requiredObject(options, "fileArtifactAccessService");
+  const fs = options.fs || defaultFs;
+  const path = options.path || defaultPath;
+  const extractArtifactPaths = typeof options.extractArtifactPaths === "function" ? options.extractArtifactPaths : () => [];
+  const normalizeLocalPath = typeof options.normalizeLocalPath === "function" ? options.normalizeLocalPath : (value) => String(value || "");
   const createArtifactTextRegistrationService = requiredFactory(
     options,
     "createArtifactTextRegistrationService",
@@ -55,6 +61,22 @@ function createMobileRuntimeArtifactFacadeService(options = {}) {
     return getArtifactTextRegistrationService()[methodName](...args);
   }
 
+  function resolveArtifactPathFromMessage(artifact, message) {
+    const name = String(artifact?.name || "").trim();
+    const candidates = extractArtifactPaths(message?.content || "")
+      .map((rawPath) => {
+        const localPath = normalizeLocalPath(rawPath);
+        return { rawPath, localPath };
+      })
+      .filter((candidate) => candidate.localPath && fs.existsSync(candidate.localPath));
+    if (!candidates.length) return null;
+    if (name) {
+      const matched = candidates.find((candidate) => path.basename(candidate.localPath) === name || path.basename(candidate.rawPath) === name);
+      if (matched) return matched;
+    }
+    return candidates.length === 1 ? candidates[0] : null;
+  }
+
   return Object.freeze({
     safeFileName: (...args) => fileArtifact("safeFileName", args),
     safeDirectoryName: (...args) => fileArtifact("safeDirectoryName", args),
@@ -81,6 +103,7 @@ function createMobileRuntimeArtifactFacadeService(options = {}) {
     findThreadForMessage: (...args) => textArtifact("findThreadForMessage", args),
     compactArtifactsForMessage: (...args) => textArtifact("compactArtifactsForMessage", args),
     registerArtifactsFromText: (...args) => textArtifact("registerArtifactsFromText", args),
+    resolveArtifactPathFromMessage,
   });
 }
 

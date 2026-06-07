@@ -128,8 +128,54 @@ function testLazilyCreatesTextRegistrationServiceOnceWithRuntimeDeps() {
   ]);
 }
 
+function testResolvesArtifactPathFromMessageWithoutInitializingTextRegistration() {
+  const calls = [];
+  let created = 0;
+  const facade = createMobileRuntimeArtifactFacadeService({
+    fileArtifactAccessService: makeFileArtifactAccessService(calls),
+    createArtifactTextRegistrationService: () => {
+      created += 1;
+      return makeArtifactTextService(calls);
+    },
+    extractArtifactPaths(text) {
+      return String(text || "").match(/MEDIA:[^\s]+/g) || [];
+    },
+    fs: {
+      existsSync(value) {
+        return !String(value || "").includes("missing");
+      },
+    },
+    normalizeLocalPath(value) {
+      return String(value || "").replace(/^MEDIA:/, "").replaceAll("\\", "/");
+    },
+    path: {
+      basename(value) {
+        return String(value || "").split(/[\\/]/).filter(Boolean).pop() || "";
+      },
+    },
+  });
+
+  assert.deepEqual(facade.resolveArtifactPathFromMessage({}, { content: "MEDIA:C:/out/report.md" }), {
+    rawPath: "MEDIA:C:/out/report.md",
+    localPath: "C:/out/report.md",
+  });
+  assert.deepEqual(
+    facade.resolveArtifactPathFromMessage(
+      { name: "final.md" },
+      { content: "MEDIA:C:/out/report.md MEDIA:C:/out/final.md MEDIA:C:/out/missing.md" }
+    ),
+    {
+      rawPath: "MEDIA:C:/out/final.md",
+      localPath: "C:/out/final.md",
+    }
+  );
+  assert.equal(facade.resolveArtifactPathFromMessage({ name: "absent.md" }, { content: "MEDIA:C:/out/report.md MEDIA:C:/out/final.md" }), null);
+  assert.equal(created, 0);
+}
+
 testRequiresFileAccessService();
 testDelegatesFileAccessWithoutInitializingTextRegistration();
 testLazilyCreatesTextRegistrationServiceOnceWithRuntimeDeps();
+testResolvesArtifactPathFromMessageWithoutInitializingTextRegistration();
 
 console.log("mobile-runtime-artifact-facade-service tests passed");

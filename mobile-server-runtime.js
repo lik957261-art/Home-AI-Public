@@ -12,6 +12,11 @@ const { createDocumentPreviewService } = require("./adapters/document-preview-se
 const { createAppRouteUrlService } = require("./adapters/app-route-url-service");
 const { createEventFanoutService } = require("./adapters/event-fanout-service");
 const fileResourceService = require("./adapters/file-resource-service");
+const {
+  comparablePath: comparableBoundaryPath,
+  pathDirectChildOfRoot: boundaryPathDirectChildOfRoot,
+  pathInsideAnyRoot: boundaryPathInsideAnyRoot,
+} = require("./adapters/path-boundary-service");
 const { createAutomationJobFilterService } = require("./adapters/automation-job-filter-service");
 const { createAutomationProvider } = require("./adapters/automation-provider");
 const { createAutomationDeliveryRequirement, createDeliveryBoundaryInstructions } = require("./adapters/delivery-boundary-provider");
@@ -25,6 +30,7 @@ const { createMobileRuntimeGatewayFacadeService } = require("./adapters/mobile-r
 const { createMobileRuntimeGroupChatAttachmentService } = require("./adapters/mobile-runtime-group-chat-attachment-service");
 const { createMobileRuntimeKanbanFacadeService } = require("./adapters/mobile-runtime-kanban-facade-service");
 const { createMobileRuntimeOwnerElevationFacadeService } = require("./adapters/mobile-runtime-owner-elevation-facade-service");
+const { createMobileRuntimePathAccessService } = require("./adapters/mobile-runtime-path-access-service");
 const { createRuntimeStatePersistenceService } = require("./adapters/runtime-state-persistence-service");
 const {
   createRuntimeStateNormalizationService,
@@ -104,8 +110,29 @@ const { BRIDGE_HOST_URL, BRIDGE_HOST_KEY_PATH, STATUS_INCLUDE_CATALOG, GOOGLE_TO
 const { SINGLE_WINDOW_CHAT_TASK_GROUP_ID, SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID, isSingleWindowConversationTaskGroupId, singleWindowChatTaskGroupId, GROUP_MESSAGE_REVOKED_TEXT, GROUP_AI_REPLY_REVOKED_TEXT, SINGLE_WINDOW_PROJECT_ID, SINGLE_WINDOW_THREAD_TITLE } = runtimeEnv;
 const { OWNER_LABEL, OWNER_ROOT_FALLBACK_LABEL, OWNER_DRIVE_ROOT_NAMES, GENERIC_OWNER_TOPIC_PROJECT_PREFIXES, GENERIC_OWNER_TOPIC_PROJECT_IDS, PRINCIPAL_LABEL_PREFIXES } = runtimeEnv;
 const { REASONING_EFFORT_OPTIONS, VALID_REASONING_EFFORTS, MESSAGE_TIME_FIELDS, MIME_BY_EXT, AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS, AUTOMATION_PUSH_DELIVERABLE_LOOKBACK_MS, AUTOMATION_PUSH_DELIVERABLE_FUTURE_GRACE_MS, AUTOMATION_PUSH_INITIAL_LOOKBACK_MS } = runtimeEnv;
+const RUNTIME_PATH_COMPARE_OPTIONS = Object.freeze({
+  slashFirst: true,
+  stripWslPrefix: true,
+  mapWslMountDrive: true,
+});
+const comparablePath = (value) => comparableBoundaryPath(value, RUNTIME_PATH_COMPARE_OPTIONS);
+const pathInsideAnyRoot = (candidate, roots) => boundaryPathInsideAnyRoot(candidate, roots, RUNTIME_PATH_COMPARE_OPTIONS);
+const pathDirectChildOfRoot = (candidate, root) => boundaryPathDirectChildOfRoot(candidate, root, RUNTIME_PATH_COMPARE_OPTIONS);
 const mobileRuntimeBasicHelperService = createMobileRuntimeBasicHelperService({ crypto, normalizeStringList });
-const { boolParam, dedupe, hashValue, isUncPath, makeId, normalizeOwnerElevationDurations, normalizeSingleWindowMode, nowIso, responseTextFromValue } = mobileRuntimeBasicHelperService;
+const {
+  boolParam,
+  compactText,
+  dedupe,
+  hashValue,
+  isUncPath,
+  makeId,
+  makePublicTaskId,
+  normalizeOwnerElevationDurations,
+  normalizeSingleWindowMode,
+  nowIso,
+  responseTextFromValue,
+  searchableText,
+} = mobileRuntimeBasicHelperService;
 const mobileRuntimeBackendPolicyService = createMobileRuntimeBackendPolicyService({
   automationBackend: AUTOMATION_BACKEND,
   directTodoCreateSetting: DIRECT_TODO_CREATE_SETTING,
@@ -230,8 +257,8 @@ const artifactFacade = () => {
   return mobileRuntimeArtifactFacadeService;
 };
 const artifactMethod = (methodName) => (...args) => artifactFacade()[methodName](...args);
-const artifactDelegates = Object.fromEntries("safeFileName safeDirectoryName uniqueChildPath workspaceDefaultRoot threadUploadRoot workspaceUploadRoot uploadWorkspaceAllowedForThread uploadWorkspaceIdForRequest uploadRootsForThread workspaceUploadDirectoryForRequest registerUploadArtifact publicArtifactFromClient attachUploadedArtifactsToMessage getArtifactTextRegistrationService compactArtifactForMessage compactArtifactPathKey compactArtifactStemKey publicMarkdownPreviewArtifact sourceMarkdownSearchRoots findMarkdownByStemUnderRoot findSourceMarkdownForArtifact companionMarkdownPathForArtifact findThreadForMessage compactArtifactsForMessage registerArtifactsFromText".split(" ").map((methodName) => [methodName, artifactMethod(methodName)]));
-const { safeFileName, safeDirectoryName, uniqueChildPath, workspaceDefaultRoot, threadUploadRoot, workspaceUploadRoot, uploadWorkspaceAllowedForThread, uploadWorkspaceIdForRequest, uploadRootsForThread, workspaceUploadDirectoryForRequest, registerUploadArtifact, publicArtifactFromClient, attachUploadedArtifactsToMessage, getArtifactTextRegistrationService, compactArtifactForMessage, compactArtifactPathKey, compactArtifactStemKey, publicMarkdownPreviewArtifact, sourceMarkdownSearchRoots, findMarkdownByStemUnderRoot, findSourceMarkdownForArtifact, companionMarkdownPathForArtifact, findThreadForMessage, compactArtifactsForMessage, registerArtifactsFromText } = artifactDelegates;
+const artifactDelegates = Object.fromEntries("safeFileName safeDirectoryName uniqueChildPath workspaceDefaultRoot threadUploadRoot workspaceUploadRoot uploadWorkspaceAllowedForThread uploadWorkspaceIdForRequest uploadRootsForThread workspaceUploadDirectoryForRequest registerUploadArtifact publicArtifactFromClient attachUploadedArtifactsToMessage getArtifactTextRegistrationService compactArtifactForMessage compactArtifactPathKey compactArtifactStemKey publicMarkdownPreviewArtifact sourceMarkdownSearchRoots findMarkdownByStemUnderRoot findSourceMarkdownForArtifact companionMarkdownPathForArtifact findThreadForMessage compactArtifactsForMessage registerArtifactsFromText resolveArtifactPathFromMessage".split(" ").map((methodName) => [methodName, artifactMethod(methodName)]));
+const { safeFileName, safeDirectoryName, uniqueChildPath, workspaceDefaultRoot, threadUploadRoot, workspaceUploadRoot, uploadWorkspaceAllowedForThread, uploadWorkspaceIdForRequest, uploadRootsForThread, workspaceUploadDirectoryForRequest, registerUploadArtifact, publicArtifactFromClient, attachUploadedArtifactsToMessage, getArtifactTextRegistrationService, compactArtifactForMessage, compactArtifactPathKey, compactArtifactStemKey, publicMarkdownPreviewArtifact, sourceMarkdownSearchRoots, findMarkdownByStemUnderRoot, findSourceMarkdownForArtifact, companionMarkdownPathForArtifact, findThreadForMessage, compactArtifactsForMessage, registerArtifactsFromText, resolveArtifactPathFromMessage } = artifactDelegates;
 const extractArtifactPaths = (...args) => fileResourceService.extractArtifactPaths(...args);
 const threadViewFacade = () => {
   if (!mobileRuntimeThreadViewFacadeService) throw new Error("Mobile runtime thread view facade is not initialized");
@@ -335,6 +362,23 @@ const {
   pushSubscriptionScopeSignature,
 } = mobileRuntimeStateFacadeService;
 const saveState = (next = state, options = {}) => mobileRuntimeStateFacadeService.saveState(next, options);
+let mobileRuntimePathAccessService = null;
+function getMobileRuntimePathAccessService() {
+  if (!mobileRuntimePathAccessService) {
+    mobileRuntimePathAccessService = createMobileRuntimePathAccessService({
+      filesystemMountProvider,
+      pathPolicyProvider,
+      securityBoundaryProvider,
+    });
+  }
+  return mobileRuntimePathAccessService;
+}
+const normalizeLocalPath = (...args) => getMobileRuntimePathAccessService().normalizeLocalPath(...args);
+const windowsPathToWsl = (...args) => getMobileRuntimePathAccessService().windowsPathToWsl(...args);
+const allowedRoots = (...args) => getMobileRuntimePathAccessService().allowedRoots(...args);
+const isPathAllowed = (...args) => getMobileRuntimePathAccessService().isPathAllowed(...args);
+const isPathAllowedForThread = (...args) => getMobileRuntimePathAccessService().isPathAllowedForThread(...args);
+const isDirectoryBrowserPathAllowedForThread = (...args) => getMobileRuntimePathAccessService().isDirectoryBrowserPathAllowedForThread(...args);
 function getGatewayRuntimeCompositionService() {
   if (!gatewayRuntimeCompositionService) {
     gatewayRuntimeCompositionService = createGatewayRuntimeCompositionService({
@@ -413,11 +457,13 @@ mobileRuntimeArtifactFacadeService = createMobileRuntimeArtifactFacadeService({
   extractArtifactPaths,
   findProject: (...args) => findProject(...args),
   findSubproject: (...args) => findSubproject(...args),
+  fs,
   isPathAllowedForThread,
   makeId,
   mimeFor,
   normalizeLocalPath,
   nowIso,
+  path,
   sourceMarkdownSearchCache,
   sourceMarkdownSearchLimit: SOURCE_MARKDOWN_SEARCH_LIMIT,
   state: () => state,
@@ -812,21 +858,6 @@ function chatGroupMemberWorkspaceIds(thread, options = {}) {
   const group = normalizeChatGroup(thread.chatGroup || {}, thread.workspaceId, options);
   return group.enabled ? group.memberWorkspaceIds : [];
 }
-function resolveArtifactPathFromMessage(artifact, message) {
-  const name = String(artifact?.name || "").trim();
-  const candidates = extractArtifactPaths(message?.content || "")
-    .map((rawPath) => {
-      const localPath = normalizeLocalPath(rawPath);
-      return { rawPath, localPath };
-    })
-    .filter((candidate) => candidate.localPath && fs.existsSync(candidate.localPath));
-  if (!candidates.length) return null;
-  if (name) {
-    const matched = candidates.find((candidate) => path.basename(candidate.localPath) === name || path.basename(candidate.rawPath) === name);
-    if (matched) return matched;
-  }
-  return candidates.length === 1 ? candidates[0] : null;
-}
 const pushWorkspaceForAuth = (...args) => mobileRuntimeWorkspaceFacadeService.pushWorkspaceForAuth(...args);
 const getWorkspacePublicProjectionService = (...args) => mobileRuntimeWorkspaceFacadeService.getWorkspacePublicProjectionService(...args);
 const publicWorkspacesForAuth = (...args) => mobileRuntimeWorkspaceFacadeService.publicWorkspacesForAuth(...args);
@@ -852,7 +883,6 @@ function findDirectoryThreadForRequest(req, threadId) {
   if (thread) return thread;
   return isOwnerAuth(auth) ? ownerDirectoryBrowserThread() : null;
 }
-function windowsPathToWsl(value) { return filesystemMountProvider.windowsPathToWsl(value); }
 function mobileSqliteStore() {
   if (!sqliteServiceStore) {
     const { createMobileSqliteStore } = require("./adapters/mobile-sqlite-store");
@@ -1112,9 +1142,7 @@ async function hermesModelText(body, timeoutMs = AUTOMATION_CREATE_TIMEOUT_MS) {
     throw err;
   }
 }
-function normalizeAutomationDraft(raw, sourceText) {
-  return naturalLanguageDraftService.normalizeAutomationDraft(raw, sourceText);
-}
+const normalizeAutomationDraft = (...args) => naturalLanguageDraftService.normalizeAutomationDraft(...args);
 async function interpretAutomationNaturalLanguage(text, workspace, ownerPrincipalId) {
   return naturalLanguageDraftService.interpretAutomationNaturalLanguage(text, workspace, ownerPrincipalId);
 }
@@ -1155,36 +1183,6 @@ const listWorkspaceAccessKeyStatuses = (...args) => mobileRuntimeWorkspaceFacade
 const rotateWorkspaceAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.rotateWorkspaceAccessKey(...args);
 const revokeWorkspaceAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.revokeWorkspaceAccessKey(...args);
 const rotateGlobalAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.rotateGlobalAccessKey(...args);
-function pathInsideAnyRoot(candidate, roots) {
-  const normalized = comparablePath(candidate);
-  return (roots || []).some((root) => {
-    const r = comparablePath(root);
-    return normalized === r || normalized.startsWith(`${r}/`);
-  });
-}
-function pathRelativePartsUnderRoot(candidate, root) {
-  const normalized = comparablePath(candidate);
-  const r = comparablePath(root);
-  if (!normalized || !r || normalized === r || !normalized.startsWith(`${r}/`)) return null;
-  return normalized.slice(r.length + 1).split("/").filter(Boolean);
-}
-function pathDirectChildOfRoot(candidate, root) {
-  const parts = pathRelativePartsUnderRoot(candidate, root);
-  return Boolean(parts && parts.length === 1);
-}
-function comparablePath(value) {
-  let p = String(value || "").trim().replaceAll("\\", "/");
-  p = p.replace(/^\/\/wsl(?:\.localhost|\$)?\/[^/]+/i, "");
-  p = p.replace(/^\/mnt\/([a-zA-Z])\//, (_, drive) => `${drive.toLowerCase()}:/`);
-  p = p.replace(/^([A-Z]):\//, (_, drive) => `${drive.toLowerCase()}:/`);
-  if (/^[a-z]:\//i.test(p)) p = path.win32.normalize(p).replaceAll("\\", "/").replace(/^([A-Z]):\//, (_, drive) => `${drive.toLowerCase()}:/`);
-  else if (p.startsWith("/")) p = path.posix.normalize(p);
-  else p = path.posix.normalize(p);
-  return p.replace(/\/+$/, "").toLowerCase();
-}
-function searchableText(value) {
-  return String(value || "").toLowerCase().replace(/\s+/g, "");
-}
 function getSemanticDirectoryAttachmentService() {
   if (!semanticDirectoryAttachmentService) {
     semanticDirectoryAttachmentService = createSemanticDirectoryAttachmentService({
@@ -1254,15 +1252,7 @@ const resolveFileFromSourceUrlForRequest = (...args) => mobileRuntimeWeixinFacad
 const resolveWeixinForwardFile = (...args) => mobileRuntimeWeixinFacadeService.resolveWeixinForwardFile(...args);
 const publicArtifactForWeixinForward = (...args) => mobileRuntimeWeixinFacadeService.publicArtifactForWeixinForward(...args);
 const createWeixinFileForwardDelivery = (...args) => mobileRuntimeWeixinFacadeService.createWeixinFileForwardDelivery(...args);
-const redactWeixinRunErrorText = (...args) => mobileRuntimeWeixinFacadeService.redactWeixinRunErrorText(...args);
-function userFacingWeixinRunError(err) {
-  const raw = redactWeixinRunErrorText(err?.message || err).trim();
-  if (!raw) return "Hermes run failed before producing a reply.";
-  if (/terminated|cancelled|canceled|aborted/i.test(raw)) {
-    return "运行被终止，未生成回复。";
-  }
-  return raw;
-}
+const userFacingWeixinRunError = (...args) => mobileRuntimeWeixinFacadeService.userFacingWeixinRunError(...args);
 const weixinDeliveryRetryCount = (...args) => mobileRuntimeWeixinFacadeService.weixinDeliveryRetryCount(...args);
 const weixinDeliveryRetryDelayMs = (...args) => mobileRuntimeWeixinFacadeService.weixinDeliveryRetryDelayMs(...args);
 const isWeixinInboundWakeRequiredFailure = (...args) => mobileRuntimeWeixinFacadeService.isWeixinInboundWakeRequiredFailure(...args);
@@ -1272,13 +1262,6 @@ const wakeWeixinOutboundDeliveriesForInboundEvent = (...args) => mobileRuntimeWe
 const pendingWeixinOutboundDeliveries = (...args) => mobileRuntimeWeixinFacadeService.pendingWeixinOutboundDeliveries(...args);
 const ackWeixinOutboundDelivery = (...args) => mobileRuntimeWeixinFacadeService.ackWeixinOutboundDelivery(...args);
 const startWeixinIngressEvent = (...args) => mobileRuntimeWeixinFacadeService.startWeixinIngressEvent(...args);
-function compactText(value, maxChars) {
-  const text = String(value || "");
-  if (text.length <= maxChars) return text;
-  const head = Math.floor(maxChars * 0.45);
-  const tail = maxChars - head;
-  return `${text.slice(0, head)}\n\n[truncated: ${text.length} chars total]\n\n${text.slice(-tail)}`;
-}
 async function getHermesStatus() {
   const status = await singleGatewayRunner().status();
   let poolStatus = null;
@@ -1296,19 +1279,6 @@ async function getHermesStatus() {
   }
   return status;
 }
-function makePublicTaskId(prefix) {
-  const d = new Date();
-  const stamp = [
-    d.getFullYear(),
-    String(d.getMonth() + 1).padStart(2, "0"),
-    String(d.getDate()).padStart(2, "0"),
-    "_",
-    String(d.getHours()).padStart(2, "0"),
-    String(d.getMinutes()).padStart(2, "0"),
-    String(d.getSeconds()).padStart(2, "0"),
-  ].join("");
-  return `${prefix}_${stamp}_${crypto.randomBytes(3).toString("hex")}`;
-}
 const startRunForThread = (...args) => getGatewayRuntimeCompositionService().startRunForThread(...args);
 const stopRunIds = (...args) => getGatewayRuntimeCompositionService().stopRunIds(...args);
 const gatewayUrlForRun = (...args) => getGatewayRuntimeCompositionService().gatewayUrlForRun(...args);
@@ -1320,25 +1290,6 @@ const applyHermesRunEvent = (...args) => getGatewayRuntimeCompositionService().a
 const markRunFailed = (...args) => getGatewayRuntimeCompositionService().markRunFailed(...args);
 const markRunCancelled = (...args) => getGatewayRuntimeCompositionService().markRunCancelled(...args);
 const reconcileDetachedActiveRuns = (...args) => getGatewayRuntimeCompositionService().reconcileDetachedActiveRuns(...args);
-function volume1WindowsMirrorPath(rawPath) {
-  return filesystemMountProvider.volume1WindowsMirrorPath(rawPath);
-}
-function normalizeLocalPath(rawPath) {
-  return filesystemMountProvider.normalizeLocalPath(rawPath);
-}
-function allowedRoots() {
-  return securityBoundaryProvider.filterRoots(filesystemMountProvider.resolvedAllowedRoots());
-}
-function isPathAllowed(filePath) {
-  if (securityBoundaryProvider.isProtectedPath(filePath)) return false;
-  return filesystemMountProvider.isPathAllowed(filePath);
-}
-function isPathAllowedForThread(thread, localPath, originalPath = "") {
-  return pathPolicyProvider.canReadForThread(thread, localPath, originalPath).allowed;
-}
-function isDirectoryBrowserPathAllowedForThread(thread, localPath, originalPath = "") {
-  return pathPolicyProvider.canBrowseDirectoryForThread(thread, localPath, originalPath).allowed;
-}
 async function resolveAuthorizedCronOutputFile(query, auth = null) {
   return automationProvider.resolveAuthorizedOutputFile({ query, auth });
 }

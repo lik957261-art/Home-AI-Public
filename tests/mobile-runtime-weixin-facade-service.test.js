@@ -20,6 +20,7 @@ const delegatedMethods = [
   "resolveWeixinForwardFile",
   "resolveWeixinForwardTarget",
   "startWeixinIngressEvent",
+  "userFacingWeixinRunError",
   "wakeWeixinOutboundDeliveriesForInboundEvent",
   "weixinDeliveryMatchesInboundEvent",
   "weixinDeliveryRetryCount",

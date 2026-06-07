@@ -31,6 +31,20 @@ function createMobileRuntimeBasicHelperService(options = {}) {
     return `${prefix}_${nowMs().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
   }
 
+  function makePublicTaskId(prefix) {
+    const d = nowDate();
+    const stamp = [
+      d.getFullYear(),
+      String(d.getMonth() + 1).padStart(2, "0"),
+      String(d.getDate()).padStart(2, "0"),
+      "_",
+      String(d.getHours()).padStart(2, "0"),
+      String(d.getMinutes()).padStart(2, "0"),
+      String(d.getSeconds()).padStart(2, "0"),
+    ].join("");
+    return `${prefix}_${stamp}_${crypto.randomBytes(3).toString("hex")}`;
+  }
+
   function nowIso() {
     return nowDate().toISOString();
   }
@@ -52,6 +66,18 @@ function createMobileRuntimeBasicHelperService(options = {}) {
     return /^(1|true|yes|on)$/i.test(String(value || ""));
   }
 
+  function compactText(value, maxChars) {
+    const text = String(value || "");
+    if (text.length <= maxChars) return text;
+    const head = Math.floor(maxChars * 0.45);
+    const tail = maxChars - head;
+    return `${text.slice(0, head)}\n\n[truncated: ${text.length} chars total]\n\n${text.slice(-tail)}`;
+  }
+
+  function searchableText(value) {
+    return String(value || "").toLowerCase().replace(/\s+/g, "");
+  }
+
   function responseTextFromValue(value) {
     if (value == null) return "";
     if (typeof value === "string") return value;
@@ -70,14 +96,17 @@ function createMobileRuntimeBasicHelperService(options = {}) {
 
   return Object.freeze({
     boolParam,
+    compactText,
     dedupe,
     hashValue,
     isUncPath,
     makeId,
+    makePublicTaskId,
     normalizeOwnerElevationDurations,
     normalizeSingleWindowMode,
     nowIso,
     responseTextFromValue,
+    searchableText,
   });
 }
 

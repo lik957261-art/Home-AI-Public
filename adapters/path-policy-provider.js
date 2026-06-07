@@ -3,22 +3,14 @@
 const path = require("node:path");
 const fs = require("node:fs");
 const crypto = require("node:crypto");
+const {
+  comparablePath,
+  normalizePathForBoundary,
+  pathInsideAnyRoot,
+} = require("./path-boundary-service");
 
 function dedupe(values) {
   return [...new Set((values || []).map((item) => String(item || "").trim()).filter(Boolean))];
-}
-
-function comparablePath(value) {
-  return normalizePathForBoundary(value).replaceAll("\\", "/").replace(/\/+$/g, "").toLowerCase();
-}
-
-function pathInsideAnyRoot(candidate, roots) {
-  const key = comparablePath(candidate);
-  if (!key) return false;
-  return (roots || []).some((root) => {
-    const rootKey = comparablePath(root);
-    return rootKey && (key === rootKey || key.startsWith(`${rootKey}/`));
-  });
 }
 
 function shouldSkipRealpath(value) {
@@ -39,14 +31,6 @@ function realPathIfExists(value, cache = null) {
     if (cache) cache.set(text, text);
     return text;
   }
-}
-
-function normalizePathForBoundary(value) {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  if (/^[a-zA-Z]:[\\/]/.test(text) || /^\\\\/.test(text)) return path.win32.normalize(text);
-  if (/^\//.test(text)) return path.posix.normalize(text);
-  return path.normalize(text);
 }
 
 function pathModuleForBoundary(value) {

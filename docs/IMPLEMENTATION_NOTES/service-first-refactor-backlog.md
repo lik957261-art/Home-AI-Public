@@ -1,6 +1,6 @@
 # Service-First Refactor Backlog
 
-Last updated: 2026-06-07.
+Last updated: 2026-06-08.
 
 ## Purpose
 
@@ -35,6 +35,27 @@ statements. Priority extraction areas:
 - completed 2026-06-07: low-risk auth setup, Web Push VAPID, and external
   integration provider wrappers were converted to runtime delegates, lowering
   the runtime top-level function count without changing provider ownership;
+- completed 2026-06-08: deterministic path comparison helpers were extracted
+  to `adapters/path-boundary-service.js` and reused by runtime composition,
+  path policy, project discovery, and shared-directory providers. Authorization
+  decisions remain in their owning providers.
+- completed 2026-06-08: runtime path access wrappers were extracted to
+  `adapters/mobile-runtime-path-access-service.js`, keeping filesystem mount,
+  protected-path filtering, global allowed roots, and thread path-policy
+  delegation out of `mobile-server-runtime.js` while preserving lazy runtime
+  dependency wiring.
+- completed 2026-06-08: runtime text/id helper ownership moved into
+  `adapters/mobile-runtime-basic-helper-service.js`. `compactText` and
+  `makePublicTaskId` now have focused service coverage, while runtime keeps
+  only service wiring and call sites.
+- completed 2026-06-08: Weixin user-facing run-error projection now delegates
+  through `adapters/mobile-runtime-weixin-facade-service.js` to the existing
+  Weixin runtime composition service instead of being duplicated in
+  `mobile-server-runtime.js`.
+- completed 2026-06-08: `searchableText` moved into
+  `adapters/mobile-runtime-basic-helper-service.js`, and artifact path recovery
+  from visible message content moved into
+  `adapters/mobile-runtime-artifact-facade-service.js`.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

@@ -94,6 +94,7 @@ function createMobileRuntimeWeixinFacadeService(options = {}) {
     resolveWeixinForwardFile: (...args) => callService("resolveWeixinForwardFile", args),
     resolveWeixinForwardTarget: (...args) => callService("resolveWeixinForwardTarget", args),
     startWeixinIngressEvent: (...args) => callService("startWeixinIngressEvent", args),
+    userFacingWeixinRunError: (...args) => callService("userFacingWeixinRunError", args),
     wakeWeixinOutboundDeliveriesForInboundEvent: (...args) => callService("wakeWeixinOutboundDeliveriesForInboundEvent", args),
     weixinDeliveryMatchesInboundEvent: (...args) => callService("weixinDeliveryMatchesInboundEvent", args),
     weixinDeliveryRetryCount: (...args) => callService("weixinDeliveryRetryCount", args),

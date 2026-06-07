@@ -3,12 +3,17 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
+const {
+  comparablePath: comparableBoundaryPath,
+  pathInsideAnyRoot: boundaryPathInsideAnyRoot,
+} = require("./path-boundary-service");
 
 const READ_ONLY_LABEL = "\u53ea\u8bfb";
 const READ_WRITE_LABEL = "\u8bfb\u5199";
 const WORKSPACE_LABEL = "\u5de5\u4f5c\u533a";
 const ALL_WORKSPACES_LABEL = "\u6240\u6709\u5de5\u4f5c\u533a";
 const MIDDLE_DOT = "\u00b7";
+const SHARED_DIRECTORY_PATH_COMPARE_OPTIONS = Object.freeze({ slashFirst: true });
 
 function dedupe(values) {
   return [...new Set((values || []).map((item) => String(item || "").trim()).filter(Boolean))];
@@ -18,22 +23,8 @@ function hashId(value) {
   return crypto.createHash("sha1").update(String(value || "")).digest("hex").slice(0, 10);
 }
 
-function comparablePath(value) {
-  let p = String(value || "").trim().replaceAll("\\", "/");
-  if (/^[a-z]:\//i.test(p)) p = path.win32.normalize(p).replaceAll("\\", "/").replace(/^([A-Z]):\//, (_, drive) => `${drive.toLowerCase()}:/`);
-  else if (p.startsWith("/")) p = path.posix.normalize(p);
-  else p = path.posix.normalize(p);
-  return p.replace(/\/+$/g, "").toLowerCase();
-}
-
-function pathInsideAnyRoot(candidate, roots) {
-  const key = comparablePath(candidate);
-  if (!key) return false;
-  return (roots || []).some((root) => {
-    const rootKey = comparablePath(root);
-    return rootKey && (key === rootKey || key.startsWith(`${rootKey}/`));
-  });
-}
+const comparablePath = (value) => comparableBoundaryPath(value, SHARED_DIRECTORY_PATH_COMPARE_OPTIONS);
+const pathInsideAnyRoot = (candidate, roots) => boundaryPathInsideAnyRoot(candidate, roots, SHARED_DIRECTORY_PATH_COMPARE_OPTIONS);
 
 function sharedDirectoryLabel(rawPath) {
   const text = String(rawPath || "").trim().replace(/[\\/]+$/g, "");

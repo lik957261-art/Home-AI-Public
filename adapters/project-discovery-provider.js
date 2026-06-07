@@ -3,6 +3,12 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
+const {
+  comparablePath: comparableBoundaryPath,
+  pathInsideAnyRoot: boundaryPathInsideAnyRoot,
+} = require("./path-boundary-service");
+
+const PROJECT_DISCOVERY_PATH_COMPARE_OPTIONS = Object.freeze({ slashFirst: true });
 
 function trace(label) {
   const tracePath = process.env.HERMES_MOBILE_BOOT_TRACE_PATH || process.env.HERMES_WEB_BOOT_TRACE_PATH || "";
@@ -21,22 +27,8 @@ function hashId(value) {
   return crypto.createHash("sha1").update(String(value || "")).digest("hex").slice(0, 10);
 }
 
-function comparablePath(value) {
-  let p = String(value || "").trim().replaceAll("\\", "/");
-  if (/^[a-z]:\//i.test(p)) p = path.win32.normalize(p).replaceAll("\\", "/").replace(/^([A-Z]):\//, (_, drive) => `${drive.toLowerCase()}:/`);
-  else if (p.startsWith("/")) p = path.posix.normalize(p);
-  else p = path.posix.normalize(p);
-  return p.replace(/\/+$/g, "").toLowerCase();
-}
-
-function pathInsideAnyRoot(candidate, roots) {
-  const key = comparablePath(candidate);
-  if (!key) return false;
-  return (roots || []).some((root) => {
-    const rootKey = comparablePath(root);
-    return rootKey && (key === rootKey || key.startsWith(`${rootKey}/`));
-  });
-}
+const comparablePath = (value) => comparableBoundaryPath(value, PROJECT_DISCOVERY_PATH_COMPARE_OPTIONS);
+const pathInsideAnyRoot = (candidate, roots) => boundaryPathInsideAnyRoot(candidate, roots, PROJECT_DISCOVERY_PATH_COMPARE_OPTIONS);
 
 function joinDisplayPath(parent, name) {
   const base = String(parent || "");

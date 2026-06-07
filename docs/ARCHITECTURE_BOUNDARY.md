@@ -75,6 +75,7 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-kanban-facade-service.js`,
 `mobile-runtime-local-bridge-facade-service.js`,
 `mobile-runtime-owner-elevation-facade-service.js`,
+`mobile-runtime-path-access-service.js`,
 `mobile-runtime-path-candidate-environment-service.js`,
 `mobile-runtime-public-status-service.js`,
 `mobile-runtime-state-facade-service.js`,
@@ -114,10 +115,11 @@ addressable through CodeGraph without loading the full runtime root.
 
 `mobile-runtime-artifact-facade-service.js` is only a runtime wiring facade. It
 may lazy-create `artifact-text-registration-service.js` and delegate upload
-access to `file-artifact-access-service.js`, but it must not implement file
-conversion, path authorization, Markdown discovery policy, artifact persistence,
-or `saveState` behavior. The source Markdown search cache must remain
-process-scoped, not per request.
+access to `file-artifact-access-service.js`. It may own bounded artifact path
+recovery from already-visible message content for resolver fallback, but it
+must not implement file conversion, path authorization, Markdown discovery
+policy, artifact persistence, or `saveState` behavior. The source Markdown
+search cache must remain process-scoped, not per request.
 
 `mobile-runtime-thread-view-facade-service.js` is only a runtime wiring facade
 over `thread-view-service.js` plus bounded thread event append/preview
@@ -167,6 +169,22 @@ operation-error JSON response wrappers. Route composition may keep receiving
 `mobile-server-runtime.js` must not carry duplicate function implementations for
 those response shapes.
 
+`path-boundary-service.js` owns deterministic path comparison primitives used
+by Directory, shared-root, project-discovery, and runtime composition code:
+boundary normalization, comparable path keys, root containment checks, and
+relative child checks. Runtime composition and provider modules may configure
+options such as slash-first comparison or WSL mount conversion, but they must
+not carry duplicate `comparablePath`, `pathInsideAnyRoot`,
+`pathRelativePartsUnderRoot`, or `pathDirectChildOfRoot` implementations.
+
+`mobile-runtime-path-access-service.js` owns the runtime path-access facade over
+filesystem mount normalization, security-boundary filtering, global allowed-root
+checks, and thread path-policy checks. `mobile-server-runtime.js` may keep
+lazy delegates such as `normalizeLocalPath`, `windowsPathToWsl`, and
+`isPathAllowedForThread` for dependency wiring, but it must not carry duplicate
+top-level implementations of path normalization, allowed-root filtering,
+global path authorization, or thread directory-browser authorization.
+
 `mobile-runtime-state-facade-service.js` owns runtime state normalization and
 persistence lazy delegation. Runtime composition may bind facade methods as
 readable delegates, including the `saveState(next = state, options = {})`
@@ -188,8 +206,9 @@ top-level wrapper functions for those provider methods.
 `mobile-runtime-basic-helper-service.js` owns deterministic runtime primitives:
 de-duplication, UNC path detection, hashing, id generation, current time
 formatting, boolean query parsing, single-window mode normalization, Owner
-elevation duration normalization, and response text extraction from structured
-Gateway/Responses values. Runtime
+elevation duration normalization, bounded text compaction, searchable text
+normalization, public task id formatting, and response text extraction from
+structured Gateway/Responses values. Runtime
 composition may wire these helpers into services, but it must not carry
 duplicate helper implementations or add permission, route, provider, Gateway
 lifecycle, or workspace policy to this service.
@@ -215,7 +234,7 @@ Weixin outbound delivery projection belongs in
 `mobile-runtime-weixin-facade-service.js` and
 `weixin-runtime-composition-service.js`. Thread-view runtime wiring may receive
 a delegate, but `mobile-server-runtime.js` must not define a duplicate
-`publicWeixinOutboundDelivery` wrapper function.
+`publicWeixinOutboundDelivery` or `userFacingWeixinRunError` wrapper function.
 
 `server.js` and `mobile-server-runtime.js` must not own new business behavior such as:
 
@@ -248,17 +267,23 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,420 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 32;
+- `mobile-server-runtime.js` must stay at or below 1,370 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 16;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
+- `path-boundary-service.js` must stay at or below 65 lines and remain a
+  deterministic path comparison helper, not a path authorization or filesystem
+  mutation policy module;
+- `mobile-runtime-path-access-service.js` must stay at or below 70 lines and
+  remain a runtime facade over filesystem mount, security boundary, and path
+  policy providers, not a new path-policy engine;
 - `automation-job-filter-service.js` must stay at or below 45 lines and remain
   a deterministic Automation/Cron list filter, not a route or bridge execution
   module;
 - `runtime-operation-error-response-service.js` must stay at or below 35 lines
   and remain a deterministic operation-error response adapter, not a route
   module or domain policy implementation;
-- `mobile-runtime-basic-helper-service.js` must stay at or below 95 lines and
+- `mobile-runtime-basic-helper-service.js` must stay at or below 120 lines and
   remain a deterministic helper service for basic runtime primitives, not a
   route, provider, permission, or Gateway lifecycle policy module;
 - `mobile-runtime-file-access-facade-service.js` must stay at or below 115
@@ -287,6 +312,9 @@ Current CI guardrails:
 - `mobile-runtime-kanban-facade-service.js` must stay at or below 380 lines and
   remain a facade over existing Kanban projection/topic/plan/assessment
   services plus cache/maintenance delegates;
+- `mobile-runtime-weixin-facade-service.js` must stay at or below 115 lines and
+  remain a facade over Weixin runtime composition, not an ingress/outbound
+  delivery implementation;
 - `mobile-runtime-workspace-facade-service.js` must stay at or below 190 lines
   and remain a facade over local workspace store/projection, workspace/auth
   gate helpers, access-key delegation, sender labels, and principal mapping;
