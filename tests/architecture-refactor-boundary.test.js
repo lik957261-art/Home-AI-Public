@@ -105,6 +105,7 @@ const learningTaskCardService = require("../adapters/learning-task-card-service"
 const learningTaskModelService = require("../adapters/learning-task-model-service");
 const learningTemplateRegistryService = require("../adapters/learning-template-registry-service");
 const mobileHttpRuntimeService = require("../adapters/mobile-http-runtime-service");
+const mobileRuntimeAccessPolicyFacadeService = require("../adapters/mobile-runtime-access-policy-facade-service");
 const mobileRuntimeAuthFacadeService = require("../adapters/mobile-runtime-auth-facade-service");
 const mobileRuntimeBasicHelperService = require("../adapters/mobile-runtime-basic-helper-service");
 const mobileRuntimeBackendPolicyService = require("../adapters/mobile-runtime-backend-policy-service");
@@ -376,6 +377,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningTaskModelService.nextActionForTaskModel, "function");
   assert.equal(typeof learningTemplateRegistryService.createLearningTemplateRegistryService, "function");
   assert.equal(typeof mobileHttpRuntimeService.createMobileHttpRuntimeService, "function");
+  assert.equal(typeof mobileRuntimeAccessPolicyFacadeService.createMobileRuntimeAccessPolicyFacadeService, "function");
   assert.equal(typeof mobileRuntimeAuthFacadeService.createMobileRuntimeAuthFacadeService, "function");
   assert.equal(typeof mobileRuntimeArtifactFacadeService.createMobileRuntimeArtifactFacadeService, "function");
   assert.equal(typeof mobileRuntimeBasicHelperService.createMobileRuntimeBasicHelperService, "function");
@@ -522,6 +524,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const kanbanFacade = fileText("adapters/mobile-runtime-kanban-facade-service.js");
   const gatewayComposition = fileText("adapters/gateway-runtime-composition-service.js");
   const coreProviders = fileText("adapters/mobile-runtime-core-providers.js");
+  const accessPolicyFacade = fileText("adapters/mobile-runtime-access-policy-facade-service.js");
   const authFacade = fileText("adapters/mobile-runtime-auth-facade-service.js");
   const backendPolicy = fileText("adapters/mobile-runtime-backend-policy-service.js");
   const configFacade = fileText("adapters/mobile-runtime-config-facade-service.js");
@@ -581,6 +584,10 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createMobileRuntimeBackendPolicyService/);
   assert.match(backendPolicy, /function backendIsLocal/);
   assert.doesNotMatch(server, /function backendIsLocal/);
+  assert.match(server, /createMobileRuntimeAccessPolicyFacadeService/);
+  assert.match(accessPolicyFacade, /accessPolicyProvider\.sanitize/);
+  assert.match(accessPolicyFacade, /securityBoundaryProvider\.hardenAccessPolicy/);
+  assert.doesNotMatch(server, /^function sanitizePolicy/gm);
   assert.match(server, /createMobileRuntimeAuthFacadeService/);
   assert.match(authFacade, /providerMethod\("authenticateRequest"\)/);
   assert.match(authFacade, /providerMethod\("authCanAccessWorkspace"\)/);
@@ -1075,7 +1082,8 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
   assert.match(doc, /1,320 lines/);
-  assert.match(doc, /7/);
+  assert.match(doc, /6/);
+  assert.match(doc, /mobile-runtime-access-policy-facade-service\.js` must stay at or below 35\s+lines/);
   assert.match(doc, /mobile-runtime-auth-facade-service\.js` must stay at or below 40\s+lines/);
   assert.match(doc, /mobile-runtime-boot-trace-service\.js` must stay at or below 35\s+lines/);
   assert.match(doc, /mobile-runtime-natural-language-gateway-service\.js` must stay at or below 70\s+lines/);
@@ -1128,6 +1136,7 @@ function testServiceFirstArchitectureContract() {
 
   const server = fileText("server.js");
   const runtime = fileText("mobile-server-runtime.js");
+  const accessPolicyFacade = fileText("adapters/mobile-runtime-access-policy-facade-service.js");
   const authFacade = fileText("adapters/mobile-runtime-auth-facade-service.js");
   const bootTraceService = fileText("adapters/mobile-runtime-boot-trace-service.js");
   const naturalLanguageGateway = fileText("adapters/mobile-runtime-natural-language-gateway-service.js");
@@ -1168,6 +1177,7 @@ function testServiceFirstArchitectureContract() {
   const basicHelperLineCount = basicHelper.split(/\r?\n/).length;
   const operationErrorResponseLineCount = operationErrorResponse.split(/\r?\n/).length;
   const runtimeTopLevelFunctionCount = (runtime.match(/^function\s+/gm) || []).length;
+  const accessPolicyFacadeLineCount = accessPolicyFacade.split(/\r?\n/).length;
   const authFacadeLineCount = authFacade.split(/\r?\n/).length;
   const bootTraceLineCount = bootTraceService.split(/\r?\n/).length;
   const naturalLanguageGatewayLineCount = naturalLanguageGateway.split(/\r?\n/).length;
@@ -1201,10 +1211,11 @@ function testServiceFirstArchitectureContract() {
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
   assert.ok(runtimeLineCount <= 1320, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1320`);
-  assert.ok(runtimeTopLevelFunctionCount <= 7, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 7`);
+  assert.ok(runtimeTopLevelFunctionCount <= 6, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 6`);
   assert.ok(appRouteUrlLineCount <= 35, `app-route-url-service.js line budget exceeded: ${appRouteUrlLineCount} > 35`);
   assert.ok(automationJobFilterLineCount <= 45, `automation-job-filter-service.js line budget exceeded: ${automationJobFilterLineCount} > 45`);
   assert.ok(operationErrorResponseLineCount <= 35, `runtime-operation-error-response-service.js line budget exceeded: ${operationErrorResponseLineCount} > 35`);
+  assert.ok(accessPolicyFacadeLineCount <= 35, `mobile-runtime-access-policy-facade-service.js line budget exceeded: ${accessPolicyFacadeLineCount} > 35`);
   assert.ok(authFacadeLineCount <= 40, `mobile-runtime-auth-facade-service.js line budget exceeded: ${authFacadeLineCount} > 40`);
   assert.ok(bootTraceLineCount <= 35, `mobile-runtime-boot-trace-service.js line budget exceeded: ${bootTraceLineCount} > 35`);
   assert.ok(naturalLanguageGatewayLineCount <= 70, `mobile-runtime-natural-language-gateway-service.js line budget exceeded: ${naturalLanguageGatewayLineCount} > 70`);

@@ -59,6 +59,7 @@ focused adapters such as `app-route-url-service.js`,
 `automation-job-filter-service.js`,
 `mobile-runtime-basic-helper-service.js`,
 `mobile-runtime-boot-trace-service.js`,
+`mobile-runtime-access-policy-facade-service.js`,
 `mobile-runtime-file-helper-service.js`,
 `mobile-runtime-file-access-facade-service.js`,
 `mobile-runtime-artifact-facade-service.js`,
@@ -95,6 +96,7 @@ focused adapters such as `app-route-url-service.js`,
 `runtime-operation-error-response-service.js`, and
 `mobile-runtime-http-server-service.js`. These modules keep static file
 app route URL serialization, Automation job filtering, deterministic runtime primitives,
+access-policy sanitize/harden composition,
 auth-provider delayed delegation,
 boot trace side-effect wiring, helpers and JSON store file IO,
 Artifact/Markdown registration lazy delegation, backend mode policy, runtime
@@ -287,7 +289,7 @@ Current CI guardrails:
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
 - `mobile-server-runtime.js` must stay at or below 1,320 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 7;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 6;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
 - `path-boundary-service.js` must stay at or below 65 lines and remain a
@@ -302,6 +304,10 @@ Current CI guardrails:
 - `runtime-operation-error-response-service.js` must stay at or below 35 lines
   and remain a deterministic operation-error response adapter, not a route
   module or domain policy implementation;
+- `mobile-runtime-access-policy-facade-service.js` must stay at or below 35
+  lines and remain a runtime facade over `access-policy-provider.js` sanitizing
+  plus `security-boundary-provider.js` hardening. It must not own policy field
+  rules, protected-path rules, or permission prompt construction.
 - `mobile-runtime-auth-facade-service.js` must stay at or below 40 lines and
   remain a delayed auth-provider delegation facade, not an auth policy or key
   storage implementation;

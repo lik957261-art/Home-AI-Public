@@ -81,6 +81,10 @@ statements. Priority extraction areas:
   `normalizeAutomationDraft`, and `interpretAutomationNaturalLanguage`, while
   the service owns Gateway target selection, streamed text aggregation, timeout
   flooring, and target release semantics.
+- completed 2026-06-08: runtime access-policy sanitize/harden composition moved
+  into `adapters/mobile-runtime-access-policy-facade-service.js`. Policy field
+  rules remain in `access-policy-provider.js`; protected-path and toolset
+  hardening rules remain in `security-boundary-provider.js`.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

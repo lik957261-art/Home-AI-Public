@@ -37,6 +37,7 @@ These parts must remain replaceable:
 
 - `adapters/workspace-project-provider.js` owns the first catalog boundary. It loads workspace route maps, user policy records, and project-map entries through injected file readers and returns a normalized `{ workspaces, projects, sources, routeMap }` catalog.
 - `adapters/access-policy-provider.js` owns access-policy sanitization and construction. It merges route/user/project fields, applies project root overrides, adds shared roots for restricted workspaces, and appends the upload cache root without letting unrelated private fields leak into runtime policy payloads.
+- `adapters/mobile-runtime-access-policy-facade-service.js` owns runtime composition of access-policy sanitizing plus security-boundary hardening. It must not own policy field rules, protected-path rules, Owner elevation rules, or permission prompt construction.
 - `adapters/auth-provider.js` owns the product auth/key boundary: first-run Owner key creation, Owner/workspace key authentication, workspace key store normalization, scoped workspace-key rotation/revocation, Owner key rotation, and public key-status records.
 - `adapters/mobile-runtime-auth-facade-service.js` owns delayed runtime delegation to `auth-provider.js` for request authentication, Owner-auth checks, and workspace access checks. It must not own key storage, token comparison, access-key rotation, or authorization policy.
 - `adapters/workspace-bindings-provider.js` owns the non-secret Workspace Access binding summary. It filters common/default toolsets, maps special interface ids to display chips, emits optional channel summaries, and appends Owner external integrations without exposing raw credentials.
@@ -72,6 +73,7 @@ These parts must remain replaceable:
 - `server.js` still owns HTTP route enforcement, artifact/thread access checks, state store, Web Push delivery, and frontend/static serving. New execution work should be extracted behind the Gateway Pool / GatewayRunner boundary described in [Gateway Pool Architecture](GATEWAY_POOL_ARCHITECTURE.md).
 - `tests/workspace-project-provider.test.js` is the contract smoke for provider caching, owner fallback, route/user merge behavior, and project expansion.
 - `tests/access-policy-provider.test.js` is the contract smoke for policy field allow-listing, restricted-root merging, delivery/cache roots, and owner unrestricted behavior.
+- `tests/mobile-runtime-access-policy-facade-service.test.js` is the contract smoke for runtime access-policy sanitize/harden composition and missing-method guards.
 - `tests/auth-provider.test.js` is the contract smoke for first-run Owner setup, Owner/workspace authentication, workspace key scoping, revocation, env-key rotation guard, and disabled-auth behavior.
 - `tests/mobile-runtime-auth-facade-service.test.js` is the contract smoke for delayed auth-provider delegation and missing-method guards.
 - `tests/runtime-config-provider.test.js` is the contract smoke for runtime config save/load, Gateway URL validation, API key file/env resolution, Web Push subject validation, and public non-secret status.

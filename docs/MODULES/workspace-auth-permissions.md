@@ -9,6 +9,7 @@ It is the product permission boundary. Gateway workers execute runs, but Hermes 
 ## Core Files
 
 - `adapters/auth-provider.js`
+- `adapters/mobile-runtime-access-policy-facade-service.js`
 - `adapters/mobile-runtime-auth-facade-service.js`
 - `adapters/runtime-workspace-catalog-service.js`
 - `adapters/workspace-public-projection-service.js`
@@ -124,6 +125,8 @@ DACL inspection.
   is enabled.
 - Auth tests must cover that workspace key rotation leaves plugin authorization
   and plugin-local key/config files unchanged.
+- Run `node tests\mobile-runtime-access-policy-facade-service.test.js` when
+  changing runtime access-policy sanitize/harden composition.
 - Run `node tests\mobile-runtime-auth-facade-service.test.js` when changing
   delayed runtime delegation to the auth provider.
 - Run `node tests\architecture-refactor-boundary.test.js` when changing auth composition or route wiring.

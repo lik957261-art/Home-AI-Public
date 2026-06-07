@@ -55,6 +55,7 @@ const { createMobileHttpRuntimeService } = require("./adapters/mobile-http-runti
 const { createMobileRuntimeBasicHelperService } = require("./adapters/mobile-runtime-basic-helper-service");
 const { createMobileRuntimeHttpServerService } = require("./adapters/mobile-runtime-http-server-service");
 const { createMobileRuntimeCoreProviders } = require("./adapters/mobile-runtime-core-providers");
+const { createMobileRuntimeAccessPolicyFacadeService } = require("./adapters/mobile-runtime-access-policy-facade-service");
 const { createMobileRuntimeLocalBridgeFacadeService } = require("./adapters/mobile-runtime-local-bridge-facade-service");
 const { createMobileRuntimeNaturalLanguageGatewayService } = require("./adapters/mobile-runtime-natural-language-gateway-service");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
@@ -457,6 +458,11 @@ const {
   state: () => state, textBufferPreview, textFilePreview, uploadRootsForThread, useSqliteServiceStore,
   windowsPathToWsl, workspacePrincipal,
 });
+const mobileRuntimeAccessPolicyFacadeService = createMobileRuntimeAccessPolicyFacadeService({
+  accessPolicyProvider,
+  securityBoundaryProvider,
+});
+const sanitizePolicy = (...args) => mobileRuntimeAccessPolicyFacadeService.sanitizePolicy(...args);
 const ownerSetupStatus = (...args) => authProvider.ownerSetupStatus(...args);
 const createInitialOwnerKey = (...args) => authProvider.createInitialOwnerKey(...args);
 mobileRuntimeArtifactFacadeService = createMobileRuntimeArtifactFacadeService({
@@ -1096,9 +1102,6 @@ mobileRuntimeKanbanFacadeService = createMobileRuntimeKanbanFacadeService({
   workspaceDefaultRoot,
   workspacePrincipal,
 });
-function sanitizePolicy(policy, hardeningOptions = {}) {
-  return securityBoundaryProvider.hardenAccessPolicy(accessPolicyProvider.sanitize(policy), hardeningOptions);
-}
 function getSingleWindowThreadService() {
   if (!singleWindowThreadService) {
     singleWindowThreadService = createSingleWindowThreadService({
