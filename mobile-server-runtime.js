@@ -184,6 +184,7 @@ let gatewayRuntimeCompositionService = null;
 let directoryBrowserBoundaryService = null;
 let mobileRuntimeArtifactFacadeService = null;
 let mobileRuntimeKanbanFacadeService = null;
+let mobileRuntimeWorkspaceFacadeService = null;
 let runtimeWorkspaceCatalogService = null;
 const sourceMarkdownSearchCache = new Map();
 let state = null;
@@ -656,7 +657,8 @@ function createInitialOwnerKey() {
   return authProvider.createInitialOwnerKey();
 }
 function getUrl(req) { return httpRuntimeService.getUrl(req); }
-const mobileRuntimeWorkspaceFacadeService = createMobileRuntimeWorkspaceFacadeService({
+mobileRuntimeWorkspaceFacadeService = createMobileRuntimeWorkspaceFacadeService({
+  authProvider,
   clearDynamicProjectCache: (workspaceId) => getRuntimeWorkspaceCatalogService().clearDynamicProjectCache(workspaceId),
   dedupe,
   deleteWorkspaceAccessKey: (workspaceId) => authProvider.deleteWorkspaceAccessKey(workspaceId),
@@ -665,36 +667,24 @@ const mobileRuntimeWorkspaceFacadeService = createMobileRuntimeWorkspaceFacadeSe
   filterRoots: (roots) => securityBoundaryProvider.filterRoots(roots),
   findWorkspace: (...args) => findWorkspace(...args),
   invalidateCatalogCache,
-  isOwnerAuth,
   loadCatalog,
   normalizeStringList,
   normalizeStringMap,
   nowIso,
   ownerDefaultWorkspace: OWNER_DEFAULT_WORKSPACE,
-  publicWorkspaceAccessKeyStatus: (workspace) => authProvider.publicWorkspaceAccessKeyStatus(workspace),
   publicWorkspaceBindings: (workspace) => workspaceBindingsProvider.publicBindings(workspace),
   rootConflictsWithProtected: (root) => securityBoundaryProvider.rootConflictsWithProtected(root),
+  sendJson,
   storagePath: LOCAL_WORKSPACES_PATH,
+  workspacePrincipal,
 });
 const getLocalWorkspaceStoreService = (...args) => mobileRuntimeWorkspaceFacadeService.getLocalWorkspaceStoreService(...args);
-function workspaceIdSlug(value) {
-  return mobileRuntimeWorkspaceFacadeService.workspaceIdSlug(value);
-}
-function workspaceIdFromUsername(value) {
-  return mobileRuntimeWorkspaceFacadeService.workspaceIdFromUsername(value);
-}
-function localWorkspaceDefaults(input = {}, previous = {}) {
-  return mobileRuntimeWorkspaceFacadeService.localWorkspaceDefaults(input, previous);
-}
-function localWorkspaceRecords() {
-  return mobileRuntimeWorkspaceFacadeService.localWorkspaceRecords();
-}
-function upsertLocalWorkspace(input, actor = "owner") {
-  return mobileRuntimeWorkspaceFacadeService.upsertLocalWorkspace(input, actor);
-}
-function deleteLocalWorkspace(workspaceId) {
-  return mobileRuntimeWorkspaceFacadeService.deleteLocalWorkspace(workspaceId);
-}
+const workspaceIdSlug = (...args) => mobileRuntimeWorkspaceFacadeService.workspaceIdSlug(...args);
+const workspaceIdFromUsername = (...args) => mobileRuntimeWorkspaceFacadeService.workspaceIdFromUsername(...args);
+const localWorkspaceDefaults = (...args) => mobileRuntimeWorkspaceFacadeService.localWorkspaceDefaults(...args);
+const localWorkspaceRecords = (...args) => mobileRuntimeWorkspaceFacadeService.localWorkspaceRecords(...args);
+const upsertLocalWorkspace = (...args) => mobileRuntimeWorkspaceFacadeService.upsertLocalWorkspace(...args);
+const deleteLocalWorkspace = (...args) => mobileRuntimeWorkspaceFacadeService.deleteLocalWorkspace(...args);
 function authenticateRequest(req) {
   return authProvider.authenticateRequest(req);
 }
@@ -744,35 +734,11 @@ function resolveArtifactPathFromMessage(artifact, message) {
   }
   return candidates.length === 1 ? candidates[0] : null;
 }
-function pushWorkspaceForAuth(auth, requestedWorkspaceId = "owner") {
-  const requested = String(requestedWorkspaceId || auth?.workspaceId || "owner").trim() || "owner";
-  if (isOwnerAuth(auth)) return findWorkspace(requested) ? requested : "owner";
-  return String(auth?.workspaceId || requestedWorkspaceId || "owner").trim() || "owner";
-}
+const pushWorkspaceForAuth = (...args) => mobileRuntimeWorkspaceFacadeService.pushWorkspaceForAuth(...args);
 const getWorkspacePublicProjectionService = (...args) => mobileRuntimeWorkspaceFacadeService.getWorkspacePublicProjectionService(...args);
-function publicWorkspacesForAuth(auth) {
-  return mobileRuntimeWorkspaceFacadeService.publicWorkspacesForAuth(auth);
-}
-function requireOwner(req, res) {
-  const auth = authenticateRequest(req);
-  if (!isOwnerAuth(auth)) {
-    sendJson(res, 403, { error: "Owner access is required" });
-    return null;
-  }
-  return auth;
-}
-function requireWorkspaceAccess(req, res, workspaceId) {
-  const id = String(workspaceId || "owner").trim() || "owner";
-  if (!findWorkspace(id)) {
-    sendJson(res, 400, { error: "Unknown workspace" });
-    return "";
-  }
-  if (!authCanAccessWorkspace(authenticateRequest(req), id)) {
-    sendJson(res, 403, { error: "Workspace access is not allowed" });
-    return "";
-  }
-  return id;
-}
+const publicWorkspacesForAuth = (...args) => mobileRuntimeWorkspaceFacadeService.publicWorkspacesForAuth(...args);
+const requireOwner = (...args) => mobileRuntimeWorkspaceFacadeService.requireOwner(...args);
+const requireWorkspaceAccess = (...args) => mobileRuntimeWorkspaceFacadeService.requireWorkspaceAccess(...args);
 function ownerDirectoryBrowserThread() {
   return {
     id: "owner-directory-browser",
@@ -1225,16 +1191,14 @@ function getSingleWindowThreadService() {
   return singleWindowThreadService;
 }
 function workspaceLabel(workspaceId) {
+  if (mobileRuntimeWorkspaceFacadeService) return mobileRuntimeWorkspaceFacadeService.workspaceLabel(workspaceId);
   const workspace = findWorkspace(String(workspaceId || ""));
   return workspace?.label || workspace?.id || String(workspaceId || "");
 }
 function senderInfoForWorkspace(workspaceId) {
+  if (mobileRuntimeWorkspaceFacadeService) return mobileRuntimeWorkspaceFacadeService.senderInfoForWorkspace(workspaceId);
   const id = String(workspaceId || "owner").trim() || "owner";
-  return {
-    senderWorkspaceId: id,
-    senderPrincipalId: workspacePrincipal(id),
-    senderLabel: workspaceLabel(id),
-  };
+  return { senderWorkspaceId: id, senderPrincipalId: workspacePrincipal(id), senderLabel: workspaceLabel(id) };
 }
 function publicChatGroup(thread) {
   const group = normalizeChatGroup(thread?.chatGroup || {}, thread?.workspaceId || "owner");
@@ -1257,24 +1221,12 @@ function ownerExternalInterfaceBindings() {
 function ownerExternalAccessPolicy() {
   return externalIntegrationProvider.ownerAccessPolicy();
 }
-function publicWorkspace(workspace) {
-  return mobileRuntimeWorkspaceFacadeService.publicWorkspace(workspace);
-}
-function publicAccessKeyStatus(workspace, record = null) {
-  return authProvider.publicAccessKeyStatus(workspace, record);
-}
-function listWorkspaceAccessKeyStatuses(auth, options = {}) {
-  return authProvider.listWorkspaceAccessKeyStatuses(auth, options);
-}
-function rotateWorkspaceAccessKey(workspaceId, options = {}) {
-  return authProvider.rotateWorkspaceAccessKey(workspaceId, options);
-}
-function revokeWorkspaceAccessKey(workspaceId, options = {}) {
-  return authProvider.revokeWorkspaceAccessKey(workspaceId, options);
-}
-function rotateGlobalAccessKey(options = {}) {
-  return authProvider.rotateGlobalAccessKey(options);
-}
+const publicWorkspace = (...args) => mobileRuntimeWorkspaceFacadeService.publicWorkspace(...args);
+const publicAccessKeyStatus = (...args) => mobileRuntimeWorkspaceFacadeService.publicAccessKeyStatus(...args);
+const listWorkspaceAccessKeyStatuses = (...args) => mobileRuntimeWorkspaceFacadeService.listWorkspaceAccessKeyStatuses(...args);
+const rotateWorkspaceAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.rotateWorkspaceAccessKey(...args);
+const revokeWorkspaceAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.revokeWorkspaceAccessKey(...args);
+const rotateGlobalAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.rotateGlobalAccessKey(...args);
 function pathInsideAnyRoot(candidate, roots) {
   const normalized = comparablePath(candidate);
   return (roots || []).some((root) => {
@@ -1470,6 +1422,7 @@ function revokeGroupMessagePayload(message, now, revoker, text) {
   message.updatedAt = now;
 }
 function workspaceIdForPrincipal(principalId) {
+  if (mobileRuntimeWorkspaceFacadeService) return mobileRuntimeWorkspaceFacadeService.workspaceIdForPrincipal(principalId);
   const principal = String(principalId || "owner").trim() || "owner";
   const workspace = loadCatalog().workspaces.find((item) => {
     const itemPrincipal = String(item?.policy?.principal_id || item?.id || "").trim() || "owner";

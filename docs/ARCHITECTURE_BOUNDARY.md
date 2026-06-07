@@ -82,7 +82,9 @@ WSL/config path candidate parsing, public status projections, runtime state
 normalization/persistence lazy delegation, DATA_DIR-derived state/storage path
 parsing, system status lazy delegation, thread runtime composition delegation,
 thread view projection lazy delegation, Todo/direct-create runtime delegation,
-Weixin runtime composition delegation, local workspace store/projection lazy
+Weixin runtime composition delegation, local workspace store/projection,
+workspace access/auth gate, access-key operation, sender label, and
+principal-to-workspace lazy
 delegation, workspace catalog lazy
 delegation, and process HTTP lifecycle wiring
 addressable through CodeGraph without loading the full runtime root.
@@ -146,8 +148,8 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,800 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 140;
+- `mobile-server-runtime.js` must stay at or below 1,700 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 125;
 - `mobile-runtime-artifact-facade-service.js` must stay at or below 140 lines
   and remain a facade over `file-artifact-access-service.js` and
   `artifact-text-registration-service.js`;
@@ -159,6 +161,9 @@ Current CI guardrails:
 - `mobile-runtime-kanban-facade-service.js` must stay at or below 380 lines and
   remain a facade over existing Kanban projection/topic/plan/assessment
   services plus cache/maintenance delegates;
+- `mobile-runtime-workspace-facade-service.js` must stay at or below 190 lines
+  and remain a facade over local workspace store/projection, workspace/auth
+  gate helpers, access-key delegation, sender labels, and principal mapping;
 - `mobile-api-composition.js` must stay at or below 550 lines and remain the
   platform-level API aggregator, not a domain service graph;
 - `mobile-api-directory-composition.js` must stay at or below 150 lines and

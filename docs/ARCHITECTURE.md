@@ -124,7 +124,9 @@ out of the composition root. Current focused runtime adapters include:
   file-forward delegate wrappers.
 - `adapters/mobile-runtime-workspace-facade-service.js` for lazy local
   workspace store wiring, local workspace mutation delegates, Gateway
-  provisioning attachment, and public workspace projection delegation.
+  provisioning attachment, public workspace projection delegation, workspace
+  access/owner gate helpers, access-key operation delegation, sender labels,
+  and principal-to-workspace mapping.
 - `adapters/mobile-runtime-workspace-catalog-facade.js` for lazy workspace
   catalog delegation without forcing the full catalog service to initialize at
   module load time.

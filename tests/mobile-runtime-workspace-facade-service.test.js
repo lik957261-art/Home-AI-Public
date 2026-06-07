@@ -22,9 +22,41 @@ const projection = {
   publicWorkspacesForAuth: (auth) => [{ id: auth.workspaceId || "owner" }],
 };
 
+const authProvider = {
+  authCanAccessWorkspace(auth, workspaceId) {
+    return auth?.role === "owner" || auth?.workspaceId === workspaceId;
+  },
+  authenticateRequest(req) {
+    return req.auth || { role: "anonymous", workspaceId: "" };
+  },
+  isOwnerAuth(auth) {
+    return auth?.role === "owner";
+  },
+  listWorkspaceAccessKeyStatuses(auth, options) {
+    return [{ actor: auth.role, workspaceId: options.workspaceId || "all" }];
+  },
+  publicAccessKeyStatus(workspace, record = null) {
+    return { workspaceId: workspace.id, hasKey: Boolean(record?.hash) };
+  },
+  publicWorkspaceAccessKeyStatus(workspace) {
+    return { workspaceId: workspace.id };
+  },
+  revokeWorkspaceAccessKey(workspaceId, options) {
+    return { workspaceId, revoked: true, dryRun: Boolean(options?.dryRun) };
+  },
+  rotateGlobalAccessKey(options) {
+    return { key: "global", dryRun: Boolean(options?.dryRun) };
+  },
+  rotateWorkspaceAccessKey(workspaceId, options) {
+    return { workspaceId, key: "workspace", dryRun: Boolean(options?.dryRun) };
+  },
+};
+
+const jsonResponses = [];
 let localOptions = null;
 let projectionOptions = null;
 const facade = createMobileRuntimeWorkspaceFacadeService({
+  authProvider,
   clearDynamicProjectCache: (workspaceId) => ({ workspaceId }),
   createLocalWorkspaceStoreService(options) {
     calls.localStore += 1;
@@ -44,18 +76,26 @@ const facade = createMobileRuntimeWorkspaceFacadeService({
     return { workspaceId, provisioned: true };
   },
   filterRoots: (roots) => (roots || []).filter(Boolean),
-  findWorkspace: (workspaceId) => ({ id: workspaceId }),
+  findWorkspace: (workspaceId) => {
+    if (workspaceId === "missing") return null;
+    return { id: workspaceId, label: workspaceId === "child" ? "Child Workspace" : workspaceId };
+  },
   invalidateCatalogCache: () => {},
-  isOwnerAuth: (auth) => auth?.role === "owner",
-  loadCatalog: () => ({ workspaces: [{ id: "owner" }] }),
+  loadCatalog: () => ({
+    workspaces: [
+      { id: "owner" },
+      { id: "child", policy: { principal_id: "wx_child" } },
+    ],
+  }),
   normalizeStringList: (value) => Array.isArray(value) ? value : [],
   normalizeStringMap: (value) => value && typeof value === "object" ? value : {},
   nowIso: () => "2026-06-07T00:00:00.000Z",
   ownerDefaultWorkspace: () => "/drive/owner",
-  publicWorkspaceAccessKeyStatus: (workspace) => ({ workspaceId: workspace.id }),
   publicWorkspaceBindings: (workspace) => [{ workspaceId: workspace.id }],
   rootConflictsWithProtected: () => false,
+  sendJson: (_res, status, data) => jsonResponses.push({ status, data }),
   storagePath: () => "/data/local-workspaces.json",
+  workspacePrincipal: (workspaceId) => `principal:${workspaceId}`,
 });
 
 assert.equal(calls.localStore, 0);
@@ -75,7 +115,7 @@ assert.equal(facade.getLocalWorkspaceStoreService(), localStore);
 assert.equal(calls.localStore, 1);
 assert.equal(localOptions.storagePath, "/data/local-workspaces.json");
 assert.equal(localOptions.ownerDefaultWorkspace, "/drive/owner");
-assert.deepEqual(localOptions.findWorkspace("child"), { id: "child" });
+assert.deepEqual(localOptions.findWorkspace("child"), { id: "child", label: "Child Workspace" });
 
 const created = facade.upsertLocalWorkspace({ workspaceId: "new-child" }, "owner");
 assert.deepEqual(created, {
@@ -94,6 +134,36 @@ assert.equal(projectionOptions.isOwnerAuth({ role: "owner" }), true);
 assert.deepEqual(projectionOptions.publicWorkspaceAccessKeyStatus({ id: "owner" }), { workspaceId: "owner" });
 assert.deepEqual(projectionOptions.publicWorkspaceBindings({ id: "owner" }), [{ workspaceId: "owner" }]);
 
+assert.deepEqual(facade.authenticateRequest({ auth: { role: "owner", workspaceId: "owner" } }), { role: "owner", workspaceId: "owner" });
+assert.equal(facade.isOwnerAuth({ role: "owner" }), true);
+assert.equal(facade.authCanAccessWorkspace({ role: "workspace", workspaceId: "child" }, "child"), true);
+assert.equal(facade.pushWorkspaceForAuth({ role: "owner", workspaceId: "owner" }, "child"), "child");
+assert.equal(facade.pushWorkspaceForAuth({ role: "owner", workspaceId: "owner" }, "missing"), "owner");
+assert.equal(facade.pushWorkspaceForAuth({ role: "workspace", workspaceId: "child" }, "owner"), "child");
+assert.deepEqual(facade.requireOwner({ auth: { role: "owner", workspaceId: "owner" } }, {}), { role: "owner", workspaceId: "owner" });
+assert.equal(facade.requireOwner({ auth: { role: "workspace", workspaceId: "child" } }, {}), null);
+assert.equal(facade.requireWorkspaceAccess({ auth: { role: "workspace", workspaceId: "child" } }, {}, "child"), "child");
+assert.equal(facade.requireWorkspaceAccess({ auth: { role: "workspace", workspaceId: "child" } }, {}, "owner"), "");
+assert.equal(facade.requireWorkspaceAccess({ auth: { role: "owner", workspaceId: "owner" } }, {}, "missing"), "");
+assert.deepEqual(jsonResponses, [
+  { status: 403, data: { error: "Owner access is required" } },
+  { status: 403, data: { error: "Workspace access is not allowed" } },
+  { status: 400, data: { error: "Unknown workspace" } },
+]);
+assert.equal(facade.workspaceLabel("child"), "Child Workspace");
+assert.deepEqual(facade.senderInfoForWorkspace("child"), {
+  senderWorkspaceId: "child",
+  senderPrincipalId: "principal:child",
+  senderLabel: "Child Workspace",
+});
+assert.equal(facade.workspaceIdForPrincipal("wx_child"), "child");
+assert.equal(facade.workspaceIdForPrincipal("unknown"), "unknown");
+assert.deepEqual(facade.publicAccessKeyStatus({ id: "child" }, { hash: "x" }), { workspaceId: "child", hasKey: true });
+assert.deepEqual(facade.listWorkspaceAccessKeyStatuses({ role: "owner" }, { workspaceId: "child" }), [{ actor: "owner", workspaceId: "child" }]);
+assert.deepEqual(facade.rotateWorkspaceAccessKey("child", { dryRun: true }), { workspaceId: "child", key: "workspace", dryRun: true });
+assert.deepEqual(facade.revokeWorkspaceAccessKey("child", { dryRun: true }), { workspaceId: "child", revoked: true, dryRun: true });
+assert.deepEqual(facade.rotateGlobalAccessKey({ dryRun: true }), { key: "global", dryRun: true });
+
 assert.throws(() => createMobileRuntimeWorkspaceFacadeService({}), /requires ensureWorkspaceGateway/);
 assert.throws(
   () => createMobileRuntimeWorkspaceFacadeService({ ensureWorkspaceGateway: () => {} }),
@@ -102,6 +172,14 @@ assert.throws(
 assert.throws(
   () => createMobileRuntimeWorkspaceFacadeService({ ensureWorkspaceGateway: () => {}, filterRoots: () => [] }),
   /requires rootConflictsWithProtected/
+);
+assert.throws(
+  () => createMobileRuntimeWorkspaceFacadeService({
+    ensureWorkspaceGateway: () => {},
+    filterRoots: () => [],
+    rootConflictsWithProtected: () => false,
+  }),
+  /requires authProvider/
 );
 
 console.log("mobile runtime workspace facade service tests passed");
