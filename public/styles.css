@@ -8258,7 +8258,8 @@ body.task-markdown-preview-open {
   font-weight: 560;
 }
 
-.runtime-config-form input {
+.runtime-config-form input,
+.runtime-config-form select {
   min-width: 0;
   min-height: 40px;
   padding: 0 10px;
@@ -8268,6 +8269,25 @@ body.task-markdown-preview-open {
   border-radius: 10px;
   outline: none;
   font: inherit;
+}
+
+.runtime-config-worker-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.runtime-config-worker-note {
+  margin-top: -4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+@media (max-width: 560px) {
+  .runtime-config-worker-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .runtime-config-meta {

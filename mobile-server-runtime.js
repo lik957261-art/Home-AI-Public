@@ -405,11 +405,19 @@ mobileRuntimeArtifactFacadeService = createMobileRuntimeArtifactFacadeService({
   sourceMarkdownSearchLimit: SOURCE_MARKDOWN_SEARCH_LIMIT,
   state: () => state,
 });
+const runtimeConfigProvider = createRuntimeConfigProvider({
+  storagePath: () => RUNTIME_CONFIG_PATH, ensureDataDir, nowIso, defaultHermesApiBase: () => HERMES_API_BASE,
+  apiKeyPaths: () => HERMES_API_KEY_PATHS, envPaths: () => HERMES_ENV_PATHS,
+  defaultWebPushSubject: () => WEB_PUSH_SUBJECT, defaultWebPushVapidPath: () => WEB_PUSH_VAPID_PATH,
+  gatewayWorkerElasticConfig: () => GATEWAY_POOL_ELASTIC_CONFIG,
+});
+const mobileRuntimeConfigFacadeService = createMobileRuntimeConfigFacadeService({ runtimeConfigProvider, pushStatus: () => webPushDeliveryService?.publicPushStatus?.() || {}, webPushConfig: () => webPushDeliveryService?.getWebPushConfig?.() || null, webPushEnabled: () => WEB_PUSH_ENABLED });
+const { effectiveHermesApiBase, effectiveWebPushSubject, effectiveWebPushVapidPath, loadHermesApiKey, loadRuntimeConfig, publicRuntimeConfig, saveRuntimeConfig } = mobileRuntimeConfigFacadeService;
 const mobileRuntimeGatewayFacadeService = createMobileRuntimeGatewayFacadeService({
   apiTimeoutMs: () => HERMES_API_TIMEOUT_MS,
   effectiveHermesApiBase: () => effectiveHermesApiBase(),
   fs,
-  gatewayPoolElasticConfig: GATEWAY_POOL_ELASTIC_CONFIG,
+  gatewayPoolElasticConfig: () => runtimeConfigProvider.gatewayWorkerElasticConfig(loadRuntimeConfig(), GATEWAY_POOL_ELASTIC_CONFIG),
   gatewayPoolEnabled: () => GATEWAY_POOL_ENABLED,
   gatewayPoolHealthTimeoutMs: GATEWAY_POOL_HEALTH_TIMEOUT_MS,
   gatewayPoolManifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS,
@@ -445,13 +453,6 @@ const learningCoinAwardService = createLearningCoinAwardService({
   logger: console,
   onAward: (award) => broadcast({ type: "learning-coins.updated", workspaceId: award.workspaceId, studentId: award.studentId }),
 });
-const runtimeConfigProvider = createRuntimeConfigProvider({
-  storagePath: () => RUNTIME_CONFIG_PATH, ensureDataDir, nowIso, defaultHermesApiBase: () => HERMES_API_BASE,
-  apiKeyPaths: () => HERMES_API_KEY_PATHS, envPaths: () => HERMES_ENV_PATHS,
-  defaultWebPushSubject: () => WEB_PUSH_SUBJECT, defaultWebPushVapidPath: () => WEB_PUSH_VAPID_PATH,
-});
-const mobileRuntimeConfigFacadeService = createMobileRuntimeConfigFacadeService({ runtimeConfigProvider, pushStatus: () => webPushDeliveryService?.publicPushStatus?.() || {}, webPushConfig: () => webPushDeliveryService?.getWebPushConfig?.() || null, webPushEnabled: () => WEB_PUSH_ENABLED });
-const { effectiveHermesApiBase, effectiveWebPushSubject, effectiveWebPushVapidPath, loadHermesApiKey, loadRuntimeConfig, publicRuntimeConfig, saveRuntimeConfig } = mobileRuntimeConfigFacadeService;
 const actionInboxService = createActionInboxService({ compactText, makeId, nowIso, store: mobileSqliteStore });
 webPushDeliveryService = createWebPushDeliveryService({
   actionInboxService: () => actionInboxService, appRouteUrl, automationProvider: () => automationProvider, chatGroupMemberWorkspaceIds, compactText, dedupe,
@@ -1427,6 +1428,7 @@ const { eventStreamApiRoutes, mobileApiDispatcher, services: mobileApiServices =
   publicGatewayPoolStatusForAuth, publicKanbanCardDetail, publicOwnerElevationStatus, publicPushStatus: webPushDeliveryService.publicPushStatus, publicReasoningInfoForAuth,
   publicRuntimeConfig, publicTodo, publicWorkspace, publicWorkspacesForAuth, pushWorkspaceForAuth,
   readBody, requestClientVersion, readClientVersion, readKanbanCardListCache, readingCoverMaxBytes: KANBAN_READING_COVER_MAX_BYTES, reloadWebPush,
+  refreshGatewayRuntimeConfig: (...args) => mobileRuntimeGatewayFacadeService.resetGatewayRuntimeConfig(...args),
   registerUploadArtifact, removeThreadActiveRun, requireOwner, requireWeixinIngress, requireWorkspaceAccess, resolveArtifactForRequest,
   resolveAuthorizedCronDeliverableFile, resolveAuthorizedCronOutputFile, resolveFileForBrowserRequest, resolveKanbanCardAccess, resolveKanbanOutputFile,
   revokeGroupMessagePayload, revokeOwnerElevation, revokeWorkspaceAccessKey, rmdir: (value) => fs.rmdirSync(value), rmDirRecursive: (value) => fs.rmSync(value, { recursive: true, force: false }), rotateGlobalAccessKey,

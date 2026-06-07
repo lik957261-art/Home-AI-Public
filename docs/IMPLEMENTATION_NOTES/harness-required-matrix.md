@@ -44,6 +44,27 @@ browser-shell guard page.
 Browser-mode checks may be used only as a diagnostic comparison after the PWA
 path has been tested, or when explicitly testing the browser-shell guard page.
 
+Authenticated mobile cross-surface navigation is an H2 harness requirement for
+changes that can affect Chat, Inbox, Topics, plugin/topic entry, return
+behavior, cached content reuse, bottom navigation, composer layout, or
+tab-switch timing. Use:
+
+```powershell
+node scripts\authenticated-navigation-flow-smoke.js `
+  --url http://127.0.0.1:8797 `
+  --access-key-path <owner-access-key-file> `
+  --workspace-id owner `
+  --viewport 390x844 `
+  --json
+```
+
+Run a second wider touch-tablet viewport when the change could affect tablet
+breakpoints. The harness output must include active nav, visible surfaces,
+bottom-nav bounds, composer bounds, composer/nav overlap, viewport metrics,
+horizontal overflow, layout stability, long-task summary, navigation timing,
+tab-switch timing, and stale cached surface warnings. The Access Key may only
+come from a file and the output must not print the key or raw key path.
+
 Any Hermes Mobile UI change must include visual verification evidence before it
 is considered complete. The minimum fallback is a Playwright mobile viewport
 screenshot plus measured bounding rectangles for the changed surface and nearby
@@ -481,6 +502,12 @@ Required harness dimensions:
   `mcp_finance_add_transaction_attachment:file_path`, and
   `mcp_finance_add_transaction_attachment:upload_path`. The guard test is
   `node tests\mcp-tool-upgrade-closure-harness.test.js`.
+- MCP write tools require behavior readback after schema closure. For tools
+  that create, update, attach, delete, or otherwise mutate plugin data, the
+  harness evidence must read the source-of-truth object back and assert the
+  changed field. For Finance attachment uploads, a valid closeout requires the
+  target transaction to show the new attachment count or attachment-list entry;
+  seeing the tool name in schema is not sufficient.
 - Selector/runtime-overlay changes require one more proof layer: the real
   `/v1/responses` request path must show that Mobile's top-level
   `enabled_toolsets` becomes the effective `AIAgent.enabled_toolsets`. If that

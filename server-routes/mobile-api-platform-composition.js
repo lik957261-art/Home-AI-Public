@@ -95,6 +95,7 @@ function createMobileApiPlatformComposition(deps = {}) {
     publicPushStatus: deps.webPushDeliveryService.publicPushStatus,
     publicRuntimeConfig: deps.publicRuntimeConfig,
     readBody: deps.readBody,
+    refreshGatewayRuntimeConfig: deps.refreshGatewayRuntimeConfig,
     reloadWebPush: deps.reloadWebPush,
     requireOwner: deps.requireOwner,
     runConcurrencySnapshot: deps.runConcurrencySnapshot,

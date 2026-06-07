@@ -15,6 +15,7 @@ const state = {
     { workspaceId: "owner", activeRuns: [{ runId: "run-1" }] },
   ],
 };
+let elasticMode = "hybrid";
 
 const poolEvents = [];
 const facade = createMobileRuntimeGatewayFacadeService({
@@ -22,7 +23,14 @@ const facade = createMobileRuntimeGatewayFacadeService({
   createGatewayPoolProvider(options) {
     calls.pool += 1;
     return {
-      chooseTarget: (hints, context) => ({ profile: "lowgw1", hints, context, fallback: options.fallbackApiBase(), epoch: options.toolSchemaEpoch() }),
+      chooseTarget: (hints, context) => ({
+        profile: "lowgw1",
+        hints,
+        context,
+        fallback: options.fallbackApiBase(),
+        epoch: options.toolSchemaEpoch(),
+        elasticMode: options.elastic.mode,
+      }),
       load: () => ({ workers: [] }),
       releaseRun: (runId, idleStatus) => {
         poolEvents.push(["release", runId, idleStatus]);
@@ -71,7 +79,7 @@ const facade = createMobileRuntimeGatewayFacadeService({
   },
   effectiveHermesApiBase: () => "http://gateway.example",
   fs: {},
-  gatewayPoolElasticConfig: { mode: "hybrid" },
+  gatewayPoolElasticConfig: () => ({ mode: elasticMode }),
   gatewayPoolEnabled: () => true,
   gatewayPoolHealthTimeoutMs: 500,
   gatewayPoolManifestPaths: () => ["manifest.json"],
@@ -120,18 +128,27 @@ assert.deepEqual(target, {
   context: { runId: "run-2" },
   fallback: "http://gateway.example",
   epoch: "epoch-1",
+  elasticMode: "hybrid",
 });
 assert.equal(calls.pool, 1);
 assert.equal(calls.workerLauncher, 0);
 assert.deepEqual(facade.gatewayWorkerProfileLauncher().startWorkerProfile("lowgw1"), { action: "start", args: ["lowgw1"] });
 assert.deepEqual(facade.gatewayWorkerProfileLauncher().stopWorkerProfile("lowgw1"), { action: "stop", args: ["lowgw1"] });
 assert.equal(calls.workerLauncher, 1);
+assert.deepEqual(facade.gatewayWorkerProfileLauncher().elasticConfig, { mode: "hybrid" });
 assert.equal(facade.releaseGatewayRunTarget("run-2", "idle"), true);
 assert.equal(facade.replaceGatewayRunTarget("run-2", "run-3"), true);
 assert.deepEqual(poolEvents, [
   ["release", "run-2", "idle"],
   ["replace", "run-2", "run-3"],
 ]);
+elasticMode = "cold";
+assert.equal(facade.resetGatewayRuntimeConfig(), true);
+const refreshedTarget = await facade.chooseGatewayRunTarget({ purpose: "refresh" }, { runId: "run-refresh" });
+assert.equal(refreshedTarget.elasticMode, "cold");
+assert.equal(calls.pool, 2);
+assert.deepEqual(facade.gatewayWorkerProfileLauncher().elasticConfig, { mode: "cold" });
+assert.equal(calls.workerLauncher, 2);
 
 assert.deepEqual(facade.getGatewayWorkspaceProvisioningService().ensureWorkspaceGateway({ workspaceId: "owner" }), {
   workspaceId: "owner",

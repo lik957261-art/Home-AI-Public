@@ -23,6 +23,11 @@ function makeProvider() {
     envPaths: () => [envPath],
     defaultWebPushSubject: () => "mailto:default@example.invalid",
     defaultWebPushVapidPath: () => path.join(tempDir, "default-vapid.json"),
+    gatewayWorkerElasticConfig: () => ({
+      HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM: "1",
+      HERMES_MOBILE_GATEWAY_WORKSPACE_MAX_WORKERS: "2",
+      HERMES_MOBILE_GATEWAY_WORKER_IDLE_TTL_MINUTES: "60",
+    }),
   });
   return { provider, tempDir, apiKeyPath, envPath, vapidPath };
 }
@@ -62,6 +67,9 @@ function testSaveAndPublicConfig() {
   assert.equal(publicConfig.defaultModel, "gpt-5.5");
   assert.equal(publicConfig.defaultModelProvider, "openai-codex");
   assert.equal(publicConfig.defaultReasoningEffort, "medium");
+  assert.equal(publicConfig.gatewayWorkerEffectiveSettings.ownerMinWarm, 1);
+  assert.equal(publicConfig.gatewayWorkerEffectiveSettings.workspaceMaxWorkers, 2);
+  assert.equal(publicConfig.gatewayWorkerEffectiveSettings.idleTtlMinutes, 60);
   assert.deepEqual(
     publicConfig.modelOptions.map((item) => item.id),
     ["openai-codex:gpt-5.4", "openai-codex:gpt-5.5", "deepseek:deepseek-chat", "xai-oauth:grok-4.3"],
@@ -70,6 +78,36 @@ function testSaveAndPublicConfig() {
     publicConfig.modelFamilies.map((item) => item.id),
     ["openai-codex", "deepseek", "xai-oauth"],
   );
+}
+
+function testGatewayWorkerRuntimeSettings() {
+  const { provider } = makeProvider();
+  const saved = provider.save({
+    gatewayWorkerSettings: {
+      ownerMinWarm: 0,
+      workspaceMaxWorkers: 3,
+      globalMaxWorkers: 9,
+      idleTtlMinutes: 1,
+    },
+  }, "owner");
+  assert.deepEqual(saved.gatewayWorkerSettings, {
+    ownerMinWarm: 0,
+    workspaceMaxWorkers: 3,
+    globalMaxWorkers: 9,
+    idleTtlMinutes: 1,
+  });
+  const elastic = provider.gatewayWorkerElasticConfig();
+  assert.equal(elastic.HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM, "0");
+  assert.equal(elastic.HERMES_WEB_GATEWAY_OWNER_MIN_WARM, "0");
+  assert.equal(elastic.HERMES_MOBILE_GATEWAY_WORKSPACE_MAX_WORKERS, "3");
+  assert.equal(elastic.HERMES_MOBILE_GATEWAY_ELASTIC_MAX_WORKERS, "9");
+  assert.equal(elastic.HERMES_MOBILE_GATEWAY_WORKER_IDLE_TTL_MINUTES, "1");
+  const publicConfig = provider.publicConfig();
+  assert.equal(publicConfig.gatewayWorkerSettings.ownerMinWarm, 0);
+  assert.equal(publicConfig.gatewayWorkerEffectiveSettings.ownerMinWarm, 0);
+  assert.equal(publicConfig.gatewayWorkerEffectiveSettings.workspaceMaxWorkers, 3);
+  assert.equal(publicConfig.gatewayWorkerEffectiveSettings.idleTtlMinutes, 1);
+  assert.throws(() => provider.save({ gatewayWorkerSettings: { globalMaxWorkers: 999 } }), /Global worker cap/);
 }
 
 function testModelSelectionNormalizesCatalogOnly() {
@@ -116,6 +154,7 @@ function testValidation() {
 }
 
 testSaveAndPublicConfig();
+testGatewayWorkerRuntimeSettings();
 testModelSelectionNormalizesCatalogOnly();
 testEnvKeyAndEnvFileFallback();
 testValidation();

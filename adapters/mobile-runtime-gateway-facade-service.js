@@ -30,6 +30,7 @@ function createMobileRuntimeGatewayFacadeService(options = {}) {
   const apiBase = optionFunction(options, "effectiveHermesApiBase");
   const apiKey = optionFunction(options, "loadHermesApiKey");
   const apiTimeoutMs = optionFunction(options, "apiTimeoutMs");
+  const gatewayPoolElasticConfig = optionFunction(options, "gatewayPoolElasticConfig", () => ({}));
   const fs = requiredObject(options, "fs");
   const manifestPaths = optionFunction(options, "gatewayPoolManifestPaths");
   const nowIso = optionFunction(options, "nowIso", () => new Date().toISOString());
@@ -58,7 +59,7 @@ function createMobileRuntimeGatewayFacadeService(options = {}) {
   function gatewayWorkerProfileLauncher() {
     if (!gatewayWorkerProfileLaunchService) {
       gatewayWorkerProfileLaunchService = createGatewayWorkerProfileLaunchService({
-        elasticConfig: options.gatewayPoolElasticConfig,
+        elasticConfig: gatewayPoolElasticConfig(),
         fs,
         path,
         toolRoot: options.toolRoot,
@@ -71,7 +72,7 @@ function createMobileRuntimeGatewayFacadeService(options = {}) {
     if (!gatewayPoolProvider) {
       gatewayPoolProvider = createGatewayPoolProvider({
         createGatewayRunner,
-        elastic: options.gatewayPoolElasticConfig,
+        elastic: gatewayPoolElasticConfig(),
         enabled: optionFunction(options, "gatewayPoolEnabled"),
         fallbackApiBase: apiBase,
         fallbackApiKey: apiKey,
@@ -85,6 +86,12 @@ function createMobileRuntimeGatewayFacadeService(options = {}) {
       });
     }
     return gatewayPoolProvider;
+  }
+
+  function resetGatewayRuntimeConfig() {
+    gatewayPoolProvider = null;
+    gatewayWorkerProfileLaunchService = null;
+    return true;
   }
 
   function getGatewayWorkspaceProvisioningService() {
@@ -149,6 +156,7 @@ function createMobileRuntimeGatewayFacadeService(options = {}) {
     gatewayUsageTelemetry,
     gatewayWorkerProfileLauncher,
     getGatewayWorkspaceProvisioningService,
+    resetGatewayRuntimeConfig,
     releaseGatewayRunTarget,
     replaceGatewayRunTarget,
     runConcurrencyError,

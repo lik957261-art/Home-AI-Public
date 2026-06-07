@@ -2,6 +2,12 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const {
+  gatewayWorkerSettingsToElasticConfig,
+  mergeGatewayWorkerRuntimeSettings,
+  normalizeGatewayWorkerRuntimeSettings,
+  publicGatewayWorkerRuntimeSettings,
+} = require("./gateway-worker-runtime-settings-service");
 
 function stripTrailingSlash(value) {
   return String(value || "").replace(/\/+$/, "");
@@ -104,6 +110,7 @@ function normalizeRuntimeConfig(value) {
   const webPushSubject = String(source.webPushSubject || source.web_push_subject || "").trim();
   const webPushVapidPath = String(source.webPushVapidPath || source.web_push_vapid_path || "").trim();
   const model = normalizeRuntimeModelSelection(source);
+  const gatewayWorkerSettings = normalizeGatewayWorkerRuntimeSettings(source.gatewayWorkerSettings || source.gateway_worker_settings || {});
   return {
     schemaVersion: 1,
     hermesApiBase: hermesApiBase ? stripTrailingSlash(hermesApiBase) : "",
@@ -112,6 +119,7 @@ function normalizeRuntimeConfig(value) {
     defaultModel: model.defaultModel,
     defaultModelProvider: model.defaultModelProvider,
     defaultReasoningEffort: model.defaultReasoningEffort,
+    gatewayWorkerSettings,
     webPushSubject,
     webPushVapidPath,
     updatedAt: String(source.updatedAt || ""),
@@ -169,6 +177,11 @@ function createRuntimeConfigProvider(options = {}) {
   ));
   const apiKeyPaths = () => (typeof options.apiKeyPaths === "function" ? options.apiKeyPaths() : (options.apiKeyPaths || [])).filter(Boolean);
   const envPaths = () => (typeof options.envPaths === "function" ? options.envPaths() : (options.envPaths || [])).filter(Boolean);
+  const baseGatewayWorkerElasticConfig = () => (
+    typeof options.gatewayWorkerElasticConfig === "function"
+      ? (options.gatewayWorkerElasticConfig() || {})
+      : (options.gatewayWorkerElasticConfig || {})
+  );
 
   function load() {
     ensureDataDir();
@@ -182,17 +195,28 @@ function createRuntimeConfigProvider(options = {}) {
   function save(input, actor = "owner") {
     ensureDataDir();
     const previous = load();
-    const next = normalizeRuntimeConfig(Object.assign({}, previous, input, {
-      hermesApiBase: validateHermesApiBase(input.hermesApiBase ?? input.hermes_api_base ?? previous.hermesApiBase),
-      hermesApiKeyPath: String(input.hermesApiKeyPath ?? input.hermes_api_key_path ?? previous.hermesApiKeyPath ?? "").trim(),
+    const sourceInput = input && typeof input === "object" ? input : {};
+    const hasGatewayWorkerSettings = Object.prototype.hasOwnProperty.call(sourceInput, "gatewayWorkerSettings")
+      || Object.prototype.hasOwnProperty.call(sourceInput, "gateway_worker_settings");
+    const gatewayWorkerSettings = hasGatewayWorkerSettings
+      ? mergeGatewayWorkerRuntimeSettings(
+        previous.gatewayWorkerSettings,
+        sourceInput.gatewayWorkerSettings ?? sourceInput.gateway_worker_settings ?? {},
+        { strict: true },
+      )
+      : previous.gatewayWorkerSettings;
+    const next = normalizeRuntimeConfig(Object.assign({}, previous, sourceInput, {
+      hermesApiBase: validateHermesApiBase(sourceInput.hermesApiBase ?? sourceInput.hermes_api_base ?? previous.hermesApiBase),
+      hermesApiKeyPath: String(sourceInput.hermesApiKeyPath ?? sourceInput.hermes_api_key_path ?? previous.hermesApiKeyPath ?? "").trim(),
       ...normalizeRuntimeModelSelection({
-        defaultModelId: input.defaultModelId ?? input.default_model_id ?? previous.defaultModelId,
-        defaultModel: input.defaultModel ?? input.default_model ?? previous.defaultModel,
-        defaultModelProvider: input.defaultModelProvider ?? input.default_model_provider ?? previous.defaultModelProvider,
-        defaultReasoningEffort: input.defaultReasoningEffort ?? input.default_reasoning_effort ?? previous.defaultReasoningEffort,
+        defaultModelId: sourceInput.defaultModelId ?? sourceInput.default_model_id ?? previous.defaultModelId,
+        defaultModel: sourceInput.defaultModel ?? sourceInput.default_model ?? previous.defaultModel,
+        defaultModelProvider: sourceInput.defaultModelProvider ?? sourceInput.default_model_provider ?? previous.defaultModelProvider,
+        defaultReasoningEffort: sourceInput.defaultReasoningEffort ?? sourceInput.default_reasoning_effort ?? previous.defaultReasoningEffort,
       }),
-      webPushSubject: validateWebPushSubject(input.webPushSubject ?? input.web_push_subject ?? previous.webPushSubject),
-      webPushVapidPath: String(input.webPushVapidPath ?? input.web_push_vapid_path ?? previous.webPushVapidPath ?? "").trim(),
+      gatewayWorkerSettings,
+      webPushSubject: validateWebPushSubject(sourceInput.webPushSubject ?? sourceInput.web_push_subject ?? previous.webPushSubject),
+      webPushVapidPath: String(sourceInput.webPushVapidPath ?? sourceInput.web_push_vapid_path ?? previous.webPushVapidPath ?? "").trim(),
       updatedAt: nowIso(),
       updatedBy: actor || "owner",
     }));
@@ -214,6 +238,14 @@ function createRuntimeConfigProvider(options = {}) {
 
   function effectiveWebPushVapidPath(config = load()) {
     return path.resolve(config.webPushVapidPath || defaultWebPushVapidPath());
+  }
+
+  function gatewayWorkerElasticConfig(config = load(), base = baseGatewayWorkerElasticConfig()) {
+    return gatewayWorkerSettingsToElasticConfig(config.gatewayWorkerSettings || {}, base);
+  }
+
+  function gatewayWorkerRuntimeSettings(config = load()) {
+    return publicGatewayWorkerRuntimeSettings(config.gatewayWorkerSettings || {}, baseGatewayWorkerElasticConfig());
   }
 
   function loadHermesApiKey(env = process.env) {
@@ -283,6 +315,7 @@ function createRuntimeConfigProvider(options = {}) {
     const keyStatus = hermesApiKeyStatus();
     const pushStatus = args.pushStatus || {};
     const vapidPath = effectiveWebPushVapidPath(config);
+    const gatewayWorkerSettings = gatewayWorkerRuntimeSettings(config);
     return {
       hermesApiBase: effectiveHermesApiBase(config),
       hermesApiBaseOverride: config.hermesApiBase || "",
@@ -295,6 +328,9 @@ function createRuntimeConfigProvider(options = {}) {
       defaultModel: config.defaultModel || DEFAULT_RUNTIME_MODEL_OPTION.model,
       defaultModelProvider: config.defaultModelProvider || DEFAULT_RUNTIME_MODEL_OPTION.provider,
       defaultReasoningEffort: config.defaultReasoningEffort || DEFAULT_RUNTIME_MODEL_OPTION.defaultReasoningEffort,
+      gatewayWorkerSettings: gatewayWorkerSettings.overrides,
+      gatewayWorkerEffectiveSettings: gatewayWorkerSettings.effective,
+      gatewayWorkerSettingDefinitions: gatewayWorkerSettings.definitions,
       modelFamilies: runtimeModelFamilies(),
       modelOptions: runtimeModelOptions(),
       webPushEnabled: Boolean(args.webPushEnabled),
@@ -317,6 +353,8 @@ function createRuntimeConfigProvider(options = {}) {
     effectiveHermesApiBase,
     effectiveWebPushSubject,
     effectiveWebPushVapidPath,
+    gatewayWorkerElasticConfig,
+    gatewayWorkerRuntimeSettings,
     hermesApiKeyStatus,
     load,
     loadHermesApiKey,

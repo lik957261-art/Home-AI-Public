@@ -25,6 +25,7 @@ function parseJson(res) {
 function makeRoutes(overrides = {}) {
   const calls = {
     generate: [],
+    refresh: 0,
     reload: 0,
     save: [],
   };
@@ -53,6 +54,10 @@ function makeRoutes(overrides = {}) {
     },
     readBody(req) {
       return Promise.resolve(req.body || {});
+    },
+    refreshGatewayRuntimeConfig() {
+      calls.refresh += 1;
+      return true;
     },
     reloadWebPush() {
       calls.reload += 1;
@@ -119,6 +124,7 @@ async function testGetAndPatchRuntimeConfig() {
   assert.equal(calls.save.length, 1);
   assert.deepEqual(calls.save[0], { input: { hermesApiBase: "http://localhost:9000" }, actor: "owner" });
   assert.equal(calls.reload, 1);
+  assert.equal(calls.refresh, 1);
   assert.equal(patched.body.ok, true);
   assert.equal(patched.body.push.enabled, true);
 }

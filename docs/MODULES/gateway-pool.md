@@ -11,8 +11,11 @@ Gateway Pool owns official-clean Hermes worker startup, health checks, routing t
 - `scripts/configure-low-gateways.sh`
 - `scripts/check-worker-codex-auth.ps1`
 - `adapters/gateway-elastic-worker-scheduler.js`
+- `adapters/gateway-worker-runtime-settings-service.js`
 - `adapters/gateway-worker-profile-launch-service.js`
 - `adapters/gateway-pool-provider.js`
+- `adapters/runtime-config-provider.js`
+- `server-routes/runtime-config-api-routes.js`
 - `adapters/gateway-run-start-service.js`
 - `adapters/gateway-run-stream-service.js`
 - `adapters/owner-elevation-routing-service.js`
@@ -127,6 +130,44 @@ additional `lowgw*` workers when the user cap and global cap allow it. In
 hybrid mode, stopped `officialclean*` / `deepseekmaint*` profiles are expected
 state unless `HERMES_MOBILE_GATEWAY_OWNER_MAINTENANCE_MIN_WARM` is explicitly
 set above zero.
+
+### Owner Runtime Settings UI
+
+Owner can manage the most common elastic worker policy in the navigation
+settings menu through the existing runtime configuration sheet. The persisted
+`workspace/hermes-web/runtime-config.json` stores only non-secret numeric
+overrides under `gatewayWorkerSettings`; it does not store worker API keys,
+Access Keys, prompts, launch tokens, or raw profile logs.
+
+Supported runtime overrides:
+
+- `ownerMinWarm`
+- `workspaceMinWarm`
+- `idleTtlMinutes`
+- `ownerMaxWorkers`
+- `workspaceMaxWorkers`
+- `globalMaxWorkers`
+- `ownerDeepSeekMaxWorkers`
+- `workspaceDeepSeekMaxWorkers`
+- `ownerMaintenanceMaxWorkers`
+
+`adapters/gateway-worker-runtime-settings-service.js` normalizes these values,
+keeps them bounded, and maps them back to the scheduler's existing
+`HERMES_MOBILE_GATEWAY_*` / `HERMES_WEB_GATEWAY_*` env-style keys. Deployment
+environment variables remain the baseline; Owner UI values override that
+baseline only when present. Saving runtime config refreshes the cached Gateway
+Pool provider and profile launcher so the next pool initialization uses the new
+settings. It does not terminate active workers or active runs.
+
+Focused checks:
+
+```powershell
+node tests\gateway-worker-runtime-settings-service.test.js
+node tests\runtime-config-provider.test.js
+node tests\runtime-config-api-routes.test.js
+node tests\mobile-runtime-gateway-facade-service.test.js
+node tests\task-list-ui.test.js
+```
 
 Hybrid mode is enabled through `HERMES_MOBILE_GATEWAY_POOL_START_MODE=hybrid`
 or the compatibility alias `HERMES_WEB_GATEWAY_POOL_START_MODE=hybrid`. The

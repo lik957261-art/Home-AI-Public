@@ -21,6 +21,7 @@ function createRuntimeConfigApiRoutes(deps = {}) {
     publicPushStatus,
     publicRuntimeConfig,
     readBody,
+    refreshGatewayRuntimeConfig = () => true,
     reloadWebPush,
     requireOwner,
     runConcurrencySnapshot,
@@ -114,6 +115,7 @@ function createRuntimeConfigApiRoutes(deps = {}) {
       try {
         saveRuntimeConfig(body, ownerAuth.principalId || "owner");
         reloadWebPush();
+        refreshGatewayRuntimeConfig();
         sendJson(res, 200, { ok: true, config: publicRuntimeConfig(), push: publicPushStatus() });
       } catch (err) {
         sendJson(res, err.status || 500, { error: err.message || String(err) });

@@ -267,6 +267,43 @@ function renderRuntimeReasoningOptions(selected = "") {
   }).join("");
 }
 
+const RUNTIME_GATEWAY_WORKER_FIELDS = [
+  ["ownerMinWarm", "runtimeGatewayOwnerMinWarm", "Owner \u9884\u70ed"],
+  ["workspaceMinWarm", "runtimeGatewayWorkspaceMinWarm", "\u5de5\u4f5c\u533a\u9884\u70ed"],
+  ["idleTtlMinutes", "runtimeGatewayIdleTtlMinutes", "\u51b7\u5374\u5206\u949f"],
+  ["ownerMaxWorkers", "runtimeGatewayOwnerMaxWorkers", "Owner \u4e0a\u9650"],
+  ["workspaceMaxWorkers", "runtimeGatewayWorkspaceMaxWorkers", "\u5de5\u4f5c\u533a\u4e0a\u9650"],
+  ["globalMaxWorkers", "runtimeGatewayGlobalMaxWorkers", "\u5168\u5c40\u4e0a\u9650"],
+  ["ownerDeepSeekMaxWorkers", "runtimeGatewayOwnerDeepSeekMaxWorkers", "Owner DeepSeek"],
+  ["workspaceDeepSeekMaxWorkers", "runtimeGatewayWorkspaceDeepSeekMaxWorkers", "\u5de5\u4f5c\u533a DeepSeek"],
+  ["ownerMaintenanceMaxWorkers", "runtimeGatewayOwnerMaintenanceMaxWorkers", "Owner \u9ad8\u6743\u9650"],
+];
+
+function runtimeGatewayWorkerValue(config, key) {
+  const overrides = config?.gatewayWorkerSettings || {};
+  const effective = config?.gatewayWorkerEffectiveSettings || {};
+  const value = Object.prototype.hasOwnProperty.call(overrides, key) ? overrides[key] : effective[key];
+  return Number.isFinite(Number(value)) ? String(Math.floor(Number(value))) : "";
+}
+
+function renderRuntimeGatewayWorkerInputs(config) {
+  return RUNTIME_GATEWAY_WORKER_FIELDS.map(([key, id, label]) => `
+    <label>
+      <span>${escapeHtml(label)}</span>
+      <input id="${escapeHtml(id)}" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(runtimeGatewayWorkerValue(config, key))}">
+    </label>`).join("");
+}
+
+function readRuntimeGatewayWorkerSettings() {
+  const settings = {};
+  for (const [key, id] of RUNTIME_GATEWAY_WORKER_FIELDS) {
+    const raw = $(id)?.value?.trim() || "";
+    if (raw === "") continue;
+    settings[key] = Number(raw);
+  }
+  return settings;
+}
+
 function renderRuntimeConfigManager() {
   const overlay = $("runtimeConfigOverlay");
   if (!overlay) return;
@@ -317,6 +354,11 @@ function renderRuntimeConfigManager() {
             <span>Default reasoning</span>
             <select id="runtimeDefaultReasoningEffort" class="todo-input">${renderRuntimeReasoningOptions(config.defaultReasoningEffort || "")}</select>
           </label>
+          <div class="runtime-config-subtitle">Gateway Worker</div>
+          <div class="runtime-config-worker-grid">
+            ${renderRuntimeGatewayWorkerInputs(config)}
+          </div>
+          <div class="runtime-config-worker-note">0 \u8868\u793a\u6309\u9700\u51b7\u542f\u52a8\u3002\u51b7\u5374\u5206\u949f\u662f\u5f39\u6027 Worker \u7a7a\u95f2\u540e\u53ef\u505c\u6b62\u7684\u65f6\u95f4\u3002</div>
           <div class="runtime-config-subtitle">Web Push / VAPID</div>
           <label>
             <span>Web Push subject</span>
@@ -411,6 +453,7 @@ async function saveRuntimeConfigManager() {
   const hermesApiKeyPath = $("runtimeHermesApiKeyPath")?.value?.trim() || "";
   const defaultModelId = $("runtimeDefaultModelId")?.value?.trim() || "";
   const defaultReasoningEffort = $("runtimeDefaultReasoningEffort")?.value?.trim() || "";
+  const gatewayWorkerSettings = readRuntimeGatewayWorkerSettings();
   const webPushSubject = $("runtimeWebPushSubject")?.value?.trim() || "";
   const webPushVapidPath = $("runtimeWebPushVapidPath")?.value?.trim() || "";
   state.runtimeConfigLoading = true;
@@ -419,7 +462,7 @@ async function saveRuntimeConfigManager() {
   try {
     const result = await api("/api/runtime-config", {
       method: "PATCH",
-      body: JSON.stringify({ hermesApiBase, hermesApiKeyPath, defaultModelId, defaultReasoningEffort, webPushSubject, webPushVapidPath }),
+      body: JSON.stringify({ hermesApiBase, hermesApiKeyPath, defaultModelId, defaultReasoningEffort, gatewayWorkerSettings, webPushSubject, webPushVapidPath }),
     });
     state.runtimeConfig = result.config || {};
     state.pushStatus = result.push || state.pushStatus;

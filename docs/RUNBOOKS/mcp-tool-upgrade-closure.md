@@ -40,6 +40,19 @@ Every MCP tool upgrade must verify these layers in order:
      only. The evidence should prove whether the new callable name appears in
      `raw_json`, `run_options_json`, session schema, or agent-schema output
      without dumping user content.
+7. Write behavior readback:
+   - For MCP tools that create, update, attach, delete, or otherwise mutate
+     plugin data, a schema pass is not enough. The closure must include a
+     readback against the plugin's source-of-truth object and assert the exact
+     changed field. For Finance attachments, the accepted readback is the
+     target transaction showing increased `attachmentCount` /
+     `imageAttachmentCount` or an equivalent attachment-list entry for the
+     same transaction id.
+   - If a tool accepts a local file path, the live smoke must pass the file path
+     field such as `file_path` or `upload_path`, not a model-invented
+     `data_url` that wraps the path string. A response such as
+     `attachment_data_url_invalid` means the callable schema or instruction
+     layer is still wrong for path-based attachment uploads.
 
 ## Harness
 

@@ -48,6 +48,16 @@ The minimum accepted evidence is a browser/Playwright or installed-PWA read of
 reload, plus the `/api/client-version` old/new smoke above. If the loaded client
 still reports the old version after a kill/reopen or reload, the deploy is not
 complete and the corrective deploy must issue another static version.
+Authenticated mobile navigation and tab-switch changes must also run the
+cross-surface flow harness:
+`node scripts\authenticated-navigation-flow-smoke.js --url http://127.0.0.1:8797 --access-key-path <file> --workspace-id owner --viewport 390x844 --json`.
+The checked source contract is
+`node tests\authenticated-navigation-flow-smoke-harness.test.js`. Run a second
+wider touch-tablet viewport when the change can affect tablet shell layout. The
+output must include active nav, visible surface, bottom-nav bounds, composer
+bounds, composer/nav overlap, viewport metrics, horizontal overflow, layout
+stability, long-task summary, navigation timing, tab-switch timing, and stale
+cached surface warnings without printing the key or raw key path.
 Before any production API smoke, the harness must first prove the target origin
 is Hermes Mobile, not another local service on a reused port. The identity proof
 must use the exact origin that will be smoked and must verify a Hermes-specific
@@ -91,6 +101,14 @@ target is not Home AI. Mac Gateway cold-start changes must also run
 `node tests\gateway-worker-profile-launch-service.test.js` to prove
 `HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT` reaches
 `GATEWAY_POOL_ELASTIC_CONFIG` and avoids the Windows `powershell.exe` fallback.
+Gateway worker runtime setting changes must also run
+`node tests\gateway-worker-runtime-settings-service.test.js`,
+`node tests\runtime-config-provider.test.js`,
+`node tests\runtime-config-api-routes.test.js`,
+`node tests\mobile-runtime-gateway-facade-service.test.js`, and
+`node tests\task-list-ui.test.js`. Owner UI values are persisted non-secret
+overrides on top of env defaults; saving must refresh the next Gateway pool /
+profile-launcher initialization without terminating active runs.
 Mac production cold-start smoke must also prove the launchd listener has
 `HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS=90000` or an intentional larger
 value before treating a stopped-profile cold start as accepted.

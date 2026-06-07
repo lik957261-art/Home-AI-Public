@@ -174,6 +174,17 @@ Gateway plugin/schema/profile changes:
   tasks above `--long-task-warn-ms` default to warnings; set
   `HERMES_VISUAL_SMOKE_FAIL_ON_LONG_TASK=1` only for a calibrated performance
   gate after measuring normal local production variance.
+- Authenticated cross-surface mobile navigation must use
+  `scripts/authenticated-navigation-flow-smoke.js` when the change can affect
+  Chat, Inbox, Topics, plugin/topic entry, return behavior, cached surface
+  reuse, bottom navigation, composer layout, tab-switch timing, horizontal
+  overflow, or long-task behavior. The harness covers Chat -> Inbox -> Topics
+  -> plugin/topic entry -> return, records active nav, visible surfaces,
+  bottom-nav bounds, composer bounds, composer/nav overlap, viewport metrics,
+  horizontal overflow, layout stability, long-task summary, navigation timing,
+  tab-switch timing, and stale cached surface warnings. It accepts Access Keys
+  only through `--access-key-path` or `HERMES_NAV_FLOW_ACCESS_KEY_PATH` and must
+  not print the key or raw key path.
 - For mobile and tablet layout work, run at least the default phone portrait
   viewport and one explicit wider viewport with `--viewport <width>x<height>`.
   Use `--mobile` or `--desktop` only when the target shell mode needs to be

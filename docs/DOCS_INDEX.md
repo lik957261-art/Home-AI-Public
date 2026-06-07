@@ -127,6 +127,10 @@ identifiers until a separate infrastructure migration is planned.
 - macOS production deployment plan: `docs/IMPLEMENTATION_NOTES/macos-production-deployment-plan.md`
 - Cross-module harness required matrix: `docs/IMPLEMENTATION_NOTES/harness-required-matrix.md`
 - Harness and context loading discipline: `docs/IMPLEMENTATION_NOTES/harness-context-loading-discipline.md`
+- Mobile authenticated navigation flow harness:
+  `docs/IMPLEMENTATION_NOTES/mobile-authenticated-navigation-flow-harness.md`
+- Service-first refactor backlog:
+  `docs/IMPLEMENTATION_NOTES/service-first-refactor-backlog.md`
 - Async Growth evaluation queue: `docs/IMPLEMENTATION_NOTES/async-growth-evaluation-queue.md`
 - Maintenance Gateway watchdog: `docs/IMPLEMENTATION_NOTES/maintenance-gateway-watchdog.md`
 - Skill write protection: `docs/IMPLEMENTATION_NOTES/skill-write-protection.md`
