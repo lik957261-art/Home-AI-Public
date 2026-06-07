@@ -160,6 +160,13 @@ statements. Priority extraction areas:
   state mutation, compact message-update broadcast, and failed-start projection
   to a focused deterministic state service with its own tests and architecture
   budget.
+- completed 2026-06-08: Gateway run-start assistant run-options projection
+  moved into `adapters/gateway-run-start-assistant-options-service.js`. The
+  start service now delegates access policy context, Gateway conversation id,
+  tool schema epoch, required Skill preload metadata, loaded Skill chip entries,
+  plugin capability catalog/probe metadata, toolset routing metadata, search
+  source fields, and wardrobe workflow gate metadata to a focused deterministic
+  service with its own tests and architecture budget.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

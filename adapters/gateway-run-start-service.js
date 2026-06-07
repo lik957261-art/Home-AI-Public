@@ -6,12 +6,11 @@ const {
   createGatewayRunRequestBuilderService,
   defaultDedupe,
   expandSelectedToolsetsWithCompanions,
-  mergeSkillEntries,
   objectValue,
   policyThreadForRun,
   resolveActorWorkspaceId,
-  skillPreloadRunOptionsMetadata,
 } = require("./gateway-run-request-builder-service");
+const { createGatewayRunStartAssistantOptionsService } = require("./gateway-run-start-assistant-options-service");
 const { createGatewayRunStartEventService } = require("./gateway-run-start-event-service");
 const {
   createGatewayRunStartStreamOptionsService,
@@ -142,6 +141,11 @@ function createGatewayRunStartService(options = {}) {
   const applyStartedRunState = (...args) => runStartStateService.applyStartedRunState(...args);
   const broadcastMessageUpdated = (...args) => runStartStateService.broadcastMessageUpdated(...args);
   const markStartFailed = (...args) => runStartStateService.markStartFailed(...args);
+  const assistantOptionsService = options.assistantOptionsService || createGatewayRunStartAssistantOptionsService({
+    toolSchemaEpoch,
+  });
+  const applyAssistantRunOptions = (...args) => assistantOptionsService.applyAssistantRunOptions(...args);
+  const applyWardrobeWorkflowGateMetadata = (...args) => assistantOptionsService.applyWardrobeWorkflowGateMetadata(...args);
 
   function restoreAuthorizedToolsetsForSelectionFallback(request = {}, selection = {}) {
     const authorized = dedupe(
@@ -223,37 +227,6 @@ function createGatewayRunStartService(options = {}) {
       ].join("\n"),
     ].filter(Boolean).join("\n\n");
     return request;
-  }
-
-  function applyAssistantRunOptions(assistantMessage, request, sourceRunOptions = {}) {
-    assistantMessage.runOptions = Object.assign({}, assistantMessage.runOptions || {}, {
-      access_policy_context: request.runPolicy,
-      gatewayConversation: request.body.conversation,
-      toolSchemaEpoch,
-    });
-    const preloadMetadata = skillPreloadRunOptionsMetadata(request.requiredSkillPreloads);
-    if (preloadMetadata.length) {
-      assistantMessage.runOptions.requiredSkillPreloads = preloadMetadata;
-      assistantMessage.loadedSkills = mergeSkillEntries(assistantMessage.loadedSkills, preloadMetadata);
-    }
-    if (request.pluginCapabilityContext) {
-      assistantMessage.runOptions.activeSchemaSet = request.pluginCapabilityContext.activeSchemaSet;
-      assistantMessage.runOptions.pluginCapabilityCatalog = request.pluginCapabilityContext.catalog;
-      if (request.pluginCapabilityContext.probeResults?.length) {
-        assistantMessage.runOptions.pluginCapabilityProbeResults = request.pluginCapabilityContext.probeResults;
-      }
-    }
-    if (request.toolsetRouting) assistantMessage.runOptions.toolsetRouting = request.toolsetRouting;
-    if (sourceRunOptions.searchSource) assistantMessage.runOptions.searchSource = cleanString(sourceRunOptions.searchSource);
-    if (sourceRunOptions.sourceIntent) assistantMessage.runOptions.sourceIntent = cleanString(sourceRunOptions.sourceIntent);
-    if (sourceRunOptions.sourceMode) assistantMessage.runOptions.sourceMode = cleanString(sourceRunOptions.sourceMode);
-  }
-
-  function applyWardrobeWorkflowGateMetadata(assistantMessage, gate = {}) {
-    if (!gate?.active) return;
-    assistantMessage.runOptions = Object.assign({}, assistantMessage.runOptions || {}, {
-      wardrobeOutfitWorkflowGate: gate.runOptionsMetadata || null,
-    });
   }
 
   function appendWardrobeWorkflowGateInstructions(request = {}, gate = {}) {
