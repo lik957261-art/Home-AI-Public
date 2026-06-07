@@ -98,6 +98,7 @@ focused adapters such as `app-route-url-service.js`,
 `gateway-run-start-toolset-selection-service.js`,
 `gateway-run-start-wardrobe-gate-service.js`,
 `gateway-run-content-service.js`,
+`gateway-run-stream-registry-service.js`,
 `mobile-runtime-group-chat-facade-service.js`,
 `mobile-runtime-group-chat-attachment-service.js`,
 `mobile-runtime-kanban-environment-service.js`,
@@ -173,6 +174,20 @@ truncation helpers for live streaming append and final full-content compaction.
 `mobile-server-runtime.js` may wire those helpers into Gateway runtime
 composition and state normalization, but it must not carry duplicate
 `appendBounded`, `compactFullContent`, or SSE frame parsing implementations.
+
+`gateway-run-stream-registry-service.js` owns the active Gateway stream
+registry: public run id lookup, real run id aliases, Gateway target/url lookup
+from active streams or the pool fallback, alias cleanup, active stream count,
+and idempotent failed-abort flagging. It must not read response streams, parse
+Gateway events, emit Hermes run events, perform liveness checks, stop remote
+runs, or mark thread/message terminal state.
+
+`gateway-run-stream-service.js` owns Gateway response stream orchestration:
+event reading, stream telemetry projection, liveness checks, stream-close
+recovery, remote stop requests, tool-call budget tracking, and terminal
+failure/cancel/completion handoff. It must delegate active-stream registry,
+run-id aliasing, Gateway target/url lookup, alias cleanup, and failed-abort
+flagging to `gateway-run-stream-registry-service.js`.
 
 `mobile-runtime-gateway-context-facade-service.js` owns stale tool-availability
 claim detection delegates for HTTP, image, DOCX, and audio tool schemas. Weixin
@@ -677,6 +692,12 @@ Current CI guardrails:
 - `gateway-run-content-service.js` must stay at or below 60 lines and remain a
   deterministic helper service for live run append and final content
   compaction, not a Gateway lifecycle or stream parser implementation;
+- `gateway-run-stream-registry-service.js` must stay at or below 115 lines and
+  remain an active-stream registry and alias/target lookup service, not a
+  stream parser, liveness checker, event projector, or lifecycle module;
+- `gateway-run-stream-service.js` must stay at or below 520 lines and remain
+  Gateway stream orchestration, not an active-stream registry or broad Gateway
+  runtime composition module;
 - `mobile-runtime-group-chat-facade-service.js` must stay at or below 95 lines
   and remain a facade over group chat public projection, revoke authorization,
   paired assistant lookup, and revoke payload mutation;

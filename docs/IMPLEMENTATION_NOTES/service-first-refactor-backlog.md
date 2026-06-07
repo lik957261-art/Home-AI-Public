@@ -230,6 +230,12 @@ statements. Priority extraction areas:
   refresh, `run.request_sent` telemetry, enabled-toolset normalization,
   state-save handoff, `streamResponse` invocation, and the public `started`
   response shape while retaining overall run preparation orchestration.
+- completed 2026-06-08: Gateway run active-stream registry moved into
+  `adapters/gateway-run-stream-registry-service.js`. The stream service now
+  delegates public/real run-id aliasing, active stream lookup/count, Gateway
+  target/url lookup, alias cleanup, and failed-abort flagging while retaining
+  response stream reading, liveness checks, event projection, and terminal
+  stream recovery.
 - completed 2026-06-08: Runtime Gateway concurrency projection moved into
   `adapters/mobile-runtime-gateway-concurrency-service.js`. The Gateway facade
   now delegates active-run snapshot, per-workspace limit-error projection, and

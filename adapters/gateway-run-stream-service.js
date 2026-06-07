@@ -2,6 +2,7 @@
 
 const { livenessDecisionAfterCheck } = require("./gateway-run-lifecycle-service");
 const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
+const { createGatewayRunStreamRegistryService } = require("./gateway-run-stream-registry-service");
 
 function cleanString(value) {
   return String(value || "").trim();
@@ -113,9 +114,6 @@ function createGatewayRunStreamService(options = {}) {
   const singleGatewayRunner = typeof options.singleGatewayRunner === "function"
     ? options.singleGatewayRunner
     : (() => options.singleGatewayRunner);
-  const gatewayUrlForRunFallback = typeof options.gatewayUrlForRun === "function"
-    ? options.gatewayUrlForRun
-    : (() => "");
   const onHermesRunEvent = typeof options.onHermesRunEvent === "function"
     ? options.onHermesRunEvent
     : (() => {});
@@ -132,6 +130,19 @@ function createGatewayRunStreamService(options = {}) {
   const livenessDecision = typeof options.livenessDecisionAfterCheck === "function"
     ? options.livenessDecisionAfterCheck
     : livenessDecisionAfterCheck;
+  const streamRegistryService = options.streamRegistryService || createGatewayRunStreamRegistryService({
+    activeStreams,
+    gatewayPool,
+    gatewayUrlForRun: options.gatewayUrlForRun,
+  });
+  const activeStreamForRun = (...args) => streamRegistryService.activeStreamForRun(...args);
+  const activeStreamCount = (...args) => streamRegistryService.activeStreamCount(...args);
+  const gatewayUrlForRun = (...args) => streamRegistryService.gatewayUrlForRun(...args);
+  const gatewayTargetForRun = (...args) => streamRegistryService.gatewayTargetForRun(...args);
+  const registerActiveStream = (...args) => streamRegistryService.registerActiveStream(...args);
+  const registerRunAlias = (...args) => streamRegistryService.registerRunAlias(...args);
+  const cleanupRunAliases = (...args) => streamRegistryService.cleanupRunAliases(...args);
+  const abortActiveStreamAsFailed = (...args) => streamRegistryService.abortActiveStreamAsFailed(...args);
 
   function configured(name, fallback = 0) {
     return readNumber(options[name], fallback);
@@ -142,86 +153,6 @@ function createGatewayRunStreamService(options = {}) {
       ? stream[name]
       : options[name];
     return readNumber(value, fallback);
-  }
-
-  function activeStreamForRun(runId) {
-    return activeStreams.get(cleanString(runId));
-  }
-
-  function activeStreamCount() {
-    return new Set(activeStreams.values()).size;
-  }
-
-  function gatewayUrlForRun(runId) {
-    const active = activeStreamForRun(runId);
-    if (active?.gatewayUrl) return active.gatewayUrl;
-    return cleanString(gatewayUrlForRunFallback(runId));
-  }
-
-  function gatewayTargetFromActiveStream(active) {
-    if (!active?.gatewayUrl) return null;
-    return {
-      apiBase: active.gatewayUrl,
-      apiKey: active.gatewayApiKey || "",
-      name: active.gatewayName || "",
-      profile: active.gatewayProfile || "",
-      pooled: active.gatewaySource === "worker_pool",
-      source: active.gatewaySource || "",
-    };
-  }
-
-  function gatewayTargetForRun(runId) {
-    const activeTarget = gatewayTargetFromActiveStream(activeStreamForRun(runId));
-    if (activeTarget) return activeTarget;
-    const pool = gatewayPool();
-    if (!pool || typeof pool.targetForGatewayUrl !== "function") {
-      throw new Error("Gateway run stream service requires gatewayPool.targetForGatewayUrl");
-    }
-    return pool.targetForGatewayUrl(gatewayUrlForRun(runId));
-  }
-
-  function registerActiveStream(runId, streamState = {}) {
-    const id = cleanString(runId);
-    if (!id) throw new Error("runId is required");
-    activeStreams.set(id, streamState);
-    return streamState;
-  }
-
-  function registerRunAlias(publicRunId, realRunId) {
-    const publicId = cleanString(publicRunId);
-    const realId = cleanString(realRunId);
-    if (!publicId || !realId || publicId === realId) return activeStreamForRun(publicId) || null;
-    const stream = activeStreamForRun(publicId);
-    if (!stream) return null;
-    stream.realRunId = realId;
-    activeStreams.set(realId, stream);
-    return stream;
-  }
-
-  function cleanupRunAliases(runId) {
-    const id = cleanString(runId);
-    if (!id) return 0;
-    const stream = activeStreamForRun(id);
-    if (!stream) {
-      return activeStreams.delete(id) ? 1 : 0;
-    }
-    let removed = 0;
-    for (const [key, value] of [...activeStreams.entries()]) {
-      if (value !== stream) continue;
-      activeStreams.delete(key);
-      removed += 1;
-    }
-    return removed;
-  }
-
-  function abortActiveStreamAsFailed(publicRunId, reason) {
-    const stream = activeStreamForRun(publicRunId);
-    if (!stream || stream.failureReason) return false;
-    stream.failureReason = cleanString(reason);
-    try {
-      stream.controller?.abort?.();
-    } catch (_) {}
-    return true;
   }
 
   function emitRunStreamEvent(publicRunId, eventName, preview = "", eventOptions = {}) {
@@ -482,7 +413,7 @@ function createGatewayRunStreamService(options = {}) {
 
   function streamResponse(runId, threadId, messageId, body, streamOptions = {}) {
     const id = cleanString(runId);
-    if (!id || activeStreams.has(id)) return null;
+    if (!id || activeStreamForRun(id)) return null;
     const controller = streamOptions.controller || abortControllerFactory();
     const defaultRunner = provider(singleGatewayRunner, null);
     const startedAt = nowMs();
@@ -524,7 +455,7 @@ function createGatewayRunStreamService(options = {}) {
       }, Math.max(5000, livenessIntervalMs));
       if (typeof streamState.livenessTimer?.unref === "function") streamState.livenessTimer.unref();
     }
-    activeStreams.set(id, streamState);
+    registerActiveStream(id, streamState);
     scheduleFirstEventWarning(id, streamState);
     readResponseEvents(id, body, controller.signal)
       .then(() => {
