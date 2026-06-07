@@ -91,6 +91,7 @@ focused adapters such as `app-route-url-service.js`,
 `gateway-run-start-stream-handoff-service.js`,
 `gateway-run-start-stream-options-service.js`,
 `gateway-run-start-state-service.js`,
+`gateway-run-start-target-phase-service.js`,
 `gateway-run-start-target-service.js`,
 `gateway-run-start-toolset-preflight-service.js`,
 `gateway-run-start-toolset-selection-service.js`,
@@ -324,6 +325,14 @@ thread state mutation, compact message-update broadcast, and failed-start
 projection. It must not choose workers, build Gateway requests, run model
 preflight, emit run-start telemetry events, or start streams.
 
+`gateway-run-start-target-phase-service.js` owns target-selected phase
+orchestration during run start: worker target selection handoff, the
+`gateway_selected` Wardrobe checkpoint, target start projection, context-ready
+event projection, plugin capability probe invocation, request/run-options
+handoff after probing, and failed-gate terminal handoff. It must not build the
+initial request, define worker selection policy, define plugin activation
+policy, run model-first toolset preflight, mutate queues, or start streams.
+
 `gateway-run-start-target-service.js` owns deterministic Gateway target
 selection handoff and post-selection projection: passing scheduler events back
 to run-start telemetry, applying started-state target metadata to the assistant
@@ -366,9 +375,10 @@ handoff to `gateway-run-start-preparation-service.js`, final stream-start handof
 `gateway-run-start-stream-handoff-service.js`, and stream-start option
 projection to `gateway-run-start-stream-options-service.js`. It must delegate deterministic
 run-start state mutation and failed-start projection to
-`gateway-run-start-state-service.js`, Gateway target post-selection projection
-to `gateway-run-start-target-service.js`, model-first toolset preflight
-execution to `gateway-run-start-toolset-preflight-service.js`,
+`gateway-run-start-state-service.js`, target-selected phase orchestration to
+`gateway-run-start-target-phase-service.js`, Gateway target post-selection
+projection to `gateway-run-start-target-service.js`, model-first toolset
+preflight execution to `gateway-run-start-toolset-preflight-service.js`,
 toolset-selection request mutation to
 `gateway-run-start-toolset-selection-service.js`, and Wardrobe gate evaluation/
 failure projection to `gateway-run-start-wardrobe-gate-service.js`.
@@ -623,6 +633,9 @@ Current CI guardrails:
 - `gateway-run-start-state-service.js` must stay at or below 115 lines and
   remain deterministic Gateway run-start state projection, not a request
   builder, selector, worker-selection, or streaming module;
+- `gateway-run-start-target-phase-service.js` must stay at or below 85 lines
+  and remain target-selected phase orchestration, not an initial request-builder,
+  selector, plugin policy, queue, or streaming module;
 - `gateway-run-start-target-service.js` must stay at or below 95 lines and
   remain Gateway target selection handoff and post-selection projection, not a
   request-builder, selector, Wardrobe gate, queue, or streaming module;
@@ -635,7 +648,7 @@ Current CI guardrails:
 - `gateway-run-start-wardrobe-gate-service.js` must stay at or below 85 lines
   and remain deterministic Wardrobe workflow gate integration, not a Wardrobe
   product-rule, selector, worker-selection, or streaming module;
-- `gateway-run-start-service.js` must stay at or below 310 lines and remain
+- `gateway-run-start-service.js` must stay at or below 305 lines and remain
   Gateway run preparation orchestration, not a request-builder, event projector,
   or broad Gateway composition module;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 125 lines

@@ -205,6 +205,13 @@ statements. Priority extraction areas:
   `pre_gateway` Wardrobe checkpoint, required Skill preload event projection,
   and failed-gate terminal handoff while retaining later worker/probe/preflight
   orchestration.
+- completed 2026-06-08: Gateway run-start target-selected phase orchestration
+  moved into `adapters/gateway-run-start-target-phase-service.js`. The start
+  service now delegates target selection handoff, the `gateway_selected`
+  Wardrobe checkpoint, target start projection, context-ready event projection,
+  plugin capability probe invocation, request/run-options refresh after probe
+  evidence, and failed-gate terminal handoff while retaining model-first
+  preflight and final stream orchestration.
 - completed 2026-06-08: Gateway run-start model-first toolset preflight
   execution/projection moved into
   `adapters/gateway-run-start-toolset-preflight-service.js`. The start service

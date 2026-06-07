@@ -18,6 +18,7 @@ const {
   createGatewayRunStartStreamOptionsService,
 } = require("./gateway-run-start-stream-options-service");
 const { createGatewayRunStartStateService } = require("./gateway-run-start-state-service");
+const { createGatewayRunStartTargetPhaseService } = require("./gateway-run-start-target-phase-service");
 const { createGatewayRunStartTargetService } = require("./gateway-run-start-target-service");
 const { createGatewayRunStartToolsetPreflightService } = require("./gateway-run-start-toolset-preflight-service");
 const { createGatewayRunStartToolsetSelectionService } = require("./gateway-run-start-toolset-selection-service");
@@ -159,9 +160,6 @@ function createGatewayRunStartService(options = {}) {
     gatewaySelectedPreview,
     saveState,
   });
-  const selectGatewayRunTarget = (...args) => targetService.selectGatewayRunTarget(...args);
-  const applyGatewayTargetStart = (...args) => targetService.applyGatewayTargetStart(...args);
-  const projectGatewayTargetReadyEvents = (...args) => targetService.projectGatewayTargetReadyEvents(...args);
   const permissionService = options.permissionService || createGatewayRunStartPermissionService({
     appendRunStartEvent,
     broadcastMessageUpdated,
@@ -202,6 +200,16 @@ function createGatewayRunStartService(options = {}) {
     probePluginCapabilities: options.probePluginCapabilities,
   });
   const runPluginCapabilityProbe = (...args) => pluginProbeService.runPluginCapabilityProbe(...args);
+  const targetPhaseService = options.targetPhaseService || createGatewayRunStartTargetPhaseService({
+    applyGatewayTargetStart: (...args) => targetService.applyGatewayTargetStart(...args),
+    applyWardrobeWorkflowGateMetadata,
+    completeWardrobeWorkflowGateFailure,
+    evaluateWardrobeGate,
+    nowIso,
+    projectGatewayTargetReadyEvents: (...args) => targetService.projectGatewayTargetReadyEvents(...args),
+    runPluginCapabilityProbe,
+    selectGatewayRunTarget: (...args) => targetService.selectGatewayRunTarget(...args),
+  });
   const streamHandoffService = options.streamHandoffService || createGatewayRunStartStreamHandoffService({
     appendRunStartEvent,
     applyAssistantRunOptions,
@@ -234,35 +242,20 @@ function createGatewayRunStartService(options = {}) {
     const taskId = prepared.taskId;
     let effectiveRunOptions = prepared.effectiveRunOptions || runOptions;
     let request = prepared.request;
-    let wardrobeGate = prepared.wardrobeGate;
 
-    const gatewayTarget = await selectGatewayRunTarget(request, taskId, thread);
-    wardrobeGate = evaluateWardrobeGate(request, userMessage, "gateway_selected", gatewayTarget);
-    applyWardrobeWorkflowGateMetadata(assistantMessage, wardrobeGate);
-    if (wardrobeGate.active && !wardrobeGate.ok) {
-      return completeWardrobeWorkflowGateFailure(thread, assistantMessage, taskId, wardrobeGate);
-    }
-    const { gatewayUrl } = applyGatewayTargetStart(thread, assistantMessage, taskId, request, gatewayTarget, nowIso());
-    const { probeRequests, shouldProbePluginCapabilities } = projectGatewayTargetReadyEvents(thread, assistantMessage, request, gatewayTarget, {
-      probeOverridePresent: typeof options.probePluginCapabilities === "function",
-    });
-    const pluginProbe = await runPluginCapabilityProbe({
+    const targetPhase = await targetPhaseService.runTargetSelectedPhase({
       assistantMessage,
       effectiveRunOptions,
-      gatewayTarget,
-      probeRequests,
+      probeOverridePresent: typeof options.probePluginCapabilities === "function",
       request,
-      shouldProbePluginCapabilities,
+      taskId,
       thread,
       userMessage,
-      wardrobeGate,
     });
-    effectiveRunOptions = pluginProbe.effectiveRunOptions || effectiveRunOptions;
-    request = pluginProbe.request || request;
-    wardrobeGate = pluginProbe.wardrobeGate || wardrobeGate;
-    if (pluginProbe.gateFailed) {
-      return completeWardrobeWorkflowGateFailure(thread, assistantMessage, taskId, wardrobeGate);
-    }
+    if (targetPhase.terminalResult) return targetPhase.terminalResult;
+    effectiveRunOptions = targetPhase.effectiveRunOptions || effectiveRunOptions;
+    request = targetPhase.request || request;
+    const { gatewayTarget, gatewayUrl } = targetPhase;
     const streamOptions = streamOptionsService.streamOptionsForGatewayTarget(gatewayTarget, runOptions, { gatewayUrl });
     const preflight = await applyModelFirstToolsetPreflight({
       assistantMessage,
