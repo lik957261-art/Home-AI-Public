@@ -104,6 +104,7 @@ target is not Home AI. Mac Gateway cold-start changes must also run
 Gateway worker runtime setting changes must also run
 `node tests\gateway-worker-runtime-settings-service.test.js`,
 `node tests\runtime-config-provider.test.js`,
+`node tests\runtime-config-key-service.test.js`,
 `node tests\runtime-config-public-projection-service.test.js`,
 `node tests\runtime-config-save-service.test.js`,
 `node tests\runtime-config-api-routes.test.js`,

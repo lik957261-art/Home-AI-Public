@@ -198,6 +198,11 @@ statements. Priority extraction areas:
   delegates next-config payload construction while retaining load/write
   persistence, effective-value projection, Gateway worker setting composition,
   and key lookup behavior.
+- completed 2026-06-08: Runtime config API key discovery and status projection
+  moved into `adapters/runtime-config-key-service.js`. `runtime-config-provider.js`
+  now delegates direct env, key-file, env-file, unreadable file fallback, and
+  non-secret source metadata handling while retaining persisted config storage
+  and injected default path lists.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

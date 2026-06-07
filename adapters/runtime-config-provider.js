@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { createRuntimeConfigKeyService } = require("./runtime-config-key-service");
 const { createRuntimeConfigPublicProjectionService } = require("./runtime-config-public-projection-service");
 const { createRuntimeConfigSaveService } = require("./runtime-config-save-service");
 const {
@@ -184,6 +185,13 @@ function createRuntimeConfigProvider(options = {}) {
       ? (options.gatewayWorkerElasticConfig() || {})
       : (options.gatewayWorkerElasticConfig || {})
   );
+  const keyService = createRuntimeConfigKeyService({
+    apiKeyPaths,
+    envPaths,
+    fileExists: (targetPath) => fs.existsSync(targetPath),
+    load,
+    readFile: (targetPath) => fs.readFileSync(targetPath, "utf8"),
+  });
   const publicProjectionService = createRuntimeConfigPublicProjectionService({
     defaultHermesApiBase,
     defaultRuntimeModelOption: DEFAULT_RUNTIME_MODEL_OPTION,
@@ -192,7 +200,7 @@ function createRuntimeConfigProvider(options = {}) {
     effectiveWebPushVapidPath,
     fileExists: (targetPath) => fs.existsSync(targetPath),
     gatewayWorkerRuntimeSettings,
-    hermesApiKeyStatus,
+    hermesApiKeyStatus: keyService.hermesApiKeyStatus,
     load,
     runtimeModelFamilies,
     runtimeModelOptions,
@@ -227,10 +235,6 @@ function createRuntimeConfigProvider(options = {}) {
     return stripTrailingSlash(config.hermesApiBase || defaultHermesApiBase());
   }
 
-  function configuredHermesApiKeyPaths(config = load()) {
-    return [config.hermesApiKeyPath, ...apiKeyPaths()].filter(Boolean);
-  }
-
   function effectiveWebPushSubject(config = load()) {
     return config.webPushSubject || defaultWebPushSubject();
   }
@@ -247,82 +251,20 @@ function createRuntimeConfigProvider(options = {}) {
     return publicGatewayWorkerRuntimeSettings(config.gatewayWorkerSettings || {}, baseGatewayWorkerElasticConfig());
   }
 
-  function loadHermesApiKey(env = process.env) {
-    const direct = env.HERMES_WEB_HERMES_API_KEY
-      || env.HERMES_API_KEY
-      || env.API_SERVER_KEY
-      || "";
-    if (String(direct).trim()) return String(direct).trim();
-
-    for (const keyPath of configuredHermesApiKeyPaths()) {
-      try {
-        if (!keyPath || !fs.existsSync(keyPath)) continue;
-        const text = fs.readFileSync(keyPath, "utf8").trim();
-        if (!text) continue;
-        const match = text.match(/^\s*(?:export\s+)?(?:API_SERVER_KEY|HERMES_API_KEY)\s*=\s*(.+?)\s*$/m);
-        const value = match ? match[1].replace(/^['"]|['"]$/g, "").trim() : text;
-        if (value) return value;
-      } catch (_) {
-        // Keep trying env paths.
-      }
-    }
-
-    for (const envPath of envPaths()) {
-      try {
-        if (!envPath || !fs.existsSync(envPath)) continue;
-        const text = fs.readFileSync(envPath, "utf8");
-        for (const line of text.split(/\r?\n/)) {
-          const match = line.match(/^\s*(?:export\s+)?(API_SERVER_KEY|HERMES_API_KEY)\s*=\s*(.+?)\s*$/);
-          if (!match) continue;
-          const value = match[2].replace(/^['"]|['"]$/g, "").trim();
-          if (value) return value;
-        }
-      } catch (_) {
-        // Keep trying remaining files only.
-      }
-    }
-    return "";
-  }
-
-  function hermesApiKeyStatus(env = process.env) {
-    const direct = env.HERMES_WEB_HERMES_API_KEY
-      || env.HERMES_API_KEY
-      || env.API_SERVER_KEY
-      || "";
-    if (String(direct).trim()) return { configured: true, source: "env", path: "" };
-    for (const keyPath of configuredHermesApiKeyPaths()) {
-      try {
-        if (!keyPath || !fs.existsSync(keyPath)) continue;
-        const value = fs.readFileSync(keyPath, "utf8").trim();
-        if (value) return { configured: true, source: "file", path: keyPath };
-      } catch (_) {}
-    }
-    for (const envPath of envPaths()) {
-      try {
-        if (!envPath || !fs.existsSync(envPath)) continue;
-        const text = fs.readFileSync(envPath, "utf8");
-        if (/^\s*(?:export\s+)?(?:API_SERVER_KEY|HERMES_API_KEY)\s*=/m.test(text)) {
-          return { configured: true, source: "env-file", path: envPath };
-        }
-      } catch (_) {}
-    }
-    return { configured: false, source: "", path: "" };
-  }
-
   function publicConfig(args = {}) {
     return publicProjectionService.publicConfig(args);
   }
 
   return {
-    configuredHermesApiKeyPaths,
+    configuredHermesApiKeyPaths: keyService.configuredHermesApiKeyPaths,
     effectiveHermesApiBase,
     effectiveWebPushSubject,
     effectiveWebPushVapidPath,
     gatewayWorkerElasticConfig,
     gatewayWorkerRuntimeSettings,
-    hermesApiKeyStatus,
+    hermesApiKeyStatus: keyService.hermesApiKeyStatus,
     load,
-    loadHermesApiKey,
+    loadHermesApiKey: keyService.loadHermesApiKey,
     normalize: normalizeRuntimeConfig,
     publicConfig,
     save,
