@@ -523,13 +523,24 @@ output text, evaluate Wardrobe completion, perform toolset escalation retry,
 read streams, manage active-stream aliases, select workers, or issue remote
 stop requests.
 
+`gateway-run-evidence-service.js` owns deterministic run evidence parsing:
+Skill reference normalization, loaded-Skill extraction from run events and
+completed responses, loaded-tool extraction from run events, output items, and
+completed responses, output item tool/call-id/function-name summaries, previous
+function-call lookup for `function_call_output`, and message output text
+extraction. It must keep raw tool arguments, raw tool output, private response
+text, secrets, and full file payloads out of event previews. It must not mutate
+threads/messages, broadcast, save runtime state, schedule queued work, parse
+Gateway terminal state, or decide toolset escalation.
+
 `gateway-run-event-service.js` owns Gateway event parsing and in-run event
 projection: run id resolution, response-created alias handling, text delta and
 output item projection, final-message events, completed output projection,
 model-first toolset escalation retry, permission approval marker handling,
 Wardrobe completion validation, and ordinary event persistence. It must
-delegate failed/cancelled terminal state and detached active-run reconciliation
-to `gateway-run-terminal-state-service.js`.
+delegate Skill/tool/output-item evidence parsing to
+`gateway-run-evidence-service.js`, and failed/cancelled terminal state plus
+detached active-run reconciliation to `gateway-run-terminal-state-service.js`.
 
 `app-route-url-service.js` owns app-shell query URL serialization for Push,
 Web Push, plugin notification, and other route-link producers. Runtime
@@ -817,10 +828,15 @@ Current CI guardrails:
   remain failed/cancelled/detached terminal projection, not event parsing,
   completed output projection, stream handling, remote stop, or worker
   selection;
-- `gateway-run-event-service.js` must stay at or below 1110 lines and remain
+- `gateway-run-evidence-service.js` must stay at or below 310 lines and remain
+  Skill/tool/output-item evidence parsing and bounded preview construction, not
+  event broadcasting, terminal mutation, state persistence, queue scheduling, or
+  toolset escalation;
+- `gateway-run-event-service.js` must stay at or below 890 lines and remain
   event parsing/projection, completed output handling, toolset escalation retry,
   permission marker handling, and Wardrobe completion validation while
-  delegating failed/cancelled/detached terminal projection;
+  delegating Skill/tool evidence parsing and failed/cancelled/detached terminal
+  projection;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 125 lines
   and remain a runtime Gateway facade over provider lifecycle, run concurrency,
   and Gateway runtime composition singleton ownership delegates;

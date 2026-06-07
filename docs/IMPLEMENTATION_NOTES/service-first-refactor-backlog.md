@@ -277,6 +277,14 @@ statements. Priority extraction areas:
   and detached active-run reconciliation while retaining event parsing,
   completed output handling, toolset escalation retry, permission marker
   handling, and Wardrobe completion validation.
+- completed 2026-06-08: Gateway run Skill/tool/output-item evidence parsing
+  moved into `adapters/gateway-run-evidence-service.js`. The event service now
+  delegates loaded-Skill extraction, loaded-tool extraction, output item
+  tool/call-id/function-name summaries, previous function-call lookup for
+  `function_call_output`, completed-response evidence backfill, and message
+  output text extraction while retaining event projection, broadcasts, state
+  saves, completed output handling, toolset escalation retry, permission marker
+  handling, and Wardrobe completion validation.
 - completed 2026-06-08: Gateway run stream closed-without-terminal recovery
   moved into `adapters/gateway-run-stream-close-recovery-service.js`. The
   stream service now delegates synthetic completion after partial model output,
