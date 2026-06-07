@@ -238,7 +238,6 @@ let mobileRuntimeGroupChatFacadeService = null;
 let mobileRuntimeArtifactFacadeService = null;
 let mobileRuntimeKanbanFacadeService = null;
 let mobileRuntimeWorkspaceFacadeService = null;
-let runtimeWorkspaceCatalogService = null;
 const sourceMarkdownSearchCache = new Map();
 let state = null;
 let mobileRuntimeThreadViewFacadeService = null;
@@ -682,6 +681,7 @@ const {
   allProjectsForWorkspaceSync,
   buildAccessPolicy,
   cachedDynamicProjectsForWorkspace,
+  clearDynamicProjectCache,
   dedupeProjects,
   effectiveProjectForThread,
   findProject,
@@ -712,8 +712,37 @@ const {
   updateSharedDirectoryAccess,
   upsertSharedDirectory,
 } = createMobileRuntimeWorkspaceCatalogFacade({
-  getRuntimeWorkspaceCatalogService,
+  createRuntimeWorkspaceCatalogService,
   projectDiscoveryProvider,
+  runtimeWorkspaceCatalogOptions: () => ({
+    accessPolicyProvider,
+    bootTrace,
+    comparablePath,
+    defaultOwnerWorkspace: () => OWNER_DEFAULT_WORKSPACE,
+    dedupe,
+    fallbackOwnerPolicy: () => sanitizePolicy({
+      principal_id: "owner",
+      principal_label: OWNER_LABEL,
+      access_mode: "unrestricted",
+      default_workspace: OWNER_DEFAULT_WORKSPACE,
+      source_platform: "web",
+      reason: "hermes_web_fallback_owner",
+    }),
+    localWorkspaces: localWorkspaceRecords,
+    normalizeStringList,
+    ownerAliases: () => process.env.HERMES_WEB_OWNER_ALIASES || "owner",
+    ownerLabel: () => OWNER_LABEL,
+    path,
+    projectDiscoveryProvider,
+    projectMapPaths: PROJECT_MAP_PATHS,
+    readJsonFirst,
+    repoRoot: REPO_ROOT,
+    routeMapPaths: WORKSPACE_ROUTE_MAP_PATHS,
+    securityBoundaryProvider,
+    sharedDirectoryProvider,
+    usersPaths: WORKSPACE_USERS_PATHS,
+    workspaceBindingsProvider,
+  }),
 });
 const workspaceDisplayPathService = createWorkspaceDisplayPathService({
   allProjectsForWorkspaceSync,
@@ -795,40 +824,6 @@ mobileRuntimeFileAccessFacadeService = createMobileRuntimeFileAccessFacadeServic
   sharedDirectoryRoots,
 });
 bootTrace("file access facade ready");
-function getRuntimeWorkspaceCatalogService() {
-  if (!runtimeWorkspaceCatalogService) {
-    runtimeWorkspaceCatalogService = createRuntimeWorkspaceCatalogService({
-      accessPolicyProvider,
-      bootTrace,
-      comparablePath,
-      defaultOwnerWorkspace: () => OWNER_DEFAULT_WORKSPACE,
-      dedupe,
-      fallbackOwnerPolicy: () => sanitizePolicy({
-        principal_id: "owner",
-        principal_label: OWNER_LABEL,
-        access_mode: "unrestricted",
-        default_workspace: OWNER_DEFAULT_WORKSPACE,
-        source_platform: "web",
-        reason: "hermes_web_fallback_owner",
-      }),
-      localWorkspaces: localWorkspaceRecords,
-      normalizeStringList,
-      ownerAliases: () => process.env.HERMES_WEB_OWNER_ALIASES || "owner",
-      ownerLabel: () => OWNER_LABEL,
-      path,
-      projectDiscoveryProvider,
-      projectMapPaths: PROJECT_MAP_PATHS,
-      readJsonFirst,
-      repoRoot: REPO_ROOT,
-      routeMapPaths: WORKSPACE_ROUTE_MAP_PATHS,
-      securityBoundaryProvider,
-      sharedDirectoryProvider,
-      usersPaths: WORKSPACE_USERS_PATHS,
-      workspaceBindingsProvider,
-    });
-  }
-  return runtimeWorkspaceCatalogService;
-}
 const singleGatewayRunner = (...args) => mobileRuntimeGatewayFacadeService.singleGatewayRunner(...args);
 const gatewayPool = (...args) => mobileRuntimeGatewayFacadeService.gatewayPool(...args);
 const getHermesStatus = (...args) => mobileRuntimeGatewayFacadeService.getHermesStatus(...args);
@@ -866,7 +861,7 @@ const sanitizeElevationScope = (...args) => mobileRuntimeOwnerElevationFacadeSer
 const stripPermissionApprovalMarkers = (...args) => mobileRuntimeOwnerElevationFacadeService.stripPermissionApprovalMarkers(...args);
 mobileRuntimeWorkspaceFacadeService = createMobileRuntimeWorkspaceFacadeService({
   authProvider,
-  clearDynamicProjectCache: (workspaceId) => getRuntimeWorkspaceCatalogService().clearDynamicProjectCache(workspaceId),
+  clearDynamicProjectCache,
   dedupe,
   deleteWorkspaceAccessKey: (workspaceId) => authProvider.deleteWorkspaceAccessKey(workspaceId),
   ensureDataDir,
@@ -1234,8 +1229,8 @@ const { eventStreamApiRoutes, mobileApiDispatcher, services: mobileApiServices =
   accessToken: null, actionInboxService, activeStreams: () => activeStreams, ackWeixinOutboundDelivery, appRouteUrl, appUpdateStatus,
   applyAppUpdate, attachClientVersionHeaders, authCanAccessWorkspace, authenticateRequest, authProvider,
   automationCreateModel: AUTOMATION_CREATE_MODEL, learningGrowthJitModel: LEARNING_GROWTH_JIT_MODEL, learningGrowthJitReasoningEffort: LEARNING_GROWTH_JIT_REASONING_EFFORT, automationProvider, basename: (value) => path.basename(value), boolParam, bootTrace, broadcast,
-  buildRequestContext, canRevokeGroupChatMessage, chatGroupMemberWorkspaceIds, clearCronListCache, clearDynamicProjectCache: () => getRuntimeWorkspaceCatalogService().clearDynamicProjectCache(),
-  clearDynamicProjectCacheForWorkspace: (workspaceId) => getRuntimeWorkspaceCatalogService().clearDynamicProjectCache(workspaceId), clearKanbanCardListCache, clientVersionInfo, compactMessage, compactText,
+  buildRequestContext, canRevokeGroupChatMessage, chatGroupMemberWorkspaceIds, clearCronListCache, clearDynamicProjectCache: () => clearDynamicProjectCache(),
+  clearDynamicProjectCacheForWorkspace: (workspaceId) => clearDynamicProjectCache(workspaceId), clearKanbanCardListCache, clientVersionInfo, compactMessage, compactText,
   compactThread, compactThreadWithMessagePage, contentDisposition, createInitialOwnerKey, createKanbanPlanCards,
   createWeixinFileForwardDelivery, cronJobMatchesOwner, cronJobMatchesSearch, dataDir: DATA_DIR, dedupe, deleteLocalWorkspace, detectDirectTodoCreateIntentForWeb,
   display: {

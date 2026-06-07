@@ -106,6 +106,12 @@ statements. Priority extraction areas:
   catalog/display dependencies are ready and keeps
   `getSemanticDirectoryAttachmentService` as a compatibility delegate instead
   of a lazy top-level factory function.
+- completed 2026-06-08: workspace catalog service singleton construction moved
+  into `adapters/mobile-runtime-workspace-catalog-facade.js`. The runtime root
+  now injects the `createRuntimeWorkspaceCatalogService` factory and dependency
+  package into the facade, uses facade delegates for catalog methods and dynamic
+  project cache clearing, and no longer defines a top-level
+  `getRuntimeWorkspaceCatalogService` factory.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

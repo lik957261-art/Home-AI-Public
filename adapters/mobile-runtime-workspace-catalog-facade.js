@@ -2,14 +2,41 @@
 
 function createMobileRuntimeWorkspaceCatalogFacade(options = {}) {
   const getRuntimeWorkspaceCatalogService = options.getRuntimeWorkspaceCatalogService;
+  const createRuntimeWorkspaceCatalogService = options.createRuntimeWorkspaceCatalogService;
+  const runtimeWorkspaceCatalogOptions = options.runtimeWorkspaceCatalogOptions;
   const projectDiscoveryProvider = options.projectDiscoveryProvider || {};
+  let runtimeWorkspaceCatalogService = null;
 
-  if (typeof getRuntimeWorkspaceCatalogService !== "function") {
-    throw new Error("mobile runtime workspace catalog facade requires getRuntimeWorkspaceCatalogService");
+  if (
+    typeof getRuntimeWorkspaceCatalogService !== "function"
+    && typeof createRuntimeWorkspaceCatalogService !== "function"
+  ) {
+    throw new Error("mobile runtime workspace catalog facade requires a catalog service provider");
+  }
+
+  if (
+    typeof createRuntimeWorkspaceCatalogService === "function"
+    && typeof runtimeWorkspaceCatalogOptions !== "function"
+    && (!runtimeWorkspaceCatalogOptions || typeof runtimeWorkspaceCatalogOptions !== "object")
+  ) {
+    throw new Error("mobile runtime workspace catalog facade requires catalog service options");
   }
 
   function catalog() {
-    const service = getRuntimeWorkspaceCatalogService();
+    if (typeof getRuntimeWorkspaceCatalogService === "function") {
+      const service = getRuntimeWorkspaceCatalogService();
+      if (!service || typeof service !== "object") {
+        throw new Error("mobile runtime workspace catalog service is unavailable");
+      }
+      return service;
+    }
+    if (!runtimeWorkspaceCatalogService) {
+      const serviceOptions = typeof runtimeWorkspaceCatalogOptions === "function"
+        ? runtimeWorkspaceCatalogOptions()
+        : runtimeWorkspaceCatalogOptions;
+      runtimeWorkspaceCatalogService = createRuntimeWorkspaceCatalogService(serviceOptions);
+    }
+    const service = runtimeWorkspaceCatalogService;
     if (!service || typeof service !== "object") {
       throw new Error("mobile runtime workspace catalog service is unavailable");
     }
@@ -37,6 +64,7 @@ function createMobileRuntimeWorkspaceCatalogFacade(options = {}) {
     allProjectsForWorkspaceSync: call("allProjectsForWorkspaceSync"),
     buildAccessPolicy: call("buildAccessPolicy"),
     cachedDynamicProjectsForWorkspace: call("cachedDynamicProjectsForWorkspace"),
+    clearDynamicProjectCache: call("clearDynamicProjectCache"),
     dedupeProjects,
     effectiveProjectForThread: call("effectiveProjectForThread"),
     findProject: call("findProject"),

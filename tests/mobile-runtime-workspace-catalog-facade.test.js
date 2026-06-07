@@ -55,11 +55,15 @@ assert.deepEqual(facade.dedupeProjects([{ id: "a" }, { id: "a", label: "later" }
 
 assert.throws(
   () => createMobileRuntimeWorkspaceCatalogFacade({}),
-  /requires getRuntimeWorkspaceCatalogService/,
+  /requires a catalog service provider/,
 );
 assert.throws(
   () => createMobileRuntimeWorkspaceCatalogFacade({ getRuntimeWorkspaceCatalogService: () => ({}) }).findWorkspace("owner"),
   /missing findWorkspace/,
+);
+assert.throws(
+  () => createMobileRuntimeWorkspaceCatalogFacade({ createRuntimeWorkspaceCatalogService: () => service }),
+  /requires catalog service options/,
 );
 assert.throws(
   () => createMobileRuntimeWorkspaceCatalogFacade({
@@ -68,5 +72,34 @@ assert.throws(
   }).dedupeProjects([]),
   /missing dedupeProjects/,
 );
+
+let createdServiceCount = 0;
+const lazyFacade = createMobileRuntimeWorkspaceCatalogFacade({
+  createRuntimeWorkspaceCatalogService(options) {
+    createdServiceCount += 1;
+    assert.equal(typeof options.localWorkspaces, "function");
+    return {
+      findWorkspace(workspaceId) {
+        return { id: workspaceId, local: options.localWorkspaces()[0]?.id };
+      },
+      clearDynamicProjectCache(workspaceId) {
+        return `cleared:${workspaceId}`;
+      },
+    };
+  },
+  runtimeWorkspaceCatalogOptions: () => ({
+    localWorkspaces: () => [{ id: "local-owner" }],
+  }),
+  projectDiscoveryProvider: {
+    dedupeProjects(projects) {
+      return projects;
+    },
+  },
+});
+
+assert.equal(createdServiceCount, 0);
+assert.deepEqual(lazyFacade.findWorkspace("owner"), { id: "owner", local: "local-owner" });
+assert.equal(lazyFacade.clearDynamicProjectCache("owner"), "cleared:owner");
+assert.equal(createdServiceCount, 1);
 
 console.log("mobile runtime workspace catalog facade tests passed");

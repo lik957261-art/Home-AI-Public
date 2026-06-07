@@ -289,8 +289,8 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,285 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 3;
+- `mobile-server-runtime.js` must stay at or below 1,280 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 2;
 - async top-level `function` declarations in `mobile-server-runtime.js` must stay at 0;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
@@ -365,6 +365,12 @@ Current CI guardrails:
 - `mobile-runtime-workspace-facade-service.js` must stay at or below 190 lines
   and remain a facade over local workspace store/projection, workspace/auth
   gate helpers, access-key delegation, sender labels, and principal mapping;
+- `mobile-runtime-workspace-catalog-facade.js` must stay at or below 105 lines
+  and remain a lazy runtime facade over `runtime-workspace-catalog-service.js`
+  plus project-discovery de-duplication. It may own catalog service singleton
+  creation from injected dependencies, but it must not own catalog loading,
+  access-policy merge rules, shared-directory projection, or project discovery
+  behavior;
 - `mobile-api-composition.js` must stay at or below 410 lines and remain the
   top-level API aggregator, service collector, and dispatcher constructor, not
   a domain service graph;
