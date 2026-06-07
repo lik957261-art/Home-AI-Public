@@ -1,6 +1,5 @@
 "use strict";
 
-const { createPluginCapabilityProbeService } = require("./plugin-capability-probe-service");
 const {
   cleanString,
   createGatewayRunRequestBuilderService,
@@ -12,6 +11,7 @@ const {
 const { createGatewayRunStartAssistantOptionsService } = require("./gateway-run-start-assistant-options-service");
 const { createGatewayRunStartEventService } = require("./gateway-run-start-event-service");
 const { createGatewayRunStartPermissionService } = require("./gateway-run-start-permission-service");
+const { createGatewayRunStartPluginProbeService } = require("./gateway-run-start-plugin-probe-service");
 const {
   createGatewayRunStartStreamOptionsService,
 } = require("./gateway-run-start-stream-options-service");
@@ -57,12 +57,6 @@ function createGatewayRunStartService(options = {}) {
   const buildHermesInstructions = maybeCall(options.buildHermesInstructions, () => "");
   const loadRequiredSkillPreloads = maybeCall(options.loadRequiredSkillPreloads, () => []);
   const nowMs = maybeCall(options.nowMs, () => Date.now());
-  const pluginCapabilityProbeService = options.pluginCapabilityProbeService
-    || createPluginCapabilityProbeService({ dedupe, nowMs });
-  const probePluginCapabilities = maybeCall(
-    options.probePluginCapabilities,
-    (...args) => pluginCapabilityProbeService.probePluginCapabilities(...args),
-  );
   const routeRunToolsets = maybeCall(options.routeRunToolsets, ({ policy }) => ({ policy: objectValue(policy), routing: null }));
   const makePublicTaskId = maybeCall(options.makePublicTaskId, () => `web_${Date.now()}`);
   const gatewaySkillRoutingForWorkspace = maybeCall(options.gatewaySkillRoutingForWorkspace, () => ({}));
@@ -195,6 +189,20 @@ function createGatewayRunStartService(options = {}) {
     toolsetSelectionRouting,
   });
   const applyModelFirstToolsetPreflight = (...args) => toolsetPreflightService.applyModelFirstToolsetPreflight(...args);
+  const pluginProbeService = options.pluginProbeService || createGatewayRunStartPluginProbeService({
+    appendPluginCapabilityProbeEvents,
+    appendRunStartEvent,
+    applyAssistantRunOptions,
+    applyWardrobeWorkflowGateMetadata,
+    buildRunRequest,
+    contextReadyPreview,
+    dedupe,
+    evaluateWardrobeGate,
+    nowMs,
+    pluginCapabilityProbeService: options.pluginCapabilityProbeService,
+    probePluginCapabilities: options.probePluginCapabilities,
+  });
+  const runPluginCapabilityProbe = (...args) => pluginProbeService.runPluginCapabilityProbe(...args);
 
   async function startRunForThread(thread, userMessage, assistantMessage, runOptions = {}) {
     const actorWorkspaceId = resolveActorWorkspaceId(thread, userMessage, runOptions);
@@ -227,31 +235,22 @@ function createGatewayRunStartService(options = {}) {
     const { probeRequests, shouldProbePluginCapabilities } = projectGatewayTargetReadyEvents(thread, assistantMessage, request, gatewayTarget, {
       probeOverridePresent: typeof options.probePluginCapabilities === "function",
     });
-    if (shouldProbePluginCapabilities) {
-      const probeResult = await probePluginCapabilities({
-        requests: probeRequests,
-        request,
-        gatewayTarget,
-        thread,
-        userMessage,
-        assistantMessage,
-        runOptions: effectiveRunOptions,
-      }) || {};
-      const probeResults = Array.isArray(probeResult.probes) ? probeResult.probes : [];
-      if (probeResults.length) {
-        effectiveRunOptions = Object.assign({}, effectiveRunOptions, {
-          pluginCapabilityProbeResults: probeResults,
-        });
-        request = buildRunRequest(thread, userMessage, assistantMessage, effectiveRunOptions);
-        wardrobeGate = evaluateWardrobeGate(request, userMessage, "after_plugin_probe", gatewayTarget);
-        applyAssistantRunOptions(assistantMessage, request, effectiveRunOptions);
-        applyWardrobeWorkflowGateMetadata(assistantMessage, wardrobeGate);
-        appendPluginCapabilityProbeEvents(thread, assistantMessage, probeResults);
-      }
-      if (wardrobeGate.active && !wardrobeGate.ok) {
-        return completeWardrobeWorkflowGateFailure(thread, assistantMessage, taskId, wardrobeGate);
-      }
-      appendRunStartEvent(thread, assistantMessage, "run.context_ready", contextReadyPreview(request));
+    const pluginProbe = await runPluginCapabilityProbe({
+      assistantMessage,
+      effectiveRunOptions,
+      gatewayTarget,
+      probeRequests,
+      request,
+      shouldProbePluginCapabilities,
+      thread,
+      userMessage,
+      wardrobeGate,
+    });
+    effectiveRunOptions = pluginProbe.effectiveRunOptions || effectiveRunOptions;
+    request = pluginProbe.request || request;
+    wardrobeGate = pluginProbe.wardrobeGate || wardrobeGate;
+    if (pluginProbe.gateFailed) {
+      return completeWardrobeWorkflowGateFailure(thread, assistantMessage, taskId, wardrobeGate);
     }
     const streamOptions = streamOptionsService.streamOptionsForGatewayTarget(gatewayTarget, runOptions, { gatewayUrl });
     const preflight = await applyModelFirstToolsetPreflight({

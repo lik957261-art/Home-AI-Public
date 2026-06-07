@@ -521,6 +521,7 @@ are H1 completion flows: run
 `node tests\wardrobe-outfit-workflow-gate-service.test.js`, `node
 tests\plugin-required-skill-preload-service.test.js`, `node
 tests\gateway-run-start-permission-service.test.js`, `node
+tests\gateway-run-start-plugin-probe-service.test.js`, `node
 tests\gateway-run-start-target-service.test.js`, `node
 tests\gateway-run-start-toolset-preflight-service.test.js`, `node
 tests\gateway-run-start-service.test.js`, and `node
@@ -793,6 +794,7 @@ Focused implementation checks should include
 `node tests\gateway-worker-profile-launch-service.test.js`,
 `node tests\gateway-pool-provider.test.js`,
 `node tests\gateway-run-start-permission-service.test.js`,
+`node tests\gateway-run-start-plugin-probe-service.test.js`,
 `node tests\gateway-run-start-target-service.test.js`,
 `node tests\gateway-run-start-toolset-preflight-service.test.js`,
 `node tests\gateway-run-start-service.test.js`,

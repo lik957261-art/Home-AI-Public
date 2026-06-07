@@ -189,6 +189,14 @@ statements. Priority extraction areas:
   `run.permission_required` event projection, state save handoff, message
   broadcast, and the `needs_elevation` start response while retaining selector
   orchestration.
+- completed 2026-06-08: Gateway run-start plugin capability probe
+  execution/projection moved into
+  `adapters/gateway-run-start-plugin-probe-service.js`. The start service now
+  delegates fallback probe service creation, optional probe execution, probe
+  result run-options projection, request rebuild after probe evidence, Wardrobe
+  metadata refresh, plugin capability event projection, and delayed
+  `run.context_ready` projection while retaining overall run preparation
+  orchestration.
 - completed 2026-06-08: Gateway run-start model-first toolset preflight
   execution/projection moved into
   `adapters/gateway-run-start-toolset-preflight-service.js`. The start service

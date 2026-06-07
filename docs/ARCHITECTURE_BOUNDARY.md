@@ -86,6 +86,7 @@ focused adapters such as `app-route-url-service.js`,
 `gateway-run-start-assistant-options-service.js`,
 `gateway-run-start-event-service.js`,
 `gateway-run-start-permission-service.js`,
+`gateway-run-start-plugin-probe-service.js`,
 `gateway-run-start-stream-options-service.js`,
 `gateway-run-start-state-service.js`,
 `gateway-run-start-target-service.js`,
@@ -283,6 +284,14 @@ release, idle thread status, state save handoff, message update broadcast, and
 the `needs_elevation` start response. It must not choose workers, build Gateway
 requests, run selector models, mutate toolsets, or start streams.
 
+`gateway-run-start-plugin-probe-service.js` owns plugin capability probe
+execution during run start: fallback probe service creation, optional probe
+execution, probe-result run-options projection, request rebuild after probe
+evidence, Wardrobe gate metadata refresh, plugin capability event projection,
+and delayed `run.context_ready` projection. It must not choose workers, define
+plugin activation policy, build the initial request, run model preflight, mutate
+queues, or start streams.
+
 `gateway-run-start-stream-options-service.js` owns deterministic stream-start
 option projection for Gateway start handoff: Gateway target metadata, Web/search
 max-call caps, explicit search cap selection, and ChatGPT Pro long-wait timeout
@@ -331,7 +340,8 @@ startup handoff. It must delegate deterministic request construction to
 `gateway-run-request-builder-service.js`, assistant run-options projection to
 `gateway-run-start-assistant-options-service.js`, telemetry/event projection to
 `gateway-run-start-event-service.js`, permission/elevation terminal projection
-to `gateway-run-start-permission-service.js`, and stream-start option
+to `gateway-run-start-permission-service.js`, plugin capability probe execution
+to `gateway-run-start-plugin-probe-service.js`, and stream-start option
 projection to `gateway-run-start-stream-options-service.js`. It must delegate deterministic
 run-start state mutation and failed-start projection to
 `gateway-run-start-state-service.js`, Gateway target post-selection projection
@@ -575,6 +585,10 @@ Current CI guardrails:
 - `gateway-run-start-permission-service.js` must stay at or below 70 lines and
   remain model-side permission/elevation terminal projection, not a
   request-builder, selector, toolset, worker-selection, or streaming module;
+- `gateway-run-start-plugin-probe-service.js` must stay at or below 75 lines
+  and remain plugin capability probe execution/projection, not a plugin policy,
+  worker-selection, initial request-builder, selector, queue, or streaming
+  module;
 - `gateway-run-start-stream-options-service.js` must stay at or below 80 lines
   and remain deterministic Gateway stream-start option projection, not a worker
   selection, model-preflight, event, or streaming module;
@@ -593,7 +607,7 @@ Current CI guardrails:
 - `gateway-run-start-wardrobe-gate-service.js` must stay at or below 85 lines
   and remain deterministic Wardrobe workflow gate integration, not a Wardrobe
   product-rule, selector, worker-selection, or streaming module;
-- `gateway-run-start-service.js` must stay at or below 315 lines and remain
+- `gateway-run-start-service.js` must stay at or below 310 lines and remain
   Gateway run preparation orchestration, not a request-builder, event projector,
   or broad Gateway composition module;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 125 lines
