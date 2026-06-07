@@ -6,6 +6,7 @@ const {
   withActiveRunReplaced,
 } = require("./gateway-run-lifecycle-service");
 const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
+const { validateWardrobeOutfitWorkflowCompletion } = require("./wardrobe-outfit-workflow-gate-service");
 
 function cleanString(value) {
   return String(value || "").trim();
@@ -927,35 +928,60 @@ function createGatewayRunEventService(options = {}) {
       ? toolsetEscalationMessage(toolsetEscalationRequest)
       : (approvalRequest ? stripPermissionApprovalMarkers(output) : output);
     const completedAt = nowIso();
-    message.content = compactFullContent(visibleOutput || output);
-    message.status = "done";
-    message.usage = usageWithRunMetadata(
+    const relatedRunIds = [
+      runId,
+      originalRunId,
+      responseRunId,
+      message.runId,
+      stream?.realRunId,
+    ];
+    const nextLoadedSkills = mergeLoadedSkills(
+      message.loadedSkills,
+      loadedSkillsForRun(thread, relatedRunIds),
+      loadedSkillsFromCompletedResponse(event),
+    );
+    const nextLoadedTools = mergeLoadedTools(
+      message.loadedTools,
+      loadedToolsForRun(thread, relatedRunIds),
+      loadedToolsFromCompletedResponse(event),
+    );
+    const nextUsage = usageWithRunMetadata(
       supplementGatewayUsage(event.usage || event.response?.usage || null, runId, message),
       event,
       message,
     );
-    message.loadedSkills = mergeLoadedSkills(
-      message.loadedSkills,
-      loadedSkillsForRun(thread, [
-        runId,
-        originalRunId,
-        responseRunId,
-        message.runId,
-        stream?.realRunId,
-      ]),
-      loadedSkillsFromCompletedResponse(event),
-    );
-    message.loadedTools = mergeLoadedTools(
-      message.loadedTools,
-      loadedToolsForRun(thread, [
-        runId,
-        originalRunId,
-        responseRunId,
-        message.runId,
-        stream?.realRunId,
-      ]),
-      loadedToolsFromCompletedResponse(event),
-    );
+    const wardrobeCompletionGate = validateWardrobeOutfitWorkflowCompletion({
+      message,
+      output: visibleOutput || output,
+      loadedSkills: nextLoadedSkills,
+      loadedTools: nextLoadedTools,
+    });
+    if (wardrobeCompletionGate.active && !wardrobeCompletionGate.ok) {
+      message.content = "";
+      message.loadedSkills = nextLoadedSkills;
+      message.loadedTools = nextLoadedTools;
+      message.usage = nextUsage;
+      addThreadEvent(thread, {
+        event: "run.wardrobe_outfit_completion_gate_failed",
+        timestamp: nowMs() / 1000,
+        runId: responseRunId || message.runId || runId,
+        tool: "wardrobe_workflow_gate",
+        preview: wardrobeCompletionGate.eventPreview || "",
+        error: true,
+      });
+      const err = new Error(wardrobeCompletionGate.message || "Wardrobe outfit completion gate failed.");
+      err.code = wardrobeCompletionGate.errorCode || "wardrobe_completion_gate_failed";
+      err.details = {
+        reason: wardrobeCompletionGate.reason,
+        missing: wardrobeCompletionGate.missing,
+      };
+      return markRunFailed(thread.id, message.id, responseRunId || message.runId || runId, err);
+    }
+    message.content = compactFullContent(visibleOutput || output);
+    message.status = "done";
+    message.usage = nextUsage;
+    message.loadedSkills = nextLoadedSkills;
+    message.loadedTools = nextLoadedTools;
     if (validApprovalRequest) {
       message.elevationRequired = true;
       message.elevationScope = validApprovalRequest.elevationScope;

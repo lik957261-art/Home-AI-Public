@@ -81,6 +81,14 @@ deployment-wide shared Skills use `shared-global`.
   and `shared-global`; Owner maps to `owner-full` and `shared-global`. It must
   not enumerate every `skill-profiles/*` root to satisfy a missing required
   Skill for an ordinary user request.
+- Required plugin Skill preloading loads the complete non-secret instruction
+  bundle, not only `SKILL.md`. The preload may include bounded `.md` and `.txt`
+  files from `references/` under the selected Skill root, while skipping
+  sensitive filenames such as key, token, secret, credential, password, cookie,
+  `access-key.txt`, and `workspace-key.txt`. If a required plugin Skill is
+  missing, empty, unreadable, or reduced to a placeholder without its required
+  references, the owning plugin workflow must fail closed before model
+  execution.
 - Capability catalog generation may mention authorized plugin Skill ids and
   short non-secret summaries, but it must not preload full optional plugin
   Skill bodies. Full plugin Skill content is loaded only for the current

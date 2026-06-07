@@ -860,6 +860,85 @@ function testAlreadySelectedToolsetEscalationIsSanitizedWithoutRetry() {
   assert.deepEqual(preview.retryable_toolsets, []);
 }
 
+function wardrobeOutfitGateRunOptions() {
+  return {
+    wardrobeOutfitWorkflowGate: {
+      active: true,
+      workflow: "wardrobe_outfit",
+      requiredSkillPath: "productivity/wardrobe-style-operations",
+      requiredToolsets: ["wardrobe", "vision", "file", "skills", "weather"],
+      completionGate: {
+        enabled: true,
+        requireWeatherCall: true,
+        requireWardrobeMcpCall: true,
+        requireMarkdownReceipt: true,
+        requireWatchItem: true,
+      },
+    },
+  };
+}
+
+function testWardrobeOutfitCompletionGateFailsBadFinalResult() {
+  const harness = makeHarness({ maxMessageChars: 800 });
+  harness.message.taskGroupId = "plugin:wardrobe";
+  harness.message.runOptions = wardrobeOutfitGateRunOptions();
+  harness.message.loadedSkills = [{ path: "productivity/wardrobe-style-operations" }];
+
+  const result = harness.service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      usage: { output_tokens: 12 },
+      output: [
+        { type: "function_call", name: "mcp_wardrobe_wardrobe_search_items" },
+        { type: "message", content: [{ type: "output_text", text: "\u5efa\u8bae\u767d\u886c\u886b\u914d\u7070\u88e4\u3002" }] },
+      ],
+    },
+  });
+
+  assert.equal(result.action, "failed");
+  assert.equal(harness.message.status, "failed");
+  assert.equal(harness.message.content, "");
+  assert.equal(harness.message.usage.supplemented, true);
+  assert.equal(harness.thread.events.at(-1).event, "run.wardrobe_outfit_completion_gate_failed");
+  assert.equal(harness.thread.events.at(-1).error, true);
+  assert.deepEqual(JSON.parse(harness.thread.events.at(-1).preview).missing, ["weather_call", "markdown_receipt", "watch_item"]);
+  assert.equal(harness.calls.broadcasts.some((payload) => payload.type === "run.completed"), false);
+  assert.equal(harness.calls.broadcasts.some((payload) => payload.type === "run.failed"), true);
+  assert.deepEqual(harness.calls.enqueued, [{ threadId: "thread_1", messageId: "assistant_1", status: "failed" }]);
+  assert.deepEqual(harness.calls.notified, [{ threadId: "thread_1", messageId: "assistant_1", status: "failed" }]);
+}
+
+function testWardrobeOutfitCompletionGatePassesGoodFinalResult() {
+  const harness = makeHarness({ maxMessageChars: 800 });
+  harness.message.taskGroupId = "plugin:wardrobe";
+  harness.message.runOptions = wardrobeOutfitGateRunOptions();
+  harness.message.loadedSkills = [{ path: "productivity/wardrobe-style-operations" }];
+
+  const result = harness.service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      usage: { output_tokens: 20 },
+      output: [
+        { type: "function_call", name: "weather" },
+        { type: "function_call", name: "mcp_wardrobe_wardrobe_search_items" },
+        { type: "function_call", name: "write_file" },
+        { type: "message", content: [{ type: "output_text", text: "\u5305\u542b\u8155\u8868\u3002\nMEDIA:/tmp/outfit.md" }] },
+      ],
+    },
+  });
+
+  assert.equal(result.action, "completed");
+  assert.equal(harness.message.status, "done");
+  assert.match(harness.message.content, /MEDIA:\/tmp\/outfit\.md/);
+  assert.equal(harness.message.loadedTools.some((tool) => tool.name === "weather"), true);
+  assert.equal(harness.message.loadedTools.some((tool) => tool.name === "mcp_wardrobe_wardrobe_search_items"), true);
+  assert.equal(harness.calls.broadcasts.some((payload) => payload.type === "run.completed"), true);
+}
+
 function testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued() {
   const { activeStreams, calls, service, state, thread } = makeHarness();
   activeStreams.clear();
@@ -900,6 +979,8 @@ testToolsetEscalationAutoRetriesWithExpandedAuthorizedToolsets();
 testOutputItemFinalMessageCanTriggerToolsetEscalationRetryWithoutDeltas();
 testToolsetEscalationRetryCapStopsAfterOneInternalRetry();
 testAlreadySelectedToolsetEscalationIsSanitizedWithoutRetry();
+testWardrobeOutfitCompletionGateFailsBadFinalResult();
+testWardrobeOutfitCompletionGatePassesGoodFinalResult();
 testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued();
 
 console.log("gateway-run-event-service tests passed");

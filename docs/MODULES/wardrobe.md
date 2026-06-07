@@ -306,6 +306,18 @@ as a successful embedded plugin load.
   `productivity/wardrobe-style-operations`. This preload reads the selected
   workspace Skill Store before model execution, so Wardrobe topic quality does
   not depend on the model voluntarily calling `skill_view` first.
+- Wardrobe outfit runs inside the fixed Wardrobe topic are fail-closed
+  workflows. If the required Skill bundle, the `weather` toolset, the Wardrobe
+  MCP toolset, `vision`, `file`, or `skills` are missing before streaming,
+  Hermes Mobile must fail the run before selecting/streaming a Gateway response
+  instead of letting the model produce a generic fashion answer.
+- Wardrobe outfit completion is also gated. A run must not be marked completed
+  unless the final evidence includes the loaded
+  `productivity/wardrobe-style-operations` Skill, a weather tool call, at least
+  one `mcp_wardrobe_*` call, a Markdown receipt `MEDIA:<path>.md`, and an
+  explicit watch/watch-unavailable decision. Missing evidence must turn the run
+  into a failed run with a bounded diagnostic so stale or incomplete results do
+  not look successful.
 - Wardrobe topic delivery directories are output/receipt locations only. They
   must not be treated as the Wardrobe database and must not trigger the ordinary
   directory-topic `productivity/directory-context-cleaning` workflow for routine

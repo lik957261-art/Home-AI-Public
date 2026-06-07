@@ -39,6 +39,68 @@ function skillNamespaceForPath(skillPath = "") {
   return parts.length > 1 ? parts.slice(0, -1).join("/") : "";
 }
 
+const SKILL_REFERENCE_TEXT_EXTENSIONS = new Set([".md", ".txt"]);
+const SKILL_REFERENCE_MAX_FILES = 12;
+
+function safeSkillReferenceName(value = "") {
+  const text = cleanString(value).toLowerCase();
+  return text
+    && text !== "access-key.txt"
+    && text !== "workspace-key.txt"
+    && !/(?:secret|token|credential|password|cookie|key)/i.test(text);
+}
+
+function collectSkillReferenceFiles(fsImpl, pathImpl, skillDir = "") {
+  const referencesDir = pathImpl.join(skillDir, "references");
+  const out = [];
+  function walk(dir, depth = 0) {
+    if (depth > 4 || out.length >= SKILL_REFERENCE_MAX_FILES) return;
+    let entries = [];
+    try {
+      entries = fsImpl.readdirSync(dir, { withFileTypes: true });
+    } catch (_err) {
+      return;
+    }
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      if (out.length >= SKILL_REFERENCE_MAX_FILES) return;
+      if (!safeSkillReferenceName(entry.name) || entry.name.startsWith(".")) continue;
+      const file = pathImpl.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(file, depth + 1);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      if (!SKILL_REFERENCE_TEXT_EXTENSIONS.has(pathImpl.extname(entry.name).toLowerCase())) continue;
+      out.push(file);
+    }
+  }
+  walk(referencesDir, 0);
+  return out;
+}
+
+function skillReferenceRelativePath(pathImpl, skillDir, file) {
+  return pathImpl.relative(skillDir, file).replaceAll("\\", "/");
+}
+
+function readSkillBundleContent(fsImpl, pathImpl, resolved) {
+  const skillContent = fsImpl.readFileSync(resolved.file, "utf8");
+  const sections = [skillContent];
+  for (const file of collectSkillReferenceFiles(fsImpl, pathImpl, resolved.skillDir || pathImpl.dirname(resolved.file))) {
+    const relative = skillReferenceRelativePath(pathImpl, resolved.skillDir || pathImpl.dirname(resolved.file), file);
+    try {
+      const content = fsImpl.readFileSync(file, "utf8");
+      sections.push([
+        `BEGIN REQUIRED SKILL REFERENCE: ${relative}`,
+        content,
+        `END REQUIRED SKILL REFERENCE: ${relative}`,
+      ].join("\n"));
+    } catch (_err) {
+      sections.push(`REQUIRED SKILL REFERENCE UNREADABLE: ${relative}`);
+    }
+  }
+  return sections.join("\n\n");
+}
+
 function defaultDataDirs(env = process.env) {
   return defaultDedupe([
     env.HERMES_WEB_DATA_DIR,
@@ -71,7 +133,7 @@ function createPluginRequiredSkillPreloadService(options = {}) {
         const file = pathImpl.join(root, ...normalized.split("/"), "SKILL.md");
         try {
           if (fsImpl.existsSync(file) && fsImpl.statSync(file).isFile()) {
-            return { file, root, profileId: profile, path: normalized };
+            return { file, root, skillDir: pathImpl.dirname(file), profileId: profile, path: normalized };
           }
         } catch (_err) {
           // A bad profile root should not block other profile roots.
@@ -117,7 +179,7 @@ function createPluginRequiredSkillPreloadService(options = {}) {
         continue;
       }
       try {
-        const content = fsImpl.readFileSync(resolved.file, "utf8");
+        const content = readSkillBundleContent(fsImpl, pathImpl, resolved);
         const limit = Math.min(maxSkillChars, remaining);
         const truncated = content.length > limit;
         const preloadedContent = truncated ? content.slice(0, limit).trimEnd() : content;

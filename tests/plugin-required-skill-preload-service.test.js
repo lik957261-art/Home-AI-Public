@@ -17,6 +17,13 @@ function writeSkill(root, profileId, skillPath, content) {
   return file;
 }
 
+function writeSkillReference(root, profileId, skillPath, relativePath, content) {
+  const file = path.join(root, "skill-profiles", profileId, "skills", ...skillPath.split("/"), relativePath);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, content, "utf8");
+  return file;
+}
+
 function testNormalizeSkillPathRejectsUnsafePaths() {
   assert.equal(normalizeSkillPath(" productivity\\wardrobe-style-operations "), "productivity/wardrobe-style-operations");
   assert.equal(normalizeSkillPath("../wardrobe-style-operations"), "");
@@ -44,6 +51,41 @@ function testOwnerPreloadReadsOwnerFullProfile() {
     assert.equal(item.loadedChars, "owner wardrobe skill".length);
     assert.equal(item.totalChars, "owner wardrobe skill".length);
     assert.equal(item.truncated, false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+function testPreloadIncludesBoundedReferenceMarkdown() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-skill-preload-"));
+  try {
+    writeSkill(root, "owner-full", "productivity/wardrobe-style-operations", "owner wardrobe skill");
+    writeSkillReference(
+      root,
+      "owner-full",
+      "productivity/wardrobe-style-operations",
+      path.join("references", "wardrobe-rules.md"),
+      "rule: check weather and write markdown",
+    );
+    writeSkillReference(
+      root,
+      "owner-full",
+      "productivity/wardrobe-style-operations",
+      path.join("references", "access-key.txt"),
+      "secret must not preload",
+    );
+    const service = createPluginRequiredSkillPreloadService({ dataDirs: [root] });
+    const [item] = service.preloadRequiredSkills({
+      workspaceId: "owner",
+      skills: ["productivity/wardrobe-style-operations"],
+    });
+
+    assert.match(item.content, /owner wardrobe skill/);
+    assert.match(item.content, /BEGIN REQUIRED SKILL REFERENCE: references\/wardrobe-rules\.md/);
+    assert.match(item.content, /rule: check weather and write markdown/);
+    assert.doesNotMatch(item.content, /secret must not preload/);
+    assert.equal(item.loadedChars, item.content.length);
+    assert.equal(item.totalChars, item.content.length);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -106,6 +148,7 @@ function testInvalidSkillPathIsIgnored() {
 testNormalizeSkillPathRejectsUnsafePaths();
 testSkillProfilesForWorkspace();
 testOwnerPreloadReadsOwnerFullProfile();
+testPreloadIncludesBoundedReferenceMarkdown();
 testWorkspacePreloadPrefersWorkspaceProfileThenShared();
 testMissingRequiredSkillReturnsMissingMetadata();
 testInvalidSkillPathIsIgnored();

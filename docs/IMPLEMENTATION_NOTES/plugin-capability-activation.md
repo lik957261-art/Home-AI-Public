@@ -218,6 +218,16 @@ unavailable, rather than causing ordinary chat to retry Finance MCP startup.
 If the current plugin's required bundle fails, the run should fail closed with a
 plugin-specific diagnostic.
 
+The fixed Wardrobe plugin topic has an additional workflow gate because its
+daily outfit answers are user-facing decisions with expensive failure modes.
+`plugin:wardrobe` must preload `productivity/wardrobe-style-operations` from the
+selected workspace Skill Store, including bounded non-secret reference files.
+General Wardrobe topic turns require `wardrobe`, `vision`, `file`, and
+`skills`; outfit-intent turns also require `weather`. Missing required evidence
+blocks the run before Gateway streaming. Outfit completion is validated again
+before the run can become `done`; it must show the required Skill, weather,
+Wardrobe MCP/readback, Markdown receipt, and watch decision.
+
 ## Required Tests
 
 Implementation should add or update focused tests for:
@@ -243,6 +253,11 @@ Implementation should add or update focused tests for:
   bounded activation telemetry (`node tests\gateway-run-start-service.test.js`);
 - required plugin failure emits a bounded diagnostic and blocks generic
   fallback;
+- Wardrobe plugin topic preflight and completion gates block incomplete outfit
+  runs and keep non-outfit Wardrobe topic runs from requiring weather (`node
+  tests\wardrobe-outfit-workflow-gate-service.test.js`, `node
+  tests\gateway-run-start-service.test.js`, `node
+  tests\gateway-run-event-service.test.js`);
 - optional plugin failure does not slow or fail unrelated ordinary chat;
 - explicit wide mode health-probes plugins once, activates healthy plugins, and
   reports unhealthy plugins;

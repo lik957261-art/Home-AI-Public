@@ -245,6 +245,38 @@ Reference docs:
 - `docs/MODULES/gateway-pool.md`
 - `docs/MODULES/plugins.md`
 
+### Wardrobe Outfit Workflow Gate
+
+Applies to fixed Wardrobe plugin topics (`plugin:wardrobe`) that can produce
+daily outfit recommendations or formal styling decisions.
+
+This flow is H1 because an apparently successful outfit answer can consume a
+large model budget while omitting required weather, Wardrobe MCP readback,
+Markdown delivery, or watch-selection rules. Prompt instructions are not enough
+acceptance evidence.
+
+Required harness dimensions:
+
+- Preflight must fail before Gateway streaming if
+  `productivity/wardrobe-style-operations` cannot be loaded from the selected
+  workspace Skill Store, including its bounded non-secret reference files.
+- General Wardrobe plugin-topic runs require `wardrobe`, `vision`, `file`, and
+  `skills`; outfit-intent runs additionally require `weather`.
+- Completion must fail closed if the final run evidence lacks the loaded Skill,
+  weather call, `mcp_wardrobe_*` call, Markdown `MEDIA:<path>.md` receipt, or
+  watch/watch-unavailable decision.
+- A failed gate must emit a bounded diagnostic and must not leave the assistant
+  message in a successful `done` state.
+- Non-outfit Wardrobe plugin-topic turns must not be blocked only because
+  weather was not selected.
+
+Required tests:
+
+- `node tests\wardrobe-outfit-workflow-gate-service.test.js`
+- `node tests\plugin-required-skill-preload-service.test.js`
+- `node tests\gateway-run-start-service.test.js`
+- `node tests\gateway-run-event-service.test.js`
+
 ### Cross-Workspace Plugin Platform Contract
 
 Applies to plugin workspace onboarding, plugin-local platform pointer files,

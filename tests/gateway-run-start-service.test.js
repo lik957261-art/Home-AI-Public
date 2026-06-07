@@ -632,7 +632,7 @@ async function testWardrobePluginTopicForcesSkillMcpStackAndPluginContext() {
     baseUserMessage({
       senderWorkspaceId: "owner",
       taskGroupId: "plugin:wardrobe",
-      content: "Style these wardrobe items",
+      content: "List wardrobe item status",
       directoryRoute: {
         label: "Wardrobe delivery",
         root: "C:/delivery/wardrobe",
@@ -678,6 +678,128 @@ async function testWardrobePluginTopicForcesSkillMcpStackAndPluginContext() {
     name: "productivity/wardrobe-style-operations",
     source: "required_preload",
   });
+}
+
+async function testWardrobePluginTopicFailsBeforeGatewayWhenRequiredSkillMissing() {
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "web", "weather", "wardrobe", "vision", "skills"],
+      authorized_toolsets: ["file", "web", "weather", "wardrobe", "vision", "skills"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+    loadRequiredSkillPreloads: () => [{
+      path: "productivity/wardrobe-style-operations",
+      id: "wardrobe-style-operations",
+      missing: true,
+      error: "required_skill_not_found",
+    }],
+  });
+  const assistant = baseAssistantMessage();
+
+  const result = await service.startRunForThread(
+    baseThread({ workspaceId: "owner" }),
+    baseUserMessage({
+      senderWorkspaceId: "owner",
+      taskGroupId: "plugin:wardrobe",
+      content: "\u91cd\u65b0\u914d\u4e00\u5957\u8863\u670d",
+    }),
+    assistant,
+    { actorWorkspaceId: "owner" },
+  );
+
+  assert.equal(result.status, "failed");
+  assert.equal(assistant.status, "failed");
+  assert.match(assistant.error, /productivity\/wardrobe-style-operations/);
+  assert.deepEqual(calls.gatewayRouting, []);
+  assert.deepEqual(calls.streams, []);
+  assert.ok(calls.events.find((event) => event.event === "run.wardrobe_workflow_gate_failed"));
+  assert.deepEqual(calls.removedRuns, [{ threadId: "thread_1", runId: "web_test_1", idleStatus: "failed" }]);
+}
+
+async function testWardrobeOutfitGateRequiresWeatherBeforeGateway() {
+  const requiredSkillPreloads = [{
+    path: "productivity/wardrobe-style-operations",
+    id: "wardrobe-style-operations",
+    label: "wardrobe-style-operations",
+    namespace: "productivity",
+    profileId: "owner-full",
+    content: "Wardrobe skill content",
+    loadedChars: 22,
+    totalChars: 22,
+    truncated: false,
+  }];
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "web"],
+      authorized_toolsets: ["file", "web"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+    loadRequiredSkillPreloads: () => requiredSkillPreloads,
+  });
+  const assistant = baseAssistantMessage();
+
+  const result = await service.startRunForThread(
+    baseThread({ workspaceId: "owner" }),
+    baseUserMessage({
+      senderWorkspaceId: "owner",
+      taskGroupId: "plugin:wardrobe",
+      content: "\u4eca\u5929\u7a7f\u4ec0\u4e48\uff0c\u91cd\u65b0\u914d\u4e00\u5957\u8863\u670d",
+    }),
+    assistant,
+    { actorWorkspaceId: "owner" },
+  );
+
+  assert.equal(result.status, "failed");
+  assert.equal(assistant.status, "failed");
+  assert.match(assistant.error, /weather/);
+  assert.deepEqual(calls.gatewayRouting, []);
+  assert.deepEqual(calls.streams, []);
+}
+
+async function testWardrobeOutfitGatePassesWithWeatherAndAddsCompletionMetadata() {
+  const requiredSkillPreloads = [{
+    path: "productivity/wardrobe-style-operations",
+    id: "wardrobe-style-operations",
+    label: "wardrobe-style-operations",
+    namespace: "productivity",
+    profileId: "owner-full",
+    content: "Wardrobe skill content",
+    loadedChars: 22,
+    totalChars: 22,
+    truncated: false,
+  }];
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "web", "weather"],
+      authorized_toolsets: ["file", "web", "weather"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+    loadRequiredSkillPreloads: () => requiredSkillPreloads,
+  });
+  const assistant = baseAssistantMessage();
+
+  await service.startRunForThread(
+    baseThread({ workspaceId: "owner" }),
+    baseUserMessage({
+      senderWorkspaceId: "owner",
+      taskGroupId: "plugin:wardrobe",
+      content: "\u4eca\u5929\u7a7f\u4ec0\u4e48\uff0c\u91cd\u65b0\u914d\u4e00\u5957\u8863\u670d",
+    }),
+    assistant,
+    { actorWorkspaceId: "owner" },
+  );
+
+  assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["file", "web", "weather", "wardrobe", "vision", "skills"]);
+  assert.match(calls.streams[0].body.instructions, /Wardrobe outfit workflow gate/);
+  assert.equal(assistant.runOptions.wardrobeOutfitWorkflowGate.workflow, "wardrobe_outfit");
+  assert.equal(assistant.runOptions.wardrobeOutfitWorkflowGate.completionGate.enabled, true);
+  assert.deepEqual(assistant.runOptions.wardrobeOutfitWorkflowGate.requiredToolsets, ["wardrobe", "vision", "file", "skills", "weather"]);
 }
 
 function testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext() {
@@ -1568,6 +1690,9 @@ function testMarkStartFailedFormatsGatewayCapacityError() {
   await testHealthProfileImportActivatesHealthMcpThroughRunAssemblyHarness();
   await testEmailRequestActivatesEmailMcpThroughRunAssemblyHarness();
   await testWardrobePluginTopicForcesSkillMcpStackAndPluginContext();
+  await testWardrobePluginTopicFailsBeforeGatewayWhenRequiredSkillMissing();
+  await testWardrobeOutfitGateRequiresWeatherBeforeGateway();
+  await testWardrobeOutfitGatePassesWithWeatherAndAddsCompletionMetadata();
   testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext();
   await testStartRunPreservesSearchSourceRouting();
   await testOrdinaryRunUsesDefaultWebSearchBudgetWhenConfigured();

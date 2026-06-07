@@ -3,6 +3,7 @@
 const { createPluginCapabilityActivationService } = require("./plugin-capability-activation-service");
 const { createPluginCapabilityProbeService } = require("./plugin-capability-probe-service");
 const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
+const { evaluateWardrobeOutfitWorkflowGate } = require("./wardrobe-outfit-workflow-gate-service");
 
 const DEFAULT_TOOL_SCHEMA_EPOCH = "20260513-audio-file-v1";
 const DEFAULT_SINGLE_WINDOW_PROJECT_ID = "single-window";
@@ -831,6 +832,53 @@ function createGatewayRunStartService(options = {}) {
     broadcast({ type: "thread.updated", thread: threadSummary(thread) });
   }
 
+  function applyWardrobeWorkflowGateMetadata(assistantMessage, gate = {}) {
+    if (!gate?.active) return;
+    assistantMessage.runOptions = Object.assign({}, assistantMessage.runOptions || {}, {
+      wardrobeOutfitWorkflowGate: gate.runOptionsMetadata || null,
+    });
+  }
+
+  function appendWardrobeWorkflowGateInstructions(request = {}, gate = {}) {
+    if (!gate?.active || !gate.ok || !gate.instructionBlock) return request;
+    if (String(request.body?.instructions || "").includes("Wardrobe outfit workflow gate:")) return request;
+    request.body.instructions = [
+      request.body.instructions || "",
+      gate.instructionBlock,
+    ].filter(Boolean).join("\n\n");
+    return request;
+  }
+
+  function evaluateWardrobeGate(request = {}, userMessage = {}, stage = "pre_stream", gatewayTarget = null, gateOptions = {}) {
+    const gate = evaluateWardrobeOutfitWorkflowGate({ request, userMessage, stage, gatewayTarget });
+    request.wardrobeOutfitWorkflowGate = gate;
+    if (gateOptions.appendInstructions) appendWardrobeWorkflowGateInstructions(request, gate);
+    return gate;
+  }
+
+  function completeWardrobeWorkflowGateFailure(thread, assistantMessage, taskId, gate = {}) {
+    appendRunStartEvent(thread, assistantMessage, "run.wardrobe_workflow_gate_failed", gate.eventPreview || "");
+    const err = new Error(gate.message || "Wardrobe workflow gate failed.");
+    err.code = gate.errorCode || "wardrobe_workflow_gate_failed";
+    err.details = {
+      reason: cleanString(gate.reason),
+      missingToolsets: gate.missingToolsets || [],
+      missingSkills: gate.missingSkills || [],
+      workflow: cleanString(gate.workflow),
+      stage: cleanString(gate.stage),
+    };
+    const result = markStartFailed(thread, assistantMessage, err, {
+      runId: taskId,
+      content: gate.message,
+    });
+    return {
+      run_id: taskId,
+      status: "failed",
+      engine: "responses",
+      error: result.error,
+    };
+  }
+
   function ensureActiveRun(thread, taskId) {
     const id = cleanString(taskId);
     if (!id) return;
@@ -893,13 +941,23 @@ function createGatewayRunStartService(options = {}) {
 
     let effectiveRunOptions = runOptions;
     let request = buildRunRequest(thread, userMessage, assistantMessage, effectiveRunOptions);
+    let wardrobeGate = evaluateWardrobeGate(request, userMessage, "pre_gateway");
     applyAssistantRunOptions(assistantMessage, request, effectiveRunOptions);
+    applyWardrobeWorkflowGateMetadata(assistantMessage, wardrobeGate);
     appendRequiredSkillPreloadEvents(thread, assistantMessage, request);
+    if (wardrobeGate.active && !wardrobeGate.ok) {
+      return completeWardrobeWorkflowGateFailure(thread, assistantMessage, taskId, wardrobeGate);
+    }
 
     const gatewayTarget = await chooseGatewayRunTarget(request.gatewayRouting, {
       runId: taskId,
       onEvent: (event) => appendGatewaySchedulerEvent(thread, taskId, event),
     });
+    wardrobeGate = evaluateWardrobeGate(request, userMessage, "gateway_selected", gatewayTarget);
+    applyWardrobeWorkflowGateMetadata(assistantMessage, wardrobeGate);
+    if (wardrobeGate.active && !wardrobeGate.ok) {
+      return completeWardrobeWorkflowGateFailure(thread, assistantMessage, taskId, wardrobeGate);
+    }
     const { gatewayUrl } = applyStartedRunState(thread, assistantMessage, taskId, gatewayTarget, nowIso());
     assistantMessage.model = cleanString(request.body.model || request.gatewayRouting.model || gatewayTarget?.model || gatewayTarget?.defaultModel);
     assistantMessage.modelProvider = cleanString(request.body.provider || request.gatewayRouting.provider || gatewayTarget?.provider);
@@ -936,8 +994,13 @@ function createGatewayRunStartService(options = {}) {
           pluginCapabilityProbeResults: probeResults,
         });
         request = buildRunRequest(thread, userMessage, assistantMessage, effectiveRunOptions);
+        wardrobeGate = evaluateWardrobeGate(request, userMessage, "after_plugin_probe", gatewayTarget);
         applyAssistantRunOptions(assistantMessage, request, effectiveRunOptions);
+        applyWardrobeWorkflowGateMetadata(assistantMessage, wardrobeGate);
         appendPluginCapabilityProbeEvents(thread, assistantMessage, probeResults);
+      }
+      if (wardrobeGate.active && !wardrobeGate.ok) {
+        return completeWardrobeWorkflowGateFailure(thread, assistantMessage, taskId, wardrobeGate);
       }
       appendRunStartEvent(thread, assistantMessage, "run.context_ready", contextReadyPreview(request));
     }
@@ -987,7 +1050,9 @@ function createGatewayRunStartService(options = {}) {
       request.runPolicy = Object.assign({}, request.runPolicy || {}, { toolset_routing: request.toolsetRouting });
       request.body.access_policy_context = Object.assign({}, request.body.access_policy_context || {}, { toolset_routing: request.toolsetRouting });
       request.body.enabled_toolsets = dedupe(request.runPolicy?.allowed_toolsets || request.runPolicy?.allowedToolsets || request.body.enabled_toolsets || []);
+      wardrobeGate = evaluateWardrobeGate(request, userMessage, "forced_toolset_selection", gatewayTarget);
       applyAssistantRunOptions(assistantMessage, request, effectiveRunOptions);
+      applyWardrobeWorkflowGateMetadata(assistantMessage, wardrobeGate);
       appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_done", toolsetSelectionPreview(selection, forcedSelectedToolsets));
     } else if (selectRunToolsetsWithModel && !isChatGptProRunOptions(effectiveRunOptions)) {
       appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_started", "");
@@ -1039,12 +1104,22 @@ function createGatewayRunStartService(options = {}) {
         request.runPolicy = Object.assign({}, request.runPolicy || {}, { toolset_routing: routing });
         request.body.access_policy_context = Object.assign({}, request.body.access_policy_context || {}, { toolset_routing: routing });
         request.body.enabled_toolsets = dedupe(request.runPolicy?.allowed_toolsets || request.runPolicy?.allowedToolsets || request.body.enabled_toolsets || []);
+        wardrobeGate = evaluateWardrobeGate(request, userMessage, "after_toolset_selection", gatewayTarget);
         applyAssistantRunOptions(assistantMessage, request, selectedRunOptions);
+        applyWardrobeWorkflowGateMetadata(assistantMessage, wardrobeGate);
         appendRunStartEvent(thread, assistantMessage, preflightResultEventName(selection, true), toolsetSelectionPreview(selection, selectedToolsets));
       } else if (selection?.enabled) {
         request = restoreAuthorizedToolsetsForSelectionFallback(request, selection || {});
+        wardrobeGate = evaluateWardrobeGate(request, userMessage, "after_toolset_fallback", gatewayTarget);
+        applyWardrobeWorkflowGateMetadata(assistantMessage, wardrobeGate);
         appendRunStartEvent(thread, assistantMessage, preflightResultEventName(selection, false), toolsetSelectionFallbackPreview(selection || {}));
       }
+    }
+    wardrobeGate = evaluateWardrobeGate(request, userMessage, "pre_stream", gatewayTarget, { appendInstructions: true });
+    applyAssistantRunOptions(assistantMessage, request, effectiveRunOptions);
+    applyWardrobeWorkflowGateMetadata(assistantMessage, wardrobeGate);
+    if (wardrobeGate.active && !wardrobeGate.ok) {
+      return completeWardrobeWorkflowGateFailure(thread, assistantMessage, taskId, wardrobeGate);
     }
     appendRunStartEvent(thread, assistantMessage, "run.request_sent", "等待模型或工具返回");
     request.body.enabled_toolsets = dedupe(request.runPolicy?.allowed_toolsets || request.runPolicy?.allowedToolsets || request.body.enabled_toolsets || []);
@@ -1066,6 +1141,7 @@ function createGatewayRunStartService(options = {}) {
     const runId = cleanString(options.runId || assistantMessage?.runId);
     assistantMessage.status = "failed";
     assistantMessage.error = gatewayRunUserFacingError(err);
+    if (options.content) assistantMessage.content = cleanString(options.content);
     assistantMessage.failedAt = failedAt;
     assistantMessage.updatedAt = failedAt;
     removeThreadActiveRun(thread, runId, "failed");

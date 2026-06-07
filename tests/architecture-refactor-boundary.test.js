@@ -31,6 +31,7 @@ const gatewayRunModelToolsetSelectionService = require("../adapters/gateway-run-
 const gatewayRunQueueService = require("../adapters/gateway-run-queue-service");
 const gatewayRunContentService = require("../adapters/gateway-run-content-service");
 const gatewayRunStartService = require("../adapters/gateway-run-start-service");
+const wardrobeOutfitWorkflowGateService = require("../adapters/wardrobe-outfit-workflow-gate-service");
 const gatewayRuntimeCompositionService = require("../adapters/gateway-runtime-composition-service");
 const gatewayProfileTemplateIdentityService = require("../adapters/gateway-profile-template-identity-service");
 const gatewayProfileReplicaModel = require("../adapters/gateway-profile-replica-model");
@@ -266,6 +267,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof gatewayRunContentService.createGatewayRunContentService, "function");
   assert.equal(typeof gatewayRunContentService.defaultAppendBounded, "function");
   assert.equal(typeof gatewayRunStartService.createGatewayRunStartService, "function");
+  assert.equal(typeof wardrobeOutfitWorkflowGateService.evaluateWardrobeOutfitWorkflowGate, "function");
+  assert.equal(typeof wardrobeOutfitWorkflowGateService.validateWardrobeOutfitWorkflowCompletion, "function");
   assert.equal(typeof gatewayRuntimeCompositionService.createGatewayRuntimeCompositionService, "function");
   assert.equal(typeof gatewayProfileTemplateIdentityService.createGatewayProfileTemplateIdentityService, "function");
   assert.equal(typeof gatewayProfileReplicaModel.buildGatewayProfileTemplateKey, "function");

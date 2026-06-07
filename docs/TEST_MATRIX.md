@@ -450,7 +450,14 @@ workspace authorization, config/key completeness, health/schema probe, and no
 Owner fallback; required plugin failure blocks generic fallback with a bounded
 diagnostic; optional plugin failure does not slow or fail unrelated ordinary
 chat; explicit wide mode probes each authorized plugin once and reports
-unavailable plugins without raw secrets.
+unavailable plugins without raw secrets. Wardrobe fixed-topic outfit workflows
+are H1 completion flows: run
+`node tests\wardrobe-outfit-workflow-gate-service.test.js`, `node
+tests\plugin-required-skill-preload-service.test.js`, `node
+tests\gateway-run-start-service.test.js`, and `node
+tests\gateway-run-event-service.test.js` when required Skill preload,
+plugin-topic routing, Gateway start, loaded-tool evidence, or completion state
+changes.
 NAS Growth audio parity must cover the platform-specific transcription path:
 Windows may use `scripts\transcribe-reading-audio.ps1`, while Linux/NAS must use
 `scripts\transcribe-reading-audio.js` against the local Whisper large v3 Turbo
@@ -1414,6 +1421,10 @@ a wardrobe-bound topic asking for an outfit should add authorized `weather` to
 the Wardrobe companion `suggested_toolsets`. With the selector disabled or
 after selector fallback, the same test must prove execution still receives the
 full active Wardrobe required bundle rather than the suggested subset.
+Wardrobe outfit workflow gates must be tested as H1 completion behavior, not as
+prompt-only guidance. The focused tests must prove missing Skill, missing
+weather, missing Wardrobe MCP/readback, missing Markdown receipt, or missing
+watch decision cannot end as a successful outfit recommendation.
 Long-reply jump control harnesses must cover terminal DOM replacement and
 historical scrolling: arrow visibility recalculation must resolve the current
 conversation/message node when the queued callback executes, fall back from a
