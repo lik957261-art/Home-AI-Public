@@ -85,6 +85,10 @@ statements. Priority extraction areas:
   into `adapters/mobile-runtime-access-policy-facade-service.js`. Policy field
   rules remain in `access-policy-provider.js`; protected-path and toolset
   hardening rules remain in `security-boundary-provider.js`.
+- completed 2026-06-08: Gateway status composition moved into
+  `adapters/mobile-runtime-gateway-facade-service.js`. Runtime now delegates
+  `getHermesStatus`, while the facade owns single-runner status, pool status
+  attachment, and healthy-pool fallback projection.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

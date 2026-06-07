@@ -202,6 +202,13 @@ baseline only when present. Saving runtime config refreshes the cached Gateway
 Pool provider and profile launcher so the next pool initialization uses the new
 settings. It does not terminate active workers or active runs.
 
+`adapters/mobile-runtime-gateway-facade-service.js` owns the runtime Gateway
+status composition. The runtime root delegates status through this facade; the
+facade attaches Gateway Pool status to the single-runner status and can mark the
+public Gateway status healthy when the single fallback runner is down but the
+configured pool is healthy. Worker selection, launch, telemetry persistence,
+and streaming lifecycle policy remain in their focused services.
+
 Focused checks:
 
 ```powershell

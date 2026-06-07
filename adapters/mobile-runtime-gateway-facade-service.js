@@ -2,6 +2,7 @@
 
 const { createGatewayPoolProvider: defaultCreateGatewayPoolProvider } = require("./gateway-pool-provider");
 const { createGatewayRunner: defaultCreateGatewayRunner } = require("./gateway-runner");
+const { gatewayPoolStatusHealthy: defaultGatewayPoolStatusHealthy } = require("./gateway-status-projection");
 const { createGatewayUsageTelemetryProvider: defaultCreateGatewayUsageTelemetryProvider } = require("./gateway-usage-telemetry-provider");
 const { createGatewayWorkerProfileLaunchService: defaultCreateGatewayWorkerProfileLaunchService } = require("./gateway-worker-profile-launch-service");
 const { createGatewayWorkspaceProvisioningService: defaultCreateGatewayWorkspaceProvisioningService } = require("./gateway-workspace-provisioning-service");
@@ -31,6 +32,7 @@ function createMobileRuntimeGatewayFacadeService(options = {}) {
   const apiKey = optionFunction(options, "loadHermesApiKey");
   const apiTimeoutMs = optionFunction(options, "apiTimeoutMs");
   const gatewayPoolElasticConfig = optionFunction(options, "gatewayPoolElasticConfig", () => ({}));
+  const gatewayPoolStatusHealthy = optionFunction(options, "gatewayPoolStatusHealthy", defaultGatewayPoolStatusHealthy);
   const fs = requiredObject(options, "fs");
   const manifestPaths = optionFunction(options, "gatewayPoolManifestPaths");
   const nowIso = optionFunction(options, "nowIso", () => new Date().toISOString());
@@ -117,6 +119,24 @@ function createMobileRuntimeGatewayFacadeService(options = {}) {
     return gatewayUsageTelemetryProvider;
   }
 
+  async function getHermesStatus() {
+    const status = await singleGatewayRunner().status();
+    let poolStatus = null;
+    try {
+      poolStatus = await gatewayPool().status();
+      status.gatewayPool = poolStatus;
+    } catch (err) {
+      status.gatewayPool = { enabled: false, error: err.message || String(err) };
+    }
+    if (!status.ok && gatewayPoolStatusHealthy(poolStatus)) {
+      status.fallbackError = status.error || "";
+      status.error = null;
+      status.health = status.health || { status: "ok", platform: "gateway-pool" };
+      status.ok = true;
+    }
+    return status;
+  }
+
   async function chooseGatewayRunTarget(hints = {}, context = {}) {
     return gatewayPool().chooseTarget(hints, context);
   }
@@ -155,6 +175,7 @@ function createMobileRuntimeGatewayFacadeService(options = {}) {
     gatewayPool,
     gatewayUsageTelemetry,
     gatewayWorkerProfileLauncher,
+    getHermesStatus,
     getGatewayWorkspaceProvisioningService,
     resetGatewayRuntimeConfig,
     releaseGatewayRunTarget,

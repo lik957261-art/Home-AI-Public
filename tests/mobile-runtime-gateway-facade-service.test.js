@@ -16,6 +16,9 @@ const state = {
   ],
 };
 let elasticMode = "hybrid";
+let runnerStatus = { ok: true, error: null, health: { status: "ok" } };
+let poolStatus = { enabled: true, mode: "eager", workers: [{ healthy: true }] };
+let poolStatusError = null;
 
 const poolEvents = [];
 const facade = createMobileRuntimeGatewayFacadeService({
@@ -32,6 +35,10 @@ const facade = createMobileRuntimeGatewayFacadeService({
         elasticMode: options.elastic.mode,
       }),
       load: () => ({ workers: [] }),
+      status: async () => {
+        if (poolStatusError) throw poolStatusError;
+        return poolStatus;
+      },
       releaseRun: (runId, idleStatus) => {
         poolEvents.push(["release", runId, idleStatus]);
         return true;
@@ -49,6 +56,7 @@ const facade = createMobileRuntimeGatewayFacadeService({
       apiBase: options.apiBase(),
       apiKey: options.apiKey(),
       timeoutMs: options.timeoutMs(),
+      status: async () => Object.assign({}, runnerStatus),
     };
   },
   createGatewayUsageTelemetryProvider(options) {
@@ -113,11 +121,9 @@ assert.throws(() => facade.assertRunConcurrencyCapacity("blocked"), (error) => {
 assert.equal(facade.releaseGatewayRunTarget("run-before"), false);
 assert.equal(facade.replaceGatewayRunTarget("old-before", "new-before"), false);
 
-assert.deepEqual(facade.singleGatewayRunner(), {
-  apiBase: "http://gateway.example",
-  apiKey: "fixture-key",
-  timeoutMs: 1234,
-});
+assert.equal(facade.singleGatewayRunner().apiBase, "http://gateway.example");
+assert.equal(facade.singleGatewayRunner().apiKey, "fixture-key");
+assert.equal(facade.singleGatewayRunner().timeoutMs, 1234);
 assert.equal(facade.singleGatewayRunner(), facade.singleGatewayRunner());
 assert.equal(calls.runner, 1);
 
@@ -165,6 +171,24 @@ assert.equal(facade.gatewayUsageTelemetry().enabled, true);
 assert.deepEqual(facade.gatewayUsageTelemetry().manifestPaths, ["manifest.json"]);
 assert.deepEqual(facade.gatewayUsageTelemetry().profileRoots, ["/profiles"]);
 assert.equal(calls.telemetry, 1);
+
+const hermesStatus = await facade.getHermesStatus();
+assert.equal(hermesStatus.ok, true);
+assert.deepEqual(hermesStatus.gatewayPool, poolStatus);
+
+poolStatusError = new Error("pool status failed");
+const degradedStatus = await facade.getHermesStatus();
+assert.equal(degradedStatus.ok, true);
+assert.deepEqual(degradedStatus.gatewayPool, { enabled: false, error: "pool status failed" });
+
+poolStatusError = null;
+runnerStatus = { ok: false, error: "single runner unavailable" };
+poolStatus = { enabled: true, mode: "eager", workers: [{ healthy: true }] };
+const fallbackStatus = await facade.getHermesStatus();
+assert.equal(fallbackStatus.ok, true);
+assert.equal(fallbackStatus.error, null);
+assert.equal(fallbackStatus.fallbackError, "single runner unavailable");
+assert.deepEqual(fallbackStatus.health, { status: "ok", platform: "gateway-pool" });
 
 assert.throws(() => createMobileRuntimeGatewayFacadeService({}), /requires effectiveHermesApiBase/);
 

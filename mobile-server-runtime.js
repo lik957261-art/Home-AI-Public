@@ -24,7 +24,6 @@ const { createExternalIntegrationProvider } = require("./adapters/external-integ
 const { createGatewayRunInstructionService } = require("./adapters/gateway-run-instruction-service"); const { createGatewayRunToolsetRoutingService } = require("./adapters/gateway-run-toolset-routing-service"); const { createGatewayRunModelToolsetSelectionService } = require("./adapters/gateway-run-model-toolset-selection-service");
 const { createGatewayRunContentService } = require("./adapters/gateway-run-content-service");
 const { createGatewayRuntimeCompositionService } = require("./adapters/gateway-runtime-composition-service");
-const { gatewayPoolStatusHealthy } = require("./adapters/gateway-status-projection");
 const { createMobileRuntimeArtifactFacadeService } = require("./adapters/mobile-runtime-artifact-facade-service");
 const { createMobileRuntimeGatewayFacadeService } = require("./adapters/mobile-runtime-gateway-facade-service");
 const { createMobileRuntimeGroupChatAttachmentService } = require("./adapters/mobile-runtime-group-chat-attachment-service");
@@ -781,6 +780,7 @@ function getRuntimeWorkspaceCatalogService() {
 }
 const singleGatewayRunner = (...args) => mobileRuntimeGatewayFacadeService.singleGatewayRunner(...args);
 const gatewayPool = (...args) => mobileRuntimeGatewayFacadeService.gatewayPool(...args);
+const getHermesStatus = (...args) => mobileRuntimeGatewayFacadeService.getHermesStatus(...args);
 const getGatewayWorkspaceProvisioningService = (...args) => mobileRuntimeGatewayFacadeService.getGatewayWorkspaceProvisioningService(...args);
 const gatewayUsageTelemetry = (...args) => mobileRuntimeGatewayFacadeService.gatewayUsageTelemetry(...args);
 const chooseGatewayRunTarget = (...args) => mobileRuntimeGatewayFacadeService.chooseGatewayRunTarget(...args);
@@ -1215,23 +1215,6 @@ const wakeWeixinOutboundDeliveriesForInboundEvent = (...args) => mobileRuntimeWe
 const pendingWeixinOutboundDeliveries = (...args) => mobileRuntimeWeixinFacadeService.pendingWeixinOutboundDeliveries(...args);
 const ackWeixinOutboundDelivery = (...args) => mobileRuntimeWeixinFacadeService.ackWeixinOutboundDelivery(...args);
 const startWeixinIngressEvent = (...args) => mobileRuntimeWeixinFacadeService.startWeixinIngressEvent(...args);
-async function getHermesStatus() {
-  const status = await singleGatewayRunner().status();
-  let poolStatus = null;
-  try {
-    poolStatus = await gatewayPool().status();
-    status.gatewayPool = poolStatus;
-  } catch (err) {
-    status.gatewayPool = { enabled: false, error: err.message || String(err) };
-  }
-  if (!status.ok && gatewayPoolStatusHealthy(poolStatus)) {
-    status.fallbackError = status.error || "";
-    status.error = null;
-    status.health = status.health || { status: "ok", platform: "gateway-pool" };
-    status.ok = true;
-  }
-  return status;
-}
 const startRunForThread = (...args) => getGatewayRuntimeCompositionService().startRunForThread(...args);
 const stopRunIds = (...args) => getGatewayRuntimeCompositionService().stopRunIds(...args);
 const gatewayUrlForRun = (...args) => getGatewayRuntimeCompositionService().gatewayUrlForRun(...args);
