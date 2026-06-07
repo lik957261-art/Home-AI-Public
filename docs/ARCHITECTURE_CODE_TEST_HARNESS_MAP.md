@@ -24,6 +24,9 @@ harnesses should move together.
   for frontend DOM strings, static versions, service-worker behavior, and docs.
 - Do not store raw secrets, access keys, cookies, launch tokens, push endpoints,
   private plugin data, full model prompts, or long logs in docs or tests.
+- Runtime-config model catalog and selection changes move with
+  `adapters/runtime-config-model-service.js` and
+  `tests/runtime-config-model-service.test.js`.
 
 ## Harness Classes
 

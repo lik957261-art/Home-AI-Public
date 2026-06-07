@@ -213,6 +213,11 @@ statements. Priority extraction areas:
   delegates base elastic env config application, persisted worker overrides,
   elastic config projection, and public worker setting projection while retaining
   persistence, validation, and service wiring.
+- completed 2026-06-08: Runtime config model catalog and selection normalization
+  moved into `adapters/runtime-config-model-service.js`. The provider now
+  delegates default model catalog, model family/option projection, provider/model
+  fallback selection, and reasoning-effort validation while retaining persisted
+  config storage, validation, and service wiring.
 - deeper Gateway runtime worker policy composition outside runtime config;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;
