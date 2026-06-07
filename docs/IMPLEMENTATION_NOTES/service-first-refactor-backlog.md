@@ -89,6 +89,10 @@ statements. Priority extraction areas:
   `adapters/mobile-runtime-gateway-facade-service.js`. Runtime now delegates
   `getHermesStatus`, while the facade owns single-runner status, pool status
   attachment, and healthy-pool fallback projection.
+- completed 2026-06-08: Automation/Cron list and authorized output/deliverable
+  wrappers were reduced to provider delegates. `mobile-server-runtime.js` now
+  has no async top-level function declarations; Automation behavior remains in
+  `adapters/automation-provider.js`.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

@@ -604,8 +604,8 @@ const mobileRuntimeWeixinFacadeService = createMobileRuntimeWeixinFacadeService(
   nowIso,
   removeThreadActiveRun,
   resolveArtifactForRequest,
-  resolveAuthorizedCronDeliverableFile,
-  resolveAuthorizedCronOutputFile,
+  resolveAuthorizedCronDeliverableFile: (...args) => resolveAuthorizedCronDeliverableFile(...args),
+  resolveAuthorizedCronOutputFile: (...args) => resolveAuthorizedCronOutputFile(...args),
   resolveFileForBrowserRequest,
   resolveKanbanOutputFile: (...args) => resolveKanbanOutputFile(...args),
   retryBaseMs: WEIXIN_DELIVERY_RETRY_BASE_MS,
@@ -944,9 +944,7 @@ const externalIntegrationProvider = createExternalIntegrationProvider({
 const ownerExternalInterfaceBindings = (...args) => externalIntegrationProvider.ownerInterfaceBindings(...args);
 const ownerExternalAccessPolicy = (...args) => externalIntegrationProvider.ownerAccessPolicy(...args);
 const clearCronListCache = (...args) => automationProvider.clearListCache(...args);
-async function runCronListBridgeCached(options = {}) {
-  return automationProvider.listJobs(Object.assign({ limit: 0 }, options));
-}
+const runCronListBridgeCached = (options = {}) => automationProvider.listJobs(Object.assign({ limit: 0 }, options));
 const mobileRuntimeNaturalLanguageGatewayService = createMobileRuntimeNaturalLanguageGatewayService({
   abortSignalTimeout: (ms) => AbortSignal.timeout(ms),
   chooseGatewayRunTarget,
@@ -1226,12 +1224,8 @@ const applyHermesRunEvent = (...args) => getGatewayRuntimeCompositionService().a
 const markRunFailed = (...args) => getGatewayRuntimeCompositionService().markRunFailed(...args);
 const markRunCancelled = (...args) => getGatewayRuntimeCompositionService().markRunCancelled(...args);
 const reconcileDetachedActiveRuns = (...args) => getGatewayRuntimeCompositionService().reconcileDetachedActiveRuns(...args);
-async function resolveAuthorizedCronOutputFile(query, auth = null) {
-  return automationProvider.resolveAuthorizedOutputFile({ query, auth });
-}
-async function resolveAuthorizedCronDeliverableFile(query, auth = null) {
-  return automationProvider.resolveAuthorizedDeliverableFile({ query, auth });
-}
+const resolveAuthorizedCronOutputFile = (query, auth = null) => automationProvider.resolveAuthorizedOutputFile({ query, auth });
+const resolveAuthorizedCronDeliverableFile = (query, auth = null) => automationProvider.resolveAuthorizedDeliverableFile({ query, auth });
 const mobileRuntimeThreadFacadeService = createMobileRuntimeThreadFacadeService({
   actionInboxService, attachUploadedArtifactsToMessage, authCanAccessWorkspace, authenticateRequest, broadcast,
   chatGroupMemberWorkspaceIds, compactMessage, compactThread, compactThreadWithMessagePage, deriveTitle,
