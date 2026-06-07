@@ -60,6 +60,10 @@ statements. Priority extraction areas:
   `adapters/mobile-runtime-file-access-facade-service.js`. Runtime now injects
   auth/thread lookup dependencies and route composition receives a facade
   delegate instead of top-level Directory browser fallback functions.
+- completed 2026-06-08: lazy SQLite service-store construction moved into
+  `adapters/mobile-runtime-sqlite-store-facade-service.js`. Runtime now passes a
+  tested `mobileSqliteStore` delegate into persistence, Kanban, Action Inbox,
+  and topic-context services instead of keeping a top-level SQLite singleton.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

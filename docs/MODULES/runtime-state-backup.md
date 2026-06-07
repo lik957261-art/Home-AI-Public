@@ -9,6 +9,7 @@ Backups must allow a replacement machine to restore source, production app files
 ## Core Files
 
 - `adapters/mobile-sqlite-store.js`
+- `adapters/mobile-runtime-sqlite-store-facade-service.js`
 - `adapters/runtime-state-repository.js`
 - `adapters/runtime-state-store-service.js`
 - `adapters/runtime-state-persistence-service.js`
@@ -55,3 +56,5 @@ Backups must allow a replacement machine to restore source, production app files
 - Run the backup wrapper once when changing backup coverage.
 - Verify the manifest and key coverage paths exist without printing secret contents.
 - Run `node tests\architecture-refactor-boundary.test.js` when state/runtime composition changes.
+- Run `node tests\mobile-runtime-sqlite-store-facade-service.test.js` when
+  lazy SQLite store wiring changes.

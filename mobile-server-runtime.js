@@ -64,6 +64,7 @@ const { createMobileRuntimeFileHelperService } = require("./adapters/mobile-runt
 const { createMobileRuntimeGatewayContextFacadeService } = require("./adapters/mobile-runtime-gateway-context-facade-service");
 const { createMobileRuntimeGroupChatFacadeService } = require("./adapters/mobile-runtime-group-chat-facade-service");
 const { createMobileRuntimePublicStatusService } = require("./adapters/mobile-runtime-public-status-service");
+const { createMobileRuntimeSqliteStoreFacadeService } = require("./adapters/mobile-runtime-sqlite-store-facade-service");
 const { createMobileRuntimeStateFacadeService } = require("./adapters/mobile-runtime-state-facade-service");
 const { createMobileRuntimeSystemStatusFacadeService } = require("./adapters/mobile-runtime-system-status-facade-service");
 const { createMobileRuntimeThreadFacadeService } = require("./adapters/mobile-runtime-thread-facade-service");
@@ -146,6 +147,11 @@ const {
   useLocalTodoBackend,
   useSqliteServiceStore,
 } = mobileRuntimeBackendPolicyService;
+const mobileRuntimeSqliteStoreFacadeService = createMobileRuntimeSqliteStoreFacadeService({
+  createMobileSqliteStore: (options) => require("./adapters/mobile-sqlite-store").createMobileSqliteStore(options),
+  dbPath: MOBILE_SQLITE_DB_PATH,
+});
+const mobileSqliteStore = (...args) => mobileRuntimeSqliteStoreFacadeService.mobileSqliteStore(...args);
 function bootTrace(label) {
   if (!BOOT_TRACE_PATH) return;
   try {
@@ -237,7 +243,6 @@ let mobileRuntimeWorkspaceFacadeService = null;
 let runtimeWorkspaceCatalogService = null;
 const sourceMarkdownSearchCache = new Map();
 let state = null;
-let sqliteServiceStore = null;
 let singleWindowThreadService = null;
 let semanticDirectoryAttachmentService = null;
 let mobileRuntimeThreadViewFacadeService = null;
@@ -865,14 +870,6 @@ const getWorkspacePublicProjectionService = (...args) => mobileRuntimeWorkspaceF
 const publicWorkspacesForAuth = (...args) => mobileRuntimeWorkspaceFacadeService.publicWorkspacesForAuth(...args);
 const requireOwner = (...args) => mobileRuntimeWorkspaceFacadeService.requireOwner(...args);
 const requireWorkspaceAccess = (...args) => mobileRuntimeWorkspaceFacadeService.requireWorkspaceAccess(...args);
-function mobileSqliteStore() {
-  if (!sqliteServiceStore) {
-    const { createMobileSqliteStore } = require("./adapters/mobile-sqlite-store");
-    sqliteServiceStore = createMobileSqliteStore({ dbPath: MOBILE_SQLITE_DB_PATH });
-    sqliteServiceStore.migrate();
-  }
-  return sqliteServiceStore;
-}
 mobileRuntimeLocalBridgeFacadeService = createMobileRuntimeLocalBridgeFacadeService({
   bridgeCommandProvider,
   bridgeHostKeyPath: BRIDGE_HOST_KEY_PATH,

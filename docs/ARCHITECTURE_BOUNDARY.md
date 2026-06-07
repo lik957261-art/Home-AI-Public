@@ -78,6 +78,7 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-path-access-service.js`,
 `mobile-runtime-path-candidate-environment-service.js`,
 `mobile-runtime-public-status-service.js`,
+`mobile-runtime-sqlite-store-facade-service.js`,
 `mobile-runtime-state-facade-service.js`,
 `mobile-runtime-state-path-environment-service.js`,
 `mobile-runtime-system-status-facade-service.js`,
@@ -193,6 +194,12 @@ carry duplicate top-level wrapper functions for `ensureDataDir`, `defaultState`,
 `loadState`, `normalizeState`, push normalization helpers,
 `pushSubscriptionScopeSignature`, `normalizeChatGroup`, or `saveState`.
 
+`mobile-runtime-sqlite-store-facade-service.js` owns lazy SQLite service-store
+factory construction, migration-on-first-use, and singleton reuse. Runtime
+composition may pass the resulting `mobileSqliteStore` delegate into persistence,
+Kanban, Action Inbox, and topic-context services, but it must not keep its own
+SQLite store singleton or top-level `mobileSqliteStore` implementation.
+
 `web-push-delivery-service.js` owns VAPID load, initialization, reload, push
 status, and delivery helpers. Runtime composition may pass short delegates into
 route composition, but it must not carry duplicate top-level wrapper functions
@@ -267,8 +274,8 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,350 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 14;
+- `mobile-server-runtime.js` must stay at or below 1,345 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 13;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
 - `path-boundary-service.js` must stay at or below 65 lines and remain a
@@ -290,6 +297,9 @@ Current CI guardrails:
   lines and remain a facade over lazy Directory browser boundary construction,
   file/artifact resolver delegation, file response delegation, and bounded
   Directory-thread request fallback wiring;
+- `mobile-runtime-sqlite-store-facade-service.js` must stay at or below 35
+  lines and remain a lazy SQLite store factory/migration facade, not a schema,
+  repository, or persistence policy module;
 - `mobile-runtime-gateway-context-facade-service.js` must stay at or below 90
   lines and remain a facade over Gateway instruction, conversation-history,
   stale tool-schema claim, run-target, and usage supplementation delegates;
