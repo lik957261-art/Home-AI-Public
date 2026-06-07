@@ -183,6 +183,12 @@ statements. Priority extraction areas:
   metadata projection, context-ready/gateway-selected event projection, and
   plugin capability probe precondition checks while retaining overall run
   preparation orchestration.
+- completed 2026-06-08: Gateway run-start model permission/elevation terminal
+  projection moved into `adapters/gateway-run-start-permission-service.js`. The
+  start service now delegates assistant elevation metadata, active-run release,
+  `run.permission_required` event projection, state save handoff, message
+  broadcast, and the `needs_elevation` start response while retaining selector
+  orchestration.
 - completed 2026-06-08: Runtime Gateway concurrency projection moved into
   `adapters/mobile-runtime-gateway-concurrency-service.js`. The Gateway facade
   now delegates active-run snapshot, per-workspace limit-error projection, and

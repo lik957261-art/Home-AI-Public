@@ -12,6 +12,7 @@ const {
 } = require("./gateway-run-request-builder-service");
 const { createGatewayRunStartAssistantOptionsService } = require("./gateway-run-start-assistant-options-service");
 const { createGatewayRunStartEventService } = require("./gateway-run-start-event-service");
+const { createGatewayRunStartPermissionService } = require("./gateway-run-start-permission-service");
 const {
   createGatewayRunStartStreamOptionsService,
   isChatGptProRunOptions,
@@ -170,27 +171,15 @@ function createGatewayRunStartService(options = {}) {
   const selectGatewayRunTarget = (...args) => targetService.selectGatewayRunTarget(...args);
   const applyGatewayTargetStart = (...args) => targetService.applyGatewayTargetStart(...args);
   const projectGatewayTargetReadyEvents = (...args) => targetService.projectGatewayTargetReadyEvents(...args);
-
-  function completeModelPermissionRequest(thread, assistantMessage, taskId, selection = {}) {
-    const completedAt = nowIso();
-    const scope = cleanString(selection.elevationScope || selection.elevation_scope || "owner_high_privilege");
-    const reason = cleanString(selection.elevationReason || selection.reason || "This request needs Owner approval before Hermes Mobile can run it.");
-    assistantMessage.status = "done";
-    assistantMessage.content = "\u6b64\u8bf7\u6c42\u8d85\u51fa\u5f53\u524d Gateway \u6743\u9650\u8303\u56f4\uff0c\u9700\u8981 Owner \u6388\u6743\u540e\u624d\u80fd\u7ee7\u7eed\u3002";
-    assistantMessage.elevationRequired = true;
-    assistantMessage.elevationScope = scope;
-    assistantMessage.elevationReason = reason;
-    assistantMessage.elevationSource = cleanString(selection.elevationSource || "model_toolset_permission_selector");
-    if (!assistantMessage.firstFeedbackAt) assistantMessage.firstFeedbackAt = completedAt;
-    assistantMessage.completedAt = completedAt;
-    assistantMessage.updatedAt = completedAt;
-    removeThreadActiveRun(thread, taskId, "idle");
-    thread.status = "idle";
-    thread.updatedAt = completedAt;
-    appendRunStartEvent(thread, assistantMessage, "run.permission_required", permissionSelectionPreview(selection));
-    saveState(undefined, { reason: "run-request-preparing", skipSqliteRuntimeReplace: true });
-    broadcastMessageUpdated(thread, assistantMessage);
-  }
+  const permissionService = options.permissionService || createGatewayRunStartPermissionService({
+    appendRunStartEvent,
+    broadcastMessageUpdated,
+    nowIso,
+    permissionSelectionPreview,
+    removeThreadActiveRun,
+    saveState,
+  });
+  const completeModelPermissionRequest = (...args) => permissionService.completeModelPermissionRequest(...args);
 
   async function startRunForThread(thread, userMessage, assistantMessage, runOptions = {}) {
     const actorWorkspaceId = resolveActorWorkspaceId(thread, userMessage, runOptions);
@@ -303,16 +292,14 @@ function createGatewayRunStartService(options = {}) {
         ? rawSelectedToolsets
         : expandSelectedToolsetsWithCompanions(rawSelectedToolsets, request?.runPolicy || {});
       if (selection?.enabled && selection.elevationRequired) {
-        completeModelPermissionRequest(thread, assistantMessage, taskId, selection);
-        return {
-          run_id: taskId,
-          status: "needs_elevation",
-          engine: "responses",
+        return completeModelPermissionRequest({
+          assistantMessage,
+          gatewayTarget,
           gatewayUrl,
-          gatewayName: gatewayTarget?.name || "",
-          gatewayProfile: gatewayTarget?.profile || "",
-          gatewaySource: gatewayTarget?.source || "",
-        };
+          selection,
+          taskId,
+          thread,
+        });
       }
       if (selection?.enabled && selection.ok && selectedToolsets.length) {
         const routing = toolsetSelectionRouting(selection, selectedToolsets);

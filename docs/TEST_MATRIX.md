@@ -520,6 +520,7 @@ unavailable plugins without raw secrets. Wardrobe fixed-topic outfit workflows
 are H1 completion flows: run
 `node tests\wardrobe-outfit-workflow-gate-service.test.js`, `node
 tests\plugin-required-skill-preload-service.test.js`, `node
+tests\gateway-run-start-permission-service.test.js`, `node
 tests\gateway-run-start-target-service.test.js`, `node
 tests\gateway-run-start-service.test.js`, and `node
 tests\gateway-run-event-service.test.js` when required Skill preload,
@@ -790,6 +791,7 @@ Focused implementation checks should include
 `node tests\gateway-runtime-composition-service.test.js`,
 `node tests\gateway-worker-profile-launch-service.test.js`,
 `node tests\gateway-pool-provider.test.js`,
+`node tests\gateway-run-start-permission-service.test.js`,
 `node tests\gateway-run-start-target-service.test.js`,
 `node tests\gateway-run-start-service.test.js`,
 `node tests\gateway-run-lifecycle-service.test.js`,

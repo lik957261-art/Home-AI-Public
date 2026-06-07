@@ -30,6 +30,9 @@ harnesses should move together.
 - Gateway run-start target selection and post-selection projection changes move
   with `adapters/gateway-run-start-target-service.js` and
   `tests/gateway-run-start-target-service.test.js`.
+- Gateway run-start permission/elevation terminal projection changes move with
+  `adapters/gateway-run-start-permission-service.js` and
+  `tests/gateway-run-start-permission-service.test.js`.
 
 ## Harness Classes
 
