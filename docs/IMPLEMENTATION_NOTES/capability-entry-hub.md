@@ -81,6 +81,14 @@ server-side usage history.
 
 Implemented fix, 2026-06-07:
 
+- `20260607-plugin-context-nav-opaque-v610` makes the plugin-context bottom
+  navigation use the opaque host chrome background. The prior translucent
+  `transparent` mix let long topic/detail content show through the bottom
+  footer band on iOS PWA screenshots, which read visually as exposed page
+  content below the bottom tabs.
+
+Implemented fix, 2026-06-07:
+
 - `20260607-workspace-scoped-capability-note-request-v609` scopes the browser
   quick-action cache by workspace id as
   `localStorage.hermesPluginTopicUsage:<workspaceId>` and keeps an in-memory

@@ -126,6 +126,10 @@ Non-negotiable:
 - The measured bottom-nav top offset already includes the host comfort inset.
   Dock positioning must use that offset directly; adding the inset again creates
   an artificial Dock/nav gap and is a failing bottom-stack state.
+- Home AI-owned bottom navigation, including plugin-context bottom navigation,
+  must render an opaque host chrome background. Do not use a `transparent`
+  color mix for this band; long message content can otherwise show through the
+  iOS PWA safe-area/footer region.
 - fixed or sticky bottom controls must have an explicit matching reservation in
   the scroll container they cover;
 - the reservation belongs to the covered scroll container, not a random outer

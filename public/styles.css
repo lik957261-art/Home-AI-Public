@@ -5797,7 +5797,7 @@ button.directory-alias-chip {
   min-height: var(--plugin-context-bottom-nav-height);
   padding: 5px max(22px, env(safe-area-inset-right)) calc(5px + var(--mobile-bottom-nav-content-safe-area)) max(22px, env(safe-area-inset-left));
   border-top: 1px solid var(--ui-hairline);
-  background: color-mix(in srgb, var(--ui-sheet) 94%, transparent);
+  background: var(--ui-chrome);
   box-shadow: 0 -12px 26px rgba(26, 32, 35, 0.08);
   backdrop-filter: blur(14px);
 }

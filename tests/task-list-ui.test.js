@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260607-workspace-scoped-capability-note-request-v609";
+const CLIENT_VERSION = "20260607-plugin-context-nav-opaque-v610";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -192,8 +192,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260607-workspace-scoped-capability-note-request-v609" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260607-workspace-scoped-capability-note-request-v609"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260607-plugin-context-nav-opaque-v610" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260607-plugin-context-nav-opaque-v610"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2325,6 +2325,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?grid-t
 assert.match(stylesCss, /--plugin-context-bottom-nav-height: 54px/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?height: var\(--plugin-context-bottom-nav-height\);[\s\S]*?min-height: var\(--plugin-context-bottom-nav-height\);/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?padding: 5px max\(22px, env\(safe-area-inset-right\)\) calc\(5px \+ var\(--mobile-bottom-nav-content-safe-area\)\) max\(22px, env\(safe-area-inset-left\)\);/);
+assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?background: var\(--ui-chrome\);/);
+const pluginContextBottomNavBlock = stylesCss.match(/\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?\n\}/)?.[0] || "";
+assert.ok(pluginContextBottomNavBlock, "plugin context bottom nav CSS block should exist");
+assert.doesNotMatch(pluginContextBottomNavBlock, /transparent/);
 assert.match(stylesCss, /:root\[data-font-size\] \.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?height: var\(--plugin-context-bottom-nav-height\);[\s\S]*?min-height: var\(--plugin-context-bottom-nav-height\);/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-tab \{[\s\S]*?display: none !important;[\s\S]*?gap: 0;[\s\S]*?padding: 0;/);
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode,[\s\S]*?\.plugin-context-nav-mode #bottomNoteMode:not\(\[hidden\]\) \{[\s\S]*?display: grid !important;/);
@@ -2370,10 +2374,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260607-workspace-scoped-capability-note-request-v609/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260607-workspace-scoped-capability-note-request-v609/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260607-workspace-scoped-capability-note-request-v609/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260607-workspace-scoped-capability-note-request-v609/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260607-plugin-context-nav-opaque-v610/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260607-plugin-context-nav-opaque-v610/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260607-plugin-context-nav-opaque-v610/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260607-plugin-context-nav-opaque-v610/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
