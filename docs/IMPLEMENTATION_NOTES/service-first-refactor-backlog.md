@@ -167,6 +167,11 @@ statements. Priority extraction areas:
   plugin capability catalog/probe metadata, toolset routing metadata, search
   source fields, and wardrobe workflow gate metadata to a focused deterministic
   service with its own tests and architecture budget.
+- completed 2026-06-08: Gateway run-start Wardrobe workflow gate integration
+  moved into `adapters/gateway-run-start-wardrobe-gate-service.js`. The start
+  service now delegates gate stage evaluation, idempotent instruction insertion,
+  failed-gate event projection, and failed-start handoff while leaving Wardrobe
+  product rules in `adapters/wardrobe-outfit-workflow-gate-service.js`.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;
