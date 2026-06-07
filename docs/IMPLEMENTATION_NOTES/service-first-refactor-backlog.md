@@ -255,6 +255,11 @@ statements. Priority extraction areas:
   warning/stale event projection, miss counter mutation, and failed-abort
   handoff while retaining liveness timer scheduling and response stream
   orchestration.
+- completed 2026-06-08: Gateway run stream stop behavior moved into
+  `adapters/gateway-run-stream-stop-service.js`. The stream service now
+  delegates requested run-id dedupe, local active-stream abort, remote Gateway
+  `stopRun`, stop timeout projection, and 404-as-stopped handling while
+  retaining stream orchestration and public runtime API shape.
 - completed 2026-06-08: Runtime Gateway concurrency projection moved into
   `adapters/mobile-runtime-gateway-concurrency-service.js`. The Gateway facade
   now delegates active-run snapshot, per-workspace limit-error projection, and

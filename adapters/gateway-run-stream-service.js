@@ -8,21 +8,10 @@ const {
 const { createGatewayRunStreamCloseRecoveryService } = require("./gateway-run-stream-close-recovery-service");
 const { createGatewayRunStreamLivenessService } = require("./gateway-run-stream-liveness-service");
 const { createGatewayRunStreamRegistryService } = require("./gateway-run-stream-registry-service");
+const { createGatewayRunStreamStopService } = require("./gateway-run-stream-stop-service");
 
 function cleanString(value) {
   return String(value || "").trim();
-}
-
-function defaultDedupe(values = []) {
-  const out = [];
-  const seen = new Set();
-  for (const value of Array.isArray(values) ? values : []) {
-    const text = cleanString(value);
-    if (!text || seen.has(text)) continue;
-    seen.add(text);
-    out.push(text);
-  }
-  return out;
 }
 
 function readNumber(value, fallback = 0) {
@@ -41,7 +30,6 @@ function safeErrorMessage(err) {
 
 function createGatewayRunStreamService(options = {}) {
   const activeStreams = options.activeStreams instanceof Map ? options.activeStreams : new Map();
-  const dedupe = typeof options.dedupe === "function" ? options.dedupe : defaultDedupe;
   const nowMs = typeof options.nowMs === "function" ? options.nowMs : (() => Date.now());
   const logger = options.logger || console;
   const gatewayPool = typeof options.gatewayPool === "function"
@@ -142,6 +130,15 @@ function createGatewayRunStreamService(options = {}) {
   const handleStreamClosedWithoutTerminal = (...args) => (
     streamCloseRecoveryService.handleStreamClosedWithoutTerminal(...args)
   );
+  const streamStopService = options.streamStopService || createGatewayRunStreamStopService({
+    activeStreamForRun,
+    apiTimeoutMs: options.apiTimeoutMs,
+    dedupe: options.dedupe,
+    gatewayPool,
+    gatewayTargetForRun,
+    stopTimeoutMs: options.stopTimeoutMs,
+  });
+  const stopRunIds = (...args) => streamStopService.stopRunIds(...args);
 
   function clearStreamTimers(stream) {
     if (!stream) return;
@@ -169,35 +166,6 @@ function createGatewayRunStreamService(options = {}) {
       scheduleFirstEventWarning(publicRunId, current);
     }, warningMs);
     if (typeof stream.firstEventTimer?.unref === "function") stream.firstEventTimer.unref();
-  }
-
-  async function stopRunIds(runIds) {
-    const stopped = [];
-    const stopTimeoutMs = Math.max(1000, configured("stopTimeoutMs", Math.min(configured("apiTimeoutMs", 8000), 5000)));
-    for (const runId of dedupe(runIds || [])) {
-      const stream = activeStreamForRun(runId);
-      if (stream?.controller) {
-        stream.controller.abort();
-        stopped.push(runId);
-        continue;
-      }
-      try {
-        const target = gatewayTargetForRun(runId);
-        const pool = gatewayPool();
-        if (!pool || typeof pool.runnerFor !== "function") {
-          throw new Error("Gateway run stream service requires gatewayPool.runnerFor");
-        }
-        await pool.runnerFor(target).stopRun(runId, {
-          gatewayUrl: target.apiBase,
-          apiKey: target.apiKey,
-          timeoutMs: stopTimeoutMs,
-        });
-      } catch (err) {
-        if (Number(err?.status) !== 404) throw err;
-      }
-      stopped.push(runId);
-    }
-    return stopped;
   }
 
   function recordGatewayEvent(runId, event = {}) {
