@@ -82,6 +82,7 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-thread-view-facade-service.js`,
 `mobile-runtime-todo-facade-service.js`,
 `mobile-runtime-weixin-facade-service.js`,
+`mobile-runtime-workspace-identity-facade-service.js`,
 `mobile-runtime-workspace-facade-service.js`,
 `mobile-runtime-workspace-catalog-facade.js`, and
 `mobile-runtime-http-server-service.js`. These modules keep static file
@@ -99,9 +100,9 @@ WSL/config path candidate parsing, public status projections, runtime state
 normalization/persistence lazy delegation, DATA_DIR-derived state/storage path
 parsing, system status lazy delegation, thread runtime composition delegation,
 thread view projection lazy delegation, Todo/direct-create runtime delegation,
-Weixin runtime composition delegation, local workspace store/projection,
-workspace access/auth gate, access-key operation, sender label, and
-principal-to-workspace lazy
+Weixin runtime composition delegation, workspace identity fallback delegation,
+local workspace store/projection, workspace access/auth gate, access-key
+operation, sender label, and principal-to-workspace lazy
 delegation, workspace catalog lazy
 delegation, and process HTTP lifecycle wiring
 addressable through CodeGraph without loading the full runtime root.
@@ -135,6 +136,14 @@ composition and state normalization, but it must not carry duplicate
 Web Push, plugin notification, and other route-link producers. Runtime
 composition may pass the helper into route/service wiring, but it must not carry
 a duplicate `appRouteUrl` function implementation.
+
+`mobile-runtime-workspace-identity-facade-service.js` owns the runtime
+workspace identity fallback layer for `workspaceLabel`,
+`senderInfoForWorkspace`, and `workspaceIdForPrincipal`. It may delegate to the
+fully initialized workspace facade when available, and otherwise use bounded
+catalog/principal fallbacks needed during earlier runtime wiring. The runtime
+composition root must not carry duplicate function implementations for those
+identity helpers.
 
 `mobile-runtime-kanban-facade-service.js` is only a runtime wiring facade for
 Kanban public projections, case-topic wiring, plan-card creation, assessment
@@ -176,8 +185,8 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,535 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 80;
+- `mobile-server-runtime.js` must stay at or below 1,525 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 77;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
 - `mobile-runtime-file-access-facade-service.js` must stay at or below 115
@@ -192,6 +201,9 @@ Current CI guardrails:
 - `mobile-runtime-group-chat-facade-service.js` must stay at or below 95 lines
   and remain a facade over group chat public projection, revoke authorization,
   paired assistant lookup, and revoke payload mutation;
+- `mobile-runtime-workspace-identity-facade-service.js` must stay at or below
+  65 lines and remain a runtime identity fallback/delegation facade, not a
+  local workspace store or access-key policy implementation;
 - `mobile-runtime-artifact-facade-service.js` must stay at or below 140 lines
   and remain a facade over `file-artifact-access-service.js` and
   `artifact-text-registration-service.js`;

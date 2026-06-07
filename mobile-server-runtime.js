@@ -61,6 +61,7 @@ const { createMobileRuntimeThreadFacadeService } = require("./adapters/mobile-ru
 const { createMobileRuntimeThreadViewFacadeService } = require("./adapters/mobile-runtime-thread-view-facade-service");
 const { createMobileRuntimeTodoFacadeService } = require("./adapters/mobile-runtime-todo-facade-service");
 const { createMobileRuntimeWeixinFacadeService } = require("./adapters/mobile-runtime-weixin-facade-service");
+const { createMobileRuntimeWorkspaceIdentityFacadeService } = require("./adapters/mobile-runtime-workspace-identity-facade-service");
 const { createMobileRuntimeWorkspaceFacadeService } = require("./adapters/mobile-runtime-workspace-facade-service");
 const { createMobileRuntimeWorkspaceCatalogFacade } = require("./adapters/mobile-runtime-workspace-catalog-facade");
 const { createRuntimeWorkspaceCatalogService } = require("./adapters/runtime-workspace-catalog-service");
@@ -258,6 +259,15 @@ const {
 } = mobileRuntimeTodoFacadeService;
 const parseTodoDueFromText = parseWebTodoDueFromText;
 const detectDirectTodoCreateIntent = detectDirectTodoCreateIntentForWeb;
+const mobileRuntimeWorkspaceIdentityFacadeService = createMobileRuntimeWorkspaceIdentityFacadeService({
+  findWorkspace: (...args) => findWorkspace(...args),
+  loadCatalog: (...args) => loadCatalog(...args),
+  workspaceFacade: () => mobileRuntimeWorkspaceFacadeService,
+  workspacePrincipal,
+});
+const workspaceLabel = (...args) => mobileRuntimeWorkspaceIdentityFacadeService.workspaceLabel(...args);
+const senderInfoForWorkspace = (...args) => mobileRuntimeWorkspaceIdentityFacadeService.senderInfoForWorkspace(...args);
+const workspaceIdForPrincipal = (...args) => mobileRuntimeWorkspaceIdentityFacadeService.workspaceIdForPrincipal(...args);
 const gatewayRunContentService = createGatewayRunContentService({
   compactText,
   maxMessageChars: MAX_MESSAGE_CHARS,
@@ -1236,16 +1246,6 @@ function getSingleWindowThreadService() {
   }
   return singleWindowThreadService;
 }
-function workspaceLabel(workspaceId) {
-  if (mobileRuntimeWorkspaceFacadeService) return mobileRuntimeWorkspaceFacadeService.workspaceLabel(workspaceId);
-  const workspace = findWorkspace(String(workspaceId || ""));
-  return workspace?.label || workspace?.id || String(workspaceId || "");
-}
-function senderInfoForWorkspace(workspaceId) {
-  if (mobileRuntimeWorkspaceFacadeService) return mobileRuntimeWorkspaceFacadeService.senderInfoForWorkspace(workspaceId);
-  const id = String(workspaceId || "owner").trim() || "owner";
-  return { senderWorkspaceId: id, senderPrincipalId: workspacePrincipal(id), senderLabel: workspaceLabel(id) };
-}
 function ownerExternalInterfaceBindings() {
   return externalIntegrationProvider.ownerInterfaceBindings();
 }
@@ -1384,15 +1384,6 @@ function compactText(value, maxChars) {
   const head = Math.floor(maxChars * 0.45);
   const tail = maxChars - head;
   return `${text.slice(0, head)}\n\n[truncated: ${text.length} chars total]\n\n${text.slice(-tail)}`;
-}
-function workspaceIdForPrincipal(principalId) {
-  if (mobileRuntimeWorkspaceFacadeService) return mobileRuntimeWorkspaceFacadeService.workspaceIdForPrincipal(principalId);
-  const principal = String(principalId || "owner").trim() || "owner";
-  const workspace = loadCatalog().workspaces.find((item) => {
-    const itemPrincipal = String(item?.policy?.principal_id || item?.id || "").trim() || "owner";
-    return item.id === principal || itemPrincipal === principal;
-  });
-  return workspace?.id || (principal === "owner" ? "owner" : principal);
 }
 async function getHermesStatus() {
   const status = await singleGatewayRunner().status();
