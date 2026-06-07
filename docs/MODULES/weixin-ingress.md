@@ -22,6 +22,7 @@ Hermes Mobile owns product routing and delivery state; official Hermes Gateway r
 - `scripts/weixin-mobile-ingress-bridge.py`
 - `scripts/weixin-ingress-sidecar.py`
 - `scripts/start-weixin-mobile-ingress-bridge.ps1`
+- `scripts/start-weixin-mobile-ingress-bridge-windows.ps1`
 
 ## Product Rules
 
@@ -33,6 +34,13 @@ Hermes Mobile owns product routing and delivery state; official Hermes Gateway r
 - Ingress uses its own sidecar credential. Production ingress smokes use
   `X-Hermes-Mobile-Ingress-Key`; browser/API `X-Hermes-Web-Key` is a negative
   wrong-header probe for this endpoint, not a valid ingress transport.
+- On Windows-native deployments, use
+  `scripts\start-weixin-mobile-ingress-bridge-windows.ps1`. It starts the
+  Mobile ingress bridge and the three Weixin dispatchers with the native Hermes
+  Python runtime and state under
+  `C:\ProgramData\HermesMobile\hermes-native-profile\.hermes`. The bridge
+  health check must use a Windows-compatible PID probe; `os.kill(pid, 0)` is not
+  a valid Windows liveness test.
 
 ## Production Smoke
 
@@ -74,6 +82,10 @@ performed only as a controlled user-approved E2E check for a real route.
 - Production route workspace checks use
   `node scripts\weixin-ingress-production-smoke.js --ingress-key-file <file>`
   plus `node tests\weixin-ingress-production-smoke-harness.test.js`.
+- Windows-native service checks use:
+  `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\start-weixin-mobile-ingress-bridge-windows.ps1 -CheckOnly`.
+  This check must not invoke WSL, print credentials, or dump contact/history
+  content.
 - Listener restart is required for service/route changes.
 - Do not print Weixin credentials, mailbox codes, push endpoints, raw contact lists, or full message histories.
 

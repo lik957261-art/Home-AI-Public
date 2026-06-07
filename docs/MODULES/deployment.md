@@ -14,6 +14,53 @@
   and prove origin identity with Hermes-specific `/api/public-config` or app
   shell markers before smoke tests.
 
+## Windows Native Runtime
+
+As of 2026-06-07, the maintained Windows runtime no longer keeps WSL resident
+for local Home AI services. Windows-local production/development uses native
+Node and native Python processes:
+
+- listener: `C:\ProgramData\HermesMobile\start-hermes-mobile-production.ps1`
+  launches `C:\ProgramData\HermesMobile\app\server.js` on `8797`;
+- bridge host: `C:\ProgramData\HermesMobile\start-worker-host.ps1` launches
+  `scripts\bridge-host.js` on `8798` and sets
+  `HERMES_MOBILE_BRIDGE_PYTHON_MODE=windows-native`;
+- Gateway profile cold starts use
+  `scripts\start-windows-native-gateway-profile.ps1` and the official Hermes
+  source under `C:\ProgramData\HermesMobile\gateway-worker\native-runtime`;
+- Whisper large v3 Turbo uses
+  `scripts\start-whisper-large-v3-turbo-windows.ps1` and a native venv under
+  `C:\ProgramData\HermesMobile\services\whisper-large-v3-turbo\.venv-windows`;
+- Weixin mobile ingress uses
+  `scripts\start-weixin-mobile-ingress-bridge-windows.ps1`;
+- CRON sidecar uses `scripts\start-cron-tick-sidecar.ps1` with
+  `HERMES_MOBILE_CRON_TICK_SIDE=windows-native`;
+- Kanban-backed Todo compatibility uses
+  `scripts\run-kanban-native-windows.ps1` with
+  `HERMES_MOBILE_KANBAN_WORKSPACE_PATH_STYLE=native`.
+
+The Windows logon task `Hermes Web Listener User Logon` must not pass
+`BridgeWslUser`, `DistroName`, `/home/...`, or `Ubuntu-*` arguments. The retired
+`Hermes Gateway WSL` task was exported into the WSL downline backup and then
+unregistered. `Hermes Mobile Gateway Pool` and
+`Hermes Mobile Maintenance Gateway Watchdog` remain disabled because on-demand
+Gateway startup is now owned by the native profile launcher.
+
+Acceptance for a Windows native cutover:
+
+- a backup exists under `C:\ProgramData\HermesMobile\backups`;
+- `Get-Process wsl,wslhost,wslrelay,vmmemWSL` returns no running processes;
+- ports `8001`, `8797`, and `8798` are owned by Windows `python3.13.exe` or
+  `node.exe`, not `wslrelay.exe`;
+- `node scripts\production-status-smoke.js --access-key-file <file>
+  --base http://127.0.0.1:8797 --expected-version <version> --json` passes;
+- `/api/status?detail=1` shows `ownerMinWarm=0`, `workspaceMinWarm=0`, and
+  `idleTtlMs=60000` for the maintained cold-start configuration;
+- `scripts\start-weixin-mobile-ingress-bridge-windows.ps1 -CheckOnly` passes;
+- `http://127.0.0.1:8001/health` reports `large-v3-turbo`, `cpu`, and `int8`;
+- scheduled task actions do not contain WSL arguments except in archived
+  backups.
+
 ## macOS Production Direction
 
 The next preferred stable production target is Mac Studio. The detailed design
@@ -276,6 +323,29 @@ on-demand worker plist must keep both values false or absent; otherwise
 issue names are `launchd_run_at_load_unexpected:<profile>` and
 `launchd_keepalive_unexpected:<profile>`.
 
+Mac Gateway start scripts must also inject the live file-plugin roots for every
+profile-local file tool. `docx_extract_text`, `audio_transcribe`,
+`chatgpt_image_edit`, `chatgpt_image_erase`, `video_gen`, and scoped
+`http_request` file upload helpers do not consume the per-run
+`access_policy_context.allowed_roots` directly; they read environment variables
+such as `HERMES_MOBILE_DOCX_ALLOWED_ROOTS`,
+`HERMES_MOBILE_AUDIO_ALLOWED_ROOTS`, `HERMES_MOBILE_IMAGE_ALLOWED_ROOTS`,
+`HERMES_MOBILE_VIDEO_ALLOWED_ROOTS`, and `HERMES_MOBILE_HTTP_FILE_ROOTS`.
+Those variables must point at the Mac live `data/drive`, `data/uploads`, and
+`data/artifacts` roots, using comma, semicolon, or newline separators rather
+than PATH-style colon separators. Otherwise Markdown reads and image analysis can work
+while DOCX extraction fails with `file_path_outside_allowed_roots`, because the
+DOCX plugin has fallen back to the Windows/WSL default roots. The profile audit
+reports this as `file_plugin_root_env_missing:<profile>:<env>` or
+`file_plugin_root_missing:<profile>:<env>:<root>`. Colon-separated live roots
+are reported as `file_plugin_root_list_delimiter_unsupported:<profile>`.
+After repairing those env roots, run the live DOCX smoke as a second gate:
+`sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-file-plugin-docx-root-smoke.js --root /Users/hermes-host/HermesMobile --profiles hm-wuping-openai-1 --json`.
+The smoke generates a temporary DOCX under the live uploads root and imports the
+target profile's local `hermes-mobile-docx` plugin. It must return `ok=true`
+with no `docx_plugin_file_path_outside_allowed_roots:<profile>` issue before a
+Mac file-plugin root repair is considered closed.
+
 Mac production also must explicitly connect the listener workspace catalog to
 the live Weixin route data:
 
@@ -415,16 +485,19 @@ Remaining Mac production follow-ups:
 
 ## NAS Deployment Direction
 
-The first supported NAS direction is a split deployment, documented in
-`docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`:
+The first supported NAS direction was a split deployment, documented in
+`docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`. Treat that section as
+historical topology guidance unless a NAS rollout explicitly selects it; the
+maintained Windows path is now the native runtime described at the top of this
+module:
 
 - NAS runs Hermes Mobile app/data/static/proxy surfaces.
-- Windows/WSL continues to own official Hermes Gateway workers, Codex-local
-  execution, Grok/xAI OAuth, and worker launchers that depend on PowerShell,
-  WSL registration, or local browser/auth state.
+- A selected external Gateway host owns official Hermes Gateway workers,
+  Codex-local execution, Grok/xAI OAuth, and worker launchers. On current
+  Windows deployments that host must be Windows-native rather than WSL-backed.
 - NAS talks to one reachable Gateway API server or to a fixed remote worker
-  manifest. NAS should not be expected to start/stop Windows/WSL workers unless
-  a remote worker-manager contract has been implemented and tested.
+  manifest. NAS should not be expected to start/stop remote workers unless a
+  remote worker-manager contract has been implemented and tested.
 - For ordinary user-level chat, a disabled Gateway Pool plus
   `HERMES_WEB_HERMES_API_BASE` health is not enough under the current
   fail-closed contract. NAS must expose at least one healthy `securityLevel:
@@ -432,7 +505,7 @@ The first supported NAS direction is a split deployment, documented in
   `nas-local-codex` manifest pointing at `127.0.0.1:8642`, or use a validated
   remote worker manifest.
 - A fixed NAS-local `nas-local-codex` manifest is not the same operating model
-  as the maintained Windows hybrid Gateway Pool. It provides one always-running
+  as the maintained Windows native Gateway Pool. It provides one always-running
   user worker, but it has no Owner warm-worker baseline, no elastic expansion,
   no per-provider candidate pool, and no on-demand start/reuse events. UI
   wording and progress timing may therefore differ from Windows production

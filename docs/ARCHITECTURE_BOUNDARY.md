@@ -167,6 +167,24 @@ operation-error JSON response wrappers. Route composition may keep receiving
 `mobile-server-runtime.js` must not carry duplicate function implementations for
 those response shapes.
 
+`mobile-runtime-state-facade-service.js` owns runtime state normalization and
+persistence lazy delegation. Runtime composition may bind facade methods as
+readable delegates, including the `saveState(next = state, options = {})`
+runtime default that depends on the mutable in-memory `state`, but it must not
+carry duplicate top-level wrapper functions for `ensureDataDir`, `defaultState`,
+`loadState`, `normalizeState`, push normalization helpers,
+`pushSubscriptionScopeSignature`, `normalizeChatGroup`, or `saveState`.
+
+`web-push-delivery-service.js` owns VAPID load, initialization, reload, push
+status, and delivery helpers. Runtime composition may pass short delegates into
+route composition, but it must not carry duplicate top-level wrapper functions
+for VAPID load/init/generation/reload behavior.
+
+`external-integration-provider.js` owns owner external interface bindings and
+owner external access-policy projection. Runtime composition may bind those
+delegates for workspace binding projection, but it must not carry duplicate
+top-level wrapper functions for those provider methods.
+
 `mobile-runtime-basic-helper-service.js` owns deterministic runtime primitives:
 de-duplication, UNC path detection, hashing, id generation, current time
 formatting, boolean query parsing, single-window mode normalization, Owner
@@ -230,8 +248,8 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,452 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 53;
+- `mobile-server-runtime.js` must stay at or below 1,420 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 32;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
 - `automation-job-filter-service.js` must stay at or below 45 lines and remain

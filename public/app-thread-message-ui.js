@@ -87,7 +87,8 @@ async function openProjectTask(sourceThreadId, taskGroupId) {
 }
 
 function configureComposer(options = {}) {
-  const taskListRoot = state.viewMode === "tasks" && !state.currentTaskGroupId;
+  const directoryTopicDraft = typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive();
+  const taskListRoot = state.viewMode === "tasks" && !state.currentTaskGroupId && !directoryTopicDraft;
   const enabled = taskListRoot ? false : Boolean(options.enabled);
   const searchMode = isChatSearchMode();
   const hidden = taskListRoot || Boolean(options.hidden);

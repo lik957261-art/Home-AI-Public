@@ -67,6 +67,8 @@ def wsl_path(value: str) -> str:
     text = str(value or "").strip().strip('"')
     if not text:
         return ""
+    if not running_under_wsl():
+        return text
     text = text.replace("\\", "/")
     if len(text) >= 3 and text[1] == ":" and text[2] == "/":
         drive = text[0].lower()
@@ -551,9 +553,7 @@ def check_state(args: argparse.Namespace) -> int:
     except Exception:
         print("MOBILE_WEIXIN_INGRESS_BRIDGE_NOT_RUNNING")
         return 1
-    try:
-        os.kill(pid, 0)
-    except OSError:
+    if not process_exists(pid):
         print("MOBILE_WEIXIN_INGRESS_BRIDGE_NOT_RUNNING")
         return 1
     try:
@@ -566,6 +566,30 @@ def check_state(args: argparse.Namespace) -> int:
         return 1
     print(f"MOBILE_WEIXIN_INGRESS_BRIDGE_OK pid={pid} accounts={len(accounts)}")
     return 0
+
+
+def process_exists(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+
+        process_query_limited_information = 0x1000
+        still_active = 259
+        handle = ctypes.windll.kernel32.OpenProcess(process_query_limited_information, False, pid)
+        if not handle:
+            return False
+        try:
+            exit_code = ctypes.c_ulong()
+            ok = ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
+            return bool(ok and exit_code.value == still_active)
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
 
 
 def build_parser() -> argparse.ArgumentParser:

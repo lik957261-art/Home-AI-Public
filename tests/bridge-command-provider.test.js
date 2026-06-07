@@ -37,6 +37,22 @@ function testWindowsWslCommandUsesEnvAndPathConversions() {
   assert.equal(command.args.at(-1), "/mnt/c/repo/todo_bridge.py");
 }
 
+function testWindowsNativeCommandBypassesWsl() {
+  const provider = createBridgeCommandProvider({
+    platform: "win32",
+    env: {
+      HERMES_MOBILE_BRIDGE_PYTHON_MODE: "windows-native",
+      HERMES_MOBILE_BRIDGE_PYTHON_EXE: "C:\\ProgramData\\HermesMobile\\gateway-worker\\native-runtime\\venv\\Scripts\\python.exe",
+      HERMES_WEB_HERMES_HOME: "C:\\ProgramData\\HermesMobile\\hermes-native-profile\\.hermes",
+    },
+    wslDistro: "Ubuntu-Test",
+  });
+  assert.deepEqual(provider.python("C:\\repo\\todo_bridge.py", ["HERMES_WEB_HERMES_HOME"]), {
+    command: "C:\\ProgramData\\HermesMobile\\gateway-worker\\native-runtime\\venv\\Scripts\\python.exe",
+    args: ["C:\\repo\\todo_bridge.py"],
+  });
+}
+
 function testWslAbsoluteAndUncPathsArePreservedForWsl() {
   const provider = createBridgeCommandProvider({
     platform: "win32",
@@ -204,10 +220,11 @@ async function testRunJsonBridgeCommandTimesOutAndKillsChild() {
 }
 
 async function main() {
-  testDefaultScriptPath();
-  testConfiguredScriptPath();
-  testWindowsWslCommandUsesEnvAndPathConversions();
-  testWslAbsoluteAndUncPathsArePreservedForWsl();
+testDefaultScriptPath();
+testConfiguredScriptPath();
+testWindowsWslCommandUsesEnvAndPathConversions();
+testWindowsNativeCommandBypassesWsl();
+testWslAbsoluteAndUncPathsArePreservedForWsl();
   testNonWindowsCommand();
   await testRunJsonBridgeCommandParsesOutputAndWritesPayload();
   await testProviderRunJsonCommandWrapper();

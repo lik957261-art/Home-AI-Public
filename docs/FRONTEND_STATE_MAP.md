@@ -196,7 +196,15 @@ the change is part of a dedicated infrastructure rename.
 - Rich text/file directory helpers: `public/app-rich-text-directory-ui.js`
 - Directory automation links: `public/app-directory-automation-ui.js`
 - File/artifact preview helpers: `public/app-task-artifact-helpers.js`, `public/app-task-preview-ui.js`
-- Standalone viewer shells: `public/file-viewer.html`, `public/directory-viewer.html`
+- Standalone viewer shells: `public/file-viewer.html`, `public/pdf-viewer.html`,
+  `public/directory-viewer.html`
+- Word/PDF preview projection:
+  - `public/app-task-preview-ui.js` decides whether a task/directory document
+    link opens the embedded Hermes overlay or resolves the original same-origin
+    source URL for same-window native preview.
+  - Phone widths keep the overlay fallback. Wide iPad/foldable/desktop widths
+    use native/original preview only for PDF. Word/DOCX stays inside
+    `file-viewer.html` because raw DOCX URLs download on common mobile browsers.
 - Directory preview thread context:
   - `ensureDirectoryThread()` uses `state.directoryReturnRoute.currentThreadId`
     while returning from a topic/message into Directory. This keeps clicked

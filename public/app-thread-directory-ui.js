@@ -294,7 +294,8 @@ function renderTaskDetailToolbar(group) {
     ${sharedTopic ? "" : `<div class="task-more-wrap">
       <button class="task-more-button" type="button" data-task-more aria-label="Topic menu" aria-expanded="false">...</button>
       <div class="task-more-menu" hidden>
-        <button class="task-more-delete" type="button" data-delete-current-task>Delete</button>
+        <button class="task-more-delete" type="button" data-rename-current-task>改名</button>
+        <button class="task-more-delete" type="button" data-delete-current-task>删除</button>
       </div>
     </div>`}
   `;
@@ -307,6 +308,11 @@ function renderTaskDetailToolbar(group) {
     moreButton.setAttribute("aria-expanded", open ? "true" : "false");
   });
   moreMenu?.addEventListener("click", (event) => event.stopPropagation());
+  toolbar.querySelector("[data-rename-current-task]")?.addEventListener("click", () => {
+    if (moreMenu) moreMenu.hidden = true;
+    moreButton?.setAttribute("aria-expanded", "false");
+    renameTaskGroup(group.id).catch(showError);
+  });
   toolbar.querySelector("[data-delete-current-task]")?.addEventListener("click", () => {
     if (moreMenu) moreMenu.hidden = true;
     moreButton?.setAttribute("aria-expanded", "false");

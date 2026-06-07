@@ -176,6 +176,8 @@ const readBody = (...args) => httpRuntimeService.readBody(...args);
 const runtimeOperationErrorResponseService = createRuntimeOperationErrorResponseService({ sendJson });
 const todoErrorResponse = (...args) => runtimeOperationErrorResponseService.todoErrorResponse(...args);
 const kanbanErrorResponse = (...args) => runtimeOperationErrorResponseService.kanbanErrorResponse(...args);
+let mobileRuntimeStateFacadeService = null;
+const ensureDataDir = (...args) => mobileRuntimeStateFacadeService.ensureDataDir(...args);
 const {
   contentDisposition,
   extractDocxText,
@@ -287,7 +289,7 @@ const gatewayRunContentService = createGatewayRunContentService({
   maxMessageChars: MAX_MESSAGE_CHARS,
 });
 const { appendBounded, compactFullContent } = gatewayRunContentService;
-const mobileRuntimeStateFacadeService = createMobileRuntimeStateFacadeService({
+mobileRuntimeStateFacadeService = createMobileRuntimeStateFacadeService({
   bootTrace,
   chatGroupMemberWorkspaceIds,
   compactFullContent,
@@ -320,6 +322,19 @@ const mobileRuntimeStateFacadeService = createMobileRuntimeStateFacadeService({
   webPushDeliveryService: () => webPushDeliveryService,
   workspaceLabel,
 });
+const {
+  defaultState,
+  getRuntimeStateNormalizationService,
+  getRuntimeStatePersistenceService,
+  loadState,
+  normalizeChatGroup,
+  normalizePushDelivery,
+  normalizePushReceipt,
+  normalizePushSubscription,
+  normalizeState,
+  pushSubscriptionScopeSignature,
+} = mobileRuntimeStateFacadeService;
+const saveState = (next = state, options = {}) => mobileRuntimeStateFacadeService.saveState(next, options);
 function getGatewayRuntimeCompositionService() {
   if (!gatewayRuntimeCompositionService) {
     gatewayRuntimeCompositionService = createGatewayRuntimeCompositionService({
@@ -389,6 +404,8 @@ const {
   state: () => state, textBufferPreview, textFilePreview, uploadRootsForThread, useSqliteServiceStore,
   windowsPathToWsl, workspacePrincipal,
 });
+const ownerSetupStatus = (...args) => authProvider.ownerSetupStatus(...args);
+const createInitialOwnerKey = (...args) => authProvider.createInitialOwnerKey(...args);
 mobileRuntimeArtifactFacadeService = createMobileRuntimeArtifactFacadeService({
   fileArtifactAccessService,
   dedupe,
@@ -473,6 +490,10 @@ webPushDeliveryService = createWebPushDeliveryService({
   todoPushRecentCreateMinutes: TODO_WEB_PUSH_RECENT_CREATE_MINUTES, todoPushStartDelayMs: TODO_WEB_PUSH_START_DELAY_MS,
   webPushEnabled: WEB_PUSH_ENABLED, webPushSubject: WEB_PUSH_SUBJECT, webPushVapidPath: WEB_PUSH_VAPID_PATH,
 });
+const loadVapidConfig = (...args) => webPushDeliveryService.loadVapidConfig(...args);
+const initializeWebPush = (...args) => webPushDeliveryService.initializeWebPush(...args);
+const generateWebPushVapidConfig = (...args) => webPushDeliveryService.generateWebPushVapidConfig(...args);
+const reloadWebPush = (...args) => webPushDeliveryService.initializeWebPush(...args);
 const mobileRuntimePublicStatusService = createMobileRuntimePublicStatusService({
   defaultReasoningInfo: () => defaultReasoningInfo(),
   gatewayStatusProjection,
@@ -729,12 +750,6 @@ const ownerElevationInstructions = (...args) => mobileRuntimeOwnerElevationFacad
 const precedingUserMessageForAssistant = (...args) => mobileRuntimeOwnerElevationFacadeService.precedingUserMessageForAssistant(...args);
 const sanitizeElevationScope = (...args) => mobileRuntimeOwnerElevationFacadeService.sanitizeElevationScope(...args);
 const stripPermissionApprovalMarkers = (...args) => mobileRuntimeOwnerElevationFacadeService.stripPermissionApprovalMarkers(...args);
-function ownerSetupStatus() {
-  return authProvider.ownerSetupStatus();
-}
-function createInitialOwnerKey() {
-  return authProvider.createInitialOwnerKey();
-}
 mobileRuntimeWorkspaceFacadeService = createMobileRuntimeWorkspaceFacadeService({
   authProvider,
   clearDynamicProjectCache: (workspaceId) => getRuntimeWorkspaceCatalogService().clearDynamicProjectCache(workspaceId),
@@ -837,42 +852,6 @@ function findDirectoryThreadForRequest(req, threadId) {
   if (thread) return thread;
   return isOwnerAuth(auth) ? ownerDirectoryBrowserThread() : null;
 }
-function ensureDataDir() {
-  return mobileRuntimeStateFacadeService.ensureDataDir();
-}
-function getRuntimeStateNormalizationService() {
-  return mobileRuntimeStateFacadeService.getRuntimeStateNormalizationService();
-}
-function getRuntimeStatePersistenceService() {
-  return mobileRuntimeStateFacadeService.getRuntimeStatePersistenceService();
-}
-function defaultState() {
-  return mobileRuntimeStateFacadeService.defaultState();
-}
-function loadState() {
-  return mobileRuntimeStateFacadeService.loadState();
-}
-function normalizeState(value, options = {}) {
-  return mobileRuntimeStateFacadeService.normalizeState(value, options);
-}
-function normalizePushDelivery(item) {
-  return mobileRuntimeStateFacadeService.normalizePushDelivery(item);
-}
-function normalizePushReceipt(item) {
-  return mobileRuntimeStateFacadeService.normalizePushReceipt(item);
-}
-function normalizePushSubscription(item, options = {}) {
-  return mobileRuntimeStateFacadeService.normalizePushSubscription(item, options);
-}
-function pushSubscriptionScopeSignature(items) {
-  return mobileRuntimeStateFacadeService.pushSubscriptionScopeSignature(items);
-}
-function normalizeChatGroup(value, ownerWorkspaceId = "owner", options = {}) {
-  return mobileRuntimeStateFacadeService.normalizeChatGroup(value, ownerWorkspaceId, options);
-}
-function saveState(next = state, options = {}) {
-  return mobileRuntimeStateFacadeService.saveState(next, options);
-}
 function windowsPathToWsl(value) { return filesystemMountProvider.windowsPathToWsl(value); }
 function mobileSqliteStore() {
   if (!sqliteServiceStore) {
@@ -957,6 +936,8 @@ const externalIntegrationProvider = createExternalIntegrationProvider({
   googleClientSecretPaths: GOOGLE_CLIENT_SECRET_PATHS,
   outlookGraphTokenPaths: OUTLOOK_GRAPH_TOKEN_PATHS,
 });
+const ownerExternalInterfaceBindings = (...args) => externalIntegrationProvider.ownerInterfaceBindings(...args);
+const ownerExternalAccessPolicy = (...args) => externalIntegrationProvider.ownerAccessPolicy(...args);
 const clearCronListCache = (...args) => automationProvider.clearListCache(...args);
 async function runCronListBridgeCached(options = {}) {
   return automationProvider.listJobs(Object.assign({ limit: 0 }, options));
@@ -1137,18 +1118,6 @@ function normalizeAutomationDraft(raw, sourceText) {
 async function interpretAutomationNaturalLanguage(text, workspace, ownerPrincipalId) {
   return naturalLanguageDraftService.interpretAutomationNaturalLanguage(text, workspace, ownerPrincipalId);
 }
-function loadVapidConfig() {
-  return webPushDeliveryService.loadVapidConfig();
-}
-function initializeWebPush() {
-  return webPushDeliveryService.initializeWebPush();
-}
-function generateWebPushVapidConfig(options = {}) {
-  return webPushDeliveryService.generateWebPushVapidConfig(options);
-}
-function reloadWebPush() {
-  return webPushDeliveryService.initializeWebPush();
-}
 function sanitizePolicy(policy, hardeningOptions = {}) {
   return securityBoundaryProvider.hardenAccessPolicy(accessPolicyProvider.sanitize(policy), hardeningOptions);
 }
@@ -1179,12 +1148,6 @@ function getSingleWindowThreadService() {
     });
   }
   return singleWindowThreadService;
-}
-function ownerExternalInterfaceBindings() {
-  return externalIntegrationProvider.ownerInterfaceBindings();
-}
-function ownerExternalAccessPolicy() {
-  return externalIntegrationProvider.ownerAccessPolicy();
 }
 const publicWorkspace = (...args) => mobileRuntimeWorkspaceFacadeService.publicWorkspace(...args);
 const publicAccessKeyStatus = (...args) => mobileRuntimeWorkspaceFacadeService.publicAccessKeyStatus(...args);

@@ -108,6 +108,12 @@ Gateway plugin/schema/profile changes:
   a single-column app, bottom navigation, and an overlay sidebar. Do not let
   iPad-like landscape layouts fall back to the desktop fixed sidebar or hide the
   primary bottom navigation.
+- The mobile shell rule does not mean all embedded previews should be forced
+  into phone projection. PDF preview links must keep phone widths in the
+  embedded Hermes viewer but route wide tablet/foldable surfaces to same-window
+  native/original document preview when a same-origin source URL is available.
+  Word/DOCX must stay in the Home AI `file-viewer.html` preview path on wide
+  surfaces because raw DOCX URLs usually download instead of rendering inline.
 - Top-level PWA shell changes must keep time, battery, and Wi-Fi indicators visible on mobile; browser-shell guards and full-viewport overlays need explicit status-bar/safe-area checks.
 - The settings sheet owns device-local display preferences. Theme mode is a
   three-state client preference: `system`, `light`, or `dark`. The shell must
@@ -202,6 +208,11 @@ Gateway plugin/schema/profile changes:
   off-white text, and brighter low-saturation status colors. Hard-coded dark
   green text is not acceptable on dark surfaces; use the theme variables for
   headings, receipt labels, file tags, status chips, and run/tool panels.
+- Floating menus, context menus, inline details popovers, and action panels must
+  use theme tokens such as `--ui-menu-bg`, `--ui-sheet`, `--text`,
+  `--ui-hairline-strong`, and `--shadow`. Dark/system-dark fixes are incomplete
+  if a menu or popover still relies on a hard-coded white/pale background in its
+  base rule and only happens to work because of a separate override.
 - In dark/system-dark mode, green/success semantics may remain in backgrounds,
   borders, dots, or subtle status surfaces, but text that previously used dark
   green must resolve to off-white (`--ink` / `--ui-success-ink`) unless a

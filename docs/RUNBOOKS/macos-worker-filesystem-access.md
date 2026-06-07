@@ -75,8 +75,9 @@ passes. The closure harness includes this ACL check plus status, profile audit,
 native MCP schema, DeepSeek, Weixin, Owner/OpenAI concurrency, and final-status
 checks.
 
-For required plugin Skills, also run the profile audit after any Skill Store
-copy, worker-side Skill edit, plugin provisioning, or user migration:
+For required plugin Skills and profile-local file plugins, also run the profile
+audit after any Skill Store copy, worker-side Skill edit, plugin provisioning,
+user migration, or Gateway start-script repair:
 
 ```bash
 sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
@@ -88,6 +89,30 @@ sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
 Pass criteria include no
 `plugin_required_skill_unreadable:<workspace>:<plugin>:<skill>` issue. The
 check must use the listener user, not root-only file access.
+It must also include no `file_plugin_root_env_missing:<profile>:<env>` and no
+`file_plugin_root_missing:<profile>:<env>:<root>` issue. These issues mean a
+profile-local tool such as `docx_extract_text` is still using Windows/WSL
+default roots instead of Mac live roots. The root list must use comma,
+semicolon, or newline separators; `file_plugin_root_list_delimiter_unsupported`
+means a PATH-style colon-separated list was used and must be repaired. In that
+state a run can read Markdown or analyze uploaded images but fail Word/DOCX
+extraction with `file_path_outside_allowed_roots`.
+
+Then run an actual DOCX extraction smoke against at least the affected profile:
+
+```bash
+sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
+  /Users/hermes-host/HermesMobile/app/scripts/macos-file-plugin-docx-root-smoke.js \
+  --root /Users/hermes-host/HermesMobile \
+  --profiles hm-wuping-openai-1 \
+  --json
+```
+
+This harness creates a temporary synthetic DOCX in the live uploads root and
+calls the target profile-local `hermes-mobile-docx` plugin directly. Passing
+output has `ok=true`; `docx_plugin_file_path_outside_allowed_roots:<profile>`
+means the start-script roots or separators are still wrong even if ordinary
+Markdown/image paths appear to work.
 
 ## Repair Pattern
 

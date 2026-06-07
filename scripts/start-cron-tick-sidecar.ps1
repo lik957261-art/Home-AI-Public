@@ -1,13 +1,13 @@
 param(
     [string]$SidecarScript = "",
-    [string]$DistroName = "",
-    [string]$WslUser = "",
     [string]$HermesHome = "",
-    [string]$RuntimeRoot = "/opt/hermes-gateway-runtime",
+    [string]$RuntimeRoot = "C:\ProgramData\HermesMobile\gateway-worker\native-runtime",
     [string]$DispatcherScript = "",
     [int]$IntervalSeconds = 60,
     [int]$DispatchTimeoutSeconds = 0,
     [string]$LogPath = "",
+    [string]$NativeProfileRoot = "C:\ProgramData\HermesMobile\hermes-native-profile",
+    [string]$PythonExe = "",
     [switch]$CheckOnly,
     [switch]$ReplaceExisting
 )
@@ -16,20 +16,12 @@ $ErrorActionPreference = "Stop"
 
 if (-not $SidecarScript) { $SidecarScript = Join-Path $PSScriptRoot "run-cron-tick-sidecar.ps1" }
 $SidecarScript = [System.IO.Path]::GetFullPath($SidecarScript)
-if (-not (Test-Path -LiteralPath $SidecarScript)) {
-    throw "Cron tick sidecar script not found: $SidecarScript"
-}
-if (-not $DistroName) { $DistroName = $env:HERMES_WEB_WSL_DISTRO }
-if (-not $DistroName) { $DistroName = "Ubuntu-24.04" }
-if (-not $WslUser) { $WslUser = $env:HERMES_WEB_WSL_USER }
-if (-not $WslUser) { $WslUser = "xuxin" }
+if (-not $HermesHome) { $HermesHome = $env:HERMES_MOBILE_CRON_TICK_HERMES_HOME }
 if (-not $HermesHome) { $HermesHome = $env:HERMES_WEB_HERMES_HOME }
-if (-not $HermesHome) { $HermesHome = "/home/$WslUser/.hermes" }
+if (-not $HermesHome -or $HermesHome -match '^/home/') { $HermesHome = Join-Path $NativeProfileRoot ".hermes" }
+if (-not $PythonExe) { $PythonExe = Join-Path $RuntimeRoot "venv\Scripts\python.exe" }
 if (-not $DispatcherScript) { $DispatcherScript = Join-Path $PSScriptRoot "hermes-mobile-cron-dispatcher.py" }
 $DispatcherScript = [System.IO.Path]::GetFullPath($DispatcherScript)
-if (-not (Test-Path -LiteralPath $DispatcherScript)) {
-    throw "Cron dispatcher script not found: $DispatcherScript"
-}
 if (-not $LogPath) { $LogPath = $env:HERMES_MOBILE_CRON_TICK_LOG_PATH }
 if (-not $LogPath) {
     $dataRoot = $env:HERMES_WEB_DATA_DIR
@@ -60,34 +52,40 @@ function Get-CronTickSidecarProcess {
         }
 }
 
+function Set-NativeCronEnvironment {
+    $runtimeSource = Join-Path $RuntimeRoot "official-clean"
+    $env:USERPROFILE = $NativeProfileRoot
+    $env:HOME = $NativeProfileRoot
+    $env:HERMES_HOME = $HermesHome
+    $env:HERMES_REPO = $runtimeSource
+    $env:PYTHONPATH = $runtimeSource
+    $env:HERMES_ACCEPT_HOOKS = "1"
+    $env:HERMES_MOBILE_CRON_TICK_SIDE = "windows-native"
+}
+
 function Invoke-CronStatusCheck {
-    $pythonPath = "$RuntimeRoot/official-clean"
-    $pythonExe = "$RuntimeRoot/venv/bin/python"
-    $wslArgs = @(
-        "-d", $DistroName,
-        "-u", $WslUser,
-        "--",
-        "env",
-        "HERMES_HOME=$HermesHome",
-        "PYTHONPATH=$pythonPath",
-        $pythonExe,
-        "-m", "hermes_cli.main",
-        "cron", "status"
-    )
-    $output = & wsl.exe @wslArgs 2>&1 | ForEach-Object { $_.ToString() }
+    if (-not (Test-Path -LiteralPath $PythonExe)) { throw "Windows Hermes Python not found: $PythonExe" }
+    if (-not (Test-Path -LiteralPath (Join-Path $RuntimeRoot "official-clean"))) { throw "Windows Hermes official source not found: $RuntimeRoot" }
+    Set-NativeCronEnvironment
+    $output = & $PythonExe -m hermes_cli.main cron status 2>&1 | ForEach-Object { $_.ToString() }
     $exitCode = $LASTEXITCODE
     $output | Select-Object -First 40 | ForEach-Object { Write-Host $_ }
-    if ($exitCode -ne 0) {
-        throw "Cron status check failed with exit code $exitCode"
-    }
+    if ($exitCode -ne 0) { throw "Cron status check failed with exit code $exitCode" }
+}
+
+if (-not (Test-Path -LiteralPath $SidecarScript)) {
+    throw "Cron tick sidecar script not found: $SidecarScript"
+}
+if (-not (Test-Path -LiteralPath $DispatcherScript)) {
+    throw "Cron dispatcher script not found: $DispatcherScript"
 }
 
 if ($CheckOnly) {
     Invoke-CronStatusCheck
-    Write-Host "Cron tick sidecar check OK"
+    Write-Host "Cron tick sidecar Windows native check OK"
     Write-Host "Script: $SidecarScript"
-    Write-Host "Distro: $DistroName"
     Write-Host "Hermes home: $HermesHome"
+    Write-Host "Runtime root: $RuntimeRoot"
     Write-Host "Dispatcher: $DispatcherScript"
     Write-Host "Log: $LogPath"
     Write-Host "Dispatch timeout seconds: $DispatchTimeoutSeconds"
@@ -112,15 +110,15 @@ $argumentList = @(
     "-NoProfile",
     "-ExecutionPolicy", "Bypass",
     "-File", ('"{0}"' -f $SidecarScript),
-    "-DistroName", ('"{0}"' -f $DistroName),
-    "-WslUser", ('"{0}"' -f $WslUser),
     "-HermesHome", ('"{0}"' -f $HermesHome),
     "-RuntimeRoot", ('"{0}"' -f $RuntimeRoot),
     "-DispatcherScript", ('"{0}"' -f $DispatcherScript),
     "-IntervalSeconds", [string]$IntervalSeconds,
     "-DispatchTimeoutSeconds", [string]$DispatchTimeoutSeconds,
-    "-LogPath", ('"{0}"' -f $LogPath)
+    "-LogPath", ('"{0}"' -f $LogPath),
+    "-NativeProfileRoot", ('"{0}"' -f $NativeProfileRoot),
+    "-PythonExe", ('"{0}"' -f $PythonExe)
 )
 $process = Start-Process -FilePath "powershell.exe" -ArgumentList $argumentList -WindowStyle Hidden -PassThru
-Write-Host "Started cron tick sidecar; PID $($process.Id)."
+Write-Host "Started Windows native cron tick sidecar; PID $($process.Id)."
 Write-Host "Log: $LogPath"

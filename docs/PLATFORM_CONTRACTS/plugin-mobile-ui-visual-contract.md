@@ -1,6 +1,6 @@
 # Plugin Mobile UI And Visual Harness Contract
 
-Contract version: `20260607-v2`.
+Contract version: `20260607-v3`.
 
 ## Purpose
 
@@ -201,6 +201,10 @@ Requirements:
   touch path, not only desktop `contextmenu`;
 - menu proof must include DOM visibility, computed styles, hit tests, and
   screenshot or pixel evidence;
+- menus, sheets, inline details popovers, and action panels must use host or
+  plugin theme tokens for background, text, border, and shadow. Dark/system-dark
+  fixes are incomplete if the base menu rule still uses a hard-coded white or
+  pale background and only happens to work through a separate override;
 - avoid fixed-position menus trapped inside fixed Dock subtrees if iOS proof
   shows the menu can open in DOM but fail to paint;
 - menus should be compact, task-labeled, and reversible;

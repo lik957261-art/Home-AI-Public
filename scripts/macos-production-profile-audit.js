@@ -19,6 +19,41 @@ const REQUIRED_PLUGIN_SKILLS = {
 
 const DEFAULT_REQUIRED_SHARED_SKILLS = ["shared/response-grounding-baseline"];
 
+const FILE_PLUGIN_ROOT_ENV = Object.freeze([
+  {
+    name: "HERMES_MOBILE_DOCX_ALLOWED_ROOTS",
+    roots: ["data/drive", "data/uploads", "data/artifacts"],
+  },
+  {
+    name: "HERMES_MOBILE_AUDIO_ALLOWED_ROOTS",
+    roots: ["data/drive", "data/uploads", "data/artifacts"],
+  },
+  {
+    name: "HERMES_MOBILE_IMAGE_ALLOWED_ROOTS",
+    roots: ["data/drive", "data/uploads", "data/artifacts"],
+  },
+  {
+    name: "HERMES_MOBILE_VIDEO_ALLOWED_ROOTS",
+    roots: ["data/drive", "data/uploads", "data/artifacts"],
+  },
+  {
+    name: "HERMES_MOBILE_HTTP_FILE_ROOTS",
+    roots: ["data/drive", "data/uploads", "data/artifacts"],
+  },
+  {
+    name: "HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS",
+    roots: ["data/drive/users"],
+  },
+  {
+    name: "HERMES_MOBILE_HTTP_SAVE_ROOT",
+    roots: ["data/artifacts/http-request"],
+  },
+  {
+    name: "HERMES_MOBILE_VIDEO_OUTPUT_ROOT",
+    roots: ["data/artifacts/grok-videos"],
+  },
+]);
+
 function parseArgs(argv) {
   const out = {
     root: process.env.HERMES_MOBILE_ROOT || "/Users/hermes-host/HermesMobile",
@@ -210,6 +245,64 @@ function readLaunchdPlistBoolean(plistFile, key) {
 
 function compactPath(value, root) {
   return String(value || "").replaceAll(root, "<root>");
+}
+
+function gatewayStartScriptPath(profile, osUser) {
+  const safeProfile = String(profile || "").trim();
+  const safeUser = String(osUser || "").trim();
+  if (!safeProfile || !safeUser) return "";
+  return path.join("/Users", safeUser, "HermesWorkspace", ".hermes-gateway", `start-${safeProfile}.sh`);
+}
+
+function readStartScriptText(worker = {}, profile = "", osUser = "", options = {}) {
+  const scriptPath = gatewayStartScriptPath(profile, osUser);
+  if (!scriptPath) return { path: "", exists: false, text: "" };
+  if (typeof options.startScriptProbe === "function") {
+    const probe = options.startScriptProbe(scriptPath, worker) || {};
+    return {
+      path: scriptPath,
+      exists: Boolean(probe.exists ?? probe.text),
+      text: String(probe.text || ""),
+    };
+  }
+  try {
+    return {
+      path: scriptPath,
+      exists: true,
+      text: fs.readFileSync(scriptPath, "utf8"),
+    };
+  } catch (_) {
+    return { path: scriptPath, exists: false, text: "" };
+  }
+}
+
+function hasRootToken(scriptText, root, rootSpec) {
+  const rel = String(rootSpec || "").replaceAll("\\", "/").replace(/^\/+/, "");
+  const absolute = path.join(root, ...rel.split("/")).replaceAll("\\", "/");
+  const rootRelative = `$ROOT/${rel}`;
+  const mobileRootRelative = "${ROOT}/" + rel;
+  const text = String(scriptText || "").replaceAll("\\", "/");
+  return text.includes(absolute) || text.includes(rootRelative) || text.includes(mobileRootRelative);
+}
+
+function filePluginRootStatus(worker = {}, profile = "", osUser = "", root = "", options = {}) {
+  const script = readStartScriptText(worker, profile, osUser, options);
+  const env = FILE_PLUGIN_ROOT_ENV.map((spec) => ({
+    name: spec.name,
+    present: script.text.includes(spec.name),
+    rootsPresent: spec.roots.map((rootSpec) => ({
+      root: rootSpec,
+      present: hasRootToken(script.text, root, rootSpec),
+    })),
+  }));
+  return {
+    startScriptPath: compactPath(script.path, root),
+    startScriptExists: script.exists,
+    unsupportedColonRootList: /\b(?:FILE_PLUGIN_ALLOWED_ROOTS|HERMES_MOBILE_(?:DOCX|AUDIO|IMAGE|VIDEO)_ALLOWED_ROOTS|HERMES_MOBILE_HTTP_FILE_ROOTS)=[^\n]*data\/drive:[^\n]*data\/uploads/.test(
+      String(script.text || "").replaceAll("\\", "/"),
+    ),
+    env,
+  };
 }
 
 function telemetryPathConfigured(worker = {}, field) {
@@ -550,6 +643,7 @@ function buildAudit(options) {
     const configExists = exists(path.join(profileDir, "config.yaml"));
     const launchd = launchdServiceStatus(worker, options);
     const telemetry = options.checkTelemetry === false ? null : telemetryStatus(worker, root, options);
+    const filePluginRoots = filePluginRootStatus(worker, profile, osUser, root, options);
     const requiredWarm = requiredWarmProfiles.has(profile);
     const check = {
       profile,
@@ -564,6 +658,7 @@ function buildAudit(options) {
       memories,
       launchd,
       telemetry,
+      filePluginRoots,
     };
     profileChecks.push(check);
     if (!configExists) issue(`profile_config_missing:${profile}`);
@@ -588,6 +683,18 @@ function buildAudit(options) {
       if (telemetry.responsePathConfigured && !telemetry.responseExists) warnings.push(`telemetry_response_store_missing:${profile}`);
       if (telemetry.stateExists && !telemetry.listenerCanReadState) issue(`telemetry_state_db_unreadable:${profile}`);
       if (telemetry.responseExists && !telemetry.listenerCanReadResponse) issue(`telemetry_response_store_unreadable:${profile}`);
+    }
+    if (!filePluginRoots.startScriptExists) {
+      issue(`file_plugin_start_script_missing:${profile}`);
+    }
+    if (filePluginRoots.unsupportedColonRootList) {
+      issue(`file_plugin_root_list_delimiter_unsupported:${profile}`);
+    }
+    for (const item of filePluginRoots.env) {
+      if (!item.present) issue(`file_plugin_root_env_missing:${profile}:${item.name}`);
+      for (const rootCheck of item.rootsPresent) {
+        if (!rootCheck.present) issue(`file_plugin_root_missing:${profile}:${item.name}:${rootCheck.root}`);
+      }
     }
     if (skills.exists && !skills.isSymbolicLink) issue(`profile_skills_not_linked:${profile}`);
     if (memories.exists && !memories.isSymbolicLink) issue(`profile_memories_not_linked:${profile}`);
@@ -660,6 +767,7 @@ if (require.main === module) {
 
 module.exports = {
   buildAudit,
+  filePluginRootStatus,
   launchdServiceStatus,
   parseArgs,
   telemetryStatus,

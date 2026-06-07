@@ -4,7 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Directory</title>
-  <link rel="stylesheet" href="/styles.css?v=20260607-plugin-context-nav-opaque-v610">
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem("hermesWebTheme") || "system";
+        var effective = stored === "dark" || (stored === "system" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+        document.documentElement.dataset.theme = stored === "dark" || stored === "light" ? stored : "system";
+        document.documentElement.dataset.effectiveTheme = effective;
+      } catch (_) {
+        document.documentElement.dataset.theme = "system";
+      }
+    }());
+  </script>
+  <link rel="stylesheet" href="/styles.css?v=20260607-dark-directory-menu-v617">
   <style>
     :root {
       --paper: #f6f0e4;
@@ -16,6 +28,19 @@
       --danger: #a64a42;
       --pdf: #b54b45;
       --word: #477cb3;
+    }
+
+    html[data-effective-theme="dark"] {
+      color-scheme: dark;
+      --paper: #101214;
+      --panel: rgba(27, 31, 34, 0.96);
+      --ink: #f5f7f6;
+      --muted: #b5bec1;
+      --line: rgba(236, 241, 240, 0.16);
+      --accent: #b8d3d8;
+      --danger: #f08c82;
+      --pdf: #e18a82;
+      --word: #88b2d8;
     }
 
     * {
@@ -33,6 +58,10 @@
       font: 16px/1.45 "Aptos", "Microsoft YaHei", "Segoe UI", sans-serif;
       touch-action: pan-y;
       -webkit-text-size-adjust: 100%;
+    }
+
+    html[data-effective-theme="dark"] body {
+      background: var(--paper);
     }
 
     .shell {
@@ -53,6 +82,10 @@
       background:
         linear-gradient(180deg, rgba(251, 246, 234, 0.98) 0%, rgba(246, 240, 228, 0.9) 100%);
       backdrop-filter: blur(16px);
+    }
+
+    html[data-effective-theme="dark"] .topbar {
+      background: linear-gradient(180deg, rgba(16, 18, 20, 0.98) 0%, rgba(16, 18, 20, 0.88) 100%);
     }
 
     .title {
@@ -100,6 +133,14 @@
       box-shadow: 0 10px 24px rgba(35, 54, 48, 0.055);
     }
 
+    html[data-effective-theme="dark"] .action-button,
+    html[data-effective-theme="dark"] .entry-delete {
+      color: var(--ink);
+      background: rgba(255, 255, 255, 0.10);
+      border-color: var(--line);
+      box-shadow: none;
+    }
+
     .action-button.primary {
       background: linear-gradient(145deg, #2d8a79, #1f7768);
       color: #fffaf1;
@@ -112,6 +153,11 @@
       background: rgba(255, 247, 242, 0.88);
       box-shadow: none;
       padding: 8px 10px;
+    }
+
+    html[data-effective-theme="dark"] .entry-delete {
+      color: var(--danger);
+      background: rgba(240, 140, 130, 0.14);
     }
 
     .status {
@@ -200,6 +246,10 @@
       font-weight: 850;
     }
 
+    html[data-effective-theme="dark"] .chevron {
+      color: rgba(245, 247, 246, 0.56);
+    }
+
     .hidden {
       display: none !important;
     }
@@ -238,8 +288,8 @@
   </main>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/markdown-renderer-client.js?v=20260607-plugin-context-nav-opaque-v610"></script>
-  <script src="/app-task-preview-ui.js?v=20260607-plugin-context-nav-opaque-v610"></script>
+  <script src="/markdown-renderer-client.js?v=20260607-dark-directory-menu-v617"></script>
+  <script src="/app-task-preview-ui.js?v=20260607-dark-directory-menu-v617"></script>
   <script>
     const params = new URLSearchParams(location.search);
     const key = localStorage.getItem("hermesWebKey") || "";

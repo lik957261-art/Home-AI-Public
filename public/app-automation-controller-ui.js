@@ -135,7 +135,7 @@ async function hydrateAutomationDetails(options = {}) {
     const result = await api(`/api/automations?${params}`);
     if (seq !== state.automationDetailRequestSeq || state.viewMode !== "automation") return;
     state.automations = mergeAutomationJobs(state.automations, result.data || [], { replaceMissing: true });
-    state.automationSource = Object.assign({}, state.automationSource || {}, result.source || {}, { warning: result.warning || "" });
+    state.automationSource = Object.assign({}, result.source || {}, { warning: result.warning || "" });
     state.automationFullCacheKey = cacheKey;
   } finally {
     if (seq === state.automationDetailRequestSeq && state.viewMode === "automation") {

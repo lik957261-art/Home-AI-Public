@@ -4,6 +4,15 @@ function showError(err) {
   $("connectionState").textContent = err.message || String(err);
 }
 
+function latestUserTaskGroupId(thread = {}) {
+  const latestUser = [...(thread?.messages || [])].reverse().find((message) => message.role === "user" && message.taskGroupId);
+  return latestUser?.taskGroupId || "";
+}
+
+function createdTaskGroupIdFromSendResult(result = {}, thread = state.currentThread) {
+  return result?.taskGroupId || result?.run?.taskGroupId || latestUserTaskGroupId(thread);
+}
+
 function handleSendMessageResult(result, createsNewTask, consumedPendingDirectory) {
   state.forceChatStickToBottomUntil = Date.now() + 12000;
   state.conversationViewportBottomFollowUntil = Date.now() + 5000;
@@ -11,19 +20,25 @@ function handleSendMessageResult(result, createsNewTask, consumedPendingDirector
   state.suppressChatAutoBottomUntil = 0;
   state.conversationPinnedToBottom = true;
   state.pendingArtifacts = [];
-  if (createsNewTask) {
-    state.pendingTaskDirectory = null;
-    if (consumedPendingDirectory) state.taskDirectoryFilter = null;
-  }
   if (state.viewMode === "tasks") state.pendingTaskReasoningEffort = "";
   if (state.viewMode === "tasks") state.pendingTaskReasoningExplicit = false;
   resetComposerSearchSource();
   clearQuotedReply({ render: false });
   renderPendingArtifacts();
   state.currentThread = mergeCurrentThread(result.thread);
-  if (state.viewMode === "tasks" && !state.currentTaskGroupId) {
-    const latestUser = [...(state.currentThread?.messages || [])].reverse().find((message) => message.role === "user");
-    state.currentTaskGroupId = latestUser?.taskGroupId || "";
+  if (createsNewTask) {
+    const createdTaskGroupId = createdTaskGroupIdFromSendResult(result, state.currentThread);
+    if (createdTaskGroupId) {
+      state.currentTaskGroupId = createdTaskGroupId;
+      state.pendingTaskDirectory = null;
+      if (consumedPendingDirectory) state.taskDirectoryFilter = null;
+    } else if (!consumedPendingDirectory) {
+      state.pendingTaskDirectory = null;
+    } else if (typeof requestCurrentThreadRefresh === "function") {
+      requestCurrentThreadRefresh({ stickToBottom: true, delayMs: 220 });
+    }
+  } else if (state.viewMode === "tasks" && !state.currentTaskGroupId) {
+    state.currentTaskGroupId = latestUserTaskGroupId(state.currentThread);
   }
   renderThreads();
   renderCurrentThread({ stickToBottom: true });

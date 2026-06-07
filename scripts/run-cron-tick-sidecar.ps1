@@ -1,23 +1,21 @@
 param(
-    [string]$DistroName = "",
-    [string]$WslUser = "",
     [string]$HermesHome = "",
-    [string]$RuntimeRoot = "/opt/hermes-gateway-runtime",
+    [string]$RuntimeRoot = "C:\ProgramData\HermesMobile\gateway-worker\native-runtime",
     [string]$DispatcherScript = "",
     [int]$IntervalSeconds = 60,
     [int]$DispatchTimeoutSeconds = 0,
     [string]$LogPath = "",
+    [string]$NativeProfileRoot = "C:\ProgramData\HermesMobile\hermes-native-profile",
+    [string]$PythonExe = "",
     [switch]$Once
 )
 
 $ErrorActionPreference = "Continue"
 
-if (-not $DistroName) { $DistroName = $env:HERMES_WEB_WSL_DISTRO }
-if (-not $DistroName) { $DistroName = "Ubuntu-24.04" }
-if (-not $WslUser) { $WslUser = $env:HERMES_WEB_WSL_USER }
-if (-not $WslUser) { $WslUser = "xuxin" }
+if (-not $HermesHome) { $HermesHome = $env:HERMES_MOBILE_CRON_TICK_HERMES_HOME }
 if (-not $HermesHome) { $HermesHome = $env:HERMES_WEB_HERMES_HOME }
-if (-not $HermesHome) { $HermesHome = "/home/$WslUser/.hermes" }
+if (-not $HermesHome -or $HermesHome -match '^/home/') { $HermesHome = Join-Path $NativeProfileRoot ".hermes" }
+if (-not $PythonExe) { $PythonExe = Join-Path $RuntimeRoot "venv\Scripts\python.exe" }
 if (-not $DispatcherScript) { $DispatcherScript = Join-Path $PSScriptRoot "hermes-mobile-cron-dispatcher.py" }
 $DispatcherScript = [System.IO.Path]::GetFullPath($DispatcherScript)
 if (-not $LogPath) { $LogPath = $env:HERMES_MOBILE_CRON_TICK_LOG_PATH }
@@ -48,96 +46,64 @@ function Write-CronTickLog {
     }
 }
 
-function Invoke-CronTick {
-    $pythonPath = "$RuntimeRoot/official-clean"
-    $pythonExe = "$RuntimeRoot/venv/bin/python"
+function Set-NativeCronEnvironment {
+    $runtimeSource = Join-Path $RuntimeRoot "official-clean"
+    $env:USERPROFILE = $NativeProfileRoot
+    $env:HOME = $NativeProfileRoot
+    $env:HERMES_HOME = $HermesHome
+    $env:HERMES_REPO = $runtimeSource
+    $env:PYTHONPATH = $runtimeSource
+    $env:HERMES_ACCEPT_HOOKS = "1"
+    $env:HERMES_MOBILE_CRON_TICK_SIDE = "windows-native"
+
     $cronModelProxyUrl = $env:HERMES_MOBILE_CRON_MODEL_PROXY_URL
     if (-not $cronModelProxyUrl) { $cronModelProxyUrl = $env:HERMES_WEB_CRON_MODEL_PROXY_URL }
     if (-not $cronModelProxyUrl) { $cronModelProxyUrl = $env:HTTPS_PROXY }
     if (-not $cronModelProxyUrl) { $cronModelProxyUrl = $env:HTTP_PROXY }
     if (-not $cronModelProxyUrl) { $cronModelProxyUrl = $env:ALL_PROXY }
-    $dispatcherWslPath = ""
-    if ($DispatcherScript -match '^([A-Za-z]):\\(.*)$') {
-        $drive = $Matches[1].ToLowerInvariant()
-        $tail = $Matches[2].Replace("\", "/")
-        $dispatcherWslPath = "/mnt/$drive/$tail"
-    } else {
-        $dispatcherWslPath = (& wsl.exe -d $DistroName -u $WslUser -- wslpath -a $DispatcherScript 2>$null | Select-Object -First 1)
+    if ($cronModelProxyUrl) {
+        $env:HERMES_MOBILE_CRON_MODEL_PROXY_URL = $cronModelProxyUrl
+        $env:HTTPS_PROXY = $cronModelProxyUrl
+        $env:HTTP_PROXY = $cronModelProxyUrl
+        $env:ALL_PROXY = $cronModelProxyUrl
     }
-    if (-not $dispatcherWslPath) {
-        Write-CronTickLog "dispatcher path conversion failed: $DispatcherScript"
+}
+
+function Invoke-CronTick {
+    if (-not (Test-Path -LiteralPath $PythonExe)) {
+        Write-CronTickLog "native Windows cron python missing: $PythonExe"
         return
     }
-    $wslArgs = @(
-        "-d", $DistroName,
-        "-u", $WslUser,
-        "--",
-        "env",
-        "HERMES_HOME=$HermesHome",
-        "PYTHONPATH=$pythonPath",
-        "HERMES_ACCEPT_HOOKS=1",
-        $pythonExe,
-        $dispatcherWslPath,
-        "--dispatch"
-    )
-    if ($cronModelProxyUrl) {
-        $wslArgs = @(
-            "-d", $DistroName,
-            "-u", $WslUser,
-            "--",
-            "env",
-            "HERMES_HOME=$HermesHome",
-            "PYTHONPATH=$pythonPath",
-            "HERMES_ACCEPT_HOOKS=1",
-            "HERMES_MOBILE_CRON_TICK_SIDE=windows-wsl",
-            "HERMES_MOBILE_CRON_MODEL_PROXY_URL=$cronModelProxyUrl",
-            "HTTPS_PROXY=$cronModelProxyUrl",
-            "HTTP_PROXY=$cronModelProxyUrl",
-            "ALL_PROXY=$cronModelProxyUrl",
-            $pythonExe,
-            $dispatcherWslPath,
-            "--dispatch"
-        )
+    if (-not (Test-Path -LiteralPath $DispatcherScript)) {
+        Write-CronTickLog "native Windows cron dispatcher missing: $DispatcherScript"
+        return
     }
-
+    Set-NativeCronEnvironment
     $started = Get-Date
-    Write-CronTickLog "dispatch start dispatcher=$dispatcherWslPath distro=$DistroName user=$WslUser hermes_home=$HermesHome dispatch_timeout_seconds=$DispatchTimeoutSeconds"
+    $stdoutPath = [System.IO.Path]::GetTempFileName()
+    $stderrPath = [System.IO.Path]::GetTempFileName()
     $output = @()
     $timedOut = $false
     try {
-        $stdoutPath = [System.IO.Path]::GetTempFileName()
-        $stderrPath = [System.IO.Path]::GetTempFileName()
-        try {
-            $process = Start-Process -FilePath "wsl.exe" -ArgumentList $wslArgs -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
-            if (-not $process.WaitForExit($DispatchTimeoutSeconds * 1000)) {
-                $timedOut = $true
-                $exitCode = 124
-                Write-CronTickLog "dispatch timeout pid=$($process.Id) dispatch_timeout_seconds=$DispatchTimeoutSeconds"
-                try { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue } catch {}
-                try {
-                    $cleanupArgs = @(
-                        "-d", $DistroName,
-                        "-u", $WslUser,
-                        "--",
-                        "bash",
-                        "-lc",
-                        "pkill -f 'hermes-mobile-cron-dispatcher.py --dispatch' 2>/dev/null || true"
-                    )
-                    & wsl.exe @cleanupArgs | Out-Null
-                } catch {}
-            } else {
-                $process.Refresh()
-                $exitCode = if ($null -eq $process.ExitCode) { 0 } else { $process.ExitCode }
-            }
-            $stdout = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -ErrorAction SilentlyContinue } else { @() }
-            $stderr = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -ErrorAction SilentlyContinue } else { @() }
-            $output = @($stdout) + @($stderr)
-        } finally {
-            Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+        Write-CronTickLog "dispatch start dispatcher=$DispatcherScript side=windows-native hermes_home=$HermesHome dispatch_timeout_seconds=$DispatchTimeoutSeconds"
+        $process = Start-Process -FilePath $PythonExe -ArgumentList @($DispatcherScript, "--dispatch") -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
+        if (-not $process.WaitForExit($DispatchTimeoutSeconds * 1000)) {
+            $timedOut = $true
+            $exitCode = 124
+            Write-CronTickLog "dispatch timeout pid=$($process.Id) dispatch_timeout_seconds=$DispatchTimeoutSeconds"
+            try { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue } catch {}
+        } else {
+            $process.Refresh()
+            $exitCode = if ($null -eq $process.ExitCode) { 0 } else { $process.ExitCode }
         }
+        $stdout = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -ErrorAction SilentlyContinue } else { @() }
+        $stderr = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -ErrorAction SilentlyContinue } else { @() }
+        $output = @($stdout) + @($stderr)
     } catch {
         $output = @($_.Exception.Message)
         $exitCode = 1
+    } finally {
+        Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
     }
     $elapsedMs = [int]((Get-Date) - $started).TotalMilliseconds
     Write-CronTickLog "dispatch exit=$exitCode elapsed_ms=$elapsedMs timed_out=$timedOut"
@@ -154,7 +120,7 @@ function Invoke-CronTick {
     }
 }
 
-Write-CronTickLog "sidecar start interval_seconds=$IntervalSeconds dispatch_timeout_seconds=$DispatchTimeoutSeconds once=$($Once.IsPresent)"
+Write-CronTickLog "sidecar start interval_seconds=$IntervalSeconds dispatch_timeout_seconds=$DispatchTimeoutSeconds once=$($Once.IsPresent) side=windows-native"
 while ($true) {
     $loopStart = Get-Date
     Invoke-CronTick

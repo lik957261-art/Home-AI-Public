@@ -79,6 +79,13 @@ function createBridgeCommandProvider(options = {}) {
 
   function python(scriptPath, envNames = []) {
     if (platform === "win32") {
+      const mode = String(envValue(env, "HERMES_MOBILE_BRIDGE_PYTHON_MODE") || envValue(env, "HERMES_WEB_BRIDGE_PYTHON_MODE")).toLowerCase();
+      if (mode === "windows-native" || mode === "native") {
+        return {
+          command: envValue(env, "HERMES_MOBILE_BRIDGE_PYTHON_EXE") || envValue(env, "HERMES_WEB_BRIDGE_PYTHON_EXE") || "python.exe",
+          args: [String(scriptPath || "")],
+        };
+      }
       const envArgs = wslEnvArgs([
         "HERMES_HOME",
         "HERMES_WEB_HERMES_HOME",

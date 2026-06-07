@@ -282,7 +282,15 @@ const RUNTIME_GATEWAY_WORKER_FIELDS = [
 function runtimeGatewayWorkerValue(config, key) {
   const overrides = config?.gatewayWorkerSettings || {};
   const effective = config?.gatewayWorkerEffectiveSettings || {};
-  const value = Object.prototype.hasOwnProperty.call(overrides, key) ? overrides[key] : effective[key];
+  const gatewayPoolConfig = state.gatewayPool?.config || {};
+  const fallbackByKey = {
+    idleTtlMinutes: Number.isFinite(Number(gatewayPoolConfig.idleTtlMs))
+      ? Math.floor(Number(gatewayPoolConfig.idleTtlMs) / 60000)
+      : undefined,
+  };
+  const value = Object.prototype.hasOwnProperty.call(overrides, key)
+    ? overrides[key]
+    : (Object.prototype.hasOwnProperty.call(effective, key) ? effective[key] : (fallbackByKey[key] ?? gatewayPoolConfig[key]));
   return Number.isFinite(Number(value)) ? String(Math.floor(Number(value))) : "";
 }
 
@@ -340,19 +348,6 @@ function renderRuntimeConfigManager() {
           <label>
             <span>Gateway API Key 文件路径</span>
             <input id="runtimeHermesApiKeyPath" type="text" autocomplete="off" value="${escapeHtml(config.hermesApiKeyPath || "")}" placeholder="可留空，继续使用环境变量或默认路径">
-          </label>
-          <div class="runtime-config-subtitle">Model default</div>
-          <label>
-            <span>Default model</span>
-            <select id="runtimeDefaultModelFamilyId" class="todo-input">${renderRuntimeModelFamilyOptions(config)}</select>
-          </label>
-          <label>
-            <span>Model version</span>
-            <select id="runtimeDefaultModelId" class="todo-input">${renderRuntimeModelOptions(config)}</select>
-          </label>
-          <label>
-            <span>Default reasoning</span>
-            <select id="runtimeDefaultReasoningEffort" class="todo-input">${renderRuntimeReasoningOptions(config.defaultReasoningEffort || "")}</select>
           </label>
           <div class="runtime-config-subtitle">Gateway Worker</div>
           <div class="runtime-config-worker-grid">
@@ -451,8 +446,6 @@ function closeRuntimeConfigManager() {
 async function saveRuntimeConfigManager() {
   const hermesApiBase = $("runtimeHermesApiBase")?.value?.trim() || "";
   const hermesApiKeyPath = $("runtimeHermesApiKeyPath")?.value?.trim() || "";
-  const defaultModelId = $("runtimeDefaultModelId")?.value?.trim() || "";
-  const defaultReasoningEffort = $("runtimeDefaultReasoningEffort")?.value?.trim() || "";
   const gatewayWorkerSettings = readRuntimeGatewayWorkerSettings();
   const webPushSubject = $("runtimeWebPushSubject")?.value?.trim() || "";
   const webPushVapidPath = $("runtimeWebPushVapidPath")?.value?.trim() || "";
@@ -462,7 +455,7 @@ async function saveRuntimeConfigManager() {
   try {
     const result = await api("/api/runtime-config", {
       method: "PATCH",
-      body: JSON.stringify({ hermesApiBase, hermesApiKeyPath, defaultModelId, defaultReasoningEffort, gatewayWorkerSettings, webPushSubject, webPushVapidPath }),
+      body: JSON.stringify({ hermesApiBase, hermesApiKeyPath, gatewayWorkerSettings, webPushSubject, webPushVapidPath }),
     });
     state.runtimeConfig = result.config || {};
     state.pushStatus = result.push || state.pushStatus;

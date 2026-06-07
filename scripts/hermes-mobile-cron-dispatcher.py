@@ -210,7 +210,7 @@ def _first_env_value(env: dict[str, str], keys: tuple[str, ...]) -> str:
 def _default_cron_model_proxy_url(env: dict[str, str]) -> str:
     side = str(env.get("HERMES_MOBILE_CRON_TICK_SIDE") or "").strip().lower()
     port = str(env.get("HERMES_MOBILE_CRON_MODEL_PROXY_PORT") or DEFAULT_PROXY_PORT).strip() or DEFAULT_PROXY_PORT
-    if side == "nas":
+    if side in {"nas", "windows-native"}:
         return f"http://127.0.0.1:{port}"
     if side not in {"windows-wsl", "wsl"}:
         return ""

@@ -132,6 +132,17 @@ hold inherited pipes open. Native `auth.json` and `auth.lock` must be ordinary
 Windows files, not WSL `/mnt/c` reparse points. Live acceptance must prove
 `/health`, authenticated `/v1/models`, and one actual Mobile message run on the
 selected old manifest port without printing the key.
+Windows native WSL-downline changes must also run
+`node tests\startup-scripts.test.js`,
+`node tests\bridge-command-provider.test.js`,
+`node tests\cron-dispatcher-proxy-harness.test.js`, and
+`node tests\static-cache-version-harness.test.js`. Production acceptance must
+prove that the `Hermes Web Listener User Logon` scheduled task has no WSL
+arguments, `Get-Process wsl,wslhost,wslrelay,vmmemWSL` has no running output,
+ports `8001`, `8797`, and `8798` are Windows-owned, the file-backed
+`production-status-smoke.js` passes with `X-Hermes-Web-Key`, the Weixin native
+bridge `-CheckOnly` passes, and Whisper `/health` reports
+`large-v3-turbo` on `cpu` / `int8`.
 Mac production user/profile migration changes must run
 `node tests\macos-production-profile-audit.test.js` locally and the production
 profile audit on the Mac with the pinned runtime. The production audit must
@@ -158,6 +169,24 @@ Mac production closure. The profile audit must also include Skill-only required
 gate coverage for Owner Wardrobe outfit runs:
 `owner:wardrobe:productivity/wardrobe-style-operations` is required even when
 the plugin authorization table does not currently list `wardrobe` for Owner.
+The same profile audit must prove every Mac Gateway start script injects live
+file-plugin roots for DOCX, audio, image, video, and scoped HTTP file helpers.
+Any `file_plugin_root_env_missing:<profile>:<env>` or
+`file_plugin_root_missing:<profile>:<env>:<root>` issue blocks Mac production
+closure, because the profile-local plugin may otherwise fall back to WSL roots
+and return `file_path_outside_allowed_roots` for uploaded Word/DOCX files.
+`file_plugin_root_list_delimiter_unsupported:<profile>` is also blocking:
+these plugin env lists support comma, semicolon, or newline separators, not
+PATH-style colon separators.
+Local coverage must include
+`node tests\macos-file-plugin-docx-root-smoke.test.js`. After any Mac
+file-plugin root repair or user/profile migration, production must also run
+`sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-file-plugin-docx-root-smoke.js --root /Users/hermes-host/HermesMobile --profiles <profile> --json`
+for the affected profile, or omit `--profiles` to test all enabled OpenAI user
+profiles. The production smoke is the closure gate for uploaded Word/DOCX
+`file_path_outside_allowed_roots` incidents because it imports the
+profile-local `hermes-mobile-docx` plugin and extracts a synthetic DOCX from
+the live uploads root.
 It must not print raw Access Keys, token contents, key files, prompt bodies, or
 plugin launch tokens.
 Mac wardrobe/plugin-bound Gateway closure must also prove the manifest toolset
@@ -627,7 +656,8 @@ can stay healthy while rejecting Mobile `/v1/responses` calls with
 `401 invalid_api_key`. Gateway profile/schema deployments must sync source
 scripts into the production worker root before restart and then run live schema
 smoke with the same manifest key Mobile uses for the selected worker.
-Windows-to-WSL plugin MCP environment is part of the same startup harness.
+For legacy WSL-backed Windows deployments only, Windows-to-WSL plugin MCP
+environment is part of the same startup harness.
 `start-low-gateways-child.ps1` must pass Finance MCP env such as
 `HERMES_MOBILE_FINANCE_MCP_API_BASE_URL`, wrapper path, Python path, and user
 drive root into `wsl.exe -- env ... configure-low-gateways.sh`; otherwise a
@@ -723,20 +753,17 @@ source, Skill Store mapping inputs, missing profile artifacts, or explicit
 `-ForceConfigure` must run `configure-low-gateways.sh` again. Stop-only
 operations must not require profile config/auth validation before killing the
 selected port.
-If the listener account cannot see the production WSL distro, the launch
-service must use the configured Windows Scheduled Task relay: write only bounded
-action/profile metadata to `elastic-requests`, trigger the task, wait for the
-result file, and keep failures redacted. Focused checks must assert this relay
-path in `node tests\gateway-worker-profile-launch-service.test.js`,
+For legacy WSL-backed Windows deployments only, if the listener account cannot
+see the production WSL distro, the launch service must use the configured
+Windows Scheduled Task relay: write only bounded action/profile metadata to
+`elastic-requests`, trigger the task, wait for the result file, and keep
+failures redacted. Focused checks must assert this relay path in
+`node tests\gateway-worker-profile-launch-service.test.js`,
 `node tests\startup-scripts.test.js`, and
 `node tests\cross-shell-command-harness.test.js`.
-On a single-user maintained deployment where WSL/Codex state belongs to the
-operator account, the preferred production path is to run the listener itself in
-that caller context. In that mode the scheduled-task relay must be disabled and
-the live gate must prove listener-owned direct single-profile start works.
-`scripts/start-worker-host.ps1` must also honor the caller-context marker/env
-guard so a later plain `-ReplaceExisting` cannot relaunch the listener under a
-separate worker account and recreate the on-demand startup failure.
+On maintained Windows-native deployments, the relay path must remain disabled
+and `scripts/start-worker-host.ps1` must keep native Python/PowerShell launch
+configuration in the listener context.
 After a start script returns success, the scheduler must poll the selected
 worker's `/health` for the configured bounded window before emitting
 `health_check_failed`; a single immediate health miss is a failing harness case
@@ -1488,6 +1515,11 @@ settings/access-key sheets. A change that adds or modifies theme tokens must
 include a screenshot or browser visual smoke against those surfaces and focused
 assertions that the critical CSS rules consume theme variables instead of
 hard-coded pale surfaces.
+Floating menus and inline popovers are part of this dark-mode matrix: Directory
+entry menus, topic detail three-dot menus, plugin capability action menus,
+usage/tool/skill details popovers, and Growth owner menus must use theme tokens
+for background, text, border, and shadow. Static assertions should fail when a
+menu, popover, or details panel keeps a hard-coded white/pale background.
 Dark-mode contrast harnesses must also check that message markdown headings,
 receipt labels, file/artifact buttons, Growth teaching badges, and file viewer
 shells do not use hard-coded dark green or pale backgrounds on dark surfaces.
@@ -1732,7 +1764,7 @@ The guard test is:
 | Public reverse-proxy security | `node tests\auth-provider.test.js`, `node tests\mobile-http-runtime-service.test.js`, `node tests\chatgpt-pro-codex-bridge-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\api-route-inventory.test.js`, `node tests\architecture-refactor-boundary.test.js`, `npm.cmd run security:invariants`, `npm.cmd run privacy:scan`, production smoke: `/api/public-config` headers, query-string key denial, header-authenticated `/api/status?detail=1`, anonymous plugin proxy denial, and Windows firewall state |
 | Gateway run lifecycle | `node tests\plugin-capability-probe-service.test.js`, `node tests\plugin-capability-activation-service.test.js`, `node tests\gateway-run-model-toolset-selection-service.test.js`, `node tests\gateway-run-error-message-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\gateway-run-stream-service.test.js`, `node tests\gateway-run-lifecycle-service.test.js`, `node tests\gateway-run-queue-service.test.js`, `node tests\run-liveness.test.js`, `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js` |
 | Chat context/compaction | `node tests\conversation-history-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\topic-context-compaction-service.test.js`, `node tests\mobile-runtime-thread-view-facade-service.test.js`, `node tests\thread-view-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\mobile-sqlite-store.test.js` |
-| Gateway Pool/scripts | `node tests\mobile-runtime-environment-service.test.js`, `node tests\mobile-runtime-gateway-environment-service.test.js`, `node tests\mobile-runtime-path-candidate-environment-service.test.js`, `node tests\mobile-runtime-state-path-environment-service.test.js`, `node tests\mobile-runtime-kanban-environment-service.test.js`, `node tests\gateway-elastic-worker-scheduler.test.js`, `node tests\gateway-pool-provider.test.js`, `node tests\gateway-profile-template-sync.test.js`, `node tests\gateway-profile-template-builder.test.js`, `node tests\gateway-profile-replica-model-harness.test.js`, `node tests\plugin-capability-probe-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\cross-shell-command-harness.test.js`, `node tests\macos-production-profile-audit.test.js`, `node tests\gateway-pool-production-smoke-harness.test.js`, `node tests\macos-production-closure-validation-harness.test.js`, `node tests\macos-plugin-directory-production-smoke-harness.test.js`, `node tests\macos-wardrobe-binding-production-smoke-harness.test.js`, `node tests\macos-directory-path-migration-repair.test.js`, `node tests\macos-bound-directory-preview-smoke-harness.test.js`, `node tests\hermes-mobile-image-plugin.test.js` |
+| Gateway Pool/scripts | `node tests\mobile-runtime-environment-service.test.js`, `node tests\mobile-runtime-gateway-environment-service.test.js`, `node tests\mobile-runtime-path-candidate-environment-service.test.js`, `node tests\mobile-runtime-state-path-environment-service.test.js`, `node tests\mobile-runtime-kanban-environment-service.test.js`, `node tests\gateway-elastic-worker-scheduler.test.js`, `node tests\gateway-pool-provider.test.js`, `node tests\gateway-profile-template-sync.test.js`, `node tests\gateway-profile-template-builder.test.js`, `node tests\gateway-profile-replica-model-harness.test.js`, `node tests\plugin-capability-probe-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\cross-shell-command-harness.test.js`, `node tests\macos-production-profile-audit.test.js`, `node tests\macos-file-plugin-docx-root-smoke.test.js`, `node tests\gateway-pool-production-smoke-harness.test.js`, `node tests\macos-production-closure-validation-harness.test.js`, `node tests\macos-plugin-directory-production-smoke-harness.test.js`, `node tests\macos-wardrobe-binding-production-smoke-harness.test.js`, `node tests\macos-directory-path-migration-repair.test.js`, `node tests\macos-bound-directory-preview-smoke-harness.test.js`, `node tests\hermes-mobile-image-plugin.test.js` |
 | Gateway MCP callable schema | `python -m py_compile gateway-runtime-overrides\sitecustomize.py gateway-runtime-overrides\model_tools.py`, `node scripts\probe-lowgw1-wardrobe-mcp.js`, `node tests\no-window-command-harness.test.js` |
 | ChatGPT Pro | `node tests\chatgpt-pro-codex-bridge-service.test.js`, `node tests\owner-elevation-routing-service.test.js`, `node tests\thread-message-create-service.test.js` |
 | Grok/model routing | `node tests\gateway-model-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\grok-auth-metadata-smoke-harness.test.js`; script syntax: `bash -n scripts/macos-grok-xai-reauth.sh`; production xAI OAuth triage: `node scripts\grok-auth-metadata-smoke.js --profile-auth-file <file> --shared-auth-file <file> --require-access-token --json`. On Mac production, use `bash scripts/macos-grok-xai-reauth.sh` for the manual-paste OAuth repair, then rerun metadata smoke and finally `node scripts\gateway-pool-production-smoke.js --key-file <file> --model grok-4.3 --provider xai-oauth --expected-profile grokgw1` only after metadata shows an xAI access token is present. |
@@ -1743,7 +1775,7 @@ The guard test is:
 | Embedded plugin host / Wardrobe, Codex, Finance, Email, Health, and Note plugin tabs | `node tests\hermes-plugin-authorization-service.test.js`, `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\embedded-plugin-refresh-harness.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\wardrobe-plugin-navigation-ui.test.js`, `node tests\wardrobe-plugin-provisioning-service.test.js`, `node tests\macos-wardrobe-binding-production-smoke-harness.test.js`, `node scripts\macos-wardrobe-binding-production-smoke.js` on Mac production after Wardrobe binding repairs, `node tests\email-plugin-provisioning-service.test.js` when Email behavior changes, `node tests\health-plugin-provisioning-service.test.js` when Health behavior changes, `node tests\note-plugin-provisioning-service.test.js` when Note behavior changes, `node tests\mcp-tool-upgrade-closure-harness.test.js` and `node scripts\mcp-tool-upgrade-closure-smoke.js` when plugin MCP tools change, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes. First-run plugin enablement must verify Owner and one non-Owner workspace cannot project `active` until workspace-local key/config, plugin-side bind/register, required Skill/MCP setup, and manifest/launch smoke pass. Plugin-manager projection must also prove Owner records can be persisted, Owner workspace-local key/config discovery is reflected as already enabled, and failed Owner provisioning remains a retryable diagnostic instead of reverting to a plain unopened button. |
 | Plugin-bound application topics | Current frontend projection: `node tests\task-list-ui.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\app-plugin-topics-ui.test.js`, `node tests\static-cache-version-harness.test.js`. Service/runtime phases: `node tests\plugin-topic-usage-service.test.js`, `node tests\plugin-topic-usage-api-routes.test.js`, `node tests\plugin-capability-probe-service.test.js`, `node tests\plugin-capability-activation-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-instruction-service.test.js`, `node tests\plugin-topic-binding-service.test.js`, `node tests\plugin-topic-delivery-directory-service.test.js`, `node tests\plugin-topic-context-service.test.js`, `node tests\plugin-topic-api-routes.test.js`, plus `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\directory-browser-api-routes.test.js`, and `node tests\architecture-refactor-boundary.test.js` when implementation touches services/routes/runtime. Frontend harness must cover direct app/capability launch from the fixed bottom capability Dock, the built-in Directory icon in that Dock, touch long-press/context quick-action menus including bounded move controls and `capabilityMenuGesture=touch-longpress`, usage-backed frequent quick actions with no trailing source badges, same-action repeated usage promotion such as `wardrobe:style` moving ahead by count/recency, immediate root redraw after local usage writes, a nine-entry three-row quick-action cap, root-scroll reveal for small restored offsets so the first quick-action row remains visible, runtime measured bottom-stack placement for the fixed capability Dock and primary bottom nav, and the absence of mid-page plugin desktop icons. Usage-backed ordering must be server-persisted through `/api/plugin-topic-usage` per workspace; localStorage is only a first-paint/offline cache and client reset must preserve that cache. The root Topics page should keep daily app/capability launch in the fixed bottom Dock while the scrollable page body carries quick actions and Directory-bound topic collections. The same harness must cover the Directory capability with no generic mini-button stack, bottom Dock icons without nested framed panels, six visible Dock entries before horizontal scrolling, five-slot primary bottom navigation with Topics centered, default launch to Topics when no saved view exists, fixed `plugin:<pluginId>` topic ids, automatic `插件/<plugin title>` directory creation through the directory API, returning from that directory to the topic list, restoring topic-list scroll position after topic-detail back/right-swipe, clearing stale plugin view-mode classes before opening the topic detail so the message composer is visible, hiding the bottom navigation on ordinary plugin-topic secondary pages, preserving the three-item plugin-context bar inside plugin app/topic/directory context, and making plugin-context right-swipe/browser-back exit through the dedicated topic-root renderer without calling `openTaskList()`, `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`. |
 | Directory-bound topic collections | Planned: `node tests\directory-topic-binding-service.test.js`, `node tests\directory-topic-context-service.test.js`, `node tests\directory-topic-api-routes.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\context-assembly-service.test.js`, and `node tests\task-list-ui.test.js`. Harness must cover multiple topics per directory, one default topic per directory, default-topic reassignment without deleting secondary topics, explicit open-directory/open-default-topic/open-topic-picker actions, workspace isolation, cleaned/selected/bounded directory context, and exclusion of fixed plugin topics from directory collections. Frontend harness must also prove the topic list can render its first frame before directory-topic aggregation runs, that directory collections are visually attached below the Capability Entry Hub quick-action area, that the directory header keeps the folder icon on the left with bound topic chips below, that background aggregation/API refresh preserves the user's current topic-list scroll position, that deferred directory-topic rendering waits while scroll/swipe gestures are active, and that task-list vertical pan is not captured by sidebar right-swipe handling, because directory route extraction may scan many existing messages on large accounts. |
-| Directory/files/artifacts | `node tests\mobile-api-directory-composition.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js`, `node tests\artifact-text-registration-service.test.js`, `node tests\mobile-runtime-artifact-facade-service.test.js`, `node tests\macos-directory-path-migration-repair.test.js` and `node tests\macos-bound-directory-preview-smoke-harness.test.js` after Windows/WSL-to-Mac data migration; production chip closure uses `scripts\macos-bound-directory-preview-smoke.js --all-workspaces --simulate-ui-route --json` |
+| Directory/files/artifacts | `node tests\mobile-api-directory-composition.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js`, `node tests\artifact-text-registration-service.test.js`, `node tests\mobile-runtime-artifact-facade-service.test.js`, `node tests\document-preview-device-policy.test.js`, `node tests\macos-directory-path-migration-repair.test.js` and `node tests\macos-bound-directory-preview-smoke-harness.test.js` after Windows/WSL-to-Mac data migration; production chip closure uses `scripts\macos-bound-directory-preview-smoke.js --all-workspaces --simulate-ui-route --json`. Word/PDF preview viewport policy must prove small phone widths keep the embedded Hermes viewer, wide tablet/foldable PDF uses same-window original URL, and wide Word/DOCX stays inside the Home AI viewer instead of downloading. |
 | Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\plugin-required-skill-preload-service.test.js`, `node tests\plugin-capability-activation-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\gateway-workspace-provisioning-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\link-skill-profile-store.test.js`, `node tests\macos-production-profile-audit.test.js`, `node tests\task-list-ui.test.js` |
 | Automation/Cron | `node tests\automation-api-routes.test.js`, `node tests\automation-provider.test.js`, `node tests\cron-bridge.test.js`, `node tests\cron-dispatcher-proxy-harness.test.js`, `node tests\local-automation-bridge-service.test.js`, `node tests\mobile-runtime-environment-service.test.js`, `node tests\startup-scripts.test.js`; production/NAS smoke must verify that `/api/automations?detail=summary&refresh=1` reads the configured canonical scheduler and does not silently report an empty SQLite mirror when official CRON has jobs |
 | Weixin ingress/delivery | `node tests\weixin-api-routes.test.js`, `node tests\weixin-ingress-event-service.test.js`, `node tests\weixin-ingress-provider.test.js`, `node tests\weixin-outbound-delivery-service.test.js`, `node tests\weixin-runtime-composition-service.test.js`, `node tests\weixin-ingress-production-smoke-harness.test.js`; Mac production route workspace smoke: `node scripts\weixin-ingress-production-smoke.js --base http://127.0.0.1:8797 --ingress-key-file <file> --workspaces weixin_wuping,weixin_stephen,weixin_test_1 --json`. The production harness is a heartbeat route smoke: it uses `X-Hermes-Mobile-Ingress-Key`, proves `X-Hermes-Web-Key` is rejected for ingress, and must not print the key, raw key path, message text, contact lists, or Weixin histories. |

@@ -111,6 +111,10 @@ Recommended first UI:
   to create the first topic; it should not silently create a generic topic.
 - Bound topic rows/chips should show title, purpose, recent activity, and
   default marker when applicable.
+- Topic detail management belongs in the top-right three-dot menu. That menu
+  must expose rename for the current topic and a localized delete action. Delete
+  is never direct: it must show an explicit confirmation before calling the task
+  delete API.
 
 The implementation should preserve the current bottom navigation behavior and
 must not trap users inside a directory-topic detail page.
@@ -246,11 +250,13 @@ Likely focused checks:
   topic in the directory as the temporary default.
 - Static/client version: `20260603-directory-topic-tree-v547`.
 - Static v589 keeps the multi-topic-per-directory product contract while
-  simplifying the root entry surface: the root topic page and directory-topic
-  draft placeholders hide the composer through the shared composer controller,
-  so tab switches or route restores cannot reopen input until a concrete topic
-  detail is selected. The composer context bar also omits the model/reasoning
-  chip to reduce bottom-chrome density.
+  simplifying the root entry surface: the root topic page hides the composer
+  through the shared composer controller, so tab switches or route restores
+  cannot reopen input on the index surface. A directory-topic draft opened from
+  a concrete directory is different: it is a topic-detail draft and must show
+  the composer immediately, then create the real topic only on first send. The
+  composer context bar also omits the model/reasoning chip to reduce
+  bottom-chrome density.
 - 2026-06-06 Mac production data repair: directory-bound topics created while
   production used Windows/WSL paths can preserve legacy physical drive prefixes
   inside `messages.directory_route_json` and `messages.directory_aliases_json`.

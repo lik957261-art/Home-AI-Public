@@ -148,6 +148,15 @@ instructions.
   bytes (`Uint8Array` data passed to PDF.js), not by handing PDF.js a secondary
   `blob:` URL fetch with credentials. This keeps PDF preview aligned with the
   same-origin ACL/download path used by the other viewers.
+- PDF task and directory preview links are device-shape aware at the
+  shared `public/app-task-preview-ui.js` entrypoint. Coarse-pointer phone
+  widths up to `540px` keep the embedded Hermes preview overlay. Wide
+  tablet/foldable/desktop widths (`>=768px`, or coarse-pointer `>=720px` with
+  enough height) open the resolved original same-origin file URL in the same
+  window so the platform can use a native PDF preview. Word/DOCX remains inside
+  the Home AI `file-viewer.html` preview path on all viewport sizes because
+  mobile browsers commonly treat raw DOCX URLs as downloads rather than inline
+  previews.
 - Image preview must expose a same-window `保存到相册` action in both the full `file-viewer.html` shell and the in-app image overlay. The action should prefer system file share with the image blob and fall back to same-window download/long-press guidance; it must not open a separate browser window.
 - Automation deliverables must be verified as outputs of the requested automation job or its authorized delivery path.
 - Group-chat artifacts are visible to a member only when the artifact is attached to a visible group-chat message in a group the member belongs to.
@@ -155,6 +164,8 @@ instructions.
 ## Validation
 
 - Syntax-check touched frontend/static files.
+- Run `node tests\document-preview-device-policy.test.js` when changing the
+  file/document preview viewport policy.
 - Run `node scripts\pdf-viewer-render-harness.js` when changing
   `pdf-viewer.html`; the harness must verify at least one rendered PDF canvas,
   not only that the iframe/viewer shell opened.

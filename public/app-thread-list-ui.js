@@ -283,13 +283,12 @@ function directoryTopicRenderSignature(threadId = "", groups = []) {
       : "";
     return [
       group?.id || "",
-      group?.updatedAt || "",
       routeKey,
       group?.pluginTopic ? "plugin" : "",
       group?.sharedTopic ? "shared" : "",
       group?.sourceThreadId || "",
     ].join(":");
-  });
+  }).sort();
   return [threadId || "", entries.join("|")].join("::");
 }
 
@@ -343,6 +342,11 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     if (directoryTopicDraftOpen && state.pendingTaskDirectory?.projectId) {
       const label = String(state.pendingTaskDirectory.label || state.pendingTaskDirectory.projectId || "").trim();
       $("threadTitle").textContent = "新建话题";
+      configureComposer({
+        enabled: true,
+        hidden: false,
+        placeholder: label ? `Message ${label}...` : "Message this directory...",
+      });
       conversation.innerHTML = `<div class="empty-state">${escapeHtml(label ? `Start a topic for ${label}.` : "Start a topic for this directory.")}</div>`;
       setTopicPluginDock("");
       wireTaskDirectoryFilterControls(conversation);
@@ -350,6 +354,7 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
       updateNavigationControls();
       ensureVerticalScrollAffordance(conversation);
       scheduleMessageScrollButtonVisibility(conversation);
+      focusComposerSoon();
       return;
     }
     const directoryTopicSignature = directoryTopicRenderSignature(thread.id, groups);

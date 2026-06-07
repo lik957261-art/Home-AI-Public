@@ -2594,15 +2594,16 @@ button {
   z-index: 6;
   min-width: 148px;
   padding: 7px;
-  background: rgba(255, 255, 252, 0.98);
+  color: var(--text);
+  background: var(--ui-menu-bg);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
-  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
+  box-shadow: var(--shadow);
   backdrop-filter: blur(14px);
 }
 
 :root[data-theme="dark"] .task-more-menu {
-  color: var(--ink);
+  color: var(--text);
   background: var(--ui-menu-bg);
   border-color: var(--ui-hairline-strong);
   box-shadow: none;
@@ -4259,18 +4260,20 @@ button.directory-alias-chip {
   z-index: 24;
   width: min(238px, calc(100vw - 24px));
   overflow: hidden;
-  border: 1px solid var(--line);
+  color: var(--text);
+  border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
-  background: rgba(255, 255, 252, 0.98);
-  box-shadow: 0 14px 32px rgba(31, 43, 51, 0.13);
+  background: var(--ui-menu-bg);
+  box-shadow: var(--shadow);
   transform: translateX(var(--usage-panel-shift, 0px));
 }
 
 :root[data-theme="dark"] .usage-details,
 :root[data-theme="dark"] .message-skill-details,
 :root[data-theme="dark"] .run-progress-history-details {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: #fffffc;
+  border-color: var(--ui-hairline-strong);
+  background: var(--ui-menu-bg);
+  color: var(--text);
   box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
 }
 
@@ -4278,8 +4281,9 @@ button.directory-alias-chip {
   :root[data-theme="system"] .usage-details,
   :root[data-theme="system"] .message-skill-details,
   :root[data-theme="system"] .run-progress-history-details {
-    border-color: rgba(255, 255, 255, 0.12);
-    background: var(--ui-sheet);
+    border-color: var(--ui-hairline-strong);
+    background: var(--ui-menu-bg);
+    color: var(--text);
     box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
   }
 }
@@ -4364,18 +4368,18 @@ button.directory-alias-chip {
     gap: 1px;
     padding: 6px;
     border-radius: 12px;
-    background: rgba(255, 255, 252, 0.99);
+    background: var(--ui-menu-bg);
     box-shadow: 0 12px 28px rgba(31, 43, 51, 0.14);
   }
 
   :root[data-theme="dark"] .message-skill-details {
-    background: var(--ui-sheet);
+    background: var(--ui-menu-bg);
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
   }
 
   @media (prefers-color-scheme: dark) {
     :root[data-theme="system"] .message-skill-details {
-      background: var(--ui-sheet);
+      background: var(--ui-menu-bg);
       box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
     }
   }
@@ -4414,6 +4418,40 @@ button.directory-alias-chip {
   font-weight: 600;
   text-align: right;
   white-space: nowrap;
+}
+
+:root[data-theme="dark"] .usage-row,
+:root[data-theme="dark"] .usage-api-row {
+  color: rgba(245, 247, 246, 0.70);
+}
+
+:root[data-theme="dark"] .usage-row strong,
+:root[data-theme="dark"] .usage-api-main {
+  color: #f5f7f6;
+}
+
+:root[data-theme="dark"] .usage-row + .usage-row,
+:root[data-theme="dark"] .usage-api-calls,
+:root[data-theme="dark"] .usage-api-row {
+  border-color: rgba(255, 255, 255, 0.10);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .usage-row,
+  :root[data-theme="system"] .usage-api-row {
+    color: rgba(245, 247, 246, 0.70);
+  }
+
+  :root[data-theme="system"] .usage-row strong,
+  :root[data-theme="system"] .usage-api-main {
+    color: #f5f7f6;
+  }
+
+  :root[data-theme="system"] .usage-row + .usage-row,
+  :root[data-theme="system"] .usage-api-calls,
+  :root[data-theme="system"] .usage-api-row {
+    border-color: rgba(255, 255, 255, 0.10);
+  }
 }
 
 .usage-api-calls {
@@ -5466,20 +5504,24 @@ button.directory-alias-chip {
   gap: 2px;
   padding: 8px;
   color: var(--text);
-  background: #fffffc;
-  border: 1px solid rgba(95, 139, 148, 0.28);
+  background: var(--ui-menu-bg);
+  border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
-  box-shadow: 0 18px 44px rgba(28, 39, 45, 0.22);
+  box-shadow: var(--shadow);
   transform: translateX(-50%);
 }
 
 :root[data-theme="dark"] .capability-action-menu {
-  background: #181c1f;
+  color: var(--text);
+  background: var(--ui-menu-bg);
+  border-color: var(--ui-hairline-strong);
 }
 
 @media (prefers-color-scheme: dark) {
   :root[data-theme="system"] .capability-action-menu {
-    background: #181c1f;
+    color: var(--text);
+    background: var(--ui-menu-bg);
+    border-color: var(--ui-hairline-strong);
   }
 }
 
@@ -6706,10 +6748,11 @@ button.directory-alias-chip {
   padding: 6px;
   display: grid;
   gap: 2px;
-  background: rgba(255, 255, 252, 0.98);
+  color: var(--text);
+  background: var(--ui-menu-bg);
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 12px;
-  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
+  box-shadow: var(--shadow);
 }
 
 .directory-entry-menu[hidden] {
@@ -6729,7 +6772,7 @@ button.directory-alias-chip {
 }
 
 .directory-entry-menu-item:active {
-  background: rgba(31, 111, 98, 0.08);
+  background: var(--ui-accent-soft);
 }
 
 .directory-entry-menu-item.danger {
@@ -8254,15 +8297,30 @@ body.task-markdown-preview-open {
 
 .runtime-config-sheet {
   width: min(720px, 100%);
+  max-height: min(82vh, 760px);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .runtime-config-form {
   display: grid;
   gap: 12px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.68);
+  background: rgba(255, 255, 252, 0.98);
   border: 1px solid var(--line);
   border-radius: 14px;
+}
+
+:root[data-theme="dark"] .runtime-config-form {
+  background: rgba(27, 31, 34, 0.98);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .runtime-config-form {
+    background: rgba(27, 31, 34, 0.98);
+    border-color: rgba(255, 255, 255, 0.16);
+  }
 }
 
 .runtime-config-form label {
@@ -8288,11 +8346,35 @@ body.task-markdown-preview-open {
   min-height: 40px;
   padding: 0 10px;
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.76);
+  background: rgba(255, 255, 255, 0.98);
   border: 1px solid var(--line-strong);
   border-radius: 10px;
   outline: none;
   font: inherit;
+}
+
+:root[data-theme="dark"] .runtime-config-form input,
+:root[data-theme="dark"] .runtime-config-form select {
+  color: #f5f7f6;
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+:root[data-theme="dark"] .runtime-config-form input::placeholder {
+  color: rgba(245, 247, 246, 0.52);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .runtime-config-form input,
+  :root[data-theme="system"] .runtime-config-form select {
+    color: #f5f7f6;
+    background: rgba(255, 255, 255, 0.10);
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+
+  :root[data-theme="system"] .runtime-config-form input::placeholder {
+    color: rgba(245, 247, 246, 0.52);
+  }
 }
 
 .runtime-config-worker-grid {
@@ -10511,7 +10593,7 @@ body.task-markdown-preview-open {
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.42);
+  background: var(--ui-control-bg);
 }
 
 .todo-revision-panel {
@@ -11525,7 +11607,7 @@ body.task-markdown-preview-open {
   border: 1px solid rgba(31, 43, 51, 0.12);
   border-radius: 10px;
   color: var(--muted);
-  background: rgba(255, 255, 255, 0.86);
+  background: var(--ui-control-bg);
   cursor: pointer;
   list-style: none;
 }
@@ -11548,8 +11630,9 @@ body.task-markdown-preview-open {
   padding: 6px;
   border: 1px solid var(--ui-hairline-strong);
   border-radius: 10px;
-  background: rgba(255, 255, 252, 0.98);
-  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
+  color: var(--text);
+  background: var(--ui-menu-bg);
+  box-shadow: var(--shadow);
 }
 
 .learning-growth-owner-menu-panel button {
@@ -13633,7 +13716,7 @@ body.task-markdown-preview-open {
 .learning-coin-panel {
   border: 1px solid var(--line);
   border-radius: 18px;
-  background: rgba(255, 255, 252, 0.78);
+  background: var(--ui-card-surface);
   box-shadow: var(--shadow-soft);
 }
 

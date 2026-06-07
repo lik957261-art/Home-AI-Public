@@ -36,21 +36,19 @@ HERMES_MOBILE_KANBAN_TODO_META_PATH=workspace/hermes-web/kanban-todo-meta.json
 HERMES_MOBILE_KANBAN_WORKSPACE_PATH_STYLE=auto
 ```
 
-For packaged Windows production installs, route the CLI call through the
-Hermes Mobile Kanban wrapper. On the maintained caller-context deployment,
-pass the installed WSL distro explicitly and keep the Kanban wrapper in caller
-context so it does not fall back to the retired worker-account distro:
+For packaged Windows production installs after the 2026-06-07 WSL downline,
+route the CLI call through the native Windows Kanban wrapper:
 
 ```dotenv
 HERMES_MOBILE_KANBAN_COMMAND=powershell.exe
-HERMES_MOBILE_KANBAN_COMMAND_ARGS=-NoProfile,-ExecutionPolicy,Bypass,-File,C:\ProgramData\HermesMobile\app\scripts\run-kanban-gateway-worker.ps1,-DistroName,Ubuntu-24.04,-RunInCallerContext
-HERMES_MOBILE_KANBAN_WORKSPACE_PATH_STYLE=wsl
+HERMES_MOBILE_KANBAN_COMMAND_ARGS=-NoProfile,-ExecutionPolicy,Bypass,-File,C:\ProgramData\HermesMobile\app\scripts\run-kanban-native-windows.ps1
+HERMES_MOBILE_KANBAN_WORKSPACE_PATH_STYLE=native
 ```
 
-If a separate Windows worker account owns the WSL distro, use the same wrapper
-without `-RunInCallerContext`, but the `-DistroName` value must name a distro
-that is registered under that worker account. Do not rely on the historical
-`HermesGatewayWorker` default unless that distro is actually installed.
+The retired `run-kanban-gateway-worker.ps1` WSL wrapper is retained only as
+legacy source/rollback material. Maintained Windows startup scripts and task
+actions must not pass `-DistroName`, `-WslUser`, `/home/...`, or `Ubuntu-*`
+arguments.
 
 For a simple development install where `hermes` is already on the server
 process `PATH`, leave `HERMES_MOBILE_KANBAN_COMMAND=hermes`.

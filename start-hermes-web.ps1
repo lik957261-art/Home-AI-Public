@@ -129,14 +129,16 @@ function Start-CronTickSidecarIfNeeded {
         "-ExecutionPolicy", "Bypass",
         "-File", $sidecarStarter
     )
-    if ($env:HERMES_WEB_WSL_DISTRO) {
-        $arguments += @("-DistroName", $env:HERMES_WEB_WSL_DISTRO)
-    }
-    if ($env:HERMES_WEB_WSL_USER) {
-        $arguments += @("-WslUser", $env:HERMES_WEB_WSL_USER)
-    }
-    if ($env:HERMES_WEB_HERMES_HOME) {
+    if ($env:HERMES_MOBILE_CRON_TICK_HERMES_HOME) {
+        $arguments += @("-HermesHome", $env:HERMES_MOBILE_CRON_TICK_HERMES_HOME)
+    } elseif ($env:HERMES_WEB_HERMES_HOME) {
         $arguments += @("-HermesHome", $env:HERMES_WEB_HERMES_HOME)
+    }
+    if ($env:HERMES_MOBILE_CRON_TICK_RUNTIME_ROOT) {
+        $arguments += @("-RuntimeRoot", $env:HERMES_MOBILE_CRON_TICK_RUNTIME_ROOT)
+    }
+    if ($env:HERMES_MOBILE_CRON_TICK_NATIVE_PROFILE_ROOT) {
+        $arguments += @("-NativeProfileRoot", $env:HERMES_MOBILE_CRON_TICK_NATIVE_PROFILE_ROOT)
     }
     if ($env:HERMES_MOBILE_CRON_TICK_LOG_PATH) {
         $arguments += @("-LogPath", $env:HERMES_MOBILE_CRON_TICK_LOG_PATH)

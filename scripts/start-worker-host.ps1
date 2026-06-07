@@ -8,18 +8,14 @@ param(
     [string]$BridgeHostScript = "C:\ProgramData\HermesMobile\app\scripts\bridge-host.js",
     [int]$BridgeHostPort = 8798,
     [string]$BridgeHostKeyPath = "C:\ProgramData\HermesMobile\data\secrets\bridge-host.secret",
-    [string]$BridgeWslUser = "",
     [string]$BridgeHermesHome = "",
     [string]$BridgeTodoPluginName = "",
     [string]$BridgeCronOutputRoot = "",
     [string]$WeixinFrontGateway = "",
-    [string]$WeixinFrontGatewayScript = "C:\ProgramData\HermesMobile\app\scripts\start-weixin-mobile-ingress-bridge.ps1",
-    [string]$WeixinFrontGatewayWslUser = "",
+    [string]$WeixinFrontGatewayScript = "C:\ProgramData\HermesMobile\app\scripts\start-weixin-mobile-ingress-bridge-windows.ps1",
     [string]$WeixinFrontGatewayHermesHome = "",
     [string]$CronTickSidecar = "",
     [string]$CronTickSidecarScript = "",
-    [string]$CronTickSidecarDistroName = "",
-    [string]$CronTickSidecarWslUser = "",
     [string]$CronTickSidecarHermesHome = "",
     [string]$CronTickSidecarLogPath = "",
     [string]$OwnerKeyPath = "C:\ProgramData\HermesMobile\data\secrets\owner-web-key.secret",
@@ -212,7 +208,6 @@ function Set-BridgeHostEnvironment {
     param(
         [int]$ListenPort,
         [string]$KeyPath,
-        [string]$WslUser,
         [string]$HermesHome,
         [string]$TodoPluginName,
         [string]$CronOutputRoot
@@ -226,14 +221,23 @@ function Set-BridgeHostEnvironment {
         $env:HERMES_MOBILE_BRIDGE_HOST = "0.0.0.0"
     }
     $env:HERMES_MOBILE_BRIDGE_HOST_PORT = [string]$ListenPort
-    $resolvedWslUser = $WslUser
-    if (-not $resolvedWslUser) { $resolvedWslUser = $env:HERMES_WEB_WSL_USER }
-    if (-not $resolvedWslUser) { $resolvedWslUser = $env:HERMES_MOBILE_BRIDGE_WSL_USER }
-    if (-not $resolvedWslUser) { $resolvedWslUser = "hermes" }
-    if (-not $env:HERMES_WEB_WSL_USER) { $env:HERMES_WEB_WSL_USER = $resolvedWslUser }
-    if (-not $env:HERMES_WEB_WSL_DISTRO) { $env:HERMES_WEB_WSL_DISTRO = "Ubuntu-24.04" }
+    $nativeProfileRoot = "C:\ProgramData\HermesMobile\hermes-native-profile"
+    $nativeRuntimeRoot = "C:\ProgramData\HermesMobile\gateway-worker\native-runtime"
+    $nativePython = Join-Path $nativeRuntimeRoot "venv\Scripts\python.exe"
+    $runtimeSource = Join-Path $nativeRuntimeRoot "official-clean"
+    $resolvedHermesHome = $HermesHome
+    if (-not $resolvedHermesHome) { $resolvedHermesHome = $env:HERMES_WEB_HERMES_HOME }
+    if (-not $resolvedHermesHome -or $resolvedHermesHome -match '^/home/') { $resolvedHermesHome = Join-Path $nativeProfileRoot ".hermes" }
+    $env:HERMES_MOBILE_BRIDGE_PYTHON_MODE = "windows-native"
+    $env:HERMES_WEB_BRIDGE_PYTHON_MODE = "windows-native"
+    $env:HERMES_MOBILE_BRIDGE_PYTHON_EXE = $nativePython
+    $env:HERMES_WEB_BRIDGE_PYTHON_EXE = $nativePython
+    $env:PYTHONIOENCODING = "utf-8"
+    $env:HERMES_HOME = $resolvedHermesHome
+    $env:HERMES_WEB_HERMES_HOME = $resolvedHermesHome
+    $env:HERMES_REPO = $runtimeSource
+    $env:PYTHONPATH = $runtimeSource
     if (-not $env:HERMES_WEB_TODO_PLUGIN_NAME -and $TodoPluginName) { $env:HERMES_WEB_TODO_PLUGIN_NAME = $TodoPluginName }
-    if (-not $env:HERMES_WEB_HERMES_HOME -and $HermesHome) { $env:HERMES_WEB_HERMES_HOME = $HermesHome }
     if (-not $env:HERMES_WEB_CRON_OUTPUT_ROOT -and $CronOutputRoot) { $env:HERMES_WEB_CRON_OUTPUT_ROOT = $CronOutputRoot }
 }
 
@@ -248,7 +252,7 @@ function Start-BridgeHost {
         throw "Hermes Mobile bridge host script not found: $ScriptPath"
     }
     Ensure-BridgeHostKey -Path $KeyPath
-    Set-BridgeHostEnvironment -ListenPort $ListenPort -KeyPath $KeyPath -WslUser $BridgeWslUser -HermesHome $BridgeHermesHome -TodoPluginName $BridgeTodoPluginName -CronOutputRoot $BridgeCronOutputRoot
+    Set-BridgeHostEnvironment -ListenPort $ListenPort -KeyPath $KeyPath -HermesHome $BridgeHermesHome -TodoPluginName $BridgeTodoPluginName -CronOutputRoot $BridgeCronOutputRoot
     $existing = Get-ListenerProcess -ListenPort $ListenPort
     if ($existing) {
         if (Test-BridgeHostHealth -ListenPort $ListenPort) {
@@ -317,18 +321,13 @@ function Start-WeixinFrontGatewayIfNeeded {
         Write-WorkerHostLog $message
         return
     }
-    $resolvedWslUser = $WeixinFrontGatewayWslUser
-    if (-not $resolvedWslUser) { $resolvedWslUser = $env:HERMES_MOBILE_WEIXIN_FRONT_GATEWAY_WSL_USER }
-    if (-not $resolvedWslUser) { $resolvedWslUser = "xuxin" }
     $resolvedHermesHome = $WeixinFrontGatewayHermesHome
     if (-not $resolvedHermesHome) { $resolvedHermesHome = $env:HERMES_MOBILE_WEIXIN_FRONT_GATEWAY_HERMES_HOME }
-    if (-not $resolvedHermesHome) { $resolvedHermesHome = "/home/$resolvedWslUser/.hermes" }
+    if (-not $resolvedHermesHome) { $resolvedHermesHome = "C:\ProgramData\HermesMobile\hermes-native-profile\.hermes" }
     $args = @(
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",
         "-File", $WeixinFrontGatewayScript,
-        "-DistroName", "Ubuntu-24.04",
-        "-WslUser", $resolvedWslUser,
         "-HermesHome", $resolvedHermesHome
     )
     if ($CheckOnly) { $args += "-CheckOnly" }
@@ -370,17 +369,10 @@ function Start-CronTickSidecarInCallerContextIfNeeded {
         Write-WorkerHostLog $message
         return
     }
-    $resolvedDistro = $CronTickSidecarDistroName
-    if (-not $resolvedDistro) { $resolvedDistro = $env:HERMES_MOBILE_CRON_TICK_WSL_DISTRO }
-    if (-not $resolvedDistro) { $resolvedDistro = $env:HERMES_WEB_WSL_DISTRO }
-    if (-not $resolvedDistro) { $resolvedDistro = "Ubuntu-24.04" }
-    $resolvedWslUser = $CronTickSidecarWslUser
-    if (-not $resolvedWslUser) { $resolvedWslUser = $env:HERMES_MOBILE_CRON_TICK_WSL_USER }
-    if (-not $resolvedWslUser) { $resolvedWslUser = "xuxin" }
     $resolvedHermesHome = $CronTickSidecarHermesHome
     if (-not $resolvedHermesHome) { $resolvedHermesHome = $env:HERMES_MOBILE_CRON_TICK_HERMES_HOME }
     if (-not $resolvedHermesHome) { $resolvedHermesHome = $env:HERMES_WEB_HERMES_HOME }
-    if (-not $resolvedHermesHome) { $resolvedHermesHome = "/home/$resolvedWslUser/.hermes" }
+    if (-not $resolvedHermesHome -or $resolvedHermesHome -match '^/home/') { $resolvedHermesHome = "C:\ProgramData\HermesMobile\hermes-native-profile\.hermes" }
     $resolvedLogPath = $CronTickSidecarLogPath
     if (-not $resolvedLogPath) { $resolvedLogPath = $env:HERMES_MOBILE_CRON_TICK_LOG_PATH }
     if (-not $resolvedLogPath) {
@@ -392,8 +384,6 @@ function Start-CronTickSidecarInCallerContextIfNeeded {
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",
         "-File", $sidecarStarter,
-        "-DistroName", $resolvedDistro,
-        "-WslUser", $resolvedWslUser,
         "-HermesHome", $resolvedHermesHome,
         "-LogPath", $resolvedLogPath
     )
@@ -423,7 +413,7 @@ if (-not (Test-Path -LiteralPath $BridgeHostScript)) {
 }
 
 Ensure-BridgeHostKey -Path $BridgeHostKeyPath
-Set-BridgeHostEnvironment -ListenPort $BridgeHostPort -KeyPath $BridgeHostKeyPath -WslUser $BridgeWslUser -HermesHome $BridgeHermesHome -TodoPluginName $BridgeTodoPluginName -CronOutputRoot $BridgeCronOutputRoot
+Set-BridgeHostEnvironment -ListenPort $BridgeHostPort -KeyPath $BridgeHostKeyPath -HermesHome $BridgeHermesHome -TodoPluginName $BridgeTodoPluginName -CronOutputRoot $BridgeCronOutputRoot
 & node.exe --check $BridgeHostScript
 if ($LASTEXITCODE -ne 0) {
     throw "Hermes Mobile bridge host syntax check failed."

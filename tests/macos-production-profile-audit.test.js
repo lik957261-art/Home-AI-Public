@@ -24,6 +24,11 @@ assert.match(script, /launchd_plist_missing/);
 assert.match(script, /launchd_keepalive_unexpected/);
 assert.match(script, /launchd_run_at_load_unexpected/);
 assert.match(script, /launchd_required_warm_keepalive_missing/);
+assert.match(script, /file_plugin_root_env_missing/);
+assert.match(script, /file_plugin_root_missing/);
+assert.match(script, /file_plugin_root_list_delimiter_unsupported/);
+assert.match(script, /HERMES_MOBILE_DOCX_ALLOWED_ROOTS/);
+assert.match(script, /HERMES_MOBILE_HTTP_FILE_ROOTS/);
 assert.match(script, /launchdProbe/);
 assert.match(script, /launchdPlistProbe/);
 assert.match(script, /telemetry_state_path_missing/);
@@ -129,8 +134,58 @@ try {
   assert.ok(audit.issues.includes("plugin_local_binding_incomplete:weixin_wuping:wardrobe"));
   assert.ok(audit.issues.includes("plugin_required_skill_incomplete:owner:wardrobe:productivity/wardrobe-style-operations"));
   assert.ok(audit.issues.includes("plugin_required_skill_incomplete:weixin_wuping:wardrobe:productivity/wardrobe-style-operations"));
+  assert.ok(audit.issues.includes("file_plugin_start_script_missing:hm-wuping-openai-1"));
+  assert.ok(audit.issues.includes("file_plugin_root_env_missing:hm-wuping-openai-1:HERMES_MOBILE_DOCX_ALLOWED_ROOTS"));
   assert.ok(audit.issues.includes("shared_skill_missing:shared/response-grounding-baseline"));
   assert.ok(audit.issues.some((item) => item.startsWith("profile_config_missing:")));
+  const fileRootReadyAudit = buildAudit({
+    root: tempRoot,
+    expectedWorkspaces: [],
+    expectedPlugins: [],
+    requiredWorkspacePlugins: {},
+    requiredSharedSkills: [],
+    checkTelemetry: false,
+    startScriptProbe: () => ({
+      exists: true,
+      text: [
+        'FILE_PLUGIN_ALLOWED_ROOTS="$ROOT/data/drive,$ROOT/data/uploads,$ROOT/data/artifacts"',
+        'HERMES_MOBILE_DOCX_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_AUDIO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_IMAGE_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_VIDEO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_HTTP_FILE_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS="$ROOT/data/drive/users"',
+        'HERMES_MOBILE_HTTP_SAVE_ROOT="$ROOT/data/artifacts/http-request"',
+        'HERMES_MOBILE_VIDEO_OUTPUT_ROOT="$ROOT/data/artifacts/grok-videos"',
+      ].join("\n"),
+    }),
+  });
+  assert.ok(!fileRootReadyAudit.issues.some((item) => item.startsWith("file_plugin_root_env_missing:")));
+  assert.ok(!fileRootReadyAudit.issues.some((item) => item.startsWith("file_plugin_root_missing:")));
+  assert.ok(!fileRootReadyAudit.issues.some((item) => item.startsWith("file_plugin_root_list_delimiter_unsupported:")));
+  const colonDelimitedRootAudit = buildAudit({
+    root: tempRoot,
+    expectedWorkspaces: [],
+    expectedPlugins: [],
+    requiredWorkspacePlugins: {},
+    requiredSharedSkills: [],
+    checkTelemetry: false,
+    startScriptProbe: () => ({
+      exists: true,
+      text: [
+        'FILE_PLUGIN_ALLOWED_ROOTS="$ROOT/data/drive:$ROOT/data/uploads:$ROOT/data/artifacts"',
+        'HERMES_MOBILE_DOCX_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_AUDIO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_IMAGE_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_VIDEO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_HTTP_FILE_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS="$ROOT/data/drive/users"',
+        'HERMES_MOBILE_HTTP_SAVE_ROOT="$ROOT/data/artifacts/http-request"',
+        'HERMES_MOBILE_VIDEO_OUTPUT_ROOT="$ROOT/data/artifacts/grok-videos"',
+      ].join("\n"),
+    }),
+  });
+  assert.ok(colonDelimitedRootAudit.issues.includes("file_plugin_root_list_delimiter_unsupported:hm-wuping-openai-1"));
   const launchdAudit = buildAudit({
     root: tempRoot,
     expectedWorkspaces: ["owner", "weixin_wuping"],

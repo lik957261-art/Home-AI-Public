@@ -401,7 +401,7 @@ async function deleteTaskGroup(taskGroupId, options = {}) {
   if (!state.currentThreadId || !taskGroupId) return;
   const group = taskListGroupsForThread(state.currentThread).find((item) => item.id === taskGroupId);
   const label = taskDisplayId(group) || taskGroupId;
-  if (options.confirm !== false && !window.confirm(`Delete topic ${label}? Files on disk will not be deleted.`)) return;
+  if (options.confirm !== false && !window.confirm(`删除话题“${label}”？磁盘文件不会被删除。`)) return;
   const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/tasks/${encodeURIComponent(taskGroupId)}`, {
     method: "DELETE",
   });

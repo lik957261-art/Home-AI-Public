@@ -341,6 +341,40 @@
     }
   }
 
+  function documentNativeUrlFromLink(link) {
+    const source = documentSourceFromLink(link);
+    const href = source || link?.href || link?.getAttribute?.("href") || "";
+    if (!href) return "";
+    try {
+      const url = new URL(href, global.location.origin);
+      if (url.origin !== global.location.origin) return "";
+      return `${url.pathname}${url.search}${url.hash || ""}`;
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function documentPreviewViewportMetrics() {
+    const visual = global.visualViewport || {};
+    const root = document.documentElement || {};
+    const width = Math.floor(visual.width || root.clientWidth || global.innerWidth || 0);
+    const height = Math.floor(visual.height || root.clientHeight || global.innerHeight || 0);
+    const coarsePointer = Boolean(global.matchMedia?.("(pointer: coarse)")?.matches);
+    return {
+      width: Math.max(0, width),
+      height: Math.max(0, height),
+      coarsePointer,
+    };
+  }
+
+  function shouldUseWideNativeDocumentPreview(link) {
+    const kind = documentKindFromLink(link);
+    if (kind !== "pdf") return false;
+    const metrics = documentPreviewViewportMetrics();
+    if (metrics.coarsePointer && metrics.width <= 540) return false;
+    return metrics.width >= 768 || (metrics.coarsePointer && metrics.width >= 720 && metrics.height >= 540);
+  }
+
   function documentKindFromMimeName(mimeValue, nameValue) {
     const mime = String(mimeValue || "").toLowerCase();
     const name = String(nameValue || "").toLowerCase();
@@ -625,6 +659,13 @@ window.addEventListener("load", function () {
   function openDocumentPreviewOverlay(link) {
     const viewerUrl = documentViewerUrlFromLink(link);
     if (!viewerUrl) return false;
+    if (shouldUseWideNativeDocumentPreview(link)) {
+      const nativeUrl = documentNativeUrlFromLink(link);
+      if (nativeUrl) {
+        global.location.assign(nativeUrl);
+        return true;
+      }
+    }
     closeArtifactPreviewOverlays();
     const source = documentSourceFromLink(link);
     const title = String(link?.dataset?.artifactName || link?.getAttribute?.("aria-label") || "文件预览").trim();
@@ -687,6 +728,7 @@ window.addEventListener("load", function () {
     closeImagePreviewOverlay,
     closeMarkdownPreviewOverlay,
     hasArtifactPreviewOverlay,
+    documentNativeUrlFromLink,
     isDocumentPreviewLink,
     isImagePreviewLink,
     isMarkdownPreviewLink,
@@ -694,5 +736,6 @@ window.addEventListener("load", function () {
     openImagePreviewOverlay,
     openMarkdownPreviewOverlay,
     previewBackSwipeSurface,
+    shouldUseWideNativeDocumentPreview,
   };
 }(window));

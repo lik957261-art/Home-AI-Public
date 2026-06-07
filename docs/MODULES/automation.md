@@ -34,6 +34,11 @@ Automation owns scheduled jobs, detail loading, Web Push/deep-link production, a
 - After Action Inbox integration, Automation Web Push payloads should include `inboxItemId` when the user's next action is represented by Inbox.
 - Foreground Web Push with `messageType=automation_*` or `automationId` must invalidate Automation full-cache state. If the Automation view is open, it should force a full refresh and repaint the list after fresh data arrives.
 - A user-initiated full refresh after deleting an automation must replace the local list with the server list. Do not append missing local cache entries back into a refreshed list, or deleted jobs can appear to survive deletion.
+- Automation summary/detail hydration must not preserve an older
+  `source.available=false` or warning when the current API response has fresh
+  source metadata. Detail hydration may merge job fields, but the source block
+  should be replaced by the latest response so a transient CRON-file warning
+  does not keep rendering after the canonical backend is readable again.
 - Long cron jobs must not block the scheduling entrance.
 
 ## Canonical Store Boundary

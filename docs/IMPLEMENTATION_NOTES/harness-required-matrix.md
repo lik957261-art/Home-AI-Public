@@ -209,6 +209,47 @@ node tests\windows-native-gateway-profile-launcher.test.js
 node tests\gateway-worker-profile-launch-service.test.js
 ```
 
+### Windows Native WSL Downline
+
+Applies to removing WSL as a resident Windows dependency for the maintained
+local Home AI runtime, including listener startup, bridge-host Python bridges,
+Whisper, Weixin ingress, CRON sidecar, Kanban/Todo compatibility, scheduled
+tasks, and production launcher variables.
+
+Required harness dimensions:
+
+- A rollback backup exists under `C:\ProgramData\HermesMobile\backups` before
+  disabling or unregistering WSL startup tasks.
+- `Hermes Gateway WSL` is exported before removal. Remaining active scheduled
+  tasks must not contain `WslUser`, `DistroName`, `/home/xuxin`, `Ubuntu-*`,
+  or `wsl.exe` in their action arguments.
+- `start-worker-host.ps1` must set bridge-host Python mode to
+  `windows-native`; `bridge-command-provider` must support that mode and must
+  bypass `wsl.exe` when it is set.
+- `start-hermes-web.ps1` must pass exactly one `-HermesHome` to
+  `start-cron-tick-sidecar.ps1`, preferring
+  `HERMES_MOBILE_CRON_TICK_HERMES_HOME` over `HERMES_WEB_HERMES_HOME`.
+- Windows-native Weixin bridge health must use a Windows PID liveness check;
+  `os.kill(pid, 0)` is not sufficient on Windows.
+- `run-kanban-native-windows.ps1` must call the native Hermes Python venv and
+  must not invoke WSL/bash.
+- `start-whisper-large-v3-turbo-windows.ps1` must start port `8001` with
+  Windows Python, not `wslrelay.exe`.
+- After shutdown, `Get-Process wsl,wslhost,wslrelay,vmmemWSL` must have no
+  running output, and ports `8001`, `8797`, and `8798` must be owned by Windows
+  `python3.13.exe` / `node.exe`.
+
+Focused checks:
+
+```powershell
+node tests\startup-scripts.test.js
+node tests\bridge-command-provider.test.js
+node tests\cron-dispatcher-proxy-harness.test.js
+node tests\static-cache-version-harness.test.js
+node scripts\production-status-smoke.js --access-key-file <file> --base http://127.0.0.1:8797 --expected-version <version> --json
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\start-weixin-mobile-ingress-bridge-windows.ps1 -CheckOnly
+```
+
 ### macOS Production Deployment And Workspace Isolation
 
 Applies to the Mac Studio production installer, launchd service generation,
@@ -247,6 +288,16 @@ Required harness dimensions:
   non-baseline on-demand workers must not use `RunAtLoad=true` or
   `KeepAlive=true`; otherwise idle retirement cannot stop them. Only the
   required warm baseline may be always-on.
+- Profile-local file plugins must receive Mac live roots in every Gateway start
+  script. The profile audit must fail on
+  `file_plugin_root_env_missing:<profile>:<env>` or
+  `file_plugin_root_missing:<profile>:<env>:<root>` so DOCX/audio/image/video
+  and scoped HTTP file helpers cannot silently fall back to Windows/WSL roots.
+- Mac uploaded Word/DOCX incidents with `file_path_outside_allowed_roots` need
+  an actual extraction smoke in addition to the static start-script audit:
+  `scripts/macos-file-plugin-docx-root-smoke.js`. The local contract test is
+  `node tests\macos-file-plugin-docx-root-smoke.test.js`; production closure
+  runs the script with the pinned Mac Node runtime and the affected profile.
 - First-start preflight must prove listener health, model egress, Owner key
   storage, workspace users/directories, Gateway worker selection, plugin MCP
   schema for provisioned plugins, CRON wrapper use, and restart recovery.
@@ -1571,6 +1622,12 @@ Required contract dimensions:
 - Preview fallbacks follow the in-app overlay/iframe/download pattern used by
   Markdown, image, and document previews; `about:blank` print windows and
   `open(..., "_blank")` are not allowed workarounds.
+- Word/PDF preview viewport policy is an H2 projection contract. The harness
+  must prove a small coarse-pointer phone width keeps the embedded Hermes
+  viewer, wide tablet/foldable/desktop PDF widths resolve a same-origin
+  original document URL and navigate same-window, and Word/DOCX remains in the
+  Home AI `file-viewer.html` preview path on wide surfaces instead of opening a
+  raw URL that the browser treats as a download.
 - Growth card detail is an H2 projection surface even when no workflow state is
   changed. The harness must assert the detail page uses a single-column
   full-width reading shell, does not render nested table-like card/grids that

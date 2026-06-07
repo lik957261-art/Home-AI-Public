@@ -28,6 +28,13 @@ Line count is only a weak proxy. A successful refactor should:
 continue to shrink by extracting service/provider ownership, not by collapsing
 statements. Priority extraction areas:
 
+- completed 2026-06-07: runtime state normalization/persistence duplicate
+  wrappers were removed from `mobile-server-runtime.js`; state ownership now
+  stays in `adapters/mobile-runtime-state-facade-service.js`, with architecture
+  tests preventing the wrapper functions from returning;
+- completed 2026-06-07: low-risk auth setup, Web Push VAPID, and external
+  integration provider wrappers were converted to runtime delegates, lowering
+  the runtime top-level function count without changing provider ownership;
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

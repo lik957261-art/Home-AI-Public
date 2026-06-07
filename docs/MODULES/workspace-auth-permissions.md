@@ -37,6 +37,39 @@ Related route/provider boundaries:
   the `productivity/hermes-mobile-permission-boundary-check` Skill together
   with Gateway toolset selection.
 
+## Windows Native OS Isolation Direction
+
+After the Windows WSL downline, Windows deployments should use native Windows
+service accounts and NTFS DACLs instead of WSL-owned home directories.
+
+Default local/development stance:
+
+- run the listener, bridge host, native Gateway launcher, Whisper, Weixin
+  bridge, and CRON sidecar under the maintained Windows service/logon account;
+- keep Home AI workspace authorization as the primary product boundary;
+- store per-workspace plugin keys, Skill Stores, Memory Stores, and drive roots
+  under `C:\ProgramData\HermesMobile\data`;
+- enforce workspace access in route/service code and file APIs before model
+  runs are created.
+
+Higher-isolation stance for shared or production Windows hosts:
+
+- create a Windows local user or group per sensitive workspace, analogous to
+  the Mac `hm-*` users;
+- grant each workspace account NTFS access only to its own drive root,
+  Skill/Memory profile store, and authorized plugin-private directories;
+- keep the host/listener account able to read bounded metadata required for
+  routing, projection, and telemetry, but not raw workspace-private content
+  beyond the explicit product access path;
+- run workspace-specific Gateway/plugin subprocesses as the matching workspace
+  account when the subprocess needs direct filesystem access.
+
+Do not recreate the WSL split by passing `/home/...`, `Ubuntu-*`, `wsl.exe`, or
+WSL distro-owner assumptions through Windows startup scripts. If Windows ACL
+isolation is introduced, add a harness that proves both positive workspace
+access and cross-workspace deny checks using Windows account tokens or explicit
+DACL inspection.
+
 ## Access Key Handling
 
 - First-run setup may show the Owner Access Key once.
