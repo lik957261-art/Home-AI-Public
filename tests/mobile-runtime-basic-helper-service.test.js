@@ -32,6 +32,9 @@ const helper = createMobileRuntimeBasicHelperService({
 });
 
 assert.equal(helper.hashValue("abc"), "hash:abc");
+assert.deepEqual(helper.dedupe([" a ", "b", "a", "", null, " b "]), ["a", "b"]);
+assert.equal(helper.isUncPath("\\\\server\\share"), true);
+assert.equal(helper.isUncPath("C:\\\\Users"), false);
 assert.equal(helper.makeId("msg"), "msg_21i3v9_deadbeef");
 assert.equal(helper.nowIso(), "2026-06-07T01:02:03.000Z");
 assert.deepEqual(helper.normalizeOwnerElevationDurations("60,15,15,241,0,5.7"), [6, 15, 60]);

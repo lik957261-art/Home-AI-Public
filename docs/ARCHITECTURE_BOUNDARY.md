@@ -155,9 +155,10 @@ operation-error JSON response wrappers. Route composition may keep receiving
 those response shapes.
 
 `mobile-runtime-basic-helper-service.js` owns deterministic runtime primitives:
-hashing, id generation, current time formatting, boolean query parsing,
-single-window mode normalization, Owner elevation duration normalization, and
-response text extraction from structured Gateway/Responses values. Runtime
+de-duplication, UNC path detection, hashing, id generation, current time
+formatting, boolean query parsing, single-window mode normalization, Owner
+elevation duration normalization, and response text extraction from structured
+Gateway/Responses values. Runtime
 composition may wire these helpers into services, but it must not carry
 duplicate helper implementations or add permission, route, provider, Gateway
 lifecycle, or workspace policy to this service.
@@ -210,8 +211,8 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,465 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 60;
+- `mobile-server-runtime.js` must stay at or below 1,460 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 58;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
 - `automation-job-filter-service.js` must stay at or below 45 lines and remain
@@ -220,7 +221,7 @@ Current CI guardrails:
 - `runtime-operation-error-response-service.js` must stay at or below 35 lines
   and remain a deterministic operation-error response adapter, not a route
   module or domain policy implementation;
-- `mobile-runtime-basic-helper-service.js` must stay at or below 85 lines and
+- `mobile-runtime-basic-helper-service.js` must stay at or below 95 lines and
   remain a deterministic helper service for basic runtime primitives, not a
   route, provider, permission, or Gateway lifecycle policy module;
 - `mobile-runtime-file-access-facade-service.js` must stay at or below 115
@@ -271,7 +272,17 @@ Current CI guardrails:
 - `mobile-runtime-env-value-service.js` must stay at or below 40 lines;
 - if a feature would exceed either budget, extract route modules and services first.
 
-These budgets are intentionally temporary ceilings. Lower them after each successful extraction round.
+These budgets are intentionally temporary ceilings. Lower them after each
+successful extraction round.
+
+Line budgets are coarse architecture guardrails, not minification targets. They
+must not be satisfied by formatting compression, single-line helper bodies,
+hidden dense expressions, or moving unrelated logic into existing helper
+modules. The goal is smaller CodeGraph-addressable responsibility boundaries
+and smaller context entry points, not merely fewer physical lines. If a readable
+service needs a few more lines after a structurally correct extraction, raise
+that service's local budget deliberately and document why instead of compressing
+the implementation.
 
 ## Frontend Boundary
 

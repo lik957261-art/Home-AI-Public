@@ -105,7 +105,7 @@ const { SINGLE_WINDOW_CHAT_TASK_GROUP_ID, SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
 const { OWNER_LABEL, OWNER_ROOT_FALLBACK_LABEL, OWNER_DRIVE_ROOT_NAMES, GENERIC_OWNER_TOPIC_PROJECT_PREFIXES, GENERIC_OWNER_TOPIC_PROJECT_IDS, PRINCIPAL_LABEL_PREFIXES } = runtimeEnv;
 const { REASONING_EFFORT_OPTIONS, VALID_REASONING_EFFORTS, MESSAGE_TIME_FIELDS, MIME_BY_EXT, AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS, AUTOMATION_PUSH_DELIVERABLE_LOOKBACK_MS, AUTOMATION_PUSH_DELIVERABLE_FUTURE_GRACE_MS, AUTOMATION_PUSH_INITIAL_LOOKBACK_MS } = runtimeEnv;
 const mobileRuntimeBasicHelperService = createMobileRuntimeBasicHelperService({ crypto, normalizeStringList });
-const { boolParam, hashValue, makeId, normalizeOwnerElevationDurations, normalizeSingleWindowMode, nowIso, responseTextFromValue } = mobileRuntimeBasicHelperService;
+const { boolParam, dedupe, hashValue, isUncPath, makeId, normalizeOwnerElevationDurations, normalizeSingleWindowMode, nowIso, responseTextFromValue } = mobileRuntimeBasicHelperService;
 const mobileRuntimeBackendPolicyService = createMobileRuntimeBackendPolicyService({
   automationBackend: AUTOMATION_BACKEND,
   directTodoCreateSetting: DIRECT_TODO_CREATE_SETTING,
@@ -119,12 +119,6 @@ const {
   useLocalTodoBackend,
   useSqliteServiceStore,
 } = mobileRuntimeBackendPolicyService;
-function dedupe(values) {
-  return [...new Set((values || []).map((item) => String(item || "").trim()).filter(Boolean))];
-}
-function isUncPath(value) {
-  return /^\\\\/.test(String(value || ""));
-}
 function bootTrace(label) {
   if (!BOOT_TRACE_PATH) return;
   try {

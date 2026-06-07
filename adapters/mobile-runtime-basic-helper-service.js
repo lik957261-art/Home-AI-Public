@@ -15,8 +15,16 @@ function createMobileRuntimeBasicHelperService(options = {}) {
   const nowMs = typeof options.nowMs === "function" ? options.nowMs : () => Date.now();
   const nowDate = typeof options.nowDate === "function" ? options.nowDate : () => new Date();
 
+  function dedupe(values) {
+    return [...new Set((values || []).map((item) => String(item || "").trim()).filter(Boolean))];
+  }
+
   function hashValue(value) {
     return crypto.createHash("sha256").update(String(value || ""), "utf8").digest("hex");
+  }
+
+  function isUncPath(value) {
+    return /^\\\\/.test(String(value || ""));
   }
 
   function makeId(prefix) {
@@ -62,7 +70,9 @@ function createMobileRuntimeBasicHelperService(options = {}) {
 
   return Object.freeze({
     boolParam,
+    dedupe,
     hashValue,
+    isUncPath,
     makeId,
     normalizeOwnerElevationDurations,
     normalizeSingleWindowMode,
