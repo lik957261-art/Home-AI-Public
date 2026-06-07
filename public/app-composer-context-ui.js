@@ -287,7 +287,7 @@ function updateMobileBottomNavReservation() {
   const dockHeight = dockVisible
     ? Math.max(0, Math.ceil(dock.getBoundingClientRect?.().height || 0), Math.ceil(dock.scrollHeight || 0))
     : 0;
-  const dockBottom = navBottom + offset;
+  const dockBottom = offset;
   const stackHeight = dockVisible ? Math.max(reserve, dockBottom + dockHeight + 2) : reserve;
   const bottomLayoutMetrics = {
     viewportHeight,
