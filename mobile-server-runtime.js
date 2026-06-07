@@ -33,6 +33,7 @@ const {
 } = require("./adapters/runtime-state-normalization-service");
 const { createKanbanCardProvider } = require("./adapters/kanban-card-provider");
 const { createRuntimeStateThreadService } = require("./adapters/runtime-state-thread-service");
+const { createRuntimeOperationErrorResponseService } = require("./adapters/runtime-operation-error-response-service");
 const { createKanbanExecutableProfileService } = require("./adapters/kanban-executable-profile-service");
 const { createKanbanOutputAccessService } = require("./adapters/kanban-output-access-service");
 const { createKanbanRuntimeServices } = require("./adapters/kanban-runtime-services");
@@ -171,6 +172,9 @@ const requestClientVersion = (...args) => httpRuntimeService.requestClientVersio
 const attachClientVersionHeaders = (...args) => httpRuntimeService.attachClientVersionHeaders(...args);
 const sendJson = (...args) => httpRuntimeService.sendJson(...args);
 const readBody = (...args) => httpRuntimeService.readBody(...args);
+const runtimeOperationErrorResponseService = createRuntimeOperationErrorResponseService({ sendJson });
+const todoErrorResponse = (...args) => runtimeOperationErrorResponseService.todoErrorResponse(...args);
+const kanbanErrorResponse = (...args) => runtimeOperationErrorResponseService.kanbanErrorResponse(...args);
 const {
   contentDisposition,
   extractDocxText,
@@ -1142,12 +1146,6 @@ function normalizeAutomationDraft(raw, sourceText) {
 }
 async function interpretAutomationNaturalLanguage(text, workspace, ownerPrincipalId) {
   return naturalLanguageDraftService.interpretAutomationNaturalLanguage(text, workspace, ownerPrincipalId);
-}
-function todoErrorResponse(res, result, fallbackStatus = 400) {
-  sendJson(res, fallbackStatus, { error: result?.error || "Todo operation failed", result });
-}
-function kanbanErrorResponse(res, result, fallbackStatus = 400) {
-  sendJson(res, fallbackStatus, { error: result?.error || "Kanban operation failed", result });
 }
 function loadVapidConfig() {
   return webPushDeliveryService.loadVapidConfig();

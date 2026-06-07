@@ -86,7 +86,8 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-weixin-facade-service.js`,
 `mobile-runtime-workspace-identity-facade-service.js`,
 `mobile-runtime-workspace-facade-service.js`,
-`mobile-runtime-workspace-catalog-facade.js`, and
+`mobile-runtime-workspace-catalog-facade.js`,
+`runtime-operation-error-response-service.js`, and
 `mobile-runtime-http-server-service.js`. These modules keep static file
 app route URL serialization, Automation job filtering, deterministic runtime primitives,
 helpers and JSON store file IO,
@@ -107,7 +108,8 @@ Weixin runtime composition delegation, workspace identity fallback delegation,
 local workspace store/projection, workspace access/auth gate, access-key
 operation, sender label, and principal-to-workspace lazy
 delegation, workspace catalog lazy
-delegation, and HTTP request/response primitive plus process lifecycle wiring
+delegation, operation error response formatting, and HTTP request/response
+primitive plus process lifecycle wiring
 addressable through CodeGraph without loading the full runtime root.
 
 `mobile-runtime-artifact-facade-service.js` is only a runtime wiring facade. It
@@ -145,6 +147,12 @@ filtering for owner visibility and list search matching. Route composition may
 use it through runtime dependencies, but `mobile-server-runtime.js` must not
 carry duplicate `cronJobMatchesSearch`, `cronJobMatchesOwner`, or cron cache
 clear wrapper function implementations.
+
+`runtime-operation-error-response-service.js` owns the small Todo/Kanban
+operation-error JSON response wrappers. Route composition may keep receiving
+`todoErrorResponse` and `kanbanErrorResponse` delegates, but
+`mobile-server-runtime.js` must not carry duplicate function implementations for
+those response shapes.
 
 `mobile-runtime-basic-helper-service.js` owns deterministic runtime primitives:
 hashing, id generation, current time formatting, boolean query parsing,
@@ -202,13 +210,16 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,470 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 62;
+- `mobile-server-runtime.js` must stay at or below 1,465 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 60;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
 - `automation-job-filter-service.js` must stay at or below 45 lines and remain
   a deterministic Automation/Cron list filter, not a route or bridge execution
   module;
+- `runtime-operation-error-response-service.js` must stay at or below 35 lines
+  and remain a deterministic operation-error response adapter, not a route
+  module or domain policy implementation;
 - `mobile-runtime-basic-helper-service.js` must stay at or below 85 lines and
   remain a deterministic helper service for basic runtime primitives, not a
   route, provider, permission, or Gateway lifecycle policy module;
