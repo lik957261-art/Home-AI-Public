@@ -50,6 +50,7 @@ const mobileRuntimeGroupChatFacadeService = require("../adapters/mobile-runtime-
 const mobileRuntimeKanbanFacadeService = require("../adapters/mobile-runtime-kanban-facade-service");
 const requestContext = require("../adapters/request-context-provider");
 const resourceResolver = require("../adapters/resource-access-resolver");
+const runtimeConfigEffectiveService = require("../adapters/runtime-config-effective-service");
 const runtimeConfigKeyService = require("../adapters/runtime-config-key-service");
 const runtimeConfigPublicProjectionService = require("../adapters/runtime-config-public-projection-service");
 const runtimeConfigSaveService = require("../adapters/runtime-config-save-service");
@@ -318,6 +319,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof publicApiRoutes.createPublicApiRoutes, "function");
   assert.equal(typeof requestContext.buildRequestContext, "function");
   assert.equal(typeof resourceResolver.resolveResourceAccess, "function");
+  assert.equal(typeof runtimeConfigEffectiveService.createRuntimeConfigEffectiveService, "function");
   assert.equal(typeof runtimeConfigKeyService.createRuntimeConfigKeyService, "function");
   assert.equal(typeof runtimeConfigPublicProjectionService.createRuntimeConfigPublicProjectionService, "function");
   assert.equal(typeof runtimeConfigSaveService.createRuntimeConfigSaveService, "function");
@@ -560,6 +562,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const backendPolicy = fileText("adapters/mobile-runtime-backend-policy-service.js");
   const configFacade = fileText("adapters/mobile-runtime-config-facade-service.js");
   const runtimeConfigProvider = fileText("adapters/runtime-config-provider.js");
+  const runtimeConfigEffective = fileText("adapters/runtime-config-effective-service.js");
   const runtimeConfigKey = fileText("adapters/runtime-config-key-service.js");
   const runtimeConfigPublicProjection = fileText("adapters/runtime-config-public-projection-service.js");
   const runtimeConfigSave = fileText("adapters/runtime-config-save-service.js");
@@ -689,6 +692,12 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createMobileRuntimeConfigFacadeService/);
   assert.match(configFacade, /publicRuntimeConfig/);
   assert.doesNotMatch(server, /function publicRuntimeConfig/);
+  assert.match(runtimeConfigProvider, /createRuntimeConfigEffectiveService/);
+  assert.match(runtimeConfigProvider, /effectiveHermesApiBase: effectiveService\.effectiveHermesApiBase/);
+  assert.match(runtimeConfigEffective, /function effectiveHermesApiBase/);
+  assert.match(runtimeConfigEffective, /function defaultWebPushVapidPath/);
+  assert.doesNotMatch(runtimeConfigProvider, /function effectiveHermesApiBase/);
+  assert.doesNotMatch(runtimeConfigProvider, /const defaultWebPushVapidPath/);
   assert.match(runtimeConfigProvider, /createRuntimeConfigPublicProjectionService/);
   assert.match(runtimeConfigProvider, /return publicProjectionService\.publicConfig\(args\)/);
   assert.match(runtimeConfigPublicProjection, /function publicConfig/);
@@ -1279,7 +1288,8 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /not minification targets/);
   assert.match(doc, /must not be satisfied by formatting compression/);
   assert.match(doc, /mobile-runtime-file-access-facade-service\.js` must stay at or below 140\s+lines/);
-  assert.match(doc, /runtime-config-provider\.js` must stay at or below 300\s+lines/);
+  assert.match(doc, /runtime-config-provider\.js` must stay at or below 280\s+lines/);
+  assert.match(doc, /runtime-config-effective-service\.js` must stay at or below 65\s+lines/);
   assert.match(doc, /runtime-config-key-service\.js` must stay at or below 115\s+lines/);
   assert.match(doc, /runtime-config-public-projection-service\.js` must stay at or below 75\s+lines/);
   assert.match(doc, /runtime-config-save-service\.js` must stay at or below 65\s+lines/);
@@ -1383,6 +1393,7 @@ function testServiceFirstArchitectureContract() {
   const envValueService = fileText("adapters/mobile-runtime-env-value-service.js");
   const pathAccessService = fileText("adapters/mobile-runtime-path-access-service.js");
   const runtimeConfigProvider = fileText("adapters/runtime-config-provider.js");
+  const runtimeConfigEffective = fileText("adapters/runtime-config-effective-service.js");
   const runtimeConfigKey = fileText("adapters/runtime-config-key-service.js");
   const runtimeConfigPublicProjection = fileText("adapters/runtime-config-public-projection-service.js");
   const runtimeConfigSave = fileText("adapters/runtime-config-save-service.js");
@@ -1412,6 +1423,7 @@ function testServiceFirstArchitectureContract() {
   const envValueServiceLineCount = envValueService.split(/\r?\n/).length;
   const pathAccessServiceLineCount = pathAccessService.split(/\r?\n/).length;
   const runtimeConfigProviderLineCount = runtimeConfigProvider.split(/\r?\n/).length;
+  const runtimeConfigEffectiveLineCount = runtimeConfigEffective.split(/\r?\n/).length;
   const runtimeConfigKeyLineCount = runtimeConfigKey.split(/\r?\n/).length;
   const runtimeConfigPublicProjectionLineCount = runtimeConfigPublicProjection.split(/\r?\n/).length;
   const runtimeConfigSaveLineCount = runtimeConfigSave.split(/\r?\n/).length;
@@ -1461,7 +1473,8 @@ function testServiceFirstArchitectureContract() {
   assert.ok(basicHelperLineCount <= 120, `mobile-runtime-basic-helper-service.js line budget exceeded: ${basicHelperLineCount} > 120`);
   assert.doesNotMatch(basicHelper, /^  function isUncPath\(value\) \{ return /m);
   assert.ok(fileAccessFacadeLineCount <= 140, `mobile-runtime-file-access-facade-service.js line budget exceeded: ${fileAccessFacadeLineCount} > 140`);
-  assert.ok(runtimeConfigProviderLineCount <= 300, `runtime-config-provider.js line budget exceeded: ${runtimeConfigProviderLineCount} > 300`);
+  assert.ok(runtimeConfigProviderLineCount <= 280, `runtime-config-provider.js line budget exceeded: ${runtimeConfigProviderLineCount} > 280`);
+  assert.ok(runtimeConfigEffectiveLineCount <= 65, `runtime-config-effective-service.js line budget exceeded: ${runtimeConfigEffectiveLineCount} > 65`);
   assert.ok(runtimeConfigKeyLineCount <= 115, `runtime-config-key-service.js line budget exceeded: ${runtimeConfigKeyLineCount} > 115`);
   assert.ok(runtimeConfigPublicProjectionLineCount <= 75, `runtime-config-public-projection-service.js line budget exceeded: ${runtimeConfigPublicProjectionLineCount} > 75`);
   assert.ok(runtimeConfigSaveLineCount <= 65, `runtime-config-save-service.js line budget exceeded: ${runtimeConfigSaveLineCount} > 65`);

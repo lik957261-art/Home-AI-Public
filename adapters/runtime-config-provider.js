@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { createRuntimeConfigEffectiveService } = require("./runtime-config-effective-service");
 const { createRuntimeConfigKeyService } = require("./runtime-config-key-service");
 const { createRuntimeConfigPublicProjectionService } = require("./runtime-config-public-projection-service");
 const { createRuntimeConfigSaveService } = require("./runtime-config-save-service");
@@ -169,15 +170,6 @@ function createRuntimeConfigProvider(options = {}) {
   const storagePath = () => path.resolve(String(typeof options.storagePath === "function" ? options.storagePath() : options.storagePath));
   const ensureDataDir = typeof options.ensureDataDir === "function" ? options.ensureDataDir : () => {};
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
-  const defaultHermesApiBase = () => stripTrailingSlash(
-    typeof options.defaultHermesApiBase === "function" ? options.defaultHermesApiBase() : options.defaultHermesApiBase,
-  );
-  const defaultWebPushSubject = () => String(
-    typeof options.defaultWebPushSubject === "function" ? options.defaultWebPushSubject() : options.defaultWebPushSubject,
-  );
-  const defaultWebPushVapidPath = () => path.resolve(String(
-    typeof options.defaultWebPushVapidPath === "function" ? options.defaultWebPushVapidPath() : options.defaultWebPushVapidPath,
-  ));
   const apiKeyPaths = () => (typeof options.apiKeyPaths === "function" ? options.apiKeyPaths() : (options.apiKeyPaths || [])).filter(Boolean);
   const envPaths = () => (typeof options.envPaths === "function" ? options.envPaths() : (options.envPaths || [])).filter(Boolean);
   const baseGatewayWorkerElasticConfig = () => (
@@ -185,6 +177,13 @@ function createRuntimeConfigProvider(options = {}) {
       ? (options.gatewayWorkerElasticConfig() || {})
       : (options.gatewayWorkerElasticConfig || {})
   );
+  const effectiveService = createRuntimeConfigEffectiveService({
+    defaultHermesApiBase: options.defaultHermesApiBase,
+    defaultWebPushSubject: options.defaultWebPushSubject,
+    defaultWebPushVapidPath: options.defaultWebPushVapidPath,
+    load,
+    pathResolve: (targetPath) => path.resolve(String(targetPath)),
+  });
   const keyService = createRuntimeConfigKeyService({
     apiKeyPaths,
     envPaths,
@@ -193,11 +192,11 @@ function createRuntimeConfigProvider(options = {}) {
     readFile: (targetPath) => fs.readFileSync(targetPath, "utf8"),
   });
   const publicProjectionService = createRuntimeConfigPublicProjectionService({
-    defaultHermesApiBase,
+    defaultHermesApiBase: effectiveService.defaultHermesApiBase,
     defaultRuntimeModelOption: DEFAULT_RUNTIME_MODEL_OPTION,
-    effectiveHermesApiBase,
-    effectiveWebPushSubject,
-    effectiveWebPushVapidPath,
+    effectiveHermesApiBase: effectiveService.effectiveHermesApiBase,
+    effectiveWebPushSubject: effectiveService.effectiveWebPushSubject,
+    effectiveWebPushVapidPath: effectiveService.effectiveWebPushVapidPath,
     fileExists: (targetPath) => fs.existsSync(targetPath),
     gatewayWorkerRuntimeSettings,
     hermesApiKeyStatus: keyService.hermesApiKeyStatus,
@@ -231,18 +230,6 @@ function createRuntimeConfigProvider(options = {}) {
     return next;
   }
 
-  function effectiveHermesApiBase(config = load()) {
-    return stripTrailingSlash(config.hermesApiBase || defaultHermesApiBase());
-  }
-
-  function effectiveWebPushSubject(config = load()) {
-    return config.webPushSubject || defaultWebPushSubject();
-  }
-
-  function effectiveWebPushVapidPath(config = load()) {
-    return path.resolve(config.webPushVapidPath || defaultWebPushVapidPath());
-  }
-
   function gatewayWorkerElasticConfig(config = load(), base = baseGatewayWorkerElasticConfig()) {
     return gatewayWorkerSettingsToElasticConfig(config.gatewayWorkerSettings || {}, base);
   }
@@ -257,9 +244,9 @@ function createRuntimeConfigProvider(options = {}) {
 
   return {
     configuredHermesApiKeyPaths: keyService.configuredHermesApiKeyPaths,
-    effectiveHermesApiBase,
-    effectiveWebPushSubject,
-    effectiveWebPushVapidPath,
+    effectiveHermesApiBase: effectiveService.effectiveHermesApiBase,
+    effectiveWebPushSubject: effectiveService.effectiveWebPushSubject,
+    effectiveWebPushVapidPath: effectiveService.effectiveWebPushVapidPath,
     gatewayWorkerElasticConfig,
     gatewayWorkerRuntimeSettings,
     hermesApiKeyStatus: keyService.hermesApiKeyStatus,

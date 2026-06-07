@@ -66,6 +66,7 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-auth-facade-service.js`,
 `mobile-runtime-backend-policy-service.js`,
 `mobile-runtime-config-facade-service.js`,
+`runtime-config-effective-service.js`,
 `runtime-config-key-service.js`,
 `runtime-config-public-projection-service.js`,
 `runtime-config-save-service.js`,
@@ -178,12 +179,20 @@ and topic-compaction options. It must not implement Gateway run lifecycle,
 queue mutation, stream parsing, model preflight decisions, or notification
 delivery behavior.
 
+`runtime-config-effective-service.js` owns runtime-config default/effective
+value resolution for Hermes Gateway URL, Web Push subject, and Web Push VAPID
+path: option-function fallback, trailing-slash trimming, path resolution, and
+`load()` fallback when no config is passed. `runtime-config-provider.js` keeps
+persisted config load/write and must not inline effective/default value helper
+functions.
+
 `runtime-config-public-projection-service.js` owns runtime-config public
 projection for Owner settings: Gateway URL/key status metadata, model catalog
 fields, Gateway worker runtime settings projection, Web Push status metadata,
 and update metadata. `runtime-config-provider.js` remains the persistence,
-validation, effective-value, Gateway worker setting composition, and key-service
-delegation provider; it must not inline public projection object construction.
+validation, Gateway worker setting composition, effective-service delegation,
+and key-service delegation provider; it must not inline public projection object
+construction.
 
 `runtime-config-key-service.js` owns runtime-config API key discovery and
 status projection: direct environment variables, configured key files,
@@ -463,10 +472,14 @@ Current CI guardrails:
   lines and remain a facade over lazy Directory browser boundary construction,
   file/artifact resolver delegation, file response delegation, and bounded
   Directory-thread request fallback wiring;
-- `runtime-config-provider.js` must stay at or below 300 lines and remain a
-  persistence, validation, effective-value, Gateway worker setting composition,
-  and key-service delegation provider, not a public projection object builder,
-  save input-normalization module, or API key file/env-file parser;
+- `runtime-config-provider.js` must stay at or below 280 lines and remain a
+  persistence, validation, Gateway worker setting composition,
+  effective-service delegation, and key-service delegation provider, not a
+  public projection object builder, save input-normalization module, effective
+  value helper module, or API key file/env-file parser;
+- `runtime-config-effective-service.js` must stay at or below 65 lines and
+  remain runtime-config default/effective value resolution, not a persistence,
+  public projection, key discovery, save normalization, or route module;
 - `runtime-config-key-service.js` must stay at or below 115 lines and remain
   runtime-config API key discovery and non-secret status projection, not a
   persistence, public projection, save normalization, or route module;

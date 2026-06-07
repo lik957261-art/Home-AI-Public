@@ -203,6 +203,11 @@ statements. Priority extraction areas:
   now delegates direct env, key-file, env-file, unreadable file fallback, and
   non-secret source metadata handling while retaining persisted config storage
   and injected default path lists.
+- completed 2026-06-08: Runtime config default/effective value resolution moved
+  into `adapters/runtime-config-effective-service.js`. The provider now delegates
+  Hermes Gateway URL, Web Push subject, and Web Push VAPID effective/default
+  helpers while retaining persistence, validation, Gateway worker setting
+  composition, and path/env list injection.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;
