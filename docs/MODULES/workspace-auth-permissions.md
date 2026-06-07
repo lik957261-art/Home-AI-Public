@@ -69,6 +69,18 @@ Related route/provider boundaries:
   remove cookie auth without first preserving embedded plugin iframe/proxy
   requests, because iframe navigations and static resource loads cannot attach
   the `X-Hermes-Web-Key` header.
+- Home AI browser/workspace Access Keys are independent from plugin workspace
+  credentials. Rotating or regenerating a Home AI workspace key must update only
+  the Home AI access-key hash store and must not modify
+  `plugin-workspace-authorizations.json`, `.hermes-*/access-key.txt`, or
+  `.hermes-*/config.json`. Existing plugin grants must remain authorized and
+  active unless the Owner explicitly grants, retries provisioning, revokes, or
+  repairs that plugin.
+- If a user reports a plugin problem immediately after regenerating a Home AI
+  Access Key, first prove whether the plugin binding already had
+  `provisioning_failed` or a plugin-side token mismatch. Do not assume Home AI
+  key rotation requires re-binding every plugin; that would couple unrelated
+  credential domains and can break migrated plugin data.
 
 ## Validation
 
@@ -76,6 +88,8 @@ Related route/provider boundaries:
 - Permission-sensitive route tests should include spoofed `workspaceId` / `actorWorkspaceId` requests.
 - Auth tests should cover URL query-key denial when the public deployment toggle
   is enabled.
+- Auth tests must cover that workspace key rotation leaves plugin authorization
+  and plugin-local key/config files unchanged.
 - Run `node tests\architecture-refactor-boundary.test.js` when changing auth composition or route wiring.
 - Use metadata-only verification for production auth checks; do not print raw keys.
 

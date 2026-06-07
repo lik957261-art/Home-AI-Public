@@ -147,6 +147,26 @@ a nonblank proxied entry response, and a positive bounded bootstrap
 `item_count` for the launched workspace. This smoke prints only metadata; it
 must not print raw keys, launch tokens, or item details.
 
+If a non-Owner workspace shows `workspace_provisioning_failed` with
+`wardrobe_registration_failed_409`, distinguish Skill-store failure from
+Wardrobe token binding failure before retrying broadly. A common migrated-state
+failure is:
+
+- the Hermes workspace-local `.hermes-wardrobe/access-key.txt` still matches an
+  existing Wardrobe `api_tokens` row for the human Wardrobe owner;
+- the canonical `hermes_plugin_workspaces.workspace_id` such as
+  `wardrobe:weixin_wuping` points at a different token id or owner;
+- direct Wardrobe launch returns `workspace_token_mismatch`;
+- Hermes authorization remains `provisioning_failed`, so the plugin manager
+  shows a problem state and Home AI hides or disables the plugin entry.
+
+The safe repair order is: back up Wardrobe `wardrobe.db` and
+`plugin-workspace-authorizations.json`, verify the current workspace key hash
+against Wardrobe `api_tokens`, point the canonical Wardrobe workspace row to
+the matching token id and owner, mark the Hermes authorization record active,
+then rerun the Mac Wardrobe binding smoke. Do not rotate or print the raw key
+unless the existing key cannot be matched to any enabled Wardrobe token.
+
 The same binding class can recur in local Windows production after a one-time
 Mac/NAS/Windows data migration. Use the same checked smoke with Windows paths:
 

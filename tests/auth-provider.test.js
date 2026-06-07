@@ -85,6 +85,46 @@ function testWorkspaceKeyRotationAndScopedAuth() {
   assert.equal(provider.authenticateRequest(reqWithKey(rotated.key)).ok, false);
 }
 
+function testWorkspaceKeyRotationDoesNotTouchPluginBindings() {
+  const { provider, tempDir } = makeProvider({ envKey: "owner-key" });
+  const pluginAuthPath = path.join(tempDir, "plugin-workspace-authorizations.json");
+  const pluginConfigPath = path.join(tempDir, "drive", "users", "workspace_a", ".hermes-wardrobe", "config.json");
+  const pluginKeyPath = path.join(tempDir, "drive", "users", "workspace_a", ".hermes-wardrobe", "access-key.txt");
+  fs.mkdirSync(path.dirname(pluginConfigPath), { recursive: true });
+  fs.writeFileSync(pluginAuthPath, JSON.stringify({
+    version: 1,
+    plugins: {
+      wardrobe: {
+        records: {
+          workspace_a: {
+            workspaceId: "workspace_a",
+            status: "authorized",
+            provisioningStatus: "active",
+            provisioningError: "",
+          },
+        },
+      },
+    },
+  }, null, 2), "utf8");
+  fs.writeFileSync(pluginConfigPath, JSON.stringify({
+    workspace_id: "wardrobe:workspace_a",
+    hermes_workspace_id: "workspace_a",
+    access_key_file: ".hermes-wardrobe/access-key.txt",
+  }, null, 2), "utf8");
+  fs.writeFileSync(pluginKeyPath, "wd_live_existing_plugin_key\n", "utf8");
+
+  const before = {
+    auth: fs.readFileSync(pluginAuthPath, "utf8"),
+    config: fs.readFileSync(pluginConfigPath, "utf8"),
+    key: fs.readFileSync(pluginKeyPath, "utf8"),
+  };
+  const rotated = provider.rotateWorkspaceAccessKey("workspace_a", { actor: "owner" });
+  assert.match(rotated.key, /^hwk_/);
+  assert.equal(fs.readFileSync(pluginAuthPath, "utf8"), before.auth);
+  assert.equal(fs.readFileSync(pluginConfigPath, "utf8"), before.config);
+  assert.equal(fs.readFileSync(pluginKeyPath, "utf8"), before.key);
+}
+
 function testWorkspaceAuthCanCarryAccessibleWorkspaceIds() {
   const { provider } = makeProvider({ envKey: "owner-key" });
   const workspace = provider.rotateWorkspaceAccessKey("workspace_a", { actor: "owner" });
@@ -128,6 +168,7 @@ function testGlobalRotationEnvGuardAndDisabledAuth() {
 
 testFirstRunOwnerSetupAndOwnerAuth();
 testWorkspaceKeyRotationAndScopedAuth();
+testWorkspaceKeyRotationDoesNotTouchPluginBindings();
 testWorkspaceAuthCanCarryAccessibleWorkspaceIds();
 testQueryAccessKeyCanBeDisabled();
 testGlobalRotationEnvGuardAndDisabledAuth();
