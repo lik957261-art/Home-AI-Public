@@ -271,7 +271,7 @@ function updateMobileBottomNavReservation() {
   const rectHeight = Math.ceil(rect?.height || 0);
   const contentHeight = Math.ceil(nav.scrollHeight || 0);
   const viewportHeight = Math.ceil(window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0);
-  const comfortInset = 8;
+  const comfortInset = 6;
   const navBottomOverflow = rect && viewportHeight ? Math.ceil(Math.max(0, rect.bottom - viewportHeight)) : 0;
   const navBottom = navBottomOverflow + comfortInset;
   const visibleOffset = rect && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - rect.top)) : rectHeight;

@@ -55,7 +55,7 @@
   --mobile-bottom-nav-content-safe-area: max(0px, min(var(--mobile-bottom-safe-area), 3px));
   --mobile-bottom-nav-height: 58px;
   --mobile-bottom-nav-visual-drop: 10px;
-  --mobile-bottom-nav-comfort-inset: 8px;
+  --mobile-bottom-nav-comfort-inset: 6px;
   --plugin-context-bottom-nav-height: 54px;
   --mobile-bottom-nav-bottom: var(--mobile-bottom-nav-bottom-runtime, 0px);
   --mobile-bottom-nav-offset-height: var(--mobile-bottom-nav-offset-height-runtime, var(--mobile-bottom-nav-height));
@@ -15818,7 +15818,7 @@ body.task-markdown-preview-open {
   }
 
   .bottom-nav .bottom-tab {
-    transform: translateY(-2px);
+    transform: translateY(-4px);
   }
 
   .bottom-nav.bottom-nav-count-1 {

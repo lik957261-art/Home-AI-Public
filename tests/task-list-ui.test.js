@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260607-mobile-bottom-comfort-v604";
+const CLIENT_VERSION = "20260607-bottom-nav-content-lift-v605";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -192,8 +192,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260607-mobile-bottom-comfort-v604" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260607-mobile-bottom-comfort-v604"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260607-bottom-nav-content-lift-v605" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260607-bottom-nav-content-lift-v605"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2306,7 +2306,7 @@ assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bo
 assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bottom\), 8px\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-content-safe-area: max\(0px, min\(var\(--mobile-bottom-safe-area\), 3px\)\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-height: 58px/);
-assert.match(stylesCss, /--mobile-bottom-nav-comfort-inset: 8px/);
+assert.match(stylesCss, /--mobile-bottom-nav-comfort-inset: 6px/);
 assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?z-index: 40;[\s\S]*?--bottom-nav-column-min: 48px;[\s\S]*?grid-template-columns: repeat\(5, minmax\(var\(--bottom-nav-column-min\), 1fr\)\);[\s\S]*?padding: 4px env\(safe-area-inset-right\) calc\(6px \+ var\(--mobile-bottom-nav-content-safe-area\)\) env\(safe-area-inset-left\);[\s\S]*?overflow-x: hidden;/);
 assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?bottom: var\(--mobile-bottom-nav-bottom\);/);
 assert.match(stylesCss, /\.bottom-nav::-webkit-scrollbar \{[\s\S]*?display: none;/);
@@ -2364,10 +2364,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260607-mobile-bottom-comfort-v604/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260607-mobile-bottom-comfort-v604/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260607-mobile-bottom-comfort-v604/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260607-mobile-bottom-comfort-v604/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260607-bottom-nav-content-lift-v605/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260607-bottom-nav-content-lift-v605/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260607-bottom-nav-content-lift-v605/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260607-bottom-nav-content-lift-v605/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2867,7 +2867,7 @@ assert.match(stylesCss, /calc\(var\(--mobile-bottom-nav-height\) \+ 10px\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-visual-drop: 10px/);
 assert.match(stylesCss, /\.app\.main-back-visible \{[\s\S]*?padding-bottom: 0/);
 assert.match(stylesCss, /\.main-back-visible \.bottom-nav \{[\s\S]*?display: none/);
-assert.match(stylesCss, /\.bottom-nav \.bottom-tab \{[\s\S]*?transform: translateY\(-2px\);/);
+assert.match(stylesCss, /\.bottom-nav \.bottom-tab \{[\s\S]*?transform: translateY\(-4px\);/);
 assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?bottom: var\(--mobile-bottom-nav-bottom\);/);
 assert.match(stylesCss, /\.topbar \{[\s\S]*?min-height: calc\(44px \+ env\(safe-area-inset-top\)\)/);
 assert.match(stylesCss, /\.preflight-mobile-browser-shell::before \{[\s\S]*?height: env\(safe-area-inset-top\);[\s\S]*?background: var\(--ui-status-bar\);/);
@@ -2881,7 +2881,7 @@ assert.doesNotMatch(stylesCss, /:root\[data-font-size\] \.bottom-nav \{[\s\S]*?m
 assert.match(stylesCss, /:root\[data-font-size\] \.bottom-nav \{[\s\S]*?min-height: var\(--mobile-bottom-nav-height\);/);
 assert.doesNotMatch(appJs, /function isMobileLandscapeCompactLayout\(\)/);
 assert.doesNotMatch(appJs, /window\.matchMedia\("\(max-width: 1099px\) and \(orientation: landscape\) and \(max-height: 620px\)"\)/);
-assert.match(appJs, /const comfortInset = 8/);
+assert.match(appJs, /const comfortInset = 6/);
 assert.match(appJs, /const navBottom = navBottomOverflow \+ comfortInset/);
 assert.match(appJs, /root\.style\.setProperty\("--mobile-bottom-nav-bottom-runtime", `\$\{navBottom\}px`\)/);
 assert.match(appJs, /root\.style\.setProperty\("--mobile-bottom-nav-offset-height-runtime", `\$\{offset\}px`\)/);
