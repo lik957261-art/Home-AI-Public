@@ -93,6 +93,10 @@ statements. Priority extraction areas:
   wrappers were reduced to provider delegates. `mobile-server-runtime.js` now
   has no async top-level function declarations; Automation behavior remains in
   `adapters/automation-provider.js`.
+- completed 2026-06-08: runtime thread state access now instantiates
+  `createRuntimeStateThreadService` directly after state facade setup and keeps
+  `getRuntimeStateThreadService` as a compatibility delegate instead of a lazy
+  top-level factory function.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

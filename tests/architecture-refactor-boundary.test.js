@@ -922,6 +922,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.doesNotMatch(server, /^function scopedPushWorkspaceIds/gm);
   assert.doesNotMatch(server, /getRuntimeStateNormalizationService\(\)\.normalizeState/);
   assert.match(server, /createRuntimeStateThreadService/);
+  assert.match(server, /const runtimeStateThreadService = createRuntimeStateThreadService/);
+  assert.match(server, /const getRuntimeStateThreadService = \(\) => runtimeStateThreadService/);
+  assert.doesNotMatch(server, /^function getRuntimeStateThreadService/gm);
   assert.match(threadFacade, /getRuntimeStateThreadService\(\)\.findThreadForRequest/);
   assert.match(fileAccessFacade, /createDirectoryBrowserBoundaryService/);
   assert.doesNotMatch(server, /createDirectoryBrowserBoundaryService/);
@@ -1085,8 +1088,8 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
-  assert.match(doc, /1,300 lines/);
-  assert.match(doc, /6/);
+  assert.match(doc, /1,295 lines/);
+  assert.match(doc, /top-level `function` declarations in `mobile-server-runtime\.js` must stay at or below 5/);
   assert.match(doc, /async top-level `function` declarations in `mobile-server-runtime\.js` must stay at 0/);
   assert.match(doc, /mobile-runtime-access-policy-facade-service\.js` must stay at or below 35\s+lines/);
   assert.match(doc, /mobile-runtime-auth-facade-service\.js` must stay at or below 40\s+lines/);
@@ -1219,8 +1222,8 @@ function testServiceFirstArchitectureContract() {
   const weixinFacadeLineCount = weixinFacade.split(/\r?\n/).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 1300, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1300`);
-  assert.ok(runtimeTopLevelFunctionCount <= 6, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 6`);
+  assert.ok(runtimeLineCount <= 1295, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1295`);
+  assert.ok(runtimeTopLevelFunctionCount <= 5, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 5`);
   assert.ok(runtimeAsyncTopLevelFunctionCount === 0, `mobile-server-runtime.js async top-level function budget exceeded: ${runtimeAsyncTopLevelFunctionCount} > 0`);
   assert.ok(appRouteUrlLineCount <= 35, `app-route-url-service.js line budget exceeded: ${appRouteUrlLineCount} > 35`);
   assert.ok(automationJobFilterLineCount <= 45, `automation-job-filter-service.js line budget exceeded: ${automationJobFilterLineCount} > 45`);

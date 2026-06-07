@@ -244,7 +244,6 @@ let state = null;
 let singleWindowThreadService = null;
 let semanticDirectoryAttachmentService = null;
 let mobileRuntimeThreadViewFacadeService = null;
-let runtimeStateThreadService = null;
 let webPushDeliveryService = null;
 const mobileRuntimeAuthFacadeService = createMobileRuntimeAuthFacadeService({
   authProvider: () => authProvider,
@@ -371,6 +370,15 @@ const {
   pushSubscriptionScopeSignature,
 } = mobileRuntimeStateFacadeService;
 const saveState = (next = state, options = {}) => mobileRuntimeStateFacadeService.saveState(next, options);
+const runtimeStateThreadService = createRuntimeStateThreadService({
+  authenticateRequest,
+  authCanAccessWorkspace,
+  chatGroupMemberWorkspaceIds,
+  groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+  saveState,
+  state: () => state,
+});
+const getRuntimeStateThreadService = () => runtimeStateThreadService;
 let mobileRuntimePathAccessService = null;
 function getMobileRuntimePathAccessService() {
   if (!mobileRuntimePathAccessService) {
@@ -848,19 +856,6 @@ const consumeOwnerElevationOnce = (...args) => mobileRuntimeOwnerElevationFacade
 const publicOwnerElevationStatus = (...args) => mobileRuntimeOwnerElevationFacadeService.publicOwnerElevationStatus(...args);
 const grantOwnerElevation = (...args) => mobileRuntimeOwnerElevationFacadeService.grantOwnerElevation(...args);
 const revokeOwnerElevation = (...args) => mobileRuntimeOwnerElevationFacadeService.revokeOwnerElevation(...args);
-function getRuntimeStateThreadService() {
-  if (!runtimeStateThreadService) {
-    runtimeStateThreadService = createRuntimeStateThreadService({
-      authenticateRequest,
-      authCanAccessWorkspace,
-      chatGroupMemberWorkspaceIds,
-      groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
-      saveState,
-      state: () => state,
-    });
-  }
-  return runtimeStateThreadService;
-}
 const pushWorkspaceForAuth = (...args) => mobileRuntimeWorkspaceFacadeService.pushWorkspaceForAuth(...args);
 const getWorkspacePublicProjectionService = (...args) => mobileRuntimeWorkspaceFacadeService.getWorkspacePublicProjectionService(...args);
 const publicWorkspacesForAuth = (...args) => mobileRuntimeWorkspaceFacadeService.publicWorkspacesForAuth(...args);
