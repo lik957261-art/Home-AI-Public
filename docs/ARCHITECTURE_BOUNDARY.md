@@ -107,7 +107,7 @@ Weixin runtime composition delegation, workspace identity fallback delegation,
 local workspace store/projection, workspace access/auth gate, access-key
 operation, sender label, and principal-to-workspace lazy
 delegation, workspace catalog lazy
-delegation, and process HTTP lifecycle wiring
+delegation, and HTTP request/response primitive plus process lifecycle wiring
 addressable through CodeGraph without loading the full runtime root.
 
 `mobile-runtime-artifact-facade-service.js` is only a runtime wiring facade. It
@@ -202,8 +202,8 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,475 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 67;
+- `mobile-server-runtime.js` must stay at or below 1,470 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 62;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
 - `automation-job-filter-service.js` must stay at or below 45 lines and remain

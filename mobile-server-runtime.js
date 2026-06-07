@@ -166,6 +166,11 @@ const httpRuntimeService = createMobileHttpRuntimeService({
   mimeByExt: MIME_BY_EXT,
   publicRoot: PUBLIC_ROOT,
 });
+const getUrl = (...args) => httpRuntimeService.getUrl(...args);
+const requestClientVersion = (...args) => httpRuntimeService.requestClientVersion(...args);
+const attachClientVersionHeaders = (...args) => httpRuntimeService.attachClientVersionHeaders(...args);
+const sendJson = (...args) => httpRuntimeService.sendJson(...args);
+const readBody = (...args) => httpRuntimeService.readBody(...args);
 const {
   contentDisposition,
   extractDocxText,
@@ -724,7 +729,6 @@ function ownerSetupStatus() {
 function createInitialOwnerKey() {
   return authProvider.createInitialOwnerKey();
 }
-function getUrl(req) { return httpRuntimeService.getUrl(req); }
 mobileRuntimeWorkspaceFacadeService = createMobileRuntimeWorkspaceFacadeService({
   authProvider,
   clearDynamicProjectCache: (workspaceId) => getRuntimeWorkspaceCatalogService().clearDynamicProjectCache(workspaceId),
@@ -869,10 +873,6 @@ function normalizeChatGroup(value, ownerWorkspaceId = "owner", options = {}) {
 function saveState(next = state, options = {}) {
   return mobileRuntimeStateFacadeService.saveState(next, options);
 }
-function requestClientVersion(req) { return httpRuntimeService.requestClientVersion(req); }
-function attachClientVersionHeaders(req, res) { return httpRuntimeService.attachClientVersionHeaders(req, res); }
-function sendJson(res, status, data) { return httpRuntimeService.sendJson(res, status, data); }
-function readBody(req, maxBytes = MAX_BODY_BYTES) { return httpRuntimeService.readBody(req, maxBytes); }
 function windowsPathToWsl(value) { return filesystemMountProvider.windowsPathToWsl(value); }
 function mobileSqliteStore() {
   if (!sqliteServiceStore) {

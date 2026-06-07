@@ -559,6 +559,12 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.doesNotMatch(server, /^function cronJobMatchesSearch/gm);
   assert.doesNotMatch(server, /^function cronJobMatchesOwner/gm);
   assert.doesNotMatch(server, /^function clearCronListCache/gm);
+  assert.match(server, /createMobileHttpRuntimeService/);
+  assert.doesNotMatch(server, /^function getUrl/gm);
+  assert.doesNotMatch(server, /^function requestClientVersion/gm);
+  assert.doesNotMatch(server, /^function attachClientVersionHeaders/gm);
+  assert.doesNotMatch(server, /^function sendJson/gm);
+  assert.doesNotMatch(server, /^function readBody/gm);
   assert.match(server, /createMobileRuntimeConfigFacadeService/);
   assert.match(configFacade, /publicRuntimeConfig/);
   assert.doesNotMatch(server, /function publicRuntimeConfig/);
@@ -920,8 +926,8 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
-  assert.match(doc, /1,475 lines/);
-  assert.match(doc, /67/);
+  assert.match(doc, /1,470 lines/);
+  assert.match(doc, /62/);
   assert.match(doc, /app-route-url-service\.js` must stay at or below 35 lines/);
   assert.match(doc, /automation-job-filter-service\.js` must stay at or below 45 lines/);
   assert.match(doc, /mobile-runtime-basic-helper-service\.js` must stay at or below 85 lines/);
@@ -1017,8 +1023,8 @@ function testServiceFirstArchitectureContract() {
   const workspaceFacadeLineCount = workspaceFacade.split(/\r?\n/).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 1475, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1475`);
-  assert.ok(runtimeTopLevelFunctionCount <= 67, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 67`);
+  assert.ok(runtimeLineCount <= 1470, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1470`);
+  assert.ok(runtimeTopLevelFunctionCount <= 62, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 62`);
   assert.ok(appRouteUrlLineCount <= 35, `app-route-url-service.js line budget exceeded: ${appRouteUrlLineCount} > 35`);
   assert.ok(automationJobFilterLineCount <= 45, `automation-job-filter-service.js line budget exceeded: ${automationJobFilterLineCount} > 45`);
   assert.ok(basicHelperLineCount <= 85, `mobile-runtime-basic-helper-service.js line budget exceeded: ${basicHelperLineCount} > 85`);
