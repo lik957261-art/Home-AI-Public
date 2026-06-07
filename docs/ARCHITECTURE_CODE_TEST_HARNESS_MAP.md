@@ -27,6 +27,9 @@ harnesses should move together.
 - Runtime-config model catalog and selection changes move with
   `adapters/runtime-config-model-service.js` and
   `tests/runtime-config-model-service.test.js`.
+- Gateway run-start target selection and post-selection projection changes move
+  with `adapters/gateway-run-start-target-service.js` and
+  `tests/gateway-run-start-target-service.test.js`.
 
 ## Harness Classes
 

@@ -177,6 +177,12 @@ statements. Priority extraction areas:
   start service now delegates selector fallback restoration and bounded
   escalation-instruction insertion while leaving model selection decisions in
   `adapters/gateway-run-model-toolset-selection-service.js`.
+- completed 2026-06-08: Gateway run-start target selection and post-selection
+  projection moved into `adapters/gateway-run-start-target-service.js`. The
+  start service now delegates scheduler event handoff, started-state target
+  metadata projection, context-ready/gateway-selected event projection, and
+  plugin capability probe precondition checks while retaining overall run
+  preparation orchestration.
 - completed 2026-06-08: Runtime Gateway concurrency projection moved into
   `adapters/mobile-runtime-gateway-concurrency-service.js`. The Gateway facade
   now delegates active-run snapshot, per-workspace limit-error projection, and

@@ -17,6 +17,7 @@ const {
   isChatGptProRunOptions,
 } = require("./gateway-run-start-stream-options-service");
 const { createGatewayRunStartStateService } = require("./gateway-run-start-state-service");
+const { createGatewayRunStartTargetService } = require("./gateway-run-start-target-service");
 const { createGatewayRunStartToolsetSelectionService } = require("./gateway-run-start-toolset-selection-service");
 const { createGatewayRunStartWardrobeGateService } = require("./gateway-run-start-wardrobe-gate-service");
 
@@ -156,6 +157,19 @@ function createGatewayRunStartService(options = {}) {
   const toolsetSelectionService = options.toolsetSelectionService || createGatewayRunStartToolsetSelectionService({ dedupe });
   const appendToolsetEscalationInstructions = (...args) => toolsetSelectionService.appendToolsetEscalationInstructions(...args);
   const restoreAuthorizedToolsetsForSelectionFallback = (...args) => toolsetSelectionService.restoreAuthorizedToolsetsForSelectionFallback(...args);
+  const targetService = options.targetService || createGatewayRunStartTargetService({
+    appendGatewaySchedulerEvent,
+    appendRunStartEvent,
+    applyStartedRunState,
+    broadcastMessageUpdated,
+    chooseGatewayRunTarget,
+    contextReadyPreview,
+    gatewaySelectedPreview,
+    saveState,
+  });
+  const selectGatewayRunTarget = (...args) => targetService.selectGatewayRunTarget(...args);
+  const applyGatewayTargetStart = (...args) => targetService.applyGatewayTargetStart(...args);
+  const projectGatewayTargetReadyEvents = (...args) => targetService.projectGatewayTargetReadyEvents(...args);
 
   function completeModelPermissionRequest(thread, assistantMessage, taskId, selection = {}) {
     const completedAt = nowIso();
@@ -199,35 +213,16 @@ function createGatewayRunStartService(options = {}) {
       return completeWardrobeWorkflowGateFailure(thread, assistantMessage, taskId, wardrobeGate);
     }
 
-    const gatewayTarget = await chooseGatewayRunTarget(request.gatewayRouting, {
-      runId: taskId,
-      onEvent: (event) => appendGatewaySchedulerEvent(thread, taskId, event),
-    });
+    const gatewayTarget = await selectGatewayRunTarget(request, taskId, thread);
     wardrobeGate = evaluateWardrobeGate(request, userMessage, "gateway_selected", gatewayTarget);
     applyWardrobeWorkflowGateMetadata(assistantMessage, wardrobeGate);
     if (wardrobeGate.active && !wardrobeGate.ok) {
       return completeWardrobeWorkflowGateFailure(thread, assistantMessage, taskId, wardrobeGate);
     }
-    const { gatewayUrl } = applyStartedRunState(thread, assistantMessage, taskId, gatewayTarget, nowIso());
-    assistantMessage.model = cleanString(request.body.model || request.gatewayRouting.model || gatewayTarget?.model || gatewayTarget?.defaultModel);
-    assistantMessage.modelProvider = cleanString(request.body.provider || request.gatewayRouting.provider || gatewayTarget?.provider);
-    if (!assistantMessage.reasoningEffort) {
-      assistantMessage.reasoningEffort = cleanString(request.body.reasoning_effort || request.gatewayRouting.reasoning_effort);
-    }
-    saveState();
-    broadcastMessageUpdated(thread, assistantMessage);
-    const probeRequests = Array.isArray(request.pluginCapabilityContext?.probeRequests)
-      ? request.pluginCapabilityContext.probeRequests
-      : [];
-    const hasGatewayToolsetMetadata = Array.isArray(gatewayTarget?.toolsets)
-      || Array.isArray(gatewayTarget?.enabledToolsets)
-      || Array.isArray(gatewayTarget?.enabled_toolsets);
-    const shouldProbePluginCapabilities = probeRequests.length
-      && (typeof options.probePluginCapabilities === "function" || hasGatewayToolsetMetadata);
-    if (!shouldProbePluginCapabilities) {
-      appendRunStartEvent(thread, assistantMessage, "run.context_ready", contextReadyPreview(request));
-    }
-    appendRunStartEvent(thread, assistantMessage, "run.gateway_selected", gatewaySelectedPreview(gatewayTarget, request));
+    const { gatewayUrl } = applyGatewayTargetStart(thread, assistantMessage, taskId, request, gatewayTarget, nowIso());
+    const { probeRequests, shouldProbePluginCapabilities } = projectGatewayTargetReadyEvents(thread, assistantMessage, request, gatewayTarget, {
+      probeOverridePresent: typeof options.probePluginCapabilities === "function",
+    });
     if (shouldProbePluginCapabilities) {
       const probeResult = await probePluginCapabilities({
         requests: probeRequests,
