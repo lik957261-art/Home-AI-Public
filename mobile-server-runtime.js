@@ -6,8 +6,6 @@ const os = require("node:os");
 const crypto = require("node:crypto");
 const { spawn, spawnSync } = require("node:child_process");
 const webpush = require("web-push");
-const assessmentExamService = require("./adapters/assessment-exam-service");
-const { assessmentConfigLine, createAssessmentExamWorkflowService } = require("./adapters/assessment-exam-workflow-service");
 const studyAssessmentService = require("./adapters/study-assessment-service");
 const { createConversationHistoryService } = require("./adapters/conversation-history-service"); const { createTopicContextCompactionService } = require("./adapters/topic-context-compaction-service");
 const { createDocumentPreviewService } = require("./adapters/document-preview-service");
@@ -23,6 +21,7 @@ const { gatewayPoolStatusHealthy } = require("./adapters/gateway-status-projecti
 const { createMobileRuntimeArtifactFacadeService } = require("./adapters/mobile-runtime-artifact-facade-service");
 const { createMobileRuntimeGatewayFacadeService } = require("./adapters/mobile-runtime-gateway-facade-service");
 const { createMobileRuntimeGroupChatAttachmentService } = require("./adapters/mobile-runtime-group-chat-attachment-service");
+const { createMobileRuntimeKanbanFacadeService } = require("./adapters/mobile-runtime-kanban-facade-service");
 const { createMobileRuntimeOwnerElevationFacadeService } = require("./adapters/mobile-runtime-owner-elevation-facade-service");
 const { createRuntimeStatePersistenceService } = require("./adapters/runtime-state-persistence-service");
 const {
@@ -32,11 +31,8 @@ const {
 } = require("./adapters/runtime-state-normalization-service");
 const { createKanbanCardProvider } = require("./adapters/kanban-card-provider");
 const { createRuntimeStateThreadService } = require("./adapters/runtime-state-thread-service");
-const { createKanbanCaseTopicService } = require("./adapters/kanban-case-topic-service");
 const { createKanbanExecutableProfileService } = require("./adapters/kanban-executable-profile-service");
 const { createKanbanOutputAccessService } = require("./adapters/kanban-output-access-service");
-const { createKanbanOutputProjectionService } = require("./adapters/kanban-output-projection-service");
-const { createKanbanPlanCardCreationService } = require("./adapters/kanban-plan-card-creation-service");
 const { createKanbanRuntimeServices } = require("./adapters/kanban-runtime-services");
 const { createLearningCoinAwardService } = require("./adapters/learning-coin-award-service");
 const {
@@ -69,13 +65,11 @@ const { createSingleWindowThreadService } = require("./adapters/single-window-th
 const {
   createSystemRuntimeStatusService,
 } = require("./adapters/system-runtime-status-service");
-const { deriveKanbanWorkflowState } = require("./adapters/study-workflow-provider");
 const { createSkillDetailProvider } = require("./adapters/skill-detail-provider"); const { createPluginRequiredSkillPreloadService } = require("./adapters/plugin-required-skill-preload-service"); const { createPluginCapabilityActivationService } = require("./adapters/plugin-capability-activation-service");
 const { buildRequestContext } = require("./adapters/request-context-provider");
 const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindings-provider");
 const { createWorkspaceDisplayPathService } = require("./adapters/workspace-display-path-service");
 const { createTodoProvider } = require("./adapters/todo-provider");
-const { createTodoPublicProjectionService } = require("./adapters/todo-public-projection-service");
 const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
 const { createWeixinRuntimeCompositionService } = require("./adapters/weixin-runtime-composition-service");
 const { createWebPushDeliveryService } = require("./adapters/web-push-delivery-service"); const { createActionInboxService } = require("./adapters/action-inbox-service");
@@ -187,20 +181,16 @@ const {
 let clients = new Set();
 let activeStreams = new Map();
 let gatewayRuntimeCompositionService = null;
-let assessmentExamWorkflowService = null;
 let directoryBrowserBoundaryService = null;
 let mobileRuntimeArtifactFacadeService = null;
+let mobileRuntimeKanbanFacadeService = null;
 let runtimeWorkspaceCatalogService = null;
 const sourceMarkdownSearchCache = new Map();
 let state = null;
 let sqliteServiceStore = null;
-let todoPublicProjectionService = null;
-let kanbanOutputProjectionService = null;
 let singleWindowThreadService = null;
 let semanticDirectoryAttachmentService = null;
 let mobileRuntimeThreadViewFacadeService = null;
-let kanbanCaseTopicService = null;
-let kanbanPlanCardCreationService = null;
 let runtimeStateThreadService = null;
 let webPushDeliveryService = null;
 const eventFanoutService = createEventFanoutService({
@@ -222,6 +212,13 @@ const threadViewFacade = () => {
 const threadViewMethod = (methodName) => (...args) => threadViewFacade()[methodName](...args);
 const threadViewDelegates = Object.fromEntries("threadSummary taskGroupsForThread messageOwnerWorkspaceId taskGroupOwnerWorkspaceId taskGroupTaskId taskGroupPrompt taskGroupTitle taskGroupPreview taskGroupStatus taskGroupHaystack textIncludesPath taskGroupMatchesProject singleWindowProjectTaskSummaries messagesForThreadMode messagePageTaskGroupId threadMessagesPage searchThreadMessages compactThread compactThreadWithMessagePage compactMessage compactEventPreview addThreadEvent".split(" ").map((methodName) => [methodName, threadViewMethod(methodName)]));
 const { threadSummary, taskGroupsForThread, messageOwnerWorkspaceId, taskGroupOwnerWorkspaceId, taskGroupTaskId, taskGroupPrompt, taskGroupTitle, taskGroupPreview, taskGroupStatus, taskGroupHaystack, textIncludesPath, taskGroupMatchesProject, singleWindowProjectTaskSummaries, messagesForThreadMode, messagePageTaskGroupId, threadMessagesPage, searchThreadMessages, compactThread, compactThreadWithMessagePage, compactMessage, compactEventPreview, addThreadEvent } = threadViewDelegates;
+const kanbanFacade = () => {
+  if (!mobileRuntimeKanbanFacadeService) throw new Error("Mobile runtime Kanban facade is not initialized");
+  return mobileRuntimeKanbanFacadeService;
+};
+const kanbanMethod = (methodName) => (...args) => kanbanFacade()[methodName](...args);
+const kanbanDelegates = Object.fromEntries("createKanbanPlanCards getAssessmentExamWorkflowService getKanbanCaseTopicService getKanbanPlanCardCreationService getKanbanOutputProjectionService getTodoPublicProjectionService isKanbanAssessmentCaseMode isKanbanStudyCaseMode kanbanCaseTopicPermissionsForTaskGroup kanbanCaseTopicTitle kanbanLearnerRootDirectory kanbanPlanCardDescription kanbanPlanDependencyLabelsForServer kanbanSingleCardCasePayload kanbanStableTextKey kanbanWorkflowStateCompleted maybeReconcileKanbanDependencyBlocks normalizeKanbanAssessmentSubjectId normalizeKanbanDraft normalizeKanbanMaxParallel normalizeKanbanNotificationAssignee normalizeKanbanPlan normalizeKanbanPlanReasoningEffort ensureKanbanCaseSharedDirectory ensureKanbanCaseTopicThread interpretKanbanNaturalLanguage planKanbanMultiAgent publicKanbanCardDetail publicKanbanCoverFile publicKanbanOutputFile publicKanbanOutputsFromText publicKanbanReadingSubmissionSummary publicTodo readKanbanCardListCache readingContextForCard resolveKanbanCardAccess scheduleKanbanDependencyReconcile writeKanbanCardListCache clearKanbanCardListCache".split(" ").map((methodName) => [methodName, kanbanMethod(methodName)]));
+const { createKanbanPlanCards, getAssessmentExamWorkflowService, getKanbanCaseTopicService, getKanbanPlanCardCreationService, getKanbanOutputProjectionService, getTodoPublicProjectionService, isKanbanAssessmentCaseMode, isKanbanStudyCaseMode, kanbanCaseTopicPermissionsForTaskGroup, kanbanCaseTopicTitle, kanbanLearnerRootDirectory, kanbanPlanCardDescription, kanbanPlanDependencyLabelsForServer, kanbanSingleCardCasePayload, kanbanStableTextKey, kanbanWorkflowStateCompleted, maybeReconcileKanbanDependencyBlocks, normalizeKanbanAssessmentSubjectId, normalizeKanbanDraft, normalizeKanbanMaxParallel, normalizeKanbanNotificationAssignee, normalizeKanbanPlan, normalizeKanbanPlanReasoningEffort, ensureKanbanCaseSharedDirectory, ensureKanbanCaseTopicThread, interpretKanbanNaturalLanguage, planKanbanMultiAgent, publicKanbanCardDetail, publicKanbanCoverFile, publicKanbanOutputFile, publicKanbanOutputsFromText, publicKanbanReadingSubmissionSummary, publicTodo, readKanbanCardListCache, readingContextForCard, resolveKanbanCardAccess, scheduleKanbanDependencyReconcile, writeKanbanCardListCache, clearKanbanCardListCache } = kanbanDelegates;
 const mobileRuntimeTodoFacadeService = createMobileRuntimeTodoFacadeService({
   findWorkspace: (...args) => findWorkspace(...args),
   loadCatalog: (...args) => loadCatalog(...args),
@@ -1010,64 +1007,6 @@ const kanbanCardProvider = createKanbanCardProvider({
   publicCard: publicTodo,
   sourceName: () => "hermes_kanban",
 });
-function isKanbanStudyCaseMode(mode) {
-  return KANBAN_STUDY_CASE_MODES.has(String(mode || "").trim());
-}
-function isKanbanAssessmentCaseMode(mode) {
-  return KANBAN_ASSESSMENT_CASE_MODES.has(String(mode || "").trim());
-}
-function kanbanCaseTopicPermissionsForTaskGroup(thread, taskGroupId, auth) {
-  if (!getSingleWindowThreadService().isKanbanCaseTopicThread(thread) || !taskGroupId) return null;
-  const meta = getRuntimeStateNormalizationService().normalizeTaskGroupMeta(thread.taskGroupMeta)[taskGroupId] || {};
-  const caseId = String(meta.kanbanCaseId || meta.kanban_case_id || "").trim();
-  const ownerWorkspaceId = String(meta.kanbanCaseOwnerWorkspaceId || meta.kanban_case_owner_workspace_id || thread.workspaceId || "owner").trim() || "owner";
-  if (!caseId) return null;
-  const role = kanbanCaseShareService.roleForAuth(auth, ownerWorkspaceId, caseId);
-  return kanbanCaseShareService.actorPermissions(role);
-}
-async function resolveKanbanCardAccess(req, res, workspaceId, cardId, capability = "view") {
-  const id = String(workspaceId || "owner").trim() || "owner";
-  if (!findWorkspace(id)) {
-    sendJson(res, 400, { error: "Unknown workspace" });
-    return null;
-  }
-  const auth = authenticateRequest(req);
-  if (authCanAccessWorkspace(auth, id)) return { workspaceId: id, auth, role: "manager", context: null, card: null };
-  const context = await readingContextForCard(id, cardId).catch(() => null);
-  const card = context?.current || null;
-  if (!card) {
-    sendJson(res, 404, { error: "Kanban card not found" });
-    return null;
-  }
-  const role = kanbanCaseShareService.roleForAuth(auth, id, card.kanbanCaseId);
-  if (!role || !kanbanCaseShareService.permissionAllows(role, capability)) {
-    sendJson(res, 403, { error: "Kanban card access is not allowed" });
-    return null;
-  }
-  return { workspaceId: id, auth, role, context, card };
-}
-function getTodoPublicProjectionService() {
-  if (!todoPublicProjectionService) {
-    todoPublicProjectionService = createTodoPublicProjectionService({
-      deriveKanbanWorkflowState,
-      isKanbanAssessmentCaseMode,
-      isKanbanStudyCaseMode,
-      kanbanCardEffectiveCaseIndex,
-      publicKanbanAssessmentSummary: (...args) => getAssessmentExamWorkflowService().publicKanbanAssessmentSummary(...args),
-      publicKanbanCoverFile,
-      publicKanbanOutputsFromText,
-      publicKanbanReadingSubmissionSummary,
-      visibleKanbanCaseCards,
-    });
-  }
-  return todoPublicProjectionService;
-}
-function kanbanWorkflowStateCompleted(state = {}, officialDone = false) {
-  return getTodoPublicProjectionService().kanbanWorkflowStateCompleted(state, officialDone);
-}
-function publicTodo(row, contextOrIndex = null, maybeRows = null) {
-  return getTodoPublicProjectionService().publicTodo(row, contextOrIndex, maybeRows);
-}
 const { kanbanAssigneePolicy, kanbanCaseShareService, kanbanMaintenanceService, kanbanPlanService,
   kanbanReadingWorkflowService, kanbanStudyArtifactService, learningCardGuidanceService, naturalLanguageDraftService } = createKanbanRuntimeServices({
   authCanAccessWorkspace, automationCreateModel: AUTOMATION_CREATE_MODEL, automationTimeoutMs: AUTOMATION_CREATE_TIMEOUT_MS,
@@ -1088,10 +1027,6 @@ const { kanbanAssigneePolicy, kanbanCaseShareService, kanbanMaintenanceService, 
   useSqliteServiceStore, validReasoningEfforts: VALID_REASONING_EFFORTS, visibleKanbanCaseCards, workspacePrincipal,
   writeJsonStore,
 });
-function normalizeKanbanNotificationAssignee(workspaceId, ...candidates) {
-  return kanbanAssigneePolicy.normalizeNotificationAssignee(workspaceId, ...candidates);
-}
-function readingContextForCard(...args) { return kanbanReadingWorkflowService.readingContextForCard(...args); }
 const kanbanOutputAccessService = createKanbanOutputAccessService({
   artifactRoot: KANBAN_READING_ARTIFACT_ROOT,
   authCanAccessWorkspace,
@@ -1108,45 +1043,64 @@ const kanbanOutputAccessThread = (...args) => kanbanOutputAccessService.accessTh
 const kanbanOutputCaseIdFromPath = (...args) => kanbanOutputAccessService.caseIdFromPath(...args);
 const authCanAccessKanbanOutput = (...args) => kanbanOutputAccessService.authCanAccess(...args);
 const resolveKanbanOutputFile = (...args) => kanbanOutputAccessService.resolveFile(...args);
-function getKanbanOutputProjectionService() {
-  if (!kanbanOutputProjectionService) {
-    kanbanOutputProjectionService = createKanbanOutputProjectionService({
-      compactText,
-      dateStringFromTaskLike,
-      extractArtifactPaths,
-      resolveKanbanOutputFile,
-    });
-  }
-  return kanbanOutputProjectionService;
-}
-function publicKanbanOutputFile(workspaceId, rawPath) {
-  return getKanbanOutputProjectionService().publicKanbanOutputFile(workspaceId, rawPath);
-}
-function publicKanbanCoverFile(workspaceId, rawCover) {
-  return getKanbanOutputProjectionService().publicKanbanCoverFile(workspaceId, rawCover);
-}
-function publicKanbanOutputsFromText(workspaceId, text) {
-  return getKanbanOutputProjectionService().publicKanbanOutputsFromText(workspaceId, text);
-}
-function publicKanbanReadingSubmissionSummary(workspaceId, card = {}) {
-  return kanbanStudyArtifactService.publicReadingSubmissionSummary(workspaceId, card);
-}
-function publicKanbanCardDetail(workspaceId, detail = {}) {
-  return getKanbanOutputProjectionService().publicKanbanCardDetail(workspaceId, detail);
-}
-function dateStringFromTaskLike(value) {
-  if (value === null || value === undefined || value === "") return "";
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const millis = value > 10_000_000_000 ? value : value * 1000;
-    const date = new Date(millis);
-    return Number.isNaN(date.getTime()) ? "" : date.toISOString();
-  }
-  const text = String(value || "").trim();
-  if (!text) return "";
-  if (/^\d+(?:\.\d+)?$/.test(text)) return dateStringFromTaskLike(Number(text));
-  const date = new Date(text);
-  return Number.isNaN(date.getTime()) ? text : date.toISOString();
-}
+mobileRuntimeKanbanFacadeService = createMobileRuntimeKanbanFacadeService({
+  authCanAccessWorkspace,
+  authenticateRequest,
+  automationCreateModel: AUTOMATION_CREATE_MODEL,
+  assessmentMaxQuestions: KANBAN_ASSESSMENT_MAX_QUESTIONS,
+  assessmentModelTimeoutMs: KANBAN_ASSESSMENT_MODEL_TIMEOUT_MS,
+  assessmentPlanMaxExams: KANBAN_ASSESSMENT_PLAN_MAX_EXAMS,
+  broadcast,
+  compactText,
+  comparablePath,
+  extractArtifactPaths,
+  extractJsonObject,
+  findWorkspace,
+  getDirectoryBrowserBoundaryService,
+  getRuntimeStateNormalizationService,
+  getSingleWindowThreadService,
+  hermesModelText,
+  kanbanAssigneePolicy,
+  kanbanAssessmentCaseModes: KANBAN_ASSESSMENT_CASE_MODES,
+  kanbanCardEffectiveCaseIndex,
+  kanbanCardProvider,
+  kanbanCardRevisionOf,
+  kanbanCaseShareService,
+  kanbanMaintenanceService,
+  kanbanOutputAccessService,
+  kanbanPlanService,
+  kanbanReadingWorkflowService,
+  kanbanStudyArtifactService,
+  kanbanStudyCaseModes: KANBAN_STUDY_CASE_MODES,
+  learningCoinAwardService,
+  logger: console,
+  makeId,
+  mkdirp: (targetPath) => fs.mkdirSync(targetPath, { recursive: true }),
+  naturalLanguageDraftService,
+  normalizeChatGroup,
+  normalizeLocalPath,
+  nowIso,
+  pathExists: (targetPath) => fs.existsSync(targetPath),
+  pathInsideAnyRoot,
+  randomHex: (bytes) => crypto.randomBytes(bytes).toString("hex"),
+  readingPlanMaxSessions: KANBAN_READING_PLAN_MAX_SESSIONS,
+  safeFileName,
+  sanitizePolicy,
+  saveState,
+  sendJson,
+  senderInfoForWorkspace,
+  sharedDirectoriesForWorkspace,
+  sharedFolderName: KANBAN_STUDY_SHARED_FOLDER_NAME,
+  state: () => state,
+  threadSummary,
+  todoAssigneeLabel,
+  topicKind: KANBAN_CASE_TOPIC_KIND,
+  upsertSharedDirectory,
+  verifyDirectTodoCreateResult,
+  visibleKanbanCaseCards,
+  workspaceDefaultRoot,
+  workspacePrincipal,
+});
 function boolParam(value) {
   return /^(1|true|yes|on)$/i.test(String(value || ""));
 }
@@ -1220,174 +1174,6 @@ function normalizeAutomationDraft(raw, sourceText) {
 }
 async function interpretAutomationNaturalLanguage(text, workspace, ownerPrincipalId) {
   return naturalLanguageDraftService.interpretAutomationNaturalLanguage(text, workspace, ownerPrincipalId);
-}
-function normalizeKanbanDraft(raw, sourceText, workspaceId) {
-  return naturalLanguageDraftService.normalizeKanbanDraft(raw, sourceText, workspaceId);
-}
-async function interpretKanbanNaturalLanguage(text, workspace, ownerPrincipalId) {
-  return naturalLanguageDraftService.interpretKanbanNaturalLanguage(text, workspace, ownerPrincipalId);
-}
-function normalizeKanbanMaxParallel(value) {
-  return kanbanPlanService.normalizeMaxParallel(value);
-}
-function normalizeKanbanPlanReasoningEffort(value) {
-  return kanbanPlanService.normalizeReasoningEffort(value);
-}
-function normalizeKanbanPlan(raw, sourceText, workspaceId, options = {}) {
-  return kanbanPlanService.normalizePlan(raw, sourceText, workspaceId, options);
-}
-async function planKanbanMultiAgent(text, workspace, ownerPrincipalId, options = {}) {
-  return naturalLanguageDraftService.planKanbanMultiAgent(text, workspace, ownerPrincipalId, options);
-}
-function kanbanPlanCardDescription(plan, card) {
-  return kanbanPlanService.cardDescription(plan, card);
-}
-function kanbanPlanDependencyLabelsForServer(plan, card) {
-  return kanbanPlanService.dependencyLabelsForServer(plan, card);
-}
-function kanbanSingleCardCasePayload(content, description = "", sourceText = "") {
-  return kanbanPlanService.singleCardCasePayload(content, description, sourceText);
-}
-function getKanbanPlanCardCreationService() {
-  if (!kanbanPlanCardCreationService) {
-    kanbanPlanCardCreationService = createKanbanPlanCardCreationService({
-      assessmentConfigLine,
-      compactText,
-      ensureKanbanCaseSharedDirectory,
-      ensureKanbanCaseTopicThread,
-      kanbanCardProvider,
-      kanbanCaseTopicTitle,
-      kanbanPlanCardDescription,
-      kanbanPlanDependencyLabelsForServer,
-      normalizeKanbanAssessmentPlan: (raw = {}, workspaceId = "owner", options = {}) => (
-        studyAssessmentService.normalizeKanbanAssessmentPlan(raw, workspaceId, Object.assign({}, options, {
-          assessmentMaxQuestions: KANBAN_ASSESSMENT_MAX_QUESTIONS,
-          assessmentPlanMaxExams: KANBAN_ASSESSMENT_PLAN_MAX_EXAMS,
-      normalizeWorkspaceIdList: (...args) => kanbanCaseShareService.normalizeWorkspaceIdList(...args),
-        }))
-      ),
-      normalizeKanbanMaxParallel,
-      normalizeKanbanNotificationAssignee,
-      normalizeKanbanPlan,
-      normalizeKanbanPlanReasoningEffort,
-      normalizeKanbanStudyPlan: (raw = {}, workspaceId = "owner") => (
-        studyAssessmentService.normalizeKanbanStudyPlan(raw, workspaceId, {
-          maxSessions: KANBAN_READING_PLAN_MAX_SESSIONS,
-          normalizeWorkspaceIdList: (...args) => kanbanCaseShareService.normalizeWorkspaceIdList(...args),
-        })
-      ),
-      publicKanbanCoverFile,
-      publicTodo,
-      saveKanbanReadingCoverUpload: (...args) => kanbanReadingWorkflowService.saveKanbanReadingCoverUpload(...args),
-      todoAssigneeLabel,
-      upsertKanbanCaseShare: (...args) => kanbanCaseShareService.upsertShare(...args),
-      verifyDirectTodoCreateResult,
-      workspacePrincipal,
-    });
-  }
-  return kanbanPlanCardCreationService;
-}
-async function createKanbanPlanCards(workspaceId, planInput, options = {}) {
-  return getKanbanPlanCardCreationService().createKanbanPlanCards(workspaceId, planInput, options);
-}
-function getKanbanCaseTopicService() {
-  if (!kanbanCaseTopicService) {
-    kanbanCaseTopicService = createKanbanCaseTopicService({
-      assertChildPathInside: (...args) => getDirectoryBrowserBoundaryService().assertChildPathInside(...args),
-      broadcast,
-      compactText,
-      comparablePath,
-      createSingleWindowThread: (...args) => getSingleWindowThreadService().createSingleWindowThread(...args),
-      getState: () => state,
-      isKanbanCaseTopicThread: (...args) => getSingleWindowThreadService().isKanbanCaseTopicThread(...args),
-      makeId,
-      mkdirp: (targetPath) => fs.mkdirSync(targetPath, { recursive: true }),
-      normalizeChatGroup,
-      normalizeLocalPath,
-      normalizeTaskGroupMeta: (...args) => getRuntimeStateNormalizationService().normalizeTaskGroupMeta(...args),
-      nowIso,
-      pathExists: (targetPath) => fs.existsSync(targetPath),
-      pathInsideAnyRoot,
-      readKanbanCaseShare: (...args) => kanbanCaseShareService.readShare(...args),
-      saveState,
-      senderInfoForWorkspace,
-      sharedDirectoriesForWorkspace,
-      sharedFolderName: KANBAN_STUDY_SHARED_FOLDER_NAME,
-      sortMessagesChronologically: (...args) => getSingleWindowThreadService().sortMessagesChronologically(...args),
-      threadSummary,
-      topicKind: KANBAN_CASE_TOPIC_KIND,
-      upsertSharedDirectory,
-      workspaceDefaultRoot,
-      workspacePrincipal,
-    });
-  }
-  return kanbanCaseTopicService;
-}
-function kanbanCaseTopicTitle(plan = {}) {
-  return getKanbanCaseTopicService().caseTopicTitle(plan);
-}
-function kanbanStableTextKey(value, fallback = "item") {
-  return getKanbanCaseTopicService().stableTextKey(value, fallback);
-}
-function kanbanLearnerRootDirectory(ownerWorkspaceId, ownerRoot, plan = {}) {
-  return getKanbanCaseTopicService().learnerRootDirectory(ownerWorkspaceId, ownerRoot, plan);
-}
-function ensureKanbanCaseSharedDirectory(ownerWorkspaceId, plan = {}) {
-  return getKanbanCaseTopicService().ensureSharedDirectory(ownerWorkspaceId, plan);
-}
-function ensureKanbanCaseTopicThread(ownerWorkspaceId, plan = {}, directoryInfo = null) {
-  return getKanbanCaseTopicService().ensureTopicThread(ownerWorkspaceId, plan, directoryInfo);
-}
-function normalizeKanbanAssessmentSubjectId(value = "") {
-  return studyAssessmentService.normalizeKanbanAssessmentSubjectId(value);
-}
-function getAssessmentExamWorkflowService() {
-  if (!assessmentExamWorkflowService) {
-    assessmentExamWorkflowService = createAssessmentExamWorkflowService({
-      assessmentExamService,
-      automationCreateModel: AUTOMATION_CREATE_MODEL,
-      compactText,
-      extractJsonObject,
-      findWorkspace,
-      hermesModelText,
-      isKanbanAssessmentCaseMode,
-      isKanbanStudyCaseMode,
-      kanbanCardEffectiveCaseIndex,
-      kanbanCardProvider,
-      kanbanCardRevisionOf,
-      kanbanWorkflowStateCompleted,
-      learningCoinAwardService,
-      logger: console,
-      maxQuestions: KANBAN_ASSESSMENT_MAX_QUESTIONS,
-      maybeReconcileKanbanDependencyBlocks,
-      modelTimeoutMs: KANBAN_ASSESSMENT_MODEL_TIMEOUT_MS,
-      normalizeKanbanAssessmentSubjectId,
-      nowIso,
-      publicTodo,
-      randomHex: (bytes) => crypto.randomBytes(bytes).toString("hex"),
-      readingContextForCard,
-      safeFileName,
-      sanitizePolicy,
-      visibleKanbanCaseCards,
-      artifactService: kanbanStudyArtifactService,
-    });
-  }
-  return assessmentExamWorkflowService;
-}
-async function maybeReconcileKanbanDependencyBlocks(workspaceId, options = {}) {
-  return kanbanMaintenanceService.maybeReconcileDependencyBlocks(workspaceId, options);
-}
-function readKanbanCardListCache(args = {}) {
-  return kanbanMaintenanceService.readCardListCache(args);
-}
-function writeKanbanCardListCache(args = {}, payload = {}) {
-  kanbanMaintenanceService.writeCardListCache(args, payload);
-}
-function clearKanbanCardListCache(workspaceId = "") {
-  kanbanMaintenanceService.clearCardListCache(workspaceId);
-}
-function scheduleKanbanDependencyReconcile(workspaceId) {
-  return kanbanMaintenanceService.scheduleDependencyReconcile(workspaceId);
 }
 function todoErrorResponse(res, result, fallbackStatus = 400) {
   sendJson(res, fallbackStatus, { error: result?.error || "Todo operation failed", result });

@@ -10,6 +10,7 @@ const RUNTIME_COMPOSITION_FILE = "mobile-server-runtime.js";
 const CORE_PROVIDERS_FILE = "adapters/mobile-runtime-core-providers.js";
 const API_COMPOSITION_FILE = "server-routes/mobile-api-composition.js";
 const API_DIRECTORY_COMPOSITION_FILE = "server-routes/mobile-api-directory-composition.js";
+const RUNTIME_KANBAN_FACADE_FILE = "adapters/mobile-runtime-kanban-facade-service.js";
 const WEIXIN_RUNTIME_FILE = "adapters/weixin-runtime-composition-service.js";
 const APP_FRONTEND_FILES = [
   "public/app.js",
@@ -90,7 +91,7 @@ function main() {
   assertContains(CORE_PROVIDERS_FILE, /createPathPolicyProvider/, "path-policy provider must be wired");
   assertContains(CORE_PROVIDERS_FILE, /createEgressPolicyProvider/, "egress policy provider must be wired");
   assertContains(CORE_PROVIDERS_FILE, /createAuditEventProvider/, "audit event provider must be wired");
-  assertContains(RUNTIME_COMPOSITION_FILE, /deriveKanbanWorkflowState/, "study workflow state must be server-derived");
+  assertContains(RUNTIME_KANBAN_FACADE_FILE, /deriveKanbanWorkflowState/, "study workflow state must be server-derived");
   assertContains(RUNTIME_COMPOSITION_FILE, /createMobileRuntimeOwnerElevationFacadeService/, "Owner elevation facade must be wired");
   assertContains("adapters/mobile-runtime-owner-elevation-facade-service.js", /defaultCreateOwnerElevationGrantService/, "Owner elevation facade must retain grant service wiring");
   assertContains("adapters/mobile-runtime-owner-elevation-facade-service.js", /consumeOwnerElevationOnce[\s\S]{0,600}isOwnerElevationActive/, "Owner elevation facade must pass grant checks into routing");

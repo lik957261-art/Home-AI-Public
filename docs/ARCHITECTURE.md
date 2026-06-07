@@ -87,6 +87,10 @@ out of the composition root. Current focused runtime adapters include:
   SQLite, Todo, and Automation store paths.
 - `adapters/mobile-runtime-kanban-environment-service.js` for Kanban, reading,
   assessment, multi-agent, and case-topic runtime environment constants.
+- `adapters/mobile-runtime-kanban-facade-service.js` for lazy Kanban public
+  projection, case-topic, plan-card creation, assessment workflow, access, and
+  maintenance/cache delegation. It must not own Kanban persistence, card
+  mutation, reading artifact generation, or HTTP route behavior.
 - `adapters/mobile-runtime-group-chat-attachment-service.js` for lazy
   group-chat shared-attachment runtime wiring and storage segment helpers.
 - `adapters/mobile-runtime-local-bridge-facade-service.js` for lazy Local

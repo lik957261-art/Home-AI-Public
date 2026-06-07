@@ -56,6 +56,7 @@ focused adapters such as `mobile-runtime-file-helper-service.js`,
 `mobile-runtime-gateway-facade-service.js`,
 `mobile-runtime-group-chat-attachment-service.js`,
 `mobile-runtime-kanban-environment-service.js`,
+`mobile-runtime-kanban-facade-service.js`,
 `mobile-runtime-local-bridge-facade-service.js`,
 `mobile-runtime-owner-elevation-facade-service.js`,
 `mobile-runtime-path-candidate-environment-service.js`,
@@ -75,7 +76,8 @@ backend mode policy, runtime config facade delegation, runtime environment
 aggregation, shared environment value parsing, Gateway/run environment parsing,
 Gateway runner/pool/launcher/provisioning/telemetry lazy delegation, group-chat
 attachment runtime wiring, Kanban/reading environment parsing, Local Bridge
-runtime lazy delegation, Owner elevation grant/routing lazy delegation,
+runtime lazy delegation, Kanban topic/projection/plan/assessment lazy
+delegation, Owner elevation grant/routing lazy delegation,
 WSL/config path candidate parsing, public status projections, runtime state
 normalization/persistence lazy delegation, DATA_DIR-derived state/storage path
 parsing, system status lazy delegation, thread runtime composition delegation,
@@ -103,6 +105,15 @@ workspace-principal lookup, Todo assignee projection, and direct Todo/Kanban
 create parsing delegates. It must not implement Todo persistence, Kanban card
 creation, Local Bridge execution, or Gateway/tool routing; those stay in their
 own providers and route/runtime services.
+
+`mobile-runtime-kanban-facade-service.js` is only a runtime wiring facade for
+Kanban public projections, case-topic wiring, plan-card creation, assessment
+workflow construction, shared-card access checks, and Kanban cache/maintenance
+delegates. It may lazy-create the underlying Kanban projection/topic/plan and
+assessment workflow services, but it must not implement Kanban persistence,
+card mutation, reading artifact generation, study/assessment business rules,
+or HTTP route behavior. Those stay in the Kanban providers, learning route
+composition, and focused domain services.
 
 `server.js` and `mobile-server-runtime.js` must not own new business behavior such as:
 
@@ -135,8 +146,8 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,960 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 175;
+- `mobile-server-runtime.js` must stay at or below 1,800 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 140;
 - `mobile-runtime-artifact-facade-service.js` must stay at or below 140 lines
   and remain a facade over `file-artifact-access-service.js` and
   `artifact-text-registration-service.js`;
@@ -145,6 +156,9 @@ Current CI guardrails:
 - `mobile-runtime-todo-facade-service.js` must stay at or below 120 lines and
   remain a facade over `direct-kanban-create-service.js` plus workspace catalog
   lookup delegates;
+- `mobile-runtime-kanban-facade-service.js` must stay at or below 380 lines and
+  remain a facade over existing Kanban projection/topic/plan/assessment
+  services plus cache/maintenance delegates;
 - `mobile-api-composition.js` must stay at or below 550 lines and remain the
   platform-level API aggregator, not a domain service graph;
 - `mobile-api-directory-composition.js` must stay at or below 150 lines and
