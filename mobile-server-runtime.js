@@ -131,6 +131,13 @@ const documentPreviewService = createDocumentPreviewService({
   fs,
   maxPreviewChars: MAX_FILE_PREVIEW_CHARS,
 });
+let mobileRuntimeLocalBridgeFacadeService = null;
+const localBridgeFacade = () => {
+  if (!mobileRuntimeLocalBridgeFacadeService) throw new Error("Mobile runtime local bridge facade is not initialized");
+  return mobileRuntimeLocalBridgeFacadeService;
+};
+const runDirectoryBridge = (...args) => localBridgeFacade().runDirectoryBridge(...args);
+const runProcessText = (...args) => localBridgeFacade().runProcessText(...args);
 const mobileRuntimeSystemStatusFacadeService = createMobileRuntimeSystemStatusFacadeService({
   allowWslReasoningConfigLookup: ALLOW_WSL_REASONING_CONFIG_LOOKUP,
   compactText,
@@ -874,7 +881,7 @@ function mobileSqliteStore() {
   }
   return sqliteServiceStore;
 }
-const mobileRuntimeLocalBridgeFacadeService = createMobileRuntimeLocalBridgeFacadeService({
+mobileRuntimeLocalBridgeFacadeService = createMobileRuntimeLocalBridgeFacadeService({
   bridgeCommandProvider,
   bridgeHostKeyPath: BRIDGE_HOST_KEY_PATH,
   bridgeHostUrl: () => BRIDGE_HOST_URL,
@@ -911,12 +918,6 @@ const {
   runCronBridge,
   runTodoBridge,
 } = mobileRuntimeLocalBridgeFacadeService;
-function runDirectoryBridge(payload) {
-  return mobileRuntimeLocalBridgeFacadeService.runDirectoryBridge(payload);
-}
-function runProcessText(command, args = [], options = {}) {
-  return mobileRuntimeLocalBridgeFacadeService.runProcessText(command, args, options);
-}
 const todoProvider = createTodoProvider({
   runBridge: runTodoBridge,
   workspacePrincipal,

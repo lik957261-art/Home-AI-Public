@@ -155,6 +155,12 @@ use it through runtime dependencies, but `mobile-server-runtime.js` must not
 carry duplicate `cronJobMatchesSearch`, `cronJobMatchesOwner`, or cron cache
 clear wrapper function implementations.
 
+`mobile-runtime-local-bridge-facade-service.js` owns Local Bridge lazy runtime
+delegation for Todo, Cron, Directory, and local process execution. Runtime
+composition may provide early delayed delegates for startup-order reasons, but
+`mobile-server-runtime.js` must not define duplicate `runDirectoryBridge` or
+`runProcessText` wrapper functions.
+
 `runtime-operation-error-response-service.js` owns the small Todo/Kanban
 operation-error JSON response wrappers. Route composition may keep receiving
 `todoErrorResponse` and `kanbanErrorResponse` delegates, but
@@ -224,8 +230,8 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,455 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 55;
+- `mobile-server-runtime.js` must stay at or below 1,452 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 53;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
 - `automation-job-filter-service.js` must stay at or below 45 lines and remain

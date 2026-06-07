@@ -596,6 +596,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createMobileRuntimeHttpServerService/);
   assert.match(server, /createMobileRuntimeLocalBridgeFacadeService/);
   assert.match(localBridgeFacade, /createLocalBridgeRuntimeService/);
+  assert.match(server, /const localBridgeFacade = \(\) =>/);
+  assert.match(server, /const runDirectoryBridge = \(\.\.\.args\) => localBridgeFacade\(\)\.runDirectoryBridge\(\.\.\.args\)/);
+  assert.match(server, /const runProcessText = \(\.\.\.args\) => localBridgeFacade\(\)\.runProcessText\(\.\.\.args\)/);
   assert.doesNotMatch(server, /localBridgeRuntimeService = createLocalBridgeRuntimeService/);
   assert.match(server, /createMobileRuntimeStateFacadeService/);
   assert.match(stateFacade, /createRuntimeStatePersistenceService/);
@@ -766,8 +769,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(localBridgeFacade, /runProcessText\(command, args = \[\], runOptions = \{\}\)/);
   assert.doesNotMatch(server, /^function runTodoBridge/gm);
   assert.doesNotMatch(server, /^function runCronBridge/gm);
-  assert.match(server, /function runDirectoryBridge\(payload\)/);
-  assert.match(server, /function runProcessText\(command, args = \[\], options = \{\}\)/);
+  assert.doesNotMatch(server, /^function runDirectoryBridge/gm);
+  assert.doesNotMatch(server, /^function runProcessText/gm);
   const bridgeRuntime = fileText("adapters/local-bridge-runtime-service.js");
   assert.match(bridgeRuntime, /createLocalAutomationBridgeService/);
   assert.match(bridgeRuntime, /createLocalBridgeWrapperService/);
@@ -944,8 +947,8 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
-  assert.match(doc, /1,455 lines/);
-  assert.match(doc, /55/);
+  assert.match(doc, /1,452 lines/);
+  assert.match(doc, /53/);
   assert.match(doc, /app-route-url-service\.js` must stay at or below 35 lines/);
   assert.match(doc, /automation-job-filter-service\.js` must stay at or below 45 lines/);
   assert.match(doc, /runtime-operation-error-response-service\.js` must stay at or below 35 lines/);
@@ -1046,8 +1049,8 @@ function testServiceFirstArchitectureContract() {
   const workspaceFacadeLineCount = workspaceFacade.split(/\r?\n/).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 1455, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1455`);
-  assert.ok(runtimeTopLevelFunctionCount <= 55, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 55`);
+  assert.ok(runtimeLineCount <= 1452, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1452`);
+  assert.ok(runtimeTopLevelFunctionCount <= 53, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 53`);
   assert.ok(appRouteUrlLineCount <= 35, `app-route-url-service.js line budget exceeded: ${appRouteUrlLineCount} > 35`);
   assert.ok(automationJobFilterLineCount <= 45, `automation-job-filter-service.js line budget exceeded: ${automationJobFilterLineCount} > 45`);
   assert.ok(operationErrorResponseLineCount <= 35, `runtime-operation-error-response-service.js line budget exceeded: ${operationErrorResponseLineCount} > 35`);
