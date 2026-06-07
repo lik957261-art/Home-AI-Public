@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260607-plugin-topic-composer-gap-v608";
+const CLIENT_VERSION = "20260607-workspace-scoped-capability-note-request-v609";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -192,8 +192,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260607-plugin-topic-composer-gap-v608" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260607-plugin-topic-composer-gap-v608"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260607-workspace-scoped-capability-note-request-v609" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260607-workspace-scoped-capability-note-request-v609"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -904,6 +904,12 @@ assert.match(appJs, /data-save-message-note="\$\{escapeHtml\(message\.id\)\}"/);
 assert.match(appJs, /aria-label="保存到 Note"/);
 assert.match(appJs, /function saveMessageToNote\(messageId\)/);
 assert.match(appJs, /\/api\/note\/receipts/);
+assert.match(appJs, /function isNoteReceiptPluginUnavailableError\(err\)/);
+assert.match(appJs, /"note_workspace_not_configured"/);
+assert.match(appJs, /function requestNotePluginInstallForWorkspace\(\)/);
+assert.match(appJs, /\/api\/note\/install-request/);
+assert.match(appJs, /showPushToast\("Note\/Notion 插件未安装，请求管理员安装。", "warning"/);
+assert.match(appJs, /actionLabel: "请求安装"/);
 assert.match(appJs, /const noteReceiptSaveInFlightIds = new Set\(\)/);
 assert.match(appJs, /if \(noteReceiptSaveInFlightIds\.has\(noteMessageId\)\) return \{ ok: false, duplicate: true \}/);
 assert.match(appJs, /noteReceiptSaveInFlightIds\.delete\(noteMessageId\)/);
@@ -2364,10 +2370,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260607-plugin-topic-composer-gap-v608/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260607-plugin-topic-composer-gap-v608/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260607-plugin-topic-composer-gap-v608/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260607-plugin-topic-composer-gap-v608/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260607-workspace-scoped-capability-note-request-v609/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260607-workspace-scoped-capability-note-request-v609/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260607-workspace-scoped-capability-note-request-v609/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260607-workspace-scoped-capability-note-request-v609/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);

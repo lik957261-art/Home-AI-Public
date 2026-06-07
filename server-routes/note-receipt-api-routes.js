@@ -18,6 +18,21 @@ const NOTE_RECEIPT_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["note", "message", "artifact"],
     tags: ["note", "receipt", "artifact"],
   },
+  {
+    id: "note-install-request",
+    method: "POST",
+    path: "/api/note/install-request",
+    group: "note",
+    moduleKey: "note-install-request",
+    handlerKey: "requestInstall",
+    summary: "Create an Owner Action Inbox approval item requesting Note plugin installation for a workspace.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["note", "plugin", "action-inbox"],
+    tags: ["note", "plugin", "install-request"],
+  },
 ]);
 
 function requireFunctions(deps, names) {
@@ -45,6 +60,67 @@ function createNoteReceiptApiRoutes(deps = {}) {
   }
 
   const registry = createApiRouteRegistry(NOTE_RECEIPT_API_ROUTE_SPECS);
+
+  function ownerPluginInstallDeepLink(workspaceId) {
+    const params = new URLSearchParams({
+      view: "plugins",
+      pluginId: "note",
+      workspaceId: workspaceId || "owner",
+    });
+    return `/?${params.toString()}`;
+  }
+
+  async function handleInstallRequest(req, res, _url, context = {}) {
+    if (!deps.actionInboxService || typeof deps.actionInboxService.upsertSourceItem !== "function") {
+      deps.sendJson(res, 503, { ok: false, error: "note_install_request_unavailable", code: "note_install_request_unavailable" });
+      return;
+    }
+    const body = await deps.readBody(req, 32 * 1024).catch(() => ({}));
+    const requestedWorkspaceId = String(body?.workspaceId || body?.workspace_id || context.auth?.workspaceId || "owner").trim() || "owner";
+    const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId);
+    if (!workspaceId) return;
+    const requesterLabel = String(body?.workspaceLabel || body?.workspace_label || workspaceId).trim() || workspaceId;
+    const result = deps.actionInboxService.upsertSourceItem({
+      workspaceId: "owner",
+      assigneeWorkspaceId: "owner",
+      sourceType: "plugin_install_request",
+      sourceId: `note:${workspaceId}`,
+      itemType: "approval",
+      status: "open",
+      priority: "normal",
+      title: "安装 Note 插件请求",
+      summary: `工作区 ${requesterLabel} 请求安装 Note 插件。`,
+      actionLabel: "打开插件管理",
+      deepLink: ownerPluginInstallDeepLink(workspaceId),
+      dedupeKey: `plugin_install_request:note:${workspaceId}`,
+      sourceRef: {
+        pluginId: "note",
+        requesterWorkspaceId: workspaceId,
+        requesterWorkspaceLabel: requesterLabel,
+        reason: "note_receipt_save_requested_without_plugin_binding",
+      },
+      auth: context.auth || null,
+    });
+    if (!result?.ok) {
+      deps.sendJson(res, Number(result?.status || 500), {
+        ok: false,
+        error: result?.error || "note_install_request_failed",
+        code: result?.error || "note_install_request_failed",
+      });
+      return;
+    }
+    if (typeof deps.broadcast === "function") {
+      deps.broadcast({ type: "actionInbox.updated", workspaceId: "owner", itemId: result.item?.id || "" });
+    }
+    deps.sendJson(res, 201, {
+      ok: true,
+      request: {
+        inboxItemId: result.item?.id || "",
+        workspaceId,
+        pluginId: "note",
+      },
+    });
+  }
 
   async function handleSaveReceipt(req, res, url, context = {}) {
     let body;
@@ -94,6 +170,10 @@ function createNoteReceiptApiRoutes(deps = {}) {
     if (!route) return { handled: false };
     if (route.id === "note-receipt-save") {
       await handleSaveReceipt(req, res, url, context);
+      return { handled: true, route, auth: context.auth || null };
+    }
+    if (route.id === "note-install-request") {
+      await handleInstallRequest(req, res, url, context);
       return { handled: true, route, auth: context.auth || null };
     }
     return { handled: false };

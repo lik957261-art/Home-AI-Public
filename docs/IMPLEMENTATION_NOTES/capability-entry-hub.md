@@ -81,6 +81,17 @@ server-side usage history.
 
 Implemented fix, 2026-06-07:
 
+- `20260607-workspace-scoped-capability-note-request-v609` scopes the browser
+  quick-action cache by workspace id as
+  `localStorage.hermesPluginTopicUsage:<workspaceId>` and keeps an in-memory
+  usage projection per workspace. The frontend must never merge Owner quick
+  actions into a non-Owner workspace or let a non-Owner action promote an Owner
+  shortcut. The server remains the source of truth, but the first-paint/offline
+  cache must also be workspace-scoped because users can switch accounts inside
+  the same installed PWA.
+
+Implemented fix, 2026-06-07:
+
 - `20260607-capability-usage-refresh-v597` makes each local usage write refresh
   the root quick-action projection immediately when the Topics root is visible.
   A repeated menu or quick-action click must therefore be able to promote the

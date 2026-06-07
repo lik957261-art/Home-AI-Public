@@ -399,6 +399,37 @@ function openSavedNoteReceiptFromToast(noteId) {
   }
 }
 
+function isNoteReceiptPluginUnavailableError(err) {
+  const code = String(err?.code || "").trim();
+  return [
+    "note_workspace_not_configured",
+    "note_workspace_api_base_missing",
+    "note_workspace_key_missing",
+    "note_workspace_key_empty",
+  ].includes(code);
+}
+
+async function requestNotePluginInstallForWorkspace() {
+  const workspaceId = String(state.currentThread?.workspaceId || state.selectedWorkspaceId || state.auth?.workspaceId || "owner").trim() || "owner";
+  await api("/api/note/install-request", {
+    method: "POST",
+    timeoutMs: 12000,
+    body: JSON.stringify({
+      workspaceId,
+      workspaceLabel: state.currentWorkspaceLabel || workspaceId,
+    }),
+  });
+  showPushToast("已请求管理员安装 Note 插件", "success");
+}
+
+function showNotePluginUnavailableToast() {
+  showPushToast("Note/Notion 插件未安装，请求管理员安装。", "warning", {
+    actionLabel: "请求安装",
+    ariaLabel: "请求管理员安装 Note 插件",
+    onClick: () => requestNotePluginInstallForWorkspace().catch(showError),
+  });
+}
+
 async function saveMessageToNote(messageId) {
   const noteMessageId = String(messageId || "").trim();
   if (!noteMessageId) throw new Error("Message not found");
@@ -428,6 +459,12 @@ async function saveMessageToNote(messageId) {
       onClick: () => openSavedNoteReceiptFromToast(noteId),
     } : {});
     return result;
+  } catch (err) {
+    if (isNoteReceiptPluginUnavailableError(err)) {
+      showNotePluginUnavailableToast();
+      return { ok: false, code: err.code || "note_workspace_not_configured" };
+    }
+    throw err;
   } finally {
     noteReceiptSaveInFlightIds.delete(noteMessageId);
   }

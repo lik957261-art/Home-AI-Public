@@ -25,7 +25,7 @@ param(
     [string]$OwnerKeyPath = "C:\ProgramData\HermesMobile\data\secrets\owner-web-key.secret",
     [int]$HealthStatusTimeoutSec = 5,
     [int]$ReadyWaitSeconds = 90,
-    [int]$MinGatewayPoolWorkers = 1,
+    [int]$MinGatewayPoolWorkers = 0,
     [string]$GatewayPoolPorts = "18751,18752,18753,18754,18755,18756,18757,18758,18759,18760,18761,18762,18763,18764,18765,18766,18767,18768,18769,18770,18771,18772,18773,18774,18651,18652,18653",
     [switch]$RunInCallerContext,
     [switch]$CheckOnly,

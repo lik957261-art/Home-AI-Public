@@ -695,7 +695,10 @@ read/write access to this key file or its parent directory.
   maintained production machine,
   `C:\ProgramData\HermesMobile\listener-run-in-caller-context.flag` should also
   exist so a later plain `-ReplaceExisting` still starts the listener in caller
-  context instead of the separate worker account.
+  context instead of the separate worker account. If the maintained production
+  Gateway warm-worker floor is `0`, restart health checks must also use
+  `-MinGatewayPoolWorkers 0`; otherwise the listener can be live while the
+  worker-host script reports a false startup failure.
 - Node route/service/provider change: restart Hermes Mobile listener only.
 - Bridge-host change: restart listener/bridge-host through `scripts\start-worker-host.ps1 -ReplaceExisting`.
 - Gateway plugin/schema/profile/startup change: restart Gateway Pool or targeted maintenance worker as appropriate.

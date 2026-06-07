@@ -33,6 +33,8 @@ function createMobileApiDirectoryComposition(deps = {}) {
     resolveArtifactForRequest: deps.resolveArtifactForRequest,
   });
   const noteReceiptApiRoutes = createNoteReceiptApiRoutes({
+    actionInboxService: deps.actionInboxService,
+    broadcast: deps.broadcast,
     findThreadForRequest: (...args) => deps.getRuntimeStateThreadService().findThreadForRequest(...args),
     noteReceiptSaveService,
     readBody: deps.readBody,

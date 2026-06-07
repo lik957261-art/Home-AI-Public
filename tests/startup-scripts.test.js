@@ -103,6 +103,7 @@ assert.match(startWorkerHost, /Worker listener already running and authenticated
 assert.match(startWorkerHost, /Restarting unhealthy worker listener/);
 assert.match(startWorkerHost, /healthy authenticated API endpoint with ready Gateway Pool ports/);
 assert.match(startWorkerHost, /MinGatewayPoolWorkers/);
+assert.match(startWorkerHost, /\[int\]\$MinGatewayPoolWorkers = 0/);
 assert.match(startWorkerHost, /GatewayPoolPorts/);
 assert.match(startWorkerHost, /\[switch\]\$RunInCallerContext/);
 assert.match(startWorkerHost, /function Test-ListenerCallerContextMarker/);

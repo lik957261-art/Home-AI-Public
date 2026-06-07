@@ -35,7 +35,7 @@ function makeUrl(path) {
 }
 
 function makeRoutes(overrides = {}) {
-  const calls = { access: [], findThread: [], saves: [] };
+  const calls = { access: [], broadcast: [], findThread: [], installRequests: [], saves: [] };
   const thread = {
     id: "thread-1",
     workspaceId: "owner",
@@ -61,6 +61,15 @@ function makeRoutes(overrides = {}) {
       return workspaceId || "owner";
     },
     sendJson,
+    broadcast(event) {
+      calls.broadcast.push(event);
+    },
+    actionInboxService: {
+      upsertSourceItem(input) {
+        calls.installRequests.push(input);
+        return { ok: true, item: { id: "ainb-note-install-1" } };
+      },
+    },
     noteReceiptSaveService: {
       saveReceipt(input) {
         calls.saves.push(input);
@@ -79,17 +88,50 @@ async function request(routes, method, path, options = {}) {
 }
 
 async function testRouteMetadataAndFallthrough() {
-  assert.equal(NOTE_RECEIPT_API_ROUTE_SPECS.length, 1);
+  assert.equal(NOTE_RECEIPT_API_ROUTE_SPECS.length, 2);
   assert.equal(NOTE_RECEIPT_API_ROUTE_SPECS[0].path, "/api/note/receipts");
   assert.equal(NOTE_RECEIPT_API_ROUTE_SPECS[0].workspaceScoped, true);
+  assert.equal(NOTE_RECEIPT_API_ROUTE_SPECS[1].path, "/api/note/install-request");
+  assert.equal(NOTE_RECEIPT_API_ROUTE_SPECS[1].workspaceScoped, true);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "POST", path: "/api/note/receipts" }).id, "note-receipt-save");
+  assert.equal(routes.match({ method: "POST", path: "/api/note/install-request" }).id, "note-install-request");
   assert.equal(routes.match({ method: "GET", path: "/api/note/receipts" }), null);
   assert.equal(routes.summary({ public: true }).byModule["note-receipt"], 1);
+  assert.equal(routes.summary({ public: true }).byModule["note-install-request"], 1);
 
   const miss = await request(routes, "GET", "/api/status");
   assert.equal(miss.result.handled, false);
   assert.equal(miss.res.statusCode, 0);
+}
+
+async function testInstallRequestCreatesOwnerInboxApproval() {
+  const { calls, routes } = makeRoutes();
+  const got = await request(routes, "POST", "/api/note/install-request", {
+    context: { auth: { ok: true, workspaceId: "weixin_wuping", principalId: "p-wuping" } },
+    body: { workspaceId: "weixin_wuping", workspaceLabel: "吴萍" },
+  });
+
+  assert.equal(got.result.handled, true);
+  assert.equal(got.res.statusCode, 201);
+  assert.deepEqual(got.body.request, {
+    inboxItemId: "ainb-note-install-1",
+    workspaceId: "weixin_wuping",
+    pluginId: "note",
+  });
+  assert.deepEqual(calls.access, ["weixin_wuping"]);
+  assert.equal(calls.installRequests.length, 1);
+  assert.equal(calls.installRequests[0].workspaceId, "owner");
+  assert.equal(calls.installRequests[0].assigneeWorkspaceId, "owner");
+  assert.equal(calls.installRequests[0].sourceType, "plugin_install_request");
+  assert.equal(calls.installRequests[0].sourceId, "note:weixin_wuping");
+  assert.equal(calls.installRequests[0].itemType, "approval");
+  assert.equal(calls.installRequests[0].dedupeKey, "plugin_install_request:note:weixin_wuping");
+  assert.equal(calls.installRequests[0].sourceRef.pluginId, "note");
+  assert.equal(calls.installRequests[0].sourceRef.requesterWorkspaceId, "weixin_wuping");
+  assert.match(calls.installRequests[0].deepLink, /view=plugins/);
+  assert.match(calls.installRequests[0].deepLink, /pluginId=note/);
+  assert.deepEqual(calls.broadcast, [{ type: "actionInbox.updated", workspaceId: "owner", itemId: "ainb-note-install-1" }]);
 }
 
 async function testSaveReceiptUsesThreadMessageAndWorkspaceAccess() {
@@ -163,6 +205,7 @@ function testDependencyValidation() {
 async function run() {
   await testRouteMetadataAndFallthrough();
   await testSaveReceiptUsesThreadMessageAndWorkspaceAccess();
+  await testInstallRequestCreatesOwnerInboxApproval();
   await testMissingTargetsReturnControlledErrors();
   await testServiceErrorPassesThroughStatusAndCode();
   testDependencyValidation();

@@ -126,6 +126,7 @@ let pluginTopicUsageSyncTimer = 0;
 const pluginTopicUsageLoadedAtByWorkspace = new Map();
 const pluginTopicUsageLoadingWorkspaces = new Map();
 const pluginTopicUsageLoadRetryAt = new Map();
+const pluginTopicUsageMemoryCacheByWorkspace = new Map();
 let pluginTopicUsageMemoryCache = normalizePluginTopicUsage({});
 
 function pluginTopicId(value = "") {
@@ -253,6 +254,11 @@ function pluginTopicUsageApiReady() {
   return typeof api === "function" && Boolean(state.key || state.auth);
 }
 
+function pluginTopicUsageStorageKey(workspaceId = pluginTopicUsageWorkspaceId()) {
+  const id = String(workspaceId || "owner").trim() || "owner";
+  return `${PLUGIN_TOPIC_USAGE_STORAGE_KEY}:${id}`;
+}
+
 function normalizePluginTopicUsageEntry(entry) {
   const source = entry && typeof entry === "object" && !Array.isArray(entry) ? entry : {};
   const count = Math.max(0, Math.floor(Number(source.count) || 0));
@@ -308,22 +314,28 @@ function pluginTopicUsageEqual(a, b) {
 }
 
 function readPluginTopicUsage() {
+  const workspaceId = pluginTopicUsageWorkspaceId();
+  const storageKey = pluginTopicUsageStorageKey(workspaceId);
   try {
-    const raw = localStorage.getItem(PLUGIN_TOPIC_USAGE_STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (raw) {
       pluginTopicUsageMemoryCache = normalizePluginTopicUsage(JSON.parse(raw));
+      pluginTopicUsageMemoryCacheByWorkspace.set(workspaceId, pluginTopicUsageMemoryCache);
       return pluginTopicUsageMemoryCache;
     }
   } catch {
     // Fall back to the in-memory projection below.
   }
+  pluginTopicUsageMemoryCache = pluginTopicUsageMemoryCacheByWorkspace.get(workspaceId) || normalizePluginTopicUsage({});
   return pluginTopicUsageMemoryCache;
 }
 
 function writePluginTopicUsage(usage) {
+  const workspaceId = pluginTopicUsageWorkspaceId();
   pluginTopicUsageMemoryCache = normalizePluginTopicUsage(usage);
+  pluginTopicUsageMemoryCacheByWorkspace.set(workspaceId, pluginTopicUsageMemoryCache);
   try {
-    localStorage.setItem(PLUGIN_TOPIC_USAGE_STORAGE_KEY, JSON.stringify(pluginTopicUsageMemoryCache));
+    localStorage.setItem(pluginTopicUsageStorageKey(workspaceId), JSON.stringify(pluginTopicUsageMemoryCache));
   } catch {
     // Best-effort disk cache only; keep the in-memory projection usable.
   }

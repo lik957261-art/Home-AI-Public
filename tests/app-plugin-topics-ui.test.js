@@ -33,7 +33,11 @@ assert.match(pluginTopicsUi, /function pluginTopicUsageRecentlyLoaded/);
 assert.match(pluginTopicsUi, /function loadPluginTopicUsageFromServer/);
 assert.match(pluginTopicsUi, /function schedulePluginTopicUsageSync/);
 assert.match(pluginTopicsUi, /function ensurePluginTopicUsageLoaded/);
-assert.match(pluginTopicsUi, /let pluginTopicUsageMemoryCache = normalizePluginTopicUsage\(\{\}\);/);
+assert.match(pluginTopicsUi, /const pluginTopicUsageMemoryCacheByWorkspace = new Map\(\);/);
+assert.match(pluginTopicsUi, /function pluginTopicUsageStorageKey\(workspaceId = pluginTopicUsageWorkspaceId\(\)\)/);
+assert.match(pluginTopicsUi, /\$\{PLUGIN_TOPIC_USAGE_STORAGE_KEY\}:\$\{id\}/);
+assert.match(pluginTopicsUi, /localStorage\.getItem\(storageKey\)/);
+assert.match(pluginTopicsUi, /localStorage\.setItem\(pluginTopicUsageStorageKey\(workspaceId\), JSON\.stringify\(pluginTopicUsageMemoryCache\)\)/);
 assert.match(pluginTopicsUi, /function refreshPluginTopicUsageRoot\(options = \{\}\)/);
 assert.match(pluginTopicsUi, /const restoreScrollTop = options\.revealQuickActions \? 0 : \(\$\("conversation"\)\?\.scrollTop \|\| 0\);/);
 assert.match(recordUsageBody, /usage\.actions = actions;/);
@@ -136,6 +140,10 @@ globalThis.__pluginTopicHarness = {
 };`, sandbox);
   return {
     ...sandbox.__pluginTopicHarness,
+    setWorkspace(workspaceId) {
+      sandbox.state.selectedWorkspaceId = workspaceId;
+      sandbox.state.auth.workspaceId = workspaceId;
+    },
     renderCalls,
     flushRootRefreshTimers() {
       const pending = timers.splice(0, timers.length).filter((item) => item.delayMs === 0);
@@ -162,6 +170,15 @@ globalThis.__pluginTopicHarness = {
   assert.equal(harness.readUsage().actions["wardrobe:style"].count, 6);
   assert.ok(harness.renderCalls.length >= 1, "usage changes must refresh the root quick-action projection");
   assert.equal(harness.renderCalls.at(-1).restoreScrollTop, 0, "usage promotion must reveal the top quick-action row");
+
+  harness.setWorkspace("weixin_wuping");
+  assert.equal(harness.quickKeys().length, 0, "quick actions must not reuse another workspace's cache");
+  harness.recordUsage("finance", "record");
+  harness.flushRootRefreshTimers();
+  assert.equal(harness.quickKeys()[0], "finance:record");
+
+  harness.setWorkspace("owner");
+  assert.equal(harness.quickKeys()[0], "wardrobe:style", "owner quick actions must remain isolated from Wuping usage");
 }
 
 {

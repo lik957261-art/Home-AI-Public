@@ -492,7 +492,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\ProgramData\HermesMo
   -WorkingDirectory "C:\ProgramData\HermesMobile\app" `
   -UserName "HermesMobileWorker" `
   -Port 8797 `
-  -MinGatewayPoolWorkers 1 `
+  -MinGatewayPoolWorkers 0 `
   -GatewayPoolPorts "18751,18752,18753,18754,18755,18756,18757,18758,18759,18760,18761,18762,18763,18764,18765,18766,18767,18768,18769,18770,18771,18772,18773,18651,18652,18653" `
   -ReplaceExisting
 ```

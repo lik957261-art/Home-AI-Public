@@ -34,17 +34,6 @@ function createMobileApiComposition(deps = {}) {
     platformCurrencyService,
   } = platformComposition.services;
 
-  const directoryComposition = createMobileApiDirectoryComposition(deps);
-  const {
-    directoryBrowserApiRoutes,
-    directoryMutationApiRoutes,
-    directoryShareApiRoutes,
-    fileArtifactApiRoutes,
-    noteReceiptApiRoutes,
-  } = directoryComposition.routes;
-  const {
-    noteReceiptSaveService,
-  } = directoryComposition.services;
   const pluginComposition = createMobileApiPluginComposition(deps);
   const {
     actionInboxApiRoutes,
@@ -58,6 +47,19 @@ function createMobileApiComposition(deps = {}) {
     hermesPluginService,
     pluginTopicUsageService,
   } = pluginComposition.services;
+  const directoryComposition = createMobileApiDirectoryComposition(Object.assign({}, deps, {
+    actionInboxService,
+  }));
+  const {
+    directoryBrowserApiRoutes,
+    directoryMutationApiRoutes,
+    directoryShareApiRoutes,
+    fileArtifactApiRoutes,
+    noteReceiptApiRoutes,
+  } = directoryComposition.routes;
+  const {
+    noteReceiptSaveService,
+  } = directoryComposition.services;
 
   const eventStreamApiRoutes = createEventStreamApiRoutes({
     activeStreams: deps.activeStreams,

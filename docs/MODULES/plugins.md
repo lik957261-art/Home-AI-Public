@@ -878,6 +878,19 @@ plugin authorization:
   bounded provisioning status. It must not store plugin access keys, launch
   tokens, cookies, private business payloads, or raw plugin logs.
 
+User-facing plugin-dependent actions must not fail silently when a workspace is
+missing the required plugin binding. The UI should show a concise unavailable
+state naming the plugin and, when the user cannot install it directly, offer a
+request action. Confirmed requests enter Owner's Action Inbox as summary-only
+approval items with a plugin-management deep link. The assistant receipt
+"save to Note" path is the reference implementation: 409-class Note binding
+errors such as `note_workspace_not_configured` are mapped to a visible
+`Note/Notion plugin not installed` prompt; tapping the request action calls
+`POST /api/note/install-request`, which validates access to the requester
+workspace and upserts a deduped Owner item with
+`sourceType=plugin_install_request`, `sourceId=note:<workspaceId>`, and
+`itemType=approval`.
+
 Hermes Mobile treats these as authorization evidence:
 
 - Owner auth, including Owner viewing another workspace.
