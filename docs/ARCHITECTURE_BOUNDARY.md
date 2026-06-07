@@ -89,6 +89,7 @@ focused adapters such as `app-route-url-service.js`,
 `gateway-run-start-stream-options-service.js`,
 `gateway-run-start-state-service.js`,
 `gateway-run-start-target-service.js`,
+`gateway-run-start-toolset-preflight-service.js`,
 `gateway-run-start-toolset-selection-service.js`,
 `gateway-run-start-wardrobe-gate-service.js`,
 `gateway-run-content-service.js`,
@@ -302,6 +303,14 @@ message, deciding whether plugin capability probing should delay the
 events. It must not build Gateway requests, evaluate Wardrobe workflow gates,
 select toolsets, run model preflight, mutate queues, or start streams.
 
+`gateway-run-start-toolset-preflight-service.js` owns model-first toolset
+preflight execution and projection during run start: forced selection replay,
+selector start/failure/success event projection, selected-toolset request
+rebuild, fallback to authorized toolsets, Wardrobe gate metadata refresh, and
+handoff to the permission/elevation terminal projection. It must not choose
+workers, define toolset policy, build the initial request, mutate run queue
+state, or start streams.
+
 `gateway-run-start-toolset-selection-service.js` owns deterministic run-start
 request mutation around model-first toolset selection: restoring authorized
 toolsets after selector fallback and inserting bounded toolset-escalation
@@ -326,7 +335,9 @@ to `gateway-run-start-permission-service.js`, and stream-start option
 projection to `gateway-run-start-stream-options-service.js`. It must delegate deterministic
 run-start state mutation and failed-start projection to
 `gateway-run-start-state-service.js`, Gateway target post-selection projection
-to `gateway-run-start-target-service.js`, toolset-selection request mutation to
+to `gateway-run-start-target-service.js`, model-first toolset preflight
+execution to `gateway-run-start-toolset-preflight-service.js`,
+toolset-selection request mutation to
 `gateway-run-start-toolset-selection-service.js`, and Wardrobe gate evaluation/
 failure projection to `gateway-run-start-wardrobe-gate-service.js`.
 
@@ -573,13 +584,16 @@ Current CI guardrails:
 - `gateway-run-start-target-service.js` must stay at or below 95 lines and
   remain Gateway target selection handoff and post-selection projection, not a
   request-builder, selector, Wardrobe gate, queue, or streaming module;
+- `gateway-run-start-toolset-preflight-service.js` must stay at or below 155
+  lines and remain model-first toolset preflight execution/projection, not a
+  worker-selection, initial request-builder, queue, or streaming module;
 - `gateway-run-start-toolset-selection-service.js` must stay at or below 95
   lines and remain deterministic toolset-selection request mutation, not a
   selector, permission decision, worker-selection, or streaming module;
 - `gateway-run-start-wardrobe-gate-service.js` must stay at or below 85 lines
   and remain deterministic Wardrobe workflow gate integration, not a Wardrobe
   product-rule, selector, worker-selection, or streaming module;
-- `gateway-run-start-service.js` must stay at or below 375 lines and remain
+- `gateway-run-start-service.js` must stay at or below 315 lines and remain
   Gateway run preparation orchestration, not a request-builder, event projector,
   or broad Gateway composition module;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 125 lines

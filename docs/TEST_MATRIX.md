@@ -522,6 +522,7 @@ are H1 completion flows: run
 tests\plugin-required-skill-preload-service.test.js`, `node
 tests\gateway-run-start-permission-service.test.js`, `node
 tests\gateway-run-start-target-service.test.js`, `node
+tests\gateway-run-start-toolset-preflight-service.test.js`, `node
 tests\gateway-run-start-service.test.js`, and `node
 tests\gateway-run-event-service.test.js` when required Skill preload,
 plugin-topic routing, Gateway start, loaded-tool evidence, or completion state
@@ -793,6 +794,7 @@ Focused implementation checks should include
 `node tests\gateway-pool-provider.test.js`,
 `node tests\gateway-run-start-permission-service.test.js`,
 `node tests\gateway-run-start-target-service.test.js`,
+`node tests\gateway-run-start-toolset-preflight-service.test.js`,
 `node tests\gateway-run-start-service.test.js`,
 `node tests\gateway-run-lifecycle-service.test.js`,
 `node tests\gateway-status-projection.test.js`, `node tests\system-api-routes.test.js`,

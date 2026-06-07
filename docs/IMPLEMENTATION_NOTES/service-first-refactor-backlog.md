@@ -189,6 +189,13 @@ statements. Priority extraction areas:
   `run.permission_required` event projection, state save handoff, message
   broadcast, and the `needs_elevation` start response while retaining selector
   orchestration.
+- completed 2026-06-08: Gateway run-start model-first toolset preflight
+  execution/projection moved into
+  `adapters/gateway-run-start-toolset-preflight-service.js`. The start service
+  now delegates forced selection replay, selector event projection, selected
+  request rebuild, authorized-toolset fallback, Wardrobe metadata refresh, and
+  permission/elevation terminal handoff while retaining overall run preparation
+  orchestration.
 - completed 2026-06-08: Runtime Gateway concurrency projection moved into
   `adapters/mobile-runtime-gateway-concurrency-service.js`. The Gateway facade
   now delegates active-run snapshot, per-workspace limit-error projection, and

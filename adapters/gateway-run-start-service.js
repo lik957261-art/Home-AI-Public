@@ -5,7 +5,6 @@ const {
   cleanString,
   createGatewayRunRequestBuilderService,
   defaultDedupe,
-  expandSelectedToolsetsWithCompanions,
   objectValue,
   policyThreadForRun,
   resolveActorWorkspaceId,
@@ -15,10 +14,10 @@ const { createGatewayRunStartEventService } = require("./gateway-run-start-event
 const { createGatewayRunStartPermissionService } = require("./gateway-run-start-permission-service");
 const {
   createGatewayRunStartStreamOptionsService,
-  isChatGptProRunOptions,
 } = require("./gateway-run-start-stream-options-service");
 const { createGatewayRunStartStateService } = require("./gateway-run-start-state-service");
 const { createGatewayRunStartTargetService } = require("./gateway-run-start-target-service");
+const { createGatewayRunStartToolsetPreflightService } = require("./gateway-run-start-toolset-preflight-service");
 const { createGatewayRunStartToolsetSelectionService } = require("./gateway-run-start-toolset-selection-service");
 const { createGatewayRunStartWardrobeGateService } = require("./gateway-run-start-wardrobe-gate-service");
 
@@ -80,7 +79,6 @@ function createGatewayRunStartService(options = {}) {
   const compactMessage = maybeCall(options.compactMessage, (message) => message);
   const threadSummary = maybeCall(options.threadSummary, (thread) => thread);
   const streamResponse = maybeCall(options.streamResponse, () => null);
-  const selectRunToolsetsWithModel = typeof options.selectRunToolsetsWithModel === "function" ? options.selectRunToolsetsWithModel : null;
   const requestBuilderService = options.requestBuilderService || createGatewayRunRequestBuilderService({
     accessPolicyHardeningOptionsForGatewayRouting,
     buildAccessPolicy,
@@ -180,6 +178,23 @@ function createGatewayRunStartService(options = {}) {
     saveState,
   });
   const completeModelPermissionRequest = (...args) => permissionService.completeModelPermissionRequest(...args);
+  const toolsetPreflightService = options.toolsetPreflightService || createGatewayRunStartToolsetPreflightService({
+    appendRunStartEvent,
+    appendToolsetEscalationInstructions,
+    applyAssistantRunOptions,
+    applyWardrobeWorkflowGateMetadata,
+    buildRunRequest,
+    completeModelPermissionRequest,
+    dedupe,
+    evaluateWardrobeGate,
+    preflightResultEventName,
+    restoreAuthorizedToolsetsForSelectionFallback,
+    selectRunToolsetsWithModel: options.selectRunToolsetsWithModel,
+    toolsetSelectionFallbackPreview,
+    toolsetSelectionPreview,
+    toolsetSelectionRouting,
+  });
+  const applyModelFirstToolsetPreflight = (...args) => toolsetPreflightService.applyModelFirstToolsetPreflight(...args);
 
   async function startRunForThread(thread, userMessage, assistantMessage, runOptions = {}) {
     const actorWorkspaceId = resolveActorWorkspaceId(thread, userMessage, runOptions);
@@ -239,97 +254,20 @@ function createGatewayRunStartService(options = {}) {
       appendRunStartEvent(thread, assistantMessage, "run.context_ready", contextReadyPreview(request));
     }
     const streamOptions = streamOptionsService.streamOptionsForGatewayTarget(gatewayTarget, runOptions, { gatewayUrl });
-    const forcedModelFirstSelection = objectValue(effectiveRunOptions.modelFirstToolsetSelection, null);
-    const forcedSelectedToolsets = dedupe(
-      forcedModelFirstSelection?.selectedToolsets
-      || forcedModelFirstSelection?.selected_toolsets
-      || [],
-    );
-    const skipModelFirstSelector = Boolean(
-      forcedSelectedToolsets.length
-      && (
-        effectiveRunOptions.skipModelFirstToolsetSelection
-        || forcedModelFirstSelection?.skipSelector
-        || forcedModelFirstSelection?.force
-      ),
-    );
-    if (skipModelFirstSelector) {
-      const selection = Object.assign({}, forcedModelFirstSelection, {
-        enabled: true,
-        ok: true,
-        reason: cleanString(forcedModelFirstSelection.reason) || "forced_model_first_toolsets",
-        selectedToolsets: forcedSelectedToolsets,
-        authorizedToolsets: dedupe(forcedModelFirstSelection.authorizedToolsets || forcedModelFirstSelection.authorized_toolsets || forcedSelectedToolsets),
-        durationMs: Math.max(0, Number(forcedModelFirstSelection.durationMs || forcedModelFirstSelection.duration_ms || 0) || 0),
-      });
-      request = appendToolsetEscalationInstructions(request, selection, forcedSelectedToolsets);
-      request.toolsetRouting = request.runPolicy?.toolset_routing || request.toolsetRouting || toolsetSelectionRouting(selection, forcedSelectedToolsets);
-      request.runPolicy = Object.assign({}, request.runPolicy || {}, { toolset_routing: request.toolsetRouting });
-      request.body.access_policy_context = Object.assign({}, request.body.access_policy_context || {}, { toolset_routing: request.toolsetRouting });
-      request.body.enabled_toolsets = dedupe(request.runPolicy?.allowed_toolsets || request.runPolicy?.allowedToolsets || request.body.enabled_toolsets || []);
-      wardrobeGate = evaluateWardrobeGate(request, userMessage, "forced_toolset_selection", gatewayTarget);
-      applyAssistantRunOptions(assistantMessage, request, effectiveRunOptions);
-      applyWardrobeWorkflowGateMetadata(assistantMessage, wardrobeGate);
-      appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_done", toolsetSelectionPreview(selection, forcedSelectedToolsets));
-    } else if (selectRunToolsetsWithModel && !isChatGptProRunOptions(effectiveRunOptions)) {
-      appendRunStartEvent(thread, assistantMessage, "run.toolset_selection_started", "");
-      let selection = null;
-      try {
-        selection = await selectRunToolsetsWithModel({
-          thread,
-          userMessage,
-          assistantMessage,
-          runOptions: effectiveRunOptions,
-          request,
-          gatewayTarget,
-          taskId,
-        });
-      } catch (err) {
-        selection = { enabled: true, ok: false, reason: "selector_exception", error: cleanString(err?.message || err) };
-      }
-      const rawSelectedToolsets = dedupe(selection?.selectedToolsets || selection?.selected_toolsets || []);
-      const selectedToolsets = selection?.toolsetSelectionDisabled
-        ? rawSelectedToolsets
-        : expandSelectedToolsetsWithCompanions(rawSelectedToolsets, request?.runPolicy || {});
-      if (selection?.enabled && selection.elevationRequired) {
-        return completeModelPermissionRequest({
-          assistantMessage,
-          gatewayTarget,
-          gatewayUrl,
-          selection,
-          taskId,
-          thread,
-        });
-      }
-      if (selection?.enabled && selection.ok && selectedToolsets.length) {
-        const routing = toolsetSelectionRouting(selection, selectedToolsets);
-        const selectedRunOptions = Object.assign({}, effectiveRunOptions, {
-          modelFirstToolsetSelection: {
-            selectedToolsets,
-            toolsetSelectionDisabled: Boolean(selection.toolsetSelectionDisabled),
-            routing,
-          },
-        });
-        request = appendToolsetEscalationInstructions(
-          buildRunRequest(thread, userMessage, assistantMessage, selectedRunOptions),
-          selection,
-          selectedToolsets,
-        );
-        request.toolsetRouting = routing;
-        request.runPolicy = Object.assign({}, request.runPolicy || {}, { toolset_routing: routing });
-        request.body.access_policy_context = Object.assign({}, request.body.access_policy_context || {}, { toolset_routing: routing });
-        request.body.enabled_toolsets = dedupe(request.runPolicy?.allowed_toolsets || request.runPolicy?.allowedToolsets || request.body.enabled_toolsets || []);
-        wardrobeGate = evaluateWardrobeGate(request, userMessage, "after_toolset_selection", gatewayTarget);
-        applyAssistantRunOptions(assistantMessage, request, selectedRunOptions);
-        applyWardrobeWorkflowGateMetadata(assistantMessage, wardrobeGate);
-        appendRunStartEvent(thread, assistantMessage, preflightResultEventName(selection, true), toolsetSelectionPreview(selection, selectedToolsets));
-      } else if (selection?.enabled) {
-        request = restoreAuthorizedToolsetsForSelectionFallback(request, selection || {});
-        wardrobeGate = evaluateWardrobeGate(request, userMessage, "after_toolset_fallback", gatewayTarget);
-        applyWardrobeWorkflowGateMetadata(assistantMessage, wardrobeGate);
-        appendRunStartEvent(thread, assistantMessage, preflightResultEventName(selection, false), toolsetSelectionFallbackPreview(selection || {}));
-      }
+    const preflight = await applyModelFirstToolsetPreflight({
+      assistantMessage,
+      effectiveRunOptions,
+      gatewayTarget,
+      gatewayUrl,
+      request,
+      taskId,
+      thread,
+      userMessage,
+    });
+    if (preflight?.terminalResult) {
+      return preflight.terminalResult;
     }
+    request = preflight?.request || request;
     wardrobeGate = evaluateWardrobeGate(request, userMessage, "pre_stream", gatewayTarget, { appendInstructions: true });
     applyAssistantRunOptions(assistantMessage, request, effectiveRunOptions);
     applyWardrobeWorkflowGateMetadata(assistantMessage, wardrobeGate);
