@@ -242,6 +242,11 @@ statements. Priority extraction areas:
   text detection, preview formatting, tool-call name projection, and Web-search
   tool budget counting/abort projection while retaining response stream
   orchestration and liveness behavior.
+- completed 2026-06-08: Gateway run stream first-event warning timer projection
+  moved into `adapters/gateway-run-stream-first-event-service.js`. The stream
+  service now delegates first Gateway event warning timer scheduling, timer
+  clearing, first-byte retry status projection, and warning attempt counting
+  while retaining response stream orchestration and event handoff.
 - completed 2026-06-08: Gateway run stream closed-without-terminal recovery
   moved into `adapters/gateway-run-stream-close-recovery-service.js`. The
   stream service now delegates synthetic completion after partial model output,

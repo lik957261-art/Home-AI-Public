@@ -1,11 +1,9 @@
 "use strict";
 
 const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
-const {
-  createGatewayRunStreamEventService,
-  modelStreamEventPreview,
-} = require("./gateway-run-stream-event-service");
+const { createGatewayRunStreamEventService } = require("./gateway-run-stream-event-service");
 const { createGatewayRunStreamCloseRecoveryService } = require("./gateway-run-stream-close-recovery-service");
+const { createGatewayRunStreamFirstEventService } = require("./gateway-run-stream-first-event-service");
 const { createGatewayRunStreamLivenessService } = require("./gateway-run-stream-liveness-service");
 const { createGatewayRunStreamRegistryService } = require("./gateway-run-stream-registry-service");
 const { createGatewayRunStreamStopService } = require("./gateway-run-stream-stop-service");
@@ -139,34 +137,16 @@ function createGatewayRunStreamService(options = {}) {
     stopTimeoutMs: options.stopTimeoutMs,
   });
   const stopRunIds = (...args) => streamStopService.stopRunIds(...args);
-
-  function clearStreamTimers(stream) {
-    if (!stream) return;
-    if (stream.firstEventTimer) clearTimeoutFn(stream.firstEventTimer);
-    stream.firstEventTimer = null;
-  }
-
-  function scheduleFirstEventWarning(publicRunId, stream) {
-    const warningMs = Math.max(0, configuredForStream(stream, "modelFirstByteWarningMs", 45000));
-    if (!warningMs || stream?.firstGatewayEventAt || stream?.failureReason) return;
-    if (stream.firstEventTimer) clearTimeoutFn(stream.firstEventTimer);
-    stream.firstEventTimer = setTimeoutFn(() => {
-      const current = activeStreamForRun(publicRunId);
-      if (!current || current.firstGatewayEventAt || current.failureReason) return;
-      current.firstEventWarningCount = Math.max(0, Number(current.firstEventWarningCount || 0) || 0) + 1;
-      const elapsedSeconds = Math.max(1, Math.round((nowMs() - Number(current.startedAt || nowMs())) / 1000));
-      emitRunStreamEvent(
-        publicRunId,
-        "run.model_first_byte_retrying",
-        modelStreamEventPreview("模型连接已等待首个流式事件，可能正在重试", {
-          elapsed: `${elapsedSeconds}s`,
-          attempt: current.firstEventWarningCount,
-        }),
-      );
-      scheduleFirstEventWarning(publicRunId, current);
-    }, warningMs);
-    if (typeof stream.firstEventTimer?.unref === "function") stream.firstEventTimer.unref();
-  }
+  const streamFirstEventService = options.streamFirstEventService || createGatewayRunStreamFirstEventService({
+    activeStreamForRun,
+    clearTimeout: clearTimeoutFn,
+    configuredForStream,
+    emitRunStreamEvent,
+    nowMs,
+    setTimeout: setTimeoutFn,
+  });
+  const clearFirstEventTimer = (...args) => streamFirstEventService.clearFirstEventTimer(...args);
+  const scheduleFirstEventWarning = (...args) => streamFirstEventService.scheduleFirstEventWarning(...args);
 
   function recordGatewayEvent(runId, event = {}) {
     const fallbackRunId = cleanString(runId);
@@ -187,7 +167,7 @@ function createGatewayRunStreamService(options = {}) {
     }
     if (stream && !stream.firstGatewayEventAt) {
       stream.firstGatewayEventAt = nowMs();
-      clearStreamTimers(stream);
+      clearFirstEventTimer(stream);
       emitRunStreamEvent(fallbackRunId || originalRunId || visibleRunId, "run.model_stream_started", "已收到模型流式事件");
     }
     const item = outputItemFromEvent(event);
@@ -295,7 +275,7 @@ function createGatewayRunStreamService(options = {}) {
       .finally(() => {
         const stream = activeStreamForRun(id);
         if (stream?.livenessTimer) clearIntervalFn(stream.livenessTimer);
-        clearStreamTimers(stream);
+        clearFirstEventTimer(stream);
         cleanupRunAliases(id);
       });
     return streamState;

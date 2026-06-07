@@ -100,6 +100,7 @@ focused adapters such as `app-route-url-service.js`,
 `gateway-run-content-service.js`,
 `gateway-run-stream-close-recovery-service.js`,
 `gateway-run-stream-event-service.js`,
+`gateway-run-stream-first-event-service.js`,
 `gateway-run-stream-liveness-service.js`,
 `gateway-run-stream-registry-service.js`,
 `gateway-run-stream-stop-service.js`,
@@ -192,6 +193,13 @@ after model output has arrived and cancellation when no usable model output
 arrived. It must not read response streams, own active stream storage, check
 liveness, stop remote runs, or mutate Gateway targets.
 
+`gateway-run-stream-first-event-service.js` owns first Gateway stream event
+timer projection: scheduling and clearing the first-event warning timer,
+emitting `run.model_first_byte_retrying`, incrementing warning attempts, and
+rescheduling until the first Gateway event or a failure arrives. It must not
+read response streams, parse Gateway events, own active stream storage, stop
+remote runs, or mutate terminal thread/message state.
+
 `gateway-run-stream-liveness-service.js` owns Gateway active-run liveness
 checking: start-timeout detection before a real run id exists, delayed liveness
 check suppression after recent events, Gateway `checkRun` execution, timeout
@@ -226,7 +234,9 @@ preview formatting, and Web-search tool budget counting/abort projection to
 checking to `gateway-run-stream-liveness-service.js`. It must delegate
 stream-closed-without-terminal recovery to
 `gateway-run-stream-close-recovery-service.js`. It must delegate remote/local
-run stop handling to `gateway-run-stream-stop-service.js`.
+run stop handling to `gateway-run-stream-stop-service.js`. It must delegate
+first-event warning timer scheduling and clearing to
+`gateway-run-stream-first-event-service.js`.
 
 `mobile-runtime-gateway-context-facade-service.js` owns stale tool-availability
 claim detection delegates for HTTP, image, DOCX, and audio tool schemas. Weixin
@@ -739,6 +749,9 @@ Current CI guardrails:
   remain deterministic stream event projection and tool-budget accounting, not
   active-stream storage, liveness checking, Gateway runner I/O, or lifecycle
   mutation;
+- `gateway-run-stream-first-event-service.js` must stay at or below 75 lines
+  and remain first Gateway stream event warning timer projection, not stream
+  parsing, active-stream storage, liveness checking, or lifecycle mutation;
 - `gateway-run-stream-liveness-service.js` must stay at or below 115 lines and
   remain active-run liveness checking, not stream parsing, active-stream
   storage, remote stop, or terminal thread/message mutation;
@@ -748,7 +761,7 @@ Current CI guardrails:
 - `gateway-run-stream-stop-service.js` must stay at or below 85 lines and
   remain remote/local stream stop projection, not stream parsing, active-stream
   storage, event projection, liveness checking, or lifecycle mutation;
-- `gateway-run-stream-service.js` must stay at or below 330 lines and remain
+- `gateway-run-stream-service.js` must stay at or below 310 lines and remain
   Gateway stream orchestration, not an active-stream registry or broad Gateway
   runtime composition module;
 - `mobile-runtime-group-chat-facade-service.js` must stay at or below 95 lines
