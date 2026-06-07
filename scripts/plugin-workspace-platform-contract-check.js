@@ -34,6 +34,18 @@ const REQUIRED_POINTER_TEXT = [
   "Do not record raw",
 ];
 
+const RUNTIME_URL_FIELDS = [
+  "windows_dev_base_url",
+  "macos_production_base_url",
+  "manifest_url",
+];
+
+const FORBIDDEN_PLUGIN_RUNTIME_DOMAINS = [
+  /hermes-xuxin\.synology\.me/i,
+  /wardrobe-xuxin\.synology\.me/i,
+  /tail62e8ce\.ts\.net/i,
+];
+
 const PLUGINS = [
   {
     id: "finance",
@@ -180,6 +192,31 @@ function forbiddenSecretMatches(text) {
   return patterns.filter((pattern) => pattern.test(text)).map((pattern) => String(pattern));
 }
 
+function pointerFieldValue(text, field) {
+  const escapedField = String(field || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp("^\\|\\s*`" + escapedField + "`\\s*\\|\\s*`([^`]+)`\\s*\\|", "m");
+  const match = String(text || "").match(pattern);
+  return match ? match[1].trim() : "";
+}
+
+function checkPointerRuntimeUrls(plugin, text) {
+  const issues = [];
+  const expected = {
+    windows_dev_base_url: `http://127.0.0.1:${plugin.port}`,
+    macos_production_base_url: `http://127.0.0.1:${plugin.port}`,
+    manifest_url: `http://127.0.0.1:${plugin.port}${plugin.manifestPath}`,
+  };
+  for (const field of RUNTIME_URL_FIELDS) {
+    const value = pointerFieldValue(text, field);
+    if (!value) continue;
+    if (value !== expected[field]) issues.push(`runtime_url_not_loopback:${field}`);
+  }
+  for (const pattern of FORBIDDEN_PLUGIN_RUNTIME_DOMAINS) {
+    if (pattern.test(text)) issues.push(`pointer_forbidden_runtime_domain:${pattern.source}`);
+  }
+  return issues;
+}
+
 function selectedPlugins(options) {
   const ids = options.plugins.length ? new Set(options.plugins) : null;
   const selected = PLUGINS.filter((plugin) => !ids || ids.has(plugin.id));
@@ -230,6 +267,7 @@ function checkPointer(plugin, options) {
   for (const match of forbiddenSecretMatches(text)) {
     result.issues.push(`pointer_secret_pattern:${match}`);
   }
+  result.issues.push(...checkPointerRuntimeUrls(plugin, text));
   if (exists(handoffPath)) {
     const handoff = readText(handoffPath);
     result.handoffPointer = handoff.includes("Home AI Platform Contract Pointer") && handoff.includes(CONTRACT_VERSION);

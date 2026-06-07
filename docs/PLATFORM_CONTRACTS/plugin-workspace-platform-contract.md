@@ -117,6 +117,37 @@ endpoints that correctly require a workspace id/key are reported as
 `authRequired=true`; tool-specific schema closure still belongs to
 `docs/RUNBOOKS/mcp-tool-upgrade-closure.md`.
 
+## Runtime URL And Same-Origin Entry Contract
+
+Standard same-host plugins must not hardcode a public, NAS, tailnet, or
+machine-specific domain as their default Home AI runtime entry. Their
+plugin-local pointer fields must use loopback defaults:
+
+- `windows_dev_base_url`: `http://127.0.0.1:<plugin-port>`
+- `macos_production_base_url`: `http://127.0.0.1:<plugin-port>`
+- `manifest_url`: `http://127.0.0.1:<plugin-port>/api/v1/hermes/plugin/manifest`
+
+Hermes Mobile owns the browser-facing embedded entry. When the plugin is a
+local or LAN HTTP service, the phone/PWA iframe must receive a Hermes
+same-origin proxy path under
+`/api/hermes-plugins/<plugin-id>/proxy/...`, not the upstream plugin URL. The
+plugin may return relative paths or absolute URLs in its manifest and launch
+response, but if Hermes fetched that manifest from a local/private source, the
+runtime must resolve the entry back through the same local manifest source
+before handing it to the HTTPS/PWA client.
+
+Plugin code running inside an iframe must derive the Hermes host origin from
+the current parent/window/referrer context for postMessage navigation state and
+back-result events. It must not retain a stale configured Hermes domain for
+right-swipe/back handling. A stale domain can make a thread/detail page report
+the wrong back state and cause iOS right-swipe to exit the Hermes host instead
+of returning to the plugin list.
+
+External HTTPS plugin deployments are allowed only as explicit deployment
+overrides. They must be documented as external entries, must pass frame-ancestor
+and browser-facing HTTPS checks, and must not replace the standard inserted
+plugin loopback defaults.
+
 ## Required Plugin Facts
 
 Every production plugin must declare these facts in its local pointer or module

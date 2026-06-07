@@ -271,6 +271,38 @@ function serverSidePluginUrl(manifest, value = "") {
   return safeJoinUrl(manifest?.programApi?.baseUrl || sourceUrl, target);
 }
 
+function normalizeLocalManifestUrlTarget(manifestUrl, value = "") {
+  const target = stringValue(value);
+  if (!target) return "";
+  const absolute = safeUrl(target, manifestUrl);
+  if (!absolute || !isLocalOrPrivateHttpUrl(manifestUrl)) return absolute;
+  const sourceOrigin = originOf(manifestUrl);
+  if (!sourceOrigin || originOf(absolute) === sourceOrigin) return absolute;
+  try {
+    const parsed = new URL(absolute);
+    return safeJoinUrl(manifestUrl, `${parsed.pathname}${parsed.search}${parsed.hash}`);
+  } catch (_) {
+    return absolute;
+  }
+}
+
+function normalizeLocalManifestProgramBaseUrl(manifestUrl, value = "") {
+  const absolute = safeUrl(value, manifestUrl);
+  if (!absolute || !isLocalOrPrivateHttpUrl(manifestUrl)) return absolute;
+  const sourceOrigin = originOf(manifestUrl);
+  if (!sourceOrigin || originOf(absolute) === sourceOrigin) return absolute;
+  return `${sourceOrigin}/`;
+}
+
+function normalizeLocalManifestProgramLaunchPath(manifestUrl, value = "", launchUrl = "") {
+  if (launchUrl) return launchUrl;
+  const target = stringValue(value);
+  if (!target) return "";
+  if (!isLocalOrPrivateHttpUrl(manifestUrl)) return target;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(target)) return target;
+  return normalizeLocalManifestUrlTarget(manifestUrl, target) || target;
+}
+
 function urlWithoutSearchOrHash(value = "") {
   try {
     const url = new URL(value);
@@ -787,24 +819,17 @@ function normalizeManifest(raw = {}, source = {}) {
   const manifestUrl = stringValue(source.manifestUrl);
   const id = stringValue(raw.id || source.id);
   const rawEntry = typeof raw.entry === "string" ? raw.entry : raw.entry?.url;
-  const candidateEntryUrl = safeUrl(rawEntry || raw.entryUrl || raw.url, manifestUrl);
-  const entryUrl = (() => {
-    if (!candidateEntryUrl || !isLocalOrPrivateHttpUrl(manifestUrl)) return candidateEntryUrl;
-    const sourceOrigin = originOf(manifestUrl);
-    if (!sourceOrigin || originOf(candidateEntryUrl) === sourceOrigin) return candidateEntryUrl;
-    try {
-      const parsed = new URL(candidateEntryUrl);
-      return safeJoinUrl(manifestUrl, `${parsed.pathname}${parsed.search}${parsed.hash}`);
-    } catch (_) {
-      return candidateEntryUrl;
-    }
-  })();
+  const entryUrl = normalizeLocalManifestUrlTarget(manifestUrl, rawEntry || raw.entryUrl || raw.url);
   if (!id) throw new Error("plugin_manifest_id_required");
   if (!entryUrl) throw new Error("plugin_manifest_entry_url_required");
   const rawLaunch = typeof raw.launch === "string" ? raw.launch : (raw.launch?.url || raw.launch?.endpoint);
   const rawProgramLaunch = raw.program_api?.plugin_launch || raw.programApi?.pluginLaunch || "";
-  const launchUrl = safeUrl(rawLaunch || "", manifestUrl);
-  const programBaseUrl = safeUrl(raw.program_api?.base_url || raw.programApi?.baseUrl || (launchUrl ? originOf(launchUrl) : ""), manifestUrl);
+  const launchUrl = normalizeLocalManifestUrlTarget(manifestUrl, rawLaunch || "");
+  const programBaseUrl = normalizeLocalManifestProgramBaseUrl(
+    manifestUrl,
+    raw.program_api?.base_url || raw.programApi?.baseUrl || (launchUrl ? originOf(launchUrl) : ""),
+  );
+  const programLaunchPath = normalizeLocalManifestProgramLaunchPath(manifestUrl, rawProgramLaunch, launchUrl);
   const topLevelToolsets = Array.isArray(raw.toolsets) ? raw.toolsets.map(stringValue).filter(Boolean) : [];
   const topLevelPermissions = Array.isArray(raw.permissions) ? raw.permissions.map(stringValue).filter(Boolean) : [];
   const embedding = raw.embedding && typeof raw.embedding === "object"
@@ -854,7 +879,7 @@ function normalizeManifest(raw = {}, source = {}) {
       origin: originOf(programBaseUrl),
       pluginManifestPath: stringValue(raw.program_api?.plugin_manifest),
       workspaceRegistrationPath: stringValue(raw.program_api?.workspace_registration || raw.programApi?.workspaceRegistration || raw.provisioning?.endpoint || raw.provisioning?.workspace_registration),
-      pluginLaunchPath: launchUrl || stringValue(rawProgramLaunch),
+      pluginLaunchPath: programLaunchPath,
       syncSchemaVersion: raw.program_api?.sync_schema_version || raw.programApi?.syncSchemaVersion || null,
     },
     embedding: {

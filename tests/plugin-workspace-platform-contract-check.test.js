@@ -15,7 +15,10 @@ function write(file, body) {
   fs.writeFileSync(file, body, "utf8");
 }
 
-function pointerFor(plugin) {
+function pointerFor(plugin, overrides = {}) {
+  const windowsDevBaseUrl = overrides.windowsDevBaseUrl || `http://127.0.0.1:${plugin.port}`;
+  const macosProductionBaseUrl = overrides.macosProductionBaseUrl || `http://127.0.0.1:${plugin.port}`;
+  const manifestUrl = overrides.manifestUrl || `http://127.0.0.1:${plugin.port}/api/v1/hermes/plugin/manifest`;
   return [
     "# Home AI Platform Contract Pointer",
     "",
@@ -40,10 +43,10 @@ function pointerFor(plugin) {
     `| \`workspace_path_windows\` | \`fixture/${plugin.dirName}\` |`,
     `| \`production_source_path_macos\` | \`${plugin.macSourcePaths[0]}\` |`,
     "| `production_data_root_macos` | `/Users/hermes-host/HermesMobile/data` |",
-    `| \`windows_dev_base_url\` | \`http://127.0.0.1:${plugin.port}\` |`,
-    `| \`macos_production_base_url\` | \`http://127.0.0.1:${plugin.port}\` |`,
+    `| \`windows_dev_base_url\` | \`${windowsDevBaseUrl}\` |`,
+    `| \`macos_production_base_url\` | \`${macosProductionBaseUrl}\` |`,
     `| \`launchd_label\` | \`${plugin.launchdLabel}\` |`,
-    `| \`manifest_url\` | \`http://127.0.0.1:${plugin.port}/api/v1/hermes/plugin/manifest\` |`,
+    `| \`manifest_url\` | \`${manifestUrl}\` |`,
     "| `mcp_command` | `fixture` |",
     "| `mcp_schema_endpoint` | `fixture` |",
     "| `deploy_command` | `fixture` |",
@@ -123,6 +126,22 @@ function testSingleRepositoryCheckoutReportsBoundedPointerMissing() {
   );
 }
 
+function testPointerRejectsPublicRuntimeUrls() {
+  const fixture = makeFixture();
+  const plugin = PLUGINS.find((item) => item.id === "finance");
+  write(path.join(fixture.root, plugin.dirName, "docs", "HOME_AI_PLATFORM_CONTRACT.md"), pointerFor(plugin, {
+    macosProductionBaseUrl: "https://hermes-xuxin.synology.me:8445",
+    manifestUrl: "https://hermes-xuxin.synology.me:8445/api/v1/hermes/plugin/manifest",
+  }));
+  const result = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--plugin", "finance", "--json"]);
+  assert.equal(result.status, 1);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.issues.includes("finance:runtime_url_not_loopback:macos_production_base_url"));
+  assert.ok(parsed.issues.includes("finance:runtime_url_not_loopback:manifest_url"));
+  assert.ok(parsed.issues.some((issue) => issue.startsWith("finance:pointer_forbidden_runtime_domain:")));
+}
+
 function testRepositoryContractIsCurrentlyClosed() {
   const result = run(["--json"]);
   const parsed = JSON.parse(result.stdout);
@@ -153,6 +172,7 @@ function testScriptDoesNotHandleSecretsOrSudo() {
 testFixturePasses();
 testUnknownPluginFailsAndCodexIsNotADescriptor();
 testSingleRepositoryCheckoutReportsBoundedPointerMissing();
+testPointerRejectsPublicRuntimeUrls();
 testRepositoryContractIsCurrentlyClosed();
 testScriptDoesNotHandleSecretsOrSudo();
 

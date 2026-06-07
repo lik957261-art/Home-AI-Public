@@ -344,6 +344,15 @@ origin in `frame-ancestors` is still required for direct external plugin
 entries, but it is not enough by itself to make an HTTP iframe valid inside an
 HTTPS PWA.
 
+For standard same-host plugins, the configured manifest source should remain a
+loopback URL such as `http://127.0.0.1:<port>/api/v1/hermes/plugin/manifest`.
+Public/NAS/tailnet domains are explicit external deployment overrides, not
+default plugin pointers. If a local manifest or launch response contains an
+absolute stale domain, Hermes must resolve only its path/search/hash back
+against the local manifest source before returning a browser-facing proxy path.
+This prevents plugin navigation and iOS right-swipe/back state from depending
+on a personal or previous production domain.
+
 When Hermes serves a plugin through the same-origin proxy, the browser is
 framing the Hermes proxy URL rather than the upstream plugin origin. Upstream
 `frame-ancestors` diagnostics must not make the normalized manifest unavailable

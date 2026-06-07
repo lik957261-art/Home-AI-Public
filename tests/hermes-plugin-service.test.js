@@ -525,7 +525,7 @@ async function testFrameAncestorsBlockedReturnsUnavailable() {
   assert.equal(manifest.embed.blockedByFrameAncestors, true);
 }
 
-async function testDefaultNasManifestUrl() {
+async function testDefaultLocalManifestUrls() {
   const service = createHermesPluginService({
     env: {},
     wardrobeAccessKeyPath: "missing-key.txt",
@@ -1703,6 +1703,56 @@ async function testHttpsHermesUsesSameOriginProxyForLocalCodexEntryAfterLaunch()
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|test-key/i);
 }
 
+async function testLocalCodexManifestStripsStaleAbsoluteDomainBeforeProxy() {
+  const staleOrigin = "https://hermes-xuxin.synology.me:8445";
+  const service = createHermesPluginService({
+    plugins: [{ id: "codex-mobile", manifestUrl: "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest" }],
+    codexMobileAccessKeyPath: __filename,
+    fetch(url) {
+      if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
+        const base = sampleCodexManifest();
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(Object.assign({}, base, {
+            entry: { type: "web", url: `${staleOrigin}/?embed=hermes` },
+            program_api: Object.assign({}, base.program_api, {
+              base_url: staleOrigin,
+              plugin_launch: `${staleOrigin}/api/v1/hermes/plugin/launch`,
+            }),
+          })),
+        });
+      }
+      if (url === "http://127.0.0.1:8787/api/v1/hermes/plugin/launch") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            entry_path: `${staleOrigin}/thread/thread-a?codexPluginLaunch=cpl_old`,
+            expires_in: 300,
+          }),
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+  const manifest = await service.manifest({
+    id: "codex-mobile",
+    workspaceId: "owner",
+    appOrigin: "https://mac-studio.tailnet.example.test",
+    launchPlugin: true,
+  });
+  assert.equal(manifest.available, true);
+  assert.equal(
+    manifest.entry.url,
+    "/api/hermes-plugins/codex-mobile/proxy/thread/thread-a?codexPluginLaunch=cpl_old&workspaceId=owner",
+  );
+  assert.equal(manifest.entry.origin, "https://mac-studio.tailnet.example.test");
+  assert.equal(manifest.entry.proxiedFromOrigin, "http://127.0.0.1:8787");
+  assert.equal(manifest.embed.sameOriginProxy, true);
+  assert.doesNotMatch(JSON.stringify(manifest), /hermes-xuxin\.synology\.me|Authorization|Bearer|test-key/i);
+}
+
 async function testHttpsHermesUsesSameOriginProxyForLanWardrobeEntryAfterLaunch() {
   const service = createHermesPluginService({
     plugins: [{ id: "wardrobe", manifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" }],
@@ -1947,7 +1997,7 @@ async function run() {
   await testExplicitPluginWorkspaceAuthorizationAllowsNonOwner();
   await testCodexPluginCannotBeGrantedToNonOwner();
   await testFrameAncestorsBlockedReturnsUnavailable();
-  await testDefaultNasManifestUrl();
+  await testDefaultLocalManifestUrls();
   testInstalledPluginListReflectsWorkspaceKeyBindings();
   await testHealthFreshInstallIsInstalledButNotWorkspaceActive();
   testHealthWorkspaceKeyWithoutConfigIsNotActive();
@@ -1973,6 +2023,7 @@ async function run() {
   await testFinanceLaunchEntryUsesWorkspaceKeyBody();
   await testFinanceLaunchEntryUsesSeparateWorkspaceUserKeyWhenProvided();
   await testHttpsHermesUsesSameOriginProxyForLocalCodexEntryAfterLaunch();
+  await testLocalCodexManifestStripsStaleAbsoluteDomainBeforeProxy();
   await testHttpsHermesUsesSameOriginProxyForLanWardrobeEntryAfterLaunch();
   await testSameOriginProxySkipsUpstreamFrameAncestorsBlock();
   await testHttpsHermesProxyEntryIncludesEffectiveWorkspaceForWardrobeLaunch();

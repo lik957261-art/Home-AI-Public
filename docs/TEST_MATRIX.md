@@ -1095,6 +1095,11 @@ cookies through that path. A same-origin proxied entry must not be marked
 unavailable merely because the upstream plugin's `frame-ancestors` directive
 does not list the Hermes origin; the browser frames the Hermes proxy URL. Direct
 HTTPS/non-proxied plugin entries must still pass the frame-ancestor allow check.
+Standard inserted plugin pointer checks must also reject public/NAS/tailnet
+domains as default `macos_production_base_url` or `manifest_url` values. The
+contract checker must prove those runtime fields are loopback, so a stale
+personal domain cannot leak into iframe launch, postMessage navigation, or iOS
+right-swipe/back behavior.
 The test must hit the real Mobile dispatcher route
 as well as the plugin route module. Same-origin proxy launch tests must prove
 server-side `fetch` uses manual redirect handling, because automatic redirect
