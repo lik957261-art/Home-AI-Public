@@ -69,6 +69,7 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-environment-service.js`,
 `mobile-runtime-env-value-service.js`,
 `mobile-runtime-gateway-environment-service.js`,
+`mobile-runtime-gateway-composition-options-service.js`,
 `mobile-runtime-gateway-context-facade-service.js`,
 `mobile-runtime-gateway-facade-service.js`,
 `gateway-run-content-service.js`,
@@ -154,6 +155,14 @@ runtime wiring may receive delayed delegates to this facade, but
 `mobile-server-runtime.js` must not define duplicate
 `isStaleHttpToolAvailabilityClaim` or `isStaleImageToolAvailabilityClaim`
 wrapper functions.
+
+`mobile-runtime-gateway-composition-options-service.js` owns the runtime
+dependency-to-option projection for `gateway-runtime-composition-service.js`.
+It may map delayed runtime delegates, service facades, and stable runtime
+constants into run-start, run-stream, run-event, queue, selector, notification,
+and topic-compaction options. It must not implement Gateway run lifecycle,
+queue mutation, stream parsing, model preflight decisions, or notification
+delivery behavior.
 
 `app-route-url-service.js` owns app-shell query URL serialization for Push,
 Web Push, plugin notification, and other route-link producers. Runtime
@@ -294,7 +303,7 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,315 lines while it is being split further;
+- `mobile-server-runtime.js` must stay at or below 1,310 lines while it is being split further;
 - top-level `function` declarations in `mobile-server-runtime.js` must stay at 0;
 - async top-level `function` declarations in `mobile-server-runtime.js` must stay at 0;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
@@ -341,6 +350,10 @@ Current CI guardrails:
 - `mobile-runtime-gateway-context-facade-service.js` must stay at or below 90
   lines and remain a facade over Gateway instruction, conversation-history,
   stale tool-schema claim, run-target, and usage supplementation delegates;
+- `mobile-runtime-gateway-composition-options-service.js` must stay at or
+  below 130 lines and remain a dependency-to-option projection for
+  `gateway-runtime-composition-service.js`, not a Gateway lifecycle, queue,
+  stream, selector, or notification implementation;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 220 lines
   and remain a runtime Gateway facade over runner/pool/launcher/provisioning,
   telemetry, run concurrency, Gateway runtime composition singleton ownership,

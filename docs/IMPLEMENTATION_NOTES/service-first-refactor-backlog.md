@@ -124,6 +124,12 @@ statements. Priority extraction areas:
   dense lines. The next Gateway split should reduce that dependency package by
   moving run-start, run-event, and queue wiring into smaller option/facade
   modules.
+- completed 2026-06-08: Gateway runtime dependency-to-option projection moved
+  into `adapters/mobile-runtime-gateway-composition-options-service.js`. Runtime
+  now groups stable `runtimeEnv` constants, delayed delegates, runtime values,
+  and service facades, while selector, Skill preload, plugin capability,
+  directory attachment, notification, and topic-compaction option wrappers live
+  in a focused service with its own tests and architecture budget.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;
