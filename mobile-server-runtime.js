@@ -59,6 +59,7 @@ const { createMobileRuntimeLocalBridgeFacadeService } = require("./adapters/mobi
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
 const { createMobileRuntimeAuthFacadeService } = require("./adapters/mobile-runtime-auth-facade-service");
 const { createMobileRuntimeBackendPolicyService } = require("./adapters/mobile-runtime-backend-policy-service");
+const { createMobileRuntimeBootTraceService } = require("./adapters/mobile-runtime-boot-trace-service");
 const { createMobileRuntimeConfigFacadeService } = require("./adapters/mobile-runtime-config-facade-service");
 const { createMobileRuntimeFileAccessFacadeService } = require("./adapters/mobile-runtime-file-access-facade-service");
 const { createMobileRuntimeFileHelperService } = require("./adapters/mobile-runtime-file-helper-service");
@@ -153,13 +154,8 @@ const mobileRuntimeSqliteStoreFacadeService = createMobileRuntimeSqliteStoreFaca
   dbPath: MOBILE_SQLITE_DB_PATH,
 });
 const mobileSqliteStore = (...args) => mobileRuntimeSqliteStoreFacadeService.mobileSqliteStore(...args);
-function bootTrace(label) {
-  if (!BOOT_TRACE_PATH) return;
-  try {
-    fs.mkdirSync(path.dirname(BOOT_TRACE_PATH), { recursive: true });
-    fs.appendFileSync(BOOT_TRACE_PATH, `${new Date().toISOString()} pid=${process.pid} ${label}\n`, "utf8");
-  } catch (_) {}
-}
+const mobileRuntimeBootTraceService = createMobileRuntimeBootTraceService({ fs, path, process, tracePath: BOOT_TRACE_PATH });
+const bootTrace = (...args) => mobileRuntimeBootTraceService.bootTrace(...args);
 bootTrace("constants ready");
 const documentPreviewService = createDocumentPreviewService({
   fs,

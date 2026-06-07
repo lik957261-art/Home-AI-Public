@@ -71,6 +71,10 @@ statements. Priority extraction areas:
   `adapters/mobile-runtime-auth-facade-service.js`. Runtime keeps
   `authenticateRequest`, `authCanAccessWorkspace`, and `isOwnerAuth` as service
   delegates without top-level auth-provider wrapper functions.
+- completed 2026-06-08: startup boot tracing moved into
+  `adapters/mobile-runtime-boot-trace-service.js`. Runtime keeps only a
+  delegate while the service owns best-effort trace file writes through injected
+  filesystem/path/process/clock dependencies.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

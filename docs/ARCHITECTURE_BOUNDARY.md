@@ -58,6 +58,7 @@ Current runtime glue that should stay out of the composition root lives in
 focused adapters such as `app-route-url-service.js`,
 `automation-job-filter-service.js`,
 `mobile-runtime-basic-helper-service.js`,
+`mobile-runtime-boot-trace-service.js`,
 `mobile-runtime-file-helper-service.js`,
 `mobile-runtime-file-access-facade-service.js`,
 `mobile-runtime-artifact-facade-service.js`,
@@ -94,7 +95,7 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-http-server-service.js`. These modules keep static file
 app route URL serialization, Automation job filtering, deterministic runtime primitives,
 auth-provider delayed delegation,
-helpers and JSON store file IO,
+boot trace side-effect wiring, helpers and JSON store file IO,
 Artifact/Markdown registration lazy delegation, backend mode policy, runtime
 config facade delegation, runtime environment aggregation, shared environment
 value parsing, Gateway/run environment parsing,
@@ -284,7 +285,7 @@ Current CI guardrails:
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
 - `mobile-server-runtime.js` must stay at or below 1,340 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 9;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 8;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
 - `path-boundary-service.js` must stay at or below 65 lines and remain a
@@ -302,6 +303,9 @@ Current CI guardrails:
 - `mobile-runtime-auth-facade-service.js` must stay at or below 40 lines and
   remain a delayed auth-provider delegation facade, not an auth policy or key
   storage implementation;
+- `mobile-runtime-boot-trace-service.js` must stay at or below 35 lines and
+  remain a best-effort startup trace side-effect adapter, not a logging,
+  telemetry, or runtime lifecycle module;
 - `mobile-runtime-basic-helper-service.js` must stay at or below 120 lines and
   remain a deterministic helper service for basic runtime primitives, not a
   route, provider, permission, or Gateway lifecycle policy module;
