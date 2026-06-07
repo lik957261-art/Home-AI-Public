@@ -14,30 +14,13 @@ const {
   skillPreloadRunOptionsMetadata,
 } = require("./gateway-run-request-builder-service");
 const { createGatewayRunStartEventService } = require("./gateway-run-start-event-service");
+const {
+  createGatewayRunStartStreamOptionsService,
+  isChatGptProRunOptions,
+} = require("./gateway-run-start-stream-options-service");
 const { evaluateWardrobeOutfitWorkflowGate } = require("./wardrobe-outfit-workflow-gate-service");
 
 const DEFAULT_TOOL_SCHEMA_EPOCH = "20260513-audio-file-v1";
-const CHATGPT_PRO_MIN_WAIT_MS = 30 * 60 * 1000;
-
-function isChatGptProRunOptions(runOptions = {}) {
-  const text = [
-    runOptions.requiredTool,
-    runOptions.elevationScope,
-    runOptions.sourceIntent,
-    runOptions.provider,
-  ].map((value) => cleanString(value).toLowerCase()).join(" ");
-  return text.includes("chatgpt_pro_generate");
-}
-
-function isExplicitWebSearchRunOptions(runOptions = {}) {
-  const text = [
-    runOptions.searchSource,
-    runOptions.search_source,
-    runOptions.sourceIntent,
-    runOptions.source_intent,
-  ].map((value) => cleanString(value).toLowerCase()).join(" ");
-  return /\b(web|web_search|search|x|x_search)\b/.test(text);
-}
 
 function maybeCall(fn, fallback) {
   return typeof fn === "function" ? fn : fallback;
@@ -96,8 +79,6 @@ function createGatewayRunStartService(options = {}) {
   const threadSummary = maybeCall(options.threadSummary, (thread) => thread);
   const streamResponse = maybeCall(options.streamResponse, () => null);
   const selectRunToolsetsWithModel = typeof options.selectRunToolsetsWithModel === "function" ? options.selectRunToolsetsWithModel : null;
-  const runWebSearchMaxCalls = Math.max(0, Math.floor(Number(options.runWebSearchMaxCalls) || 0));
-  const runExplicitWebSearchMaxCalls = Math.max(0, Math.floor(Number(options.runExplicitWebSearchMaxCalls) || 0));
   const requestBuilderService = options.requestBuilderService || createGatewayRunRequestBuilderService({
     accessPolicyHardeningOptionsForGatewayRouting,
     buildAccessPolicy,
@@ -144,6 +125,10 @@ function createGatewayRunStartService(options = {}) {
   const toolsetSelectionFallbackPreview = (...args) => runStartEventService.toolsetSelectionFallbackPreview(...args);
   const preflightResultEventName = (...args) => runStartEventService.preflightResultEventName(...args);
   const permissionSelectionPreview = (...args) => runStartEventService.permissionSelectionPreview(...args);
+  const streamOptionsService = options.streamOptionsService || createGatewayRunStartStreamOptionsService({
+    runExplicitWebSearchMaxCalls: options.runExplicitWebSearchMaxCalls,
+    runWebSearchMaxCalls: options.runWebSearchMaxCalls,
+  });
 
   function restoreAuthorizedToolsetsForSelectionFallback(request = {}, selection = {}) {
     const authorized = dedupe(
@@ -423,24 +408,7 @@ function createGatewayRunStartService(options = {}) {
       }
       appendRunStartEvent(thread, assistantMessage, "run.context_ready", contextReadyPreview(request));
     }
-    const streamOptions = {
-      gatewayUrl,
-      gatewayApiKey: gatewayTarget?.apiKey || "",
-      gatewayName: gatewayTarget?.name || "",
-      gatewayProfile: gatewayTarget?.profile || "",
-      gatewaySource: gatewayTarget?.source || "",
-    };
-    if (runExplicitWebSearchMaxCalls > 0 && isExplicitWebSearchRunOptions(runOptions)) {
-      streamOptions.webSearchMaxCalls = runExplicitWebSearchMaxCalls;
-    } else if (runWebSearchMaxCalls > 0) {
-      streamOptions.webSearchMaxCalls = runWebSearchMaxCalls;
-    }
-    if (isChatGptProRunOptions(runOptions)) {
-      streamOptions.runStartTimeoutMs = CHATGPT_PRO_MIN_WAIT_MS;
-      streamOptions.runLivenessCheckAfterMs = CHATGPT_PRO_MIN_WAIT_MS;
-      streamOptions.runLivenessStaleAfterMs = 0;
-      streamOptions.modelFirstByteWarningMs = CHATGPT_PRO_MIN_WAIT_MS;
-    }
+    const streamOptions = streamOptionsService.streamOptionsForGatewayTarget(gatewayTarget, runOptions, { gatewayUrl });
     const forcedModelFirstSelection = objectValue(effectiveRunOptions.modelFirstToolsetSelection, null);
     const forcedSelectedToolsets = dedupe(
       forcedModelFirstSelection?.selectedToolsets

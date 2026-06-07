@@ -76,6 +76,7 @@ focused adapters such as `app-route-url-service.js`,
 `gateway-runtime-subservice-options-service.js`,
 `gateway-run-request-builder-service.js`,
 `gateway-run-start-event-service.js`,
+`gateway-run-start-stream-options-service.js`,
 `gateway-run-content-service.js`,
 `mobile-runtime-group-chat-facade-service.js`,
 `mobile-runtime-group-chat-attachment-service.js`,
@@ -196,12 +197,19 @@ permission-preflight event naming. It must not mutate run lifecycle state,
 choose workers, run model preflight, build Gateway request bodies, or start
 streams.
 
+`gateway-run-start-stream-options-service.js` owns deterministic stream-start
+option projection for Gateway start handoff: Gateway target metadata, Web/search
+max-call caps, explicit search cap selection, and ChatGPT Pro long-wait timeout
+fields. It must not choose workers, mutate request/thread state, run model
+preflight, emit events, or start streams.
+
 `gateway-run-start-service.js` owns Gateway run preparation state transitions,
 worker selection orchestration, optional plugin capability probing, model-first
 toolset preflight orchestration, wardrobe workflow gate checkpoints, and stream
 startup handoff. It must delegate deterministic request construction to
 `gateway-run-request-builder-service.js` and telemetry/event projection to
-`gateway-run-start-event-service.js`.
+`gateway-run-start-event-service.js`, and stream-start option projection to
+`gateway-run-start-stream-options-service.js`.
 
 `app-route-url-service.js` owns app-shell query URL serialization for Push,
 Web Push, plugin notification, and other route-link producers. Runtime
@@ -406,7 +414,10 @@ Current CI guardrails:
 - `gateway-run-start-event-service.js` must stay at or below 215 lines and
   remain Gateway run-start telemetry/event projection, not a request-builder,
   lifecycle, selector, worker-selection, or streaming module;
-- `gateway-run-start-service.js` must stay at or below 610 lines and remain
+- `gateway-run-start-stream-options-service.js` must stay at or below 80 lines
+  and remain deterministic Gateway stream-start option projection, not a worker
+  selection, model-preflight, event, or streaming module;
+- `gateway-run-start-service.js` must stay at or below 575 lines and remain
   Gateway run preparation orchestration, not a request-builder, event projector,
   or broad Gateway composition module;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 220 lines

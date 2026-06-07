@@ -149,6 +149,11 @@ statements. Priority extraction areas:
   context/gateway preview text, model-first toolset routing previews, fallback
   previews, and permission-preflight event naming to a focused projection
   service with its own tests and architecture budget.
+- completed 2026-06-08: Gateway run-start stream option projection moved into
+  `adapters/gateway-run-start-stream-options-service.js`. The start service now
+  delegates Gateway target metadata projection, Web/search max-call caps,
+  explicit search cap selection, and ChatGPT Pro long-wait timeout fields to a
+  focused deterministic service with its own tests and architecture budget.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;
