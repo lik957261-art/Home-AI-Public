@@ -79,6 +79,7 @@ focused adapters such as `app-route-url-service.js`,
 `gateway-run-start-event-service.js`,
 `gateway-run-start-stream-options-service.js`,
 `gateway-run-start-state-service.js`,
+`gateway-run-start-toolset-selection-service.js`,
 `gateway-run-start-wardrobe-gate-service.js`,
 `gateway-run-content-service.js`,
 `mobile-runtime-group-chat-facade-service.js`,
@@ -220,6 +221,13 @@ thread state mutation, compact message-update broadcast, and failed-start
 projection. It must not choose workers, build Gateway requests, run model
 preflight, emit run-start telemetry events, or start streams.
 
+`gateway-run-start-toolset-selection-service.js` owns deterministic run-start
+request mutation around model-first toolset selection: restoring authorized
+toolsets after selector fallback and inserting bounded toolset-escalation
+instructions after a successful selection. It must not choose workers, call the
+selector model, decide permissions, define toolset policy, emit events, or start
+streams.
+
 `gateway-run-start-wardrobe-gate-service.js` owns deterministic run-start
 integration with the Wardrobe workflow gate: stage evaluation, idempotent
 instruction insertion, failed-gate event projection, and failed-start handoff.
@@ -235,8 +243,9 @@ startup handoff. It must delegate deterministic request construction to
 `gateway-run-start-event-service.js`, and stream-start option projection to
 `gateway-run-start-stream-options-service.js`. It must delegate deterministic
 run-start state mutation and failed-start projection to
-`gateway-run-start-state-service.js`, and Wardrobe gate evaluation/failure
-projection to `gateway-run-start-wardrobe-gate-service.js`.
+`gateway-run-start-state-service.js`, toolset-selection request mutation to
+`gateway-run-start-toolset-selection-service.js`, and Wardrobe gate
+evaluation/failure projection to `gateway-run-start-wardrobe-gate-service.js`.
 
 `app-route-url-service.js` owns app-shell query URL serialization for Push,
 Web Push, plugin notification, and other route-link producers. Runtime
@@ -450,10 +459,13 @@ Current CI guardrails:
 - `gateway-run-start-state-service.js` must stay at or below 115 lines and
   remain deterministic Gateway run-start state projection, not a request
   builder, selector, worker-selection, or streaming module;
+- `gateway-run-start-toolset-selection-service.js` must stay at or below 95
+  lines and remain deterministic toolset-selection request mutation, not a
+  selector, permission decision, worker-selection, or streaming module;
 - `gateway-run-start-wardrobe-gate-service.js` must stay at or below 85 lines
   and remain deterministic Wardrobe workflow gate integration, not a Wardrobe
   product-rule, selector, worker-selection, or streaming module;
-- `gateway-run-start-service.js` must stay at or below 450 lines and remain
+- `gateway-run-start-service.js` must stay at or below 395 lines and remain
   Gateway run preparation orchestration, not a request-builder, event projector,
   or broad Gateway composition module;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 220 lines

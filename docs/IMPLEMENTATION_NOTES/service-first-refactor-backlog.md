@@ -172,6 +172,11 @@ statements. Priority extraction areas:
   service now delegates gate stage evaluation, idempotent instruction insertion,
   failed-gate event projection, and failed-start handoff while leaving Wardrobe
   product rules in `adapters/wardrobe-outfit-workflow-gate-service.js`.
+- completed 2026-06-08: Gateway run-start toolset-selection request mutation
+  moved into `adapters/gateway-run-start-toolset-selection-service.js`. The
+  start service now delegates selector fallback restoration and bounded
+  escalation-instruction insertion while leaving model selection decisions in
+  `adapters/gateway-run-model-toolset-selection-service.js`.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;
