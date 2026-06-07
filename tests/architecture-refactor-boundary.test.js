@@ -122,6 +122,7 @@ const mobileRuntimeKanbanEnvironmentService = require("../adapters/mobile-runtim
 const mobileRuntimeLocalBridgeFacadeService = require("../adapters/mobile-runtime-local-bridge-facade-service");
 const mobileRuntimeCoreProviders = require("../adapters/mobile-runtime-core-providers");
 const mobileRuntimeEnvironmentService = require("../adapters/mobile-runtime-environment-service");
+const mobileRuntimeNaturalLanguageGatewayService = require("../adapters/mobile-runtime-natural-language-gateway-service");
 const mobileRuntimeOwnerElevationFacadeService = require("../adapters/mobile-runtime-owner-elevation-facade-service");
 const mobileRuntimePathAccessService = require("../adapters/mobile-runtime-path-access-service");
 const mobileRuntimePathCandidateEnvironmentService = require("../adapters/mobile-runtime-path-candidate-environment-service");
@@ -394,6 +395,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof mobileRuntimeLocalBridgeFacadeService.createMobileRuntimeLocalBridgeFacadeService, "function");
   assert.equal(typeof mobileRuntimeCoreProviders.createMobileRuntimeCoreProviders, "function");
   assert.equal(typeof mobileRuntimeEnvironmentService.createMobileRuntimeEnvironment, "function");
+  assert.equal(typeof mobileRuntimeNaturalLanguageGatewayService.createMobileRuntimeNaturalLanguageGatewayService, "function");
   assert.equal(typeof mobileRuntimeOwnerElevationFacadeService.createMobileRuntimeOwnerElevationFacadeService, "function");
   assert.equal(typeof mobileRuntimePathCandidateEnvironmentService.createMobileRuntimePathCandidateEnvironment, "function");
   assert.equal(typeof mobileRuntimePathCandidateEnvironmentService.wslUncPathCandidates, "function");
@@ -523,6 +525,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const authFacade = fileText("adapters/mobile-runtime-auth-facade-service.js");
   const backendPolicy = fileText("adapters/mobile-runtime-backend-policy-service.js");
   const configFacade = fileText("adapters/mobile-runtime-config-facade-service.js");
+  const naturalLanguageGateway = fileText("adapters/mobile-runtime-natural-language-gateway-service.js");
   const fileAccessFacade = fileText("adapters/mobile-runtime-file-access-facade-service.js");
   const artifactFacade = fileText("adapters/mobile-runtime-artifact-facade-service.js");
   const fileHelpers = fileText("adapters/mobile-runtime-file-helper-service.js");
@@ -608,6 +611,13 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createMobileRuntimeBootTraceService/);
   assert.match(bootTraceService, /appendFileSync/);
   assert.doesNotMatch(server, /^function bootTrace/gm);
+  assert.match(server, /createMobileRuntimeNaturalLanguageGatewayService/);
+  assert.match(naturalLanguageGateway, /chooseGatewayRunTarget/);
+  assert.match(naturalLanguageGateway, /streamResponses/);
+  assert.match(naturalLanguageGateway, /releaseGatewayRunTarget/);
+  assert.doesNotMatch(server, /^function extractJsonObject/gm);
+  assert.doesNotMatch(server, /^async function hermesModelText/gm);
+  assert.doesNotMatch(server, /^async function interpretAutomationNaturalLanguage/gm);
   assert.match(server, /createAutomationJobFilterService/);
   assert.match(automationJobFilter, /function jobMatchesSearch/);
   assert.doesNotMatch(server, /^function cronJobMatchesSearch/gm);
@@ -979,7 +989,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(kanbanFacade, /kanbanPlanService\.normalizePlan/);
   assert.match(kanbanFacade, /kanbanPlanService\.singleCardCasePayload/);
   assert.match(kanbanRuntime, /createNaturalLanguageDraftService/);
-  assert.match(server, /naturalLanguageDraftService\.interpretAutomationNaturalLanguage/);
+  assert.match(server, /mobileRuntimeNaturalLanguageGatewayService\.interpretAutomationNaturalLanguage/);
+  assert.doesNotMatch(server, /naturalLanguageDraftService\.interpretAutomationNaturalLanguage/);
   assert.match(kanbanFacade, /naturalLanguageDraftService\.interpretKanbanNaturalLanguage/);
   assert.match(kanbanFacade, /naturalLanguageDraftService\.planKanbanMultiAgent/);
   assert.match(kanbanRuntime, /createKanbanAssigneePolicy/);
@@ -1063,10 +1074,11 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
-  assert.match(doc, /1,340 lines/);
-  assert.match(doc, /8/);
+  assert.match(doc, /1,320 lines/);
+  assert.match(doc, /7/);
   assert.match(doc, /mobile-runtime-auth-facade-service\.js` must stay at or below 40\s+lines/);
   assert.match(doc, /mobile-runtime-boot-trace-service\.js` must stay at or below 35\s+lines/);
+  assert.match(doc, /mobile-runtime-natural-language-gateway-service\.js` must stay at or below 70\s+lines/);
   assert.match(doc, /mobile-runtime-state-facade-service\.js` must stay at or below 155\s+lines/);
   assert.match(doc, /mobile-runtime-sqlite-store-facade-service\.js` must stay at or below 35\s+lines/);
   assert.match(doc, /path-boundary-service\.js` must stay at or below 65 lines/);
@@ -1118,6 +1130,7 @@ function testServiceFirstArchitectureContract() {
   const runtime = fileText("mobile-server-runtime.js");
   const authFacade = fileText("adapters/mobile-runtime-auth-facade-service.js");
   const bootTraceService = fileText("adapters/mobile-runtime-boot-trace-service.js");
+  const naturalLanguageGateway = fileText("adapters/mobile-runtime-natural-language-gateway-service.js");
   const appRouteUrl = fileText("adapters/app-route-url-service.js");
   const automationJobFilter = fileText("adapters/automation-job-filter-service.js");
   const basicHelper = fileText("adapters/mobile-runtime-basic-helper-service.js");
@@ -1157,6 +1170,7 @@ function testServiceFirstArchitectureContract() {
   const runtimeTopLevelFunctionCount = (runtime.match(/^function\s+/gm) || []).length;
   const authFacadeLineCount = authFacade.split(/\r?\n/).length;
   const bootTraceLineCount = bootTraceService.split(/\r?\n/).length;
+  const naturalLanguageGatewayLineCount = naturalLanguageGateway.split(/\r?\n/).length;
   const mobileApiCompositionLineCount = mobileApiCompositionSource.split(/\r?\n/).length;
   const mobileApiDirectoryCompositionLineCount = mobileApiDirectoryCompositionSource.split(/\r?\n/).length;
   const mobileApiLearningCompositionLineCount = mobileApiLearningCompositionSource.split(/\r?\n/).length;
@@ -1186,13 +1200,14 @@ function testServiceFirstArchitectureContract() {
   const weixinFacadeLineCount = weixinFacade.split(/\r?\n/).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 1340, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1340`);
-  assert.ok(runtimeTopLevelFunctionCount <= 8, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 8`);
+  assert.ok(runtimeLineCount <= 1320, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1320`);
+  assert.ok(runtimeTopLevelFunctionCount <= 7, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 7`);
   assert.ok(appRouteUrlLineCount <= 35, `app-route-url-service.js line budget exceeded: ${appRouteUrlLineCount} > 35`);
   assert.ok(automationJobFilterLineCount <= 45, `automation-job-filter-service.js line budget exceeded: ${automationJobFilterLineCount} > 45`);
   assert.ok(operationErrorResponseLineCount <= 35, `runtime-operation-error-response-service.js line budget exceeded: ${operationErrorResponseLineCount} > 35`);
   assert.ok(authFacadeLineCount <= 40, `mobile-runtime-auth-facade-service.js line budget exceeded: ${authFacadeLineCount} > 40`);
   assert.ok(bootTraceLineCount <= 35, `mobile-runtime-boot-trace-service.js line budget exceeded: ${bootTraceLineCount} > 35`);
+  assert.ok(naturalLanguageGatewayLineCount <= 70, `mobile-runtime-natural-language-gateway-service.js line budget exceeded: ${naturalLanguageGatewayLineCount} > 70`);
   assert.ok(basicHelperLineCount <= 120, `mobile-runtime-basic-helper-service.js line budget exceeded: ${basicHelperLineCount} > 120`);
   assert.doesNotMatch(basicHelper, /^  function isUncPath\(value\) \{ return /m);
   assert.ok(fileAccessFacadeLineCount <= 140, `mobile-runtime-file-access-facade-service.js line budget exceeded: ${fileAccessFacadeLineCount} > 140`);

@@ -56,6 +56,7 @@ const { createMobileRuntimeBasicHelperService } = require("./adapters/mobile-run
 const { createMobileRuntimeHttpServerService } = require("./adapters/mobile-runtime-http-server-service");
 const { createMobileRuntimeCoreProviders } = require("./adapters/mobile-runtime-core-providers");
 const { createMobileRuntimeLocalBridgeFacadeService } = require("./adapters/mobile-runtime-local-bridge-facade-service");
+const { createMobileRuntimeNaturalLanguageGatewayService } = require("./adapters/mobile-runtime-natural-language-gateway-service");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
 const { createMobileRuntimeAuthFacadeService } = require("./adapters/mobile-runtime-auth-facade-service");
 const { createMobileRuntimeBackendPolicyService } = require("./adapters/mobile-runtime-backend-policy-service");
@@ -940,6 +941,20 @@ const clearCronListCache = (...args) => automationProvider.clearListCache(...arg
 async function runCronListBridgeCached(options = {}) {
   return automationProvider.listJobs(Object.assign({ limit: 0 }, options));
 }
+const mobileRuntimeNaturalLanguageGatewayService = createMobileRuntimeNaturalLanguageGatewayService({
+  abortSignalTimeout: (ms) => AbortSignal.timeout(ms),
+  chooseGatewayRunTarget,
+  defaultTimeoutMs: AUTOMATION_CREATE_TIMEOUT_MS,
+  gatewayPool,
+  naturalLanguageDraftService: () => naturalLanguageDraftService,
+  randomHex: (bytes) => crypto.randomBytes(bytes).toString("hex"),
+  releaseGatewayRunTarget,
+  responseTextFromValue,
+});
+const extractJsonObject = (...args) => mobileRuntimeNaturalLanguageGatewayService.extractJsonObject(...args);
+const hermesModelText = (...args) => mobileRuntimeNaturalLanguageGatewayService.hermesModelText(...args);
+const normalizeAutomationDraft = (...args) => mobileRuntimeNaturalLanguageGatewayService.normalizeAutomationDraft(...args);
+const interpretAutomationNaturalLanguage = (...args) => mobileRuntimeNaturalLanguageGatewayService.interpretAutomationNaturalLanguage(...args);
 const skillDetailProvider = createSkillDetailProvider({
   timeoutMs: SKILL_BRIDGE_TIMEOUT_MS,
   compactText,
@@ -1081,39 +1096,6 @@ mobileRuntimeKanbanFacadeService = createMobileRuntimeKanbanFacadeService({
   workspaceDefaultRoot,
   workspacePrincipal,
 });
-function extractJsonObject(text) {
-  return naturalLanguageDraftService.extractJsonObject(text);
-}
-async function hermesModelText(body, timeoutMs = AUTOMATION_CREATE_TIMEOUT_MS) {
-  let text = "";
-  const runId = `automation_draft_${Date.now()}_${crypto.randomBytes(3).toString("hex")}`;
-  const gatewayTarget = await chooseGatewayRunTarget({ purpose: "automation_draft" }, { runId });
-  try {
-    const response = await gatewayPool().runnerFor(gatewayTarget).streamResponses(body, {
-      signal: AbortSignal.timeout(Math.max(5000, timeoutMs)),
-      gatewayUrl: gatewayTarget.apiBase,
-      apiKey: gatewayTarget.apiKey,
-      onEvent: (event) => {
-        const eventName = String(event.event || event.type || "");
-        if (eventName === "message.delta" || eventName === "response.output_text.delta") {
-          text += String(event.delta || event.text || "");
-        } else {
-          text += responseTextFromValue(event.output_text || event.output || event.message || "");
-        }
-      },
-    });
-    if (!response?.body?.getReader) text += responseTextFromValue(response);
-    releaseGatewayRunTarget(gatewayTarget.schedulerRunId || runId, "idle");
-    return text.trim();
-  } catch (err) {
-    releaseGatewayRunTarget(gatewayTarget.schedulerRunId || runId, "failed");
-    throw err;
-  }
-}
-const normalizeAutomationDraft = (...args) => naturalLanguageDraftService.normalizeAutomationDraft(...args);
-async function interpretAutomationNaturalLanguage(text, workspace, ownerPrincipalId) {
-  return naturalLanguageDraftService.interpretAutomationNaturalLanguage(text, workspace, ownerPrincipalId);
-}
 function sanitizePolicy(policy, hardeningOptions = {}) {
   return securityBoundaryProvider.hardenAccessPolicy(accessPolicyProvider.sanitize(policy), hardeningOptions);
 }

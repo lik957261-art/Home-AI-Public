@@ -75,6 +75,12 @@ statements. Priority extraction areas:
   `adapters/mobile-runtime-boot-trace-service.js`. Runtime keeps only a
   delegate while the service owns best-effort trace file writes through injected
   filesystem/path/process/clock dependencies.
+- completed 2026-06-08: natural-language Gateway text execution moved into
+  `adapters/mobile-runtime-natural-language-gateway-service.js`. Runtime keeps
+  delegates for `extractJsonObject`, `hermesModelText`,
+  `normalizeAutomationDraft`, and `interpretAutomationNaturalLanguage`, while
+  the service owns Gateway target selection, streamed text aggregation, timeout
+  flooring, and target release semantics.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

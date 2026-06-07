@@ -76,6 +76,7 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-kanban-environment-service.js`,
 `mobile-runtime-kanban-facade-service.js`,
 `mobile-runtime-local-bridge-facade-service.js`,
+`mobile-runtime-natural-language-gateway-service.js`,
 `mobile-runtime-owner-elevation-facade-service.js`,
 `mobile-runtime-path-access-service.js`,
 `mobile-runtime-path-candidate-environment-service.js`,
@@ -103,6 +104,7 @@ Gateway runner/pool/launcher/provisioning/telemetry lazy delegation, Gateway
 run content truncation policy, group-chat public projection/revoke policy,
 group-chat attachment runtime wiring,
 Kanban/reading environment parsing, Local Bridge runtime lazy delegation,
+natural-language Gateway text execution,
 Kanban topic/projection/plan/assessment lazy delegation, Owner elevation
 grant/routing lazy delegation,
 WSL/config path candidate parsing, public status projections, runtime state
@@ -284,8 +286,8 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,340 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 8;
+- `mobile-server-runtime.js` must stay at or below 1,320 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 7;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
 - `path-boundary-service.js` must stay at or below 65 lines and remain a
@@ -306,6 +308,10 @@ Current CI guardrails:
 - `mobile-runtime-boot-trace-service.js` must stay at or below 35 lines and
   remain a best-effort startup trace side-effect adapter, not a logging,
   telemetry, or runtime lifecycle module;
+- `mobile-runtime-natural-language-gateway-service.js` must stay at or below 70
+  lines and remain a runtime facade for model-text Gateway target
+  selection, stream text aggregation, and target release semantics. Natural
+  language draft schema/prompt rules stay in `natural-language-draft-service.js`.
 - `mobile-runtime-basic-helper-service.js` must stay at or below 120 lines and
   remain a deterministic helper service for basic runtime primitives, not a
   route, provider, permission, or Gateway lifecycle policy module;
