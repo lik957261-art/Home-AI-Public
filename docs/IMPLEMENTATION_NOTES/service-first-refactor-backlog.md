@@ -212,6 +212,11 @@ statements. Priority extraction areas:
   plugin capability probe invocation, request/run-options refresh after probe
   evidence, and failed-gate terminal handoff while retaining model-first
   preflight and final stream orchestration.
+- completed 2026-06-08: Gateway run-start execution-phase orchestration moved
+  into `adapters/gateway-run-start-execution-phase-service.js`. The start
+  service now delegates stream option projection, model-first toolset preflight
+  invocation, permission terminal handoff, preflight request/run-options refresh,
+  and final stream handoff invocation while retaining top-level phase ordering.
 - completed 2026-06-08: Gateway run-start model-first toolset preflight
   execution/projection moved into
   `adapters/gateway-run-start-toolset-preflight-service.js`. The start service

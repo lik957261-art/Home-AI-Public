@@ -10,6 +10,7 @@ const {
 } = require("./gateway-run-request-builder-service");
 const { createGatewayRunStartAssistantOptionsService } = require("./gateway-run-start-assistant-options-service");
 const { createGatewayRunStartEventService } = require("./gateway-run-start-event-service");
+const { createGatewayRunStartExecutionPhaseService } = require("./gateway-run-start-execution-phase-service");
 const { createGatewayRunStartPermissionService } = require("./gateway-run-start-permission-service");
 const { createGatewayRunStartPluginProbeService } = require("./gateway-run-start-plugin-probe-service");
 const { createGatewayRunStartPreparationService } = require("./gateway-run-start-preparation-service");
@@ -220,6 +221,11 @@ function createGatewayRunStartService(options = {}) {
     saveState,
     streamResponse,
   });
+  const executionPhaseService = options.executionPhaseService || createGatewayRunStartExecutionPhaseService({
+    applyModelFirstToolsetPreflight,
+    startStreamHandoff: (...args) => streamHandoffService.startStreamHandoff(...args),
+    streamOptionsForGatewayTarget: (...args) => streamOptionsService.streamOptionsForGatewayTarget(...args),
+  });
   const preparationService = options.preparationService || createGatewayRunStartPreparationService({
     appendRequiredSkillPreloadEvents: (...args) => runStartEventService.appendRequiredSkillPreloadEvents(...args),
     appendRunStartEvent,
@@ -256,28 +262,13 @@ function createGatewayRunStartService(options = {}) {
     effectiveRunOptions = targetPhase.effectiveRunOptions || effectiveRunOptions;
     request = targetPhase.request || request;
     const { gatewayTarget, gatewayUrl } = targetPhase;
-    const streamOptions = streamOptionsService.streamOptionsForGatewayTarget(gatewayTarget, runOptions, { gatewayUrl });
-    const preflight = await applyModelFirstToolsetPreflight({
+    return executionPhaseService.runExecutionPhase({
       assistantMessage,
       effectiveRunOptions,
       gatewayTarget,
       gatewayUrl,
       request,
-      taskId,
-      thread,
-      userMessage,
-    });
-    if (preflight?.terminalResult) {
-      return preflight.terminalResult;
-    }
-    request = preflight?.request || request;
-    return streamHandoffService.startStreamHandoff({
-      assistantMessage,
-      effectiveRunOptions,
-      gatewayTarget,
-      gatewayUrl,
-      request,
-      streamOptions,
+      runOptions,
       taskId,
       thread,
       userMessage,

@@ -85,6 +85,7 @@ focused adapters such as `app-route-url-service.js`,
 `gateway-run-request-builder-service.js`,
 `gateway-run-start-assistant-options-service.js`,
 `gateway-run-start-event-service.js`,
+`gateway-run-start-execution-phase-service.js`,
 `gateway-run-start-permission-service.js`,
 `gateway-run-start-plugin-probe-service.js`,
 `gateway-run-start-preparation-service.js`,
@@ -280,6 +281,14 @@ permission-preflight event naming. It must not mutate run lifecycle state,
 choose workers, run model preflight, build Gateway request bodies, or start
 streams.
 
+`gateway-run-start-execution-phase-service.js` owns the run-start execution
+phase after target selection and plugin capability probing: stream option
+projection handoff, model-first toolset preflight invocation, permission
+terminal handoff, preflight request/run-options refresh, and final stream
+handoff invocation. It must not choose workers, build the initial request,
+define selector/toolset policy, define stream-start state mutation, parse
+streams, or mutate queues.
+
 `gateway-run-start-permission-service.js` owns the terminal projection for a
 model-side permission/elevation request during run start: assistant message
 elevation metadata, `run.permission_required` event projection, active-run
@@ -368,9 +377,10 @@ toolset preflight orchestration, wardrobe workflow gate checkpoints, and stream
 startup handoff. It must delegate deterministic request construction to
 `gateway-run-request-builder-service.js`, assistant run-options projection to
 `gateway-run-start-assistant-options-service.js`, telemetry/event projection to
-`gateway-run-start-event-service.js`, permission/elevation terminal projection
-to `gateway-run-start-permission-service.js`, plugin capability probe execution
-to `gateway-run-start-plugin-probe-service.js`, initial run-start preparation
+`gateway-run-start-event-service.js`, execution-phase orchestration to
+`gateway-run-start-execution-phase-service.js`, permission/elevation terminal
+projection to `gateway-run-start-permission-service.js`, plugin capability
+probe execution to `gateway-run-start-plugin-probe-service.js`, initial run-start preparation
 handoff to `gateway-run-start-preparation-service.js`, final stream-start handoff to
 `gateway-run-start-stream-handoff-service.js`, and stream-start option
 projection to `gateway-run-start-stream-options-service.js`. It must delegate deterministic
@@ -614,6 +624,9 @@ Current CI guardrails:
 - `gateway-run-start-event-service.js` must stay at or below 215 lines and
   remain Gateway run-start telemetry/event projection, not a request-builder,
   lifecycle, selector, worker-selection, or streaming module;
+- `gateway-run-start-execution-phase-service.js` must stay at or below 55
+  lines and remain preflight-to-stream handoff orchestration, not a selector
+  policy, worker-selection, queue, or stream parser module;
 - `gateway-run-start-permission-service.js` must stay at or below 70 lines and
   remain model-side permission/elevation terminal projection, not a
   request-builder, selector, toolset, worker-selection, or streaming module;
@@ -648,7 +661,7 @@ Current CI guardrails:
 - `gateway-run-start-wardrobe-gate-service.js` must stay at or below 85 lines
   and remain deterministic Wardrobe workflow gate integration, not a Wardrobe
   product-rule, selector, worker-selection, or streaming module;
-- `gateway-run-start-service.js` must stay at or below 305 lines and remain
+- `gateway-run-start-service.js` must stay at or below 295 lines and remain
   Gateway run preparation orchestration, not a request-builder, event projector,
   or broad Gateway composition module;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 125 lines

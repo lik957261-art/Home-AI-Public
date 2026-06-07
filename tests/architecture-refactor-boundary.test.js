@@ -33,6 +33,7 @@ const gatewayRunContentService = require("../adapters/gateway-run-content-servic
 const gatewayRunRequestBuilderService = require("../adapters/gateway-run-request-builder-service");
 const gatewayRunStartAssistantOptionsService = require("../adapters/gateway-run-start-assistant-options-service");
 const gatewayRunStartEventService = require("../adapters/gateway-run-start-event-service");
+const gatewayRunStartExecutionPhaseService = require("../adapters/gateway-run-start-execution-phase-service");
 const gatewayRunStartPermissionService = require("../adapters/gateway-run-start-permission-service");
 const gatewayRunStartPluginProbeService = require("../adapters/gateway-run-start-plugin-probe-service");
 const gatewayRunStartPreparationService = require("../adapters/gateway-run-start-preparation-service");
@@ -305,6 +306,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof gatewayRunRequestBuilderService.createGatewayRunRequestBuilderService, "function");
   assert.equal(typeof gatewayRunStartAssistantOptionsService.createGatewayRunStartAssistantOptionsService, "function");
   assert.equal(typeof gatewayRunStartEventService.createGatewayRunStartEventService, "function");
+  assert.equal(typeof gatewayRunStartExecutionPhaseService.createGatewayRunStartExecutionPhaseService, "function");
   assert.equal(typeof gatewayRunStartPermissionService.createGatewayRunStartPermissionService, "function");
   assert.equal(typeof gatewayRunStartPluginProbeService.createGatewayRunStartPluginProbeService, "function");
   assert.equal(typeof gatewayRunStartPreparationService.createGatewayRunStartPreparationService, "function");
@@ -606,6 +608,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const gatewayRunRequestBuilder = fileText("adapters/gateway-run-request-builder-service.js");
   const gatewayRunStartAssistantOptions = fileText("adapters/gateway-run-start-assistant-options-service.js");
   const gatewayRunStartEvent = fileText("adapters/gateway-run-start-event-service.js");
+  const gatewayRunStartExecutionPhase = fileText("adapters/gateway-run-start-execution-phase-service.js");
   const gatewayRunStartPermission = fileText("adapters/gateway-run-start-permission-service.js");
   const gatewayRunStartPluginProbe = fileText("adapters/gateway-run-start-plugin-probe-service.js");
   const gatewayRunStartPreparation = fileText("adapters/gateway-run-start-preparation-service.js");
@@ -979,6 +982,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(gatewayRunStart, /createGatewayRunStartAssistantOptionsService/);
   assert.match(gatewayRunStart, /createGatewayRunRequestBuilderService/);
   assert.match(gatewayRunStart, /createGatewayRunStartEventService/);
+  assert.match(gatewayRunStart, /createGatewayRunStartExecutionPhaseService/);
   assert.match(gatewayRunStart, /createGatewayRunStartPreparationService/);
   assert.match(gatewayRunStart, /createGatewayRunStartStreamHandoffService/);
   assert.match(gatewayRunStart, /createGatewayRunStartStreamOptionsService/);
@@ -997,6 +1001,10 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(gatewayRunStartEvent, /function appendPluginCapabilityProbeEvents/);
   assert.match(gatewayRunStartEvent, /function contextReadyPreview/);
   assert.match(gatewayRunStartEvent, /function toolsetSelectionPreview/);
+  assert.match(gatewayRunStartExecutionPhase, /function runExecutionPhase/);
+  assert.match(gatewayRunStartExecutionPhase, /streamOptionsForGatewayTarget/);
+  assert.match(gatewayRunStartExecutionPhase, /applyModelFirstToolsetPreflight/);
+  assert.match(gatewayRunStartExecutionPhase, /startStreamHandoff/);
   assert.match(gatewayRunStartPermission, /function completeModelPermissionRequest/);
   assert.match(gatewayRunStartPermission, /run\.permission_required/);
   assert.match(gatewayRunStartPermission, /status: "needs_elevation"/);
@@ -1055,6 +1063,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(gatewayRunStart, /pluginProbeService\.runPluginCapabilityProbe/);
   assert.match(gatewayRunStart, /preparationService\.prepareRunStart/);
   assert.match(gatewayRunStart, /targetPhaseService\.runTargetSelectedPhase/);
+  assert.match(gatewayRunStart, /executionPhaseService\.runExecutionPhase/);
   assert.match(gatewayRunStart, /createGatewayRunStartToolsetPreflightService/);
   assert.match(gatewayRunStart, /toolsetPreflightService\.applyModelFirstToolsetPreflight/);
   assert.match(gatewayRunStart, /streamHandoffService\.startStreamHandoff/);
@@ -1081,6 +1090,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.doesNotMatch(gatewayRunStart, /projectGatewayTargetReadyEvents\(thread/);
   assert.doesNotMatch(gatewayRunStart, /await runPluginCapabilityProbe\(\{/);
   assert.doesNotMatch(gatewayRunStart, /pluginProbe\.gateFailed/);
+  assert.doesNotMatch(gatewayRunStart, /const streamOptions = streamOptionsService\.streamOptionsForGatewayTarget/);
+  assert.doesNotMatch(gatewayRunStart, /await applyModelFirstToolsetPreflight\(\{/);
+  assert.doesNotMatch(gatewayRunStart, /streamHandoffService\.startStreamHandoff\(\{/);
   assert.doesNotMatch(gatewayRunStart, /run\.request_sent/);
   assert.doesNotMatch(gatewayRunStart, /streamResponse\(taskId/);
   assert.doesNotMatch(gatewayRunStart, /status: "started"/);
@@ -1429,6 +1441,7 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /gateway-run-request-builder-service\.js` must stay at or below\s+530 lines/);
   assert.match(doc, /gateway-run-start-assistant-options-service\.js` must stay at or below 70\s+lines/);
   assert.match(doc, /gateway-run-start-event-service\.js` must stay at or below 215 lines/);
+  assert.match(doc, /gateway-run-start-execution-phase-service\.js` must stay at or below 55\s+lines/);
   assert.match(doc, /gateway-run-start-permission-service\.js` must stay at or below 70\s+lines/);
   assert.match(doc, /gateway-run-start-plugin-probe-service\.js` must stay at or below 75\s+lines/);
   assert.match(doc, /gateway-run-start-preparation-service\.js` must stay at or below 70\s+lines/);
@@ -1440,7 +1453,7 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /gateway-run-start-toolset-preflight-service\.js` must stay at or below\s+155\s+lines/);
   assert.match(doc, /gateway-run-start-toolset-selection-service\.js` must stay at or below 95\s+lines/);
   assert.match(doc, /gateway-run-start-wardrobe-gate-service\.js` must stay at or below 85 lines/);
-  assert.match(doc, /gateway-run-start-service\.js` must stay at or below 305 lines/);
+  assert.match(doc, /gateway-run-start-service\.js` must stay at or below 295 lines/);
   assert.match(doc, /gateway-run-content-service\.js` must stay at or below 60 lines/);
   assert.match(doc, /mobile-runtime-group-chat-facade-service\.js` must stay at or below 95 lines/);
   assert.match(doc, /mobile-runtime-workspace-identity-facade-service\.js` must stay at or below\s+65 lines/);
@@ -1502,6 +1515,7 @@ function testServiceFirstArchitectureContract() {
   const gatewayRunRequestBuilder = fileText("adapters/gateway-run-request-builder-service.js");
   const gatewayRunStartAssistantOptions = fileText("adapters/gateway-run-start-assistant-options-service.js");
   const gatewayRunStartEvent = fileText("adapters/gateway-run-start-event-service.js");
+  const gatewayRunStartExecutionPhase = fileText("adapters/gateway-run-start-execution-phase-service.js");
   const gatewayRunStartPermission = fileText("adapters/gateway-run-start-permission-service.js");
   const gatewayRunStartPluginProbe = fileText("adapters/gateway-run-start-plugin-probe-service.js");
   const gatewayRunStartPreparation = fileText("adapters/gateway-run-start-preparation-service.js");
@@ -1587,6 +1601,7 @@ function testServiceFirstArchitectureContract() {
   const gatewayRunRequestBuilderLineCount = gatewayRunRequestBuilder.split(/\r?\n/).length;
   const gatewayRunStartAssistantOptionsLineCount = gatewayRunStartAssistantOptions.split(/\r?\n/).length;
   const gatewayRunStartEventLineCount = gatewayRunStartEvent.split(/\r?\n/).length;
+  const gatewayRunStartExecutionPhaseLineCount = gatewayRunStartExecutionPhase.split(/\r?\n/).length;
   const gatewayRunStartPermissionLineCount = gatewayRunStartPermission.split(/\r?\n/).length;
   const gatewayRunStartPluginProbeLineCount = gatewayRunStartPluginProbe.split(/\r?\n/).length;
   const gatewayRunStartPreparationLineCount = gatewayRunStartPreparation.split(/\r?\n/).length;
@@ -1638,6 +1653,7 @@ function testServiceFirstArchitectureContract() {
   assert.ok(gatewayRunRequestBuilderLineCount <= 530, `gateway-run-request-builder-service.js line budget exceeded: ${gatewayRunRequestBuilderLineCount} > 530`);
   assert.ok(gatewayRunStartAssistantOptionsLineCount <= 70, `gateway-run-start-assistant-options-service.js line budget exceeded: ${gatewayRunStartAssistantOptionsLineCount} > 70`);
   assert.ok(gatewayRunStartEventLineCount <= 215, `gateway-run-start-event-service.js line budget exceeded: ${gatewayRunStartEventLineCount} > 215`);
+  assert.ok(gatewayRunStartExecutionPhaseLineCount <= 55, `gateway-run-start-execution-phase-service.js line budget exceeded: ${gatewayRunStartExecutionPhaseLineCount} > 55`);
   assert.ok(gatewayRunStartPermissionLineCount <= 70, `gateway-run-start-permission-service.js line budget exceeded: ${gatewayRunStartPermissionLineCount} > 70`);
   assert.ok(gatewayRunStartPluginProbeLineCount <= 75, `gateway-run-start-plugin-probe-service.js line budget exceeded: ${gatewayRunStartPluginProbeLineCount} > 75`);
   assert.ok(gatewayRunStartPreparationLineCount <= 70, `gateway-run-start-preparation-service.js line budget exceeded: ${gatewayRunStartPreparationLineCount} > 70`);
@@ -1649,7 +1665,7 @@ function testServiceFirstArchitectureContract() {
   assert.ok(gatewayRunStartToolsetPreflightLineCount <= 155, `gateway-run-start-toolset-preflight-service.js line budget exceeded: ${gatewayRunStartToolsetPreflightLineCount} > 155`);
   assert.ok(gatewayRunStartToolsetSelectionLineCount <= 95, `gateway-run-start-toolset-selection-service.js line budget exceeded: ${gatewayRunStartToolsetSelectionLineCount} > 95`);
   assert.ok(gatewayRunStartWardrobeGateLineCount <= 85, `gateway-run-start-wardrobe-gate-service.js line budget exceeded: ${gatewayRunStartWardrobeGateLineCount} > 85`);
-  assert.ok(gatewayRunStartLineCount <= 305, `gateway-run-start-service.js line budget exceeded: ${gatewayRunStartLineCount} > 305`);
+  assert.ok(gatewayRunStartLineCount <= 295, `gateway-run-start-service.js line budget exceeded: ${gatewayRunStartLineCount} > 295`);
   assert.match(fileAccessFacade, /findDirectoryThreadForRequest/);
   assert.match(fileAccessFacade, /ownerDirectoryBrowserThread/);
   assert.doesNotMatch(runtime, /^function findDirectoryThreadForRequest\(/m);
