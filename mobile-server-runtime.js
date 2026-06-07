@@ -15,6 +15,7 @@ const { createAutomationProvider } = require("./adapters/automation-provider");
 const { createAutomationDeliveryRequirement, createDeliveryBoundaryInstructions } = require("./adapters/delivery-boundary-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
 const { createGatewayRunInstructionService } = require("./adapters/gateway-run-instruction-service"); const { createGatewayRunToolsetRoutingService } = require("./adapters/gateway-run-toolset-routing-service"); const { createGatewayRunModelToolsetSelectionService } = require("./adapters/gateway-run-model-toolset-selection-service");
+const { createGatewayRunContentService } = require("./adapters/gateway-run-content-service");
 const { createGatewayRuntimeCompositionService } = require("./adapters/gateway-runtime-composition-service");
 const { gatewayPoolStatusHealthy } = require("./adapters/gateway-status-projection");
 const { createMobileRuntimeArtifactFacadeService } = require("./adapters/mobile-runtime-artifact-facade-service");
@@ -251,6 +252,11 @@ const {
 } = mobileRuntimeTodoFacadeService;
 const parseTodoDueFromText = parseWebTodoDueFromText;
 const detectDirectTodoCreateIntent = detectDirectTodoCreateIntentForWeb;
+const gatewayRunContentService = createGatewayRunContentService({
+  compactText,
+  maxMessageChars: MAX_MESSAGE_CHARS,
+});
+const { appendBounded, compactFullContent } = gatewayRunContentService;
 const mobileRuntimeStateFacadeService = createMobileRuntimeStateFacadeService({
   bootTrace,
   chatGroupMemberWorkspaceIds,
@@ -1437,36 +1443,10 @@ const abortActiveStreamAsFailed = (...args) => getGatewayRuntimeCompositionServi
 const checkActiveStreamLiveness = (...args) => getGatewayRuntimeCompositionService().checkActiveStreamLiveness(...args);
 const streamResponse = (...args) => getGatewayRuntimeCompositionService().streamResponse(...args);
 const readResponseEvents = (...args) => getGatewayRuntimeCompositionService().readResponseEvents(...args);
-function parseSseFrame(frame) {
-  const dataLines = [];
-  let eventName = "";
-  for (const rawLine of String(frame || "").split(/\r?\n/)) {
-    const line = rawLine.trimEnd();
-    if (!line || line.startsWith(":")) continue;
-    if (line.startsWith("event:")) eventName = line.slice(6).trim();
-    if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
-  }
-  if (!dataLines.length) return null;
-  try {
-    const parsed = JSON.parse(dataLines.join("\n"));
-    if (eventName && parsed && typeof parsed === "object" && !parsed.event) parsed.event = eventName;
-    return parsed;
-  } catch (_) {
-    return null;
-  }
-}
 const applyHermesRunEvent = (...args) => getGatewayRuntimeCompositionService().applyHermesRunEvent(...args);
 const markRunFailed = (...args) => getGatewayRuntimeCompositionService().markRunFailed(...args);
 const markRunCancelled = (...args) => getGatewayRuntimeCompositionService().markRunCancelled(...args);
 const reconcileDetachedActiveRuns = (...args) => getGatewayRuntimeCompositionService().reconcileDetachedActiveRuns(...args);
-function appendBounded(current, delta, maxChars) {
-  const next = `${current || ""}${delta || ""}`;
-  if (next.length <= maxChars) return next;
-  return `${next.slice(0, Math.floor(maxChars * 0.45))}\n\n[content truncated live: ${next.length} chars total]\n\n${next.slice(-Math.floor(maxChars * 0.45))}`;
-}
-function compactFullContent(value) {
-  return compactText(value, MAX_MESSAGE_CHARS);
-}
 function volume1WindowsMirrorPath(rawPath) {
   return filesystemMountProvider.volume1WindowsMirrorPath(rawPath);
 }

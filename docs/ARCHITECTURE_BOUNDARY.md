@@ -65,6 +65,7 @@ focused adapters such as `mobile-runtime-file-helper-service.js`,
 `mobile-runtime-gateway-environment-service.js`,
 `mobile-runtime-gateway-context-facade-service.js`,
 `mobile-runtime-gateway-facade-service.js`,
+`gateway-run-content-service.js`,
 `mobile-runtime-group-chat-facade-service.js`,
 `mobile-runtime-group-chat-attachment-service.js`,
 `mobile-runtime-kanban-environment-service.js`,
@@ -86,8 +87,9 @@ focused adapters such as `mobile-runtime-file-helper-service.js`,
 helpers and JSON store file IO, Artifact/Markdown registration lazy delegation,
 backend mode policy, runtime config facade delegation, runtime environment
 aggregation, shared environment value parsing, Gateway/run environment parsing,
-Gateway runner/pool/launcher/provisioning/telemetry lazy delegation, group-chat
-public projection/revoke policy, group-chat attachment runtime wiring,
+Gateway runner/pool/launcher/provisioning/telemetry lazy delegation, Gateway
+run content truncation policy, group-chat public projection/revoke policy,
+group-chat attachment runtime wiring,
 Kanban/reading environment parsing, Local Bridge runtime lazy delegation,
 Kanban topic/projection/plan/assessment lazy delegation, Owner elevation
 grant/routing lazy delegation,
@@ -120,6 +122,12 @@ workspace-principal lookup, Todo assignee projection, and direct Todo/Kanban
 create parsing delegates. It must not implement Todo persistence, Kanban card
 creation, Local Bridge execution, or Gateway/tool routing; those stay in their
 own providers and route/runtime services.
+
+`gateway-run-content-service.js` owns deterministic Gateway run content
+truncation helpers for live streaming append and final full-content compaction.
+`mobile-server-runtime.js` may wire those helpers into Gateway runtime
+composition and state normalization, but it must not carry duplicate
+`appendBounded`, `compactFullContent`, or SSE frame parsing implementations.
 
 `mobile-runtime-kanban-facade-service.js` is only a runtime wiring facade for
 Kanban public projections, case-topic wiring, plan-card creation, assessment
@@ -161,14 +169,17 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,570 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 88;
+- `mobile-server-runtime.js` must stay at or below 1,545 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 84;
 - `mobile-runtime-file-access-facade-service.js` must stay at or below 115
   lines and remain a facade over lazy Directory browser boundary construction,
   file/artifact resolver delegation, and file response delegation;
 - `mobile-runtime-gateway-context-facade-service.js` must stay at or below 90
   lines and remain a facade over Gateway instruction, conversation-history,
   stale tool-schema claim, run-target, and usage supplementation delegates;
+- `gateway-run-content-service.js` must stay at or below 60 lines and remain a
+  deterministic helper service for live run append and final content
+  compaction, not a Gateway lifecycle or stream parser implementation;
 - `mobile-runtime-group-chat-facade-service.js` must stay at or below 95 lines
   and remain a facade over group chat public projection, revoke authorization,
   paired assistant lookup, and revoke payload mutation;
