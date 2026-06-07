@@ -70,6 +70,7 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-env-value-service.js`,
 `mobile-runtime-gateway-environment-service.js`,
 `mobile-runtime-gateway-composition-options-service.js`,
+`mobile-runtime-gateway-concurrency-service.js`,
 `mobile-runtime-gateway-context-facade-service.js`,
 `mobile-runtime-gateway-facade-service.js`,
 `gateway-runtime-composition-service.js`,
@@ -172,6 +173,12 @@ constants into run-start, run-stream, run-event, queue, selector, notification,
 and topic-compaction options. It must not implement Gateway run lifecycle,
 queue mutation, stream parsing, model preflight decisions, or notification
 delivery behavior.
+
+`mobile-runtime-gateway-concurrency-service.js` owns runtime Gateway
+concurrency projection: current active-run snapshot, per-workspace limit-error
+projection, and bounded capacity assertion errors. It must not define
+concurrency policy, mutate thread state, choose workers, start streams, or
+handle permission decisions.
 
 `gateway-runtime-composition-service.js` owns the lazy composition of Gateway
 queue, start, stream, event, and lifecycle services. It may hold the small
@@ -468,10 +475,13 @@ Current CI guardrails:
 - `gateway-run-start-service.js` must stay at or below 395 lines and remain
   Gateway run preparation orchestration, not a request-builder, event projector,
   or broad Gateway composition module;
-- `mobile-runtime-gateway-facade-service.js` must stay at or below 220 lines
+- `mobile-runtime-gateway-facade-service.js` must stay at or below 210 lines
   and remain a runtime Gateway facade over runner/pool/launcher/provisioning,
   telemetry, run concurrency, Gateway runtime composition singleton ownership,
   and public status composition delegates;
+- `mobile-runtime-gateway-concurrency-service.js` must stay at or below 60
+  lines and remain runtime Gateway concurrency projection, not a concurrency
+  policy, worker-selection, permission, or streaming module;
 - `gateway-run-content-service.js` must stay at or below 60 lines and remain a
   deterministic helper service for live run append and final content
   compaction, not a Gateway lifecycle or stream parser implementation;

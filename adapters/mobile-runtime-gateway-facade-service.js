@@ -6,6 +6,7 @@ const { gatewayPoolStatusHealthy: defaultGatewayPoolStatusHealthy } = require(".
 const { createGatewayUsageTelemetryProvider: defaultCreateGatewayUsageTelemetryProvider } = require("./gateway-usage-telemetry-provider");
 const { createGatewayWorkerProfileLaunchService: defaultCreateGatewayWorkerProfileLaunchService } = require("./gateway-worker-profile-launch-service");
 const { createGatewayWorkspaceProvisioningService: defaultCreateGatewayWorkspaceProvisioningService } = require("./gateway-workspace-provisioning-service");
+const { createMobileRuntimeGatewayConcurrencyService } = require("./mobile-runtime-gateway-concurrency-service");
 
 function optionFunction(options, name, fallback = null) {
   const value = options[name];
@@ -38,9 +39,12 @@ function createMobileRuntimeGatewayFacadeService(options = {}) {
   const manifestPaths = optionFunction(options, "gatewayPoolManifestPaths");
   const nowIso = optionFunction(options, "nowIso", () => new Date().toISOString());
   const path = requiredObject(options, "path");
-  const runConcurrencyPolicy = requiredObject(options, "runConcurrencyPolicy");
   const state = optionFunction(options, "state", () => ({ threads: [] }));
   const toolSchemaEpoch = optionFunction(options, "gatewayToolSchemaEpoch", () => "");
+  const gatewayConcurrencyService = options.gatewayConcurrencyService || createMobileRuntimeGatewayConcurrencyService({
+    runConcurrencyPolicy: requiredObject(options, "runConcurrencyPolicy"),
+    state,
+  });
 
   let gatewayRunner = null;
   let gatewayPoolProvider = null;
@@ -170,21 +174,15 @@ function createMobileRuntimeGatewayFacadeService(options = {}) {
   }
 
   function runConcurrencySnapshot() {
-    return runConcurrencyPolicy.snapshot(state()?.threads || []);
+    return gatewayConcurrencyService.runConcurrencySnapshot();
   }
 
   function runConcurrencyError(workspaceId) {
-    return runConcurrencyPolicy.limitError(state()?.threads || [], workspaceId);
+    return gatewayConcurrencyService.runConcurrencyError(workspaceId);
   }
 
   function assertRunConcurrencyCapacity(workspaceId) {
-    const error = runConcurrencyError(workspaceId);
-    if (!error) return;
-    const err = new Error(error.message);
-    err.status = error.status || 429;
-    err.code = error.code;
-    err.details = error;
-    throw err;
+    return gatewayConcurrencyService.assertRunConcurrencyCapacity(workspaceId);
   }
 
   return Object.freeze({

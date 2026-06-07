@@ -177,6 +177,11 @@ statements. Priority extraction areas:
   start service now delegates selector fallback restoration and bounded
   escalation-instruction insertion while leaving model selection decisions in
   `adapters/gateway-run-model-toolset-selection-service.js`.
+- completed 2026-06-08: Runtime Gateway concurrency projection moved into
+  `adapters/mobile-runtime-gateway-concurrency-service.js`. The Gateway facade
+  now delegates active-run snapshot, per-workspace limit-error projection, and
+  capacity assertion error shaping while leaving concurrency policy in the
+  existing injected `runConcurrencyPolicy`.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;
