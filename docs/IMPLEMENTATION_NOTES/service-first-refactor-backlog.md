@@ -242,6 +242,12 @@ statements. Priority extraction areas:
   text detection, preview formatting, tool-call name projection, and Web-search
   tool budget counting/abort projection while retaining response stream
   orchestration and liveness behavior.
+- completed 2026-06-08: Gateway run stream closed-without-terminal recovery
+  moved into `adapters/gateway-run-stream-close-recovery-service.js`. The
+  stream service now delegates synthetic completion after partial model output,
+  cancellation when no model output arrived, recovery status event projection,
+  and cancellation handoff while retaining response stream orchestration,
+  failure handling, timer cleanup, and alias cleanup.
 - completed 2026-06-08: Gateway run stream liveness checking moved into
   `adapters/gateway-run-stream-liveness-service.js`. The stream service now
   delegates start-timeout detection, delayed liveness-check suppression, Gateway
