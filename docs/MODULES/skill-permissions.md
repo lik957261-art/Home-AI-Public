@@ -66,10 +66,18 @@ deployment-wide shared Skills use `shared-global`.
   process as `hermes-host`, not as the isolated Gateway worker and not as root.
   Keyless required plugin Skill bundles must therefore be readable and
   traversable by the listener user. A valid production shape is owner write plus
-  `staff` group read/traverse on the selected Skill Store path, for example
-  `skill-profiles/owner-full/skills` with group execute and the required
-  `SKILL.md` with group read. Root/sudo-only readability is not valid evidence;
-  it can still fail at run time as `required_skill_not_found`.
+  an explicit read/traverse ACL for `hermes-host` on the selected required
+  Skill path and parents, with `staff` group read/traverse as a secondary
+  compatibility guard. For example, `skill-profiles/owner-full/skills` must be
+  traversable by `hermes-host` and the required `SKILL.md` must be readable by
+  `hermes-host`. Root/sudo-only readability is not valid evidence; it can still
+  fail at run time as `required_skill_not_found`.
+- The Mac profile audit has a Skill-only required plugin map for flows that can
+  enter a required Skill gate even when the plugin authorization table does not
+  list that plugin. Owner Wardrobe outfit runs are the default example:
+  `owner -> wardrobe -> productivity/wardrobe-style-operations`. This check is
+  separate from plugin binding checks and must fail on missing, incomplete, or
+  listener-unreadable Skill bundles.
 - Startup must treat a real profile-local `skills` directory as drift. The
   launcher should back it up under the profile's `skill-store-backups` directory
   and replace it with the correct workspace Skill Store link, instead of

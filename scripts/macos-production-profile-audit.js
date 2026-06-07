@@ -9,6 +9,10 @@ const DEFAULT_REQUIRED_WORKSPACE_PLUGINS = {
   weixin_wuping: ["wardrobe"],
 };
 
+const DEFAULT_REQUIRED_WORKSPACE_SKILL_PLUGINS = {
+  owner: ["wardrobe"],
+};
+
 const REQUIRED_PLUGIN_SKILLS = {
   wardrobe: ["productivity/wardrobe-style-operations"],
 };
@@ -21,6 +25,7 @@ function parseArgs(argv) {
     expectedWorkspaces: ["owner", "weixin_wuping", "weixin_stephen", "user-981731fe", "user-a87aaa61"],
     expectedPlugins: ["wardrobe", "finance", "note", "email", "health"],
     requiredWorkspacePlugins: DEFAULT_REQUIRED_WORKSPACE_PLUGINS,
+    requiredWorkspaceSkillPlugins: DEFAULT_REQUIRED_WORKSPACE_SKILL_PLUGINS,
     requiredSharedSkills: DEFAULT_REQUIRED_SHARED_SKILLS,
     listenerUser: process.env.HERMES_MOBILE_LISTENER_USER || "hermes-host",
     checkTelemetry: true,
@@ -36,6 +41,8 @@ function parseArgs(argv) {
       out.expectedPlugins = String(argv[++index] || "").split(",").map((item) => item.trim()).filter(Boolean);
     } else if (arg === "--required-workspace-plugins") {
       out.requiredWorkspacePlugins = parseMappingArg(argv[++index] || "");
+    } else if (arg === "--required-workspace-skill-plugins") {
+      out.requiredWorkspaceSkillPlugins = parseMappingArg(argv[++index] || "");
     } else if (arg === "--required-shared-skills") {
       out.requiredSharedSkills = splitCsv(argv[++index] || "");
     } else if (arg === "--listener-user") {
@@ -51,6 +58,8 @@ function parseArgs(argv) {
         "  --expected-plugins <ids>     Comma-separated plugin ids to summarize",
         "  --required-workspace-plugins <map>",
         "                               Semicolon-separated workspace:plugin,plugin map",
+        "  --required-workspace-skill-plugins <map>",
+        "                               Semicolon-separated workspace:plugin,plugin map for required Skill-only checks",
         "  --required-shared-skills <ids>",
         "                               Comma-separated shared Skill paths relative to shared-global/skills",
         "  --listener-user <user>       User that must read Gateway telemetry DBs",
@@ -403,6 +412,7 @@ function buildAudit(options) {
     expectedWorkspaces: ["owner", "weixin_wuping", "weixin_stephen", "user-981731fe", "user-a87aaa61"],
     expectedPlugins: ["wardrobe", "finance", "note", "email", "health"],
     requiredWorkspacePlugins: DEFAULT_REQUIRED_WORKSPACE_PLUGINS,
+    requiredWorkspaceSkillPlugins: DEFAULT_REQUIRED_WORKSPACE_SKILL_PLUGINS,
     requiredSharedSkills: DEFAULT_REQUIRED_SHARED_SKILLS,
   }, options || {});
   if (!Array.isArray(options.expectedWorkspaces)) options.expectedWorkspaces = [];
@@ -410,6 +420,9 @@ function buildAudit(options) {
   if (!Array.isArray(options.requiredSharedSkills)) options.requiredSharedSkills = [];
   if (!options.requiredWorkspacePlugins || typeof options.requiredWorkspacePlugins !== "object") {
     options.requiredWorkspacePlugins = {};
+  }
+  if (!options.requiredWorkspaceSkillPlugins || typeof options.requiredWorkspaceSkillPlugins !== "object") {
+    options.requiredWorkspaceSkillPlugins = {};
   }
   const root = path.resolve(options.root);
   const dataDir = path.join(root, "data");
@@ -462,6 +475,7 @@ function buildAudit(options) {
       authPluginIds: authPlugins.map((row) => row.pluginId).sort(),
       localPluginBindings,
       requiredPluginIds: (options.requiredWorkspacePlugins || {})[workspaceId] || [],
+      requiredSkillPluginIds: (options.requiredWorkspaceSkillPlugins || {})[workspaceId] || [],
       requiredPluginSkills: [],
       workers: workspaceWorkers.map((worker) => ({
         profile: worker.profile || worker.name || "",
@@ -486,7 +500,11 @@ function buildAudit(options) {
       if (!localBinding?.complete) issue(`plugin_local_binding_incomplete:${workspaceId}:${pluginId}`);
     }
 
-    const skillPluginsToCheck = new Set([...summary.pluginIds, ...summary.requiredPluginIds]);
+    const skillPluginsToCheck = new Set([
+      ...summary.pluginIds,
+      ...summary.requiredPluginIds,
+      ...summary.requiredSkillPluginIds,
+    ]);
     for (const pluginId of skillPluginsToCheck) {
       for (const skillId of REQUIRED_PLUGIN_SKILLS[pluginId] || []) {
         const status = skillBundleStatus(skillRoot, skillId, Object.assign({}, options, requiredSkillOptions(pluginId)));

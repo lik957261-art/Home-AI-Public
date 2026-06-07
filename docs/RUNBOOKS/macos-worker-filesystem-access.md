@@ -111,12 +111,19 @@ root. Ordinary workers should receive only their live workspace subtree plus
 shared cache/upload roots that their policy exposes.
 
 For keyless required plugin Skill bundles, the listener needs read/traverse but
-not write. Keep the Skill Store owner as the workspace worker and expose only
-group read/traverse to `staff`:
+not write. Keep the Skill Store owner as the workspace worker. Grant the
+listener user an explicit read/traverse ACL on the selected required bundle and
+its parent category, then keep group read/traverse as a secondary compatibility
+guard. This is more stable than relying only on POSIX group bits because worker
+or isolation scripts may later tighten a Skill Store parent back to `700`
+without changing the required bundle itself:
 
 ```bash
 sudo chmod -RN /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills
 sudo chown -R :staff /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills/productivity/wardrobe-style-operations
+sudo chmod +a "user:hermes-host allow list,search,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills
+sudo chmod +a "user:hermes-host allow list,search,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills/productivity
+sudo chmod -R +a "user:hermes-host allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit" /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills/productivity/wardrobe-style-operations
 sudo chmod g+rx,o-rwx /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills
 sudo chmod g+rx,o-rwx /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills/productivity
 sudo chmod -R g+rX,o-rwx /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills/productivity/wardrobe-style-operations

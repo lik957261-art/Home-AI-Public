@@ -35,6 +35,7 @@ assert.match(script, /plugin_binding_missing/);
 assert.match(script, /plugin_local_binding_incomplete/);
 assert.match(script, /plugin_required_skill_incomplete/);
 assert.match(script, /plugin_required_skill_unreadable/);
+assert.match(script, /requiredWorkspaceSkillPlugins/);
 assert.match(script, /shared_skill_missing/);
 assert.match(script, /targetMatchesExpected/);
 assert.match(script, /stale_skill_profile/);
@@ -126,6 +127,7 @@ try {
   assert.ok(audit.issues.includes("memory_root_missing:weixin_wuping"));
   assert.ok(audit.issues.includes("deepseek_user_worker_missing:weixin_wuping"));
   assert.ok(audit.issues.includes("plugin_local_binding_incomplete:weixin_wuping:wardrobe"));
+  assert.ok(audit.issues.includes("plugin_required_skill_incomplete:owner:wardrobe:productivity/wardrobe-style-operations"));
   assert.ok(audit.issues.includes("plugin_required_skill_incomplete:weixin_wuping:wardrobe:productivity/wardrobe-style-operations"));
   assert.ok(audit.issues.includes("shared_skill_missing:shared/response-grounding-baseline"));
   assert.ok(audit.issues.some((item) => item.startsWith("profile_config_missing:")));
@@ -162,6 +164,17 @@ try {
   fs.mkdirSync(path.join(wardrobeSkillDir, "references"), { recursive: true });
   fs.mkdirSync(path.join(wardrobeSkillDir, "scripts"), { recursive: true });
   fs.writeFileSync(path.join(wardrobeSkillDir, "SKILL.md"), "wardrobe skill", "utf8");
+  const ownerWardrobeSkillDir = path.join(
+    data,
+    "skill-profiles",
+    "owner-full",
+    "skills",
+    "productivity",
+    "wardrobe-style-operations",
+  );
+  fs.mkdirSync(path.join(ownerWardrobeSkillDir, "references"), { recursive: true });
+  fs.mkdirSync(path.join(ownerWardrobeSkillDir, "scripts"), { recursive: true });
+  fs.writeFileSync(path.join(ownerWardrobeSkillDir, "SKILL.md"), "owner wardrobe skill", "utf8");
   const unreadableSkillAudit = buildAudit({
     root: tempRoot,
     expectedWorkspaces: [],
@@ -171,6 +184,8 @@ try {
     checkTelemetry: false,
     listenerReadProbe: () => false,
   });
+  assert.ok(!unreadableSkillAudit.issues.includes("plugin_required_skill_incomplete:owner:wardrobe:productivity/wardrobe-style-operations"));
+  assert.ok(unreadableSkillAudit.issues.includes("plugin_required_skill_unreadable:owner:wardrobe:productivity/wardrobe-style-operations"));
   assert.ok(!unreadableSkillAudit.issues.includes("plugin_required_skill_incomplete:weixin_wuping:wardrobe:productivity/wardrobe-style-operations"));
   assert.ok(unreadableSkillAudit.issues.includes("plugin_required_skill_unreadable:weixin_wuping:wardrobe:productivity/wardrobe-style-operations"));
 } finally {

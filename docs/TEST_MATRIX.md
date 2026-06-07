@@ -142,7 +142,10 @@ are warnings until a cold-start run creates them. The checked repair harness is
 Required plugin Skill bundles must also be readable by the listener user, not
 only by root or the isolated worker; any
 `plugin_required_skill_unreadable:<workspace>:<plugin>:<skill>` issue blocks
-Mac production closure.
+Mac production closure. The profile audit must also include Skill-only required
+gate coverage for Owner Wardrobe outfit runs:
+`owner:wardrobe:productivity/wardrobe-style-operations` is required even when
+the plugin authorization table does not currently list `wardrobe` for Owner.
 It must not print raw Access Keys, token contents, key files, prompt bodies, or
 plugin launch tokens.
 Mac MCP callable schema evidence must use the real production manifest and

@@ -111,9 +111,11 @@ service root.
   Passing production output must have `ok=true`, empty `issues`, no blocking
   `warnings`, the expected active workspace keys, the shared Response baseline,
   complete required Wardrobe Skill bundles for workspaces that require
-  Wardrobe, and profile `skills`/`memories` links whose realpath resolves to
-  the matching `data/skill-profiles/<profileId>` store. On macOS it also
-  verifies every enabled manifest worker's system LaunchDaemon is loaded.
+  Wardrobe, Owner Wardrobe Skill-only required-gate coverage even when the
+  plugin authorization table omits `wardrobe`, and profile `skills`/`memories`
+  links whose realpath resolves to the matching
+  `data/skill-profiles/<profileId>` store. On macOS it also verifies every
+  enabled manifest worker's system LaunchDaemon is loaded.
   `launchd_service_not_loaded:<profile>` means the worker can exist in the
   manifest and have a plist file while still failing cold-start with
   `Could not find service ...`. The audit reads only bounded metadata and must
