@@ -1,8 +1,8 @@
 "use strict";
 
-const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
 const { createGatewayRunStreamEventService } = require("./gateway-run-stream-event-service");
 const { createGatewayRunStreamCloseRecoveryService } = require("./gateway-run-stream-close-recovery-service");
+const { createGatewayRunStreamFailureService } = require("./gateway-run-stream-failure-service");
 const { createGatewayRunStreamFirstEventService } = require("./gateway-run-stream-first-event-service");
 const { createGatewayRunStreamLivenessService } = require("./gateway-run-stream-liveness-service");
 const { createGatewayRunStreamRegistryService } = require("./gateway-run-stream-registry-service");
@@ -20,10 +20,6 @@ function readNumber(value, fallback = 0) {
 
 function provider(value, fallback) {
   return typeof value === "function" ? value() : (value ?? fallback);
-}
-
-function safeErrorMessage(err) {
-  return gatewayRunUserFacingError(err);
 }
 
 function createGatewayRunStreamService(options = {}) {
@@ -147,6 +143,13 @@ function createGatewayRunStreamService(options = {}) {
   });
   const clearFirstEventTimer = (...args) => streamFirstEventService.clearFirstEventTimer(...args);
   const scheduleFirstEventWarning = (...args) => streamFirstEventService.scheduleFirstEventWarning(...args);
+  const streamFailureService = options.streamFailureService || createGatewayRunStreamFailureService({
+    activeStreamForRun,
+    emitRunStreamEvent,
+    markRunCancelled,
+    markRunFailed,
+  });
+  const handleStreamFailure = (...args) => streamFailureService.handleStreamFailure(...args);
 
   function recordGatewayEvent(runId, event = {}) {
     const fallbackRunId = cleanString(runId);
@@ -265,12 +268,7 @@ function createGatewayRunStreamService(options = {}) {
         }
       })
       .catch((err) => {
-        const stream = activeStreamForRun(id);
-        const visibleRunId = stream?.realRunId || id;
-        emitRunStreamEvent(id, "run.stream_failed", safeErrorMessage(err), { runId: visibleRunId, error: true });
-        if (controller.signal?.aborted && stream?.failureReason) markRunFailed(threadId, messageId, visibleRunId, new Error(stream.failureReason));
-        else if (controller.signal?.aborted) markRunCancelled(threadId, messageId, visibleRunId);
-        else markRunFailed(threadId, messageId, visibleRunId, err);
+        handleStreamFailure(id, threadId, messageId, controller, err);
       })
       .finally(() => {
         const stream = activeStreamForRun(id);

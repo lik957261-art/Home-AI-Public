@@ -247,6 +247,12 @@ statements. Priority extraction areas:
   service now delegates first Gateway event warning timer scheduling, timer
   clearing, first-byte retry status projection, and warning attempt counting
   while retaining response stream orchestration and event handoff.
+- completed 2026-06-08: Gateway run stream reader failure projection moved
+  into `adapters/gateway-run-stream-failure-service.js`. The stream service now
+  delegates `run.stream_failed` projection, user-facing Gateway error previews,
+  aborted failure-reason handoff, aborted cancellation handoff, and ordinary
+  stream-error terminal failure handoff while retaining response stream
+  orchestration and cleanup.
 - completed 2026-06-08: Gateway run stream closed-without-terminal recovery
   moved into `adapters/gateway-run-stream-close-recovery-service.js`. The
   stream service now delegates synthetic completion after partial model output,
