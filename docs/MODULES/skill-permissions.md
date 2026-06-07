@@ -105,6 +105,14 @@ deployment-wide shared Skills use `shared-global`.
   missing, empty, unreadable, or reduced to a placeholder without its required
   references, the owning plugin workflow must fail closed before model
   execution.
+- Required Skill preload success does not prove Gateway MCP/toolset readiness.
+  The wardrobe gate has two separate pre-stream blockers:
+  `required_skill_missing` means the listener could not preload the required
+  Skill bundle; `gateway_toolset_missing` means the selected Gateway target did
+  not declare the required toolset such as `wardrobe`. Treat these as separate
+  production checks and run both `macos-required-skill-preload-smoke.js` and
+  `macos-gateway-manifest-toolset-smoke.js` before closing a Mac wardrobe
+  incident.
 - Capability catalog generation may mention authorized plugin Skill ids and
   short non-secret summaries, but it must not preload full optional plugin
   Skill bodies. Full plugin Skill content is loaded only for the current
@@ -125,10 +133,16 @@ deployment-wide shared Skills use `shared-global`.
 - `node tests\gateway-workspace-provisioning-service.test.js`
 - `node tests\startup-scripts.test.js`
 - `node tests\macos-production-profile-audit.test.js`
+- `node tests\macos-required-skill-preload-smoke.test.js`
+- `node tests\macos-gateway-manifest-toolset-smoke.test.js`
 - Mac production profile audit:
   `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-profile-audit.js --root /Users/hermes-host/HermesMobile --json`
   The audit must not report
   `plugin_required_skill_unreadable:<workspace>:<plugin>:<skill>`.
+- Mac required Skill preload smoke:
+  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-required-skill-preload-smoke.js --root /Users/hermes-host/HermesMobile --json`.
+- Mac Gateway manifest toolset smoke:
+  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-gateway-manifest-toolset-smoke.js --root /Users/hermes-host/HermesMobile --json`.
 - `node tests\task-list-ui.test.js`
 
 ## Constraints

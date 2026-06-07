@@ -148,6 +148,18 @@ gate coverage for Owner Wardrobe outfit runs:
 the plugin authorization table does not currently list `wardrobe` for Owner.
 It must not print raw Access Keys, token contents, key files, prompt bodies, or
 plugin launch tokens.
+Mac wardrobe/plugin-bound Gateway closure must also prove the manifest toolset
+projection matches the actual Gateway profile configs. Run the checked local
+contracts `node tests\macos-required-skill-preload-smoke.test.js` and
+`node tests\macos-gateway-manifest-toolset-smoke.test.js`; on Mac production
+run:
+`sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-required-skill-preload-smoke.js --root /Users/hermes-host/HermesMobile --json`
+and
+`sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-gateway-manifest-toolset-smoke.js --root /Users/hermes-host/HermesMobile --json`.
+The first smoke catches listener-side required Skill ACL/preload failures such
+as `required_skill_missing`; the second catches stale manifest `toolsets` that
+would become `gateway_toolset_missing` even when the underlying
+`config.yaml` has the plugin MCP.
 Mac MCP callable schema evidence must use the real production manifest and
 native agent schema probe, for example
 `node scripts\gateway-tool-schema-smoke.js --manifest /Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json --profile <profile> --schema-only --agent-schema-mode native --runtime-source /Users/hermes-host/HermesMobile/runtime/hermes-agent-official/source --runtime-overrides /Users/hermes-host/HermesMobile/app/gateway-runtime-overrides --runtime-python /Users/hermes-host/HermesMobile/runtime/hermes-agent-official/venv/bin/python`. Do not treat a Windows-only WSL schema probe as Mac production evidence.

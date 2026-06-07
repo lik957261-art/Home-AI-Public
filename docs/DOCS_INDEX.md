@@ -81,6 +81,8 @@ identifiers until a separate infrastructure migration is planned.
   `scripts/macos-plugin-directory-production-smoke.js`,
   `tests/macos-plugin-directory-production-smoke-harness.test.js`
 - Mac worker filesystem access: `docs/RUNBOOKS/macos-worker-filesystem-access.md`
+- Mac required Skill preload and Gateway toolset gates:
+  `docs/RUNBOOKS/macos-required-skill-gateway-toolset-gates.md`
 - OpenAI Codex shared auth repair: `docs/RUNBOOKS/openai-codex-shared-auth.md`
 - Codex Responses stream output missing: `docs/RUNBOOKS/codex-responses-stream-output-none.md`
 - OpenAI Codex MCP callable schema missing: `docs/RUNBOOKS/openai-codex-mcp-schema-missing.md`

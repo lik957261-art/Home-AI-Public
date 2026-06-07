@@ -239,6 +239,15 @@ The usage telemetry adapter also handles the official Gateway short-response-id
 store format by using a unique 24-character response-id prefix fallback after
 exact lookup fails. This fallback is intentionally narrow: ambiguous prefixes
 leave usage unchanged instead of guessing.
+Every enabled Mac manifest worker must also keep its `toolsets` projection in
+sync with the worker profile config. Profile config `toolsets` are the
+materialized capability source; manifest `toolsets` are what Mobile uses for
+Gateway Pool filtering and wardrobe/file/weather pre-stream gates. After
+profile materialization, plugin provisioning, manifest hand edits, or a Mac
+data migration, run:
+`sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-gateway-manifest-toolset-smoke.js --root /Users/hermes-host/HermesMobile --json`.
+This smoke is read-only and must not print API keys, key paths, prompts, or
+raw profile config bodies.
 Hybrid Mac cold-start also requires the launchd listener environment to pass
 `HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT` to the runtime config, pointing
 at the Mac-native profile launcher under the live Gateway worker root. This is

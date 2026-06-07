@@ -396,6 +396,18 @@ the manifest fields are compatibility metadata, not an authorization source.
 Scheduler state and run assignment now use a replica-first state key, falling
 back to the legacy `profile` only when `replicaId` is absent.
 
+Manifest toolset projection is part of the routing contract, not display
+metadata. On Mac production, each enabled worker's manifest `toolsets` must be
+a superset of the top-level `toolsets` in that worker's actual `config.yaml`.
+If the profile config exposes `wardrobe`, `finance`, `email`, `health`, or
+`note` but the manifest row omits that toolset, Gateway Pool can reject or
+misroute a plugin-bound run before streaming. Wardrobe outfit runs are the
+strictest default check: every Owner OpenAI/Codex user candidate must declare
+`wardrobe`, `vision`, `file`, `skills`, and `weather` in the manifest, matching
+the selected profile config. Use
+`scripts/macos-gateway-manifest-toolset-smoke.js` after Mac profile
+materialization, manifest edits, plugin provisioning, or data migration.
+
 Usage telemetry is separate from scheduling identity. Each worker should expose
 explicit `telemetryStateDbPath` and `telemetryResponseStoreDbPath` values for
 its actual Gateway profile DBs. Hermes Mobile uses these paths only as a
