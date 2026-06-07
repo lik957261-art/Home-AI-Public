@@ -104,9 +104,9 @@ Implemented fix, 2026-06-07:
   shells share the same Dock/nav geometry. The expected 390x844 baseline is:
   Dock directly above bottom navigation, no Dock/nav overlap, no clipped bottom
   nav labels, and no quick-action/Dock overlap.
-- `20260607-bottom-nav-content-lift-v605` keeps the same measured bottom-stack
+- `20260607-bottom-nav-content-lift-v606` keeps the same measured bottom-stack
   contract and uses a shared 6px host comfort inset for the primary bottom
-  navigation. The primary bottom tab contents are lifted 2px inside the nav bar
+  navigation. The primary bottom tab contents are lifted inside the nav bar
   so the labels/icons feel less flush, without moving the topic capability Dock
   upward.
 - `tests/app-plugin-topics-ui.test.js` includes a VM projection harness that
