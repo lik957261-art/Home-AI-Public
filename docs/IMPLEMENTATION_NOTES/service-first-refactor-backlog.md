@@ -64,6 +64,9 @@ statements. Priority extraction areas:
   `adapters/mobile-runtime-sqlite-store-facade-service.js`. Runtime now passes a
   tested `mobileSqliteStore` delegate into persistence, Kanban, Action Inbox,
   and topic-context services instead of keeping a top-level SQLite singleton.
+- completed 2026-06-08: `chatGroupMemberWorkspaceIds` moved into
+  `adapters/mobile-runtime-state-facade-service.js`, keeping chat-group member
+  projection with state normalization instead of as a runtime top-level helper.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

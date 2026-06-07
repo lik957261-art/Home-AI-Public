@@ -323,7 +323,6 @@ const gatewayRunContentService = createGatewayRunContentService({
 const { appendBounded, compactFullContent } = gatewayRunContentService;
 mobileRuntimeStateFacadeService = createMobileRuntimeStateFacadeService({
   bootTrace,
-  chatGroupMemberWorkspaceIds,
   compactFullContent,
   createRuntimeStateNormalizationService,
   createRuntimeStatePersistenceService,
@@ -355,6 +354,7 @@ mobileRuntimeStateFacadeService = createMobileRuntimeStateFacadeService({
   workspaceLabel,
 });
 const {
+  chatGroupMemberWorkspaceIds,
   defaultState,
   getRuntimeStateNormalizationService,
   getRuntimeStatePersistenceService,
@@ -859,11 +859,6 @@ function getRuntimeStateThreadService() {
     });
   }
   return runtimeStateThreadService;
-}
-function chatGroupMemberWorkspaceIds(thread, options = {}) {
-  if (!thread?.singleWindow) return [];
-  const group = normalizeChatGroup(thread.chatGroup || {}, thread.workspaceId, options);
-  return group.enabled ? group.memberWorkspaceIds : [];
 }
 const pushWorkspaceForAuth = (...args) => mobileRuntimeWorkspaceFacadeService.pushWorkspaceForAuth(...args);
 const getWorkspacePublicProjectionService = (...args) => mobileRuntimeWorkspaceFacadeService.getWorkspacePublicProjectionService(...args);

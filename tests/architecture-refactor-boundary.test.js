@@ -634,8 +634,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(stateFacade, /createRuntimeStatePersistenceService/);
   assert.match(stateFacade, /createRuntimeStateNormalizationService/);
   assert.match(server, /const ensureDataDir = \(\.\.\.args\) => mobileRuntimeStateFacadeService\.ensureDataDir\(\.\.\.args\);/);
-  assert.match(server, /const \{\s+defaultState,\s+getRuntimeStateNormalizationService,\s+getRuntimeStatePersistenceService,\s+loadState,\s+normalizeChatGroup,\s+normalizePushDelivery,\s+normalizePushReceipt,\s+normalizePushSubscription,\s+normalizeState,\s+pushSubscriptionScopeSignature,\s+\} = mobileRuntimeStateFacadeService;/);
+  assert.match(server, /const \{\s+chatGroupMemberWorkspaceIds,\s+defaultState,\s+getRuntimeStateNormalizationService,\s+getRuntimeStatePersistenceService,\s+loadState,\s+normalizeChatGroup,\s+normalizePushDelivery,\s+normalizePushReceipt,\s+normalizePushSubscription,\s+normalizeState,\s+pushSubscriptionScopeSignature,\s+\} = mobileRuntimeStateFacadeService;/);
   assert.match(server, /const saveState = \(next = state, options = \{\}\) => mobileRuntimeStateFacadeService\.saveState\(next, options\);/);
+  assert.match(stateFacade, /function chatGroupMemberWorkspaceIds/);
   assert.doesNotMatch(server, /runtimeStatePersistenceService = createRuntimeStatePersistenceService/);
   assert.doesNotMatch(server, /^function ensureDataDir/gm);
   assert.doesNotMatch(server, /^function getRuntimeStateNormalizationService/gm);
@@ -646,6 +647,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.doesNotMatch(server, /^function normalizePushDelivery/gm);
   assert.doesNotMatch(server, /^function normalizePushReceipt/gm);
   assert.doesNotMatch(server, /^function normalizePushSubscription/gm);
+  assert.doesNotMatch(server, /^function chatGroupMemberWorkspaceIds/gm);
   assert.doesNotMatch(server, /^function pushSubscriptionScopeSignature/gm);
   assert.doesNotMatch(server, /^function normalizeChatGroup/gm);
   assert.doesNotMatch(server, /^function saveState/gm);
@@ -1046,7 +1048,8 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
   assert.match(doc, /1,345 lines/);
-  assert.match(doc, /13/);
+  assert.match(doc, /12/);
+  assert.match(doc, /mobile-runtime-state-facade-service\.js` must stay at or below 155\s+lines/);
   assert.match(doc, /mobile-runtime-sqlite-store-facade-service\.js` must stay at or below 35\s+lines/);
   assert.match(doc, /path-boundary-service\.js` must stay at or below 65 lines/);
   assert.match(doc, /mobile-runtime-path-access-service\.js` must stay at or below 70 lines/);
@@ -1115,6 +1118,7 @@ function testServiceFirstArchitectureContract() {
   const workspaceIdentityFacade = fileText("adapters/mobile-runtime-workspace-identity-facade-service.js");
   const workspaceFacade = fileText("adapters/mobile-runtime-workspace-facade-service.js");
   const weixinFacade = fileText("adapters/mobile-runtime-weixin-facade-service.js");
+  const stateFacade = fileText("adapters/mobile-runtime-state-facade-service.js");
   const runtimeEnvironment = fileText("adapters/mobile-runtime-environment-service.js");
   const gatewayEnvironment = fileText("adapters/mobile-runtime-gateway-environment-service.js");
   const pathCandidateEnvironment = fileText("adapters/mobile-runtime-path-candidate-environment-service.js");
@@ -1144,6 +1148,7 @@ function testServiceFirstArchitectureContract() {
   const pathAccessServiceLineCount = pathAccessService.split(/\r?\n/).length;
   const pathBoundaryLineCount = fileText("adapters/path-boundary-service.js").split(/\r?\n/).length;
   const sqliteStoreFacadeLineCount = sqliteStoreFacade.split(/\r?\n/).length;
+  const stateFacadeLineCount = stateFacade.split(/\r?\n/).length;
   const appLineCount = app.split(/\r?\n/).length;
   const appTopLevelFunctionCount = (app.match(/^function\s+/gm) || []).length;
   const fileAccessFacadeLineCount = fileAccessFacade.split(/\r?\n/).length;
@@ -1160,7 +1165,7 @@ function testServiceFirstArchitectureContract() {
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
   assert.ok(runtimeLineCount <= 1345, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1345`);
-  assert.ok(runtimeTopLevelFunctionCount <= 13, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 13`);
+  assert.ok(runtimeTopLevelFunctionCount <= 12, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 12`);
   assert.ok(appRouteUrlLineCount <= 35, `app-route-url-service.js line budget exceeded: ${appRouteUrlLineCount} > 35`);
   assert.ok(automationJobFilterLineCount <= 45, `automation-job-filter-service.js line budget exceeded: ${automationJobFilterLineCount} > 45`);
   assert.ok(operationErrorResponseLineCount <= 35, `runtime-operation-error-response-service.js line budget exceeded: ${operationErrorResponseLineCount} > 35`);
@@ -1168,6 +1173,7 @@ function testServiceFirstArchitectureContract() {
   assert.doesNotMatch(basicHelper, /^  function isUncPath\(value\) \{ return /m);
   assert.ok(fileAccessFacadeLineCount <= 140, `mobile-runtime-file-access-facade-service.js line budget exceeded: ${fileAccessFacadeLineCount} > 140`);
   assert.ok(sqliteStoreFacadeLineCount <= 35, `mobile-runtime-sqlite-store-facade-service.js line budget exceeded: ${sqliteStoreFacadeLineCount} > 35`);
+  assert.ok(stateFacadeLineCount <= 155, `mobile-runtime-state-facade-service.js line budget exceeded: ${stateFacadeLineCount} > 155`);
   assert.match(fileAccessFacade, /findDirectoryThreadForRequest/);
   assert.match(fileAccessFacade, /ownerDirectoryBrowserThread/);
   assert.doesNotMatch(runtime, /^function findDirectoryThreadForRequest\(/m);

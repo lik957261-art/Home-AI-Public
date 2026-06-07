@@ -55,7 +55,7 @@ function createMobileRuntimeStateFacadeService(options = {}) {
     if (!runtimeStateNormalizationService) {
       runtimeStateNormalizationService = createRuntimeStateNormalizationService({
         bootTrace: options.bootTrace,
-        chatGroupMemberWorkspaceIds: options.chatGroupMemberWorkspaceIds,
+        chatGroupMemberWorkspaceIds,
         compactFullContent: options.compactFullContent,
         dedupe: options.dedupe,
         findWorkspace: options.findWorkspace,
@@ -91,6 +91,12 @@ function createMobileRuntimeStateFacadeService(options = {}) {
     return getRuntimeStateNormalizationService().normalizeChatGroup(value, ownerWorkspaceId, normalizeOptions);
   }
 
+  function chatGroupMemberWorkspaceIds(thread, normalizeOptions = {}) {
+    if (!thread?.singleWindow) return [];
+    const group = normalizeChatGroup(thread.chatGroup || {}, thread.workspaceId, normalizeOptions);
+    return group.enabled ? group.memberWorkspaceIds : [];
+  }
+
   function getRuntimeStatePersistenceService() {
     if (!runtimeStatePersistenceService) {
       runtimeStatePersistenceService = createRuntimeStatePersistenceService({
@@ -123,6 +129,7 @@ function createMobileRuntimeStateFacadeService(options = {}) {
   }
 
   return Object.freeze({
+    chatGroupMemberWorkspaceIds,
     defaultState,
     ensureDataDir,
     getRuntimeStateNormalizationService,

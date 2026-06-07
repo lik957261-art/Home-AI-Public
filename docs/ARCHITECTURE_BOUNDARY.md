@@ -186,13 +186,14 @@ lazy delegates such as `normalizeLocalPath`, `windowsPathToWsl`, and
 top-level implementations of path normalization, allowed-root filtering,
 global path authorization, or thread directory-browser authorization.
 
-`mobile-runtime-state-facade-service.js` owns runtime state normalization and
-persistence lazy delegation. Runtime composition may bind facade methods as
-readable delegates, including the `saveState(next = state, options = {})`
-runtime default that depends on the mutable in-memory `state`, but it must not
-carry duplicate top-level wrapper functions for `ensureDataDir`, `defaultState`,
-`loadState`, `normalizeState`, push normalization helpers,
-`pushSubscriptionScopeSignature`, `normalizeChatGroup`, or `saveState`.
+`mobile-runtime-state-facade-service.js` owns runtime state normalization,
+chat-group member projection, and persistence lazy delegation. Runtime
+composition may bind facade methods as readable delegates, including the
+`saveState(next = state, options = {})` runtime default that depends on the
+mutable in-memory `state`, but it must not carry duplicate top-level wrapper
+functions for `ensureDataDir`, `defaultState`, `loadState`, `normalizeState`,
+push normalization helpers, `pushSubscriptionScopeSignature`,
+`normalizeChatGroup`, `chatGroupMemberWorkspaceIds`, or `saveState`.
 
 `mobile-runtime-sqlite-store-facade-service.js` owns lazy SQLite service-store
 factory construction, migration-on-first-use, and singleton reuse. Runtime
@@ -275,7 +276,7 @@ Current CI guardrails:
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
 - `mobile-server-runtime.js` must stay at or below 1,345 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 13;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 12;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
 - `path-boundary-service.js` must stay at or below 65 lines and remain a
@@ -300,6 +301,9 @@ Current CI guardrails:
 - `mobile-runtime-sqlite-store-facade-service.js` must stay at or below 35
   lines and remain a lazy SQLite store factory/migration facade, not a schema,
   repository, or persistence policy module;
+- `mobile-runtime-state-facade-service.js` must stay at or below 155 lines and
+  remain a facade over state normalization, chat-group member projection, and
+  persistence delegation, not a runtime route or Gateway policy module;
 - `mobile-runtime-gateway-context-facade-service.js` must stay at or below 90
   lines and remain a facade over Gateway instruction, conversation-history,
   stale tool-schema claim, run-target, and usage supplementation delegates;

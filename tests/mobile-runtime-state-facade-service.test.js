@@ -30,11 +30,16 @@ const facade = createMobileRuntimeStateFacadeService({
         options: optionsArg,
         delivery: options.normalizePushDelivery({ id: "delivery-a" }),
       }),
-      normalizeChatGroup: (value, ownerWorkspaceId, optionsArg) => ({
-        value,
-        ownerWorkspaceId,
-        options: optionsArg,
-      }),
+      normalizeChatGroup: (value, ownerWorkspaceId, optionsArg) => {
+        const enabled = Boolean(value?.enabled);
+        return {
+          value,
+          ownerWorkspaceId,
+          options: optionsArg,
+          enabled,
+          memberWorkspaceIds: enabled ? [ownerWorkspaceId, ...(value.memberWorkspaceIds || [])] : [],
+        };
+      },
     };
   },
   createRuntimeStatePersistenceService(options) {
@@ -107,7 +112,18 @@ assert.deepEqual(facade.normalizeChatGroup({ enabled: true }, "owner", { skipCat
   value: { enabled: true },
   ownerWorkspaceId: "owner",
   options: { skipCatalogLookups: true },
+  enabled: true,
+  memberWorkspaceIds: ["owner"],
 });
+assert.deepEqual(
+  facade.chatGroupMemberWorkspaceIds({
+    singleWindow: true,
+    workspaceId: "owner",
+    chatGroup: { enabled: true, memberWorkspaceIds: ["weixin_wuping"] },
+  }, { skipCatalogLookups: true }),
+  ["owner", "weixin_wuping"],
+);
+assert.deepEqual(facade.chatGroupMemberWorkspaceIds({ singleWindow: false, chatGroup: { enabled: true } }), []);
 
 assert.deepEqual(facade.loadState(), {
   loaded: { schemaVersion: 1, threads: [] },
