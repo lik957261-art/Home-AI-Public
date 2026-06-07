@@ -12,6 +12,7 @@ const { createDocumentPreviewService } = require("./adapters/document-preview-se
 const { createAppRouteUrlService } = require("./adapters/app-route-url-service");
 const { createEventFanoutService } = require("./adapters/event-fanout-service");
 const fileResourceService = require("./adapters/file-resource-service");
+const { createAutomationJobFilterService } = require("./adapters/automation-job-filter-service");
 const { createAutomationProvider } = require("./adapters/automation-provider");
 const { createAutomationDeliveryRequirement, createDeliveryBoundaryInstructions } = require("./adapters/delivery-boundary-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
@@ -933,6 +934,9 @@ const todoProvider = createTodoProvider({
     ? (useSqliteServiceStore() ? "sqlite_todos" : "local_todos")
     : (useKanbanTodoBackend() ? "hermes_kanban" : (process.env.HERMES_WEB_TODO_PLUGIN_NAME || "hermes_todos")),
 });
+const automationJobFilterService = createAutomationJobFilterService();
+const cronJobMatchesOwner = (...args) => automationJobFilterService.jobMatchesOwner(...args);
+const cronJobMatchesSearch = (...args) => automationJobFilterService.jobMatchesSearch(...args);
 const automationProvider = createAutomationProvider({
   runBridge: runCronBridge,
   cacheTtlMs: CRON_LIST_CACHE_TTL_MS,
@@ -959,9 +963,7 @@ const externalIntegrationProvider = createExternalIntegrationProvider({
   googleClientSecretPaths: GOOGLE_CLIENT_SECRET_PATHS,
   outlookGraphTokenPaths: OUTLOOK_GRAPH_TOKEN_PATHS,
 });
-function clearCronListCache() {
-  automationProvider.clearListCache();
-}
+const clearCronListCache = (...args) => automationProvider.clearListCache(...args);
 async function runCronListBridgeCached(options = {}) {
   return automationProvider.listJobs(Object.assign({ limit: 0 }, options));
 }
@@ -1106,27 +1108,6 @@ mobileRuntimeKanbanFacadeService = createMobileRuntimeKanbanFacadeService({
   workspaceDefaultRoot,
   workspacePrincipal,
 });
-function cronJobMatchesSearch(job, search) {
-  if (!search) return true;
-  return [
-    job?.id,
-    job?.name,
-    job?.promptPreview,
-    job?.schedule,
-    job?.status,
-    job?.deliver,
-    job?.ownerPrincipalId,
-    ...(Array.isArray(job?.skills) ? job.skills : []),
-    ...(Array.isArray(job?.outputDocuments) ? job.outputDocuments.map((doc) => doc?.name || "") : []),
-  ].join("\n").toLowerCase().includes(search);
-}
-function cronJobMatchesOwner(job, ownerPrincipalId) {
-  const owner = String(job?.ownerPrincipalId || "").trim();
-  const expected = String(ownerPrincipalId || "").trim();
-  if (!expected) return false;
-  if (owner) return owner === expected;
-  return expected === "owner";
-}
 function extractJsonObject(text) {
   return naturalLanguageDraftService.extractJsonObject(text);
 }

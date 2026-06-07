@@ -56,6 +56,7 @@ dispatcher registration policy.
 
 Current runtime glue that should stay out of the composition root lives in
 focused adapters such as `app-route-url-service.js`,
+`automation-job-filter-service.js`,
 `mobile-runtime-basic-helper-service.js`,
 `mobile-runtime-file-helper-service.js`,
 `mobile-runtime-file-access-facade-service.js`,
@@ -87,7 +88,7 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-workspace-facade-service.js`,
 `mobile-runtime-workspace-catalog-facade.js`, and
 `mobile-runtime-http-server-service.js`. These modules keep static file
-app route URL serialization, deterministic runtime primitives,
+app route URL serialization, Automation job filtering, deterministic runtime primitives,
 helpers and JSON store file IO,
 Artifact/Markdown registration lazy delegation, backend mode policy, runtime
 config facade delegation, runtime environment aggregation, shared environment
@@ -138,6 +139,12 @@ composition and state normalization, but it must not carry duplicate
 Web Push, plugin notification, and other route-link producers. Runtime
 composition may pass the helper into route/service wiring, but it must not carry
 a duplicate `appRouteUrl` function implementation.
+
+`automation-job-filter-service.js` owns deterministic Automation/Cron job
+filtering for owner visibility and list search matching. Route composition may
+use it through runtime dependencies, but `mobile-server-runtime.js` must not
+carry duplicate `cronJobMatchesSearch`, `cronJobMatchesOwner`, or cron cache
+clear wrapper function implementations.
 
 `mobile-runtime-basic-helper-service.js` owns deterministic runtime primitives:
 hashing, id generation, current time formatting, boolean query parsing,
@@ -195,10 +202,13 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,495 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 70;
+- `mobile-server-runtime.js` must stay at or below 1,475 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 67;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
+- `automation-job-filter-service.js` must stay at or below 45 lines and remain
+  a deterministic Automation/Cron list filter, not a route or bridge execution
+  module;
 - `mobile-runtime-basic-helper-service.js` must stay at or below 85 lines and
   remain a deterministic helper service for basic runtime primitives, not a
   route, provider, permission, or Gateway lifecycle policy module;
