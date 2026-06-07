@@ -23,20 +23,36 @@ const openAppBody = functionBody(pluginTopicsUi, "openPluginTopicApp");
 const runActionBody = functionBody(pluginTopicsUi, "runPluginTopicAction");
 
 assert.match(pluginTopicsUi, /const CAPABILITY_QUICK_ACTION_LIMIT = 12;/);
+assert.match(pluginTopicsUi, /const CAPABILITY_PLUGIN_APP_ACTION_ID = "__open_app";/);
+assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_USAGE_API_PATH = "\/api\/plugin-topic-usage";/);
+assert.match(pluginTopicsUi, /function pluginTopicAppQuickAction/);
 assert.match(pluginTopicsUi, /function pluginTopicActionUsageKey/);
+assert.match(pluginTopicsUi, /function loadPluginTopicUsageFromServer/);
+assert.match(pluginTopicsUi, /function schedulePluginTopicUsageSync/);
+assert.match(pluginTopicsUi, /function ensurePluginTopicUsageLoaded/);
 assert.match(recordUsageBody, /usage\.actions = actions;/);
 assert.match(recordUsageBody, /usage\.plugins = plugins;/);
-assert.match(openAppBody, /recordPluginTopicUsage\(def\.id\);/);
+assert.match(recordUsageBody, /schedulePluginTopicUsageSync\(usage\);/);
+assert.match(pluginTopicsUi, /api\(`\$\{PLUGIN_TOPIC_USAGE_API_PATH\}\?\$\{params\.toString\(\)\}`/);
+assert.match(pluginTopicsUi, /method: "PATCH"/);
+assert.match(pluginTopicsUi, /workspaceId: pending\.workspaceId, usage: pending\.usage/);
+assert.match(openAppBody, /if \(options\.recordUsage !== false\) recordPluginTopicUsage\(def\.id\);/);
 assert.doesNotMatch(openAppBody, /action\.id/);
 assert.match(runActionBody, /recordPluginTopicUsage\(def\.id, action\.id\);/);
+assert.match(runActionBody, /openPluginTopicApp\(def\.id, \{ recordUsage: false \}\);/);
 
 assert.doesNotMatch(quickActionsBody, /preferred/);
+assert.match(quickActionsBody, /const pluginEntry = pluginTopicUsageEntry\(usage, def\.id\);/);
+assert.match(quickActionsBody, /action: pluginTopicAppQuickAction\(def\),/);
 assert.match(quickActionsBody, /const count = Math\.max\(0, Number\(entry\.count\) \|\| 0\);/);
 assert.match(quickActionsBody, /if \(!count\) return;/);
 assert.match(quickActionsBody, /b\.count - a\.count/);
 assert.match(quickActionsBody, /b\.lastUsedAt - a\.lastUsedAt/);
 assert.match(entryHubBody, /if \(!quickActions\.length\) return "";/);
+assert.match(entryHubBody, /ensurePluginTopicUsageLoaded\(\);/);
 assert.match(entryHubBody, /data-capability-quick-columns="3"/);
+assert.match(quickActionRenderBody, /action\?\.type === "open_plugin_app"/);
+assert.match(quickActionRenderBody, /data-plugin-topic-open-app/);
 assert.doesNotMatch(quickActionRenderBody, /capability-action-source/);
 
 assert.match(directoryTopicsUi, /plugin-topic-app-icon directory directory-topic-folder-icon/);
@@ -48,6 +64,8 @@ assert.match(stylesCss, /\.capability-quick-grid \{[\s\S]*?grid-template-columns
 assert.match(stylesCss, /\.capability-action-source \{[\s\S]*?display: none;/);
 assert.match(stylesCss, /--topic-plugin-dock-height: 78px;/);
 assert.match(stylesCss, /\.app\.task-list-mode \.topbar \{[\s\S]*?display: none !important;/);
-assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?bottom: -6px;/);
+assert.match(stylesCss, /--mobile-bottom-nav-visual-drop: 10px;/);
+assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?bottom: calc\(0px - var\(--mobile-bottom-nav-visual-drop\)\);/);
+assert.match(stylesCss, /\.app\.task-list-mode \.conversation > \.directory-topic-launcher:first-child,[\s\S]*?margin-top: max\(16px, calc\(env\(safe-area-inset-top\) \+ 4px\)\);/);
 
 console.log("app plugin topics UI tests passed");

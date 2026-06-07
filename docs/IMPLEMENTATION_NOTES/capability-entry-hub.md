@@ -62,11 +62,20 @@ The root page has three visible layers:
 
 The quick-action area is task-first. On phone and touch-tablet shells it uses a
 compact three-column grid. Actions are not prefilled by a global default list:
-they appear only after the user has actually used that action. The host stores
-per-action usage counts, starts every action at zero, sorts visible actions by
-count and recency, and renders no empty quick-action shell when no action has
-usage history. This keeps the area personal and avoids turning it into a second
-app launcher.
+they appear only after the user has actually used that action or launched that
+capability app from the Dock/menu. The host stores per-action usage counts and
+per-capability app-launch counts, starts every entry at zero, sorts visible
+entries by count and recency, and renders no empty quick-action shell when no
+usage history exists. This keeps the area personal while still allowing a
+recently used app-level capability to reappear as a top shortcut.
+
+Usage-backed ordering is a server-persisted workspace preference. The source
+of truth is `/api/plugin-topic-usage`, stored under the Home AI data directory
+as bounded `plugins` and `actions` count/recency maps per workspace. Browser
+`localStorage.hermesPluginTopicUsage` is only a startup/offline cache and must
+not be the only copy of the ordering signal. Account logout, cache reset,
+service-worker update, PWA reinstall, or device switching must not reset the
+server-side usage history.
 
 The fixed bottom capability Dock is app-first. It uses the existing topic-page
 icon form instead of placing app icons in the middle of the page. It solves
@@ -97,9 +106,15 @@ Quick action behavior:
 - visible quick actions should be limited to the highest-value actions for the
   current user and viewport;
 - visible quick actions are usage-backed: default count is zero, and unused
-  actions do not appear in the root quick-action area;
-- visible quick actions are sorted by action usage count, then last-used time,
-  then stable plugin/action definition order;
+  action entries or app-level capability entries do not appear in the root
+  quick-action area;
+- visible quick actions are sorted by usage count, then last-used time, then
+  stable plugin/action definition order. App-level Dock launches use a synthetic
+  host action (`open_plugin_app`) and are counted separately from concrete menu
+  actions so a menu action does not also promote a generic app shortcut;
+- usage counts and recency are workspace-scoped persistent preferences. The
+  frontend may merge them through a local cache for responsiveness, but must
+  sync to `/api/plugin-topic-usage` and load that endpoint on the topic root;
 - quick actions render only the task prompt label plus the action glyph. They do
   not render a trailing plugin/source label; plugin identity remains available
   through the action's accessibility label and the fixed Dock/app icon language;
@@ -188,6 +203,11 @@ Implemented fix, 2026-06-06:
   Directory-bound topic rows, removes directory path/default prompt text from
   those rows, keeps long-reply start arrows eligible after terminal footer
   refreshes, and makes successful Save-to-Note toasts actionable.
+- `20260607-topic-safe-area-v594` increases the bottom navigation visual drop
+  to 10px and measures the Dock offset from the visible bottom-nav top instead
+  of the full nav height. It also adds a mobile safe-area top gap when the
+  usage-backed quick-action grid is absent, so Directory-bound topics do not
+  start under the iOS status area after the root page header is hidden.
 
 Examples:
 
@@ -205,6 +225,7 @@ The host should treat quick actions as typed entries instead of hard-coded UI
 buttons:
 
 ```text
+open_plugin_app
 open_plugin_route
 open_topic
 open_directory
@@ -212,6 +233,11 @@ invoke_mcp_intent
 open_quick_form
 start_chat_with_context
 ```
+
+`open_plugin_app` is a host-owned synthetic action generated from Dock/menu
+launch usage. It opens the plugin or built-in Directory primary app surface and
+is used only for recent app-level capability shortcuts; it is not a
+plugin-declared business action.
 
 `open_plugin_route` opens the embedded app at a plugin-declared route.
 
@@ -320,6 +346,8 @@ Minimum validation:
 - touch-tablet visual smoke at `1024x768` or equivalent;
 - evidence that quick action rows stay readable in the three-column layout and
   that no empty quick-action shell appears before usage history exists;
+- evidence that Dock/menu app-launch usage creates a top shortcut while concrete
+  menu actions still record and sort by their own action usage;
 - authenticated navigation flow harness covering plugin app launch, quick
   topic entry, quick directory entry, and return behavior;
 - evidence that quick action rows and Directory-bound topic rows do not overlap

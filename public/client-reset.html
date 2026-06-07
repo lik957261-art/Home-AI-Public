@@ -140,7 +140,7 @@
 
       function preserveClientState() {
         var preserved = {};
-        ["hermesWebKey", "hermesWebTheme", "hermesWebFontSize", "hermesWebFontFamily"].forEach(function (key) {
+        ["hermesWebKey", "hermesWebTheme", "hermesWebFontSize", "hermesWebFontFamily", "hermesPluginTopicUsage", "hermesPluginTopicOrder"].forEach(function (key) {
           try { preserved[key] = localStorage.getItem(key) || ""; } catch (_) {}
         });
         if (!preserved.hermesWebKey) preserved.hermesWebKey = readCookie("hermes_web_key");

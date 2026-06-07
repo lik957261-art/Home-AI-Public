@@ -63,11 +63,19 @@ or raw plugin credentials.
 - The Dock action menu must be bound to the touch long-press path as well as
   pointer/context interactions. The frontend CSS must suppress WebKit native
   touch callout on Dock icons so iOS/PWA long-press can reach the Home AI menu.
-- Dock entries are app/capability launch targets on tap. They do not expose
-  permanent topic or file-directory mini actions in the topic list. Plugin- and
-  Directory-specific secondary surfaces remain reachable from quick actions,
-  long-press/context menus, and plugin context/navigation rules instead of as
-  small buttons beside the app icon.
+- Dock entries are app/capability launch targets on tap. A tap records
+  app-level capability usage so the same plugin or built-in Directory entry can
+  appear later in the root quick-action grid as a recently used capability. They
+  do not expose permanent topic or file-directory mini actions in the topic
+  list. Plugin- and Directory-specific secondary surfaces remain reachable from
+  quick actions, long-press/context menus, and plugin context/navigation rules
+  instead of as small buttons beside the app icon.
+- Capability usage ordering is not a volatile client-only preference. The
+  authoritative usage signal lives in `/api/plugin-topic-usage` and is
+  persisted per workspace as bounded `plugins` and `actions` count/recency
+  maps. `localStorage.hermesPluginTopicUsage` is only a first-paint/offline
+  cache and may be rebuilt from the server after login, client reset, PWA
+  reinstall, or device switch.
 - The next product direction for the root Topics tab is the Capability Entry
   Hub described in
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md`. In that model, the
@@ -75,9 +83,10 @@ or raw plugin credentials.
   in the fixed bottom Dock instead of moving into the middle of the page body.
   The page body shows a compact usage-backed frequent-action grid followed by
   Directory-bound topic collections. Shortcuts can open topics, plugin routes,
-  directories, quick forms, or MCP-backed Home AI intents. A shortcut appears in
-  the root quick-action grid only after the user has used that action; default
-  action usage is zero, and the grid is sorted by count and recency. The first
+  directories, quick forms, app-level capability launches, or MCP-backed Home AI
+  intents. A shortcut appears in the root quick-action grid only after the user
+  has used that action or launched that app-level capability from the Dock/menu;
+  default usage is zero, and the grid is sorted by count and recency. The first
   implementation maps shortcuts to existing host routes; direct MCP intent
   execution remains a separate H1 extension.
 - The topic-page plugin Dock is visible only on the root topic list. It must be
@@ -135,6 +144,10 @@ or raw plugin credentials.
   message composer. New topic creation must enter through a Directory binding or
   another explicit binding flow, so every new topic has a durable context
   anchor.
+- When the root quick-action grid has no usage-backed entries and therefore
+  does not render, the first Directory-bound topic block must still receive a
+  mobile safe-area top gap. The hidden page header must not cause the first
+  folder/topic row to sit under the iOS status area.
 - The Directory Dock icon uses the Dock-consistent plugin-app folder visual.
   Directory-bound topic rows use the same visual language at a smaller size;
   child topic rows keep the smaller chat/topic icon so the Directory app and its
@@ -193,16 +206,21 @@ Further persistence, route, and context work should use focused services:
 
 - `adapters/plugin-required-skill-preload-service.js`
 - `adapters/plugin-topic-binding-service.js`
+- `adapters/plugin-topic-usage-service.js`
 - `adapters/plugin-topic-delivery-directory-service.js`
 - `adapters/plugin-topic-context-service.js`
 - `adapters/plugin-capability-activation-service.js`
 - `server-routes/plugin-topic-api-routes.js`
+- `server-routes/mobile-api-plugin-composition.js`
+- `server-routes/plugin-topic-usage-api-routes.js`
 - `public/app-plugin-topics-ui.js` or an existing topic/navigation UI module
 - `tests/plugin-topic-binding-service.test.js`
 - `tests/plugin-topic-delivery-directory-service.test.js`
 - `tests/plugin-topic-context-service.test.js`
 - `tests/plugin-capability-activation-service.test.js`
 - `tests/plugin-topic-api-routes.test.js`
+- `tests/plugin-topic-usage-service.test.js`
+- `tests/plugin-topic-usage-api-routes.test.js`
 - `tests/app-plugin-topics-ui.test.js`
 
 Existing modules remain responsible for their own boundaries:
@@ -273,7 +291,8 @@ bottom Directory tab, the plugin-topic script in the app shell/service worker
 cache, Dock app/capability launch actions with long-press/context quick-action
 menus, no permanent topic/file-directory mini actions beside Dock icons,
 Directory-bound topic collections associated below the Capability Entry Hub body,
-usage-backed three-column quick actions with no trailing source badges,
+usage-backed three-column quick actions with no trailing source badges, Dock
+app-launch usage promotion into root shortcuts,
 collapsible folder-tree rows excluding plugin topics and hiding raw directory
 paths/default badges, root topic-list header/composer suppression, bottom navigation with
 Topics centered, default launch to Topics when no saved view exists, fixed

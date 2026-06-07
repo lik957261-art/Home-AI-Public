@@ -143,9 +143,11 @@ the change is part of a dedicated infrastructure rename.
     verify the `touchstart` long-press path directly because desktop
     `contextmenu` evidence alone does not prove iOS/PWA behavior. Quick actions
     carry task-specific routes such as topic, directory, plugin route, quick
-    form, or MCP-backed Home AI intent. Quick actions use
-    `hermesPluginTopicUsage.actions`, default to zero usage, appear only after
-    use, sort by count/recency, and do not render trailing plugin/source badges.
+    form, or MCP-backed Home AI intent. Quick actions use the workspace-scoped
+    `/api/plugin-topic-usage` preference store as the source of truth, with
+    `hermesPluginTopicUsage` only as a local first-paint/offline cache. Entries
+    default to zero usage, appear only after use, sort by count/recency, and do
+    not render trailing plugin/source badges.
     Directory-bound topic rows show the directory display name plus topic count
     and updated time; they hide raw directory paths and default-topic prompt
     badges.

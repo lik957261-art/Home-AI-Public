@@ -260,9 +260,12 @@ function updateMobileBottomNavReservation() {
     updatePluginContextViewportReservation();
     return;
   }
-  const rectHeight = Math.ceil(nav.getBoundingClientRect?.().height || 0);
+  const rect = nav.getBoundingClientRect?.();
+  const rectHeight = Math.ceil(rect?.height || 0);
   const contentHeight = Math.ceil(nav.scrollHeight || 0);
-  const offset = Math.max(58, rectHeight);
+  const viewportHeight = Math.ceil(window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0);
+  const visibleOffset = rect && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - rect.top)) : rectHeight;
+  const offset = Math.max(44, Math.min(Math.max(58, rectHeight), visibleOffset || rectHeight));
   const reserve = Math.max(76, rectHeight + 10, contentHeight + 10);
   root.style.setProperty("--mobile-bottom-nav-offset-height-runtime", `${offset}px`);
   root.style.setProperty("--mobile-bottom-nav-reserved-height-runtime", `${reserve}px`);

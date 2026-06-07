@@ -110,13 +110,21 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
 ]);
 const PLUGIN_TOPIC_USAGE_STORAGE_KEY = "hermesPluginTopicUsage";
 const PLUGIN_TOPIC_ORDER_STORAGE_KEY = "hermesPluginTopicOrder";
+const PLUGIN_TOPIC_USAGE_API_PATH = "/api/plugin-topic-usage";
+const PLUGIN_TOPIC_USAGE_SYNC_DELAY_MS = 450;
 const PLUGIN_APP_REORDER_HOLD_MS = 450;
 const PLUGIN_APP_REORDER_CANCEL_PX = 10;
 const CAPABILITY_QUICK_ACTION_LIMIT = 12;
+const CAPABILITY_PLUGIN_APP_ACTION_ID = "__open_app";
 let pluginAppSortDrag = null;
 let pluginAppSortGlobalBound = false;
 let pluginActionMenuCloseBound = false;
 let pluginActionMenuSwipe = null;
+let pluginTopicUsagePendingSync = null;
+let pluginTopicUsageSyncTimer = 0;
+const pluginTopicUsageLoadedWorkspaces = new Set();
+const pluginTopicUsageLoadingWorkspaces = new Map();
+const pluginTopicUsageLoadRetryAt = new Map();
 
 function pluginTopicId(value = "") {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -235,22 +243,162 @@ function availablePluginTopicDefs() {
   return PLUGIN_TOPIC_DEFS.filter(pluginTopicNavigationAvailable);
 }
 
+function pluginTopicUsageWorkspaceId() {
+  return String(state.selectedWorkspaceId || state.auth?.workspaceId || "owner").trim() || "owner";
+}
+
+function pluginTopicUsageApiReady() {
+  return typeof api === "function" && Boolean(state.key || state.auth);
+}
+
+function normalizePluginTopicUsageEntry(entry) {
+  const source = entry && typeof entry === "object" && !Array.isArray(entry) ? entry : {};
+  const count = Math.max(0, Math.floor(Number(source.count) || 0));
+  const lastUsedAt = Math.max(0, Math.floor(Number(source.lastUsedAt || source.last_used_at) || 0));
+  return count || lastUsedAt ? { count, lastUsedAt } : null;
+}
+
+function normalizePluginTopicUsageBucket(bucket) {
+  const source = bucket && typeof bucket === "object" && !Array.isArray(bucket) ? bucket : {};
+  const out = {};
+  Object.entries(source).forEach(([key, entry]) => {
+    const id = String(key || "").trim().toLowerCase().slice(0, 96);
+    const normalized = normalizePluginTopicUsageEntry(entry);
+    if (id && normalized) out[id] = normalized;
+  });
+  return out;
+}
+
+function normalizePluginTopicUsage(usage) {
+  const source = usage && typeof usage === "object" && !Array.isArray(usage) ? usage : {};
+  const plugins = Object.assign({}, source.plugins && typeof source.plugins === "object" ? source.plugins : {});
+  Object.entries(source).forEach(([key, entry]) => {
+    if (key === "plugins" || key === "actions") return;
+    if (entry && typeof entry === "object" && !Array.isArray(entry)) plugins[key] = entry;
+  });
+  return {
+    plugins: normalizePluginTopicUsageBucket(plugins),
+    actions: normalizePluginTopicUsageBucket(source.actions),
+  };
+}
+
+function mergePluginTopicUsage(baseUsage, incomingUsage) {
+  const base = normalizePluginTopicUsage(baseUsage);
+  const incoming = normalizePluginTopicUsage(incomingUsage);
+  const merged = { plugins: {}, actions: {} };
+  ["plugins", "actions"].forEach((bucketName) => {
+    const keys = new Set([...Object.keys(base[bucketName]), ...Object.keys(incoming[bucketName])]);
+    keys.forEach((key) => {
+      const current = base[bucketName][key] || {};
+      const next = incoming[bucketName][key] || {};
+      const entry = normalizePluginTopicUsageEntry({
+        count: Math.max(Number(current.count || 0), Number(next.count || 0)),
+        lastUsedAt: Math.max(Number(current.lastUsedAt || 0), Number(next.lastUsedAt || 0)),
+      });
+      if (entry) merged[bucketName][key] = entry;
+    });
+  });
+  return merged;
+}
+
+function pluginTopicUsageEqual(a, b) {
+  return JSON.stringify(normalizePluginTopicUsage(a)) === JSON.stringify(normalizePluginTopicUsage(b));
+}
+
 function readPluginTopicUsage() {
   try {
     const raw = localStorage.getItem(PLUGIN_TOPIC_USAGE_STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    return normalizePluginTopicUsage(parsed);
   } catch {
-    return {};
+    return normalizePluginTopicUsage({});
   }
 }
 
 function writePluginTopicUsage(usage) {
   try {
-    localStorage.setItem(PLUGIN_TOPIC_USAGE_STORAGE_KEY, JSON.stringify(usage || {}));
+    localStorage.setItem(PLUGIN_TOPIC_USAGE_STORAGE_KEY, JSON.stringify(normalizePluginTopicUsage(usage)));
   } catch {
-    // Best-effort ordering hint only; navigation must not depend on localStorage.
+    // Best-effort cache only; server persistence is the source of truth.
   }
+}
+
+function refreshPluginTopicUsageRoot() {
+  if (state.viewMode !== "tasks" || state.currentTaskGroupId) return;
+  if (typeof renderCurrentThread !== "function") return;
+  const restoreScrollTop = $("conversation")?.scrollTop || 0;
+  window.setTimeout(() => {
+    if (state.viewMode === "tasks" && !state.currentTaskGroupId) {
+      renderCurrentThread({ stickToBottom: false, restoreScrollTop });
+    }
+  }, 0);
+}
+
+async function flushPluginTopicUsageSync() {
+  if (!pluginTopicUsagePendingSync || !pluginTopicUsageApiReady()) return;
+  const pending = pluginTopicUsagePendingSync;
+  pluginTopicUsagePendingSync = null;
+  try {
+    const result = await api(PLUGIN_TOPIC_USAGE_API_PATH, {
+      method: "PATCH",
+      body: JSON.stringify({ workspaceId: pending.workspaceId, usage: pending.usage }),
+      timeoutMs: 8000,
+    });
+    const serverUsage = normalizePluginTopicUsage(result?.usage);
+    const merged = mergePluginTopicUsage(readPluginTopicUsage(), serverUsage);
+    if (!pluginTopicUsageEqual(readPluginTopicUsage(), merged)) {
+      writePluginTopicUsage(merged);
+      refreshPluginTopicUsageRoot();
+    }
+    pluginTopicUsageLoadedWorkspaces.add(pending.workspaceId);
+  } catch (_) {
+    pluginTopicUsagePendingSync = pending;
+  }
+}
+
+function schedulePluginTopicUsageSync(usage = readPluginTopicUsage()) {
+  if (!pluginTopicUsageApiReady()) return;
+  pluginTopicUsagePendingSync = {
+    workspaceId: pluginTopicUsageWorkspaceId(),
+    usage: normalizePluginTopicUsage(usage),
+  };
+  if (pluginTopicUsageSyncTimer) window.clearTimeout(pluginTopicUsageSyncTimer);
+  pluginTopicUsageSyncTimer = window.setTimeout(() => {
+    pluginTopicUsageSyncTimer = 0;
+    flushPluginTopicUsageSync().catch(() => {});
+  }, PLUGIN_TOPIC_USAGE_SYNC_DELAY_MS);
+}
+
+async function loadPluginTopicUsageFromServer(workspaceId = pluginTopicUsageWorkspaceId()) {
+  if (!pluginTopicUsageApiReady() || !workspaceId) return null;
+  const params = new URLSearchParams({ workspaceId });
+  const result = await api(`${PLUGIN_TOPIC_USAGE_API_PATH}?${params.toString()}`, { timeoutMs: 8000 });
+  const serverUsage = normalizePluginTopicUsage(result?.usage);
+  const localUsage = readPluginTopicUsage();
+  const merged = mergePluginTopicUsage(localUsage, serverUsage);
+  if (!pluginTopicUsageEqual(localUsage, merged)) {
+    writePluginTopicUsage(merged);
+    refreshPluginTopicUsageRoot();
+  }
+  if (!pluginTopicUsageEqual(serverUsage, merged)) schedulePluginTopicUsageSync(merged);
+  pluginTopicUsageLoadedWorkspaces.add(workspaceId);
+  return merged;
+}
+
+function ensurePluginTopicUsageLoaded() {
+  const workspaceId = pluginTopicUsageWorkspaceId();
+  if (!pluginTopicUsageApiReady() || !workspaceId || pluginTopicUsageLoadedWorkspaces.has(workspaceId)) return;
+  if (pluginTopicUsageLoadingWorkspaces.has(workspaceId)) return;
+  const now = Date.now();
+  if (now < (pluginTopicUsageLoadRetryAt.get(workspaceId) || 0)) return;
+  const request = loadPluginTopicUsageFromServer(workspaceId)
+    .catch(() => {
+      pluginTopicUsageLoadRetryAt.set(workspaceId, Date.now() + 30000);
+    })
+    .finally(() => {
+      pluginTopicUsageLoadingWorkspaces.delete(workspaceId);
+    });
+  pluginTopicUsageLoadingWorkspaces.set(workspaceId, request);
 }
 
 function pluginTopicActionUsageKey(pluginId = "", actionId = "") {
@@ -276,6 +424,15 @@ function pluginTopicActionUsageEntry(usage, pluginId = "", actionId = "") {
   return current && typeof current === "object" && !Array.isArray(current) ? current : {};
 }
 
+function pluginTopicAppQuickAction(def) {
+  return {
+    id: CAPABILITY_PLUGIN_APP_ACTION_ID,
+    label: def?.label || "",
+    type: "open_plugin_app",
+    glyph: def?.appIconGlyph || def?.sourceBadge || "",
+  };
+}
+
 function recordPluginTopicUsage(pluginId, actionId = "") {
   const def = pluginTopicDefById(pluginId);
   if (!def) return;
@@ -290,7 +447,7 @@ function recordPluginTopicUsage(pluginId, actionId = "") {
       lastUsedAt: now,
     };
     usage.actions = actions;
-  } else if (!def.builtinKind) {
+  } else {
     const plugins = { ...pluginTopicUsageBucket(usage, "plugins") };
     const current = pluginTopicUsageEntry(usage, def.id);
     plugins[def.id] = {
@@ -300,6 +457,7 @@ function recordPluginTopicUsage(pluginId, actionId = "") {
     usage.plugins = plugins;
   }
   writePluginTopicUsage(usage);
+  schedulePluginTopicUsageSync(usage);
 }
 
 function pluginTopicDefinitionIndex(pluginId) {
@@ -354,6 +512,18 @@ function capabilityHubQuickActions(defs = []) {
   const result = [];
   defs.forEach((def) => {
     const defIndex = pluginTopicDefinitionIndex(def.id);
+    const pluginEntry = pluginTopicUsageEntry(usage, def.id);
+    const pluginCount = Math.max(0, Number(pluginEntry.count) || 0);
+    if (pluginCount) {
+      result.push({
+        def,
+        action: pluginTopicAppQuickAction(def),
+        count: pluginCount,
+        lastUsedAt: Math.max(0, Number(pluginEntry.lastUsedAt) || 0),
+        defIndex,
+        actionIndex: pluginTopicQuickActions(def).length + 1,
+      });
+    }
     pluginTopicQuickActions(def).forEach((action, actionIndex) => {
       const entry = pluginTopicActionUsageEntry(usage, def.id, action.id);
       const count = Math.max(0, Number(entry.count) || 0);
@@ -385,7 +555,10 @@ function pluginTopicActionLabel(def, action) {
 
 function renderCapabilityQuickAction(def, action) {
   const sourceBadge = String(def?.sourceBadge || def?.label || "").trim().slice(0, 2);
-  return `<button class="capability-quick-action" type="button" data-plugin-topic-action-plugin="${escapeHtml(def.id)}" data-plugin-topic-action-id="${escapeHtml(action.id)}" aria-label="${escapeHtml(`${pluginTopicActionLabel(def, action)}\uff0c${def.label}`)}">
+  const dataAttrs = action?.type === "open_plugin_app"
+    ? `data-plugin-topic-open-app="${escapeHtml(def.id)}"`
+    : `data-plugin-topic-action-plugin="${escapeHtml(def.id)}" data-plugin-topic-action-id="${escapeHtml(action.id)}"`;
+  return `<button class="capability-quick-action" type="button" ${dataAttrs} aria-label="${escapeHtml(`${pluginTopicActionLabel(def, action)}\uff0c${def.label}`)}">
     <span class="capability-action-glyph" aria-hidden="true">${escapeHtml(action.glyph || sourceBadge || "")}</span>
     <span class="capability-action-label">${escapeHtml(pluginTopicActionLabel(def, action))}</span>
   </button>`;
@@ -623,6 +796,7 @@ function renderPluginAppDesktop(defs = []) {
 }
 
 function renderCapabilityEntryHub(options = {}) {
+  ensurePluginTopicUsageLoaded();
   const defs = orderedPluginAppDefs(availablePluginTopicDefs());
   if (!defs.length) return "";
   const quickActions = capabilityHubQuickActions(defs);
@@ -682,14 +856,14 @@ async function openBuiltInDirectoryTopicList() {
   await loadSelectedView({ forceTaskListReload: true });
 }
 
-async function openPluginTopicApp(pluginId) {
+async function openPluginTopicApp(pluginId, options = {}) {
   const def = pluginTopicDefById(pluginId);
   if (!def || !pluginTopicNavigationAvailable(def)) return;
+  if (options.recordUsage !== false) recordPluginTopicUsage(def.id);
   if (def.builtinKind === "directory") {
     await openBuiltInDirectoryPlugin();
     return;
   }
-  recordPluginTopicUsage(def.id);
   if (typeof preparePrimaryNavigationChange === "function") preparePrimaryNavigationChange();
   else if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
   clearQuotedReply({ render: false });
@@ -807,7 +981,7 @@ async function runPluginTopicAction(pluginId, actionId) {
     await openPluginTopicDelivery(def.id);
     return;
   }
-  await openPluginTopicApp(def.id);
+  await openPluginTopicApp(def.id, { recordUsage: false });
 }
 
 function pluginTopicInstruction(def) {

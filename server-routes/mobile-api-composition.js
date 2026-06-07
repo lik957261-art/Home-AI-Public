@@ -1,40 +1,19 @@
 "use strict";
 
-const fs = require("node:fs");
-const path = require("node:path");
-const { createActionInboxApiRoutes } = require("./action-inbox-api-routes");
 const { createAutomationApiRoutes } = require("./automation-api-routes");
 const { createEventStreamApiRoutes } = require("./event-stream-api-routes");
-const { createHermesPluginApiRoutes } = require("./hermes-plugin-api-routes");
-const { createActionInboxService } = require("../adapters/action-inbox-service");
 const { createMobileApiDirectoryComposition } = require("./mobile-api-directory-composition");
 const { createMobileApiDispatcher } = require("./mobile-api-dispatcher");
 const { createMobileApiLearningComposition } = require("./mobile-api-learning-composition");
+const { createMobileApiPluginComposition } = require("./mobile-api-plugin-composition");
 const { createMobileApiPlatformComposition } = require("./mobile-api-platform-composition");
 const { createSingleWindowGroupChatApiRoutes } = require("./single-window-group-chat-api-routes");
 const { createThreadMessageRunApiRoutes } = require("./thread-message-run-api-routes");
 const { createThreadReadUploadApiRoutes } = require("./thread-read-upload-api-routes");
 const { createThreadTaskApiRoutes } = require("./thread-task-api-routes");
 const { createTodoApiRoutes } = require("./todo-api-routes");
-const { createHermesPluginService } = require("../adapters/hermes-plugin-service");
-const { createHermesPluginNotificationService } = require("../adapters/hermes-plugin-notification-service");
-const { createFinanceLedgerJoinApprovalService } = require("../adapters/finance-ledger-join-approval-service");
-
 function callBootTrace(deps, label) {
   if (typeof deps.bootTrace === "function") deps.bootTrace(label);
-}
-
-function appendPluginManifestAudit(deps = {}, event = {}) {
-  const dataDir = String(deps.dataDir || process.env.HERMES_WEB_DATA_DIR || process.env.HERMES_MOBILE_DATA_DIR || path.join(process.cwd(), "workspace", "hermes-web"));
-  const auditPath = path.join(dataDir, "logs", "plugin-manifest-requests.jsonl");
-  try {
-    fs.mkdirSync(path.dirname(auditPath), { recursive: true });
-    fs.appendFileSync(auditPath, `${JSON.stringify(Object.assign({
-      at: typeof deps.nowIso === "function" ? deps.nowIso() : new Date().toISOString(),
-    }, event))}\n`, "utf8");
-  } catch (err) {
-    if (typeof deps.bootTrace === "function") deps.bootTrace(`plugin manifest audit failed: ${err?.message || String(err)}`);
-  }
 }
 
 function createMobileApiComposition(deps = {}) {
@@ -55,22 +34,6 @@ function createMobileApiComposition(deps = {}) {
     platformCurrencyService,
   } = platformComposition.services;
 
-  const hermesPluginService = deps.hermesPluginService || createHermesPluginService({
-    nowIso: deps.nowIso,
-    dataDir: deps.dataDir,
-    gatewayWorkspaceProvisioningService: deps.gatewayWorkspaceProvisioningService,
-    repoRoot: deps.repoRoot,
-    workspaceLabelForId: (workspaceId) => {
-      const workspace = typeof deps.findWorkspace === "function" ? deps.findWorkspace(workspaceId) : null;
-      if (workspace) return workspace.label || workspace.name || workspace.title || workspace.id || workspaceId;
-      if (typeof deps.loadCatalog === "function") {
-        const catalog = deps.loadCatalog() || {};
-        const found = (catalog.workspaces || []).find((item) => item.id === workspaceId);
-        if (found) return found.label || found.name || found.title || found.id || workspaceId;
-      }
-      return workspaceId;
-    },
-  });
   const directoryComposition = createMobileApiDirectoryComposition(deps);
   const {
     directoryBrowserApiRoutes,
@@ -82,6 +45,19 @@ function createMobileApiComposition(deps = {}) {
   const {
     noteReceiptSaveService,
   } = directoryComposition.services;
+  const pluginComposition = createMobileApiPluginComposition(deps);
+  const {
+    actionInboxApiRoutes,
+    hermesPluginApiRoutes,
+    pluginTopicUsageApiRoutes,
+  } = pluginComposition.routes;
+  const {
+    actionInboxService,
+    financeLedgerJoinApprovalService,
+    hermesPluginNotificationService,
+    hermesPluginService,
+    pluginTopicUsageService,
+  } = pluginComposition.services;
 
   const eventStreamApiRoutes = createEventStreamApiRoutes({
     activeStreams: deps.activeStreams,
@@ -196,48 +172,6 @@ function createMobileApiComposition(deps = {}) {
     handleThreadMessageOwnerElevation: (...args) => deps.getThreadMessageRunRouteService().handleThreadMessageOwnerElevation(...args),
   });
 
-  const actionInboxService = deps.actionInboxService || createActionInboxService({
-    compactText: deps.compactText,
-    makeId: deps.makeId,
-    nowIso: deps.nowIso,
-    store: deps.mobileSqliteStore,
-  });
-  const hermesPluginNotificationService = deps.hermesPluginNotificationService || createHermesPluginNotificationService({
-    actionInboxService,
-    appRouteUrl: deps.appRouteUrl,
-    compactText: deps.compactText,
-    hermesPluginService,
-    nowIso: deps.nowIso,
-    sendPushNotification: deps.webPushDeliveryService.sendPushNotification,
-    workspacePrincipal: deps.workspacePrincipal,
-  });
-  const financeLedgerJoinApprovalService = deps.financeLedgerJoinApprovalService || createFinanceLedgerJoinApprovalService({
-    actionInboxService,
-    reviewLedgerJoinRequest: deps.reviewFinanceLedgerJoinRequest || ((input) => hermesPluginService.reviewFinanceLedgerJoin(input)),
-  });
-  const hermesPluginApiRoutes = createHermesPluginApiRoutes({
-    authenticateRequest: deps.authenticateRequest,
-    broadcast: deps.broadcast,
-    isOwnerAuth: deps.isOwnerAuth,
-    readBody: deps.readBody,
-    requireOwner: deps.requireOwner,
-    requireWorkspaceAccess: deps.requireWorkspaceAccess,
-    sendJson: deps.sendJson,
-    hermesPluginService,
-    hermesPluginNotificationService,
-    auditPluginManifestRequest: (event) => appendPluginManifestAudit(deps, event),
-  });
-  callBootTrace(deps, "hermes plugin api routes ready");
-  const actionInboxApiRoutes = createActionInboxApiRoutes({
-    actionInboxService,
-    broadcast: deps.broadcast,
-    financeLedgerJoinApprovalService,
-    readBody: deps.readBody,
-    requireWorkspaceAccess: deps.requireWorkspaceAccess,
-    sendJson: deps.sendJson,
-  });
-  callBootTrace(deps, "action inbox api routes ready");
-
   const todoApiRoutes = createTodoApiRoutes({
     actionInboxService,
     boolParam: deps.boolParam,
@@ -315,6 +249,7 @@ function createMobileApiComposition(deps = {}) {
     directoryShareApiRoutes,
     fileArtifactApiRoutes,
     hermesPluginApiRoutes,
+    pluginTopicUsageApiRoutes,
     platformCurrencyApiRoutes,
     getUrl: deps.getUrl,
     kanbanCardApiRoutes,
@@ -358,6 +293,7 @@ function createMobileApiComposition(deps = {}) {
       hermesPluginService,
       hermesPluginNotificationService,
       noteReceiptSaveService,
+      pluginTopicUsageService,
     },
     routes: {
       accessKeyApiRoutes,
@@ -368,6 +304,7 @@ function createMobileApiComposition(deps = {}) {
       directoryShareApiRoutes,
       fileArtifactApiRoutes,
       hermesPluginApiRoutes,
+      pluginTopicUsageApiRoutes,
       platformCurrencyApiRoutes,
       kanbanCardApiRoutes,
       kanbanLearningGuidanceApiRoutes,

@@ -1603,10 +1603,11 @@ Required contract dimensions:
   topic detail remains the first surface where topic replies are enabled.
 - Client-version mismatch auto-recovery routes through the current app shell
   with `resetClient=1` and `targetVersion=<server-version>`, preserves Access
-  Key/theme/font preferences, clears static caches, unregisters Service Workers,
-  and reopens the app with a cache-busting query. Automatic update recovery must
-  not navigate to `/client-reset.html`, which is reserved for manual/hard reset
-  fallback because mobile PWA clients can open it in a browser wrapper.
+  Key/theme/font preferences plus plugin-topic preference caches, clears static
+  caches, unregisters Service Workers, and reopens the app with a cache-busting
+  query. Automatic update recovery must not navigate to `/client-reset.html`,
+  which is reserved for manual/hard reset fallback because mobile PWA clients
+  can open it in a browser wrapper.
 - Service Worker app-shell requests (`/`, `/index.html`, and
   `/hermes-mobile/`) are network-first with `cache: "no-store"`, so killing and
   reopening the PWA after a version bump cannot keep replaying an old cached

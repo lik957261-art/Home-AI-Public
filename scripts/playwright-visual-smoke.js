@@ -253,6 +253,12 @@ async function main() {
         return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
       }
 
+      function cssPxVar(name) {
+        const raw = window.getComputedStyle(document.documentElement).getPropertyValue(name);
+        const parsed = Number(String(raw || "").replace(/px\b/, "").trim());
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+
       function navigationTiming() {
         const entry = performance.getEntriesByType("navigation")[0];
         if (!entry) return null;
@@ -330,6 +336,12 @@ async function main() {
         accessKeyOverlay: rect("#accessKeyOverlay"),
         bootSplash: rect("#bootSplash"),
       };
+      const chrome = {
+        mobileBottomNavVisualDrop: round(cssPxVar("--mobile-bottom-nav-visual-drop")),
+        mobileBottomNavOffsetHeight: round(cssPxVar("--mobile-bottom-nav-offset-height")),
+        mobileBottomNavReservedHeight: round(cssPxVar("--mobile-bottom-nav-reserved-height")),
+        topicPluginDockHeight: round(cssPxVar("--topic-plugin-dock-height")),
+      };
       const capability = {
         quickActionCount: document.querySelectorAll(".capability-quick-action").length,
         capabilityPluginIconCount: document.querySelectorAll(".capability-plugin-icon-button").length,
@@ -341,6 +353,7 @@ async function main() {
       const navButtons = Array.from(document.querySelectorAll("#bottomNav .bottom-tab")).map((button) => {
         const box = button.getBoundingClientRect();
         const style = window.getComputedStyle(button);
+        const visibleHeight = Math.max(0, Math.min(box.bottom, window.innerHeight) - Math.max(box.top, 0));
         return {
           id: button.id || "",
           hidden: Boolean(button.hidden),
@@ -352,6 +365,7 @@ async function main() {
           active: button.classList.contains("active"),
           width: round(box.width),
           height: round(box.height),
+          visibleHeight: round(visibleHeight),
           left: round(box.left),
           top: round(box.top),
           label: button.getAttribute("aria-label") || button.textContent.trim(),
@@ -385,8 +399,21 @@ async function main() {
       }
 
       if (rects.bottomNav.visible) {
-        if (rects.bottomNav.bottom > viewport.height + 2) {
-          failures.push({ code: "bottom_nav_out_of_view", rect: rects.bottomNav, viewport });
+        const allowedBottomOverflow = Math.max(2, chrome.mobileBottomNavVisualDrop + 2);
+        const visibleBottomNavHeight = Math.max(
+          0,
+          Math.min(rects.bottomNav.bottom, viewport.height) - Math.max(rects.bottomNav.top, 0)
+        );
+        if (rects.bottomNav.bottom > viewport.height + allowedBottomOverflow) {
+          failures.push({ code: "bottom_nav_out_of_view", rect: rects.bottomNav, viewport, chrome });
+        }
+        if (visibleBottomNavHeight < 44) {
+          failures.push({ code: "bottom_nav_visible_area_too_small", visibleBottomNavHeight: round(visibleBottomNavHeight), rect: rects.bottomNav, viewport, chrome });
+        }
+        for (const button of navButtons.filter((item) => item.visible)) {
+          if (button.visibleHeight < 44) {
+            failures.push({ code: "bottom_nav_button_visible_area_too_small", button, rect: rects.bottomNav, viewport, chrome });
+          }
         }
         if (rects.bottomNav.height > 120) {
           failures.push({ code: "bottom_nav_too_tall", rect: rects.bottomNav });
@@ -470,6 +497,7 @@ async function main() {
       return {
         viewport,
         rects,
+        chrome,
         capability,
         auth,
         navButtons,

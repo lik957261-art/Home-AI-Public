@@ -41,8 +41,9 @@ notice on startup/foreground/API-response version mismatch and should not
 automatically reload or reset the client. The visible refresh action navigates
 the current app URL with `resetClient=1` and `targetVersion=<server-version>`. The inline
 app-shell reset clears bounded static caches, unregisters Service Workers for
-explicit hard refresh, preserves the stored Access Key/theme/font preferences,
-and returns to the app with a cache-busting query. Manual update recovery must
+explicit hard refresh, preserves the stored Access Key/theme/font preferences
+and plugin-topic preference caches, and returns to the app with a cache-busting
+query. Manual update recovery must
 not use `/client-reset.html`, because mobile PWA clients can open that page in a
 browser wrapper. If that does not happen, inspect whether the client is still
 executing a pre-recovery static version.

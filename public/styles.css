@@ -54,8 +54,9 @@
   --mobile-bottom-safe-area: min(env(safe-area-inset-bottom), 8px);
   --mobile-bottom-nav-content-safe-area: max(0px, min(var(--mobile-bottom-safe-area), 3px));
   --mobile-bottom-nav-height: 58px;
+  --mobile-bottom-nav-visual-drop: 10px;
   --plugin-context-bottom-nav-height: 54px;
-  --mobile-bottom-nav-offset-height: var(--mobile-bottom-nav-offset-height-runtime, var(--mobile-bottom-nav-height));
+  --mobile-bottom-nav-offset-height: var(--mobile-bottom-nav-offset-height-runtime, calc(var(--mobile-bottom-nav-height) - var(--mobile-bottom-nav-visual-drop)));
   --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 10px));
   --topic-plugin-dock-height: 78px;
   --topic-plugin-dock-reserved-height: calc(var(--mobile-bottom-nav-offset-height) + var(--topic-plugin-dock-height));
@@ -15790,7 +15791,7 @@ body.task-markdown-preview-open {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: -6px;
+    bottom: calc(0px - var(--mobile-bottom-nav-visual-drop));
     z-index: 40;
     --bottom-nav-column-min: 48px;
     height: var(--mobile-bottom-nav-height);
@@ -15810,6 +15811,10 @@ body.task-markdown-preview-open {
 
   .bottom-nav::-webkit-scrollbar {
     display: none;
+  }
+
+  .bottom-nav .bottom-tab {
+    transform: translateY(-2px);
   }
 
   .bottom-nav.bottom-nav-count-1 {
@@ -16110,6 +16115,12 @@ body.task-markdown-preview-open {
 
   .conversation {
     padding: 10px 10px 16px;
+  }
+
+  .app.task-list-mode .conversation > .directory-topic-launcher:first-child,
+  .app.task-list-mode .conversation > .task-grid:first-child,
+  .app.task-list-mode .conversation > .empty-state:first-child {
+    margin-top: max(16px, calc(env(safe-area-inset-top) + 4px));
   }
 
   .message .directory-aliases {

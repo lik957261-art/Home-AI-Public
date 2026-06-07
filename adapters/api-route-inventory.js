@@ -242,6 +242,16 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     riskLevel: "medium",
     summary: "Save a Hermes assistant receipt and bounded attachments into Note.",
   })),
+  exact("plugin-topic-usage-read", "GET", "/api/plugin-topic-usage", "plugin-topics", routeOptions("plugin-topic-usage", {
+    workspaceScoped: true,
+    resourceTypes: ["plugin-topic", "preference"],
+    summary: "Read workspace-scoped plugin topic quick-action usage preferences.",
+  })),
+  exact("plugin-topic-usage-merge", ["PATCH", "PUT"], "/api/plugin-topic-usage", "plugin-topics", routeOptions("plugin-topic-usage", {
+    workspaceScoped: true,
+    resourceTypes: ["plugin-topic", "preference"],
+    summary: "Merge workspace-scoped plugin topic quick-action usage preferences.",
+  })),
 
   exact("action-inbox-list", "GET", "/api/action-inbox", "action-inbox", routeOptions("action-inbox", {
     workspaceScoped: true,

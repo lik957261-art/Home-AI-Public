@@ -167,6 +167,17 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "plugin-topic-usage-api-routes",
+    exportName: "createPluginTopicUsageApiRoutes",
+    required: false,
+    minRoutes: 2,
+    probes: [
+      { method: "GET", path: "/api/plugin-topic-usage", id: "plugin-topic-usage-read" },
+      { method: "PATCH", path: "/api/plugin-topic-usage", id: "plugin-topic-usage-merge" },
+      { method: "PUT", path: "/api/plugin-topic-usage", id: "plugin-topic-usage-merge" },
+    ],
+  },
+  {
     key: "thread-read-upload-api-routes",
     exportName: "createThreadReadUploadApiRoutes",
     required: false,
@@ -402,6 +413,8 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/hermes-plugins/codex-mobile/manifest" }).id, "hermes-plugin-manifest");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/hermes-plugins/wardrobe/notifications" }).id, "hermes-plugin-notification");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/note/receipts" }).id, "note-receipt-save");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/plugin-topic-usage" }).id, "plugin-topic-usage-read");
+  assert.equal(matchHermesMobileApiRoute({ method: "PATCH", path: "/api/plugin-topic-usage" }).id, "plugin-topic-usage-merge");
   assert.equal(matchHermesMobileApiRoute({ method: "PATCH", path: "/api/workspaces/child-a" }).id, "workspaces-admin");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/automations/job-1/pause" }).id, "automations-action");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/kanban/cards/card-1/study-quiz" }).id, "kanban-reading-quiz");
@@ -490,6 +503,7 @@ function testGroupingProducesModuleWorkPackages() {
   assert.ok(modules.has("group-chat"));
   assert.ok(modules.has("thread-task"));
   assert.ok(modules.has("thread-run"));
+  assert.ok(modules.has("plugin-topic-usage"));
   assert.ok(modules.has("directory-share"));
   assert.ok(modules.has("directory-mutation"));
   assert.deepEqual(modules.get("weixin-ingress").authModes, ["ingress"]);

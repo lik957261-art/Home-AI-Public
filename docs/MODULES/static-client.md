@@ -93,6 +93,11 @@ Gateway plugin/schema/profile changes:
   expose different values. Native tab bars remain stable because the bar height
   is fixed and the safe area is handled as background or internal spacing, not
   as a layout-height multiplier.
+- If the mobile bottom navigation is visually lowered with
+  `--mobile-bottom-nav-visual-drop`, any Dock or fixed surface above it must use
+  the runtime measured visible top offset, not the full bottom-nav height. This
+  keeps the topic plugin Dock adjacent to the visible nav after the nav is
+  dropped below the viewport edge.
 - Bottom safe-area may only contribute a small internal content buffer through
   `--mobile-bottom-nav-content-safe-area`. Topic docks, plugin context bars,
   composer offsets, and runtime bottom-nav measurements must be based on the
@@ -130,8 +135,9 @@ Gateway plugin/schema/profile changes:
   refresh action navigates to the current app URL with `resetClient=1` and
   `targetVersion=<server-version>`; the inline app-shell reset clears bounded
   static caches, unregisters Service Workers for explicit hard refresh,
-  preserves the stored Access Key/theme/font preferences, and returns to the app
-  with a cache-busting query. Manual update recovery must not navigate to
+  preserves the stored Access Key/theme/font preferences plus the
+  `hermesPluginTopicUsage` and `hermesPluginTopicOrder` local caches, and
+  returns to the app with a cache-busting query. Manual update recovery must not navigate to
   `/client-reset.html`, because mobile PWA clients can open that page in a
   browser wrapper.
 - The Service Worker must treat app-shell requests (`/`, `/index.html`, and
@@ -143,8 +149,9 @@ Gateway plugin/schema/profile changes:
   one session-scoped soft reload for the current client version; if startup
   still has not completed, retry/reset controls must become visible. The
   non-hard reset path may clear bounded static caches but must preserve the
-  stored Access Key, theme, and font preferences. Service Worker unregister is
-  reserved for explicit hard reset and must also be bounded by a timeout.
+  stored Access Key, theme, font preferences, and plugin-topic preference
+  caches. Service Worker unregister is reserved for explicit hard reset and
+  must also be bounded by a timeout.
 - On Windows, do not rewrite static/test files containing Chinese text through
   PowerShell `Get-Content -Raw` plus `Set-Content` / `WriteAllText` unless the
   command explicitly preserves UTF-8 from a known UTF-8 source. Prefer
