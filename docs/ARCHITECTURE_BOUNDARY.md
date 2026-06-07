@@ -66,6 +66,7 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-auth-facade-service.js`,
 `mobile-runtime-backend-policy-service.js`,
 `mobile-runtime-config-facade-service.js`,
+`runtime-config-public-projection-service.js`,
 `mobile-runtime-environment-service.js`,
 `mobile-runtime-env-value-service.js`,
 `mobile-runtime-gateway-environment-service.js`,
@@ -174,6 +175,13 @@ constants into run-start, run-stream, run-event, queue, selector, notification,
 and topic-compaction options. It must not implement Gateway run lifecycle,
 queue mutation, stream parsing, model preflight decisions, or notification
 delivery behavior.
+
+`runtime-config-public-projection-service.js` owns runtime-config public
+projection for Owner settings: Gateway URL/key status metadata, model catalog
+fields, Gateway worker runtime settings projection, Web Push status metadata,
+and update metadata. `runtime-config-provider.js` remains the persistence,
+validation, effective-value, and key lookup provider; it must not inline public
+projection object construction.
 
 `mobile-runtime-gateway-concurrency-service.js` owns runtime Gateway
 concurrency projection: current active-run snapshot, per-workspace limit-error
@@ -439,6 +447,12 @@ Current CI guardrails:
   lines and remain a facade over lazy Directory browser boundary construction,
   file/artifact resolver delegation, file response delegation, and bounded
   Directory-thread request fallback wiring;
+- `runtime-config-provider.js` must stay at or below 365 lines and remain a
+  persistence, validation, effective-value, and key lookup provider, not a
+  public projection object builder;
+- `runtime-config-public-projection-service.js` must stay at or below 75
+  lines and remain runtime-config public projection, not a persistence,
+  validation, key lookup, or route module;
 - `mobile-runtime-sqlite-store-facade-service.js` must stay at or below 35
   lines and remain a lazy SQLite store factory/migration facade, not a schema,
   repository, or persistence policy module;

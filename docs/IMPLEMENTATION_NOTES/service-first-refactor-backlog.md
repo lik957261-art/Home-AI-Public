@@ -188,6 +188,11 @@ statements. Priority extraction areas:
   provisioning, usage telemetry, status fallback projection, and run target
   release/replace behavior while retaining Gateway runtime composition singleton
   ownership.
+- completed 2026-06-08: Runtime config public projection moved into
+  `adapters/runtime-config-public-projection-service.js`.
+  `runtime-config-provider.js` now delegates Owner-visible config projection
+  while retaining persistence, validation, effective-value, Gateway worker
+  setting composition, and key lookup behavior.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

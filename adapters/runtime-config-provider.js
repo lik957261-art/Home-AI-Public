@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { createRuntimeConfigPublicProjectionService } = require("./runtime-config-public-projection-service");
 const {
   gatewayWorkerSettingsToElasticConfig,
   mergeGatewayWorkerRuntimeSettings,
@@ -182,6 +183,19 @@ function createRuntimeConfigProvider(options = {}) {
       ? (options.gatewayWorkerElasticConfig() || {})
       : (options.gatewayWorkerElasticConfig || {})
   );
+  const publicProjectionService = createRuntimeConfigPublicProjectionService({
+    defaultHermesApiBase,
+    defaultRuntimeModelOption: DEFAULT_RUNTIME_MODEL_OPTION,
+    effectiveHermesApiBase,
+    effectiveWebPushSubject,
+    effectiveWebPushVapidPath,
+    fileExists: (targetPath) => fs.existsSync(targetPath),
+    gatewayWorkerRuntimeSettings,
+    hermesApiKeyStatus,
+    load,
+    runtimeModelFamilies,
+    runtimeModelOptions,
+  });
 
   function load() {
     ensureDataDir();
@@ -311,41 +325,7 @@ function createRuntimeConfigProvider(options = {}) {
   }
 
   function publicConfig(args = {}) {
-    const config = load();
-    const keyStatus = hermesApiKeyStatus();
-    const pushStatus = args.pushStatus || {};
-    const vapidPath = effectiveWebPushVapidPath(config);
-    const gatewayWorkerSettings = gatewayWorkerRuntimeSettings(config);
-    return {
-      hermesApiBase: effectiveHermesApiBase(config),
-      hermesApiBaseOverride: config.hermesApiBase || "",
-      hermesApiBaseDefault: defaultHermesApiBase(),
-      hermesApiKeyPath: config.hermesApiKeyPath || "",
-      hermesApiKeyConfigured: keyStatus.configured,
-      hermesApiKeySource: keyStatus.source,
-      hermesApiKeyResolvedPath: keyStatus.path,
-      defaultModelId: config.defaultModelId || DEFAULT_RUNTIME_MODEL_OPTION.id,
-      defaultModel: config.defaultModel || DEFAULT_RUNTIME_MODEL_OPTION.model,
-      defaultModelProvider: config.defaultModelProvider || DEFAULT_RUNTIME_MODEL_OPTION.provider,
-      defaultReasoningEffort: config.defaultReasoningEffort || DEFAULT_RUNTIME_MODEL_OPTION.defaultReasoningEffort,
-      gatewayWorkerSettings: gatewayWorkerSettings.overrides,
-      gatewayWorkerEffectiveSettings: gatewayWorkerSettings.effective,
-      gatewayWorkerSettingDefinitions: gatewayWorkerSettings.definitions,
-      modelFamilies: runtimeModelFamilies(),
-      modelOptions: runtimeModelOptions(),
-      webPushEnabled: Boolean(args.webPushEnabled),
-      webPushConfigured: Boolean(pushStatus.enabled),
-      webPushSubject: effectiveWebPushSubject(config),
-      webPushSubjectOverride: config.webPushSubject || "",
-      webPushVapidPath: config.webPushVapidPath || "",
-      webPushVapidResolvedPath: vapidPath,
-      webPushVapidExists: fs.existsSync(vapidPath),
-      webPushSource: args.webPushConfig?.source || "",
-      webPushPublicKeyPresent: Boolean(args.webPushConfig?.publicKey),
-      webPushSubscriptionCount: pushStatus.subscriptionCount || 0,
-      updatedAt: config.updatedAt || "",
-      updatedBy: config.updatedBy || "",
-    };
+    return publicProjectionService.publicConfig(args);
   }
 
   return {
