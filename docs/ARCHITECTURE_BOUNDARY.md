@@ -55,7 +55,8 @@ authorization, Growth/Learning graphs, Todo/Automation domain behavior, or
 dispatcher registration policy.
 
 Current runtime glue that should stay out of the composition root lives in
-focused adapters such as `mobile-runtime-file-helper-service.js`,
+focused adapters such as `app-route-url-service.js`,
+`mobile-runtime-file-helper-service.js`,
 `mobile-runtime-file-access-facade-service.js`,
 `mobile-runtime-artifact-facade-service.js`,
 `mobile-runtime-backend-policy-service.js`,
@@ -84,9 +85,10 @@ focused adapters such as `mobile-runtime-file-helper-service.js`,
 `mobile-runtime-workspace-facade-service.js`,
 `mobile-runtime-workspace-catalog-facade.js`, and
 `mobile-runtime-http-server-service.js`. These modules keep static file
-helpers and JSON store file IO, Artifact/Markdown registration lazy delegation,
-backend mode policy, runtime config facade delegation, runtime environment
-aggregation, shared environment value parsing, Gateway/run environment parsing,
+app route URL serialization, helpers and JSON store file IO,
+Artifact/Markdown registration lazy delegation, backend mode policy, runtime
+config facade delegation, runtime environment aggregation, shared environment
+value parsing, Gateway/run environment parsing,
 Gateway runner/pool/launcher/provisioning/telemetry lazy delegation, Gateway
 run content truncation policy, group-chat public projection/revoke policy,
 group-chat attachment runtime wiring,
@@ -129,6 +131,11 @@ truncation helpers for live streaming append and final full-content compaction.
 composition and state normalization, but it must not carry duplicate
 `appendBounded`, `compactFullContent`, or SSE frame parsing implementations.
 
+`app-route-url-service.js` owns app-shell query URL serialization for Push,
+Web Push, plugin notification, and other route-link producers. Runtime
+composition may pass the helper into route/service wiring, but it must not carry
+a duplicate `appRouteUrl` function implementation.
+
 `mobile-runtime-kanban-facade-service.js` is only a runtime wiring facade for
 Kanban public projections, case-topic wiring, plan-card creation, assessment
 workflow construction, shared-card access checks, and Kanban cache/maintenance
@@ -169,8 +176,10 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,545 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 84;
+- `mobile-server-runtime.js` must stay at or below 1,535 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 80;
+- `app-route-url-service.js` must stay at or below 35 lines and remain a
+  deterministic app-shell query URL serializer;
 - `mobile-runtime-file-access-facade-service.js` must stay at or below 115
   lines and remain a facade over lazy Directory browser boundary construction,
   file/artifact resolver delegation, and file response delegation;

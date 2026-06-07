@@ -9,6 +9,7 @@ const webpush = require("web-push");
 const studyAssessmentService = require("./adapters/study-assessment-service");
 const { createConversationHistoryService } = require("./adapters/conversation-history-service"); const { createTopicContextCompactionService } = require("./adapters/topic-context-compaction-service");
 const { createDocumentPreviewService } = require("./adapters/document-preview-service");
+const { createAppRouteUrlService } = require("./adapters/app-route-url-service");
 const { createEventFanoutService } = require("./adapters/event-fanout-service");
 const fileResourceService = require("./adapters/file-resource-service");
 const { createAutomationProvider } = require("./adapters/automation-provider");
@@ -202,6 +203,11 @@ const eventFanoutService = createEventFanoutService({
   clients, authCanAccessWorkspace, isOwnerAuth, state: () => state,
   threadAccessibleToAuth: (...args) => getRuntimeStateThreadService().threadAccessibleToAuth(...args),
 }); const pluginCapabilityActivationService = createPluginCapabilityActivationService({ dedupe }); const pluginRequiredSkillPreloadService = createPluginRequiredSkillPreloadService({ dataDirs: [DATA_DIR], env: process.env, maxSkillChars: 80000, maxTotalChars: 120000 }); const gatewayModelPreflightEnabled = GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED || GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED;
+const appRouteUrlService = createAppRouteUrlService();
+const appRouteUrl = (...args) => appRouteUrlService.appRouteUrl(...args);
+const broadcast = (...args) => eventFanoutService.broadcast(...args);
+const payloadWorkspaceId = (...args) => eventFanoutService.payloadWorkspaceId(...args);
+const clientCanReceivePayload = (...args) => eventFanoutService.clientCanReceivePayload(...args);
 const artifactFacade = () => {
   if (!mobileRuntimeArtifactFacadeService) throw new Error("Mobile runtime artifact facade is not initialized");
   return mobileRuntimeArtifactFacadeService;
@@ -1378,24 +1384,6 @@ function compactText(value, maxChars) {
   const head = Math.floor(maxChars * 0.45);
   const tail = maxChars - head;
   return `${text.slice(0, head)}\n\n[truncated: ${text.length} chars total]\n\n${text.slice(-tail)}`;
-}
-function broadcast(payload) {
-  eventFanoutService.broadcast(payload);
-}
-function payloadWorkspaceId(payload) {
-  return eventFanoutService.payloadWorkspaceId(payload);
-}
-function clientCanReceivePayload(client, payload) {
-  return eventFanoutService.clientCanReceivePayload(client, payload);
-}
-function appRouteUrl(params = {}) {
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    const text = String(value ?? "").trim();
-    if (text) query.set(key, text);
-  }
-  const serialized = query.toString();
-  return serialized ? `/?${serialized}` : "/";
 }
 function workspaceIdForPrincipal(principalId) {
   if (mobileRuntimeWorkspaceFacadeService) return mobileRuntimeWorkspaceFacadeService.workspaceIdForPrincipal(principalId);
