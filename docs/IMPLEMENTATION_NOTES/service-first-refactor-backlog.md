@@ -197,6 +197,14 @@ statements. Priority extraction areas:
   metadata refresh, plugin capability event projection, and delayed
   `run.context_ready` projection while retaining overall run preparation
   orchestration.
+- completed 2026-06-08: Gateway run-start initial preparation handoff moved
+  into `adapters/gateway-run-start-preparation-service.js`. The start service
+  now delegates actor workspace resolution, concurrency assertion, task id
+  creation, preparing-state publication, first state-save/message broadcast,
+  `run.request_preparing` telemetry, initial request build handoff,
+  `pre_gateway` Wardrobe checkpoint, required Skill preload event projection,
+  and failed-gate terminal handoff while retaining later worker/probe/preflight
+  orchestration.
 - completed 2026-06-08: Gateway run-start model-first toolset preflight
   execution/projection moved into
   `adapters/gateway-run-start-toolset-preflight-service.js`. The start service

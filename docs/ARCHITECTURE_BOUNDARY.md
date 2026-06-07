@@ -87,6 +87,7 @@ focused adapters such as `app-route-url-service.js`,
 `gateway-run-start-event-service.js`,
 `gateway-run-start-permission-service.js`,
 `gateway-run-start-plugin-probe-service.js`,
+`gateway-run-start-preparation-service.js`,
 `gateway-run-start-stream-handoff-service.js`,
 `gateway-run-start-stream-options-service.js`,
 `gateway-run-start-state-service.js`,
@@ -293,6 +294,15 @@ and delayed `run.context_ready` projection. It must not choose workers, define
 plugin activation policy, build the initial request, run model preflight, mutate
 queues, or start streams.
 
+`gateway-run-start-preparation-service.js` owns the initial Gateway run-start
+preparation handoff: actor workspace resolution, concurrency-capacity assertion,
+public task id creation, preparing-state publication, first state-save/message
+broadcast handoff, `run.request_preparing` telemetry, initial request build
+handoff, `pre_gateway` Wardrobe checkpoint, assistant run-options projection,
+required Skill preload event projection, and failed-gate terminal handoff. It
+must not choose workers, define access/toolset policy, run plugin probes, run
+model preflight, mutate queues after worker selection, or start streams.
+
 `gateway-run-start-stream-handoff-service.js` owns the final Gateway stream-start
 handoff after target selection, plugin capability probing, and model-first
 toolset preflight have finished: the final `pre_stream` Wardrobe checkpoint,
@@ -351,7 +361,8 @@ startup handoff. It must delegate deterministic request construction to
 `gateway-run-start-assistant-options-service.js`, telemetry/event projection to
 `gateway-run-start-event-service.js`, permission/elevation terminal projection
 to `gateway-run-start-permission-service.js`, plugin capability probe execution
-to `gateway-run-start-plugin-probe-service.js`, final stream-start handoff to
+to `gateway-run-start-plugin-probe-service.js`, initial run-start preparation
+handoff to `gateway-run-start-preparation-service.js`, final stream-start handoff to
 `gateway-run-start-stream-handoff-service.js`, and stream-start option
 projection to `gateway-run-start-stream-options-service.js`. It must delegate deterministic
 run-start state mutation and failed-start projection to
@@ -600,6 +611,9 @@ Current CI guardrails:
   and remain plugin capability probe execution/projection, not a plugin policy,
   worker-selection, initial request-builder, selector, queue, or streaming
   module;
+- `gateway-run-start-preparation-service.js` must stay at or below 70 lines and
+  remain initial run-start preparation handoff, not a worker-selection,
+  plugin-probe, selector, queue, or streaming module;
 - `gateway-run-start-stream-handoff-service.js` must stay at or below 75 lines
   and remain final Gateway stream-start handoff, not a worker-selection,
   initial request-builder, selector, queue, or stream parser module;

@@ -12,6 +12,7 @@ const { createGatewayRunStartAssistantOptionsService } = require("./gateway-run-
 const { createGatewayRunStartEventService } = require("./gateway-run-start-event-service");
 const { createGatewayRunStartPermissionService } = require("./gateway-run-start-permission-service");
 const { createGatewayRunStartPluginProbeService } = require("./gateway-run-start-plugin-probe-service");
+const { createGatewayRunStartPreparationService } = require("./gateway-run-start-preparation-service");
 const { createGatewayRunStartStreamHandoffService } = require("./gateway-run-start-stream-handoff-service");
 const {
   createGatewayRunStartStreamOptionsService,
@@ -110,9 +111,7 @@ function createGatewayRunStartService(options = {}) {
     threadSummary,
   });
   const appendRunStartEvent = (...args) => runStartEventService.appendRunStartEvent(...args);
-  const appendGatewaySchedulerEvent = (...args) => runStartEventService.appendGatewaySchedulerEvent(...args);
   const appendPluginCapabilityProbeEvents = (...args) => runStartEventService.appendPluginCapabilityProbeEvents(...args);
-  const appendRequiredSkillPreloadEvents = (...args) => runStartEventService.appendRequiredSkillPreloadEvents(...args);
   const contextReadyPreview = (...args) => runStartEventService.contextReadyPreview(...args);
   const gatewaySelectedPreview = (...args) => runStartEventService.gatewaySelectedPreview(...args);
   const toolsetSelectionRouting = (...args) => runStartEventService.toolsetSelectionRouting(...args);
@@ -133,7 +132,6 @@ function createGatewayRunStartService(options = {}) {
     saveState,
     threadSummary,
   });
-  const applyPreparingRunState = (...args) => runStartStateService.applyPreparingRunState(...args);
   const applyStartedRunState = (...args) => runStartStateService.applyStartedRunState(...args);
   const broadcastMessageUpdated = (...args) => runStartStateService.broadcastMessageUpdated(...args);
   const markStartFailed = (...args) => runStartStateService.markStartFailed(...args);
@@ -152,7 +150,7 @@ function createGatewayRunStartService(options = {}) {
   const appendToolsetEscalationInstructions = (...args) => toolsetSelectionService.appendToolsetEscalationInstructions(...args);
   const restoreAuthorizedToolsetsForSelectionFallback = (...args) => toolsetSelectionService.restoreAuthorizedToolsetsForSelectionFallback(...args);
   const targetService = options.targetService || createGatewayRunStartTargetService({
-    appendGatewaySchedulerEvent,
+    appendGatewaySchedulerEvent: (...args) => runStartEventService.appendGatewaySchedulerEvent(...args),
     appendRunStartEvent,
     applyStartedRunState,
     broadcastMessageUpdated,
@@ -214,27 +212,29 @@ function createGatewayRunStartService(options = {}) {
     saveState,
     streamResponse,
   });
+  const preparationService = options.preparationService || createGatewayRunStartPreparationService({
+    appendRequiredSkillPreloadEvents: (...args) => runStartEventService.appendRequiredSkillPreloadEvents(...args),
+    appendRunStartEvent,
+    applyAssistantRunOptions,
+    applyPreparingRunState: (...args) => runStartStateService.applyPreparingRunState(...args),
+    applyWardrobeWorkflowGateMetadata,
+    assertRunConcurrencyCapacity,
+    broadcastMessageUpdated,
+    buildRunRequest,
+    completeWardrobeWorkflowGateFailure,
+    evaluateWardrobeGate,
+    makePublicTaskId,
+    nowIso,
+    saveState,
+  });
 
   async function startRunForThread(thread, userMessage, assistantMessage, runOptions = {}) {
-    const actorWorkspaceId = resolveActorWorkspaceId(thread, userMessage, runOptions);
-    assertRunConcurrencyCapacity(actorWorkspaceId);
-    assistantMessage.actorWorkspaceId = actorWorkspaceId;
-
-    const taskId = makePublicTaskId("web");
-    applyPreparingRunState(thread, assistantMessage, taskId, nowIso());
-    saveState(undefined, { reason: "run-gateway-selected", skipSqliteRuntimeReplace: true });
-    broadcastMessageUpdated(thread, assistantMessage);
-    appendRunStartEvent(thread, assistantMessage, "run.request_preparing", "正在准备上下文和选择 Gateway");
-
-    let effectiveRunOptions = runOptions;
-    let request = buildRunRequest(thread, userMessage, assistantMessage, effectiveRunOptions);
-    let wardrobeGate = evaluateWardrobeGate(request, userMessage, "pre_gateway");
-    applyAssistantRunOptions(assistantMessage, request, effectiveRunOptions);
-    applyWardrobeWorkflowGateMetadata(assistantMessage, wardrobeGate);
-    appendRequiredSkillPreloadEvents(thread, assistantMessage, request);
-    if (wardrobeGate.active && !wardrobeGate.ok) {
-      return completeWardrobeWorkflowGateFailure(thread, assistantMessage, taskId, wardrobeGate);
-    }
+    const prepared = preparationService.prepareRunStart({ thread, userMessage, assistantMessage, runOptions });
+    if (prepared.terminalResult) return prepared.terminalResult;
+    const taskId = prepared.taskId;
+    let effectiveRunOptions = prepared.effectiveRunOptions || runOptions;
+    let request = prepared.request;
+    let wardrobeGate = prepared.wardrobeGate;
 
     const gatewayTarget = await selectGatewayRunTarget(request, taskId, thread);
     wardrobeGate = evaluateWardrobeGate(request, userMessage, "gateway_selected", gatewayTarget);
