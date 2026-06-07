@@ -98,6 +98,7 @@ focused adapters such as `app-route-url-service.js`,
 `gateway-run-start-toolset-selection-service.js`,
 `gateway-run-start-wardrobe-gate-service.js`,
 `gateway-run-content-service.js`,
+`gateway-run-stream-completion-service.js`,
 `gateway-run-stream-close-recovery-service.js`,
 `gateway-run-stream-event-service.js`,
 `gateway-run-stream-failure-service.js`,
@@ -182,6 +183,14 @@ truncation helpers for live streaming append and final full-content compaction.
 composition and state normalization, but it must not carry duplicate
 `appendBounded`, `compactFullContent`, or SSE frame parsing implementations.
 
+`gateway-run-stream-completion-service.js` owns Gateway stream reader completion
+handoff: mapping aborted streams with a stored failure reason to failed
+thread/message state, mapping aborted streams without a stored reason to
+cancelled state, ignoring streams that already observed a terminal Gateway
+event, and delegating non-terminal stream closure to the close-recovery service.
+It must not read response streams, parse Gateway events, own active stream
+storage, schedule timers, stop remote runs, or mutate Gateway targets.
+
 `gateway-run-stream-event-service.js` owns deterministic Gateway stream event
 projection helpers: event/run id extraction, terminal-event detection,
 output-message text detection, stream event preview formatting, tool-call name
@@ -257,7 +266,9 @@ first-event warning timer scheduling and clearing to
 `gateway-run-stream-first-event-service.js`. It must delegate stream reader
 failure projection to `gateway-run-stream-failure-service.js`. It must delegate
 liveness interval scheduling and clearing to
-`gateway-run-stream-liveness-timer-service.js`.
+`gateway-run-stream-liveness-timer-service.js`. It must delegate reader
+completion/abort terminal handoff to
+`gateway-run-stream-completion-service.js`.
 
 `mobile-runtime-gateway-context-facade-service.js` owns stale tool-availability
 claim detection delegates for HTTP, image, DOCX, and audio tool schemas. Weixin
@@ -762,6 +773,10 @@ Current CI guardrails:
 - `gateway-run-content-service.js` must stay at or below 60 lines and remain a
   deterministic helper service for live run append and final content
   compaction, not a Gateway lifecycle or stream parser implementation;
+- `gateway-run-stream-completion-service.js` must stay at or below 55 lines and
+  remain stream reader completion/abort handoff, not stream parsing,
+  active-stream storage, timer scheduling, remote stop, or Gateway target
+  mutation;
 - `gateway-run-stream-close-recovery-service.js` must stay at or below 70
   lines and remain stream-closed-without-terminal recovery projection, not
   stream parsing, active-stream storage, liveness checking, remote stop, or
@@ -789,7 +804,7 @@ Current CI guardrails:
 - `gateway-run-stream-stop-service.js` must stay at or below 85 lines and
   remain remote/local stream stop projection, not stream parsing, active-stream
   storage, event projection, liveness checking, or lifecycle mutation;
-- `gateway-run-stream-service.js` must stay at or below 305 lines and remain
+- `gateway-run-stream-service.js` must stay at or below 300 lines and remain
   Gateway stream orchestration, not an active-stream registry or broad Gateway
   runtime composition module;
 - `mobile-runtime-group-chat-facade-service.js` must stay at or below 95 lines

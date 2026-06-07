@@ -253,6 +253,11 @@ statements. Priority extraction areas:
   aborted failure-reason handoff, aborted cancellation handoff, and ordinary
   stream-error terminal failure handoff while retaining response stream
   orchestration and cleanup.
+- completed 2026-06-08: Gateway run stream reader completion handoff moved into
+  `adapters/gateway-run-stream-completion-service.js`. The stream service now
+  delegates the resolved-reader terminal branch: aborted failure-reason failure,
+  aborted cancellation, terminal-event no-op, and non-terminal close recovery
+  routing while retaining response stream orchestration and cleanup.
 - completed 2026-06-08: Gateway run stream closed-without-terminal recovery
   moved into `adapters/gateway-run-stream-close-recovery-service.js`. The
   stream service now delegates synthetic completion after partial model output,
