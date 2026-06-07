@@ -74,6 +74,11 @@ out of the composition root. Current focused runtime adapters include:
   pool, worker-profile launcher, workspace provisioning, usage telemetry, and
   run-concurrency delegation without forcing the full runtime root into
   CodeGraph context.
+- `adapters/mobile-runtime-gateway-context-facade-service.js` for Gateway
+  instruction, conversation-history, tool-schema stale-claim, run-target, and
+  usage supplementation delegates. It keeps Gateway context assembly glue out
+  of `mobile-server-runtime.js` while preserving the existing instruction,
+  history, runtime-composition, and usage telemetry services as the authority.
 - `adapters/mobile-runtime-backend-policy-service.js` for deterministic
   Todo/Automation/SQLite backend mode decisions and direct Todo create switch
   parsing.

@@ -50,6 +50,7 @@ const { createMobileRuntimeBackendPolicyService } = require("./adapters/mobile-r
 const { createMobileRuntimeConfigFacadeService } = require("./adapters/mobile-runtime-config-facade-service");
 const { createMobileRuntimeFileAccessFacadeService } = require("./adapters/mobile-runtime-file-access-facade-service");
 const { createMobileRuntimeFileHelperService } = require("./adapters/mobile-runtime-file-helper-service");
+const { createMobileRuntimeGatewayContextFacadeService } = require("./adapters/mobile-runtime-gateway-context-facade-service");
 const { createMobileRuntimePublicStatusService } = require("./adapters/mobile-runtime-public-status-service");
 const { createMobileRuntimeStateFacadeService } = require("./adapters/mobile-runtime-state-facade-service");
 const { createMobileRuntimeSystemStatusFacadeService } = require("./adapters/mobile-runtime-system-status-facade-service");
@@ -650,9 +651,6 @@ const gatewayUsageTelemetry = (...args) => mobileRuntimeGatewayFacadeService.gat
 const chooseGatewayRunTarget = (...args) => mobileRuntimeGatewayFacadeService.chooseGatewayRunTarget(...args);
 const releaseGatewayRunTarget = (...args) => mobileRuntimeGatewayFacadeService.releaseGatewayRunTarget(...args);
 const replaceGatewayRunTarget = (...args) => mobileRuntimeGatewayFacadeService.replaceGatewayRunTarget(...args);
-function gatewayTargetForRun(runId) {
-  return getGatewayRuntimeCompositionService().gatewayTargetForRun(runId);
-}
 const runConcurrencySnapshot = (...args) => mobileRuntimeGatewayFacadeService.runConcurrencySnapshot(...args);
 const runConcurrencyError = (...args) => mobileRuntimeGatewayFacadeService.runConcurrencyError(...args);
 const assertRunConcurrencyCapacity = (...args) => mobileRuntimeGatewayFacadeService.assertRunConcurrencyCapacity(...args);
@@ -743,6 +741,12 @@ function getRuntimeStateThreadService() {
     });
   }
   return runtimeStateThreadService;
+}
+function isStaleHttpToolAvailabilityClaim(text) {
+  return conversationHistoryService.isStaleHttpToolAvailabilityClaim(text);
+}
+function isStaleImageToolAvailabilityClaim(text) {
+  return conversationHistoryService.isStaleImageToolAvailabilityClaim(text);
 }
 function chatGroupMemberWorkspaceIds(thread, options = {}) {
   if (!thread?.singleWindow) return [];
@@ -1298,15 +1302,6 @@ function getSemanticDirectoryAttachmentService() {
   }
   return semanticDirectoryAttachmentService;
 }
-function formatAccessPolicyInstructionSummary(policy = {}) {
-  return gatewayRunInstructionService.formatAccessPolicyInstructionSummary(policy);
-}
-function policyHasToolset(policy = {}, toolset = "") {
-  return gatewayRunInstructionService.policyHasToolset(policy, toolset);
-}
-function callableFunctionHintsForToolsets(toolsets = []) {
-  return gatewayRunInstructionService.callableFunctionHintsForToolsets(toolsets);
-}
 const GATEWAY_TOOL_SCHEMA_EPOCH = "20260606-finance-reference-mcp-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
   dedupe,
   toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH,
@@ -1318,7 +1313,7 @@ const GATEWAY_TOOL_SCHEMA_EPOCH = "20260606-finance-reference-mcp-v1"; const gat
   explicitWebSearchMaxCalls: RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS, webSearchMaxCalls: RUN_WEB_SEARCH_MAX_CALLS,
 });
 const gatewayRunToolsetRoutingService = createGatewayRunToolsetRoutingService({ dedupe }); const gatewayRunModelToolsetSelectionService = createGatewayRunModelToolsetSelectionService({ dedupe, enabled: GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED || GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED, toolsetSelectionEnabled: GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED, gatewayPool: () => gatewayPool(), nowMs: () => Date.now(), selectorModel: GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_MODEL, selectorProvider: GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_PROVIDER, selectorReasoningEffort: GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_REASONING_EFFORT, stopTimeoutMs: GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_STOP_TIMEOUT_MS, timeoutMs: GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS, permissionPreflightTimeoutMs: GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS }); const topicContextCompactionService = createTopicContextCompactionService({ store: { getTopicContextSummary: (...args) => mobileSqliteStore().getTopicContextSummary(...args), getTopicWorkingState: (...args) => mobileSqliteStore().getTopicWorkingState(...args), listTopicContextRefs: (...args) => mobileSqliteStore().listTopicContextRefs(...args), upsertTopicContextSummary: (...args) => mobileSqliteStore().upsertTopicContextSummary(...args), upsertTopicWorkingState: (...args) => mobileSqliteStore().upsertTopicWorkingState(...args), replaceTopicContextRefs: (...args) => mobileSqliteStore().replaceTopicContextRefs(...args) }, nowIso }); const conversationHistoryService = createConversationHistoryService({
-  policyHasToolset,
+  policyHasToolset: (...args) => gatewayRunInstructionService.policyHasToolset(...args),
   compactText,
   isSingleWindowConversationTaskGroupId,
   maxHistoryMessages: MAX_HISTORY_MESSAGES,
@@ -1328,15 +1323,15 @@ const gatewayRunToolsetRoutingService = createGatewayRunToolsetRoutingService({ 
   contextAssemblyMode: CONTEXT_ASSEMBLY_MODE,
   topicContextService: topicContextCompactionService,
 });
-function gatewayConversationId(thread, userMessage, runPolicy = {}) {
-  return gatewayRunInstructionService.gatewayConversationId(thread, userMessage, runPolicy);
-}
-function currentToolSchemaOverrideInstructions(policy = {}) {
-  return gatewayRunInstructionService.currentToolSchemaOverrideInstructions(policy);
-}
-function buildHermesInstructions(thread, policy, project, latestText = "", taskDirectory = null, options = {}) {
-  return gatewayRunInstructionService.buildHermesInstructions(thread, policy, project, latestText, taskDirectory, options);
-}
+const mobileRuntimeGatewayContextFacadeService = createMobileRuntimeGatewayContextFacadeService({
+  conversationHistoryService,
+  gatewayRunInstructionService,
+  gatewayUsageTelemetry,
+  getGatewayRuntimeCompositionService,
+});
+const gatewayContextMethod = (methodName) => (...args) => mobileRuntimeGatewayContextFacadeService[methodName](...args);
+const gatewayContextDelegates = Object.fromEntries("buildConversationHistory buildHermesInstructions callableFunctionHintsForToolsets compactConversationHistory conversationHistoryContentForMessage currentToolSchemaOverrideInstructions deriveTitle extractCompletedOutput findRunTarget formatAccessPolicyInstructionSummary gatewayConversationId gatewayTargetForRun isOrdinaryToolSchemaElevationRequest isStaleAudioToolAvailabilityClaim isStaleDocxToolAvailabilityClaim isToolUnavailableClaimText policyHasToolset stripDirectoryAliasLinesForChatHistory supplementGatewayUsage".split(" ").map((methodName) => [methodName, gatewayContextMethod(methodName)]));
+const { buildConversationHistory, buildHermesInstructions, callableFunctionHintsForToolsets, compactConversationHistory, conversationHistoryContentForMessage, currentToolSchemaOverrideInstructions, deriveTitle, extractCompletedOutput, findRunTarget, formatAccessPolicyInstructionSummary, gatewayConversationId, gatewayTargetForRun, isOrdinaryToolSchemaElevationRequest, isStaleAudioToolAvailabilityClaim, isStaleDocxToolAvailabilityClaim, isToolUnavailableClaimText, policyHasToolset, stripDirectoryAliasLinesForChatHistory, supplementGatewayUsage } = gatewayContextDelegates;
 const getWeixinRuntimeCompositionService = () => mobileRuntimeWeixinFacadeService.getWeixinRuntimeCompositionService();
 const requireWeixinIngress = (...args) => mobileRuntimeWeixinFacadeService.requireWeixinIngress(...args);
 const weixinIngressIsAttachmentOnlyEvent = (...args) => mobileRuntimeWeixinFacadeService.weixinIngressIsAttachmentOnlyEvent(...args);
@@ -1463,49 +1458,6 @@ async function getHermesStatus() {
   }
   return status;
 }
-function isToolUnavailableClaimText(text) {
-  return conversationHistoryService.isToolUnavailableClaimText(text);
-}
-function isStaleHttpToolAvailabilityClaim(text) {
-  return conversationHistoryService.isStaleHttpToolAvailabilityClaim(text);
-}
-function isStaleImageToolAvailabilityClaim(text) {
-  return conversationHistoryService.isStaleImageToolAvailabilityClaim(text);
-}
-function isStaleDocxToolAvailabilityClaim(text) {
-  return conversationHistoryService.isStaleDocxToolAvailabilityClaim(text);
-}
-function isStaleAudioToolAvailabilityClaim(text) {
-  return conversationHistoryService.isStaleAudioToolAvailabilityClaim(text);
-}
-function isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message = {}) {
-  if (!approvalRequest?.elevationRequired) return false;
-  const scope = String(approvalRequest.elevationScope || "").trim();
-  if (scope && scope !== "owner_high_privilege") return false;
-  const text = String(output || "");
-  const runPolicy = message?.runOptions?.access_policy_context || message?.runOptions?.accessPolicyContext || {};
-  return (
-    (policyHasToolset(runPolicy, "image_gen") && isStaleImageToolAvailabilityClaim(text))
-    || (policyHasToolset(runPolicy, "http") && isStaleHttpToolAvailabilityClaim(text))
-    || (policyHasToolset(runPolicy, "file") && isStaleDocxToolAvailabilityClaim(text))
-    || (policyHasToolset(runPolicy, "file") && isStaleAudioToolAvailabilityClaim(text))
-  );
-}
-function conversationHistoryContentForMessage(msg, policy = {}) {
-  return conversationHistoryService.conversationHistoryContentForMessage(msg, policy);
-}
-function buildConversationHistory(thread, latestUserMessageId, policy = {}) {
-  return conversationHistoryService.buildConversationHistory(thread, latestUserMessageId, policy);
-}
-function stripDirectoryAliasLinesForChatHistory(text) {
-  return conversationHistoryService.stripDirectoryAliasLinesForChatHistory(text);
-}
-function compactConversationHistory(messages, maxMessages, maxChars, policy = {}) {
-  return conversationHistoryService.compactConversationHistory(messages, maxMessages, maxChars, policy);
-}
-function deriveTitle(text) {
-  return conversationHistoryService.deriveTitle(text);
-}
 function makePublicTaskId(prefix) {
   const d = new Date();
   const stamp = [
@@ -1544,23 +1496,7 @@ function parseSseFrame(frame) {
     return null;
   }
 }
-function findRunTarget(runId) {
-  return getGatewayRuntimeCompositionService().findRunTarget(runId);
-}
-function supplementGatewayUsage(usage, runId, message = {}) {
-  const target = gatewayTargetForRun(runId);
-  return gatewayUsageTelemetry().supplementUsage(usage, Object.assign({}, target, {
-    responseId: message.runId || runId,
-    runId,
-    gatewayProfile: message.gatewayProfile || target.profile || "",
-    gatewayName: message.gatewayName || target.name || "",
-    gatewayUrl: message.gatewayUrl || target.apiBase || "",
-  }));
-}
 const applyHermesRunEvent = (...args) => getGatewayRuntimeCompositionService().applyHermesRunEvent(...args);
-function extractCompletedOutput(event) {
-  return getGatewayRuntimeCompositionService().extractCompletedOutput(event);
-}
 const markRunFailed = (...args) => getGatewayRuntimeCompositionService().markRunFailed(...args);
 const markRunCancelled = (...args) => getGatewayRuntimeCompositionService().markRunCancelled(...args);
 const reconcileDetachedActiveRuns = (...args) => getGatewayRuntimeCompositionService().reconcileDetachedActiveRuns(...args);

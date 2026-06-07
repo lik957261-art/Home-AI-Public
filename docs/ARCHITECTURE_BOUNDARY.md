@@ -63,6 +63,7 @@ focused adapters such as `mobile-runtime-file-helper-service.js`,
 `mobile-runtime-environment-service.js`,
 `mobile-runtime-env-value-service.js`,
 `mobile-runtime-gateway-environment-service.js`,
+`mobile-runtime-gateway-context-facade-service.js`,
 `mobile-runtime-gateway-facade-service.js`,
 `mobile-runtime-group-chat-attachment-service.js`,
 `mobile-runtime-kanban-environment-service.js`,
@@ -158,11 +159,14 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,670 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 112;
+- `mobile-server-runtime.js` must stay at or below 1,610 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 95;
 - `mobile-runtime-file-access-facade-service.js` must stay at or below 115
   lines and remain a facade over lazy Directory browser boundary construction,
   file/artifact resolver delegation, and file response delegation;
+- `mobile-runtime-gateway-context-facade-service.js` must stay at or below 90
+  lines and remain a facade over Gateway instruction, conversation-history,
+  stale tool-schema claim, run-target, and usage supplementation delegates;
 - `mobile-runtime-artifact-facade-service.js` must stay at or below 140 lines
   and remain a facade over `file-artifact-access-service.js` and
   `artifact-text-registration-service.js`;
