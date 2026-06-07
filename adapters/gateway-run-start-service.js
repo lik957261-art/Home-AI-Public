@@ -12,6 +12,7 @@ const { createGatewayRunStartAssistantOptionsService } = require("./gateway-run-
 const { createGatewayRunStartEventService } = require("./gateway-run-start-event-service");
 const { createGatewayRunStartPermissionService } = require("./gateway-run-start-permission-service");
 const { createGatewayRunStartPluginProbeService } = require("./gateway-run-start-plugin-probe-service");
+const { createGatewayRunStartStreamHandoffService } = require("./gateway-run-start-stream-handoff-service");
 const {
   createGatewayRunStartStreamOptionsService,
 } = require("./gateway-run-start-stream-options-service");
@@ -203,6 +204,16 @@ function createGatewayRunStartService(options = {}) {
     probePluginCapabilities: options.probePluginCapabilities,
   });
   const runPluginCapabilityProbe = (...args) => pluginProbeService.runPluginCapabilityProbe(...args);
+  const streamHandoffService = options.streamHandoffService || createGatewayRunStartStreamHandoffService({
+    appendRunStartEvent,
+    applyAssistantRunOptions,
+    applyWardrobeWorkflowGateMetadata,
+    completeWardrobeWorkflowGateFailure,
+    dedupe,
+    evaluateWardrobeGate,
+    saveState,
+    streamResponse,
+  });
 
   async function startRunForThread(thread, userMessage, assistantMessage, runOptions = {}) {
     const actorWorkspaceId = resolveActorWorkspaceId(thread, userMessage, runOptions);
@@ -267,25 +278,17 @@ function createGatewayRunStartService(options = {}) {
       return preflight.terminalResult;
     }
     request = preflight?.request || request;
-    wardrobeGate = evaluateWardrobeGate(request, userMessage, "pre_stream", gatewayTarget, { appendInstructions: true });
-    applyAssistantRunOptions(assistantMessage, request, effectiveRunOptions);
-    applyWardrobeWorkflowGateMetadata(assistantMessage, wardrobeGate);
-    if (wardrobeGate.active && !wardrobeGate.ok) {
-      return completeWardrobeWorkflowGateFailure(thread, assistantMessage, taskId, wardrobeGate);
-    }
-    appendRunStartEvent(thread, assistantMessage, "run.request_sent", "等待模型或工具返回");
-    request.body.enabled_toolsets = dedupe(request.runPolicy?.allowed_toolsets || request.runPolicy?.allowedToolsets || request.body.enabled_toolsets || []);
-    saveState();
-    streamResponse(taskId, thread.id, assistantMessage.id, request.body, streamOptions);
-    return {
-      run_id: taskId,
-      status: "started",
-      engine: "responses",
+    return streamHandoffService.startStreamHandoff({
+      assistantMessage,
+      effectiveRunOptions,
+      gatewayTarget,
       gatewayUrl,
-      gatewayName: gatewayTarget?.name || "",
-      gatewayProfile: gatewayTarget?.profile || "",
-      gatewaySource: gatewayTarget?.source || "",
-    };
+      request,
+      streamOptions,
+      taskId,
+      thread,
+      userMessage,
+    });
   }
 
   return {

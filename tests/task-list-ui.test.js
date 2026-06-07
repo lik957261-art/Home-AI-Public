@@ -121,9 +121,9 @@ const directoryBrowserBoundaryServiceJs = fs.readFileSync(path.join(repoRoot, "a
 const gatewayRunInstructionServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-instruction-service.js"), "utf8");
 const gatewayRunErrorMessageServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-error-message-service.js"), "utf8");
 const gatewayRunRequestBuilderServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-request-builder-service.js"), "utf8");
-const gatewayRunStartServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-start-service.js"), "utf8");
 const gatewayRunStartPermissionServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-start-permission-service.js"), "utf8");
 const gatewayRunStartPluginProbeServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-start-plugin-probe-service.js"), "utf8");
+const gatewayRunStartStreamHandoffServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-start-stream-handoff-service.js"), "utf8");
 const gatewayRunStartTargetServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-start-target-service.js"), "utf8");
 const gatewayRunStartToolsetPreflightServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-start-toolset-preflight-service.js"), "utf8");
 const groupChatSharedAttachmentServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "group-chat-shared-attachment-service.js"), "utf8");
@@ -1142,7 +1142,7 @@ assert.match(gatewayRunRequestBuilderServiceJs, /conversation_history: conversat
 assert.match(gatewayRunStartTargetServiceJs, /appendRunStartEvent\(thread, assistantMessage, "run\.context_ready"/);
 assert.match(gatewayRunStartPluginProbeServiceJs, /appendRunStartEvent\(args\.thread, args\.assistantMessage, "run\.context_ready"/);
 assert.match(gatewayRunStartPermissionServiceJs, /appendRunStartEvent\(thread, assistantMessage, "run\.permission_required"/);
-assert.match(gatewayRunStartServiceJs, /appendRunStartEvent\(thread, assistantMessage, "run\.request_sent"/);
+assert.match(gatewayRunStartStreamHandoffServiceJs, /appendRunStartEvent\(args\.thread, args\.assistantMessage, "run\.request_sent"/);
 assert.match(gatewayRunStartToolsetPreflightServiceJs, /selectRunToolsetsWithModel/);
 assert.match(gatewayRunStartToolsetPreflightServiceJs, /isChatGptProRunOptions/);
 assert.match(serverJs, /createMobileRuntimeGroupChatAttachmentService/);

@@ -204,6 +204,12 @@ statements. Priority extraction areas:
   request rebuild, authorized-toolset fallback, Wardrobe metadata refresh, and
   permission/elevation terminal handoff while retaining overall run preparation
   orchestration.
+- completed 2026-06-08: Gateway run-start final stream handoff moved into
+  `adapters/gateway-run-start-stream-handoff-service.js`. The start service now
+  delegates the final `pre_stream` Wardrobe checkpoint, assistant run-options
+  refresh, `run.request_sent` telemetry, enabled-toolset normalization,
+  state-save handoff, `streamResponse` invocation, and the public `started`
+  response shape while retaining overall run preparation orchestration.
 - completed 2026-06-08: Runtime Gateway concurrency projection moved into
   `adapters/mobile-runtime-gateway-concurrency-service.js`. The Gateway facade
   now delegates active-run snapshot, per-workspace limit-error projection, and
