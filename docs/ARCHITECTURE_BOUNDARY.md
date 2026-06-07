@@ -289,8 +289,8 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,290 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 4;
+- `mobile-server-runtime.js` must stay at or below 1,285 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 3;
 - async top-level `function` declarations in `mobile-server-runtime.js` must stay at 0;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;

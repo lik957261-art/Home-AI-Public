@@ -241,7 +241,6 @@ let mobileRuntimeWorkspaceFacadeService = null;
 let runtimeWorkspaceCatalogService = null;
 const sourceMarkdownSearchCache = new Map();
 let state = null;
-let semanticDirectoryAttachmentService = null;
 let mobileRuntimeThreadViewFacadeService = null;
 let webPushDeliveryService = null;
 const mobileRuntimeAuthFacadeService = createMobileRuntimeAuthFacadeService({
@@ -750,6 +749,27 @@ const singleWindowThreadService = createSingleWindowThreadService({
   weixinIngressProvider,
 });
 const getSingleWindowThreadService = () => singleWindowThreadService;
+const semanticDirectoryAttachmentService = createSemanticDirectoryAttachmentService({
+  allProjectsForWorkspaceSync,
+  comparablePath,
+  dedupe,
+  directoryRouteDisplayLabel: (...args) => workspaceDisplayPathService.directoryRouteDisplayLabel(...args),
+  effectiveProjectForThread,
+  findProject,
+  findSubproject,
+  genericDirectoryAliasInstruction: "If a semantic project match exists, do not emit a generic `鐩綍鍒悕锛氶粯璁ょ洰褰?...`; emit the matched project alias/path instead.",
+  genericOwnerTopicProjectIds: [...GENERIC_OWNER_TOPIC_PROJECT_IDS],
+  genericOwnerTopicProjectPrefixes: GENERIC_OWNER_TOPIC_PROJECT_PREFIXES,
+  isDirectoryBrowserPathAllowedForThread,
+  isSingleWindowConversationTaskGroupId,
+  loadCatalog,
+  logicalDirectoryDisplayPath: (...args) => workspaceDisplayPathService.logicalDirectoryDisplayPath(...args),
+  normalizeLocalPath,
+  searchableText,
+  singleWindowProjectId: SINGLE_WINDOW_PROJECT_ID,
+  textIncludesPath,
+});
+const getSemanticDirectoryAttachmentService = () => semanticDirectoryAttachmentService;
 mobileRuntimeFileAccessFacadeService = createMobileRuntimeFileAccessFacadeService({
   allProjectsForWorkspaceSync,
   authenticateRequest,
@@ -1124,31 +1144,6 @@ const listWorkspaceAccessKeyStatuses = (...args) => mobileRuntimeWorkspaceFacade
 const rotateWorkspaceAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.rotateWorkspaceAccessKey(...args);
 const revokeWorkspaceAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.revokeWorkspaceAccessKey(...args);
 const rotateGlobalAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.rotateGlobalAccessKey(...args);
-function getSemanticDirectoryAttachmentService() {
-  if (!semanticDirectoryAttachmentService) {
-    semanticDirectoryAttachmentService = createSemanticDirectoryAttachmentService({
-      allProjectsForWorkspaceSync,
-      comparablePath,
-      dedupe,
-      directoryRouteDisplayLabel: (...args) => workspaceDisplayPathService.directoryRouteDisplayLabel(...args),
-      effectiveProjectForThread,
-      findProject,
-      findSubproject,
-      genericDirectoryAliasInstruction: "If a semantic project match exists, do not emit a generic `目录别名：默认目录=...`; emit the matched project alias/path instead.",
-      genericOwnerTopicProjectIds: [...GENERIC_OWNER_TOPIC_PROJECT_IDS],
-      genericOwnerTopicProjectPrefixes: GENERIC_OWNER_TOPIC_PROJECT_PREFIXES,
-      isDirectoryBrowserPathAllowedForThread,
-      isSingleWindowConversationTaskGroupId,
-      loadCatalog,
-      logicalDirectoryDisplayPath: (...args) => workspaceDisplayPathService.logicalDirectoryDisplayPath(...args),
-      normalizeLocalPath,
-      searchableText,
-      singleWindowProjectId: SINGLE_WINDOW_PROJECT_ID,
-      textIncludesPath,
-    });
-  }
-  return semanticDirectoryAttachmentService;
-}
 const GATEWAY_TOOL_SCHEMA_EPOCH = "20260607-email-local-delete-mcp-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
   dedupe,
   toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH,
