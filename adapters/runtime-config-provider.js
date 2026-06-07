@@ -3,14 +3,13 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { createRuntimeConfigEffectiveService } = require("./runtime-config-effective-service");
+const { createRuntimeConfigGatewayWorkerService } = require("./runtime-config-gateway-worker-service");
 const { createRuntimeConfigKeyService } = require("./runtime-config-key-service");
 const { createRuntimeConfigPublicProjectionService } = require("./runtime-config-public-projection-service");
 const { createRuntimeConfigSaveService } = require("./runtime-config-save-service");
 const {
-  gatewayWorkerSettingsToElasticConfig,
   mergeGatewayWorkerRuntimeSettings,
   normalizeGatewayWorkerRuntimeSettings,
-  publicGatewayWorkerRuntimeSettings,
 } = require("./gateway-worker-runtime-settings-service");
 
 function stripTrailingSlash(value) {
@@ -172,17 +171,16 @@ function createRuntimeConfigProvider(options = {}) {
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
   const apiKeyPaths = () => (typeof options.apiKeyPaths === "function" ? options.apiKeyPaths() : (options.apiKeyPaths || [])).filter(Boolean);
   const envPaths = () => (typeof options.envPaths === "function" ? options.envPaths() : (options.envPaths || [])).filter(Boolean);
-  const baseGatewayWorkerElasticConfig = () => (
-    typeof options.gatewayWorkerElasticConfig === "function"
-      ? (options.gatewayWorkerElasticConfig() || {})
-      : (options.gatewayWorkerElasticConfig || {})
-  );
   const effectiveService = createRuntimeConfigEffectiveService({
     defaultHermesApiBase: options.defaultHermesApiBase,
     defaultWebPushSubject: options.defaultWebPushSubject,
     defaultWebPushVapidPath: options.defaultWebPushVapidPath,
     load,
     pathResolve: (targetPath) => path.resolve(String(targetPath)),
+  });
+  const gatewayWorkerService = createRuntimeConfigGatewayWorkerService({
+    gatewayWorkerElasticConfig: options.gatewayWorkerElasticConfig,
+    load,
   });
   const keyService = createRuntimeConfigKeyService({
     apiKeyPaths,
@@ -198,7 +196,7 @@ function createRuntimeConfigProvider(options = {}) {
     effectiveWebPushSubject: effectiveService.effectiveWebPushSubject,
     effectiveWebPushVapidPath: effectiveService.effectiveWebPushVapidPath,
     fileExists: (targetPath) => fs.existsSync(targetPath),
-    gatewayWorkerRuntimeSettings,
+    gatewayWorkerRuntimeSettings: gatewayWorkerService.gatewayWorkerRuntimeSettings,
     hermesApiKeyStatus: keyService.hermesApiKeyStatus,
     load,
     runtimeModelFamilies,
@@ -230,14 +228,6 @@ function createRuntimeConfigProvider(options = {}) {
     return next;
   }
 
-  function gatewayWorkerElasticConfig(config = load(), base = baseGatewayWorkerElasticConfig()) {
-    return gatewayWorkerSettingsToElasticConfig(config.gatewayWorkerSettings || {}, base);
-  }
-
-  function gatewayWorkerRuntimeSettings(config = load()) {
-    return publicGatewayWorkerRuntimeSettings(config.gatewayWorkerSettings || {}, baseGatewayWorkerElasticConfig());
-  }
-
   function publicConfig(args = {}) {
     return publicProjectionService.publicConfig(args);
   }
@@ -247,8 +237,8 @@ function createRuntimeConfigProvider(options = {}) {
     effectiveHermesApiBase: effectiveService.effectiveHermesApiBase,
     effectiveWebPushSubject: effectiveService.effectiveWebPushSubject,
     effectiveWebPushVapidPath: effectiveService.effectiveWebPushVapidPath,
-    gatewayWorkerElasticConfig,
-    gatewayWorkerRuntimeSettings,
+    gatewayWorkerElasticConfig: gatewayWorkerService.gatewayWorkerElasticConfig,
+    gatewayWorkerRuntimeSettings: gatewayWorkerService.gatewayWorkerRuntimeSettings,
     hermesApiKeyStatus: keyService.hermesApiKeyStatus,
     load,
     loadHermesApiKey: keyService.loadHermesApiKey,

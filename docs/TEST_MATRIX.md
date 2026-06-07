@@ -105,6 +105,7 @@ Gateway worker runtime setting changes must also run
 `node tests\gateway-worker-runtime-settings-service.test.js`,
 `node tests\runtime-config-provider.test.js`,
 `node tests\runtime-config-effective-service.test.js`,
+`node tests\runtime-config-gateway-worker-service.test.js`,
 `node tests\runtime-config-key-service.test.js`,
 `node tests\runtime-config-public-projection-service.test.js`,
 `node tests\runtime-config-save-service.test.js`,

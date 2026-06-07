@@ -208,7 +208,12 @@ statements. Priority extraction areas:
   Hermes Gateway URL, Web Push subject, and Web Push VAPID effective/default
   helpers while retaining persistence, validation, Gateway worker setting
   composition, and path/env list injection.
-- Gateway runtime config and worker policy composition;
+- completed 2026-06-08: Runtime config Gateway worker setting composition moved
+  into `adapters/runtime-config-gateway-worker-service.js`. The provider now
+  delegates base elastic env config application, persisted worker overrides,
+  elastic config projection, and public worker setting projection while retaining
+  persistence, validation, and service wiring.
+- deeper Gateway runtime worker policy composition outside runtime config;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;
 - directory/topic binding repair and projection helpers;
