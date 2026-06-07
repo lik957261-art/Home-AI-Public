@@ -24,6 +24,7 @@ function requiredObject(options, name) {
 function createMobileRuntimeGatewayFacadeService(options = {}) {
   const createGatewayPoolProvider = options.createGatewayPoolProvider || defaultCreateGatewayPoolProvider;
   const createGatewayRunner = options.createGatewayRunner || defaultCreateGatewayRunner;
+  const createGatewayRuntimeCompositionService = options.createGatewayRuntimeCompositionService;
   const createGatewayUsageTelemetryProvider = options.createGatewayUsageTelemetryProvider || defaultCreateGatewayUsageTelemetryProvider;
   const createGatewayWorkerProfileLaunchService = options.createGatewayWorkerProfileLaunchService || defaultCreateGatewayWorkerProfileLaunchService;
   const createGatewayWorkspaceProvisioningService = options.createGatewayWorkspaceProvisioningService || defaultCreateGatewayWorkspaceProvisioningService;
@@ -43,6 +44,7 @@ function createMobileRuntimeGatewayFacadeService(options = {}) {
 
   let gatewayRunner = null;
   let gatewayPoolProvider = null;
+  let gatewayRuntimeCompositionService = null;
   let gatewayUsageTelemetryProvider = null;
   let gatewayWorkerProfileLaunchService = null;
   let gatewayWorkspaceProvisioningService = null;
@@ -119,6 +121,22 @@ function createMobileRuntimeGatewayFacadeService(options = {}) {
     return gatewayUsageTelemetryProvider;
   }
 
+  function getGatewayRuntimeCompositionService() {
+    if (!gatewayRuntimeCompositionService) {
+      if (typeof createGatewayRuntimeCompositionService !== "function") {
+        throw new Error("MobileRuntimeGatewayFacadeService requires createGatewayRuntimeCompositionService");
+      }
+      const runtimeOptions = typeof options.gatewayRuntimeCompositionOptions === "function"
+        ? options.gatewayRuntimeCompositionOptions()
+        : options.gatewayRuntimeCompositionOptions;
+      gatewayRuntimeCompositionService = createGatewayRuntimeCompositionService(runtimeOptions || {});
+    }
+    if (!gatewayRuntimeCompositionService || typeof gatewayRuntimeCompositionService !== "object") {
+      throw new Error("MobileRuntimeGatewayFacadeService gateway runtime composition is unavailable");
+    }
+    return gatewayRuntimeCompositionService;
+  }
+
   async function getHermesStatus() {
     const status = await singleGatewayRunner().status();
     let poolStatus = null;
@@ -173,6 +191,7 @@ function createMobileRuntimeGatewayFacadeService(options = {}) {
     assertRunConcurrencyCapacity,
     chooseGatewayRunTarget,
     gatewayPool,
+    getGatewayRuntimeCompositionService,
     gatewayUsageTelemetry,
     gatewayWorkerProfileLauncher,
     getHermesStatus,

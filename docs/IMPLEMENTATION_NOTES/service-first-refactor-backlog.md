@@ -117,6 +117,13 @@ statements. Priority extraction areas:
   getter dependencies so startup-order cycles stay inside the service boundary,
   and `mobile-server-runtime.js` no longer defines a top-level
   `getMobileRuntimePathAccessService` factory.
+- completed 2026-06-08: Gateway runtime composition singleton ownership moved
+  into `adapters/mobile-runtime-gateway-facade-service.js`. The runtime root no
+  longer defines any top-level `function` declarations; the Gateway dependency
+  package is intentionally kept readable instead of re-compressed into a few
+  dense lines. The next Gateway split should reduce that dependency package by
+  moving run-start, run-event, and queue wiring into smaller option/facade
+  modules.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

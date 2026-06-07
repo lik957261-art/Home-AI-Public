@@ -232,7 +232,7 @@ const {
 });
 let clients = new Set();
 let activeStreams = new Map();
-let gatewayRuntimeCompositionService = null;
+let mobileRuntimeGatewayFacadeService = null;
 let mobileRuntimeFileAccessFacadeService = null;
 let mobileRuntimeGroupChatFacadeService = null;
 let mobileRuntimeArtifactFacadeService = null;
@@ -387,32 +387,7 @@ const allowedRoots = (...args) => mobileRuntimePathAccessService.allowedRoots(..
 const isPathAllowed = (...args) => mobileRuntimePathAccessService.isPathAllowed(...args);
 const isPathAllowedForThread = (...args) => mobileRuntimePathAccessService.isPathAllowedForThread(...args);
 const isDirectoryBrowserPathAllowedForThread = (...args) => mobileRuntimePathAccessService.isDirectoryBrowserPathAllowedForThread(...args);
-function getGatewayRuntimeCompositionService() {
-  if (!gatewayRuntimeCompositionService) {
-    gatewayRuntimeCompositionService = createGatewayRuntimeCompositionService({
-      accessPolicyHardeningOptionsForGatewayRouting, activeStreams, addThreadEvent, apiTimeoutMs: HERMES_API_TIMEOUT_MS,
-      appendBounded, assertRunConcurrencyCapacity, buildAccessPolicy, buildConversationHistory, buildHermesInstructions, buildPluginCapabilityContext: (...args) => pluginCapabilityActivationService.buildRunPluginCapabilityContext(...args),
-      broadcast, chooseGatewayRunTarget, compactFullContent, compactMessage, dedupe, effectiveProjectForThread,
-      ensureGroupChatSharedArtifactCopies, enqueueExternalDeliveryForTerminalMessage, findWorkspace, gatewayConversationId,
-      gatewayPool, gatewaySkillRoutingForWorkspace, routeRunToolsets: (...args) => gatewayRunToolsetRoutingService.routePolicy(...args),
-      gatewayUrlForRun: (...args) => getRuntimeStateThreadService().storedGatewayUrlForRun(...args),
-      groupChatDeliveryRootForThread, groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
-      isOrdinaryToolSchemaElevationRequest, loadRequiredSkillPreloads: (...args) => pluginRequiredSkillPreloadService.preloadRequiredSkills(...args), logger: console, makePublicTaskId, maxMessageChars: MAX_MESSAGE_CHARS,
-      mergeAccessPolicyOverride, mkdirSync: (targetPath, options) => fs.mkdirSync(targetPath, options),
-      modelPermissionApprovalRequest, nowIso, nowMs: () => Date.now(), selectRunToolsetsWithModel: gatewayModelPreflightEnabled ? ((...args) => gatewayRunModelToolsetSelectionService.selectToolsetsForRun(...args)) : null,
-      notifyTaskTerminal: (...args) => webPushDeliveryService.notifyTaskTerminal(...args),
-      releaseGatewayRunTarget, replaceGatewayRunTarget,
-      projectForTaskDirectoryAttachment: (...args) => getSemanticDirectoryAttachmentService().projectForTaskDirectoryAttachment(...args),
-      registerArtifactsFromText, runLivenessCheckAfterMs: RUN_LIVENESS_CHECK_AFTER_MS,
-      runLivenessCheckIntervalMs: RUN_LIVENESS_CHECK_INTERVAL_MS, runLivenessStaleAfterMs: RUN_LIVENESS_STALE_AFTER_MS,
-      modelFirstByteWarningMs: RUN_MODEL_FIRST_BYTE_WARNING_MS, runStartTimeoutMs: RUN_START_TIMEOUT_MS, runExplicitWebSearchMaxCalls: RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS, runWebSearchMaxCalls: RUN_WEB_SEARCH_MAX_CALLS, sanitizePolicy, saveState, singleGatewayRunner, streamingSaveThrottleMs: RUN_STREAMING_SAVE_THROTTLE_MS,
-      singleWindowProjectId: SINGLE_WINDOW_PROJECT_ID, state: () => state, stripPermissionApprovalMarkers, supplementGatewayUsage,
-      taskDirectoryAttachmentForMessage: (...args) => getSemanticDirectoryAttachmentService().taskDirectoryAttachmentForMessage(...args),
-      threadSummary, toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH, topicContextCompactionService: CONTEXT_COMPACTION_ENABLED ? topicContextCompactionService : null, windowsPathToWsl,
-    });
-  }
-  return gatewayRuntimeCompositionService;
-}
+const getGatewayRuntimeCompositionService = () => mobileRuntimeGatewayFacadeService.getGatewayRuntimeCompositionService();
 const addThreadActiveRun = (...args) => getGatewayRuntimeCompositionService().addThreadActiveRun(...args);
 const replaceThreadActiveRun = (...args) => getGatewayRuntimeCompositionService().replaceThreadActiveRun(...args);
 const removeThreadActiveRun = (...args) => getGatewayRuntimeCompositionService().removeThreadActiveRun(...args);
@@ -489,14 +464,79 @@ const runtimeConfigProvider = createRuntimeConfigProvider({
 });
 const mobileRuntimeConfigFacadeService = createMobileRuntimeConfigFacadeService({ runtimeConfigProvider, pushStatus: () => webPushDeliveryService?.publicPushStatus?.() || {}, webPushConfig: () => webPushDeliveryService?.getWebPushConfig?.() || null, webPushEnabled: () => WEB_PUSH_ENABLED });
 const { effectiveHermesApiBase, effectiveWebPushSubject, effectiveWebPushVapidPath, loadHermesApiKey, loadRuntimeConfig, publicRuntimeConfig, saveRuntimeConfig } = mobileRuntimeConfigFacadeService;
-const mobileRuntimeGatewayFacadeService = createMobileRuntimeGatewayFacadeService({
+mobileRuntimeGatewayFacadeService = createMobileRuntimeGatewayFacadeService({
   apiTimeoutMs: () => HERMES_API_TIMEOUT_MS,
+  createGatewayRuntimeCompositionService,
   effectiveHermesApiBase: () => effectiveHermesApiBase(),
   fs,
   gatewayPoolElasticConfig: () => runtimeConfigProvider.gatewayWorkerElasticConfig(loadRuntimeConfig(), GATEWAY_POOL_ELASTIC_CONFIG),
   gatewayPoolEnabled: () => GATEWAY_POOL_ENABLED,
   gatewayPoolHealthTimeoutMs: GATEWAY_POOL_HEALTH_TIMEOUT_MS,
   gatewayPoolManifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS,
+  gatewayRuntimeCompositionOptions: () => ({
+    accessPolicyHardeningOptionsForGatewayRouting,
+    activeStreams,
+    addThreadEvent,
+    apiTimeoutMs: HERMES_API_TIMEOUT_MS,
+    appendBounded,
+    assertRunConcurrencyCapacity,
+    buildAccessPolicy,
+    buildConversationHistory,
+    buildHermesInstructions,
+    buildPluginCapabilityContext: (...args) => pluginCapabilityActivationService.buildRunPluginCapabilityContext(...args),
+    broadcast,
+    chooseGatewayRunTarget,
+    compactFullContent,
+    compactMessage,
+    dedupe,
+    effectiveProjectForThread,
+    ensureGroupChatSharedArtifactCopies,
+    enqueueExternalDeliveryForTerminalMessage,
+    findWorkspace,
+    gatewayConversationId,
+    gatewayPool,
+    gatewaySkillRoutingForWorkspace,
+    gatewayUrlForRun: (...args) => getRuntimeStateThreadService().storedGatewayUrlForRun(...args),
+    groupChatDeliveryRootForThread,
+    groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+    isOrdinaryToolSchemaElevationRequest,
+    loadRequiredSkillPreloads: (...args) => pluginRequiredSkillPreloadService.preloadRequiredSkills(...args),
+    logger: console,
+    makePublicTaskId,
+    maxMessageChars: MAX_MESSAGE_CHARS,
+    mergeAccessPolicyOverride,
+    mkdirSync: (targetPath, options) => fs.mkdirSync(targetPath, options),
+    modelFirstByteWarningMs: RUN_MODEL_FIRST_BYTE_WARNING_MS,
+    modelPermissionApprovalRequest,
+    notifyTaskTerminal: (...args) => webPushDeliveryService.notifyTaskTerminal(...args),
+    nowIso,
+    nowMs: () => Date.now(),
+    projectForTaskDirectoryAttachment: (...args) => getSemanticDirectoryAttachmentService().projectForTaskDirectoryAttachment(...args),
+    registerArtifactsFromText,
+    releaseGatewayRunTarget,
+    replaceGatewayRunTarget,
+    routeRunToolsets: (...args) => gatewayRunToolsetRoutingService.routePolicy(...args),
+    runExplicitWebSearchMaxCalls: RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS,
+    runLivenessCheckAfterMs: RUN_LIVENESS_CHECK_AFTER_MS,
+    runLivenessCheckIntervalMs: RUN_LIVENESS_CHECK_INTERVAL_MS,
+    runLivenessStaleAfterMs: RUN_LIVENESS_STALE_AFTER_MS,
+    runStartTimeoutMs: RUN_START_TIMEOUT_MS,
+    runWebSearchMaxCalls: RUN_WEB_SEARCH_MAX_CALLS,
+    sanitizePolicy,
+    saveState,
+    selectRunToolsetsWithModel: gatewayModelPreflightEnabled ? ((...args) => gatewayRunModelToolsetSelectionService.selectToolsetsForRun(...args)) : null,
+    singleGatewayRunner,
+    singleWindowProjectId: SINGLE_WINDOW_PROJECT_ID,
+    state: () => state,
+    streamingSaveThrottleMs: RUN_STREAMING_SAVE_THROTTLE_MS,
+    stripPermissionApprovalMarkers,
+    supplementGatewayUsage,
+    taskDirectoryAttachmentForMessage: (...args) => getSemanticDirectoryAttachmentService().taskDirectoryAttachmentForMessage(...args),
+    threadSummary,
+    toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH,
+    topicContextCompactionService: CONTEXT_COMPACTION_ENABLED ? topicContextCompactionService : null,
+    windowsPathToWsl,
+  }),
   gatewayPoolStartMode: () => GATEWAY_POOL_START_MODE,
   gatewayToolSchemaEpoch: () => GATEWAY_TOOL_SCHEMA_EPOCH,
   gatewayUsageTelemetryEnabled: () => GATEWAY_USAGE_TELEMETRY_ENABLED,

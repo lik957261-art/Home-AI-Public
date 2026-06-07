@@ -7,6 +7,7 @@ const calls = {
   pool: 0,
   provisioning: 0,
   runner: 0,
+  runtime: 0,
   telemetry: 0,
   workerLauncher: 0,
 };
@@ -59,6 +60,12 @@ const facade = createMobileRuntimeGatewayFacadeService({
       status: async () => Object.assign({}, runnerStatus),
     };
   },
+  createGatewayRuntimeCompositionService(options) {
+    calls.runtime += 1;
+    return {
+      startRunForThread: (...args) => ({ args, marker: options.marker() }),
+    };
+  },
   createGatewayUsageTelemetryProvider(options) {
     calls.telemetry += 1;
     return {
@@ -93,6 +100,9 @@ const facade = createMobileRuntimeGatewayFacadeService({
   gatewayPoolManifestPaths: () => ["manifest.json"],
   gatewayPoolStartMode: () => "hybrid",
   gatewayToolSchemaEpoch: () => "epoch-1",
+  gatewayRuntimeCompositionOptions: () => ({
+    marker: () => "runtime-options",
+  }),
   gatewayUsageTelemetryEnabled: () => true,
   gatewayUsageTelemetryProfileRoots: () => ["/profiles"],
   loadHermesApiKey: () => "fixture-key",
@@ -110,6 +120,7 @@ const facade = createMobileRuntimeGatewayFacadeService({
 
 (async () => {
 assert.equal(calls.pool, 0);
+assert.equal(calls.runtime, 0);
 assert.deepEqual(facade.runConcurrencySnapshot(), { active: 1 });
 assert.equal(facade.runConcurrencyError("owner"), null);
 assert.throws(() => facade.assertRunConcurrencyCapacity("blocked"), (error) => {
@@ -126,6 +137,13 @@ assert.equal(facade.singleGatewayRunner().apiKey, "fixture-key");
 assert.equal(facade.singleGatewayRunner().timeoutMs, 1234);
 assert.equal(facade.singleGatewayRunner(), facade.singleGatewayRunner());
 assert.equal(calls.runner, 1);
+
+assert.deepEqual(facade.getGatewayRuntimeCompositionService().startRunForThread("thread-1"), {
+  args: ["thread-1"],
+  marker: "runtime-options",
+});
+assert.equal(facade.getGatewayRuntimeCompositionService(), facade.getGatewayRuntimeCompositionService());
+assert.equal(calls.runtime, 1);
 
 const target = await facade.chooseGatewayRunTarget({ purpose: "test" }, { runId: "run-2" });
 assert.deepEqual(target, {
@@ -191,6 +209,18 @@ assert.equal(fallbackStatus.fallbackError, "single runner unavailable");
 assert.deepEqual(fallbackStatus.health, { status: "ok", platform: "gateway-pool" });
 
 assert.throws(() => createMobileRuntimeGatewayFacadeService({}), /requires effectiveHermesApiBase/);
+assert.throws(() => createMobileRuntimeGatewayFacadeService({
+  effectiveHermesApiBase: () => "",
+  fs: {},
+  loadHermesApiKey: () => "",
+  apiTimeoutMs: () => 1,
+  gatewayPoolManifestPaths: () => [],
+  path: {},
+  runConcurrencyPolicy: {
+    limitError: () => null,
+    snapshot: () => ({}),
+  },
+}).getGatewayRuntimeCompositionService(), /requires createGatewayRuntimeCompositionService/);
 
 console.log("mobile runtime gateway facade service tests passed");
 })().catch((error) => {

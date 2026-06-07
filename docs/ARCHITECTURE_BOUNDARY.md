@@ -286,14 +286,16 @@ Required baseline for new business services:
 ## Server Budget
 
 `server.js` must stay thin, and `mobile-server-runtime.js` must trend downward
-during refactors and must not absorb new feature logic.
+during refactors and must not absorb new feature logic. Temporary line-budget
+increases are allowed only when they remove dense compressed runtime code or
+top-level factories and the next split target is documented.
 
 Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,270 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 1;
+- `mobile-server-runtime.js` must stay at or below 1,315 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at 0;
 - async top-level `function` declarations in `mobile-server-runtime.js` must stay at 0;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
@@ -339,9 +341,10 @@ Current CI guardrails:
 - `mobile-runtime-gateway-context-facade-service.js` must stay at or below 90
   lines and remain a facade over Gateway instruction, conversation-history,
   stale tool-schema claim, run-target, and usage supplementation delegates;
-- `mobile-runtime-gateway-facade-service.js` must stay at or below 195 lines
+- `mobile-runtime-gateway-facade-service.js` must stay at or below 220 lines
   and remain a runtime Gateway facade over runner/pool/launcher/provisioning,
-  telemetry, run concurrency, and public status composition delegates;
+  telemetry, run concurrency, Gateway runtime composition singleton ownership,
+  and public status composition delegates;
 - `gateway-run-content-service.js` must stay at or below 60 lines and remain a
   deterministic helper service for live run append and final content
   compaction, not a Gateway lifecycle or stream parser implementation;
