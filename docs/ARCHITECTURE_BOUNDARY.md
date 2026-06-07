@@ -61,6 +61,7 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-file-helper-service.js`,
 `mobile-runtime-file-access-facade-service.js`,
 `mobile-runtime-artifact-facade-service.js`,
+`mobile-runtime-auth-facade-service.js`,
 `mobile-runtime-backend-policy-service.js`,
 `mobile-runtime-config-facade-service.js`,
 `mobile-runtime-environment-service.js`,
@@ -92,6 +93,7 @@ focused adapters such as `app-route-url-service.js`,
 `runtime-operation-error-response-service.js`, and
 `mobile-runtime-http-server-service.js`. These modules keep static file
 app route URL serialization, Automation job filtering, deterministic runtime primitives,
+auth-provider delayed delegation,
 helpers and JSON store file IO,
 Artifact/Markdown registration lazy delegation, backend mode policy, runtime
 config facade delegation, runtime environment aggregation, shared environment
@@ -169,6 +171,12 @@ operation-error JSON response wrappers. Route composition may keep receiving
 `todoErrorResponse` and `kanbanErrorResponse` delegates, but
 `mobile-server-runtime.js` must not carry duplicate function implementations for
 those response shapes.
+
+`mobile-runtime-auth-facade-service.js` owns delayed runtime delegation to
+`auth-provider.js` for `authenticateRequest`, `authCanAccessWorkspace`, and
+`isOwnerAuth`. Runtime composition may pass these delegates before
+`authProvider` is materialized, but it must not carry duplicate top-level
+auth-provider wrapper functions.
 
 `path-boundary-service.js` owns deterministic path comparison primitives used
 by Directory, shared-root, project-discovery, and runtime composition code:
@@ -275,8 +283,8 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,345 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 12;
+- `mobile-server-runtime.js` must stay at or below 1,340 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 9;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
 - `path-boundary-service.js` must stay at or below 65 lines and remain a
@@ -291,6 +299,9 @@ Current CI guardrails:
 - `runtime-operation-error-response-service.js` must stay at or below 35 lines
   and remain a deterministic operation-error response adapter, not a route
   module or domain policy implementation;
+- `mobile-runtime-auth-facade-service.js` must stay at or below 40 lines and
+  remain a delayed auth-provider delegation facade, not an auth policy or key
+  storage implementation;
 - `mobile-runtime-basic-helper-service.js` must stay at or below 120 lines and
   remain a deterministic helper service for basic runtime primitives, not a
   route, provider, permission, or Gateway lifecycle policy module;

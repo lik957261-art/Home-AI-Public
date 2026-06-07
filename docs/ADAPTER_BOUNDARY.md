@@ -38,6 +38,7 @@ These parts must remain replaceable:
 - `adapters/workspace-project-provider.js` owns the first catalog boundary. It loads workspace route maps, user policy records, and project-map entries through injected file readers and returns a normalized `{ workspaces, projects, sources, routeMap }` catalog.
 - `adapters/access-policy-provider.js` owns access-policy sanitization and construction. It merges route/user/project fields, applies project root overrides, adds shared roots for restricted workspaces, and appends the upload cache root without letting unrelated private fields leak into runtime policy payloads.
 - `adapters/auth-provider.js` owns the product auth/key boundary: first-run Owner key creation, Owner/workspace key authentication, workspace key store normalization, scoped workspace-key rotation/revocation, Owner key rotation, and public key-status records.
+- `adapters/mobile-runtime-auth-facade-service.js` owns delayed runtime delegation to `auth-provider.js` for request authentication, Owner-auth checks, and workspace access checks. It must not own key storage, token comparison, access-key rotation, or authorization policy.
 - `adapters/workspace-bindings-provider.js` owns the non-secret Workspace Access binding summary. It filters common/default toolsets, maps special interface ids to display chips, emits optional channel summaries, and appends Owner external integrations without exposing raw credentials.
 - `adapters/display-path-provider.js` owns shared-root owner labels and logical path fallback labels, including configurable owner drive-root names and `/volume1` owner segment detection.
 - The same provider also accepts local admin-created workspace records from `workspace/hermes-web/workspaces.json`, so a fresh install can create users without an external Hermes ACL file.
@@ -70,6 +71,7 @@ These parts must remain replaceable:
 - `tests/workspace-project-provider.test.js` is the contract smoke for provider caching, owner fallback, route/user merge behavior, and project expansion.
 - `tests/access-policy-provider.test.js` is the contract smoke for policy field allow-listing, restricted-root merging, delivery/cache roots, and owner unrestricted behavior.
 - `tests/auth-provider.test.js` is the contract smoke for first-run Owner setup, Owner/workspace authentication, workspace key scoping, revocation, env-key rotation guard, and disabled-auth behavior.
+- `tests/mobile-runtime-auth-facade-service.test.js` is the contract smoke for delayed auth-provider delegation and missing-method guards.
 - `tests/runtime-config-provider.test.js` is the contract smoke for runtime config save/load, Gateway URL validation, API key file/env resolution, Web Push subject validation, and public non-secret status.
 - `tests/workspace-bindings-provider.test.js` is the contract smoke for binding summaries, common-tool filtering, configured interface labels, Owner external bindings, and custom channel providers.
 - `tests/display-path-provider.test.js` is the contract smoke for shared-root labels, owner drive-root labels, directory-route labels, and logical path fallback.

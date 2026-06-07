@@ -67,6 +67,10 @@ statements. Priority extraction areas:
 - completed 2026-06-08: `chatGroupMemberWorkspaceIds` moved into
   `adapters/mobile-runtime-state-facade-service.js`, keeping chat-group member
   projection with state normalization instead of as a runtime top-level helper.
+- completed 2026-06-08: delayed auth-provider delegates moved into
+  `adapters/mobile-runtime-auth-facade-service.js`. Runtime keeps
+  `authenticateRequest`, `authCanAccessWorkspace`, and `isOwnerAuth` as service
+  delegates without top-level auth-provider wrapper functions.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

@@ -57,6 +57,7 @@ const { createMobileRuntimeHttpServerService } = require("./adapters/mobile-runt
 const { createMobileRuntimeCoreProviders } = require("./adapters/mobile-runtime-core-providers");
 const { createMobileRuntimeLocalBridgeFacadeService } = require("./adapters/mobile-runtime-local-bridge-facade-service");
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
+const { createMobileRuntimeAuthFacadeService } = require("./adapters/mobile-runtime-auth-facade-service");
 const { createMobileRuntimeBackendPolicyService } = require("./adapters/mobile-runtime-backend-policy-service");
 const { createMobileRuntimeConfigFacadeService } = require("./adapters/mobile-runtime-config-facade-service");
 const { createMobileRuntimeFileAccessFacadeService } = require("./adapters/mobile-runtime-file-access-facade-service");
@@ -248,6 +249,12 @@ let semanticDirectoryAttachmentService = null;
 let mobileRuntimeThreadViewFacadeService = null;
 let runtimeStateThreadService = null;
 let webPushDeliveryService = null;
+const mobileRuntimeAuthFacadeService = createMobileRuntimeAuthFacadeService({
+  authProvider: () => authProvider,
+});
+const authenticateRequest = (...args) => mobileRuntimeAuthFacadeService.authenticateRequest(...args);
+const authCanAccessWorkspace = (...args) => mobileRuntimeAuthFacadeService.authCanAccessWorkspace(...args);
+const isOwnerAuth = (...args) => mobileRuntimeAuthFacadeService.isOwnerAuth(...args);
 const eventFanoutService = createEventFanoutService({
   clients, authCanAccessWorkspace, isOwnerAuth, state: () => state,
   threadAccessibleToAuth: (...args) => getRuntimeStateThreadService().threadAccessibleToAuth(...args),
@@ -831,12 +838,6 @@ const localWorkspaceDefaults = (...args) => mobileRuntimeWorkspaceFacadeService.
 const localWorkspaceRecords = (...args) => mobileRuntimeWorkspaceFacadeService.localWorkspaceRecords(...args);
 const upsertLocalWorkspace = (...args) => mobileRuntimeWorkspaceFacadeService.upsertLocalWorkspace(...args);
 const deleteLocalWorkspace = (...args) => mobileRuntimeWorkspaceFacadeService.deleteLocalWorkspace(...args);
-function authenticateRequest(req) {
-  return authProvider.authenticateRequest(req);
-}
-function isOwnerAuth(auth) {
-  return authProvider.isOwnerAuth(auth);
-}
 const getOwnerElevationGrantService = (...args) => mobileRuntimeOwnerElevationFacadeService.getOwnerElevationGrantService(...args);
 const isOwnerElevationActive = (...args) => mobileRuntimeOwnerElevationFacadeService.isOwnerElevationActive(...args);
 const grantOwnerElevationOnce = (...args) => mobileRuntimeOwnerElevationFacadeService.grantOwnerElevationOnce(...args);
@@ -844,9 +845,6 @@ const consumeOwnerElevationOnce = (...args) => mobileRuntimeOwnerElevationFacade
 const publicOwnerElevationStatus = (...args) => mobileRuntimeOwnerElevationFacadeService.publicOwnerElevationStatus(...args);
 const grantOwnerElevation = (...args) => mobileRuntimeOwnerElevationFacadeService.grantOwnerElevation(...args);
 const revokeOwnerElevation = (...args) => mobileRuntimeOwnerElevationFacadeService.revokeOwnerElevation(...args);
-function authCanAccessWorkspace(auth, workspaceId) {
-  return authProvider.authCanAccessWorkspace(auth, workspaceId);
-}
 function getRuntimeStateThreadService() {
   if (!runtimeStateThreadService) {
     runtimeStateThreadService = createRuntimeStateThreadService({
