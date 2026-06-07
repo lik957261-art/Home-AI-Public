@@ -23,7 +23,7 @@ const entryHubBody = functionBody(pluginTopicsUi, "renderCapabilityEntryHub");
 const openAppBody = functionBody(pluginTopicsUi, "openPluginTopicApp");
 const runActionBody = functionBody(pluginTopicsUi, "runPluginTopicAction");
 
-assert.match(pluginTopicsUi, /const CAPABILITY_QUICK_ACTION_LIMIT = 12;/);
+assert.match(pluginTopicsUi, /const CAPABILITY_QUICK_ACTION_LIMIT = 9;/);
 assert.match(pluginTopicsUi, /const CAPABILITY_PLUGIN_APP_ACTION_ID = "__open_app";/);
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_USAGE_API_PATH = "\/api\/plugin-topic-usage";/);
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_USAGE_LOAD_TTL_MS = 30000;/);
@@ -34,9 +34,11 @@ assert.match(pluginTopicsUi, /function loadPluginTopicUsageFromServer/);
 assert.match(pluginTopicsUi, /function schedulePluginTopicUsageSync/);
 assert.match(pluginTopicsUi, /function ensurePluginTopicUsageLoaded/);
 assert.match(pluginTopicsUi, /let pluginTopicUsageMemoryCache = normalizePluginTopicUsage\(\{\}\);/);
+assert.match(pluginTopicsUi, /function refreshPluginTopicUsageRoot\(options = \{\}\)/);
+assert.match(pluginTopicsUi, /const restoreScrollTop = options\.revealQuickActions \? 0 : \(\$\("conversation"\)\?\.scrollTop \|\| 0\);/);
 assert.match(recordUsageBody, /usage\.actions = actions;/);
 assert.match(recordUsageBody, /usage\.plugins = plugins;/);
-assert.match(recordUsageBody, /refreshPluginTopicUsageRoot\(\);/);
+assert.match(recordUsageBody, /refreshPluginTopicUsageRoot\(\{ revealQuickActions: true \}\);/);
 assert.match(recordUsageBody, /schedulePluginTopicUsageSync\(usage\);/);
 assert.match(pluginTopicsUi, /api\(`\$\{PLUGIN_TOPIC_USAGE_API_PATH\}\?\$\{params\.toString\(\)\}`/);
 assert.match(pluginTopicsUi, /method: "PATCH"/);
@@ -157,6 +159,7 @@ globalThis.__pluginTopicHarness = {
   assert.equal(harness.quickKeys()[0], "wardrobe:style");
   assert.equal(harness.readUsage().actions["wardrobe:style"].count, 6);
   assert.ok(harness.renderCalls.length >= 1, "usage changes must refresh the root quick-action projection");
+  assert.equal(harness.renderCalls.at(-1).restoreScrollTop, 0, "usage promotion must reveal the top quick-action row");
 }
 
 {
@@ -167,6 +170,7 @@ globalThis.__pluginTopicHarness = {
   assert.equal(harness.quickKeys()[0], "wardrobe:style");
   assert.equal(harness.readUsage().actions["wardrobe:style"].count, 3);
   assert.ok(harness.renderCalls.length >= 1, "memory usage projection must refresh even when localStorage writes fail");
+  assert.equal(harness.renderCalls.at(-1).restoreScrollTop, 0, "memory projection refresh must reveal the top quick-action row");
 }
 
 console.log("app plugin topics UI tests passed");

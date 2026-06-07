@@ -83,6 +83,11 @@ or raw plugin credentials.
   permanently fresh. Repeated clicks on the same action, such as
   `wardrobe:style`, must increment that action's workspace usage and promote it
   by count/recency in the quick-action grid.
+- The root quick-action grid is capped at nine entries, rendered as three
+  columns by three rows. When the Capability Entry Hub is present, the topic-root
+  renderer clamps small restored scroll offsets back to the top so the first
+  quick-action row remains visible after redraws, browser restore, or
+  session-level root navigation.
 - The next product direction for the root Topics tab is the Capability Entry
   Hub described in
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md`. In that model, the

@@ -462,6 +462,9 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   if (!state.currentTaskGroupId && Number.isFinite(Number(options.restoreScrollTop))) {
     const maxTop = Math.max(0, conversation.scrollHeight - conversation.clientHeight);
     conversation.scrollTop = Math.min(maxTop, Math.max(0, Number(options.restoreScrollTop) || 0));
+    if (capabilityEntryHub && conversation.scrollTop > 0 && conversation.scrollTop <= 52) {
+      conversation.scrollTop = 0;
+    }
     state.conversationPinnedToBottom = false;
   } else if (options.stickToBottom) {
     conversation.scrollTop = state.currentTaskGroupId ? conversation.scrollHeight : 0;

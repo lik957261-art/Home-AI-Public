@@ -115,7 +115,7 @@ const PLUGIN_TOPIC_USAGE_SYNC_DELAY_MS = 450;
 const PLUGIN_TOPIC_USAGE_LOAD_TTL_MS = 30000;
 const PLUGIN_APP_REORDER_HOLD_MS = 450;
 const PLUGIN_APP_REORDER_CANCEL_PX = 10;
-const CAPABILITY_QUICK_ACTION_LIMIT = 12;
+const CAPABILITY_QUICK_ACTION_LIMIT = 9;
 const CAPABILITY_PLUGIN_APP_ACTION_ID = "__open_app";
 let pluginAppSortDrag = null;
 let pluginAppSortGlobalBound = false;
@@ -339,10 +339,10 @@ function pluginTopicUsageRecentlyLoaded(workspaceId = pluginTopicUsageWorkspaceI
   return loadedAt > 0 && Date.now() - loadedAt < PLUGIN_TOPIC_USAGE_LOAD_TTL_MS;
 }
 
-function refreshPluginTopicUsageRoot() {
+function refreshPluginTopicUsageRoot(options = {}) {
   if (state.viewMode !== "tasks" || state.currentTaskGroupId) return;
   if (typeof renderCurrentThread !== "function") return;
-  const restoreScrollTop = $("conversation")?.scrollTop || 0;
+  const restoreScrollTop = options.revealQuickActions ? 0 : ($("conversation")?.scrollTop || 0);
   window.setTimeout(() => {
     if (state.viewMode === "tasks" && !state.currentTaskGroupId) {
       renderCurrentThread({ stickToBottom: false, restoreScrollTop });
@@ -473,7 +473,7 @@ function recordPluginTopicUsage(pluginId, actionId = "") {
     usage.plugins = plugins;
   }
   writePluginTopicUsage(usage);
-  refreshPluginTopicUsageRoot();
+  refreshPluginTopicUsageRoot({ revealQuickActions: true });
   schedulePluginTopicUsageSync(usage);
 }
 

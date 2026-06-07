@@ -61,13 +61,15 @@ The root page has three visible layers:
    capabilities, including built-in Directory and external plugins.
 
 The quick-action area is task-first. On phone and touch-tablet shells it uses a
-compact three-column grid. Actions are not prefilled by a global default list:
-they appear only after the user has actually used that action or launched that
-capability app from the Dock/menu. The host stores per-action usage counts and
-per-capability app-launch counts, starts every entry at zero, sorts visible
-entries by count and recency, and renders no empty quick-action shell when no
-usage history exists. This keeps the area personal while still allowing a
-recently used app-level capability to reappear as a top shortcut.
+compact three-column grid capped at three rows, so the root page shows at most
+nine usage-backed quick actions before the Directory-bound topic rows. Actions
+are not prefilled by a global default list: they appear only after the user has
+actually used that action or launched that capability app from the Dock/menu.
+The host stores per-action usage counts and per-capability app-launch counts,
+starts every entry at zero, sorts visible entries by count and recency, and
+renders no empty quick-action shell when no usage history exists. This keeps
+the area personal while still allowing a recently used app-level capability to
+reappear as a top shortcut.
 
 Usage-backed ordering is a server-persisted workspace preference. The source
 of truth is `/api/plugin-topic-usage`, stored under the Home AI data directory
@@ -90,11 +92,18 @@ Implemented fix, 2026-06-07:
   best-effort `localStorage` cache. This prevents iOS/PWA storage-write
   failures from producing a split state where server counts grow but the
   visible quick-action grid remains empty or stale.
+- `20260607-capability-scroll-reveal-v600` caps the root quick-action grid to
+  nine entries and treats a small restored root `scrollTop` while the
+  Capability Entry Hub is present as stale chrome state. The topic-root renderer
+  clamps offsets up to one quick-action row back to `0` so the first quick row
+  cannot be hidden under the top edge after a previous session or root redraw.
 - `tests/app-plugin-topics-ui.test.js` includes a VM projection harness that
   seeds lower-priority actions, repeatedly records `wardrobe:style`, and
   asserts it becomes the first quick action while the root projection receives
   a redraw request. The same harness also simulates blocked `localStorage`
   writes and requires the in-memory projection to keep the shortcut visible.
+  `tests/task-list-ui.test.js` guards the small-scroll clamp that keeps the
+  first row visible on the topic root.
 
 The fixed bottom capability Dock is app-first. It uses the existing topic-page
 icon form instead of placing app icons in the middle of the page. It solves
@@ -310,7 +319,8 @@ Recommended mobile layout:
 - no visible title or page header is needed above the frequent action strip; the
   top of the page should start directly with the used quick actions or the
   Directory-bound topic rows to save phone viewport space;
-- frequent actions as compact three-column chips with readable task labels;
+- frequent actions as compact three-column chips with readable task labels,
+  capped at three rows;
 - each quick action has an action glyph and label only. Do not add trailing
   plugin/source badges unless the product explicitly reopens that visual model;
 - plugin and Directory icons stay in the fixed bottom Dock above the primary
@@ -321,7 +331,7 @@ Recommended mobile layout:
 
 Recommended touch-tablet layout:
 
-- keep the same row contract;
+- keep the same three-row cap and root-scroll reveal contract;
 - keep the same three-column quick-action contract and verify labels remain
   readable across phone and touch-tablet visual smoke;
 - keep long-press menus above the bottom navigation even when the quick-action
@@ -366,8 +376,11 @@ Minimum validation:
   consistency;
 - mobile visual smoke at `390x844`;
 - touch-tablet visual smoke at `1024x768` or equivalent;
-- evidence that quick action rows stay readable in the three-column layout and
-  that no empty quick-action shell appears before usage history exists;
+- evidence that quick action rows stay readable in the three-column layout,
+  stop at three rows, and that no empty quick-action shell appears before usage
+  history exists;
+- evidence that a stale small topic-root scroll offset cannot hide the first
+  quick-action row;
 - evidence that Dock/menu app-launch usage creates a top shortcut while concrete
   menu actions still record and sort by their own action usage;
 - authenticated navigation flow harness covering plugin app launch, quick

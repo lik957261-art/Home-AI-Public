@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260607-capability-usage-memory-v598";
+const CLIENT_VERSION = "20260607-capability-scroll-reveal-v600";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -192,8 +192,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260607-capability-usage-memory-v598" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260607-capability-usage-memory-v598"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260607-capability-scroll-reveal-v600" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260607-capability-scroll-reveal-v600"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2362,10 +2362,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260607-capability-usage-memory-v598/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260607-capability-usage-memory-v598/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260607-capability-usage-memory-v598/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260607-capability-usage-memory-v598/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260607-capability-scroll-reveal-v600/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260607-capability-scroll-reveal-v600/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260607-capability-scroll-reveal-v600/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260607-capability-scroll-reveal-v600/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2409,7 +2409,7 @@ assert.match(appJs, /cancelPluginAppSortDrag\(event\);[\s\S]*?return;/);
 assert.match(appJs, /persistPluginAppOrderFromStrip\(drag\.strip\)/);
 assert.doesNotMatch(appJs, /function sortPluginAppDefsByUsage\(defs = \[\]\)/);
 assert.doesNotMatch(appJs, /const aLast = Number\(aUsage\.lastUsedAt\)/);
-assert.match(appJs, /const CAPABILITY_QUICK_ACTION_LIMIT = 12;/);
+assert.match(appJs, /const CAPABILITY_QUICK_ACTION_LIMIT = 9;/);
 assert.match(appJs, /sourceBadge: "\\u8863"/);
 assert.match(appJs, /quickActions: Object\.freeze\(\[/);
 assert.match(appJs, /Object\.freeze\(\{ id: "style", label: "\\u914d\\u8863\\u670d", type: "open_topic"/);
@@ -2620,6 +2620,7 @@ assert.match(appJs, /const directoryTopicGroupIds = typeof directoryTopicCollect
 assert.match(appJs, /if \(typeof isPluginTopicTaskGroup === "function" \? isPluginTopicTaskGroup\(group\) : group\.pluginTopic\) return false;/);
 assert.match(appJs, /if \(!state\.currentTaskGroupId && Number\.isFinite\(Number\(options\.restoreScrollTop\)\)\)/);
 assert.match(appJs, /conversation\.scrollTop = Math\.min\(maxTop, Math\.max\(0, Number\(options\.restoreScrollTop\) \|\| 0\)\)/);
+assert.match(appJs, /if \(capabilityEntryHub && conversation\.scrollTop > 0 && conversation\.scrollTop <= 52\) \{[\s\S]*?conversation\.scrollTop = 0;/);
 assert.match(appJs, /scheduleDeferredDirectoryTopicRender\(thread\.id, options\.restoreScrollTop, directoryTopicSignature\)/);
 assert.match(appJs, /function scheduleDeferredDirectoryTopicRender\(threadId = "", restoreScrollTop = null, signature = ""\)/);
 assert.match(appJs, /const nextRestoreScrollTop = Number\.isFinite\(Number\(restoreScrollTop\)\)[\s\S]*?restoreScrollTop: nextRestoreScrollTop/);
