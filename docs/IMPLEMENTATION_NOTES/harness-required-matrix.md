@@ -184,12 +184,20 @@ Required harness dimensions:
 - The launcher must not invoke `wsl.exe` or `bash`.
 - The launcher rewrites WSL profile config paths into Windows-native paths
   before starting the worker.
+- The launch service ignores stdio for `.ps1` profile scripts so detached
+  native Gateway children cannot keep inherited pipes open and force a false
+  `command_timeout`.
+- The native profile materializes `auth.json` and `auth.lock` as ordinary
+  Windows files. It must not hardlink WSL `/mnt/c` reparse points into the
+  native profile.
 - The worker API key is passed only through the child process environment; it is
   not passed on the command line or written to harness output.
 - The launcher stops or occupies the existing manifest port rather than leaving
   old and native workers running side by side.
 - A live smoke proves `/health` and an authenticated `/v1/models` request on
   the selected old manifest port.
+- A live Mobile message smoke reaches `run.gateway_worker_started`,
+  `run.model_stream_started`, and `response.completed`.
 - The Windows listener status proves the effective hybrid policy when the
   maintained machine is configured for cold native starts:
   `ownerMinWarm=0`, `workspaceMinWarm=0`, and `idleTtlMs=60000`.

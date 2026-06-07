@@ -255,7 +255,7 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
         clearTimeout(timer);
         finishReject(err);
       });
-      child.on("close", (code) => {
+      const finishWithCode = (code) => {
         clearTimeout(timer);
         if (code === 0) {
           finishResolve({ ok: true, code, stdout, stderr });
@@ -270,7 +270,9 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
           args: publicArgs(args),
         };
         finishReject(err);
-      });
+      };
+      child.on("exit", finishWithCode);
+      child.on("close", finishWithCode);
     });
   }
 
@@ -300,7 +302,7 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
       const child = spawn(commandName, commandArgs, {
         cwd: toolRoot,
         windowsHide: true,
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: usePowerShell ? ["ignore", "ignore", "ignore"] : ["ignore", "pipe", "pipe"],
       });
       let stdout = "";
       let stderr = "";

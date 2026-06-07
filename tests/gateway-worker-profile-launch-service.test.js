@@ -33,6 +33,10 @@ function fakeSpawnFactory(calls, options = {}) {
     process.nextTick(() => {
       if (options.stdout) child.stdout.write(options.stdout);
       if (options.stderr) child.stderr.write(options.stderr);
+      if (options.exitOnly) {
+        child.emit("exit", options.code == null ? 0 : options.code);
+        return;
+      }
       child.emit("close", options.code == null ? 0 : options.code);
     });
     return child;
@@ -300,6 +304,28 @@ async function testPowerShellProfileLaunchScriptRunsThroughHiddenPowerShell() {
     "--start-profiles", "lowgw1", "--no-stop-existing",
   ]);
   assert.equal(calls[0].spawnOptions.windowsHide, true);
+  assert.deepEqual(calls[0].spawnOptions.stdio, ["ignore", "ignore", "ignore"]);
+  fs.rmSync(toolRoot, { recursive: true, force: true });
+}
+
+async function testPowerShellProfileLaunchScriptResolvesOnExitBeforeInheritedPipeClose() {
+  const calls = [];
+  const toolRoot = tempToolRoot();
+  const script = path.join(toolRoot, "start-windows-native-gateway-profile.ps1");
+  fs.writeFileSync(script, "# test\n", "utf8");
+  const service = createGatewayWorkerProfileLaunchService({
+    toolRoot,
+    elasticConfig: {
+      HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT: script,
+    },
+    spawn: fakeSpawnFactory(calls, { exitOnly: true }),
+  });
+
+  const result = await service.startWorkerProfile({ profile: "lowgw1", securityLevel: "user" }, { timeoutMs: 9000 });
+
+  assert.equal(result.ok, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].command, "powershell.exe");
   fs.rmSync(toolRoot, { recursive: true, force: true });
 }
 
@@ -452,6 +478,7 @@ function testHelpersSanitizePublicState() {
   await testDirectLaunchCarriesTemplateMetadataToPowerShell();
   await testCustomProfileLaunchScriptForNasHybrid();
   await testPowerShellProfileLaunchScriptRunsThroughHiddenPowerShell();
+  await testPowerShellProfileLaunchScriptResolvesOnExitBeforeInheritedPipeClose();
   await testCustomProfileLaunchScriptHandlesOwnerMaintenance();
   await testScheduledTaskFailureDiagnosticsAreBounded();
   await testFailureDiagnosticsAreBounded();

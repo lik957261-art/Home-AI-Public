@@ -141,6 +141,19 @@ WSL paths (`/mnt/c/...`, `/opt/hermes-gateway-runtime/...`, and
 `/home/*/.hermes/profiles/<profile>`) to Windows-native paths, and passes the
 manifest worker API key only through process environment. It must not invoke
 `wsl.exe` or `bash`, and it must not put API keys on the command line.
+The listener-side launch service must execute this `.ps1` through hidden
+PowerShell with `stdio=ignore`; capturing stdout/stderr can hang until the
+detached Gateway worker exits because child processes may inherit the pipe
+handles. Diagnostics belong in `native-runtime\logs\launcher-trace.log` and the
+profile's Gateway logs, not in the launch script stdout.
+
+Native profiles must not hardlink or copy WSL symlink reparse points for
+Codex/OpenAI auth. The WSL low Gateway profiles often expose `auth.json` and
+`auth.lock` as `/mnt/c/...` reparse links to `shared-auth`. Windows-native
+Hermes cannot `stat()` those links reliably and can fail model execution with
+`WinError 1920` on `auth.lock`. The native launcher materializes a plain Windows
+`auth.json` copy from `telemetry\profiles\shared-auth\auth.json` and creates a
+plain local `auth.lock` file inside each native profile.
 
 The current maintained Windows native test configuration keeps warm workers at
 zero and the idle TTL at one minute:
@@ -279,6 +292,8 @@ acceptance smoke must prove:
   `C:\ProgramData\HermesMobile\gateway-worker\native-runtime\venv\Scripts\python.exe`
   running `-m hermes_cli.main gateway run --replace --accept-hooks`;
 - `GET http://127.0.0.1:<port>/health` returns `200`;
+- native profile `auth.json` and `auth.lock` are ordinary Windows files, not
+  WSL reparse points;
 - an authenticated `GET /v1/models` using the worker manifest key returns
   `200` without printing the key;
 - `/api/status` on the Windows listener reports `ownerMinWarm=0`,

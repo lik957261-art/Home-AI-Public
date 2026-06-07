@@ -42,6 +42,16 @@ $NativeProfilesRoot = Join-Path $NativeRoot "profiles"
 $NativeLogRoot = Join-Path $NativeRoot "logs"
 $NativeProcessRoot = Join-Path $NativeRoot "processes"
 $RuntimeOverrides = Join-Path $WorkerRoot "runtime-overrides"
+$LauncherTracePath = Join-Path $NativeRoot "logs\launcher-trace.log"
+
+function Write-LauncherTrace {
+  param([string]$Message)
+  try {
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $LauncherTracePath) | Out-Null
+    Add-Content -LiteralPath $LauncherTracePath -Value ("{0} {1}" -f (Get-Date).ToString("o"), $Message) -Encoding UTF8
+  } catch {
+  }
+}
 
 function Convert-ToForwardSlashPath {
   param([string]$PathValue)
@@ -189,6 +199,25 @@ function Ensure-FileLinkOrCopy {
   }
 }
 
+function Ensure-NativeAuthFiles {
+  param(
+    [string]$Profile,
+    [string]$NativeProfile
+  )
+  $sharedAuthRoot = Join-Path (Join-Path $WorkerRoot "telemetry\profiles") "shared-auth"
+  $sharedAuthJson = Join-Path $sharedAuthRoot "auth.json"
+  $nativeAuthJson = Join-Path $NativeProfile "auth.json"
+  $nativeAuthLock = Join-Path $NativeProfile "auth.lock"
+  Remove-Item -LiteralPath $nativeAuthJson, $nativeAuthLock -Force -ErrorAction SilentlyContinue
+  if (Test-Path -LiteralPath $sharedAuthJson) {
+    Copy-Item -LiteralPath $sharedAuthJson -Destination $nativeAuthJson -Force
+  } else {
+    $sourceAuthJson = Join-Path (Get-ProfileSourceRoot $Profile) "auth.json"
+    Copy-Item -LiteralPath $sourceAuthJson -Destination $nativeAuthJson -Force
+  }
+  Set-Content -LiteralPath $nativeAuthLock -Value "" -Encoding ASCII
+}
+
 function Ensure-NativeProfile {
   param([string]$Profile)
   if (-not (Test-Path -LiteralPath $NativePython)) { throw "Windows native Hermes runtime missing: $NativePython" }
@@ -203,9 +232,10 @@ function Ensure-NativeProfile {
   foreach ($dir in @("audio_cache", "bin", "cache", "cron", "hooks", "image_cache", "memories", "node", "node_modules", "pairing", "platforms", "plugins", "sandboxes", "sessions", "skills")) {
     Ensure-DirectoryLinkOrCopy -Source (Join-Path $sourceRoot $dir) -Target (Join-Path $nativeProfile $dir)
   }
-  foreach ($file in @(".env", ".skills_prompt_snapshot.json", "auth.json", "auth.lock", "channel_directory.json", "context_length_cache.yaml", "google_client_secret.json", "google_token.json", "models_dev_cache.json", "SOUL.md", "state.db", "response_store.db")) {
+  foreach ($file in @(".env", ".skills_prompt_snapshot.json", "channel_directory.json", "context_length_cache.yaml", "google_client_secret.json", "google_token.json", "models_dev_cache.json", "SOUL.md", "state.db", "response_store.db")) {
     Ensure-FileLinkOrCopy -Source (Join-Path $sourceRoot $file) -Target (Join-Path $nativeProfile $file)
   }
+  Ensure-NativeAuthFiles -Profile $Profile -NativeProfile $nativeProfile
   New-Item -ItemType Directory -Force -Path (Join-Path $nativeProfile "logs") | Out-Null
 
   $raw = Get-Content -LiteralPath $sourceConfig -Raw -Encoding UTF8
@@ -277,13 +307,65 @@ function Wait-Health {
   return $false
 }
 
+function Quote-CmdArgument {
+  param([string]$Value)
+  return '"' + ([string]$Value).Replace('"', '\"') + '"'
+}
+
+function Start-GatewayProcessDetached {
+  param(
+    [string]$Profile,
+    [int]$Port,
+    [string]$WorkingDirectory,
+    [string]$StdoutPath,
+    [string]$StderrPath
+  )
+  $commandParts = @(
+    "start",
+    '""',
+    "/b",
+    (Quote-CmdArgument $NativePython),
+    "-m",
+    "hermes_cli.main",
+    "gateway",
+    "run",
+    "--replace",
+    "--accept-hooks",
+    "1>>",
+    (Quote-CmdArgument $StdoutPath),
+    "2>>",
+    (Quote-CmdArgument $StderrPath)
+  )
+  $psi = [System.Diagnostics.ProcessStartInfo]::new()
+  $psi.FileName = $env:ComSpec
+  if (-not $psi.FileName) { $psi.FileName = "cmd.exe" }
+  $psi.Arguments = "/d /c " + ($commandParts -join " ")
+  $psi.WorkingDirectory = $WorkingDirectory
+  $psi.UseShellExecute = $false
+  $psi.CreateNoWindow = $true
+  Write-LauncherTrace "cmd-start profile=$Profile port=$Port"
+  $process = [System.Diagnostics.Process]::Start($psi)
+  if (-not $process.WaitForExit(30000)) {
+    try { $process.Kill() } catch {}
+    throw "Windows native Gateway command launcher did not exit for profile $Profile on port $Port."
+  }
+  if ($process.ExitCode -ne 0) {
+    throw "Windows native Gateway command launcher failed for profile $Profile on port $Port with exit code $($process.ExitCode)."
+  }
+  Write-LauncherTrace "cmd-exit profile=$Profile port=$Port"
+}
+
 function Start-NativeProfile {
   param($Worker)
   $profile = Resolve-WorkerProfileName $Worker
   $port = Resolve-WorkerPort $Worker
+  Write-LauncherTrace "start-begin profile=$profile port=$port"
   $apiKey = Resolve-WorkerApiKey $Worker
+  Write-LauncherTrace "key-resolved profile=$profile port=$port"
   $nativeProfile = Ensure-NativeProfile -Profile $profile
+  Write-LauncherTrace "profile-ready profile=$profile port=$port"
   [void](Stop-GatewayPort -Port $port)
+  Write-LauncherTrace "port-stopped profile=$profile port=$port"
 
   $stdout = Join-Path $NativeLogRoot "$profile-gateway-$port.out.log"
   $stderr = Join-Path $NativeLogRoot "$profile-gateway-$port.err.log"
@@ -320,29 +402,26 @@ function Start-NativeProfile {
     }
     $env:API_SERVER_KEY = $apiKey
 
-    $process = Start-Process -FilePath $NativePython `
-      -ArgumentList @("-m", "hermes_cli.main", "gateway", "run", "--replace", "--accept-hooks") `
-      -WorkingDirectory $NativeSource `
-      -WindowStyle Hidden `
-      -RedirectStandardOutput $stdout `
-      -RedirectStandardError $stderr `
-      -PassThru
+    Start-GatewayProcessDetached -Profile $profile -Port $port -WorkingDirectory $NativeSource -StdoutPath $stdout -StderrPath $stderr
   } finally {
     foreach ($name in $oldEnv.Keys) {
       [Environment]::SetEnvironmentVariable($name, $oldEnv[$name], "Process")
     }
   }
 
-  Set-Content -LiteralPath (Get-PidPath $profile) -Value ([string]$process.Id) -Encoding ASCII
   if (-not (Wait-Health -Port $port)) {
     $tail = ""
     if (Test-Path -LiteralPath $stderr) {
       $tail = (Get-Content -LiteralPath $stderr -Tail 40 -ErrorAction SilentlyContinue) -join "`n"
     }
-    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
     throw "Windows native Gateway profile $profile on port $port did not become healthy. $tail"
   }
-  return [ordered]@{ profile = $profile; port = $port; pid = $process.Id; healthy = $true; nativeProfile = $nativeProfile }
+  Write-LauncherTrace "health-ok profile=$profile port=$port"
+  $owner = Get-PortOwner -Port $port
+  if (-not $owner) { throw "Windows native Gateway profile $profile became healthy but no port owner was found." }
+  Set-Content -LiteralPath (Get-PidPath $profile) -Value ([string]$owner.ProcessId) -Encoding ASCII
+  Write-LauncherTrace "start-done profile=$profile port=$port pid=$($owner.ProcessId)"
+  return [ordered]@{ profile = $profile; port = $port; pid = $owner.ProcessId; healthy = $true; nativeProfile = $nativeProfile }
 }
 
 $startNames = @()
@@ -358,16 +437,13 @@ if ($startNames.Count -eq 0 -and $stopNames.Count -eq 0) {
 
 $results = @()
 foreach ($name in $stopNames) {
+  Write-LauncherTrace "stop-request profile=$name"
   $results += Stop-NativeProfile -Worker (Get-WorkerByProfile -Profile $name)
 }
 foreach ($name in $startNames) {
+  Write-LauncherTrace "start-request profile=$name"
   $results += Start-NativeProfile -Worker (Get-WorkerByProfile -Profile $name)
 }
 
-[ordered]@{
-  ok = $true
-  runtime = "windows-native"
-  ownerMaintenanceOnly = [bool]$OwnerMaintenanceOnly
-  noStopExistingIgnoredForPortSafety = [bool]$NoStopExisting
-  results = $results
-} | ConvertTo-Json -Depth 5
+Write-LauncherTrace "exit-ok results=$($results.Count)"
+[Environment]::Exit(0)
