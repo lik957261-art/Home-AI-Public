@@ -104,6 +104,7 @@ const mobileRuntimeBackendPolicyService = require("../adapters/mobile-runtime-ba
 const mobileRuntimeArtifactFacadeService = require("../adapters/mobile-runtime-artifact-facade-service");
 const mobileRuntimeConfigFacadeService = require("../adapters/mobile-runtime-config-facade-service");
 const mobileRuntimeEnvValueService = require("../adapters/mobile-runtime-env-value-service");
+const mobileRuntimeFileAccessFacadeService = require("../adapters/mobile-runtime-file-access-facade-service");
 const mobileRuntimeFileHelperService = require("../adapters/mobile-runtime-file-helper-service");
 const mobileRuntimeGatewayFacadeService = require("../adapters/mobile-runtime-gateway-facade-service");
 const mobileRuntimeGatewayEnvironmentService = require("../adapters/mobile-runtime-gateway-environment-service");
@@ -353,6 +354,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof mobileRuntimeEnvValueService.nonNegativeInteger, "function");
   assert.equal(typeof mobileRuntimeEnvValueService.nonNegativeMilliseconds, "function");
   assert.equal(typeof mobileRuntimeEnvValueService.normalizeAutoMode, "function");
+  assert.equal(typeof mobileRuntimeFileAccessFacadeService.createMobileRuntimeFileAccessFacadeService, "function");
   assert.equal(typeof mobileRuntimeFileHelperService.createMobileRuntimeFileHelperService, "function");
   assert.equal(typeof mobileRuntimeGatewayFacadeService.createMobileRuntimeGatewayFacadeService, "function");
   assert.equal(typeof mobileRuntimeGatewayEnvironmentService.createMobileRuntimeGatewayEnvironment, "function");
@@ -481,6 +483,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const coreProviders = fileText("adapters/mobile-runtime-core-providers.js");
   const backendPolicy = fileText("adapters/mobile-runtime-backend-policy-service.js");
   const configFacade = fileText("adapters/mobile-runtime-config-facade-service.js");
+  const fileAccessFacade = fileText("adapters/mobile-runtime-file-access-facade-service.js");
   const fileHelpers = fileText("adapters/mobile-runtime-file-helper-service.js");
   const gatewayFacade = fileText("adapters/mobile-runtime-gateway-facade-service.js");
   const groupChatAttachment = fileText("adapters/mobile-runtime-group-chat-attachment-service.js");
@@ -591,9 +594,12 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /registerUploadArtifact/);
   assert.doesNotMatch(server, /fileArtifactAccessService\.registerUploadArtifact/);
   assert.match(coreProviders, /createFileArtifactResolverService/);
-  assert.match(server, /fileArtifactResolverService\.resolveArtifactForRequest/);
+  assert.match(server, /createMobileRuntimeFileAccessFacadeService/);
+  assert.match(fileAccessFacade, /fileArtifactResolverService\.resolveArtifactForRequest/);
+  assert.doesNotMatch(server, /fileArtifactResolverService\.resolveArtifactForRequest/);
   assert.match(coreProviders, /createFileResponseService/);
-  assert.match(server, /fileResponseService\.sendResolvedFilePreview/);
+  assert.match(fileAccessFacade, /fileResponseService\.sendResolvedFilePreview/);
+  assert.doesNotMatch(server, /fileResponseService\.sendResolvedFilePreview/);
   assert.match(mobilePlatformComposition, /createRuntimeConfigApiRoutes/);
   assert.match(dispatcher, /key: "runtimeConfigApiRoutes"/);
   assert.match(mobilePlatformComposition, /createPushApiRoutes/);
@@ -690,7 +696,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.doesNotMatch(server, /getRuntimeStateNormalizationService\(\)\.normalizeState/);
   assert.match(server, /createRuntimeStateThreadService/);
   assert.match(threadFacade, /getRuntimeStateThreadService\(\)\.findThreadForRequest/);
-  assert.match(server, /createDirectoryBrowserBoundaryService/);
+  assert.match(fileAccessFacade, /createDirectoryBrowserBoundaryService/);
+  assert.doesNotMatch(server, /createDirectoryBrowserBoundaryService/);
   assert.match(mobileComposition, /createMobileApiDirectoryComposition/);
   assert.match(mobileDirectoryComposition, /getDirectoryBrowserBoundaryService\(\)\[methodName\]/);
   assert.match(mobileDirectoryComposition, /createDirectoryBrowserApiRoutes/);
@@ -850,8 +857,9 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
-  assert.match(doc, /1,680 lines/);
-  assert.match(doc, /120/);
+  assert.match(doc, /1,670 lines/);
+  assert.match(doc, /112/);
+  assert.match(doc, /mobile-runtime-file-access-facade-service\.js` must stay at or below 115\s+lines/);
   assert.match(doc, /mobile-runtime-artifact-facade-service\.js` must stay at or below 140 lines/);
   assert.match(doc, /mobile-runtime-thread-view-facade-service\.js` must stay at or below 140\s+lines/);
   assert.match(doc, /mobile-runtime-todo-facade-service\.js` must stay at or below 120 lines/);
@@ -889,6 +897,7 @@ function testServiceFirstArchitectureContract() {
   const mobileApiLearningCompositionSource = fileText("server-routes/mobile-api-learning-composition.js");
   const mobileApiPlatformCompositionSource = fileText("server-routes/mobile-api-platform-composition.js");
   const app = fileText("public/app.js");
+  const fileAccessFacade = fileText("adapters/mobile-runtime-file-access-facade-service.js");
   const artifactFacade = fileText("adapters/mobile-runtime-artifact-facade-service.js");
   const threadViewFacade = fileText("adapters/mobile-runtime-thread-view-facade-service.js");
   const todoFacade = fileText("adapters/mobile-runtime-todo-facade-service.js");
@@ -916,6 +925,7 @@ function testServiceFirstArchitectureContract() {
   const envValueServiceLineCount = envValueService.split(/\r?\n/).length;
   const appLineCount = app.split(/\r?\n/).length;
   const appTopLevelFunctionCount = (app.match(/^function\s+/gm) || []).length;
+  const fileAccessFacadeLineCount = fileAccessFacade.split(/\r?\n/).length;
   const artifactFacadeLineCount = artifactFacade.split(/\r?\n/).length;
   const threadViewFacadeLineCount = threadViewFacade.split(/\r?\n/).length;
   const todoFacadeLineCount = todoFacade.split(/\r?\n/).length;
@@ -923,8 +933,9 @@ function testServiceFirstArchitectureContract() {
   const workspaceFacadeLineCount = workspaceFacade.split(/\r?\n/).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 1680, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1680`);
-  assert.ok(runtimeTopLevelFunctionCount <= 120, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 120`);
+  assert.ok(runtimeLineCount <= 1670, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1670`);
+  assert.ok(runtimeTopLevelFunctionCount <= 112, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 112`);
+  assert.ok(fileAccessFacadeLineCount <= 115, `mobile-runtime-file-access-facade-service.js line budget exceeded: ${fileAccessFacadeLineCount} > 115`);
   assert.ok(artifactFacadeLineCount <= 140, `mobile-runtime-artifact-facade-service.js line budget exceeded: ${artifactFacadeLineCount} > 140`);
   assert.ok(threadViewFacadeLineCount <= 140, `mobile-runtime-thread-view-facade-service.js line budget exceeded: ${threadViewFacadeLineCount} > 140`);
   assert.ok(todoFacadeLineCount <= 120, `mobile-runtime-todo-facade-service.js line budget exceeded: ${todoFacadeLineCount} > 120`);

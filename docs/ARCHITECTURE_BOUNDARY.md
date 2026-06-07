@@ -56,6 +56,7 @@ dispatcher registration policy.
 
 Current runtime glue that should stay out of the composition root lives in
 focused adapters such as `mobile-runtime-file-helper-service.js`,
+`mobile-runtime-file-access-facade-service.js`,
 `mobile-runtime-artifact-facade-service.js`,
 `mobile-runtime-backend-policy-service.js`,
 `mobile-runtime-config-facade-service.js`,
@@ -157,8 +158,11 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,680 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 120;
+- `mobile-server-runtime.js` must stay at or below 1,670 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 112;
+- `mobile-runtime-file-access-facade-service.js` must stay at or below 115
+  lines and remain a facade over lazy Directory browser boundary construction,
+  file/artifact resolver delegation, and file response delegation;
 - `mobile-runtime-artifact-facade-service.js` must stay at or below 140 lines
   and remain a facade over `file-artifact-access-service.js` and
   `artifact-text-registration-service.js`;

@@ -65,6 +65,11 @@ out of the composition root. Current focused runtime adapters include:
 - `adapters/mobile-runtime-file-helper-service.js` for MIME/disposition,
   document preview delegation, static serving delegation, and first-readable
   JSON config loading plus atomic JSON store read/write helpers.
+- `adapters/mobile-runtime-file-access-facade-service.js` for lazy Directory
+  browser boundary construction plus file/artifact resolve and response
+  delegates. It keeps file resolver/response glue out of
+  `mobile-server-runtime.js` while preserving the existing path-policy and
+  directory-boundary services as the authority.
 - `adapters/mobile-runtime-gateway-facade-service.js` for lazy Gateway runner,
   pool, worker-profile launcher, workspace provisioning, usage telemetry, and
   run-concurrency delegation without forcing the full runtime root into

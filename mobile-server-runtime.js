@@ -9,7 +9,6 @@ const webpush = require("web-push");
 const studyAssessmentService = require("./adapters/study-assessment-service");
 const { createConversationHistoryService } = require("./adapters/conversation-history-service"); const { createTopicContextCompactionService } = require("./adapters/topic-context-compaction-service");
 const { createDocumentPreviewService } = require("./adapters/document-preview-service");
-const { createDirectoryBrowserBoundaryService } = require("./adapters/directory-browser-boundary-service");
 const { createEventFanoutService } = require("./adapters/event-fanout-service");
 const fileResourceService = require("./adapters/file-resource-service");
 const { createAutomationProvider } = require("./adapters/automation-provider");
@@ -49,6 +48,7 @@ const { createMobileRuntimeLocalBridgeFacadeService } = require("./adapters/mobi
 const { createRuntimeConfigProvider } = require("./adapters/runtime-config-provider");
 const { createMobileRuntimeBackendPolicyService } = require("./adapters/mobile-runtime-backend-policy-service");
 const { createMobileRuntimeConfigFacadeService } = require("./adapters/mobile-runtime-config-facade-service");
+const { createMobileRuntimeFileAccessFacadeService } = require("./adapters/mobile-runtime-file-access-facade-service");
 const { createMobileRuntimeFileHelperService } = require("./adapters/mobile-runtime-file-helper-service");
 const { createMobileRuntimePublicStatusService } = require("./adapters/mobile-runtime-public-status-service");
 const { createMobileRuntimeStateFacadeService } = require("./adapters/mobile-runtime-state-facade-service");
@@ -181,7 +181,7 @@ const {
 let clients = new Set();
 let activeStreams = new Map();
 let gatewayRuntimeCompositionService = null;
-let directoryBrowserBoundaryService = null;
+let mobileRuntimeFileAccessFacadeService = null;
 let mobileRuntimeArtifactFacadeService = null;
 let mobileRuntimeKanbanFacadeService = null;
 let mobileRuntimeWorkspaceFacadeService = null;
@@ -213,6 +213,13 @@ const threadViewFacade = () => {
 const threadViewMethod = (methodName) => (...args) => threadViewFacade()[methodName](...args);
 const threadViewDelegates = Object.fromEntries("threadSummary taskGroupsForThread messageOwnerWorkspaceId taskGroupOwnerWorkspaceId taskGroupTaskId taskGroupPrompt taskGroupTitle taskGroupPreview taskGroupStatus taskGroupHaystack textIncludesPath taskGroupMatchesProject singleWindowProjectTaskSummaries messagesForThreadMode messagePageTaskGroupId threadMessagesPage searchThreadMessages compactThread compactThreadWithMessagePage compactMessage compactEventPreview addThreadEvent".split(" ").map((methodName) => [methodName, threadViewMethod(methodName)]));
 const { threadSummary, taskGroupsForThread, messageOwnerWorkspaceId, taskGroupOwnerWorkspaceId, taskGroupTaskId, taskGroupPrompt, taskGroupTitle, taskGroupPreview, taskGroupStatus, taskGroupHaystack, textIncludesPath, taskGroupMatchesProject, singleWindowProjectTaskSummaries, messagesForThreadMode, messagePageTaskGroupId, threadMessagesPage, searchThreadMessages, compactThread, compactThreadWithMessagePage, compactMessage, compactEventPreview, addThreadEvent } = threadViewDelegates;
+const fileAccessFacade = () => {
+  if (!mobileRuntimeFileAccessFacadeService) throw new Error("Mobile runtime file access facade is not initialized");
+  return mobileRuntimeFileAccessFacadeService;
+};
+const fileAccessMethod = (methodName) => (...args) => fileAccessFacade()[methodName](...args);
+const fileAccessDelegates = Object.fromEntries("getDirectoryBrowserBoundaryService resolveArtifactForRequest resolveFileForBrowserRequest sendResolvedBridgeFile sendResolvedBridgeFilePreview sendResolvedFile sendResolvedFilePreview".split(" ").map((methodName) => [methodName, fileAccessMethod(methodName)]));
+const { getDirectoryBrowserBoundaryService, resolveArtifactForRequest, resolveFileForBrowserRequest, sendResolvedBridgeFile, sendResolvedBridgeFilePreview, sendResolvedFile, sendResolvedFilePreview } = fileAccessDelegates;
 const kanbanFacade = () => {
   if (!mobileRuntimeKanbanFacadeService) throw new Error("Mobile runtime Kanban facade is not initialized");
   return mobileRuntimeKanbanFacadeService;
@@ -579,6 +586,29 @@ const workspaceDisplayPathService = createWorkspaceDisplayPathService({
   pathInsideAnyRoot,
 });
 bootTrace("display paths ready");
+mobileRuntimeFileAccessFacadeService = createMobileRuntimeFileAccessFacadeService({
+  allProjectsForWorkspaceSync,
+  authCanAccessWorkspace,
+  chatGroupMemberWorkspaceIds,
+  comparablePath,
+  dedupe,
+  fileArtifactResolverService,
+  fileResponseService,
+  getRuntimeStateNormalizationService,
+  getSingleWindowThreadService,
+  isOwnerAuth,
+  logicalDirectoryDisplayPath: (...args) => workspaceDisplayPathService.logicalDirectoryDisplayPath(...args),
+  mimeFor,
+  normalizeLocalPath,
+  pathDirectChildOfRoot,
+  pathInsideAnyRoot,
+  pathPolicyProvider,
+  policyForThread,
+  runDirectoryBridge,
+  sharedDirectoryProvider,
+  sharedDirectoryRoots,
+});
+bootTrace("file access facade ready");
 function getRuntimeWorkspaceCatalogService() {
   if (!runtimeWorkspaceCatalogService) {
     runtimeWorkspaceCatalogService = createRuntimeWorkspaceCatalogService({
@@ -1561,54 +1591,11 @@ function isPathAllowedForThread(thread, localPath, originalPath = "") {
 function isDirectoryBrowserPathAllowedForThread(thread, localPath, originalPath = "") {
   return pathPolicyProvider.canBrowseDirectoryForThread(thread, localPath, originalPath).allowed;
 }
-function getDirectoryBrowserBoundaryService() {
-  if (!directoryBrowserBoundaryService) {
-    directoryBrowserBoundaryService = createDirectoryBrowserBoundaryService({
-      allProjectsForWorkspaceSync,
-      authCanAccessWorkspace,
-      chatGroupMemberWorkspaceIds,
-      comparablePath,
-      dedupe,
-      isKanbanCaseTopicThread: (...args) => getSingleWindowThreadService().isKanbanCaseTopicThread(...args),
-      isOwnerAuth,
-      logicalDirectoryDisplayPath: (...args) => workspaceDisplayPathService.logicalDirectoryDisplayPath(...args),
-      mimeFor,
-      normalizeLocalPath,
-      normalizeTaskGroupMeta: (...args) => getRuntimeStateNormalizationService().normalizeTaskGroupMeta(...args),
-      pathDirectChildOfRoot,
-      pathInsideAnyRoot,
-      pathPolicyProvider,
-      policyForThread,
-      runDirectoryBridge,
-      sharedDirectoryProvider,
-      sharedDirectoryRoots,
-    });
-  }
-  return directoryBrowserBoundaryService;
-}
-function resolveFileForBrowserRequest(query, auth = null) {
-  return fileArtifactResolverService.resolveFileForBrowserRequest(query, auth);
-}
-function resolveArtifactForRequest(artifactId, auth = null) {
-  return fileArtifactResolverService.resolveArtifactForRequest(artifactId, auth);
-}
 async function resolveAuthorizedCronOutputFile(query, auth = null) {
   return automationProvider.resolveAuthorizedOutputFile({ query, auth });
 }
 async function resolveAuthorizedCronDeliverableFile(query, auth = null) {
   return automationProvider.resolveAuthorizedDeliverableFile({ query, auth });
-}
-function sendResolvedFile(res, file, query) {
-  return fileResponseService.sendResolvedFile(res, file, query);
-}
-function sendResolvedBridgeFile(res, file, query) {
-  return fileResponseService.sendResolvedBridgeFile(res, file, query);
-}
-function sendResolvedFilePreview(res, file) {
-  return fileResponseService.sendResolvedFilePreview(res, file);
-}
-function sendResolvedBridgeFilePreview(res, file) {
-  return fileResponseService.sendResolvedBridgeFilePreview(res, file);
 }
 const mobileRuntimeThreadFacadeService = createMobileRuntimeThreadFacadeService({
   actionInboxService, attachUploadedArtifactsToMessage, authCanAccessWorkspace, authenticateRequest, broadcast,
