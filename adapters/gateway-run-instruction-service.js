@@ -1,6 +1,6 @@
 "use strict";
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260606-finance-reference-mcp-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260607-email-local-delete-mcp-v1";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
@@ -68,6 +68,16 @@ function createGatewayRunInstructionService(options = {}) {
       ],
       health: [
         "mcp_health_records_get_summary",
+      ],
+      email: [
+        "mcp_email_list_accounts",
+        "mcp_email_list_mailboxes",
+        "mcp_email_search_messages",
+        "mcp_email_get_message",
+        "mcp_email_get_digest",
+        "mcp_email_list_attachments",
+        "mcp_email_sync_account",
+        "mcp_email_apply_mail_action",
       ],
       messaging: ["send_message"],
       tts: ["text_to_speech"],

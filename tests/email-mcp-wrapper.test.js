@@ -73,6 +73,13 @@ function startFakeEmailService() {
         }));
         return;
       }
+      if (req.method === "DELETE" && req.url === "/api/messages/msg-1") {
+        res.end(JSON.stringify({
+          changed: true,
+          actionId: "act-1",
+        }));
+        return;
+      }
       res.statusCode = 404;
       res.end(JSON.stringify({ error: "not_found" }));
     });
@@ -90,7 +97,7 @@ function startFakeEmailService() {
 }
 
 function runWrapper({ workspace, apiBaseUrl, input }) {
-  const python = process.env.PYTHON || "python";
+  const python = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
   return new Promise((resolve, reject) => {
     const child = spawn(python, [
       wrapperPath,
@@ -127,6 +134,7 @@ async function main() {
       { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} },
       { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "list_accounts", arguments: {} } },
       { jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "get_message", arguments: { messageId: "msg-1" } } },
+      { jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "apply_mail_action", arguments: { action: "delete_local", messageId: "msg-1" } } },
     ].map((item) => JSON.stringify(item)).join("\n") + "\n";
     const result = await runWrapper({ workspace, apiBaseUrl: fakeEmail.baseUrl, input });
     assert.equal(result.code, 0, result.stderr);
@@ -144,6 +152,13 @@ async function main() {
     assert.equal(message.message.fullBodyAvailable, true);
     assert.equal(message.message.bodyExcerpt, "short excerpt");
     assert.equal(message.message.bodyText, undefined);
+    const action = JSON.parse(lines[4].result.content[0].text);
+    assert.equal(action.ok, true);
+    assert.equal(action.action, "delete_local");
+    assert.equal(action.remoteApplied, false);
+    assert.equal(action.localOnly, true);
+    const deleteRequest = fakeEmail.requests.find((request) => request.method === "DELETE" && request.url === "/api/messages/msg-1");
+    assert.deepEqual(deleteRequest.body, { accountId: "acct-1" });
     assert.equal(fakeEmail.requests[0].authorization, "Bearer workspace-secret-key");
     assert.equal(fakeEmail.requests[1].session, "launch-test-token");
   } finally {

@@ -1246,7 +1246,7 @@ function getSemanticDirectoryAttachmentService() {
   }
   return semanticDirectoryAttachmentService;
 }
-const GATEWAY_TOOL_SCHEMA_EPOCH = "20260606-finance-reference-mcp-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
+const GATEWAY_TOOL_SCHEMA_EPOCH = "20260607-email-local-delete-mcp-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
   dedupe,
   toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH,
   normalizeSingleWindowMode,

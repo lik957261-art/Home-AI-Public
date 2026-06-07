@@ -990,8 +990,10 @@ are the only long-lived launch materials Hermes should use; Email owns mailbox
 credentials, local mail storage, sync cursors, and per-user account filtering.
 The Email MCP harness must prove the `email` toolset and `mcp_servers.email`
 are bound to the target workspace directory, reject workspace override, expose
-single-prefixed Gateway callables such as `mcp_email_search_messages`, and do
-not expose provider OAuth/token material to Hermes or the model. Ordinary chat
+single-prefixed Gateway callables such as `mcp_email_search_messages` and
+`mcp_email_apply_mail_action`, and do not expose provider OAuth/token material
+to Hermes or the model. The current Email MCP schema epoch is
+`20260607-email-local-delete-mcp-v1`. Ordinary chat
 must keep Email catalog-only, while explicit mailbox intent must activate
 Email before the Gateway stream begins.
 Harnesses must assert the raw Email Owner key, workspace key, launch token, full
