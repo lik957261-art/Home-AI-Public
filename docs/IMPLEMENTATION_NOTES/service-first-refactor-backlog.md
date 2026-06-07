@@ -182,6 +182,12 @@ statements. Priority extraction areas:
   now delegates active-run snapshot, per-workspace limit-error projection, and
   capacity assertion error shaping while leaving concurrency policy in the
   existing injected `runConcurrencyPolicy`.
+- completed 2026-06-08: Runtime Gateway provider lifecycle wiring moved into
+  `adapters/mobile-runtime-gateway-provider-service.js`. The Gateway facade now
+  delegates single-runner, Gateway pool, profile launcher, workspace
+  provisioning, usage telemetry, status fallback projection, and run target
+  release/replace behavior while retaining Gateway runtime composition singleton
+  ownership.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

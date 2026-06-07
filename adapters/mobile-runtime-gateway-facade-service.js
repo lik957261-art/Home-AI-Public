@@ -1,12 +1,7 @@
 "use strict";
 
-const { createGatewayPoolProvider: defaultCreateGatewayPoolProvider } = require("./gateway-pool-provider");
-const { createGatewayRunner: defaultCreateGatewayRunner } = require("./gateway-runner");
-const { gatewayPoolStatusHealthy: defaultGatewayPoolStatusHealthy } = require("./gateway-status-projection");
-const { createGatewayUsageTelemetryProvider: defaultCreateGatewayUsageTelemetryProvider } = require("./gateway-usage-telemetry-provider");
-const { createGatewayWorkerProfileLaunchService: defaultCreateGatewayWorkerProfileLaunchService } = require("./gateway-worker-profile-launch-service");
-const { createGatewayWorkspaceProvisioningService: defaultCreateGatewayWorkspaceProvisioningService } = require("./gateway-workspace-provisioning-service");
 const { createMobileRuntimeGatewayConcurrencyService } = require("./mobile-runtime-gateway-concurrency-service");
+const { createMobileRuntimeGatewayProviderService } = require("./mobile-runtime-gateway-provider-service");
 
 function optionFunction(options, name, fallback = null) {
   const value = options[name];
@@ -23,106 +18,38 @@ function requiredObject(options, name) {
 }
 
 function createMobileRuntimeGatewayFacadeService(options = {}) {
-  const createGatewayPoolProvider = options.createGatewayPoolProvider || defaultCreateGatewayPoolProvider;
-  const createGatewayRunner = options.createGatewayRunner || defaultCreateGatewayRunner;
   const createGatewayRuntimeCompositionService = options.createGatewayRuntimeCompositionService;
-  const createGatewayUsageTelemetryProvider = options.createGatewayUsageTelemetryProvider || defaultCreateGatewayUsageTelemetryProvider;
-  const createGatewayWorkerProfileLaunchService = options.createGatewayWorkerProfileLaunchService || defaultCreateGatewayWorkerProfileLaunchService;
-  const createGatewayWorkspaceProvisioningService = options.createGatewayWorkspaceProvisioningService || defaultCreateGatewayWorkspaceProvisioningService;
-
-  const apiBase = optionFunction(options, "effectiveHermesApiBase");
-  const apiKey = optionFunction(options, "loadHermesApiKey");
-  const apiTimeoutMs = optionFunction(options, "apiTimeoutMs");
-  const gatewayPoolElasticConfig = optionFunction(options, "gatewayPoolElasticConfig", () => ({}));
-  const gatewayPoolStatusHealthy = optionFunction(options, "gatewayPoolStatusHealthy", defaultGatewayPoolStatusHealthy);
-  const fs = requiredObject(options, "fs");
-  const manifestPaths = optionFunction(options, "gatewayPoolManifestPaths");
-  const nowIso = optionFunction(options, "nowIso", () => new Date().toISOString());
-  const path = requiredObject(options, "path");
   const state = optionFunction(options, "state", () => ({ threads: [] }));
-  const toolSchemaEpoch = optionFunction(options, "gatewayToolSchemaEpoch", () => "");
+  const gatewayProviderService = options.gatewayProviderService || createMobileRuntimeGatewayProviderService(options);
   const gatewayConcurrencyService = options.gatewayConcurrencyService || createMobileRuntimeGatewayConcurrencyService({
     runConcurrencyPolicy: requiredObject(options, "runConcurrencyPolicy"),
     state,
   });
 
-  let gatewayRunner = null;
-  let gatewayPoolProvider = null;
   let gatewayRuntimeCompositionService = null;
-  let gatewayUsageTelemetryProvider = null;
-  let gatewayWorkerProfileLaunchService = null;
-  let gatewayWorkspaceProvisioningService = null;
 
   function singleGatewayRunner() {
-    if (!gatewayRunner) {
-      gatewayRunner = createGatewayRunner({
-        apiBase,
-        apiKey,
-        timeoutMs: apiTimeoutMs,
-      });
-    }
-    return gatewayRunner;
+    return gatewayProviderService.singleGatewayRunner();
   }
 
   function gatewayWorkerProfileLauncher() {
-    if (!gatewayWorkerProfileLaunchService) {
-      gatewayWorkerProfileLaunchService = createGatewayWorkerProfileLaunchService({
-        elasticConfig: gatewayPoolElasticConfig(),
-        fs,
-        path,
-        toolRoot: options.toolRoot,
-      });
-    }
-    return gatewayWorkerProfileLaunchService;
+    return gatewayProviderService.gatewayWorkerProfileLauncher();
   }
 
   function gatewayPool() {
-    if (!gatewayPoolProvider) {
-      gatewayPoolProvider = createGatewayPoolProvider({
-        createGatewayRunner,
-        elastic: gatewayPoolElasticConfig(),
-        enabled: optionFunction(options, "gatewayPoolEnabled"),
-        fallbackApiBase: apiBase,
-        fallbackApiKey: apiKey,
-        healthTimeoutMs: options.gatewayPoolHealthTimeoutMs,
-        manifestPaths,
-        startMode: optionFunction(options, "gatewayPoolStartMode"),
-        startWorkerProfile: (...args) => gatewayWorkerProfileLauncher().startWorkerProfile(...args),
-        stopWorkerProfile: (...args) => gatewayWorkerProfileLauncher().stopWorkerProfile(...args),
-        timeoutMs: apiTimeoutMs,
-        toolSchemaEpoch,
-      });
-    }
-    return gatewayPoolProvider;
+    return gatewayProviderService.gatewayPool();
   }
 
   function resetGatewayRuntimeConfig() {
-    gatewayPoolProvider = null;
-    gatewayWorkerProfileLaunchService = null;
-    return true;
+    return gatewayProviderService.resetGatewayRuntimeConfig();
   }
 
   function getGatewayWorkspaceProvisioningService() {
-    if (!gatewayWorkspaceProvisioningService) {
-      gatewayWorkspaceProvisioningService = createGatewayWorkspaceProvisioningService({
-        fs,
-        manifestPaths,
-        nowIso,
-        path,
-      });
-    }
-    return gatewayWorkspaceProvisioningService;
+    return gatewayProviderService.getGatewayWorkspaceProvisioningService();
   }
 
   function gatewayUsageTelemetry() {
-    if (!gatewayUsageTelemetryProvider) {
-      gatewayUsageTelemetryProvider = createGatewayUsageTelemetryProvider({
-        enabled: optionFunction(options, "gatewayUsageTelemetryEnabled"),
-        manifestPaths,
-        profileRoots: optionFunction(options, "gatewayUsageTelemetryProfileRoots", () => []),
-      });
-    }
-    return gatewayUsageTelemetryProvider;
+    return gatewayProviderService.gatewayUsageTelemetry();
   }
 
   function getGatewayRuntimeCompositionService() {
@@ -142,35 +69,19 @@ function createMobileRuntimeGatewayFacadeService(options = {}) {
   }
 
   async function getHermesStatus() {
-    const status = await singleGatewayRunner().status();
-    let poolStatus = null;
-    try {
-      poolStatus = await gatewayPool().status();
-      status.gatewayPool = poolStatus;
-    } catch (err) {
-      status.gatewayPool = { enabled: false, error: err.message || String(err) };
-    }
-    if (!status.ok && gatewayPoolStatusHealthy(poolStatus)) {
-      status.fallbackError = status.error || "";
-      status.error = null;
-      status.health = status.health || { status: "ok", platform: "gateway-pool" };
-      status.ok = true;
-    }
-    return status;
+    return gatewayProviderService.getHermesStatus();
   }
 
   async function chooseGatewayRunTarget(hints = {}, context = {}) {
-    return gatewayPool().chooseTarget(hints, context);
+    return gatewayProviderService.chooseGatewayRunTarget(hints, context);
   }
 
   function releaseGatewayRunTarget(runId, idleStatus = "idle") {
-    if (!gatewayPoolProvider || typeof gatewayPoolProvider.releaseRun !== "function") return false;
-    return gatewayPoolProvider.releaseRun(runId, idleStatus);
+    return gatewayProviderService.releaseGatewayRunTarget(runId, idleStatus);
   }
 
   function replaceGatewayRunTarget(oldRunId, newRunId) {
-    if (!gatewayPoolProvider || typeof gatewayPoolProvider.replaceRun !== "function") return false;
-    return gatewayPoolProvider.replaceRun(oldRunId, newRunId);
+    return gatewayProviderService.replaceGatewayRunTarget(oldRunId, newRunId);
   }
 
   function runConcurrencySnapshot() {

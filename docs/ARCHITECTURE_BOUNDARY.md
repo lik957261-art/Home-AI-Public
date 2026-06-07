@@ -73,6 +73,7 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-gateway-concurrency-service.js`,
 `mobile-runtime-gateway-context-facade-service.js`,
 `mobile-runtime-gateway-facade-service.js`,
+`mobile-runtime-gateway-provider-service.js`,
 `gateway-runtime-composition-service.js`,
 `gateway-runtime-subservice-options-service.js`,
 `gateway-run-request-builder-service.js`,
@@ -179,6 +180,13 @@ concurrency projection: current active-run snapshot, per-workspace limit-error
 projection, and bounded capacity assertion errors. It must not define
 concurrency policy, mutate thread state, choose workers, start streams, or
 handle permission decisions.
+
+`mobile-runtime-gateway-provider-service.js` owns runtime Gateway provider
+lifecycle wiring: lazy single-runner, Gateway pool, profile launcher, workspace
+provisioning, usage telemetry, Gateway status fallback projection, run target
+selection, and run target release/replace delegates. It must not own Gateway
+runtime composition, run-start lifecycle transitions, permission decisions,
+toolset selection, or concurrency policy.
 
 `gateway-runtime-composition-service.js` owns the lazy composition of Gateway
 queue, start, stream, event, and lifecycle services. It may hold the small
@@ -475,13 +483,16 @@ Current CI guardrails:
 - `gateway-run-start-service.js` must stay at or below 395 lines and remain
   Gateway run preparation orchestration, not a request-builder, event projector,
   or broad Gateway composition module;
-- `mobile-runtime-gateway-facade-service.js` must stay at or below 210 lines
-  and remain a runtime Gateway facade over runner/pool/launcher/provisioning,
-  telemetry, run concurrency, Gateway runtime composition singleton ownership,
-  and public status composition delegates;
+- `mobile-runtime-gateway-facade-service.js` must stay at or below 125 lines
+  and remain a runtime Gateway facade over provider lifecycle, run concurrency,
+  and Gateway runtime composition singleton ownership delegates;
 - `mobile-runtime-gateway-concurrency-service.js` must stay at or below 60
   lines and remain runtime Gateway concurrency projection, not a concurrency
   policy, worker-selection, permission, or streaming module;
+- `mobile-runtime-gateway-provider-service.js` must stay at or below 175
+  lines and remain runtime Gateway provider lifecycle wiring, not a Gateway
+  runtime composition, run-start lifecycle, selector, permission, or
+  concurrency-policy module;
 - `gateway-run-content-service.js` must stay at or below 60 lines and remain a
   deterministic helper service for live run append and final content
   compaction, not a Gateway lifecycle or stream parser implementation;
