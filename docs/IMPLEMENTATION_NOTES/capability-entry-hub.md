@@ -77,6 +77,20 @@ not be the only copy of the ordering signal. Account logout, cache reset,
 service-worker update, PWA reinstall, or device switching must not reset the
 server-side usage history.
 
+Implemented fix, 2026-06-07:
+
+- `20260607-capability-usage-refresh-v597` makes each local usage write refresh
+  the root quick-action projection immediately when the Topics root is visible.
+  A repeated menu or quick-action click must therefore be able to promote the
+  same action without requiring logout, reload, or server sync completion.
+- Server usage loading is no longer a permanent one-shot per PWA session. The
+  client keeps a short loaded TTL so a long-lived session can pick up
+  workspace-persisted usage changes instead of staying on a stale first load.
+- `tests/app-plugin-topics-ui.test.js` includes a VM projection harness that
+  seeds lower-priority actions, repeatedly records `wardrobe:style`, and
+  asserts it becomes the first quick action while the root projection receives
+  a redraw request.
+
 The fixed bottom capability Dock is app-first. It uses the existing topic-page
 icon form instead of placing app icons in the middle of the page. It solves
 browseability, visual identity, plugin launch, Directory launch, and manual
@@ -115,6 +129,9 @@ Quick action behavior:
 - usage counts and recency are workspace-scoped persistent preferences. The
   frontend may merge them through a local cache for responsiveness, but must
   sync to `/api/plugin-topic-usage` and load that endpoint on the topic root;
+  local writes must refresh the currently visible root quick-action projection,
+  and a same-session server load must not be permanently short-circuited after
+  the first successful fetch;
 - quick actions render only the task prompt label plus the action glyph. They do
   not render a trailing plugin/source label; plugin identity remains available
   through the action's accessibility label and the fixed Dock/app icon language;

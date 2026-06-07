@@ -76,6 +76,13 @@ or raw plugin credentials.
   maps. `localStorage.hermesPluginTopicUsage` is only a first-paint/offline
   cache and may be rebuilt from the server after login, client reset, PWA
   reinstall, or device switch.
+- Capability usage writes must update the visible root projection immediately
+  when the user is on the topic root, before waiting for server sync. A
+  long-lived PWA session must also re-check server usage after a short loaded
+  TTL instead of treating the first successful `/api/plugin-topic-usage` load as
+  permanently fresh. Repeated clicks on the same action, such as
+  `wardrobe:style`, must increment that action's workspace usage and promote it
+  by count/recency in the quick-action grid.
 - The next product direction for the root Topics tab is the Capability Entry
   Hub described in
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md`. In that model, the

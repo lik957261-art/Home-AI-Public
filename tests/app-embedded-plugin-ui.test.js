@@ -203,7 +203,7 @@ assert.match(navigationSearchUi, /\|\| \(!pluginContextNav && pluginBack\);/);
 assert.match(pluginTopicsUi, /const contextDef = pluginTopicDefById\(state\.pluginContextNavPluginId\)/);
 assert.match(pluginTopicsUi, /mode === "tasks" && state\.currentTaskGroupId === pluginTopicGroupId\(contextDef\.id\)/);
 assert.match(pluginTopicsUi, /if \(mode === "projects"\) return contextDef;/);
-assert.match(pluginTopicsUi, /openPluginTopicApp\(pluginId\)[\s\S]*?state\.pluginContextNavPluginId = def\.id;[\s\S]*?rememberWardrobePluginReturnRoute\(\)/);
+assert.match(pluginTopicsUi, /openPluginTopicApp\(pluginId, options = \{\}\)[\s\S]*?state\.pluginContextNavPluginId = def\.id;[\s\S]*?rememberWardrobePluginReturnRoute\(\)/);
 assert.match(embeddedPluginUi, /pluginContextNavPluginId: state\.pluginContextNavPluginId \|\| ""/);
 assert.match(embeddedPluginUi, /state\.pluginContextNavPluginId = route\.pluginContextNavPluginId \|\| ""/);
 assert.match(wardrobeUi, /state\.pluginContextNavPluginId = route\.pluginContextNavPluginId \|\| ""/);

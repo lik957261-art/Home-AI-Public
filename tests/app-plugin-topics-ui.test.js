@@ -3,6 +3,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const repoRoot = path.resolve(__dirname, "..");
 const pluginTopicsUi = fs.readFileSync(path.join(repoRoot, "public", "app-plugin-topics-ui.js"), "utf8");
@@ -25,13 +26,16 @@ const runActionBody = functionBody(pluginTopicsUi, "runPluginTopicAction");
 assert.match(pluginTopicsUi, /const CAPABILITY_QUICK_ACTION_LIMIT = 12;/);
 assert.match(pluginTopicsUi, /const CAPABILITY_PLUGIN_APP_ACTION_ID = "__open_app";/);
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_USAGE_API_PATH = "\/api\/plugin-topic-usage";/);
+assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_USAGE_LOAD_TTL_MS = 30000;/);
 assert.match(pluginTopicsUi, /function pluginTopicAppQuickAction/);
 assert.match(pluginTopicsUi, /function pluginTopicActionUsageKey/);
+assert.match(pluginTopicsUi, /function pluginTopicUsageRecentlyLoaded/);
 assert.match(pluginTopicsUi, /function loadPluginTopicUsageFromServer/);
 assert.match(pluginTopicsUi, /function schedulePluginTopicUsageSync/);
 assert.match(pluginTopicsUi, /function ensurePluginTopicUsageLoaded/);
 assert.match(recordUsageBody, /usage\.actions = actions;/);
 assert.match(recordUsageBody, /usage\.plugins = plugins;/);
+assert.match(recordUsageBody, /refreshPluginTopicUsageRoot\(\);/);
 assert.match(recordUsageBody, /schedulePluginTopicUsageSync\(usage\);/);
 assert.match(pluginTopicsUi, /api\(`\$\{PLUGIN_TOPIC_USAGE_API_PATH\}\?\$\{params\.toString\(\)\}`/);
 assert.match(pluginTopicsUi, /method: "PATCH"/);
@@ -67,5 +71,89 @@ assert.match(stylesCss, /\.app\.task-list-mode \.topbar \{[\s\S]*?display: none 
 assert.match(stylesCss, /--mobile-bottom-nav-visual-drop: 10px;/);
 assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?bottom: calc\(0px - var\(--mobile-bottom-nav-visual-drop\)\);/);
 assert.match(stylesCss, /\.app\.task-list-mode \.conversation > \.directory-topic-launcher:first-child,[\s\S]*?margin-top: max\(16px, calc\(env\(safe-area-inset-top\) \+ 4px\)\);/);
+
+function createPluginTopicHarness() {
+  const storage = new Map();
+  const timers = [];
+  const renderCalls = [];
+  const sandbox = {
+    console,
+    URLSearchParams,
+    Date,
+    state: {
+      selectedWorkspaceId: "owner",
+      auth: { workspaceId: "owner" },
+      key: "test-key",
+      viewMode: "tasks",
+      currentTaskGroupId: "",
+    },
+    localStorage: {
+      getItem(key) {
+        return storage.has(key) ? storage.get(key) : null;
+      },
+      setItem(key, value) {
+        storage.set(key, String(value));
+      },
+      removeItem(key) {
+        storage.delete(key);
+      },
+    },
+    window: {
+      setTimeout(fn, delayMs = 0) {
+        timers.push({ fn, delayMs: Number(delayMs) || 0 });
+        return timers.length;
+      },
+      clearTimeout() {},
+    },
+    $: (id) => (id === "conversation" ? { scrollTop: 72 } : null),
+    renderCurrentThread: (options) => renderCalls.push(options || {}),
+    wardrobePluginNavigationAvailable: () => true,
+    EMBEDDED_PLUGIN_DEFS: { finance: {}, email: {}, health: {}, note: {} },
+    embeddedPluginNavigationAvailable: () => true,
+    escapeHtml: (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    }[ch])),
+    api: async () => ({ usage: {} }),
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(`${pluginTopicsUi}
+globalThis.__pluginTopicHarness = {
+  readUsage: readPluginTopicUsage,
+  writeUsage: writePluginTopicUsage,
+  recordUsage: recordPluginTopicUsage,
+  quickKeys: () => capabilityHubQuickActions(availablePluginTopicDefs()).map(({ def, action }) => def.id + ":" + action.id),
+};`, sandbox);
+  return {
+    ...sandbox.__pluginTopicHarness,
+    renderCalls,
+    flushRootRefreshTimers() {
+      const pending = timers.splice(0, timers.length).filter((item) => item.delayMs === 0);
+      pending.forEach((item) => item.fn());
+    },
+  };
+}
+
+{
+  const harness = createPluginTopicHarness();
+  harness.writeUsage({
+    actions: {
+      "finance:record": { count: 5, lastUsedAt: 1000 },
+      "email:search": { count: 4, lastUsedAt: 900 },
+      "note:search": { count: 3, lastUsedAt: 800 },
+    },
+  });
+
+  assert.equal(harness.quickKeys()[0], "finance:record");
+  for (let i = 0; i < 6; i += 1) harness.recordUsage("wardrobe", "style");
+  harness.flushRootRefreshTimers();
+
+  assert.equal(harness.quickKeys()[0], "wardrobe:style");
+  assert.equal(harness.readUsage().actions["wardrobe:style"].count, 6);
+  assert.ok(harness.renderCalls.length >= 1, "usage changes must refresh the root quick-action projection");
+}
 
 console.log("app plugin topics UI tests passed");

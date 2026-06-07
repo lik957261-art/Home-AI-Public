@@ -112,6 +112,7 @@ const PLUGIN_TOPIC_USAGE_STORAGE_KEY = "hermesPluginTopicUsage";
 const PLUGIN_TOPIC_ORDER_STORAGE_KEY = "hermesPluginTopicOrder";
 const PLUGIN_TOPIC_USAGE_API_PATH = "/api/plugin-topic-usage";
 const PLUGIN_TOPIC_USAGE_SYNC_DELAY_MS = 450;
+const PLUGIN_TOPIC_USAGE_LOAD_TTL_MS = 30000;
 const PLUGIN_APP_REORDER_HOLD_MS = 450;
 const PLUGIN_APP_REORDER_CANCEL_PX = 10;
 const CAPABILITY_QUICK_ACTION_LIMIT = 12;
@@ -122,7 +123,7 @@ let pluginActionMenuCloseBound = false;
 let pluginActionMenuSwipe = null;
 let pluginTopicUsagePendingSync = null;
 let pluginTopicUsageSyncTimer = 0;
-const pluginTopicUsageLoadedWorkspaces = new Set();
+const pluginTopicUsageLoadedAtByWorkspace = new Map();
 const pluginTopicUsageLoadingWorkspaces = new Map();
 const pluginTopicUsageLoadRetryAt = new Map();
 
@@ -323,6 +324,16 @@ function writePluginTopicUsage(usage) {
   }
 }
 
+function markPluginTopicUsageLoaded(workspaceId = pluginTopicUsageWorkspaceId()) {
+  const id = String(workspaceId || "").trim();
+  if (id) pluginTopicUsageLoadedAtByWorkspace.set(id, Date.now());
+}
+
+function pluginTopicUsageRecentlyLoaded(workspaceId = pluginTopicUsageWorkspaceId()) {
+  const loadedAt = pluginTopicUsageLoadedAtByWorkspace.get(String(workspaceId || "").trim()) || 0;
+  return loadedAt > 0 && Date.now() - loadedAt < PLUGIN_TOPIC_USAGE_LOAD_TTL_MS;
+}
+
 function refreshPluginTopicUsageRoot() {
   if (state.viewMode !== "tasks" || state.currentTaskGroupId) return;
   if (typeof renderCurrentThread !== "function") return;
@@ -350,7 +361,7 @@ async function flushPluginTopicUsageSync() {
       writePluginTopicUsage(merged);
       refreshPluginTopicUsageRoot();
     }
-    pluginTopicUsageLoadedWorkspaces.add(pending.workspaceId);
+    markPluginTopicUsageLoaded(pending.workspaceId);
   } catch (_) {
     pluginTopicUsagePendingSync = pending;
   }
@@ -381,13 +392,13 @@ async function loadPluginTopicUsageFromServer(workspaceId = pluginTopicUsageWork
     refreshPluginTopicUsageRoot();
   }
   if (!pluginTopicUsageEqual(serverUsage, merged)) schedulePluginTopicUsageSync(merged);
-  pluginTopicUsageLoadedWorkspaces.add(workspaceId);
+  markPluginTopicUsageLoaded(workspaceId);
   return merged;
 }
 
 function ensurePluginTopicUsageLoaded() {
   const workspaceId = pluginTopicUsageWorkspaceId();
-  if (!pluginTopicUsageApiReady() || !workspaceId || pluginTopicUsageLoadedWorkspaces.has(workspaceId)) return;
+  if (!pluginTopicUsageApiReady() || !workspaceId || pluginTopicUsageRecentlyLoaded(workspaceId)) return;
   if (pluginTopicUsageLoadingWorkspaces.has(workspaceId)) return;
   const now = Date.now();
   if (now < (pluginTopicUsageLoadRetryAt.get(workspaceId) || 0)) return;
@@ -457,6 +468,7 @@ function recordPluginTopicUsage(pluginId, actionId = "") {
     usage.plugins = plugins;
   }
   writePluginTopicUsage(usage);
+  refreshPluginTopicUsageRoot();
   schedulePluginTopicUsageSync(usage);
 }
 
