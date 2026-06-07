@@ -70,33 +70,37 @@ function lineHasComplexInlineCommand(line) {
   return false;
 }
 
+function repoRelative(file) {
+  return path.relative(REPO_ROOT, file).split(path.sep).join("/");
+}
+
 const files = POWERSHELL_DIRS.flatMap((dir) =>
   walkFiles(dir, (file) => /\.(ps1|js|cmd|bat)$/i.test(file))
 );
 
 const violations = [];
 const LEGACY_COMPLEX_INLINE_BASELINE = new Set([
-  "scripts\\provision-worker-external-connectors.ps1:133: complex inline command must be moved to a script file",
-  "scripts\\provision-worker-external-connectors.ps1:177: complex inline command must be moved to a script file",
-  "scripts\\provision-worker-external-connectors.ps1:223: complex inline command must be moved to a script file",
-  "scripts\\provision-worker-external-connectors.ps1:290: complex inline command must be moved to a script file",
-  "scripts\\provision-worker-stt-cache.ps1:72: complex inline command must be moved to a script file",
-  "scripts\\provision-worker-stt-cache.ps1:87: complex inline command must be moved to a script file",
-  "scripts\\start-gateway-pool.ps1:517: complex inline command must be moved to a script file",
-  "scripts\\start-gateway-pool.ps1:800: complex inline command must be moved to a script file",
-  "scripts\\start-weixin-front-gateway.ps1:88: complex inline command must be moved to a script file",
-  "scripts\\start-weixin-front-gateway.ps1:138: complex inline command must be moved to a script file",
-  "scripts\\start-weixin-front-gateway.ps1:161: complex inline command must be moved to a script file",
-  "scripts\\start-weixin-mobile-ingress-bridge.ps1:132: complex inline command must be moved to a script file",
-  "scripts\\start-weixin-mobile-ingress-bridge.ps1:181: complex inline command must be moved to a script file",
+  "scripts/provision-worker-external-connectors.ps1:133: complex inline command must be moved to a script file",
+  "scripts/provision-worker-external-connectors.ps1:177: complex inline command must be moved to a script file",
+  "scripts/provision-worker-external-connectors.ps1:223: complex inline command must be moved to a script file",
+  "scripts/provision-worker-external-connectors.ps1:290: complex inline command must be moved to a script file",
+  "scripts/provision-worker-stt-cache.ps1:72: complex inline command must be moved to a script file",
+  "scripts/provision-worker-stt-cache.ps1:87: complex inline command must be moved to a script file",
+  "scripts/start-gateway-pool.ps1:517: complex inline command must be moved to a script file",
+  "scripts/start-gateway-pool.ps1:800: complex inline command must be moved to a script file",
+  "scripts/start-weixin-front-gateway.ps1:88: complex inline command must be moved to a script file",
+  "scripts/start-weixin-front-gateway.ps1:138: complex inline command must be moved to a script file",
+  "scripts/start-weixin-front-gateway.ps1:161: complex inline command must be moved to a script file",
+  "scripts/start-weixin-mobile-ingress-bridge.ps1:132: complex inline command must be moved to a script file",
+  "scripts/start-weixin-mobile-ingress-bridge.ps1:181: complex inline command must be moved to a script file",
 ]);
 const LEGACY_COMPLEX_INLINE_PATTERNS = [
   {
-    relative: "scripts\\start-gateway-pool.ps1",
+    relative: "scripts/start-gateway-pool.ps1",
     pattern: /cat > "\$runtime_bin\/hermes" <<EOF/,
   },
   {
-    relative: "scripts\\start-gateway-pool.ps1",
+    relative: "scripts/start-gateway-pool.ps1",
     pattern: /python3 - "\$gateway_pool_manifest_path" "\$profile" <<'PY'/,
   },
 ];
@@ -108,7 +112,7 @@ function isLegacyComplexInline(relative, line) {
 }
 
 for (const file of files) {
-  const relative = path.relative(REPO_ROOT, file);
+  const relative = repoRelative(file);
   const isPowerShellScript = /\.ps1$/i.test(file);
   const isWindowsScript = /\.(ps1|cmd|bat)$/i.test(file);
   const content = fs.readFileSync(file, "utf8");
