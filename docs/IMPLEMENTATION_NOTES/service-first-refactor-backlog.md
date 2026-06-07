@@ -236,6 +236,12 @@ statements. Priority extraction areas:
   target/url lookup, alias cleanup, and failed-abort flagging while retaining
   response stream reading, liveness checks, event projection, and terminal
   stream recovery.
+- completed 2026-06-08: Gateway run stream event projection moved into
+  `adapters/gateway-run-stream-event-service.js`. The stream service now
+  delegates event/run id extraction, terminal-event detection, output-message
+  text detection, preview formatting, tool-call name projection, and Web-search
+  tool budget counting/abort projection while retaining response stream
+  orchestration and liveness behavior.
 - completed 2026-06-08: Runtime Gateway concurrency projection moved into
   `adapters/mobile-runtime-gateway-concurrency-service.js`. The Gateway facade
   now delegates active-run snapshot, per-workspace limit-error projection, and
