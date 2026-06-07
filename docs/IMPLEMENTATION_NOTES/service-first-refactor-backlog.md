@@ -142,6 +142,13 @@ statements. Priority extraction areas:
   requirements, required Skill preload metadata, toolset companion expansion,
   conversation body construction, and Gateway routing metadata to a focused
   deterministic builder with its own coverage and architecture budgets.
+- completed 2026-06-08: Gateway run-start event projection moved into
+  `adapters/gateway-run-start-event-service.js`. The start service now
+  delegates run-start event append/broadcast, scheduler event projection,
+  plugin capability probe events, required Skill preload events,
+  context/gateway preview text, model-first toolset routing previews, fallback
+  previews, and permission-preflight event naming to a focused projection
+  service with its own tests and architecture budget.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;
