@@ -1,28 +1,26 @@
 "use strict";
 
-const { createGatewayRunEventService } = require("./gateway-run-event-service");
-const { createGatewayRunLifecycleService } = require("./gateway-run-lifecycle-service");
-const { createGatewayRunQueueService } = require("./gateway-run-queue-service");
-const { createGatewayRunStartService } = require("./gateway-run-start-service");
-const { createGatewayRunStreamService } = require("./gateway-run-stream-service");
-const { createGatewayRuntimeSubserviceOptionsService } = require("./gateway-runtime-subservice-options-service");
+const { createGatewayRuntimeChildServiceRegistry } = require("./gateway-runtime-child-service-registry-service");
 
 function createGatewayRuntimeCompositionService(deps = {}) {
-  let queueService = null;
-  let startService = null;
-  let streamService = null;
-  let eventService = null;
-  const lifecycleService = deps.lifecycleService || createGatewayRunLifecycleService();
-  const subserviceOptions = deps.subserviceOptionsService || createGatewayRuntimeSubserviceOptionsService(deps);
+  const childServices = deps.childServices || createGatewayRuntimeChildServiceRegistry({
+    controllers: {
+      addThreadActiveRun,
+      applyHermesRunEvent,
+      markRunCancelled,
+      markRunFailed,
+      removeThreadActiveRun,
+      replaceThreadActiveRun,
+      scheduleNextQueuedRunForTaskGroup,
+      startRunForThread,
+      streamResponse,
+    },
+    deps,
+  });
+  const lifecycleService = childServices.lifecycleService;
 
   function getQueueService() {
-    if (!queueService) {
-      queueService = createGatewayRunQueueService(subserviceOptions.queueServiceOptions({
-        lifecycleService,
-        startRunForThread,
-      }));
-    }
-    return queueService;
+    return childServices.getQueueService();
   }
 
   function addThreadActiveRun(...args) {
@@ -62,14 +60,7 @@ function createGatewayRuntimeCompositionService(deps = {}) {
   }
 
   function getStartService() {
-    if (!startService) {
-      startService = createGatewayRunStartService(subserviceOptions.startServiceOptions({
-        addThreadActiveRun,
-        removeThreadActiveRun,
-        streamResponse,
-      }));
-    }
-    return startService;
+    return childServices.getStartService();
   }
 
   function startRunForThread(...args) {
@@ -77,15 +68,7 @@ function createGatewayRuntimeCompositionService(deps = {}) {
   }
 
   function getStreamService() {
-    if (!streamService) {
-      streamService = createGatewayRunStreamService(subserviceOptions.streamServiceOptions({
-        applyHermesRunEvent,
-        lifecycleService,
-        markRunCancelled,
-        markRunFailed,
-      }));
-    }
-    return streamService;
+    return childServices.getStreamService();
   }
 
   function stopRunIds(...args) {
@@ -117,15 +100,7 @@ function createGatewayRuntimeCompositionService(deps = {}) {
   }
 
   function getEventService() {
-    if (!eventService) {
-      eventService = createGatewayRunEventService(subserviceOptions.eventServiceOptions({
-        removeThreadActiveRun,
-        replaceThreadActiveRun,
-        scheduleNextQueuedRunForTaskGroup,
-        startRunForThread,
-      }));
-    }
-    return eventService;
+    return childServices.getEventService();
   }
 
   function applyHermesRunEvent(...args) {

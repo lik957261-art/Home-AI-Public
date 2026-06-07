@@ -136,6 +136,12 @@ statements. Priority extraction areas:
   coordinator for queue/start/stream/event/lifecycle services, while the
   deterministic queue/start/stream/event constructor option mapping has focused
   coverage and architecture budgets.
+- completed 2026-06-08: Gateway runtime child-service lazy construction moved
+  into `adapters/gateway-runtime-child-service-registry-service.js`.
+  `gateway-runtime-composition-service.js` now remains the public runtime
+  facade and active-run target release/replace glue, while the registry owns
+  default child-service factories, lifecycle creation, subservice option service
+  creation, controller handoff, and child-service singleton reuse.
 - completed 2026-06-08: Gateway run request construction moved into
   `adapters/gateway-run-request-builder-service.js`. The start service now
   delegates actor workspace resolution, policy-thread projection, plugin-topic

@@ -804,6 +804,7 @@ from a stopped profile through the listener, followed by healthy
 Focused implementation checks should include
 `node tests\gateway-elastic-worker-scheduler.test.js`,
 `node tests\gateway-runtime-composition-service.test.js`,
+`node tests\gateway-runtime-child-service-registry-service.test.js`,
 `node tests\gateway-worker-profile-launch-service.test.js`,
 `node tests\gateway-pool-provider.test.js`,
 `node tests\gateway-run-start-execution-phase-service.test.js`,

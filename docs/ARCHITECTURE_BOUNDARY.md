@@ -341,10 +341,19 @@ selection, and run target release/replace delegates. It must not own Gateway
 runtime composition, run-start lifecycle transitions, permission decisions,
 toolset selection, or concurrency policy.
 
-`gateway-runtime-composition-service.js` owns the lazy composition of Gateway
-queue, start, stream, event, and lifecycle services. It may hold the small
-controller methods that coordinate those child services, but it must not own
-the large child-service option projection.
+`gateway-runtime-composition-service.js` owns the public Gateway runtime
+facade over queue, start, stream, event, and lifecycle services. It may hold the
+small controller methods that coordinate those child services and the
+run-target release/replace glue, but it must not own child-service factory
+imports, lazy child-service singleton construction, or the large child-service
+option projection.
+
+`gateway-runtime-child-service-registry-service.js` owns lazy child-service
+construction for Gateway queue, start, stream, event, and lifecycle services:
+default child-service factories, lifecycle service creation, subservice option
+service creation, controller handoff, and singleton reuse. It must not expose
+the public Gateway runtime facade, mutate active run targets, implement queue
+policy, parse streams, handle events, or define child-service option fields.
 
 `gateway-runtime-subservice-options-service.js` owns the deterministic
 dependency-to-option projection from the Gateway runtime composition dependency
@@ -718,9 +727,13 @@ Current CI guardrails:
   below 130 lines and remain a dependency-to-option projection for
   `gateway-runtime-composition-service.js`, not a Gateway lifecycle, queue,
   stream, selector, or notification implementation;
-- `gateway-runtime-composition-service.js` must stay at or below 185 lines
-  and remain the lazy child-service coordinator for Gateway queue/start/
-  stream/event/lifecycle services;
+- `gateway-runtime-composition-service.js` must stay at or below 160 lines
+  and remain the public facade/controller glue for Gateway queue/start/
+  stream/event/lifecycle services, not a child-service factory registry;
+- `gateway-runtime-child-service-registry-service.js` must stay at or below
+  105 lines and remain the lazy child-service registry, not a public Gateway
+  runtime facade, child-service option projector, queue policy, stream parser,
+  or event handler;
 - `gateway-runtime-subservice-options-service.js` must stay at or below
   145 lines and remain the child-service option projection boundary, not a
   Gateway lifecycle, queue, stream, event, selector, or notification module;
