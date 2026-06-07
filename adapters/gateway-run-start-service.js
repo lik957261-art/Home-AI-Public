@@ -1,7 +1,6 @@
 "use strict";
 
 const { createPluginCapabilityProbeService } = require("./plugin-capability-probe-service");
-const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
 const {
   cleanString,
   createGatewayRunRequestBuilderService,
@@ -18,6 +17,7 @@ const {
   createGatewayRunStartStreamOptionsService,
   isChatGptProRunOptions,
 } = require("./gateway-run-start-stream-options-service");
+const { createGatewayRunStartStateService } = require("./gateway-run-start-state-service");
 const { evaluateWardrobeOutfitWorkflowGate } = require("./wardrobe-outfit-workflow-gate-service");
 
 const DEFAULT_TOOL_SCHEMA_EPOCH = "20260513-audio-file-v1";
@@ -129,6 +129,19 @@ function createGatewayRunStartService(options = {}) {
     runExplicitWebSearchMaxCalls: options.runExplicitWebSearchMaxCalls,
     runWebSearchMaxCalls: options.runWebSearchMaxCalls,
   });
+  const runStartStateService = options.runStartStateService || createGatewayRunStartStateService({
+    addThreadActiveRun,
+    broadcast,
+    compactMessage,
+    nowIso,
+    removeThreadActiveRun,
+    saveState,
+    threadSummary,
+  });
+  const applyPreparingRunState = (...args) => runStartStateService.applyPreparingRunState(...args);
+  const applyStartedRunState = (...args) => runStartStateService.applyStartedRunState(...args);
+  const broadcastMessageUpdated = (...args) => runStartStateService.broadcastMessageUpdated(...args);
+  const markStartFailed = (...args) => runStartStateService.markStartFailed(...args);
 
   function restoreAuthorizedToolsetsForSelectionFallback(request = {}, selection = {}) {
     const authorized = dedupe(
@@ -281,55 +294,6 @@ function createGatewayRunStartService(options = {}) {
       engine: "responses",
       error: result.error,
     };
-  }
-
-  function ensureActiveRun(thread, taskId) {
-    const id = cleanString(taskId);
-    if (!id) return;
-    const activeRunIds = Array.isArray(thread?.activeRunIds) ? thread.activeRunIds.map(cleanString) : [];
-    if (!activeRunIds.includes(id)) {
-      addThreadActiveRun(thread, id);
-    } else {
-      thread.activeRunId = id;
-    }
-  }
-
-  function applyPreparingRunState(thread, assistantMessage, taskId, startedAt = nowIso()) {
-    assistantMessage.runId = taskId;
-    assistantMessage.taskId = taskId;
-    assistantMessage.status = "running";
-    assistantMessage.startedAt = assistantMessage.startedAt || startedAt;
-    assistantMessage.updatedAt = startedAt;
-    ensureActiveRun(thread, taskId);
-    thread.status = "running";
-    thread.updatedAt = startedAt;
-    return { startedAt };
-  }
-
-  function applyStartedRunState(thread, assistantMessage, taskId, gatewayTarget, startedAt = nowIso()) {
-    const gatewayUrl = cleanString(gatewayTarget?.apiBase);
-    assistantMessage.runId = taskId;
-    assistantMessage.taskId = taskId;
-    assistantMessage.gatewayUrl = gatewayUrl;
-    assistantMessage.gatewayName = cleanString(gatewayTarget?.name);
-    assistantMessage.gatewayProfile = cleanString(gatewayTarget?.profile);
-    assistantMessage.gatewaySource = cleanString(gatewayTarget?.source);
-    assistantMessage.status = "running";
-    assistantMessage.startedAt = assistantMessage.startedAt || startedAt;
-    assistantMessage.updatedAt = startedAt;
-    ensureActiveRun(thread, taskId);
-    thread.status = "running";
-    thread.updatedAt = startedAt;
-    return { gatewayUrl, startedAt };
-  }
-
-  function broadcastMessageUpdated(thread, assistantMessage) {
-    broadcast({
-      type: "message.updated",
-      threadId: thread.id,
-      message: compactMessage(assistantMessage),
-      thread: threadSummary(thread),
-    });
   }
 
   async function startRunForThread(thread, userMessage, assistantMessage, runOptions = {}) {
@@ -521,27 +485,6 @@ function createGatewayRunStartService(options = {}) {
       gatewayProfile: gatewayTarget?.profile || "",
       gatewaySource: gatewayTarget?.source || "",
     };
-  }
-
-  function markStartFailed(thread, assistantMessage, err, options = {}) {
-    const failedAt = nowIso();
-    const runId = cleanString(options.runId || assistantMessage?.runId);
-    assistantMessage.status = "failed";
-    assistantMessage.error = gatewayRunUserFacingError(err);
-    if (options.content) assistantMessage.content = cleanString(options.content);
-    assistantMessage.failedAt = failedAt;
-    assistantMessage.updatedAt = failedAt;
-    removeThreadActiveRun(thread, runId, "failed");
-    thread.updatedAt = failedAt;
-    saveState();
-    broadcast({
-      type: "run.failed",
-      threadId: thread.id,
-      runId,
-      message: compactMessage(assistantMessage),
-      thread: threadSummary(thread),
-    });
-    return { status: "failed", runId, failedAt, error: assistantMessage.error };
   }
 
   return {

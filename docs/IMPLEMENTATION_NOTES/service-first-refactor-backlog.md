@@ -154,6 +154,12 @@ statements. Priority extraction areas:
   delegates Gateway target metadata projection, Web/search max-call caps,
   explicit search cap selection, and ChatGPT Pro long-wait timeout fields to a
   focused deterministic service with its own tests and architecture budget.
+- completed 2026-06-08: Gateway run-start state projection moved into
+  `adapters/gateway-run-start-state-service.js`. The start service now
+  delegates active-run publication, preparing/started assistant and thread
+  state mutation, compact message-update broadcast, and failed-start projection
+  to a focused deterministic state service with its own tests and architecture
+  budget.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;
