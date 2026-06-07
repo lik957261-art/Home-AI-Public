@@ -269,6 +269,14 @@ statements. Priority extraction areas:
   delegates queued run-options merge, queued assistant message construction,
   single-window mode normalization, queued instruction text, and queued history
   compaction while retaining queue scheduling and active-run lifecycle handoff.
+- completed 2026-06-08: Gateway failed/cancelled/detached terminal projection
+  moved into `adapters/gateway-run-terminal-state-service.js`. The event
+  service now delegates failed terminal mutation, cancellation mutation,
+  user-facing error shaping, external delivery enqueue for failures, terminal
+  topic-compaction handoff, terminal notification, queued follow-up scheduling,
+  and detached active-run reconciliation while retaining event parsing,
+  completed output handling, toolset escalation retry, permission marker
+  handling, and Wardrobe completion validation.
 - completed 2026-06-08: Gateway run stream closed-without-terminal recovery
   moved into `adapters/gateway-run-stream-close-recovery-service.js`. The
   stream service now delegates synthetic completion after partial model output,

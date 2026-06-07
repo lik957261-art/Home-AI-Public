@@ -6,6 +6,7 @@ const {
   withActiveRunReplaced,
 } = require("./gateway-run-lifecycle-service");
 const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
+const { createGatewayRunTerminalStateService } = require("./gateway-run-terminal-state-service");
 const { validateWardrobeOutfitWorkflowCompletion } = require("./wardrobe-outfit-workflow-gate-service");
 
 function cleanString(value) {
@@ -574,6 +575,7 @@ function createGatewayRunEventService(options = {}) {
     : ((thread, message, status) => options.webPushDeliveryService?.notifyTaskTerminal?.(thread, message, status));
   let streamingSaveTimer = null;
   let streamingSavePending = false;
+  let terminalStateService = null;
 
   function state() {
     const value = stateProvider();
@@ -647,6 +649,27 @@ function createGatewayRunEventService(options = {}) {
       logError(`Hermes Mobile topic context compaction failed: ${err.message || String(err)}`);
       return { changed: false, error: err.message || String(err) };
     }
+  }
+
+  function getTerminalStateService() {
+    if (!terminalStateService) {
+      terminalStateService = options.terminalStateService || createGatewayRunTerminalStateService({
+        activeStreams,
+        broadcast,
+        clearStreamingSaveTimer,
+        compactMessage,
+        compactTerminalTopicContext,
+        enqueueExternalDeliveryForTerminalMessage,
+        notifyTaskTerminal,
+        nowIso,
+        removeThreadActiveRun,
+        saveState,
+        scheduleNextQueuedRunForTaskGroup,
+        state,
+        threadSummary,
+      });
+    }
+    return terminalStateService;
   }
 
   function markResponseCreated(context) {
@@ -1016,46 +1039,11 @@ function createGatewayRunEventService(options = {}) {
   }
 
   function markRunFailed(threadId, messageId, runId, err) {
-    const thread = (state().threads || []).find((item) => item.id === threadId);
-    if (!thread) return { action: "missing_thread" };
-    const message = (thread.messages || []).find((item) => item.id === messageId);
-    if (!message) return { action: "missing_message" };
-    if (["done", "failed", "cancelled"].includes(message.status)) return { action: "terminal_ignored" };
-    clearStreamingSaveTimer();
-    const failedAt = nowIso();
-    message.status = "failed";
-    message.error = safeErrorMessage(err);
-    message.failedAt = failedAt;
-    message.updatedAt = failedAt;
-    enqueueExternalDeliveryForTerminalMessage(thread, message, "failed");
-    removeThreadActiveRun(thread, runId, "failed");
-    thread.updatedAt = failedAt;
-    compactTerminalTopicContext(thread, message, "run-failed");
-    saveState();
-    broadcast({ type: "run.failed", threadId, runId, message: compactMessage(message), thread: threadSummary(thread) });
-    notifyTaskTerminal(thread, message, "failed");
-    scheduleNextQueuedRunForTaskGroup(thread, message.taskGroupId);
-    return { action: "failed", error: message.error };
+    return getTerminalStateService().markRunFailed(threadId, messageId, runId, err);
   }
 
   function markRunCancelled(threadId, messageId, runId) {
-    const thread = (state().threads || []).find((item) => item.id === threadId);
-    if (!thread) return { action: "missing_thread" };
-    const message = (thread.messages || []).find((item) => item.id === messageId);
-    if (!message) return { action: "missing_message" };
-    if (["done", "failed", "cancelled"].includes(message.status)) return { action: "terminal_ignored" };
-    clearStreamingSaveTimer();
-    const cancelledAt = nowIso();
-    message.status = "cancelled";
-    message.cancelledAt = cancelledAt;
-    message.updatedAt = cancelledAt;
-    removeThreadActiveRun(thread, runId, "idle");
-    thread.updatedAt = cancelledAt;
-    compactTerminalTopicContext(thread, message, "run-cancelled");
-    saveState();
-    broadcast({ type: "run.cancelled", threadId, runId, message: compactMessage(message), thread: threadSummary(thread) });
-    scheduleNextQueuedRunForTaskGroup(thread, message.taskGroupId);
-    return { action: "cancelled" };
+    return getTerminalStateService().markRunCancelled(threadId, messageId, runId);
   }
 
   function applyHermesRunEvent(event = {}) {
@@ -1086,37 +1074,7 @@ function createGatewayRunEventService(options = {}) {
   }
 
   function reconcileDetachedActiveRuns(reason = "Hermes Mobile restarted while this task was running; the result stream is no longer attached. Please rerun the task.") {
-    let changed = false;
-    const failedAt = nowIso();
-    for (const thread of state().threads || []) {
-      let threadChanged = false;
-      for (const message of thread.messages || []) {
-        if (!["queued", "running"].includes(String(message.status || ""))) continue;
-        const runId = cleanString(message.runId);
-        if (message.status === "queued" && !runId) continue;
-        if (runId && activeStreams.has(runId)) continue;
-        message.status = "failed";
-        message.error = reason;
-        message.failedAt = failedAt;
-        message.updatedAt = failedAt;
-        enqueueExternalDeliveryForTerminalMessage(thread, message, "failed");
-        if (runId) removeThreadActiveRun(thread, runId, "failed");
-        changed = true;
-        threadChanged = true;
-        broadcast({ type: "run.failed", threadId: thread.id, runId, message: compactMessage(message), thread: threadSummary(thread) });
-      }
-      if (!thread.activeRunIds?.length && thread.status === "running") thread.status = "failed";
-      if (threadChanged) thread.updatedAt = failedAt;
-    }
-    if (changed) saveState();
-    for (const thread of state().threads || []) {
-      if ((thread.activeRunIds || []).length) continue;
-      const queued = (thread.messages || []).find((message) => (
-        message.role === "assistant" && message.status === "queued" && !message.runId && message.taskGroupId
-      ));
-      if (queued) scheduleNextQueuedRunForTaskGroup(thread, queued.taskGroupId);
-    }
-    return changed;
+    return getTerminalStateService().reconcileDetachedActiveRuns(reason);
   }
 
   return Object.freeze({
