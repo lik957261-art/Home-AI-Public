@@ -130,8 +130,14 @@ statements. Priority extraction areas:
   and service facades, while selector, Skill preload, plugin capability,
   directory attachment, notification, and topic-compaction option wrappers live
   in a focused service with its own tests and architecture budget.
+- completed 2026-06-08: Gateway runtime child-service option projection moved
+  into `adapters/gateway-runtime-subservice-options-service.js`.
+  `gateway-runtime-composition-service.js` now remains the lazy child-service
+  coordinator for queue/start/stream/event/lifecycle services, while the
+  deterministic queue/start/stream/event constructor option mapping has focused
+  coverage and architecture budgets.
 - Gateway runtime config and worker policy composition;
-- thread run preparation and Gateway lifecycle wiring;
+- thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;
 - directory/topic binding repair and projection helpers;
 - Web Push/action-inbox delivery composition;

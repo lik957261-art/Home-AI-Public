@@ -33,6 +33,7 @@ const gatewayRunContentService = require("../adapters/gateway-run-content-servic
 const gatewayRunStartService = require("../adapters/gateway-run-start-service");
 const wardrobeOutfitWorkflowGateService = require("../adapters/wardrobe-outfit-workflow-gate-service");
 const gatewayRuntimeCompositionService = require("../adapters/gateway-runtime-composition-service");
+const gatewayRuntimeSubserviceOptionsService = require("../adapters/gateway-runtime-subservice-options-service");
 const gatewayProfileTemplateIdentityService = require("../adapters/gateway-profile-template-identity-service");
 const gatewayProfileReplicaModel = require("../adapters/gateway-profile-replica-model");
 const gatewayStatusProjection = require("../adapters/gateway-status-projection");
@@ -283,6 +284,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof wardrobeOutfitWorkflowGateService.evaluateWardrobeOutfitWorkflowGate, "function");
   assert.equal(typeof wardrobeOutfitWorkflowGateService.validateWardrobeOutfitWorkflowCompletion, "function");
   assert.equal(typeof gatewayRuntimeCompositionService.createGatewayRuntimeCompositionService, "function");
+  assert.equal(typeof gatewayRuntimeSubserviceOptionsService.createGatewayRuntimeSubserviceOptionsService, "function");
   assert.equal(typeof gatewayProfileTemplateIdentityService.createGatewayProfileTemplateIdentityService, "function");
   assert.equal(typeof gatewayProfileReplicaModel.buildGatewayProfileTemplateKey, "function");
   assert.equal(typeof gatewayProfileReplicaModel.buildGatewayRunCompatibilityKey, "function");
@@ -525,6 +527,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const operationErrorResponse = fileText("adapters/runtime-operation-error-response-service.js");
   const kanbanFacade = fileText("adapters/mobile-runtime-kanban-facade-service.js");
   const gatewayComposition = fileText("adapters/gateway-runtime-composition-service.js");
+  const gatewayRuntimeSubserviceOptions = fileText("adapters/gateway-runtime-subservice-options-service.js");
   const coreProviders = fileText("adapters/mobile-runtime-core-providers.js");
   const accessPolicyFacade = fileText("adapters/mobile-runtime-access-policy-facade-service.js");
   const authFacade = fileText("adapters/mobile-runtime-auth-facade-service.js");
@@ -756,10 +759,18 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.doesNotMatch(server, /let runtimeWorkspaceCatalogService = null/);
   assert.doesNotMatch(server, /http\.createServer\(async/);
   assert.match(gatewayComposition, /createGatewayRunLifecycleService/);
+  assert.match(gatewayComposition, /createGatewayRuntimeSubserviceOptionsService/);
   assert.match(gatewayComposition, /createGatewayRunQueueService/);
   assert.match(gatewayComposition, /createGatewayRunStartService/);
+  assert.match(gatewayComposition, /subserviceOptions\.queueServiceOptions/);
+  assert.match(gatewayComposition, /subserviceOptions\.startServiceOptions/);
+  assert.match(gatewayComposition, /subserviceOptions\.streamServiceOptions/);
+  assert.match(gatewayComposition, /subserviceOptions\.eventServiceOptions/);
   assert.match(gatewayComposition, /releaseGatewayRunTarget/);
-  assert.match(gatewayComposition, /lifecycleService\.livenessDecisionAfterCheck/);
+  assert.match(gatewayRuntimeSubserviceOptions, /livenessDecisionAfterCheck: controllers\.lifecycleService\?\.livenessDecisionAfterCheck/);
+  assert.match(gatewayRuntimeSubserviceOptions, /startToolsetEscalationRun: controllers\.startRunForThread/);
+  assert.doesNotMatch(gatewayComposition, /accessPolicyHardeningOptionsForGatewayRouting: deps/);
+  assert.doesNotMatch(gatewayComposition, /livenessDecisionAfterCheck: lifecycleService\.livenessDecisionAfterCheck/);
   const todoFacade = fileText("adapters/mobile-runtime-todo-facade-service.js");
   assert.match(server, /createMobileRuntimeTodoFacadeService/);
   assert.match(todoFacade, /defaultCreateDirectKanbanCreateService/);
@@ -1142,6 +1153,8 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /mobile-runtime-gateway-context-facade-service\.js` must stay at or below 90\s+lines/);
   assert.match(doc, /mobile-runtime-gateway-facade-service\.js` must stay at or below 220 lines/);
   assert.match(doc, /mobile-runtime-gateway-composition-options-service\.js` must stay at or\s+below 130 lines/);
+  assert.match(doc, /gateway-runtime-composition-service\.js` must stay at or below 185\s+lines/);
+  assert.match(doc, /gateway-runtime-subservice-options-service\.js` must stay at or below\s+145 lines/);
   assert.match(doc, /gateway-run-content-service\.js` must stay at or below 60 lines/);
   assert.match(doc, /mobile-runtime-group-chat-facade-service\.js` must stay at or below 95 lines/);
   assert.match(doc, /mobile-runtime-workspace-identity-facade-service\.js` must stay at or below\s+65 lines/);
@@ -1195,6 +1208,8 @@ function testServiceFirstArchitectureContract() {
   const fileAccessFacade = fileText("adapters/mobile-runtime-file-access-facade-service.js");
   const gatewayCompositionOptions = fileText("adapters/mobile-runtime-gateway-composition-options-service.js");
   const gatewayContextFacade = fileText("adapters/mobile-runtime-gateway-context-facade-service.js");
+  const gatewayRuntimeComposition = fileText("adapters/gateway-runtime-composition-service.js");
+  const gatewayRuntimeSubserviceOptions = fileText("adapters/gateway-runtime-subservice-options-service.js");
   const gatewayRunContent = fileText("adapters/gateway-run-content-service.js");
   const gatewayFacade = fileText("adapters/mobile-runtime-gateway-facade-service.js");
   const groupChatFacade = fileText("adapters/mobile-runtime-group-chat-facade-service.js");
@@ -1247,6 +1262,8 @@ function testServiceFirstArchitectureContract() {
   const fileAccessFacadeLineCount = fileAccessFacade.split(/\r?\n/).length;
   const gatewayCompositionOptionsLineCount = gatewayCompositionOptions.split(/\r?\n/).length;
   const gatewayContextFacadeLineCount = gatewayContextFacade.split(/\r?\n/).length;
+  const gatewayRuntimeCompositionLineCount = gatewayRuntimeComposition.split(/\r?\n/).length;
+  const gatewayRuntimeSubserviceOptionsLineCount = gatewayRuntimeSubserviceOptions.split(/\r?\n/).length;
   const gatewayRunContentLineCount = gatewayRunContent.split(/\r?\n/).length;
   const gatewayFacadeLineCount = gatewayFacade.split(/\r?\n/).length;
   const groupChatFacadeLineCount = groupChatFacade.split(/\r?\n/).length;
@@ -1275,6 +1292,8 @@ function testServiceFirstArchitectureContract() {
   assert.ok(fileAccessFacadeLineCount <= 140, `mobile-runtime-file-access-facade-service.js line budget exceeded: ${fileAccessFacadeLineCount} > 140`);
   assert.ok(sqliteStoreFacadeLineCount <= 35, `mobile-runtime-sqlite-store-facade-service.js line budget exceeded: ${sqliteStoreFacadeLineCount} > 35`);
   assert.ok(stateFacadeLineCount <= 155, `mobile-runtime-state-facade-service.js line budget exceeded: ${stateFacadeLineCount} > 155`);
+  assert.ok(gatewayRuntimeCompositionLineCount <= 185, `gateway-runtime-composition-service.js line budget exceeded: ${gatewayRuntimeCompositionLineCount} > 185`);
+  assert.ok(gatewayRuntimeSubserviceOptionsLineCount <= 145, `gateway-runtime-subservice-options-service.js line budget exceeded: ${gatewayRuntimeSubserviceOptionsLineCount} > 145`);
   assert.match(fileAccessFacade, /findDirectoryThreadForRequest/);
   assert.match(fileAccessFacade, /ownerDirectoryBrowserThread/);
   assert.doesNotMatch(runtime, /^function findDirectoryThreadForRequest\(/m);

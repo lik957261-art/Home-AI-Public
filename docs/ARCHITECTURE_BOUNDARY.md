@@ -72,6 +72,8 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-gateway-composition-options-service.js`,
 `mobile-runtime-gateway-context-facade-service.js`,
 `mobile-runtime-gateway-facade-service.js`,
+`gateway-runtime-composition-service.js`,
+`gateway-runtime-subservice-options-service.js`,
 `gateway-run-content-service.js`,
 `mobile-runtime-group-chat-facade-service.js`,
 `mobile-runtime-group-chat-attachment-service.js`,
@@ -163,6 +165,17 @@ constants into run-start, run-stream, run-event, queue, selector, notification,
 and topic-compaction options. It must not implement Gateway run lifecycle,
 queue mutation, stream parsing, model preflight decisions, or notification
 delivery behavior.
+
+`gateway-runtime-composition-service.js` owns the lazy composition of Gateway
+queue, start, stream, event, and lifecycle services. It may hold the small
+controller methods that coordinate those child services, but it must not own
+the large child-service option projection.
+
+`gateway-runtime-subservice-options-service.js` owns the deterministic
+dependency-to-option projection from the Gateway runtime composition dependency
+bag into the queue, start, stream, and event child-service constructors. It
+must not implement Gateway lifecycle transitions, queue mutation, stream
+parsing, event handling, toolset selection, or notification delivery.
 
 `app-route-url-service.js` owns app-shell query URL serialization for Push,
 Web Push, plugin notification, and other route-link producers. Runtime
@@ -354,6 +367,12 @@ Current CI guardrails:
   below 130 lines and remain a dependency-to-option projection for
   `gateway-runtime-composition-service.js`, not a Gateway lifecycle, queue,
   stream, selector, or notification implementation;
+- `gateway-runtime-composition-service.js` must stay at or below 185 lines
+  and remain the lazy child-service coordinator for Gateway queue/start/
+  stream/event/lifecycle services;
+- `gateway-runtime-subservice-options-service.js` must stay at or below
+  145 lines and remain the child-service option projection boundary, not a
+  Gateway lifecycle, queue, stream, event, selector, or notification module;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 220 lines
   and remain a runtime Gateway facade over runner/pool/launcher/provisioning,
   telemetry, run concurrency, Gateway runtime composition singleton ownership,

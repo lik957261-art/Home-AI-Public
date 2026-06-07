@@ -5,12 +5,7 @@ const { createGatewayRunLifecycleService } = require("./gateway-run-lifecycle-se
 const { createGatewayRunQueueService } = require("./gateway-run-queue-service");
 const { createGatewayRunStartService } = require("./gateway-run-start-service");
 const { createGatewayRunStreamService } = require("./gateway-run-stream-service");
-
-function required(name) {
-  return () => {
-    throw new Error(`Missing gateway runtime dependency: ${name}`);
-  };
-}
+const { createGatewayRuntimeSubserviceOptionsService } = require("./gateway-runtime-subservice-options-service");
 
 function createGatewayRuntimeCompositionService(deps = {}) {
   let queueService = null;
@@ -18,18 +13,14 @@ function createGatewayRuntimeCompositionService(deps = {}) {
   let streamService = null;
   let eventService = null;
   const lifecycleService = deps.lifecycleService || createGatewayRunLifecycleService();
+  const subserviceOptions = deps.subserviceOptionsService || createGatewayRuntimeSubserviceOptionsService(deps);
 
   function getQueueService() {
     if (!queueService) {
-      queueService = createGatewayRunQueueService({
-        gatewayRunLifecycleService: lifecycleService,
-        nowIso: deps.nowIso,
-        saveState: deps.saveState,
-        broadcast: deps.broadcast,
-        compactMessage: deps.compactMessage,
-        threadSummary: deps.threadSummary,
-        startHermesRun: startRunForThread,
-      });
+      queueService = createGatewayRunQueueService(subserviceOptions.queueServiceOptions({
+        lifecycleService,
+        startRunForThread,
+      }));
     }
     return queueService;
   }
@@ -72,47 +63,11 @@ function createGatewayRuntimeCompositionService(deps = {}) {
 
   function getStartService() {
     if (!startService) {
-      startService = createGatewayRunStartService({
-        accessPolicyHardeningOptionsForGatewayRouting: deps.accessPolicyHardeningOptionsForGatewayRouting,
-        addThreadEvent: deps.addThreadEvent,
+      startService = createGatewayRunStartService(subserviceOptions.startServiceOptions({
         addThreadActiveRun,
-        assertRunConcurrencyCapacity: deps.assertRunConcurrencyCapacity,
-        buildAccessPolicy: deps.buildAccessPolicy,
-        buildConversationHistory: deps.buildConversationHistory,
-        buildHermesInstructions: deps.buildHermesInstructions,
-        buildPluginCapabilityContext: deps.buildPluginCapabilityContext,
-        chooseGatewayRunTarget: deps.chooseGatewayRunTarget,
-        compactMessage: deps.compactMessage,
-        dedupe: deps.dedupe,
-        effectiveProjectForThread: deps.effectiveProjectForThread,
-        findWorkspace: deps.findWorkspace,
-        gatewayConversationId: deps.gatewayConversationId,
-        gatewaySkillRoutingForWorkspace: deps.gatewaySkillRoutingForWorkspace,
-        groupChatDeliveryRootForThread: deps.groupChatDeliveryRootForThread,
-        groupChatTaskGroupId: deps.groupChatTaskGroupId,
-        loadRequiredSkillPreloads: deps.loadRequiredSkillPreloads,
-        makePublicTaskId: deps.makePublicTaskId,
-        mergeAccessPolicyOverride: deps.mergeAccessPolicyOverride,
-        mkdirSync: deps.mkdirSync,
-        nowIso: deps.nowIso,
-        nowMs: deps.nowMs,
-        projectForTaskDirectoryAttachment: deps.projectForTaskDirectoryAttachment,
         removeThreadActiveRun,
-        routeRunToolsets: deps.routeRunToolsets,
-        runExplicitWebSearchMaxCalls: deps.runExplicitWebSearchMaxCalls,
-        runWebSearchMaxCalls: deps.runWebSearchMaxCalls,
-        selectRunToolsetsWithModel: deps.selectRunToolsetsWithModel,
-        sanitizePolicy: deps.sanitizePolicy,
-        saveState: deps.saveState,
-        singleWindowProjectId: deps.singleWindowProjectId,
         streamResponse,
-        taskDirectoryAttachmentForMessage: deps.taskDirectoryAttachmentForMessage,
-        threadSummary: deps.threadSummary,
-        toolSchemaEpoch: deps.toolSchemaEpoch,
-        windowsPathToWsl: deps.windowsPathToWsl,
-        ensureGroupChatSharedArtifactCopies: deps.ensureGroupChatSharedArtifactCopies,
-        broadcast: deps.broadcast,
-      });
+      }));
     }
     return startService;
   }
@@ -123,26 +78,12 @@ function createGatewayRuntimeCompositionService(deps = {}) {
 
   function getStreamService() {
     if (!streamService) {
-      streamService = createGatewayRunStreamService({
-        activeStreams: deps.activeStreams,
-        apiTimeoutMs: deps.apiTimeoutMs,
-        dedupe: deps.dedupe,
-        gatewayPool: deps.gatewayPool,
-        gatewayUrlForRun: deps.gatewayUrlForRun || required("gatewayUrlForRun"),
-        livenessDecisionAfterCheck: lifecycleService.livenessDecisionAfterCheck,
-        logger: deps.logger || console,
+      streamService = createGatewayRunStreamService(subserviceOptions.streamServiceOptions({
+        applyHermesRunEvent,
+        lifecycleService,
         markRunCancelled,
         markRunFailed,
-        nowMs: deps.nowMs,
-        onHermesRunEvent: applyHermesRunEvent,
-        modelFirstByteWarningMs: deps.modelFirstByteWarningMs,
-        runLivenessCheckAfterMs: deps.runLivenessCheckAfterMs,
-        runLivenessCheckIntervalMs: deps.runLivenessCheckIntervalMs,
-        runLivenessStaleAfterMs: deps.runLivenessStaleAfterMs,
-        runStartTimeoutMs: deps.runStartTimeoutMs,
-        singleGatewayRunner: deps.singleGatewayRunner,
-        webSearchMaxCalls: deps.runWebSearchMaxCalls,
-      });
+      }));
     }
     return streamService;
   }
@@ -177,33 +118,12 @@ function createGatewayRuntimeCompositionService(deps = {}) {
 
   function getEventService() {
     if (!eventService) {
-      eventService = createGatewayRunEventService({
-        activeStreams: deps.activeStreams,
-        addThreadEvent: deps.addThreadEvent,
-        appendBounded: deps.appendBounded,
-        broadcast: deps.broadcast,
-        compactFullContent: deps.compactFullContent,
-        compactMessage: deps.compactMessage,
-        enqueueExternalDeliveryForTerminalMessage: deps.enqueueExternalDeliveryForTerminalMessage,
-        isOrdinaryToolSchemaElevationRequest: deps.isOrdinaryToolSchemaElevationRequest,
-        maxMessageChars: deps.maxMessageChars,
-        modelPermissionApprovalRequest: deps.modelPermissionApprovalRequest,
-        nowIso: deps.nowIso,
-        nowMs: deps.nowMs,
-        notifyTaskTerminal: deps.notifyTaskTerminal,
-        registerArtifactsFromText: deps.registerArtifactsFromText,
+      eventService = createGatewayRunEventService(subserviceOptions.eventServiceOptions({
         removeThreadActiveRun,
         replaceThreadActiveRun,
-        saveState: deps.saveState,
         scheduleNextQueuedRunForTaskGroup,
-        startToolsetEscalationRun: startRunForThread,
-        state: deps.state,
-        streamingSaveThrottleMs: deps.streamingSaveThrottleMs,
-        stripPermissionApprovalMarkers: deps.stripPermissionApprovalMarkers,
-        supplementGatewayUsage: deps.supplementGatewayUsage,
-        threadSummary: deps.threadSummary,
-        topicContextCompactionService: deps.topicContextCompactionService,
-      });
+        startRunForThread,
+      }));
     }
     return eventService;
   }
