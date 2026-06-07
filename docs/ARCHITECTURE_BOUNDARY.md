@@ -56,6 +56,7 @@ dispatcher registration policy.
 
 Current runtime glue that should stay out of the composition root lives in
 focused adapters such as `app-route-url-service.js`,
+`mobile-runtime-basic-helper-service.js`,
 `mobile-runtime-file-helper-service.js`,
 `mobile-runtime-file-access-facade-service.js`,
 `mobile-runtime-artifact-facade-service.js`,
@@ -86,7 +87,8 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-workspace-facade-service.js`,
 `mobile-runtime-workspace-catalog-facade.js`, and
 `mobile-runtime-http-server-service.js`. These modules keep static file
-app route URL serialization, helpers and JSON store file IO,
+app route URL serialization, deterministic runtime primitives,
+helpers and JSON store file IO,
 Artifact/Markdown registration lazy delegation, backend mode policy, runtime
 config facade delegation, runtime environment aggregation, shared environment
 value parsing, Gateway/run environment parsing,
@@ -137,6 +139,14 @@ Web Push, plugin notification, and other route-link producers. Runtime
 composition may pass the helper into route/service wiring, but it must not carry
 a duplicate `appRouteUrl` function implementation.
 
+`mobile-runtime-basic-helper-service.js` owns deterministic runtime primitives:
+hashing, id generation, current time formatting, boolean query parsing,
+single-window mode normalization, Owner elevation duration normalization, and
+response text extraction from structured Gateway/Responses values. Runtime
+composition may wire these helpers into services, but it must not carry
+duplicate helper implementations or add permission, route, provider, Gateway
+lifecycle, or workspace policy to this service.
+
 `mobile-runtime-workspace-identity-facade-service.js` owns the runtime
 workspace identity fallback layer for `workspaceLabel`,
 `senderInfoForWorkspace`, and `workspaceIdForPrincipal`. It may delegate to the
@@ -185,10 +195,13 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,525 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 77;
+- `mobile-server-runtime.js` must stay at or below 1,495 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 70;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
+- `mobile-runtime-basic-helper-service.js` must stay at or below 85 lines and
+  remain a deterministic helper service for basic runtime primitives, not a
+  route, provider, permission, or Gateway lifecycle policy module;
 - `mobile-runtime-file-access-facade-service.js` must stay at or below 115
   lines and remain a facade over lazy Directory browser boundary construction,
   file/artifact resolver delegation, and file response delegation;

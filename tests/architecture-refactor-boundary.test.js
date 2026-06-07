@@ -103,6 +103,7 @@ const learningTaskCardService = require("../adapters/learning-task-card-service"
 const learningTaskModelService = require("../adapters/learning-task-model-service");
 const learningTemplateRegistryService = require("../adapters/learning-template-registry-service");
 const mobileHttpRuntimeService = require("../adapters/mobile-http-runtime-service");
+const mobileRuntimeBasicHelperService = require("../adapters/mobile-runtime-basic-helper-service");
 const mobileRuntimeBackendPolicyService = require("../adapters/mobile-runtime-backend-policy-service");
 const mobileRuntimeArtifactFacadeService = require("../adapters/mobile-runtime-artifact-facade-service");
 const mobileRuntimeConfigFacadeService = require("../adapters/mobile-runtime-config-facade-service");
@@ -359,6 +360,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learningTemplateRegistryService.createLearningTemplateRegistryService, "function");
   assert.equal(typeof mobileHttpRuntimeService.createMobileHttpRuntimeService, "function");
   assert.equal(typeof mobileRuntimeArtifactFacadeService.createMobileRuntimeArtifactFacadeService, "function");
+  assert.equal(typeof mobileRuntimeBasicHelperService.createMobileRuntimeBasicHelperService, "function");
   assert.equal(typeof mobileRuntimeBackendPolicyService.createMobileRuntimeBackendPolicyService, "function");
   assert.equal(typeof mobileRuntimeConfigFacadeService.createMobileRuntimeConfigFacadeService, "function");
   assert.equal(typeof mobileRuntimeEnvValueService.nonNegativeInteger, "function");
@@ -491,6 +493,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const mobileDirectoryComposition = fileText("server-routes/mobile-api-directory-composition.js");
   const mobileLearningComposition = fileText("server-routes/mobile-api-learning-composition.js");
   const appRouteUrl = fileText("adapters/app-route-url-service.js");
+  const basicHelper = fileText("adapters/mobile-runtime-basic-helper-service.js");
   const kanbanFacade = fileText("adapters/mobile-runtime-kanban-facade-service.js");
   const gatewayComposition = fileText("adapters/gateway-runtime-composition-service.js");
   const coreProviders = fileText("adapters/mobile-runtime-core-providers.js");
@@ -539,6 +542,15 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(server, /createMobileRuntimeBackendPolicyService/);
   assert.match(backendPolicy, /function backendIsLocal/);
   assert.doesNotMatch(server, /function backendIsLocal/);
+  assert.match(server, /createMobileRuntimeBasicHelperService/);
+  assert.match(basicHelper, /function responseTextFromValue/);
+  assert.doesNotMatch(server, /^function hashValue/gm);
+  assert.doesNotMatch(server, /^function makeId/gm);
+  assert.doesNotMatch(server, /^function nowIso/gm);
+  assert.doesNotMatch(server, /^function normalizeOwnerElevationDurations/gm);
+  assert.doesNotMatch(server, /^function normalizeSingleWindowMode/gm);
+  assert.doesNotMatch(server, /^function boolParam/gm);
+  assert.doesNotMatch(server, /^function responseTextFromValue/gm);
   assert.match(server, /createMobileRuntimeConfigFacadeService/);
   assert.match(configFacade, /publicRuntimeConfig/);
   assert.doesNotMatch(server, /function publicRuntimeConfig/);
@@ -900,9 +912,10 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
-  assert.match(doc, /1,525 lines/);
-  assert.match(doc, /77/);
+  assert.match(doc, /1,495 lines/);
+  assert.match(doc, /70/);
   assert.match(doc, /app-route-url-service\.js` must stay at or below 35 lines/);
+  assert.match(doc, /mobile-runtime-basic-helper-service\.js` must stay at or below 85 lines/);
   assert.match(doc, /mobile-runtime-file-access-facade-service\.js` must stay at or below 115\s+lines/);
   assert.match(doc, /mobile-runtime-gateway-context-facade-service\.js` must stay at or below 90\s+lines/);
   assert.match(doc, /gateway-run-content-service\.js` must stay at or below 60 lines/);
@@ -941,6 +954,7 @@ function testServiceFirstArchitectureContract() {
   const server = fileText("server.js");
   const runtime = fileText("mobile-server-runtime.js");
   const appRouteUrl = fileText("adapters/app-route-url-service.js");
+  const basicHelper = fileText("adapters/mobile-runtime-basic-helper-service.js");
   const mobileApiCompositionSource = fileText("server-routes/mobile-api-composition.js");
   const mobileApiDirectoryCompositionSource = fileText("server-routes/mobile-api-directory-composition.js");
   const mobileApiLearningCompositionSource = fileText("server-routes/mobile-api-learning-composition.js");
@@ -966,6 +980,7 @@ function testServiceFirstArchitectureContract() {
   const serverTopLevelFunctionCount = (server.match(/^function\s+/gm) || []).length;
   const runtimeLineCount = runtime.split(/\r?\n/).length;
   const appRouteUrlLineCount = appRouteUrl.split(/\r?\n/).length;
+  const basicHelperLineCount = basicHelper.split(/\r?\n/).length;
   const runtimeTopLevelFunctionCount = (runtime.match(/^function\s+/gm) || []).length;
   const mobileApiCompositionLineCount = mobileApiCompositionSource.split(/\r?\n/).length;
   const mobileApiDirectoryCompositionLineCount = mobileApiDirectoryCompositionSource.split(/\r?\n/).length;
@@ -991,9 +1006,10 @@ function testServiceFirstArchitectureContract() {
   const workspaceFacadeLineCount = workspaceFacade.split(/\r?\n/).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 1525, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1525`);
-  assert.ok(runtimeTopLevelFunctionCount <= 77, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 77`);
+  assert.ok(runtimeLineCount <= 1495, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1495`);
+  assert.ok(runtimeTopLevelFunctionCount <= 70, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 70`);
   assert.ok(appRouteUrlLineCount <= 35, `app-route-url-service.js line budget exceeded: ${appRouteUrlLineCount} > 35`);
+  assert.ok(basicHelperLineCount <= 85, `mobile-runtime-basic-helper-service.js line budget exceeded: ${basicHelperLineCount} > 85`);
   assert.ok(fileAccessFacadeLineCount <= 115, `mobile-runtime-file-access-facade-service.js line budget exceeded: ${fileAccessFacadeLineCount} > 115`);
   assert.ok(gatewayContextFacadeLineCount <= 90, `mobile-runtime-gateway-context-facade-service.js line budget exceeded: ${gatewayContextFacadeLineCount} > 90`);
   assert.ok(gatewayRunContentLineCount <= 60, `gateway-run-content-service.js line budget exceeded: ${gatewayRunContentLineCount} > 60`);

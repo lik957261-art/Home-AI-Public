@@ -44,6 +44,7 @@ const {
 const { createKanbanTodoBridge } = require("./adapters/kanban-provider");
 const { createLocalBridgeRuntimeService } = require("./adapters/local-bridge-runtime-service");
 const { createMobileHttpRuntimeService } = require("./adapters/mobile-http-runtime-service");
+const { createMobileRuntimeBasicHelperService } = require("./adapters/mobile-runtime-basic-helper-service");
 const { createMobileRuntimeHttpServerService } = require("./adapters/mobile-runtime-http-server-service");
 const { createMobileRuntimeCoreProviders } = require("./adapters/mobile-runtime-core-providers");
 const { createMobileRuntimeLocalBridgeFacadeService } = require("./adapters/mobile-runtime-local-bridge-facade-service");
@@ -101,6 +102,8 @@ const { BRIDGE_HOST_URL, BRIDGE_HOST_KEY_PATH, STATUS_INCLUDE_CATALOG, GOOGLE_TO
 const { SINGLE_WINDOW_CHAT_TASK_GROUP_ID, SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID, isSingleWindowConversationTaskGroupId, singleWindowChatTaskGroupId, GROUP_MESSAGE_REVOKED_TEXT, GROUP_AI_REPLY_REVOKED_TEXT, SINGLE_WINDOW_PROJECT_ID, SINGLE_WINDOW_THREAD_TITLE } = runtimeEnv;
 const { OWNER_LABEL, OWNER_ROOT_FALLBACK_LABEL, OWNER_DRIVE_ROOT_NAMES, GENERIC_OWNER_TOPIC_PROJECT_PREFIXES, GENERIC_OWNER_TOPIC_PROJECT_IDS, PRINCIPAL_LABEL_PREFIXES } = runtimeEnv;
 const { REASONING_EFFORT_OPTIONS, VALID_REASONING_EFFORTS, MESSAGE_TIME_FIELDS, MIME_BY_EXT, AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS, AUTOMATION_PUSH_DELIVERABLE_LOOKBACK_MS, AUTOMATION_PUSH_DELIVERABLE_FUTURE_GRACE_MS, AUTOMATION_PUSH_INITIAL_LOOKBACK_MS } = runtimeEnv;
+const mobileRuntimeBasicHelperService = createMobileRuntimeBasicHelperService({ crypto, normalizeStringList });
+const { boolParam, hashValue, makeId, normalizeOwnerElevationDurations, normalizeSingleWindowMode, nowIso, responseTextFromValue } = mobileRuntimeBasicHelperService;
 const mobileRuntimeBackendPolicyService = createMobileRuntimeBackendPolicyService({
   automationBackend: AUTOMATION_BACKEND,
   directTodoCreateSetting: DIRECT_TODO_CREATE_SETTING,
@@ -865,26 +868,6 @@ function normalizeChatGroup(value, ownerWorkspaceId = "owner", options = {}) {
 function saveState(next = state, options = {}) {
   return mobileRuntimeStateFacadeService.saveState(next, options);
 }
-function hashValue(value) {
-  return crypto.createHash("sha256").update(String(value || ""), "utf8").digest("hex");
-}
-function makeId(prefix) {
-  return `${prefix}_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
-}
-function nowIso() {
-  return new Date().toISOString();
-}
-function normalizeOwnerElevationDurations(value) {
-  const parsed = normalizeStringList(value)
-    .map((item) => Number(item))
-    .filter((item) => Number.isFinite(item) && item > 0 && item <= 240)
-    .map((item) => Math.round(item));
-  const unique = [...new Set(parsed)].sort((a, b) => a - b);
-  return unique.length ? unique : [5, 15, 30, 60];
-}
-function normalizeSingleWindowMode(value) {
-  return String(value || "").trim().toLowerCase() === "chat" ? "chat" : "task";
-}
 function requestClientVersion(req) { return httpRuntimeService.requestClientVersion(req); }
 function attachClientVersionHeaders(req, res) { return httpRuntimeService.attachClientVersionHeaders(req, res); }
 function sendJson(res, status, data) { return httpRuntimeService.sendJson(res, status, data); }
@@ -1123,9 +1106,6 @@ mobileRuntimeKanbanFacadeService = createMobileRuntimeKanbanFacadeService({
   workspaceDefaultRoot,
   workspacePrincipal,
 });
-function boolParam(value) {
-  return /^(1|true|yes|on)$/i.test(String(value || ""));
-}
 function cronJobMatchesSearch(job, search) {
   if (!search) return true;
   return [
@@ -1146,21 +1126,6 @@ function cronJobMatchesOwner(job, ownerPrincipalId) {
   if (!expected) return false;
   if (owner) return owner === expected;
   return expected === "owner";
-}
-function responseTextFromValue(value) {
-  if (value == null) return "";
-  if (typeof value === "string") return value;
-  if (Array.isArray(value)) return value.map(responseTextFromValue).filter(Boolean).join("");
-  if (typeof value !== "object") return "";
-  if (typeof value.output_text === "string") return value.output_text;
-  if (typeof value.text === "string") return value.text;
-  if (typeof value.content === "string") return value.content;
-  return [
-    responseTextFromValue(value.output),
-    responseTextFromValue(value.content),
-    responseTextFromValue(value.message),
-    responseTextFromValue(value.response),
-  ].filter(Boolean).join("");
 }
 function extractJsonObject(text) {
   return naturalLanguageDraftService.extractJsonObject(text);
