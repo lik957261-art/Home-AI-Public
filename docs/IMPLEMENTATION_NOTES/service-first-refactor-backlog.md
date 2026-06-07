@@ -97,6 +97,10 @@ statements. Priority extraction areas:
   `createRuntimeStateThreadService` directly after state facade setup and keeps
   `getRuntimeStateThreadService` as a compatibility delegate instead of a lazy
   top-level factory function.
+- completed 2026-06-08: Single Window thread runtime now instantiates
+  `createSingleWindowThreadService` directly once workspace catalog/display
+  dependencies are ready and keeps `getSingleWindowThreadService` as a
+  compatibility delegate instead of a lazy top-level factory function.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

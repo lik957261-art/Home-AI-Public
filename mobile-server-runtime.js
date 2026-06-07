@@ -241,7 +241,6 @@ let mobileRuntimeWorkspaceFacadeService = null;
 let runtimeWorkspaceCatalogService = null;
 const sourceMarkdownSearchCache = new Map();
 let state = null;
-let singleWindowThreadService = null;
 let semanticDirectoryAttachmentService = null;
 let mobileRuntimeThreadViewFacadeService = null;
 let webPushDeliveryService = null;
@@ -727,6 +726,30 @@ const workspaceDisplayPathService = createWorkspaceDisplayPathService({
   pathInsideAnyRoot,
 });
 bootTrace("display paths ready");
+const singleWindowThreadService = createSingleWindowThreadService({
+  chatGroupMemberWorkspaceIds,
+  findProject,
+  findWorkspace,
+  kanbanCaseTopicKind: KANBAN_CASE_TOPIC_KIND,
+  makeId,
+  normalizeChatGroup,
+  normalizeExternalDelivery: (...args) => getRuntimeStateNormalizationService().normalizeExternalDelivery(...args),
+  normalizeExternalIngress: (...args) => getRuntimeStateNormalizationService().normalizeExternalIngress(...args),
+  normalizeTaskGroupMeta: (...args) => getRuntimeStateNormalizationService().normalizeTaskGroupMeta(...args),
+  normalizeThread: (...args) => getRuntimeStateNormalizationService().normalizeThread(...args),
+  nowIso,
+  saveState,
+  singleWindowChatTaskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+  singleWindowGroupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+  singleWindowProjectId: SINGLE_WINDOW_PROJECT_ID,
+  singleWindowThreadTitle: SINGLE_WINDOW_THREAD_TITLE,
+  state: () => state,
+  taskGroupOwnerWorkspaceId,
+  taskGroupsForThread,
+  threadAccessibleToAuth: (...args) => getRuntimeStateThreadService().threadAccessibleToAuth(...args),
+  weixinIngressProvider,
+});
+const getSingleWindowThreadService = () => singleWindowThreadService;
 mobileRuntimeFileAccessFacadeService = createMobileRuntimeFileAccessFacadeService({
   allProjectsForWorkspaceSync,
   authenticateRequest,
@@ -1095,34 +1118,6 @@ mobileRuntimeKanbanFacadeService = createMobileRuntimeKanbanFacadeService({
   workspaceDefaultRoot,
   workspacePrincipal,
 });
-function getSingleWindowThreadService() {
-  if (!singleWindowThreadService) {
-    singleWindowThreadService = createSingleWindowThreadService({
-      chatGroupMemberWorkspaceIds,
-      findProject,
-      findWorkspace,
-      kanbanCaseTopicKind: KANBAN_CASE_TOPIC_KIND,
-      makeId,
-      normalizeChatGroup,
-      normalizeExternalDelivery: (...args) => getRuntimeStateNormalizationService().normalizeExternalDelivery(...args),
-      normalizeExternalIngress: (...args) => getRuntimeStateNormalizationService().normalizeExternalIngress(...args),
-      normalizeTaskGroupMeta: (...args) => getRuntimeStateNormalizationService().normalizeTaskGroupMeta(...args),
-      normalizeThread: (...args) => getRuntimeStateNormalizationService().normalizeThread(...args),
-      nowIso,
-      saveState,
-      singleWindowChatTaskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
-      singleWindowGroupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
-      singleWindowProjectId: SINGLE_WINDOW_PROJECT_ID,
-      singleWindowThreadTitle: SINGLE_WINDOW_THREAD_TITLE,
-      state: () => state,
-      taskGroupOwnerWorkspaceId,
-      taskGroupsForThread,
-      threadAccessibleToAuth: (...args) => getRuntimeStateThreadService().threadAccessibleToAuth(...args),
-      weixinIngressProvider,
-    });
-  }
-  return singleWindowThreadService;
-}
 const publicWorkspace = (...args) => mobileRuntimeWorkspaceFacadeService.publicWorkspace(...args);
 const publicAccessKeyStatus = (...args) => mobileRuntimeWorkspaceFacadeService.publicAccessKeyStatus(...args);
 const listWorkspaceAccessKeyStatuses = (...args) => mobileRuntimeWorkspaceFacadeService.listWorkspaceAccessKeyStatuses(...args);
