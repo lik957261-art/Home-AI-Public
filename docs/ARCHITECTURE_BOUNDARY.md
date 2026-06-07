@@ -99,6 +99,7 @@ focused adapters such as `app-route-url-service.js`,
 `gateway-run-start-wardrobe-gate-service.js`,
 `gateway-run-content-service.js`,
 `gateway-run-stream-event-service.js`,
+`gateway-run-stream-liveness-service.js`,
 `gateway-run-stream-registry-service.js`,
 `mobile-runtime-group-chat-facade-service.js`,
 `mobile-runtime-group-chat-attachment-service.js`,
@@ -183,6 +184,14 @@ projection, and Web-search tool budget counting/abort projection. It must not
 read response streams, own active stream storage, check liveness, call Gateway
 runner APIs, or mark thread/message terminal state.
 
+`gateway-run-stream-liveness-service.js` owns Gateway active-run liveness
+checking: start-timeout detection before a real run id exists, delayed liveness
+check suppression after recent events, Gateway `checkRun` execution, timeout
+signal creation, lifecycle decision application, liveness warning/stale event
+projection, miss counter mutation, and failed-abort handoff. It must not own
+active stream storage, read response streams, parse Gateway events, stop remote
+runs, or mark thread/message terminal state.
+
 `gateway-run-stream-registry-service.js` owns the active Gateway stream
 registry: public run id lookup, real run id aliases, Gateway target/url lookup
 from active streams or the pool fallback, alias cleanup, active stream count,
@@ -191,14 +200,15 @@ Gateway events, emit Hermes run events, perform liveness checks, stop remote
 runs, or mark thread/message terminal state.
 
 `gateway-run-stream-service.js` owns Gateway response stream orchestration:
-event reading, stream telemetry projection, liveness checks, stream-close
+event reading, stream telemetry projection, liveness scheduling handoff, stream-close
 recovery, remote stop requests, tool-budget event handoff, and terminal
 failure/cancel/completion handoff. It must delegate active-stream registry,
 run-id aliasing, Gateway target/url lookup, alias cleanup, and failed-abort
 flagging to `gateway-run-stream-registry-service.js`. It must delegate
 deterministic event parsing, terminal-event detection, output-text detection,
 preview formatting, and Web-search tool budget counting/abort projection to
-`gateway-run-stream-event-service.js`.
+`gateway-run-stream-event-service.js`. It must delegate active-run liveness
+checking to `gateway-run-stream-liveness-service.js`.
 
 `mobile-runtime-gateway-context-facade-service.js` owns stale tool-availability
 claim detection delegates for HTTP, image, DOCX, and audio tool schemas. Weixin
@@ -707,10 +717,13 @@ Current CI guardrails:
   remain deterministic stream event projection and tool-budget accounting, not
   active-stream storage, liveness checking, Gateway runner I/O, or lifecycle
   mutation;
+- `gateway-run-stream-liveness-service.js` must stay at or below 115 lines and
+  remain active-run liveness checking, not stream parsing, active-stream
+  storage, remote stop, or terminal thread/message mutation;
 - `gateway-run-stream-registry-service.js` must stay at or below 115 lines and
   remain an active-stream registry and alias/target lookup service, not a
   stream parser, liveness checker, event projector, or lifecycle module;
-- `gateway-run-stream-service.js` must stay at or below 450 lines and remain
+- `gateway-run-stream-service.js` must stay at or below 390 lines and remain
   Gateway stream orchestration, not an active-stream registry or broad Gateway
   runtime composition module;
 - `mobile-runtime-group-chat-facade-service.js` must stay at or below 95 lines

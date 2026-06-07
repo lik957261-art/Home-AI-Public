@@ -242,6 +242,13 @@ statements. Priority extraction areas:
   text detection, preview formatting, tool-call name projection, and Web-search
   tool budget counting/abort projection while retaining response stream
   orchestration and liveness behavior.
+- completed 2026-06-08: Gateway run stream liveness checking moved into
+  `adapters/gateway-run-stream-liveness-service.js`. The stream service now
+  delegates start-timeout detection, delayed liveness-check suppression, Gateway
+  `checkRun`, timeout signal creation, lifecycle decision application,
+  warning/stale event projection, miss counter mutation, and failed-abort
+  handoff while retaining liveness timer scheduling and response stream
+  orchestration.
 - completed 2026-06-08: Runtime Gateway concurrency projection moved into
   `adapters/mobile-runtime-gateway-concurrency-service.js`. The Gateway facade
   now delegates active-run snapshot, per-workspace limit-error projection, and

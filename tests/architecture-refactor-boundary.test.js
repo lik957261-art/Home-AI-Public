@@ -32,6 +32,7 @@ const gatewayRunQueueService = require("../adapters/gateway-run-queue-service");
 const gatewayRunContentService = require("../adapters/gateway-run-content-service");
 const gatewayRunRequestBuilderService = require("../adapters/gateway-run-request-builder-service");
 const gatewayRunStreamEventService = require("../adapters/gateway-run-stream-event-service");
+const gatewayRunStreamLivenessService = require("../adapters/gateway-run-stream-liveness-service");
 const gatewayRunStreamRegistryService = require("../adapters/gateway-run-stream-registry-service");
 const gatewayRunStartAssistantOptionsService = require("../adapters/gateway-run-start-assistant-options-service");
 const gatewayRunStartEventService = require("../adapters/gateway-run-start-event-service");
@@ -308,6 +309,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof gatewayRunRequestBuilderService.createGatewayRunRequestBuilderService, "function");
   assert.equal(typeof gatewayRunStreamEventService.createGatewayRunStreamEventService, "function");
   assert.equal(typeof gatewayRunStreamEventService.modelStreamEventPreview, "function");
+  assert.equal(typeof gatewayRunStreamLivenessService.createGatewayRunStreamLivenessService, "function");
+  assert.equal(typeof gatewayRunStreamLivenessService.createTimeoutSignal, "function");
   assert.equal(typeof gatewayRunStreamRegistryService.createGatewayRunStreamRegistryService, "function");
   assert.equal(typeof gatewayRunStreamRegistryService.gatewayTargetFromActiveStream, "function");
   assert.equal(typeof gatewayRunStartAssistantOptionsService.createGatewayRunStartAssistantOptionsService, "function");
@@ -614,6 +617,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const gatewayRunRequestBuilder = fileText("adapters/gateway-run-request-builder-service.js");
   const gatewayRunStream = fileText("adapters/gateway-run-stream-service.js");
   const gatewayRunStreamEvent = fileText("adapters/gateway-run-stream-event-service.js");
+  const gatewayRunStreamLiveness = fileText("adapters/gateway-run-stream-liveness-service.js");
   const gatewayRunStreamRegistry = fileText("adapters/gateway-run-stream-registry-service.js");
   const gatewayRunStartAssistantOptions = fileText("adapters/gateway-run-start-assistant-options-service.js");
   const gatewayRunStartEvent = fileText("adapters/gateway-run-start-event-service.js");
@@ -998,6 +1002,11 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(gatewayRunStreamEvent, /function eventNameFromEvent/);
   assert.match(gatewayRunStreamEvent, /function outputItemHasMessageText/);
   assert.match(gatewayRunStreamEvent, /function recordToolBudgetForEvent/);
+  assert.match(gatewayRunStream, /createGatewayRunStreamLivenessService/);
+  assert.match(gatewayRunStream, /streamLivenessService\.checkActiveStreamLiveness/);
+  assert.match(gatewayRunStreamLiveness, /function createTimeoutSignal/);
+  assert.match(gatewayRunStreamLiveness, /async function checkActiveStreamLiveness/);
+  assert.match(gatewayRunStreamLiveness, /const decision = livenessDecision\(/);
   assert.match(gatewayRunStreamRegistry, /function gatewayTargetFromActiveStream/);
   assert.match(gatewayRunStreamRegistry, /function activeStreamForRun/);
   assert.match(gatewayRunStreamRegistry, /function registerRunAlias/);
@@ -1008,6 +1017,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.doesNotMatch(gatewayRunStream, /function cleanupRunAliases/);
   assert.doesNotMatch(gatewayRunStream, /function toolCallNameFromEvent/);
   assert.doesNotMatch(gatewayRunStream, /function recordToolBudgetForEvent/);
+  assert.doesNotMatch(gatewayRunStream, /const decision = livenessDecision\(/);
+  assert.doesNotMatch(gatewayRunStream, /function createTimeoutSignal/);
   assert.match(gatewayRunStart, /createGatewayRunStartAssistantOptionsService/);
   assert.match(gatewayRunStart, /createGatewayRunRequestBuilderService/);
   assert.match(gatewayRunStart, /createGatewayRunStartEventService/);
@@ -1485,8 +1496,9 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /gateway-run-start-service\.js` must stay at or below 295 lines/);
   assert.match(doc, /gateway-run-content-service\.js` must stay at or below 60 lines/);
   assert.match(doc, /gateway-run-stream-event-service\.js` must stay at or below 145\s+lines/);
+  assert.match(doc, /gateway-run-stream-liveness-service\.js` must stay at or below 115\s+lines/);
   assert.match(doc, /gateway-run-stream-registry-service\.js` must stay at or below 115\s+lines/);
-  assert.match(doc, /gateway-run-stream-service\.js` must stay at or below 450\s+lines/);
+  assert.match(doc, /gateway-run-stream-service\.js` must stay at or below 390\s+lines/);
   assert.match(doc, /mobile-runtime-group-chat-facade-service\.js` must stay at or below 95 lines/);
   assert.match(doc, /mobile-runtime-workspace-identity-facade-service\.js` must stay at or below\s+65 lines/);
   assert.match(doc, /mobile-runtime-artifact-facade-service\.js` must stay at or below 140 lines/);
@@ -1544,6 +1556,7 @@ function testServiceFirstArchitectureContract() {
   const gatewayRunContent = fileText("adapters/gateway-run-content-service.js");
   const gatewayRunStream = fileText("adapters/gateway-run-stream-service.js");
   const gatewayRunStreamEvent = fileText("adapters/gateway-run-stream-event-service.js");
+  const gatewayRunStreamLiveness = fileText("adapters/gateway-run-stream-liveness-service.js");
   const gatewayRunStreamRegistry = fileText("adapters/gateway-run-stream-registry-service.js");
   const gatewayConcurrency = fileText("adapters/mobile-runtime-gateway-concurrency-service.js");
   const gatewayProvider = fileText("adapters/mobile-runtime-gateway-provider-service.js");
@@ -1633,6 +1646,7 @@ function testServiceFirstArchitectureContract() {
   const gatewayRunContentLineCount = gatewayRunContent.split(/\r?\n/).length;
   const gatewayRunStreamLineCount = gatewayRunStream.split(/\r?\n/).length;
   const gatewayRunStreamEventLineCount = gatewayRunStreamEvent.split(/\r?\n/).length;
+  const gatewayRunStreamLivenessLineCount = gatewayRunStreamLiveness.split(/\r?\n/).length;
   const gatewayRunStreamRegistryLineCount = gatewayRunStreamRegistry.split(/\r?\n/).length;
   const gatewayConcurrencyLineCount = gatewayConcurrency.split(/\r?\n/).length;
   const gatewayProviderLineCount = gatewayProvider.split(/\r?\n/).length;
@@ -1712,8 +1726,9 @@ function testServiceFirstArchitectureContract() {
   assert.ok(gatewayContextFacadeLineCount <= 90, `mobile-runtime-gateway-context-facade-service.js line budget exceeded: ${gatewayContextFacadeLineCount} > 90`);
   assert.ok(gatewayRunContentLineCount <= 60, `gateway-run-content-service.js line budget exceeded: ${gatewayRunContentLineCount} > 60`);
   assert.ok(gatewayRunStreamEventLineCount <= 145, `gateway-run-stream-event-service.js line budget exceeded: ${gatewayRunStreamEventLineCount} > 145`);
+  assert.ok(gatewayRunStreamLivenessLineCount <= 115, `gateway-run-stream-liveness-service.js line budget exceeded: ${gatewayRunStreamLivenessLineCount} > 115`);
   assert.ok(gatewayRunStreamRegistryLineCount <= 115, `gateway-run-stream-registry-service.js line budget exceeded: ${gatewayRunStreamRegistryLineCount} > 115`);
-  assert.ok(gatewayRunStreamLineCount <= 450, `gateway-run-stream-service.js line budget exceeded: ${gatewayRunStreamLineCount} > 450`);
+  assert.ok(gatewayRunStreamLineCount <= 390, `gateway-run-stream-service.js line budget exceeded: ${gatewayRunStreamLineCount} > 390`);
   assert.ok(gatewayFacadeLineCount <= 125, `mobile-runtime-gateway-facade-service.js line budget exceeded: ${gatewayFacadeLineCount} > 125`);
   assert.ok(gatewayProviderLineCount <= 175, `mobile-runtime-gateway-provider-service.js line budget exceeded: ${gatewayProviderLineCount} > 175`);
   assert.ok(gatewayConcurrencyLineCount <= 60, `mobile-runtime-gateway-concurrency-service.js line budget exceeded: ${gatewayConcurrencyLineCount} > 60`);

@@ -1,11 +1,11 @@
 "use strict";
 
-const { livenessDecisionAfterCheck } = require("./gateway-run-lifecycle-service");
 const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
 const {
   createGatewayRunStreamEventService,
   modelStreamEventPreview,
 } = require("./gateway-run-stream-event-service");
+const { createGatewayRunStreamLivenessService } = require("./gateway-run-stream-liveness-service");
 const { createGatewayRunStreamRegistryService } = require("./gateway-run-stream-registry-service");
 
 function cleanString(value) {
@@ -38,11 +38,6 @@ function safeErrorMessage(err) {
   return gatewayRunUserFacingError(err);
 }
 
-function createTimeoutSignal(abortSignal, timeoutMs) {
-  if (!abortSignal || typeof abortSignal.timeout !== "function") return undefined;
-  return abortSignal.timeout(Math.max(1000, timeoutMs));
-}
-
 function createGatewayRunStreamService(options = {}) {
   const activeStreams = options.activeStreams instanceof Map ? options.activeStreams : new Map();
   const dedupe = typeof options.dedupe === "function" ? options.dedupe : defaultDedupe;
@@ -66,10 +61,6 @@ function createGatewayRunStreamService(options = {}) {
   const abortControllerFactory = typeof options.abortControllerFactory === "function"
     ? options.abortControllerFactory
     : (() => new AbortController());
-  const abortSignal = options.abortSignal || AbortSignal;
-  const livenessDecision = typeof options.livenessDecisionAfterCheck === "function"
-    ? options.livenessDecisionAfterCheck
-    : livenessDecisionAfterCheck;
   const streamRegistryService = options.streamRegistryService || createGatewayRunStreamRegistryService({
     activeStreams,
     gatewayPool,
@@ -128,6 +119,19 @@ function createGatewayRunStreamService(options = {}) {
   const outputItemHasMessageText = (...args) => streamEventService.outputItemHasMessageText(...args);
   const isTerminalGatewayEvent = (...args) => streamEventService.isTerminalGatewayEvent(...args);
   const recordToolBudgetForEvent = (...args) => streamEventService.recordToolBudgetForEvent(...args);
+  const streamLivenessService = options.streamLivenessService || createGatewayRunStreamLivenessService({
+    abortActiveStreamAsFailed,
+    abortSignal: options.abortSignal || AbortSignal,
+    activeStreamForRun,
+    configuredForStream,
+    emitRunStreamEvent,
+    gatewayPool,
+    gatewayTargetForRun,
+    livenessDecisionAfterCheck: options.livenessDecisionAfterCheck,
+    logger,
+    nowMs,
+  });
+  const checkActiveStreamLiveness = (...args) => streamLivenessService.checkActiveStreamLiveness(...args);
 
   function clearStreamTimers(stream) {
     if (!stream) return;
@@ -184,69 +188,6 @@ function createGatewayRunStreamService(options = {}) {
       stopped.push(runId);
     }
     return stopped;
-  }
-
-  async function checkActiveStreamLiveness(publicRunId) {
-    const stream = activeStreamForRun(publicRunId);
-    if (!stream) return { action: "missing" };
-    const now = nowMs();
-    const runStartTimeoutMs = Math.max(0, configuredForStream(stream, "runStartTimeoutMs", 0));
-    if (!stream.realRunId) {
-      if (runStartTimeoutMs > 0 && now - Number(stream.startedAt || now) >= runStartTimeoutMs) {
-        emitRunStreamEvent(publicRunId, "run.gateway_start_timeout", modelStreamEventPreview("Gateway 未创建真实运行，准备释放队列", {
-          timeout: `${Math.round(runStartTimeoutMs / 1000)}s`,
-        }), { error: true });
-        abortActiveStreamAsFailed(publicRunId, `Hermes Gateway did not create a run within ${Math.round(runStartTimeoutMs / 1000)} seconds; the queued task was released.`);
-        return { action: "abort_start_timeout" };
-      }
-      return { action: "waiting_for_real_run" };
-    }
-
-    const checkAfterMs = Math.max(0, configuredForStream(stream, "runLivenessCheckAfterMs", 0));
-    if (checkAfterMs > 0 && now - Number(stream.lastEventAt || now) < checkAfterMs) {
-      return { action: "recent_event" };
-    }
-
-    try {
-      const target = gatewayTargetForRun(publicRunId);
-      const pool = gatewayPool();
-      if (!pool || typeof pool.runnerFor !== "function") {
-        throw new Error("Gateway run stream service requires gatewayPool.runnerFor");
-      }
-      await pool.runnerFor(target).checkRun(stream.realRunId, {
-        gatewayUrl: target.apiBase,
-        apiKey: target.apiKey,
-        signal: createTimeoutSignal(abortSignal, configuredForStream(stream, "apiTimeoutMs", 30000)),
-      });
-      stream.livenessMisses = 0;
-      stream.lastLivenessWarningAt = 0;
-      return { action: "alive" };
-    } catch (err) {
-      const decision = livenessDecision({
-        status: err?.status,
-        error: err,
-        nowMs: now,
-        lastEventAtMs: stream.lastEventAt,
-        staleAfterMs: configuredForStream(stream, "runLivenessStaleAfterMs", 0),
-        livenessMisses: stream.livenessMisses,
-        lastWarningAtMs: stream.lastLivenessWarningAt,
-      });
-      if (decision.action === "ignore_error") return decision;
-      stream.livenessMisses = decision.livenessMisses;
-      if (decision.shouldAbort) {
-        emitRunStreamEvent(publicRunId, "run.liveness_stale", modelStreamEventPreview("Gateway 运行状态超时，准备释放队列", {
-          elapsed: `${Math.round(decision.elapsedMs / 1000)}s`,
-        }), { error: true });
-        abortActiveStreamAsFailed(publicRunId, `Hermes Gateway no longer reports run ${stream.realRunId} after ${Math.round(decision.elapsedMs / 1000)} seconds without response events; the Web task was marked stale and the queue was released.`);
-        return decision;
-      }
-      if (decision.shouldWarn) {
-        stream.lastLivenessWarningAt = decision.lastWarningAt;
-        logger.warn?.(`Hermes Mobile run liveness check got 404 for ${stream.realRunId}; keeping the active stream open because long-running Gateway tools can be absent from /v1/runs.`);
-        emitRunStreamEvent(publicRunId, "run.liveness_warning", "Gateway 暂时未报告该运行；保持等待");
-      }
-      return decision;
-    }
   }
 
   function recordGatewayEvent(runId, event = {}) {
