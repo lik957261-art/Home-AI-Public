@@ -120,6 +120,15 @@ accept profile and replica start/stop arguments, owner-maintenance mode,
 bounded scheduler metadata arguments, and reject owner-maintenance requests for
 non-maintenance targets. Production sync must install it as executable under
 `/Users/hermes-host/HermesMobile/gateway-worker/macos-launch-gateway-profile.sh`.
+Windows native Gateway launcher changes must run
+`node tests\windows-native-gateway-profile-launcher.test.js` and
+`node tests\gateway-worker-profile-launch-service.test.js`. The launcher must
+not call WSL/bash, must run the official Hermes source through the isolated
+Windows venv, must rewrite WSL profile config paths into Windows-native paths,
+must pass worker API keys only through environment, and must occupy the existing
+manifest port instead of running a second parallel Gateway. Live acceptance must
+prove `/health` and authenticated `/v1/models` on the selected old manifest
+port without printing the key.
 Mac production user/profile migration changes must run
 `node tests\macos-production-profile-audit.test.js` locally and the production
 profile audit on the Mac with the pinned runtime. The production audit must

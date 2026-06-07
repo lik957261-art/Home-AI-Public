@@ -40,6 +40,13 @@ Gateway Pool owns official-clean Hermes worker startup, health checks, routing t
   operator user's `wsl.exe -l` does not show. The maintained production machine
   runs the listener in caller context so on-demand starts use the operator-owned
   WSL registration instead.
+- Windows native low Gateway experiment/runtime tree:
+  `C:\ProgramData\HermesMobile\gateway-worker\native-runtime`. The isolated
+  native source checkout is `native-runtime\official-clean`, the venv is
+  `native-runtime\venv`, generated Windows-native profiles are under
+  `native-runtime\profiles\<profile>`, and logs are under `native-runtime\logs`.
+  The native profile launcher is
+  `C:\ProgramData\HermesMobile\app\scripts\start-windows-native-gateway-profile.ps1`.
 
 ## Worker Roles
 
@@ -122,6 +129,29 @@ started by the listener and retired by the idle TTL.
 Workspace provisioning must therefore create enough same-provider candidates:
 ordinary workspaces need two `openai-codex` `lowgw*` profiles and one
 `deepseekgw*` profile when DeepSeek is available.
+
+Maintained Windows development production may use the same hybrid policy with a
+Windows-native low Gateway launcher instead of WSL. The production launcher must
+set both `HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT` and
+`HERMES_WEB_GATEWAY_PROFILE_LAUNCH_SCRIPT` to
+`C:\ProgramData\HermesMobile\app\scripts\start-windows-native-gateway-profile.ps1`.
+The native launcher occupies the existing manifest ports, creates isolated
+native profile configs from `telemetry\profiles\<profile>\config.yaml`, rewrites
+WSL paths (`/mnt/c/...`, `/opt/hermes-gateway-runtime/...`, and
+`/home/*/.hermes/profiles/<profile>`) to Windows-native paths, and passes the
+manifest worker API key only through process environment. It must not invoke
+`wsl.exe` or `bash`, and it must not put API keys on the command line.
+
+The current maintained Windows native test configuration keeps warm workers at
+zero and the idle TTL at one minute:
+`HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM=0`,
+`HERMES_MOBILE_GATEWAY_WORKSPACE_MIN_WARM=0`, and
+`HERMES_MOBILE_GATEWAY_WORKER_IDLE_TTL_MINUTES=1`, with the matching
+`HERMES_WEB_*` aliases. If the native experiment fails, stop native Gateway
+processes on the manifest ports, restore
+`C:\ProgramData\HermesMobile\start-hermes-mobile-production.ps1` from the
+pre-migration backup, and restart the listener with
+`scripts\start-worker-host.ps1 -ReplaceExisting -MinGatewayPoolWorkers 0`.
 
 The caps are tier-scoped. Low-permission user workers count against the
 Owner/workspace user cap, while `owner-maintenance` workers are separate
@@ -239,6 +269,20 @@ ENOENT` during cold-worker startup. This is a harnessed contract, not an
 operator memory rule: keep `node tests\mobile-runtime-environment-service.test.js`
 and `node tests\gateway-worker-profile-launch-service.test.js` passing whenever
 Gateway launch configuration changes.
+
+Windows native Gateway launcher changes must keep
+`node tests\windows-native-gateway-profile-launcher.test.js` and
+`node tests\gateway-worker-profile-launch-service.test.js` passing. A live
+acceptance smoke must prove:
+
+- the old manifest port is occupied by
+  `C:\ProgramData\HermesMobile\gateway-worker\native-runtime\venv\Scripts\python.exe`
+  running `-m hermes_cli.main gateway run --replace --accept-hooks`;
+- `GET http://127.0.0.1:<port>/health` returns `200`;
+- an authenticated `GET /v1/models` using the worker manifest key returns
+  `200` without printing the key;
+- `/api/status` on the Windows listener reports `ownerMinWarm=0`,
+  `workspaceMinWarm=0`, and `idleTtlMs=60000`.
 
 The maintained Mac launcher is `scripts/macos-launch-gateway-profile.sh`,
 installed in production as

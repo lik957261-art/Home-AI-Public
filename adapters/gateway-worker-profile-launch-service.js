@@ -38,6 +38,10 @@ function publicArgs(args = []) {
   return result;
 }
 
+function isPowerShellScript(command) {
+  return /\.ps1$/i.test(cleanString(command));
+}
+
 function readConfigString(config = {}, ...keys) {
   for (const key of keys) {
     const value = cleanString(config[key]);
@@ -281,8 +285,19 @@ function createGatewayWorkerProfileLaunchService(options = {}) {
   }
 
   function spawnCommand(command, args = [], timeoutMs = 120000) {
+    const usePowerShell = isPowerShellScript(command);
+    const commandName = usePowerShell ? "powershell.exe" : command;
+    const commandArgs = usePowerShell
+      ? [
+        "-NoProfile",
+        "-WindowStyle", "Hidden",
+        "-ExecutionPolicy", "Bypass",
+        "-File", command,
+        ...args,
+      ]
+      : args;
     return new Promise((resolve, reject) => {
-      const child = spawn(command, args, {
+      const child = spawn(commandName, commandArgs, {
         cwd: toolRoot,
         windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"],

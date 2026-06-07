@@ -169,6 +169,38 @@ Required practice:
 
 ## H1 Required Harness
 
+### Windows Native Gateway Launch
+
+Applies to replacing the Windows WSL low Gateway start path with the native
+official Hermes source checkout, the native venv, native profile materialization,
+or production launcher variables that decide how stopped Gateway profiles are
+started on demand.
+
+Required harness dimensions:
+
+- The profile launcher accepts the scheduler's custom script arguments:
+  `--start-profiles`, `--stop-profiles`, `--start-replicas`, `--stop-replicas`,
+  `--owner-maintenance-only`, and `--no-stop-existing`.
+- The launcher must not invoke `wsl.exe` or `bash`.
+- The launcher rewrites WSL profile config paths into Windows-native paths
+  before starting the worker.
+- The worker API key is passed only through the child process environment; it is
+  not passed on the command line or written to harness output.
+- The launcher stops or occupies the existing manifest port rather than leaving
+  old and native workers running side by side.
+- A live smoke proves `/health` and an authenticated `/v1/models` request on
+  the selected old manifest port.
+- The Windows listener status proves the effective hybrid policy when the
+  maintained machine is configured for cold native starts:
+  `ownerMinWarm=0`, `workspaceMinWarm=0`, and `idleTtlMs=60000`.
+
+Focused checks:
+
+```powershell
+node tests\windows-native-gateway-profile-launcher.test.js
+node tests\gateway-worker-profile-launch-service.test.js
+```
+
 ### macOS Production Deployment And Workspace Isolation
 
 Applies to the Mac Studio production installer, launchd service generation,

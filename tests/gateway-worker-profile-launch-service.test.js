@@ -275,6 +275,34 @@ async function testCustomProfileLaunchScriptForNasHybrid() {
   fs.rmSync(toolRoot, { recursive: true, force: true });
 }
 
+async function testPowerShellProfileLaunchScriptRunsThroughHiddenPowerShell() {
+  const calls = [];
+  const toolRoot = tempToolRoot();
+  const script = path.join(toolRoot, "start-windows-native-gateway-profile.ps1");
+  fs.writeFileSync(script, "# test\n", "utf8");
+  const service = createGatewayWorkerProfileLaunchService({
+    toolRoot,
+    elasticConfig: {
+      HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT: script,
+    },
+    spawn: fakeSpawnFactory(calls),
+  });
+
+  await service.startWorkerProfile({ profile: "lowgw1", securityLevel: "user" }, { timeoutMs: 9000 });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].command, "powershell.exe");
+  assert.deepEqual(calls[0].args, [
+    "-NoProfile",
+    "-WindowStyle", "Hidden",
+    "-ExecutionPolicy", "Bypass",
+    "-File", script,
+    "--start-profiles", "lowgw1", "--no-stop-existing",
+  ]);
+  assert.equal(calls[0].spawnOptions.windowsHide, true);
+  fs.rmSync(toolRoot, { recursive: true, force: true });
+}
+
 async function testCustomProfileLaunchScriptHandlesOwnerMaintenance() {
   const calls = [];
   const toolRoot = tempToolRoot();
@@ -423,6 +451,7 @@ function testHelpersSanitizePublicState() {
   await testScheduledTaskLaunchRequestCarriesTemplateMetadata();
   await testDirectLaunchCarriesTemplateMetadataToPowerShell();
   await testCustomProfileLaunchScriptForNasHybrid();
+  await testPowerShellProfileLaunchScriptRunsThroughHiddenPowerShell();
   await testCustomProfileLaunchScriptHandlesOwnerMaintenance();
   await testScheduledTaskFailureDiagnosticsAreBounded();
   await testFailureDiagnosticsAreBounded();
