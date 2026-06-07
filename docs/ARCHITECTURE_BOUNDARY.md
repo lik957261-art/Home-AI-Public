@@ -137,6 +137,13 @@ truncation helpers for live streaming append and final full-content compaction.
 composition and state normalization, but it must not carry duplicate
 `appendBounded`, `compactFullContent`, or SSE frame parsing implementations.
 
+`mobile-runtime-gateway-context-facade-service.js` owns stale tool-availability
+claim detection delegates for HTTP, image, DOCX, and audio tool schemas. Weixin
+runtime wiring may receive delayed delegates to this facade, but
+`mobile-server-runtime.js` must not define duplicate
+`isStaleHttpToolAvailabilityClaim` or `isStaleImageToolAvailabilityClaim`
+wrapper functions.
+
 `app-route-url-service.js` owns app-shell query URL serialization for Push,
 Web Push, plugin notification, and other route-link producers. Runtime
 composition may pass the helper into route/service wiring, but it must not carry
@@ -180,6 +187,12 @@ card mutation, reading artifact generation, study/assessment business rules,
 or HTTP route behavior. Those stay in the Kanban providers, learning route
 composition, and focused domain services.
 
+Weixin outbound delivery projection belongs in
+`mobile-runtime-weixin-facade-service.js` and
+`weixin-runtime-composition-service.js`. Thread-view runtime wiring may receive
+a delegate, but `mobile-server-runtime.js` must not define a duplicate
+`publicWeixinOutboundDelivery` wrapper function.
+
 `server.js` and `mobile-server-runtime.js` must not own new business behavior such as:
 
 - workflow state machines;
@@ -211,8 +224,8 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,460 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 58;
+- `mobile-server-runtime.js` must stay at or below 1,455 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 55;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
 - `automation-job-filter-service.js` must stay at or below 45 lines and remain

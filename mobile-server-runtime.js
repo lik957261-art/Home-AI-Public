@@ -503,8 +503,8 @@ const mobileRuntimeWeixinFacadeService = createMobileRuntimeWeixinFacadeService(
   hashValue,
   ingressKeyPaths: WEIXIN_INGRESS_KEY_PATHS,
   isOwnerAuth,
-  isStaleHttpToolAvailabilityClaim,
-  isStaleImageToolAvailabilityClaim,
+  isStaleHttpToolAvailabilityClaim: (...args) => mobileRuntimeGatewayContextFacadeService.isStaleHttpToolAvailabilityClaim(...args),
+  isStaleImageToolAvailabilityClaim: (...args) => mobileRuntimeGatewayContextFacadeService.isStaleImageToolAvailabilityClaim(...args),
   isWeixinSingleWindowThread: (...args) => getSingleWindowThreadService().isWeixinSingleWindowThread(...args),
   makeId,
   maxMessageChars: MAX_MESSAGE_CHARS,
@@ -566,7 +566,7 @@ mobileRuntimeThreadViewFacadeService = createMobileRuntimeThreadViewFacadeServic
   projectSearchLabels: (...args) => getSemanticDirectoryAttachmentService().projectSearchLabels(...args),
   publicChatGroup,
   publicExternalIngress: (...args) => getSingleWindowThreadService().publicExternalIngress(...args),
-  publicWeixinOutboundDelivery,
+  publicWeixinOutboundDelivery: (...args) => mobileRuntimeWeixinFacadeService.publicWeixinOutboundDelivery(...args),
   sanitizeTaskTitle: (...args) => getRuntimeStateNormalizationService().sanitizeTaskTitle(...args),
   searchableText,
   singleWindowChatTaskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
@@ -783,12 +783,6 @@ function getRuntimeStateThreadService() {
     });
   }
   return runtimeStateThreadService;
-}
-function isStaleHttpToolAvailabilityClaim(text) {
-  return conversationHistoryService.isStaleHttpToolAvailabilityClaim(text);
-}
-function isStaleImageToolAvailabilityClaim(text) {
-  return conversationHistoryService.isStaleImageToolAvailabilityClaim(text);
 }
 function chatGroupMemberWorkspaceIds(thread, options = {}) {
   if (!thread?.singleWindow) return [];
@@ -1287,9 +1281,6 @@ const weixinIngressIsAttachmentOnlyEvent = (...args) => mobileRuntimeWeixinFacad
 const consumeWeixinPendingAttachmentMessages = (...args) => mobileRuntimeWeixinFacadeService.consumeWeixinPendingAttachmentMessages(...args);
 const weixinIngressInstructions = (...args) => mobileRuntimeWeixinFacadeService.weixinIngressInstructions(...args);
 const enqueueExternalDeliveryForTerminalMessage = (...args) => mobileRuntimeWeixinFacadeService.enqueueExternalDeliveryForTerminalMessage(...args);
-function publicWeixinOutboundDelivery(...args) {
-  return mobileRuntimeWeixinFacadeService.publicWeixinOutboundDelivery(...args);
-}
 const weixinTargetFromWorkspace = (...args) => mobileRuntimeWeixinFacadeService.weixinTargetFromWorkspace(...args);
 const collectRecentWeixinForwardTargets = (...args) => mobileRuntimeWeixinFacadeService.collectRecentWeixinForwardTargets(...args);
 const weixinForwardTargetsForWorkspace = (...args) => mobileRuntimeWeixinFacadeService.weixinForwardTargetsForWorkspace(...args);

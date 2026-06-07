@@ -542,6 +542,11 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(gatewayContextFacade, /conversationHistoryService\.buildConversationHistory/);
   assert.match(gatewayContextFacade, /conversationHistoryService\.deriveTitle/);
   assert.doesNotMatch(server, /conversationHistoryService\.buildConversationHistory/);
+  assert.match(gatewayContextFacade, /isStaleHttpToolAvailabilityClaim: \(\.\.\.args\) => conversationHistoryService\.isStaleHttpToolAvailabilityClaim\(\.\.\.args\)/);
+  assert.match(server, /isStaleHttpToolAvailabilityClaim: \(\.\.\.args\) => mobileRuntimeGatewayContextFacadeService\.isStaleHttpToolAvailabilityClaim\(\.\.\.args\)/);
+  assert.match(server, /isStaleImageToolAvailabilityClaim: \(\.\.\.args\) => mobileRuntimeGatewayContextFacadeService\.isStaleImageToolAvailabilityClaim\(\.\.\.args\)/);
+  assert.doesNotMatch(server, /^function isStaleHttpToolAvailabilityClaim/gm);
+  assert.doesNotMatch(server, /^function isStaleImageToolAvailabilityClaim/gm);
   assert.match(server, /createGatewayRunInstructionService/);
   assert.match(gatewayContextFacade, /gatewayRunInstructionService\.buildHermesInstructions/);
   assert.doesNotMatch(server, /gatewayRunInstructionService\.buildHermesInstructions/);
@@ -697,6 +702,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(weixinRuntime, /getIngressEventService\(\)\.start/);
   assert.match(weixinRuntime, /createWeixinOutboundDeliveryService/);
   assert.match(weixinRuntime, /getOutboundDeliveryService\(\)\.ackDelivery/);
+  assert.match(server, /publicWeixinOutboundDelivery: \(\.\.\.args\) => mobileRuntimeWeixinFacadeService\.publicWeixinOutboundDelivery\(\.\.\.args\)/);
+  assert.doesNotMatch(server, /^function publicWeixinOutboundDelivery/gm);
   assert.match(server, /createSingleWindowThreadService/);
   assert.match(fileText("adapters/single-window-thread-service.js"), /migrateWeixinMessagesToDedicatedThread/);
   assert.match(server, /createWebPushDeliveryService/);
@@ -937,8 +944,8 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /`mobile-server-runtime\.js` is the transitional runtime composition root/);
   assert.match(doc, /must not own new business behavior/);
   assert.match(doc, /3,000 lines/);
-  assert.match(doc, /1,460 lines/);
-  assert.match(doc, /58/);
+  assert.match(doc, /1,455 lines/);
+  assert.match(doc, /55/);
   assert.match(doc, /app-route-url-service\.js` must stay at or below 35 lines/);
   assert.match(doc, /automation-job-filter-service\.js` must stay at or below 45 lines/);
   assert.match(doc, /runtime-operation-error-response-service\.js` must stay at or below 35 lines/);
@@ -1039,8 +1046,8 @@ function testServiceFirstArchitectureContract() {
   const workspaceFacadeLineCount = workspaceFacade.split(/\r?\n/).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 1460, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1460`);
-  assert.ok(runtimeTopLevelFunctionCount <= 58, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 58`);
+  assert.ok(runtimeLineCount <= 1455, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1455`);
+  assert.ok(runtimeTopLevelFunctionCount <= 55, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 55`);
   assert.ok(appRouteUrlLineCount <= 35, `app-route-url-service.js line budget exceeded: ${appRouteUrlLineCount} > 35`);
   assert.ok(automationJobFilterLineCount <= 45, `automation-job-filter-service.js line budget exceeded: ${automationJobFilterLineCount} > 45`);
   assert.ok(operationErrorResponseLineCount <= 35, `runtime-operation-error-response-service.js line budget exceeded: ${operationErrorResponseLineCount} > 35`);
