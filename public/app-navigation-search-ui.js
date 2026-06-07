@@ -87,6 +87,7 @@ function updateTopicPluginDockChrome(taskList) {
   const showDock = Boolean(taskList && !state.currentTaskGroupId && !sidebarOpen && dock.innerHTML.trim());
   dock.hidden = !showDock;
   dock.setAttribute("aria-hidden", showDock ? "false" : "true");
+  if (typeof updateMobileBottomNavReservation === "function") updateMobileBottomNavReservation();
 }
 
 function reasoningEffortLabel(value) {

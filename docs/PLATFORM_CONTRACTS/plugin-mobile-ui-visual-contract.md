@@ -1,6 +1,6 @@
 # Plugin Mobile UI And Visual Harness Contract
 
-Contract version: `20260606-v1`.
+Contract version: `20260607-v2`.
 
 ## Purpose
 
@@ -105,6 +105,24 @@ Most mobile visual regressions come from unclear bottom ownership.
 
 Non-negotiable:
 
+- Home AI-owned bottom chrome must be arranged through the runtime measured
+  bottom stack, not hand-tuned fixed pixel drops. The host writes measured CSS
+  variables for primary bottom navigation, topic capability Dock, and the
+  combined bottom stack:
+  `--mobile-bottom-nav-bottom-runtime`,
+  `--mobile-bottom-nav-offset-height-runtime`,
+  `--mobile-bottom-nav-reserved-height-runtime`,
+  `--topic-plugin-dock-bottom-runtime`,
+  `--topic-plugin-dock-reserved-height-runtime`, and
+  `--mobile-bottom-stack-height-runtime`.
+- Home AI may apply one shared host comfort inset to the measured bottom stack
+  so bottom navigation is not visually flush with the viewport edge. That inset
+  must be a single host-level variable/measurement input, not separate
+  Mac/Windows/iOS overrides.
+- The topic capability Dock is anchored to the measured primary bottom-nav
+  top, and scroll containers reserve the measured combined stack height. A
+  fix that changes only `bottom: Npx` without updating the measured reservation
+  is not acceptable for Home AI host chrome.
 - fixed or sticky bottom controls must have an explicit matching reservation in
   the scroll container they cover;
 - the reservation belongs to the covered scroll container, not a random outer

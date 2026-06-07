@@ -247,16 +247,23 @@ function updateKeyboardViewportMetrics() {
 
 function updateMobileBottomNavReservation() {
   const root = document.documentElement;
+  const app = $("app");
   const nav = $("bottomNav");
-  if (!nav || !isMobileLayout()) {
+  const clearBottomStackMetrics = () => {
+    root.style.removeProperty("--mobile-bottom-nav-bottom-runtime");
     root.style.removeProperty("--mobile-bottom-nav-offset-height-runtime");
     root.style.removeProperty("--mobile-bottom-nav-reserved-height-runtime");
+    root.style.removeProperty("--topic-plugin-dock-bottom-runtime");
+    root.style.removeProperty("--topic-plugin-dock-reserved-height-runtime");
+    root.style.removeProperty("--mobile-bottom-stack-height-runtime");
+  };
+  if (!nav || !isMobileLayout()) {
+    clearBottomStackMetrics();
     updatePluginContextViewportReservation();
     return;
   }
   if (nav.hidden || window.getComputedStyle?.(nav).display === "none") {
-    root.style.removeProperty("--mobile-bottom-nav-offset-height-runtime");
-    root.style.removeProperty("--mobile-bottom-nav-reserved-height-runtime");
+    clearBottomStackMetrics();
     updatePluginContextViewportReservation();
     return;
   }
@@ -264,12 +271,124 @@ function updateMobileBottomNavReservation() {
   const rectHeight = Math.ceil(rect?.height || 0);
   const contentHeight = Math.ceil(nav.scrollHeight || 0);
   const viewportHeight = Math.ceil(window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0);
+  const comfortInset = 8;
+  const navBottomOverflow = rect && viewportHeight ? Math.ceil(Math.max(0, rect.bottom - viewportHeight)) : 0;
+  const navBottom = navBottomOverflow + comfortInset;
   const visibleOffset = rect && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - rect.top)) : rectHeight;
-  const offset = Math.max(44, Math.min(Math.max(58, rectHeight), visibleOffset || rectHeight));
-  const reserve = Math.max(76, rectHeight + 10, contentHeight + 10);
+  const offset = Math.max(44, rectHeight, contentHeight, visibleOffset || rectHeight);
+  const reserve = Math.max(76, navBottom + rectHeight + 10, navBottom + contentHeight + 10);
+  const dock = $("topicPluginDock");
+  const dockVisible = Boolean(
+    app?.classList.contains("task-list-mode")
+    && dock
+    && !dock.hidden
+    && window.getComputedStyle?.(dock).display !== "none"
+  );
+  const dockHeight = dockVisible
+    ? Math.max(0, Math.ceil(dock.getBoundingClientRect?.().height || 0), Math.ceil(dock.scrollHeight || 0))
+    : 0;
+  const dockBottom = navBottom + offset;
+  const stackHeight = dockVisible ? Math.max(reserve, dockBottom + dockHeight + 2) : reserve;
+  const bottomLayoutMetrics = {
+    viewportHeight,
+    navBottomOverflow,
+    navBottom,
+    comfortInset,
+    navRect: rect ? {
+      top: Math.round(rect.top),
+      bottom: Math.round(rect.bottom),
+      height: Math.round(rect.height),
+    } : null,
+    navOffset: offset,
+    navReserve: reserve,
+    dockVisible,
+    dockHeight,
+    dockBottom,
+    stackHeight,
+  };
+  window.__hermesMobileBottomLayoutMetrics = bottomLayoutMetrics;
+  root.style.setProperty("--mobile-bottom-nav-bottom-runtime", `${navBottom}px`);
   root.style.setProperty("--mobile-bottom-nav-offset-height-runtime", `${offset}px`);
   root.style.setProperty("--mobile-bottom-nav-reserved-height-runtime", `${reserve}px`);
+  if (dockVisible) {
+    root.style.setProperty("--topic-plugin-dock-bottom-runtime", `${dockBottom}px`);
+    root.style.setProperty("--topic-plugin-dock-reserved-height-runtime", `${stackHeight}px`);
+  } else {
+    root.style.removeProperty("--topic-plugin-dock-bottom-runtime");
+    root.style.removeProperty("--topic-plugin-dock-reserved-height-runtime");
+  }
+  root.style.setProperty("--mobile-bottom-stack-height-runtime", `${stackHeight}px`);
+  renderMobileBottomLayoutDebug(bottomLayoutMetrics);
   updatePluginContextViewportReservation();
+}
+
+function mobileBottomLayoutDebugEnabled() {
+  try {
+    return new URLSearchParams(window.location.search || "").get("layoutDebug") === "1"
+      || localStorage.getItem("hermesLayoutDebug") === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function renderMobileBottomLayoutDebug(metrics = {}) {
+  if (!mobileBottomLayoutDebugEnabled()) return;
+  let panel = document.getElementById("mobileBottomLayoutDebug");
+  if (!panel) {
+    panel = document.createElement("pre");
+    panel.id = "mobileBottomLayoutDebug";
+    panel.style.cssText = [
+      "position:fixed",
+      "left:8px",
+      "right:8px",
+      "top:8px",
+      "z-index:3000",
+      "max-height:38vh",
+      "overflow:auto",
+      "margin:0",
+      "padding:8px",
+      "border:1px solid rgba(31,43,51,.18)",
+      "border-radius:8px",
+      "background:rgba(248,249,248,.94)",
+      "color:#17212a",
+      "font:11px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+      "white-space:pre-wrap",
+      "pointer-events:none",
+    ].join(";");
+    document.body.appendChild(panel);
+  }
+  const dock = $("topicPluginDock");
+  const grid = document.querySelector(".capability-quick-grid");
+  const quick = Array.from(document.querySelectorAll(".capability-quick-action"));
+  const rectOf = (node) => {
+    const rect = node?.getBoundingClientRect?.();
+    return rect ? {
+      top: Math.round(rect.top),
+      bottom: Math.round(rect.bottom),
+      height: Math.round(rect.height),
+    } : null;
+  };
+  panel.textContent = JSON.stringify({
+    version: document.documentElement.getAttribute("data-client-version"),
+    visualViewport: {
+      width: Math.round(window.visualViewport?.width || window.innerWidth || 0),
+      height: Math.round(window.visualViewport?.height || window.innerHeight || 0),
+      offsetTop: Math.round(window.visualViewport?.offsetTop || 0),
+    },
+    css: {
+      navBottom: getComputedStyle(document.documentElement).getPropertyValue("--mobile-bottom-nav-bottom-runtime").trim(),
+      navOffset: getComputedStyle(document.documentElement).getPropertyValue("--mobile-bottom-nav-offset-height-runtime").trim(),
+      dockBottom: getComputedStyle(document.documentElement).getPropertyValue("--topic-plugin-dock-bottom-runtime").trim(),
+      stack: getComputedStyle(document.documentElement).getPropertyValue("--mobile-bottom-stack-height-runtime").trim(),
+    },
+    measured: metrics,
+    quickCount: quick.length,
+    grid: rectOf(grid),
+    firstQuick: rectOf(quick[0]),
+    lastQuick: rectOf(quick[quick.length - 1]),
+    dock: rectOf(dock),
+    bottomNav: rectOf($("bottomNav")),
+  }, null, 2);
 }
 
 function updatePluginContextViewportReservation() {

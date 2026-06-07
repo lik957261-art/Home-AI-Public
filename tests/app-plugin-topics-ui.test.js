@@ -72,7 +72,9 @@ assert.match(stylesCss, /\.capability-action-source \{[\s\S]*?display: none;/);
 assert.match(stylesCss, /--topic-plugin-dock-height: 78px;/);
 assert.match(stylesCss, /\.app\.task-list-mode \.topbar \{[\s\S]*?display: none !important;/);
 assert.match(stylesCss, /--mobile-bottom-nav-visual-drop: 10px;/);
-assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?bottom: calc\(0px - var\(--mobile-bottom-nav-visual-drop\)\);/);
+assert.match(stylesCss, /--mobile-bottom-nav-bottom: var\(--mobile-bottom-nav-bottom-runtime, 0px\);/);
+assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?bottom: var\(--mobile-bottom-nav-bottom\);/);
+assert.match(stylesCss, /--topic-plugin-dock-bottom: var\(--topic-plugin-dock-bottom-runtime, var\(--mobile-bottom-nav-offset-height\)\);/);
 assert.match(stylesCss, /\.app\.task-list-mode \.conversation > \.directory-topic-launcher:first-child,[\s\S]*?margin-top: max\(16px, calc\(env\(safe-area-inset-top\) \+ 4px\)\);/);
 
 function createPluginTopicHarness(options = {}) {

@@ -97,6 +97,17 @@ Implemented fix, 2026-06-07:
   Capability Entry Hub is present as stale chrome state. The topic-root renderer
   clamps offsets up to one quick-action row back to `0` so the first quick row
   cannot be hidden under the top edge after a previous session or root redraw.
+- `20260607-mobile-bottom-stack-v601` replaces fixed bottom-nav visual drops as
+  the positioning contract for the topic root. The host measures the primary
+  bottom navigation, topic capability Dock, and visual viewport at runtime,
+  then writes bottom-stack CSS variables so Windows, Mac, browser-mode, and PWA
+  shells share the same Dock/nav geometry. The expected 390x844 baseline is:
+  Dock directly above bottom navigation, no Dock/nav overlap, no clipped bottom
+  nav labels, and no quick-action/Dock overlap.
+- `20260607-mobile-bottom-comfort-v604` keeps the same measured bottom-stack
+  contract and adds an 8px host comfort inset so the primary bottom navigation
+  is no longer visually flush with the viewport edge. This is a single host
+  variable, not a per-environment Mac/Windows offset.
 - `tests/app-plugin-topics-ui.test.js` includes a VM projection harness that
   seeds lower-priority actions, repeatedly records `wardrobe:style`, and
   asserts it becomes the first quick action while the root projection receives
@@ -325,6 +336,9 @@ Recommended mobile layout:
   plugin/source badges unless the product explicitly reopens that visual model;
 - plugin and Directory icons stay in the fixed bottom Dock above the primary
   bottom navigation, matching the previous topic-page icon form;
+- Dock and primary bottom navigation placement use the host runtime measured
+  bottom stack. Do not add a deployment-specific fixed pixel offset to make one
+  environment look right;
 - no nested cards;
 - no two-button stack below every icon;
 - no mid-page plugin icon grid competing with Directory-bound topic content.
@@ -387,6 +401,9 @@ Minimum validation:
   topic entry, quick directory entry, and return behavior;
 - evidence that quick action rows and Directory-bound topic rows do not overlap
   the fixed plugin Dock, bottom navigation, composer, or plugin-context footer;
+- evidence that the measured Dock rect and primary bottom-nav rect are adjacent
+  without overlap or clipping on both Windows local production and Mac
+  production when the same viewport is used;
 - evidence that the bottom Dock includes Directory when available, opens its
   touch long-press/context menu, reports the gesture used by the harness, and
   keeps the menu above both the Dock and primary bottom navigation;
