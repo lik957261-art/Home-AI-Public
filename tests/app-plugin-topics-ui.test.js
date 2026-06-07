@@ -33,6 +33,7 @@ assert.match(pluginTopicsUi, /function pluginTopicUsageRecentlyLoaded/);
 assert.match(pluginTopicsUi, /function loadPluginTopicUsageFromServer/);
 assert.match(pluginTopicsUi, /function schedulePluginTopicUsageSync/);
 assert.match(pluginTopicsUi, /function ensurePluginTopicUsageLoaded/);
+assert.match(pluginTopicsUi, /let pluginTopicUsageMemoryCache = normalizePluginTopicUsage\(\{\}\);/);
 assert.match(recordUsageBody, /usage\.actions = actions;/);
 assert.match(recordUsageBody, /usage\.plugins = plugins;/);
 assert.match(recordUsageBody, /refreshPluginTopicUsageRoot\(\);/);
@@ -72,10 +73,11 @@ assert.match(stylesCss, /--mobile-bottom-nav-visual-drop: 10px;/);
 assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?bottom: calc\(0px - var\(--mobile-bottom-nav-visual-drop\)\);/);
 assert.match(stylesCss, /\.app\.task-list-mode \.conversation > \.directory-topic-launcher:first-child,[\s\S]*?margin-top: max\(16px, calc\(env\(safe-area-inset-top\) \+ 4px\)\);/);
 
-function createPluginTopicHarness() {
+function createPluginTopicHarness(options = {}) {
   const storage = new Map();
   const timers = [];
   const renderCalls = [];
+  const failLocalStorageWrites = options.failLocalStorageWrites === true;
   const sandbox = {
     console,
     URLSearchParams,
@@ -92,6 +94,7 @@ function createPluginTopicHarness() {
         return storage.has(key) ? storage.get(key) : null;
       },
       setItem(key, value) {
+        if (failLocalStorageWrites) throw new Error("local_storage_write_blocked");
         storage.set(key, String(value));
       },
       removeItem(key) {
@@ -154,6 +157,16 @@ globalThis.__pluginTopicHarness = {
   assert.equal(harness.quickKeys()[0], "wardrobe:style");
   assert.equal(harness.readUsage().actions["wardrobe:style"].count, 6);
   assert.ok(harness.renderCalls.length >= 1, "usage changes must refresh the root quick-action projection");
+}
+
+{
+  const harness = createPluginTopicHarness({ failLocalStorageWrites: true });
+  for (let i = 0; i < 3; i += 1) harness.recordUsage("wardrobe", "style");
+  harness.flushRootRefreshTimers();
+
+  assert.equal(harness.quickKeys()[0], "wardrobe:style");
+  assert.equal(harness.readUsage().actions["wardrobe:style"].count, 3);
+  assert.ok(harness.renderCalls.length >= 1, "memory usage projection must refresh even when localStorage writes fail");
 }
 
 console.log("app plugin topics UI tests passed");

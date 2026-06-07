@@ -86,10 +86,15 @@ Implemented fix, 2026-06-07:
 - Server usage loading is no longer a permanent one-shot per PWA session. The
   client keeps a short loaded TTL so a long-lived session can pick up
   workspace-persisted usage changes instead of staying on a stale first load.
+- The client keeps an in-memory normalized usage projection in addition to the
+  best-effort `localStorage` cache. This prevents iOS/PWA storage-write
+  failures from producing a split state where server counts grow but the
+  visible quick-action grid remains empty or stale.
 - `tests/app-plugin-topics-ui.test.js` includes a VM projection harness that
   seeds lower-priority actions, repeatedly records `wardrobe:style`, and
   asserts it becomes the first quick action while the root projection receives
-  a redraw request.
+  a redraw request. The same harness also simulates blocked `localStorage`
+  writes and requires the in-memory projection to keep the shortcut visible.
 
 The fixed bottom capability Dock is app-first. It uses the existing topic-page
 icon form instead of placing app icons in the middle of the page. It solves

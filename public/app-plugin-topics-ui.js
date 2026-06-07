@@ -126,6 +126,7 @@ let pluginTopicUsageSyncTimer = 0;
 const pluginTopicUsageLoadedAtByWorkspace = new Map();
 const pluginTopicUsageLoadingWorkspaces = new Map();
 const pluginTopicUsageLoadRetryAt = new Map();
+let pluginTopicUsageMemoryCache = normalizePluginTopicUsage({});
 
 function pluginTopicId(value = "") {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -309,18 +310,22 @@ function pluginTopicUsageEqual(a, b) {
 function readPluginTopicUsage() {
   try {
     const raw = localStorage.getItem(PLUGIN_TOPIC_USAGE_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    return normalizePluginTopicUsage(parsed);
+    if (raw) {
+      pluginTopicUsageMemoryCache = normalizePluginTopicUsage(JSON.parse(raw));
+      return pluginTopicUsageMemoryCache;
+    }
   } catch {
-    return normalizePluginTopicUsage({});
+    // Fall back to the in-memory projection below.
   }
+  return pluginTopicUsageMemoryCache;
 }
 
 function writePluginTopicUsage(usage) {
+  pluginTopicUsageMemoryCache = normalizePluginTopicUsage(usage);
   try {
-    localStorage.setItem(PLUGIN_TOPIC_USAGE_STORAGE_KEY, JSON.stringify(normalizePluginTopicUsage(usage)));
+    localStorage.setItem(PLUGIN_TOPIC_USAGE_STORAGE_KEY, JSON.stringify(pluginTopicUsageMemoryCache));
   } catch {
-    // Best-effort cache only; server persistence is the source of truth.
+    // Best-effort disk cache only; keep the in-memory projection usable.
   }
 }
 
