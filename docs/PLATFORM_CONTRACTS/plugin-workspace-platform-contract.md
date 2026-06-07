@@ -103,6 +103,14 @@ The checker validates:
 - Mac source directories, launchd labels, and manifest endpoints when
   `--probe-mac` is used.
 
+GitHub Actions normally checks out only the Home AI repository, not the private
+adjacent plugin workspaces. In that single-repository CI environment, the
+checked unit test verifies the central contract and the fixture-based plugin
+pointer rules, and accepts a bounded `pointer_missing` report when all adjacent
+plugin workspaces are absent. The real cross-workspace closure still requires
+running the checker from the local multi-workspace root, or running the Mac
+read-only production probe when production evidence is required.
+
 The checker is read-only. It does not accept passwords, Access Keys, cookies,
 tokens, launch tokens, sudo input, or private payloads. Protected plugin schema
 endpoints that correctly require a workspace id/key are reported as

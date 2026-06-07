@@ -76,6 +76,14 @@ function makeFixture() {
   return { root, repo };
 }
 
+function makeCentralOnlyFixture() {
+  const fixture = makeFixture();
+  for (const plugin of PLUGINS) {
+    fs.rmSync(path.join(fixture.root, plugin.dirName), { recursive: true, force: true });
+  }
+  return fixture;
+}
+
 function run(args) {
   return spawnSync(process.execPath, [scriptPath, ...args], {
     cwd: repoRoot,
@@ -102,13 +110,35 @@ function testUnknownPluginFailsAndCodexIsNotADescriptor() {
   assert.ok(!PLUGINS.some((plugin) => plugin.id.includes("codex")));
 }
 
+function testSingleRepositoryCheckoutReportsBoundedPointerMissing() {
+  const fixture = makeCentralOnlyFixture();
+  const result = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--json"]);
+  assert.equal(result.status, 1);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.central.issues.length, 0);
+  assert.equal(parsed.plugins.every((plugin) => !plugin.pointerExists), true);
+  assert.deepEqual(
+    parsed.issues,
+    PLUGINS.map((plugin) => `${plugin.id}:pointer_missing`),
+  );
+}
+
 function testRepositoryContractIsCurrentlyClosed() {
   const result = run(["--json"]);
-  assert.equal(result.status, 0, result.stderr || result.stdout);
   const parsed = JSON.parse(result.stdout);
-  assert.equal(parsed.ok, true);
   assert.equal(parsed.central.issues.length, 0);
-  assert.equal(parsed.plugins.filter((plugin) => plugin.pointerExists).length, 5);
+  const pointerCount = parsed.plugins.filter((plugin) => plugin.pointerExists).length;
+  if (pointerCount === 0 && process.env.GITHUB_ACTIONS === "true") {
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    assert.deepEqual(
+      parsed.issues,
+      PLUGINS.map((plugin) => `${plugin.id}:pointer_missing`),
+    );
+    return;
+  }
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(parsed.ok, true);
+  assert.equal(pointerCount, 5);
 }
 
 function testScriptDoesNotHandleSecretsOrSudo() {
@@ -122,6 +152,7 @@ function testScriptDoesNotHandleSecretsOrSudo() {
 
 testFixturePasses();
 testUnknownPluginFailsAndCodexIsNotADescriptor();
+testSingleRepositoryCheckoutReportsBoundedPointerMissing();
 testRepositoryContractIsCurrentlyClosed();
 testScriptDoesNotHandleSecretsOrSudo();
 
