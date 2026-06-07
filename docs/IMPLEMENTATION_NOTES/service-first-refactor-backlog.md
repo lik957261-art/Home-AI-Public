@@ -258,6 +258,11 @@ statements. Priority extraction areas:
   delegates the resolved-reader terminal branch: aborted failure-reason failure,
   aborted cancellation, terminal-event no-op, and non-terminal close recovery
   routing while retaining response stream orchestration and cleanup.
+- completed 2026-06-08: Gateway queued-run projection moved into
+  `adapters/gateway-run-queue-projection-service.js`. The queue service now
+  delegates queued run-options merge, queued assistant message construction,
+  single-window mode normalization, queued instruction text, and queued history
+  compaction while retaining queue scheduling and active-run lifecycle handoff.
 - completed 2026-06-08: Gateway run stream closed-without-terminal recovery
   moved into `adapters/gateway-run-stream-close-recovery-service.js`. The
   stream service now delegates synthetic completion after partial model output,

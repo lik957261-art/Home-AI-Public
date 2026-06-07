@@ -489,6 +489,20 @@ toolset-selection request mutation to
 `gateway-run-start-toolset-selection-service.js`, and Wardrobe gate evaluation/
 failure projection to `gateway-run-start-wardrobe-gate-service.js`.
 
+`gateway-run-queue-projection-service.js` owns deterministic queued-run
+projection: single-window mode normalization, queued instruction text,
+queued run-options merge, queued assistant message construction, and queued
+conversation-history compaction handoff. It must not start Gateway runs,
+schedule queued work, mutate active run ids, mark terminal thread/message
+state, save runtime state, or broadcast events.
+
+`gateway-run-queue-service.js` owns single-window queued-run scheduling and
+active-run lifecycle handoff. It must delegate queued run-options projection,
+queued assistant message creation, queued instruction text, and queued history
+compaction to `gateway-run-queue-projection-service.js`. It must not inline
+queued prompt text, single-window mode normalization, queued message factory
+defaults, or conversation compaction policy.
+
 `app-route-url-service.js` owns app-shell query URL serialization for Push,
 Web Push, plugin notification, and other route-link producers. Runtime
 composition may pass the helper into route/service wiring, but it must not carry
@@ -760,6 +774,13 @@ Current CI guardrails:
 - `gateway-run-start-service.js` must stay at or below 295 lines and remain
   Gateway run preparation orchestration, not a request-builder, event projector,
   or broad Gateway composition module;
+- `gateway-run-queue-projection-service.js` must stay at or below 100 lines
+  and remain queued-run projection, not queue scheduling, active-run lifecycle,
+  terminal failure handling, state persistence, or event broadcasting;
+- `gateway-run-queue-service.js` must stay at or below 180 lines and remain
+  queued-run scheduling plus active-run lifecycle handoff, not queued prompt
+  text, queued assistant factory, history compaction policy, or broad Gateway
+  composition;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 125 lines
   and remain a runtime Gateway facade over provider lifecycle, run concurrency,
   and Gateway runtime composition singleton ownership delegates;

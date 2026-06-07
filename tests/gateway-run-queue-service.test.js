@@ -335,6 +335,40 @@ function testQueuedAssistantFactoryAndHistoryCompactionAreInjected() {
   }]);
 }
 
+function testProjectionServiceCanBeInjected() {
+  const projectionCalls = [];
+  const projectionService = {
+    buildQueuedRunOptions: (pair) => {
+      projectionCalls.push({ method: "buildQueuedRunOptions", pairId: pair.assistant.id });
+      return { injected: true };
+    },
+    createQueuedAssistantMessage: (input) => {
+      projectionCalls.push({ method: "createQueuedAssistantMessage", input });
+      return { id: "queued_from_projection" };
+    },
+    compactQueuedConversationHistory: (messages, maxMessages, maxChars, policy) => {
+      projectionCalls.push({ method: "compactQueuedConversationHistory", maxMessages, maxChars, policy });
+      return messages.slice(-1);
+    },
+  };
+  const { calls, service } = makeHarness({ projectionService });
+  const thread = queuedThread();
+
+  const created = service.createQueuedAssistantMessage({ taskGroupId: "chat" });
+  const compacted = service.compactQueuedConversationHistory(["a", "b"], 5, 20, { profile: "owner" });
+
+  return service.startNextQueuedRunForTaskGroup(thread, "chat").then(() => {
+    assert.deepEqual(created, { id: "queued_from_projection" });
+    assert.deepEqual(compacted, ["b"]);
+    assert.deepEqual(calls.startedRuns[0].runOptions, { injected: true });
+    assert.deepEqual(projectionCalls.map((call) => call.method), [
+      "createQueuedAssistantMessage",
+      "compactQueuedConversationHistory",
+      "buildQueuedRunOptions",
+    ]);
+  });
+}
+
 (async () => {
   testActiveRunMutatorsUseLifecycleSemantics();
   testQueuedInstructionTextAndRunOptionMerge();
@@ -345,6 +379,7 @@ function testQueuedAssistantFactoryAndHistoryCompactionAreInjected() {
   testMarkQueuedRunStartFailedFormatsGatewayCapacityError();
   await testScheduleNextQueuedRunUsesImmediateAndFailsQueuedStart();
   testQueuedAssistantFactoryAndHistoryCompactionAreInjected();
+  await testProjectionServiceCanBeInjected();
   console.log("gateway-run-queue-service tests passed");
 })().catch((err) => {
   console.error(err);

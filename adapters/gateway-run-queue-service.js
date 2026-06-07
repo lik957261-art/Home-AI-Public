@@ -2,14 +2,13 @@
 
 const gatewayRunLifecycle = require("./gateway-run-lifecycle-service");
 const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
-
-const QUEUED_CHAT_INSTRUCTIONS = "The latest user message is a queued Hermes Mobile continuous-chat turn. Treat it as the next message in the supplied same-task conversation_history.";
-const QUEUED_TASK_INSTRUCTIONS = "The latest user message is a queued mobile follow-up to an existing task group. Treat it as a follow-up to the supplied same-task conversation_history, not as a new independent task.";
-
-function cleanString(value, fallback = "") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
+const {
+  QUEUED_CHAT_INSTRUCTIONS,
+  QUEUED_TASK_INSTRUCTIONS,
+  createGatewayRunQueueProjectionService,
+  normalizeSingleWindowMode,
+  queuedRunInstructions,
+} = require("./gateway-run-queue-projection-service");
 
 function objectValue(value, fallback = {}) {
   return value && typeof value === "object" ? value : fallback;
@@ -32,14 +31,6 @@ function defaultNowIso() {
   return new Date().toISOString();
 }
 
-function defaultMakeAssistantMessageId(prefix = "msg") {
-  return `${prefix}_${Date.now().toString(36)}`;
-}
-
-function normalizeSingleWindowMode(value) {
-  return cleanString(value).toLowerCase() === "chat" ? "chat" : "task";
-}
-
 function safeErrorMessage(err) {
   return gatewayRunUserFacingError(err);
 }
@@ -50,11 +41,6 @@ function lifecycleHelpers(options = {}) {
     gatewayRunLifecycle,
     objectValue(options.gatewayRunLifecycleService || options.lifecycleHelpers || options.lifecycle, {}),
   );
-}
-
-function queuedRunInstructions(singleWindowMode) {
-  if (singleWindowMode === "chat") return QUEUED_CHAT_INSTRUCTIONS;
-  return QUEUED_TASK_INSTRUCTIONS;
 }
 
 function defaultMarkRunFailed(input = {}) {
@@ -88,14 +74,17 @@ function createGatewayRunQueueService(options = {}) {
     requiredDependency("startHermesRun"),
   );
   const markRunFailed = callOrDefault(options.markRunFailed, defaultMarkRunFailed);
-  const makeAssistantMessageId = callOrDefault(options.makeAssistantMessageId, defaultMakeAssistantMessageId);
-  const compactConversationHistory = callOrDefault(
-    options.compactConversationHistory,
-    (messages) => (Array.isArray(messages) ? messages : []),
-  );
   const compactMessage = callOrDefault(options.compactMessage, (message) => message);
   const threadSummary = callOrDefault(options.threadSummary, (thread) => thread);
   const scheduleImmediate = callOrDefault(options.scheduleImmediate || options.setImmediate, setImmediate);
+  const projectionService = options.projectionService || createGatewayRunQueueProjectionService({
+    compactConversationHistory: options.compactConversationHistory,
+    makeAssistantMessageId: options.makeAssistantMessageId,
+    nowIso,
+  });
+  const buildQueuedRunOptions = (...args) => projectionService.buildQueuedRunOptions(...args);
+  const compactQueuedConversationHistory = (...args) => projectionService.compactQueuedConversationHistory(...args);
+  const createQueuedAssistantMessage = (...args) => projectionService.createQueuedAssistantMessage(...args);
 
   function addThreadActiveRun(thread, runId) {
     Object.assign(thread, lifecycle.withActiveRunAdded(thread, runId));
@@ -115,26 +104,6 @@ function createGatewayRunQueueService(options = {}) {
 
   function nextQueuedRunPairForTaskGroup(thread, taskGroupId) {
     return lifecycle.nextQueuedRunPairForTaskGroup(thread, taskGroupId);
-  }
-
-  function buildQueuedRunOptions(pair = {}) {
-    const userMessage = objectValue(pair.user);
-    const assistantMessage = objectValue(pair.assistant);
-    const runOptions = objectValue(assistantMessage.runOptions);
-    const singleWindowMode = normalizeSingleWindowMode(
-      assistantMessage.singleWindowMode
-        || assistantMessage.single_window_mode
-        || userMessage.singleWindowMode
-        || "",
-    );
-    return Object.assign({}, runOptions, {
-      reasoning_effort: assistantMessage.reasoningEffort || "",
-      singleWindowMode,
-      instructions: [
-        runOptions.instructions || "",
-        queuedRunInstructions(singleWindowMode),
-      ].filter(Boolean).join("\n\n"),
-    });
   }
 
   function markQueuedRunStartFailed(thread, taskGroupId, err) {
@@ -180,35 +149,6 @@ function createGatewayRunQueueService(options = {}) {
     scheduleImmediate(() => startNextQueuedRunForTaskGroup(thread, taskGroupId).catch((err) => {
       markQueuedRunStartFailed(thread, taskGroupId, err);
     }));
-  }
-
-  function createQueuedAssistantMessage(input = {}) {
-    const createdAt = cleanString(input.createdAt || input.created_at) || nowIso();
-    const actorWorkspaceId = cleanString(input.actorWorkspaceId || input.actor_workspace_id || "owner", "owner");
-    const fields = objectValue(input.fields || input.overrides, {});
-    return Object.assign({
-      id: cleanString(input.id) || makeAssistantMessageId(input.idPrefix || "msg"),
-      role: "assistant",
-      content: "",
-      status: "queued",
-      runId: null,
-      createdAt,
-      updatedAt: createdAt,
-      queuedAt: createdAt,
-      artifacts: [],
-      taskGroupId: cleanString(input.taskGroupId || input.task_group_id),
-      messageKind: "ai",
-      senderWorkspaceId: "hermes",
-      senderPrincipalId: "hermes",
-      senderLabel: "Hermes",
-      actorWorkspaceId,
-      reasoningEffort: cleanString(input.reasoningEffort || input.reasoning_effort),
-      singleWindowMode: normalizeSingleWindowMode(input.singleWindowMode || input.single_window_mode || ""),
-    }, fields);
-  }
-
-  function compactQueuedConversationHistory(messages, maxMessages, maxChars, policy = {}) {
-    return compactConversationHistory(messages, maxMessages, maxChars, policy);
   }
 
   return Object.freeze({

@@ -29,6 +29,7 @@ const gatewayRunInstructionService = require("../adapters/gateway-run-instructio
 const gatewayRunLifecycleService = require("../adapters/gateway-run-lifecycle-service");
 const gatewayRunModelToolsetSelectionService = require("../adapters/gateway-run-model-toolset-selection-service");
 const gatewayRunQueueService = require("../adapters/gateway-run-queue-service");
+const gatewayRunQueueProjectionService = require("../adapters/gateway-run-queue-projection-service");
 const gatewayRunContentService = require("../adapters/gateway-run-content-service");
 const gatewayRunRequestBuilderService = require("../adapters/gateway-run-request-builder-service");
 const gatewayRunStreamCompletionService = require("../adapters/gateway-run-stream-completion-service");
@@ -310,6 +311,8 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof gatewayRunLifecycleService.livenessDecisionAfterCheck, "function");
   assert.equal(typeof gatewayRunModelToolsetSelectionService.createGatewayRunModelToolsetSelectionService, "function");
   assert.equal(typeof gatewayRunQueueService.createGatewayRunQueueService, "function");
+  assert.equal(typeof gatewayRunQueueProjectionService.createGatewayRunQueueProjectionService, "function");
+  assert.equal(typeof gatewayRunQueueProjectionService.normalizeSingleWindowMode, "function");
   assert.equal(typeof gatewayRunContentService.createGatewayRunContentService, "function");
   assert.equal(typeof gatewayRunContentService.defaultAppendBounded, "function");
   assert.equal(typeof gatewayRunRequestBuilderService.createGatewayRunRequestBuilderService, "function");
@@ -627,6 +630,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const gatewayCompositionOptions = fileText("adapters/mobile-runtime-gateway-composition-options-service.js");
   const gatewayConcurrency = fileText("adapters/mobile-runtime-gateway-concurrency-service.js");
   const gatewayProvider = fileText("adapters/mobile-runtime-gateway-provider-service.js");
+  const gatewayRunQueue = fileText("adapters/gateway-run-queue-service.js");
+  const gatewayRunQueueProjection = fileText("adapters/gateway-run-queue-projection-service.js");
   const gatewayRunContent = fileText("adapters/gateway-run-content-service.js");
   const gatewayRunRequestBuilder = fileText("adapters/gateway-run-request-builder-service.js");
   const gatewayRunStream = fileText("adapters/gateway-run-stream-service.js");
@@ -945,6 +950,18 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(gatewayRuntimeSubserviceOptions, /startToolsetEscalationRun: controllers\.startRunForThread/);
   assert.doesNotMatch(gatewayComposition, /accessPolicyHardeningOptionsForGatewayRouting: deps/);
   assert.doesNotMatch(gatewayComposition, /livenessDecisionAfterCheck: lifecycleService\.livenessDecisionAfterCheck/);
+  assert.match(gatewayRunQueue, /createGatewayRunQueueProjectionService/);
+  assert.match(gatewayRunQueue, /projectionService\.buildQueuedRunOptions/);
+  assert.match(gatewayRunQueue, /projectionService\.createQueuedAssistantMessage/);
+  assert.match(gatewayRunQueue, /projectionService\.compactQueuedConversationHistory/);
+  assert.doesNotMatch(gatewayRunQueue, /const QUEUED_CHAT_INSTRUCTIONS =/);
+  assert.doesNotMatch(gatewayRunQueue, /^  function buildQueuedRunOptions\(/m);
+  assert.doesNotMatch(gatewayRunQueue, /^  function createQueuedAssistantMessage\(/m);
+  assert.doesNotMatch(gatewayRunQueue, /^  function compactQueuedConversationHistory\(/m);
+  assert.match(gatewayRunQueueProjection, /function buildQueuedRunOptions/);
+  assert.match(gatewayRunQueueProjection, /function createQueuedAssistantMessage/);
+  assert.match(gatewayRunQueueProjection, /function compactQueuedConversationHistory/);
+  assert.match(gatewayRunQueueProjection, /function queuedRunInstructions/);
   const todoFacade = fileText("adapters/mobile-runtime-todo-facade-service.js");
   assert.match(server, /createMobileRuntimeTodoFacadeService/);
   assert.match(todoFacade, /defaultCreateDirectKanbanCreateService/);
@@ -1565,6 +1582,8 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /gateway-run-start-toolset-selection-service\.js` must stay at or below 95\s+lines/);
   assert.match(doc, /gateway-run-start-wardrobe-gate-service\.js` must stay at or below 85 lines/);
   assert.match(doc, /gateway-run-start-service\.js` must stay at or below 295 lines/);
+  assert.match(doc, /gateway-run-queue-projection-service\.js` must stay at or below 100\s+lines/);
+  assert.match(doc, /gateway-run-queue-service\.js` must stay at or below 180\s+lines/);
   assert.match(doc, /gateway-run-content-service\.js` must stay at or below 60 lines/);
   assert.match(doc, /gateway-run-stream-completion-service\.js` must stay at or below 55\s+lines/);
   assert.match(doc, /gateway-run-stream-close-recovery-service\.js` must stay at or below 70\s+lines/);
@@ -1630,6 +1649,8 @@ function testServiceFirstArchitectureContract() {
   const gatewayContextFacade = fileText("adapters/mobile-runtime-gateway-context-facade-service.js");
   const gatewayRuntimeComposition = fileText("adapters/gateway-runtime-composition-service.js");
   const gatewayRuntimeSubserviceOptions = fileText("adapters/gateway-runtime-subservice-options-service.js");
+  const gatewayRunQueue = fileText("adapters/gateway-run-queue-service.js");
+  const gatewayRunQueueProjection = fileText("adapters/gateway-run-queue-projection-service.js");
   const gatewayRunContent = fileText("adapters/gateway-run-content-service.js");
   const gatewayRunStream = fileText("adapters/gateway-run-stream-service.js");
   const gatewayRunStreamCompletion = fileText("adapters/gateway-run-stream-completion-service.js");
@@ -1726,6 +1747,8 @@ function testServiceFirstArchitectureContract() {
   const gatewayContextFacadeLineCount = gatewayContextFacade.split(/\r?\n/).length;
   const gatewayRuntimeCompositionLineCount = gatewayRuntimeComposition.split(/\r?\n/).length;
   const gatewayRuntimeSubserviceOptionsLineCount = gatewayRuntimeSubserviceOptions.split(/\r?\n/).length;
+  const gatewayRunQueueLineCount = gatewayRunQueue.split(/\r?\n/).length;
+  const gatewayRunQueueProjectionLineCount = gatewayRunQueueProjection.split(/\r?\n/).length;
   const gatewayRunContentLineCount = gatewayRunContent.split(/\r?\n/).length;
   const gatewayRunStreamLineCount = gatewayRunStream.split(/\r?\n/).length;
   const gatewayRunStreamCompletionLineCount = gatewayRunStreamCompletion.split(/\r?\n/).length;
@@ -1807,6 +1830,8 @@ function testServiceFirstArchitectureContract() {
   assert.ok(gatewayRunStartToolsetSelectionLineCount <= 95, `gateway-run-start-toolset-selection-service.js line budget exceeded: ${gatewayRunStartToolsetSelectionLineCount} > 95`);
   assert.ok(gatewayRunStartWardrobeGateLineCount <= 85, `gateway-run-start-wardrobe-gate-service.js line budget exceeded: ${gatewayRunStartWardrobeGateLineCount} > 85`);
   assert.ok(gatewayRunStartLineCount <= 295, `gateway-run-start-service.js line budget exceeded: ${gatewayRunStartLineCount} > 295`);
+  assert.ok(gatewayRunQueueProjectionLineCount <= 100, `gateway-run-queue-projection-service.js line budget exceeded: ${gatewayRunQueueProjectionLineCount} > 100`);
+  assert.ok(gatewayRunQueueLineCount <= 180, `gateway-run-queue-service.js line budget exceeded: ${gatewayRunQueueLineCount} > 180`);
   assert.match(fileAccessFacade, /findDirectoryThreadForRequest/);
   assert.match(fileAccessFacade, /ownerDirectoryBrowserThread/);
   assert.doesNotMatch(runtime, /^function findDirectoryThreadForRequest\(/m);
