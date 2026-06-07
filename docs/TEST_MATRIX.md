@@ -105,6 +105,7 @@ Gateway worker runtime setting changes must also run
 `node tests\gateway-worker-runtime-settings-service.test.js`,
 `node tests\runtime-config-provider.test.js`,
 `node tests\runtime-config-public-projection-service.test.js`,
+`node tests\runtime-config-save-service.test.js`,
 `node tests\runtime-config-api-routes.test.js`,
 `node tests\mobile-runtime-gateway-facade-service.test.js`, and
 `node tests\task-list-ui.test.js`. Owner UI values are persisted non-secret

@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { createRuntimeConfigPublicProjectionService } = require("./runtime-config-public-projection-service");
+const { createRuntimeConfigSaveService } = require("./runtime-config-save-service");
 const {
   gatewayWorkerSettingsToElasticConfig,
   mergeGatewayWorkerRuntimeSettings,
@@ -196,6 +197,14 @@ function createRuntimeConfigProvider(options = {}) {
     runtimeModelFamilies,
     runtimeModelOptions,
   });
+  const saveService = createRuntimeConfigSaveService({
+    mergeGatewayWorkerRuntimeSettings,
+    normalizeRuntimeConfig,
+    normalizeRuntimeModelSelection,
+    nowIso,
+    validateHermesApiBase,
+    validateWebPushSubject,
+  });
 
   function load() {
     ensureDataDir();
@@ -209,31 +218,7 @@ function createRuntimeConfigProvider(options = {}) {
   function save(input, actor = "owner") {
     ensureDataDir();
     const previous = load();
-    const sourceInput = input && typeof input === "object" ? input : {};
-    const hasGatewayWorkerSettings = Object.prototype.hasOwnProperty.call(sourceInput, "gatewayWorkerSettings")
-      || Object.prototype.hasOwnProperty.call(sourceInput, "gateway_worker_settings");
-    const gatewayWorkerSettings = hasGatewayWorkerSettings
-      ? mergeGatewayWorkerRuntimeSettings(
-        previous.gatewayWorkerSettings,
-        sourceInput.gatewayWorkerSettings ?? sourceInput.gateway_worker_settings ?? {},
-        { strict: true },
-      )
-      : previous.gatewayWorkerSettings;
-    const next = normalizeRuntimeConfig(Object.assign({}, previous, sourceInput, {
-      hermesApiBase: validateHermesApiBase(sourceInput.hermesApiBase ?? sourceInput.hermes_api_base ?? previous.hermesApiBase),
-      hermesApiKeyPath: String(sourceInput.hermesApiKeyPath ?? sourceInput.hermes_api_key_path ?? previous.hermesApiKeyPath ?? "").trim(),
-      ...normalizeRuntimeModelSelection({
-        defaultModelId: sourceInput.defaultModelId ?? sourceInput.default_model_id ?? previous.defaultModelId,
-        defaultModel: sourceInput.defaultModel ?? sourceInput.default_model ?? previous.defaultModel,
-        defaultModelProvider: sourceInput.defaultModelProvider ?? sourceInput.default_model_provider ?? previous.defaultModelProvider,
-        defaultReasoningEffort: sourceInput.defaultReasoningEffort ?? sourceInput.default_reasoning_effort ?? previous.defaultReasoningEffort,
-      }),
-      gatewayWorkerSettings,
-      webPushSubject: validateWebPushSubject(sourceInput.webPushSubject ?? sourceInput.web_push_subject ?? previous.webPushSubject),
-      webPushVapidPath: String(sourceInput.webPushVapidPath ?? sourceInput.web_push_vapid_path ?? previous.webPushVapidPath ?? "").trim(),
-      updatedAt: nowIso(),
-      updatedBy: actor || "owner",
-    }));
+    const next = saveService.runtimeConfigForSave(input, actor, previous);
     fs.writeFileSync(storagePath(), `${JSON.stringify(next, null, 2)}\n`, "utf8");
     return next;
   }

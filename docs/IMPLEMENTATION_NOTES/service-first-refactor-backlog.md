@@ -193,6 +193,11 @@ statements. Priority extraction areas:
   `runtime-config-provider.js` now delegates Owner-visible config projection
   while retaining persistence, validation, effective-value, Gateway worker
   setting composition, and key lookup behavior.
+- completed 2026-06-08: Runtime config save input normalization moved into
+  `adapters/runtime-config-save-service.js`. `runtime-config-provider.js` now
+  delegates next-config payload construction while retaining load/write
+  persistence, effective-value projection, Gateway worker setting composition,
+  and key lookup behavior.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;
