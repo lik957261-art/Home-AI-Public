@@ -134,16 +134,21 @@ the change is part of a dedicated infrastructure rename.
 - Task group UI: `public/app-task-groups-ui.js`, `public/app-task-preview-ui.js`
 - Capability Entry Hub product direction:
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md`
-  - Root Topics should present a compact frequent quick-action grid followed
-    by Directory-bound topic collections in the scrollable page body. Plugin and
-    built-in Directory icons stay in the fixed bottom topic-page Dock above the
-    primary bottom navigation, matching the earlier topic icon form. Icon clicks
-    consistently open the app/capability, while long-press/context-click opens
-    the compact quick-action menu. Touch-shell validation must verify the
-    `touchstart` long-press path directly because desktop `contextmenu` evidence
-    alone does not prove iOS/PWA behavior. Quick actions carry task-specific
-    routes such as topic, directory, plugin route, quick form, or MCP-backed
-    Home AI intent.
+  - Root Topics should present a compact usage-backed frequent quick-action grid
+    followed by Directory-bound topic collections in the scrollable page body.
+    Plugin and built-in Directory icons stay in the fixed bottom topic-page Dock
+    above the primary bottom navigation, matching the earlier topic icon form.
+    Icon clicks consistently open the app/capability, while long-press/context-
+    click opens the compact quick-action menu. Touch-shell validation must
+    verify the `touchstart` long-press path directly because desktop
+    `contextmenu` evidence alone does not prove iOS/PWA behavior. Quick actions
+    carry task-specific routes such as topic, directory, plugin route, quick
+    form, or MCP-backed Home AI intent. Quick actions use
+    `hermesPluginTopicUsage.actions`, default to zero usage, appear only after
+    use, sort by count/recency, and do not render trailing plugin/source badges.
+    Directory-bound topic rows show the directory display name plus topic count
+    and updated time; they hide raw directory paths and default-topic prompt
+    badges.
 - Single Window topic replies must carry the currently selected `taskGroupId`
   just like the standalone Tasks view. If the composer says "Reply in this
   task...", the post must remain in that selected topic instead of creating a
@@ -174,7 +179,11 @@ the change is part of a dedicated infrastructure rename.
     `public/app-share-image-ui.js` and calls `POST /api/note/receipts` with
     IDs only; the server owns message lookup and attachment materialization.
     The client keeps a per-message in-flight guard to prevent duplicate Note
-    saves from repeated taps while the first request is pending.
+    saves from repeated taps while the first request is pending. When the server
+    returns a note id, the success toast is actionable and opens the Note plugin
+    through the local Hermes route state instead of a deployment-specific URL.
+    The receipt title is generated server-side from the heading or first
+    meaningful content line, with a plugin prefix when available.
 - Search: `public/app-navigation-search-ui.js`
 - Group/topic UI: `public/app-group-topic-ui.js`
 

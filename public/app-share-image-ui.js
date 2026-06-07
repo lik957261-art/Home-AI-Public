@@ -380,6 +380,25 @@ async function shareMessageImage(messageId) {
   openImageBlobPreview(blob);
 }
 
+function openSavedNoteReceiptFromToast(noteId) {
+  const id = String(noteId || "").trim();
+  if (typeof rememberNotePluginReturnRoute === "function") rememberNotePluginReturnRoute();
+  if (typeof setNotePluginOpenRoute === "function") {
+    setNotePluginOpenRoute(id ? { pluginRoute: "note", pluginItemId: id } : { pluginRoute: "note" });
+  }
+  state.viewMode = "note";
+  localStorage.setItem("hermesWebViewMode", state.viewMode);
+  state.currentTaskGroupId = "";
+  state.currentThread = null;
+  state.currentThreadId = "";
+  if (typeof applyViewMode === "function") applyViewMode();
+  if (typeof loadSelectedView === "function") {
+    loadSelectedView().catch(showError);
+  } else if (typeof renderNotePluginView === "function") {
+    renderNotePluginView();
+  }
+}
+
 async function saveMessageToNote(messageId) {
   const noteMessageId = String(messageId || "").trim();
   if (!noteMessageId) throw new Error("Message not found");
@@ -401,7 +420,13 @@ async function saveMessageToNote(messageId) {
       }),
     });
     const count = Number(result?.note?.attachmentCount || 0) || 0;
-    showPushToast(count ? `已保存到 Note · ${count} 个附件` : "已保存到 Note", "success");
+    const noteId = String(result?.note?.id || "").trim();
+    const toastText = count ? `\u5df2\u4fdd\u5b58\u5230 Note \u00b7 ${count} \u4e2a\u9644\u4ef6` : "\u5df2\u4fdd\u5b58\u5230 Note";
+    showPushToast(toastText, "success", noteId ? {
+      actionLabel: "\u6253\u5f00",
+      ariaLabel: "\u6253\u5f00\u5df2\u4fdd\u5b58\u7684 Note",
+      onClick: () => openSavedNoteReceiptFromToast(noteId),
+    } : {});
     return result;
   } finally {
     noteReceiptSaveInFlightIds.delete(noteMessageId);

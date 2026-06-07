@@ -48,8 +48,14 @@ assert.match(
 
 assert.match(
   appMessageActionsUiJs,
-  /function scheduleMessageScrollButtonVisibilitySettle\(root, delays = \[100, 280\]\) \{[\s\S]*?window\.setTimeout\(\(\) => applyMessageScrollButtonVisibility\(target\), Math\.max\(0, delay\)\);/,
+  /function scheduleMessageScrollButtonVisibilitySettle\(root, delays = \[100, 280, 900, 1600\]\) \{[\s\S]*?window\.setTimeout\(\(\) => applyMessageScrollButtonVisibility\(target\), Math\.max\(0, delay\)\);/,
   "terminal long replies need delayed arrow settling after final markdown/layout replacement"
+);
+
+assert.match(
+  appMessageActionsUiJs,
+  /const contentEligible = previouslyEligible \|\| measuredLong \|\| wasShown;[\s\S]*?if \(contentEligible\) article\.dataset\.messageScrollEligible = "1";/,
+  "once a reply is proven long, later Usage or run-progress refreshes must not clear long-reply arrow eligibility"
 );
 
 assert.match(

@@ -845,19 +845,23 @@ function updateMessageScrollButtonVisibility(root) {
       messageBody?.scrollHeight || 0
     );
     const wasShown = article.dataset.messageScrollButtonVisible === "1";
-    const contentEligible = article.dataset.messageScrollEligible === "1";
+    const previouslyEligible = article.dataset.messageScrollEligible === "1";
     const hasRunProgress = Boolean(article.querySelector(".run-progress-panel.inline:not(.terminal)"));
     const measured = viewportHeight > 0 && messageHeight > 0;
     const canReturnToStart = messageScrollCanReturnToStart(articleRect, conversationRect);
     const canJumpToEnd = messageScrollCanJumpToEnd(articleRect, conversationRect);
     const showThreshold = Math.max(180, viewportHeight - 24);
     const hideThreshold = Math.max(160, viewportHeight - 96);
-    const shouldShow = viewportHeight > 0 && !hasRunProgress && (
+    const measuredLong = measured && messageHeight > showThreshold;
+    const contentEligible = previouslyEligible || measuredLong || wasShown;
+    if (contentEligible) article.dataset.messageScrollEligible = "1";
+    const suppressForActiveRun = hasRunProgress && !contentEligible && !wasShown;
+    const shouldShow = viewportHeight > 0 && !suppressForActiveRun && (
       canReturnToStart
       || canJumpToEnd
-      || messageHeight > showThreshold
+      || measuredLong
       || (!measured && contentEligible)
-      || (wasShown && messageHeight > hideThreshold)
+      || (contentEligible && messageHeight > hideThreshold)
     );
     if (shouldShow) article.dataset.messageScrollButtonVisible = "1";
     else delete article.dataset.messageScrollButtonVisible;
@@ -904,7 +908,7 @@ function applyMessageScrollButtonVisibility(root) {
   updateConversationJumpBottomButton();
 }
 
-function scheduleMessageScrollButtonVisibilitySettle(root, delays = [100, 280]) {
+function scheduleMessageScrollButtonVisibilitySettle(root, delays = [100, 280, 900, 1600]) {
   const target = root || $("conversation");
   for (const delay of delays) {
     window.setTimeout(() => applyMessageScrollButtonVisibility(target), Math.max(0, delay));

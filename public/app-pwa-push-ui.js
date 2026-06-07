@@ -32,11 +32,46 @@ function withTimeout(promise, timeoutMs, message) {
   ]);
 }
 
-function showPushToast(message, kind = "") {
+function clearPushToastAction(toast) {
+  toast.onclick = null;
+  toast.onkeydown = null;
+  toast.classList.remove("actionable");
+  toast.removeAttribute("role");
+  toast.removeAttribute("tabindex");
+  toast.removeAttribute("aria-label");
+}
+
+function showPushToast(message, kind = "", options = {}) {
   const toast = $("pushToast");
   if (!toast) return;
   if (state.pushToastTimer) clearTimeout(state.pushToastTimer);
-  toast.textContent = message;
+  clearPushToastAction(toast);
+  toast.textContent = "";
+  const text = document.createElement("span");
+  text.className = "push-toast-text";
+  text.textContent = message;
+  toast.append(text);
+  const action = typeof options?.onClick === "function";
+  if (action) {
+    const actionLabel = document.createElement("span");
+    actionLabel.className = "push-toast-action";
+    actionLabel.textContent = String(options.actionLabel || "\u6253\u5f00");
+    toast.append(actionLabel);
+    toast.classList.add("actionable");
+    toast.setAttribute("role", "button");
+    toast.tabIndex = 0;
+    toast.setAttribute("aria-label", String(options.ariaLabel || message || ""));
+    const runAction = (event) => {
+      event?.preventDefault?.();
+      options.onClick(event);
+      toast.classList.add("hidden");
+    };
+    toast.onclick = runAction;
+    toast.onkeydown = (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      runAction(event);
+    };
+  }
   toast.classList.remove("hidden", "success", "error");
   if (kind) toast.classList.add(kind);
   if (kind !== "error") {

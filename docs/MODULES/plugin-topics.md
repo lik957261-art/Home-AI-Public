@@ -1,6 +1,6 @@
 # Module: Plugin Topics
 
-Last updated: 2026-06-04.
+Last updated: 2026-06-07.
 
 ## Responsibility
 
@@ -73,9 +73,11 @@ or raw plugin credentials.
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md`. In that model, the
   plugin icon still consistently opens the plugin app, but plugin icons remain
   in the fixed bottom Dock instead of moving into the middle of the page body.
-  The page body shows a compact frequent-action grid followed by
+  The page body shows a compact usage-backed frequent-action grid followed by
   Directory-bound topic collections. Shortcuts can open topics, plugin routes,
-  directories, quick forms, or MCP-backed Home AI intents. The first
+  directories, quick forms, or MCP-backed Home AI intents. A shortcut appears in
+  the root quick-action grid only after the user has used that action; default
+  action usage is zero, and the grid is sorted by count and recency. The first
   implementation maps shortcuts to existing host routes; direct MCP intent
   execution remains a separate H1 extension.
 - The topic-page plugin Dock is visible only on the root topic list. It must be
@@ -121,20 +123,22 @@ or raw plugin credentials.
   `plugin:finance`, `plugin:email`, and `plugin:health`.
 - Directory-bound topic collections render as compact collapsible folder-tree
   rows followed by an indented child-topic list. The folder/directory icon lives
-  at the left edge of the header with the explicit directory name/path beside
-  it; there is no separate right-side directory icon. Child topic rows/chips are
-  visually indented below the directory header so the parent directory
+  at the left edge of the header and uses a scaled-down version of the bottom
+  Directory Dock icon. The row shows the directory display name, topic count,
+  and update time only; it must not expose the raw directory path, a generic
+  "bound directory" prompt, or a visible default-topic badge. Child topic rows
+  are visually indented below the directory header so the parent directory
   relationship is clear. The directory parent row toggles expand/collapse;
   opening the file manager must remain an explicit Directory-card or directory
   action, not an ambiguous parent-row click.
-- The topic list itself does not expose a bottom message composer for creating a
-  free-floating topic. New topic creation must enter through a Directory binding
-  or another explicit binding flow, so every new topic has a durable context
+- The root topic list itself hides both the normal page header and the bottom
+  message composer. New topic creation must enter through a Directory binding or
+  another explicit binding flow, so every new topic has a durable context
   anchor.
-- The Directory Dock icon uses the same standard folder icon asset as Growth
-  delivery-directory links. Directory-bound topic cards use the smaller folder
-  row icon and child topic/chat icons so the Directory app and its bound topics
-  remain visually distinct.
+- The Directory Dock icon uses the Dock-consistent plugin-app folder visual.
+  Directory-bound topic rows use the same visual language at a smaller size;
+  child topic rows keep the smaller chat/topic icon so the Directory app and its
+  bound topics remain visually distinct.
 - Runs started in the plugin topic should include the plugin MCP/toolset only
   when the selected workspace has an active plugin binding and matching Gateway
   callable schema.
@@ -269,7 +273,9 @@ bottom Directory tab, the plugin-topic script in the app shell/service worker
 cache, Dock app/capability launch actions with long-press/context quick-action
 menus, no permanent topic/file-directory mini actions beside Dock icons,
 Directory-bound topic collections associated below the Capability Entry Hub body,
-collapsible folder-tree rows excluding plugin topics, bottom navigation with
+usage-backed three-column quick actions with no trailing source badges,
+collapsible folder-tree rows excluding plugin topics and hiding raw directory
+paths/default badges, root topic-list header/composer suppression, bottom navigation with
 Topics centered, default launch to Topics when no saved view exists, fixed
 `plugin:<pluginId>` topic entry,
 non-blocking topic entry before directory refresh, creation of `插件/<plugin title>`, file-directory attachment on

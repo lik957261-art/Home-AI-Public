@@ -89,7 +89,7 @@ function stripMarkdownForTitle(value = "") {
     .trim();
 }
 
-function summarizeReceiptTitle(text = "") {
+function summarizeReceiptTitleLegacy(text = "") {
   const lines = String(text || "")
     .split(/\r?\n/)
     .map((raw) => ({ raw: String(raw || "").trim(), clean: stripMarkdownForTitle(raw) }))
@@ -106,6 +106,46 @@ function summarizeReceiptTitle(text = "") {
   }
   const words = source.split(/\s+/).filter(Boolean).slice(0, 5).join(" ");
   return (words || "Hermes Receipt").slice(0, 40);
+}
+
+function receiptTitlePrefix(pluginId = "") {
+  return pluginReceiptTagForId(pluginId);
+}
+
+function receiptTitleCandidateLines(text = "") {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((raw) => ({ raw: String(raw || "").trim(), clean: stripMarkdownForTitle(raw) }))
+    .filter(({ raw, clean }) => (
+      clean
+      && !/^[-*+\u2022\u00b7]\s*$/.test(raw)
+      && !/^(attachments?|source|conversation|time|error|\u9644\u4ef6|\u6765\u6e90|\u4f1a\u8bdd|\u65f6\u95f4)[:\uff1a]?/i.test(clean)
+    ));
+}
+
+function compactReceiptTitle(value = "") {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  if (/[\u3400-\u9fff\uf900-\ufaff]/.test(text)) {
+    return Array.from(text).slice(0, 28).join("").trim();
+  }
+  return text.split(/\s+/).filter(Boolean).slice(0, 8).join(" ").slice(0, 72).trim();
+}
+
+function summarizeReceiptTitle(text = "", options = {}) {
+  const heading = String(text || "")
+    .split(/\r?\n/)
+    .map((raw) => String(raw || "").trim().match(/^#{1,4}\s+(.+)$/))
+    .find(Boolean);
+  const candidates = receiptTitleCandidateLines(text);
+  const source = stripMarkdownForTitle(heading?.[1] || "")
+    || candidates[0]?.clean
+    || stripMarkdownForTitle(options.threadTitle || "")
+    || "Hermes Receipt";
+  const title = compactReceiptTitle(source) || "Hermes Receipt";
+  const prefix = receiptTitlePrefix(options.pluginId || "");
+  if (!prefix || title.startsWith(prefix)) return title;
+  return `${prefix} - ${title}`;
 }
 
 function messageNoteBody(message = {}, thread = {}) {
@@ -320,7 +360,8 @@ function createNoteReceiptSaveService(options = {}) {
     if (!body && !attachments.length) {
       throw serviceError("note_receipt_empty", "Receipt has no content to save", 400);
     }
-    const title = summarizeReceiptTitle(body);
+    const pluginId = receiptPluginId(message, thread, input);
+    const title = summarizeReceiptTitle(body, { pluginId, threadTitle: thread.title });
     const binding = loadNoteWorkspaceBinding({ dataDir, env, workspaceId });
     const payload = {
       title,

@@ -57,7 +57,7 @@
   --plugin-context-bottom-nav-height: 54px;
   --mobile-bottom-nav-offset-height: var(--mobile-bottom-nav-offset-height-runtime, var(--mobile-bottom-nav-height));
   --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 10px));
-  --topic-plugin-dock-height: 90px;
+  --topic-plugin-dock-height: 78px;
   --topic-plugin-dock-reserved-height: calc(var(--mobile-bottom-nav-offset-height) + var(--topic-plugin-dock-height));
   font-family: var(--app-font-family);
 }
@@ -2335,6 +2335,23 @@ button {
   font-weight: 600;
   line-height: 1.4;
   text-align: center;
+}
+
+.push-toast.actionable {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.push-toast-action {
+  flex: 0 0 auto;
+  padding-left: 8px;
+  border-left: 1px solid rgba(95, 139, 148, 0.24);
+  color: var(--ui-accent-ink);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .push-toast.success {
@@ -5332,18 +5349,18 @@ button.directory-alias-chip {
 
 .capability-quick-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .capability-quick-action {
   min-width: 0;
-  min-height: 46px;
+  min-height: 38px;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 22px;
+  grid-template-columns: 22px minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 5px;
+  padding: 5px 6px;
   color: var(--text);
   background: color-mix(in srgb, var(--ui-card-surface) 92%, var(--ui-accent-soft));
   border: 1px solid rgba(95, 139, 148, 0.20);
@@ -5358,14 +5375,14 @@ button.directory-alias-chip {
 }
 
 .capability-action-glyph {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   display: grid;
   place-items: center;
   color: var(--ui-accent-ink);
   background: var(--ui-accent-soft);
   border-radius: 7px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   line-height: 1;
 }
@@ -5375,39 +5392,28 @@ button.directory-alias-chip {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
 }
 
 .capability-action-source {
-  min-width: 20px;
-  height: 20px;
-  display: inline-grid;
-  place-items: center;
-  padding: 0 4px;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--ui-surface) 86%, transparent);
-  border: 1px solid var(--ui-hairline);
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1;
+  display: none;
 }
 
 @media (max-width: 360px) {
   .capability-quick-action {
-    grid-template-columns: 26px minmax(0, 1fr) 20px;
-    gap: 6px;
-    padding: 8px;
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 4px;
+    padding: 5px;
   }
 
   .capability-action-glyph {
-    width: 26px;
-    height: 26px;
+    width: 20px;
+    height: 20px;
   }
 
   .capability-action-label {
-    font-size: 13px;
+    font-size: 11.5px;
   }
 }
 
@@ -5688,6 +5694,10 @@ button.directory-alias-chip {
   padding-bottom: var(--topic-plugin-dock-reserved-height);
 }
 
+.app.task-list-mode .topbar {
+  display: none !important;
+}
+
 .task-list-mode .topic-plugin-dock {
   position: fixed;
   left: 0;
@@ -5696,7 +5706,7 @@ button.directory-alias-chip {
   z-index: 39;
   width: 100%;
   min-height: var(--topic-plugin-dock-height);
-  padding: 7px max(14px, env(safe-area-inset-right)) 6px max(14px, env(safe-area-inset-left));
+  padding: 5px max(14px, env(safe-area-inset-right)) 4px max(14px, env(safe-area-inset-left));
   background: var(--ui-chrome);
   border-top: 1px solid var(--ui-hairline);
   backdrop-filter: blur(12px);
@@ -5724,10 +5734,10 @@ button.directory-alias-chip {
 }
 
 .task-list-mode .plugin-app-card {
-  flex-basis: 64px;
-  width: 64px;
-  min-height: 66px;
-  padding: 4px;
+  flex-basis: 56px;
+  width: 56px;
+  min-height: 58px;
+  padding: 3px;
 }
 
 .task-list-mode .plugin-app-strip[data-plugin-fill-count] .plugin-app-card {
@@ -5766,8 +5776,8 @@ button.directory-alias-chip {
 
 .task-list-mode .plugin-app-card .plugin-topic-app-icon,
 .task-list-mode .plugin-app-card .bottom-plugin-menu-icon {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
 }
 
 .task-list-mode .capability-plugin-icon-button {
@@ -6002,18 +6012,18 @@ button.directory-alias-chip {
 }
 
 .task-list-mode .plugin-app-card .plugin-topic-app-icon.directory {
-  width: 48px;
-  height: 48px;
-  --directory-folder-tab-left: 7px;
-  --directory-folder-tab-top: 11px;
-  --directory-folder-tab-width: 21px;
-  --directory-folder-tab-height: 8px;
+  width: 40px;
+  height: 40px;
+  --directory-folder-tab-left: 6px;
+  --directory-folder-tab-top: 9px;
+  --directory-folder-tab-width: 18px;
+  --directory-folder-tab-height: 7px;
   --directory-folder-body-left: 4px;
-  --directory-folder-body-top: 17px;
-  --directory-folder-body-width: 40px;
-  --directory-folder-body-height: 24px;
-  --directory-folder-radius: 7px;
-  border-radius: 14px;
+  --directory-folder-body-top: 15px;
+  --directory-folder-body-width: 32px;
+  --directory-folder-body-height: 20px;
+  --directory-folder-radius: 6px;
+  border-radius: 12px;
 }
 
 .plugin-topic-app-icon.finance::after {
@@ -6207,9 +6217,9 @@ button.directory-alias-chip {
 
 .directory-topic-card-main {
   min-width: 0;
-  min-height: 56px;
+  min-height: 48px;
   display: grid;
-  grid-template-columns: 16px 30px minmax(0, 1fr);
+  grid-template-columns: 16px 34px minmax(0, 1fr);
   align-items: center;
   gap: 7px;
   padding: 5px 2px;
@@ -6253,10 +6263,19 @@ button.directory-alias-chip {
   transform: translateY(1px);
 }
 
-.directory-topic-folder-icon {
-  width: 26px;
-  height: 26px;
-  color: var(--ui-accent-ink);
+.directory-topic-folder-icon.plugin-topic-app-icon.directory {
+  width: 32px;
+  height: 32px;
+  --directory-folder-tab-left: 5px;
+  --directory-folder-tab-top: 7px;
+  --directory-folder-tab-width: 14px;
+  --directory-folder-tab-height: 5px;
+  --directory-folder-body-left: 3px;
+  --directory-folder-body-top: 12px;
+  --directory-folder-body-width: 26px;
+  --directory-folder-body-height: 16px;
+  --directory-folder-radius: 5px;
+  border-radius: 9px;
 }
 
 .directory-topic-topic-icon {
@@ -6345,7 +6364,7 @@ button.directory-alias-chip {
   min-width: 0;
   display: grid;
   gap: 3px;
-  margin-left: 48px;
+  margin-left: 52px;
   padding: 0 0 7px 9px;
   border-left: 1px solid rgba(95, 139, 148, 0.20);
 }
@@ -6358,7 +6377,7 @@ button.directory-alias-chip {
   max-width: 100%;
   min-height: 30px;
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr) auto;
+  grid-template-columns: 14px minmax(0, 1fr);
   align-items: center;
   gap: 5px;
   padding: 0 7px;
@@ -15771,7 +15790,7 @@ body.task-markdown-preview-open {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: -6px;
     z-index: 40;
     --bottom-nav-column-min: 48px;
     height: var(--mobile-bottom-nav-height);
@@ -16362,8 +16381,8 @@ body.task-markdown-preview-open {
   }
 
   .directory-topic-card-main {
-    min-height: 56px;
-    grid-template-columns: 16px 30px minmax(0, 1fr);
+    min-height: 48px;
+    grid-template-columns: 16px 34px minmax(0, 1fr);
     gap: 7px;
     padding: 5px 2px;
   }

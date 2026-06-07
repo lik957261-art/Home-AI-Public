@@ -112,7 +112,7 @@ const PLUGIN_TOPIC_USAGE_STORAGE_KEY = "hermesPluginTopicUsage";
 const PLUGIN_TOPIC_ORDER_STORAGE_KEY = "hermesPluginTopicOrder";
 const PLUGIN_APP_REORDER_HOLD_MS = 450;
 const PLUGIN_APP_REORDER_CANCEL_PX = 10;
-const CAPABILITY_QUICK_ACTION_LIMIT = 8;
+const CAPABILITY_QUICK_ACTION_LIMIT = 12;
 let pluginAppSortDrag = null;
 let pluginAppSortGlobalBound = false;
 let pluginActionMenuCloseBound = false;
@@ -253,15 +253,52 @@ function writePluginTopicUsage(usage) {
   }
 }
 
-function recordPluginTopicUsage(pluginId) {
+function pluginTopicActionUsageKey(pluginId = "", actionId = "") {
+  const plugin = pluginTopicId(pluginId);
+  const action = String(actionId || "").trim();
+  return plugin && action ? `${plugin}:${action}` : "";
+}
+
+function pluginTopicUsageBucket(usage, bucketName) {
+  const bucket = usage?.[bucketName];
+  return bucket && typeof bucket === "object" && !Array.isArray(bucket) ? bucket : {};
+}
+
+function pluginTopicUsageEntry(usage, pluginId = "") {
+  const id = pluginTopicId(pluginId);
+  const current = pluginTopicUsageBucket(usage, "plugins")[id] || usage?.[id] || {};
+  return current && typeof current === "object" && !Array.isArray(current) ? current : {};
+}
+
+function pluginTopicActionUsageEntry(usage, pluginId = "", actionId = "") {
+  const key = pluginTopicActionUsageKey(pluginId, actionId);
+  const current = key ? pluginTopicUsageBucket(usage, "actions")[key] : {};
+  return current && typeof current === "object" && !Array.isArray(current) ? current : {};
+}
+
+function recordPluginTopicUsage(pluginId, actionId = "") {
   const def = pluginTopicDefById(pluginId);
-  if (!def || def.builtinKind) return;
+  if (!def) return;
   const usage = readPluginTopicUsage();
-  const current = usage[def.id] && typeof usage[def.id] === "object" ? usage[def.id] : {};
-  usage[def.id] = {
-    count: Math.max(0, Number(current.count) || 0) + 1,
-    lastUsedAt: Date.now(),
-  };
+  const now = Date.now();
+  const actionKey = pluginTopicActionUsageKey(def.id, actionId);
+  if (actionKey) {
+    const actions = { ...pluginTopicUsageBucket(usage, "actions") };
+    const current = actions[actionKey] && typeof actions[actionKey] === "object" ? actions[actionKey] : {};
+    actions[actionKey] = {
+      count: Math.max(0, Number(current.count) || 0) + 1,
+      lastUsedAt: now,
+    };
+    usage.actions = actions;
+  } else if (!def.builtinKind) {
+    const plugins = { ...pluginTopicUsageBucket(usage, "plugins") };
+    const current = pluginTopicUsageEntry(usage, def.id);
+    plugins[def.id] = {
+      count: Math.max(0, Number(current.count) || 0) + 1,
+      lastUsedAt: now,
+    };
+    usage.plugins = plugins;
+  }
   writePluginTopicUsage(usage);
 }
 
@@ -313,53 +350,44 @@ function pluginTopicActionById(pluginId = "", actionId = "") {
 }
 
 function capabilityHubQuickActions(defs = []) {
-  const preferred = [
-    ["finance", "record"],
-    ["wardrobe", "style"],
-    ["directory", "recent"],
-    ["note", "search"],
-    ["email", "reply"],
-    ["wardrobe", "today"],
-    ["finance", "month"],
-    ["health", "record"],
-    ["directory", "topics"],
-    ["note", "new"],
-    ["finance", "budget"],
-    ["wardrobe", "inventory"],
-  ];
-  const available = new Map(defs.map((def) => [def.id, def]));
+  const usage = readPluginTopicUsage();
   const result = [];
-  const seen = new Set();
-  preferred.forEach(([pluginId, actionId]) => {
-    const def = available.get(pluginId);
-    const action = pluginTopicQuickActions(def).find((item) => item.id === actionId);
-    if (!def || !action) return;
-    const key = `${def.id}:${action.id}`;
-    seen.add(key);
-    result.push({ def, action });
-  });
   defs.forEach((def) => {
-    pluginTopicQuickActions(def).forEach((action) => {
-      const key = `${def.id}:${action.id}`;
-      if (seen.has(key) || result.length >= CAPABILITY_QUICK_ACTION_LIMIT) return;
-      seen.add(key);
-      result.push({ def, action });
+    const defIndex = pluginTopicDefinitionIndex(def.id);
+    pluginTopicQuickActions(def).forEach((action, actionIndex) => {
+      const entry = pluginTopicActionUsageEntry(usage, def.id, action.id);
+      const count = Math.max(0, Number(entry.count) || 0);
+      if (!count) return;
+      result.push({
+        def,
+        action,
+        count,
+        lastUsedAt: Math.max(0, Number(entry.lastUsedAt) || 0),
+        defIndex,
+        actionIndex,
+      });
     });
   });
-  return result.slice(0, CAPABILITY_QUICK_ACTION_LIMIT);
+  return result
+    .sort((a, b) => (
+      b.count - a.count
+      || b.lastUsedAt - a.lastUsedAt
+      || a.defIndex - b.defIndex
+      || a.actionIndex - b.actionIndex
+    ))
+    .slice(0, CAPABILITY_QUICK_ACTION_LIMIT)
+    .map(({ def, action }) => ({ def, action }));
 }
 
 function pluginTopicActionLabel(def, action) {
   return String(action?.label || def?.label || "").trim();
 }
 
-function renderCapabilityQuickAction(def, action, options = {}) {
+function renderCapabilityQuickAction(def, action) {
   const sourceBadge = String(def?.sourceBadge || def?.label || "").trim().slice(0, 2);
-  const sourceText = options.showSource === false ? "" : `<span class="capability-action-source" aria-hidden="true">${escapeHtml(sourceBadge)}</span>`;
   return `<button class="capability-quick-action" type="button" data-plugin-topic-action-plugin="${escapeHtml(def.id)}" data-plugin-topic-action-id="${escapeHtml(action.id)}" aria-label="${escapeHtml(`${pluginTopicActionLabel(def, action)}\uff0c${def.label}`)}">
     <span class="capability-action-glyph" aria-hidden="true">${escapeHtml(action.glyph || sourceBadge || "")}</span>
     <span class="capability-action-label">${escapeHtml(pluginTopicActionLabel(def, action))}</span>
-    ${sourceText}
   </button>`;
 }
 
@@ -598,12 +626,13 @@ function renderCapabilityEntryHub(options = {}) {
   const defs = orderedPluginAppDefs(availablePluginTopicDefs());
   if (!defs.length) return "";
   const quickActions = capabilityHubQuickActions(defs);
+  if (!quickActions.length) return "";
   return `<section class="capability-entry-hub" aria-label="\u80fd\u529b\u5165\u53e3">
-    ${quickActions.length ? `<section class="capability-frequent" aria-label="\u5feb\u6377\u5165\u53e3">
-      <div class="capability-quick-grid" data-capability-quick-rows="4">
+    <section class="capability-frequent" aria-label="\u5feb\u6377\u5165\u53e3">
+      <div class="capability-quick-grid" data-capability-quick-columns="3">
         ${quickActions.map(({ def, action }) => renderCapabilityQuickAction(def, action)).join("")}
       </div>
-    </section>` : ""}
+    </section>
   </section>`;
 }
 
@@ -769,7 +798,7 @@ async function runPluginTopicAction(pluginId, actionId) {
   if (!resolved) return;
   const { def, action } = resolved;
   const type = String(action.type || "").trim();
-  recordPluginTopicUsage(def.id);
+  recordPluginTopicUsage(def.id, action.id);
   if (type === "open_topic" || type === "start_chat_with_context" || type === "invoke_mcp_intent") {
     await openPluginTopicChat(def.id);
     return;

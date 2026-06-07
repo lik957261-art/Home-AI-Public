@@ -60,11 +60,13 @@ The root page has three visible layers:
 3. A fixed bottom capability icon Dock for all available app-level
    capabilities, including built-in Directory and external plugins.
 
-The quick-action area is task-first. On phone and touch-tablet shells it should
-prefer readable two-column action rows over squeezing more columns into the
-first viewport. The current mobile target is four rows, or eight entries, so
-the area remains an entry strip rather than a second app launcher. It solves the
-daily "do the thing now" path.
+The quick-action area is task-first. On phone and touch-tablet shells it uses a
+compact three-column grid. Actions are not prefilled by a global default list:
+they appear only after the user has actually used that action. The host stores
+per-action usage counts, starts every action at zero, sorts visible actions by
+count and recency, and renders no empty quick-action shell when no action has
+usage history. This keeps the area personal and avoids turning it into a second
+app launcher.
 
 The fixed bottom capability Dock is app-first. It uses the existing topic-page
 icon form instead of placing app icons in the middle of the page. It solves
@@ -94,11 +96,15 @@ Quick action behavior:
   form, or start a chat with prefilled plugin context;
 - visible quick actions should be limited to the highest-value actions for the
   current user and viewport;
+- visible quick actions are usage-backed: default count is zero, and unused
+  actions do not appear in the root quick-action area;
+- visible quick actions are sorted by action usage count, then last-used time,
+  then stable plugin/action definition order;
+- quick actions render only the task prompt label plus the action glyph. They do
+  not render a trailing plugin/source label; plugin identity remains available
+  through the action's accessibility label and the fixed Dock/app icon language;
 - lower-frequency actions should move into an overflow menu rather than adding
   extra permanent buttons.
-- quick actions may include a small plugin-source badge when the action name
-  alone is ambiguous across plugins. The badge is a source hint only; it is not
-  a second click target.
 
 Long-press behavior:
 
@@ -117,6 +123,9 @@ Long-press behavior:
 - an open capability action menu must be reversible without choosing an action:
   tapping or clicking any non-menu area closes it, `Escape` closes it, and a
   right-swipe gesture closes it on touch surfaces;
+- tapping the primary bottom navigation or the visible bottom area below the
+  topic Dock also dismisses an open capability action menu because that area is
+  outside the menu's hit target;
 - plugin management and destructive actions belong in plugin management
   screens, not in the daily-use long-press menu.
 
@@ -172,6 +181,13 @@ Implemented fix, 2026-06-06:
   folder glyph for Directory identity. It also applies `projects` view mode
   immediately when the Directory Dock icon is tapped so the topic Dock reserve
   is removed before Directory data finishes loading.
+- `20260607-topic-quick-note-v592` changes the root quick-action area to a
+  usage-backed three-column grid, removes trailing source badges, hides the
+  topic-list page header, lowers the primary bottom navigation by 6px, compacts
+  the topic Dock icon strip, uses a scaled-down Directory Dock icon in
+  Directory-bound topic rows, removes directory path/default prompt text from
+  those rows, keeps long-reply start arrows eligible after terminal footer
+  refreshes, and makes successful Save-to-Note toasts actionable.
 
 Examples:
 
@@ -243,13 +259,12 @@ as the default root layout.
 
 Recommended mobile layout:
 
-- no visible title is needed above the frequent action strip; the top of the
-  page should start directly with the quick actions to save phone viewport
-  space;
-- frequent actions as compact two-column chips or tiles, with labels readable
-  across four rows before row count is optimized;
-- each quick action has an action icon, label, and optional low-noise source
-  badge such as a single character or tiny icon;
+- no visible title or page header is needed above the frequent action strip; the
+  top of the page should start directly with the used quick actions or the
+  Directory-bound topic rows to save phone viewport space;
+- frequent actions as compact three-column chips with readable task labels;
+- each quick action has an action glyph and label only. Do not add trailing
+  plugin/source badges unless the product explicitly reopens that visual model;
 - plugin and Directory icons stay in the fixed bottom Dock above the primary
   bottom navigation, matching the previous topic-page icon form;
 - no nested cards;
@@ -259,9 +274,8 @@ Recommended mobile layout:
 Recommended touch-tablet layout:
 
 - keep the same row contract;
-- allow wider quick action rows, but do not reintroduce cramped three-column
-  phone-style rows unless visual smoke evidence proves labels and badges remain
-  fully readable;
+- keep the same three-column quick-action contract and verify labels remain
+  readable across phone and touch-tablet visual smoke;
 - keep long-press menus above the bottom navigation even when the quick-action
   area grows vertically.
 
@@ -299,12 +313,13 @@ focused navigation harness before it is considered complete.
 Minimum validation:
 
 - unit/static UI tests for action projection and primary action consistency;
-- unit/static UI tests for the frequent quick-action grid, source badges, fixed
-  bottom plugin Dock, and primary action consistency;
+- unit/static UI tests for the usage-backed frequent quick-action grid, absence
+  of trailing source badges, fixed bottom plugin Dock, and primary action
+  consistency;
 - mobile visual smoke at `390x844`;
 - touch-tablet visual smoke at `1024x768` or equivalent;
-- evidence that quick action rows do not squeeze phone layouts into unreadable
-  three-column buttons;
+- evidence that quick action rows stay readable in the three-column layout and
+  that no empty quick-action shell appears before usage history exists;
 - authenticated navigation flow harness covering plugin app launch, quick
   topic entry, quick directory entry, and return behavior;
 - evidence that quick action rows and Directory-bound topic rows do not overlap

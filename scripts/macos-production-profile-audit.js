@@ -239,6 +239,30 @@ function listenerCanReadTelemetry(file, options = {}) {
   }
 }
 
+function listenerCanReadFile(file, options = {}) {
+  const value = String(file || "").trim();
+  if (!value || !exists(value)) return false;
+  if (typeof options.listenerReadProbe === "function") {
+    return Boolean(options.listenerReadProbe(value, options.listenerUser || "hermes-host"));
+  }
+  if (process.platform === "darwin") {
+    const user = String(options.listenerUser || "hermes-host").trim();
+    if (user) {
+      const result = spawnSync("sudo", ["-u", user, "test", "-r", value], {
+        encoding: "utf8",
+        stdio: ["ignore", "ignore", "ignore"],
+      });
+      return result.status === 0;
+    }
+  }
+  try {
+    fs.accessSync(value, fs.constants.R_OK);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function telemetryStatus(worker = {}, root = "", options = {}) {
   const paths = telemetryPathsForWorker(worker);
   const stateExists = exists(paths.stateDbPath);
@@ -353,10 +377,12 @@ function localWorkspaceIds(workspaces = {}) {
 function skillBundleStatus(skillRoot, relativeSkillPath, options = {}) {
   const segments = String(relativeSkillPath || "").split("/").map((item) => item.trim()).filter(Boolean);
   const dir = path.join(skillRoot, ...segments);
+  const skillFile = path.join(dir, "SKILL.md");
   const status = {
     skill: segments.join("/"),
     exists: exists(dir),
-    skillFileExists: exists(path.join(dir, "SKILL.md")),
+    skillFileExists: exists(skillFile),
+    listenerCanReadSkillFile: listenerCanReadFile(skillFile, options),
     referencesExists: exists(path.join(dir, "references")),
     scriptsExists: exists(path.join(dir, "scripts")),
   };
@@ -463,9 +489,12 @@ function buildAudit(options) {
     const skillPluginsToCheck = new Set([...summary.pluginIds, ...summary.requiredPluginIds]);
     for (const pluginId of skillPluginsToCheck) {
       for (const skillId of REQUIRED_PLUGIN_SKILLS[pluginId] || []) {
-        const status = skillBundleStatus(skillRoot, skillId, requiredSkillOptions(pluginId));
+        const status = skillBundleStatus(skillRoot, skillId, Object.assign({}, options, requiredSkillOptions(pluginId)));
         summary.requiredPluginSkills.push(Object.assign({ pluginId }, status));
         if (!status.complete) issue(`plugin_required_skill_incomplete:${workspaceId}:${pluginId}:${skillId}`);
+        if (status.complete && !status.listenerCanReadSkillFile) {
+          issue(`plugin_required_skill_unreadable:${workspaceId}:${pluginId}:${skillId}`);
+        }
       }
     }
 

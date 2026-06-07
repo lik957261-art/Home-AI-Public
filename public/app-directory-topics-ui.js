@@ -96,25 +96,18 @@ function renderDirectoryTopicCards(collections = [], options = {}) {
   const associated = options.associatedWithDirectoryPlugin === true;
   const collapsedDirectories = readCollapsedDirectoryTopics();
   return `<section class="directory-topic-launcher${associated ? " directory-topic-associated" : ""}" aria-label="\u76ee\u5f55\u8bdd\u9898">
-    ${associated ? `<div class="directory-topic-association-label" aria-hidden="true">
-      <span class="directory-topic-association-icon"></span>
-      <span>\u76ee\u5f55\u7ed1\u5b9a\u8bdd\u9898</span>
-    </div>` : ""}
     <div class="directory-topic-grid">
       ${visible.map((collection) => {
         const defaultGroup = collection.defaultGroup;
         const topics = collection.groups || [];
-        const route = collection.route || {};
-        const path = route.path || route.root || "";
         const collapsed = collapsedDirectories.has(collection.key);
         return `<article class="directory-topic-card${collapsed ? " collapsed" : ""}" data-directory-topic-card="${escapeHtml(collection.key)}">
           <div class="directory-topic-card-main-row">
             <button class="directory-topic-card-main directory-topic-directory-main" type="button" data-directory-topic-toggle="${escapeHtml(collection.key)}" aria-expanded="${collapsed ? "false" : "true"}" aria-label="${escapeHtml(`${collapsed ? "\u5c55\u5f00" : "\u6536\u8d77"}${collection.label}\u8bdd\u9898`)}">
             <span class="directory-topic-chevron" aria-hidden="true"></span>
-            <span class="plugin-topic-action-icon folder directory-topic-folder-icon" aria-hidden="true"></span>
+            <span class="plugin-topic-app-icon directory directory-topic-folder-icon" data-plugin-icon="" aria-hidden="true"></span>
             <span class="directory-topic-text">
               <span class="directory-topic-title">${escapeHtml(collection.label || "\u76ee\u5f55")}</span>
-              <span class="directory-topic-subtitle">${escapeHtml(path || "\u76ee\u5f55")}</span>
               <span class="directory-topic-meta">${escapeHtml(`${topics.length} \u4e2a\u8bdd\u9898\u3000${formatTime(collection.updatedAt)}`)}</span>
             </span>
             </button>
@@ -126,7 +119,6 @@ function renderDirectoryTopicCards(collections = [], options = {}) {
               return `<button class="directory-topic-chip${group.id === defaultGroup.id ? " default" : ""}" type="button" data-directory-topic-open-topic="${escapeHtml(group.id)}" title="${escapeHtml(fullTitle || title || "")}">
                 <span class="plugin-topic-action-icon chat" aria-hidden="true"></span>
                 <span class="directory-topic-chip-title">${escapeHtml(title || "\u8bdd\u9898")}</span>
-                ${group.id === defaultGroup.id ? `<span class="directory-topic-chip-badge">\u9ed8\u8ba4</span>` : ""}
               </button>`;
             }).join("")}
           </div>

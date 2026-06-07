@@ -62,6 +62,14 @@ deployment-wide shared Skills use `shared-global`.
   the resolved store; otherwise official Hermes Skill creation, memory writes,
   plugin-required Skill preload, or Response grounding can drift back into a
   worker-local copy.
+- Mac production plugin-required Skill preloading runs in the Home AI listener
+  process as `hermes-host`, not as the isolated Gateway worker and not as root.
+  Keyless required plugin Skill bundles must therefore be readable and
+  traversable by the listener user. A valid production shape is owner write plus
+  `staff` group read/traverse on the selected Skill Store path, for example
+  `skill-profiles/owner-full/skills` with group execute and the required
+  `SKILL.md` with group read. Root/sudo-only readability is not valid evidence;
+  it can still fail at run time as `required_skill_not_found`.
 - Startup must treat a real profile-local `skills` directory as drift. The
   launcher should back it up under the profile's `skill-store-backups` directory
   and replace it with the correct workspace Skill Store link, instead of
@@ -111,6 +119,8 @@ deployment-wide shared Skills use `shared-global`.
 - `node tests\macos-production-profile-audit.test.js`
 - Mac production profile audit:
   `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-profile-audit.js --root /Users/hermes-host/HermesMobile --json`
+  The audit must not report
+  `plugin_required_skill_unreadable:<workspace>:<plugin>:<skill>`.
 - `node tests\task-list-ui.test.js`
 
 ## Constraints

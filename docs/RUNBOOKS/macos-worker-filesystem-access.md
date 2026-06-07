@@ -18,6 +18,14 @@ the expected `allowed_roots`.
   paths from Home AI policy.
 - Therefore macOS ACLs must let each worker user traverse the live root and
   read/write only the live data roots authorized for that worker.
+- Plugin-required Skill preload is different from model-side `skill_view`.
+  Home AI preloads required plugin Skill bundles in the listener process before
+  Gateway streaming. On Mac production that listener runs as `hermes-host`.
+  Therefore a required keyless Skill bundle such as
+  `productivity/wardrobe-style-operations` must be readable by `hermes-host`
+  through all parent directories. A bundle that root can read but
+  `hermes-host` cannot read is a production failure and should surface as
+  `plugin_required_skill_unreadable` in the profile audit.
 
 If the Home AI policy allows `/Users/hermes-host/HermesMobile/data/drive` but
 `hm-owner` cannot traverse that path at the OS layer, the model can correctly
@@ -67,6 +75,20 @@ passes. The closure harness includes this ACL check plus status, profile audit,
 native MCP schema, DeepSeek, Weixin, Owner/OpenAI concurrency, and final-status
 checks.
 
+For required plugin Skills, also run the profile audit after any Skill Store
+copy, worker-side Skill edit, plugin provisioning, or user migration:
+
+```bash
+sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
+  /Users/hermes-host/HermesMobile/app/scripts/macos-production-profile-audit.js \
+  --root /Users/hermes-host/HermesMobile \
+  --json
+```
+
+Pass criteria include no
+`plugin_required_skill_unreadable:<workspace>:<plugin>:<skill>` issue. The
+check must use the listener user, not root-only file access.
+
 ## Repair Pattern
 
 For parent directories, grant only traversal and metadata access to worker
@@ -87,6 +109,22 @@ Do not solve this by granting every worker write access to every user's data
 root. Owner may receive live `data/drive` access because Owner policy uses that
 root. Ordinary workers should receive only their live workspace subtree plus
 shared cache/upload roots that their policy exposes.
+
+For keyless required plugin Skill bundles, the listener needs read/traverse but
+not write. Keep the Skill Store owner as the workspace worker and expose only
+group read/traverse to `staff`:
+
+```bash
+sudo chmod -RN /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills
+sudo chown -R :staff /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills/productivity/wardrobe-style-operations
+sudo chmod g+rx,o-rwx /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills
+sudo chmod g+rx,o-rwx /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills/productivity
+sudo chmod -R g+rX,o-rwx /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills/productivity/wardrobe-style-operations
+sudo -u hermes-host test -r /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills/productivity/wardrobe-style-operations/SKILL.md
+```
+
+Do not apply this pattern to secret files such as access keys, workspace keys,
+tokens, or cookie stores. Required plugin preload must skip secret filenames.
 
 Workspace-private roots must also remove default group/other access. A common
 failure is `drwxr-xr-x+`: the ACL grants the intended worker, but POSIX

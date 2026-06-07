@@ -215,7 +215,16 @@ Gateway plugin/schema/profile changes:
   conversation screen, the jump control must be visible. Character-count or rich
   render limits are only no-layout fallbacks. When the reply footer is already in
   view, the up/start arrow must stay inline beside the Usage/Skill/status chips
-  instead of floating away to the top of the message.
+  instead of floating away to the top of the message. Once content estimation or
+  measured layout proves a reply is long, terminal Usage/Skill/run-status footer
+  refreshes must not clear the reply's long-scroll eligibility.
+- Save-to-Note success feedback must remain a local Hermes route action. If the
+  Note API returns a saved note id, the toast should be clickable/keyboard
+  actionable and open the Note plugin with that id in the plugin route payload.
+  The client must not hard-code deployment hostnames. Note receipt titles are a
+  server-side responsibility: prefer the receipt heading, then the first
+  meaningful content line, and add a short plugin prefix when a plugin context is
+  available.
 - Mobile orientation changes must have a deterministic viewport recovery pass:
   clear any temporary conversation scroll-layer reset, clear stale keyboard
   viewport CSS when the composer is no longer actually focused, recompute bottom

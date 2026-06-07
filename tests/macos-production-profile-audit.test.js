@@ -34,6 +34,7 @@ assert.match(script, /deepseek_user_worker_missing/);
 assert.match(script, /plugin_binding_missing/);
 assert.match(script, /plugin_local_binding_incomplete/);
 assert.match(script, /plugin_required_skill_incomplete/);
+assert.match(script, /plugin_required_skill_unreadable/);
 assert.match(script, /shared_skill_missing/);
 assert.match(script, /targetMatchesExpected/);
 assert.match(script, /stale_skill_profile/);
@@ -150,6 +151,28 @@ try {
   assert.ok(launchdAudit.issues.includes("launchd_run_at_load_unexpected:hm-wuping-openai-1"));
   assert.equal(launchdServiceStatus({ launchdLabel: "com.hermesmobile.fixture.1" }, { launchdProbe: () => true }).loaded, true);
   assert.equal(launchdServiceStatus({ launchdLabel: "com.hermesmobile.fixture.2" }, { checkLaunchd: false }).checked, false);
+  const wardrobeSkillDir = path.join(
+    data,
+    "skill-profiles",
+    "weixin_wuping",
+    "skills",
+    "productivity",
+    "wardrobe-style-operations",
+  );
+  fs.mkdirSync(path.join(wardrobeSkillDir, "references"), { recursive: true });
+  fs.mkdirSync(path.join(wardrobeSkillDir, "scripts"), { recursive: true });
+  fs.writeFileSync(path.join(wardrobeSkillDir, "SKILL.md"), "wardrobe skill", "utf8");
+  const unreadableSkillAudit = buildAudit({
+    root: tempRoot,
+    expectedWorkspaces: [],
+    expectedPlugins: ["wardrobe"],
+    requiredWorkspacePlugins: { weixin_wuping: ["wardrobe"] },
+    requiredSharedSkills: [],
+    checkTelemetry: false,
+    listenerReadProbe: () => false,
+  });
+  assert.ok(!unreadableSkillAudit.issues.includes("plugin_required_skill_incomplete:weixin_wuping:wardrobe:productivity/wardrobe-style-operations"));
+  assert.ok(unreadableSkillAudit.issues.includes("plugin_required_skill_unreadable:weixin_wuping:wardrobe:productivity/wardrobe-style-operations"));
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
 }
