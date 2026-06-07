@@ -74,8 +74,32 @@ function testSafeFallbacks() {
   assert.equal(service.isDirectoryBrowserPathAllowedForThread({}, "x"), false);
 }
 
+function testLazyProviderGetters() {
+  let filesystemProvider = {
+    normalizeLocalPath(value) {
+      return `first:${value}`;
+    },
+  };
+  const service = createMobileRuntimePathAccessService({
+    filesystemMountProvider: () => filesystemProvider,
+  });
+
+  assert.equal(service.normalizeLocalPath("x"), "first:x");
+  filesystemProvider = {
+    normalizeLocalPath(value) {
+      return `second:${value}`;
+    },
+    windowsPathToWsl(value) {
+      return `/mnt/${value}`;
+    },
+  };
+  assert.equal(service.normalizeLocalPath("x"), "second:x");
+  assert.equal(service.windowsPathToWsl("c"), "/mnt/c");
+}
+
 testDelegatesFilesystemMountsAndFiltersAllowedRoots();
 testDelegatesThreadPolicyBooleans();
 testSafeFallbacks();
+testLazyProviderGetters();
 
 console.log("mobile runtime path access service tests passed");

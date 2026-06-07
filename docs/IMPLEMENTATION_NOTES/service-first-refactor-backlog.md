@@ -112,6 +112,11 @@ statements. Priority extraction areas:
   package into the facade, uses facade delegates for catalog methods and dynamic
   project cache clearing, and no longer defines a top-level
   `getRuntimeWorkspaceCatalogService` factory.
+- completed 2026-06-08: Path Access provider resolution now lives inside
+  `adapters/mobile-runtime-path-access-service.js`. The service accepts provider
+  getter dependencies so startup-order cycles stay inside the service boundary,
+  and `mobile-server-runtime.js` no longer defines a top-level
+  `getMobileRuntimePathAccessService` factory.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

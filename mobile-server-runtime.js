@@ -376,23 +376,17 @@ const runtimeStateThreadService = createRuntimeStateThreadService({
   state: () => state,
 });
 const getRuntimeStateThreadService = () => runtimeStateThreadService;
-let mobileRuntimePathAccessService = null;
-function getMobileRuntimePathAccessService() {
-  if (!mobileRuntimePathAccessService) {
-    mobileRuntimePathAccessService = createMobileRuntimePathAccessService({
-      filesystemMountProvider,
-      pathPolicyProvider,
-      securityBoundaryProvider,
-    });
-  }
-  return mobileRuntimePathAccessService;
-}
-const normalizeLocalPath = (...args) => getMobileRuntimePathAccessService().normalizeLocalPath(...args);
-const windowsPathToWsl = (...args) => getMobileRuntimePathAccessService().windowsPathToWsl(...args);
-const allowedRoots = (...args) => getMobileRuntimePathAccessService().allowedRoots(...args);
-const isPathAllowed = (...args) => getMobileRuntimePathAccessService().isPathAllowed(...args);
-const isPathAllowedForThread = (...args) => getMobileRuntimePathAccessService().isPathAllowedForThread(...args);
-const isDirectoryBrowserPathAllowedForThread = (...args) => getMobileRuntimePathAccessService().isDirectoryBrowserPathAllowedForThread(...args);
+const mobileRuntimePathAccessService = createMobileRuntimePathAccessService({
+  filesystemMountProvider: () => filesystemMountProvider,
+  pathPolicyProvider: () => pathPolicyProvider,
+  securityBoundaryProvider: () => securityBoundaryProvider,
+});
+const normalizeLocalPath = (...args) => mobileRuntimePathAccessService.normalizeLocalPath(...args);
+const windowsPathToWsl = (...args) => mobileRuntimePathAccessService.windowsPathToWsl(...args);
+const allowedRoots = (...args) => mobileRuntimePathAccessService.allowedRoots(...args);
+const isPathAllowed = (...args) => mobileRuntimePathAccessService.isPathAllowed(...args);
+const isPathAllowedForThread = (...args) => mobileRuntimePathAccessService.isPathAllowedForThread(...args);
+const isDirectoryBrowserPathAllowedForThread = (...args) => mobileRuntimePathAccessService.isDirectoryBrowserPathAllowedForThread(...args);
 function getGatewayRuntimeCompositionService() {
   if (!gatewayRuntimeCompositionService) {
     gatewayRuntimeCompositionService = createGatewayRuntimeCompositionService({

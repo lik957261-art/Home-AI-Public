@@ -194,11 +194,14 @@ not carry duplicate `comparablePath`, `pathInsideAnyRoot`,
 
 `mobile-runtime-path-access-service.js` owns the runtime path-access facade over
 filesystem mount normalization, security-boundary filtering, global allowed-root
-checks, and thread path-policy checks. `mobile-server-runtime.js` may keep
-lazy delegates such as `normalizeLocalPath`, `windowsPathToWsl`, and
+checks, and thread path-policy checks. It may resolve filesystem, path-policy,
+and security-boundary providers through injected getters to break runtime
+startup-order cycles. `mobile-server-runtime.js` may keep delegate constants
+such as `normalizeLocalPath`, `windowsPathToWsl`, and
 `isPathAllowedForThread` for dependency wiring, but it must not carry duplicate
 top-level implementations of path normalization, allowed-root filtering,
-global path authorization, or thread directory-browser authorization.
+global path authorization, thread directory-browser authorization, or a
+top-level path-access service factory.
 
 `mobile-runtime-state-facade-service.js` owns runtime state normalization,
 chat-group member projection, and persistence lazy delegation. Runtime
@@ -289,15 +292,15 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,280 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 2;
+- `mobile-server-runtime.js` must stay at or below 1,270 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 1;
 - async top-level `function` declarations in `mobile-server-runtime.js` must stay at 0;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
 - `path-boundary-service.js` must stay at or below 65 lines and remain a
   deterministic path comparison helper, not a path authorization or filesystem
   mutation policy module;
-- `mobile-runtime-path-access-service.js` must stay at or below 70 lines and
+- `mobile-runtime-path-access-service.js` must stay at or below 80 lines and
   remain a runtime facade over filesystem mount, security boundary, and path
   policy providers, not a new path-policy engine;
 - `automation-job-filter-service.js` must stay at or below 45 lines and remain
