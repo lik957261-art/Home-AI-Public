@@ -15770,9 +15770,9 @@ body.task-markdown-preview-open {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: var(--plugin-context-bottom-nav-height);
+    bottom: calc(var(--plugin-context-bottom-nav-height) + 3px);
     z-index: 39;
-    padding-bottom: 6px;
+    padding-bottom: 5px;
   }
 
   :root.keyboard-viewport-active .app {
@@ -16500,7 +16500,7 @@ body.task-markdown-preview-open {
 
   .composer {
     grid-template-columns: 36px minmax(0, 1fr) 48px;
-    padding: 6px max(10px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left));
+    padding: 5px max(10px, env(safe-area-inset-right)) 5px max(8px, env(safe-area-inset-left));
     gap: 6px;
   }
 
@@ -16556,13 +16556,13 @@ body.task-markdown-preview-open {
   }
 
   .composer button {
-    min-height: 33px;
+    min-height: 32px;
     padding: 0 11px;
   }
 
   .composer-editor {
-    min-height: 33px;
-    padding: 7px 9px;
+    min-height: 32px;
+    padding: 6px 9px;
     font-size: 15px;
   }
 
