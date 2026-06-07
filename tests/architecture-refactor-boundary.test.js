@@ -31,6 +31,7 @@ const gatewayRunModelToolsetSelectionService = require("../adapters/gateway-run-
 const gatewayRunQueueService = require("../adapters/gateway-run-queue-service");
 const gatewayRunQueueProjectionService = require("../adapters/gateway-run-queue-projection-service");
 const gatewayRunEvidenceService = require("../adapters/gateway-run-evidence-service");
+const gatewayRunToolsetEscalationService = require("../adapters/gateway-run-toolset-escalation-service");
 const gatewayRunTerminalStateService = require("../adapters/gateway-run-terminal-state-service");
 const gatewayRunContentService = require("../adapters/gateway-run-content-service");
 const gatewayRunRequestBuilderService = require("../adapters/gateway-run-request-builder-service");
@@ -319,6 +320,9 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof gatewayRunEvidenceService.loadedSkillFromRunEvent, "function");
   assert.equal(typeof gatewayRunEvidenceService.loadedToolsFromCompletedResponse, "function");
   assert.equal(typeof gatewayRunEvidenceService.outputItemPreview, "function");
+  assert.equal(typeof gatewayRunToolsetEscalationService.parseToolsetEscalationRequest, "function");
+  assert.equal(typeof gatewayRunToolsetEscalationService.sanitizeToolsetEscalationVisibleText, "function");
+  assert.equal(typeof gatewayRunToolsetEscalationService.findEscalationUserMessage, "function");
   assert.equal(typeof gatewayRunTerminalStateService.createGatewayRunTerminalStateService, "function");
   assert.equal(typeof gatewayRunContentService.createGatewayRunContentService, "function");
   assert.equal(typeof gatewayRunContentService.defaultAppendBounded, "function");
@@ -643,6 +647,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const gatewayRunQueueProjection = fileText("adapters/gateway-run-queue-projection-service.js");
   const gatewayRunEvent = fileText("adapters/gateway-run-event-service.js");
   const gatewayRunEvidence = fileText("adapters/gateway-run-evidence-service.js");
+  const gatewayRunToolsetEscalation = fileText("adapters/gateway-run-toolset-escalation-service.js");
   const gatewayRunTerminalState = fileText("adapters/gateway-run-terminal-state-service.js");
   const gatewayRunContent = fileText("adapters/gateway-run-content-service.js");
   const gatewayRunRequestBuilder = fileText("adapters/gateway-run-request-builder-service.js");
@@ -993,6 +998,14 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(gatewayRunEvidence, /function loadedToolsFromCompletedResponse/);
   assert.match(gatewayRunEvidence, /function outputItemPreview/);
   assert.match(gatewayRunEvidence, /function extractOutputItemText/);
+  assert.match(gatewayRunEvent, /gateway-run-toolset-escalation-service/);
+  assert.doesNotMatch(gatewayRunEvent, /^function parseToolsetEscalationRequest\(/m);
+  assert.doesNotMatch(gatewayRunEvent, /^function sanitizeToolsetEscalationVisibleText\(/m);
+  assert.doesNotMatch(gatewayRunEvent, /^function findEscalationUserMessage\(/m);
+  assert.match(gatewayRunToolsetEscalation, /function parseToolsetEscalationRequest/);
+  assert.match(gatewayRunToolsetEscalation, /function sanitizeToolsetEscalationVisibleText/);
+  assert.match(gatewayRunToolsetEscalation, /function expandCommonWebEscalationToolsets/);
+  assert.match(gatewayRunToolsetEscalation, /function findEscalationUserMessage/);
   assert.match(gatewayRunEvent, /createGatewayRunTerminalStateService/);
   assert.match(gatewayRunEvent, /getTerminalStateService\(\)\.markRunFailed/);
   assert.match(gatewayRunEvent, /getTerminalStateService\(\)\.markRunCancelled/);
@@ -1629,7 +1642,8 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /gateway-run-queue-service\.js` must stay at or below 180\s+lines/);
   assert.match(doc, /gateway-run-terminal-state-service\.js` must stay at or below 160\s+lines/);
   assert.match(doc, /gateway-run-evidence-service\.js` must stay at or below 310\s+lines/);
-  assert.match(doc, /gateway-run-event-service\.js` must stay at or below 890\s+lines/);
+  assert.match(doc, /gateway-run-toolset-escalation-service\.js` must stay at or below 195\s+lines/);
+  assert.match(doc, /gateway-run-event-service\.js` must stay at or below 735\s+lines/);
   assert.match(doc, /gateway-run-content-service\.js` must stay at or below 60 lines/);
   assert.match(doc, /gateway-run-stream-completion-service\.js` must stay at or below 55\s+lines/);
   assert.match(doc, /gateway-run-stream-close-recovery-service\.js` must stay at or below 70\s+lines/);
@@ -1700,6 +1714,7 @@ function testServiceFirstArchitectureContract() {
   const gatewayRunQueueProjection = fileText("adapters/gateway-run-queue-projection-service.js");
   const gatewayRunEvent = fileText("adapters/gateway-run-event-service.js");
   const gatewayRunEvidence = fileText("adapters/gateway-run-evidence-service.js");
+  const gatewayRunToolsetEscalation = fileText("adapters/gateway-run-toolset-escalation-service.js");
   const gatewayRunTerminalState = fileText("adapters/gateway-run-terminal-state-service.js");
   const gatewayRunContent = fileText("adapters/gateway-run-content-service.js");
   const gatewayRunStream = fileText("adapters/gateway-run-stream-service.js");
@@ -1802,6 +1817,7 @@ function testServiceFirstArchitectureContract() {
   const gatewayRunQueueProjectionLineCount = gatewayRunQueueProjection.split(/\r?\n/).length;
   const gatewayRunEventLineCount = gatewayRunEvent.split(/\r?\n/).length;
   const gatewayRunEvidenceLineCount = gatewayRunEvidence.split(/\r?\n/).length;
+  const gatewayRunToolsetEscalationLineCount = gatewayRunToolsetEscalation.split(/\r?\n/).length;
   const gatewayRunTerminalStateLineCount = gatewayRunTerminalState.split(/\r?\n/).length;
   const gatewayRunContentLineCount = gatewayRunContent.split(/\r?\n/).length;
   const gatewayRunStreamLineCount = gatewayRunStream.split(/\r?\n/).length;
@@ -1889,7 +1905,8 @@ function testServiceFirstArchitectureContract() {
   assert.ok(gatewayRunQueueLineCount <= 180, `gateway-run-queue-service.js line budget exceeded: ${gatewayRunQueueLineCount} > 180`);
   assert.ok(gatewayRunTerminalStateLineCount <= 160, `gateway-run-terminal-state-service.js line budget exceeded: ${gatewayRunTerminalStateLineCount} > 160`);
   assert.ok(gatewayRunEvidenceLineCount <= 310, `gateway-run-evidence-service.js line budget exceeded: ${gatewayRunEvidenceLineCount} > 310`);
-  assert.ok(gatewayRunEventLineCount <= 890, `gateway-run-event-service.js line budget exceeded: ${gatewayRunEventLineCount} > 890`);
+  assert.ok(gatewayRunToolsetEscalationLineCount <= 195, `gateway-run-toolset-escalation-service.js line budget exceeded: ${gatewayRunToolsetEscalationLineCount} > 195`);
+  assert.ok(gatewayRunEventLineCount <= 735, `gateway-run-event-service.js line budget exceeded: ${gatewayRunEventLineCount} > 735`);
   assert.match(fileAccessFacade, /findDirectoryThreadForRequest/);
   assert.match(fileAccessFacade, /ownerDirectoryBrowserThread/);
   assert.doesNotMatch(runtime, /^function findDirectoryThreadForRequest\(/m);

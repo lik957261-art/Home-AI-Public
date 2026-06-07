@@ -533,14 +533,25 @@ text, secrets, and full file payloads out of event previews. It must not mutate
 threads/messages, broadcast, save runtime state, schedule queued work, parse
 Gateway terminal state, or decide toolset escalation.
 
+`gateway-run-toolset-escalation-service.js` owns deterministic model-first
+toolset escalation projection helpers: escalation marker parsing, selected and
+omitted authorized toolset extraction from run options/policy metadata,
+retryable and blocked toolset derivation, user-facing insufficient-toolset
+message construction, marker sanitization, common web companion expansion, and
+the user-message lookup used for retry. It must not start a retry run, mutate
+assistant messages, add thread events, broadcast, save runtime state, notify
+users, parse run evidence, or decide the original model-first selector result.
+
 `gateway-run-event-service.js` owns Gateway event parsing and in-run event
 projection: run id resolution, response-created alias handling, text delta and
 output item projection, final-message events, completed output projection,
 model-first toolset escalation retry, permission approval marker handling,
 Wardrobe completion validation, and ordinary event persistence. It must
 delegate Skill/tool/output-item evidence parsing to
-`gateway-run-evidence-service.js`, and failed/cancelled terminal state plus
-detached active-run reconciliation to `gateway-run-terminal-state-service.js`.
+`gateway-run-evidence-service.js`, deterministic toolset escalation parsing and
+sanitization to `gateway-run-toolset-escalation-service.js`, and failed/
+cancelled terminal state plus detached active-run reconciliation to
+`gateway-run-terminal-state-service.js`.
 
 `app-route-url-service.js` owns app-shell query URL serialization for Push,
 Web Push, plugin notification, and other route-link producers. Runtime
@@ -832,11 +843,16 @@ Current CI guardrails:
   Skill/tool/output-item evidence parsing and bounded preview construction, not
   event broadcasting, terminal mutation, state persistence, queue scheduling, or
   toolset escalation;
-- `gateway-run-event-service.js` must stay at or below 890 lines and remain
+- `gateway-run-toolset-escalation-service.js` must stay at or below 195 lines
+  and remain deterministic toolset escalation marker parsing, sanitization,
+  route metadata projection, common web companion expansion, and retry
+  user-message lookup, not retry execution, event broadcasting, terminal
+  mutation, state persistence, or selector execution;
+- `gateway-run-event-service.js` must stay at or below 735 lines and remain
   event parsing/projection, completed output handling, toolset escalation retry,
   permission marker handling, and Wardrobe completion validation while
-  delegating Skill/tool evidence parsing and failed/cancelled/detached terminal
-  projection;
+  delegating Skill/tool evidence parsing, deterministic toolset escalation
+  helper logic, and failed/cancelled/detached terminal projection;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 125 lines
   and remain a runtime Gateway facade over provider lifecycle, run concurrency,
   and Gateway runtime composition singleton ownership delegates;

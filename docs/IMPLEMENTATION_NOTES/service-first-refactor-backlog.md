@@ -285,6 +285,14 @@ statements. Priority extraction areas:
   output text extraction while retaining event projection, broadcasts, state
   saves, completed output handling, toolset escalation retry, permission marker
   handling, and Wardrobe completion validation.
+- completed 2026-06-08: Gateway run deterministic toolset-escalation helper
+  logic moved into `adapters/gateway-run-toolset-escalation-service.js`. The
+  event service now delegates escalation marker parsing, selected/omitted
+  authorized toolset projection, retryable/blocked toolset derivation, marker
+  sanitization, user-facing insufficient-toolset message construction, common
+  web companion expansion, and retry user-message lookup while retaining actual
+  retry execution, event projection, broadcasts, state saves, completed output
+  handling, permission marker handling, and Wardrobe completion validation.
 - completed 2026-06-08: Gateway run stream closed-without-terminal recovery
   moved into `adapters/gateway-run-stream-close-recovery-service.js`. The
   stream service now delegates synthetic completion after partial model output,
