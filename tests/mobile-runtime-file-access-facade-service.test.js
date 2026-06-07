@@ -7,6 +7,10 @@ function createDeps(overrides = {}) {
   const calls = [];
   const deps = {
     allProjectsForWorkspaceSync: () => [],
+    authenticateRequest(req) {
+      calls.push(["authenticateRequest", req]);
+      return req.auth || { workspaceId: "owner", owner: true };
+    },
     authCanAccessWorkspace: () => true,
     chatGroupMemberWorkspaceIds: () => [],
     comparablePath: (value) => String(value || "").toLowerCase(),
@@ -38,6 +42,10 @@ function createDeps(overrides = {}) {
         calls.push(["sendResolvedFilePreview", res, file]);
         return "preview";
       },
+    },
+    findThreadForAuth(auth, threadId) {
+      calls.push(["findThreadForAuth", auth, threadId]);
+      return null;
     },
     getRuntimeStateNormalizationService: () => ({ normalizeTaskGroupMeta: (value) => value || {} }),
     getSingleWindowThreadService: () => ({ isKanbanCaseTopicThread: () => false }),
@@ -93,6 +101,33 @@ function testDirectoryBoundaryIsLazyAndStable() {
   assert.equal(typeof first.assertChildPathInside, "function");
 }
 
+function testFindDirectoryThreadReturnsExistingThread() {
+  const existingThread = { id: "thread_dir", workspaceId: "owner" };
+  const { calls, deps } = createDeps({
+    findThreadForAuth(auth, threadId) {
+      calls.push(["findThreadForAuth", auth, threadId]);
+      return threadId === "thread_dir" ? existingThread : null;
+    },
+  });
+  const service = createMobileRuntimeFileAccessFacadeService(deps);
+  const req = { auth: { workspaceId: "owner", owner: true } };
+
+  assert.equal(service.findDirectoryThreadForRequest(req, "thread_dir"), existingThread);
+  assert.deepEqual(calls.map((item) => item[0]), ["authenticateRequest", "findThreadForAuth"]);
+}
+
+function testFindDirectoryThreadFallsBackForOwnerOnly() {
+  const owner = createMobileRuntimeFileAccessFacadeService(createDeps().deps);
+  const ownerFallback = owner.findDirectoryThreadForRequest({ auth: { workspaceId: "owner", owner: true } }, "missing");
+
+  assert.deepEqual(ownerFallback, owner.ownerDirectoryBrowserThread());
+
+  const nonOwner = createMobileRuntimeFileAccessFacadeService(createDeps({
+    isOwnerAuth: () => false,
+  }).deps);
+  assert.equal(nonOwner.findDirectoryThreadForRequest({ auth: { workspaceId: "weixin_wuping" } }, "missing"), null);
+}
+
 function testRequiredDependencyGuard() {
   assert.throws(
     () => createMobileRuntimeFileAccessFacadeService(createDeps({ fileResponseService: null }).deps),
@@ -102,5 +137,7 @@ function testRequiredDependencyGuard() {
 
 testFacadeDelegatesFileAccess();
 testDirectoryBoundaryIsLazyAndStable();
+testFindDirectoryThreadReturnsExistingThread();
+testFindDirectoryThreadFallsBackForOwnerOnly();
 testRequiredDependencyGuard();
 console.log("mobile-runtime-file-access-facade-service tests passed");

@@ -272,8 +272,8 @@ const fileAccessFacade = () => {
   return mobileRuntimeFileAccessFacadeService;
 };
 const fileAccessMethod = (methodName) => (...args) => fileAccessFacade()[methodName](...args);
-const fileAccessDelegates = Object.fromEntries("getDirectoryBrowserBoundaryService resolveArtifactForRequest resolveFileForBrowserRequest sendResolvedBridgeFile sendResolvedBridgeFilePreview sendResolvedFile sendResolvedFilePreview".split(" ").map((methodName) => [methodName, fileAccessMethod(methodName)]));
-const { getDirectoryBrowserBoundaryService, resolveArtifactForRequest, resolveFileForBrowserRequest, sendResolvedBridgeFile, sendResolvedBridgeFilePreview, sendResolvedFile, sendResolvedFilePreview } = fileAccessDelegates;
+const fileAccessDelegates = Object.fromEntries("findDirectoryThreadForRequest getDirectoryBrowserBoundaryService resolveArtifactForRequest resolveFileForBrowserRequest sendResolvedBridgeFile sendResolvedBridgeFilePreview sendResolvedFile sendResolvedFilePreview".split(" ").map((methodName) => [methodName, fileAccessMethod(methodName)]));
+const { findDirectoryThreadForRequest, getDirectoryBrowserBoundaryService, resolveArtifactForRequest, resolveFileForBrowserRequest, sendResolvedBridgeFile, sendResolvedBridgeFilePreview, sendResolvedFile, sendResolvedFilePreview } = fileAccessDelegates;
 const kanbanFacade = () => {
   if (!mobileRuntimeKanbanFacadeService) throw new Error("Mobile runtime Kanban facade is not initialized");
   return mobileRuntimeKanbanFacadeService;
@@ -707,12 +707,14 @@ const workspaceDisplayPathService = createWorkspaceDisplayPathService({
 bootTrace("display paths ready");
 mobileRuntimeFileAccessFacadeService = createMobileRuntimeFileAccessFacadeService({
   allProjectsForWorkspaceSync,
+  authenticateRequest,
   authCanAccessWorkspace,
   chatGroupMemberWorkspaceIds,
   comparablePath,
   dedupe,
   fileArtifactResolverService,
   fileResponseService,
+  findThreadForAuth: (auth, threadId) => getRuntimeStateThreadService().findThreadForAuth(auth, threadId),
   getRuntimeStateNormalizationService,
   getSingleWindowThreadService,
   isOwnerAuth,
@@ -863,26 +865,6 @@ const getWorkspacePublicProjectionService = (...args) => mobileRuntimeWorkspaceF
 const publicWorkspacesForAuth = (...args) => mobileRuntimeWorkspaceFacadeService.publicWorkspacesForAuth(...args);
 const requireOwner = (...args) => mobileRuntimeWorkspaceFacadeService.requireOwner(...args);
 const requireWorkspaceAccess = (...args) => mobileRuntimeWorkspaceFacadeService.requireWorkspaceAccess(...args);
-function ownerDirectoryBrowserThread() {
-  return {
-    id: "owner-directory-browser",
-    title: "Owner Directory Browser",
-    workspaceId: "owner",
-    projectId: "",
-    subprojectId: "",
-    singleWindow: false,
-    status: "idle",
-    taskGroupMeta: {},
-    chatGroup: { enabled: false, memberWorkspaceIds: [] },
-    messages: [],
-  };
-}
-function findDirectoryThreadForRequest(req, threadId) {
-  const auth = authenticateRequest(req);
-  const thread = getRuntimeStateThreadService().findThreadForAuth(auth, threadId);
-  if (thread) return thread;
-  return isOwnerAuth(auth) ? ownerDirectoryBrowserThread() : null;
-}
 function mobileSqliteStore() {
   if (!sqliteServiceStore) {
     const { createMobileSqliteStore } = require("./adapters/mobile-sqlite-store");

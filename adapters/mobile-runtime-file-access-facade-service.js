@@ -23,10 +23,12 @@ function createMobileRuntimeFileAccessFacadeService(options = {}) {
   const fileResponseService = requireDependency(options, "fileResponseService");
   const pathPolicyProvider = requireDependency(options, "pathPolicyProvider");
   const allProjectsForWorkspaceSync = requireFunction(options, "allProjectsForWorkspaceSync");
+  const authenticateRequest = requireFunction(options, "authenticateRequest");
   const authCanAccessWorkspace = requireFunction(options, "authCanAccessWorkspace");
   const chatGroupMemberWorkspaceIds = requireFunction(options, "chatGroupMemberWorkspaceIds");
   const comparablePath = requireFunction(options, "comparablePath");
   const dedupe = requireFunction(options, "dedupe");
+  const findThreadForAuth = requireFunction(options, "findThreadForAuth");
   const getRuntimeStateNormalizationService = requireFunction(options, "getRuntimeStateNormalizationService");
   const getSingleWindowThreadService = requireFunction(options, "getSingleWindowThreadService");
   const isOwnerAuth = requireFunction(options, "isOwnerAuth");
@@ -91,8 +93,32 @@ function createMobileRuntimeFileAccessFacadeService(options = {}) {
     return fileResponseService.sendResolvedBridgeFilePreview(res, file);
   }
 
+  function ownerDirectoryBrowserThread() {
+    return {
+      id: "owner-directory-browser",
+      title: "Owner Directory Browser",
+      workspaceId: "owner",
+      projectId: "",
+      subprojectId: "",
+      singleWindow: false,
+      status: "idle",
+      taskGroupMeta: {},
+      chatGroup: { enabled: false, memberWorkspaceIds: [] },
+      messages: [],
+    };
+  }
+
+  function findDirectoryThreadForRequest(req, threadId) {
+    const auth = authenticateRequest(req);
+    const thread = findThreadForAuth(auth, threadId);
+    if (thread) return thread;
+    return isOwnerAuth(auth) ? ownerDirectoryBrowserThread() : null;
+  }
+
   return {
+    findDirectoryThreadForRequest,
     getDirectoryBrowserBoundaryService,
+    ownerDirectoryBrowserThread,
     resolveArtifactForRequest,
     resolveFileForBrowserRequest,
     sendResolvedBridgeFile,

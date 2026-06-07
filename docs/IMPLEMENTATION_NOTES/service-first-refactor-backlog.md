@@ -56,6 +56,10 @@ statements. Priority extraction areas:
   `adapters/mobile-runtime-basic-helper-service.js`, and artifact path recovery
   from visible message content moved into
   `adapters/mobile-runtime-artifact-facade-service.js`.
+- completed 2026-06-08: Directory-thread request fallback moved into
+  `adapters/mobile-runtime-file-access-facade-service.js`. Runtime now injects
+  auth/thread lookup dependencies and route composition receives a facade
+  delegate instead of top-level Directory browser fallback functions.
 - Gateway runtime config and worker policy composition;
 - thread run preparation and Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

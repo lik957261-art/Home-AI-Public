@@ -267,8 +267,8 @@ Current CI guardrails:
 
 - `server.js` must stay at or below 3,000 lines;
 - top-level `function` declarations in `server.js` must stay at or below 5;
-- `mobile-server-runtime.js` must stay at or below 1,370 lines while it is being split further;
-- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 16;
+- `mobile-server-runtime.js` must stay at or below 1,350 lines while it is being split further;
+- top-level `function` declarations in `mobile-server-runtime.js` must stay at or below 14;
 - `app-route-url-service.js` must stay at or below 35 lines and remain a
   deterministic app-shell query URL serializer;
 - `path-boundary-service.js` must stay at or below 65 lines and remain a
@@ -286,9 +286,10 @@ Current CI guardrails:
 - `mobile-runtime-basic-helper-service.js` must stay at or below 120 lines and
   remain a deterministic helper service for basic runtime primitives, not a
   route, provider, permission, or Gateway lifecycle policy module;
-- `mobile-runtime-file-access-facade-service.js` must stay at or below 115
+- `mobile-runtime-file-access-facade-service.js` must stay at or below 140
   lines and remain a facade over lazy Directory browser boundary construction,
-  file/artifact resolver delegation, and file response delegation;
+  file/artifact resolver delegation, file response delegation, and bounded
+  Directory-thread request fallback wiring;
 - `mobile-runtime-gateway-context-facade-service.js` must stay at or below 90
   lines and remain a facade over Gateway instruction, conversation-history,
   stale tool-schema claim, run-target, and usage supplementation delegates;
