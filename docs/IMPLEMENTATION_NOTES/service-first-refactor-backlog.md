@@ -293,6 +293,13 @@ statements. Priority extraction areas:
   web companion expansion, and retry user-message lookup while retaining actual
   retry execution, event projection, broadcasts, state saves, completed output
   handling, permission marker handling, and Wardrobe completion validation.
+- completed 2026-06-08: Gateway run toolset-escalation retry execution moved
+  into `adapters/gateway-run-toolset-escalation-retry-service.js`. The event
+  service now delegates retry-cap enforcement, expanded retry run-options,
+  queued assistant reset, `run.toolset_escalation_retrying` event projection,
+  retry start scheduling, and rejected-retry failure projection while retaining
+  completed output handling, permission marker handling, and Wardrobe completion
+  validation.
 - completed 2026-06-08: Gateway run stream closed-without-terminal recovery
   moved into `adapters/gateway-run-stream-close-recovery-service.js`. The
   stream service now delegates synthetic completion after partial model output,

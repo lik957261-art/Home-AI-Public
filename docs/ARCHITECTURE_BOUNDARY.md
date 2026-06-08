@@ -542,14 +542,23 @@ the user-message lookup used for retry. It must not start a retry run, mutate
 assistant messages, add thread events, broadcast, save runtime state, notify
 users, parse run evidence, or decide the original model-first selector result.
 
+`gateway-run-toolset-escalation-retry-service.js` owns execution-round toolset
+escalation retry state: retry-cap enforcement, retry run-option projection,
+assistant-message reset to `queued`, `run.toolset_escalation_retrying` event
+projection, retry start scheduling, and rejected-retry failure projection. It
+may import deterministic helper functions from
+`gateway-run-toolset-escalation-service.js`, but must receive side effects
+through dependencies: event append, state save, broadcast, terminal
+notification, clock, scheduler, and `startToolsetEscalationRun`.
+
 `gateway-run-event-service.js` owns Gateway event parsing and in-run event
 projection: run id resolution, response-created alias handling, text delta and
 output item projection, final-message events, completed output projection,
-model-first toolset escalation retry, permission approval marker handling,
-Wardrobe completion validation, and ordinary event persistence. It must
-delegate Skill/tool/output-item evidence parsing to
+permission approval marker handling, Wardrobe completion validation, and
+ordinary event persistence. It must delegate Skill/tool/output-item evidence parsing to
 `gateway-run-evidence-service.js`, deterministic toolset escalation parsing and
-sanitization to `gateway-run-toolset-escalation-service.js`, and failed/
+sanitization to `gateway-run-toolset-escalation-service.js`, toolset escalation
+retry execution to `gateway-run-toolset-escalation-retry-service.js`, and failed/
 cancelled terminal state plus detached active-run reconciliation to
 `gateway-run-terminal-state-service.js`.
 
@@ -848,11 +857,17 @@ Current CI guardrails:
   route metadata projection, common web companion expansion, and retry
   user-message lookup, not retry execution, event broadcasting, terminal
   mutation, state persistence, or selector execution;
-- `gateway-run-event-service.js` must stay at or below 735 lines and remain
-  event parsing/projection, completed output handling, toolset escalation retry,
-  permission marker handling, and Wardrobe completion validation while
-  delegating Skill/tool evidence parsing, deterministic toolset escalation
-  helper logic, and failed/cancelled/detached terminal projection;
+- `gateway-run-toolset-escalation-retry-service.js` must stay at or below 175
+  lines and remain execution-round retry projection only: retry cap, expanded
+  retry run-options, queued assistant reset, retry event projection, retry start
+  scheduling, and rejected-retry failure projection, not marker parsing,
+  original selector decisions, run completion, Wardrobe validation, or stream
+  lifecycle;
+- `gateway-run-event-service.js` must stay at or below 640 lines and remain
+  event parsing/projection, completed output handling, permission marker
+  handling, and Wardrobe completion validation while delegating Skill/tool
+  evidence parsing, deterministic toolset escalation helper logic, toolset
+  retry execution, and failed/cancelled/detached terminal projection;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 125 lines
   and remain a runtime Gateway facade over provider lifecycle, run concurrency,
   and Gateway runtime composition singleton ownership delegates;
