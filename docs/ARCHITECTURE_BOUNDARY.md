@@ -564,10 +564,20 @@ must not parse arbitrary Gateway events, read response streams, manage active
 stream aliases, select workers, start original runs, or own deterministic
 toolset marker parsing.
 
+`gateway-run-response-created-service.js` owns response-created alias
+projection: mapping the public run id to the real response id, updating the
+active-stream alias map, preserving the first original run id, replacing the
+thread active-run id, saving state, and broadcasting the updated assistant
+message. It must not parse arbitrary Gateway events, mutate terminal state,
+append thread events, process output text, select workers, or schedule queued
+runs.
+
 `gateway-run-event-service.js` owns Gateway event parsing and in-run event
-projection: run id resolution, response-created alias handling, text delta and
-output item projection, final-message events, and ordinary event persistence.
+projection: run id resolution, text delta and output item projection,
+final-message events, and ordinary event persistence.
 It must delegate completed-run projection to `gateway-run-completion-service.js`,
+response-created alias projection to
+`gateway-run-response-created-service.js`,
 Skill/tool/output-item evidence parsing to
 `gateway-run-evidence-service.js`, deterministic toolset escalation parsing and
 sanitization to `gateway-run-toolset-escalation-service.js`, toolset escalation
@@ -868,6 +878,10 @@ Current CI guardrails:
   completed broadcast, and queued follow-up scheduling, not arbitrary Gateway
   event parsing, stream handling, active-stream alias management, worker
   selection, or original run start orchestration;
+- `gateway-run-response-created-service.js` must stay at or below 45 lines and
+  remain response-created run-id alias projection only, not arbitrary event
+  parsing, output projection, terminal mutation, queue scheduling, or worker
+  selection;
 - `gateway-run-evidence-service.js` must stay at or below 310 lines and remain
   Skill/tool/output-item evidence parsing and bounded preview construction, not
   event broadcasting, terminal mutation, state persistence, queue scheduling, or
@@ -883,11 +897,11 @@ Current CI guardrails:
   scheduling, and rejected-retry failure projection, not marker parsing,
   original selector decisions, run completion, Wardrobe validation, or stream
   lifecycle;
-- `gateway-run-event-service.js` must stay at or below 480 lines and remain
+- `gateway-run-event-service.js` must stay at or below 470 lines and remain
   event parsing/projection plus in-run text/output-item events while delegating
-  completed-run projection, Skill/tool evidence parsing, deterministic toolset
-  escalation helper logic, toolset retry execution, and failed/cancelled/
-  detached terminal projection;
+  completed-run projection, response-created alias projection, Skill/tool
+  evidence parsing, deterministic toolset escalation helper logic, toolset
+  retry execution, and failed/cancelled/detached terminal projection;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 125 lines
   and remain a runtime Gateway facade over provider lifecycle, run concurrency,
   and Gateway runtime composition singleton ownership delegates;

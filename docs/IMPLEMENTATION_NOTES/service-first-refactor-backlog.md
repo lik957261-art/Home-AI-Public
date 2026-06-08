@@ -310,6 +310,13 @@ statements. Priority extraction areas:
   while retaining event routing, response-created aliasing, text delta/output
   item projection, final-message events, failed/cancelled terminal delegation,
   and detached-run reconciliation.
+- completed 2026-06-08: Gateway run response-created alias projection moved
+  into `adapters/gateway-run-response-created-service.js`. The event service
+  now delegates public-run to real-response id mapping, active-stream alias
+  updates, original-run preservation, active-run replacement, state save, and
+  updated-message broadcast while retaining event routing, text delta/output
+  item projection, final-message events, completed-run delegation,
+  failed/cancelled terminal delegation, and detached-run reconciliation.
 - completed 2026-06-08: Gateway run stream closed-without-terminal recovery
   moved into `adapters/gateway-run-stream-close-recovery-service.js`. The
   stream service now delegates synthetic completion after partial model output,

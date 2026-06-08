@@ -23,6 +23,7 @@ const {
   runToolNameForCallId,
 } = require("./gateway-run-evidence-service");
 const { createGatewayRunTerminalStateService } = require("./gateway-run-terminal-state-service");
+const { createGatewayRunResponseCreatedService } = require("./gateway-run-response-created-service");
 const { createGatewayRunToolsetEscalationRetryService } = require("./gateway-run-toolset-escalation-retry-service");
 const {
   parseToolsetEscalationRequest,
@@ -122,6 +123,7 @@ function createGatewayRunEventService(options = {}) {
   let streamingSaveTimer = null;
   let streamingSavePending = false;
   let completionService = null;
+  let responseCreatedService = null;
   let terminalStateService = null;
   let toolsetEscalationRetryService = null;
 
@@ -271,22 +273,16 @@ function createGatewayRunEventService(options = {}) {
     return completionService;
   }
 
-  function markResponseCreated(context) {
-    const { thread, message, runId, responseRunId, stream } = context;
-    if (responseRunId && responseRunId !== runId) {
-      const aliasStream = stream || activeStreams.get(runId);
-      if (aliasStream) {
-        aliasStream.realRunId = responseRunId;
-        activeStreams.set(responseRunId, aliasStream);
-      }
-      if (!message.originalRunId) message.originalRunId = runId;
-      message.responseRunId = responseRunId;
-      message.runId = responseRunId;
-      replaceThreadActiveRun(thread, runId, responseRunId);
+  function getResponseCreatedService() {
+    if (!responseCreatedService) {
+      responseCreatedService = options.responseCreatedService || createGatewayRunResponseCreatedService({
+        activeStreams,
+        broadcastMessageUpdated,
+        replaceThreadActiveRun,
+        saveState,
+      });
     }
-    saveState();
-    broadcastMessageUpdated(thread, message);
-    return { action: "response_created", runId, responseRunId };
+    return responseCreatedService;
   }
 
   function applyDelta(context, event) {
@@ -423,7 +419,7 @@ function createGatewayRunEventService(options = {}) {
     const { eventName, runId, thread, message } = context;
     if (!thread || !message) return { action: "missing_target", eventName, runId };
 
-    if (eventName === "response.created") return markResponseCreated(context);
+    if (eventName === "response.created") return getResponseCreatedService().markResponseCreated(context);
     if (eventName === "message.delta" || eventName === "response.output_text.delta") return applyDelta(context, event);
     if (eventName === "response.output_item.added" || eventName === "response.output_item.done") {
       return recordOutputItemEvent(context, event);
