@@ -205,6 +205,11 @@ that workspace, including workspace-local MCP config and Skill Store binding.
 Hermes Mobile derives that authorization from the effective workspace, not from
 the authenticated browser principal alone; Owner-authenticated access to a
 non-Owner workspace must still use the target workspace's plugin bindings.
+`pluginTopicContext.pluginId` is an activation hint after authorization has
+already been established; it is not authorization evidence. A plugin topic whose
+effective workspace policy does not authorize the plugin primary toolset must
+not inject that plugin's required MCP/toolsets or Skills and must not fall back
+to Owner plugin bindings.
 
 The active run does not need to inject every profile capability. Runtime should
 materialize or reuse a Gateway slot whose authorized capability set matches the

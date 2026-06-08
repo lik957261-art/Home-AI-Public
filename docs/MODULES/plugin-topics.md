@@ -167,6 +167,9 @@ or raw plugin credentials.
 - Runs started in the plugin topic should include the plugin MCP/toolset only
   when the selected workspace has an active plugin binding and matching Gateway
   callable schema.
+- Plugin topic context is not an authorization source. The effective workspace
+  policy must already authorize the plugin's primary MCP/toolset before the
+  fixed topic can inject required companion toolsets or required plugin Skills.
 - Fixed plugin task groups such as `plugin:wardrobe`, `plugin:finance`,
   `plugin:email`, and `plugin:health` must not enter the ordinary
   directory-bound topic attachment path. Even when a plugin-topic message

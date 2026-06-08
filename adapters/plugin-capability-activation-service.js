@@ -205,21 +205,23 @@ function createPluginCapabilityActivationService(options = {}) {
     const pluginPrimaryToolsets = new Set(capabilityDefinitions.map((item) => item.primaryToolset));
     const authorizedCapabilities = capabilityDefinitions.filter((item) => (
       authorizedSet.has(item.primaryToolset)
-      || item.requiredToolsets.some((toolset) => authorizedSet.has(toolset) || currentAllowedSet.has(toolset))
-      || item.pluginId === topicPluginId
+      || (!explicitAuthorized && currentAllowedSet.has(item.primaryToolset))
     ));
     if (!authorizedCapabilities.length) {
       return { policy, context: null, routing: policy.toolset_routing || null };
     }
 
+    const topicPluginAuthorized = Boolean(topicPluginId && authorizedCapabilities.some((item) => item.pluginId === topicPluginId));
+    const effectiveRequiredPluginToolsets = topicPluginAuthorized ? requiredPluginToolsets : [];
+    const effectiveRequiredPluginSkills = topicPluginAuthorized ? requiredPluginSkills : [];
     const activePluginIds = new Set();
     const activePluginToolsets = new Set();
     const requiredPluginIds = new Set();
     const forcedSet = new Set(forcedSelectedToolsets);
-    const requiredSet = new Set(requiredPluginToolsets);
+    const requiredSet = new Set(effectiveRequiredPluginToolsets);
     const suggestedSet = new Set(suggestedToolsets);
     for (const item of authorizedCapabilities) {
-      if (item.pluginId === topicPluginId) {
+      if (topicPluginAuthorized && item.pluginId === topicPluginId) {
         activePluginIds.add(item.pluginId);
         requiredPluginIds.add(item.pluginId);
       }
@@ -244,7 +246,7 @@ function createPluginCapabilityActivationService(options = {}) {
       if (activePluginIds.has(item.pluginId)) activePluginToolsets.add(item.primaryToolset);
     }
 
-    const shouldFilterPlugins = explicitAuthorized || topicPluginId || forcedSelectedToolsets.length || activePluginIds.size;
+    const shouldFilterPlugins = explicitAuthorized || topicPluginAuthorized || forcedSelectedToolsets.length || activePluginIds.size;
     if (!shouldFilterPlugins) {
       return { policy, context: null, routing: policy.toolset_routing || null };
     }
@@ -258,7 +260,7 @@ function createPluginCapabilityActivationService(options = {}) {
         }
       }
     }
-    for (const toolset of requiredPluginToolsets) {
+    for (const toolset of effectiveRequiredPluginToolsets) {
       if (authorizedSet.has(toolset) || currentAllowedSet.has(toolset) || requiredSet.has(toolset)) nextAllowed.push(toolset);
     }
     const allowedToolsets = dedupe(nextAllowed);
@@ -287,13 +289,13 @@ function createPluginCapabilityActivationService(options = {}) {
       .filter((entry) => entry.status !== "active" && authorizedSet.has(entry.toolset))
       .map((entry) => entry.toolset);
     const activeSchemaSet = {
-      mode: topicPluginId ? "plugin_topic_required" : (activePluginIds.size ? "deterministic_plugin_activation" : "plugin_catalog_only"),
+      mode: topicPluginAuthorized ? "plugin_topic_required" : (activePluginIds.size ? "deterministic_plugin_activation" : "plugin_catalog_only"),
       active_toolsets: allowedToolsets.slice(),
       active_plugin_ids: Array.from(activePluginIds),
       active_plugin_toolsets: Array.from(activePluginToolsets),
       catalog_plugin_ids: catalog.map((entry) => entry.pluginId),
       omitted_plugin_toolsets: omittedPluginToolsets,
-      required_plugin_id: topicPluginId,
+      required_plugin_id: topicPluginAuthorized ? topicPluginId : "",
       probe_required_plugin_ids: Array.from(activePluginIds).filter((pluginId) => !requiredPluginIds.has(pluginId) && !probeResultByPlugin.has(pluginId)),
       unavailable_plugin_ids: Array.from(unavailablePluginIds),
     };
@@ -316,10 +318,10 @@ function createPluginCapabilityActivationService(options = {}) {
       plugin_capability_probe_results: probeResults,
     });
     const nextPolicy = Object.assign({}, policy, {
-      authorized_toolsets: dedupe([...authorizedToolsets, ...requiredPluginToolsets]),
+      authorized_toolsets: dedupe([...authorizedToolsets, ...effectiveRequiredPluginToolsets]),
       allowed_toolsets: allowedToolsets,
-      required_toolsets: dedupe([...(policy.required_toolsets || policy.requiredToolsets || []), ...requiredPluginToolsets]),
-      required_skills: dedupe([...(policy.required_skills || policy.requiredSkills || []), ...requiredPluginSkills]),
+      required_toolsets: dedupe([...(policy.required_toolsets || policy.requiredToolsets || []), ...effectiveRequiredPluginToolsets]),
+      required_skills: dedupe([...(policy.required_skills || policy.requiredSkills || []), ...effectiveRequiredPluginSkills]),
       active_schema_set: activeSchemaSet,
       plugin_capability_catalog: catalog,
       plugin_capability_probe_results: probeResults,
@@ -334,8 +336,8 @@ function createPluginCapabilityActivationService(options = {}) {
       unavailablePluginIds: activeSchemaSet.unavailable_plugin_ids,
       probeRequests,
       probeResults,
-      requiredPluginToolsets,
-      requiredPluginSkills,
+      requiredPluginToolsets: effectiveRequiredPluginToolsets,
+      requiredPluginSkills: effectiveRequiredPluginSkills,
     };
     return { policy: nextPolicy, context, routing };
   }

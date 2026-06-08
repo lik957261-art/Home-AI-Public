@@ -206,8 +206,16 @@ function gatewaySmokeArgs(options) {
 }
 
 function checkGatewaySchema(options) {
-  if (options.skipGateway || !options.manifest || !options.profile) {
-    return { ok: true, skipped: true, reason: "gateway_manifest_or_profile_not_provided" };
+  if (options.skipGateway) {
+    return { ok: true, skipped: true, reason: "skip_gateway_requested" };
+  }
+  if (!options.manifest || !options.profile) {
+    const missing = [];
+    if (!options.manifest) missing.push("--manifest");
+    if (!options.profile) missing.push("--profile");
+    throw new Error(
+      `Gateway callable schema closure requires ${missing.join(" and ")} for the selected profile, or explicit --skip-gateway for source/service-only checks.`,
+    );
   }
   const result = spawnSync(process.execPath, gatewaySmokeArgs(options), {
     cwd: options.repoRoot,

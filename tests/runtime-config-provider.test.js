@@ -107,6 +107,24 @@ function testGatewayWorkerRuntimeSettings() {
   assert.equal(publicConfig.gatewayWorkerEffectiveSettings.ownerMinWarm, 0);
   assert.equal(publicConfig.gatewayWorkerEffectiveSettings.workspaceMaxWorkers, 3);
   assert.equal(publicConfig.gatewayWorkerEffectiveSettings.idleTtlMinutes, 1);
+  const cleared = provider.save({
+    gatewayWorkerSettings: {
+      ownerMinWarm: "",
+      workspaceMaxWorkers: "",
+      globalMaxWorkers: "",
+      idleTtlMinutes: "",
+    },
+  }, "owner");
+  assert.deepEqual(cleared.gatewayWorkerSettings, {});
+  const clearedElastic = provider.gatewayWorkerElasticConfig();
+  assert.equal(clearedElastic.HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM, "1");
+  assert.equal(clearedElastic.HERMES_MOBILE_GATEWAY_WORKSPACE_MAX_WORKERS, "2");
+  assert.equal(clearedElastic.HERMES_MOBILE_GATEWAY_WORKER_IDLE_TTL_MINUTES, "60");
+  const clearedPublicConfig = provider.publicConfig();
+  assert.deepEqual(clearedPublicConfig.gatewayWorkerSettings, {});
+  assert.equal(clearedPublicConfig.gatewayWorkerEffectiveSettings.ownerMinWarm, 1);
+  assert.equal(clearedPublicConfig.gatewayWorkerEffectiveSettings.workspaceMaxWorkers, 2);
+  assert.equal(clearedPublicConfig.gatewayWorkerEffectiveSettings.idleTtlMinutes, 60);
   assert.throws(() => provider.save({ gatewayWorkerSettings: { globalMaxWorkers: 999 } }), /Global worker cap/);
 }
 

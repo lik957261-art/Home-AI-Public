@@ -306,8 +306,7 @@ function readRuntimeGatewayWorkerSettings() {
   const settings = {};
   for (const [key, id] of RUNTIME_GATEWAY_WORKER_FIELDS) {
     const raw = $(id)?.value?.trim() || "";
-    if (raw === "") continue;
-    settings[key] = Number(raw);
+    settings[key] = raw === "" ? "" : Number(raw);
   }
   return settings;
 }

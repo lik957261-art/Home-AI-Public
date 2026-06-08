@@ -203,7 +203,10 @@ Pool provider and profile launcher so the next pool initialization uses the new
 settings. The Owner runtime-config sheet must also read `/api/runtime-config`
 again after a successful save and redraw the effective `gatewayWorkerSettings`
 projection; otherwise a successful worker-cap save can look like a no-op in the
-UI. It does not terminate active workers or active runs.
+UI. Leaving a worker setting blank in the Owner runtime-config sheet is an
+explicit override deletion and returns that field to the deployment/env default
+for the next Gateway initialization. It does not terminate active workers or
+active runs.
 
 `adapters/mobile-runtime-gateway-facade-service.js` owns the runtime Gateway
 status composition. The runtime root delegates status through this facade; the

@@ -114,7 +114,10 @@ Gateway worker runtime setting changes must also run
 `node tests\mobile-runtime-gateway-facade-service.test.js`, and
 `node tests\task-list-ui.test.js`. Owner UI values are persisted non-secret
 overrides on top of env defaults; saving must refresh the next Gateway pool /
-profile-launcher initialization without terminating active runs.
+profile-launcher initialization without terminating active runs. Clearing a
+runtime worker field in the Owner UI must submit an empty override value so the
+saved config deletes that override and the effective projection returns to the
+env/default value.
 Mac production cold-start smoke must also prove the launchd listener has
 `HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS=90000` or an intentional larger
 value before treating a stopped-profile cold start as accepted.
@@ -513,7 +516,10 @@ capability catalog without full optional plugin MCP schemas or Skill bodies;
 plugin-bound topics receive the current plugin required MCP/Skill bundle while
 other authorized plugins remain catalog-only; lazy activation validates
 workspace authorization, config/key completeness, health/schema probe, and no
-Owner fallback; required plugin failure blocks generic fallback with a bounded
+Owner fallback; plugin-topic context must not self-authorize a plugin when the
+effective workspace policy lacks the plugin's primary MCP/toolset, and generic
+companion toolsets such as `file`, `vision`, or `skills` must not authorize the
+plugin by themselves; required plugin failure blocks generic fallback with a bounded
 diagnostic; optional plugin failure does not slow or fail unrelated ordinary
 chat; explicit wide mode probes each authorized plugin once and reports
 unavailable plugins without raw secrets. Wardrobe fixed-topic outfit workflows
@@ -1431,8 +1437,10 @@ For any plugin MCP tool addition or rename, run
 `node scripts\mcp-tool-upgrade-closure-smoke.js` with the plugin service schema
 URL, the local service tool name, the Gateway `mcp_<server>_<tool>` callable,
 any required tool properties, the new `GATEWAY_TOOL_SCHEMA_EPOCH`, and the
-selected production profile when a live Gateway is available. The source guard
-for that closure is
+selected production manifest/profile. Source/service-only checks must pass
+`--skip-gateway` explicitly; otherwise the harness fails closed rather than
+silently skipping selected-profile schema evidence. The source guard for that
+closure is
 `node tests\mcp-tool-upgrade-closure-harness.test.js`.
 Health MCP registration follows the same rule. A passing Health integration must
 prove the selected profile exposes the single-prefixed callable

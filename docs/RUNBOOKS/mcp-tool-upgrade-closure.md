@@ -75,6 +75,12 @@ node scripts\mcp-tool-upgrade-closure-smoke.js `
   --doc-contains docs/RUNBOOKS/mcp-tool-upgrade-closure.md::mcp_finance_add_transaction_attachment
 ```
 
+Only an explicit `--skip-gateway` may skip the Gateway callable-schema layer.
+If `--skip-gateway` is absent, the harness must receive both `--manifest` and
+`--profile` and must fail closed when the selected production-capable profile is
+not named. This prevents a source/service-only smoke from being mistaken for
+full selected-profile closure.
+
 Full Gateway closure for a selected production-capable profile:
 
 ```powershell

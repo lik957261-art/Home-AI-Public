@@ -74,6 +74,66 @@ function testPluginTopicForcesCurrentPluginAndLeavesOtherPluginsCatalogOnly() {
   assert.equal(catalog.email.status, "catalog_only");
 }
 
+function testPluginTopicContextCannotAuthorizeMissingWorkspacePlugin() {
+  const service = createService();
+  const policy = basePolicy({
+    allowed_toolsets: ["file", "web", "vision", "skills"],
+    authorized_toolsets: ["file", "web", "vision", "skills"],
+    toolset_routing: {
+      mode: "disabled",
+      reason: "toolset_pruning_disabled",
+      selected_toolsets: ["file", "web", "vision", "skills"],
+    },
+  });
+  const result = service.buildRunPluginCapabilityContext({
+    policy,
+    userMessage: { content: "Style these items", taskGroupId: "plugin:wardrobe" },
+    pluginTopicContext: {
+      pluginId: "wardrobe",
+      requiredToolsets: ["wardrobe", "vision", "file", "skills"],
+      requiredSkills: ["productivity/wardrobe-style-operations"],
+    },
+    requiredPluginToolsets: ["wardrobe", "vision", "file", "skills"],
+    requiredPluginSkills: ["productivity/wardrobe-style-operations"],
+  });
+
+  assert.equal(result.context, null);
+  assert.deepEqual(result.policy, policy);
+}
+
+function testUnauthorizedPluginTopicDoesNotLeakRequiredBundleWhenOtherPluginIsAuthorized() {
+  const service = createService();
+  const result = service.buildRunPluginCapabilityContext({
+    policy: basePolicy({
+      allowed_toolsets: ["file", "web", "vision", "skills", "finance"],
+      authorized_toolsets: ["file", "web", "vision", "skills", "finance"],
+      toolset_routing: {
+        mode: "disabled",
+        reason: "toolset_pruning_disabled",
+        selected_toolsets: ["file", "web", "vision", "skills", "finance"],
+      },
+    }),
+    userMessage: { content: "Style these items", taskGroupId: "plugin:wardrobe" },
+    pluginTopicContext: {
+      pluginId: "wardrobe",
+      requiredToolsets: ["wardrobe", "vision", "file", "skills"],
+      requiredSkills: ["productivity/wardrobe-style-operations"],
+    },
+    requiredPluginToolsets: ["wardrobe", "vision", "file", "skills"],
+    requiredPluginSkills: ["productivity/wardrobe-style-operations"],
+  });
+
+  assert.deepEqual(result.policy.allowed_toolsets, ["file", "web", "vision", "skills"]);
+  assert.deepEqual(result.policy.authorized_toolsets, ["file", "web", "vision", "skills", "finance"]);
+  assert.deepEqual(result.policy.required_toolsets, []);
+  assert.deepEqual(result.policy.required_skills, []);
+  assert.deepEqual(result.context.activeSchemaSet.active_plugin_ids, []);
+  assert.equal(result.context.activeSchemaSet.required_plugin_id, "");
+  const catalog = catalogByPlugin(result.context);
+  assert.equal(catalog.wardrobe, undefined);
+  assert.equal(catalog.finance.status, "catalog_only");
+}
+
 function testLatestTextCanDeterministicallyActivateFinancePlugin() {
   const service = createService();
   const result = service.buildRunPluginCapabilityContext({
@@ -188,6 +248,8 @@ function testSuccessfulProbeResultKeepsOptionalPluginActiveWithEvidence() {
 
 testOrdinaryChatKeepsAuthorizedPluginCatalogButDoesNotActivatePluginMcps();
 testPluginTopicForcesCurrentPluginAndLeavesOtherPluginsCatalogOnly();
+testPluginTopicContextCannotAuthorizeMissingWorkspacePlugin();
+testUnauthorizedPluginTopicDoesNotLeakRequiredBundleWhenOtherPluginIsAuthorized();
 testLatestTextCanDeterministicallyActivateFinancePlugin();
 testLatestTextCanDeterministicallyActivateHealthPlugin();
 testLatestTextCanDeterministicallyActivateEmailPlugin();

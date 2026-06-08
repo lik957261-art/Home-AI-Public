@@ -163,6 +163,19 @@ function testScriptFailsWhenInstructionHintsMissGatewayTool() {
   assert.match(result.stderr, /mcp_finance_add_transaction_attachment/);
 }
 
+function testScriptFailsWhenSelectedGatewayProfileIsOmittedWithoutExplicitSkip() {
+  const root = makeFixtureRoot();
+  const result = run([
+    "--repo-root", root,
+    "--gateway-tool", "mcp_finance_add_transaction_attachment",
+    "--epoch", "20260606-finance-reference-mcp-v1",
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Gateway callable schema closure requires --manifest and --profile/);
+  assert.match(result.stderr, /selected profile/);
+  assert.match(result.stderr, /--skip-gateway/);
+}
+
 function testRepositoryDocsAndHarnessContractMentionUpgradeClosure() {
   const script = read("scripts/mcp-tool-upgrade-closure-smoke.js");
   const gatewaySmoke = read("scripts/gateway-tool-schema-smoke.js");
@@ -181,12 +194,15 @@ function testRepositoryDocsAndHarnessContractMentionUpgradeClosure() {
   assert.match(script, /file_path/);
   assert.match(script, /upload_path/);
   assert.match(script, /mcp_finance_add_transaction_attachment/);
+  assert.match(script, /Gateway callable schema closure requires/);
+  assert.match(script, /skip_gateway_requested/);
   assert.doesNotMatch(script, /console\.log\(.*key/i);
   assert.match(gatewaySmoke, /require-tool-property/);
   assert.match(gatewaySmoke, /missing required property/);
 
   assert.match(runbook, /mcp-tool-upgrade-closure-smoke\.js/);
   assert.match(runbook, /Gateway worker callable schema/);
+  assert.match(runbook, /Only an explicit `--skip-gateway`/);
   assert.match(runbook, /Mobile instruction-service/);
   assert.match(runbook, /GATEWAY_TOOL_SCHEMA_EPOCH/);
   assert.match(runbook, /mcp_finance_add_transaction_attachment/);
@@ -201,6 +217,7 @@ function testRepositoryDocsAndHarnessContractMentionUpgradeClosure() {
   await testScriptPassesSourceServiceAndDocsWithoutGateway();
   await testScriptFailsWhenServiceSchemaMissesRequiredAttachmentPathProperty();
   testScriptFailsWhenInstructionHintsMissGatewayTool();
+  testScriptFailsWhenSelectedGatewayProfileIsOmittedWithoutExplicitSkip();
   testRepositoryDocsAndHarnessContractMentionUpgradeClosure();
   console.log("mcp tool upgrade closure harness tests passed");
 })();
