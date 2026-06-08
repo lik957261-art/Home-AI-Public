@@ -2,6 +2,9 @@ node_modules/
 __pycache__/
 *.py[cod]
 
+.agent-context/
+AGENTS.md
+
 .env
 .env.*
 !.env.example

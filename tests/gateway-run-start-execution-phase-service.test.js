@@ -47,7 +47,10 @@ async function testExecutionPhaseRunsPreflightAndStreamHandoff() {
   });
 
   assert.equal(result, startResult);
-  assert.deepEqual(calls.streamOptions, [[gatewayTarget, { model: "gpt-original", searchSource: "web" }, { gatewayUrl: "http://worker.gateway" }]]);
+  assert.deepEqual(calls.streamOptions, [[gatewayTarget, { model: "gpt-original", searchSource: "web" }, {
+    gatewayUrl: "http://worker.gateway",
+    latestText: "run task",
+  }]]);
   assert.deepEqual(calls.preflights, [{
     assistantMessage,
     effectiveRunOptions,

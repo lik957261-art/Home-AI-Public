@@ -208,6 +208,15 @@ explicit override deletion and returns that field to the deployment/env default
 for the next Gateway initialization. It does not terminate active workers or
 active runs.
 
+`adapters/runtime-config-worker-policy-contract-service.js` is the focused
+end-to-end contract for this path. It verifies that saved
+`gatewayWorkerSettings`, Owner-visible `gatewayWorkerSettings` /
+`gatewayWorkerEffectiveSettings`, and the Gateway profile-launcher elastic
+environment projection agree. Mismatches use bounded issue codes such as
+`public_worker_overrides_mismatch:<key>`,
+`public_worker_effective_mismatch:<key>`, and
+`launcher_worker_env_mismatch:<ENV>`.
+
 `adapters/mobile-runtime-gateway-facade-service.js` owns the runtime Gateway
 status composition. The runtime root delegates status through this facade; the
 facade attaches Gateway Pool status to the single-runner status and can mark the
@@ -220,6 +229,7 @@ Focused checks:
 ```powershell
 node tests\gateway-worker-runtime-settings-service.test.js
 node tests\runtime-config-provider.test.js
+node tests\runtime-config-worker-policy-contract-service.test.js
 node tests\runtime-config-api-routes.test.js
 node tests\mobile-runtime-gateway-facade-service.test.js
 node tests\task-list-ui.test.js
@@ -1133,6 +1143,15 @@ DeepSeek or another provider.
   done, terminal done/failed/cancelled, and ordinary events. The event service
   may resolve target context and call projection services, but it must not own a
   separate hard-coded lifecycle taxonomy.
+- `adapters/gateway-run-lifecycle-service.js` also owns the lifecycle phase
+  contract for preparation, target selection, plugin capability probing,
+  model-first preflight, stream handoff, stream evidence, liveness/recovery,
+  terminal projection, and toolset escalation. Its stable event list is a
+  source contract, not a promise that every run emits every event. Branch events
+  such as `run.permission_required`, `plugin_capability_unavailable`,
+  `run.stream_failed`, and `run.toolset_escalation_retrying` remain
+  path-specific, but their owning source files must keep them visible to
+  `node tests\gateway-run-lifecycle-service.test.js`.
 - Responses streams can repeat the same JSON decision across delta/done/final
   events. Selector parsing must scan JSON candidates and accept a valid final
   decision instead of treating duplicated JSON text as an `invalid_json`
@@ -1444,7 +1463,8 @@ values. This prevents Todo/Kanban polling from falling back to a retired
 - `node tests\gateway-run-start-service.test.js`
 - `node tests\gateway-run-event-service.test.js`
 - `node tests\gateway-run-stream-service.test.js`
-- `node tests\gateway-run-lifecycle-service.test.js`
+- `node tests\gateway-run-lifecycle-service.test.js` for event taxonomy,
+  lifecycle phase contract, and source-file event ownership coverage
 - `node tests\hermes-mobile-image-plugin.test.js`
 - PowerShell parse check for `scripts\start-gateway-pool.ps1`
 - `/api/status?detail=1` should report expected worker count and healthy workers.

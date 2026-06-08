@@ -221,7 +221,7 @@ Required harness dimensions:
 - A rollback backup exists under `C:\ProgramData\HermesMobile\backups` before
   disabling or unregistering WSL startup tasks.
 - `Hermes Gateway WSL` is exported before removal. Remaining active scheduled
-  tasks must not contain `WslUser`, `DistroName`, `/home/xuxin`, `Ubuntu-*`,
+  tasks must not contain `WslUser`, `DistroName`, `/home/<user>`, `Ubuntu-*`,
   or `wsl.exe` in their action arguments.
 - `start-worker-host.ps1` must set bridge-host Python mode to
   `windows-native`; `bridge-command-provider` must support that mode and must

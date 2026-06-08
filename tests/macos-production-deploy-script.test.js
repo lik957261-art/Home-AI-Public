@@ -2,6 +2,7 @@
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
@@ -23,6 +24,8 @@ const pluginsDoc = fs.readFileSync(path.join(repoRoot, "docs", "MODULES", "plugi
 
 assert.match(script, /Default mode is plan-only/);
 assert.match(script, /--execute/);
+assert.match(script, /--allow-dirty/);
+assert.match(script, /--surface full\|static/);
 assert.match(script, /HOMEAI_MAC_SUDO_PASSWORD_FILE/);
 assert.match(script, /\/Users\/hermes-dev\/HermesMobileDev/);
 assert.match(script, /\/Users\/hermes-host\/HermesMobile/);
@@ -52,6 +55,10 @@ assert.match(script, /\.agent-context\//);
 assert.match(script, /AGENTS\.md/);
 assert.match(script, /\.codex\//);
 assert.match(script, /node_modules\//);
+assert.match(script, /deploy_source_dirty_requires_allow_dirty/);
+assert.match(script, /production-file-hashes/);
+assert.match(script, /--expected-version/);
+assert.match(script, /HOME_AI_STATIC_SYNC_ROOTS/);
 assert.doesNotMatch(script, /console\.log\(.*password/i);
 assert.doesNotMatch(script, /console\.error\(.*password/i);
 
@@ -103,11 +110,52 @@ const payload = JSON.parse(dryRun.stdout);
 assert.equal(payload.ok, true);
 assert.equal(payload.plan.mode, "plan");
 assert.equal(payload.plan.target, "home-ai");
+assert.equal(payload.plan.surface, "full");
 assert.equal(payload.plan.sourcePath, "/Users/hermes-dev/HermesMobileDev/app");
 assert.equal(payload.plan.productionPath, "/Users/hermes-host/HermesMobile/app");
 assert.match(payload.plan.backupPath, /20260608T000000Z-home-ai-harness$/);
 assert.ok(payload.plan.rsyncExcludes.includes("AGENTS.md"));
+assert.ok(payload.plan.expectedClientVersion);
+assert.ok(payload.plan.proofFiles.includes("scripts/deploy-macos-production.js"));
+assert.ok(payload.plan.validation.some((item) => item.type === "production-file-hashes"));
+const statusSmoke = payload.plan.validation.find((item) => item.type === "home-ai-status-smoke");
+assert.ok(statusSmoke.command.includes("--expected-version"));
 assert.ok(payload.plan.validation.some((item) => item.type === "home-ai-status-smoke"));
+
+const staticRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--target",
+  "home-ai",
+  "--surface",
+  "static",
+  "--timestamp",
+  "20260608T000000Z",
+  "--reason",
+  "harness",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.equal(staticRun.status, 0, staticRun.stderr);
+const staticPayload = JSON.parse(staticRun.stdout);
+assert.equal(staticPayload.plan.surface, "static");
+assert.deepEqual(staticPayload.plan.sync, [{ source: "public/", target: "public/" }]);
+assert.ok(staticPayload.plan.proofFiles.every((item) => item.startsWith("public/")));
+
+const staticPluginRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--plugin",
+  "finance",
+  "--surface",
+  "static",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.notEqual(staticPluginRun.status, 0);
+assert.match(staticPluginRun.stderr, /static_surface_requires_home_ai_target/);
 
 const pluginRun = spawnSync(process.execPath, [
   scriptPath,
@@ -144,5 +192,40 @@ const unsafePluginExecute = spawnSync(process.execPath, [
 });
 assert.notEqual(unsafePluginExecute.status, 0);
 assert.match(unsafePluginExecute.stderr, /plugin_execute_requires_restart_label_or_health_url/);
+
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "home-ai-deploy-dirty-"));
+const tempApp = path.join(tempRoot, "app");
+fs.mkdirSync(path.join(tempApp, "public"), { recursive: true });
+fs.mkdirSync(path.join(tempApp, "scripts"), { recursive: true });
+fs.writeFileSync(path.join(tempApp, "package.json"), "{\"name\":\"fixture\"}\n");
+fs.writeFileSync(path.join(tempApp, "public", "index.html"), "<html data-client-version=\"fixture-v1\"></html>\n");
+fs.writeFileSync(path.join(tempApp, "public", "service-worker.js"), "const HERMES_SW_VERSION = \"fixture-v1\";\n");
+fs.writeFileSync(path.join(tempApp, "public", "directory-viewer.html"), "<html></html>\n");
+fs.writeFileSync(path.join(tempApp, "scripts", "production-status-smoke.js"), "\"use strict\";\n");
+fs.writeFileSync(path.join(tempApp, "scripts", "deploy-macos-production.js"), "\"use strict\";\n");
+spawnSync("git", ["init"], { cwd: tempApp, encoding: "utf8" });
+spawnSync("git", ["config", "user.name", "Deploy Harness"], { cwd: tempApp, encoding: "utf8" });
+spawnSync("git", ["config", "user.email", "deploy-harness@example.invalid"], { cwd: tempApp, encoding: "utf8" });
+spawnSync("git", ["add", "."], { cwd: tempApp, encoding: "utf8" });
+spawnSync("git", ["commit", "-m", "fixture"], { cwd: tempApp, encoding: "utf8" });
+fs.appendFileSync(path.join(tempApp, "public", "index.html"), "<!-- dirty -->\n");
+const dirtyExecute = spawnSync(process.execPath, [
+  scriptPath,
+  "--target",
+  "home-ai",
+  "--source",
+  tempApp,
+  "--dev-root",
+  tempRoot,
+  "--mac-root",
+  path.join(tempRoot, "prod"),
+  "--execute",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.notEqual(dirtyExecute.status, 0);
+assert.match(dirtyExecute.stderr, /deploy_source_dirty_requires_allow_dirty:public\/index\.html/);
 
 console.log("macos production deploy script harness passed");

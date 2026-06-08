@@ -40,7 +40,7 @@ Node and native Python processes:
   `HERMES_MOBILE_KANBAN_WORKSPACE_PATH_STYLE=native`.
 
 The Windows logon task `Hermes Web Listener User Logon` must not pass
-`BridgeWslUser`, `DistroName`, `/home/...`, or `Ubuntu-*` arguments. The retired
+`BridgeWslUser`, `DistroName`, `/home/<user>`, or `Ubuntu-*` arguments. The retired
 `Hermes Gateway WSL` task was exported into the WSL downline backup and then
 unregistered. `Hermes Mobile Gateway Pool` and
 `Hermes Mobile Maintenance Gateway Watchdog` remain disabled because on-demand

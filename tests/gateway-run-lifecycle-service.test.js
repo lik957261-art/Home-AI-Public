@@ -1,11 +1,21 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const {
   GATEWAY_RUN_EVENT_PHASES,
+  GATEWAY_RUN_LIFECYCLE_PHASE_IDS,
   classifyGatewayRunLifecycleEvent,
   createGatewayRunLifecycleService,
   extractGatewayRunIds,
+  gatewayRunLifecycleAllEvents,
+  gatewayRunLifecycleBranchEvents,
+  gatewayRunLifecycleContract,
+  gatewayRunLifecycleMissingSourceEvents,
+  gatewayRunLifecyclePhaseIds,
+  gatewayRunLifecycleSourceFiles,
+  gatewayRunLifecycleStableEvents,
   isTerminalGatewayRunEvent,
   livenessDecisionAfterCheck,
   nextQueuedRunPairForTaskGroup,
@@ -17,6 +27,8 @@ const {
   withActiveRunRemoved,
   withActiveRunReplaced,
 } = require("../adapters/gateway-run-lifecycle-service");
+
+const repoRoot = path.resolve(__dirname, "..");
 
 function testEventNameNormalizationAndTerminalStatus() {
   assert.equal(normalizeGatewayRunEventName({ type: " RESPONSE_OUTPUT_TEXT_DELTA " }), "response.output_text.delta");
@@ -159,10 +171,59 @@ function testLiveness404AllowsContinueByDefault() {
   assert.equal(livenessDecisionAfterCheck({ status: 502, livenessMisses: 4 }).action, "ignore_error");
 }
 
+function testLifecycleContractDefinesStableWorkflowPhases() {
+  assert.deepEqual(gatewayRunLifecyclePhaseIds(), [
+    GATEWAY_RUN_LIFECYCLE_PHASE_IDS.PREPARATION,
+    GATEWAY_RUN_LIFECYCLE_PHASE_IDS.TARGET_SELECTION,
+    GATEWAY_RUN_LIFECYCLE_PHASE_IDS.PLUGIN_CAPABILITY_PROBE,
+    GATEWAY_RUN_LIFECYCLE_PHASE_IDS.MODEL_FIRST_PREFLIGHT,
+    GATEWAY_RUN_LIFECYCLE_PHASE_IDS.STREAM_HANDOFF,
+    GATEWAY_RUN_LIFECYCLE_PHASE_IDS.STREAM_EVIDENCE,
+    GATEWAY_RUN_LIFECYCLE_PHASE_IDS.STREAM_LIVENESS,
+    GATEWAY_RUN_LIFECYCLE_PHASE_IDS.STREAM_RECOVERY,
+    GATEWAY_RUN_LIFECYCLE_PHASE_IDS.TERMINAL_PROJECTION,
+    GATEWAY_RUN_LIFECYCLE_PHASE_IDS.TOOLSET_ESCALATION,
+  ]);
+  assert.ok(gatewayRunLifecycleStableEvents().includes("run.request_preparing"));
+  assert.ok(gatewayRunLifecycleStableEvents().includes("run.request_sent"));
+  assert.ok(gatewayRunLifecycleStableEvents().includes("response.completed"));
+  assert.ok(gatewayRunLifecycleBranchEvents().includes("run.permission_required"));
+  assert.ok(gatewayRunLifecycleBranchEvents().includes("run.toolset_escalation_retrying"));
+  assert.ok(gatewayRunLifecycleAllEvents().includes("run.model_first_byte_retrying"));
+  assert.ok(gatewayRunLifecycleSourceFiles().includes("adapters/gateway-run-stream-service.js"));
+}
+
+function testLifecycleContractEventsAreOwnedByRuntimeSources() {
+  const sourceTextByFile = Object.fromEntries(gatewayRunLifecycleSourceFiles().map((file) => ([
+    file,
+    fs.readFileSync(path.join(repoRoot, file), "utf8"),
+  ])));
+  assert.deepEqual(gatewayRunLifecycleMissingSourceEvents(sourceTextByFile), []);
+
+  const missingStable = gatewayRunLifecycleMissingSourceEvents({
+    "adapters/gateway-run-start-preparation-service.js": "\"run.request_preparing\"",
+  }, { includeBranchEvents: false });
+  assert.ok(missingStable.some((entry) => entry.eventName === "run.context_ready"));
+}
+
+function testLifecycleContractIsImmutable() {
+  const contract = gatewayRunLifecycleContract();
+  assert.equal(Object.isFrozen(contract), true);
+  assert.equal(Object.isFrozen(contract[0]), true);
+  assert.equal(Object.isFrozen(contract[0].stableEvents), true);
+  assert.throws(() => {
+    contract[0].stableEvents.push("run.mutated");
+  }, TypeError);
+}
+
 function testFactoryExportsPureService() {
   const service = createGatewayRunLifecycleService();
   assert.equal(service.normalizeGatewayRunEventName("RUN_COMPLETED"), "run.completed");
   assert.equal(service.terminalStatusForGatewayRunEvent("RUN_COMPLETED"), "done");
+  assert.ok(service.gatewayRunLifecycleStableEvents().includes("run.gateway_selected"));
+  assert.deepEqual(service.gatewayRunLifecycleMissingSourceEvents({
+    "adapters/gateway-run-start-preparation-service.js": "\"run.request_preparing\"",
+  }, { includeBranchEvents: false }).at(0).phaseId, GATEWAY_RUN_LIFECYCLE_PHASE_IDS.TARGET_SELECTION);
 }
 
 testEventNameNormalizationAndTerminalStatus();
@@ -171,6 +232,9 @@ testRunIdExtractionPrefersVisibleResponseIdExceptCreated();
 testActiveRunIdsArePureAndDeduped();
 testQueuedNextRunDecision();
 testLiveness404AllowsContinueByDefault();
+testLifecycleContractDefinesStableWorkflowPhases();
+testLifecycleContractEventsAreOwnedByRuntimeSources();
+testLifecycleContractIsImmutable();
 testFactoryExportsPureService();
 
 console.log("gateway-run-lifecycle-service tests passed");

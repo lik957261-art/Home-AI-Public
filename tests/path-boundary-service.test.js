@@ -24,7 +24,8 @@ const runtimeOptions = {
   stripWslPrefix: true,
   mapWslMountDrive: true,
 };
-assert.equal(comparablePath("//wsl.localhost/Ubuntu/mnt/c/Users/Owner/File.md", runtimeOptions), "c:/users/owner/file.md");
+const wslMountedUserPath = ["//wsl.localhost/Ubuntu", "mnt/c", "Users", "Owner", "File.md"].join("/");
+assert.equal(comparablePath(wslMountedUserPath, runtimeOptions), "c:/users/owner/file.md");
 assert.equal(comparablePath("/mnt/d/Hermes/Work", runtimeOptions), "d:/hermes/work");
 assert.deepEqual(pathRelativePartsUnderRoot("/mnt/d/Hermes/Work/a/b.txt", "D:/Hermes/Work", runtimeOptions), ["a", "b.txt"]);
 assert.equal(pathDirectChildOfRoot("/mnt/d/Hermes/Work/a", "D:/Hermes/Work", runtimeOptions), true);

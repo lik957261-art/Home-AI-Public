@@ -610,12 +610,16 @@ when the deferred save fails. It must not mutate threads/messages, parse
 Gateway events, broadcast, compact topics, schedule queued runs, or own
 terminal state.
 
-`gateway-run-lifecycle-service.js` owns Gateway lifecycle event taxonomy:
+`gateway-run-lifecycle-service.js` owns Gateway lifecycle event taxonomy and
+phase contract: preparation, target selection, plugin capability probing,
+model-first preflight, stream handoff, stream evidence, stream liveness,
+stream recovery, terminal projection, and toolset escalation. It also owns
 event-name normalization, run-id extraction, terminal status mapping, event
-phase classification, active-run id set helpers, queued-run decisions, and
-liveness decisions. It must remain pure deterministic lifecycle policy and must
-not mutate threads/messages, broadcast, save state, schedule workers, or call
-Gateway runner APIs.
+phase classification, stable/branch event lists, source-file coverage checks,
+active-run id set helpers, queued-run decisions, and liveness decisions. It
+must remain pure deterministic lifecycle policy and must not mutate
+threads/messages, broadcast, save state, schedule workers, or call Gateway
+runner APIs.
 
 `gateway-run-event-service.js` owns Gateway event parsing and ordinary in-run
 event persistence: run id resolution, lifecycle-classified event dispatch,
@@ -885,6 +889,11 @@ Current CI guardrails:
 - `runtime-config-gateway-worker-service.js` must stay at or below 60 lines and
   remain runtime-config Gateway worker setting composition, not a scheduler,
   persistence, public projection, save normalization, or route module;
+- `runtime-config-worker-policy-contract-service.js` must stay at or below 135
+  lines and remain pure runtime worker-policy contract verification: saved
+  overrides, public projection, effective scheduler values, and launcher
+  elastic environment parity. It must not persist config, build public API
+  responses, mutate Gateway pools, launch workers, or read secrets;
 - `runtime-config-key-service.js` must stay at or below 115 lines and remain
   runtime-config API key discovery and non-secret status projection, not a
   persistence, public projection, save normalization, or route module;
@@ -1024,7 +1033,8 @@ Current CI guardrails:
   original selector decisions, run completion, Wardrobe validation, or stream
   lifecycle;
 - `gateway-run-lifecycle-service.js` must remain pure deterministic lifecycle
-  policy: event-name normalization, run-id extraction, event phase
+  policy: lifecycle phase contract, stable/branch event lists, source-file
+  coverage checks, event-name normalization, run-id extraction, event phase
   classification, terminal status mapping, active-run id helpers, queued-run
   decisions, and liveness decisions. It must not mutate threads/messages,
   broadcast, save state, schedule workers, or call Gateway runner APIs;

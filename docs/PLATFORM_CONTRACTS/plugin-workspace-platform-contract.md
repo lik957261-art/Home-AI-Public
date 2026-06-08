@@ -350,6 +350,14 @@ visual evidence. The required level depends on the surface:
   `scripts/ios-pwa-visual-harness.js` and its source contract is
   `tests/ios-pwa-visual-harness.test.js`.
 
+  The harness locks by `--debug-url` under `$HOME/.homeai-qa/locks` by default.
+  Plugin teams may run visual harnesses concurrently only when they use
+  distinct live-debug lanes: unique `--debug-url` / live-debug `--port`,
+  Simulator `--udid`, WDA port, and MJPEG port. `--no-lock` is valid only for
+  an isolated lane. Runs against the same lane must remain serialized because
+  screenshots, WebView JavaScript, native gestures, and deep-state reads share
+  one Appium/XCUITest session.
+
 Use:
 
 - `docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md`
@@ -360,6 +368,10 @@ Use:
 Visual harness output must include bounded artifacts, screenshot paths, viewport
 metrics, element bounds, and pass/fail summaries. It must not include raw keys,
 cookies, token contents, full private text, or verbose WebDriver request bodies.
+When static assets changed, the command should include
+`--expected-client-version <version>` so the evidence proves the loaded PWA is
+the intended client build. The default screenshot artifact assertion should
+remain enabled through `--min-screenshot-bytes`.
 
 ## Workspace Context Contract
 

@@ -120,6 +120,9 @@ plugin entries:
    to the checked Home AI `npm run ios:pwa:visual` harness;
 10. every included plugin pointer declares `dev_runtime_prerequisites`, with
     Python declared for Python MCP wrappers such as Note.
+11. the checked iOS visual harness serializes same-lane runs by default,
+    supports isolated-lane `--no-lock`, and can assert loaded static client
+    version plus non-empty screenshot artifacts.
 
 These items are now gates, not one-off notes:
 

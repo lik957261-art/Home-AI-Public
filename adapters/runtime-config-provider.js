@@ -14,6 +14,7 @@ const {
 } = require("./runtime-config-model-service");
 const { createRuntimeConfigPublicProjectionService } = require("./runtime-config-public-projection-service");
 const { createRuntimeConfigSaveService } = require("./runtime-config-save-service");
+const { createRuntimeConfigWorkerPolicyContractService } = require("./runtime-config-worker-policy-contract-service");
 const {
   mergeGatewayWorkerRuntimeSettings,
   normalizeGatewayWorkerRuntimeSettings,
@@ -127,6 +128,12 @@ function createRuntimeConfigProvider(options = {}) {
     validateHermesApiBase,
     validateWebPushSubject,
   });
+  const workerPolicyContract = createRuntimeConfigWorkerPolicyContractService({
+    baseGatewayWorkerElasticConfig: gatewayWorkerService.baseGatewayWorkerElasticConfig,
+    gatewayWorkerElasticConfig: gatewayWorkerService.gatewayWorkerElasticConfig,
+    load,
+    publicConfig,
+  }).runtimeWorkerPolicyContract;
 
   function load() {
     ensureDataDir();
@@ -164,6 +171,7 @@ function createRuntimeConfigProvider(options = {}) {
     save,
     validateHermesApiBase,
     validateWebPushSubject,
+    workerPolicyContract,
   };
 }
 

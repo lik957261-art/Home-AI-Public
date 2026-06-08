@@ -74,7 +74,9 @@ function createHarness() {
         if (name === "src") return src;
         return "";
       },
-      contentWindow: {},
+      contentWindow: {
+        postMessage() {},
+      },
     };
     return {
       removed: false,
@@ -382,7 +384,7 @@ function testLaunchHealthRefreshUsesCooldown() {
   record.loading = false;
   harness.sandbox.Date.now = () => 305000;
   harness.sandbox.__pluginRefreshHarness.scheduleEmbeddedPluginLaunchHealthCheck(def, nextShell.querySelector(".embedded-plugin-frame"), 305000);
-  harness.calls.timers[1].callback();
+  harness.calls.timers[harness.calls.timers.length - 1].callback();
 
   assert.equal(harness.calls.api.length, 1);
   assert.equal(record.lastRefreshSuppressedAt, 305000);

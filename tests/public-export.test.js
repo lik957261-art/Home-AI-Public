@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const {
+  sanitizePublicText,
   shouldExport,
   transformPublicReadme,
 } = require("../scripts/create-public-export");
@@ -30,6 +31,24 @@ function testReadmeTransform() {
   const output = transformPublicReadme(input);
   assert.match(output, /public Home AI product source/);
   assert.doesNotMatch(output, /internal productization checkout/);
+}
+
+function testPublicTextSanitizer() {
+  const input = [
+    "C:\\Users\\private-user\\Documents\\Agent",
+    ["/home", "private-user", "project"].join("/"),
+    ["/mnt/c", "Users", "private-user", "Documents", "Agent"].join("/"),
+    "/Users/private-user/HermesMobileDev/app",
+    "/home/hermes/runtime",
+    "/home/example/path",
+  ].join("\n");
+  const output = sanitizePublicText(input);
+  assert.doesNotMatch(output, /private-user/);
+  assert.match(output, /C:\\Users\\example\\path/);
+  assert.match(output, /\/home\/example\/path/);
+  assert.match(output, /\/mnt\/example\/path/);
+  assert.match(output, /\/Users\/example\/path/);
+  assert.match(output, /\/home\/hermes\/runtime/);
 }
 
 function testCreatesCleanExport() {
@@ -60,6 +79,13 @@ function testCreatesCleanExport() {
     assert.equal(fs.existsSync(path.join(outDir, "docs", "AGENT_WINDOWS_PRODUCTION_DEPLOYMENT.zh-CN.md")), true);
     const readme = fs.readFileSync(path.join(outDir, "README.md"), "utf8");
     assert.doesNotMatch(readme, /internal productization checkout/);
+    const harnessDoc = fs.readFileSync(path.join(outDir, "docs", "IMPLEMENTATION_NOTES", "harness-required-matrix.md"), "utf8");
+    assert.doesNotMatch(harnessDoc, /\/home\/(?!hermes\b|user\b|ubuntu\b|runner\b|example\b)[A-Za-z0-9._-]+/);
+    const report = JSON.parse(fs.readFileSync(path.join(outDir, ".public-export-report.json"), "utf8"));
+    assert.deepEqual(report.contentTransforms, [
+      "public-readme",
+      "private-user-path-redaction",
+    ]);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -67,5 +93,6 @@ function testCreatesCleanExport() {
 
 testPathFilters();
 testReadmeTransform();
+testPublicTextSanitizer();
 testCreatesCleanExport();
 console.log("public-export tests passed");

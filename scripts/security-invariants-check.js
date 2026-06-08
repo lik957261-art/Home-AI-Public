@@ -118,6 +118,7 @@ function main() {
   assertContains("adapters/weixin-file-forward-service.js", /egressPolicyProvider\.decide[\s\S]{0,600}operation: "manual_forward"/, "manual Weixin forwarding must use egress policy");
   assertContains("adapters/weixin-file-forward-service.js", /explicitUserApproved: true[\s\S]{0,200}sendsFileContent: true/, "manual Weixin forwarding must declare user approval and file-content egress");
   assertContains("adapters/path-policy-provider.js", /normalizePathForBoundary/, "path policy must normalize traversal before root checks");
+  assertContains("adapters/path-boundary-service.js", /path\.win32\.normalize/, "path boundary helper must normalize traversal");
   assertContains("adapters/egress-policy-provider.js", /missing_actor_workspace/, "egress policy must fail closed without actor context");
   assertContains("adapters/egress-policy-provider.js", /const actorWorkspaceId = String\(input\.actorWorkspaceId/, "egress policy must require explicit actor workspace");
   assertContains("adapters/egress-policy-provider.js", /const currentWorkspaceOnly = Boolean\(actorWorkspaceId && targetWorkspaceId && targetWorkspaceId === actorWorkspaceId\)/, "egress current-workspace decision must be derived from explicit actor and target");
@@ -125,8 +126,8 @@ function main() {
   assertContains("adapters/egress-policy-provider.js", /sendsFileContent && !trustedOriginReply/, "external file egress must not allow forged origin replies");
   assertContains("adapters/path-policy-provider.js", /const realCandidate = cachedRealPath\(candidate\)/, "path policy must verify canonical candidates");
   assertContains("adapters/path-policy-provider.js", /Target directory must not be a symlink or junction/, "write path boundary must reject symlink or junction parents");
-  assertContains("adapters/shared-directory-provider.js", /path\.win32\.normalize/, "shared directory path helper must normalize traversal");
-  assertContains("adapters/project-discovery-provider.js", /path\.win32\.normalize/, "project discovery path helper must normalize traversal");
+  assertContains("adapters/shared-directory-provider.js", /comparableBoundaryPath/, "shared directory provider must use the shared path boundary helper");
+  assertContains("adapters/project-discovery-provider.js", /comparableBoundaryPath/, "project discovery provider must use the shared path boundary helper");
   assertContains("adapters/weixin-file-forward-service.js", /const bridgeResult = resolved\.file \? null : fileResultFromBridgeFileForForward/, "manual Weixin bridge files must resolve only inside the forwarding service");
   assertContains("adapters/weixin-file-forward-service.js", /const sourceFile = resolved\.file \|\| bridgeResult\?\.file[\s\S]{0,400}materializeWeixinForwardFile/, "manual Weixin bridge files must materialize after egress policy");
 

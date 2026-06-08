@@ -1,6 +1,7 @@
 "use strict";
 
 const { spawnSync } = require("node:child_process");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -39,6 +40,27 @@ const RSYNC_EXCLUDES = [
   "*.log",
 ];
 
+const SURFACES = new Set(["full", "static"]);
+
+const HOME_AI_STATIC_SYNC_ROOTS = [
+  "public/",
+];
+
+const HOME_AI_PROOF_FILES = [
+  "package.json",
+  "public/index.html",
+  "public/service-worker.js",
+  "public/directory-viewer.html",
+  "scripts/deploy-macos-production.js",
+  "scripts/production-status-smoke.js",
+];
+
+const HOME_AI_STATIC_PROOF_FILES = [
+  "public/index.html",
+  "public/service-worker.js",
+  "public/directory-viewer.html",
+];
+
 function parseArgs(argv) {
   const out = {
     target: "",
@@ -53,6 +75,8 @@ function parseArgs(argv) {
     healthUrl: "",
     restartMode: "auto",
     restartLabels: [],
+    surface: "full",
+    allowDirty: false,
     reason: "manual",
     timestamp: "",
     validationRetries: 12,
@@ -70,6 +94,8 @@ function parseArgs(argv) {
     else if (arg === "--health-url") out.healthUrl = argv[++index] || "";
     else if (arg === "--restart") out.restartMode = argv[++index] || "auto";
     else if (arg === "--restart-label") out.restartLabels.push(argv[++index] || "");
+    else if (arg === "--surface" || arg === "--changed-surface") out.surface = argv[++index] || out.surface;
+    else if (arg === "--allow-dirty") out.allowDirty = true;
     else if (arg === "--reason") out.reason = argv[++index] || out.reason;
     else if (arg === "--timestamp") out.timestamp = argv[++index] || "";
     else if (arg === "--validation-retries") out.validationRetries = Number(argv[++index] || out.validationRetries);
@@ -91,6 +117,8 @@ function parseArgs(argv) {
         "  --password-file <path>      Private sudo password file; contents are never printed",
         "  --restart auto|none         Auto uses known labels for Home AI and Codex Mobile",
         "  --restart-label <label>     Additional system launchd label to kickstart",
+        "  --surface full|static       Static Home AI sync copies only public/",
+        "  --allow-dirty               Permit deploy-relevant dirty source files",
         "  --health-url <url>          Optional plugin health/version URL",
         "  --base <url>                Home AI production base for status smoke",
         "  --reason <slug>             Backup name slug",
@@ -106,6 +134,8 @@ function parseArgs(argv) {
   if (out.plugin && out.target) throw new Error("Use either --target or --plugin, not both.");
   if (out.plugin) out.target = `plugin:${out.plugin}`;
   if (!out.target) out.target = "home-ai";
+  if (!SURFACES.has(out.surface)) throw new Error(`unsupported_deploy_surface:${out.surface}`);
+  if (out.surface === "static" && out.target !== "home-ai") throw new Error("static_surface_requires_home_ai_target");
   out.restartLabels = out.restartLabels.filter(Boolean);
   if (!Number.isFinite(out.validationRetries) || out.validationRetries < 1) out.validationRetries = 1;
   if (!Number.isFinite(out.validationDelayMs) || out.validationDelayMs < 0) out.validationDelayMs = 0;
@@ -157,6 +187,51 @@ function sourceRef(source) {
   };
 }
 
+function gitStatusEntries(source) {
+  const status = spawnSync("git", ["status", "--porcelain", "--untracked-files=normal"], {
+    cwd: source,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (status.status !== 0) return [];
+  return status.stdout.trim().split(/\r?\n/).filter(Boolean).map((line) => {
+    const rawPath = line.replace(/^[ MARCUD?!]{1,2}\s+/, "").trim();
+    const relPath = rawPath.includes(" -> ") ? rawPath.split(" -> ").pop().trim() : rawPath;
+    return { status: line.slice(0, 2), path: relPath };
+  });
+}
+
+function rsyncExcludePatternApplies(pattern, relPath) {
+  if (!pattern || !relPath) return false;
+  if (pattern.endsWith("/")) return relPath === pattern.slice(0, -1) || relPath.startsWith(pattern);
+  if (pattern.startsWith("*.")) return relPath.endsWith(pattern.slice(1));
+  if (pattern.endsWith("*")) return relPath.startsWith(pattern.slice(0, -1));
+  return relPath === pattern || relPath.startsWith(`${pattern}/`);
+}
+
+function isRsyncExcluded(relPath, excludes = RSYNC_EXCLUDES) {
+  return excludes.some((pattern) => rsyncExcludePatternApplies(pattern, relPath));
+}
+
+function isDeploySurfaceIncluded(relPath, options) {
+  if (options.surface === "static") return HOME_AI_STATIC_SYNC_ROOTS.some((root) => relPath.startsWith(root));
+  return !isRsyncExcluded(relPath);
+}
+
+function deployDirtyFiles(source, options) {
+  return gitStatusEntries(source)
+    .map((entry) => entry.path)
+    .filter((relPath) => isDeploySurfaceIncluded(relPath, options))
+    .slice(0, 120);
+}
+
+function ignoredDirtyFiles(source, options) {
+  return gitStatusEntries(source)
+    .map((entry) => entry.path)
+    .filter((relPath) => !isDeploySurfaceIncluded(relPath, options))
+    .slice(0, 120);
+}
+
 function defaultSource(options) {
   if (options.target === "home-ai") return posixJoin(options.devRoot, "app");
   const plugin = options.target.replace(/^plugin:/, "");
@@ -168,6 +243,25 @@ function productionTarget(options) {
   const plugin = options.target.replace(/^plugin:/, "");
   if (!PLUGIN_TARGETS.has(plugin)) throw new Error(`unsupported_plugin_target:${plugin}`);
   return posixJoin(options.macRoot, "plugins", plugin);
+}
+
+function readTextIfExists(filePath) {
+  try {
+    return fs.readFileSync(filePath, "utf8");
+  } catch (_err) {
+    return "";
+  }
+}
+
+function extractClientVersionFromSource(source) {
+  const html = readTextIfExists(path.join(source, "public", "index.html"));
+  return html.match(/data-client-version="([^"]+)"/)?.[1] || "";
+}
+
+function proofFilesForPlan(source, options) {
+  if (options.target !== "home-ai") return [];
+  const candidates = options.surface === "static" ? HOME_AI_STATIC_PROOF_FILES : HOME_AI_PROOF_FILES;
+  return candidates.filter((relPath) => fs.existsSync(path.join(source, relPath)));
 }
 
 function restartLabels(options) {
@@ -191,19 +285,31 @@ function buildPlan(options) {
   const targetSlug = sanitizeSlug(options.target.replace(":", "-"));
   const backupPath = posixJoin(options.macRoot, "backups", "deploy", `${planTimestamp}-${targetSlug}-${reason}`);
   const labels = restartLabels(options);
+  const relevantDirtyFiles = deployDirtyFiles(source, options);
+  const ignoredDirty = ignoredDirtyFiles(source, options);
+  const expectedVersion = extractClientVersionFromSource(source);
+  const proofFiles = proofFilesForPlan(source, options);
   const validation = [];
   if (options.target === "home-ai") {
+    const command = [
+      posixJoin(options.macRoot, PINNED_NODE),
+      posixJoin(target, "scripts", "production-status-smoke.js"),
+      "--access-key-file",
+      posixJoin(options.macRoot, "data", "secrets", "owner-web-key.secret"),
+      "--base",
+      options.baseUrl,
+      "--json",
+    ];
+    if (expectedVersion) command.push("--expected-version", expectedVersion);
     validation.push({
       type: "home-ai-status-smoke",
-      command: [
-        posixJoin(options.macRoot, PINNED_NODE),
-        posixJoin(target, "scripts", "production-status-smoke.js"),
-        "--access-key-file",
-        posixJoin(options.macRoot, "data", "secrets", "owner-web-key.secret"),
-        "--base",
-        options.baseUrl,
-        "--json",
-      ],
+      command,
+    });
+  }
+  if (proofFiles.length) {
+    validation.push({
+      type: "production-file-hashes",
+      files: proofFiles,
     });
   }
   for (const label of labels) {
@@ -219,10 +325,19 @@ function buildPlan(options) {
     sourcePath: source,
     productionPath: target,
     macRoot: normalizePath(options.macRoot),
+    surface: options.surface,
+    allowDirty: Boolean(options.allowDirty),
     sourceRef: sourceRef(source),
+    deployDirtyFiles: relevantDirtyFiles,
+    ignoredDirtyFiles: ignoredDirty,
+    expectedClientVersion: expectedVersion,
     backupPath,
     restartLabels: labels,
     rsyncExcludes: RSYNC_EXCLUDES,
+    sync: options.surface === "static"
+      ? HOME_AI_STATIC_SYNC_ROOTS.map((root) => ({ source: `${root}`, target: `${root}` }))
+      : [{ source: "./", target: "./" }],
+    proofFiles,
     validation,
     rollback: {
       restoreCommand: ["/usr/bin/rsync", "-a", "--delete", `${backupPath}/`, `${target}/`],
@@ -233,6 +348,9 @@ function buildPlan(options) {
 
 function assertExecutablePlan(plan, options) {
   if (!options.execute) return;
+  if (plan.deployDirtyFiles.length && !options.allowDirty) {
+    throw new Error(`deploy_source_dirty_requires_allow_dirty:${plan.deployDirtyFiles.join(",")}`);
+  }
   if (plan.target.startsWith("plugin:") && !plan.restartLabels.length && !options.healthUrl) {
     throw new Error("plugin_execute_requires_restart_label_or_health_url");
   }
@@ -291,6 +409,37 @@ function runValidation(check, password, options) {
   throw lastError;
 }
 
+function sha256File(filePath) {
+  return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
+}
+
+function sudoSha256File(filePath, password) {
+  const result = runSudo("/usr/bin/shasum", ["-a", "256", filePath], password);
+  return String(result.stdout || "").trim().split(/\s+/)[0] || "";
+}
+
+function runFileHashValidation(plan, password) {
+  const rows = [];
+  for (const relPath of plan.proofFiles || []) {
+    const sourcePath = path.join(plan.sourcePath, relPath);
+    const productionPath = path.join(plan.productionPath, relPath);
+    const sourceHash = sha256File(sourcePath);
+    const productionHash = sudoSha256File(productionPath, password);
+    if (sourceHash !== productionHash) {
+      const err = new Error(`production_file_hash_mismatch:${relPath}`);
+      err.stderr = `source=${sourceHash} production=${productionHash}`;
+      throw err;
+    }
+    rows.push({ path: relPath, sha256: sourceHash.slice(0, 16) });
+  }
+  return {
+    type: "production-file-hashes",
+    status: 0,
+    fileCount: rows.length,
+    files: rows,
+  };
+}
+
 function executePlan(plan, options) {
   const password = readPassword(options.passwordFile);
   if (options.passwordFile && !password) throw new Error("sudo_password_file_empty");
@@ -298,10 +447,19 @@ function executePlan(plan, options) {
   runSudo("/bin/mkdir", ["-p", plan.backupPath, plan.productionPath], password);
   runSudo("/usr/bin/rsync", ["-a", "--delete", `${plan.productionPath}/`, `${plan.backupPath}/`], password);
 
-  const rsyncArgs = ["-a", "--delete"];
-  for (const item of plan.rsyncExcludes) rsyncArgs.push("--exclude", item);
-  rsyncArgs.push(`${plan.sourcePath}/`, `${plan.productionPath}/`);
-  runSudo("/usr/bin/rsync", rsyncArgs, password);
+  if (plan.surface === "static") {
+    for (const item of plan.sync) {
+      const source = path.join(plan.sourcePath, item.source);
+      const target = path.join(plan.productionPath, item.target);
+      runSudo("/bin/mkdir", ["-p", target], password);
+      runSudo("/usr/bin/rsync", ["-a", "--delete", `${source}/`, `${target}/`], password);
+    }
+  } else {
+    const rsyncArgs = ["-a", "--delete"];
+    for (const item of plan.rsyncExcludes) rsyncArgs.push("--exclude", item);
+    rsyncArgs.push(`${plan.sourcePath}/`, `${plan.productionPath}/`);
+    runSudo("/usr/bin/rsync", rsyncArgs, password);
+  }
 
   for (const label of plan.restartLabels) {
     runSudo("/bin/launchctl", ["kickstart", "-k", `system/${label}`], password);
@@ -309,7 +467,8 @@ function executePlan(plan, options) {
 
   const validations = [];
   for (const check of plan.validation) {
-    validations.push(runValidation(check, password, options));
+    if (check.type === "production-file-hashes") validations.push(runFileHashValidation(plan, password));
+    else validations.push(runValidation(check, password, options));
   }
   return validations;
 }
@@ -349,4 +508,6 @@ module.exports = {
   buildPlan,
   assertExecutablePlan,
   runValidation,
+  deployDirtyFiles,
+  isDeploySurfaceIncluded,
 };

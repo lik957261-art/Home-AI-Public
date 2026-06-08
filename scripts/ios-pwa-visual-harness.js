@@ -5,6 +5,7 @@ const path = require("node:path");
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:19073/";
 const DEFAULT_ARTIFACT_DIR = path.join(process.env.HOME || "/tmp", ".homeai-qa", "artifacts");
+const DEFAULT_LOCK_DIR = path.join(process.env.HOME || "/tmp", ".homeai-qa", "locks");
 
 function parseArgs(argv = process.argv.slice(2)) {
   const out = {
@@ -18,6 +19,12 @@ function parseArgs(argv = process.argv.slice(2)) {
     waitMs: 900,
     openWaitMs: 1200,
     timeoutMs: 15000,
+    lockFile: "",
+    lockTimeoutMs: 60000,
+    lockStaleMs: 300000,
+    expectedClientVersion: "",
+    minScreenshotBytes: 4096,
+    noLock: false,
     json: false,
     list: false,
   };
@@ -34,6 +41,12 @@ function parseArgs(argv = process.argv.slice(2)) {
     else if (item === "--wait-ms") out.waitMs = readPositiveInt(next(), out.waitMs);
     else if (item === "--open-wait-ms") out.openWaitMs = readPositiveInt(next(), out.openWaitMs);
     else if (item === "--timeout-ms") out.timeoutMs = readPositiveInt(next(), out.timeoutMs);
+    else if (item === "--lock-file") out.lockFile = next();
+    else if (item === "--lock-timeout-ms") out.lockTimeoutMs = readPositiveInt(next(), out.lockTimeoutMs);
+    else if (item === "--lock-stale-ms") out.lockStaleMs = readPositiveInt(next(), out.lockStaleMs);
+    else if (item === "--expected-client-version") out.expectedClientVersion = next();
+    else if (item === "--min-screenshot-bytes") out.minScreenshotBytes = readNonNegativeInt(next(), out.minScreenshotBytes);
+    else if (item === "--no-lock") out.noLock = true;
     else if (item === "--json") out.json = true;
     else if (item === "--list") out.list = true;
     else if (item === "--help") {
@@ -44,6 +57,7 @@ function parseArgs(argv = process.argv.slice(2)) {
     }
   }
   out.debugUrl = normalizeBaseUrl(out.debugUrl);
+  if (!out.lockFile) out.lockFile = defaultLockPath(out);
   return out;
 }
 
@@ -53,10 +67,23 @@ function readPositiveInt(value, fallback) {
   return Math.floor(number);
 }
 
+function readNonNegativeInt(value, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) return fallback;
+  return Math.floor(number);
+}
+
 function normalizeBaseUrl(value) {
   const url = new URL(String(value || DEFAULT_DEBUG_URL));
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("debug_url_must_be_http");
   return url.href.endsWith("/") ? url.href : `${url.href}/`;
+}
+
+function defaultLockPath(options = {}) {
+  const url = new URL(normalizeBaseUrl(options.debugUrl || DEFAULT_DEBUG_URL));
+  const port = url.port || (url.protocol === "https:" ? "443" : "80");
+  const lane = `${url.hostname}-${port}`.replace(/[^a-z0-9_.-]+/ig, "-");
+  return path.join(DEFAULT_LOCK_DIR, `ios-pwa-visual-${lane}.lock`);
 }
 
 function apiUrl(options, pathname) {
@@ -78,6 +105,12 @@ function printHelp() {
     "  --wait-ms <ms>         Wait after scenario preparation. Default: 900.",
     "  --open-wait-ms <ms>    Wait after --app-url navigation. Default: 1200.",
     "  --timeout-ms <ms>      HTTP timeout per live-debug call. Default: 15000.",
+    "  --expected-client-version <version>  Assert loaded data-client-version.",
+    "  --min-screenshot-bytes <n>           Assert screenshot artifact is non-empty. Default: 4096.",
+    "  --lock-file <path>     Lane lock path. Defaults under ~/.homeai-qa/locks by debug URL.",
+    "  --lock-timeout-ms <ms> Wait for lane lock. Default: 60000.",
+    "  --lock-stale-ms <ms>   Remove stale lane locks. Default: 300000.",
+    "  --no-lock              Disable lane lock only when using an isolated Simulator/debug server.",
     "  --json                 Print bounded JSON.",
     "  --list                 List available scenarios.",
   ].join("\n"));
@@ -98,6 +131,67 @@ function boundedUrl(value) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms || 0))));
+}
+
+async function acquireHarnessLock(options = {}) {
+  if (options.noLock) {
+    return {
+      acquired: false,
+      lockFile: "",
+      staleRemoved: false,
+      waitedMs: 0,
+      release() {},
+    };
+  }
+  const lockFile = options.lockFile || defaultLockPath(options);
+  const timeoutMs = Math.max(1, Number(options.lockTimeoutMs || 60000) || 60000);
+  const staleMs = Math.max(0, Number(options.lockStaleMs || 0) || 0);
+  const started = Date.now();
+  let staleRemoved = false;
+  while (true) {
+    try {
+      fs.mkdirSync(path.dirname(lockFile), { recursive: true });
+      const fd = fs.openSync(lockFile, "wx");
+      const metadata = {
+        pid: process.pid,
+        startedAt: new Date().toISOString(),
+        debugUrl: boundedUrl(options.debugUrl || DEFAULT_DEBUG_URL),
+      };
+      fs.writeFileSync(fd, `${JSON.stringify(metadata)}\n`, "utf8");
+      fs.closeSync(fd);
+      let released = false;
+      return {
+        acquired: true,
+        lockFile,
+        staleRemoved,
+        waitedMs: Date.now() - started,
+        release() {
+          if (released) return;
+          released = true;
+          try {
+            fs.unlinkSync(lockFile);
+          } catch (_) {}
+        },
+      };
+    } catch (err) {
+      if (err?.code !== "EEXIST") throw err;
+      if (staleMs > 0) {
+        try {
+          const stat = fs.statSync(lockFile);
+          if (Date.now() - stat.mtimeMs >= staleMs) {
+            fs.unlinkSync(lockFile);
+            staleRemoved = true;
+            continue;
+          }
+        } catch (statErr) {
+          if (statErr?.code === "ENOENT") continue;
+          throw statErr;
+        }
+      }
+      if (Date.now() - started >= timeoutMs) throw new Error(`ios_visual_harness_lock_timeout:${lockFile}`);
+      await sleep(Math.min(250, Math.max(25, timeoutMs - (Date.now() - started))));
+    }
+  }
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
@@ -367,6 +461,26 @@ function assertEmbeddedPluginShell(metrics = {}) {
   return { ok: assertions.every((item) => item.pass), assertions };
 }
 
+function assertCommonHarness(report = {}, options = {}) {
+  const assertions = [];
+  const expectedClientVersion = String(options.expectedClientVersion || "").trim();
+  if (expectedClientVersion) {
+    assertions.push(assertion("client_version_matches_expected", report.metrics?.clientVersion === expectedClientVersion, {
+      expectedClientVersion,
+      actualClientVersion: report.metrics?.clientVersion || "",
+    }));
+  }
+  const minScreenshotBytes = Math.max(0, Number(options.minScreenshotBytes || 0) || 0);
+  if (minScreenshotBytes > 0) {
+    assertions.push(assertion("screenshot_meets_min_bytes", Number(report.screenshot?.bytes || 0) >= minScreenshotBytes, {
+      bytes: Number(report.screenshot?.bytes || 0),
+      minScreenshotBytes,
+      path: report.screenshot?.path || "",
+    }));
+  }
+  return assertions;
+}
+
 const SCENARIOS = Object.freeze({
   "directory-dark-status": Object.freeze({
     description: "Render Directory loading/status in dark mode and assert it uses --ui-surface-muted.",
@@ -406,31 +520,44 @@ async function runHarness(options) {
     prepare: null,
     metrics: null,
     screenshot: null,
+    lock: null,
     assertions: [],
   };
-  report.stream = await getJson(options, "/api/stream-info");
-  if (options.appUrl) {
-    await postAction(options, { type: "open", url: options.appUrl });
-    await sleep(options.openWaitMs);
+  const lock = await acquireHarnessLock(options);
+  report.lock = {
+    acquired: lock.acquired,
+    lockFile: lock.lockFile,
+    staleRemoved: lock.staleRemoved,
+    waitedMs: lock.waitedMs,
+  };
+  try {
+    report.stream = await getJson(options, "/api/stream-info");
+    if (options.appUrl) {
+      await postAction(options, { type: "open", url: options.appUrl });
+      await sleep(options.openWaitMs);
+    }
+    report.deepState = await getJson(options, "/api/deep-state").catch((err) => ({ ok: false, error: String(err.message || err).slice(0, 300) }));
+    report.prepare = await postAction(options, {
+      type: "js",
+      script: scenario.prepareScript,
+      args: scenario.prepareArgs(options),
+    });
+    await sleep(options.waitMs);
+    report.metrics = scenario.measureScript ? await postAction(options, {
+      type: "js",
+      script: scenario.measureScript,
+      args: scenario.measureArgs(options),
+    }) : report.prepare;
+    report.screenshot = await saveScreenshot(options);
+    const asserted = scenario.assert(report.metrics || {});
+    const commonAssertions = assertCommonHarness(report, options);
+    report.assertions = [...asserted.assertions, ...commonAssertions];
+    report.ok = report.assertions.every((item) => item.pass);
+    report.finishedAt = new Date().toISOString();
+    return report;
+  } finally {
+    lock.release();
   }
-  report.deepState = await getJson(options, "/api/deep-state").catch((err) => ({ ok: false, error: String(err.message || err).slice(0, 300) }));
-  report.prepare = await postAction(options, {
-    type: "js",
-    script: scenario.prepareScript,
-    args: scenario.prepareArgs(options),
-  });
-  await sleep(options.waitMs);
-  report.metrics = scenario.measureScript ? await postAction(options, {
-    type: "js",
-    script: scenario.measureScript,
-    args: scenario.measureArgs(options),
-  }) : report.prepare;
-  report.screenshot = await saveScreenshot(options);
-  const asserted = scenario.assert(report.metrics || {});
-  report.assertions = asserted.assertions;
-  report.ok = Boolean(asserted.ok);
-  report.finishedAt = new Date().toISOString();
-  return report;
 }
 
 function printReport(report, jsonMode) {
@@ -468,8 +595,11 @@ if (require.main === module) {
 module.exports = {
   DEFAULT_DEBUG_URL,
   SCENARIOS,
+  acquireHarnessLock,
+  assertCommonHarness,
   assertDirectoryDarkStatus,
   assertEmbeddedPluginShell,
+  defaultLockPath,
   parseArgs,
   runHarness,
 };

@@ -83,6 +83,32 @@ function parseToolProperty(value, label) {
   };
 }
 
+function parseSchemaPropertyMatch(value) {
+  const text = String(value || "");
+  const equals = text.indexOf("=");
+  const colon = text.lastIndexOf(":");
+  if (equals <= 0 || colon <= equals + 1 || colon >= text.length - 1) {
+    throw new Error(`Invalid --require-schema-property-match value. Use <service-tool>=<gateway-tool>:<property>: ${text}`);
+  }
+  return {
+    serviceTool: text.slice(0, equals).trim(),
+    gatewayTool: text.slice(equals + 1, colon).trim(),
+    property: text.slice(colon + 1).trim(),
+  };
+}
+
+function uniqueToolProperties(items = []) {
+  const seen = new Set();
+  const out = [];
+  for (const item of items) {
+    const key = `${item.tool}:${item.property}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
 function toolName(tool = {}) {
   return tool.name || tool?.function?.name || "";
 }
@@ -248,6 +274,18 @@ async function main() {
   const defaultGatewayToolProperties = gatewayTools.includes(DEFAULT_GATEWAY_TOOL)
     ? [`${DEFAULT_GATEWAY_TOOL}:file_path`, `${DEFAULT_GATEWAY_TOOL}:upload_path`]
     : [];
+  const schemaPropertyMatches = cleanList(argValues("--require-schema-property-match"), [])
+    .map(parseSchemaPropertyMatch);
+  const serviceToolProperties = uniqueToolProperties([
+    ...cleanList(argValues("--require-service-tool-property"), defaultServiceToolProperties)
+      .map((value) => parseToolProperty(value, "--require-service-tool-property")),
+    ...schemaPropertyMatches.map((match) => ({ tool: match.serviceTool, property: match.property })),
+  ]);
+  const gatewayToolProperties = uniqueToolProperties([
+    ...cleanList(argValues("--require-gateway-tool-property"), defaultGatewayToolProperties)
+      .map((value) => parseToolProperty(value, "--require-gateway-tool-property")),
+    ...schemaPropertyMatches.map((match) => ({ tool: match.gatewayTool, property: match.property })),
+  ]);
   const options = {
     repoRoot,
     toolset: argValue("--toolset", "finance"),
@@ -259,11 +297,10 @@ async function main() {
     serviceHeaderFiles: argValues("--service-header-file"),
     serviceTools,
     serviceContains: cleanList(argValues("--service-schema-contains"), []),
-    serviceToolProperties: cleanList(argValues("--require-service-tool-property"), defaultServiceToolProperties)
-      .map((value) => parseToolProperty(value, "--require-service-tool-property")),
+    serviceToolProperties,
     gatewayTools,
-    gatewayToolProperties: cleanList(argValues("--require-gateway-tool-property"), defaultGatewayToolProperties)
-      .map((value) => parseToolProperty(value, "--require-gateway-tool-property")),
+    gatewayToolProperties,
+    schemaPropertyMatches,
     docContains: argValues("--doc-contains"),
     skipGateway: hasFlag("--skip-gateway"),
     manifest: argValue("--manifest", ""),
@@ -292,6 +329,7 @@ async function main() {
     docs,
     service,
     gateway,
+    schemaPropertyMatches: options.schemaPropertyMatches,
   }, null, 2));
 }
 

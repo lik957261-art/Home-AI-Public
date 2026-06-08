@@ -333,13 +333,19 @@ npm run ios:pwa:visual -- \
 ```
 
 For development builds, add `--app-url <local-dev-url>` so the same iOS PWA
-Simulator opens the dev port before assertions run. The checked harness lives
-in `scripts/ios-pwa-visual-harness.js` with source coverage in
-`tests/ios-pwa-visual-harness.test.js`. The Directory dark-status scenario
-asserts `.directory-status`, `.directory-shell`, `#conversation`, and
-`--ui-surface-muted` so gray/pale loading-surface regressions fail
-deterministically. The embedded-plugin-shell scenario asserts the host shell,
-iframe existence, meaningful frame size, and no horizontal overflow.
+Simulator opens the dev port before assertions run. Add
+`--expected-client-version <version>` when static assets changed so the
+artifact proves the loaded PWA build. The checked harness lives in
+`scripts/ios-pwa-visual-harness.js` with source coverage in
+`tests/ios-pwa-visual-harness.test.js`. It defaults to a per-`--debug-url` lane
+lock under `$HOME/.homeai-qa/locks`; use `--no-lock` only for an isolated
+Simulator/live-debug lane with its own port, UDID, WDA port, and MJPEG port.
+The Directory dark-status scenario asserts `.directory-status`,
+`.directory-shell`, `#conversation`, and `--ui-surface-muted` so gray/pale
+loading-surface regressions fail deterministically. The
+embedded-plugin-shell scenario asserts the host shell, iframe existence,
+meaningful frame size, no horizontal overflow, and a non-empty screenshot
+artifact by default.
 
 For concurrent plugin debugging, allocate one Simulator per active plugin lane.
 Do not share one Simulator UDID across multiple Appium/XCUITest control

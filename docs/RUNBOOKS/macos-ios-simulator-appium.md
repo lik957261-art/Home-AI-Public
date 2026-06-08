@@ -123,6 +123,14 @@ viewport metrics, relevant element bounds, computed styles, and assertion
 results. It does not accept Access Keys, sudo passwords, cookies, launch
 tokens, or raw localStorage dumps.
 
+By default, the harness serializes each live-debug lane with a lock under
+`$HOME/.homeai-qa/locks` keyed by `--debug-url`. Keep this lock enabled for
+the shared `http://127.0.0.1:19073/` lane. Use `--no-lock` only when the run is
+pointing at an isolated Simulator/debug-server lane with a unique port, UDID,
+WDA port, and MJPEG port. Use `--expected-client-version <version>` when static
+assets changed, and keep the screenshot artifact assertion enabled through
+`--min-screenshot-bytes` unless the run is intentionally screenshotless.
+
 For embedded plugin shells, use the same harness with the plugin id:
 
 ```bash
@@ -199,6 +207,12 @@ WebView deep state are still serialized within each server instance. If a team
 only needs visual observation, keep to the screenshot/live-view path. If a team
 needs selectors, JavaScript execution, or gestures, use that Simulator's own
 live debug server instance.
+
+The checked visual harness follows the same lane rule. Separate plugin threads
+may run `npm run ios:pwa:visual` concurrently only when they target different
+`--debug-url` lanes. Runs against the same debug URL are serialized by the
+default lock; bypassing that lock with `--no-lock` on a shared lane is invalid
+evidence.
 
 ## Gesture Smoke
 

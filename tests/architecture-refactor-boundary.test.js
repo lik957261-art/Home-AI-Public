@@ -668,6 +668,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const runtimeConfigProvider = fileText("adapters/runtime-config-provider.js");
   const runtimeConfigEffective = fileText("adapters/runtime-config-effective-service.js");
   const runtimeConfigGatewayWorker = fileText("adapters/runtime-config-gateway-worker-service.js");
+  const runtimeConfigWorkerPolicyContract = fileText("adapters/runtime-config-worker-policy-contract-service.js");
   const runtimeConfigKey = fileText("adapters/runtime-config-key-service.js");
   const runtimeConfigModel = fileText("adapters/runtime-config-model-service.js");
   const runtimeConfigPublicProjection = fileText("adapters/runtime-config-public-projection-service.js");
@@ -1760,6 +1761,7 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /runtime-config-provider\.js` must stay at or below 190\s+lines/);
   assert.match(doc, /runtime-config-effective-service\.js` must stay at or below 65\s+lines/);
   assert.match(doc, /runtime-config-gateway-worker-service\.js` must stay at or below 60\s+lines/);
+  assert.match(doc, /runtime-config-worker-policy-contract-service\.js` must stay at or below 135\s+lines/);
   assert.match(doc, /runtime-config-key-service\.js` must stay at or below 115\s+lines/);
   assert.match(doc, /runtime-config-model-service\.js` must stay at or below 110\s+lines/);
   assert.match(doc, /runtime-config-public-projection-service\.js` must stay at or below 75\s+lines/);
@@ -1944,6 +1946,7 @@ function testServiceFirstArchitectureContract() {
   const runtimeConfigProvider = fileText("adapters/runtime-config-provider.js");
   const runtimeConfigEffective = fileText("adapters/runtime-config-effective-service.js");
   const runtimeConfigGatewayWorker = fileText("adapters/runtime-config-gateway-worker-service.js");
+  const runtimeConfigWorkerPolicyContract = fileText("adapters/runtime-config-worker-policy-contract-service.js");
   const runtimeConfigKey = fileText("adapters/runtime-config-key-service.js");
   const runtimeConfigModel = fileText("adapters/runtime-config-model-service.js");
   const runtimeConfigPublicProjection = fileText("adapters/runtime-config-public-projection-service.js");
@@ -1976,6 +1979,7 @@ function testServiceFirstArchitectureContract() {
   const runtimeConfigProviderLineCount = runtimeConfigProvider.split(/\r?\n/).length;
   const runtimeConfigEffectiveLineCount = runtimeConfigEffective.split(/\r?\n/).length;
   const runtimeConfigGatewayWorkerLineCount = runtimeConfigGatewayWorker.split(/\r?\n/).length;
+  const runtimeConfigWorkerPolicyContractLineCount = runtimeConfigWorkerPolicyContract.split(/\r?\n/).length;
   const runtimeConfigKeyLineCount = runtimeConfigKey.split(/\r?\n/).length;
   const runtimeConfigModelLineCount = runtimeConfigModel.split(/\r?\n/).length;
   const runtimeConfigPublicProjectionLineCount = runtimeConfigPublicProjection.split(/\r?\n/).length;
@@ -2068,6 +2072,7 @@ function testServiceFirstArchitectureContract() {
   assert.ok(runtimeConfigProviderLineCount <= 190, `runtime-config-provider.js line budget exceeded: ${runtimeConfigProviderLineCount} > 190`);
   assert.ok(runtimeConfigEffectiveLineCount <= 65, `runtime-config-effective-service.js line budget exceeded: ${runtimeConfigEffectiveLineCount} > 65`);
   assert.ok(runtimeConfigGatewayWorkerLineCount <= 60, `runtime-config-gateway-worker-service.js line budget exceeded: ${runtimeConfigGatewayWorkerLineCount} > 60`);
+  assert.ok(runtimeConfigWorkerPolicyContractLineCount <= 135, `runtime-config-worker-policy-contract-service.js line budget exceeded: ${runtimeConfigWorkerPolicyContractLineCount} > 135`);
   assert.ok(runtimeConfigKeyLineCount <= 115, `runtime-config-key-service.js line budget exceeded: ${runtimeConfigKeyLineCount} > 115`);
   assert.ok(runtimeConfigModelLineCount <= 110, `runtime-config-model-service.js line budget exceeded: ${runtimeConfigModelLineCount} > 110`);
   assert.ok(runtimeConfigPublicProjectionLineCount <= 75, `runtime-config-public-projection-service.js line budget exceeded: ${runtimeConfigPublicProjectionLineCount} > 75`);

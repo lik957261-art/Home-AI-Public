@@ -25,6 +25,43 @@ const EXCLUDED_PREFIXES = [
   "__pycache__/",
 ];
 
+const PUBLIC_TEXT_EXTENSIONS = new Set([
+  "",
+  ".css",
+  ".example",
+  ".gitattributes",
+  ".gitignore",
+  ".html",
+  ".js",
+  ".json",
+  ".md",
+  ".ps1",
+  ".py",
+  ".sh",
+  ".vbs",
+  ".yml",
+  ".yaml",
+]);
+
+const PRIVATE_PATH_REPLACEMENTS = [
+  {
+    pattern: /[A-Z]:\\Users\\(?!Public\\|Default\\|Default User\\)[^\\\s"']+/gi,
+    replacement: "C:\\Users\\example\\path",
+  },
+  {
+    pattern: /\/mnt\/[a-z]\/Users\/[^\s"'`<>)]*/gi,
+    replacement: "/mnt/example/path",
+  },
+  {
+    pattern: /\/home\/(?!hermes\b|user\b|ubuntu\b|runner\b|example\b)[A-Za-z0-9._-]+(?:\/[^\s"'`<>)]*)?/gi,
+    replacement: "/home/example/path",
+  },
+  {
+    pattern: /\/Users\/(?!Shared\b|example\b)[A-Za-z0-9._-]+(?:\/[^\s"'`<>)]*)?/g,
+    replacement: "/Users/example/path",
+  },
+];
+
 function parseArgs(argv) {
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
   const out = {
@@ -91,6 +128,10 @@ function shouldExport(relativePath) {
   return !EXCLUDED_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
+function isPublicTextFile(relativePath) {
+  return PUBLIC_TEXT_EXTENSIONS.has(path.extname(relativePath));
+}
+
 function safeResetOutputDir(outDir, force) {
   const resolved = path.resolve(outDir);
   const basename = path.basename(resolved);
@@ -116,12 +157,20 @@ function transformPublicReadme(text) {
     .replace(/The public repository should be created from a privacy-scanned export of this .*? repository, not from .*?\./, "Public releases should be created from this privacy-scanned export workflow, not from deployment runtime directories.");
 }
 
+function sanitizePublicText(text) {
+  let output = String(text || "");
+  for (const rule of PRIVATE_PATH_REPLACEMENTS) output = output.replace(rule.pattern, rule.replacement);
+  return output;
+}
+
 function copyFile(relativePath, outDir) {
   const source = path.join(REPO_ROOT, relativePath);
   const target = path.join(outDir, relativePath);
   fs.mkdirSync(path.dirname(target), { recursive: true });
-  if (normalizePath(relativePath) === "README.md") {
-    fs.writeFileSync(target, transformPublicReadme(fs.readFileSync(source, "utf8")), "utf8");
+  if (isPublicTextFile(relativePath)) {
+    let text = fs.readFileSync(source, "utf8");
+    if (normalizePath(relativePath) === "README.md") text = transformPublicReadme(text);
+    fs.writeFileSync(target, sanitizePublicText(text), "utf8");
     return;
   }
   fs.copyFileSync(source, target);
@@ -156,6 +205,10 @@ function createExport(options) {
       exact: [...EXCLUDED_EXACT].sort(),
       prefixes: [...EXCLUDED_PREFIXES].sort(),
     },
+    contentTransforms: [
+      "public-readme",
+      "private-user-path-redaction",
+    ],
   };
   fs.writeFileSync(path.join(outDir, ".public-export-report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
   if (!options.skipPrivacyScan) runPrivacyScan(outDir);
@@ -178,6 +231,7 @@ if (require.main === module) {
 
 module.exports = {
   createExport,
+  sanitizePublicText,
   shouldExport,
   transformPublicReadme,
 };

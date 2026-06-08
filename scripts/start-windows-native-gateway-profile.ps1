@@ -166,7 +166,7 @@ function Convert-ProfileConfigText {
   $result = $result -replace "/opt/hermes-gateway-runtime/official-clean", $nativeSource
   $result = $result -replace "/opt/hermes-gateway-runtime/runtime-overrides", $runtimeOverrides
   $result = $result -replace "/home/hermes/\.hermes/profiles/$([regex]::Escape($Profile))", $nativeProfile
-  $result = $result -replace "/home/xuxin/\.hermes/profiles/$([regex]::Escape($Profile))", $nativeProfile
+  $result = $result -replace "/home/(?!hermes/)[^/]+/\.hermes/profiles/$([regex]::Escape($Profile))", $nativeProfile
   $result = $result -replace "http://172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+:(4181|4877|5175)", 'http://127.0.0.1:$2'
   return $result
 }

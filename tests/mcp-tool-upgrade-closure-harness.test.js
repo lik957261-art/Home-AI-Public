@@ -122,6 +122,45 @@ async function testScriptPassesSourceServiceAndDocsWithoutGateway() {
   });
 }
 
+async function testScriptPassesMatchedServiceAndGatewayProperties() {
+  const root = makeFixtureRoot();
+  const fakeGatewaySmoke = path.join(root, "scripts", "fake-gateway-smoke.js");
+  write(fakeGatewaySmoke, [
+    '"use strict";',
+    'const args = process.argv.slice(2).join("\\n");',
+    'if (!args.includes("--require-tool-property")) throw new Error("missing require-tool-property");',
+    'if (!args.includes("mcp_finance_add_transaction_attachment:file_path")) throw new Error("missing matched gateway property");',
+    'console.log(JSON.stringify({ requiredTools: ["mcp_finance_add_transaction_attachment"], workers: [{ worker: "lowgw-fixture", evidence: "fixture", agentSchemaToolCount: 1, agentSchemaEnabledToolsets: ["finance"] }] }));',
+  ].join("\n"));
+  await withSchemaServer(async (url) => {
+    const result = await runAsync([
+      "--repo-root", root,
+      "--service-schema-url", url,
+      "--require-service-tool", "finance.add_transaction_attachment",
+      "--gateway-tool", "mcp_finance_add_transaction_attachment",
+      "--require-schema-property-match", "finance.add_transaction_attachment=mcp_finance_add_transaction_attachment:file_path",
+      "--manifest", path.join(root, "gateway-manifest.json"),
+      "--profile", "lowgw-fixture",
+      "--gateway-smoke-script", fakeGatewaySmoke,
+      "--epoch", "20260606-finance-reference-mcp-v1",
+    ]);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.ok, true);
+    assert.deepEqual(parsed.schemaPropertyMatches, [{
+      serviceTool: "finance.add_transaction_attachment",
+      gatewayTool: "mcp_finance_add_transaction_attachment",
+      property: "file_path",
+    }]);
+    assert.ok(parsed.service.requiredProperties.some((item) => (
+      item.tool === "finance.add_transaction_attachment" && item.property === "file_path"
+    )));
+    assert.ok(parsed.gateway.requiredProperties.some((item) => (
+      item.tool === "mcp_finance_add_transaction_attachment" && item.property === "file_path"
+    )));
+  });
+}
+
 async function testScriptFailsWhenServiceSchemaMissesRequiredAttachmentPathProperty() {
   const root = makeFixtureRoot();
   await withSchemaServer(async (url) => {
@@ -191,6 +230,7 @@ function testRepositoryDocsAndHarnessContractMentionUpgradeClosure() {
   assert.match(script, /service-header-file/);
   assert.match(script, /require-service-tool-property/);
   assert.match(script, /require-gateway-tool-property/);
+  assert.match(script, /require-schema-property-match/);
   assert.match(script, /file_path/);
   assert.match(script, /upload_path/);
   assert.match(script, /mcp_finance_add_transaction_attachment/);
@@ -215,6 +255,7 @@ function testRepositoryDocsAndHarnessContractMentionUpgradeClosure() {
 
 (async () => {
   await testScriptPassesSourceServiceAndDocsWithoutGateway();
+  await testScriptPassesMatchedServiceAndGatewayProperties();
   await testScriptFailsWhenServiceSchemaMissesRequiredAttachmentPathProperty();
   testScriptFailsWhenInstructionHintsMissGatewayTool();
   testScriptFailsWhenSelectedGatewayProfileIsOmittedWithoutExplicitSkip();

@@ -66,7 +66,7 @@ Higher-isolation stance for shared or production Windows hosts:
 - run workspace-specific Gateway/plugin subprocesses as the matching workspace
   account when the subprocess needs direct filesystem access.
 
-Do not recreate the WSL split by passing `/home/...`, `Ubuntu-*`, `wsl.exe`, or
+Do not recreate the WSL split by passing `/home/<user>`, `Ubuntu-*`, `wsl.exe`, or
 WSL distro-owner assumptions through Windows startup scripts. If Windows ACL
 isolation is introduced, add a harness that proves both positive workspace
 access and cross-workspace deny checks using Windows account tokens or explicit

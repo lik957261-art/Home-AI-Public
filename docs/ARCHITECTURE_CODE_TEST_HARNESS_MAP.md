@@ -27,6 +27,9 @@ harnesses should move together.
 - Runtime-config model catalog and selection changes move with
   `adapters/runtime-config-model-service.js` and
   `tests/runtime-config-model-service.test.js`.
+- Runtime-config worker policy contract changes move with
+  `adapters/runtime-config-worker-policy-contract-service.js` and
+  `tests/runtime-config-worker-policy-contract-service.test.js`.
 - Gateway run-start target selection and post-selection projection changes move
   with `adapters/gateway-run-start-target-service.js` and
   `tests/gateway-run-start-target-service.test.js`.
@@ -97,6 +100,10 @@ harnesses should move together.
   stop timeout projection, and 404-as-stopped behavior move with
   `adapters/gateway-run-stream-stop-service.js` and
   `tests/gateway-run-stream-stop-service.test.js`.
+- Gateway lifecycle phase/event contract changes move with
+  `adapters/gateway-run-lifecycle-service.js` and
+  `tests/gateway-run-lifecycle-service.test.js`; this includes stable/branch
+  event lists and source-file ownership checks, not only event classification.
 
 ## Harness Classes
 

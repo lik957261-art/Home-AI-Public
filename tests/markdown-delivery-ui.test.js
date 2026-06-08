@@ -20,7 +20,7 @@ const artifactTextRegistrationServiceJs = fs.readFileSync(path.join(repoRoot, "a
 const runtimeStateThreadServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "runtime-state-thread-service.js"), "utf8");
 const gatewayRunInstructionServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "gateway-run-instruction-service.js"), "utf8");
 const systemRuntimeStatusServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "system-runtime-status-service.js"), "utf8");
-const webPushDeliveryServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "web-push-delivery-service.js"), "utf8");
+const webPushAutomationProjectionServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "web-push-automation-projection-service.js"), "utf8");
 const appJs = readAppShellSource(repoRoot);
 const taskArtifactHelpersJs = fs.readFileSync(path.join(repoRoot, "public", "app-task-artifact-helpers.js"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
@@ -32,7 +32,7 @@ const cronBridge = fs.readFileSync(path.join(repoRoot, "cron_bridge.py"), "utf8"
 
 assert.match(runtimeEnvironmentJs, /AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS = new Set\(\["\.md", "\.pdf"/);
 assert.match(gatewayRunInstructionServiceJs, /Write final document deliverables as Markdown by default/);
-assert.match(webPushDeliveryServiceJs, /Markdown\/PDF\/Office file/);
+assert.match(webPushAutomationProjectionServiceJs, /automationDeliverableExtensions[\s\S]*\["\.md", "\.pdf", "\.doc", "\.docx", "\.xlsx", "\.pptx"\]/);
 assert.match(fileArtifactResolverService, /const localPath = artifact\.localPath \|\| artifact\.path/);
 assert.match(fileArtifactResolverService, /stat = deps\.fs\.statSync\(localPath\)/);
 assert.match(serverJs, /const artifactMethod = \(methodName\) => \(\.\.\.args\) => artifactFacade\(\)\[methodName\]\(\.\.\.args\)/);

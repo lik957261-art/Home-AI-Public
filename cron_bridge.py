@@ -45,7 +45,7 @@ MEDIA_PATH_PATTERN = re.compile(
 ABSOLUTE_PATH_PATTERN = re.compile(
     r"(?i)(\\\\wsl(?:\.localhost|\$)\\[^\r\n`]+|"
     r"[a-z]:\\[^\r\n`]+|"
-    r"/(?:mnt/[a-z]|home/[^/]+|tmp)/[^\r\n`]+)"
+    r"/(?:mnt/[a-z]|home/[^/]+|tmp|var|private/var)/[^\r\n`]+)"
 )
 
 PATH_PATTERNS = [
@@ -53,6 +53,7 @@ PATH_PATTERNS = [
     re.compile(r"(?i)[a-z]:\\Users\\[^\\]+\\[^\s]+"),
     re.compile(r"/mnt/[a-z]/Users/[^/]+/[^\s]+"),
     re.compile(r"/home/[^/]+/[^\s]+"),
+    re.compile(r"/(?:private/)?var/[^\s]+"),
 ]
 
 

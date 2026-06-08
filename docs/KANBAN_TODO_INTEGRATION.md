@@ -47,7 +47,7 @@ HERMES_MOBILE_KANBAN_WORKSPACE_PATH_STYLE=native
 
 The retired `run-kanban-gateway-worker.ps1` WSL wrapper is retained only as
 legacy source/rollback material. Maintained Windows startup scripts and task
-actions must not pass `-DistroName`, `-WslUser`, `/home/...`, or `Ubuntu-*`
+actions must not pass `-DistroName`, `-WslUser`, `/home/<user>`, or `Ubuntu-*`
 arguments.
 
 For a simple development install where `hermes` is already on the server
