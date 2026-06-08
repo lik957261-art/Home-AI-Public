@@ -2,6 +2,8 @@
 
 const assert = require("node:assert/strict");
 const {
+  GATEWAY_RUN_EVENT_PHASES,
+  classifyGatewayRunLifecycleEvent,
   createGatewayRunLifecycleService,
   extractGatewayRunIds,
   isTerminalGatewayRunEvent,
@@ -24,6 +26,37 @@ function testEventNameNormalizationAndTerminalStatus() {
   assert.equal(terminalStatusForGatewayRunEvent({ event: "run.failed" }), "failed");
   assert.equal(terminalStatusForGatewayRunEvent({ event: "response.incomplete" }), "cancelled");
   assert.equal(isTerminalGatewayRunEvent({ event: "message.delta" }), false);
+}
+
+function testLifecycleEventPhaseClassification() {
+  assert.deepEqual(classifyGatewayRunLifecycleEvent("response.created"), {
+    eventName: "response.created",
+    phase: GATEWAY_RUN_EVENT_PHASES.RESPONSE_CREATED,
+    terminalStatus: "",
+  });
+  assert.equal(classifyGatewayRunLifecycleEvent("message.delta").phase, GATEWAY_RUN_EVENT_PHASES.TEXT_DELTA);
+  assert.equal(classifyGatewayRunLifecycleEvent("response.output_item.done").phase, GATEWAY_RUN_EVENT_PHASES.OUTPUT_ITEM);
+  assert.equal(classifyGatewayRunLifecycleEvent("response.output.text.done").phase, GATEWAY_RUN_EVENT_PHASES.FINAL_MESSAGE_DONE);
+  assert.deepEqual(classifyGatewayRunLifecycleEvent("run.completed"), {
+    eventName: "run.completed",
+    phase: GATEWAY_RUN_EVENT_PHASES.TERMINAL,
+    terminalStatus: "done",
+  });
+  assert.deepEqual(classifyGatewayRunLifecycleEvent("run.failed"), {
+    eventName: "run.failed",
+    phase: GATEWAY_RUN_EVENT_PHASES.TERMINAL,
+    terminalStatus: "failed",
+  });
+  assert.deepEqual(classifyGatewayRunLifecycleEvent("response.incomplete"), {
+    eventName: "response.incomplete",
+    phase: GATEWAY_RUN_EVENT_PHASES.TERMINAL,
+    terminalStatus: "cancelled",
+  });
+  assert.deepEqual(classifyGatewayRunLifecycleEvent("run.step.created"), {
+    eventName: "run.step.created",
+    phase: GATEWAY_RUN_EVENT_PHASES.EVENT,
+    terminalStatus: "",
+  });
 }
 
 function testRunIdExtractionPrefersVisibleResponseIdExceptCreated() {
@@ -133,6 +166,7 @@ function testFactoryExportsPureService() {
 }
 
 testEventNameNormalizationAndTerminalStatus();
+testLifecycleEventPhaseClassification();
 testRunIdExtractionPrefersVisibleResponseIdExceptCreated();
 testActiveRunIdsArePureAndDeduped();
 testQueuedNextRunDecision();

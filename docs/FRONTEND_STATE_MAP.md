@@ -11,7 +11,11 @@ the change is part of a dedicated infrastructure rename.
 ## App Shell
 
 - Entry/wiring: `public/app-start.js`, `public/app-wire-start-ui.js`, `public/app-shell-ui.js`
-- Navigation and route handling: `public/app-platform-ui.js`, `public/app-sidebar-task-ui.js`
+- Navigation and route handling: `public/app-route-snapshot-ui.js`,
+  `public/app-platform-ui.js`, `public/app-sidebar-task-ui.js`.
+  `app-route-snapshot-ui.js` owns saved route/scroll snapshot persistence and
+  reload restore; `app-platform-ui.js` owns route application and platform
+  bootstrap glue.
 - Mobile sidebar: `public/index.html`, `public/styles.css`,
   `public/app-platform-status-ui.js`
   - On mobile/PWA widths the sidebar is a full-screen navigation surface, not a

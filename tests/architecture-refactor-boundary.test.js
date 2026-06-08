@@ -331,6 +331,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof gatewayWorkerProfileLaunchService.createGatewayWorkerProfileLaunchService, "function");
   assert.equal(typeof gatewayRunInstructionService.createGatewayRunInstructionService, "function");
   assert.equal(typeof gatewayRunLifecycleService.createGatewayRunLifecycleService, "function");
+  assert.equal(typeof gatewayRunLifecycleService.classifyGatewayRunLifecycleEvent, "function");
   assert.equal(typeof gatewayRunLifecycleService.livenessDecisionAfterCheck, "function");
   assert.equal(typeof gatewayRunModelToolsetSelectionService.createGatewayRunModelToolsetSelectionService, "function");
   assert.equal(typeof gatewayRunQueueService.createGatewayRunQueueService, "function");
@@ -2156,6 +2157,7 @@ function testServiceFirstArchitectureContract() {
     "public/app-sidebar-task-ui.js",
     "public/app-message-skill-ui.js",
     "public/app-message-actions-ui.js",
+    "public/app-route-snapshot-ui.js",
     "public/app-platform-ui.js",
     "public/app-pwa-settings-push-ui.js",
     "public/app-workspace-admin-ui.js",

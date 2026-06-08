@@ -82,6 +82,7 @@ assert.match(pwaPushUi, /mobileBrowserShellClient\(\) && !isStandalonePwa\(\)/);
 assert.match(pwaPushUi, /clientContext,[\s\S]*displayMode: clientContext\.displayMode,[\s\S]*standalone: clientContext\.standalone/);
 
 const platformUi = read("public/app-platform-ui.js");
+const routeSnapshotUi = read("public/app-route-snapshot-ui.js");
 assert.match(platformUi, /function sameOriginRouteUrl\(value\)/);
 assert.match(platformUi, /function normalizeHermesAppShellPath\(pathname = ""\)/);
 assert.match(platformUi, /function hermesAppShellRouteForParams\(params, options = \{\}\)/);
@@ -112,8 +113,9 @@ assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_rout
 assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_route_applied"/);
 assert.match(platformUi, /const nextRoute = hermesAppShellRouteForUrl\(parsed\)/);
 assert.match(platformUi, /await loadSelectedView\(\{ forceTaskListReload: true, skipSingleWindowCache: true \}\);/);
-assert.match(platformUi, /function applyRestoredAppRouteSnapshot\(\)/);
-assert.match(platformUi, /if \(routeParamsHaveExplicitLaunchTarget\(currentParams\)\) return false/);
+assert.match(routeSnapshotUi, /function applyRestoredAppRouteSnapshot\(\)/);
+assert.match(routeSnapshotUi, /if \(routeParamsHaveExplicitLaunchTarget\(currentParams\)\) return false/);
+assert.doesNotMatch(platformUi, /function applyRestoredAppRouteSnapshot\(\)/);
 assert.match(platformUi, /async function openNotificationRoute\(value\) \{[\s\S]*?return openHermesInternalRoute\(value\);[\s\S]*?\}/);
 assert.match(platformUi, /function recordNavigationDiagnostic\(eventName, fields = \{\}\)/);
 assert.match(platformUi, /hermesNavigationDiagnostics/);

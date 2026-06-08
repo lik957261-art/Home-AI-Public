@@ -12,6 +12,15 @@ const TERMINAL_EVENT_STATUSES = Object.freeze({
   canceled: "cancelled",
 });
 
+const GATEWAY_RUN_EVENT_PHASES = Object.freeze({
+  EVENT: "event",
+  FINAL_MESSAGE_DONE: "final_message_done",
+  OUTPUT_ITEM: "output_item",
+  RESPONSE_CREATED: "response_created",
+  TERMINAL: "terminal",
+  TEXT_DELTA: "text_delta",
+});
+
 function cleanString(value) {
   return String(value || "").trim();
 }
@@ -52,6 +61,27 @@ function terminalStatusForGatewayRunEvent(value) {
 
 function isTerminalGatewayRunEvent(value) {
   return Boolean(terminalStatusForGatewayRunEvent(value));
+}
+
+function classifyGatewayRunLifecycleEvent(value) {
+  const eventName = normalizeGatewayRunEventName(value);
+  const terminalStatus = terminalStatusForGatewayRunEvent(eventName);
+  if (terminalStatus) {
+    return { eventName, phase: GATEWAY_RUN_EVENT_PHASES.TERMINAL, terminalStatus };
+  }
+  if (eventName === "response.created") {
+    return { eventName, phase: GATEWAY_RUN_EVENT_PHASES.RESPONSE_CREATED, terminalStatus: "" };
+  }
+  if (eventName === "message.delta" || eventName === "response.output_text.delta") {
+    return { eventName, phase: GATEWAY_RUN_EVENT_PHASES.TEXT_DELTA, terminalStatus: "" };
+  }
+  if (eventName === "response.output_item.added" || eventName === "response.output_item.done") {
+    return { eventName, phase: GATEWAY_RUN_EVENT_PHASES.OUTPUT_ITEM, terminalStatus: "" };
+  }
+  if (eventName === "response.output_text.done") {
+    return { eventName, phase: GATEWAY_RUN_EVENT_PHASES.FINAL_MESSAGE_DONE, terminalStatus: "" };
+  }
+  return { eventName, phase: GATEWAY_RUN_EVENT_PHASES.EVENT, terminalStatus: "" };
 }
 
 function uniqueRunIds(values = []) {
@@ -201,6 +231,7 @@ function livenessDecisionAfterCheck(input = {}) {
 
 function createGatewayRunLifecycleService() {
   return {
+    classifyGatewayRunLifecycleEvent,
     extractGatewayRunIds,
     isTerminalGatewayRunEvent,
     livenessDecisionAfterCheck,
@@ -217,6 +248,8 @@ function createGatewayRunLifecycleService() {
 }
 
 module.exports = {
+  GATEWAY_RUN_EVENT_PHASES,
+  classifyGatewayRunLifecycleEvent,
   createGatewayRunLifecycleService,
   extractGatewayRunIds,
   isTerminalGatewayRunEvent,

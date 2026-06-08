@@ -17,6 +17,7 @@ const appSplitModuleFiles = Object.freeze([
   "app-sidebar-task-ui.js",
   "app-message-skill-ui.js",
   "app-message-actions-ui.js",
+  "app-route-snapshot-ui.js",
   "app-platform-ui.js",
   "app-platform-status-ui.js",
   "app-pwa-settings-push-ui.js",

@@ -610,9 +610,16 @@ when the deferred save fails. It must not mutate threads/messages, parse
 Gateway events, broadcast, compact topics, schedule queued runs, or own
 terminal state.
 
+`gateway-run-lifecycle-service.js` owns Gateway lifecycle event taxonomy:
+event-name normalization, run-id extraction, terminal status mapping, event
+phase classification, active-run id set helpers, queued-run decisions, and
+liveness decisions. It must remain pure deterministic lifecycle policy and must
+not mutate threads/messages, broadcast, save state, schedule workers, or call
+Gateway runner APIs.
+
 `gateway-run-event-service.js` owns Gateway event parsing and ordinary in-run
-event persistence: run id resolution, event-name routing, target lookup, and
-ordinary non-terminal event append/broadcast.
+event persistence: run id resolution, lifecycle-classified event dispatch,
+target lookup, and ordinary non-terminal event append/broadcast.
 It must delegate completed-run projection to `gateway-run-completion-service.js`,
 text-delta projection to `gateway-run-delta-event-service.js`,
 response-created alias projection to
@@ -989,8 +996,14 @@ Current CI guardrails:
   scheduling, and rejected-retry failure projection, not marker parsing,
   original selector decisions, run completion, Wardrobe validation, or stream
   lifecycle;
+- `gateway-run-lifecycle-service.js` must remain pure deterministic lifecycle
+  policy: event-name normalization, run-id extraction, event phase
+  classification, terminal status mapping, active-run id helpers, queued-run
+  decisions, and liveness decisions. It must not mutate threads/messages,
+  broadcast, save state, schedule workers, or call Gateway runner APIs;
 - `gateway-run-event-service.js` must stay at or below 360 lines and remain
-  event parsing/projection plus ordinary event persistence while delegating
+  event parsing/projection plus ordinary event persistence while using
+  `gateway-run-lifecycle-service.js` for event phase classification and delegating
   completed-run projection, text-delta projection, response-created alias
   projection, output-item/final-message projection, streaming state-save
   lifecycle, Skill/tool evidence parsing, deterministic toolset escalation

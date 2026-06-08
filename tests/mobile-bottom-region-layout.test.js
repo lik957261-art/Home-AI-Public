@@ -30,7 +30,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260608-bottom-region-v625";
+const clientVersion = "20260608-route-snapshot-arch-v626";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 

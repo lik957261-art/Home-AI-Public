@@ -1,6 +1,8 @@
 "use strict";
 
 const {
+  GATEWAY_RUN_EVENT_PHASES,
+  classifyGatewayRunLifecycleEvent,
   extractGatewayRunIds,
   withActiveRunRemoved,
   withActiveRunReplaced,
@@ -301,23 +303,28 @@ function createGatewayRunEventService(options = {}) {
     const context = resolveRunEventContext(event);
     const { eventName, runId, thread, message } = context;
     if (!thread || !message) return { action: "missing_target", eventName, runId };
+    const lifecycleEvent = classifyGatewayRunLifecycleEvent(eventName);
 
-    if (eventName === "response.created") return getResponseCreatedService().markResponseCreated(context);
-    if (eventName === "message.delta" || eventName === "response.output_text.delta") {
+    if (lifecycleEvent.phase === GATEWAY_RUN_EVENT_PHASES.RESPONSE_CREATED) {
+      return getResponseCreatedService().markResponseCreated(context);
+    }
+    if (lifecycleEvent.phase === GATEWAY_RUN_EVENT_PHASES.TEXT_DELTA) {
       return getDeltaEventService().applyDelta(context, event);
     }
-    if (eventName === "response.output_item.added" || eventName === "response.output_item.done") {
+    if (lifecycleEvent.phase === GATEWAY_RUN_EVENT_PHASES.OUTPUT_ITEM) {
       return getOutputEventService().recordOutputItemEvent(context, event);
     }
-    if (eventName === "response.output_text.done") return getOutputEventService().recordFinalMessageDoneEvent(context, event);
+    if (lifecycleEvent.phase === GATEWAY_RUN_EVENT_PHASES.FINAL_MESSAGE_DONE) {
+      return getOutputEventService().recordFinalMessageDoneEvent(context, event);
+    }
 
     addThreadEvent(thread, event);
 
-    if (eventName === "run.completed" || eventName === "response.completed") return getCompletionService().markRunCompleted(context, event);
-    if (eventName === "run.failed" || eventName === "response.failed") {
+    if (lifecycleEvent.terminalStatus === "done") return getCompletionService().markRunCompleted(context, event);
+    if (lifecycleEvent.terminalStatus === "failed") {
       return markRunFailed(thread.id, message.id, runId, event.error || "run failed");
     }
-    if (eventName === "run.cancelled" || eventName === "response.incomplete") {
+    if (lifecycleEvent.terminalStatus === "cancelled") {
       return markRunCancelled(thread.id, message.id, runId);
     }
 

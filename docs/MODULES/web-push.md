@@ -14,6 +14,7 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 - `adapters/web-push-send-service.js`
 - `adapters/web-push-vapid-service.js`
 - `public/service-worker.js`
+- `public/app-route-snapshot-ui.js`
 - `public/app-platform-ui.js`
 - `public/app-task-groups-ui.js`
 - Feature-specific producers such as Growth, Automation, Weixin, and group-chat services.
@@ -118,7 +119,12 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 
 ## Debug Pointers
 
-When a push opens the wrong page, check three layers in order: payload route fields, service worker client selection, and frontend route handling in `app-platform-ui.js`. Do not start by changing the destination URL to a raw viewer URL.
+When a push opens the wrong page, check three layers in order: payload route
+fields, service worker client selection, and frontend route handling in
+`app-route-snapshot-ui.js` plus `app-platform-ui.js`. The snapshot module owns
+saved route/scroll restore after reload; the platform module owns explicit
+route application. Do not start by changing the destination URL to a raw viewer
+URL.
 
 For chat/topic receipt targeting, verify both the producer and the click router. The producer should store the terminal assistant receipt id in `data.messageId`; the service worker should preserve single-window chat/group routes before generic task routing; the frontend route parser should keep the `messageId` until the chat/topic message list renders and scrolls to it.
 

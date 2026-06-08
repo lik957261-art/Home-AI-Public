@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260608-bottom-region-v625";
+const CLIENT_VERSION = "20260608-route-snapshot-arch-v626";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -146,6 +146,8 @@ const weixinIngressProviderJs = fs.readFileSync(path.join(repoRoot, "adapters", 
 const taskArtifactHelpersJs = fs.readFileSync(path.join(repoRoot, "public", "app-task-artifact-helpers.js"), "utf8");
 const kanbanStoryHelpersJs = fs.readFileSync(path.join(repoRoot, "public", "app-kanban-story-helpers.js"), "utf8");
 const appRunProgressUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-run-progress-ui.js"), "utf8");
+const appRouteSnapshotUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-route-snapshot-ui.js"), "utf8");
+const appPlatformUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-platform-ui.js"), "utf8");
 const appLearningReadingUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-reading-ui.js"), "utf8");
 const appLearningCoinsUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-coins-ui.js"), "utf8");
 const appLearningProgramUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-learning-program-ui.js"), "utf8");
@@ -205,8 +207,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260608-bottom-region-v625" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260608-bottom-region-v625"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260608-route-snapshot-arch-v626" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260608-route-snapshot-arch-v626"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -824,6 +826,16 @@ assert.match(appJs, /function handleAppForegrounded\(\) \{[\s\S]*?settleEmbedded
 assert.match(appJs, /const HERMES_ROUTE_SNAPSHOT_KEY = "hermesWebRouteSnapshot"/);
 assert.match(appJs, /function persistAppRouteSnapshot\(reason = "state"\)/);
 assert.match(appJs, /function applyRestoredAppRouteSnapshot\(\)/);
+assert.match(appRouteSnapshotUiJs, /function currentAppRouteSnapshotParams\(\)/);
+assert.match(appRouteSnapshotUiJs, /function restoreAppRouteSnapshotPosition\(\)/);
+assert.match(appRouteSnapshotUiJs, /\["pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"\]\.forEach/);
+assert.doesNotMatch(appPlatformUiJs, /function persistAppRouteSnapshot\(reason = "state"\)/);
+assert.doesNotMatch(appPlatformUiJs, /function restoreAppRouteSnapshotPosition\(\)/);
+assert.ok(
+  indexHtml.indexOf("/app-route-snapshot-ui.js") > -1
+    && indexHtml.indexOf("/app-route-snapshot-ui.js") < indexHtml.indexOf("/app-platform-ui.js"),
+  "route snapshot module must load before platform bootstrap"
+);
 assert.match(appJs, /if \(!applyInitialRouteFromUrl\(\) && !applyRestoredAppRouteSnapshot\(\)\) applyDefaultLaunchView\(\)/);
 assert.match(appJs, /restoreAppRouteSnapshotPosition\(\)/);
 assert.match(appJs, /function routeParamsHaveExplicitLaunchTarget\(params\)/);
@@ -2447,10 +2459,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260608-bottom-region-v625/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260608-bottom-region-v625/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260608-bottom-region-v625/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260608-bottom-region-v625/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260608-route-snapshot-arch-v626/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260608-route-snapshot-arch-v626/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260608-route-snapshot-arch-v626/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260608-route-snapshot-arch-v626/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);

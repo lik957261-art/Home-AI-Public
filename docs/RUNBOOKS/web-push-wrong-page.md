@@ -64,7 +64,9 @@ Durable fix:
 2. Reproduce against the exact external URL/path the phone uses, including any reverse-proxy or app-shell prefix. Do not rely only on `127.0.0.1` or root `/` smoke.
 3. Inspect the push payload shape without printing endpoints or secrets.
 4. Check `public/service-worker.js` client-selection logic.
-5. Check frontend route handling in `public/app-platform-ui.js` and the target module UI.
+5. Check frontend route snapshot/restore handling in
+   `public/app-route-snapshot-ui.js`, explicit route application in
+   `public/app-platform-ui.js`, and the target module UI.
 6. Inspect generated Hermes-owned route strings. `/?view=...` is valid only for a root-mounted app; a prefixed shell must keep its current prefix.
 7. If other static changes refresh correctly but the browser-frame symptom does not change, treat this as a route/scope problem before continuing cache workarounds.
 

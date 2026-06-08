@@ -1124,6 +1124,12 @@ DeepSeek or another provider.
   captured visible output or toolset-escalation marker instead of cancelling the
   run or leaking raw internal markers such as
   `HERMES_TOOLSET_ESCALATION_REQUIRED` into the final answer.
+- Mobile lifecycle event dispatch uses
+  `adapters/gateway-run-lifecycle-service.js` for the stable event phase
+  taxonomy: response-created aliasing, text deltas, output items, final-message
+  done, terminal done/failed/cancelled, and ordinary events. The event service
+  may resolve target context and call projection services, but it must not own a
+  separate hard-coded lifecycle taxonomy.
 - Responses streams can repeat the same JSON decision across delta/done/final
   events. Selector parsing must scan JSON candidates and accept a valid final
   decision instead of treating duplicated JSON text as an `invalid_json`
