@@ -917,6 +917,7 @@ async function openBuiltInDirectoryPlugin() {
   clearQuotedReply({ render: false });
   if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
   state.directoryReturnRoute = typeof captureDirectoryReturnRoute === "function" ? captureDirectoryReturnRoute() : null;
+  state.directoryPluginContextActive = true;
   state.viewMode = "projects";
   localStorage.setItem("hermesWebViewMode", state.viewMode);
   state.currentTaskGroupId = "";
@@ -1032,6 +1033,7 @@ async function openPluginTopicDelivery(pluginId) {
   state.currentTaskGroupId = "";
   state.currentThread = null;
   state.currentThreadId = "";
+  state.directoryPluginContextActive = false;
   state.directoryReturnRoute = returnRoute;
   if (typeof applyViewMode === "function") applyViewMode();
   if (project?.root && directory?.path) {

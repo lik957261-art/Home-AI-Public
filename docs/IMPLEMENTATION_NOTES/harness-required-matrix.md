@@ -1030,6 +1030,12 @@ Required harness dimensions:
   `access_policy_context`, plugin catalog status, assistant `runOptions`, and
   bounded `plugin_capability_activated` telemetry. The same harness must prove
   unrelated product plugins remain catalog-only unless independently activated.
+- Directory-bound Health or other plugin-MCP scenarios must also prove workspace
+  scope, not only toolset activation. An Owner actor operating inside a
+  non-Owner directory-bound topic must produce `actorWorkspaceId=owner` and
+  `workspaceId` / `targetWorkspaceId` / `dataWorkspaceId` equal to the directory
+  target workspace in Gateway routing, access policy, and instruction metadata;
+  falling back to Owner plugin/MCP data is a failing H1 case.
 - Wardrobe callable-schema harnesses must include
   `mcp_wardrobe_wardrobe_write_history` for actual-wear history writeback, in
   addition to item write, search, readback, and photo functions.

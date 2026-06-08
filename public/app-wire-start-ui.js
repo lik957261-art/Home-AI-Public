@@ -7,6 +7,7 @@ function preparePrimaryNavigationChange() {
   if (typeof closeDirectoryEntryMenus === "function") closeDirectoryEntryMenus();
   if (typeof setTopicPluginDock === "function") setTopicPluginDock("");
   state.pluginContextNavPluginId = "";
+  state.directoryPluginContextActive = false;
   if (typeof closeSidebar === "function" && typeof isMobileLayout === "function" && isMobileLayout()) closeSidebar();
 }
 

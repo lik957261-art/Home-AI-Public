@@ -313,6 +313,12 @@ async function navigateDirectoryUp(options = {}) {
     await settleDirectorySwipeShell(exitShell, true);
   }
   if (state.directoryReturnRoute && isDirectoryAtRouteRoot()) {
+    if (state.directoryPluginContextActive) {
+      resetDirectoryPath();
+      await loadDirectoryView({ resetPath: true });
+      if (options.animateEntry) animateDirectoryEntry();
+      return true;
+    }
     restoreDirectoryReturnRoute();
     return true;
   }

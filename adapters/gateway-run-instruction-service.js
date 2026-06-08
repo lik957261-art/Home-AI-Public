@@ -374,6 +374,9 @@ function createGatewayRunInstructionService(options = {}) {
     const hasPluginTopicContext = Boolean(buildOptions.pluginTopicContext?.pluginId || buildOptions.pluginTopicContext?.plugin_id);
     if (taskDirectory?.path && !hasPluginTopicContext) {
       lines.push(`Attached task directory: ${taskDirectory.label || "Directory"} => ${taskDirectory.path}.`);
+      if (buildOptions.directoryRunScope?.directoryScoped) {
+        lines.push(`Directory-bound data scope: target workspace ${buildOptions.directoryRunScope.targetWorkspaceId}; actor workspace ${buildOptions.directoryRunScope.actorWorkspaceId}. Plugin and MCP calls for this directory-bound topic must use the target workspace data, not the actor workspace fallback.`);
+      }
       lines.push("For this task group, the attached task directory is the frozen working directory. Do not switch the task to a later semantic project match, delivery folder, or unrelated path mentioned in follow-up text unless the user starts a new task from that directory.");
       lines.push("Base this task on the cleaned/normalized data in the attached directory first; use broader allowed roots only when the user request clearly requires it.");
       lines.push("Use Skill: productivity/directory-context-cleaning before analysis: clean new or changed files in the attached directory, update `.hermes-cleaned/summary.md` / indexes, then answer from summary-first cleaned context and open detailed cleaned Markdown only when needed.");

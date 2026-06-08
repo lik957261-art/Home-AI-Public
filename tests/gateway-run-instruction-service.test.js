@@ -201,6 +201,37 @@ function testBuildHermesInstructionsPreservesChatAndAttachmentGuidance() {
   assert.match(text, /Do not surface internal task IDs/);
 }
 
+function testDirectoryRunScopeInstructionPinsPluginDataWorkspace() {
+  const service = createService();
+  const text = service.buildHermesInstructions(
+    { hermesSessionId: "s", workspaceId: "li_yushuang" },
+    {
+      principal_id: "li_yushuang",
+      principal_label: "Li",
+      default_workspace: "C:/workspace/li",
+      allowed_roots: ["C:/workspace/li/health"],
+      allowed_toolsets: ["file", "health"],
+    },
+    { id: "li-health", root: "C:/workspace/li/health", workspaceId: "li_yushuang" },
+    "summarize health content",
+    { label: "Li health", path: "C:/workspace/li/health" },
+    {
+      directoryRunScope: {
+        actorWorkspaceId: "owner",
+        targetWorkspaceId: "li_yushuang",
+        dataWorkspaceId: "li_yushuang",
+        directoryScoped: true,
+        scopeSource: "directory_binding",
+      },
+    },
+  );
+
+  assert.match(text, /Attached task directory: Li health => C:\/workspace\/li\/health/);
+  assert.match(text, /Directory-bound data scope: target workspace li_yushuang; actor workspace owner/);
+  assert.match(text, /Plugin and MCP calls for this directory-bound topic must use the target workspace data/);
+  assert.doesNotMatch(text, /SEMANTIC_ROUTE/);
+}
+
 function testBuildHermesInstructionsIncludesSemanticRoutingForTaskStream() {
   const service = createService();
   const text = service.buildHermesInstructions(
@@ -317,6 +348,7 @@ testWebSearchBudgetInstructionCanBeDisabled();
 testChineseCurrentPriceRequestUsesExplicitSearchInstruction();
 testGatewayConversationIdEpochForSchemaSensitiveToolsets();
 testBuildHermesInstructionsPreservesChatAndAttachmentGuidance();
+testDirectoryRunScopeInstructionPinsPluginDataWorkspace();
 testBuildHermesInstructionsIncludesSemanticRoutingForTaskStream();
 testWardrobePluginTopicContextForcesSkillMcpAndSkipsDirectoryCleaning();
 testPluginCapabilityCatalogInstructionsSeparateActiveAndCatalogOnlyPlugins();

@@ -590,6 +590,7 @@ const state = {
   directoryPath: "",
   directoryRootPath: "",
   directoryReturnRoute: null,
+  directoryPluginContextActive: false,
   directoryPreview: null,
   directoryLoading: false,
   directoryError: "",

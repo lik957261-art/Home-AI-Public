@@ -1,6 +1,8 @@
 "use strict";
 
 const { createPluginCapabilityActivationService } = require("./plugin-capability-activation-service");
+const { createDirectoryRunScopeService } = require("./directory-run-scope-service");
+const { buildGatewayRoutingForRunRequest } = require("./gateway-run-request-routing-service");
 
 const DEFAULT_TOOL_SCHEMA_EPOCH = "20260513-audio-file-v1";
 const DEFAULT_SINGLE_WINDOW_PROJECT_ID = "single-window";
@@ -277,6 +279,11 @@ function createGatewayRunRequestBuilderService(options = {}) {
   );
   const routeRunToolsets = maybeCall(options.routeRunToolsets, ({ policy }) => ({ policy: objectValue(policy), routing: null }));
   const gatewaySkillRoutingForWorkspace = maybeCall(options.gatewaySkillRoutingForWorkspace, () => ({}));
+  const directoryRunScopeService = options.directoryRunScopeService || createDirectoryRunScopeService();
+  const resolveDirectoryRunScope = maybeCall(
+    options.resolveDirectoryRunScope,
+    (input) => directoryRunScopeService.resolveDirectoryRunScope(input),
+  );
 
   function buildGroupChatRunContext(thread, userMessage, policy) {
     const deliveryRoot = thread?.singleWindow && cleanString(userMessage?.taskGroupId) === groupChatTaskGroupId
@@ -328,23 +335,34 @@ function createGatewayRunRequestBuilderService(options = {}) {
     const requiredPluginToolsets = pluginTopicContext ? pluginTopicContext.requiredToolsets : [];
     const requiredPluginSkills = pluginTopicContext ? pluginTopicContext.requiredSkills : [];
     const pluginDeliveryDirectory = pluginTopicContext ? pluginDeliveryDirectoryForMessage(userMessage) : null;
+    const requestedGatewayRouting = Object.assign({}, objectValue(runOptions.gatewayRouting));
+    const policyHardeningOptions = accessPolicyHardeningOptionsForGatewayRouting(requestedGatewayRouting);
+    const actorPolicyThread = policyThreadForRun(thread, actorWorkspaceId, singleWindowProjectId);
+    const taskDirectory = taskDirectoryAttachmentForMessage(thread, userMessage);
+    const project = taskDirectory
+      ? projectForTaskDirectoryAttachment(thread, taskDirectory)
+      : effectiveProjectForThread(actorPolicyThread);
+    const directoryRunScope = resolveDirectoryRunScope({
+      thread, userMessage, runOptions, requestedGatewayRouting, actorWorkspaceId, taskDirectory, project,
+    }) || {};
+    const dataWorkspaceId = cleanString(
+      directoryRunScope.dataWorkspaceId || directoryRunScope.targetWorkspaceId || actorWorkspaceId,
+      actorWorkspaceId,
+    );
+    const targetWorkspaceId = cleanString(directoryRunScope.targetWorkspaceId || dataWorkspaceId, dataWorkspaceId);
+    const runScopeFields = { directoryRunScope, actorWorkspaceId, targetWorkspaceId, dataWorkspaceId };
+    const policyThread = policyThreadForRun(thread, dataWorkspaceId, singleWindowProjectId);
     const requiredSkillPreloads = requiredPluginSkills.length
       ? safeLoadRequiredSkillPreloads({
         skills: requiredPluginSkills,
-        workspaceId: actorWorkspaceId,
+        workspaceId: dataWorkspaceId,
+        ...runScopeFields,
         pluginTopicContext,
         userMessage,
         runOptions,
       }, requiredPluginSkills)
       : [];
-    const requestedGatewayRouting = Object.assign({}, objectValue(runOptions.gatewayRouting));
-    const policyHardeningOptions = accessPolicyHardeningOptionsForGatewayRouting(requestedGatewayRouting);
-    const policyThread = policyThreadForRun(thread, actorWorkspaceId, singleWindowProjectId);
-    const taskDirectory = taskDirectoryAttachmentForMessage(thread, userMessage);
-    const project = taskDirectory
-      ? projectForTaskDirectoryAttachment(thread, taskDirectory)
-      : effectiveProjectForThread(policyThread);
-    const workspace = findWorkspace(actorWorkspaceId);
+    const workspace = findWorkspace(dataWorkspaceId);
     const routePolicy = workspace?.policy || workspace || {};
     let basePolicy = buildAccessPolicy(routePolicy, {}, project, policyHardeningOptions);
     const groupChat = buildGroupChatRunContext(thread, userMessage, objectValue(basePolicy));
@@ -363,6 +381,7 @@ function createGatewayRunRequestBuilderService(options = {}) {
       taskDirectory,
       groupChat,
       policyHardeningOptions,
+      ...runScopeFields,
     }) || {};
     runPolicy = sanitizePolicy(objectValue(routedPolicy.policy, runPolicy), policyHardeningOptions);
     runPolicy = sanitizePolicy(mergeRequiredToolsetsIntoPolicy(runPolicy, requiredPluginToolsets), policyHardeningOptions);
@@ -402,6 +421,7 @@ function createGatewayRunRequestBuilderService(options = {}) {
       pluginTopicContext,
       requiredPluginToolsets,
       requiredPluginSkills,
+      ...runScopeFields,
     }) || {};
     const pluginCapabilityContext = pluginCapabilityResult.context || null;
     runPolicy = sanitizePolicy(objectValue(pluginCapabilityResult.policy, runPolicy), policyHardeningOptions);
@@ -421,6 +441,7 @@ function createGatewayRunRequestBuilderService(options = {}) {
             : null,
           pluginCapabilityContext,
           requiredSkillPreloads,
+          ...runScopeFields,
         }),
       ),
       isPlainProbeMessage(userMessage?.content)
@@ -444,44 +465,21 @@ function createGatewayRunRequestBuilderService(options = {}) {
     if (runOptions.reasoning_effort) body.reasoning_effort = runOptions.reasoning_effort;
     if (runOptions.reasoning && typeof runOptions.reasoning === "object") body.reasoning = runOptions.reasoning;
 
-    const modelProvider = cleanString(body.provider || "");
-    const workerProvider = modelProvider;
-    const gatewayRouting = Object.assign({}, requestedGatewayRouting, {
-      purpose: "user_run",
-      workspaceId: actorWorkspaceId,
-      taskGroupId: userMessage?.taskGroupId || "",
-      model: body.model || "",
-      provider: workerProvider,
-      modelProvider,
-      reasoning_effort: body.reasoning_effort || "",
+    const gatewayRouting = buildGatewayRoutingForRunRequest({
+      requestedGatewayRouting,
+      runOptions,
+      userMessage,
+      body,
+      ...runScopeFields,
+      requiredPluginToolsets,
+      requiredPluginSkills,
+      pluginCapabilityContext,
+      dedupe,
+      gatewaySkillRoutingForWorkspace,
     });
-    if (runOptions.searchSource) gatewayRouting.searchSource = cleanString(runOptions.searchSource);
-    if (runOptions.sourceIntent) gatewayRouting.sourceIntent = cleanString(runOptions.sourceIntent);
-    if (runOptions.sourceMode) gatewayRouting.sourceMode = cleanString(runOptions.sourceMode);
-    if (requiredPluginToolsets.length) {
-      gatewayRouting.requiredToolsets = requiredPluginToolsets;
-      gatewayRouting.enabledToolsets = requiredPluginToolsets;
-    }
-    if (requiredPluginSkills.length) {
-      gatewayRouting.requiredSkills = requiredPluginSkills;
-    }
-    if (pluginCapabilityContext) {
-      gatewayRouting.activeSchemaSet = pluginCapabilityContext.activeSchemaSet;
-      gatewayRouting.pluginCapabilityCatalog = pluginCapabilityContext.catalog;
-      if (pluginCapabilityContext.probeRequests?.length) {
-        gatewayRouting.preferredToolsets = dedupe([
-          ...(gatewayRouting.preferredToolsets || gatewayRouting.preferred_toolsets || []),
-          ...pluginCapabilityContext.probeRequests.map((item) => item.toolset),
-        ]);
-      }
-      if (pluginCapabilityContext.omittedPluginToolsets?.length) {
-        gatewayRouting.omittedPluginToolsets = pluginCapabilityContext.omittedPluginToolsets;
-      }
-    }
-    Object.assign(gatewayRouting, gatewaySkillRoutingForWorkspace(actorWorkspaceId, gatewayRouting));
 
     return {
-      actorWorkspaceId,
+      ...runScopeFields,
       body,
       gatewayRouting,
       groupChat,

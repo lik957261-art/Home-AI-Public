@@ -58,9 +58,15 @@ function createBuilder(overrides = {}) {
     buildHermesInstructions: (thread, policy, project, latestText, taskDirectory, buildOptions) => JSON.stringify({
       workspaceId: thread.workspaceId,
       toolsets: policy.allowed_toolsets,
+      principalId: policy.principal_id,
       projectId: project.id,
+      projectWorkspaceId: project.workspaceId,
       latestText,
       taskDirectory,
+      directoryRunScope: buildOptions.directoryRunScope,
+      actorWorkspaceId: buildOptions.actorWorkspaceId,
+      targetWorkspaceId: buildOptions.targetWorkspaceId,
+      dataWorkspaceId: buildOptions.dataWorkspaceId,
       pluginTopicContext: buildOptions.pluginTopicContext,
       pluginCapabilityContext: buildOptions.pluginCapabilityContext,
       requiredSkillPreloads: buildOptions.requiredSkillPreloads,
@@ -138,6 +144,8 @@ function testBuildRunRequestAddsPluginRequirementsAndRouting() {
   });
 
   assert.equal(request.actorWorkspaceId, "owner");
+  assert.equal(request.targetWorkspaceId, "owner");
+  assert.equal(request.dataWorkspaceId, "owner");
   assert.deepEqual(request.pluginTopicContext.requiredToolsets, ["wardrobe", "vision", "file", "skills"]);
   assert.deepEqual(request.requiredSkillPreloads, [{
     path: "productivity/wardrobe-style-operations",
@@ -157,7 +165,65 @@ function testBuildRunRequestAddsPluginRequirementsAndRouting() {
   assert.deepEqual(request.gatewayRouting.requiredToolsets, ["wardrobe", "vision", "file", "skills"]);
   assert.deepEqual(request.gatewayRouting.requiredSkills, ["productivity/wardrobe-style-operations"]);
   assert.equal(request.gatewayRouting.skillWorkspaceId, "owner");
+  assert.equal(request.gatewayRouting.workspaceId, "owner");
+  assert.equal(request.gatewayRouting.actorWorkspaceId, "owner");
+  assert.equal(request.gatewayRouting.targetWorkspaceId, "owner");
+  assert.equal(request.gatewayRouting.dataWorkspaceId, "owner");
   assert.deepEqual(request.toolsetRouting, { mode: "plugin", reason: "required_plugin_toolsets" });
+}
+
+function testDirectoryBoundRunUsesTargetWorkspaceForGatewayAndPolicy() {
+  const { service } = createBuilder({
+    taskDirectoryAttachmentForMessage: () => ({
+      projectId: "li-health",
+      label: "Li health",
+      path: "/workspace/li/health",
+      root: "/workspace/li/health",
+    }),
+    projectForTaskDirectoryAttachment: (_thread, attachment) => ({
+      id: attachment.projectId,
+      root: attachment.path,
+      label: attachment.label,
+      workspaceId: "li_yushuang",
+    }),
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: routePolicy.principal_id === "li_yushuang" ? ["file", "health"] : ["file", "owner-health"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+  });
+  const request = service.buildRunRequest(
+    baseThread({ workspaceId: "owner", projectId: "owner-home" }),
+    baseUser({
+      content: "Summarize Li health content",
+      senderWorkspaceId: "owner",
+      taskGroupId: "directory-topic-li-health",
+    }),
+    { id: "assistant_1" },
+    {},
+  );
+  const instructions = JSON.parse(request.body.instructions);
+
+  assert.equal(request.actorWorkspaceId, "owner");
+  assert.equal(request.targetWorkspaceId, "li_yushuang");
+  assert.equal(request.dataWorkspaceId, "li_yushuang");
+  assert.equal(request.policyThread.workspaceId, "li_yushuang");
+  assert.equal(request.runPolicy.principal_id, "li_yushuang");
+  assert.ok(request.body.enabled_toolsets.includes("health"));
+  assert.equal(request.gatewayRouting.workspaceId, "li_yushuang");
+  assert.equal(request.gatewayRouting.actorWorkspaceId, "owner");
+  assert.equal(request.gatewayRouting.targetWorkspaceId, "li_yushuang");
+  assert.equal(request.gatewayRouting.dataWorkspaceId, "li_yushuang");
+  assert.equal(request.gatewayRouting.directoryScopeSource, "directory_binding");
+  assert.equal(request.gatewayRouting.directoryScoped, true);
+  assert.equal(request.gatewayRouting.skillWorkspaceId, "li_yushuang");
+  assert.equal(instructions.workspaceId, "li_yushuang");
+  assert.equal(instructions.principalId, "li_yushuang");
+  assert.equal(instructions.projectWorkspaceId, "li_yushuang");
+  assert.equal(instructions.directoryRunScope.actorWorkspaceId, "owner");
+  assert.equal(instructions.directoryRunScope.targetWorkspaceId, "li_yushuang");
+  assert.equal(instructions.dataWorkspaceId, "li_yushuang");
 }
 
 function testBuildGroupChatRunContextMergesDeliveryRoots() {
@@ -177,6 +243,7 @@ function testBuildGroupChatRunContextMergesDeliveryRoots() {
 
 testWorkspaceHelpersStayStable();
 testBuildRunRequestAddsPluginRequirementsAndRouting();
+testDirectoryBoundRunUsesTargetWorkspaceForGatewayAndPolicy();
 testBuildGroupChatRunContextMergesDeliveryRoots();
 
 console.log("gateway run request builder service tests passed");

@@ -1,6 +1,6 @@
 # Directory Topic Collections Design
 
-Last updated: 2026-06-06.
+Last updated: 2026-06-08.
 
 This document defines how Hermes Mobile should present and manage topics that
 are bound to directories. It is intentionally separate from
@@ -47,6 +47,11 @@ topics in one visible place.
 - Directory-topic bindings must resolve through the effective workspace and
   the directory ACL boundary. Owner viewing another workspace must see that
   workspace's directory topics, not Owner's.
+- Directory-bound model runs have two identities: the actor workspace and the
+  directory target workspace. The actor is used for audit/user origin; the
+  target workspace is used for access policy, Gateway worker/profile routing,
+  and plugin/MCP data calls. This is deterministic from bound directory/project
+  metadata and is not a natural-language selector.
 
 ## Suggested Data Model
 
@@ -147,6 +152,12 @@ The selector should ignore or summarize:
 - logs;
 - files over the configured context budget.
 
+Plugin/MCP calls are allowed in directory-bound topics when the target
+workspace authorizes them. For example, a Health request inside a directory
+bound to another workspace should call that workspace's Health MCP/profile when
+available; it must not silently fall back to Owner's Health data merely because
+Owner initiated the run.
+
 ## Service-First Implementation Plan
 
 Add focused services before wiring UI routes:
@@ -158,6 +169,9 @@ Add focused services before wiring UI routes:
 - `adapters/directory-topic-context-service.js`
   - select cleaned directory evidence for a topic run;
   - return bounded context refs/previews only.
+- `adapters/directory-run-scope-service.js`
+  - resolve actor workspace versus directory target workspace for Gateway runs;
+  - keep directory-bound plugin/MCP calls on the target workspace.
 - `server-routes/directory-topic-api-routes.js`
   - expose list/open/create/default-selection APIs;
   - delegate business logic to services.
@@ -184,6 +198,8 @@ Required focused coverage:
 - opening a topic uses the selected topic id, not a stale or unrelated topic;
 - Owner viewing a non-Owner workspace resolves the target workspace directory
   and topic bindings;
+- Owner-initiated directory-bound Gateway runs use the target workspace for
+  policy, Gateway profile routing, and plugin/MCP data access;
 - context selector includes only cleaned/selected/bounded files;
 - raw secrets, tokens, push endpoints, full learner content, raw mailboxes, raw
   ledgers, private inventories, and long logs are not stored or injected;
@@ -249,6 +265,10 @@ Likely focused checks:
 - Static v547 keeps the Directory built-in card compact and fixes top-left
   Directory back from route-root pages that only have `directoryReturnRoute`:
   the button restores the captured source route instead of opening the sidebar.
+- Static v634 changes the built-in Directory plugin back path so route-root
+  back returns to the Directory root listing before restoring the outer topic
+  route, keeps Directory navigation backgrounds stable in dark mode, and adds a
+  deterministic directory-run scope for target-workspace Gateway/MCP routing.
 - The v446 projection does not add persistence yet. Until the service layer
   stores an explicit default topic, the frontend uses the most recently updated
   topic in the directory as the temporary default.

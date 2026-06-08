@@ -14,6 +14,7 @@ The same ACL boundary must protect listing, preview, upload, delete, task direct
 - `server-routes/file-artifact-api-routes.js`
 - `adapters/directory-browser-boundary-service.js`
 - `adapters/directory-delete-policy-service.js`
+- `adapters/directory-run-scope-service.js`
 - `adapters/shared-directory-provider.js`
 - `adapters/shared-directory-projection-service.js`
 - `adapters/semantic-directory-attachment-service.js`
@@ -44,8 +45,11 @@ The same ACL boundary must protect listing, preview, upload, delete, task direct
 - Delete must be explicit and non-recursive unless a dedicated audited policy says otherwise.
 - Protected roots include workspace root, sync/download roots, cache/delivery roots, hidden roots, and allowed-root boundaries.
 - When Directory is opened as the built-in plugin, right-swipe/back must return
-  through directory levels first. Only after the current directory has reached
-  its route root should the same gesture restore the outer plugin/topic route.
+  through directory levels first, then return from a route root to the
+  Directory root listing, and only the next root-list back gesture restores the
+  outer plugin/topic route. Plugin delivery directories that were opened from a
+  plugin topic may still restore their captured route at the delivery route
+  root.
 - When a directory chip is opened from a topic or message, Directory preview
   uses the current topic thread as the ACL context while a directory return
   route exists. It must not blindly create a new single-window directory thread
@@ -95,6 +99,11 @@ Context rules:
   long logs must not enter topic context, docs, handoff, or tests.
 - Owner viewing another workspace must resolve that workspace's directory topic
   bindings, default topic, and files. Owner fallback is a permission bug.
+- Directory-bound Gateway runs must separate actor and data scope. Owner may
+  initiate a run, but a directory binding to another workspace must select that
+  target workspace for access policy, Gateway worker/profile routing, and
+  plugin/MCP data access. Missing directory workspace metadata falls back to the
+  actor workspace rather than guessing from natural language.
 
 Current frontend projection:
 
@@ -108,6 +117,10 @@ Current frontend projection:
 - Static v547 renders directory-bound topics as compact collapsible folder-tree
   rows, keeps the built-in Directory card tighter on mobile, and fixes
   top-left Directory back from route-root pages with a captured return route.
+- Static v634 fixes built-in Directory plugin back behavior so route-root back
+  first returns to the Directory root listing, adds stable dark-mode page
+  background for Directory navigation transitions, and routes directory-bound
+  runs through the target workspace when directory metadata identifies one.
 - Until a service-owned explicit default topic exists, the card opens the most
   recently updated topic in that directory as the temporary default.
 - Changing persistence, context assembly, or workspace binding resolution must

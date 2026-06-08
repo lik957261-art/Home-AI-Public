@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260608-plugin-context-restore-v633";
+const CLIENT_VERSION = "20260608-directory-scope-v634";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -207,8 +207,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260608-plugin-context-restore-v633" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260608-plugin-context-restore-v633"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260608-directory-scope-v634" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260608-directory-scope-v634"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2473,10 +2473,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260608-plugin-context-restore-v633/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260608-plugin-context-restore-v633/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260608-plugin-context-restore-v633/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260608-plugin-context-restore-v633/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260608-directory-scope-v634/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260608-directory-scope-v634/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260608-directory-scope-v634/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260608-directory-scope-v634/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2593,7 +2593,10 @@ assert.match(appJs, /function openPluginTopicChat\(pluginId, options = \{\}\)[\s
 assert.match(appJs, /function openPluginTopicChat\(pluginId, options = \{\}\)[\s\S]*?state\.forceChatStickToBottomUntil = Date\.now\(\) \+ 12000[\s\S]*?await loadSingleWindow\(\)[\s\S]*?scheduleConversationBottomStick\(\)/);
 assert.match(appJs, /if \(!deferViewModeApplyUntilLoaded && typeof applyViewMode === "function"\) applyViewMode\(\);[\s\S]*?await loadSingleWindow\(\);[\s\S]*?if \(deferViewModeApplyUntilLoaded && typeof applyViewMode === "function"\) applyViewMode\(\);/);
 assert.match(appJs, /async function openBuiltInDirectoryPlugin\(\)/);
+assert.match(appJs, /directoryPluginContextActive: false/);
+assert.match(appJs, /function preparePrimaryNavigationChange\(\) \{[\s\S]*?state\.directoryPluginContextActive = false;/);
 assert.match(appJs, /async function openBuiltInDirectoryPlugin\(\)[\s\S]*?state\.viewMode = "projects";[\s\S]*?applyViewMode\(\);[\s\S]*?updateNavigationControls\(\);[\s\S]*?resetDirectoryPath\(\);[\s\S]*?await loadProjects\(\);[\s\S]*?await loadDirectoryView\(\{ resetPath: true \}\);/);
+assert.match(appJs, /async function openBuiltInDirectoryPlugin\(\)[\s\S]*?state\.directoryPluginContextActive = true;/);
 assert.doesNotMatch((appJs.match(/async function openBuiltInDirectoryPlugin\(\)[\s\S]*?async function openBuiltInDirectoryTopicList\(\)/) || [""])[0], /openCurrentDirectoryEntry/);
 assert.match(appJs, /function pluginTopicGroupsForTaskList\(thread\) \{[\s\S]*?filter\(\(def\) => !def\.builtinKind\)/);
 assert.match(appJs, /if \(def\.builtinKind === "directory"\) \{[\s\S]*?await openBuiltInDirectoryPlugin\(\)/);
@@ -2959,6 +2962,10 @@ assert.match(appJs, /window\.matchMedia\("\(pointer: coarse\) and \(max-width: 1
 assert.match(appJs, /const learningGrowthSettings = state\.viewMode === "learning" && Boolean\(state\.learningGrowthSettingsOpen\)/);
 assert.match(appJs, /const mainBack = taskDetail \|\| directoryTopicDraft \|\| todoDetail \|\| todoCreate \|\| automationDetail \|\| automationSecondary \|\| actionInboxDetail \|\| actionInboxCreate \|\| skillDetail \|\| directoryBack \|\| learningGrowthDetail \|\| learningGrowthSettings/);
 assert.match(appJs, /if \(!directoryActivePath\(\)\) \{[\s\S]*?if \(state\.directoryReturnRoute\) \{[\s\S]*?restoreDirectoryReturnRoute\(\);[\s\S]*?return true;[\s\S]*?\}/);
+assert.match(appJs, /if \(state\.directoryReturnRoute && isDirectoryAtRouteRoot\(\)\) \{[\s\S]*?if \(state\.directoryPluginContextActive\) \{[\s\S]*?resetDirectoryPath\(\);[\s\S]*?await loadDirectoryView\(\{ resetPath: true \}\);/);
+assert.match(appJs, /function restoreDirectoryReturnRoute\(\) \{[\s\S]*?state\.directoryPluginContextActive = false;/);
+assert.match(stylesCss, /\.directory-shell \{[\s\S]*?min-height: 100%;[\s\S]*?background: var\(--ui-page\);/);
+assert.match(stylesCss, /\.projects-mode \.conversation \{[\s\S]*?background: var\(--ui-page\);/);
 assert.match(appJs, /if \(isTodoDetailView\(\) \|\| kanbanComposerOpen\(\)\) return isTodoDetailView\(\) \? "todo" : "todo-create";/);
 assert.match(appJs, /if \(state\.viewMode === "projects" && \(directoryActivePath\(\) \|\| state\.directoryReturnRoute\)\) return "directory";/);
 assert.match(appJs, /automationDetailInboxReturnActive\(\)\) return "automation-secondary"/);

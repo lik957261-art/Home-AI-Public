@@ -351,6 +351,7 @@ function restoreDirectoryReturnRoute() {
   const route = state.directoryReturnRoute;
   if (!route) return false;
   state.directoryReturnRoute = null;
+  state.directoryPluginContextActive = false;
   state.directoryPath = route.directoryPath || "";
   state.directoryRootPath = route.directoryRootPath || "";
   state.directoryPreview = null;

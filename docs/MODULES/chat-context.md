@@ -29,6 +29,10 @@ assembly only decides what is injected into the next model call.
   multiple topic chats, but each topic context remains scoped by its own
   `(threadId, taskGroupId)` and may include only the selected directory's
   cleaned summaries, selected files, and bounded previews.
+- Directory-bound topics may also use plugin/MCP data that is authorized for
+  the bound directory's target workspace. The initiating actor workspace and
+  the target data workspace must remain separate; Owner-initiated runs over a
+  non-Owner directory must not fall back to Owner plugin/MCP data.
 - Long artifacts, long tool logs, raw prompts, full learner content, secrets,
   and push endpoints must not be written into context summaries or debug
   metadata.
@@ -48,7 +52,9 @@ Current implementation uses these practical layers:
   data; cleaned delivery-directory files are supporting context.
 - Directory-topic bindings, when implemented, are injected as bounded directory
   metadata and selected evidence. They do not authorize file access and must
-  resolve all file context through the directory boundary service.
+  resolve all file context through the directory boundary service. Runtime
+  Gateway runs use `adapters/directory-run-scope-service.js` to pin plugin/MCP
+  data scope to the bound directory workspace when that metadata is present.
 - `topic_summary` is read from `topic_context_summaries` when layered mode is
   enabled and a stable summary exists.
 - `working_state` is read from `topic_working_states` when available.

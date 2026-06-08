@@ -6584,14 +6584,17 @@ button.directory-alias-chip {
 
 .directory-shell {
   width: min(920px, 100%);
+  min-height: 100%;
   margin: 0 auto;
   display: grid;
   gap: 14px;
+  background: var(--ui-page);
   transform: translate3d(0, 0, 0);
   touch-action: pan-y;
 }
 
 .projects-mode .conversation {
+  background: var(--ui-page);
   touch-action: pan-y;
 }
 
