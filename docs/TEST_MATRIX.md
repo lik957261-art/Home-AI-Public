@@ -976,7 +976,11 @@ Embedded app plugin host tests must assert manifest-driven tab loading,
 same-window iframe navigation, no `target=_blank` browser handoff, a short-lived
 signed embed token with no raw keys in URLs, a persistent iframe host that does
 not reparent launch iframes, a clean blank host during manifest/launch loading,
-and a postMessage/back contract. The host-side harness must also assert that
+and postMessage back plus viewport contracts. The viewport contract must prove
+the active iframe receives bounded `hermes.plugin.viewport` messages on
+attach/load and host keyboard/visual-viewport changes, including viewport,
+keyboard, iframe, host, and footer metrics with no raw keys, launch tokens,
+cookies, route URLs, or user content. The host-side harness must also assert that
 the parent `edgeSwipeZone` starts a real edge back-swipe state for plugin pages
 instead of only swallowing iframe-adjacent touch events with `preventDefault()`.
 Mobile bottom navigation must keep Codex as a first-level tab while collecting
@@ -1004,7 +1008,10 @@ or floating action bars reserve only plugin-owned footer space, and device/CDP
 checks measure both the iframe/footer gap and the plugin local-nav/iframe-bottom
 gap. If Finance-like plugin pages align while another plugin floats above the
 footer, treat that as a plugin-side embedded layout failure unless host geometry
-shows the iframe still extends under the Hermes footer. The
+shows the iframe still extends under the Hermes footer. Keyboard-sensitive
+plugin sheets, remark layers, and fixed form actions must use the host
+`hermes.plugin.viewport` payload in embedded mode, not iframe-local
+`window.innerHeight` / `visualViewport` alone. The
 same-origin proxy harness must also cover plugin-owned JSON image paths,
 including Note `/api/v1/app/attachments/<id>` URLs in note bodies and
 attachment metadata; these URLs must be rewritten to

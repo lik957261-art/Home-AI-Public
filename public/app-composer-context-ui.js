@@ -242,6 +242,9 @@ function updateKeyboardViewportMetrics() {
   } else {
     clearKeyboardViewportMetrics();
   }
+  if (typeof scheduleEmbeddedPluginViewportBroadcast === "function") {
+    scheduleEmbeddedPluginViewportBroadcast(active ? "host_keyboard" : "host_keyboard_clear", 0);
+  }
   return active;
 }
 
@@ -405,6 +408,7 @@ function updatePluginContextViewportReservation() {
   );
   if (!active || !nav || nav.hidden || window.getComputedStyle?.(nav).display === "none") {
     root.style.removeProperty("--plugin-context-main-bottom");
+    if (typeof scheduleEmbeddedPluginViewportBroadcast === "function") scheduleEmbeddedPluginViewportBroadcast("plugin_context_inactive", 0);
     return;
   }
   const navHeight = Math.ceil(nav.getBoundingClientRect?.().height || 0);
@@ -420,6 +424,7 @@ function updatePluginContextViewportReservation() {
   const bottomInset = Math.max(navHeight, navHeight + viewportOverflow);
   if (bottomInset > 0) root.style.setProperty("--plugin-context-main-bottom", `${bottomInset}px`);
   else root.style.removeProperty("--plugin-context-main-bottom");
+  if (typeof scheduleEmbeddedPluginViewportBroadcast === "function") scheduleEmbeddedPluginViewportBroadcast("plugin_context_viewport", 0);
 }
 
 function normalizeMobileViewportAfterViewChange() {

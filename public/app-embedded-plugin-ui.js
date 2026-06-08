@@ -89,6 +89,7 @@ function embeddedPluginRecord(pluginId) {
       navigationLastAt: 0,
       bridgeBound: false,
       frameHealthSeq: 0,
+      viewportMessageTimer: 0,
       loading: false,
       checked: false,
     };
@@ -565,6 +566,101 @@ function embeddedPluginPreviewFullscreenActive(def = embeddedPluginDefByView()) 
   return state.viewMode === def.viewMode && Boolean(embeddedPluginRecord(def.id).previewFullscreen);
 }
 
+function embeddedPluginActiveFrame(def = embeddedPluginDefByView()) {
+  if (!def) return null;
+  return currentEmbeddedPluginShell(def)?.querySelector(".embedded-plugin-frame") || null;
+}
+
+function embeddedPluginRectPayload(node) {
+  const rect = node?.getBoundingClientRect?.();
+  if (!rect) return null;
+  return {
+    top: Math.round(rect.top),
+    right: Math.round(rect.right),
+    bottom: Math.round(rect.bottom),
+    left: Math.round(rect.left),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+  };
+}
+
+function embeddedPluginCssPx(name) {
+  const value = window.getComputedStyle?.(document.documentElement)?.getPropertyValue(name);
+  const number = Number.parseFloat(value || "");
+  return Number.isFinite(number) ? Math.round(number) : 0;
+}
+
+function embeddedPluginViewportPayload(def, frame, reason = "layout") {
+  const visual = window.visualViewport;
+  const layoutWidth = Math.round(window.innerWidth || document.documentElement?.clientWidth || 0);
+  const layoutHeight = Math.round(window.innerHeight || document.documentElement?.clientHeight || 0);
+  const visualWidth = Math.round(visual?.width || layoutWidth || 0);
+  const visualHeight = Math.round(visual?.height || layoutHeight || 0);
+  const visualOffsetTop = Math.round(visual?.offsetTop || 0);
+  const visualOffsetLeft = Math.round(visual?.offsetLeft || 0);
+  const keyboard = typeof visualViewportKeyboardMetrics === "function" ? visualViewportKeyboardMetrics() : null;
+  const nav = $("bottomNav");
+  const footerVisible = Boolean(nav && !nav.hidden && window.getComputedStyle?.(nav).display !== "none");
+  const bottomLayout = window.__hermesMobileBottomLayoutMetrics || {};
+  return {
+    type: "hermes.plugin.viewport",
+    version: 1,
+    pluginId: def.id,
+    workspaceId: embeddedPluginCurrentWorkspaceId(),
+    reason: String(reason || "layout").slice(0, 60),
+    viewport: {
+      width: visualWidth,
+      height: visualHeight,
+      offsetTop: visualOffsetTop,
+      offsetLeft: visualOffsetLeft,
+      scale: Number.isFinite(visual?.scale) ? Number(visual.scale) : 1,
+      layoutWidth,
+      layoutHeight,
+    },
+    keyboard: {
+      visible: Boolean(keyboard?.keyboardLikely),
+      bottomInset: Math.max(0, Math.round(keyboard?.bottomInset || 0)),
+      offsetTop: Math.max(0, Math.round(keyboard?.offsetTop || 0)),
+      height: Math.max(0, Math.round(keyboard?.bottomInset || 0)),
+    },
+    iframe: embeddedPluginRectPayload(frame),
+    host: embeddedPluginRectPayload(embeddedPluginHost(def)),
+    footer: {
+      visible: footerVisible,
+      rect: footerVisible ? embeddedPluginRectPayload(nav) : null,
+      bottom: embeddedPluginCssPx("--mobile-bottom-nav-bottom-runtime"),
+      offsetHeight: embeddedPluginCssPx("--mobile-bottom-nav-offset-height-runtime"),
+      reservedHeight: embeddedPluginCssPx("--mobile-bottom-nav-reserved-height-runtime"),
+      stackHeight: embeddedPluginCssPx("--mobile-bottom-stack-height-runtime"),
+      pluginContextBottom: embeddedPluginCssPx("--plugin-context-main-bottom"),
+      measuredStackHeight: Math.max(0, Math.round(bottomLayout.stackHeight || 0)),
+    },
+  };
+}
+
+function sendEmbeddedPluginViewportMetrics(def = embeddedPluginDefByView(), reason = "layout") {
+  if (!def || state.viewMode !== def.viewMode) return false;
+  const frame = embeddedPluginActiveFrame(def);
+  const record = embeddedPluginRecord(def.id);
+  const origin = record.frameOrigin || embeddedPluginEntryOrigin(def, record.manifest) || embeddedPluginEntryOrigin(def);
+  if (!frame?.contentWindow || !origin) return false;
+  frame.contentWindow.postMessage(embeddedPluginViewportPayload(def, frame, reason), origin);
+  record.lastViewportMessageAt = Date.now();
+  return true;
+}
+
+function scheduleEmbeddedPluginViewportBroadcast(reason = "layout", delay = 0) {
+  const def = embeddedPluginDefByView();
+  if (!def || state.viewMode !== def.viewMode) return false;
+  const record = embeddedPluginRecord(def.id);
+  if (record.viewportMessageTimer) window.clearTimeout(record.viewportMessageTimer);
+  record.viewportMessageTimer = window.setTimeout(() => {
+    record.viewportMessageTimer = 0;
+    sendEmbeddedPluginViewportMetrics(def, reason);
+  }, Math.max(0, Number(delay || 0)));
+  return true;
+}
+
 function embeddedPluginHost(def) {
   let host = $(def.hostId);
   if (host) return host;
@@ -588,6 +684,7 @@ function setEmbeddedPluginHostVisible(def, visible) {
   host.classList.toggle("active", visible);
   $("app")?.classList.toggle(`${def.viewMode}-plugin-host-active`, visible);
   $("app")?.classList.toggle("embedded-plugin-host-active", visible);
+  if (visible) scheduleEmbeddedPluginViewportBroadcast("host_visible", 0);
 }
 
 function currentEmbeddedPluginShell(def) {
@@ -612,6 +709,7 @@ function attachEmbeddedPluginShell(def, entryUrl) {
   setEmbeddedPluginHostVisible(def, true);
   embeddedPluginRecord(def.id).shellNode = shell;
   bindEmbeddedPluginFrameHealth(def, frame);
+  scheduleEmbeddedPluginViewportBroadcast("frame_attach", 0);
   return true;
 }
 
@@ -695,6 +793,7 @@ function bindEmbeddedPluginFrameHealth(def, frame) {
   frame.addEventListener("load", () => {
     frame.closest(".embedded-plugin-shell")?.classList.remove("is-loading");
     scheduleEmbeddedPluginLaunchHealthCheck(def, frame, Date.now());
+    [0, 80, 240].forEach((delay) => window.setTimeout(() => sendEmbeddedPluginViewportMetrics(def, "frame_load"), delay));
   });
 }
 
@@ -868,6 +967,7 @@ function renderEmbeddedPluginView(def) {
     record.renderedEntryUrl = entryUrl;
     record.frameCreatedAt = Date.now();
     bindEmbeddedPluginFrameHealth(def, embeddedPluginHost(def).querySelector(".embedded-plugin-frame"));
+    scheduleEmbeddedPluginViewportBroadcast("frame_render", 0);
     if (embeddedPluginUsesLaunchToken(pluginManifest)) record.manifestFreshForFrame = false;
     updateNavigationControls();
     ensureVerticalScrollAffordance();

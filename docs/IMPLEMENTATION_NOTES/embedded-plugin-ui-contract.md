@@ -1,6 +1,6 @@
 # Embedded Plugin UI Contract
 
-Last updated: 2026-06-03.
+Last updated: 2026-06-08.
 
 This document is the UI/layout contract for Hermes Mobile embedded app plugins.
 It applies to Wardrobe, Finance, Email, Health, Note, and future iframe plugins.
@@ -30,7 +30,8 @@ Hermes Mobile owns these behaviors:
   reports a full-screen image/file preview state;
 - recompute the iframe viewport when mobile browser chrome, PWA viewport,
   orientation, keyboard, or bottom navigation metrics change;
-- send only bounded theme/visibility/back/navigation postMessage events;
+- send only bounded theme/visibility/back/navigation/viewport postMessage
+  events;
 - never pass raw keys, launch tokens, cookies, or private plugin data to the
   iframe as layout metadata.
 
@@ -62,6 +63,12 @@ Each plugin owns the layout inside its iframe:
   state through `previewFullscreen`, `fullscreenPreview`,
   `imagePreviewFullscreen`, `hermes.plugin.preview`, or
   `hermes.plugin.fullscreen`, then clear it when the preview closes.
+- when `embed=hermes`, listen for the host `hermes.plugin.viewport`
+  postMessage event and use it as the source of truth for keyboard overlays,
+  transient viewport height, iframe bounds, and Home AI footer geometry.
+  Plugin-local `window.innerHeight` or iframe `visualViewport` may still be
+  useful as fallback evidence, but must not be the only keyboard positioning
+  input for sheets, remark layers, floating buttons, or fixed form actions.
 
 This contract does not make plugin projects responsible for Hermes-owned topic
 chat composer layout. A plugin-bound topic chat is a Hermes Mobile chat surface;
@@ -69,6 +76,65 @@ the plugin only changes which plugin context is active. Plugin projects are
 responsible for their own iframe bottom labels/tabs: keep them at the bottom of
 the iframe and reserve only plugin-owned footer space inside plugin-owned
 scroll containers.
+
+## Host Viewport Bridge
+
+Hermes Mobile sends a bounded `postMessage` to the active embedded plugin iframe
+whenever the host iframe is attached, rendered, loaded, made visible, or the
+host keyboard/viewport/plugin-context footer metrics change:
+
+```js
+{
+  type: "hermes.plugin.viewport",
+  version: 1,
+  pluginId: "finance",
+  workspaceId: "owner",
+  reason: "plugin_context_viewport",
+  viewport: {
+    width: 390,
+    height: 624,
+    offsetTop: 0,
+    offsetLeft: 0,
+    scale: 1,
+    layoutWidth: 390,
+    layoutHeight: 844
+  },
+  keyboard: {
+    visible: true,
+    bottomInset: 274,
+    offsetTop: 0,
+    height: 274
+  },
+  iframe: { top: 0, right: 390, bottom: 570, left: 0, width: 390, height: 570 },
+  host: { top: 0, right: 390, bottom: 570, left: 0, width: 390, height: 570 },
+  footer: {
+    visible: true,
+    rect: { top: 570, right: 390, bottom: 624, left: 0, width: 390, height: 54 },
+    bottom: 12,
+    offsetHeight: 58,
+    reservedHeight: 80,
+    stackHeight: 80,
+    pluginContextBottom: 54,
+    measuredStackHeight: 80
+  }
+}
+```
+
+The payload is layout metadata only. It must not contain raw keys, launch
+tokens, cookies, plugin private data, route URLs, or user content. The host sends
+it to the iframe entry origin recorded in the normalized manifest.
+
+Plugins should treat the latest `hermes.plugin.viewport` payload as an
+embedded-mode override:
+
+- place keyboard-sensitive sheets above `keyboard.bottomInset` when
+  `keyboard.visible` is true;
+- avoid adding Home AI footer height to plugin scroll padding when the iframe
+  already ends at `footer.rect.top`;
+- use `iframe.height` / `host.height` to size iframe-root panels when
+  `embed=hermes`;
+- fall back to local `visualViewport` only when the host event has not yet
+  arrived, and replace the fallback as soon as the host event arrives.
 
 ## Floating Buttons And Local Action Bars
 
@@ -131,6 +197,9 @@ For every plugin UI integration or layout change, the validation must include:
   `-2px` to `2px`;
 - measured plugin-owned bottom nav, if present, with its bottom at the iframe
   viewport bottom or within `2px`;
+- host `hermes.plugin.viewport` postMessage evidence for iframe attach/load and
+  keyboard or visual viewport changes; the payload must include bounded
+  viewport, keyboard, iframe, host, and footer fields without secrets;
 - screenshot evidence for visual review when the change affects spacing,
   navigation, or fixed/floating controls.
 

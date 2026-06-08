@@ -1,6 +1,6 @@
 # Plugin Mobile UI And Visual Harness Contract
 
-Contract version: `20260607-v3`.
+Contract version: `20260608-v4`.
 
 ## Purpose
 
@@ -171,6 +171,16 @@ Rules:
   intended control height;
 - recompute geometry after orientation, keyboard blur, PWA resume, and viewport
   metric changes;
+- embedded iframe plugins must consume the Home AI host
+  `hermes.plugin.viewport` postMessage event for keyboard-sensitive sheets,
+  remark layers, floating buttons, fixed form actions, and iframe-root viewport
+  sizing. The host event is the embedded-mode source of truth because iframe
+  `innerHeight` / `visualViewport` can miss the outer Home AI shell correction.
+  Local plugin viewport measurements are fallback evidence only until the host
+  event arrives;
+- plugin mobile visual harnesses must prove the host viewport event is received
+  or explicitly stubbed when validating keyboard and bottom-layer behavior in
+  `embed=hermes`;
 - do not assume Safari browser-mode equals installed-PWA behavior;
 - do not accept a layout fix until the loaded client version and
   `/api/client-version` refresh contract are proven when static assets changed.
