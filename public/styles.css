@@ -55,8 +55,9 @@
   --mobile-bottom-nav-content-safe-area: max(0px, min(var(--mobile-bottom-safe-area), 3px));
   --mobile-bottom-nav-height: 58px;
   --mobile-bottom-nav-visual-drop: 10px;
-  --mobile-bottom-nav-visual-lift: 6px;
-  --mobile-bottom-nav-comfort-inset: 12px;
+  --mobile-bottom-nav-visual-lift: 4px;
+  --mobile-bottom-nav-comfort-inset: 0px;
+  --mobile-bottom-nav-overflow-clamp: 0px;
   --plugin-context-bottom-nav-height: 54px;
   --bottom-region-composer-nav-gap: 8px;
   --mobile-bottom-nav-bottom: var(--mobile-bottom-nav-bottom-runtime, var(--mobile-bottom-nav-comfort-inset));
@@ -5742,6 +5743,10 @@ button.directory-alias-chip {
 }
 
 .app.task-list-mode {
+  padding-bottom: 0;
+}
+
+.app.task-list-mode .conversation {
   padding-bottom: var(--topic-plugin-dock-reserved-height);
 }
 
@@ -16209,6 +16214,7 @@ body.task-markdown-preview-open {
   }
 
   .app.task-list-mode .conversation > .directory-topic-launcher:first-child,
+  .app.task-list-mode .conversation > .capability-entry-hub:first-child,
   .app.task-list-mode .conversation > .task-grid:first-child,
   .app.task-list-mode .conversation > .empty-state:first-child {
     margin-top: max(16px, calc(env(safe-area-inset-top) + 4px));

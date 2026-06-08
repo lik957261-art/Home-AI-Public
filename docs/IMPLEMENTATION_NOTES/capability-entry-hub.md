@@ -124,11 +124,18 @@ Implemented fix, 2026-06-07:
   Dock directly above bottom navigation, no Dock/nav overlap, no clipped bottom
   nav labels, and no quick-action/Dock overlap.
 - `20260607-bottom-stack-dock-anchor-v607` keeps the same measured bottom-stack
-  contract and uses a shared 6px host comfort inset for the primary bottom
+  contract and uses one shared host visual-lift variable for the primary bottom
   navigation. The topic capability Dock is anchored to the measured primary
-  bottom-nav top (`offset`) and must not add the comfort inset a second time.
+  bottom-nav top (`offset`) and must not add the visual lift a second time.
   The primary bottom tab contents remain lifted inside the nav bar so the
-  labels/icons feel less flush.
+  labels/icons feel less flush. `20260608-bottom-stack-pwa-clamp-v632` keeps
+  the shared tab-content lift at 4px after visual review and sets the host
+  bottom-nav container comfort inset to 0px, so the whole Dock/nav stack stays
+  flush with the PWA viewport while only the tab contents move. The same release
+  adds `--mobile-bottom-nav-overflow-clamp: 0px`, so iOS standalone PWA
+  viewport-coordinate overflow is recorded for diagnostics but does not lift
+  the full Dock/nav stack. Bottom Dock/composer reservations must read the
+  shared variables instead of hard-coding the previous 6px value.
 - `tests/app-plugin-topics-ui.test.js` includes a VM projection harness that
   seeds lower-priority actions, repeatedly records `wardrobe:style`, and
   asserts it becomes the first quick action while the root projection receives
@@ -261,8 +268,9 @@ Implemented fix, 2026-06-06:
   is removed before Directory data finishes loading.
 - `20260607-topic-quick-note-v592` changes the root quick-action area to a
   usage-backed three-column grid, removes trailing source badges, hides the
-  topic-list page header, lowers the primary bottom navigation by 6px, compacts
-  the topic Dock icon strip, uses a scaled-down Directory Dock icon in
+  topic-list page header, lowers the primary bottom navigation through the
+  shared host visual-lift variable, compacts the topic Dock icon strip, uses a
+  scaled-down Directory Dock icon in
   Directory-bound topic rows, removes directory path/default prompt text from
   those rows, keeps long-reply start arrows eligible after terminal footer
   refreshes, and makes successful Save-to-Note toasts actionable.

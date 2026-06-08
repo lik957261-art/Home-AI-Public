@@ -118,7 +118,8 @@ Non-negotiable:
 - Home AI may apply one shared host comfort inset to the measured bottom stack
   so bottom navigation is not visually flush with the viewport edge. That inset
   must be a single host-level variable/measurement input, not separate
-  Mac/Windows/iOS overrides.
+  Mac/Windows/iOS overrides. A zero inset is valid and is the current Home AI
+  default; do not use a bottom offset to satisfy a small tab-content lift.
 - The topic capability Dock is anchored to the measured primary bottom-nav
   top, and scroll containers reserve the measured combined stack height. A
   fix that changes only `bottom: Npx` without updating the measured reservation
@@ -126,6 +127,14 @@ Non-negotiable:
 - The measured bottom-nav top offset already includes the host comfort inset.
   Dock positioning must use that offset directly; adding the inset again creates
   an artificial Dock/nav gap and is a failing bottom-stack state.
+- Runtime bottom-stack measurements must compare fixed-shell
+  `getBoundingClientRect()` values against the layout viewport first
+  (`window.innerHeight` / `documentElement.clientHeight`). `visualViewport`
+  remains useful for keyboard/diagnostic state, but on iOS standalone PWA it can
+  be shorter than the fixed layout viewport; using it as the bottom boundary can
+  falsely lift the whole Dock/nav stack. Large runtime bottom overflow should
+  remain diagnostic-only unless a bounded clamp is intentionally raised from the
+  current `--mobile-bottom-nav-overflow-clamp: 0px` default.
 - Home AI-owned bottom navigation, including plugin-context bottom navigation,
   must render an opaque host chrome background. Do not use a `transparent`
   color mix for this band; long message content can otherwise show through the

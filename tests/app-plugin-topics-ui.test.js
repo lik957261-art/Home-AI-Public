@@ -80,6 +80,9 @@ assert.match(stylesCss, /--mobile-bottom-nav-bottom: var\(--mobile-bottom-nav-bo
 assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?bottom: var\(--mobile-bottom-nav-bottom\);/);
 assert.match(stylesCss, /--topic-plugin-dock-bottom: var\(--topic-plugin-dock-bottom-runtime, var\(--mobile-bottom-nav-offset-height\)\);/);
 assert.match(stylesCss, /\.app\.task-list-mode \.conversation > \.directory-topic-launcher:first-child,[\s\S]*?margin-top: max\(16px, calc\(env\(safe-area-inset-top\) \+ 4px\)\);/);
+assert.match(stylesCss, /\.app\.task-list-mode \.conversation > \.capability-entry-hub:first-child/);
+assert.match(stylesCss, /\.app\.task-list-mode \.conversation \{[\s\S]*?padding-bottom: var\(--topic-plugin-dock-reserved-height\);/);
+assert.match(stylesCss, /\.app\.task-list-mode \{[\s\S]*?padding-bottom: 0;/);
 
 function createPluginTopicHarness(options = {}) {
   const storage = new Map();

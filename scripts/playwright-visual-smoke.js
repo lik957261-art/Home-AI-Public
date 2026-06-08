@@ -340,7 +340,10 @@ async function main() {
         mobileBottomNavVisualDrop: round(cssPxVar("--mobile-bottom-nav-visual-drop")),
         mobileBottomNavOffsetHeight: round(cssPxVar("--mobile-bottom-nav-offset-height")),
         mobileBottomNavReservedHeight: round(cssPxVar("--mobile-bottom-nav-reserved-height")),
+        mobileBottomStackHeight: round(cssPxVar("--mobile-bottom-stack-height")),
         topicPluginDockHeight: round(cssPxVar("--topic-plugin-dock-height")),
+        topicPluginDockReservedHeight: round(cssPxVar("--topic-plugin-dock-reserved-height")),
+        conversationPaddingBottom: round(Number.parseFloat(window.getComputedStyle(document.querySelector("#conversation") || document.documentElement).paddingBottom) || 0),
       };
       const capability = {
         quickActionCount: document.querySelectorAll(".capability-quick-action").length,
@@ -444,11 +447,12 @@ async function main() {
             bottomNav: rects.bottomNav,
           });
         }
-        if (rects.conversation.visible && overlaps(rects.topicPluginDock, rects.conversation)) {
+        if (rects.conversation.visible && overlaps(rects.topicPluginDock, rects.conversation) && chrome.conversationPaddingBottom + 1 < chrome.mobileBottomStackHeight) {
           failures.push({
-            code: "topic_plugin_dock_conversation_overlap",
+            code: "topic_plugin_dock_scroll_reserve_too_small",
             topicPluginDock: rects.topicPluginDock,
             conversation: rects.conversation,
+            chrome,
           });
         }
       }

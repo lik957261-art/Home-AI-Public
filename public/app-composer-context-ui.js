@@ -248,6 +248,12 @@ function updateKeyboardViewportMetrics() {
   return active;
 }
 
+function mobileBottomCssPx(name, fallback = 0) {
+  const value = window.getComputedStyle?.(document.documentElement)?.getPropertyValue(name);
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function updateMobileBottomNavReservation() {
   const root = document.documentElement;
   const app = $("app");
@@ -273,13 +279,20 @@ function updateMobileBottomNavReservation() {
   const rect = nav.getBoundingClientRect?.();
   const rectHeight = Math.ceil(rect?.height || 0);
   const contentHeight = Math.ceil(nav.scrollHeight || 0);
-  const viewportHeight = Math.ceil(window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0);
-  const comfortInset = 12;
-  const navBottomOverflow = rect && viewportHeight ? Math.ceil(Math.max(0, rect.bottom - viewportHeight)) : 0;
+  const visualViewportHeight = Math.ceil(window.visualViewport?.height || 0);
+  const innerHeight = Math.ceil(window.innerHeight || 0);
+  const documentHeight = Math.ceil(document.documentElement?.clientHeight || 0);
+  const layoutViewportHeight = Math.max(innerHeight, documentHeight, visualViewportHeight);
+  const viewportHeight = layoutViewportHeight;
+  const comfortInset = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-comfort-inset", 0)));
+  const navBottomOverflowRaw = rect && viewportHeight ? Math.ceil(Math.max(0, rect.bottom - viewportHeight)) : 0;
+  const navBottomOverflowClamp = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-overflow-clamp", 0)));
+  const navBottomOverflow = Math.min(navBottomOverflowRaw, navBottomOverflowClamp);
   const navBottom = navBottomOverflow + comfortInset;
   const visibleOffset = rect && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - rect.top)) : rectHeight;
   const offset = Math.max(44, rectHeight, contentHeight, visibleOffset || rectHeight);
   const reserve = Math.max(76, navBottom + rectHeight + 10, navBottom + contentHeight + 10);
+  const navVisualLift = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-visual-lift", 0)));
   const dock = $("topicPluginDock");
   const dockVisible = Boolean(
     app?.classList.contains("task-list-mode")
@@ -294,6 +307,12 @@ function updateMobileBottomNavReservation() {
   const stackHeight = dockVisible ? Math.max(reserve, dockBottom + dockHeight + 2) : reserve;
   const bottomLayoutMetrics = {
     viewportHeight,
+    visualViewportHeight,
+    innerHeight,
+    documentHeight,
+    layoutViewportHeight,
+    navBottomOverflowRaw,
+    navBottomOverflowClamp,
     navBottomOverflow,
     navBottom,
     comfortInset,
@@ -304,6 +323,7 @@ function updateMobileBottomNavReservation() {
     } : null,
     navOffset: offset,
     navReserve: reserve,
+    navVisualLift,
     dockVisible,
     dockHeight,
     dockBottom,

@@ -110,6 +110,20 @@ Gateway plugin/schema/profile changes:
   `--mobile-bottom-nav-comfort-inset` fallback, and `task-list-ui.test.js`
   together. Changing only `.bottom-nav` CSS can be masked by runtime
   `--mobile-bottom-nav-bottom-runtime` after the first layout measurement.
+  The bottom navigation container should stay flush with the fixed viewport by
+  default (`--mobile-bottom-nav-comfort-inset: 0px` as of
+  `20260608-bottom-stack-pwa-clamp-v632`); small visual lift belongs inside the
+  tab content transform, not in a bottom offset that moves the entire Dock/nav
+  stack. Runtime bottom overflow is diagnostic-only by default:
+  `--mobile-bottom-nav-overflow-clamp: 0px` prevents iOS standalone PWA
+  viewport-coordinate mismatches from becoming a large bottom offset that lifts
+  the full Dock/nav stack.
+  When measuring fixed bottom chrome, compare `getBoundingClientRect()` against
+  the layout viewport (`window.innerHeight` / `documentElement.clientHeight`),
+  not `visualViewport.height`. iOS standalone PWA can report a shorter visual
+  viewport because of safe-area/status chrome; using it as the primary bottom
+  boundary can falsely detect bottom overflow and push the whole bottom stack
+  upward by far more than the intended visual lift.
 - Touch tablets up to `1366px` wide use the same mobile shell as phone portrait:
   a single-column app, bottom navigation, and an overlay sidebar. Do not let
   iPad-like landscape layouts fall back to the desktop fixed sidebar or hide the
