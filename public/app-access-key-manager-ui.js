@@ -285,6 +285,8 @@ function renderAccessKeyManager() {
   );
   const onboardingStatusLabel = (status) => ({
     planned: "计划中",
+    pending: "等待回执",
+    running: "执行中",
     ok: "完成",
     failed: "失败",
     blocked: "阻断",
@@ -295,6 +297,7 @@ function renderAccessKeyManager() {
     if (status === "ok") return "ok";
     if (status === "failed" || status === "blocked") return "failed";
     if (status === "manual_required") return "manual";
+    if (status === "running") return "running";
     return "pending";
   };
   const renderOnboardingEvidence = (value) => {
@@ -302,14 +305,18 @@ function renderAccessKeyManager() {
     const steps = Array.isArray(value.steps) ? value.steps : [];
     const paths = value.paths && typeof value.paths === "object" ? value.paths : {};
     const pluginIds = Array.isArray(value.pluginIds) ? value.pluginIds : [];
+    const evidenceTitle = value.status === "running"
+      ? "开通运行中"
+      : state.workspaceOnboardingResult ? "开通结果" : "开通计划";
     return `<section class="workspace-onboarding-result" data-workspace-onboarding-status="${escapeHtml(value.status || "")}">
       <div class="workspace-onboarding-result-head">
         <div>
-          <div class="access-key-row-title">${state.workspaceOnboardingResult ? "开通结果" : "开通计划"}</div>
+          <div class="access-key-row-title">${escapeHtml(evidenceTitle)}</div>
           <div class="access-key-row-meta">${escapeHtml(value.workspaceId || "")}${value.macUser ? ` · ${escapeHtml(value.macUser)}` : ""}</div>
         </div>
         <span class="workspace-onboarding-status ${onboardingStatusTone(value.status)}">${escapeHtml(onboardingStatusLabel(value.status))}</span>
       </div>
+      ${value.progressMessage ? `<div class="workspace-onboarding-progress">${escapeHtml(value.progressMessage)}</div>` : ""}
       ${value.error ? `<div class="workspace-onboarding-error">${escapeHtml(value.error)}</div>` : ""}
       <dl class="workspace-onboarding-facts">
         ${value.displayName ? `<div><dt>显示名</dt><dd>${escapeHtml(value.displayName)}</dd></div>` : ""}
@@ -321,6 +328,7 @@ function renderAccessKeyManager() {
         ${steps.map((step) => `<li class="workspace-onboarding-step ${onboardingStatusTone(step.status)}">
           <span>${escapeHtml(step.id || "")}</span>
           <strong>${escapeHtml(onboardingStatusLabel(step.status))}</strong>
+          ${step.progressHint ? `<small>${escapeHtml(step.progressHint)}</small>` : ""}
           ${step.error ? `<em>${escapeHtml(step.error)}</em>` : ""}
         </li>`).join("")}
       </ol>` : ""}
@@ -355,9 +363,9 @@ function renderAccessKeyManager() {
         <button type="button" data-workspace-onboarding-plan${state.workspaceOnboardingLoading ? " disabled" : ""}>预览计划</button>
         <button type="button" data-workspace-onboarding-apply${state.workspaceOnboardingLoading ? " disabled" : ""}>确认开通</button>
       </div>
-      ${state.workspaceOnboardingLoading ? `<div class="access-key-empty">正在处理工作区开通请求...</div>` : ""}
+      ${state.workspaceOnboardingLoading ? `<div class="access-key-empty">请求已发送，正在等待后端回执...</div>` : ""}
       ${state.workspaceOnboardingError ? `<div class="access-key-empty error">${escapeHtml(state.workspaceOnboardingError)}</div>` : ""}
-      ${renderOnboardingEvidence(state.workspaceOnboardingResult || state.workspaceOnboardingPlan)}
+      ${renderOnboardingEvidence(state.workspaceOnboardingResult || state.workspaceOnboardingRun || state.workspaceOnboardingPlan)}
     </section>
   </details>` : "";
 
@@ -620,8 +628,9 @@ function workspaceOnboardingInputs(root = document) {
 
 function workspaceOnboardingPayload(root = document) {
   const inputs = workspaceOnboardingInputs(root);
-  const workspaceId = inputs.workspaceId?.value?.trim() || "";
-  const displayName = inputs.displayName?.value?.trim() || workspaceId;
+  const rawWorkspaceId = inputs.workspaceId?.value?.trim() || "";
+  const workspaceId = slugWorkspaceOnboardingId(rawWorkspaceId);
+  const displayName = inputs.displayName?.value?.trim() || rawWorkspaceId || workspaceId;
   const pluginIds = inputs.plugins.map((input) => input.value).filter(Boolean);
   if (!workspaceId) throw new Error("请输入工作区 ID");
   return {
@@ -631,6 +640,15 @@ function workspaceOnboardingPayload(root = document) {
     pluginIds,
     runSmokes: true,
   };
+}
+
+function slugWorkspaceOnboardingId(value = "") {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 80);
 }
 
 function rememberWorkspaceOnboardingDraft(payload = {}) {
@@ -650,6 +668,35 @@ function workspaceOnboardingPlanMatchesPayload(plan = {}, payload = {}) {
     && planPlugins.every((pluginId, index) => pluginId === payloadPlugins[index]);
 }
 
+function createWorkspaceOnboardingRunState(plan = {}, payload = {}) {
+  const steps = Array.isArray(plan.steps) ? plan.steps : [];
+  return {
+    ok: false,
+    status: "running",
+    workspaceId: payload.workspaceId || plan.workspaceId || "",
+    displayName: payload.displayName || plan.displayName || payload.workspaceId || "",
+    macUser: plan.macUser || "",
+    paths: plan.paths || {},
+    pluginIds: Array.isArray(payload.pluginIds) ? payload.pluginIds : Array.isArray(plan.pluginIds) ? plan.pluginIds : [],
+    progressMessage: "请求已发送，后端会按下面步骤顺序执行；完成后会显示每一步真实结果。",
+    steps: steps.map((step, index) => Object.assign({}, step, {
+      status: index === 0 ? "running" : "pending",
+      progressHint: index === 0 ? "已开始" : "等待后端回执",
+    })),
+  };
+}
+
+function failWorkspaceOnboardingRunState(run = {}, error = "") {
+  const message = error || "工作区开通请求失败";
+  const steps = Array.isArray(run.steps) ? run.steps : [];
+  return Object.assign({}, run, {
+    status: "failed",
+    error: message,
+    progressMessage: "请求未完成，请查看错误信息后重试。",
+    steps: steps.map((step) => step.status === "running" ? Object.assign({}, step, { status: "failed", error: message }) : step),
+  });
+}
+
 function redactedWorkspaceOnboardingResult(result = {}) {
   const safe = Object.assign({}, result);
   if (safe.credentials && typeof safe.credentials === "object") {
@@ -667,6 +714,7 @@ async function planWorkspaceOnboardingFromAccessKeyManager() {
   state.workspaceOnboardingLoading = true;
   state.workspaceOnboardingError = "";
   state.workspaceOnboardingResult = null;
+  state.workspaceOnboardingRun = null;
   renderAccessKeyManager();
   try {
     const result = await api("/api/workspace-onboarding/plan", {
@@ -696,6 +744,7 @@ async function applyWorkspaceOnboardingFromAccessKeyManager() {
   state.workspaceOnboardingLoading = true;
   state.workspaceOnboardingError = "";
   state.workspaceOnboardingResult = null;
+  state.workspaceOnboardingRun = createWorkspaceOnboardingRunState(state.workspaceOnboardingPlan, payload);
   renderAccessKeyManager();
   try {
     const result = await api("/api/workspace-onboarding/apply", {
@@ -705,6 +754,7 @@ async function applyWorkspaceOnboardingFromAccessKeyManager() {
     const oneTimeKey = result?.credentials?.homeAiAccessKey || "";
     state.workspaceOnboardingResult = redactedWorkspaceOnboardingResult(result);
     state.workspaceOnboardingPlan = null;
+    state.workspaceOnboardingRun = null;
     if (oneTimeKey) {
       state.generatedAccessKey = {
         kind: "workspace",
@@ -720,7 +770,9 @@ async function applyWorkspaceOnboardingFromAccessKeyManager() {
     await loadProjects();
     await loadAccessKeyManager({ keepGenerated: true, workspaceId: "owner" });
   } catch (err) {
-    state.workspaceOnboardingError = err.message || String(err);
+    const message = err.message || String(err);
+    state.workspaceOnboardingError = message;
+    state.workspaceOnboardingRun = failWorkspaceOnboardingRunState(state.workspaceOnboardingRun, message);
   } finally {
     state.workspaceOnboardingLoading = false;
     renderAccessKeyManager();

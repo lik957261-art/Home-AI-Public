@@ -612,6 +612,7 @@ const state = {
   workspaceOnboardingLoading: false,
   workspaceOnboardingError: "",
   workspaceOnboardingDraft: null,
+  workspaceOnboardingRun: null,
   runtimeConfigOpen: false,
   runtimeConfig: null,
   runtimeConfigLoading: false,

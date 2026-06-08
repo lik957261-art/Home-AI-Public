@@ -8293,6 +8293,19 @@ body.task-markdown-preview-open {
   border-color: rgba(168, 119, 28, 0.22);
 }
 
+.workspace-onboarding-status.running {
+  color: #145f4a;
+  background: rgba(45, 123, 105, 0.12);
+  border-color: rgba(45, 123, 105, 0.24);
+}
+
+.workspace-onboarding-progress {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 .workspace-onboarding-facts {
   display: grid;
   gap: 5px;
@@ -8355,6 +8368,18 @@ body.task-markdown-preview-open {
 .workspace-onboarding-step strong {
   color: var(--muted);
   font-size: 12px;
+}
+
+.workspace-onboarding-step.running {
+  border-color: rgba(45, 123, 105, 0.24);
+  background: rgba(45, 123, 105, 0.08);
+}
+
+.workspace-onboarding-step small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .workspace-onboarding-step em,

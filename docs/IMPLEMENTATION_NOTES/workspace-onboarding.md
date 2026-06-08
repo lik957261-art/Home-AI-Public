@@ -202,6 +202,9 @@ one-time Home AI Access Key and requires Owner-only access. The sheet exposes:
 - a `Preview plan` action that calls `POST /api/workspace-onboarding/plan`;
 - a confirm/apply action that calls `POST /api/workspace-onboarding/apply`
   only when the current input still matches the latest plan;
+- an in-flight run status panel after confirm, so the Owner sees that the
+  request was sent and can inspect the planned ordered steps while waiting for
+  the synchronous apply response;
 - bounded plan/result evidence with step ids, statuses, paths, plugin ids, and
   errors, but no raw key material;
 - one-time generated key display through `state.generatedAccessKey` when the

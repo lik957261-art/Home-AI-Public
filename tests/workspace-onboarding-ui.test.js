@@ -14,6 +14,7 @@ assert.match(appJs, /workspaceOnboardingResult: null/);
 assert.match(appJs, /workspaceOnboardingLoading: false/);
 assert.match(appJs, /workspaceOnboardingError: ""/);
 assert.match(appJs, /workspaceOnboardingDraft: null/);
+assert.match(appJs, /workspaceOnboardingRun: null/);
 
 assert.match(accessKeyManagerUi, /WORKSPACE_ONBOARDING_PLUGIN_OPTIONS/);
 for (const pluginId of ["wardrobe", "health", "finance", "email", "note"]) {
@@ -27,6 +28,16 @@ assert.match(accessKeyManagerUi, /\/api\/workspace-onboarding\/apply/);
 assert.match(accessKeyManagerUi, /runSmokes: true/);
 assert.match(accessKeyManagerUi, /请先预览当前工作区的开通计划/);
 assert.match(accessKeyManagerUi, /workspaceOnboardingPlanMatchesPayload/);
+assert.match(accessKeyManagerUi, /function slugWorkspaceOnboardingId\(value = ""\)/);
+assert.match(accessKeyManagerUi, /const rawWorkspaceId = inputs\.workspaceId\?\.value\?\.trim\(\) \|\| ""/);
+assert.match(accessKeyManagerUi, /const workspaceId = slugWorkspaceOnboardingId\(rawWorkspaceId\)/);
+assert.match(accessKeyManagerUi, /const displayName = inputs\.displayName\?\.value\?\.trim\(\) \|\| rawWorkspaceId \|\| workspaceId/);
+assert.match(accessKeyManagerUi, /\.toLowerCase\(\)/);
+assert.match(accessKeyManagerUi, /createWorkspaceOnboardingRunState\(state\.workspaceOnboardingPlan, payload\)/);
+assert.match(accessKeyManagerUi, /state\.workspaceOnboardingResult \|\| state\.workspaceOnboardingRun \|\| state\.workspaceOnboardingPlan/);
+assert.match(accessKeyManagerUi, /progressMessage: "请求已发送/);
+assert.match(accessKeyManagerUi, /progressHint: index === 0 \? "已开始" : "等待后端回执"/);
+assert.match(accessKeyManagerUi, /failWorkspaceOnboardingRunState/);
 
 assert.match(accessKeyManagerUi, /redactedWorkspaceOnboardingResult\(result = \{\}\)/);
 assert.match(accessKeyManagerUi, /homeAiAccessKey: Boolean\(safe\.credentials\.homeAiAccessKey\)/);
@@ -38,6 +49,9 @@ assert.doesNotMatch(accessKeyManagerUi, /console\.(log|info|warn|error)\([^)]*ho
 assert.match(stylesCss, /\.workspace-onboarding-section/);
 assert.match(stylesCss, /\.workspace-onboarding-plugins/);
 assert.match(stylesCss, /\.workspace-onboarding-status\.ok/);
+assert.match(stylesCss, /\.workspace-onboarding-status\.running/);
+assert.match(stylesCss, /\.workspace-onboarding-progress/);
 assert.match(stylesCss, /\.workspace-onboarding-step/);
+assert.match(stylesCss, /\.workspace-onboarding-step small/);
 
 console.log("workspace onboarding UI harness passed");
