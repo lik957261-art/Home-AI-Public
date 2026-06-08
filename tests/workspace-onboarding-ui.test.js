@@ -38,6 +38,9 @@ assert.match(accessKeyManagerUi, /state\.workspaceOnboardingResult \|\| state\.w
 assert.match(accessKeyManagerUi, /progressMessage: "请求已发送/);
 assert.match(accessKeyManagerUi, /progressHint: index === 0 \? "已开始" : "等待后端回执"/);
 assert.match(accessKeyManagerUi, /failWorkspaceOnboardingRunState/);
+const applyFunctionMatch = accessKeyManagerUi.match(/async function applyWorkspaceOnboardingFromAccessKeyManager\(\) \{[\s\S]*?\n\}/);
+assert.ok(applyFunctionMatch, "apply function must exist");
+assert.doesNotMatch(applyFunctionMatch[0], /window\.confirm/);
 
 assert.match(accessKeyManagerUi, /redactedWorkspaceOnboardingResult\(result = \{\}\)/);
 assert.match(accessKeyManagerUi, /homeAiAccessKey: Boolean\(safe\.credentials\.homeAiAccessKey\)/);

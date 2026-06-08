@@ -740,7 +740,6 @@ async function applyWorkspaceOnboardingFromAccessKeyManager() {
     renderAccessKeyManager();
     return;
   }
-  if (!window.confirm(`确认开通 ${payload.displayName || payload.workspaceId}？这会创建 Mac 用户、目录权限、Gateway profiles 和插件绑定。`)) return;
   state.workspaceOnboardingLoading = true;
   state.workspaceOnboardingError = "";
   state.workspaceOnboardingResult = null;

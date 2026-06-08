@@ -202,6 +202,9 @@ one-time Home AI Access Key and requires Owner-only access. The sheet exposes:
 - a `Preview plan` action that calls `POST /api/workspace-onboarding/plan`;
 - a confirm/apply action that calls `POST /api/workspace-onboarding/apply`
   only when the current input still matches the latest plan;
+- no native `window.confirm` dependency for apply, because installed PWA
+  contexts can suppress or mishandle browser modal dialogs; the apply button
+  and in-flight status panel are the confirmation surface;
 - an in-flight run status panel after confirm, so the Owner sees that the
   request was sent and can inspect the planned ordered steps while waiting for
   the synchronous apply response;
