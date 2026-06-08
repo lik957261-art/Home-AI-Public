@@ -1,6 +1,6 @@
 # macOS Production Access
 
-Last updated: 2026-06-06.
+Last updated: 2026-06-08.
 
 ## Purpose
 
@@ -8,6 +8,10 @@ This runbook defines the shared Home AI access path for Mac Studio production.
 It is used by the Home AI main workspace and by plugin workspaces. Plugin
 projects must not each invent their own SSH, sudo, password, or deployment
 access flow.
+
+The deployment rule itself is the platform contract in
+`docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md`. This
+runbook provides the production access mechanics that contract uses.
 
 This runbook records credential locations and access mechanics only by
 reference. It must not contain raw passwords, SSH private key contents, access
@@ -194,7 +198,138 @@ permission/quoting retries.
   statuses, and booleans. They must not print raw key values, password contents,
   private payloads, full prompts, full logs, or raw user data.
 
+## Mac Development Codex Boundary
+
+The Mac development environment is intentionally separate from production:
+
+```text
+Development entrypoint for xuxin/Codex:
+/Users/xuxin/Developer/HomeAIDev
+
+Development root:
+/Users/hermes-dev/HermesMobileDev
+
+Production root:
+/Users/hermes-host/HermesMobile
+
+Single production Codex Mobile plugin service:
+com.hermesmobile.plugin.codex-mobile on 127.0.0.1:8787
+```
+
+Codex running as macOS user `xuxin` may have full local development access to
+`/Users/hermes-dev/HermesMobileDev` so remote Codex Mobile control and local
+Mac Codex CLI/App sessions can edit, test, and run development code without
+extra prompts.
+
+There should still be only one active Codex Mobile service. The Home AI
+production plugin entry runs the production Codex Mobile Web service as
+`xuxin`, with `CODEX_HOME` pointing at the `xuxin` Codex home and
+`CODEX_MOBILE_RUNTIME_DIR` under `/Users/xuxin/.codex-mobile-web`. The cloned
+development repository under `/Users/hermes-dev/HermesMobileDev/plugins` is a
+source working tree, not a second long-lived Codex Mobile runtime.
+
+Do not grant `xuxin` normal read/write access to the production app root as a
+working tree. Production source updates should use the documented deployment
+path with explicit temporary sudo elevation, backup, controlled sync, restart
+only when needed, and smoke validation. If a deployment script itself must be
+fixed, perform that fix in the development repo and use a bounded sudo command
+only for the production-side install or verification step.
+
+The production Codex Mobile plugin service needs a narrow exception so launchd
+can restart it:
+
+```text
+/Users/hermes-host                         xuxin traverse/search only
+/Users/hermes-host/HermesMobile            xuxin traverse/search only
+/Users/hermes-host/HermesMobile/plugins    xuxin traverse/search only
+/Users/hermes-host/HermesMobile/plugins/codex-mobile-web
+                                           xuxin read/search/execute only
+```
+
+Do not extend that exception to `/Users/hermes-host/HermesMobile/app` or to
+other production plugin source roots unless a service has a specific run-user
+need and the exception is recorded.
+
+Mac development workspaces used by the single production Codex Mobile service
+are registered in `/Users/xuxin/.codex-mobile-web/workspace-registry.json`.
+Use canonical real paths under `/Users/hermes-dev/HermesMobileDev/...` as the
+visible workspace roots, not `/Users/xuxin/Developer/HomeAIDev/<repo>` symlink
+paths. Codex normalizes new thread `cwd` values to real paths, so registering
+only the symlink path lets a new thread start successfully but disappear from
+the workspace's thread list. The `HomeAIDev` symlinks remain convenient Finder
+and shell entrypoints, but runtime state should use real paths.
+
+The same real paths should be present in the `xuxin` Codex Desktop global
+state files so Desktop and the embedded Codex Mobile plugin expose the same
+workspaces:
+
+```text
+/Users/xuxin/.codex/.codex-global-state.json
+/Users/xuxin/.codex-homes/previous/.codex-global-state.json
+```
+
+The relevant keys are `electron-saved-workspace-roots`, `project-order`, and
+`active-workspace-roots`. These files contain local UI/workspace state, not
+auth tokens, but still back them up before operational edits. Do not add
+`/Users/hermes-host/HermesMobile/app` as a normal workspace root.
+
+For the single production Codex Mobile service, future Mobile-created
+development workspaces should also sync to Codex Desktop. Start the
+`com.hermesmobile.plugin.codex-mobile` listener with
+`CODEX_MOBILE_SYNC_DESKTOP_WORKSPACES=1`; the Codex Mobile Web workspace
+registry service will canonicalize created workspace roots through `realpath`
+where available and add those roots to the same Desktop global-state keys. The
+API should expose only a sync boolean/count, not the local `.codex` file paths.
+
+Current development CLI tools exposed to `xuxin`:
+
+```text
+/Users/xuxin/Developer/HomeAIDev/bin/node
+/Users/xuxin/Developer/HomeAIDev/bin/npm
+/Users/xuxin/Developer/HomeAIDev/bin/codex
+```
+
+`/usr/local/bin/node`, `/usr/local/bin/npm`, `/usr/local/bin/npx`, and
+`/usr/local/bin/codex` may point at the same development runtime/CLI so
+non-interactive shell sessions can find them. This must not be used as a reason
+to run production commands without explicit production sudo boundaries.
+
 ## Plugin Deployment Access
+
+Home AI and every plugin must follow
+`docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md`.
+Development source is prepared under `/Users/hermes-dev/HermesMobileDev`;
+production source roots are updated only by a bounded deploy operation with a
+pre-deploy backup, controlled sync/install command, targeted restart decision,
+and post-deploy validation.
+
+Use the shared Home AI deploy script as the default entrypoint:
+
+```bash
+node scripts/deploy-macos-production.js --target home-ai --json
+node scripts/deploy-macos-production.js --plugin finance --json
+npm run --silent deploy:macos -- --target home-ai --json
+npm run --silent deploy:macos -- --plugin finance --source /Users/hermes-dev/HermesMobileDev/plugins/finance --json
+```
+
+The script is plan-only unless `--execute` is present. For execution, pass the
+private sudo password file through `--password-file` or
+`HOMEAI_MAC_SUDO_PASSWORD_FILE`; the script feeds it through sudo stdin and does
+not print the password. Listener and plugin health validations retry briefly
+after restart to account for normal launchd warm-up.
+
+Plugin workspaces should read the central deployment contract before deploys:
+
+```text
+/Users/hermes-dev/HermesMobileDev/app/docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md
+```
+
+If a deployment is initiated from a plugin Codex thread, the thread should call
+the Home AI app deploy script by changing to `/Users/hermes-dev/HermesMobileDev/app`
+or by using the script's absolute path. Plugin-local code may provide
+plugin-specific facts such as label, health URL, MCP schema check, and data
+readback check, but must not define a separate production sudo or direct-write
+path.
 
 Plugin deployment scripts should expose one shared access interface:
 
@@ -202,6 +337,8 @@ Plugin deployment scripts should expose one shared access interface:
 --ssh-alias homeai-mac
 --password-file <private-local-password-file>
 --mac-root /Users/hermes-host/HermesMobile
+--source <development-source-path>
+--target-plugin <plugin-id>
 ```
 
 They should not hard-code:
@@ -216,6 +353,17 @@ For plugin services, use the plugin's production source path under:
 
 ```text
 /Users/hermes-host/HermesMobile/plugins/<plugin>
+```
+
+Current standard plugin targets are:
+
+```text
+codex-mobile-web -> /Users/hermes-host/HermesMobile/plugins/codex-mobile-web
+email -> /Users/hermes-host/HermesMobile/plugins/email
+finance -> /Users/hermes-host/HermesMobile/plugins/finance
+healthy -> /Users/hermes-host/HermesMobile/plugins/healthy
+note -> /Users/hermes-host/HermesMobile/plugins/note
+wardrobe -> /Users/hermes-host/HermesMobile/plugins/wardrobe
 ```
 
 For Home AI app checks, use:

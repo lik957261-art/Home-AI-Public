@@ -68,6 +68,15 @@ is `docs/IMPLEMENTATION_NOTES/macos-production-deployment-plan.md`.
 Shared SSH, sudo, password-file, and plugin access rules are centralized in
 `docs/RUNBOOKS/macos-production-access.md`; plugin workspaces must reference
 that runbook instead of defining their own production access flow.
+The shared Mac development-to-production deployment contract is
+`docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md`.
+Home AI and all plugin projects must follow that contract: development work
+happens under `/Users/hermes-dev/HermesMobileDev`, production writes happen only
+through a bounded deploy operation with backup, controlled sync, restart
+decision, and production validation, and the development user must not be given
+ordinary write access to production app or plugin source roots.
+The shared script is `scripts/deploy-macos-production.js`. It is plan-only by
+default and requires `--execute` before it writes production.
 
 Key decisions:
 

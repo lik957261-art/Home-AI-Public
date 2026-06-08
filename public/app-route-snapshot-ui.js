@@ -37,6 +37,92 @@ function pluginRouteSnapshotForView(viewMode = "") {
   return record?.openRoute || null;
 }
 
+function embeddedPluginReturnRouteSnapshotForView(viewMode = "") {
+  const mode = String(viewMode || "").trim();
+  if (!["codex", "finance", "email", "health", "note"].includes(mode)) return null;
+  const pluginId = mode === "codex" ? "codex-mobile" : mode;
+  const route = state.embeddedPlugins?.[pluginId]?.returnRoute || null;
+  return route && typeof route === "object" ? route : null;
+}
+
+function appendEmbeddedPluginReturnRouteSnapshotParams(params, route = null) {
+  if (!params || !route) return false;
+  const viewMode = boundedRouteSnapshotValue(route.viewMode || "");
+  if (!viewMode) return false;
+  params.set("returnView", viewMode);
+  [
+    ["returnPluginContextNavPluginId", route.pluginContextNavPluginId],
+    ["returnSingleWindowMode", route.singleWindowMode],
+    ["returnTaskGroupId", route.currentTaskGroupId],
+    ["returnThreadId", route.currentThreadId],
+    ["returnProjectId", route.selectedProjectId],
+    ["returnSubprojectId", route.selectedSubprojectId],
+    ["returnTodoId", route.selectedTodoId],
+    ["returnAutomationId", route.selectedAutomationId],
+    ["returnInboxItemId", route.selectedActionInboxItemId],
+    ["returnLearningTaskCardId", route.selectedLearningTaskCardId],
+    ["returnDirectoryPath", route.directoryPath, 600],
+    ["returnDirectoryRoot", route.directoryRootPath, 600],
+    ["returnSearchText", route.searchText],
+  ].forEach(([key, value, max]) => {
+    const text = boundedRouteSnapshotValue(value || "", max || 180);
+    if (text) params.set(key, text);
+  });
+  if (route.todoCreateOpen) params.set("returnTodoCreate", "1");
+  if (route.automationCreateOpen) params.set("returnAutomationCreate", "1");
+  if (route.automationEditOpen) params.set("returnAutomationEdit", "1");
+  if (route.actionInboxCreateOpen) params.set("returnInboxCreate", "1");
+  if (route.learningGrowthSettingsOpen) params.set("returnLearningSettings", "1");
+  if (route.sharedDirectoryManagerOpen) params.set("returnSharedDirectoryManager", "1");
+  const scrollTop = Math.max(0, Math.round(Number(route.conversationScrollTop || 0) || 0));
+  if (scrollTop) params.set("returnConversationScrollTop", String(scrollTop));
+  return true;
+}
+
+function embeddedPluginReturnRouteFromSnapshotParams(params, routeView = "") {
+  if (!params) return null;
+  const normalizedView = normalizedRouteView(routeView || "", "");
+  const returnView = normalizedRouteView(params.get("returnView") || "", "");
+  if (!returnView) {
+    return normalizedView === "codex" ? { viewMode: "tasks", singleWindowMode: "chat" } : null;
+  }
+  const enabled = (key) => ["1", "true", "yes"].includes(String(params.get(key) || "").trim().toLowerCase());
+  return {
+    viewMode: returnView,
+    pluginContextNavPluginId: boundedRouteSnapshotValue(params.get("returnPluginContextNavPluginId") || ""),
+    singleWindowMode: boundedRouteSnapshotValue(params.get("returnSingleWindowMode") || "chat"),
+    selectedProjectId: boundedRouteSnapshotValue(params.get("returnProjectId") || ""),
+    selectedSubprojectId: boundedRouteSnapshotValue(params.get("returnSubprojectId") || ""),
+    currentThread: null,
+    currentThreadId: boundedRouteSnapshotValue(params.get("returnThreadId") || ""),
+    currentTaskGroupId: boundedRouteSnapshotValue(params.get("returnTaskGroupId") || ""),
+    threads: [],
+    selectedTodoId: boundedRouteSnapshotValue(params.get("returnTodoId") || ""),
+    todoCreateOpen: enabled("returnTodoCreate"),
+    selectedAutomationId: boundedRouteSnapshotValue(params.get("returnAutomationId") || ""),
+    automationCreateOpen: enabled("returnAutomationCreate"),
+    automationEditOpen: enabled("returnAutomationEdit"),
+    selectedActionInboxItemId: boundedRouteSnapshotValue(params.get("returnInboxItemId") || ""),
+    actionInboxCreateOpen: enabled("returnInboxCreate"),
+    selectedLearningTaskCardId: boundedRouteSnapshotValue(params.get("returnLearningTaskCardId") || ""),
+    learningGrowthSettingsOpen: enabled("returnLearningSettings"),
+    directoryPath: boundedRouteSnapshotValue(params.get("returnDirectoryPath") || "", 600),
+    directoryRootPath: boundedRouteSnapshotValue(params.get("returnDirectoryRoot") || "", 600),
+    sharedDirectoryManagerOpen: enabled("returnSharedDirectoryManager"),
+    conversationScrollTop: Math.max(0, Math.round(Number(params.get("returnConversationScrollTop") || 0) || 0)),
+    searchText: boundedRouteSnapshotValue(params.get("returnSearchText") || ""),
+  };
+}
+
+function restoreEmbeddedPluginReturnRouteFromSnapshotParams(params, routeView = "") {
+  const def = typeof embeddedPluginDefByView === "function" ? embeddedPluginDefByView(routeView) : null;
+  if (!def || !params) return false;
+  const route = embeddedPluginReturnRouteFromSnapshotParams(params, routeView);
+  if (!route) return false;
+  embeddedPluginRecord(def.id).returnRoute = route;
+  return true;
+}
+
 function currentAppRouteSnapshotParams() {
   const params = new URLSearchParams();
   const view = normalizedRouteView(state.viewMode || "", "");
@@ -73,6 +159,7 @@ function currentAppRouteSnapshotParams() {
   } else if (["wardrobe", "codex", "finance", "email", "health", "note"].includes(view)) {
     const pluginId = view === "codex" ? "codex-mobile" : view;
     params.set("pluginId", pluginId);
+    appendEmbeddedPluginReturnRouteSnapshotParams(params, embeddedPluginReturnRouteSnapshotForView(view));
     const route = pluginRouteSnapshotForView(view);
     if (route && typeof route === "object") {
       ["pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"].forEach((key) => {

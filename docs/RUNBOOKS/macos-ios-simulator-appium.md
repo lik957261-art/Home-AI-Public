@@ -68,6 +68,96 @@ Expected bounded output:
 The script does not accept Access Keys, raw key files, cookies, or Home AI
 credential material.
 
+## Live PWA Debug Server
+
+For high-frequency iOS PWA debugging, use the live debug server instead of
+one-off screenshot scripts:
+
+```bash
+npm run ios:pwa:debug
+```
+
+Default URL:
+
+```text
+http://127.0.0.1:19073/
+```
+
+The server keeps one Appium/XCUITest session open and provides a local browser
+UI with:
+
+- continuously refreshed Simulator screenshots;
+- optional WDA MJPEG video streaming for the fastest visual loop;
+- click-to-tap on the screenshot;
+- native Home and right-swipe/back actions;
+- current WebView app state, client version, viewport, bottom-nav metrics, and
+  active back target;
+- WebView JavaScript execution;
+- CSS selector click;
+- PWA reload, open URL, and bounded static-cache clearing.
+
+This is an interactive debugging tool, not a production service. Keep it bound
+to `127.0.0.1`. Do not paste raw Access Keys, sudo passwords, cookies, launch
+tokens, or private plugin payloads into the JavaScript panel or logs. If a test
+requires credentials, set them through an explicit temporary wrapper and do not
+print them.
+
+Use the older smoke/proof scripts for final reproducible evidence when a bug
+fix needs artifact paths, before/after screenshots, and bounded source files.
+
+### WDA MJPEG Stream Mode
+
+For deeper interactive debugging, run the live server with WDA MJPEG streaming:
+
+```bash
+npm run ios:pwa:debug -- \
+  --stream wda-mjpeg \
+  --mjpeg-server-port 9100 \
+  --wda-local-port 8101
+```
+
+This mode proxies the WebDriverAgent MJPEG server through
+`/api/stream.mjpeg`. The browser shows the MJPEG stream in the same clickable
+image surface, so tap coordinates still use normalized screen positions. If
+the MJPEG stream is unavailable, the page automatically falls back to the
+bounded `/api/screenshot` PNG loop.
+
+WDA normally exposes status on `--wda-local-port` and MJPEG on
+`--mjpeg-server-port`; these are separate ports and both must be unique per
+concurrent Simulator lane.
+
+### Concurrent Plugin Debugging
+
+One iOS Simulator UDID can have only one reliable Appium/XCUITest session at a
+time. Multiple plugin teams must not point separate live debug servers at the
+same UDID with the same Appium/WDA/MJPEG ports, because the newer session can
+terminate the older session and make WebView state reads, gestures, or video
+streams flaky.
+
+To debug plugins concurrently, allocate one Simulator per active plugin lane and
+run one live debug server per Simulator:
+
+```bash
+npm run ios:pwa:debug -- \
+  --port 19073 \
+  --udid <simulator-udid-a> \
+  --wda-local-port 8101 \
+  --mjpeg-server-port 9100
+
+npm run ios:pwa:debug -- \
+  --port 19074 \
+  --udid <simulator-udid-b> \
+  --wda-local-port 8102 \
+  --mjpeg-server-port 9101
+```
+
+The `simctl` screenshot path is independent and fast per Simulator, and WDA
+MJPEG stream mode is faster when its port is available. Native actions and
+WebView deep state are still serialized within each server instance. If a team
+only needs visual observation, keep to the screenshot/live-view path. If a team
+needs selectors, JavaScript execution, or gestures, use that Simulator's own
+live debug server instance.
+
 ## Gesture Smoke
 
 To issue a normalized viewport long press:

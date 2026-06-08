@@ -277,12 +277,47 @@ Use the highest applicable evidence level:
 | --- | --- | --- |
 | DOM/unit UI | deterministic helper or projection only | focused test assertions |
 | Playwright mobile viewport | early layout, browser-mode comparison, static cache | screenshot, bounding rects, loaded version |
+| Mac iOS PWA live debug | high-frequency iOS PWA interaction/debug loops | live Simulator screenshot, native actions, optional WebView state |
 | Mac iOS Simulator Appium | iOS gesture, menu, Safari/Simulator reproduction | Appium input, DOM state, screenshots, hit tests |
 | Installed PWA / real device | standalone shell, safe-area, keyboard, service-worker, final mobile acceptance | launcher/PWA proof, screenshot, viewport metrics |
 
 Browser-mode Safari or Chrome evidence must be labeled browser-mode. It cannot
 replace installed-PWA evidence when the issue depends on standalone shell
 semantics.
+
+For Mac-hosted Home AI work, plugin teams should use the Home AI live debug
+server for interactive iOS PWA debugging before falling back to one-off
+screenshot/coordinate scripts:
+
+```bash
+cd <Home-AI>
+npm run ios:pwa:debug
+```
+
+Default local UI:
+
+```text
+http://127.0.0.1:19073/
+```
+
+The live debug server separates the fast visual loop from the slower Appium
+WebView attach path: stable screenshots come from
+`xcrun simctl io ... screenshot`, and deeper interactive sessions can enable
+WDA MJPEG stream mode with `--stream wda-mjpeg --mjpeg-server-port <port>`.
+Native gestures, selector clicks, JavaScript execution, and deep WebView state
+use Appium/XCUITest when available. A missing WebView context is not itself a
+visual-smoke failure if the screenshot or MJPEG stream and native-action path
+still prove the reported layout or gesture issue. For final acceptance
+evidence, record bounded artifact paths and metrics from the relevant harness
+level.
+
+For concurrent plugin debugging, allocate one Simulator per active plugin lane.
+Do not share one Simulator UDID across multiple Appium/XCUITest control
+sessions. Each lane must use a unique `--port`, `--udid`,
+`--wda-local-port`, and `--mjpeg-server-port`; screenshot observation can run
+quickly per Simulator, WDA MJPEG is faster when enabled, but native gestures,
+selector clicks, JavaScript execution, and deep WebView state are serialized
+within that lane.
 
 ## Minimum Plugin UI Smoke
 
@@ -304,6 +339,11 @@ artifact paths and bounded metrics are recorded
 
 If the plugin has long-press, sheet, menu, or gesture behavior, the smoke must
 also prove open and dismissal paths.
+
+For iterative debugging, plugin teams should first reproduce the issue through
+the live debug server, then promote the final proof to a deterministic
+plugin-specific smoke script or documented artifact set. Do not rely on manual
+visual impressions alone when closing a plugin mobile UI bug.
 
 ## Static Client And Deployment UI Closure
 
@@ -327,6 +367,7 @@ Every plugin pointer file should declare:
 
 ```text
 mobile_visual_harness_status: none | playwright | appium-simulator | installed-pwa
+ios_live_debug_available: yes | no
 primary_mobile_surfaces:
 required_visual_smokes:
 known_ui_boundaries:

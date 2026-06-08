@@ -1,0 +1,785 @@
+"use strict";
+
+const http = require("http");
+const https = require("https");
+const fs = require("fs");
+const path = require("path");
+const childProcess = require("child_process");
+
+function parseArgs(argv = process.argv.slice(2)) {
+  const out = {
+    host: "127.0.0.1",
+    port: 19073,
+    appiumUrl: "http://127.0.0.1:4723",
+    deviceName: "HomeAI iPhone 17 Pro",
+    udid: "C2EB6D31-F485-4DAE-BFB4-25E27FC65389",
+    wdaLocalPort: 8101,
+    mjpegServerPort: 9100,
+    mjpegUrl: "",
+    appUrl: "https://wardrobe-xuxin.synology.me:8555/?source=pwa",
+    screenshotCacheMs: 350,
+    appiumTimeoutMs: 15000,
+    mjpegConnectTimeoutMs: 2500,
+    screenshotSource: "simctl",
+    streamMode: "simctl",
+    appiumStartScript: path.join(process.env.HOME || "/Users/xuxin", ".homeai-qa/scripts/macos-ios-appium-start.sh"),
+  };
+  for (let i = 0; i < argv.length; i += 1) {
+    const item = argv[i];
+    const next = () => argv[++i] || "";
+    if (item === "--host") out.host = next();
+    else if (item === "--port") out.port = Number(next()) || out.port;
+    else if (item === "--appium-url") out.appiumUrl = next();
+    else if (item === "--device-name") out.deviceName = next();
+    else if (item === "--udid") out.udid = next();
+    else if (item === "--wda-local-port") out.wdaLocalPort = Number(next()) || out.wdaLocalPort;
+    else if (item === "--mjpeg-server-port") out.mjpegServerPort = Number(next()) || out.mjpegServerPort;
+    else if (item === "--mjpeg-url") out.mjpegUrl = next();
+    else if (item === "--app-url") out.appUrl = next();
+    else if (item === "--screenshot-cache-ms") out.screenshotCacheMs = Number(next()) || out.screenshotCacheMs;
+    else if (item === "--appium-timeout-ms") out.appiumTimeoutMs = Number(next()) || out.appiumTimeoutMs;
+    else if (item === "--mjpeg-connect-timeout-ms") out.mjpegConnectTimeoutMs = Number(next()) || out.mjpegConnectTimeoutMs;
+    else if (item === "--screenshot-source") out.screenshotSource = next() || out.screenshotSource;
+    else if (item === "--stream") out.streamMode = next() || out.streamMode;
+    else if (item === "--appium-start-script") out.appiumStartScript = next();
+  }
+  return out;
+}
+
+const args = parseArgs();
+const state = {
+  sessionId: "",
+  webContext: "",
+  screenshot: null,
+  screenshotAt: 0,
+  connecting: null,
+  commandQueue: Promise.resolve(),
+  lastDeepState: null,
+  lastDeepStateAt: 0,
+  lastError: "",
+  streamClients: 0,
+  streamLastConnectedAt: 0,
+  streamLastError: "",
+};
+
+function json(res, status, body) {
+  res.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+  });
+  res.end(JSON.stringify(body, null, 2));
+}
+
+function html(res, body) {
+  res.writeHead(200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+  });
+  res.end(body);
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = "";
+    req.on("data", (chunk) => {
+      raw += chunk;
+      if (raw.length > 1024 * 1024) reject(new Error("request_body_too_large"));
+    });
+    req.on("end", () => {
+      if (!raw) return resolve({});
+      try {
+        resolve(JSON.parse(raw));
+      } catch (err) {
+        reject(err);
+      }
+    });
+  });
+}
+
+async function appium(method, route, body = null) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Math.max(1000, Number(args.appiumTimeoutMs || 15000)));
+  let response;
+  try {
+    response = await fetch(`${args.appiumUrl}${route}`, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err?.name === "AbortError") throw new Error(`${method} ${route}: appium_timeout`);
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+  const text = await response.text();
+  let parsed = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch (_) {
+    parsed = { raw: text };
+  }
+  if (!response.ok) {
+    const message = String(parsed?.value?.message || parsed?.message || text || response.statusText || "appium_error");
+    if (response.status === 404 && /session is either terminated|not started|invalid session|Session .* not found/i.test(message)) {
+      state.sessionId = "";
+      state.webContext = "";
+    }
+    throw new Error(`${method} ${route} ${response.status}: ${message.slice(0, 600)}`);
+  }
+  return parsed;
+}
+
+function invalidSessionError(err) {
+  return /session is either terminated|not started|invalid session|Session .* not found/i.test(String(err?.message || err || ""));
+}
+
+function enqueue(fn) {
+  const run = state.commandQueue.then(fn, fn);
+  state.commandQueue = run.catch(() => null);
+  return run;
+}
+
+async function ensureAppiumServer() {
+  try {
+    const response = await fetch(`${args.appiumUrl}/status`);
+    if (response.ok) return true;
+  } catch (_) {}
+  if (args.appiumStartScript && fs.existsSync(args.appiumStartScript)) {
+    childProcess.execFileSync("bash", [args.appiumStartScript], { stdio: "ignore" });
+  }
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 8000) {
+    try {
+      const response = await fetch(`${args.appiumUrl}/status`);
+      if (response.ok) return true;
+    } catch (_) {}
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+  throw new Error("appium_server_not_ready");
+}
+
+async function deleteSession() {
+  if (!state.sessionId) return;
+  const id = state.sessionId;
+  state.sessionId = "";
+  state.webContext = "";
+  await appium("DELETE", `/session/${id}`).catch(() => null);
+}
+
+async function connectSession(options = {}) {
+  if (state.connecting) return state.connecting;
+  state.connecting = (async () => {
+    await ensureAppiumServer();
+    if (options.resetSession) await deleteSession();
+    if (!state.sessionId) {
+      const created = await appium("POST", "/session", {
+        capabilities: {
+          alwaysMatch: {
+            platformName: "iOS",
+            "appium:automationName": "XCUITest",
+            "appium:deviceName": args.deviceName,
+            "appium:udid": args.udid,
+            "appium:wdaLocalPort": args.wdaLocalPort,
+            "appium:mjpegServerPort": args.mjpegServerPort,
+            "appium:newCommandTimeout": 600,
+            "appium:noReset": true,
+          },
+        },
+      });
+      state.sessionId = created?.value?.sessionId || created?.sessionId || "";
+    }
+    await refreshWebContext();
+    state.lastError = "";
+    return { ok: true, sessionId: state.sessionId, webContext: state.webContext };
+  })();
+  try {
+    return await state.connecting;
+  } finally {
+    state.connecting = null;
+  }
+}
+
+async function refreshWebContext() {
+  if (!state.sessionId) return "";
+  const contexts = await appium("GET", `/session/${state.sessionId}/contexts`);
+  const list = Array.isArray(contexts?.value) ? contexts.value : [];
+  const web = list.find((item) => String(item).startsWith("WEBVIEW")) || "";
+  state.webContext = web;
+  return web;
+}
+
+async function withWebContext(fn) {
+  await connectSession();
+  const web = state.webContext || await refreshWebContext();
+  if (!web) throw new Error("webview_context_missing");
+  await appium("POST", `/session/${state.sessionId}/context`, { name: web });
+  return fn();
+}
+
+async function execute(script, scriptArgs = []) {
+  try {
+    return await withWebContext(async () => {
+      const result = await appium("POST", `/session/${state.sessionId}/execute/sync`, { script, args: scriptArgs });
+      return result?.value;
+    });
+  } catch (err) {
+    if (!invalidSessionError(err)) throw err;
+    await connectSession({ resetSession: true });
+    return withWebContext(async () => {
+      const result = await appium("POST", `/session/${state.sessionId}/execute/sync`, { script, args: scriptArgs });
+      return result?.value;
+    });
+  }
+}
+
+async function nativeExecute(command, payload = {}) {
+  try {
+    await connectSession();
+    const result = await appium("POST", `/session/${state.sessionId}/execute/sync`, {
+      script: `mobile: ${command}`,
+      args: [payload],
+    });
+    return result?.value;
+  } catch (err) {
+    if (!invalidSessionError(err)) throw err;
+    await connectSession({ resetSession: true });
+    const result = await appium("POST", `/session/${state.sessionId}/execute/sync`, {
+      script: `mobile: ${command}`,
+      args: [payload],
+    });
+    return result?.value;
+  }
+}
+
+async function screenshotBase64(force = false) {
+  if (args.screenshotSource !== "appium") return simctlScreenshotBase64(force);
+  try {
+    await connectSession();
+    const now = Date.now();
+    if (!force && state.screenshot && now - state.screenshotAt < args.screenshotCacheMs) return state.screenshot;
+    const result = await appium("GET", `/session/${state.sessionId}/screenshot`);
+    state.screenshot = String(result?.value || "");
+    state.screenshotAt = now;
+    return state.screenshot;
+  } catch (err) {
+    if (!invalidSessionError(err)) throw err;
+    state.screenshot = null;
+    state.screenshotAt = 0;
+    await connectSession({ resetSession: true });
+    const result = await appium("GET", `/session/${state.sessionId}/screenshot`);
+    state.screenshot = String(result?.value || "");
+    state.screenshotAt = Date.now();
+    return state.screenshot;
+  }
+}
+
+async function simctlScreenshotBase64(force = false) {
+  const now = Date.now();
+  if (!force && state.screenshot && now - state.screenshotAt < args.screenshotCacheMs) return state.screenshot;
+  const target = path.join("/tmp", `homeai-ios-live-debug-${args.udid || "booted"}.png`);
+  childProcess.execFileSync("xcrun", ["simctl", "io", args.udid || "booted", "screenshot", target], {
+    stdio: "ignore",
+    timeout: 5000,
+  });
+  state.screenshot = fs.readFileSync(target).toString("base64");
+  state.screenshotAt = now;
+  return state.screenshot;
+}
+
+function mjpegStreamUrl() {
+  if (args.mjpegUrl) return args.mjpegUrl;
+  return `http://127.0.0.1:${args.mjpegServerPort}/`;
+}
+
+function mjpegPreferred() {
+  return String(args.streamMode || "").toLowerCase() === "wda-mjpeg";
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 2500) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Math.max(250, Number(timeoutMs || 2500)));
+  try {
+    return await fetch(url, Object.assign({}, options, { signal: controller.signal }));
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function currentStreamInfo() {
+  const info = {
+    preferred: mjpegPreferred() ? "wda-mjpeg" : "simctl",
+    mjpegUrl: mjpegStreamUrl(),
+    mjpegServerPort: args.mjpegServerPort,
+    wdaLocalPort: args.wdaLocalPort,
+    clients: state.streamClients,
+    lastConnectedAt: state.streamLastConnectedAt,
+    lastError: state.streamLastError,
+    ready: false,
+  };
+  if (!mjpegPreferred()) return info;
+  try {
+    const response = await fetchWithTimeout(info.mjpegUrl, { method: "HEAD" }, args.mjpegConnectTimeoutMs);
+    info.ready = response.ok && /multipart\/x-mixed-replace/i.test(String(response.headers.get("content-type") || ""));
+    if (!info.ready) info.lastError = `mjpeg_not_ready:${response.status}`;
+  } catch (err) {
+    info.lastError = err?.name === "AbortError" ? "mjpeg_probe_timeout" : String(err?.message || err);
+  }
+  return info;
+}
+
+async function proxyMjpegStream(req, res) {
+  if (!mjpegPreferred()) {
+    res.writeHead(404, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+    res.end(JSON.stringify({ ok: false, error: "mjpeg_stream_disabled" }));
+    return;
+  }
+  const target = new URL(mjpegStreamUrl());
+  if (!/^https?:$/.test(target.protocol)) throw new Error("mjpeg_url_must_be_http");
+  const transport = target.protocol === "https:" ? https : http;
+  const request = transport.request(target, {
+    method: "GET",
+    timeout: Math.max(500, Number(args.mjpegConnectTimeoutMs || 2500)),
+  }, (upstream) => {
+    const contentType = String(upstream.headers["content-type"] || "multipart/x-mixed-replace; boundary=--BoundaryString");
+    if (upstream.statusCode < 200 || upstream.statusCode >= 300 || !/multipart\/x-mixed-replace/i.test(contentType)) {
+      state.streamLastError = `mjpeg_upstream_${upstream.statusCode || "unknown"}`;
+      res.writeHead(502, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+      upstream.resume();
+      res.end(JSON.stringify({ ok: false, error: state.streamLastError }));
+      return;
+    }
+    state.streamClients += 1;
+    state.streamLastConnectedAt = Date.now();
+    state.streamLastError = "";
+    res.writeHead(200, {
+      "Content-Type": contentType,
+      "Cache-Control": "no-cache, no-store, must-revalidate",
+      "Pragma": "no-cache",
+      "Connection": "close",
+    });
+    upstream.pipe(res);
+    let closed = false;
+    const close = () => {
+      if (closed) return;
+      closed = true;
+      upstream.destroy();
+      state.streamClients = Math.max(0, state.streamClients - 1);
+    };
+    req.once("close", close);
+    res.once("close", close);
+  });
+  request.on("timeout", () => {
+    request.destroy(new Error("mjpeg_connect_timeout"));
+  });
+  request.on("error", (err) => {
+    state.streamLastError = String(err?.message || err || "mjpeg_proxy_error");
+    if (!res.headersSent) {
+      res.writeHead(502, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+      res.end(JSON.stringify({ ok: false, error: state.streamLastError }));
+    } else {
+      res.destroy(err);
+    }
+  });
+  req.once("close", () => request.destroy());
+  request.end();
+}
+
+async function headMjpegStream(res) {
+  const info = await currentStreamInfo();
+  res.writeHead(info.ready ? 200 : 502, {
+    "Content-Type": "multipart/x-mixed-replace; boundary=--BoundaryString",
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "X-HomeAI-MJPEG-Ready": info.ready ? "1" : "0",
+  });
+  res.end();
+}
+
+function currentStateFast() {
+  if (!state.sessionId && !state.connecting) {
+    connectSession().catch((err) => { state.lastError = err.message || String(err); });
+  }
+  return {
+    ok: true,
+    sessionId: state.sessionId,
+    webContext: state.webContext,
+    connecting: Boolean(state.connecting),
+    lastDeepStateAt: state.lastDeepStateAt,
+    lastDeepState: state.lastDeepState,
+    lastError: state.lastError,
+    stream: {
+      preferred: mjpegPreferred() ? "wda-mjpeg" : "simctl",
+      mjpegUrl: mjpegStreamUrl(),
+      mjpegServerPort: args.mjpegServerPort,
+      wdaLocalPort: args.wdaLocalPort,
+      clients: state.streamClients,
+      lastConnectedAt: state.streamLastConnectedAt,
+      lastError: state.streamLastError,
+    },
+  };
+}
+
+async function currentStateDeep() {
+  if (!state.sessionId) {
+    if (!state.connecting) connectSession().catch((err) => { state.lastError = err.message || String(err); });
+    return {
+      ok: true,
+      sessionId: "",
+      webContext: "",
+      connecting: true,
+      active: null,
+      web: { error: "appium_connecting" },
+      lastError: state.lastError,
+    };
+  }
+  const active = await nativeExecute("activeAppInfo", {}).catch((err) => ({ error: err.message }));
+  const web = await execute(`
+    const rect = (node) => {
+      if (!node) return null;
+      const r = node.getBoundingClientRect();
+      return { top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom), left: Math.round(r.left), width: Math.round(r.width), height: Math.round(r.height) };
+    };
+    const nav = document.getElementById("bottomNav");
+    const app = document.getElementById("app");
+    const title = document.getElementById("threadTitle");
+    return {
+      href: location.href,
+      title: document.title,
+      clientVersion: document.documentElement.getAttribute("data-client-version") || "",
+      readyState: document.readyState,
+      standalone: Boolean((window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true),
+      viewport: {
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio,
+        visual: window.visualViewport ? {
+          width: Math.round(window.visualViewport.width),
+          height: Math.round(window.visualViewport.height),
+          offsetTop: Math.round(window.visualViewport.offsetTop),
+          offsetLeft: Math.round(window.visualViewport.offsetLeft),
+          scale: window.visualViewport.scale,
+        } : null,
+      },
+      app: {
+        className: app?.className || "",
+        viewMode: window.state?.viewMode || "",
+        workspaceId: window.state?.selectedWorkspaceId || "",
+        currentTaskGroupId: window.state?.currentTaskGroupId || "",
+        currentThreadId: window.state?.currentThreadId || "",
+        pluginContextNavPluginId: window.state?.pluginContextNavPluginId || "",
+        authenticated: Boolean(window.state?.auth && (state.auth.ok || state.auth.authenticated || state.auth.isOwner)),
+      },
+      controls: {
+        backTarget: typeof backSwipeTarget === "function" ? backSwipeTarget() : "",
+        codexOuterBack: typeof codexPluginOuterBackActive === "function" ? codexPluginOuterBackActive() : null,
+        bottomNav: rect(nav),
+        title: title?.textContent || "",
+      },
+      mobileBottomLayout: window.__hermesMobileBottomLayoutMetrics || null,
+    };
+  `).catch((err) => ({ error: err.message }));
+  const payload = {
+    ok: true,
+    sessionId: state.sessionId,
+    webContext: state.webContext,
+    active,
+    web,
+    lastError: state.lastError,
+  };
+  state.lastDeepState = payload;
+  state.lastDeepStateAt = Date.now();
+  return payload;
+}
+
+async function nativeTapNormalized(x, y) {
+  await connectSession();
+  const rect = await appium("GET", `/session/${state.sessionId}/window/rect`);
+  const width = Number(rect?.value?.width || rect?.width || 0) || 1;
+  const height = Number(rect?.value?.height || rect?.height || 0) || 1;
+  const px = Math.max(0, Math.min(width - 1, Math.round(width * Number(x || 0))));
+  const py = Math.max(0, Math.min(height - 1, Math.round(height * Number(y || 0))));
+  await appium("POST", `/session/${state.sessionId}/actions`, {
+    actions: [{
+      type: "pointer",
+      id: "finger1",
+      parameters: { pointerType: "touch" },
+      actions: [
+        { type: "pointerMove", duration: 0, x: px, y: py },
+        { type: "pointerDown", button: 0 },
+        { type: "pause", duration: 80 },
+        { type: "pointerUp", button: 0 },
+      ],
+    }],
+  });
+  await appium("DELETE", `/session/${state.sessionId}/actions`).catch(() => null);
+  return { x: px, y: py, width, height };
+}
+
+async function nativeSwipeBack() {
+  await connectSession();
+  const rect = await appium("GET", `/session/${state.sessionId}/window/rect`);
+  const width = Number(rect?.value?.width || rect?.width || 390) || 390;
+  const height = Number(rect?.value?.height || rect?.height || 844) || 844;
+  const y = Math.round(height * 0.5);
+  await appium("POST", `/session/${state.sessionId}/actions`, {
+    actions: [{
+      type: "pointer",
+      id: "finger1",
+      parameters: { pointerType: "touch" },
+      actions: [
+        { type: "pointerMove", duration: 0, x: 4, y },
+        { type: "pointerDown", button: 0 },
+        { type: "pointerMove", duration: 260, x: Math.round(width * 0.78), y },
+        { type: "pointerUp", button: 0 },
+      ],
+    }],
+  });
+  await appium("DELETE", `/session/${state.sessionId}/actions`).catch(() => null);
+  return { y, width, height };
+}
+
+async function performAction(body = {}) {
+  const type = String(body.type || "").trim();
+  if (type === "connect") return connectSession({ resetSession: Boolean(body.resetSession) });
+  if (type === "launchPwa") {
+    childProcess.execFileSync("xcrun", ["simctl", "launch", args.udid || "booted", "com.apple.webapp"], {
+      stdio: "ignore",
+      timeout: 5000,
+    });
+    return { launched: "com.apple.webapp" };
+  }
+  if (type === "reload") return execute("location.reload(); return true;");
+  if (type === "open") return execute("location.href = arguments[0]; return location.href;", [String(body.url || args.appUrl)]);
+  if (type === "home") return nativeExecute("pressButton", { name: "home" });
+  if (type === "swipeBack") return nativeSwipeBack();
+  if (type === "tap") return nativeTapNormalized(Number(body.x), Number(body.y));
+  if (type === "js") return execute(String(body.script || "return null;"), Array.isArray(body.args) ? body.args : []);
+  if (type === "clickSelector") {
+    return execute(`
+      const selector = arguments[0];
+      const node = document.querySelector(selector);
+      if (!node) return { ok: false, error: "selector_not_found", selector };
+      node.scrollIntoView({ block: "center", inline: "center" });
+      node.click();
+      const rect = node.getBoundingClientRect();
+      return { ok: true, selector, rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height } };
+    `, [String(body.selector || "")]);
+  }
+  if (type === "setLocalStorage") {
+    return execute("localStorage.setItem(arguments[0], arguments[1]); return true;", [String(body.key || ""), String(body.value || "")]);
+  }
+  if (type === "clearStaticCaches") {
+    return execute(`
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+      return { deleted: keys };
+    `);
+  }
+  throw new Error(`unknown_action:${type}`);
+}
+
+function pageHtml() {
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Home AI iOS Live Debug</title>
+  <style>
+    :root { color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif; }
+    body { margin: 0; background: #101214; color: #eef3f0; }
+    .shell { display: grid; grid-template-columns: minmax(320px, 520px) minmax(360px, 1fr); gap: 12px; height: 100vh; box-sizing: border-box; padding: 12px; }
+    .screen { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 8px; }
+    .bar, .panel { background: #171b1d; border: 1px solid #2a3134; border-radius: 8px; }
+    .bar { display: flex; align-items: center; gap: 8px; padding: 8px; flex-wrap: wrap; }
+    button, input, textarea { font: inherit; }
+    button { border: 1px solid #3b474c; border-radius: 6px; background: #243035; color: #f4f7f5; padding: 7px 10px; cursor: pointer; }
+    button:hover { background: #2e3c42; }
+    input, textarea { box-sizing: border-box; width: 100%; border: 1px solid #344044; border-radius: 6px; background: #0f1315; color: #f4f7f5; padding: 8px; }
+    textarea { min-height: 96px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .viewport { min-height: 0; overflow: auto; display: grid; place-items: start center; padding: 8px; }
+    #shot { display: block; width: min(100%, 430px); height: auto; border-radius: 8px; background: #000; cursor: crosshair; }
+    .panel { min-height: 0; overflow: auto; padding: 10px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+    .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin: 8px 0; }
+    pre { white-space: pre-wrap; word-break: break-word; margin: 0; font-size: 12px; line-height: 1.45; color: #c9d4d0; }
+    .status { color: #9fb4ad; font-size: 12px; }
+    .warn { color: #ffd08a; }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="screen">
+      <div class="bar">
+        <button data-action="connect">连接</button>
+        <button data-action="launchPwa">启动 PWA</button>
+        <button data-action="reload">刷新 PWA</button>
+        <button data-action="swipeBack">右滑返回</button>
+        <button data-action="home">Home</button>
+        <button data-stream-restart>重连视频</button>
+        <label class="status"><input id="auto" type="checkbox" checked style="width:auto"> 实时刷新</label>
+        <span id="status" class="status"></span>
+      </div>
+      <div class="viewport bar">
+        <img id="shot" alt="iOS simulator live screenshot">
+      </div>
+    </section>
+    <section class="panel">
+      <div class="grid">
+        <button data-state>刷新状态</button>
+        <button data-deep-state>深读 WebView</button>
+        <button data-action="clearStaticCaches">清静态缓存</button>
+      </div>
+      <div class="row">
+        <input id="openUrl" value="${escapeHtml(args.appUrl)}">
+        <button data-open>打开</button>
+      </div>
+      <div class="row">
+        <input id="selector" placeholder="CSS selector, e.g. #bottomCodexMode">
+        <button data-click-selector>点 selector</button>
+      </div>
+      <textarea id="script">return {
+  href: location.href,
+  version: document.documentElement.getAttribute("data-client-version"),
+  viewMode: window.state?.viewMode,
+  backTarget: typeof backSwipeTarget === "function" ? backSwipeTarget() : ""
+};</textarea>
+      <div class="grid">
+        <button data-js>执行 JS</button>
+        <button data-deep-state>深读 WebView</button>
+      </div>
+      <pre id="out"></pre>
+    </section>
+  </main>
+  <script>
+    const STREAM_MODE = ${JSON.stringify(mjpegPreferred() ? "wda-mjpeg" : "simctl")};
+    const shot = document.getElementById("shot");
+    const out = document.getElementById("out");
+    const statusEl = document.getElementById("status");
+    const auto = document.getElementById("auto");
+    const runtime = { streamActive: false, streamFailed: false };
+    async function post(url, body) {
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || JSON.stringify(data));
+      return data;
+    }
+    function screenshotUrl(force) {
+      return "/api/screenshot?t=" + Date.now() + (force ? "&force=1" : "");
+    }
+    function startStream() {
+      if (STREAM_MODE !== "wda-mjpeg" || runtime.streamFailed || runtime.streamActive || !auto.checked) return false;
+      runtime.streamActive = true;
+      shot.src = "/api/stream.mjpeg?t=" + Date.now();
+      statusEl.textContent = "WDA MJPEG";
+      return true;
+    }
+    async function refreshShot(options = {}) {
+      if (!auto.checked) return;
+      if (!options.forceScreenshot && startStream()) return;
+      if (STREAM_MODE === "wda-mjpeg" && runtime.streamActive && !options.forceScreenshot) return;
+      shot.src = screenshotUrl(Boolean(options.forceScreenshot));
+      statusEl.textContent = "PNG " + new Date().toLocaleTimeString();
+    }
+    async function state() {
+      const res = await fetch("/api/state?t=" + Date.now());
+      const data = await res.json();
+      out.textContent = JSON.stringify(data, null, 2);
+    }
+    async function deepState() {
+      const res = await fetch("/api/deep-state?t=" + Date.now());
+      const data = await res.json();
+      out.textContent = JSON.stringify(data, null, 2);
+    }
+    async function action(type, extra) {
+      const data = await post("/api/action", Object.assign({ type }, extra || {}));
+      out.textContent = JSON.stringify(data, null, 2);
+      await state().catch(() => {});
+      await refreshShot();
+    }
+    document.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => action(button.dataset.action).catch((err) => out.textContent = err.message)));
+    document.querySelectorAll("[data-state]").forEach((button) => button.addEventListener("click", () => state().catch((err) => out.textContent = err.message)));
+    document.querySelectorAll("[data-deep-state]").forEach((button) => button.addEventListener("click", () => deepState().catch((err) => out.textContent = err.message)));
+    document.querySelector("[data-open]").addEventListener("click", () => action("open", { url: document.getElementById("openUrl").value }).catch((err) => out.textContent = err.message));
+    document.querySelector("[data-click-selector]").addEventListener("click", () => action("clickSelector", { selector: document.getElementById("selector").value }).catch((err) => out.textContent = err.message));
+    document.querySelector("[data-js]").addEventListener("click", () => action("js", { script: document.getElementById("script").value }).catch((err) => out.textContent = err.message));
+    document.querySelector("[data-stream-restart]").addEventListener("click", () => {
+      runtime.streamActive = false;
+      runtime.streamFailed = false;
+      refreshShot({ forceScreenshot: false }).catch((err) => out.textContent = err.message);
+    });
+    shot.addEventListener("error", () => {
+      if (!runtime.streamActive) return;
+      runtime.streamActive = false;
+      runtime.streamFailed = true;
+      statusEl.textContent = "MJPEG failed; PNG fallback";
+      refreshShot({ forceScreenshot: true }).catch((err) => out.textContent = err.message);
+    });
+    shot.addEventListener("click", (event) => {
+      const rect = shot.getBoundingClientRect();
+      const x = (event.clientX - rect.left) / rect.width;
+      const y = (event.clientY - rect.top) / rect.height;
+      action("tap", { x, y }).catch((err) => out.textContent = err.message);
+    });
+    setInterval(refreshShot, STREAM_MODE === "wda-mjpeg" ? 1200 : 550);
+    refreshShot();
+    state().catch(() => {});
+  </script>
+</body>
+</html>`;
+}
+
+function escapeHtml(value = "") {
+  return String(value).replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[ch]));
+}
+
+async function handle(req, res) {
+  const url = new URL(req.url || "/", `http://${req.headers.host || "127.0.0.1"}`);
+  try {
+    if (req.method === "GET" && url.pathname === "/") return html(res, pageHtml());
+    if (req.method === "GET" && url.pathname === "/api/state") return json(res, 200, currentStateFast());
+    if (req.method === "GET" && url.pathname === "/api/stream-info") return json(res, 200, await currentStreamInfo());
+    if (req.method === "HEAD" && url.pathname === "/api/stream.mjpeg") return headMjpegStream(res);
+    if (req.method === "GET" && url.pathname === "/api/stream.mjpeg") return proxyMjpegStream(req, res);
+    if (req.method === "GET" && url.pathname === "/api/deep-state") return json(res, 200, await enqueue(() => currentStateDeep()));
+    if (req.method === "GET" && url.pathname === "/api/screenshot") {
+      const b64 = await screenshotBase64(url.searchParams.get("force") === "1");
+      const bytes = Buffer.from(b64, "base64");
+      res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-store" });
+      return res.end(bytes);
+    }
+    if (req.method === "POST" && url.pathname === "/api/action") {
+      const body = await readBody(req);
+      return json(res, 200, { ok: true, value: await enqueue(() => performAction(body)) });
+    }
+    return json(res, 404, { ok: false, error: "not_found" });
+  } catch (err) {
+    state.lastError = err.message || String(err);
+    return json(res, 500, { ok: false, error: state.lastError });
+  }
+}
+
+const server = http.createServer((req, res) => {
+  handle(req, res).catch((err) => json(res, 500, { ok: false, error: err.message || String(err) }));
+});
+
+server.listen(args.port, args.host, () => {
+  const url = `http://${args.host}:${args.port}/`;
+  console.log(JSON.stringify({
+    ok: true,
+    url,
+    appiumUrl: args.appiumUrl,
+    udid: args.udid,
+    streamMode: mjpegPreferred() ? "wda-mjpeg" : "simctl",
+    wdaLocalPort: args.wdaLocalPort,
+    mjpegServerPort: args.mjpegServerPort,
+    mjpegUrl: mjpegStreamUrl(),
+  }, null, 2));
+});

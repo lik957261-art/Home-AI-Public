@@ -20,6 +20,7 @@ contracts:
 
 - `docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md`
 - `docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md`
+- `docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md`
 - `docs/RUNBOOKS/macos-production-access.md`
 - `docs/IMPLEMENTATION_NOTES/reference-memory-graph-v1.md`
 - `docs/IMPLEMENTATION_NOTES/reference-memory-graph-harness-plan.md`
@@ -51,6 +52,7 @@ Home AI platform contract version: 20260606-v1
 Canonical Home AI contract source:
 - <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md
 - <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md
+- <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md
 - <path-to-Home-AI>/docs/RUNBOOKS/macos-production-access.md
 - <path-to-Home-AI>/docs/RUNBOOKS/mcp-tool-upgrade-closure.md
 - <path-to-Home-AI>/docs/RUNBOOKS/macos-ios-simulator-appium.md
@@ -165,11 +167,12 @@ doc:
 | `mcp_command` | if MCP plugin | Command or wrapper used by Gateway. |
 | `mcp_schema_endpoint` | if MCP plugin | Local schema endpoint or schema probe command. |
 | `credential_locations` | if credentials exist | File paths or config keys only, never secret values. |
-| `deploy_command` | yes | Must use platform access contract. |
+| `deploy_command` | yes | Must call the central Home AI deploy script from `docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md`. |
 | `local_validation_commands` | yes | Focused syntax/unit/service tests. |
 | `production_validation_commands` | yes | Health, version, schema, Gateway, and data smoke. |
 | `reference_contract_status` | yes | `none`, `planned`, `v1-minimal`, or `implemented`. |
 | `mobile_visual_harness_status` | if embedded UI | `none`, `playwright`, `appium-simulator`, or `installed-pwa`. |
+| `ios_live_debug_available` | if embedded UI | `yes` when the plugin can be debugged through the Home AI live iOS PWA server; otherwise `no` with a short reason. |
 
 ## Access And Privilege Boundary
 
@@ -193,6 +196,35 @@ Rules:
   operations.
 
 ## Deployment Contract
+
+Mac production deployment is centralized in:
+
+```text
+<path-to-Home-AI>/docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md
+```
+
+Plugin threads must read that file before production deploys. A plugin may keep
+local facts such as its launchd label, health URL, schema command, and data
+readback command, but it must not replace the central deploy path with a
+plugin-private sudo/rsync flow.
+
+Standard plugin deploy plan command:
+
+```bash
+cd /Users/hermes-dev/HermesMobileDev/app
+npm run --silent deploy:macos -- --plugin <plugin-id> --source /Users/hermes-dev/HermesMobileDev/plugins/<plugin-id> --json
+```
+
+Standard plugin execute command shape:
+
+```bash
+cd /Users/hermes-dev/HermesMobileDev/app
+npm run --silent deploy:macos -- --plugin <plugin-id> --source /Users/hermes-dev/HermesMobileDev/plugins/<plugin-id> --restart-label <label> --health-url <url> --execute --password-file <private-local-password-file> --json
+```
+
+The password file path is an operator-local secret reference. Plugin docs may
+name the argument or environment variable, but must not store the password or
+copy the password file into a plugin repository.
 
 Plugin deployment must verify all layers that can fail independently:
 
@@ -267,6 +299,26 @@ visual evidence. The required level depends on the surface:
   reproduction work;
 - installed-PWA or real-device evidence is required when standalone shell,
   safe-area, keyboard, service-worker, or browser/PWA differences are material.
+- On Mac, high-frequency iOS PWA/plugin visual debugging should start with the
+  Home AI live debug server:
+
+  ```bash
+  cd /Users/hermes-dev/HermesMobileDev/app
+  npm run ios:pwa:debug
+  ```
+
+  Default local UI: `http://127.0.0.1:19073/`.
+  This tool provides a fast Simulator screenshot loop plus native actions, and
+  can enable WDA MJPEG stream mode with
+  `--stream wda-mjpeg --mjpeg-server-port <port>` for the fastest visual loop.
+  It uses Appium/WebView state only when available. Plugin teams should use it
+  to reproduce and iterate, then record bounded final smoke artifacts.
+
+  Concurrent plugin debugging must allocate one Simulator per active plugin
+  lane. Do not point multiple live-debug servers at the same Simulator UDID.
+  Each lane needs a unique live-debug `--port`, Simulator `--udid`, WDA
+  `--wda-local-port`, and MJPEG `--mjpeg-server-port`; native actions and
+  WebView deep state remain serialized within that lane.
 
 Use:
 
@@ -315,6 +367,7 @@ The eventual platform checker should verify each plugin workspace for:
 - MCP schema closure is declared when MCP exists;
 - Reference Contract status is declared;
 - mobile visual harness status is declared when embedded UI exists;
+- iOS live debug availability is declared when embedded mobile UI exists;
 - no raw-looking secret values are present in docs;
 - `.agent-context` exists or is explicitly not needed.
 

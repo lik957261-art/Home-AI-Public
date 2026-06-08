@@ -1,0 +1,95 @@
+"use strict";
+
+const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
+
+const repoRoot = path.resolve(__dirname, "..");
+const script = fs.readFileSync(path.join(repoRoot, "scripts", "ios-pwa-live-debug-server.js"), "utf8");
+const runbook = fs.readFileSync(path.join(repoRoot, "docs", "RUNBOOKS", "macos-ios-simulator-appium.md"), "utf8");
+const mobileContract = fs.readFileSync(path.join(repoRoot, "docs", "PLATFORM_CONTRACTS", "plugin-mobile-ui-visual-contract.md"), "utf8");
+const platformContract = fs.readFileSync(path.join(repoRoot, "docs", "PLATFORM_CONTRACTS", "plugin-workspace-platform-contract.md"), "utf8");
+const deployContract = fs.readFileSync(path.join(repoRoot, "docs", "PLATFORM_CONTRACTS", "macos-dev-to-production-deployment-contract.md"), "utf8");
+const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+
+assert.equal(packageJson.scripts["ios:pwa:debug"], "node scripts/ios-pwa-live-debug-server.js");
+
+assert.match(script, /const http = require\("http"\)/);
+assert.match(script, /appiumUrl: "http:\/\/127\.0\.0\.1:4723"/);
+assert.match(script, /port: 19073/);
+assert.match(script, /mjpegServerPort: 9100/);
+assert.match(script, /mjpegUrl: ""/);
+assert.match(script, /screenshotSource: "simctl"/);
+assert.match(script, /streamMode: "simctl"/);
+assert.match(script, /appiumTimeoutMs: 15000/);
+assert.match(script, /mjpegConnectTimeoutMs: 2500/);
+assert.match(script, /--stream/);
+assert.match(script, /--mjpeg-server-port/);
+assert.match(script, /--mjpeg-url/);
+assert.match(script, /"appium:mjpegServerPort": args\.mjpegServerPort/);
+assert.match(script, /function connectSession\(options = \{\}\)/);
+assert.match(script, /function withWebContext\(fn\)/);
+assert.match(script, /function screenshotBase64\(force = false\)/);
+assert.match(script, /function simctlScreenshotBase64\(force = false\)/);
+assert.match(script, /function mjpegStreamUrl\(\)/);
+assert.match(script, /function proxyMjpegStream\(req, res\)/);
+assert.match(script, /function headMjpegStream\(res\)/);
+assert.match(script, /multipart\/x-mixed-replace/);
+assert.match(script, /"xcrun", \["simctl", "io"/);
+assert.match(script, /function currentStateFast\(\)/);
+assert.match(script, /function currentStateDeep\(\)/);
+assert.match(script, /appium_connecting/);
+assert.match(script, /function nativeTapNormalized\(x, y\)/);
+assert.match(script, /function nativeSwipeBack\(\)/);
+assert.match(script, /type === "clickSelector"/);
+assert.match(script, /type === "js"/);
+assert.match(script, /type === "launchPwa"/);
+assert.match(script, /type === "clearStaticCaches"/);
+assert.match(script, /data-action="launchPwa"/);
+assert.match(script, /data-action="swipeBack"/);
+assert.match(script, /id="shot"/);
+assert.match(script, /\/api\/screenshot/);
+assert.match(script, /\/api\/stream\.mjpeg/);
+assert.match(script, /\/api\/stream-info/);
+assert.match(script, /\/api\/state/);
+assert.match(script, /\/api\/deep-state/);
+assert.match(script, /\/api\/action/);
+assert.match(script, /data-stream-restart/);
+assert.match(script, /MJPEG failed; PNG fallback/);
+assert.doesNotMatch(script, /owner-web-key\.secret/);
+assert.doesNotMatch(script, /HOMEAI_MAC_SUDO_PASSWORD_FILE/);
+
+assert.match(runbook, /## Live PWA Debug Server/);
+assert.match(runbook, /npm run ios:pwa:debug/);
+assert.match(runbook, /http:\/\/127\.0\.0\.1:19073\//);
+assert.match(runbook, /Do not paste raw Access Keys/);
+assert.match(runbook, /WDA MJPEG Stream Mode/);
+assert.match(runbook, /--stream wda-mjpeg/);
+assert.match(runbook, /--mjpeg-server-port 9100/);
+assert.match(runbook, /\/api\/stream\.mjpeg/);
+assert.match(runbook, /falls back to the\s+bounded `\/api\/screenshot` PNG loop/);
+assert.match(runbook, /Concurrent Plugin Debugging/);
+assert.match(runbook, /one iOS Simulator UDID can have only one reliable Appium\/XCUITest session/i);
+assert.match(runbook, /--wda-local-port 8101/);
+assert.match(runbook, /--mjpeg-server-port 9101/);
+assert.match(runbook, /--port 19074/);
+assert.match(runbook, /--udid <simulator-udid-b>/);
+
+for (const contract of [mobileContract, platformContract, deployContract]) {
+  assert.match(contract, /npm run ios:pwa:debug/);
+  assert.match(contract, /http:\/\/127\.0\.0\.1:19073\//);
+}
+
+assert.match(mobileContract, /ios_live_debug_available: yes \| no/);
+assert.match(mobileContract, /--stream wda-mjpeg --mjpeg-server-port <port>/);
+assert.match(mobileContract, /one Simulator per active plugin\s+lane/);
+assert.match(mobileContract, /unique `--port`, `--udid`,\s+`--wda-local-port`, and `--mjpeg-server-port`/);
+assert.match(platformContract, /`ios_live_debug_available`/);
+assert.match(platformContract, /--stream wda-mjpeg --mjpeg-server-port <port>/);
+assert.match(platformContract, /one Simulator per active plugin\s+lane/);
+assert.match(platformContract, /unique live-debug `--port`, Simulator `--udid`, WDA\s+`--wda-local-port`, and MJPEG `--mjpeg-server-port`/);
+assert.match(deployContract, /Do not point multiple plugin debug sessions at the same Simulator UDID/);
+assert.match(deployContract, /--stream wda-mjpeg --mjpeg-server-port <port>/);
+assert.match(deployContract, /`--mjpeg-server-port`/);
+
+console.log("iOS PWA live debug server harness tests passed");

@@ -710,6 +710,9 @@ function applyRouteParams(params) {
       sourceTurnId: params.get("sourceTurnId") || params.get("turnId") || "",
     });
   }
+  if (["codex", "finance", "email", "health", "note"].includes(routeView) && typeof restoreEmbeddedPluginReturnRouteFromSnapshotParams === "function") {
+    restoreEmbeddedPluginReturnRouteFromSnapshotParams(params, routeView);
+  }
   if (routeView === "automation" && automationId) {
     const returnRoute = automationReturnTo === "inbox" ? "inbox" : "";
     Object.assign(state, { selectedAutomationId: automationId, automationReturnRoute: returnRoute, automationReturnScope: returnRoute && automationReturnScope === "detail" ? "detail" : "", automationReturnInboxItemId: returnRoute ? automationReturnInboxItemId : "", automationRouteTargetId: automationId, automationRouteTargetPending: true, automationOutputHistoryOpen: false, automationCreateOpen: false, automationEditOpen: false, automationEditJobId: "" });

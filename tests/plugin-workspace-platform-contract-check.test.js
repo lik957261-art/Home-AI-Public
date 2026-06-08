@@ -52,6 +52,7 @@ function pointerFor(plugin, overrides = {}) {
     "| `deploy_command` | `fixture` |",
     "| `reference_contract_status` | `planned` |",
     "| `mobile_visual_harness_status` | `planned` |",
+    "| `ios_live_debug_available` | `yes` |",
     "",
     "Do not record raw secrets or credentials here.",
   ].join("\n");

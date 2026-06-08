@@ -21,6 +21,21 @@ The embedded UI layout contract is tracked separately in
 `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`. Plugin projects must
 follow that contract for iframe-root sizing, plugin-owned bottom navigation,
 floating action buttons, local action bars, and device visual harnesses.
+The Mac development-to-production deployment contract is tracked in
+`docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md`. All
+embedded plugin projects must use the shared production access and deploy
+boundary from that contract: plugin source changes are prepared in the Mac
+development tree, production plugin directories are updated only through a
+bounded deploy operation with backup, controlled sync, targeted restart, and
+plugin-specific production validation, and plugin projects must not request
+ordinary write access to `/Users/hermes-host/HermesMobile/plugins/<plugin>`.
+Plugin Codex threads must read that central contract before production deploys
+and should call the Home AI shared deploy script from
+`/Users/hermes-dev/HermesMobileDev/app`, passing plugin-local facts such as
+`--plugin`, `--source`, `--restart-label`, `--health-url`, MCP schema checks,
+and data readback checks. A plugin-local deployment script may wrap the central
+script, but must not introduce a separate sudo, rsync, SSH, or production
+write-access path.
 
 Health/健康 is now an embedded-app plugin in the same workspace-private class as
 Wardrobe, Finance, and Email. Hermes Mobile owns its host registration, manifest
@@ -1011,6 +1026,16 @@ leaving the user trapped inside the plugin iframe. The snapshot is host state
 only: view mode, selected ids, filters, current thread metadata, and scroll
 position. It must not store plugin page content, secrets, launch tokens, or
 private business data.
+
+When the static client persists a foreground/background route snapshot while an
+embedded iframe plugin is open, it must also persist bounded host return-route
+metadata for that iframe. Restoring directly into a cached plugin view after a
+PWA restart must rehydrate the plugin record's outer `returnRoute`; otherwise
+the plugin root page has no in-frame back target and Home AI cannot leave the
+iframe through back/right-swipe. For legacy Codex Mobile snapshots that predate
+return-route persistence, Home AI must synthesize a safe host fallback such as
+the task/topic root rather than trapping the user inside the full-screen Codex
+surface.
 
 If Hermes sends `hermes.plugin.back` and the plugin does not emit a fresh
 navigation or back-result event within the bounded acknowledgement window, the

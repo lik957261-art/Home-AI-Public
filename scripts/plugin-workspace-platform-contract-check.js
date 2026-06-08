@@ -31,6 +31,7 @@ const REQUIRED_POINTER_TEXT = [
   "`deploy_command`",
   "`reference_contract_status`",
   "`mobile_visual_harness_status`",
+  "`ios_live_debug_available`",
   "Do not record raw",
 ];
 
@@ -229,7 +230,7 @@ function selectedPlugins(options) {
 }
 
 function checkPointer(plugin, options) {
-  const workspacePath = path.join(options.workspaceRoot, plugin.dirName);
+  const workspacePath = resolvePluginWorkspacePath(plugin, options);
   const pointerPath = path.join(workspacePath, "docs", "HOME_AI_PLATFORM_CONTRACT.md");
   const handoffPath = path.join(workspacePath, ".agent-context", "HANDOFF.md");
   const result = {
@@ -274,6 +275,20 @@ function checkPointer(plugin, options) {
   }
   if (!result.handoffPointer) result.warnings.push("handoff_pointer_missing");
   return result;
+}
+
+function macDevDirName(plugin) {
+  if (plugin.id === "health") return "healthy";
+  return plugin.id;
+}
+
+function resolvePluginWorkspacePath(plugin, options) {
+  const candidates = [
+    path.join(options.workspaceRoot, plugin.dirName),
+    path.join(options.workspaceRoot, "plugins", macDevDirName(plugin)),
+    path.join(options.workspaceRoot, macDevDirName(plugin)),
+  ];
+  return candidates.find((candidate) => exists(candidate)) || candidates[0];
 }
 
 function checkCentralDocs(options, plugins) {
