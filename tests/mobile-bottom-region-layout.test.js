@@ -31,7 +31,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260608-topic-dock-flush-v642";
+const clientVersion = "20260609-directory-status-dark-v643";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 

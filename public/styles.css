@@ -8815,7 +8815,7 @@ body.task-markdown-preview-open {
 .directory-status {
   padding: 18px 14px;
   color: var(--muted);
-  background: rgba(255, 255, 252, 0.78);
+  background: var(--ui-surface-muted);
   border: 1px solid var(--line);
   border-radius: 18px;
 }

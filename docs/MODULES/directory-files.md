@@ -121,6 +121,9 @@ Current frontend projection:
   first returns to the Directory root listing, adds stable dark-mode page
   background for Directory navigation transitions, and routes directory-bound
   runs through the target workspace when directory metadata identifies one.
+- Static v643 keeps Directory loading/empty status cards theme-bound during
+  navigation refreshes, so dark-mode parent-directory returns do not flash a
+  hard-coded pale status surface.
 - Until a service-owned explicit default topic exists, the card opens the most
   recently updated topic in that directory as the temporary default.
 - Changing persistence, context assembly, or workspace binding resolution must

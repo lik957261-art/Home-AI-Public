@@ -102,6 +102,9 @@ globalThis.__directoryHarness = { navigateDirectoryUp };
 (async () => {
   assert.match(stylesCss, /\.directory-shell \{[\s\S]*?min-height: 100%;[\s\S]*?background: var\(--ui-page\);/);
   assert.match(stylesCss, /\.projects-mode \.conversation \{[\s\S]*?background: var\(--ui-page\);/);
+  const directoryStatusBlock = stylesCss.match(/\.directory-status \{[\s\S]*?\n\}/)?.[0] || "";
+  assert.match(directoryStatusBlock, /background: var\(--ui-surface-muted\);/);
+  assert.doesNotMatch(directoryStatusBlock, /background: rgba\(255, 255, 252, 0\.78\);/);
 
   const harness = createHarness();
   assert.equal(await harness.navigateDirectoryUp(), true);
