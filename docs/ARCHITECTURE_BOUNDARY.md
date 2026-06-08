@@ -84,6 +84,7 @@ focused adapters such as `app-route-url-service.js`,
 `gateway-runtime-subservice-options-service.js`,
 `gateway-run-request-builder-service.js`,
 `gateway-run-start-assistant-options-service.js`,
+`gateway-run-start-child-service-registry-service.js`,
 `gateway-run-start-event-service.js`,
 `gateway-run-start-execution-phase-service.js`,
 `gateway-run-start-permission-service.js`,
@@ -485,27 +486,22 @@ instruction insertion, failed-gate event projection, and failed-start handoff.
 It must not define Wardrobe product rules, choose workers, select toolsets, run
 model preflight, mutate ordinary run state, or start streams.
 
-`gateway-run-start-service.js` owns Gateway run preparation state transitions,
-worker selection orchestration, optional plugin capability probing, model-first
-toolset preflight orchestration, wardrobe workflow gate checkpoints, and stream
-startup handoff. It must delegate deterministic request construction to
-`gateway-run-request-builder-service.js`, assistant run-options projection to
-`gateway-run-start-assistant-options-service.js`, telemetry/event projection to
-`gateway-run-start-event-service.js`, execution-phase orchestration to
-`gateway-run-start-execution-phase-service.js`, permission/elevation terminal
-projection to `gateway-run-start-permission-service.js`, plugin capability
-probe execution to `gateway-run-start-plugin-probe-service.js`, initial run-start preparation
-handoff to `gateway-run-start-preparation-service.js`, final stream-start handoff to
-`gateway-run-start-stream-handoff-service.js`, and stream-start option
-projection to `gateway-run-start-stream-options-service.js`. It must delegate deterministic
-run-start state mutation and failed-start projection to
-`gateway-run-start-state-service.js`, target-selected phase orchestration to
-`gateway-run-start-target-phase-service.js`, Gateway target post-selection
-projection to `gateway-run-start-target-service.js`, model-first toolset
-preflight execution to `gateway-run-start-toolset-preflight-service.js`,
-toolset-selection request mutation to
-`gateway-run-start-toolset-selection-service.js`, and Wardrobe gate evaluation/
-failure projection to `gateway-run-start-wardrobe-gate-service.js`.
+`gateway-run-start-child-service-registry-service.js` owns Gateway run-start
+child-service wiring: option normalization, default factory selection, request
+builder construction, and run-start event/state/assistant-option/Wardrobe/
+toolset/target/permission/plugin-probe/stream-handoff/execution/preparation
+service construction. It also owns the public helper delegation needed by
+`gateway-run-start-service.js`. It must not execute run phases, choose workers,
+run model preflight, mutate lifecycle state, emit events, or start streams.
+
+`gateway-run-start-service.js` owns only Gateway run-start phase orchestration:
+initial preparation, target-selected phase, and execution phase in order. It
+passes refreshed run options and request state between those phases, returns
+terminal preparation/target results, and exposes the compatibility helper
+facade. It must delegate child-service construction, default dependencies, and
+option normalization to `gateway-run-start-child-service-registry-service.js`.
+It must not directly construct run-start child services, choose workers, run
+model preflight, mutate lifecycle state, emit events, or start streams.
 
 `gateway-run-queue-projection-service.js` owns deterministic queued-run
 projection: single-window mode normalization, queued instruction text,
@@ -894,9 +890,12 @@ Current CI guardrails:
 - `gateway-run-start-wardrobe-gate-service.js` must stay at or below 85 lines
   and remain deterministic Wardrobe workflow gate integration, not a Wardrobe
   product-rule, selector, worker-selection, or streaming module;
-- `gateway-run-start-service.js` must stay at or below 295 lines and remain
-  Gateway run preparation orchestration, not a request-builder, event projector,
-  or broad Gateway composition module;
+- `gateway-run-start-child-service-registry-service.js` must stay at or below 260
+  lines and remain Gateway run-start child-service wiring, not a run-phase
+  executor, worker-selection, model-preflight, event, or streaming module;
+- `gateway-run-start-service.js` must stay at or below 75 lines and remain
+  Gateway run-start phase orchestration, not a child-service registry,
+  request-builder, event projector, or broad Gateway composition module;
 - `gateway-run-queue-projection-service.js` must stay at or below 100 lines
   and remain queued-run projection, not queue scheduling, active-run lifecycle,
   terminal failure handling, state persistence, or event broadcasting;

@@ -366,6 +366,12 @@ statements. Priority extraction areas:
   per-stream tool budget counter allocation while retaining active-stream
   registration, timer scheduling, reader startup, and completion/failure
   handoff orchestration.
+- completed 2026-06-08: Gateway run-start child-service wiring moved into
+  `adapters/gateway-run-start-child-service-registry-service.js`.
+  `gateway-run-start-service.js` now delegates option normalization, default
+  factory selection, request-builder construction, and start child-service
+  construction to the registry while retaining only preparation -> target ->
+  execution phase orchestration and its public helper facade.
 - completed 2026-06-08: Gateway run stream stop behavior moved into
   `adapters/gateway-run-stream-stop-service.js`. The stream service now
   delegates requested run-id dedupe, local active-stream abort, remote Gateway
