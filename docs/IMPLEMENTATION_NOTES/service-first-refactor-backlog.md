@@ -358,6 +358,14 @@ statements. Priority extraction areas:
   now delegates interval reading, minimum timer enforcement, periodic liveness
   check scheduling, rejected-check logging, unrefing, and cleanup while
   retaining response stream orchestration.
+- completed 2026-06-08: Gateway run response stream state initialization moved
+  into `adapters/gateway-run-stream-state-service.js`. The stream service now
+  delegates controller/thread/message binding, Gateway worker metadata, default
+  runner URL fallback, initial timestamps, timer slots, liveness counters,
+  first-output markers, timeout overrides, Web-search budget limit, and
+  per-stream tool budget counter allocation while retaining active-stream
+  registration, timer scheduling, reader startup, and completion/failure
+  handoff orchestration.
 - completed 2026-06-08: Gateway run stream stop behavior moved into
   `adapters/gateway-run-stream-stop-service.js`. The stream service now
   delegates requested run-id dedupe, local active-stream abort, remote Gateway

@@ -8,6 +8,7 @@ const { createGatewayRunStreamFirstEventService } = require("./gateway-run-strea
 const { createGatewayRunStreamLivenessService } = require("./gateway-run-stream-liveness-service");
 const { createGatewayRunStreamLivenessTimerService } = require("./gateway-run-stream-liveness-timer-service");
 const { createGatewayRunStreamRegistryService } = require("./gateway-run-stream-registry-service");
+const { createGatewayRunStreamStateService } = require("./gateway-run-stream-state-service");
 const { createGatewayRunStreamStopService } = require("./gateway-run-stream-stop-service");
 
 function cleanString(value) {
@@ -18,10 +19,6 @@ function readNumber(value, fallback = 0) {
   const raw = typeof value === "function" ? value() : value;
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function provider(value, fallback) {
-  return typeof value === "function" ? value() : (value ?? fallback);
 }
 
 function createGatewayRunStreamService(options = {}) {
@@ -166,6 +163,12 @@ function createGatewayRunStreamService(options = {}) {
   });
   const clearLivenessTimer = (...args) => streamLivenessTimerService.clearLivenessTimer(...args);
   const scheduleLivenessTimer = (...args) => streamLivenessTimerService.scheduleLivenessTimer(...args);
+  const streamStateService = options.streamStateService || createGatewayRunStreamStateService({
+    nowMs,
+    singleGatewayRunner,
+  });
+  const createStreamState = (...args) => streamStateService.createStreamState(...args);
+
   function recordGatewayEvent(runId, event = {}) {
     const fallbackRunId = cleanString(runId);
     const eventName = eventNameFromEvent(event);
@@ -226,37 +229,7 @@ function createGatewayRunStreamService(options = {}) {
     const id = cleanString(runId);
     if (!id || activeStreamForRun(id)) return null;
     const controller = streamOptions.controller || abortControllerFactory();
-    const defaultRunner = provider(singleGatewayRunner, null);
-    const startedAt = nowMs();
-    const streamState = {
-      threadId,
-      messageId,
-      controller,
-      engine: "responses",
-      gatewayUrl: streamOptions.gatewayUrl || defaultRunner?.apiBase?.() || "",
-      gatewayApiKey: streamOptions.gatewayApiKey || "",
-      gatewayName: streamOptions.gatewayName || "",
-      gatewayProfile: streamOptions.gatewayProfile || "",
-      gatewaySource: streamOptions.gatewaySource || "",
-      startedAt,
-      lastEventAt: startedAt,
-      livenessTimer: null,
-      livenessMisses: 0,
-      lastLivenessWarningAt: 0,
-      failureReason: "",
-      firstGatewayEventAt: 0,
-      firstModelOutputAt: 0,
-      firstEventWarningCount: 0,
-      firstEventTimer: null,
-      terminalEventSeen: false,
-      apiTimeoutMs: streamOptions.apiTimeoutMs,
-      modelFirstByteWarningMs: streamOptions.modelFirstByteWarningMs,
-      runStartTimeoutMs: streamOptions.runStartTimeoutMs,
-      runLivenessCheckAfterMs: streamOptions.runLivenessCheckAfterMs,
-      runLivenessStaleAfterMs: streamOptions.runLivenessStaleAfterMs,
-      webSearchMaxCalls: streamOptions.webSearchMaxCalls,
-      toolBudgetCounters: Object.create(null),
-    };
+    const streamState = createStreamState(threadId, messageId, controller, streamOptions);
     scheduleLivenessTimer(id, streamState);
     registerActiveStream(id, streamState);
     scheduleFirstEventWarning(id, streamState);

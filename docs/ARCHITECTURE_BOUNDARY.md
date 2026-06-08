@@ -249,6 +249,14 @@ already-stopped handling. It must not read response streams, parse Gateway
 events, emit Hermes run events, check liveness, or mutate terminal thread/message
 state.
 
+`gateway-run-stream-state-service.js` owns deterministic response stream state
+initialization: controller/thread/message binding, Gateway worker metadata,
+default runner URL fallback, initial timestamps, timer slots, liveness counters,
+first-output markers, timeout overrides, Web-search budget limit, and per-stream
+tool budget counter allocation. It must not register active streams, start
+readers, schedule timers, parse events, emit telemetry, stop runs, or mark
+thread/message terminal state.
+
 `gateway-run-stream-service.js` owns Gateway response stream orchestration:
 event reading, stream telemetry projection, liveness scheduling handoff,
 tool-budget event handoff, and terminal failure/cancel/completion handoff. It
@@ -268,7 +276,8 @@ failure projection to `gateway-run-stream-failure-service.js`. It must delegate
 liveness interval scheduling and clearing to
 `gateway-run-stream-liveness-timer-service.js`. It must delegate reader
 completion/abort terminal handoff to
-`gateway-run-stream-completion-service.js`.
+`gateway-run-stream-completion-service.js`. It must delegate deterministic
+stream-state initialization to `gateway-run-stream-state-service.js`.
 
 `mobile-runtime-gateway-context-facade-service.js` owns stale tool-availability
 claim detection delegates for HTTP, image, DOCX, and audio tool schemas. Weixin
@@ -985,10 +994,14 @@ Current CI guardrails:
 - `gateway-run-stream-registry-service.js` must stay at or below 115 lines and
   remain an active-stream registry and alias/target lookup service, not a
   stream parser, liveness checker, event projector, or lifecycle module;
+- `gateway-run-stream-state-service.js` must stay at or below 60 lines and
+  remain deterministic stream-state initialization only, not active-stream
+  registration, stream parsing, timer scheduling, event projection, remote stop,
+  or terminal lifecycle mutation;
 - `gateway-run-stream-stop-service.js` must stay at or below 85 lines and
   remain remote/local stream stop projection, not stream parsing, active-stream
   storage, event projection, liveness checking, or lifecycle mutation;
-- `gateway-run-stream-service.js` must stay at or below 300 lines and remain
+- `gateway-run-stream-service.js` must stay at or below 275 lines and remain
   Gateway stream orchestration, not an active-stream registry or broad Gateway
   runtime composition module;
 - `mobile-runtime-group-chat-facade-service.js` must stay at or below 95 lines
