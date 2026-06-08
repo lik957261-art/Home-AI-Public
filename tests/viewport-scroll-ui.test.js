@@ -20,7 +20,7 @@ assert.match(appJs, /function clearConversationViewportLayerReset\(conversation 
 assert.match(appJs, /function scheduleConversationOrientationRecovery\(conversation = \$\("conversation"\)\)/);
 assert.match(appJs, /--mobile-bottom-nav-reserved-height-runtime/);
 assert.match(appJs, /function scheduleConversationBottomStick\(\)/);
-assert.match(appJs, /\$\( "conversation"\)|\$\("conversation"\)\?\.addEventListener\("scroll", handleConversationScrollState/);
+assert.match(appJs, /\$\("conversation"\)\?\.addEventListener\("scroll", \(event\) => \{[\s\S]*?handleConversationScrollState\(event\);[\s\S]*?scheduleAppRouteSnapshot\("scroll", 500\)/);
 assert.match(appJs, /window\.visualViewport\?\.addEventListener\("resize", handleViewportLayoutChange\)/);
 assert.match(appJs, /window\.addEventListener\("scroll", handleViewportLayoutChange, \{ passive: true \}\)/);
 assert.match(appJs, /window\.addEventListener\("orientationchange", handleViewportLayoutChange\)/);

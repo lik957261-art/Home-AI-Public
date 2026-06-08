@@ -199,6 +199,35 @@ function wardrobePluginEntryOrigin(manifest = currentWardrobePluginManifest()) {
   }
 }
 
+function normalizeWardrobePluginOpenRoute(route = {}) {
+  const value = route && typeof route === "object" ? route : {};
+  const out = {};
+  ["pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"].forEach((key) => {
+    const text = String(value[key] || "").trim().slice(0, 180);
+    if (text) out[key] = text;
+  });
+  return out;
+}
+
+function setWardrobePluginOpenRoute(route = {}) {
+  const normalized = normalizeWardrobePluginOpenRoute(route);
+  state.wardrobePluginOpenRoute = Object.keys(normalized).length ? normalized : null;
+  return Boolean(state.wardrobePluginOpenRoute);
+}
+
+function wardrobePluginEntryUrlForFrame(entryUrl = "") {
+  const route = state.wardrobePluginOpenRoute;
+  if (!entryUrl || !route) return entryUrl;
+  try {
+    const parsed = new URL(entryUrl, window.location?.href || undefined);
+    Object.entries(route).forEach(([key, value]) => parsed.searchParams.set(key, value));
+    parsed.searchParams.set("pluginId", "wardrobe");
+    return parsed.pathname + parsed.search + parsed.hash;
+  } catch (_) {
+    return entryUrl;
+  }
+}
+
 function wardrobePluginMessageOriginAllowed(event) {
   const expected = wardrobePluginEntryOrigin();
   return Boolean(expected && event?.origin === expected);
@@ -501,7 +530,7 @@ function renderWardrobeView() {
   const pluginManifest = currentWardrobePluginManifest();
   if (wardrobePluginAvailable(pluginManifest)) {
     if (!wardrobePluginBlockedByPageSecurity(pluginManifest)) {
-      const entryUrl = String(pluginManifest.entry?.url || "");
+      const entryUrl = wardrobePluginEntryUrlForFrame(String(pluginManifest.entry?.url || ""));
       const entryOrigin = wardrobePluginEntryOrigin(pluginManifest);
       state.wardrobePluginFrameOrigin = entryOrigin;
       const launchFrameCanBePreserved = !wardrobePluginUsesLaunchToken(pluginManifest)

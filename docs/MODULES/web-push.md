@@ -77,7 +77,9 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
   `inboxItemId` routing in the service worker. The worker must preserve
   `pluginId`, `pluginRoute`, `pluginItemId`, `pluginThreadId`, `pluginTaskId`,
   and `sourceTurnId` so plugin completion notifications can open the final
-  receipt start instead of a stale plugin root or Inbox detail.
+  receipt start instead of a stale plugin root or Inbox detail. The app-shell
+  route parser must pass those fields into the target plugin host, including
+  legacy dedicated hosts such as Wardrobe and the shared embedded-plugin host.
 - On mobile browser shells, Hermes Mobile must not render the full authenticated app. If the current mobile/touch client is not the installed PWA standalone window, the app must show only a blocker that asks the user to close the browser shell and reopen from the Home Screen Hermes Mobile app.
 - The PWA guard must run in `index.html` preflight before app bundles load, at app bootstrap before `loadWorkspaces()` / `loadSelectedView()`, and also on click-time routing through the shared internal route helper, startup URL routing (`applyRouteFromUrl`), and restored selected detail state. A browser shell may be launched directly with `automationId`, may already hold `state.viewMode=automation` plus `selectedAutomationId`, or may be a stale long-lived browser shell that has not yet run the latest app router.
 

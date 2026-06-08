@@ -1190,7 +1190,9 @@ can focus the completed thread/task/turn. If a plugin supplies bounded
 Push assertions must prove the long body does not appear in the push payload and
 that `openMode=plugin` payloads preserve `pluginRoute`, `pluginItemId`,
 `pluginThreadId`, `pluginTaskId`, and `sourceTurnId` before generic Inbox
-routing.
+routing. Frontend route harnesses must also prove those route anchors are passed
+into the target plugin host, including shared embedded-plugin hosts and legacy
+dedicated hosts such as Wardrobe.
 Finance ledger join approval is an H1 plugin-to-Inbox workflow. Harnesses must
 cover `finance.ledger_join_request` normalization into an Inbox `approval` item,
 compact ledger/requester/role display, approve/reject actions, Finance review

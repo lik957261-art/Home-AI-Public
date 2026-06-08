@@ -34,6 +34,11 @@ the change is part of a dedicated infrastructure rename.
   - Foreground restore (`visibilitychange`, `pageshow`, `focus`) must reapply
     the saved theme preference before other refresh/render work so iOS/PWA
     resume does not briefly repaint the app in the wrong color scheme.
+  - Foreground/background and scroll handling must maintain the bounded
+    `hermesWebRouteSnapshot` route/scroll snapshot. If the app process is
+    reloaded without an explicit URL route, startup restores that snapshot
+    before using the default launch view; explicit notification and deep-link
+    routes always take precedence.
   - Theme QA must include visible app surfaces, not only the settings control:
     sidebar/top bar, composer, user/assistant messages, topic cards, Inbox rows
     and deliverable tags, Growth warning/danger cards, and the settings or

@@ -652,6 +652,17 @@ function testTaskTerminalAndGroupMentionNotifications() {
       assert.equal(calls.sends.at(-1).payload.data.messageId, "a1");
       assert.equal(calls.sends.at(-1).payload.data.messageType, "task_completed");
 
+      const wardrobeMessage = Object.assign({}, message, {
+        id: "wardrobe-receipt-1",
+        taskGroupId: "plugin:wardrobe",
+      });
+      return service.notifyTaskTerminal(thread, wardrobeMessage, "done");
+    }).then(() => {
+      assert.equal(calls.sends.at(-1).payload.data.viewMode, "tasks");
+      assert.equal(calls.sends.at(-1).payload.data.url, "/?view=tasks&workspaceId=child&taskGroupId=plugin%3Awardrobe&messageId=wardrobe-receipt-1");
+      assert.equal(calls.sends.at(-1).payload.data.taskGroupId, "plugin:wardrobe");
+      assert.equal(calls.sends.at(-1).payload.data.messageId, "wardrobe-receipt-1");
+
       const weixinThread = Object.assign({}, thread, {
         singleWindow: true,
         externalIngress: { source: "weixin" },

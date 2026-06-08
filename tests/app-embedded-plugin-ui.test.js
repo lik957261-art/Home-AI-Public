@@ -124,6 +124,12 @@ assert.match(embeddedPluginUi, /const hasShell = Boolean\(currentEmbeddedPluginS
 assert.match(embeddedPluginUi, /function setEmbeddedPluginOpenRoute\(def, route = {}\)/);
 assert.match(embeddedPluginUi, /function embeddedPluginEntryUrlForFrame\(def, manifest\)/);
 assert.match(embeddedPluginUi, /parsed\.searchParams\.set\("pluginId", def\.id\)/);
+assert.match(embeddedPluginUi, /\["pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"\]\.forEach/);
+assert.match(wardrobeUi, /function setWardrobePluginOpenRoute\(route = {}\)/);
+assert.match(wardrobeUi, /function wardrobePluginEntryUrlForFrame\(entryUrl = ""\)/);
+assert.match(wardrobeUi, /\["pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"\]\.forEach/);
+assert.match(wardrobeUi, /parsed\.searchParams\.set\("pluginId", "wardrobe"\)/);
+assert.match(wardrobeUi, /const entryUrl = wardrobePluginEntryUrlForFrame\(String\(pluginManifest\.entry\?\.url \|\| ""\)\)/);
 assert.match(embeddedPluginUi, /function captureEmbeddedPluginReturnRoute\(def\)/);
 assert.match(embeddedPluginUi, /function rememberEmbeddedPluginReturnRoute\(def\)/);
 assert.match(embeddedPluginUi, /function embeddedPluginOuterBackActive\(def = embeddedPluginDefByView\(\)\)/);
@@ -288,10 +294,12 @@ assert.match(platformUi, /view === "finance" \|\| view === "accounting" \|\| vie
 assert.match(platformUi, /view === "email" \|\| view === "mail" \|\| view === "mailbox"/);
 assert.match(platformUi, /view === "health"/);
 assert.match(platformUi, /routeView === "codex"[\s\S]*setCodexPluginOpenRoute\(\{/);
+assert.match(platformUi, /routeView === "wardrobe"[\s\S]*setWardrobePluginOpenRoute\(\{/);
 assert.match(platformUi, /routeView === "finance"[\s\S]*setFinancePluginOpenRoute\(\{/);
 assert.match(platformUi, /routeView === "email"[\s\S]*setEmailPluginOpenRoute\(\{/);
 assert.match(platformUi, /routeView === "health"[\s\S]*setHealthPluginOpenRoute\(\{/);
 assert.match(platformUi, /pluginThreadId: params\.get\("pluginThreadId"\) \|\| params\.get\("threadId"\) \|\| ""/);
+assert.match(platformUi, /sourceTurnId: params\.get\("sourceTurnId"\) \|\| params\.get\("turnId"\) \|\| ""/);
 assert.match(fs.readFileSync(path.join(repoRoot, "public", "app-thread-message-ui.js"), "utf8"), /if \(!enabled && typeof clearKeyboardViewportMetrics === "function"\) clearKeyboardViewportMetrics\(\);/);
 
 assert.match(stylesCss, /\.embedded-plugin-host/);

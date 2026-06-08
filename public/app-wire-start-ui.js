@@ -606,7 +606,10 @@ function wireUi() {
     refreshKeyboardViewportSoon(260);
     refreshComposerContextSoon(80);
   });
-  $("conversation")?.addEventListener("scroll", handleConversationScrollState, { passive: true });
+  $("conversation")?.addEventListener("scroll", (event) => {
+    handleConversationScrollState(event);
+    if (typeof scheduleAppRouteSnapshot === "function") scheduleAppRouteSnapshot("scroll", 500);
+  }, { passive: true });
   navigator.virtualKeyboard?.addEventListener("geometrychange", handleViewportLayoutChange);
   window.visualViewport?.addEventListener("resize", handleViewportLayoutChange);
   window.visualViewport?.addEventListener("scroll", handleViewportLayoutChange);

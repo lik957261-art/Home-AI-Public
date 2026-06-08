@@ -164,6 +164,12 @@ Gateway plugin/schema/profile changes:
   stored Access Key, theme, font preferences, and plugin-topic preference
   caches. Service Worker unregister is reserved for explicit hard reset and
   must also be bounded by a timeout.
+- The app shell stores a bounded `hermesWebRouteSnapshot` with route ids and
+  scroll position on background, foreground, internal route opens, and throttled
+  conversation scroll. If iOS/PWA or the browser process reloads the app without
+  an explicit URL route, startup should restore that snapshot before falling
+  back to the default launch view. Explicit notification/deep-link URL
+  parameters must continue to take precedence over the stored snapshot.
 - On Windows, do not rewrite static/test files containing Chinese text through
   PowerShell `Get-Content -Raw` plus `Set-Content` / `WriteAllText` unless the
   command explicitly preserves UTF-8 from a known UTF-8 source. Prefer

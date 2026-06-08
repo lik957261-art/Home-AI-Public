@@ -69,12 +69,14 @@ function handleAppBackgrounded() {
   suppressComposerAutoFocus(1800);
   blurComposerInput();
   clearTodoAutoRefresh();
+  if (typeof persistAppRouteSnapshot === "function") persistAppRouteSnapshot("background");
 }
 
 function handleAppForegrounded() {
   if (typeof applyThemePreference === "function") applyThemePreference();
   suppressComposerAutoFocus(900);
   blurComposerInput();
+  if (typeof persistAppRouteSnapshot === "function") persistAppRouteSnapshot("foreground");
   if (state.viewMode === "todos") scheduleTodoAutoRefresh();
   if (state.viewMode === "inbox") loadActionInbox({ silent: true, preserveScroll: true }).catch(showError);
   if (typeof settleEmbeddedPluginViewportBroadcast === "function") settleEmbeddedPluginViewportBroadcast("host_foreground");

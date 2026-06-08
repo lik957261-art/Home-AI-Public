@@ -111,7 +111,9 @@ assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_rout
 assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_route_noop"/);
 assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_route_applied"/);
 assert.match(platformUi, /const nextRoute = hermesAppShellRouteForUrl\(parsed\)/);
-assert.match(platformUi, /await loadSelectedView\(\);/);
+assert.match(platformUi, /await loadSelectedView\(\{ forceTaskListReload: true, skipSingleWindowCache: true \}\);/);
+assert.match(platformUi, /function applyRestoredAppRouteSnapshot\(\)/);
+assert.match(platformUi, /if \(routeParamsHaveExplicitLaunchTarget\(currentParams\)\) return false/);
 assert.match(platformUi, /async function openNotificationRoute\(value\) \{[\s\S]*?return openHermesInternalRoute\(value\);[\s\S]*?\}/);
 assert.match(platformUi, /function recordNavigationDiagnostic\(eventName, fields = \{\}\)/);
 assert.match(platformUi, /hermesNavigationDiagnostics/);
