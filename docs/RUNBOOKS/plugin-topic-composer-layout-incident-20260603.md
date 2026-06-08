@@ -95,6 +95,11 @@ The effective layout rule:
 - `.main` remains a relative container and does not carry the visible bottom
   spacer.
 
+Later update: the current standard is variable-driven. The composer bottom
+offset includes bottom-nav bottom inset, plugin-context nav height, bottom-tab
+visual lift, and the composer/nav gap; the reserve currently tracks this full
+bottom region through `--plugin-topic-composer-reserved-height`.
+
 The static deploy proved old clients would receive a refresh marker:
 
 - old v545 request returned

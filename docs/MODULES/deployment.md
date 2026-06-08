@@ -773,6 +773,11 @@ read/write access to this key file or its parent directory.
   `-MinGatewayPoolWorkers 0`; otherwise the listener can be live while the
   worker-host script reports a false startup failure.
 - Node route/service/provider change: restart Hermes Mobile listener only.
+  Before restarting, verify the production app root has runtime dependencies
+  installed. If `node_modules` is missing after a source-only/static deploy,
+  run `npm ci --omit=dev` in the production app root with the production Node
+  runtime/PATH, then restart. Otherwise a previously healthy listener can fail
+  on first cold import, for example at `require("web-push")`.
 - Bridge-host change: restart listener/bridge-host through `scripts\start-worker-host.ps1 -ReplaceExisting`.
 - Gateway plugin/schema/profile/startup change: restart Gateway Pool or targeted maintenance worker as appropriate.
 - Cron dispatcher change: restart cron sidecar through `scripts\start-cron-tick-sidecar.ps1 -ReplaceExisting`.

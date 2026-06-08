@@ -55,11 +55,15 @@
   --mobile-bottom-nav-content-safe-area: max(0px, min(var(--mobile-bottom-safe-area), 3px));
   --mobile-bottom-nav-height: 58px;
   --mobile-bottom-nav-visual-drop: 10px;
+  --mobile-bottom-nav-visual-lift: 6px;
   --mobile-bottom-nav-comfort-inset: 12px;
   --plugin-context-bottom-nav-height: 54px;
+  --bottom-region-composer-nav-gap: 8px;
   --mobile-bottom-nav-bottom: var(--mobile-bottom-nav-bottom-runtime, var(--mobile-bottom-nav-comfort-inset));
   --mobile-bottom-nav-offset-height: var(--mobile-bottom-nav-offset-height-runtime, var(--mobile-bottom-nav-height));
   --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 10px));
+  --plugin-topic-composer-bottom-offset: calc(var(--mobile-bottom-nav-bottom) + var(--plugin-context-bottom-nav-height) + var(--mobile-bottom-nav-visual-lift) + var(--bottom-region-composer-nav-gap));
+  --plugin-topic-composer-reserved-height: 166px;
   --topic-plugin-dock-height: 78px;
   --topic-plugin-dock-bottom: var(--topic-plugin-dock-bottom-runtime, var(--mobile-bottom-nav-offset-height));
   --topic-plugin-dock-reserved-height: var(--topic-plugin-dock-reserved-height-runtime, calc(var(--topic-plugin-dock-bottom) + var(--topic-plugin-dock-height)));
@@ -15846,14 +15850,14 @@ body.task-markdown-preview-open {
   }
 
   .app.main-back-visible.plugin-context-nav-mode.plugin-topic-detail-mode .conversation {
-    padding-bottom: var(--plugin-topic-composer-reserved-height, 142px);
+    padding-bottom: var(--plugin-topic-composer-reserved-height);
   }
 
   .app.main-back-visible.plugin-context-nav-mode.plugin-topic-detail-mode .composer {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: calc(var(--plugin-context-bottom-nav-height) + 3px);
+    bottom: var(--plugin-topic-composer-bottom-offset);
     z-index: 39;
     padding-bottom: 5px;
   }
@@ -15901,7 +15905,7 @@ body.task-markdown-preview-open {
   }
 
   .bottom-nav .bottom-tab {
-    transform: translateY(-6px);
+    transform: translateY(calc(-1 * var(--mobile-bottom-nav-visual-lift)));
   }
 
   .bottom-nav.bottom-nav-count-1 {

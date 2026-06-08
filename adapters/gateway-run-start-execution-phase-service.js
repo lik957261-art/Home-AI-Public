@@ -14,6 +14,7 @@ function createGatewayRunStartExecutionPhaseService(options = {}) {
   async function runExecutionPhase(args = {}) {
     const streamOptions = streamOptionsForGatewayTarget(args.gatewayTarget, args.runOptions || {}, {
       gatewayUrl: args.gatewayUrl,
+      latestText: args.userMessage?.content || args.userMessage?.text || "",
     });
     const preflight = await applyModelFirstToolsetPreflight({
       assistantMessage: args.assistantMessage,

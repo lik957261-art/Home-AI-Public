@@ -323,7 +323,7 @@ assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-n
 assert.match(stylesCss, /\.embedded-plugin-preview-fullscreen-active \.bottom-nav\s*\{[\s\S]*display: none !important;/);
 assert.match(stylesCss, /\.plugin-context-nav-mode\.embedded-plugin-preview-fullscreen-active\.embedded-plugin-host-active \.main\s*\{[\s\S]*bottom: 0;/);
 assert.match(stylesCss, /--plugin-context-bottom-nav-height: 54px/);
-assert.match(stylesCss, /\.app\.main-back-visible\.plugin-context-nav-mode\.plugin-topic-detail-mode \.composer\s*\{[\s\S]*bottom: calc\(var\(--plugin-context-bottom-nav-height\) \+ 3px\);[\s\S]*padding-bottom: 5px;/);
+assert.match(stylesCss, /\.app\.main-back-visible\.plugin-context-nav-mode\.plugin-topic-detail-mode \.composer\s*\{[\s\S]*bottom: var\(--plugin-topic-composer-bottom-offset\);[\s\S]*padding-bottom: 5px;/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-tab-label\s*\{[\s\S]*display: none;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.topic-plugin-dock\s*\{[\s\S]*display: none !important;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav\s*\{[\s\S]*display: none !important;/);

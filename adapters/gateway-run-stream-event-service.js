@@ -83,9 +83,6 @@ function createGatewayRunStreamEventService(options = {}) {
   const emitRunStreamEvent = typeof options.emitRunStreamEvent === "function"
     ? options.emitRunStreamEvent
     : (() => false);
-  const abortActiveStreamAsFailed = typeof options.abortActiveStreamAsFailed === "function"
-    ? options.abortActiveStreamAsFailed
-    : (() => false);
 
   function recordToolBudgetForEvent(publicRunId, event, stream) {
     const toolName = toolCallNameFromEvent(event);
@@ -98,20 +95,22 @@ function createGatewayRunStreamEventService(options = {}) {
     if (count <= limit) {
       return { action: "counted", tool: toolName, group: "web_search", count, limit };
     }
-    const reason = `Hermes Mobile stopped this run because ${toolName} exceeded the configured Web search limit (${count}/${limit}).`;
     const runId = stream.realRunId || publicRunId;
-    emitRunStreamEvent(
-      publicRunId,
-      "run.tool_budget_exceeded",
-      modelStreamEventPreview("\u7f51\u7edc\u641c\u7d22\u8d85\u8fc7\u8fd0\u884c\u9884\u7b97\uff0c\u5df2\u505c\u6b62\u8fd0\u884c", {
-        tool: toolName,
-        count,
-        limit,
-      }),
-      { runId, error: true },
-    );
-    abortActiveStreamAsFailed(publicRunId, reason);
-    return { action: "aborted", tool: toolName, group: "web_search", count, limit, reason };
+    const firstExceeded = !stream.toolBudgetExceeded;
+    stream.toolBudgetExceeded = true;
+    if (firstExceeded) {
+      emitRunStreamEvent(
+        publicRunId,
+        "run.tool_budget_exceeded",
+        modelStreamEventPreview("\u7f51\u7edc\u641c\u7d22\u5df2\u8fbe\u5230\u8fd0\u884c\u9884\u7b97\uff0c\u8bf7\u57fa\u4e8e\u5df2\u6709\u8bc1\u636e\u603b\u7ed3", {
+          tool: toolName,
+          count,
+          limit,
+        }),
+        { runId, error: false },
+      );
+    }
+    return { action: "summarize_required", tool: toolName, group: "web_search", count, limit };
   }
 
   return Object.freeze({

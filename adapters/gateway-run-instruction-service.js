@@ -1,9 +1,22 @@
 "use strict";
 
+const { explicitSearchContext } = require("./gateway-run-search-budget-service");
+
 const DEFAULT_TOOL_SCHEMA_EPOCH = "20260607-email-local-delete-mcp-v1";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
+}
+
+function ordinalNumber(value) {
+  const number = Math.max(0, Math.floor(Number(value) || 0));
+  const lastTwo = number % 100;
+  if (lastTwo >= 11 && lastTwo <= 13) return `${number}th`;
+  const last = number % 10;
+  if (last === 1) return `${number}st`;
+  if (last === 2) return `${number}nd`;
+  if (last === 3) return `${number}rd`;
+  return `${number}th`;
 }
 
 function createGatewayRunInstructionService(options = {}) {
@@ -140,22 +153,6 @@ function createGatewayRunInstructionService(options = {}) {
     return `${base}_${toolSchemaEpoch}_${signature}`;
   }
 
-  function explicitSearchContext(buildOptions = {}) {
-    const values = [
-      buildOptions.searchSource,
-      buildOptions.search_source,
-      buildOptions.sourceIntent,
-      buildOptions.source_intent,
-      buildOptions.sourceMode,
-      buildOptions.source_mode,
-    ].map((value) => String(value || "").trim().toLowerCase());
-    const text = values.join(" ");
-    return {
-      explicitWeb: /\b(web|web_search|search|x|x_search)\b/.test(text),
-      explicitX: /\b(x|x_search)\b/.test(text),
-    };
-  }
-
   function webSearchBudgetForOptions(buildOptions = {}) {
     const context = explicitSearchContext(buildOptions);
     if ((context.explicitWeb || context.explicitX) && explicitWebSearchMaxCalls > 0) {
@@ -200,7 +197,7 @@ function createGatewayRunInstructionService(options = {}) {
         lines.push(
           `Run Web-search budget: use at most ${budget} total Web search calls in this run across \`mobile_web_search\`, \`web_search\`, and hosted \`web_search_call\`.`,
           "Plan search queries before calling tools, combine related terms, use `mobile_web_extract` for known URLs instead of starting another search, and stop searching once enough evidence is available.",
-          `Do not start a ${budget + 1}th Web search call. If more search would be needed, return the best evidence-labeled partial answer or ask the user for approval to continue instead of continuing the search loop.`
+          `Do not start a ${ordinalNumber(budget + 1)} Web search call. If more search would be needed, return the best evidence-labeled partial answer or ask the user for approval to continue instead of continuing the search loop.`
         );
       }
     }
@@ -365,7 +362,7 @@ function createGatewayRunInstructionService(options = {}) {
       "Do not access, write, summarize, or expose files outside the allowed roots unless the account is unrestricted.",
       formatAccessPolicyInstructionSummary(policy),
       permissionBoundarySkillInstructions(policy),
-      currentToolSchemaOverrideInstructions(policy, buildOptions),
+      currentToolSchemaOverrideInstructions(policy, Object.assign({ latestText }, buildOptions)),
       pluginTopicContextInstructions(buildOptions),
       pluginCapabilityCatalogInstructions(buildOptions),
       requiredSkillPreloadInstructions(buildOptions),

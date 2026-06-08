@@ -307,7 +307,7 @@ function testGatewayTargetLookup() {
   });
 }
 
-function testWebSearchBudgetAbortsAfterConfiguredLimit() {
+function testWebSearchBudgetRequestsSummaryAfterConfiguredLimit() {
   const activeStreams = new Map();
   const controller = createController();
   const stream = baseStream(controller);
@@ -340,16 +340,17 @@ function testWebSearchBudgetAbortsAfterConfiguredLimit() {
 
   assert.equal(first.toolBudget.action, "counted");
   assert.equal(second.toolBudget.action, "counted");
-  assert.equal(third.toolBudget.action, "aborted");
+  assert.equal(third.toolBudget.action, "summarize_required");
   assert.equal(third.toolBudget.count, 3);
   assert.equal(third.toolBudget.limit, 2);
-  assert.equal(controller.abortCount, 1);
-  assert.match(stream.failureReason, /mobile_web_search exceeded the configured Web search limit \(3\/2\)/);
+  assert.equal(controller.abortCount, 0);
+  assert.equal(stream.failureReason, "");
+  assert.equal(stream.toolBudgetExceeded, true);
   assert.equal(stream.toolBudgetCounters.webSearch, 3);
   const budgetEvent = events.find((event) => event.event === "run.tool_budget_exceeded");
   assert.ok(budgetEvent);
   assert.equal(budgetEvent.run_id, "real_response");
-  assert.equal(budgetEvent.error, true);
+  assert.equal(budgetEvent.error, false);
   assert.match(budgetEvent.preview, /tool=mobile_web_search/);
   assert.match(budgetEvent.preview, /count=3/);
   assert.match(budgetEvent.preview, /limit=2/);
@@ -377,8 +378,8 @@ function testHostedWebSearchBudgetUsesOutputItemType() {
 
   assert.equal(first.toolBudget.action, "counted");
   assert.equal(first.toolBudget.tool, "web_search_call");
-  assert.equal(second.toolBudget.action, "aborted");
-  assert.equal(controller.abortCount, 1);
+  assert.equal(second.toolBudget.action, "summarize_required");
+  assert.equal(controller.abortCount, 0);
 }
 
 function flushAsyncTurns() {
@@ -538,7 +539,7 @@ async function testStreamEndWithoutTerminalCancelsWithoutFailurePushWhenNoOutput
   await testReadResponseEventsWrapsGatewayRunnerAndEventHook();
   testNoFirstEventWarningIsVisibleButDoesNotResetGatewayEventTime();
   testGatewayTargetLookup();
-  testWebSearchBudgetAbortsAfterConfiguredLimit();
+  testWebSearchBudgetRequestsSummaryAfterConfiguredLimit();
   testHostedWebSearchBudgetUsesOutputItemType();
   await testStreamEndWithoutTerminalCompletesWhenOutputArrived();
   await testStreamEndWithoutTerminalCompletesWhenOnlyFinalOutputItemArrived();

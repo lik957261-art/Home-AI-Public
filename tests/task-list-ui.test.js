@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260608-route-restore-v624";
+const CLIENT_VERSION = "20260608-bottom-region-v625";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -205,8 +205,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260608-route-restore-v624" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260608-route-restore-v624"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260608-bottom-region-v625" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260608-bottom-region-v625"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -939,8 +939,8 @@ assert.match(appJs, /options\.terminal \? "\\u8fd0\\u884c\\u8bb0\\u5f55" : "\\u8
 assert.match(appJs, /if \(RUN_PROGRESS_TERMINAL_STATUSES\.has\(status\)\) return ""/);
 assert.match(appJs, /message\.originalRunId/);
 assert.doesNotMatch(appJs, /terminalMs: runProgressTerminalMs\(message\)/);
-assert.match(mobileRuntimeGatewayEnvironmentServiceJs, /RUN_WEB_SEARCH_MAX_CALLS = nonNegativeInteger\([^;]+ \|\| "6", 6\)/);
-assert.match(mobileRuntimeGatewayEnvironmentServiceJs, /RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS = nonNegativeInteger\([^;]+ \|\| "12", 12\)/);
+assert.match(mobileRuntimeGatewayEnvironmentServiceJs, /RUN_WEB_SEARCH_MAX_CALLS = nonNegativeInteger\([^;]+ \|\| "12", 12\)/);
+assert.match(mobileRuntimeGatewayEnvironmentServiceJs, /RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS = nonNegativeInteger\([^;]+ \|\| "20", 20\)/);
 assert.doesNotMatch(appJs, /shortTaskDisplayId\(ids\[0\]\)/);
 assert.match(appJs, /state\.messageScrollVisibilityScheduled/);
 assert.match(appJs, /updateMessageScrollButtonVisibility\(target\)/);
@@ -1117,7 +1117,8 @@ assert.match(gatewayRunInstructionServiceJs, /Prefer callable function names `mo
 assert.match(gatewayRunInstructionServiceJs, /Optimize for source quality, meaningful coverage, and verifiable evidence/);
 assert.match(gatewayRunInstructionServiceJs, /Use several focused query refinements when needed/);
 assert.match(gatewayRunInstructionServiceJs, /Run Web-search budget: use at most \$\{budget\} total Web search calls/);
-assert.match(gatewayRunInstructionServiceJs, /Do not start a \$\{budget \+ 1\}th Web search call/);
+assert.match(gatewayRunInstructionServiceJs, /function ordinalNumber\(value\)/);
+assert.match(gatewayRunInstructionServiceJs, /Do not start a \$\{ordinalNumber\(budget \+ 1\)\} Web search call/);
 assert.match(gatewayRunInstructionServiceJs, /Current tool schema override: the `x_search` toolset is enabled for this run/);
 assert.match(gatewayRunInstructionServiceJs, /Current tool schema override: the `image_gen` toolset is enabled for this run/);
 assert.match(gatewayRunInstructionServiceJs, /`chatgpt_image_edit`, and `chatgpt_image_erase`/);
@@ -2379,7 +2380,11 @@ assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bo
 assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bottom\), 8px\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-content-safe-area: max\(0px, min\(var\(--mobile-bottom-safe-area\), 3px\)\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-height: 58px/);
+assert.match(stylesCss, /--mobile-bottom-nav-visual-lift: 6px/);
 assert.match(stylesCss, /--mobile-bottom-nav-comfort-inset: 12px/);
+assert.match(stylesCss, /--bottom-region-composer-nav-gap: 8px/);
+assert.match(stylesCss, /--plugin-topic-composer-bottom-offset: calc\(var\(--mobile-bottom-nav-bottom\) \+ var\(--plugin-context-bottom-nav-height\) \+ var\(--mobile-bottom-nav-visual-lift\) \+ var\(--bottom-region-composer-nav-gap\)\)/);
+assert.match(stylesCss, /--plugin-topic-composer-reserved-height: 166px/);
 assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?z-index: 40;[\s\S]*?--bottom-nav-column-min: 48px;[\s\S]*?grid-template-columns: repeat\(5, minmax\(var\(--bottom-nav-column-min\), 1fr\)\);[\s\S]*?padding: 4px env\(safe-area-inset-right\) calc\(6px \+ var\(--mobile-bottom-nav-content-safe-area\)\) env\(safe-area-inset-left\);[\s\S]*?overflow-x: hidden;/);
 assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?bottom: var\(--mobile-bottom-nav-bottom\);/);
 assert.match(stylesCss, /\.bottom-nav::-webkit-scrollbar \{[\s\S]*?display: none;/);
@@ -2406,10 +2411,11 @@ assert.match(stylesCss, /\.app\.main-back-visible\.plugin-context-nav-mode\.plug
 const pluginTopicDetailMainBlock = stylesCss.match(/\.app\.main-back-visible\.plugin-context-nav-mode\.plugin-topic-detail-mode \.main \{[\s\S]*?\n  \}/)?.[0] || "";
 assert.ok(pluginTopicDetailMainBlock);
 assert.doesNotMatch(pluginTopicDetailMainBlock, /padding-bottom:/);
-assert.match(stylesCss, /\.app\.main-back-visible\.plugin-context-nav-mode\.plugin-topic-detail-mode \.conversation \{[\s\S]*?padding-bottom: var\(--plugin-topic-composer-reserved-height, 142px\);/);
-assert.match(stylesCss, /\.app\.main-back-visible\.plugin-context-nav-mode\.plugin-topic-detail-mode \.composer \{[\s\S]*?position: fixed;[\s\S]*?bottom: calc\(var\(--plugin-context-bottom-nav-height\) \+ 3px\);[\s\S]*?padding-bottom: 5px;/);
-assert.doesNotMatch(stylesCss, /--plugin-topic-composer-bottom/);
-assert.doesNotMatch(appJs, /--plugin-topic-composer-bottom/);
+assert.match(stylesCss, /\.app\.main-back-visible\.plugin-context-nav-mode\.plugin-topic-detail-mode \.conversation \{[\s\S]*?padding-bottom: var\(--plugin-topic-composer-reserved-height\);/);
+assert.match(stylesCss, /\.app\.main-back-visible\.plugin-context-nav-mode\.plugin-topic-detail-mode \.composer \{[\s\S]*?position: fixed;[\s\S]*?bottom: var\(--plugin-topic-composer-bottom-offset\);[\s\S]*?padding-bottom: 5px;/);
+assert.doesNotMatch(stylesCss, /bottom: calc\(var\(--plugin-context-bottom-nav-height\) \+ 3px\);/);
+assert.doesNotMatch(stylesCss, /padding-bottom: var\(--plugin-topic-composer-reserved-height, 142px\);/);
+assert.doesNotMatch(appJs, /--plugin-topic-composer-bottom-offset/);
 assert.doesNotMatch(stylesCss, /:root\.keyboard-viewport-active \.plugin-context-nav-mode\.plugin-topic-detail-mode \.composer \{/);
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode\.plugin-topic-detail-mode \.composer \{[\s\S]*?margin-bottom: var\(--plugin-context-bottom-nav-height\);/);
 assert.match(stylesCss, /\.app\.plugin-context-nav-mode\.wardrobe-plugin-host-active \{[\s\S]*?padding-bottom: 0;/);
@@ -2441,10 +2447,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260608-route-restore-v624/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260608-route-restore-v624/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260608-route-restore-v624/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260608-route-restore-v624/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260608-bottom-region-v625/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260608-bottom-region-v625/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260608-bottom-region-v625/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260608-bottom-region-v625/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2948,6 +2954,7 @@ assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bo
 assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bottom\), 8px\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-content-safe-area: max\(0px, min\(var\(--mobile-bottom-safe-area\), 3px\)\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-height: 58px/);
+assert.match(stylesCss, /--mobile-bottom-nav-visual-lift: 6px/);
 assert.match(stylesCss, /--mobile-bottom-nav-offset-height-runtime/);
 assert.match(stylesCss, /--mobile-bottom-nav-bottom-runtime/);
 assert.match(stylesCss, /--topic-plugin-dock-bottom-runtime/);
@@ -2956,9 +2963,10 @@ assert.match(stylesCss, /--mobile-bottom-stack-height-runtime/);
 assert.match(stylesCss, /--mobile-bottom-nav-reserved-height/);
 assert.match(stylesCss, /calc\(var\(--mobile-bottom-nav-height\) \+ 10px\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-visual-drop: 10px/);
+assert.match(stylesCss, /--bottom-region-composer-nav-gap: 8px/);
 assert.match(stylesCss, /\.app\.main-back-visible \{[\s\S]*?padding-bottom: 0/);
 assert.match(stylesCss, /\.main-back-visible \.bottom-nav \{[\s\S]*?display: none/);
-assert.match(stylesCss, /\.bottom-nav \.bottom-tab \{[\s\S]*?transform: translateY\(-6px\);/);
+assert.match(stylesCss, /\.bottom-nav \.bottom-tab \{[\s\S]*?transform: translateY\(calc\(-1 \* var\(--mobile-bottom-nav-visual-lift\)\)\);/);
 assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?bottom: var\(--mobile-bottom-nav-bottom\);/);
 assert.match(stylesCss, /\.topbar \{[\s\S]*?min-height: calc\(44px \+ env\(safe-area-inset-top\)\)/);
 assert.match(stylesCss, /\.preflight-mobile-browser-shell::before \{[\s\S]*?height: env\(safe-area-inset-top\);[\s\S]*?background: var\(--ui-status-bar\);/);

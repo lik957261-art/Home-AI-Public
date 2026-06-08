@@ -1112,10 +1112,10 @@ Required harness dimensions:
 - Run tool budgets must be enforced in the stream layer for bounded network
   tools. At minimum, `mobile_web_search`, `web_search`, and hosted
   `web_search_call` events must count toward the configured Web-search cap,
-  emit `run.tool_budget_exceeded`, abort the stream, mark the message failed,
-  and release the queue when exceeded. The default cap must allow ordinary
+  emit `run.tool_budget_exceeded`, and let the run finish from already gathered
+  evidence instead of directly marking the message failed. The default cap must allow ordinary
   user-requested news/search tasks to perform several query refinements while
-  still stopping runaway loops well below historical multi-dozen-search
+  still flagging runaway loops well below historical multi-dozen-search
   failures. The run instruction harness must also verify that web/search runs
   tell the model the configured Web-search budget and require it to stop before
   opening a search beyond the cap, returning a partial evidence-labeled answer

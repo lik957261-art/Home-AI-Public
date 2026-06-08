@@ -54,6 +54,21 @@ function testDefaultSearchCapAppliesWhenRunIsNotExplicitSearch() {
   assert.equal(streamOptions.webSearchMaxCalls, 3);
 }
 
+function testChineseCurrentPriceTextUsesExplicitSearchCap() {
+  const service = createGatewayRunStartStreamOptionsService({
+    runWebSearchMaxCalls: 3,
+    runExplicitWebSearchMaxCalls: 9,
+  });
+
+  const streamOptions = service.streamOptionsForGatewayTarget(
+    { apiBase: "http://gateway.worker" },
+    { sourceIntent: "plain_chat" },
+    { latestText: "\u518d\u67e5\u4e00\u4e0b\u5f53\u524d\u9ec4\u91d1\u548c\u6bd4\u7279\u5e01\u7684\u4ef7\u683c\u3002" },
+  );
+
+  assert.equal(streamOptions.webSearchMaxCalls, 9);
+}
+
 function testInvalidCapsAreOmitted() {
   const service = createGatewayRunStartStreamOptionsService({
     runWebSearchMaxCalls: -2,
@@ -86,12 +101,14 @@ function testRunOptionDetectors() {
   assert.equal(isChatGptProRunOptions({ provider: "chatgpt_pro_generate" }), true);
   assert.equal(isChatGptProRunOptions({ provider: "openai" }), false);
   assert.equal(isExplicitWebSearchRunOptions({ source_intent: "web_search" }), true);
+  assert.equal(isExplicitWebSearchRunOptions({}, { latestText: "\u67e5\u4e00\u4e0b\u5f53\u524d\u4ef7\u683c" }), true);
   assert.equal(isExplicitWebSearchRunOptions({ sourceIntent: "wardrobe" }), false);
 }
 
 testGatewayTargetMetadataProjection();
 testExplicitSearchCapOverridesDefaultCap();
 testDefaultSearchCapAppliesWhenRunIsNotExplicitSearch();
+testChineseCurrentPriceTextUsesExplicitSearchCap();
 testInvalidCapsAreOmitted();
 testChatGptProTimeoutProjection();
 testRunOptionDetectors();

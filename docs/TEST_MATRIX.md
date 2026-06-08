@@ -1700,10 +1700,11 @@ the raw escalation marker cannot appear briefly in the visible receipt while the
 retry is being prepared.
 
 Run tool-budget harnesses must prevent both extremes: runaway Web search loops
-must abort when the configured cap is exceeded, but the default cap must not
-kill an ordinary user-requested news/search run on the third search call. The
+must emit a budget warning when the configured cap is exceeded, but the cap must
+not directly mark an ordinary user-requested news/search run failed. The
 instruction harness must also assert that web/search-enabled runs tell the model
-the configured Web-search budget before tool use.
+the configured Web-search budget before tool use and to summarize from gathered
+evidence instead of opening searches beyond the cap.
 
 Explicit user-requested web/X search uses the higher explicit-search budget and
 quality-first instruction. Harness coverage must assert that explicit

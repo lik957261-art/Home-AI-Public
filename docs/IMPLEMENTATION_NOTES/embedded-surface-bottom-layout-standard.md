@@ -70,14 +70,14 @@ The plugin-bound topic detail pattern is:
 }
 
 .app.main-back-visible.plugin-context-nav-mode.plugin-topic-detail-mode .conversation {
-  padding-bottom: var(--plugin-topic-composer-reserved-height, 142px);
+  padding-bottom: var(--plugin-topic-composer-reserved-height);
 }
 
 .app.main-back-visible.plugin-context-nav-mode.plugin-topic-detail-mode .composer {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: var(--plugin-context-bottom-nav-height);
+  bottom: var(--plugin-topic-composer-bottom-offset);
   z-index: 39;
   padding-bottom: 6px;
 }
@@ -86,6 +86,8 @@ The plugin-bound topic detail pattern is:
 This mirrors the working Finance embedded-page mental model:
 
 - the bottom control is fixed at the bottom owner boundary;
+- the plugin-topic composer offset includes the bottom nav bottom inset, bottom
+  nav height, bottom tab visual lift, and a minimum composer/nav gap;
 - the scroll container reserves the space that the fixed control covers;
 - the outer shell does not create a visible blank band.
 
@@ -176,8 +178,9 @@ exists:
 - the relevant static client version is present in `index.html`,
   `service-worker.js`, `directory-viewer.html`, and UI tests;
 - plugin-bound topic detail has fixed composer above
-  `--plugin-context-bottom-nav-height`;
-- the conversation reserve is present and large enough for the fixed composer;
+  `--plugin-topic-composer-bottom-offset`;
+- the conversation reserve is present and large enough for the fixed composer,
+  the composer context/status strip, bottom navigation, and tab visual lift;
 - failed outer-shell padding strategies are not reintroduced;
 - refresh notice or badge behavior is forced when the server reports
   `refreshRequired=1`.

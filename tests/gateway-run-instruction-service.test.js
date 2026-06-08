@@ -6,8 +6,8 @@ const { createGatewayRunInstructionService } = require("../adapters/gateway-run-
 function createService(options = {}) {
   return createGatewayRunInstructionService({
     dedupe: (values) => Array.from(new Set((values || []).filter(Boolean))),
-    explicitWebSearchMaxCalls: options.explicitWebSearchMaxCalls ?? 12,
-    webSearchMaxCalls: options.webSearchMaxCalls ?? 6,
+    explicitWebSearchMaxCalls: options.explicitWebSearchMaxCalls ?? 20,
+    webSearchMaxCalls: options.webSearchMaxCalls ?? 12,
     normalizeSingleWindowMode: (value) => String(value || "").trim().toLowerCase(),
     createDeliveryBoundaryInstructions: (options = {}) => options.deliveryTarget
       ? `DELIVERY:${options.deliveryTarget}`
@@ -69,8 +69,8 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /Word DOCX text extraction is available as `docx_extract_text`/);
   assert.match(text, /audio transcription.*`audio_transcribe`/);
   assert.match(text, /Prefer callable function names `mobile_web_search` and `mobile_web_extract`/);
-  assert.match(text, /Run Web-search budget: use at most 6 total Web search calls/);
-  assert.match(text, /Do not start a 7th Web search call/);
+  assert.match(text, /Run Web-search budget: use at most 12 total Web search calls/);
+  assert.match(text, /Do not start a 13th Web search call/);
   assert.match(text, /`x_search` toolset is enabled/);
   assert.match(text, /Do not claim X was searched unless `x_search` was actually available and used/);
   assert.match(text, /`cronjob` toolset is enabled/);
@@ -113,8 +113,8 @@ function testExplicitWebSearchPrioritizesQualityAndUsesLargerBudget() {
   assert.match(text, /explicitly asks for web\/search-backed information/);
   assert.match(text, /Optimize for source quality, meaningful coverage, and verifiable evidence/);
   assert.match(text, /Use several focused query refinements when needed/);
-  assert.match(text, /Run Web-search budget: use at most 12 total Web search calls/);
-  assert.match(text, /Do not start a 13th Web search call/);
+  assert.match(text, /Run Web-search budget: use at most 20 total Web search calls/);
+  assert.match(text, /Do not start a 21st Web search call/);
 }
 
 function testWebSearchBudgetInstructionCanBeDisabled() {
@@ -126,6 +126,20 @@ function testWebSearchBudgetInstructionCanBeDisabled() {
   assert.match(text, /Prefer callable function names `mobile_web_search` and `mobile_web_extract`/);
   assert.doesNotMatch(text, /Run Web-search budget/);
 }
+
+function testChineseCurrentPriceRequestUsesExplicitSearchInstruction() {
+  const service = createService();
+  const text = service.buildHermesInstructions(
+    { hermesSessionId: "s" },
+    { allowed_toolsets: ["web", "search"] },
+    { root: "C:/workspace" },
+    "\u518d\u67e5\u4e00\u4e0b\u5f53\u524d\u9ec4\u91d1\u548c\u6bd4\u7279\u5e01\u7684\u4ef7\u683c\u3002",
+  );
+
+  assert.match(text, /explicitly asks for web\/search-backed information/);
+  assert.match(text, /Run Web-search budget: use at most 20 total Web search calls/);
+}
+
 
 function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
   const service = createService();
@@ -300,6 +314,7 @@ testPolicySummaryIncludesCallableToolHints();
 testSchemaOverrideInstructionsCoverOrdinaryLowTools();
 testExplicitWebSearchPrioritizesQualityAndUsesLargerBudget();
 testWebSearchBudgetInstructionCanBeDisabled();
+testChineseCurrentPriceRequestUsesExplicitSearchInstruction();
 testGatewayConversationIdEpochForSchemaSensitiveToolsets();
 testBuildHermesInstructionsPreservesChatAndAttachmentGuidance();
 testBuildHermesInstructionsIncludesSemanticRoutingForTaskStream();

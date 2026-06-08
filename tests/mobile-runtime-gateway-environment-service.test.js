@@ -50,7 +50,7 @@ function testGatewayRoutingAndTelemetryParsing() {
   assert.equal(runtime.GATEWAY_USAGE_TELEMETRY_ENABLED, "0");
   assert.deepEqual(runtime.GATEWAY_USAGE_TELEMETRY_PROFILE_ROOTS, ["/a", "/b", "/c"]);
   assert.equal(runtime.RUN_WEB_SEARCH_MAX_CALLS, 3);
-  assert.equal(runtime.RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS, 12);
+  assert.equal(runtime.RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS, 20);
   assert.equal(runtime.RUN_STREAMING_SAVE_THROTTLE_MS, 1200);
   assert.equal(runtime.GATEWAY_POOL_ELASTIC_CONFIG.HERMES_MOBILE_GATEWAY_OWNER_DEEPSEEK_MAX_WORKERS, "2");
   assert.equal(runtime.GATEWAY_POOL_ELASTIC_CONFIG.HERMES_MOBILE_GATEWAY_OWNER_MAINTENANCE_MAX_WORKERS, "1");

@@ -1,6 +1,7 @@
 "use strict";
 
 const { cleanString } = require("./gateway-run-request-builder-service");
+const { explicitSearchContext } = require("./gateway-run-search-budget-service");
 
 const CHATGPT_PRO_MIN_WAIT_MS = 30 * 60 * 1000;
 
@@ -18,14 +19,8 @@ function isChatGptProRunOptions(runOptions = {}) {
   return text.includes("chatgpt_pro_generate");
 }
 
-function isExplicitWebSearchRunOptions(runOptions = {}) {
-  const text = [
-    runOptions.searchSource,
-    runOptions.search_source,
-    runOptions.sourceIntent,
-    runOptions.source_intent,
-  ].map((value) => cleanString(value).toLowerCase()).join(" ");
-  return /\b(web|web_search|search|x|x_search)\b/.test(text);
+function isExplicitWebSearchRunOptions(runOptions = {}, values = {}) {
+  return explicitSearchContext(Object.assign({}, runOptions, values)).explicitWeb;
 }
 
 function createGatewayRunStartStreamOptionsService(options = {}) {
@@ -40,7 +35,7 @@ function createGatewayRunStartStreamOptionsService(options = {}) {
       gatewayProfile: gatewayTarget?.profile || "",
       gatewaySource: gatewayTarget?.source || "",
     };
-    if (runExplicitWebSearchMaxCalls > 0 && isExplicitWebSearchRunOptions(runOptions)) {
+    if (runExplicitWebSearchMaxCalls > 0 && isExplicitWebSearchRunOptions(runOptions, values)) {
       streamOptions.webSearchMaxCalls = runExplicitWebSearchMaxCalls;
     } else if (runWebSearchMaxCalls > 0) {
       streamOptions.webSearchMaxCalls = runWebSearchMaxCalls;

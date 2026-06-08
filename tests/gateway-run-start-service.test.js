@@ -840,8 +840,8 @@ function testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext() {
 
 async function testStartRunPreservesSearchSourceRouting() {
   const { calls, service } = makeHarness({
-    runExplicitWebSearchMaxCalls: 12,
-    runWebSearchMaxCalls: 6,
+    runExplicitWebSearchMaxCalls: 20,
+    runWebSearchMaxCalls: 12,
   });
   const thread = baseThread();
   const user = baseUserMessage();
@@ -861,19 +861,31 @@ async function testStartRunPreservesSearchSourceRouting() {
   assert.equal(assistant.runOptions.sourceIntent, "x_search");
   assert.equal(assistant.runOptions.sourceMode, "manual");
   assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_toolsets, ["x_search", "web", "search"]);
-  assert.equal(calls.streams[0].options.webSearchMaxCalls, 12);
+  assert.equal(calls.streams[0].options.webSearchMaxCalls, 20);
   assert.deepEqual(assistant.runOptions.toolsetRouting, { mode: "intent", reason: "matched_intent" });
 }
 
 async function testOrdinaryRunUsesDefaultWebSearchBudgetWhenConfigured() {
   const { calls, service } = makeHarness({
-    runExplicitWebSearchMaxCalls: 12,
-    runWebSearchMaxCalls: 6,
+    runExplicitWebSearchMaxCalls: 20,
+    runWebSearchMaxCalls: 12,
   });
 
   await service.startRunForThread(baseThread(), baseUserMessage(), baseAssistantMessage(), {});
 
-  assert.equal(calls.streams[0].options.webSearchMaxCalls, 6);
+  assert.equal(calls.streams[0].options.webSearchMaxCalls, 12);
+}
+
+async function testChineseCurrentPriceRequestUsesExplicitWebSearchBudget() {
+  const { calls, service } = makeHarness({
+    runExplicitWebSearchMaxCalls: 20,
+    runWebSearchMaxCalls: 12,
+  });
+  const user = baseUserMessage({ content: "\u518d\u67e5\u4e00\u4e0b\u5f53\u524d\u9ec4\u91d1\u548c\u6bd4\u7279\u5e01\u7684\u4ef7\u683c\u3002" });
+
+  await service.startRunForThread(baseThread(), user, baseAssistantMessage(), {});
+
+  assert.equal(calls.streams[0].options.webSearchMaxCalls, 20);
 }
 
 async function testStartRunProjectsGatewaySchedulerEventsBeforeSelection() {
@@ -1696,6 +1708,7 @@ function testMarkStartFailedFormatsGatewayCapacityError() {
   testBuildRunRequestAddsGroupChatDeliveryRootsAndInstructionContext();
   await testStartRunPreservesSearchSourceRouting();
   await testOrdinaryRunUsesDefaultWebSearchBudgetWhenConfigured();
+  await testChineseCurrentPriceRequestUsesExplicitWebSearchBudget();
   await testStartRunProjectsGatewaySchedulerEventsBeforeSelection();
   await testStartRunUsesModelFirstSelectionBeforeExecution();
   await testModelFirstRoutingMetadataSurvivesPolicySanitizer();

@@ -709,15 +709,16 @@ hard limit is exceeded.
 Current enforced budget:
 
 - `HERMES_MOBILE_RUN_WEB_SEARCH_MAX_CALLS` /
-  `HERMES_WEB_RUN_WEB_SEARCH_MAX_CALLS` defaults to `6`.
+  `HERMES_WEB_RUN_WEB_SEARCH_MAX_CALLS` defaults to `12`.
 - `HERMES_MOBILE_RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS` /
-  `HERMES_WEB_RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS` defaults to `12` for runs
+  `HERMES_WEB_RUN_EXPLICIT_WEB_SEARCH_MAX_CALLS` defaults to `20` for runs
   whose newest message explicitly selects or asks for web/X search.
 - The counter covers `mobile_web_search`, `web_search`, and hosted
   `web_search_call` output items.
 - `0` disables this specific cap for a controlled runtime.
-- When exceeded, Hermes Mobile emits `run.tool_budget_exceeded`, aborts the
-  stream, marks the assistant message failed, and releases the queue.
+- When exceeded, Hermes Mobile emits `run.tool_budget_exceeded` once as a
+  non-terminal budget warning and lets the run finish from the evidence already
+  gathered. Budget excess must not directly mark the assistant message failed.
 - When the current run enables the `web` or `search` toolset, Hermes Mobile
   also injects a model-facing instruction that states the configured search
   budget, asks the model to plan/combine searches, prefer extraction for known

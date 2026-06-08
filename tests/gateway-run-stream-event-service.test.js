@@ -63,17 +63,20 @@ function testToolBudgetLifecycle() {
   const third = service.recordToolBudgetForEvent("public_1", webSearchEvent, stream);
 
   assert.equal(second.action, "counted");
-  assert.equal(third.action, "aborted");
+  assert.equal(third.action, "summarize_required");
   assert.equal(third.count, 3);
   assert.equal(third.limit, 2);
   assert.equal(stream.toolBudgetCounters.webSearch, 3);
+  assert.equal(stream.toolBudgetExceeded, true);
   assert.equal(emitted.length, 1);
   assert.equal(emitted[0][0], "public_1");
   assert.equal(emitted[0][1], "run.tool_budget_exceeded");
-  assert.deepEqual(emitted[0][3], { runId: "resp_1", error: true });
-  assert.equal(aborted.length, 1);
-  assert.equal(aborted[0][0], "public_1");
-  assert.match(aborted[0][1], /exceeded the configured Web search limit \(3\/2\)/);
+  assert.deepEqual(emitted[0][3], { runId: "resp_1", error: false });
+  assert.equal(aborted.length, 0);
+  const fourth = service.recordToolBudgetForEvent("public_1", webSearchEvent, stream);
+  assert.equal(fourth.action, "summarize_required");
+  assert.equal(fourth.count, 4);
+  assert.equal(emitted.length, 1);
 }
 
 function testDisabledToolBudget() {
