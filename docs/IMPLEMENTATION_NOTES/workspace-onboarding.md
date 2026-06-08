@@ -46,6 +46,12 @@ surface.
 - `scripts/workspace-system-provisioning-helper.js`
   runs as the root-owned local helper and delegates only to the restricted
   executor surface.
+- `public/app-access-key-manager-ui.js`
+  adds the Owner-side family workspace onboarding entry inside the Access Key
+  manager sheet. The UI calls the dry-run plan endpoint first, requires the
+  current form state to still match that plan before apply, renders bounded
+  step diagnostics, and displays the returned Home AI workspace Access Key only
+  through the existing one-time generated key block.
 
 The service deliberately reuses existing components instead of duplicating
 their business rules:
@@ -184,6 +190,27 @@ workflow must prove:
   fall back to Owner;
 - wrong-header and wrong-workspace auth probes fail closed.
 
+## Owner UI Surface
+
+The Owner UI entry is intentionally attached to the existing Access Key manager
+instead of a separate page because family workspace onboarding produces a
+one-time Home AI Access Key and requires Owner-only access. The sheet exposes:
+
+- workspace id and display name inputs;
+- selected plugin checkboxes for `wardrobe`, `health`, `finance`, `email`, and
+  `note`;
+- a `Preview plan` action that calls `POST /api/workspace-onboarding/plan`;
+- a confirm/apply action that calls `POST /api/workspace-onboarding/apply`
+  only when the current input still matches the latest plan;
+- bounded plan/result evidence with step ids, statuses, paths, plugin ids, and
+  errors, but no raw key material;
+- one-time generated key display through `state.generatedAccessKey` when the
+  apply response includes `credentials.homeAiAccessKey`.
+
+The browser keeps the raw key only in the existing generated-key UI state. The
+stored onboarding result is redacted to `credentials.homeAiAccessKey=true/false`
+so rerendered diagnostic panels do not retain the plaintext key.
+
 ## Follow-Up Work To Deployment
 
 1. Commit and push the executor implementation and docs.
@@ -199,9 +226,7 @@ workflow must prove:
    worker ACL harness.
 5. Remove or quarantine disposable workspace artifacts if the smoke was only a
    deployment proof.
-6. Add Owner UI for workspace id, display name, plugin selection, dry-run plan,
-   confirmation, and one-time Access Key delivery.
-7. Run final Mac closure validation after UI wiring and before declaring the
+6. Run final Mac closure validation after UI wiring and before declaring the
    onboarding workflow production-ready.
-8. Add persisted onboarding state if long-running or retryable production
+7. Add persisted onboarding state if long-running or retryable production
    applies become common.

@@ -31,7 +31,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260608-directory-scope-v634";
+const clientVersion = "20260608-workspace-onboarding-ui-v635";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 

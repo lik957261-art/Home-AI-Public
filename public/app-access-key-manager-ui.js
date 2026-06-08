@@ -1,5 +1,13 @@
 "use strict";
 
+const WORKSPACE_ONBOARDING_PLUGIN_OPTIONS = Object.freeze([
+  { id: "wardrobe", label: "配衣服" },
+  { id: "health", label: "健康" },
+  { id: "finance", label: "财务" },
+  { id: "email", label: "邮件" },
+  { id: "note", label: "笔记" },
+]);
+
 function renderAccessKeyManagerLegacy() {
   const overlay = $("accessKeyOverlay");
   if (!overlay) return;
@@ -269,6 +277,90 @@ function renderAccessKeyManager() {
     </section>`;
   };
 
+  const onboardingDraft = state.workspaceOnboardingDraft || state.workspaceOnboardingResult || state.workspaceOnboardingPlan || {};
+  const onboardingPluginIds = new Set(
+    Array.isArray(onboardingDraft.pluginIds) && onboardingDraft.pluginIds.length
+      ? onboardingDraft.pluginIds
+      : WORKSPACE_ONBOARDING_PLUGIN_OPTIONS.map((item) => item.id),
+  );
+  const onboardingStatusLabel = (status) => ({
+    planned: "计划中",
+    ok: "完成",
+    failed: "失败",
+    blocked: "阻断",
+    manual_required: "需人工处理",
+    skipped: "已跳过",
+  }[status] || status || "未知");
+  const onboardingStatusTone = (status) => {
+    if (status === "ok") return "ok";
+    if (status === "failed" || status === "blocked") return "failed";
+    if (status === "manual_required") return "manual";
+    return "pending";
+  };
+  const renderOnboardingEvidence = (value) => {
+    if (!value || typeof value !== "object") return "";
+    const steps = Array.isArray(value.steps) ? value.steps : [];
+    const paths = value.paths && typeof value.paths === "object" ? value.paths : {};
+    const pluginIds = Array.isArray(value.pluginIds) ? value.pluginIds : [];
+    return `<section class="workspace-onboarding-result" data-workspace-onboarding-status="${escapeHtml(value.status || "")}">
+      <div class="workspace-onboarding-result-head">
+        <div>
+          <div class="access-key-row-title">${state.workspaceOnboardingResult ? "开通结果" : "开通计划"}</div>
+          <div class="access-key-row-meta">${escapeHtml(value.workspaceId || "")}${value.macUser ? ` · ${escapeHtml(value.macUser)}` : ""}</div>
+        </div>
+        <span class="workspace-onboarding-status ${onboardingStatusTone(value.status)}">${escapeHtml(onboardingStatusLabel(value.status))}</span>
+      </div>
+      ${value.error ? `<div class="workspace-onboarding-error">${escapeHtml(value.error)}</div>` : ""}
+      <dl class="workspace-onboarding-facts">
+        ${value.displayName ? `<div><dt>显示名</dt><dd>${escapeHtml(value.displayName)}</dd></div>` : ""}
+        ${pluginIds.length ? `<div><dt>插件</dt><dd>${escapeHtml(pluginIds.join(", "))}</dd></div>` : ""}
+        ${paths.workspaceDataRoot ? `<div><dt>数据目录</dt><dd>${escapeHtml(paths.workspaceDataRoot)}</dd></div>` : ""}
+        ${paths.workerWorkspaceRoot ? `<div><dt>工作目录</dt><dd>${escapeHtml(paths.workerWorkspaceRoot)}</dd></div>` : ""}
+      </dl>
+      ${steps.length ? `<ol class="workspace-onboarding-steps">
+        ${steps.map((step) => `<li class="workspace-onboarding-step ${onboardingStatusTone(step.status)}">
+          <span>${escapeHtml(step.id || "")}</span>
+          <strong>${escapeHtml(onboardingStatusLabel(step.status))}</strong>
+          ${step.error ? `<em>${escapeHtml(step.error)}</em>` : ""}
+        </li>`).join("")}
+      </ol>` : ""}
+    </section>`;
+  };
+  const workspaceOnboardingSection = isOwnerAccessManager ? `<details class="access-key-section workspace-onboarding-section" data-workspace-onboarding-section open>
+    <summary class="access-key-section-summary">
+      <span>创建家人工作区</span>
+      <span>Mac 开通</span>
+    </summary>
+    <section class="access-key-create-workspace workspace-onboarding-panel">
+      <div class="access-key-row-title">Owner 工作区开通</div>
+      <div class="workspace-create-help">先预览计划，确认后再创建 Mac 用户、Gateway profiles、插件绑定和一次性 Home AI Access Key。</div>
+      <div class="access-key-create-grid">
+        <label>
+          <span>工作区 ID</span>
+          <input id="workspaceOnboardingWorkspaceId" type="text" autocomplete="off" placeholder="liyushuang" value="${escapeHtml(onboardingDraft.workspaceId || "")}">
+        </label>
+        <label>
+          <span>显示名</span>
+          <input id="workspaceOnboardingDisplayName" type="text" autocomplete="off" placeholder="李玉双" value="${escapeHtml(onboardingDraft.displayName || onboardingDraft.label || "")}">
+        </label>
+      </div>
+      <fieldset class="workspace-onboarding-plugins">
+        <legend>插件</legend>
+        ${WORKSPACE_ONBOARDING_PLUGIN_OPTIONS.map((item) => `<label class="workspace-onboarding-plugin">
+          <input type="checkbox" name="workspaceOnboardingPlugin" value="${escapeHtml(item.id)}"${onboardingPluginIds.has(item.id) ? " checked" : ""}>
+          <span>${escapeHtml(item.label)}</span>
+        </label>`).join("")}
+      </fieldset>
+      <div class="workspace-onboarding-actions">
+        <button type="button" data-workspace-onboarding-plan${state.workspaceOnboardingLoading ? " disabled" : ""}>预览计划</button>
+        <button type="button" data-workspace-onboarding-apply${state.workspaceOnboardingLoading ? " disabled" : ""}>确认开通</button>
+      </div>
+      ${state.workspaceOnboardingLoading ? `<div class="access-key-empty">正在处理工作区开通请求...</div>` : ""}
+      ${state.workspaceOnboardingError ? `<div class="access-key-empty error">${escapeHtml(state.workspaceOnboardingError)}</div>` : ""}
+      ${renderOnboardingEvidence(state.workspaceOnboardingResult || state.workspaceOnboardingPlan)}
+    </section>
+  </details>` : "";
+
   const generatedKind = state.generatedAccessKey?.kind || "workspace";
   const generatedWorkspaceId = String(state.generatedAccessKey?.workspaceId || "");
   const generatedInRow = Boolean(generatedKind === "workspace" && generatedWorkspaceId && workspaceIds.has(generatedWorkspaceId));
@@ -358,7 +450,8 @@ function renderAccessKeyManager() {
   const localWorkspaceSection = renderWorkspaceSection("本地用户", localWorkspaces, { editable: true });
   const deploymentWorkspaceSection = renderWorkspaceSection("部署账号", deploymentWorkspaces, { editable: false });
   const workspaceAdminList = isOwnerAccessManager
-    ? `${localWorkspaceSection}
+    ? `${workspaceOnboardingSection}
+       ${localWorkspaceSection}
        ${workspaceCreateForm}
        ${deploymentWorkspaceSection}
        ${!localWorkspaces.length && !deploymentWorkspaces.length ? `<section class="access-key-section"><div class="access-key-empty">还没有可管理的账号。</div></section>` : ""}
@@ -399,6 +492,8 @@ function renderAccessKeyManager() {
   overlay.querySelector("[data-close-access-keys]")?.addEventListener("click", closeAccessKeyManager);
   overlay.querySelector("[data-rotate-web-key]")?.addEventListener("click", () => rotateWebAccessKey().catch(showError));
   overlay.querySelector("[data-create-workspace]")?.addEventListener("click", () => createWorkspaceFromAccessKeyManager().catch(showError));
+  overlay.querySelector("[data-workspace-onboarding-plan]")?.addEventListener("click", () => planWorkspaceOnboardingFromAccessKeyManager().catch(showError));
+  overlay.querySelector("[data-workspace-onboarding-apply]")?.addEventListener("click", () => applyWorkspaceOnboardingFromAccessKeyManager().catch(showError));
   wireWorkspaceCreateDefaults(overlay);
   overlay.querySelector("[data-copy-access-key]")?.addEventListener("click", () => copyTextToClipboard(state.generatedAccessKey?.key || "").catch(showError));
   overlay.querySelector("[data-relogin-after-access-key]")?.addEventListener("click", () => finishAccessKeyRelogin());
@@ -513,6 +608,123 @@ async function createWorkspaceFromAccessKeyManager() {
   await loadWorkspaces();
   await loadProjects();
   await loadAccessKeyManager({ workspaceId: createdId });
+}
+
+function workspaceOnboardingInputs(root = document) {
+  return {
+    workspaceId: root.querySelector?.("#workspaceOnboardingWorkspaceId") || null,
+    displayName: root.querySelector?.("#workspaceOnboardingDisplayName") || null,
+    plugins: [...(root.querySelectorAll?.('input[name="workspaceOnboardingPlugin"]:checked') || [])],
+  };
+}
+
+function workspaceOnboardingPayload(root = document) {
+  const inputs = workspaceOnboardingInputs(root);
+  const workspaceId = inputs.workspaceId?.value?.trim() || "";
+  const displayName = inputs.displayName?.value?.trim() || workspaceId;
+  const pluginIds = inputs.plugins.map((input) => input.value).filter(Boolean);
+  if (!workspaceId) throw new Error("请输入工作区 ID");
+  return {
+    workspaceId,
+    displayName,
+    label: displayName,
+    pluginIds,
+    runSmokes: true,
+  };
+}
+
+function rememberWorkspaceOnboardingDraft(payload = {}) {
+  state.workspaceOnboardingDraft = {
+    workspaceId: payload.workspaceId || "",
+    displayName: payload.displayName || payload.label || payload.workspaceId || "",
+    pluginIds: Array.isArray(payload.pluginIds) ? payload.pluginIds : [],
+  };
+}
+
+function workspaceOnboardingPlanMatchesPayload(plan = {}, payload = {}) {
+  const planPlugins = Array.isArray(plan.pluginIds) ? plan.pluginIds : [];
+  const payloadPlugins = Array.isArray(payload.pluginIds) ? payload.pluginIds : [];
+  return String(plan.workspaceId || "") === String(payload.workspaceId || "")
+    && String(plan.displayName || plan.label || plan.workspaceId || "") === String(payload.displayName || payload.label || payload.workspaceId || "")
+    && planPlugins.length === payloadPlugins.length
+    && planPlugins.every((pluginId, index) => pluginId === payloadPlugins[index]);
+}
+
+function redactedWorkspaceOnboardingResult(result = {}) {
+  const safe = Object.assign({}, result);
+  if (safe.credentials && typeof safe.credentials === "object") {
+    safe.credentials = {
+      homeAiAccessKey: Boolean(safe.credentials.homeAiAccessKey),
+    };
+  }
+  return safe;
+}
+
+async function planWorkspaceOnboardingFromAccessKeyManager() {
+  const root = $("accessKeyOverlay") || document;
+  const payload = workspaceOnboardingPayload(root);
+  rememberWorkspaceOnboardingDraft(payload);
+  state.workspaceOnboardingLoading = true;
+  state.workspaceOnboardingError = "";
+  state.workspaceOnboardingResult = null;
+  renderAccessKeyManager();
+  try {
+    const result = await api("/api/workspace-onboarding/plan", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    state.workspaceOnboardingPlan = result;
+    if (!result?.ok) state.workspaceOnboardingError = result?.error || "开通计划不可用";
+  } catch (err) {
+    state.workspaceOnboardingError = err.message || String(err);
+  } finally {
+    state.workspaceOnboardingLoading = false;
+    renderAccessKeyManager();
+  }
+}
+
+async function applyWorkspaceOnboardingFromAccessKeyManager() {
+  const root = $("accessKeyOverlay") || document;
+  const payload = workspaceOnboardingPayload(root);
+  rememberWorkspaceOnboardingDraft(payload);
+  if (!workspaceOnboardingPlanMatchesPayload(state.workspaceOnboardingPlan, payload)) {
+    state.workspaceOnboardingError = "请先预览当前工作区的开通计划";
+    renderAccessKeyManager();
+    return;
+  }
+  if (!window.confirm(`确认开通 ${payload.displayName || payload.workspaceId}？这会创建 Mac 用户、目录权限、Gateway profiles 和插件绑定。`)) return;
+  state.workspaceOnboardingLoading = true;
+  state.workspaceOnboardingError = "";
+  state.workspaceOnboardingResult = null;
+  renderAccessKeyManager();
+  try {
+    const result = await api("/api/workspace-onboarding/apply", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const oneTimeKey = result?.credentials?.homeAiAccessKey || "";
+    state.workspaceOnboardingResult = redactedWorkspaceOnboardingResult(result);
+    state.workspaceOnboardingPlan = null;
+    if (oneTimeKey) {
+      state.generatedAccessKey = {
+        kind: "workspace",
+        key: oneTimeKey,
+        label: `${result.displayName || payload.displayName || payload.workspaceId} Home AI Access Key`,
+        workspaceId: result.workspaceId || payload.workspaceId,
+        focus: true,
+      };
+    }
+    if (!result?.ok) state.workspaceOnboardingError = result?.error || "工作区开通失败";
+    state.workspaceOnboardingLoading = false;
+    await loadWorkspaces();
+    await loadProjects();
+    await loadAccessKeyManager({ keepGenerated: true, workspaceId: "owner" });
+  } catch (err) {
+    state.workspaceOnboardingError = err.message || String(err);
+  } finally {
+    state.workspaceOnboardingLoading = false;
+    renderAccessKeyManager();
+  }
 }
 
 async function deleteWorkspaceFromAccessKeyManager(workspaceId) {

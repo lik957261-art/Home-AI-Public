@@ -7975,6 +7975,10 @@ body.task-markdown-preview-open {
   gap: 10px;
 }
 
+.workspace-onboarding-section[open] {
+  gap: 10px;
+}
+
 .group-chat-sheet {
   width: min(560px, 100%);
 }
@@ -8186,6 +8190,181 @@ body.task-markdown-preview-open {
   outline: none;
   resize: vertical;
   font: inherit;
+}
+
+.workspace-onboarding-panel {
+  gap: 10px;
+}
+
+.workspace-onboarding-plugins {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.workspace-onboarding-plugins legend {
+  width: 100%;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.workspace-onboarding-plugin {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  color: var(--ink);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 560;
+}
+
+.workspace-onboarding-plugin input {
+  width: 16px;
+  height: 16px;
+  accent-color: #2d7b69;
+}
+
+.workspace-onboarding-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workspace-onboarding-actions button:disabled {
+  opacity: 0.52;
+}
+
+.workspace-onboarding-result {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 10px;
+}
+
+.workspace-onboarding-result-head {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.workspace-onboarding-status {
+  flex: 0 0 auto;
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 9px;
+  color: var(--muted);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.workspace-onboarding-status.ok {
+  color: #145f4a;
+  background: rgba(45, 123, 105, 0.12);
+  border-color: rgba(45, 123, 105, 0.24);
+}
+
+.workspace-onboarding-status.failed {
+  color: var(--danger);
+  background: rgba(164, 61, 53, 0.1);
+  border-color: rgba(164, 61, 53, 0.2);
+}
+
+.workspace-onboarding-status.manual {
+  color: #7a5a18;
+  background: rgba(168, 119, 28, 0.12);
+  border-color: rgba(168, 119, 28, 0.22);
+}
+
+.workspace-onboarding-facts {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+}
+
+.workspace-onboarding-facts div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.workspace-onboarding-facts dt,
+.workspace-onboarding-facts dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.workspace-onboarding-facts dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.workspace-onboarding-facts dd {
+  min-width: 0;
+  color: var(--ink);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.workspace-onboarding-steps {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workspace-onboarding-step {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  padding: 8px 9px;
+  background: var(--ui-surface-muted);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 8px;
+}
+
+.workspace-onboarding-step span {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.workspace-onboarding-step strong {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.workspace-onboarding-step em,
+.workspace-onboarding-error {
+  grid-column: 1 / -1;
+  color: var(--danger);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .workspace-admin-row {
