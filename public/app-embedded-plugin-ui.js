@@ -661,6 +661,17 @@ function scheduleEmbeddedPluginViewportBroadcast(reason = "layout", delay = 0) {
   return true;
 }
 
+function settleEmbeddedPluginViewportBroadcast(reason = "layout") {
+  const def = embeddedPluginDefByView();
+  if (!def || state.viewMode !== def.viewMode) return false;
+  [0, 80, 180, 360, 700].forEach((delay) => {
+    window.setTimeout(() => {
+      sendEmbeddedPluginViewportMetrics(def, reason);
+    }, delay);
+  });
+  return true;
+}
+
 function embeddedPluginHost(def) {
   let host = $(def.hostId);
   if (host) return host;

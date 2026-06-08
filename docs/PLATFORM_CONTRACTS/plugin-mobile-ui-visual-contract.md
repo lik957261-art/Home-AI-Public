@@ -178,6 +178,10 @@ Rules:
   `innerHeight` / `visualViewport` can miss the outer Home AI shell correction.
   Local plugin viewport measurements are fallback evidence only until the host
   event arrives;
+- the Home AI host must rebroadcast bounded plugin viewport metrics through a
+  short settled sequence after host visual viewport resize, scroll, or
+  orientation events, because native keyboard focus can originate inside the
+  iframe rather than the Home AI composer;
 - plugin mobile visual harnesses must prove the host viewport event is received
   or explicitly stubbed when validating keyboard and bottom-layer behavior in
   `embed=hermes`;

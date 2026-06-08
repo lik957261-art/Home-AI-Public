@@ -980,7 +980,10 @@ and postMessage back plus viewport contracts. The viewport contract must prove
 the active iframe receives bounded `hermes.plugin.viewport` messages on
 attach/load and host keyboard/visual-viewport changes, including viewport,
 keyboard, iframe, host, and footer metrics with no raw keys, launch tokens,
-cookies, route URLs, or user content. The host-side harness must also assert that
+cookies, route URLs, or user content. Host visual-viewport resize, scroll, and
+orientation changes must schedule a short settled broadcast sequence so iframe
+input focus can receive stable keyboard geometry even when the Home AI composer
+is not focused. The host-side harness must also assert that
 the parent `edgeSwipeZone` starts a real edge back-swipe state for plugin pages
 instead of only swallowing iframe-adjacent touch events with `preventDefault()`.
 Mobile bottom navigation must keep Codex as a first-level tab while collecting

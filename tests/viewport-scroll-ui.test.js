@@ -25,6 +25,7 @@ assert.match(appJs, /window\.visualViewport\?\.addEventListener\("resize", handl
 assert.match(appJs, /window\.addEventListener\("orientationchange", handleViewportLayoutChange\)/);
 assert.match(appJs, /window\.screen\?\.orientation\?\.addEventListener\?\.\("change", handleViewportLayoutChange\)/);
 assert.match(appJs, /updateMobileBottomNavReservation\(\)/);
+assert.match(appJs, /settleEmbeddedPluginViewportBroadcast\(orientationEvent \? "host_orientation_viewport" : "host_visual_viewport"\)/);
 assert.match(appJs, /if \(typeof keyboardViewportShouldClearAfterOrientation === "function" && keyboardViewportShouldClearAfterOrientation\(\)\) \{[\s\S]*?clearKeyboardViewportMetrics\(\);/);
 assert.match(appJs, /\[1180, 1800\]\.forEach\(\(delay\) => \{[\s\S]*?recoverConversationViewportAfterOrientation\(\$\("conversation"\)\)/);
 assert.match(appJs, /if \(orientationEvent\) scheduleConversationOrientationRecovery\(\$\("conversation"\)\)/);

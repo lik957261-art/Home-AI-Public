@@ -89,6 +89,8 @@ assert.match(embeddedPluginUi, /footer:[\s\S]*?pluginContextBottom: embeddedPlug
 assert.match(embeddedPluginUi, /function sendEmbeddedPluginViewportMetrics\(def = embeddedPluginDefByView\(\), reason = "layout"\)/);
 assert.match(embeddedPluginUi, /frame\.contentWindow\.postMessage\(embeddedPluginViewportPayload\(def, frame, reason\), origin\)/);
 assert.match(embeddedPluginUi, /function scheduleEmbeddedPluginViewportBroadcast\(reason = "layout", delay = 0\)/);
+assert.match(embeddedPluginUi, /function settleEmbeddedPluginViewportBroadcast\(reason = "layout"\)/);
+assert.match(embeddedPluginUi, /\[0, 80, 180, 360, 700\]\.forEach\(\(delay\) => \{/);
 assert.match(embeddedPluginUi, /scheduleEmbeddedPluginViewportBroadcast\("host_visible", 0\)/);
 assert.match(embeddedPluginUi, /scheduleEmbeddedPluginViewportBroadcast\("frame_attach", 0\)/);
 assert.match(embeddedPluginUi, /sendEmbeddedPluginViewportMetrics\(def, "frame_load"\)/);

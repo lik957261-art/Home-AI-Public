@@ -274,6 +274,9 @@ function handleViewportLayoutChange(event = null) {
   }
   updateKeyboardViewportMetrics();
   updateMobileBottomNavReservation();
+  if (typeof settleEmbeddedPluginViewportBroadcast === "function") {
+    settleEmbeddedPluginViewportBroadcast(orientationEvent ? "host_orientation_viewport" : "host_visual_viewport");
+  }
   updateNavigationControls();
   refreshComposerContextSoon(0);
   scheduleMessageScrollButtonVisibility($("conversation"));

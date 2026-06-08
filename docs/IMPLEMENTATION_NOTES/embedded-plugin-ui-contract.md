@@ -81,7 +81,10 @@ scroll containers.
 
 Hermes Mobile sends a bounded `postMessage` to the active embedded plugin iframe
 whenever the host iframe is attached, rendered, loaded, made visible, or the
-host keyboard/viewport/plugin-context footer metrics change:
+host keyboard/viewport/plugin-context footer metrics change. Host
+`visualViewport` resize, scroll, and orientation changes must also schedule a
+short settled broadcast sequence, because mobile iframe focus can open the
+native keyboard without going through the Home AI composer focus path:
 
 ```js
 {
@@ -122,7 +125,9 @@ host keyboard/viewport/plugin-context footer metrics change:
 
 The payload is layout metadata only. It must not contain raw keys, launch
 tokens, cookies, plugin private data, route URLs, or user content. The host sends
-it to the iframe entry origin recorded in the normalized manifest.
+it to the iframe entry origin recorded in the normalized manifest. Repeated
+settled broadcasts may send the same bounded payload shape several times during
+keyboard animation; plugins should treat the latest event as authoritative.
 
 Plugins should treat the latest `hermes.plugin.viewport` payload as an
 embedded-mode override:
