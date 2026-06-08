@@ -1,12 +1,12 @@
 "use strict";
 
-const fs = require("node:fs");
 const path = require("node:path");
 const {
   createWebPushDeliveryNormalizationService,
   normalizeWebPushOrigin,
 } = require("./web-push-delivery-normalization-service");
 const { createWebPushSendService } = require("./web-push-send-service");
+const { createWebPushVapidService } = require("./web-push-vapid-service");
 
 function defaultNowIso() {
   return new Date().toISOString();
@@ -161,13 +161,29 @@ function createWebPushDeliveryService(options = {}) {
     pushSubscriptionSkipReason,
     shouldSkipPushSubscriptionForClient,
   } = webPushNormalizationService;
-  let webPushConfig = null;
   let todoWebPushRunning = false;
   let automationWebPushRunning = false;
 
   function currentState() {
     return state() || {};
   }
+
+  const webPushVapidService = createWebPushVapidService({
+    effectiveWebPushSubject,
+    effectiveWebPushVapidPath,
+    env,
+    loadRuntimeConfig,
+    logger,
+    webpush,
+    webPushEnabled,
+    webPushSubject,
+  });
+  const {
+    generateWebPushVapidConfig,
+    getWebPushConfig,
+    initializeWebPush,
+    loadVapidConfig,
+  } = webPushVapidService;
 
   const webPushSendService = createWebPushSendService({
     hashValue,
@@ -180,7 +196,7 @@ function createWebPushDeliveryService(options = {}) {
     shouldSkipPushSubscriptionForClient,
     state: currentState,
     webpush,
-    webPushConfig: () => webPushConfig,
+    webPushConfig: getWebPushConfig,
   });
   const {
     activePushPrincipals,
@@ -211,105 +227,6 @@ function createWebPushDeliveryService(options = {}) {
       logger.warn?.(`Hermes Action Inbox source upsert failed: ${err.message || String(err)}`);
       return null;
     }
-  }
-
-  function loadVapidConfig() {
-    const envPublic = env.WEB_PUSH_VAPID_PUBLIC_KEY || env.HERMES_WEB_VAPID_PUBLIC_KEY || "";
-    const envPrivate = env.WEB_PUSH_VAPID_PRIVATE_KEY || env.HERMES_WEB_VAPID_PRIVATE_KEY || "";
-    const envSubject = env.WEB_PUSH_SUBJECT || env.HERMES_WEB_PUSH_SUBJECT || "";
-    if (envPublic && envPrivate) {
-      return { publicKey: envPublic, privateKey: envPrivate, subject: envSubject || webPushSubject, source: "env" };
-    }
-    const runtime = loadRuntimeConfig();
-    const vapidPath = effectiveWebPushVapidPath(runtime);
-    const subject = effectiveWebPushSubject(runtime);
-    try {
-      if (fs.existsSync(vapidPath)) {
-        const parsed = JSON.parse(fs.readFileSync(vapidPath, "utf8"));
-        if (parsed.publicKey && parsed.privateKey) {
-          return {
-            publicKey: String(parsed.publicKey),
-            privateKey: String(parsed.privateKey),
-            subject: String(parsed.subject || subject),
-            source: vapidPath,
-          };
-        }
-      }
-    } catch (_) {}
-    if (!webPushEnabled || !webpush?.generateVAPIDKeys) return null;
-    const keys = webpush.generateVAPIDKeys();
-    const generated = { publicKey: keys.publicKey, privateKey: keys.privateKey, subject };
-    try {
-      fs.mkdirSync(path.dirname(vapidPath), { recursive: true });
-      fs.writeFileSync(vapidPath, JSON.stringify(generated, null, 2), { encoding: "utf8", mode: 0o600 });
-    } catch (_) {
-      // Keep the generated pair in memory for this process if persistence fails.
-    }
-    return Object.assign({ source: fs.existsSync(vapidPath) ? vapidPath : "memory" }, generated);
-  }
-
-  function initializeWebPush() {
-    if (!webPushEnabled) {
-      webPushConfig = null;
-      return null;
-    }
-    const config = loadVapidConfig();
-    if (!config?.publicKey || !config?.privateKey || !webpush?.setVapidDetails) {
-      webPushConfig = null;
-      return null;
-    }
-    try {
-      webpush.setVapidDetails(config.subject || webPushSubject, config.publicKey, config.privateKey);
-      webPushConfig = config;
-      return config;
-    } catch (err) {
-      logger.error?.(`Home AI Push disabled: ${err.message || String(err)}`);
-      webPushConfig = null;
-      return null;
-    }
-  }
-
-  function generateWebPushVapidConfig(options = {}) {
-    if (!webPushEnabled) {
-      const err = new Error("Web Push is disabled");
-      err.status = 409;
-      throw err;
-    }
-    if (env.WEB_PUSH_VAPID_PUBLIC_KEY || env.HERMES_WEB_VAPID_PUBLIC_KEY || env.WEB_PUSH_VAPID_PRIVATE_KEY || env.HERMES_WEB_VAPID_PRIVATE_KEY) {
-      const err = new Error("Web Push VAPID keys are configured by environment variables");
-      err.status = 409;
-      throw err;
-    }
-    if (!webpush?.generateVAPIDKeys) {
-      const err = new Error("Web Push VAPID generator is unavailable");
-      err.status = 500;
-      throw err;
-    }
-    const runtime = loadRuntimeConfig();
-    const vapidPath = effectiveWebPushVapidPath(runtime);
-    if (fs.existsSync(vapidPath) && !options.overwrite) {
-      const err = new Error("VAPID key file already exists");
-      err.status = 409;
-      throw err;
-    }
-    const keys = webpush.generateVAPIDKeys();
-    const generated = {
-      publicKey: keys.publicKey,
-      privateKey: keys.privateKey,
-      subject: effectiveWebPushSubject(runtime),
-    };
-    fs.mkdirSync(path.dirname(vapidPath), { recursive: true });
-    fs.writeFileSync(vapidPath, JSON.stringify(generated, null, 2), { encoding: "utf8", mode: 0o600 });
-    initializeWebPush();
-    return {
-      source: vapidPath,
-      publicKey: generated.publicKey,
-      subject: generated.subject,
-    };
-  }
-
-  function getWebPushConfig() {
-    return webPushConfig;
   }
 
   function recordPushReceipt(body = {}) {
@@ -493,8 +410,9 @@ function createWebPushDeliveryService(options = {}) {
         }
       }
     }
-    if (!webPushConfig || !principals.length) {
-      return { ok: true, enabled: Boolean(webPushConfig), principals, reconcileResults, events: [], deliveries: [] };
+    const config = getWebPushConfig();
+    if (!config || !principals.length) {
+      return { ok: true, enabled: Boolean(config), principals, reconcileResults, events: [], deliveries: [] };
     }
     const provider = todoProvider();
     const pending = await provider.pendingPushes({
@@ -807,8 +725,9 @@ function createWebPushDeliveryService(options = {}) {
   async function runAutomationWebPushTick(opts = {}) {
     if (!automationPushEnabled) return { ok: true, enabled: false, events: [], initialized: [], deliveries: [] };
     const principals = activePushPrincipals();
-    if (!webPushConfig || !principals.length) {
-      return { ok: true, enabled: Boolean(webPushConfig), principals, events: [], initialized: [], deliveries: [] };
+    const config = getWebPushConfig();
+    if (!config || !principals.length) {
+      return { ok: true, enabled: Boolean(config), principals, events: [], initialized: [], deliveries: [] };
     }
     const provider = automationProvider();
     const result = await provider.listJobs({ includeDisabled: true, bypassCache: true, limit: 0 });

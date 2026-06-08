@@ -440,6 +440,13 @@ statements. Priority extraction areas:
   accounting, and bounded push-delivery summary insertion while retaining VAPID
   lifecycle, notification composition, Action Inbox source upserts, and
   background dispatchers.
+- completed 2026-06-08: Web Push VAPID lifecycle moved into
+  `adapters/web-push-vapid-service.js`. `web-push-delivery-service.js` now
+  delegates environment-key fallback, runtime-config path/subject lookup, file
+  load, best-effort key generation/persistence, initialization, explicit
+  Owner-triggered generation/overwrite guards, and current config projection
+  while retaining notification composition, Action Inbox source upserts, and
+  background dispatchers.
 - deeper Gateway runtime worker policy composition outside runtime config;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;
