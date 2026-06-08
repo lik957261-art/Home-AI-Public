@@ -22,6 +22,12 @@ Line count is only a weak proxy. A successful refactor should:
 
 ## Current Priority Areas
 
+Before selecting the next refactor target, read
+`docs/IMPLEMENTATION_NOTES/runtime-architecture-optimization-priorities.md`.
+That note narrows the next architecture goal toward high-frequency runtime and
+production-closure paths. Stable low-frequency modules should not be split
+further merely because they still have a high line count.
+
 ### Mobile runtime composition
 
 `mobile-server-runtime.js` is still the largest runtime compositor. It should

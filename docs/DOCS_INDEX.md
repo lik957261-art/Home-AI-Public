@@ -131,6 +131,8 @@ identifiers until a separate infrastructure migration is planned.
 - Harness and context loading discipline: `docs/IMPLEMENTATION_NOTES/harness-context-loading-discipline.md`
 - Mobile authenticated navigation flow harness:
   `docs/IMPLEMENTATION_NOTES/mobile-authenticated-navigation-flow-harness.md`
+- Runtime architecture optimization priorities:
+  `docs/IMPLEMENTATION_NOTES/runtime-architecture-optimization-priorities.md`
 - Service-first refactor backlog:
   `docs/IMPLEMENTATION_NOTES/service-first-refactor-backlog.md`
 - Async Growth evaluation queue: `docs/IMPLEMENTATION_NOTES/async-growth-evaluation-queue.md`
