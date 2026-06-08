@@ -221,6 +221,7 @@ const weixinMarkdownForwardService = require("../adapters/weixin-markdown-forwar
 const weixinOutboundDeliveryService = require("../adapters/weixin-outbound-delivery-service");
 const weixinRuntimeCompositionService = require("../adapters/weixin-runtime-composition-service");
 const weixinWindowMigrationService = require("../adapters/weixin-window-migration-service");
+const webPushAutomationProjectionService = require("../adapters/web-push-automation-projection-service");
 const webPushDeliveryService = require("../adapters/web-push-delivery-service");
 const webPushDeliveryNormalizationService = require("../adapters/web-push-delivery-normalization-service");
 const webPushSendService = require("../adapters/web-push-send-service");
@@ -581,6 +582,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof weixinOutboundDeliveryService.createWeixinOutboundDeliveryService, "function");
   assert.equal(typeof weixinRuntimeCompositionService.createWeixinRuntimeCompositionService, "function");
   assert.equal(typeof weixinWindowMigrationService.createWeixinWindowMigrationService, "function");
+  assert.equal(typeof webPushAutomationProjectionService.createWebPushAutomationProjectionService, "function");
   assert.equal(typeof webPushDeliveryService.createWebPushDeliveryService, "function");
   assert.equal(typeof webPushDeliveryNormalizationService.createWebPushDeliveryNormalizationService, "function");
   assert.equal(typeof webPushDeliveryNormalizationService.normalizeWebPushOrigin, "function");
@@ -710,6 +712,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const gatewayRunStartToolsetSelection = fileText("adapters/gateway-run-start-toolset-selection-service.js");
   const gatewayRunStartWardrobeGate = fileText("adapters/gateway-run-start-wardrobe-gate-service.js");
   const gatewayRunStart = fileText("adapters/gateway-run-start-service.js");
+  const webPushAutomationProjection = fileText("adapters/web-push-automation-projection-service.js");
   const webPushDelivery = fileText("adapters/web-push-delivery-service.js");
   const webPushNormalization = fileText("adapters/web-push-delivery-normalization-service.js");
   const webPushSend = fileText("adapters/web-push-send-service.js");
@@ -1445,6 +1448,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(webPushDelivery, /createWebPushDeliveryNormalizationService/);
   assert.match(webPushDelivery, /createWebPushSendService/);
   assert.match(webPushDelivery, /createWebPushVapidService/);
+  assert.match(webPushDelivery, /createWebPushAutomationProjectionService/);
   assert.match(webPushDelivery, /normalizePushSubscription,/);
   assert.match(webPushDelivery, /function notifyGroupChatMentions/);
   assert.match(mobilePlatformComposition, /createOwnerElevationApiRoutes/);
@@ -1535,6 +1539,10 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(webPushVapid, /function initializeWebPush/);
   assert.match(webPushVapid, /function generateWebPushVapidConfig/);
   assert.match(webPushVapid, /function getWebPushConfig/);
+  assert.match(webPushAutomationProjection, /function automationLatestDeliverableForPush/);
+  assert.match(webPushAutomationProjection, /function automationPushSignature/);
+  assert.match(webPushAutomationProjection, /function automationPushEventForJob/);
+  assert.match(webPushAutomationProjection, /function setAutomationPushMark/);
   assert.doesNotMatch(webPushDelivery, /^  function scopedPushWorkspaceIds/gm);
   assert.doesNotMatch(webPushDelivery, /^  function assertPushSubscriptionClientAllowed/gm);
   assert.doesNotMatch(webPushDelivery, /^  async function sendPushNotification/gm);
@@ -1542,6 +1550,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.doesNotMatch(webPushDelivery, /^  function removePushSubscription/gm);
   assert.doesNotMatch(webPushDelivery, /^  function loadVapidConfig/gm);
   assert.doesNotMatch(webPushDelivery, /^  function generateWebPushVapidConfig/gm);
+  assert.doesNotMatch(webPushDelivery, /^  function automationLatestDeliverableForPush/gm);
+  assert.doesNotMatch(webPushDelivery, /^  function automationPushSignature/gm);
+  assert.doesNotMatch(webPushDelivery, /^  function automationPushEventForJob/gm);
   assert.doesNotMatch(server, /^function scopedPushPrincipalIds/gm);
   assert.doesNotMatch(server, /^function scopedPushWorkspaceIds/gm);
   assert.doesNotMatch(server, /getRuntimeStateNormalizationService\(\)\.normalizeState/);
@@ -1809,10 +1820,11 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /mobile-runtime-state-path-environment-service\.js` must stay at or below 90 lines/);
   assert.match(doc, /mobile-runtime-kanban-environment-service\.js` must stay at or below 100 lines/);
   assert.match(doc, /mobile-runtime-env-value-service\.js` must stay at or below 40 lines/);
-  assert.match(doc, /web-push-delivery-service\.js` must stay at or below 1,300 lines/);
+  assert.match(doc, /web-push-delivery-service\.js` must stay at or below 1,080 lines/);
   assert.match(doc, /web-push-delivery-normalization-service\.js` must stay at or below 285 lines/);
   assert.match(doc, /web-push-send-service\.js` must stay at or below 150 lines/);
   assert.match(doc, /web-push-vapid-service\.js` must stay at or below 130 lines/);
+  assert.match(doc, /web-push-automation-projection-service\.js` must stay at or below 320 lines/);
   assert.match(doc, /public\/app\.js/);
   assert.match(doc, /10,000 lines/);
   assert.match(doc, /120/);
@@ -1895,6 +1907,7 @@ function testServiceFirstArchitectureContract() {
   const gatewayRunStartWardrobeGate = fileText("adapters/gateway-run-start-wardrobe-gate-service.js");
   const gatewayRunStart = fileText("adapters/gateway-run-start-service.js");
   const webPushDelivery = fileText("adapters/web-push-delivery-service.js");
+  const webPushAutomationProjection = fileText("adapters/web-push-automation-projection-service.js");
   const webPushNormalization = fileText("adapters/web-push-delivery-normalization-service.js");
   const webPushSend = fileText("adapters/web-push-send-service.js");
   const webPushVapid = fileText("adapters/web-push-vapid-service.js");
@@ -2011,6 +2024,7 @@ function testServiceFirstArchitectureContract() {
   const gatewayRunStartWardrobeGateLineCount = gatewayRunStartWardrobeGate.split(/\r?\n/).length;
   const gatewayRunStartLineCount = gatewayRunStart.split(/\r?\n/).length;
   const webPushDeliveryLineCount = webPushDelivery.split(/\r?\n/).length;
+  const webPushAutomationProjectionLineCount = webPushAutomationProjection.split(/\r?\n/).length;
   const webPushNormalizationLineCount = webPushNormalization.split(/\r?\n/).length;
   const webPushSendLineCount = webPushSend.split(/\r?\n/).length;
   const webPushVapidLineCount = webPushVapid.split(/\r?\n/).length;
@@ -2068,7 +2082,8 @@ function testServiceFirstArchitectureContract() {
   assert.ok(gatewayRunStartWardrobeGateLineCount <= 85, `gateway-run-start-wardrobe-gate-service.js line budget exceeded: ${gatewayRunStartWardrobeGateLineCount} > 85`);
   assert.ok(gatewayRunStartChildRegistryLineCount <= 260, `gateway-run-start-child-service-registry-service.js line budget exceeded: ${gatewayRunStartChildRegistryLineCount} > 260`);
   assert.ok(gatewayRunStartLineCount <= 75, `gateway-run-start-service.js line budget exceeded: ${gatewayRunStartLineCount} > 75`);
-  assert.ok(webPushDeliveryLineCount <= 1300, `web-push-delivery-service.js line budget exceeded: ${webPushDeliveryLineCount} > 1300`);
+  assert.ok(webPushDeliveryLineCount <= 1080, `web-push-delivery-service.js line budget exceeded: ${webPushDeliveryLineCount} > 1080`);
+  assert.ok(webPushAutomationProjectionLineCount <= 320, `web-push-automation-projection-service.js line budget exceeded: ${webPushAutomationProjectionLineCount} > 320`);
   assert.ok(webPushNormalizationLineCount <= 285, `web-push-delivery-normalization-service.js line budget exceeded: ${webPushNormalizationLineCount} > 285`);
   assert.ok(webPushSendLineCount <= 150, `web-push-send-service.js line budget exceeded: ${webPushSendLineCount} > 150`);
   assert.ok(webPushVapidLineCount <= 130, `web-push-vapid-service.js line budget exceeded: ${webPushVapidLineCount} > 130`);

@@ -9,6 +9,7 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 ## Core Files
 
 - `adapters/web-push-delivery-service.js`
+- `adapters/web-push-automation-projection-service.js`
 - `adapters/web-push-delivery-normalization-service.js`
 - `adapters/web-push-send-service.js`
 - `adapters/web-push-vapid-service.js`
@@ -102,6 +103,7 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 
 - `node --check public\service-worker.js`
 - `node --check public\app-pwa-settings-push-ui.js`
+- `node tests\web-push-automation-projection-service.test.js`
 - `node tests\web-push-vapid-service.test.js`
 - `node tests\web-push-delivery-normalization-service.test.js`
 - `node tests\web-push-send-service.test.js`

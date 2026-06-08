@@ -447,6 +447,13 @@ statements. Priority extraction areas:
   Owner-triggered generation/overwrite guards, and current config projection
   while retaining notification composition, Action Inbox source upserts, and
   background dispatchers.
+- completed 2026-06-08: Automation Web Push projection moved into
+  `adapters/web-push-automation-projection-service.js`.
+  `web-push-delivery-service.js` now delegates Automation owner principal
+  selection, deliverable freshness filtering, source references, scheduled-Todo
+  detection, push signatures, recent-initial suppression checks, detail routes,
+  notification payload projection, and push-mark projection while retaining the
+  job scan, Action Inbox upsert, push send, mark-save, and dispatcher workflow.
 - deeper Gateway runtime worker policy composition outside runtime config;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

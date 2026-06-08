@@ -691,10 +691,19 @@ Kanban, Action Inbox, and topic-context services, but it must not keep its own
 SQLite store singleton or top-level `mobileSqliteStore` implementation.
 
 `web-push-delivery-service.js` owns Todo, Automation, Growth, and group-chat
-notification composition, Action Inbox source upsert orchestration, and
-background Web Push dispatchers. Runtime composition may pass short delegates
-into route composition, but it must not carry duplicate top-level wrapper
-functions for VAPID load/init/generation/reload behavior.
+notification workflow orchestration, Action Inbox source upsert orchestration,
+and background Web Push dispatchers. Runtime composition may pass short
+delegates into route composition, but it must not carry duplicate top-level
+wrapper functions for VAPID load/init/generation/reload behavior.
+
+`web-push-automation-projection-service.js` owns deterministic Automation Web
+Push projection: Automation owner principal selection, title/body shaping,
+deliverable freshness filtering, deliverable source references, scheduled-Todo
+detection, push signatures, mark signatures, recent-initial suppression checks,
+Automation detail URLs, notification payload projection, and state mark
+projection. `web-push-delivery-service.js` may use it while scanning jobs,
+upserting Action Inbox items, sending Web Push, and saving state, but it must
+not reintroduce inline Automation deliverable/signature/payload helpers.
 
 `web-push-vapid-service.js` owns Web Push VAPID lifecycle: environment-key
 fallback, runtime-config path/subject lookup, file load, best-effort key
@@ -1088,10 +1097,14 @@ Current CI guardrails:
 - `mobile-runtime-state-path-environment-service.js` must stay at or below 90 lines;
 - `mobile-runtime-kanban-environment-service.js` must stay at or below 100 lines;
 - `mobile-runtime-env-value-service.js` must stay at or below 40 lines;
-- `web-push-delivery-service.js` must stay at or below 1,300 lines and retain
-  notification composition, Inbox source upserts, and background dispatch
-  orchestration rather than deterministic subscription normalization policy,
-  inline push-send loops, or VAPID file/env key lifecycle;
+- `web-push-delivery-service.js` must stay at or below 1,080 lines and retain
+  notification workflow orchestration, Inbox source upserts, and background
+  dispatch orchestration rather than deterministic subscription normalization
+  policy, inline push-send loops, VAPID file/env key lifecycle, or Automation
+  projection helpers;
+- `web-push-automation-projection-service.js` must stay at or below 320 lines
+  and own Automation Web Push deliverable filtering, signatures, routes,
+  payloads, and mark projection;
 - `web-push-delivery-normalization-service.js` must stay at or below 285 lines
   and own deterministic Web Push normalization, subscription scoping,
   client-context gates, and deployment-origin skip reasons;
