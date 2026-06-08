@@ -116,6 +116,8 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
           allowedWorkspaceIds: ["xulu"],
           skillWorkspaceIds: ["xulu"],
           apiKeyFile: `${root}/data/secrets/lowgw31.secret`,
+          launchdLabel: "com.hermesmobile.gateway.hm-old.openai.1",
+          telemetryStateDbPath: "/Users/hm-old/HermesWorkspace/.hermes-gateway/profiles/lowgw31/state.db",
         },
         {
           profile: "deepseekgw31",
@@ -145,6 +147,7 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
     const manifest = JSON.parse(fs.readFileSync(context.gateway.manifestPath, "utf8"));
     assert.equal(manifest.workers[0].osUser, "hm-xulu");
     assert.equal(manifest.workers[0].launchdLabel, "com.hermesmobile.gateway.hm-xulu.openai.1");
+    assert.equal(manifest.workers[0].telemetryStateDbPath, `${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/state.db`);
     assert.equal(manifest.workers[1].launchdLabel, "com.hermesmobile.gateway.hm-xulu.deepseek.1");
     assert.ok(manifest.workers[0].telemetryStateDbPath.endsWith("/profiles/lowgw31/state.db"));
 

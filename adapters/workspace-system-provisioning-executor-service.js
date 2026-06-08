@@ -321,7 +321,7 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
 
   function labelFor(fields, worker, ordinal) {
     const existing = safeLaunchdLabel(worker.launchdLabel || worker.launchd_label);
-    if (existing) return existing;
+    if (existing && existing.includes(`.${fields.macUser}.`)) return existing;
     return `com.hermesmobile.gateway.${fields.macUser}.${providerFamily(worker)}.${ordinal}`;
   }
 
@@ -510,8 +510,8 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
       const responsePath = path.posix.join(dir, "response_store.db");
       if (worker.osUser !== fields.macUser) { worker.osUser = fields.macUser; changed = true; }
       if (worker.launchdLabel !== label) { worker.launchdLabel = label; changed = true; }
-      if (!worker.telemetryStateDbPath) { worker.telemetryStateDbPath = statePath; changed = true; }
-      if (!worker.telemetryResponseStoreDbPath) { worker.telemetryResponseStoreDbPath = responsePath; changed = true; }
+      if (worker.telemetryStateDbPath !== statePath) { worker.telemetryStateDbPath = statePath; changed = true; }
+      if (worker.telemetryResponseStoreDbPath !== responsePath) { worker.telemetryResponseStoreDbPath = responsePath; changed = true; }
       const plistFile = path.posix.join(launchDaemonsDir, `${label}.plist`);
       const startScript = startScriptPath(fields, profile);
       writeTextFile(plistFile, renderPlist(fields, worker, label, startScript), "644", "root:wheel");
