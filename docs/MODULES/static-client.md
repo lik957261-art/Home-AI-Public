@@ -98,6 +98,10 @@ Gateway plugin/schema/profile changes:
   the runtime measured visible top offset, not the full bottom-nav height. This
   keeps the topic plugin Dock adjacent to the visible nav after the nav is
   dropped below the viewport edge.
+- The task-list topic plugin Dock may overlap the bottom nav by the controlled
+  `--topic-plugin-dock-nav-overlap: 1px` bridge and should keep its bottom
+  padding at `0` so translucent page background cannot show through between
+  the plugin buttons and the tab bar.
 - Bottom safe-area may only contribute a small internal content buffer through
   `--mobile-bottom-nav-content-safe-area`. Topic docks, plugin context bars,
   composer offsets, and runtime bottom-nav measurements must be based on the
@@ -114,7 +118,7 @@ Gateway plugin/schema/profile changes:
   default (`--mobile-bottom-nav-comfort-inset: 0px` as of
   `20260608-bottom-stack-pwa-clamp-v632`). Tab content should not be lifted by
   default (`--mobile-bottom-nav-visual-lift: 0px` as of
-  `20260608-bottom-nav-content-flush-v640`); any future small visual lift must
+  `20260608-topic-dock-flush-v642`); any future small visual lift must
   stay inside the tab content transform, not in a bottom offset that moves the
   entire Dock/nav stack. Runtime bottom overflow is diagnostic-only by default:
   `--mobile-bottom-nav-overflow-clamp: 0px` prevents iOS standalone PWA

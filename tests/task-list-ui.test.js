@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260608-bottom-nav-content-flush-v640";
+const CLIENT_VERSION = "20260608-topic-dock-flush-v642";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -207,8 +207,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260608-bottom-nav-content-flush-v640" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260608-bottom-nav-content-flush-v640"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260608-topic-dock-flush-v642" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260608-topic-dock-flush-v642"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2478,10 +2478,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260608-bottom-nav-content-flush-v640/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260608-bottom-nav-content-flush-v640/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260608-bottom-nav-content-flush-v640/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260608-bottom-nav-content-flush-v640/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260608-topic-dock-flush-v642/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260608-topic-dock-flush-v642/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260608-topic-dock-flush-v642/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260608-topic-dock-flush-v642/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2654,14 +2654,15 @@ assert.match(stylesCss, /--mobile-bottom-nav-visual-drop: 10px/);
 assert.match(stylesCss, /--mobile-bottom-nav-bottom: var\(--mobile-bottom-nav-bottom-runtime, var\(--mobile-bottom-nav-comfort-inset\)\);/);
 assert.match(stylesCss, /--mobile-bottom-nav-offset-height: var\(--mobile-bottom-nav-offset-height-runtime, var\(--mobile-bottom-nav-height\)\);/);
 assert.match(stylesCss, /--topic-plugin-dock-bottom: var\(--topic-plugin-dock-bottom-runtime, var\(--mobile-bottom-nav-offset-height\)\);/);
+assert.match(stylesCss, /--topic-plugin-dock-nav-overlap: 1px;/);
 assert.match(stylesCss, /--topic-plugin-dock-reserved-height: var\(--topic-plugin-dock-reserved-height-runtime, calc\(var\(--topic-plugin-dock-bottom\) \+ var\(--topic-plugin-dock-height\)\)\);/);
 assert.match(stylesCss, /--mobile-bottom-stack-height: var\(--mobile-bottom-stack-height-runtime, var\(--mobile-bottom-nav-reserved-height\)\);/);
 assert.match(stylesCss, /\.app\.task-list-mode \{[\s\S]*?padding-bottom: 0;/);
 assert.match(stylesCss, /\.app\.task-list-mode \.conversation \{[\s\S]*?padding-bottom: var\(--topic-plugin-dock-reserved-height\);/);
 assert.match(stylesCss, /\.app\.task-list-mode \.conversation > \.directory-topic-launcher:first-child,[\s\S]*?\.app\.task-list-mode \.conversation > \.capability-entry-hub:first-child,[\s\S]*?margin-top: max\(16px, calc\(env\(safe-area-inset-top\) \+ 4px\)\);/);
 assert.match(stylesCss, /\.app\.task-list-mode \.topbar \{[\s\S]*?display: none !important;/);
-assert.match(stylesCss, /\.task-list-mode \.topic-plugin-dock \{[\s\S]*?position: fixed;[\s\S]*?bottom: var\(--topic-plugin-dock-bottom\);[\s\S]*?min-height: var\(--topic-plugin-dock-height\);[\s\S]*?background: var\(--ui-chrome\);/);
-assert.match(stylesCss, /\.task-list-mode \.topic-plugin-dock \.plugin-app-launcher \{[\s\S]*?margin: 0;[\s\S]*?padding: 0;[\s\S]*?border-top: 0;/);
+assert.match(stylesCss, /\.task-list-mode \.topic-plugin-dock \{[\s\S]*?position: fixed;[\s\S]*?bottom: calc\(var\(--topic-plugin-dock-bottom\) - var\(--topic-plugin-dock-nav-overlap\)\);[\s\S]*?min-height: var\(--topic-plugin-dock-height\);[\s\S]*?padding: 5px max\(14px, env\(safe-area-inset-right\)\) 0 max\(14px, env\(safe-area-inset-left\)\);[\s\S]*?background: var\(--ui-chrome\);/);
+assert.match(stylesCss, /\.task-list-mode \.topic-plugin-dock \.plugin-app-launcher \{[\s\S]*?min-height: calc\(var\(--topic-plugin-dock-height\) - 6px\);[\s\S]*?display: flex;[\s\S]*?align-items: flex-end;[\s\S]*?margin: 0;[\s\S]*?padding: 0;[\s\S]*?border-top: 0;/);
 assert.match(stylesCss, /\.task-list-mode \.plugin-app-strip \{[\s\S]*?position: relative;[\s\S]*?width: 100%;/);
 assert.match(stylesCss, /\.task-list-mode \.topic-plugin-dock\.capability-menu-open,[\s\S]*?\.task-list-mode \.topic-plugin-dock\.capability-menu-open \.plugin-app-launcher,[\s\S]*?\.task-list-mode \.topic-plugin-dock\.capability-menu-open \.plugin-app-strip \{[\s\S]*?overflow: visible;/);
 assert.doesNotMatch(stylesCss, /\.task-list-mode \.plugin-app-launcher \{[\s\S]*?position: fixed;/);

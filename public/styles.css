@@ -67,6 +67,7 @@
   --plugin-topic-composer-reserved-height: 166px;
   --topic-plugin-dock-height: 78px;
   --topic-plugin-dock-bottom: var(--topic-plugin-dock-bottom-runtime, var(--mobile-bottom-nav-offset-height));
+  --topic-plugin-dock-nav-overlap: 1px;
   --topic-plugin-dock-reserved-height: var(--topic-plugin-dock-reserved-height-runtime, calc(var(--topic-plugin-dock-bottom) + var(--topic-plugin-dock-height)));
   --mobile-bottom-stack-height: var(--mobile-bottom-stack-height-runtime, var(--mobile-bottom-nav-reserved-height));
   font-family: var(--app-font-family);
@@ -5758,11 +5759,11 @@ button.directory-alias-chip {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: var(--topic-plugin-dock-bottom);
+  bottom: calc(var(--topic-plugin-dock-bottom) - var(--topic-plugin-dock-nav-overlap));
   z-index: 39;
   width: 100%;
   min-height: var(--topic-plugin-dock-height);
-  padding: 5px max(14px, env(safe-area-inset-right)) 4px max(14px, env(safe-area-inset-left));
+  padding: 5px max(14px, env(safe-area-inset-right)) 0 max(14px, env(safe-area-inset-left));
   background: var(--ui-chrome);
   border-top: 1px solid var(--ui-hairline);
   backdrop-filter: blur(12px);
@@ -5771,6 +5772,9 @@ button.directory-alias-chip {
 .task-list-mode .topic-plugin-dock .plugin-app-launcher {
   width: 100%;
   max-width: none;
+  min-height: calc(var(--topic-plugin-dock-height) - 6px);
+  display: flex;
+  align-items: flex-end;
   margin: 0;
   padding: 0;
   border-top: 0;
