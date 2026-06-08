@@ -649,6 +649,27 @@ function sendEmbeddedPluginViewportMetrics(def = embeddedPluginDefByView(), reas
   return true;
 }
 
+function resetEmbeddedPluginHostScroll(reason = "layout") {
+  const def = embeddedPluginDefByView();
+  if (!def || state.viewMode !== def.viewMode) return false;
+  if (!embeddedPluginActiveFrame(def)) return false;
+  const scrollX = Math.round(window.scrollX || document.documentElement?.scrollLeft || document.body?.scrollLeft || 0);
+  const scrollY = Math.round(window.scrollY || document.documentElement?.scrollTop || document.body?.scrollTop || 0);
+  if (!scrollX && !scrollY) return false;
+  window.scrollTo(0, 0);
+  if (document.documentElement) {
+    document.documentElement.scrollTop = 0;
+    document.documentElement.scrollLeft = 0;
+  }
+  if (document.body) {
+    document.body.scrollTop = 0;
+    document.body.scrollLeft = 0;
+  }
+  embeddedPluginRecord(def.id).lastHostScrollResetAt = Date.now();
+  embeddedPluginRecord(def.id).lastHostScrollResetReason = String(reason || "layout").slice(0, 60);
+  return true;
+}
+
 function scheduleEmbeddedPluginViewportBroadcast(reason = "layout", delay = 0) {
   const def = embeddedPluginDefByView();
   if (!def || state.viewMode !== def.viewMode) return false;
@@ -656,6 +677,7 @@ function scheduleEmbeddedPluginViewportBroadcast(reason = "layout", delay = 0) {
   if (record.viewportMessageTimer) window.clearTimeout(record.viewportMessageTimer);
   record.viewportMessageTimer = window.setTimeout(() => {
     record.viewportMessageTimer = 0;
+    resetEmbeddedPluginHostScroll(reason);
     sendEmbeddedPluginViewportMetrics(def, reason);
   }, Math.max(0, Number(delay || 0)));
   return true;
@@ -664,8 +686,9 @@ function scheduleEmbeddedPluginViewportBroadcast(reason = "layout", delay = 0) {
 function settleEmbeddedPluginViewportBroadcast(reason = "layout") {
   const def = embeddedPluginDefByView();
   if (!def || state.viewMode !== def.viewMode) return false;
-  [0, 80, 180, 360, 700].forEach((delay) => {
+  [0, 40, 80, 180, 360, 700, 1200].forEach((delay) => {
     window.setTimeout(() => {
+      resetEmbeddedPluginHostScroll(reason);
       sendEmbeddedPluginViewportMetrics(def, reason);
     }, delay);
   });

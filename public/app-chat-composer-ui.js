@@ -77,6 +77,7 @@ function handleAppForegrounded() {
   blurComposerInput();
   if (state.viewMode === "todos") scheduleTodoAutoRefresh();
   if (state.viewMode === "inbox") loadActionInbox({ silent: true, preserveScroll: true }).catch(showError);
+  if (typeof settleEmbeddedPluginViewportBroadcast === "function") settleEmbeddedPluginViewportBroadcast("host_foreground");
   scheduleConversationViewportRefresh();
 }
 

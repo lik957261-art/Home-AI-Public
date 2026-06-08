@@ -610,6 +610,7 @@ function wireUi() {
   navigator.virtualKeyboard?.addEventListener("geometrychange", handleViewportLayoutChange);
   window.visualViewport?.addEventListener("resize", handleViewportLayoutChange);
   window.visualViewport?.addEventListener("scroll", handleViewportLayoutChange);
+  window.addEventListener("scroll", handleViewportLayoutChange, { passive: true });
   window.addEventListener("resize", handleViewportLayoutChange);
   window.addEventListener("orientationchange", handleViewportLayoutChange);
   window.screen?.orientation?.addEventListener?.("change", handleViewportLayoutChange);

@@ -172,16 +172,18 @@ Rules:
 - recompute geometry after orientation, keyboard blur, PWA resume, and viewport
   metric changes;
 - embedded iframe plugins must consume the Home AI host
-  `hermes.plugin.viewport` postMessage event for keyboard-sensitive sheets,
-  remark layers, floating buttons, fixed form actions, and iframe-root viewport
-  sizing. The host event is the embedded-mode source of truth because iframe
-  `innerHeight` / `visualViewport` can miss the outer Home AI shell correction.
-  Local plugin viewport measurements are fallback evidence only until the host
-  event arrives;
+  `hermes.plugin.viewport` postMessage event for iframe-root viewport sizing,
+  Home AI footer geometry, host-bottom reservation, and diagnostics. The host
+  event is not raw system input-method state; plugin-owned sheets, remark
+  layers, floating buttons, and fixed form actions may use plugin-local keyboard
+  calculations as long as they do not add Home AI footer space twice;
 - the Home AI host must rebroadcast bounded plugin viewport metrics through a
   short settled sequence after host visual viewport resize, scroll, or
-  orientation events, because native keyboard focus can originate inside the
-  iframe rather than the Home AI composer;
+  orientation events, and must reset host page scroll while an embedded iframe
+  is active, because native keyboard focus can originate inside the iframe
+  rather than the Home AI composer. Host window `scroll` is also a settle signal
+  because some mobile shells pan the host document on first iframe input focus
+  before the plugin receives stable keyboard geometry;
 - plugin mobile visual harnesses must prove the host viewport event is received
   or explicitly stubbed when validating keyboard and bottom-layer behavior in
   `embed=hermes`;

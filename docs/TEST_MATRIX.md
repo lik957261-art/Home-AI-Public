@@ -981,9 +981,12 @@ the active iframe receives bounded `hermes.plugin.viewport` messages on
 attach/load and host keyboard/visual-viewport changes, including viewport,
 keyboard, iframe, host, and footer metrics with no raw keys, launch tokens,
 cookies, route URLs, or user content. Host visual-viewport resize, scroll, and
-orientation changes must schedule a short settled broadcast sequence so iframe
-input focus can receive stable keyboard geometry even when the Home AI composer
-is not focused. The host-side harness must also assert that
+orientation changes must schedule a short settled broadcast sequence and reset
+Home AI's own page scroll while an embedded iframe is active, because iframe
+input focus can pan the host page even when the Home AI composer is not focused.
+Host window `scroll` must also trigger the same settle path so first-focus
+document panning does not wait for a later app foreground event. The host-side
+harness must also assert that
 the parent `edgeSwipeZone` starts a real edge back-swipe state for plugin pages
 instead of only swallowing iframe-adjacent touch events with `preventDefault()`.
 Mobile bottom navigation must keep Codex as a first-level tab while collecting
@@ -1012,9 +1015,10 @@ checks measure both the iframe/footer gap and the plugin local-nav/iframe-bottom
 gap. If Finance-like plugin pages align while another plugin floats above the
 footer, treat that as a plugin-side embedded layout failure unless host geometry
 shows the iframe still extends under the Hermes footer. Keyboard-sensitive
-plugin sheets, remark layers, and fixed form actions must use the host
-`hermes.plugin.viewport` payload in embedded mode, not iframe-local
-`window.innerHeight` / `visualViewport` alone. The
+plugin sheets, remark layers, and fixed form actions must respect the host
+`hermes.plugin.viewport` payload for iframe/footer geometry and host-bottom
+reservation in embedded mode, while native system keyboard positioning may
+remain plugin-local. The
 same-origin proxy harness must also cover plugin-owned JSON image paths,
 including Note `/api/v1/app/attachments/<id>` URLs in note bodies and
 attachment metadata; these URLs must be rewritten to

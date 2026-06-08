@@ -30,6 +30,13 @@ Hermes Mobile owns these behaviors:
   reports a full-screen image/file preview state;
 - recompute the iframe viewport when mobile browser chrome, PWA viewport,
   orientation, keyboard, or bottom navigation metrics change;
+- reset Home AI's own page scroll back to the viewport origin while an embedded
+  plugin iframe is active, because native input focus inside an iframe can pan
+  the host page before plugin-side layout code runs;
+- treat host window `scroll` as a viewport-settle signal in addition to
+  `visualViewport` resize/scroll, because some mobile shells pan the host page
+  without delivering a plugin-visible keyboard geometry update on the first
+  iframe input focus;
 - send only bounded theme/visibility/back/navigation/viewport postMessage
   events;
 - never pass raw keys, launch tokens, cookies, or private plugin data to the
@@ -64,11 +71,11 @@ Each plugin owns the layout inside its iframe:
   `imagePreviewFullscreen`, `hermes.plugin.preview`, or
   `hermes.plugin.fullscreen`, then clear it when the preview closes.
 - when `embed=hermes`, listen for the host `hermes.plugin.viewport`
-  postMessage event and use it as the source of truth for keyboard overlays,
-  transient viewport height, iframe bounds, and Home AI footer geometry.
-  Plugin-local `window.innerHeight` or iframe `visualViewport` may still be
-  useful as fallback evidence, but must not be the only keyboard positioning
-  input for sheets, remark layers, floating buttons, or fixed form actions.
+  postMessage event for iframe bounds, Home AI footer geometry, host-bottom
+  reservation, and diagnostics. Plugins may use their own viewport model for
+  native system keyboard positioning, but they must not add Home AI footer
+  height to plugin-owned scroll padding when the host iframe already stops at
+  the footer.
 
 This contract does not make plugin projects responsible for Hermes-owned topic
 chat composer layout. A plugin-bound topic chat is a Hermes Mobile chat surface;
@@ -129,17 +136,16 @@ it to the iframe entry origin recorded in the normalized manifest. Repeated
 settled broadcasts may send the same bounded payload shape several times during
 keyboard animation; plugins should treat the latest event as authoritative.
 
-Plugins should treat the latest `hermes.plugin.viewport` payload as an
-embedded-mode override:
+Plugins should treat the latest `hermes.plugin.viewport` payload as
+embedded-mode host geometry:
 
-- place keyboard-sensitive sheets above `keyboard.bottomInset` when
-  `keyboard.visible` is true;
 - avoid adding Home AI footer height to plugin scroll padding when the iframe
   already ends at `footer.rect.top`;
 - use `iframe.height` / `host.height` to size iframe-root panels when
   `embed=hermes`;
-- fall back to local `visualViewport` only when the host event has not yet
-  arrived, and replace the fallback as soon as the host event arrives.
+- keep native keyboard positioning owned by either the plugin's local viewport
+  model or an explicit plugin-side contract; the host payload is not raw system
+  input-method state.
 
 ## Floating Buttons And Local Action Bars
 

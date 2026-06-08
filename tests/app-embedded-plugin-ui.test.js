@@ -88,9 +88,13 @@ assert.match(embeddedPluginUi, /workspaceId: embeddedPluginCurrentWorkspaceId\(\
 assert.match(embeddedPluginUi, /footer:[\s\S]*?pluginContextBottom: embeddedPluginCssPx\("--plugin-context-main-bottom"\)/);
 assert.match(embeddedPluginUi, /function sendEmbeddedPluginViewportMetrics\(def = embeddedPluginDefByView\(\), reason = "layout"\)/);
 assert.match(embeddedPluginUi, /frame\.contentWindow\.postMessage\(embeddedPluginViewportPayload\(def, frame, reason\), origin\)/);
+assert.match(embeddedPluginUi, /function resetEmbeddedPluginHostScroll\(reason = "layout"\)/);
+assert.match(embeddedPluginUi, /window\.scrollTo\(0, 0\)/);
+assert.match(embeddedPluginUi, /lastHostScrollResetAt = Date\.now\(\)/);
 assert.match(embeddedPluginUi, /function scheduleEmbeddedPluginViewportBroadcast\(reason = "layout", delay = 0\)/);
 assert.match(embeddedPluginUi, /function settleEmbeddedPluginViewportBroadcast\(reason = "layout"\)/);
-assert.match(embeddedPluginUi, /\[0, 80, 180, 360, 700\]\.forEach\(\(delay\) => \{/);
+assert.match(embeddedPluginUi, /\[0, 40, 80, 180, 360, 700, 1200\]\.forEach\(\(delay\) => \{/);
+assert.match(embeddedPluginUi, /resetEmbeddedPluginHostScroll\(reason\);[\s\S]*sendEmbeddedPluginViewportMetrics\(def, reason\)/);
 assert.match(embeddedPluginUi, /scheduleEmbeddedPluginViewportBroadcast\("host_visible", 0\)/);
 assert.match(embeddedPluginUi, /scheduleEmbeddedPluginViewportBroadcast\("frame_attach", 0\)/);
 assert.match(embeddedPluginUi, /sendEmbeddedPluginViewportMetrics\(def, "frame_load"\)/);
