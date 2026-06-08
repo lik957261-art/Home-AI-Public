@@ -285,25 +285,30 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     if (platformFailure) return platformFailure;
     const fields = contextFields(context);
     if (fields.error) return { ok: false, error: fields.error };
+    const skillRoot = path.posix.join(fields.dataRoot, "skill-profiles", fields.workspaceId);
     const parents = [
       path.posix.dirname(fields.root),
       fields.root,
       fields.dataRoot,
       fields.driveRoot,
       path.posix.join(fields.driveRoot, "users"),
+      path.posix.join(fields.dataRoot, "skill-profiles"),
     ];
     const parentPerms = "list,search,readattr,readextattr,readsecurity";
     for (const user of [fields.macUser, listenerUser, ownerUser]) {
       if (!safeMacUser(user) && user !== listenerUser) continue;
       for (const dir of [...new Set(parents)]) chmodAcl(user, dir, parentPerms);
     }
-    privileged("/bin/chmod", ["-RN", fields.workspaceDataRoot]);
-    privileged("/bin/chmod", ["-R", "u+rwX,go-rwx", fields.workspaceDataRoot]);
+    for (const target of [fields.workspaceDataRoot, skillRoot]) {
+      privileged("/bin/chmod", ["-RN", target]);
+      privileged("/bin/chmod", ["-R", "u+rwX,go-rwx", target]);
+    }
     const writePerms = "list,add_file,search,add_subdirectory,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,read,write,append,execute,file_inherit,directory_inherit";
     for (const user of [...new Set([fields.macUser, ownerUser, listenerUser])]) {
       chmodAcl(user, fields.workspaceDataRoot, writePerms, true);
+      chmodAcl(user, skillRoot, writePerms, true);
     }
-    return { ok: true, aclRepaired: true, workspaceDataRoot: compactPath(fields.workspaceDataRoot, fields.root) };
+    return { ok: true, aclRepaired: true, workspaceDataRoot: compactPath(fields.workspaceDataRoot, fields.root), skillRoot: compactPath(skillRoot, fields.root) };
   }
 
   function profileDir(fields, profile) {

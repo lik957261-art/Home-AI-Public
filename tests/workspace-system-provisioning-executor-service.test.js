@@ -194,6 +194,8 @@ async function testRepairWorkspaceAclSkipsSystemUsersRoot() {
   assert.equal(result.ok, true);
   assert.equal(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("/Users")), false);
   assert.equal(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("/Users/hermes-host")), true);
+  assert.equal(calls.some((call) => call.command === "/bin/chmod" && call.args.includes(`${root}/data/skill-profiles/xulu`)), true);
+  assert.equal(calls.some((call) => call.command === "/bin/chmod" && call.args.includes(`${root}/data/skill-profiles`)), true);
 }
 
 async function testRunSmokesIncludesPluginsAndToolsetGate() {

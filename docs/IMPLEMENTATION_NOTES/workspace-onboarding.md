@@ -171,6 +171,8 @@ workflow must prove:
 - the matching `hm-*` macOS user exists;
 - the private worker root and live workspace root exist with private
   permissions;
+- the workspace Skill/Memory profile root is private but writable by the
+  listener, Owner operations, and the matching `hm-*` worker;
 - the worker user can traverse only authorized live roots;
 - cross-user deny checks pass for Owner files, Skill Store, Memory Store, and
   `.hermes-*` plugin private roots;
