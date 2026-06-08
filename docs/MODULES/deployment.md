@@ -173,6 +173,10 @@ service root.
   deployment, data migration, Gateway/Profile repair, plugin provisioning,
   Weixin route repair, ACL repair, or before declaring Mac production closed:
   `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-closure-validation.js --json`.
+  The aggregate harness reads the expected static client version from the live
+  app shell by default and passes it as `--expected-version` to every checked
+  `production-status-smoke.js` invocation. Operators may pass
+  `--expected-version <version>` only for an explicitly reviewed app path.
   It composes the checked status, profile audit, ACL, native MCP schema,
   plugin delivery-directory, all-workspace directory-bound topic previews,
   Wardrobe binding/proxy content, DeepSeek user/maintenance, Weixin heartbeat,
@@ -183,7 +187,8 @@ service root.
   every active workspace, directory-bound topics passing both path-only and
   UI-route preview smokes for every active workspace, Wardrobe manifest `programApi.origin` on Mac loopback
   with a launched proxied entry and positive bounded bootstrap content for the
-  checked workspace, expected DeepSeek profiles, wrong browser/API auth
+  checked workspace, served `clientVersion` matching the expected app-shell
+  version before and after the run, expected DeepSeek profiles, wrong browser/API auth
   header denied with `401`, and no OAuth re-auth process. Grok/xAI remains a deferred
   manual OAuth follow-up and is not part of this default closure gate.
   See `docs/RUNBOOKS/macos-production-closure-validation.md`.

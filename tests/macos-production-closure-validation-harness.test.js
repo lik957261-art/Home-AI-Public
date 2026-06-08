@@ -2,6 +2,7 @@
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 
 const repoRoot = path.resolve(__dirname, "..");
@@ -46,6 +47,10 @@ assert.match(script, /deferred_manual_oauth_not_included/);
 assert.match(script, /AUTH_PROCESS_PATTERN/);
 assert.match(script, /macos_closure_oauth_reauth_process_present/);
 assert.match(script, /concurrentOwnerRuns/);
+assert.match(script, /expectedVersion/);
+assert.match(script, /data-client-version/);
+assert.match(script, /productionStatusArgs/);
+assert.match(script, /--expected-version/);
 assert.match(script, /wrongHeaderDenied/);
 assert.match(script, /activeGlobal === 0/);
 assert.match(script, /blockingWarningCount === 0/);
@@ -70,6 +75,7 @@ assert.match(runbook, /X-Hermes-Web-Key/);
 assert.match(runbook, /X-Hermes-Access-Key/);
 assert.match(runbook, /X-Hermes-Mobile-Ingress-Key/);
 assert.match(runbook, /Owner\/OpenAI concurrent/);
+assert.match(runbook, /expectedVersion/);
 assert.match(runbook, /blockingWarningCount/);
 assert.match(runbook, /telemetry_state_db_missing/);
 assert.match(runbook, /plugin delivery directories/);
@@ -83,6 +89,7 @@ assert.match(deploymentDoc, /macos-plugin-directory-production-smoke\.js/);
 assert.match(deploymentDoc, /macos-bound-directory-preview-smoke\.js/);
 assert.match(deploymentDoc, /macos-wardrobe-binding-production-smoke\.js/);
 assert.match(deploymentDoc, /Grok\/xAI remains a deferred\s+manual OAuth follow-up/);
+assert.match(deploymentDoc, /--expected-version/);
 assert.match(macosPlan, /macos-production-closure-validation\.js/);
 assert.match(macosPlan, /Owner\/OpenAI concurrent/);
 assert.match(testMatrix, /macos-production-closure-validation-harness\.test\.js/);
@@ -102,14 +109,40 @@ const {
   compactWeixin,
   isAllowedProfileAuditWarning,
   parseArgs,
+  productionStatusArgs,
+  readAppClientVersion,
+  resolveExpectedVersion,
   sanitize,
 } = require("../scripts/macos-production-closure-validation");
 
 const parsed = parseArgs([]);
 assert.equal(parsed.root, "/Users/hermes-host/HermesMobile");
 assert.equal(parsed.base, "http://127.0.0.1:8797");
+assert.equal(parsed.expectedVersion, "");
 assert.ok(parsed.ownerKeyFile.endsWith("/data/secrets/owner-web-key.secret"));
 assert.ok(parsed.ingressKeyFile.endsWith("/data/weixin-ingress.secret"));
+
+const explicitVersion = parseArgs(["--expected-version", "20260608-runtime-config-arch-v627"]);
+assert.equal(explicitVersion.expectedVersion, "20260608-runtime-config-arch-v627");
+
+const appRoot = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-mac-closure-"));
+fs.mkdirSync(path.join(appRoot, "public"), { recursive: true });
+fs.writeFileSync(path.join(appRoot, "public", "index.html"), '<html data-client-version="test-version"></html>\n', "utf8");
+assert.equal(readAppClientVersion({ app: appRoot }), "test-version");
+assert.equal(resolveExpectedVersion({ app: appRoot, expectedVersion: "" }), "test-version");
+assert.equal(resolveExpectedVersion({ app: appRoot, expectedVersion: "manual-version" }), "manual-version");
+assert.throws(() => readAppClientVersion({ app: path.join(appRoot, "missing") }), /macos_closure_app_client_version_unreadable/);
+assert.deepEqual(productionStatusArgs({
+  ownerKeyFile: "/private/key.secret",
+  base: "http://127.0.0.1:8797",
+  expectedVersion: "test-version",
+}), [
+  "--access-key-file", "/private/key.secret",
+  "--base", "http://127.0.0.1:8797",
+  "--max-active-global", "0",
+  "--json",
+  "--expected-version", "test-version",
+]);
 
 const status = compactStatus({
   ok: true,

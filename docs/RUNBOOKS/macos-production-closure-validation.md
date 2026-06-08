@@ -12,6 +12,12 @@ sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
   --json
 ```
 
+The harness reads the expected static client version from
+`/Users/hermes-host/HermesMobile/app/public/index.html` by default and passes it
+to every `production-status-smoke.js` call as `--expected-version`. Operators
+may pass `--expected-version <version>` only when validating an explicitly
+reviewed production app path. A served version mismatch is a closure failure.
+
 Run it from an operator SSH session or the Mac terminal. It reads secret values
 from their configured files, but it must not print key contents, raw key paths,
 OAuth tokens, callback URLs, full prompts, full thread bodies, or private user
@@ -59,8 +65,10 @@ It validates:
 - Weixin heartbeat ingress uses `X-Hermes-Mobile-Ingress-Key`, rejects
   `X-Hermes-Web-Key`, and does not create a run, thread, or message.
 - After static UI changes, `/api/client-version` reports the deployed client
-  version from the live Mac listener, and visual smoke verifies the changed
-  surface against the live Mac URL rather than only the development checkout.
+  version from the live Mac listener, the served `/api/status?detail=1`
+  `clientVersion` matches the expected app-shell version, and visual smoke
+  verifies the changed surface against the live Mac URL rather than only the
+  development checkout.
 - Owner/OpenAI concurrent product-route smokes complete without the second run
   becoming a Gateway startup failure.
 - Final status returns to `activeGlobal=0`.
@@ -77,6 +85,7 @@ With `--json`, the top-level shape is bounded metadata:
 ```json
 {
   "ok": true,
+  "expectedVersion": "20260608-runtime-config-arch-v627",
   "scope": {
     "grokXai": "deferred_manual_oauth_not_included"
   },

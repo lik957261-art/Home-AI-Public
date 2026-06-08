@@ -232,6 +232,10 @@ Mac production closure must use the checked aggregate harness after deployment,
 migration, Gateway/Profile repair, plugin provisioning, Weixin route repair,
 ACL repair, or before declaring production closed:
 `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-closure-validation.js --json`.
+The aggregate harness must prove the served `clientVersion` matches the live
+app shell version by passing `--expected-version` to every checked
+`production-status-smoke.js` call; a source/app/served version mismatch is a
+production closure failure.
 After Windows/WSL-to-Mac data migration, also run the directory path migration
 repair dry-run:
 `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-directory-path-migration-repair.js --root /Users/hermes-host/HermesMobile --json`.

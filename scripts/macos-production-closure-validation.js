@@ -1,6 +1,7 @@
 "use strict";
 
 const { spawn, spawnSync } = require("node:child_process");
+const fs = require("node:fs");
 const path = require("node:path");
 
 const DEFAULT_ROOT = "/Users/hermes-host/HermesMobile";
@@ -31,6 +32,7 @@ function parseArgs(argv) {
     runtimeSource: "",
     runtimeOverrides: "",
     runtimePython: "",
+    expectedVersion: "",
     agentSchemaTimeoutMs: 180000,
     runTimeoutMs: 300000,
     commandTimeoutMs: 360000,
@@ -56,6 +58,7 @@ function parseArgs(argv) {
     else if (arg === "--runtime-source") out.runtimeSource = argv[++index] || out.runtimeSource;
     else if (arg === "--runtime-overrides") out.runtimeOverrides = argv[++index] || out.runtimeOverrides;
     else if (arg === "--runtime-python") out.runtimePython = argv[++index] || out.runtimePython;
+    else if (arg === "--expected-version") out.expectedVersion = argv[++index] || out.expectedVersion;
     else if (arg === "--agent-schema-timeout-ms") out.agentSchemaTimeoutMs = Number(argv[++index] || out.agentSchemaTimeoutMs);
     else if (arg === "--run-timeout-ms") out.runTimeoutMs = Number(argv[++index] || out.runTimeoutMs);
     else if (arg === "--command-timeout-ms") out.commandTimeoutMs = Number(argv[++index] || out.commandTimeoutMs);
@@ -77,6 +80,7 @@ function parseArgs(argv) {
         "  --base <url>              Home AI origin, default http://127.0.0.1:8797",
         "  --owner-key-file <file>   Owner Web key file; path and contents are not printed",
         "  --ingress-key-file <file> Weixin ingress key file; path and contents are not printed",
+        "  --expected-version <value> Expected served client version; default reads <app>/public/index.html",
         "  --skip-schema             Skip native Gateway schema probes",
         "  --skip-plugin-directory   Skip plugin delivery-directory creation and preview smoke",
         "  --skip-bound-directory    Skip all-workspace directory-topic binding preview smokes",
@@ -106,6 +110,23 @@ function parseArgs(argv) {
   if (!Number.isFinite(out.commandTimeoutMs) || out.commandTimeoutMs <= 0) out.commandTimeoutMs = 360000;
   if (!Number.isFinite(out.concurrentOwnerRuns) || out.concurrentOwnerRuns < 1) out.concurrentOwnerRuns = 2;
   return out;
+}
+
+function readAppClientVersion(options) {
+  const indexPath = macPath.join(options.app, "public", "index.html");
+  let text = "";
+  try {
+    text = fs.readFileSync(indexPath, "utf8");
+  } catch (_err) {
+    throw new Error("macos_closure_app_client_version_unreadable");
+  }
+  const version = String(text.match(/data-client-version="([^"]+)"/)?.[1] || "").trim();
+  if (!version) throw new Error("macos_closure_app_client_version_missing");
+  return version;
+}
+
+function resolveExpectedVersion(options) {
+  return String(options.expectedVersion || "").trim() || readAppClientVersion(options);
 }
 
 function scriptPath(options, scriptName) {
@@ -182,6 +203,17 @@ function runCommand(label, command, args, options) {
 async function runNodeJson(label, options, scriptName, args) {
   const result = await runCommand(label, options.node, [scriptPath(options, scriptName), ...args], options);
   return parseJsonOutput(label, result.stdout, options);
+}
+
+function productionStatusArgs(options) {
+  const args = [
+    "--access-key-file", options.ownerKeyFile,
+    "--base", options.base,
+    "--max-active-global", "0",
+    "--json",
+  ];
+  if (options.expectedVersion) args.push("--expected-version", options.expectedVersion);
+  return args;
 }
 
 function assertNoOauthProcess() {
@@ -383,12 +415,7 @@ async function runOwnerConcurrency(options) {
   const runs = await Promise.all(Array.from({ length: options.concurrentOwnerRuns }, (_, index) => (
     runNodeJson(`owner-openai-concurrency:${index + 1}`, options, "gateway-pool-production-smoke.js", args)
   )));
-  const postStatus = compactStatus(await runNodeJson("post-concurrency-status", options, "production-status-smoke.js", [
-    "--access-key-file", options.ownerKeyFile,
-    "--base", options.base,
-    "--max-active-global", "0",
-    "--json",
-  ]));
+  const postStatus = compactStatus(await runNodeJson("post-concurrency-status", options, "production-status-smoke.js", productionStatusArgs(options)));
   return {
     ok: runs.every((run) => run.ok && run.run?.status === "done" && run.run?.gatewaySource === "worker_pool")
       && postStatus.ok && postStatus.activeGlobal === 0,
@@ -406,12 +433,8 @@ async function runOwnerConcurrency(options) {
 
 async function runClosure(options) {
   assertNoOauthProcess();
-  const status = compactStatus(await runNodeJson("status", options, "production-status-smoke.js", [
-    "--access-key-file", options.ownerKeyFile,
-    "--base", options.base,
-    "--max-active-global", "0",
-    "--json",
-  ]));
+  options.expectedVersion = resolveExpectedVersion(options);
+  const status = compactStatus(await runNodeJson("status", options, "production-status-smoke.js", productionStatusArgs(options)));
   const profileAudit = compactProfileAudit(await runNodeJson("profile-audit", options, "macos-production-profile-audit.js", [
     "--root", options.root,
     "--json",
@@ -514,16 +537,12 @@ async function runClosure(options) {
   ]));
 
   const concurrency = options.skipConcurrency ? null : await runOwnerConcurrency(options);
-  const finalStatus = compactStatus(await runNodeJson("final-status", options, "production-status-smoke.js", [
-    "--access-key-file", options.ownerKeyFile,
-    "--base", options.base,
-    "--max-active-global", "0",
-    "--json",
-  ]));
+  const finalStatus = compactStatus(await runNodeJson("final-status", options, "production-status-smoke.js", productionStatusArgs(options)));
   assertNoOauthProcess();
 
   const ok = status.ok
     && status.activeGlobal === 0
+    && status.clientVersion === options.expectedVersion
     && status.wrongHeaderDenied
     && profileAudit.ok
     && profileAudit.issueCount === 0
@@ -541,10 +560,12 @@ async function runClosure(options) {
     ))))
     && (!concurrency || concurrency.ok)
     && finalStatus.ok
-    && finalStatus.activeGlobal === 0;
+    && finalStatus.activeGlobal === 0
+    && finalStatus.clientVersion === options.expectedVersion;
 
   return {
     ok,
+    expectedVersion: options.expectedVersion,
     scope: {
       grokXai: "deferred_manual_oauth_not_included",
       schema: options.skipSchema ? "skipped" : "included",
@@ -601,6 +622,9 @@ module.exports = {
   compactWardrobeBinding,
   isAllowedProfileAuditWarning,
   parseArgs,
+  productionStatusArgs,
+  readAppClientVersion,
+  resolveExpectedVersion,
   runClosure,
   sanitize,
 };
