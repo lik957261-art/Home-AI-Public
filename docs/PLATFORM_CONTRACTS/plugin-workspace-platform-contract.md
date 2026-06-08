@@ -66,6 +66,7 @@ Plugin-local facts:
 - Windows dev URL/port
 - Mac production URL/port
 - launchd label or Windows service/task/process identity
+- development runtime prerequisites
 - MCP server command
 - MCP schema endpoint
 - credential storage locations by reference only
@@ -74,6 +75,7 @@ Plugin-local facts:
 - required production smoke/harness commands
 - Reference Contract status
 - mobile visual harness status
+- iOS visual harness command
 ```
 
 The pointer file must not contain raw passwords, access keys, OAuth tokens,
@@ -95,15 +97,24 @@ node scripts\plugin-workspace-platform-contract-check.js --probe-mac --require-m
 
 The checker validates:
 
-- the standard inserted plugin set: Finance, Wardrobe, Note, Email, and Health;
-- explicit exclusion of Codex Mobile Web as a special insertion when requested;
+- the standard inserted plugin set plus the Owner-critical Codex Mobile Web
+  special insertion: Finance, Wardrobe, Note, Email, Health, and Codex Mobile;
 - plugin-local `docs/HOME_AI_PLATFORM_CONTRACT.md` files;
 - central contract references;
 - plugin-local required facts;
+- plugin-local development runtime prerequisites, including Python for Python
+  MCP wrappers and Node/npm for Node service plugins;
 - `.agent-context/HANDOFF.md` pointer adoption;
 - no raw-looking secrets in the pointer and central rollout docs;
+- declared `ios_visual_harness_command` using the Home AI checked
+  `npm run ios:pwa:visual` path;
 - Mac source directories, launchd labels, and manifest endpoints when
   `--probe-mac` is used.
+
+Codex Mobile Web remains special for Owner-only visibility and permission
+policy. It is not a normal workspace-grantable business plugin, but it must
+still declare its platform pointer, live iOS PWA debug availability, deployment
+facts, and bounded production validation path.
 
 GitHub Actions normally checks out only the Home AI repository, not the private
 adjacent plugin workspaces. In that single-repository CI environment, the
@@ -164,6 +175,7 @@ doc:
 | `windows_dev_base_url` | if service plugin | Local dev service URL. |
 | `macos_production_base_url` | if service plugin | Mac loopback production URL. |
 | `launchd_label` | if Mac service | `system/<label>` or label string. |
+| `dev_runtime_prerequisites` | yes | Required local interpreters/tools for DEV checks. Python MCP plugins must name `python` or `python3`; Node plugins must name Node/npm. |
 | `mcp_command` | if MCP plugin | Command or wrapper used by Gateway. |
 | `mcp_schema_endpoint` | if MCP plugin | Local schema endpoint or schema probe command. |
 | `credential_locations` | if credentials exist | File paths or config keys only, never secret values. |
@@ -173,6 +185,7 @@ doc:
 | `reference_contract_status` | yes | `none`, `planned`, `v1-minimal`, or `implemented`. |
 | `mobile_visual_harness_status` | if embedded UI | `none`, `playwright`, `appium-simulator`, or `installed-pwa`. |
 | `ios_live_debug_available` | if embedded UI | `yes` when the plugin can be debugged through the Home AI live iOS PWA server; otherwise `no` with a short reason. |
+| `ios_visual_harness_command` | if embedded UI | Checked command using `npm run ios:pwa:visual` or `scripts/ios-pwa-visual-harness.js`; include `--scenario embedded-plugin-shell --plugin-id <plugin-id>` for plugin shell validation. |
 
 ## Access And Privilege Boundary
 
@@ -320,6 +333,23 @@ visual evidence. The required level depends on the surface:
   `--wda-local-port`, and MJPEG `--mjpeg-server-port`; native actions and
   WebView deep state remain serialized within that lane.
 
+- Final bounded visual evidence should use the checked visual harness:
+
+  ```bash
+  cd /Users/hermes-dev/HermesMobileDev/app
+  npm run ios:pwa:visual -- \
+    --scenario embedded-plugin-shell \
+    --plugin-id <plugin-id> \
+    --debug-url http://127.0.0.1:19073/
+  ```
+
+  Use `--app-url http://127.0.0.1:18797/?source=pwa` when validating a local
+  Home AI development server instead of production. Host-owned scenarios such
+  as Directory dark loading use
+  `--scenario directory-dark-status`. The harness implementation is
+  `scripts/ios-pwa-visual-harness.js` and its source contract is
+  `tests/ios-pwa-visual-harness.test.js`.
+
 Use:
 
 - `docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md`
@@ -368,6 +398,8 @@ The eventual platform checker should verify each plugin workspace for:
 - Reference Contract status is declared;
 - mobile visual harness status is declared when embedded UI exists;
 - iOS live debug availability is declared when embedded mobile UI exists;
+- iOS visual harness command is declared and points to the checked Home AI
+  visual harness;
 - no raw-looking secret values are present in docs;
 - `.agent-context` exists or is explicitly not needed.
 

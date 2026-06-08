@@ -26,6 +26,9 @@ Hermes Mobile owns these behaviors:
 - keep the three-entry plugin-context footer outside the iframe viewport;
 - let the iframe start at the top of the available host viewport;
 - ensure the iframe bottom edge stops at the Hermes footer top edge;
+- derive the iframe bottom reservation from the measured host footer height and
+  the layout viewport (`window.innerHeight` / `documentElement.clientHeight`),
+  not from a shortened iOS PWA `visualViewport.height`;
 - hide the plugin-context footer and reserve zero bottom space while the plugin
   reports a full-screen image/file preview state;
 - recompute the iframe viewport when mobile browser chrome, PWA viewport,

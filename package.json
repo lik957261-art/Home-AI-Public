@@ -24,6 +24,7 @@
     "productization:check": "node scripts/productization-check.js",
     "deploy:macos": "node scripts/deploy-macos-production.js",
     "ios:pwa:debug": "node scripts/ios-pwa-live-debug-server.js",
+    "ios:pwa:visual": "node scripts/ios-pwa-visual-harness.js",
     "visual:smoke": "node scripts/playwright-visual-smoke.js",
     "test": "node scripts/run-checks.js --test",
     "migrate:sqlite:dry-run": "node scripts/migrate-json-to-sqlite.js --dry-run",

@@ -247,6 +247,12 @@ height from the embedded app viewport instead of using only `padding-bottom`;
 otherwise the iframe can extend behind the Hermes footer while the plugin app
 also reserves its own bottom navigation area, creating a visible blank band
 between the plugin's native bottom bar and the Hermes footer.
+The plugin-context iframe bottom reservation is derived from the measured host
+footer height and the same layout-viewport bottom-boundary rule as the primary
+mobile bottom stack. `visualViewport.height` is diagnostic and keyboard input,
+not the primary boundary for this reservation; iOS standalone PWA can report a
+shorter visual viewport and would otherwise shrink the iframe, making plugin
+top chrome appear clipped above the screen.
 
 The built-in Directory plugin is different from embedded iframe plugins. When a
 user opens a folder and chooses to start a topic, Hermes must keep the directory

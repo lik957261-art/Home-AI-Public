@@ -105,6 +105,48 @@ print them.
 Use the older smoke/proof scripts for final reproducible evidence when a bug
 fix needs artifact paths, before/after screenshots, and bounded source files.
 
+### Visual Harness
+
+Use the deterministic visual harness when the live debug loop has reproduced a
+mobile/PWA issue and the fix needs a bounded pass/fail artifact:
+
+```bash
+npm run ios:pwa:visual -- \
+  --scenario directory-dark-status \
+  --debug-url http://127.0.0.1:19073/
+```
+
+The harness talks only to the local live debug server endpoints
+`/api/stream-info`, `/api/deep-state`, `/api/action`, and
+`/api/screenshot?force=1`. It records a screenshot path, client version,
+viewport metrics, relevant element bounds, computed styles, and assertion
+results. It does not accept Access Keys, sudo passwords, cookies, launch
+tokens, or raw localStorage dumps.
+
+For embedded plugin shells, use the same harness with the plugin id:
+
+```bash
+npm run ios:pwa:visual -- \
+  --scenario embedded-plugin-shell \
+  --plugin-id finance \
+  --debug-url http://127.0.0.1:19073/
+```
+
+When validating a development build instead of production, open that build
+through the harness:
+
+```bash
+npm run ios:pwa:visual -- \
+  --app-url http://127.0.0.1:18797/?source=pwa \
+  --scenario embedded-plugin-shell \
+  --plugin-id finance \
+  --debug-url http://127.0.0.1:19073/
+```
+
+Source and contract coverage for this harness is in
+`scripts/ios-pwa-visual-harness.js` and
+`tests/ios-pwa-visual-harness.test.js`.
+
 ### WDA MJPEG Stream Mode
 
 For deeper interactive debugging, run the live server with WDA MJPEG streaming:

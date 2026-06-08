@@ -31,7 +31,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260609-directory-status-dark-v643";
+const clientVersion = "20260609-plugin-context-viewport-v644";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 
@@ -69,6 +69,11 @@ function projectedBottomInset(rectBottom, viewportHeight, comfortInset, overflow
   return Math.min(rawOverflow, overflowClamp) + comfortInset;
 }
 
+function projectedPluginContextBottomInset(appHeight, layoutViewportHeight, navHeight, overflowClamp) {
+  const rawOverflow = Math.ceil(Math.max(0, appHeight - layoutViewportHeight));
+  return Math.max(navHeight, navHeight + Math.min(rawOverflow, overflowClamp));
+}
+
 const pwaLayoutViewport = 844;
 const pwaVisualViewport = 780;
 const navRectBottomWithFallbackInset = pwaLayoutViewport - navComfortInset;
@@ -81,6 +86,20 @@ assert.equal(
   projectedBottomInset(navRectBottomWithFallbackInset, pwaVisualViewport, navComfortInset, navOverflowClamp),
   navComfortInset,
   "shortened PWA viewport overflow must not lift the whole bottom stack",
+);
+assert.equal(
+  projectedPluginContextBottomInset(pwaLayoutViewport, pwaLayoutViewport, navHeight, navOverflowClamp),
+  navHeight,
+  "plugin-context iframe bottom inset should stay at nav height when only visualViewport is shorter",
+);
+assert.ok(
+  projectedPluginContextBottomInset(pwaLayoutViewport, pwaVisualViewport, navHeight, 999) > navHeight + 40,
+  "using shortened visualViewport as plugin-context boundary would falsely shrink the iframe",
+);
+assert.equal(
+  projectedPluginContextBottomInset(pwaLayoutViewport, pwaVisualViewport, navHeight, navOverflowClamp),
+  navHeight,
+  "plugin-context overflow clamp default should prevent visualViewport-only iframe lift",
 );
 
 assert.match(
@@ -121,6 +140,12 @@ assert.match(appComposerContextJs, /const navBottomOverflowClamp = Math\.max\(0,
 assert.match(appComposerContextJs, /const navBottomOverflow = Math\.min\(navBottomOverflowRaw, navBottomOverflowClamp\)/);
 assert.match(appComposerContextJs, /const dockBottom = offset/);
 assert.match(appComposerContextJs, /const stackHeight = dockVisible \? Math\.max\(reserve, dockBottom \+ dockHeight \+ 2\) : reserve/);
+assert.match(appComposerContextJs, /const layoutViewportHeight = Math\.max\(innerHeight, documentHeight, visualViewportHeight\)/);
+assert.match(appComposerContextJs, /const viewportHeight = layoutViewportHeight \|\| appHeight \|\| 0/);
+assert.match(appComposerContextJs, /const viewportOverflowRaw = Math\.max\(0, appHeight - viewportHeight\)/);
+assert.match(appComposerContextJs, /const viewportOverflowClamp = Math\.max\(0, Math\.ceil\(mobileBottomCssPx\("--mobile-bottom-nav-overflow-clamp", 0\)\)\)/);
+assert.match(appComposerContextJs, /const viewportOverflow = Math\.min\(viewportOverflowRaw, viewportOverflowClamp\)/);
+assert.match(appComposerContextJs, /window\.__hermesPluginContextViewportMetrics = \{/);
 assert.doesNotMatch(appComposerContextJs, /const viewportHeight = Math\.ceil\(window\.visualViewport\?\.height \|\| window\.innerHeight/);
 assert.doesNotMatch(appComposerContextJs, /const comfortInset = 12/);
 

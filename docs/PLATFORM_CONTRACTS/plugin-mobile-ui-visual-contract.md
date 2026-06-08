@@ -278,6 +278,7 @@ Use the highest applicable evidence level:
 | DOM/unit UI | deterministic helper or projection only | focused test assertions |
 | Playwright mobile viewport | early layout, browser-mode comparison, static cache | screenshot, bounding rects, loaded version |
 | Mac iOS PWA live debug | high-frequency iOS PWA interaction/debug loops | live Simulator screenshot, native actions, optional WebView state |
+| Mac iOS PWA visual harness | reproducible host/plugin PWA visual assertions after live reproduction | screenshot path, client version, viewport metrics, DOM bounds, computed styles, pass/fail assertions |
 | Mac iOS Simulator Appium | iOS gesture, menu, Safari/Simulator reproduction | Appium input, DOM state, screenshots, hit tests |
 | Installed PWA / real device | standalone shell, safe-area, keyboard, service-worker, final mobile acceptance | launcher/PWA proof, screenshot, viewport metrics |
 
@@ -310,6 +311,35 @@ visual-smoke failure if the screenshot or MJPEG stream and native-action path
 still prove the reported layout or gesture issue. For final acceptance
 evidence, record bounded artifact paths and metrics from the relevant harness
 level.
+
+After an issue is reproduced, promote the final check to the reusable visual
+harness instead of leaving it as a manual screenshot loop:
+
+```bash
+cd <Home-AI>
+npm run ios:pwa:visual -- \
+  --scenario directory-dark-status \
+  --debug-url http://127.0.0.1:19073/
+```
+
+Embedded plugin shells use the plugin scenario:
+
+```bash
+cd <Home-AI>
+npm run ios:pwa:visual -- \
+  --scenario embedded-plugin-shell \
+  --plugin-id <plugin-id> \
+  --debug-url http://127.0.0.1:19073/
+```
+
+For development builds, add `--app-url <local-dev-url>` so the same iOS PWA
+Simulator opens the dev port before assertions run. The checked harness lives
+in `scripts/ios-pwa-visual-harness.js` with source coverage in
+`tests/ios-pwa-visual-harness.test.js`. The Directory dark-status scenario
+asserts `.directory-status`, `.directory-shell`, `#conversation`, and
+`--ui-surface-muted` so gray/pale loading-surface regressions fail
+deterministically. The embedded-plugin-shell scenario asserts the host shell,
+iframe existence, meaningful frame size, and no horizontal overflow.
 
 For concurrent plugin debugging, allocate one Simulator per active plugin lane.
 Do not share one Simulator UDID across multiple Appium/XCUITest control
@@ -368,6 +398,7 @@ Every plugin pointer file should declare:
 ```text
 mobile_visual_harness_status: none | playwright | appium-simulator | installed-pwa
 ios_live_debug_available: yes | no
+ios_visual_harness_command:
 primary_mobile_surfaces:
 required_visual_smokes:
 known_ui_boundaries:

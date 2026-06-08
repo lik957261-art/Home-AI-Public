@@ -234,6 +234,23 @@ async function execute(script, scriptArgs = []) {
   }
 }
 
+async function executeAsync(script, scriptArgs = []) {
+  const run = async () => {
+    await appium("POST", `/session/${state.sessionId}/timeouts`, {
+      script: Math.max(1000, Number(args.appiumTimeoutMs || 15000)),
+    }).catch(() => null);
+    const result = await appium("POST", `/session/${state.sessionId}/execute/async`, { script, args: scriptArgs });
+    return result?.value;
+  };
+  try {
+    return await withWebContext(run);
+  } catch (err) {
+    if (!invalidSessionError(err)) throw err;
+    await connectSession({ resetSession: true });
+    return withWebContext(run);
+  }
+}
+
 async function nativeExecute(command, payload = {}) {
   try {
     await connectSession();
@@ -570,10 +587,24 @@ async function performAction(body = {}) {
     return execute("localStorage.setItem(arguments[0], arguments[1]); return true;", [String(body.key || ""), String(body.value || "")]);
   }
   if (type === "clearStaticCaches") {
-    return execute(`
-      const keys = await caches.keys();
-      await Promise.all(keys.map((key) => caches.delete(key)));
-      return { deleted: keys };
+    return executeAsync(`
+      var done = arguments[arguments.length - 1];
+      try {
+        var cacheApi = window.caches;
+        if (!cacheApi || typeof cacheApi.keys !== "function") {
+          done({ deleted: [], unavailable: true });
+          return;
+        }
+        cacheApi.keys().then(function (keys) {
+          return Promise.all(keys.map(function (key) { return cacheApi.delete(key); })).then(function () {
+            done({ deleted: keys });
+          });
+        }).catch(function (err) {
+          done({ deleted: [], error: String((err && err.message) || err || "cache_clear_failed") });
+        });
+      } catch (err) {
+        done({ deleted: [], error: String((err && err.message) || err || "cache_clear_failed") });
+      }
     `);
   }
   throw new Error(`unknown_action:${type}`);

@@ -27,6 +27,7 @@ const RSYNC_EXCLUDES = [
   ".git/",
   ".codex/",
   ".agent-context/",
+  "AGENTS.md",
   ".deploy-backups/",
   "node_modules/",
   "logs/",

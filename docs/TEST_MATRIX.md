@@ -1991,6 +1991,8 @@ The gate must verify:
 
 - plugin-local `docs\HOME_AI_PLATFORM_CONTRACT.md` or equivalent pointer exists;
 - plugin-local facts are declared;
+- DEV runtime prerequisites are declared before plugin MCP/service tests are
+  interpreted;
 - shared Mac access follows `docs\RUNBOOKS\macos-production-access.md`;
 - deployment command and production smoke are declared;
 - MCP service and Gateway selected-profile schema closure are declared for MCP
@@ -2006,13 +2008,21 @@ Current checker commands:
 
 - `node tests\plugin-workspace-platform-contract-check.test.js`
 - `node scripts\plugin-workspace-platform-contract-check.js --json`
+- `node tests\ios-pwa-visual-harness.test.js`
+- `npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id <plugin-id> --debug-url http://127.0.0.1:19073/`
 - optional Mac read-only production evidence:
   `node scripts\plugin-workspace-platform-contract-check.js --probe-mac --require-mac-ok --json`
 
-This checker verifies the standard inserted plugin set, explicitly excludes
-Codex Mobile Web when it is not part of the standard plugin rollout, validates
-plugin-local `docs\HOME_AI_PLATFORM_CONTRACT.md` pointers and handoff adoption,
-and performs read-only Mac source/launchd/manifest probes when requested.
+This checker verifies the standard inserted plugin set plus the Owner-critical
+Codex Mobile Web special insertion, validates plugin-local
+`docs\HOME_AI_PLATFORM_CONTRACT.md` pointers and handoff adoption, and performs
+read-only Mac source/launchd/manifest probes when requested. Codex Mobile Web
+remains outside normal workspace-grantable business plugin visibility, but it
+must declare `ios_live_debug_available=yes`, declare
+`ios_visual_harness_command`, use the Home AI live iOS PWA debug server for
+embedded iOS reproduction loops, and close mobile UI bugs with the checked
+`scripts/ios-pwa-visual-harness.js` path before final bounded visual evidence
+is recorded.
 Plugin MCP callable changes still require `node tests\mcp-tool-upgrade-closure-harness.test.js`
 and the checked `scripts\mcp-tool-upgrade-closure-smoke.js` path. Embedded UI
 changes still require visual/Appium evidence under the mobile UI contract.

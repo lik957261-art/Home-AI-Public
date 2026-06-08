@@ -433,15 +433,28 @@ function updatePluginContextViewportReservation() {
   }
   const navHeight = Math.ceil(nav.getBoundingClientRect?.().height || 0);
   const appHeight = Math.ceil(app.getBoundingClientRect?.().height || 0);
-  const viewportHeight = Math.ceil(
-    window.visualViewport?.height
-    || window.innerHeight
-    || document.documentElement?.clientHeight
-    || appHeight
-    || 0
-  );
-  const viewportOverflow = Math.max(0, appHeight - viewportHeight);
+  const visualViewportHeight = Math.ceil(window.visualViewport?.height || 0);
+  const innerHeight = Math.ceil(window.innerHeight || 0);
+  const documentHeight = Math.ceil(document.documentElement?.clientHeight || 0);
+  const layoutViewportHeight = Math.max(innerHeight, documentHeight, visualViewportHeight);
+  const viewportHeight = layoutViewportHeight || appHeight || 0;
+  const viewportOverflowRaw = Math.max(0, appHeight - viewportHeight);
+  const viewportOverflowClamp = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-overflow-clamp", 0)));
+  const viewportOverflow = Math.min(viewportOverflowRaw, viewportOverflowClamp);
   const bottomInset = Math.max(navHeight, navHeight + viewportOverflow);
+  window.__hermesPluginContextViewportMetrics = {
+    visualViewportHeight,
+    innerHeight,
+    documentHeight,
+    layoutViewportHeight,
+    viewportHeight,
+    appHeight,
+    navHeight,
+    viewportOverflowRaw,
+    viewportOverflowClamp,
+    viewportOverflow,
+    bottomInset,
+  };
   if (bottomInset > 0) root.style.setProperty("--plugin-context-main-bottom", `${bottomInset}px`);
   else root.style.removeProperty("--plugin-context-main-bottom");
   if (typeof scheduleEmbeddedPluginViewportBroadcast === "function") scheduleEmbeddedPluginViewportBroadcast("plugin_context_viewport", 0);

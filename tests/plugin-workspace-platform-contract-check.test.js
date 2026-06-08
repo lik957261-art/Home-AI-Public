@@ -49,10 +49,12 @@ function pointerFor(plugin, overrides = {}) {
     `| \`manifest_url\` | \`${manifestUrl}\` |`,
     "| `mcp_command` | `fixture` |",
     "| `mcp_schema_endpoint` | `fixture` |",
+    `| \`dev_runtime_prerequisites\` | \`${(plugin.devRuntimeKeywords || ["node", "npm"]).join(", ")}\` |`,
     "| `deploy_command` | `fixture` |",
     "| `reference_contract_status` | `planned` |",
     "| `mobile_visual_harness_status` | `planned` |",
     "| `ios_live_debug_available` | `yes` |",
+    `| \`ios_visual_harness_command\` | \`cd /Users/hermes-dev/HermesMobileDev/app && npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id ${plugin.id} --debug-url http://127.0.0.1:19073/\` |`,
     "",
     "Do not record raw secrets or credentials here.",
   ].join("\n");
@@ -63,15 +65,21 @@ function makeFixture() {
   const repo = path.join(root, "Agent");
   write(path.join(repo, "docs", "IMPLEMENTATION_NOTES", "plugin-workspace-contract-rollout-status.md"), [
     "# Plugin Workspace Contract Rollout Status",
-    "Finance Wardrobe Note Email Health",
+    "Finance Wardrobe Note Email Health Codex Mobile Web",
+    "plugin-workspace-platform-contract.md",
+    "plugin-mobile-ui-visual-contract.md",
     "docs/HOME_AI_PLATFORM_CONTRACT.md",
-    "Codex Mobile Web is a special insertion and is excluded.",
+    "Codex Mobile Web is an Owner-critical special insertion and is included in this platform contract checker.",
     "plugin-workspace-platform-contract-check.js",
     "plugin-workspace-platform-contract-check.test.js",
+    "ios-pwa-visual-harness.js",
+    "ios-pwa-visual-harness.test.js",
+    "npm run ios:pwa:visual",
+    "ios_visual_harness_command",
   ].join("\n"));
-  write(path.join(repo, "docs", "PLATFORM_CONTRACTS", "plugin-workspace-platform-contract.md"), "plugin-workspace-platform-contract-check.js\n");
-  write(path.join(repo, "docs", "TEST_MATRIX.md"), "plugin-workspace-platform-contract-check.test.js\n");
-  write(path.join(repo, "docs", "DOCS_INDEX.md"), "plugin-workspace-contract-rollout-status.md\n");
+  write(path.join(repo, "docs", "PLATFORM_CONTRACTS", "plugin-workspace-platform-contract.md"), "plugin-workspace-platform-contract-check.js\nnpm run ios:pwa:visual\nscripts/ios-pwa-visual-harness.js\nios_visual_harness_command\n");
+  write(path.join(repo, "docs", "TEST_MATRIX.md"), "plugin-workspace-platform-contract-check.test.js\nnode tests\\ios-pwa-visual-harness.test.js\n");
+  write(path.join(repo, "docs", "DOCS_INDEX.md"), "plugin-workspace-contract-rollout-status.md\nscripts/ios-pwa-visual-harness.js\nios-pwa-visual-harness.test.js\n");
   for (const plugin of PLUGINS) {
     const workspace = path.join(root, plugin.dirName);
     write(path.join(workspace, "docs", "HOME_AI_PLATFORM_CONTRACT.md"), pointerFor(plugin));
@@ -103,15 +111,21 @@ function testFixturePasses() {
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const parsed = JSON.parse(result.stdout);
   assert.equal(parsed.ok, true);
-  assert.deepEqual(parsed.checkedPlugins, ["finance", "wardrobe", "note", "email", "health"]);
-  assert.deepEqual(parsed.excludedPlugins, ["codex-mobile"]);
+  assert.deepEqual(parsed.checkedPlugins, ["finance", "wardrobe", "note", "email", "health", "codex-mobile"]);
+  assert.deepEqual(parsed.excludedPlugins, []);
 }
 
-function testUnknownPluginFailsAndCodexIsNotADescriptor() {
-  const result = run(["--plugin", "codex-mobile", "--json"]);
+function testUnknownPluginFailsAndCodexIsAContractDescriptor() {
+  const fixture = makeFixture();
+  const codexResult = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--plugin", "codex-mobile", "--json"]);
+  assert.equal(codexResult.status, 0, codexResult.stderr || codexResult.stdout);
+  const codexParsed = JSON.parse(codexResult.stdout);
+  assert.deepEqual(codexParsed.checkedPlugins, ["codex-mobile"]);
+  assert.ok(PLUGINS.some((plugin) => plugin.id === "codex-mobile"));
+
+  const result = run(["--plugin", "codex-mobile-web", "--json"]);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Unknown plugin id/);
-  assert.ok(!PLUGINS.some((plugin) => plugin.id.includes("codex")));
 }
 
 function testSingleRepositoryCheckoutReportsBoundedPointerMissing() {
@@ -143,6 +157,31 @@ function testPointerRejectsPublicRuntimeUrls() {
   assert.ok(parsed.issues.some((issue) => issue.startsWith("finance:pointer_forbidden_runtime_domain:")));
 }
 
+function testPointerRequiresIosVisualHarnessCommand() {
+  const fixture = makeFixture();
+  const plugin = PLUGINS.find((item) => item.id === "finance");
+  const pointerPath = path.join(fixture.root, plugin.dirName, "docs", "HOME_AI_PLATFORM_CONTRACT.md");
+  write(pointerPath, pointerFor(plugin).replace(/\n\| `ios_visual_harness_command` \|[^\n]+/, ""));
+  const result = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--plugin", "finance", "--json"]);
+  assert.equal(result.status, 1);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.issues.includes("finance:pointer_missing_text:`ios_visual_harness_command`"));
+  assert.ok(parsed.issues.includes("finance:ios_visual_harness_command_missing"));
+}
+
+function testPointerRequiresDeclaredDevRuntimePrerequisites() {
+  const fixture = makeFixture();
+  const plugin = PLUGINS.find((item) => item.id === "note");
+  const pointerPath = path.join(fixture.root, plugin.dirName, "docs", "HOME_AI_PLATFORM_CONTRACT.md");
+  write(pointerPath, pointerFor(plugin).replace("| `dev_runtime_prerequisites` | `python` |", "| `dev_runtime_prerequisites` | `node` |"));
+  const result = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--plugin", "note", "--json"]);
+  assert.equal(result.status, 1);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.issues.includes("note:dev_runtime_prerequisite_missing:python"));
+}
+
 function testRepositoryContractIsCurrentlyClosed() {
   const result = run(["--json"]);
   const parsed = JSON.parse(result.stdout);
@@ -158,7 +197,7 @@ function testRepositoryContractIsCurrentlyClosed() {
   }
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.equal(parsed.ok, true);
-  assert.equal(pointerCount, 5);
+  assert.equal(pointerCount, 6);
 }
 
 function testScriptDoesNotHandleSecretsOrSudo() {
@@ -168,12 +207,16 @@ function testScriptDoesNotHandleSecretsOrSudo() {
   assert.match(script, /ssh/);
   assert.match(script, /launchctl/);
   assert.match(script, /curl/);
+  assert.match(script, /function isLocalProbeAlias\(alias\)/);
+  assert.match(script, /local\|localhost\|127\\\.0\\\.0\\\.1/);
 }
 
 testFixturePasses();
-testUnknownPluginFailsAndCodexIsNotADescriptor();
+testUnknownPluginFailsAndCodexIsAContractDescriptor();
 testSingleRepositoryCheckoutReportsBoundedPointerMissing();
 testPointerRejectsPublicRuntimeUrls();
+testPointerRequiresIosVisualHarnessCommand();
+testPointerRequiresDeclaredDevRuntimePrerequisites();
 testRepositoryContractIsCurrentlyClosed();
 testScriptDoesNotHandleSecretsOrSudo();
 

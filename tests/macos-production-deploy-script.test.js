@@ -49,6 +49,7 @@ assert.match(script, /attempt/);
 assert.match(script, /backups", "deploy/);
 assert.match(script, /rsyncExcludes/);
 assert.match(script, /\.agent-context\//);
+assert.match(script, /AGENTS\.md/);
 assert.match(script, /\.codex\//);
 assert.match(script, /node_modules\//);
 assert.doesNotMatch(script, /console\.log\(.*password/i);
@@ -105,6 +106,7 @@ assert.equal(payload.plan.target, "home-ai");
 assert.equal(payload.plan.sourcePath, "/Users/hermes-dev/HermesMobileDev/app");
 assert.equal(payload.plan.productionPath, "/Users/hermes-host/HermesMobile/app");
 assert.match(payload.plan.backupPath, /20260608T000000Z-home-ai-harness$/);
+assert.ok(payload.plan.rsyncExcludes.includes("AGENTS.md"));
 assert.ok(payload.plan.validation.some((item) => item.type === "home-ai-status-smoke"));
 
 const pluginRun = spawnSync(process.execPath, [

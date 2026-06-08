@@ -1,12 +1,13 @@
 # Plugin Workspace Contract Rollout Status
 
-Last updated: 2026-06-07.
+Last updated: 2026-06-09.
 Home AI platform contract version: `20260606-v1`.
 
 ## Scope
 
-This status file tracks only standard inserted Home AI plugin workspaces that
-need local pointers to the central platform contract.
+This status file tracks inserted Home AI plugin workspaces that need local
+pointers to the central platform contract, including the Owner-critical Codex
+Mobile Web special insertion.
 
 Included in this pass:
 
@@ -15,11 +16,10 @@ Included in this pass:
 - Note
 - Email
 - Health
+- Codex Mobile Web
 
-Excluded in this pass:
+Still excluded in this pass:
 
-- Codex Mobile Web, by user instruction, because it is a special insertion and
-  should not be treated as a standard plugin workspace for this rollout.
 - Candidate or adjacent workspaces that are not currently standard inserted
   plugins for this pass.
 
@@ -35,6 +35,8 @@ credentials were changed by this rollout status update.
 - `docs/RUNBOOKS/macos-ios-simulator-appium.md`
 - `docs/IMPLEMENTATION_NOTES/reference-memory-graph-v1.md`
 - `docs/IMPLEMENTATION_NOTES/reference-memory-graph-harness-plan.md`
+- `scripts/ios-pwa-visual-harness.js`
+- `tests/ios-pwa-visual-harness.test.js`
 
 ## Executable Checker
 
@@ -53,6 +55,18 @@ node scripts\plugin-workspace-platform-contract-check.js --probe-mac --require-m
 The checker is read-only. It does not accept passwords, Access Keys, cookies,
 tokens, launch tokens, sudo input, or private payloads.
 
+The checker also requires every included embedded plugin pointer to declare
+`ios_visual_harness_command` with the checked Home AI visual harness command:
+
+```powershell
+npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id <plugin-id> --debug-url http://127.0.0.1:19073/
+```
+
+The checker requires `dev_runtime_prerequisites` as a plugin-local fact. This
+prevents environment failures from being misclassified as MCP/schema failures:
+Note and Wardrobe must declare Python, Node-based service plugins must declare
+Node/npm, and Codex Mobile must also declare Codex CLI availability.
+
 The checker also enforces the standard inserted plugin runtime URL rule:
 `windows_dev_base_url`, `macos_production_base_url`, and `manifest_url` must use
 the plugin loopback port. Public, NAS, tailnet, or historical personal domains
@@ -62,16 +76,19 @@ are explicit external deployment overrides, not standard plugin defaults.
 
 | Plugin | Workspace | Snapshot | Local pointer | Handoff pointer | Primary remaining product work |
 | --- | --- | --- | --- | --- | --- |
-| Finance | Windows Finance workspace | `codex/finance-mcp-design` at `d8d0a5b`; status clean before pointer | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1; Appium embedded UI evidence when Finance embedded UI layout changes; MCP upgrade closure remains mandatory for schema changes. |
-| Wardrobe | Windows Wardrobe workspace | `codex/program-api-item-uploads` at `3bec104`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1; Appium/Simulator proof when embedded UI, long-press, menu, or bottom layout changes; Mac-local route regression checks. |
-| Note | Windows Note workspace | `main` at `fb92356`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Note link tools; Reference / Memory Graph harness; Appium proof when preview, gesture, or PWA shell behavior changes. |
-| Email | Windows Email workspace | `main` at `75a1ea0`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1 for messages, threads, attachments, and accounts; exact deploy command stabilization; Appium proof when embedded UI or account switching changes. |
-| Health | Windows Health workspace | `main` at `3495ae8`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1; Appium proof when embedded UI or mobile navigation changes. |
+| Finance | Windows Finance workspace | `codex/finance-mcp-design` at `d8d0a5b`; status clean before pointer | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1; `ios_visual_harness_command` required for embedded shell/layout changes; MCP upgrade closure remains mandatory for schema changes. |
+| Wardrobe | Windows Wardrobe workspace | `codex/program-api-item-uploads` at `3bec104`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1; `ios_visual_harness_command` required for embedded UI, long-press, menu, or bottom layout changes; Mac-local route regression checks. |
+| Note | Windows Note workspace | `main` at `fb92356`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Note link tools; Reference / Memory Graph harness; `ios_visual_harness_command` required when preview, gesture, or PWA shell behavior changes. |
+| Email | Windows Email workspace | `main` at `75a1ea0`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1 for messages, threads, attachments, and accounts; exact deploy command stabilization; `ios_visual_harness_command` required for embedded UI or account switching changes. |
+| Health | Windows Health workspace | `main` at `3495ae8`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1; `ios_visual_harness_command` required for embedded UI or mobile navigation changes. |
+| Codex Mobile Web | Mac Codex Mobile workspace | `main` at `bc82703` plus local Mac hotfix work when pointer was added | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Owner-critical special insertion; not normal workspace-grantable plugin visibility; `ios_visual_harness_command` required for embedded keyboard, gesture, cache, and PWA reproduction loops. |
 
 ## Mac Read-Only Probe Status
 
 `node scripts\plugin-workspace-platform-contract-check.js --probe-mac --require-mac-ok --json`
-passed on 2026-06-06 through `homeai-mac`.
+passed for Finance, Wardrobe, Note, Email, and Health on 2026-06-06 through
+`homeai-mac`. Codex Mobile Web passed on 2026-06-08 from the Mac development
+host with `--ssh-alias local`.
 
 Verified facts:
 
@@ -82,11 +99,12 @@ Verified facts:
 | Note | `/Users/hermes-host/HermesMobile/plugins/note` | `com.hermesmobile.plugin.note` loaded | `http://127.0.0.1:4181/api/v1/hermes/plugin/manifest` returned HTTP 200 | Data root observed under `/Users/hermes-host/HermesMobile/plugins/note/data`. |
 | Email | `/Users/hermes-host/HermesMobile/plugins/email` | `com.hermesmobile.plugin.email` loaded | `http://127.0.0.1:5175/api/v1/hermes/plugin/manifest` returned HTTP 200 | Runtime/data root observed under `/Users/hermes-host/HermesMobile/plugins/email/runtime`. |
 | Health | `/Users/hermes-host/HermesMobile/plugins/healthy` | `com.hermesmobile.plugin.health` loaded | `http://127.0.0.1:4877/api/v1/hermes/plugin/manifest` returned HTTP 200 | The source directory is `healthy`, not `health`; data root observed under `/Users/hermes-host/HermesMobile/plugins/healthy/data`. |
+| Codex Mobile Web | `/Users/hermes-host/HermesMobile/plugins/codex-mobile-web` | `com.hermesmobile.plugin.codex-mobile` loaded | `http://127.0.0.1:8787/api/v1/hermes/plugin/manifest` returned HTTP 200 | 2026-06-08 same-host probe used `--ssh-alias local` and also verified `/api/public-config`. |
 
 ## Closure State
 
-The platform rollout has completed these closure items for the five included
-plugins:
+The platform rollout has completed these closure items for the six included
+plugin entries:
 
 1. plugin-local pointer files exist;
 2. plugin-local required facts are declared;
@@ -95,7 +113,13 @@ plugins:
 5. the executable local checker passes;
 6. the read-only Mac source/launchd/manifest probe passes;
 7. standard plugin runtime URL fields are loopback defaults;
-8. Codex Mobile Web is explicitly excluded from this standard-plugin rollout.
+8. Codex Mobile Web is included as an Owner-critical special insertion: it has
+   a local pointer and live-debug contract, while remaining outside normal
+   workspace-grantable business plugin visibility;
+9. every included plugin pointer declares `ios_visual_harness_command` pointing
+   to the checked Home AI `npm run ios:pwa:visual` harness;
+10. every included plugin pointer declares `dev_runtime_prerequisites`, with
+    Python declared for Python MCP wrappers such as Note.
 
 These items are now gates, not one-off notes:
 
@@ -108,8 +132,14 @@ These items are now gates, not one-off notes:
   `node scripts\plugin-workspace-platform-contract-check.js --probe-mac --require-mac-ok --json`.
 - Future plugin MCP callable changes must run the checked MCP upgrade closure
   path in `docs/RUNBOOKS/mcp-tool-upgrade-closure.md`.
+- Future DEV-side test failures must first verify the declared
+  `dev_runtime_prerequisites`; for Note MCP, `python -m py_compile
+  scripts/note_mcp_stdio.py` is an environment gate before classifying the
+  failure as an MCP wrapper/protocol issue.
 - Future embedded UI changes must produce the visual/Appium evidence required
-  by `docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md`.
+  by `docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md`, and must
+  use `scripts/ios-pwa-visual-harness.js` when the issue can be represented by
+  `directory-dark-status` or `embedded-plugin-shell`.
 - Business Reference Contract V1 implementation remains plugin-specific product
   work. This rollout makes the contract and harness gate enforceable; it does
   not add read/write reference methods to plugin business code.

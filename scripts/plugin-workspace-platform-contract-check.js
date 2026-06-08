@@ -28,10 +28,12 @@ const REQUIRED_POINTER_TEXT = [
   "`manifest_url`",
   "`mcp_command`",
   "`mcp_schema_endpoint`",
+  "`dev_runtime_prerequisites`",
   "`deploy_command`",
   "`reference_contract_status`",
   "`mobile_visual_harness_status`",
   "`ios_live_debug_available`",
+  "`ios_visual_harness_command`",
   "Do not record raw",
 ];
 
@@ -56,6 +58,7 @@ const PLUGINS = [
     macSourcePaths: ["/Users/hermes-host/HermesMobile/plugins/finance"],
     launchdLabel: "com.hermesmobile.plugin.finance",
     manifestPath: "/api/v1/hermes/plugin/manifest",
+    devRuntimeKeywords: ["node", "npm"],
     optionalHttpProbes: [
       { name: "client_version", path: "/api/finance/client-version", requireText: ["ok"] },
       {
@@ -74,6 +77,7 @@ const PLUGINS = [
     macSourcePaths: ["/Users/hermes-host/HermesMobile/plugins/wardrobe"],
     launchdLabel: "com.hermesmobile.plugin.wardrobe",
     manifestPath: "/api/v1/hermes/plugin/manifest",
+    devRuntimeKeywords: ["python"],
     optionalHttpProbes: [],
   },
   {
@@ -84,6 +88,7 @@ const PLUGINS = [
     macSourcePaths: ["/Users/hermes-host/HermesMobile/plugins/note"],
     launchdLabel: "com.hermesmobile.plugin.note",
     manifestPath: "/api/v1/hermes/plugin/manifest",
+    devRuntimeKeywords: ["python"],
     optionalHttpProbes: [],
   },
   {
@@ -94,6 +99,7 @@ const PLUGINS = [
     macSourcePaths: ["/Users/hermes-host/HermesMobile/plugins/email"],
     launchdLabel: "com.hermesmobile.plugin.email",
     manifestPath: "/api/v1/hermes/plugin/manifest",
+    devRuntimeKeywords: ["node", "npm"],
     optionalHttpProbes: [],
   },
   {
@@ -104,7 +110,21 @@ const PLUGINS = [
     macSourcePaths: ["/Users/hermes-host/HermesMobile/plugins/healthy"],
     launchdLabel: "com.hermesmobile.plugin.health",
     manifestPath: "/api/v1/hermes/plugin/manifest",
+    devRuntimeKeywords: ["node", "npm"],
     optionalHttpProbes: [],
+  },
+  {
+    id: "codex-mobile",
+    title: "Codex Mobile Web",
+    dirName: "codex-mobile-web",
+    port: 8787,
+    macSourcePaths: ["/Users/hermes-host/HermesMobile/plugins/codex-mobile-web"],
+    launchdLabel: "com.hermesmobile.plugin.codex-mobile",
+    manifestPath: "/api/v1/hermes/plugin/manifest",
+    devRuntimeKeywords: ["node", "npm", "codex"],
+    optionalHttpProbes: [
+      { name: "public_config", path: "/api/public-config", requireText: ["Codex Mobile Web", "codex-mobile-shell"] },
+    ],
   },
 ];
 
@@ -160,7 +180,7 @@ function printHelp() {
     "  --repo-root <dir>      Home AI repository root.",
     "  --probe-mac            Run read-only Mac source/launchd/HTTP probes through SSH.",
     "  --require-mac-ok       Fail when a read-only Mac probe fails.",
-    "  --ssh-alias <alias>    SSH alias for Mac production. Default: homeai-mac.",
+    "  --ssh-alias <alias>    SSH alias for Mac production, or `local` for same-host probes. Default: homeai-mac.",
     "  --json                 Print bounded JSON.",
   ].join("\n"));
 }
@@ -196,6 +216,13 @@ function forbiddenSecretMatches(text) {
 function pointerFieldValue(text, field) {
   const escapedField = String(field || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const pattern = new RegExp("^\\|\\s*`" + escapedField + "`\\s*\\|\\s*`([^`]+)`\\s*\\|", "m");
+  const match = String(text || "").match(pattern);
+  return match ? match[1].trim() : "";
+}
+
+function pointerFieldText(text, field) {
+  const escapedField = String(field || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp("^\\|\\s*`" + escapedField + "`\\s*\\|\\s*(.*?)\\s*\\|\\s*$", "m");
   const match = String(text || "").match(pattern);
   return match ? match[1].trim() : "";
 }
@@ -265,6 +292,20 @@ function checkPointer(plugin, options) {
   if (!plugin.macSourcePaths.some((sourcePath) => text.includes(sourcePath))) {
     result.issues.push(`mac_source_path_missing:${plugin.macSourcePaths.join("|")}`);
   }
+  const liveDebugField = pointerFieldText(text, "ios_live_debug_available");
+  if (!/(^|`|\s)yes(`|\s|;|$)/i.test(liveDebugField)) {
+    result.issues.push("ios_live_debug_not_available");
+  }
+  const visualHarnessCommand = pointerFieldText(text, "ios_visual_harness_command");
+  if (!/(npm run ios:pwa:visual|scripts\/ios-pwa-visual-harness\.js)/.test(visualHarnessCommand)) {
+    result.issues.push("ios_visual_harness_command_missing");
+  }
+  const runtimePrerequisites = pointerFieldText(text, "dev_runtime_prerequisites").toLowerCase();
+  for (const keyword of plugin.devRuntimeKeywords || []) {
+    if (!runtimePrerequisites.includes(String(keyword).toLowerCase())) {
+      result.issues.push(`dev_runtime_prerequisite_missing:${keyword}`);
+    }
+  }
   for (const match of forbiddenSecretMatches(text)) {
     result.issues.push(`pointer_secret_pattern:${match}`);
   }
@@ -279,6 +320,7 @@ function checkPointer(plugin, options) {
 
 function macDevDirName(plugin) {
   if (plugin.id === "health") return "healthy";
+  if (plugin.id === "codex-mobile") return "codex-mobile-web";
   return plugin.id;
 }
 
@@ -313,8 +355,8 @@ function checkCentralDocs(options, plugins) {
       result.issues.push(`status_missing_plugin:${plugin.id}`);
     }
   }
-  if (!/Codex Mobile Web[\s\S]{0,120}special insertion/.test(statusText)) {
-    result.issues.push("codex_exclusion_missing");
+  if (!/Codex Mobile Web[\s\S]{0,180}Owner-critical special insertion/.test(statusText)) {
+    result.issues.push("codex_special_insertion_missing");
   }
   for (const text of [statusText, platformText, matrixText, indexText]) {
     for (const match of forbiddenSecretMatches(text)) {
@@ -326,14 +368,37 @@ function checkCentralDocs(options, plugins) {
     "plugin-mobile-ui-visual-contract.md",
     "plugin-workspace-platform-contract-check.js",
     "plugin-workspace-platform-contract-check.test.js",
+    "ios-pwa-visual-harness.js",
+    "ios-pwa-visual-harness.test.js",
+    "npm run ios:pwa:visual",
+    "ios_visual_harness_command",
   ]) {
     const joined = `${statusText}\n${platformText}\n${matrixText}\n${indexText}`;
-    if (!joined.includes(required)) result.warnings.push(`checker_doc_reference_missing:${required}`);
+    if (!joined.includes(required)) result.issues.push(`central_doc_reference_missing:${required}`);
   }
   return result;
 }
 
+function isLocalProbeAlias(alias) {
+  return /^(local|localhost|127\.0\.0\.1)$/i.test(String(alias || "").trim());
+}
+
 function sshRun(alias, args, timeoutMs) {
+  if (isLocalProbeAlias(alias)) {
+    const [command, ...commandArgs] = args;
+    const result = spawnSync(command, commandArgs, {
+      encoding: "utf8",
+      timeout: timeoutMs,
+      maxBuffer: 1024 * 1024,
+    });
+    return {
+      status: result.status,
+      ok: result.status === 0,
+      stdout: String(result.stdout || ""),
+      stderr: String(result.stderr || ""),
+      error: result.error ? result.error.message : "",
+    };
+  }
   const result = spawnSync("ssh", [alias, ...args], {
     encoding: "utf8",
     timeout: timeoutMs,
@@ -429,7 +494,7 @@ function buildReport(options) {
     ok: issues.length === 0,
     contractVersion: CONTRACT_VERSION,
     checkedPlugins: plugins.map((plugin) => plugin.id),
-    excludedPlugins: ["codex-mobile"],
+    excludedPlugins: [],
     central,
     plugins: pointerChecks,
     mac,
