@@ -300,6 +300,16 @@ statements. Priority extraction areas:
   retry start scheduling, and rejected-retry failure projection while retaining
   completed output handling, permission marker handling, and Wardrobe completion
   validation.
+- completed 2026-06-08: Gateway run completed-output projection moved into
+  `adapters/gateway-run-completion-service.js`. The event service now delegates
+  completed output extraction, usage metadata backfill, loaded Skill/tool
+  evidence backfill, `run.toolset_escalation_required` projection, permission
+  marker projection, Wardrobe completion gate failure handoff, successful done
+  mutation, artifact registration handoff, terminal delivery, topic compaction,
+  completed broadcast, terminal notification, and queued follow-up scheduling
+  while retaining event routing, response-created aliasing, text delta/output
+  item projection, final-message events, failed/cancelled terminal delegation,
+  and detached-run reconciliation.
 - completed 2026-06-08: Gateway run stream closed-without-terminal recovery
   moved into `adapters/gateway-run-stream-close-recovery-service.js`. The
   stream service now delegates synthetic completion after partial model output,

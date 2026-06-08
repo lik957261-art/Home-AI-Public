@@ -6,14 +6,14 @@ const {
   withActiveRunReplaced,
 } = require("./gateway-run-lifecycle-service");
 const {
+  createGatewayRunCompletionService,
+  extractCompletedOutput,
+} = require("./gateway-run-completion-service");
+const {
   extractOutputItemText,
   loadedSkillFromRunEvent,
-  loadedSkillsForRun,
-  loadedSkillsFromCompletedResponse,
   loadedToolFromRunEvent,
   loadedToolFromOutputItem,
-  loadedToolsForRun,
-  loadedToolsFromCompletedResponse,
   mergeLoadedSkills,
   mergeLoadedTools,
   outputItemCallId,
@@ -27,9 +27,7 @@ const { createGatewayRunToolsetEscalationRetryService } = require("./gateway-run
 const {
   parseToolsetEscalationRequest,
   sanitizeToolsetEscalationVisibleText,
-  toolsetEscalationMessage,
 } = require("./gateway-run-toolset-escalation-service");
-const { validateWardrobeOutfitWorkflowCompletion } = require("./wardrobe-outfit-workflow-gate-service");
 
 function cleanString(value) {
   return String(value || "").trim();
@@ -52,67 +50,6 @@ function defaultAppendBounded(current, delta, maxChars = 12000) {
   if (next.length <= maxChars) return next;
   const side = Math.floor(maxChars * 0.45);
   return `${next.slice(0, side)}\n\n[content truncated live: ${next.length} chars total]\n\n${next.slice(-side)}`;
-}
-
-function extractCompletedOutput(event = {}) {
-  if (event.output) return String(event.output);
-  const response = event.response || {};
-  const chunks = [];
-  for (const item of Array.isArray(response.output) ? response.output : []) {
-    if (item?.type !== "message") continue;
-    for (const part of Array.isArray(item.content) ? item.content : []) {
-      if (part?.type === "output_text" && part.text) chunks.push(String(part.text));
-    }
-  }
-  return chunks.join("\n\n").trim();
-}
-
-function usageWithRunMetadata(usage, event = {}, message = {}) {
-  const next = Object.assign({}, usage || {});
-  const runOptions = message?.runOptions && typeof message.runOptions === "object" ? message.runOptions : {};
-  const response = event?.response && typeof event.response === "object" ? event.response : {};
-  const model = cleanString(
-    response.model
-    || event.model
-    || runOptions.model
-    || message.model
-    || message.modelName
-    || next.model
-    || next.model_name
-    || next.response_model,
-  );
-  const provider = cleanString(
-    response.provider
-    || event.provider
-    || runOptions.provider
-    || message.modelProvider
-    || message.model_provider
-    || message.provider
-    || next.provider
-    || next.model_provider
-    || next.billing_provider,
-  );
-  const reasoningEffort = cleanString(
-    response.reasoning_effort
-    || response.reasoning?.effort
-    || event.reasoning_effort
-    || runOptions.reasoning_effort
-    || runOptions.reasoningEffort
-    || message.reasoningEffort
-    || message.reasoning_effort
-    || next.reasoning_effort
-    || next.reasoningEffort,
-  );
-  if (model) next.model = model;
-  if (provider) {
-    next.provider = provider;
-    next.model_provider = provider;
-  }
-  if (reasoningEffort) {
-    next.reasoning_effort = reasoningEffort;
-    next.reasoningEffort = reasoningEffort;
-  }
-  return Object.keys(next).length ? next : null;
 }
 
 function findRunTargetInState(state, runId) {
@@ -184,6 +121,7 @@ function createGatewayRunEventService(options = {}) {
     : ((thread, message, status) => options.webPushDeliveryService?.notifyTaskTerminal?.(thread, message, status));
   let streamingSaveTimer = null;
   let streamingSavePending = false;
+  let completionService = null;
   let terminalStateService = null;
   let toolsetEscalationRetryService = null;
 
@@ -300,6 +238,37 @@ function createGatewayRunEventService(options = {}) {
       });
     }
     return toolsetEscalationRetryService;
+  }
+
+  function getCompletionService() {
+    if (!completionService) {
+      completionService = options.completionService || createGatewayRunCompletionService({
+        addThreadEvent,
+        broadcast,
+        clearStreamingSaveTimer,
+        compactFullContent,
+        compactMessage,
+        compactTerminalTopicContext,
+        enqueueExternalDeliveryForTerminalMessage,
+        isOrdinaryToolSchemaElevationRequest,
+        markRunFailed,
+        modelPermissionApprovalRequest,
+        notifyTaskTerminal,
+        nowIso,
+        nowMs,
+        registerArtifactsFromText,
+        removeThreadActiveRun,
+        saveState,
+        scheduleNextQueuedRunForTaskGroup,
+        startEscalatedToolsetRetry: (thread, message, request, previousRunId) => (
+          getToolsetEscalationRetryService().startEscalatedToolsetRetry(thread, message, request, previousRunId)
+        ),
+        stripPermissionApprovalMarkers,
+        supplementGatewayUsage,
+        threadSummary,
+      });
+    }
+    return completionService;
   }
 
   function markResponseCreated(context) {
@@ -441,134 +410,6 @@ function createGatewayRunEventService(options = {}) {
     return { action: "final_message_done" };
   }
 
-  function markRunCompleted(context, event) {
-    const { thread, message, runId, originalRunId, responseRunId, stream } = context;
-    if (["done", "failed", "cancelled"].includes(String(message?.status || ""))) {
-      return { action: "terminal_ignored", status: message.status };
-    }
-    clearStreamingSaveTimer();
-    const output = extractCompletedOutput(event) || String(message.content || "");
-    const toolsetEscalationRequest = parseToolsetEscalationRequest(output, message) || message.pendingToolsetEscalationRequest || null;
-    const approvalRequest = modelPermissionApprovalRequest(output, message);
-    const validApprovalRequest = isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message) ? null : approvalRequest;
-    if (toolsetEscalationRequest) {
-      delete message.pendingToolsetEscalationRequest;
-      message.toolsetEscalationRequired = true;
-      message.toolsetEscalationToolsets = toolsetEscalationRequest.toolsets;
-      message.toolsetEscalationReason = toolsetEscalationRequest.reason;
-      message.toolsetEscalationSource = toolsetEscalationRequest.source;
-      addThreadEvent(thread, {
-        event: "run.toolset_escalation_required",
-        timestamp: nowMs() / 1000,
-        runId: responseRunId || message.runId || runId,
-        tool: "toolset",
-        preview: JSON.stringify({
-          toolsets: toolsetEscalationRequest.toolsets,
-          requested_toolsets: toolsetEscalationRequest.requestedToolsets || toolsetEscalationRequest.toolsets,
-          retryable_toolsets: toolsetEscalationRequest.retryableToolsets || [],
-          blocked_toolsets: toolsetEscalationRequest.blockedToolsets || [],
-          reason: toolsetEscalationRequest.reason,
-        }),
-        error: false,
-      });
-      removeThreadActiveRun(thread, runId, "idle");
-      if (getToolsetEscalationRetryService().startEscalatedToolsetRetry(thread, message, toolsetEscalationRequest, responseRunId || message.runId || runId)) {
-        saveState();
-        broadcast({ type: "run.event", threadId: thread.id, runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
-        return { action: "toolset_escalation_retrying", toolsets: toolsetEscalationRequest.toolsets };
-      }
-    }
-    const visibleOutput = toolsetEscalationRequest
-      ? toolsetEscalationMessage(toolsetEscalationRequest)
-      : (approvalRequest ? stripPermissionApprovalMarkers(output) : output);
-    const completedAt = nowIso();
-    const relatedRunIds = [
-      runId,
-      originalRunId,
-      responseRunId,
-      message.runId,
-      stream?.realRunId,
-    ];
-    const nextLoadedSkills = mergeLoadedSkills(
-      message.loadedSkills,
-      loadedSkillsForRun(thread, relatedRunIds),
-      loadedSkillsFromCompletedResponse(event),
-    );
-    const nextLoadedTools = mergeLoadedTools(
-      message.loadedTools,
-      loadedToolsForRun(thread, relatedRunIds),
-      loadedToolsFromCompletedResponse(event),
-    );
-    const nextUsage = usageWithRunMetadata(
-      supplementGatewayUsage(event.usage || event.response?.usage || null, runId, message),
-      event,
-      message,
-    );
-    const wardrobeCompletionGate = validateWardrobeOutfitWorkflowCompletion({
-      message,
-      output: visibleOutput || output,
-      loadedSkills: nextLoadedSkills,
-      loadedTools: nextLoadedTools,
-    });
-    if (wardrobeCompletionGate.active && !wardrobeCompletionGate.ok) {
-      message.content = "";
-      message.loadedSkills = nextLoadedSkills;
-      message.loadedTools = nextLoadedTools;
-      message.usage = nextUsage;
-      addThreadEvent(thread, {
-        event: "run.wardrobe_outfit_completion_gate_failed",
-        timestamp: nowMs() / 1000,
-        runId: responseRunId || message.runId || runId,
-        tool: "wardrobe_workflow_gate",
-        preview: wardrobeCompletionGate.eventPreview || "",
-        error: true,
-      });
-      const err = new Error(wardrobeCompletionGate.message || "Wardrobe outfit completion gate failed.");
-      err.code = wardrobeCompletionGate.errorCode || "wardrobe_completion_gate_failed";
-      err.details = {
-        reason: wardrobeCompletionGate.reason,
-        missing: wardrobeCompletionGate.missing,
-      };
-      return markRunFailed(thread.id, message.id, responseRunId || message.runId || runId, err);
-    }
-    message.content = compactFullContent(visibleOutput || output);
-    message.status = "done";
-    message.usage = nextUsage;
-    message.loadedSkills = nextLoadedSkills;
-    message.loadedTools = nextLoadedTools;
-    if (validApprovalRequest) {
-      message.elevationRequired = true;
-      message.elevationScope = validApprovalRequest.elevationScope;
-      message.elevationReason = validApprovalRequest.elevationReason;
-      message.elevationSource = validApprovalRequest.elevationSource;
-    } else {
-      message.elevationRequired = false;
-      message.elevationScope = "";
-      message.elevationReason = "";
-      message.elevationSource = "";
-    }
-    if (!toolsetEscalationRequest) {
-      delete message.pendingToolsetEscalationRequest;
-      message.toolsetEscalationRequired = false;
-      message.toolsetEscalationToolsets = [];
-      message.toolsetEscalationReason = "";
-      message.toolsetEscalationSource = "";
-    }
-    if (!message.firstFeedbackAt && (visibleOutput || output)) message.firstFeedbackAt = completedAt;
-    message.completedAt = completedAt;
-    message.updatedAt = completedAt;
-    message.artifacts = registerArtifactsFromText(thread, message, visibleOutput || output);
-    enqueueExternalDeliveryForTerminalMessage(thread, message, "done");
-    removeThreadActiveRun(thread, runId, "idle");
-    thread.updatedAt = completedAt;
-    compactTerminalTopicContext(thread, message, "run-completed");
-    saveState();
-    broadcast({ type: "run.completed", threadId: thread.id, runId, message: compactMessage(message), thread: threadSummary(thread) });
-    notifyTaskTerminal(thread, message, "done");
-    scheduleNextQueuedRunForTaskGroup(thread, message.taskGroupId);
-    return { action: "completed", output: visibleOutput || output };
-  }
-
   function markRunFailed(threadId, messageId, runId, err) {
     return getTerminalStateService().markRunFailed(threadId, messageId, runId, err);
   }
@@ -591,7 +432,7 @@ function createGatewayRunEventService(options = {}) {
 
     addThreadEvent(thread, event);
 
-    if (eventName === "run.completed" || eventName === "response.completed") return markRunCompleted(context, event);
+    if (eventName === "run.completed" || eventName === "response.completed") return getCompletionService().markRunCompleted(context, event);
     if (eventName === "run.failed" || eventName === "response.failed") {
       return markRunFailed(thread.id, message.id, runId, event.error || "run failed");
     }

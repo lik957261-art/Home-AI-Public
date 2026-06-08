@@ -551,11 +551,24 @@ may import deterministic helper functions from
 through dependencies: event append, state save, broadcast, terminal
 notification, clock, scheduler, and `startToolsetEscalationRun`.
 
+`gateway-run-completion-service.js` owns completed-run projection after a
+Gateway `run.completed` or `response.completed` event has already been routed:
+completed output extraction, model/provider/reasoning usage metadata backfill,
+loaded Skill/tool evidence backfill from run events and completed responses,
+toolset-escalation-required event projection before retry, permission approval
+marker projection, Wardrobe outfit completion gate failure handoff, successful
+terminal `done` mutation, artifact registration handoff, terminal delivery,
+topic compaction, completed broadcast, terminal notification, and queued
+follow-up scheduling. It must receive side effects through dependencies and
+must not parse arbitrary Gateway events, read response streams, manage active
+stream aliases, select workers, start original runs, or own deterministic
+toolset marker parsing.
+
 `gateway-run-event-service.js` owns Gateway event parsing and in-run event
 projection: run id resolution, response-created alias handling, text delta and
-output item projection, final-message events, completed output projection,
-permission approval marker handling, Wardrobe completion validation, and
-ordinary event persistence. It must delegate Skill/tool/output-item evidence parsing to
+output item projection, final-message events, and ordinary event persistence.
+It must delegate completed-run projection to `gateway-run-completion-service.js`,
+Skill/tool/output-item evidence parsing to
 `gateway-run-evidence-service.js`, deterministic toolset escalation parsing and
 sanitization to `gateway-run-toolset-escalation-service.js`, toolset escalation
 retry execution to `gateway-run-toolset-escalation-retry-service.js`, and failed/
@@ -848,6 +861,13 @@ Current CI guardrails:
   remain failed/cancelled/detached terminal projection, not event parsing,
   completed output projection, stream handling, remote stop, or worker
   selection;
+- `gateway-run-completion-service.js` must stay at or below 270 lines and
+  remain completed-run projection, output/usage backfill, permission marker
+  projection, toolset-escalation-required retry handoff, Wardrobe completion
+  gate failure handoff, artifact registration handoff, terminal delivery,
+  completed broadcast, and queued follow-up scheduling, not arbitrary Gateway
+  event parsing, stream handling, active-stream alias management, worker
+  selection, or original run start orchestration;
 - `gateway-run-evidence-service.js` must stay at or below 310 lines and remain
   Skill/tool/output-item evidence parsing and bounded preview construction, not
   event broadcasting, terminal mutation, state persistence, queue scheduling, or
@@ -863,11 +883,11 @@ Current CI guardrails:
   scheduling, and rejected-retry failure projection, not marker parsing,
   original selector decisions, run completion, Wardrobe validation, or stream
   lifecycle;
-- `gateway-run-event-service.js` must stay at or below 640 lines and remain
-  event parsing/projection, completed output handling, permission marker
-  handling, and Wardrobe completion validation while delegating Skill/tool
-  evidence parsing, deterministic toolset escalation helper logic, toolset
-  retry execution, and failed/cancelled/detached terminal projection;
+- `gateway-run-event-service.js` must stay at or below 480 lines and remain
+  event parsing/projection plus in-run text/output-item events while delegating
+  completed-run projection, Skill/tool evidence parsing, deterministic toolset
+  escalation helper logic, toolset retry execution, and failed/cancelled/
+  detached terminal projection;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 125 lines
   and remain a runtime Gateway facade over provider lifecycle, run concurrency,
   and Gateway runtime composition singleton ownership delegates;
