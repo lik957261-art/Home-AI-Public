@@ -332,6 +332,14 @@ statements. Priority extraction areas:
   text delta projection, completed-run delegation, output-event delegation,
   response-created alias delegation, failed/cancelled terminal delegation, and
   detached-run reconciliation.
+- completed 2026-06-08: Gateway run text-delta projection moved into
+  `adapters/gateway-run-delta-event-service.js`. The event service now
+  delegates bounded delta append, first-feedback/update timestamp mutation,
+  streaming save scheduling, visible delta broadcast, and partial toolset
+  escalation marker sanitization while retaining event routing, ordinary event
+  persistence, completed-run delegation, output-event delegation,
+  response-created alias delegation, failed/cancelled terminal delegation, and
+  detached-run reconciliation.
 - completed 2026-06-08: Gateway run stream closed-without-terminal recovery
   moved into `adapters/gateway-run-stream-close-recovery-service.js`. The
   stream service now delegates synthetic completion after partial model output,

@@ -564,6 +564,14 @@ must not parse arbitrary Gateway events, read response streams, manage active
 stream aliases, select workers, start original runs, or own deterministic
 toolset marker parsing.
 
+`gateway-run-delta-event-service.js` owns in-run text-delta projection:
+bounded delta append, first-feedback and updated timestamps, message/thread
+mutation, streaming state-save scheduling, visible delta broadcast, and
+model-first toolset escalation marker sanitization for partial deltas. It must
+not parse arbitrary Gateway events, manage active-stream aliases, append thread
+run events, mutate terminal state, schedule queued runs, select workers, or own
+completed-run projection.
+
 `gateway-run-response-created-service.js` owns response-created alias
 projection: mapping the public run id to the real response id, updating the
 active-stream alias map, preserving the first original run id, replacing the
@@ -588,17 +596,18 @@ when the deferred save fails. It must not mutate threads/messages, parse
 Gateway events, broadcast, compact topics, schedule queued runs, or own
 terminal state.
 
-`gateway-run-event-service.js` owns Gateway event parsing and in-run event
-projection: run id resolution, text delta projection, and ordinary event
-persistence.
+`gateway-run-event-service.js` owns Gateway event parsing and ordinary in-run
+event persistence: run id resolution, event-name routing, target lookup, and
+ordinary non-terminal event append/broadcast.
 It must delegate completed-run projection to `gateway-run-completion-service.js`,
+text-delta projection to `gateway-run-delta-event-service.js`,
 response-created alias projection to
 `gateway-run-response-created-service.js`,
 output-item/final-message projection to
 `gateway-run-output-event-service.js`,
 streaming state-save lifecycle to `gateway-run-streaming-save-service.js`,
-Skill/tool evidence parsing through the output/completion projection services,
-deterministic toolset escalation parsing and sanitization to
+Skill/tool evidence parsing and toolset marker parsing/sanitization through the
+delta/output/completion projection services that call
 `gateway-run-toolset-escalation-service.js`, toolset escalation retry execution
 to `gateway-run-toolset-escalation-retry-service.js`, and failed/cancelled
 terminal state plus detached active-run reconciliation to
@@ -897,6 +906,10 @@ Current CI guardrails:
   completed broadcast, and queued follow-up scheduling, not arbitrary Gateway
   event parsing, stream handling, active-stream alias management, worker
   selection, or original run start orchestration;
+- `gateway-run-delta-event-service.js` must stay at or below 85 lines and
+  remain text-delta projection only, not arbitrary event parsing,
+  active-stream alias management, run-event append, terminal state, queue
+  scheduling, worker selection, or completed-run projection;
 - `gateway-run-output-event-service.js` must stay at or below 160 lines and
   remain output-item/final-message projection only, not arbitrary event parsing,
   active-stream alias management, terminal mutation, queue scheduling, worker
@@ -924,12 +937,13 @@ Current CI guardrails:
   scheduling, and rejected-retry failure projection, not marker parsing,
   original selector decisions, run completion, Wardrobe validation, or stream
   lifecycle;
-- `gateway-run-event-service.js` must stay at or below 380 lines and remain
-  event parsing/projection plus in-run text delta events while delegating
-  completed-run projection, response-created alias projection,
-  output-item/final-message projection, streaming state-save lifecycle,
-  Skill/tool evidence parsing, deterministic toolset escalation helper logic,
-  toolset retry execution, and failed/cancelled/detached terminal projection;
+- `gateway-run-event-service.js` must stay at or below 360 lines and remain
+  event parsing/projection plus ordinary event persistence while delegating
+  completed-run projection, text-delta projection, response-created alias
+  projection, output-item/final-message projection, streaming state-save
+  lifecycle, Skill/tool evidence parsing, deterministic toolset escalation
+  helper logic, toolset retry execution, and failed/cancelled/detached terminal
+  projection;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 125 lines
   and remain a runtime Gateway facade over provider lifecycle, run concurrency,
   and Gateway runtime composition singleton ownership delegates;

@@ -9,15 +9,12 @@ const {
   createGatewayRunCompletionService,
   extractCompletedOutput,
 } = require("./gateway-run-completion-service");
+const { createGatewayRunDeltaEventService } = require("./gateway-run-delta-event-service");
 const { createGatewayRunOutputEventService } = require("./gateway-run-output-event-service");
 const { createGatewayRunTerminalStateService } = require("./gateway-run-terminal-state-service");
 const { createGatewayRunResponseCreatedService } = require("./gateway-run-response-created-service");
 const { createGatewayRunStreamingSaveService } = require("./gateway-run-streaming-save-service");
 const { createGatewayRunToolsetEscalationRetryService } = require("./gateway-run-toolset-escalation-retry-service");
-const {
-  parseToolsetEscalationRequest,
-  sanitizeToolsetEscalationVisibleText,
-} = require("./gateway-run-toolset-escalation-service");
 
 function cleanString(value) {
   return String(value || "").trim();
@@ -107,6 +104,7 @@ function createGatewayRunEventService(options = {}) {
     ? options.notifyTaskTerminal
     : ((thread, message, status) => options.webPushDeliveryService?.notifyTaskTerminal?.(thread, message, status));
   let completionService = null;
+  let deltaEventService = null;
   let outputEventService = null;
   let responseCreatedService = null;
   let streamingStateSaveService = null;
@@ -234,6 +232,21 @@ function createGatewayRunEventService(options = {}) {
     return completionService;
   }
 
+  function getDeltaEventService() {
+    if (!deltaEventService) {
+      deltaEventService = options.deltaEventService || createGatewayRunDeltaEventService({
+        appendBounded,
+        broadcast,
+        broadcastMessageUpdated,
+        maxMessageChars,
+        nowIso,
+        scheduleStreamingStateSave: () => getStreamingStateSaveService().scheduleStreamingStateSave(),
+        threadSummary,
+      });
+    }
+    return deltaEventService;
+  }
+
   function getResponseCreatedService() {
     if (!responseCreatedService) {
       responseCreatedService = options.responseCreatedService || createGatewayRunResponseCreatedService({
@@ -276,44 +289,6 @@ function createGatewayRunEventService(options = {}) {
     return streamingStateSaveService;
   }
 
-  function applyDelta(context, event) {
-    const { thread, message } = context;
-    const delta = String(event.delta || event.text || "");
-    if (!delta) return { action: "empty_delta" };
-    const feedbackAt = nowIso();
-    const previousContent = String(message.content || "");
-    const combinedContent = appendBounded(previousContent, delta, maxMessageChars);
-    const sanitized = sanitizeToolsetEscalationVisibleText(combinedContent);
-    if (sanitized.found) {
-      const pendingRequest = parseToolsetEscalationRequest(combinedContent, message);
-      if (pendingRequest) message.pendingToolsetEscalationRequest = pendingRequest;
-      message.content = sanitized.text;
-    } else {
-      message.content = combinedContent;
-    }
-    if (!message.firstFeedbackAt) message.firstFeedbackAt = feedbackAt;
-    message.updatedAt = feedbackAt;
-    thread.updatedAt = feedbackAt;
-    getStreamingStateSaveService().scheduleStreamingStateSave();
-    const visibleDelta = sanitized.found && message.content.startsWith(previousContent)
-      ? message.content.slice(previousContent.length)
-      : delta;
-    if (sanitized.found && !visibleDelta) {
-      broadcastMessageUpdated(thread, message);
-      return { action: "delta_suppressed_toolset_escalation" };
-    }
-    broadcast({
-      type: "message.delta",
-      threadId: thread.id,
-      messageId: message.id,
-      delta: visibleDelta,
-      firstFeedbackAt: message.firstFeedbackAt,
-      updatedAt: message.updatedAt,
-      thread: threadSummary(thread),
-    });
-    return { action: sanitized.found ? "delta_sanitized_toolset_escalation" : "delta", delta: visibleDelta };
-  }
-
   function markRunFailed(threadId, messageId, runId, err) {
     return getTerminalStateService().markRunFailed(threadId, messageId, runId, err);
   }
@@ -328,7 +303,9 @@ function createGatewayRunEventService(options = {}) {
     if (!thread || !message) return { action: "missing_target", eventName, runId };
 
     if (eventName === "response.created") return getResponseCreatedService().markResponseCreated(context);
-    if (eventName === "message.delta" || eventName === "response.output_text.delta") return applyDelta(context, event);
+    if (eventName === "message.delta" || eventName === "response.output_text.delta") {
+      return getDeltaEventService().applyDelta(context, event);
+    }
     if (eventName === "response.output_item.added" || eventName === "response.output_item.done") {
       return getOutputEventService().recordOutputItemEvent(context, event);
     }
