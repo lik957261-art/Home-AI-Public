@@ -162,8 +162,14 @@ service root.
   repair, manifest metadata repair, Gateway profile/start-script materializing,
   and cold LaunchDaemon loading. The listener injects it only when
   `HERMES_MOBILE_WORKSPACE_SYSTEM_EXECUTOR_ENABLED=1` or
-  `HERMES_WEB_WORKSPACE_SYSTEM_EXECUTOR_ENABLED=1` is set. Without a configured
-  `workspaceSystemProvisioningExecutor`, apply returns
+  `HERMES_WEB_WORKSPACE_SYSTEM_EXECUTOR_ENABLED=1` is set. Because the Mac
+  production listener runs as `hermes-host`, production privileged execution
+  should use `scripts/workspace-system-provisioning-helper.js` as a root
+  LaunchDaemon and set
+  `HERMES_MOBILE_WORKSPACE_SYSTEM_HELPER_SOCKET=/Users/hermes-host/HermesMobile/data/run/workspace-system-provisioning-helper.sock`
+  in the listener environment. The helper socket client is
+  `adapters/workspace-system-provisioning-helper-client-service.js`. Without a
+  configured `workspaceSystemProvisioningExecutor`, apply returns
   `system_provisioning_executor_unavailable` before side effects. See
   `docs/IMPLEMENTATION_NOTES/workspace-onboarding.md`.
 - Mac profile/Skill/Memory/MCP audit:

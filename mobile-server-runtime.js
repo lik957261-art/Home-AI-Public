@@ -88,7 +88,7 @@ const { createSkillDetailProvider } = require("./adapters/skill-detail-provider"
 const { buildRequestContext } = require("./adapters/request-context-provider");
 const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindings-provider");
 const { createWorkspaceDisplayPathService } = require("./adapters/workspace-display-path-service");
-const { createWorkspaceSystemProvisioningExecutorService } = require("./adapters/workspace-system-provisioning-executor-service"); const { createTodoProvider } = require("./adapters/todo-provider");
+const { createWorkspaceSystemProvisioningExecutorService } = require("./adapters/workspace-system-provisioning-executor-service"); const { createWorkspaceSystemProvisioningHelperClientService } = require("./adapters/workspace-system-provisioning-helper-client-service"); const { createTodoProvider } = require("./adapters/todo-provider");
 const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
 const { createWeixinRuntimeCompositionService } = require("./adapters/weixin-runtime-composition-service");
 const { createWebPushDeliveryService } = require("./adapters/web-push-delivery-service"); const { createActionInboxService } = require("./adapters/action-inbox-service");
@@ -1298,7 +1298,7 @@ const { eventStreamApiRoutes, mobileApiDispatcher, services: mobileApiServices =
   threadMessagesPage, threadSummary, todoAssigneeLabel, todoErrorResponse, todoProvider,
   uniqueChildPath, unlink: (value) => fs.unlinkSync(value), upsertLocalWorkspace, useKanbanTodoBackend, verifyDirectTodoCreateResult,
   webPushDeliveryService, weixinForwardTargetsForWorkspace, weixinIngressProvider, workspacePrincipal, workspaceUploadDirectoryForRequest,
-  workspaceSystemProvisioningExecutor: runtimeEnv.WORKSPACE_SYSTEM_PROVISIONING_EXECUTOR_ENABLED ? createWorkspaceSystemProvisioningExecutorService({ enabled: true, env: process.env, fs, liveRoot: path.basename(DATA_DIR) === "data" ? path.dirname(DATA_DIR) : DATA_DIR, path }) : null,
+  workspaceSystemProvisioningExecutor: runtimeEnv.WORKSPACE_SYSTEM_PROVISIONING_EXECUTOR_ENABLED ? (runtimeEnv.WORKSPACE_SYSTEM_PROVISIONING_HELPER_SOCKET ? createWorkspaceSystemProvisioningHelperClientService({ socketPath: runtimeEnv.WORKSPACE_SYSTEM_PROVISIONING_HELPER_SOCKET, http }) : createWorkspaceSystemProvisioningExecutorService({ enabled: true, env: process.env, fs, liveRoot: path.basename(DATA_DIR) === "data" ? path.dirname(DATA_DIR) : DATA_DIR, path })) : null,
   repoRoot: TOOL_ROOT, writeFile: (filePath, buffer, options = {}) => fs.writeFileSync(filePath, buffer, { flag: options.flag || "w" }),
   writeKanbanCardListCache,
 });

@@ -1081,6 +1081,8 @@ steps. The service must reuse `upsertLocalWorkspace`,
 `hermesPluginService.grantWorkspace` instead of duplicating those contracts.
 Focused checks include `node tests\workspace-onboarding-service.test.js`,
 `node tests\workspace-system-provisioning-executor-service.test.js`,
+`node tests\workspace-system-provisioning-helper-client-service.test.js`,
+`node tests\workspace-system-provisioning-helper-script.test.js`,
 `node tests\workspace-onboarding-api-routes.test.js`,
 `node tests\mobile-api-dispatcher.test.js`,
 `node tests\api-route-inventory.test.js`, and

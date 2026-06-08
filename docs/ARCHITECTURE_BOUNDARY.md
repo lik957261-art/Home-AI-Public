@@ -779,6 +779,14 @@ It must not expose a generic shell/sudo endpoint or return raw keys, OAuth
 tokens, cookies, plugin access keys, profile config bodies, prompts, or full
 logs.
 
+`workspace-system-provisioning-helper-client-service.js` is only the
+listener-side local Unix socket client for that boundary. The root helper script
+`scripts/workspace-system-provisioning-helper.js` may run as a macOS
+LaunchDaemon and delegate to the same restricted executor, but it must expose
+only `/health` and `/run-step` over the local socket and must not add any
+browser-facing route, remote network listener, arbitrary shell command, or raw
+sudo bridge.
+
 `mobile-runtime-kanban-facade-service.js` is only a runtime wiring facade for
 Kanban public projections, case-topic wiring, plan-card creation, assessment
 workflow construction, shared-card access checks, and Kanban cache/maintenance

@@ -81,6 +81,17 @@ function testWorkspaceSystemExecutorFlag() {
     toolRoot: process.cwd(),
   });
   assert.equal(enabled.WORKSPACE_SYSTEM_PROVISIONING_EXECUTOR_ENABLED, true);
+
+  const helper = createMobileRuntimeEnvironment({
+    env: {
+      HERMES_WEB_DATA_DIR: "C:\\tmp\\hermes-data",
+      HERMES_MOBILE_WORKSPACE_SYSTEM_EXECUTOR_ENABLED: "1",
+      HERMES_MOBILE_WORKSPACE_SYSTEM_HELPER_SOCKET: "/tmp/homeai-helper.sock",
+    },
+    toolRoot: process.cwd(),
+  });
+  assert.equal(helper.WORKSPACE_SYSTEM_PROVISIONING_EXECUTOR_ENABLED, true);
+  assert.equal(helper.WORKSPACE_SYSTEM_PROVISIONING_HELPER_SOCKET, "/tmp/homeai-helper.sock");
 }
 
 testAutomationBackendDefaults();

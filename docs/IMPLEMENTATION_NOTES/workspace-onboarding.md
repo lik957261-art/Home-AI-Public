@@ -41,6 +41,11 @@ surface.
   owns the restricted macOS system action surface for workspace OS users,
   private roots, ACL repair, Gateway profile materialization, LaunchDaemon
   plist/start-script generation, manifest metadata repair, and focused smokes.
+- `adapters/workspace-system-provisioning-helper-client-service.js`
+  is the listener-side Unix socket client for the root helper.
+- `scripts/workspace-system-provisioning-helper.js`
+  runs as the root-owned local helper and delegates only to the restricted
+  executor surface.
 
 The service deliberately reuses existing components instead of duplicating
 their business rules:
@@ -101,8 +106,14 @@ The implementation has an injection point named
 `workspaceSystemProvisioningExecutor`. `mobile-server-runtime.js` injects the
 restricted macOS executor only when
 `HERMES_MOBILE_WORKSPACE_SYSTEM_EXECUTOR_ENABLED=1` or
-`HERMES_WEB_WORKSPACE_SYSTEM_EXECUTOR_ENABLED=1` is set. When no executor is
-configured, `/api/workspace-onboarding/apply` returns:
+`HERMES_WEB_WORKSPACE_SYSTEM_EXECUTOR_ENABLED=1` is set. On Mac production,
+the listener normally runs as `hermes-host`, so privileged execution must go
+through the root-owned Unix socket helper by setting
+`HERMES_MOBILE_WORKSPACE_SYSTEM_HELPER_SOCKET` or
+`HERMES_WEB_WORKSPACE_SYSTEM_HELPER_SOCKET`. The helper socket is a local
+process boundary, not a generic sudo or shell surface.
+
+When no executor is configured, `/api/workspace-onboarding/apply` returns:
 
 - `status=blocked`;
 - `error=system_provisioning_executor_unavailable`;
@@ -125,6 +136,18 @@ OAuth tokens, cookie stores, or unbounded logs to the model or browser. It
 validates workspace ids, `hm-*` users, Gateway profile names, launchd labels,
 and Mac absolute paths before performing any action. External commands are
 invoked with fixed command paths and argument arrays.
+
+The root helper must run from the production app tree and listen on a local
+Unix socket such as:
+
+```text
+/Users/hermes-host/HermesMobile/data/run/workspace-system-provisioning-helper.sock
+```
+
+The helper owns the socket directory permissions and chowns the socket to the
+listener user. The listener calls it through
+`workspace-system-provisioning-helper-client-service.js`. The listener must not
+be granted broad passwordless sudo just to make onboarding work.
 
 `ensure_launchd_services` repairs each target worker's Mac manifest metadata:
 
@@ -162,8 +185,9 @@ workflow must prove:
 ## Follow-Up Work To Deployment
 
 1. Commit and push the executor implementation and docs.
-2. Deploy to Mac production and enable
-   `HERMES_MOBILE_WORKSPACE_SYSTEM_EXECUTOR_ENABLED=1` in the listener
+2. Deploy to Mac production, install/start the root helper LaunchDaemon, and
+   enable `HERMES_MOBILE_WORKSPACE_SYSTEM_EXECUTOR_ENABLED=1` plus
+   `HERMES_MOBILE_WORKSPACE_SYSTEM_HELPER_SOCKET=<socket>` in the listener
    LaunchDaemon only after the updated app and tests are present.
 3. Run a production dry-run smoke that calls `/api/workspace-onboarding/plan`
    for a disposable workspace id.

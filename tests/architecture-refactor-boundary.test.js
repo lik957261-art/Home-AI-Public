@@ -230,6 +230,7 @@ const workspaceDisplayPathService = require("../adapters/workspace-display-path-
 const workspaceOnboardingService = require("../adapters/workspace-onboarding-service");
 const workspacePublicProjectionService = require("../adapters/workspace-public-projection-service");
 const workspaceSystemProvisioningExecutorService = require("../adapters/workspace-system-provisioning-executor-service");
+const workspaceSystemProvisioningHelperClientService = require("../adapters/workspace-system-provisioning-helper-client-service");
 const sqliteStore = require("../adapters/mobile-sqlite-store");
 const accessKeyApiRoutes = require("../server-routes/access-key-api-routes");
 const automationApiRoutes = require("../server-routes/automation-api-routes");
@@ -596,6 +597,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof workspaceOnboardingService.createWorkspaceOnboardingService, "function");
   assert.equal(typeof workspacePublicProjectionService.createWorkspacePublicProjectionService, "function");
   assert.equal(typeof workspaceSystemProvisioningExecutorService.createWorkspaceSystemProvisioningExecutorService, "function");
+  assert.equal(typeof workspaceSystemProvisioningHelperClientService.createWorkspaceSystemProvisioningHelperClientService, "function");
   assert.equal(sqliteStore.CURRENT_SCHEMA_VERSION >= 2, true);
   assert.equal(typeof publicApiRoutes.createPublicApiRoutes, "function");
   assert.equal(typeof systemApiRoutes.createSystemApiRoutes, "function");
