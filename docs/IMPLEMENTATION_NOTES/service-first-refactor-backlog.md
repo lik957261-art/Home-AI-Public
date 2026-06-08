@@ -317,6 +317,14 @@ statements. Priority extraction areas:
   updated-message broadcast while retaining event routing, text delta/output
   item projection, final-message events, completed-run delegation,
   failed/cancelled terminal delegation, and detached-run reconciliation.
+- completed 2026-06-08: Gateway run output item and final-message projection
+  moved into `adapters/gateway-run-output-event-service.js`. The event service
+  now delegates message output text updates, output item run events, loaded
+  Skill/tool evidence updates for output items, `function_call_output` readable
+  summaries, `run.final_message_started`, and `run.final_message_done` while
+  retaining event routing, text delta projection, completed-run delegation,
+  response-created alias delegation, failed/cancelled terminal delegation, and
+  detached-run reconciliation.
 - completed 2026-06-08: Gateway run stream closed-without-terminal recovery
   moved into `adapters/gateway-run-stream-close-recovery-service.js`. The
   stream service now delegates synthetic completion after partial model output,

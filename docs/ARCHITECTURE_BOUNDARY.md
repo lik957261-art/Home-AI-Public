@@ -572,17 +572,28 @@ message. It must not parse arbitrary Gateway events, mutate terminal state,
 append thread events, process output text, select workers, or schedule queued
 runs.
 
+`gateway-run-output-event-service.js` owns in-run output event projection:
+message output text updates, output item run events, loaded Skill/tool evidence
+updates for output items, `function_call_output` readable summaries,
+`run.final_message_started`, and `run.final_message_done`. It must keep raw
+tool arguments, raw tool output, and final response text out of event previews.
+It must not parse arbitrary Gateway events, manage active-stream aliases, mutate
+terminal state, schedule queued runs, select workers, or own completed-run
+projection.
+
 `gateway-run-event-service.js` owns Gateway event parsing and in-run event
-projection: run id resolution, text delta and output item projection,
-final-message events, and ordinary event persistence.
+projection: run id resolution, text delta projection, and ordinary event
+persistence.
 It must delegate completed-run projection to `gateway-run-completion-service.js`,
 response-created alias projection to
 `gateway-run-response-created-service.js`,
-Skill/tool/output-item evidence parsing to
-`gateway-run-evidence-service.js`, deterministic toolset escalation parsing and
-sanitization to `gateway-run-toolset-escalation-service.js`, toolset escalation
-retry execution to `gateway-run-toolset-escalation-retry-service.js`, and failed/
-cancelled terminal state plus detached active-run reconciliation to
+output-item/final-message projection to
+`gateway-run-output-event-service.js`,
+Skill/tool evidence parsing through the output/completion projection services,
+deterministic toolset escalation parsing and sanitization to
+`gateway-run-toolset-escalation-service.js`, toolset escalation retry execution
+to `gateway-run-toolset-escalation-retry-service.js`, and failed/cancelled
+terminal state plus detached active-run reconciliation to
 `gateway-run-terminal-state-service.js`.
 
 `app-route-url-service.js` owns app-shell query URL serialization for Push,
@@ -878,6 +889,10 @@ Current CI guardrails:
   completed broadcast, and queued follow-up scheduling, not arbitrary Gateway
   event parsing, stream handling, active-stream alias management, worker
   selection, or original run start orchestration;
+- `gateway-run-output-event-service.js` must stay at or below 160 lines and
+  remain output-item/final-message projection only, not arbitrary event parsing,
+  active-stream alias management, terminal mutation, queue scheduling, worker
+  selection, or completed-run projection;
 - `gateway-run-response-created-service.js` must stay at or below 45 lines and
   remain response-created run-id alias projection only, not arbitrary event
   parsing, output projection, terminal mutation, queue scheduling, or worker
@@ -897,11 +912,12 @@ Current CI guardrails:
   scheduling, and rejected-retry failure projection, not marker parsing,
   original selector decisions, run completion, Wardrobe validation, or stream
   lifecycle;
-- `gateway-run-event-service.js` must stay at or below 470 lines and remain
-  event parsing/projection plus in-run text/output-item events while delegating
-  completed-run projection, response-created alias projection, Skill/tool
-  evidence parsing, deterministic toolset escalation helper logic, toolset
-  retry execution, and failed/cancelled/detached terminal projection;
+- `gateway-run-event-service.js` must stay at or below 400 lines and remain
+  event parsing/projection plus in-run text delta events while delegating
+  completed-run projection, response-created alias projection,
+  output-item/final-message projection, Skill/tool evidence parsing,
+  deterministic toolset escalation helper logic, toolset retry execution, and
+  failed/cancelled/detached terminal projection;
 - `mobile-runtime-gateway-facade-service.js` must stay at or below 125 lines
   and remain a runtime Gateway facade over provider lifecycle, run concurrency,
   and Gateway runtime composition singleton ownership delegates;

@@ -9,19 +9,7 @@ const {
   createGatewayRunCompletionService,
   extractCompletedOutput,
 } = require("./gateway-run-completion-service");
-const {
-  extractOutputItemText,
-  loadedSkillFromRunEvent,
-  loadedToolFromRunEvent,
-  loadedToolFromOutputItem,
-  mergeLoadedSkills,
-  mergeLoadedTools,
-  outputItemCallId,
-  outputItemFunctionName,
-  outputItemPreview,
-  outputItemToolName,
-  runToolNameForCallId,
-} = require("./gateway-run-evidence-service");
+const { createGatewayRunOutputEventService } = require("./gateway-run-output-event-service");
 const { createGatewayRunTerminalStateService } = require("./gateway-run-terminal-state-service");
 const { createGatewayRunResponseCreatedService } = require("./gateway-run-response-created-service");
 const { createGatewayRunToolsetEscalationRetryService } = require("./gateway-run-toolset-escalation-retry-service");
@@ -123,6 +111,7 @@ function createGatewayRunEventService(options = {}) {
   let streamingSaveTimer = null;
   let streamingSavePending = false;
   let completionService = null;
+  let outputEventService = null;
   let responseCreatedService = null;
   let terminalStateService = null;
   let toolsetEscalationRetryService = null;
@@ -285,6 +274,23 @@ function createGatewayRunEventService(options = {}) {
     return responseCreatedService;
   }
 
+  function getOutputEventService() {
+    if (!outputEventService) {
+      outputEventService = options.outputEventService || createGatewayRunOutputEventService({
+        addThreadEvent,
+        broadcast,
+        broadcastMessageUpdated,
+        compactFullContent,
+        nowIso,
+        nowMs,
+        saveState,
+        scheduleStreamingStateSave,
+        threadSummary,
+      });
+    }
+    return outputEventService;
+  }
+
   function applyDelta(context, event) {
     const { thread, message } = context;
     const delta = String(event.delta || event.text || "");
@@ -323,89 +329,6 @@ function createGatewayRunEventService(options = {}) {
     return { action: sanitized.found ? "delta_sanitized_toolset_escalation" : "delta", delta: visibleDelta };
   }
 
-  function applyMessageOutputText(context, text, source = "message_output") {
-    const { thread, message } = context;
-    const value = String(text || "");
-    if (!value) return { action: `empty_${source}` };
-    const feedbackAt = nowIso();
-    const sanitized = sanitizeToolsetEscalationVisibleText(value);
-    if (sanitized.found) {
-      const pendingRequest = parseToolsetEscalationRequest(value, message);
-      if (pendingRequest) message.pendingToolsetEscalationRequest = pendingRequest;
-      message.content = compactFullContent(sanitized.text);
-    } else {
-      message.content = compactFullContent(value);
-    }
-    if (!message.firstFeedbackAt) message.firstFeedbackAt = feedbackAt;
-    message.updatedAt = feedbackAt;
-    thread.updatedAt = feedbackAt;
-    scheduleStreamingStateSave();
-    broadcastMessageUpdated(thread, message);
-    return { action: sanitized.found ? `${source}_sanitized_toolset_escalation` : source };
-  }
-
-  function recordOutputItemEvent(context, event) {
-    const { thread, runId, eventName, message, responseRunId, stream } = context;
-    const eventRunId = cleanString(message?.runId || responseRunId || stream?.realRunId || runId);
-    const item = event.item || event.output_item || event.outputItem || {};
-    const tool = outputItemToolName(item);
-    let preview = outputItemPreview(item);
-    if (cleanString(tool).toLowerCase() === "function_call_output") {
-      const callId = outputItemCallId(item);
-      const name = outputItemFunctionName(item)
-        || runToolNameForCallId(thread, eventRunId, callId)
-        || runToolNameForCallId(thread, runId, callId);
-      preview = (name || callId) ? JSON.stringify({ name, callId }) : "";
-    }
-    addThreadEvent(thread, {
-      event: eventName,
-      timestamp: nowMs() / 1000,
-      runId: eventRunId || runId,
-      tool,
-      preview,
-      error: false,
-    });
-    const loadedSkill = loadedSkillFromRunEvent({ tool, preview });
-    if (loadedSkill) message.loadedSkills = mergeLoadedSkills(message.loadedSkills, loadedSkill);
-    const loadedTool = loadedToolFromRunEvent({ tool, preview }) || loadedToolFromOutputItem(item);
-    if (loadedTool) message.loadedTools = mergeLoadedTools(message.loadedTools, loadedTool);
-    const outputText = extractOutputItemText(item);
-    if (outputText) applyMessageOutputText(context, outputText, "output_item_text");
-    saveState();
-    broadcast({ type: "run.event", threadId: thread.id, runId: eventRunId || runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
-    if (eventName === "response.output_item.added" && cleanString(tool).toLowerCase() === "message") {
-      addThreadEvent(thread, {
-        event: "run.final_message_started",
-        timestamp: nowMs() / 1000,
-        runId: eventRunId || runId,
-        tool: "message",
-        preview: "",
-        error: false,
-      });
-      saveState();
-      broadcast({ type: "run.event", threadId: thread.id, runId: eventRunId || runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
-    }
-    return { action: "output_item" };
-  }
-
-  function recordFinalMessageDoneEvent(context, event = {}) {
-    const { thread, runId, message, responseRunId, stream } = context;
-    const eventRunId = cleanString(message?.runId || responseRunId || stream?.realRunId || runId);
-    const finalText = String(event.text || "");
-    if (finalText) applyMessageOutputText(context, finalText, "output_text_done");
-    addThreadEvent(thread, {
-      event: "run.final_message_done",
-      timestamp: nowMs() / 1000,
-      runId: eventRunId || runId,
-      tool: "message",
-      preview: "",
-      error: false,
-    });
-    saveState();
-    broadcast({ type: "run.event", threadId: thread.id, runId: eventRunId || runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
-    return { action: "final_message_done" };
-  }
-
   function markRunFailed(threadId, messageId, runId, err) {
     return getTerminalStateService().markRunFailed(threadId, messageId, runId, err);
   }
@@ -422,9 +345,9 @@ function createGatewayRunEventService(options = {}) {
     if (eventName === "response.created") return getResponseCreatedService().markResponseCreated(context);
     if (eventName === "message.delta" || eventName === "response.output_text.delta") return applyDelta(context, event);
     if (eventName === "response.output_item.added" || eventName === "response.output_item.done") {
-      return recordOutputItemEvent(context, event);
+      return getOutputEventService().recordOutputItemEvent(context, event);
     }
-    if (eventName === "response.output_text.done") return recordFinalMessageDoneEvent(context, event);
+    if (eventName === "response.output_text.done") return getOutputEventService().recordFinalMessageDoneEvent(context, event);
 
     addThreadEvent(thread, event);
 
