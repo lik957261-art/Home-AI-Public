@@ -15,8 +15,15 @@ function makeResponse() {
       this.statusCode = status;
       this.headers = Object.assign({}, headers);
     },
+    write(chunk = "") {
+      this.body += Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk);
+    },
     end(body = "") {
-      this.body = body;
+      if (Buffer.isBuffer(body)) {
+        this.body = body;
+        return;
+      }
+      if (body) this.write(body);
     },
   };
 }
@@ -436,6 +443,52 @@ async function testCodexProxyRewritesHtmlAndUsesUpstream() {
   assert.match(res.body, /href="\/api\/hermes-plugins\/codex-mobile\/proxy\/styles\.css\?workspaceId=owner"/);
   assert.match(res.body, /src="\/api\/hermes-plugins\/codex-mobile\/proxy\/app\.js\?workspaceId=owner"/);
   assert.equal(fetchCalls[0].options.headers["x-hermes-plugin-workspace-id"], "owner");
+}
+
+async function testCodexProxyStreamsEventSource() {
+  let textCalled = false;
+  let arrayBufferCalled = false;
+  const { routes } = makeRoutes({
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:8787/api/events?key=session-key&workspaceId=owner");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: {
+          get: (name) => name.toLowerCase() === "content-type" ? "text/event-stream; charset=utf-8" : "",
+        },
+        body: [
+          Buffer.from('data: {"type":"status"}\n\n'),
+          Buffer.from(": keepalive\n\n"),
+        ],
+        text() {
+          textCalled = true;
+          return Promise.resolve("");
+        },
+        arrayBuffer() {
+          arrayBufferCalled = true;
+          return Promise.resolve(Buffer.from(""));
+        },
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/codex-mobile/proxy/api/events?key=session-key&workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers["Content-Type"], "text/event-stream; charset=utf-8");
+  assert.equal(res.headers["Cache-Control"], "no-cache, no-transform");
+  assert.equal(res.headers["Connection"], "keep-alive");
+  assert.equal(res.headers["X-Accel-Buffering"], "no");
+  assert.match(res.body, /data: \{"type":"status"\}/);
+  assert.match(res.body, /: keepalive/);
+  assert.equal(textCalled, false);
+  assert.equal(arrayBufferCalled, false);
 }
 
 async function testCodexProxyPreservesLaunchCookieAndRedirect() {
@@ -1349,6 +1402,7 @@ async function run() {
   await testPluginProxyDeniesUnauthorizedWorkspacePlugin();
   await testPluginNotificationRoute();
   await testCodexProxyRewritesHtmlAndUsesUpstream();
+  await testCodexProxyStreamsEventSource();
   await testCodexProxyPreservesLaunchCookieAndRedirect();
   await testFinanceProxyUsesConfiguredLocalUpstreamAndForwardsOrigin();
   await testFinanceProxyNamespacesSessionCookieAndRedirectForWorkspace();

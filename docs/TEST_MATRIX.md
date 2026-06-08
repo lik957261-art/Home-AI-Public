@@ -1315,6 +1315,10 @@ rather than resolved against Hermes Mobile's own `/api` namespace.
 JSON responses must be parsed and rewritten structurally so thread/chat prose,
 code snippets, and ordinary `/api` strings are not changed. Binary image
 requests through that path must be streamed with their original content type.
+Long-lived `text/event-stream` plugin APIs must also be streamed through the
+same-origin proxy without calling full-body readers such as `text()` or
+`arrayBuffer()`, so embedded EventSource clients receive the initial event and
+keepalive chunks instead of timing out into reconnect fallback.
 Embedded plugin upload harnesses must also cover same-origin proxy upload
 compatibility: sandbox strings include `allow-forms` and `allow-modals`,
 multipart `FormData` upload requests keep the original body/content type, and

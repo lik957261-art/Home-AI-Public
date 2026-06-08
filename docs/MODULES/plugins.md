@@ -400,6 +400,14 @@ type. Without this, HTTPS Hermes Mobile PWAs can load the plugin shell while
 plugin-supplied images remain broken because the browser is asked to fetch the
 HTTP/LAN upstream directly.
 
+Long-lived plugin streams, especially `text/event-stream` APIs such as Codex
+Mobile Web `/api/events`, must be streamed through the same-origin proxy rather
+than buffered with full-body readers. The proxy should write SSE headers to the
+iframe response as soon as the upstream responds, preserve no-buffer semantics,
+and forward chunks until either side closes. Otherwise the iframe EventSource
+does not receive the initial status or keepalive in time and will repeatedly
+enter reconnect recovery even though the upstream plugin is healthy.
+
 For JSON responses, URL-like keys must include camelCase and separator-based
 variants such as `url`, `previewUrl`, `thumbnailUrl`, `downloadUrl`, `href`,
 `src`, `attachmentUrl`, and `fileUrl`. A root-relative value in these fields

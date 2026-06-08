@@ -357,6 +357,40 @@ function createHermesPluginApiRoutes(deps = {}) {
     return response?.headers?.get?.(name) || response?.headers?.get?.(name.toLowerCase()) || "";
   }
 
+  function writePluginProxyStreamChunk(res, chunk) {
+    if (!chunk) return;
+    res.write(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+
+  async function streamPluginProxyResponse(upstream, res, status, headers = {}) {
+    res.writeHead(status || 200, Object.assign({
+      "Cache-Control": "no-cache, no-transform",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no",
+    }, headers));
+    const body = upstream?.body;
+    if (!body) {
+      res.end();
+      return;
+    }
+    if (typeof body.getReader === "function") {
+      const reader = body.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          writePluginProxyStreamChunk(res, value);
+        }
+      } finally {
+        if (typeof reader.releaseLock === "function") reader.releaseLock();
+      }
+      res.end();
+      return;
+    }
+    for await (const chunk of body) writePluginProxyStreamChunk(res, chunk);
+    res.end();
+  }
+
   function responseSetCookies(response) {
     if (typeof response?.headers?.getSetCookie === "function") return response.headers.getSetCookie();
     const value = responseHeader(response, "set-cookie");
@@ -745,6 +779,10 @@ function createHermesPluginApiRoutes(deps = {}) {
       const rewritten = rewritePluginProxyJsonText(text, pluginId, upstreamBase, workspaceId);
       res.writeHead(upstream.status || 200, outHeaders);
       res.end(rewritten);
+      return;
+    }
+    if (/text\/event-stream/i.test(contentType || "")) {
+      await streamPluginProxyResponse(upstream, res, upstream.status || 200, outHeaders);
       return;
     }
     if (/text\/html|javascript|ecmascript|text\/css/i.test(contentType || "")) {
