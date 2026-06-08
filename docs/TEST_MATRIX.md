@@ -1013,6 +1013,10 @@ Exiting plugin context back to the topic home must clear plugin host classes,
 plugin view-mode classes, scroll feedback state, and sidebar/right-swipe state
 before the topic list is rendered again; otherwise directory-bound topic cards
 can become non-scrollable after entering and leaving a plugin.
+Route-snapshot restoration for plugin app/topic/directory routes must also
+restore plugin-context identity, initialize plugin-owned `canGoBack` on
+secondary plugin routes, and cover cold restart fallback from plugin context to
+the ordinary topic root without exposing the generic empty thread page.
 The host plugin viewport must subtract the plugin-context footer height so the
 iframe starts at the host viewport top and ends at the footer's top edge, and
 plugin-context iframe/shell min-height must be cleared so standalone `100dvh`

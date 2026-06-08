@@ -31,7 +31,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260608-bottom-stack-pwa-clamp-v632";
+const clientVersion = "20260608-plugin-context-restore-v633";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 

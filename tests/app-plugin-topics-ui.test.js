@@ -266,4 +266,91 @@ function directoryCardCollapsed(html, key) {
   assert.equal(directoryCardCollapsed(harness.render(collections), "dir-4"), false);
 }
 
-console.log("app plugin topics UI tests passed");
+function createPluginContextColdRestoreHarness() {
+  const calls = { api: [], renderCurrentThread: [], renderThreads: 0, setComposerEnabled: [] };
+  const nodes = {
+    app: { classList: { remove() {} } },
+    conversation: { innerHTML: "", scrollTop: 33 },
+    threadTitle: { textContent: "old" },
+    threadMeta: { textContent: "old" },
+    interruptRun: { disabled: false },
+  };
+  const sandbox = {
+    console,
+    Promise,
+    URLSearchParams,
+    TASK_MESSAGE_INITIAL_LIMIT: 40,
+    state: {
+      selectedWorkspaceId: "owner",
+      pluginContextNavPluginId: "wardrobe",
+      viewMode: "wardrobe",
+      currentTaskGroupId: "",
+      currentThread: null,
+      currentThreadId: "",
+      threads: [],
+    },
+    localStorage: { setItem() {}, getItem() { return null; } },
+    $: (id) => nodes[id] || null,
+    clearQuotedReply() {},
+    closeBottomPluginMenu() {},
+    normalizeMobileViewportAfterViewChange() {},
+    applyViewMode() {},
+    renderThreads() { calls.renderThreads += 1; },
+    updateNavigationControls() {},
+    updateTopicPluginDockChrome() {},
+    isTaskListView: () => true,
+    api: async (path, options) => {
+      calls.api.push({ path, body: JSON.parse(options.body || "{}") });
+      return {
+        thread: { id: "task-root", workspaceId: "owner", singleWindow: true, messages: [] },
+        caseTopicThreads: [],
+      };
+    },
+    mergeCurrentThread: (thread) => thread,
+    summarizeThread: (thread) => ({ id: thread.id, workspaceId: thread.workspaceId }),
+    rememberTaskListThread(thread) {
+      sandbox.state.taskListThread = thread;
+      sandbox.state.taskListThreadId = thread.id;
+    },
+    renderCurrentThread(options) { calls.renderCurrentThread.push(options); },
+    setComposerEnabled(value) { calls.setComposerEnabled.push(value); },
+    showError: (err) => { throw err; },
+    escapeHtml: (value) => String(value ?? ""),
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(`${pluginTopicsUi}
+globalThis.__pluginContextColdRestoreHarness = {
+  exitPluginContextToTopicHome,
+  refreshPluginContextTopicHomeAfterColdRestore,
+};`, sandbox);
+  return { sandbox, calls, nodes, ...sandbox.__pluginContextColdRestoreHarness };
+}
+
+(async () => {
+  const harness = createPluginContextColdRestoreHarness();
+  harness.exitPluginContextToTopicHome();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(harness.sandbox.state.viewMode, "tasks");
+  assert.equal(harness.sandbox.state.pluginContextNavPluginId, "");
+  assert.equal(harness.calls.api.length, 1, "cold plugin-context exit must fetch the topic root thread");
+  assert.deepEqual(harness.calls.api[0].body, {
+    workspaceId: "owner",
+    groupChat: false,
+    weixinChat: false,
+    messageMode: "tasks",
+    taskGroupId: "",
+    messageLimit: 40,
+  });
+  assert.equal(harness.sandbox.state.currentThreadId, "task-root");
+  assert.equal(harness.sandbox.state.taskListThreadId, "task-root");
+  assert.equal(harness.calls.renderCurrentThread.at(-1).stickToBottom, false);
+  assert.equal(harness.calls.renderCurrentThread.at(-1).restoreScrollTop, 0);
+  assert.deepEqual(harness.calls.setComposerEnabled, [true]);
+  assert.notEqual(harness.nodes.conversation.innerHTML, `<div class="empty-state">Create a thread to start a zero-context Home AI task.</div>`);
+
+  console.log("app plugin topics UI tests passed");
+})().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

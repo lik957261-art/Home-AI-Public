@@ -43,6 +43,8 @@ function currentAppRouteSnapshotParams() {
   if (!view) return null;
   params.set("view", view);
   params.set("workspaceId", state.selectedWorkspaceId || "owner");
+  const pluginContextId = boundedRouteSnapshotValue(state.pluginContextNavPluginId || "");
+  if (pluginContextId) params.set("pluginContextNavPluginId", pluginContextId);
   if (view === "tasks") {
     if (state.currentTaskGroupId) {
       params.set("taskGroupId", boundedRouteSnapshotValue(state.currentTaskGroupId));

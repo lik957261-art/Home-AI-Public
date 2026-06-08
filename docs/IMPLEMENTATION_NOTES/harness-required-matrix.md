@@ -808,7 +808,12 @@ Required harness dimensions:
   directly. It must not call `openTaskList()`,
   `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`, because those
   generic routes can reload shared topic threads and expose the empty ordinary
-  chat page.
+  chat page. Route-snapshot restoration for plugin app/topic/directory views
+  must preserve `pluginContextNavPluginId`, initialize plugin-owned
+  `canGoBack` for secondary plugin routes, and cover the cold-restart case
+  where the remembered task-list thread is missing: that fallback may fetch the
+  ordinary topic root directly, but must not leave the generic empty thread
+  page as the final state.
 - Plugin-topic delivery directories are supporting evidence, not plugin
   databases. Harnesses must assert the directory is created/resolved under the
   target workspace, exposes only a route/label projection to the frontend, and

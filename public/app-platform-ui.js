@@ -282,6 +282,38 @@ function normalizedRouteView(value, fallback = "") {
   return fallback;
 }
 
+function pluginContextIdFromTaskGroupId(taskGroupId = "") {
+  const match = String(taskGroupId || "").trim().match(/^plugin:(.+)$/);
+  return match ? match[1].trim() : "";
+}
+
+function routePluginContextId(params, routeView = "", taskGroupId = "") {
+  if (!params) return "";
+  const explicit = String(
+    params.get("pluginContextNavPluginId")
+    || params.get("pluginContextId")
+    || params.get("pluginContext")
+    || "",
+  ).trim();
+  const candidates = [
+    explicit,
+    pluginContextIdFromTaskGroupId(taskGroupId),
+    params.get("pluginId") || "",
+    routeView,
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+  const knownPluginTopics = new Set(["wardrobe", "finance", "email", "health", "note"]);
+  for (const candidate of candidates) {
+    const id = candidate === "codex-mobile" || candidate === "codex" ? "" : candidate;
+    if (!id) continue;
+    if (typeof pluginTopicDefById === "function") {
+      const def = pluginTopicDefById(id);
+      if (def && !def.builtinKind) return def.id;
+    }
+    if (knownPluginTopics.has(id)) return id;
+  }
+  return "";
+}
+
 function sameOriginRouteUrl(value) {
   try {
     const parsed = new URL(value || "/", window.location.origin);
@@ -609,6 +641,7 @@ function applyRouteParams(params) {
   const weixinChatRequested = ["1", "true", "yes"].includes(String(params.get("weixinChat") || params.get("weixin_chat") || "").trim().toLowerCase());
   const groupChatRequested = ["1", "true", "yes"].includes(String(params.get("groupChat") || params.get("group_chat") || "").trim().toLowerCase());
   let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), inboxItemId ? "inbox" : automationId ? "automation" : taskCardId ? "learning" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : "");
+  const pluginContextNavPluginId = routePluginContextId(params, routeView, taskGroupId);
   const workspaceId = String(params.get("workspaceId") || "").trim();
   if (workspaceId && routeView === "learning" && taskCardId) {
     setLearningGrowthLearnerWorkspaceId(workspaceId);
@@ -621,6 +654,7 @@ function applyRouteParams(params) {
     state.viewMode = routeView;
     localStorage.setItem("hermesWebViewMode", routeView);
     Object.assign(state, { currentTaskGroupId: "", currentThread: null, currentThreadId: "" });
+    state.pluginContextNavPluginId = pluginContextNavPluginId;
   }
   if (routeView === "codex" && typeof setCodexPluginOpenRoute === "function") {
     setCodexPluginOpenRoute({

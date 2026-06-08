@@ -212,6 +212,7 @@ function normalizeWardrobePluginOpenRoute(route = {}) {
 function setWardrobePluginOpenRoute(route = {}) {
   const normalized = normalizeWardrobePluginOpenRoute(route);
   state.wardrobePluginOpenRoute = Object.keys(normalized).length ? normalized : null;
+  if (state.wardrobePluginOpenRoute) state.wardrobePluginCanGoBack = true;
   return Boolean(state.wardrobePluginOpenRoute);
 }
 
@@ -415,7 +416,22 @@ function sendWardrobePluginBack() {
   const frame = currentWardrobePluginShell()?.querySelector(".wardrobe-plugin-frame");
   const origin = state.wardrobePluginFrameOrigin || wardrobePluginEntryOrigin();
   if (!frame?.contentWindow || !origin) return false;
+  const requestedAt = Date.now();
+  const seq = (state.wardrobePluginBackRequestSeq || 0) + 1;
+  state.wardrobePluginBackRequestSeq = seq;
   frame.contentWindow.postMessage({ type: "hermes.plugin.back", version: 1 }, origin);
+  window.setTimeout(() => {
+    if (state.viewMode !== "wardrobe") return;
+    if (state.wardrobePluginBackRequestSeq !== seq) return;
+    if (Number(state.wardrobePluginNavigationLastAt || 0) > requestedAt) return;
+    state.wardrobePluginCanGoBack = false;
+    const pluginContextBack = typeof pluginContextBackNavigationActive === "function" && pluginContextBackNavigationActive();
+    if (state.wardrobePluginReturnRoute && !pluginContextBack) {
+      restoreWardrobePluginReturnRoute();
+      return;
+    }
+    updateNavigationControls();
+  }, 1600);
   return true;
 }
 

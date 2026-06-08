@@ -131,6 +131,14 @@ or raw plugin credentials.
   is set, right-swipe/browser-back resolves first to plugin-context home. After
   that transition, ordinary five-tab navigation and topic-root scroll state are
   restored; the three-item plugin-context bar is removed.
+- Restored route snapshots for plugin apps, plugin topics, and plugin
+  directories must also restore `pluginContextNavPluginId`. A restored plugin
+  secondary route should initialize plugin `canGoBack` so the first
+  right-swipe/back action is offered to the plugin before host-level exit. If a
+  cold app restart has no in-memory `taskListThread` when exiting plugin
+  context, the dedicated plugin-context exit path should fetch the topic root
+  thread directly and render it; it must not leave the generic empty
+  `Select or create a thread` page as the final state.
 - The current frontend projection renders Directory as a built-in Dock
   capability for every authenticated workspace, keeps it in the fixed bottom
   capability Dock, and hides the separate mobile bottom Directory tab.

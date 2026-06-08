@@ -106,6 +106,9 @@ assert.match(platformUi, /selectedAutomationId: ""[\s\S]*?automationRouteTargetP
 const automationUi = read("public/app-automation-ui.js");
 assert.match(automationUi, /async function loadSelectedView\(options = \{\}\) \{[\s\S]*?guardHermesOwnedSelectedDetailNavigation\(\);/);
 assert.match(platformUi, /function applyRouteFromUrl\(value\) \{[\s\S]*?const params = new URLSearchParams\(parsed\.search \|\| ""\);[\s\S]*?if \(!requireHermesAppWindowForRoute\(params\)\) return false;[\s\S]*?return applyRouteParams\(params\);/);
+assert.match(platformUi, /function routePluginContextId\(params, routeView = "", taskGroupId = ""\)/);
+assert.match(platformUi, /pluginContextIdFromTaskGroupId\(taskGroupId\)/);
+assert.match(platformUi, /state\.pluginContextNavPluginId = pluginContextNavPluginId;/);
 assert.match(platformUi, /async function openHermesInternalRoute\(value\) \{/);
 assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_route_start"/);
 assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_route_blocked"/);
@@ -114,6 +117,7 @@ assert.match(platformUi, /recordNavigationDiagnostic\("open_hermes_internal_rout
 assert.match(platformUi, /const nextRoute = hermesAppShellRouteForUrl\(parsed\)/);
 assert.match(platformUi, /await loadSelectedView\(\{ forceTaskListReload: true, skipSingleWindowCache: true \}\);/);
 assert.match(routeSnapshotUi, /function applyRestoredAppRouteSnapshot\(\)/);
+assert.match(routeSnapshotUi, /params\.set\("pluginContextNavPluginId", pluginContextId\)/);
 assert.match(routeSnapshotUi, /if \(routeParamsHaveExplicitLaunchTarget\(currentParams\)\) return false/);
 assert.doesNotMatch(platformUi, /function applyRestoredAppRouteSnapshot\(\)/);
 assert.match(platformUi, /async function openNotificationRoute\(value\) \{[\s\S]*?return openHermesInternalRoute\(value\);[\s\S]*?\}/);

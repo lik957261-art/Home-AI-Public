@@ -254,8 +254,10 @@ function normalizeEmbeddedPluginOpenRoute(route = {}) {
 function setEmbeddedPluginOpenRoute(def, route = {}) {
   if (!def) return false;
   const normalized = normalizeEmbeddedPluginOpenRoute(route);
-  embeddedPluginRecord(def.id).openRoute = Object.keys(normalized).length ? normalized : null;
-  return Boolean(embeddedPluginRecord(def.id).openRoute);
+  const record = embeddedPluginRecord(def.id);
+  record.openRoute = Object.keys(normalized).length ? normalized : null;
+  if (record.openRoute) record.canGoBack = true;
+  return Boolean(record.openRoute);
 }
 
 function embeddedPluginEntryUrlForFrame(def, manifest) {

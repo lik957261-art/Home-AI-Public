@@ -221,6 +221,20 @@ function renderPluginContextTopicHomeAfterExit() {
   } else if (state.currentThread?.singleWindow && typeof summarizeThread === "function") {
     state.threads = [summarizeThread(state.currentThread)];
   }
+  if (!state.currentThread?.id) {
+    state.currentThread = null;
+    state.currentThreadId = "";
+    state.threads = [];
+    if (typeof renderThreads === "function") renderThreads();
+    const conversation = $("conversation");
+    if (conversation) conversation.innerHTML = `<div class="empty-state small">\u52a0\u8f7d\u4e2d...</div>`;
+    if ($("threadTitle")) $("threadTitle").textContent = "";
+    if ($("threadMeta")) $("threadMeta").textContent = "";
+    if ($("interruptRun")) $("interruptRun").disabled = true;
+    if (typeof updateNavigationControls === "function") updateNavigationControls();
+    refreshPluginContextTopicHomeAfterColdRestore(restoreScrollTop).catch(showError);
+    return;
+  }
   if (typeof renderThreads === "function") renderThreads();
   if (typeof renderCurrentThread === "function") renderCurrentThread({ stickToBottom: false, restoreScrollTop });
   if (typeof updateNavigationControls === "function") updateNavigationControls();
@@ -230,6 +244,47 @@ function renderPluginContextTopicHomeAfterExit() {
 function isPluginTopicTaskGroup(group = {}) {
   if (group?.pluginTopic) return true;
   return Boolean(pluginTopicDefForGroupId(group?.id || group?.taskGroupId || ""));
+}
+
+async function refreshPluginContextTopicHomeAfterColdRestore(restoreScrollTop = 0) {
+  if (state.pluginContextTopicHomeRefreshLoading) return false;
+  if (typeof api !== "function") return false;
+  const seq = (state.pluginContextTopicHomeRefreshSeq || 0) + 1;
+  state.pluginContextTopicHomeRefreshSeq = seq;
+  state.pluginContextTopicHomeRefreshLoading = true;
+  try {
+    const workspaceId = String(state.selectedWorkspaceId || "").trim();
+    const result = await api("/api/single-window", {
+      method: "POST",
+      body: JSON.stringify({
+        workspaceId,
+        groupChat: false,
+        weixinChat: false,
+        messageMode: "tasks",
+        taskGroupId: "",
+        messageLimit: TASK_MESSAGE_INITIAL_LIMIT,
+      }),
+      timeoutMs: 12000,
+    });
+    if (state.pluginContextTopicHomeRefreshSeq !== seq) return false;
+    if (state.viewMode !== "tasks" || state.currentTaskGroupId || state.pluginContextNavPluginId) return false;
+    if (!result?.thread?.id) return false;
+    state.currentThread = typeof mergeCurrentThread === "function" ? mergeCurrentThread(result.thread) : result.thread;
+    state.currentThreadId = state.currentThread.id;
+    state.caseTopicThreads = Array.isArray(result.caseTopicThreads) ? result.caseTopicThreads : [];
+    state.groupChatAvailable = Boolean(result.groupChatAvailable || (typeof selectedWorkspaceInThreadGroup === "function" && selectedWorkspaceInThreadGroup(state.currentThread)));
+    state.weixinChatAvailable = Boolean(result.weixinChatAvailable || (typeof isThreadWeixinChat === "function" && isThreadWeixinChat(state.currentThread)));
+    if (typeof rememberTaskListThread === "function") rememberTaskListThread(state.currentThread);
+    if (typeof summarizeThread === "function") state.threads = [summarizeThread(state.currentThread)];
+    if (typeof renderThreads === "function") renderThreads();
+    if (typeof renderCurrentThread === "function") renderCurrentThread({ stickToBottom: false, restoreScrollTop });
+    if (typeof setComposerEnabled === "function") setComposerEnabled(true);
+    if (typeof updateNavigationControls === "function") updateNavigationControls();
+    if (typeof updateTopicPluginDockChrome === "function" && typeof isTaskListView === "function") updateTopicPluginDockChrome(isTaskListView());
+    return true;
+  } finally {
+    if (state.pluginContextTopicHomeRefreshSeq === seq) state.pluginContextTopicHomeRefreshLoading = false;
+  }
 }
 
 function pluginTopicNavigationAvailable(def) {
