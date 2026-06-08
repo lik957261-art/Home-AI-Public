@@ -424,6 +424,14 @@ statements. Priority extraction areas:
   delegates default model catalog, model family/option projection, provider/model
   fallback selection, and reasoning-effort validation while retaining persisted
   config storage, validation, and service wiring.
+- completed 2026-06-08: Web Push deterministic delivery normalization moved
+  into `adapters/web-push-delivery-normalization-service.js`.
+  `web-push-delivery-service.js` now delegates delivery/receipt/subscription
+  normalization, subscription scope signatures, principal/workspace scoping,
+  recipient workspace fan-out, client-context normalization, iOS/mobile PWA
+  standalone gates, and deployment-origin skip reasons while retaining VAPID
+  lifecycle, actual push sending, Todo/Automation/Growth/group-chat notification
+  composition, Action Inbox source upserts, and background dispatchers.
 - deeper Gateway runtime worker policy composition outside runtime config;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;

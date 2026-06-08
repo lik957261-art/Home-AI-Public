@@ -384,9 +384,11 @@ assert.match(pushApiRoutes, /displayMode: body\.displayMode \|\| clientContext\.
 assert.match(pushApiRoutes, /standalone: body\.standalone \?\? clientContext\.standalone/);
 
 const webPushDeliveryService = read("adapters/web-push-delivery-service.js");
-assert.match(webPushDeliveryService, /function assertPushSubscriptionClientAllowed/);
-assert.match(webPushDeliveryService, /ios_pwa_standalone_required/);
-assert.match(webPushDeliveryService, /function shouldSkipPushSubscriptionForClient/);
+const webPushNormalizationService = read("adapters/web-push-delivery-normalization-service.js");
+assert.match(webPushDeliveryService, /createWebPushDeliveryNormalizationService/);
+assert.match(webPushNormalizationService, /function assertPushSubscriptionClientAllowed/);
+assert.match(webPushNormalizationService, /ios_pwa_standalone_required/);
+assert.match(webPushNormalizationService, /function shouldSkipPushSubscriptionForClient/);
 
 const webPushDoc = read("docs/MODULES/web-push.md");
 assert.match(webPushDoc, /same app window/i);

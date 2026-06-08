@@ -691,9 +691,20 @@ Kanban, Action Inbox, and topic-context services, but it must not keep its own
 SQLite store singleton or top-level `mobileSqliteStore` implementation.
 
 `web-push-delivery-service.js` owns VAPID load, initialization, reload, push
-status, and delivery helpers. Runtime composition may pass short delegates into
-route composition, but it must not carry duplicate top-level wrapper functions
-for VAPID load/init/generation/reload behavior.
+status, actual push sending, Todo/Automation/Growth/group-chat notification
+composition, Action Inbox source upsert orchestration, and background Web Push
+dispatchers. Runtime composition may pass short delegates into route
+composition, but it must not carry duplicate top-level wrapper functions for
+VAPID load/init/generation/reload behavior.
+
+`web-push-delivery-normalization-service.js` owns deterministic Web Push record
+normalization and projection: delivery/receipt/subscription normalization,
+subscription scope signatures, principal/workspace subscription scoping,
+authorized recipient workspace fan-out for notification surfaces, stored
+client-context normalization, iOS/mobile PWA standalone subscription gates, and
+deployment-origin skip reasons. `web-push-delivery-service.js` may construct
+and delegate to this service, but it must not reintroduce inline subscription
+scope or client-context gate implementations.
 
 `external-integration-provider.js` owns owner external interface bindings and
 owner external access-policy projection. Runtime composition may bind those
@@ -1062,6 +1073,13 @@ Current CI guardrails:
 - `mobile-runtime-state-path-environment-service.js` must stay at or below 90 lines;
 - `mobile-runtime-kanban-environment-service.js` must stay at or below 100 lines;
 - `mobile-runtime-env-value-service.js` must stay at or below 40 lines;
+- `web-push-delivery-service.js` must stay at or below 1,450 lines and retain
+  VAPID lifecycle, actual push sending, notification composition, Inbox source
+  upserts, and background dispatch orchestration rather than deterministic
+  subscription normalization policy;
+- `web-push-delivery-normalization-service.js` must stay at or below 285 lines
+  and own deterministic Web Push normalization, subscription scoping,
+  client-context gates, and deployment-origin skip reasons;
 - if a feature would exceed either budget, extract route modules and services first.
 
 These budgets are intentionally temporary ceilings. Lower them after each
