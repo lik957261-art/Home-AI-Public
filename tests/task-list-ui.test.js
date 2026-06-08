@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260608-codex-restore-return-v639";
+const CLIENT_VERSION = "20260608-bottom-nav-content-flush-v640";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -207,8 +207,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260608-codex-restore-return-v639" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260608-codex-restore-return-v639"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260608-bottom-nav-content-flush-v640" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260608-bottom-nav-content-flush-v640"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2410,7 +2410,7 @@ assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bo
 assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bottom\), 8px\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-content-safe-area: max\(0px, min\(var\(--mobile-bottom-safe-area\), 3px\)\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-height: 58px/);
-assert.match(stylesCss, /--mobile-bottom-nav-visual-lift: 4px/);
+assert.match(stylesCss, /--mobile-bottom-nav-visual-lift: 0px/);
 assert.match(stylesCss, /--mobile-bottom-nav-comfort-inset: 0px/);
 assert.match(stylesCss, /--mobile-bottom-nav-overflow-clamp: 0px/);
 assert.match(stylesCss, /--bottom-region-composer-nav-gap: 8px/);
@@ -2478,10 +2478,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260608-codex-restore-return-v639/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260608-codex-restore-return-v639/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260608-codex-restore-return-v639/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260608-codex-restore-return-v639/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260608-bottom-nav-content-flush-v640/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260608-bottom-nav-content-flush-v640/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260608-bottom-nav-content-flush-v640/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260608-bottom-nav-content-flush-v640/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2994,7 +2994,7 @@ assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bo
 assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bottom\), 8px\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-content-safe-area: max\(0px, min\(var\(--mobile-bottom-safe-area\), 3px\)\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-height: 58px/);
-assert.match(stylesCss, /--mobile-bottom-nav-visual-lift: 4px/);
+assert.match(stylesCss, /--mobile-bottom-nav-visual-lift: 0px/);
 assert.match(stylesCss, /--mobile-bottom-nav-overflow-clamp: 0px/);
 assert.match(stylesCss, /--mobile-bottom-nav-offset-height-runtime/);
 assert.match(stylesCss, /--mobile-bottom-nav-bottom-runtime/);

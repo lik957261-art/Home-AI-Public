@@ -55,7 +55,7 @@
   --mobile-bottom-nav-content-safe-area: max(0px, min(var(--mobile-bottom-safe-area), 3px));
   --mobile-bottom-nav-height: 58px;
   --mobile-bottom-nav-visual-drop: 10px;
-  --mobile-bottom-nav-visual-lift: 4px;
+  --mobile-bottom-nav-visual-lift: 0px;
   --mobile-bottom-nav-comfort-inset: 0px;
   --mobile-bottom-nav-overflow-clamp: 0px;
   --plugin-context-bottom-nav-height: 54px;

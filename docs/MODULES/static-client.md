@@ -112,9 +112,11 @@ Gateway plugin/schema/profile changes:
   `--mobile-bottom-nav-bottom-runtime` after the first layout measurement.
   The bottom navigation container should stay flush with the fixed viewport by
   default (`--mobile-bottom-nav-comfort-inset: 0px` as of
-  `20260608-bottom-stack-pwa-clamp-v632`); small visual lift belongs inside the
-  tab content transform, not in a bottom offset that moves the entire Dock/nav
-  stack. Runtime bottom overflow is diagnostic-only by default:
+  `20260608-bottom-stack-pwa-clamp-v632`). Tab content should not be lifted by
+  default (`--mobile-bottom-nav-visual-lift: 0px` as of
+  `20260608-bottom-nav-content-flush-v640`); any future small visual lift must
+  stay inside the tab content transform, not in a bottom offset that moves the
+  entire Dock/nav stack. Runtime bottom overflow is diagnostic-only by default:
   `--mobile-bottom-nav-overflow-clamp: 0px` prevents iOS standalone PWA
   viewport-coordinate mismatches from becoming a large bottom offset that lifts
   the full Dock/nav stack.

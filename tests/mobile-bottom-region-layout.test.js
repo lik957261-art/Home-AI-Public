@@ -31,7 +31,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260608-codex-restore-return-v639";
+const clientVersion = "20260608-bottom-nav-content-flush-v640";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 
