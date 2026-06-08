@@ -12,6 +12,8 @@ const { createThreadMessageRunApiRoutes } = require("./thread-message-run-api-ro
 const { createThreadReadUploadApiRoutes } = require("./thread-read-upload-api-routes");
 const { createThreadTaskApiRoutes } = require("./thread-task-api-routes");
 const { createTodoApiRoutes } = require("./todo-api-routes");
+const { createWorkspaceOnboardingApiRoutes } = require("./workspace-onboarding-api-routes");
+const { createWorkspaceOnboardingService } = require("../adapters/workspace-onboarding-service");
 function callBootTrace(deps, label) {
   if (typeof deps.bootTrace === "function") deps.bootTrace(label);
 }
@@ -47,6 +49,24 @@ function createMobileApiComposition(deps = {}) {
     hermesPluginService,
     pluginTopicUsageService,
   } = pluginComposition.services;
+  const workspaceOnboardingService = deps.workspaceOnboardingService || createWorkspaceOnboardingService({
+    defaultPluginIds: deps.workspaceOnboardingDefaultPluginIds,
+    ensureWorkspaceGateway: (...args) => deps.gatewayWorkspaceProvisioningService.ensureWorkspaceGateway(...args),
+    findWorkspace: deps.findWorkspace,
+    hermesPluginService,
+    liveRoot: deps.workspaceOnboardingLiveRoot,
+    nowIso: deps.nowIso,
+    rotateWorkspaceAccessKey: deps.rotateWorkspaceAccessKey,
+    systemProvisioningExecutor: deps.workspaceSystemProvisioningExecutor,
+    upsertLocalWorkspace: deps.upsertLocalWorkspace,
+  });
+  const workspaceOnboardingApiRoutes = createWorkspaceOnboardingApiRoutes({
+    isOwnerAuth: deps.isOwnerAuth,
+    readBody: deps.readBody,
+    requireOwner: deps.requireOwner,
+    sendJson: deps.sendJson,
+    workspaceOnboardingService,
+  });
   const directoryComposition = createMobileApiDirectoryComposition(Object.assign({}, deps, {
     actionInboxService,
   }));
@@ -277,6 +297,7 @@ function createMobileApiComposition(deps = {}) {
     threadTaskApiRoutes,
     todoApiRoutes,
     weixinApiRoutes,
+    workspaceOnboardingApiRoutes,
     workspaceApiRoutes,
   });
   callBootTrace(deps, "core api routes ready");
@@ -296,6 +317,7 @@ function createMobileApiComposition(deps = {}) {
       hermesPluginNotificationService,
       noteReceiptSaveService,
       pluginTopicUsageService,
+      workspaceOnboardingService,
     },
     routes: {
       accessKeyApiRoutes,
@@ -328,6 +350,7 @@ function createMobileApiComposition(deps = {}) {
       threadTaskApiRoutes,
       todoApiRoutes,
       weixinApiRoutes,
+      workspaceOnboardingApiRoutes,
       workspaceApiRoutes,
     },
   };

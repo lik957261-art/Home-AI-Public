@@ -116,6 +116,12 @@ DACL inspection.
   `provisioning_failed` or a plugin-side token mismatch. Do not assume Home AI
   key rotation requires re-binding every plugin; that would couple unrelated
   credential domains and can break migrated plugin data.
+- Workspace onboarding may create a Home AI workspace Access Key and selected
+  plugin workspace bindings in one Owner-confirmed workflow, but those remain
+  separate credential domains. The one-time Home AI key is returned only in the
+  Owner apply response. Plugin provisioners still create or verify their own
+  workspace-local `.hermes-<plugin>` key/config and must not copy or derive
+  credentials from the Home AI key.
 
 ## Validation
 

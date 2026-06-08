@@ -227,6 +227,7 @@ const webPushDeliveryNormalizationService = require("../adapters/web-push-delive
 const webPushSendService = require("../adapters/web-push-send-service");
 const webPushVapidService = require("../adapters/web-push-vapid-service");
 const workspaceDisplayPathService = require("../adapters/workspace-display-path-service");
+const workspaceOnboardingService = require("../adapters/workspace-onboarding-service");
 const workspacePublicProjectionService = require("../adapters/workspace-public-projection-service");
 const sqliteStore = require("../adapters/mobile-sqlite-store");
 const accessKeyApiRoutes = require("../server-routes/access-key-api-routes");
@@ -264,6 +265,7 @@ const todoApiRoutes = require("../server-routes/todo-api-routes");
 const todoPublicProjectionService = require("../adapters/todo-public-projection-service");
 const weixinApiRoutes = require("../server-routes/weixin-api-routes");
 const workspaceApiRoutes = require("../server-routes/workspace-api-routes");
+const workspaceOnboardingApiRoutes = require("../server-routes/workspace-onboarding-api-routes");
 const appLearningCoinsUi = require("../public/app-learning-coins-ui");
 const appLearningGrowthUi = require("../public/app-learning-growth-ui");
 const appLearningProgramUi = require("../public/app-learning-program-ui");
@@ -590,6 +592,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof webPushSendService.createWebPushSendService, "function");
   assert.equal(typeof webPushVapidService.createWebPushVapidService, "function");
   assert.equal(typeof workspaceDisplayPathService.createWorkspaceDisplayPathService, "function");
+  assert.equal(typeof workspaceOnboardingService.createWorkspaceOnboardingService, "function");
   assert.equal(typeof workspacePublicProjectionService.createWorkspacePublicProjectionService, "function");
   assert.equal(sqliteStore.CURRENT_SCHEMA_VERSION >= 2, true);
   assert.equal(typeof publicApiRoutes.createPublicApiRoutes, "function");
@@ -600,6 +603,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof ownerElevationApiRoutes.createOwnerElevationApiRoutes, "function");
   assert.equal(typeof weixinApiRoutes.createWeixinApiRoutes, "function");
   assert.equal(typeof workspaceApiRoutes.createWorkspaceApiRoutes, "function");
+  assert.equal(typeof workspaceOnboardingApiRoutes.createWorkspaceOnboardingApiRoutes, "function");
   assert.equal(typeof accessKeyApiRoutes.createAccessKeyApiRoutes, "function");
   assert.equal(typeof resourceApiRoutes.createResourceApiRoutes, "function");
   assert.equal(typeof singleWindowGroupChatApiRoutes.createSingleWindowGroupChatApiRoutes, "function");
@@ -1472,6 +1476,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.doesNotMatch(server, /^function ownerExternalAccessPolicy/gm);
   assert.match(mobilePlatformComposition, /createWorkspaceApiRoutes/);
   assert.match(dispatcher, /key: "workspaceApiRoutes"/);
+  assert.match(mobileComposition, /createWorkspaceOnboardingService/);
+  assert.match(mobileComposition, /createWorkspaceOnboardingApiRoutes/);
+  assert.match(dispatcher, /key: "workspaceOnboardingApiRoutes"/);
   assert.match(workspaceFacade, /defaultCreateWorkspacePublicProjectionService/);
   assert.match(workspaceFacade, /getWorkspacePublicProjectionService\(\)\.publicWorkspace/);
   assert.doesNotMatch(server, /createWorkspacePublicProjectionService/);

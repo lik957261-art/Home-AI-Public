@@ -681,6 +681,12 @@ binding or plugin-side setup has been verified. Empty plugin content after a
 successful first-run provisioning is valid; missing identity, missing key,
 missing bind, missing Skill/MCP registration, or Owner-session reuse is not.
 
+Workspace onboarding may batch selected plugin grants through
+`workspace-onboarding-service`, but it does not create a second authorization
+source. Each selected plugin still flows through
+`hermesPluginService.grantWorkspace`, writes the same authorization record, and
+must satisfy the same `active` / `provisioning_failed` contract above.
+
 The plugin manager projection must combine the same evidence used by launch:
 stored authorization records, deployment allowlists, and discovered
 workspace-local plugin config/key directories. This includes `owner`. If Owner

@@ -150,6 +150,16 @@ service root.
   default group/other access and grant only `hermes-host`, the matching
   workspace OS user, and Owner operations.
   See `docs/RUNBOOKS/macos-worker-filesystem-access.md`.
+- Workspace onboarding now has a Home AI service/API layer:
+  `adapters/workspace-onboarding-service.js` and
+  `server-routes/workspace-onboarding-api-routes.js`. The service can generate
+  a dry-run plan and, when a restricted macOS provisioning executor is injected,
+  orchestrate workspace record creation, one-time Home AI Access Key creation,
+  Gateway profile provisioning, selected plugin grants, and validation. The
+  current production wiring intentionally does not expose arbitrary sudo or
+  shell. Without a configured `workspaceSystemProvisioningExecutor`, apply
+  returns `system_provisioning_executor_unavailable` before side effects. See
+  `docs/IMPLEMENTATION_NOTES/workspace-onboarding.md`.
 - Mac profile/Skill/Memory/MCP audit:
   `scripts/macos-production-profile-audit.js`. Run it after user migration,
   plugin provisioning, worker profile repair, stale-user cleanup, or Access Key

@@ -95,6 +95,16 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "workspace-onboarding-api-routes",
+    exportName: "createWorkspaceOnboardingApiRoutes",
+    required: false,
+    minRoutes: 2,
+    probes: [
+      { method: "POST", path: "/api/workspace-onboarding/plan", id: "workspace-onboarding-plan" },
+      { method: "POST", path: "/api/workspace-onboarding/apply", id: "workspace-onboarding-apply" },
+    ],
+  },
+  {
     key: "platform-currency-api-routes",
     exportName: "createPlatformCurrencyApiRoutes",
     required: false,

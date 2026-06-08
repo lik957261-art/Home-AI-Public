@@ -264,6 +264,10 @@ Required harness dimensions:
 - The installer must create or verify a host/control user, such as
   `hermes-host`, and one OS user per production workspace, such as `hm-owner`,
   `hm-wuping`, `hm-stephen`, and `hm-xuyan`.
+- Workspace onboarding is a service/API workflow, not a model shell workflow.
+  Harnesses must prove `plan` is side-effect free, `apply` blocks before side
+  effects when the macOS privileged executor is unavailable, and any configured
+  executor is a whitelist surface rather than arbitrary sudo/shell.
 - Workspace private roots must be owned by their workspace OS user and be
   private (`0700` or stricter equivalent). A non-Owner OS user must fail to
   read Owner files, Owner Skill Store, Owner Memory Store, and Owner

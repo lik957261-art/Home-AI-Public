@@ -14,6 +14,7 @@ This file records durable product rules that implementation must preserve.
 - Every user-visible operation must resolve an authenticated actor, effective workspace, resource boundary, access policy, and task surface before model/tool execution.
 - Workspace Access Keys map ordinary users to one workspace; server-side auth must clamp or reject spoofed workspace/principal/resource fields.
 - Gateway worker/profile selection happens after access policy construction and must not silently fall back to another user's profile when a workspace mapping is missing.
+- Creating a family workspace is an Owner-confirmed Home AI onboarding workflow. It must not depend on Codex manual operations for routine use, and the model must not receive arbitrary privileged shell access; macOS system changes go through a restricted whitelist executor.
 - Owner ordinary chat may use low-permission workers; Owner maintenance routes must be explicit and separate.
 - Ordinary Chat, group-chat, task-stream groups, task-list items, Action Inbox items, Automation jobs, and Growth records are different task surfaces with different sources of truth.
 - Action Inbox is the primary lightweight user-action queue; official Hermes Kanban is legacy/compatibility for Hermes Mobile Todo, not the product's main participation model.

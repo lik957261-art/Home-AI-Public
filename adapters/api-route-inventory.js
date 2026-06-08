@@ -175,6 +175,16 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     ownerOnly: true,
     resourceTypes: ["workspace"],
   })),
+  exact("workspace-onboarding-plan", "POST", "/api/workspace-onboarding/plan", "workspace-onboarding", routeOptions("workspace-onboarding", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["workspace", "gateway", "plugin"],
+  })),
+  exact("workspace-onboarding-apply", "POST", "/api/workspace-onboarding/apply", "workspace-onboarding", routeOptions("workspace-onboarding", {
+    riskLevel: "owner",
+    ownerOnly: true,
+    resourceTypes: ["workspace", "access-key", "gateway", "plugin"],
+  })),
   regex("workspaces-admin", ["PATCH", "DELETE"], /^\/api\/workspaces\/[^/]+$/, "workspace-admin", routeOptions("workspace-admin", {
     riskLevel: "owner",
     ownerOnly: true,

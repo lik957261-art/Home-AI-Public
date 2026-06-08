@@ -760,6 +760,14 @@ catalog/principal fallbacks needed during earlier runtime wiring. The runtime
 composition root must not carry duplicate function implementations for those
 identity helpers.
 
+`workspace-onboarding-service.js` owns family workspace onboarding
+orchestration: dry-run plan projection, apply step ordering, bounded status
+projection, Home AI workspace record/key delegation, Gateway provisioning
+delegation, selected plugin grant delegation, and the macOS privileged executor
+injection boundary. `workspace-onboarding-api-routes.js` is only Owner-auth HTTP
+glue. `server.js` and `mobile-server-runtime.js` must not implement workspace
+onboarding state machines or arbitrary sudo/shell execution.
+
 `mobile-runtime-kanban-facade-service.js` is only a runtime wiring facade for
 Kanban public projections, case-topic wiring, plan-card creation, assessment
 workflow construction, shared-card access checks, and Kanban cache/maintenance

@@ -1072,6 +1072,21 @@ changes must additionally test Owner-only admin routes, grant/revoke
 persistence, normal business-plugin visibility after a grant, Codex Mobile
 grant denial, Codex Mobile absence during Owner-to-non-Owner workspace
 switching, and the side-navigation manager being hidden from non-Owner users.
+Workspace onboarding is an H1 cross-boundary workflow. Planning must be
+side-effect free. Apply must refuse to create partial production state when the
+macOS privileged executor is unavailable, and must use only the injected
+whitelist executor for OS user, private roots, ACL, LaunchDaemon, and smoke
+steps. The service must reuse `upsertLocalWorkspace`,
+`rotateWorkspaceAccessKey`, `ensureWorkspaceGateway`, and
+`hermesPluginService.grantWorkspace` instead of duplicating those contracts.
+Focused checks include `node tests\workspace-onboarding-service.test.js`,
+`node tests\workspace-onboarding-api-routes.test.js`,
+`node tests\mobile-api-dispatcher.test.js`,
+`node tests\api-route-inventory.test.js`, and
+`node tests\architecture-refactor-boundary.test.js`. After the real macOS
+executor is added, production validation must also include the Mac worker ACL
+harness, profile audit, manifest toolset smoke, selected plugin provisioning
+smokes, and wrong-header/wrong-workspace denial checks.
 Finance workspace provisioning is an H1 plugin authorization workflow. Granting
 Finance to a workspace, and Owner first use of the default-visible Finance
 plugin, must create a workspace-local

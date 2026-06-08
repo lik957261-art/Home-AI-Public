@@ -53,6 +53,8 @@ identifiers until a separate infrastructure migration is planned.
 - Wardrobe MCP tab and embedded plugin host: `docs/MODULES/wardrobe.md`
 - Static client/cache/deploy: `docs/MODULES/static-client.md`, `docs/MODULES/deployment.md`
 - Workspace auth, keys, and access policy: `docs/MODULES/workspace-auth-permissions.md`
+- Workspace onboarding orchestration:
+  `docs/IMPLEMENTATION_NOTES/workspace-onboarding.md`
 - Directory, files, previews, and shared roots: `docs/MODULES/directory-files.md`
 - Web Push delivery and deep links: `docs/MODULES/web-push.md`
 - Weixin/iLink ingress and delivery: `docs/MODULES/weixin-ingress.md`
@@ -117,6 +119,8 @@ identifiers until a separate infrastructure migration is planned.
 - Gateway profile template materialization: `docs/IMPLEMENTATION_NOTES/gateway-profile-template-materialization.md`
 - Gateway profile replica pools:
   `docs/IMPLEMENTATION_NOTES/gateway-profile-replica-pools.md`
+- Workspace onboarding orchestration:
+  `docs/IMPLEMENTATION_NOTES/workspace-onboarding.md`
 - Plugin topic binding: `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md`
 - Plugin capability activation and lazy MCP loading:
   `docs/IMPLEMENTATION_NOTES/plugin-capability-activation.md`
