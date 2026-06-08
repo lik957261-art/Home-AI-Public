@@ -15,6 +15,11 @@ const FILE_PLUGIN_ROOT_ENVS = Object.freeze([
   "HERMES_MOBILE_VIDEO_ALLOWED_ROOTS",
   "HERMES_MOBILE_HTTP_FILE_ROOTS",
 ]);
+const FILE_PLUGIN_SINGLE_ROOT_ENVS = Object.freeze({
+  HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS: "${ROOT}/data/drive/users",
+  HERMES_MOBILE_HTTP_SAVE_ROOT: "${ROOT}/data/artifacts/http-request",
+  HERMES_MOBILE_VIDEO_OUTPUT_ROOT: "${ROOT}/data/artifacts/grok-videos",
+});
 const STANDARD_PROFILE_PLUGINS = Object.freeze([
   "weather",
   "web",
@@ -270,6 +275,8 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     ensureDirectory(path.posix.join(fields.workerWorkspaceRoot, ".hermes-gateway", "profiles"), "700", `${fields.macUser}:staff`);
     ensureDirectory(path.posix.join(fields.workerWorkspaceRoot, ".hermes-gateway", "logs"), "700", `${fields.macUser}:staff`);
     ensureDirectory(fields.workspaceDataRoot, "700", `${fields.macUser}:staff`);
+    ensureDirectory(path.posix.join(fields.dataRoot, "artifacts", "http-request"), "770", `${listenerUser}:staff`);
+    ensureDirectory(path.posix.join(fields.dataRoot, "artifacts", "grok-videos"), "770", `${listenerUser}:staff`);
     ensureDirectory(path.posix.join(skillRoot, "skills"), "700", `${fields.macUser}:staff`);
     ensureDirectory(path.posix.join(skillRoot, "memories"), "700", `${fields.macUser}:staff`);
     return { ok: true, root: compactPath(fields.root, fields.root), workspaceDataRoot: compactPath(fields.workspaceDataRoot, fields.root) };
@@ -330,7 +337,10 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     const port = Number(worker.port || 0);
     const profileRoot = profileDir(fields, profile);
     const fileRoots = "${ROOT}/data/drive,${ROOT}/data/uploads,${ROOT}/data/artifacts";
-    const envLines = FILE_PLUGIN_ROOT_ENVS.map((name) => `export ${name}="${fileRoots}"`).join("\n");
+    const envLines = [
+      ...FILE_PLUGIN_ROOT_ENVS.map((name) => `export ${name}="${fileRoots}"`),
+      ...Object.entries(FILE_PLUGIN_SINGLE_ROOT_ENVS).map(([name, value]) => `export ${name}="${value}"`),
+    ].join("\n");
     return `#!/bin/bash
 set -euo pipefail
 ROOT=${bashQuote(fields.root)}

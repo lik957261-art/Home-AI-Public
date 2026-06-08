@@ -158,6 +158,9 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
 
     const startScript = fs.readFileSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/start-lowgw31.sh`, "utf8");
     assert.match(startScript, /HERMES_MOBILE_DOCX_ALLOWED_ROOTS/);
+    assert.match(startScript, /HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS/);
+    assert.match(startScript, /HERMES_MOBILE_HTTP_SAVE_ROOT/);
+    assert.match(startScript, /HERMES_MOBILE_VIDEO_OUTPUT_ROOT/);
     assert.match(startScript, /\$\{ROOT\}\/data\/drive|\$ROOT\/data\/drive/);
     assert.match(startScript, /API_SERVER_KEY/);
 
