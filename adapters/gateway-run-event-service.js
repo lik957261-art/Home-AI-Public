@@ -12,6 +12,7 @@ const {
 const { createGatewayRunOutputEventService } = require("./gateway-run-output-event-service");
 const { createGatewayRunTerminalStateService } = require("./gateway-run-terminal-state-service");
 const { createGatewayRunResponseCreatedService } = require("./gateway-run-response-created-service");
+const { createGatewayRunStreamingSaveService } = require("./gateway-run-streaming-save-service");
 const { createGatewayRunToolsetEscalationRetryService } = require("./gateway-run-toolset-escalation-retry-service");
 const {
   parseToolsetEscalationRequest,
@@ -65,9 +66,6 @@ function createGatewayRunEventService(options = {}) {
     ? options.compactFullContent
     : ((value) => defaultAppendBounded("", value, maxMessageChars));
   const saveState = typeof options.saveState === "function" ? options.saveState : (() => {});
-  const setTimer = typeof options.setTimeout === "function" ? options.setTimeout : setTimeout;
-  const clearTimer = typeof options.clearTimeout === "function" ? options.clearTimeout : clearTimeout;
-  const streamingSaveThrottleMs = Math.max(0, Number(options.streamingSaveThrottleMs ?? 1200) || 0);
   const logError = typeof options.logError === "function" ? options.logError : ((err) => {
     try {
       console.error(err);
@@ -108,11 +106,10 @@ function createGatewayRunEventService(options = {}) {
   const notifyTaskTerminal = typeof options.notifyTaskTerminal === "function"
     ? options.notifyTaskTerminal
     : ((thread, message, status) => options.webPushDeliveryService?.notifyTaskTerminal?.(thread, message, status));
-  let streamingSaveTimer = null;
-  let streamingSavePending = false;
   let completionService = null;
   let outputEventService = null;
   let responseCreatedService = null;
+  let streamingStateSaveService = null;
   let terminalStateService = null;
   let toolsetEscalationRetryService = null;
 
@@ -154,31 +151,6 @@ function createGatewayRunEventService(options = {}) {
     });
   }
 
-  function clearStreamingSaveTimer() {
-    if (streamingSaveTimer) clearTimer(streamingSaveTimer);
-    streamingSaveTimer = null;
-    streamingSavePending = false;
-  }
-
-  function scheduleStreamingStateSave() {
-    if (!streamingSaveThrottleMs) {
-      saveState();
-      return;
-    }
-    if (streamingSavePending) return;
-    streamingSavePending = true;
-    streamingSaveTimer = setTimer(() => {
-      streamingSaveTimer = null;
-      streamingSavePending = false;
-      try {
-        saveState();
-      } catch (err) {
-        logError(`Hermes Mobile streaming state save failed: ${err.message || String(err)}`);
-      }
-    }, streamingSaveThrottleMs);
-    if (streamingSaveTimer && typeof streamingSaveTimer.unref === "function") streamingSaveTimer.unref();
-  }
-
   function compactTerminalTopicContext(thread, message, reason) {
     if (!topicContextCompactionService || typeof topicContextCompactionService.compactTaskGroup !== "function") return null;
     if (!message?.taskGroupId) return null;
@@ -195,7 +167,7 @@ function createGatewayRunEventService(options = {}) {
       terminalStateService = options.terminalStateService || createGatewayRunTerminalStateService({
         activeStreams,
         broadcast,
-        clearStreamingSaveTimer,
+        clearStreamingSaveTimer: () => getStreamingStateSaveService().clearStreamingSaveTimer(),
         compactMessage,
         compactTerminalTopicContext,
         enqueueExternalDeliveryForTerminalMessage,
@@ -236,7 +208,7 @@ function createGatewayRunEventService(options = {}) {
       completionService = options.completionService || createGatewayRunCompletionService({
         addThreadEvent,
         broadcast,
-        clearStreamingSaveTimer,
+        clearStreamingSaveTimer: () => getStreamingStateSaveService().clearStreamingSaveTimer(),
         compactFullContent,
         compactMessage,
         compactTerminalTopicContext,
@@ -284,11 +256,24 @@ function createGatewayRunEventService(options = {}) {
         nowIso,
         nowMs,
         saveState,
-        scheduleStreamingStateSave,
+        scheduleStreamingStateSave: () => getStreamingStateSaveService().scheduleStreamingStateSave(),
         threadSummary,
       });
     }
     return outputEventService;
+  }
+
+  function getStreamingStateSaveService() {
+    if (!streamingStateSaveService) {
+      streamingStateSaveService = options.streamingStateSaveService || createGatewayRunStreamingSaveService({
+        clearTimeout: options.clearTimeout,
+        logError,
+        saveState,
+        setTimeout: options.setTimeout,
+        streamingSaveThrottleMs: options.streamingSaveThrottleMs,
+      });
+    }
+    return streamingStateSaveService;
   }
 
   function applyDelta(context, event) {
@@ -309,7 +294,7 @@ function createGatewayRunEventService(options = {}) {
     if (!message.firstFeedbackAt) message.firstFeedbackAt = feedbackAt;
     message.updatedAt = feedbackAt;
     thread.updatedAt = feedbackAt;
-    scheduleStreamingStateSave();
+    getStreamingStateSaveService().scheduleStreamingStateSave();
     const visibleDelta = sanitized.found && message.content.startsWith(previousContent)
       ? message.content.slice(previousContent.length)
       : delta;

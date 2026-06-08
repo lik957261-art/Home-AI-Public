@@ -325,6 +325,13 @@ statements. Priority extraction areas:
   retaining event routing, text delta projection, completed-run delegation,
   response-created alias delegation, failed/cancelled terminal delegation, and
   detached-run reconciliation.
+- completed 2026-06-08: Gateway run streaming state-save lifecycle moved into
+  `adapters/gateway-run-streaming-save-service.js`. The event service now
+  delegates throttled save scheduling, pending-save coalescing, timer clearing,
+  timer `unref`, and deferred-save error logging while retaining event routing,
+  text delta projection, completed-run delegation, output-event delegation,
+  response-created alias delegation, failed/cancelled terminal delegation, and
+  detached-run reconciliation.
 - completed 2026-06-08: Gateway run stream closed-without-terminal recovery
   moved into `adapters/gateway-run-stream-close-recovery-service.js`. The
   stream service now delegates synthetic completion after partial model output,
