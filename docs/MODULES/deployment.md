@@ -157,8 +157,14 @@ service root.
   orchestrate workspace record creation, one-time Home AI Access Key creation,
   Gateway profile provisioning, selected plugin grants, and validation. The
   current production wiring intentionally does not expose arbitrary sudo or
-  shell. Without a configured `workspaceSystemProvisioningExecutor`, apply
-  returns `system_provisioning_executor_unavailable` before side effects. See
+  shell. `adapters/workspace-system-provisioning-executor-service.js` provides
+  the allowlisted macOS executor for `hm-*` user creation, private roots, ACL
+  repair, manifest metadata repair, Gateway profile/start-script materializing,
+  and cold LaunchDaemon loading. The listener injects it only when
+  `HERMES_MOBILE_WORKSPACE_SYSTEM_EXECUTOR_ENABLED=1` or
+  `HERMES_WEB_WORKSPACE_SYSTEM_EXECUTOR_ENABLED=1` is set. Without a configured
+  `workspaceSystemProvisioningExecutor`, apply returns
+  `system_provisioning_executor_unavailable` before side effects. See
   `docs/IMPLEMENTATION_NOTES/workspace-onboarding.md`.
 - Mac profile/Skill/Memory/MCP audit:
   `scripts/macos-production-profile-audit.js`. Run it after user migration,

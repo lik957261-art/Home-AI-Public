@@ -1080,13 +1080,16 @@ steps. The service must reuse `upsertLocalWorkspace`,
 `rotateWorkspaceAccessKey`, `ensureWorkspaceGateway`, and
 `hermesPluginService.grantWorkspace` instead of duplicating those contracts.
 Focused checks include `node tests\workspace-onboarding-service.test.js`,
+`node tests\workspace-system-provisioning-executor-service.test.js`,
 `node tests\workspace-onboarding-api-routes.test.js`,
 `node tests\mobile-api-dispatcher.test.js`,
 `node tests\api-route-inventory.test.js`, and
 `node tests\architecture-refactor-boundary.test.js`. After the real macOS
-executor is added, production validation must also include the Mac worker ACL
-harness, profile audit, manifest toolset smoke, selected plugin provisioning
-smokes, and wrong-header/wrong-workspace denial checks.
+executor is deployed, production validation must also include
+`macos-worker-filesystem-access-harness.js`,
+`macos-production-profile-audit.js`,
+`macos-gateway-manifest-toolset-smoke.js`, selected plugin provisioning smokes,
+and wrong-header/wrong-workspace denial checks.
 Finance workspace provisioning is an H1 plugin authorization workflow. Granting
 Finance to a workspace, and Owner first use of the default-visible Finance
 plugin, must create a workspace-local

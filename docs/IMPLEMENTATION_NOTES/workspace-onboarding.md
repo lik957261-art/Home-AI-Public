@@ -37,6 +37,10 @@ surface.
   `hermesPluginService.grantWorkspace`.
 - `server-routes/mobile-api-dispatcher.js`
   routes onboarding after ordinary workspace CRUD and before plugin APIs.
+- `adapters/workspace-system-provisioning-executor-service.js`
+  owns the restricted macOS system action surface for workspace OS users,
+  private roots, ACL repair, Gateway profile materialization, LaunchDaemon
+  plist/start-script generation, manifest metadata repair, and focused smokes.
 
 The service deliberately reuses existing components instead of duplicating
 their business rules:
@@ -63,10 +67,11 @@ Planned steps:
 2. `home_ai.access_key`
 3. `mac.user`
 4. `mac.roots`
-5. `gateway.profiles`
-6. `mac.launchd`
+5. `mac.acl`
+6. `gateway.profiles`
 7. `plugin.<id>` for each selected plugin
-8. `validation.smokes`
+8. `mac.launchd`
+9. `validation.smokes`
 
 Selected plugin steps are required by default. `allowPluginFailures=true`
 keeps plugin failures as diagnostics without failing the whole onboarding.
@@ -92,18 +97,22 @@ handoffs, embedded in URLs, or included in plugin provisioning results.
 
 ## macOS Privileged Executor Boundary
 
-The current implementation has an injection point named
-`workspaceSystemProvisioningExecutor`. When no executor is configured,
-`/api/workspace-onboarding/apply` returns:
+The implementation has an injection point named
+`workspaceSystemProvisioningExecutor`. `mobile-server-runtime.js` injects the
+restricted macOS executor only when
+`HERMES_MOBILE_WORKSPACE_SYSTEM_EXECUTOR_ENABLED=1` or
+`HERMES_WEB_WORKSPACE_SYSTEM_EXECUTOR_ENABLED=1` is set. When no executor is
+configured, `/api/workspace-onboarding/apply` returns:
 
 - `status=blocked`;
 - `error=system_provisioning_executor_unavailable`;
 - `blockedBeforeSideEffects=true`.
 
-This is intentional. Until the privileged helper is implemented, apply must not
-partially create a family workspace and leave the Mac OS user/ACL layer missing.
+This is intentional. Apply must not partially create a family workspace and
+leave the Mac OS user/ACL layer missing when privileged execution is not
+available.
 
-The future executor must expose only whitelisted actions:
+The executor exposes only whitelisted actions:
 
 - `ensure_mac_user`;
 - `ensure_workspace_roots`;
@@ -111,8 +120,25 @@ The future executor must expose only whitelisted actions:
 - `ensure_launchd_services`;
 - `run_workspace_onboarding_smokes`.
 
-It must not expose arbitrary shell, raw sudo, raw keys, plugin access keys,
-OAuth tokens, cookie stores, or unbounded logs to the model or browser.
+It does not expose arbitrary shell, raw sudo, raw keys, plugin access keys,
+OAuth tokens, cookie stores, or unbounded logs to the model or browser. It
+validates workspace ids, `hm-*` users, Gateway profile names, launchd labels,
+and Mac absolute paths before performing any action. External commands are
+invoked with fixed command paths and argument arrays.
+
+`ensure_launchd_services` repairs each target worker's Mac manifest metadata:
+
+- `osUser`;
+- `launchdLabel`;
+- `telemetryStateDbPath`;
+- `telemetryResponseStoreDbPath`.
+
+It also materializes the worker profile directory under
+`/Users/<hm-user>/HermesWorkspace/.hermes-gateway/profiles/<profile>/`, writes
+`config.yaml`, writes `start-<profile>.sh` with live Mac file-plugin roots, and
+writes a cold `/Library/LaunchDaemons/<label>.plist` with explicit
+`UserName`, `WorkingDirectory`, environment variables, log paths,
+`RunAtLoad=false`, and `KeepAlive=false`.
 
 ## Required Production Evidence
 
@@ -133,14 +159,23 @@ workflow must prove:
   fall back to Owner;
 - wrong-header and wrong-workspace auth probes fail closed.
 
-## Follow-Up Work
+## Follow-Up Work To Deployment
 
-1. Implement the Mac privileged executor as a separate service/helper with
-   allowlisted actions and focused tests.
-2. Add a production dry-run smoke that calls `/api/workspace-onboarding/plan`.
-3. Add a real Mac apply smoke against a disposable workspace once the helper is
-   installed.
-4. Add Owner UI for workspace id, display name, plugin selection, dry-run plan,
+1. Commit and push the executor implementation and docs.
+2. Deploy to Mac production and enable
+   `HERMES_MOBILE_WORKSPACE_SYSTEM_EXECUTOR_ENABLED=1` in the listener
+   LaunchDaemon only after the updated app and tests are present.
+3. Run a production dry-run smoke that calls `/api/workspace-onboarding/plan`
+   for a disposable workspace id.
+4. Run one real Mac apply smoke against the disposable workspace, then verify
+   `hm-*` user creation, private roots, ACL deny checks, manifest metadata,
+   LaunchDaemon loaded/cold state, profile audit, manifest toolset smoke, and
+   worker ACL harness.
+5. Remove or quarantine disposable workspace artifacts if the smoke was only a
+   deployment proof.
+6. Add Owner UI for workspace id, display name, plugin selection, dry-run plan,
    confirmation, and one-time Access Key delivery.
-5. Add persisted onboarding state if long-running or retryable production
+7. Run final Mac closure validation after UI wiring and before declaring the
+   onboarding workflow production-ready.
+8. Add persisted onboarding state if long-running or retryable production
    applies become common.

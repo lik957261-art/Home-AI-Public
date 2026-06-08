@@ -32,6 +32,8 @@ This reference documents public-safe manifest fields. The example file is `examp
 | `enabled` | yes | Whether the worker is schedulable. |
 | `securityLevel` | yes | `user` or `owner-maintenance`. |
 | `allowedWorkspaceIds` | recommended | Workspaces this worker can serve. Use `["*"]` only for truly shared low-permission workers. |
+| `osUser` / `os_user` | Mac production | Isolated macOS user that owns and runs the materialized Gateway profile, for example `hm-xulu`. |
+| `launchdLabel` / `launchd_label` | Mac production | System LaunchDaemon label for the worker, for example `com.hermesmobile.gateway.hm-xulu.openai.1`. Every enabled Mac worker must have a loaded service with this label, even when the worker is cold. |
 | `allowMaintenance` | owner-maintenance | Required for explicit Owner maintenance workers. |
 | `provider` | optional | Provider hint such as `xai-oauth` for Grok profile routing. |
 | `skillProfile` | recommended | Non-secret Skill store/profile label for diagnostics and routing. |

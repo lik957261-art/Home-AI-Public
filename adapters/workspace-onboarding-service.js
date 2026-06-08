@@ -117,6 +117,7 @@ function buildPlan(normalized = {}) {
   steps.push(
     systemStep("mac.user", "Ensure macOS workspace user", "ensure_mac_user"),
     systemStep("mac.roots", "Ensure private workspace roots", "ensure_workspace_roots"),
+    systemStep("mac.acl", "Repair private workspace ACL", "repair_workspace_acl"),
     {
       id: "gateway.profiles",
       title: "Ensure Gateway candidate profiles and Skill Store",
@@ -124,7 +125,6 @@ function buildPlan(normalized = {}) {
       required: true,
       status: "planned",
     },
-    systemStep("mac.launchd", "Ensure workspace Gateway LaunchDaemons", "ensure_launchd_services"),
   );
   for (const pluginId of normalized.pluginIds || []) {
     steps.push({
@@ -136,6 +136,7 @@ function buildPlan(normalized = {}) {
       status: "planned",
     });
   }
+  steps.push(systemStep("mac.launchd", "Ensure workspace Gateway LaunchDaemons", "ensure_launchd_services"));
   if (normalized.runSmokes) {
     steps.push({
       id: "validation.smokes",
@@ -256,6 +257,7 @@ function createWorkspaceOnboardingService(options = {}) {
       label: normalized.label,
       displayName: normalized.displayName,
       macUser: normalized.macUser,
+      pluginIds: normalized.pluginIds,
       paths: plan.paths,
       gateway: null,
     };
@@ -341,11 +343,6 @@ function createWorkspaceOnboardingService(options = {}) {
         };
     });
 
-    await record("mac.launchd", async (step) => {
-      const result = await runSystemAction(step.action, context);
-      return result?.ok === false ? { ok: false, error: boundedError(result.error || step.action) } : Object.assign({ ok: true }, result);
-    });
-
     for (const pluginId of normalized.pluginIds) {
       await record(`plugin.${pluginId}`, async () => {
         if (typeof hermesPluginService.grantWorkspace !== "function") {
@@ -371,6 +368,11 @@ function createWorkspaceOnboardingService(options = {}) {
         };
       });
     }
+
+    await record("mac.launchd", async (step) => {
+      const result = await runSystemAction(step.action, context);
+      return result?.ok === false ? { ok: false, error: boundedError(result.error || step.action) } : Object.assign({ ok: true }, result);
+    });
 
     if (normalized.runSmokes) {
       await record("validation.smokes", async (step) => {

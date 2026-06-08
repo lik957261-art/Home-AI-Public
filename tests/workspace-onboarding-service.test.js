@@ -101,10 +101,11 @@ function testPlanNormalizesWorkspaceAndSteps() {
     "home_ai.access_key",
     "mac.user",
     "mac.roots",
+    "mac.acl",
     "gateway.profiles",
-    "mac.launchd",
     "plugin.wardrobe",
     "plugin.note",
+    "mac.launchd",
     "validation.smokes",
   ]);
 }
@@ -146,6 +147,7 @@ async function testApplyRunsWorkspaceGatewaySystemAndPlugins() {
   assert.deepEqual(calls.executor.map((call) => call.action), [
     "ensure_mac_user",
     "ensure_workspace_roots",
+    "repair_workspace_acl",
     "ensure_launchd_services",
     "run_workspace_onboarding_smokes",
   ]);

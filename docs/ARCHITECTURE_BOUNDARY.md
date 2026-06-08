@@ -768,6 +768,17 @@ injection boundary. `workspace-onboarding-api-routes.js` is only Owner-auth HTTP
 glue. `server.js` and `mobile-server-runtime.js` must not implement workspace
 onboarding state machines or arbitrary sudo/shell execution.
 
+`workspace-system-provisioning-executor-service.js` owns the concrete
+restricted macOS workspace system actions behind that injection boundary. It may
+create `hm-*` users, private roots, ACL repairs, target Gateway profile files,
+manifest `osUser`/`launchdLabel`/telemetry metadata, cold LaunchDaemon plists,
+and focused smoke invocations. It must keep action names allowlisted, validate
+all workspace/user/profile/label/path inputs, invoke external commands through
+fixed command paths and argument arrays, and return bounded diagnostics only.
+It must not expose a generic shell/sudo endpoint or return raw keys, OAuth
+tokens, cookies, plugin access keys, profile config bodies, prompts, or full
+logs.
+
 `mobile-runtime-kanban-facade-service.js` is only a runtime wiring facade for
 Kanban public projections, case-topic wiring, plan-card creation, assessment
 workflow construction, shared-card access checks, and Kanban cache/maintenance

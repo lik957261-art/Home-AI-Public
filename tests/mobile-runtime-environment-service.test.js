@@ -66,8 +66,26 @@ function testRuntimeEnvironmentProjectsGatewayProfileLaunchScript() {
   assert.equal(webRuntime.GATEWAY_POOL_ELASTIC_CONFIG.profileLaunchScript, webScript);
 }
 
+function testWorkspaceSystemExecutorFlag() {
+  const disabled = createMobileRuntimeEnvironment({
+    env: { HERMES_WEB_DATA_DIR: "C:\\tmp\\hermes-data" },
+    toolRoot: process.cwd(),
+  });
+  assert.equal(disabled.WORKSPACE_SYSTEM_PROVISIONING_EXECUTOR_ENABLED, false);
+
+  const enabled = createMobileRuntimeEnvironment({
+    env: {
+      HERMES_WEB_DATA_DIR: "C:\\tmp\\hermes-data",
+      HERMES_MOBILE_WORKSPACE_SYSTEM_EXECUTOR_ENABLED: "1",
+    },
+    toolRoot: process.cwd(),
+  });
+  assert.equal(enabled.WORKSPACE_SYSTEM_PROVISIONING_EXECUTOR_ENABLED, true);
+}
+
 testAutomationBackendDefaults();
 testRuntimeEnvironmentProjectsResolvedBackend();
 testRuntimeEnvironmentProjectsGatewayProfileLaunchScript();
+testWorkspaceSystemExecutorFlag();
 
 console.log("mobile runtime environment service tests passed");

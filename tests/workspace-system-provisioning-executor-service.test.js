@@ -1,0 +1,203 @@
+"use strict";
+
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const {
+  createWorkspaceSystemProvisioningExecutorService,
+  safeLaunchdLabel,
+  safeMacUser,
+  safeProfile,
+  safeWorkspaceId,
+} = require("../adapters/workspace-system-provisioning-executor-service");
+
+function posixTempRoot() {
+  const dir = `/tmp/hm-workspace-executor-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function writeJson(file, value) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function fakeRunFactory(calls, overrides = {}) {
+  return function fakeRun(command, args = [], options = {}) {
+    calls.push({ command, args, input: options.input || "" });
+    const key = [command, ...args].join(" ");
+    if (typeof overrides[key] === "function") return overrides[key](command, args, options);
+    if (command === "/usr/bin/id") return { status: 1, stdout: "", stderr: "" };
+    if (command === "/usr/bin/dscl" && args.includes("UniqueID")) {
+      return { status: 0, stdout: "root 0\nalice 501\nbob 502\n", stderr: "" };
+    }
+    if (command === "/bin/launchctl" && args[0] === "print") return { status: 1, stdout: "", stderr: "" };
+    return { status: 0, stdout: "", stderr: "" };
+  };
+}
+
+function baseContext(root) {
+  return {
+    workspaceId: "xulu",
+    macUser: "hm-xulu",
+    paths: {
+      liveRoot: root,
+      dataRoot: `${root}/data`,
+      driveRoot: `${root}/data/drive`,
+      workspaceDataRoot: `${root}/data/drive/users/xulu`,
+      workerHome: `${root}/users/hm-xulu`,
+      workerWorkspaceRoot: `${root}/users/hm-xulu/HermesWorkspace`,
+    },
+    gateway: {
+      manifestPath: `${root}/data/gateway-pool-manifest-mac.json`,
+      profiles: ["lowgw31", "deepseekgw31"],
+    },
+  };
+}
+
+async function testValidationHelpersAndDisabledStates() {
+  assert.equal(safeWorkspaceId("Xu Lu"), "");
+  assert.equal(safeWorkspaceId("xulu"), "xulu");
+  assert.equal(safeMacUser("hm-xulu"), "hm-xulu");
+  assert.equal(safeMacUser("root"), "");
+  assert.equal(safeProfile("lowgw31"), "lowgw31");
+  assert.equal(safeLaunchdLabel("com.hermesmobile.gateway.hm-xulu.openai.1"), "com.hermesmobile.gateway.hm-xulu.openai.1");
+
+  const disabled = createWorkspaceSystemProvisioningExecutorService({ platform: "darwin" });
+  assert.deepEqual(await disabled.runStep("ensure_mac_user", { workspaceId: "xulu", macUser: "hm-xulu" }), {
+    ok: false,
+    error: "workspace_system_executor_disabled",
+  });
+
+  const nonDarwin = createWorkspaceSystemProvisioningExecutorService({ forceEnabled: true, platform: "win32" });
+  assert.deepEqual(await nonDarwin.runStep("ensure_mac_user", { workspaceId: "xulu", macUser: "hm-xulu" }), {
+    ok: false,
+    error: "macos_system_executor_requires_darwin",
+  });
+  assert.equal((await nonDarwin.runStep("raw_shell", {})).error, "system_action_unavailable:raw_shell");
+}
+
+async function testEnsureMacUserCreatesHiddenAccount() {
+  const calls = [];
+  const service = createWorkspaceSystemProvisioningExecutorService({
+    forceEnabled: true,
+    platform: "darwin",
+    run: fakeRunFactory(calls),
+  });
+  const result = await service.runStep("ensure_mac_user", {
+    workspaceId: "xulu",
+    macUser: "hm-xulu",
+    paths: {
+      workerHome: "/Users/hm-xulu",
+      workerWorkspaceRoot: "/Users/hm-xulu/HermesWorkspace",
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.uid, 503);
+  assert.ok(calls.some((call) => call.command === "/usr/bin/dscl" && call.args.includes("IsHidden")));
+  assert.ok(calls.some((call) => call.command === "/usr/sbin/createhomedir"));
+}
+
+async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
+  const root = posixTempRoot();
+  const calls = [];
+  try {
+    const context = baseContext(root);
+    writeJson(context.gateway.manifestPath, {
+      enabled: true,
+      workers: [
+        {
+          profile: "lowgw31",
+          provider: "openai-codex",
+          port: 18781,
+          enabled: true,
+          allowedWorkspaceIds: ["xulu"],
+          skillWorkspaceIds: ["xulu"],
+          apiKeyFile: `${root}/data/secrets/lowgw31.secret`,
+        },
+        {
+          profile: "deepseekgw31",
+          provider: "deepseek",
+          port: 18782,
+          enabled: true,
+          allowedWorkspaceIds: ["xulu"],
+          skillWorkspaceIds: ["xulu"],
+          apiKeyFile: `${root}/data/secrets/deepseekgw31.secret`,
+        },
+      ],
+    });
+    const service = createWorkspaceSystemProvisioningExecutorService({
+      forceEnabled: true,
+      fs,
+      launchDaemonsDir: `${root}/LaunchDaemons`,
+      liveRoot: root,
+      path,
+      platform: "darwin",
+      run: fakeRunFactory(calls),
+      useSudoWrites: false,
+    });
+    const result = await service.runStep("ensure_launchd_services", context);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.workers.length, 2);
+    const manifest = JSON.parse(fs.readFileSync(context.gateway.manifestPath, "utf8"));
+    assert.equal(manifest.workers[0].osUser, "hm-xulu");
+    assert.equal(manifest.workers[0].launchdLabel, "com.hermesmobile.gateway.hm-xulu.openai.1");
+    assert.equal(manifest.workers[1].launchdLabel, "com.hermesmobile.gateway.hm-xulu.deepseek.1");
+    assert.ok(manifest.workers[0].telemetryStateDbPath.endsWith("/profiles/lowgw31/state.db"));
+
+    const plist = fs.readFileSync(`${root}/LaunchDaemons/com.hermesmobile.gateway.hm-xulu.openai.1.plist`, "utf8");
+    assert.match(plist, /<key>UserName<\/key><string>hm-xulu<\/string>/);
+    assert.match(plist, /<key>RunAtLoad<\/key><false\/>/);
+    assert.match(plist, /<key>KeepAlive<\/key><false\/>/);
+
+    const startScript = fs.readFileSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/start-lowgw31.sh`, "utf8");
+    assert.match(startScript, /HERMES_MOBILE_DOCX_ALLOWED_ROOTS/);
+    assert.match(startScript, /\$\{ROOT\}\/data\/drive|\$ROOT\/data\/drive/);
+    assert.match(startScript, /API_SERVER_KEY/);
+
+    const config = fs.readFileSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/config.yaml`, "utf8");
+    assert.match(config, /provider: openai-codex/);
+    assert.match(config, /port: 18781/);
+    assert.ok(calls.some((call) => call.command === "/bin/launchctl" && call.args[0] === "bootstrap"));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+async function testRunSmokesIncludesPluginsAndToolsetGate() {
+  const root = "/tmp/hm-workspace-executor-smoke";
+  const calls = [];
+  const service = createWorkspaceSystemProvisioningExecutorService({
+    forceEnabled: true,
+    liveRoot: root,
+    platform: "darwin",
+    run: fakeRunFactory(calls, {
+      [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-production-profile-audit.js --root ${root} --expected-workspaces xulu --expected-plugins wardrobe,note --json`]: () => ({ status: 0, stdout: "{\"ok\":true}", stderr: "" }),
+      [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-gateway-manifest-toolset-smoke.js --root ${root} --json`]: () => ({ status: 0, stdout: "{\"ok\":true}", stderr: "" }),
+      [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-worker-filesystem-access-harness.js --root ${root} --json`]: () => ({ status: 0, stdout: "{\"ok\":true}", stderr: "" }),
+    }),
+  });
+
+  const result = await service.runStep("run_workspace_onboarding_smokes", Object.assign(baseContext(root), {
+    pluginIds: ["wardrobe", "note"],
+  }));
+
+  assert.equal(result.ok, true);
+  assert.ok(calls.some((call) => call.args.includes("--expected-plugins") && call.args.includes("wardrobe,note")));
+  assert.ok(calls.some((call) => call.args[0].endsWith("macos-gateway-manifest-toolset-smoke.js")));
+}
+
+async function run() {
+  await testValidationHelpersAndDisabledStates();
+  await testEnsureMacUserCreatesHiddenAccount();
+  await testEnsureLaunchdMaterializesWorkerFilesAndManifest();
+  await testRunSmokesIncludesPluginsAndToolsetGate();
+  console.log("workspace system provisioning executor service tests passed");
+}
+
+run().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
