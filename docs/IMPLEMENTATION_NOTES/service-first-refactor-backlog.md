@@ -388,6 +388,12 @@ statements. Priority extraction areas:
   provisioning, usage telemetry, status fallback projection, and run target
   release/replace behavior while retaining Gateway runtime composition singleton
   ownership.
+- completed 2026-06-08: Runtime Gateway status fallback projection moved into
+  `adapters/mobile-runtime-gateway-status-service.js`. The Gateway provider now
+  delegates single-runner status reads, Gateway Pool status attachment,
+  pool-status failure projection, and pool-health fallback handling while
+  retaining provider lifecycle wiring, runner/pool/launcher/provisioning/
+  telemetry lazy construction, and run target release/replace behavior.
 - completed 2026-06-08: Runtime config public projection moved into
   `adapters/runtime-config-public-projection-service.js`.
   `runtime-config-provider.js` now delegates Owner-visible config projection

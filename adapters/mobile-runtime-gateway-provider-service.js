@@ -2,10 +2,10 @@
 
 const { createGatewayPoolProvider: defaultCreateGatewayPoolProvider } = require("./gateway-pool-provider");
 const { createGatewayRunner: defaultCreateGatewayRunner } = require("./gateway-runner");
-const { gatewayPoolStatusHealthy: defaultGatewayPoolStatusHealthy } = require("./gateway-status-projection");
 const { createGatewayUsageTelemetryProvider: defaultCreateGatewayUsageTelemetryProvider } = require("./gateway-usage-telemetry-provider");
 const { createGatewayWorkerProfileLaunchService: defaultCreateGatewayWorkerProfileLaunchService } = require("./gateway-worker-profile-launch-service");
 const { createGatewayWorkspaceProvisioningService: defaultCreateGatewayWorkspaceProvisioningService } = require("./gateway-workspace-provisioning-service");
+const { createMobileRuntimeGatewayStatusService } = require("./mobile-runtime-gateway-status-service");
 
 function optionFunction(options, name, fallback = null) {
   const value = options[name];
@@ -32,7 +32,9 @@ function createMobileRuntimeGatewayProviderService(options = {}) {
   const apiKey = optionFunction(options, "loadHermesApiKey");
   const apiTimeoutMs = optionFunction(options, "apiTimeoutMs");
   const gatewayPoolElasticConfig = optionFunction(options, "gatewayPoolElasticConfig", () => ({}));
-  const gatewayPoolStatusHealthy = optionFunction(options, "gatewayPoolStatusHealthy", defaultGatewayPoolStatusHealthy);
+  const gatewayPoolStatusHealthy = options.gatewayPoolStatusHealthy === undefined
+    ? undefined
+    : optionFunction(options, "gatewayPoolStatusHealthy");
   const fs = requiredObject(options, "fs");
   const manifestPaths = optionFunction(options, "gatewayPoolManifestPaths");
   const nowIso = optionFunction(options, "nowIso", () => new Date().toISOString());
@@ -41,6 +43,7 @@ function createMobileRuntimeGatewayProviderService(options = {}) {
 
   let gatewayRunner = null;
   let gatewayPoolProvider = null;
+  let gatewayStatusService = null;
   let gatewayUsageTelemetryProvider = null;
   let gatewayWorkerProfileLaunchService = null;
   let gatewayWorkspaceProvisioningService = null;
@@ -117,22 +120,15 @@ function createMobileRuntimeGatewayProviderService(options = {}) {
     return gatewayUsageTelemetryProvider;
   }
 
-  async function getHermesStatus() {
-    const status = await singleGatewayRunner().status();
-    let poolStatus = null;
-    try {
-      poolStatus = await gatewayPool().status();
-      status.gatewayPool = poolStatus;
-    } catch (err) {
-      status.gatewayPool = { enabled: false, error: err.message || String(err) };
+  function gatewayStatus() {
+    if (!gatewayStatusService) {
+      gatewayStatusService = createMobileRuntimeGatewayStatusService({
+        gatewayPool,
+        gatewayPoolStatusHealthy,
+        singleGatewayRunner,
+      });
     }
-    if (!status.ok && gatewayPoolStatusHealthy(poolStatus)) {
-      status.fallbackError = status.error || "";
-      status.error = null;
-      status.health = status.health || { status: "ok", platform: "gateway-pool" };
-      status.ok = true;
-    }
-    return status;
+    return gatewayStatusService;
   }
 
   async function chooseGatewayRunTarget(hints = {}, context = {}) {
@@ -155,7 +151,7 @@ function createMobileRuntimeGatewayProviderService(options = {}) {
     gatewayUsageTelemetry,
     gatewayWorkerProfileLauncher,
     getGatewayWorkspaceProvisioningService,
-    getHermesStatus,
+    getHermesStatus: (...args) => gatewayStatus().getHermesStatus(...args),
     releaseGatewayRunTarget,
     replaceGatewayRunTarget,
     resetGatewayRuntimeConfig,
