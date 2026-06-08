@@ -6,6 +6,7 @@ const {
   createWebPushDeliveryNormalizationService,
   normalizeWebPushOrigin,
 } = require("./web-push-delivery-normalization-service");
+const { createWebPushSendService } = require("./web-push-send-service");
 
 function defaultNowIso() {
   return new Date().toISOString();
@@ -168,6 +169,26 @@ function createWebPushDeliveryService(options = {}) {
     return state() || {};
   }
 
+  const webPushSendService = createWebPushSendService({
+    hashValue,
+    makeId,
+    normalizePushDelivery,
+    normalizeStringList,
+    nowIso,
+    pushSubscriptionSkipReason,
+    saveState,
+    shouldSkipPushSubscriptionForClient,
+    state: currentState,
+    webpush,
+    webPushConfig: () => webPushConfig,
+  });
+  const {
+    activePushPrincipals,
+    publicPushStatus,
+    removePushSubscription,
+    sendPushNotification,
+  } = webPushSendService;
+
   function todoProvider() {
     return getProvider(options.todoProvider);
   }
@@ -291,19 +312,6 @@ function createWebPushDeliveryService(options = {}) {
     return webPushConfig;
   }
 
-  function pushSubscriptionCount() {
-    return (currentState().pushSubscriptions || []).filter((item) => item && !item.disabledAt && !shouldSkipPushSubscriptionForClient(item)).length;
-  }
-
-  function publicPushStatus() {
-    return {
-      enabled: Boolean(webPushConfig),
-      publicKey: webPushConfig?.publicKey || "",
-      subject: webPushConfig?.subject || "",
-      subscriptionCount: pushSubscriptionCount(),
-    };
-  }
-
   function recordPushReceipt(body = {}) {
     const normalized = normalizePushReceipt(Object.assign({}, body, {
       id: makeId("receipt"),
@@ -372,75 +380,6 @@ function createWebPushDeliveryService(options = {}) {
     };
   }
 
-  function removePushSubscription(subscriptionOrEndpoint) {
-    const endpoint = typeof subscriptionOrEndpoint === "string"
-      ? subscriptionOrEndpoint
-      : String(subscriptionOrEndpoint?.endpoint || "");
-    if (!endpoint) return false;
-    const hash = hashValue(endpoint);
-    const store = currentState();
-    const before = (store.pushSubscriptions || []).length;
-    store.pushSubscriptions = (store.pushSubscriptions || []).filter((item) => item.endpointHash !== hash);
-    if (store.pushSubscriptions.length !== before) saveState();
-    return store.pushSubscriptions.length !== before;
-  }
-
-  async function sendPushNotification(payload, opts = {}) {
-    if (!webPushConfig) return { enabled: false, attempted: 0, sent: 0, failed: 0, removed: 0 };
-    const targetPrincipals = normalizeStringList(opts.principalIds || opts.principalId || []);
-    const store = currentState();
-    const subscriptions = (store.pushSubscriptions || []).filter((item) => {
-      if (!item || item.disabledAt || !item.subscription?.endpoint) return false;
-      if (!targetPrincipals.length) return true;
-      const principals = normalizeStringList(item.principalIds || "owner");
-      return principals.some((principal) => targetPrincipals.includes(principal));
-    });
-    let sent = 0;
-    let failed = 0;
-    let removed = 0;
-    const now = nowIso();
-    const body = JSON.stringify(payload);
-    for (const item of subscriptions) {
-      const skipReason = pushSubscriptionSkipReason(item);
-      if (skipReason) {
-        item.lastError = skipReason;
-        item.updatedAt = now;
-        continue;
-      }
-      try {
-        await webpush.sendNotification(item.subscription, body, {
-          TTL: opts.ttl || 60 * 60,
-          urgency: opts.urgency || "normal",
-        });
-        item.lastSuccessAt = now;
-        item.lastError = null;
-        item.updatedAt = now;
-        sent += 1;
-      } catch (err) {
-        failed += 1;
-        item.lastError = err.message || String(err);
-        item.updatedAt = now;
-        if (err.statusCode === 404 || err.statusCode === 410) {
-          item.disabledAt = now;
-          removed += 1;
-        }
-      }
-    }
-    const attempted = sent + failed;
-    const skipped = Math.max(0, subscriptions.length - attempted);
-    const result = { enabled: true, attempted, sent, failed, removed };
-    if (skipped) result.skipped = skipped;
-    store.pushDeliveries = [...(store.pushDeliveries || []), normalizePushDelivery({
-      id: makeId("pushdel"),
-      sentAt: now,
-      payload,
-      principalIds: targetPrincipals,
-      result,
-    })].filter(Boolean).slice(-200);
-    saveState();
-    return result;
-  }
-
   function hasSentPushDeliveryForTag(tag, messageType = "") {
     const wantedTag = String(tag || "").trim();
     if (!wantedTag) return false;
@@ -451,15 +390,6 @@ function createWebPushDeliveryService(options = {}) {
       if (wantedType && String(delivery.messageType || "").trim() !== wantedType) return false;
       return Number(delivery.sent || 0) > 0;
     });
-  }
-
-  function activePushPrincipals() {
-    const principals = new Set();
-    for (const item of currentState().pushSubscriptions || []) {
-      if (!item || item.disabledAt || !item.subscription?.endpoint) continue;
-      for (const principal of normalizeStringList(item.principalIds || "owner")) principals.add(principal);
-    }
-    return [...principals];
   }
 
   function confirmedTodoPushMarkKeys() {

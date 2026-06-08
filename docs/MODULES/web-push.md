@@ -10,6 +10,7 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 
 - `adapters/web-push-delivery-service.js`
 - `adapters/web-push-delivery-normalization-service.js`
+- `adapters/web-push-send-service.js`
 - `public/service-worker.js`
 - `public/app-platform-ui.js`
 - `public/app-task-groups-ui.js`
@@ -101,6 +102,7 @@ Push payloads are navigation hints. Sensitive content must still be fetched thro
 - `node --check public\service-worker.js`
 - `node --check public\app-pwa-settings-push-ui.js`
 - `node tests\web-push-delivery-normalization-service.test.js`
+- `node tests\web-push-send-service.test.js`
 - `node tests\web-push-delivery-service.test.js`
 - `node tests\push-api-routes.test.js`
 - `node tests\same-window-navigation-harness.test.js`

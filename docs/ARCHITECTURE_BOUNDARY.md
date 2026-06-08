@@ -690,12 +690,20 @@ composition may pass the resulting `mobileSqliteStore` delegate into persistence
 Kanban, Action Inbox, and topic-context services, but it must not keep its own
 SQLite store singleton or top-level `mobileSqliteStore` implementation.
 
-`web-push-delivery-service.js` owns VAPID load, initialization, reload, push
-status, actual push sending, Todo/Automation/Growth/group-chat notification
-composition, Action Inbox source upsert orchestration, and background Web Push
-dispatchers. Runtime composition may pass short delegates into route
+`web-push-delivery-service.js` owns VAPID load, initialization, reload, Todo,
+Automation, Growth, and group-chat notification composition, Action Inbox source
+upsert orchestration, and background Web Push dispatchers. Runtime composition
+may pass short delegates into route
 composition, but it must not carry duplicate top-level wrapper functions for
 VAPID load/init/generation/reload behavior.
+
+`web-push-send-service.js` owns Web Push public status projection, active
+principal projection, subscription removal by endpoint, subscription target
+filtering, actual `webpush.sendNotification` calls, per-subscription
+success/failure/removal state mutation, skipped subscription accounting, and
+bounded push-delivery summary insertion. `web-push-delivery-service.js` may
+delegate to it, but it must not reintroduce inline send loops or subscription
+collection projection.
 
 `web-push-delivery-normalization-service.js` owns deterministic Web Push record
 normalization and projection: delivery/receipt/subscription normalization,
@@ -1073,13 +1081,17 @@ Current CI guardrails:
 - `mobile-runtime-state-path-environment-service.js` must stay at or below 90 lines;
 - `mobile-runtime-kanban-environment-service.js` must stay at or below 100 lines;
 - `mobile-runtime-env-value-service.js` must stay at or below 40 lines;
-- `web-push-delivery-service.js` must stay at or below 1,450 lines and retain
-  VAPID lifecycle, actual push sending, notification composition, Inbox source
-  upserts, and background dispatch orchestration rather than deterministic
-  subscription normalization policy;
+- `web-push-delivery-service.js` must stay at or below 1,380 lines and retain
+  VAPID lifecycle, notification composition, Inbox source upserts, and
+  background dispatch orchestration rather than deterministic subscription
+  normalization policy or inline push-send loops;
 - `web-push-delivery-normalization-service.js` must stay at or below 285 lines
   and own deterministic Web Push normalization, subscription scoping,
   client-context gates, and deployment-origin skip reasons;
+- `web-push-send-service.js` must stay at or below 150 lines and own Web Push
+  public status, active-principal projection, subscription removal, target
+  filtering, actual push sends, skipped-subscription accounting, and delivery
+  summary insertion;
 - if a feature would exceed either budget, extract route modules and services first.
 
 These budgets are intentionally temporary ceilings. Lower them after each

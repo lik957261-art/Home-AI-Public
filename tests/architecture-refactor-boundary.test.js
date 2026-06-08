@@ -223,6 +223,7 @@ const weixinRuntimeCompositionService = require("../adapters/weixin-runtime-comp
 const weixinWindowMigrationService = require("../adapters/weixin-window-migration-service");
 const webPushDeliveryService = require("../adapters/web-push-delivery-service");
 const webPushDeliveryNormalizationService = require("../adapters/web-push-delivery-normalization-service");
+const webPushSendService = require("../adapters/web-push-send-service");
 const workspaceDisplayPathService = require("../adapters/workspace-display-path-service");
 const workspacePublicProjectionService = require("../adapters/workspace-public-projection-service");
 const sqliteStore = require("../adapters/mobile-sqlite-store");
@@ -582,6 +583,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof webPushDeliveryService.createWebPushDeliveryService, "function");
   assert.equal(typeof webPushDeliveryNormalizationService.createWebPushDeliveryNormalizationService, "function");
   assert.equal(typeof webPushDeliveryNormalizationService.normalizeWebPushOrigin, "function");
+  assert.equal(typeof webPushSendService.createWebPushSendService, "function");
   assert.equal(typeof workspaceDisplayPathService.createWorkspaceDisplayPathService, "function");
   assert.equal(typeof workspacePublicProjectionService.createWorkspacePublicProjectionService, "function");
   assert.equal(sqliteStore.CURRENT_SCHEMA_VERSION >= 2, true);
@@ -708,6 +710,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const gatewayRunStart = fileText("adapters/gateway-run-start-service.js");
   const webPushDelivery = fileText("adapters/web-push-delivery-service.js");
   const webPushNormalization = fileText("adapters/web-push-delivery-normalization-service.js");
+  const webPushSend = fileText("adapters/web-push-send-service.js");
   const gatewayFacade = fileText("adapters/mobile-runtime-gateway-facade-service.js");
   const groupChatAttachment = fileText("adapters/mobile-runtime-group-chat-attachment-service.js");
   const groupChatFacade = fileText("adapters/mobile-runtime-group-chat-facade-service.js");
@@ -1437,6 +1440,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(gatewayCompositionOptions, /webPushDeliveryService\.notifyTaskTerminal/);
   assert.doesNotMatch(server, /notifyTaskTerminal: \(\.\.\.args\) => webPushDeliveryService\.notifyTaskTerminal/);
   assert.match(webPushDelivery, /createWebPushDeliveryNormalizationService/);
+  assert.match(webPushDelivery, /createWebPushSendService/);
   assert.match(webPushDelivery, /normalizePushSubscription,/);
   assert.match(webPushDelivery, /function notifyGroupChatMentions/);
   assert.match(mobilePlatformComposition, /createOwnerElevationApiRoutes/);
@@ -1519,8 +1523,15 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(webPushNormalization, /function assertPushSubscriptionClientAllowed/);
   assert.match(webPushNormalization, /function notificationRecipientWorkspaceIdsForWorkspace/);
   assert.match(webPushNormalization, /function pushSubscriptionSkipReason/);
+  assert.match(webPushSend, /async function sendPushNotification/);
+  assert.match(webPushSend, /function publicPushStatus/);
+  assert.match(webPushSend, /function removePushSubscription/);
+  assert.match(webPushSend, /function activePushPrincipals/);
   assert.doesNotMatch(webPushDelivery, /^  function scopedPushWorkspaceIds/gm);
   assert.doesNotMatch(webPushDelivery, /^  function assertPushSubscriptionClientAllowed/gm);
+  assert.doesNotMatch(webPushDelivery, /^  async function sendPushNotification/gm);
+  assert.doesNotMatch(webPushDelivery, /^  function publicPushStatus/gm);
+  assert.doesNotMatch(webPushDelivery, /^  function removePushSubscription/gm);
   assert.doesNotMatch(server, /^function scopedPushPrincipalIds/gm);
   assert.doesNotMatch(server, /^function scopedPushWorkspaceIds/gm);
   assert.doesNotMatch(server, /getRuntimeStateNormalizationService\(\)\.normalizeState/);
@@ -1788,8 +1799,9 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /mobile-runtime-state-path-environment-service\.js` must stay at or below 90 lines/);
   assert.match(doc, /mobile-runtime-kanban-environment-service\.js` must stay at or below 100 lines/);
   assert.match(doc, /mobile-runtime-env-value-service\.js` must stay at or below 40 lines/);
-  assert.match(doc, /web-push-delivery-service\.js` must stay at or below 1,450 lines/);
+  assert.match(doc, /web-push-delivery-service\.js` must stay at or below 1,380 lines/);
   assert.match(doc, /web-push-delivery-normalization-service\.js` must stay at or below 285 lines/);
+  assert.match(doc, /web-push-send-service\.js` must stay at or below 150 lines/);
   assert.match(doc, /public\/app\.js/);
   assert.match(doc, /10,000 lines/);
   assert.match(doc, /120/);
@@ -1873,6 +1885,7 @@ function testServiceFirstArchitectureContract() {
   const gatewayRunStart = fileText("adapters/gateway-run-start-service.js");
   const webPushDelivery = fileText("adapters/web-push-delivery-service.js");
   const webPushNormalization = fileText("adapters/web-push-delivery-normalization-service.js");
+  const webPushSend = fileText("adapters/web-push-send-service.js");
   const gatewayFacade = fileText("adapters/mobile-runtime-gateway-facade-service.js");
   const groupChatFacade = fileText("adapters/mobile-runtime-group-chat-facade-service.js");
   const artifactFacade = fileText("adapters/mobile-runtime-artifact-facade-service.js");
@@ -1987,6 +2000,7 @@ function testServiceFirstArchitectureContract() {
   const gatewayRunStartLineCount = gatewayRunStart.split(/\r?\n/).length;
   const webPushDeliveryLineCount = webPushDelivery.split(/\r?\n/).length;
   const webPushNormalizationLineCount = webPushNormalization.split(/\r?\n/).length;
+  const webPushSendLineCount = webPushSend.split(/\r?\n/).length;
   const gatewayFacadeLineCount = gatewayFacade.split(/\r?\n/).length;
   const groupChatFacadeLineCount = groupChatFacade.split(/\r?\n/).length;
   const artifactFacadeLineCount = artifactFacade.split(/\r?\n/).length;
@@ -2041,8 +2055,9 @@ function testServiceFirstArchitectureContract() {
   assert.ok(gatewayRunStartWardrobeGateLineCount <= 85, `gateway-run-start-wardrobe-gate-service.js line budget exceeded: ${gatewayRunStartWardrobeGateLineCount} > 85`);
   assert.ok(gatewayRunStartChildRegistryLineCount <= 260, `gateway-run-start-child-service-registry-service.js line budget exceeded: ${gatewayRunStartChildRegistryLineCount} > 260`);
   assert.ok(gatewayRunStartLineCount <= 75, `gateway-run-start-service.js line budget exceeded: ${gatewayRunStartLineCount} > 75`);
-  assert.ok(webPushDeliveryLineCount <= 1450, `web-push-delivery-service.js line budget exceeded: ${webPushDeliveryLineCount} > 1450`);
+  assert.ok(webPushDeliveryLineCount <= 1380, `web-push-delivery-service.js line budget exceeded: ${webPushDeliveryLineCount} > 1380`);
   assert.ok(webPushNormalizationLineCount <= 285, `web-push-delivery-normalization-service.js line budget exceeded: ${webPushNormalizationLineCount} > 285`);
+  assert.ok(webPushSendLineCount <= 150, `web-push-send-service.js line budget exceeded: ${webPushSendLineCount} > 150`);
   assert.ok(gatewayRunQueueProjectionLineCount <= 100, `gateway-run-queue-projection-service.js line budget exceeded: ${gatewayRunQueueProjectionLineCount} > 100`);
   assert.ok(gatewayRunQueueLineCount <= 180, `gateway-run-queue-service.js line budget exceeded: ${gatewayRunQueueLineCount} > 180`);
   assert.ok(gatewayRunTerminalStateLineCount <= 160, `gateway-run-terminal-state-service.js line budget exceeded: ${gatewayRunTerminalStateLineCount} > 160`);

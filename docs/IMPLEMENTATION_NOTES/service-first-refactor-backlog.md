@@ -432,6 +432,14 @@ statements. Priority extraction areas:
   standalone gates, and deployment-origin skip reasons while retaining VAPID
   lifecycle, actual push sending, Todo/Automation/Growth/group-chat notification
   composition, Action Inbox source upserts, and background dispatchers.
+- completed 2026-06-08: Web Push send execution moved into
+  `adapters/web-push-send-service.js`. `web-push-delivery-service.js` now
+  delegates public push status, active-principal projection, endpoint removal,
+  subscription target filtering, actual `webpush.sendNotification` calls,
+  per-subscription success/failure/removal mutation, skipped-subscription
+  accounting, and bounded push-delivery summary insertion while retaining VAPID
+  lifecycle, notification composition, Action Inbox source upserts, and
+  background dispatchers.
 - deeper Gateway runtime worker policy composition outside runtime config;
 - thread run preparation and deeper Gateway lifecycle wiring;
 - plugin/topic routing and capability activation glue;
