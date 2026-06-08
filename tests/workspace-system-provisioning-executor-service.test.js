@@ -207,12 +207,22 @@ async function testRepairWorkspaceAclSkipsSystemUsersRoot() {
 async function testRunSmokesIncludesPluginsAndToolsetGate() {
   const root = "/tmp/hm-workspace-executor-smoke";
   const calls = [];
+  const profileAuditStdout = JSON.stringify({
+    ok: true,
+    issues: [],
+    warnings: [],
+    byWorkspace: {
+      xulu: {
+        workers: [{ profile: "lowgw31" }],
+      },
+    },
+  });
   const service = createWorkspaceSystemProvisioningExecutorService({
     forceEnabled: true,
     liveRoot: root,
     platform: "darwin",
     run: fakeRunFactory(calls, {
-      [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-production-profile-audit.js --root ${root} --expected-workspaces xulu --expected-plugins wardrobe,note --json`]: () => ({ status: 0, stdout: "{\"ok\":true}", stderr: "" }),
+      [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-production-profile-audit.js --root ${root} --expected-workspaces xulu --json --no-strict --expected-plugins wardrobe,note --required-workspace-plugins xulu:wardrobe,note`]: () => ({ status: 0, stdout: profileAuditStdout, stderr: "" }),
       [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-gateway-manifest-toolset-smoke.js --root ${root} --json`]: () => ({ status: 0, stdout: "{\"ok\":true}", stderr: "" }),
       [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-worker-filesystem-access-harness.js --root ${root} --json`]: () => ({ status: 0, stdout: "{\"ok\":true}", stderr: "" }),
     }),
@@ -224,7 +234,84 @@ async function testRunSmokesIncludesPluginsAndToolsetGate() {
 
   assert.equal(result.ok, true);
   assert.ok(calls.some((call) => call.args.includes("--expected-plugins") && call.args.includes("wardrobe,note")));
+  assert.ok(calls.some((call) => call.args.includes("--no-strict")));
+  assert.ok(calls.some((call) => call.args.includes("--required-workspace-plugins") && call.args.includes("xulu:wardrobe,note")));
   assert.ok(calls.some((call) => call.args[0].endsWith("macos-gateway-manifest-toolset-smoke.js")));
+}
+
+async function testRunSmokesIgnoresUnrelatedProfileAuditIssues() {
+  const root = "/tmp/hm-workspace-executor-smoke";
+  const calls = [];
+  const profileAuditStdout = JSON.stringify({
+    ok: false,
+    issues: [
+      "plugin_local_binding_incomplete:legacy:email",
+    ],
+    warnings: [
+      "skill_root_empty:xulu",
+      "telemetry_state_db_missing:legacygw1",
+    ],
+    byWorkspace: {
+      xulu: {
+        workers: [{ profile: "lowgw31" }],
+      },
+    },
+  });
+  const service = createWorkspaceSystemProvisioningExecutorService({
+    forceEnabled: true,
+    liveRoot: root,
+    platform: "darwin",
+    run: fakeRunFactory(calls, {
+      [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-production-profile-audit.js --root ${root} --expected-workspaces xulu --json --no-strict --expected-plugins wardrobe,note --required-workspace-plugins xulu:wardrobe,note`]: () => ({ status: 0, stdout: profileAuditStdout, stderr: "" }),
+      [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-gateway-manifest-toolset-smoke.js --root ${root} --json`]: () => ({ status: 0, stdout: "{\"ok\":true}", stderr: "" }),
+      [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-worker-filesystem-access-harness.js --root ${root} --json`]: () => ({ status: 0, stdout: "{\"ok\":true}", stderr: "" }),
+    }),
+  });
+
+  const result = await service.runStep("run_workspace_onboarding_smokes", Object.assign(baseContext(root), {
+    pluginIds: ["wardrobe", "note"],
+  }));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.profileAudit.auditOk, false);
+  assert.deepEqual(result.profileAudit.targetIssues, []);
+  assert.deepEqual(result.profileAudit.targetWarnings, ["skill_root_empty:xulu"]);
+  assert.equal(result.profileAudit.ignoredIssueCount, 1);
+}
+
+async function testRunSmokesFailsForTargetProfileAuditIssues() {
+  const root = "/tmp/hm-workspace-executor-smoke";
+  const calls = [];
+  const profileAuditStdout = JSON.stringify({
+    ok: false,
+    issues: [
+      "access_key_missing:xulu",
+      "plugin_local_binding_incomplete:legacy:email",
+    ],
+    warnings: [],
+    byWorkspace: {
+      xulu: {
+        workers: [{ profile: "lowgw31" }],
+      },
+    },
+  });
+  const service = createWorkspaceSystemProvisioningExecutorService({
+    forceEnabled: true,
+    liveRoot: root,
+    platform: "darwin",
+    run: fakeRunFactory(calls, {
+      [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-production-profile-audit.js --root ${root} --expected-workspaces xulu --json --no-strict --expected-plugins wardrobe,note --required-workspace-plugins xulu:wardrobe,note`]: () => ({ status: 0, stdout: profileAuditStdout, stderr: "" }),
+    }),
+  });
+
+  const result = await service.runStep("run_workspace_onboarding_smokes", Object.assign(baseContext(root), {
+    pluginIds: ["wardrobe", "note"],
+  }));
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "profile_audit_failed");
+  assert.deepEqual(result.profileAudit.targetIssues, ["access_key_missing:xulu"]);
+  assert.equal(calls.some((call) => call.args[0]?.endsWith("macos-gateway-manifest-toolset-smoke.js")), false);
 }
 
 async function run() {
@@ -233,6 +320,8 @@ async function run() {
   await testEnsureLaunchdMaterializesWorkerFilesAndManifest();
   await testRepairWorkspaceAclSkipsSystemUsersRoot();
   await testRunSmokesIncludesPluginsAndToolsetGate();
+  await testRunSmokesIgnoresUnrelatedProfileAuditIssues();
+  await testRunSmokesFailsForTargetProfileAuditIssues();
   console.log("workspace system provisioning executor service tests passed");
 }
 

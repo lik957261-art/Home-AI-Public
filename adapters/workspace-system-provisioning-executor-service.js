@@ -87,6 +87,14 @@ function boundedOutput(value) {
     .slice(-400);
 }
 
+function parseJsonSafe(value) {
+  try {
+    return JSON.parse(String(value || ""));
+  } catch (_) {
+    return null;
+  }
+}
+
 function readJsonSafe(fs, file, fallback = {}) {
   try {
     return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -549,6 +557,49 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
     };
   }
 
+  function auditIssueTargetsWorkspace(issue, workspaceId, profiles = new Set()) {
+    const parts = text(issue).split(":").map((item) => item.trim()).filter(Boolean);
+    return parts.includes(workspaceId) || parts.some((part) => profiles.has(part));
+  }
+
+  function profileAuditSummary(result, workspaceId) {
+    const audit = parseJsonSafe(result.stdout);
+    const base = {
+      status: result.status,
+      stderr: boundedOutput(result.stderr),
+      stdout: boundedOutput(result.stdout),
+      targetWorkspace: workspaceId,
+    };
+    if (!audit || typeof audit !== "object") {
+      return Object.assign({}, base, {
+        ok: false,
+        error: "profile_audit_json_unavailable",
+        targetIssues: ["profile_audit_json_unavailable"],
+      });
+    }
+    const target = audit.byWorkspace?.[workspaceId] || null;
+    const targetProfiles = new Set(
+      (Array.isArray(target?.workers) ? target.workers : [])
+        .map((worker) => text(worker.profile))
+        .filter(Boolean),
+    );
+    const issues = Array.isArray(audit.issues) ? audit.issues.map(text).filter(Boolean) : [];
+    const warnings = Array.isArray(audit.warnings) ? audit.warnings.map(text).filter(Boolean) : [];
+    const targetIssues = issues.filter((issue) => auditIssueTargetsWorkspace(issue, workspaceId, targetProfiles));
+    const ignoredIssues = issues.filter((issue) => !auditIssueTargetsWorkspace(issue, workspaceId, targetProfiles));
+    const targetWarnings = warnings.filter((warning) => auditIssueTargetsWorkspace(warning, workspaceId, targetProfiles));
+    if (!target) targetIssues.push(`workspace_audit_missing:${workspaceId}`);
+    return Object.assign({}, base, {
+      ok: targetIssues.length === 0,
+      auditOk: Boolean(audit.ok),
+      targetFound: Boolean(target),
+      targetIssues,
+      targetWarnings: targetWarnings.slice(0, 20),
+      ignoredIssueCount: ignoredIssues.length,
+      ignoredIssues: ignoredIssues.slice(0, 20),
+    });
+  }
+
   function runWorkspaceOnboardingSmokes(context = {}) {
     const platformFailure = ensureMacPlatform();
     if (platformFailure) return platformFailure;
@@ -560,11 +611,17 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
       "--root", fields.root,
       "--expected-workspaces", fields.workspaceId,
       "--json",
+      "--no-strict",
     ];
-    if (pluginIds.length) profileAuditArgs.splice(4, 0, "--expected-plugins", pluginIds.join(","));
-    const profileAudit = runSmokeScript(fields.root, path.posix.join(appScripts, "macos-production-profile-audit.js"), [
-      ...profileAuditArgs,
-    ]);
+    if (pluginIds.length) {
+      profileAuditArgs.push(
+        "--expected-plugins", pluginIds.join(","),
+        "--required-workspace-plugins", `${fields.workspaceId}:${pluginIds.join(",")}`,
+      );
+    }
+    const node = safeAbsoluteMacPath(options.nodePath || path.posix.join(fields.root, "runtime", "node-current", "bin", "node"));
+    const profileAuditResult = command(node, [path.posix.join(appScripts, "macos-production-profile-audit.js"), ...profileAuditArgs]);
+    const profileAudit = profileAuditSummary(profileAuditResult, fields.workspaceId);
     if (!profileAudit.ok) return { ok: false, error: "profile_audit_failed", profileAudit };
     const toolsets = runSmokeScript(fields.root, path.posix.join(appScripts, "macos-gateway-manifest-toolset-smoke.js"), [
       "--root", fields.root,
