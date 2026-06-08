@@ -84,6 +84,7 @@ async function testEnsureMacUserCreatesHiddenAccount() {
     forceEnabled: true,
     platform: "darwin",
     run: fakeRunFactory(calls),
+    useSudoWrites: false,
   });
   const result = await service.runStep("ensure_mac_user", {
     workspaceId: "xulu",
