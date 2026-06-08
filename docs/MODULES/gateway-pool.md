@@ -200,7 +200,10 @@ keeps them bounded, and maps them back to the scheduler's existing
 environment variables remain the baseline; Owner UI values override that
 baseline only when present. Saving runtime config refreshes the cached Gateway
 Pool provider and profile launcher so the next pool initialization uses the new
-settings. It does not terminate active workers or active runs.
+settings. The Owner runtime-config sheet must also read `/api/runtime-config`
+again after a successful save and redraw the effective `gatewayWorkerSettings`
+projection; otherwise a successful worker-cap save can look like a no-op in the
+UI. It does not terminate active workers or active runs.
 
 `adapters/mobile-runtime-gateway-facade-service.js` owns the runtime Gateway
 status composition. The runtime root delegates status through this facade; the

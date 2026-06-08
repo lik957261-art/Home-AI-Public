@@ -120,6 +120,15 @@ When a push opens the wrong page, check three layers in order: payload route fie
 
 For chat/topic receipt targeting, verify both the producer and the click router. The producer should store the terminal assistant receipt id in `data.messageId`; the service worker should preserve single-window chat/group routes before generic task routing; the frontend route parser should keep the `messageId` until the chat/topic message list renders and scrolls to it.
 
+Notification-click routing is a cache-bypass path. `openNotificationRoute()` /
+`openHermesInternalRoute()` must call the selected-view loader with a forced
+task-list reload and skip the single-window cache first frame so a terminal
+receipt push cannot focus an already-open PWA and leave the old running
+assistant placeholder visible. Foreground terminal pushes may refresh the open
+matching topic detail or the root topic list, but they must not navigate the
+user away from another function page until the user clicks the system
+notification.
+
 For browser-frame reports, first separate Web Push click handling from ordinary in-app second-level navigation. Inbox row to Automation detail is not itself a Web Push path, even if the Inbox item was originally created from an automation push. It still uses the same Hermes-owned internal route contract and must preserve the current app-shell path.
 
 Use the exact external app entry reported by the user for smoke verification. A root-mounted local check can miss a prefixed deployment bug where `/hermes-mobile/?source=pwa` is the real entry but an internal helper emits `/?view=...`. Do not hardcode the operator's domain or prefix in code; derive the app-shell path from `window.location.pathname` or the focused service-worker client URL.

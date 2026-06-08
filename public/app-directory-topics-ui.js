@@ -73,10 +73,12 @@ function directoryTopicDisplayTitle(group) {
 }
 
 const DIRECTORY_TOPIC_COLLAPSED_STORAGE_KEY = "hermesDirectoryTopicCollapsed";
+const DIRECTORY_TOPIC_EXPANDED_STORAGE_KEY = "hermesDirectoryTopicExpanded";
+const DIRECTORY_TOPIC_DEFAULT_EXPANDED_LIMIT = 3;
 
-function readCollapsedDirectoryTopics() {
+function readDirectoryTopicStorageSet(storageKey) {
   try {
-    const raw = localStorage.getItem(DIRECTORY_TOPIC_COLLAPSED_STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     const values = JSON.parse(raw || "[]");
     return new Set(Array.isArray(values) ? values.map((value) => String(value || "")) : []);
   } catch (_) {
@@ -84,10 +86,53 @@ function readCollapsedDirectoryTopics() {
   }
 }
 
-function writeCollapsedDirectoryTopics(collapsed) {
+function readCollapsedDirectoryTopics() {
+  return readDirectoryTopicStorageSet(DIRECTORY_TOPIC_COLLAPSED_STORAGE_KEY);
+}
+
+function readExpandedDirectoryTopics() {
+  return readDirectoryTopicStorageSet(DIRECTORY_TOPIC_EXPANDED_STORAGE_KEY);
+}
+
+function writeDirectoryTopicStorageSet(storageKey, values) {
   try {
-    localStorage.setItem(DIRECTORY_TOPIC_COLLAPSED_STORAGE_KEY, JSON.stringify([...collapsed].filter(Boolean)));
+    localStorage.setItem(storageKey, JSON.stringify([...values].filter(Boolean)));
   } catch (_) {}
+}
+
+function writeCollapsedDirectoryTopics(collapsed) {
+  writeDirectoryTopicStorageSet(DIRECTORY_TOPIC_COLLAPSED_STORAGE_KEY, collapsed);
+}
+
+function writeExpandedDirectoryTopics(expanded) {
+  writeDirectoryTopicStorageSet(DIRECTORY_TOPIC_EXPANDED_STORAGE_KEY, expanded);
+}
+
+function directoryTopicCollapsedByDefault(index) {
+  return index >= DIRECTORY_TOPIC_DEFAULT_EXPANDED_LIMIT;
+}
+
+function directoryTopicIsCollapsed(collection, index, collapsedDirectories, expandedDirectories) {
+  const key = collection?.key || "";
+  if (!key) return true;
+  if (collapsedDirectories.has(key)) return true;
+  if (expandedDirectories.has(key)) return false;
+  return directoryTopicCollapsedByDefault(index);
+}
+
+function setDirectoryTopicCollapsed(key, collapsed) {
+  if (!key) return;
+  const collapsedDirectories = readCollapsedDirectoryTopics();
+  const expandedDirectories = readExpandedDirectoryTopics();
+  if (collapsed) {
+    collapsedDirectories.add(key);
+    expandedDirectories.delete(key);
+  } else {
+    collapsedDirectories.delete(key);
+    expandedDirectories.add(key);
+  }
+  writeCollapsedDirectoryTopics(collapsedDirectories);
+  writeExpandedDirectoryTopics(expandedDirectories);
 }
 
 function renderDirectoryTopicCards(collections = [], options = {}) {
@@ -95,12 +140,13 @@ function renderDirectoryTopicCards(collections = [], options = {}) {
   if (!visible.length) return "";
   const associated = options.associatedWithDirectoryPlugin === true;
   const collapsedDirectories = readCollapsedDirectoryTopics();
+  const expandedDirectories = readExpandedDirectoryTopics();
   return `<section class="directory-topic-launcher${associated ? " directory-topic-associated" : ""}" aria-label="\u76ee\u5f55\u8bdd\u9898">
     <div class="directory-topic-grid">
-      ${visible.map((collection) => {
+      ${visible.map((collection, index) => {
         const defaultGroup = collection.defaultGroup;
         const topics = collection.groups || [];
-        const collapsed = collapsedDirectories.has(collection.key);
+        const collapsed = directoryTopicIsCollapsed(collection, index, collapsedDirectories, expandedDirectories);
         return `<article class="directory-topic-card${collapsed ? " collapsed" : ""}" data-directory-topic-card="${escapeHtml(collection.key)}">
           <div class="directory-topic-card-main-row">
             <button class="directory-topic-card-main directory-topic-directory-main" type="button" data-directory-topic-toggle="${escapeHtml(collection.key)}" aria-expanded="${collapsed ? "false" : "true"}" aria-label="${escapeHtml(`${collapsed ? "\u5c55\u5f00" : "\u6536\u8d77"}${collection.label}\u8bdd\u9898`)}">
@@ -137,12 +183,9 @@ function wireDirectoryTopicCards(root) {
       event.stopPropagation();
       const key = button.dataset.directoryTopicToggle || "";
       if (!key) return;
-      const collapsed = readCollapsedDirectoryTopics();
-      if (collapsed.has(key)) collapsed.delete(key);
-      else collapsed.add(key);
-      writeCollapsedDirectoryTopics(collapsed);
       const card = button.closest?.("[data-directory-topic-card]");
-      const isCollapsed = collapsed.has(key);
+      const isCollapsed = !card?.classList.contains("collapsed");
+      setDirectoryTopicCollapsed(key, isCollapsed);
       card?.classList.toggle("collapsed", isCollapsed);
       button.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
     });

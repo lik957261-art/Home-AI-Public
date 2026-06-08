@@ -795,7 +795,7 @@ async function openHermesInternalRoute(value) {
     selectedActionInboxItemId: state.selectedActionInboxItemId || "",
     automationReturnRoute: state.automationReturnRoute || "",
   });
-  await loadSelectedView();
+  await loadSelectedView({ forceTaskListReload: true, skipSingleWindowCache: true });
 }
 
 async function openNotificationRoute(value) {

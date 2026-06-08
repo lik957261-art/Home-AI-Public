@@ -76,7 +76,7 @@ assert.match(stylesCss, /\.capability-action-source \{[\s\S]*?display: none;/);
 assert.match(stylesCss, /--topic-plugin-dock-height: 78px;/);
 assert.match(stylesCss, /\.app\.task-list-mode \.topbar \{[\s\S]*?display: none !important;/);
 assert.match(stylesCss, /--mobile-bottom-nav-visual-drop: 10px;/);
-assert.match(stylesCss, /--mobile-bottom-nav-bottom: var\(--mobile-bottom-nav-bottom-runtime, 0px\);/);
+assert.match(stylesCss, /--mobile-bottom-nav-bottom: var\(--mobile-bottom-nav-bottom-runtime, var\(--mobile-bottom-nav-comfort-inset\)\);/);
 assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?bottom: var\(--mobile-bottom-nav-bottom\);/);
 assert.match(stylesCss, /--topic-plugin-dock-bottom: var\(--topic-plugin-dock-bottom-runtime, var\(--mobile-bottom-nav-offset-height\)\);/);
 assert.match(stylesCss, /\.app\.task-list-mode \.conversation > \.directory-topic-launcher:first-child,[\s\S]*?margin-top: max\(16px, calc\(env\(safe-area-inset-top\) \+ 4px\)\);/);
@@ -190,6 +190,77 @@ globalThis.__pluginTopicHarness = {
   assert.equal(harness.readUsage().actions["wardrobe:style"].count, 3);
   assert.ok(harness.renderCalls.length >= 1, "memory usage projection must refresh even when localStorage writes fail");
   assert.equal(harness.renderCalls.at(-1).restoreScrollTop, 0, "memory projection refresh must reveal the top quick-action row");
+}
+
+function createDirectoryTopicHarness() {
+  const storage = new Map();
+  const sandbox = {
+    console,
+    localStorage: {
+      getItem(key) {
+        return storage.has(key) ? storage.get(key) : null;
+      },
+      setItem(key, value) {
+        storage.set(key, String(value));
+      },
+    },
+    escapeHtml: (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    }[ch])),
+    formatTime: (value) => String(value || ""),
+    taskShortTitle: (group) => group.title || "",
+    taskTitle: (group) => group.title || "",
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(`${directoryTopicsUi}
+globalThis.__directoryTopicHarness = {
+  render: renderDirectoryTopicCards,
+  setCollapsed: setDirectoryTopicCollapsed,
+};`, sandbox);
+  return sandbox.__directoryTopicHarness;
+}
+
+function directoryCollection(key, updatedAt) {
+  return {
+    key,
+    label: key,
+    updatedAt,
+    defaultGroup: { id: `${key}-default`, title: `${key} default`, updatedAt },
+    groups: [
+      { id: `${key}-default`, title: `${key} default`, updatedAt },
+      { id: `${key}-second`, title: `${key} second`, updatedAt },
+    ],
+  };
+}
+
+function directoryCardCollapsed(html, key) {
+  return new RegExp(`directory-topic-card collapsed" data-directory-topic-card="${key}"`).test(html);
+}
+
+{
+  const harness = createDirectoryTopicHarness();
+  const collections = [
+    directoryCollection("dir-1", "2026-06-08T12:00:00.000Z"),
+    directoryCollection("dir-2", "2026-06-08T11:00:00.000Z"),
+    directoryCollection("dir-3", "2026-06-08T10:00:00.000Z"),
+    directoryCollection("dir-4", "2026-06-08T09:00:00.000Z"),
+  ];
+
+  const initial = harness.render(collections);
+  assert.equal(directoryCardCollapsed(initial, "dir-1"), false);
+  assert.equal(directoryCardCollapsed(initial, "dir-2"), false);
+  assert.equal(directoryCardCollapsed(initial, "dir-3"), false);
+  assert.equal(directoryCardCollapsed(initial, "dir-4"), true);
+
+  harness.setCollapsed("dir-1", true);
+  assert.equal(directoryCardCollapsed(harness.render(collections), "dir-1"), true);
+
+  harness.setCollapsed("dir-4", false);
+  assert.equal(directoryCardCollapsed(harness.render(collections), "dir-4"), false);
 }
 
 console.log("app plugin topics UI tests passed");

@@ -208,10 +208,14 @@ Likely focused checks:
   from existing task directory bindings as compact collapsible folder-tree rows.
 - The task list now shows plugin topic cards, then directory-topic collection
   rows, then unbound regular topics.
-- Directory-topic parent rows toggle expand/collapse and persist the collapsed
-  row keys in device-local storage. Bound topics render as named compact
-  indented entries with a chat icon, short title, and default marker when
-  applicable. The short title uses a
+- Directory-topic parent rows toggle expand/collapse. The default projection
+  keeps only the first three most recently updated directory collections
+  expanded and renders the rest collapsed. Device-local storage records both
+  collapsed overrides for those default-expanded rows and expanded overrides
+  for older rows, so user intent survives later re-renders without making every
+  directory expanded by default. Bound topics render as named compact indented
+  entries with a chat icon, short title, and default marker when applicable.
+  The short title uses a
   deterministic frontend fallback from the first user message unless the topic
   has an explicit/manual title.
 - Mobile topic-list scrolling uses native vertical pan behavior. Sidebar touch

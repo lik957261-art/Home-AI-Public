@@ -460,6 +460,9 @@ async function saveRuntimeConfigManager() {
     state.runtimeConfig = result.config || {};
     state.pushStatus = result.push || state.pushStatus;
     await loadStatus();
+    const fresh = await api("/api/runtime-config");
+    state.runtimeConfig = fresh.config || state.runtimeConfig;
+    if (typeof showPushToast === "function") showPushToast("运行配置已保存", "success");
   } catch (err) {
     state.runtimeConfigError = err.message || String(err);
   } finally {

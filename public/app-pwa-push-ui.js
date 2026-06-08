@@ -306,18 +306,31 @@ handleForegroundPushMessage = function handleForegroundPushMessageWithBusinessTo
   const nestedData = data?.data && typeof data.data === "object" ? data.data : {};
   const messageType = data.messageType || nestedData.messageType;
   const pushThreadId = String(data.threadId || nestedData.threadId || "").trim();
+  const pushTaskGroupId = String(data.taskGroupId || nestedData.taskGroupId || "").trim();
   const pushWorkspaceId = String(data.workspaceId || nestedData.workspaceId || "").trim();
+  const terminalTaskPush = ["task_completed", "task_failed"].includes(messageType);
+  const samePushWorkspace = !pushWorkspaceId || pushWorkspaceId === state.selectedWorkspaceId;
   if (typeof refreshAutomationAfterPush === "function") refreshAutomationAfterPush(eventData).catch(showError);
   if (typeof refreshActionInboxAfterPush === "function") refreshActionInboxAfterPush(eventData).catch(showError);
   if (
-    ["task_completed", "task_failed"].includes(messageType)
+    terminalTaskPush
+    && samePushWorkspace
     && (
       currentThreadHasPendingMessages()
+      || (pushTaskGroupId && state.viewMode === "tasks" && state.currentTaskGroupId === pushTaskGroupId)
       || (pushThreadId && pushThreadId === state.currentThreadId)
       || (!pushThreadId && state.currentThreadId && (!pushWorkspaceId || pushWorkspaceId === state.selectedWorkspaceId))
     )
   ) {
-    requestCurrentThreadRefresh({ stickToBottom: true, delayMs: 80 });
+    requestCurrentThreadRefresh({ stickToBottom: !pushTaskGroupId || state.currentTaskGroupId !== pushTaskGroupId, delayMs: 80 });
+  } else if (
+    terminalTaskPush
+    && samePushWorkspace
+    && state.viewMode === "tasks"
+    && !state.currentTaskGroupId
+    && typeof loadSelectedView === "function"
+  ) {
+    loadSelectedView({ forceTaskListReload: true, skipSingleWindowCache: true, skipTaskListWindowRefresh: true }).catch(showError);
   }
   // Do not duplicate real Web Push notifications with an in-app toast.
   // The system notification is the user-visible delivery surface; this handler

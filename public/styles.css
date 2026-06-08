@@ -55,9 +55,9 @@
   --mobile-bottom-nav-content-safe-area: max(0px, min(var(--mobile-bottom-safe-area), 3px));
   --mobile-bottom-nav-height: 58px;
   --mobile-bottom-nav-visual-drop: 10px;
-  --mobile-bottom-nav-comfort-inset: 6px;
+  --mobile-bottom-nav-comfort-inset: 12px;
   --plugin-context-bottom-nav-height: 54px;
-  --mobile-bottom-nav-bottom: var(--mobile-bottom-nav-bottom-runtime, 0px);
+  --mobile-bottom-nav-bottom: var(--mobile-bottom-nav-bottom-runtime, var(--mobile-bottom-nav-comfort-inset));
   --mobile-bottom-nav-offset-height: var(--mobile-bottom-nav-offset-height-runtime, var(--mobile-bottom-nav-height));
   --mobile-bottom-nav-reserved-height: var(--mobile-bottom-nav-reserved-height-runtime, calc(var(--mobile-bottom-nav-height) + 10px));
   --topic-plugin-dock-height: 78px;

@@ -104,6 +104,12 @@ Gateway plugin/schema/profile changes:
   fixed bar height plus measured bounds, not a raw safe-area-expanded CSS
   height. Font-size preferences must not increase the bottom nav container
   height beyond `--mobile-bottom-nav-height`.
+- The visual vertical position of the primary mobile bottom nav is owned by
+  `updateMobileBottomNavReservation()`, not only by CSS. If the nav needs to
+  move up or down, update the runtime `comfortInset`, the matching
+  `--mobile-bottom-nav-comfort-inset` fallback, and `task-list-ui.test.js`
+  together. Changing only `.bottom-nav` CSS can be masked by runtime
+  `--mobile-bottom-nav-bottom-runtime` after the first layout measurement.
 - Touch tablets up to `1366px` wide use the same mobile shell as phone portrait:
   a single-column app, bottom navigation, and an overlay sidebar. Do not let
   iPad-like landscape layouts fall back to the desktop fixed sidebar or hide the

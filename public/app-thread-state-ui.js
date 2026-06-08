@@ -170,7 +170,9 @@ async function loadSingleWindow(options = {}) {
   request.weixinChat = weixinChat;
   request.groupChat = groupChat;
   const messageMode = request.messageMode;
-  renderCachedSingleWindowThreadForRequest(request, options);
+  if (!options.skipSingleWindowCache) {
+    renderCachedSingleWindowThreadForRequest(request, options);
+  }
   const result = await startupPerfStep("single-window-api", () => api("/api/single-window", {
     method: "POST",
     body: JSON.stringify({

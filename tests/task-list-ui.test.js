@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260607-dark-directory-menu-v617";
+const CLIENT_VERSION = "20260608-route-refresh-v618";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -205,8 +205,8 @@ assert.match(indexHtml, /id="bootHardReset"/);
 assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260607-dark-directory-menu-v617" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260607-dark-directory-menu-v617"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260608-route-refresh-v618" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260608-route-refresh-v618"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -792,6 +792,12 @@ assert.match(appJs, /if \(state\.currentTaskGroupId\) scheduleConversationViewpo
 assert.match(appJs, /const routeThreadId = String\(params\.get\("threadId"\) \|\| params\.get\("thread_id"\) \|\| ""\)\.trim\(\)/);
 assert.match(appJs, /if \(routeThreadId\) state\.currentThreadId = routeThreadId;/);
 assert.match(appJs, /setRouteScrollTarget\(taskGroupId \|\| \(groupChatRequested \? "group-chat" : "chat"\), messageId\)/);
+assert.match(appJs, /await loadSelectedView\(\{ forceTaskListReload: true, skipSingleWindowCache: true \}\)/);
+assert.match(appJs, /skipSingleWindowCache: Boolean\(options\.skipSingleWindowCache \|\| state\.routeScrollMessageId\)/);
+assert.match(appJs, /if \(!options\.skipSingleWindowCache\) \{\s+renderCachedSingleWindowThreadForRequest\(request, options\);/);
+assert.match(appJs, /const pushTaskGroupId = String\(data\.taskGroupId \|\| nestedData\.taskGroupId \|\| ""\)\.trim\(\)/);
+assert.match(appJs, /pushTaskGroupId && state\.viewMode === "tasks" && state\.currentTaskGroupId === pushTaskGroupId/);
+assert.match(appJs, /loadSelectedView\(\{ forceTaskListReload: true, skipSingleWindowCache: true, skipTaskListWindowRefresh: true \}\)/);
 assert.match(appJs, /function consumeChatRouteScrollTarget\(messages = \[\]\)/);
 assert.match(appJs, /consumeChatRouteScrollTarget\(displayMessages\)/);
 assert.match(appMessageActionsUiJs, /function scrollRouteMessageIntoViewStable\(messageId, position = "start"\)/);
@@ -1846,6 +1852,9 @@ assert.match(appJs, /state\.gatewayPool\?\.config \|\| \{\}/);
 assert.match(appJs, /function readRuntimeGatewayWorkerSettings\(\)/);
 assert.match(appJs, /const gatewayWorkerSettings = readRuntimeGatewayWorkerSettings\(\)/);
 assert.match(appJs, /body: JSON\.stringify\(\{ hermesApiBase, hermesApiKeyPath, gatewayWorkerSettings, webPushSubject, webPushVapidPath \}\)/);
+assert.match(appJs, /const fresh = await api\("\/api\/runtime-config"\)/);
+assert.match(appJs, /state\.runtimeConfig = fresh\.config \|\| state\.runtimeConfig/);
+assert.match(appJs, /showPushToast\("运行配置已保存", "success"\)/);
 assert.match(stylesCss, /\.runtime-config-worker-grid \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
 assert.match(stylesCss, /@media \(max-width: 560px\) \{[\s\S]*?\.runtime-config-worker-grid \{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
 assert.match(indexHtml, /id="pluginAdminOverlay"/);
@@ -2358,7 +2367,7 @@ assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bo
 assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bottom\), 8px\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-content-safe-area: max\(0px, min\(var\(--mobile-bottom-safe-area\), 3px\)\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-height: 58px/);
-assert.match(stylesCss, /--mobile-bottom-nav-comfort-inset: 6px/);
+assert.match(stylesCss, /--mobile-bottom-nav-comfort-inset: 12px/);
 assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?z-index: 40;[\s\S]*?--bottom-nav-column-min: 48px;[\s\S]*?grid-template-columns: repeat\(5, minmax\(var\(--bottom-nav-column-min\), 1fr\)\);[\s\S]*?padding: 4px env\(safe-area-inset-right\) calc\(6px \+ var\(--mobile-bottom-nav-content-safe-area\)\) env\(safe-area-inset-left\);[\s\S]*?overflow-x: hidden;/);
 assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?bottom: var\(--mobile-bottom-nav-bottom\);/);
 assert.match(stylesCss, /\.bottom-nav::-webkit-scrollbar \{[\s\S]*?display: none;/);
@@ -2420,10 +2429,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260607-dark-directory-menu-v617/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260607-dark-directory-menu-v617/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260607-dark-directory-menu-v617/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260607-dark-directory-menu-v617/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260608-route-refresh-v618/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260608-route-refresh-v618/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260608-route-refresh-v618/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260608-route-refresh-v618/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2590,7 +2599,7 @@ assert.match(stylesCss, /\.task-list-mode \.plugin-app-strip\[data-plugin-fill-c
 assert.match(stylesCss, /\.task-list-mode \.plugin-app-strip\[data-plugin-fill-count="6"\] \.plugin-app-card \{[\s\S]*?flex-basis: calc\(\(100% - \(var\(--plugin-app-gap\) \* 5\)\) \/ 6\);[\s\S]*?width: calc\(\(100% - \(var\(--plugin-app-gap\) \* 5\)\) \/ 6\);/);
 assert.match(stylesCss, /\.topic-plugin-dock:not\(\[hidden\]\) \{[\s\S]*?display: block;/);
 assert.match(stylesCss, /--mobile-bottom-nav-visual-drop: 10px/);
-assert.match(stylesCss, /--mobile-bottom-nav-bottom: var\(--mobile-bottom-nav-bottom-runtime, 0px\);/);
+assert.match(stylesCss, /--mobile-bottom-nav-bottom: var\(--mobile-bottom-nav-bottom-runtime, var\(--mobile-bottom-nav-comfort-inset\)\);/);
 assert.match(stylesCss, /--mobile-bottom-nav-offset-height: var\(--mobile-bottom-nav-offset-height-runtime, var\(--mobile-bottom-nav-height\)\);/);
 assert.match(stylesCss, /--topic-plugin-dock-bottom: var\(--topic-plugin-dock-bottom-runtime, var\(--mobile-bottom-nav-offset-height\)\);/);
 assert.match(stylesCss, /--topic-plugin-dock-reserved-height: var\(--topic-plugin-dock-reserved-height-runtime, calc\(var\(--topic-plugin-dock-bottom\) \+ var\(--topic-plugin-dock-height\)\)\);/);
@@ -2648,8 +2657,14 @@ assert.match(appJs, /typeof isPluginTopicTaskGroup === "function" && isPluginTop
 assert.match(appJs, /function directoryTopicCollectionGroupIds\(collections = \[\]\)/);
 assert.match(appJs, /function directoryTopicDisplayTitle\(group\)/);
 assert.match(appJs, /const DIRECTORY_TOPIC_COLLAPSED_STORAGE_KEY = "hermesDirectoryTopicCollapsed"/);
+assert.match(appJs, /const DIRECTORY_TOPIC_EXPANDED_STORAGE_KEY = "hermesDirectoryTopicExpanded"/);
+assert.match(appJs, /const DIRECTORY_TOPIC_DEFAULT_EXPANDED_LIMIT = 3/);
 assert.match(appJs, /function readCollapsedDirectoryTopics\(\)/);
+assert.match(appJs, /function readExpandedDirectoryTopics\(\)/);
 assert.match(appJs, /function writeCollapsedDirectoryTopics\(collapsed\)/);
+assert.match(appJs, /function writeExpandedDirectoryTopics\(expanded\)/);
+assert.match(appJs, /function directoryTopicIsCollapsed\(collection, index, collapsedDirectories, expandedDirectories\)/);
+assert.match(appJs, /const collapsed = directoryTopicIsCollapsed\(collection, index, collapsedDirectories, expandedDirectories\)/);
 assert.match(appJs, /function renderDirectoryTopicCards\(collections = \[\], options = \{\}\)/);
 assert.match(appJs, /directory-topic-associated/);
 assert.doesNotMatch(appJs, /\\u76ee\\u5f55\\u7ed1\\u5b9a\\u8bdd\\u9898/);
@@ -2945,7 +2960,7 @@ assert.doesNotMatch(stylesCss, /:root\[data-font-size\] \.bottom-nav \{[\s\S]*?m
 assert.match(stylesCss, /:root\[data-font-size\] \.bottom-nav \{[\s\S]*?min-height: var\(--mobile-bottom-nav-height\);/);
 assert.doesNotMatch(appJs, /function isMobileLandscapeCompactLayout\(\)/);
 assert.doesNotMatch(appJs, /window\.matchMedia\("\(max-width: 1099px\) and \(orientation: landscape\) and \(max-height: 620px\)"\)/);
-assert.match(appJs, /const comfortInset = 6/);
+assert.match(appJs, /const comfortInset = 12/);
 assert.match(appJs, /const navBottom = navBottomOverflow \+ comfortInset/);
 assert.match(appJs, /root\.style\.setProperty\("--mobile-bottom-nav-bottom-runtime", `\$\{navBottom\}px`\)/);
 assert.match(appJs, /root\.style\.setProperty\("--mobile-bottom-nav-offset-height-runtime", `\$\{offset\}px`\)/);

@@ -134,7 +134,9 @@ async function loadSelectedView(options = {}) {
       if (!options.skipTaskListWindowRefresh) scheduleTaskListWindowRefresh();
       return;
     }
-    await loadSingleWindow();
+    await loadSingleWindow({
+      skipSingleWindowCache: Boolean(options.skipSingleWindowCache || state.routeScrollMessageId),
+    });
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "todos") {
     await loadTodos({ preferCache: true });
