@@ -167,6 +167,35 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
   }
 }
 
+async function testRepairWorkspaceAclSkipsSystemUsersRoot() {
+  const root = "/Users/hermes-host/HermesMobile";
+  const calls = [];
+  const service = createWorkspaceSystemProvisioningExecutorService({
+    forceEnabled: true,
+    liveRoot: root,
+    platform: "darwin",
+    run: fakeRunFactory(calls),
+    useSudoWrites: false,
+  });
+
+  const result = await service.runStep("repair_workspace_acl", {
+    workspaceId: "xulu",
+    macUser: "hm-xulu",
+    paths: {
+      liveRoot: root,
+      dataRoot: `${root}/data`,
+      driveRoot: `${root}/data/drive`,
+      workspaceDataRoot: `${root}/data/drive/users/xulu`,
+      workerHome: "/Users/hm-xulu",
+      workerWorkspaceRoot: "/Users/hm-xulu/HermesWorkspace",
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("/Users")), false);
+  assert.equal(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("/Users/hermes-host")), true);
+}
+
 async function testRunSmokesIncludesPluginsAndToolsetGate() {
   const root = "/tmp/hm-workspace-executor-smoke";
   const calls = [];
@@ -194,6 +223,7 @@ async function run() {
   await testValidationHelpersAndDisabledStates();
   await testEnsureMacUserCreatesHiddenAccount();
   await testEnsureLaunchdMaterializesWorkerFilesAndManifest();
+  await testRepairWorkspaceAclSkipsSystemUsersRoot();
   await testRunSmokesIncludesPluginsAndToolsetGate();
   console.log("workspace system provisioning executor service tests passed");
 }

@@ -286,7 +286,6 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     const fields = contextFields(context);
     if (fields.error) return { ok: false, error: fields.error };
     const parents = [
-      "/Users",
       path.posix.dirname(fields.root),
       fields.root,
       fields.dataRoot,
