@@ -687,9 +687,10 @@ function createWorkspaceOnboardingRunState(plan = {}, payload = {}) {
 }
 
 function failWorkspaceOnboardingRunState(run = {}, error = "") {
+  const activeRun = run && typeof run === "object" ? run : {};
   const message = error || "工作区开通请求失败";
-  const steps = Array.isArray(run.steps) ? run.steps : [];
-  return Object.assign({}, run, {
+  const steps = Array.isArray(activeRun.steps) ? activeRun.steps : [];
+  return Object.assign({}, activeRun, {
     status: "failed",
     error: message,
     progressMessage: "请求未完成，请查看错误信息后重试。",
@@ -707,6 +708,16 @@ function redactedWorkspaceOnboardingResult(result = {}) {
   return safe;
 }
 
+async function requestWorkspaceOnboardingPlan(payload = {}) {
+  const result = await api("/api/workspace-onboarding/plan", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  state.workspaceOnboardingPlan = result;
+  if (!result?.ok) throw new Error(result?.error || "开通计划不可用");
+  return result;
+}
+
 async function planWorkspaceOnboardingFromAccessKeyManager() {
   const root = $("accessKeyOverlay") || document;
   const payload = workspaceOnboardingPayload(root);
@@ -717,12 +728,7 @@ async function planWorkspaceOnboardingFromAccessKeyManager() {
   state.workspaceOnboardingRun = null;
   renderAccessKeyManager();
   try {
-    const result = await api("/api/workspace-onboarding/plan", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    state.workspaceOnboardingPlan = result;
-    if (!result?.ok) state.workspaceOnboardingError = result?.error || "开通计划不可用";
+    await requestWorkspaceOnboardingPlan(payload);
   } catch (err) {
     state.workspaceOnboardingError = err.message || String(err);
   } finally {
@@ -735,17 +741,17 @@ async function applyWorkspaceOnboardingFromAccessKeyManager() {
   const root = $("accessKeyOverlay") || document;
   const payload = workspaceOnboardingPayload(root);
   rememberWorkspaceOnboardingDraft(payload);
-  if (!workspaceOnboardingPlanMatchesPayload(state.workspaceOnboardingPlan, payload)) {
-    state.workspaceOnboardingError = "请先预览当前工作区的开通计划";
-    renderAccessKeyManager();
-    return;
-  }
   state.workspaceOnboardingLoading = true;
   state.workspaceOnboardingError = "";
   state.workspaceOnboardingResult = null;
-  state.workspaceOnboardingRun = createWorkspaceOnboardingRunState(state.workspaceOnboardingPlan, payload);
+  state.workspaceOnboardingRun = createWorkspaceOnboardingRunState(state.workspaceOnboardingPlan || {}, payload);
   renderAccessKeyManager();
   try {
+    const plan = state.workspaceOnboardingPlan?.ok && workspaceOnboardingPlanMatchesPayload(state.workspaceOnboardingPlan, payload)
+      ? state.workspaceOnboardingPlan
+      : await requestWorkspaceOnboardingPlan(payload);
+    state.workspaceOnboardingRun = createWorkspaceOnboardingRunState(plan, payload);
+    renderAccessKeyManager();
     const result = await api("/api/workspace-onboarding/apply", {
       method: "POST",
       body: JSON.stringify(payload),

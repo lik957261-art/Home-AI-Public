@@ -200,14 +200,16 @@ one-time Home AI Access Key and requires Owner-only access. The sheet exposes:
 - selected plugin checkboxes for `wardrobe`, `health`, `finance`, `email`, and
   `note`;
 - a `Preview plan` action that calls `POST /api/workspace-onboarding/plan`;
-- a confirm/apply action that calls `POST /api/workspace-onboarding/apply`
-  only when the current input still matches the latest plan;
+- a confirm/apply action that first reuses the latest matching plan or requests
+  a fresh `POST /api/workspace-onboarding/plan`, then calls
+  `POST /api/workspace-onboarding/apply`;
 - no native `window.confirm` dependency for apply, because installed PWA
   contexts can suppress or mishandle browser modal dialogs; the apply button
   and in-flight status panel are the confirmation surface;
 - an in-flight run status panel after confirm, so the Owner sees that the
-  request was sent and can inspect the planned ordered steps while waiting for
-  the synchronous apply response;
+  request was sent; if the current form has no matching plan, the panel appears
+  before the fresh plan is requested and then updates to show the ordered steps
+  while waiting for the synchronous apply response;
 - bounded plan/result evidence with step ids, statuses, paths, plugin ids, and
   errors, but no raw key material;
 - one-time generated key display through `state.generatedAccessKey` when the
