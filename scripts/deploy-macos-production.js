@@ -9,6 +9,7 @@ const DEFAULT_DEV_ROOT = "/Users/hermes-dev/HermesMobileDev";
 const DEFAULT_MAC_ROOT = "/Users/hermes-host/HermesMobile";
 const DEFAULT_BASE_URL = "http://127.0.0.1:8797";
 const PINNED_NODE = "runtime/node-current/bin/node";
+const DEFAULT_PRODUCTION_OWNER = "hermes-host:staff";
 
 const PLUGIN_TARGETS = new Set([
   "codex-mobile-web",
@@ -24,7 +25,12 @@ const DEFAULT_RESTART_LABELS = {
   "plugin:codex-mobile-web": ["com.hermesmobile.plugin.codex-mobile"],
 };
 
+const PRODUCTION_OWNER_BY_TARGET = {
+  "plugin:codex-mobile-web": "xuxin:staff",
+};
+
 const RSYNC_EXCLUDES = [
+  ".git",
   ".git/",
   ".codex/",
   ".agent-context/",
@@ -38,6 +44,10 @@ const RSYNC_EXCLUDES = [
   ".env",
   ".env.*",
   "*.log",
+];
+
+const PLUGIN_RSYNC_EXCLUDES = [
+  "data/",
 ];
 
 const SURFACES = new Set(["full", "static"]);
@@ -215,7 +225,7 @@ function isRsyncExcluded(relPath, excludes = RSYNC_EXCLUDES) {
 
 function isDeploySurfaceIncluded(relPath, options) {
   if (options.surface === "static") return HOME_AI_STATIC_SYNC_ROOTS.some((root) => relPath.startsWith(root));
-  return !isRsyncExcluded(relPath);
+  return !isRsyncExcluded(relPath, rsyncExcludesForTarget(options));
 }
 
 function deployDirtyFiles(source, options) {
@@ -243,6 +253,16 @@ function productionTarget(options) {
   const plugin = options.target.replace(/^plugin:/, "");
   if (!PLUGIN_TARGETS.has(plugin)) throw new Error(`unsupported_plugin_target:${plugin}`);
   return posixJoin(options.macRoot, "plugins", plugin);
+}
+
+function productionOwnerForTarget(target) {
+  return PRODUCTION_OWNER_BY_TARGET[target] || DEFAULT_PRODUCTION_OWNER;
+}
+
+function rsyncExcludesForTarget(options) {
+  const excludes = [...RSYNC_EXCLUDES];
+  if (String(options.target || "").startsWith("plugin:")) excludes.push(...PLUGIN_RSYNC_EXCLUDES);
+  return [...new Set(excludes)];
 }
 
 function readTextIfExists(filePath) {
@@ -289,6 +309,8 @@ function buildPlan(options) {
   const ignoredDirty = ignoredDirtyFiles(source, options);
   const expectedVersion = extractClientVersionFromSource(source);
   const proofFiles = proofFilesForPlan(source, options);
+  const rsyncExcludes = rsyncExcludesForTarget(options);
+  const productionOwner = productionOwnerForTarget(options.target);
   const validation = [];
   if (options.target === "home-ai") {
     const command = [
@@ -325,6 +347,7 @@ function buildPlan(options) {
     sourcePath: source,
     productionPath: target,
     macRoot: normalizePath(options.macRoot),
+    productionOwner,
     surface: options.surface,
     allowDirty: Boolean(options.allowDirty),
     sourceRef: sourceRef(source),
@@ -333,7 +356,7 @@ function buildPlan(options) {
     expectedClientVersion: expectedVersion,
     backupPath,
     restartLabels: labels,
-    rsyncExcludes: RSYNC_EXCLUDES,
+    rsyncExcludes,
     sync: options.surface === "static"
       ? HOME_AI_STATIC_SYNC_ROOTS.map((root) => ({ source: `${root}`, target: `${root}` }))
       : [{ source: "./", target: "./" }],
@@ -459,6 +482,10 @@ function executePlan(plan, options) {
     for (const item of plan.rsyncExcludes) rsyncArgs.push("--exclude", item);
     rsyncArgs.push(`${plan.sourcePath}/`, `${plan.productionPath}/`);
     runSudo("/usr/bin/rsync", rsyncArgs, password);
+  }
+
+  if (plan.productionOwner) {
+    runSudo("/usr/sbin/chown", ["-R", plan.productionOwner, plan.productionPath], password);
   }
 
   for (const label of plan.restartLabels) {

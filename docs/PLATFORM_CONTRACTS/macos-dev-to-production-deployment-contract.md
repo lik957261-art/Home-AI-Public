@@ -83,6 +83,10 @@ rollback: restore backup and restart labels
 
 If the source tree is dirty, the deploy plan must name the dirty files being
 deployed. It must not silently include unrelated dirty files.
+The plan must also expose `rsyncExcludes` and `productionOwner`; plugin plans
+must include `data/` in `rsyncExcludes` so runtime databases, attachment
+stores, and other plugin-owned user data are backed up but not overwritten or
+deleted by a normal source deploy.
 
 ## Packaging And Sync Rules
 
@@ -107,6 +111,9 @@ normal source deploys, do not overwrite:
 
 The production sync must create a backup before replacing files. Backup names
 should include UTC timestamp, target, and reason.
+After sync, the central deploy script must restore the production target owner.
+The default owner is `hermes-host:staff`; the Codex Mobile plugin uses
+`xuxin:staff` because its production launchd service runs as `xuxin`.
 
 ## Restart Rules
 
@@ -248,6 +255,9 @@ validation. Listener and health validations retry briefly after restart so a
 normal launchd warm-up does not produce a false failed deployment. Plugin
 projects may wrap this script, but must not bypass it with a plugin-private
 production write path.
+For plugin targets, the script excludes `data/` from source-to-production sync
+and restores `productionOwner` after sync; data migration or repair is a
+separate reviewed operation, not part of an ordinary plugin source deploy.
 
 Plugin `--execute` is intentionally stricter than plan mode. Except for plugins
 with a central default restart label, a plugin production write must provide at

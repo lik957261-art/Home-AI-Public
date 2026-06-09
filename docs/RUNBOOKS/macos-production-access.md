@@ -317,6 +317,11 @@ private sudo password file through `--password-file` or
 `HOMEAI_MAC_SUDO_PASSWORD_FILE`; the script feeds it through sudo stdin and does
 not print the password. Listener and plugin health validations retry briefly
 after restart to account for normal launchd warm-up.
+Plugin deployment plans must show `data/` in `rsyncExcludes`, and ordinary
+plugin source deploys must not overwrite or delete production plugin `data/`
+directories. The central script restores the production target owner after
+sync: `hermes-host:staff` by default, with `xuxin:staff` for the Codex Mobile
+plugin because that launchd service runs as `xuxin`.
 
 Plugin workspaces should read the central deployment contract before deploys:
 
@@ -329,7 +334,9 @@ the Home AI app deploy script by changing to `/Users/hermes-dev/HermesMobileDev/
 or by using the script's absolute path. Plugin-local code may provide
 plugin-specific facts such as label, health URL, MCP schema check, and data
 readback check, but must not define a separate production sudo or direct-write
-path.
+path. Use Gateway selected-profile callable schema checks when MCP tools
+changed, and mobile visual/Appium smoke when embedded UI or mobile gestures
+changed.
 
 Plugin deployment scripts should expose one shared access interface:
 

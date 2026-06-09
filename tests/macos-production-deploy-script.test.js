@@ -35,6 +35,9 @@ assert.match(script, /assertInside\(source, options\.devRoot, "source"\)/);
 assert.match(script, /assertInside\(target, options\.macRoot, "production_target"\)/);
 assert.match(script, /\/usr\/bin\/rsync/);
 assert.match(script, /\/usr\/bin\/sudo/);
+assert.match(script, /\/usr\/sbin\/chown/);
+assert.match(script, /productionOwner/);
+assert.match(script, /PLUGIN_RSYNC_EXCLUDES/);
 assert.match(script, /"-S", "-p", "", command/);
 assert.match(script, /"-n", command/);
 assert.match(script, /\/bin\/launchctl/);
@@ -115,6 +118,8 @@ assert.equal(payload.plan.sourcePath, "/Users/hermes-dev/HermesMobileDev/app");
 assert.equal(payload.plan.productionPath, "/Users/hermes-host/HermesMobile/app");
 assert.match(payload.plan.backupPath, /20260608T000000Z-home-ai-harness$/);
 assert.ok(payload.plan.rsyncExcludes.includes("AGENTS.md"));
+assert.ok(payload.plan.rsyncExcludes.includes(".git"));
+assert.equal(payload.plan.productionOwner, "hermes-host:staff");
 assert.ok(payload.plan.expectedClientVersion);
 assert.ok(payload.plan.proofFiles.includes("scripts/deploy-macos-production.js"));
 assert.ok(payload.plan.validation.some((item) => item.type === "production-file-hashes"));
@@ -175,6 +180,26 @@ const pluginPayload = JSON.parse(pluginRun.stdout);
 assert.equal(pluginPayload.plan.target, "plugin:finance");
 assert.equal(pluginPayload.plan.sourcePath, "/Users/hermes-dev/HermesMobileDev/plugins/finance");
 assert.equal(pluginPayload.plan.productionPath, "/Users/hermes-host/HermesMobile/plugins/finance");
+assert.equal(pluginPayload.plan.productionOwner, "hermes-host:staff");
+assert.ok(pluginPayload.plan.rsyncExcludes.includes("data/"));
+assert.ok(pluginPayload.plan.rsyncExcludes.includes(".git"));
+
+const codexPluginRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--plugin",
+  "codex-mobile-web",
+  "--timestamp",
+  "20260608T000000Z",
+  "--reason",
+  "harness",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.equal(codexPluginRun.status, 0, codexPluginRun.stderr);
+const codexPluginPayload = JSON.parse(codexPluginRun.stdout);
+assert.equal(codexPluginPayload.plan.productionOwner, "xuxin:staff");
 
 const unsafePluginExecute = spawnSync(process.execPath, [
   scriptPath,
