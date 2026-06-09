@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260609-global-dock-back-collapse-v676";
+const CLIENT_VERSION = "20260609-global-dock-transient-handle-v677";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-global-dock-back-collapse-v676" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-global-dock-back-collapse-v676"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-global-dock-transient-handle-v677" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-global-dock-transient-handle-v677"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2445,6 +2445,8 @@ assert.match(appJs, /app\?\.classList\.remove\("global-plugin-dock-expanded-mode
 assert.match(appJs, /function closeGlobalPluginDockForNavigation\(options = \{\}\) \{[\s\S]*?global-plugin-dock-navigation-settling[\s\S]*?setGlobalPluginDockExpanded\(false, \{ persist: options\.persist !== false \}\)/);
 assert.match(appJs, /function applyBackSwipeDrag\(swipe, dx\) \{[\s\S]*?globalPluginDockClosedForBackSwipe[\s\S]*?closeGlobalPluginDockForNavigation\(\{ reason: "back_swipe" \}\)/);
 assert.match(appJs, /async function handleInAppBackNavigation\(options = \{\}\) \{[\s\S]*?closeGlobalPluginDockForNavigation\(\{ reason: "back_navigation" \}\)/);
+assert.match(appJs, /button\.closest\?\.\("\.topic-plugin-dock"\)[\s\S]*?setGlobalPluginDockExpanded\(false, \{ persist: false \}\)[\s\S]*?openPluginTopicApp/);
+assert.match(appJs, /data-plugin-topic-action-plugin[\s\S]*?closePluginActionMenus\(root\);[\s\S]*?button\.closest\?\.\("\.topic-plugin-dock"\)[\s\S]*?setGlobalPluginDockExpanded\(false, \{ persist: false \}\)[\s\S]*?runPluginTopicAction/);
 assert.match(appJs, /function topicPluginDockRevealBlocked\(\) \{[\s\S]*?page-back-dragging[\s\S]*?page-back-settling/);
 assert.match(appJs, /function scheduleTopicPluginDockRevealAfterBackSwipe\(reason = "back_swipe"\)/);
 assert.match(appJs, /function updateTopicPluginDockChrome\(taskList\) \{[\s\S]*?ensureGlobalPluginDockContent\(\)/);
@@ -2544,10 +2546,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-global-dock-back-collapse-v676/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-global-dock-back-collapse-v676/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-global-dock-back-collapse-v676/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-global-dock-back-collapse-v676/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-global-dock-transient-handle-v677/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-global-dock-transient-handle-v677/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-global-dock-transient-handle-v677/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-global-dock-transient-handle-v677/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2742,6 +2744,7 @@ assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-p
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-navigation-settling \{[\s\S]*?transition: none;/);
 assert.match(stylesCss, /\.topic-plugin-dock-handle \{[\s\S]*?width: 56px;[\s\S]*?height: var\(--topic-plugin-dock-collapsed-height\);[\s\S]*?min-height: 26px;[\s\S]*?touch-action: none;[\s\S]*?pointer-events: auto;/);
 assert.match(stylesCss, /\.topic-plugin-dock-grabber \{[\s\S]*?width: 12px;[\s\S]*?height: 12px;[\s\S]*?transform: translateY\(3px\);/);
+assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-expanded \.topic-plugin-dock-grabber \{[\s\S]*?opacity: 0;/);
 assert.match(stylesCss, /\.embedded-plugin-host-active:not\(\.codex-mode\)\.global-plugin-dock-collapsed-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: calc\(var\(--topic-plugin-dock-collapsed-height\) \+ var\(--topic-plugin-dock-collapsed-safe-lift\) \+ 6px\);/);
 assert.match(stylesCss, /\.embedded-plugin-host-active:not\(\.codex-mode\)\.global-plugin-dock-expanded-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: calc\(var\(--topic-plugin-dock-height\) \+ 6px\);/);
 assert.match(stylesCss, /:root\.keyboard-viewport-active \.embedded-plugin-host-active:not\(\.codex-mode\)\.global-plugin-dock-collapsed-mode \.embedded-plugin-host,[\s\S]*?:root\.keyboard-viewport-active \.embedded-plugin-host-active:not\(\.codex-mode\)\.global-plugin-dock-expanded-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: 0;/);

@@ -1710,12 +1710,18 @@ function wirePluginTopicCards(root) {
         button.dataset.pluginAppDragMoved = "";
         return;
       }
+      if (button.closest?.(".topic-plugin-dock") && typeof setGlobalPluginDockExpanded === "function") {
+        setGlobalPluginDockExpanded(false, { persist: false });
+      }
       openPluginTopicApp(button.dataset.pluginTopicOpenApp).catch(showError);
     });
   });
   root?.querySelectorAll?.("[data-plugin-topic-action-plugin][data-plugin-topic-action-id]").forEach((button) => {
     button.addEventListener("click", () => {
       closePluginActionMenus(root);
+      if (button.closest?.(".topic-plugin-dock") && typeof setGlobalPluginDockExpanded === "function") {
+        setGlobalPluginDockExpanded(false, { persist: false });
+      }
       runPluginTopicAction(button.dataset.pluginTopicActionPlugin, button.dataset.pluginTopicActionId).catch(showError);
     });
   });

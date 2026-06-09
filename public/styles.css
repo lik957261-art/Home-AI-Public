@@ -5881,7 +5881,7 @@ button.directory-alias-chip {
 }
 
 .global-plugin-dock-mode .topic-plugin-dock.global-plugin-dock-expanded .topic-plugin-dock-grabber {
-  background: color-mix(in srgb, var(--muted) 42%, transparent);
+  opacity: 0;
 }
 
 .global-plugin-dock-mode .plugin-app-strip {

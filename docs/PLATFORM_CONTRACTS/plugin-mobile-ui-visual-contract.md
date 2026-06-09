@@ -162,6 +162,11 @@ Non-negotiable:
   treats the expanded Dock as a transient overlay and collapses it before the
   navigation settles. Do not restore an expanded Dock automatically on the next
   eligible surface; otherwise users see a disappear-then-pop flicker.
+- The collapsed Dock handle is the only persistent visible handle. When the
+  Dock is expanded, the visible dot/grabber must be hidden so it does not look
+  like a floating control between plugin entries and the bottom navigation.
+  Selecting a Dock plugin entry or plugin shortcut should collapse the Dock as
+  part of the action rather than keeping the drawer visually resident.
 - Global plugin Dock gesture changes must prove that short vertical mistouches
   and horizontal swipes do not expand the Dock, valid upward/downward handle
   swipes settle to the correct state, Chat and top-level plugin App surfaces
