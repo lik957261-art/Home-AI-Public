@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260609-embedded-safe-top-v650";
+const CLIENT_VERSION = "20260609-surface-bottom-underflow-v651";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-embedded-safe-top-v650" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-embedded-safe-top-v650"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-surface-bottom-underflow-v651" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-surface-bottom-underflow-v651"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2492,10 +2492,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-embedded-safe-top-v650/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-embedded-safe-top-v650/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-embedded-safe-top-v650/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-embedded-safe-top-v650/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-surface-bottom-underflow-v651/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-surface-bottom-underflow-v651/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-surface-bottom-underflow-v651/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-surface-bottom-underflow-v651/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -3043,7 +3043,11 @@ assert.match(appJs, /const navBottomOverflowClamp = Math\.max\(0, Math\.ceil\(mo
 assert.match(appJs, /const navBottomOverflow = Math\.min\(navBottomOverflowRaw, navBottomOverflowClamp\)/);
 assert.match(appJs, /const currentNavBottomDrop = navLaidOut \? Math\.max\(0, -currentNavBottom\) : 0/);
 assert.match(appJs, /const navBottomUnderflowRaw = navLaidOut && viewportHeight \? Math\.ceil\(Math\.max\(0, viewportHeight - rect\.bottom \+ currentNavBottomDrop\)\) : 0/);
-assert.match(appJs, /const navBottom = navBottomOverflow \+ comfortInset - navBottomUnderflow/);
+assert.match(appJs, /const largeViewportHeight = Math\.ceil\(clientLayoutDiagnosticMeasureLength\("100lvh"\)\?\.height \|\| 0\)/);
+assert.match(appJs, /const safeAreaTop = Math\.max\(0, Math\.ceil\(clientLayoutDiagnosticSafeAreaProbe\(\)\?\.top \|\| 0\)\)/);
+assert.match(appJs, /const surfaceUnderflowSafeClamp = safeAreaTop > 0 \? Math\.min\(surfaceUnderflowClamp, safeAreaTop\) : 0/);
+assert.match(appJs, /const effectiveNavBottomUnderflow = Math\.max\(navBottomUnderflow, surfaceUnderflow\)/);
+assert.match(appJs, /const navBottom = navBottomOverflow \+ comfortInset - effectiveNavBottomUnderflow/);
 assert.match(appJs, /root\.style\.setProperty\("--mobile-bottom-nav-bottom-runtime", `\$\{navBottom\}px`\)/);
 assert.match(appJs, /root\.style\.setProperty\("--mobile-bottom-nav-offset-height-runtime", `\$\{offset\}px`\)/);
 assert.match(appJs, /const visualViewportHeight = Math\.ceil\(window\.visualViewport\?\.height \|\| 0\)/);
@@ -3055,9 +3059,8 @@ assert.match(appJs, /const visibleOffset = navLaidOut && viewportHeight \? Math\
 assert.match(appJs, /const offset = Math\.max\(44, rectHeight, contentHeight, visibleOffset \|\| rectHeight\)/);
 assert.match(appJs, /function mobileBottomCssPx\(name, fallback = 0\)/);
 assert.match(appJs, /const navVisualLift = Math\.max\(0, Math\.ceil\(mobileBottomCssPx\("--mobile-bottom-nav-visual-lift", 0\)\)\)/);
-assert.match(appJs, /const dockBottom = offset/);
+assert.match(appJs, /const dockBottom = Math\.max\(0, offset \+ navBottom\)/);
 assert.doesNotMatch(appJs, /const viewportHeight = Math\.ceil\(window\.visualViewport\?\.height \|\| window\.innerHeight/);
-assert.doesNotMatch(appJs, /const dockBottom = navBottom \+ offset/);
 assert.doesNotMatch(appJs, /const comfortInset = 12/);
 assert.match(appJs, /const stackHeight = dockVisible \? Math\.max\(reserve, dockBottom \+ dockHeight \+ 2\) : reserve/);
 assert.match(appJs, /navVisualLift,/);

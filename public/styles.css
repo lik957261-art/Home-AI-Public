@@ -59,6 +59,7 @@
   --mobile-bottom-nav-comfort-inset: 0px;
   --mobile-bottom-nav-overflow-clamp: 0px;
   --mobile-bottom-nav-underflow-clamp: 24px;
+  --mobile-bottom-nav-surface-underflow-clamp: 96px;
   --plugin-context-bottom-nav-height: 54px;
   --plugin-context-main-top: 0px;
   --bottom-region-composer-nav-gap: 8px;
