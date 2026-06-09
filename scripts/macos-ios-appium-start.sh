@@ -23,7 +23,7 @@ if [ -f "${PID_FILE}" ]; then
   kill "$(cat "${PID_FILE}")" 2>/dev/null || true
 fi
 
-nohup appium server \
+nohup bash -c 'trap "" INT; exec appium server "$@"' _ \
   --address "${ADDRESS}" \
   --port "${PORT}" \
   --log-level warn \

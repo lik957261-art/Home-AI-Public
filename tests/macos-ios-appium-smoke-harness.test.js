@@ -11,6 +11,7 @@ const smokeScript = fs.readFileSync(path.join(root, "scripts", "macos-ios-appium
 assert.match(startScript, /--address "\$\{ADDRESS\}"/, "Appium start script must bind to the configured local address");
 assert.match(startScript, /APPIUM_ADDRESS:-127\.0\.0\.1/, "Appium server must default to localhost");
 assert.match(startScript, /--log-level warn/, "Appium server must avoid verbose request-body logging");
+assert.match(startScript, /trap "" INT/, "Appium background server should not die when the live debug terminal receives Ctrl-C");
 assert.doesNotMatch(startScript, /Access Key|ACCESS_KEY|X-Hermes-Web-Key|hermesWebKey|key-file/i, "start script must not handle secrets");
 
 assert.match(smokeScript, /browserName:\s*"Safari"/, "iOS smoke must drive Safari through Appium");

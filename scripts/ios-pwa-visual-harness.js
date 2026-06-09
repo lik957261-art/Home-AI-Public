@@ -514,16 +514,20 @@ const PLUGIN_TOPIC_DOCK_RETURN_STABILITY_SCRIPT = `
   const app = document.getElementById("app");
   const dock = document.getElementById("topicPluginDock");
   const nav = document.getElementById("bottomNav");
+  const main = document.querySelector(".main");
   const samples = [];
   const sample = (label) => {
     const dockDisplay = css(dock, "display");
     const dockPosition = css(dock, "position");
     const dockVisibility = css(dock, "visibility");
     const taskListMode = Boolean(app?.classList.contains("task-list-mode"));
+    const mainBackAnimating = Boolean(main?.classList.contains("page-back-dragging") || main?.classList.contains("page-back-settling"));
     const dockRect = rect(dock);
     samples.push({
       label,
       appClass: app?.className || "",
+      mainClass: main?.className || "",
+      mainBackAnimating,
       viewMode: appState?.viewMode || "",
       currentTaskGroupId: appState?.currentTaskGroupId || "",
       pluginContextNavPluginId: appState?.pluginContextNavPluginId || "",
@@ -602,12 +606,19 @@ const PLUGIN_TOPIC_DOCK_RETURN_STABILITY_SCRIPT = `
     if (typeof renderCurrentThread === "function") renderCurrentThread({ stickToBottom: false });
     else return { ok: false, scenario: "plugin-topic-dock-return-stability", error: "renderCurrentThread_missing", pluginId: def.id, samples };
     sample("plugin-topic-detail-ready");
+    main?.classList.add("page-back-settling");
+    sample("before-openTaskList-back-settling");
     if (typeof openTaskList === "function") openTaskList();
     else {
       appState.currentTaskGroupId = "";
       renderCurrentThread({ stickToBottom: false, restoreScrollTop: 0 });
     }
-    sample("after-openTaskList-return");
+    sample("after-openTaskList-back-settling");
+    if (typeof clearBackSwipeSurface === "function") clearBackSwipeSurface(main);
+    else main?.classList.remove("page-back-dragging", "page-back-settling");
+    if (typeof updateBottomNavVisibleCount === "function") updateBottomNavVisibleCount();
+    if (typeof updateTopicPluginDockChrome === "function") updateTopicPluginDockChrome(typeof isTaskListView === "function" ? isTaskListView() : true);
+    sample("after-back-surface-clear");
   } finally {
     if (originalAvailablePluginTopicDefs) availablePluginTopicDefs = originalAvailablePluginTopicDefs;
     if (originalUpdateTopicPluginDockChrome) updateTopicPluginDockChrome = originalUpdateTopicPluginDockChrome;
@@ -1095,6 +1106,8 @@ function assertPluginTopicDockReturnStability(metrics = {}) {
   const visibleSamples = samples.filter((sample) => sample?.dockVisible);
   const visibleOutsideTaskList = samples.filter((sample) => sample?.dockVisible && !sample?.taskListMode);
   const unhiddenOutsideTaskList = samples.filter((sample) => sample && sample.dockHidden === false && !sample.taskListMode);
+  const visibleDuringBackSettle = samples.filter((sample) => sample?.dockVisible && sample?.mainBackAnimating);
+  const unhiddenDuringBackSettle = samples.filter((sample) => sample && sample.dockHidden === false && sample.mainBackAnimating);
   const nonFixedVisible = visibleSamples.filter((sample) => String(sample.dockPosition || "") !== "fixed");
   const rects = visibleSamples
     .map((sample) => sample.dockRect)
@@ -1112,6 +1125,10 @@ function assertPluginTopicDockReturnStability(metrics = {}) {
     }),
     assertion("dock_stays_hidden_until_task_list_mode", unhiddenOutsideTaskList.length === 0, {
       samples: unhiddenOutsideTaskList.map((sample) => ({ label: sample.label, appClass: sample.appClass, dockDisplay: sample.dockDisplay })).slice(0, 8),
+    }),
+    assertion("dock_hidden_during_back_swipe_settle", visibleDuringBackSettle.length === 0 && unhiddenDuringBackSettle.length === 0, {
+      visibleSamples: visibleDuringBackSettle.map((sample) => ({ label: sample.label, mainClass: sample.mainClass, dockRect: sample.dockRect })).slice(0, 8),
+      unhiddenSamples: unhiddenDuringBackSettle.map((sample) => ({ label: sample.label, mainClass: sample.mainClass, dockDisplay: sample.dockDisplay })).slice(0, 8),
     }),
     assertion("dock_visible_position_is_fixed", nonFixedVisible.length === 0, {
       samples: nonFixedVisible.map((sample) => ({ label: sample.label, position: sample.dockPosition })).slice(0, 8),

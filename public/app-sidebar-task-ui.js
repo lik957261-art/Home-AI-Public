@@ -150,6 +150,9 @@ function clearBackSwipeSurface(surface) {
   if (!surface) return;
   surface.classList.remove("page-back-dragging", "page-back-settling");
   surface.style.transform = ""; surface.style.opacity = "";
+  if (typeof scheduleTopicPluginDockRevealAfterBackSwipe === "function") {
+    scheduleTopicPluginDockRevealAfterBackSwipe("surface_clear");
+  }
 }
 
 function applyBackSwipeDrag(swipe, dx) {

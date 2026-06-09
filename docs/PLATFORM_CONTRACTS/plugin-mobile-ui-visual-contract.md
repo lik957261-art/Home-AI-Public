@@ -129,6 +129,11 @@ Non-negotiable:
   Dock HTML, but the Dock must remain hidden until `.task-list-mode` is applied
   and `updateNavigationControls()` can reveal and measure it in one stable
   bottom-stack pass.
+- The topic capability Dock must also remain hidden while a real right-swipe
+  back surface is still in `page-back-dragging` or `page-back-settling`. The
+  Dock may only reveal after the swipe surface is cleared and bottom-nav
+  visible-count classes have been updated, so the first visible Dock rect is
+  the stable post-return rect.
 - The measured bottom-nav top offset already includes the host comfort inset.
   Dock positioning must use that offset directly; adding the inset again creates
   an artificial Dock/nav gap and is a failing bottom-stack state.
@@ -371,8 +376,10 @@ npm run ios:pwa:visual -- \
 
 Plugin-bound topic detail to topic-list return changes must use the Dock
 stability scenario. The scenario constructs a synthetic plugin-bound topic,
-calls the same `openTaskList()` return path, and fails if the topic Dock is
-unhidden or visible before `.task-list-mode` is applied:
+simulates the real right-swipe return settle path, calls the same
+`openTaskList()` return path, and fails if the topic Dock is unhidden or
+visible before `.task-list-mode` is applied, visible during
+`page-back-settling`, or unstable after the return surface is cleared:
 
 ```bash
 cd <Home-AI>

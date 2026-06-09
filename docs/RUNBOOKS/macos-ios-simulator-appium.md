@@ -46,6 +46,32 @@ The server binds to `127.0.0.1` and uses `--log-level warn`. Do not run Appium
 with verbose or info logging when a future script might type an Access Key,
 because verbose WebDriver logs can include request bodies.
 
+If the live visual harness reports `appium_timeout`, `/contexts` timeout, or
+`fetch failed`, check the stack by layer before rebooting the Simulator:
+
+```bash
+curl -fsS http://127.0.0.1:4723/status
+curl -fsS http://127.0.0.1:8101/status
+lsof -nP -iTCP:19073 -sTCP:LISTEN
+```
+
+Recovery order:
+
+1. If `4723` is down, start Appium with
+   `bash "$HOME/.homeai-qa/scripts/macos-ios-appium-start.sh"`.
+2. If `19073` is down, start the live debug server with
+   `npm run ios:pwa:debug`.
+3. If Appium is up but `/contexts` still times out, reset the live debug
+   Appium session once through `/api/action` with `type=connect` and
+   `resetSession=true`, then retry the harness.
+4. Only if Appium reset fails while WDA `8101` is also unhealthy should the
+   WDA runner or Simulator lane be restarted.
+
+The Appium start script intentionally starts the background server with SIGINT
+ignored. This prevents Ctrl-C in a live-debug terminal from killing Appium
+while leaving WDA alive, which otherwise causes later harness runs to fail at
+the WebView attach layer.
+
 ## Minimal Smoke
 
 On the Mac:

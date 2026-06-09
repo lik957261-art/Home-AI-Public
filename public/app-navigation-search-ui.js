@@ -80,12 +80,43 @@ function updateBottomNavLabel(id, label) {
   }
 }
 
+function topicPluginDockRevealBlocked() {
+  const main = document.querySelector(".main");
+  return Boolean(
+    main?.classList.contains("page-back-dragging")
+    || main?.classList.contains("page-back-settling")
+  );
+}
+
+function scheduleTopicPluginDockRevealAfterBackSwipe(reason = "back_swipe") {
+  if (!state || state.topicPluginDockRevealTimer) return;
+  state.topicPluginDockRevealTimer = window.setTimeout(() => {
+    state.topicPluginDockRevealTimer = 0;
+    if (topicPluginDockRevealBlocked()) {
+      scheduleTopicPluginDockRevealAfterBackSwipe(reason);
+      return;
+    }
+    if (typeof updateBottomNavVisibleCount === "function") updateBottomNavVisibleCount();
+    updateTopicPluginDockChrome(isTaskListView());
+    if (typeof settleMobileBottomNavReservation === "function") {
+      settleMobileBottomNavReservation(`topic_dock_reveal_${reason}`, [0, 80, 240, 520]);
+    }
+  }, 80);
+}
+
 function updateTopicPluginDockChrome(taskList) {
   const dock = $("topicPluginDock");
   if (!dock) return;
   const sidebarOpen = $("sidebar")?.classList.contains("open");
   const showDock = Boolean(taskList && !state.currentTaskGroupId && !sidebarOpen && dock.innerHTML.trim());
   if (showDock) {
+    if (topicPluginDockRevealBlocked()) {
+      dock.hidden = true;
+      dock.setAttribute("aria-hidden", "true");
+      if (typeof updateMobileBottomNavReservation === "function") updateMobileBottomNavReservation();
+      scheduleTopicPluginDockRevealAfterBackSwipe("blocked");
+      return;
+    }
     const revealFromHidden = dock.hidden;
     const previousVisibility = dock.style.visibility || "";
     if (revealFromHidden) dock.style.visibility = "hidden";
@@ -407,8 +438,8 @@ function updateNavigationControls() {
     updateBottomNavLabel("bottomProjectsMode", "目录");
     if (externalPluginContextNav) updateBottomNavLabel(pluginContextButtonId, "插件");
   }
-  updateTopicPluginDockChrome(taskList);
   updateBottomNavVisibleCount();
+  updateTopicPluginDockChrome(taskList);
   updateTopMoreControls();
 }
 

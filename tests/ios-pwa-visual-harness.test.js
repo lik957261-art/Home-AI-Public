@@ -71,6 +71,10 @@ assert.match(script, /plugin-topic-dock-return-stability/);
 assert.match(script, /PLUGIN_TOPIC_DOCK_RETURN_STABILITY_SCRIPT/);
 assert.match(script, /dock_never_visible_outside_task_list_mode/);
 assert.match(script, /dock_stays_hidden_until_task_list_mode/);
+assert.match(script, /dock_hidden_during_back_swipe_settle/);
+assert.match(script, /page-back-settling/);
+assert.match(script, /after-openTaskList-back-settling/);
+assert.match(script, /after-back-surface-clear/);
 assert.match(script, /--plugin-thread-id/);
 assert.match(script, /host_keyboard_visible_after_input_tap/);
 assert.match(script, /plugin_input_above_keyboard/);
@@ -172,6 +176,17 @@ const dockReturnFail = assertPluginTopicDockReturnStability({
 assert.equal(dockReturnFail.ok, false);
 assert.ok(dockReturnFail.assertions.some((item) => item.name === "dock_never_visible_outside_task_list_mode" && !item.pass));
 assert.ok(dockReturnFail.assertions.some((item) => item.name === "dock_stays_hidden_until_task_list_mode" && !item.pass));
+
+const dockReturnBackSettleFail = assertPluginTopicDockReturnStability({
+  pluginId: "finance",
+  samples: [
+    { label: "plugin-topic-detail-ready", taskListMode: false, mainBackAnimating: false, dockHidden: true, dockDisplay: "none", dockVisible: false, dockPosition: "static" },
+    { label: "after-openTaskList-back-settling", taskListMode: true, mainBackAnimating: true, mainClass: "main page-back-settling", dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 660, bottom: 738, width: 390, height: 78 } },
+    { label: "after-back-surface-clear", taskListMode: true, mainBackAnimating: false, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 690, bottom: 768, width: 390, height: 78 } },
+  ],
+});
+assert.equal(dockReturnBackSettleFail.ok, false);
+assert.ok(dockReturnBackSettleFail.assertions.some((item) => item.name === "dock_hidden_during_back_swipe_settle" && !item.pass));
 
 const keyboardPass = assertEmbeddedPluginKeyboardComposer({
   pluginId: "codex-mobile",

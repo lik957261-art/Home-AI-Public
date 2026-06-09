@@ -41,7 +41,7 @@ assert.match(script, /crypto\.randomUUID\(\)/);
 assert.match(script, /function connectSession\(options = \{\}\)/);
 assert.match(script, /function withWebContext\(fn\)/);
 assert.match(script, /function recoverableAppiumError\(err\)/);
-assert.match(script, /Unexpected EOF\|socket hang up\|ECONNRESET\|webview_context_missing/);
+assert.match(script, /Unexpected EOF\|socket hang up\|ECONNRESET\|webview_context_missing\|appium_timeout/);
 assert.match(script, /function clearAppiumSessionState\(\)/);
 assert.match(script, /function executeAsync\(script, scriptArgs = \[\]\)/);
 assert.match(script, /\/execute\/async/);

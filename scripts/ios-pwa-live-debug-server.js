@@ -260,7 +260,7 @@ function invalidSessionError(err) {
 function recoverableAppiumError(err) {
   const message = String(err?.message || err || "");
   return invalidSessionError(err)
-    || /Unexpected EOF|socket hang up|ECONNRESET|webview_context_missing/i.test(message);
+    || /Unexpected EOF|socket hang up|ECONNRESET|webview_context_missing|appium_timeout/i.test(message);
 }
 
 function clearAppiumSessionState() {

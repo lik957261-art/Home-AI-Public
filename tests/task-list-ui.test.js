@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260609-dock-return-stability-v660";
+const CLIENT_VERSION = "20260609-dock-back-swipe-stability-v661";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-dock-return-stability-v660" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-dock-return-stability-v660"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-dock-back-swipe-stability-v661" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-dock-back-swipe-stability-v661"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2421,8 +2421,12 @@ assert.match(appJs, /function updateBottomNavVisibleCount\(\)/);
 assert.match(appJs, /querySelectorAll\("\.bottom-tab"\)/);
 assert.match(appJs, /filter\(\(node\) => !node\.hidden && node\.getAttribute\("aria-hidden"\) !== "true"\)/);
 assert.match(appJs, /nav\.classList\.toggle\(`bottom-nav-count-\$\{index\}`, count === index\)/);
+assert.match(appJs, /function topicPluginDockRevealBlocked\(\) \{[\s\S]*?page-back-dragging[\s\S]*?page-back-settling/);
+assert.match(appJs, /function scheduleTopicPluginDockRevealAfterBackSwipe\(reason = "back_swipe"\)/);
+assert.match(appJs, /function updateTopicPluginDockChrome\(taskList\) \{[\s\S]*?if \(topicPluginDockRevealBlocked\(\)\) \{[\s\S]*?dock\.hidden = true;[\s\S]*?scheduleTopicPluginDockRevealAfterBackSwipe\("blocked"\);/);
 assert.match(appJs, /function updateTopicPluginDockChrome\(taskList\) \{[\s\S]*?const revealFromHidden = dock\.hidden;[\s\S]*?if \(revealFromHidden\) dock\.style\.visibility = "hidden";[\s\S]*?updateMobileBottomNavReservation\(\);[\s\S]*?dock\.style\.removeProperty\("visibility"\);/);
-assert.match(appJs, /updateTopicPluginDockChrome\(taskList\);[\s\S]*?updateBottomNavVisibleCount\(\);[\s\S]*?updateTopMoreControls\(\);/);
+assert.match(appJs, /updateBottomNavVisibleCount\(\);[\s\S]*?updateTopicPluginDockChrome\(taskList\);[\s\S]*?updateTopMoreControls\(\);/);
+assert.match(appJs, /function clearBackSwipeSurface\(surface\) \{[\s\S]*?scheduleTopicPluginDockRevealAfterBackSwipe\("surface_clear"\);/);
 assert.match(appJs, /"bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomLearningMode", "bottomAutomationMode"/);
 assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bottom\), 8px\)/);
 assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bottom\), 8px\)/);
@@ -2509,10 +2513,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-dock-return-stability-v660/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-dock-return-stability-v660/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-dock-return-stability-v660/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-dock-return-stability-v660/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-dock-back-swipe-stability-v661/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-dock-back-swipe-stability-v661/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-dock-back-swipe-stability-v661/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-dock-back-swipe-stability-v661/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
