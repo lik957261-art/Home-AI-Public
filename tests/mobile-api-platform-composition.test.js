@@ -110,6 +110,7 @@ function testCompositionContract() {
 
   assert.deepEqual(Object.keys(composition.routes).sort(), [
     "accessKeyApiRoutes",
+    "familyProfileApiRoutes",
     "ownerElevationApiRoutes",
     "platformCurrencyApiRoutes",
     "publicApiRoutes",
@@ -120,7 +121,13 @@ function testCompositionContract() {
     "weixinApiRoutes",
     "workspaceApiRoutes",
   ]);
-  assert.deepEqual(Object.keys(composition.services).sort(), ["platformCurrencyService"]);
+  assert.deepEqual(Object.keys(composition.services).sort(), [
+    "familyProfileInsightService",
+    "familyProfileProjectionService",
+    "familyProfileRepository",
+    "familyProfileService",
+    "platformCurrencyService",
+  ]);
   assert.equal(composition.services.platformCurrencyService, injectedPlatformCurrencyService);
   for (const [name, route] of Object.entries(composition.routes)) assertRouteContract(route, name);
   assert.deepEqual(bootTraceLabels, ["public api routes ready", "weixin api routes ready"]);

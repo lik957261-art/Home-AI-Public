@@ -22,6 +22,7 @@ function createMobileApiComposition(deps = {}) {
   const platformComposition = createMobileApiPlatformComposition(deps);
   const {
     accessKeyApiRoutes,
+    familyProfileApiRoutes,
     ownerElevationApiRoutes,
     platformCurrencyApiRoutes,
     publicApiRoutes,
@@ -33,6 +34,10 @@ function createMobileApiComposition(deps = {}) {
     workspaceApiRoutes,
   } = platformComposition.routes;
   const {
+    familyProfileInsightService,
+    familyProfileProjectionService,
+    familyProfileRepository,
+    familyProfileService,
     platformCurrencyService,
   } = platformComposition.services;
 
@@ -269,6 +274,7 @@ function createMobileApiComposition(deps = {}) {
     directoryBrowserApiRoutes,
     directoryMutationApiRoutes,
     directoryShareApiRoutes,
+    familyProfileApiRoutes,
     fileArtifactApiRoutes,
     hermesPluginApiRoutes,
     pluginTopicUsageApiRoutes,
@@ -307,6 +313,10 @@ function createMobileApiComposition(deps = {}) {
     mobileApiDispatcher,
     services: {
       actionInboxService,
+      familyProfileInsightService,
+      familyProfileProjectionService,
+      familyProfileRepository,
+      familyProfileService,
       financeLedgerJoinApprovalService,
       learningGrowthSubmissionService,
       platformCurrencyService,
@@ -326,6 +336,7 @@ function createMobileApiComposition(deps = {}) {
       directoryBrowserApiRoutes,
       directoryMutationApiRoutes,
       directoryShareApiRoutes,
+      familyProfileApiRoutes,
       fileArtifactApiRoutes,
       hermesPluginApiRoutes,
       pluginTopicUsageApiRoutes,

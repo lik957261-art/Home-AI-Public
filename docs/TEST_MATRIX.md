@@ -1987,7 +1987,7 @@ should run:
 - `node tests\learning-growth-knowledge-graph-harness.test.js`
 - the relevant Growth publish/JIT/projection/UI tests from the module table.
 
-## Planned Family Profile Memory Gate
+## Family Profile Memory Gate
 
 The household profile design in
 `docs\IMPLEMENTATION_NOTES\family-profile-memory-v1.md` is the required
@@ -2000,8 +2000,9 @@ Memory Graph event semantics. It is H1 because it crosses workspaces,
 permissions, persistence, source-domain projections, Gateway context assembly,
 and Owner/member visibility policy.
 
-Once family profile services are implemented, changes that touch personal
-profile snapshots, household profile records, evidence refs, profile insights,
+The repository, service, projection, insight, API route, and mobile API
+dispatcher foundation is implemented. Changes that touch personal profile
+snapshots, household profile records, evidence refs, profile insights,
 visibility projection, source collectors, or profile context injection should
 run:
 

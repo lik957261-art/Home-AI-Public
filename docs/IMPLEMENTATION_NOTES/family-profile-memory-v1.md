@@ -1,6 +1,6 @@
 # Family Profile Memory V1
 
-Last updated: 2026-06-09.
+Last updated: 2026-06-10.
 
 ## Purpose
 
@@ -395,9 +395,32 @@ Future extraction path:
 
 Do not block Family Profile Memory V1 on graph backend selection.
 
-## Acceptance Criteria
+## Implementation Status
 
-V1 is ready for development when:
+Implemented foundation:
+
+- SQLite repository for profile records, bounded evidence refs, personal
+  profile snapshots, household profiles, and profile insights.
+- Service layer that normalizes visibility, sensitivity, confidence, and
+  idempotency.
+- Projection service that separates Owner projections from ordinary member
+  projections.
+- Insight service with Owner-only default visibility and explicit share action.
+- Authenticated API routes under `/api/family-profile/*`.
+- Mobile API composition and dispatcher wiring without adding business logic to
+  `server.js`.
+
+Still pending:
+
+- automatic source collectors from Health, Finance, Growth, Wardrobe, Note,
+  Directory, and chat summaries;
+- Gateway context assembly injection through actor-scoped profile projection;
+- bounded MCP/read tools;
+- production UI and production smoke coverage.
+
+## Full V1 Acceptance Criteria
+
+Full V1 is ready when:
 
 - the module doc, implementation note, test matrix, and architecture map all
   point to the Family Profile Memory boundary;

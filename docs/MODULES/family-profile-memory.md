@@ -194,9 +194,9 @@ However, it should be graph-compatible:
 - future Reference / Memory Graph edges can be created from profile evidence
   without rewriting profile semantics.
 
-## Implementation Direction
+## Implementation Status
 
-The first implementation should be service-first:
+The service-first foundation is implemented:
 
 - `adapters/family-profile-repository.js`
 - `adapters/family-profile-service.js`
@@ -208,6 +208,10 @@ The first implementation should be service-first:
 
 Native SQLite storage is preferred for V1 because Home AI already uses SQLite
 for mobile runtime state, backup, and migration validation.
+
+The first implementation deliberately does not yet include automatic source
+collectors, Gateway context injection, member-facing UI, or MCP tools. Those
+must be added through the same service/projection boundary.
 
 ## Validation
 

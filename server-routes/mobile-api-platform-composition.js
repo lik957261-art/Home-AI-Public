@@ -2,6 +2,7 @@
 
 const { createAccessKeyApiRoutes } = require("./access-key-api-routes");
 const { createOwnerElevationApiRoutes } = require("./owner-elevation-api-routes");
+const { createMobileApiFamilyProfileComposition } = require("./mobile-api-family-profile-composition");
 const { createPlatformCurrencyApiRoutes } = require("./platform-currency-api-routes");
 const { createPublicApiRoutes } = require("./public-api-routes");
 const { createPushApiRoutes } = require("./push-api-routes");
@@ -17,10 +18,19 @@ function callBootTrace(deps, label) {
 }
 
 function createMobileApiPlatformComposition(deps = {}) {
+  const mobileStore = typeof deps.mobileSqliteStore === "function" ? deps.mobileSqliteStore() : null;
   const platformCurrencyService = deps.platformCurrencyService || createPlatformCurrencyService({
     nowIso: deps.nowIso,
-    store: () => (typeof deps.mobileSqliteStore === "function" ? deps.mobileSqliteStore() : null),
+    store: () => mobileStore,
   });
+  const familyProfileComposition = createMobileApiFamilyProfileComposition(deps, { mobileStore });
+  const { familyProfileApiRoutes } = familyProfileComposition.routes;
+  const {
+    familyProfileInsightService,
+    familyProfileProjectionService,
+    familyProfileRepository,
+    familyProfileService,
+  } = familyProfileComposition.services;
 
   const publicApiRoutes = createPublicApiRoutes({
     authenticateRequest: deps.authenticateRequest,
@@ -166,6 +176,7 @@ function createMobileApiPlatformComposition(deps = {}) {
   return {
     routes: {
       accessKeyApiRoutes,
+      familyProfileApiRoutes,
       ownerElevationApiRoutes,
       platformCurrencyApiRoutes,
       publicApiRoutes,
@@ -177,6 +188,10 @@ function createMobileApiPlatformComposition(deps = {}) {
       workspaceApiRoutes,
     },
     services: {
+      familyProfileInsightService,
+      familyProfileProjectionService,
+      familyProfileRepository,
+      familyProfileService,
       platformCurrencyService,
     },
   };
