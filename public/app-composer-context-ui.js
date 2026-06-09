@@ -594,13 +594,18 @@ function updateMobileBottomNavReservation() {
   const navVisualLift = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-visual-lift", 0)));
   const dock = $("topicPluginDock");
   const dockVisible = Boolean(
-    app?.classList.contains("task-list-mode")
+    app?.classList.contains("global-plugin-dock-mode")
     && dock
     && !dock.hidden
     && window.getComputedStyle?.(dock).display !== "none"
   );
-  const dockHeight = dockVisible
+  const dockExpanded = Boolean(dockVisible && dock?.classList.contains("global-plugin-dock-expanded"));
+  const dockCollapsedHeight = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-collapsed-height", 30)));
+  const rawDockHeight = dockVisible
     ? Math.max(0, Math.ceil(dock.getBoundingClientRect?.().height || 0), Math.ceil(dock.scrollHeight || 0))
+    : 0;
+  const dockHeight = dockVisible
+    ? (dockExpanded ? rawDockHeight : Math.max(24, dockCollapsedHeight))
     : 0;
   const dockBottom = offset;
   const stackHeight = dockVisible ? Math.max(reserve, dockBottom + dockHeight + 2) : reserve;
@@ -640,6 +645,9 @@ function updateMobileBottomNavReservation() {
     navReserve: reserve,
     navVisualLift,
     dockVisible,
+    dockExpanded,
+    dockCollapsedHeight,
+    rawDockHeight,
     dockHeight,
     dockBottom,
     stackHeight,

@@ -96,9 +96,9 @@ Gateway plugin/schema/profile changes:
 - If the mobile bottom navigation is visually lowered with
   `--mobile-bottom-nav-visual-drop`, any Dock or fixed surface above it must use
   the runtime measured visible top offset, not the full bottom-nav height. This
-  keeps the topic plugin Dock adjacent to the visible nav after the nav is
+  keeps the global plugin Dock adjacent to the visible nav after the nav is
   dropped below the viewport edge.
-- The task-list topic plugin Dock may overlap the bottom nav by the controlled
+- The global plugin Dock may overlap the bottom nav by the controlled
   `--topic-plugin-dock-nav-overlap: 1px` bridge and should keep its bottom
   padding at `0` so translucent page background cannot show through between
   the plugin buttons and the tab bar.
@@ -140,7 +140,7 @@ Gateway plugin/schema/profile changes:
   `100lvh - rect.bottom` delta as `surfaceUnderflowRaw` /
   `surfaceUnderflowCandidate`. It must not apply that delta as a negative
   bottom offset for the primary fixed nav, because iOS can clip or hide tab
-  content once the fixed bar is placed outside the layout viewport. Topic Dock
+  content once the fixed bar is placed outside the layout viewport. Global Dock
   and composer offsets must stay derived from the visible fixed nav position.
   Underflow correction may only run against a laid-out nav rect with positive
   width, height, and bottom coordinate; collapsed early-start rects such as

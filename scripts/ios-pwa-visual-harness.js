@@ -105,7 +105,7 @@ function printHelp() {
     "Options:",
     "  --debug-url <url>      Live debug server URL. Default: http://127.0.0.1:19073/",
     "  --app-url <url>        Optional app URL to open through the live debug server before the scenario.",
-    "  --scenario <name>      directory-dark-status, embedded-plugin-shell, embedded-plugin-keyboard-composer, embedded-plugin-side-chat-keyboard, or plugin-topic-dock-return-stability.",
+    "  --scenario <name>      directory-dark-status, embedded-plugin-shell, embedded-plugin-keyboard-composer, embedded-plugin-side-chat-keyboard, plugin-topic-dock-return-stability, or global-plugin-dock-gesture-stability.",
     "  --plugin-id <id>       Required by embedded plugin scenarios.",
     "  --plugin-thread-id <id> Optional thread id for embedded plugin keyboard scenarios.",
     "  --theme <mode>         Theme hint for scenarios. Default: dark.",
@@ -521,6 +521,7 @@ const PLUGIN_TOPIC_DOCK_RETURN_STABILITY_SCRIPT = `
     const dockPosition = css(dock, "position");
     const dockVisibility = css(dock, "visibility");
     const taskListMode = Boolean(app?.classList.contains("task-list-mode"));
+    const globalPluginDockMode = Boolean(app?.classList.contains("global-plugin-dock-mode"));
     const mainBackAnimating = Boolean(main?.classList.contains("page-back-dragging") || main?.classList.contains("page-back-settling"));
     const dockRect = rect(dock);
     samples.push({
@@ -532,11 +533,15 @@ const PLUGIN_TOPIC_DOCK_RETURN_STABILITY_SCRIPT = `
       currentTaskGroupId: appState?.currentTaskGroupId || "",
       pluginContextNavPluginId: appState?.pluginContextNavPluginId || "",
       taskListMode,
+      globalPluginDockMode,
       dockHidden: dock ? Boolean(dock.hidden) : null,
       dockAriaHidden: dock?.getAttribute("aria-hidden") || "",
       dockDisplay,
       dockPosition,
       dockVisibility,
+      dockState: dock?.dataset?.globalPluginDockState || "",
+      dockExpanded: Boolean(dock?.classList.contains("global-plugin-dock-expanded")),
+      dockCollapsed: Boolean(dock?.classList.contains("global-plugin-dock-collapsed")),
       dockVisible: Boolean(dock && !dock.hidden && dockDisplay !== "none" && dockVisibility !== "hidden" && dockRect && dockRect.width > 0 && dockRect.height > 0),
       dockRect,
       bottomNavRect: rect(nav),
@@ -635,6 +640,151 @@ const PLUGIN_TOPIC_DOCK_RETURN_STABILITY_SCRIPT = `
     final: samples[samples.length - 1] ? Object.assign({}, samples[samples.length - 1]) : null,
   };
   return JSON.parse(JSON.stringify(payload));
+`;
+
+const GLOBAL_PLUGIN_DOCK_GESTURE_STABILITY_SCRIPT = `
+  const theme = arguments[0] || "dark";
+  const rect = (node) => {
+    if (!node) return null;
+    const r = node.getBoundingClientRect();
+    return { top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom), left: Math.round(r.left), width: Math.round(r.width), height: Math.round(r.height) };
+  };
+  const css = (node, property) => node ? getComputedStyle(node).getPropertyValue(property).trim() : "";
+  const appState = typeof state !== "undefined" && state && typeof state === "object"
+    ? state
+    : (window.state && typeof window.state === "object" ? window.state : null);
+  const app = document.getElementById("app");
+  const dock = document.getElementById("topicPluginDock");
+  const nav = document.getElementById("bottomNav");
+  const samples = [];
+  const bottomLayoutSummary = () => {
+    const metrics = window.__hermesMobileBottomLayoutMetrics || null;
+    if (!metrics || typeof metrics !== "object") return null;
+    return {
+      navBottom: Number.isFinite(Number(metrics.navBottom)) ? Number(metrics.navBottom) : null,
+      navOffset: Number.isFinite(Number(metrics.navOffset)) ? Number(metrics.navOffset) : null,
+      dockVisible: Boolean(metrics.dockVisible),
+      dockExpanded: Boolean(metrics.dockExpanded),
+      dockHeight: Number.isFinite(Number(metrics.dockHeight)) ? Number(metrics.dockHeight) : null,
+      rawDockHeight: Number.isFinite(Number(metrics.rawDockHeight)) ? Number(metrics.rawDockHeight) : null,
+      stackHeight: Number.isFinite(Number(metrics.stackHeight)) ? Number(metrics.stackHeight) : null,
+      navRect: metrics.navRect || null,
+    };
+  };
+  const sample = (label) => {
+    const dockRect = rect(dock);
+    samples.push({
+      label,
+      appClass: app?.className || "",
+      globalPluginDockMode: Boolean(app?.classList.contains("global-plugin-dock-mode")),
+      taskListMode: Boolean(app?.classList.contains("task-list-mode")),
+      dockHidden: dock ? Boolean(dock.hidden) : null,
+      dockDisplay: css(dock, "display"),
+      dockPosition: css(dock, "position"),
+      dockTransform: css(dock, "transform"),
+      dockTransition: css(dock, "transition-duration"),
+      dockState: dock?.dataset?.globalPluginDockState || "",
+      dockExpanded: Boolean(dock?.classList.contains("global-plugin-dock-expanded")),
+      dockCollapsed: Boolean(dock?.classList.contains("global-plugin-dock-collapsed")),
+      dockDragging: Boolean(dock?.classList.contains("global-plugin-dock-dragging")),
+      gestureOffset: dock?.style?.getPropertyValue("--global-plugin-dock-gesture-offset") || "",
+      dockVisible: Boolean(dock && !dock.hidden && css(dock, "display") !== "none" && css(dock, "visibility") !== "hidden" && dockRect && dockRect.width > 0 && dockRect.height > 0),
+      dockRect,
+      bottomNavRect: rect(nav),
+      bottomLayout: bottomLayoutSummary(),
+    });
+  };
+  const dispatchPointer = (target, type, x, y, pointerId = 17) => {
+    const event = new PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      pointerId,
+      pointerType: "touch",
+      isPrimary: true,
+      clientX: x,
+      clientY: y,
+      button: 0,
+      buttons: type === "pointerup" || type === "pointercancel" ? 0 : 1,
+    });
+    target.dispatchEvent(event);
+  };
+  const runGesture = (label, deltas) => {
+    const handle = dock?.querySelector?.("[data-global-plugin-dock-handle]");
+    if (!handle) {
+      sample(label + ":handle-missing");
+      return;
+    }
+    const box = handle.getBoundingClientRect();
+    const startX = Math.round(box.left + box.width / 2);
+    const startY = Math.round(box.top + box.height / 2);
+    dispatchPointer(handle, "pointerdown", startX, startY);
+    sample(label + ":down");
+    deltas.forEach((delta, index) => {
+      dispatchPointer(document, "pointermove", startX + Math.round(delta.x || 0), startY + Math.round(delta.y || 0));
+      sample(label + ":move-" + String(index + 1));
+    });
+    const last = deltas[deltas.length - 1] || { x: 0, y: 0 };
+    dispatchPointer(document, "pointerup", startX + Math.round(last.x || 0), startY + Math.round(last.y || 0));
+    sample(label + ":up");
+  };
+  try { localStorage.setItem("hermesWebTheme", theme); } catch (_) {}
+  if (appState) appState.themeMode = theme;
+  if (typeof applyThemePreference === "function") applyThemePreference(theme);
+  else document.documentElement.setAttribute("data-theme", theme);
+  if (!appState) return { ok: false, scenario: "global-plugin-dock-gesture-stability", error: "state_missing", samples };
+  if (!dock) return { ok: false, scenario: "global-plugin-dock-gesture-stability", error: "dock_missing", samples };
+  if (typeof PointerEvent !== "function") return { ok: false, scenario: "global-plugin-dock-gesture-stability", error: "pointer_event_missing", samples };
+  const originalAvailablePluginTopicDefs = typeof availablePluginTopicDefs === "function" ? availablePluginTopicDefs : null;
+  const fallbackDefs = typeof PLUGIN_TOPIC_DEFS !== "undefined" && Array.isArray(PLUGIN_TOPIC_DEFS)
+    ? PLUGIN_TOPIC_DEFS.filter((item) => item && item.id)
+    : [];
+  if (originalAvailablePluginTopicDefs && fallbackDefs.length) {
+    availablePluginTopicDefs = function visualAvailablePluginTopicDefs() {
+      const existing = originalAvailablePluginTopicDefs();
+      return existing.length ? existing : fallbackDefs;
+    };
+  }
+  try {
+    appState.viewMode = "tasks";
+    appState.currentTaskGroupId = "";
+    appState.pluginContextNavPluginId = "";
+    appState.directoryPluginContextActive = false;
+    appState.currentThread = {
+      id: "visual-global-plugin-dock-thread",
+      title: "Visual global plugin dock thread",
+      singleWindow: true,
+      workspaceId: appState.selectedWorkspaceId || "owner",
+      projectId: "general",
+      subprojectId: "",
+      messages: [],
+      taskGroupMeta: {},
+    };
+    appState.currentThreadId = appState.currentThread.id;
+    appState.taskListThread = appState.currentThread;
+    appState.taskListThreadId = appState.currentThread.id;
+    if (typeof renderCurrentThread === "function") renderCurrentThread({ stickToBottom: false, restoreScrollTop: 0 });
+    else if (typeof setTopicPluginDock === "function" && typeof renderPluginAppLauncher === "function") setTopicPluginDock(renderPluginAppLauncher());
+    if (typeof updateNavigationControls === "function") updateNavigationControls();
+    if (typeof setGlobalPluginDockExpanded === "function") setGlobalPluginDockExpanded(false, { persist: false });
+    sample("collapsed-ready");
+    runGesture("mistouch-short-up", [{ x: 1, y: -8 }, { x: 2, y: -14 }]);
+    runGesture("mistouch-horizontal", [{ x: 18, y: -3 }, { x: 64, y: -6 }]);
+    runGesture("valid-open", [{ x: 0, y: -14 }, { x: 0, y: -30 }, { x: 0, y: -46 }, { x: 0, y: -58 }]);
+    runGesture("valid-close", [{ x: 0, y: 14 }, { x: 0, y: 30 }, { x: 0, y: 46 }, { x: 0, y: 58 }]);
+    if (typeof updateMobileBottomNavReservation === "function") updateMobileBottomNavReservation();
+    sample("final");
+  } finally {
+    if (originalAvailablePluginTopicDefs) availablePluginTopicDefs = originalAvailablePluginTopicDefs;
+  }
+  return JSON.parse(JSON.stringify({
+    ok: true,
+    scenario: "global-plugin-dock-gesture-stability",
+    href: location.href,
+    clientVersion: document.documentElement.getAttribute("data-client-version") || "",
+    theme: document.documentElement.getAttribute("data-theme") || "",
+    samples,
+    final: samples[samples.length - 1] ? Object.assign({}, samples[samples.length - 1]) : null,
+  }));
 `;
 
 const EMBEDDED_PLUGIN_KEYBOARD_PREPARE_SCRIPT = `
@@ -1138,8 +1288,8 @@ function assertEmbeddedPluginShell(metrics = {}) {
 function assertPluginTopicDockReturnStability(metrics = {}) {
   const samples = Array.isArray(metrics.samples) ? metrics.samples : [];
   const visibleSamples = samples.filter((sample) => sample?.dockVisible);
-  const visibleOutsideTaskList = samples.filter((sample) => sample?.dockVisible && !sample?.taskListMode);
-  const unhiddenOutsideTaskList = samples.filter((sample) => sample && sample.dockHidden === false && !sample.taskListMode);
+  const visibleOutsideGlobalDockMode = samples.filter((sample) => sample?.dockVisible && !sample?.globalPluginDockMode);
+  const unhiddenOutsideGlobalDockMode = samples.filter((sample) => sample && sample.dockHidden === false && !sample.globalPluginDockMode);
   const visibleDuringBackSettle = samples.filter((sample) => sample?.dockVisible && sample?.mainBackAnimating);
   const unhiddenDuringBackSettle = samples.filter((sample) => sample && sample.dockHidden === false && sample.mainBackAnimating);
   const nonFixedVisible = visibleSamples.filter((sample) => String(sample.dockPosition || "") !== "fixed");
@@ -1154,11 +1304,11 @@ function assertPluginTopicDockReturnStability(metrics = {}) {
     assertion("dock_became_visible_in_task_list", visibleSamples.some((sample) => sample.taskListMode), {
       visibleSamples: visibleSamples.map((sample) => ({ label: sample.label, taskListMode: sample.taskListMode, dockRect: sample.dockRect })).slice(0, 8),
     }),
-    assertion("dock_never_visible_outside_task_list_mode", visibleOutsideTaskList.length === 0, {
-      samples: visibleOutsideTaskList.map((sample) => ({ label: sample.label, appClass: sample.appClass, dockRect: sample.dockRect })).slice(0, 8),
+    assertion("dock_visible_only_in_global_plugin_dock_mode", visibleOutsideGlobalDockMode.length === 0, {
+      samples: visibleOutsideGlobalDockMode.map((sample) => ({ label: sample.label, appClass: sample.appClass, dockRect: sample.dockRect })).slice(0, 8),
     }),
-    assertion("dock_stays_hidden_until_task_list_mode", unhiddenOutsideTaskList.length === 0, {
-      samples: unhiddenOutsideTaskList.map((sample) => ({ label: sample.label, appClass: sample.appClass, dockDisplay: sample.dockDisplay })).slice(0, 8),
+    assertion("dock_stays_hidden_until_global_plugin_dock_mode", unhiddenOutsideGlobalDockMode.length === 0, {
+      samples: unhiddenOutsideGlobalDockMode.map((sample) => ({ label: sample.label, appClass: sample.appClass, dockDisplay: sample.dockDisplay })).slice(0, 8),
     }),
     assertion("dock_hidden_during_back_swipe_settle", visibleDuringBackSettle.length === 0 && unhiddenDuringBackSettle.length === 0, {
       visibleSamples: visibleDuringBackSettle.map((sample) => ({ label: sample.label, mainClass: sample.mainClass, dockRect: sample.dockRect })).slice(0, 8),
@@ -1171,6 +1321,72 @@ function assertPluginTopicDockReturnStability(metrics = {}) {
       topRange,
       bottomRange,
       rects,
+    }),
+  ];
+  return { ok: assertions.every((item) => item.pass), assertions };
+}
+
+function assertGlobalPluginDockGestureStability(metrics = {}) {
+  const samples = Array.isArray(metrics.samples) ? metrics.samples : [];
+  const byLabel = new Map(samples.map((sample) => [sample?.label || "", sample]));
+  const final = metrics.final || samples[samples.length - 1] || {};
+  const navRects = samples
+    .map((sample) => sample?.bottomNavRect)
+    .filter((rect) => rect && Number.isFinite(Number(rect.bottom)));
+  const navBottomRange = navRects.length >= 2
+    ? Math.max(...navRects.map((rect) => Number(rect.bottom))) - Math.min(...navRects.map((rect) => Number(rect.bottom)))
+    : 0;
+  const openMoves = samples.filter((sample) => /^valid-open:move-/.test(String(sample?.label || "")));
+  const closeMoves = samples.filter((sample) => /^valid-close:move-/.test(String(sample?.label || "")));
+  const numericOffset = (sample) => {
+    const match = String(sample?.gestureOffset || "").match(/-?\d+(?:\.\d+)?/);
+    return match ? Number(match[0]) : null;
+  };
+  const openOffsets = openMoves.map(numericOffset).filter((value) => Number.isFinite(value));
+  const closeOffsets = closeMoves.map(numericOffset).filter((value) => Number.isFinite(value));
+  const monotonicOpen = openOffsets.length >= 2
+    ? openOffsets.every((value, index) => index === 0 || value <= openOffsets[index - 1])
+    : true;
+  const monotonicClose = closeOffsets.length >= 2
+    ? closeOffsets.every((value, index) => index === 0 || value >= closeOffsets[index - 1])
+    : true;
+  const collapsedReady = byLabel.get("collapsed-ready") || {};
+  const shortUp = byLabel.get("mistouch-short-up:up") || {};
+  const horizontal = byLabel.get("mistouch-horizontal:up") || {};
+  const validOpen = byLabel.get("valid-open:up") || {};
+  const validClose = byLabel.get("valid-close:up") || {};
+  const collapsedMetrics = collapsedReady.bottomLayout || {};
+  const expandedMetrics = validOpen.bottomLayout || {};
+  const assertions = [
+    assertion("gesture_samples_recorded", samples.length >= 12, { sampleCount: samples.length }),
+    assertion("global_dock_mode_visible", Boolean(collapsedReady.globalPluginDockMode && collapsedReady.dockVisible), {
+      collapsedReady,
+    }),
+    assertion("dock_initially_collapsed", collapsedReady.dockCollapsed === true && collapsedReady.dockExpanded === false, {
+      collapsedReady,
+    }),
+    assertion("short_vertical_mistouch_does_not_expand", shortUp.dockCollapsed === true && shortUp.dockExpanded === false, {
+      shortUp,
+    }),
+    assertion("horizontal_mistouch_does_not_expand", horizontal.dockCollapsed === true && horizontal.dockExpanded === false, {
+      horizontal,
+    }),
+    assertion("valid_up_swipe_expands_dock", validOpen.dockExpanded === true && validOpen.dockCollapsed === false, {
+      validOpen,
+    }),
+    assertion("valid_down_swipe_collapses_dock", validClose.dockCollapsed === true && validClose.dockExpanded === false && final.dockCollapsed === true, {
+      validClose,
+      final,
+    }),
+    assertion("open_drag_offsets_are_monotonic", monotonicOpen, { openOffsets }),
+    assertion("close_drag_offsets_are_monotonic", monotonicClose, { closeOffsets }),
+    assertion("bottom_nav_rect_stable_during_dock_gestures", navBottomRange <= 1, {
+      navBottomRange,
+      navRects,
+    }),
+    assertion("collapsed_dock_reserve_smaller_than_expanded", Number(expandedMetrics.stackHeight || 0) > Number(collapsedMetrics.stackHeight || 0), {
+      collapsedMetrics,
+      expandedMetrics,
     }),
   ];
   return { ok: assertions.every((item) => item.pass), assertions };
@@ -1305,6 +1521,14 @@ const SCENARIOS = Object.freeze({
     measureScript: null,
     measureArgs: () => [],
     assert: assertPluginTopicDockReturnStability,
+  }),
+  "global-plugin-dock-gesture-stability": Object.freeze({
+    description: "Exercise the global plugin Dock handle gestures and assert mistouches do not expand it while valid swipes settle smoothly.",
+    prepareScript: GLOBAL_PLUGIN_DOCK_GESTURE_STABILITY_SCRIPT,
+    prepareArgs: (options) => [options.theme || "dark"],
+    measureScript: null,
+    measureArgs: () => [],
+    assert: assertGlobalPluginDockGestureStability,
   }),
   "embedded-plugin-keyboard-composer": Object.freeze({
     description: "Open an embedded plugin thread, tap its composer, and assert the input stays above the iOS keyboard.",
@@ -1483,6 +1707,7 @@ module.exports = {
   assertDirectoryDarkStatus,
   assertEmbeddedPluginKeyboardComposer,
   assertEmbeddedPluginShell,
+  assertGlobalPluginDockGestureStability,
   assertPluginTopicDockReturnStability,
   defaultLockPath,
   parseArgs,

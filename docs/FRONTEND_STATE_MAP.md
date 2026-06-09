@@ -145,12 +145,13 @@ the change is part of a dedicated infrastructure rename.
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md`
   - Root Topics should present a compact usage-backed frequent quick-action grid
     followed by Directory-bound topic collections in the scrollable page body.
-    Plugin and built-in Directory icons stay in the fixed bottom topic-page Dock
-    above the primary bottom navigation, matching the earlier topic icon form.
-    Icon clicks consistently open the app/capability, while long-press/context-
-    click opens the compact quick-action menu. Touch-shell validation must
-    verify the `touchstart` long-press path directly because desktop
-    `contextmenu` evidence alone does not prove iOS/PWA behavior. Quick actions
+    Plugin and built-in Directory icons stay in the host-owned global plugin
+    Dock above the primary bottom navigation. The Dock is collapsed to a small
+    handle by default on eligible host root surfaces and expands in place from
+    that handle. Icon clicks consistently open the app/capability, while
+    long-press/context-click opens the compact quick-action menu. Touch-shell
+    validation must verify the `touchstart` long-press path directly because
+    desktop `contextmenu` evidence alone does not prove iOS/PWA behavior. Quick actions
     carry task-specific routes such as topic, directory, plugin route, quick
     form, or MCP-backed Home AI intent. Quick actions use the workspace-scoped
     `/api/plugin-topic-usage` preference store as the source of truth, with

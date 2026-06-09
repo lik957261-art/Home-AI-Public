@@ -47,15 +47,23 @@ or raw plugin credentials.
   The mobile bottom navigation keeps five primary slots with Topics in the
   center position.
 - The current frontend projection renders Wardrobe, Finance, Email, Health,
-  Note, and the built-in Directory capability in a topic-page Dock row directly
-  above the mobile bottom navigation when they are visible in the effective
-  workspace. The Dock is a dedicated layout row outside the scrollable topic
-  list, so it must not cover directory-bound topic cards. It does not create a
-  separate bottom Plugin tab, does not open a floating plugin drawer from the
-  Topics tab, and does not create new plugin grants.
+  Note, and the built-in Directory capability in a host-owned global plugin
+  Dock anchored directly above the mobile bottom navigation when they are
+  visible in the effective workspace. The Dock has a collapsed handle by
+  default and expands in place from that handle; it is not a separate floating
+  drawer and does not create new plugin grants.
+- The global plugin Dock is available only on host root surfaces where it will
+  not compete with composer, secondary-page back gestures, plugin iframe
+  footers, keyboard state, or the sidebar. It is hidden in plugin app/context
+  pages, topic/detail secondary pages, keyboard-viewport mode, and back-swipe
+  settle states.
 - The Dock remains single-row. When one to six capability entries are visible,
   the row divides the available width evenly across those entries; when more
   than six entries are visible, the row may scroll horizontally.
+- The collapsed handle uses a bounded vertical gesture: short vertical
+  mistouches and horizontal swipes must not expand the Dock, an upward swipe on
+  the handle expands it, and a downward swipe on the handle collapses it. The
+  bottom navigation must not move during the gesture.
 - Dock reordering is available through the long-press/context action menu with
   bounded move controls. A normal horizontal swipe must scroll the Dock, and the
   daily long-press gesture must open the action menu instead of being consumed
@@ -101,14 +109,12 @@ or raw plugin credentials.
   default usage is zero, and the grid is sorted by count and recency. The first
   implementation maps shortcuts to existing host routes; direct MCP intent
   execution remains a separate H1 extension.
-- The topic-page plugin Dock is visible only on the root topic list. It must be
-  hidden when the sidebar menu is open, when a plugin app is active, and on any
-  secondary page, so it cannot cover the navigation menu or plugin iframe.
-- The topic-page plugin Dock is positioned directly above the real mobile
-  bottom navigation height. It must not use the broader page-content reserved
-  height, because that value can include scroll/composer spacing after returning
-  from a plugin topic chat and would leave a visible blank band above the
-  normal bottom navigation.
+- The global plugin Dock is positioned directly above the real mobile bottom
+  navigation height. It must not use the broader page-content reserved height,
+  because that value can include scroll/composer spacing after returning from a
+  plugin topic chat and would leave a visible blank band above the normal
+  bottom navigation. Runtime measurement must reserve only the collapsed handle
+  height while collapsed and the full Dock height while expanded.
 - Opening an external plugin from the Dock directly enters the plugin app. The
   plugin app keeps the Hermes top navigation button visible and replaces the
   normal mobile bottom tabs with a three-item plugin-context bar:
@@ -318,7 +324,7 @@ Focused validation should include:
 
 The current frontend projection is covered by `node tests\task-list-ui.test.js`
 and `node tests\static-cache-version-harness.test.js`: the harness asserts the
-topic-page capability Dock row above the bottom navigation, the absence of a separate
+global capability Dock handle above the bottom navigation, the absence of a separate
 bottom Plugin tab and floating plugin drawer, the built-in Directory Dock icon, the hidden mobile
 bottom Directory tab, the plugin-topic script in the app shell/service worker
 cache, Dock app/capability launch actions with long-press/context quick-action
@@ -340,9 +346,11 @@ the generic task-list reload path,
 single-surface compact plugin cards,
 cache-sensitive static version recovery after missed script sync, plugin app
 pages preserving the top navigation button while showing the three-item
-`话题` / `插件` / `目录` bottom context bar, hiding the topic-page plugin Dock
-when the sidebar/menu or plugin app is active, positioning the Dock against the
-real bottom navigation height rather than the page-content reserved height,
+`话题` / `插件` / `目录` bottom context bar, hiding the global plugin Dock
+when the sidebar/menu, secondary page, keyboard state, back-swipe settle, or
+plugin app is active, positioning the Dock against the real bottom navigation
+height rather than the page-content reserved height, reserving only the
+collapsed handle height while collapsed,
 first-paint
 topic-list rendering that does not synchronously wait for directory-topic
 aggregation, preserving topic-list scroll position after that background
@@ -350,6 +358,9 @@ aggregation/refresh completes, and the static version bump.
 
 The visual regression harness must also cover the Dock action menu with
 `scripts/playwright-visual-smoke.js --open-capability-menu <capability>`. Passing
+gesture work must also run `npm run ios:pwa:visual -- --scenario
+global-plugin-dock-gesture-stability` so short vertical mistouches, horizontal
+swipes, valid open/close swipes, and bottom-nav rect stability are checked.
 output must include `capabilityMenuOpened=true` and
 `capabilityMenuGesture=touch-longpress`; a desktop-only `contextmenu` dispatch is
 not sufficient evidence for iOS/PWA long-press behavior.

@@ -107,16 +107,27 @@ function scheduleTopicPluginDockRevealAfterBackSwipe(reason = "back_swipe") {
 function updateTopicPluginDockChrome(taskList) {
   const dock = $("topicPluginDock");
   if (!dock) return;
+  const app = $("app");
+  if (typeof ensureGlobalPluginDockContent === "function") ensureGlobalPluginDockContent();
   const sidebarOpen = $("sidebar")?.classList.contains("open");
-  const showDock = Boolean(taskList && !state.currentTaskGroupId && !sidebarOpen && dock.innerHTML.trim());
+  const canShowGlobalDock = typeof globalPluginDockHostSurfaceEligible === "function"
+    ? globalPluginDockHostSurfaceEligible()
+    : Boolean(taskList && !state.currentTaskGroupId);
+  const hasDockContent = typeof globalPluginDockLauncherPresent === "function"
+    ? globalPluginDockLauncherPresent(dock)
+    : Boolean(dock.innerHTML.trim());
+  const showDock = Boolean(canShowGlobalDock && !sidebarOpen && hasDockContent);
+  app?.classList.toggle("global-plugin-dock-mode", showDock);
   if (showDock) {
     if (topicPluginDockRevealBlocked()) {
       dock.hidden = true;
       dock.setAttribute("aria-hidden", "true");
+      app?.classList.remove("global-plugin-dock-mode");
       if (typeof updateMobileBottomNavReservation === "function") updateMobileBottomNavReservation();
       scheduleTopicPluginDockRevealAfterBackSwipe("blocked");
       return;
     }
+    if (typeof syncGlobalPluginDockState === "function") syncGlobalPluginDockState(dock);
     const revealFromHidden = dock.hidden;
     const previousVisibility = dock.style.visibility || "";
     if (revealFromHidden) dock.style.visibility = "hidden";
@@ -132,6 +143,9 @@ function updateTopicPluginDockChrome(taskList) {
   }
   dock.hidden = true;
   dock.setAttribute("aria-hidden", "true");
+  app?.classList.remove("global-plugin-dock-mode");
+  if (typeof resetGlobalPluginDockGesture === "function") resetGlobalPluginDockGesture();
+  if (typeof closePluginActionMenus === "function") closePluginActionMenus(dock);
   if (typeof updateMobileBottomNavReservation === "function") updateMobileBottomNavReservation();
 }
 

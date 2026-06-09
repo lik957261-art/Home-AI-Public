@@ -23,6 +23,7 @@ const {
   assertDirectoryDarkStatus,
   assertEmbeddedPluginKeyboardComposer,
   assertEmbeddedPluginShell,
+  assertGlobalPluginDockGestureStability,
   assertPluginTopicDockReturnStability,
   defaultLockPath,
   parseArgs,
@@ -36,6 +37,7 @@ assert.ok(SCENARIOS["embedded-plugin-shell"]);
 assert.ok(SCENARIOS["embedded-plugin-keyboard-composer"]);
 assert.ok(SCENARIOS["embedded-plugin-side-chat-keyboard"]);
 assert.ok(SCENARIOS["plugin-topic-dock-return-stability"]);
+assert.ok(SCENARIOS["global-plugin-dock-gesture-stability"]);
 assert.deepEqual(parseArgs(["--scenario", "embedded-plugin-shell", "--plugin-id", "finance"]).pluginId, "finance");
 assert.deepEqual(
   parseArgs(["--scenario", "embedded-plugin-keyboard-composer", "--plugin-id", "codex-mobile", "--plugin-thread-id", "thread-123"]).pluginThreadId,
@@ -68,13 +70,19 @@ assert.match(script, /embedded-plugin-shell/);
 assert.match(script, /embedded-plugin-keyboard-composer/);
 assert.match(script, /embedded-plugin-side-chat-keyboard/);
 assert.match(script, /plugin-topic-dock-return-stability/);
+assert.match(script, /global-plugin-dock-gesture-stability/);
 assert.match(script, /PLUGIN_TOPIC_DOCK_RETURN_STABILITY_SCRIPT/);
-assert.match(script, /dock_never_visible_outside_task_list_mode/);
-assert.match(script, /dock_stays_hidden_until_task_list_mode/);
+assert.match(script, /GLOBAL_PLUGIN_DOCK_GESTURE_STABILITY_SCRIPT/);
+assert.match(script, /dock_visible_only_in_global_plugin_dock_mode/);
+assert.match(script, /dock_stays_hidden_until_global_plugin_dock_mode/);
 assert.match(script, /dock_hidden_during_back_swipe_settle/);
 assert.match(script, /page-back-settling/);
 assert.match(script, /after-openTaskList-back-settling/);
 assert.match(script, /after-back-surface-clear/);
+assert.match(script, /short_vertical_mistouch_does_not_expand/);
+assert.match(script, /horizontal_mistouch_does_not_expand/);
+assert.match(script, /valid_up_swipe_expands_dock/);
+assert.match(script, /bottom_nav_rect_stable_during_dock_gestures/);
 assert.match(script, /--plugin-thread-id/);
 assert.match(script, /host_keyboard_visible_after_input_tap/);
 assert.match(script, /plugin_input_above_keyboard/);
@@ -156,10 +164,10 @@ assert.ok(embeddedFail.assertions.some((item) => item.name === "plugin_frame_has
 const dockReturnPass = assertPluginTopicDockReturnStability({
   pluginId: "finance",
   samples: [
-    { label: "detail-ready", taskListMode: false, dockHidden: true, dockDisplay: "none", dockVisible: false, dockPosition: "static" },
-    { label: "before-updateTopicPluginDockChrome:false", taskListMode: false, dockHidden: true, dockDisplay: "none", dockVisible: false, dockPosition: "static" },
-    { label: "after-updateTopicPluginDockChrome:true", taskListMode: true, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 690, bottom: 768, width: 390, height: 78 } },
-    { label: "after-openTaskList-return", taskListMode: true, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 690, bottom: 768, width: 390, height: 78 } },
+    { label: "detail-ready", taskListMode: false, globalPluginDockMode: false, dockHidden: true, dockDisplay: "none", dockVisible: false, dockPosition: "static" },
+    { label: "before-updateTopicPluginDockChrome:false", taskListMode: false, globalPluginDockMode: false, dockHidden: true, dockDisplay: "none", dockVisible: false, dockPosition: "static" },
+    { label: "after-updateTopicPluginDockChrome:true", taskListMode: true, globalPluginDockMode: true, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 690, bottom: 768, width: 390, height: 78 } },
+    { label: "after-openTaskList-return", taskListMode: true, globalPluginDockMode: true, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 690, bottom: 768, width: 390, height: 78 } },
   ],
 });
 assert.equal(dockReturnPass.ok, true);
@@ -167,26 +175,66 @@ assert.equal(dockReturnPass.ok, true);
 const dockReturnFail = assertPluginTopicDockReturnStability({
   pluginId: "finance",
   samples: [
-    { label: "detail-ready", taskListMode: false, dockHidden: true, dockDisplay: "none", dockVisible: false, dockPosition: "static" },
-    { label: "setTopicPluginDock-before-navigation", taskListMode: false, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "static", dockRect: { top: 760, bottom: 838, width: 390, height: 78 } },
-    { label: "after-updateTopicPluginDockChrome:true", taskListMode: true, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 690, bottom: 768, width: 390, height: 78 } },
-    { label: "after-openTaskList-return", taskListMode: true, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 690, bottom: 768, width: 390, height: 78 } },
+    { label: "detail-ready", taskListMode: false, globalPluginDockMode: false, dockHidden: true, dockDisplay: "none", dockVisible: false, dockPosition: "static" },
+    { label: "setTopicPluginDock-before-navigation", taskListMode: false, globalPluginDockMode: false, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "static", dockRect: { top: 760, bottom: 838, width: 390, height: 78 } },
+    { label: "after-updateTopicPluginDockChrome:true", taskListMode: true, globalPluginDockMode: true, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 690, bottom: 768, width: 390, height: 78 } },
+    { label: "after-openTaskList-return", taskListMode: true, globalPluginDockMode: true, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 690, bottom: 768, width: 390, height: 78 } },
   ],
 });
 assert.equal(dockReturnFail.ok, false);
-assert.ok(dockReturnFail.assertions.some((item) => item.name === "dock_never_visible_outside_task_list_mode" && !item.pass));
-assert.ok(dockReturnFail.assertions.some((item) => item.name === "dock_stays_hidden_until_task_list_mode" && !item.pass));
+assert.ok(dockReturnFail.assertions.some((item) => item.name === "dock_visible_only_in_global_plugin_dock_mode" && !item.pass));
+assert.ok(dockReturnFail.assertions.some((item) => item.name === "dock_stays_hidden_until_global_plugin_dock_mode" && !item.pass));
 
 const dockReturnBackSettleFail = assertPluginTopicDockReturnStability({
   pluginId: "finance",
   samples: [
     { label: "plugin-topic-detail-ready", taskListMode: false, mainBackAnimating: false, dockHidden: true, dockDisplay: "none", dockVisible: false, dockPosition: "static" },
-    { label: "after-openTaskList-back-settling", taskListMode: true, mainBackAnimating: true, mainClass: "main page-back-settling", dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 660, bottom: 738, width: 390, height: 78 } },
-    { label: "after-back-surface-clear", taskListMode: true, mainBackAnimating: false, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 690, bottom: 768, width: 390, height: 78 } },
+    { label: "after-openTaskList-back-settling", taskListMode: true, globalPluginDockMode: true, mainBackAnimating: true, mainClass: "main page-back-settling", dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 660, bottom: 738, width: 390, height: 78 } },
+    { label: "after-back-surface-clear", taskListMode: true, globalPluginDockMode: true, mainBackAnimating: false, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 690, bottom: 768, width: 390, height: 78 } },
   ],
 });
 assert.equal(dockReturnBackSettleFail.ok, false);
 assert.ok(dockReturnBackSettleFail.assertions.some((item) => item.name === "dock_hidden_during_back_swipe_settle" && !item.pass));
+
+const globalDockGesturePass = assertGlobalPluginDockGestureStability({
+  samples: [
+    { label: "collapsed-ready", globalPluginDockMode: true, dockVisible: true, dockCollapsed: true, dockExpanded: false, bottomNavRect: { bottom: 826 }, bottomLayout: { stackHeight: 90 } },
+    { label: "mistouch-short-up:up", globalPluginDockMode: true, dockVisible: true, dockCollapsed: true, dockExpanded: false, bottomNavRect: { bottom: 826 }, bottomLayout: { stackHeight: 90 } },
+    { label: "mistouch-horizontal:up", globalPluginDockMode: true, dockVisible: true, dockCollapsed: true, dockExpanded: false, bottomNavRect: { bottom: 826 }, bottomLayout: { stackHeight: 90 } },
+    { label: "valid-open:move-1", gestureOffset: "50px", bottomNavRect: { bottom: 826 } },
+    { label: "valid-open:move-2", gestureOffset: "32px", bottomNavRect: { bottom: 826 } },
+    { label: "valid-open:move-3", gestureOffset: "18px", bottomNavRect: { bottom: 826 } },
+    { label: "valid-open:up", globalPluginDockMode: true, dockVisible: true, dockCollapsed: false, dockExpanded: true, bottomNavRect: { bottom: 826 }, bottomLayout: { stackHeight: 138 } },
+    { label: "valid-close:move-1", gestureOffset: "14px", bottomNavRect: { bottom: 826 } },
+    { label: "valid-close:move-2", gestureOffset: "30px", bottomNavRect: { bottom: 826 } },
+    { label: "valid-close:up", globalPluginDockMode: true, dockVisible: true, dockCollapsed: true, dockExpanded: false, bottomNavRect: { bottom: 826 }, bottomLayout: { stackHeight: 90 } },
+    { label: "final", globalPluginDockMode: true, dockVisible: true, dockCollapsed: true, dockExpanded: false, bottomNavRect: { bottom: 826 }, bottomLayout: { stackHeight: 90 } },
+    { label: "extra", bottomNavRect: { bottom: 826 } },
+  ],
+  final: { dockCollapsed: true, dockExpanded: false },
+});
+assert.equal(globalDockGesturePass.ok, true);
+
+const globalDockGestureFail = assertGlobalPluginDockGestureStability({
+  samples: [
+    { label: "collapsed-ready", globalPluginDockMode: true, dockVisible: true, dockCollapsed: true, dockExpanded: false, bottomNavRect: { bottom: 826 }, bottomLayout: { stackHeight: 90 } },
+    { label: "mistouch-short-up:up", globalPluginDockMode: true, dockVisible: true, dockCollapsed: false, dockExpanded: true, bottomNavRect: { bottom: 826 }, bottomLayout: { stackHeight: 138 } },
+    { label: "mistouch-horizontal:up", globalPluginDockMode: true, dockVisible: true, dockCollapsed: false, dockExpanded: true, bottomNavRect: { bottom: 826 }, bottomLayout: { stackHeight: 138 } },
+    { label: "valid-open:move-1", gestureOffset: "12px", bottomNavRect: { bottom: 826 } },
+    { label: "valid-open:move-2", gestureOffset: "24px", bottomNavRect: { bottom: 828 } },
+    { label: "valid-open:up", globalPluginDockMode: true, dockVisible: true, dockCollapsed: false, dockExpanded: true, bottomNavRect: { bottom: 828 }, bottomLayout: { stackHeight: 138 } },
+    { label: "valid-close:up", globalPluginDockMode: true, dockVisible: true, dockCollapsed: true, dockExpanded: false, bottomNavRect: { bottom: 828 }, bottomLayout: { stackHeight: 90 } },
+    { label: "final", globalPluginDockMode: true, dockVisible: true, dockCollapsed: true, dockExpanded: false, bottomNavRect: { bottom: 828 }, bottomLayout: { stackHeight: 90 } },
+    { label: "extra-1", bottomNavRect: { bottom: 828 } },
+    { label: "extra-2", bottomNavRect: { bottom: 828 } },
+    { label: "extra-3", bottomNavRect: { bottom: 828 } },
+    { label: "extra-4", bottomNavRect: { bottom: 828 } },
+  ],
+  final: { dockCollapsed: true, dockExpanded: false },
+});
+assert.equal(globalDockGestureFail.ok, false);
+assert.ok(globalDockGestureFail.assertions.some((item) => item.name === "short_vertical_mistouch_does_not_expand" && !item.pass));
+assert.ok(globalDockGestureFail.assertions.some((item) => item.name === "bottom_nav_rect_stable_during_dock_gestures" && !item.pass));
 
 const keyboardPass = assertEmbeddedPluginKeyboardComposer({
   pluginId: "codex-mobile",

@@ -6,10 +6,11 @@ This document defines the `plugin topic` / `application topic` feature for
 Hermes Mobile. The v440 frontend projection exists; v453 adds Directory as a
 built-in application plugin in the topic launcher, v471/v472 tried a
 Topics-tab anchored plugin drawer, v473-v475 explored inline placement, v476
-proved that a list-internal fixed Dock can drift under mobile layout, and v477
-fixes the intended interaction as a dedicated topic-page plugin Dock row directly
-above the mobile bottom navigation. v477 does not add a separate bottom Plugin
-tab, does not use a floating plugin drawer, and embedded plugin pages keep the
+proved that a list-internal fixed Dock can drift under mobile layout, v477
+fixed the interaction as a dedicated topic-page plugin Dock row directly above
+the mobile bottom navigation, and v663 upgrades that row into a host-owned
+global plugin Dock handle. The Dock does not add a separate bottom Plugin tab,
+does not use a floating plugin drawer, and embedded plugin pages keep the
 bottom plugin-context navigation visible. Service persistence, server
 routes, durable directory binding records, and Gateway/toolset routing
 integration remain separate phases.
@@ -205,15 +206,15 @@ The first UI should be deliberately small:
 
 - A topic-page Directory application card near the topic entry surface, followed
   by directory-bound topic collections.
-- A topic-page plugin Dock row directly above the mobile bottom navigation. It
-  contains external plugin launch icons such as Wardrobe, Finance, and Email,
-  lives outside the scrollable topic list, and does not add a separate bottom
-  Plugin tab or a floating drawer.
+- A host-owned global plugin Dock anchored directly above the mobile bottom
+  navigation. It contains external plugin launch icons such as Wardrobe,
+  Finance, and Email, lives outside scrollable page bodies, collapses to a
+  small bottom handle, and does not add a separate bottom Plugin tab or a
+  floating drawer.
 - The Dock's fixed bottom offset is based on the real bottom-navigation height,
-  not the broader page-content reserved height. The reserved height may include
-  scroll/composer spacing after switching out of a plugin topic chat, so using
-  it for Dock positioning can create a blank band between the Dock and the
-  normal bottom navigation.
+  not the broader page-content reserved height. Runtime measurement reserves
+  only the collapsed handle height while collapsed and the full Dock height
+  while expanded.
 - Each external plugin Dock item opens the plugin app directly. It does not show
   separate topic or delivery-directory mini actions in the topic list.
 - The app action enters the existing embedded plugin host, which keeps the mobile bottom navigation visible as plugin-context navigation.
@@ -256,8 +257,8 @@ generic routes can reload a shared topic thread and fall into the empty ordinary
 chat page.
 
 Codex remains a first-level bottom tab by current product rule. Wardrobe,
-Finance, Email, and future business plugins are launched from the topic page's
-plugin Dock above the mobile bottom navigation when visible in the effective workspace.
+Finance, Email, and future business plugins are launched from the global plugin
+Dock above the mobile bottom navigation when visible in the effective workspace.
 Directory is no longer a permanent bottom tab in the mobile primary
 navigation; it is a built-in plugin card on the topic surface, with old
 directory routes/deep links remaining compatible.
@@ -348,10 +349,10 @@ The selector should ignore or summarize:
   instead of walking up the directory tree. Implemented in v440.
 - Keep Topics in the center of the primary bottom navigation. Do not add a
   separate bottom Plugin tab and do not attach a floating plugin drawer to the
-  Topics tab. External plugin launch icons are rendered as a dedicated
-  topic-page Dock layout row directly above the mobile bottom navigation, outside
-  the scrollable topic list, so directory-bound topic cards are not hidden behind
-  the Dock. Implemented in v477.
+  Topics tab. External plugin launch icons are rendered in the host-owned global
+  Dock above the mobile bottom navigation; the collapsed handle is the only
+  open/close gesture target. Implemented in v477 and updated to a global
+  handle Dock in v663.
 - Keep plugin-context back/right-swipe as a single state-machine transition to
   the ordinary topic root. It must not delegate through `openTaskList()` or any
   path that can call `loadSingleWindow()`. Implemented in v492 after the v491

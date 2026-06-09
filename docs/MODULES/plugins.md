@@ -61,7 +61,7 @@ launch key, or workspace raw key for this registration credential. Health is
 the standard fresh-install plugin enablement example: its manifest may be
 installed and readable while no Hermes workspace, including Owner, is active
 yet. Owner must explicitly open/provision Health before normal list, manifest,
-launch, topic Dock, or MCP projection treats it as usable.
+launch, global Dock, or MCP projection treats it as usable.
 Files generated under the user-facing `插件/健康` directory, including
 Markdown summaries or pending JSON import payloads, are delivery-directory
 context only. They are not evidence that the Health MCP database accepted a
@@ -253,17 +253,19 @@ without the selected workspace's matching Gateway schema. See
 `docs/MODULES/plugin-topics.md` and
 `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md`.
 
-The bottom `插件` tab opens a host-owned plugin Dock, not a multi-row app grid.
-The Dock is a single horizontally scrollable row above the ordinary bottom
-navigation. It sorts visible embedded-app plugins by local usage recency and
-count, then falls back to the stable manifest order. Adding new plugins must not
-increase the Dock height or wrap icons into a second row; lower-frequency
-plugins remain reachable by horizontal swipe so the topic list keeps enough
-vertical space. When one to five plugins are visible, the row should divide the
-available width evenly across those visible plugins; when more than five are
-visible, the five-slot sizing remains and the row scrolls horizontally.
-Normal horizontal swipes scroll the Dock. Manual reordering starts only after a
-long press on an icon, then direct dragging to the desired position.
+The host-owned plugin Dock is a global bottom-stack surface, not a multi-row
+app grid. It opens from a small handle anchored above the ordinary bottom
+navigation and expands into a single horizontally scrollable row. Short taps on
+Dock icons always open the plugin app/capability itself; long-press opens that
+plugin's fixed quick-action menu. Adding new plugins must not increase the
+expanded Dock height or wrap icons into a second row; lower-frequency plugins
+remain reachable by horizontal swipe. When one to five plugins are visible, the
+row should divide the available width evenly across those visible plugins; when
+more than five are visible, the five-slot sizing remains and the row scrolls
+horizontally. Normal horizontal swipes scroll the Dock. The handle is the only
+open/close gesture target: short vertical mistouches and horizontal swipes must
+not expand it, upward handle swipes expand it, and downward handle swipes
+collapse it. Manual reordering remains a menu action with bounded move controls.
 
 When a plugin is opened from a plugin-bound topic, Hermes shows a three-entry
 plugin context browser-style footer: Topic, the current plugin, and Directory.
@@ -353,10 +355,10 @@ Finance bill detail can return to the plugin list page. Only when the plugin has
 no in-frame back target should Hermes leave the plugin surface and return to the
 bound Hermes topic page.
 
-The topic-page plugin Dock must keep a stable order during normal use. Opening
+The global plugin Dock must keep a stable order during normal use. Opening
 a plugin may record usage for diagnostics, but it must not automatically move
-the plugin icon. Users can manually reorder plugin icons by long-pressing an
-icon and dragging it in the Dock; the order is stored locally in
+the plugin icon. Users can manually reorder plugin icons through the
+long-press/context menu's bounded move controls; the order is stored locally in
 `hermesPluginTopicOrder`. Newly
 available plugins that are not in the manual order append by the product's
 definition order.

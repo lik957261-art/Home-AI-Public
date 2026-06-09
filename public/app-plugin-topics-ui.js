@@ -115,6 +115,12 @@ const PLUGIN_TOPIC_USAGE_SYNC_DELAY_MS = 450;
 const PLUGIN_TOPIC_USAGE_LOAD_TTL_MS = 30000;
 const PLUGIN_APP_REORDER_HOLD_MS = 450;
 const PLUGIN_APP_REORDER_CANCEL_PX = 10;
+const GLOBAL_PLUGIN_DOCK_STATE_STORAGE_KEY = "hermesGlobalPluginDockExpanded";
+const GLOBAL_PLUGIN_DOCK_DRAG_SLOP_PX = 10;
+const GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO = 1.2;
+const GLOBAL_PLUGIN_DOCK_TRIGGER_DISTANCE_PX = 28;
+const GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_MIN_DISTANCE_PX = 24;
+const GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_PX_MS = 0.45;
 const CAPABILITY_QUICK_ACTION_LIMIT = 9;
 const CAPABILITY_PLUGIN_APP_ACTION_ID = "__open_app";
 let pluginAppSortDrag = null;
@@ -123,6 +129,8 @@ let pluginActionMenuCloseBound = false;
 let pluginActionMenuSwipe = null;
 let pluginTopicUsagePendingSync = null;
 let pluginTopicUsageSyncTimer = 0;
+let globalPluginDockGesture = null;
+let globalPluginDockGestureBound = false;
 const pluginTopicUsageLoadedAtByWorkspace = new Map();
 const pluginTopicUsageLoadingWorkspaces = new Map();
 const pluginTopicUsageLoadRetryAt = new Map();
@@ -299,6 +307,255 @@ function pluginTopicNavigationAvailable(def) {
 
 function availablePluginTopicDefs() {
   return PLUGIN_TOPIC_DEFS.filter(pluginTopicNavigationAvailable);
+}
+
+function globalPluginDockWorkspaceId() {
+  return String(state.selectedWorkspaceId || state.auth?.workspaceId || "owner").trim() || "owner";
+}
+
+function globalPluginDockStorageKey() {
+  return `${GLOBAL_PLUGIN_DOCK_STATE_STORAGE_KEY}:${globalPluginDockWorkspaceId()}`;
+}
+
+function readGlobalPluginDockExpandedPreference() {
+  try {
+    return localStorage.getItem(globalPluginDockStorageKey()) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeGlobalPluginDockExpandedPreference(expanded) {
+  try {
+    localStorage.setItem(globalPluginDockStorageKey(), expanded ? "1" : "0");
+  } catch {
+    // The Dock still works without persisted local preference.
+  }
+}
+
+function globalPluginDockCollapsedOffsetPx() {
+  const cssPx = typeof mobileBottomCssPx === "function"
+    ? mobileBottomCssPx
+    : (name, fallback = 0) => {
+      const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      const number = Number.parseFloat(value);
+      return Number.isFinite(number) ? number : fallback;
+    };
+  const height = Math.max(0, Math.ceil(cssPx("--topic-plugin-dock-height", 78)));
+  const collapsed = Math.max(0, Math.ceil(cssPx("--topic-plugin-dock-collapsed-height", 30)));
+  return Math.max(0, height - collapsed);
+}
+
+function renderGlobalPluginDockHandle() {
+  return `<button class="topic-plugin-dock-handle" type="button" data-global-plugin-dock-handle aria-label="\u5c55\u5f00\u63d2\u4ef6\u5165\u53e3" aria-expanded="false">
+    <span class="topic-plugin-dock-grabber" aria-hidden="true"></span>
+  </button>`;
+}
+
+function globalPluginDockLauncherPresent(dock = $("topicPluginDock")) {
+  return Boolean(dock?.querySelector?.(".plugin-app-launcher .plugin-app-card"));
+}
+
+function applyGlobalPluginDockState(dock = $("topicPluginDock"), expanded = readGlobalPluginDockExpandedPreference()) {
+  if (!dock) return false;
+  const next = Boolean(expanded);
+  dock.classList.toggle("global-plugin-dock-expanded", next);
+  dock.classList.toggle("global-plugin-dock-collapsed", !next);
+  dock.dataset.globalPluginDockState = next ? "expanded" : "collapsed";
+  dock.style.removeProperty("--global-plugin-dock-gesture-offset");
+  const handle = dock.querySelector("[data-global-plugin-dock-handle]");
+  if (handle) {
+    handle.setAttribute("aria-expanded", next ? "true" : "false");
+    handle.setAttribute("aria-label", next ? "\u6536\u8d77\u63d2\u4ef6\u5165\u53e3" : "\u5c55\u5f00\u63d2\u4ef6\u5165\u53e3");
+  }
+  return next;
+}
+
+function setGlobalPluginDockExpanded(expanded, options = {}) {
+  const dock = $("topicPluginDock");
+  if (!dock) return false;
+  if (options.persist !== false) writeGlobalPluginDockExpandedPreference(Boolean(expanded));
+  applyGlobalPluginDockState(dock, Boolean(expanded));
+  if (!expanded && typeof closePluginActionMenus === "function") closePluginActionMenus(dock);
+  if (typeof updateMobileBottomNavReservation === "function") updateMobileBottomNavReservation();
+  if (typeof settleMobileBottomNavReservation === "function") {
+    settleMobileBottomNavReservation(`global_plugin_dock_${expanded ? "expand" : "collapse"}`, [0, 120, 260]);
+  }
+  return Boolean(expanded);
+}
+
+function syncGlobalPluginDockState(dock = $("topicPluginDock")) {
+  if (!dock || !globalPluginDockLauncherPresent(dock)) return false;
+  if (!dock.classList.contains("global-plugin-dock-expanded") && !dock.classList.contains("global-plugin-dock-collapsed")) {
+    applyGlobalPluginDockState(dock, readGlobalPluginDockExpandedPreference());
+  } else {
+    applyGlobalPluginDockState(dock, dock.classList.contains("global-plugin-dock-expanded"));
+  }
+  return true;
+}
+
+function globalPluginDockHostSurfaceEligible() {
+  const app = $("app");
+  if (!app || app.classList.contains("hidden")) return false;
+  if (!isMobileLayout()) return false;
+  if (state.keyboardViewportActive || document.documentElement.classList.contains("keyboard-viewport-active")) return false;
+  if (state.mobileBrowserShellBlocked || app.classList.contains("mobile-browser-shell-blocked")) return false;
+  if (app.classList.contains("main-back-visible")) return false;
+  if (app.classList.contains("plugin-context-nav-mode")) return false;
+  if (app.classList.contains("embedded-plugin-host-active") || app.classList.contains("wardrobe-plugin-host-active")) return false;
+  const view = String(state.viewMode || "");
+  if (["wardrobe", "codex", "finance", "email", "health", "note"].includes(view)) return false;
+  if (view === "tasks") return !state.currentTaskGroupId;
+  if (view === "projects") return !state.directoryPluginContextActive;
+  if (view === "todos") return !(typeof isTodoDetailView === "function" && isTodoDetailView()) && !(typeof kanbanComposerOpen === "function" && kanbanComposerOpen());
+  if (view === "inbox") {
+    return !(typeof isActionInboxDetailView === "function" && isActionInboxDetailView())
+      && !(typeof isActionInboxCreateView === "function" && isActionInboxCreateView());
+  }
+  if (view === "automation") return !(typeof isAutomationDetailView === "function" && isAutomationDetailView());
+  if (view === "learning") return !state.selectedLearningTaskCardId && !state.learningGrowthSettingsOpen;
+  return false;
+}
+
+function ensureGlobalPluginDockContent() {
+  const dock = $("topicPluginDock");
+  if (!dock || globalPluginDockLauncherPresent(dock)) return globalPluginDockLauncherPresent(dock);
+  if (typeof renderPluginAppLauncher !== "function" || typeof setTopicPluginDock !== "function") return false;
+  const html = renderPluginAppLauncher();
+  if (!html) return false;
+  setTopicPluginDock(html);
+  return globalPluginDockLauncherPresent(dock);
+}
+
+function resetGlobalPluginDockGesture() {
+  const dock = $("topicPluginDock");
+  globalPluginDockGesture = null;
+  dock?.classList.remove("global-plugin-dock-dragging", "global-plugin-dock-gesture-pending");
+  dock?.style.removeProperty("--global-plugin-dock-gesture-offset");
+}
+
+function globalPluginDockGesturePoint(event) {
+  const touch = event?.touches?.[0] || event?.changedTouches?.[0];
+  if (touch) return { x: touch.clientX, y: touch.clientY };
+  if (typeof event?.clientX === "number" && typeof event?.clientY === "number") return { x: event.clientX, y: event.clientY };
+  return null;
+}
+
+function beginGlobalPluginDockGesture(event) {
+  const dock = $("topicPluginDock");
+  if (!dock || dock.hidden || !globalPluginDockHostSurfaceEligible()) return;
+  if (event?.pointerType === "mouse" && event.button !== 0) return;
+  const point = globalPluginDockGesturePoint(event);
+  if (!point) return;
+  const expanded = dock.classList.contains("global-plugin-dock-expanded");
+  globalPluginDockGesture = {
+    pointerId: typeof event.pointerId === "number" ? event.pointerId : null,
+    startX: point.x,
+    startY: point.y,
+    currentX: point.x,
+    currentY: point.y,
+    startedAt: Date.now(),
+    expanded,
+    locked: "",
+    cancelled: false,
+  };
+  dock.classList.add("global-plugin-dock-gesture-pending");
+  try {
+    if (typeof event.pointerId === "number") event.currentTarget?.setPointerCapture?.(event.pointerId);
+  } catch (_) {}
+}
+
+function moveGlobalPluginDockGesture(event) {
+  const gesture = globalPluginDockGesture;
+  if (!gesture || gesture.cancelled) return;
+  if (gesture.pointerId !== null && typeof event.pointerId === "number" && event.pointerId !== gesture.pointerId) return;
+  const point = globalPluginDockGesturePoint(event);
+  if (!point) return;
+  gesture.currentX = point.x;
+  gesture.currentY = point.y;
+  const dx = point.x - gesture.startX;
+  const dy = point.y - gesture.startY;
+  const absX = Math.abs(dx);
+  const absY = Math.abs(dy);
+  const dock = $("topicPluginDock");
+  if (!dock) return;
+  if (!gesture.locked) {
+    if (Math.max(absX, absY) < GLOBAL_PLUGIN_DOCK_DRAG_SLOP_PX) return;
+    if (absX > absY * GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO) {
+      gesture.cancelled = true;
+      resetGlobalPluginDockGesture();
+      return;
+    }
+    if (absY <= absX * GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO) return;
+    gesture.locked = "vertical";
+    dock.classList.add("global-plugin-dock-dragging");
+  }
+  if (gesture.locked !== "vertical") return;
+  event.preventDefault?.();
+  event.stopPropagation?.();
+  const collapsedOffset = globalPluginDockCollapsedOffsetPx();
+  const startOffset = gesture.expanded ? 0 : collapsedOffset;
+  const nextOffset = Math.max(0, Math.min(collapsedOffset, startOffset + dy));
+  dock.style.setProperty("--global-plugin-dock-gesture-offset", `${Math.round(nextOffset)}px`);
+}
+
+function finishGlobalPluginDockGesture(event = null) {
+  const gesture = globalPluginDockGesture;
+  if (!gesture) return;
+  const dock = $("topicPluginDock");
+  const point = globalPluginDockGesturePoint(event) || { x: gesture.currentX, y: gesture.currentY };
+  const dy = point.y - gesture.startY;
+  const elapsed = Math.max(1, Date.now() - gesture.startedAt);
+  const velocity = dy / elapsed;
+  const valid = gesture.locked === "vertical" && !gesture.cancelled;
+  resetGlobalPluginDockGesture();
+  if (!valid) return;
+  const velocityCanTrigger = Math.abs(dy) >= GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_MIN_DISTANCE_PX;
+  const expandTriggered = dy < -GLOBAL_PLUGIN_DOCK_TRIGGER_DISTANCE_PX
+    || (velocityCanTrigger && velocity < -GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_PX_MS);
+  const collapseTriggered = dy > GLOBAL_PLUGIN_DOCK_TRIGGER_DISTANCE_PX
+    || (velocityCanTrigger && velocity > GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_PX_MS);
+  const shouldExpand = gesture.expanded
+    ? !collapseTriggered
+    : expandTriggered;
+  dock?.setAttribute("data-global-plugin-dock-gesture-settled-at", String(Date.now()));
+  setGlobalPluginDockExpanded(shouldExpand, { persist: true });
+}
+
+function handleGlobalPluginDockClick(event) {
+  const dock = $("topicPluginDock");
+  if (!dock || dock.hidden) return;
+  const settledAt = Number(dock.getAttribute("data-global-plugin-dock-gesture-settled-at") || 0);
+  if (settledAt && Date.now() - settledAt < 260) {
+    event.preventDefault?.();
+    return;
+  }
+  setGlobalPluginDockExpanded(!dock.classList.contains("global-plugin-dock-expanded"), { persist: true });
+}
+
+function wireGlobalPluginDockGestures(root) {
+  const dock = root?.id === "topicPluginDock" ? root : $("topicPluginDock");
+  const handle = dock?.querySelector?.("[data-global-plugin-dock-handle]");
+  if (!dock || !handle || handle.dataset.globalPluginDockGestureBound === "1") return;
+  handle.dataset.globalPluginDockGestureBound = "1";
+  handle.addEventListener("click", handleGlobalPluginDockClick);
+  handle.addEventListener("pointerdown", beginGlobalPluginDockGesture);
+  if (!window.PointerEvent) handle.addEventListener("touchstart", beginGlobalPluginDockGesture, { passive: true });
+  if (globalPluginDockGestureBound) return;
+  globalPluginDockGestureBound = true;
+  document.addEventListener("pointermove", moveGlobalPluginDockGesture, { capture: true, passive: false });
+  document.addEventListener("pointerup", finishGlobalPluginDockGesture, { capture: true });
+  document.addEventListener("pointercancel", finishGlobalPluginDockGesture, { capture: true });
+  if (!window.PointerEvent) {
+    document.addEventListener("touchmove", moveGlobalPluginDockGesture, { capture: true, passive: false });
+    document.addEventListener("touchend", finishGlobalPluginDockGesture, { capture: true });
+    document.addEventListener("touchcancel", finishGlobalPluginDockGesture, { capture: true });
+  }
+}
+
+function closeGlobalPluginDockForNavigation() {
+  resetGlobalPluginDockGesture();
+  if (typeof closePluginActionMenus === "function") closePluginActionMenus(document);
 }
 
 function pluginTopicUsageWorkspaceId() {

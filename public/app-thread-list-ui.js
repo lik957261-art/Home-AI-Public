@@ -269,11 +269,16 @@ function taskGroupHasPendingMessages(thread = state.currentThread, taskGroupId =
 function setTopicPluginDock(html = "") {
   const dock = $("topicPluginDock");
   if (!dock) return;
-  dock.innerHTML = String(html || "");
+  const content = String(html || "").trim();
+  dock.innerHTML = content
+    ? `${content}${typeof renderGlobalPluginDockHandle === "function" ? renderGlobalPluginDockHandle() : ""}`
+    : "";
   const hasDockContent = Boolean(dock.innerHTML.trim());
   dock.hidden = true;
   dock.setAttribute("aria-hidden", "true");
+  if (hasDockContent && typeof syncGlobalPluginDockState === "function") syncGlobalPluginDockState(dock);
   if (hasDockContent && typeof wirePluginTopicCards === "function") wirePluginTopicCards(dock);
+  if (hasDockContent && typeof wireGlobalPluginDockGestures === "function") wireGlobalPluginDockGestures(dock);
   if (!hasDockContent && typeof updateTopicPluginDockChrome === "function") updateTopicPluginDockChrome(false);
 }
 
@@ -294,7 +299,6 @@ function directoryTopicRenderSignature(threadId = "", groups = []) {
 }
 
 function renderTaskWindow(thread, conversation, options, bottomOffset) {
-  setTopicPluginDock("");
   const pluginTopicGroups = typeof pluginTopicGroupsForTaskList === "function"
     ? pluginTopicGroupsForTaskList(thread)
     : [];

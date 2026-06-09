@@ -82,7 +82,7 @@ Hermes owns:
 - primary bottom navigation;
 - plugin-context footer;
 - chat composer;
-- topic root capability Dock;
+- global plugin Dock;
 - iframe viewport geometry;
 - Home AI route/back behavior around iframe surfaces.
 
@@ -107,7 +107,7 @@ Non-negotiable:
 
 - Home AI-owned bottom chrome must be arranged through the runtime measured
   bottom stack, not hand-tuned fixed pixel drops. The host writes measured CSS
-  variables for primary bottom navigation, topic capability Dock, and the
+  variables for primary bottom navigation, the global plugin Dock, and the
   combined bottom stack:
   `--mobile-bottom-nav-bottom-runtime`,
   `--mobile-bottom-nav-offset-height-runtime`,
@@ -120,20 +120,25 @@ Non-negotiable:
   must be a single host-level variable/measurement input, not separate
   Mac/Windows/iOS overrides. The current Home AI default is 18px; do not add a
   plugin-local offset or a second Dock offset on top of the host measurement.
-- The topic capability Dock is anchored to the measured primary bottom-nav
-  top, and scroll containers reserve the measured combined stack height. A
-  fix that changes only `bottom: Npx` without updating the measured reservation
-  is not acceptable for Home AI host chrome.
-- The topic capability Dock must not become visible while the host is between
+- The global plugin Dock is anchored to the measured primary bottom-nav top,
+  and scroll containers reserve the measured combined stack height. A fix that
+  changes only `bottom: Npx` without updating the measured reservation is not
+  acceptable for Home AI host chrome. Collapsed state reserves only the handle
+  height; expanded state reserves the full Dock height.
+- The global plugin Dock must not become visible while the host is between
   plugin-topic detail and topic-list chrome states. Rendering may prepare the
-  Dock HTML, but the Dock must remain hidden until `.task-list-mode` is applied
-  and `updateNavigationControls()` can reveal and measure it in one stable
+  Dock HTML, but the Dock must remain hidden until `updateNavigationControls()`
+  applies `global-plugin-dock-mode` and can reveal and measure it in one stable
   bottom-stack pass.
-- The topic capability Dock must also remain hidden while a real right-swipe
-  back surface is still in `page-back-dragging` or `page-back-settling`. The
-  Dock may only reveal after the swipe surface is cleared and bottom-nav
-  visible-count classes have been updated, so the first visible Dock rect is
-  the stable post-return rect.
+- The global plugin Dock must also remain hidden while a real right-swipe back
+  surface is still in `page-back-dragging` or `page-back-settling`. The Dock
+  may only reveal after the swipe surface is cleared and bottom-nav visible
+  count classes have been updated, so the first visible Dock rect is the stable
+  post-return rect.
+- Global plugin Dock gesture changes must prove that short vertical mistouches
+  and horizontal swipes do not expand the Dock, valid upward/downward handle
+  swipes settle to the correct state, and the primary bottom-nav rect does not
+  move during the gesture.
 - The measured bottom-nav top offset already includes the host comfort inset.
   Dock positioning must use that offset directly; adding the inset again creates
   an artificial Dock/nav gap and is a failing bottom-stack state.
@@ -168,7 +173,7 @@ Failing visual states:
 - blank band between plugin content and Home AI footer;
 - plugin bottom nav floating above the iframe bottom;
 - Home AI composer covering newest chat messages;
-- topic Dock reserve remaining after switching to Directory or another view;
+- global Dock reserve remaining after switching to an ineligible view;
 - newest topic content opening in the middle instead of bottoming when the user
   expects chat-like behavior;
 - iframe content reserving both plugin footer and Home AI footer space.
@@ -424,8 +429,8 @@ npm run ios:pwa:visual -- \
 Plugin-bound topic detail to topic-list return changes must use the Dock
 stability scenario. The scenario constructs a synthetic plugin-bound topic,
 simulates the real right-swipe return settle path, calls the same
-`openTaskList()` return path, and fails if the topic Dock is unhidden or
-visible before `.task-list-mode` is applied, visible during
+`openTaskList()` return path, and fails if the global Dock is unhidden or
+visible before `global-plugin-dock-mode` is applied, visible during
 `page-back-settling`, or unstable after the return surface is cleared:
 
 ```bash
@@ -433,6 +438,15 @@ cd <Home-AI>
 npm run ios:pwa:visual -- \
   --scenario plugin-topic-dock-return-stability \
   --plugin-id <plugin-id> \
+  --debug-url http://127.0.0.1:19073/
+```
+
+Global Dock handle gesture changes must also run:
+
+```bash
+cd <Home-AI>
+npm run ios:pwa:visual -- \
+  --scenario global-plugin-dock-gesture-stability \
   --debug-url http://127.0.0.1:19073/
 ```
 
