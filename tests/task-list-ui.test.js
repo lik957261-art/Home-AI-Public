@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260609-layout-root-diagnostics-v648";
+const CLIENT_VERSION = "20260609-ios-statusbar-viewport-v649";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-layout-root-diagnostics-v648" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-layout-root-diagnostics-v648"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-ios-statusbar-viewport-v649" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-ios-statusbar-viewport-v649"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -507,7 +507,9 @@ assert.match(stylesCss, /\.task-toolbar-meta \.task-toolbar-directories \{[\s\S]
 assert.match(stylesCss, /--ui-accent: #6b858c;/);
 assert.match(stylesCss, /--ui-accent-fill: rgba\(144, 166, 170, 0\.20\);/);
 assert.match(indexHtml, /<meta name="theme-color" content="#f7f8f7">/);
-assert.match(indexHtml, /<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">/);
+assert.match(indexHtml, /<meta name="apple-mobile-web-app-status-bar-style" content="default">/);
+assert.match(indexHtml, /function statusBarStyle\(theme\) \{[\s\S]*?return effectiveTheme\(theme\) === "dark" \? "black" : "default";[\s\S]*?\}/);
+assert.doesNotMatch(indexHtml, /black-translucent/);
 assert.match(indexHtml, /<style id="hermesInitialThemeStyle">[\s\S]*?html\[data-effective-theme="dark"\] \{[\s\S]*?background: #101214;[\s\S]*?color-scheme: dark;/);
 assert.match(indexHtml, /hermesWebTheme/);
 assert.match(indexHtml, /document\.documentElement\.dataset\.effectiveTheme = effective/);
@@ -2489,10 +2491,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-layout-root-diagnostics-v648/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-layout-root-diagnostics-v648/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-layout-root-diagnostics-v648/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-layout-root-diagnostics-v648/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-ios-statusbar-viewport-v649/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-ios-statusbar-viewport-v649/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-ios-statusbar-viewport-v649/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-ios-statusbar-viewport-v649/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);

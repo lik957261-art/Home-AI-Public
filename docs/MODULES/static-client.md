@@ -118,7 +118,7 @@ Gateway plugin/schema/profile changes:
   default (`--mobile-bottom-nav-comfort-inset: 0px` as of
   `20260608-bottom-stack-pwa-clamp-v632`). Tab content should not be lifted by
   default (`--mobile-bottom-nav-visual-lift: 0px` as of
-  `20260609-layout-root-diagnostics-v648`); any future small visual lift must
+  `20260609-ios-statusbar-viewport-v649`); any future small visual lift must
   stay inside the tab content transform, not in a bottom offset that moves the
   entire Dock/nav stack. Runtime bottom overflow is diagnostic-only by default:
   `--mobile-bottom-nav-overflow-clamp: 0px` prevents iOS standalone PWA
@@ -149,7 +149,17 @@ Gateway plugin/schema/profile changes:
   native/original document preview when a same-origin source URL is available.
   Word/DOCX must stay in the Home AI `file-viewer.html` preview path on wide
   surfaces because raw DOCX URLs usually download instead of rendering inline.
-- Top-level PWA shell changes must keep time, battery, and Wi-Fi indicators visible on mobile; browser-shell guards and full-viewport overlays need explicit status-bar/safe-area checks.
+- Top-level PWA shell changes must keep time, battery, and Wi-Fi indicators
+  visible on mobile; browser-shell guards and full-viewport overlays need
+  explicit status-bar/safe-area checks. The installed iOS PWA shell should use
+  opaque status-bar modes (`default` for light/system-light, `black` for dark),
+  not `black-translucent`: in dark standalone PWA runs, WebKit can report
+  `100vh`/`100lvh` as the full physical screen while `100dvh`, `innerHeight`,
+  fixed bottom chrome, and the document root are shortened by the top safe-area
+  inset. Using a translucent status bar makes the bottom nav appear lifted and
+  can push plugin iframe tops under the status area. The app already paints
+  status-bar background through safe-area CSS when the inset is exposed, so it
+  does not need transparent status-bar content.
 - The initial inline boot splash is part of the mobile shell contract. On iOS
   installed PWA cold start, `100dvh` can be reported before WebKit settles the
   standalone viewport, so the mobile boot splash must start below the safe area
