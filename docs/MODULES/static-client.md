@@ -98,6 +98,10 @@ Gateway plugin/schema/profile changes:
   the runtime measured visible top offset, not the full bottom-nav height. This
   keeps the global plugin Dock adjacent to the visible nav after the nav is
   dropped below the viewport edge.
+- On top-level plugin App pages where the primary Home AI bottom navigation is
+  hidden, the global plugin Dock must use the host comfort inset as its runtime
+  bottom anchor. It must not fall back to the normal bottom-nav height, because
+  that places the collapsed handle too high on plugin pages.
 - The global plugin Dock may overlap the bottom nav by the controlled
   `--topic-plugin-dock-nav-overlap: 1px` bridge and should keep its bottom
   padding at `0` so translucent page background cannot show through between

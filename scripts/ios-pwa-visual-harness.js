@@ -666,6 +666,7 @@ const GLOBAL_PLUGIN_DOCK_GESTURE_STABILITY_SCRIPT = `
       dockVisible: Boolean(metrics.dockVisible),
       dockExpanded: Boolean(metrics.dockExpanded),
       dockHeight: Number.isFinite(Number(metrics.dockHeight)) ? Number(metrics.dockHeight) : null,
+      dockBottom: Number.isFinite(Number(metrics.dockBottom)) ? Number(metrics.dockBottom) : null,
       rawDockHeight: Number.isFinite(Number(metrics.rawDockHeight)) ? Number(metrics.rawDockHeight) : null,
       stackHeight: Number.isFinite(Number(metrics.stackHeight)) ? Number(metrics.stackHeight) : null,
       navRect: metrics.navRect || null,
@@ -727,6 +728,30 @@ const GLOBAL_PLUGIN_DOCK_GESTURE_STABILITY_SCRIPT = `
     dispatchPointer(document, "pointerup", startX + Math.round(last.x || 0), startY + Math.round(last.y || 0));
     sample(label + ":up");
   };
+  const setVisualThreadSurface = (viewMode, singleWindowMode = "chat") => {
+    appState.viewMode = viewMode;
+    appState.singleWindowMode = singleWindowMode;
+    appState.currentTaskGroupId = "";
+    appState.pluginContextNavPluginId = "";
+    appState.directoryPluginContextActive = false;
+    appState.currentThread = {
+      id: "visual-global-plugin-dock-thread",
+      title: "Visual global plugin dock thread",
+      singleWindow: true,
+      workspaceId: appState.selectedWorkspaceId || "owner",
+      projectId: "general",
+      subprojectId: "",
+      messages: [],
+      taskGroupMeta: {},
+    };
+    appState.currentThreadId = appState.currentThread.id;
+    appState.taskListThread = appState.currentThread;
+    appState.taskListThreadId = appState.currentThread.id;
+    app?.classList?.remove?.("plugin-context-nav-mode", "embedded-plugin-preview-fullscreen-active", "page-back-dragging", "page-back-settling");
+    if (viewMode === "single" && typeof renderCurrentThread === "function") renderCurrentThread({ stickToBottom: false, restoreScrollTop: 0 });
+    else if (typeof setTopicPluginDock === "function" && typeof renderPluginAppLauncher === "function") setTopicPluginDock(renderPluginAppLauncher());
+    if (typeof updateNavigationControls === "function") updateNavigationControls();
+  };
   try { localStorage.setItem("hermesWebTheme", theme); } catch (_) {}
   if (appState) appState.themeMode = theme;
   if (typeof applyThemePreference === "function") applyThemePreference(theme);
@@ -745,32 +770,18 @@ const GLOBAL_PLUGIN_DOCK_GESTURE_STABILITY_SCRIPT = `
     };
   }
   try {
-    appState.viewMode = "tasks";
-    appState.currentTaskGroupId = "";
-    appState.pluginContextNavPluginId = "";
-    appState.directoryPluginContextActive = false;
-    appState.currentThread = {
-      id: "visual-global-plugin-dock-thread",
-      title: "Visual global plugin dock thread",
-      singleWindow: true,
-      workspaceId: appState.selectedWorkspaceId || "owner",
-      projectId: "general",
-      subprojectId: "",
-      messages: [],
-      taskGroupMeta: {},
-    };
-    appState.currentThreadId = appState.currentThread.id;
-    appState.taskListThread = appState.currentThread;
-    appState.taskListThreadId = appState.currentThread.id;
-    if (typeof renderCurrentThread === "function") renderCurrentThread({ stickToBottom: false, restoreScrollTop: 0 });
-    else if (typeof setTopicPluginDock === "function" && typeof renderPluginAppLauncher === "function") setTopicPluginDock(renderPluginAppLauncher());
-    if (typeof updateNavigationControls === "function") updateNavigationControls();
+    setVisualThreadSurface("single", "chat");
     if (typeof setGlobalPluginDockExpanded === "function") setGlobalPluginDockExpanded(false, { persist: false });
+    sample("chat-surface-ready");
     sample("collapsed-ready");
     runGesture("mistouch-short-up", [{ x: 1, y: -8 }, { x: 2, y: -14 }]);
     runGesture("mistouch-horizontal", [{ x: 18, y: -3 }, { x: 64, y: -6 }]);
     runGesture("valid-open", [{ x: 0, y: -14 }, { x: 0, y: -30 }, { x: 0, y: -46 }, { x: 0, y: -58 }]);
     runGesture("valid-close", [{ x: 0, y: 14 }, { x: 0, y: 30 }, { x: 0, y: 46 }, { x: 0, y: 58 }]);
+    setVisualThreadSurface("codex", "chat");
+    if (typeof setGlobalPluginDockExpanded === "function") setGlobalPluginDockExpanded(false, { persist: false });
+    if (typeof updateMobileBottomNavReservation === "function") updateMobileBottomNavReservation();
+    sample("plugin-surface-ready");
     if (typeof updateMobileBottomNavReservation === "function") updateMobileBottomNavReservation();
     sample("final");
   } finally {
@@ -1332,7 +1343,7 @@ function assertGlobalPluginDockGestureStability(metrics = {}) {
   const final = metrics.final || samples[samples.length - 1] || {};
   const navRects = samples
     .map((sample) => sample?.bottomNavRect)
-    .filter((rect) => rect && Number.isFinite(Number(rect.bottom)));
+    .filter((rect) => rect && Number(rect.width || 0) > 0 && Number(rect.height || 0) > 0 && Number.isFinite(Number(rect.bottom)));
   const navBottomRange = navRects.length >= 2
     ? Math.max(...navRects.map((rect) => Number(rect.bottom))) - Math.min(...navRects.map((rect) => Number(rect.bottom)))
     : 0;
@@ -1351,6 +1362,8 @@ function assertGlobalPluginDockGestureStability(metrics = {}) {
     ? closeOffsets.every((value, index) => index === 0 || value >= closeOffsets[index - 1])
     : true;
   const collapsedReady = byLabel.get("collapsed-ready") || {};
+  const chatSurface = byLabel.get("chat-surface-ready") || {};
+  const pluginSurface = byLabel.get("plugin-surface-ready") || {};
   const shortUp = byLabel.get("mistouch-short-up:up") || {};
   const horizontal = byLabel.get("mistouch-horizontal:up") || {};
   const validOpen = byLabel.get("valid-open:up") || {};
@@ -1361,6 +1374,20 @@ function assertGlobalPluginDockGestureStability(metrics = {}) {
     assertion("gesture_samples_recorded", samples.length >= 12, { sampleCount: samples.length }),
     assertion("global_dock_mode_visible", Boolean(collapsedReady.globalPluginDockMode && collapsedReady.dockVisible), {
       collapsedReady,
+    }),
+    assertion("chat_surface_global_dock_visible", Boolean(chatSurface.globalPluginDockMode && chatSurface.dockVisible), {
+      chatSurface,
+    }),
+    assertion("plugin_surface_global_dock_visible", Boolean(pluginSurface.globalPluginDockMode && pluginSurface.dockVisible), {
+      pluginSurface,
+    }),
+    assertion("plugin_surface_uses_dock_only_anchor", Boolean(
+      pluginSurface.bottomLayout
+      && pluginSurface.bottomLayout.navRect === null
+      && Number(pluginSurface.bottomLayout.dockBottom || 0) === Number(pluginSurface.bottomLayout.navBottom || 0)
+      && Number(pluginSurface.bottomLayout.dockBottom || 0) > 0
+    ), {
+      pluginSurface,
     }),
     assertion("dock_initially_collapsed", collapsedReady.dockCollapsed === true && collapsedReady.dockExpanded === false, {
       collapsedReady,

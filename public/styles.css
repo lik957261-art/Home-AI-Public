@@ -5847,7 +5847,7 @@ button.directory-alias-chip {
 }
 
 .topic-plugin-dock-grabber {
-  width: 30px;
+  width: 22px;
   height: 4px;
   display: block;
   background: color-mix(in srgb, var(--muted) 56%, transparent);

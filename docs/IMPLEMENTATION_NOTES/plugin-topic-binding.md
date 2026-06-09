@@ -8,10 +8,11 @@ built-in application plugin in the topic launcher, v471/v472 tried a
 Topics-tab anchored plugin drawer, v473-v475 explored inline placement, v476
 proved that a list-internal fixed Dock can drift under mobile layout, v477
 fixed the interaction as a dedicated topic-page plugin Dock row directly above
-the mobile bottom navigation, and v663 upgrades that row into a host-owned
-global plugin Dock handle. The Dock does not add a separate bottom Plugin tab,
-does not use a floating plugin drawer, and embedded plugin pages keep the
-bottom plugin-context navigation visible. Service persistence, server
+the mobile bottom navigation, v663 upgraded that row into a host-owned global
+plugin Dock handle, and v664 makes the handle available on Chat and top-level
+plugin App pages. The Dock does not add a separate bottom Plugin tab, does not
+use a floating plugin drawer, and still stays out of plugin-bound topic detail,
+keyboard, full-screen preview, and back-swipe transition states. Service persistence, server
 routes, durable directory binding records, and Gateway/toolset routing
 integration remain separate phases.
 
@@ -352,7 +353,7 @@ The selector should ignore or summarize:
   Topics tab. External plugin launch icons are rendered in the host-owned global
   Dock above the mobile bottom navigation; the collapsed handle is the only
   open/close gesture target. Implemented in v477 and updated to a global
-  handle Dock in v663.
+  handle Dock in v664.
 - Keep plugin-context back/right-swipe as a single state-machine transition to
   the ordinary topic root. It must not delegate through `openTaskList()` or any
   path that can call `loadSingleWindow()`. Implemented in v492 after the v491

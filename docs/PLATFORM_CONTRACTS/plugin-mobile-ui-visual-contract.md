@@ -125,6 +125,13 @@ Non-negotiable:
   changes only `bottom: Npx` without updating the measured reservation is not
   acceptable for Home AI host chrome. Collapsed state reserves only the handle
   height; expanded state reserves the full Dock height.
+- The global plugin Dock is available on the Chat bottom-tab surface and on
+  top-level plugin App surfaces so users can switch plugins without returning
+  to the host first. It remains host-owned chrome; plugin iframes must not
+  reserve extra internal space for it.
+- When a top-level plugin App hides the primary Home AI bottom navigation, the
+  global plugin Dock must anchor to the host comfort inset instead of the
+  absent nav height. Otherwise the handle floats too high on plugin pages.
 - The global plugin Dock must not become visible while the host is between
   plugin-topic detail and topic-list chrome states. Rendering may prepare the
   Dock HTML, but the Dock must remain hidden until `updateNavigationControls()`
@@ -137,8 +144,9 @@ Non-negotiable:
   post-return rect.
 - Global plugin Dock gesture changes must prove that short vertical mistouches
   and horizontal swipes do not expand the Dock, valid upward/downward handle
-  swipes settle to the correct state, and the primary bottom-nav rect does not
-  move during the gesture.
+  swipes settle to the correct state, Chat and top-level plugin App surfaces
+  can enter global Dock mode, and the primary bottom-nav rect does not move
+  during the gesture.
 - The measured bottom-nav top offset already includes the host comfort inset.
   Dock positioning must use that offset directly; adding the inset again creates
   an artificial Dock/nav gap and is a failing bottom-stack state.

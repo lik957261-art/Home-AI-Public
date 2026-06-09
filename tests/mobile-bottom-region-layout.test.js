@@ -33,7 +33,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260609-global-plugin-dock-handle-v663";
+const clientVersion = "20260609-global-plugin-dock-chat-plugin-v664";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 
@@ -225,6 +225,9 @@ assert.match(appComposerContextJs, /const surfaceUnderflow = 0/);
 assert.match(appComposerContextJs, /const effectiveNavBottomUnderflow = navBottomUnderflow/);
 assert.match(appComposerContextJs, /const navBottom = navBottomOverflow \+ comfortInset - effectiveNavBottomUnderflow/);
 assert.match(appComposerContextJs, /window\.__hermesMobileBottomLayoutMetrics = null;/);
+assert.match(appComposerContextJs, /const applyDockOnlyBottomStack = \(reason = "nav_hidden"\) => \{/);
+assert.match(appComposerContextJs, /if \(isMobileLayout\(\) && dockIsVisible\(\)\) \{[\s\S]*?applyDockOnlyBottomStack\("nav_hidden"\);[\s\S]*?return;/);
+assert.match(appComposerContextJs, /root\.style\.setProperty\("--topic-plugin-dock-bottom-runtime", `\$\{comfortInset\}px`\)/);
 assert.match(appComposerContextJs, /app\?\.classList\.contains\("global-plugin-dock-mode"\)/);
 assert.match(appComposerContextJs, /const dockExpanded = Boolean\(dockVisible && dock\?\.classList\.contains\("global-plugin-dock-expanded"\)\)/);
 assert.match(appComposerContextJs, /const dockCollapsedHeight = Math\.max\(0, Math\.ceil\(mobileBottomCssPx\("--topic-plugin-dock-collapsed-height", 30\)\)\)/);

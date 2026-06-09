@@ -532,6 +532,57 @@ function updateMobileBottomNavReservation() {
   const root = document.documentElement;
   const app = $("app");
   const nav = $("bottomNav");
+  const dock = $("topicPluginDock");
+  const dockIsVisible = () => Boolean(
+    app?.classList.contains("global-plugin-dock-mode")
+    && dock
+    && !dock.hidden
+    && window.getComputedStyle?.(dock).display !== "none"
+  );
+  const applyDockOnlyBottomStack = (reason = "nav_hidden") => {
+    const comfortInset = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-comfort-inset", 0)));
+    const dockExpanded = Boolean(dockIsVisible() && dock?.classList.contains("global-plugin-dock-expanded"));
+    const dockCollapsedHeight = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-collapsed-height", 30)));
+    const rawDockHeight = dockIsVisible()
+      ? Math.max(0, Math.ceil(dock.getBoundingClientRect?.().height || 0), Math.ceil(dock.scrollHeight || 0))
+      : 0;
+    const dockHeight = dockIsVisible()
+      ? (dockExpanded ? rawDockHeight : Math.max(24, dockCollapsedHeight))
+      : 0;
+    const stackHeight = dockIsVisible() ? comfortInset + dockHeight + 2 : 0;
+    const metrics = {
+      reason,
+      viewportHeight: Math.max(Math.ceil(window.innerHeight || 0), Math.ceil(document.documentElement?.clientHeight || 0), Math.ceil(window.visualViewport?.height || 0)),
+      comfortInset,
+      navLaidOut: false,
+      navRect: null,
+      navBottom: comfortInset,
+      navOffset: comfortInset,
+      navReserve: 0,
+      dockVisible: dockIsVisible(),
+      dockExpanded,
+      dockCollapsedHeight,
+      rawDockHeight,
+      dockHeight,
+      dockBottom: comfortInset,
+      stackHeight,
+    };
+    window.__hermesMobileBottomLayoutMetrics = metrics;
+    root.style.removeProperty("--mobile-bottom-nav-bottom-runtime");
+    root.style.removeProperty("--mobile-bottom-nav-offset-height-runtime");
+    root.style.removeProperty("--mobile-bottom-nav-reserved-height-runtime");
+    if (dockIsVisible()) {
+      root.style.setProperty("--topic-plugin-dock-bottom-runtime", `${comfortInset}px`);
+      root.style.setProperty("--topic-plugin-dock-reserved-height-runtime", `${stackHeight}px`);
+      root.style.setProperty("--mobile-bottom-stack-height-runtime", `${stackHeight}px`);
+    } else {
+      root.style.removeProperty("--topic-plugin-dock-bottom-runtime");
+      root.style.removeProperty("--topic-plugin-dock-reserved-height-runtime");
+      root.style.removeProperty("--mobile-bottom-stack-height-runtime");
+    }
+    renderMobileBottomLayoutDebug(metrics);
+    updatePluginContextViewportReservation();
+  };
   const clearBottomStackMetrics = () => {
     window.__hermesMobileBottomLayoutMetrics = null;
     root.style.removeProperty("--mobile-bottom-nav-bottom-runtime");
@@ -547,6 +598,10 @@ function updateMobileBottomNavReservation() {
     return;
   }
   if (nav.hidden || window.getComputedStyle?.(nav).display === "none") {
+    if (isMobileLayout() && dockIsVisible()) {
+      applyDockOnlyBottomStack("nav_hidden");
+      return;
+    }
     clearBottomStackMetrics();
     updatePluginContextViewportReservation();
     return;
@@ -592,7 +647,6 @@ function updateMobileBottomNavReservation() {
   const offset = Math.max(44, rectHeight, contentHeight, visibleOffset || rectHeight);
   const reserve = Math.max(76, navBottom + rectHeight + 10, navBottom + contentHeight + 10);
   const navVisualLift = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-visual-lift", 0)));
-  const dock = $("topicPluginDock");
   const dockVisible = Boolean(
     app?.classList.contains("global-plugin-dock-mode")
     && dock

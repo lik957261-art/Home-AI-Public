@@ -146,9 +146,10 @@ the change is part of a dedicated infrastructure rename.
   - Root Topics should present a compact usage-backed frequent quick-action grid
     followed by Directory-bound topic collections in the scrollable page body.
     Plugin and built-in Directory icons stay in the host-owned global plugin
-    Dock above the primary bottom navigation. The Dock is collapsed to a small
-    handle by default on eligible host root surfaces and expands in place from
-    that handle. Icon clicks consistently open the app/capability, while
+    Dock above the primary bottom navigation or host comfort inset. The Dock is
+    collapsed to a small handle by default on eligible root surfaces, the Chat
+    bottom-tab surface, and top-level plugin App surfaces, and expands in place
+    from that handle. Icon clicks consistently open the app/capability, while
     long-press/context-click opens the compact quick-action menu. Touch-shell
     validation must verify the `touchstart` long-press path directly because
     desktop `contextmenu` evidence alone does not prove iOS/PWA behavior. Quick actions
