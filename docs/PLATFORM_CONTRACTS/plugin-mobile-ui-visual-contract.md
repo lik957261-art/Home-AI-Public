@@ -129,12 +129,17 @@ Non-negotiable:
   top-level plugin App surfaces so users can switch plugins without returning
   to the host first. It remains host-owned chrome; plugin iframes must not
   reserve extra internal space for it.
+- Codex is a special embedded plugin surface and does not participate in the
+  Home AI global plugin Dock. The host must not show the Dock dot, open the
+  Dock drawer, or apply Dock-specific iframe reservation while `viewMode=codex`
+  is active. This rule applies only to the Home AI plugin-hosted Codex surface;
+  standalone Codex deployments are outside this Home AI Dock contract.
 - When the global plugin Dock is visible above an embedded plugin iframe, the
   Home AI host must reserve iframe viewport space for both collapsed and
   expanded Dock states. This reserve is host-owned and applies uniformly to
-  Codex, Finance, Wardrobe, Health, Note, Email, and future embedded plugins;
-  do not implement plugin-specific Dock avoidance inside individual plugin
-  workspaces.
+  Finance, Wardrobe, Health, Note, Email, and future Dock-participating
+  embedded plugins; do not implement plugin-specific Dock avoidance inside
+  individual plugin workspaces.
 - When the mobile keyboard is active, the Home AI host must suppress the global
   plugin Dock and clear Dock-specific embedded iframe reservation. A hidden Dock
   must never leave expanded-state padding behind while the user is typing in a

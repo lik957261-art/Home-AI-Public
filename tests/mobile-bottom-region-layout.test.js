@@ -33,7 +33,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260609-global-plugin-dock-safe-reserve-v672";
+const clientVersion = "20260609-global-plugin-dock-codex-optout-v673";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 
@@ -255,9 +255,9 @@ assert.doesNotMatch(stylesCss, /bottom: calc\(var\(--plugin-context-bottom-nav-h
 assert.doesNotMatch(stylesCss, /padding-bottom: var\(--plugin-topic-composer-reserved-height, 142px\);/);
 assert.match(stylesCss, /\.global-plugin-dock-mode\.global-plugin-dock-collapsed-mode:not\(\.main-back-visible\):not\(\.plugin-context-nav-mode\) \.composer \{[\s\S]*?transform: translateY\(-6px\);/);
 assert.match(stylesCss, /\.global-plugin-dock-mode\.global-plugin-dock-expanded-mode:not\(\.main-back-visible\):not\(\.plugin-context-nav-mode\) \.composer \{[\s\S]*?transform: translateY\(calc\(-1 \* var\(--topic-plugin-dock-height\) - 6px\)\);/);
-assert.match(stylesCss, /\.embedded-plugin-host-active\.global-plugin-dock-collapsed-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: calc\(var\(--topic-plugin-dock-collapsed-height\) \+ var\(--topic-plugin-dock-collapsed-safe-lift\) \+ 6px\);/);
-assert.match(stylesCss, /\.embedded-plugin-host-active\.global-plugin-dock-expanded-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: calc\(var\(--topic-plugin-dock-height\) \+ 6px\);/);
-assert.match(stylesCss, /:root\.keyboard-viewport-active \.embedded-plugin-host-active\.global-plugin-dock-collapsed-mode \.embedded-plugin-host,[\s\S]*?:root\.keyboard-viewport-active \.embedded-plugin-host-active\.global-plugin-dock-expanded-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: 0;/);
+assert.match(stylesCss, /\.embedded-plugin-host-active:not\(\.codex-mode\)\.global-plugin-dock-collapsed-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: calc\(var\(--topic-plugin-dock-collapsed-height\) \+ var\(--topic-plugin-dock-collapsed-safe-lift\) \+ 6px\);/);
+assert.match(stylesCss, /\.embedded-plugin-host-active:not\(\.codex-mode\)\.global-plugin-dock-expanded-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: calc\(var\(--topic-plugin-dock-height\) \+ 6px\);/);
+assert.match(stylesCss, /:root\.keyboard-viewport-active \.embedded-plugin-host-active:not\(\.codex-mode\)\.global-plugin-dock-collapsed-mode \.embedded-plugin-host,[\s\S]*?:root\.keyboard-viewport-active \.embedded-plugin-host-active:not\(\.codex-mode\)\.global-plugin-dock-expanded-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: 0;/);
 assert.match(stylesCss, /:root\.keyboard-viewport-active \.topic-plugin-dock \{[\s\S]*?display: none !important;/);
 assert.doesNotMatch(stylesCss, /\.codex-mode\.embedded-plugin-host-active\.global-plugin-dock-expanded-mode \.embedded-plugin-host/);
 assert.doesNotMatch(block(".app.task-list-mode"), /padding-bottom: var\(--topic-plugin-dock-reserved-height\);/);

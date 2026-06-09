@@ -402,7 +402,7 @@ function globalPluginDockHostSurfaceEligible() {
   if (!app || app.classList.contains("hidden")) return false;
   if (!isMobileLayout()) return false;
   const view = String(state.viewMode || "");
-  const pluginAppSurface = ["wardrobe", "codex", "finance", "email", "health", "note"].includes(view);
+  const pluginAppSurface = ["wardrobe", "finance", "email", "health", "note"].includes(view);
   if (state.keyboardViewportActive || document.documentElement.classList.contains("keyboard-viewport-active")) return false;
   if (state.mobileBrowserShellBlocked || app.classList.contains("mobile-browser-shell-blocked")) return false;
   if (app.classList.contains("embedded-plugin-preview-fullscreen-active")) return false;

@@ -1456,16 +1456,16 @@ button {
   display: none !important;
 }
 
-.embedded-plugin-host-active.global-plugin-dock-collapsed-mode .embedded-plugin-host {
+.embedded-plugin-host-active:not(.codex-mode).global-plugin-dock-collapsed-mode .embedded-plugin-host {
   padding-bottom: calc(var(--topic-plugin-dock-collapsed-height) + var(--topic-plugin-dock-collapsed-safe-lift) + 6px);
 }
 
-.embedded-plugin-host-active.global-plugin-dock-expanded-mode .embedded-plugin-host {
+.embedded-plugin-host-active:not(.codex-mode).global-plugin-dock-expanded-mode .embedded-plugin-host {
   padding-bottom: calc(var(--topic-plugin-dock-height) + 6px);
 }
 
-:root.keyboard-viewport-active .embedded-plugin-host-active.global-plugin-dock-collapsed-mode .embedded-plugin-host,
-:root.keyboard-viewport-active .embedded-plugin-host-active.global-plugin-dock-expanded-mode .embedded-plugin-host {
+:root.keyboard-viewport-active .embedded-plugin-host-active:not(.codex-mode).global-plugin-dock-collapsed-mode .embedded-plugin-host,
+:root.keyboard-viewport-active .embedded-plugin-host-active:not(.codex-mode).global-plugin-dock-expanded-mode .embedded-plugin-host {
   padding-bottom: 0;
 }
 
