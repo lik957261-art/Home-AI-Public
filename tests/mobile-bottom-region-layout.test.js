@@ -33,7 +33,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260609-bottom-stable-codex-back-v654";
+const clientVersion = "20260609-bottom-comfort-18-v655";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 
@@ -50,7 +50,7 @@ const topicDockHeight = pxVariable("--topic-plugin-dock-height");
 assert.equal(cssVariable("--plugin-topic-composer-bottom-offset"), "calc(var(--mobile-bottom-nav-bottom) + var(--plugin-context-bottom-nav-height) + var(--mobile-bottom-nav-visual-lift) + var(--bottom-region-composer-nav-gap))");
 assert.equal(cssVariable("--topic-plugin-dock-bottom"), "var(--topic-plugin-dock-bottom-runtime, var(--mobile-bottom-nav-offset-height))");
 assert.equal(cssVariable("--topic-plugin-dock-reserved-height"), "var(--topic-plugin-dock-reserved-height-runtime, calc(var(--topic-plugin-dock-bottom) + var(--topic-plugin-dock-height)))");
-assert.equal(navComfortInset, 12, "new installed PWA bottom nav should keep a 12px host comfort inset");
+assert.equal(navComfortInset, 18, "new installed PWA bottom nav should keep an 18px host comfort inset");
 assert.equal(navOverflowClamp, 0, "PWA bottom overflow must be diagnostic-only by default");
 assert.equal(navUnderflowClamp, 24, "PWA bottom underflow correction should be bounded");
 assert.ok(navSurfaceUnderflowClamp >= 53, "PWA surface underflow correction should cover iOS safe-top viewport splits");

@@ -115,8 +115,8 @@ Gateway plugin/schema/profile changes:
   together. Changing only `.bottom-nav` CSS can be masked by runtime
   `--mobile-bottom-nav-bottom-runtime` after the first layout measurement.
   The bottom navigation container uses one shared host comfort inset
-  (`--mobile-bottom-nav-comfort-inset: 12px` as of
-  `20260609-bottom-stable-codex-back-v654`) so newly installed iOS PWAs are not
+  (`--mobile-bottom-nav-comfort-inset: 18px` as of
+  `20260609-bottom-comfort-18-v655`) so newly installed iOS PWAs are not
   visually flush with the viewport edge. Tab content should not be lifted by
   default (`--mobile-bottom-nav-visual-lift: 0px` as of
   `20260609-bottom-surface-visible-v652`); any future small visual lift must
@@ -131,7 +131,7 @@ Gateway plugin/schema/profile changes:
   `--mobile-bottom-nav-underflow-clamp` correction. The normal host comfort
   inset is not underflow: diagnostics record `navBottomGapRaw`, and
   `navBottomUnderflowRaw` is only `max(0, navBottomGapRaw - comfortInset)`.
-  This prevents the runtime from alternating between the intended 12px inset
+  This prevents the runtime from alternating between the intended host inset
   and 0px on repeated layout measurements.
   Standalone/fullscreen PWA surface underflow is diagnostic-only for host
   chrome as of `20260609-bottom-surface-visible-v652`: if the measured `100lvh`
