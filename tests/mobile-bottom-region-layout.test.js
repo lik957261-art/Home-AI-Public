@@ -33,7 +33,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260609-global-plugin-dock-dot-lower-v671";
+const clientVersion = "20260609-global-plugin-dock-safe-reserve-v672";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 
@@ -47,6 +47,7 @@ const composerNavGap = pxVariable("--bottom-region-composer-nav-gap");
 const composerReserve = pxVariable("--plugin-topic-composer-reserved-height");
 const topicDockHeight = pxVariable("--topic-plugin-dock-height");
 const topicDockCollapsedHeight = pxVariable("--topic-plugin-dock-collapsed-height");
+const topicDockCollapsedSafeLift = pxVariable("--topic-plugin-dock-collapsed-safe-lift");
 
 assert.equal(cssVariable("--plugin-topic-composer-bottom-offset"), "calc(var(--mobile-bottom-nav-bottom) + var(--plugin-context-bottom-nav-height) + var(--mobile-bottom-nav-visual-lift) + var(--bottom-region-composer-nav-gap))");
 assert.equal(cssVariable("--topic-plugin-dock-bottom"), "var(--topic-plugin-dock-bottom-runtime, var(--mobile-bottom-nav-offset-height))");
@@ -58,6 +59,7 @@ assert.ok(navSurfaceUnderflowClamp >= 53, "PWA surface underflow correction shou
 assert.ok(composerNavGap >= 8, "composer/nav gap should remain visually separated after bottom tab lift");
 assert.ok(topicDockHeight >= 70, "topic dock height should be represented in the bottom stack reserve");
 assert.ok(topicDockCollapsedHeight >= 24 && topicDockCollapsedHeight < topicDockHeight, "collapsed Dock handle should reserve less space than the expanded Dock");
+assert.equal(topicDockCollapsedSafeLift, 4, "collapsed Dock should keep a small host safe lift above plugin content");
 
 const pluginTopicComposerBottom = navComfortInset + navHeight + navVisualLift + composerNavGap;
 const mobileInputRowHeight = 32 + 5 + 5;
@@ -229,10 +231,13 @@ assert.match(appComposerContextJs, /const applyDockOnlyBottomStack = \(reason = 
 assert.match(appComposerContextJs, /if \(isMobileLayout\(\) && dockIsVisible\(\)\) \{[\s\S]*?applyDockOnlyBottomStack\("nav_hidden"\);[\s\S]*?return;/);
 assert.match(appComposerContextJs, /root\.style\.setProperty\("--topic-plugin-dock-bottom-runtime", `\$\{comfortInset\}px`\)/);
 assert.match(appComposerContextJs, /app\?\.classList\.contains\("global-plugin-dock-mode"\)/);
+assert.match(appComposerContextJs, /const dockSuppressedByKeyboard = \(\) => Boolean\(state\.keyboardViewportActive \|\| root\.classList\.contains\("keyboard-viewport-active"\)\)/);
+assert.match(appComposerContextJs, /const dockIsVisible = \(\) => Boolean\([\s\S]*?!dockSuppressedByKeyboard\(\)[\s\S]*?app\?\.classList\.contains\("global-plugin-dock-mode"\)/);
 assert.match(appComposerContextJs, /const dockExpanded = Boolean\(dockVisible && dock\?\.classList\.contains\("global-plugin-dock-expanded"\)\)/);
 assert.match(appComposerContextJs, /const dockCollapsedHeight = Math\.max\(0, Math\.ceil\(mobileBottomCssPx\("--topic-plugin-dock-collapsed-height", 30\)\)\)/);
+assert.match(appComposerContextJs, /const dockCollapsedSafeLift = Math\.max\(0, Math\.ceil\(mobileBottomCssPx\("--topic-plugin-dock-collapsed-safe-lift", 0\)\)\)/);
 assert.match(appComposerContextJs, /const rawDockHeight = dockVisible/);
-assert.match(appComposerContextJs, /dockExpanded \? rawDockHeight : Math\.max\(24, dockCollapsedHeight\)/);
+assert.match(appComposerContextJs, /dockExpanded \? rawDockHeight : Math\.max\(24, dockCollapsedHeight \+ dockCollapsedSafeLift\)/);
 assert.match(appComposerContextJs, /const dockBottom = offset/);
 assert.match(appComposerContextJs, /const stackHeight = dockVisible \? Math\.max\(reserve, dockBottom \+ dockHeight \+ 2\) : reserve/);
 assert.match(appComposerContextJs, /const layoutViewportHeight = Math\.max\(innerHeight, documentHeight, visualViewportHeight\)/);
@@ -250,7 +255,11 @@ assert.doesNotMatch(stylesCss, /bottom: calc\(var\(--plugin-context-bottom-nav-h
 assert.doesNotMatch(stylesCss, /padding-bottom: var\(--plugin-topic-composer-reserved-height, 142px\);/);
 assert.match(stylesCss, /\.global-plugin-dock-mode\.global-plugin-dock-collapsed-mode:not\(\.main-back-visible\):not\(\.plugin-context-nav-mode\) \.composer \{[\s\S]*?transform: translateY\(-6px\);/);
 assert.match(stylesCss, /\.global-plugin-dock-mode\.global-plugin-dock-expanded-mode:not\(\.main-back-visible\):not\(\.plugin-context-nav-mode\) \.composer \{[\s\S]*?transform: translateY\(calc\(-1 \* var\(--topic-plugin-dock-height\) - 6px\)\);/);
-assert.match(stylesCss, /\.codex-mode\.embedded-plugin-host-active\.global-plugin-dock-expanded-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: calc\(var\(--topic-plugin-dock-height\) \+ 6px\);/);
+assert.match(stylesCss, /\.embedded-plugin-host-active\.global-plugin-dock-collapsed-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: calc\(var\(--topic-plugin-dock-collapsed-height\) \+ var\(--topic-plugin-dock-collapsed-safe-lift\) \+ 6px\);/);
+assert.match(stylesCss, /\.embedded-plugin-host-active\.global-plugin-dock-expanded-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: calc\(var\(--topic-plugin-dock-height\) \+ 6px\);/);
+assert.match(stylesCss, /:root\.keyboard-viewport-active \.embedded-plugin-host-active\.global-plugin-dock-collapsed-mode \.embedded-plugin-host,[\s\S]*?:root\.keyboard-viewport-active \.embedded-plugin-host-active\.global-plugin-dock-expanded-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: 0;/);
+assert.match(stylesCss, /:root\.keyboard-viewport-active \.topic-plugin-dock \{[\s\S]*?display: none !important;/);
+assert.doesNotMatch(stylesCss, /\.codex-mode\.embedded-plugin-host-active\.global-plugin-dock-expanded-mode \.embedded-plugin-host/);
 assert.doesNotMatch(block(".app.task-list-mode"), /padding-bottom: var\(--topic-plugin-dock-reserved-height\);/);
 
 console.log("mobile bottom region layout tests passed");

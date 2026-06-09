@@ -71,6 +71,7 @@
   --plugin-topic-composer-reserved-height: 166px;
   --topic-plugin-dock-height: 78px;
   --topic-plugin-dock-collapsed-height: 26px;
+  --topic-plugin-dock-collapsed-safe-lift: 4px;
   --topic-plugin-dock-bottom: var(--topic-plugin-dock-bottom-runtime, var(--mobile-bottom-nav-offset-height));
   --topic-plugin-dock-nav-overlap: 1px;
   --topic-plugin-dock-reserved-height: var(--topic-plugin-dock-reserved-height-runtime, calc(var(--topic-plugin-dock-bottom) + var(--topic-plugin-dock-height)));
@@ -1455,12 +1456,17 @@ button {
   display: none !important;
 }
 
-.codex-mode.embedded-plugin-host-active.global-plugin-dock-collapsed-mode .embedded-plugin-host {
-  padding-bottom: calc(var(--topic-plugin-dock-collapsed-height) + 6px);
+.embedded-plugin-host-active.global-plugin-dock-collapsed-mode .embedded-plugin-host {
+  padding-bottom: calc(var(--topic-plugin-dock-collapsed-height) + var(--topic-plugin-dock-collapsed-safe-lift) + 6px);
 }
 
-.codex-mode.embedded-plugin-host-active.global-plugin-dock-expanded-mode .embedded-plugin-host {
+.embedded-plugin-host-active.global-plugin-dock-expanded-mode .embedded-plugin-host {
   padding-bottom: calc(var(--topic-plugin-dock-height) + 6px);
+}
+
+:root.keyboard-viewport-active .embedded-plugin-host-active.global-plugin-dock-collapsed-mode .embedded-plugin-host,
+:root.keyboard-viewport-active .embedded-plugin-host-active.global-plugin-dock-expanded-mode .embedded-plugin-host {
+  padding-bottom: 0;
 }
 
 .app.embedded-plugin-preview-fullscreen-active {
@@ -5767,6 +5773,10 @@ button.directory-alias-chip {
   display: block;
 }
 
+:root.keyboard-viewport-active .topic-plugin-dock {
+  display: none !important;
+}
+
 .sidebar.open ~ .topic-plugin-dock {
   display: none !important;
 }
@@ -5803,7 +5813,7 @@ button.directory-alias-chip {
 }
 
 .global-plugin-dock-mode .topic-plugin-dock.global-plugin-dock-collapsed {
-  transform: translateY(var(--topic-plugin-dock-collapsed-offset));
+  transform: translateY(calc(var(--topic-plugin-dock-collapsed-offset) - var(--topic-plugin-dock-collapsed-safe-lift)));
   pointer-events: none;
   background: transparent;
   border-top-color: transparent;

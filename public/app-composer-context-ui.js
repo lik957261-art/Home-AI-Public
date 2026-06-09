@@ -533,8 +533,10 @@ function updateMobileBottomNavReservation() {
   const app = $("app");
   const nav = $("bottomNav");
   const dock = $("topicPluginDock");
+  const dockSuppressedByKeyboard = () => Boolean(state.keyboardViewportActive || root.classList.contains("keyboard-viewport-active"));
   const dockIsVisible = () => Boolean(
-    app?.classList.contains("global-plugin-dock-mode")
+    !dockSuppressedByKeyboard()
+    && app?.classList.contains("global-plugin-dock-mode")
     && dock
     && !dock.hidden
     && window.getComputedStyle?.(dock).display !== "none"
@@ -543,11 +545,12 @@ function updateMobileBottomNavReservation() {
     const comfortInset = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-comfort-inset", 0)));
     const dockExpanded = Boolean(dockIsVisible() && dock?.classList.contains("global-plugin-dock-expanded"));
     const dockCollapsedHeight = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-collapsed-height", 30)));
+    const dockCollapsedSafeLift = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-collapsed-safe-lift", 0)));
     const rawDockHeight = dockIsVisible()
       ? Math.max(0, Math.ceil(dock.getBoundingClientRect?.().height || 0), Math.ceil(dock.scrollHeight || 0))
       : 0;
     const dockHeight = dockIsVisible()
-      ? (dockExpanded ? rawDockHeight : Math.max(24, dockCollapsedHeight))
+      ? (dockExpanded ? rawDockHeight : Math.max(24, dockCollapsedHeight + dockCollapsedSafeLift))
       : 0;
     const stackHeight = dockIsVisible() ? comfortInset + dockHeight + 2 : 0;
     const metrics = {
@@ -562,6 +565,7 @@ function updateMobileBottomNavReservation() {
       dockVisible: dockIsVisible(),
       dockExpanded,
       dockCollapsedHeight,
+      dockCollapsedSafeLift,
       rawDockHeight,
       dockHeight,
       dockBottom: comfortInset,
@@ -648,18 +652,20 @@ function updateMobileBottomNavReservation() {
   const reserve = Math.max(76, navBottom + rectHeight + 10, navBottom + contentHeight + 10);
   const navVisualLift = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-visual-lift", 0)));
   const dockVisible = Boolean(
-    app?.classList.contains("global-plugin-dock-mode")
+    !dockSuppressedByKeyboard()
+    && app?.classList.contains("global-plugin-dock-mode")
     && dock
     && !dock.hidden
     && window.getComputedStyle?.(dock).display !== "none"
   );
   const dockExpanded = Boolean(dockVisible && dock?.classList.contains("global-plugin-dock-expanded"));
   const dockCollapsedHeight = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-collapsed-height", 30)));
+  const dockCollapsedSafeLift = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-collapsed-safe-lift", 0)));
   const rawDockHeight = dockVisible
     ? Math.max(0, Math.ceil(dock.getBoundingClientRect?.().height || 0), Math.ceil(dock.scrollHeight || 0))
     : 0;
   const dockHeight = dockVisible
-    ? (dockExpanded ? rawDockHeight : Math.max(24, dockCollapsedHeight))
+    ? (dockExpanded ? rawDockHeight : Math.max(24, dockCollapsedHeight + dockCollapsedSafeLift))
     : 0;
   const dockBottom = offset;
   const stackHeight = dockVisible ? Math.max(reserve, dockBottom + dockHeight + 2) : reserve;
@@ -701,6 +707,7 @@ function updateMobileBottomNavReservation() {
     dockVisible,
     dockExpanded,
     dockCollapsedHeight,
+    dockCollapsedSafeLift,
     rawDockHeight,
     dockHeight,
     dockBottom,
