@@ -631,6 +631,14 @@ function embeddedPluginCssPx(name) {
   return Number.isFinite(number) ? Math.round(number) : 0;
 }
 
+function embeddedPluginHostBottomSafeArea(def, footerVisible, bottomLayout = {}) {
+  if (footerVisible) return 0;
+  if (def?.id !== "codex-mobile") return 0;
+  const measured = Number(bottomLayout.comfortInset);
+  if (Number.isFinite(measured) && measured > 0) return Math.round(measured);
+  return embeddedPluginCssPx("--mobile-bottom-nav-comfort-inset");
+}
+
 function embeddedPluginViewportPayload(def, frame, reason = "layout") {
   const visual = window.visualViewport;
   const layoutWidth = Math.round(window.innerWidth || document.documentElement?.clientWidth || 0);
@@ -643,6 +651,7 @@ function embeddedPluginViewportPayload(def, frame, reason = "layout") {
   const nav = $("bottomNav");
   const footerVisible = Boolean(nav && !nav.hidden && window.getComputedStyle?.(nav).display !== "none");
   const bottomLayout = window.__hermesMobileBottomLayoutMetrics || {};
+  const hostBottomSafeArea = embeddedPluginHostBottomSafeArea(def, footerVisible, bottomLayout);
   return {
     type: "hermes.plugin.viewport",
     version: 1,
@@ -670,6 +679,9 @@ function embeddedPluginViewportPayload(def, frame, reason = "layout") {
       visible: footerVisible,
       rect: footerVisible ? embeddedPluginRectPayload(nav) : null,
       bottom: embeddedPluginCssPx("--mobile-bottom-nav-bottom-runtime"),
+      safeAreaBottom: hostBottomSafeArea,
+      bottomSafeArea: hostBottomSafeArea,
+      hostBottomSafeArea,
       offsetHeight: embeddedPluginCssPx("--mobile-bottom-nav-offset-height-runtime"),
       reservedHeight: embeddedPluginCssPx("--mobile-bottom-nav-reserved-height-runtime"),
       stackHeight: embeddedPluginCssPx("--mobile-bottom-stack-height-runtime"),

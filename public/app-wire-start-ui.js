@@ -255,6 +255,10 @@ function wireUi() {
       await openPluginTopicDelivery(pluginContextDef.id);
       return;
     }
+    if (state.directoryPluginContextActive && state.viewMode === "projects") {
+      if (typeof updateNavigationControls === "function") updateNavigationControls();
+      return;
+    }
     preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     state.directoryReturnRoute = null;

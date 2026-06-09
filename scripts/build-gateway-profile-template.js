@@ -192,7 +192,7 @@ function mcpServersForProfile(values = {}) {
   if (boolValue(values.wardrobe_enabled)) {
     servers.push({
       name: "wardrobe",
-      command: "/opt/hermes-gateway-runtime/venv/bin/python",
+      command: valueMapValue(values, "wardrobe_mcp_python", "/opt/hermes-gateway-runtime/venv/bin/python"),
       args: [
         valueMapValue(values, "wardrobe_mcp_path"),
         "--workspace",

@@ -173,6 +173,54 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
   }
 }
 
+async function testEnsureLaunchdSyncsHealthBindingAndRendersMcpConfig() {
+  const root = posixTempRoot();
+  const calls = [];
+  try {
+    const context = baseContext(root);
+    writeJson(context.gateway.manifestPath, {
+      enabled: true,
+      workers: [{
+        profile: "lowgw31",
+        provider: "openai-codex",
+        port: 18781,
+        enabled: true,
+        allowedWorkspaceIds: ["xulu"],
+        skillWorkspaceIds: ["xulu"],
+        apiKeyFile: `${root}/data/secrets/lowgw31.secret`,
+      }],
+    });
+    fs.mkdirSync(`${root}/data/drive/users/xulu/.hermes-health`, { recursive: true });
+    fs.writeFileSync(`${root}/data/drive/users/xulu/.hermes-health/access-key.txt`, "health-key\n", "utf8");
+    fs.writeFileSync(`${root}/data/drive/users/xulu/.hermes-health/config.json`, "{\"workspace_id\":\"health:xulu\"}\n", "utf8");
+    fs.mkdirSync(`${root}/gateway-worker/health-mcp/scripts`, { recursive: true });
+    fs.writeFileSync(`${root}/gateway-worker/health-mcp/scripts/mcp-health-wrapper.js`, "module.exports = {};\n", "utf8");
+    const service = createWorkspaceSystemProvisioningExecutorService({
+      forceEnabled: true,
+      fs,
+      launchDaemonsDir: `${root}/LaunchDaemons`,
+      liveRoot: root,
+      path,
+      platform: "darwin",
+      run: fakeRunFactory(calls),
+      useSudoWrites: false,
+    });
+    const result = await service.runStep("ensure_launchd_services", context);
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.syncedPluginBindings, ["health"]);
+    assert.equal(fs.existsSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-health/access-key.txt`), true);
+    assert.equal(fs.existsSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-health/config.json`), true);
+    const config = fs.readFileSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/config.yaml`, "utf8");
+    assert.match(config, /  - health/);
+    assert.match(config, /mcp_servers:\n[\s\S]*  health:/);
+    assert.match(config, new RegExp(`${root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/gateway-worker\\/health-mcp\\/scripts\\/mcp-health-wrapper\\.js`));
+    assert.match(config, /--workspace\n\s+- .*HermesWorkspace/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 async function testRepairWorkspaceAclSkipsSystemUsersRoot() {
   const root = "/Users/hermes-host/HermesMobile";
   const calls = [];
@@ -318,6 +366,7 @@ async function run() {
   await testValidationHelpersAndDisabledStates();
   await testEnsureMacUserCreatesHiddenAccount();
   await testEnsureLaunchdMaterializesWorkerFilesAndManifest();
+  await testEnsureLaunchdSyncsHealthBindingAndRendersMcpConfig();
   await testRepairWorkspaceAclSkipsSystemUsersRoot();
   await testRunSmokesIncludesPluginsAndToolsetGate();
   await testRunSmokesIgnoresUnrelatedProfileAuditIssues();

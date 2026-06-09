@@ -746,6 +746,13 @@ only after all of these preflight checks pass:
   workspace has its own `.hermes-<plugin>/config.json` plus key material. A
   worker for Stephen, XuYan, or another workspace without that plugin config
   must not expose the plugin toolset and must not fall back to Owner.
+- On macOS, the data-drive plugin binding must also be present in the
+  worker-local root before profile rendering. The restricted workspace
+  provisioning executor mirrors complete
+  `data/drive/users/<workspaceId>/.hermes-<plugin>` directories to
+  `/Users/<hm-user>/HermesWorkspace/.hermes-<plugin>` and profile generation
+  exposes the plugin MCP only after that worker-local mirror has both
+  `config.json` and `access-key.txt`.
 - NAS Gateway workers must start with the Hermes Mobile runtime overlay on
   `PYTHONPATH`, ahead of the NAS Hermes Agent runtime, and set
   `HERMES_MOBILE_OFFICIAL_CLEAN_PATH` to that runtime. Otherwise profile YAML

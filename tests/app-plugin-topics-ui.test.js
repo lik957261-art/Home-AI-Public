@@ -217,11 +217,13 @@ function createDirectoryTopicHarness() {
     formatTime: (value) => String(value || ""),
     taskShortTitle: (group) => group.title || "",
     taskTitle: (group) => group.title || "",
+    taskGroupOwnerWorkspaceId: (group) => group.ownerWorkspaceId || group.messages?.[0]?.senderWorkspaceId || "",
   };
   vm.createContext(sandbox);
   vm.runInContext(`${directoryTopicsUi}
 globalThis.__directoryTopicHarness = {
   render: renderDirectoryTopicCards,
+  collections: directoryTopicCollectionsForGroups,
   setCollapsed: setDirectoryTopicCollapsed,
 };`, sandbox);
   return sandbox.__directoryTopicHarness;
@@ -264,6 +266,40 @@ function directoryCardCollapsed(html, key) {
 
   harness.setCollapsed("dir-4", false);
   assert.equal(directoryCardCollapsed(harness.render(collections), "dir-4"), false);
+}
+
+{
+  const harness = createDirectoryTopicHarness();
+  const groups = [
+    {
+      id: "wuping-health",
+      title: "吴萍健康",
+      ownerWorkspaceId: "weixin_wuping",
+      updatedAt: "2026-06-08T12:00:00.000Z",
+      directoryRoute: {
+        projectId: "health",
+        label: "健康",
+        root: "/shared/health",
+        path: "/shared/health",
+      },
+    },
+    {
+      id: "fanfan-health",
+      title: "凡凡健康",
+      ownerWorkspaceId: "fanfan",
+      updatedAt: "2026-06-08T11:00:00.000Z",
+      directoryRoute: {
+        projectId: "health",
+        label: "健康",
+        root: "/shared/health",
+        path: "/shared/health",
+      },
+    },
+  ];
+  const collections = harness.collections(groups);
+
+  assert.equal(collections.length, 2, "directory-bound topics from different owners must not merge");
+  assert.deepEqual(Array.from(collections.map((item) => item.groups[0].id).sort()), ["fanfan-health", "wuping-health"]);
 }
 
 function createPluginContextColdRestoreHarness() {

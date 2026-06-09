@@ -118,7 +118,7 @@ Non-negotiable:
 - Home AI may apply one shared host comfort inset to the measured bottom stack
   so bottom navigation is not visually flush with the viewport edge. That inset
   must be a single host-level variable/measurement input, not separate
-  Mac/Windows/iOS overrides. The current Home AI default is 12px; do not add a
+  Mac/Windows/iOS overrides. The current Home AI default is 18px; do not add a
   plugin-local offset or a second Dock offset on top of the host measurement.
 - The topic capability Dock is anchored to the measured primary bottom-nav
   top, and scroll containers reserve the measured combined stack height. A
@@ -186,6 +186,11 @@ Rules:
   event is not raw system input-method state; plugin-owned sheets, remark
   layers, floating buttons, and fixed form actions may use plugin-local keyboard
   calculations as long as they do not add Home AI footer space twice;
+- Owner-critical direct embedded plugins such as Codex may hide Home AI bottom
+  chrome. They still must consume `footer.safeAreaBottom` /
+  `footer.hostBottomSafeArea` from `hermes.plugin.viewport` and apply it inside
+  their iframe when the keyboard is closed, so plugin controls do not become
+  physically flush with the PWA bottom.
 - the Home AI host must rebroadcast bounded plugin viewport metrics through a
   short settled sequence after host visual viewport resize, scroll, or
   orientation events, and must reset host page scroll while an embedded iframe

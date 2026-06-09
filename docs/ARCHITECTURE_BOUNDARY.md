@@ -776,12 +776,16 @@ onboarding state machines or arbitrary sudo/shell execution.
 restricted macOS workspace system actions behind that injection boundary. It may
 create `hm-*` users, private roots, ACL repairs, target Gateway profile files,
 manifest `osUser`/`launchdLabel`/telemetry metadata, cold LaunchDaemon plists,
-and focused smoke invocations. It must keep action names allowlisted, validate
-all workspace/user/profile/label/path inputs, invoke external commands through
-fixed command paths and argument arrays, and return bounded diagnostics only.
-It must not expose a generic shell/sudo endpoint or return raw keys, OAuth
-tokens, cookies, plugin access keys, profile config bodies, prompts, or full
-logs.
+worker-local plugin binding mirrors, and focused smoke invocations. Before
+rendering a Gateway profile, it may mirror complete data-drive
+`.hermes-<plugin>` binding directories into the target
+`/Users/<hm-user>/HermesWorkspace` root, but incomplete bindings must be
+ignored and must not expose an MCP toolset. It must keep action names
+allowlisted, validate all workspace/user/profile/label/path inputs, invoke
+external commands through fixed command paths and argument arrays, and return
+bounded diagnostics only. It must not expose a generic shell/sudo endpoint or
+return raw keys, OAuth tokens, cookies, plugin access keys, profile config
+bodies, prompts, or full logs.
 
 `workspace-system-provisioning-helper-client-service.js` is only the
 listener-side local Unix socket client for that boundary. The root helper script

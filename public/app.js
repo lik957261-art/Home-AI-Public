@@ -453,6 +453,7 @@ const state = {
   pluginAdminLoading: false,
   pluginAdminError: "",
   pluginAdminPlugins: [],
+  pluginAdminExpandedPluginId: "",
   concurrency: null,
   displayConfig: {
     ownerDriveRootNames: ["ChatGPT-Drive"],

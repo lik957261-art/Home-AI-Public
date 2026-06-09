@@ -134,7 +134,7 @@ async function testInstallRequestCreatesOwnerInboxApproval() {
   assert.deepEqual(calls.broadcast, [{ type: "actionInbox.updated", workspaceId: "owner", itemId: "ainb-note-install-1" }]);
 }
 
-async function testSaveReceiptUsesThreadMessageAndWorkspaceAccess() {
+async function testSaveReceiptUsesRequestedWorkspaceAfterAccessCheck() {
   const { calls, routes, thread } = makeRoutes();
   const auth = { ok: true, workspaceId: "owner" };
   const got = await request(routes, "POST", "/api/note/receipts", {
@@ -147,12 +147,26 @@ async function testSaveReceiptUsesThreadMessageAndWorkspaceAccess() {
   assert.equal(got.res.statusCode, 200);
   assert.deepEqual(got.body, { ok: true, note: { id: "note-1", title: "测试回执", attachmentCount: 0 } });
   assert.deepEqual(calls.findThread, [{ threadId: "thread-1", key: "test-key" }]);
-  assert.deepEqual(calls.access, ["owner"]);
+  assert.deepEqual(calls.access, ["ignored-child"]);
   assert.equal(calls.saves.length, 1);
-  assert.equal(calls.saves[0].workspaceId, "owner");
+  assert.equal(calls.saves[0].workspaceId, "ignored-child");
   assert.equal(calls.saves[0].thread, thread);
   assert.equal(calls.saves[0].message.id, "msg-1");
   assert.deepEqual(calls.saves[0].auth, auth);
+}
+
+async function testSaveReceiptRejectsUnauthorizedRequestedWorkspace() {
+  const { calls, routes } = makeRoutes();
+  const got = await request(routes, "POST", "/api/note/receipts", {
+    context: { auth: { ok: true, workspaceId: "owner" } },
+    body: { threadId: "thread-1", messageId: "msg-1", workspaceId: "blocked" },
+  });
+
+  assert.equal(got.result.handled, true);
+  assert.equal(got.res.statusCode, 403);
+  assert.deepEqual(got.body, { error: "Workspace access is not allowed" });
+  assert.deepEqual(calls.access, ["blocked"]);
+  assert.equal(calls.saves.length, 0);
 }
 
 async function testMissingTargetsReturnControlledErrors() {
@@ -204,7 +218,8 @@ function testDependencyValidation() {
 
 async function run() {
   await testRouteMetadataAndFallthrough();
-  await testSaveReceiptUsesThreadMessageAndWorkspaceAccess();
+  await testSaveReceiptUsesRequestedWorkspaceAfterAccessCheck();
+  await testSaveReceiptRejectsUnauthorizedRequestedWorkspace();
   await testInstallRequestCreatesOwnerInboxApproval();
   await testMissingTargetsReturnControlledErrors();
   await testServiceErrorPassesThroughStatusAndCode();

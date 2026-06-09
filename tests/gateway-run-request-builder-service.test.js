@@ -132,7 +132,15 @@ function testWorkspaceHelpersStayStable() {
 }
 
 function testBuildRunRequestAddsPluginRequirementsAndRouting() {
-  const { calls, service } = createBuilder();
+  const { calls, service } = createBuilder({
+    buildAccessPolicy: (routePolicy, _user, project, hardeningOptions) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: hardeningOptions.allowMaintenanceTools ? ["file", "terminal", "wardrobe", "vision", "skills"] : ["file", "wardrobe", "vision", "skills"],
+      authorized_toolsets: ["file", "wardrobe", "vision", "skills"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+  });
   const request = service.buildRunRequest(baseThread(), baseUser(), { id: "assistant_1" }, {
     actorWorkspaceId: "owner",
     gatewayRouting: { maintenance: true },
@@ -170,6 +178,31 @@ function testBuildRunRequestAddsPluginRequirementsAndRouting() {
   assert.equal(request.gatewayRouting.targetWorkspaceId, "owner");
   assert.equal(request.gatewayRouting.dataWorkspaceId, "owner");
   assert.deepEqual(request.toolsetRouting, { mode: "plugin", reason: "required_plugin_toolsets" });
+}
+
+function testPluginTopicDoesNotAuthorizeMissingWorkspaceToolset() {
+  const { calls, service } = createBuilder();
+  const request = service.buildRunRequest(
+    baseThread({ workspaceId: "weixin_wuping" }),
+    baseUser({
+      content: "读取健康数据",
+      senderWorkspaceId: "weixin_wuping",
+      taskGroupId: "plugin:health",
+    }),
+    { id: "assistant_1" },
+    {},
+  );
+  const instructions = JSON.parse(request.body.instructions);
+
+  assert.deepEqual(request.pluginTopicContext.requiredToolsets, []);
+  assert.deepEqual(request.gatewayRouting.requiredToolsets || [], []);
+  assert.equal(calls.preloadPayloads.length, 0);
+  assert.equal(request.body.enabled_toolsets.includes("health"), false);
+  assert.equal(request.runPolicy.allowed_toolsets.includes("health"), false);
+  assert.deepEqual(request.pluginCapabilityContext.activeSchemaSet.active_toolsets, []);
+  assert.equal(request.pluginCapabilityContext.catalog.count, 0);
+  assert.deepEqual(request.pluginCapabilityContext.probeRequests, []);
+  assert.equal(instructions.pluginTopicContext.requiredToolsets.length, 0);
 }
 
 function testDirectoryBoundRunUsesTargetWorkspaceForGatewayAndPolicy() {
@@ -243,6 +276,7 @@ function testBuildGroupChatRunContextMergesDeliveryRoots() {
 
 testWorkspaceHelpersStayStable();
 testBuildRunRequestAddsPluginRequirementsAndRouting();
+testPluginTopicDoesNotAuthorizeMissingWorkspaceToolset();
 testDirectoryBoundRunUsesTargetWorkspaceForGatewayAndPolicy();
 testBuildGroupChatRunContextMergesDeliveryRoots();
 

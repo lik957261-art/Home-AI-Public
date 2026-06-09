@@ -62,6 +62,11 @@ the standard fresh-install plugin enablement example: its manifest may be
 installed and readable while no Hermes workspace, including Owner, is active
 yet. Owner must explicitly open/provision Health before normal list, manifest,
 launch, topic Dock, or MCP projection treats it as usable.
+Files generated under the user-facing `插件/健康` directory, including
+Markdown summaries or pending JSON import payloads, are delivery-directory
+context only. They are not evidence that the Health MCP database accepted a
+write, and agents must label them as pending import unless the Health MCP/API
+write path has returned a verified success for that workspace.
 
 Note follows the same fresh-install and workspace-local provisioning model as
 Health. Hermes Mobile owns manifest normalization, plugin Dock/topic projection,
@@ -94,9 +99,12 @@ category tag, such as `衣橱` for `plugin:wardrobe`, while ordinary non-plugin
 chat receipts keep the fallback `hermes-receipt` tag. The chat footer action
 keeps a message-level in-flight guard so repeated taps or rerenders do not
 submit the same receipt twice while the first save is still running. Hermes must
-not pass local file paths, private URLs, workspace overrides, launch tokens, or
-raw access keys to Note. Note remains the owner of attachment storage, note
-rows, and attachment asset indexing.
+not pass local file paths, private URLs, launch tokens, or raw access keys to
+Note. The receipt target workspace is the authenticated/effective Hermes
+workspace requested by the client, after `requireWorkspaceAccess()` clamps or
+rejects it; it must not silently fall back to a thread's older workspace id
+when a user is operating inside another authorized workspace. Note remains the
+owner of attachment storage, note rows, and attachment asset indexing.
 
 Note MCP uses the common single-prefix stdio contract. Gateway profiles may add
 `mcp_servers.note`, `toolsets: [note]`, and
@@ -289,14 +297,17 @@ context id is cleared during a re-entry or refresh.
 Codex Mobile is the exception to plugin-context bottom navigation. It is an
 Owner-critical workbench plugin and should run as a full-screen embedded
 surface. When the Codex iframe is active, Hermes must not show the ordinary
-bottom navigation or the three-entry plugin-context bar, and it must not reserve
-bottom navigation space under the iframe. Codex-owned navigation remains inside
-the Codex iframe; leaving the surface belongs to Hermes back/right-swipe or the
-host menu, not to a visible bottom-tab row. When a saved host return route
-exists for Codex, Hermes-owned left-edge swipe and top back must restore that
-host route before sending another iframe-internal back event; this prevents a
-cached/reloaded Codex root from consuming the gesture into a plugin default page
-such as create-thread.
+bottom navigation or the three-entry plugin-context bar. Hermes still owns the
+host bottom comfort inset and must send it through `hermes.plugin.viewport`
+`footer.safeAreaBottom` / `footer.hostBottomSafeArea` when the Codex footer is
+hidden, so Codex can keep its composer off the physical PWA bottom without
+duplicating a visible Home AI footer reservation. Codex-owned navigation remains
+inside the Codex iframe; leaving the surface belongs to Hermes back/right-swipe
+or the host menu, not to a visible bottom-tab row. When a saved host return
+route exists for Codex, Hermes-owned left-edge swipe and top back must restore
+that host route before sending another iframe-internal back event; this
+prevents a cached/reloaded Codex root from consuming the gesture into a plugin
+default page such as create-thread.
 
 Plugin-owned full-screen image or file previews are a temporary chrome-free
 state inside the same embedded iframe. When a plugin opens such a preview, it
@@ -720,6 +731,18 @@ source. Each selected plugin still flows through
 `hermesPluginService.grantWorkspace`, writes the same authorization record, and
 must satisfy the same `active` / `provisioning_failed` contract above.
 
+On macOS production, the canonical plugin binding is first written under the
+Home AI data drive, for example
+`data/drive/users/<workspaceId>/.hermes-health`. Gateway workers do not read
+that directory directly. Before Gateway profile materialization, the restricted
+workspace provisioning executor must mirror each complete plugin binding
+directory into the worker-local root
+`/Users/<hm-user>/HermesWorkspace/.hermes-<plugin>`, preserving private
+ownership and mode. Profile generation must expose a plugin toolset only when
+the worker-local mirror contains both `config.json` and `access-key.txt`.
+Having only a data-drive binding means the plugin is authorized/provisioned in
+Home AI, but its MCP is not yet callable from that worker profile.
+
 The plugin manager projection must combine the same evidence used by launch:
 stored authorization records, deployment allowlists, and discovered
 workspace-local plugin config/key directories. This includes `owner`. If Owner
@@ -897,9 +920,10 @@ fall back to internal ids such as `finance`.
 
 Codex Mobile is the exception. Hermes marks it `riskLevel=owner-critical` and
 `allowWorkspaceGrant=false` by default. The plugin manager must not create
-non-Owner Codex grants. Codex contains code execution, file access, long-lived
-thread context, and task-agent surfaces, so it remains Owner-only unless a
-separate restricted Codex product mode is designed and reviewed.
+non-Owner Codex grants or list non-Owner workspace rows for Codex. Codex
+contains code execution, file access, long-lived thread context, and task-agent
+surfaces, so it remains Owner-only unless a separate restricted Codex product
+mode is designed and reviewed.
 
 The side navigation plugin manager is the canonical admin surface for installed
 plugin authorization:
@@ -907,6 +931,9 @@ plugin authorization:
 - Owner can list installed plugins, their risk level, provisioning mode, and
   workspace grant state.
 - Owner can grant or revoke normal business plugins for a workspace.
+- Plugin cards default collapsed; expanding one plugin should reveal only that
+  plugin's current workspace grant selector so long installed-plugin lists stay
+  navigable on mobile.
 - For plugins with Hermes-side provisioning, the plugin manager must show the
   Owner workspace row as well. Owner first use is an explicit enable/provision
   workflow, not an invisible default-active state.

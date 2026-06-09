@@ -116,7 +116,7 @@ Gateway plugin/schema/profile changes:
   `--mobile-bottom-nav-bottom-runtime` after the first layout measurement.
   The bottom navigation container uses one shared host comfort inset
   (`--mobile-bottom-nav-comfort-inset: 18px` as of
-  `20260609-bottom-comfort-18-v655`) so newly installed iOS PWAs are not
+  `20260609-plugin-footer-note-admin-v656`) so newly installed iOS PWAs are not
   visually flush with the viewport edge. Tab content should not be lifted by
   default (`--mobile-bottom-nav-visual-lift: 0px` as of
   `20260609-bottom-surface-visible-v652`); any future small visual lift must
@@ -189,7 +189,11 @@ Gateway plugin/schema/profile changes:
   This applies both to `plugin-context-nav-mode` plugin hosts and to direct
   embedded hosts such as Codex/Note/Wardrobe that do not expose the plugin
   context footer; direct embedded hosts should reserve the top safe-area through
-  `.main` padding rather than a device-specific bottom offset.
+  `.main` padding rather than a device-specific bottom offset. Codex is the
+  direct-host exception for bottom comfort: the host still hides Home AI bottom
+  chrome, but publishes the shared bottom comfort inset through
+  `hermes.plugin.viewport.footer.safeAreaBottom` so the Codex iframe can pad
+  its own composer without a visible host footer.
 - `POST /api/client-layout-diagnostics` is the bounded real-device layout
   diagnostic channel for temporary PWA debugging. It stores sanitized viewport,
   CSS variable, and element-rect snapshots in

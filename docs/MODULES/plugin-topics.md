@@ -178,6 +178,8 @@ or raw plugin credentials.
 - Plugin topic context is not an authorization source. The effective workspace
   policy must already authorize the plugin's primary MCP/toolset before the
   fixed topic can inject required companion toolsets or required plugin Skills.
+  A fixed `plugin:<id>` topic must not self-authorize a missing plugin MCP just
+  because the route or delivery directory names that plugin.
 - Fixed plugin task groups such as `plugin:wardrobe`, `plugin:finance`,
   `plugin:email`, and `plugin:health` must not enter the ordinary
   directory-bound topic attachment path. Even when a plugin-topic message
@@ -211,9 +213,14 @@ or raw plugin credentials.
   primary source for live domain data. They must not trigger
   `productivity/directory-context-cleaning` for routine plugin-topic runs unless
   the newest user request explicitly asks to clean or analyze files inside the
-  delivery directory.
+  delivery directory. Files written into that directory, including pending
+  Health import payloads, are not equivalent to a plugin MCP database write.
 - Owner viewing a non-Owner workspace must see that workspace's plugin topic,
   plugin app, file directory, and MCP binding, not Owner's.
+- Directory-bound topic collections are keyed by both directory route and
+  workspace owner/effective workspace. Two users may each bind a directory named
+  `健康`; the topic root must render them as separate collections instead of
+  merging by display name.
 
 ## Proposed Files
 

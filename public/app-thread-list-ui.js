@@ -279,7 +279,7 @@ function setTopicPluginDock(html = "") {
 function directoryTopicRenderSignature(threadId = "", groups = []) {
   const entries = (groups || []).map((group) => {
     const routeKey = typeof directoryTopicPrimaryRoute === "function"
-      ? directoryTopicRouteKey(directoryTopicPrimaryRoute(group))
+      ? directoryTopicRouteKey(directoryTopicPrimaryRoute(group), group)
       : "";
     return [
       group?.id || "",

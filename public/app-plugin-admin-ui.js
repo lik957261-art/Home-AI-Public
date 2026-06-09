@@ -6,9 +6,8 @@ function pluginAdminWorkspaceRows(plugin) {
     .map((item) => [String(item.workspaceId || ""), item]));
   const workspaces = (state.workspaces || []).filter((workspace) => workspace.id);
   const ownerWorkspace = workspaces.find((workspace) => workspace.id === "owner") || { id: "owner", label: "Owner" };
-  const listedWorkspaces = plugin.allowWorkspaceGrant === false
-    ? workspaces.filter((workspace) => workspace.id && workspace.id !== "owner")
-    : [ownerWorkspace, ...workspaces.filter((workspace) => workspace.id && workspace.id !== "owner")];
+  if (plugin.allowWorkspaceGrant === false) return "";
+  const listedWorkspaces = [ownerWorkspace, ...workspaces.filter((workspace) => workspace.id && workspace.id !== "owner")];
   return listedWorkspaces
     .map((workspace) => {
       const workspaceId = String(workspace.id || "");
@@ -48,6 +47,7 @@ function renderPluginAdminManager() {
     return;
   }
   const plugins = Array.isArray(state.pluginAdminPlugins) ? state.pluginAdminPlugins : [];
+  const expandedPluginId = String(state.pluginAdminExpandedPluginId || "");
   const errorBlock = state.pluginAdminError
     ? `<div class="access-key-empty error">${escapeHtml(state.pluginAdminError)}</div>`
     : "";
@@ -55,23 +55,36 @@ function renderPluginAdminManager() {
     ? `<div class="access-key-empty">正在读取插件授权...</div>`
     : plugins.length
       ? `<div class="plugin-admin-list">${plugins.map((plugin) => {
+          const pluginId = String(plugin.id || "");
+          const expanded = Boolean(pluginId && expandedPluginId === pluginId);
           const grantedCount = (plugin.authorizedWorkspaceIds || []).length;
           const riskLabel = plugin.riskLevel === "owner-critical" ? "高风险" : "工作区私有";
           const grantLabel = plugin.allowWorkspaceGrant === false ? "Owner 专用" : `非 Owner 已开通 ${grantedCount}`;
-          return `<section class="plugin-admin-card">
+          const workspaceRows = expanded && plugin.allowWorkspaceGrant !== false
+            ? pluginAdminWorkspaceRows(plugin)
+            : "";
+          const expandedBody = expanded
+            ? plugin.allowWorkspaceGrant === false
+              ? `<div class="plugin-admin-owner-only-panel">Codex 为 Owner 专用，不列出其他用户。</div>`
+              : `<div class="plugin-admin-contract">
+                  <span>${plugin.provisioning?.supported ? "Owner 也需要开通建档" : "Owner 默认可用"}</span>
+                  <span>Owner 手动开通各工作区</span>
+                  <span>${plugin.provisioning?.supported ? "开通后插件侧绑定/建档" : "插件侧手动绑定"}</span>
+                </div>
+                <div class="plugin-admin-workspace-list">${workspaceRows || `<div class="access-key-empty">暂无非 Owner 工作区。</div>`}</div>`
+            : "";
+          return `<section class="plugin-admin-card ${expanded ? "is-expanded" : "is-collapsed"}">
             <header class="plugin-admin-card-head">
               <div>
                 <div class="plugin-admin-title">${escapeHtml(plugin.title || plugin.id)}</div>
                 <div class="plugin-admin-meta">${escapeHtml(plugin.id)} · ${escapeHtml(riskLabel)} · ${escapeHtml(grantLabel)}</div>
               </div>
-              <span class="plugin-admin-risk ${plugin.riskLevel === "owner-critical" ? "is-critical" : ""}">${escapeHtml(plugin.riskLevel || "workspace-private")}</span>
+              <div class="plugin-admin-head-actions">
+                <span class="plugin-admin-risk ${plugin.riskLevel === "owner-critical" ? "is-critical" : ""}">${escapeHtml(plugin.riskLevel || "workspace-private")}</span>
+                <button type="button" class="plugin-admin-expand" data-plugin-admin-expand="${escapeHtml(pluginId)}" aria-expanded="${expanded ? "true" : "false"}">${expanded ? "收起" : "展开"}</button>
+              </div>
             </header>
-            <div class="plugin-admin-contract">
-              <span>${plugin.provisioning?.supported ? "Owner 也需要开通建档" : "Owner 默认可用"}</span>
-              <span>${plugin.allowWorkspaceGrant === false ? "禁止给非 Owner 开通" : "Owner 手动开通各工作区"}</span>
-              <span>${plugin.provisioning?.supported ? "开通后插件侧绑定/建档" : "插件侧手动绑定"}</span>
-            </div>
-            <div class="plugin-admin-workspace-list">${pluginAdminWorkspaceRows(plugin) || `<div class="access-key-empty">暂无非 Owner 工作区。</div>`}</div>
+            ${expandedBody}
           </section>`;
         }).join("")}</div>`
       : `<div class="access-key-empty">当前没有已安装插件。</div>`;
@@ -88,6 +101,13 @@ function renderPluginAdminManager() {
       ${body}
     </div>`;
   overlay.querySelector("[data-close-plugin-admin]")?.addEventListener("click", closePluginAdminManager);
+  overlay.querySelectorAll("[data-plugin-admin-expand]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const pluginId = button.dataset.pluginAdminExpand || "";
+      state.pluginAdminExpandedPluginId = state.pluginAdminExpandedPluginId === pluginId ? "" : pluginId;
+      renderPluginAdminManager();
+    });
+  });
   overlay.querySelectorAll("[data-plugin-workspace-toggle]").forEach((button) => {
     button.addEventListener("click", () => togglePluginWorkspaceGrant(button).catch(showError));
   });
@@ -116,12 +136,14 @@ async function openPluginAdminManager() {
     return;
   }
   state.pluginAdminOpen = true;
+  state.pluginAdminExpandedPluginId = state.pluginAdminExpandedPluginId || "";
   await loadPluginAdminManager();
 }
 
 function closePluginAdminManager() {
   state.pluginAdminOpen = false;
   state.pluginAdminError = "";
+  state.pluginAdminExpandedPluginId = "";
   renderPluginAdminManager();
 }
 

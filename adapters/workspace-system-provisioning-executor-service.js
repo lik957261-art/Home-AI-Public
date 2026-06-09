@@ -29,6 +29,13 @@ const STANDARD_PROFILE_PLUGINS = Object.freeze([
   "image",
   "cronjob",
 ]);
+const WORKSPACE_PLUGIN_BINDINGS = Object.freeze([
+  { id: "wardrobe", dir: ".hermes-wardrobe", required: ["access-key.txt", "config.json"] },
+  { id: "finance", dir: ".hermes-finance", required: ["access-key.txt", "config.json"] },
+  { id: "note", dir: ".hermes-note", required: ["access-key.txt", "config.json"] },
+  { id: "health", dir: ".hermes-health", required: ["access-key.txt", "config.json"] },
+  { id: "email", dir: ".hermes-email", required: ["access-key.txt", "config.json"] },
+]);
 const ALLOWED_ACTIONS = new Set([
   "ensure_mac_user",
   "ensure_workspace_roots",
@@ -272,6 +279,53 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     privileged("/bin/chmod", [mode, dir]);
   }
 
+  function completePluginBinding(root, binding) {
+    if (!root || !binding?.dir) return false;
+    return (binding.required || []).every((file) => {
+      try {
+        return fs.statSync(path.posix.join(root, binding.dir, file)).isFile();
+      } catch (_) {
+        return false;
+      }
+    });
+  }
+
+  function fileExists(file) {
+    try {
+      return fs.statSync(file).isFile();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function copyDirectory(source, target, owner) {
+    if (useSudoWrites) {
+      privileged("/bin/rm", ["-rf", target]);
+      privileged("/bin/mkdir", ["-p", path.posix.dirname(target)]);
+      privileged("/bin/cp", ["-R", source, target]);
+      privileged("/usr/sbin/chown", ["-R", owner, target]);
+      privileged("/bin/chmod", ["-R", "u+rwX,go-rwx", target]);
+      return;
+    }
+    fs.rmSync(target, { recursive: true, force: true });
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.cpSync(source, target, { recursive: true });
+    checked("/usr/sbin/chown", ["-R", owner, target]);
+    checked("/bin/chmod", ["-R", "u+rwX,go-rwx", target]);
+  }
+
+  function syncWorkspacePluginBindings(fields) {
+    const synced = [];
+    for (const binding of WORKSPACE_PLUGIN_BINDINGS) {
+      if (!completePluginBinding(fields.workspaceDataRoot, binding)) continue;
+      const source = path.posix.join(fields.workspaceDataRoot, binding.dir);
+      const target = path.posix.join(fields.workerWorkspaceRoot, binding.dir);
+      copyDirectory(source, target, `${fields.macUser}:staff`);
+      synced.push(binding.id);
+    }
+    return synced;
+  }
+
   function ensureWorkspaceRoots(context = {}) {
     const platformFailure = ensureMacPlatform();
     if (platformFailure) return platformFailure;
@@ -475,6 +529,47 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
         try { fs.symlinkSync(target, link, "dir"); } catch (_) {}
       }
     }
+    const runtimePython = path.posix.join(fields.root, "runtime", "hermes-agent-official", "venv", "bin", "python");
+    const nodeCommand = path.posix.join(fields.root, "runtime", "node-current", "bin", "node");
+    const pluginValues = {};
+    for (const binding of WORKSPACE_PLUGIN_BINDINGS) {
+      if (!completePluginBinding(fields.workerWorkspaceRoot, binding)) continue;
+      const workspaceRoot = fields.workerWorkspaceRoot;
+      if (binding.id === "wardrobe" && fileExists(path.posix.join(fields.root, "gateway-worker", "wardrobe-mcp", "scripts", "wardrobe-mcp.py"))) Object.assign(pluginValues, {
+        wardrobe_enabled: "1",
+        wardrobe_mcp_python: runtimePython,
+        wardrobe_mcp_path: path.posix.join(fields.root, "gateway-worker", "wardrobe-mcp", "scripts", "wardrobe-mcp.py"),
+        wardrobe_workspace: workspaceRoot,
+      });
+      if (binding.id === "finance" && fileExists(path.posix.join(fields.root, "gateway-worker", "finance-mcp", "scripts", "finance_mcp_stdio.py"))) Object.assign(pluginValues, {
+        finance_enabled: "1",
+        finance_mcp_python: runtimePython,
+        finance_mcp_path: path.posix.join(fields.root, "gateway-worker", "finance-mcp", "scripts", "finance_mcp_stdio.py"),
+        finance_workspace: workspaceRoot,
+        finance_mcp_api_base_url: "http://127.0.0.1:8791",
+      });
+      if (binding.id === "note" && fileExists(path.posix.join(fields.root, "gateway-worker", "note-mcp", "scripts", "note_mcp_stdio.py"))) Object.assign(pluginValues, {
+        note_enabled: "1",
+        note_mcp_python: runtimePython,
+        note_mcp_path: path.posix.join(fields.root, "gateway-worker", "note-mcp", "scripts", "note_mcp_stdio.py"),
+        note_workspace: workspaceRoot,
+        note_mcp_api_base_url: "http://127.0.0.1:4181",
+      });
+      if (binding.id === "health" && fileExists(path.posix.join(fields.root, "gateway-worker", "health-mcp", "scripts", "mcp-health-wrapper.js"))) Object.assign(pluginValues, {
+        health_enabled: "1",
+        health_mcp_command: nodeCommand,
+        health_mcp_path: path.posix.join(fields.root, "gateway-worker", "health-mcp", "scripts", "mcp-health-wrapper.js"),
+        health_workspace: workspaceRoot,
+        health_mcp_api_base_url: "http://127.0.0.1:4877",
+      });
+      if (binding.id === "email" && fileExists(path.posix.join(fields.root, "gateway-worker", "email-mcp", "scripts", "email-mcp-wrapper.py"))) Object.assign(pluginValues, {
+        email_enabled: "1",
+        email_mcp_python: runtimePython,
+        email_mcp_path: path.posix.join(fields.root, "gateway-worker", "email-mcp", "scripts", "email-mcp-wrapper.py"),
+        email_workspace: workspaceRoot,
+        email_mcp_api_base_url: "http://127.0.0.1:5175",
+      });
+    }
     const configYaml = renderGatewayConfigYaml({
       configKind: "profile",
       values: Object.assign({
@@ -482,7 +577,7 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
         port: String(worker.port || ""),
         profile_link: dir,
         provider: worker.provider || "openai-codex",
-      }, Object.fromEntries(STANDARD_PROFILE_PLUGINS.map((id) => [`${id}_plugin_enabled`, "1"]))),
+      }, Object.fromEntries(STANDARD_PROFILE_PLUGINS.map((id) => [`${id}_plugin_enabled`, "1"])), pluginValues),
     });
     writeTextFile(path.posix.join(dir, "config.yaml"), configYaml, "600", `${fields.macUser}:staff`);
     writeTextFile(startScriptPath(fields, profile), renderStartScript(fields, worker, manifestPath), "700", `${fields.macUser}:staff`);
@@ -512,6 +607,7 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
     if (fields.error) return { ok: false, error: fields.error };
     const manifestPath = manifestPathFor(fields, context);
     const manifest = readJsonSafe(fs, manifestPath, { enabled: true, workers: [] });
+    const syncedPluginBindings = syncWorkspacePluginBindings(fields);
     const workers = workspaceWorkers(manifest, fields, context);
     if (!workers.length) return { ok: false, error: "workspace_gateway_workers_missing" };
     const providerOrdinals = {};
@@ -543,7 +639,13 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
       backup = writeManifestBackup(manifestPath);
       writeJson(fs, manifestPath, manifest);
     }
-    return { ok: true, workers: touched, manifestUpdated: changed, backup: backup ? path.basename(backup) : "" };
+    return {
+      ok: true,
+      workers: touched,
+      manifestUpdated: changed,
+      backup: backup ? path.basename(backup) : "",
+      syncedPluginBindings,
+    };
   }
 
   function runSmokeScript(root, script, args = []) {

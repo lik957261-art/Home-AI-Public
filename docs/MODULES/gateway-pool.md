@@ -1369,7 +1369,11 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   `127.0.0.1`. Valid schema evidence is a selected-profile callable such as
   `mcp_health_lab_result_record`; double-prefixed callables such as
   `mcp_health_mcp_health_lab_result_record` mean the wrapper was registered
-  without Gateway tool-name mode.
+  without Gateway tool-name mode. On macOS,
+  `data/drive/users/<workspaceId>/.hermes-health` alone is not sufficient for
+  Gateway exposure; onboarding or a focused provisioning repair must mirror the
+  complete binding into `/Users/<hm-user>/HermesWorkspace/.hermes-health`
+  before the worker profile is rendered or restarted.
 - The generator script in the source repo is the durable source of truth. Do not rely on one-off edits to live `telemetry/profiles/<profile>/config.yaml`: a later Gateway Pool reconfigure/restart rewrites those files from `scripts/configure-low-gateways.sh` and will silently drop Wardrobe MCP registration if the source script no longer contains the wardrobe block.
 - Targeted starts such as `-StartProfiles lowgw13,lowgw14 -ForceConfigure`
   must pass `HERMES_GATEWAY_START_PROFILES` through to

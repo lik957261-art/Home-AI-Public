@@ -146,7 +146,8 @@ function createNoteReceiptApiRoutes(deps = {}) {
       deps.sendJson(res, 404, { error: "Message not found", code: "message_not_found" });
       return;
     }
-    const workspaceId = deps.requireWorkspaceAccess(req, res, thread.workspaceId || body.workspaceId || context.auth?.workspaceId || "owner");
+    const requestedWorkspaceId = String(body?.workspaceId || body?.workspace_id || context.auth?.workspaceId || thread.workspaceId || "owner").trim() || "owner";
+    const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId);
     if (!workspaceId) return;
 
     try {

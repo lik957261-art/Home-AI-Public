@@ -282,7 +282,9 @@ function updateNavigationControls() {
   const learningGrowthSettings = state.viewMode === "learning" && Boolean(state.learningGrowthSettingsOpen);
   const pluginContextDef = typeof pluginTopicDefForViewMode === "function" ? pluginTopicDefForViewMode(state.viewMode) : null;
   const pluginContextButtonId = typeof pluginTopicBottomButtonId === "function" ? pluginTopicBottomButtonId(pluginContextDef) : "";
-  const pluginContextNav = Boolean(pluginContextDef && pluginContextButtonId);
+  const externalPluginContextNav = Boolean(pluginContextDef && pluginContextButtonId);
+  const directoryContextNav = state.viewMode === "projects" && Boolean(state.directoryPluginContextActive);
+  const pluginContextNav = externalPluginContextNav || directoryContextNav;
   const embeddedPluginPreviewFullscreen = typeof embeddedPluginPreviewFullscreenActive === "function" && embeddedPluginPreviewFullscreenActive();
   const wardrobePluginBack = typeof wardrobePluginBackActive === "function" && wardrobePluginBackActive();
   const wardrobePluginOuterBack = typeof wardrobePluginOuterBackActive === "function" && wardrobePluginOuterBackActive();
@@ -346,11 +348,13 @@ function updateNavigationControls() {
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
   let hiddenBottomTabs = new Set(["bottomPluginMode", "bottomProjectsMode", "bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomLearningMode", "bottomAutomationMode"]);
-  if (pluginContextNav) {
+  if (externalPluginContextNav) {
     hiddenBottomTabs = new Set(["bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode", "bottomPluginMode", "bottomLearningMode", "bottomAutomationMode"]);
     ["bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode"].forEach((id) => {
       if (id !== pluginContextButtonId) hiddenBottomTabs.add(id);
     });
+  } else if (directoryContextNav) {
+    hiddenBottomTabs = new Set(["bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode", "bottomPluginMode", "bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomLearningMode", "bottomAutomationMode"]);
   }
   ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
     const node = $(id);
@@ -372,7 +376,9 @@ function updateNavigationControls() {
   if (typeof updateNotePluginNavigationAvailability === "function") updateNotePluginNavigationAvailability();
   if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
   if (pluginContextNav) {
-    const pluginContextBottomTabs = new Set(["bottomTasksMode", "bottomProjectsMode", pluginContextButtonId]);
+    const pluginContextBottomTabs = new Set(externalPluginContextNav
+      ? ["bottomTasksMode", "bottomProjectsMode", pluginContextButtonId]
+      : ["bottomTasksMode", "bottomProjectsMode"]);
     document.querySelectorAll(".bottom-tab").forEach((node) => {
       if (!node?.id) return;
       const visible = pluginContextBottomTabs.has(node.id);
@@ -385,7 +391,7 @@ function updateNavigationControls() {
     });
     updateBottomNavLabel("bottomTasksMode", "话题");
     updateBottomNavLabel("bottomProjectsMode", "目录");
-    updateBottomNavLabel(pluginContextButtonId, "插件");
+    if (externalPluginContextNav) updateBottomNavLabel(pluginContextButtonId, "插件");
   }
   updateTopicPluginDockChrome(taskList);
   updateBottomNavVisibleCount();

@@ -3,25 +3,15 @@
 const { createPluginCapabilityActivationService } = require("./plugin-capability-activation-service");
 const { createDirectoryRunScopeService } = require("./directory-run-scope-service");
 const { buildGatewayRoutingForRunRequest } = require("./gateway-run-request-routing-service");
+const {
+  pluginTopicContextForTaskGroup,
+  pluginToolsetsForTaskGroup,
+  resolvePluginTopicRunRequirements,
+} = require("./plugin-topic-run-requirements-service");
 
 const DEFAULT_TOOL_SCHEMA_EPOCH = "20260513-audio-file-v1";
 const DEFAULT_SINGLE_WINDOW_PROJECT_ID = "single-window";
 const DEFAULT_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
-const PLUGIN_TOPIC_TOOLSETS = Object.freeze({
-  wardrobe: "wardrobe",
-  finance: "finance",
-  email: "email",
-  health: "health",
-});
-const PLUGIN_TOPIC_CONTEXTS = Object.freeze({
-  wardrobe: Object.freeze({
-    pluginId: "wardrobe",
-    label: "Wardrobe",
-    primaryToolset: "wardrobe",
-    requiredToolsets: Object.freeze(["wardrobe", "vision", "file", "skills"]),
-    requiredSkills: Object.freeze(["productivity/wardrobe-style-operations"]),
-  }),
-});
 
 function cleanString(value, fallback = "") {
   const text = String(value || "").trim();
@@ -46,39 +36,6 @@ function objectValue(value, fallback = {}) {
 
 function maybeCall(fn, fallback) {
   return typeof fn === "function" ? fn : fallback;
-}
-
-function pluginIdForTaskGroupId(taskGroupId = "") {
-  const match = cleanString(taskGroupId).match(/^plugin:([a-z0-9_-]+)$/i);
-  return match ? match[1].toLowerCase() : "";
-}
-
-function pluginTopicContextForTaskGroup(taskGroupId = "") {
-  const pluginId = pluginIdForTaskGroupId(taskGroupId);
-  if (!pluginId) return null;
-  const configured = PLUGIN_TOPIC_CONTEXTS[pluginId];
-  if (configured) {
-    return {
-      pluginId,
-      label: cleanString(configured.label, pluginId),
-      primaryToolset: cleanString(configured.primaryToolset || PLUGIN_TOPIC_TOOLSETS[pluginId]),
-      requiredToolsets: defaultDedupe(configured.requiredToolsets || []),
-      requiredSkills: defaultDedupe(configured.requiredSkills || []),
-    };
-  }
-  const toolset = PLUGIN_TOPIC_TOOLSETS[pluginId];
-  return {
-    pluginId,
-    label: pluginId,
-    primaryToolset: toolset || "",
-    requiredToolsets: toolset ? [toolset] : [],
-    requiredSkills: [],
-  };
-}
-
-function pluginToolsetsForTaskGroup(taskGroupId = "") {
-  const context = pluginTopicContextForTaskGroup(taskGroupId);
-  return context ? context.requiredToolsets : [];
 }
 
 function mergeRequiredToolsetsIntoPolicy(policy = {}, requiredToolsets = []) {
@@ -331,10 +288,8 @@ function createGatewayRunRequestBuilderService(options = {}) {
 
   function buildRunRequest(thread, userMessage, assistantMessage, runOptions = {}) {
     const actorWorkspaceId = resolveActorWorkspaceId(thread, userMessage, runOptions);
-    const pluginTopicContext = pluginTopicContextForTaskGroup(userMessage?.taskGroupId);
-    const requiredPluginToolsets = pluginTopicContext ? pluginTopicContext.requiredToolsets : [];
-    const requiredPluginSkills = pluginTopicContext ? pluginTopicContext.requiredSkills : [];
-    const pluginDeliveryDirectory = pluginTopicContext ? pluginDeliveryDirectoryForMessage(userMessage) : null;
+    const requestedPluginTopicContext = pluginTopicContextForTaskGroup(userMessage?.taskGroupId);
+    const pluginDeliveryDirectory = requestedPluginTopicContext ? pluginDeliveryDirectoryForMessage(userMessage) : null;
     const requestedGatewayRouting = Object.assign({}, objectValue(runOptions.gatewayRouting));
     const policyHardeningOptions = accessPolicyHardeningOptionsForGatewayRouting(requestedGatewayRouting);
     const actorPolicyThread = policyThreadForRun(thread, actorWorkspaceId, singleWindowProjectId);
@@ -352,16 +307,6 @@ function createGatewayRunRequestBuilderService(options = {}) {
     const targetWorkspaceId = cleanString(directoryRunScope.targetWorkspaceId || dataWorkspaceId, dataWorkspaceId);
     const runScopeFields = { directoryRunScope, actorWorkspaceId, targetWorkspaceId, dataWorkspaceId };
     const policyThread = policyThreadForRun(thread, dataWorkspaceId, singleWindowProjectId);
-    const requiredSkillPreloads = requiredPluginSkills.length
-      ? safeLoadRequiredSkillPreloads({
-        skills: requiredPluginSkills,
-        workspaceId: dataWorkspaceId,
-        ...runScopeFields,
-        pluginTopicContext,
-        userMessage,
-        runOptions,
-      }, requiredPluginSkills)
-      : [];
     const workspace = findWorkspace(dataWorkspaceId);
     const routePolicy = workspace?.policy || workspace || {};
     let basePolicy = buildAccessPolicy(routePolicy, {}, project, policyHardeningOptions);
@@ -384,6 +329,20 @@ function createGatewayRunRequestBuilderService(options = {}) {
       ...runScopeFields,
     }) || {};
     runPolicy = sanitizePolicy(objectValue(routedPolicy.policy, runPolicy), policyHardeningOptions);
+    const pluginTopicRequirements = resolvePluginTopicRunRequirements(runPolicy, requestedPluginTopicContext);
+    const requiredPluginToolsets = pluginTopicRequirements.requiredToolsets;
+    const requiredPluginSkills = pluginTopicRequirements.requiredSkills;
+    const pluginTopicContext = pluginTopicRequirements.context;
+    const requiredSkillPreloads = requiredPluginSkills.length
+      ? safeLoadRequiredSkillPreloads({
+        skills: requiredPluginSkills,
+        workspaceId: dataWorkspaceId,
+        ...runScopeFields,
+        pluginTopicContext,
+        userMessage,
+        runOptions,
+      }, requiredPluginSkills)
+      : [];
     runPolicy = sanitizePolicy(mergeRequiredToolsetsIntoPolicy(runPolicy, requiredPluginToolsets), policyHardeningOptions);
     runPolicy = sanitizePolicy(mergeRequiredSkillsIntoPolicy(runPolicy, requiredPluginSkills), policyHardeningOptions);
     const modelFirstSelection = objectValue(runOptions.modelFirstToolsetSelection, null);

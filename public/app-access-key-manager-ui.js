@@ -53,7 +53,7 @@ function renderAccessKeyManagerLegacy() {
     const targetWorkspaceId = String(target.workspaceId || "");
     if (generatedKind !== targetKind) return "";
     if (targetKind === "workspace" && targetWorkspaceId && generatedWorkspaceId !== targetWorkspaceId) return "";
-    return `<section class="access-key-result" data-generated-access-key data-generated-workspace="${escapeHtml(generatedWorkspaceId)}">
+    return `<section class="access-key-result" data-generated-access-key data-generated-workspace="${escapeHtml(generatedWorkspaceId)}" tabindex="-1">
         <div class="access-key-result-label">${escapeHtml(state.generatedAccessKey.label || "New Access Key")}</div>
         <div class="access-key-value-row">
           <code>${escapeHtml(state.generatedAccessKey.key || "")}</code>
@@ -161,7 +161,7 @@ function renderAccessKeyManagerLegacy() {
   if (generatedNode && state.generatedAccessKey?.focus) {
     state.generatedAccessKey.focus = false;
     window.requestAnimationFrame(() => {
-      generatedNode.scrollIntoView({ block: "start", behavior: "smooth" });
+      generatedNode.scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
   }
   overlay.querySelectorAll("[data-edit-workspace]").forEach((button) => {
@@ -211,7 +211,7 @@ function renderAccessKeyManager() {
     const targetWorkspaceId = String(target.workspaceId || "");
     if (generatedKind !== targetKind) return "";
     if (targetKind === "workspace" && targetWorkspaceId && generatedWorkspaceId !== targetWorkspaceId) return "";
-    return `<section class="access-key-result" data-generated-access-key data-generated-workspace="${escapeHtml(generatedWorkspaceId)}">
+    return `<section class="access-key-result" data-generated-access-key data-generated-workspace="${escapeHtml(generatedWorkspaceId)}" tabindex="-1">
         <div class="access-key-result-label">${escapeHtml(state.generatedAccessKey.label || "New Access Key")}</div>
         <div class="access-key-value-row">
           <code>${escapeHtml(state.generatedAccessKey.key || "")}</code>
@@ -509,7 +509,7 @@ function renderAccessKeyManager() {
   if (generatedNode && state.generatedAccessKey?.focus) {
     state.generatedAccessKey.focus = false;
     window.requestAnimationFrame(() => {
-      generatedNode.scrollIntoView({ block: "center", behavior: "smooth" });
+      generatedNode.scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
   }
   overlay.querySelectorAll("[data-edit-workspace]").forEach((button) => {

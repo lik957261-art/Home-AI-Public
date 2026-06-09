@@ -114,7 +114,9 @@ The checker validates:
 Codex Mobile Web remains special for Owner-only visibility and permission
 policy. It is not a normal workspace-grantable business plugin, but it must
 still declare its platform pointer, live iOS PWA debug availability, deployment
-facts, and bounded production validation path.
+facts, bounded production validation path, and support for the host
+`hermes.plugin.viewport.footer.safeAreaBottom` bottom-comfort signal when Home
+AI bottom chrome is hidden.
 
 GitHub Actions normally checks out only the Home AI repository, not the private
 adjacent plugin workspaces. In that single-repository CI environment, the
@@ -171,7 +173,7 @@ doc:
 | `plugin_id` | yes | Stable id used by Home AI and Reference Graph. |
 | `workspace_path_windows` | yes | Local development checkout path. |
 | `production_source_path_macos` | yes | Usually under `/Users/hermes-host/HermesMobile/plugins/<plugin>`. |
-| `production_data_root_macos` | yes | Data root or workspace-local config roots. |
+| `production_data_root_macos` | yes | Data root and worker-local config roots. |
 | `windows_dev_base_url` | if service plugin | Local dev service URL. |
 | `macos_production_base_url` | if service plugin | Mac loopback production URL. |
 | `launchd_label` | if Mac service | `system/<label>` or label string. |
@@ -258,6 +260,17 @@ Plugin deployment must verify all layers that can fail independently:
 The deployment is not closed until the selected production profile and selected
 worker are proven. Registration logs and service-local schemas are diagnostic
 only; they are not enough for Gateway/MCP closure.
+
+On macOS production, a workspace plugin grant writes the canonical binding under
+the Home AI data drive, for example
+`data/drive/users/<workspaceId>/.hermes-<plugin>`. Gateway worker profiles read
+from the per-user worker root instead. Before a plugin MCP can be declared
+available for a selected profile, the restricted Home AI workspace provisioning
+executor must mirror each complete binding into
+`/Users/<hm-user>/HermesWorkspace/.hermes-<plugin>` with private ownership and
+must render the Gateway profile from that worker-local mirror. A plugin thread
+must not claim Gateway/MCP closure from a manifest, service-local schema, or
+data-drive binding alone.
 
 ## MCP Tool Upgrade Contract
 

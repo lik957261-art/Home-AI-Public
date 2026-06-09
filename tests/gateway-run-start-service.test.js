@@ -317,8 +317,8 @@ async function testPluginTopicRequiresItsMcpToolsetForPolicyAndGatewayRouting() 
     buildAccessPolicy: (routePolicy, _user, project) => ({
       principal_id: routePolicy.principal_id || "unknown",
       allowed_roots: [project.root],
-      allowed_toolsets: ["file", "web"],
-      authorized_toolsets: ["file", "web"],
+      allowed_toolsets: ["file", "web", "finance"],
+      authorized_toolsets: ["file", "web", "finance"],
       connector_profiles: { base: { type: "profile" } },
     }),
   });
@@ -621,8 +621,8 @@ async function testWardrobePluginTopicForcesSkillMcpStackAndPluginContext() {
     buildAccessPolicy: (routePolicy, _user, project) => ({
       principal_id: routePolicy.principal_id || "unknown",
       allowed_roots: [project.root],
-      allowed_toolsets: ["file", "web"],
-      authorized_toolsets: ["file", "web"],
+      allowed_toolsets: ["file", "web", "wardrobe", "vision", "skills"],
+      authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills"],
       connector_profiles: { base: { type: "profile" } },
     }),
     loadRequiredSkillPreloads: (payload) => {
@@ -739,8 +739,8 @@ async function testWardrobeOutfitGateRequiresWeatherBeforeGateway() {
     buildAccessPolicy: (routePolicy, _user, project) => ({
       principal_id: routePolicy.principal_id || "unknown",
       allowed_roots: [project.root],
-      allowed_toolsets: ["file", "web"],
-      authorized_toolsets: ["file", "web"],
+      allowed_toolsets: ["file", "web", "wardrobe", "vision", "skills"],
+      authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills"],
       connector_profiles: { base: { type: "profile" } },
     }),
     loadRequiredSkillPreloads: () => requiredSkillPreloads,
@@ -781,8 +781,8 @@ async function testWardrobeOutfitGatePassesWithWeatherAndAddsCompletionMetadata(
     buildAccessPolicy: (routePolicy, _user, project) => ({
       principal_id: routePolicy.principal_id || "unknown",
       allowed_roots: [project.root],
-      allowed_toolsets: ["file", "web", "weather"],
-      authorized_toolsets: ["file", "web", "weather"],
+      allowed_toolsets: ["file", "web", "weather", "wardrobe", "vision", "skills"],
+      authorized_toolsets: ["file", "web", "weather", "wardrobe", "vision", "skills"],
       connector_profiles: { base: { type: "profile" } },
     }),
     loadRequiredSkillPreloads: () => requiredSkillPreloads,
