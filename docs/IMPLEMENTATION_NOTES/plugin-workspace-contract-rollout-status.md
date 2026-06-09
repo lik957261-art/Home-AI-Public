@@ -16,12 +16,16 @@ Included in this pass:
 - Note
 - Email
 - Health
-- Codex Mobile Web
+- Codex Mobile Web, only for the Home AI embedded plugin variant registered as
+  `codex-mobile`
 
 Still excluded in this pass:
 
 - Candidate or adjacent workspaces that are not currently standard inserted
   plugins for this pass.
+- Independently deployed Codex Mobile Web instances that are not installed
+  through the Home AI plugin manifest/proxy/launch-token boundary and do not
+  deploy under the Home AI Mac production plugin root.
 
 No production services, Gateway workers, plugin code, plugin data, secrets, or
 credentials were changed by this rollout status update.
@@ -110,7 +114,7 @@ are explicit external deployment overrides, not standard plugin defaults.
 | Note | Windows Note workspace | `main` at `fb92356`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Note link tools; Reference / Memory Graph harness; `ios_visual_harness_command` required when preview, gesture, or PWA shell behavior changes. |
 | Email | Windows Email workspace | `main` at `75a1ea0`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1 for messages, threads, attachments, and accounts; exact deploy command stabilization; `ios_visual_harness_command` required for embedded UI or account switching changes. |
 | Health | Windows Health workspace | `main` at `3495ae8`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1; `ios_visual_harness_command` required for embedded UI or mobile navigation changes. |
-| Codex Mobile Web | Mac Codex Mobile workspace | `main` at `bc82703` plus local Mac hotfix work when pointer was added | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Owner-critical special insertion; not normal workspace-grantable plugin visibility; `ios_visual_harness_command` required for embedded keyboard, gesture, cache, and PWA reproduction loops. |
+| Codex Mobile Web | Mac Codex Mobile plugin workspace | `main` at `bc82703` plus local Mac hotfix work when pointer was added | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Owner-critical Home AI embedded plugin insertion only; not normal workspace-grantable plugin visibility and not a rule for independent Codex Mobile deployments. `ios_visual_harness_command` is required for embedded keyboard, gesture, cache, and PWA reproduction loops. |
 
 ## Mac Read-Only Probe Status
 

@@ -36,6 +36,9 @@ The shared target paths are:
 ```text
 home-ai app -> /Users/hermes-host/HermesMobile/app
 codex-mobile-web -> /Users/hermes-host/HermesMobile/plugins/codex-mobile-web
+  (Home AI embedded plugin variant only; independently deployed Codex Mobile
+  Web instances are outside this production target contract unless they
+  explicitly opt into Home AI embedded-plugin deployment)
 email -> /Users/hermes-host/HermesMobile/plugins/email
 finance -> /Users/hermes-host/HermesMobile/plugins/finance
 healthy -> /Users/hermes-host/HermesMobile/plugins/healthy

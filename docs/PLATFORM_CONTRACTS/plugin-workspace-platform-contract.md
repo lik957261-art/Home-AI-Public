@@ -127,6 +127,17 @@ facts, bounded production validation path, and support for the host
 `hermes.plugin.viewport.footer.safeAreaBottom` bottom-comfort signal when Home
 AI bottom chrome is hidden.
 
+This Codex Mobile Web rule applies only to the Home AI embedded plugin variant
+registered as `codex-mobile` and deployed under the Home AI Mac production
+plugin root. It does not govern independently deployed Codex Mobile Web
+instances that are not installed through Home AI, do not use the Home AI plugin
+manifest/proxy/launch-token boundary, and do not deploy under
+`/Users/hermes-host/HermesMobile/plugins/codex-mobile-web`. Independent
+deployments may keep their own deployment, debug, and validation workflow; they
+must not be forced to use the Home AI AI Operations Control Plane, Mac deploy
+script, or iOS visual lane allocator unless they explicitly opt into Home AI
+embedded-plugin mode.
+
 GitHub Actions normally checks out only the Home AI repository, not the private
 adjacent plugin workspaces. In that single-repository CI environment, the
 checked unit test verifies the central contract and the fixture-based plugin
