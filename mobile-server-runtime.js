@@ -156,9 +156,9 @@ const mobileRuntimeSqliteStoreFacadeService = createMobileRuntimeSqliteStoreFaca
   dbPath: MOBILE_SQLITE_DB_PATH,
 });
 const mobileSqliteStore = (...args) => mobileRuntimeSqliteStoreFacadeService.mobileSqliteStore(...args);
-const mobileRuntimeBootTraceService = createMobileRuntimeBootTraceService({ fs, path, process, tracePath: BOOT_TRACE_PATH });
-const bootTrace = (...args) => mobileRuntimeBootTraceService.bootTrace(...args);
+const bootTrace = createMobileRuntimeBootTraceService({ fs, path, process, tracePath: BOOT_TRACE_PATH }).bootTrace;
 bootTrace("constants ready");
+const clientLayoutDiagnosticService = require("./adapters/client-layout-diagnostic-service").createClientLayoutDiagnosticService({ fs, path, logPath: path.join(DATA_DIR, "diagnostics", "client-layout.jsonl"), nowIso });
 const documentPreviewService = createDocumentPreviewService({
   fs,
   maxPreviewChars: MAX_FILE_PREVIEW_CHARS,
@@ -1263,7 +1263,7 @@ const { eventStreamApiRoutes, mobileApiDispatcher, services: mobileApiServices =
   applyAppUpdate, attachClientVersionHeaders, authCanAccessWorkspace, authenticateRequest, authProvider,
   automationCreateModel: AUTOMATION_CREATE_MODEL, learningGrowthJitModel: LEARNING_GROWTH_JIT_MODEL, learningGrowthJitReasoningEffort: LEARNING_GROWTH_JIT_REASONING_EFFORT, automationProvider, basename: (value) => path.basename(value), boolParam, bootTrace, broadcast,
   buildRequestContext, canRevokeGroupChatMessage, chatGroupMemberWorkspaceIds, clearCronListCache, clearDynamicProjectCache: () => clearDynamicProjectCache(),
-  clearDynamicProjectCacheForWorkspace: (workspaceId) => clearDynamicProjectCache(workspaceId), clearKanbanCardListCache, clientVersionInfo, compactMessage, compactText,
+  clearDynamicProjectCacheForWorkspace: (workspaceId) => clearDynamicProjectCache(workspaceId), clearKanbanCardListCache, clientLayoutDiagnosticService, clientVersionInfo, compactMessage, compactText,
   compactThread, compactThreadWithMessagePage, contentDisposition, createInitialOwnerKey, createKanbanPlanCards,
   createWeixinFileForwardDelivery, cronJobMatchesOwner, cronJobMatchesSearch, dataDir: DATA_DIR, dedupe, deleteLocalWorkspace, detectDirectTodoCreateIntentForWeb,
   display: {

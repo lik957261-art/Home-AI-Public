@@ -340,6 +340,8 @@ assert.match(embeddedPluginUi, /settleMobileBottomNavReservation\("plugin_back_r
 assert.match(embeddedPluginUi, /settleMobileBottomNavReservation\("plugin_return_route", \[0, 80, 240, 520, 1000\]\)/);
 assert.match(embeddedPluginUi, /settleMobileBottomNavReservation\(visible \? "plugin_host_visible" : "plugin_host_hidden", \[0, 80, 240\]\)/);
 assert.match(embeddedPluginUi, /settleMobileBottomNavReservation\("plugin_back_request", \[0, 120, 360, 900, 1700\]\)/);
+assert.match(embeddedPluginUi, /scheduleClientLayoutDiagnostics\(visible \? "plugin_host_visible" : "plugin_host_hidden", \[0, 300, 1200\]\)/);
+assert.match(embeddedPluginUi, /scheduleClientLayoutDiagnostics\("plugin_back_request", \[0, 360, 1200\]\)/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-tab-label\s*\{[\s\S]*display: none;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.topic-plugin-dock\s*\{[\s\S]*display: none !important;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav\s*\{[\s\S]*display: none !important;/);

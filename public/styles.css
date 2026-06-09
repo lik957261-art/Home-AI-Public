@@ -58,7 +58,9 @@
   --mobile-bottom-nav-visual-lift: 0px;
   --mobile-bottom-nav-comfort-inset: 0px;
   --mobile-bottom-nav-overflow-clamp: 0px;
+  --mobile-bottom-nav-underflow-clamp: 24px;
   --plugin-context-bottom-nav-height: 54px;
+  --plugin-context-main-top: 0px;
   --bottom-region-composer-nav-gap: 8px;
   --mobile-bottom-nav-bottom: var(--mobile-bottom-nav-bottom-runtime, var(--mobile-bottom-nav-comfort-inset));
   --mobile-bottom-nav-offset-height: var(--mobile-bottom-nav-offset-height-runtime, var(--mobile-bottom-nav-height));
@@ -1420,7 +1422,7 @@ button {
 .plugin-context-nav-mode.wardrobe-plugin-host-active .main,
 .plugin-context-nav-mode.embedded-plugin-host-active .main {
   position: absolute;
-  top: 0;
+  top: var(--plugin-context-main-top, 0);
   right: 0;
   bottom: var(--plugin-context-main-bottom, var(--plugin-context-bottom-nav-height));
   left: 0;
@@ -16045,6 +16047,10 @@ body.task-markdown-preview-open {
 }
 
 @media (max-width: 1099px), (pointer: coarse) and (max-width: 1366px) {
+  :root {
+    --plugin-context-main-top: env(safe-area-inset-top);
+  }
+
   body::before {
     content: "";
     position: fixed;

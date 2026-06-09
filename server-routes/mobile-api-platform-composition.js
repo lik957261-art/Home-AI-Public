@@ -24,6 +24,7 @@ function createMobileApiPlatformComposition(deps = {}) {
 
   const publicApiRoutes = createPublicApiRoutes({
     authenticateRequest: deps.authenticateRequest,
+    clientLayoutDiagnosticService: deps.clientLayoutDiagnosticService,
     createInitialOwnerKey: deps.createInitialOwnerKey,
     ownerSetupStatus: deps.ownerSetupStatus,
     readBody: deps.readBody,

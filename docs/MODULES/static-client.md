@@ -118,12 +118,17 @@ Gateway plugin/schema/profile changes:
   default (`--mobile-bottom-nav-comfort-inset: 0px` as of
   `20260608-bottom-stack-pwa-clamp-v632`). Tab content should not be lifted by
   default (`--mobile-bottom-nav-visual-lift: 0px` as of
-  `20260609-mobile-bottom-settle-v645`); any future small visual lift must
+  `20260609-layout-diagnostic-v646`); any future small visual lift must
   stay inside the tab content transform, not in a bottom offset that moves the
   entire Dock/nav stack. Runtime bottom overflow is diagnostic-only by default:
   `--mobile-bottom-nav-overflow-clamp: 0px` prevents iOS standalone PWA
   viewport-coordinate mismatches from becoming a large bottom offset that lifts
   the full Dock/nav stack.
+  Runtime bottom underflow is separate from overflow: if a fixed bottom nav
+  reports `rect.bottom` above the layout viewport on an iOS standalone PWA
+  cold/re-login path, `updateMobileBottomNavReservation()` may apply the bounded
+  `--mobile-bottom-nav-underflow-clamp` correction and must record
+  `navBottomUnderflowRaw` / `navBottomUnderflow` in diagnostics.
   When measuring fixed bottom chrome, compare `getBoundingClientRect()` against
   the layout viewport (`window.innerHeight` / `documentElement.clientHeight`),
   not `visualViewport.height`. iOS standalone PWA can report a shorter visual
@@ -146,6 +151,16 @@ Gateway plugin/schema/profile changes:
   standalone viewport, so the mobile boot splash must start below the safe area
   instead of relying only on centered `100dvh` placement. This protects the
   first frame before app modules can run viewport-settle JavaScript.
+- Embedded plugin host pages hide the normal Home AI topbar, so the iframe host
+  `.main` must use the mobile status-bar safe-area top inset instead of raw
+  `top: 0`. The iframe bottom reservation must be derived from the visible top
+  of the measured plugin-context footer, not only from the fixed footer height.
+- `POST /api/client-layout-diagnostics` is the bounded real-device layout
+  diagnostic channel for temporary PWA debugging. It stores sanitized viewport,
+  CSS variable, and element-rect snapshots in
+  `<data>/diagnostics/client-layout.jsonl`; `GET /api/client-layout-diagnostics`
+  requires a valid Home AI key and returns recent sanitized entries. Do not log
+  access keys, cookies, message text, thread content, or raw plugin content.
 - The settings sheet owns device-local display preferences. Theme mode is a
   three-state client preference: `system`, `light`, or `dark`. The shell must
   set `data-theme` before loading CSS to avoid first-paint flashes, update

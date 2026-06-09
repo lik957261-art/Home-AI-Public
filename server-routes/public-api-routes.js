@@ -10,6 +10,7 @@ function createPublicApiRoutes(deps = {}) {
     readBody,
     sendJson,
   } = deps;
+  const clientLayoutDiagnosticService = deps.clientLayoutDiagnosticService || null;
 
   for (const [name, value] of Object.entries({
     authenticateRequest,
@@ -52,6 +53,22 @@ function createPublicApiRoutes(deps = {}) {
       group: "auth",
       riskLevel: "public",
       authRequired: false,
+    },
+    {
+      id: "client-layout-diagnostics-write",
+      method: "POST",
+      path: "/api/client-layout-diagnostics",
+      group: "diagnostics",
+      riskLevel: "public",
+      authRequired: false,
+    },
+    {
+      id: "client-layout-diagnostics-read",
+      method: "GET",
+      path: "/api/client-layout-diagnostics",
+      group: "diagnostics",
+      riskLevel: "low",
+      authRequired: true,
     },
   ]);
 
@@ -101,6 +118,37 @@ function createPublicApiRoutes(deps = {}) {
         "Cache-Control": "no-store",
       });
       res.end();
+      return { handled: true, route };
+    }
+
+    if (route.id === "client-layout-diagnostics-write") {
+      const body = await readBody(req, 64 * 1024);
+      const auth = authenticateRequest(req);
+      const entry = clientLayoutDiagnosticService?.append?.(body, {
+        authenticated: Boolean(auth?.ok),
+        remoteAddress: req.socket?.remoteAddress || req.connection?.remoteAddress || "",
+        userAgent: req.headers?.["user-agent"] || "",
+      }) || null;
+      sendJson(res, 202, {
+        ok: true,
+        stored: Boolean(clientLayoutDiagnosticService),
+        at: entry?.at || new Date().toISOString(),
+      });
+      return { handled: true, route };
+    }
+
+    if (route.id === "client-layout-diagnostics-read") {
+      const auth = authenticateRequest(req);
+      if (!auth.ok) {
+        sendJson(res, 401, { error: "Unauthorized" });
+        return { handled: true, route };
+      }
+      const limit = Math.max(1, Math.min(200, Number(url.searchParams.get("limit") || 80) || 80));
+      sendJson(res, 200, {
+        ok: true,
+        path: clientLayoutDiagnosticService?.logPath || "",
+        entries: clientLayoutDiagnosticService?.list?.(limit) || [],
+      });
       return { handled: true, route };
     }
 

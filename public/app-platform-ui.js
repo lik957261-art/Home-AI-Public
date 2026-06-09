@@ -162,6 +162,7 @@ function showLogin(message = "") {
   $("app").classList.add("hidden");
   $("login").classList.remove("hidden");
   $("loginError").textContent = message;
+  if (typeof scheduleClientLayoutDiagnostics === "function") scheduleClientLayoutDiagnostics("show_login", [0, 300, 1200]);
 }
 
 function showApp() {
@@ -177,6 +178,7 @@ function showApp() {
   restoreVisibleAppScroll();
   if (typeof settleMobileBottomNavReservation === "function") settleMobileBottomNavReservation("app_show");
   else updateMobileBottomNavReservation();
+  if (typeof scheduleClientLayoutDiagnostics === "function") scheduleClientLayoutDiagnostics("show_app", [0, 300, 1200, 2600]);
 }
 
 function showSetup(message = "") {

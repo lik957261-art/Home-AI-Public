@@ -106,6 +106,68 @@ async function testLoginSuccessAndFailure() {
   assert.equal(valid.body, "");
 }
 
+async function testClientLayoutDiagnosticsWriteAndRead() {
+  const rows = [];
+  const routes = makeRoutes({
+    clientLayoutDiagnosticService: {
+      logPath: "/tmp/client-layout.jsonl",
+      append(body, meta) {
+        rows.push({ body, meta });
+        return { at: "2026-06-09T00:00:00.000Z" };
+      },
+      list() {
+        return [{ at: "2026-06-09T00:00:00.000Z", payload: { event: "app_show" } }];
+      },
+    },
+  });
+
+  const writeRes = makeResponse();
+  const writeResult = await routes.handle({
+    method: "POST",
+    url: "/api/client-layout-diagnostics",
+    headers: { "user-agent": "iPhone" },
+    socket: { remoteAddress: "127.0.0.1" },
+    body: { event: "app_show", accessKey: "secret" },
+  }, writeRes, { pathname: "/api/client-layout-diagnostics" });
+  assert.equal(writeResult.handled, true);
+  assert.equal(writeRes.statusCode, 202);
+  assert.deepEqual(JSON.parse(writeRes.body), {
+    ok: true,
+    stored: true,
+    at: "2026-06-09T00:00:00.000Z",
+  });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].body.event, "app_show");
+  assert.equal(rows[0].meta.userAgent, "iPhone");
+
+  const unauthorizedRead = makeResponse();
+  await routes.handle({
+    method: "GET",
+    url: "/api/client-layout-diagnostics",
+    headers: {},
+  }, unauthorizedRead, {
+    pathname: "/api/client-layout-diagnostics",
+    searchParams: new URLSearchParams(),
+  });
+  assert.equal(unauthorizedRead.statusCode, 401);
+
+  const readRes = makeResponse();
+  await routes.handle({
+    method: "GET",
+    url: "/api/client-layout-diagnostics",
+    headers: { "x-hermes-web-key": "valid" },
+  }, readRes, {
+    pathname: "/api/client-layout-diagnostics",
+    searchParams: new URLSearchParams("limit=1"),
+  });
+  assert.equal(readRes.statusCode, 200);
+  assert.deepEqual(JSON.parse(readRes.body), {
+    ok: true,
+    path: "/tmp/client-layout.jsonl",
+    entries: [{ at: "2026-06-09T00:00:00.000Z", payload: { event: "app_show" } }],
+  });
+}
+
 async function testNonMatchingRouteFallsThrough() {
   const routes = makeRoutes();
   const res = makeResponse();
@@ -118,6 +180,7 @@ async function run() {
   await testPublicConfigAndSetupStatus();
   await testOwnerSetupCookieAndErrorShape();
   await testLoginSuccessAndFailure();
+  await testClientLayoutDiagnosticsWriteAndRead();
   await testNonMatchingRouteFallsThrough();
   console.log("public api routes tests passed");
 }

@@ -81,6 +81,7 @@ function handleAppForegrounded() {
   if (state.viewMode === "inbox") loadActionInbox({ silent: true, preserveScroll: true }).catch(showError);
   if (typeof settleEmbeddedPluginViewportBroadcast === "function") settleEmbeddedPluginViewportBroadcast("host_foreground");
   if (typeof settleMobileBottomNavReservation === "function") settleMobileBottomNavReservation("host_foreground", [0, 80, 240, 520, 1000]);
+  if (typeof scheduleClientLayoutDiagnostics === "function") scheduleClientLayoutDiagnostics("host_foreground", [0, 300, 1200]);
   scheduleConversationViewportRefresh();
 }
 

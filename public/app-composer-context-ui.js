@@ -254,6 +254,145 @@ function mobileBottomCssPx(name, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function clientLayoutDiagnosticSessionId() {
+  const key = "hermesClientLayoutDiagnosticSession";
+  try {
+    const existing = localStorage.getItem(key);
+    if (existing) return existing.slice(0, 80);
+    const id = `layout-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    localStorage.setItem(key, id);
+    return id;
+  } catch (_) {
+    return `layout-${Date.now().toString(36)}`;
+  }
+}
+
+function clientLayoutDiagnosticRect(node) {
+  const rect = node?.getBoundingClientRect?.();
+  if (!rect) return null;
+  return {
+    top: Math.round(rect.top),
+    right: Math.round(rect.right),
+    bottom: Math.round(rect.bottom),
+    left: Math.round(rect.left),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+  };
+}
+
+function clientLayoutDiagnosticCss() {
+  const styles = window.getComputedStyle?.(document.documentElement);
+  const pick = (name) => styles?.getPropertyValue(name)?.trim?.() || "";
+  return {
+    mobileBottomSafeArea: pick("--mobile-bottom-safe-area"),
+    mobileBottomContentSafeArea: pick("--mobile-bottom-nav-content-safe-area"),
+    mobileBottomNavHeight: pick("--mobile-bottom-nav-height"),
+    mobileBottomNavBottom: pick("--mobile-bottom-nav-bottom"),
+    mobileBottomNavBottomRuntime: pick("--mobile-bottom-nav-bottom-runtime"),
+    mobileBottomNavOffsetHeightRuntime: pick("--mobile-bottom-nav-offset-height-runtime"),
+    mobileBottomNavReservedHeightRuntime: pick("--mobile-bottom-nav-reserved-height-runtime"),
+    mobileBottomStackHeightRuntime: pick("--mobile-bottom-stack-height-runtime"),
+    mobileBottomNavOverflowClamp: pick("--mobile-bottom-nav-overflow-clamp"),
+    mobileBottomNavUnderflowClamp: pick("--mobile-bottom-nav-underflow-clamp"),
+    pluginContextBottomNavHeight: pick("--plugin-context-bottom-nav-height"),
+    pluginContextMainTop: pick("--plugin-context-main-top"),
+    pluginContextMainBottom: pick("--plugin-context-main-bottom"),
+  };
+}
+
+function captureClientLayoutDiagnostic(reason = "layout") {
+  const visual = window.visualViewport;
+  const app = $("app");
+  const main = app?.querySelector?.(".main");
+  const conversation = $("conversation");
+  const pluginFrame = document.querySelector(".embedded-plugin-frame.active, .wardrobe-plugin-frame");
+  return {
+    event: "client_layout",
+    reason: String(reason || "layout").slice(0, 80),
+    sessionId: clientLayoutDiagnosticSessionId(),
+    clientVersion: document.documentElement?.dataset?.clientVersion || "",
+    atClient: new Date().toISOString(),
+    viewMode: state.viewMode || "",
+    singleWindowMode: state.singleWindowMode || "",
+    pluginContextNavPluginId: state.pluginContextNavPluginId || "",
+    directoryPluginContextActive: Boolean(state.directoryPluginContextActive),
+    standalone: Boolean(window.matchMedia?.("(display-mode: standalone)")?.matches || navigator.standalone === true),
+    displayModeStandalone: Boolean(window.matchMedia?.("(display-mode: standalone)")?.matches),
+    userAgent: navigator.userAgent || "",
+    devicePixelRatio: Number(window.devicePixelRatio || 1) || 1,
+    screen: {
+      width: Math.round(window.screen?.width || 0),
+      height: Math.round(window.screen?.height || 0),
+      availWidth: Math.round(window.screen?.availWidth || 0),
+      availHeight: Math.round(window.screen?.availHeight || 0),
+    },
+    viewport: {
+      innerWidth: Math.round(window.innerWidth || 0),
+      innerHeight: Math.round(window.innerHeight || 0),
+      outerWidth: Math.round(window.outerWidth || 0),
+      outerHeight: Math.round(window.outerHeight || 0),
+      scrollX: Math.round(window.scrollX || 0),
+      scrollY: Math.round(window.scrollY || 0),
+      visualWidth: Math.round(visual?.width || 0),
+      visualHeight: Math.round(visual?.height || 0),
+      visualOffsetTop: Math.round(visual?.offsetTop || 0),
+      visualOffsetLeft: Math.round(visual?.offsetLeft || 0),
+      visualScale: Number.isFinite(visual?.scale) ? Number(visual.scale) : 1,
+      documentClientWidth: Math.round(document.documentElement?.clientWidth || 0),
+      documentClientHeight: Math.round(document.documentElement?.clientHeight || 0),
+      bodyClientHeight: Math.round(document.body?.clientHeight || 0),
+    },
+    css: clientLayoutDiagnosticCss(),
+    rects: {
+      html: clientLayoutDiagnosticRect(document.documentElement),
+      body: clientLayoutDiagnosticRect(document.body),
+      app: clientLayoutDiagnosticRect(app),
+      main: clientLayoutDiagnosticRect(main),
+      topbar: clientLayoutDiagnosticRect(document.querySelector(".topbar")),
+      conversation: clientLayoutDiagnosticRect(conversation),
+      bottomNav: clientLayoutDiagnosticRect($("bottomNav")),
+      topicPluginDock: clientLayoutDiagnosticRect($("topicPluginDock")),
+      embeddedPluginHost: clientLayoutDiagnosticRect(document.querySelector(".embedded-plugin-host.active, .wardrobe-plugin-host.active")),
+      pluginFrame: clientLayoutDiagnosticRect(pluginFrame),
+    },
+    bottomLayoutMetrics: window.__hermesMobileBottomLayoutMetrics || null,
+    bottomLayoutLastSettle: window.__hermesMobileBottomLayoutLastSettle || null,
+    pluginContextViewportMetrics: window.__hermesPluginContextViewportMetrics || null,
+  };
+}
+
+function sendClientLayoutDiagnostic(reason = "layout") {
+  try {
+    const payload = captureClientLayoutDiagnostic(reason);
+    const headers = {
+      "Content-Type": "application/json",
+      "X-Hermes-Web-Client-Version": payload.clientVersion || "",
+    };
+    if (state.key) headers["X-Hermes-Web-Key"] = state.key;
+    fetch("/api/client-layout-diagnostics", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      keepalive: true,
+      cache: "no-store",
+    }).catch(() => {});
+    return payload;
+  } catch (_) {
+    return null;
+  }
+}
+
+function scheduleClientLayoutDiagnostics(reason = "layout", delays = [0, 240, 900, 1800]) {
+  const uniqueDelays = [...new Set((delays || []).map((delay) => Math.max(0, Number(delay || 0) || 0)))];
+  uniqueDelays.forEach((delay) => {
+    window.setTimeout(() => {
+      window.requestAnimationFrame(() => {
+        sendClientLayoutDiagnostic(`${reason}:${delay}`);
+      });
+    }, delay);
+  });
+}
+
 function updateMobileBottomNavReservation() {
   const root = document.documentElement;
   const app = $("app");
@@ -288,7 +427,12 @@ function updateMobileBottomNavReservation() {
   const navBottomOverflowRaw = rect && viewportHeight ? Math.ceil(Math.max(0, rect.bottom - viewportHeight)) : 0;
   const navBottomOverflowClamp = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-overflow-clamp", 0)));
   const navBottomOverflow = Math.min(navBottomOverflowRaw, navBottomOverflowClamp);
-  const navBottom = navBottomOverflow + comfortInset;
+  const currentNavBottom = Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-bottom-runtime", comfortInset));
+  const currentNavBottomDrop = Math.max(0, -currentNavBottom);
+  const navBottomUnderflowRaw = rect && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - rect.bottom + currentNavBottomDrop)) : 0;
+  const navBottomUnderflowClamp = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-underflow-clamp", 0)));
+  const navBottomUnderflow = Math.min(navBottomUnderflowRaw, navBottomUnderflowClamp);
+  const navBottom = navBottomOverflow + comfortInset - navBottomUnderflow;
   const visibleOffset = rect && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - rect.top)) : rectHeight;
   const offset = Math.max(44, rectHeight, contentHeight, visibleOffset || rectHeight);
   const reserve = Math.max(76, navBottom + rectHeight + 10, navBottom + contentHeight + 10);
@@ -314,6 +458,9 @@ function updateMobileBottomNavReservation() {
     navBottomOverflowRaw,
     navBottomOverflowClamp,
     navBottomOverflow,
+    navBottomUnderflowRaw,
+    navBottomUnderflowClamp,
+    navBottomUnderflow,
     navBottom,
     comfortInset,
     navRect: rect ? {
@@ -361,6 +508,7 @@ function settleMobileBottomNavReservation(reason = "layout", delays = [0, 40, 12
             at: Date.now(),
             metrics: window.__hermesMobileBottomLayoutMetrics || null,
           };
+          if (delay === 0 || delay >= 240) sendClientLayoutDiagnostic(`settle:${reason}:${delay}`);
         });
       });
     }, delay);
@@ -455,7 +603,8 @@ function updatePluginContextViewportReservation() {
     if (typeof scheduleEmbeddedPluginViewportBroadcast === "function") scheduleEmbeddedPluginViewportBroadcast("plugin_context_inactive", 0);
     return;
   }
-  const navHeight = Math.ceil(nav.getBoundingClientRect?.().height || 0);
+  const navRect = nav.getBoundingClientRect?.();
+  const navHeight = Math.ceil(navRect?.height || 0);
   const appHeight = Math.ceil(app.getBoundingClientRect?.().height || 0);
   const visualViewportHeight = Math.ceil(window.visualViewport?.height || 0);
   const innerHeight = Math.ceil(window.innerHeight || 0);
@@ -465,7 +614,8 @@ function updatePluginContextViewportReservation() {
   const viewportOverflowRaw = Math.max(0, appHeight - viewportHeight);
   const viewportOverflowClamp = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-overflow-clamp", 0)));
   const viewportOverflow = Math.min(viewportOverflowRaw, viewportOverflowClamp);
-  const bottomInset = Math.max(navHeight, navHeight + viewportOverflow);
+  const navVisibleTopInset = navRect && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - navRect.top)) : navHeight;
+  const bottomInset = Math.max(0, navVisibleTopInset + viewportOverflow);
   window.__hermesPluginContextViewportMetrics = {
     visualViewportHeight,
     innerHeight,
@@ -474,6 +624,12 @@ function updatePluginContextViewportReservation() {
     viewportHeight,
     appHeight,
     navHeight,
+    navVisibleTopInset,
+    navRect: navRect ? {
+      top: Math.round(navRect.top),
+      bottom: Math.round(navRect.bottom),
+      height: Math.round(navRect.height),
+    } : null,
     viewportOverflowRaw,
     viewportOverflowClamp,
     viewportOverflow,

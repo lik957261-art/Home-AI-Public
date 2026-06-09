@@ -723,6 +723,7 @@ function setEmbeddedPluginHostVisible(def, visible) {
   $("app")?.classList.toggle(`${def.viewMode}-plugin-host-active`, visible);
   $("app")?.classList.toggle("embedded-plugin-host-active", visible);
   if (typeof settleMobileBottomNavReservation === "function") settleMobileBottomNavReservation(visible ? "plugin_host_visible" : "plugin_host_hidden", [0, 80, 240]);
+  if (typeof scheduleClientLayoutDiagnostics === "function") scheduleClientLayoutDiagnostics(visible ? "plugin_host_visible" : "plugin_host_hidden", [0, 300, 1200]);
   if (visible) scheduleEmbeddedPluginViewportBroadcast("host_visible", 0);
 }
 
@@ -847,6 +848,7 @@ function sendEmbeddedPluginBack(def = embeddedPluginDefByView()) {
   record.backRequestSeq = seq;
   frame.contentWindow.postMessage({ type: "hermes.plugin.back", version: 1 }, origin);
   if (typeof settleMobileBottomNavReservation === "function") settleMobileBottomNavReservation("plugin_back_request", [0, 120, 360, 900, 1700]);
+  if (typeof scheduleClientLayoutDiagnostics === "function") scheduleClientLayoutDiagnostics("plugin_back_request", [0, 360, 1200]);
   window.setTimeout(() => {
     if (state.viewMode !== def.viewMode) return;
     if (record.backRequestSeq !== seq) return;
