@@ -96,6 +96,10 @@ or raw plugin credentials.
   renderer clamps small restored scroll offsets back to the top so the first
   quick-action row remains visible after redraws, browser restore, or
   session-level root navigation.
+- Topic-root capability cards and directory-bound topic rows must honor the
+  shared Home AI font-size preference instead of hard-coding a smaller local
+  text size. Topics and the information/root surface should stay visually
+  aligned with the user's selected reading scale.
 - The next product direction for the root Topics tab is the Capability Entry
   Hub described in
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md`. In that model, the

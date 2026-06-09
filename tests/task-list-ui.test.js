@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260609-ios-theme-color-dark-v674";
+const CLIENT_VERSION = "20260609-info-topic-font-scale-v675";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-ios-theme-color-dark-v674" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-ios-theme-color-dark-v674"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-info-topic-font-scale-v675" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-info-topic-font-scale-v675"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2541,10 +2541,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-ios-theme-color-dark-v674/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-ios-theme-color-dark-v674/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-ios-theme-color-dark-v674/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-ios-theme-color-dark-v674/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-info-topic-font-scale-v675/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-info-topic-font-scale-v675/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-info-topic-font-scale-v675/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-info-topic-font-scale-v675/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2768,6 +2768,9 @@ assert.match(stylesCss, /\.plugin-topic-app-icon\.health \{/);
 assert.match(stylesCss, /\.plugin-topic-app-icon\.note \{/);
 assert.match(stylesCss, /\.plugin-topic-app-icon::after \{[\s\S]*?content: attr\(data-plugin-icon\);/);
 assert.match(stylesCss, /\.plugin-topic-stats span \{[\s\S]*?font-weight: 650;/);
+assert.match(stylesCss, /:root\[data-font-size\] \.plugin-topic-title,[\s\S]*?:root\[data-font-size\] \.directory-topic-title,[\s\S]*?font-size: calc\(15px \* var\(--app-font-scale\)\);/);
+assert.match(stylesCss, /:root\[data-font-size\] \.plugin-topic-subtitle,[\s\S]*?:root\[data-font-size\] \.directory-topic-subtitle,[\s\S]*?:root\[data-font-size\] \.directory-topic-meta,[\s\S]*?font-size: calc\(13px \* var\(--app-font-scale\)\);/);
+assert.match(stylesCss, /:root\[data-font-size\] \.plugin-topic-stats span \{[\s\S]*?font-size: calc\(11px \* var\(--app-font-scale\)\);/);
 assert.match(stylesCss, /\.plugin-topic-action \{[\s\S]*?width: 30px;[\s\S]*?height: 30px;/);
 assert.match(stylesCss, /\.plugin-topic-action \{[\s\S]*?touch-action: pan-y;/);
 assert.match(stylesCss, /\.plugin-topic-action-icon\.chat::before/);
@@ -2877,6 +2880,8 @@ assert.match(stylesCss, /\.directory-topic-chip \{[\s\S]*?min-height: 30px;/);
 assert.match(stylesCss, /\.directory-topic-chip \{[\s\S]*?grid-template-columns: 14px minmax\(0, 1fr\);/);
 assert.match(stylesCss, /\.directory-topic-chip \{[\s\S]*?background: transparent;[\s\S]*?border: 0;/);
 assert.match(stylesCss, /\.directory-topic-chip-title \{[\s\S]*?text-overflow: ellipsis;/);
+assert.match(stylesCss, /:root\[data-font-size\] \.directory-topic-association-label,[\s\S]*?:root\[data-font-size\] \.directory-topic-chip,[\s\S]*?font-size: calc\(14px \* var\(--app-font-scale\)\);/);
+assert.match(stylesCss, /:root\[data-font-size\] \.directory-topic-chip-badge \{[\s\S]*?font-size: calc\(10px \* var\(--app-font-scale\)\);/);
 assert.match(stylesCss, /\.directory-topic-chip \{[\s\S]*?touch-action: pan-y;/);
 assert.match(stylesCss, /\.thread-list \{[\s\S]*?touch-action: pan-y;/);
 assert.match(appJs, /function canNativeScrollSidebarTarget\(target, delta\)/);
