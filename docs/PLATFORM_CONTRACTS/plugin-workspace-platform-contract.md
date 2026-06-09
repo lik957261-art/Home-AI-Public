@@ -187,7 +187,7 @@ doc:
 | `reference_contract_status` | yes | `none`, `planned`, `v1-minimal`, or `implemented`. |
 | `mobile_visual_harness_status` | if embedded UI | `none`, `playwright`, `appium-simulator`, or `installed-pwa`. |
 | `ios_live_debug_available` | if embedded UI | `yes` when the plugin can be debugged through the Home AI live iOS PWA server; otherwise `no` with a short reason. |
-| `ios_visual_harness_command` | if embedded UI | Checked command using `npm run ios:pwa:visual` or `scripts/ios-pwa-visual-harness.js`; include `--scenario embedded-plugin-shell --plugin-id <plugin-id>` for plugin shell validation. |
+| `ios_visual_harness_command` | if embedded UI | Checked command using `npm run ios:pwa:visual` or `scripts/ios-pwa-visual-harness.js`; include `--scenario embedded-plugin-shell --plugin-id <plugin-id>` for plugin shell validation. Keyboard/composer changes must also declare or run `--scenario embedded-plugin-keyboard-composer --plugin-id <plugin-id>` with a real thread/route id when the input only exists on a detail page. Codex Mobile side-chat input changes must use `--scenario embedded-plugin-side-chat-keyboard --plugin-id codex-mobile --plugin-thread-id <thread-id>`. |
 
 ## Access And Privilege Boundary
 
@@ -358,6 +358,39 @@ visual evidence. The required level depends on the surface:
     --plugin-id <plugin-id> \
     --debug-url http://127.0.0.1:19073/
   ```
+
+  Keyboard/composer or input-obstruction changes use the checked keyboard
+  scenario for the obstructed input surface:
+
+  ```bash
+  cd /Users/hermes-dev/HermesMobileDev/app
+  npm run ios:pwa:visual -- \
+    --scenario embedded-plugin-keyboard-composer \
+    --plugin-id <plugin-id> \
+    --plugin-thread-id <thread-id> \
+    --debug-url http://127.0.0.1:19073/
+  ```
+
+  ```bash
+  cd /Users/hermes-dev/HermesMobileDev/app
+  npm run ios:pwa:visual -- \
+    --scenario embedded-plugin-side-chat-keyboard \
+    --plugin-id codex-mobile \
+    --plugin-thread-id <thread-id> \
+    --debug-url http://127.0.0.1:19073/
+  ```
+
+  For Codex Mobile, `<thread-id>` must be a real Codex thread so the harness
+  validates the thread-detail composer rather than the primary thread list. The
+  side-chat scenario uses the same thread requirement and validates the
+  left-swipe side-chat textarea specifically. The scenarios record host
+  keyboard metrics, iframe bounds, plugin keyboard viewport receipt, and
+  input/composer clearance above the keyboard top. If the local Appium/Safari
+  lane cannot display the iOS software keyboard for iframe controls, the
+  harness injects the same
+  `hermes.plugin.viewport` keyboard payload used by the host and marks
+  `keyboard.simulated=true`; this remains a layout gate, while a real keyboard
+  artifact can still be required for final installed-PWA/device acceptance.
 
   Use `--app-url http://127.0.0.1:18797/?source=pwa` when validating a local
   Home AI development server instead of production. Host-owned scenarios such

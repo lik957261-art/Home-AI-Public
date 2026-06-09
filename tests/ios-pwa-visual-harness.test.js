@@ -21,7 +21,9 @@ const {
   acquireHarnessLock,
   assertCommonHarness,
   assertDirectoryDarkStatus,
+  assertEmbeddedPluginKeyboardComposer,
   assertEmbeddedPluginShell,
+  assertPluginTopicDockReturnStability,
   defaultLockPath,
   parseArgs,
   sampleMobileBottomStability,
@@ -31,7 +33,16 @@ assert.equal(packageJson.scripts["ios:pwa:visual"], "node scripts/ios-pwa-visual
 
 assert.ok(SCENARIOS["directory-dark-status"]);
 assert.ok(SCENARIOS["embedded-plugin-shell"]);
+assert.ok(SCENARIOS["embedded-plugin-keyboard-composer"]);
+assert.ok(SCENARIOS["embedded-plugin-side-chat-keyboard"]);
+assert.ok(SCENARIOS["plugin-topic-dock-return-stability"]);
 assert.deepEqual(parseArgs(["--scenario", "embedded-plugin-shell", "--plugin-id", "finance"]).pluginId, "finance");
+assert.deepEqual(
+  parseArgs(["--scenario", "embedded-plugin-keyboard-composer", "--plugin-id", "codex-mobile", "--plugin-thread-id", "thread-123"]).pluginThreadId,
+  "thread-123",
+);
+assert.deepEqual(parseArgs(["--keyboard-target", "side-chat"]).keyboardTarget, "side-chat");
+assert.deepEqual(parseArgs(["--keyboard-wait-ms", "1200"]).keyboardWaitMs, 1200);
 assert.deepEqual(parseArgs(["--debug-url", "http://127.0.0.1:19074"]).lockFile, defaultLockPath({ debugUrl: "http://127.0.0.1:19074/" }));
 assert.deepEqual(parseArgs(["--no-lock"]).noLock, true);
 assert.deepEqual(parseArgs(["--expected-client-version", "v-test"]).expectedClientVersion, "v-test");
@@ -54,6 +65,31 @@ assert.match(script, /mobile_bottom_comfort_inset_not_self_cancelled/);
 assert.match(script, /navBottomGapRaw/);
 assert.match(script, /directory-dark-status/);
 assert.match(script, /embedded-plugin-shell/);
+assert.match(script, /embedded-plugin-keyboard-composer/);
+assert.match(script, /embedded-plugin-side-chat-keyboard/);
+assert.match(script, /plugin-topic-dock-return-stability/);
+assert.match(script, /PLUGIN_TOPIC_DOCK_RETURN_STABILITY_SCRIPT/);
+assert.match(script, /dock_never_visible_outside_task_list_mode/);
+assert.match(script, /dock_stays_hidden_until_task_list_mode/);
+assert.match(script, /--plugin-thread-id/);
+assert.match(script, /host_keyboard_visible_after_input_tap/);
+assert.match(script, /plugin_input_above_keyboard/);
+assert.match(script, /plugin_received_keyboard_viewport_state/);
+assert.match(script, /\[data-side-chat-draft\]/);
+assert.match(script, /\[data-side-chat-form\]/);
+assert.match(script, /plugin_side_chat_panel_open/);
+assert.match(script, /plugin_side_chat_textarea_focused/);
+assert.match(script, /EMBEDDED_PLUGIN_KEYBOARD_FOCUS_TARGET_SCRIPT/);
+assert.match(script, /absoluteX: report\.focus\.tap\.absoluteX/);
+assert.match(script, /absoluteY: report\.focus\.tap\.absoluteY/);
+assert.match(script, /pluginId === "codex-mobile"[\s\S]*?appState\.viewMode = "codex"/);
+assert.match(script, /loadSelectedView:codex/);
+assert.match(script, /renderCodexPluginView/);
+assert.match(script, /typeof win\.loadThread === "function"/);
+assert.match(script, /openedBy: canLoadThread \? "loadThread" : "openExternalThreadSelection"/);
+assert.match(script, /handleHermesPluginViewportMessage/);
+assert.match(script, /reason: "keyboard_visual_harness"/);
+assert.match(script, /simulated: keyboardSimulated/);
 assert.match(script, /\.directory-status/);
 assert.match(script, /\.directory-shell/);
 assert.match(script, /--ui-surface-muted/);
@@ -113,6 +149,145 @@ const embeddedFail = assertEmbeddedPluginShell({
 assert.equal(embeddedFail.ok, false);
 assert.ok(embeddedFail.assertions.some((item) => item.name === "plugin_frame_has_no_horizontal_overflow" && !item.pass));
 
+const dockReturnPass = assertPluginTopicDockReturnStability({
+  pluginId: "finance",
+  samples: [
+    { label: "detail-ready", taskListMode: false, dockHidden: true, dockDisplay: "none", dockVisible: false, dockPosition: "static" },
+    { label: "before-updateTopicPluginDockChrome:false", taskListMode: false, dockHidden: true, dockDisplay: "none", dockVisible: false, dockPosition: "static" },
+    { label: "after-updateTopicPluginDockChrome:true", taskListMode: true, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 690, bottom: 768, width: 390, height: 78 } },
+    { label: "after-openTaskList-return", taskListMode: true, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 690, bottom: 768, width: 390, height: 78 } },
+  ],
+});
+assert.equal(dockReturnPass.ok, true);
+
+const dockReturnFail = assertPluginTopicDockReturnStability({
+  pluginId: "finance",
+  samples: [
+    { label: "detail-ready", taskListMode: false, dockHidden: true, dockDisplay: "none", dockVisible: false, dockPosition: "static" },
+    { label: "setTopicPluginDock-before-navigation", taskListMode: false, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "static", dockRect: { top: 760, bottom: 838, width: 390, height: 78 } },
+    { label: "after-updateTopicPluginDockChrome:true", taskListMode: true, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 690, bottom: 768, width: 390, height: 78 } },
+    { label: "after-openTaskList-return", taskListMode: true, dockHidden: false, dockDisplay: "block", dockVisible: true, dockPosition: "fixed", dockRect: { top: 690, bottom: 768, width: 390, height: 78 } },
+  ],
+});
+assert.equal(dockReturnFail.ok, false);
+assert.ok(dockReturnFail.assertions.some((item) => item.name === "dock_never_visible_outside_task_list_mode" && !item.pass));
+assert.ok(dockReturnFail.assertions.some((item) => item.name === "dock_stays_hidden_until_task_list_mode" && !item.pass));
+
+const keyboardPass = assertEmbeddedPluginKeyboardComposer({
+  pluginId: "codex-mobile",
+  viewport: { visualWidth: 390, width: 390 },
+  keyboard: { visible: true, top: 520, bottomInset: 324 },
+  frame: { exists: true, rect: { left: 0, right: 390, width: 390, height: 844 } },
+  plugin: {
+    accessible: true,
+    currentThreadId: "thread-123",
+    keyboardOpen: true,
+    hostViewportKeyboardVisible: true,
+    hostViewportKeyboardBottomInset: 324,
+    input: { left: 12, right: 320, top: 420, bottom: 462, width: 308, height: 42 },
+    composer: { left: 0, right: 390, top: 408, bottom: 504, width: 390, height: 96 },
+  },
+  absolute: {
+    input: { left: 12, right: 320, top: 420, bottom: 462, width: 308, height: 42 },
+    composer: { left: 0, right: 390, top: 408, bottom: 504, width: 390, height: 96 },
+  },
+});
+assert.equal(keyboardPass.ok, true);
+
+const keyboardFail = assertEmbeddedPluginKeyboardComposer({
+  pluginId: "codex-mobile",
+  viewport: { visualWidth: 390, width: 390 },
+  keyboard: { visible: true, top: 520, bottomInset: 324 },
+  frame: { exists: true, rect: { left: 0, right: 390, width: 390, height: 844 } },
+  plugin: {
+    accessible: true,
+    currentThreadId: "thread-123",
+    keyboardOpen: false,
+    hostViewportKeyboardVisible: false,
+    hostViewportKeyboardBottomInset: 0,
+    input: { left: 12, right: 320, top: 640, bottom: 684, width: 308, height: 44 },
+    composer: { left: 0, right: 390, top: 620, bottom: 724, width: 390, height: 104 },
+  },
+  absolute: {
+    input: { left: 12, right: 320, top: 640, bottom: 684, width: 308, height: 44 },
+    composer: { left: 0, right: 390, top: 620, bottom: 724, width: 390, height: 104 },
+  },
+});
+assert.equal(keyboardFail.ok, false);
+assert.ok(keyboardFail.assertions.some((item) => item.name === "plugin_received_keyboard_viewport_state" && !item.pass));
+assert.ok(keyboardFail.assertions.some((item) => item.name === "plugin_input_above_keyboard" && !item.pass));
+
+const keyboardZeroComposerFail = assertEmbeddedPluginKeyboardComposer({
+  pluginId: "codex-mobile",
+  viewport: { visualWidth: 390, width: 390 },
+  keyboard: { visible: true, top: 520, bottomInset: 324 },
+  frame: { exists: true, rect: { left: 0, right: 390, width: 390, height: 844 } },
+  plugin: {
+    accessible: true,
+    currentThreadId: "thread-123",
+    keyboardOpen: true,
+    input: { left: 12, right: 320, top: 420, bottom: 462, width: 308, height: 42 },
+    composer: { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 },
+  },
+  absolute: {
+    input: { left: 12, right: 320, top: 420, bottom: 462, width: 308, height: 42 },
+    composer: { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 },
+  },
+});
+assert.equal(keyboardZeroComposerFail.ok, false);
+assert.ok(keyboardZeroComposerFail.assertions.some((item) => item.name === "plugin_composer_exists" && !item.pass));
+
+const sideChatKeyboardPass = assertEmbeddedPluginKeyboardComposer({
+  pluginId: "codex-mobile",
+  keyboardTarget: "side-chat",
+  viewport: { visualWidth: 390, width: 390 },
+  keyboard: { visible: true, top: 520, bottomInset: 324 },
+  frame: { exists: true, rect: { left: 0, right: 390, width: 390, height: 844 } },
+  plugin: {
+    accessible: true,
+    currentThreadId: "thread-123",
+    keyboardOpen: true,
+    hostViewportKeyboardVisible: true,
+    hostViewportKeyboardBottomInset: 324,
+    activeElementId: "",
+    activeElementSideChatDraft: true,
+    sideChatPanelOpen: true,
+    sideChatPanel: { left: 0, right: 390, top: 44, bottom: 510, width: 390, height: 466 },
+    sideChatTextarea: { left: 12, right: 378, top: 430, bottom: 486, width: 366, height: 56 },
+    input: { left: 12, right: 378, top: 430, bottom: 486, width: 366, height: 56 },
+    composer: { left: 12, right: 378, top: 424, bottom: 508, width: 366, height: 84 },
+  },
+  absolute: {
+    input: { left: 12, right: 378, top: 430, bottom: 486, width: 366, height: 56 },
+    composer: { left: 12, right: 378, top: 424, bottom: 508, width: 366, height: 84 },
+  },
+});
+assert.equal(sideChatKeyboardPass.ok, true);
+
+const sideChatKeyboardFail = assertEmbeddedPluginKeyboardComposer({
+  pluginId: "codex-mobile",
+  keyboardTarget: "side-chat",
+  viewport: { visualWidth: 390, width: 390 },
+  keyboard: { visible: true, top: 520, bottomInset: 324 },
+  frame: { exists: true, rect: { left: 0, right: 390, width: 390, height: 844 } },
+  plugin: {
+    accessible: true,
+    currentThreadId: "thread-123",
+    keyboardOpen: true,
+    activeElementSideChatDraft: false,
+    sideChatPanelOpen: false,
+    input: { left: 12, right: 378, top: 430, bottom: 486, width: 366, height: 56 },
+    composer: { left: 12, right: 378, top: 424, bottom: 508, width: 366, height: 84 },
+  },
+  absolute: {
+    input: { left: 12, right: 378, top: 430, bottom: 486, width: 366, height: 56 },
+    composer: { left: 12, right: 378, top: 424, bottom: 508, width: 366, height: 84 },
+  },
+});
+assert.equal(sideChatKeyboardFail.ok, false);
+assert.ok(sideChatKeyboardFail.assertions.some((item) => item.name === "plugin_side_chat_panel_open" && !item.pass));
+assert.ok(sideChatKeyboardFail.assertions.some((item) => item.name === "plugin_side_chat_textarea_focused" && !item.pass));
+
 const commonPass = assertCommonHarness({
   metrics: { clientVersion: "v1" },
   screenshot: { bytes: 8192, path: "/tmp/screenshot.png" },
@@ -147,6 +322,8 @@ for (const doc of [runbook, mobileContract, platformContract, testMatrix, rollou
 assert.match(platformContract, /`ios_visual_harness_command`/);
 assert.match(mobileContract, /directory-dark-status/);
 assert.match(mobileContract, /embedded-plugin-shell/);
+assert.match(mobileContract, /embedded-plugin-keyboard-composer/);
+assert.match(mobileContract, /embedded-plugin-side-chat-keyboard/);
 assert.match(mobileContract, /--no-lock/);
 assert.match(mobileContract, /debug lane lease/i);
 assert.match(runbook, /--expected-client-version/);

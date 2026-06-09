@@ -270,10 +270,11 @@ function setTopicPluginDock(html = "") {
   const dock = $("topicPluginDock");
   if (!dock) return;
   dock.innerHTML = String(html || "");
-  dock.hidden = !dock.innerHTML.trim();
-  dock.setAttribute("aria-hidden", dock.hidden ? "true" : "false");
-  if (!dock.hidden && typeof wirePluginTopicCards === "function") wirePluginTopicCards(dock);
-  if (typeof updateTopicPluginDockChrome === "function") updateTopicPluginDockChrome(isTaskListView());
+  const hasDockContent = Boolean(dock.innerHTML.trim());
+  dock.hidden = true;
+  dock.setAttribute("aria-hidden", "true");
+  if (hasDockContent && typeof wirePluginTopicCards === "function") wirePluginTopicCards(dock);
+  if (!hasDockContent && typeof updateTopicPluginDockChrome === "function") updateTopicPluginDockChrome(false);
 }
 
 function directoryTopicRenderSignature(threadId = "", groups = []) {

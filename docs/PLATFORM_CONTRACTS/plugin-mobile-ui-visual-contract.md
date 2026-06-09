@@ -1,6 +1,6 @@
 # Plugin Mobile UI And Visual Harness Contract
 
-Contract version: `20260608-v4`.
+Contract version: `20260609-v5`.
 
 ## Purpose
 
@@ -124,6 +124,11 @@ Non-negotiable:
   top, and scroll containers reserve the measured combined stack height. A
   fix that changes only `bottom: Npx` without updating the measured reservation
   is not acceptable for Home AI host chrome.
+- The topic capability Dock must not become visible while the host is between
+  plugin-topic detail and topic-list chrome states. Rendering may prepare the
+  Dock HTML, but the Dock must remain hidden until `.task-list-mode` is applied
+  and `updateNavigationControls()` can reveal and measure it in one stable
+  bottom-stack pass.
 - The measured bottom-nav top offset already includes the host comfort inset.
   Dock positioning must use that offset directly; adding the inset again creates
   an artificial Dock/nav gap and is a failing bottom-stack state.
@@ -342,6 +347,55 @@ npm run ios:pwa:visual -- \
   --debug-url http://127.0.0.1:19073/
 ```
 
+Embedded plugin keyboard/composer changes must use the keyboard scenario after
+the issue is reproduced in the live debug server. Use the scenario that matches
+the obstructed input surface:
+
+```bash
+cd <Home-AI>
+npm run ios:pwa:visual -- \
+  --scenario embedded-plugin-keyboard-composer \
+  --plugin-id <plugin-id> \
+  --plugin-thread-id <thread-id> \
+  --debug-url http://127.0.0.1:19073/
+```
+
+```bash
+cd <Home-AI>
+npm run ios:pwa:visual -- \
+  --scenario embedded-plugin-side-chat-keyboard \
+  --plugin-id codex-mobile \
+  --plugin-thread-id <thread-id> \
+  --debug-url http://127.0.0.1:19073/
+```
+
+Plugin-bound topic detail to topic-list return changes must use the Dock
+stability scenario. The scenario constructs a synthetic plugin-bound topic,
+calls the same `openTaskList()` return path, and fails if the topic Dock is
+unhidden or visible before `.task-list-mode` is applied:
+
+```bash
+cd <Home-AI>
+npm run ios:pwa:visual -- \
+  --scenario plugin-topic-dock-return-stability \
+  --plugin-id <plugin-id> \
+  --debug-url http://127.0.0.1:19073/
+```
+
+For Codex Mobile, pass a real thread id so the harness opens the thread-detail
+composer instead of the plugin's primary thread list. The scenario uses native
+tap coordinates to focus the iframe input when Appium can deliver them, asserts
+host keyboard metrics are visible, verifies the plugin received a keyboard
+viewport state, and checks the composer/input bounding boxes stay above the
+keyboard top. If the local Appium/Safari lane cannot show the iOS software
+keyboard for iframe `contenteditable` controls, the scenario injects the same
+`hermes.plugin.viewport` keyboard payload that the host sends in production and
+marks the report as `keyboard.simulated=true`; this is valid for layout
+regression gating, while final installed-PWA/device acceptance may still use a
+real keyboard artifact. If no thread id is provided, the scenario may attempt a
+first-thread fallback, but that fallback is diagnostic only and is not a
+production acceptance substitute.
+
 For development builds, add `--app-url <local-dev-url>` so the same iOS PWA
 Simulator opens the dev port before assertions run. Add
 `--expected-client-version <version>` when static assets changed so the
@@ -360,7 +414,12 @@ The Directory dark-status scenario asserts `.directory-status`,
 loading-surface regressions fail deterministically. The
 embedded-plugin-shell scenario asserts the host shell, iframe existence,
 meaningful frame size, no horizontal overflow, and a non-empty screenshot
-artifact by default.
+artifact by default. The embedded-plugin-keyboard-composer scenario asserts
+host keyboard visibility, plugin keyboard viewport receipt, and that the
+iframe-local input/composer are not covered by the iOS keyboard. The
+embedded-plugin-side-chat-keyboard scenario targets Codex Mobile's left-swipe
+side-chat textarea and additionally asserts that the side-chat panel is open
+and the side-chat draft textarea is the focused keyboard owner.
 
 For concurrent plugin debugging, allocate one Simulator per active plugin lane.
 Do not share one Simulator UDID across multiple Appium/XCUITest control
@@ -390,6 +449,12 @@ back/return path works
 loaded client/plugin version is recorded when available
 artifact paths and bounded metrics are recorded
 ```
+
+If the plugin has a bottom composer, search box, login field, note field, or
+other keyboard-owned input inside the iframe, the minimum smoke also needs a
+keyboard-open pass/fail assertion: the focused input and its fixed/sticky
+action surface must stay above the keyboard top, and the artifact must include
+the host keyboard metrics plus the iframe-local element bounds.
 
 If the plugin has long-press, sheet, menu, or gesture behavior, the smoke must
 also prove open and dismissal paths.

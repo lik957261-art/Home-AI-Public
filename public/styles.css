@@ -5753,7 +5753,7 @@ button.directory-alias-chip {
   display: none;
 }
 
-.topic-plugin-dock:not([hidden]) {
+.task-list-mode .topic-plugin-dock:not([hidden]) {
   display: block;
 }
 

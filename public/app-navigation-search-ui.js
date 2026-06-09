@@ -85,8 +85,22 @@ function updateTopicPluginDockChrome(taskList) {
   if (!dock) return;
   const sidebarOpen = $("sidebar")?.classList.contains("open");
   const showDock = Boolean(taskList && !state.currentTaskGroupId && !sidebarOpen && dock.innerHTML.trim());
-  dock.hidden = !showDock;
-  dock.setAttribute("aria-hidden", showDock ? "false" : "true");
+  if (showDock) {
+    const revealFromHidden = dock.hidden;
+    const previousVisibility = dock.style.visibility || "";
+    if (revealFromHidden) dock.style.visibility = "hidden";
+    dock.hidden = false;
+    dock.setAttribute("aria-hidden", revealFromHidden ? "true" : "false");
+    if (typeof updateMobileBottomNavReservation === "function") updateMobileBottomNavReservation();
+    if (revealFromHidden) {
+      if (previousVisibility) dock.style.visibility = previousVisibility;
+      else dock.style.removeProperty("visibility");
+      dock.setAttribute("aria-hidden", "false");
+    }
+    return;
+  }
+  dock.hidden = true;
+  dock.setAttribute("aria-hidden", "true");
   if (typeof updateMobileBottomNavReservation === "function") updateMobileBottomNavReservation();
 }
 

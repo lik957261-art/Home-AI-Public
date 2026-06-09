@@ -116,7 +116,7 @@ Gateway plugin/schema/profile changes:
   `--mobile-bottom-nav-bottom-runtime` after the first layout measurement.
   The bottom navigation container uses one shared host comfort inset
   (`--mobile-bottom-nav-comfort-inset: 18px` as of
-  `20260609-bottom-safe-bridge-fix-v658`) so newly installed iOS PWAs are not
+  `20260609-dock-return-stability-v660`) so newly installed iOS PWAs are not
   visually flush with the viewport edge. Tab content should not be lifted by
   default (`--mobile-bottom-nav-visual-lift: 0px` as of
   `20260609-bottom-surface-visible-v652`); any future small visual lift must

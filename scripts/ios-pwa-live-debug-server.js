@@ -257,6 +257,17 @@ function invalidSessionError(err) {
   return /session is either terminated|not started|invalid session|Session .* not found/i.test(String(err?.message || err || ""));
 }
 
+function recoverableAppiumError(err) {
+  const message = String(err?.message || err || "");
+  return invalidSessionError(err)
+    || /Unexpected EOF|socket hang up|ECONNRESET|webview_context_missing/i.test(message);
+}
+
+function clearAppiumSessionState() {
+  state.sessionId = "";
+  state.webContext = "";
+}
+
 function enqueue(fn) {
   const run = state.commandQueue.then(fn, fn);
   state.commandQueue = run.catch(() => null);
@@ -347,7 +358,8 @@ async function execute(script, scriptArgs = []) {
       return result?.value;
     });
   } catch (err) {
-    if (!invalidSessionError(err)) throw err;
+    if (!recoverableAppiumError(err)) throw err;
+    clearAppiumSessionState();
     await connectSession({ resetSession: true });
     return withWebContext(async () => {
       const result = await appium("POST", `/session/${state.sessionId}/execute/sync`, { script, args: scriptArgs });
@@ -367,7 +379,8 @@ async function executeAsync(script, scriptArgs = []) {
   try {
     return await withWebContext(run);
   } catch (err) {
-    if (!invalidSessionError(err)) throw err;
+    if (!recoverableAppiumError(err)) throw err;
+    clearAppiumSessionState();
     await connectSession({ resetSession: true });
     return withWebContext(run);
   }
@@ -382,7 +395,8 @@ async function nativeExecute(command, payload = {}) {
     });
     return result?.value;
   } catch (err) {
-    if (!invalidSessionError(err)) throw err;
+    if (!recoverableAppiumError(err)) throw err;
+    clearAppiumSessionState();
     await connectSession({ resetSession: true });
     const result = await appium("POST", `/session/${state.sessionId}/execute/sync`, {
       script: `mobile: ${command}`,
@@ -403,7 +417,8 @@ async function screenshotBase64(force = false) {
     state.screenshotAt = now;
     return state.screenshot;
   } catch (err) {
-    if (!invalidSessionError(err)) throw err;
+    if (!recoverableAppiumError(err)) throw err;
+    clearAppiumSessionState();
     state.screenshot = null;
     state.screenshotAt = 0;
     await connectSession({ resetSession: true });
@@ -635,13 +650,19 @@ async function currentStateDeep() {
   return payload;
 }
 
-async function nativeTapNormalized(x, y) {
+async function nativeTapNormalized(x, y, options = {}) {
   await connectSession();
   const rect = await appium("GET", `/session/${state.sessionId}/window/rect`);
   const width = Number(rect?.value?.width || rect?.width || 0) || 1;
   const height = Number(rect?.value?.height || rect?.height || 0) || 1;
-  const px = Math.max(0, Math.min(width - 1, Math.round(width * Number(x || 0))));
-  const py = Math.max(0, Math.min(height - 1, Math.round(height * Number(y || 0))));
+  const absoluteX = Number(options.absoluteX);
+  const absoluteY = Number(options.absoluteY);
+  const px = Number.isFinite(absoluteX)
+    ? Math.max(0, Math.min(width - 1, Math.round(absoluteX)))
+    : Math.max(0, Math.min(width - 1, Math.round(width * Number(x || 0))));
+  const py = Number.isFinite(absoluteY)
+    ? Math.max(0, Math.min(height - 1, Math.round(absoluteY)))
+    : Math.max(0, Math.min(height - 1, Math.round(height * Number(y || 0))));
   await appium("POST", `/session/${state.sessionId}/actions`, {
     actions: [{
       type: "pointer",
@@ -697,7 +718,10 @@ async function performAction(body = {}) {
   if (type === "open") return execute("location.href = arguments[0]; return location.href;", [String(body.url || args.appUrl)]);
   if (type === "home") return nativeExecute("pressButton", { name: "home" });
   if (type === "swipeBack") return nativeSwipeBack();
-  if (type === "tap") return nativeTapNormalized(Number(body.x), Number(body.y));
+  if (type === "tap") return nativeTapNormalized(Number(body.x), Number(body.y), {
+    absoluteX: body.absoluteX,
+    absoluteY: body.absoluteY,
+  });
   if (type === "js") return execute(String(body.script || "return null;"), Array.isArray(body.args) ? body.args : []);
   if (type === "clickSelector") {
     return execute(`

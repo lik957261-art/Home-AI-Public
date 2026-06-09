@@ -62,6 +62,24 @@ The checker also requires every included embedded plugin pointer to declare
 npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id <plugin-id> --debug-url http://127.0.0.1:19073/
 ```
 
+For embedded keyboard/composer/input-obstruction changes, the checked command
+adds the keyboard scenario and a real detail route when needed. Codex Mobile
+side-chat input changes must use the side-chat target scenario rather than only
+the main composer scenario:
+
+```powershell
+npm run ios:pwa:visual -- --scenario embedded-plugin-keyboard-composer --plugin-id <plugin-id> --plugin-thread-id <thread-id> --debug-url http://127.0.0.1:19073/
+```
+
+```powershell
+npm run ios:pwa:visual -- --scenario embedded-plugin-side-chat-keyboard --plugin-id codex-mobile --plugin-thread-id <thread-id> --debug-url http://127.0.0.1:19073/
+```
+
+If the local Appium/Safari lane cannot surface the iOS software keyboard inside
+an embedded iframe, the keyboard scenario injects the canonical
+`hermes.plugin.viewport` keyboard payload and reports `keyboard.simulated=true`
+so plugin layout response can still be gated with screenshot evidence.
+
 The checker requires `dev_runtime_prerequisites` as a plugin-local fact. This
 prevents environment failures from being misclassified as MCP/schema failures:
 Note and Wardrobe must declare Python, Node-based service plugins must declare
@@ -143,7 +161,9 @@ These items are now gates, not one-off notes:
 - Future embedded UI changes must produce the visual/Appium evidence required
   by `docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md`, and must
   use `scripts/ios-pwa-visual-harness.js` when the issue can be represented by
-  `directory-dark-status` or `embedded-plugin-shell`.
+  `directory-dark-status`, `embedded-plugin-shell`, or
+  `embedded-plugin-keyboard-composer`; Codex Mobile side-chat keyboard issues
+  use `embedded-plugin-side-chat-keyboard`.
 - Business Reference Contract V1 implementation remains plugin-specific product
   work. This rollout makes the contract and harness gate enforceable; it does
   not add read/write reference methods to plugin business code.
