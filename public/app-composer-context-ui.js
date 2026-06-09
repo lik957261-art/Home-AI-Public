@@ -583,8 +583,9 @@ function updateMobileBottomNavReservation() {
     : 0;
   const surfaceUnderflowClamp = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-surface-underflow-clamp", 0)));
   const surfaceUnderflowSafeClamp = safeAreaTop > 0 ? Math.min(surfaceUnderflowClamp, safeAreaTop) : 0;
-  const surfaceUnderflow = Math.min(surfaceUnderflowRaw, surfaceUnderflowSafeClamp);
-  const effectiveNavBottomUnderflow = Math.max(navBottomUnderflow, surfaceUnderflow);
+  const surfaceUnderflowCandidate = Math.min(surfaceUnderflowRaw, surfaceUnderflowSafeClamp);
+  const surfaceUnderflow = 0;
+  const effectiveNavBottomUnderflow = navBottomUnderflow;
   const navBottom = navBottomOverflow + comfortInset - effectiveNavBottomUnderflow;
   const visibleOffset = navLaidOut && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - rect.top)) : rectHeight;
   const offset = Math.max(44, rectHeight, contentHeight, visibleOffset || rectHeight);
@@ -600,7 +601,7 @@ function updateMobileBottomNavReservation() {
   const dockHeight = dockVisible
     ? Math.max(0, Math.ceil(dock.getBoundingClientRect?.().height || 0), Math.ceil(dock.scrollHeight || 0))
     : 0;
-  const dockBottom = Math.max(0, offset + navBottom);
+  const dockBottom = offset;
   const stackHeight = dockVisible ? Math.max(reserve, dockBottom + dockHeight + 2) : reserve;
   const bottomLayoutMetrics = {
     viewportHeight,
@@ -621,6 +622,7 @@ function updateMobileBottomNavReservation() {
     surfaceUnderflowRaw,
     surfaceUnderflowClamp,
     surfaceUnderflowSafeClamp,
+    surfaceUnderflowCandidate,
     surfaceUnderflow,
     effectiveNavBottomUnderflow,
     navBottom,

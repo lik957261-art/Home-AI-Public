@@ -33,7 +33,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260609-surface-bottom-underflow-v651";
+const clientVersion = "20260609-bottom-surface-visible-v652";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 
@@ -120,7 +120,7 @@ assert.equal(
 assert.equal(
   projectedSurfaceUnderflow(759, 759, 812, 0, 53, navSurfaceUnderflowClamp),
   53,
-  "iOS standalone surface underflow should use the measured full-surface delta",
+  "iOS standalone surface underflow diagnostic should expose the measured full-surface delta",
 );
 assert.equal(
   projectedSurfaceUnderflow(759, 759, 812, 0, 0, navSurfaceUnderflowClamp),
@@ -132,10 +132,11 @@ assert.equal(
   0,
   "surface underflow must not run when viewport units do not split",
 );
+const projectedDockBottomWithSurfaceSplit = 59;
 assert.equal(
-  59 - projectedSurfaceUnderflow(759, 759, 812, 0, 53, navSurfaceUnderflowClamp),
-  6,
-  "topic Dock should remain just above a host nav lowered to the full PWA surface",
+  projectedDockBottomWithSurfaceSplit,
+  59,
+  "topic Dock should stay above the visible fixed nav rather than following a clipped surface delta",
 );
 assert.equal(
   projectedPluginContextBottomInset(pwaLayoutViewport, pwaLayoutViewport, pwaLayoutViewport - navHeight, navOverflowClamp),
@@ -210,10 +211,12 @@ assert.match(appComposerContextJs, /const navBottomUnderflow = Math\.min\(navBot
 assert.match(appComposerContextJs, /const largeViewportHeight = Math\.ceil\(clientLayoutDiagnosticMeasureLength\("100lvh"\)\?\.height \|\| 0\)/);
 assert.match(appComposerContextJs, /const surfaceViewportHeight = standaloneSurface \? Math\.max\(viewportHeight, largeViewportHeight\) : viewportHeight/);
 assert.match(appComposerContextJs, /const surfaceUnderflowSafeClamp = safeAreaTop > 0 \? Math\.min\(surfaceUnderflowClamp, safeAreaTop\) : 0/);
-assert.match(appComposerContextJs, /const effectiveNavBottomUnderflow = Math\.max\(navBottomUnderflow, surfaceUnderflow\)/);
+assert.match(appComposerContextJs, /const surfaceUnderflowCandidate = Math\.min\(surfaceUnderflowRaw, surfaceUnderflowSafeClamp\)/);
+assert.match(appComposerContextJs, /const surfaceUnderflow = 0/);
+assert.match(appComposerContextJs, /const effectiveNavBottomUnderflow = navBottomUnderflow/);
 assert.match(appComposerContextJs, /const navBottom = navBottomOverflow \+ comfortInset - effectiveNavBottomUnderflow/);
 assert.match(appComposerContextJs, /window\.__hermesMobileBottomLayoutMetrics = null;/);
-assert.match(appComposerContextJs, /const dockBottom = Math\.max\(0, offset \+ navBottom\)/);
+assert.match(appComposerContextJs, /const dockBottom = offset/);
 assert.match(appComposerContextJs, /const stackHeight = dockVisible \? Math\.max\(reserve, dockBottom \+ dockHeight \+ 2\) : reserve/);
 assert.match(appComposerContextJs, /const layoutViewportHeight = Math\.max\(innerHeight, documentHeight, visualViewportHeight\)/);
 assert.match(appComposerContextJs, /const viewportHeight = layoutViewportHeight \|\| appHeight \|\| 0/);

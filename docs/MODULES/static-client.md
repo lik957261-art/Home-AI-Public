@@ -118,7 +118,7 @@ Gateway plugin/schema/profile changes:
   default (`--mobile-bottom-nav-comfort-inset: 0px` as of
   `20260608-bottom-stack-pwa-clamp-v632`). Tab content should not be lifted by
   default (`--mobile-bottom-nav-visual-lift: 0px` as of
-  `20260609-surface-bottom-underflow-v651`); any future small visual lift must
+  `20260609-bottom-surface-visible-v652`); any future small visual lift must
   stay inside the tab content transform, not in a bottom offset that moves the
   entire Dock/nav stack. Runtime bottom overflow is diagnostic-only by default:
   `--mobile-bottom-nav-overflow-clamp: 0px` prevents iOS standalone PWA
@@ -129,18 +129,15 @@ Gateway plugin/schema/profile changes:
   cold/re-login path, `updateMobileBottomNavReservation()` may apply the bounded
   `--mobile-bottom-nav-underflow-clamp` correction and must record
   `navBottomUnderflowRaw` / `navBottomUnderflow` in diagnostics.
-  Standalone/fullscreen PWA surface underflow is a narrower correction for host
-  chrome, not a plugin-specific offset: if the measured `100lvh` surface is
-  taller than the layout viewport and the safe-area probe exposes a positive
-  top inset, `updateMobileBottomNavReservation()` may use the measured
-  `100lvh - rect.bottom` delta to lower the host bottom nav toward the full PWA
-  surface. The correction is capped by
-  `--mobile-bottom-nav-surface-underflow-clamp` and by the measured top
-  safe-area inset, must be recorded as `surfaceUnderflowRaw` /
-  `surfaceUnderflow`, and must not run in normal browser tabs or on devices
-  whose viewport units do not split. Topic Dock and composer offsets must derive
-  from the same runtime nav bottom so they follow the host chrome instead of
-  leaving a gap above it.
+  Standalone/fullscreen PWA surface underflow is diagnostic-only for host
+  chrome as of `20260609-bottom-surface-visible-v652`: if the measured `100lvh`
+  surface is taller than the layout viewport and the safe-area probe exposes a
+  positive top inset, `updateMobileBottomNavReservation()` records the measured
+  `100lvh - rect.bottom` delta as `surfaceUnderflowRaw` /
+  `surfaceUnderflowCandidate`. It must not apply that delta as a negative
+  bottom offset for the primary fixed nav, because iOS can clip or hide tab
+  content once the fixed bar is placed outside the layout viewport. Topic Dock
+  and composer offsets must stay derived from the visible fixed nav position.
   Underflow correction may only run against a laid-out nav rect with positive
   width, height, and bottom coordinate; collapsed early-start rects such as
   `0/0/0` must leave the runtime bottom offset at the comfort inset instead of
