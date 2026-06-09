@@ -33,7 +33,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260609-bottom-safe-bridge-codex-v657";
+const clientVersion = "20260609-bottom-safe-bridge-fix-v658";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 
@@ -158,8 +158,10 @@ assert.match(
   block(".bottom-nav .bottom-tab"),
   /transform: translateY\(calc\(-1 \* var\(--mobile-bottom-nav-visual-lift\)\)\);/,
 );
-assert.match(block(".bottom-nav::after"), /height: max\(0px, var\(--mobile-bottom-nav-bottom\)\);/);
-assert.match(block(".bottom-nav::after"), /background: var\(--ui-chrome\);/);
+assert.match(block(".app::after"), /height: max\(0px, var\(--mobile-bottom-nav-bottom\)\);/);
+assert.match(block(".app::after"), /z-index: 39;/);
+assert.match(block(".app::after"), /background: var\(--ui-chrome-solid, var\(--ui-page\)\);/);
+assert.match(stylesCss, /:root\.keyboard-viewport-active \.app::after,[\s\S]*?\.app\.embedded-plugin-preview-fullscreen-active::after \{[\s\S]*?content: none;/);
 assert.match(
   block(".app.main-back-visible.plugin-context-nav-mode.plugin-topic-detail-mode .composer"),
   /bottom: var\(--plugin-topic-composer-bottom-offset\);/,

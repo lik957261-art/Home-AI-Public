@@ -13,6 +13,7 @@
   --accent-mist: rgba(144, 166, 170, 0.16);
   --ui-page: #f7f8f7;
   --ui-chrome: rgba(248, 249, 248, 0.88);
+  --ui-chrome-solid: #f8f9f8;
   --ui-surface: rgba(255, 255, 252, 0.74);
   --ui-control-bg: rgba(255, 255, 255, 0.42);
   --ui-hairline: rgba(31, 43, 51, 0.055);
@@ -91,6 +92,7 @@
   --accent-mist: rgba(184, 211, 216, 0.22);
   --ui-page: #101214;
   --ui-chrome: rgba(16, 18, 20, 0.96);
+  --ui-chrome-solid: #101214;
   --ui-surface: rgba(27, 31, 34, 0.96);
   --ui-control-bg: rgba(255, 255, 255, 0.10);
   --ui-hairline: rgba(255, 255, 255, 0.12);
@@ -143,6 +145,7 @@
     --accent-mist: rgba(184, 211, 216, 0.22);
     --ui-page: #101214;
     --ui-chrome: rgba(16, 18, 20, 0.96);
+    --ui-chrome-solid: #101214;
     --ui-surface: rgba(27, 31, 34, 0.96);
     --ui-control-bg: rgba(255, 255, 255, 0.10);
     --ui-hairline: rgba(255, 255, 255, 0.12);
@@ -16166,16 +16169,23 @@ body.task-markdown-preview-open {
     backdrop-filter: blur(12px);
   }
 
-  .bottom-nav::after {
+  .app::after {
     content: "";
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
     height: max(0px, var(--mobile-bottom-nav-bottom));
-    background: var(--ui-chrome);
-    backdrop-filter: blur(12px);
+    z-index: 39;
+    background: var(--ui-chrome-solid, var(--ui-page));
     pointer-events: none;
+  }
+
+  :root.keyboard-viewport-active .app::after,
+  .app.mobile-browser-shell-blocked::after,
+  .app.reading-fullscreen-mode::after,
+  .app.embedded-plugin-preview-fullscreen-active::after {
+    content: none;
   }
 
   .bottom-nav::-webkit-scrollbar {
