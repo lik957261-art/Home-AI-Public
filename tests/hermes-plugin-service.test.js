@@ -754,6 +754,126 @@ async function testFinanceGrantProvisionsWorkspaceKeyAndBind() {
   assert.equal(calls[2].body.workspace_key, rawKey);
 }
 
+async function testFinanceGrantRefreshesGatewayProfilesAfterProvisioning() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-finance-grant-gateway-"));
+  const fetchCalls = [];
+  const gatewayCalls = [];
+  const systemCalls = [];
+  const service = createHermesPluginService({
+    dataDir: dir,
+    env: {},
+    liveRoot: "/Users/hermes-host/HermesMobile",
+    plugins: [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }],
+    gatewayWorkspaceProvisioningService: {
+      ensureWorkspaceGateway(input) {
+        gatewayCalls.push(input);
+        return {
+          ok: true,
+          manifestPath: "/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json",
+          macUser: "hm-stephen",
+          profiles: ["hm-stephen-openai-1", "deepseekgw7"],
+          profileBindingRefreshed: true,
+          restartRequired: true,
+        };
+      },
+    },
+    systemProvisioningExecutor: {
+      runStep(action, context) {
+        systemCalls.push({ action, context });
+        return Promise.resolve({
+          ok: true,
+          syncedPluginBindings: ["finance", "note"],
+          workers: [
+            { profile: "hm-stephen-openai-1" },
+            { profile: "deepseekgw7" },
+          ],
+          kickstarted: [
+            { profile: "hm-stephen-openai-1", label: "com.hermesmobile.gateway.hm-stephen.openai.1" },
+            { profile: "deepseekgw7", label: "com.hermesmobile.gateway.hm-stephen.deepseek.1" },
+          ],
+        });
+      },
+    },
+    requireSystemGatewayRefresh: true,
+    fetch(url, options = {}) {
+      fetchCalls.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      if (url.endsWith("/api/v1/hermes/plugin/users/bind")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ result: { user: { id: "user_stephen" }, ledger: { id: "ledger_stephen" }, created: true } }),
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+  const grant = await service.grantWorkspace({ id: "finance", workspaceId: "weixin_stephen", displayName: "凡凡", actor: "owner" });
+
+  assert.equal(grant.ok, true);
+  assert.equal(grant.record.provisioningStatus, "active");
+  assert.equal(grant.provisioning.gatewayRefreshStatus, "active");
+  assert.equal(grant.provisioning.gatewayProfileBindingRefreshed, true);
+  assert.equal(grant.provisioning.gatewayRestarted, true);
+  assert.deepEqual(grant.provisioning.gatewayProfiles, ["hm-stephen-openai-1", "deepseekgw7"]);
+  assert.deepEqual(gatewayCalls, [{ workspaceId: "weixin_stephen", refreshProfileBinding: true, bindingChanged: true }]);
+  assert.equal(systemCalls.length, 1);
+  assert.equal(systemCalls[0].action, "ensure_launchd_services");
+  assert.equal(systemCalls[0].context.workspaceId, "weixin_stephen");
+  assert.equal(systemCalls[0].context.macUser, "hm-stephen");
+  assert.equal(systemCalls[0].context.paths.workspaceDataRoot, "/Users/hermes-host/HermesMobile/data/drive/users/weixin_stephen");
+  assert.equal(systemCalls[0].context.paths.workerWorkspaceRoot, "/Users/hm-stephen/HermesWorkspace");
+  assert.equal(systemCalls[0].context.gateway.kickstart, true);
+  assert.equal(systemCalls[0].context.gateway.manifestPath, "/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json");
+  assert.deepEqual(systemCalls[0].context.gateway.profiles, ["hm-stephen-openai-1", "deepseekgw7"]);
+  assert.equal(fetchCalls[0].body.target_workspace_id, "weixin_stephen");
+}
+
+async function testFinanceGrantFailsProvisioningWhenGatewayRefreshFails() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-finance-grant-gateway-fail-"));
+  const service = createHermesPluginService({
+    dataDir: dir,
+    env: {},
+    plugins: [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }],
+    gatewayWorkspaceProvisioningService: {
+      ensureWorkspaceGateway() {
+        return {
+          ok: true,
+          macUser: "hm-stephen",
+          profiles: ["hm-stephen-openai-1"],
+          profileBindingRefreshed: true,
+        };
+      },
+    },
+    systemProvisioningExecutor: {
+      runStep() {
+        return Promise.resolve({ ok: false, error: "workspace_gateway_workers_missing" });
+      },
+    },
+    requireSystemGatewayRefresh: true,
+    fetch(url) {
+      if (url.endsWith("/api/v1/hermes/plugin/users/bind")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ result: { user: { id: "user_fail" }, ledger: { id: "ledger_fail" } } }),
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+  const grant = await service.grantWorkspace({ id: "finance", workspaceId: "weixin_stephen", displayName: "凡凡", actor: "owner" });
+
+  assert.equal(grant.ok, true);
+  assert.equal(grant.record.provisioningStatus, "provisioning_failed");
+  assert.equal(grant.record.provisioningError, "workspace_gateway_workers_missing");
+  assert.equal(grant.provisioning.status, "provisioning_failed");
+  assert.equal(grant.provisioning.gatewayRefreshStatus, "failed");
+  assert.deepEqual(service.list({ workspaceId: "weixin_stephen" }), []);
+  const manifest = await service.manifest({ id: "finance", workspaceId: "weixin_stephen", launchPlugin: true });
+  assert.equal(manifest.available, false);
+  assert.equal(manifest.code, "plugin_workspace_provisioning_failed");
+}
+
 async function testFinanceProvisioningFailureBlocksManifest() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-finance-grant-fail-"));
   const service = createHermesPluginService({
@@ -2003,6 +2123,8 @@ async function run() {
   testHealthWorkspaceKeyWithoutConfigIsNotActive();
   testFinanceWorkspaceKeyWithoutConfigIsNotActive();
   await testFinanceGrantProvisionsWorkspaceKeyAndBind();
+  await testFinanceGrantRefreshesGatewayProfilesAfterProvisioning();
+  await testFinanceGrantFailsProvisioningWhenGatewayRefreshFails();
   await testFinanceProvisioningFailureBlocksManifest();
   await testFinanceOwnerManifestProvisionsWorkspaceLocalMcpConfig();
   await testFinanceOwnerProvisioningFailureBlocksManifest();

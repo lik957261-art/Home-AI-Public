@@ -221,6 +221,58 @@ async function testEnsureLaunchdSyncsHealthBindingAndRendersMcpConfig() {
   }
 }
 
+async function testEnsureLaunchdKickstartsWorkersWhenRequested() {
+  const root = posixTempRoot();
+  const calls = [];
+  try {
+    const context = Object.assign(baseContext(root), {
+      gateway: Object.assign({}, baseContext(root).gateway, {
+        kickstart: true,
+        profiles: ["lowgw31"],
+      }),
+    });
+    writeJson(context.gateway.manifestPath, {
+      enabled: true,
+      workers: [{
+        profile: "lowgw31",
+        provider: "openai-codex",
+        port: 18781,
+        enabled: true,
+        allowedWorkspaceIds: ["xulu"],
+        skillWorkspaceIds: ["xulu"],
+        apiKeyFile: `${root}/data/secrets/lowgw31.secret`,
+      }],
+    });
+    const service = createWorkspaceSystemProvisioningExecutorService({
+      forceEnabled: true,
+      fs,
+      launchDaemonsDir: `${root}/LaunchDaemons`,
+      liveRoot: root,
+      path,
+      platform: "darwin",
+      run: fakeRunFactory(calls, {
+        "/bin/launchctl print system/com.hermesmobile.gateway.hm-xulu.openai.1": () => ({ status: 0, stdout: "", stderr: "" }),
+      }),
+      useSudoWrites: false,
+    });
+    const result = await service.runStep("ensure_launchd_services", context);
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.kickstarted, [{
+      profile: "lowgw31",
+      label: "com.hermesmobile.gateway.hm-xulu.openai.1",
+    }]);
+    assert.ok(calls.some((call) => (
+      call.command === "/bin/launchctl"
+      && call.args[0] === "kickstart"
+      && call.args[1] === "-k"
+      && call.args[2] === "system/com.hermesmobile.gateway.hm-xulu.openai.1"
+    )));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 async function testRepairWorkspaceAclSkipsSystemUsersRoot() {
   const root = "/Users/hermes-host/HermesMobile";
   const calls = [];
@@ -367,6 +419,7 @@ async function run() {
   await testEnsureMacUserCreatesHiddenAccount();
   await testEnsureLaunchdMaterializesWorkerFilesAndManifest();
   await testEnsureLaunchdSyncsHealthBindingAndRendersMcpConfig();
+  await testEnsureLaunchdKickstartsWorkersWhenRequested();
   await testRepairWorkspaceAclSkipsSystemUsersRoot();
   await testRunSmokesIncludesPluginsAndToolsetGate();
   await testRunSmokesIgnoresUnrelatedProfileAuditIssues();

@@ -51,6 +51,17 @@ function workspaceIdsForWorker(worker) {
   return cleanList(worker?.allowedWorkspaceIds || worker?.allowed_workspace_ids);
 }
 
+function macUserForWorker(worker = {}) {
+  const explicit = String(worker.osUser || worker.os_user || "").trim();
+  if (explicit) return explicit;
+  const label = String(worker.launchdLabel || worker.launchd_label || "").trim();
+  const labelMatch = label.match(/^com\.hermesmobile\.gateway\.(hm-[a-z0-9-]+)\./i);
+  if (labelMatch) return labelMatch[1];
+  const profile = String(worker.profile || worker.name || "").trim();
+  const profileMatch = profile.match(/^(hm-[a-z0-9-]+)-/i);
+  return profileMatch ? profileMatch[1] : "";
+}
+
 function gatewayIndexForProvider(worker, provider) {
   return provider === "deepseek" ? deepseekGatewayIndex(worker) : lowGatewayIndex(worker);
 }
@@ -140,6 +151,7 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
   function ensureWorkspaceGateway(input = {}) {
     const workspaceId = cleanWorkspaceId(input.workspaceId || input.id);
     if (!workspaceId || workspaceId === "owner") return { ok: true, skipped: true, reason: "system_workspace" };
+    const inputMacUser = String(input.macUser || input.mac_user || input.osUser || input.os_user || "").trim();
     const paths = manifestPaths();
     const manifestPath = firstExistingManifestPath(fs, Array.isArray(paths) ? paths : [paths]);
     if (!manifestPath) return { ok: false, skipped: true, reason: "manifest_path_missing" };
@@ -191,6 +203,7 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
           allowedWorkspaceIds: [workspaceId],
           skillProfile: `workspace:${workspaceId}`,
           skillWorkspaceIds: [workspaceId],
+          osUser: inputMacUser || providerTemplate.osUser || providerTemplate.os_user || "",
           tags: tagsForProvider(providerTemplate, provider),
           telemetryStateDbPath: replaceProfileInPath(providerTemplate.telemetryStateDbPath, profile),
           telemetryResponseStoreDbPath: replaceProfileInPath(providerTemplate.telemetryResponseStoreDbPath, profile),
@@ -206,6 +219,7 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
     const deepseekWorkers = ensureProviderWorkers("deepseek", workspaceDeepSeekWorkerMin, companionIndex);
     const allWorkspaceWorkers = [...openAiWorkers, ...deepseekWorkers];
     const firstWorker = allWorkspaceWorkers[0];
+    const workerOsUsers = [...new Set(allWorkspaceWorkers.map(macUserForWorker).filter(Boolean))];
     const lowCount = Math.max(0, ...workers.map(lowGatewayIndex));
     const deepseekCount = Math.max(0, ...workers.map(deepseekGatewayIndex));
     const profileBindingRefreshRequested = input.refreshProfileBinding === true || input.bindingChanged === true;
@@ -231,6 +245,9 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
       manifestPath,
       workerName: provisionedWorkers[0]?.name || provisionedWorkers[0]?.profile || firstWorker?.name || firstWorker?.profile || "",
       workerNames: allWorkspaceWorkers.map((worker) => worker.name || worker.profile).filter(Boolean),
+      macUser: workerOsUsers[0] || inputMacUser || "",
+      osUser: workerOsUsers[0] || inputMacUser || "",
+      workerOsUsers,
       profile: provisionedWorkers[0]?.profile || firstWorker?.profile || "",
       profiles: allWorkspaceWorkers.map((worker) => worker.profile).filter(Boolean),
       port: workerPort(provisionedWorkers[0] || firstWorker),

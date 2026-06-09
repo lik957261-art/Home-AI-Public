@@ -57,6 +57,13 @@ The first implementation is intentionally service-first and run-assembly scoped:
   matching workspace `.hermes-*` config/key pair where the plugin contract
   requires one. A key-only partial plugin binding is not authorized for model
   runs.
+- `adapters/hermes-plugin-service.js` treats plugin-manager grants as complete
+  provisioning, not UI toggles. After a plugin-specific bind/register succeeds,
+  it refreshes the workspace Gateway profile binding, runs the restricted
+  macOS `ensure_launchd_services` path, mirrors complete `.hermes-*` bindings
+  into the worker-local `HermesWorkspace`, renders MCP server config, and
+  kickstarts affected workers. If that Gateway refresh is required and fails,
+  the grant is marked `provisioning_failed` instead of `active`.
 - `adapters/gateway-runtime-composition-service.js` and
   `mobile-server-runtime.js` wire the service into production runtime
   composition.

@@ -28,6 +28,10 @@ const {
   createWardrobePluginProvisioningService,
   readWardrobeWorkspaceConfig,
 } = require("./wardrobe-plugin-provisioning-service");
+const {
+  macUserForWorkspaceId,
+  workspacePaths,
+} = require("./workspace-onboarding-service");
 
 const DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest";
 const DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest";
@@ -42,6 +46,10 @@ const PLUGIN_APPEARANCE_FONT_SIZES = new Set(["small", "default", "large", "xlar
 
 function stringValue(value) {
   return String(value || "").trim();
+}
+
+function boundedError(value, fallback = "plugin_provisioning_failed") {
+  return stringValue(value).replace(/\s+/g, " ").slice(0, 160) || fallback;
 }
 
 function configuredWardrobeManifestUrl(env = process.env) {
@@ -93,6 +101,62 @@ function parseWorkspaceList(value) {
 
 function configuredAuthorizedWorkspaceIds(pluginId, env = process.env) {
   return parseWorkspaceList(env[envKeyForPlugin(pluginId, "WORKSPACES")]);
+}
+
+function configuredLiveRoot(options = {}) {
+  const env = options.env || process.env || {};
+  const explicit = stringValue(options.liveRoot || options.workspaceOnboardingLiveRoot)
+    || stringValue(env.HERMES_MOBILE_ROOT)
+    || stringValue(env.HERMES_WEB_ROOT);
+  if (explicit) return explicit;
+  const dataDir = stringValue(options.dataDir)
+    || stringValue(env.HERMES_WEB_DATA_DIR)
+    || stringValue(env.HERMES_MOBILE_DATA_DIR);
+  if (dataDir && path.basename(dataDir) === "data") return path.dirname(dataDir);
+  return "/Users/hermes-host/HermesMobile";
+}
+
+function cleanGatewayProfiles(value) {
+  const raw = Array.isArray(value) ? value : [value];
+  return [...new Set(raw.map((item) => stringValue(item)).filter(Boolean))].slice(0, 16);
+}
+
+function cleanGatewayBindingList(value) {
+  const raw = Array.isArray(value) ? value : [value];
+  return [...new Set(raw.map((item) => stringValue(item)).filter(Boolean))].slice(0, 32);
+}
+
+function gatewayRefreshFields(refresh = {}) {
+  if (!refresh || refresh.status === "skipped") return {};
+  const fields = {
+    gatewayRefreshStatus: stringValue(refresh.status || (refresh.ok ? "active" : "failed")),
+  };
+  const profiles = cleanGatewayProfiles(refresh.gatewayProfiles);
+  const synced = cleanGatewayBindingList(refresh.syncedPluginBindings);
+  if (profiles.length) fields.gatewayProfiles = profiles;
+  if (synced.length) fields.syncedPluginBindings = synced;
+  if (refresh.profileBindingRefreshed != null) fields.gatewayProfileBindingRefreshed = Boolean(refresh.profileBindingRefreshed);
+  if (refresh.gatewayRestarted != null) fields.gatewayRestarted = Boolean(refresh.gatewayRestarted);
+  if (refresh.gatewayWorkerCount != null) fields.gatewayWorkerCount = Number(refresh.gatewayWorkerCount) || 0;
+  if (refresh.reason) fields.gatewayRefreshReason = stringValue(refresh.reason).slice(0, 120);
+  if (refresh.error) fields.gatewayRefreshError = stringValue(refresh.error).slice(0, 160);
+  return fields;
+}
+
+function gatewayResultFromProvisioningResult(provisioned = {}) {
+  const profiles = cleanGatewayProfiles(provisioned.gatewayProfiles);
+  const manifestPath = stringValue(provisioned.gatewayManifestPath || provisioned.manifestPath);
+  const macUser = stringValue(provisioned.gatewayMacUser || provisioned.macUser || provisioned.osUser);
+  if (!profiles.length && !manifestPath && !macUser && provisioned.gatewayProfileBindingRefreshed == null) return null;
+  return {
+    ok: true,
+    profiles,
+    manifestPath,
+    macUser,
+    osUser: macUser,
+    restartRequired: Boolean(provisioned.gatewayRestartRequired),
+    profileBindingRefreshed: Boolean(provisioned.gatewayProfileBindingRefreshed),
+  };
 }
 
 const DEFAULT_PLUGIN_SECURITY = Object.freeze({
@@ -1136,6 +1200,10 @@ function createHermesPluginService(options = {}) {
   const fetchImpl = options.fetch || global.fetch;
   const timeoutMs = Number(options.timeoutMs || DEFAULT_TIMEOUT_MS);
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
+  const gatewayWorkspaceProvisioningService = options.gatewayWorkspaceProvisioningService || null;
+  const systemProvisioningExecutor = options.systemProvisioningExecutor || options.workspaceSystemProvisioningExecutor || null;
+  const requireSystemGatewayRefresh = options.requireSystemGatewayRefresh === true;
+  const liveRoot = configuredLiveRoot(options);
   const authorizationService = options.authorizationService || createHermesPluginAuthorizationService({
     dataDir: options.dataDir,
     env: options.env,
@@ -1172,7 +1240,7 @@ function createHermesPluginService(options = {}) {
     dataDir: options.dataDir,
     env: options.env,
     fetch: fetchImpl,
-    gatewayWorkspaceProvisioningService: options.gatewayWorkspaceProvisioningService,
+    gatewayWorkspaceProvisioningService,
     nowIso,
     repoRoot: options.repoRoot,
     wardrobeSkillTemplatePath: options.wardrobeSkillTemplatePath,
@@ -1251,6 +1319,80 @@ function createHermesPluginService(options = {}) {
       adminWorkspaceId: "owner",
       financeManifestUrl: plugin.manifestUrl,
     });
+  }
+
+  async function refreshGatewayAfterPluginGrant(input = {}, provisioned = {}) {
+    const workspaceId = stringValue(input.workspaceId);
+    if (input.skipGatewayRefresh === true) return { ok: true, status: "skipped", reason: "deferred" };
+    if (!workspaceId || workspaceId === "owner") return { ok: true, status: "skipped", reason: "system_workspace" };
+
+    let gateway = gatewayResultFromProvisioningResult(provisioned);
+    if (!gateway && gatewayWorkspaceProvisioningService && typeof gatewayWorkspaceProvisioningService.ensureWorkspaceGateway === "function") {
+      const macUser = stringValue(input.macUser || input.mac_user);
+      gateway = await gatewayWorkspaceProvisioningService.ensureWorkspaceGateway(Object.assign({
+        workspaceId,
+        refreshProfileBinding: true,
+        bindingChanged: true,
+      }, macUser ? { macUser } : {}));
+    }
+    if (gateway?.ok === false) {
+      return {
+        ok: false,
+        status: "failed",
+        error: boundedError(gateway.reason || gateway.error || "gateway_profile_binding_refresh_failed"),
+      };
+    }
+
+    const hasGatewaySignal = Boolean(gateway);
+    if (!systemProvisioningExecutor || typeof systemProvisioningExecutor.runStep !== "function") {
+      if (requireSystemGatewayRefresh || hasGatewaySignal) {
+        return {
+          ok: requireSystemGatewayRefresh ? false : true,
+          status: requireSystemGatewayRefresh ? "failed" : "skipped",
+          reason: "gateway_system_executor_unavailable",
+          error: requireSystemGatewayRefresh ? "gateway_system_executor_unavailable" : "",
+          profileBindingRefreshed: Boolean(gateway?.profileBindingRefreshed),
+          gatewayProfiles: cleanGatewayProfiles(gateway?.profiles || gateway?.workerNames || gateway?.profile),
+        };
+      }
+      return { ok: true, status: "skipped", reason: "gateway_refresh_unconfigured" };
+    }
+
+    const macUser = stringValue(input.macUser || input.mac_user || gateway?.macUser || gateway?.osUser || gateway?.workerOsUsers?.[0])
+      || macUserForWorkspaceId(workspaceId);
+    const profiles = cleanGatewayProfiles(gateway?.profiles || gateway?.workerNames || gateway?.profile);
+    const context = {
+      workspaceId,
+      macUser,
+      paths: workspacePaths({ workspaceId, macUser, liveRoot }, { liveRoot }),
+      gateway: Object.assign(
+        { kickstart: true },
+        stringValue(gateway?.manifestPath || options.gatewayManifestPath) ? { manifestPath: stringValue(gateway?.manifestPath || options.gatewayManifestPath) } : {},
+        profiles.length ? { profiles } : {},
+      ),
+    };
+    const launchd = await systemProvisioningExecutor.runStep("ensure_launchd_services", context);
+    if (!launchd || launchd.ok === false) {
+      return {
+        ok: false,
+        status: "failed",
+        error: boundedError(launchd?.error || "gateway_launchd_refresh_failed"),
+        profileBindingRefreshed: Boolean(gateway?.profileBindingRefreshed),
+        gatewayProfiles: profiles,
+        syncedPluginBindings: cleanGatewayBindingList(launchd?.syncedPluginBindings),
+      };
+    }
+    const launchdProfiles = cleanGatewayProfiles((Array.isArray(launchd.workers) ? launchd.workers : []).map((worker) => worker.profile));
+    const kickstarted = Array.isArray(launchd.kickstarted) ? launchd.kickstarted : [];
+    return {
+      ok: true,
+      status: "active",
+      profileBindingRefreshed: Boolean(gateway?.profileBindingRefreshed),
+      gatewayProfiles: launchdProfiles.length ? launchdProfiles : profiles,
+      syncedPluginBindings: cleanGatewayBindingList(launchd.syncedPluginBindings),
+      gatewayRestarted: kickstarted.length > 0,
+      gatewayWorkerCount: Array.isArray(launchd.workers) ? launchd.workers.length : 0,
+    };
   }
 
   async function ensureOwnerWorkspaceProvisioning(input = {}) {
@@ -1460,6 +1602,24 @@ function createHermesPluginService(options = {}) {
     if (!base.ok || !pluginSupportsHermesProvisioning(plugin)) return base;
     const provisioned = await provisionPluginWorkspace(plugin, input);
     if (provisioned.ok) {
+      const gatewayRefresh = await refreshGatewayAfterPluginGrant(Object.assign({}, input, { id, pluginId: id, workspaceId }), provisioned);
+      if (!gatewayRefresh.ok) {
+        const saved = authorizationService.updateProvisioningStatus({
+          pluginId: id,
+          workspaceId,
+          actor: input.actor,
+          provisioningStatus: "provisioning_failed",
+          provisioningError: gatewayRefresh.error || `${id}_gateway_refresh_failed`,
+        });
+        return Object.assign({}, saved, {
+          provisioning: Object.assign({
+            status: "provisioning_failed",
+            error: gatewayRefresh.error || `${id}_gateway_refresh_failed`,
+            keyCreated: Boolean(provisioned.keyCreated),
+          }, gatewayRefreshFields(gatewayRefresh)),
+        });
+      }
+      const gatewayProvisioning = gatewayRefreshFields(gatewayRefresh);
       const saved = authorizationService.updateProvisioningStatus({
         pluginId: id,
         workspaceId,
@@ -1469,7 +1629,7 @@ function createHermesPluginService(options = {}) {
       });
       if (id === "wardrobe") {
         return Object.assign({}, saved, {
-          provisioning: {
+          provisioning: Object.assign({
             status: "active",
             keyCreated: Boolean(provisioned.keyCreated),
             wardrobeWorkspaceId: provisioned.wardrobeWorkspaceId || "",
@@ -1478,47 +1638,47 @@ function createHermesPluginService(options = {}) {
             gatewayRestartRequired: Boolean(provisioned.gatewayRestartRequired),
             gatewayProfileBindingRefreshed: Boolean(provisioned.gatewayProfileBindingRefreshed),
             created: Boolean(provisioned.created),
-          },
+          }, gatewayProvisioning),
         });
       }
       if (id === "email") {
         return Object.assign({}, saved, {
-          provisioning: {
+          provisioning: Object.assign({
             status: "active",
             keyCreated: Boolean(provisioned.keyCreated),
             configCreated: Boolean(provisioned.configCreated),
             created: Boolean(provisioned.created),
-          },
+          }, gatewayProvisioning),
         });
       }
       if (id === "health") {
         return Object.assign({}, saved, {
-          provisioning: {
+          provisioning: Object.assign({
             status: "active",
             keyCreated: Boolean(provisioned.keyCreated),
             configCreated: Boolean(provisioned.configCreated),
             healthWorkspaceId: provisioned.healthWorkspaceId || "",
-          },
+          }, gatewayProvisioning),
         });
       }
       if (id === "note") {
         return Object.assign({}, saved, {
-          provisioning: {
+          provisioning: Object.assign({
             status: "active",
             keyCreated: Boolean(provisioned.keyCreated),
             configCreated: Boolean(provisioned.configCreated),
             noteWorkspaceId: provisioned.noteWorkspaceId || "",
-          },
+          }, gatewayProvisioning),
         });
       }
       return Object.assign({}, saved, {
-        provisioning: {
+        provisioning: Object.assign({
           status: "active",
           keyCreated: Boolean(provisioned.keyCreated),
           financeUserId: provisioned.financeUserId || "",
           ledgerId: provisioned.ledgerId || "",
           created: Boolean(provisioned.created),
-        },
+        }, gatewayProvisioning),
       });
     }
     const saved = authorizationService.updateProvisioningStatus({

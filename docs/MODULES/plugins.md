@@ -1,6 +1,6 @@
 # Embedded App Plugins
 
-Last updated: 2026-06-04.
+Last updated: 2026-06-09.
 
 This module describes the Hermes Mobile embedded-app plugin contract. A plugin
 is an external product surface mounted inside Hermes Mobile. Hermes owns the
@@ -126,6 +126,23 @@ Health, Note, Wardrobe, Finance, Email, and future plugins must mirror complete
 data-drive bindings into the worker-local `HermesWorkspace` before Gateway
 profile rendering. Health was the first production symptom, but the rule is not
 Health-specific.
+For plugin-manager grants, `hermesPluginService.grantWorkspace` must complete
+the plugin-side binding and then refresh the affected workspace Gateway
+profiles before the grant becomes active. The refresh path must:
+
+- refresh the workspace profile binding in the Gateway manifest;
+- mirror complete `.hermes-*` data-drive bindings into the workspace OS user's
+  local `HermesWorkspace`;
+- render the selected Gateway profile configs and MCP server entries;
+- kickstart the affected LaunchDaemon workers so the new schema is live; and
+- mark the grant `provisioning_failed` with a bounded non-secret diagnostic if
+  the refresh cannot run or fails.
+
+Workspace onboarding may defer per-plugin Gateway refresh because it runs the
+same restricted `ensure_launchd_services` step once after all selected plugin
+grants. Standalone plugin-manager grants must not rely on a later manual Codex
+repair; if Gateway refresh is required by the running platform and unavailable,
+the plugin must not be shown as `active`.
 
 For local Windows production, Note MCP calls originate from WSL Gateway workers.
 The Note plugin service must listen on a Windows address reachable from WSL,
@@ -722,6 +739,8 @@ plugin as fully usable before these workspace-local prerequisites exist:
   plugin's server-to-server bind/register contract;
 - required Skill Store bundle and MCP/profile registration completed when the
   plugin exposes model-callable tools;
+- target Gateway worker-local binding, profile config, MCP schema, and worker
+  restart completed when the platform exposes that plugin through Gateway MCP;
 - manifest/launch smoke for that same effective workspace, including Owner
   switching into a non-Owner workspace.
 

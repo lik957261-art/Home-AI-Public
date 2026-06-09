@@ -147,7 +147,10 @@ function testRefreshProfileBindingMarksExistingWorkspaceProfiles() {
   withManifest({
     enabled: true,
     workers: [
-      baseWorker("lowgw9", "weixin_wuping", 18759),
+      Object.assign(baseWorker("lowgw9", "weixin_wuping", 18759), {
+        osUser: "hm-wuping",
+        launchdLabel: "com.hermesmobile.gateway.hm-wuping.openai.1",
+      }),
       baseWorker("lowgw10", "weixin_wuping", 18760),
       deepseekWorker("deepseekgw9", "weixin_wuping", 18769),
     ],
@@ -161,6 +164,8 @@ function testRefreshProfileBindingMarksExistingWorkspaceProfiles() {
     assert.equal(result.profileBindingRefreshed, true);
     assert.equal(result.replicaMetadataUpdated, true);
     assert.equal(result.restartRequired, true);
+    assert.equal(result.macUser, "hm-wuping");
+    assert.deepEqual(result.workerOsUsers, ["hm-wuping"]);
     assert.deepEqual(result.provisionedWorkers, []);
     const manifest = readManifest(manifestPath);
     assert.equal(manifest.updatedAt, "2026-05-22T12:00:00.000Z");

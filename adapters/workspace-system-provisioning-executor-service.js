@@ -610,8 +610,12 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
     const syncedPluginBindings = syncWorkspacePluginBindings(fields);
     const workers = workspaceWorkers(manifest, fields, context);
     if (!workers.length) return { ok: false, error: "workspace_gateway_workers_missing" };
+    const kickstart = context.gateway?.kickstart === true
+      || context.gateway?.restart === true
+      || context.gateway?.restartLoaded === true;
     const providerOrdinals = {};
     const touched = [];
+    const kickstarted = [];
     let changed = false;
     for (const worker of workers) {
       const profile = safeProfile(worker.profile || worker.name);
@@ -629,8 +633,13 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
       const plistFile = path.posix.join(launchDaemonsDir, `${label}.plist`);
       const startScript = startScriptPath(fields, profile);
       writeTextFile(plistFile, renderPlist(fields, worker, label, startScript), "644", "root:wheel");
-      if (command("/bin/launchctl", ["print", `system/${label}`]).status !== 0) {
+      const launchdPrint = command("/bin/launchctl", ["print", `system/${label}`]);
+      if (launchdPrint.status !== 0) {
         privileged("/bin/launchctl", ["bootstrap", "system", plistFile]);
+      }
+      if (kickstart) {
+        privileged("/bin/launchctl", ["kickstart", "-k", `system/${label}`]);
+        kickstarted.push({ profile, label });
       }
       touched.push({ profile, label, plist: plistFile, profileDir: compactPath(dir, fields.root) });
     }
@@ -645,6 +654,7 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
       manifestUpdated: changed,
       backup: backup ? path.basename(backup) : "",
       syncedPluginBindings,
+      kickstarted,
     };
   }
 

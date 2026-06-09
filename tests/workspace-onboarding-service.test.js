@@ -143,7 +143,7 @@ async function testApplyRunsWorkspaceGatewaySystemAndPlugins() {
     actor: "owner-principal",
   }]);
   assert.equal(calls.keys[0].workspaceId, "xulu");
-  assert.deepEqual(calls.gateway, [{ workspaceId: "xulu", refreshProfileBinding: true }]);
+  assert.deepEqual(calls.gateway, [{ workspaceId: "xulu", refreshProfileBinding: true, macUser: "hm-xulu" }]);
   assert.deepEqual(calls.executor.map((call) => call.action), [
     "ensure_mac_user",
     "ensure_workspace_roots",
@@ -152,6 +152,7 @@ async function testApplyRunsWorkspaceGatewaySystemAndPlugins() {
     "run_workspace_onboarding_smokes",
   ]);
   assert.deepEqual(calls.grants.map((call) => call.pluginId), ["wardrobe", "note"]);
+  assert.deepEqual(calls.grants.map((call) => call.skipGatewayRefresh), [true, true]);
   assert.equal(result.steps.find((step) => step.id === "plugin.wardrobe").provisioning.accessKey, true);
 }
 

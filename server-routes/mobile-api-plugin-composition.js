@@ -33,6 +33,8 @@ function createMobileApiPluginComposition(deps = {}) {
     nowIso: deps.nowIso,
     dataDir: deps.dataDir,
     gatewayWorkspaceProvisioningService: deps.gatewayWorkspaceProvisioningService,
+    systemProvisioningExecutor: deps.workspaceSystemProvisioningExecutor,
+    requireSystemGatewayRefresh: true,
     repoRoot: deps.repoRoot,
     workspaceLabelForId: (workspaceId) => {
       const workspace = typeof deps.findWorkspace === "function" ? deps.findWorkspace(workspaceId) : null;

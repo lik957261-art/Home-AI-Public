@@ -643,10 +643,10 @@ function createWardrobePluginProvisioningService(options = {}) {
     }
     const gateway = options.gatewayWorkspaceProvisioningService
       && typeof options.gatewayWorkspaceProvisioningService.ensureWorkspaceGateway === "function"
-      ? options.gatewayWorkspaceProvisioningService.ensureWorkspaceGateway({
+      ? options.gatewayWorkspaceProvisioningService.ensureWorkspaceGateway(Object.assign({
         workspaceId,
         refreshProfileBinding: true,
-      })
+      }, stringValue(input.macUser || input.mac_user) ? { macUser: stringValue(input.macUser || input.mac_user) } : {}))
       : { ok: true, skipped: true, reason: "gateway_provisioning_unavailable" };
     if (gateway && gateway.ok === false) {
       return {
@@ -696,6 +696,8 @@ function createWardrobePluginProvisioningService(options = {}) {
       skillSourceKind: skill.sourceKind,
       skillBundle: skill.bundle,
       gatewayProfiles: Array.isArray(gateway?.profiles) ? gateway.profiles : [],
+      gatewayManifestPath: stringValue(gateway?.manifestPath),
+      gatewayMacUser: stringValue(gateway?.macUser || gateway?.osUser || gateway?.workerOsUsers?.[0]),
       gatewayRestartRequired: Boolean(gateway?.restartRequired),
       gatewayProfileBindingRefreshed: Boolean(gateway?.profileBindingRefreshed),
       verification,

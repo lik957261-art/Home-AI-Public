@@ -331,7 +331,11 @@ function createWorkspaceOnboardingService(options = {}) {
     }
 
     await record("gateway.profiles", () => {
-      const gateway = ensureWorkspaceGateway({ workspaceId: normalized.workspaceId, refreshProfileBinding: true });
+      const gateway = ensureWorkspaceGateway({
+        workspaceId: normalized.workspaceId,
+        refreshProfileBinding: true,
+        macUser: normalized.macUser,
+      });
       context.gateway = gateway;
       return gateway?.ok === false
         ? { ok: false, error: boundedError(gateway.reason || gateway.error || "gateway_workspace_provisioning_failed") }
@@ -354,6 +358,7 @@ function createWorkspaceOnboardingService(options = {}) {
           workspaceId: normalized.workspaceId,
           displayName: normalized.displayName,
           actor,
+          skipGatewayRefresh: true,
         });
         if (!result || result.ok === false || result.provisioning?.status === "provisioning_failed") {
           return {
@@ -408,4 +413,5 @@ module.exports = {
   normalizePluginIds,
   publicPlan,
   slugWorkspaceId,
+  workspacePaths,
 };
