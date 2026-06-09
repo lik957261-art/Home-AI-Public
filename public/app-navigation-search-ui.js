@@ -135,6 +135,7 @@ function updateTopicPluginDockChrome(taskList) {
       dock.hidden = true;
       dock.setAttribute("aria-hidden", "true");
       app?.classList.remove("global-plugin-dock-mode");
+      app?.classList.remove("global-plugin-dock-expanded-mode", "global-plugin-dock-collapsed-mode");
       if (typeof updateMobileBottomNavReservation === "function") updateMobileBottomNavReservation();
       scheduleTopicPluginDockRevealAfterBackSwipe("blocked");
       return;
@@ -156,6 +157,7 @@ function updateTopicPluginDockChrome(taskList) {
   dock.hidden = true;
   dock.setAttribute("aria-hidden", "true");
   app?.classList.remove("global-plugin-dock-mode");
+  app?.classList.remove("global-plugin-dock-expanded-mode", "global-plugin-dock-collapsed-mode");
   if (typeof resetGlobalPluginDockGesture === "function") resetGlobalPluginDockGesture();
   if (typeof closePluginActionMenus === "function") closePluginActionMenus(dock);
   if (typeof updateMobileBottomNavReservation === "function") updateMobileBottomNavReservation();

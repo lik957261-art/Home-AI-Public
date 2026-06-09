@@ -359,8 +359,11 @@ function globalPluginDockLauncherPresent(dock = $("topicPluginDock")) {
 function applyGlobalPluginDockState(dock = $("topicPluginDock"), expanded = readGlobalPluginDockExpandedPreference()) {
   if (!dock) return false;
   const next = Boolean(expanded);
+  const app = $("app");
   dock.classList.toggle("global-plugin-dock-expanded", next);
   dock.classList.toggle("global-plugin-dock-collapsed", !next);
+  app?.classList.toggle("global-plugin-dock-expanded-mode", next);
+  app?.classList.toggle("global-plugin-dock-collapsed-mode", !next);
   dock.dataset.globalPluginDockState = next ? "expanded" : "collapsed";
   dock.style.removeProperty("--global-plugin-dock-gesture-offset");
   const handle = dock.querySelector("[data-global-plugin-dock-handle]");

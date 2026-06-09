@@ -16947,8 +16947,12 @@ body.task-markdown-preview-open {
     padding-bottom: calc(12px + env(safe-area-inset-bottom));
   }
 
-  .global-plugin-dock-mode:not(.main-back-visible):not(.plugin-context-nav-mode) .composer {
+  .global-plugin-dock-mode.global-plugin-dock-collapsed-mode:not(.main-back-visible):not(.plugin-context-nav-mode) .composer {
     transform: translateY(-6px);
+  }
+
+  .global-plugin-dock-mode.global-plugin-dock-expanded-mode:not(.main-back-visible):not(.plugin-context-nav-mode) .composer {
+    transform: translateY(calc(-1 * var(--topic-plugin-dock-height) - 6px));
   }
 
   .composer-context {
