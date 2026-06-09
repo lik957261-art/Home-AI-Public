@@ -318,6 +318,12 @@ Gateway plugin/schema/profile changes:
   They must use theme tokens for panels, buttons, chips, code values, and
   status rows; a dark-mode pass is invalid if any sampled surface keeps a pale
   solid background or low-contrast dark green/brown text.
+- Growth teaching card detail, native Growth submission, program, coin, and
+  readiness surfaces are covered by the iOS PWA `dark-growth-surfaces`
+  scenario. Teaching steppers, worked examples, feedback panels, action chips,
+  reward/coin panels, and readiness checks must use theme tokens in both
+  dark and system-dark mode; a dark-mode pass is invalid if any sampled Growth
+  surface keeps a pale solid background or low-contrast dark green/brown text.
 - In dark/system-dark mode, green/success semantics may remain in backgrounds,
   borders, dots, or subtle status surfaces, but text that previously used dark
   green must resolve to off-white (`--ink` / `--ui-success-ink`) unless a

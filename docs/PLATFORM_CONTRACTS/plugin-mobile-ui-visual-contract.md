@@ -437,6 +437,16 @@ npm run ios:pwa:visual -- \
   --debug-url http://127.0.0.1:19073/
 ```
 
+Dark-mode Growth teaching card detail, native Growth submission, program, coin,
+and readiness surfaces use the Growth surface scenario:
+
+```bash
+cd <Home-AI>
+npm run ios:pwa:visual -- \
+  --scenario dark-growth-surfaces \
+  --debug-url http://127.0.0.1:19073/
+```
+
 Embedded plugin shells use the plugin scenario:
 
 ```bash
@@ -526,7 +536,11 @@ loading-surface regressions fail deterministically. The
 dark-admin-surfaces scenario renders representative Access Key, Owner Admin,
 Runtime Config, Plugin Admin, and Group Chat sheet controls in dark mode and
 fails if any sampled surface keeps a pale solid background or low-contrast
-dark green/brown semantic text. The
+dark green/brown semantic text. The dark-growth-surfaces scenario renders
+representative Growth teaching card detail, worked examples, teaching feedback,
+native Growth submission, program, coin/reward, and readiness surfaces in dark
+mode and fails if any sampled Growth surface keeps a pale solid background or
+low-contrast dark green/brown semantic text. The
 embedded-plugin-shell scenario asserts the host shell, iframe existence,
 meaningful frame size, no horizontal overflow, and a non-empty screenshot
 artifact by default. The embedded-plugin-keyboard-composer scenario asserts

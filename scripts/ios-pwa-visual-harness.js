@@ -105,7 +105,7 @@ function printHelp() {
     "Options:",
     "  --debug-url <url>      Live debug server URL. Default: http://127.0.0.1:19073/",
     "  --app-url <url>        Optional app URL to open through the live debug server before the scenario.",
-    "  --scenario <name>      directory-dark-status, dark-admin-surfaces, embedded-plugin-shell, embedded-plugin-keyboard-composer, embedded-plugin-side-chat-keyboard, plugin-topic-dock-return-stability, or global-plugin-dock-gesture-stability.",
+    "  --scenario <name>      directory-dark-status, dark-admin-surfaces, dark-growth-surfaces, embedded-plugin-shell, embedded-plugin-keyboard-composer, embedded-plugin-side-chat-keyboard, plugin-topic-dock-return-stability, or global-plugin-dock-gesture-stability.",
     "  --plugin-id <id>       Required by embedded plugin scenarios.",
     "  --plugin-thread-id <id> Optional thread id for embedded plugin keyboard scenarios.",
     "  --theme <mode>         Theme hint for scenarios. Default: dark.",
@@ -1369,6 +1369,159 @@ const DARK_ADMIN_SURFACES_SCRIPT = `
   };
 `;
 
+const DARK_GROWTH_SURFACES_SCRIPT = `
+  const theme = arguments[0] || "dark";
+  try { localStorage.setItem("hermesWebTheme", theme); } catch (_) {}
+  if (window.appState) window.appState.themeMode = theme;
+  if (typeof window.applyThemePreference === "function") window.applyThemePreference(theme);
+  else document.documentElement.setAttribute("data-theme", theme);
+  document.querySelector("[data-visual-dark-growth-surfaces]")?.remove();
+  const host = document.createElement("div");
+  host.setAttribute("data-visual-dark-growth-surfaces", "1");
+  host.className = "learning-growth-view learning-growth-board-page";
+  host.style.cssText = "position:fixed;inset:0;z-index:1400;overflow:auto;background:var(--ui-page);padding:12px;";
+  host.innerHTML = \`
+    <section class="learning-growth-answer-card learning-growth-card-detail-shell learning-growth-teaching-card">
+      <div class="learning-growth-card-detail-hero learning-growth-teaching-hero">
+        <div class="learning-growth-teaching-head learning-growth-card-detail-head">
+          <div><span class="learning-growth-role-badge">教学卡</span><span>约 10-15 分钟</span><span>100 金币</span></div>
+          <button class="learning-growth-card-share-button" type="button">分享</button>
+        </div>
+        <h3>抓住主旨的30秒复述</h3>
+      </div>
+      <div class="learning-growth-teaching-stepper" role="tablist">
+        <button type="button" class="active">讲解</button>
+        <button type="button">跟做</button>
+        <button type="button">检查</button>
+      </div>
+      <section class="learning-growth-teaching-section">
+        <h4>学会在30秒英文复述中先说清楚 main idea</h4>
+        <p class="learning-growth-teaching-why">复述不是把所有细节都背出来。听的人最先需要知道这段到底想说明什么。</p>
+        <div class="learning-growth-teaching-worked-example">
+          <strong>示例材料概况</strong>
+          <p>假设一段文章讲：学校把图书馆改成安静学习区。</p>
+        </div>
+        <div class="learning-growth-teaching-hints"><span>main idea</span><span>细节服务主旨</span></div>
+      </section>
+      <section class="learning-growth-teaching-feedback">
+        <strong>完成反馈</strong>
+        <p class="learning-growth-experience-prompt">完成后选择一个感受。</p>
+        <div class="learning-growth-experience-actions"><button type="button">太简单</button><button type="button" class="is-selected">正合适</button><button type="button">有点难</button></div>
+      </section>
+      <section class="learning-growth-answer-feedback-detail">
+        <h4>批改详情</h4>
+        <div class="learning-growth-feedback-detail-note"><strong>提示</strong><p>先讲结构，再补充细节。</p></div>
+      </section>
+      <section class="learning-growth-answer-reward">
+        <div class="learning-growth-answer-reward-head"><strong>奖励</strong><span class="learning-growth-answer-reward-settlement">已结算</span></div>
+        <div class="learning-growth-answer-reward-grid"><span><b>100</b><small>金币</small></span><span><b>1</b><small>完成</small></span></div>
+      </section>
+      <fieldset class="learning-native-growth-question">
+        <legend>快速检查</legend>
+        <p>这段最重要的信息是什么？</p>
+        <label class="learning-native-growth-choice"><input type="radio" checked><span><b>A</b>先说主旨</span></label>
+      </fieldset>
+      <div class="learning-native-growth-recorder"><span class="learning-native-growth-recorder-status">录音就绪</span></div>
+    </section>
+    <section class="learning-program-card">
+      <div class="learning-program-card-top"><h3>英语复述计划</h3><span>active</span></div>
+      <p class="learning-program-focus">每天 30 分钟。</p>
+      <div class="learning-program-report-grid"><span><strong>3</strong><small>任务</small></span></div>
+      <div class="learning-program-actions"><button type="button">开始</button><button type="button" disabled>等待</button></div>
+    </section>
+    <section class="learning-native-growth-reflection-result"><strong>复盘结果</strong><p>需要再练一次。</p></section>
+    <section class="learning-program-rebuild-warning">计划需要重新生成。</section>
+    <section class="learning-coin-panel">
+      <div class="learning-coin-stats"><span><strong>100</strong><small>金币</small></span></div>
+      <div class="learning-growth-metrics"><span><strong>7</strong><small>连续天数</small></span></div>
+      <div class="learning-growth-reward"><div class="learning-growth-reward-top"><strong>奖励</strong><span>可兑换</span></div></div>
+      <article class="learning-reward-card"><div><div class="learning-reward-title">奖励卡</div><div class="learning-reward-description">兑换说明</div></div><button class="learning-coin-primary" disabled>金币不足</button></article>
+      <div class="learning-coin-empty">暂无流水</div>
+    </section>
+    <section class="learning-readiness-panel">
+      <div class="learning-readiness-grid"><span><strong>100%</strong><small>准备度</small></span></div>
+      <div class="learning-readiness-check-row"><span>OK</span><strong>检查完成</strong></div>
+    </section>
+  \`;
+  document.body.appendChild(host);
+  const styles = getComputedStyle(document.documentElement);
+  const rect = (node) => {
+    if (!node) return null;
+    const r = node.getBoundingClientRect();
+    return { top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom), left: Math.round(r.left), width: Math.round(r.width), height: Math.round(r.height) };
+  };
+  const read = (selector) => {
+    const node = host.querySelector(selector);
+    if (!node) return { selector, exists: false };
+    const computed = getComputedStyle(node);
+    return {
+      selector,
+      exists: true,
+      backgroundColor: computed.backgroundColor,
+      color: computed.color,
+      borderColor: computed.borderColor,
+      rect: rect(node),
+    };
+  };
+  const selectors = [
+    ".learning-growth-answer-card",
+    ".learning-growth-card-detail-hero",
+    ".learning-growth-role-badge",
+    ".learning-growth-teaching-head span:not(.learning-growth-role-badge)",
+    ".learning-growth-card-share-button",
+    ".learning-growth-teaching-stepper",
+    ".learning-growth-teaching-stepper button.active",
+    ".learning-growth-teaching-section",
+    ".learning-growth-teaching-why",
+    ".learning-growth-teaching-worked-example",
+    ".learning-growth-teaching-hints span",
+    ".learning-growth-teaching-feedback",
+    ".learning-growth-experience-actions",
+    ".learning-growth-experience-actions button",
+    ".learning-growth-answer-feedback-detail",
+    ".learning-growth-feedback-detail-note",
+    ".learning-growth-answer-reward",
+    ".learning-growth-answer-reward-settlement",
+    ".learning-growth-answer-reward-grid span",
+    ".learning-native-growth-question",
+    ".learning-native-growth-choice",
+    ".learning-native-growth-recorder",
+    ".learning-program-card",
+    ".learning-program-card-top > span",
+    ".learning-program-report-grid span",
+    ".learning-program-actions button",
+    ".learning-program-actions button:disabled",
+    ".learning-native-growth-reflection-result",
+    ".learning-program-rebuild-warning",
+    ".learning-coin-panel",
+    ".learning-coin-stats span",
+    ".learning-growth-metrics span",
+    ".learning-growth-reward",
+    ".learning-reward-card",
+    ".learning-coin-primary:disabled",
+    ".learning-coin-empty",
+    ".learning-readiness-grid span",
+    ".learning-readiness-check-row",
+  ];
+  return {
+    ok: true,
+    scenario: "dark-growth-surfaces",
+    clientVersion: document.documentElement.getAttribute("data-client-version") || "",
+    theme: document.documentElement.getAttribute("data-theme") || "",
+    rootBackground: getComputedStyle(document.body).backgroundColor,
+    tokens: {
+      uiSheet: styles.getPropertyValue("--ui-sheet").trim(),
+      uiMenuBg: styles.getPropertyValue("--ui-menu-bg").trim(),
+      uiSurface: styles.getPropertyValue("--ui-surface").trim(),
+      uiCardSurface: styles.getPropertyValue("--ui-card-surface").trim(),
+      uiControlBg: styles.getPropertyValue("--ui-control-bg").trim(),
+      text: styles.getPropertyValue("--text").trim(),
+      ink: styles.getPropertyValue("--ink").trim(),
+    },
+    surfaces: selectors.map(read),
+  };
+`;
+
 function parseColor(value) {
   const match = String(value || "").match(/rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)(?:\s*,\s*([0-9.]+)\s*)?\)/i);
   if (!match) return null;
@@ -1455,6 +1608,30 @@ function assertDarkAdminSurfaces(metrics = {}) {
       lowContrastText: lowContrastText.map((item) => ({ selector: item.selector, color: item.color })).slice(0, 12),
     }),
     assertion("admin_theme_tokens_are_dark", darkOpaqueColor(metrics.tokens?.uiSheet) && darkOpaqueColor(metrics.tokens?.uiMenuBg) && darkOpaqueColor(metrics.tokens?.uiSurface), {
+      tokens: metrics.tokens || {},
+    }),
+  ];
+  return { ok: assertions.every((item) => item.pass), assertions };
+}
+
+function assertDarkGrowthSurfaces(metrics = {}) {
+  const surfaces = Array.isArray(metrics.surfaces) ? metrics.surfaces : [];
+  const missing = surfaces.filter((item) => !item?.exists);
+  const paleBackgrounds = surfaces.filter((item) => paleSolidRegression(item?.backgroundColor));
+  const lowContrastText = surfaces.filter((item) => lowContrastDarkSemanticText(item?.color));
+  const assertions = [
+    assertion("theme_is_dark", metrics.theme === "dark" || /data-theme.?=.?dark/i.test(metrics.appClass || ""), { theme: metrics.theme || "" }),
+    assertion("growth_surface_samples_exist", surfaces.length >= 30 && missing.length === 0, {
+      sampleCount: surfaces.length,
+      missing: missing.map((item) => item.selector),
+    }),
+    assertion("growth_surfaces_have_no_pale_solid_backgrounds", paleBackgrounds.length === 0, {
+      paleBackgrounds: paleBackgrounds.map((item) => ({ selector: item.selector, backgroundColor: item.backgroundColor })).slice(0, 16),
+    }),
+    assertion("growth_surfaces_have_no_low_contrast_semantic_text", lowContrastText.length === 0, {
+      lowContrastText: lowContrastText.map((item) => ({ selector: item.selector, color: item.color })).slice(0, 16),
+    }),
+    assertion("growth_theme_tokens_are_dark", darkOpaqueColor(metrics.tokens?.uiSheet) && darkOpaqueColor(metrics.tokens?.uiMenuBg) && darkOpaqueColor(metrics.tokens?.uiSurface), {
       tokens: metrics.tokens || {},
     }),
   ];
@@ -1721,6 +1898,14 @@ const SCENARIOS = Object.freeze({
     measureArgs: () => [],
     assert: assertDarkAdminSurfaces,
   }),
+  "dark-growth-surfaces": Object.freeze({
+    description: "Render Growth teaching, program, reward, and readiness surfaces in dark mode and assert there are no pale panels or low-contrast semantic text.",
+    prepareScript: DARK_GROWTH_SURFACES_SCRIPT,
+    prepareArgs: (options) => [options.theme || "dark"],
+    measureScript: null,
+    measureArgs: () => [],
+    assert: assertDarkGrowthSurfaces,
+  }),
   "embedded-plugin-shell": Object.freeze({
     description: "Open an embedded plugin through Home AI and assert iframe shell bounds.",
     prepareScript: EMBEDDED_PLUGIN_PREPARE_SCRIPT,
@@ -1920,6 +2105,7 @@ module.exports = {
   acquireDebugLaneLease,
   assertCommonHarness,
   assertDarkAdminSurfaces,
+  assertDarkGrowthSurfaces,
   assertDirectoryDarkStatus,
   assertEmbeddedPluginKeyboardComposer,
   assertEmbeddedPluginShell,

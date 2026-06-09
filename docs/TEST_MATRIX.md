@@ -1676,6 +1676,10 @@ The iOS PWA `dark-admin-surfaces` scenario is the required focused check for
 settings/access-key, Owner Admin, Runtime Config, Plugin Admin, and group-sheet
 surfaces; it must fail on pale solid backgrounds or low-contrast dark
 green/brown semantic text in dark/system-dark mode.
+The iOS PWA `dark-growth-surfaces` scenario is the required focused check for
+Growth teaching card detail, native Growth submission, program, coin/reward,
+and readiness surfaces; it must fail on pale solid backgrounds or low-contrast
+dark green/brown semantic text in dark/system-dark mode.
 Floating menus and inline popovers are part of this dark-mode matrix: Directory
 entry menus, topic detail three-dot menus, plugin capability action menus,
 usage/tool/skill details popovers, and Growth owner menus must use theme tokens
@@ -1946,7 +1950,7 @@ The guard test is:
 | Growth board/program/task | `node tests\mobile-api-learning-composition.test.js`, `node tests\learning-program-api-routes.test.js`, `node tests\learning-program-service.test.js`, `node tests\learning-program-publish-service.test.js`, `node tests\learning-program-repository.test.js`, `node tests\learning-growth-jit-task-service.test.js`, `node tests\learning-growth-service.test.js`, `node tests\learning-growth-board-projection-service.test.js`, `node tests\learning-growth-teaching-card-services.test.js`, `node tests\learning-growth-card-api-routes.test.js` |
 | Growth submissions/evaluation queue | `node tests\mobile-api-learning-composition.test.js`, `node tests\learning-growth-submission-service.test.js`, `node tests\learning-growth-task-evaluation-service.test.js`, `node tests\learning-growth-task-interaction-state-service.test.js`, `node tests\learning-growth-task-feedback-service.test.js`; audio submission/reflection changes must also prove `learning_task_audio_blobs` persistence and authenticated playback with `node tests\learning-program-repository.test.js` and `node tests\learning-program-api-routes.test.js` |
 | Growth mastery/evergreen | `node tests\learning-growth-mastery-profile-service.test.js`, `node tests\learning-growth-mastery-repository.test.js`, `node tests\learning-growth-next-card-strategy-service.test.js`, `node tests\learning-growth-sequence-service.test.js` |
-| Growth frontend | `node tests\app-learning-growth-ui.test.js`, `node tests\app-learning-growth-task-ui.test.js`, `node tests\app-learning-program-ui.test.js`, `node tests\app-learning-native-growth-submission-controller.test.js`, `node tests\task-list-ui.test.js` |
+| Growth frontend | `node tests\app-learning-growth-ui.test.js`, `node tests\app-learning-growth-task-ui.test.js`, `node tests\app-learning-program-ui.test.js`, `node tests\app-learning-native-growth-submission-controller.test.js`, `node tests\dark-theme-growth-surfaces-css.test.js`, `node tests\task-list-ui.test.js`; dark-mode Growth UI fixes must also run `npm run ios:pwa:visual -- --scenario dark-growth-surfaces --debug-url http://127.0.0.1:19073/` when the iOS PWA lane is available |
 | Learning rewards/coins | `node tests\learning-reward-settlement-service.test.js`, `node tests\learning-coin-service.test.js`, `node tests\learning-coin-api-routes.test.js` |
 | Tongbao platform currency | v399 wallet foundation: `node tests\platform-currency-service.test.js`, `node tests\platform-currency-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\api-route-inventory.test.js`, `node tests\task-list-ui.test.js`, and `node tests\architecture-refactor-boundary.test.js`; future exchange/spend/grant work must also add `node tests\platform-currency-exchange-service.test.js`, `node tests\learning-coin-service.test.js`, and `node tests\learning-coin-api-routes.test.js` |
 | Public export/release | `node tests\public-export.test.js`, `node scripts\privacy-scan.js --all-files`, `npm.cmd run export:public` |

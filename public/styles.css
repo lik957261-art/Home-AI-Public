@@ -14334,6 +14334,290 @@ body.task-markdown-preview-open {
   grid-column: 1 / -1;
 }
 
+:root[data-theme="dark"] .learning-growth-tab-list,
+:root[data-theme="dark"] .learning-growth-settings-tabs .learning-growth-tab-list,
+:root[data-theme="dark"] .learning-growth-teaching-stepper,
+:root[data-theme="dark"] .learning-growth-experience-actions {
+  border-color: var(--ui-hairline);
+  background: var(--ui-control-bg);
+  box-shadow: none;
+}
+
+:root[data-theme="dark"] .learning-growth-tab-list button.active,
+:root[data-theme="dark"] .learning-growth-teaching-stepper button.active {
+  color: var(--ink);
+  background: var(--ui-accent-fill);
+  border-color: rgba(245, 247, 246, 0.36);
+  box-shadow: inset 0 0 0 1px rgba(245, 247, 246, 0.18);
+}
+
+:root[data-theme="dark"] .learning-growth-answer-card,
+:root[data-theme="dark"] .learning-growth-card-detail-hero,
+:root[data-theme="dark"] .learning-growth-teaching-section,
+:root[data-theme="dark"] .learning-growth-teaching-feedback,
+:root[data-theme="dark"] .learning-growth-teaching-worked-example,
+:root[data-theme="dark"] .learning-growth-card-detail-shell .learning-growth-teaching-worked-example,
+:root[data-theme="dark"] .learning-growth-answer-instruction,
+:root[data-theme="dark"] .learning-growth-answer-feedback,
+:root[data-theme="dark"] .learning-growth-answer-feedback-detail,
+:root[data-theme="dark"] .learning-growth-answer-submission,
+:root[data-theme="dark"] .learning-growth-audio-evidence,
+:root[data-theme="dark"] .learning-growth-answer-reward,
+:root[data-theme="dark"] .learning-growth-audio-evidence-item,
+:root[data-theme="dark"] .learning-growth-card-detail-shell .learning-growth-answer-reward-grid span,
+:root[data-theme="dark"] .learning-growth-card-detail-shell .learning-growth-previous-response,
+:root[data-theme="dark"] .learning-growth-card-detail-shell .learning-growth-feedback-criteria article,
+:root[data-theme="dark"] .learning-growth-card-detail-shell .learning-growth-feedback-detail-note,
+:root[data-theme="dark"] .learning-growth-feedback-detail-note,
+:root[data-theme="dark"] .learning-growth-answer-reward-grid span,
+:root[data-theme="dark"] .learning-task-reward-policy-form.compact,
+:root[data-theme="dark"] .learning-ai-recommendation-card,
+:root[data-theme="dark"] .learning-settings-fold,
+:root[data-theme="dark"] .learning-mastery-domain-tab,
+:root[data-theme="dark"] .learning-owner-advanced,
+:root[data-theme="dark"] .learning-foundation-grid article,
+:root[data-theme="dark"] .learning-program-focus-grid,
+:root[data-theme="dark"] .learning-program-card,
+:root[data-theme="dark"] .learning-program-review-item,
+:root[data-theme="dark"] .learning-program-draft,
+:root[data-theme="dark"] .learning-daily-plan-summary span,
+:root[data-theme="dark"] .learning-daily-plan-list article,
+:root[data-theme="dark"] .learning-program-report-grid span,
+:root[data-theme="dark"] .learning-program-meta-grid span,
+:root[data-theme="dark"] .learning-program-task-item,
+:root[data-theme="dark"] .learning-native-growth-revision-collapsed,
+:root[data-theme="dark"] .learning-native-growth-reflection-result,
+:root[data-theme="dark"] .learning-native-growth-question,
+:root[data-theme="dark"] .learning-native-growth-choice,
+:root[data-theme="dark"] .learning-growth-card-detail-shell .learning-native-growth-choice,
+:root[data-theme="dark"] .learning-native-growth-recorder,
+:root[data-theme="dark"] .learning-program-skill-chip,
+:root[data-theme="dark"] .learning-growth-next-row,
+:root[data-theme="dark"] .learning-readiness-grid span,
+:root[data-theme="dark"] .learning-readiness-check-row,
+:root[data-theme="dark"] .learning-coin-stats span,
+:root[data-theme="dark"] .learning-growth-metrics span,
+:root[data-theme="dark"] .learning-growth-reward,
+:root[data-theme="dark"] .learning-reward-card,
+:root[data-theme="dark"] .learning-ledger-row,
+:root[data-theme="dark"] .learning-redemption-row,
+:root[data-theme="dark"] .learning-coin-empty,
+:root[data-theme="dark"] .learning-coin-loading {
+  color: var(--ink);
+  background: var(--ui-card-surface);
+  border-color: var(--ui-hairline);
+}
+
+:root[data-theme="dark"] .learning-growth-card-detail-shell .learning-growth-teaching-section,
+:root[data-theme="dark"] .learning-growth-card-detail-shell .learning-growth-teaching-feedback,
+:root[data-theme="dark"] .learning-growth-card-detail-shell .learning-growth-answer-instruction,
+:root[data-theme="dark"] .learning-growth-card-detail-shell .learning-growth-answer-feedback,
+:root[data-theme="dark"] .learning-growth-card-detail-shell .learning-growth-answer-feedback-detail,
+:root[data-theme="dark"] .learning-growth-card-detail-shell .learning-growth-answer-submission,
+:root[data-theme="dark"] .learning-growth-card-detail-shell .learning-growth-audio-evidence,
+:root[data-theme="dark"] .learning-growth-card-detail-shell .learning-growth-answer-reward,
+:root[data-theme="dark"] .learning-growth-card-detail-shell .learning-native-growth-submission-form,
+:root[data-theme="dark"] .learning-growth-card-detail-shell .learning-native-growth-question {
+  background: transparent;
+}
+
+:root[data-theme="dark"] .learning-growth-teaching-why,
+:root[data-theme="dark"] .learning-growth-teaching-hints span,
+:root[data-theme="dark"] .learning-growth-answer-card-meta span,
+:root[data-theme="dark"] .learning-growth-experience-actions button,
+:root[data-theme="dark"] .learning-growth-experience-actions button:hover,
+:root[data-theme="dark"] .learning-growth-experience-actions button:focus-visible,
+:root[data-theme="dark"] .learning-program-card-top > span,
+:root[data-theme="dark"] .learning-program-draft-top > span,
+:root[data-theme="dark"] .learning-program-task-item span,
+:root[data-theme="dark"] .learning-program-status-chip,
+:root[data-theme="dark"] .learning-launch-next-actions span,
+:root[data-theme="dark"] .learning-launch-queue-compact summary span,
+:root[data-theme="dark"] .learning-mastery-state-row em,
+:root[data-theme="dark"] .learning-growth-board-status-chip.active span {
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+  border-color: var(--ui-hairline);
+}
+
+:root[data-theme="dark"] .learning-program-actions button,
+:root[data-theme="dark"] .learning-program-task-actions button,
+:root[data-theme="dark"] .learning-evaluation-inline-form button,
+:root[data-theme="dark"] .learning-program-review-item > button {
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+  border-color: var(--ui-hairline);
+}
+
+:root[data-theme="dark"] .learning-program-actions button:disabled,
+:root[data-theme="dark"] .learning-coin-primary:disabled {
+  color: var(--muted);
+  background: var(--ui-control-bg);
+}
+
+:root[data-theme="dark"] .learning-program-rebuild-warning {
+  color: var(--ui-warning-ink);
+  background: var(--ui-warning-surface);
+  border-color: var(--ui-hairline);
+}
+
+:root[data-theme="dark"] .learning-native-growth-reflection-result.is-failed,
+:root[data-theme="dark"] .learning-native-growth-reflection-result.is-error,
+:root[data-theme="dark"] .learning-native-growth-revision-collapsed {
+  background: var(--ui-danger-surface);
+  border-color: var(--ui-hairline);
+}
+
+:root[data-theme="dark"] .learning-growth-answer-reward-settlement,
+:root[data-theme="dark"] .learning-ledger-amount.positive,
+:root[data-theme="dark"] .learning-ledger-amount.negative {
+  color: var(--ink);
+  background: var(--ui-success-surface);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .learning-growth-tab-list,
+  :root[data-theme="system"] .learning-growth-settings-tabs .learning-growth-tab-list,
+  :root[data-theme="system"] .learning-growth-teaching-stepper,
+  :root[data-theme="system"] .learning-growth-experience-actions {
+    border-color: var(--ui-hairline);
+    background: var(--ui-control-bg);
+    box-shadow: none;
+  }
+
+  :root[data-theme="system"] .learning-growth-tab-list button.active,
+  :root[data-theme="system"] .learning-growth-teaching-stepper button.active {
+    color: var(--ink);
+    background: var(--ui-accent-fill);
+    border-color: rgba(245, 247, 246, 0.36);
+    box-shadow: inset 0 0 0 1px rgba(245, 247, 246, 0.18);
+  }
+
+  :root[data-theme="system"] .learning-growth-answer-card,
+  :root[data-theme="system"] .learning-growth-card-detail-hero,
+  :root[data-theme="system"] .learning-growth-teaching-section,
+  :root[data-theme="system"] .learning-growth-teaching-feedback,
+  :root[data-theme="system"] .learning-growth-teaching-worked-example,
+  :root[data-theme="system"] .learning-growth-card-detail-shell .learning-growth-teaching-worked-example,
+  :root[data-theme="system"] .learning-growth-answer-instruction,
+  :root[data-theme="system"] .learning-growth-answer-feedback,
+  :root[data-theme="system"] .learning-growth-answer-feedback-detail,
+  :root[data-theme="system"] .learning-growth-answer-submission,
+  :root[data-theme="system"] .learning-growth-audio-evidence,
+  :root[data-theme="system"] .learning-growth-answer-reward,
+  :root[data-theme="system"] .learning-growth-audio-evidence-item,
+  :root[data-theme="system"] .learning-growth-card-detail-shell .learning-growth-answer-reward-grid span,
+  :root[data-theme="system"] .learning-growth-card-detail-shell .learning-growth-previous-response,
+  :root[data-theme="system"] .learning-growth-card-detail-shell .learning-growth-feedback-criteria article,
+  :root[data-theme="system"] .learning-growth-card-detail-shell .learning-growth-feedback-detail-note,
+  :root[data-theme="system"] .learning-growth-feedback-detail-note,
+  :root[data-theme="system"] .learning-growth-answer-reward-grid span,
+  :root[data-theme="system"] .learning-task-reward-policy-form.compact,
+  :root[data-theme="system"] .learning-ai-recommendation-card,
+  :root[data-theme="system"] .learning-settings-fold,
+  :root[data-theme="system"] .learning-mastery-domain-tab,
+  :root[data-theme="system"] .learning-owner-advanced,
+  :root[data-theme="system"] .learning-foundation-grid article,
+  :root[data-theme="system"] .learning-program-focus-grid,
+  :root[data-theme="system"] .learning-program-card,
+  :root[data-theme="system"] .learning-program-review-item,
+  :root[data-theme="system"] .learning-program-draft,
+  :root[data-theme="system"] .learning-daily-plan-summary span,
+  :root[data-theme="system"] .learning-daily-plan-list article,
+  :root[data-theme="system"] .learning-program-report-grid span,
+  :root[data-theme="system"] .learning-program-meta-grid span,
+  :root[data-theme="system"] .learning-program-task-item,
+  :root[data-theme="system"] .learning-native-growth-revision-collapsed,
+  :root[data-theme="system"] .learning-native-growth-reflection-result,
+  :root[data-theme="system"] .learning-native-growth-question,
+  :root[data-theme="system"] .learning-native-growth-choice,
+  :root[data-theme="system"] .learning-growth-card-detail-shell .learning-native-growth-choice,
+  :root[data-theme="system"] .learning-native-growth-recorder,
+  :root[data-theme="system"] .learning-program-skill-chip,
+  :root[data-theme="system"] .learning-growth-next-row,
+  :root[data-theme="system"] .learning-readiness-grid span,
+  :root[data-theme="system"] .learning-readiness-check-row,
+  :root[data-theme="system"] .learning-coin-stats span,
+  :root[data-theme="system"] .learning-growth-metrics span,
+  :root[data-theme="system"] .learning-growth-reward,
+  :root[data-theme="system"] .learning-reward-card,
+  :root[data-theme="system"] .learning-ledger-row,
+  :root[data-theme="system"] .learning-redemption-row,
+  :root[data-theme="system"] .learning-coin-empty,
+  :root[data-theme="system"] .learning-coin-loading {
+    color: var(--ink);
+    background: var(--ui-card-surface);
+    border-color: var(--ui-hairline);
+  }
+
+  :root[data-theme="system"] .learning-growth-card-detail-shell .learning-growth-teaching-section,
+  :root[data-theme="system"] .learning-growth-card-detail-shell .learning-growth-teaching-feedback,
+  :root[data-theme="system"] .learning-growth-card-detail-shell .learning-growth-answer-instruction,
+  :root[data-theme="system"] .learning-growth-card-detail-shell .learning-growth-answer-feedback,
+  :root[data-theme="system"] .learning-growth-card-detail-shell .learning-growth-answer-feedback-detail,
+  :root[data-theme="system"] .learning-growth-card-detail-shell .learning-growth-answer-submission,
+  :root[data-theme="system"] .learning-growth-card-detail-shell .learning-growth-audio-evidence,
+  :root[data-theme="system"] .learning-growth-card-detail-shell .learning-growth-answer-reward,
+  :root[data-theme="system"] .learning-growth-card-detail-shell .learning-native-growth-submission-form,
+  :root[data-theme="system"] .learning-growth-card-detail-shell .learning-native-growth-question {
+    background: transparent;
+  }
+
+  :root[data-theme="system"] .learning-growth-teaching-why,
+  :root[data-theme="system"] .learning-growth-teaching-hints span,
+  :root[data-theme="system"] .learning-growth-answer-card-meta span,
+  :root[data-theme="system"] .learning-growth-experience-actions button,
+  :root[data-theme="system"] .learning-growth-experience-actions button:hover,
+  :root[data-theme="system"] .learning-growth-experience-actions button:focus-visible,
+  :root[data-theme="system"] .learning-program-card-top > span,
+  :root[data-theme="system"] .learning-program-draft-top > span,
+  :root[data-theme="system"] .learning-program-task-item span,
+  :root[data-theme="system"] .learning-program-status-chip,
+  :root[data-theme="system"] .learning-launch-next-actions span,
+  :root[data-theme="system"] .learning-launch-queue-compact summary span,
+  :root[data-theme="system"] .learning-mastery-state-row em,
+  :root[data-theme="system"] .learning-growth-board-status-chip.active span {
+    color: var(--ui-accent-ink);
+    background: var(--ui-accent-soft);
+    border-color: var(--ui-hairline);
+  }
+
+  :root[data-theme="system"] .learning-program-actions button,
+  :root[data-theme="system"] .learning-program-task-actions button,
+  :root[data-theme="system"] .learning-evaluation-inline-form button,
+  :root[data-theme="system"] .learning-program-review-item > button {
+    color: var(--ui-accent-ink);
+    background: var(--ui-accent-soft);
+    border-color: var(--ui-hairline);
+  }
+
+  :root[data-theme="system"] .learning-program-actions button:disabled,
+  :root[data-theme="system"] .learning-coin-primary:disabled {
+    color: var(--muted);
+    background: var(--ui-control-bg);
+  }
+
+  :root[data-theme="system"] .learning-program-rebuild-warning {
+    color: var(--ui-warning-ink);
+    background: var(--ui-warning-surface);
+    border-color: var(--ui-hairline);
+  }
+
+  :root[data-theme="system"] .learning-native-growth-reflection-result.is-failed,
+  :root[data-theme="system"] .learning-native-growth-reflection-result.is-error,
+  :root[data-theme="system"] .learning-native-growth-revision-collapsed {
+    background: var(--ui-danger-surface);
+    border-color: var(--ui-hairline);
+  }
+
+  :root[data-theme="system"] .learning-growth-answer-reward-settlement,
+  :root[data-theme="system"] .learning-ledger-amount.positive,
+  :root[data-theme="system"] .learning-ledger-amount.negative {
+    color: var(--ink);
+    background: var(--ui-success-surface);
+  }
+}
+
 @media (max-width: 760px) {
   .learning-growth-view {
     padding: 12px;

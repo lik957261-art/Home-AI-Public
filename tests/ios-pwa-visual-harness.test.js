@@ -21,6 +21,7 @@ const {
   acquireHarnessLock,
   assertCommonHarness,
   assertDarkAdminSurfaces,
+  assertDarkGrowthSurfaces,
   assertDirectoryDarkStatus,
   assertEmbeddedPluginKeyboardComposer,
   assertEmbeddedPluginShell,
@@ -35,6 +36,7 @@ assert.equal(packageJson.scripts["ios:pwa:visual"], "node scripts/ios-pwa-visual
 
 assert.ok(SCENARIOS["directory-dark-status"]);
 assert.ok(SCENARIOS["dark-admin-surfaces"]);
+assert.ok(SCENARIOS["dark-growth-surfaces"]);
 assert.ok(SCENARIOS["embedded-plugin-shell"]);
 assert.ok(SCENARIOS["embedded-plugin-keyboard-composer"]);
 assert.ok(SCENARIOS["embedded-plugin-side-chat-keyboard"]);
@@ -69,6 +71,7 @@ assert.match(script, /mobile_bottom_comfort_inset_not_self_cancelled/);
 assert.match(script, /navBottomGapRaw/);
 assert.match(script, /directory-dark-status/);
 assert.match(script, /dark-admin-surfaces/);
+assert.match(script, /dark-growth-surfaces/);
 assert.match(script, /embedded-plugin-shell/);
 assert.match(script, /embedded-plugin-keyboard-composer/);
 assert.match(script, /embedded-plugin-side-chat-keyboard/);
@@ -116,6 +119,14 @@ assert.match(script, /admin_surfaces_have_no_low_contrast_semantic_text/);
 assert.match(script, /\.workspace-gateway-status/);
 assert.match(script, /\.runtime-config-form/);
 assert.match(script, /\.plugin-admin-card/);
+assert.match(script, /DARK_GROWTH_SURFACES_SCRIPT/);
+assert.match(script, /growth_surfaces_have_no_pale_solid_backgrounds/);
+assert.match(script, /growth_surfaces_have_no_low_contrast_semantic_text/);
+assert.match(script, /\.learning-growth-teaching-stepper button\.active/);
+assert.match(script, /\.learning-growth-teaching-worked-example/);
+assert.match(script, /\.learning-native-growth-question/);
+assert.match(script, /\.learning-program-card/);
+assert.match(script, /\.learning-coin-stats span/);
 assert.match(script, /--ui-surface-muted/);
 assert.match(script, /paleDirectoryRegression/);
 assert.match(script, /\.embedded-plugin-shell\[data-plugin-id=/);
@@ -197,6 +208,48 @@ const darkAdminFail = assertDarkAdminSurfaces({
 assert.equal(darkAdminFail.ok, false);
 assert.ok(darkAdminFail.assertions.some((item) => item.name === "admin_surfaces_have_no_pale_solid_backgrounds" && !item.pass));
 assert.ok(darkAdminFail.assertions.some((item) => item.name === "admin_surfaces_have_no_low_contrast_semantic_text" && !item.pass));
+
+const darkGrowthPass = assertDarkGrowthSurfaces({
+  theme: "dark",
+  tokens: {
+    uiSheet: "rgba(24, 28, 31, 0.99)",
+    uiMenuBg: "rgba(24, 28, 31, 0.99)",
+    uiSurface: "rgba(27, 31, 34, 0.96)",
+  },
+  surfaces: Array.from({ length: 34 }, (_, index) => ({
+    selector: `.growth-sample-${index}`,
+    exists: true,
+    backgroundColor: index % 2 ? "rgba(255, 255, 255, 0.10)" : "rgba(28, 32, 35, 0.96)",
+    color: "rgb(245, 247, 246)",
+  })),
+});
+assert.equal(darkGrowthPass.ok, true);
+
+const darkGrowthFail = assertDarkGrowthSurfaces({
+  theme: "dark",
+  tokens: {
+    uiSheet: "rgba(24, 28, 31, 0.99)",
+    uiMenuBg: "rgba(24, 28, 31, 0.99)",
+    uiSurface: "rgba(27, 31, 34, 0.96)",
+  },
+  surfaces: [
+    ...Array.from({ length: 33 }, (_, index) => ({
+      selector: `.growth-sample-${index}`,
+      exists: true,
+      backgroundColor: "rgba(28, 32, 35, 0.96)",
+      color: "rgb(245, 247, 246)",
+    })),
+    {
+      selector: ".learning-growth-teaching-stepper button.active",
+      exists: true,
+      backgroundColor: "rgba(255, 255, 255, 0.92)",
+      color: "rgb(47, 93, 75)",
+    },
+  ],
+});
+assert.equal(darkGrowthFail.ok, false);
+assert.ok(darkGrowthFail.assertions.some((item) => item.name === "growth_surfaces_have_no_pale_solid_backgrounds" && !item.pass));
+assert.ok(darkGrowthFail.assertions.some((item) => item.name === "growth_surfaces_have_no_low_contrast_semantic_text" && !item.pass));
 
 const embeddedPass = assertEmbeddedPluginShell({
   pluginId: "finance",
