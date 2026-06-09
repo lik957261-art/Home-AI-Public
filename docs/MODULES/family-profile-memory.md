@@ -194,6 +194,23 @@ However, it should be graph-compatible:
 - future Reference / Memory Graph edges can be created from profile evidence
   without rewriting profile semantics.
 
+## UI Direction
+
+The first Memory Graph UI should be a manageable household profile interface,
+not a full database graph browser. The durable UI design lives in
+`docs/IMPLEMENTATION_NOTES/memory-graph-ui-design.md`.
+
+The UI should start from:
+
+- visible memory lists;
+- detail panels with bounded evidence;
+- Owner/member projection clarity;
+- visibility badges and sharing actions;
+- local relationship graphs centered on one selected item.
+
+Global infinite graph browsing, manual graph editing, and raw plugin object
+inspection are not V1 goals.
+
 ## Implementation Status
 
 The service-first foundation is implemented:

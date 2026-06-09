@@ -117,6 +117,8 @@ identifiers until a separate infrastructure migration is planned.
   `docs/IMPLEMENTATION_NOTES/reference-memory-graph-harness-plan.md`
 - Family Profile Memory V1:
   `docs/IMPLEMENTATION_NOTES/family-profile-memory-v1.md`
+- Memory Graph UI design:
+  `docs/IMPLEMENTATION_NOTES/memory-graph-ui-design.md`
 - Plugin workspace contract rollout plan:
   `docs/IMPLEMENTATION_NOTES/plugin-workspace-contract-rollout-plan.md`
 - Plugin workspace contract rollout status:
