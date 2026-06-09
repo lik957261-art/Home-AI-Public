@@ -479,6 +479,42 @@ Primary docs:
 - `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-design.md`
 - `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-implementation.md`
 
+### Family Profile Memory
+
+Applies to personal profile snapshots, household profile records, profile
+evidence refs, profile insights, source-domain collectors, profile projection
+trimming, Owner/member visibility policy, and actor-scoped Gateway context
+injection.
+
+This flow is H1 because it crosses workspaces, permissions, persistence,
+profile provenance, source-domain projections, and Gateway context. It is the
+practical transition before full Reference / Memory Graph event semantics.
+
+Required harness dimensions:
+
+- Owner can read complete household profile projections.
+- Ordinary workspace users can read only their own `member_self` records and
+  explicitly shared household projections.
+- Cross-workspace generated insights default to `owner_only` until Owner
+  explicitly shares a bounded summary.
+- Profile records preserve `source_workspace_id`, domain, sensitivity,
+  visibility, provenance, and idempotency metadata.
+- Evidence refs point to bounded source summaries or stable ids and do not
+  store raw plugin database rows, full private notes, full health reports, full
+  finance ledgers, full emails, raw prompts, tokens, cookies, push endpoints,
+  or long logs.
+- Refresh and insight generation are idempotent; retrying with the same
+  `idempotency_key` does not duplicate records or insights.
+- Gateway context assembly must prove non-Owner workers receive actor-scoped
+  profile projections, not Owner-only household profile data.
+- Group chat, Web Push, Action Inbox, and plugin runs receive only bounded
+  profile projections allowed by their resource-specific policy.
+
+Primary docs:
+
+- `docs/MODULES/family-profile-memory.md`
+- `docs/IMPLEMENTATION_NOTES/family-profile-memory-v1.md`
+
 ### Reference / Memory Graph And Note Links
 
 Applies to Reference / Memory Graph repositories, graph services, Note links,

@@ -19,6 +19,15 @@ This file records durable product rules that implementation must preserve.
 - Ordinary Chat, group-chat, task-stream groups, task-list items, Action Inbox items, Automation jobs, and Growth records are different task surfaces with different sources of truth.
 - Action Inbox is the primary lightweight user-action queue; official Hermes Kanban is legacy/compatibility for Hermes Mobile Todo, not the product's main participation model.
 - Product behavior for user identity, sharing, UI state, task grouping, delivery routing, and product persistence belongs in Hermes Mobile services, not official Hermes source patches.
+- Family-level memory should start from practical household profiles before
+  full cross-plugin event graph semantics. Owner is the household administrator
+  on Owner's personal computer and can see complete household profile
+  projections; ordinary members and non-Owner Gateway runs must receive only
+  self or explicitly shared profile projections.
+- Household profile records and insights must preserve source workspace,
+  domain, sensitivity, visibility, provenance, and idempotency metadata.
+  Cross-workspace generated insights default to Owner-only until Owner chooses
+  to share a bounded summary.
 
 ## Chat Context
 

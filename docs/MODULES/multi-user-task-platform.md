@@ -123,6 +123,19 @@ module mutation is allowed:
 - Growth next actions may appear in Action Inbox, while full learner records
   stay in Growth services and remain summary-only where projected.
 
+### Family Profile Memory
+
+- Transitional household memory layer before full Reference / Memory Graph
+  event semantics.
+- Each workspace keeps a personal profile, while Owner can manage the household
+  profile because Home AI runs on Owner's personal computer.
+- Product permissions do not pretend to defend against Owner's OS-level data
+  access. They prevent ordinary members, group surfaces, Web Push, Gateway
+  profiles, and API projections from accidentally receiving another
+  workspace's private profile data.
+- Cross-workspace generated insights default to Owner-only until Owner shares a
+  bounded summary.
+
 ## Ownership Map
 
 | Concern | Owner |
@@ -130,6 +143,7 @@ module mutation is allowed:
 | Identity and Access Keys | `docs/MODULES/workspace-auth-permissions.md` |
 | Gateway worker/profile routing | `docs/MODULES/gateway-pool.md` and `docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md` |
 | Chat/task context boundaries | `docs/MODULES/chat-context.md` |
+| Family profile memory | `docs/MODULES/family-profile-memory.md` |
 | User-action queue | `docs/MODULES/action-inbox.md` |
 | Directory/file/share ACLs | `docs/MODULES/directory-files.md` |
 | Web Push routes | `docs/MODULES/web-push.md` |

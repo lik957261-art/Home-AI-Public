@@ -1987,6 +1987,46 @@ should run:
 - `node tests\learning-growth-knowledge-graph-harness.test.js`
 - the relevant Growth publish/JIT/projection/UI tests from the module table.
 
+## Planned Family Profile Memory Gate
+
+The household profile design in
+`docs\IMPLEMENTATION_NOTES\family-profile-memory-v1.md` is the required
+pre-coding gate for future family member profiles, household profile summaries,
+cross-workspace profile insights, and actor-scoped profile injection into
+Gateway context.
+
+Family Profile Memory is the practical transition before full Reference /
+Memory Graph event semantics. It is H1 because it crosses workspaces,
+permissions, persistence, source-domain projections, Gateway context assembly,
+and Owner/member visibility policy.
+
+Once family profile services are implemented, changes that touch personal
+profile snapshots, household profile records, evidence refs, profile insights,
+visibility projection, source collectors, or profile context injection should
+run:
+
+- `node tests\family-profile-repository.test.js`
+- `node tests\family-profile-service.test.js`
+- `node tests\family-profile-projection-service.test.js`
+- `node tests\family-profile-insight-service.test.js`
+- `node tests\family-profile-api-routes.test.js`
+- `node tests\context-assembly-service.test.js`
+- `node tests\gateway-run-start-service.test.js`
+- `node tests\architecture-refactor-boundary.test.js`
+
+The first production-grade harness must prove:
+
+- Owner can read complete household profile projections;
+- ordinary members can read only self and explicitly shared household
+  projections;
+- cross-workspace generated insights default to `owner_only`;
+- profile evidence refs preserve source workspace and domain without storing
+  full private plugin payloads;
+- repeated refresh with the same idempotency key does not duplicate records or
+  insights;
+- Gateway context assembly injects actor-scoped profile projections and never
+  sends Owner-only household profile data to non-Owner workers.
+
 ## Planned Reference / Memory Graph Gate
 
 The cross-plugin Reference / Memory Graph design in

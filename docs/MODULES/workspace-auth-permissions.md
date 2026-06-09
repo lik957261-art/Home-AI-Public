@@ -123,6 +123,31 @@ DACL inspection.
   workspace-local `.hermes-<plugin>` key/config and must not copy or derive
   credentials from the Home AI key.
 
+## Family Profile Memory Projection
+
+Family Profile Memory is a product projection layer, not a filesystem security
+layer against Owner.
+
+Owner runs Home AI on Owner's personal computer and can administer local data,
+backups, production databases, and runtime files through the operating system.
+Hermes Mobile must not pretend that runtime permissions can prevent Owner from
+reading local data.
+
+The permission boundary still matters for non-Owner users and Gateway runs:
+
+- Owner may read complete household profile projections.
+- Ordinary workspace users may read their own `member_self` profile records and
+  profile records explicitly classified as `household_summary` or
+  `shared_with_members`.
+- Cross-workspace generated insights default to `owner_only`.
+- Gateway context assembly must use the authenticated actor and effective
+  workspace to select profile projections.
+- Group chat, Web Push, Action Inbox, and plugin runs must receive only bounded
+  profile summaries allowed by their resource-specific policy.
+- Every profile record and insight must preserve source workspace, visibility,
+  sensitivity, provenance, and idempotency metadata so projection decisions are
+  auditable.
+
 ## Validation
 
 - Workspace API tests should cover Owner and non-Owner projections.

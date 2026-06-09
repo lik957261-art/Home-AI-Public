@@ -44,6 +44,7 @@ identifiers until a separate infrastructure migration is planned.
 ## Current Priority Modules
 
 - Multi-user and multi-task platform: `docs/MODULES/multi-user-task-platform.md`
+- Family profile memory: `docs/MODULES/family-profile-memory.md`
 - Growth and learning mastery: `docs/MODULES/growth-learning.md`
 - Chat context and topic compaction: `docs/MODULES/chat-context.md`
 - Gateway Pool and maintenance workers: `docs/MODULES/gateway-pool.md`
@@ -114,6 +115,8 @@ identifiers until a separate infrastructure migration is planned.
 - Reference and Memory Graph V1: `docs/IMPLEMENTATION_NOTES/reference-memory-graph-v1.md`
 - Reference and Memory Graph harness plan:
   `docs/IMPLEMENTATION_NOTES/reference-memory-graph-harness-plan.md`
+- Family Profile Memory V1:
+  `docs/IMPLEMENTATION_NOTES/family-profile-memory-v1.md`
 - Plugin workspace contract rollout plan:
   `docs/IMPLEMENTATION_NOTES/plugin-workspace-contract-rollout-plan.md`
 - Plugin workspace contract rollout status:
