@@ -157,6 +157,11 @@ Non-negotiable:
   may only reveal after the swipe surface is cleared and bottom-nav visible
   count classes have been updated, so the first visible Dock rect is the stable
   post-return rect.
+- If the global plugin Dock is expanded when the user starts a right-swipe back
+  gesture, browser/back-guard navigation, or primary navigation change, the host
+  treats the expanded Dock as a transient overlay and collapses it before the
+  navigation settles. Do not restore an expanded Dock automatically on the next
+  eligible surface; otherwise users see a disappear-then-pop flicker.
 - Global plugin Dock gesture changes must prove that short vertical mistouches
   and horizontal swipes do not expand the Dock, valid upward/downward handle
   swipes settle to the correct state, Chat and top-level plugin App surfaces

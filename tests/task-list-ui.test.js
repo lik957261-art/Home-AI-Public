@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260609-info-topic-font-scale-v675";
+const CLIENT_VERSION = "20260609-global-dock-back-collapse-v676";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-info-topic-font-scale-v675" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-info-topic-font-scale-v675"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-global-dock-back-collapse-v676" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-global-dock-back-collapse-v676"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2442,6 +2442,9 @@ assert.match(appJs, /function setGlobalPluginDockExpanded\(expanded, options = \
 assert.match(appJs, /app\?\.classList\.toggle\("global-plugin-dock-expanded-mode", next\)/);
 assert.match(appJs, /app\?\.classList\.toggle\("global-plugin-dock-collapsed-mode", !next\)/);
 assert.match(appJs, /app\?\.classList\.remove\("global-plugin-dock-expanded-mode", "global-plugin-dock-collapsed-mode"\)/);
+assert.match(appJs, /function closeGlobalPluginDockForNavigation\(options = \{\}\) \{[\s\S]*?global-plugin-dock-navigation-settling[\s\S]*?setGlobalPluginDockExpanded\(false, \{ persist: options\.persist !== false \}\)/);
+assert.match(appJs, /function applyBackSwipeDrag\(swipe, dx\) \{[\s\S]*?globalPluginDockClosedForBackSwipe[\s\S]*?closeGlobalPluginDockForNavigation\(\{ reason: "back_swipe" \}\)/);
+assert.match(appJs, /async function handleInAppBackNavigation\(options = \{\}\) \{[\s\S]*?closeGlobalPluginDockForNavigation\(\{ reason: "back_navigation" \}\)/);
 assert.match(appJs, /function topicPluginDockRevealBlocked\(\) \{[\s\S]*?page-back-dragging[\s\S]*?page-back-settling/);
 assert.match(appJs, /function scheduleTopicPluginDockRevealAfterBackSwipe\(reason = "back_swipe"\)/);
 assert.match(appJs, /function updateTopicPluginDockChrome\(taskList\) \{[\s\S]*?ensureGlobalPluginDockContent\(\)/);
@@ -2541,10 +2544,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-info-topic-font-scale-v675/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-info-topic-font-scale-v675/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-info-topic-font-scale-v675/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-info-topic-font-scale-v675/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-global-dock-back-collapse-v676/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-global-dock-back-collapse-v676/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-global-dock-back-collapse-v676/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-global-dock-back-collapse-v676/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2736,6 +2739,7 @@ assert.match(stylesCss, /\.app\.task-list-mode \.topbar \{[\s\S]*?display: none 
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock \{[\s\S]*?position: fixed;[\s\S]*?bottom: calc\(var\(--topic-plugin-dock-bottom\) - var\(--topic-plugin-dock-nav-overlap\)\);[\s\S]*?height: var\(--topic-plugin-dock-height\);[\s\S]*?min-height: var\(--topic-plugin-dock-height\);[\s\S]*?padding: 5px max\(14px, env\(safe-area-inset-right\)\) 0 max\(14px, env\(safe-area-inset-left\)\);[\s\S]*?background: var\(--ui-chrome\);[\s\S]*?transition: transform 190ms cubic-bezier\(0\.2, 0\.8, 0\.2, 1\);/);
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-collapsed \{[\s\S]*?transform: translateY\(calc\(var\(--topic-plugin-dock-collapsed-offset\) - var\(--topic-plugin-dock-collapsed-safe-lift\)\)\);[\s\S]*?pointer-events: none;/);
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-dragging \{[\s\S]*?transform: translateY\(var\(--global-plugin-dock-gesture-offset, 0px\)\);[\s\S]*?transition: none;/);
+assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-navigation-settling \{[\s\S]*?transition: none;/);
 assert.match(stylesCss, /\.topic-plugin-dock-handle \{[\s\S]*?width: 56px;[\s\S]*?height: var\(--topic-plugin-dock-collapsed-height\);[\s\S]*?min-height: 26px;[\s\S]*?touch-action: none;[\s\S]*?pointer-events: auto;/);
 assert.match(stylesCss, /\.topic-plugin-dock-grabber \{[\s\S]*?width: 12px;[\s\S]*?height: 12px;[\s\S]*?transform: translateY\(3px\);/);
 assert.match(stylesCss, /\.embedded-plugin-host-active:not\(\.codex-mode\)\.global-plugin-dock-collapsed-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: calc\(var\(--topic-plugin-dock-collapsed-height\) \+ var\(--topic-plugin-dock-collapsed-safe-lift\) \+ 6px\);/);

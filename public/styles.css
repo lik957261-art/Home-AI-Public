@@ -5825,6 +5825,10 @@ button.directory-alias-chip {
   transition: none;
 }
 
+.global-plugin-dock-mode .topic-plugin-dock.global-plugin-dock-navigation-settling {
+  transition: none;
+}
+
 .global-plugin-dock-mode .topic-plugin-dock.global-plugin-dock-expanded {
   transform: translateY(0);
 }

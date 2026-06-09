@@ -158,6 +158,10 @@ function clearBackSwipeSurface(surface) {
 function applyBackSwipeDrag(swipe, dx) {
   const surface = swipe?.surface;
   if (!surface) return;
+  if (!swipe.globalPluginDockClosedForBackSwipe && typeof closeGlobalPluginDockForNavigation === "function") {
+    swipe.globalPluginDockClosedForBackSwipe = true;
+    closeGlobalPluginDockForNavigation({ reason: "back_swipe" });
+  }
   const acceptDistance = Math.max(150, Math.min(window.innerWidth * 0.46, 190));
   const visualOffset = Math.min(64, Math.max(0, dx) * 0.42);
   swipe.offset = visualOffset;
@@ -204,6 +208,7 @@ async function handleInAppBackNavigation(options = {}) {
   }
   const target = backSwipeTarget();
   if (!target) return false;
+  if (typeof closeGlobalPluginDockForNavigation === "function") closeGlobalPluginDockForNavigation({ reason: "back_navigation" });
   if (target === "directory-topic-draft") return closeDirectoryTopicDraft();
   if (target === "directory") await navigateDirectoryBackFromShell({ animateEntry: Boolean(options.animateEntry) });
   else performBackSwipeAction(target);

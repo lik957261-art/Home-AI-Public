@@ -558,8 +558,16 @@ function wireGlobalPluginDockGestures(root) {
   }
 }
 
-function closeGlobalPluginDockForNavigation() {
+function closeGlobalPluginDockForNavigation(options = {}) {
   resetGlobalPluginDockGesture();
+  const dock = $("topicPluginDock");
+  if (dock?.classList.contains("global-plugin-dock-expanded") && typeof setGlobalPluginDockExpanded === "function") {
+    dock.classList.add("global-plugin-dock-navigation-settling");
+    setGlobalPluginDockExpanded(false, { persist: options.persist !== false });
+    window.setTimeout(() => {
+      dock.classList.remove("global-plugin-dock-navigation-settling");
+    }, typeof prefersReducedMotion === "function" && prefersReducedMotion() ? 0 : 220);
+  }
   if (typeof closePluginActionMenus === "function") closePluginActionMenus(document);
 }
 
