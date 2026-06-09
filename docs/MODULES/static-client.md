@@ -118,7 +118,7 @@ Gateway plugin/schema/profile changes:
   default (`--mobile-bottom-nav-comfort-inset: 0px` as of
   `20260608-bottom-stack-pwa-clamp-v632`). Tab content should not be lifted by
   default (`--mobile-bottom-nav-visual-lift: 0px` as of
-  `20260609-layout-diagnostic-v646`); any future small visual lift must
+  `20260609-layout-stable-rect-v647`); any future small visual lift must
   stay inside the tab content transform, not in a bottom offset that moves the
   entire Dock/nav stack. Runtime bottom overflow is diagnostic-only by default:
   `--mobile-bottom-nav-overflow-clamp: 0px` prevents iOS standalone PWA
@@ -129,6 +129,10 @@ Gateway plugin/schema/profile changes:
   cold/re-login path, `updateMobileBottomNavReservation()` may apply the bounded
   `--mobile-bottom-nav-underflow-clamp` correction and must record
   `navBottomUnderflowRaw` / `navBottomUnderflow` in diagnostics.
+  Underflow correction may only run against a laid-out nav rect with positive
+  width, height, and bottom coordinate; collapsed early-start rects such as
+  `0/0/0` must leave the runtime bottom offset at the comfort inset instead of
+  writing a negative correction.
   When measuring fixed bottom chrome, compare `getBoundingClientRect()` against
   the layout viewport (`window.innerHeight` / `documentElement.clientHeight`),
   not `visualViewport.height`. iOS standalone PWA can report a shorter visual

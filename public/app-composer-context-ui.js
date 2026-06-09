@@ -398,6 +398,7 @@ function updateMobileBottomNavReservation() {
   const app = $("app");
   const nav = $("bottomNav");
   const clearBottomStackMetrics = () => {
+    window.__hermesMobileBottomLayoutMetrics = null;
     root.style.removeProperty("--mobile-bottom-nav-bottom-runtime");
     root.style.removeProperty("--mobile-bottom-nav-offset-height-runtime");
     root.style.removeProperty("--mobile-bottom-nav-reserved-height-runtime");
@@ -417,6 +418,8 @@ function updateMobileBottomNavReservation() {
   }
   const rect = nav.getBoundingClientRect?.();
   const rectHeight = Math.ceil(rect?.height || 0);
+  const rectWidth = Math.ceil(rect?.width || 0);
+  const navLaidOut = Boolean(rect && rectHeight > 0 && rectWidth > 0 && rect.bottom > 0);
   const contentHeight = Math.ceil(nav.scrollHeight || 0);
   const visualViewportHeight = Math.ceil(window.visualViewport?.height || 0);
   const innerHeight = Math.ceil(window.innerHeight || 0);
@@ -424,16 +427,16 @@ function updateMobileBottomNavReservation() {
   const layoutViewportHeight = Math.max(innerHeight, documentHeight, visualViewportHeight);
   const viewportHeight = layoutViewportHeight;
   const comfortInset = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-comfort-inset", 0)));
-  const navBottomOverflowRaw = rect && viewportHeight ? Math.ceil(Math.max(0, rect.bottom - viewportHeight)) : 0;
+  const navBottomOverflowRaw = navLaidOut && viewportHeight ? Math.ceil(Math.max(0, rect.bottom - viewportHeight)) : 0;
   const navBottomOverflowClamp = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-overflow-clamp", 0)));
   const navBottomOverflow = Math.min(navBottomOverflowRaw, navBottomOverflowClamp);
   const currentNavBottom = Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-bottom-runtime", comfortInset));
-  const currentNavBottomDrop = Math.max(0, -currentNavBottom);
-  const navBottomUnderflowRaw = rect && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - rect.bottom + currentNavBottomDrop)) : 0;
+  const currentNavBottomDrop = navLaidOut ? Math.max(0, -currentNavBottom) : 0;
+  const navBottomUnderflowRaw = navLaidOut && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - rect.bottom + currentNavBottomDrop)) : 0;
   const navBottomUnderflowClamp = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-underflow-clamp", 0)));
   const navBottomUnderflow = Math.min(navBottomUnderflowRaw, navBottomUnderflowClamp);
   const navBottom = navBottomOverflow + comfortInset - navBottomUnderflow;
-  const visibleOffset = rect && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - rect.top)) : rectHeight;
+  const visibleOffset = navLaidOut && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - rect.top)) : rectHeight;
   const offset = Math.max(44, rectHeight, contentHeight, visibleOffset || rectHeight);
   const reserve = Math.max(76, navBottom + rectHeight + 10, navBottom + contentHeight + 10);
   const navVisualLift = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-visual-lift", 0)));
@@ -463,9 +466,11 @@ function updateMobileBottomNavReservation() {
     navBottomUnderflow,
     navBottom,
     comfortInset,
+    navLaidOut,
     navRect: rect ? {
       top: Math.round(rect.top),
       bottom: Math.round(rect.bottom),
+      width: Math.round(rect.width),
       height: Math.round(rect.height),
     } : null,
     navOffset: offset,
