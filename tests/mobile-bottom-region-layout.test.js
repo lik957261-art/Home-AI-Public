@@ -33,7 +33,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260609-layout-stable-rect-v647";
+const clientVersion = "20260609-layout-root-diagnostics-v648";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 
@@ -150,6 +150,12 @@ assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer-context-
 assert.match(appComposerContextJs, /function mobileBottomCssPx\(name, fallback = 0\)/);
 assert.match(appComposerContextJs, /function captureClientLayoutDiagnostic\(reason = "layout"\)/);
 assert.match(appComposerContextJs, /fetch\("\/api\/client-layout-diagnostics"/);
+assert.match(appComposerContextJs, /function clientLayoutDiagnosticViewportUnits\(\)/);
+assert.match(appComposerContextJs, /function clientLayoutDiagnosticSafeAreaProbe\(\)/);
+assert.match(appComposerContextJs, /function clientLayoutDiagnosticChrome\(app, main, bottomNav\)/);
+assert.match(appComposerContextJs, /statusBarStyle: statusMeta\?\.getAttribute\("content"\) \|\| ""/);
+assert.match(appComposerContextJs, /viewportUnits: clientLayoutDiagnosticViewportUnits\(\)/);
+assert.match(appComposerContextJs, /rootElement: clientLayoutDiagnosticRect\(document\.documentElement\)/);
 assert.match(appComposerContextJs, /function settleMobileBottomNavReservation\(reason = "layout", delays = \[0, 40, 120, 260, 520, 1000, 1800\]\)/);
 assert.match(appComposerContextJs, /requestAnimationFrame\(\(\) => \{[\s\S]*?requestAnimationFrame\(\(\) => \{[\s\S]*?updateMobileBottomNavReservation\(\);/);
 assert.match(appComposerContextJs, /window\.__hermesMobileBottomLayoutLastSettle = \{/);

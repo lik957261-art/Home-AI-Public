@@ -118,7 +118,7 @@ Gateway plugin/schema/profile changes:
   default (`--mobile-bottom-nav-comfort-inset: 0px` as of
   `20260608-bottom-stack-pwa-clamp-v632`). Tab content should not be lifted by
   default (`--mobile-bottom-nav-visual-lift: 0px` as of
-  `20260609-layout-stable-rect-v647`); any future small visual lift must
+  `20260609-layout-root-diagnostics-v648`); any future small visual lift must
   stay inside the tab content transform, not in a bottom offset that moves the
   entire Dock/nav stack. Runtime bottom overflow is diagnostic-only by default:
   `--mobile-bottom-nav-overflow-clamp: 0px` prevents iOS standalone PWA
@@ -165,6 +165,11 @@ Gateway plugin/schema/profile changes:
   `<data>/diagnostics/client-layout.jsonl`; `GET /api/client-layout-diagnostics`
   requires a valid Home AI key and returns recent sanitized entries. Do not log
   access keys, cookies, message text, thread content, or raw plugin content.
+  The diagnostic payload may include non-secret PWA chrome state such as the
+  current `apple-mobile-web-app-status-bar-style`, theme mode, root/app class
+  lists, numeric safe-area probe values, and measured `100vh` / `100dvh` /
+  `100lvh` / `100svh` heights so real iOS viewport behavior can be debugged
+  without hard-coding a device-specific correction.
 - The settings sheet owns device-local display preferences. Theme mode is a
   three-state client preference: `system`, `light`, or `dark`. The shell must
   set `data-theme` before loading CSS to avoid first-paint flashes, update

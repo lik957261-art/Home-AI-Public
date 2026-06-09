@@ -280,6 +280,138 @@ function clientLayoutDiagnosticRect(node) {
   };
 }
 
+function clientLayoutDiagnosticClassList(node) {
+  try {
+    return Array.from(node?.classList || []).slice(0, 32);
+  } catch (_) {
+    return [];
+  }
+}
+
+function clientLayoutDiagnosticMeasureLength(lengthValue) {
+  if (!document.body || !lengthValue) return null;
+  const probe = document.createElement("div");
+  probe.setAttribute("aria-hidden", "true");
+  probe.style.cssText = [
+    "position:fixed",
+    "left:-10000px",
+    "top:0",
+    "width:1px",
+    `height:${lengthValue}`,
+    "padding:0",
+    "margin:0",
+    "border:0",
+    "pointer-events:none",
+    "visibility:hidden",
+  ].join(";");
+  try {
+    document.body.appendChild(probe);
+    return clientLayoutDiagnosticRect(probe);
+  } catch (_) {
+    return null;
+  } finally {
+    probe.remove?.();
+  }
+}
+
+function clientLayoutDiagnosticSafeAreaProbe() {
+  if (!document.body) return null;
+  const probe = document.createElement("div");
+  probe.setAttribute("aria-hidden", "true");
+  probe.style.cssText = [
+    "position:fixed",
+    "left:-10000px",
+    "top:0",
+    "width:1px",
+    "height:1px",
+    "padding-top:env(safe-area-inset-top)",
+    "padding-right:env(safe-area-inset-right)",
+    "padding-bottom:env(safe-area-inset-bottom)",
+    "padding-left:env(safe-area-inset-left)",
+    "margin:0",
+    "border:0",
+    "pointer-events:none",
+    "visibility:hidden",
+  ].join(";");
+  try {
+    document.body.appendChild(probe);
+    const styles = window.getComputedStyle?.(probe);
+    const number = (name) => {
+      const parsed = Number.parseFloat(styles?.getPropertyValue(name) || "");
+      return Number.isFinite(parsed) ? Math.round(parsed) : 0;
+    };
+    return {
+      top: number("padding-top"),
+      right: number("padding-right"),
+      bottom: number("padding-bottom"),
+      left: number("padding-left"),
+    };
+  } catch (_) {
+    return null;
+  } finally {
+    probe.remove?.();
+  }
+}
+
+function clientLayoutDiagnosticViewportUnits() {
+  return {
+    vh: clientLayoutDiagnosticMeasureLength("100vh"),
+    dvh: clientLayoutDiagnosticMeasureLength("100dvh"),
+    lvh: clientLayoutDiagnosticMeasureLength("100lvh"),
+    svh: clientLayoutDiagnosticMeasureLength("100svh"),
+  };
+}
+
+function clientLayoutDiagnosticChrome(app, main, bottomNav) {
+  const root = document.documentElement;
+  const statusMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  const bottomStyles = bottomNav ? window.getComputedStyle?.(bottomNav) : null;
+  const appStyles = app ? window.getComputedStyle?.(app) : null;
+  const mainStyles = main ? window.getComputedStyle?.(main) : null;
+  const bodyBefore = window.getComputedStyle?.(document.body, "::before");
+  return {
+    statusBarStyle: statusMeta?.getAttribute("content") || "",
+    themeColor: themeMeta?.getAttribute("content") || "",
+    dataTheme: root?.dataset?.theme || "",
+    effectiveTheme: root?.dataset?.effectiveTheme || "",
+    rootClasses: clientLayoutDiagnosticClassList(root),
+    bodyClasses: clientLayoutDiagnosticClassList(document.body),
+    appClasses: clientLayoutDiagnosticClassList(app),
+    mainClasses: clientLayoutDiagnosticClassList(main),
+    safeAreaProbe: clientLayoutDiagnosticSafeAreaProbe(),
+    viewportUnits: clientLayoutDiagnosticViewportUnits(),
+    bodyBefore: {
+      display: bodyBefore?.getPropertyValue("display") || "",
+      height: bodyBefore?.getPropertyValue("height") || "",
+      top: bodyBefore?.getPropertyValue("top") || "",
+      backgroundColor: bodyBefore?.getPropertyValue("background-color") || "",
+    },
+    appStyle: {
+      position: appStyles?.getPropertyValue("position") || "",
+      height: appStyles?.getPropertyValue("height") || "",
+      minHeight: appStyles?.getPropertyValue("min-height") || "",
+      paddingBottom: appStyles?.getPropertyValue("padding-bottom") || "",
+    },
+    mainStyle: {
+      position: mainStyles?.getPropertyValue("position") || "",
+      top: mainStyles?.getPropertyValue("top") || "",
+      bottom: mainStyles?.getPropertyValue("bottom") || "",
+      height: mainStyles?.getPropertyValue("height") || "",
+    },
+    bottomNavStyle: {
+      display: bottomStyles?.getPropertyValue("display") || "",
+      position: bottomStyles?.getPropertyValue("position") || "",
+      bottom: bottomStyles?.getPropertyValue("bottom") || "",
+      height: bottomStyles?.getPropertyValue("height") || "",
+      minHeight: bottomStyles?.getPropertyValue("min-height") || "",
+      paddingTop: bottomStyles?.getPropertyValue("padding-top") || "",
+      paddingBottom: bottomStyles?.getPropertyValue("padding-bottom") || "",
+      transform: bottomStyles?.getPropertyValue("transform") || "",
+    },
+  };
+}
+
 function clientLayoutDiagnosticCss() {
   const styles = window.getComputedStyle?.(document.documentElement);
   const pick = (name) => styles?.getPropertyValue(name)?.trim?.() || "";
@@ -306,6 +438,7 @@ function captureClientLayoutDiagnostic(reason = "layout") {
   const main = app?.querySelector?.(".main");
   const conversation = $("conversation");
   const pluginFrame = document.querySelector(".embedded-plugin-frame.active, .wardrobe-plugin-frame");
+  const bottomNav = $("bottomNav");
   return {
     event: "client_layout",
     reason: String(reason || "layout").slice(0, 80),
@@ -342,15 +475,16 @@ function captureClientLayoutDiagnostic(reason = "layout") {
       documentClientHeight: Math.round(document.documentElement?.clientHeight || 0),
       bodyClientHeight: Math.round(document.body?.clientHeight || 0),
     },
+    chrome: clientLayoutDiagnosticChrome(app, main, bottomNav),
     css: clientLayoutDiagnosticCss(),
     rects: {
-      html: clientLayoutDiagnosticRect(document.documentElement),
+      rootElement: clientLayoutDiagnosticRect(document.documentElement),
       body: clientLayoutDiagnosticRect(document.body),
       app: clientLayoutDiagnosticRect(app),
       main: clientLayoutDiagnosticRect(main),
       topbar: clientLayoutDiagnosticRect(document.querySelector(".topbar")),
       conversation: clientLayoutDiagnosticRect(conversation),
-      bottomNav: clientLayoutDiagnosticRect($("bottomNav")),
+      bottomNav: clientLayoutDiagnosticRect(bottomNav),
       topicPluginDock: clientLayoutDiagnosticRect($("topicPluginDock")),
       embeddedPluginHost: clientLayoutDiagnosticRect(document.querySelector(".embedded-plugin-host.active, .wardrobe-plugin-host.active")),
       pluginFrame: clientLayoutDiagnosticRect(pluginFrame),
