@@ -105,7 +105,7 @@ function printHelp() {
     "Options:",
     "  --debug-url <url>      Live debug server URL. Default: http://127.0.0.1:19073/",
     "  --app-url <url>        Optional app URL to open through the live debug server before the scenario.",
-    "  --scenario <name>      directory-dark-status, embedded-plugin-shell, embedded-plugin-keyboard-composer, embedded-plugin-side-chat-keyboard, plugin-topic-dock-return-stability, or global-plugin-dock-gesture-stability.",
+    "  --scenario <name>      directory-dark-status, dark-admin-surfaces, embedded-plugin-shell, embedded-plugin-keyboard-composer, embedded-plugin-side-chat-keyboard, plugin-topic-dock-return-stability, or global-plugin-dock-gesture-stability.",
     "  --plugin-id <id>       Required by embedded plugin scenarios.",
     "  --plugin-thread-id <id> Optional thread id for embedded plugin keyboard scenarios.",
     "  --theme <mode>         Theme hint for scenarios. Default: dark.",
@@ -1227,6 +1227,148 @@ const MOBILE_BOTTOM_STABILITY_SCRIPT = `
   };
 `;
 
+const DARK_ADMIN_SURFACES_SCRIPT = `
+  const theme = arguments[0] || "dark";
+  try { localStorage.setItem("hermesWebTheme", theme); } catch (_) {}
+  if (window.appState) window.appState.themeMode = theme;
+  if (typeof window.applyThemePreference === "function") window.applyThemePreference(theme);
+  else document.documentElement.setAttribute("data-theme", theme);
+  document.querySelector("[data-visual-dark-admin-surfaces]")?.remove();
+  const host = document.createElement("div");
+  host.setAttribute("data-visual-dark-admin-surfaces", "1");
+  host.className = "access-key-overlay";
+  host.innerHTML = \`
+    <section class="access-key-sheet owner-admin-sheet">
+      <header class="access-key-header">
+        <div>
+          <div class="access-key-title">Dark admin surface check</div>
+          <div class="access-key-subtitle">Settings, workspace, plugin, and runtime controls</div>
+        </div>
+        <button class="access-key-close" type="button">Done</button>
+      </header>
+      <section class="access-key-section access-key-workspace-admin">
+        <summary class="access-key-section-summary"><span class="access-key-section-title">Workspace</span><span>LOW</span></summary>
+        <article class="owner-workspace-card local">
+          <div class="owner-workspace-card-head">
+            <div class="owner-workspace-main">
+              <div class="owner-workspace-title">Owner</div>
+              <div class="owner-workspace-id">owner</div>
+            </div>
+            <span class="owner-workspace-badge">active</span>
+          </div>
+          <dl class="owner-workspace-facts"><div><dt>Root</dt><dd>Hermes</dd></div></dl>
+          <div class="owner-workspace-actions">
+            <button type="button">Generate Key</button>
+            <button class="danger" type="button">Delete</button>
+          </div>
+          <section class="workspace-gateway-status">
+            <div class="workspace-gateway-title">Gateway Pool: 6/6 healthy</div>
+            <div class="workspace-gateway-meta">mode hybrid / running 6/36</div>
+            <div class="workspace-gateway-provider-row"><span class="workspace-gateway-provider-name">ChatGPT</span><span class="workspace-gateway-provider-tier">Low healthy</span></div>
+          </section>
+        </article>
+        <form class="runtime-config-form">
+          <label>Low workers<input placeholder="3" value="3"></label>
+          <label>Provider<select><option>ChatGPT</option></select></label>
+          <div class="runtime-config-status"><strong>Runtime ready</strong><span class="runtime-config-meta">Gateway pool healthy</span></div>
+          <div class="runtime-config-status error"><strong>Error example</strong><span class="runtime-config-error">Permission missing</span></div>
+          <div class="runtime-config-actions"><button type="button">Save</button></div>
+        </form>
+      </section>
+      <section class="plugin-admin-sheet">
+        <div class="plugin-admin-card">
+          <div class="plugin-admin-card-head">
+            <div>
+              <div class="plugin-admin-title">Finance</div>
+              <div class="plugin-admin-meta">Enabled plugin</div>
+            </div>
+            <div class="plugin-admin-head-actions"><button class="plugin-admin-expand" type="button">Open</button><span class="plugin-admin-risk is-critical">Owner</span></div>
+          </div>
+          <div class="plugin-admin-contract"><span>Visual harness</span><span>Dark mode</span></div>
+          <div class="plugin-admin-owner-only-panel">Owner-only plugin management</div>
+          <div class="plugin-admin-workspace-row">
+            <div><div class="plugin-admin-workspace-title">Workspace</div><div class="plugin-admin-workspace-meta">Ready</div></div>
+            <span class="plugin-admin-workspace-state is-enabled">Enabled</span>
+            <button type="button">Manage</button>
+          </div>
+        </div>
+      </section>
+      <section class="access-key-result">
+        <span class="access-key-result-label">Access Key</span>
+        <div class="access-key-value-row"><code>configured</code><button type="button">Copy</button></div>
+      </section>
+      <div class="access-key-empty">No more items</div>
+      <section class="group-chat-sheet">
+        <label class="group-member-option"><input type="checkbox" checked>Member</label>
+        <div class="group-member-actions"><button type="button">Save</button></div>
+      </section>
+    </section>
+  \`;
+  document.body.appendChild(host);
+  const styles = getComputedStyle(document.documentElement);
+  const rect = (node) => {
+    if (!node) return null;
+    const r = node.getBoundingClientRect();
+    return { top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom), left: Math.round(r.left), width: Math.round(r.width), height: Math.round(r.height) };
+  };
+  const read = (selector) => {
+    const node = host.querySelector(selector);
+    if (!node) return { selector, exists: false };
+    const computed = getComputedStyle(node);
+    return {
+      selector,
+      exists: true,
+      backgroundColor: computed.backgroundColor,
+      color: computed.color,
+      borderColor: computed.borderColor,
+      rect: rect(node),
+    };
+  };
+  const selectors = [
+    ".access-key-sheet",
+    ".access-key-header",
+    ".access-key-section",
+    ".owner-workspace-card",
+    ".owner-workspace-actions button",
+    ".owner-workspace-actions button.danger",
+    ".workspace-gateway-status",
+    ".runtime-config-form",
+    ".runtime-config-form input",
+    ".runtime-config-form select",
+    ".runtime-config-status",
+    ".runtime-config-status.error",
+    ".runtime-config-actions button",
+    ".plugin-admin-card",
+    ".plugin-admin-expand",
+    ".plugin-admin-risk.is-critical",
+    ".plugin-admin-contract span",
+    ".plugin-admin-owner-only-panel",
+    ".plugin-admin-workspace-state.is-enabled",
+    ".plugin-admin-workspace-row button",
+    ".access-key-result",
+    ".access-key-value-row code",
+    ".access-key-empty",
+    ".group-member-option",
+    ".group-member-actions button",
+  ];
+  return {
+    ok: true,
+    scenario: "dark-admin-surfaces",
+    clientVersion: document.documentElement.getAttribute("data-client-version") || "",
+    theme: document.documentElement.getAttribute("data-theme") || "",
+    rootBackground: getComputedStyle(document.body).backgroundColor,
+    tokens: {
+      uiSheet: styles.getPropertyValue("--ui-sheet").trim(),
+      uiMenuBg: styles.getPropertyValue("--ui-menu-bg").trim(),
+      uiSurface: styles.getPropertyValue("--ui-surface").trim(),
+      uiControlBg: styles.getPropertyValue("--ui-control-bg").trim(),
+      text: styles.getPropertyValue("--text").trim(),
+      ink: styles.getPropertyValue("--ink").trim(),
+    },
+    surfaces: selectors.map(read),
+  };
+`;
+
 function parseColor(value) {
   const match = String(value || "").match(/rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)(?:\s*,\s*([0-9.]+)\s*)?\)/i);
   if (!match) return null;
@@ -1261,6 +1403,20 @@ function paleDirectoryRegression(value) {
   return color.r >= 245 && color.g >= 245 && color.b >= 240 && color.a >= 0.65;
 }
 
+function paleSolidRegression(value) {
+  const color = parseColor(value);
+  if (!color) return false;
+  return color.a >= 0.42 && Math.min(color.r, color.g, color.b) >= 150;
+}
+
+function lowContrastDarkSemanticText(value) {
+  const color = parseColor(value);
+  if (!color) return false;
+  const max = Math.max(color.r, color.g, color.b);
+  if (max >= 150) return false;
+  return color.g >= color.r + 10 || color.r >= color.b + 20;
+}
+
 function assertion(name, pass, details = {}) {
   return { name, pass: Boolean(pass), details };
 }
@@ -1277,6 +1433,30 @@ function assertDirectoryDarkStatus(metrics = {}) {
       mutedSurfaceRaw: metrics.mutedSurfaceRaw,
     }),
     assertion("directory_status_not_pale_cream", !paleDirectoryRegression(metrics.statusBackground), { statusBackground: metrics.statusBackground }),
+  ];
+  return { ok: assertions.every((item) => item.pass), assertions };
+}
+
+function assertDarkAdminSurfaces(metrics = {}) {
+  const surfaces = Array.isArray(metrics.surfaces) ? metrics.surfaces : [];
+  const missing = surfaces.filter((item) => !item?.exists);
+  const paleBackgrounds = surfaces.filter((item) => paleSolidRegression(item?.backgroundColor));
+  const lowContrastText = surfaces.filter((item) => lowContrastDarkSemanticText(item?.color));
+  const assertions = [
+    assertion("theme_is_dark", metrics.theme === "dark" || /data-theme.?=.?dark/i.test(metrics.appClass || ""), { theme: metrics.theme || "" }),
+    assertion("admin_surface_samples_exist", surfaces.length >= 20 && missing.length === 0, {
+      sampleCount: surfaces.length,
+      missing: missing.map((item) => item.selector),
+    }),
+    assertion("admin_surfaces_have_no_pale_solid_backgrounds", paleBackgrounds.length === 0, {
+      paleBackgrounds: paleBackgrounds.map((item) => ({ selector: item.selector, backgroundColor: item.backgroundColor })).slice(0, 12),
+    }),
+    assertion("admin_surfaces_have_no_low_contrast_semantic_text", lowContrastText.length === 0, {
+      lowContrastText: lowContrastText.map((item) => ({ selector: item.selector, color: item.color })).slice(0, 12),
+    }),
+    assertion("admin_theme_tokens_are_dark", darkOpaqueColor(metrics.tokens?.uiSheet) && darkOpaqueColor(metrics.tokens?.uiMenuBg) && darkOpaqueColor(metrics.tokens?.uiSurface), {
+      tokens: metrics.tokens || {},
+    }),
   ];
   return { ok: assertions.every((item) => item.pass), assertions };
 }
@@ -1533,6 +1713,14 @@ const SCENARIOS = Object.freeze({
     measureArgs: () => [],
     assert: assertDirectoryDarkStatus,
   }),
+  "dark-admin-surfaces": Object.freeze({
+    description: "Render admin/settings/menu sample surfaces in dark mode and assert there are no pale panels or low-contrast semantic text.",
+    prepareScript: DARK_ADMIN_SURFACES_SCRIPT,
+    prepareArgs: (options) => [options.theme || "dark"],
+    measureScript: null,
+    measureArgs: () => [],
+    assert: assertDarkAdminSurfaces,
+  }),
   "embedded-plugin-shell": Object.freeze({
     description: "Open an embedded plugin through Home AI and assert iframe shell bounds.",
     prepareScript: EMBEDDED_PLUGIN_PREPARE_SCRIPT,
@@ -1731,6 +1919,7 @@ module.exports = {
   acquireHarnessLock,
   acquireDebugLaneLease,
   assertCommonHarness,
+  assertDarkAdminSurfaces,
   assertDirectoryDarkStatus,
   assertEmbeddedPluginKeyboardComposer,
   assertEmbeddedPluginShell,

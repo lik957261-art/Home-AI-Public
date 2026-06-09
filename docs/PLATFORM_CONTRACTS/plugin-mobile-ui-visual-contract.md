@@ -427,6 +427,16 @@ npm run ios:pwa:visual -- \
   --debug-url http://127.0.0.1:19073/
 ```
 
+Dark-mode settings, admin menus, runtime controls, and plugin-management
+surfaces use the admin-surface scenario:
+
+```bash
+cd <Home-AI>
+npm run ios:pwa:visual -- \
+  --scenario dark-admin-surfaces \
+  --debug-url http://127.0.0.1:19073/
+```
+
 Embedded plugin shells use the plugin scenario:
 
 ```bash
@@ -513,6 +523,10 @@ oscillation, or delayed layout drift.
 The Directory dark-status scenario asserts `.directory-status`,
 `.directory-shell`, `#conversation`, and `--ui-surface-muted` so gray/pale
 loading-surface regressions fail deterministically. The
+dark-admin-surfaces scenario renders representative Access Key, Owner Admin,
+Runtime Config, Plugin Admin, and Group Chat sheet controls in dark mode and
+fails if any sampled surface keeps a pale solid background or low-contrast
+dark green/brown semantic text. The
 embedded-plugin-shell scenario asserts the host shell, iframe existence,
 meaningful frame size, no horizontal overflow, and a non-empty screenshot
 artifact by default. The embedded-plugin-keyboard-composer scenario asserts

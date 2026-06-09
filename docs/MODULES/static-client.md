@@ -313,6 +313,11 @@ Gateway plugin/schema/profile changes:
   `--ui-hairline-strong`, and `--shadow`. Dark/system-dark fixes are incomplete
   if a menu or popover still relies on a hard-coded white/pale background in its
   base rule and only happens to work because of a separate override.
+- Settings/access-key, Owner Admin, Runtime Config, Plugin Admin, and group
+  sheet surfaces are covered by the iOS PWA `dark-admin-surfaces` scenario.
+  They must use theme tokens for panels, buttons, chips, code values, and
+  status rows; a dark-mode pass is invalid if any sampled surface keeps a pale
+  solid background or low-contrast dark green/brown text.
 - In dark/system-dark mode, green/success semantics may remain in backgrounds,
   borders, dots, or subtle status surfaces, but text that previously used dark
   green must resolve to off-white (`--ink` / `--ui-success-ink`) unless a

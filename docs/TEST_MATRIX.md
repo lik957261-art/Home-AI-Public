@@ -1672,6 +1672,10 @@ settings/access-key sheets. A change that adds or modifies theme tokens must
 include a screenshot or browser visual smoke against those surfaces and focused
 assertions that the critical CSS rules consume theme variables instead of
 hard-coded pale surfaces.
+The iOS PWA `dark-admin-surfaces` scenario is the required focused check for
+settings/access-key, Owner Admin, Runtime Config, Plugin Admin, and group-sheet
+surfaces; it must fail on pale solid backgrounds or low-contrast dark
+green/brown semantic text in dark/system-dark mode.
 Floating menus and inline popovers are part of this dark-mode matrix: Directory
 entry menus, topic detail three-dot menus, plugin capability action menus,
 usage/tool/skill details popovers, and Growth owner menus must use theme tokens
