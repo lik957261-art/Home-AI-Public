@@ -33,7 +33,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260609-global-plugin-dock-expanded-chat-lift-v669";
+const clientVersion = "20260609-global-plugin-dock-codex-frame-lift-v670";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 
@@ -250,6 +250,7 @@ assert.doesNotMatch(stylesCss, /bottom: calc\(var\(--plugin-context-bottom-nav-h
 assert.doesNotMatch(stylesCss, /padding-bottom: var\(--plugin-topic-composer-reserved-height, 142px\);/);
 assert.match(stylesCss, /\.global-plugin-dock-mode\.global-plugin-dock-collapsed-mode:not\(\.main-back-visible\):not\(\.plugin-context-nav-mode\) \.composer \{[\s\S]*?transform: translateY\(-6px\);/);
 assert.match(stylesCss, /\.global-plugin-dock-mode\.global-plugin-dock-expanded-mode:not\(\.main-back-visible\):not\(\.plugin-context-nav-mode\) \.composer \{[\s\S]*?transform: translateY\(calc\(-1 \* var\(--topic-plugin-dock-height\) - 6px\)\);/);
+assert.match(stylesCss, /\.codex-mode\.embedded-plugin-host-active\.global-plugin-dock-expanded-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: calc\(var\(--topic-plugin-dock-height\) \+ 6px\);/);
 assert.doesNotMatch(block(".app.task-list-mode"), /padding-bottom: var\(--topic-plugin-dock-reserved-height\);/);
 
 console.log("mobile bottom region layout tests passed");

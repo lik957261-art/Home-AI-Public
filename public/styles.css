@@ -1455,6 +1455,14 @@ button {
   display: none !important;
 }
 
+.codex-mode.embedded-plugin-host-active.global-plugin-dock-collapsed-mode .embedded-plugin-host {
+  padding-bottom: calc(var(--topic-plugin-dock-collapsed-height) + 6px);
+}
+
+.codex-mode.embedded-plugin-host-active.global-plugin-dock-expanded-mode .embedded-plugin-host {
+  padding-bottom: calc(var(--topic-plugin-dock-height) + 6px);
+}
+
 .app.embedded-plugin-preview-fullscreen-active {
   padding-bottom: 0;
 }
