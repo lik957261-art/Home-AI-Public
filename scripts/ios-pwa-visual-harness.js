@@ -731,15 +731,27 @@ const EMBEDDED_PLUGIN_KEYBOARD_FOCUS_TARGET_SCRIPT = `
     return { ok: false, error: "plugin_frame_inaccessible", pluginId, frame: frameRect, detail: String(err && err.message || err).slice(0, 120) };
   }
   if (!win || !doc || doc.readyState === "loading") return { ok: false, error: "plugin_frame_loading", pluginId, frame: frameRect, retryAfterMs: 900 };
-  const currentThreadId = String(win.state && win.state.currentThreadId || "");
+  const visualHarness = win.__codexMobileVisualHarness && typeof win.__codexMobileVisualHarness === "object"
+    ? win.__codexMobileVisualHarness
+    : null;
+  const currentThreadId = String(
+    visualHarness && typeof visualHarness.currentThreadId === "function"
+      ? visualHarness.currentThreadId()
+      : (win.state && win.state.currentThreadId || "")
+  );
   if (pluginId === "codex-mobile" && pluginThreadId && currentThreadId !== pluginThreadId) {
-    const canLoadThread = typeof win.loadThread === "function";
+    const canLoadThread = Boolean(
+      visualHarness && typeof visualHarness.openThread === "function"
+      || typeof win.loadThread === "function"
+    );
     const canOpenExternalThread = typeof win.openExternalThreadSelection === "function";
     if (!canLoadThread && !canOpenExternalThread) {
       return { ok: false, error: "plugin_thread_open_missing", pluginId, pluginThreadId, currentThreadId, keyboardTarget, retryAfterMs: 900 };
     }
     win.setTimeout(() => {
-      if (typeof win.loadThread === "function") {
+      if (visualHarness && typeof visualHarness.openThread === "function") {
+        Promise.resolve(visualHarness.openThread(pluginThreadId)).catch(() => {});
+      } else if (typeof win.loadThread === "function") {
         win.loadThread(pluginThreadId, { source: "keyboard-visual-harness" }).catch(() => {});
       } else if (typeof win.openExternalThreadSelection === "function") {
         win.openExternalThreadSelection(pluginThreadId, { statusMessage: "Opening keyboard visual thread" }).catch(() => {});
@@ -757,9 +769,12 @@ const EMBEDDED_PLUGIN_KEYBOARD_FOCUS_TARGET_SCRIPT = `
     };
   }
   if (pluginId === "codex-mobile" && keyboardTarget === "side-chat") {
-    if (win.state && !win.state.subagentPanelOpen) win.state.subagentPanelOpen = true;
+    if (visualHarness && typeof visualHarness.setSideChatPanelOpen === "function") visualHarness.setSideChatPanelOpen(true);
+    else if (win.state && !win.state.subagentPanelOpen) win.state.subagentPanelOpen = true;
     if (typeof win.updateSubagentPanelUi === "function") win.updateSubagentPanelUi({ force: true });
-    if (typeof win.loadSideChat === "function" && currentThreadId) {
+    if (visualHarness && typeof visualHarness.loadSideChat === "function" && currentThreadId) {
+      Promise.resolve(visualHarness.loadSideChat(currentThreadId)).catch(() => {});
+    } else if (typeof win.loadSideChat === "function" && currentThreadId) {
       win.loadSideChat(currentThreadId, { silent: true }).catch(() => {});
     }
   }
@@ -866,8 +881,12 @@ const EMBEDDED_PLUGIN_KEYBOARD_MEASURE_SCRIPT = `
     const win = frame && frame.contentWindow || null;
     const doc = frame && (frame.contentDocument || (win && win.document)) || null;
     if (doc && win) {
+      const visualHarness = win.__codexMobileVisualHarness && typeof win.__codexMobileVisualHarness === "object"
+        ? win.__codexMobileVisualHarness
+        : null;
       if (pluginId === "codex-mobile" && keyboardTarget === "side-chat") {
-        if (win.state && !win.state.subagentPanelOpen) win.state.subagentPanelOpen = true;
+        if (visualHarness && typeof visualHarness.setSideChatPanelOpen === "function") visualHarness.setSideChatPanelOpen(true);
+        else if (win.state && !win.state.subagentPanelOpen) win.state.subagentPanelOpen = true;
         if (typeof win.updateSubagentPanelUi === "function") win.updateSubagentPanelUi({ force: true });
       }
       const input = doc.querySelector(inputSelector);
@@ -901,6 +920,9 @@ const EMBEDDED_PLUGIN_KEYBOARD_MEASURE_SCRIPT = `
             },
             footer: { safeAreaBottom: 0 },
           });
+          if (visualHarness && typeof visualHarness.ensureSideChatDraftVisible === "function") {
+            visualHarness.ensureSideChatDraftVisible();
+          }
           keyboardVisible = true;
           keyboardBottomInset = simulatedInset;
           keyboardTop = simulatedTop;
@@ -914,7 +936,18 @@ const EMBEDDED_PLUGIN_KEYBOARD_MEASURE_SCRIPT = `
       const sideChatTextarea = doc.querySelector("[data-side-chat-draft]");
       const app = doc.getElementById("app") || doc.querySelector(".app");
       const pluginRoot = doc.documentElement;
-      const hostViewport = win.state && win.state.pluginHostViewport || null;
+      const hostViewport = visualHarness && typeof visualHarness.hostViewport === "function"
+        ? visualHarness.hostViewport()
+        : (win.state && win.state.pluginHostViewport || null);
+      const currentThreadId = visualHarness && typeof visualHarness.currentThreadId === "function"
+        ? visualHarness.currentThreadId()
+        : (win.state && win.state.currentThreadId || "");
+      const sideChatPanelOpen = visualHarness && typeof visualHarness.sideChatPanelOpen === "function"
+        ? visualHarness.sideChatPanelOpen()
+        : Boolean(win.state && win.state.subagentPanelOpen);
+      const pluginClientBuildId = visualHarness && typeof visualHarness.clientBuildId === "function"
+        ? visualHarness.clientBuildId()
+        : (win.CLIENT_BUILD_ID || "");
       const pluginVisual = win.visualViewport ? {
         width: Math.round(win.visualViewport.width || 0),
         height: Math.round(win.visualViewport.height || 0),
@@ -942,7 +975,8 @@ const EMBEDDED_PLUGIN_KEYBOARD_MEASURE_SCRIPT = `
       plugin = {
         accessible: true,
         readyState: doc.readyState,
-        currentThreadId: win.state && win.state.currentThreadId || "",
+        pluginClientBuildId: String(pluginClientBuildId || ""),
+        currentThreadId: currentThreadId || "",
         activeElementId: doc.activeElement && doc.activeElement.id || "",
         activeElementRole: doc.activeElement && doc.activeElement.getAttribute && doc.activeElement.getAttribute("role") || "",
         activeElementSideChatDraft: Boolean(doc.activeElement && doc.activeElement.matches && doc.activeElement.matches("[data-side-chat-draft]")),
@@ -962,7 +996,7 @@ const EMBEDDED_PLUGIN_KEYBOARD_MEASURE_SCRIPT = `
         app: { rect: rect(app) },
         input: inputRect,
         composer: composerRect,
-        sideChatPanelOpen: Boolean(win.state && win.state.subagentPanelOpen),
+        sideChatPanelOpen: Boolean(sideChatPanelOpen),
         sideChatPanel: rect(sideChatPanel),
         sideChatForm: rect(sideChatForm),
         sideChatTextarea: rect(sideChatTextarea),
