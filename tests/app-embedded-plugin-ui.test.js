@@ -133,11 +133,17 @@ assert.match(wardrobeUi, /\["pluginRoute", "pluginItemId", "pluginThreadId", "pl
 assert.match(wardrobeUi, /parsed\.searchParams\.set\("pluginId", "wardrobe"\)/);
 assert.match(wardrobeUi, /const entryUrl = wardrobePluginEntryUrlForFrame\(String\(pluginManifest\.entry\?\.url \|\| ""\)\)/);
 assert.match(embeddedPluginUi, /function captureEmbeddedPluginReturnRoute\(def\)/);
+assert.match(embeddedPluginUi, /function defaultEmbeddedPluginReturnRoute\(def\)/);
+assert.match(embeddedPluginUi, /if \(def\?\.id !== "codex-mobile"\) return null/);
+assert.match(embeddedPluginUi, /viewMode: "tasks",[\s\S]*?singleWindowMode: "chat",[\s\S]*?currentTaskGroupId: ""/);
+assert.match(embeddedPluginUi, /function ensureEmbeddedPluginReturnRoute\(def\)/);
 assert.match(embeddedPluginUi, /function rememberEmbeddedPluginReturnRoute\(def\)/);
 assert.match(embeddedPluginUi, /function embeddedPluginOuterBackActive\(def = embeddedPluginDefByView\(\)\)/);
 assert.match(embeddedPluginUi, /function restoreEmbeddedPluginReturnRoute\(def = embeddedPluginDefByView\(\)\)/);
 assert.match(embeddedPluginUi, /embeddedPluginRecord\(def\.id\)\.returnRoute = route/);
 assert.match(embeddedPluginUi, /parkEmbeddedPluginShell\(def\)/);
+assert.match(embeddedPluginUi, /restoreTaskListThreadFromCache\(\{ stickToBottom: false, restoreScrollTop: route\.conversationScrollTop \}\)/);
+assert.match(embeddedPluginUi, /loadSelectedView\(\{ forceTaskListReload: true, skipSingleWindowCache: false \}\)\.catch\(showError\)/);
 assert.match(embeddedPluginUi, /renderActionInboxView\(\)/);
 assert.match(embeddedPluginUi, /type: "hermes\.plugin\.back"/);
 assert.match(embeddedPluginUi, /record\.backRequestSeq = seq/);
@@ -171,10 +177,13 @@ assert.match(embeddedPluginUi, /function parkEmbeddedPluginShell\(def\) \{[\s\S]
 assert.match(embeddedPluginUi, /function codexPluginBackActive\(\)/);
 assert.match(embeddedPluginUi, /function codexPluginOuterBackActive\(\)/);
 assert.match(embeddedPluginUi, /function rememberCodexPluginReturnRoute\(\)/);
+assert.match(embeddedPluginUi, /function ensureCodexPluginReturnRoute\(\)/);
 assert.match(embeddedPluginUi, /function setCodexPluginOpenRoute\(route = {}\)/);
 assert.match(embeddedPluginUi, /function restoreCodexPluginReturnRoute\(\)/);
 assert.match(embeddedPluginUi, /function sendCodexPluginBack\(\)/);
 assert.match(embeddedPluginUi, /function sendCodexPluginBackOrReturn\(\)/);
+assert.match(embeddedPluginUi, /if \(!pluginContextBack && codexPluginOuterBackActive\(\)\) return restoreCodexPluginReturnRoute\(\)/);
+assert.match(embeddedPluginUi, /function renderCodexPluginView\(\) \{[\s\S]*?ensureCodexPluginReturnRoute\(\);[\s\S]*?renderEmbeddedPluginView\(EMBEDDED_PLUGIN_DEFS\["codex-mobile"\]\)/);
 assert.match(embeddedPluginUi, /function renderFinancePluginView\(\)/);
 assert.match(embeddedPluginUi, /function updateFinancePluginNavigationAvailability\(\)/);
 assert.match(embeddedPluginUi, /const available = embeddedPluginNavigationAvailable\(def\)/);
@@ -231,6 +240,7 @@ assert.match(navigationSearchUi, /plugin-context-nav-mode/);
 assert.match(navigationSearchUi, /embeddedPluginPreviewFullscreenActive\(\)/);
 assert.match(navigationSearchUi, /app\?\.classList\.toggle\("embedded-plugin-preview-fullscreen-active", embeddedPluginPreviewFullscreen\)/);
 assert.match(navigationSearchUi, /const pluginBack = wardrobePluginBack \|\| wardrobePluginOuterBack/);
+assert.match(navigationSearchUi, /codexPluginBack \|\| codexPluginOuterBack \|\| financePluginBack \|\| financePluginOuterBack \|\| emailPluginBack \|\| emailPluginOuterBack/);
 assert.match(navigationSearchUi, /\|\| \(!pluginContextNav && pluginBack\);/);
 assert.match(pluginTopicsUi, /const contextDef = pluginTopicDefById\(state\.pluginContextNavPluginId\)/);
 assert.match(pluginTopicsUi, /mode === "tasks" && state\.currentTaskGroupId === pluginTopicGroupId\(contextDef\.id\)/);
@@ -273,6 +283,10 @@ assert.match(sidebarTaskUi, /if \(pluginContextTarget\) return pluginContextTarg
 assert.match(sidebarTaskUi, /if \(!pluginContextBack && typeof wardrobePluginOuterBackActive === "function" && wardrobePluginOuterBackActive\(\)\) return "wardrobe-plugin-outer"/);
 assert.match(sidebarTaskUi, /if \(!pluginContextBack && typeof financePluginOuterBackActive === "function" && financePluginOuterBackActive\(\)\) return "finance-plugin-outer"/);
 assert.match(sidebarTaskUi, /codexPluginOuterBackActive\(\)[\s\S]*return "codex-plugin-outer"/);
+assert.ok(
+  sidebarTaskUi.indexOf('return "codex-plugin-outer"') < sidebarTaskUi.indexOf('return "codex-plugin"'),
+  "Codex host return route should win before iframe history on edge swipe",
+);
 assert.match(sidebarTaskUi, /target === "codex-plugin-outer"[\s\S]*restoreCodexPluginReturnRoute\(\)/);
 assert.match(sidebarTaskUi, /financePluginOuterBackActive\(\)[\s\S]*return "finance-plugin-outer"/);
 assert.match(sidebarTaskUi, /target === "finance-plugin-outer"[\s\S]*restoreFinancePluginReturnRoute\(\)/);

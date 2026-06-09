@@ -33,7 +33,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260609-bottom-surface-visible-v652";
+const clientVersion = "20260609-bottom-composer-codex-v653";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 
@@ -50,6 +50,7 @@ const topicDockHeight = pxVariable("--topic-plugin-dock-height");
 assert.equal(cssVariable("--plugin-topic-composer-bottom-offset"), "calc(var(--mobile-bottom-nav-bottom) + var(--plugin-context-bottom-nav-height) + var(--mobile-bottom-nav-visual-lift) + var(--bottom-region-composer-nav-gap))");
 assert.equal(cssVariable("--topic-plugin-dock-bottom"), "var(--topic-plugin-dock-bottom-runtime, var(--mobile-bottom-nav-offset-height))");
 assert.equal(cssVariable("--topic-plugin-dock-reserved-height"), "var(--topic-plugin-dock-reserved-height-runtime, calc(var(--topic-plugin-dock-bottom) + var(--topic-plugin-dock-height)))");
+assert.equal(navComfortInset, 12, "new installed PWA bottom nav should keep a 12px host comfort inset");
 assert.equal(navOverflowClamp, 0, "PWA bottom overflow must be diagnostic-only by default");
 assert.equal(navUnderflowClamp, 24, "PWA bottom underflow correction should be bounded");
 assert.ok(navSurfaceUnderflowClamp >= 53, "PWA surface underflow correction should cover iOS safe-top viewport splits");
@@ -175,6 +176,7 @@ assert.match(
   /\.app\.task-list-mode \.conversation > \.directory-topic-launcher:first-child,[\s\S]*?\.app\.task-list-mode \.conversation > \.capability-entry-hub:first-child,[\s\S]*?margin-top: max\(16px, calc\(env\(safe-area-inset-top\) \+ 4px\)\);/,
 );
 assert.match(block(".composer-context"), /grid-column: 1 \/ -1;[\s\S]*order: -3;/);
+assert.match(block(".composer-context"), /background: var\(--ui-chrome\);[\s\S]*box-shadow: 0 6px 0 var\(--ui-chrome\);/);
 assert.match(block(".composer-context-chip"), /min-height: 24px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer-context-chip \{[\s\S]*?min-height: 23px;/);
 

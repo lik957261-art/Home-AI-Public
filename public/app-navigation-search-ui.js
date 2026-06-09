@@ -296,7 +296,7 @@ function updateNavigationControls() {
   const healthPluginOuterBack = typeof healthPluginOuterBackActive === "function" && healthPluginOuterBackActive();
   const notePluginBack = typeof notePluginBackActive === "function" && notePluginBackActive();
   const notePluginOuterBack = typeof notePluginOuterBackActive === "function" && notePluginOuterBackActive();
-  const pluginBack = wardrobePluginBack || wardrobePluginOuterBack || codexPluginBack || financePluginBack || emailPluginBack || healthPluginBack || healthPluginOuterBack || notePluginBack || notePluginOuterBack;
+  const pluginBack = wardrobePluginBack || wardrobePluginOuterBack || codexPluginBack || codexPluginOuterBack || financePluginBack || financePluginOuterBack || emailPluginBack || emailPluginOuterBack || healthPluginBack || healthPluginOuterBack || notePluginBack || notePluginOuterBack;
   const mainBack = taskDetail || directoryTopicDraft || todoDetail || todoCreate || automationDetail || automationSecondary || actionInboxDetail || actionInboxCreate || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings || (!pluginContextNav && pluginBack);
   const minimalWindow = isMinimalWindowView();
   const centeredTopTitle = (

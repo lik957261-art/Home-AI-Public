@@ -292,7 +292,11 @@ surface. When the Codex iframe is active, Hermes must not show the ordinary
 bottom navigation or the three-entry plugin-context bar, and it must not reserve
 bottom navigation space under the iframe. Codex-owned navigation remains inside
 the Codex iframe; leaving the surface belongs to Hermes back/right-swipe or the
-host menu, not to a visible bottom-tab row.
+host menu, not to a visible bottom-tab row. When a saved host return route
+exists for Codex, Hermes-owned left-edge swipe and top back must restore that
+host route before sending another iframe-internal back event; this prevents a
+cached/reloaded Codex root from consuming the gesture into a plugin default page
+such as create-thread.
 
 Plugin-owned full-screen image or file previews are a temporary chrome-free
 state inside the same embedded iframe. When a plugin opens such a preview, it
@@ -1041,7 +1045,10 @@ the plugin root page has no in-frame back target and Home AI cannot leave the
 iframe through back/right-swipe. For legacy Codex Mobile snapshots that predate
 return-route persistence, Home AI must synthesize a safe host fallback such as
 the task/topic root rather than trapping the user inside the full-screen Codex
-surface.
+surface. A direct Codex render without an existing return route must also
+synthesize the same bounded fallback, and restoring that fallback should reuse
+the cached task-list window when available before reloading the host task-list
+window.
 
 If Hermes sends `hermes.plugin.back` and the plugin does not emit a fresh
 navigation or back-result event within the bounded acknowledgement window, the

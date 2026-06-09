@@ -56,7 +56,7 @@
   --mobile-bottom-nav-height: 58px;
   --mobile-bottom-nav-visual-drop: 10px;
   --mobile-bottom-nav-visual-lift: 0px;
-  --mobile-bottom-nav-comfort-inset: 0px;
+  --mobile-bottom-nav-comfort-inset: 12px;
   --mobile-bottom-nav-overflow-clamp: 0px;
   --mobile-bottom-nav-underflow-clamp: 24px;
   --mobile-bottom-nav-surface-underflow-clamp: 96px;
@@ -15632,6 +15632,8 @@ body.task-markdown-preview-open {
   margin-bottom: 0;
   overflow-x: auto;
   color: var(--muted);
+  background: var(--ui-chrome);
+  box-shadow: 0 6px 0 var(--ui-chrome);
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }

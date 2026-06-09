@@ -118,8 +118,8 @@ Non-negotiable:
 - Home AI may apply one shared host comfort inset to the measured bottom stack
   so bottom navigation is not visually flush with the viewport edge. That inset
   must be a single host-level variable/measurement input, not separate
-  Mac/Windows/iOS overrides. A zero inset is valid and is the current Home AI
-  default; do not use a bottom offset to satisfy a small tab-content lift.
+  Mac/Windows/iOS overrides. The current Home AI default is 12px; do not add a
+  plugin-local offset or a second Dock offset on top of the host measurement.
 - The topic capability Dock is anchored to the measured primary bottom-nav
   top, and scroll containers reserve the measured combined stack height. A
   fix that changes only `bottom: Npx` without updating the measured reservation

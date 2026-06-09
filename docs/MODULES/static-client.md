@@ -114,9 +114,10 @@ Gateway plugin/schema/profile changes:
   `--mobile-bottom-nav-comfort-inset` fallback, and `task-list-ui.test.js`
   together. Changing only `.bottom-nav` CSS can be masked by runtime
   `--mobile-bottom-nav-bottom-runtime` after the first layout measurement.
-  The bottom navigation container should stay flush with the fixed viewport by
-  default (`--mobile-bottom-nav-comfort-inset: 0px` as of
-  `20260608-bottom-stack-pwa-clamp-v632`). Tab content should not be lifted by
+  The bottom navigation container uses one shared host comfort inset
+  (`--mobile-bottom-nav-comfort-inset: 12px` as of
+  `20260609-bottom-composer-codex-v653`) so newly installed iOS PWAs are not
+  visually flush with the viewport edge. Tab content should not be lifted by
   default (`--mobile-bottom-nav-visual-lift: 0px` as of
   `20260609-bottom-surface-visible-v652`); any future small visual lift must
   stay inside the tab content transform, not in a bottom offset that moves the
@@ -142,6 +143,10 @@ Gateway plugin/schema/profile changes:
   width, height, and bottom coordinate; collapsed early-start rects such as
   `0/0/0` must leave the runtime bottom offset at the comfort inset instead of
   writing a negative correction.
+  Chat composer context rows must bridge into the input row with the same
+  opaque `var(--ui-chrome)` background as the composer. A transparent gap
+  between context chips and the input row is a failing mobile bottom-region
+  state because page content can show through during PWA viewport settles.
   When measuring fixed bottom chrome, compare `getBoundingClientRect()` against
   the layout viewport (`window.innerHeight` / `documentElement.clientHeight`),
   not `visualViewport.height`. iOS standalone PWA can report a shorter visual

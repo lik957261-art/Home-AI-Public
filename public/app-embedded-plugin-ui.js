@@ -451,6 +451,32 @@ function captureEmbeddedPluginReturnRoute(def) {
   };
 }
 
+function defaultEmbeddedPluginReturnRoute(def) {
+  if (def?.id !== "codex-mobile") return null;
+  return {
+    viewMode: "tasks",
+    pluginContextNavPluginId: "",
+    singleWindowMode: "chat",
+    selectedProjectId: state.selectedProjectId || "",
+    selectedSubprojectId: state.selectedSubprojectId || "",
+    currentThread: null,
+    currentThreadId: "",
+    currentTaskGroupId: "",
+    threads: [],
+    searchText: "",
+  };
+}
+
+function ensureEmbeddedPluginReturnRoute(def) {
+  if (!def) return false;
+  const record = embeddedPluginRecord(def.id);
+  if (record.returnRoute) return true;
+  const route = defaultEmbeddedPluginReturnRoute(def);
+  if (!route) return false;
+  record.returnRoute = route;
+  return true;
+}
+
 function rememberEmbeddedPluginReturnRoute(def) {
   const route = captureEmbeddedPluginReturnRoute(def);
   if (!route) return false;
@@ -519,9 +545,20 @@ function restoreEmbeddedPluginReturnRoute(def = embeddedPluginDefByView()) {
   else if (state.viewMode === "inbox" && typeof renderActionInboxView === "function") renderActionInboxView();
   else if (state.viewMode === "learning" && typeof renderLearningCoinsView === "function") renderLearningCoinsView();
   else {
-    renderThreads();
-    renderCurrentThread({ stickToBottom: true });
-    if (!isSkillDetailView()) setComposerEnabled(state.viewMode === "single" || state.viewMode === "tasks");
+    const taskListRestored = state.viewMode === "tasks"
+      && !state.currentTaskGroupId
+      && typeof restoreTaskListThreadFromCache === "function"
+      && restoreTaskListThreadFromCache({ stickToBottom: false, restoreScrollTop: route.conversationScrollTop });
+    if (taskListRestored) {
+      if (typeof scheduleTaskListWindowRefresh === "function") scheduleTaskListWindowRefresh();
+    } else {
+      renderThreads();
+      renderCurrentThread({ stickToBottom: true });
+      if (!isSkillDetailView()) setComposerEnabled(state.viewMode === "single" || state.viewMode === "tasks");
+      if (state.viewMode === "tasks" && !state.currentTaskGroupId && typeof loadSelectedView === "function") {
+        loadSelectedView({ forceTaskListReload: true, skipSingleWindowCache: false }).catch(showError);
+      }
+    }
   }
   const scrollTop = Number(route.conversationScrollTop || 0) || 0;
   if (scrollTop > 0) requestAnimationFrame(() => {
@@ -1060,6 +1097,10 @@ function rememberCodexPluginReturnRoute() {
   return rememberEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS["codex-mobile"]);
 }
 
+function ensureCodexPluginReturnRoute() {
+  return ensureEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS["codex-mobile"]);
+}
+
 function setCodexPluginOpenRoute(route = {}) {
   return setEmbeddedPluginOpenRoute(EMBEDDED_PLUGIN_DEFS["codex-mobile"], route);
 }
@@ -1073,8 +1114,10 @@ function sendCodexPluginBack() {
 }
 
 function sendCodexPluginBackOrReturn() {
+  const pluginContextBack = typeof pluginContextBackNavigationActive === "function" && pluginContextBackNavigationActive();
+  if (!pluginContextBack && codexPluginOuterBackActive()) return restoreCodexPluginReturnRoute();
   if (sendCodexPluginBack()) return true;
-  if (typeof pluginContextBackNavigationActive === "function" && pluginContextBackNavigationActive()) return false;
+  if (pluginContextBack) return false;
   return restoreCodexPluginReturnRoute();
 }
 
@@ -1083,6 +1126,7 @@ function parkCodexPluginShell() {
 }
 
 function renderCodexPluginView() {
+  ensureCodexPluginReturnRoute();
   updateCodexPluginNavigationAvailability();
   renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS["codex-mobile"]);
 }
