@@ -70,7 +70,7 @@
   --plugin-topic-composer-bottom-offset: calc(var(--mobile-bottom-nav-bottom) + var(--plugin-context-bottom-nav-height) + var(--mobile-bottom-nav-visual-lift) + var(--bottom-region-composer-nav-gap));
   --plugin-topic-composer-reserved-height: 166px;
   --topic-plugin-dock-height: 78px;
-  --topic-plugin-dock-collapsed-height: 30px;
+  --topic-plugin-dock-collapsed-height: 26px;
   --topic-plugin-dock-bottom: var(--topic-plugin-dock-bottom-runtime, var(--mobile-bottom-nav-offset-height));
   --topic-plugin-dock-nav-overlap: 1px;
   --topic-plugin-dock-reserved-height: var(--topic-plugin-dock-reserved-height-runtime, calc(var(--topic-plugin-dock-bottom) + var(--topic-plugin-dock-height)));
@@ -5797,6 +5797,9 @@ button.directory-alias-chip {
 .global-plugin-dock-mode .topic-plugin-dock.global-plugin-dock-collapsed {
   transform: translateY(var(--topic-plugin-dock-collapsed-offset));
   pointer-events: none;
+  background: transparent;
+  border-top-color: transparent;
+  backdrop-filter: none;
 }
 
 .global-plugin-dock-mode .topic-plugin-dock.global-plugin-dock-dragging {
@@ -5829,9 +5832,9 @@ button.directory-alias-chip {
   left: 50%;
   top: 0;
   z-index: 3;
-  width: 58px;
+  width: 56px;
   height: var(--topic-plugin-dock-collapsed-height);
-  min-height: 30px;
+  min-height: 26px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -5847,10 +5850,10 @@ button.directory-alias-chip {
 }
 
 .topic-plugin-dock-grabber {
-  width: 22px;
-  height: 4px;
+  width: 12px;
+  height: 12px;
   display: block;
-  background: color-mix(in srgb, var(--muted) 56%, transparent);
+  background: color-mix(in srgb, var(--muted) 62%, transparent);
   border-radius: 999px;
 }
 
@@ -16942,6 +16945,10 @@ body.task-markdown-preview-open {
 
   .main-back-visible .composer {
     padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .global-plugin-dock-mode:not(.main-back-visible):not(.plugin-context-nav-mode) .composer {
+    transform: translateY(-6px);
   }
 
   .composer-context {

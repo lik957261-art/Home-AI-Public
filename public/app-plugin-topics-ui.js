@@ -404,7 +404,7 @@ function globalPluginDockHostSurfaceEligible() {
   if (state.mobileBrowserShellBlocked || app.classList.contains("mobile-browser-shell-blocked")) return false;
   if (app.classList.contains("embedded-plugin-preview-fullscreen-active")) return false;
   if (app.classList.contains("main-back-visible") && !pluginAppSurface) return false;
-  if (app.classList.contains("plugin-context-nav-mode")) return false;
+  if (app.classList.contains("plugin-context-nav-mode") && !pluginAppSurface) return false;
   if (pluginAppSurface) return true;
   if (view === "single") return state.singleWindowMode === "chat";
   if (view === "tasks") return !state.currentTaskGroupId;

@@ -81,6 +81,12 @@ function createService(overrides = {}) {
   assert.equal(failureResponse.sent.status, 500);
   assert.match(failure.errors[0], /boom/);
 
+  const streamedFailure = createService({ eventStreamApiRoutes: { handle: async (_req, res) => { res.headersSent = true; throw new Error("stream abort"); } } });
+  const streamedFailureResponse = {};
+  await streamedFailure.service.requestHandler({ method: "GET", url: "/api/hermes-plugins/codex-mobile/proxy/api/events" }, streamedFailureResponse);
+  assert.equal(streamedFailureResponse.sent, undefined);
+  assert.match(streamedFailure.errors[0], /stream abort/);
+
   const shutdownFixture = createService();
   let aborted = false;
   shutdownFixture.activeStreams.set("run_1", { controller: { abort: () => { aborted = true; } } });

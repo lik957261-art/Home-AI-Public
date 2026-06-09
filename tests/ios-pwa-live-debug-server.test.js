@@ -16,7 +16,8 @@ assert.equal(packageJson.scripts["ios:pwa:debug"], "node scripts/ios-pwa-live-de
 
 assert.match(script, /const http = require\("http"\)/);
 assert.match(script, /const crypto = require\("crypto"\)/);
-assert.match(script, /appiumUrl: "http:\/\/127\.0\.0\.1:4723"/);
+assert.match(script, /const appiumPort = Number\(process\.env\.APPIUM_PORT \|\| ""\) \|\| 4723/);
+assert.match(script, /appiumUrl: process\.env\.HOMEAI_IOS_APPIUM_URL \|\| `http:\/\/127\.0\.0\.1:\$\{appiumPort\}`/);
 assert.match(script, /port: 19073/);
 assert.match(script, /mjpegServerPort: 9100/);
 assert.match(script, /mjpegUrl: ""/);
@@ -27,6 +28,7 @@ assert.match(script, /leaseTtlMs: 120000/);
 assert.match(script, /appiumTimeoutMs: 15000/);
 assert.match(script, /mjpegConnectTimeoutMs: 2500/);
 assert.match(script, /--stream/);
+assert.match(script, /--appium-url/);
 assert.match(script, /--mjpeg-server-port/);
 assert.match(script, /--mjpeg-url/);
 assert.match(script, /--lane-owner/);
@@ -43,6 +45,7 @@ assert.match(script, /function withWebContext\(fn\)/);
 assert.match(script, /function recoverableAppiumError\(err\)/);
 assert.match(script, /Unexpected EOF\|socket hang up\|ECONNRESET\|webview_context_missing\|appium_timeout/);
 assert.match(script, /function clearAppiumSessionState\(\)/);
+assert.match(script, /env: \{ \.\.\.process\.env, APPIUM_PORT: String\(appiumPort\) \}/);
 assert.match(script, /function executeAsync\(script, scriptArgs = \[\]\)/);
 assert.match(script, /\/execute\/async/);
 assert.match(script, /\/timeouts/);

@@ -62,6 +62,7 @@ function tempRoot() {
   assert.equal(first.lane.id, "ios-pwa-1");
   assert.equal(first.lane.liveDebugPort, 19073);
   assert.match(first.lane.commands.startLiveDebug, /--port 19073/);
+  assert.match(first.lane.commands.startLiveDebug, /--appium-url http:\/\/127\.0\.0\.1:4723/);
   const second = service.allocateVisualLane({
     stateFile,
     pluginId: "note",
@@ -71,6 +72,7 @@ function tempRoot() {
   });
   assert.equal(second.ok, true);
   assert.equal(second.lane.id, "ios-pwa-2");
+  assert.match(second.lane.commands.startLiveDebug, /--appium-url http:\/\/127\.0\.0\.1:4724/);
   const release = service.releaseVisualLane({ stateFile, leaseId: first.lane.lease.id });
   assert.equal(release.ok, true);
   const third = service.allocateVisualLane({

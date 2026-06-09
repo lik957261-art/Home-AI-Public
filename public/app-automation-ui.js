@@ -122,6 +122,7 @@ async function loadSelectedView(options = {}) {
     if (conversation) conversation.innerHTML = `<div class="empty-state small">Loading...</div>`;
   }
   applyViewMode();
+  if (typeof scheduleGlobalPluginDockRefresh === "function") scheduleGlobalPluginDockRefresh("selected_view");
   if (leavingSkillDetail) updateNavigationControls();
   if (state.viewMode !== "tasks") state.skillDetail = null;
   if (state.viewMode === "single" || state.viewMode === "tasks") {

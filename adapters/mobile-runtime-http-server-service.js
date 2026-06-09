@@ -41,6 +41,7 @@ function createMobileRuntimeHttpServerService(options = {}) {
       options.serveStatic(req, res);
     } catch (err) {
       logger.error?.(`Hermes Mobile request failed ${req.method || ""} ${req.url || ""}: ${err.stack || err.message || String(err)}`);
+      if (res.headersSent || res.destroyed || res.writableEnded) return;
       options.sendJson(res, 500, { error: err.message || String(err) });
     }
   }

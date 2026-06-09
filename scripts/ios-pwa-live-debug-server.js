@@ -8,10 +8,11 @@ const childProcess = require("child_process");
 const crypto = require("crypto");
 
 function parseArgs(argv = process.argv.slice(2)) {
+  const appiumPort = Number(process.env.APPIUM_PORT || "") || 4723;
   const out = {
     host: "127.0.0.1",
     port: 19073,
-    appiumUrl: "http://127.0.0.1:4723",
+    appiumUrl: process.env.HOMEAI_IOS_APPIUM_URL || `http://127.0.0.1:${appiumPort}`,
     deviceName: "HomeAI iPhone 17 Pro",
     udid: "C2EB6D31-F485-4DAE-BFB4-25E27FC65389",
     wdaLocalPort: 8101,
@@ -280,7 +281,12 @@ async function ensureAppiumServer() {
     if (response.ok) return true;
   } catch (_) {}
   if (args.appiumStartScript && fs.existsSync(args.appiumStartScript)) {
-    childProcess.execFileSync("bash", [args.appiumStartScript], { stdio: "ignore" });
+    const parsed = new URL(args.appiumUrl);
+    const appiumPort = Number(parsed.port || "4723") || 4723;
+    childProcess.execFileSync("bash", [args.appiumStartScript], {
+      env: { ...process.env, APPIUM_PORT: String(appiumPort) },
+      stdio: "ignore",
+    });
   }
   const startedAt = Date.now();
   while (Date.now() - startedAt < 8000) {

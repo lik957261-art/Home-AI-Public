@@ -104,6 +104,18 @@ function scheduleTopicPluginDockRevealAfterBackSwipe(reason = "back_swipe") {
   }, 80);
 }
 
+function scheduleGlobalPluginDockRefresh(reason = "view") {
+  if (!isMobileLayout()) return;
+  [0, 80, 240].forEach((delay) => {
+    window.setTimeout(() => {
+      updateTopicPluginDockChrome(isTaskListView());
+      if (typeof settleMobileBottomNavReservation === "function") {
+        settleMobileBottomNavReservation(`global_plugin_dock_refresh_${reason}_${delay}`, [0, 120]);
+      }
+    }, delay);
+  });
+}
+
 function updateTopicPluginDockChrome(taskList) {
   const dock = $("topicPluginDock");
   if (!dock) return;

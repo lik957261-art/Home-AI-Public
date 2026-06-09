@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260609-global-plugin-dock-chat-plugin-v664";
+const CLIENT_VERSION = "20260609-global-plugin-dock-chat-input-lift-v668";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-global-plugin-dock-chat-plugin-v664" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-global-plugin-dock-chat-plugin-v664"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-global-plugin-dock-chat-input-lift-v668" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-global-plugin-dock-chat-input-lift-v668"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2426,6 +2426,7 @@ assert.match(appJs, /const GLOBAL_PLUGIN_DOCK_STATE_STORAGE_KEY = "hermesGlobalP
 assert.match(appJs, /const GLOBAL_PLUGIN_DOCK_DRAG_SLOP_PX = 10/);
 assert.match(appJs, /const GLOBAL_PLUGIN_DOCK_TRIGGER_DISTANCE_PX = 28/);
 assert.match(appJs, /function globalPluginDockHostSurfaceEligible\(\)/);
+assert.match(appJs, /app\.classList\.contains\("plugin-context-nav-mode"\) && !pluginAppSurface/);
 assert.match(appJs, /const pluginAppSurface = \["wardrobe", "codex", "finance", "email", "health", "note"\]\.includes\(view\)/);
 assert.match(appJs, /app\.classList\.contains\("embedded-plugin-preview-fullscreen-active"\)/);
 assert.match(appJs, /app\.classList\.contains\("main-back-visible"\) && !pluginAppSurface/);
@@ -2529,10 +2530,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-global-plugin-dock-chat-plugin-v664/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-global-plugin-dock-chat-plugin-v664/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-global-plugin-dock-chat-plugin-v664/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-global-plugin-dock-chat-plugin-v664/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-global-plugin-dock-chat-input-lift-v668/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-global-plugin-dock-chat-input-lift-v668/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-global-plugin-dock-chat-input-lift-v668/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-global-plugin-dock-chat-input-lift-v668/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2710,7 +2711,7 @@ assert.match(stylesCss, /--mobile-bottom-nav-visual-drop: 10px/);
 assert.match(stylesCss, /--mobile-bottom-nav-bottom: var\(--mobile-bottom-nav-bottom-runtime, var\(--mobile-bottom-nav-comfort-inset\)\);/);
 assert.match(stylesCss, /--mobile-bottom-nav-offset-height: var\(--mobile-bottom-nav-offset-height-runtime, var\(--mobile-bottom-nav-height\)\);/);
 assert.match(stylesCss, /--topic-plugin-dock-bottom: var\(--topic-plugin-dock-bottom-runtime, var\(--mobile-bottom-nav-offset-height\)\);/);
-assert.match(stylesCss, /--topic-plugin-dock-collapsed-height: 30px;/);
+assert.match(stylesCss, /--topic-plugin-dock-collapsed-height: 26px;/);
 assert.match(stylesCss, /--topic-plugin-dock-collapsed-offset: calc\(var\(--topic-plugin-dock-height\) - var\(--topic-plugin-dock-collapsed-height\)\);/);
 assert.match(stylesCss, /--topic-plugin-dock-nav-overlap: 1px;/);
 assert.match(stylesCss, /--topic-plugin-dock-reserved-height: var\(--topic-plugin-dock-reserved-height-runtime, calc\(var\(--topic-plugin-dock-bottom\) \+ var\(--topic-plugin-dock-height\)\)\);/);
@@ -2722,8 +2723,9 @@ assert.match(stylesCss, /\.app\.task-list-mode \.topbar \{[\s\S]*?display: none 
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock \{[\s\S]*?position: fixed;[\s\S]*?bottom: calc\(var\(--topic-plugin-dock-bottom\) - var\(--topic-plugin-dock-nav-overlap\)\);[\s\S]*?height: var\(--topic-plugin-dock-height\);[\s\S]*?min-height: var\(--topic-plugin-dock-height\);[\s\S]*?padding: 5px max\(14px, env\(safe-area-inset-right\)\) 0 max\(14px, env\(safe-area-inset-left\)\);[\s\S]*?background: var\(--ui-chrome\);[\s\S]*?transition: transform 190ms cubic-bezier\(0\.2, 0\.8, 0\.2, 1\);/);
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-collapsed \{[\s\S]*?transform: translateY\(var\(--topic-plugin-dock-collapsed-offset\)\);[\s\S]*?pointer-events: none;/);
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-dragging \{[\s\S]*?transform: translateY\(var\(--global-plugin-dock-gesture-offset, 0px\)\);[\s\S]*?transition: none;/);
-assert.match(stylesCss, /\.topic-plugin-dock-handle \{[\s\S]*?height: var\(--topic-plugin-dock-collapsed-height\);[\s\S]*?touch-action: none;[\s\S]*?pointer-events: auto;/);
-assert.match(stylesCss, /\.topic-plugin-dock-grabber \{[\s\S]*?width: 22px;[\s\S]*?height: 4px;/);
+assert.match(stylesCss, /\.topic-plugin-dock-handle \{[\s\S]*?width: 56px;[\s\S]*?height: var\(--topic-plugin-dock-collapsed-height\);[\s\S]*?min-height: 26px;[\s\S]*?touch-action: none;[\s\S]*?pointer-events: auto;/);
+assert.match(stylesCss, /\.topic-plugin-dock-grabber \{[\s\S]*?width: 12px;[\s\S]*?height: 12px;/);
+assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-collapsed \{[\s\S]*?background: transparent;[\s\S]*?border-top-color: transparent;[\s\S]*?backdrop-filter: none;/);
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock \.plugin-app-launcher \{[\s\S]*?min-height: calc\(var\(--topic-plugin-dock-height\) - 6px\);[\s\S]*?display: flex;[\s\S]*?align-items: flex-end;[\s\S]*?margin: 0;[\s\S]*?padding: 0;[\s\S]*?border-top: 0;/);
 assert.match(stylesCss, /\.global-plugin-dock-mode \.plugin-app-strip \{[\s\S]*?position: relative;[\s\S]*?width: 100%;/);
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.capability-menu-open,[\s\S]*?\.global-plugin-dock-mode \.topic-plugin-dock\.capability-menu-open \.plugin-app-launcher,[\s\S]*?\.global-plugin-dock-mode \.topic-plugin-dock\.capability-menu-open \.plugin-app-strip \{[\s\S]*?overflow: visible;/);
@@ -2992,6 +2994,7 @@ assert.doesNotMatch(pdfViewerHtml, /native-browser-chrome/);
 assert.match(stylesCss, /\.composer \{[\s\S]*?padding: 8px 13px calc\(8px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer \{[\s\S]*?grid-template-columns: 36px minmax\(0, 1fr\) 48px;[\s\S]*?padding: 5px max\(10px, env\(safe-area-inset-right\)\) 5px max\(8px, env\(safe-area-inset-left\)\)/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.main-back-visible \.composer \{[\s\S]*?padding-bottom: calc\(12px \+ env\(safe-area-inset-bottom\)\)/);
+assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.global-plugin-dock-mode:not\(\.main-back-visible\):not\(\.plugin-context-nav-mode\) \.composer \{[\s\S]*?transform: translateY\(-6px\);/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer button \{[\s\S]*?min-height: 32px;[\s\S]*?padding: 0 11px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer-editor \{[\s\S]*?min-height: 32px;[\s\S]*?padding: 6px 9px;[\s\S]*?font-size: 15px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?#attachFile \{[\s\S]*?width: 36px;[\s\S]*?min-width: 36px;[\s\S]*?min-height: 36px;[\s\S]*?font-size: 19px;/);

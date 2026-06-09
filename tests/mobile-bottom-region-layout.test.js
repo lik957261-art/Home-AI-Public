@@ -33,7 +33,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260609-global-plugin-dock-chat-plugin-v664";
+const clientVersion = "20260609-global-plugin-dock-chat-input-lift-v668";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 
@@ -248,7 +248,7 @@ assert.doesNotMatch(appComposerContextJs, /const comfortInset = 12/);
 
 assert.doesNotMatch(stylesCss, /bottom: calc\(var\(--plugin-context-bottom-nav-height\) \+ 3px\);/);
 assert.doesNotMatch(stylesCss, /padding-bottom: var\(--plugin-topic-composer-reserved-height, 142px\);/);
-assert.doesNotMatch(stylesCss, /transform: translateY\(-6px\);/);
+assert.match(stylesCss, /\.global-plugin-dock-mode:not\(\.main-back-visible\):not\(\.plugin-context-nav-mode\) \.composer \{[\s\S]*?transform: translateY\(-6px\);/);
 assert.doesNotMatch(block(".app.task-list-mode"), /padding-bottom: var\(--topic-plugin-dock-reserved-height\);/);
 
 console.log("mobile bottom region layout tests passed");
