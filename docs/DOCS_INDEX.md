@@ -28,6 +28,9 @@ identifiers until a separate infrastructure migration is planned.
 - Frontend tab/state map: `docs/FRONTEND_STATE_MAP.md`
 - Runtime and learning SQLite data dictionary: `docs/DATA_DICTIONARY.md`
 - Gateway Pool manifest reference: `docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md`
+- AI Operations Control Plane:
+  `docs/MODULES/ai-operations-control-plane.md`,
+  `docs/IMPLEMENTATION_NOTES/ai-operations-control-plane.md`
 - Public install/deploy checklist: `docs/PUBLIC_INSTALLATION_CHECKLIST.md`
 - NAS deployment plan: `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`
 - macOS production deployment plan: `docs/IMPLEMENTATION_NOTES/macos-production-deployment-plan.md`
@@ -62,6 +65,8 @@ identifiers until a separate infrastructure migration is planned.
 - Weixin/iLink ingress and delivery: `docs/MODULES/weixin-ingress.md`
 - Grok/xAI Gateway profile routing: `docs/MODULES/grok-gateway.md`
 - Runtime state, SQLite, and disaster backup: `docs/MODULES/runtime-state-backup.md`
+- AI Operations Control Plane:
+  `docs/MODULES/ai-operations-control-plane.md`
 - Group chat and shared messages: `docs/MODULES/group-chat.md`
 
 ## Current Priority Runbooks
@@ -139,6 +144,8 @@ identifiers until a separate infrastructure migration is planned.
   `docs/IMPLEMENTATION_NOTES/mobile-authenticated-navigation-flow-harness.md`
 - Runtime architecture optimization priorities:
   `docs/IMPLEMENTATION_NOTES/runtime-architecture-optimization-priorities.md`
+- AI Operations Control Plane:
+  `docs/IMPLEMENTATION_NOTES/ai-operations-control-plane.md`
 - Service-first refactor backlog:
   `docs/IMPLEMENTATION_NOTES/service-first-refactor-backlog.md`
 - Async Growth evaluation queue: `docs/IMPLEMENTATION_NOTES/async-growth-evaluation-queue.md`

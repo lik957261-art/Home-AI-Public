@@ -14,6 +14,34 @@ Use this matrix to pick focused tests before broader gates. Always add syntax ch
 
 Use full gates before public release, broad shared-service/runtime changes, permission/security/persistence changes, or when requested.
 
+## AI Operations Control Plane Gate
+
+For H1/H2 changes, multi-plugin changes, visual harness work, production
+deployment work, or incident follow-up, generate a control-plane context pack
+and required-check plan before broad source exploration:
+
+```powershell
+node scripts\ai-ops-control-plane.js intake --task "<short task>" --json
+node scripts\ai-ops-control-plane.js required-checks --changed-file <path> --json
+```
+
+Changes to the control plane itself must run:
+
+```powershell
+node tests\ai-operations-control-plane-service.test.js
+node tests\ai-ops-control-plane-cli.test.js
+node tests\architecture-code-test-harness-map.test.js
+node tests\architecture-refactor-boundary.test.js
+node --check adapters\ai-operations-control-plane-service.js
+node --check scripts\ai-ops-control-plane.js
+git diff --check
+```
+
+When the control plane is used for production closure, append an evidence
+ledger entry for every focused test, aggregate test, deployment, and production
+smoke. Incident work should create an incident cassette instead of storing raw
+logs or long private context in handoff.
+
 ## Harness Requirement Gate
 
 Before implementing non-trivial workflow changes, classify the change with
