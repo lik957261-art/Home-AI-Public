@@ -336,6 +336,10 @@ assert.match(stylesCss, /\.embedded-plugin-preview-fullscreen-active \.bottom-na
 assert.match(stylesCss, /\.plugin-context-nav-mode\.embedded-plugin-preview-fullscreen-active\.embedded-plugin-host-active \.main\s*\{[\s\S]*bottom: 0;/);
 assert.match(stylesCss, /--plugin-context-bottom-nav-height: 54px/);
 assert.match(stylesCss, /\.app\.main-back-visible\.plugin-context-nav-mode\.plugin-topic-detail-mode \.composer\s*\{[\s\S]*bottom: var\(--plugin-topic-composer-bottom-offset\);[\s\S]*padding-bottom: 5px;/);
+assert.match(embeddedPluginUi, /settleMobileBottomNavReservation\("plugin_back_result", \[0, 80, 240, 520\]\)/);
+assert.match(embeddedPluginUi, /settleMobileBottomNavReservation\("plugin_return_route", \[0, 80, 240, 520, 1000\]\)/);
+assert.match(embeddedPluginUi, /settleMobileBottomNavReservation\(visible \? "plugin_host_visible" : "plugin_host_hidden", \[0, 80, 240\]\)/);
+assert.match(embeddedPluginUi, /settleMobileBottomNavReservation\("plugin_back_request", \[0, 120, 360, 900, 1700\]\)/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-tab-label\s*\{[\s\S]*display: none;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.topic-plugin-dock\s*\{[\s\S]*display: none !important;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav\s*\{[\s\S]*display: none !important;/);

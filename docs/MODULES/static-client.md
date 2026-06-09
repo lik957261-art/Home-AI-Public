@@ -118,7 +118,7 @@ Gateway plugin/schema/profile changes:
   default (`--mobile-bottom-nav-comfort-inset: 0px` as of
   `20260608-bottom-stack-pwa-clamp-v632`). Tab content should not be lifted by
   default (`--mobile-bottom-nav-visual-lift: 0px` as of
-  `20260609-plugin-context-viewport-v644`); any future small visual lift must
+  `20260609-mobile-bottom-settle-v645`); any future small visual lift must
   stay inside the tab content transform, not in a bottom offset that moves the
   entire Dock/nav stack. Runtime bottom overflow is diagnostic-only by default:
   `--mobile-bottom-nav-overflow-clamp: 0px` prevents iOS standalone PWA
@@ -141,6 +141,11 @@ Gateway plugin/schema/profile changes:
   Word/DOCX must stay in the Home AI `file-viewer.html` preview path on wide
   surfaces because raw DOCX URLs usually download instead of rendering inline.
 - Top-level PWA shell changes must keep time, battery, and Wi-Fi indicators visible on mobile; browser-shell guards and full-viewport overlays need explicit status-bar/safe-area checks.
+- The initial inline boot splash is part of the mobile shell contract. On iOS
+  installed PWA cold start, `100dvh` can be reported before WebKit settles the
+  standalone viewport, so the mobile boot splash must start below the safe area
+  instead of relying only on centered `100dvh` placement. This protects the
+  first frame before app modules can run viewport-settle JavaScript.
 - The settings sheet owns device-local display preferences. Theme mode is a
   three-state client preference: `system`, `light`, or `dark`. The shell must
   set `data-theme` before loading CSS to avoid first-paint flashes, update

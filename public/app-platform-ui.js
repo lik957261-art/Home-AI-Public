@@ -174,8 +174,9 @@ function showApp() {
   $("login").classList.add("hidden");
   $("app").classList.remove("hidden");
   $("app").classList.remove("mobile-browser-shell-blocked");
-  updateMobileBottomNavReservation();
   restoreVisibleAppScroll();
+  if (typeof settleMobileBottomNavReservation === "function") settleMobileBottomNavReservation("app_show");
+  else updateMobileBottomNavReservation();
 }
 
 function showSetup(message = "") {

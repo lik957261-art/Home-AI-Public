@@ -356,6 +356,7 @@ function updateEmbeddedPluginBackResultState(def, payload = {}) {
   record.canGoBack = false;
   record.previewFullscreen = false;
   updateNavigationControls();
+  if (typeof settleMobileBottomNavReservation === "function") settleMobileBottomNavReservation("plugin_back_result", [0, 80, 240, 520]);
 }
 
 function embeddedPluginRefreshRequiredEventType(def) {
@@ -529,6 +530,7 @@ function restoreEmbeddedPluginReturnRoute(def = embeddedPluginDefByView()) {
   });
   updateNavigationControls();
   ensureVerticalScrollAffordance();
+  if (typeof settleMobileBottomNavReservation === "function") settleMobileBottomNavReservation("plugin_return_route", [0, 80, 240, 520, 1000]);
   return true;
 }
 
@@ -720,6 +722,7 @@ function setEmbeddedPluginHostVisible(def, visible) {
   host.classList.toggle("active", visible);
   $("app")?.classList.toggle(`${def.viewMode}-plugin-host-active`, visible);
   $("app")?.classList.toggle("embedded-plugin-host-active", visible);
+  if (typeof settleMobileBottomNavReservation === "function") settleMobileBottomNavReservation(visible ? "plugin_host_visible" : "plugin_host_hidden", [0, 80, 240]);
   if (visible) scheduleEmbeddedPluginViewportBroadcast("host_visible", 0);
 }
 
@@ -843,6 +846,7 @@ function sendEmbeddedPluginBack(def = embeddedPluginDefByView()) {
   const seq = (record.backRequestSeq || 0) + 1;
   record.backRequestSeq = seq;
   frame.contentWindow.postMessage({ type: "hermes.plugin.back", version: 1 }, origin);
+  if (typeof settleMobileBottomNavReservation === "function") settleMobileBottomNavReservation("plugin_back_request", [0, 120, 360, 900, 1700]);
   window.setTimeout(() => {
     if (state.viewMode !== def.viewMode) return;
     if (record.backRequestSeq !== seq) return;

@@ -345,6 +345,30 @@ function updateMobileBottomNavReservation() {
   updatePluginContextViewportReservation();
 }
 
+function settleMobileBottomNavReservation(reason = "layout", delays = [0, 40, 120, 260, 520, 1000, 1800]) {
+  if (!isMobileLayout()) return false;
+  const normalizedDelays = [...new Set((delays || [])
+    .map((delay) => Math.max(0, Number(delay || 0) || 0))
+    .filter((delay) => Number.isFinite(delay)))];
+  const run = (delay) => {
+    window.setTimeout(() => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          updateMobileBottomNavReservation();
+          window.__hermesMobileBottomLayoutLastSettle = {
+            reason: String(reason || "layout").slice(0, 80),
+            delay,
+            at: Date.now(),
+            metrics: window.__hermesMobileBottomLayoutMetrics || null,
+          };
+        });
+      });
+    }, delay);
+  };
+  normalizedDelays.forEach(run);
+  return true;
+}
+
 function mobileBottomLayoutDebugEnabled() {
   try {
     return new URLSearchParams(window.location.search || "").get("layoutDebug") === "1"
@@ -463,10 +487,7 @@ function updatePluginContextViewportReservation() {
 function normalizeMobileViewportAfterViewChange() {
   state.composerFocused = false;
   clearKeyboardViewportMetrics();
-  [0, 80, 240].forEach((delay) => window.setTimeout(() => {
-    updateMobileBottomNavReservation();
-    updatePluginContextViewportReservation();
-  }, delay));
+  settleMobileBottomNavReservation("view_change", [0, 80, 240, 520]);
 }
 
 function refreshKeyboardViewportSoon(delay = 0) {

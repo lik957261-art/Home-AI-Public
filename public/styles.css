@@ -339,6 +339,13 @@ button {
   animation: boot-splash-progress 1100ms var(--motion-snap) infinite;
 }
 
+@media (max-width: 1099px), (pointer: coarse) and (max-width: 1366px) {
+  .boot-splash {
+    place-content: start center;
+    padding: max(132px, calc(env(safe-area-inset-top) + 76px)) 24px max(48px, calc(env(safe-area-inset-bottom) + 28px));
+  }
+}
+
 @keyframes boot-splash-progress {
   0% {
     transform: translateX(-115%);

@@ -9,6 +9,8 @@ const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const serviceWorkerJs = fs.readFileSync(path.join(repoRoot, "public", "service-worker.js"), "utf8");
 const appComposerContextJs = fs.readFileSync(path.join(repoRoot, "public", "app-composer-context-ui.js"), "utf8");
+const appPlatformUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-platform-ui.js"), "utf8");
+const appChatComposerUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-chat-composer-ui.js"), "utf8");
 
 function cssVariable(name) {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -31,7 +33,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260609-plugin-context-viewport-v644";
+const clientVersion = "20260609-mobile-bottom-settle-v645";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 
@@ -128,6 +130,12 @@ assert.match(block(".composer-context-chip"), /min-height: 24px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer-context-chip \{[\s\S]*?min-height: 23px;/);
 
 assert.match(appComposerContextJs, /function mobileBottomCssPx\(name, fallback = 0\)/);
+assert.match(appComposerContextJs, /function settleMobileBottomNavReservation\(reason = "layout", delays = \[0, 40, 120, 260, 520, 1000, 1800\]\)/);
+assert.match(appComposerContextJs, /requestAnimationFrame\(\(\) => \{[\s\S]*?requestAnimationFrame\(\(\) => \{[\s\S]*?updateMobileBottomNavReservation\(\);/);
+assert.match(appComposerContextJs, /window\.__hermesMobileBottomLayoutLastSettle = \{/);
+assert.match(appComposerContextJs, /settleMobileBottomNavReservation\("view_change", \[0, 80, 240, 520\]\)/);
+assert.match(appPlatformUiJs, /settleMobileBottomNavReservation\("app_show"\)/);
+assert.match(appChatComposerUiJs, /settleMobileBottomNavReservation\("host_foreground", \[0, 80, 240, 520, 1000\]\)/);
 assert.match(appComposerContextJs, /const navVisualLift = Math\.max\(0, Math\.ceil\(mobileBottomCssPx\("--mobile-bottom-nav-visual-lift", 0\)\)\)/);
 assert.match(appComposerContextJs, /const visualViewportHeight = Math\.ceil\(window\.visualViewport\?\.height \|\| 0\)/);
 assert.match(appComposerContextJs, /const innerHeight = Math\.ceil\(window\.innerHeight \|\| 0\)/);
