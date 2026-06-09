@@ -5863,6 +5863,7 @@ button.directory-alias-chip {
   display: block;
   background: color-mix(in srgb, var(--muted) 62%, transparent);
   border-radius: 999px;
+  transform: translateY(3px);
 }
 
 .global-plugin-dock-mode .topic-plugin-dock.global-plugin-dock-expanded .topic-plugin-dock-grabber {
