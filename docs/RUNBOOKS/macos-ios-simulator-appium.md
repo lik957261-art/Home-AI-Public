@@ -102,6 +102,13 @@ tokens, or private plugin payloads into the JavaScript panel or logs. If a test
 requires credentials, set them through an explicit temporary wrapper and do not
 print them.
 
+The server enforces a cooperative debug lane lease for all mutating operations
+and for WebView/Appium deep reads. The browser UI and checked visual harness
+acquire `/api/lease` before calling `/api/action` or `/api/deep-state`; if the
+lane is already owned by another thread, the request fails with
+`debug_lane_locked`. Treat that as a hard stop for the current lane: allocate a
+separate Simulator/debug server instead of continuing to drive the shared one.
+
 Use the older smoke/proof scripts for final reproducible evidence when a bug
 fix needs artifact paths, before/after screenshots, and bounded source files.
 
@@ -117,7 +124,7 @@ npm run ios:pwa:visual -- \
 ```
 
 The harness talks only to the local live debug server endpoints
-`/api/stream-info`, `/api/deep-state`, `/api/action`, and
+`/api/lease`, `/api/stream-info`, `/api/deep-state`, `/api/action`, and
 `/api/screenshot?force=1`. It records a screenshot path, client version,
 viewport metrics, relevant element bounds, computed styles, and assertion
 results. It does not accept Access Keys, sudo passwords, cookies, launch
@@ -125,11 +132,14 @@ tokens, or raw localStorage dumps.
 
 By default, the harness serializes each live-debug lane with a lock under
 `$HOME/.homeai-qa/locks` keyed by `--debug-url`. Keep this lock enabled for
-the shared `http://127.0.0.1:19073/` lane. Use `--no-lock` only when the run is
-pointing at an isolated Simulator/debug-server lane with a unique port, UDID,
-WDA port, and MJPEG port. Use `--expected-client-version <version>` when static
-assets changed, and keep the screenshot artifact assertion enabled through
-`--min-screenshot-bytes` unless the run is intentionally screenshotless.
+the shared `http://127.0.0.1:19073/` lane. The harness also acquires the live
+server debug lane lease before it opens URLs, runs JavaScript, reads deep state,
+or captures final evidence. `--no-lock` disables only the filesystem lock and
+is valid only when the run is pointing at an isolated Simulator/debug-server
+lane with a unique port, UDID, WDA port, and MJPEG port. Use
+`--expected-client-version <version>` when static assets changed, and keep the
+screenshot artifact assertion enabled through `--min-screenshot-bytes` unless
+the run is intentionally screenshotless.
 
 For embedded plugin shells, use the same harness with the plugin id:
 
@@ -211,8 +221,9 @@ live debug server instance.
 The checked visual harness follows the same lane rule. Separate plugin threads
 may run `npm run ios:pwa:visual` concurrently only when they target different
 `--debug-url` lanes. Runs against the same debug URL are serialized by the
-default lock; bypassing that lock with `--no-lock` on a shared lane is invalid
-evidence.
+default lock and by the live server debug lane lease; bypassing the filesystem
+lock with `--no-lock` on a shared lane is invalid evidence, and a
+`debug_lane_locked` response means the thread must stop and create its own lane.
 
 ## Gesture Smoke
 

@@ -110,7 +110,7 @@ function printHelp() {
     "  --lock-file <path>     Lane lock path. Defaults under ~/.homeai-qa/locks by debug URL.",
     "  --lock-timeout-ms <ms> Wait for lane lock. Default: 60000.",
     "  --lock-stale-ms <ms>   Remove stale lane locks. Default: 300000.",
-    "  --no-lock              Disable lane lock only when using an isolated Simulator/debug server.",
+    "  --no-lock              Disable only the filesystem lock on an isolated Simulator/debug server; server lease is still required.",
     "  --json                 Print bounded JSON.",
     "  --list                 List available scenarios.",
   ].join("\n"));
@@ -217,11 +217,69 @@ async function getJson(options, pathname) {
   return parsed;
 }
 
+async function postJson(options, pathname, body) {
+  const response = await fetchWithTimeout(apiUrl(options, pathname), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  }, options.timeoutMs);
+  const text = await response.text();
+  let parsed = null;
+  try {
+    parsed = text ? JSON.parse(text) : {};
+  } catch (_) {
+    parsed = { raw: text.slice(0, 1000) };
+  }
+  if (!response.ok) {
+    const error = String(parsed.error || response.statusText || "request_failed").slice(0, 300);
+    if (pathname === "/api/lease" && response.status === 404) throw new Error("debug_lane_lease_unavailable");
+    throw new Error(`${pathname}:${response.status}:${error}`);
+  }
+  return parsed;
+}
+
+function debugLaneLeaseOwner(options = {}) {
+  const plugin = options.pluginId ? `:${options.pluginId}` : "";
+  return `ios-pwa-visual:${process.pid}:${options.scenario || "scenario"}${plugin}`.slice(0, 160);
+}
+
+function debugLaneLeaseTtlMs(options = {}) {
+  return Math.max(
+    120000,
+    Number(options.openWaitMs || 0)
+      + Number(options.waitMs || 0)
+      + (Number(options.timeoutMs || 15000) * 5)
+      + 30000,
+  );
+}
+
+async function acquireDebugLaneLease(options = {}) {
+  const owner = debugLaneLeaseOwner(options);
+  const ttlMs = debugLaneLeaseTtlMs(options);
+  const response = await postJson(options, "/api/lease", { owner, ttlMs, leaseToken: options.leaseToken || "" });
+  if (!response.ok || !response.token) throw new Error(`debug_lane_lease_failed:${String(response.error || "missing_token").slice(0, 120)}`);
+  options.leaseToken = response.token;
+  let released = false;
+  return {
+    acquired: true,
+    owner: response.owner || owner,
+    expiresAt: response.expiresAt || 0,
+    ttlMs: response.ttlMs || ttlMs,
+    lane: response.lane || null,
+    release: async () => {
+      if (released) return;
+      released = true;
+      await postJson(options, "/api/lease/release", { leaseToken: options.leaseToken }).catch(() => null);
+      options.leaseToken = "";
+    },
+  };
+}
+
 async function postAction(options, body) {
   const response = await fetchWithTimeout(apiUrl(options, "/api/action"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(Object.assign({}, body, options.leaseToken ? { leaseToken: options.leaseToken } : {})),
   }, options.timeoutMs);
   const parsed = await response.json().catch(() => ({}));
   if (!response.ok || !parsed.ok) throw new Error(`action_failed:${String(parsed.error || response.statusText || "unknown").slice(0, 300)}`);
@@ -230,7 +288,8 @@ async function postAction(options, body) {
 
 async function saveScreenshot(options) {
   const screenshotPath = options.screenshot || defaultScreenshotPath(options);
-  const response = await fetchWithTimeout(apiUrl(options, "/api/screenshot?force=1"), {}, options.timeoutMs);
+  const token = options.leaseToken ? `&leaseToken=${encodeURIComponent(options.leaseToken)}` : "";
+  const response = await fetchWithTimeout(apiUrl(options, `/api/screenshot?force=1${token}`), {}, options.timeoutMs);
   if (!response.ok) throw new Error(`screenshot_failed:${response.status}`);
   const bytes = Buffer.from(await response.arrayBuffer());
   fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
@@ -521,6 +580,7 @@ async function runHarness(options) {
     metrics: null,
     screenshot: null,
     lock: null,
+    lease: null,
     assertions: [],
   };
   const lock = await acquireHarnessLock(options);
@@ -530,13 +590,22 @@ async function runHarness(options) {
     staleRemoved: lock.staleRemoved,
     waitedMs: lock.waitedMs,
   };
+  let lease = null;
   try {
+    lease = await acquireDebugLaneLease(options);
+    report.lease = {
+      acquired: lease.acquired,
+      owner: lease.owner,
+      expiresAt: lease.expiresAt,
+      ttlMs: lease.ttlMs,
+      lane: lease.lane,
+    };
     report.stream = await getJson(options, "/api/stream-info");
     if (options.appUrl) {
       await postAction(options, { type: "open", url: options.appUrl });
       await sleep(options.openWaitMs);
     }
-    report.deepState = await getJson(options, "/api/deep-state").catch((err) => ({ ok: false, error: String(err.message || err).slice(0, 300) }));
+    report.deepState = await getJson(options, `/api/deep-state?leaseToken=${encodeURIComponent(options.leaseToken || "")}`).catch((err) => ({ ok: false, error: String(err.message || err).slice(0, 300) }));
     report.prepare = await postAction(options, {
       type: "js",
       script: scenario.prepareScript,
@@ -556,6 +625,7 @@ async function runHarness(options) {
     report.finishedAt = new Date().toISOString();
     return report;
   } finally {
+    if (lease) await lease.release();
     lock.release();
   }
 }
@@ -596,6 +666,7 @@ module.exports = {
   DEFAULT_DEBUG_URL,
   SCENARIOS,
   acquireHarnessLock,
+  acquireDebugLaneLease,
   assertCommonHarness,
   assertDirectoryDarkStatus,
   assertEmbeddedPluginShell,

@@ -2017,9 +2017,10 @@ Current checker commands:
 - `node scripts\plugin-workspace-platform-contract-check.js --json`
 - `node tests\ios-pwa-visual-harness.test.js`
 - `npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id <plugin-id> --debug-url http://127.0.0.1:19073/`
-  (same `--debug-url` runs are serialized by the default lane lock; use
-  `--expected-client-version <version>` for static-client changes and
-  `--no-lock` only on an isolated Simulator/debug-server lane)
+  (same `--debug-url` runs are serialized by the default lane lock and the live
+  server debug lane lease; use `--expected-client-version <version>` for
+  static-client changes and `--no-lock` only on an isolated
+  Simulator/debug-server lane)
 - optional Mac read-only production evidence:
   `node scripts\plugin-workspace-platform-contract-check.js --probe-mac --require-mac-ok --json`
 

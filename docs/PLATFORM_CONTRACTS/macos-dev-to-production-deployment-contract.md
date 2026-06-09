@@ -160,7 +160,10 @@ Use the smallest sufficient set:
   Do not point multiple plugin debug sessions at the same Simulator UDID. For
   parallel plugin validation, run one live debug server per Simulator with a
   unique `--port`, `--udid`, `--wda-local-port`, and
-  `--mjpeg-server-port`.
+  `--mjpeg-server-port`. The live server requires a debug lane lease for
+  mutating operations and WebView/Appium deep reads; `debug_lane_locked` means
+  the lane is occupied and the plugin thread must allocate a separate
+  Simulator/debug server before continuing.
 
 Validation output recorded in handoff or docs must be bounded metadata only.
 Do not record raw keys, launch tokens, cookies, full logs, private user data,

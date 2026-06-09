@@ -121,6 +121,7 @@ plugin entries:
 10. every included plugin pointer declares `dev_runtime_prerequisites`, with
     Python declared for Python MCP wrappers such as Note.
 11. the checked iOS visual harness serializes same-lane runs by default,
+    requires the live server debug lane lease before driving the Simulator,
     supports isolated-lane `--no-lock`, and can assert loaded static client
     version plus non-empty screenshot artifacts.
 

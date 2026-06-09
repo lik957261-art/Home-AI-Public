@@ -5,6 +5,7 @@ const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const childProcess = require("child_process");
+const crypto = require("crypto");
 
 function parseArgs(argv = process.argv.slice(2)) {
   const out = {
@@ -22,6 +23,8 @@ function parseArgs(argv = process.argv.slice(2)) {
     mjpegConnectTimeoutMs: 2500,
     screenshotSource: "simctl",
     streamMode: "simctl",
+    laneOwner: process.env.HOMEAI_IOS_DEBUG_LANE_OWNER || process.env.USER || "homeai-ios-debug",
+    leaseTtlMs: 120000,
     appiumStartScript: path.join(process.env.HOME || "/Users/xuxin", ".homeai-qa/scripts/macos-ios-appium-start.sh"),
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -41,6 +44,8 @@ function parseArgs(argv = process.argv.slice(2)) {
     else if (item === "--mjpeg-connect-timeout-ms") out.mjpegConnectTimeoutMs = Number(next()) || out.mjpegConnectTimeoutMs;
     else if (item === "--screenshot-source") out.screenshotSource = next() || out.screenshotSource;
     else if (item === "--stream") out.streamMode = next() || out.streamMode;
+    else if (item === "--lane-owner") out.laneOwner = next() || out.laneOwner;
+    else if (item === "--lease-ttl-ms") out.leaseTtlMs = Number(next()) || out.leaseTtlMs;
     else if (item === "--appium-start-script") out.appiumStartScript = next();
   }
   return out;
@@ -60,6 +65,7 @@ const state = {
   streamClients: 0,
   streamLastConnectedAt: 0,
   streamLastError: "",
+  lease: null,
 };
 
 function json(res, status, body) {
@@ -94,6 +100,122 @@ function readBody(req) {
       }
     });
   });
+}
+
+function boundedText(value, fallback = "") {
+  const text = String(value || "").trim();
+  return (text || fallback).replace(/[^\w:./@-]+/g, "-").slice(0, 160);
+}
+
+function laneInfo() {
+  return {
+    port: args.port,
+    udid: args.udid,
+    deviceName: args.deviceName,
+    wdaLocalPort: args.wdaLocalPort,
+    mjpegServerPort: args.mjpegServerPort,
+    appiumUrl: args.appiumUrl,
+  };
+}
+
+function laneError(error, statusCode = 423, extra = {}) {
+  const err = new Error(error);
+  err.statusCode = statusCode;
+  err.details = extra;
+  return err;
+}
+
+function readLeaseTtlMs(value) {
+  const fallback = Math.max(30000, Number(args.leaseTtlMs || 120000) || 120000);
+  const requested = Number(value || fallback);
+  if (!Number.isFinite(requested) || requested <= 0) return fallback;
+  return Math.max(30000, Math.min(600000, Math.floor(requested)));
+}
+
+function pruneExpiredLease(now = Date.now()) {
+  if (state.lease && Number(state.lease.expiresAt || 0) <= now) state.lease = null;
+}
+
+function publicLeaseInfo() {
+  pruneExpiredLease();
+  return {
+    required: true,
+    active: Boolean(state.lease),
+    owner: state.lease?.owner || "",
+    acquiredAt: state.lease?.acquiredAt || 0,
+    expiresAt: state.lease?.expiresAt || 0,
+    ttlMs: state.lease?.ttlMs || readLeaseTtlMs(),
+  };
+}
+
+function formatLeaseResponse() {
+  return {
+    ok: true,
+    token: state.lease?.token || "",
+    owner: state.lease?.owner || "",
+    acquiredAt: state.lease?.acquiredAt || 0,
+    expiresAt: state.lease?.expiresAt || 0,
+    ttlMs: state.lease?.ttlMs || readLeaseTtlMs(),
+    lease: publicLeaseInfo(),
+    lane: laneInfo(),
+  };
+}
+
+function acquireDebugLaneLease(body = {}) {
+  pruneExpiredLease();
+  const now = Date.now();
+  const ttlMs = readLeaseTtlMs(body.ttlMs);
+  const owner = boundedText(body.owner || args.laneOwner, args.laneOwner || "homeai-ios-debug");
+  const token = String(body.leaseToken || body.token || "").trim();
+  if (state.lease && state.lease.token !== token && state.lease.owner !== owner) {
+    throw laneError("debug_lane_locked", 423, { lease: publicLeaseInfo(), lane: laneInfo() });
+  }
+  if (!state.lease || state.lease.token !== token) {
+    state.lease = {
+      token: crypto.randomUUID(),
+      owner,
+      acquiredAt: now,
+      expiresAt: now + ttlMs,
+      ttlMs,
+    };
+  } else {
+    state.lease.expiresAt = now + ttlMs;
+    state.lease.ttlMs = ttlMs;
+  }
+  return formatLeaseResponse();
+}
+
+function releaseDebugLaneLease(body = {}) {
+  pruneExpiredLease();
+  const token = String(body.leaseToken || body.token || "").trim();
+  const released = Boolean(token && state.lease && state.lease.token === token);
+  if (released) state.lease = null;
+  return { ok: true, released, lease: publicLeaseInfo(), lane: laneInfo() };
+}
+
+function leaseTokenFromRequest(req, url, body = {}) {
+  return String(
+    body.leaseToken
+      || body.token
+      || url.searchParams.get("leaseToken")
+      || req.headers["x-homeai-debug-lane-lease"]
+      || "",
+  ).trim();
+}
+
+function hasValidDebugLaneLease(token) {
+  pruneExpiredLease();
+  return Boolean(token && state.lease && state.lease.token === token);
+}
+
+function requireDebugLaneLease(token) {
+  pruneExpiredLease();
+  if (hasValidDebugLaneLease(token)) {
+    state.lease.expiresAt = Date.now() + readLeaseTtlMs(state.lease.ttlMs);
+    return;
+  }
+  if (!state.lease) throw laneError("debug_lane_lease_required", 423, { lease: publicLeaseInfo(), lane: laneInfo() });
+  throw laneError("debug_lane_locked", 423, { lease: publicLeaseInfo(), lane: laneInfo() });
 }
 
 async function appium(method, route, body = null) {
@@ -330,6 +452,8 @@ async function currentStreamInfo() {
     mjpegUrl: mjpegStreamUrl(),
     mjpegServerPort: args.mjpegServerPort,
     wdaLocalPort: args.wdaLocalPort,
+    lane: laneInfo(),
+    lease: publicLeaseInfo(),
     clients: state.streamClients,
     lastConnectedAt: state.streamLastConnectedAt,
     lastError: state.streamLastError,
@@ -413,8 +537,8 @@ async function headMjpegStream(res) {
   res.end();
 }
 
-function currentStateFast() {
-  if (!state.sessionId && !state.connecting) {
+function currentStateFast(leaseToken = "") {
+  if (!state.sessionId && !state.connecting && hasValidDebugLaneLease(leaseToken)) {
     connectSession().catch((err) => { state.lastError = err.message || String(err); });
   }
   return {
@@ -425,6 +549,8 @@ function currentStateFast() {
     lastDeepStateAt: state.lastDeepStateAt,
     lastDeepState: state.lastDeepState,
     lastError: state.lastError,
+    lane: laneInfo(),
+    lease: publicLeaseInfo(),
     stream: {
       preferred: mjpegPreferred() ? "wda-mjpeg" : "simctl",
       mjpegUrl: mjpegStreamUrl(),
@@ -557,6 +683,7 @@ async function nativeSwipeBack() {
 }
 
 async function performAction(body = {}) {
+  requireDebugLaneLease(String(body.leaseToken || body.token || "").trim());
   const type = String(body.type || "").trim();
   if (type === "connect") return connectSession({ resetSession: Boolean(body.resetSession) });
   if (type === "launchPwa") {
@@ -690,14 +817,36 @@ function pageHtml() {
     const statusEl = document.getElementById("status");
     const auto = document.getElementById("auto");
     const runtime = { streamActive: false, streamFailed: false };
+    const lease = {
+      owner: sessionStorage.getItem("homeaiDebugLaneOwner") || "",
+      token: sessionStorage.getItem("homeaiDebugLaneToken") || "",
+      expiresAt: Number(sessionStorage.getItem("homeaiDebugLaneExpiresAt") || 0) || 0,
+    };
+    if (!lease.owner) {
+      lease.owner = "browser:" + (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function" ? globalThis.crypto.randomUUID() : String(Date.now()) + "-" + Math.random().toString(16).slice(2));
+      sessionStorage.setItem("homeaiDebugLaneOwner", lease.owner);
+    }
     async function post(url, body) {
       const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || JSON.stringify(data));
       return data;
     }
+    async function acquireLease() {
+      if (lease.token && lease.expiresAt - Date.now() > 15000) return lease.token;
+      const data = await post("/api/lease", { owner: lease.owner, leaseToken: lease.token, ttlMs: 120000 });
+      lease.token = data.token || "";
+      lease.expiresAt = Number(data.expiresAt || 0) || (Date.now() + 120000);
+      sessionStorage.setItem("homeaiDebugLaneToken", lease.token);
+      sessionStorage.setItem("homeaiDebugLaneExpiresAt", String(lease.expiresAt));
+      statusEl.textContent = "Lease " + (data.owner || lease.owner);
+      return lease.token;
+    }
+    function leaseQuery() {
+      return lease.token ? "&leaseToken=" + encodeURIComponent(lease.token) : "";
+    }
     function screenshotUrl(force) {
-      return "/api/screenshot?t=" + Date.now() + (force ? "&force=1" : "");
+      return "/api/screenshot?t=" + Date.now() + (force ? "&force=1" : "") + leaseQuery();
     }
     function startStream() {
       if (STREAM_MODE !== "wda-mjpeg" || runtime.streamFailed || runtime.streamActive || !auto.checked) return false;
@@ -713,20 +862,23 @@ function pageHtml() {
       shot.src = screenshotUrl(Boolean(options.forceScreenshot));
       statusEl.textContent = "PNG " + new Date().toLocaleTimeString();
     }
-    async function state() {
-      const res = await fetch("/api/state?t=" + Date.now());
+    async function state(options = {}) {
+      if (options.withLease) await acquireLease();
+      const res = await fetch("/api/state?t=" + Date.now() + (options.withLease ? leaseQuery() : ""));
       const data = await res.json();
       out.textContent = JSON.stringify(data, null, 2);
     }
     async function deepState() {
-      const res = await fetch("/api/deep-state?t=" + Date.now());
+      await acquireLease();
+      const res = await fetch("/api/deep-state?t=" + Date.now() + leaseQuery());
       const data = await res.json();
       out.textContent = JSON.stringify(data, null, 2);
     }
     async function action(type, extra) {
-      const data = await post("/api/action", Object.assign({ type }, extra || {}));
+      const leaseToken = await acquireLease();
+      const data = await post("/api/action", Object.assign({ type, leaseToken }, extra || {}));
       out.textContent = JSON.stringify(data, null, 2);
-      await state().catch(() => {});
+      await state({ withLease: true }).catch(() => {});
       await refreshShot();
     }
     document.querySelectorAll("[data-action]").forEach((button) => button.addEventListener("click", () => action(button.dataset.action).catch((err) => out.textContent = err.message)));
@@ -775,12 +927,19 @@ async function handle(req, res) {
   const url = new URL(req.url || "/", `http://${req.headers.host || "127.0.0.1"}`);
   try {
     if (req.method === "GET" && url.pathname === "/") return html(res, pageHtml());
-    if (req.method === "GET" && url.pathname === "/api/state") return json(res, 200, currentStateFast());
+    if (req.method === "GET" && url.pathname === "/api/lease") return json(res, 200, { ok: true, lease: publicLeaseInfo(), lane: laneInfo() });
+    if (req.method === "POST" && url.pathname === "/api/lease") return json(res, 200, acquireDebugLaneLease(await readBody(req)));
+    if (req.method === "POST" && url.pathname === "/api/lease/release") return json(res, 200, releaseDebugLaneLease(await readBody(req)));
+    if (req.method === "GET" && url.pathname === "/api/state") return json(res, 200, currentStateFast(leaseTokenFromRequest(req, url)));
     if (req.method === "GET" && url.pathname === "/api/stream-info") return json(res, 200, await currentStreamInfo());
     if (req.method === "HEAD" && url.pathname === "/api/stream.mjpeg") return headMjpegStream(res);
     if (req.method === "GET" && url.pathname === "/api/stream.mjpeg") return proxyMjpegStream(req, res);
-    if (req.method === "GET" && url.pathname === "/api/deep-state") return json(res, 200, await enqueue(() => currentStateDeep()));
+    if (req.method === "GET" && url.pathname === "/api/deep-state") {
+      requireDebugLaneLease(leaseTokenFromRequest(req, url));
+      return json(res, 200, await enqueue(() => currentStateDeep()));
+    }
     if (req.method === "GET" && url.pathname === "/api/screenshot") {
+      if (args.screenshotSource === "appium") requireDebugLaneLease(leaseTokenFromRequest(req, url));
       const b64 = await screenshotBase64(url.searchParams.get("force") === "1");
       const bytes = Buffer.from(b64, "base64");
       res.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-store" });
@@ -793,12 +952,15 @@ async function handle(req, res) {
     return json(res, 404, { ok: false, error: "not_found" });
   } catch (err) {
     state.lastError = err.message || String(err);
-    return json(res, 500, { ok: false, error: state.lastError });
+    return json(res, Number(err.statusCode || 500) || 500, Object.assign({ ok: false, error: state.lastError }, err.details ? { details: err.details } : {}));
   }
 }
 
 const server = http.createServer((req, res) => {
-  handle(req, res).catch((err) => json(res, 500, { ok: false, error: err.message || String(err) }));
+  handle(req, res).catch((err) => json(res, Number(err.statusCode || 500) || 500, Object.assign(
+    { ok: false, error: err.message || String(err) },
+    err.details ? { details: err.details } : {},
+  )));
 });
 
 server.listen(args.port, args.host, () => {
@@ -808,6 +970,9 @@ server.listen(args.port, args.host, () => {
     url,
     appiumUrl: args.appiumUrl,
     udid: args.udid,
+    laneOwner: args.laneOwner,
+    leaseRequired: true,
+    leaseTtlMs: readLeaseTtlMs(),
     streamMode: mjpegPreferred() ? "wda-mjpeg" : "simctl",
     wdaLocalPort: args.wdaLocalPort,
     mjpegServerPort: args.mjpegServerPort,

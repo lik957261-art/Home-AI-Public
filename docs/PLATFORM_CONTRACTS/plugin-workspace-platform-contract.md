@@ -331,7 +331,10 @@ visual evidence. The required level depends on the surface:
   lane. Do not point multiple live-debug servers at the same Simulator UDID.
   Each lane needs a unique live-debug `--port`, Simulator `--udid`, WDA
   `--wda-local-port`, and MJPEG `--mjpeg-server-port`; native actions and
-  WebView deep state remain serialized within that lane.
+  WebView deep state remain serialized within that lane. The live server also
+  enforces a debug lane lease: callers must acquire `/api/lease` before
+  mutating actions or WebView/Appium deep reads, and `debug_lane_locked` means
+  the current plugin thread must stop and allocate its own lane.
 
 - Final bounded visual evidence should use the checked visual harness:
 
@@ -351,12 +354,14 @@ visual evidence. The required level depends on the surface:
   `tests/ios-pwa-visual-harness.test.js`.
 
   The harness locks by `--debug-url` under `$HOME/.homeai-qa/locks` by default.
-  Plugin teams may run visual harnesses concurrently only when they use
-  distinct live-debug lanes: unique `--debug-url` / live-debug `--port`,
+  It also acquires the live server debug lane lease before driving the
+  Simulator. Plugin teams may run visual harnesses concurrently only when they
+  use distinct live-debug lanes: unique `--debug-url` / live-debug `--port`,
   Simulator `--udid`, WDA port, and MJPEG port. `--no-lock` is valid only for
-  an isolated lane. Runs against the same lane must remain serialized because
-  screenshots, WebView JavaScript, native gestures, and deep-state reads share
-  one Appium/XCUITest session.
+  an isolated lane and disables only the filesystem lock, not the server lease.
+  Runs against the same lane must remain serialized because screenshots,
+  WebView JavaScript, native gestures, and deep-state reads share one
+  Appium/XCUITest session.
 
 Use:
 

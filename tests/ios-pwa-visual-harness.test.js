@@ -17,6 +17,7 @@ const rolloutStatus = fs.readFileSync(path.join(repoRoot, "docs", "IMPLEMENTATIO
 
 const {
   SCENARIOS,
+  acquireDebugLaneLease,
   acquireHarnessLock,
   assertCommonHarness,
   assertDirectoryDarkStatus,
@@ -39,6 +40,12 @@ assert.match(script, /\/api\/stream-info/);
 assert.match(script, /\/api\/deep-state/);
 assert.match(script, /\/api\/action/);
 assert.match(script, /\/api\/screenshot\?force=1/);
+assert.match(script, /\/api\/lease/);
+assert.match(script, /\/api\/lease\/release/);
+assert.match(script, /acquireDebugLaneLease/);
+assert.match(script, /debug_lane_lease_unavailable/);
+assert.match(script, /leaseToken/);
+assert.equal(typeof acquireDebugLaneLease, "function");
 assert.match(script, /directory-dark-status/);
 assert.match(script, /embedded-plugin-shell/);
 assert.match(script, /\.directory-status/);
@@ -51,6 +58,7 @@ assert.match(script, /\.wardrobe-plugin-frame/);
 assert.match(script, /boundedUrl/);
 assert.match(script, /acquireHarnessLock/);
 assert.match(script, /ios_visual_harness_lock_timeout/);
+assert.match(script, /report\.lease/);
 assert.match(script, /--expected-client-version/);
 assert.match(script, /screenshot_meets_min_bytes/);
 assert.doesNotMatch(script, /owner-web-key\.secret|HOMEAI_MAC_SUDO_PASSWORD_FILE|X-Hermes-Web-Key/i);
@@ -120,9 +128,12 @@ assert.match(platformContract, /`ios_visual_harness_command`/);
 assert.match(mobileContract, /directory-dark-status/);
 assert.match(mobileContract, /embedded-plugin-shell/);
 assert.match(mobileContract, /--no-lock/);
+assert.match(mobileContract, /debug lane lease/i);
 assert.match(runbook, /--expected-client-version/);
 assert.match(runbook, /--no-lock/);
+assert.match(runbook, /debug_lane_locked/);
 assert.match(platformContract, /--expected-client-version/);
+assert.match(platformContract, /debug lane lease/i);
 assert.match(testMatrix, /node tests\\ios-pwa-visual-harness\.test\.js/);
 
 async function testLaneLockSerializesVisualHarnessRuns() {

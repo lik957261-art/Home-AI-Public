@@ -312,6 +312,11 @@ still prove the reported layout or gesture issue. For final acceptance
 evidence, record bounded artifact paths and metrics from the relevant harness
 level.
 
+The live debug server has a required debug lane lease. Mutating operations and
+WebView/Appium deep reads must acquire `/api/lease` first; `debug_lane_locked`
+means another thread owns that lane and the current plugin thread must allocate
+a different Simulator/debug server instead of continuing on the shared lane.
+
 After an issue is reproduced, promote the final check to the reusable visual
 harness instead of leaving it as a manual screenshot loop:
 
@@ -338,7 +343,8 @@ Simulator opens the dev port before assertions run. Add
 artifact proves the loaded PWA build. The checked harness lives in
 `scripts/ios-pwa-visual-harness.js` with source coverage in
 `tests/ios-pwa-visual-harness.test.js`. It defaults to a per-`--debug-url` lane
-lock under `$HOME/.homeai-qa/locks`; use `--no-lock` only for an isolated
+lock under `$HOME/.homeai-qa/locks` and also acquires the live server debug
+lane lease before driving the Simulator; use `--no-lock` only for an isolated
 Simulator/live-debug lane with its own port, UDID, WDA port, and MJPEG port.
 The Directory dark-status scenario asserts `.directory-status`,
 `.directory-shell`, `#conversation`, and `--ui-surface-muted` so gray/pale
@@ -354,6 +360,9 @@ sessions. Each lane must use a unique `--port`, `--udid`,
 quickly per Simulator, WDA MJPEG is faster when enabled, but native gestures,
 selector clicks, JavaScript execution, and deep WebView state are serialized
 within that lane.
+
+Runs that fail the debug lane lease are not valid visual evidence. Start a new
+Simulator instance and pass its unique `--debug-url` to the harness.
 
 ## Minimum Plugin UI Smoke
 
