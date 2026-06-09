@@ -94,7 +94,14 @@ function testStateAndThreadNormalization() {
         "bad key": {
           name: "  Topic  ",
           performerWorkspaceIds: ["learner", "learner"],
-          directoryRoute: { label: "Root", root: "/r", path: "/r" },
+          directoryRoute: {
+            projectId: "health",
+            subprojectId: "self",
+            ownerWorkspaceId: "learner",
+            label: "Root",
+            root: "/r",
+            path: "/r",
+          },
         },
       },
     }],
@@ -119,6 +126,14 @@ function testStateAndThreadNormalization() {
   assert.equal(normalized.threads[0].messages[2].taskGroupId, "group-chat");
   assert.equal(normalized.threads[0].messages[2].content, "revoked");
   assert.equal(normalized.threads[0].taskGroupMeta.bad_key.title, "Topic");
+  assert.deepEqual(normalized.threads[0].taskGroupMeta.bad_key.directoryRoute, {
+    label: "Root",
+    root: "/r",
+    path: "/r",
+    projectId: "health",
+    subprojectId: "self",
+    ownerWorkspaceId: "learner",
+  });
   assert.deepEqual(normalized.pushSubscriptions, [{ keep: true, normalized: true }]);
   assert.deepEqual(normalized.pushReceipts, [{ keep: true }]);
   assert.deepEqual(normalized.pushDeliveries, [{ keep: true }]);

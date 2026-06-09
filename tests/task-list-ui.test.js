@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260609-plugin-footer-note-admin-v656";
+const CLIENT_VERSION = "20260609-bottom-safe-bridge-codex-v657";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-plugin-footer-note-admin-v656" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-plugin-footer-note-admin-v656"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-bottom-safe-bridge-codex-v657" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-bottom-safe-bridge-codex-v657"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -973,10 +973,14 @@ assert.match(stylesCss, /\.message-footer-meta\s*\{[\s\S]*?grid-column:\s*2;[\s\
 assert.match(appJs, /data-save-message-note="\$\{escapeHtml\(message\.id\)\}"/);
 assert.match(appJs, /aria-label="保存到 Note"/);
 assert.match(appJs, /function saveMessageToNote\(messageId\)/);
+assert.match(appJs, /function noteReceiptWorkspaceIdForMessage\(message = null\)/);
+assert.match(appJs, /taskGroupOwnerWorkspaceId\(group, ""\)/);
 assert.match(appJs, /\/api\/note\/receipts/);
+assert.match(appJs, /workspaceId,/);
+assert.match(appJs, /showPushToast\(`保存到 Note 失败：\$\{err\.message \|\| String\(err\)\}`, "error"\)/);
 assert.match(appJs, /function isNoteReceiptPluginUnavailableError\(err\)/);
 assert.match(appJs, /"note_workspace_not_configured"/);
-assert.match(appJs, /function requestNotePluginInstallForWorkspace\(\)/);
+assert.match(appJs, /function requestNotePluginInstallForWorkspace\(workspaceId = ""\)/);
 assert.match(appJs, /\/api\/note\/install-request/);
 assert.match(appJs, /showPushToast\("Note\/Notion 插件未安装，请求管理员安装。", "warning"/);
 assert.match(appJs, /actionLabel: "请求安装"/);
@@ -1052,8 +1056,10 @@ assert.doesNotMatch(appThreadDirectoryUiJs, /renderTaskSkillChips/);
 assert.doesNotMatch(appThreadDirectoryUiJs, /wireSkillLinks\(toolbar\)/);
 assert.match(appJs, /function messageExtractedDirectoryAliases\(message\)/);
 assert.match(appJs, /for \(const message of group\?\.messages \|\| \[\]\) \{\s+const candidates = usableTaskBindingAliases/);
-assert.match(appJs, /const exactProject = candidates\.find\(\(candidate\) =>\s+candidate\.projectId === requestedProjectId && String\(candidate\.subprojectId \|\| ""\) === requestedSubprojectId\)/);
-assert.match(appJs, /const rootProject = candidates\.find\(\(candidate\) =>\s+candidate\.projectId === requestedProjectId && !candidate\.subprojectId\)/);
+assert.match(appJs, /const projectMatches = candidates[\s\S]*?candidate\.projectId === requestedProjectId/);
+assert.match(appJs, /const pathScopedProjectMatches = projectMatches[\s\S]*?pathMatchesDirectoryRoot\(aliasPath, candidate\.root\)/);
+assert.match(appJs, /const exactProject = projectMatches\.find\(\(candidate\) =>\s+String\(candidate\.subprojectId \|\| ""\) === requestedSubprojectId\)/);
+assert.match(appJs, /const rootProject = projectMatches\.find\(\(candidate\) => !candidate\.subprojectId\)/);
 assert.match(stylesCss, /\.task-rename-sheet/);
 assert.match(appJs, /function renderOwnerElevationPanel\(\)/);
 assert.match(appJs, /function openOwnerElevationApprovalDialog\(options = \{\}\)/);
@@ -2429,6 +2435,7 @@ assert.match(stylesCss, /--plugin-topic-composer-bottom-offset: calc\(var\(--mob
 assert.match(stylesCss, /--plugin-topic-composer-reserved-height: 166px/);
 assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?z-index: 40;[\s\S]*?--bottom-nav-column-min: 48px;[\s\S]*?grid-template-columns: repeat\(5, minmax\(var\(--bottom-nav-column-min\), 1fr\)\);[\s\S]*?padding: 4px env\(safe-area-inset-right\) calc\(6px \+ var\(--mobile-bottom-nav-content-safe-area\)\) env\(safe-area-inset-left\);[\s\S]*?overflow-x: hidden;/);
 assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?bottom: var\(--mobile-bottom-nav-bottom\);/);
+assert.match(stylesCss, /\.bottom-nav::after \{[\s\S]*?height: max\(0px, var\(--mobile-bottom-nav-bottom\)\);[\s\S]*?background: var\(--ui-chrome\);/);
 assert.match(stylesCss, /\.bottom-nav::-webkit-scrollbar \{[\s\S]*?display: none;/);
 assert.match(stylesCss, /\.bottom-nav\.bottom-nav-count-4 \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(var\(--bottom-nav-column-min\), 1fr\)\);/);
 assert.match(stylesCss, /\.bottom-nav\.bottom-nav-count-5 \{[\s\S]*?grid-template-columns: repeat\(5, minmax\(var\(--bottom-nav-column-min\), 1fr\)\);/);
@@ -2500,10 +2507,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-plugin-footer-note-admin-v656/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-plugin-footer-note-admin-v656/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-plugin-footer-note-admin-v656/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-plugin-footer-note-admin-v656/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-bottom-safe-bridge-codex-v657/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-bottom-safe-bridge-codex-v657/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-bottom-safe-bridge-codex-v657/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-bottom-safe-bridge-codex-v657/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);

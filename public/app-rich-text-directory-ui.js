@@ -490,23 +490,35 @@ function semanticDirectoryRouteForMessage(message) {
 
 function resolveDirectoryProjectRoute(alias) {
   const aliasLabel = directoryAliasKey(alias?.label);
-  const aliasPath = alias?.path || "";
+  const aliasPath = alias?.path || alias?.root || "";
   const candidates = directoryProjectCandidates();
   const requestedProjectId = String(alias?.projectId || "").trim();
   const requestedSubprojectId = String(alias?.subprojectId || "").trim();
   if (requestedProjectId) {
-    const exactProject = candidates.find((candidate) =>
-      candidate.projectId === requestedProjectId && String(candidate.subprojectId || "") === requestedSubprojectId);
+    const projectMatches = candidates
+      .filter((candidate) => candidate.projectId === requestedProjectId && (!requestedSubprojectId || candidate.subprojectId === requestedSubprojectId));
+    if (aliasPath) {
+      const pathScopedProjectMatches = projectMatches
+        .filter((candidate) => (
+          candidate.root
+          && (
+            pathMatchesDirectoryRoot(aliasPath, candidate.root)
+            || pathMatchesDirectoryRoot(candidate.root, aliasPath)
+          )
+        ))
+        .sort((a, b) => comparableDirectoryPath(b.root).length - comparableDirectoryPath(a.root).length);
+      if (pathScopedProjectMatches.length) return pathScopedProjectMatches[0];
+    }
+    const exactProject = projectMatches.find((candidate) =>
+      String(candidate.subprojectId || "") === requestedSubprojectId);
     if (exactProject) return exactProject;
     if (!requestedSubprojectId) {
-      const rootProject = candidates.find((candidate) =>
-        candidate.projectId === requestedProjectId && !candidate.subprojectId);
+      const rootProject = projectMatches.find((candidate) => !candidate.subprojectId);
       if (rootProject) return rootProject;
     }
-    const projectMatches = candidates
-      .filter((candidate) => candidate.projectId === requestedProjectId && (!requestedSubprojectId || candidate.subprojectId === requestedSubprojectId))
+    const sortedProjectMatches = projectMatches
       .sort((a, b) => comparableDirectoryPath(b.root).length - comparableDirectoryPath(a.root).length);
-    if (projectMatches.length) return projectMatches[0];
+    if (sortedProjectMatches.length) return sortedProjectMatches[0];
   }
   const pathMatches = aliasPath
     ? candidates

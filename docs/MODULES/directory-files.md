@@ -85,6 +85,10 @@ Product rules:
   first user message until service-owned title generation exists.
 - The main card click should not be ambiguous: opening a directory and opening
   a topic are separate actions unless a future UI explicitly labels the default.
+- Directory-bound topic grouping must use the concrete directory route path and
+  owner/effective workspace identity. A reused directory display name or
+  project id, such as two workspaces each exposing `健康`, is not enough to
+  merge topic collections.
 - Deleting or unbinding a topic must not delete the directory or other bound
   topics.
 

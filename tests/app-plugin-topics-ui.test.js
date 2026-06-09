@@ -302,6 +302,40 @@ function directoryCardCollapsed(html, key) {
   assert.deepEqual(Array.from(collections.map((item) => item.groups[0].id).sort()), ["fanfan-health", "wuping-health"]);
 }
 
+{
+  const harness = createDirectoryTopicHarness();
+  const groups = [
+    {
+      id: "stephen-health",
+      title: "Stephen2026年体检",
+      ownerWorkspaceId: "weixin_wuping",
+      updatedAt: "2026-06-09T12:00:00.000Z",
+      directoryRoute: {
+        label: "健康",
+        root: "/data/drive/users/weixin_stephen/Hermes-Stephen/健康",
+        path: "/data/drive/users/weixin_stephen/Hermes-Stephen/健康",
+        ownerWorkspaceId: "weixin_stephen",
+      },
+    },
+    {
+      id: "wuping-health",
+      title: "把我历史上的健康数据分析一下",
+      ownerWorkspaceId: "weixin_wuping",
+      updatedAt: "2026-06-09T10:38:00.000Z",
+      directoryRoute: {
+        label: "健康",
+        root: "/data/drive/users/weixin_wuping/Hermes-吴萍/健康",
+        path: "/data/drive/users/weixin_wuping/Hermes-吴萍/健康",
+        ownerWorkspaceId: "weixin_wuping",
+      },
+    },
+  ];
+  const collections = harness.collections(groups);
+
+  assert.equal(collections.length, 2, "same-label Health directories from different roots must render as separate collections");
+  assert.deepEqual(Array.from(collections.map((item) => item.groups[0].id).sort()), ["stephen-health", "wuping-health"]);
+}
+
 function createPluginContextColdRestoreHarness() {
   const calls = { api: [], renderCurrentThread: [], renderThreads: 0, setComposerEnabled: [] };
   const nodes = {

@@ -343,11 +343,27 @@ function createRuntimeStateNormalizationService(options = {}) {
         if (Array.isArray(rawMeta[name])) out[key][name] = dedupe(rawMeta[name]);
       }
       if (rawMeta.directoryRoute && typeof rawMeta.directoryRoute === "object" && !Array.isArray(rawMeta.directoryRoute)) {
-        out[key].directoryRoute = {
-          label: String(rawMeta.directoryRoute.label || "").trim(),
-          root: String(rawMeta.directoryRoute.root || "").trim(),
-          path: String(rawMeta.directoryRoute.path || "").trim(),
+        const route = rawMeta.directoryRoute;
+        const directoryRoute = {
+          label: String(route.label || "").trim(),
+          root: String(route.root || "").trim(),
+          path: String(route.path || "").trim(),
         };
+        for (const name of [
+          "projectId",
+          "subprojectId",
+          "workspaceId",
+          "ownerWorkspaceId",
+          "actorWorkspaceId",
+          "targetWorkspaceId",
+          "dataWorkspaceId",
+          "permission",
+          "source",
+        ]) {
+          const rawValue = String(route[name] || "").trim();
+          if (rawValue) directoryRoute[name] = rawValue;
+        }
+        out[key].directoryRoute = directoryRoute;
       }
     }
     return out;

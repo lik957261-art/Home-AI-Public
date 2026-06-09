@@ -409,24 +409,42 @@ function isNoteReceiptPluginUnavailableError(err) {
   ].includes(code);
 }
 
-async function requestNotePluginInstallForWorkspace() {
-  const workspaceId = String(state.currentThread?.workspaceId || state.selectedWorkspaceId || state.auth?.workspaceId || "owner").trim() || "owner";
+function noteReceiptWorkspaceIdForMessage(message = null) {
+  const group = typeof messageTaskGroup === "function" ? messageTaskGroup(message) : null;
+  const groupWorkspaceId = group && typeof taskGroupOwnerWorkspaceId === "function"
+    ? taskGroupOwnerWorkspaceId(group, "")
+    : "";
+  const messageWorkspaceId = typeof messageOwnerWorkspaceId === "function"
+    ? messageOwnerWorkspaceId(message, "")
+    : "";
+  return String(
+    groupWorkspaceId
+    || messageWorkspaceId
+    || state.currentThread?.workspaceId
+    || state.selectedWorkspaceId
+    || state.auth?.workspaceId
+    || "owner",
+  ).trim() || "owner";
+}
+
+async function requestNotePluginInstallForWorkspace(workspaceId = "") {
+  const targetWorkspaceId = String(workspaceId || state.selectedWorkspaceId || state.auth?.workspaceId || "owner").trim() || "owner";
   await api("/api/note/install-request", {
     method: "POST",
     timeoutMs: 12000,
     body: JSON.stringify({
-      workspaceId,
-      workspaceLabel: state.currentWorkspaceLabel || workspaceId,
+      workspaceId: targetWorkspaceId,
+      workspaceLabel: (typeof workspaceLabelById === "function" ? workspaceLabelById(targetWorkspaceId) : "") || state.currentWorkspaceLabel || targetWorkspaceId,
     }),
   });
   showPushToast("已请求管理员安装 Note 插件", "success");
 }
 
-function showNotePluginUnavailableToast() {
+function showNotePluginUnavailableToast(workspaceId = "") {
   showPushToast("Note/Notion 插件未安装，请求管理员安装。", "warning", {
     actionLabel: "请求安装",
     ariaLabel: "请求管理员安装 Note 插件",
-    onClick: () => requestNotePluginInstallForWorkspace().catch(showError),
+    onClick: () => requestNotePluginInstallForWorkspace(workspaceId).catch(showError),
   });
 }
 
@@ -441,13 +459,14 @@ async function saveMessageToNote(messageId) {
     const text = messageShareText(message);
     const hasAttachments = Array.isArray(message.artifacts) && message.artifacts.length > 0;
     if (!text && !hasAttachments) throw new Error("没有可保存的内容");
+    const workspaceId = noteReceiptWorkspaceIdForMessage(message);
     const result = await api("/api/note/receipts", {
       method: "POST",
       timeoutMs: 45000,
       body: JSON.stringify({
         threadId: state.currentThreadId || state.currentThread?.id || "",
         messageId: noteMessageId,
-        workspaceId: state.currentThread?.workspaceId || state.selectedWorkspaceId || "owner",
+        workspaceId,
       }),
     });
     const count = Number(result?.note?.attachmentCount || 0) || 0;
@@ -461,10 +480,11 @@ async function saveMessageToNote(messageId) {
     return result;
   } catch (err) {
     if (isNoteReceiptPluginUnavailableError(err)) {
-      showNotePluginUnavailableToast();
+      showNotePluginUnavailableToast(noteReceiptWorkspaceIdForMessage(currentMessageById(noteMessageId)));
       return { ok: false, code: err.code || "note_workspace_not_configured" };
     }
-    throw err;
+    showPushToast(`保存到 Note 失败：${err.message || String(err)}`, "error");
+    return { ok: false, code: err.code || "note_receipt_save_failed" };
   } finally {
     noteReceiptSaveInFlightIds.delete(noteMessageId);
   }

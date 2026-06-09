@@ -14,11 +14,13 @@ function directoryTopicOwnerWorkspaceKey(group, route = null) {
 }
 
 function directoryTopicRouteKey(route, group = null) {
-  if (!route?.projectId) return "";
+  if (!route) return "";
   const root = typeof comparableDirectoryPath === "function"
     ? comparableDirectoryPath(route.root || route.path || "")
     : String(route.root || route.path || "").trim().replaceAll("\\", "/").toLowerCase();
-  return [directoryTopicOwnerWorkspaceKey(group, route), route.projectId, route.subprojectId || "", root].join("|");
+  const routeId = String(route.projectId || route.id || route.label || "").trim();
+  if (!routeId && !root) return "";
+  return [directoryTopicOwnerWorkspaceKey(group, route), routeId, route.subprojectId || "", root].join("|");
 }
 
 function directoryTopicRouteLabel(route) {
@@ -31,7 +33,7 @@ function directoryTopicRouteLabel(route) {
 function directoryTopicPrimaryRoute(group) {
   if (!group || group.pluginTopic || group.sharedTopic || group.sourceThreadId) return null;
   if (typeof isPluginTopicTaskGroup === "function" && isPluginTopicTaskGroup(group)) return null;
-  if (group.directoryRoute?.projectId && (group.directoryRoute.root || group.directoryRoute.path)) return group.directoryRoute;
+  if (group.directoryRoute?.root || group.directoryRoute?.path) return group.directoryRoute;
   const routes = typeof taskDirectoryRoutes === "function" ? taskDirectoryRoutes(group) : [];
   return routes.find((route) => route?.projectId && (route.root || route.path)) || null;
 }

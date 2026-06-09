@@ -88,7 +88,7 @@ model context. Note's canonical plugin workspace id is
 
 Hermes Mobile can save an assistant chat receipt into Note through the host
 route `POST /api/note/receipts`. The frontend sends only the current
-`threadId`, `messageId`, and effective Hermes `workspaceId`; the server reads
+`threadId`, `messageId`, and the message/topic owner Hermes `workspaceId`; the server reads
 the authorized message from Hermes runtime state, resolves any message
 artifacts through the existing artifact access boundary, and sends Note only a
 compact title, body, and bounded base64 attachments via Note's
@@ -103,8 +103,11 @@ not pass local file paths, private URLs, launch tokens, or raw access keys to
 Note. The receipt target workspace is the authenticated/effective Hermes
 workspace requested by the client, after `requireWorkspaceAccess()` clamps or
 rejects it; it must not silently fall back to a thread's older workspace id
-when a user is operating inside another authorized workspace. Note remains the
-owner of attachment storage, note rows, and attachment asset indexing.
+or the current Owner-selected workspace when the receipt message belongs to
+another authorized workspace. Missing Note binding, key, or API-base errors
+must be visible in the UI and may offer the Note install-request action instead
+of failing silently. Note remains the owner of attachment storage, note rows,
+and attachment asset indexing.
 
 Note MCP uses the common single-prefix stdio contract. Gateway profiles may add
 `mcp_servers.note`, `toolsets: [note]`, and
@@ -117,6 +120,12 @@ produce final callable names such as `mcp_note_notes_search` and
 `mcp_note_notes_create`. A double-prefixed callable, a profile lacking Note
 callables while policy says `note` is enabled, or an Owner fallback when viewing
 a non-Owner workspace is a failing integration state.
+
+Mac workspace plugin provisioning is generic for `.hermes-*` plugin bindings:
+Health, Note, Wardrobe, Finance, Email, and future plugins must mirror complete
+data-drive bindings into the worker-local `HermesWorkspace` before Gateway
+profile rendering. Health was the first production symptom, but the rule is not
+Health-specific.
 
 For local Windows production, Note MCP calls originate from WSL Gateway workers.
 The Note plugin service must listen on a Windows address reachable from WSL,

@@ -220,7 +220,10 @@ or raw plugin credentials.
 - Directory-bound topic collections are keyed by both directory route and
   workspace owner/effective workspace. Two users may each bind a directory named
   `健康`; the topic root must render them as separate collections instead of
-  merging by display name.
+  merging by display name. Runtime state normalization must preserve
+  `directoryRoute.projectId`, `subprojectId`, and owner/workspace identity
+  fields, and frontend route resolution must prefer a binding's concrete path
+  over a reused project id when both are present.
 
 ## Proposed Files
 

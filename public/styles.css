@@ -16166,6 +16166,18 @@ body.task-markdown-preview-open {
     backdrop-filter: blur(12px);
   }
 
+  .bottom-nav::after {
+    content: "";
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: max(0px, var(--mobile-bottom-nav-bottom));
+    background: var(--ui-chrome);
+    backdrop-filter: blur(12px);
+    pointer-events: none;
+  }
+
   .bottom-nav::-webkit-scrollbar {
     display: none;
   }

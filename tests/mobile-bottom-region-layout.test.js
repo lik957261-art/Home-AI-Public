@@ -33,7 +33,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260609-plugin-footer-note-admin-v656";
+const clientVersion = "20260609-bottom-safe-bridge-codex-v657";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 
@@ -158,6 +158,8 @@ assert.match(
   block(".bottom-nav .bottom-tab"),
   /transform: translateY\(calc\(-1 \* var\(--mobile-bottom-nav-visual-lift\)\)\);/,
 );
+assert.match(block(".bottom-nav::after"), /height: max\(0px, var\(--mobile-bottom-nav-bottom\)\);/);
+assert.match(block(".bottom-nav::after"), /background: var\(--ui-chrome\);/);
 assert.match(
   block(".app.main-back-visible.plugin-context-nav-mode.plugin-topic-detail-mode .composer"),
   /bottom: var\(--plugin-topic-composer-bottom-offset\);/,
