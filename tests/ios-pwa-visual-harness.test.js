@@ -24,6 +24,7 @@ const {
   assertEmbeddedPluginShell,
   defaultLockPath,
   parseArgs,
+  sampleMobileBottomStability,
 } = require("../scripts/ios-pwa-visual-harness");
 
 assert.equal(packageJson.scripts["ios:pwa:visual"], "node scripts/ios-pwa-visual-harness.js");
@@ -46,6 +47,11 @@ assert.match(script, /acquireDebugLaneLease/);
 assert.match(script, /debug_lane_lease_unavailable/);
 assert.match(script, /leaseToken/);
 assert.equal(typeof acquireDebugLaneLease, "function");
+assert.equal(typeof sampleMobileBottomStability, "function");
+assert.match(script, /MOBILE_BOTTOM_STABILITY_SCRIPT/);
+assert.match(script, /mobile_bottom_nav_bottom_stable/);
+assert.match(script, /mobile_bottom_comfort_inset_not_self_cancelled/);
+assert.match(script, /navBottomGapRaw/);
 assert.match(script, /directory-dark-status/);
 assert.match(script, /embedded-plugin-shell/);
 assert.match(script, /\.directory-status/);
@@ -110,14 +116,28 @@ assert.ok(embeddedFail.assertions.some((item) => item.name === "plugin_frame_has
 const commonPass = assertCommonHarness({
   metrics: { clientVersion: "v1" },
   screenshot: { bytes: 8192, path: "/tmp/screenshot.png" },
+  mobileBottomStability: {
+    samples: [
+      { navLaidOut: true, navBottom: 12, comfortInset: 12, navBottomGapRaw: 12, navBottomUnderflowRaw: 0 },
+      { navLaidOut: true, navBottom: 12, comfortInset: 12, navBottomGapRaw: 12, navBottomUnderflowRaw: 0 },
+      { navLaidOut: true, navBottom: 12, comfortInset: 12, navBottomGapRaw: 12, navBottomUnderflowRaw: 0 },
+    ],
+  },
 }, { expectedClientVersion: "v1", minScreenshotBytes: 4096 });
-assert.deepEqual(commonPass.map((item) => item.pass), [true, true]);
+assert.deepEqual(commonPass.map((item) => item.pass), [true, true, true, true]);
 
 const commonFail = assertCommonHarness({
   metrics: { clientVersion: "old" },
   screenshot: { bytes: 12, path: "/tmp/screenshot.png" },
+  mobileBottomStability: {
+    samples: [
+      { navLaidOut: true, navBottom: 12, comfortInset: 12, navBottomGapRaw: 12, navBottomUnderflowRaw: 12 },
+      { navLaidOut: true, navBottom: 0, comfortInset: 12, navBottomGapRaw: 0, navBottomUnderflowRaw: 0 },
+      { navLaidOut: true, navBottom: 12, comfortInset: 12, navBottomGapRaw: 12, navBottomUnderflowRaw: 12 },
+    ],
+  },
 }, { expectedClientVersion: "new", minScreenshotBytes: 4096 });
-assert.deepEqual(commonFail.map((item) => item.pass), [false, false]);
+assert.deepEqual(commonFail.map((item) => item.pass), [false, false, false, false]);
 
 for (const doc of [runbook, mobileContract, platformContract, testMatrix, rolloutStatus]) {
   assert.match(doc, /npm run ios:pwa:visual/);

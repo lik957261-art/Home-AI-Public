@@ -33,7 +33,7 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260609-bottom-composer-codex-v653";
+const clientVersion = "20260609-bottom-stable-codex-back-v654";
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 
@@ -207,7 +207,8 @@ assert.match(appComposerContextJs, /const navBottomOverflowRaw = navLaidOut && v
 assert.match(appComposerContextJs, /const navBottomOverflowClamp = Math\.max\(0, Math\.ceil\(mobileBottomCssPx\("--mobile-bottom-nav-overflow-clamp", 0\)\)\)/);
 assert.match(appComposerContextJs, /const navBottomOverflow = Math\.min\(navBottomOverflowRaw, navBottomOverflowClamp\)/);
 assert.match(appComposerContextJs, /const currentNavBottomDrop = navLaidOut \? Math\.max\(0, -currentNavBottom\) : 0/);
-assert.match(appComposerContextJs, /const navBottomUnderflowRaw = navLaidOut && viewportHeight \? Math\.ceil\(Math\.max\(0, viewportHeight - rect\.bottom \+ currentNavBottomDrop\)\) : 0/);
+assert.match(appComposerContextJs, /const navBottomGapRaw = navLaidOut && viewportHeight \? Math\.ceil\(Math\.max\(0, viewportHeight - rect\.bottom \+ currentNavBottomDrop\)\) : 0/);
+assert.match(appComposerContextJs, /const navBottomUnderflowRaw = Math\.max\(0, navBottomGapRaw - comfortInset\)/);
 assert.match(appComposerContextJs, /const navBottomUnderflowClamp = Math\.max\(0, Math\.ceil\(mobileBottomCssPx\("--mobile-bottom-nav-underflow-clamp", 0\)\)\)/);
 assert.match(appComposerContextJs, /const navBottomUnderflow = Math\.min\(navBottomUnderflowRaw, navBottomUnderflowClamp\)/);
 assert.match(appComposerContextJs, /const largeViewportHeight = Math\.ceil\(clientLayoutDiagnosticMeasureLength\("100lvh"\)\?\.height \|\| 0\)/);

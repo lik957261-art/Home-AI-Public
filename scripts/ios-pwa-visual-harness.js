@@ -451,6 +451,32 @@ const EMBEDDED_PLUGIN_MEASURE_SCRIPT = `
   };
 `;
 
+const MOBILE_BOTTOM_STABILITY_SCRIPT = `
+  const cssNumber = (name) => {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const parsed = Number.parseFloat(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const rect = (node) => {
+    if (!node) return null;
+    const r = node.getBoundingClientRect();
+    return { top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom), left: Math.round(r.left), width: Math.round(r.width), height: Math.round(r.height) };
+  };
+  const metrics = window.__hermesMobileBottomLayoutMetrics || {};
+  const nav = document.getElementById("bottomNav");
+  const runtimeBottom = cssNumber("--mobile-bottom-nav-bottom-runtime");
+  const comfortInset = Number.isFinite(Number(metrics.comfortInset)) ? Number(metrics.comfortInset) : cssNumber("--mobile-bottom-nav-comfort-inset");
+  return {
+    navBottom: Number.isFinite(Number(metrics.navBottom)) ? Number(metrics.navBottom) : runtimeBottom,
+    comfortInset,
+    navBottomGapRaw: Number.isFinite(Number(metrics.navBottomGapRaw)) ? Number(metrics.navBottomGapRaw) : null,
+    navBottomUnderflowRaw: Number.isFinite(Number(metrics.navBottomUnderflowRaw)) ? Number(metrics.navBottomUnderflowRaw) : null,
+    navBottomUnderflow: Number.isFinite(Number(metrics.navBottomUnderflow)) ? Number(metrics.navBottomUnderflow) : null,
+    navLaidOut: metrics.navLaidOut !== false && Boolean(nav && getComputedStyle(nav).display !== "none"),
+    navRect: metrics.navRect || rect(nav),
+  };
+`;
+
 function parseColor(value) {
   const match = String(value || "").match(/rgba?\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)(?:\s*,\s*([0-9.]+)\s*)?\)/i);
   if (!match) return null;
@@ -537,6 +563,27 @@ function assertCommonHarness(report = {}, options = {}) {
       path: report.screenshot?.path || "",
     }));
   }
+  const bottomSamples = Array.isArray(report.mobileBottomStability?.samples)
+    ? report.mobileBottomStability.samples.filter((sample) => sample && sample.navLaidOut !== false && Number.isFinite(Number(sample.navBottom)))
+    : [];
+  if (bottomSamples.length >= 3) {
+    const navBottoms = bottomSamples.map((sample) => Number(sample.navBottom));
+    const minNavBottom = Math.min(...navBottoms);
+    const maxNavBottom = Math.max(...navBottoms);
+    assertions.push(assertion("mobile_bottom_nav_bottom_stable", maxNavBottom - minNavBottom <= 1, {
+      navBottoms,
+      minNavBottom,
+      maxNavBottom,
+    }));
+    const selfCancelSamples = bottomSamples.filter((sample) => (
+      Number(sample.comfortInset || 0) > 0
+      && Number(sample.navBottomGapRaw || 0) <= Number(sample.comfortInset || 0) + 1
+      && Number(sample.navBottomUnderflowRaw || 0) > 0
+    ));
+    assertions.push(assertion("mobile_bottom_comfort_inset_not_self_cancelled", selfCancelSamples.length === 0, {
+      samples: selfCancelSamples.slice(0, 5),
+    }));
+  }
   return assertions;
 }
 
@@ -579,6 +626,7 @@ async function runHarness(options) {
     prepare: null,
     metrics: null,
     screenshot: null,
+    mobileBottomStability: null,
     lock: null,
     lease: null,
     assertions: [],
@@ -606,6 +654,7 @@ async function runHarness(options) {
       await sleep(options.openWaitMs);
     }
     report.deepState = await getJson(options, `/api/deep-state?leaseToken=${encodeURIComponent(options.leaseToken || "")}`).catch((err) => ({ ok: false, error: String(err.message || err).slice(0, 300) }));
+    report.mobileBottomStability = await sampleMobileBottomStability(options).catch((err) => ({ ok: false, error: String(err.message || err).slice(0, 300), samples: [] }));
     report.prepare = await postAction(options, {
       type: "js",
       script: scenario.prepareScript,
@@ -628,6 +677,17 @@ async function runHarness(options) {
     if (lease) await lease.release();
     lock.release();
   }
+}
+
+async function sampleMobileBottomStability(options = {}) {
+  const count = 6;
+  const intervalMs = 120;
+  const samples = [];
+  for (let index = 0; index < count; index += 1) {
+    samples.push(await postAction(options, { type: "js", script: MOBILE_BOTTOM_STABILITY_SCRIPT, args: [] }));
+    if (index < count - 1) await sleep(intervalMs);
+  }
+  return { ok: true, count, intervalMs, samples };
 }
 
 function printReport(report, jsonMode) {
@@ -673,4 +733,5 @@ module.exports = {
   defaultLockPath,
   parseArgs,
   runHarness,
+  sampleMobileBottomStability,
 };

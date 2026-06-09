@@ -567,7 +567,8 @@ function updateMobileBottomNavReservation() {
   const navBottomOverflow = Math.min(navBottomOverflowRaw, navBottomOverflowClamp);
   const currentNavBottom = Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-bottom-runtime", comfortInset));
   const currentNavBottomDrop = navLaidOut ? Math.max(0, -currentNavBottom) : 0;
-  const navBottomUnderflowRaw = navLaidOut && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - rect.bottom + currentNavBottomDrop)) : 0;
+  const navBottomGapRaw = navLaidOut && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - rect.bottom + currentNavBottomDrop)) : 0;
+  const navBottomUnderflowRaw = Math.max(0, navBottomGapRaw - comfortInset);
   const navBottomUnderflowClamp = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-underflow-clamp", 0)));
   const navBottomUnderflow = Math.min(navBottomUnderflowRaw, navBottomUnderflowClamp);
   const standaloneSurface = Boolean(
@@ -616,6 +617,7 @@ function updateMobileBottomNavReservation() {
     navBottomOverflowRaw,
     navBottomOverflowClamp,
     navBottomOverflow,
+    navBottomGapRaw,
     navBottomUnderflowRaw,
     navBottomUnderflowClamp,
     navBottomUnderflow,

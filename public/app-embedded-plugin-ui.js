@@ -1115,7 +1115,6 @@ function sendCodexPluginBack() {
 
 function sendCodexPluginBackOrReturn() {
   const pluginContextBack = typeof pluginContextBackNavigationActive === "function" && pluginContextBackNavigationActive();
-  if (!pluginContextBack && codexPluginOuterBackActive()) return restoreCodexPluginReturnRoute();
   if (sendCodexPluginBack()) return true;
   if (pluginContextBack) return false;
   return restoreCodexPluginReturnRoute();

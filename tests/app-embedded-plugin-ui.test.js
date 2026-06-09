@@ -182,7 +182,8 @@ assert.match(embeddedPluginUi, /function setCodexPluginOpenRoute\(route = {}\)/)
 assert.match(embeddedPluginUi, /function restoreCodexPluginReturnRoute\(\)/);
 assert.match(embeddedPluginUi, /function sendCodexPluginBack\(\)/);
 assert.match(embeddedPluginUi, /function sendCodexPluginBackOrReturn\(\)/);
-assert.match(embeddedPluginUi, /if \(!pluginContextBack && codexPluginOuterBackActive\(\)\) return restoreCodexPluginReturnRoute\(\)/);
+assert.doesNotMatch(embeddedPluginUi, /if \(!pluginContextBack && codexPluginOuterBackActive\(\)\) return restoreCodexPluginReturnRoute\(\)/);
+assert.match(embeddedPluginUi, /function sendCodexPluginBackOrReturn\(\) \{[\s\S]*?if \(sendCodexPluginBack\(\)\) return true;[\s\S]*?if \(pluginContextBack\) return false;[\s\S]*?return restoreCodexPluginReturnRoute\(\);/);
 assert.match(embeddedPluginUi, /function renderCodexPluginView\(\) \{[\s\S]*?ensureCodexPluginReturnRoute\(\);[\s\S]*?renderEmbeddedPluginView\(EMBEDDED_PLUGIN_DEFS\["codex-mobile"\]\)/);
 assert.match(embeddedPluginUi, /function renderFinancePluginView\(\)/);
 assert.match(embeddedPluginUi, /function updateFinancePluginNavigationAvailability\(\)/);
@@ -284,8 +285,8 @@ assert.match(sidebarTaskUi, /if \(!pluginContextBack && typeof wardrobePluginOut
 assert.match(sidebarTaskUi, /if \(!pluginContextBack && typeof financePluginOuterBackActive === "function" && financePluginOuterBackActive\(\)\) return "finance-plugin-outer"/);
 assert.match(sidebarTaskUi, /codexPluginOuterBackActive\(\)[\s\S]*return "codex-plugin-outer"/);
 assert.ok(
-  sidebarTaskUi.indexOf('return "codex-plugin-outer"') < sidebarTaskUi.indexOf('return "codex-plugin"'),
-  "Codex host return route should win before iframe history on edge swipe",
+  sidebarTaskUi.indexOf('return "codex-plugin"') < sidebarTaskUi.indexOf('return "codex-plugin-outer"'),
+  "Codex iframe history should win before host return so thread detail backs to the plugin thread list first",
 );
 assert.match(sidebarTaskUi, /target === "codex-plugin-outer"[\s\S]*restoreCodexPluginReturnRoute\(\)/);
 assert.match(sidebarTaskUi, /financePluginOuterBackActive\(\)[\s\S]*return "finance-plugin-outer"/);

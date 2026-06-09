@@ -346,6 +346,10 @@ artifact proves the loaded PWA build. The checked harness lives in
 lock under `$HOME/.homeai-qa/locks` and also acquires the live server debug
 lane lease before driving the Simulator; use `--no-lock` only for an isolated
 Simulator/live-debug lane with its own port, UDID, WDA port, and MJPEG port.
+For host or plugin changes that affect the bottom chrome, the harness must
+include multi-sample mobile bottom stability evidence; a single screenshot or
+single metric read is not sufficient when the reported bug is flicker,
+oscillation, or delayed layout drift.
 The Directory dark-status scenario asserts `.directory-status`,
 `.directory-shell`, `#conversation`, and `--ui-surface-muted` so gray/pale
 loading-surface regressions fail deterministically. The

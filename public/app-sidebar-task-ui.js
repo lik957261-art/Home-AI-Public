@@ -118,8 +118,8 @@ function backSwipeTarget() {
   if (state.viewMode === "learning" && (state.learningGrowthSettingsOpen || state.selectedLearningTaskCardId)) return state.learningGrowthSettingsOpen ? "learning-growth-settings" : "learning-growth-task";
   if (typeof wardrobePluginBackActive === "function" && wardrobePluginBackActive()) return "wardrobe-plugin";
   if (!pluginContextBack && typeof wardrobePluginOuterBackActive === "function" && wardrobePluginOuterBackActive()) return "wardrobe-plugin-outer";
-  if (!pluginContextBack && typeof codexPluginOuterBackActive === "function" && codexPluginOuterBackActive()) return "codex-plugin-outer";
   if (typeof codexPluginBackActive === "function" && codexPluginBackActive()) return "codex-plugin";
+  if (!pluginContextBack && typeof codexPluginOuterBackActive === "function" && codexPluginOuterBackActive()) return "codex-plugin-outer";
   if (typeof financePluginBackActive === "function" && financePluginBackActive()) return "finance-plugin";
   if (!pluginContextBack && typeof financePluginOuterBackActive === "function" && financePluginOuterBackActive()) return "finance-plugin-outer";
   if (typeof emailPluginBackActive === "function" && emailPluginBackActive()) return "email-plugin";

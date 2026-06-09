@@ -127,8 +127,10 @@ The harness talks only to the local live debug server endpoints
 `/api/lease`, `/api/stream-info`, `/api/deep-state`, `/api/action`, and
 `/api/screenshot?force=1`. It records a screenshot path, client version,
 viewport metrics, relevant element bounds, computed styles, and assertion
-results. It does not accept Access Keys, sudo passwords, cookies, launch
-tokens, or raw localStorage dumps.
+results. For bottom-chrome changes it also samples the mobile bottom layout
+multiple times in one run and fails if the nav bottom value oscillates or if
+the comfort inset is treated as underflow. It does not accept Access Keys, sudo
+passwords, cookies, launch tokens, or raw localStorage dumps.
 
 By default, the harness serializes each live-debug lane with a lock under
 `$HOME/.homeai-qa/locks` keyed by `--debug-url`. Keep this lock enabled for
