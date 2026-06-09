@@ -42,6 +42,20 @@ ledger entry for every focused test, aggregate test, deployment, and production
 smoke. Incident work should create an incident cassette instead of storing raw
 logs or long private context in handoff.
 
+For plugin workspace contract or pointer changes, the platform checker must
+also pass after the pointer files are updated:
+
+```powershell
+node scripts\plugin-workspace-platform-contract-check.js --json
+node tests\plugin-workspace-platform-contract-check.test.js
+```
+
+The checker enforces `ai_ops_control_plane_command`,
+`ai_ops_required_flow`, and `ai_ops_evidence_ledger` in every included plugin
+pointer. A plugin thread that starts H1/H2, deployment, visual-debug,
+MCP/schema, plugin-provisioning, or cross-module work without the control-plane
+intake packet is outside the platform contract.
+
 ## Harness Requirement Gate
 
 Before implementing non-trivial workflow changes, classify the change with

@@ -1,6 +1,6 @@
 # Plugin Workspace Platform Contract
 
-Contract version: `20260606-v1`.
+Contract version: `20260609-v2`.
 
 ## Purpose
 
@@ -26,6 +26,8 @@ contracts:
 - `docs/IMPLEMENTATION_NOTES/reference-memory-graph-harness-plan.md`
 - `docs/RUNBOOKS/mcp-tool-upgrade-closure.md`
 - `docs/RUNBOOKS/macos-ios-simulator-appium.md`
+- `docs/MODULES/ai-operations-control-plane.md`
+- `docs/IMPLEMENTATION_NOTES/ai-operations-control-plane.md`
 - `docs/MODULES/deployment.md`
 - `docs/IMPLEMENTATION_NOTES/harness-required-matrix.md`
 - `docs/TEST_MATRIX.md`
@@ -47,7 +49,7 @@ If a plugin does not have `docs/`, use the smallest local equivalent such as
 The pointer file must include:
 
 ```text
-Home AI platform contract version: 20260606-v1
+Home AI platform contract version: 20260609-v2
 
 Canonical Home AI contract source:
 - <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md
@@ -56,6 +58,8 @@ Canonical Home AI contract source:
 - <path-to-Home-AI>/docs/RUNBOOKS/macos-production-access.md
 - <path-to-Home-AI>/docs/RUNBOOKS/mcp-tool-upgrade-closure.md
 - <path-to-Home-AI>/docs/RUNBOOKS/macos-ios-simulator-appium.md
+- <path-to-Home-AI>/docs/MODULES/ai-operations-control-plane.md
+- <path-to-Home-AI>/docs/IMPLEMENTATION_NOTES/ai-operations-control-plane.md
 - <path-to-Home-AI>/docs/IMPLEMENTATION_NOTES/reference-memory-graph-v1.md
 
 Plugin-local facts:
@@ -75,6 +79,9 @@ Plugin-local facts:
 - required production smoke/harness commands
 - Reference Contract status
 - mobile visual harness status
+- AI Operations Control Plane command
+- AI Operations required flow
+- AI Operations evidence ledger path
 - iOS visual harness command
 ```
 
@@ -104,6 +111,8 @@ The checker validates:
 - plugin-local required facts;
 - plugin-local development runtime prerequisites, including Python for Python
   MCP wrappers and Node/npm for Node service plugins;
+- declared AI Operations Control Plane intake command, required flow, and
+  evidence ledger path;
 - `.agent-context/HANDOFF.md` pointer adoption;
 - no raw-looking secrets in the pointer and central rollout docs;
 - declared `ios_visual_harness_command` using the Home AI checked
@@ -131,6 +140,53 @@ tokens, launch tokens, sudo input, or private payloads. Protected plugin schema
 endpoints that correctly require a workspace id/key are reported as
 `authRequired=true`; tool-specific schema closure still belongs to
 `docs/RUNBOOKS/mcp-tool-upgrade-closure.md`.
+
+## AI Operations Control Plane Contract
+
+Every plugin Codex thread must use the Home AI AI Operations Control Plane as
+the first operational gate for H1/H2, production deployment, visual debugging,
+MCP/schema, plugin provisioning, or cross-module work.
+
+Required entrypoint:
+
+```bash
+cd /Users/hermes-dev/HermesMobileDev/app
+node scripts/ai-ops-control-plane.js intake --task "<task>" --json
+```
+
+For changed files, pass every known changed path:
+
+```bash
+node scripts/ai-ops-control-plane.js required-checks \
+  --changed-file <path> \
+  --json
+```
+
+Plugin threads must treat the control-plane output as the bounded startup
+packet for the task:
+
+- read the returned `requiredDocs` before editing;
+- stay inside the returned `allowedBoundaries`, or explain the escalation;
+- run the returned `requiredChecks`, or record why a check is not applicable;
+- allocate a visual lane before Appium/Simulator/WebView mutating actions when
+  `visualLane.required=true`;
+- append focused test, visual, deployment, and production-smoke evidence before
+  closing the task;
+- create an incident cassette instead of copying raw logs into handoff when a
+  bug crosses plugin, Gateway, visual toolchain, or production boundaries.
+
+The plugin-local pointer must declare:
+
+```text
+ai_ops_control_plane_command
+ai_ops_required_flow
+ai_ops_evidence_ledger
+```
+
+The checker enforces those fields. Cross-thread cards may notify already-open
+threads about this rule, but cards are transitional coordination only. The
+durable enforcement path is this contract, each plugin pointer, and the
+platform checker.
 
 ## Runtime URL And Same-Origin Entry Contract
 
@@ -186,6 +242,9 @@ doc:
 | `production_validation_commands` | yes | Health, version, schema, Gateway, and data smoke. |
 | `reference_contract_status` | yes | `none`, `planned`, `v1-minimal`, or `implemented`. |
 | `mobile_visual_harness_status` | if embedded UI | `none`, `playwright`, `appium-simulator`, or `installed-pwa`. |
+| `ai_ops_control_plane_command` | yes | Must call the Home AI `scripts/ai-ops-control-plane.js intake --task "<task>" --json` entrypoint from `/Users/hermes-dev/HermesMobileDev/app`. |
+| `ai_ops_required_flow` | yes | Must include `intake`, `required-checks`, `lane allocate if visual`, `evidence append`, `production smoke`, and `handoff`. |
+| `ai_ops_evidence_ledger` | yes | Local append-only JSONL evidence path, normally under `$HOME/.homeai-qa/`, with no raw secrets or private payloads. |
 | `ios_live_debug_available` | if embedded UI | `yes` when the plugin can be debugged through the Home AI live iOS PWA server; otherwise `no` with a short reason. |
 | `ios_visual_harness_command` | if embedded UI | Checked command using `npm run ios:pwa:visual` or `scripts/ios-pwa-visual-harness.js`; include `--scenario embedded-plugin-shell --plugin-id <plugin-id>` for plugin shell validation. Keyboard/composer changes must also declare or run `--scenario embedded-plugin-keyboard-composer --plugin-id <plugin-id>` with a real thread/route id when the input only exists on a detail page. Codex Mobile side-chat input changes must use `--scenario embedded-plugin-side-chat-keyboard --plugin-id codex-mobile --plugin-thread-id <thread-id>`. |
 
@@ -471,9 +530,9 @@ Handoff updates must record:
 - unresolved blockers;
 - no raw secrets or long logs.
 
-## Required Future Platform Check
+## Required Platform Check
 
-The eventual platform checker should verify each plugin workspace for:
+The platform checker verifies each plugin workspace for:
 
 - platform pointer file exists and names the contract version;
 - plugin-local facts are present;
@@ -483,17 +542,16 @@ The eventual platform checker should verify each plugin workspace for:
 - MCP schema closure is declared when MCP exists;
 - Reference Contract status is declared;
 - mobile visual harness status is declared when embedded UI exists;
+- AI Operations Control Plane command, required flow, and evidence ledger are
+  declared;
 - iOS live debug availability is declared when embedded mobile UI exists;
 - iOS visual harness command is declared and points to the checked Home AI
   visual harness;
 - no raw-looking secret values are present in docs;
 - `.agent-context` exists or is explicitly not needed.
 
-Planned checker name:
+Checker:
 
 ```text
-scripts/check-plugin-workspace-contract.js
+scripts/plugin-workspace-platform-contract-check.js
 ```
-
-Until that checker exists, reviewers must use this document as the manual
-checklist.

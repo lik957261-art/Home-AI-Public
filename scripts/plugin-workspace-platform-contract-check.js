@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const CONTRACT_VERSION = "20260606-v1";
+const CONTRACT_VERSION = "20260609-v2";
 
 const REQUIRED_CENTRAL_DOCS = [
   "plugin-workspace-platform-contract.md",
@@ -12,6 +12,7 @@ const REQUIRED_CENTRAL_DOCS = [
   "macos-production-access.md",
   "mcp-tool-upgrade-closure.md",
   "macos-ios-simulator-appium.md",
+  "ai-operations-control-plane.md",
   "reference-memory-graph-v1.md",
   "reference-memory-graph-harness-plan.md",
 ];
@@ -32,6 +33,9 @@ const REQUIRED_POINTER_TEXT = [
   "`deploy_command`",
   "`reference_contract_status`",
   "`mobile_visual_harness_status`",
+  "`ai_ops_control_plane_command`",
+  "`ai_ops_required_flow`",
+  "`ai_ops_evidence_ledger`",
   "`ios_live_debug_available`",
   "`ios_visual_harness_command`",
   "Do not record raw",
@@ -300,6 +304,20 @@ function checkPointer(plugin, options) {
   if (!/(npm run ios:pwa:visual|scripts\/ios-pwa-visual-harness\.js)/.test(visualHarnessCommand)) {
     result.issues.push("ios_visual_harness_command_missing");
   }
+  const aiOpsCommand = pointerFieldText(text, "ai_ops_control_plane_command");
+  if (!/ai-ops-control-plane\.js/.test(aiOpsCommand) || !/\bintake\b/.test(aiOpsCommand) || !/--json/.test(aiOpsCommand)) {
+    result.issues.push("ai_ops_control_plane_command_missing");
+  }
+  const aiOpsFlow = pointerFieldText(text, "ai_ops_required_flow");
+  for (const requiredFlowStep of ["intake", "required-checks", "lane allocate", "evidence append", "production smoke", "handoff"]) {
+    if (!aiOpsFlow.toLowerCase().includes(requiredFlowStep)) {
+      result.issues.push(`ai_ops_required_flow_missing:${requiredFlowStep}`);
+    }
+  }
+  const aiOpsLedger = pointerFieldText(text, "ai_ops_evidence_ledger");
+  if (!/\.homeai-qa/.test(aiOpsLedger) || !/\.jsonl/.test(aiOpsLedger)) {
+    result.issues.push("ai_ops_evidence_ledger_missing");
+  }
   const runtimePrerequisites = pointerFieldText(text, "dev_runtime_prerequisites").toLowerCase();
   for (const keyword of plugin.devRuntimeKeywords || []) {
     if (!runtimePrerequisites.includes(String(keyword).toLowerCase())) {
@@ -370,6 +388,11 @@ function checkCentralDocs(options, plugins) {
     "plugin-workspace-platform-contract-check.test.js",
     "ios-pwa-visual-harness.js",
     "ios-pwa-visual-harness.test.js",
+    "ai-ops-control-plane.js",
+    "ai-ops-control-plane-cli.test.js",
+    "ai_ops_control_plane_command",
+    "ai_ops_required_flow",
+    "ai_ops_evidence_ledger",
     "npm run ios:pwa:visual",
     "ios_visual_harness_command",
   ]) {

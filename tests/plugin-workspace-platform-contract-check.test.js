@@ -32,6 +32,7 @@ function pointerFor(plugin, overrides = {}) {
     "- `macos-production-access.md`",
     "- `mcp-tool-upgrade-closure.md`",
     "- `macos-ios-simulator-appium.md`",
+    "- `ai-operations-control-plane.md`",
     "- `reference-memory-graph-v1.md`",
     "- `reference-memory-graph-harness-plan.md`",
     "",
@@ -53,6 +54,9 @@ function pointerFor(plugin, overrides = {}) {
     "| `deploy_command` | `fixture` |",
     "| `reference_contract_status` | `planned` |",
     "| `mobile_visual_harness_status` | `planned` |",
+    "| `ai_ops_control_plane_command` | `cd /Users/hermes-dev/HermesMobileDev/app && node scripts/ai-ops-control-plane.js intake --task \"<task>\" --json` |",
+    "| `ai_ops_required_flow` | `intake -> required-checks -> lane allocate if visual -> evidence append -> production smoke -> handoff` |",
+    "| `ai_ops_evidence_ledger` | `$HOME/.homeai-qa/evidence-ledger.jsonl` |",
     "| `ios_live_debug_available` | `yes` |",
     `| \`ios_visual_harness_command\` | \`cd /Users/hermes-dev/HermesMobileDev/app && npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id ${plugin.id} --debug-url http://127.0.0.1:19073/\` |`,
     "",
@@ -72,14 +76,19 @@ function makeFixture() {
     "Codex Mobile Web is an Owner-critical special insertion and is included in this platform contract checker.",
     "plugin-workspace-platform-contract-check.js",
     "plugin-workspace-platform-contract-check.test.js",
+    "ai-ops-control-plane.js",
+    "ai-ops-control-plane-cli.test.js",
     "ios-pwa-visual-harness.js",
     "ios-pwa-visual-harness.test.js",
+    "ai_ops_control_plane_command",
+    "ai_ops_required_flow",
+    "ai_ops_evidence_ledger",
     "npm run ios:pwa:visual",
     "ios_visual_harness_command",
   ].join("\n"));
-  write(path.join(repo, "docs", "PLATFORM_CONTRACTS", "plugin-workspace-platform-contract.md"), "plugin-workspace-platform-contract-check.js\nnpm run ios:pwa:visual\nscripts/ios-pwa-visual-harness.js\nios_visual_harness_command\n");
-  write(path.join(repo, "docs", "TEST_MATRIX.md"), "plugin-workspace-platform-contract-check.test.js\nnode tests\\ios-pwa-visual-harness.test.js\n");
-  write(path.join(repo, "docs", "DOCS_INDEX.md"), "plugin-workspace-contract-rollout-status.md\nscripts/ios-pwa-visual-harness.js\nios-pwa-visual-harness.test.js\n");
+  write(path.join(repo, "docs", "PLATFORM_CONTRACTS", "plugin-workspace-platform-contract.md"), "plugin-workspace-platform-contract-check.js\nnpm run ios:pwa:visual\nscripts/ios-pwa-visual-harness.js\nios_visual_harness_command\nai-ops-control-plane.js\nai_ops_control_plane_command\nai_ops_required_flow\nai_ops_evidence_ledger\n");
+  write(path.join(repo, "docs", "TEST_MATRIX.md"), "plugin-workspace-platform-contract-check.test.js\nnode tests\\ios-pwa-visual-harness.test.js\nai-ops-control-plane-cli.test.js\n");
+  write(path.join(repo, "docs", "DOCS_INDEX.md"), "plugin-workspace-contract-rollout-status.md\nscripts/ios-pwa-visual-harness.js\nios-pwa-visual-harness.test.js\nai-ops-control-plane.js\n");
   for (const plugin of PLUGINS) {
     const workspace = path.join(root, plugin.dirName);
     write(path.join(workspace, "docs", "HOME_AI_PLATFORM_CONTRACT.md"), pointerFor(plugin));
@@ -170,6 +179,26 @@ function testPointerRequiresIosVisualHarnessCommand() {
   assert.ok(parsed.issues.includes("finance:ios_visual_harness_command_missing"));
 }
 
+function testPointerRequiresAiOpsControlPlaneFields() {
+  const fixture = makeFixture();
+  const plugin = PLUGINS.find((item) => item.id === "finance");
+  const pointerPath = path.join(fixture.root, plugin.dirName, "docs", "HOME_AI_PLATFORM_CONTRACT.md");
+  write(pointerPath, pointerFor(plugin)
+    .replace(/\n\| `ai_ops_control_plane_command` \|[^\n]+/, "")
+    .replace(/\n\| `ai_ops_required_flow` \|[^\n]+/, "")
+    .replace(/\n\| `ai_ops_evidence_ledger` \|[^\n]+/, ""));
+  const result = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--plugin", "finance", "--json"]);
+  assert.equal(result.status, 1);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.issues.includes("finance:pointer_missing_text:`ai_ops_control_plane_command`"));
+  assert.ok(parsed.issues.includes("finance:pointer_missing_text:`ai_ops_required_flow`"));
+  assert.ok(parsed.issues.includes("finance:pointer_missing_text:`ai_ops_evidence_ledger`"));
+  assert.ok(parsed.issues.includes("finance:ai_ops_control_plane_command_missing"));
+  assert.ok(parsed.issues.includes("finance:ai_ops_required_flow_missing:intake"));
+  assert.ok(parsed.issues.includes("finance:ai_ops_evidence_ledger_missing"));
+}
+
 function testPointerRequiresDeclaredDevRuntimePrerequisites() {
   const fixture = makeFixture();
   const plugin = PLUGINS.find((item) => item.id === "note");
@@ -216,6 +245,7 @@ testUnknownPluginFailsAndCodexIsAContractDescriptor();
 testSingleRepositoryCheckoutReportsBoundedPointerMissing();
 testPointerRejectsPublicRuntimeUrls();
 testPointerRequiresIosVisualHarnessCommand();
+testPointerRequiresAiOpsControlPlaneFields();
 testPointerRequiresDeclaredDevRuntimePrerequisites();
 testRepositoryContractIsCurrentlyClosed();
 testScriptDoesNotHandleSecretsOrSudo();
