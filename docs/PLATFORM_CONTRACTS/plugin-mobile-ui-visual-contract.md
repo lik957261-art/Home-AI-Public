@@ -1,6 +1,6 @@
 # Plugin Mobile UI And Visual Harness Contract
 
-Contract version: `20260609-v5`.
+Contract version: `20260609-v6`.
 
 ## Purpose
 
@@ -331,6 +331,53 @@ The live debug server has a required debug lane lease. Mutating operations and
 WebView/Appium deep reads must acquire `/api/lease` first; `debug_lane_locked`
 means another thread owns that lane and the current plugin thread must allocate
 a different Simulator/debug server instead of continuing on the shared lane.
+
+## Visual Toolchain Health And Recovery
+
+Visual tool failures must be classified by infrastructure layer before a plugin
+team treats them as UI evidence.
+
+Layer checks:
+
+```bash
+curl -fsS http://127.0.0.1:4723/status
+curl -fsS http://127.0.0.1:8101/status
+lsof -nP -iTCP:19073 -sTCP:LISTEN
+```
+
+Recovery order:
+
+1. If Appium `4723` is down, start it through the central script:
+
+   ```bash
+   bash "$HOME/.homeai-qa/scripts/macos-ios-appium-start.sh"
+   ```
+
+2. If the live debug server `19073` is down, start it from Home AI:
+
+   ```bash
+   cd <Home-AI>
+   npm run ios:pwa:debug
+   ```
+
+3. If Appium is up but WebView attach, `/contexts`, or harness actions fail
+   with `appium_timeout`, `fetch failed`, `Unexpected EOF`, `socket hang up`,
+   or `webview_context_missing`, reset the live-debug Appium session once with
+   `/api/action` using `type=connect` and `resetSession=true`, then retry the
+   harness.
+4. Restart WDA or the Simulator lane only when the WDA `8101` status check is
+   unhealthy or the Appium session reset still cannot attach.
+
+Do not classify `appium_timeout`, `/contexts` timeout, or live-debug
+`fetch failed` as a plugin UI regression until the layer checks above have
+passed. Killing and reopening the PWA is only an app-state reset; it is
+insufficient when Appium, WDA, or WebKit remote debugging is partially stuck.
+
+Plugin teams must not start foreground `appium server` processes from their
+own terminal sessions for shared lanes. Use the central Appium start script so
+the background Appium process ignores terminal SIGINT; otherwise Ctrl-C in a
+live-debug terminal can kill Appium while WDA remains alive, leaving the lane
+in a half-online state that times out later.
 
 After an issue is reproduced, promote the final check to the reusable visual
 harness instead of leaving it as a manual screenshot loop:

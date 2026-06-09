@@ -349,6 +349,29 @@ visual evidence. The required level depends on the surface:
   mutating actions or WebView/Appium deep reads, and `debug_lane_locked` means
   the current plugin thread must stop and allocate its own lane.
 
+  Visual toolchain failures must be diagnosed by layer before they are treated
+  as plugin UI failures. `appium_timeout`, `/contexts` timeout,
+  `webview_context_missing`, `Unexpected EOF`, `socket hang up`, and live-debug
+  `fetch failed` mean the plugin thread must first check Appium `4723`, WDA
+  `8101`, and its live-debug server port. If Appium is down, restart it through
+  the central script:
+
+  ```bash
+  bash "$HOME/.homeai-qa/scripts/macos-ios-appium-start.sh"
+  ```
+
+  If the live-debug port is down, restart `npm run ios:pwa:debug` for that
+  lane. If Appium and WDA are up but WebView attach still times out, reset the
+  live-debug Appium session once with `/api/action` using `type=connect` and
+  `resetSession=true`. Restart WDA or the Simulator only after those layer
+  checks fail. Killing and reopening the PWA is not sufficient when the
+  Appium/WebKit remote-debugging layer is partially stuck.
+
+  Plugin teams must not start foreground `appium server` processes for shared
+  lanes. The central Appium start script intentionally keeps the background
+  Appium process alive across terminal Ctrl-C, preventing a half-online lane in
+  which WDA still responds but Appium/WebView operations time out.
+
 - Final bounded visual evidence should use the checked visual harness:
 
   ```bash
