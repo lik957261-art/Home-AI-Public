@@ -325,6 +325,7 @@ assert.match(stylesCss, /\.embedded-plugin-host-active \.topbar\s*\{[\s\S]*displ
 assert.match(stylesCss, /\.wardrobe-plugin-host-active \.topbar\s*\{[\s\S]*display: none !important;/);
 assert.match(stylesCss, /\.embedded-plugin-host-active \.main\s*\{[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);/);
 assert.match(stylesCss, /\.wardrobe-plugin-host-active \.main\s*\{[\s\S]*grid-template-rows: auto minmax\(0, 1fr\);/);
+assert.match(stylesCss, /\.wardrobe-plugin-host-active:not\(\.plugin-context-nav-mode\) \.main,[\s\S]*?\.embedded-plugin-host-active:not\(\.plugin-context-nav-mode\) \.main\s*\{[\s\S]*?padding-top: var\(--plugin-context-main-top, 0\);/);
 assert.match(stylesCss, /\.embedded-plugin-host-active \.embedded-plugin-host\s*\{[\s\S]*grid-row: 2;/);
 assert.match(stylesCss, /\.wardrobe-plugin-host-active \.wardrobe-plugin-host\s*\{[\s\S]*grid-row: 2;/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-nav\s*\{[\s\S]*grid-template-columns: repeat\(3, minmax/);

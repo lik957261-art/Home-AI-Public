@@ -118,7 +118,7 @@ Gateway plugin/schema/profile changes:
   default (`--mobile-bottom-nav-comfort-inset: 0px` as of
   `20260608-bottom-stack-pwa-clamp-v632`). Tab content should not be lifted by
   default (`--mobile-bottom-nav-visual-lift: 0px` as of
-  `20260609-ios-statusbar-viewport-v649`); any future small visual lift must
+  `20260609-embedded-safe-top-v650`); any future small visual lift must
   stay inside the tab content transform, not in a bottom offset that moves the
   entire Dock/nav stack. Runtime bottom overflow is diagnostic-only by default:
   `--mobile-bottom-nav-overflow-clamp: 0px` prevents iOS standalone PWA
@@ -169,6 +169,10 @@ Gateway plugin/schema/profile changes:
   `.main` must use the mobile status-bar safe-area top inset instead of raw
   `top: 0`. The iframe bottom reservation must be derived from the visible top
   of the measured plugin-context footer, not only from the fixed footer height.
+  This applies both to `plugin-context-nav-mode` plugin hosts and to direct
+  embedded hosts such as Codex/Note/Wardrobe that do not expose the plugin
+  context footer; direct embedded hosts should reserve the top safe-area through
+  `.main` padding rather than a device-specific bottom offset.
 - `POST /api/client-layout-diagnostics` is the bounded real-device layout
   diagnostic channel for temporary PWA debugging. It stores sanitized viewport,
   CSS variable, and element-rect snapshots in
