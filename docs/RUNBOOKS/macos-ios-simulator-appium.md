@@ -3,6 +3,11 @@
 This runbook records the Mac-side Appium automation channel for Home AI iOS
 Simulator validation. It is a QA toolchain, not a production service.
 
+Shared correction id: `20260610-visual-toolchain-shared-lane`.
+Plugin workspaces must consume this runbook through the central Home AI
+contracts instead of copying local Appium, Simulator, screenshot, WebView
+attach, or lane-lock commands.
+
 ## Scope
 
 - Drive iOS Simulator gestures through Appium/XCUITest.

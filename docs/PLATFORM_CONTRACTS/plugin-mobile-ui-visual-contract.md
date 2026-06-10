@@ -1,6 +1,6 @@
 # Plugin Mobile UI And Visual Harness Contract
 
-Contract version: `20260609-v6`.
+Contract version: `20260610-v7`.
 
 ## Purpose
 
@@ -381,6 +381,15 @@ plugin-local copies of Appium startup, Simulator selection, screenshot polling,
 or WebView attach logic. When this toolchain is fixed, the central Home AI
 scripts and this contract are the propagation path for all plugins.
 
+Current shared correction id: `20260610-visual-toolchain-shared-lane`.
+All Home AI-hosted plugin workspaces consume this correction through the
+central Home AI command surface. The correction covers lane ownership,
+same-lane serialization, Appium startup, WebView attach recovery,
+`fetch failed` classification, and bounded evidence recording. It applies to
+Host UI work and to embedded plugin work for Finance, Wardrobe, Health, Note,
+Email, Growth, Directory-bound plugin surfaces, and future Home AI-hosted
+plugins.
+
 Fix propagation rule:
 
 - fix live-debug, visual harness, Appium starter, lane lease, screenshot,
@@ -394,6 +403,9 @@ Fix propagation rule:
 - remove temporary plugin-local workarounds after the central fix is available;
 - do not fork Appium commands, lane-lock files, Simulator selection logic, or
   WebView retry logic inside plugin repositories.
+- declare `visual_toolchain_contract:
+  20260610-visual-toolchain-shared-lane` in plugin pointer docs when the plugin
+  uses the Home AI mobile visual harness.
 
 Concurrency contract:
 

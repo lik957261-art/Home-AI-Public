@@ -208,6 +208,14 @@ Simulator, screenshot, or WebView attach scripts. Toolchain fixes land in Home
 AI first and become available to all plugins through this contract and the
 plugin-local pointer.
 
+Current shared toolchain correction: `20260610-visual-toolchain-shared-lane`.
+This correction is global for Home AI-hosted plugin workspaces. It requires
+all plugin threads to use the Home AI live-debug server, central Appium start
+script, lane lease, visual harness lock, and recovery sequence documented
+below. A plugin-local workaround is not considered durable until the same
+behavior exists in the Home AI shared toolchain and is referenced by this
+contract.
+
 Central toolchain fixes are not plugin-local patches. When the live debug
 server, visual harness, Appium starter, lane lease, or recovery behavior is
 fixed, the change must be made in the Home AI workspace, validated there, and
@@ -262,6 +270,20 @@ they must not paste private lane state or duplicate the recovery procedure. The
 canonical recovery sequence remains in
 `docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md` and
 `docs/RUNBOOKS/macos-ios-simulator-appium.md`.
+
+Minimum plugin pointer fields for visual-toolchain availability:
+
+```text
+ios_live_debug_available: yes | no
+ios_visual_harness_command: cd /Users/hermes-dev/HermesMobileDev/app && npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id <plugin-id> --debug-url http://127.0.0.1:19073/
+visual_toolchain_contract: 20260610-visual-toolchain-shared-lane
+visual_toolchain_owner: Home AI platform
+```
+
+`ios_live_debug_available: no` is allowed only when the plugin is not an
+embedded mobile UI or when a concrete missing prerequisite is documented. It is
+not a reason to use plugin-local Appium, Simulator, screenshot, WebView attach,
+or lane-lock code.
 
 ## Runtime URL And Same-Origin Entry Contract
 

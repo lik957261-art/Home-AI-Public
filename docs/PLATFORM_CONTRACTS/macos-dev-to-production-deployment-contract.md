@@ -175,6 +175,10 @@ Use the smallest sufficient set:
   mutating operations and WebView/Appium deep reads; `debug_lane_locked` means
   the lane is occupied and the plugin thread must allocate a separate
   Simulator/debug server before continuing.
+  The active shared visual-toolchain correction is
+  `20260610-visual-toolchain-shared-lane`; all Home AI-hosted plugin workspaces
+  must consume it through the central contract and must not vendor local
+  Appium, Simulator, screenshot, WebView attach, or lane-lock logic.
   Local iOS Simulator validation of a Home AI dev server must not assume
   `127.0.0.1:<home-ai-port>` maps to the Mac host. Bind the dev server with
   `HERMES_WEB_HOST=0.0.0.0` and pass
@@ -273,9 +277,12 @@ smoke before production is considered deployed.
 
 The installer writes only the LaunchDaemon plist and the registration-key file
 when missing. It references `GROWTH_REGISTRATION_KEY_PATH` and
-`GROWTH_HOME_AI_ACCESS_KEY_PATH`; it must not print raw key values. After this
-first bootstrap, normal Growth plugin deploys can use the central deploy script
-with the default `com.hermesmobile.plugin.growth` restart label.
+`GROWTH_HOME_AI_ACCESS_KEY_PATH`; it must not print raw key values. It also
+sets `GROWTH_DATA_OWNER=plugin` and points `GROWTH_LEARNING_DB_PATH` at the
+plugin production data directory, so first install must include plugin-owned
+SQLite import/readback or rollback evidence. After this first bootstrap, normal
+Growth plugin deploys can use the central deploy script with the default
+`com.hermesmobile.plugin.growth` restart label.
 
 If the current shell is in a plugin workspace, call the Home AI script by
 absolute path or change directory to the Home AI app workspace first:

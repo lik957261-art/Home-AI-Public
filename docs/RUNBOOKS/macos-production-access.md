@@ -337,9 +337,11 @@ node scripts/install-growth-launchd-service.js --execute --bootstrap --password-
 
 That installer uses the same sudo/password-file boundary. It may create the
 Growth registration key file when missing, but must not print raw key values.
+It starts Growth with `GROWTH_DATA_OWNER=plugin` and
+`GROWTH_LEARNING_DB_PATH` under the Growth plugin production data directory.
 The `--sync-only` step is first-install-only and is not a deployment closure;
-run Growth health, embedded launch/proxy, and selected Gateway `mcp_growth_*`
-smokes after bootstrap.
+run plugin-owned SQLite import/readback, Growth health, embedded launch/proxy,
+and selected Gateway `mcp_growth_*` smokes after bootstrap.
 
 Plugin workspaces should read the central deployment contract before deploys:
 

@@ -303,6 +303,10 @@ key file only when missing, and injects secrets by file path:
 `GROWTH_REGISTRATION_KEY_PATH` and `GROWTH_HOME_AI_ACCESS_KEY_PATH`. It must be
 run through the same password-file sudo boundary as the central deploy script
 and must not print raw key values.
+The LaunchDaemon sets `GROWTH_DATA_OWNER=plugin` and
+`GROWTH_LEARNING_DB_PATH=/Users/hermes-host/HermesMobile/plugins/growth/data/growth-learning.sqlite3`,
+so first install must also import or roll back the plugin-owned SQLite copy
+before declaring production closure.
 
 Because the Growth launchd label does not exist before first install, the
 first source copy uses the central deploy script with explicit plugin
