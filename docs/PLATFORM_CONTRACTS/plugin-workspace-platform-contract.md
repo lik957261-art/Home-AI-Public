@@ -199,6 +199,55 @@ threads about this rule, but cards are transitional coordination only. The
 durable enforcement path is this contract, each plugin pointer, and the
 platform checker.
 
+## Shared Visual Toolchain Contract
+
+The Home AI live iOS PWA debug server, Appium starter, lane lease, visual
+harness, and recovery rules are platform-owned shared tooling. Plugin
+workspaces must consume the central tools instead of copying local Appium,
+Simulator, screenshot, or WebView attach scripts. Toolchain fixes land in Home
+AI first and become available to all plugins through this contract and the
+plugin-local pointer.
+
+Required plugin behavior:
+
+- run AI Operations `intake` before visual-debug work and use the returned lane
+  instruction as the first boundary;
+- use `npm run ios:pwa:debug` from the Home AI workspace for interactive iOS
+  PWA visual loops;
+- use `npm run ios:pwa:visual` from the Home AI workspace for final bounded
+  evidence when the issue has a supported scenario;
+- never drive another plugin thread's active Simulator lane;
+- treat `debug_lane_locked` as a hard stop for that lane and allocate a
+  different Simulator/debug server before continuing;
+- keep same-lane `ios:pwa:visual` runs serialized by the default lock;
+- use `--no-lock` only on an isolated lane with its own Simulator UDID,
+  live-debug port, WDA port, and MJPEG port;
+- start or repair Appium only through
+  `$HOME/.homeai-qa/scripts/macos-ios-appium-start.sh`;
+- do not start foreground `appium server` processes from plugin workspaces for
+  shared lanes;
+- diagnose `fetch failed`, `appium_timeout`, `/contexts` timeout,
+  `webview_context_missing`, `Unexpected EOF`, and `socket hang up` as
+  toolchain-layer failures until Appium, WDA, and the live-debug server have
+  passed the checks in `docs/RUNBOOKS/macos-ios-simulator-appium.md`;
+- record only bounded evidence: scenario, lane/debug URL, client version,
+  artifact path, key metrics, and pass/fail result. Do not record raw Access
+  Keys, cookies, launch tokens, localStorage dumps, private plugin payloads, or
+  full logs.
+
+Concurrent plugin debugging is allowed only through separate lanes. Each active
+lane must have a unique Simulator UDID, live-debug `--port`,
+`--wda-local-port`, and `--mjpeg-server-port`. The shared default lane is
+`http://127.0.0.1:19073/`; plugin threads may observe it only when no other
+thread owns the lease and must stop immediately when the lease reports another
+owner.
+
+Plugin-local pointer files must declare the checked visual harness command, but
+they must not paste private lane state or duplicate the recovery procedure. The
+canonical recovery sequence remains in
+`docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md` and
+`docs/RUNBOOKS/macos-ios-simulator-appium.md`.
+
 ## Runtime URL And Same-Origin Entry Contract
 
 Standard same-host plugins must not hardcode a public, NAS, tailnet, or

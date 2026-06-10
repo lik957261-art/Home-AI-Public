@@ -102,6 +102,17 @@ work, must use `required-checks` for changed files, must allocate a visual lane
 before mutating Appium/Simulator actions, and must append bounded evidence
 instead of relying on narrative handoff.
 
+The shared visual toolchain correction is now part of the central contract.
+Every plugin thread must use the Home AI live iOS PWA debug server, checked
+visual harness, lane lease, and central Appium start script instead of
+plugin-local Appium/Simulator scripts. Same-lane visual runs are serialized by
+the default lock; `debug_lane_locked` requires a separate Simulator/debug
+server; `--no-lock` is valid only on an isolated lane with unique UDID, WDA,
+MJPEG, and live-debug ports. Toolchain errors such as `fetch failed`,
+`appium_timeout`, `/contexts` timeout, `webview_context_missing`,
+`Unexpected EOF`, and `socket hang up` must be classified by Appium, WDA, and
+live-debug layer health before a plugin UI regression is filed.
+
 The checker also enforces the standard inserted plugin runtime URL rule:
 `windows_dev_base_url`, `macos_production_base_url`, and `manifest_url` must use
 the plugin loopback port. Public, NAS, tailnet, or historical personal domains
@@ -166,6 +177,11 @@ whose production Mac probe remains deferred:
     requires the live server debug lane lease before driving the Simulator,
     supports isolated-lane `--no-lock`, and can assert loaded static client
     version plus non-empty screenshot artifacts.
+13. central visual toolchain recovery and concurrency rules are now durable
+    plugin rules: plugin threads consume the Home AI live-debug server,
+    visual harness, lane lease, and central Appium start script, and must
+    classify Appium/WDA/live-debug layer failures before treating a failure as
+    plugin UI evidence.
 
 These items are now gates, not one-off notes:
 

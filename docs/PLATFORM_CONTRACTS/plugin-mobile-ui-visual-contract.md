@@ -375,6 +375,24 @@ a different Simulator/debug server instead of continuing on the shared lane.
 Visual tool failures must be classified by infrastructure layer before a plugin
 team treats them as UI evidence.
 
+The visual toolchain is shared platform infrastructure. Plugin workspaces must
+call the Home AI live debug server and visual harness instead of keeping
+plugin-local copies of Appium startup, Simulator selection, screenshot polling,
+or WebView attach logic. When this toolchain is fixed, the central Home AI
+scripts and this contract are the propagation path for all plugins.
+
+Concurrency contract:
+
+- one live-debug lane maps to one Simulator UDID, one WDA port, one MJPEG port,
+  and one live-debug HTTP port;
+- the default shared lane is `http://127.0.0.1:19073/`;
+- same-lane visual harness runs must keep the default filesystem lock enabled;
+- `--no-lock` is valid only for an isolated lane with unique ports and UDID;
+- `debug_lane_locked` is not a retry hint. It means the current plugin thread
+  must stop using that lane and allocate a separate lane;
+- multiple plugin threads may run visual work in parallel only when each thread
+  targets a different `--debug-url` backed by a different Simulator UDID.
+
 Layer checks:
 
 ```bash
@@ -418,6 +436,20 @@ stale XCUITest sessions; otherwise Ctrl-C in a live-debug terminal can kill
 Appium while WDA remains alive, leaving the lane in a half-online state that
 times out later. Plugin workspaces must call the central script instead of
 copying a local Appium command, because toolchain fixes land centrally.
+
+When a lane appears visually alive but actions or deep state are flaky, do not
+fix plugin CSS or restart production first. Classify the layer:
+
+- screenshot/MJPEG works but `/contexts` or WebView JavaScript fails: reset the
+  Appium session once through the live-debug `/api/action` `connect` action
+  with `resetSession=true`;
+- Appium status fails: restart Appium with the central script;
+- WDA status fails or MJPEG is unavailable on its lane port: restart the
+  Simulator lane or WDA after preserving the failure classification;
+- live-debug HTTP port is not listening: restart `npm run ios:pwa:debug` for
+  that lane;
+- all layers are healthy but the checked scenario fails: treat the result as UI
+  evidence and attach the bounded artifact metadata.
 
 `Unexpected EOF` during a harness navigation or WebView JavaScript action is
 not automatically a plugin rendering failure. It can mean WebKit disconnected
