@@ -94,6 +94,7 @@ function parseArgs(argv) {
     timestamp: "",
     validationRetries: 12,
     validationDelayMs: 2000,
+    syncOnly: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -113,6 +114,7 @@ function parseArgs(argv) {
     else if (arg === "--timestamp") out.timestamp = argv[++index] || "";
     else if (arg === "--validation-retries") out.validationRetries = Number(argv[++index] || out.validationRetries);
     else if (arg === "--validation-delay-ms") out.validationDelayMs = Number(argv[++index] || out.validationDelayMs);
+    else if (arg === "--sync-only") out.syncOnly = true;
     else if (arg === "--execute") out.execute = true;
     else if (arg === "--json") out.json = true;
     else if (arg === "--help") {
@@ -137,6 +139,7 @@ function parseArgs(argv) {
         "  --reason <slug>             Backup name slug",
         "  --validation-retries <n>    Retries for listener/health validation, default 12",
         "  --validation-delay-ms <n>   Delay between validation retries, default 2000",
+        "  --sync-only                 Plugin first-install source sync only; no restart or runtime validation",
         "  --json                      Print bounded JSON",
       ].join("\n"));
       process.exit(0);
@@ -149,6 +152,11 @@ function parseArgs(argv) {
   if (!out.target) out.target = "home-ai";
   if (!SURFACES.has(out.surface)) throw new Error(`unsupported_deploy_surface:${out.surface}`);
   if (out.surface === "static" && out.target !== "home-ai") throw new Error("static_surface_requires_home_ai_target");
+  if (out.syncOnly && !out.target.startsWith("plugin:")) throw new Error("sync_only_requires_plugin_target");
+  if (out.syncOnly) {
+    out.restartMode = "none";
+    out.healthUrl = "";
+  }
   out.restartLabels = out.restartLabels.filter(Boolean);
   if (!Number.isFinite(out.validationRetries) || out.validationRetries < 1) out.validationRetries = 1;
   if (!Number.isFinite(out.validationDelayMs) || out.validationDelayMs < 0) out.validationDelayMs = 0;
@@ -353,6 +361,7 @@ function buildPlan(options) {
     productionOwner,
     surface: options.surface,
     allowDirty: Boolean(options.allowDirty),
+    syncOnly: Boolean(options.syncOnly),
     sourceRef: sourceRef(source),
     deployDirtyFiles: relevantDirtyFiles,
     ignoredDirtyFiles: ignoredDirty,
@@ -365,6 +374,7 @@ function buildPlan(options) {
       : [{ source: "./", target: "./" }],
     proofFiles,
     validation,
+    runtimeValidationSkipped: Boolean(options.syncOnly),
     rollback: {
       restoreCommand: ["/usr/bin/rsync", "-a", "--delete", `${backupPath}/`, `${target}/`],
       restartLabels: labels,
@@ -377,7 +387,7 @@ function assertExecutablePlan(plan, options) {
   if (plan.deployDirtyFiles.length && !options.allowDirty) {
     throw new Error(`deploy_source_dirty_requires_allow_dirty:${plan.deployDirtyFiles.join(",")}`);
   }
-  if (plan.target.startsWith("plugin:") && !plan.restartLabels.length && !options.healthUrl) {
+  if (plan.target.startsWith("plugin:") && !plan.restartLabels.length && !options.healthUrl && !options.syncOnly) {
     throw new Error("plugin_execute_requires_restart_label_or_health_url");
   }
 }

@@ -26,6 +26,7 @@ assert.match(script, /Default mode is plan-only/);
 assert.match(script, /--execute/);
 assert.match(script, /--allow-dirty/);
 assert.match(script, /--surface full\|static/);
+assert.match(script, /--sync-only/);
 assert.match(script, /HOMEAI_MAC_SUDO_PASSWORD_FILE/);
 assert.match(script, /\/Users\/hermes-dev\/HermesMobileDev/);
 assert.match(script, /\/Users\/hermes-host\/HermesMobile/);
@@ -45,6 +46,7 @@ assert.match(script, /kickstart/);
 assert.match(script, /production-status-smoke\.js/);
 assert.match(script, /owner-web-key\.secret/);
 assert.match(script, /plugin_execute_requires_restart_label_or_health_url/);
+assert.match(script, /sync_only_requires_plugin_target/);
 assert.match(script, /validationRetries: 12/);
 assert.match(script, /validationDelayMs: 2000/);
 assert.match(script, /function shouldRetryValidation/);
@@ -83,6 +85,7 @@ assert.match(contract, /cd \/Users\/hermes-dev\/HermesMobileDev\/app/);
 assert.match(contract, /--source \/Users\/hermes-dev\/HermesMobileDev\/plugins\/<plugin-id>/);
 assert.match(contract, /--restart-label <label>/);
 assert.match(contract, /--health-url <url>/);
+assert.match(contract, /--sync-only/);
 assert.match(contract, /selected Gateway callable-schema/);
 assert.match(contract, /must not bypass it with a plugin-private\s+production write path/);
 
@@ -90,6 +93,8 @@ assert.match(pluginWorkspaceContract, /macos-dev-to-production-deployment-contra
 assert.match(pluginWorkspaceContract, /Plugin threads must read that file before production deploys/);
 assert.match(pluginWorkspaceContract, /must not replace the central deploy path with a\s+plugin-private sudo\/rsync flow/);
 assert.match(pluginWorkspaceContract, /npm run --silent deploy:macos -- --plugin <plugin-id>/);
+assert.match(deploymentDoc, /--sync-only/);
+assert.match(productionAccess, /--sync-only/);
 
 assert.match(pluginsDoc, /Plugin Codex threads must read that central contract before production deploys/);
 assert.match(pluginsDoc, /must not introduce a separate sudo, rsync, SSH, or production\s+write-access path/);
@@ -221,6 +226,42 @@ assert.equal(growthPluginPayload.plan.target, "plugin:growth");
 assert.equal(growthPluginPayload.plan.sourcePath, "/Users/hermes-dev/HermesMobileDev/plugins/growth");
 assert.equal(growthPluginPayload.plan.productionPath, "/Users/hermes-host/HermesMobile/plugins/growth");
 assert.deepEqual(growthPluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.growth"]);
+
+const growthSyncOnlyRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--plugin",
+  "growth",
+  "--restart",
+  "none",
+  "--sync-only",
+  "--timestamp",
+  "20260608T000000Z",
+  "--reason",
+  "first-install",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.equal(growthSyncOnlyRun.status, 0, growthSyncOnlyRun.stderr);
+const growthSyncOnlyPayload = JSON.parse(growthSyncOnlyRun.stdout);
+assert.equal(growthSyncOnlyPayload.plan.syncOnly, true);
+assert.equal(growthSyncOnlyPayload.plan.runtimeValidationSkipped, true);
+assert.deepEqual(growthSyncOnlyPayload.plan.restartLabels, []);
+assert.deepEqual(growthSyncOnlyPayload.plan.validation, []);
+
+const invalidSyncOnlyRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--target",
+  "home-ai",
+  "--sync-only",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.notEqual(invalidSyncOnlyRun.status, 0);
+assert.match(invalidSyncOnlyRun.stderr, /sync_only_requires_plugin_target/);
 
 const unsafePluginExecute = spawnSync(process.execPath, [
   scriptPath,

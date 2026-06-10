@@ -247,13 +247,24 @@ npm run --silent deploy:macos -- --plugin <plugin-id> --restart-label <label> --
 
 Growth first production install has one extra launchd bootstrap step because
 `com.hermesmobile.plugin.growth` does not exist until the service is installed.
-Use the shared installer from the Home AI app workspace after the Growth source
-has been synced to the production plugin path:
+Use an explicit source-only sync first, then the shared installer from the Home
+AI app workspace:
+
+```bash
+npm run --silent deploy:macos -- --plugin growth --source /Users/hermes-dev/HermesMobileDev/plugins/growth --restart none --sync-only --execute --password-file <private-local-password-file> --json
+```
 
 ```bash
 node scripts/install-growth-launchd-service.js --json
 node scripts/install-growth-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
 ```
+
+`--sync-only` is allowed only for plugin first-install source sync before a
+launchd label exists. It performs backup, source rsync, and ownership restore,
+but intentionally skips restart and runtime validation. It is not a deployment
+closure state. After Growth bootstrap, the operator must run Growth loopback
+manifest/status smoke, plugin launch/proxy smoke, and MCP/Gateway callable
+smoke before production is considered deployed.
 
 The installer writes only the LaunchDaemon plist and the registration-key file
 when missing. It references `GROWTH_REGISTRATION_KEY_PATH` and

@@ -304,6 +304,20 @@ key file only when missing, and injects secrets by file path:
 run through the same password-file sudo boundary as the central deploy script
 and must not print raw key values.
 
+Because the Growth launchd label does not exist before first install, the
+first source copy uses the central deploy script with explicit plugin
+`--sync-only`:
+
+```bash
+npm run --silent deploy:macos -- --plugin growth --source /Users/hermes-dev/HermesMobileDev/plugins/growth --restart none --sync-only --execute --password-file <private-local-password-file> --json
+```
+
+`--sync-only` is not a deployment closure. It exists only to place plugin source
+under the production plugin root before the LaunchDaemon is bootstrapped. The
+install is not complete until the Growth LaunchDaemon is bootstrapped and
+loopback health, embedded launch/proxy, and selected Gateway `mcp_growth_*`
+schema smoke pass.
+
 The Hermes Mobile launchd environment uses
 `HERMES_WEB_HOST=0.0.0.0`, `HERMES_WEB_PORT=8797`,
 `HERMES_WEB_DATA_DIR=/Users/hermes-host/HermesMobile/data`,

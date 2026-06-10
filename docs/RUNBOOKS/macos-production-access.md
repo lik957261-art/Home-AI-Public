@@ -323,7 +323,12 @@ directories. The central script restores the production target owner after
 sync: `hermes-host:staff` by default, with `xuxin:staff` for the Codex Mobile
 plugin because that launchd service runs as `xuxin`.
 
-Growth first production install also needs the shared launchd installer:
+Growth first production install also needs a source-only sync followed by the
+shared launchd installer:
+
+```bash
+npm run --silent deploy:macos -- --plugin growth --source /Users/hermes-dev/HermesMobileDev/plugins/growth --restart none --sync-only --execute --password-file <private-local-password-file> --json
+```
 
 ```bash
 node scripts/install-growth-launchd-service.js --json
@@ -332,6 +337,9 @@ node scripts/install-growth-launchd-service.js --execute --bootstrap --password-
 
 That installer uses the same sudo/password-file boundary. It may create the
 Growth registration key file when missing, but must not print raw key values.
+The `--sync-only` step is first-install-only and is not a deployment closure;
+run Growth health, embedded launch/proxy, and selected Gateway `mcp_growth_*`
+smokes after bootstrap.
 
 Plugin workspaces should read the central deployment contract before deploys:
 
