@@ -15,6 +15,7 @@ const PLUGIN_TARGETS = new Set([
   "codex-mobile-web",
   "email",
   "finance",
+  "growth",
   "healthy",
   "note",
   "wardrobe",
@@ -23,6 +24,7 @@ const PLUGIN_TARGETS = new Set([
 const DEFAULT_RESTART_LABELS = {
   "home-ai": ["com.hermesmobile.listener"],
   "plugin:codex-mobile-web": ["com.hermesmobile.plugin.codex-mobile"],
+  "plugin:growth": ["com.hermesmobile.plugin.growth"],
 };
 
 const PRODUCTION_OWNER_BY_TARGET = {

@@ -41,6 +41,7 @@ codex-mobile-web -> /Users/hermes-host/HermesMobile/plugins/codex-mobile-web
   explicitly opt into Home AI embedded-plugin deployment)
 email -> /Users/hermes-host/HermesMobile/plugins/email
 finance -> /Users/hermes-host/HermesMobile/plugins/finance
+growth -> /Users/hermes-host/HermesMobile/plugins/growth
 healthy -> /Users/hermes-host/HermesMobile/plugins/healthy
 note -> /Users/hermes-host/HermesMobile/plugins/note
 wardrobe -> /Users/hermes-host/HermesMobile/plugins/wardrobe

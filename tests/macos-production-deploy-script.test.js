@@ -201,6 +201,26 @@ assert.equal(codexPluginRun.status, 0, codexPluginRun.stderr);
 const codexPluginPayload = JSON.parse(codexPluginRun.stdout);
 assert.equal(codexPluginPayload.plan.productionOwner, "xuxin:staff");
 
+const growthPluginRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--plugin",
+  "growth",
+  "--timestamp",
+  "20260608T000000Z",
+  "--reason",
+  "harness",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.equal(growthPluginRun.status, 0, growthPluginRun.stderr);
+const growthPluginPayload = JSON.parse(growthPluginRun.stdout);
+assert.equal(growthPluginPayload.plan.target, "plugin:growth");
+assert.equal(growthPluginPayload.plan.sourcePath, "/Users/hermes-dev/HermesMobileDev/plugins/growth");
+assert.equal(growthPluginPayload.plan.productionPath, "/Users/hermes-host/HermesMobile/plugins/growth");
+assert.deepEqual(growthPluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.growth"]);
+
 const unsafePluginExecute = spawnSync(process.execPath, [
   scriptPath,
   "--plugin",

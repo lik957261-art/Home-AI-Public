@@ -292,6 +292,8 @@ The current isolated production deployment runs these launchd labels:
 - `com.hermesmobile.plugin.email`
 - `com.hermesmobile.plugin.health`
 - `com.hermesmobile.plugin.note`
+- `com.hermesmobile.plugin.growth` is reserved for Growth but is not loaded
+  until the Growth production service is installed.
 - `com.hermesmobile.plugin.codex-mobile`
 
 The Hermes Mobile launchd environment uses
