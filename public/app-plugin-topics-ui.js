@@ -90,6 +90,23 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     ]),
   }),
   Object.freeze({
+    id: "growth",
+    viewMode: "growth",
+    label: "\u6210\u957f",
+    subtitle: "\u5b66\u4e60\u4efb\u52a1\u3001\u5361\u7247\u548c\u80fd\u529b\u8fdb\u5ea6",
+    iconClass: "nav-learning-icon",
+    appIconClass: "growth",
+    appIconGlyph: "\u957f",
+    sourceBadge: "\u957f",
+    toolset: "growth",
+    deliveryHints: ["growth", "\u6210\u957f", "\u5b66\u4e60", "\u4efb\u52a1", "\u5361\u7247"],
+    quickActions: Object.freeze([
+      Object.freeze({ id: "today", label: "\u4eca\u65e5\u4efb\u52a1", type: "open_plugin", glyph: "\u65e5" }),
+      Object.freeze({ id: "cards", label: "\u6210\u957f\u5361\u7247", type: "open_plugin", glyph: "\u5361" }),
+      Object.freeze({ id: "review", label: "\u590d\u76d8", type: "open_topic", glyph: "\u590d" }),
+    ]),
+  }),
+  Object.freeze({
     id: "directory",
     builtinKind: "directory",
     viewMode: "projects",
@@ -180,6 +197,7 @@ function pluginTopicBottomButtonId(def) {
   if (id === "email") return "bottomEmailMode";
   if (id === "health") return "bottomHealthMode";
   if (id === "note") return "bottomNoteMode";
+  if (id === "growth") return "bottomGrowthMode";
   return "";
 }
 
@@ -402,7 +420,7 @@ function globalPluginDockHostSurfaceEligible() {
   if (!app || app.classList.contains("hidden")) return false;
   if (!isMobileLayout()) return false;
   const view = String(state.viewMode || "");
-  const pluginAppSurface = ["wardrobe", "finance", "email", "health", "note"].includes(view);
+  const pluginAppSurface = ["wardrobe", "finance", "email", "health", "note", "growth"].includes(view);
   if (state.keyboardViewportActive || document.documentElement.classList.contains("keyboard-viewport-active")) return false;
   if (state.mobileBrowserShellBlocked || app.classList.contains("mobile-browser-shell-blocked")) return false;
   if (app.classList.contains("embedded-plugin-preview-fullscreen-active")) return false;

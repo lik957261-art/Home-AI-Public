@@ -71,6 +71,20 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
     refreshRequiredEventType: "note.plugin.refresh_required",
     manifestPath: "/api/hermes-plugins/note/manifest",
   }),
+  growth: Object.freeze({
+    id: "growth",
+    viewMode: "growth",
+    title: "\u6210\u957f",
+    label: "\u6210\u957f",
+    bottomButtonId: "bottomGrowthMode",
+    appClass: "growth-plugin-mode",
+    hostId: "growthPluginHost",
+    navVisibleClass: "growth-visible",
+    navigationEventType: "growth.plugin.navigation",
+    backResultEventType: "growth.plugin.back_result",
+    refreshRequiredEventType: "growth.plugin.refresh_required",
+    manifestPath: "/api/hermes-plugins/growth/manifest",
+  }),
 });
 
 function embeddedPluginRecord(pluginId) {
@@ -1368,4 +1382,61 @@ function parkNotePluginShell() {
 function renderNotePluginView() {
   updateNotePluginNavigationAvailability();
   renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS.note);
+}
+
+function updateGrowthPluginNavigationAvailability() {
+  const def = EMBEDDED_PLUGIN_DEFS.growth;
+  const button = $(def.bottomButtonId);
+  const nav = $("bottomNav");
+  const available = embeddedPluginNavigationAvailable(def);
+  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
+    && typeof pluginTopicBottomButtonId === "function"
+    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === def.bottomButtonId;
+  if (button) {
+    button.hidden = !keepPluginContextButton;
+    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
+  }
+  nav?.classList.remove(def.navVisibleClass);
+  if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("growth", available);
+  if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
+  return available;
+}
+
+function growthPluginBackActive() {
+  return embeddedPluginBackActive(EMBEDDED_PLUGIN_DEFS.growth);
+}
+
+function growthPluginOuterBackActive() {
+  return embeddedPluginOuterBackActive(EMBEDDED_PLUGIN_DEFS.growth);
+}
+
+function rememberGrowthPluginReturnRoute() {
+  return rememberEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS.growth);
+}
+
+function setGrowthPluginOpenRoute(route = {}) {
+  return setEmbeddedPluginOpenRoute(EMBEDDED_PLUGIN_DEFS.growth, route);
+}
+
+function restoreGrowthPluginReturnRoute() {
+  return restoreEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS.growth);
+}
+
+function sendGrowthPluginBack() {
+  return sendEmbeddedPluginBack(EMBEDDED_PLUGIN_DEFS.growth);
+}
+
+function sendGrowthPluginBackOrReturn() {
+  if (sendGrowthPluginBack()) return true;
+  if (typeof pluginContextBackNavigationActive === "function" && pluginContextBackNavigationActive()) return false;
+  return restoreGrowthPluginReturnRoute();
+}
+
+function parkGrowthPluginShell() {
+  return parkEmbeddedPluginShell(EMBEDDED_PLUGIN_DEFS.growth);
+}
+
+function renderGrowthPluginView() {
+  updateGrowthPluginNavigationAvailability();
+  renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS.growth);
 }

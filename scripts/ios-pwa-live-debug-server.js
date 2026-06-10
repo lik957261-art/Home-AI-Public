@@ -342,9 +342,15 @@ async function connectSession(options = {}) {
 
 async function refreshWebContext() {
   if (!state.sessionId) return "";
-  const contexts = await appium("GET", `/session/${state.sessionId}/contexts`);
-  const list = Array.isArray(contexts?.value) ? contexts.value : [];
-  const web = list.find((item) => String(item).startsWith("WEBVIEW")) || "";
+  const startedAt = Date.now();
+  let web = "";
+  while (Date.now() - startedAt < 12000) {
+    const contexts = await appium("GET", `/session/${state.sessionId}/contexts`);
+    const list = Array.isArray(contexts?.value) ? contexts.value : [];
+    web = list.find((item) => String(item).startsWith("WEBVIEW")) || "";
+    if (web) break;
+    await new Promise((resolve) => setTimeout(resolve, 350));
+  }
   state.webContext = web;
   return web;
 }
@@ -358,20 +364,24 @@ async function withWebContext(fn) {
 }
 
 async function execute(script, scriptArgs = []) {
-  try {
-    return await withWebContext(async () => {
-      const result = await appium("POST", `/session/${state.sessionId}/execute/sync`, { script, args: scriptArgs });
-      return result?.value;
-    });
-  } catch (err) {
-    if (!recoverableAppiumError(err)) throw err;
-    clearAppiumSessionState();
-    await connectSession({ resetSession: true });
-    return withWebContext(async () => {
-      const result = await appium("POST", `/session/${state.sessionId}/execute/sync`, { script, args: scriptArgs });
-      return result?.value;
-    });
+  let lastError = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 550 * attempt));
+      return await withWebContext(async () => {
+        const result = await appium("POST", `/session/${state.sessionId}/execute/sync`, { script, args: scriptArgs });
+        return result?.value;
+      });
+    } catch (err) {
+      if (!recoverableAppiumError(err)) throw err;
+      lastError = err;
+      clearAppiumSessionState();
+      await connectSession({ resetSession: true }).catch((connectErr) => {
+        lastError = connectErr;
+      });
+    }
   }
+  throw lastError || new Error("appium_execute_failed");
 }
 
 async function executeAsync(script, scriptArgs = []) {
@@ -721,7 +731,16 @@ async function performAction(body = {}) {
     return { launched: "com.apple.webapp" };
   }
   if (type === "reload") return execute("location.reload(); return true;");
-  if (type === "open") return execute("location.href = arguments[0]; return location.href;", [String(body.url || args.appUrl)]);
+  if (type === "open") {
+    const targetUrl = String(body.url || args.appUrl);
+    try {
+      return await execute("location.href = arguments[0]; return location.href;", [targetUrl]);
+    } catch (err) {
+      if (!recoverableAppiumError(err)) throw err;
+      clearAppiumSessionState();
+      return { navigating: true, url: targetUrl, recoveredFrom: String(err?.message || err).slice(0, 160) };
+    }
+  }
   if (type === "home") return nativeExecute("pressButton", { name: "home" });
   if (type === "swipeBack") return nativeSwipeBack();
   if (type === "tap") return nativeTapNormalized(Number(body.x), Number(body.y), {

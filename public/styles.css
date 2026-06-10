@@ -1396,7 +1396,8 @@ button {
 .codex-mode .conversation,
 .email-mode .conversation,
 .health-mode .conversation,
-.note-mode .conversation {
+.note-mode .conversation,
+.growth-plugin-mode .conversation {
   padding: 0;
   overflow: hidden;
   background: var(--ui-page);
@@ -2194,6 +2195,7 @@ button {
 .email-mode .composer,
 .health-mode .composer,
 .note-mode .composer,
+.growth-plugin-mode .composer,
 .codex-mode .composer {
   display: none;
 }
@@ -5978,7 +5980,8 @@ button.directory-alias-chip {
 .plugin-context-nav-mode #bottomFinanceMode:not([hidden]),
 .plugin-context-nav-mode #bottomEmailMode:not([hidden]),
 .plugin-context-nav-mode #bottomHealthMode:not([hidden]),
-.plugin-context-nav-mode #bottomNoteMode:not([hidden]) {
+.plugin-context-nav-mode #bottomNoteMode:not([hidden]),
+.plugin-context-nav-mode #bottomGrowthMode:not([hidden]) {
   display: grid !important;
 }
 
@@ -5999,7 +6002,8 @@ button.directory-alias-chip {
 .plugin-context-nav-mode #bottomFinanceMode,
 .plugin-context-nav-mode #bottomEmailMode,
 .plugin-context-nav-mode #bottomHealthMode,
-.plugin-context-nav-mode #bottomNoteMode {
+.plugin-context-nav-mode #bottomNoteMode,
+.plugin-context-nav-mode #bottomGrowthMode {
   order: 2;
 }
 
@@ -6115,6 +6119,10 @@ button.directory-alias-chip {
 
 .plugin-topic-app-icon.note {
   background: linear-gradient(135deg, #fff4bf 0%, #f2c94c 50%, #9b6b19 100%);
+}
+
+.plugin-topic-app-icon.growth {
+  background: linear-gradient(135deg, #5e74ff 0%, #35b58f 50%, #f0c75e 100%);
 }
 
 .plugin-topic-app-icon.directory {

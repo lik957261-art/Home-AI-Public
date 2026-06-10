@@ -278,6 +278,7 @@ function normalizedRouteView(value, fallback = "") {
   if (view === "email" || view === "mail" || view === "mailbox") return "email";
   if (view === "health") return "health";
   if (view === "note" || view === "notes") return "note";
+  if (view === "growth" || view === "education") return "growth";
   if (view === "todo" || view === "todos") return "todos";
   if (view === "directory" || view === "directories" || view === "projects") return "projects";
   if (view === "task" || view === "tasks") return "tasks";
@@ -304,7 +305,7 @@ function routePluginContextId(params, routeView = "", taskGroupId = "") {
     params.get("pluginId") || "",
     routeView,
   ].map((value) => String(value || "").trim()).filter(Boolean);
-  const knownPluginTopics = new Set(["wardrobe", "finance", "email", "health", "note"]);
+  const knownPluginTopics = new Set(["wardrobe", "finance", "email", "health", "note", "growth"]);
   for (const candidate of candidates) {
     const id = candidate === "codex-mobile" || candidate === "codex" ? "" : candidate;
     if (!id) continue;
@@ -713,7 +714,16 @@ function applyRouteParams(params) {
       sourceTurnId: params.get("sourceTurnId") || params.get("turnId") || "",
     });
   }
-  if (["codex", "finance", "email", "health", "note"].includes(routeView) && typeof restoreEmbeddedPluginReturnRouteFromSnapshotParams === "function") {
+  if (routeView === "growth" && typeof setGrowthPluginOpenRoute === "function") {
+    setGrowthPluginOpenRoute({
+      pluginRoute: params.get("pluginRoute") || params.get("route") || "",
+      pluginItemId: params.get("pluginItemId") || params.get("itemId") || "",
+      pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",
+      pluginTaskId: params.get("pluginTaskId") || params.get("taskId") || "",
+      sourceTurnId: params.get("sourceTurnId") || params.get("turnId") || "",
+    });
+  }
+  if (["codex", "finance", "email", "health", "note", "growth"].includes(routeView) && typeof restoreEmbeddedPluginReturnRouteFromSnapshotParams === "function") {
     restoreEmbeddedPluginReturnRouteFromSnapshotParams(params, routeView);
   }
   if (routeView === "automation" && automationId) {

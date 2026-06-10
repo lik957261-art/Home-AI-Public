@@ -32,12 +32,14 @@ function applyViewMode() {
   const email = state.viewMode === "email";
   const health = state.viewMode === "health";
   const note = state.viewMode === "note";
+  const growth = state.viewMode === "growth";
   if (typeof updateWardrobeNavigationAvailability === "function") updateWardrobeNavigationAvailability();
   if (typeof updateCodexPluginNavigationAvailability === "function") updateCodexPluginNavigationAvailability();
   if (typeof updateFinancePluginNavigationAvailability === "function") updateFinancePluginNavigationAvailability();
   if (typeof updateEmailPluginNavigationAvailability === "function") updateEmailPluginNavigationAvailability();
   if (typeof updateHealthPluginNavigationAvailability === "function") updateHealthPluginNavigationAvailability();
   if (typeof updateNotePluginNavigationAvailability === "function") updateNotePluginNavigationAvailability();
+  if (typeof updateGrowthPluginNavigationAvailability === "function") updateGrowthPluginNavigationAvailability();
   if (!(single && state.singleWindowMode === "chat")) renderChatScopeHeader(null);
   $("app")?.classList.toggle("todo-mode", todos);
   $("app")?.classList.toggle("inbox-mode", inbox);
@@ -50,6 +52,7 @@ function applyViewMode() {
   $("app")?.classList.toggle("email-mode", email);
   $("app")?.classList.toggle("health-mode", health);
   $("app")?.classList.toggle("note-mode", note);
+  $("app")?.classList.toggle("growth-plugin-mode", growth);
   $("chatManagementMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
   $("taskManagementMode")?.classList.toggle("active", tasks || (single && state.singleWindowMode === "task"));
   $("bottomChatMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
@@ -66,7 +69,7 @@ function applyViewMode() {
   $("bottomLearningMode")?.classList.toggle("active", learning);
   $("todosMode").classList.toggle("active", learning);
   $("bottomTodosMode")?.classList.toggle("active", learning);
-  $("bottomPluginMode")?.classList.toggle("active", wardrobe || finance || email || health || note);
+  $("bottomPluginMode")?.classList.toggle("active", wardrobe || finance || email || health || note || growth);
   $("bottomPluginWardrobeMode")?.classList.toggle("active", wardrobe);
   $("bottomWardrobeMode")?.classList.toggle("active", wardrobe);
   $("bottomCodexMode")?.classList.toggle("active", codex);
@@ -76,14 +79,15 @@ function applyViewMode() {
   $("bottomEmailMode")?.classList.toggle("active", email);
   $("bottomHealthMode")?.classList.toggle("active", health);
   $("bottomNoteMode")?.classList.toggle("active", note);
+  $("bottomGrowthMode")?.classList.toggle("active", growth);
   $("taskModeControls")?.classList.add("hidden");
   $("routeFields").classList.add("hidden");
   $("directoryEntry")?.classList.add("hidden");
   $("directoryEntry")?.parentElement?.classList.add("hidden");
-  $("newThread").classList.toggle("hidden", single || tasks || automation || inbox || learning || directory || todos || wardrobe || codex || finance || email || health || note);
-  $("newThread").disabled = single || tasks || automation || inbox || learning || directory || todos || wardrobe || codex || finance || email || health || note;
+  $("newThread").classList.toggle("hidden", single || tasks || automation || inbox || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth);
+  $("newThread").disabled = single || tasks || automation || inbox || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth;
   $("newThread").textContent = todos ? "新建看板卡片" : "新建话题";
-  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : learning ? "Search growth" : wardrobe ? "Search wardrobe" : email ? "Search email" : health ? "Search health" : note ? "Search notes" : "Search directories";
+  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : learning || growth ? "Search growth" : wardrobe ? "Search wardrobe" : email ? "Search email" : health ? "Search health" : note ? "Search notes" : "Search directories";
   updateSearchButton();
 }
 
@@ -111,6 +115,9 @@ async function loadSelectedView(options = {}) {
   }
   if (state.viewMode !== "note" && typeof parkNotePluginShell === "function") {
     parkNotePluginShell();
+  }
+  if (state.viewMode !== "growth" && typeof parkGrowthPluginShell === "function") {
+    parkGrowthPluginShell();
   }
   const directoryTopicDraft = typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive();
   if (state.viewMode !== "projects" && !directoryTopicDraft) state.directoryReturnRoute = null;
@@ -182,6 +189,9 @@ async function loadSelectedView(options = {}) {
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "note") {
     renderNotePluginView();
+    if (!currentViewStillSelected()) return;
+  } else if (state.viewMode === "growth") {
+    renderGrowthPluginView();
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "projects") {
     await loadDirectoryView();

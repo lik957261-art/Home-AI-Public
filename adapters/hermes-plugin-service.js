@@ -965,18 +965,39 @@ function normalizeManifest(raw = {}, source = {}) {
   const manifestUrl = stringValue(source.manifestUrl);
   const id = stringValue(raw.id || source.id);
   const rawEntry = typeof raw.entry === "string" ? raw.entry : raw.entry?.url;
-  const entryUrl = normalizeLocalManifestUrlTarget(manifestUrl, rawEntry || raw.entryUrl || raw.url);
+  const entryUrl = normalizeLocalManifestUrlTarget(manifestUrl, rawEntry || raw.entryUrl || raw.entry_url || raw.url);
   if (!id) throw new Error("plugin_manifest_id_required");
   if (!entryUrl) throw new Error("plugin_manifest_entry_url_required");
   const rawLaunch = typeof raw.launch === "string" ? raw.launch : (raw.launch?.url || raw.launch?.endpoint);
-  const rawProgramLaunch = raw.program_api?.plugin_launch || raw.programApi?.pluginLaunch || "";
+  const rawWorkspaceRegistration = raw.program_api?.workspace_registration
+    || raw.programApi?.workspaceRegistration
+    || raw.provisioning?.endpoint
+    || raw.provisioning?.workspace_registration
+    || raw.workspace_registration_endpoint;
+  const inferredProgramLaunch = !rawLaunch
+    && !raw.program_api?.plugin_launch
+    && !raw.programApi?.pluginLaunch
+    && typeof rawWorkspaceRegistration === "string"
+    && rawWorkspaceRegistration.endsWith("/workspaces")
+      ? rawWorkspaceRegistration.replace(/\/workspaces$/, "/launch")
+      : "";
+  const rawProgramLaunch = raw.program_api?.plugin_launch
+    || raw.programApi?.pluginLaunch
+    || raw.plugin_launch_endpoint
+    || raw.workspace_launch_endpoint
+    || inferredProgramLaunch
+    || "";
   const launchUrl = normalizeLocalManifestUrlTarget(manifestUrl, rawLaunch || "");
+  const programLaunchUrl = normalizeLocalManifestUrlTarget(manifestUrl, rawProgramLaunch || "");
   const programBaseUrl = normalizeLocalManifestProgramBaseUrl(
     manifestUrl,
-    raw.program_api?.base_url || raw.programApi?.baseUrl || (launchUrl ? originOf(launchUrl) : ""),
+    raw.program_api?.base_url || raw.programApi?.baseUrl || (launchUrl ? originOf(launchUrl) : "") || (programLaunchUrl ? originOf(programLaunchUrl) : ""),
   );
   const programLaunchPath = normalizeLocalManifestProgramLaunchPath(manifestUrl, rawProgramLaunch, launchUrl);
-  const topLevelToolsets = Array.isArray(raw.toolsets) ? raw.toolsets.map(stringValue).filter(Boolean) : [];
+  const manifestToolset = stringValue(raw.mcp_toolset || raw.mcpToolset);
+  const topLevelToolsets = Array.isArray(raw.toolsets) && raw.toolsets.length
+    ? raw.toolsets.map(stringValue).filter(Boolean)
+    : (manifestToolset ? [manifestToolset] : []);
   const topLevelPermissions = Array.isArray(raw.permissions) ? raw.permissions.map(stringValue).filter(Boolean) : [];
   const embedding = raw.embedding && typeof raw.embedding === "object"
     ? raw.embedding
@@ -1015,7 +1036,7 @@ function normalizeManifest(raw = {}, source = {}) {
     },
     mcp: {
       server: stringValue(raw.mcp?.server || raw.mcpServer),
-      toolset: stringValue(raw.mcp?.toolset || topLevelToolsets[0]),
+      toolset: stringValue(raw.mcp?.toolset || manifestToolset || topLevelToolsets[0]),
       version: stringValue(raw.mcp?.version),
       requiredTools: Array.isArray(raw.mcp?.required_tools) ? raw.mcp.required_tools.map(stringValue).filter(Boolean) : [],
       toolsets: topLevelToolsets,
@@ -1024,7 +1045,7 @@ function normalizeManifest(raw = {}, source = {}) {
       baseUrl: programBaseUrl,
       origin: originOf(programBaseUrl),
       pluginManifestPath: stringValue(raw.program_api?.plugin_manifest),
-      workspaceRegistrationPath: stringValue(raw.program_api?.workspace_registration || raw.programApi?.workspaceRegistration || raw.provisioning?.endpoint || raw.provisioning?.workspace_registration),
+      workspaceRegistrationPath: stringValue(rawWorkspaceRegistration),
       pluginLaunchPath: programLaunchPath,
       syncSchemaVersion: raw.program_api?.sync_schema_version || raw.programApi?.syncSchemaVersion || null,
     },
@@ -1155,8 +1176,9 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
       });
     }
     const launch = await response.json();
+    const launchEntryTarget = launch?.entry_path || launch?.entryPath || launch?.entry_url || launch?.entryUrl;
     const entryUrl = addPluginAppearanceToEntryUrl(
-      serverSidePluginUrl(manifest, launch?.entry_path),
+      serverSidePluginUrl(manifest, launchEntryTarget),
       appearance,
     );
     if (!entryUrl) {

@@ -12,6 +12,10 @@ raw Growth internals into the plugin workspace.
 
 ## Core Files
 
+- `adapters/growth-plugin-facade-service.js` for the bounded migration facade.
+- `server-routes/growth-plugin-facade-api-routes.js` for `/api/growth/v1/*`.
+- `/Users/hermes-dev/HermesMobileDev/plugins/growth/src/services/growth-service.js`
+  for the current plugin-side facade/snapshot read path.
 - `adapters/learning-growth-service.js`
 - `adapters/learning-program-service.js`
 - `adapters/learning-program-repository.js`
@@ -47,6 +51,12 @@ Planned graph-guided card planning files are documented in
 
 ## Key Routes
 
+- `GET /api/growth/v1/status` (bounded pluginization facade)
+- `GET /api/growth/v1/board` (bounded pluginization facade)
+- `GET /api/growth/v1/cards/:taskCardId` (bounded pluginization facade)
+- Growth plugin manifest: `GET /api/v1/hermes/plugin/manifest`.
+- Growth plugin provisioning: `POST /api/v1/hermes/plugin/workspaces`.
+- Growth plugin launch: `POST /api/v1/hermes/plugin/launch`.
 - `GET /api/learning-growth/board`
 - `POST /api/learning-growth/cards/:cardId/teaching-check`
 - `POST /api/learning-growth/cards/:cardId/experience-signal`
@@ -189,6 +199,30 @@ Learning experience signals:
 - `node tests\task-list-ui.test.js`
 - `node tests\learning-growth-knowledge-graph-docs.test.js` for the pre-coding graph contract.
 - `node tests\architecture-refactor-boundary.test.js` for server/service boundary changes.
+
+## Growth Plugin Integration Notes
+
+The development-stage Growth plugin uses the shared Hermes embedded-plugin
+contract but its local manifest currently exposes snake_case fields:
+`entry_url`, `workspace_registration_endpoint`, and `mcp_toolset`. Home AI
+normalizes these into the standard manifest projection and infers
+`/api/v1/hermes/plugin/launch` from the workspace registration endpoint when no
+explicit launch endpoint is present.
+
+Provisioning uses the Growth registration key only to create/bind a workspace
+and store a hashed workspace access key. Runtime launch uses the workspace
+access key, not the registration key, and the plugin returns an `entry_url`
+containing a short-lived launch token. Host logs, docs, screenshots, and test
+output must not include raw access keys or launch token values.
+
+Current development visual evidence:
+
+- `npm run ios:pwa:visual -- --debug-url http://127.0.0.1:19073/ --scenario embedded-plugin-shell --plugin-id growth --theme dark --expected-client-version 20260610-growth-plugin-shell-v680 --timeout-ms 70000 --json`
+- Result: `ok=true`; assertions passed for plugin id, shell existence, frame
+  existence, meaningful frame size, no horizontal overflow, expected client
+  version, and non-empty screenshot.
+- Screenshot:
+  `/Users/xuxin/.homeai-qa/artifacts/ios-pwa-visual-embedded-plugin-shell-growth-20260610T023822Z.png`.
 
 ## Constraints
 

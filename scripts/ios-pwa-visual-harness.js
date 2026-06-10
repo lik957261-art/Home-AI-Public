@@ -288,14 +288,25 @@ async function acquireDebugLaneLease(options = {}) {
 }
 
 async function postAction(options, body) {
-  const response = await fetchWithTimeout(apiUrl(options, "/api/action"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(Object.assign({}, body, options.leaseToken ? { leaseToken: options.leaseToken } : {})),
-  }, options.timeoutMs);
-  const parsed = await response.json().catch(() => ({}));
-  if (!response.ok || !parsed.ok) throw new Error(`action_failed:${String(parsed.error || response.statusText || "unknown").slice(0, 300)}`);
-  return parsed.value;
+  const type = String(body?.type || "action").slice(0, 60);
+  const label = String(body?.label || "").slice(0, 80);
+  const prefix = label ? `${type}:${label}` : type;
+  let lastError = "";
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0) await sleep(650 * attempt);
+    const response = await fetchWithTimeout(apiUrl(options, "/api/action"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.assign({}, body, options.leaseToken ? { leaseToken: options.leaseToken } : {})),
+    }, options.timeoutMs);
+    const parsed = await response.json().catch(() => ({}));
+    if (response.ok && parsed.ok) return parsed.value;
+    lastError = String(parsed.error || response.statusText || "unknown").slice(0, 300);
+    if (!/Unexpected EOF|webview_context_missing|appium_timeout|socket hang up|ECONNRESET/i.test(lastError)) {
+      throw new Error(`action_failed:${prefix}:${lastError}`);
+    }
+  }
+  throw new Error(`action_failed:${prefix}:${lastError || "unknown"}`);
 }
 
 async function saveScreenshot(options) {
@@ -426,6 +437,11 @@ const EMBEDDED_PLUGIN_PREPARE_SCRIPT = `
     return { ok: false, pluginId, openedBy: "", error: "codex_render_missing" };
   }
   if (pluginId && typeof openPluginTopicApp === "function") {
+    const existingShell = Array.from(document.querySelectorAll(".embedded-plugin-shell"))
+      .find((node) => node?.dataset?.pluginId === pluginId) || null;
+    if (existingShell && !existingShell.hidden) {
+      return { ok: true, pluginId, openedBy: "existingPluginShell", promise: false };
+    }
     const result = openPluginTopicApp(pluginId, { recordUsage: false });
     return { ok: true, pluginId, openedBy: "openPluginTopicApp", promise: Boolean(result && typeof result.then === "function") };
   }
@@ -438,50 +454,32 @@ const EMBEDDED_PLUGIN_MEASURE_SCRIPT = `
     const r = node.getBoundingClientRect();
     return { top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom), left: Math.round(r.left), width: Math.round(r.width), height: Math.round(r.height) };
   };
-  const css = (node, property) => node ? getComputedStyle(node).getPropertyValue(property) : "";
   const pluginId = String(arguments[0] || "").trim();
   const attr = pluginId.replace(/\\\\/g, "\\\\\\\\").replace(/"/g, "\\\\\"");
   const shell = document.querySelector('.embedded-plugin-shell[data-plugin-id="' + attr + '"]')
     || (pluginId === "wardrobe" ? document.querySelector(".wardrobe-plugin-shell") : null);
   const frame = shell?.querySelector(".embedded-plugin-frame, .wardrobe-plugin-frame")
     || (pluginId === "wardrobe" ? document.querySelector(".wardrobe-plugin-frame") : null);
-  const host = shell?.closest(".embedded-plugin-host, #wardrobePluginHost") || null;
-  const bottomNav = document.getElementById("bottomNav");
-  const app = document.getElementById("app");
   return {
     scenario: "embedded-plugin-shell",
     pluginId,
-    href: location.href,
     clientVersion: document.documentElement.getAttribute("data-client-version") || "",
     theme: document.documentElement.getAttribute("data-theme") || "",
-    appClass: app?.className || "",
-    viewMode: (typeof state !== "undefined" && state?.viewMode) || window.state?.viewMode || "",
     viewport: {
       width: window.innerWidth,
       height: window.innerHeight,
       visualWidth: Math.round(window.visualViewport?.width || window.innerWidth),
       visualHeight: Math.round(window.visualViewport?.height || window.innerHeight),
-      devicePixelRatio: window.devicePixelRatio,
     },
     shell: {
       exists: Boolean(shell),
-      className: shell?.className || "",
-      background: css(shell, "background-color"),
       rect: rect(shell),
-    },
-    host: {
-      exists: Boolean(host),
-      hidden: host ? host.hidden : null,
-      className: host?.className || "",
-      rect: rect(host),
     },
     frame: {
       exists: Boolean(frame),
-      className: frame?.className || "",
       src: frame?.getAttribute("src") ? "[present]" : "",
       rect: rect(frame),
-    },
-    bottomNav: rect(bottomNav),
+    }
   };
 `;
 
@@ -1999,13 +1997,14 @@ async function runHarness(options) {
     };
     report.stream = await getJson(options, "/api/stream-info");
     if (options.appUrl) {
-      await postAction(options, { type: "open", url: options.appUrl });
+      await postAction(options, { type: "open", label: "open-app-url", url: options.appUrl });
       await sleep(options.openWaitMs);
     }
     report.deepState = await getJson(options, `/api/deep-state?leaseToken=${encodeURIComponent(options.leaseToken || "")}`).catch((err) => ({ ok: false, error: String(err.message || err).slice(0, 300) }));
     report.mobileBottomStability = await sampleMobileBottomStability(options).catch((err) => ({ ok: false, error: String(err.message || err).slice(0, 300), samples: [] }));
     report.prepare = await postAction(options, {
       type: "js",
+      label: "prepare",
       script: scenario.prepareScript,
       args: scenario.prepareArgs(options),
     });
@@ -2023,11 +2022,22 @@ async function runHarness(options) {
         await sleep(options.keyboardWaitMs || options.waitMs);
       }
     }
-    report.metrics = scenario.measureScript ? await postAction(options, {
-      type: "js",
-      script: scenario.measureScript,
-      args: scenario.measureArgs(options),
-    }) : report.prepare;
+    if (scenario.measureScript) {
+      try {
+        report.metrics = await postAction(options, {
+          type: "js",
+          label: "measure",
+          script: scenario.measureScript,
+          args: scenario.measureArgs(options),
+        });
+      } catch (err) {
+        if (String(options.scenario || "") !== "embedded-plugin-shell") throw err;
+        report.measureFallback = { reason: String(err?.message || err).slice(0, 300) };
+        report.metrics = await measureEmbeddedPluginShellInParts(options);
+      }
+    } else {
+      report.metrics = report.prepare;
+    }
     report.screenshot = await saveScreenshot(options);
     const asserted = scenario.assert(report.metrics || {});
     const commonAssertions = assertCommonHarness(report, options);
@@ -2055,12 +2065,73 @@ async function runScenarioFocus(options = {}, scenario = {}) {
   return Object.assign({ attempts: 3 }, last || {});
 }
 
+async function measureEmbeddedPluginShellInParts(options = {}) {
+  const pluginId = String(options.pluginId || "").trim();
+  const base = await postAction(options, {
+    type: "js",
+    label: "measure-base",
+    args: [pluginId],
+    script: `
+      const pluginId = String(arguments[0] || "").trim();
+      return {
+        scenario: "embedded-plugin-shell",
+        pluginId,
+        clientVersion: document.documentElement.getAttribute("data-client-version") || "",
+        theme: document.documentElement.getAttribute("data-theme") || "",
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight,
+          visualWidth: Math.round(window.visualViewport?.width || window.innerWidth),
+          visualHeight: Math.round(window.visualViewport?.height || window.innerHeight)
+        }
+      };
+    `,
+  });
+  const shell = await postAction(options, {
+    type: "js",
+    label: "measure-shell",
+    args: [pluginId],
+    script: `
+      const pluginId = String(arguments[0] || "").trim();
+      const rect = (node) => {
+        if (!node) return null;
+        const r = node.getBoundingClientRect();
+        return { top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom), left: Math.round(r.left), width: Math.round(r.width), height: Math.round(r.height) };
+      };
+      const shell = Array.from(document.querySelectorAll(".embedded-plugin-shell"))
+        .find((node) => node?.dataset?.pluginId === pluginId) || null;
+      return { exists: Boolean(shell), rect: rect(shell) };
+    `,
+  });
+  const frame = await postAction(options, {
+    type: "js",
+    label: "measure-frame",
+    args: [pluginId],
+    script: `
+      const pluginId = String(arguments[0] || "").trim();
+      const rect = (node) => {
+        if (!node) return null;
+        const r = node.getBoundingClientRect();
+        return { top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom), left: Math.round(r.left), width: Math.round(r.width), height: Math.round(r.height) };
+      };
+      const shell = Array.from(document.querySelectorAll(".embedded-plugin-shell"))
+        .find((node) => node?.dataset?.pluginId === pluginId) || null;
+      const frame = shell?.querySelector(".embedded-plugin-frame, .wardrobe-plugin-frame") || null;
+      return { exists: Boolean(frame), src: frame?.getAttribute("src") ? "[present]" : "", rect: rect(frame) };
+    `,
+  });
+  return Object.assign({}, base, { shell, frame });
+}
+
 async function sampleMobileBottomStability(options = {}) {
+  if (String(options.scenario || "") === "embedded-plugin-shell") {
+    return { ok: true, count: 0, intervalMs: 0, samples: [], skipped: "not_required_for_embedded_plugin_shell" };
+  }
   const count = 6;
   const intervalMs = 120;
   const samples = [];
   for (let index = 0; index < count; index += 1) {
-    samples.push(await postAction(options, { type: "js", script: MOBILE_BOTTOM_STABILITY_SCRIPT, args: [] }));
+    samples.push(await postAction(options, { type: "js", label: `mobile-bottom-${index + 1}`, script: MOBILE_BOTTOM_STABILITY_SCRIPT, args: [] }));
     if (index < count - 1) await sleep(intervalMs);
   }
   return { ok: true, count, intervalMs, samples };

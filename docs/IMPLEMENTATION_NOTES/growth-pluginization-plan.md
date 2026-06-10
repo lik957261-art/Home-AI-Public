@@ -122,8 +122,19 @@ Current development status:
 - The plugin reads `/api/growth/v1/status` and `/api/growth/v1/board` through
   configurable `GROWTH_HOME_AI_API_BASE_URL` and
   `GROWTH_HOME_AI_ACCESS_KEY(_PATH)`.
-- Card detail UI has not yet been extracted.
-- Visual harness evidence is still pending.
+- The plugin also reads `/api/growth/v1/cards/:taskCardId`, renders a bounded
+  task list, and opens a compact card detail panel. When the Home AI facade is
+  unavailable, card detail can fall back to the plugin snapshot store.
+- Local development checks have covered plugin syntax, service tests, HTTP
+  smoke, and a mobile-width Playwright page smoke with no horizontal overflow.
+- iOS embedded visual harness evidence passed on the development simulator for
+  the Home AI-hosted Growth plugin shell:
+  `embedded-plugin-shell --plugin-id growth`,
+  `clientVersion=20260610-growth-plugin-shell-v680`, screenshot artifact
+  `/Users/xuxin/.homeai-qa/artifacts/ios-pwa-visual-embedded-plugin-shell-growth-20260610T023822Z.png`.
+  The development host must bind `HERMES_WEB_HOST=0.0.0.0` and the simulator
+  must open the Mac LAN URL, not `127.0.0.1`, because simulator-local
+  `127.0.0.1` can resolve inside the iOS runtime.
 
 ### 5. Domain Service And Database Migration
 
@@ -191,6 +202,21 @@ Current development status:
 - The plugin exposes `GET /api/v1/growth/mcp/schemas` with read-only schema
   scaffolds for status and board reads.
 - Gateway MCP wrapper/callable registration is still pending.
+
+## Development Visual Harness Notes
+
+For iOS PWA visual checks against a local Home AI dev server:
+
+- start Home AI with `HERMES_WEB_HOST=0.0.0.0` and open it from the simulator
+  through the Mac LAN address;
+- keep Growth itself on `127.0.0.1:4881`; Home AI resolves the plugin through
+  the server-side manifest/proxy boundary;
+- do not print owner keys or launch URLs in command output; authenticate the
+  simulator by writing the normal `hermesWebKey` local storage/cookie through
+  the debug API or by manual login;
+- `embedded-plugin-shell` intentionally skips unrelated bottom-nav stability
+  pre-sampling and can fall back to segmented shell/frame measurement when
+  WebKit RemoteDebugger returns a transient `Unexpected EOF`.
 
 ## Development Data Rule
 

@@ -23,11 +23,14 @@ if [ -f "${PID_FILE}" ]; then
   kill "$(cat "${PID_FILE}")" 2>/dev/null || true
 fi
 
-nohup bash -c 'trap "" INT; exec appium server "$@"' _ \
-  --address "${ADDRESS}" \
-  --port "${PORT}" \
-  --log-level warn \
-  > "${LOG_FILE}" 2>&1 &
+(
+  trap "" HUP INT
+  exec appium server \
+    --address "${ADDRESS}" \
+    --port "${PORT}" \
+    --log-level warn \
+    --session-override
+) > "${LOG_FILE}" 2>&1 < /dev/null &
 
 printf '%s\n' "$!" > "${PID_FILE}"
 

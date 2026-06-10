@@ -128,6 +128,8 @@ function backSwipeTarget() {
   if (!pluginContextBack && typeof healthPluginOuterBackActive === "function" && healthPluginOuterBackActive()) return "health-plugin-outer";
   if (typeof notePluginBackActive === "function" && notePluginBackActive()) return "note-plugin";
   if (!pluginContextBack && typeof notePluginOuterBackActive === "function" && notePluginOuterBackActive()) return "note-plugin-outer";
+  if (typeof growthPluginBackActive === "function" && growthPluginBackActive()) return "growth-plugin";
+  if (!pluginContextBack && typeof growthPluginOuterBackActive === "function" && growthPluginOuterBackActive()) return "growth-plugin-outer";
   if (isDirectoryTopicDraftActive()) return "directory-topic-draft";
   const pluginContextTarget = pluginContextBackTarget();
   if (pluginContextTarget) return pluginContextTarget;
@@ -195,6 +197,8 @@ function performBackSwipeAction(target) {
   else if (target === "health-plugin-outer" && typeof restoreHealthPluginReturnRoute === "function") restoreHealthPluginReturnRoute();
   else if (target === "note-plugin" && typeof sendNotePluginBackOrReturn === "function") sendNotePluginBackOrReturn();
   else if (target === "note-plugin-outer" && typeof restoreNotePluginReturnRoute === "function") restoreNotePluginReturnRoute();
+  else if (target === "growth-plugin" && typeof sendGrowthPluginBackOrReturn === "function") sendGrowthPluginBackOrReturn();
+  else if (target === "growth-plugin-outer" && typeof restoreGrowthPluginReturnRoute === "function") restoreGrowthPluginReturnRoute();
   else if (target === "plugin-context-home" && typeof exitPluginContextToTopicHome === "function") exitPluginContextToTopicHome();
   else if (target === "automation") openAutomationList();
   else if (target === "automation-secondary") closeAutomationSecondarySurface();

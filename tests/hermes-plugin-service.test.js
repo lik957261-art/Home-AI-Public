@@ -275,24 +275,12 @@ function sampleNoteManifest() {
 
 function sampleGrowthManifest() {
   return {
+    schema_version: 1,
     id: "growth",
     title: "成长",
     kind: "embedded_app",
-    entry: {
-      type: "web",
-      url: "http://127.0.0.1:4881/?embed=hermes",
-    },
-    launch: {
-      supported: true,
-      endpoint: "/api/v1/hermes/plugin/launch",
-      method: "POST",
-      token_ttl_seconds: 300,
-    },
-    provisioning: {
-      supported: true,
-      mode: "workspace_binding",
-      endpoint: "/api/v1/hermes/plugin/workspaces",
-    },
+    manifest_url: "/api/v1/hermes/plugin/manifest",
+    entry_url: "/?embed=hermes",
     navigation: {
       state_event: "growth.plugin.navigation",
       back_event: "hermes.plugin.back",
@@ -300,20 +288,18 @@ function sampleGrowthManifest() {
       refresh_required_event: "growth.plugin.refresh_required",
       preserve_iframe_state: true,
     },
-    mcp: {
-      server: "growth",
-      toolset: "growth",
-      required_tools: ["growth.board_read"],
+    appearance_sync: {
+      theme: ["dark", "light"],
+      fontSize: ["small", "default", "large", "xlarge", "xxlarge"],
+      launch_field: "appearance",
     },
-    toolsets: ["growth"],
+    mcp_toolset: "growth",
+    workspace_registration_endpoint: "/api/v1/hermes/plugin/workspaces",
     owner_binding: {
-      strategy: "workspace_generated_access_key_hash",
       config_file: ".hermes-growth/config.json",
       access_key_file: ".hermes-growth/access-key.txt",
-      raw_key_returned_by_growth: false,
-    },
-    permissions: {
-      plugin: ["growth:read", "growth:write"],
+      cache_dir: ".hermes-cache",
+      raw_key_in_manifest: false,
     },
   };
 }
@@ -460,12 +446,11 @@ function testNormalizeGrowthManifest() {
   assert.equal(manifest.kind, "embedded_app");
   assert.equal(manifest.entry.url, "http://127.0.0.1:4881/?embed=hermes");
   assert.equal(manifest.programApi.baseUrl, "http://127.0.0.1:4881/");
-  assert.equal(manifest.programApi.pluginLaunchPath, "http://127.0.0.1:4881/api/v1/hermes/plugin/launch");
+  assert.equal(manifest.programApi.pluginLaunchPath, "/api/v1/hermes/plugin/launch");
   assert.equal(manifest.programApi.workspaceRegistrationPath, "/api/v1/hermes/plugin/workspaces");
-  assert.equal(manifest.mcp.server, "growth");
   assert.equal(manifest.mcp.toolset, "growth");
   assert.deepEqual(manifest.mcp.toolsets, ["growth"]);
-  assert.deepEqual(manifest.mcp.requiredTools, ["growth.board_read"]);
+  assert.deepEqual(manifest.mcp.requiredTools, []);
   assert.equal(manifest.embedding.stateEvent, "growth.plugin.navigation");
   assert.equal(manifest.embedding.backResultEvent, "growth.plugin.back_result");
   assert.equal(manifest.embedding.refreshRequiredEvent, "growth.plugin.refresh_required");
@@ -1288,7 +1273,7 @@ async function testGrowthGrantProvisionsWorkspaceKeyHashConfigAndLaunch() {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(sampleGrowthManifest()) });
       }
       if (url.endsWith("/api/v1/hermes/plugin/launch")) {
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ entry_path: "/?embed=hermes&launch=growth_once", expires_in_ms: 300000 }) });
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ entry_url: "/?embed=hermes&launch=growth_once", expires_in_ms: 300000 }) });
       }
       throw new Error(`unexpected fetch ${url}`);
     },
