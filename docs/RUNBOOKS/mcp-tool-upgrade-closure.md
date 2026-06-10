@@ -175,6 +175,22 @@ instruction hints, and selected worker schema all include these names. The
 Reference / Memory Graph may cache only bounded display snapshots; full Finance
 facts remain resolved through Finance.
 
+## Finance Owner Asset MCP Pattern
+
+The 2026-06-10 Finance Owner Asset upgrade adds these callable names when the
+`finance` toolset is enabled:
+
+- `mcp_finance_get_owner_asset_summary`
+- `mcp_finance_list_owner_asset_snapshots`
+- `mcp_finance_upsert_owner_asset_snapshot`
+
+The Mobile schema epoch for this callable set is
+`20260610-finance-owner-assets-mcp-v1`. Before production exposure, prove the
+Finance service schema, Gateway selected-profile callable schema, Mobile
+instruction hints, and selected worker schema all include the Owner asset
+callables. These tools are Owner-only; non-Owner runs should report a bounded
+permission or schema diagnostic instead of inventing a generic asset interface.
+
 ## Failure Classification
 
 - Service schema missing local tool:
