@@ -111,6 +111,12 @@ This file records durable product rules that implementation must preserve.
 - Growth-to-`通宝` exchange is a periodic administrative operation, normally
   monthly, based on total eligible Growth coin balance rather than a real-time
   per-card conversion.
+- Monthly Growth-to-`通宝` exchange must not recompute eligibility from card
+  state. Completed cards have already produced Growth coin settlement records;
+  the exchange service reads the Growth coin balance/ledger, credits `通宝`
+  through the platform ledger, and records an auditable Growth coin debit or
+  clear entry that brings the exchangeable Growth coin balance down by the
+  exchanged amount, normally to zero for the period.
 - `通宝` wallet and ledger records belong to the platform currency domain, not the Growth SQLite domain and not the Finance plugin.
 - Finance may report or summarize `通宝`, but `通宝` must not be mixed with real RMB/bank/card transaction ledgers.
 - Platform currency mutations must resolve authenticated actor, target workspace user, source type, source id, and idempotency key before writing a ledger entry.

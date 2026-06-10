@@ -300,6 +300,15 @@ balance. Audio transcription, Action Inbox/Web Push notifications, platform
 currency exchange, and Owner manual workflow decisions remain in Home AI until
 their migration stages have separate tests and cutover evidence.
 
+Card completion is not the monthly exchange source of truth. Once a Growth card
+has completed and its Growth coin reward settlement exists, later monthly
+exchange must read the Growth coin balance/ledger rather than scanning completed
+card state. The Growth plugin exposes a plugin-owned learning-coin balance and
+an idempotent monthly clear/debit path; the Home AI platform exchange bridge is
+responsible for administrator authorization, exchange-rate policy, `通宝`
+ledger credit, and audit linkage. The plugin clear path must not write `通宝`
+and must not mutate card status.
+
 Current development visual evidence:
 
 - `npm run ios:pwa:visual -- --debug-url http://127.0.0.1:19073/ --scenario embedded-plugin-shell --plugin-id growth --theme dark --expected-client-version 20260610-growth-plugin-shell-v680 --timeout-ms 70000 --json`

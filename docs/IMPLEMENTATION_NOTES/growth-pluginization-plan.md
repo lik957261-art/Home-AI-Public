@@ -229,6 +229,14 @@ Current development status:
   events are now plugin-owned. Platform `通宝` exchange, Action Inbox/Web Push,
   Owner manual decisions, and monthly Growth coin clearing remain host-owned
   platform workflow stages.
+- The plugin now has the Growth-domain side of monthly clearing:
+  `GET /api/v1/growth/learning-coins/balance` returns the workspace learning
+  coin balance from settled rewards plus plugin ledger adjustments, and
+  `POST /api/v1/growth/learning-coins/monthly-exchange-clear` records an
+  idempotent negative learning-coin ledger entry for administrator monthly
+  exchange. This clear path is deliberately not card-state-based and does not
+  write platform `通宝`; Home AI must still perform administrator authorization,
+  exchange-rate policy, platform ledger credit, and audit linkage.
 
 ### 6. Plugin Event Contract
 
