@@ -59,6 +59,10 @@ Each plugin owns the layout inside its iframe:
 - set its embedded app root to fill the iframe viewport, not the browser window:
   `html`, `body`, and the app root should use `height: 100%` or equivalent
   iframe-relative sizing;
+- if `body` is intentionally non-scrollable in embedded mode, the plugin root
+  must be the explicit vertical scroll container. Otherwise dragging inside a
+  card/list can be swallowed by `overflow: hidden` and the iframe appears
+  blocked even when the host viewport is correct.
 - avoid standalone `100vh` / `100dvh` assumptions for the root shell when
   `embed=hermes`, because mobile browser and WebAPK viewport units may include
   browser chrome differently from iframe geometry;

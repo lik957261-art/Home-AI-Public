@@ -267,6 +267,11 @@ horizontally. Normal horizontal swipes scroll the Dock. The handle is the only
 open/close gesture target: short vertical mistouches and horizontal swipes must
 not expand it, upward handle swipes expand it, and downward handle swipes
 collapse it. Manual reordering remains a menu action with bounded move controls.
+On desktop browser layouts, the same permission-filtered plugin definitions are
+rendered in the left sidebar as a compact plugin launcher. This is the desktop
+equivalent of the mobile Dock: short click opens the plugin app/capability and
+context-click/long-press opens the same quick-action menu. Desktop must not
+fall back to scattered per-plugin buttons across the page body.
 
 When a plugin is opened from a plugin-bound topic, Hermes shows a three-entry
 plugin context browser-style footer: Topic, the current plugin, and Directory.

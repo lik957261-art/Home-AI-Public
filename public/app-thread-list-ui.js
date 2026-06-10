@@ -313,6 +313,7 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   });
   const selected = allGroups.find((group) => group.id === state.currentTaskGroupId) || null;
   const allActiveRuns = activeThreadRunIds(thread);
+  let capabilityEntryHub = "";
 
   if (state.currentTaskGroupId && !selected) {
     if (taskGroupHasPendingMessages(thread, state.currentTaskGroupId) || state.currentThreadRefreshInFlight) {
@@ -372,7 +373,7 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
       ? directoryTopicCollectionGroupIds(directoryTopicCollections)
       : new Set();
     const filterBanner = renderTaskDirectoryFilterBanner();
-    const capabilityEntryHub = typeof renderCapabilityEntryHub === "function"
+    capabilityEntryHub = typeof renderCapabilityEntryHub === "function"
       ? renderCapabilityEntryHub({
         directoryRootCount: Array.isArray(state.projects) ? state.projects.length : 0,
         directoryTopicCount: directoryTopicCollectionsReady ? directoryTopicGroupIds.size : 0,

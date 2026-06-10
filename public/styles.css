@@ -794,7 +794,7 @@ button {
 
 .section-toggle {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   padding: 4px;
   border: 1px solid var(--ui-hairline);
@@ -817,6 +817,77 @@ button {
   color: var(--ui-accent-ink);
   background: var(--ui-accent-fill);
   box-shadow: none;
+}
+
+.sidebar-plugin-launcher {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
+  background: var(--ui-control-bg);
+}
+
+.sidebar-plugin-launcher[hidden] {
+  display: none !important;
+}
+
+.sidebar-plugin-launcher .capability-plugin-desktop {
+  display: grid;
+  gap: 8px;
+}
+
+.sidebar-plugin-launcher .capability-section-head {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.sidebar-plugin-launcher .capability-section-head h3 {
+  font-size: 13px;
+}
+
+.sidebar-plugin-launcher .capability-section-head span {
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+
+.sidebar-plugin-launcher .capability-plugin-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.sidebar-plugin-launcher .capability-plugin-cell {
+  min-width: 0;
+}
+
+.sidebar-plugin-launcher .capability-plugin-icon-button {
+  width: 100%;
+  min-height: 68px;
+  padding: 5px 4px;
+}
+
+.sidebar-plugin-launcher .plugin-topic-app-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+}
+
+.sidebar-plugin-launcher .plugin-topic-app-icon::after {
+  font-size: 18px;
+}
+
+.sidebar-plugin-launcher .plugin-app-label {
+  font-size: 11px;
+}
+
+.sidebar-plugin-launcher .capability-action-menu {
+  left: 0;
+  right: auto;
+  top: calc(100% + 6px);
+  width: min(260px, calc(100vw - 32px));
+  transform: none;
 }
 
 .mode-toggle {
@@ -1440,6 +1511,24 @@ button {
   bottom: var(--plugin-context-main-bottom, var(--plugin-context-bottom-nav-height));
   left: 0;
   min-height: 0;
+}
+
+@media (min-width: 1100px) and (pointer: fine) {
+  .app.wardrobe-plugin-host-active,
+  .app.embedded-plugin-host-active,
+  .app.plugin-context-nav-mode.wardrobe-plugin-host-active,
+  .app.plugin-context-nav-mode.embedded-plugin-host-active {
+    padding-bottom: 0;
+  }
+
+  .plugin-context-nav-mode.wardrobe-plugin-host-active .main,
+  .plugin-context-nav-mode.embedded-plugin-host-active .main {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+  }
 }
 
 .plugin-context-nav-mode .wardrobe-plugin-shell,
@@ -16711,6 +16800,10 @@ body.task-markdown-preview-open {
 
   .sidebar .section-toggle {
     display: none;
+  }
+
+  .sidebar-plugin-launcher {
+    display: none !important;
   }
 
   .topbar {

@@ -450,6 +450,19 @@ function ensureGlobalPluginDockContent() {
   return globalPluginDockLauncherPresent(dock);
 }
 
+function updateSidebarPluginLauncher() {
+  const launcher = $("sidePluginLauncher");
+  if (!launcher) return false;
+  const defs = orderedPluginAppDefs(availablePluginTopicDefs());
+  const html = renderPluginAppDesktop(defs);
+  launcher.innerHTML = html;
+  const hasContent = Boolean(html);
+  launcher.hidden = !hasContent;
+  launcher.setAttribute("aria-hidden", hasContent ? "false" : "true");
+  if (hasContent && typeof wirePluginTopicCards === "function") wirePluginTopicCards(launcher);
+  return hasContent;
+}
+
 function resetGlobalPluginDockGesture() {
   const dock = $("topicPluginDock");
   globalPluginDockGesture = null;

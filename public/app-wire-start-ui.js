@@ -165,6 +165,16 @@ function wireUi() {
     state.currentTaskGroupId = "";
     await loadSelectedView({ skipTaskListWindowRefresh: true });
   });
+  $("inboxManagementMode")?.addEventListener("click", async () => {
+    preparePrimaryNavigationChange();
+    clearQuotedReply({ render: false });
+    state.viewMode = "inbox";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    state.currentThread = null;
+    state.currentThreadId = "";
+    await loadSelectedView();
+  });
   $("bottomTasksMode")?.addEventListener("click", async () => {
     if (typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive()) {
       if (typeof closeDirectoryTopicDraft === "function") closeDirectoryTopicDraft();

@@ -54,6 +54,7 @@ function applyViewMode() {
   $("app")?.classList.toggle("note-mode", note);
   $("app")?.classList.toggle("growth-plugin-mode", growth);
   $("chatManagementMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
+  $("inboxManagementMode")?.classList.toggle("active", inbox);
   $("taskManagementMode")?.classList.toggle("active", tasks || (single && state.singleWindowMode === "task"));
   $("bottomChatMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
   $("bottomInboxMode")?.classList.toggle("active", inbox);

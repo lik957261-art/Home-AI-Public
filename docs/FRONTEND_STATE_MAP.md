@@ -16,6 +16,12 @@ the change is part of a dedicated infrastructure rename.
   `app-route-snapshot-ui.js` owns saved route/scroll snapshot persistence and
   reload restore; `app-platform-ui.js` owns route application and platform
   bootstrap glue.
+- Desktop sidebar navigation is the wide-screen counterpart to the mobile
+  primary tabs. Its primary row is `聊天 / 信息 / 话题 / 目录 / 成长`; Automation is a
+  secondary/admin surface reached from contextual menus rather than a primary
+  row button. The sidebar also renders the same permission-filtered plugin
+  launcher used by the global Dock so PC browsers do not have a separate plugin
+  discovery model.
 - Mobile sidebar: `public/index.html`, `public/styles.css`,
   `public/app-platform-status-ui.js`
   - On mobile/PWA widths the sidebar is a full-screen navigation surface, not a
@@ -162,6 +168,10 @@ the change is part of a dedicated infrastructure rename.
     Directory-bound topic rows show the directory display name plus topic count
     and updated time; they hide raw directory paths and default-topic prompt
     badges.
+  - On desktop, the same plugin app definitions are rendered in the sidebar
+    launcher instead of the mobile bottom Dock. This keeps plugin discovery
+    available in PC browsers while preserving the mobile collapsed Dock
+    interaction on phone and touch-tablet shells.
 - Single Window topic replies must carry the currently selected `taskGroupId`
   just like the standalone Tasks view. If the composer says "Reply in this
   task...", the post must remain in that selected topic instead of creating a

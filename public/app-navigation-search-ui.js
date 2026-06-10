@@ -422,16 +422,16 @@ function updateNavigationControls() {
   }
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
-  let hiddenBottomTabs = new Set(["bottomPluginMode", "bottomProjectsMode", "bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomLearningMode", "bottomAutomationMode"]);
+  let hiddenBottomTabs = new Set(["automationMode", "bottomPluginMode", "bottomProjectsMode", "bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomLearningMode", "bottomAutomationMode"]);
   if (externalPluginContextNav) {
-    hiddenBottomTabs = new Set(["bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode", "bottomPluginMode", "bottomLearningMode", "bottomAutomationMode"]);
+    hiddenBottomTabs = new Set(["automationMode", "bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode", "bottomPluginMode", "bottomLearningMode", "bottomAutomationMode"]);
     ["bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode"].forEach((id) => {
       if (id !== pluginContextButtonId) hiddenBottomTabs.add(id);
     });
   } else if (directoryContextNav) {
-    hiddenBottomTabs = new Set(["bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode", "bottomPluginMode", "bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomLearningMode", "bottomAutomationMode"]);
+    hiddenBottomTabs = new Set(["automationMode", "bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode", "bottomPluginMode", "bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomLearningMode", "bottomAutomationMode"]);
   }
-  ["chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
+  ["chatManagementMode", "inboxManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
     const node = $(id);
     if (node) {
       setBottomTabHidden(node, hiddenBottomTabs.has(id));
@@ -450,6 +450,7 @@ function updateNavigationControls() {
   if (typeof updateHealthPluginNavigationAvailability === "function") updateHealthPluginNavigationAvailability();
   if (typeof updateNotePluginNavigationAvailability === "function") updateNotePluginNavigationAvailability();
   if (typeof updateGrowthPluginNavigationAvailability === "function") updateGrowthPluginNavigationAvailability();
+  if (typeof updateSidebarPluginLauncher === "function") updateSidebarPluginLauncher();
   if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
   if (pluginContextNav) {
     const pluginContextBottomTabs = new Set(externalPluginContextNav
