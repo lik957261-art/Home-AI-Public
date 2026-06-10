@@ -308,6 +308,10 @@ plus `GROWTH_LEGACY_AUDIO_ROOTS=/Users/hermes-host/HermesMobile/data` for
 bounded historical audio playback,
 so first install must also import or roll back the plugin-owned SQLite copy
 before declaring production closure.
+After SQLite import, run the Growth plugin `backfill:audio-blobs` dry-run and
+then `--write` only after an online SQLite backup exists; this moves historical
+submission/reflection audio into `learning_task_audio_blobs` so playback is
+plugin-owned instead of artifact-file dependent.
 The Home AI listener LaunchDaemon must also expose the server-side Growth
 registration path so plugin-manager grants can call the Growth registration
 endpoint without raw secrets:

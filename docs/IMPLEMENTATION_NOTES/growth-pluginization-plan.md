@@ -182,6 +182,13 @@ Current development status:
   `learning_task_audio_blobs` and falls back to bounded legacy artifact-file
   lookup under `GROWTH_LEGACY_AUDIO_ROOTS` or the standard sibling Home AI
   `data` root. Raw absolute file paths must not be exposed to the browser.
+- Historical audio evidence backfill is implemented through
+  `npm run backfill:audio-blobs`. It scans migrated submission/reflection audio
+  metadata, verifies bounded legacy files, and writes missing
+  `learning_task_audio_blobs` records only with explicit `--write`; dry-run is
+  the default. Production Stephen backfill on 2026-06-10 wrote 10 BLOB records
+  totaling 46,107,050 bytes after an online SQLite backup and left a follow-up
+  dry-run with `already_blobbed=10`, `would_backfill=0`, and `file_missing=0`.
 - Development verification used an online SQLite backup copy of the Mac
   production `learning-growth.sqlite3`, stored under the ignored development
   tmp directory. Source and target `quick_check` passed, all required tables

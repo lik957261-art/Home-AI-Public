@@ -240,6 +240,24 @@ configured by `GROWTH_LEGACY_AUDIO_ROOTS`; if omitted, the plugin derives the
 standard sibling Home AI `data` root from its workspace. The plugin must never
 return raw absolute audio paths to the browser.
 
+Historical Growth audio BLOB backfill is the first completed step toward making
+the plugin self-contained for read evidence. The plugin workspace provides:
+
+```bash
+npm run backfill:audio-blobs -- \
+  --db <plugin-data>/growth-learning.sqlite3 \
+  --workspace-id <workspace-id> \
+  --legacy-audio-root <Home-AI-data-root> \
+  --dry-run \
+  --json
+```
+
+Run `--write` only after an online SQLite backup exists and the dry-run shows
+acceptable `would_backfill`, `file_missing`, and bounded sample evidence.
+Production Stephen backfill on 2026-06-10 wrote 10 BLOB records, 46,107,050
+bytes, with `file_missing=0`; a follow-up dry-run reported
+`already_blobbed=10` and `would_backfill=0`.
+
 Submission creation, audio upload, transcription, async model evaluation,
 reflection settlement, reward settlement, mastery updates, Action Inbox/Web
 Push notifications, and Owner manual workflow decisions remain in Home AI until
