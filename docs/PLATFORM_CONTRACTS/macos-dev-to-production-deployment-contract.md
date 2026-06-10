@@ -183,6 +183,11 @@ Use the smallest sufficient set:
   through the plugin manifest/proxy. All plugin teams must use the central
   Appium start script; it owns backgrounding, terminal `SIGHUP`/`SIGINT`
   isolation, and stale-session replacement for shared visual lanes.
+  If a toolchain failure is found during a plugin deployment, fix the shared
+  Home AI live-debug, visual-harness, Appium-start, or lane-lease code first,
+  update the central visual contract, and then rerun the plugin validation from
+  the Home AI command. Do not deploy plugin-local copies of the repaired
+  Appium, Simulator, screenshot, WebView attach, or lane-lock behavior.
 
 Validation output recorded in handoff or docs must be bounded metadata only.
 Do not record raw keys, launch tokens, cookies, full logs, private user data,
@@ -308,6 +313,11 @@ least one explicit production verification path:
 When an MCP/toolset surface changes, the plugin deployment record must also
 include the plugin MCP schema check and the selected Gateway callable-schema
 check. A plugin service schema alone is not enough for production closure.
+On macOS, also verify that the workspace provisioning executor materialized the
+plugin MCP worker file set under `<root>/gateway-worker/<plugin>-mcp`, mirrored
+the complete `.hermes-<plugin>` binding into the target worker home, and updated
+the selected worker manifest `toolsets`, `mcpServers`, and `configPath` from
+the rendered profile YAML.
 
 They must not require per-plugin SSH aliases, copied private keys, interactive
 sudo prompts, or direct production workspace write access.

@@ -208,6 +208,16 @@ Simulator, screenshot, or WebView attach scripts. Toolchain fixes land in Home
 AI first and become available to all plugins through this contract and the
 plugin-local pointer.
 
+Central toolchain fixes are not plugin-local patches. When the live debug
+server, visual harness, Appium starter, lane lease, or recovery behavior is
+fixed, the change must be made in the Home AI workspace, validated there, and
+recorded in this central contract or the linked visual contract. Plugin
+workspaces then consume the corrected command through their pointer file and
+the platform checker. A plugin must not close a visual-debug incident by
+copying an older fixed command, vendoring a local Appium wrapper, changing
+lane-lock behavior, or adding plugin-specific Simulator recovery steps unless
+Home AI has first promoted that behavior into the shared toolchain.
+
 Required plugin behavior:
 
 - run AI Operations `intake` before visual-debug work and use the returned lane
@@ -234,6 +244,11 @@ Required plugin behavior:
   artifact path, key metrics, and pass/fail result. Do not record raw Access
   Keys, cookies, launch tokens, localStorage dumps, private plugin payloads, or
   full logs.
+- if a plugin thread discovers a repeatable toolchain issue, file it against
+  the Home AI shared toolchain and reference the affected central script,
+  scenario, lane, and bounded failure metadata. The durable fix belongs in Home
+  AI and this contract; the plugin thread may only keep a temporary workaround
+  when it is clearly labeled and removed after the central fix lands.
 
 Concurrent plugin debugging is allowed only through separate lanes. Each active
 lane must have a unique Simulator UDID, live-debug `--port`,
@@ -390,6 +405,14 @@ executor must mirror each complete binding into
 must render the Gateway profile from that worker-local mirror. A plugin thread
 must not claim Gateway/MCP closure from a manifest, service-local schema, or
 data-drive binding alone.
+
+The worker-side MCP implementation files must also exist under the Gateway
+worker root before profile rendering. When a plugin wrapper imports local
+modules, the whole required file set must be materialized, not only the wrapper
+entrypoint. After rendering, the Gateway manifest's `toolsets`, `mcpServers`,
+and `configPath` must match the rendered profile capabilities. A selected
+Gateway worker whose manifest omits the plugin toolset is not closed, even if
+its `config.yaml` happens to contain `mcp_servers.<plugin>`.
 
 ## MCP Tool Upgrade Contract
 

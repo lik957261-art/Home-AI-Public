@@ -1383,15 +1383,22 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   `--no-workspace-override`, and the deployment-specific `--api-base-url`.
   The wrapper strips `workspace_id` from Gateway-facing schemas, rejects
   model-provided workspace overrides, and injects the bound workspace id into
-  the Growth plugin HTTP execute endpoint. Valid schema evidence is a
-  selected-profile callable such as `mcp_growth_list_cards` or
-  `mcp_growth_get_card`; double-prefixed callables or an Owner-bound Growth
-  wrapper in a non-Owner workspace are profile/provisioning failures, not model
-  issues. On macOS, `data/drive/users/<workspaceId>/.hermes-growth` alone is
-  not sufficient for Gateway exposure; onboarding or a focused provisioning
-  repair must mirror the complete binding into
-  `/Users/<hm-user>/HermesWorkspace/.hermes-growth` before the worker profile
-  is rendered or restarted.
+  plugin HTTP execute calls. On macOS, the workspace provisioning executor
+  materializes the Growth worker file set from
+  `<root>/plugins/growth` into `<root>/gateway-worker/growth-mcp` before
+  profile rendering. The required file set is the wrapper plus
+  `src/mcp/growth-mcp-schemas.js`; copying only the wrapper leaves the worker
+  with `MODULE_NOT_FOUND` at runtime. The executor must also copy the rendered
+  profile capabilities back into the manifest (`toolsets`, `mcpServers`, and
+  `configPath`) so Gateway worker selection and profile YAML describe the same
+  callable surface. Valid schema evidence is a selected-profile callable such
+  as `mcp_growth_list_cards` or `mcp_growth_get_card`; double-prefixed
+  callables or an Owner-bound Growth wrapper in a non-Owner workspace are
+  profile/provisioning failures, not model issues. On macOS,
+  `data/drive/users/<workspaceId>/.hermes-growth` alone is not sufficient for
+  Gateway exposure; onboarding or a focused provisioning repair must mirror the
+  complete binding into `/Users/<hm-user>/HermesWorkspace/.hermes-growth`
+  before the worker profile is rendered or restarted.
 - The generator script in the source repo is the durable source of truth. Do not rely on one-off edits to live `telemetry/profiles/<profile>/config.yaml`: a later Gateway Pool reconfigure/restart rewrites those files from `scripts/configure-low-gateways.sh` and will silently drop Wardrobe MCP registration if the source script no longer contains the wardrobe block.
 - Targeted starts such as `-StartProfiles lowgw13,lowgw14 -ForceConfigure`
   must pass `HERMES_GATEWAY_START_PROFILES` through to

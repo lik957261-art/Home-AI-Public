@@ -4,6 +4,7 @@ const defaultFs = require("node:fs");
 const defaultPath = require("node:path");
 const { spawnSync: defaultSpawnSync } = require("node:child_process");
 const { renderGatewayConfigYaml } = require("../scripts/build-gateway-profile-template");
+const { readCapabilities } = require("../scripts/verify-gateway-profile-template-sync");
 
 const DEFAULT_LIVE_ROOT = "/Users/hermes-host/HermesMobile";
 const DEFAULT_LISTENER_USER = "hermes-host";
@@ -37,6 +38,29 @@ const WORKSPACE_PLUGIN_BINDINGS = Object.freeze([
   { id: "growth", dir: ".hermes-growth", required: ["access-key.txt", "config.json"] },
   { id: "email", dir: ".hermes-email", required: ["access-key.txt", "config.json"] },
 ]);
+const GATEWAY_MCP_WORKER_ASSETS = Object.freeze([
+  {
+    id: "growth",
+    files: [
+      {
+        source: ["plugins", "growth", "scripts", "growth-mcp-wrapper.js"],
+        target: ["gateway-worker", "growth-mcp", "scripts", "growth-mcp-wrapper.js"],
+      },
+      {
+        source: ["plugins", "growth", "src", "mcp", "growth-mcp-schemas.js"],
+        target: ["gateway-worker", "growth-mcp", "src", "mcp", "growth-mcp-schemas.js"],
+      },
+    ],
+  },
+]);
+const GATEWAY_MCP_SERVER_FILES = Object.freeze({
+  wardrobe: ["gateway-worker", "wardrobe-mcp", "scripts", "wardrobe-mcp.py"],
+  finance: ["gateway-worker", "finance-mcp", "scripts", "finance_mcp_stdio.py"],
+  note: ["gateway-worker", "note-mcp", "scripts", "note_mcp_stdio.py"],
+  health: ["gateway-worker", "health-mcp", "scripts", "mcp-health-wrapper.js"],
+  growth: ["gateway-worker", "growth-mcp", "scripts", "growth-mcp-wrapper.js"],
+  email: ["gateway-worker", "email-mcp", "scripts", "email-mcp-wrapper.py"],
+});
 const ALLOWED_ACTIONS = new Set([
   "ensure_mac_user",
   "ensure_workspace_roots",
@@ -137,6 +161,22 @@ function workspaceIdsForWorker(worker = {}) {
     for (const item of values) {
       const id = safeWorkspaceId(item);
       if (id && id !== "*" && !out.includes(id)) out.push(id);
+    }
+  }
+  return out;
+}
+
+function stringList(value) {
+  if (Array.isArray(value)) return value.map(text).filter(Boolean);
+  if (typeof value === "string") return value.split(/[,;\s]+/).map(text).filter(Boolean);
+  return [];
+}
+
+function mergeStringLists(...lists) {
+  const out = [];
+  for (const list of lists) {
+    for (const item of stringList(list)) {
+      if (!out.includes(item)) out.push(item);
     }
   }
   return out;
@@ -315,6 +355,38 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     checked("/bin/chmod", ["-R", "u+rwX,go-rwx", target]);
   }
 
+  function copyExecutableFile(source, target, owner) {
+    if (useSudoWrites) {
+      privileged("/bin/mkdir", ["-p", path.posix.dirname(target)]);
+      privileged("/bin/cp", [source, target]);
+      privileged("/usr/sbin/chown", [owner, target]);
+      privileged("/bin/chmod", ["755", target]);
+      return;
+    }
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.copyFileSync(source, target);
+    try { fs.chmodSync(target, 0o755); } catch (_) {}
+    if (owner) checked("/usr/sbin/chown", [owner, target]);
+  }
+
+  function syncGatewayMcpWorkerAssets(fields) {
+    const synced = [];
+    for (const asset of GATEWAY_MCP_WORKER_ASSETS) {
+      const files = Array.isArray(asset.files) ? asset.files : [];
+      if (!files.length) continue;
+      const resolved = files.map((file) => ({
+        source: path.posix.join(fields.root, ...file.source),
+        target: path.posix.join(fields.root, ...file.target),
+      }));
+      if (!resolved.every((file) => fileExists(file.source))) continue;
+      for (const file of resolved) {
+        copyExecutableFile(file.source, file.target, `${listenerUser}:staff`);
+      }
+      synced.push(asset.id);
+    }
+    return synced;
+  }
+
   function syncWorkspacePluginBindings(fields) {
     const synced = [];
     for (const binding of WORKSPACE_PLUGIN_BINDINGS) {
@@ -325,6 +397,17 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
       synced.push(binding.id);
     }
     return synced;
+  }
+
+  function availableWorkspacePluginToolsets(fields) {
+    const out = [];
+    for (const binding of WORKSPACE_PLUGIN_BINDINGS) {
+      if (!completePluginBinding(fields.workerWorkspaceRoot, binding)) continue;
+      const mcpServerFile = GATEWAY_MCP_SERVER_FILES[binding.id];
+      if (!mcpServerFile || !fileExists(path.posix.join(fields.root, ...mcpServerFile))) continue;
+      out.push(binding.id);
+    }
+    return out;
   }
 
   function ensureWorkspaceRoots(context = {}) {
@@ -578,6 +661,7 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
         email_mcp_api_base_url: "http://127.0.0.1:5175",
       });
     }
+    const configFile = path.posix.join(dir, "config.yaml");
     const configYaml = renderGatewayConfigYaml({
       configKind: "profile",
       values: Object.assign({
@@ -587,10 +671,10 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
         provider: worker.provider || "openai-codex",
       }, Object.fromEntries(STANDARD_PROFILE_PLUGINS.map((id) => [`${id}_plugin_enabled`, "1"])), pluginValues),
     });
-    writeTextFile(path.posix.join(dir, "config.yaml"), configYaml, "600", `${fields.macUser}:staff`);
+    writeTextFile(configFile, configYaml, "600", `${fields.macUser}:staff`);
     writeTextFile(startScriptPath(fields, profile), renderStartScript(fields, worker, manifestPath), "700", `${fields.macUser}:staff`);
     privileged("/usr/sbin/chown", ["-R", `${fields.macUser}:staff`, path.posix.join(fields.workerWorkspaceRoot, ".hermes-gateway")]);
-    return dir;
+    return { dir, capabilities: readCapabilities(configFile) };
   }
 
   function writeManifestBackup(manifestPath) {
@@ -615,6 +699,7 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
     if (fields.error) return { ok: false, error: fields.error };
     const manifestPath = manifestPathFor(fields, context);
     const manifest = readJsonSafe(fs, manifestPath, { enabled: true, workers: [] });
+    const syncedGatewayMcpAssets = syncGatewayMcpWorkerAssets(fields);
     const syncedPluginBindings = syncWorkspacePluginBindings(fields);
     const workers = workspaceWorkers(manifest, fields, context);
     if (!workers.length) return { ok: false, error: "workspace_gateway_workers_missing" };
@@ -631,13 +716,29 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
       const provider = providerFamily(worker);
       providerOrdinals[provider] = (providerOrdinals[provider] || 0) + 1;
       const label = labelFor(fields, worker, providerOrdinals[provider]);
-      const dir = ensureProfileMaterialized(fields, worker, manifestPath);
+      const materialized = ensureProfileMaterialized(fields, worker, manifestPath);
+      const dir = materialized.dir;
+      const configPath = path.posix.join(dir, "config.yaml");
       const statePath = path.posix.join(dir, "state.db");
       const responsePath = path.posix.join(dir, "response_store.db");
+      const profileToolsets = mergeStringLists(materialized.capabilities?.toolsets, availableWorkspacePluginToolsets(fields));
+      const profileMcpServers = mergeStringLists(materialized.capabilities?.mcpServers, availableWorkspacePluginToolsets(fields));
       if (worker.osUser !== fields.macUser) { worker.osUser = fields.macUser; changed = true; }
       if (worker.launchdLabel !== label) { worker.launchdLabel = label; changed = true; }
+      if (worker.configPath !== configPath) { worker.configPath = configPath; changed = true; }
       if (worker.telemetryStateDbPath !== statePath) { worker.telemetryStateDbPath = statePath; changed = true; }
       if (worker.telemetryResponseStoreDbPath !== responsePath) { worker.telemetryResponseStoreDbPath = responsePath; changed = true; }
+      const mergedToolsets = mergeStringLists(worker.toolsets, profileToolsets);
+      if (JSON.stringify(stringList(worker.toolsets)) !== JSON.stringify(mergedToolsets)) {
+        worker.toolsets = mergedToolsets;
+        changed = true;
+      }
+      const mergedMcpServers = mergeStringLists(worker.mcpServers || worker.mcp_servers, profileMcpServers);
+      if (JSON.stringify(stringList(worker.mcpServers || worker.mcp_servers)) !== JSON.stringify(mergedMcpServers)) {
+        worker.mcpServers = mergedMcpServers;
+        delete worker.mcp_servers;
+        changed = true;
+      }
       const plistFile = path.posix.join(launchDaemonsDir, `${label}.plist`);
       const startScript = startScriptPath(fields, profile);
       writeTextFile(plistFile, renderPlist(fields, worker, label, startScript), "644", "root:wheel");
@@ -661,6 +762,7 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
       workers: touched,
       manifestUpdated: changed,
       backup: backup ? path.basename(backup) : "",
+      syncedGatewayMcpAssets,
       syncedPluginBindings,
       kickstarted,
     };

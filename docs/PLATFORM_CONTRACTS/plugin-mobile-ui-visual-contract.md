@@ -381,6 +381,20 @@ plugin-local copies of Appium startup, Simulator selection, screenshot polling,
 or WebView attach logic. When this toolchain is fixed, the central Home AI
 scripts and this contract are the propagation path for all plugins.
 
+Fix propagation rule:
+
+- fix live-debug, visual harness, Appium starter, lane lease, screenshot,
+  MJPEG, or WebView attach behavior only in the Home AI shared toolchain;
+- update this contract when the operational behavior changes, including the
+  new command, recovery order, or evidence boundary;
+- validate the central script/test first, then rerun the plugin scenario using
+  the Home AI command;
+- keep plugin-local pointer files as references to this contract and the
+  checked command only;
+- remove temporary plugin-local workarounds after the central fix is available;
+- do not fork Appium commands, lane-lock files, Simulator selection logic, or
+  WebView retry logic inside plugin repositories.
+
 Concurrency contract:
 
 - one live-debug lane maps to one Simulator UDID, one WDA port, one MJPEG port,

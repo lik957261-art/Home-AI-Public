@@ -777,6 +777,14 @@ only after all of these preflight checks pass:
   `/Users/<hm-user>/HermesWorkspace/.hermes-<plugin>` and profile generation
   exposes the plugin MCP only after that worker-local mirror has both
   `config.json` and `access-key.txt`.
+- macOS plugin MCP closure also requires worker-side MCP implementation files
+  under `<root>/gateway-worker/<plugin>-mcp`. For Growth, the workspace
+  provisioning executor materializes the file set from
+  `<root>/plugins/growth` into `<root>/gateway-worker/growth-mcp` before
+  rendering profiles. The Gateway manifest must then be updated from the
+  rendered profile capabilities so `toolsets`, `mcpServers`, and `configPath`
+  match the actual `config.yaml`; otherwise a selected worker may omit the
+  plugin toolset even though the profile file contains `mcp_servers.<plugin>`.
 - NAS Gateway workers must start with the Hermes Mobile runtime overlay on
   `PYTHONPATH`, ahead of the NAS Hermes Agent runtime, and set
   `HERMES_MOBILE_OFFICIAL_CLEAN_PATH` to that runtime. Otherwise profile YAML

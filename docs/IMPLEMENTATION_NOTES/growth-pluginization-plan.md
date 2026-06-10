@@ -245,8 +245,26 @@ Current development status:
   wrapper that reads `.hermes-growth/config.json`, rejects model-provided
   workspace overrides, strips `workspace_id` from Gateway-facing tool schemas,
   and injects the bound workspace id into plugin HTTP execute calls.
-- Gateway profile/callable registration is still pending; final model callables
-  must use a single `mcp_growth_*` prefix.
+- The Home AI workspace provisioning executor now materializes the Growth
+  worker MCP file set from plugin source into
+  `<root>/gateway-worker/growth-mcp` before profile rendering:
+  `scripts/growth-mcp-wrapper.js` plus
+  `src/mcp/growth-mcp-schemas.js`. Copying only the wrapper is invalid because
+  the wrapper imports the schema module.
+- The same executor mirrors the complete `.hermes-growth` binding into
+  `/Users/<hm-user>/HermesWorkspace/.hermes-growth`, renders profile YAML from
+  that worker-local mirror, then writes the rendered profile capabilities back
+  to the Gateway manifest (`toolsets`, `mcpServers`, and `configPath`). This
+  keeps worker selection, profile YAML, and selected-profile schema validation
+  aligned.
+- Development proof for `weixin_stephen` passed with real worker user
+  `hm-weixin-stephen`: `tools/list` exposed local names `get_status`,
+  `get_board`, `list_cards`, and `get_card`; `list_cards` returned 48 cards
+  from `growth-plugin-sqlite`; and card summaries did not expose
+  `instructionPreview`.
+- Gateway profile/toolset smoke passed against the development manifest with
+  `weixin_stephen:weixin_stephen:openai-codex:user:growth:min=1`.
+- Final production model callables must use a single `mcp_growth_*` prefix.
 
 ## Development Visual Harness Notes
 
