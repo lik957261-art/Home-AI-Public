@@ -57,6 +57,10 @@ Planned graph-guided card planning files are documented in
 - Growth plugin manifest: `GET /api/v1/hermes/plugin/manifest`.
 - Growth plugin provisioning: `POST /api/v1/hermes/plugin/workspaces`.
 - Growth plugin launch: `POST /api/v1/hermes/plugin/launch`.
+- Growth plugin Owner view targets: `GET /api/v1/growth/view-targets`.
+  Through the Home AI same-origin proxy this endpoint uses bounded actor
+  headers and returns all Growth-provisioned targets only for Owner actor
+  context. Non-Owner workspace users receive only the current workspace target.
 - Growth plugin audio playback:
   `GET /api/v1/growth/audio/submissions/:submissionId` and
   `GET /api/v1/growth/audio/reflections/:reflectionId` when the plugin-owned
@@ -320,6 +324,13 @@ before loading a view. Legacy host Growth board/action APIs fail closed with
 `HERMES_WEB_LEGACY_HOST_GROWTH_API_ENABLED=1` is set for a controlled rollback.
 The Kanban compatibility submission/reflection routes do not fall back to host
 Growth services unless that same explicit legacy flag is enabled.
+
+Owner cross-learner viewing is plugin-owned. The Home AI proxy forwards only
+bounded actor context (`x-hermes-plugin-actor-role` and current workspace id)
+and no secrets. The Growth plugin builds its switchable target list from
+Growth workspace bindings. The page shows the right-top target switcher only
+for Owner actor context; ordinary workspace users cannot enumerate or switch to
+other Growth workspaces.
 
 Growth learning coins are not `通宝` and are not real-money-equivalent platform
 ledger entries. Growth-to-`通宝` exchange remains a Home AI platform currency

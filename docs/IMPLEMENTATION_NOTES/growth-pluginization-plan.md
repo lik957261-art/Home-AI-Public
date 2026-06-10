@@ -243,6 +243,14 @@ Current development status:
   `view=learning&taskCardId=<taskCardId>` URLs remain compatibility-only and
   are converted into the same plugin card route before iframe rendering. Host
   Web Push and task-card open URLs must generate the plugin route.
+- Owner cross-learner viewing is handled inside the Growth plugin. The Home AI
+  same-origin plugin proxy forwards only bounded actor context headers:
+  `x-hermes-plugin-actor-role=owner|workspace`,
+  `x-hermes-plugin-actor-workspace-id`, and the current plugin workspace id.
+  The plugin exposes `GET /api/v1/growth/view-targets`; it returns all
+  Growth-provisioned targets only when the actor role is `owner`. Non-Owner
+  workspace actors receive only the current workspace target and cannot
+  enumerate other Growth users.
 - Host production defaults now treat the built-in Growth page and host Growth
   workflow APIs as legacy compatibility only:
   - sidebar/bottom Growth navigation opens `view=growth`;

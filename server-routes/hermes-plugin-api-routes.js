@@ -741,6 +741,8 @@ function createHermesPluginApiRoutes(deps = {}) {
       : rewritePluginProxyRequestCookie(req.headers?.cookie, pluginId, workspaceId);
     if (upstreamCookie) headers.cookie = upstreamCookie;
     headers["x-hermes-plugin-workspace-id"] = workspaceId;
+    headers["x-hermes-plugin-actor-workspace-id"] = String(auth?.workspaceId || "");
+    headers["x-hermes-plugin-actor-role"] = ownerAuthorized(auth) ? "owner" : "workspace";
     const publicOrigin = originFromRequest(req);
     if (publicOrigin) {
       headers["x-hermes-public-origin"] = publicOrigin;

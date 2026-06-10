@@ -386,6 +386,46 @@ async function testPluginProxyDeniesUnauthorizedWorkspacePlugin() {
   assert.equal(parseBody(res).error, "plugin_workspace_not_authorized");
 }
 
+async function testPluginProxyForwardsOwnerOnlyActorContext() {
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "growth", manifestUrl: "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "growth" });
+      },
+      pluginManifestUrl(id) {
+        return id === "growth" ? "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:4881/api/v1/growth/view-targets?workspaceId=weixin_stephen");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "weixin_stephen");
+      assert.equal(options.headers["x-hermes-plugin-actor-workspace-id"], "owner");
+      assert.equal(options.headers["x-hermes-plugin-actor-role"], "owner");
+      assert.equal(Object.prototype.hasOwnProperty.call(options.headers, "x-hermes-plugin-accessible-workspaces"), false);
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify({ ok: true, targets: [] })),
+      });
+    },
+  });
+  const req = makeRequest("GET");
+  req.auth = { ok: true, workspaceId: "owner", isOwner: true, role: "owner" };
+  const res = makeResponse();
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/growth/proxy/api/v1/growth/view-targets?workspaceId=weixin_stephen"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.equal(parseBody(res).ok, true);
+}
+
 async function testPluginNotificationRoute() {
   const { calls, routes } = makeRoutes();
   const res = makeResponse();
@@ -1400,6 +1440,7 @@ async function run() {
   await testWorkspaceBlockStopsRoute();
   await testPluginProxyRequiresWorkspaceAccessBeforeFetch();
   await testPluginProxyDeniesUnauthorizedWorkspacePlugin();
+  await testPluginProxyForwardsOwnerOnlyActorContext();
   await testPluginNotificationRoute();
   await testCodexProxyRewritesHtmlAndUsesUpstream();
   await testCodexProxyStreamsEventSource();
