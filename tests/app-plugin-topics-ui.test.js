@@ -121,6 +121,7 @@ assert.match(stylesCss, /\.plugin-topic-text \{[\s\S]*?display: flex;[\s\S]*?ali
 assert.match(stylesCss, /\.directory-topic-text \{[\s\S]*?display: flex;[\s\S]*?align-items: baseline;/);
 assert.match(stylesCss, /\.plugin-topic-card\.collapsed \.plugin-topic-row-chevron::before \{[\s\S]*?transform: rotate\(-45deg\);/);
 assert.match(stylesCss, /\.plugin-topic-child-list \{[\s\S]*?margin-left: 52px;[\s\S]*?padding: 0 0 7px 9px;/);
+assert.match(stylesCss, /@media \(max-width: 760px\) \{[\s\S]*?\.plugin-topic-child-list \{[\s\S]*?margin-left: 24px;[\s\S]*?padding: 0 0 7px 9px;/);
 assert.match(stylesCss, /\.plugin-topic-card\.collapsed \.plugin-topic-child-list \{[\s\S]*?display: none;/);
 
 function createPluginTopicHarness(options = {}) {

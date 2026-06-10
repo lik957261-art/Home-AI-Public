@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260610-plugin-topic-root-level-v697";
+const CLIENT_VERSION = "20260610-plugin-topic-root-level-v698";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260610-plugin-topic-root-level-v697" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260610-plugin-topic-root-level-v697"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260610-plugin-topic-root-level-v698" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260610-plugin-topic-root-level-v698"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2557,10 +2557,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260610-plugin-topic-root-level-v697/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260610-plugin-topic-root-level-v697/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260610-plugin-topic-root-level-v697/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260610-plugin-topic-root-level-v697/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260610-plugin-topic-root-level-v698/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260610-plugin-topic-root-level-v698/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260610-plugin-topic-root-level-v698/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260610-plugin-topic-root-level-v698/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2753,6 +2753,7 @@ assert.match(stylesCss, /\.plugin-topic-text \{[\s\S]*?display: flex;[\s\S]*?ali
 assert.match(stylesCss, /\.directory-topic-text \{[\s\S]*?display: flex;[\s\S]*?align-items: baseline;/);
 assert.match(stylesCss, /\.plugin-topic-card\.collapsed \.plugin-topic-row-chevron::before \{[\s\S]*?transform: rotate\(-45deg\);/);
 assert.match(stylesCss, /\.plugin-topic-child-list \{[\s\S]*?margin-left: 52px;[\s\S]*?padding: 0 0 7px 9px;/);
+assert.match(stylesCss, /@media \(max-width: 760px\) \{[\s\S]*?\.plugin-topic-child-list \{[\s\S]*?margin-left: 24px;[\s\S]*?padding: 0 0 7px 9px;/);
 assert.match(stylesCss, /\.plugin-app-launcher \{[\s\S]*?border-top: 1px solid rgba\(95, 139, 148, 0\.18\);/);
 assert.match(stylesCss, /\.plugin-app-strip \{[\s\S]*?--plugin-app-gap: 8px;[\s\S]*?display: flex;[\s\S]*?flex-wrap: nowrap;[\s\S]*?gap: var\(--plugin-app-gap\);[\s\S]*?overflow-x: auto;[\s\S]*?scroll-behavior: smooth;[\s\S]*?scroll-snap-type: x proximity;[\s\S]*?touch-action: pan-x;/);
 assert.match(stylesCss, /\.plugin-app-strip-sorting \{[\s\S]*?scroll-snap-type: none;[\s\S]*?touch-action: none;[\s\S]*?cursor: grabbing;/);
