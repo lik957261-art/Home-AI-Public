@@ -33,6 +33,8 @@ assert.match(script, /#topicPluginDock \.plugin-app-card\[data-plugin-topic-open
 assert.match(script, /pluginDrawerMenuGesture = "touch-longpress"/);
 assert.match(script, /dispatchEvent\("touchstart"/);
 assert.match(script, /dispatchEvent\("touchend"/);
+assert.match(script, /visibleDockMenuOpened/);
+assert.match(script, /capability-action-menu:not\(\[hidden\]\)/);
 assert.match(script, /HERMES_VISUAL_SMOKE_OPEN_CAPABILITY_MENU/);
 assert.match(script, /HERMES_VISUAL_SMOKE_WORKSPACE_ID/);
 assert.match(script, /HERMES_VISUAL_SMOKE_LONG_TASK_WARN_MS/);

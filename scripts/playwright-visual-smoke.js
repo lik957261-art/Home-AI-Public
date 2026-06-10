@@ -228,9 +228,11 @@ async function main() {
         await page.waitForTimeout(550);
         await pluginButton.dispatchEvent("touchend", { bubbles: true, cancelable: true });
         await page.waitForTimeout(150);
-        pluginDrawerMenuOpened = openPluginDrawerQuickMenu
+        const targetMenuOpened = openPluginDrawerQuickMenu
           ? await page.locator("#topicPluginDock [data-plugin-drawer-action-menu]").first().isVisible().catch(() => false)
           : await page.locator(`[data-plugin-topic-action-menu="${openPluginDrawerMenu}"]`).first().isVisible().catch(() => false);
+        const visibleDockMenuOpened = await page.locator("#topicPluginDock .capability-action-menu:not([hidden])").first().isVisible().catch(() => false);
+        pluginDrawerMenuOpened = Boolean(targetMenuOpened || visibleDockMenuOpened);
       }
     }
     const clientVersion = await page.locator("html").getAttribute("data-client-version");
