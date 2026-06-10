@@ -243,6 +243,18 @@ Current development status:
   `view=learning&taskCardId=<taskCardId>` URLs remain compatibility-only and
   are converted into the same plugin card route before iframe rendering. Host
   Web Push and task-card open URLs must generate the plugin route.
+- The plugin-owned SQLite board projection must match the mature built-in
+  Growth board semantics before production UI parity can be claimed: filter
+  cancelled/retired/superseded cards, keep sequence groups to completed cards
+  plus the first current uncompleted card, hide later future cards from the
+  main list, and use the legacy Growth lane ids/titles instead of generic
+  active/waiting/completed buckets.
+- The embedded Growth plugin consumes Home AI appearance metadata from launch
+  query parameters and `hermes.plugin.viewport` broadcasts. The iframe root
+  must receive matching `data-theme` and `data-font-size` values before the
+  copied legacy Growth CSS renders, otherwise the plugin will diverge from the
+  host theme and system text-size setting even when the copied UI code is
+  otherwise identical.
 - Owner cross-learner viewing is handled inside the Growth plugin. The Home AI
   same-origin plugin proxy forwards only bounded actor context headers:
   `x-hermes-plugin-actor-role=owner|workspace`,

@@ -697,6 +697,7 @@ function embeddedPluginViewportPayload(def, frame, reason = "layout") {
     pluginId: def.id,
     workspaceId: embeddedPluginCurrentWorkspaceId(),
     reason: String(reason || "layout").slice(0, 60),
+    appearance: embeddedPluginAppearanceForLaunch(),
     viewport: {
       width: visualWidth,
       height: visualHeight,

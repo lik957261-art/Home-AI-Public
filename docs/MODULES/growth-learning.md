@@ -332,6 +332,16 @@ Growth workspace bindings. The page shows the right-top target switcher only
 for Owner actor context; ordinary workspace users cannot enumerate or switch to
 other Growth workspaces.
 
+The embedded Growth plugin must preserve the mature Home AI Growth board
+projection semantics while the UI is being moved: retired/cancelled/superseded
+cards are not visible, sequence groups show completed cards plus the first
+current uncompleted card and hide later future cards, and board lanes use the
+legacy Growth workflow buckets such as ready, waiting for AI, needs revision,
+reflection required, locked until, and completed recent. The plugin receives
+Home AI appearance metadata through launch query parameters and
+`hermes.plugin.viewport` messages and must apply the theme/font-size settings to
+its iframe root before rendering the copied legacy Growth UI.
+
 Growth learning coins are not `通宝` and are not real-money-equivalent platform
 ledger entries. Growth-to-`通宝` exchange remains a Home AI platform currency
 responsibility: it is administrator-operated, normally monthly, based on total

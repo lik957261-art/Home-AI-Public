@@ -90,6 +90,7 @@ assert.match(embeddedPluginUi, /data\.type === "hermes\.plugin\.preview" \|\| da
 assert.match(embeddedPluginUi, /function embeddedPluginPreviewFullscreenActive\(def = embeddedPluginDefByView\(\)\)/);
 assert.match(embeddedPluginUi, /function embeddedPluginViewportPayload\(def, frame, reason = "layout"\)/);
 assert.match(embeddedPluginUi, /type: "hermes\.plugin\.viewport"/);
+assert.match(embeddedPluginUi, /appearance: embeddedPluginAppearanceForLaunch\(\)/);
 assert.match(embeddedPluginUi, /visualViewportKeyboardMetrics/);
 assert.match(embeddedPluginUi, /workspaceId: embeddedPluginCurrentWorkspaceId\(\)/);
 assert.match(embeddedPluginUi, /footer:[\s\S]*?pluginContextBottom: embeddedPluginCssPx\("--plugin-context-main-bottom"\)/);

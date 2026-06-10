@@ -103,6 +103,7 @@ native keyboard without going through the Home AI composer focus path:
   pluginId: "finance",
   workspaceId: "owner",
   reason: "plugin_context_viewport",
+  appearance: { theme: "dark", fontSize: "default" },
   viewport: {
     width: 390,
     height: 624,
@@ -138,6 +139,13 @@ tokens, cookies, plugin private data, route URLs, or user content. The host send
 it to the iframe entry origin recorded in the normalized manifest. Repeated
 settled broadcasts may send the same bounded payload shape several times during
 keyboard animation; plugins should treat the latest event as authoritative.
+
+The `appearance` object is also bounded layout metadata. The host must send the
+current sanitized device-local theme and font-size preference in both the launch
+entry query (`pluginTheme`, `pluginFontSize`) and later viewport broadcasts.
+Plugins that ship their own CSS must map those fields onto their iframe root
+before first meaningful render and when viewport broadcasts arrive, so embedded
+dark mode and text-size preferences stay aligned with Home AI.
 
 Plugins should treat the latest `hermes.plugin.viewport` payload as
 embedded-mode host geometry:
