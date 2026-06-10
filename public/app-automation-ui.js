@@ -24,7 +24,7 @@ function applyViewMode() {
   const directory = state.viewMode === "projects";
   const automation = state.viewMode === "automation";
   const inbox = state.viewMode === "inbox";
-  const learning = state.viewMode === "learning";
+  const learning = false;
   const todos = state.viewMode === "todos";
   const wardrobe = state.viewMode === "wardrobe";
   const codex = state.viewMode === "codex";
@@ -92,6 +92,10 @@ function applyViewMode() {
 }
 
 async function loadSelectedView(options = {}) {
+  if (state.viewMode === "learning") {
+    state.viewMode = "growth";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+  }
   const viewLoadId = (state.viewLoadSeq || 0) + 1;
   state.viewLoadSeq = viewLoadId;
   const currentViewStillSelected = () => state.viewLoadSeq === viewLoadId;
@@ -168,9 +172,6 @@ async function loadSelectedView(options = {}) {
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "inbox") {
     await loadActionInbox();
-    if (!currentViewStillSelected()) return;
-  } else if (state.viewMode === "learning") {
-    await loadLearningCoins();
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "wardrobe") {
     renderWardrobeView();

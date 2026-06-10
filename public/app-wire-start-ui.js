@@ -313,7 +313,9 @@ function wireUi() {
   });
   $("todosMode").addEventListener("click", async () => {
     clearQuotedReply({ render: false });
-    state.viewMode = "learning";
+    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
+    if (typeof rememberGrowthPluginReturnRoute === "function") rememberGrowthPluginReturnRoute();
+    state.viewMode = "growth";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
     state.currentThread = null;
@@ -322,7 +324,9 @@ function wireUi() {
   });
   $("bottomTodosMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });
-    state.viewMode = "learning";
+    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
+    if (typeof rememberGrowthPluginReturnRoute === "function") rememberGrowthPluginReturnRoute();
+    state.viewMode = "growth";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
     state.currentThread = null;

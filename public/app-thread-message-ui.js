@@ -37,10 +37,6 @@ async function createThread() {
     renderAutomationView();
     return;
   }
-  if (state.viewMode === "learning") {
-    renderLearningCoinsView();
-    return;
-  }
   if (state.viewMode === "projects") {
     await loadDirectoryView();
     return;

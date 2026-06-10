@@ -273,12 +273,7 @@ function applyEvent(payload) {
     }
     return;
   }
-  if (payload.type === "learning-coins.updated") {
-    if (state.viewMode === "learning" && (!payload.workspaceId || payload.workspaceId === learningGrowthLearnerWorkspaceId())) {
-      loadLearningCoins({ limit: 30 }).catch(showError);
-    }
-    return;
-  }
+  if (payload.type === "learning-coins.updated") return;
   if (payload.type === "snapshot") {
     const drafts = state.threads.filter(isDraftThread).filter(threadMatchesSelection);
     const incoming = (payload.threads || state.threads).filter(threadMatchesSelection);

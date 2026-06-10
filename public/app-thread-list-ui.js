@@ -9,10 +9,6 @@ function renderThreads() {
     renderActionInboxView();
     return;
   }
-  if (state.viewMode === "learning") {
-    renderLearningCoinsView();
-    return;
-  }
   if (state.viewMode === "todos") {
     renderTodoList();
     return;

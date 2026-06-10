@@ -351,8 +351,8 @@ function updateNavigationControls() {
     && typeof pluginTopicDefForGroupId === "function"
     && Boolean(pluginTopicDefForGroupId(state.currentTaskGroupId));
   const directoryBack = state.viewMode === "projects" && (Boolean(directoryActivePath()) || Boolean(state.directoryReturnRoute));
-  const learningGrowthDetail = state.viewMode === "learning" && Boolean(state.selectedLearningTaskCardId);
-  const learningGrowthSettings = state.viewMode === "learning" && Boolean(state.learningGrowthSettingsOpen);
+  const learningGrowthDetail = false;
+  const learningGrowthSettings = false;
   const pluginContextDef = typeof pluginTopicDefForViewMode === "function" ? pluginTopicDefForViewMode(state.viewMode) : null;
   const pluginContextButtonId = typeof pluginTopicBottomButtonId === "function" ? pluginTopicBottomButtonId(pluginContextDef) : "";
   const externalPluginContextNav = Boolean(pluginContextDef && pluginContextButtonId);
@@ -383,7 +383,6 @@ function updateNavigationControls() {
     || (state.viewMode === "todos" && !todoDetail)
     || (state.viewMode === "inbox" && !actionInboxDetail && !actionInboxCreate)
     || (state.viewMode === "automation" && !automationDetail)
-    || state.viewMode === "learning"
     || state.viewMode === "wardrobe"
     || state.viewMode === "codex"
     || state.viewMode === "finance"
@@ -405,7 +404,7 @@ function updateNavigationControls() {
   app?.classList.toggle("task-list-mode", taskList);
   app?.classList.toggle("plugin-context-nav-mode", pluginContextNav);
   app?.classList.toggle("embedded-plugin-preview-fullscreen-active", embeddedPluginPreviewFullscreen);
-  app?.classList.toggle("learning-mode", state.viewMode === "learning");
+  app?.classList.toggle("learning-mode", false);
   app?.classList.toggle("learning-settings-mode", learningGrowthSettings);
   app?.classList.toggle("centered-top-title-mode", centeredTopTitle);
   app?.classList.toggle("main-back-visible", mainBack);
@@ -486,7 +485,7 @@ function updateTopMoreControls() {
   const todoDetail = isTodoDetailView();
   const todoCreate = kanbanComposerOpen();
   const todoList = state.viewMode === "todos" && !todoDetail && !todoCreate;
-  const learningView = state.viewMode === "learning";
+  const learningView = false;
   const learningGrowthDetail = learningView && Boolean(state.selectedLearningTaskCardId);
   const actionInboxDetail = isActionInboxDetailView();
   const actionInboxCreate = isActionInboxCreateView();
