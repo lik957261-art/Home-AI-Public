@@ -67,6 +67,8 @@ const state = {
   streamLastConnectedAt: 0,
   streamLastError: "",
   lease: null,
+  coordinateCalibration: null,
+  coordinateCalibrationAt: 0,
 };
 
 function json(res, status, body) {
@@ -422,6 +424,177 @@ async function nativeExecute(command, payload = {}) {
   }
 }
 
+async function nativePointerTap(px, py, pauseMs = 80, pointerId = "finger1") {
+  await appium("POST", `/session/${state.sessionId}/actions`, {
+    actions: [{
+      type: "pointer",
+      id: pointerId,
+      parameters: { pointerType: "touch" },
+      actions: [
+        { type: "pointerMove", duration: 0, x: px, y: py },
+        { type: "pointerDown", button: 0 },
+        { type: "pause", duration: Math.max(0, Math.min(1200, Math.floor(Number(pauseMs || 0) || 0))) },
+        { type: "pointerUp", button: 0 },
+      ],
+    }],
+  });
+  await appium("DELETE", `/session/${state.sessionId}/actions`).catch(() => null);
+}
+
+function rawNativeCalibrationSummary(value) {
+  if (!value || typeof value !== "object") return null;
+  const out = {};
+  for (const key of ["offsetX", "offsetY", "pixelRatioX", "pixelRatioY", "x", "y", "dx", "dy"]) {
+    if (Number.isFinite(Number(value[key]))) out[key] = Number(value[key]);
+  }
+  return Object.keys(out).length ? out : value;
+}
+
+async function nativeCoordinateCalibration(options = {}) {
+  await connectSession();
+  const force = Boolean(options.force);
+  const now = Date.now();
+  if (!force && state.coordinateCalibration && now - state.coordinateCalibrationAt < 30000) {
+    return state.coordinateCalibration;
+  }
+
+  const rect = await appium("GET", `/session/${state.sessionId}/window/rect`);
+  const width = Number(rect?.value?.width || rect?.width || 0) || 1;
+  const height = Number(rect?.value?.height || rect?.height || 0) || 1;
+  const nativePoint = {
+    x: Math.max(8, Math.min(width - 8, Math.round(width * 0.5))),
+    y: Math.max(80, Math.min(height - 80, Math.round(height * 0.5))),
+  };
+  const probeId = `homeai-native-coordinate-probe-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const rawMobileCalibration = options.includeNativeCalibration
+    ? await nativeExecute("calibrateWebToRealCoordinatesTranslation", {})
+      .then(rawNativeCalibrationSummary)
+      .catch((err) => ({ error: String(err?.message || err || "calibration_command_failed").slice(0, 180) }))
+    : null;
+
+  await execute(`
+    const probeId = arguments[0];
+    const old = document.getElementById("__homeAiNativeCoordinateProbe");
+    if (old) old.remove();
+    window.__homeAiNativeCoordinateProbe = null;
+    const overlay = document.createElement("div");
+    overlay.id = "__homeAiNativeCoordinateProbe";
+    overlay.setAttribute("data-probe-id", probeId);
+    Object.assign(overlay.style, {
+      position: "fixed",
+      inset: "0",
+      zIndex: "2147483647",
+      background: "rgba(0,0,0,0)",
+      pointerEvents: "auto",
+      touchAction: "none"
+    });
+    const record = (event) => {
+      const touch = (event.changedTouches && event.changedTouches[0])
+        || (event.touches && event.touches[0])
+        || null;
+      const touchClientX = Number(touch && touch.clientX);
+      const touchClientY = Number(touch && touch.clientY);
+      const touchPageX = Number(touch && touch.pageX);
+      const touchPageY = Number(touch && touch.pageY);
+      const eventClientX = Number(event.clientX);
+      const eventClientY = Number(event.clientY);
+      const eventPageX = Number(event.pageX);
+      const eventPageY = Number(event.pageY);
+      const clientX = Number.isFinite(touchClientX) ? touchClientX : eventClientX;
+      const clientY = Number.isFinite(touchClientY) ? touchClientY : eventClientY;
+      const pageX = Number.isFinite(touchPageX) ? touchPageX : eventPageX;
+      const pageY = Number.isFinite(touchPageY) ? touchPageY : eventPageY;
+      window.__homeAiNativeCoordinateProbe = {
+        ok: true,
+        probeId,
+        type: event.type,
+        clientX,
+        clientY,
+        pageX,
+        pageY,
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        visualViewport: window.visualViewport ? {
+          width: window.visualViewport.width,
+          height: window.visualViewport.height,
+          offsetTop: window.visualViewport.offsetTop,
+          offsetLeft: window.visualViewport.offsetLeft,
+          scale: window.visualViewport.scale
+        } : null
+      };
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    ["pointerdown", "pointerup", "touchstart", "touchend", "mousedown", "mouseup", "click"].forEach((type) => {
+      overlay.addEventListener(type, record, true);
+    });
+    document.documentElement.appendChild(overlay);
+    return { ok: true, probeId, innerWidth: window.innerWidth, innerHeight: window.innerHeight };
+  `, [probeId]);
+
+  await nativePointerTap(nativePoint.x, nativePoint.y, 70, "coordinate-probe");
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  const probe = await execute(`
+    const probeId = arguments[0];
+    const probe = window.__homeAiNativeCoordinateProbe || null;
+    const overlay = document.getElementById("__homeAiNativeCoordinateProbe");
+    if (overlay && overlay.getAttribute("data-probe-id") === probeId) overlay.remove();
+    window.__homeAiNativeCoordinateProbe = null;
+    return probe;
+  `, [probeId]).catch(async (err) => {
+    await execute(`
+      const overlay = document.getElementById("__homeAiNativeCoordinateProbe");
+      if (overlay) overlay.remove();
+      window.__homeAiNativeCoordinateProbe = null;
+      return true;
+    `).catch(() => null);
+    throw err;
+  });
+
+  if (!probe || !Number.isFinite(Number(probe.clientX)) || !Number.isFinite(Number(probe.clientY))) {
+    throw new Error("native_coordinate_probe_failed");
+  }
+
+  const calibration = {
+    ok: true,
+    coordinateSpace: "web",
+    width,
+    height,
+    nativePoint,
+    webPoint: {
+      x: Number(probe.clientX),
+      y: Number(probe.clientY),
+    },
+    offsetX: Math.round((nativePoint.x - Number(probe.clientX)) * 1000) / 1000,
+    offsetY: Math.round((nativePoint.y - Number(probe.clientY)) * 1000) / 1000,
+    visualViewport: probe.visualViewport || null,
+    rawMobileCalibration,
+  };
+  state.coordinateCalibration = calibration;
+  state.coordinateCalibrationAt = Date.now();
+  return calibration;
+}
+
+function coordinateSpaceRequiresCalibration(value) {
+  return String(value || "").trim().toLowerCase() === "web";
+}
+
+function nativeCoordinatePoint(point = {}, rect = {}, calibration = null) {
+  const width = Number(rect.width || 0) || 1;
+  const height = Number(rect.height || 0) || 1;
+  const absoluteX = Number(point.absoluteX);
+  const absoluteY = Number(point.absoluteY);
+  const baseX = Number.isFinite(absoluteX) ? absoluteX : width * Number(point.x || 0);
+  const baseY = Number.isFinite(absoluteY) ? absoluteY : height * Number(point.y || 0);
+  const px = Number(baseX) + Number(calibration?.offsetX || 0);
+  const py = Number(baseY) + Number(calibration?.offsetY || 0);
+  return {
+    x: Math.max(0, Math.min(width - 1, Math.round(px))),
+    y: Math.max(0, Math.min(height - 1, Math.round(py))),
+    durationMs: Math.max(0, Math.min(4000, Math.floor(Number(point.durationMs || point.duration || 0) || 0))),
+  };
+}
+
 async function screenshotBase64(force = false) {
   if (args.screenshotSource !== "appium") return simctlScreenshotBase64(force);
   try {
@@ -671,29 +844,97 @@ async function nativeTapNormalized(x, y, options = {}) {
   const rect = await appium("GET", `/session/${state.sessionId}/window/rect`);
   const width = Number(rect?.value?.width || rect?.width || 0) || 1;
   const height = Number(rect?.value?.height || rect?.height || 0) || 1;
-  const absoluteX = Number(options.absoluteX);
-  const absoluteY = Number(options.absoluteY);
-  const px = Number.isFinite(absoluteX)
-    ? Math.max(0, Math.min(width - 1, Math.round(absoluteX)))
-    : Math.max(0, Math.min(width - 1, Math.round(width * Number(x || 0))));
-  const py = Number.isFinite(absoluteY)
-    ? Math.max(0, Math.min(height - 1, Math.round(absoluteY)))
-    : Math.max(0, Math.min(height - 1, Math.round(height * Number(y || 0))));
+  const calibration = coordinateSpaceRequiresCalibration(options.coordinateSpace)
+    ? await nativeCoordinateCalibration({ force: Boolean(options.forceCalibration) })
+    : null;
+  const point = nativeCoordinatePoint({
+    x,
+    y,
+    absoluteX: options.absoluteX,
+    absoluteY: options.absoluteY,
+  }, { width, height }, calibration);
+  await nativePointerTap(point.x, point.y, 80);
+  return { x: point.x, y: point.y, width, height, coordinateSpace: options.coordinateSpace || "screen", calibration };
+}
+
+function nativeTouchPoint(point = {}, rect = {}, calibration = null) {
+  return nativeCoordinatePoint(point, rect, calibration);
+}
+
+async function nativeTouchSequenceNormalized(sequence = {}) {
+  await connectSession();
+  const rect = await appium("GET", `/session/${state.sessionId}/window/rect`);
+  const size = {
+    width: Number(rect?.value?.width || rect?.width || 0) || 1,
+    height: Number(rect?.value?.height || rect?.height || 0) || 1,
+  };
+  const calibration = coordinateSpaceRequiresCalibration(sequence.coordinateSpace)
+    ? await nativeCoordinateCalibration({ force: Boolean(sequence.forceCalibration) })
+    : null;
+  const rawPoints = Array.isArray(sequence.points) ? sequence.points : [];
+  const points = rawPoints.map((point) => nativeTouchPoint(point, size, calibration));
+  if (!points.length) throw new Error("touch_sequence_points_required");
+  const holdMs = Math.max(0, Math.min(5000, Math.floor(Number(sequence.holdMs || 0) || 0)));
+  const actions = [
+    { type: "pointerMove", duration: 0, x: points[0].x, y: points[0].y },
+    { type: "pointerDown", button: 0 },
+  ];
+  if (holdMs > 0) actions.push({ type: "pause", duration: holdMs });
+  points.slice(1).forEach((point) => {
+    actions.push({ type: "pointerMove", duration: point.durationMs || 220, x: point.x, y: point.y });
+  });
+  const releasePauseMs = Math.max(0, Math.min(1200, Math.floor(Number(sequence.releasePauseMs || 0) || 0)));
+  if (releasePauseMs > 0) actions.push({ type: "pause", duration: releasePauseMs });
+  actions.push({ type: "pointerUp", button: 0 });
   await appium("POST", `/session/${state.sessionId}/actions`, {
     actions: [{
       type: "pointer",
-      id: "finger1",
+      id: `finger-${Date.now()}`,
       parameters: { pointerType: "touch" },
-      actions: [
-        { type: "pointerMove", duration: 0, x: px, y: py },
-        { type: "pointerDown", button: 0 },
-        { type: "pause", duration: 80 },
-        { type: "pointerUp", button: 0 },
-      ],
+      actions,
     }],
   });
   await appium("DELETE", `/session/${state.sessionId}/actions`).catch(() => null);
-  return { x: px, y: py, width, height };
+  return { width: size.width, height: size.height, points, holdMs, releasePauseMs, coordinateSpace: sequence.coordinateSpace || "screen", calibration };
+}
+
+async function nativeLongPressNormalized(x, y, options = {}) {
+  const holdMs = Math.max(450, Math.min(5000, Math.floor(Number(options.holdMs || options.durationMs || 700) || 700)));
+  return nativeTouchSequenceNormalized({
+    coordinateSpace: options.coordinateSpace,
+    forceCalibration: options.forceCalibration,
+    holdMs,
+    points: [{
+      x,
+      y,
+      absoluteX: options.absoluteX,
+      absoluteY: options.absoluteY,
+    }],
+  });
+}
+
+async function nativeSwipeNormalized(body = {}) {
+  const durationMs = Math.max(80, Math.min(3000, Math.floor(Number(body.durationMs || 260) || 260)));
+  return nativeTouchSequenceNormalized({
+    coordinateSpace: body.coordinateSpace,
+    forceCalibration: body.forceCalibration,
+    holdMs: Math.max(0, Math.min(1000, Math.floor(Number(body.holdMs || 0) || 0))),
+    points: [
+      {
+        x: body.startX,
+        y: body.startY,
+        absoluteX: body.startAbsoluteX,
+        absoluteY: body.startAbsoluteY,
+      },
+      {
+        x: body.endX,
+        y: body.endY,
+        absoluteX: body.endAbsoluteX,
+        absoluteY: body.endAbsoluteY,
+        durationMs,
+      },
+    ],
+  });
 }
 
 async function nativeSwipeBack() {
@@ -742,11 +983,29 @@ async function performAction(body = {}) {
     }
   }
   if (type === "home") return nativeExecute("pressButton", { name: "home" });
+  if (type === "calibrateCoordinates") {
+    return nativeCoordinateCalibration({
+      force: Boolean(body.force),
+      includeNativeCalibration: Boolean(body.includeNativeCalibration),
+    });
+  }
   if (type === "swipeBack") return nativeSwipeBack();
   if (type === "tap") return nativeTapNormalized(Number(body.x), Number(body.y), {
     absoluteX: body.absoluteX,
     absoluteY: body.absoluteY,
+    coordinateSpace: body.coordinateSpace,
+    forceCalibration: body.forceCalibration,
   });
+  if (type === "longPress") return nativeLongPressNormalized(Number(body.x), Number(body.y), {
+    absoluteX: body.absoluteX,
+    absoluteY: body.absoluteY,
+    holdMs: body.holdMs,
+    durationMs: body.durationMs,
+    coordinateSpace: body.coordinateSpace,
+    forceCalibration: body.forceCalibration,
+  });
+  if (type === "swipe") return nativeSwipeNormalized(body);
+  if (type === "touchSequence") return nativeTouchSequenceNormalized(body);
   if (type === "js") return execute(String(body.script || "return null;"), Array.isArray(body.args) ? body.args : []);
   if (type === "clickSelector") {
     return execute(`

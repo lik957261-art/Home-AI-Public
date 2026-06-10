@@ -332,6 +332,12 @@ Rules:
   Dock `常用` menu, long-press/context menus, search, or future launcher
   surfaces; do not recreate a second full app launcher or host-side MCP clone
   of plugin business logic;
+- quick-action gesture acceptance must cover both the Dock `常用` card and a
+  plugin icon. Native tap on `常用` must open its action menu; native long-press
+  on a plugin icon must open that plugin's action menu; a horizontal swipe
+  inside the expanded Dock strip must scroll or stay inert without opening a
+  plugin, dismissing the Dock, or triggering browser/back navigation; tapping a
+  quick action must open the plugin with `pluginActionId` and `pluginRoute`;
 - repeated cards, rows, badges, receipts, status panels, and action sheets
   should reuse existing Home AI patterns;
 - text must fit mixed Chinese/English labels without clipping or overlap;
@@ -379,6 +385,14 @@ visual-smoke failure if the screenshot or MJPEG stream and native-action path
 still prove the reported layout or gesture issue. For final acceptance
 evidence, record bounded artifact paths and metrics from the relevant harness
 level.
+
+When a checked harness derives a target from WebView DOM bounds, it must send
+the action as `coordinateSpace: "web"` through the live debug server. The server
+then runs its temporary full-screen coordinate probe and converts Web CSS
+coordinates to Appium touch coordinates before issuing `tap`, `longPress`, or
+`swipe`. Do not hand-tune per-device y offsets in product code or in plugin
+scripts. Screenshot or MJPEG click helpers that already use native screen
+coordinates must keep the default screen coordinate space.
 
 The live debug server has a required debug lane lease. Mutating operations and
 WebView/Appium deep reads must acquire `/api/lease` first; `debug_lane_locked`
@@ -583,6 +597,27 @@ npm run ios:pwa:visual -- \
   --scenario global-plugin-dock-gesture-stability \
   --debug-url http://127.0.0.1:19073/
 ```
+
+Plugin Dock quick-action, long-press menu, horizontal strip gesture, pinned-tab,
+or manifest action route changes must also run:
+
+```bash
+cd <Home-AI>
+npm run ios:pwa:visual -- \
+  --scenario plugin-drawer-action-gestures \
+  --plugin-id finance \
+  --plugin-action-id record \
+  --debug-url http://127.0.0.1:19073/
+```
+
+The scenario uses the live debug server's native touch actions, not screenshot
+coordinate guessing. It prepares the WebView surface, reads target bounds,
+calibrates WebView CSS coordinates to Appium touch coordinates, executes
+native `tap`, `longPress`, and `swipe`, then verifies the WebView route state.
+Other plugins can substitute their own `--plugin-id` and `--plugin-action-id`
+as long as the action is an ordinary `plugin_route` entry. Codex must not be
+used for this ordinary quick-action scenario because Codex does not expose
+normal user quick actions in the Home AI plugin edition.
 
 For Codex Mobile, pass a real thread id so the harness opens the thread-detail
 composer instead of the plugin's primary thread list. The scenario uses native

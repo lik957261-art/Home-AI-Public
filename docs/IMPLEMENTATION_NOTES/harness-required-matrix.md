@@ -75,6 +75,28 @@ scroll containers, cards, popups, drawers, embedded plugin frames, and any
 change where text or controls can overlap, drift, disappear, or become
 untappable.
 
+Plugin Dock quick-action, long-press menu, horizontal strip gesture, pinned
+plugin tab, or manifest action-route changes require the checked iOS PWA visual
+harness scenario:
+
+```bash
+npm run ios:pwa:visual -- \
+  --scenario plugin-drawer-action-gestures \
+  --plugin-id finance \
+  --plugin-action-id record \
+  --debug-url http://127.0.0.1:19073/
+```
+
+This scenario is the reusable acceptance gate for ordinary manifest actions.
+It uses native touch primitives from the live debug server and asserts both the
+gesture behavior and the resulting `pluginActionId` / `pluginRoute` launch
+state. It also calibrates WebView CSS coordinates to native Appium coordinates
+inside the shared live debug server before issuing `tap`, `longPress`, or
+`swipe`; plugin workspaces must not carry local y-offset fixes or screenshot
+coordinate scripts for this gate. Do not use Codex as the ordinary action
+sample because the Home AI plugin edition of Codex intentionally has no normal
+user quick actions.
+
 As of 2026-06-02, the maintained ADB Android 13 e-ink target is the default
 real-device UI harness target for Hermes Mobile when the assertion is not about
 exact color. Any UI, navigation, gesture, layout, installed-PWA refresh, bottom

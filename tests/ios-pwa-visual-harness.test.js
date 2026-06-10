@@ -26,6 +26,7 @@ const {
   assertEmbeddedPluginKeyboardComposer,
   assertEmbeddedPluginShell,
   assertGlobalPluginDockGestureStability,
+  assertPluginDrawerActionGestures,
   assertPluginTopicDockReturnStability,
   defaultLockPath,
   parseArgs,
@@ -42,7 +43,9 @@ assert.ok(SCENARIOS["embedded-plugin-keyboard-composer"]);
 assert.ok(SCENARIOS["embedded-plugin-side-chat-keyboard"]);
 assert.ok(SCENARIOS["plugin-topic-dock-return-stability"]);
 assert.ok(SCENARIOS["global-plugin-dock-gesture-stability"]);
+assert.ok(SCENARIOS["plugin-drawer-action-gestures"]);
 assert.deepEqual(parseArgs(["--scenario", "embedded-plugin-shell", "--plugin-id", "finance"]).pluginId, "finance");
+assert.deepEqual(parseArgs(["--plugin-action-id", "record"]).pluginActionId, "record");
 assert.deepEqual(
   parseArgs(["--scenario", "embedded-plugin-keyboard-composer", "--plugin-id", "codex-mobile", "--plugin-thread-id", "thread-123"]).pluginThreadId,
   "thread-123",
@@ -77,8 +80,11 @@ assert.match(script, /embedded-plugin-keyboard-composer/);
 assert.match(script, /embedded-plugin-side-chat-keyboard/);
 assert.match(script, /plugin-topic-dock-return-stability/);
 assert.match(script, /global-plugin-dock-gesture-stability/);
+assert.match(script, /plugin-drawer-action-gestures/);
 assert.match(script, /PLUGIN_TOPIC_DOCK_RETURN_STABILITY_SCRIPT/);
 assert.match(script, /GLOBAL_PLUGIN_DOCK_GESTURE_STABILITY_SCRIPT/);
+assert.match(script, /PLUGIN_DRAWER_ACTION_GESTURES_PREPARE_SCRIPT/);
+assert.match(script, /PLUGIN_DRAWER_ACTION_GESTURES_MEASURE_SCRIPT/);
 assert.match(script, /dock_visible_only_in_global_plugin_dock_mode/);
 assert.match(script, /dock_stays_hidden_until_global_plugin_dock_mode/);
 assert.match(script, /dock_hidden_during_back_swipe_settle/);
@@ -93,7 +99,18 @@ assert.match(script, /plugin_surface_global_dock_visible/);
 assert.match(script, /plugin_surface_uses_valid_dock_anchor/);
 assert.match(script, /pluginSurfaceUsesContextNavAnchor/);
 assert.match(script, /bottom_nav_rect_stable_during_dock_gestures/);
+assert.match(script, /quick_card_native_tap_opens_menu/);
+assert.match(script, /plugin_icon_native_long_press_opens_menu/);
+assert.match(script, /strip_horizontal_swipe_keeps_drawer_surface/);
+assert.match(script, /action_route_carries_plugin_action_id/);
+assert.match(script, /calibrate-web-native-coordinates/);
+assert.match(script, /type: "calibrateCoordinates"/);
+assert.match(script, /coordinateSpace: "web"/);
+assert.match(script, /native-strip-horizontal-swipe/);
+assert.match(script, /type: "longPress"/);
+assert.match(script, /type: "swipe"/);
 assert.match(script, /--plugin-thread-id/);
+assert.match(script, /--plugin-action-id/);
 assert.match(script, /host_keyboard_visible_after_input_tap/);
 assert.match(script, /plugin_input_above_keyboard/);
 assert.match(script, /plugin_received_keyboard_viewport_state/);
@@ -352,6 +369,102 @@ assert.equal(globalDockGestureFail.ok, false);
 assert.ok(globalDockGestureFail.assertions.some((item) => item.name === "short_vertical_mistouch_does_not_expand" && !item.pass));
 assert.ok(globalDockGestureFail.assertions.some((item) => item.name === "expanded_strip_right_swipe_keeps_dock_open" && !item.pass));
 assert.ok(globalDockGestureFail.assertions.some((item) => item.name === "bottom_nav_rect_stable_during_dock_gestures" && !item.pass));
+
+const drawerActionGesturePass = assertPluginDrawerActionGestures({
+  pluginId: "finance",
+  actionId: "record",
+  expectedViewMode: "finance",
+  expectedPluginRoute: "record",
+  samples: [
+    {
+      phase: "prepared",
+      ok: true,
+      pluginId: "finance",
+      actionId: "record",
+      expectedViewMode: "finance",
+      expectedPluginRoute: "record",
+      state: { viewMode: "tasks" },
+      dock: { expanded: true },
+      quickCard: { tap: { absoluteX: 30, absoluteY: 760 }, menuOpen: false },
+      pluginCard: { tap: { absoluteX: 90, absoluteY: 760 }, menuOpen: false },
+      actionButton: { tap: { absoluteX: 80, absoluteY: 680 } },
+      stripSwipe: { startAbsoluteX: 300, startAbsoluteY: 760, endAbsoluteX: 180, endAbsoluteY: 760 },
+      bottomNav: { bottom: 826, width: 390, height: 58 },
+    },
+    {
+      phase: "after-quick-tap",
+      state: { viewMode: "tasks" },
+      dock: { expanded: true },
+      quickCard: { menuOpen: true },
+      quickMenu: { visible: true },
+      bottomNav: { bottom: 826, width: 390, height: 58 },
+    },
+    {
+      phase: "after-plugin-long-press",
+      state: { viewMode: "tasks" },
+      dock: { expanded: true },
+      pluginCard: { menuOpen: true },
+      pluginMenu: { visible: true },
+      bottomNav: { bottom: 826, width: 390, height: 58 },
+    },
+    {
+      phase: "after-strip-horizontal-swipe",
+      state: { viewMode: "tasks" },
+      dock: { expanded: true },
+      pluginMenu: { visible: false },
+      quickMenu: { visible: false },
+      bottomNav: { bottom: 826, width: 390, height: 58 },
+    },
+    {
+      phase: "after-quick-reopen",
+      state: { viewMode: "tasks" },
+      dock: { expanded: true },
+      quickMenu: { visible: true },
+      actionButton: { tap: { absoluteX: 80, absoluteY: 680 } },
+      bottomNav: { bottom: 826, width: 390, height: 58 },
+    },
+    {
+      phase: "after-action-tap",
+      state: { viewMode: "finance" },
+      dock: { expanded: false },
+      route: { pluginActionId: "record", pluginRoute: "record" },
+    },
+  ],
+});
+assert.equal(drawerActionGesturePass.ok, true);
+
+const drawerActionGestureFail = assertPluginDrawerActionGestures({
+  pluginId: "finance",
+  actionId: "record",
+  expectedViewMode: "finance",
+  expectedPluginRoute: "record",
+  samples: [
+    {
+      phase: "prepared",
+      ok: true,
+      pluginId: "finance",
+      actionId: "record",
+      expectedViewMode: "finance",
+      expectedPluginRoute: "record",
+      state: { viewMode: "tasks" },
+      dock: { expanded: true },
+      quickCard: { tap: { absoluteX: 30, absoluteY: 760 } },
+      pluginCard: { tap: { absoluteX: 90, absoluteY: 760 } },
+      actionButton: { tap: { absoluteX: 80, absoluteY: 680 } },
+      stripSwipe: { startAbsoluteX: 300, startAbsoluteY: 760, endAbsoluteX: 180, endAbsoluteY: 760 },
+      bottomNav: { bottom: 826, width: 390, height: 58 },
+    },
+    { phase: "after-quick-tap", state: { viewMode: "tasks" }, quickCard: { menuOpen: false }, quickMenu: { visible: false }, bottomNav: { bottom: 826, width: 390, height: 58 } },
+    { phase: "after-plugin-long-press", state: { viewMode: "tasks" }, pluginCard: { menuOpen: false }, pluginMenu: { visible: false }, bottomNav: { bottom: 826, width: 390, height: 58 } },
+    { phase: "after-strip-horizontal-swipe", state: { viewMode: "single" }, dock: { expanded: false }, pluginMenu: { visible: false }, quickMenu: { visible: false }, bottomNav: { bottom: 829, width: 390, height: 58 } },
+    { phase: "after-action-tap", state: { viewMode: "tasks" }, dock: { expanded: true }, route: { pluginActionId: "wrong", pluginRoute: "other" } },
+  ],
+});
+assert.equal(drawerActionGestureFail.ok, false);
+assert.ok(drawerActionGestureFail.assertions.some((item) => item.name === "quick_card_native_tap_opens_menu" && !item.pass));
+assert.ok(drawerActionGestureFail.assertions.some((item) => item.name === "plugin_icon_native_long_press_opens_menu" && !item.pass));
+assert.ok(drawerActionGestureFail.assertions.some((item) => item.name === "strip_horizontal_swipe_keeps_drawer_surface" && !item.pass));
+assert.ok(drawerActionGestureFail.assertions.some((item) => item.name === "action_route_carries_plugin_action_id" && !item.pass));
 
 const keyboardPass = assertEmbeddedPluginKeyboardComposer({
   pluginId: "codex-mobile",

@@ -13,6 +13,7 @@ function parseArgs(argv = process.argv.slice(2)) {
     appUrl: "",
     scenario: "directory-dark-status",
     pluginId: "",
+    pluginActionId: "",
     pluginThreadId: "",
     theme: "dark",
     keyboardTarget: "composer",
@@ -39,6 +40,7 @@ function parseArgs(argv = process.argv.slice(2)) {
     else if (item === "--app-url") out.appUrl = next();
     else if (item === "--scenario") out.scenario = next() || out.scenario;
     else if (item === "--plugin-id") out.pluginId = next();
+    else if (item === "--plugin-action-id") out.pluginActionId = next();
     else if (item === "--plugin-thread-id") out.pluginThreadId = next();
     else if (item === "--theme") out.theme = next() || out.theme;
     else if (item === "--keyboard-target") out.keyboardTarget = next() || out.keyboardTarget;
@@ -105,8 +107,9 @@ function printHelp() {
     "Options:",
     "  --debug-url <url>      Live debug server URL. Default: http://127.0.0.1:19073/",
     "  --app-url <url>        Optional app URL to open through the live debug server before the scenario.",
-    "  --scenario <name>      directory-dark-status, dark-admin-surfaces, dark-growth-surfaces, embedded-plugin-shell, embedded-plugin-keyboard-composer, embedded-plugin-side-chat-keyboard, plugin-topic-dock-return-stability, or global-plugin-dock-gesture-stability.",
+    "  --scenario <name>      directory-dark-status, dark-admin-surfaces, dark-growth-surfaces, embedded-plugin-shell, embedded-plugin-keyboard-composer, embedded-plugin-side-chat-keyboard, plugin-topic-dock-return-stability, global-plugin-dock-gesture-stability, or plugin-drawer-action-gestures.",
     "  --plugin-id <id>       Required by embedded plugin scenarios.",
+    "  --plugin-action-id <id> Optional action id for plugin-drawer-action-gestures. Defaults to finance:record.",
     "  --plugin-thread-id <id> Optional thread id for embedded plugin keyboard scenarios.",
     "  --theme <mode>         Theme hint for scenarios. Default: dark.",
     "  --keyboard-target <name> composer or side-chat. Scenario defaults are normally enough.",
@@ -843,6 +846,269 @@ const GLOBAL_PLUGIN_DOCK_GESTURE_STABILITY_SCRIPT = `
     theme: document.documentElement.getAttribute("data-theme") || "",
     samples,
     final: samples[samples.length - 1] ? Object.assign({}, samples[samples.length - 1]) : null,
+  }));
+`;
+
+const PLUGIN_DRAWER_ACTION_GESTURES_PREPARE_SCRIPT = `
+  const requestedPluginId = String(arguments[0] || "finance").trim() || "finance";
+  const requestedActionId = String(arguments[1] || "record").trim() || "record";
+  const theme = arguments[2] || "dark";
+  const rect = (node) => {
+    if (!node) return null;
+    const r = node.getBoundingClientRect();
+    return { top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom), left: Math.round(r.left), width: Math.round(r.width), height: Math.round(r.height) };
+  };
+  const tap = (node) => {
+    const box = rect(node);
+    if (!box || box.width <= 0 || box.height <= 0) return null;
+    const centerX = box.left + box.width / 2;
+    const centerY = box.top + box.height / 2;
+    return {
+      x: Math.max(0, Math.min(1, centerX / Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1))),
+      y: Math.max(0, Math.min(1, centerY / Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1))),
+      absoluteX: Math.round(centerX),
+      absoluteY: Math.round(centerY),
+    };
+  };
+  const visible = (node) => {
+    if (!node) return false;
+    const box = rect(node);
+    const style = getComputedStyle(node);
+    return Boolean(!node.hidden && style.display !== "none" && style.visibility !== "hidden" && box && box.width > 0 && box.height > 0);
+  };
+  const actionSelector = (pluginId, actionId) => [
+    "[data-plugin-topic-action-plugin='",
+    CSS.escape(pluginId),
+    "'][data-plugin-topic-action-id='",
+    CSS.escape(actionId),
+    "']",
+  ].join("");
+  const appState = typeof state !== "undefined" && state && typeof state === "object"
+    ? state
+    : (window.state && typeof window.state === "object" ? window.state : null);
+  try { localStorage.setItem("hermesWebTheme", theme); } catch (_) {}
+  if (appState) appState.themeMode = theme;
+  if (typeof applyThemePreference === "function") applyThemePreference(theme);
+  else document.documentElement.setAttribute("data-theme", theme);
+  if (!appState) return { ok: false, scenario: "plugin-drawer-action-gestures", error: "state_missing" };
+  appState.viewMode = "tasks";
+  appState.singleWindowMode = "chat";
+  appState.currentTaskGroupId = "";
+  appState.pluginContextNavPluginId = "";
+  appState.directoryPluginContextActive = false;
+  appState.keyboardViewportActive = false;
+  appState.currentThread = {
+    id: "visual-plugin-drawer-action-thread",
+    title: "Visual plugin drawer action thread",
+    singleWindow: true,
+    workspaceId: appState.selectedWorkspaceId || "owner",
+    projectId: "general",
+    subprojectId: "",
+    messages: [],
+    taskGroupMeta: {},
+  };
+  appState.taskListThread = appState.currentThread;
+  appState.taskListThreadId = appState.currentThread.id;
+  appState.currentThreadId = appState.currentThread.id;
+  document.documentElement.classList.remove("keyboard-viewport-active");
+  if (typeof hideActivePluginHostsForPluginTopicNavigation === "function") hideActivePluginHostsForPluginTopicNavigation();
+  if (typeof setEmbeddedPluginHostVisible === "function" && typeof EMBEDDED_PLUGIN_DEFS === "object") {
+    Object.values(EMBEDDED_PLUGIN_DEFS || {}).forEach((item) => setEmbeddedPluginHostVisible(item, false));
+  }
+  const app = document.getElementById("app");
+  app?.classList?.remove?.(
+    "codex-mode",
+    "wardrobe-mode",
+    "finance-mode",
+    "email-mode",
+    "health-mode",
+    "note-mode",
+    "growth-plugin-mode",
+    "codex-plugin-host-active",
+    "wardrobe-plugin-host-active",
+    "finance-plugin-host-active",
+    "email-plugin-host-active",
+    "health-plugin-host-active",
+    "note-plugin-host-active",
+    "growth-plugin-host-active",
+    "embedded-plugin-host-active",
+    "embedded-plugin-preview-fullscreen-active",
+    "main-back-visible",
+    "plugin-context-nav-mode",
+    "page-back-dragging",
+    "page-back-settling",
+  );
+  if (typeof applyViewMode === "function") applyViewMode();
+  if (typeof renderThreads === "function") renderThreads();
+  if (typeof updateNavigationControls === "function") updateNavigationControls();
+  if (typeof ensurePluginTopicUsageLoaded === "function") ensurePluginTopicUsageLoaded();
+  const defs = typeof availablePluginTopicDefs === "function" ? availablePluginTopicDefs() : [];
+  let def = typeof pluginTopicDefById === "function" ? pluginTopicDefById(requestedPluginId) : null;
+  if (!def || def.id === "codex-mobile") {
+    def = defs.find((item) => item && item.id !== "codex-mobile" && typeof pluginTopicQuickActions === "function" && pluginTopicQuickActions(item).length) || null;
+  }
+  if (!def) return { ok: false, scenario: "plugin-drawer-action-gestures", error: "plugin_def_missing", requestedPluginId };
+  let action = typeof pluginTopicQuickActions === "function"
+    ? pluginTopicQuickActions(def, { placement: "plugin_drawer_frequent" }).find((item) => item.id === requestedActionId)
+    : null;
+  if (!action && typeof pluginTopicQuickActions === "function") action = pluginTopicQuickActions(def, { placement: "plugin_drawer_frequent" })[0] || null;
+  if (typeof setTopicPluginDock === "function" && typeof renderPluginAppLauncher === "function") setTopicPluginDock(renderPluginAppLauncher());
+  if (typeof updateTopicPluginDockChrome === "function") updateTopicPluginDockChrome(true);
+  if (typeof setGlobalPluginDockExpanded === "function") setGlobalPluginDockExpanded(true, { persist: false });
+  if (typeof updateMobileBottomNavReservation === "function") updateMobileBottomNavReservation();
+  const dock = document.getElementById("topicPluginDock");
+  const strip = dock?.querySelector?.(".plugin-app-strip") || null;
+  const quickCard = dock?.querySelector?.("[data-plugin-drawer-quick-actions]") || null;
+  const quickMenu = dock?.querySelector?.("[data-plugin-drawer-action-menu]") || null;
+  if (strip) strip.scrollLeft = 0;
+  let pluginCard = dock?.querySelector?.("[data-plugin-topic-open-app='" + CSS.escape(def.id) + "']") || null;
+  let actionButton = action ? quickMenu?.querySelector?.(actionSelector(def.id, action.id)) : null;
+  if (!actionButton) {
+    actionButton = quickMenu?.querySelector?.("[data-plugin-topic-action-plugin][data-plugin-topic-action-id]") || null;
+    if (actionButton && typeof pluginTopicActionById === "function") {
+      const resolved = pluginTopicActionById(actionButton.dataset.pluginTopicActionPlugin, actionButton.dataset.pluginTopicActionId);
+      if (resolved) {
+        def = resolved.def;
+        action = resolved.action;
+      }
+    }
+  }
+  const actionEntry = action?.entry && typeof action.entry === "object" ? action.entry : {};
+  const expectedPluginRoute = String(actionEntry.pluginRoute || action?.pluginRoute || action?.route || action?.id || "").trim();
+  const stripBox = rect(strip);
+  const swipeY = stripBox ? Math.round(stripBox.top + stripBox.height / 2) : 0;
+  const swipeStartX = stripBox ? Math.round(Math.min(stripBox.right - 20, stripBox.left + Math.max(56, stripBox.width * 0.72))) : 0;
+  const swipeEndX = stripBox ? Math.round(Math.max(stripBox.left + 20, swipeStartX - Math.max(72, stripBox.width * 0.36))) : 0;
+  return JSON.parse(JSON.stringify({
+    ok: Boolean(dock && strip && quickCard && quickMenu && pluginCard && actionButton && action),
+    scenario: "plugin-drawer-action-gestures",
+    error: (!dock && "dock_missing") || (!strip && "strip_missing") || (!quickCard && "quick_card_missing") || (!quickMenu && "quick_menu_missing") || (!pluginCard && "plugin_card_missing") || (!actionButton && "quick_action_missing") || (!action && "action_missing") || "",
+    requestedPluginId,
+    requestedActionId,
+    pluginId: def.id,
+    actionId: action?.id || "",
+    expectedPluginRoute,
+    expectedViewMode: def.viewMode || def.id,
+    clientVersion: document.documentElement.getAttribute("data-client-version") || "",
+    theme: document.documentElement.getAttribute("data-theme") || "",
+    state: {
+      viewMode: appState.viewMode || "",
+      currentTaskGroupId: appState.currentTaskGroupId || "",
+      pluginContextNavPluginId: appState.pluginContextNavPluginId || "",
+    },
+    dock: {
+      hidden: dock ? Boolean(dock.hidden) : null,
+      expanded: Boolean(dock?.classList?.contains("global-plugin-dock-expanded")),
+      collapsed: Boolean(dock?.classList?.contains("global-plugin-dock-collapsed")),
+      state: dock?.dataset?.globalPluginDockState || "",
+      rect: rect(dock),
+    },
+    strip: {
+      rect: stripBox,
+      scrollLeft: Math.round(strip?.scrollLeft || 0),
+      scrollWidth: Math.round(strip?.scrollWidth || 0),
+      clientWidth: Math.round(strip?.clientWidth || 0),
+    },
+    quickCard: { rect: rect(quickCard), tap: tap(quickCard), menuOpen: visible(quickMenu) },
+    pluginCard: { rect: rect(pluginCard), tap: tap(pluginCard), menuOpen: Boolean(pluginCard?.classList?.contains("menu-open")) },
+    actionButton: { rect: rect(actionButton), tap: tap(actionButton) },
+    stripSwipe: stripBox ? {
+      startAbsoluteX: swipeStartX,
+      startAbsoluteY: swipeY,
+      endAbsoluteX: swipeEndX,
+      endAbsoluteY: swipeY,
+    } : null,
+    bottomNav: rect(document.getElementById("bottomNav")),
+  }));
+`;
+
+const PLUGIN_DRAWER_ACTION_GESTURES_MEASURE_SCRIPT = `
+  const phase = String(arguments[0] || "measure");
+  const pluginId = String(arguments[1] || "finance").trim() || "finance";
+  const actionId = String(arguments[2] || "record").trim() || "record";
+  const expectedPluginRoute = String(arguments[3] || "").trim();
+  const rect = (node) => {
+    if (!node) return null;
+    const r = node.getBoundingClientRect();
+    return { top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom), left: Math.round(r.left), width: Math.round(r.width), height: Math.round(r.height) };
+  };
+  const tap = (node) => {
+    const box = rect(node);
+    if (!box || box.width <= 0 || box.height <= 0) return null;
+    const centerX = box.left + box.width / 2;
+    const centerY = box.top + box.height / 2;
+    return {
+      x: Math.max(0, Math.min(1, centerX / Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1))),
+      y: Math.max(0, Math.min(1, centerY / Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1))),
+      absoluteX: Math.round(centerX),
+      absoluteY: Math.round(centerY),
+    };
+  };
+  const visible = (node) => {
+    if (!node) return false;
+    const box = rect(node);
+    const style = getComputedStyle(node);
+    return Boolean(!node.hidden && style.display !== "none" && style.visibility !== "hidden" && box && box.width > 0 && box.height > 0);
+  };
+  const dock = document.getElementById("topicPluginDock");
+  const strip = dock?.querySelector?.(".plugin-app-strip") || null;
+  const quickCard = dock?.querySelector?.("[data-plugin-drawer-quick-actions]") || null;
+  const quickMenu = dock?.querySelector?.("[data-plugin-drawer-action-menu]") || null;
+  const pluginCard = dock?.querySelector?.("[data-plugin-topic-open-app='" + CSS.escape(pluginId) + "']") || null;
+  const pluginMenu = dock?.querySelector?.("[data-plugin-topic-action-menu='" + CSS.escape(pluginId) + "']") || null;
+  const actionButton = dock?.querySelector?.("[data-plugin-topic-action-plugin='" + CSS.escape(pluginId) + "'][data-plugin-topic-action-id='" + CSS.escape(actionId) + "']") || null;
+  const appState = typeof state !== "undefined" && state && typeof state === "object"
+    ? state
+    : (window.state && typeof window.state === "object" ? window.state : null);
+  const record = appState?.embeddedPlugins?.[pluginId] || null;
+  const stripBox = rect(strip);
+  const swipeY = stripBox ? Math.round(stripBox.top + stripBox.height / 2) : 0;
+  const swipeStartX = stripBox ? Math.round(Math.min(stripBox.right - 20, stripBox.left + Math.max(56, stripBox.width * 0.72))) : 0;
+  const swipeEndX = stripBox ? Math.round(Math.max(stripBox.left + 20, swipeStartX - Math.max(72, stripBox.width * 0.36))) : 0;
+  return JSON.parse(JSON.stringify({
+    ok: true,
+    scenario: "plugin-drawer-action-gestures",
+    phase,
+    pluginId,
+    actionId,
+    expectedPluginRoute,
+    clientVersion: document.documentElement.getAttribute("data-client-version") || "",
+    theme: document.documentElement.getAttribute("data-theme") || "",
+    state: {
+      viewMode: appState?.viewMode || "",
+      currentTaskGroupId: appState?.currentTaskGroupId || "",
+      currentThreadId: appState?.currentThreadId || "",
+      pluginContextNavPluginId: appState?.pluginContextNavPluginId || "",
+    },
+    route: record?.openRoute || null,
+    dock: {
+      exists: Boolean(dock),
+      hidden: dock ? Boolean(dock.hidden) : null,
+      expanded: Boolean(dock?.classList?.contains("global-plugin-dock-expanded")),
+      collapsed: Boolean(dock?.classList?.contains("global-plugin-dock-collapsed")),
+      state: dock?.dataset?.globalPluginDockState || "",
+      rect: rect(dock),
+      menuScopeOpen: Boolean(dock?.classList?.contains("capability-menu-open")),
+      navigationSettling: Boolean(dock?.classList?.contains("global-plugin-dock-navigation-settling")),
+    },
+    strip: {
+      rect: stripBox,
+      scrollLeft: Math.round(strip?.scrollLeft || 0),
+      scrollWidth: Math.round(strip?.scrollWidth || 0),
+      clientWidth: Math.round(strip?.clientWidth || 0),
+    },
+    quickCard: { exists: Boolean(quickCard), rect: rect(quickCard), tap: tap(quickCard), menuOpen: Boolean(quickCard?.classList?.contains("menu-open")) },
+    quickMenu: { exists: Boolean(quickMenu), visible: visible(quickMenu), hidden: quickMenu ? Boolean(quickMenu.hidden) : null, rect: rect(quickMenu) },
+    pluginCard: { exists: Boolean(pluginCard), rect: rect(pluginCard), tap: tap(pluginCard), menuOpen: Boolean(pluginCard?.classList?.contains("menu-open")) },
+    pluginMenu: { exists: Boolean(pluginMenu), visible: visible(pluginMenu), hidden: pluginMenu ? Boolean(pluginMenu.hidden) : null, rect: rect(pluginMenu) },
+    actionButton: { exists: Boolean(actionButton), rect: rect(actionButton), tap: tap(actionButton) },
+    stripSwipe: stripBox ? {
+      startAbsoluteX: swipeStartX,
+      startAbsoluteY: swipeY,
+      endAbsoluteX: swipeEndX,
+      endAbsoluteY: swipeY,
+    } : null,
+    bottomNav: rect(document.getElementById("bottomNav")),
   }));
 `;
 
@@ -1842,6 +2108,74 @@ function assertGlobalPluginDockGestureStability(metrics = {}) {
   return { ok: assertions.every((item) => item.pass), assertions };
 }
 
+function assertPluginDrawerActionGestures(metrics = {}) {
+  const samples = Array.isArray(metrics.samples) ? metrics.samples : [];
+  const byPhase = new Map(samples.map((sample) => [sample?.phase || "", sample]));
+  const prepared = byPhase.get("prepared") || samples[0] || {};
+  const afterQuickTap = byPhase.get("after-quick-tap") || {};
+  const afterLongPress = byPhase.get("after-plugin-long-press") || {};
+  const afterStripSwipe = byPhase.get("after-strip-horizontal-swipe") || {};
+  const afterAction = byPhase.get("after-action-tap") || metrics;
+  const actionRoute = afterAction.route || metrics.route || null;
+  const expectedViewMode = String(metrics.expectedViewMode || prepared.expectedViewMode || metrics.pluginId || "").trim();
+  const expectedRoute = String(metrics.expectedPluginRoute || prepared.expectedPluginRoute || metrics.actionId || "").trim();
+  const preActionNavRects = samples
+    .filter((sample) => [
+      "prepared",
+      "after-quick-tap",
+      "after-plugin-long-press",
+      "after-strip-horizontal-swipe",
+      "after-quick-reopen",
+    ].includes(String(sample?.phase || "")))
+    .map((sample) => sample?.bottomNav)
+    .filter((rect) => rect && Number(rect.width || 0) > 0 && Number(rect.height || 0) > 0 && Number.isFinite(Number(rect.bottom)));
+  const navBottomRange = preActionNavRects.length >= 2
+    ? Math.max(...preActionNavRects.map((rect) => Number(rect.bottom))) - Math.min(...preActionNavRects.map((rect) => Number(rect.bottom)))
+    : 0;
+  const assertions = [
+    assertion("drawer_action_gesture_samples_recorded", samples.length >= 5, { sampleCount: samples.length }),
+    assertion("drawer_action_targets_prepared", Boolean(prepared.ok && prepared.quickCard?.tap && prepared.pluginCard?.tap && prepared.stripSwipe && prepared.actionId && prepared.expectedPluginRoute), {
+      prepared,
+    }),
+    assertion("quick_card_native_tap_opens_menu", Boolean(afterQuickTap.quickMenu?.visible && afterQuickTap.quickCard?.menuOpen), {
+      afterQuickTap,
+    }),
+    assertion("plugin_icon_native_long_press_opens_menu", Boolean(afterLongPress.pluginMenu?.visible && afterLongPress.pluginCard?.menuOpen), {
+      afterLongPress,
+    }),
+    assertion("strip_horizontal_swipe_keeps_drawer_surface", Boolean(
+      afterStripSwipe.state?.viewMode === prepared.state?.viewMode
+      && afterStripSwipe.dock?.expanded === true
+      && !afterStripSwipe.pluginMenu?.visible
+      && !afterStripSwipe.quickMenu?.visible
+    ), {
+      beforeViewMode: prepared.state?.viewMode || "",
+      afterStripSwipe,
+    }),
+    assertion("action_native_tap_opens_plugin_view", Boolean(afterAction.state?.viewMode === expectedViewMode), {
+      expectedViewMode,
+      actualViewMode: afterAction.state?.viewMode || "",
+      afterAction,
+    }),
+    assertion("action_route_carries_plugin_action_id", Boolean(actionRoute && String(actionRoute.pluginActionId || "") === String(metrics.actionId || prepared.actionId || "")), {
+      expectedActionId: metrics.actionId || prepared.actionId || "",
+      route: actionRoute,
+    }),
+    assertion("action_route_carries_plugin_route", Boolean(!expectedRoute || (actionRoute && String(actionRoute.pluginRoute || "") === expectedRoute)), {
+      expectedPluginRoute: expectedRoute,
+      route: actionRoute,
+    }),
+    assertion("drawer_collapses_after_action_launch", Boolean(afterAction.dock?.expanded === false), {
+      dock: afterAction.dock || null,
+    }),
+    assertion("bottom_nav_rect_stable_before_action_launch", navBottomRange <= 1, {
+      navBottomRange,
+      preActionNavRects,
+    }),
+  ];
+  return { ok: assertions.every((item) => item.pass), assertions };
+}
+
 function assertEmbeddedPluginKeyboardComposer(metrics = {}) {
   const frame = metrics.frame?.rect || null;
   const input = metrics.absolute?.input || null;
@@ -1996,6 +2330,15 @@ const SCENARIOS = Object.freeze({
     measureArgs: () => [],
     assert: assertGlobalPluginDockGestureStability,
   }),
+  "plugin-drawer-action-gestures": Object.freeze({
+    description: "Use native iOS tap, long-press, and horizontal swipe on the global plugin Dock, then assert a quick action opens the plugin route.",
+    prepareScript: PLUGIN_DRAWER_ACTION_GESTURES_PREPARE_SCRIPT,
+    prepareArgs: (options) => [options.pluginId || "finance", options.pluginActionId || "record", options.theme || "dark"],
+    measureScript: null,
+    measureArgs: () => [],
+    nativeRun: runPluginDrawerActionGestureSequence,
+    assert: assertPluginDrawerActionGestures,
+  }),
   "embedded-plugin-keyboard-composer": Object.freeze({
     description: "Open an embedded plugin thread, tap its composer, and assert the input stays above the iOS keyboard.",
     prepareScript: EMBEDDED_PLUGIN_KEYBOARD_PREPARE_SCRIPT,
@@ -2022,6 +2365,189 @@ const SCENARIOS = Object.freeze({
 
 function listScenarios() {
   return Object.entries(SCENARIOS).map(([id, item]) => ({ id, description: item.description }));
+}
+
+async function closePluginDrawerActionMenus(options, label = "close-plugin-drawer-action-menus") {
+  return postAction(options, {
+    type: "js",
+    label,
+    script: `
+      if (typeof closePluginActionMenus === "function") closePluginActionMenus(document);
+      if (typeof resetGlobalPluginDockGesture === "function") resetGlobalPluginDockGesture();
+      return { ok: true };
+    `,
+    args: [],
+  });
+}
+
+async function measurePluginDrawerActionGesture(options, phase, prepared = {}) {
+  return postAction(options, {
+    type: "js",
+    label: phase,
+    script: PLUGIN_DRAWER_ACTION_GESTURES_MEASURE_SCRIPT,
+    args: [
+      phase,
+      prepared.pluginId || options.pluginId || "finance",
+      prepared.actionId || options.pluginActionId || "record",
+      prepared.expectedPluginRoute || "",
+    ],
+  });
+}
+
+async function runPluginDrawerActionGestureSequence(options = {}, report = {}) {
+  const prepared = Object.assign({ phase: "prepared" }, report.prepare || {});
+  const samples = [prepared];
+  const nativeSteps = [];
+  const failWithPrepared = () => ({
+    ok: false,
+    samples,
+    nativeSteps,
+    metrics: Object.assign({}, prepared, {
+      ok: false,
+      samples,
+      nativeSteps,
+      pluginId: prepared.pluginId || options.pluginId || "finance",
+      actionId: prepared.actionId || options.pluginActionId || "record",
+      expectedPluginRoute: prepared.expectedPluginRoute || "",
+      expectedViewMode: prepared.expectedViewMode || prepared.pluginId || options.pluginId || "finance",
+    }),
+  });
+  if (!prepared.ok) return failWithPrepared();
+
+  const rememberStep = async (label, body) => {
+    const value = await postAction(options, Object.assign({ label }, body));
+    nativeSteps.push({ label, type: body.type, value });
+    return value;
+  };
+  const rememberMeasure = async (phase) => {
+    const sample = await measurePluginDrawerActionGesture(options, phase, prepared);
+    samples.push(sample);
+    return sample;
+  };
+  await rememberStep("calibrate-web-native-coordinates", {
+    type: "calibrateCoordinates",
+    force: true,
+  });
+  const ready = await rememberMeasure("before-native-quick-tap");
+  const quickTap = ready.quickCard?.tap || prepared.quickCard?.tap;
+  const pluginTap = ready.pluginCard?.tap || prepared.pluginCard?.tap;
+  const initialSwipe = ready.stripSwipe || prepared.stripSwipe;
+  if (!quickTap || !pluginTap || !initialSwipe) return failWithPrepared();
+
+  await rememberStep("native-tap-quick-card", {
+    type: "tap",
+    coordinateSpace: "web",
+    x: quickTap.x,
+    y: quickTap.y,
+    absoluteX: quickTap.absoluteX,
+    absoluteY: quickTap.absoluteY,
+  });
+  await sleep(420);
+  await rememberMeasure("after-quick-tap");
+  await closePluginDrawerActionMenus(options, "close-after-quick-tap");
+  await sleep(180);
+
+  const beforeLongPress = await rememberMeasure("before-plugin-long-press");
+  const longPressTap = beforeLongPress.pluginCard?.tap || pluginTap;
+  await rememberStep("native-long-press-plugin-card", {
+    type: "longPress",
+    coordinateSpace: "web",
+    x: longPressTap.x,
+    y: longPressTap.y,
+    absoluteX: longPressTap.absoluteX,
+    absoluteY: longPressTap.absoluteY,
+    holdMs: 680,
+  });
+  await sleep(520);
+  await rememberMeasure("after-plugin-long-press");
+  await closePluginDrawerActionMenus(options, "close-after-plugin-long-press");
+  await sleep(180);
+
+  const preSwipe = await measurePluginDrawerActionGesture(options, "before-strip-horizontal-swipe", prepared);
+  samples.push(preSwipe);
+  const swipe = preSwipe.stripSwipe || initialSwipe;
+  await rememberStep("native-strip-horizontal-swipe", {
+    type: "swipe",
+    coordinateSpace: "web",
+    startAbsoluteX: swipe.startAbsoluteX,
+    startAbsoluteY: swipe.startAbsoluteY,
+    endAbsoluteX: swipe.endAbsoluteX,
+    endAbsoluteY: swipe.endAbsoluteY,
+    durationMs: 260,
+  });
+  await sleep(420);
+  await rememberMeasure("after-strip-horizontal-swipe");
+
+  const afterSwipe = samples[samples.length - 1] || {};
+  const reopenTap = afterSwipe.quickCard?.tap || quickTap;
+  await rememberStep("native-reopen-quick-menu", {
+    type: "tap",
+    coordinateSpace: "web",
+    x: reopenTap.x,
+    y: reopenTap.y,
+    absoluteX: reopenTap.absoluteX,
+    absoluteY: reopenTap.absoluteY,
+  });
+  await sleep(420);
+  const quickReopen = await rememberMeasure("after-quick-reopen");
+  let actionSource = quickReopen;
+  if (!quickReopen.quickMenu?.visible || !quickReopen.actionButton?.tap) {
+    await rememberStep("native-reopen-quick-menu-retry", {
+      type: "tap",
+      coordinateSpace: "web",
+      x: reopenTap.x,
+      y: reopenTap.y,
+      absoluteX: reopenTap.absoluteX,
+      absoluteY: reopenTap.absoluteY,
+    });
+    await sleep(420);
+    actionSource = await rememberMeasure("after-quick-reopen-retry");
+  }
+  if (!actionSource.quickMenu?.visible || !actionSource.actionButton?.tap) {
+    await postAction(options, {
+      type: "js",
+      label: "open-quick-menu-for-action-tap",
+      script: `
+        const dock = document.getElementById("topicPluginDock");
+        const quick = dock?.querySelector?.("[data-plugin-drawer-quick-actions]");
+        if (quick && typeof openPluginActionMenu === "function") openPluginActionMenu(quick);
+        return { ok: Boolean(quick) };
+      `,
+      args: [],
+    });
+    await sleep(180);
+    actionSource = await rememberMeasure("after-quick-reopen-js-recovery");
+  }
+  const actionTap = actionSource.actionButton?.tap || prepared.actionButton?.tap;
+  if (actionTap) {
+    await rememberStep("native-tap-quick-action", {
+      type: "tap",
+      coordinateSpace: "web",
+      x: actionTap.x,
+      y: actionTap.y,
+      absoluteX: actionTap.absoluteX,
+      absoluteY: actionTap.absoluteY,
+    });
+    await sleep(Math.max(900, Number(options.waitMs || 0) || 900));
+    await rememberMeasure("after-action-tap");
+  }
+
+  const finalSample = samples[samples.length - 1] || {};
+  return {
+    ok: true,
+    samples,
+    nativeSteps,
+    metrics: Object.assign({}, finalSample, {
+      ok: true,
+      scenario: "plugin-drawer-action-gestures",
+      pluginId: prepared.pluginId || finalSample.pluginId || options.pluginId || "finance",
+      actionId: prepared.actionId || finalSample.actionId || options.pluginActionId || "record",
+      expectedPluginRoute: prepared.expectedPluginRoute || finalSample.expectedPluginRoute || "",
+      expectedViewMode: prepared.expectedViewMode || prepared.pluginId || finalSample.pluginId || options.pluginId || "finance",
+      samples,
+      nativeSteps,
+    }),
+  };
 }
 
 async function runHarness(options) {
@@ -2077,6 +2603,10 @@ async function runHarness(options) {
       args: scenario.prepareArgs(options),
     });
     await sleep(options.waitMs);
+    if (typeof scenario.nativeRun === "function") {
+      report.native = await scenario.nativeRun(options, report);
+      if (report.native?.metrics) report.metrics = report.native.metrics;
+    }
     if (scenario.focusScript) {
       report.focus = await runScenarioFocus(options, scenario);
       if (scenario.tapFocus && report.focus?.tap) {
@@ -2090,7 +2620,7 @@ async function runHarness(options) {
         await sleep(options.keyboardWaitMs || options.waitMs);
       }
     }
-    if (scenario.measureScript) {
+    if (!report.metrics && scenario.measureScript) {
       try {
         report.metrics = await postAction(options, {
           type: "js",
@@ -2103,7 +2633,7 @@ async function runHarness(options) {
         report.measureFallback = { reason: String(err?.message || err).slice(0, 300) };
         report.metrics = await measureEmbeddedPluginShellInParts(options);
       }
-    } else {
+    } else if (!report.metrics) {
       report.metrics = report.prepare;
     }
     report.screenshot = await saveScreenshot(options);
@@ -2249,6 +2779,7 @@ module.exports = {
   assertEmbeddedPluginKeyboardComposer,
   assertEmbeddedPluginShell,
   assertGlobalPluginDockGestureStability,
+  assertPluginDrawerActionGestures,
   assertPluginTopicDockReturnStability,
   defaultLockPath,
   parseArgs,

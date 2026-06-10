@@ -364,6 +364,12 @@ Required rules:
   actions and should not appear in normal Topics-root plugin conversations.
 - Directory is built in but follows the same action projection model for
   launcher/search consistency.
+- Any host or plugin change that touches quick-action manifests, Dock `常用`,
+  plugin long-press menus, pinned plugin tabs, or plugin action routing must
+  run the Home AI `plugin-drawer-action-gestures` visual harness on the iOS PWA
+  lane. The harness uses native tap, native long-press, and native horizontal
+  swipe through the live debug server, then asserts that the selected action
+  launches the plugin with `pluginActionId` and `pluginRoute` route state.
 
 ## Required Plugin Facts
 
@@ -617,6 +623,22 @@ visual evidence. The required level depends on the surface:
     --scenario embedded-plugin-side-chat-keyboard \
     --plugin-id codex-mobile \
     --plugin-thread-id <thread-id> \
+    --debug-url http://127.0.0.1:19073/
+  ```
+
+  Quick-action and plugin Dock gesture changes use the checked native gesture
+  scenario. `--plugin-id` and `--plugin-action-id` are optional; when omitted,
+  the harness validates `finance:record`, which is the canonical ordinary
+  `plugin_route` sample. The scenario converts WebView DOM bounds to native
+  Appium touch coordinates through the shared live debug server; plugin
+  workspaces must not keep plugin-local tap offset scripts for this gate:
+
+  ```bash
+  cd /Users/hermes-dev/HermesMobileDev/app
+  npm run ios:pwa:visual -- \
+    --scenario plugin-drawer-action-gestures \
+    --plugin-id finance \
+    --plugin-action-id record \
     --debug-url http://127.0.0.1:19073/
   ```
 

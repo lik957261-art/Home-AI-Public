@@ -188,6 +188,26 @@ npm run ios:pwa:visual -- \
   --debug-url http://127.0.0.1:19073/
 ```
 
+For plugin Dock quick-action and menu gesture checks, use the native gesture
+scenario. It drives the installed PWA through the live debug server with native
+tap, long-press, and horizontal swipe actions, then reads bounded WebView state:
+
+```bash
+npm run ios:pwa:visual -- \
+  --scenario plugin-drawer-action-gestures \
+  --plugin-id finance \
+  --plugin-action-id record \
+  --debug-url http://127.0.0.1:19073/
+```
+
+This scenario does not guess tap positions from screenshots. It measures target
+DOM bounds in the WebView, asks the live debug server to run a temporary
+full-screen coordinate probe, and sends native actions with
+`coordinateSpace: "web"`. The server applies the measured Web-to-native offset
+only for those harness actions. Manual clicks on `/api/screenshot` or MJPEG
+stream images already use native screen coordinates and must keep the default
+screen coordinate space.
+
 When validating a development build instead of production, open that build
 through the harness. For Home AI dev servers, do not assume
 `127.0.0.1:<home-ai-port>` inside the iOS Simulator reaches the Mac host. Bind
