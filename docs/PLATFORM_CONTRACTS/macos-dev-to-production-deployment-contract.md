@@ -284,6 +284,19 @@ SQLite import/readback or rollback evidence. After this first bootstrap, normal
 Growth plugin deploys can use the central deploy script with the default
 `com.hermesmobile.plugin.growth` restart label.
 
+Growth plugin-manager grants also require the Home AI listener LaunchDaemon to
+set:
+
+```text
+HERMES_MOBILE_GROWTH_PLUGIN_MANIFEST_URL=http://127.0.0.1:4881/api/v1/hermes/plugin/manifest
+HERMES_MOBILE_PLUGIN_GROWTH_MANIFEST_URL=http://127.0.0.1:4881/api/v1/hermes/plugin/manifest
+HERMES_MOBILE_GROWTH_PLUGIN_OWNER_KEY_PATH=/Users/hermes-host/HermesMobile/data/plugin-secrets/growth-registration-key.txt
+```
+
+Without the owner key path, Home AI can display the Growth manifest but
+workspace grants fail with `growth_owner_key_missing`, so Gateway/MCP closure
+cannot be claimed.
+
 If the current shell is in a plugin workspace, call the Home AI script by
 absolute path or change directory to the Home AI app workspace first:
 

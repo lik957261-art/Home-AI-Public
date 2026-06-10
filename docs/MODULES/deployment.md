@@ -292,8 +292,7 @@ The current isolated production deployment runs these launchd labels:
 - `com.hermesmobile.plugin.email`
 - `com.hermesmobile.plugin.health`
 - `com.hermesmobile.plugin.note`
-- `com.hermesmobile.plugin.growth` is reserved for Growth but is not loaded
-  until the Growth production service is installed.
+- `com.hermesmobile.plugin.growth`
 - `com.hermesmobile.plugin.codex-mobile`
 
 Growth first install uses `scripts/install-growth-launchd-service.js` from the
@@ -307,6 +306,13 @@ The LaunchDaemon sets `GROWTH_DATA_OWNER=plugin` and
 `GROWTH_LEARNING_DB_PATH=/Users/hermes-host/HermesMobile/plugins/growth/data/growth-learning.sqlite3`,
 so first install must also import or roll back the plugin-owned SQLite copy
 before declaring production closure.
+The Home AI listener LaunchDaemon must also expose the server-side Growth
+registration path so plugin-manager grants can call the Growth registration
+endpoint without raw secrets:
+`HERMES_MOBILE_GROWTH_PLUGIN_MANIFEST_URL=http://127.0.0.1:4881/api/v1/hermes/plugin/manifest`,
+`HERMES_MOBILE_PLUGIN_GROWTH_MANIFEST_URL=http://127.0.0.1:4881/api/v1/hermes/plugin/manifest`,
+and
+`HERMES_MOBILE_GROWTH_PLUGIN_OWNER_KEY_PATH=/Users/hermes-host/HermesMobile/data/plugin-secrets/growth-registration-key.txt`.
 
 Because the Growth launchd label does not exist before first install, the
 first source copy uses the central deploy script with explicit plugin
@@ -318,9 +324,10 @@ npm run --silent deploy:macos -- --plugin growth --source /Users/hermes-dev/Herm
 
 `--sync-only` is not a deployment closure. It exists only to place plugin source
 under the production plugin root before the LaunchDaemon is bootstrapped. The
-install is not complete until the Growth LaunchDaemon is bootstrapped and
-loopback health, embedded launch/proxy, and selected Gateway `mcp_growth_*`
-schema smoke pass.
+install is not complete until the Growth LaunchDaemon is bootstrapped,
+plugin-owned SQLite readback passes, the Home AI listener has the Growth
+manifest/key-path environment above, and loopback health, embedded launch/proxy,
+and selected Gateway `mcp_growth_*` schema smoke pass.
 
 The Hermes Mobile launchd environment uses
 `HERMES_WEB_HOST=0.0.0.0`, `HERMES_WEB_PORT=8797`,

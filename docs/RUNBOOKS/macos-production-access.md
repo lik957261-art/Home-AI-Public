@@ -339,6 +339,11 @@ That installer uses the same sudo/password-file boundary. It may create the
 Growth registration key file when missing, but must not print raw key values.
 It starts Growth with `GROWTH_DATA_OWNER=plugin` and
 `GROWTH_LEARNING_DB_PATH` under the Growth plugin production data directory.
+The Home AI listener must also expose
+`HERMES_MOBILE_GROWTH_PLUGIN_MANIFEST_URL`,
+`HERMES_MOBILE_PLUGIN_GROWTH_MANIFEST_URL`, and
+`HERMES_MOBILE_GROWTH_PLUGIN_OWNER_KEY_PATH` pointing at the Growth registration
+key file. Otherwise Growth workspace grants fail before Gateway materialization.
 The `--sync-only` step is first-install-only and is not a deployment closure;
 run plugin-owned SQLite import/readback, Growth health, embedded launch/proxy,
 and selected Gateway `mcp_growth_*` smokes after bootstrap.
