@@ -288,6 +288,7 @@ function createKanbanCardApiRoutes(deps = {}) {
   if (!learningGrowthSubmissionService || (typeof learningGrowthSubmissionService.submitTask !== "function" && typeof learningGrowthSubmissionService.submitWriting !== "function")) {
     throw new Error("kanban card api routes require learningGrowthSubmissionService.submitTask");
   }
+  const growthPluginSubmissionProxyService = deps.growthPluginSubmissionProxyService || null;
 
   const sourceDocumentMaxBytes = Math.max(1, Number(deps.sourceDocumentMaxBytes || 20 * 1024 * 1024));
   const maxUploadBytes = Math.max(1, Number(deps.maxUploadBytes || 20 * 1024 * 1024));
@@ -643,15 +644,28 @@ function createKanbanCardApiRoutes(deps = {}) {
     );
     if (!access) return;
     const workspaceId = access.workspaceId;
-    const submitLearningTask = typeof learningGrowthSubmissionService.submitTask === "function"
+    const submitLearningTask = typeof growthPluginSubmissionProxyService?.submitTask === "function"
+      ? growthPluginSubmissionProxyService.submitTask
+      : (typeof learningGrowthSubmissionService.submitTask === "function"
       ? learningGrowthSubmissionService.submitTask
-      : learningGrowthSubmissionService.submitWriting;
-    const result = await submitLearningTask({
+      : learningGrowthSubmissionService.submitWriting);
+    let result = await submitLearningTask({
       workspaceId,
       cardId,
       text: body.text || body.submission || body.comment || "",
       author: body.author || "",
     });
+    if (!result?.ok && result?.fallbackAllowed && typeof growthPluginSubmissionProxyService?.submitTask === "function") {
+      const fallbackSubmit = typeof learningGrowthSubmissionService.submitTask === "function"
+        ? learningGrowthSubmissionService.submitTask
+        : learningGrowthSubmissionService.submitWriting;
+      result = await fallbackSubmit({
+        workspaceId,
+        cardId,
+        text: body.text || body.submission || body.comment || "",
+        author: body.author || "",
+      });
+    }
     if (!result?.ok) {
       deps.kanbanErrorResponse(res, result);
       return;
@@ -714,7 +728,7 @@ function createKanbanCardApiRoutes(deps = {}) {
 
   async function handleLearningGrowthReflection(req, res, url) {
     if (!requireKanbanEnabled(res)) return;
-    if (typeof learningGrowthSubmissionService.submitReflection !== "function") {
+    if (typeof learningGrowthSubmissionService.submitReflection !== "function" && typeof growthPluginSubmissionProxyService?.submitReflection !== "function") {
       deps.kanbanErrorResponse(res, { ok: false, status: 501, error: "Growth spoken reflection is not available" }, 501);
       return;
     }
@@ -735,7 +749,7 @@ function createKanbanCardApiRoutes(deps = {}) {
     );
     if (!access) return;
     const workspaceId = access.workspaceId;
-    const result = await learningGrowthSubmissionService.submitReflection({
+    const reflectionInput = {
       workspaceId,
       cardId,
       author: body.author || "",
@@ -744,7 +758,13 @@ function createKanbanCardApiRoutes(deps = {}) {
       dataBase64: body.dataBase64 || body.audioDataBase64 || body.data_base64 || "",
       durationMs: body.durationMs || body.duration_ms || 0,
       transcript: body.transcript || body.reflectionText || body.text || "",
-    });
+    };
+    let result = typeof growthPluginSubmissionProxyService?.submitReflection === "function"
+      ? await growthPluginSubmissionProxyService.submitReflection(reflectionInput)
+      : await learningGrowthSubmissionService.submitReflection(reflectionInput);
+    if (!result?.ok && result?.fallbackAllowed && typeof learningGrowthSubmissionService.submitReflection === "function") {
+      result = await learningGrowthSubmissionService.submitReflection(reflectionInput);
+    }
     if (!result?.ok) {
       deps.kanbanErrorResponse(res, result);
       return;

@@ -35,8 +35,8 @@ Home AI remains the owner of:
   mobile shell;
 - Gateway profile/toolset activation;
 - Action Inbox and Web Push;
-- platform-wide reward settlement until a plugin event contract proves
-  otherwise;
+- platform `通宝` wallet, ledger, and administrator-operated Growth-coin to
+  `通宝` exchange;
 - Family Profile, Reference, and Memory Graph aggregation;
 - Mac production deployment orchestration.
 
@@ -46,6 +46,8 @@ Growth plugin becomes the owner of:
 - learner programs and cards after data migration;
 - teaching/practice/stage-assessment workflows after service migration;
 - Growth database after a verified migration;
+- Growth-domain learning coin settlement for completed cards after workflow
+  migration;
 - Growth MCP toolset after schema closure;
 - Growth reference objects and bounded projections.
 
@@ -189,16 +191,44 @@ Current development status:
   the default. Production Stephen backfill on 2026-06-10 wrote 10 BLOB records
   totaling 46,107,050 bytes after an online SQLite backup and left a follow-up
   dry-run with `already_blobbed=10`, `would_backfill=0`, and `file_missing=0`.
+- The plugin now exposes a workspace-bearer submission write endpoint:
+  `POST /api/v1/growth/cards/:taskCardId/submissions`. It accepts bounded JSON
+  text/audio evidence, resolves either the native Growth task card id or the
+  legacy kanban card id, writes the submission and optional audio BLOB into the
+  plugin-owned SQLite database, ensures a lightweight interaction session for
+  production foreign keys, and enqueues a pending
+  `learning_growth_evaluation_jobs` row when the queue table exists.
+- The plugin now processes due evaluation jobs through
+  `POST /api/v1/growth/evaluations/process` and the optional lightweight
+  dispatcher controlled by `GROWTH_EVALUATION_WORKER_ENABLED=1`. Processing
+  claims due pending/retry jobs, reads the plugin-owned submission/task context,
+  writes bounded `learning_evaluations`, settles Growth-domain learning coins
+  in `learning_reward_settlements` for completed cards, marks passed cards
+  completed, and marks jobs done/retry/failed. Current plugin evaluation is
+  deterministic and summary-only. It does not write `通宝` or trigger
+  real-time Growth-coin-to-`通宝` exchange.
+- The plugin now exposes a workspace-bearer reflection write endpoint:
+  `POST /api/v1/growth/cards/:taskCardId/reflections`. It accepts bounded
+  text/audio reflection evidence, resolves native Growth task card ids or
+  legacy kanban card ids, writes `learning_task_reflections`, and stores
+  reflection audio BLOBs in the plugin-owned SQLite database.
+- Home AI has a transitional proxy service at
+  `adapters/growth-plugin-submission-proxy-service.js`. The legacy
+  `/api/kanban/cards/:cardId/learning-growth-submission` and
+  `/api/kanban/cards/:cardId/learning-growth-reflection` routes prefer these
+  plugin endpoints when the workspace has a `.hermes-growth` binding. They
+  only fall back to the legacy Home AI submission service when that local
+  binding is not configured during staged migration.
 - Development verification used an online SQLite backup copy of the Mac
   production `learning-growth.sqlite3`, stored under the ignored development
   tmp directory. Source and target `quick_check` passed, all required tables
   were present, `weixin_stephen` readback returned 48 cards from plugin-owned
   SQLite, and a local plugin service smoke on port `4882` returned
   `growth-plugin-sqlite` for status, board, and card detail.
-- Submission, async evaluation, reflection, reward settlement, and other write
-  paths have not been switched to plugin-owned services yet. They remain gated
-  by the workflow contract and must not be silently inferred from SQLite
-  readback.
+- Per-card Growth learning coin settlement and bounded completion/mastery/review
+  events are now plugin-owned. Platform `通宝` exchange, Action Inbox/Web Push,
+  Owner manual decisions, and monthly Growth coin clearing remain host-owned
+  platform workflow stages.
 
 ### 6. Plugin Event Contract
 
@@ -206,14 +236,17 @@ After plugin-side workflows exist, Growth emits bounded events to Home AI:
 
 - `growth.card.completed`;
 - `growth.review.required`;
-- `growth.reward.requested`;
+- `growth.reward.requested` for a future administrator monthly exchange/review
+  workflow, not for real-time per-card conversion;
 - `growth.mastery.updated`.
 
 Events must contain ids, workspace ids, bounded status fields, score bands,
 short summaries, and source refs only.
 
-Home AI remains responsible for Action Inbox, Web Push, platform reward
-settlement, Family Profile, and Memory/Reference aggregation.
+Home AI remains responsible for Action Inbox, Web Push, platform `通宝`
+exchange and ledger mutation, Family Profile, and Memory/Reference aggregation.
+Single-card Growth evaluation workers must not emit real-time `通宝` exchange
+requests.
 
 Current development status:
 

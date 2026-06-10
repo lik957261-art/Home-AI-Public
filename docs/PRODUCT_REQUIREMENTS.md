@@ -97,13 +97,20 @@ This file records durable product rules that implementation must preserve.
 - Growth scoring is evidence-based. A score can reach the numeric line while the card is still incomplete if a revision/reflection gate remains.
 - AI evaluation must be asynchronous and durable when grading can take time. Restarting listener or Gateway should not lose accepted evaluation work.
 - Learning records must be summary-only. Do not expose full child answers, transcripts, questions, answer keys, or prompts in planning records, docs, or handoffs.
-- Rewards are settled only through the reward settlement service and coin service. Evaluation services must not write coin ledger rows directly.
+- Growth card completion may settle Growth learning coins inside the Growth
+  domain, but it must not directly write `通宝` or any real-money-equivalent
+  platform ledger.
 
 ## Platform Currency
 
 - `通宝` is the Hermes Mobile platform-level base currency for each workspace user.
 - Growth learning coins remain a learning-domain reward signal and must not be directly rebranded as platform currency.
-- Growth learning coins may be exchanged into `通宝` only through an idempotent, audited exchange service with Owner-configurable rules.
+- Growth learning coins may be exchanged into `通宝` only through an
+  idempotent, audited, administrator-operated exchange service with
+  Owner-configurable rules. Ordinary users must not trigger direct exchange.
+- Growth-to-`通宝` exchange is a periodic administrative operation, normally
+  monthly, based on total eligible Growth coin balance rather than a real-time
+  per-card conversion.
 - `通宝` wallet and ledger records belong to the platform currency domain, not the Growth SQLite domain and not the Finance plugin.
 - Finance may report or summarize `通宝`, but `通宝` must not be mixed with real RMB/bank/card transaction ledgers.
 - Platform currency mutations must resolve authenticated actor, target workspace user, source type, source id, and idempotency key before writing a ledger entry.

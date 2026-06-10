@@ -9,6 +9,7 @@ const { createLearningCoinApiRoutes } = require("./learning-coin-api-routes");
 const { createLearningGrowthCardApiRoutes } = require("./learning-growth-card-api-routes");
 const { createLearningParentReviewApiRoutes } = require("./learning-parent-review-api-routes");
 const { createLearningProgramApiRoutes } = require("./learning-program-api-routes");
+const { createGrowthPluginSubmissionProxyService } = require("../adapters/growth-plugin-submission-proxy-service");
 const { createKanbanCaseTopicDeliveryService } = require("../adapters/kanban-case-topic-delivery-service");
 const { createGrowthPluginFacadeService } = require("../adapters/growth-plugin-facade-service");
 const { createLearningGrowthBoardProjectionService } = require("../adapters/learning-growth-board-projection-service");
@@ -41,8 +42,7 @@ function boolEnabled(value, fallback = false) {
   if (typeof value === "boolean") return value;
   const normalized = String(value).trim().toLowerCase();
   if (["1", "true", "yes", "on"].includes(normalized)) return true;
-  if (["0", "false", "no", "off"].includes(normalized)) return false;
-  return fallback;
+  return ["0", "false", "no", "off"].includes(normalized) ? false : fallback;
 }
 
 function createMobileApiLearningComposition(deps = {}) {
@@ -139,6 +139,7 @@ function createMobileApiLearningComposition(deps = {}) {
     kanbanCaseTopicDeliveryService,
     kanbanErrorResponse: deps.kanbanErrorResponse,
     kanbanSingleCardCasePayload: deps.kanbanSingleCardCasePayload,
+    growthPluginSubmissionProxyService: createGrowthPluginSubmissionProxyService({ dataDir: deps.dataDir, env: deps.env || process.env, fetch: deps.fetch || global.fetch }),
     learningGrowthKanbanTaskService: learningGrowthTaskService,
     learningGrowthSubmissionService,
     normalizeKanbanNotificationAssignee: deps.normalizeKanbanNotificationAssignee,
@@ -344,6 +345,4 @@ function createMobileApiLearningComposition(deps = {}) {
   };
 }
 
-module.exports = {
-  createMobileApiLearningComposition,
-};
+module.exports = { createMobileApiLearningComposition };

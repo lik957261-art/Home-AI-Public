@@ -11,7 +11,7 @@ Last updated: 2026-05-31
 
 - 为每个工作区用户提供独立通宝钱包。
 - 提供幂等、可审计、可冲正的通宝流水。
-- 允许 Growth 金币按 Owner 配置的规则兑换成通宝。
+- 允许管理员按 Owner 配置的规则，把 Growth 金币周期性兑换成通宝。
 - 允许未来 Automation、Action Inbox、插件、Education、Finance 报表等模块把通宝作为统一平台货币使用。
 - 保持 Growth、Finance、插件和平台钱包之间的边界清晰。
 
@@ -115,7 +115,7 @@ Unique index:
 
 ### `platform_currency_exchange_records`
 
-Growth 金币兑换通宝需要单独记录，因为它跨域消费学习金币并写入平台钱包。
+Growth 金币兑换通宝需要单独记录，因为它跨域消费学习金币并写入平台钱包。该流程是管理员/Owner 操作，不是普通用户自助实时兑换。
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -181,9 +181,9 @@ V1 transaction types:
 
 ## 兑换规则
 
-Growth 金币兑换通宝必须经过兑换桥：
+Growth 金币兑换通宝必须经过兑换桥。兑换桥由管理员/Owner 周期性触发，V1 默认按月处理总额，不跟单张 Growth 卡片完成实时绑定：
 
-1. 前端或服务发起兑换请求，提供 workspace、source amount 和 idempotency key。
+1. 管理员/Owner 发起兑换请求，提供 workspace、结算周期、source amount 和 idempotency key。
 2. 兑换桥读取 Growth 学习金币可用余额。
 3. 兑换桥读取当前 active exchange rule。
 4. 若超出限额、余额不足、规则停用或需要审批，则进入明确状态。
@@ -195,6 +195,8 @@ Growth 金币兑换通宝必须经过兑换桥：
 6. 对于需要审批的兑换，先进入 `requested`，Owner 审批后再结算。
 
 重复请求必须用 `(workspace_id, idempotency_key)` 返回同一个 exchange result，不得重复扣减或重复入账。
+
+卡片完成时只结算 Growth 学习金币。它不得直接写通宝流水，也不得实时触发通宝兑换。月度兑换完成后，兑换桥负责记录 Growth 金币清零/扣减依据，并写入对应通宝流水。
 
 ## 权限模型
 
@@ -209,11 +211,11 @@ Owner:
 普通工作区用户:
 
 - 查看自己的通宝钱包和自己的通宝流水。
-- 发起自己的 Growth 金币兑换通宝。
 - 查看自己的兑换记录。
 - 不能查看他人钱包。
 - 不能修改兑换规则。
 - 不能手动发放或扣减。
+- 不能自行发起 Growth 金币兑换通宝。
 
 服务/插件:
 

@@ -61,6 +61,25 @@ Planned graph-guided card planning files are documented in
   `GET /api/v1/growth/audio/submissions/:submissionId` and
   `GET /api/v1/growth/audio/reflections/:reflectionId` when the plugin-owned
   SQLite read path is active.
+- Growth plugin submission write:
+  `POST /api/v1/growth/cards/:taskCardId/submissions` with the workspace-local
+  Growth bearer; accepts bounded text/audio evidence, resolves native task card
+  ids or legacy `kanban_card_id`, writes `learning_task_submissions`,
+  `learning_task_audio_blobs`, `learning_interaction_sessions`, and a pending
+  `learning_growth_evaluation_jobs` record when those tables exist.
+- Growth plugin evaluation processing:
+  `POST /api/v1/growth/evaluations/process` with the workspace-local Growth
+  bearer; claims due pending/retry jobs, writes bounded
+  `learning_evaluations`, and marks jobs done/retry/failed. Production
+  LaunchDaemon enables the lightweight dispatcher through
+  `GROWTH_EVALUATION_WORKER_ENABLED=1` and
+  `GROWTH_EVALUATION_WORKER_INTERVAL_MS=30000`.
+- Growth plugin reflection write:
+  `POST /api/v1/growth/cards/:taskCardId/reflections` with the workspace-local
+  Growth bearer; accepts bounded text/audio reflection evidence, resolves
+  native task card ids or legacy `kanban_card_id`, writes
+  `learning_task_reflections`, and stores reflection audio in
+  `learning_task_audio_blobs` when present.
 - `GET /api/learning-growth/board`
 - `POST /api/learning-growth/cards/:cardId/teaching-check`
 - `POST /api/learning-growth/cards/:cardId/experience-signal`
@@ -258,10 +277,28 @@ Production Stephen backfill on 2026-06-10 wrote 10 BLOB records, 46,107,050
 bytes, with `file_missing=0`; a follow-up dry-run reported
 `already_blobbed=10` and `would_backfill=0`.
 
-Submission creation, audio upload, transcription, async model evaluation,
-reflection settlement, reward settlement, mastery updates, Action Inbox/Web
-Push notifications, and Owner manual workflow decisions remain in Home AI until
-the workflow migration has separate tests and cutover evidence.
+New Growth submission creation, pending evaluation-job processing, reflection
+evidence writes, per-card Growth learning coin settlement, and card-completion
+state writes have plugin-owned write paths. The current Home AI legacy kanban
+submission/reflection routes may proxy to the plugin through
+`adapters/growth-plugin-submission-proxy-service.js` when a workspace-local
+`.hermes-growth/config.json` and `access-key.txt` binding exists. If the
+binding is missing during the staged migration, the routes can still fall back
+to the legacy Home AI submission service; that fallback is transitional and
+should be removed only after production cutover evidence proves plugin write
+parity. The plugin evaluation processor writes bounded evaluation records,
+settles Growth-domain learning coins for completed cards, marks passed cards
+completed, and emits bounded completion/mastery/review events through the
+plugin event outbox.
+
+Growth learning coins are not `通宝` and are not real-money-equivalent platform
+ledger entries. Growth-to-`通宝` exchange remains a Home AI platform currency
+responsibility: it is administrator-operated, normally monthly, based on total
+eligible Growth coin balance, and must go through the audited platform currency
+exchange service before any `通宝` ledger mutation or clearing of Growth coin
+balance. Audio transcription, Action Inbox/Web Push notifications, platform
+currency exchange, and Owner manual workflow decisions remain in Home AI until
+their migration stages have separate tests and cutover evidence.
 
 Current development visual evidence:
 
@@ -275,7 +312,10 @@ Current development visual evidence:
 ## Constraints
 
 - Do not store or print full learner answers, transcripts, questions, answer keys, or raw prompts.
-- Keep evaluation and reward settlement separate.
+- Keep evaluation, Growth learning coin settlement, and platform `通宝`
+  exchange separate. Card completion can settle Growth coins in the plugin;
+  monthly Growth-coin-to-`通宝` exchange remains an administrator platform
+  workflow.
 - Async evaluation work must be durable across listener/Gateway restarts.
 - Mastery profile evidence must be idempotent and auditable by evidence id/source ref.
 - Production card skill ids must be normalized through the capability taxonomy aliases before evidence is recorded; do not drop legacy ids such as `english_reading_comprehension` or `math_ratio_proportional_reasoning`.

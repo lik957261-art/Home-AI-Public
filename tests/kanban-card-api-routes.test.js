@@ -56,6 +56,7 @@ function makeRoutes(overrides = {}) {
     errors: [],
     file: [],
     filePreview: [],
+    growthProxy: [],
     growthReflection: [],
     growthSubmit: [],
     growthWithdraw: [],
@@ -522,6 +523,63 @@ async function testLearningGrowthSubmissionUsesCommentCapabilityAndService() {
   assert.equal(got.body.status, "submitted");
 }
 
+async function testLearningGrowthSubmissionPrefersGrowthPluginProxy() {
+  const { routes, calls } = makeRoutes({
+    growthPluginSubmissionProxyService: {
+      submitTask(input) {
+        calls.growthProxy.push(input);
+        return Promise.resolve({
+          ok: true,
+          cardId: input.cardId,
+          status: "submitted",
+          result: {
+            ok: true,
+            id: input.cardId,
+            submissionId: "submission_plugin",
+            taskCardId: "ltask_plugin",
+            source: "growth-plugin-sqlite",
+          },
+        });
+      },
+    },
+  });
+  const got = await request(routes, "POST", "/api/kanban/cards/t_growth/learning-growth-submission?workspaceId=query-workspace", {
+    body: { workspaceId: "child", text: "draft", author: "learner" },
+  });
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.growthProxy, [{
+    workspaceId: "child",
+    cardId: "t_growth",
+    text: "draft",
+    author: "learner",
+  }]);
+  assert.deepEqual(calls.growthSubmit, []);
+  assert.equal(got.body.result.source, "growth-plugin-sqlite");
+}
+
+async function testLearningGrowthSubmissionFallsBackWhenGrowthPluginBindingMissing() {
+  const { routes, calls } = makeRoutes({
+    growthPluginSubmissionProxyService: {
+      submitTask(input) {
+        calls.growthProxy.push(input);
+        return Promise.resolve({
+          ok: false,
+          status: 409,
+          error: "growth_plugin_workspace_not_configured",
+          fallbackAllowed: true,
+        });
+      },
+    },
+  });
+  const got = await request(routes, "POST", "/api/kanban/cards/t_growth/learning-growth-submission?workspaceId=child", {
+    body: { text: "draft" },
+  });
+  assert.equal(got.res.statusCode, 200);
+  assert.equal(calls.growthProxy.length, 1);
+  assert.equal(calls.growthSubmit.length, 1);
+  assert.equal(calls.growthSubmit[0].cardId, "t_growth");
+}
+
 async function testLearningGrowthSubmissionKeepsLegacyWritingServiceFallback() {
   const { routes, calls } = makeRoutes({
     learningGrowthSubmissionService: null,
@@ -593,6 +651,56 @@ async function testLearningGrowthReflectionUsesCommentCapabilityAndService() {
   assert.equal(calls.reconcile.at(-1), "child");
   assert.equal(got.body.status, "completed");
   assert.equal(got.body.reflection.status, "accepted");
+}
+
+async function testLearningGrowthReflectionPrefersGrowthPluginProxy() {
+  const { routes, calls } = makeRoutes({
+    growthPluginSubmissionProxyService: {
+      submitReflection(input) {
+        calls.growthProxy.push(Object.assign({ reflection: true }, input));
+        return Promise.resolve({
+          ok: true,
+          cardId: input.cardId,
+          status: "reflection_submitted",
+          reflection: { status: "submitted", reflectionId: "reflection_plugin" },
+          result: { ok: true, id: input.cardId, source: "growth-plugin-sqlite" },
+        });
+      },
+    },
+  });
+  const got = await request(routes, "POST", "/api/kanban/cards/t_growth/learning-growth-reflection?workspaceId=child", {
+    body: {
+      transcript: "I changed my answer.",
+      author: "learner",
+    },
+  });
+  assert.equal(got.res.statusCode, 200);
+  assert.equal(calls.growthProxy.length, 1);
+  assert.equal(calls.growthProxy[0].reflection, true);
+  assert.equal(calls.growthReflection.length, 0);
+  assert.equal(got.body.result.source, "growth-plugin-sqlite");
+}
+
+async function testLearningGrowthReflectionFallsBackWhenGrowthPluginBindingMissing() {
+  const { routes, calls } = makeRoutes({
+    growthPluginSubmissionProxyService: {
+      submitReflection(input) {
+        calls.growthProxy.push(input);
+        return Promise.resolve({
+          ok: false,
+          status: 409,
+          error: "growth_plugin_workspace_not_configured",
+          fallbackAllowed: true,
+        });
+      },
+    },
+  });
+  const got = await request(routes, "POST", "/api/kanban/cards/t_growth/learning-growth-reflection?workspaceId=child", {
+    body: { transcript: "I changed my answer.", author: "learner" },
+  });
+  assert.equal(got.res.statusCode, 200);
+  assert.equal(calls.growthProxy.length, 1);
+  assert.equal(calls.growthReflection.length, 1);
 }
 
 async function testCompletedCardsSyncToTopicDeliveryService() {
@@ -931,9 +1039,13 @@ function testDependencyValidation() {
   await testOwnerListIncludesManagedLearningGrowthCardsWithCompositeCache();
   await testListTargetBypassesCacheAndForwardsTargetId();
   await testLearningGrowthSubmissionUsesCommentCapabilityAndService();
+  await testLearningGrowthSubmissionPrefersGrowthPluginProxy();
+  await testLearningGrowthSubmissionFallsBackWhenGrowthPluginBindingMissing();
   await testLearningGrowthSubmissionKeepsLegacyWritingServiceFallback();
   await testLearningGrowthSubmissionWithdrawUsesCommentCapabilityAndService();
   await testLearningGrowthReflectionUsesCommentCapabilityAndService();
+  await testLearningGrowthReflectionPrefersGrowthPluginProxy();
+  await testLearningGrowthReflectionFallsBackWhenGrowthPluginBindingMissing();
   await testCompletedCardsSyncToTopicDeliveryService();
   await testOutputRoutesAlwaysUseResolverWithAuthenticatedContext();
   await testDetailAndActionAccessCapabilities();
