@@ -112,19 +112,19 @@ or raw plugin credentials.
 - Codex plugin edition is a special developer/tooling plugin. It remains
   available from the plugin Dock/drawer and app launch surfaces, but it must
   not appear as a normal Topics-root plugin conversation shortcut.
-- Topics root plugin conversation shortcuts render as compact fixed topic
+- Topics root plugin conversation shortcuts render as compact fixed root-topic
   groups. They are collapsed by default per workspace. The left plugin icon
   opens the default plugin topic; the row body expands or collapses the plugin
-  topic group when there are historical/special child topics; plugins with only
-  the default topic open directly and do not show an expand chevron. Expanded
-  child topics use the same compact indented visual language as
-  directory-bound topic rows.
-- The compact plugin topic group row must visually match the directory-bound
-  topic collection row below it: left expand chevron column, 32px plugin icon
-  column, title/meta text column, 48px row height, topic count plus last update
-  time in the meta line, and the same indented child-topic chip style. The
-  plugin icon may still open the default plugin topic, but its position and
-  size must not drift from the directory row pattern.
+  topic group when there are historical/special child topics; expandable plugin
+  rows use a small row-end chevron instead of a left-leading tree chevron.
+  Plugins with only the default topic open directly and do not show an expand
+  chevron. Expanded child topics use the same compact indented visual language
+  as directory-bound topic rows.
+- The compact plugin topic group row is a root-level entry like the Directory
+  root entry: 32px plugin icon column, title/meta text column, optional row-end
+  chevron, and a 48px row height. The left edge is reserved for root icons, not
+  tree expanders. Directory-bound parent rows below the Directory root entry are
+  the tree-level rows and use only the left chevron plus title/meta text.
 - Plugin topic rows and directory-bound topic rows render their count/update
   metadata inline after the title, not as a second line, so the Topics root
   stays dense and scan-friendly.
@@ -193,15 +193,17 @@ or raw plugin credentials.
   `plugin:wardrobe`,
   `plugin:finance`, `plugin:email`, and `plugin:health`.
 - Directory-bound topic collections render as compact collapsible folder-tree
-  rows followed by an indented child-topic list. The folder/directory icon lives
-  at the left edge of the header and uses a scaled-down version of the bottom
-  Directory Dock icon. The row shows the directory display name, topic count,
-  and update time only; it must not expose the raw directory path, a generic
-  "bound directory" prompt, or a visible default-topic badge. Child topic rows
-  are visually indented below the directory header so the parent directory
-  relationship is clear. The directory parent row toggles expand/collapse;
-  opening the file manager must remain an explicit Directory-card or directory
-  action, not an ambiguous parent-row click.
+  rows followed by an indented child-topic list. Directory-bound parent rows do
+  not repeat the folder icon; the Directory root entry above the tree already
+  establishes the directory context, and repeating non-clickable folder icons
+  makes the list visually dense and misleading. Parent rows use only the
+  expand/collapse chevron plus title/metadata text. The row shows the directory
+  display name, topic count, and update time only; it must not expose the raw
+  directory path, a generic "bound directory" prompt, or a visible default-topic
+  badge. Child topic rows are visually indented below the directory header so
+  the parent directory relationship is clear. The directory parent row toggles
+  expand/collapse; opening the file manager must remain the explicit Directory
+  root entry or another directory action, not an ambiguous parent-row click.
 - The root topic list itself hides both the normal page header and the bottom
   message composer. New topic creation must enter through a Directory binding or
   another explicit binding flow, so every new topic has a durable context
@@ -211,9 +213,10 @@ or raw plugin credentials.
   mobile safe-area top gap. The hidden page header must not cause the first
   folder/topic row to sit under the iOS status area.
 - The Directory Dock icon uses the Dock-consistent plugin-app folder visual.
-  Directory-bound topic rows use the same visual language at a smaller size;
-  child topic rows keep the smaller chat/topic icon so the Directory app and its
-  bound topics remain visually distinct.
+  The Topics-root Directory root entry uses a larger distinct root-folder icon.
+  Directory-bound parent rows below it do not repeat folder icons; child topic
+  rows keep the smaller chat/topic icon so the Directory app, directory
+  collections, and bound topics remain visually distinct.
 - Runs started in the plugin topic should include the plugin MCP/toolset only
   when the selected workspace has an active plugin binding and matching Gateway
   callable schema.

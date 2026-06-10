@@ -174,7 +174,6 @@ function renderDirectoryTopicCards(collections = [], options = {}) {
           <div class="directory-topic-card-main-row">
             <button class="directory-topic-card-main directory-topic-directory-main" type="button" data-directory-topic-toggle="${escapeHtml(collection.key)}" aria-expanded="${collapsed ? "false" : "true"}" aria-label="${escapeHtml(`${collapsed ? "\u5c55\u5f00" : "\u6536\u8d77"}${collection.label}\u8bdd\u9898`)}">
             <span class="directory-topic-chevron" aria-hidden="true"></span>
-            <span class="plugin-topic-app-icon directory directory-topic-folder-icon" data-plugin-icon="" aria-hidden="true"></span>
             <span class="directory-topic-text">
               <span class="directory-topic-title">${escapeHtml(collection.label || "\u76ee\u5f55")}</span>
               <span class="directory-topic-meta">${escapeHtml(`${topics.length} \u4e2a\u8bdd\u9898\u3000${formatTime(collection.updatedAt)}`)}</span>

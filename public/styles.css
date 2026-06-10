@@ -6255,7 +6255,7 @@ button.directory-alias-chip {
   min-width: 0;
   min-height: 48px;
   display: grid;
-  grid-template-columns: 16px 34px minmax(0, 1fr);
+  grid-template-columns: 34px minmax(0, 1fr) 16px;
   align-items: center;
   gap: 7px;
   padding: 5px 2px;
@@ -6756,12 +6756,12 @@ button.directory-alias-chip {
 
 .directory-topic-card-main {
   min-width: 0;
-  min-height: 48px;
+  min-height: 44px;
   display: grid;
-  grid-template-columns: 16px 34px minmax(0, 1fr);
+  grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
   gap: 7px;
-  padding: 5px 2px;
+  padding: 3px 2px;
   color: var(--ink);
   background: transparent;
   border: 0;
@@ -6908,7 +6908,7 @@ button.directory-alias-chip {
   min-width: 0;
   display: grid;
   gap: 3px;
-  margin-left: 52px;
+  margin-left: 24px;
   padding: 0 0 7px 9px;
   border-left: 1px solid rgba(95, 139, 148, 0.20);
 }
@@ -17439,7 +17439,7 @@ body.task-markdown-preview-open {
   .plugin-topic-card-main,
   .plugin-topic-card-main-row {
     min-height: 48px;
-    grid-template-columns: 16px 34px minmax(0, 1fr);
+    grid-template-columns: 34px minmax(0, 1fr) 16px;
     justify-items: stretch;
     align-content: center;
     gap: 7px;
@@ -17528,10 +17528,10 @@ body.task-markdown-preview-open {
   }
 
   .directory-topic-card-main {
-    min-height: 48px;
-    grid-template-columns: 16px 34px minmax(0, 1fr);
+    min-height: 44px;
+    grid-template-columns: 16px minmax(0, 1fr);
     gap: 7px;
-    padding: 5px 2px;
+    padding: 3px 2px;
   }
 
   .directory-topic-topic-icon {

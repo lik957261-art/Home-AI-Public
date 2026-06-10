@@ -219,11 +219,11 @@ Implemented convergence update, 2026-06-10:
 - Topics root plugin rows are fixed conversation groups. They are collapsed by
   default per workspace; the left icon opens the default plugin topic, while
   the row body expands historical/special child topics when present.
-- The fixed plugin topic group row intentionally mirrors the directory-bound
-  topic collection row: a 16px chevron column, a 34px icon column containing a
-  32px plugin icon, a single title/meta text column, a 48px parent row, and
-  child rows that reuse the directory-topic chip visual. The meta line carries
-  topic count and last update time when historical/special child topics exist.
+- The fixed plugin topic group row is a root-level entry: a 34px icon column
+  containing a 32px plugin icon, a single title/meta text column, an optional
+  row-end chevron, and a 48px parent row. It should not use a left-leading tree
+  chevron because plugin rows sit at the same root level as the Directory root
+  entry. Child rows reuse the directory-topic chip visual.
 - Codex plugin edition is excluded from the Topics-root plugin conversation
   rows because it is a developer/tooling plugin rather than a normal user
   conversation domain.

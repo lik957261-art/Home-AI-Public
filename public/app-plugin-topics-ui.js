@@ -1459,9 +1459,6 @@ function renderPluginTopicCards(options = {}) {
         return `
         <article class="plugin-topic-card${expanded ? "" : " collapsed"}${hasChildren ? " has-children" : " single-topic"}" data-plugin-topic-card="${escapeHtml(def.id)}">
           <div class="plugin-topic-card-main-row">
-            <button class="plugin-topic-row-toggle" type="button" ${bodyAttrs}>
-              ${hasChildren ? `<span class="plugin-topic-row-chevron directory-topic-chevron" aria-hidden="true"></span>` : `<span class="plugin-topic-row-chevron-placeholder" aria-hidden="true"></span>`}
-            </button>
             <button class="plugin-topic-icon-entry" type="button" data-plugin-topic-open-topic="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u9ed8\u8ba4\u8bdd\u9898`)}">
               <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
             </button>
@@ -1471,6 +1468,9 @@ function renderPluginTopicCards(options = {}) {
                 <span class="plugin-topic-subtitle">${escapeHtml(pluginTopicRowMeta(def, childEntries, options))}</span>
               </span>
             </button>
+            ${hasChildren ? `<button class="plugin-topic-row-toggle" type="button" ${bodyAttrs}>
+              <span class="plugin-topic-row-chevron directory-topic-chevron" aria-hidden="true"></span>
+            </button>` : `<span class="plugin-topic-row-chevron-placeholder" aria-hidden="true"></span>`}
           </div>
           ${hasChildren ? `<div class="plugin-topic-child-list directory-topic-bound-list" aria-label="${escapeHtml(`${def.label}\u4e13\u9898\u8bdd\u9898`)}">
             ${childEntries.map((entry) => `<button class="plugin-topic-child-row directory-topic-chip" type="button" data-plugin-claimed-topic-open="${escapeHtml(entry.taskGroupId)}" data-plugin-claimed-topic-plugin="${escapeHtml(entry.pluginId)}">

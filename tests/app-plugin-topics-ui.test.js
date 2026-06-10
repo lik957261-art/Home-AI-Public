@@ -92,7 +92,7 @@ assert.match(quickActionRenderBody, /action\?\.type === "open_plugin_app"/);
 assert.match(quickActionRenderBody, /data-plugin-topic-open-app/);
 assert.doesNotMatch(quickActionRenderBody, /capability-action-source/);
 
-assert.match(directoryTopicsUi, /plugin-topic-app-icon directory directory-topic-folder-icon/);
+assert.doesNotMatch(directoryTopicsUi, /directory-topic-folder-icon/);
 assert.match(directoryTopicsUi, /data-directory-topic-open-root/);
 assert.match(directoryTopicsUi, /directory-topic-root-icon/);
 assert.match(directoryTopicsUi, /visible\.length[\s\S]*?topicCount/);
@@ -115,7 +115,7 @@ assert.match(stylesCss, /\.app\.task-list-mode \.conversation,[\s\S]*?\.app\.cap
 assert.match(stylesCss, /\.app\.task-list-mode,[\s\S]*?\.app\.capability-mode \{[\s\S]*?padding-bottom: 0;/);
 assert.match(stylesCss, /\.plugin-topic-list \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);[\s\S]*?gap: 2px;/);
 assert.match(stylesCss, /\.plugin-topic-card \{[\s\S]*?border-bottom: 1px solid var\(--ui-hairline\);[\s\S]*?box-shadow: none;/);
-assert.match(stylesCss, /\.plugin-topic-card-main,[\s\S]*?\.plugin-topic-card-main-row \{[\s\S]*?grid-template-columns: 16px 34px minmax\(0, 1fr\);/);
+assert.match(stylesCss, /\.plugin-topic-card-main,[\s\S]*?\.plugin-topic-card-main-row \{[\s\S]*?grid-template-columns: 34px minmax\(0, 1fr\) 16px;/);
 assert.match(stylesCss, /\.plugin-topic-row-body \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);/);
 assert.match(stylesCss, /\.plugin-topic-text \{[\s\S]*?display: flex;[\s\S]*?align-items: baseline;/);
 assert.match(stylesCss, /\.directory-topic-text \{[\s\S]*?display: flex;[\s\S]*?align-items: baseline;/);
