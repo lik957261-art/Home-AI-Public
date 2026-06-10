@@ -126,8 +126,6 @@ const PLUGINS = [
     launchdLabel: "com.hermesmobile.plugin.growth",
     manifestPath: "/api/v1/hermes/plugin/manifest",
     devRuntimeKeywords: ["node", "npm"],
-    macProbeDeferred: true,
-    macProbeDeferredReason: "growth production service is not deployed yet",
     optionalHttpProbes: [
       { name: "mcp_schema", path: "/api/v1/growth/mcp/schemas", requireText: ["growth.get_status", "growth.get_board"] },
     ],

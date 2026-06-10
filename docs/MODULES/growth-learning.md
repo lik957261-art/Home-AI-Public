@@ -57,6 +57,10 @@ Planned graph-guided card planning files are documented in
 - Growth plugin manifest: `GET /api/v1/hermes/plugin/manifest`.
 - Growth plugin provisioning: `POST /api/v1/hermes/plugin/workspaces`.
 - Growth plugin launch: `POST /api/v1/hermes/plugin/launch`.
+- Growth plugin audio playback:
+  `GET /api/v1/growth/audio/submissions/:submissionId` and
+  `GET /api/v1/growth/audio/reflections/:reflectionId` when the plugin-owned
+  SQLite read path is active.
 - `GET /api/learning-growth/board`
 - `POST /api/learning-growth/cards/:cardId/teaching-check`
 - `POST /api/learning-growth/cards/:cardId/experience-signal`
@@ -215,8 +219,9 @@ access key, not the registration key, and the plugin returns an `entry_url`
 containing a short-lived launch token. Host logs, docs, screenshots, and test
 output must not include raw access keys or launch token values.
 
-Growth plugin SQLite migration is staged but not yet the default production
-source. The plugin workspace provides
+Growth plugin SQLite migration is now the production Growth read source for
+Mac Home AI when the deployed plugin sets `GROWTH_DATA_OWNER=plugin`. The
+plugin workspace provides
 `npm run import:learning-sqlite -- --source-db <verified-backup.sqlite3>
 --target-db <plugin-data>/growth-learning.sqlite3 --write --workspace-id
 <workspace-id> --json` to copy a verified learning-growth SQLite backup into
@@ -224,9 +229,21 @@ plugin-owned storage. The script validates required Growth tables,
 `PRAGMA quick_check`, foreign-key checks, creates a backup of any existing
 target, and returns bounded count/readback metadata. Rollback uses the same
 script with `--rollback <script-created-backup.sqlite3>`. Runtime reads prefer
-that plugin-owned SQLite only when `GROWTH_DATA_OWNER=plugin`; submission,
-evaluation, reflection, and reward write paths remain in Home AI until the
-workflow migration has separate tests and cutover evidence.
+that plugin-owned SQLite only when `GROWTH_DATA_OWNER=plugin`.
+
+The plugin read boundary currently includes status, board, card detail, latest
+submission/reflection projections, and playback of historical submission or
+reflection audio. Plugin audio playback prefers `learning_task_audio_blobs`
+content when present and falls back to bounded legacy artifact-file lookup under
+configured Home AI data roots for older migrated records. The fallback root is
+configured by `GROWTH_LEGACY_AUDIO_ROOTS`; if omitted, the plugin derives the
+standard sibling Home AI `data` root from its workspace. The plugin must never
+return raw absolute audio paths to the browser.
+
+Submission creation, audio upload, transcription, async model evaluation,
+reflection settlement, reward settlement, mastery updates, Action Inbox/Web
+Push notifications, and Owner manual workflow decisions remain in Home AI until
+the workflow migration has separate tests and cutover evidence.
 
 Current development visual evidence:
 

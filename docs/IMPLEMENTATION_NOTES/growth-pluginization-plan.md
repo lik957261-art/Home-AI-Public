@@ -172,10 +172,16 @@ Current development status:
 - Rollback is explicit:
   `npm run import:learning-sqlite -- --target-db <plugin-data>/growth-learning.sqlite3
   --rollback <script-created-backup.sqlite3> --write --json`.
-- The plugin can read status, board, and card detail from the migrated SQLite
-  store when `GROWTH_DATA_OWNER=plugin` is set. The default runtime source
-  remains the Home AI facade until development parity checks and production
-  migration evidence pass.
+- The deployed Mac production plugin reads status, board, and card detail from
+  the migrated SQLite store when `GROWTH_DATA_OWNER=plugin` is set. That is now
+  the Growth read source for the Home AI embedded plugin path.
+- The plugin also projects latest submission/reflection audio metadata from the
+  migrated SQLite records and exposes plugin-owned playback routes:
+  `/api/v1/growth/audio/submissions/:id` and
+  `/api/v1/growth/audio/reflections/:id`. Playback prefers
+  `learning_task_audio_blobs` and falls back to bounded legacy artifact-file
+  lookup under `GROWTH_LEGACY_AUDIO_ROOTS` or the standard sibling Home AI
+  `data` root. Raw absolute file paths must not be exposed to the browser.
 - Development verification used an online SQLite backup copy of the Mac
   production `learning-growth.sqlite3`, stored under the ignored development
   tmp directory. Source and target `quick_check` passed, all required tables

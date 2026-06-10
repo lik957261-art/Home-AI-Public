@@ -304,6 +304,8 @@ run through the same password-file sudo boundary as the central deploy script
 and must not print raw key values.
 The LaunchDaemon sets `GROWTH_DATA_OWNER=plugin` and
 `GROWTH_LEARNING_DB_PATH=/Users/hermes-host/HermesMobile/plugins/growth/data/growth-learning.sqlite3`,
+plus `GROWTH_LEGACY_AUDIO_ROOTS=/Users/hermes-host/HermesMobile/data` for
+bounded historical audio playback,
 so first install must also import or roll back the plugin-owned SQLite copy
 before declaring production closure.
 The Home AI listener LaunchDaemon must also expose the server-side Growth

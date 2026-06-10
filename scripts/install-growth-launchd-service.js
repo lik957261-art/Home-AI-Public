@@ -51,6 +51,7 @@ function plistFor(options = {}) {
     GROWTH_EVENT_OUTBOX_STORE_PATH: path.posix.join(dataDir, "growth-event-outbox.json"),
     GROWTH_DATA_OWNER: "plugin",
     GROWTH_LEARNING_DB_PATH: path.posix.join(dataDir, "growth-learning.sqlite3"),
+    GROWTH_LEGACY_AUDIO_ROOTS: path.posix.join(macRoot, "data"),
     GROWTH_REGISTRATION_KEY_PATH: registrationKeyPath,
     GROWTH_HOME_AI_API_BASE_URL: "http://127.0.0.1:8797",
     GROWTH_HOME_AI_ACCESS_KEY_PATH: ownerAccessKeyPath,
