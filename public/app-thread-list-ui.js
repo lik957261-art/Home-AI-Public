@@ -313,7 +313,6 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   });
   const selected = allGroups.find((group) => group.id === state.currentTaskGroupId) || null;
   const allActiveRuns = activeThreadRunIds(thread);
-  let capabilityEntryHub = "";
 
   if (state.currentTaskGroupId && !selected) {
     if (taskGroupHasPendingMessages(thread, state.currentTaskGroupId) || state.currentThreadRefreshInFlight) {
@@ -387,12 +386,6 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
         claimedDirectoryTopicCollections,
       })
       : "";
-    capabilityEntryHub = typeof renderCapabilityEntryHub === "function"
-      ? renderCapabilityEntryHub({
-        directoryRootCount: Array.isArray(state.projects) ? state.projects.length : 0,
-        directoryTopicCount: directoryTopicCollectionsReady ? directoryTopicGroupIds.size : 0,
-      })
-      : "";
     const pluginAppDock = typeof renderPluginAppLauncher === "function" ? renderPluginAppLauncher() : "";
     const directoryTopicCards = typeof renderDirectoryTopicCards === "function"
       ? renderDirectoryTopicCards(directoryTopicCollections, { associatedWithDirectoryPlugin: true })
@@ -404,9 +397,9 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
         : false;
       return directoryTopicCollectionsReady ? !allDirectoryTopicGroupIds.has(group.id) : !hasDirectoryTopicRoute;
     });
-    conversation.innerHTML = regularGroups.length || pluginTopicCards || capabilityEntryHub || directoryTopicCards
-      ? `${filterBanner}${pluginTopicCards}${capabilityEntryHub}${directoryTopicCards}<div class="task-grid">${regularGroups.map(renderTaskCard).join("")}</div>`
-      : `${filterBanner}${pluginTopicCards}${capabilityEntryHub}${directoryTopicCards}<div class="empty-state">${state.taskDirectoryFilter ? "No topics in this directory." : "No topics yet. Send a message to create one."}</div>`;
+    conversation.innerHTML = regularGroups.length || pluginTopicCards || directoryTopicCards
+      ? `${filterBanner}${pluginTopicCards}${directoryTopicCards}<div class="task-grid">${regularGroups.map(renderTaskCard).join("")}</div>`
+      : `${filterBanner}${pluginTopicCards}${directoryTopicCards}<div class="empty-state">${state.taskDirectoryFilter ? "No topics in this directory." : "No topics yet. Send a message to create one."}</div>`;
     setTopicPluginDock(pluginAppDock);
     conversation.querySelectorAll("[data-open-task]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -483,9 +476,6 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   if (!state.currentTaskGroupId && Number.isFinite(Number(options.restoreScrollTop))) {
     const maxTop = Math.max(0, conversation.scrollHeight - conversation.clientHeight);
     conversation.scrollTop = Math.min(maxTop, Math.max(0, Number(options.restoreScrollTop) || 0));
-    if (capabilityEntryHub && conversation.scrollTop > 0 && conversation.scrollTop <= 52) {
-      conversation.scrollTop = 0;
-    }
     state.conversationPinnedToBottom = false;
   } else if (options.stickToBottom) {
     conversation.scrollTop = state.currentTaskGroupId ? conversation.scrollHeight : 0;

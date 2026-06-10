@@ -1,6 +1,6 @@
 # Module: Plugin Topics
 
-Last updated: 2026-06-07.
+Last updated: 2026-06-10.
 
 ## Responsibility
 
@@ -36,16 +36,20 @@ or raw plugin credentials.
   keeping the normal message composer visible for the topic chat.
 - Plugin topic detail is a Hermes-owned chat surface, not a plugin iframe
   layout surface. It must match the ordinary Hermes chat composer layout; the
-  only bottom difference is replacing the normal five-entry mobile navigation
+  only bottom difference is replacing the normal host mobile navigation
   with the three-entry plugin-context navigation. Composer/footer overlap must
   be solved by the shared bottom-layout standard, not by adding visible padding
   to the outer app or main shell.
 - Returning from topic detail to the topic list must restore the topic-list
   scroll position captured before entering the detail. Right-swipe/back should
   not jump away from the plugin and Directory card area.
+- Host primary navigation is reserved for host-level surfaces:
+  `聊天`, `信息`, `能力`, and `话题`. Growth, Codex plugin edition, Wardrobe,
+  Finance, Email, Health, Note, and Directory app launch are plugin/capability
+  entries and must not be added back as permanent host bottom tabs.
 - When there is no saved launch view, Hermes Mobile opens the topic page first.
-  The mobile bottom navigation keeps five primary slots with Topics in the
-  center position.
+  The mobile bottom navigation uses those four host slots. Plugin app launch is
+  provided by the global plugin Dock/drawer.
 - The current frontend projection renders Wardrobe, Finance, Email, Health,
   Note, and the built-in Directory capability in a host-owned global plugin
   Dock anchored directly above the mobile bottom navigation when they are
@@ -73,46 +77,42 @@ or raw plugin credentials.
   touch callout on Dock icons so iOS/PWA long-press can reach the Home AI menu.
 - Dock entries are app/capability launch targets on tap. A tap records
   app-level capability usage so the same plugin or built-in Directory entry can
-  appear later in the root quick-action grid as a recently used capability. They
-  do not expose permanent topic or file-directory mini actions in the topic
-  list. Plugin- and Directory-specific secondary surfaces remain reachable from
-  quick actions, long-press/context menus, and plugin context/navigation rules
-  instead of as small buttons beside the app icon.
+  influence the Capability page. They do not expose permanent topic or
+  file-directory mini actions in the topic list. Plugin- and
+  Directory-specific secondary surfaces remain reachable from quick actions,
+  long-press/context menus, and plugin context/navigation rules instead of as
+  small buttons beside the app icon.
 - Capability usage ordering is not a volatile client-only preference. The
   authoritative usage signal lives in `/api/plugin-topic-usage` and is
   persisted per workspace as bounded `plugins` and `actions` count/recency
   maps. `localStorage.hermesPluginTopicUsage` is only a first-paint/offline
   cache and may be rebuilt from the server after login, client reset, PWA
   reinstall, or device switch.
-- Capability usage writes must update the visible root projection immediately
-  when the user is on the topic root, before waiting for server sync. A
+- Capability usage writes must update the visible Capability projection
+  immediately when the user is on `viewMode=capabilities`, before waiting for
+  server sync. A
   long-lived PWA session must also re-check server usage after a short loaded
   TTL instead of treating the first successful `/api/plugin-topic-usage` load as
   permanently fresh. Repeated clicks on the same action, such as
   `wardrobe:style`, must increment that action's workspace usage and promote it
   by count/recency in the quick-action grid.
-- The root quick-action grid is capped at nine entries, rendered as three
-  columns by three rows. When the Capability Entry Hub is present, the topic-root
-  renderer clamps small restored scroll offsets back to the top so the first
-  quick-action row remains visible after redraws, browser restore, or
-  session-level root navigation.
+- The Capability page quick-action grid is capped at nine entries, rendered as
+  three columns by three rows. Used actions are sorted by count and recency;
+  available default quick actions may fill the remaining cells so a first-time
+  user does not see an empty capability surface.
 - Topic-root capability cards and directory-bound topic rows must honor the
   shared Home AI font-size preference instead of hard-coding a smaller local
   text size. Topics and the information/root surface should stay visually
   aligned with the user's selected reading scale.
-- The next product direction for the root Topics tab is the Capability Entry
-  Hub described in
-  `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md`. In that model, the
-  plugin icon still consistently opens the plugin app, but plugin icons remain
-  in the fixed bottom Dock instead of moving into the middle of the page body.
-  The page body shows a compact usage-backed frequent-action grid followed by
-  Directory-bound topic collections. Shortcuts can open topics, plugin routes,
-  directories, quick forms, app-level capability launches, or MCP-backed Home AI
-  intents. A shortcut appears in the root quick-action grid only after the user
-  has used that action or launched that app-level capability from the Dock/menu;
-  default usage is zero, and the grid is sorted by count and recency. The first
-  implementation maps shortcuts to existing host routes; direct MCP intent
-  execution remains a separate H1 extension.
+- The Capability Entry Hub described in
+  `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md` is now a separate
+  host-level `能力` surface, not the Topics root. Topics root is conversation
+  first: plugin conversation shortcuts, ordinary directory-bound topic
+  collections, and ordinary topic cards. Shortcuts can open topics, plugin
+  routes, directories, quick forms, app-level capability launches, or
+  MCP-backed Home AI intents. The first implementation maps shortcuts to
+  existing host routes; direct MCP intent execution remains a separate H1
+  extension.
 - The global plugin Dock is positioned directly above the real mobile bottom
   navigation height. It must not use the broader page-content reserved height,
   because that value can include scroll/composer spacing after returning from a

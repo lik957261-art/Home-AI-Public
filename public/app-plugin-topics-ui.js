@@ -2,6 +2,22 @@
 
 const PLUGIN_TOPIC_DEFS = Object.freeze([
   Object.freeze({
+    id: "codex-mobile",
+    viewMode: "codex",
+    label: "Codex",
+    subtitle: "代码任务、线程和交付回执",
+    iconClass: "nav-codex-icon",
+    appIconClass: "codex",
+    appIconGlyph: "C",
+    sourceBadge: "C",
+    toolset: "codex",
+    deliveryHints: ["codex", "code", "代码", "线程"],
+    quickActions: Object.freeze([
+      Object.freeze({ id: "threads", label: "Codex 线程", type: "open_plugin", glyph: "C" }),
+      Object.freeze({ id: "new", label: "新建任务", type: "open_plugin", glyph: "+" }),
+    ]),
+  }),
+  Object.freeze({
     id: "wardrobe",
     viewMode: "wardrobe",
     label: "\u8863\u6a71",
@@ -235,6 +251,7 @@ function pluginTopicDefForViewMode(viewMode = state.viewMode) {
 function pluginTopicBottomButtonId(def) {
   const id = String(def?.id || "").trim();
   if (id === "wardrobe") return "bottomWardrobeMode";
+  if (id === "codex-mobile") return "bottomCodexMode";
   if (id === "finance") return "bottomFinanceMode";
   if (id === "email") return "bottomEmailMode";
   if (id === "health") return "bottomHealthMode";
@@ -664,6 +681,7 @@ function globalPluginDockHostSurfaceEligible() {
   if (app.classList.contains("plugin-context-nav-mode") && !pluginAppSurface) return false;
   if (pluginAppSurface) return true;
   if (view === "single") return state.singleWindowMode === "chat";
+  if (view === "capabilities") return true;
   if (view === "tasks") return !state.currentTaskGroupId;
   if (view === "projects") return !state.directoryPluginContextActive;
   if (view === "todos") return !(typeof isTodoDetailView === "function" && isTodoDetailView()) && !(typeof kanbanComposerOpen === "function" && kanbanComposerOpen());
@@ -944,10 +962,14 @@ function pluginTopicUsageRecentlyLoaded(workspaceId = pluginTopicUsageWorkspaceI
 }
 
 function refreshPluginTopicUsageRoot(options = {}) {
-  if (state.viewMode !== "tasks" || state.currentTaskGroupId) return;
+  if (!["tasks", "capabilities"].includes(String(state.viewMode || "")) || state.currentTaskGroupId) return;
   if (typeof renderCurrentThread !== "function") return;
   const restoreScrollTop = options.revealQuickActions ? 0 : ($("conversation")?.scrollTop || 0);
   window.setTimeout(() => {
+    if (state.viewMode === "capabilities" && !state.currentTaskGroupId && typeof renderCapabilityView === "function") {
+      renderCapabilityView({ restoreScrollTop });
+      return;
+    }
     if (state.viewMode === "tasks" && !state.currentTaskGroupId) {
       renderCurrentThread({ stickToBottom: false, restoreScrollTop });
     }
@@ -1128,8 +1150,9 @@ function pluginTopicActionById(pluginId = "", actionId = "") {
   return action ? { def, action } : null;
 }
 
-function capabilityHubQuickActions(defs = []) {
+function capabilityHubQuickActions(defs = [], options = {}) {
   const usage = readPluginTopicUsage();
+  const includeDefaults = options.includeDefaults === true;
   const result = [];
   defs.forEach((def) => {
     const defIndex = pluginTopicDefinitionIndex(def.id);
@@ -1148,7 +1171,7 @@ function capabilityHubQuickActions(defs = []) {
     pluginTopicQuickActions(def).forEach((action, actionIndex) => {
       const entry = pluginTopicActionUsageEntry(usage, def.id, action.id);
       const count = Math.max(0, Number(entry.count) || 0);
-      if (!count) return;
+      if (!count && !includeDefaults) return;
       result.push({
         def,
         action,
@@ -1527,7 +1550,7 @@ function renderCapabilityEntryHub(options = {}) {
   ensurePluginTopicUsageLoaded();
   const defs = orderedPluginAppDefs(availablePluginTopicDefs());
   if (!defs.length) return "";
-  const quickActions = capabilityHubQuickActions(defs);
+  const quickActions = capabilityHubQuickActions(defs, { includeDefaults: options.includeDefaults === true });
   if (!quickActions.length) return "";
   return `<section class="capability-entry-hub" aria-label="\u80fd\u529b\u5165\u53e3">
     <section class="capability-frequent" aria-label="\u5feb\u6377\u5165\u53e3">
@@ -1536,6 +1559,27 @@ function renderCapabilityEntryHub(options = {}) {
       </div>
     </section>
   </section>`;
+}
+
+function renderCapabilityView(options = {}) {
+  const conversation = $("conversation");
+  if (!conversation) return;
+  state.currentThread = null;
+  state.currentThreadId = "";
+  state.currentTaskGroupId = "";
+  state.skillDetail = null;
+  const pluginAppDock = typeof renderPluginAppLauncher === "function" ? renderPluginAppLauncher() : "";
+  const capabilityEntryHub = renderCapabilityEntryHub(Object.assign({}, options, { includeDefaults: true }));
+  $("threadTitle").textContent = "能力";
+  $("threadMeta").textContent = "快捷操作";
+  $("interruptRun").disabled = true;
+  if (typeof configureComposer === "function") configureComposer({ enabled: false, placeholder: "选择一个能力开始" });
+  conversation.innerHTML = capabilityEntryHub || `<div class="empty-state">暂无常用能力。先从插件抽屉打开插件或使用插件菜单，常用能力会出现在这里。</div>`;
+  if (typeof setTopicPluginDock === "function") setTopicPluginDock(pluginAppDock);
+  if (typeof wirePluginTopicCards === "function") wirePluginTopicCards(conversation);
+  if (typeof updateNavigationControls === "function") updateNavigationControls();
+  if (typeof ensureVerticalScrollAffordance === "function") ensureVerticalScrollAffordance();
+  if (Number.isFinite(Number(options.restoreScrollTop))) conversation.scrollTop = Math.max(0, Number(options.restoreScrollTop) || 0);
 }
 
 function renderPluginAppLauncher() {

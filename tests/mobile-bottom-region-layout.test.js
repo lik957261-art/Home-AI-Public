@@ -33,7 +33,9 @@ function block(selector) {
   return match[0];
 }
 
-const clientVersion = "20260610-growth-host-entry-v682";
+const versionMatch = indexHtml.match(/data-client-version="([^"]+)"/);
+assert.ok(versionMatch, "index should declare client version");
+const clientVersion = versionMatch[1];
 assert.match(indexHtml, new RegExp(`data-client-version="${clientVersion}"`));
 assert.match(serviceWorkerJs, new RegExp(`HERMES_SW_VERSION = "${clientVersion}"`));
 
@@ -174,14 +176,11 @@ assert.match(
   block(".app.main-back-visible.plugin-context-nav-mode.plugin-topic-detail-mode .conversation"),
   /padding-bottom: var\(--plugin-topic-composer-reserved-height\);/,
 );
-assert.match(block(".app.task-list-mode"), /padding-bottom: 0;/);
-assert.match(
-  block(".app.task-list-mode .conversation"),
-  /padding-bottom: var\(--topic-plugin-dock-reserved-height\);/,
-);
+assert.match(stylesCss, /\.app\.task-list-mode,[\s\S]*?\.app\.capability-mode \{[\s\S]*?padding-bottom: 0;/);
+assert.match(stylesCss, /\.app\.task-list-mode \.conversation,[\s\S]*?\.app\.capability-mode \.conversation \{[\s\S]*?padding-bottom: var\(--topic-plugin-dock-reserved-height\);/);
 assert.match(
   stylesCss,
-  /\.app\.task-list-mode \.conversation > \.directory-topic-launcher:first-child,[\s\S]*?\.app\.task-list-mode \.conversation > \.capability-entry-hub:first-child,[\s\S]*?margin-top: max\(16px, calc\(env\(safe-area-inset-top\) \+ 4px\)\);/,
+  /\.app\.task-list-mode \.conversation > \.directory-topic-launcher:first-child,[\s\S]*?\.app\.capability-mode \.conversation > \.capability-entry-hub:first-child,[\s\S]*?margin-top: max\(16px, calc\(env\(safe-area-inset-top\) \+ 4px\)\);/,
 );
 assert.match(block(".composer-context"), /grid-column: 1 \/ -1;[\s\S]*order: -3;/);
 assert.match(block(".composer-context"), /background: var\(--ui-chrome\);[\s\S]*box-shadow: 0 6px 0 var\(--ui-chrome\);/);
@@ -260,6 +259,6 @@ assert.match(stylesCss, /\.embedded-plugin-host-active:not\(\.codex-mode\)\.glob
 assert.match(stylesCss, /:root\.keyboard-viewport-active \.embedded-plugin-host-active:not\(\.codex-mode\)\.global-plugin-dock-collapsed-mode \.embedded-plugin-host,[\s\S]*?:root\.keyboard-viewport-active \.embedded-plugin-host-active:not\(\.codex-mode\)\.global-plugin-dock-expanded-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: 0;/);
 assert.match(stylesCss, /:root\.keyboard-viewport-active \.topic-plugin-dock \{[\s\S]*?display: none !important;/);
 assert.doesNotMatch(stylesCss, /\.codex-mode\.embedded-plugin-host-active\.global-plugin-dock-expanded-mode \.embedded-plugin-host/);
-assert.doesNotMatch(block(".app.task-list-mode"), /padding-bottom: var\(--topic-plugin-dock-reserved-height\);/);
+assert.doesNotMatch(stylesCss, /\.app\.task-list-mode \{[\s\S]*?padding-bottom: var\(--topic-plugin-dock-reserved-height\);/);
 
 console.log("mobile bottom region layout tests passed");

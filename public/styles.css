@@ -5968,15 +5968,22 @@ button.directory-alias-chip {
   display: none !important;
 }
 
-.app.task-list-mode {
+.app.task-list-mode,
+.app.capability-mode {
   padding-bottom: 0;
 }
 
-.app.task-list-mode .conversation {
+.app.task-list-mode .conversation,
+.app.capability-mode .conversation {
   padding-bottom: var(--topic-plugin-dock-reserved-height);
 }
 
-.app.task-list-mode .topbar {
+.app.task-list-mode .topbar,
+.app.capability-mode .topbar {
+  display: none !important;
+}
+
+.app.capability-mode .composer {
   display: none !important;
 }
 
@@ -17047,7 +17054,9 @@ body.task-markdown-preview-open {
   .app.task-list-mode .conversation > .directory-topic-launcher:first-child,
   .app.task-list-mode .conversation > .capability-entry-hub:first-child,
   .app.task-list-mode .conversation > .task-grid:first-child,
-  .app.task-list-mode .conversation > .empty-state:first-child {
+  .app.task-list-mode .conversation > .empty-state:first-child,
+  .app.capability-mode .conversation > .capability-entry-hub:first-child,
+  .app.capability-mode .conversation > .empty-state:first-child {
     margin-top: max(16px, calc(env(safe-area-inset-top) + 4px));
   }
 

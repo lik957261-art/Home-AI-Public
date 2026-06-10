@@ -90,7 +90,8 @@ assert.match(script, /horizontal_mistouch_does_not_expand/);
 assert.match(script, /valid_up_swipe_expands_dock/);
 assert.match(script, /chat_surface_global_dock_visible/);
 assert.match(script, /plugin_surface_global_dock_visible/);
-assert.match(script, /plugin_surface_uses_dock_only_anchor/);
+assert.match(script, /plugin_surface_uses_valid_dock_anchor/);
+assert.match(script, /pluginSurfaceUsesContextNavAnchor/);
 assert.match(script, /bottom_nav_rect_stable_during_dock_gestures/);
 assert.match(script, /--plugin-thread-id/);
 assert.match(script, /host_keyboard_visible_after_input_tap/);
@@ -316,7 +317,7 @@ const globalDockGesturePass = assertGlobalPluginDockGestureStability({
     { label: "valid-close:move-1", gestureOffset: "14px", bottomNavRect: { bottom: 826, width: 390, height: 58 } },
     { label: "valid-close:move-2", gestureOffset: "30px", bottomNavRect: { bottom: 826, width: 390, height: 58 } },
     { label: "valid-close:up", globalPluginDockMode: true, dockVisible: true, dockCollapsed: true, dockExpanded: false, bottomNavRect: { bottom: 826, width: 390, height: 58 }, bottomLayout: { stackHeight: 90 } },
-    { label: "plugin-surface-ready", globalPluginDockMode: true, dockVisible: true, dockCollapsed: true, dockExpanded: false, bottomNavRect: { bottom: 0, width: 0, height: 0 }, bottomLayout: { navRect: null, navBottom: 18, dockBottom: 18, stackHeight: 50 } },
+    { label: "plugin-surface-ready", globalPluginDockMode: true, dockVisible: true, dockCollapsed: true, dockExpanded: false, bottomNavRect: { bottom: 658, width: 402, height: 54 }, bottomLayout: { navRect: { top: 604, bottom: 658, width: 402, height: 54 }, navBottom: 18, navOffset: 72, dockBottom: 72, stackHeight: 104 } },
     { label: "final", globalPluginDockMode: true, dockVisible: true, dockCollapsed: true, dockExpanded: false, bottomNavRect: { bottom: 826, width: 390, height: 58 }, bottomLayout: { stackHeight: 90 } },
     { label: "extra", bottomNavRect: { bottom: 826, width: 390, height: 58 } },
   ],
@@ -334,7 +335,7 @@ const globalDockGestureFail = assertGlobalPluginDockGestureStability({
     { label: "valid-open:move-2", gestureOffset: "24px", bottomNavRect: { bottom: 828, width: 390, height: 58 } },
     { label: "valid-open:up", globalPluginDockMode: true, dockVisible: true, dockCollapsed: false, dockExpanded: true, bottomNavRect: { bottom: 828, width: 390, height: 58 }, bottomLayout: { stackHeight: 138 } },
     { label: "valid-close:up", globalPluginDockMode: true, dockVisible: true, dockCollapsed: true, dockExpanded: false, bottomNavRect: { bottom: 828, width: 390, height: 58 }, bottomLayout: { stackHeight: 90 } },
-    { label: "plugin-surface-ready", globalPluginDockMode: true, dockVisible: true, dockCollapsed: true, dockExpanded: false, bottomNavRect: { bottom: 0, width: 0, height: 0 }, bottomLayout: { navRect: null, navBottom: 18, dockBottom: 18, stackHeight: 50 } },
+    { label: "plugin-surface-ready", globalPluginDockMode: true, dockVisible: true, dockCollapsed: true, dockExpanded: false, bottomNavRect: { bottom: 658, width: 402, height: 54 }, bottomLayout: { navRect: { top: 604, bottom: 658, width: 402, height: 54 }, navBottom: 18, navOffset: 72, dockBottom: 72, stackHeight: 104 } },
     { label: "final", globalPluginDockMode: true, dockVisible: true, dockCollapsed: true, dockExpanded: false, bottomNavRect: { bottom: 828, width: 390, height: 58 }, bottomLayout: { stackHeight: 90 } },
     { label: "extra-1", bottomNavRect: { bottom: 828, width: 390, height: 58 } },
     { label: "extra-2", bottomNavRect: { bottom: 828, width: 390, height: 58 } },

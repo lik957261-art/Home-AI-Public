@@ -74,7 +74,13 @@ function viewModeSettings(view) {
   if (["topics", "tasks", "topic"].includes(normalized)) {
     return { hermesWebViewMode: "tasks", hermesWebSingleWindowMode: "task" };
   }
-  if (["inbox", "projects", "todos", "learning", "automation", "wardrobe", "finance", "email", "health", "note", "codex"].includes(normalized)) {
+  if (["capability", "capabilities", "ability", "abilities", "todos"].includes(normalized)) {
+    return { hermesWebViewMode: "capabilities" };
+  }
+  if (["learning", "education"].includes(normalized)) {
+    return { hermesWebViewMode: "growth" };
+  }
+  if (["inbox", "projects", "automation", "wardrobe", "finance", "email", "health", "note", "codex", "growth"].includes(normalized)) {
     return { hermesWebViewMode: normalized };
   }
   return {};
@@ -90,10 +96,13 @@ async function clickTargetView(page, view) {
     topics: "#bottomTasksMode",
     topic: "#bottomTasksMode",
     tasks: "#bottomTasksMode",
+    capability: "#bottomTodosMode",
+    capabilities: "#bottomTodosMode",
+    ability: "#bottomTodosMode",
+    abilities: "#bottomTodosMode",
     projects: "#bottomProjectsMode",
     directory: "#bottomProjectsMode",
     todos: "#bottomTodosMode",
-    learning: "#bottomTodosMode",
     wardrobe: "#bottomWardrobeMode",
     finance: "#bottomFinanceMode",
     email: "#bottomEmailMode",

@@ -776,7 +776,7 @@ const GLOBAL_PLUGIN_DOCK_GESTURE_STABILITY_SCRIPT = `
     runGesture("mistouch-horizontal", [{ x: 18, y: -3 }, { x: 64, y: -6 }]);
     runGesture("valid-open", [{ x: 0, y: -14 }, { x: 0, y: -30 }, { x: 0, y: -46 }, { x: 0, y: -58 }]);
     runGesture("valid-close", [{ x: 0, y: 14 }, { x: 0, y: 30 }, { x: 0, y: 46 }, { x: 0, y: 58 }]);
-    setVisualThreadSurface("codex", "chat");
+    setVisualThreadSurface("finance", "chat");
     if (typeof setGlobalPluginDockExpanded === "function") setGlobalPluginDockExpanded(false, { persist: false });
     if (typeof updateMobileBottomNavReservation === "function") updateMobileBottomNavReservation();
     sample("plugin-surface-ready");
@@ -1697,6 +1697,7 @@ function assertGlobalPluginDockGestureStability(metrics = {}) {
   const byLabel = new Map(samples.map((sample) => [sample?.label || "", sample]));
   const final = metrics.final || samples[samples.length - 1] || {};
   const navRects = samples
+    .filter((sample) => /^(chat-surface-ready|collapsed-ready|mistouch-|valid-open:|valid-close:)/.test(String(sample?.label || "")))
     .map((sample) => sample?.bottomNavRect)
     .filter((rect) => rect && Number(rect.width || 0) > 0 && Number(rect.height || 0) > 0 && Number.isFinite(Number(rect.bottom)));
   const navBottomRange = navRects.length >= 2
@@ -1725,6 +1726,19 @@ function assertGlobalPluginDockGestureStability(metrics = {}) {
   const validClose = byLabel.get("valid-close:up") || {};
   const collapsedMetrics = collapsedReady.bottomLayout || {};
   const expandedMetrics = validOpen.bottomLayout || {};
+  const pluginSurfaceLayout = pluginSurface.bottomLayout || {};
+  const pluginSurfaceUsesDockOnlyAnchor = Boolean(
+    pluginSurfaceLayout
+    && pluginSurfaceLayout.navRect === null
+    && Number(pluginSurfaceLayout.dockBottom || 0) === Number(pluginSurfaceLayout.navBottom || 0)
+    && Number(pluginSurfaceLayout.dockBottom || 0) > 0
+  );
+  const pluginSurfaceUsesContextNavAnchor = Boolean(
+    pluginSurfaceLayout
+    && pluginSurfaceLayout.navRect
+    && Number(pluginSurfaceLayout.dockBottom || 0) === Number(pluginSurfaceLayout.navOffset || 0)
+    && Number(pluginSurfaceLayout.dockBottom || 0) > 0
+  );
   const assertions = [
     assertion("gesture_samples_recorded", samples.length >= 12, { sampleCount: samples.length }),
     assertion("global_dock_mode_visible", Boolean(collapsedReady.globalPluginDockMode && collapsedReady.dockVisible), {
@@ -1736,12 +1750,8 @@ function assertGlobalPluginDockGestureStability(metrics = {}) {
     assertion("plugin_surface_global_dock_visible", Boolean(pluginSurface.globalPluginDockMode && pluginSurface.dockVisible), {
       pluginSurface,
     }),
-    assertion("plugin_surface_uses_dock_only_anchor", Boolean(
-      pluginSurface.bottomLayout
-      && pluginSurface.bottomLayout.navRect === null
-      && Number(pluginSurface.bottomLayout.dockBottom || 0) === Number(pluginSurface.bottomLayout.navBottom || 0)
-      && Number(pluginSurface.bottomLayout.dockBottom || 0) > 0
-    ), {
+    assertion("plugin_surface_uses_valid_dock_anchor", pluginSurfaceUsesDockOnlyAnchor || pluginSurfaceUsesContextNavAnchor, {
+      anchorMode: pluginSurfaceUsesDockOnlyAnchor ? "dock_only" : (pluginSurfaceUsesContextNavAnchor ? "context_nav" : "invalid"),
       pluginSurface,
     }),
     assertion("dock_initially_collapsed", collapsedReady.dockCollapsed === true && collapsedReady.dockExpanded === false, {

@@ -1,6 +1,6 @@
 # Home AI Frontend State Map
 
-Last updated: 2026-06-06.
+Last updated: 2026-06-10.
 
 Use this file to locate the responsible frontend files before debugging a screenshot or mobile UI report.
 
@@ -17,9 +17,11 @@ the change is part of a dedicated infrastructure rename.
   reload restore; `app-platform-ui.js` owns route application and platform
   bootstrap glue.
 - Desktop sidebar navigation is the wide-screen counterpart to the mobile
-  primary tabs. Its primary row is `聊天 / 信息 / 话题 / 目录 / 成长`; Automation is a
+  primary tabs. Its primary row is `聊天 / 信息 / 话题 / 目录 / 能力`; Automation is a
   secondary/admin surface reached from contextual menus rather than a primary
-  row button. The sidebar also renders the same permission-filtered plugin
+  row button. Growth is plugin-owned and must be opened from the plugin
+  launcher/Dock or explicit compatibility routes, not as a permanent host
+  primary tab. The sidebar also renders the same permission-filtered plugin
   launcher used by the global Dock so PC browsers do not have a separate plugin
   discovery model.
 - Mobile sidebar: `public/index.html`, `public/styles.css`,
@@ -149,22 +151,23 @@ the change is part of a dedicated infrastructure rename.
 - Task group UI: `public/app-task-groups-ui.js`, `public/app-task-preview-ui.js`
 - Capability Entry Hub product direction:
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md`
-  - Root Topics should present a compact usage-backed frequent quick-action grid
-    followed by Directory-bound topic collections in the scrollable page body.
-    Plugin and built-in Directory icons stay in the host-owned global plugin
-    Dock above the primary bottom navigation or host comfort inset. The Dock is
-    collapsed to a small handle by default on eligible root surfaces, the Chat
-    bottom-tab surface, and top-level plugin App surfaces, and expands in place
-    from that handle. Icon clicks consistently open the app/capability, while
-    long-press/context-click opens the compact quick-action menu. Touch-shell
-    validation must verify the `touchstart` long-press path directly because
-    desktop `contextmenu` evidence alone does not prove iOS/PWA behavior. Quick actions
-    carry task-specific routes such as topic, directory, plugin route, quick
-    form, or MCP-backed Home AI intent. Quick actions use the workspace-scoped
-    `/api/plugin-topic-usage` preference store as the source of truth, with
-    `hermesPluginTopicUsage` only as a local first-paint/offline cache. Entries
-    default to zero usage, appear only after use, sort by count/recency, and do
-    not render trailing plugin/source badges.
+  - The host `能力` tab presents the compact usage-backed quick-action grid.
+    Topics root is conversation-first and should not render the quick-action
+    grid. Plugin and built-in Directory icons stay in the host-owned global
+    plugin Dock above the primary bottom navigation or host comfort inset. The
+    Dock is collapsed to a small handle by default on eligible root surfaces,
+    the Chat bottom-tab surface, and top-level plugin App surfaces, and expands
+    in place from that handle. Icon clicks consistently open the app/capability,
+    while long-press/context-click opens the compact quick-action menu.
+    Touch-shell validation must verify the `touchstart` long-press path
+    directly because desktop `contextmenu` evidence alone does not prove
+    iOS/PWA behavior. Quick actions carry task-specific routes such as topic,
+    directory, plugin route, quick form, or MCP-backed Home AI intent. Quick
+    actions use the workspace-scoped `/api/plugin-topic-usage` preference store
+    as the source of truth, with `hermesPluginTopicUsage` only as a local
+    first-paint/offline cache. Used entries sort by count/recency, and available
+    default actions may fill the remaining `能力` cells so first-time users do
+    not see an empty capability surface.
     Directory-bound topic rows show the directory display name plus topic count
     and updated time; they hide raw directory paths and default-topic prompt
     badges.
@@ -259,9 +262,11 @@ the change is part of a dedicated infrastructure rename.
 
 - Growth user entry is the embedded plugin view `view=growth`, rendered by
   `public/app-embedded-plugin-ui.js` with plugin id `growth`.
-- Sidebar and bottom Growth navigation set `viewMode=growth`. Stale
-  `viewMode=learning` state and old `view=learning` URLs are compatibility
-  inputs only and must be normalized to `growth` before a view is loaded.
+- Growth is no longer a permanent host sidebar/bottom tab. It is opened as an
+  embedded plugin from the global plugin Dock/drawer or from explicit Growth
+  plugin routes. Stale `viewMode=learning` state and old `view=learning` URLs
+  are compatibility inputs only and must be normalized to `growth` before a
+  view is loaded.
 - Growth card deep links use
   `view=growth&pluginRoute=card&pluginItemId=<taskCardId>`. Old
   `view=learning&taskCardId=<taskCardId>` links are converted to that plugin

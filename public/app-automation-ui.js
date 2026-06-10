@@ -24,6 +24,7 @@ function applyViewMode() {
   const directory = state.viewMode === "projects";
   const automation = state.viewMode === "automation";
   const inbox = state.viewMode === "inbox";
+  const capabilities = state.viewMode === "capabilities";
   const learning = false;
   const todos = state.viewMode === "todos";
   const wardrobe = state.viewMode === "wardrobe";
@@ -44,6 +45,7 @@ function applyViewMode() {
   $("app")?.classList.toggle("todo-mode", todos);
   $("app")?.classList.toggle("inbox-mode", inbox);
   $("app")?.classList.toggle("automation-mode", automation);
+  $("app")?.classList.toggle("capability-mode", capabilities);
   $("app")?.classList.toggle("learning-mode", learning);
   $("app")?.classList.toggle("projects-mode", directory);
   $("app")?.classList.toggle("wardrobe-mode", wardrobe);
@@ -68,8 +70,8 @@ function applyViewMode() {
   $("bottomAutomationMode")?.classList.toggle("active", automation);
   $("learningMode")?.classList.toggle("active", learning);
   $("bottomLearningMode")?.classList.toggle("active", learning);
-  $("todosMode").classList.toggle("active", learning);
-  $("bottomTodosMode")?.classList.toggle("active", learning);
+  $("todosMode").classList.toggle("active", capabilities);
+  $("bottomTodosMode")?.classList.toggle("active", capabilities);
   $("bottomPluginMode")?.classList.toggle("active", wardrobe || finance || email || health || note || growth);
   $("bottomPluginWardrobeMode")?.classList.toggle("active", wardrobe);
   $("bottomWardrobeMode")?.classList.toggle("active", wardrobe);
@@ -85,10 +87,10 @@ function applyViewMode() {
   $("routeFields").classList.add("hidden");
   $("directoryEntry")?.classList.add("hidden");
   $("directoryEntry")?.parentElement?.classList.add("hidden");
-  $("newThread").classList.toggle("hidden", single || tasks || automation || inbox || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth);
-  $("newThread").disabled = single || tasks || automation || inbox || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth;
+  $("newThread").classList.toggle("hidden", single || tasks || automation || inbox || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth);
+  $("newThread").disabled = single || tasks || automation || inbox || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth;
   $("newThread").textContent = todos ? "新建看板卡片" : "新建话题";
-  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : learning || growth ? "Search growth" : wardrobe ? "Search wardrobe" : email ? "Search email" : health ? "Search health" : note ? "Search notes" : "Search directories";
+  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : capabilities ? "Search capabilities" : todos ? "Search Kanban" : automation ? "Search automations" : learning || growth ? "Search growth" : wardrobe ? "Search wardrobe" : email ? "Search email" : health ? "Search health" : note ? "Search notes" : "Search directories";
   updateSearchButton();
 }
 
@@ -173,6 +175,9 @@ async function loadSelectedView(options = {}) {
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "inbox") {
     await loadActionInbox();
+    if (!currentViewStillSelected()) return;
+  } else if (state.viewMode === "capabilities") {
+    renderCapabilityView();
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "wardrobe") {
     renderWardrobeView();

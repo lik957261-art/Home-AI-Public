@@ -1,13 +1,13 @@
 # Capability Entry Hub Design
 
-Last updated: 2026-06-06.
+Last updated: 2026-06-10.
 
 ## Purpose
 
-The Topics tab should evolve from a mixed topic list plus plugin Dock into a
-capability entry hub. The hub should let a user choose the task they want to
-perform without first deciding whether the correct path is a topic, an embedded
-plugin app, a file directory, or an MCP-backed Home AI action.
+The host `能力` tab is the capability entry hub. It lets a user choose the
+task they want to perform without first deciding whether the correct path is a
+topic, an embedded plugin app, a file directory, or an MCP-backed Home AI
+action.
 
 The product rule is:
 
@@ -41,7 +41,7 @@ primary action.
 
 ## Information Architecture
 
-The page is organized by capability groups, not by transport type.
+The Capability page is organized by capability groups, not by transport type.
 
 Examples:
 
@@ -53,23 +53,21 @@ Examples:
 - Health
 - Automation
 
-The root page has three visible layers:
+The host shell has three related but separate entry surfaces:
 
-1. A frequent quick-action area for the user's highest-value tasks.
-2. Directory-bound topic collections in the normal page scroll.
-3. A fixed bottom capability icon Dock for all available app-level
+1. `能力` tab: task-first quick actions.
+2. `话题` tab: conversation-first plugin topics, ordinary directory-bound topic
+   collections, and ordinary topic cards.
+3. Global plugin Dock/drawer: app-first launch for all available app-level
    capabilities, including built-in Directory and external plugins.
 
 The quick-action area is task-first. On phone and touch-tablet shells it uses a
-compact three-column grid capped at three rows, so the root page shows at most
-nine usage-backed quick actions before the Directory-bound topic rows. Actions
-are not prefilled by a global default list: they appear only after the user has
-actually used that action or launched that capability app from the Dock/menu.
-The host stores per-action usage counts and per-capability app-launch counts,
-starts every entry at zero, sorts visible entries by count and recency, and
-renders no empty quick-action shell when no usage history exists. This keeps
-the area personal while still allowing a recently used app-level capability to
-reappear as a top shortcut.
+compact three-column grid capped at three rows, so the Capability page shows at
+most nine quick actions. The host stores per-action usage counts and
+per-capability app-launch counts, sorts used entries by count and recency, and
+fills remaining cells with available default quick actions. This keeps the area
+useful on first launch while still making repeated real use promote the most
+valuable actions.
 
 Usage-backed ordering is a server-persisted workspace preference. The source
 of truth is `/api/plugin-topic-usage`, stored under the Home AI data directory
@@ -390,11 +388,12 @@ The existing plugin-context navigation remains valid after a plugin app is
 opened: the plugin app can still expose the three-entry context footer for
 topic, plugin, and directory while in plugin context.
 
-The hub changes the root Topics tab entry model:
+The hub changes the host entry model:
 
-- root Topics tab shows frequent quick actions followed by Directory-bound
-  topic collections;
-- root Topics tab keeps plugin and Directory icons in the fixed bottom Dock;
+- `能力` shows quick actions;
+- `话题` shows plugin conversation shortcuts and Directory-bound topic
+  collections;
+- plugin and Directory app icons stay in the fixed bottom Dock/drawer;
 - plugin icon opens the plugin app;
 - quick actions provide direct task-specific routes;
 - plugin topic and directory routes are reachable as quick actions, not as

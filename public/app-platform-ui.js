@@ -270,6 +270,7 @@ async function bootstrap() {
 function normalizedRouteView(value, fallback = "") {
   const view = String(value || "").trim().toLowerCase();
   if (view === "inbox" || view === "action-inbox" || view === "actions") return "inbox";
+  if (view === "capability" || view === "capabilities" || view === "ability" || view === "abilities") return "capabilities";
   if (view === "automation" || view === "automations" || view === "cron") return "automation";
   if (view === "learning" || view === "coins" || view === "rewards" || view === "redeem") return "learning";
   if (view === "wardrobe" || view === "closet" || view === "outfit") return "wardrobe";
@@ -279,7 +280,7 @@ function normalizedRouteView(value, fallback = "") {
   if (view === "health") return "health";
   if (view === "note" || view === "notes") return "note";
   if (view === "growth" || view === "education") return "growth";
-  if (view === "todo" || view === "todos") return "todos";
+  if (view === "todo" || view === "todos") return "capabilities";
   if (view === "directory" || view === "directories" || view === "projects") return "projects";
   if (view === "task" || view === "tasks") return "tasks";
   if (view === "single" || view === "stream") return "single";

@@ -144,9 +144,12 @@ Non-negotiable:
   plugin Dock and clear Dock-specific embedded iframe reservation. A hidden Dock
   must never leave expanded-state padding behind while the user is typing in a
   host composer or plugin iframe input.
-- When a top-level plugin App hides the primary Home AI bottom navigation, the
-  global plugin Dock must anchor to the host comfort inset instead of the
-  absent nav height. Otherwise the handle floats too high on plugin pages.
+- When a top-level plugin App hides the primary Home AI bottom navigation and
+  has no Home AI-owned plugin-context footer, the global plugin Dock must anchor
+  to the host comfort inset instead of the absent nav height. When the plugin
+  App is using the Home AI plugin-context footer, the Dock must anchor to that
+  visible footer's measured top offset. Otherwise the handle either floats too
+  high or overlaps the context navigation.
 - The global plugin Dock must not become visible while the host is between
   plugin-topic detail and topic-list chrome states. Rendering may prepare the
   Dock HTML, but the Dock must remain hidden until `updateNavigationControls()`

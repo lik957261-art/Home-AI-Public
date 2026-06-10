@@ -1129,11 +1129,16 @@ function updateCodexPluginNavigationAvailability() {
   const button = $("bottomCodexMode");
   const nav = $("bottomNav");
   const available = codexPluginNavigationAvailable();
+  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
+    && typeof pluginTopicBottomButtonId === "function"
+    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === "bottomCodexMode";
   if (button) {
-    button.hidden = !available;
-    button.setAttribute("aria-hidden", available ? "false" : "true");
+    button.hidden = !keepPluginContextButton;
+    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
   }
-  nav?.classList.toggle("codex-visible", available);
+  nav?.classList.remove("codex-visible");
+  if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("codex-mobile", available);
+  if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
   return available;
 }
 

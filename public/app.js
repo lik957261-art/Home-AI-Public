@@ -408,7 +408,7 @@ function initialKanbanAssessmentDraft() {
 
 function initialHermesViewMode() {
   const saved = localStorage.getItem("hermesWebViewMode") || "tasks";
-  return saved === "todos" ? "learning" : saved;
+  return saved === "todos" ? "capabilities" : saved;
 }
 
 const state = {

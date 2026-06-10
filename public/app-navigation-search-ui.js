@@ -381,6 +381,7 @@ function updateNavigationControls() {
   const centeredTopTitle = (
     (state.viewMode === "single" && state.singleWindowMode === "chat")
     || (state.viewMode === "tasks" && !state.currentTaskGroupId)
+    || (state.viewMode === "capabilities")
     || (state.viewMode === "projects")
     || (state.viewMode === "todos" && !todoDetail)
     || (state.viewMode === "inbox" && !actionInboxDetail && !actionInboxCreate)
@@ -404,6 +405,7 @@ function updateNavigationControls() {
   app?.classList.toggle("action-inbox-create-mode", actionInboxCreate);
   app?.classList.toggle("skill-detail-mode", skillDetail);
   app?.classList.toggle("task-list-mode", taskList);
+  app?.classList.toggle("capability-mode", state.viewMode === "capabilities");
   app?.classList.toggle("plugin-context-nav-mode", pluginContextNav);
   app?.classList.toggle("embedded-plugin-preview-fullscreen-active", embeddedPluginPreviewFullscreen);
   app?.classList.toggle("learning-mode", false);
@@ -495,6 +497,7 @@ function updateTopMoreControls() {
   const inboxView = state.viewMode === "inbox" && !actionInboxDetail && !actionInboxCreate;
   const automationDetail = isAutomationDetailView();
   const automationList = state.viewMode === "automation" && !automationDetail;
+  const capabilityView = state.viewMode === "capabilities";
   const wardrobeView = state.viewMode === "wardrobe";
   const codexView = state.viewMode === "codex";
   const financeView = state.viewMode === "finance";
@@ -502,7 +505,7 @@ function updateTopMoreControls() {
   const healthView = state.viewMode === "health";
   const noteView = state.viewMode === "note";
   const growthView = state.viewMode === "growth";
-  const showTopMenu = chatView || isTaskListView() || taskDetail || taskStream || directory || todoDetail || todoList || inboxView || actionInboxDetail || learningView || automationList || automationDetail || wardrobeView || codexView || financeView || emailView || healthView || noteView || growthView;
+  const showTopMenu = chatView || isTaskListView() || capabilityView || taskDetail || taskStream || directory || todoDetail || todoList || inboxView || actionInboxDetail || learningView || automationList || automationDetail || wardrobeView || codexView || financeView || emailView || healthView || noteView || growthView;
   wrap.classList.toggle("hidden", !showTopMenu);
   interrupt.classList.toggle("hidden", showTopMenu || chatView);
   if (!showTopMenu) {

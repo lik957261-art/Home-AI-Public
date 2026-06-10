@@ -322,10 +322,10 @@ function wireUi() {
     await loadSelectedView();
   });
   $("todosMode").addEventListener("click", async () => {
+    preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
-    if (typeof rememberGrowthPluginReturnRoute === "function") rememberGrowthPluginReturnRoute();
-    state.viewMode = "growth";
+    state.viewMode = "capabilities";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
     state.currentThread = null;
@@ -333,10 +333,10 @@ function wireUi() {
     await loadSelectedView();
   });
   $("bottomTodosMode")?.addEventListener("click", async () => {
+    preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
-    if (typeof rememberGrowthPluginReturnRoute === "function") rememberGrowthPluginReturnRoute();
-    state.viewMode = "growth";
+    state.viewMode = "capabilities";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
     state.currentThread = null;
