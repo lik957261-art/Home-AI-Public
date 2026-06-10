@@ -707,6 +707,35 @@ const GLOBAL_PLUGIN_DOCK_GESTURE_STABILITY_SCRIPT = `
     });
     target.dispatchEvent(event);
   };
+  const dispatchTouch = (target, type, x, y, identifier = 23) => {
+    if (typeof Touch !== "function" || typeof TouchEvent !== "function") {
+      dispatchPointer(target, type === "touchend" || type === "touchcancel" ? "pointerup" : type === "touchmove" ? "pointermove" : "pointerdown", x, y, identifier);
+      return;
+    }
+    const touch = new Touch({
+      identifier,
+      target,
+      clientX: x,
+      clientY: y,
+      screenX: x,
+      screenY: y,
+      pageX: x,
+      pageY: y,
+      radiusX: 8,
+      radiusY: 8,
+      force: type === "touchend" || type === "touchcancel" ? 0 : 0.5,
+    });
+    const activeTouches = type === "touchend" || type === "touchcancel" ? [] : [touch];
+    const changedTouches = [touch];
+    const event = new TouchEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      touches: activeTouches,
+      targetTouches: activeTouches,
+      changedTouches,
+    });
+    target.dispatchEvent(event);
+  };
   const runGesture = (label, deltas) => {
     const handle = dock?.querySelector?.("[data-global-plugin-dock-handle]");
     if (!handle) {
@@ -724,6 +753,25 @@ const GLOBAL_PLUGIN_DOCK_GESTURE_STABILITY_SCRIPT = `
     });
     const last = deltas[deltas.length - 1] || { x: 0, y: 0 };
     dispatchPointer(document, "pointerup", startX + Math.round(last.x || 0), startY + Math.round(last.y || 0));
+    sample(label + ":up");
+  };
+  const runExpandedStripSwipe = (label, deltaX) => {
+    const strip = dock?.querySelector?.(".plugin-app-strip");
+    const target = strip?.querySelector?.(".plugin-app-card") || strip;
+    if (!strip || !target) {
+      sample(label + ":strip-missing");
+      return;
+    }
+    const box = target.getBoundingClientRect();
+    const startX = Math.round(box.left + Math.min(Math.max(box.width / 2, 24), Math.max(24, box.width - 24)));
+    const startY = Math.round(box.top + box.height / 2);
+    dispatchTouch(target, "touchstart", startX, startY);
+    sample(label + ":down");
+    dispatchTouch(target, "touchmove", startX + Math.round(deltaX * 0.45), startY + 2);
+    sample(label + ":move-1");
+    dispatchTouch(target, "touchmove", startX + Math.round(deltaX), startY + 4);
+    sample(label + ":move-2");
+    dispatchTouch(target, "touchend", startX + Math.round(deltaX), startY + 4);
     sample(label + ":up");
   };
   const setVisualThreadSurface = (viewMode, singleWindowMode = "chat") => {
@@ -775,6 +823,8 @@ const GLOBAL_PLUGIN_DOCK_GESTURE_STABILITY_SCRIPT = `
     runGesture("mistouch-short-up", [{ x: 1, y: -8 }, { x: 2, y: -14 }]);
     runGesture("mistouch-horizontal", [{ x: 18, y: -3 }, { x: 64, y: -6 }]);
     runGesture("valid-open", [{ x: 0, y: -14 }, { x: 0, y: -30 }, { x: 0, y: -46 }, { x: 0, y: -58 }]);
+    runExpandedStripSwipe("expanded-strip-right-swipe", 92);
+    runExpandedStripSwipe("expanded-strip-left-swipe", -92);
     runGesture("valid-close", [{ x: 0, y: 14 }, { x: 0, y: 30 }, { x: 0, y: 46 }, { x: 0, y: 58 }]);
     setVisualThreadSurface("finance", "chat");
     if (typeof setGlobalPluginDockExpanded === "function") setGlobalPluginDockExpanded(false, { persist: false });
@@ -1697,7 +1747,7 @@ function assertGlobalPluginDockGestureStability(metrics = {}) {
   const byLabel = new Map(samples.map((sample) => [sample?.label || "", sample]));
   const final = metrics.final || samples[samples.length - 1] || {};
   const navRects = samples
-    .filter((sample) => /^(chat-surface-ready|collapsed-ready|mistouch-|valid-open:|valid-close:)/.test(String(sample?.label || "")))
+    .filter((sample) => /^(chat-surface-ready|collapsed-ready|mistouch-|valid-open:|valid-close:|expanded-strip-)/.test(String(sample?.label || "")))
     .map((sample) => sample?.bottomNavRect)
     .filter((rect) => rect && Number(rect.width || 0) > 0 && Number(rect.height || 0) > 0 && Number.isFinite(Number(rect.bottom)));
   const navBottomRange = navRects.length >= 2
@@ -1723,6 +1773,8 @@ function assertGlobalPluginDockGestureStability(metrics = {}) {
   const shortUp = byLabel.get("mistouch-short-up:up") || {};
   const horizontal = byLabel.get("mistouch-horizontal:up") || {};
   const validOpen = byLabel.get("valid-open:up") || {};
+  const expandedRight = byLabel.get("expanded-strip-right-swipe:up") || {};
+  const expandedLeft = byLabel.get("expanded-strip-left-swipe:up") || {};
   const validClose = byLabel.get("valid-close:up") || {};
   const collapsedMetrics = collapsedReady.bottomLayout || {};
   const expandedMetrics = validOpen.bottomLayout || {};
@@ -1765,6 +1817,12 @@ function assertGlobalPluginDockGestureStability(metrics = {}) {
     }),
     assertion("valid_up_swipe_expands_dock", validOpen.dockExpanded === true && validOpen.dockCollapsed === false, {
       validOpen,
+    }),
+    assertion("expanded_strip_right_swipe_keeps_dock_open", expandedRight.dockExpanded === true && expandedRight.dockCollapsed === false && expandedRight.dockState !== "navigation-settling", {
+      expandedRight,
+    }),
+    assertion("expanded_strip_left_swipe_keeps_dock_open", expandedLeft.dockExpanded === true && expandedLeft.dockCollapsed === false && expandedLeft.dockState !== "navigation-settling", {
+      expandedLeft,
     }),
     assertion("valid_down_swipe_collapses_dock", validClose.dockCollapsed === true && validClose.dockExpanded === false && final.dockCollapsed === true, {
       validClose,

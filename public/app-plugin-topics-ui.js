@@ -731,6 +731,14 @@ function globalPluginDockGesturePoint(event) {
   return null;
 }
 
+function globalPluginDockOwnsTouchTarget(target) {
+  if (!target?.closest) return false;
+  const dock = $("topicPluginDock");
+  if (!dock || dock.hidden || !globalPluginDockHostSurfaceEligible()) return false;
+  if (!target.closest(".topic-plugin-dock")) return false;
+  return true;
+}
+
 function beginGlobalPluginDockGesture(event) {
   const dock = $("topicPluginDock");
   if (!dock || dock.hidden || !globalPluginDockHostSurfaceEligible()) return;

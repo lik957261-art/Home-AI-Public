@@ -217,6 +217,7 @@ function wireSidebarSwipe() {
 
   const startEdgeSwipe = (event) => {
     if (!isMobileLayout() || event.touches.length !== 1) return;
+    if (typeof globalPluginDockOwnsTouchTarget === "function" && globalPluginDockOwnsTouchTarget(event.target)) return;
     if (edge.classList.contains("disabled")) return;
     if (event.touches[0].clientX > EDGE_SWIPE_HIT_PX) return;
     startSwipe("edge", event);
@@ -255,7 +256,12 @@ function wireRightSwipeGuard() {
     touch = null;
   };
   document.addEventListener("touchstart", (event) => {
-    if (!isMobileLayout() || event.touches.length !== 1 || event.target?.closest?.(interactiveSelector)) {
+    if (
+      !isMobileLayout()
+      || event.touches.length !== 1
+      || event.target?.closest?.(interactiveSelector)
+      || (typeof globalPluginDockOwnsTouchTarget === "function" && globalPluginDockOwnsTouchTarget(event.target))
+    ) {
       touch = null;
       return;
     }

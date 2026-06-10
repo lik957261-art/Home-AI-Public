@@ -175,6 +175,12 @@ Non-negotiable:
   swipes settle to the correct state, Chat and top-level plugin App surfaces
   can enter global Dock mode, and the primary bottom-nav rect does not move
   during the gesture.
+- Expanded global plugin Dock strip swipes are owned by the Dock. A horizontal
+  touch that starts on the Dock or plugin app strip must not be captured by the
+  page-level right-swipe/back guard, must not collapse the Dock as navigation,
+  and must not accidentally open a plugin entry after the strip scrolls. The
+  iOS PWA gesture harness must cover both right and left strip swipes, not only
+  the collapsed handle.
 - The measured bottom-nav top offset already includes the host comfort inset.
   Dock positioning must use that offset directly; adding the inset again creates
   an artificial Dock/nav gap and is a failing bottom-stack state.
