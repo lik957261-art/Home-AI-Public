@@ -3,12 +3,15 @@
 const { createKanbanCardApiRoutes } = require("./kanban-card-api-routes");
 const { createKanbanLearningGuidanceApiRoutes } = require("./kanban-learning-guidance-api-routes");
 const { createKanbanStudyApiRoutes } = require("./kanban-study-api-routes");
+const { createGrowthPluginFacadeApiRoutes } = require("./growth-plugin-facade-api-routes");
 const { createLearningApiRoutes } = require("./learning-api-routes");
 const { createLearningCoinApiRoutes } = require("./learning-coin-api-routes");
 const { createLearningGrowthCardApiRoutes } = require("./learning-growth-card-api-routes");
 const { createLearningParentReviewApiRoutes } = require("./learning-parent-review-api-routes");
 const { createLearningProgramApiRoutes } = require("./learning-program-api-routes");
 const { createKanbanCaseTopicDeliveryService } = require("../adapters/kanban-case-topic-delivery-service");
+const { createGrowthPluginFacadeService } = require("../adapters/growth-plugin-facade-service");
+const { createLearningGrowthBoardProjectionService } = require("../adapters/learning-growth-board-projection-service");
 const { createLearningGrowthService } = require("../adapters/learning-growth-service");
 const { createLearningGrowthDirectoryMaterializationService } = require("../adapters/learning-growth-directory-materialization-service");
 const { createLearningGrowthExperienceSignalService } = require("../adapters/learning-growth-experience-signal-service");
@@ -257,19 +260,37 @@ function createMobileApiLearningComposition(deps = {}) {
     repository: learningProgramRepository,
   });
 
+  const learningGrowthService = createLearningGrowthService({
+    legacyTodoTaskService: learningGrowthLegacyTodoTaskService,
+    learningCoinService: deps.learningCoinService,
+    learningProgramService,
+  });
+  const learningGrowthBoardService = createLearningGrowthBoardProjectionService({
+    learningGrowthService,
+  });
   const learningApiRoutes = createLearningApiRoutes({
     isOwnerAuth: deps.isOwnerAuth,
     learningCoinService: deps.learningCoinService,
-    learningGrowthService: createLearningGrowthService({
-      legacyTodoTaskService: learningGrowthLegacyTodoTaskService,
-      learningCoinService: deps.learningCoinService,
-      learningProgramService,
-    }),
+    learningGrowthBoardService,
+    learningGrowthService,
     learningGrowthTaskService,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
     sendJson: deps.sendJson,
   });
   callBootTrace(deps, "learning api routes ready");
+
+  const growthPluginFacadeService = createGrowthPluginFacadeService({
+    learningGrowthBoardService,
+    learningGrowthService,
+  });
+  const growthPluginFacadeApiRoutes = createGrowthPluginFacadeApiRoutes({
+    authCanAccessWorkspace: deps.authCanAccessWorkspace,
+    growthPluginFacadeService,
+    isOwnerAuth: deps.isOwnerAuth,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "growth plugin facade api routes ready");
 
   const learningProgramApiRoutes = createLearningProgramApiRoutes({
     isOwnerAuth: deps.isOwnerAuth,
@@ -318,22 +339,8 @@ function createMobileApiLearningComposition(deps = {}) {
   callBootTrace(deps, "learning coin api routes ready");
 
   return {
-    services: {
-      learningGrowthSubmissionService,
-      learningGrowthTeachingCheckService,
-      learningGrowthExperienceSignalService,
-      learningGrowthStageAssessmentService,
-    },
-    routes: {
-      kanbanCardApiRoutes,
-      kanbanLearningGuidanceApiRoutes,
-      kanbanStudyApiRoutes,
-      learningApiRoutes,
-      learningCoinApiRoutes,
-      learningGrowthCardApiRoutes,
-      learningParentReviewApiRoutes,
-      learningProgramApiRoutes,
-    },
+    services: { growthPluginFacadeService, learningGrowthSubmissionService, learningGrowthTeachingCheckService, learningGrowthExperienceSignalService, learningGrowthStageAssessmentService },
+    routes: { growthPluginFacadeApiRoutes, kanbanCardApiRoutes, kanbanLearningGuidanceApiRoutes, kanbanStudyApiRoutes, learningApiRoutes, learningCoinApiRoutes, learningGrowthCardApiRoutes, learningParentReviewApiRoutes, learningProgramApiRoutes },
   };
 }
 

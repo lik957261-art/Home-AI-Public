@@ -8,6 +8,7 @@ const {
   DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL,
   DEFAULT_EMAIL_PLUGIN_MANIFEST_URL,
   DEFAULT_FINANCE_PLUGIN_MANIFEST_URL,
+  DEFAULT_GROWTH_PLUGIN_MANIFEST_URL,
   DEFAULT_HEALTH_PLUGIN_MANIFEST_URL,
   DEFAULT_NOTE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
@@ -17,6 +18,7 @@ const {
   findCodexMobileAccessKeyPath,
   findEmailAccessKeyPath,
   findFinanceAccessKeyPath,
+  findGrowthAccessKeyPath,
   findHealthAccessKeyPath,
   findNoteAccessKeyPath,
   findWardrobeAccessKeyPath,
@@ -271,6 +273,51 @@ function sampleNoteManifest() {
   };
 }
 
+function sampleGrowthManifest() {
+  return {
+    id: "growth",
+    title: "成长",
+    kind: "embedded_app",
+    entry: {
+      type: "web",
+      url: "http://127.0.0.1:4881/?embed=hermes",
+    },
+    launch: {
+      supported: true,
+      endpoint: "/api/v1/hermes/plugin/launch",
+      method: "POST",
+      token_ttl_seconds: 300,
+    },
+    provisioning: {
+      supported: true,
+      mode: "workspace_binding",
+      endpoint: "/api/v1/hermes/plugin/workspaces",
+    },
+    navigation: {
+      state_event: "growth.plugin.navigation",
+      back_event: "hermes.plugin.back",
+      back_result_event: "growth.plugin.back_result",
+      refresh_required_event: "growth.plugin.refresh_required",
+      preserve_iframe_state: true,
+    },
+    mcp: {
+      server: "growth",
+      toolset: "growth",
+      required_tools: ["growth.board_read"],
+    },
+    toolsets: ["growth"],
+    owner_binding: {
+      strategy: "workspace_generated_access_key_hash",
+      config_file: ".hermes-growth/config.json",
+      access_key_file: ".hermes-growth/access-key.txt",
+      raw_key_returned_by_growth: false,
+    },
+    permissions: {
+      plugin: ["growth:read", "growth:write"],
+    },
+  };
+}
+
 function testNormalizeManifest() {
   const manifest = normalizeManifest(sampleManifest(), {
     id: "wardrobe",
@@ -399,6 +446,30 @@ function testNormalizeNoteManifest() {
   assert.equal(manifest.embedding.backResultEvent, "note.plugin.back_result");
   assert.equal(manifest.embedding.refreshRequiredEvent, "note.plugin.refresh_required");
   assert.equal(manifest.ownerBinding.configFile, ".hermes-note/config.json");
+  assert.equal(manifest.ownerBinding.rawKeyReturned, false);
+  assert.equal(Object.hasOwn(manifest.ownerBinding, "access_key_file"), false);
+}
+
+function testNormalizeGrowthManifest() {
+  const manifest = normalizeManifest(sampleGrowthManifest(), {
+    id: "growth",
+    manifestUrl: "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest",
+    fetchedAt: "2026-06-10T00:00:00.000Z",
+  });
+  assert.equal(manifest.id, "growth");
+  assert.equal(manifest.kind, "embedded_app");
+  assert.equal(manifest.entry.url, "http://127.0.0.1:4881/?embed=hermes");
+  assert.equal(manifest.programApi.baseUrl, "http://127.0.0.1:4881/");
+  assert.equal(manifest.programApi.pluginLaunchPath, "http://127.0.0.1:4881/api/v1/hermes/plugin/launch");
+  assert.equal(manifest.programApi.workspaceRegistrationPath, "/api/v1/hermes/plugin/workspaces");
+  assert.equal(manifest.mcp.server, "growth");
+  assert.equal(manifest.mcp.toolset, "growth");
+  assert.deepEqual(manifest.mcp.toolsets, ["growth"]);
+  assert.deepEqual(manifest.mcp.requiredTools, ["growth.board_read"]);
+  assert.equal(manifest.embedding.stateEvent, "growth.plugin.navigation");
+  assert.equal(manifest.embedding.backResultEvent, "growth.plugin.back_result");
+  assert.equal(manifest.embedding.refreshRequiredEvent, "growth.plugin.refresh_required");
+  assert.equal(manifest.ownerBinding.configFile, ".hermes-growth/config.json");
   assert.equal(manifest.ownerBinding.rawKeyReturned, false);
   assert.equal(Object.hasOwn(manifest.ownerBinding, "access_key_file"), false);
 }
@@ -546,6 +617,7 @@ async function testDefaultLocalManifestUrls() {
   assert.equal(service.listInstalled()[2].title, "记账");
   assert.equal(service.listInstalled()[3].title, "邮箱");
   assert.equal(service.listInstalled()[4].manifestUrl, DEFAULT_HEALTH_PLUGIN_MANIFEST_URL);
+  assert.equal(service.listInstalled()[6].title, "成长");
 }
 
 function testInstalledPluginListReflectsWorkspaceKeyBindings() {
@@ -556,20 +628,26 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   const ownerEmailKey = path.join(dir, "drive", "users", "owner", ".hermes-email", "access-key.txt");
   const ownerHealthKey = path.join(dir, "drive", "users", "owner", ".hermes-health", "access-key.txt");
   const ownerHealthConfig = path.join(dir, "drive", "users", "owner", ".hermes-health", "config.json");
+  const ownerGrowthKey = path.join(dir, "drive", "users", "owner", ".hermes-growth", "access-key.txt");
+  const ownerGrowthConfig = path.join(dir, "drive", "users", "owner", ".hermes-growth", "config.json");
   const wardrobeKey = path.join(dir, "drive", "users", "weixin_wuping", "Hermes-吴萍", "衣橱", ".hermes-wardrobe", "access-key.txt");
   const financeKey = path.join(dir, "drive", "users", "child_workspace", ".hermes-finance", "access-key.txt");
   const financeConfig = path.join(dir, "drive", "users", "child_workspace", ".hermes-finance", "config.json");
   const emailKey = path.join(dir, "drive", "users", "mail_workspace", "Email", ".hermes-email", "access-key.txt");
   const healthKey = path.join(dir, "drive", "users", "health_workspace", ".hermes-health", "access-key.txt");
   const healthConfig = path.join(dir, "drive", "users", "health_workspace", ".hermes-health", "config.json");
+  const growthKey = path.join(dir, "drive", "users", "growth_workspace", ".hermes-growth", "access-key.txt");
+  const growthConfig = path.join(dir, "drive", "users", "growth_workspace", ".hermes-growth", "config.json");
   fs.mkdirSync(path.dirname(ownerWardrobeKey), { recursive: true });
   fs.mkdirSync(path.dirname(ownerFinanceKey), { recursive: true });
   fs.mkdirSync(path.dirname(ownerEmailKey), { recursive: true });
   fs.mkdirSync(path.dirname(ownerHealthKey), { recursive: true });
+  fs.mkdirSync(path.dirname(ownerGrowthKey), { recursive: true });
   fs.mkdirSync(path.dirname(wardrobeKey), { recursive: true });
   fs.mkdirSync(path.dirname(financeKey), { recursive: true });
   fs.mkdirSync(path.dirname(emailKey), { recursive: true });
   fs.mkdirSync(path.dirname(healthKey), { recursive: true });
+  fs.mkdirSync(path.dirname(growthKey), { recursive: true });
   fs.writeFileSync(ownerWardrobeKey, "owner-wardrobe-key\n", "utf8");
   fs.writeFileSync(ownerFinanceKey, "owner-finance-key\n", "utf8");
   fs.writeFileSync(ownerFinanceConfig, JSON.stringify({
@@ -581,6 +659,12 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   fs.writeFileSync(ownerHealthKey, "owner-health-key\n", "utf8");
   fs.writeFileSync(ownerHealthConfig, JSON.stringify({
     workspace_id: "health:owner",
+    hermes_workspace_id: "owner",
+    access_key_file: "access-key.txt",
+  }), "utf8");
+  fs.writeFileSync(ownerGrowthKey, "owner-growth-key\n", "utf8");
+  fs.writeFileSync(ownerGrowthConfig, JSON.stringify({
+    workspace_id: "growth:owner",
     hermes_workspace_id: "owner",
     access_key_file: "access-key.txt",
   }), "utf8");
@@ -599,11 +683,18 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
     hermes_workspace_id: "health_workspace",
     access_key_file: "access-key.txt",
   }), "utf8");
+  fs.writeFileSync(growthKey, "growth-key\n", "utf8");
+  fs.writeFileSync(growthConfig, JSON.stringify({
+    workspace_id: "growth:growth_workspace",
+    hermes_workspace_id: "growth_workspace",
+    access_key_file: "access-key.txt",
+  }), "utf8");
 
   assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("wardrobe", { dataDir: dir }).sort(), ["owner", "weixin_wuping"].sort());
   assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("finance", { dataDir: dir }).sort(), ["owner", "child_workspace"].sort());
   assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("email", { dataDir: dir }).sort(), ["owner", "mail_workspace"].sort());
   assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("health", { dataDir: dir }).sort(), ["owner", "health_workspace"].sort());
+  assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("growth", { dataDir: dir }).sort(), ["owner", "growth_workspace"].sort());
 
   const service = createHermesPluginService({
     dataDir: dir,
@@ -617,6 +708,7 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   assert.deepEqual(installed.find((item) => item.id === "finance").authorizedWorkspaceIds.sort(), ["owner", "child_workspace"].sort());
   assert.deepEqual(installed.find((item) => item.id === "email").authorizedWorkspaceIds.sort(), ["owner", "mail_workspace"].sort());
   assert.deepEqual(installed.find((item) => item.id === "health").authorizedWorkspaceIds.sort(), ["owner", "health_workspace"].sort());
+  assert.deepEqual(installed.find((item) => item.id === "growth").authorizedWorkspaceIds.sort(), ["owner", "growth_workspace"].sort());
   assert.deepEqual(installed.find((item) => item.id === "finance").workspaceAuthorizations.sort((left, right) => left.workspaceId.localeCompare(right.workspaceId)), [{
     workspaceId: "child_workspace",
     status: "authorized",
@@ -634,6 +726,21 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   }].sort((left, right) => left.workspaceId.localeCompare(right.workspaceId)));
   assert.deepEqual(installed.find((item) => item.id === "health").workspaceAuthorizations.sort((left, right) => left.workspaceId.localeCompare(right.workspaceId)), [{
     workspaceId: "health_workspace",
+    status: "authorized",
+    provisioningStatus: "active",
+    provisioningError: "",
+    provisioningUpdatedAt: "",
+    source: "workspace_key",
+  }, {
+    workspaceId: "owner",
+    status: "authorized",
+    provisioningStatus: "active",
+    provisioningError: "",
+    provisioningUpdatedAt: "",
+    source: "workspace_key",
+  }].sort((left, right) => left.workspaceId.localeCompare(right.workspaceId)));
+  assert.deepEqual(installed.find((item) => item.id === "growth").workspaceAuthorizations.sort((left, right) => left.workspaceId.localeCompare(right.workspaceId)), [{
+    workspaceId: "growth_workspace",
     status: "authorized",
     provisioningStatus: "active",
     provisioningError: "",
@@ -700,6 +807,25 @@ function testFinanceWorkspaceKeyWithoutConfigIsNotActive() {
     },
   });
   const installed = service.listInstalled().find((item) => item.id === "finance");
+  assert.deepEqual(installed.authorizedWorkspaceIds, []);
+  assert.deepEqual(installed.workspaceAuthorizations, []);
+}
+
+function testGrowthWorkspaceKeyWithoutConfigIsNotActive() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-growth-key-only-"));
+  const growthKey = path.join(dir, "drive", "users", "growth_workspace", ".hermes-growth", "access-key.txt");
+  fs.mkdirSync(path.dirname(growthKey), { recursive: true });
+  fs.writeFileSync(growthKey, "growth-key\n", "utf8");
+  assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("growth", { dataDir: dir }), []);
+  const service = createHermesPluginService({
+    dataDir: dir,
+    env: {},
+    plugins: [{ id: "growth", manifestUrl: "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest" }],
+    fetch() {
+      throw new Error("key-only Growth workspace must not fetch manifest");
+    },
+  });
+  const installed = service.listInstalled().find((item) => item.id === "growth");
   assert.deepEqual(installed.authorizedWorkspaceIds, []);
   assert.deepEqual(installed.workspaceAuthorizations, []);
 }
@@ -1132,6 +1258,85 @@ async function testNoteGrantProvisionsWorkspaceKeyHashConfigAndLaunch() {
     target_workspace_id: "weixin_note",
   });
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"launch_token"|"workspace_key"|hnt_/);
+}
+
+async function testGrowthGrantProvisionsWorkspaceKeyHashConfigAndLaunch() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-growth-grant-"));
+  const ownerKeyPath = path.join(dir, "growth-owner-key.txt");
+  fs.writeFileSync(ownerKeyPath, "growth-owner-test-key\n", "utf8");
+  const calls = [];
+  const service = createHermesPluginService({
+    dataDir: dir,
+    env: {},
+    growthOwnerKeyPath: ownerKeyPath,
+    plugins: [{ id: "growth", manifestUrl: "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest" }],
+    fetch(url, options = {}) {
+      calls.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      if (url.endsWith("/api/v1/hermes/plugin/workspaces")) {
+        assert.equal(options.headers.Authorization, "Bearer growth-owner-test-key");
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            ok: true,
+            workspace_id: "growth:weixin_growth",
+            hermes_workspace_id: "weixin_growth",
+          }),
+        });
+      }
+      if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(sampleGrowthManifest()) });
+      }
+      if (url.endsWith("/api/v1/hermes/plugin/launch")) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ entry_path: "/?embed=hermes&launch=growth_once", expires_in_ms: 300000 }) });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+  const granted = await service.grantWorkspace({ id: "growth", workspaceId: "weixin_growth", displayName: "Growth User" });
+  assert.equal(granted.ok, true);
+  assert.equal(granted.record.provisioningStatus, "active");
+  assert.equal(granted.provisioning.growthWorkspaceId, "growth:weixin_growth");
+  assert.equal(service.list({ workspaceId: "weixin_growth" }).find((item) => item.id === "growth").id, "growth");
+
+  const keyPath = path.join(dir, "drive", "users", "weixin_growth", ".hermes-growth", "access-key.txt");
+  const configPath = path.join(dir, "drive", "users", "weixin_growth", ".hermes-growth", "config.json");
+  assert.equal(fs.existsSync(keyPath), true);
+  assert.equal(fs.existsSync(configPath), true);
+  const rawKey = fs.readFileSync(keyPath, "utf8").trim();
+  assert.match(rawKey, /^hgr_/);
+  const registrationCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/workspaces"));
+  assert.ok(registrationCall);
+  assert.equal(registrationCall.body.workspace_id, "growth:weixin_growth");
+  assert.equal(registrationCall.body.target_workspace_id, "weixin_growth");
+  assert.equal(registrationCall.body.hermes_workspace_id, "weixin_growth");
+  assert.match(registrationCall.body.access_key_hash, /^[a-f0-9]{64}$/);
+  assert.equal(JSON.stringify(registrationCall.body).includes(rawKey), false);
+  const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  assert.equal(config.api_base_url, "http://127.0.0.1:4881");
+  assert.equal(config.workspace_id, "growth:weixin_growth");
+  assert.equal(config.hermes_workspace_id, "weixin_growth");
+  assert.equal(config.access_key_file, "access-key.txt");
+  assert.equal(JSON.stringify(config).includes(rawKey), false);
+
+  const manifest = await service.manifest({
+    id: "growth",
+    workspaceId: "weixin_growth",
+    ownerAuthorized: true,
+    launchPlugin: true,
+  });
+  assert.equal(manifest.available, true);
+  assert.equal(
+    manifest.entry.url,
+    "/api/hermes-plugins/growth/proxy/?embed=hermes&launch=growth_once&workspaceId=weixin_growth",
+  );
+  const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
+  assert.ok(launchCall);
+  assert.equal(launchCall.options.headers.Authorization, `Bearer ${rawKey}`);
+  assert.deepEqual(launchCall.body, {
+    workspace_id: "weixin_growth",
+  });
+  assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"launch_token"|"workspace_key"|hgr_/);
 }
 
 async function testHealthOwnerGrantProvisionsWorkspaceBeforeManifest() {
@@ -2064,6 +2269,11 @@ function testFindHealthAccessKeyPath() {
   assert.equal(findHealthAccessKeyPath({ workspaceId: "owner" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
 }
 
+function testFindGrowthAccessKeyPath() {
+  assert.equal(findGrowthAccessKeyPath({ growthAccessKeyPath: __filename }), __filename);
+  assert.equal(findGrowthAccessKeyPath({ workspaceId: "owner" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
+}
+
 function testFindNoteAccessKeyPath() {
   assert.equal(findNoteAccessKeyPath({ noteAccessKeyPath: __filename }), __filename);
   assert.equal(findNoteAccessKeyPath({ workspaceId: "owner" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
@@ -2110,6 +2320,7 @@ async function run() {
   testNormalizeEmailManifest();
   testNormalizeHealthManifest();
   testNormalizeNoteManifest();
+  testNormalizeGrowthManifest();
   testNormalizePluginAppearance();
   testFrameAncestorsAllowsCurrentOrigin();
   await testFetchesConfiguredWardrobeManifest();
@@ -2122,6 +2333,7 @@ async function run() {
   await testHealthFreshInstallIsInstalledButNotWorkspaceActive();
   testHealthWorkspaceKeyWithoutConfigIsNotActive();
   testFinanceWorkspaceKeyWithoutConfigIsNotActive();
+  testGrowthWorkspaceKeyWithoutConfigIsNotActive();
   await testFinanceGrantProvisionsWorkspaceKeyAndBind();
   await testFinanceGrantRefreshesGatewayProfilesAfterProvisioning();
   await testFinanceGrantFailsProvisioningWhenGatewayRefreshFails();
@@ -2130,6 +2342,7 @@ async function run() {
   await testFinanceOwnerProvisioningFailureBlocksManifest();
   await testHealthGrantProvisionsWorkspaceKeyHashConfigAndLaunch();
   await testNoteGrantProvisionsWorkspaceKeyHashConfigAndLaunch();
+  await testGrowthGrantProvisionsWorkspaceKeyHashConfigAndLaunch();
   await testHealthOwnerGrantProvisionsWorkspaceBeforeManifest();
   await testHealthOwnerGrantMissingRegistrationKeyDoesNotBecomeActive();
   await testEmailGrantProvisionsWorkspaceRegistrationAndLaunch();
@@ -2155,6 +2368,7 @@ async function run() {
   testFindFinanceAccessKeyPath();
   testFindEmailAccessKeyPath();
   testFindHealthAccessKeyPath();
+  testFindGrowthAccessKeyPath();
   testFindNoteAccessKeyPath();
   await testReviewFinanceLedgerJoinRequestUsesDedicatedFinanceEndpoint();
 }

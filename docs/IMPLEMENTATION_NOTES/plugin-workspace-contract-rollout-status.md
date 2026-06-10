@@ -1,6 +1,6 @@
 # Plugin Workspace Contract Rollout Status
 
-Last updated: 2026-06-09.
+Last updated: 2026-06-10.
 Home AI platform contract version: `20260609-v2`.
 
 ## Scope
@@ -16,6 +16,7 @@ Included in this pass:
 - Note
 - Email
 - Health
+- Growth
 - Codex Mobile Web, only for the Home AI embedded plugin variant registered as
   `codex-mobile`
 
@@ -91,7 +92,8 @@ so plugin layout response can still be gated with screenshot evidence.
 The checker requires `dev_runtime_prerequisites` as a plugin-local fact. This
 prevents environment failures from being misclassified as MCP/schema failures:
 Note and Wardrobe must declare Python, Node-based service plugins must declare
-Node/npm, and Codex Mobile must also declare Codex CLI availability.
+Node/npm, Growth must declare Node/npm, and Codex Mobile must also declare
+Codex CLI availability.
 
 The checker requires every included plugin pointer to declare the AI Operations
 Control Plane entrypoint and flow. Plugin threads must run control-plane
@@ -114,6 +116,7 @@ are explicit external deployment overrides, not standard plugin defaults.
 | Note | Windows Note workspace | `main` at `fb92356`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Note link tools; Reference / Memory Graph harness; `ios_visual_harness_command` required when preview, gesture, or PWA shell behavior changes. |
 | Email | Windows Email workspace | `main` at `75a1ea0`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1 for messages, threads, attachments, and accounts; exact deploy command stabilization; `ios_visual_harness_command` required for embedded UI or account switching changes. |
 | Health | Windows Health workspace | `main` at `3495ae8`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1; `ios_visual_harness_command` required for embedded UI or mobile navigation changes. |
+| Growth | Mac Growth plugin workspace | New plugin workspace at `/Users/hermes-dev/HermesMobileDev/plugins/growth`; production deployment pending | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Built-in Growth extraction is in progress. The plugin currently reads the Home AI `/api/growth/v1/*` facade, persists bounded snapshots, normalizes bounded events, and exposes read-only MCP schema scaffolds. Production Mac probe is deferred until the service is installed. |
 | Codex Mobile Web | Mac Codex Mobile plugin workspace | `main` at `bc82703` plus local Mac hotfix work when pointer was added | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Owner-critical Home AI embedded plugin insertion only; not normal workspace-grantable plugin visibility and not a rule for independent Codex Mobile deployments. `ios_visual_harness_command` is required for embedded keyboard, gesture, cache, and PWA reproduction loops. |
 
 ## Mac Read-Only Probe Status
@@ -121,7 +124,9 @@ are explicit external deployment overrides, not standard plugin defaults.
 `node scripts\plugin-workspace-platform-contract-check.js --probe-mac --require-mac-ok --json`
 passed for Finance, Wardrobe, Note, Email, and Health on 2026-06-06 through
 `homeai-mac`. Codex Mobile Web passed on 2026-06-08 from the Mac development
-host with `--ssh-alias local`.
+host with `--ssh-alias local`. Growth is included in the local contract checker,
+but its Mac source/launchd/manifest probe is deferred until the production
+service is installed.
 
 Verified facts:
 
@@ -132,12 +137,14 @@ Verified facts:
 | Note | `/Users/hermes-host/HermesMobile/plugins/note` | `com.hermesmobile.plugin.note` loaded | `http://127.0.0.1:4181/api/v1/hermes/plugin/manifest` returned HTTP 200 | Data root observed under `/Users/hermes-host/HermesMobile/plugins/note/data`. |
 | Email | `/Users/hermes-host/HermesMobile/plugins/email` | `com.hermesmobile.plugin.email` loaded | `http://127.0.0.1:5175/api/v1/hermes/plugin/manifest` returned HTTP 200 | Runtime/data root observed under `/Users/hermes-host/HermesMobile/plugins/email/runtime`. |
 | Health | `/Users/hermes-host/HermesMobile/plugins/healthy` | `com.hermesmobile.plugin.health` loaded | `http://127.0.0.1:4877/api/v1/hermes/plugin/manifest` returned HTTP 200 | The source directory is `healthy`, not `health`; data root observed under `/Users/hermes-host/HermesMobile/plugins/healthy/data`. |
+| Growth | `/Users/hermes-host/HermesMobile/plugins/growth` | `com.hermesmobile.plugin.growth` deferred | `http://127.0.0.1:4881/api/v1/hermes/plugin/manifest` deferred | Production service is not installed yet. Local contract/pointer checks are enforced; read-only Mac probe is intentionally skipped by the checker until deployment. |
 | Codex Mobile Web | `/Users/hermes-host/HermesMobile/plugins/codex-mobile-web` | `com.hermesmobile.plugin.codex-mobile` loaded | `http://127.0.0.1:8787/api/v1/hermes/plugin/manifest` returned HTTP 200 | 2026-06-08 same-host probe used `--ssh-alias local` and also verified `/api/public-config`. |
 
 ## Closure State
 
-The platform rollout has completed these closure items for the six included
-plugin entries:
+The platform rollout has completed these closure items for the included
+production plugin entries, with Growth included as a development-stage plugin
+whose production Mac probe remains deferred:
 
 1. plugin-local pointer files exist;
 2. plugin-local required facts are declared;

@@ -111,6 +111,7 @@ const localWorkspaceStoreService = require("../adapters/local-workspace-store-se
 const curriculumReferenceService = require("../adapters/curriculum-reference-service");
 const learnerProfileService = require("../adapters/learner-profile-service");
 const learningEnglishTemplatePackService = require("../adapters/learning-english-template-pack-service");
+const growthPluginFacadeService = require("../adapters/growth-plugin-facade-service");
 const learningGrowthService = require("../adapters/learning-growth-service");
 const learningGrowthJitTaskService = require("../adapters/learning-growth-jit-task-service");
 const learningGrowthKanbanTaskService = require("../adapters/learning-growth-kanban-task-service");
@@ -244,6 +245,7 @@ const kanbanLearningGuidanceApiRoutes = require("../server-routes/kanban-learnin
 const kanbanStudyApiRoutes = require("../server-routes/kanban-study-api-routes");
 const learningApiRoutes = require("../server-routes/learning-api-routes");
 const learningCoinApiRoutes = require("../server-routes/learning-coin-api-routes");
+const growthPluginFacadeApiRoutes = require("../server-routes/growth-plugin-facade-api-routes");
 const learningGrowthCardApiRoutes = require("../server-routes/learning-growth-card-api-routes");
 const learningParentReviewApiRoutes = require("../server-routes/learning-parent-review-api-routes");
 const learningProgramApiRoutes = require("../server-routes/learning-program-api-routes");
@@ -450,6 +452,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof learnerProfileService.createLearnerProfileService, "function");
   assert.equal(typeof learningEnglishTemplatePackService.englishTemplateRegistryEntries, "function");
   assert.equal(typeof learningEnglishTemplatePackService.englishTaskModelContract, "function");
+  assert.equal(typeof growthPluginFacadeService.createGrowthPluginFacadeService, "function");
   assert.equal(typeof learningGrowthService.createLearningGrowthService, "function");
   assert.equal(typeof learningGrowthService.buildLearningGrowthOverview, "function");
   assert.equal(typeof learningGrowthJitTaskService.createLearningGrowthJitTaskService, "function");
@@ -625,6 +628,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof kanbanStudyApiRoutes.createKanbanStudyApiRoutes, "function");
   assert.equal(typeof learningApiRoutes.createLearningApiRoutes, "function");
   assert.equal(typeof learningCoinApiRoutes.createLearningCoinApiRoutes, "function");
+  assert.equal(typeof growthPluginFacadeApiRoutes.createGrowthPluginFacadeApiRoutes, "function");
   assert.equal(typeof learningGrowthCardApiRoutes.createLearningGrowthCardApiRoutes, "function");
   assert.equal(typeof learningParentReviewApiRoutes.createLearningParentReviewApiRoutes, "function");
   assert.equal(typeof learningProgramApiRoutes.createLearningProgramApiRoutes, "function");
@@ -1614,6 +1618,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(mobileLearningComposition, /createLearningApiRoutes/);
   assert.match(mobileLearningComposition, /learningCoinService: deps\.learningCoinService/);
   assert.match(dispatcher, /key: "learningApiRoutes"/);
+  assert.match(mobileLearningComposition, /createGrowthPluginFacadeService/);
+  assert.match(mobileLearningComposition, /createGrowthPluginFacadeApiRoutes/);
+  assert.match(dispatcher, /key: "growthPluginFacadeApiRoutes"/);
   assert.match(mobileLearningComposition, /createLearningProgramApiRoutes/);
   assert.match(mobileLearningComposition, /createLearningProgramService/);
   assert.match(mobileLearningComposition, /createLearningProgramRepository/);

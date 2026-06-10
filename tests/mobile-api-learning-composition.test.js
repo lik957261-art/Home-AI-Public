@@ -153,6 +153,7 @@ withPatchedSetTimeout((scheduled) => {
   const deps = createDeps();
   const composition = createMobileApiLearningComposition(deps);
   assert.deepEqual(Object.keys(composition.routes).sort(), [
+    "growthPluginFacadeApiRoutes",
     "kanbanCardApiRoutes",
     "kanbanLearningGuidanceApiRoutes",
     "kanbanStudyApiRoutes",
@@ -163,6 +164,7 @@ withPatchedSetTimeout((scheduled) => {
     "learningProgramApiRoutes",
   ]);
   assert.deepEqual(Object.keys(composition.services).sort(), [
+    "growthPluginFacadeService",
     "learningGrowthExperienceSignalService",
     "learningGrowthStageAssessmentService",
     "learningGrowthSubmissionService",
@@ -177,6 +179,7 @@ withPatchedSetTimeout((scheduled) => {
     "kanban study api routes ready",
     "kanban learning guidance api routes ready",
     "learning api routes ready",
+    "growth plugin facade api routes ready",
     "learning program api routes ready",
     "learning growth card api routes ready",
     "learning parent review api routes ready",

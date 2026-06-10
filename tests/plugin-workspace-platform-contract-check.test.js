@@ -69,7 +69,7 @@ function makeFixture() {
   const repo = path.join(root, "Agent");
   write(path.join(repo, "docs", "IMPLEMENTATION_NOTES", "plugin-workspace-contract-rollout-status.md"), [
     "# Plugin Workspace Contract Rollout Status",
-    "Finance Wardrobe Note Email Health Codex Mobile Web",
+    "Finance Wardrobe Note Email Health Growth Codex Mobile Web",
     "plugin-workspace-platform-contract.md",
     "plugin-mobile-ui-visual-contract.md",
     "docs/HOME_AI_PLATFORM_CONTRACT.md",
@@ -120,7 +120,7 @@ function testFixturePasses() {
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const parsed = JSON.parse(result.stdout);
   assert.equal(parsed.ok, true);
-  assert.deepEqual(parsed.checkedPlugins, ["finance", "wardrobe", "note", "email", "health", "codex-mobile"]);
+  assert.deepEqual(parsed.checkedPlugins, ["finance", "wardrobe", "note", "email", "health", "growth", "codex-mobile"]);
   assert.deepEqual(parsed.excludedPlugins, []);
 }
 
@@ -226,7 +226,7 @@ function testRepositoryContractIsCurrentlyClosed() {
   }
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.equal(parsed.ok, true);
-  assert.equal(pointerCount, 6);
+  assert.equal(pointerCount, 7);
 }
 
 function testScriptDoesNotHandleSecretsOrSudo() {

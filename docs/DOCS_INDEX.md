@@ -108,6 +108,7 @@ identifiers until a separate infrastructure migration is planned.
 - Growth teaching cards and stage assessment flow: `docs/IMPLEMENTATION_NOTES/growth-teaching-card-flow.md`
 - Growth teaching card implementation plan: `docs/IMPLEMENTATION_NOTES/growth-teaching-card-implementation.md`
 - Growth learning workflow contract and harness: `docs/IMPLEMENTATION_NOTES/growth-learning-workflow-contract-harness.md`
+- Growth pluginization plan: `docs/IMPLEMENTATION_NOTES/growth-pluginization-plan.md`
 - Growth knowledge graph requirements: `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-requirements.md`
 - Growth knowledge graph architecture: `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-architecture.md`
 - Growth knowledge graph design: `docs/IMPLEMENTATION_NOTES/growth-knowledge-graph-design.md`

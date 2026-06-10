@@ -4,6 +4,12 @@
 
 Growth Learning owns learner programs, evergreen task cards, submissions, async evaluation, reflection, rewards, mastery profile, and next-card strategy.
 
+The migration path from the built-in Home AI Growth module to the external
+Growth embedded plugin is tracked in
+`docs/IMPLEMENTATION_NOTES/growth-pluginization-plan.md`. New pluginization
+work must follow that staged boundary instead of copying the Home AI server or
+raw Growth internals into the plugin workspace.
+
 ## Core Files
 
 - `adapters/learning-growth-service.js`

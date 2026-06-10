@@ -118,6 +118,21 @@ const PLUGINS = [
     optionalHttpProbes: [],
   },
   {
+    id: "growth",
+    title: "Growth",
+    dirName: "growth",
+    port: 4881,
+    macSourcePaths: ["/Users/hermes-host/HermesMobile/plugins/growth"],
+    launchdLabel: "com.hermesmobile.plugin.growth",
+    manifestPath: "/api/v1/hermes/plugin/manifest",
+    devRuntimeKeywords: ["node", "npm"],
+    macProbeDeferred: true,
+    macProbeDeferredReason: "growth production service is not deployed yet",
+    optionalHttpProbes: [
+      { name: "mcp_schema", path: "/api/v1/growth/mcp/schemas", requireText: ["growth.get_status", "growth.get_board"] },
+    ],
+  },
+  {
     id: "codex-mobile",
     title: "Codex Mobile Web",
     dirName: "codex-mobile-web",
@@ -484,6 +499,17 @@ function macHttpProbe(plugin, options, probe) {
 }
 
 function macProbe(plugin, options) {
+  if (plugin.macProbeDeferred) {
+    return {
+      plugin: plugin.id,
+      ok: true,
+      skipped: true,
+      reason: plugin.macProbeDeferredReason || "mac production probe deferred",
+      sourcePath: { ok: true, skipped: true, attempts: [] },
+      launchd: { ok: true, skipped: true, label: plugin.launchdLabel, checked: false },
+      http: [],
+    };
+  }
   const manifestProbe = {
     name: "manifest",
     path: plugin.manifestPath,

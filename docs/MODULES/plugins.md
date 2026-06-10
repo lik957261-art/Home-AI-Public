@@ -12,10 +12,10 @@ Wardrobe is the first production plugin. Codex Mobile Web is the second plugin
 path and is integrated from the local Codex Git repo's Hermes plugin manifest.
 Finance/记账 is the third embedded-app plugin. Email/邮箱 is the fourth
 embedded-app plugin and uses the same generic host, launch, proxy, navigation,
-refresh, appearance, and workspace provisioning contracts. Health and Note are
-the next standard workspace-private plugins. These rules are generic and apply
-to future embedded apps such as watches, health, notes, or other private
-workspace tools.
+refresh, appearance, and workspace provisioning contracts. Health, Note, and
+Growth are standard workspace-private plugins. These rules are generic and
+apply to future embedded apps such as watches, health, notes, growth, or other
+private workspace tools.
 
 The embedded UI layout contract is tracked separately in
 `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`. Plugin projects must
@@ -122,7 +122,7 @@ callables while policy says `note` is enabled, or an Owner fallback when viewing
 a non-Owner workspace is a failing integration state.
 
 Mac workspace plugin provisioning is generic for `.hermes-*` plugin bindings:
-Health, Note, Wardrobe, Finance, Email, and future plugins must mirror complete
+Health, Note, Growth, Wardrobe, Finance, Email, and future plugins must mirror complete
 data-drive bindings into the worker-local `HermesWorkspace` before Gateway
 profile rendering. Health was the first production symptom, but the rule is not
 Health-specific.

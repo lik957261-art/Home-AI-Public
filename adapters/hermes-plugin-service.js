@@ -19,6 +19,11 @@ const {
   healthWorkspaceKeyPath,
 } = require("./health-plugin-provisioning-service");
 const {
+  createGrowthPluginProvisioningService,
+  growthWorkspaceConfigPath,
+  growthWorkspaceKeyPath,
+} = require("./growth-plugin-provisioning-service");
+const {
   createNotePluginProvisioningService,
   canonicalNoteWorkspaceId,
   noteWorkspaceConfigPath,
@@ -39,6 +44,7 @@ const DEFAULT_FINANCE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8791/api/v1/hermes
 const DEFAULT_EMAIL_PLUGIN_MANIFEST_URL = "http://127.0.0.1:5175/api/v1/hermes/plugin/manifest";
 const DEFAULT_HEALTH_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest";
 const DEFAULT_NOTE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4181/api/v1/hermes/plugin/manifest";
+const DEFAULT_GROWTH_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest";
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_KEY_SEARCH_DEPTH = 6;
 const PLUGIN_APPEARANCE_THEMES = new Set(["system", "dark", "light"]);
@@ -86,6 +92,12 @@ function configuredNoteManifestUrl(env = process.env) {
   return stringValue(env.HERMES_MOBILE_NOTE_PLUGIN_MANIFEST_URL)
     || stringValue(env.HERMES_MOBILE_PLUGIN_NOTE_MANIFEST_URL)
     || DEFAULT_NOTE_PLUGIN_MANIFEST_URL;
+}
+
+function configuredGrowthManifestUrl(env = process.env) {
+  return stringValue(env.HERMES_MOBILE_GROWTH_PLUGIN_MANIFEST_URL)
+    || stringValue(env.HERMES_MOBILE_PLUGIN_GROWTH_MANIFEST_URL)
+    || DEFAULT_GROWTH_PLUGIN_MANIFEST_URL;
 }
 
 function envKeyForPlugin(pluginId, suffix) {
@@ -208,6 +220,14 @@ const DEFAULT_PLUGIN_SECURITY = Object.freeze({
     provisioning: { supported: true, mode: "workspace_binding" },
     notifications: { supported: true, routeOwner: "hermes" },
   },
+  growth: {
+    title: "成长",
+    riskLevel: "workspace-private",
+    defaultVisibility: "owner-only",
+    allowWorkspaceGrant: true,
+    provisioning: { supported: true, mode: "workspace_binding" },
+    notifications: { supported: true, routeOwner: "hermes" },
+  },
 });
 
 function pluginSecurityDefaults(pluginId = "") {
@@ -262,6 +282,10 @@ function configuredPlugins(options = {}) {
     {
       id: "note",
       manifestUrl: configuredNoteManifestUrl(env),
+    },
+    {
+      id: "growth",
+      manifestUrl: configuredGrowthManifestUrl(env),
     },
   ];
   return plugins
@@ -712,12 +736,52 @@ function findNoteAccessKeyPath(input = {}, options = {}) {
   return walk(workspaceRoot, 0);
 }
 
+function findGrowthAccessKeyPath(input = {}, options = {}) {
+  const explicit = stringValue(input.growthAccessKeyPath || options.growthAccessKeyPath);
+  if (explicit && fs.existsSync(explicit)) return explicit;
+  const env = options.env || process.env;
+  const workspaceId = stringValue(input.workspaceId || "owner");
+  const candidates = [
+    stringValue(env.HERMES_MOBILE_GROWTH_PLUGIN_ACCESS_KEY_PATH),
+    stringValue(env.HERMES_MOBILE_PLUGIN_GROWTH_ACCESS_KEY_PATH),
+    stringValue(env.GROWTH_HERMES_PLUGIN_ACCESS_KEY_PATH),
+  ].filter(Boolean);
+  const configured = candidates.find((candidate) => fs.existsSync(candidate));
+  if (configured) return configured;
+  const dataDir = stringValue(options.dataDir) || defaultDataDir(env);
+  const workspaceRoot = path.join(dataDir, "drive", "users", workspaceId);
+  const maxDepth = Number(options.maxKeySearchDepth || DEFAULT_MAX_KEY_SEARCH_DEPTH);
+  const targetParts = [".hermes-growth", "access-key.txt"];
+
+  function walk(dir, depth) {
+    if (depth > maxDepth) return "";
+    const candidate = path.join(dir, ...targetParts);
+    if (fs.existsSync(candidate)) return candidate;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      return "";
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === ".hermes-cache" || entry.name === "node_modules" || entry.name === ".git") continue;
+      const found = walk(path.join(dir, entry.name), depth + 1);
+      if (found) return found;
+    }
+    return "";
+  }
+
+  return walk(workspaceRoot, 0);
+}
+
 function findPluginAccessKeyPath(pluginId, input = {}, options = {}) {
   if (pluginId === "codex-mobile") return findCodexMobileAccessKeyPath(input, options);
   if (pluginId === "finance") return findFinanceAccessKeyPath(input, options);
   if (pluginId === "email") return findEmailAccessKeyPath(input, options);
   if (pluginId === "health") return findHealthAccessKeyPath(input, options);
   if (pluginId === "note") return findNoteAccessKeyPath(input, options);
+  if (pluginId === "growth") return findGrowthAccessKeyPath(input, options);
   return findWardrobeAccessKeyPath(input, options);
 }
 
@@ -763,6 +827,20 @@ function noteWorkspaceLocalConfigReady(input = {}, options = {}) {
   }
 }
 
+function growthWorkspaceLocalConfigReady(input = {}, options = {}) {
+  const workspaceId = stringValue(input.workspaceId || "owner") || "owner";
+  const dataDir = stringValue(options.dataDir) || defaultDataDir(options.env);
+  const env = options.env || process.env;
+  const configPath = growthWorkspaceConfigPath({ dataDir, env, workspaceId });
+  const keyPath = growthWorkspaceKeyPath({ dataDir, env, workspaceId });
+  if (!configPath || !keyPath) return false;
+  try {
+    return fs.existsSync(configPath) && fs.existsSync(keyPath);
+  } catch (_) {
+    return false;
+  }
+}
+
 function discoverPluginWorkspaceIdsFromAccessKeys(pluginId, options = {}) {
   const id = stringValue(pluginId);
   if (id === "codex-mobile") return [];
@@ -782,6 +860,7 @@ function discoverPluginWorkspaceIdsFromAccessKeys(pluginId, options = {}) {
       if (id === "finance") return financeWorkspaceLocalConfigReady({ workspaceId }, options);
       if (id === "health") return healthWorkspaceLocalConfigReady({ workspaceId }, options);
       if (id === "note") return noteWorkspaceLocalConfigReady({ workspaceId }, options);
+      if (id === "growth") return growthWorkspaceLocalConfigReady({ workspaceId }, options);
       return Boolean(findPluginAccessKeyPath(id, { workspaceId }, options));
     });
 }
@@ -795,6 +874,9 @@ function pluginWorkspaceAuthorized(plugin, input = {}, options = {}) {
   }
   if (pluginId === "note") {
     return noteWorkspaceLocalConfigReady({ workspaceId }, options);
+  }
+  if (pluginId === "growth") {
+    return growthWorkspaceLocalConfigReady({ workspaceId }, options);
   }
   if (workspaceId === "owner") return true;
   if (plugin?.allowWorkspaceGrant === false) return false;
@@ -840,7 +922,7 @@ function pluginWorkspaceProvisioningBlock(plugin, input = {}, options = {}) {
 }
 
 function pluginSupportsHermesProvisioning(plugin) {
-  return ["finance", "wardrobe", "email", "health", "note"].includes(stringValue(plugin?.id)) && plugin?.provisioning?.supported === true;
+  return ["finance", "wardrobe", "email", "health", "note", "growth"].includes(stringValue(plugin?.id)) && plugin?.provisioning?.supported === true;
 }
 
 function pluginInitialProvisioningStatus(plugin) {
@@ -1236,6 +1318,13 @@ function createHermesPluginService(options = {}) {
     noteOwnerKey: options.noteOwnerKey,
     noteOwnerKeyPath: options.noteOwnerKeyPath,
   });
+  const growthProvisioningService = options.growthProvisioningService || createGrowthPluginProvisioningService({
+    dataDir: options.dataDir,
+    env: options.env,
+    fetch: fetchImpl,
+    growthOwnerKey: options.growthOwnerKey,
+    growthOwnerKeyPath: options.growthOwnerKeyPath,
+  });
   const wardrobeProvisioningService = options.wardrobeProvisioningService || createWardrobePluginProvisioningService({
     dataDir: options.dataDir,
     env: options.env,
@@ -1260,6 +1349,7 @@ function createHermesPluginService(options = {}) {
     financeAccessKeyPath: options.financeAccessKeyPath,
     emailAccessKeyPath: options.emailAccessKeyPath,
     healthAccessKeyPath: options.healthAccessKeyPath,
+    growthAccessKeyPath: options.growthAccessKeyPath,
     authorizationService,
     fetch: fetchImpl,
   };
@@ -1310,6 +1400,13 @@ function createHermesPluginService(options = {}) {
         workspaceId,
         displayName,
         noteManifestUrl: plugin.manifestUrl,
+      });
+    }
+    if (id === "growth") {
+      return growthProvisioningService.provisionWorkspace({
+        workspaceId,
+        displayName,
+        growthManifestUrl: plugin.manifestUrl,
       });
     }
     return financeProvisioningService.provisionWorkspace({
@@ -1411,6 +1508,9 @@ function createHermesPluginService(options = {}) {
       return { ok: true, provisioning: { status: "active", existing: true } };
     }
     if (id === "note" && noteWorkspaceLocalConfigReady({ workspaceId }, launchOptions)) {
+      return { ok: true, provisioning: { status: "active", existing: true } };
+    }
+    if (id === "growth" && growthWorkspaceLocalConfigReady({ workspaceId }, launchOptions)) {
       return { ok: true, provisioning: { status: "active", existing: true } };
     }
     const provisioned = await provisionPluginWorkspace(plugin, Object.assign({}, input, {
@@ -1671,6 +1771,16 @@ function createHermesPluginService(options = {}) {
           }, gatewayProvisioning),
         });
       }
+      if (id === "growth") {
+        return Object.assign({}, saved, {
+          provisioning: Object.assign({
+            status: "active",
+            keyCreated: Boolean(provisioned.keyCreated),
+            configCreated: Boolean(provisioned.configCreated),
+            growthWorkspaceId: provisioned.growthWorkspaceId || "",
+          }, gatewayProvisioning),
+        });
+      }
       return Object.assign({}, saved, {
         provisioning: Object.assign({
           status: "active",
@@ -1732,6 +1842,7 @@ module.exports = {
   DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL,
   DEFAULT_EMAIL_PLUGIN_MANIFEST_URL,
   DEFAULT_FINANCE_PLUGIN_MANIFEST_URL,
+  DEFAULT_GROWTH_PLUGIN_MANIFEST_URL,
   DEFAULT_HEALTH_PLUGIN_MANIFEST_URL,
   DEFAULT_NOTE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
@@ -1740,6 +1851,7 @@ module.exports = {
   findCodexMobileAccessKeyPath,
   findEmailAccessKeyPath,
   findFinanceAccessKeyPath,
+  findGrowthAccessKeyPath,
   findHealthAccessKeyPath,
   findNoteAccessKeyPath,
   findPluginAccessKeyPath,

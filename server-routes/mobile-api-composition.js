@@ -221,6 +221,7 @@ function createMobileApiComposition(deps = {}) {
 
   const learningComposition = createMobileApiLearningComposition(deps);
   const {
+    growthPluginFacadeApiRoutes,
     kanbanCardApiRoutes,
     kanbanLearningGuidanceApiRoutes,
     kanbanStudyApiRoutes,
@@ -231,6 +232,7 @@ function createMobileApiComposition(deps = {}) {
     learningProgramApiRoutes,
   } = learningComposition.routes;
   const {
+    growthPluginFacadeService,
     learningGrowthSubmissionService,
     learningGrowthTeachingCheckService,
     learningGrowthExperienceSignalService,
@@ -279,6 +281,7 @@ function createMobileApiComposition(deps = {}) {
     hermesPluginApiRoutes,
     pluginTopicUsageApiRoutes,
     platformCurrencyApiRoutes,
+    growthPluginFacadeApiRoutes,
     getUrl: deps.getUrl,
     kanbanCardApiRoutes,
     kanbanLearningGuidanceApiRoutes,
@@ -318,6 +321,7 @@ function createMobileApiComposition(deps = {}) {
       familyProfileRepository,
       familyProfileService,
       financeLedgerJoinApprovalService,
+      growthPluginFacadeService,
       learningGrowthSubmissionService,
       platformCurrencyService,
       learningGrowthTeachingCheckService,
@@ -341,6 +345,7 @@ function createMobileApiComposition(deps = {}) {
       hermesPluginApiRoutes,
       pluginTopicUsageApiRoutes,
       platformCurrencyApiRoutes,
+      growthPluginFacadeApiRoutes,
       kanbanCardApiRoutes,
       kanbanLearningGuidanceApiRoutes,
       kanbanStudyApiRoutes,

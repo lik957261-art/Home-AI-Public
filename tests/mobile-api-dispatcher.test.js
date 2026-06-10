@@ -355,6 +355,40 @@ async function testGrowthCardRoutesPrecedeProgramCatchAllRoutes() {
   );
 }
 
+async function testGrowthPluginFacadeRoutesPrecedeLearningRoutes() {
+  const { deps, calls } = makeDeps({
+    routeBehaviors: {
+      growthPluginFacadeApiRoutes: ({ url }) => ({
+        handled: url.pathname === "/api/growth/v1/board",
+        status: 200,
+        writeJson: { ok: true, route: "growth-facade" },
+      }),
+      learningApiRoutes: () => ({
+        handled: true,
+        status: 404,
+        writeJson: { ok: false, route: "legacy-learning" },
+      }),
+    },
+  });
+  const dispatcher = createMobileApiDispatcher(deps);
+  const res = makeResponse();
+
+  await dispatcher.handleApi({
+    method: "GET",
+    url: "/api/growth/v1/board",
+    headers: {},
+    authResult: { ok: true, workspaceId: "weixin_test_1" },
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(JSON.parse(res.body), { ok: true, route: "growth-facade" });
+  assert.equal(routeCalls(calls).some((call) => call.key === "learningApiRoutes"), false);
+  assert.ok(
+    MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE.findIndex((entry) => entry.key === "growthPluginFacadeApiRoutes")
+    < MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE.findIndex((entry) => entry.key === "learningApiRoutes"),
+  );
+}
+
 function testDependencyValidation() {
   assert.throws(() => createMobileApiDispatcher({}), /requires getUrl/);
 
@@ -378,6 +412,7 @@ async function run() {
   await testCodexPluginProxyRunsBeforeBrowserAuth();
   await testAuthenticatedPipelineOrderAndRequestContext();
   await testAuthenticatedWeixinRouteUsesBrowserAuthContext();
+  await testGrowthPluginFacadeRoutesPrecedeLearningRoutes();
   await testGrowthCardRoutesPrecedeProgramCatchAllRoutes();
   testDependencyValidation();
   console.log("mobile api dispatcher tests passed");
