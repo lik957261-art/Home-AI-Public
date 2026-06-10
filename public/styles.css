@@ -6028,6 +6028,11 @@ button.directory-alias-chip {
   transition: none;
 }
 
+.global-plugin-dock-mode .topic-plugin-dock.global-plugin-dock-dragging .plugin-app-launcher,
+.global-plugin-dock-mode .topic-plugin-dock.global-plugin-dock-expanded .plugin-app-launcher {
+  visibility: visible;
+}
+
 .global-plugin-dock-mode .topic-plugin-dock.global-plugin-dock-navigation-settling {
   transition: none;
 }
@@ -6052,6 +6057,7 @@ button.directory-alias-chip {
 .global-plugin-dock-mode .topic-plugin-dock.global-plugin-dock-collapsed .plugin-app-launcher {
   opacity: 0;
   pointer-events: none;
+  visibility: hidden;
 }
 
 .topic-plugin-dock-handle {

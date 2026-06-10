@@ -74,7 +74,7 @@ const FLOW_STEPS = Object.freeze([
       "[data-plugin-topic-open-app]",
     ],
   }, { surface: "plugin_or_topic" }),
-  makeStep("return", "return", { selector: "#bottomTasksMode" }, { activeNavId: "bottomTasksMode", surface: "topics" }),
+  makeStep("return", "return", { back: true }, { activeNavId: "bottomTasksMode", surface: "topics" }),
 ]);
 
 async function waitForAuthenticatedShell(page, timeout = 15000) {
@@ -98,6 +98,12 @@ async function waitForAuthenticatedShell(page, timeout = 15000) {
 }
 
 async function clickStepTarget(page, action) {
+  if (action?.back) {
+    await page.goBack({ waitUntil: "domcontentloaded", timeout: 5000 }).catch(async () => {
+      await page.keyboard.press("Alt+Left").catch(() => {});
+    });
+    return { ok: true, selector: "browser-back" };
+  }
   const selectors = Array.isArray(action.selectors) ? action.selectors : [action.selector].filter(Boolean);
   for (const selector of selectors) {
     const target = page.locator(selector).first();
@@ -213,6 +219,12 @@ async function collectEvidence(page, step, startedAt, previous = null, options =
       pluginFrame: rect("#embeddedPluginFrame, iframe[data-plugin-frame], .embedded-plugin-frame"),
       capabilityActionMenu: rect(".capability-action-menu:not([hidden])"),
     };
+    const appState = typeof state !== "undefined" && state && typeof state === "object"
+      ? state
+      : (window.state && typeof window.state === "object" ? window.state : {});
+    const viewMode = String(appState.viewMode || localStorage.getItem("hermesWebViewMode") || "");
+    const currentTaskGroupId = String(appState.currentTaskGroupId || "");
+    const pluginContextNavPluginId = String(appState.pluginContextNavPluginId || "");
     const navButtons = Array.from(document.querySelectorAll("#bottomNav .bottom-tab")).map((button) => {
       const box = button.getBoundingClientRect();
       const style = window.getComputedStyle(button);
@@ -232,13 +244,18 @@ async function collectEvidence(page, step, startedAt, previous = null, options =
         },
       };
     });
-    const surfaces = {
-      chat: visibleAny(["#conversation", ".message-list", "[data-chat-surface]"]),
-      inbox: visibleAny(["#actionInboxView", ".action-inbox-view", ".action-inbox-list", "[data-action-inbox-list]"]),
-      topics: visibleAny([".capability-entry-hub", "#topicPluginDock", ".capability-quick-grid", ".capability-plugin-grid"]),
-      plugin_or_topic: visibleAny(["#embeddedPluginFrame", "iframe[data-plugin-frame]", ".embedded-plugin-frame", ".plugin-topic-chat", ".plugin-topic-context"]),
-    };
     const activeNav = navButtons.filter((item) => item.active).map((item) => item.id);
+    const pluginTopicActive = Boolean(
+      pluginContextNavPluginId
+      || /^plugin:/.test(currentTaskGroupId)
+      || document.getElementById("app")?.classList.contains("plugin-context-nav-mode")
+    );
+    const surfaces = {
+      chat: viewMode === "single" && !pluginTopicActive && visibleAny(["#conversation", ".message-list", "[data-chat-surface]"]),
+      inbox: viewMode === "inbox" || activeNav.includes("bottomInboxMode") || visibleAny(["#actionInboxView", ".action-inbox-view", ".action-inbox-list", "[data-action-inbox-list]"]),
+      topics: (viewMode === "tasks" && !currentTaskGroupId && !pluginTopicActive) || visibleAny([".directory-topic-card", ".plugin-topic-card"]),
+      plugin_or_topic: pluginTopicActive || visibleAny(["#embeddedPluginFrame", "iframe[data-plugin-frame]", ".embedded-plugin-frame", ".plugin-topic-chat", ".plugin-topic-context"]),
+    };
     const failures = [];
     const warnings = [];
     const staleSurfaceWarnings = [];

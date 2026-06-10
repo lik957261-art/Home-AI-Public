@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260610-capability-tab-v688";
+const CLIENT_VERSION = "20260610-capability-tab-v689";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260610-capability-tab-v688" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260610-capability-tab-v688"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260610-capability-tab-v689" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260610-capability-tab-v689"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2554,10 +2554,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260610-capability-tab-v688/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260610-capability-tab-v688/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260610-capability-tab-v688/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260610-capability-tab-v688/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260610-capability-tab-v689/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260610-capability-tab-v689/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260610-capability-tab-v689/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260610-capability-tab-v689/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2774,6 +2774,8 @@ assert.match(stylesCss, /\.app\.task-list-mode \.conversation > \.directory-topi
 assert.match(stylesCss, /\.app\.task-list-mode \.topbar,[\s\S]*?\.app\.capability-mode \.topbar \{[\s\S]*?display: none !important;/);
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock \{[\s\S]*?position: fixed;[\s\S]*?bottom: calc\(var\(--topic-plugin-dock-bottom\) - var\(--topic-plugin-dock-nav-overlap\)\);[\s\S]*?height: var\(--topic-plugin-dock-height\);[\s\S]*?min-height: var\(--topic-plugin-dock-height\);[\s\S]*?padding: 5px max\(14px, env\(safe-area-inset-right\)\) 0 max\(14px, env\(safe-area-inset-left\)\);[\s\S]*?background: var\(--ui-chrome\);[\s\S]*?transition:[\s\S]*?transform 190ms cubic-bezier\(0\.2, 0\.8, 0\.2, 1\),[\s\S]*?height 190ms cubic-bezier\(0\.2, 0\.8, 0\.2, 1\),[\s\S]*?min-height 190ms cubic-bezier\(0\.2, 0\.8, 0\.2, 1\);/);
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-collapsed \{[\s\S]*?bottom: calc\(var\(--topic-plugin-dock-bottom\) - var\(--topic-plugin-dock-nav-overlap\) \+ var\(--topic-plugin-dock-collapsed-safe-lift\)\);[\s\S]*?height: var\(--topic-plugin-dock-collapsed-height\);[\s\S]*?min-height: var\(--topic-plugin-dock-collapsed-height\);[\s\S]*?transform: translateY\(0\);[\s\S]*?pointer-events: none;/);
+assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-collapsed \.plugin-app-launcher \{[\s\S]*?opacity: 0;[\s\S]*?pointer-events: none;[\s\S]*?visibility: hidden;/);
+assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-dragging \.plugin-app-launcher,[\s\S]*?\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-expanded \.plugin-app-launcher \{[\s\S]*?visibility: visible;/);
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-dragging \{[\s\S]*?height: var\(--topic-plugin-dock-height\);[\s\S]*?min-height: var\(--topic-plugin-dock-height\);[\s\S]*?transform: translateY\(var\(--global-plugin-dock-gesture-offset, 0px\)\);[\s\S]*?transition: none;/);
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-navigation-settling \{[\s\S]*?transition: none;/);
 assert.match(stylesCss, /\.topic-plugin-dock-handle \{[\s\S]*?width: 56px;[\s\S]*?height: var\(--topic-plugin-dock-collapsed-height\);[\s\S]*?min-height: 26px;[\s\S]*?touch-action: none;[\s\S]*?pointer-events: auto;/);
