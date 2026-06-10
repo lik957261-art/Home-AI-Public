@@ -798,13 +798,13 @@ function testLearningGrowthEvaluationPushRoutesToTaskCard() {
       assert.equal(result.sent, 1);
       assert.equal(calls.sends.length, 1);
       const payload = calls.sends[0].payload;
-      assert.equal(payload.data.viewMode, "learning");
+      assert.equal(payload.data.viewMode, "growth");
       assert.equal(payload.data.workspaceId, "child");
       assert.equal(payload.data.principalId, "child-principal");
       assert.equal(payload.data.taskCardId, "ltask_science_001");
       assert.equal(payload.data.evaluationId, "leval_001");
       assert.equal(payload.data.submissionId, "lsub_001");
-      assert.equal(payload.data.url, "/?view=learning&workspaceId=child&taskCardId=ltask_science_001");
+      assert.equal(payload.data.url, "/?view=growth&workspaceId=child&pluginRoute=card&pluginItemId=ltask_science_001");
       assert.equal(state.pushDeliveries.length, 1);
     });
   });
@@ -836,11 +836,11 @@ function testLearningGrowthEvaluationPushCanRouteThroughInboxItem() {
       assert.equal(result.sent, 1);
       assert.equal(inboxCalls.length, 1);
       assert.equal(inboxCalls[0].sourceType, "growth");
-      assert.equal(inboxCalls[0].deepLink, "/?view=learning&workspaceId=child&taskCardId=ltask_science_001");
+      assert.equal(inboxCalls[0].deepLink, "/?view=growth&workspaceId=child&pluginRoute=card&pluginItemId=ltask_science_001");
       const payload = calls.sends[0].payload;
       assert.equal(payload.data.viewMode, "inbox");
       assert.equal(payload.data.inboxItemId, "ainb_1");
-      assert.equal(payload.data.originalUrl, "/?view=learning&workspaceId=child&taskCardId=ltask_science_001");
+      assert.equal(payload.data.originalUrl, "/?view=growth&workspaceId=child&pluginRoute=card&pluginItemId=ltask_science_001");
       assert.equal(payload.data.url, "/?view=inbox&workspaceId=child&inboxItemId=ainb_1");
     });
   });
@@ -905,7 +905,7 @@ function testLearningGrowthCompletionNotifiesAuthorizedWorkspaceInboxItems() {
       assert.equal(inboxCalls.every((item) => item.sourceType === "growth"), true);
       assert.equal(inboxCalls.every((item) => item.itemType === "info"), true);
       assert.equal(inboxCalls.every((item) => item.sourceRef.taskWorkspaceId === "child"), true);
-      assert.equal(inboxCalls.every((item) => item.deepLink === "/?view=learning&workspaceId=child&taskCardId=task-growth-complete"), true);
+      assert.equal(inboxCalls.every((item) => item.deepLink === "/?view=growth&workspaceId=child&pluginRoute=card&pluginItemId=task-growth-complete"), true);
       assert.equal(calls.sends.length, 3);
       assert.equal(calls.sends.some((send) => send.subscription.endpoint === "https://push.example/unrelated"), false);
       assert.equal(calls.sends.every((send) => send.payload.data.messageType === "learning_growth_task_completed"), true);
@@ -915,7 +915,7 @@ function testLearningGrowthCompletionNotifiesAuthorizedWorkspaceInboxItems() {
       assert.equal(ownerPayload.data.taskWorkspaceId, "child");
       assert.equal(ownerPayload.data.principalId, "owner");
       assert.equal(ownerPayload.data.inboxItemId, "ainb_owner");
-      assert.equal(ownerPayload.data.originalUrl, "/?view=learning&workspaceId=child&taskCardId=task-growth-complete");
+      assert.equal(ownerPayload.data.originalUrl, "/?view=growth&workspaceId=child&pluginRoute=card&pluginItemId=task-growth-complete");
       assert.equal(ownerPayload.data.url, "/?view=inbox&workspaceId=owner&inboxItemId=ainb_owner");
       const childPayload = calls.sends.find((send) => send.subscription.endpoint === "https://push.example/child").payload;
       assert.equal(childPayload.data.principalId, "child-principal");
@@ -953,9 +953,9 @@ function testLearningGrowthCompletionFallsBackWhenInboxUpsertFails() {
       assert.equal(result.inboxItems.length, 0);
       assert.equal(calls.sends.length, 2);
       for (const send of calls.sends) {
-        assert.equal(send.payload.data.viewMode, "learning");
-        assert.equal(send.payload.data.originalUrl, "/?view=learning&workspaceId=child&taskCardId=task-growth-fallback");
-        assert.equal(send.payload.data.url, "/?view=learning&workspaceId=child&taskCardId=task-growth-fallback");
+        assert.equal(send.payload.data.viewMode, "growth");
+        assert.equal(send.payload.data.originalUrl, "/?view=growth&workspaceId=child&pluginRoute=card&pluginItemId=task-growth-fallback");
+        assert.equal(send.payload.data.url, "/?view=growth&workspaceId=child&pluginRoute=card&pluginItemId=task-growth-fallback");
         assert.equal(Object.prototype.hasOwnProperty.call(send.payload.data, "inboxItemId"), false);
         assert.equal(send.payload.data.messageType, "learning_growth_task_completed");
       }

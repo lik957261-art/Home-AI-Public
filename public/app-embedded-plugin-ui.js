@@ -274,9 +274,35 @@ function setEmbeddedPluginOpenRoute(def, route = {}) {
   return Boolean(record.openRoute);
 }
 
+function embeddedPluginOpenRouteFromCurrentUrl(def) {
+  if (def?.id !== "growth") return null;
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    const routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), "");
+    const taskCardId = String(params.get("taskCardId") || "").trim();
+    const pluginRoute = String(params.get("pluginRoute") || params.get("route") || "").trim();
+    const pluginItemId = String(params.get("pluginItemId") || params.get("itemId") || "").trim();
+    if (routeView === "learning" && taskCardId) {
+      return { pluginRoute: "card", pluginItemId: taskCardId };
+    }
+    if (routeView === "growth" && (pluginRoute || pluginItemId)) {
+      return normalizeEmbeddedPluginOpenRoute({
+        pluginRoute,
+        pluginItemId,
+        pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",
+        pluginTaskId: params.get("pluginTaskId") || params.get("taskId") || "",
+        sourceTurnId: params.get("sourceTurnId") || params.get("turnId") || "",
+      });
+    }
+  } catch (_) {}
+  return null;
+}
+
 function embeddedPluginEntryUrlForFrame(def, manifest) {
   const entryUrl = String(manifest?.entry?.url || "");
-  const route = embeddedPluginRecord(def.id).openRoute;
+  const record = embeddedPluginRecord(def.id);
+  const route = record.openRoute || embeddedPluginOpenRouteFromCurrentUrl(def);
+  if (route && !record.openRoute) record.openRoute = route;
   if (!entryUrl || !route) return entryUrl;
   try {
     const parsed = new URL(entryUrl, window.location?.href || undefined);
@@ -956,13 +982,13 @@ function renderEmbeddedPluginUnavailable(def, manifest = embeddedPluginCurrentMa
     </section>`;
 }
 
-function renderEmbeddedPluginFrame(def, manifest) {
+function renderEmbeddedPluginFrame(def, manifest, entryUrl = embeddedPluginEntryUrlForFrame(def, manifest)) {
   return `
     <div class="embedded-plugin-shell is-loading" data-plugin-id="${escapeHtml(def.id)}">
       <iframe
         class="embedded-plugin-frame"
         title="${escapeHtml(manifest.title || def.title)}"
-        src="${escapeHtml(manifest.entry.url)}"
+        src="${escapeHtml(entryUrl)}"
         loading="eager"
         referrerpolicy="no-referrer"
         sandbox="allow-same-origin allow-scripts allow-forms allow-downloads allow-modals"
@@ -1066,7 +1092,7 @@ function renderEmbeddedPluginView(def) {
     }
     discardEmbeddedPluginShell(def);
     conversation.innerHTML = "";
-    embeddedPluginHost(def).innerHTML = renderEmbeddedPluginFrame(def, pluginManifest);
+    embeddedPluginHost(def).innerHTML = renderEmbeddedPluginFrame(def, pluginManifest, entryUrl);
     setEmbeddedPluginHostVisible(def, true);
     record.shellNode = embeddedPluginHost(def).querySelector(".embedded-plugin-shell");
     record.renderedEntryUrl = entryUrl;

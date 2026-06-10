@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260610-growth-plugin-shell-v680";
+const CLIENT_VERSION = "20260610-growth-plugin-route-v681";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260610-growth-plugin-shell-v680" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260610-growth-plugin-shell-v680"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260610-growth-plugin-route-v681" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260610-growth-plugin-route-v681"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -1940,12 +1940,14 @@ assert.match(appLearningGrowthControllerJs, /learnerName: learningGrowthLearnerL
 assert.doesNotMatch(appLearningGrowthControllerJs, /learnerName: "Fanfan"|learnerName: "凡凡"|displayName: "Fanfan"/);
 assert.match(appLearningGrowthControllerJs, /const listedWorkspaceIds = Array\.isArray\(state\.workspaces\)/);
 assert.match(appLearningGrowthControllerJs, /accessibleWorkspaceIds\.includes\(selected\) \|\| listedWorkspaceIds\.includes\(selected\)/);
-assert.match(appLearningGrowthControllerJs, /if \(!state\.auth\?\.isOwner && state\.workspaces\.some\(\(item\) => item\.id === targetWorkspaceId\)\)/);
+assert.match(appLearningGrowthControllerJs, /if \(targetWorkspaceId && state\.workspaces\.some\(\(item\) => item\.id === targetWorkspaceId\)\)/);
 assert.match(appLearningGrowthControllerJs, /function isLearningGrowthViewActive\(\) \{\s*return state\.viewMode === "learning";\s*\}/);
 assert.match(appLearningGrowthControllerJs, /function renderLearningCoinsView\(\) \{\s*if \(!isLearningGrowthViewActive\(\)\) return;/);
 assert.match(appLearningGrowthControllerJs, /state\.learningCoinsLoading = false;\s*if \(scopeKey === learningCoinCurrentScopeKey\(\)\) renderLearningCoinsView\(\);/);
 assert.match(appLearningGrowthControllerJs, /loadTodos\(\{ skipCache: true, includeCompleted: true, freshServer: true, targetId: id, workspaceId: targetWorkspaceId \}\)/);
-assert.match(appJs, /if \(workspaceId && routeView === "learning" && taskCardId\) \{\s*setLearningGrowthLearnerWorkspaceId\(workspaceId\)/);
+assert.match(appJs, /const legacyGrowthTaskRoute = routeView === "learning" && taskCardId;\s*if \(legacyGrowthTaskRoute\) routeView = "growth";/);
+assert.match(appJs, /pluginRoute: params\.get\("pluginRoute"\) \|\| params\.get\("route"\) \|\| \(legacyGrowthTaskRoute \? "card" : ""\)/);
+assert.match(appJs, /pluginItemId: params\.get\("pluginItemId"\) \|\| params\.get\("itemId"\) \|\| \(legacyGrowthTaskRoute \? taskCardId : ""\)/);
 assert.match(appJs, /payload\.workspaceId === learningGrowthLearnerWorkspaceId\(\)/);
 assert.match(fs.readFileSync(path.join(repoRoot, "adapters", "learning-growth-service.js"), "utf8"), /"artifactDirectoryPath"/);
   assert.match(appJs, /function learningProgramFormBody\(\)/);
@@ -1961,9 +1963,10 @@ assert.match(fs.readFileSync(path.join(repoRoot, "adapters", "learning-growth-se
   assert.match(appJs, /function decideLearningParentReviewRequest\(reviewRequestId, decision\)/);
   assert.match(appJs, /function startLearningTaskSession\(taskCardId\)/);
   assert.match(appJs, /function openLearningGrowthTask\(taskCardId, workspaceId = ""\)/);
-  assert.match(appLearningGrowthControllerJs, /renderLearningCoinsView\(\);\s*loadProjects\(\)\.catch\(\(err\) => console\.warn\("Learning Growth project refresh failed", err\)\);\s*await loadLearningCoins\(\{ limit: 80 \}\)/);
+  assert.match(appLearningGrowthControllerJs, /setGrowthPluginOpenRoute\(\{ pluginRoute: "card", pluginItemId: id \}\)/);
+  assert.match(appLearningGrowthControllerJs, /state\.viewMode = "growth";\s*localStorage\.setItem\("hermesWebViewMode", "growth"\)/);
   assert.match(appJs, /data-learning-open-growth-task/);
-  assert.match(appJs, /localStorage\.setItem\("hermesWebViewMode", "learning"\)/);
+  assert.match(appJs, /localStorage\.setItem\("hermesWebViewMode", "growth"\)/);
   assert.match(appJs, /function advanceLearningSession\(sessionId\)/);
   assert.match(appJs, /function submitLearningEvaluationForm\(event, sessionId\)/);
   assert.match(appJs, /\/api\/learning\/programs/);
@@ -2547,10 +2550,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260610-growth-plugin-shell-v680/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260610-growth-plugin-shell-v680/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260610-growth-plugin-shell-v680/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260610-growth-plugin-shell-v680/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260610-growth-plugin-route-v681/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260610-growth-plugin-route-v681/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260610-growth-plugin-route-v681/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260610-growth-plugin-route-v681/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);

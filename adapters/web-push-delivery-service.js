@@ -659,7 +659,7 @@ function createWebPushDeliveryService(options = {}) {
         : `AI 批改已完成${scoreText}；点击查看这张卡的批改内容。`,
       tag: `hermes-learning-growth-${taskCardId}-${input.submissionId || status || "evaluation"}`,
       data: {
-        viewMode: "learning",
+        viewMode: "growth",
         workspaceId,
         principalId,
         taskCardId,
@@ -668,7 +668,7 @@ function createWebPushDeliveryService(options = {}) {
         messageType: failed ? "learning_growth_evaluation_failed" : "learning_growth_evaluation_completed",
       },
     };
-    const originalUrl = appRouteUrl({ view: "learning", workspaceId, taskCardId });
+    const originalUrl = appRouteUrl({ view: "growth", workspaceId, pluginRoute: "card", pluginItemId: taskCardId });
     const inboxItem = await upsertActionInboxSourceItem({
       workspaceId,
       assigneeWorkspaceId: workspaceId,
@@ -747,7 +747,7 @@ function createWebPushDeliveryService(options = {}) {
     const reflectionId = String(reflection?.reflectionId || reflection?.id || "").trim();
     const completionId = String(completion.completionId || completion.id || "").trim();
     const dedupeSuffix = evaluationId || reflectionId || completionId || "completed";
-    const originalUrl = appRouteUrl({ view: "learning", workspaceId: taskWorkspaceId, taskCardId });
+    const originalUrl = appRouteUrl({ view: "growth", workspaceId: taskWorkspaceId, pluginRoute: "card", pluginItemId: taskCardId });
     const recipients = notificationRecipientWorkspaceIdsForWorkspace(taskWorkspaceId);
     const deliveries = [];
     const inboxItems = [];
@@ -781,7 +781,7 @@ function createWebPushDeliveryService(options = {}) {
       const data = {
         url: inboxItem?.id ? appRouteUrl({ view: "inbox", workspaceId: recipientWorkspaceId, inboxItemId: inboxItem.id }) : originalUrl,
         originalUrl,
-        viewMode: inboxItem?.id ? "inbox" : "learning",
+        viewMode: inboxItem?.id ? "inbox" : "growth",
         workspaceId: recipientWorkspaceId,
         taskWorkspaceId,
         principalId,

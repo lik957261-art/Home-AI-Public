@@ -237,6 +237,12 @@ Current development status:
   exchange. This clear path is deliberately not card-state-based and does not
   write platform `通宝`; Home AI must still perform administrator authorization,
   exchange-rate policy, platform ledger credit, and audit linkage.
+- Host visible Growth entry points now route to the embedded Growth plugin
+  instead of the legacy built-in Growth page. New card links use
+  `view=growth&pluginRoute=card&pluginItemId=<taskCardId>`. Legacy
+  `view=learning&taskCardId=<taskCardId>` URLs remain compatibility-only and
+  are converted into the same plugin card route before iframe rendering. Host
+  Web Push and task-card open URLs must generate the plugin route.
 
 ### 6. Plugin Event Contract
 

@@ -198,32 +198,46 @@ async function openLearningGrowthTask(taskCardId, workspaceId = "") {
   if (!id) return;
   const targetWorkspaceId = String(workspaceId || learningGrowthLearnerWorkspaceId()).trim() || learningGrowthLearnerWorkspaceId();
   setLearningGrowthLearnerWorkspaceId(targetWorkspaceId);
-  if (!state.auth?.isOwner && state.workspaces.some((item) => item.id === targetWorkspaceId)) {
+  if (targetWorkspaceId && state.workspaces.some((item) => item.id === targetWorkspaceId)) {
     state.selectedWorkspaceId = targetWorkspaceId;
     localStorage.setItem("hermesWebWorkspace", targetWorkspaceId);
     if ($("workspaceSelect")) $("workspaceSelect").value = targetWorkspaceId;
   }
-  state.viewMode = "learning";
-  localStorage.setItem("hermesWebViewMode", "learning");
+  if (typeof setGrowthPluginOpenRoute === "function") {
+    setGrowthPluginOpenRoute({ pluginRoute: "card", pluginItemId: id });
+  }
+  if (typeof rememberGrowthPluginReturnRoute === "function") rememberGrowthPluginReturnRoute();
+  state.viewMode = "growth";
+  localStorage.setItem("hermesWebViewMode", "growth");
   state.learningGrowthSettingsOpen = false;
   state.learningGrowthHistoryTaskCardId = "";
-  state.selectedLearningTaskCardId = id;
+  state.selectedLearningTaskCardId = "";
   state.selectedTodoId = "";
   state.todoRouteMissingTargetId = "";
   state.pendingReadingQuizTodoId = "";
   state.pendingAssessmentExamTodoId = "";
-  renderLearningCoinsView();
-  loadProjects().catch((err) => console.warn("Learning Growth project refresh failed", err));
-  await loadLearningCoins({ limit: 80 });
-  const boardCard = state.learningGrowth?.board?.cards?.find((card) => String(card.taskCardId || "") === id);
-  if (boardCard?.laneId) state.learningGrowthBoardLane = boardCard.laneId;
+  state.currentTaskGroupId = "";
+  state.currentThread = null;
+  state.currentThreadId = "";
+  await loadSelectedView();
 }
 async function openLearningGrowthHistory(taskCardId, workspaceId = "") {
   const id = String(taskCardId || "").trim(); if (!id) return;
   const targetWorkspaceId = String(workspaceId || learningGrowthLearnerWorkspaceId()).trim() || learningGrowthLearnerWorkspaceId();
-  setLearningGrowthLearnerWorkspaceId(targetWorkspaceId); state.viewMode = "learning"; localStorage.setItem("hermesWebViewMode", "learning");
+  setLearningGrowthLearnerWorkspaceId(targetWorkspaceId);
+  if (targetWorkspaceId && state.workspaces.some((item) => item.id === targetWorkspaceId)) {
+    state.selectedWorkspaceId = targetWorkspaceId;
+    localStorage.setItem("hermesWebWorkspace", targetWorkspaceId);
+    if ($("workspaceSelect")) $("workspaceSelect").value = targetWorkspaceId;
+  }
+  if (typeof setGrowthPluginOpenRoute === "function") {
+    setGrowthPluginOpenRoute({ pluginRoute: "card", pluginItemId: id });
+  }
+  if (typeof rememberGrowthPluginReturnRoute === "function") rememberGrowthPluginReturnRoute();
+  state.viewMode = "growth"; localStorage.setItem("hermesWebViewMode", "growth");
   state.learningGrowthSettingsOpen = false; state.selectedLearningTaskCardId = ""; state.learningGrowthHistoryTaskCardId = id; state.selectedTodoId = "";
-  renderLearningCoinsView(); await loadLearningCoins({ limit: 80 });
+  state.currentTaskGroupId = ""; state.currentThread = null; state.currentThreadId = "";
+  await loadSelectedView();
 }
 
 function closeLearningGrowthHistory() { state.learningGrowthHistoryTaskCardId = ""; renderLearningCoinsView(); }

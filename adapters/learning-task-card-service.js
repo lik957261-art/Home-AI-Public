@@ -91,7 +91,7 @@ function executionQueueSummary(task = {}) {
     unlockAt: cleanString(task.unlockAt),
     nextCompletionAllowedAt: cleanString(task.nextCompletionAllowedAt),
     summary: task.summary,
-    openUrl: task.taskCardId ? `/?view=learning&workspaceId=${encodeURIComponent(task.workspaceId || "")}&taskCardId=${encodeURIComponent(task.taskCardId)}` : "",
+    openUrl: task.taskCardId ? `/?view=growth&workspaceId=${encodeURIComponent(task.workspaceId || "")}&pluginRoute=card&pluginItemId=${encodeURIComponent(task.taskCardId)}` : "",
   };
 }
 

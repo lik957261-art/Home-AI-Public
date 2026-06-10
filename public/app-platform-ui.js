@@ -645,11 +645,11 @@ function applyRouteParams(params) {
   const weixinChatRequested = ["1", "true", "yes"].includes(String(params.get("weixinChat") || params.get("weixin_chat") || "").trim().toLowerCase());
   const groupChatRequested = ["1", "true", "yes"].includes(String(params.get("groupChat") || params.get("group_chat") || "").trim().toLowerCase());
   let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), inboxItemId ? "inbox" : automationId ? "automation" : taskCardId ? "learning" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : "");
+  const legacyGrowthTaskRoute = routeView === "learning" && taskCardId;
+  if (legacyGrowthTaskRoute) routeView = "growth";
   const pluginContextNavPluginId = routePluginContextId(params, routeView, taskGroupId);
   const workspaceId = String(params.get("workspaceId") || "").trim();
-  if (workspaceId && routeView === "learning" && taskCardId) {
-    setLearningGrowthLearnerWorkspaceId(workspaceId);
-  } else if (workspaceId && state.workspaces.some((item) => item.id === workspaceId)) {
+  if (workspaceId && (legacyGrowthTaskRoute || state.workspaces.some((item) => item.id === workspaceId))) {
     state.selectedWorkspaceId = workspaceId;
     localStorage.setItem("hermesWebWorkspace", workspaceId);
     if ($("workspaceSelect")) $("workspaceSelect").value = workspaceId;
@@ -716,8 +716,8 @@ function applyRouteParams(params) {
   }
   if (routeView === "growth" && typeof setGrowthPluginOpenRoute === "function") {
     setGrowthPluginOpenRoute({
-      pluginRoute: params.get("pluginRoute") || params.get("route") || "",
-      pluginItemId: params.get("pluginItemId") || params.get("itemId") || "",
+      pluginRoute: params.get("pluginRoute") || params.get("route") || (legacyGrowthTaskRoute ? "card" : ""),
+      pluginItemId: params.get("pluginItemId") || params.get("itemId") || (legacyGrowthTaskRoute ? taskCardId : ""),
       pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",
       pluginTaskId: params.get("pluginTaskId") || params.get("taskId") || "",
       sourceTurnId: params.get("sourceTurnId") || params.get("turnId") || "",

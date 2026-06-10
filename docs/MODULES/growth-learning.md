@@ -291,6 +291,16 @@ settles Growth-domain learning coins for completed cards, marks passed cards
 completed, and emits bounded completion/mastery/review events through the
 plugin event outbox.
 
+Growth visible entry and card deep-link behavior is plugin-owned. Home AI may
+keep navigation entry points and compatibility routing, but Growth task cards
+must open the embedded Growth plugin. New links use
+`/?view=growth&workspaceId=<workspace-id>&pluginRoute=card&pluginItemId=<taskCardId>`.
+Legacy links in the form
+`/?view=learning&workspaceId=<workspace-id>&taskCardId=<taskCardId>` are
+compatibility routes only; the host converts them to the same Growth plugin
+card route before rendering the iframe. Web Push and task-card `openUrl`
+generation must use the plugin route.
+
 Growth learning coins are not `通宝` and are not real-money-equivalent platform
 ledger entries. Growth-to-`通宝` exchange remains a Home AI platform currency
 responsibility: it is administrator-operated, normally monthly, based on total
@@ -303,11 +313,12 @@ their migration stages have separate tests and cutover evidence.
 Card completion is not the monthly exchange source of truth. Once a Growth card
 has completed and its Growth coin reward settlement exists, later monthly
 exchange must read the Growth coin balance/ledger rather than scanning completed
-card state. The Growth plugin exposes a plugin-owned learning-coin balance and
-an idempotent monthly clear/debit path; the Home AI platform exchange bridge is
-responsible for administrator authorization, exchange-rate policy, `通宝`
-ledger credit, and audit linkage. The plugin clear path must not write `通宝`
-and must not mutate card status.
+card state. Monthly exchange is an administrator action over the current Growth
+coin balance: Home AI decides the exchange rate, credits platform `通宝`, writes
+audit linkage, then calls the plugin clear/debit path so the exchanged Growth
+coin balance is zeroed or reduced. The Growth plugin exposes a plugin-owned
+learning-coin balance and an idempotent monthly clear/debit path. The plugin
+clear path must not write `通宝` and must not mutate card status.
 
 Current development visual evidence:
 
