@@ -61,6 +61,14 @@ The host shell has three related but separate entry surfaces:
 3. Global plugin Dock/drawer: app-first launch for all available app-level
    capabilities, including built-in Directory and external plugins.
 
+The `话题` tab must not reuse large plugin app cards. Plugin topics are fixed
+conversation groups rendered as compact rows: the plugin icon enters the
+default plugin topic, the row body expands/collapses historical or special
+child topics when present, and the expanded children follow the same compact
+indented language as directory-bound topic rows. This keeps `能力` as the
+task-first surface, `话题` as the conversation-first surface, and the Dock as
+the app-first surface.
+
 The quick-action area is task-first. On phone and touch-tablet shells it uses a
 compact three-column grid capped at three rows, so the Capability page shows at
 most nine quick actions. The host stores per-action usage counts and

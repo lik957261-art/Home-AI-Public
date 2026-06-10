@@ -45,8 +45,9 @@ tool routing, and delivery-directory context.
 ### Goals
 
 - Each workspace may bind a plugin to one or more visible topics.
-- A plugin topic appears as a pinned, large-icon application topic card rather
-  than only as a text topic row.
+- A plugin topic appears on the Topics root as a pinned, compact conversation
+  group row rather than a large application card. Large app-icon affordances
+  belong to the global plugin Dock/drawer and Capability app-launch surfaces.
 - The user can open either:
   - the plugin application surface; or
   - the topic chat that is pre-scoped to that plugin; or
@@ -215,7 +216,9 @@ Implementation should add focused services before route or UI wiring:
 
 Implemented convergence update, 2026-06-10:
 
-- Topics root plugin cards are conversation shortcuts and open plugin topics.
+- Topics root plugin rows are fixed conversation groups. They are collapsed by
+  default per workspace; the left icon opens the default plugin topic, while
+  the row body expands historical/special child topics when present.
 - Dock/plugin app icons remain app launchers.
 - Claimed legacy directory topics are projected into the plugin topic switcher
   without moving physical directories.

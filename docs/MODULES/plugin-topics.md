@@ -109,6 +109,13 @@ or raw plugin credentials.
   entries such as `健康话题` or `成长话题`, not large app-icon cards. Large
   app icons are reserved for the global plugin Dock/drawer and capability app
   launch surfaces.
+- Topics root plugin conversation shortcuts render as compact fixed topic
+  groups. They are collapsed by default per workspace. The left plugin icon
+  opens the default plugin topic; the row body expands or collapses the plugin
+  topic group when there are historical/special child topics; plugins with only
+  the default topic open directly and do not show an expand chevron. Expanded
+  child topics use the same compact indented visual language as
+  directory-bound topic rows.
 - The Capability Entry Hub described in
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md` is now a separate
   host-level `能力` surface, not the Topics root. Topics root is conversation

@@ -65,8 +65,14 @@ assert.match(runActionBody, /recordPluginTopicUsage\(def\.id, action\.id\);/);
 assert.match(runActionBody, /openPluginTopicApp\(def\.id, \{ recordUsage: false \}\);/);
 assert.match(topicCardsBody, /filter\(\(def\) => !def\.builtinKind\)/);
 assert.match(topicCardsBody, /data-plugin-topic-open-topic/);
+assert.match(topicCardsBody, /data-plugin-topic-toggle/);
+assert.match(topicCardsBody, /data-plugin-claimed-topic-open/);
 assert.match(topicCardsBody, /plugin-topic-list/);
 assert.match(topicCardsBody, /plugin-topic-row-chevron/);
+assert.match(topicCardsBody, /readExpandedPluginTopics\(\)/);
+assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_EXPANDED_STORAGE_KEY = "hermesPluginTopicExpanded";/);
+assert.match(pluginTopicsUi, /function pluginTopicExpandedStorageKey\(workspaceId = pluginTopicUsageWorkspaceId\(\)\)/);
+assert.match(pluginTopicsUi, /function setPluginTopicExpanded\(pluginId, expanded\)/);
 assert.doesNotMatch(topicCardsBody, /data-plugin-topic-open-app/);
 
 assert.doesNotMatch(quickActionsBody, /preferred/);
@@ -104,8 +110,11 @@ assert.match(stylesCss, /\.app\.task-list-mode \.conversation,[\s\S]*?\.app\.cap
 assert.match(stylesCss, /\.app\.task-list-mode,[\s\S]*?\.app\.capability-mode \{[\s\S]*?padding-bottom: 0;/);
 assert.match(stylesCss, /\.plugin-topic-list \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);[\s\S]*?gap: 2px;/);
 assert.match(stylesCss, /\.plugin-topic-card \{[\s\S]*?border-bottom: 1px solid var\(--ui-hairline\);[\s\S]*?box-shadow: none;/);
-assert.match(stylesCss, /\.plugin-topic-card-main \{[\s\S]*?grid-template-columns: 34px minmax\(0, 1fr\) 16px;/);
-assert.match(stylesCss, /\.plugin-topic-row-chevron::before \{[\s\S]*?transform: rotate\(-45deg\);/);
+assert.match(stylesCss, /\.plugin-topic-card-main \{[\s\S]*?grid-template-columns: 34px minmax\(0, 1fr\);/);
+assert.match(stylesCss, /\.plugin-topic-row-body \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) 16px;/);
+assert.match(stylesCss, /\.plugin-topic-card\.collapsed \.plugin-topic-row-chevron::before \{[\s\S]*?transform: rotate\(-45deg\);/);
+assert.match(stylesCss, /\.plugin-topic-child-list \{[\s\S]*?padding: 0 0 8px 43px;/);
+assert.match(stylesCss, /\.plugin-topic-card\.collapsed \.plugin-topic-child-list \{[\s\S]*?display: none;/);
 
 function createPluginTopicHarness(options = {}) {
   const storage = new Map();

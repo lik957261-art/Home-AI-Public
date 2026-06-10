@@ -143,6 +143,7 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
 ]);
 const PLUGIN_TOPIC_USAGE_STORAGE_KEY = "hermesPluginTopicUsage";
 const PLUGIN_TOPIC_ORDER_STORAGE_KEY = "hermesPluginTopicOrder";
+const PLUGIN_TOPIC_EXPANDED_STORAGE_KEY = "hermesPluginTopicExpanded";
 const PLUGIN_TOPIC_USAGE_API_PATH = "/api/plugin-topic-usage";
 const PLUGIN_TOPIC_BINDINGS_API_PATH = "/api/plugin-topic-bindings";
 const PLUGIN_TOPIC_USAGE_SYNC_DELAY_MS = 450;
@@ -1383,30 +1384,82 @@ function renderPluginTopicStats(def, options = {}) {
   const claimedCollections = pluginTopicClaimedCollectionsForPlugin(options.claimedDirectoryTopicCollections || [], def.id);
   const historyCount = claimedCollections.reduce((total, collection) => total + (collection.groups?.length || 0), 0);
   const stats = [
-    "\u9ed8\u8ba4\u8bdd\u9898",
-    historyCount > 0 ? `${historyCount} \u4e2a\u5386\u53f2\u4e13\u9898` : "",
+    historyCount > 0 ? `${historyCount} \u4e2a\u4e13\u9898` : "\u9ed8\u8ba4\u8bdd\u9898",
   ].filter(Boolean);
   return `<span class="plugin-topic-stats">${stats.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</span>`;
+}
+
+function pluginTopicExpandedStorageKey(workspaceId = pluginTopicUsageWorkspaceId()) {
+  const id = String(workspaceId || "owner").trim() || "owner";
+  return `${PLUGIN_TOPIC_EXPANDED_STORAGE_KEY}:${id}`;
+}
+
+function readExpandedPluginTopics(workspaceId = pluginTopicUsageWorkspaceId()) {
+  try {
+    const raw = localStorage.getItem(pluginTopicExpandedStorageKey(workspaceId));
+    const values = JSON.parse(raw || "[]");
+    return new Set(Array.isArray(values) ? values.map(pluginTopicId).filter(Boolean) : []);
+  } catch (_) {
+    return new Set();
+  }
+}
+
+function writeExpandedPluginTopics(expanded, workspaceId = pluginTopicUsageWorkspaceId()) {
+  try {
+    localStorage.setItem(pluginTopicExpandedStorageKey(workspaceId), JSON.stringify([...expanded].map(pluginTopicId).filter(Boolean)));
+  } catch (_) {}
+}
+
+function setPluginTopicExpanded(pluginId, expanded) {
+  const id = pluginTopicId(pluginId);
+  if (!id) return;
+  const expandedTopics = readExpandedPluginTopics();
+  if (expanded) expandedTopics.add(id);
+  else expandedTopics.delete(id);
+  writeExpandedPluginTopics(expandedTopics);
+}
+
+function pluginTopicChildEntries(def, options = {}) {
+  if (!def || def.builtinKind) return [];
+  return pluginTopicSwitcherEntries(def)
+    .filter((entry) => entry.kind === "claimed_directory" && entry.taskGroupId);
 }
 
 function renderPluginTopicCards(options = {}) {
   ensurePluginTopicBindingsLoaded();
   const defs = orderedPluginAppDefs(availablePluginTopicDefs()).filter((def) => !def.builtinKind);
   if (!defs.length) return "";
+  const expandedTopics = readExpandedPluginTopics();
   return `<section class="plugin-topic-launcher" aria-label="\u63d2\u4ef6\u8bdd\u9898">
     <div class="plugin-topic-list">
       ${defs.map((def) => {
+        const childEntries = pluginTopicChildEntries(def, options);
+        const hasChildren = childEntries.length > 0;
+        const expanded = hasChildren && expandedTopics.has(def.id);
+        const bodyAttrs = hasChildren
+          ? `data-plugin-topic-toggle="${escapeHtml(def.id)}" aria-expanded="${expanded ? "true" : "false"}" aria-label="${escapeHtml(`${expanded ? "\u6536\u8d77" : "\u5c55\u5f00"}${def.label}\u8bdd\u9898`)}"`
+          : `data-plugin-topic-open-topic="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u8bdd\u9898`)}"`;
         return `
-        <article class="plugin-topic-card" data-plugin-topic-card="${escapeHtml(def.id)}">
-          <button class="plugin-topic-card-main" type="button" data-plugin-topic-open-topic="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u8bdd\u9898`)}">
+        <article class="plugin-topic-card${expanded ? "" : " collapsed"}${hasChildren ? " has-children" : " single-topic"}" data-plugin-topic-card="${escapeHtml(def.id)}">
+          <div class="plugin-topic-card-main">
+            <button class="plugin-topic-icon-entry" type="button" data-plugin-topic-open-topic="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u9ed8\u8ba4\u8bdd\u9898`)}">
             <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
-            <span class="plugin-topic-text">
+            </button>
+            <button class="plugin-topic-row-body" type="button" ${bodyAttrs}>
+              <span class="plugin-topic-text">
               <span class="plugin-topic-title">${escapeHtml(`${def.label}\u8bdd\u9898`)}</span>
-              <span class="plugin-topic-subtitle">${escapeHtml(def.subtitle)}</span>
               ${renderPluginTopicStats(def, options)}
-            </span>
-            <span class="plugin-topic-row-chevron" aria-hidden="true"></span>
-          </button>
+              </span>
+              ${hasChildren ? `<span class="plugin-topic-row-chevron" aria-hidden="true"></span>` : ""}
+            </button>
+          </div>
+          ${hasChildren ? `<div class="plugin-topic-child-list" aria-label="${escapeHtml(`${def.label}\u4e13\u9898\u8bdd\u9898`)}">
+            ${childEntries.map((entry) => `<button class="plugin-topic-child-row" type="button" data-plugin-claimed-topic-open="${escapeHtml(entry.taskGroupId)}" data-plugin-claimed-topic-plugin="${escapeHtml(entry.pluginId)}">
+              <span class="plugin-topic-action-icon chat" aria-hidden="true"></span>
+              <span class="plugin-topic-child-title">${escapeHtml(entry.title || "\u4e13\u9898\u8bdd\u9898")}</span>
+              <span class="plugin-topic-child-meta">${escapeHtml(entry.subtitle || "")}</span>
+            </button>`).join("")}
+          </div>` : ""}
         </article>
       `;
       }).join("")}
@@ -2208,8 +2261,26 @@ function wirePluginTopicCards(root) {
       movePluginAppOrder(button.dataset.pluginTopicMove, button.dataset.pluginTopicMoveDir || "up");
     });
   });
+  root?.querySelectorAll?.(".plugin-topic-launcher [data-plugin-topic-toggle]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const pluginId = button.dataset.pluginTopicToggle || "";
+      if (!pluginId) return;
+      const card = button.closest?.("[data-plugin-topic-card]");
+      const expanded = Boolean(card?.classList.contains("collapsed"));
+      setPluginTopicExpanded(pluginId, expanded);
+      card?.classList.toggle("collapsed", !expanded);
+      button.setAttribute("aria-expanded", expanded ? "true" : "false");
+    });
+  });
   root?.querySelectorAll?.("[data-plugin-topic-open-topic]").forEach((button) => {
     button.addEventListener("click", () => openPluginTopicChat(button.dataset.pluginTopicOpenTopic).catch(showError));
+  });
+  root?.querySelectorAll?.(".plugin-topic-launcher [data-plugin-claimed-topic-open]").forEach((button) => {
+    button.addEventListener("click", () => {
+      openPluginClaimedDirectoryTopic(button.dataset.pluginClaimedTopicPlugin, button.dataset.pluginClaimedTopicOpen);
+    });
   });
   root?.querySelectorAll?.("[data-plugin-topic-open-delivery]").forEach((button) => {
     button.addEventListener("click", () => openPluginTopicDelivery(button.dataset.pluginTopicOpenDelivery).catch(showError));
