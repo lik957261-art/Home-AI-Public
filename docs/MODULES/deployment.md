@@ -296,6 +296,14 @@ The current isolated production deployment runs these launchd labels:
   until the Growth production service is installed.
 - `com.hermesmobile.plugin.codex-mobile`
 
+Growth first install uses `scripts/install-growth-launchd-service.js` from the
+Home AI app workspace. The script generates the
+`com.hermesmobile.plugin.growth` LaunchDaemon, creates the Growth registration
+key file only when missing, and injects secrets by file path:
+`GROWTH_REGISTRATION_KEY_PATH` and `GROWTH_HOME_AI_ACCESS_KEY_PATH`. It must be
+run through the same password-file sudo boundary as the central deploy script
+and must not print raw key values.
+
 The Hermes Mobile launchd environment uses
 `HERMES_WEB_HOST=0.0.0.0`, `HERMES_WEB_PORT=8797`,
 `HERMES_WEB_DATA_DIR=/Users/hermes-host/HermesMobile/data`,

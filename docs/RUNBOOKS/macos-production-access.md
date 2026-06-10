@@ -323,6 +323,16 @@ directories. The central script restores the production target owner after
 sync: `hermes-host:staff` by default, with `xuxin:staff` for the Codex Mobile
 plugin because that launchd service runs as `xuxin`.
 
+Growth first production install also needs the shared launchd installer:
+
+```bash
+node scripts/install-growth-launchd-service.js --json
+node scripts/install-growth-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
+```
+
+That installer uses the same sudo/password-file boundary. It may create the
+Growth registration key file when missing, but must not print raw key values.
+
 Plugin workspaces should read the central deployment contract before deploys:
 
 ```text
@@ -368,6 +378,7 @@ Current standard plugin targets are:
 codex-mobile-web -> /Users/hermes-host/HermesMobile/plugins/codex-mobile-web
 email -> /Users/hermes-host/HermesMobile/plugins/email
 finance -> /Users/hermes-host/HermesMobile/plugins/finance
+growth -> /Users/hermes-host/HermesMobile/plugins/growth
 healthy -> /Users/hermes-host/HermesMobile/plugins/healthy
 note -> /Users/hermes-host/HermesMobile/plugins/note
 wardrobe -> /Users/hermes-host/HermesMobile/plugins/wardrobe

@@ -65,13 +65,14 @@ assert.match(script, /HOME_AI_STATIC_SYNC_ROOTS/);
 assert.doesNotMatch(script, /console\.log\(.*password/i);
 assert.doesNotMatch(script, /console\.error\(.*password/i);
 
-for (const plugin of ["codex-mobile-web", "email", "finance", "healthy", "note", "wardrobe"]) {
+for (const plugin of ["codex-mobile-web", "email", "finance", "growth", "healthy", "note", "wardrobe"]) {
   assert.match(script, new RegExp(`"${plugin}"`));
   assert.match(contract, new RegExp(`${plugin} -> /Users/hermes-host/HermesMobile/plugins/${plugin}`));
   assert.match(productionAccess, new RegExp(`${plugin} -> /Users/hermes-host/HermesMobile/plugins/${plugin}`));
 }
 
 assert.match(deploymentDoc, /deploy-macos-production\.js/);
+assert.match(deploymentDoc, /install-growth-launchd-service\.js/);
 assert.match(productionAccess, /deploy-macos-production\.js/);
 assert.equal(packageJson.scripts["deploy:macos"], "node scripts/deploy-macos-production.js");
 

@@ -245,6 +245,22 @@ npm run --silent deploy:macos -- --plugin <plugin-id> --json
 npm run --silent deploy:macos -- --plugin <plugin-id> --restart-label <label> --health-url <url> --execute --password-file <private-local-password-file> --json
 ```
 
+Growth first production install has one extra launchd bootstrap step because
+`com.hermesmobile.plugin.growth` does not exist until the service is installed.
+Use the shared installer from the Home AI app workspace after the Growth source
+has been synced to the production plugin path:
+
+```bash
+node scripts/install-growth-launchd-service.js --json
+node scripts/install-growth-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
+```
+
+The installer writes only the LaunchDaemon plist and the registration-key file
+when missing. It references `GROWTH_REGISTRATION_KEY_PATH` and
+`GROWTH_HOME_AI_ACCESS_KEY_PATH`; it must not print raw key values. After this
+first bootstrap, normal Growth plugin deploys can use the central deploy script
+with the default `com.hermesmobile.plugin.growth` restart label.
+
 If the current shell is in a plugin workspace, call the Home AI script by
 absolute path or change directory to the Home AI app workspace first:
 
