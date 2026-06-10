@@ -46,10 +46,6 @@ function boolEnabled(value, fallback = false) {
 }
 
 function createMobileApiLearningComposition(deps = {}) {
-  const legacyHostGrowthApiEnabled = boolEnabled(
-    deps.env?.HERMES_MOBILE_LEGACY_HOST_GROWTH_API_ENABLED || deps.env?.HERMES_WEB_LEGACY_HOST_GROWTH_API_ENABLED,
-    false,
-  );
   const learningGrowthTaskService = createLearningGrowthKanbanTaskService({
     kanbanCardProvider: deps.kanbanCardProvider,
   });
@@ -68,7 +64,9 @@ function createMobileApiLearningComposition(deps = {}) {
     requireModel: true,
     sanitizePolicy: deps.sanitizePolicy,
   });
-  const learningGrowthDirectoryMaterializationService = createLearningGrowthDirectoryMaterializationService({ dataDir: deps.dataDir });
+  const learningGrowthDirectoryMaterializationService = createLearningGrowthDirectoryMaterializationService({
+    dataDir: deps.dataDir,
+  });
   const learningGrowthJitDecisionReportService = createLearningGrowthJitDecisionReportService({
     dataDir: deps.dataDir,
     nowIso: deps.nowIso,
@@ -113,7 +111,7 @@ function createMobileApiLearningComposition(deps = {}) {
     sequenceService: learningGrowthSequenceService,
     transcribeSubmissionAudio: (...args) => deps.kanbanReadingWorkflowService.transcribeKanbanReadingAudio(...args),
   });
-  if (legacyHostGrowthApiEnabled) learningGrowthSubmissionService.scheduleEvaluationQueue();
+  learningGrowthSubmissionService.scheduleEvaluationQueue();
   const kanbanCaseTopicDeliveryService = createKanbanCaseTopicDeliveryService({
     broadcast: deps.broadcast,
     makeId: deps.makeId,
@@ -142,7 +140,6 @@ function createMobileApiLearningComposition(deps = {}) {
     kanbanErrorResponse: deps.kanbanErrorResponse,
     kanbanSingleCardCasePayload: deps.kanbanSingleCardCasePayload,
     growthPluginSubmissionProxyService: createGrowthPluginSubmissionProxyService({ dataDir: deps.dataDir, env: deps.env || process.env, fetch: deps.fetch || global.fetch }),
-    allowLegacyGrowthFallback: legacyHostGrowthApiEnabled,
     learningGrowthKanbanTaskService: learningGrowthTaskService,
     learningGrowthSubmissionService,
     normalizeKanbanNotificationAssignee: deps.normalizeKanbanNotificationAssignee,
@@ -207,8 +204,13 @@ function createMobileApiLearningComposition(deps = {}) {
   });
   callBootTrace(deps, "kanban learning guidance api routes ready");
 
-  const learningProgramRepository = createLearningProgramRepository({ dataDir: deps.dataDir, dbPath: deps.learningProgramDbPath });
-  learningGrowthMasteryProfileService = createLearningGrowthMasteryProfileService({ repository: learningProgramRepository });
+  const learningProgramRepository = createLearningProgramRepository({
+    dataDir: deps.dataDir,
+    dbPath: deps.learningProgramDbPath,
+  });
+  learningGrowthMasteryProfileService = createLearningGrowthMasteryProfileService({
+    repository: learningProgramRepository,
+  });
   const learningGrowthJitTaskService = createLearningGrowthJitTaskService({
     extractJsonObject: deps.extractJsonObject,
     findWorkspace: deps.findWorkspace,
@@ -243,7 +245,9 @@ function createMobileApiLearningComposition(deps = {}) {
     requireModelForTaskSeriesRecommendation: true,
     sanitizePolicy: deps.sanitizePolicy,
   });
-  const learningGrowthLegacyTodoTaskService = createLearningGrowthLegacyTodoTaskService({ mobileStore: deps.mobileSqliteStore });
+  const learningGrowthLegacyTodoTaskService = createLearningGrowthLegacyTodoTaskService({
+    mobileStore: deps.mobileSqliteStore,
+  });
   const learningGrowthExperienceSignalService = createLearningGrowthExperienceSignalService({
     repository: learningProgramRepository,
   });
@@ -271,7 +275,6 @@ function createMobileApiLearningComposition(deps = {}) {
     learningGrowthBoardService,
     learningGrowthService,
     learningGrowthTaskService,
-    legacyHostGrowthApiEnabled,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
     sendJson: deps.sendJson,
   });
@@ -310,7 +313,6 @@ function createMobileApiLearningComposition(deps = {}) {
     learningGrowthStageAssessmentService,
     learningGrowthTeachingCheckService,
     learningProgramService,
-    legacyHostGrowthApiEnabled,
     readBody: deps.readBody,
     requireOwner: deps.requireOwner,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,

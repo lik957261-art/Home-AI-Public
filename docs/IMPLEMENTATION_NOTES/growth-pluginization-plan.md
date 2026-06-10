@@ -243,19 +243,6 @@ Current development status:
   `view=learning&taskCardId=<taskCardId>` URLs remain compatibility-only and
   are converted into the same plugin card route before iframe rendering. Host
   Web Push and task-card open URLs must generate the plugin route.
-- Host production defaults now treat the built-in Growth page and host Growth
-  workflow APIs as legacy compatibility only:
-  - sidebar/bottom Growth navigation opens `view=growth`;
-  - stale `view=learning` state is normalized to `growth` before view load;
-  - `/api/learning-growth/overview`, `/api/learning-growth/board`, and
-    `/api/learning-growth/cards|stage-assessments/*` return
-    `410 growth_plugin_owned` unless
-    `HERMES_MOBILE_LEGACY_HOST_GROWTH_API_ENABLED=1` or
-    `HERMES_WEB_LEGACY_HOST_GROWTH_API_ENABLED=1` is explicitly set;
-  - the host Growth evaluation queue is not scheduled unless the same legacy
-    flag is enabled;
-  - Kanban compatibility submission/reflection routes proxy to the plugin and
-    do not fall back to host Growth services unless the legacy flag is enabled.
 
 ### 6. Plugin Event Contract
 

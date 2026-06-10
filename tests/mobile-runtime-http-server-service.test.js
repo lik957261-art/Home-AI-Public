@@ -56,7 +56,7 @@ function createService(overrides = {}) {
   assert.deepEqual(events.slice(0, 3), [["on", "SIGINT", "function"], ["on", "SIGTERM", "function"], "reconcile"]);
   assert.equal(events.includes("todo-push"), true);
   assert.equal(events.includes("automation-push"), true);
-  assert.equal(events.includes("queue"), false);
+  assert.equal(events.includes("queue"), true);
   assert.match(logs.join("\n"), /Owner key source is file/);
 
   const apiResponse = {};
@@ -68,10 +68,6 @@ function createService(overrides = {}) {
   await service.requestHandler({ method: "GET", url: "/app.js" }, staticResponse);
   assert.equal(staticResponse.headersAttached, true);
   assert.equal(staticResponse.static, true);
-
-  const legacyQueueFixture = createService({ scheduleLearningGrowthQueueOnStartup: true });
-  legacyQueueFixture.service.logStartup();
-  assert.equal(legacyQueueFixture.events.includes("queue"), true);
 
   const streamService = createService({ eventStreamApiRoutes: { handle: async (_req, res) => { res.stream = true; return { handled: true }; } } }).service;
   const streamResponse = {};

@@ -580,29 +580,6 @@ async function testLearningGrowthSubmissionFallsBackWhenGrowthPluginBindingMissi
   assert.equal(calls.growthSubmit[0].cardId, "t_growth");
 }
 
-async function testLearningGrowthSubmissionDoesNotFallbackWhenLegacyDisabled() {
-  const { routes, calls } = makeRoutes({
-    allowLegacyGrowthFallback: false,
-    growthPluginSubmissionProxyService: {
-      submitTask(input) {
-        calls.growthProxy.push(input);
-        return Promise.resolve({
-          ok: false,
-          status: 409,
-          error: "growth_plugin_workspace_not_configured",
-          fallbackAllowed: true,
-        });
-      },
-    },
-  });
-  const got = await request(routes, "POST", "/api/kanban/cards/t_growth/learning-growth-submission?workspaceId=child", {
-    body: { text: "draft" },
-  });
-  assert.equal(got.res.statusCode, 409);
-  assert.equal(calls.growthProxy.length, 1);
-  assert.equal(calls.growthSubmit.length, 0);
-}
-
 async function testLearningGrowthSubmissionKeepsLegacyWritingServiceFallback() {
   const { routes, calls } = makeRoutes({
     learningGrowthSubmissionService: null,
@@ -724,29 +701,6 @@ async function testLearningGrowthReflectionFallsBackWhenGrowthPluginBindingMissi
   assert.equal(got.res.statusCode, 200);
   assert.equal(calls.growthProxy.length, 1);
   assert.equal(calls.growthReflection.length, 1);
-}
-
-async function testLearningGrowthReflectionDoesNotFallbackWhenLegacyDisabled() {
-  const { routes, calls } = makeRoutes({
-    allowLegacyGrowthFallback: false,
-    growthPluginSubmissionProxyService: {
-      submitReflection(input) {
-        calls.growthProxy.push(input);
-        return Promise.resolve({
-          ok: false,
-          status: 409,
-          error: "growth_plugin_workspace_not_configured",
-          fallbackAllowed: true,
-        });
-      },
-    },
-  });
-  const got = await request(routes, "POST", "/api/kanban/cards/t_growth/learning-growth-reflection?workspaceId=child", {
-    body: { transcript: "I changed my answer.", author: "learner" },
-  });
-  assert.equal(got.res.statusCode, 409);
-  assert.equal(calls.growthProxy.length, 1);
-  assert.equal(calls.growthReflection.length, 0);
 }
 
 async function testCompletedCardsSyncToTopicDeliveryService() {
@@ -1087,13 +1041,11 @@ function testDependencyValidation() {
   await testLearningGrowthSubmissionUsesCommentCapabilityAndService();
   await testLearningGrowthSubmissionPrefersGrowthPluginProxy();
   await testLearningGrowthSubmissionFallsBackWhenGrowthPluginBindingMissing();
-  await testLearningGrowthSubmissionDoesNotFallbackWhenLegacyDisabled();
   await testLearningGrowthSubmissionKeepsLegacyWritingServiceFallback();
   await testLearningGrowthSubmissionWithdrawUsesCommentCapabilityAndService();
   await testLearningGrowthReflectionUsesCommentCapabilityAndService();
   await testLearningGrowthReflectionPrefersGrowthPluginProxy();
   await testLearningGrowthReflectionFallsBackWhenGrowthPluginBindingMissing();
-  await testLearningGrowthReflectionDoesNotFallbackWhenLegacyDisabled();
   await testCompletedCardsSyncToTopicDeliveryService();
   await testOutputRoutesAlwaysUseResolverWithAuthenticatedContext();
   await testDetailAndActionAccessCapabilities();

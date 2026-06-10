@@ -600,6 +600,8 @@ function currentViewerReturnUrl() {
   if (state.viewMode === "automation") {
     params.set("view", "automation");
     if (state.selectedAutomationId) params.set("automationId", state.selectedAutomationId);
+  } else if (state.viewMode === "learning") {
+    params.set("view", "learning");
   } else if (state.viewMode === "todos") {
     params.set("view", "todos");
     if (state.selectedTodoId) params.set("todoId", state.selectedTodoId);

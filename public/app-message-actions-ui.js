@@ -517,6 +517,16 @@ function activateTopNavButton() {
     openActionInboxOverview();
     return;
   }
+  if (state.viewMode === "learning" && state.learningGrowthSettingsOpen) {
+    closeLearningGrowthSettingsPage();
+    return;
+  }
+  if (state.viewMode === "learning" && state.selectedLearningTaskCardId) {
+    state.selectedLearningTaskCardId = "";
+    state.learningGrowthSettingsOpen = false;
+    renderLearningCoinsView();
+    return;
+  }
   if (state.viewMode === "projects" && directoryActivePath()) {
     navigateDirectoryUp({ animateEntry: true }).catch(showError);
     return;

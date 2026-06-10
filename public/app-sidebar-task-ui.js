@@ -115,6 +115,7 @@ function backSwipeTarget() {
   if (isSkillDetailView()) return "skill";
   if (isTaskDetailView()) return "task";
   if (isTodoDetailView() || kanbanComposerOpen()) return isTodoDetailView() ? "todo" : "todo-create";
+  if (state.viewMode === "learning" && (state.learningGrowthSettingsOpen || state.selectedLearningTaskCardId)) return state.learningGrowthSettingsOpen ? "learning-growth-settings" : "learning-growth-task";
   if (typeof wardrobePluginBackActive === "function" && wardrobePluginBackActive()) return "wardrobe-plugin";
   if (!pluginContextBack && typeof wardrobePluginOuterBackActive === "function" && wardrobePluginOuterBackActive()) return "wardrobe-plugin-outer";
   if (typeof codexPluginBackActive === "function" && codexPluginBackActive()) return "codex-plugin";
@@ -176,6 +177,12 @@ function performBackSwipeAction(target) {
   if (target === "skill") closeSkillDetail();
   else if (target === "task") openTaskList();
   else if (target === "todo" || target === "todo-create") openTodoList();
+  else if (target === "learning-growth-settings") closeLearningGrowthSettingsPage();
+  else if (target === "learning-growth-task") {
+    state.selectedLearningTaskCardId = "";
+    state.learningGrowthSettingsOpen = false;
+    renderLearningCoinsView();
+  }
   else if (target === "directory-topic-draft") closeDirectoryTopicDraft();
   else if (target === "directory") navigateDirectoryBackFromShell({ animateEntry: true }).catch(showError);
   else if (target === "wardrobe-plugin" && typeof sendWardrobePluginBack === "function") sendWardrobePluginBack();
@@ -388,6 +395,10 @@ function restoreDirectoryReturnRoute() {
   if (state.viewMode === "todos") renderTodos();
   else if (state.viewMode === "projects") {
     loadDirectoryView({ preserveScroll: true }).catch(showError);
+  }
+  else if (state.viewMode === "learning") {
+    renderLearningCoinsView();
+    const scrollTop = Number(route.conversationScrollTop || 0) || 0; if (scrollTop > 0) requestAnimationFrame(() => { const conversation = $("conversation"); if (conversation) conversation.scrollTop = scrollTop; });
   }
   else if (state.viewMode === "automation") renderAutomationView();
   else {

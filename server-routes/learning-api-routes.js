@@ -102,14 +102,6 @@ function sendRouteError(deps, res, err) {
   deps.sendJson(res, err.status || 500, { error: err.message || String(err) });
 }
 
-function sendGrowthPluginOwned(deps, res) {
-  deps.sendJson(res, 410, {
-    ok: false,
-    error: "growth_plugin_owned",
-    message: "Growth board and overview are owned by the Growth plugin.",
-  });
-}
-
 function wantsKanbanCompatibility(url) {
   const value = String(url?.searchParams?.get("includeKanbanProjection") || url?.searchParams?.get("includeKanban") || "").trim().toLowerCase();
   return value === "1" || value === "true" || value === "yes";
@@ -128,7 +120,6 @@ function createLearningApiRoutes(deps = {}) {
     learningGrowthService,
   });
   const registry = createApiRouteRegistry(LEARNING_API_ROUTE_SPECS);
-  const legacyHostGrowthApiEnabled = deps.legacyHostGrowthApiEnabled === true;
 
   function authorizeQuery(req, res, url, auth) {
     let workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(deps, auth, url));
@@ -232,10 +223,6 @@ function createLearningApiRoutes(deps = {}) {
     if (!route) return { handled: false };
 
     const auth = context.auth || null;
-    if (!legacyHostGrowthApiEnabled && (route.id === "learning-growth-overview" || route.id === "learning-growth-board")) {
-      sendGrowthPluginOwned(deps, res);
-      return { handled: true, route, auth };
-    }
     if (route.id === "learning-growth-overview" || route.id === "learning-overview") await handleOverview(req, res, url, auth);
     else if (route.id === "learning-growth-board") await handleBoard(req, res, url, auth);
     else if (route.id === "learning-status") await handleStatus(req, res, url, auth);

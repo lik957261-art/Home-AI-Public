@@ -384,11 +384,11 @@ function buildPlan(options) {
 
 function assertExecutablePlan(plan, options) {
   if (!options.execute) return;
-  if (plan.target.startsWith("plugin:") && !plan.restartLabels.length && !options.healthUrl && !options.syncOnly) {
-    throw new Error("plugin_execute_requires_restart_label_or_health_url");
-  }
   if (plan.deployDirtyFiles.length && !options.allowDirty) {
     throw new Error(`deploy_source_dirty_requires_allow_dirty:${plan.deployDirtyFiles.join(",")}`);
+  }
+  if (plan.target.startsWith("plugin:") && !plan.restartLabels.length && !options.healthUrl && !options.syncOnly) {
+    throw new Error("plugin_execute_requires_restart_label_or_health_url");
   }
 }
 

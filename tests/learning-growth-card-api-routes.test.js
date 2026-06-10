@@ -41,7 +41,6 @@ function makeDeps(overrides = {}) {
     requireWorkspaceAccess(_req, _res, workspaceId) {
       return workspaceId;
     },
-    legacyHostGrowthApiEnabled: true,
     sendJson(res, status, payload) {
       res.statusCode = status;
       res.body = JSON.stringify(payload);
@@ -79,16 +78,6 @@ async function testRouteMetadata() {
   assert.ok(routes.match({ method: "POST", path: "/api/learning-growth/stage-assessments/challenge" }));
 }
 
-async function testLegacyGrowthCardActionsFailClosedByDefault() {
-  const routes = createLearningGrowthCardApiRoutes(makeDeps({ legacyHostGrowthApiEnabled: false }));
-  const res = makeRes();
-  await routes.handle(makeReq("POST", "/api/learning-growth/cards/task-1/teaching-check", { quickCheckText: "summary only" }), res, new URL("http://x/api/learning-growth/cards/task-1/teaching-check"), {
-    auth: { workspaceId: "learner-1", principalId: "learner-1" },
-  });
-  assert.equal(res.statusCode, 410);
-  assert.equal(JSON.parse(res.body).error, "growth_plugin_owned");
-}
-
 async function testTeachingCheckRoute() {
   const routes = createLearningGrowthCardApiRoutes(makeDeps());
   const res = makeRes();
@@ -121,7 +110,6 @@ async function testChallengeRoute() {
 
 async function run() {
   await testRouteMetadata();
-  await testLegacyGrowthCardActionsFailClosedByDefault();
   await testTeachingCheckRoute();
   await testExperienceSignalRoute();
   await testChallengeRoute();

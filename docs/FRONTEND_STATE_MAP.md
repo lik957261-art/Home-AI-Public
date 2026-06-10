@@ -247,23 +247,18 @@ the change is part of a dedicated infrastructure rename.
 
 ## Growth
 
-- Growth user entry is the embedded plugin view `view=growth`, rendered by
-  `public/app-embedded-plugin-ui.js` with plugin id `growth`.
-- Sidebar and bottom Growth navigation set `viewMode=growth`. Stale
-  `viewMode=learning` state and old `view=learning` URLs are compatibility
-  inputs only and must be normalized to `growth` before a view is loaded.
-- Growth card deep links use
-  `view=growth&pluginRoute=card&pluginItemId=<taskCardId>`. Old
-  `view=learning&taskCardId=<taskCardId>` links are converted to that plugin
-  route.
-- The old `public/app-learning-growth-*`, `public/app-learning-program-ui.js`,
-  and `public/app-learning-coins-ui.js` files are legacy host UI modules kept
-  for staged compatibility and tests. They must not be wired as the normal
-  visible Growth surface.
-- Teaching-card product rules remain in
-  `docs/IMPLEMENTATION_NOTES/growth-teaching-card-flow.md` and
-  `docs/IMPLEMENTATION_NOTES/growth-teaching-card-implementation.md`, but new
-  user-facing Growth UI work should happen in the Growth plugin workspace.
+- Growth overview/board: `public/app-learning-growth-ui.js`, `public/app-learning-growth-controller.js`
+- Growth settings and profile tab: `public/app-learning-growth-settings-controller.js`
+- Task detail/outcome: `public/app-learning-growth-task-ui.js`
+- Program/task execution detail: `public/app-learning-program-ui.js`
+- Native submission flow: `public/app-learning-native-growth-submission-controller.js`
+- Reflection UI: `public/app-learning-growth-reflection-ui.js`
+- AI/reward controllers: `public/app-learning-growth-ai-controller.js`, `public/app-learning-growth-reward-controller.js`
+- Coins compatibility: `public/app-learning-coins-ui.js`
+- Teaching-card UI flow: `docs/IMPLEMENTATION_NOTES/growth-teaching-card-flow.md`
+- Code-oriented teaching-card UI implementation plan: `docs/IMPLEMENTATION_NOTES/growth-teaching-card-implementation.md`
+- Teaching-card interactions: `public/app-learning-growth-teaching-controller.js`
+- Growth detail should branch by card role: teaching/practice cards use lesson, example, guided practice, quick check, and feedback steps; stage assessment cards keep the formal submit/evaluate/revise/reflect flow.
 
 ## Automation
 

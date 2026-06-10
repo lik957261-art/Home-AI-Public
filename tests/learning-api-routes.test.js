@@ -60,7 +60,6 @@ function makeRoutes(overrides = {}) {
       }
       return String(workspaceId || "owner");
     },
-    legacyHostGrowthApiEnabled: true,
     sendJson,
   }, overrides);
   return { routes: createLearningApiRoutes(deps), calls, growthInputs };
@@ -89,16 +88,6 @@ async function testMetadataAndFallthrough() {
   const miss = await request(routes, "GET", "/api/status");
   assert.equal(miss.result.handled, false);
   assert.equal(miss.res.statusCode, 0);
-}
-
-async function testLegacyGrowthBoardRoutesFailClosedByDefault() {
-  const { routes, growthInputs } = makeRoutes({ legacyHostGrowthApiEnabled: false });
-  const response = await request(routes, "GET", "/api/learning-growth/board?workspaceId=weixin_stephen&studentId=weixin_stephen", {
-    auth: { ok: true, workspaceId: "owner", principalId: "owner", isOwner: true },
-  });
-  assert.equal(response.res.statusCode, 410);
-  assert.equal(response.body.error, "growth_plugin_owned");
-  assert.equal(growthInputs.length, 0);
 }
 
 async function testOwnerCanReadLearningStatusReadiness() {
@@ -316,7 +305,6 @@ async function testStudentCannotReadAnotherLearner() {
 
 (async () => {
   await testMetadataAndFallthrough();
-  await testLegacyGrowthBoardRoutesFailClosedByDefault();
   await testOverviewUsesRequestedExecutorWorkspaceForOwner();
   await testBoardUsesNativeGrowthProjectionWithoutKanban();
   await testOwnerDefaultOverviewUsesFanfanLearnerBinding();

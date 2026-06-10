@@ -80,22 +80,13 @@ Planned graph-guided card planning files are documented in
   native task card ids or legacy `kanban_card_id`, writes
   `learning_task_reflections`, and stores reflection audio in
   `learning_task_audio_blobs` when present.
-- `GET /api/learning-growth/board` (legacy host API; production default is
-  `410 growth_plugin_owned`)
-- `POST /api/learning-growth/cards/:cardId/teaching-check` (legacy host API;
-  production default is `410 growth_plugin_owned`)
-- `POST /api/learning-growth/cards/:cardId/experience-signal` (legacy host
-  API; production default is `410 growth_plugin_owned`)
-- `POST /api/learning-growth/stage-assessments/:cycleId/activate` (legacy host
-  API; production default is `410 growth_plugin_owned`)
-- `POST /api/learning-growth/stage-assessments/challenge` (legacy host API;
-  production default is `410 growth_plugin_owned`)
-- `POST /api/kanban/cards/:cardId/learning-growth-submission` (compatibility
-  route; production default proxies to the Growth plugin and does not fall back
-  to host Growth submission/evaluation)
-- `POST /api/kanban/cards/:cardId/learning-growth-reflection` (compatibility
-  route; production default proxies to the Growth plugin and does not fall back
-  to host Growth reflection/evaluation)
+- `GET /api/learning-growth/board`
+- `POST /api/learning-growth/cards/:cardId/teaching-check`
+- `POST /api/learning-growth/cards/:cardId/experience-signal`
+- `POST /api/learning-growth/stage-assessments/:cycleId/activate`
+- `POST /api/learning-growth/stage-assessments/challenge`
+- `POST /api/kanban/cards/:cardId/learning-growth-submission` (current legacy/formal compatibility route)
+- `POST /api/kanban/cards/:cardId/learning-growth-reflection` (current legacy/formal compatibility route)
 - `GET /api/learning/growth/mastery-profile`
 - `GET /api/learning/task-submissions/:submissionId/audio`
 - `GET /api/learning/task-reflections/:reflectionId/audio`
@@ -309,17 +300,6 @@ Legacy links in the form
 compatibility routes only; the host converts them to the same Growth plugin
 card route before rendering the iframe. Web Push and task-card `openUrl`
 generation must use the plugin route.
-
-Home AI production defaults no longer render the built-in Growth page or run
-the host Growth evaluation queue. Sidebar/bottom Growth navigation sets
-`viewMode=growth` and renders the embedded Growth plugin. If stale client state
-or an old URL restores `viewMode=learning`, the host normalizes it to `growth`
-before loading a view. Legacy host Growth board/action APIs fail closed with
-`410 growth_plugin_owned` unless
-`HERMES_MOBILE_LEGACY_HOST_GROWTH_API_ENABLED=1` or
-`HERMES_WEB_LEGACY_HOST_GROWTH_API_ENABLED=1` is set for a controlled rollback.
-The Kanban compatibility submission/reflection routes do not fall back to host
-Growth services unless that same explicit legacy flag is enabled.
 
 Growth learning coins are not `通宝` and are not real-money-equivalent platform
 ledger entries. Growth-to-`通宝` exchange remains a Home AI platform currency

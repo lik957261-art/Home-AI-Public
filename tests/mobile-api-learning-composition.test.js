@@ -172,7 +172,8 @@ withPatchedSetTimeout((scheduled) => {
   ]);
   for (const [name, route] of Object.entries(composition.routes)) assertRouteContract(route, name);
   assert.equal(typeof composition.services.learningGrowthSubmissionService.scheduleEvaluationQueue, "function");
-  assert.equal(scheduled.length, 0, "host Growth evaluation queue should stay off by default after plugin migration");
+  assert.equal(scheduled.length, 1, "learning growth evaluation queue should be scheduled once during composition");
+  assert.equal(scheduled[0].delayMs, 0);
   assert.deepEqual(deps.bootTraceLabels, [
     "kanban card api routes ready",
     "kanban study api routes ready",
@@ -184,14 +185,6 @@ withPatchedSetTimeout((scheduled) => {
     "learning parent review api routes ready",
     "learning coin api routes ready",
   ]);
-});
-
-withPatchedSetTimeout((scheduled) => {
-  const deps = createDeps();
-  deps.env = { HERMES_MOBILE_LEGACY_HOST_GROWTH_API_ENABLED: "1" };
-  createMobileApiLearningComposition(deps);
-  assert.equal(scheduled.length, 1, "legacy host Growth mode should explicitly schedule the host evaluation queue");
-  assert.equal(scheduled[0].delayMs, 0);
 });
 
 console.log("mobile API learning composition tests passed");

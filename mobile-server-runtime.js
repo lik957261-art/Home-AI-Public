@@ -115,8 +115,11 @@ const { BRIDGE_HOST_URL, BRIDGE_HOST_KEY_PATH, STATUS_INCLUDE_CATALOG, GOOGLE_TO
 const { SINGLE_WINDOW_CHAT_TASK_GROUP_ID, SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID, isSingleWindowConversationTaskGroupId, singleWindowChatTaskGroupId, GROUP_MESSAGE_REVOKED_TEXT, GROUP_AI_REPLY_REVOKED_TEXT, SINGLE_WINDOW_PROJECT_ID, SINGLE_WINDOW_THREAD_TITLE } = runtimeEnv;
 const { OWNER_LABEL, OWNER_ROOT_FALLBACK_LABEL, OWNER_DRIVE_ROOT_NAMES, GENERIC_OWNER_TOPIC_PROJECT_PREFIXES, GENERIC_OWNER_TOPIC_PROJECT_IDS, PRINCIPAL_LABEL_PREFIXES } = runtimeEnv;
 const { REASONING_EFFORT_OPTIONS, VALID_REASONING_EFFORTS, MESSAGE_TIME_FIELDS, MIME_BY_EXT, AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS, AUTOMATION_PUSH_DELIVERABLE_LOOKBACK_MS, AUTOMATION_PUSH_DELIVERABLE_FUTURE_GRACE_MS, AUTOMATION_PUSH_INITIAL_LOOKBACK_MS } = runtimeEnv;
-const RUNTIME_PATH_COMPARE_OPTIONS = Object.freeze({ slashFirst: true, stripWslPrefix: true, mapWslMountDrive: true });
-const legacyHostGrowthApiEnabled = ["1", "true", "yes", "on"].includes(String(process.env.HERMES_MOBILE_LEGACY_HOST_GROWTH_API_ENABLED || process.env.HERMES_WEB_LEGACY_HOST_GROWTH_API_ENABLED || "").trim().toLowerCase());
+const RUNTIME_PATH_COMPARE_OPTIONS = Object.freeze({
+  slashFirst: true,
+  stripWslPrefix: true,
+  mapWslMountDrive: true,
+});
 const comparablePath = (value) => comparableBoundaryPath(value, RUNTIME_PATH_COMPARE_OPTIONS);
 const pathInsideAnyRoot = (candidate, roots) => boundaryPathInsideAnyRoot(candidate, roots, RUNTIME_PATH_COMPARE_OPTIONS);
 const pathDirectChildOfRoot = (candidate, root) => boundaryPathDirectChildOfRoot(candidate, root, RUNTIME_PATH_COMPARE_OPTIONS);
@@ -1302,5 +1305,5 @@ const { eventStreamApiRoutes, mobileApiDispatcher, services: mobileApiServices =
 createMobileRuntimeHttpServerService({
   activeStreams, authProvider, dataDir: DATA_DIR, disableAuth: DISABLE_AUTH, effectiveHermesApiBase, eventStreamApiRoutes,
   getUrl, host: HOST, http, httpRuntimeService, logger: console, mobileApiDispatcher, mobileApiServices, port: PORT,
-  process, reconcileDetachedActiveRuns, scheduleLearningGrowthQueueOnStartup: legacyHostGrowthApiEnabled, sendJson, serveStatic, webPushDeliveryService,
+  process, reconcileDetachedActiveRuns, sendJson, serveStatic, webPushDeliveryService,
 }).start();
