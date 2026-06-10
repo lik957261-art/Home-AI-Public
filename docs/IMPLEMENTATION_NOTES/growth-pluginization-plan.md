@@ -161,7 +161,25 @@ Current development status:
   bounded import/readback metadata.
 - The same import logic is available from the plugin workspace via
   `npm run import:facade-snapshot -- --workspace-id <workspace-id>`.
-- Full SQLite/domain ownership migration is still pending.
+- The plugin now has a plugin-owned SQLite migration/readback path:
+  `npm run import:learning-sqlite -- --source-db <verified-backup.sqlite3>
+  --target-db <plugin-data>/growth-learning.sqlite3 --write --workspace-id
+  <workspace-id> --json`.
+- The SQLite migration script validates the source with `PRAGMA quick_check`,
+  required learning-growth table presence, and `PRAGMA foreign_key_check`,
+  backs up an existing target before replacement, copies the database into
+  plugin-owned storage, and returns bounded readback metadata only.
+- Rollback is explicit:
+  `npm run import:learning-sqlite -- --target-db <plugin-data>/growth-learning.sqlite3
+  --rollback <script-created-backup.sqlite3> --write --json`.
+- The plugin can read status, board, and card detail from the migrated SQLite
+  store when `GROWTH_DATA_OWNER=plugin` is set. The default runtime source
+  remains the Home AI facade until development parity checks and production
+  migration evidence pass.
+- Submission, async evaluation, reflection, reward settlement, and other write
+  paths have not been switched to plugin-owned services yet. They remain gated
+  by the workflow contract and must not be silently inferred from SQLite
+  readback.
 
 ### 6. Plugin Event Contract
 

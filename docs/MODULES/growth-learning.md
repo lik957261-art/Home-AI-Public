@@ -215,6 +215,19 @@ access key, not the registration key, and the plugin returns an `entry_url`
 containing a short-lived launch token. Host logs, docs, screenshots, and test
 output must not include raw access keys or launch token values.
 
+Growth plugin SQLite migration is staged but not yet the default production
+source. The plugin workspace provides
+`npm run import:learning-sqlite -- --source-db <verified-backup.sqlite3>
+--target-db <plugin-data>/growth-learning.sqlite3 --write --workspace-id
+<workspace-id> --json` to copy a verified learning-growth SQLite backup into
+plugin-owned storage. The script validates required Growth tables,
+`PRAGMA quick_check`, foreign-key checks, creates a backup of any existing
+target, and returns bounded count/readback metadata. Rollback uses the same
+script with `--rollback <script-created-backup.sqlite3>`. Runtime reads prefer
+that plugin-owned SQLite only when `GROWTH_DATA_OWNER=plugin`; submission,
+evaluation, reflection, and reward write paths remain in Home AI until the
+workflow migration has separate tests and cutover evidence.
+
 Current development visual evidence:
 
 - `npm run ios:pwa:visual -- --debug-url http://127.0.0.1:19073/ --scenario embedded-plugin-shell --plugin-id growth --theme dark --expected-client-version 20260610-growth-plugin-shell-v680 --timeout-ms 70000 --json`
