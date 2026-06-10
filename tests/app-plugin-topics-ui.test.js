@@ -30,6 +30,7 @@ assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_USAGE_API_PATH = "\/api\/plugin
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_BINDINGS_API_PATH = "\/api\/plugin-topic-bindings";/);
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_USAGE_LOAD_TTL_MS = 30000;/);
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_BINDINGS_LOAD_TTL_MS = 30000;/);
+assert.match(pluginTopicsUi, /const GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO = 1\.45;/);
 assert.match(pluginTopicsUi, /function pluginTopicAppQuickAction/);
 assert.match(pluginTopicsUi, /function pluginTopicActionUsageKey/);
 assert.match(pluginTopicsUi, /function pluginTopicUsageRecentlyLoaded/);
@@ -41,6 +42,9 @@ assert.match(pluginTopicsUi, /function pluginTopicDirectoryClaimForRoute/);
 assert.match(pluginTopicsUi, /function pluginTopicFilterDirectoryTopicCollectionsForRoot/);
 assert.match(pluginTopicsUi, /function renderPluginTopicSwitcher/);
 assert.match(pluginTopicsUi, /function openPluginClaimedDirectoryTopic/);
+assert.match(pluginTopicsUi, /function wirePluginAppStripScrollGuard\(root\)/);
+assert.match(pluginTopicsUi, /strip\.addEventListener\("touchmove", move, \{ passive: true \}\)/);
+assert.match(pluginTopicsUi, /Math\.abs\(dx\) >= PLUGIN_APP_REORDER_CANCEL_PX && Math\.abs\(dx\) > Math\.abs\(dy\) \* 1\.15/);
 assert.match(pluginTopicsUi, /const pluginTopicUsageMemoryCacheByWorkspace = new Map\(\);/);
 assert.match(pluginTopicsUi, /function pluginTopicUsageStorageKey\(workspaceId = pluginTopicUsageWorkspaceId\(\)\)/);
 assert.match(pluginTopicsUi, /\$\{PLUGIN_TOPIC_USAGE_STORAGE_KEY\}:\$\{id\}/);
@@ -61,6 +65,8 @@ assert.match(runActionBody, /recordPluginTopicUsage\(def\.id, action\.id\);/);
 assert.match(runActionBody, /openPluginTopicApp\(def\.id, \{ recordUsage: false \}\);/);
 assert.match(topicCardsBody, /filter\(\(def\) => !def\.builtinKind\)/);
 assert.match(topicCardsBody, /data-plugin-topic-open-topic/);
+assert.match(topicCardsBody, /plugin-topic-list/);
+assert.match(topicCardsBody, /plugin-topic-row-chevron/);
 assert.doesNotMatch(topicCardsBody, /data-plugin-topic-open-app/);
 
 assert.doesNotMatch(quickActionsBody, /preferred/);
@@ -96,6 +102,10 @@ assert.match(stylesCss, /\.app\.task-list-mode \.conversation > \.directory-topi
 assert.match(stylesCss, /\.app\.capability-mode \.conversation > \.capability-entry-hub:first-child/);
 assert.match(stylesCss, /\.app\.task-list-mode \.conversation,[\s\S]*?\.app\.capability-mode \.conversation \{[\s\S]*?padding-bottom: var\(--topic-plugin-dock-reserved-height\);/);
 assert.match(stylesCss, /\.app\.task-list-mode,[\s\S]*?\.app\.capability-mode \{[\s\S]*?padding-bottom: 0;/);
+assert.match(stylesCss, /\.plugin-topic-list \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);[\s\S]*?gap: 2px;/);
+assert.match(stylesCss, /\.plugin-topic-card \{[\s\S]*?border-bottom: 1px solid var\(--ui-hairline\);[\s\S]*?box-shadow: none;/);
+assert.match(stylesCss, /\.plugin-topic-card-main \{[\s\S]*?grid-template-columns: 34px minmax\(0, 1fr\) 16px;/);
+assert.match(stylesCss, /\.plugin-topic-row-chevron::before \{[\s\S]*?transform: rotate\(-45deg\);/);
 
 function createPluginTopicHarness(options = {}) {
   const storage = new Map();

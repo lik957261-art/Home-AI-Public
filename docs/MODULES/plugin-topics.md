@@ -104,6 +104,11 @@ or raw plugin credentials.
   shared Home AI font-size preference instead of hard-coding a smaller local
   text size. Topics and the information/root surface should stay visually
   aligned with the user's selected reading scale.
+- Plugin conversation shortcuts on the Topics root use the same row/list
+  language as directory-bound topic collections. They are fixed conversation
+  entries such as `健康话题` or `成长话题`, not large app-icon cards. Large
+  app icons are reserved for the global plugin Dock/drawer and capability app
+  launch surfaces.
 - The Capability Entry Hub described in
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md` is now a separate
   host-level `能力` surface, not the Topics root. Topics root is conversation

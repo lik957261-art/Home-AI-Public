@@ -5468,10 +5468,10 @@ button.directory-alias-chip {
   margin: 0 auto 14px;
 }
 
-.plugin-topic-grid {
+.plugin-topic-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
 }
 
 .plugin-topic-switcher {
@@ -6223,13 +6223,13 @@ button.directory-alias-chip {
 .plugin-topic-card {
   min-width: 0;
   display: grid;
-  grid-template-rows: minmax(86px, 1fr);
-  gap: 6px;
-  padding: 10px;
-  background: var(--ui-card-surface);
-  border: 1px solid var(--ui-hairline);
-  border-radius: 14px;
-  box-shadow: var(--ui-card-shadow);
+  gap: 4px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ui-hairline);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .plugin-topic-card.directory-special-plugin {
@@ -6252,16 +6252,16 @@ button.directory-alias-chip {
 
 .plugin-topic-card-main {
   min-width: 0;
-  min-height: 96px;
+  min-height: 52px;
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
+  grid-template-columns: 34px minmax(0, 1fr) 16px;
   align-items: center;
-  gap: 10px;
-  padding: 6px;
+  gap: 7px;
+  padding: 6px 2px;
   color: var(--ink);
   background: transparent;
   border: 0;
-  border-radius: 8px;
+  border-radius: 0;
   text-align: left;
   touch-action: pan-y;
 }
@@ -6281,6 +6281,37 @@ button.directory-alias-chip {
   border-radius: 17px;
   box-shadow: 0 10px 20px rgba(24, 31, 37, 0.12), inset 0 1px 0 rgba(255,255,255,0.32);
   overflow: hidden;
+}
+
+.plugin-topic-card .plugin-topic-app-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  box-shadow: 0 5px 10px rgba(24, 31, 37, 0.10), inset 0 1px 0 rgba(255,255,255,0.26);
+}
+
+.plugin-topic-card .plugin-topic-app-icon::after {
+  font-size: 18px;
+}
+
+.plugin-topic-row-chevron {
+  width: 16px;
+  height: 16px;
+  position: relative;
+  display: block;
+  color: var(--muted);
+}
+
+.plugin-topic-row-chevron::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
 }
 
 .plugin-topic-app-icon::before {
@@ -6428,6 +6459,9 @@ button.directory-alias-chip {
 
 .plugin-topic-subtitle {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--muted);
   font-size: calc(12px * var(--app-font-scale));
   line-height: 1.36;
@@ -6437,21 +6471,23 @@ button.directory-alias-chip {
   min-width: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 3px;
+  gap: 8px;
+  margin-top: 0;
+  overflow: hidden;
 }
 
 .plugin-topic-stats span {
-  min-height: 22px;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
-  padding: 0 7px;
-  color: var(--ui-accent-ink);
-  background: var(--ui-accent-soft);
-  border: 1px solid rgba(95, 139, 148, 0.18);
-  border-radius: 7px;
-  font-size: 11px;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: calc(11px * var(--app-font-scale));
   font-weight: 650;
+  line-height: 1.25;
   white-space: nowrap;
 }
 
@@ -17242,9 +17278,9 @@ body.task-markdown-preview-open {
     margin-bottom: 10px;
   }
 
-  .plugin-topic-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+  .plugin-topic-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
   }
 
   .plugin-app-launcher {
@@ -17268,26 +17304,25 @@ body.task-markdown-preview-open {
   }
 
   .plugin-topic-card {
-    grid-template-rows: auto auto;
-    gap: 5px;
-    padding: 8px;
-    border-radius: 12px;
+    gap: 4px;
+    padding: 0;
+    border-radius: 0;
   }
 
   .plugin-topic-card-main {
-    min-height: 82px;
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
+    min-height: 50px;
+    grid-template-columns: 32px minmax(0, 1fr) 16px;
+    justify-items: stretch;
     align-content: center;
-    gap: 5px;
-    padding: 5px 4px;
-    text-align: center;
+    gap: 7px;
+    padding: 5px 2px;
+    text-align: left;
   }
 
-  .plugin-topic-app-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 14px;
+  .plugin-topic-card .plugin-topic-app-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
   }
 
   .plugin-topic-card.directory-special-plugin .plugin-topic-card-main {
@@ -17302,11 +17337,12 @@ body.task-markdown-preview-open {
   }
 
   .plugin-topic-title {
-    font-size: 12px;
+    font-size: 14px;
   }
 
   .plugin-topic-subtitle {
-    display: none;
+    display: block;
+    font-size: 12px;
   }
 
   .plugin-topic-actions {

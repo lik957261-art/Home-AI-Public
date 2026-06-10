@@ -152,7 +152,7 @@ const PLUGIN_APP_REORDER_HOLD_MS = 450;
 const PLUGIN_APP_REORDER_CANCEL_PX = 10;
 const GLOBAL_PLUGIN_DOCK_STATE_STORAGE_KEY = "hermesGlobalPluginDockExpanded";
 const GLOBAL_PLUGIN_DOCK_DRAG_SLOP_PX = 10;
-const GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO = 1.2;
+const GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO = 1.45;
 const GLOBAL_PLUGIN_DOCK_TRIGGER_DISTANCE_PX = 28;
 const GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_MIN_DISTANCE_PX = 24;
 const GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_PX_MS = 0.45;
@@ -772,8 +772,8 @@ function moveGlobalPluginDockGesture(event) {
   if (!gesture.locked) {
     if (Math.max(absX, absY) < GLOBAL_PLUGIN_DOCK_DRAG_SLOP_PX) return;
     if (absX > absY * GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO) {
-      gesture.cancelled = true;
-      resetGlobalPluginDockGesture();
+      gesture.locked = "horizontal";
+      dock.classList.remove("global-plugin-dock-gesture-pending");
       return;
     }
     if (absY <= absX * GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO) return;
@@ -1386,7 +1386,7 @@ function renderPluginTopicCards(options = {}) {
   const defs = orderedPluginAppDefs(availablePluginTopicDefs()).filter((def) => !def.builtinKind);
   if (!defs.length) return "";
   return `<section class="plugin-topic-launcher" aria-label="\u63d2\u4ef6\u8bdd\u9898">
-    <div class="plugin-topic-grid">
+    <div class="plugin-topic-list">
       ${defs.map((def) => {
         return `
         <article class="plugin-topic-card" data-plugin-topic-card="${escapeHtml(def.id)}">
@@ -1397,6 +1397,7 @@ function renderPluginTopicCards(options = {}) {
               <span class="plugin-topic-subtitle">${escapeHtml(def.subtitle)}</span>
               ${renderPluginTopicStats(def, options)}
             </span>
+            <span class="plugin-topic-row-chevron" aria-hidden="true"></span>
           </button>
         </article>
       `;
@@ -1898,6 +1899,56 @@ function wirePluginAppManualSorting(root) {
   });
 }
 
+function wirePluginAppStripScrollGuard(root) {
+  root?.querySelectorAll?.(".plugin-app-strip").forEach((strip) => {
+    if (strip.dataset.pluginAppScrollGuardBound === "1") return;
+    strip.dataset.pluginAppScrollGuardBound = "1";
+    let startX = 0;
+    let startY = 0;
+    let activeCard = null;
+    const markScrolled = () => {
+      if (!activeCard) return;
+      const card = activeCard;
+      card.dataset.pluginAppDragMoved = "1";
+      window.setTimeout(() => {
+        if (card.dataset.pluginAppDragMoved === "1") card.dataset.pluginAppDragMoved = "";
+      }, 180);
+    };
+    const pointFromEvent = (event) => {
+      const touch = event?.touches?.[0] || event?.changedTouches?.[0];
+      if (touch) return { x: touch.clientX, y: touch.clientY };
+      if (typeof event?.clientX === "number" && typeof event?.clientY === "number") return { x: event.clientX, y: event.clientY };
+      return null;
+    };
+    const begin = (event) => {
+      const point = pointFromEvent(event);
+      if (!point) return;
+      startX = point.x;
+      startY = point.y;
+      activeCard = event.target?.closest?.(".plugin-app-card") || null;
+    };
+    const move = (event) => {
+      if (!activeCard) return;
+      const point = pointFromEvent(event);
+      if (!point) return;
+      const dx = point.x - startX;
+      const dy = point.y - startY;
+      if (Math.abs(dx) >= PLUGIN_APP_REORDER_CANCEL_PX && Math.abs(dx) > Math.abs(dy) * 1.15) markScrolled();
+    };
+    const end = () => {
+      activeCard = null;
+    };
+    strip.addEventListener("pointerdown", begin, { passive: true });
+    strip.addEventListener("pointermove", move, { passive: true });
+    strip.addEventListener("pointerup", end, { passive: true });
+    strip.addEventListener("pointercancel", end, { passive: true });
+    strip.addEventListener("touchstart", begin, { passive: true });
+    strip.addEventListener("touchmove", move, { passive: true });
+    strip.addEventListener("touchend", end, { passive: true });
+    strip.addEventListener("touchcancel", end, { passive: true });
+  });
+}
+
 function closePluginActionMenus(root = document) {
   pluginActionMenuSwipe = null;
   root?.querySelectorAll?.(".capability-action-menu:not([hidden])").forEach((menu) => {
@@ -2156,5 +2207,6 @@ function wirePluginTopicCards(root) {
     button.addEventListener("click", () => openPluginTopicDelivery(button.dataset.pluginTopicOpenDelivery).catch(showError));
   });
   wireCapabilityPluginMenus(root);
+  wirePluginAppStripScrollGuard(root);
   wirePluginAppManualSorting(root);
 }

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260610-capability-tab-v689";
+const CLIENT_VERSION = "20260610-topic-list-dock-v690";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260610-capability-tab-v689" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260610-capability-tab-v689"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260610-topic-list-dock-v690" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260610-topic-list-dock-v690"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2554,10 +2554,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260610-capability-tab-v689/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260610-capability-tab-v689/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260610-capability-tab-v689/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260610-capability-tab-v689/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260610-topic-list-dock-v690/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260610-topic-list-dock-v690/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260610-topic-list-dock-v690/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260610-topic-list-dock-v690/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2602,7 +2602,11 @@ assert.match(appJs, /orderedPluginAppDefs\(availablePluginTopicDefs\(\)\)/);
 assert.match(appJs, /const fillCount = Math\.min\(Math\.max\(defs\.length, 1\), 6\);/);
 assert.match(appJs, /const PLUGIN_APP_REORDER_HOLD_MS = 450;/);
 assert.match(appJs, /const PLUGIN_APP_REORDER_CANCEL_PX = 10;/);
+assert.match(appJs, /const GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO = 1\.45;/);
 assert.match(appJs, /function wirePluginAppManualSorting\(root\)/);
+assert.match(appJs, /function wirePluginAppStripScrollGuard\(root\)/);
+assert.match(appJs, /strip\.addEventListener\("pointermove", move, \{ passive: true \}\)/);
+assert.match(appJs, /Math\.abs\(dx\) >= PLUGIN_APP_REORDER_CANCEL_PX && Math\.abs\(dx\) > Math\.abs\(dy\) \* 1\.15/);
 assert.match(appJs, /if \(pluginAppCardHasActionMenu\(card\)\) return;/);
 assert.match(appJs, /drag\.holdTimer = window\.setTimeout\(\(\) => startPluginAppSortDrag\(drag\), PLUGIN_APP_REORDER_HOLD_MS\);/);
 assert.match(appJs, /if \(Math\.abs\(dx\) < PLUGIN_APP_REORDER_CANCEL_PX && Math\.abs\(dy\) < PLUGIN_APP_REORDER_CANCEL_PX\) return;/);
@@ -2732,7 +2736,13 @@ assert.match(stylesCss, /\.plugin-app-card\.menu-open \{[\s\S]*?background: colo
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.global-plugin-dock-mode \.topic-plugin-dock \.capability-action-menu \{[\s\S]*?position: absolute;[\s\S]*?bottom: calc\(100% \+ 10px\);[\s\S]*?z-index: 80;/);
 assert.match(stylesCss, /\.capability-menu-order \{[\s\S]*?grid-template-columns: 1fr 1fr;/);
 assert.match(stylesCss, /\.plugin-topic-launcher \{/);
-assert.match(stylesCss, /\.plugin-topic-grid \{[\s\S]*?grid-template-columns: repeat\(auto-fit, minmax\(168px, 1fr\)\)/);
+assert.match(appJs, /<div class="plugin-topic-list">/);
+assert.doesNotMatch(appJs, /<div class="plugin-topic-grid">/);
+assert.match(appJs, /class="plugin-topic-row-chevron"/);
+assert.match(stylesCss, /\.plugin-topic-list \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);[\s\S]*?gap: 2px;/);
+assert.match(stylesCss, /\.plugin-topic-card \{[\s\S]*?background: transparent;[\s\S]*?border-bottom: 1px solid var\(--ui-hairline\);[\s\S]*?box-shadow: none;/);
+assert.match(stylesCss, /\.plugin-topic-card-main \{[\s\S]*?min-height: 52px;[\s\S]*?grid-template-columns: 34px minmax\(0, 1fr\) 16px;/);
+assert.match(stylesCss, /\.plugin-topic-row-chevron::before \{[\s\S]*?transform: rotate\(-45deg\);/);
 assert.match(stylesCss, /\.plugin-app-launcher \{[\s\S]*?border-top: 1px solid rgba\(95, 139, 148, 0\.18\);/);
 assert.match(stylesCss, /\.plugin-app-strip \{[\s\S]*?--plugin-app-gap: 8px;[\s\S]*?display: flex;[\s\S]*?flex-wrap: nowrap;[\s\S]*?gap: var\(--plugin-app-gap\);[\s\S]*?overflow-x: auto;[\s\S]*?scroll-behavior: smooth;[\s\S]*?scroll-snap-type: x proximity;[\s\S]*?touch-action: pan-x;/);
 assert.match(stylesCss, /\.plugin-app-strip-sorting \{[\s\S]*?scroll-snap-type: none;[\s\S]*?touch-action: none;[\s\S]*?cursor: grabbing;/);
@@ -2795,7 +2805,7 @@ assert.match(stylesCss, /\.plugin-topic-card\.directory-special-plugin \{[\s\S]*
 assert.match(stylesCss, /\.plugin-topic-card\.directory-special-plugin \.plugin-topic-card-main \{[\s\S]*?min-height: 64px;[\s\S]*?grid-template-columns: 58px minmax\(0, 1fr\);/);
 assert.match(stylesCss, /\.plugin-topic-card\.directory-special-plugin \{[\s\S]*?border-top: 1px dashed rgba\(95, 139, 148, 0\.26\);/);
 assert.match(stylesCss, /\.plugin-topic-card\.directory-special-plugin \.plugin-topic-title,[\s\S]*?\.plugin-topic-card\.directory-special-plugin \.plugin-topic-subtitle \{[\s\S]*?display: none;/);
-assert.match(stylesCss, /\.plugin-topic-card-main \{[\s\S]*?min-height: 96px;[\s\S]*?background: transparent;[\s\S]*?border: 0;/);
+assert.match(stylesCss, /\.plugin-topic-card-main \{[\s\S]*?min-height: 52px;[\s\S]*?background: transparent;[\s\S]*?border: 0;/);
 assert.match(stylesCss, /\.plugin-topic-app-icon \{[\s\S]*?width: 58px;[\s\S]*?border-radius: 17px;/);
 assert.match(stylesCss, /\.plugin-topic-app-icon\.outlook \{/);
 assert.match(stylesCss, /\.plugin-topic-app-icon\.directory \{/);
