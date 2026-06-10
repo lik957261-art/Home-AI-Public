@@ -223,10 +223,15 @@ async function main() {
         : `#topicPluginDock .plugin-app-card[data-plugin-topic-open-app="${openPluginDrawerMenu}"]`
       ).first();
       if (await pluginButton.count()) {
-        pluginDrawerMenuGesture = "touch-longpress";
-        await pluginButton.dispatchEvent("touchstart", { bubbles: true, cancelable: true });
-        await page.waitForTimeout(550);
-        await pluginButton.dispatchEvent("touchend", { bubbles: true, cancelable: true });
+        if (openPluginDrawerQuickMenu) {
+          pluginDrawerMenuGesture = "click";
+          await pluginButton.click({ timeout: 5000 });
+        } else {
+          pluginDrawerMenuGesture = "touch-longpress";
+          await pluginButton.dispatchEvent("touchstart", { bubbles: true, cancelable: true });
+          await page.waitForTimeout(550);
+          await pluginButton.dispatchEvent("touchend", { bubbles: true, cancelable: true });
+        }
         await page.waitForTimeout(150);
         const targetMenuOpened = openPluginDrawerQuickMenu
           ? await page.locator("#topicPluginDock [data-plugin-drawer-action-menu]").first().isVisible().catch(() => false)
@@ -237,7 +242,7 @@ async function main() {
     }
     const clientVersion = await page.locator("html").getAttribute("data-client-version");
     const title = await page.title();
-    const layout = await page.evaluate(({ expectAuthenticated, longTaskWarnMs, failOnLongTask, openPluginDrawerQuickMenu, pluginDrawerMenuOpened }) => {
+    const layout = await page.evaluate(({ expectAuthenticated, longTaskWarnMs, failOnLongTask, openPluginDrawerMenu, openPluginDrawerQuickMenu, pluginDrawerMenuOpened }) => {
       function round(value) {
         return Math.round(Number(value || 0) * 100) / 100;
       }
@@ -383,7 +388,7 @@ async function main() {
         capabilityPluginIconCount: document.querySelectorAll(".capability-plugin-icon-button").length,
         dockPluginIconCount: document.querySelectorAll("#topicPluginDock .plugin-app-card").length,
         pluginDrawerQuickCardCount: document.querySelectorAll("#topicPluginDock .plugin-drawer-quick-card").length,
-        pluginDrawerQuickActionCount: document.querySelectorAll("#topicPluginDock [data-plugin-drawer-action-menu] [data-plugin-topic-action-plugin][data-plugin-topic-action-id]").length,
+        pluginDrawerQuickActionCount: document.querySelectorAll("#topicPluginDock [data-plugin-drawer-action-menu]:not([hidden]) [data-plugin-topic-action-plugin][data-plugin-topic-action-id]").length,
         pluginIconCount: document.querySelectorAll(".capability-plugin-icon-button, #topicPluginDock .plugin-app-card").length,
         sourceBadgeCount: document.querySelectorAll(".capability-action-source").length,
         openMenuCount: document.querySelectorAll(".capability-action-menu:not([hidden])").length,
@@ -476,6 +481,9 @@ async function main() {
 
       if (rects.topicPluginDock.visible) {
         if (!capability.pluginDrawerQuickCardCount) failures.push({ code: "plugin_drawer_quick_card_missing", capability });
+        if (openPluginDrawerMenu && !pluginDrawerMenuOpened) {
+          failures.push({ code: "plugin_drawer_menu_not_opened", openPluginDrawerMenu, capability });
+        }
         if (openPluginDrawerQuickMenu && pluginDrawerMenuOpened && !capability.pluginDrawerQuickActionCount) {
           failures.push({ code: "plugin_drawer_quick_actions_missing", capability });
         }
@@ -541,6 +549,7 @@ async function main() {
       expectAuthenticated: Boolean(waitForAuth || accessKey),
       longTaskWarnMs,
       failOnLongTask,
+      openPluginDrawerMenu,
       openPluginDrawerQuickMenu,
       pluginDrawerMenuOpened,
     });
