@@ -153,11 +153,18 @@ function setDirectoryTopicCollapsed(key, collapsed) {
 
 function renderDirectoryTopicCards(collections = [], options = {}) {
   const visible = (collections || []).filter((collection) => collection?.defaultGroup && collection.groups?.length);
-  if (!visible.length) return "";
   const associated = options.associatedWithDirectoryPlugin === true;
   const collapsedDirectories = readCollapsedDirectoryTopics();
   const expandedDirectories = readExpandedDirectoryTopics();
+  const topicCount = visible.reduce((total, collection) => total + (collection.groups?.length || 0), 0);
   return `<section class="directory-topic-launcher${associated ? " directory-topic-associated" : ""}" aria-label="\u76ee\u5f55\u8bdd\u9898">
+    <button class="directory-topic-root-entry" type="button" data-directory-topic-open-root aria-label="\u6253\u5f00\u76ee\u5f55">
+      <span class="plugin-topic-app-icon directory directory-topic-root-icon" data-plugin-icon="" aria-hidden="true"></span>
+      <span class="directory-topic-text">
+        <span class="directory-topic-title">\u76ee\u5f55</span>
+        <span class="directory-topic-meta">${escapeHtml(`${visible.length} \u4e2a\u5b50\u76ee\u5f55\u3000${topicCount} \u4e2a\u8bdd\u9898`)}</span>
+      </span>
+    </button>
     <div class="directory-topic-grid">
       ${visible.map((collection, index) => {
         const defaultGroup = collection.defaultGroup;
@@ -191,6 +198,16 @@ function renderDirectoryTopicCards(collections = [], options = {}) {
 }
 
 function wireDirectoryTopicCards(root) {
+  root?.querySelectorAll?.("[data-directory-topic-open-root]").forEach((button) => {
+    if (button.dataset.boundDirectoryTopicRoot) return;
+    button.dataset.boundDirectoryTopicRoot = "1";
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof openBuiltInDirectoryPlugin === "function") openBuiltInDirectoryPlugin().catch(showError);
+      else if (typeof openPluginTopicApp === "function") openPluginTopicApp("directory").catch(showError);
+    });
+  });
   root?.querySelectorAll?.("[data-directory-topic-toggle]").forEach((button) => {
     if (button.dataset.boundDirectoryTopicToggle) return;
     button.dataset.boundDirectoryTopicToggle = "1";

@@ -109,6 +109,9 @@ or raw plugin credentials.
   entries such as `健康话题` or `成长话题`, not large app-icon cards. Large
   app icons are reserved for the global plugin Dock/drawer and capability app
   launch surfaces.
+- Codex plugin edition is a special developer/tooling plugin. It remains
+  available from the plugin Dock/drawer and app launch surfaces, but it must
+  not appear as a normal Topics-root plugin conversation shortcut.
 - Topics root plugin conversation shortcuts render as compact fixed topic
   groups. They are collapsed by default per workspace. The left plugin icon
   opens the default plugin topic; the row body expands or collapses the plugin
@@ -174,6 +177,14 @@ or raw plugin credentials.
   long-press/context menu exposes Directory quick actions such as recent
   directories, file topics, and new topic. Directory-bound topics remain in the
   scrollable page body, not as mini buttons attached to the icon.
+- The Topics root also keeps a compact Directory root entry directly above the
+  directory-bound topic collections. This entry uses a larger root-folder icon
+  than the directory-bound child rows, opens the Directory application, and
+  shows the current visible directory-bound subdirectory count plus topic
+  count.
+  It exists so starting or finding a directory-bound topic remains discoverable
+  near the Topics surface even though the Directory app also lives in the
+  plugin Dock/drawer.
 - Directory-bound topic collections are visually attached to the root
   Capability Entry Hub body and must exclude fixed plugin topics such as
   `plugin:wardrobe`,

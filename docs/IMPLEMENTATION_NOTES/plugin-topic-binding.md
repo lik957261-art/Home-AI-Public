@@ -224,7 +224,14 @@ Implemented convergence update, 2026-06-10:
   32px plugin icon, a single title/meta text column, a 48px parent row, and
   child rows that reuse the directory-topic chip visual. The meta line carries
   topic count and last update time when historical/special child topics exist.
+- Codex plugin edition is excluded from the Topics-root plugin conversation
+  rows because it is a developer/tooling plugin rather than a normal user
+  conversation domain.
 - Dock/plugin app icons remain app launchers.
+- The Directory root entry remains visible at the top of the directory-topic
+  section, opens the Directory application, and displays visible
+  directory-bound directory/topic counts before the expandable directory-topic
+  tree.
 - Claimed legacy directory topics are projected into the plugin topic switcher
   without moving physical directories.
 - Plugin delivery directories are output surfaces; context eligibility is

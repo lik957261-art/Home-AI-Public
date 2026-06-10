@@ -6685,6 +6685,44 @@ button.directory-alias-chip {
   border-radius: 3px;
 }
 
+.directory-topic-root-entry {
+  min-width: 0;
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  margin: 0 0 2px;
+  padding: 4px 2px 7px;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ui-hairline);
+  border-radius: 0;
+  text-align: left;
+  touch-action: pan-y;
+}
+
+.directory-topic-root-entry:active {
+  transform: translateY(1px);
+}
+
+.directory-topic-root-icon.plugin-topic-app-icon.directory {
+  width: 40px;
+  height: 40px;
+  --directory-folder-tab-left: 6px;
+  --directory-folder-tab-top: 9px;
+  --directory-folder-tab-width: 18px;
+  --directory-folder-tab-height: 7px;
+  --directory-folder-body-left: 4px;
+  --directory-folder-body-top: 15px;
+  --directory-folder-body-width: 32px;
+  --directory-folder-body-height: 20px;
+  --directory-folder-radius: 6px;
+  border-radius: 12px;
+}
+
 .directory-topic-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -17452,6 +17490,19 @@ body.task-markdown-preview-open {
 
   .directory-topic-launcher {
     margin-bottom: 10px;
+  }
+
+  .directory-topic-root-entry {
+    min-height: 60px;
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 9px;
+    padding: 4px 2px 7px;
+  }
+
+  .directory-topic-root-icon.plugin-topic-app-icon.directory {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
   }
 
   .directory-topic-grid {

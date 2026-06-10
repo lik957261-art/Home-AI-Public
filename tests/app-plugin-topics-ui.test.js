@@ -63,7 +63,7 @@ assert.match(openAppBody, /if \(options\.recordUsage !== false\) recordPluginTop
 assert.doesNotMatch(openAppBody, /action\.id/);
 assert.match(runActionBody, /recordPluginTopicUsage\(def\.id, action\.id\);/);
 assert.match(runActionBody, /openPluginTopicApp\(def\.id, \{ recordUsage: false \}\);/);
-assert.match(topicCardsBody, /filter\(\(def\) => !def\.builtinKind\)/);
+assert.match(topicCardsBody, /filter\(\(def\) => !def\.builtinKind && def\.id !== "codex-mobile"\)/);
 assert.match(topicCardsBody, /data-plugin-topic-open-topic/);
 assert.match(topicCardsBody, /data-plugin-topic-toggle/);
 assert.match(topicCardsBody, /data-plugin-claimed-topic-open/);
@@ -93,6 +93,9 @@ assert.match(quickActionRenderBody, /data-plugin-topic-open-app/);
 assert.doesNotMatch(quickActionRenderBody, /capability-action-source/);
 
 assert.match(directoryTopicsUi, /plugin-topic-app-icon directory directory-topic-folder-icon/);
+assert.match(directoryTopicsUi, /data-directory-topic-open-root/);
+assert.match(directoryTopicsUi, /directory-topic-root-icon/);
+assert.match(directoryTopicsUi, /visible\.length[\s\S]*?topicCount/);
 assert.match(directoryTopicsUi, /const routeId = String\(route\.projectId \|\| route\.id \|\| ""\)\.trim\(\);/);
 assert.doesNotMatch(directoryTopicsUi, /directory-topic-association-label/);
 assert.doesNotMatch(directoryTopicsUi, /directory-topic-subtitle/);

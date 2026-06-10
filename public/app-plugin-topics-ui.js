@@ -1443,7 +1443,8 @@ function pluginTopicChildEntries(def, options = {}) {
 
 function renderPluginTopicCards(options = {}) {
   ensurePluginTopicBindingsLoaded();
-  const defs = orderedPluginAppDefs(availablePluginTopicDefs()).filter((def) => !def.builtinKind);
+  const defs = orderedPluginAppDefs(availablePluginTopicDefs())
+    .filter((def) => !def.builtinKind && def.id !== "codex-mobile");
   if (!defs.length) return "";
   const expandedTopics = readExpandedPluginTopics();
   return `<section class="plugin-topic-launcher" aria-label="\u63d2\u4ef6\u8bdd\u9898">
