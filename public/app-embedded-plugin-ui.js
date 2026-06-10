@@ -583,7 +583,6 @@ function restoreEmbeddedPluginReturnRoute(def = embeddedPluginDefByView()) {
   else if (state.viewMode === "todos" && typeof renderTodos === "function") renderTodos();
   else if (state.viewMode === "automation" && typeof renderAutomationView === "function") renderAutomationView();
   else if (state.viewMode === "inbox" && typeof renderActionInboxView === "function") renderActionInboxView();
-  else if (state.viewMode === "learning" && typeof renderLearningCoinsView === "function") renderLearningCoinsView();
   else {
     const taskListRestored = state.viewMode === "tasks"
       && !state.currentTaskGroupId

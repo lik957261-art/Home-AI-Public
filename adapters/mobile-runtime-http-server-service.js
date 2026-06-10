@@ -69,7 +69,9 @@ function createMobileRuntimeHttpServerService(options = {}) {
     }
     options.webPushDeliveryService?.startTodoWebPushDispatcher?.();
     options.webPushDeliveryService?.startAutomationWebPushDispatcher?.();
-    mobileApiServices.learningGrowthSubmissionService?.scheduleEvaluationQueue?.();
+    if (options.scheduleLearningGrowthQueueOnStartup) {
+      mobileApiServices.learningGrowthSubmissionService?.scheduleEvaluationQueue?.();
+    }
   }
 
   function start() {

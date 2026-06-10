@@ -580,9 +580,6 @@ function currentHermesOwnedDetailRouteParams() {
   } else if (state.viewMode === "todos" && state.selectedTodoId) {
     params.set("view", "todos");
     params.set("todoId", state.selectedTodoId);
-  } else if (state.viewMode === "learning" && state.selectedLearningTaskCardId) {
-    params.set("view", "learning");
-    params.set("taskCardId", state.selectedLearningTaskCardId);
   } else if (state.viewMode === "tasks" && state.currentTaskGroupId) {
     params.set("view", "tasks");
     params.set("taskGroupId", state.currentTaskGroupId);
@@ -607,8 +604,6 @@ function clearHermesOwnedDetailStateAfterBrowserShellBlock() {
     state.selectedActionInboxItemId = "";
   } else if (state.viewMode === "todos") {
     state.selectedTodoId = "";
-  } else if (state.viewMode === "learning") {
-    state.selectedLearningTaskCardId = "";
   } else if (state.viewMode === "tasks") {
     Object.assign(state, { currentTaskGroupId: "", currentThread: null, currentThreadId: "" });
   }
@@ -645,8 +640,9 @@ function applyRouteParams(params) {
   const weixinChatRequested = ["1", "true", "yes"].includes(String(params.get("weixinChat") || params.get("weixin_chat") || "").trim().toLowerCase());
   const groupChatRequested = ["1", "true", "yes"].includes(String(params.get("groupChat") || params.get("group_chat") || "").trim().toLowerCase());
   let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), inboxItemId ? "inbox" : automationId ? "automation" : taskCardId ? "learning" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : "");
-  const legacyGrowthTaskRoute = routeView === "learning" && taskCardId;
-  if (legacyGrowthTaskRoute) routeView = "growth";
+  const legacyGrowthRoute = routeView === "learning";
+  const legacyGrowthTaskRoute = legacyGrowthRoute && taskCardId;
+  if (legacyGrowthRoute) routeView = "growth";
   const pluginContextNavPluginId = routePluginContextId(params, routeView, taskGroupId);
   const workspaceId = String(params.get("workspaceId") || "").trim();
   if (workspaceId && (legacyGrowthTaskRoute || state.workspaces.some((item) => item.id === workspaceId))) {

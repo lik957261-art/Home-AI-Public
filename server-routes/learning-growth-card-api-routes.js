@@ -85,6 +85,14 @@ function sendRouteError(deps, res, err) {
   deps.sendJson(res, err.status || 500, { ok: false, error: err.message || String(err) });
 }
 
+function sendGrowthPluginOwned(deps, res) {
+  deps.sendJson(res, 410, {
+    ok: false,
+    error: "growth_plugin_owned",
+    message: "Growth card workflow actions are owned by the Growth plugin.",
+  });
+}
+
 function createLearningGrowthCardApiRoutes(deps = {}) {
   requireFunctions(deps, [
     "isOwnerAuth",
@@ -101,6 +109,7 @@ function createLearningGrowthCardApiRoutes(deps = {}) {
   const experienceSignalService = deps.learningGrowthExperienceSignalService;
   const stageAssessmentService = deps.learningGrowthStageAssessmentService;
   const registry = createApiRouteRegistry(LEARNING_GROWTH_CARD_API_ROUTE_SPECS);
+  const legacyHostGrowthApiEnabled = deps.legacyHostGrowthApiEnabled === true;
 
   function canAccessLearnerWorkspace(auth, learnerWorkspaceId, authorizedWorkspaceId = "") {
     if (deps.isOwnerAuth(auth)) return true;
@@ -239,6 +248,10 @@ function createLearningGrowthCardApiRoutes(deps = {}) {
     });
     if (!route) return { handled: false };
     const auth = context.auth || null;
+    if (!legacyHostGrowthApiEnabled) {
+      sendGrowthPluginOwned(deps, res);
+      return { handled: true, route, auth };
+    }
     if (route.id === "learning-growth-card-teaching-check") await handleTeachingCheck(req, res, url, auth);
     else if (route.id === "learning-growth-card-experience-signal") await handleExperienceSignal(req, res, url, auth);
     else if (route.id === "learning-growth-stage-assessment-activate") await handleActivate(req, res, url, auth);

@@ -289,6 +289,7 @@ function createKanbanCardApiRoutes(deps = {}) {
     throw new Error("kanban card api routes require learningGrowthSubmissionService.submitTask");
   }
   const growthPluginSubmissionProxyService = deps.growthPluginSubmissionProxyService || null;
+  const allowLegacyGrowthFallback = deps.allowLegacyGrowthFallback !== false;
 
   const sourceDocumentMaxBytes = Math.max(1, Number(deps.sourceDocumentMaxBytes || 20 * 1024 * 1024));
   const maxUploadBytes = Math.max(1, Number(deps.maxUploadBytes || 20 * 1024 * 1024));
@@ -646,16 +647,27 @@ function createKanbanCardApiRoutes(deps = {}) {
     const workspaceId = access.workspaceId;
     const submitLearningTask = typeof growthPluginSubmissionProxyService?.submitTask === "function"
       ? growthPluginSubmissionProxyService.submitTask
-      : (typeof learningGrowthSubmissionService.submitTask === "function"
-      ? learningGrowthSubmissionService.submitTask
-      : learningGrowthSubmissionService.submitWriting);
+      : (allowLegacyGrowthFallback
+        ? (typeof learningGrowthSubmissionService.submitTask === "function"
+          ? learningGrowthSubmissionService.submitTask
+          : learningGrowthSubmissionService.submitWriting)
+        : null);
+    if (typeof submitLearningTask !== "function") {
+      deps.kanbanErrorResponse(res, {
+        ok: false,
+        status: 410,
+        error: "growth_plugin_owned",
+        message: "Growth submissions are owned by the Growth plugin.",
+      }, 410);
+      return;
+    }
     let result = await submitLearningTask({
       workspaceId,
       cardId,
       text: body.text || body.submission || body.comment || "",
       author: body.author || "",
     });
-    if (!result?.ok && result?.fallbackAllowed && typeof growthPluginSubmissionProxyService?.submitTask === "function") {
+    if (allowLegacyGrowthFallback && !result?.ok && result?.fallbackAllowed && typeof growthPluginSubmissionProxyService?.submitTask === "function") {
       const fallbackSubmit = typeof learningGrowthSubmissionService.submitTask === "function"
         ? learningGrowthSubmissionService.submitTask
         : learningGrowthSubmissionService.submitWriting;
@@ -759,10 +771,22 @@ function createKanbanCardApiRoutes(deps = {}) {
       durationMs: body.durationMs || body.duration_ms || 0,
       transcript: body.transcript || body.reflectionText || body.text || "",
     };
-    let result = typeof growthPluginSubmissionProxyService?.submitReflection === "function"
-      ? await growthPluginSubmissionProxyService.submitReflection(reflectionInput)
-      : await learningGrowthSubmissionService.submitReflection(reflectionInput);
-    if (!result?.ok && result?.fallbackAllowed && typeof learningGrowthSubmissionService.submitReflection === "function") {
+    const submitReflection = typeof growthPluginSubmissionProxyService?.submitReflection === "function"
+      ? growthPluginSubmissionProxyService.submitReflection
+      : (allowLegacyGrowthFallback && typeof learningGrowthSubmissionService.submitReflection === "function"
+        ? learningGrowthSubmissionService.submitReflection
+        : null);
+    if (typeof submitReflection !== "function") {
+      deps.kanbanErrorResponse(res, {
+        ok: false,
+        status: 410,
+        error: "growth_plugin_owned",
+        message: "Growth reflections are owned by the Growth plugin.",
+      }, 410);
+      return;
+    }
+    let result = await submitReflection(reflectionInput);
+    if (allowLegacyGrowthFallback && !result?.ok && result?.fallbackAllowed && typeof learningGrowthSubmissionService.submitReflection === "function") {
       result = await learningGrowthSubmissionService.submitReflection(reflectionInput);
     }
     if (!result?.ok) {
