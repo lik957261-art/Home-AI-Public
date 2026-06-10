@@ -176,6 +176,12 @@ Current development status:
   store when `GROWTH_DATA_OWNER=plugin` is set. The default runtime source
   remains the Home AI facade until development parity checks and production
   migration evidence pass.
+- Development verification used an online SQLite backup copy of the Mac
+  production `learning-growth.sqlite3`, stored under the ignored development
+  tmp directory. Source and target `quick_check` passed, all required tables
+  were present, `weixin_stephen` readback returned 48 cards from plugin-owned
+  SQLite, and a local plugin service smoke on port `4882` returned
+  `growth-plugin-sqlite` for status, board, and card detail.
 - Submission, async evaluation, reflection, reward settlement, and other write
   paths have not been switched to plugin-owned services yet. They remain gated
   by the workflow contract and must not be silently inferred from SQLite
