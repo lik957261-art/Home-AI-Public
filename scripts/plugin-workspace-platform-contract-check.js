@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const CONTRACT_VERSION = "20260609-v2";
+const CONTRACT_VERSION = "20260611-v3";
 
 const REQUIRED_CENTRAL_DOCS = [
   "plugin-workspace-platform-contract.md",
@@ -38,6 +38,7 @@ const REQUIRED_POINTER_TEXT = [
   "`ai_ops_evidence_ledger`",
   "`ios_live_debug_available`",
   "`ios_visual_harness_command`",
+  "`plugin_manifest_actions_status`",
   "Do not record raw",
 ];
 

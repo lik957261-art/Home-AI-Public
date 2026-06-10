@@ -1,6 +1,6 @@
 # Plugin Workspace Platform Contract
 
-Contract version: `20260609-v2`.
+Contract version: `20260611-v3`.
 
 ## Purpose
 
@@ -50,7 +50,7 @@ If a plugin does not have `docs/`, use the smallest local equivalent such as
 The pointer file must include:
 
 ```text
-Home AI platform contract version: 20260609-v2
+Home AI platform contract version: 20260611-v3
 
 Canonical Home AI contract source:
 - <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md
@@ -85,6 +85,7 @@ Plugin-local facts:
 - AI Operations required flow
 - AI Operations evidence ledger path
 - iOS visual harness command
+- plugin manifest actions status
 ```
 
 The pointer file must not contain raw passwords, access keys, OAuth tokens,
@@ -317,6 +318,52 @@ External HTTPS plugin deployments are allowed only as explicit deployment
 overrides. They must be documented as external entries, must pass frame-ancestor
 and browser-facing HTTPS checks, and must not replace the standard inserted
 plugin loopback defaults.
+
+## Plugin Manifest Actions Contract
+
+Plugin quick actions are declarative plugin entrypoints. They are not MCP
+tools, host-owned forms, or duplicated plugin business workflows.
+
+Each plugin manifest may expose:
+
+```json
+{
+  "actions": [
+    {
+      "id": "record",
+      "label": "记一笔",
+      "description": "Open the quick transaction screen.",
+      "entry": {
+        "type": "plugin_route",
+        "pluginRoute": "record"
+      },
+      "placement": ["plugin_drawer_frequent", "dock_long_press", "search"],
+      "priority": 10
+    }
+  ]
+}
+```
+
+Required rules:
+
+- `id` must be stable within the plugin and must not include secrets,
+  user-specific ids, local paths, or raw payloads.
+- `entry.type=plugin_route` means the host opens the plugin iframe and passes
+  `pluginActionId=<id>` plus `pluginRoute=<pluginRoute>` through launch route
+  state. The plugin owns the final in-app screen, form, or conversation.
+- The host validates effective-workspace plugin authorization before launch and
+  records `pluginId:actionId` usage through `/api/plugin-topic-usage`.
+- `placement` controls where the host may show the action:
+  `plugin_drawer_frequent`, `dock_long_press`, and `search` are current
+  production placements. `capability_hub` is accepted only as a compatibility
+  alias for older clients and should not be used in new plugin docs.
+- Ordinary quick actions must not be represented as MCP schemas. MCP remains
+  for Home AI / Gateway tool execution inside AI runs; quick actions are direct
+  app navigation shortcuts.
+- Codex plugin edition is special. It should not declare ordinary user quick
+  actions and should not appear in normal Topics-root plugin conversations.
+- Directory is built in but follows the same action projection model for
+  launcher/search consistency.
 
 ## Required Plugin Facts
 

@@ -24,7 +24,7 @@ function applyViewMode() {
   const directory = state.viewMode === "projects";
   const automation = state.viewMode === "automation";
   const inbox = state.viewMode === "inbox";
-  const capabilities = state.viewMode === "capabilities";
+  const capabilities = false;
   const learning = false;
   const todos = state.viewMode === "todos";
   const wardrobe = state.viewMode === "wardrobe";
@@ -90,11 +90,15 @@ function applyViewMode() {
   $("newThread").classList.toggle("hidden", single || tasks || automation || inbox || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth);
   $("newThread").disabled = single || tasks || automation || inbox || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth;
   $("newThread").textContent = todos ? "新建看板卡片" : "新建话题";
-  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : capabilities ? "Search capabilities" : todos ? "Search Kanban" : automation ? "Search automations" : learning || growth ? "Search growth" : wardrobe ? "Search wardrobe" : email ? "Search email" : health ? "Search health" : note ? "Search notes" : "Search directories";
+  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : learning || growth ? "Search growth" : wardrobe ? "Search wardrobe" : email ? "Search email" : health ? "Search health" : note ? "Search notes" : "Search directories";
   updateSearchButton();
 }
 
 async function loadSelectedView(options = {}) {
+  if (state.viewMode === "capabilities") {
+    state.viewMode = "tasks";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+  }
   if (state.viewMode === "learning") {
     state.viewMode = "growth";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
@@ -175,9 +179,6 @@ async function loadSelectedView(options = {}) {
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "inbox") {
     await loadActionInbox();
-    if (!currentViewStillSelected()) return;
-  } else if (state.viewMode === "capabilities") {
-    renderCapabilityView();
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "wardrobe") {
     renderWardrobeView();

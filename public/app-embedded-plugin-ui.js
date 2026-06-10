@@ -258,7 +258,7 @@ function embeddedPluginMessageOriginAllowed(def, event) {
 function normalizeEmbeddedPluginOpenRoute(route = {}) {
   const value = route && typeof route === "object" ? route : {};
   const out = {};
-  ["pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"].forEach((key) => {
+  ["pluginActionId", "pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"].forEach((key) => {
     const text = String(value[key] || "").trim().slice(0, 180);
     if (text) out[key] = text;
   });
@@ -287,6 +287,7 @@ function embeddedPluginOpenRouteFromCurrentUrl(def) {
     }
     if (routeView === "growth" && (pluginRoute || pluginItemId)) {
       return normalizeEmbeddedPluginOpenRoute({
+        pluginActionId: params.get("pluginActionId") || params.get("actionId") || "",
         pluginRoute,
         pluginItemId,
         pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",
@@ -406,10 +407,12 @@ function embeddedPluginRefreshRequiredEventType(def) {
 function embeddedPluginRouteFromRefreshPayload(payload = {}) {
   const route = payload.route && typeof payload.route === "object" ? payload.route : payload;
   return normalizeEmbeddedPluginOpenRoute({
+    pluginActionId: route.pluginActionId || route.actionId || "",
     pluginRoute: route.pluginRoute || route.name || route.routeName || "",
     pluginItemId: route.pluginItemId || route.itemId || route.turnId || route.taskId || "",
     pluginThreadId: route.pluginThreadId || route.threadId || "",
     pluginTaskId: route.pluginTaskId || route.taskId || "",
+    sourceTurnId: route.sourceTurnId || route.turnId || "",
   });
 }
 

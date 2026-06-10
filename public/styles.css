@@ -5721,6 +5721,31 @@ button.directory-alias-chip {
   background: color-mix(in srgb, var(--ui-accent-soft) 80%, transparent);
 }
 
+.plugin-drawer-quick-card {
+  color: var(--ui-accent-active);
+}
+
+.plugin-drawer-quick-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-active-soft);
+  border: 1px solid rgba(95, 139, 148, 0.22);
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.plugin-drawer-menu-head .plugin-drawer-quick-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
 .capability-action-menu {
   position: absolute;
   left: 50%;
@@ -5833,6 +5858,16 @@ button.directory-alias-chip {
   background: var(--ui-accent-soft);
 }
 
+.capability-menu-item:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.62;
+}
+
+.capability-menu-item:disabled:active {
+  background: transparent;
+}
+
 .capability-menu-glyph {
   width: 24px;
   height: 24px;
@@ -5867,6 +5902,13 @@ button.directory-alias-chip {
   background: color-mix(in srgb, var(--ui-surface) 76%, transparent);
   font-size: 12px;
   font-weight: 700;
+}
+
+.capability-menu-empty {
+  padding: 10px 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .plugin-app-launcher {

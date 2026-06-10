@@ -135,6 +135,15 @@ function sampleFinanceManifest() {
     toolsets: ["finance"],
     mcpServer: "finance",
     permissions: ["finance:read", "finance:write"],
+    actions: [
+      {
+        id: "record",
+        label: "记一笔",
+        placement: ["plugin_drawer_frequent", "dock_long_press", "search"],
+        priority: 10,
+        entry: { type: "plugin_route", pluginRoute: "record" },
+      },
+    ],
     embedding: {
       state_event: "finance.plugin.navigation",
       back_event: "hermes.plugin.back",
@@ -363,6 +372,16 @@ function testNormalizeFinanceManifest() {
   assert.equal(manifest.embedding.backResultEvent, "finance.plugin.back_result");
   assert.equal(manifest.embedding.refreshRequiredEvent, "finance.plugin.refresh_required");
   assert.equal(manifest.embedding.preserveIframeState, true);
+  assert.deepEqual(manifest.actions, [
+    {
+      id: "record",
+      label: "记一笔",
+      description: "",
+      placement: ["plugin_drawer_frequent", "dock_long_press", "search"],
+      priority: 10,
+      entry: { type: "plugin_route", pluginRoute: "record" },
+    },
+  ]);
 }
 
 function testNormalizeEmailManifest() {

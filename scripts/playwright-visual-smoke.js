@@ -75,7 +75,7 @@ function viewModeSettings(view) {
     return { hermesWebViewMode: "tasks", hermesWebSingleWindowMode: "task" };
   }
   if (["capability", "capabilities", "ability", "abilities", "todos"].includes(normalized)) {
-    return { hermesWebViewMode: "capabilities" };
+    return { hermesWebViewMode: "tasks", hermesWebSingleWindowMode: "task" };
   }
   if (["learning", "education"].includes(normalized)) {
     return { hermesWebViewMode: "growth" };
@@ -96,13 +96,13 @@ async function clickTargetView(page, view) {
     topics: "#bottomTasksMode",
     topic: "#bottomTasksMode",
     tasks: "#bottomTasksMode",
-    capability: "#bottomTodosMode",
-    capabilities: "#bottomTodosMode",
-    ability: "#bottomTodosMode",
-    abilities: "#bottomTodosMode",
+    capability: "#bottomTasksMode",
+    capabilities: "#bottomTasksMode",
+    ability: "#bottomTasksMode",
+    abilities: "#bottomTasksMode",
     projects: "#bottomProjectsMode",
     directory: "#bottomProjectsMode",
-    todos: "#bottomTodosMode",
+    todos: "#bottomTasksMode",
     wardrobe: "#bottomWardrobeMode",
     finance: "#bottomFinanceMode",
     email: "#bottomEmailMode",
@@ -128,7 +128,13 @@ async function main() {
   const accessKeyPath = argValue("--access-key-path", process.env.HERMES_VISUAL_SMOKE_ACCESS_KEY_PATH || process.env.HERMES_WEB_AUTH_KEY_PATH || "");
   const workspaceId = argValue("--workspace-id", process.env.HERMES_VISUAL_SMOKE_WORKSPACE_ID || "");
   const view = argValue("--view", process.env.HERMES_VISUAL_SMOKE_VIEW || "");
-  const openCapabilityMenu = argValue("--open-capability-menu", process.env.HERMES_VISUAL_SMOKE_OPEN_CAPABILITY_MENU || "");
+  const openPluginDrawerMenu = argValue(
+    "--open-plugin-drawer-menu",
+    process.env.HERMES_VISUAL_SMOKE_OPEN_PLUGIN_DRAWER_MENU
+      || argValue("--open-capability-menu", process.env.HERMES_VISUAL_SMOKE_OPEN_CAPABILITY_MENU || "")
+  );
+  const openPluginDrawerQuickMenu = ["frequent", "quick", "common", "__frequent", "__quick"].includes(String(openPluginDrawerMenu || "").trim().toLowerCase());
+  const openCapabilityMenu = openPluginDrawerMenu;
   const waitForAuth = normalizeBooleanEnv(process.env.HERMES_VISUAL_SMOKE_WAIT_FOR_AUTH, Boolean(accessKeyPath))
     && !hasArg("--no-wait-for-auth");
   const strictLayout = normalizeBooleanEnv(process.env.HERMES_VISUAL_SMOKE_STRICT, true);
@@ -203,25 +209,33 @@ async function main() {
       await page.waitForTimeout(800);
     }
     const viewClicked = await clickTargetView(page, view);
-    let capabilityMenuOpened = false;
-    let capabilityMenuGesture = "";
-    if (openCapabilityMenu) {
-      const pluginButton = page.locator([
-        `[data-plugin-topic-open-app="${openCapabilityMenu}"].capability-plugin-icon-button`,
-        `#topicPluginDock .plugin-app-card[data-plugin-topic-open-app="${openCapabilityMenu}"]`,
-      ].join(", ")).first();
+    let pluginDrawerMenuOpened = false;
+    let pluginDrawerMenuGesture = "";
+    if (openPluginDrawerMenu) {
+      await page.evaluate(() => {
+        if (typeof window.setGlobalPluginDockExpanded === "function") {
+          window.setGlobalPluginDockExpanded(true, { persist: false });
+        }
+      }).catch(() => undefined);
+      await page.waitForTimeout(180);
+      const pluginButton = page.locator(openPluginDrawerQuickMenu
+        ? "#topicPluginDock .plugin-drawer-quick-card"
+        : `#topicPluginDock .plugin-app-card[data-plugin-topic-open-app="${openPluginDrawerMenu}"]`
+      ).first();
       if (await pluginButton.count()) {
-        capabilityMenuGesture = "touch-longpress";
+        pluginDrawerMenuGesture = "touch-longpress";
         await pluginButton.dispatchEvent("touchstart", { bubbles: true, cancelable: true });
         await page.waitForTimeout(550);
         await pluginButton.dispatchEvent("touchend", { bubbles: true, cancelable: true });
         await page.waitForTimeout(150);
-        capabilityMenuOpened = await page.locator(`[data-plugin-topic-action-menu="${openCapabilityMenu}"]`).first().isVisible().catch(() => false);
+        pluginDrawerMenuOpened = openPluginDrawerQuickMenu
+          ? await page.locator("#topicPluginDock [data-plugin-drawer-action-menu]").first().isVisible().catch(() => false)
+          : await page.locator(`[data-plugin-topic-action-menu="${openPluginDrawerMenu}"]`).first().isVisible().catch(() => false);
       }
     }
     const clientVersion = await page.locator("html").getAttribute("data-client-version");
     const title = await page.title();
-    const layout = await page.evaluate(({ expectAuthenticated, longTaskWarnMs, failOnLongTask }) => {
+    const layout = await page.evaluate(({ expectAuthenticated, longTaskWarnMs, failOnLongTask, openPluginDrawerQuickMenu, pluginDrawerMenuOpened }) => {
       function round(value) {
         return Math.round(Number(value || 0) * 100) / 100;
       }
@@ -260,6 +274,11 @@ async function main() {
       function overlaps(a, b) {
         if (!a?.visible || !b?.visible) return false;
         return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+      }
+
+      function verticalOverlapPx(a, b) {
+        if (!a?.visible || !b?.visible) return 0;
+        return Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
       }
 
       function cssPxVar(name) {
@@ -342,6 +361,8 @@ async function main() {
         capabilityQuickGrid: rect(".capability-quick-grid"),
         capabilityPluginGrid: rect(".capability-plugin-grid"),
         capabilityActionMenu: rect(".capability-action-menu:not([hidden])"),
+        pluginDrawerQuickCard: rect("#topicPluginDock .plugin-drawer-quick-card"),
+        pluginDrawerActionMenu: rect("#topicPluginDock .capability-action-menu:not([hidden])"),
         accessKeyOverlay: rect("#accessKeyOverlay"),
         bootSplash: rect("#bootSplash"),
       };
@@ -352,12 +373,15 @@ async function main() {
         mobileBottomStackHeight: round(cssPxVar("--mobile-bottom-stack-height")),
         topicPluginDockHeight: round(cssPxVar("--topic-plugin-dock-height")),
         topicPluginDockReservedHeight: round(cssPxVar("--topic-plugin-dock-reserved-height")),
+        topicPluginDockNavOverlap: round(cssPxVar("--topic-plugin-dock-nav-overlap")),
         conversationPaddingBottom: round(Number.parseFloat(window.getComputedStyle(document.querySelector("#conversation") || document.documentElement).paddingBottom) || 0),
       };
       const capability = {
         quickActionCount: document.querySelectorAll(".capability-quick-action").length,
         capabilityPluginIconCount: document.querySelectorAll(".capability-plugin-icon-button").length,
         dockPluginIconCount: document.querySelectorAll("#topicPluginDock .plugin-app-card").length,
+        pluginDrawerQuickCardCount: document.querySelectorAll("#topicPluginDock .plugin-drawer-quick-card").length,
+        pluginDrawerQuickActionCount: document.querySelectorAll("#topicPluginDock [data-plugin-drawer-action-menu] [data-plugin-topic-action-plugin][data-plugin-topic-action-id]").length,
         pluginIconCount: document.querySelectorAll(".capability-plugin-icon-button, #topicPluginDock .plugin-app-card").length,
         sourceBadgeCount: document.querySelectorAll(".capability-action-source").length,
         openMenuCount: document.querySelectorAll(".capability-action-menu:not([hidden])").length,
@@ -449,9 +473,17 @@ async function main() {
       }
 
       if (rects.topicPluginDock.visible) {
-        if (rects.bottomNav.visible && overlaps(rects.topicPluginDock, rects.bottomNav)) {
+        if (!capability.pluginDrawerQuickCardCount) failures.push({ code: "plugin_drawer_quick_card_missing", capability });
+        if (openPluginDrawerQuickMenu && pluginDrawerMenuOpened && !capability.pluginDrawerQuickActionCount) {
+          failures.push({ code: "plugin_drawer_quick_actions_missing", capability });
+        }
+        const topicDockBottomNavOverlapY = verticalOverlapPx(rects.topicPluginDock, rects.bottomNav);
+        const topicDockBottomNavOverlapTolerance = Math.max(1, chrome.topicPluginDockNavOverlap || 0) + 1;
+        if (rects.bottomNav.visible && topicDockBottomNavOverlapY > topicDockBottomNavOverlapTolerance) {
           failures.push({
             code: "topic_plugin_dock_bottom_nav_overlap",
+            overlapPx: round(topicDockBottomNavOverlapY),
+            tolerancePx: round(topicDockBottomNavOverlapTolerance),
             topicPluginDock: rects.topicPluginDock,
             bottomNav: rects.bottomNav,
           });
@@ -464,32 +496,17 @@ async function main() {
             chrome,
           });
         }
+        if (rects.pluginDrawerActionMenu.visible && rects.bottomNav.visible && overlaps(rects.pluginDrawerActionMenu, rects.bottomNav)) {
+          failures.push({
+            code: "plugin_drawer_menu_bottom_nav_overlap",
+            menu: rects.pluginDrawerActionMenu,
+            bottomNav: rects.bottomNav,
+          });
+        }
       }
 
       if (rects.accessKeyOverlay.visible && rects.accessKeyOverlay.bottom > viewport.height + 2) {
         warnings.push({ code: "access_overlay_extends_below_viewport", rect: rects.accessKeyOverlay, viewport });
-      }
-
-      if (rects.capabilityHub.visible) {
-        if (!capability.quickActionCount) failures.push({ code: "capability_quick_actions_missing", capability });
-        if (!capability.pluginIconCount) failures.push({ code: "capability_plugin_icons_missing", capability });
-        if (rects.capabilityHub.bottom > viewport.height + 4 && !rects.conversation.visible) {
-          warnings.push({ code: "capability_hub_extends_without_scroll_surface", rect: rects.capabilityHub, viewport });
-        }
-        if (rects.capabilityActionMenu.visible && rects.bottomNav.visible && overlaps(rects.capabilityActionMenu, rects.bottomNav)) {
-          failures.push({
-            code: "capability_menu_bottom_nav_overlap",
-            menu: rects.capabilityActionMenu,
-            bottomNav: rects.bottomNav,
-          });
-        }
-        if (rects.capabilityActionMenu.visible && rects.topicPluginDock.visible && overlaps(rects.capabilityActionMenu, rects.topicPluginDock)) {
-          failures.push({
-            code: "capability_menu_topic_plugin_dock_overlap",
-            menu: rects.capabilityActionMenu,
-            topicPluginDock: rects.topicPluginDock,
-          });
-        }
       }
 
       if (!Object.values(rects).some((entry) => entry?.visible)) {
@@ -522,6 +539,8 @@ async function main() {
       expectAuthenticated: Boolean(waitForAuth || accessKey),
       longTaskWarnMs,
       failOnLongTask,
+      openPluginDrawerQuickMenu,
+      pluginDrawerMenuOpened,
     });
     await page.screenshot({ path: screenshotPath, fullPage: true });
     if (strictLayout && layout.failures.length > 0) {
@@ -540,8 +559,11 @@ async function main() {
       view,
       viewClicked,
       openCapabilityMenu,
-      capabilityMenuOpened,
-      capabilityMenuGesture,
+      openPluginDrawerMenu,
+      capabilityMenuOpened: pluginDrawerMenuOpened,
+      capabilityMenuGesture: pluginDrawerMenuGesture,
+      pluginDrawerMenuOpened,
+      pluginDrawerMenuGesture,
       browserContext: {
         viewport,
         isMobile,

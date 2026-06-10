@@ -1,20 +1,34 @@
 # Capability Entry Hub Design
 
-Last updated: 2026-06-10.
+Last updated: 2026-06-11.
+
+Status: superseded for current production navigation. The standalone host
+`能力` bottom tab was removed in favor of the global plugin Dock/drawer:
+
+- the bottom navigation starts with `聊天`, `信息`, and `话题`;
+- users may pin plugin app buttons into the remaining bottom-tab slots;
+- the Dock/drawer starts with a `常用` quick-action menu sourced from plugin
+  manifest `actions`;
+- plugin long-press/context menus use the same action declarations;
+- quick actions open plugin-owned routes and pass `pluginActionId` /
+  `pluginRoute`; they are not MCP executions.
+
+This document remains as historical design context for why quick actions exist
+and for the usage-ordering rules that the Dock now reuses.
 
 ## Purpose
 
-The host `能力` tab is the capability entry hub. It lets a user choose the
-task they want to perform without first deciding whether the correct path is a
-topic, an embedded plugin app, a file directory, or an MCP-backed Home AI
-action.
+The original host `能力` tab design made task entry explicit, but production
+navigation now keeps those actions inside the plugin Dock/drawer instead of a
+separate bottom tab. A user chooses the frequent action from `常用` or from a
+plugin long-press menu, then the host opens the owning plugin route.
 
 The product rule is:
 
 - the plugin icon always opens the plugin app;
 - quick actions express concrete user tasks;
-- quick actions may route to a topic, plugin route, directory, lightweight
-  form, or MCP-backed chat intent;
+- quick actions may route to a topic, plugin route, directory, or lightweight
+  form; ordinary plugin quick actions should not be MCP-backed chat intents;
 - different plugins may expose different quick actions, but the plugin icon
   behavior must remain consistent across all plugins.
 
@@ -41,7 +55,8 @@ primary action.
 
 ## Information Architecture
 
-The Capability page is organized by capability groups, not by transport type.
+The superseded Capability page was organized by capability groups, not by
+transport type.
 
 Examples:
 
@@ -53,9 +68,9 @@ Examples:
 - Health
 - Automation
 
-The host shell has three related but separate entry surfaces:
+The current host shell has three related but separate entry surfaces:
 
-1. `能力` tab: task-first quick actions.
+1. Global plugin Dock/drawer `常用`: task-first quick actions.
 2. `话题` tab: conversation-first plugin topics, ordinary directory-bound topic
    collections, and ordinary topic cards.
 3. Global plugin Dock/drawer: app-first launch for all available app-level
@@ -65,17 +80,15 @@ The `话题` tab must not reuse large plugin app cards. Plugin topics are fixed
 conversation groups rendered as compact rows: the plugin icon enters the
 default plugin topic, the row body expands/collapses historical or special
 child topics when present, and the expanded children follow the same compact
-indented language as directory-bound topic rows. This keeps `能力` as the
-task-first surface, `话题` as the conversation-first surface, and the Dock as
-the app-first surface.
+indented language as directory-bound topic rows. This keeps the Dock `常用`
+menu as the task-first surface, `话题` as the conversation-first surface, and
+the Dock app row as the app-first surface.
 
-The quick-action area is task-first. On phone and touch-tablet shells it uses a
-compact three-column grid capped at three rows, so the Capability page shows at
-most nine quick actions. The host stores per-action usage counts and
-per-capability app-launch counts, sorts used entries by count and recency, and
-fills remaining cells with available default quick actions. This keeps the area
-useful on first launch while still making repeated real use promote the most
-valuable actions.
+The current quick-action area is the Dock `常用` menu. It is capped at six
+actions. The host stores per-action usage counts and per-plugin app-launch
+counts, sorts used entries by count and recency, and fills remaining cells with
+available default quick actions. First-run default fill should prefer one
+high-value action from each plugin before filling secondary actions.
 
 Usage-backed ordering is a server-persisted workspace preference. The source
 of truth is `/api/plugin-topic-usage`, stored under the Home AI data directory
@@ -306,7 +319,6 @@ open_plugin_app
 open_plugin_route
 open_topic
 open_directory
-invoke_mcp_intent
 open_quick_form
 start_chat_with_context
 ```
@@ -322,9 +334,11 @@ plugin-declared business action.
 
 `open_directory` opens a workspace-local directory or plugin file directory.
 
-`invoke_mcp_intent` starts a server-mediated Home AI action that may call the
-plugin MCP/toolset after the normal workspace authorization and capability
-activation checks.
+`invoke_mcp_intent` was considered during design but is not part of the
+ordinary plugin quick-action contract. Quick actions should open the owning
+plugin at a declared route instead of duplicating plugin business workflows
+through host-side MCP calls. A future intent surface may add MCP-backed actions
+as a separate feature with separate user expectations.
 
 `open_quick_form` opens a compact host-owned form when the action is simple
 enough to collect structured input without loading the full plugin app.
@@ -396,21 +410,23 @@ The existing plugin-context navigation remains valid after a plugin app is
 opened: the plugin app can still expose the three-entry context footer for
 topic, plugin, and directory while in plugin context.
 
-The hub changes the host entry model:
+The superseding Dock action model changes the host entry model:
 
-- `能力` shows quick actions;
+- there is no standalone `能力` bottom tab;
+- Dock `常用` shows up to six usage-ranked manifest actions;
 - `话题` shows plugin conversation shortcuts and Directory-bound topic
   collections;
 - plugin and Directory app icons stay in the fixed bottom Dock/drawer;
 - plugin icon opens the plugin app;
-- quick actions provide direct task-specific routes;
+- quick actions provide direct plugin or Directory routes and are not MCP
+  calls;
 - plugin topic and directory routes are reachable as quick actions, not as
   generic mini buttons attached to every icon.
 
 The first implementation may map quick actions onto existing reliable host
 routes: plugin app launch, plugin topic chat, plugin delivery directory, and
-Directory app/topic entry. True host-owned quick forms and direct MCP intent
-invocation are a later H1 extension because they introduce write flows,
+Directory app/topic entry. True host-owned quick forms or server-executed
+intent actions are a later H1 extension because they introduce write flows,
 permission gates, server-side action execution, and readback requirements.
 
 ## Validation Expectations
@@ -421,8 +437,8 @@ focused navigation harness before it is considered complete.
 Minimum validation:
 
 - unit/static UI tests for action projection and primary action consistency;
-- unit/static UI tests for the usage-backed frequent quick-action grid, absence
-  of trailing source badges, fixed bottom plugin Dock, and primary action
+- unit/static UI tests for the Dock `常用` quick-action menu, absence of
+  trailing source badges, fixed bottom plugin Dock, and primary action
   consistency;
 - mobile visual smoke at `390x844`;
 - touch-tablet visual smoke at `1024x768` or equivalent;

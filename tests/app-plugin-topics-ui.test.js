@@ -67,7 +67,7 @@ assert.match(pluginTopicsUi, /workspaceId: pending\.workspaceId, usage: pending\
 assert.match(openAppBody, /if \(options\.recordUsage !== false\) recordPluginTopicUsage\(def\.id\);/);
 assert.doesNotMatch(openAppBody, /action\.id/);
 assert.match(runActionBody, /recordPluginTopicUsage\(def\.id, action\.id\);/);
-assert.match(runActionBody, /openPluginTopicApp\(def\.id, \{ recordUsage: false \}\);/);
+assert.match(runActionBody, /openPluginTopicApp\(def\.id, \{ recordUsage: false, action \}\);/);
 assert.match(topicCardsBody, /filter\(\(def\) => !def\.builtinKind && def\.id !== "codex-mobile"\)/);
 assert.match(topicCardsBody, /data-plugin-topic-open-topic/);
 assert.match(topicCardsBody, /data-plugin-topic-toggle/);

@@ -1,6 +1,6 @@
 # Module: Plugin Topics
 
-Last updated: 2026-06-10.
+Last updated: 2026-06-11.
 
 ## Responsibility
 
@@ -43,25 +43,31 @@ or raw plugin credentials.
 - Returning from topic detail to the topic list must restore the topic-list
   scroll position captured before entering the detail. Right-swipe/back should
   not jump away from the plugin and Directory card area.
-- Host primary navigation is reserved for host-level surfaces:
-  `聊天`, `信息`, `能力`, and `话题`. Growth, Codex plugin edition, Wardrobe,
-  Finance, Email, Health, Note, and Directory app launch are plugin/capability
-  entries and must not be added back as permanent host bottom tabs.
+- Host primary navigation starts with host-level surfaces:
+  `聊天`, `信息`, and `话题`. The standalone `能力` bottom tab is retired.
+  Growth, Codex plugin edition, Wardrobe, Finance, Email, Health, Note, and
+  Directory app launch are plugin/Dock entries by default. The bottom
+  navigation may expose up to five visible tabs total: the three host tabs plus
+  workspace-scoped user-pinned plugin tabs.
 - When there is no saved launch view, Hermes Mobile opens the topic page first.
-  The mobile bottom navigation uses those four host slots. Plugin app launch is
-  provided by the global plugin Dock/drawer.
-- The current frontend projection renders Wardrobe, Finance, Email, Health,
-  Note, and the built-in Directory capability in a host-owned global plugin
-  Dock anchored directly above the mobile bottom navigation when they are
-  visible in the effective workspace. The Dock has a collapsed handle by
-  default and expands in place from that handle; it is not a separate floating
-  drawer and does not create new plugin grants.
-- The global plugin Dock is available only on host root surfaces where it will
-  not compete with composer, secondary-page back gestures, plugin iframe
-  footers, keyboard state, or the sidebar. It is hidden in plugin app/context
-  pages, topic/detail secondary pages, keyboard-viewport mode, and back-swipe
-  settle states.
-- The Dock remains single-row. When one to four capability entries are visible,
+  Plugin app launch is provided by the global plugin Dock/drawer unless the
+  user has pinned that plugin into one of the available bottom-tab slots.
+- The current frontend projection renders Growth, Codex plugin edition,
+  Wardrobe, Finance, Email, Health, Note, and the built-in Directory app in a
+  host-owned global plugin Dock anchored directly above the mobile bottom
+  navigation when they are visible in the effective workspace. The Dock has a
+  collapsed handle by default and expands in place from that handle; it is not
+  a separate floating drawer and does not create new plugin grants.
+- The global plugin Dock is available on eligible host root surfaces and
+  top-level plugin App surfaces. It must not compete with composer,
+  secondary-page back gestures, plugin iframe footers, keyboard state, or the
+  sidebar. It is hidden in topic/detail secondary pages,
+  non-top-level plugin-context pages, keyboard-viewport mode, and back-swipe
+  settle states. Codex plugin edition is special and should not receive the
+  ordinary quick-action/drawer affordances.
+- The Dock remains single-row. Its first visible card is `常用`, a compact menu
+  of up to six usage-ranked plugin quick actions. The remaining cards are
+  app/plugin launch entries. When one to four entries are visible,
   the row divides the available width evenly across those entries; when more
   than four entries are visible, the row keeps four-slot sizing and scrolls
   horizontally. Do not squeeze five or more entries into the same viewport,
@@ -88,32 +94,32 @@ or raw plugin credentials.
 - On mobile, the expanded Dock keeps a left/right edge inset large enough to
   avoid competing with side gestures. The current minimum edge inset is 24px
   before safe-area expansion.
-- Dock entries are app/capability launch targets on tap. A tap records
-  app-level capability usage so the same plugin or built-in Directory entry can
-  influence the Capability page. They do not expose permanent topic or
-  file-directory mini actions in the topic list. Plugin- and
-  Directory-specific secondary surfaces remain reachable from quick actions,
-  long-press/context menus, and plugin context/navigation rules instead of as
-  small buttons beside the app icon.
-- Capability usage ordering is not a volatile client-only preference. The
+- Dock plugin entries are app launch targets on tap. A tap records app-level
+  usage. Long-press/context menus expose plugin-declared actions, Dock order
+  controls, and bottom-tab pin/unpin controls. They do not expose permanent
+  topic or file-directory mini actions in the topic list. Plugin- and
+  Directory-specific secondary surfaces remain reachable from the `常用` quick
+  card, long-press/context menus, and plugin context/navigation rules instead
+  of as small buttons beside the app icon.
+- Quick-action usage ordering is not a volatile client-only preference. The
   authoritative usage signal lives in `/api/plugin-topic-usage` and is
   persisted per workspace as bounded `plugins` and `actions` count/recency
   maps. `localStorage.hermesPluginTopicUsage` is only a first-paint/offline
   cache and may be rebuilt from the server after login, client reset, PWA
   reinstall, or device switch.
-- Capability usage writes must update the visible Capability projection
-  immediately when the user is on `viewMode=capabilities`, before waiting for
-  server sync. A
-  long-lived PWA session must also re-check server usage after a short loaded
-  TTL instead of treating the first successful `/api/plugin-topic-usage` load as
-  permanently fresh. Repeated clicks on the same action, such as
-  `wardrobe:style`, must increment that action's workspace usage and promote it
-  by count/recency in the quick-action grid.
-- The Capability page quick-action grid is capped at nine entries, rendered as
-  three columns by three rows. Used actions are sorted by count and recency;
-  available default quick actions may fill the remaining cells so a first-time
-  user does not see an empty capability surface.
-- Topic-root capability cards and directory-bound topic rows must honor the
+- Usage writes must update visible Dock/quick-action projections immediately
+  before waiting for server sync. A long-lived PWA session must also re-check
+  server usage after a short loaded TTL instead of treating the first
+  successful `/api/plugin-topic-usage` load as permanently fresh. Repeated
+  clicks on the same action, such as `wardrobe:style`, must increment that
+  action's workspace usage and promote it by count/recency in the quick-action
+  menu.
+- The Dock `常用` quick-action menu is capped at six entries. Used actions are
+  sorted by count and recency; default actions fill the remaining cells. When
+  there is no usage history, default ordering should prefer the first
+  high-value action from each plugin before filling secondary actions, so one
+  plugin cannot monopolize the first-run menu.
+- Topic-root plugin conversation rows and directory-bound topic rows must honor the
   shared Home AI font-size preference instead of hard-coding a smaller local
   text size. Topics and the information/root surface should stay visually
   aligned with the user's selected reading scale.
@@ -141,15 +147,16 @@ or raw plugin credentials.
 - Plugin topic rows and directory-bound topic rows render their count/update
   metadata inline after the title, not as a second line, so the Topics root
   stays dense and scan-friendly.
-- The Capability Entry Hub described in
-  `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md` is now a separate
-  host-level `能力` surface, not the Topics root. Topics root is conversation
-  first: plugin conversation shortcuts, ordinary directory-bound topic
-  collections, and ordinary topic cards. Shortcuts can open topics, plugin
-  routes, directories, quick forms, app-level capability launches, or
-  MCP-backed Home AI intents. The first implementation maps shortcuts to
-  existing host routes; direct MCP intent execution remains a separate H1
-  extension.
+- The earlier Capability Entry Hub described in
+  `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md` is superseded. Topics
+  root is conversation first: plugin conversation shortcuts, ordinary
+  directory-bound topic collections, and ordinary topic cards. Quick actions
+  are plugin-declared app routes shown from the Dock `常用` card, plugin
+  long-press/context menus, search, or future launcher surfaces. They are not
+  MCP calls and should not reimplement plugin business workflows in the host.
+  The host validates workspace authorization, records `pluginId:actionId`
+  usage, opens the plugin iframe, and passes `pluginActionId` plus
+  `pluginRoute`; the plugin owns the final in-app screen.
 - The global plugin Dock is positioned directly above the real mobile bottom
   navigation height. It must not use the broader page-content reserved height,
   because that value can include scroll/composer spacing after returning from a
@@ -186,9 +193,9 @@ or raw plugin credentials.
   context, the dedicated plugin-context exit path should fetch the topic root
   thread directly and render it; it must not leave the generic empty
   `Select or create a thread` page as the final state.
-- The current frontend projection renders Directory as a built-in Dock
-  capability for every authenticated workspace, keeps it in the fixed bottom
-  capability Dock, and hides the separate mobile bottom Directory tab.
+- The current frontend projection renders Directory as a built-in Dock app for
+  every authenticated workspace, keeps it in the fixed bottom Dock, and hides
+  the separate mobile bottom Directory tab.
 - The Directory Dock icon opens the Directory application on tap. Its
   long-press/context menu exposes Directory quick actions such as recent
   directories, file topics, and new topic. Directory-bound topics remain in the
@@ -201,8 +208,8 @@ or raw plugin credentials.
   It exists so starting or finding a directory-bound topic remains discoverable
   near the Topics surface even though the Directory app also lives in the
   plugin Dock/drawer.
-- Directory-bound topic collections are visually attached to the root
-  Capability Entry Hub body and must exclude fixed plugin topics such as
+- Directory-bound topic collections are visually attached below the Directory
+  root entry and must exclude fixed plugin topics such as
   `plugin:wardrobe`,
   `plugin:finance`, `plugin:email`, and `plugin:health`.
 - Directory-bound topic collections render as compact collapsible folder-tree
@@ -374,20 +381,22 @@ Focused validation should include:
 - no raw secret or private-data leakage in docs, prompts, postMessage, frontend
   state, or handoff.
 
-The current frontend projection is covered by `node tests\task-list-ui.test.js`
-and `node tests\static-cache-version-harness.test.js`: the harness asserts the
-global capability Dock handle above the bottom navigation, the absence of a separate
-bottom Plugin tab and floating plugin drawer, the built-in Directory Dock icon, the hidden mobile
-bottom Directory tab, the plugin-topic script in the app shell/service worker
-cache, Dock app/capability launch actions with long-press/context quick-action
-menus, no permanent topic/file-directory mini actions beside Dock icons,
-Directory-bound topic collections associated below the Capability Entry Hub body,
-usage-backed three-column quick actions with no trailing source badges, Dock
-app-launch usage promotion into root shortcuts,
+The current frontend projection is covered by `node tests/task-list-ui.test.js`
+and `node tests/static-cache-version-harness.test.js`: the harness asserts the
+global Dock handle above the bottom navigation, the absence of a separate
+bottom Plugin tab, the retired standalone `能力` bottom tab, the built-in
+Directory Dock icon, the hidden mobile bottom Directory tab, the plugin-topic
+script in the app shell/service worker cache, Dock app launch actions with
+long-press/context quick-action menus, the Dock `常用` quick-action card, no
+permanent topic/file-directory mini actions beside Dock icons, Directory-bound
+topic collections associated below the Directory root entry, usage-backed
+quick-action promotion with no trailing source badges, Dock app-launch usage
+promotion into persisted usage,
 collapsible folder-tree rows excluding plugin topics and hiding raw directory
-paths/default badges, root topic-list header/composer suppression, bottom navigation with
-Topics centered, default launch to Topics when no saved view exists, fixed
-`plugin:<pluginId>` topic entry,
+paths/default badges, root topic-list header/composer suppression, bottom
+navigation with Topics centered unless workspace-scoped plugin tabs are pinned,
+default launch to Topics when no saved view exists, fixed `plugin:<pluginId>`
+topic entry,
 non-blocking topic entry before directory refresh, creation of `插件/<plugin title>`, file-directory attachment on
 plugin-topic sends, return from plugin file directory to the topic list, plugin
 topic detail hiding bottom navigation while keeping the composer available,
@@ -409,13 +418,15 @@ aggregation, preserving topic-list scroll position after that background
 aggregation/refresh completes, and the static version bump.
 
 The visual regression harness must also cover the Dock action menu with
-`scripts/playwright-visual-smoke.js --open-capability-menu <capability>`. Passing
-gesture work must also run `npm run ios:pwa:visual -- --scenario
+`scripts/playwright-visual-smoke.js --open-plugin-drawer-menu <pluginId>`.
+`--open-capability-menu` remains a compatibility alias for older runbooks, but
+the checked surface is now the plugin Dock/drawer. Passing gesture work must
+also run `npm run ios:pwa:visual -- --scenario
 global-plugin-dock-gesture-stability` so short vertical mistouches, horizontal
 swipes, valid open/close swipes, and bottom-nav rect stability are checked.
-output must include `capabilityMenuOpened=true` and
-`capabilityMenuGesture=touch-longpress`; a desktop-only `contextmenu` dispatch is
-not sufficient evidence for iOS/PWA long-press behavior.
+Output must include `pluginDrawerMenuOpened=true` and
+`pluginDrawerMenuGesture=touch-longpress`; a desktop-only `contextmenu` dispatch
+is not sufficient evidence for iOS/PWA long-press behavior.
 
 Mac production must also run
 `scripts/macos-plugin-directory-production-smoke.js` through the aggregate

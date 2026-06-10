@@ -59,6 +59,7 @@ function pointerFor(plugin, overrides = {}) {
     "| `ai_ops_evidence_ledger` | `$HOME/.homeai-qa/evidence-ledger.jsonl` |",
     "| `ios_live_debug_available` | `yes` |",
     `| \`ios_visual_harness_command\` | \`cd /Users/hermes-dev/HermesMobileDev/app && npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id ${plugin.id} --debug-url http://127.0.0.1:19073/\` |`,
+    "| `plugin_manifest_actions_status` | `declared` |",
     "",
     "Do not record raw secrets or credentials here.",
   ].join("\n");

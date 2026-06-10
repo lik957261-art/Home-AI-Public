@@ -1,6 +1,6 @@
 # Plugin Mobile UI And Visual Harness Contract
 
-Contract version: `20260610-v7`.
+Contract version: `20260611-v8`.
 
 ## Purpose
 
@@ -20,7 +20,7 @@ Applies to:
 
 - embedded plugin iframe apps;
 - plugin-bound topics;
-- plugin quick actions and capability entries;
+- plugin quick actions, manifest actions, and Dock entries;
 - plugin bottom navigation, floating buttons, sheets, menus, and popovers;
 - plugin mobile visual validation;
 - Appium/iOS Simulator evidence;
@@ -31,7 +31,8 @@ Primary supporting docs:
 
 - `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`
 - `docs/IMPLEMENTATION_NOTES/embedded-surface-bottom-layout-standard.md`
-- `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md`
+- `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md` (superseded history for
+  the current Dock `常用` quick-action model)
 - `docs/RUNBOOKS/macos-ios-simulator-appium.md`
 - `docs/IMPLEMENTATION_NOTES/harness-required-matrix.md`
 - `docs/TEST_MATRIX.md`
@@ -150,6 +151,9 @@ Non-negotiable:
   App is using the Home AI plugin-context footer, the Dock must anchor to that
   visible footer's measured top offset. Otherwise the handle either floats too
   high or overlaps the context navigation.
+- The visual harness allows only the controlled Dock/bottom-nav bridge declared
+  by `--topic-plugin-dock-nav-overlap`; any Dock overlap beyond that tolerance,
+  and all composer/menu/nav overlaps, remain layout failures.
 - The global plugin Dock must not become visible while the host is between
   plugin-topic detail and topic-list chrome states. Rendering may prepare the
   Dock HTML, but the Dock must remain hidden until `updateNavigationControls()`
@@ -320,12 +324,14 @@ Plugin entrypoints should reuse the Home AI component vocabulary.
 
 Rules:
 
-- app/capability icons should share the same container size, radius, shadow,
+- app/plugin icons should share the same container size, radius, shadow,
   and visual weight across plugins and built-in capabilities;
 - a built-in capability such as Directory may use a distinct glyph but should
   not appear smaller or visually unrelated to plugin icons in the same Dock;
-- quick actions should be task-first and limited; do not turn them into a
-  second full app launcher;
+- quick actions should be task-first, manifest-declared, and limited to the
+  Dock `常用` menu, long-press/context menus, search, or future launcher
+  surfaces; do not recreate a second full app launcher or host-side MCP clone
+  of plugin business logic;
 - repeated cards, rows, badges, receipts, status panels, and action sheets
   should reuse existing Home AI patterns;
 - text must fit mixed Chinese/English labels without clipping or overlap;

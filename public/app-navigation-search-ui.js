@@ -381,7 +381,6 @@ function updateNavigationControls() {
   const centeredTopTitle = (
     (state.viewMode === "single" && state.singleWindowMode === "chat")
     || (state.viewMode === "tasks" && !state.currentTaskGroupId)
-    || (state.viewMode === "capabilities")
     || (state.viewMode === "projects")
     || (state.viewMode === "todos" && !todoDetail)
     || (state.viewMode === "inbox" && !actionInboxDetail && !actionInboxCreate)
@@ -405,7 +404,7 @@ function updateNavigationControls() {
   app?.classList.toggle("action-inbox-create-mode", actionInboxCreate);
   app?.classList.toggle("skill-detail-mode", skillDetail);
   app?.classList.toggle("task-list-mode", taskList);
-  app?.classList.toggle("capability-mode", state.viewMode === "capabilities");
+  app?.classList.toggle("capability-mode", false);
   app?.classList.toggle("plugin-context-nav-mode", pluginContextNav);
   app?.classList.toggle("embedded-plugin-preview-fullscreen-active", embeddedPluginPreviewFullscreen);
   app?.classList.toggle("learning-mode", false);
@@ -426,14 +425,14 @@ function updateNavigationControls() {
   }
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
-  let hiddenBottomTabs = new Set(["automationMode", "bottomPluginMode", "bottomProjectsMode", "bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomLearningMode", "bottomAutomationMode"]);
+  let hiddenBottomTabs = new Set(["todosMode", "automationMode", "bottomPluginMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomLearningMode", "bottomAutomationMode"]);
   if (externalPluginContextNav) {
-    hiddenBottomTabs = new Set(["automationMode", "bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode", "bottomPluginMode", "bottomLearningMode", "bottomAutomationMode"]);
+    hiddenBottomTabs = new Set(["todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode", "bottomPluginMode", "bottomLearningMode", "bottomAutomationMode"]);
     ["bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode"].forEach((id) => {
       if (id !== pluginContextButtonId) hiddenBottomTabs.add(id);
     });
   } else if (directoryContextNav) {
-    hiddenBottomTabs = new Set(["automationMode", "bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode", "bottomPluginMode", "bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomLearningMode", "bottomAutomationMode"]);
+    hiddenBottomTabs = new Set(["todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode", "bottomPluginMode", "bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomLearningMode", "bottomAutomationMode"]);
   }
   ["chatManagementMode", "inboxManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
     const node = $(id);
@@ -456,6 +455,7 @@ function updateNavigationControls() {
   if (typeof updateGrowthPluginNavigationAvailability === "function") updateGrowthPluginNavigationAvailability();
   if (typeof updateSidebarPluginLauncher === "function") updateSidebarPluginLauncher();
   if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
+  if (!pluginContextNav && typeof syncPinnedPluginBottomTabs === "function") syncPinnedPluginBottomTabs(false);
   if (pluginContextNav) {
     const pluginContextBottomTabs = new Set(externalPluginContextNav
       ? ["bottomTasksMode", "bottomProjectsMode", pluginContextButtonId]
@@ -497,7 +497,7 @@ function updateTopMoreControls() {
   const inboxView = state.viewMode === "inbox" && !actionInboxDetail && !actionInboxCreate;
   const automationDetail = isAutomationDetailView();
   const automationList = state.viewMode === "automation" && !automationDetail;
-  const capabilityView = state.viewMode === "capabilities";
+  const capabilityView = false;
   const wardrobeView = state.viewMode === "wardrobe";
   const codexView = state.viewMode === "codex";
   const financeView = state.viewMode === "finance";

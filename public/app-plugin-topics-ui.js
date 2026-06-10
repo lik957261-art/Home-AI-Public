@@ -1,5 +1,33 @@
 "use strict";
 
+function pluginRouteAction(id, label, route, glyph, priority = 10) {
+  return Object.freeze({
+    id,
+    label,
+    glyph,
+    priority,
+    placement: Object.freeze(["plugin_drawer_frequent", "dock_long_press", "search"]),
+    entry: Object.freeze({
+      type: "plugin_route",
+      pluginRoute: route || id,
+    }),
+  });
+}
+
+function directoryCapabilityAction(id, label, route, glyph, priority = 10) {
+  return Object.freeze({
+    id,
+    label,
+    glyph,
+    priority,
+    placement: Object.freeze(["plugin_drawer_frequent", "dock_long_press", "search"]),
+    entry: Object.freeze({
+      type: "directory_route",
+      pluginRoute: route || id,
+    }),
+  });
+}
+
 const PLUGIN_TOPIC_DEFS = Object.freeze([
   Object.freeze({
     id: "codex-mobile",
@@ -12,10 +40,7 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     sourceBadge: "C",
     toolset: "codex",
     deliveryHints: ["codex", "code", "代码", "线程"],
-    quickActions: Object.freeze([
-      Object.freeze({ id: "threads", label: "Codex 线程", type: "open_plugin", glyph: "C" }),
-      Object.freeze({ id: "new", label: "新建任务", type: "open_plugin", glyph: "+" }),
-    ]),
+    actions: Object.freeze([]),
   }),
   Object.freeze({
     id: "wardrobe",
@@ -28,11 +53,13 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     sourceBadge: "\u8863",
     toolset: "wardrobe",
     deliveryHints: ["wardrobe", "\u8863\u6a71", "\u642d\u914d", "\u7a7f\u642d"],
-    quickActions: Object.freeze([
-      Object.freeze({ id: "style", label: "\u914d\u8863\u670d", type: "open_topic", glyph: "\u8863" }),
-      Object.freeze({ id: "today", label: "\u4eca\u65e5\u7a7f\u642d", type: "open_topic", glyph: "\u65e5" }),
-      Object.freeze({ id: "add", label: "\u5165\u5e93", type: "open_plugin", glyph: "+" }),
-      Object.freeze({ id: "inventory", label: "\u8863\u7269\u76ee\u5f55", type: "open_directory", glyph: "\u76ee" }),
+    actions: Object.freeze([
+      pluginRouteAction("style", "\u914d\u8863\u670d", "style", "\u8863", 10),
+      pluginRouteAction("today", "\u4eca\u65e5\u7a7f\u642d", "today", "\u65e5", 20),
+      pluginRouteAction("add_item", "\u8863\u7269\u5165\u5e93", "add_item", "+", 30),
+      pluginRouteAction("inventory", "\u8863\u7269\u76ee\u5f55", "inventory", "\u76ee", 40),
+      pluginRouteAction("outfit_history", "\u7a7f\u642d\u8bb0\u5f55", "outfit_history", "\u8bb0", 50),
+      pluginRouteAction("packing", "\u51fa\u884c\u6253\u5305", "packing", "\u5305", 60),
     ]),
   }),
   Object.freeze({
@@ -46,11 +73,14 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     sourceBadge: "\u8d26",
     toolset: "finance",
     deliveryHints: ["finance", "\u8bb0\u8d26", "\u8d22\u52a1", "\u8d26\u672c"],
-    quickActions: Object.freeze([
-      Object.freeze({ id: "record", label: "\u8bb0\u4e00\u7b14", type: "open_plugin", glyph: "+" }),
-      Object.freeze({ id: "voice", label: "\u4e00\u53e5\u8bdd\u8bb0\u8d26", type: "open_topic", glyph: "\u8bf4" }),
-      Object.freeze({ id: "month", label: "\u672c\u6708\u8d26\u5355", type: "open_topic", glyph: "\u6708" }),
-      Object.freeze({ id: "budget", label: "\u9884\u7b97\u68c0\u67e5", type: "open_topic", glyph: "\u9884" }),
+    actions: Object.freeze([
+      pluginRouteAction("record", "\u8bb0\u4e00\u7b14", "record", "+", 10),
+      pluginRouteAction("voice_record", "\u4e00\u53e5\u8bdd\u8bb0\u8d26", "voice_record", "\u8bf4", 20),
+      pluginRouteAction("month_stats", "\u672c\u6708\u7edf\u8ba1", "month_stats", "\u6708", 30),
+      pluginRouteAction("year_stats", "\u5f53\u5e74\u7edf\u8ba1", "year_stats", "\u5e74", 40),
+      pluginRouteAction("assets", "\u8d44\u4ea7\u72b6\u51b5", "assets", "\u8d44", 50),
+      pluginRouteAction("budget", "\u9884\u7b97\u68c0\u67e5", "budget", "\u9884", 60),
+      pluginRouteAction("transactions", "\u6700\u8fd1\u6d41\u6c34", "transactions", "\u6d41", 70),
     ]),
   }),
   Object.freeze({
@@ -64,10 +94,13 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     sourceBadge: "\u90ae",
     toolset: "email",
     deliveryHints: ["email", "\u90ae\u7bb1", "\u90ae\u4ef6", "\u6536\u4ef6"],
-    quickActions: Object.freeze([
-      Object.freeze({ id: "reply", label: "\u5f85\u56de\u590d", type: "open_plugin", glyph: "\u56de" }),
-      Object.freeze({ id: "search", label: "\u641c\u90ae\u4ef6", type: "open_plugin", glyph: "\u641c" }),
-      Object.freeze({ id: "draft", label: "\u5199\u56de\u590d", type: "open_topic", glyph: "\u5199" }),
+    actions: Object.freeze([
+      pluginRouteAction("inbox", "\u6536\u4ef6\u7bb1", "inbox", "\u6536", 10),
+      pluginRouteAction("needs_reply", "\u5f85\u56de\u590d", "needs_reply", "\u56de", 20),
+      pluginRouteAction("search", "\u641c\u90ae\u4ef6", "search", "\u641c", 30),
+      pluginRouteAction("compose", "\u5199\u90ae\u4ef6", "compose", "\u5199", 40),
+      pluginRouteAction("digest", "\u90ae\u4ef6\u6458\u8981", "digest", "\u6458", 50),
+      pluginRouteAction("cleanup", "\u6e05\u7406\u90ae\u4ef6", "cleanup", "\u6e05", 60),
     ]),
   }),
   Object.freeze({
@@ -81,10 +114,13 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     sourceBadge: "\u5eb7",
     toolset: "health",
     deliveryHints: ["health", "\u5065\u5eb7", "\u8bad\u7ec3", "\u4f53\u91cd", "\u7528\u836f"],
-    quickActions: Object.freeze([
-      Object.freeze({ id: "record", label: "\u8bb0\u5f55\u5065\u5eb7", type: "open_plugin", glyph: "+" }),
-      Object.freeze({ id: "trend", label: "\u8d8b\u52bf", type: "open_plugin", glyph: "\u52bf" }),
-      Object.freeze({ id: "advice", label: "\u95ee\u5efa\u8bae", type: "open_topic", glyph: "?" }),
+    actions: Object.freeze([
+      pluginRouteAction("record_metric", "\u8bb0\u5f55\u6307\u6807", "record_metric", "+", 10),
+      pluginRouteAction("trend", "\u8d8b\u52bf", "trend", "\u52bf", 20),
+      pluginRouteAction("workout", "\u8bb0\u5f55\u8bad\u7ec3", "workout", "\u8bad", 30),
+      pluginRouteAction("report", "\u5065\u5eb7\u62a5\u544a", "report", "\u62a5", 40),
+      pluginRouteAction("medication", "\u7528\u836f/\u8865\u5242", "medication", "\u836f", 50),
+      pluginRouteAction("advice", "\u95ee\u5065\u5eb7\u5efa\u8bae", "advice", "?", 60),
     ]),
   }),
   Object.freeze({
@@ -98,11 +134,13 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     sourceBadge: "\u7b14",
     toolset: "note",
     deliveryHints: ["note", "\u7b14\u8bb0", "\u6458\u8981", "\u8d44\u6599"],
-    quickActions: Object.freeze([
-      Object.freeze({ id: "new", label: "\u8bb0\u4e00\u6761", type: "open_plugin", glyph: "+" }),
-      Object.freeze({ id: "search", label: "\u641c\u7b14\u8bb0", type: "open_plugin", glyph: "\u641c" }),
-      Object.freeze({ id: "recent", label: "\u6700\u8fd1\u7b14\u8bb0", type: "open_plugin", glyph: "\u8fd1" }),
-      Object.freeze({ id: "topic", label: "\u7b14\u8bb0\u8bdd\u9898", type: "open_topic", glyph: "\u8bdd" }),
+    actions: Object.freeze([
+      pluginRouteAction("new_note", "\u8bb0\u4e00\u6761", "new_note", "+", 10),
+      pluginRouteAction("search", "\u641c\u7b14\u8bb0", "search", "\u641c", 20),
+      pluginRouteAction("recent", "\u6700\u8fd1\u7b14\u8bb0", "recent", "\u8fd1", 30),
+      pluginRouteAction("capture", "\u5feb\u901f\u6458\u5f55", "capture", "\u6458", 40),
+      pluginRouteAction("notebooks", "\u7b14\u8bb0\u672c", "notebooks", "\u672c", 50),
+      pluginRouteAction("receipt_notes", "Hermes \u56de\u6267\u7b14\u8bb0", "receipt_notes", "\u56de", 60),
     ]),
   }),
   Object.freeze({
@@ -116,10 +154,13 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     sourceBadge: "\u957f",
     toolset: "growth",
     deliveryHints: ["growth", "\u6210\u957f", "\u5b66\u4e60", "\u4efb\u52a1", "\u5361\u7247"],
-    quickActions: Object.freeze([
-      Object.freeze({ id: "today", label: "\u4eca\u65e5\u4efb\u52a1", type: "open_plugin", glyph: "\u65e5" }),
-      Object.freeze({ id: "cards", label: "\u6210\u957f\u5361\u7247", type: "open_plugin", glyph: "\u5361" }),
-      Object.freeze({ id: "review", label: "\u590d\u76d8", type: "open_topic", glyph: "\u590d" }),
+    actions: Object.freeze([
+      pluginRouteAction("today_tasks", "\u4eca\u65e5\u4efb\u52a1", "today_tasks", "\u65e5", 10),
+      pluginRouteAction("cards", "\u6210\u957f\u5361\u7247", "cards", "\u5361", 20),
+      pluginRouteAction("submit_work", "\u63d0\u4ea4\u4f5c\u4e1a", "submit_work", "\u4ea4", 30),
+      pluginRouteAction("review", "\u590d\u76d8", "review", "\u590d", 40),
+      pluginRouteAction("stage_assessment", "\u9636\u6bb5\u6d4b\u8bc4", "stage_assessment", "\u6d4b", 50),
+      pluginRouteAction("rewards", "\u5956\u52b1/\u901a\u5b9d", "rewards", "\u5956", 60),
     ]),
   }),
   Object.freeze({
@@ -134,10 +175,12 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     sourceBadge: "\u76ee",
     toolset: "",
     deliveryHints: ["directory", "\u76ee\u5f55", "\u6587\u4ef6", "\u8d44\u6599"],
-    quickActions: Object.freeze([
-      Object.freeze({ id: "recent", label: "\u6700\u8fd1\u76ee\u5f55", type: "open_plugin", glyph: "\u8fd1" }),
-      Object.freeze({ id: "topics", label: "\u6587\u4ef6\u8bdd\u9898", type: "open_topic", glyph: "\u8bdd" }),
-      Object.freeze({ id: "new-topic", label: "\u65b0\u5efa\u8bdd\u9898", type: "open_topic", glyph: "+" }),
+    actions: Object.freeze([
+      directoryCapabilityAction("recent", "\u6700\u8fd1\u76ee\u5f55", "recent", "\u8fd1", 10),
+      directoryCapabilityAction("topics", "\u6587\u4ef6\u8bdd\u9898", "topics", "\u8bdd", 20),
+      directoryCapabilityAction("new_topic", "\u65b0\u5efa\u6587\u4ef6\u8bdd\u9898", "new_topic", "+", 30),
+      directoryCapabilityAction("open_root", "\u6253\u5f00\u76ee\u5f55", "open_root", "\u76ee", 40),
+      directoryCapabilityAction("imports", "\u5bfc\u5165/\u6574\u7406\u6587\u4ef6", "imports", "\u5bfc", 50),
     ]),
   }),
 ]);
@@ -152,12 +195,16 @@ const PLUGIN_TOPIC_BINDINGS_LOAD_TTL_MS = 30000;
 const PLUGIN_APP_REORDER_HOLD_MS = 450;
 const PLUGIN_APP_REORDER_CANCEL_PX = 10;
 const GLOBAL_PLUGIN_DOCK_STATE_STORAGE_KEY = "hermesGlobalPluginDockExpanded";
+const PLUGIN_BOTTOM_TABS_STORAGE_KEY = "hermesPinnedPluginBottomTabs";
+const BOTTOM_NAV_MAX_VISIBLE_TABS = 5;
+const BOTTOM_NAV_BASE_VISIBLE_TABS = 3;
 const GLOBAL_PLUGIN_DOCK_DRAG_SLOP_PX = 10;
 const GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO = 1.45;
 const GLOBAL_PLUGIN_DOCK_TRIGGER_DISTANCE_PX = 28;
 const GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_MIN_DISTANCE_PX = 24;
 const GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_PX_MS = 0.45;
 const CAPABILITY_QUICK_ACTION_LIMIT = 9;
+const PLUGIN_DRAWER_QUICK_ACTION_LIMIT = 6;
 const CAPABILITY_PLUGIN_APP_ACTION_ID = "__open_app";
 let pluginAppSortDrag = null;
 let pluginAppSortGlobalBound = false;
@@ -589,6 +636,99 @@ function globalPluginDockStorageKey() {
   return `${GLOBAL_PLUGIN_DOCK_STATE_STORAGE_KEY}:${globalPluginDockWorkspaceId()}`;
 }
 
+function pluginBottomTabsStorageKey(workspaceId = globalPluginDockWorkspaceId()) {
+  const id = String(workspaceId || "owner").trim() || "owner";
+  return `${PLUGIN_BOTTOM_TABS_STORAGE_KEY}:${id}`;
+}
+
+function pluginBottomTabCapacity() {
+  return Math.max(0, BOTTOM_NAV_MAX_VISIBLE_TABS - BOTTOM_NAV_BASE_VISIBLE_TABS);
+}
+
+function readPinnedPluginBottomTabs(workspaceId = globalPluginDockWorkspaceId()) {
+  try {
+    const raw = localStorage.getItem(pluginBottomTabsStorageKey(workspaceId));
+    const values = JSON.parse(raw || "[]");
+    if (!Array.isArray(values)) return [];
+    return [...new Set(values.map(pluginTopicId).filter(Boolean))];
+  } catch {
+    return [];
+  }
+}
+
+function writePinnedPluginBottomTabs(ids = [], workspaceId = globalPluginDockWorkspaceId()) {
+  const allowed = new Set(orderedPluginAppDefs(availablePluginTopicDefs())
+    .filter((def) => !def.builtinKind)
+    .map((def) => def.id));
+  const normalized = [...new Set((ids || []).map(pluginTopicId).filter((id) => id && allowed.has(id)))]
+    .slice(0, pluginBottomTabCapacity());
+  try {
+    localStorage.setItem(pluginBottomTabsStorageKey(workspaceId), JSON.stringify(normalized));
+  } catch {
+    // Bottom-tab pinning is a local UI preference; failure only disables persistence.
+  }
+  return normalized;
+}
+
+function pinnedPluginBottomTabIds() {
+  const capacity = pluginBottomTabCapacity();
+  if (!capacity) return [];
+  const saved = readPinnedPluginBottomTabs();
+  if (!saved.length) return [];
+  const available = orderedPluginAppDefs(availablePluginTopicDefs())
+    .filter((def) => !def.builtinKind && pluginTopicNavigationAvailable(def));
+  const availableIds = new Set(available.map((def) => def.id));
+  return saved.filter((id) => availableIds.has(id)).slice(0, capacity);
+}
+
+function pluginBottomTabPinned(pluginId = "") {
+  const id = pluginTopicId(pluginId);
+  return Boolean(id && readPinnedPluginBottomTabs().includes(id));
+}
+
+function pluginBottomTabPinAvailable(pluginId = "") {
+  const id = pluginTopicId(pluginId);
+  if (!id) return false;
+  if (pluginBottomTabPinned(id)) return true;
+  return pinnedPluginBottomTabIds().length < pluginBottomTabCapacity();
+}
+
+function setPluginBottomTabPinned(pluginId = "", pinned = true) {
+  const id = pluginTopicId(pluginId);
+  const def = pluginTopicDefById(id);
+  if (!id || !def || def.builtinKind || !pluginTopicNavigationAvailable(def)) return false;
+  const current = readPinnedPluginBottomTabs()
+    .filter((item) => item !== id)
+    .filter((item) => {
+      const itemDef = pluginTopicDefById(item);
+      return itemDef && !itemDef.builtinKind && pluginTopicNavigationAvailable(itemDef);
+    });
+  if (pinned) {
+    if (current.length >= pluginBottomTabCapacity()) return false;
+    current.push(id);
+  }
+  writePinnedPluginBottomTabs(current);
+  if (typeof updateNavigationControls === "function") updateNavigationControls();
+  if (typeof refreshPluginAppOrderSurfaces === "function") refreshPluginAppOrderSurfaces();
+  return true;
+}
+
+function syncPinnedPluginBottomTabs(pluginContextNav = false) {
+  if (pluginContextNav) return [];
+  const pinnedIds = pinnedPluginBottomTabIds();
+  const visible = new Set(pinnedIds);
+  PLUGIN_TOPIC_DEFS.forEach((def) => {
+    if (!def || def.builtinKind) return;
+    const buttonId = pluginTopicBottomButtonId(def);
+    const button = buttonId ? $(buttonId) : null;
+    if (!button) return;
+    const shouldShow = visible.has(def.id);
+    setBottomTabHidden(button, !shouldShow);
+    if (shouldShow) updateBottomNavLabel(buttonId, def.label || "");
+  });
+  return pinnedIds;
+}
+
 function readGlobalPluginDockExpandedPreference() {
   try {
     return localStorage.getItem(globalPluginDockStorageKey()) === "1";
@@ -682,7 +822,6 @@ function globalPluginDockHostSurfaceEligible() {
   if (app.classList.contains("plugin-context-nav-mode") && !pluginAppSurface) return false;
   if (pluginAppSurface) return true;
   if (view === "single") return state.singleWindowMode === "chat";
-  if (view === "capabilities") return true;
   if (view === "tasks") return !state.currentTaskGroupId;
   if (view === "projects") return !state.directoryPluginContextActive;
   if (view === "todos") return !(typeof isTodoDetailView === "function" && isTodoDetailView()) && !(typeof kanbanComposerOpen === "function" && kanbanComposerOpen());
@@ -971,14 +1110,10 @@ function pluginTopicUsageRecentlyLoaded(workspaceId = pluginTopicUsageWorkspaceI
 }
 
 function refreshPluginTopicUsageRoot(options = {}) {
-  if (!["tasks", "capabilities"].includes(String(state.viewMode || "")) || state.currentTaskGroupId) return;
+  if (!["tasks"].includes(String(state.viewMode || "")) || state.currentTaskGroupId) return;
   if (typeof renderCurrentThread !== "function") return;
   const restoreScrollTop = options.revealQuickActions ? 0 : ($("conversation")?.scrollTop || 0);
   window.setTimeout(() => {
-    if (state.viewMode === "capabilities" && !state.currentTaskGroupId && typeof renderCapabilityView === "function") {
-      renderCapabilityView({ restoreScrollTop });
-      return;
-    }
     if (state.viewMode === "tasks" && !state.currentTaskGroupId) {
       renderCurrentThread({ stickToBottom: false, restoreScrollTop });
     }
@@ -1147,8 +1282,58 @@ function orderedPluginAppDefs(defs = []) {
   });
 }
 
-function pluginTopicQuickActions(def) {
-  return Array.isArray(def?.quickActions) ? def.quickActions : [];
+function pluginTopicCapabilityActionsEnabled(def) {
+  return Boolean(def?.id && def.id !== "codex-mobile");
+}
+
+function pluginTopicNormalizeAction(def, action, index = 0) {
+  if (!def || !action || typeof action !== "object") return null;
+  const id = pluginTopicId(action.id);
+  const label = String(action.label || "").trim();
+  if (!id || !label) return null;
+  const rawEntry = action.entry && typeof action.entry === "object" ? action.entry : {};
+  const legacyType = String(action.type || "").trim();
+  const entryType = String(rawEntry.type || legacyType || "plugin_route").trim();
+  const pluginRoute = String(rawEntry.pluginRoute || rawEntry.route || action.pluginRoute || action.route || id).trim();
+  const placement = Array.isArray(action.placement)
+    ? action.placement.map((item) => String(item || "").trim()).filter(Boolean)
+    : ["plugin_drawer_frequent", "dock_long_press", "search"];
+  return {
+    id,
+    label,
+    description: String(action.description || "").trim(),
+    glyph: String(action.glyph || def.sourceBadge || "").trim().slice(0, 2),
+    priority: Number.isFinite(Number(action.priority)) ? Number(action.priority) : index + 1,
+    placement,
+    entry: {
+      type: entryType,
+      pluginRoute,
+      pluginItemId: String(rawEntry.pluginItemId || rawEntry.itemId || action.pluginItemId || "").trim(),
+      pluginThreadId: String(rawEntry.pluginThreadId || rawEntry.threadId || action.pluginThreadId || "").trim(),
+      pluginTaskId: String(rawEntry.pluginTaskId || rawEntry.taskId || action.pluginTaskId || "").trim(),
+      sourceTurnId: String(rawEntry.sourceTurnId || rawEntry.turnId || action.sourceTurnId || "").trim(),
+    },
+  };
+}
+
+function pluginTopicQuickActions(def, options = {}) {
+  if (!pluginTopicCapabilityActionsEnabled(def)) return [];
+  const placement = String(options.placement || "").trim();
+  const source = Array.isArray(def?.actions)
+    ? def.actions
+    : Array.isArray(def?.quickActions)
+      ? def.quickActions
+    : [];
+  return source
+    .map((action, index) => pluginTopicNormalizeAction(def, action, index))
+    .filter(Boolean)
+    .filter((action) => {
+      if (!placement || !action.placement.length || action.placement.includes(placement)) return true;
+      if (placement === "plugin_drawer_frequent" && action.placement.includes("capability_hub")) return true;
+      if (placement === "capability_hub" && action.placement.includes("plugin_drawer_frequent")) return true;
+      return false;
+    })
+    .sort((a, b) => a.priority - b.priority);
 }
 
 function pluginTopicActionById(pluginId = "", actionId = "") {
@@ -1162,22 +1347,27 @@ function pluginTopicActionById(pluginId = "", actionId = "") {
 function capabilityHubQuickActions(defs = [], options = {}) {
   const usage = readPluginTopicUsage();
   const includeDefaults = options.includeDefaults === true;
+  const placement = String(options.placement || "plugin_drawer_frequent").trim() || "plugin_drawer_frequent";
+  const includePluginLaunches = options.includePluginLaunches !== false;
+  const limit = Math.max(1, Math.min(12, Math.floor(Number(options.limit) || CAPABILITY_QUICK_ACTION_LIMIT)));
   const result = [];
   defs.forEach((def) => {
+    if (!pluginTopicCapabilityActionsEnabled(def)) return;
     const defIndex = pluginTopicDefinitionIndex(def.id);
     const pluginEntry = pluginTopicUsageEntry(usage, def.id);
     const pluginCount = Math.max(0, Number(pluginEntry.count) || 0);
-    if (pluginCount) {
+    const actions = pluginTopicQuickActions(def, { placement });
+    if (pluginCount && includePluginLaunches) {
       result.push({
         def,
         action: pluginTopicAppQuickAction(def),
         count: pluginCount,
         lastUsedAt: Math.max(0, Number(pluginEntry.lastUsedAt) || 0),
         defIndex,
-        actionIndex: pluginTopicQuickActions(def).length + 1,
+        actionIndex: actions.length + 1,
       });
     }
-    pluginTopicQuickActions(def).forEach((action, actionIndex) => {
+    actions.forEach((action, actionIndex) => {
       const entry = pluginTopicActionUsageEntry(usage, def.id, action.id);
       const count = Math.max(0, Number(entry.count) || 0);
       if (!count && !includeDefaults) return;
@@ -1195,11 +1385,20 @@ function capabilityHubQuickActions(defs = [], options = {}) {
     .sort((a, b) => (
       b.count - a.count
       || b.lastUsedAt - a.lastUsedAt
-      || a.defIndex - b.defIndex
       || a.actionIndex - b.actionIndex
+      || a.defIndex - b.defIndex
     ))
-    .slice(0, CAPABILITY_QUICK_ACTION_LIMIT)
+    .slice(0, limit)
     .map(({ def, action }) => ({ def, action }));
+}
+
+function pluginDrawerFrequentActions(defs = [], options = {}) {
+  return capabilityHubQuickActions(defs, {
+    includeDefaults: options.includeDefaults !== false,
+    includePluginLaunches: false,
+    placement: "plugin_drawer_frequent",
+    limit: PLUGIN_DRAWER_QUICK_ACTION_LIMIT,
+  });
 }
 
 function pluginTopicActionLabel(def, action) {
@@ -1218,7 +1417,11 @@ function renderCapabilityQuickAction(def, action) {
 }
 
 function renderCapabilityActionMenu(def) {
-  const actions = pluginTopicQuickActions(def);
+  const actions = pluginTopicQuickActions(def, { placement: "dock_long_press" });
+  const bottomButtonId = pluginTopicBottomButtonId(def);
+  const pinEligible = Boolean(bottomButtonId && !def.builtinKind);
+  const pinned = pinEligible && pluginBottomTabPinned(def.id);
+  const pinAvailable = pinEligible && pluginBottomTabPinAvailable(def.id);
   const menuActions = actions.map((action) => `
     <button class="capability-menu-item" type="button" data-plugin-topic-action-plugin="${escapeHtml(def.id)}" data-plugin-topic-action-id="${escapeHtml(action.id)}">
       <span class="capability-menu-glyph" aria-hidden="true">${escapeHtml(action.glyph || def.sourceBadge || "")}</span>
@@ -1235,6 +1438,10 @@ function renderCapabilityActionMenu(def) {
       <span class="capability-menu-glyph" aria-hidden="true">\u2197</span>
       <span class="capability-menu-text">\u6253\u5f00\u63d2\u4ef6</span>
     </button>
+    ${pinEligible ? `<button class="capability-menu-item" type="button" data-plugin-bottom-tab-toggle="${escapeHtml(def.id)}" data-plugin-bottom-tab-pinned="${pinned ? "1" : "0"}"${(!pinned && !pinAvailable) ? " disabled" : ""}>
+      <span class="capability-menu-glyph" aria-hidden="true">${pinned ? "\u2605" : "\u2606"}</span>
+      <span class="capability-menu-text">${pinned ? "\u4ece\u5e95\u90e8\u79fb\u9664" : (pinAvailable ? "\u56fa\u5b9a\u5230\u5e95\u90e8" : "\u5e95\u90e8\u5df2\u6ee1")}</span>
+    </button>` : ""}
     <div class="capability-menu-order">
       <button class="capability-menu-order-button" type="button" data-plugin-topic-move="${escapeHtml(def.id)}" data-plugin-topic-move-dir="up">\u524d\u79fb</button>
       <button class="capability-menu-order-button" type="button" data-plugin-topic-move="${escapeHtml(def.id)}" data-plugin-topic-move-dir="down">\u540e\u79fb</button>
@@ -1677,12 +1884,35 @@ function renderCapabilityView(options = {}) {
   if (Number.isFinite(Number(options.restoreScrollTop))) conversation.scrollTop = Math.max(0, Number(options.restoreScrollTop) || 0);
 }
 
+function renderPluginDrawerQuickActionMenu(quickActions = []) {
+  const menuActions = quickActions.map(({ def, action }) => `
+    <button class="capability-menu-item" type="button" data-plugin-topic-action-plugin="${escapeHtml(def.id)}" data-plugin-topic-action-id="${escapeHtml(action.id)}">
+      <span class="capability-menu-glyph" aria-hidden="true">${escapeHtml(action.glyph || def.sourceBadge || "")}</span>
+      <span class="capability-menu-text">${escapeHtml(pluginTopicActionLabel(def, action))}</span>
+    </button>
+  `).join("");
+  return `<div class="capability-action-menu plugin-drawer-action-menu" role="menu" aria-label="\u5e38\u7528\u5feb\u6377\u80fd\u529b" data-plugin-drawer-action-menu hidden>
+    <div class="capability-menu-head plugin-drawer-menu-head">
+      <span class="plugin-drawer-quick-icon" aria-hidden="true">\u5feb</span>
+      <span class="capability-menu-title">\u5e38\u7528</span>
+    </div>
+    ${menuActions || `<div class="capability-menu-empty">\u6682\u65e0\u5e38\u7528\u5feb\u6377\u80fd\u529b</div>`}
+  </div>`;
+}
+
 function renderPluginAppLauncher() {
   const defs = orderedPluginAppDefs(availablePluginTopicDefs());
   if (!defs.length) return "";
-  const fillCount = Math.min(Math.max(defs.length, 1), 4);
+  const quickActions = pluginDrawerFrequentActions(defs, { includeDefaults: true });
+  const cardsCount = defs.length + 1;
+  const fillCount = Math.min(Math.max(cardsCount, 1), 4);
   return `<section class="plugin-app-launcher" aria-label="\u63d2\u4ef6\u5e94\u7528">
-    <div class="plugin-app-strip" role="list" data-plugin-count="${defs.length}" data-plugin-fill-count="${fillCount}">
+    <div class="plugin-app-strip" role="list" data-plugin-count="${defs.length}" data-plugin-fill-count="${fillCount}" data-plugin-drawer-card-count="${cardsCount}">
+      <button class="plugin-app-card plugin-drawer-quick-card" type="button" role="listitem" data-plugin-drawer-quick-actions aria-label="\u6253\u5f00\u5e38\u7528\u5feb\u6377\u80fd\u529b">
+        <span class="plugin-drawer-quick-icon" aria-hidden="true">\u5feb</span>
+        <span class="plugin-app-label">\u5e38\u7528</span>
+      </button>
+      ${renderPluginDrawerQuickActionMenu(quickActions)}
       ${defs.map((def) => `
         <button class="plugin-app-card" type="button" role="listitem" data-plugin-topic-open-app="${escapeHtml(def.id)}" data-plugin-topic-sort-id="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u63d2\u4ef6`)}">
           <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
@@ -1724,6 +1954,32 @@ async function openBuiltInDirectoryTopicList() {
   await loadSelectedView({ forceTaskListReload: true });
 }
 
+function pluginTopicActionOpenRoute(action) {
+  const entry = action?.entry && typeof action.entry === "object" ? action.entry : {};
+  const route = {
+    pluginActionId: String(action?.id || "").trim(),
+    pluginRoute: String(entry.pluginRoute || action?.pluginRoute || action?.route || action?.id || "").trim(),
+    pluginItemId: String(entry.pluginItemId || "").trim(),
+    pluginThreadId: String(entry.pluginThreadId || "").trim(),
+    pluginTaskId: String(entry.pluginTaskId || "").trim(),
+    sourceTurnId: String(entry.sourceTurnId || "").trim(),
+  };
+  return Object.fromEntries(Object.entries(route).filter(([, value]) => value));
+}
+
+function setPluginTopicAppOpenRoute(def, route = {}) {
+  if (!def || def.builtinKind) return false;
+  if (def.id === "wardrobe" && typeof setWardrobePluginOpenRoute === "function") return setWardrobePluginOpenRoute(route);
+  if (def.id === "codex-mobile" && typeof setCodexPluginOpenRoute === "function") return setCodexPluginOpenRoute(route);
+  if (def.id === "finance" && typeof setFinancePluginOpenRoute === "function") return setFinancePluginOpenRoute(route);
+  if (def.id === "email" && typeof setEmailPluginOpenRoute === "function") return setEmailPluginOpenRoute(route);
+  if (def.id === "health" && typeof setHealthPluginOpenRoute === "function") return setHealthPluginOpenRoute(route);
+  if (def.id === "note" && typeof setNotePluginOpenRoute === "function") return setNotePluginOpenRoute(route);
+  if (def.id === "growth" && typeof setGrowthPluginOpenRoute === "function") return setGrowthPluginOpenRoute(route);
+  const embeddedDef = typeof EMBEDDED_PLUGIN_DEFS !== "undefined" ? EMBEDDED_PLUGIN_DEFS[def.id] : null;
+  return Boolean(embeddedDef && typeof setEmbeddedPluginOpenRoute === "function" && setEmbeddedPluginOpenRoute(embeddedDef, route));
+}
+
 async function openPluginTopicApp(pluginId, options = {}) {
   const def = pluginTopicDefById(pluginId);
   if (!def || !pluginTopicNavigationAvailable(def)) return;
@@ -1741,6 +1997,8 @@ async function openPluginTopicApp(pluginId, options = {}) {
   if (def.id === "email" && typeof rememberEmailPluginReturnRoute === "function") rememberEmailPluginReturnRoute();
   if (def.id === "health" && typeof rememberHealthPluginReturnRoute === "function") rememberHealthPluginReturnRoute();
   if (def.id === "note" && typeof rememberNotePluginReturnRoute === "function") rememberNotePluginReturnRoute();
+  if (def.id === "growth" && typeof rememberGrowthPluginReturnRoute === "function") rememberGrowthPluginReturnRoute();
+  setPluginTopicAppOpenRoute(def, options.action ? pluginTopicActionOpenRoute(options.action) : (options.route || {}));
   state.viewMode = def.viewMode;
   localStorage.setItem("hermesWebViewMode", state.viewMode);
   state.currentTaskGroupId = "";
@@ -1840,17 +2098,28 @@ async function runPluginTopicAction(pluginId, actionId) {
   const resolved = pluginTopicActionById(pluginId, actionId);
   if (!resolved) return;
   const { def, action } = resolved;
-  const type = String(action.type || "").trim();
+  const entry = action.entry && typeof action.entry === "object" ? action.entry : {};
+  const type = String(entry.type || action.type || "").trim();
+  const route = String(entry.pluginRoute || action.pluginRoute || action.route || action.id || "").trim();
   recordPluginTopicUsage(def.id, action.id);
-  if (type === "open_topic" || type === "start_chat_with_context" || type === "invoke_mcp_intent") {
+  if (type === "directory_route") {
+    if (route === "topics" || route === "new_topic") {
+      await openBuiltInDirectoryTopicList();
+      if (route === "new_topic" && typeof showPushToast === "function") showPushToast("\u5df2\u6253\u5f00\u6587\u4ef6\u8bdd\u9898\u5217\u8868\uff0c\u53ef\u9009\u62e9\u76ee\u5f55\u540e\u65b0\u5efa\u8bdd\u9898\u3002", "info");
+      return;
+    }
+    await openBuiltInDirectoryPlugin();
+    return;
+  }
+  if (type === "plugin_topic" || type === "open_topic" || type === "start_chat_with_context") {
     await openPluginTopicChat(def.id);
     return;
   }
-  if (type === "open_directory") {
+  if (type === "plugin_delivery" || type === "open_directory") {
     await openPluginTopicDelivery(def.id);
     return;
   }
-  await openPluginTopicApp(def.id, { recordUsage: false });
+  await openPluginTopicApp(def.id, { recordUsage: false, action });
 }
 
 function pluginTopicInstruction(def) {
@@ -2123,6 +2392,14 @@ function wirePluginActionMenuSwipeDismiss(menu) {
 }
 
 function pluginActionMenuForButton(button) {
+  if (button?.dataset?.pluginDrawerQuickActions !== undefined) {
+    const strip = button.closest?.(".plugin-app-strip");
+    return {
+      host: button,
+      scope: strip?.closest(".topic-plugin-dock") || strip?.closest(".plugin-app-launcher") || strip,
+      menu: strip?.querySelector?.("[data-plugin-drawer-action-menu]") || null,
+    };
+  }
   const pluginId = pluginTopicId(button?.dataset?.pluginTopicOpenApp || button?.dataset?.pluginTopicSortId || "");
   const cell = button?.closest?.(".capability-plugin-cell");
   if (cell) {
@@ -2209,7 +2486,7 @@ function openPluginActionMenu(button, event = null) {
 }
 
 function wireCapabilityPluginMenus(root) {
-  root?.querySelectorAll?.(".capability-plugin-icon-button, .plugin-app-card[data-plugin-topic-open-app]").forEach((button) => {
+  root?.querySelectorAll?.(".capability-plugin-icon-button, .plugin-app-card[data-plugin-topic-open-app], .plugin-app-card[data-plugin-drawer-quick-actions]").forEach((button) => {
     if (button.dataset.capabilityMenuBound) return;
     if (!pluginActionMenuForButton(button).menu) return;
     button.dataset.capabilityMenuBound = "1";
@@ -2261,6 +2538,18 @@ function wireCapabilityPluginMenus(root) {
 }
 
 function wirePluginTopicCards(root) {
+  root?.querySelectorAll?.("[data-plugin-drawer-quick-actions]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      if (button.dataset.pluginAppDragMoved === "1") {
+        event.preventDefault();
+        button.dataset.pluginAppDragMoved = "";
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      openPluginActionMenu(button, event);
+    });
+  });
   root?.querySelectorAll?.("[data-plugin-topic-open-app]").forEach((button) => {
     button.addEventListener("click", (event) => {
       if (button.dataset.pluginActionMenuOpened === "1") {
@@ -2296,6 +2585,20 @@ function wirePluginTopicCards(root) {
       if (typeof resetGlobalPluginDockGesture === "function") resetGlobalPluginDockGesture();
       closePluginActionMenus(document);
       movePluginAppOrder(button.dataset.pluginTopicMove, button.dataset.pluginTopicMoveDir || "up");
+    });
+  });
+  root?.querySelectorAll?.("[data-plugin-bottom-tab-toggle]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const pluginId = button.dataset.pluginBottomTabToggle || "";
+      const pinned = button.dataset.pluginBottomTabPinned === "1";
+      const ok = setPluginBottomTabPinned(pluginId, !pinned);
+      closePluginActionMenus(document);
+      if (typeof showPushToast === "function") {
+        if (ok) showPushToast(pinned ? "\u5df2\u4ece\u5e95\u90e8\u79fb\u9664" : "\u5df2\u56fa\u5b9a\u5230\u5e95\u90e8", "success");
+        else showPushToast("\u5e95\u90e8\u6807\u7b7e\u5df2\u6ee1", "warning");
+      }
     });
   });
   root?.querySelectorAll?.(".plugin-topic-launcher [data-plugin-topic-toggle]").forEach((button) => {

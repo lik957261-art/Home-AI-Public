@@ -135,11 +135,11 @@ assert.match(embeddedPluginUi, /function setEmbeddedPluginOpenRoute\(def, route 
 assert.match(embeddedPluginUi, /if \(record\.openRoute\) record\.canGoBack = true;/);
 assert.match(embeddedPluginUi, /function embeddedPluginEntryUrlForFrame\(def, manifest\)/);
 assert.match(embeddedPluginUi, /parsed\.searchParams\.set\("pluginId", def\.id\)/);
-assert.match(embeddedPluginUi, /\["pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"\]\.forEach/);
+assert.match(embeddedPluginUi, /\["pluginActionId", "pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"\]\.forEach/);
 assert.match(wardrobeUi, /function setWardrobePluginOpenRoute\(route = {}\)/);
 assert.match(wardrobeUi, /if \(state\.wardrobePluginOpenRoute\) state\.wardrobePluginCanGoBack = true;/);
 assert.match(wardrobeUi, /function wardrobePluginEntryUrlForFrame\(entryUrl = ""\)/);
-assert.match(wardrobeUi, /\["pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"\]\.forEach/);
+assert.match(wardrobeUi, /\["pluginActionId", "pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"\]\.forEach/);
 assert.match(wardrobeUi, /parsed\.searchParams\.set\("pluginId", "wardrobe"\)/);
 assert.match(wardrobeUi, /const entryUrl = wardrobePluginEntryUrlForFrame\(String\(pluginManifest\.entry\?\.url \|\| ""\)\)/);
 assert.match(embeddedPluginUi, /function captureEmbeddedPluginReturnRoute\(def\)/);

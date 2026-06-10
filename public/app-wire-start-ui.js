@@ -325,23 +325,23 @@ function wireUi() {
     preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
-    state.viewMode = "capabilities";
+    state.viewMode = "tasks";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
     state.currentThread = null;
     state.currentThreadId = "";
-    await loadSelectedView();
+    await loadSelectedView({ skipTaskListWindowRefresh: true });
   });
   $("bottomTodosMode")?.addEventListener("click", async () => {
     preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
-    state.viewMode = "capabilities";
+    state.viewMode = "tasks";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
     state.currentThread = null;
     state.currentThreadId = "";
-    await loadSelectedView();
+    await loadSelectedView({ skipTaskListWindowRefresh: true });
   });
   $("bottomWardrobeMode")?.addEventListener("click", async () => {
     clearQuotedReply({ render: false });

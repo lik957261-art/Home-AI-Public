@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260610-plugin-dock-touch-target-v700";
+const CLIENT_VERSION = "20260611-plugin-drawer-actions-v701";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260610-plugin-dock-touch-target-v700" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260610-plugin-dock-touch-target-v700"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260611-plugin-drawer-actions-v701" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260611-plugin-drawer-actions-v701"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -837,7 +837,7 @@ assert.match(appRouteSnapshotUiJs, /function currentAppRouteSnapshotParams\(\)/)
 assert.match(appRouteSnapshotUiJs, /function restoreAppRouteSnapshotPosition\(\)/);
 assert.match(appRouteSnapshotUiJs, /const pluginContextId = boundedRouteSnapshotValue\(state\.pluginContextNavPluginId \|\| ""\)/);
 assert.match(appRouteSnapshotUiJs, /params\.set\("pluginContextNavPluginId", pluginContextId\)/);
-assert.match(appRouteSnapshotUiJs, /\["pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"\]\.forEach/);
+assert.match(appRouteSnapshotUiJs, /\["pluginActionId", "pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"\]\.forEach/);
 assert.match(appRouteSnapshotUiJs, /function embeddedPluginReturnRouteSnapshotForView\(viewMode = ""\)/);
 assert.match(appRouteSnapshotUiJs, /appendEmbeddedPluginReturnRouteSnapshotParams\(params, embeddedPluginReturnRouteSnapshotForView\(view\)\)/);
 assert.match(appRouteSnapshotUiJs, /function restoreEmbeddedPluginReturnRouteFromSnapshotParams\(params, routeView = ""\)/);
@@ -2028,8 +2028,8 @@ assert.match(appKanbanLearningPanelUiJs, /\\u521d\\u7a3f\\u5df2\\u8fbe\\u6807/);
   assert.match(appJs, /data-learning-session-advance/);
   assert.match(appJs, /data-learning-evaluation-form/);
 assert.doesNotMatch(appJs, /state\.viewMode = "learning"/);
-assert.match(appJs, /\$\("todosMode"\)\.addEventListener\("click"[\s\S]*?state\.viewMode = "capabilities";/);
-assert.match(appJs, /\$\("bottomTodosMode"\)\?\.addEventListener\("click"[\s\S]*?state\.viewMode = "capabilities";/);
+assert.match(appJs, /\$\("todosMode"\)\.addEventListener\("click"[\s\S]*?state\.viewMode = "tasks";/);
+assert.match(appJs, /\$\("bottomTodosMode"\)\?\.addEventListener\("click"[\s\S]*?state\.viewMode = "tasks";/);
 assert.match(appJs, /function resetLearningCoinsState\(\)/);
 assert.match(appJs, /state\.learningCoinScopeKey !== scopeKey/);
 assert.match(appLearningCoinsUiJs, /renderCoinsSubsystem/);
@@ -2342,7 +2342,7 @@ assert.match(stylesCss, /\.learning-guidance-actions \{[\s\S]*?grid-template-col
 assert.match(stylesCss, /\.learning-guidance-actions button \{[\s\S]*?white-space: nowrap;/);
 assert.match(stylesCss, /\.learning-answer-review/);
 assert.ok(appJs.includes("Topic ID"));
-assert.match(indexHtml, /id="bottomTodosMode"[\s\S]*aria-label="能力"/);
+assert.match(indexHtml, /id="bottomTodosMode"[\s\S]*aria-label="能力" hidden aria-hidden="true"/);
 assert.match(indexHtml, /id="bottomTodosMode"[\s\S]*<span class="bottom-tab-label">能力<\/span>/);
 assert.match(indexHtml, /id="bottomLearningMode"[\s\S]*hidden aria-hidden="true"/);
 assert.match(indexHtml, /id="bottomInboxMode"[\s\S]*aria-label="&#20449;&#24687;"/);
@@ -2372,8 +2372,8 @@ assert.match(indexHtml, /id="bottomGrowthMode"[\s\S]*hidden aria-hidden="true"/)
 assert.match(appJs, /let hiddenBottomTabs = new Set\(\[[^\]]*"bottomPluginMode"/);
 assert.match(appJs, /const externalPluginContextNav = Boolean\(pluginContextDef && pluginContextButtonId\)/);
 assert.match(appJs, /const directoryContextNav = state\.viewMode === "projects" && Boolean\(state\.directoryPluginContextActive\)/);
-assert.match(appJs, /if \(externalPluginContextNav\) \{[\s\S]*?hiddenBottomTabs = new Set\(\["automationMode", "bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode"/);
-assert.match(appJs, /else if \(directoryContextNav\) \{[\s\S]*?hiddenBottomTabs = new Set\(\["automationMode", "bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode"/);
+assert.match(appJs, /if \(externalPluginContextNav\) \{[\s\S]*?hiddenBottomTabs = new Set\(\["todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode"/);
+assert.match(appJs, /else if \(directoryContextNav\) \{[\s\S]*?hiddenBottomTabs = new Set\(\["todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode"/);
 assert.match(appJs, /const pluginContextBottomTabs = new Set\(externalPluginContextNav[\s\S]*?\? \["bottomTasksMode", "bottomProjectsMode", pluginContextButtonId\][\s\S]*?: \["bottomTasksMode", "bottomProjectsMode"\]\)/);
 assert.match(appJs, /function setBottomTabHidden\(node, hidden\)/);
 assert.match(appJs, /node\.setAttribute\("aria-hidden", hidden \? "true" : "false"\)/);
@@ -2557,10 +2557,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260610-plugin-dock-touch-target-v700/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260610-plugin-dock-touch-target-v700/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260610-plugin-dock-touch-target-v700/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260610-plugin-dock-touch-target-v700/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260611-plugin-drawer-actions-v701/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260611-plugin-drawer-actions-v701/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260611-plugin-drawer-actions-v701/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260611-plugin-drawer-actions-v701/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2602,7 +2602,8 @@ assert.match(appJs, /const PLUGIN_TOPIC_ORDER_STORAGE_KEY = "hermesPluginTopicOr
 assert.match(appJs, /function recordPluginTopicUsage\(pluginId, actionId = ""\)/);
 assert.match(appJs, /function orderedPluginAppDefs\(defs = \[\]\)/);
 assert.match(appJs, /orderedPluginAppDefs\(availablePluginTopicDefs\(\)\)/);
-assert.match(appJs, /const fillCount = Math\.min\(Math\.max\(defs\.length, 1\), 4\);/);
+assert.match(appJs, /const cardsCount = defs\.length \+ 1;/);
+assert.match(appJs, /const fillCount = Math\.min\(Math\.max\(cardsCount, 1\), 4\);/);
 assert.match(appJs, /const PLUGIN_APP_REORDER_HOLD_MS = 450;/);
 assert.match(appJs, /const PLUGIN_APP_REORDER_CANCEL_PX = 10;/);
 assert.match(appJs, /const GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO = 1\.45;/);
@@ -2618,15 +2619,20 @@ assert.match(appJs, /persistPluginAppOrderFromStrip\(drag\.strip\)/);
 assert.doesNotMatch(appJs, /function sortPluginAppDefsByUsage\(defs = \[\]\)/);
 assert.doesNotMatch(appJs, /const aLast = Number\(aUsage\.lastUsedAt\)/);
 assert.match(appJs, /const CAPABILITY_QUICK_ACTION_LIMIT = 9;/);
+assert.match(appJs, /const PLUGIN_DRAWER_QUICK_ACTION_LIMIT = 6;/);
+assert.match(appJs, /const PLUGIN_BOTTOM_TABS_STORAGE_KEY = "hermesPinnedPluginBottomTabs";/);
 assert.match(appJs, /sourceBadge: "\\u8863"/);
-assert.match(appJs, /quickActions: Object\.freeze\(\[/);
-assert.match(appJs, /Object\.freeze\(\{ id: "style", label: "\\u914d\\u8863\\u670d", type: "open_topic"/);
-assert.match(appJs, /Object\.freeze\(\{ id: "record", label: "\\u8bb0\\u4e00\\u7b14", type: "open_plugin"/);
+assert.match(appJs, /actions: Object\.freeze\(\[/);
+assert.match(appJs, /pluginRouteAction\("style", "\\u914d\\u8863\\u670d", "style"/);
+assert.match(appJs, /pluginRouteAction\("record", "\\u8bb0\\u4e00\\u7b14", "record"/);
 assert.match(appJs, /function capabilityHubQuickActions\(defs = \[\], options = \{\}\)/);
+assert.match(appJs, /function pluginDrawerFrequentActions\(defs = \[\], options = \{\}\)/);
 assert.match(appJs, /function pluginTopicActionUsageKey\(pluginId = "", actionId = ""\)/);
 assert.match(appJs, /function pluginTopicActionUsageEntry\(usage, pluginId = "", actionId = ""\)/);
 assert.match(appJs, /recordPluginTopicUsage\(def\.id, action\.id\)/);
 assert.match(appJs, /const includeDefaults = options\.includeDefaults === true;/);
+assert.match(appJs, /const placement = String\(options\.placement \|\| "plugin_drawer_frequent"\)/);
+assert.match(appJs, /const includePluginLaunches = options\.includePluginLaunches !== false;/);
 assert.match(appJs, /if \(!count && !includeDefaults\) return;/);
 assert.doesNotMatch(appJs, /const preferred = \[/);
 assert.match(appJs, /function renderCapabilityEntryHub\(options = \{\}\)/);
@@ -2643,8 +2649,11 @@ assert.doesNotMatch(capabilityHubBody, /capability-hub-title|<h2>\\u80fd\\u529b<
 assert.doesNotMatch(capabilityHubBody, /<h3>\\u5e38\\u7528<\/h3>|aria-label="\\u5e38\\u7528\\u80fd\\u529b"/);
 assert.match(appJs, /function renderCapabilityActionMenu\(def\)/);
 assert.match(appJs, /class="capability-action-menu"/);
+assert.match(appJs, /data-plugin-bottom-tab-toggle/);
+assert.match(appJs, /function syncPinnedPluginBottomTabs\(pluginContextNav = false\)/);
+assert.match(appJs, /function setPluginBottomTabPinned\(pluginId = "", pinned = true\)/);
 assert.match(appJs, /function runPluginTopicAction\(pluginId, actionId\)/);
-assert.match(appJs, /type === "open_topic" \|\| type === "start_chat_with_context" \|\| type === "invoke_mcp_intent"/);
+assert.match(appJs, /type === "plugin_topic" \|\| type === "open_topic" \|\| type === "start_chat_with_context"/);
 assert.match(appJs, /function openPluginActionMenu\(button, event = null\)/);
 assert.match(appJs, /function wireCapabilityPluginMenus\(root\)/);
 assert.match(appJs, /function pluginActionMenuForButton\(button\)/);
@@ -2675,7 +2684,9 @@ assert.match(appJs, /function movePluginAppOrder\(pluginId = "", direction = "up
 assert.doesNotMatch((appJs.match(/function movePluginAppOrder\(pluginId = "", direction = "up"\) \{[\s\S]*?\n\}\n\nfunction refreshPluginAppOrderSurfaces/) || [""])[0], /renderCurrentThread/);
 assert.match(appJs, /button\.addEventListener\("click", \(event\) => \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?event\.stopPropagation\(\);[\s\S]*?closePluginActionMenus\(document\);[\s\S]*?movePluginAppOrder/);
 assert.match(appJs, /<section class="plugin-app-launcher"/);
-assert.match(appJs, /class="plugin-app-strip" role="list" data-plugin-count="\$\{defs\.length\}" data-plugin-fill-count="\$\{fillCount\}"/);
+assert.match(appJs, /class="plugin-app-strip" role="list" data-plugin-count="\$\{defs\.length\}" data-plugin-fill-count="\$\{fillCount\}" data-plugin-drawer-card-count="\$\{cardsCount\}"/);
+assert.match(appJs, /data-plugin-drawer-quick-actions/);
+assert.match(appJs, /function renderPluginDrawerQuickActionMenu\(quickActions = \[\]\)/);
 assert.match(appJs, /class="plugin-app-card"[\s\S]*?data-plugin-topic-open-app[\s\S]*?data-plugin-topic-sort-id/);
 const pluginAppLauncherBody = (appJs.match(/function renderPluginAppLauncher\(\)[\s\S]*?async function openBuiltInDirectoryPlugin\(\)/) || [""])[0];
 assert.match(pluginAppLauncherBody, /orderedPluginAppDefs\(availablePluginTopicDefs\(\)\)/);
@@ -3051,7 +3062,7 @@ assert.ok(
   serviceWorkerJs.indexOf("messageType === \"plugin_notification\" || pluginId") < serviceWorkerJs.indexOf("if (data.inboxItemId)"),
   "plugin openMode=plugin notifications should preserve plugin route metadata before generic Inbox routing",
 );
-assert.match(serviceWorkerJs, /\["pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId", "messageId"\]\.forEach/);
+assert.match(serviceWorkerJs, /\["pluginActionId", "pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId", "messageId"\]\.forEach/);
 assert.match(serviceWorkerJs, /params\.set\("returnTo", String\(data\.returnTo \|\| "inbox"\)\)/);
 assert.match(serviceWorkerJs, /params\.set\("sourceInboxItemId", sourceInboxItemId\)/);
 assert.ok(

@@ -270,7 +270,7 @@ async function bootstrap() {
 function normalizedRouteView(value, fallback = "") {
   const view = String(value || "").trim().toLowerCase();
   if (view === "inbox" || view === "action-inbox" || view === "actions") return "inbox";
-  if (view === "capability" || view === "capabilities" || view === "ability" || view === "abilities") return "capabilities";
+  if (view === "capability" || view === "capabilities" || view === "ability" || view === "abilities") return "tasks";
   if (view === "automation" || view === "automations" || view === "cron") return "automation";
   if (view === "learning" || view === "coins" || view === "rewards" || view === "redeem") return "learning";
   if (view === "wardrobe" || view === "closet" || view === "outfit") return "wardrobe";
@@ -280,7 +280,7 @@ function normalizedRouteView(value, fallback = "") {
   if (view === "health") return "health";
   if (view === "note" || view === "notes") return "note";
   if (view === "growth" || view === "education") return "growth";
-  if (view === "todo" || view === "todos") return "capabilities";
+  if (view === "todo" || view === "todos") return "tasks";
   if (view === "directory" || view === "directories" || view === "projects") return "projects";
   if (view === "task" || view === "tasks") return "tasks";
   if (view === "single" || view === "stream") return "single";
@@ -659,6 +659,7 @@ function applyRouteParams(params) {
   }
   if (routeView === "codex" && typeof setCodexPluginOpenRoute === "function") {
     setCodexPluginOpenRoute({
+      pluginActionId: params.get("pluginActionId") || params.get("actionId") || "",
       pluginRoute: params.get("pluginRoute") || params.get("route") || "",
       pluginItemId: params.get("pluginItemId") || params.get("itemId") || "",
       pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",
@@ -668,6 +669,7 @@ function applyRouteParams(params) {
   }
   if (routeView === "wardrobe" && typeof setWardrobePluginOpenRoute === "function") {
     setWardrobePluginOpenRoute({
+      pluginActionId: params.get("pluginActionId") || params.get("actionId") || "",
       pluginRoute: params.get("pluginRoute") || params.get("route") || "",
       pluginItemId: params.get("pluginItemId") || params.get("itemId") || "",
       pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",
@@ -677,6 +679,7 @@ function applyRouteParams(params) {
   }
   if (routeView === "finance" && typeof setFinancePluginOpenRoute === "function") {
     setFinancePluginOpenRoute({
+      pluginActionId: params.get("pluginActionId") || params.get("actionId") || "",
       pluginRoute: params.get("pluginRoute") || params.get("route") || "",
       pluginItemId: params.get("pluginItemId") || params.get("itemId") || "",
       pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",
@@ -686,6 +689,7 @@ function applyRouteParams(params) {
   }
   if (routeView === "email" && typeof setEmailPluginOpenRoute === "function") {
     setEmailPluginOpenRoute({
+      pluginActionId: params.get("pluginActionId") || params.get("actionId") || "",
       pluginRoute: params.get("pluginRoute") || params.get("route") || "",
       pluginItemId: params.get("pluginItemId") || params.get("itemId") || "",
       pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",
@@ -695,6 +699,7 @@ function applyRouteParams(params) {
   }
   if (routeView === "health" && typeof setHealthPluginOpenRoute === "function") {
     setHealthPluginOpenRoute({
+      pluginActionId: params.get("pluginActionId") || params.get("actionId") || "",
       pluginRoute: params.get("pluginRoute") || params.get("route") || "",
       pluginItemId: params.get("pluginItemId") || params.get("itemId") || "",
       pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",
@@ -704,6 +709,7 @@ function applyRouteParams(params) {
   }
   if (routeView === "note" && typeof setNotePluginOpenRoute === "function") {
     setNotePluginOpenRoute({
+      pluginActionId: params.get("pluginActionId") || params.get("actionId") || "",
       pluginRoute: params.get("pluginRoute") || params.get("route") || "",
       pluginItemId: params.get("pluginItemId") || params.get("itemId") || "",
       pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",
@@ -713,6 +719,7 @@ function applyRouteParams(params) {
   }
   if (routeView === "growth" && typeof setGrowthPluginOpenRoute === "function") {
     setGrowthPluginOpenRoute({
+      pluginActionId: params.get("pluginActionId") || params.get("actionId") || "",
       pluginRoute: params.get("pluginRoute") || params.get("route") || (legacyGrowthTaskRoute ? "card" : ""),
       pluginItemId: params.get("pluginItemId") || params.get("itemId") || (legacyGrowthTaskRoute ? taskCardId : ""),
       pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",

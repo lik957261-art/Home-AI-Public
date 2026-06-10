@@ -961,6 +961,49 @@ function frameAncestorsAllows(csp = "", appOrigin = "", entryOrigin = "") {
   });
 }
 
+function normalizeManifestActionEntry(raw = {}, fallbackRoute = "") {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const type = stringValue(source.type || "plugin_route");
+  const pluginRoute = stringValue(source.pluginRoute || source.plugin_route || source.route || fallbackRoute);
+  const pluginItemId = stringValue(source.pluginItemId || source.plugin_item_id || source.itemId || source.item_id);
+  const pluginThreadId = stringValue(source.pluginThreadId || source.plugin_thread_id || source.threadId || source.thread_id);
+  const pluginTaskId = stringValue(source.pluginTaskId || source.plugin_task_id || source.taskId || source.task_id);
+  const sourceTurnId = stringValue(source.sourceTurnId || source.source_turn_id || source.turnId || source.turn_id);
+  return Object.fromEntries(Object.entries({
+    type,
+    pluginRoute,
+    pluginItemId,
+    pluginThreadId,
+    pluginTaskId,
+    sourceTurnId,
+  }).filter(([, value]) => value));
+}
+
+function normalizeManifestActions(value = []) {
+  const actions = Array.isArray(value) ? value : [];
+  return actions
+    .map((action, index) => {
+      if (!action || typeof action !== "object") return null;
+      const id = stringValue(action.id).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+      const label = stringValue(action.label);
+      if (!id || !label) return null;
+      const rawEntry = action.entry && typeof action.entry === "object" ? action.entry : {};
+      const placement = Array.isArray(action.placement)
+        ? action.placement.map(stringValue).filter(Boolean)
+        : ["plugin_drawer_frequent", "dock_long_press", "search"];
+      const priority = Number.isFinite(Number(action.priority)) ? Number(action.priority) : index + 1;
+      return {
+        id,
+        label,
+        description: stringValue(action.description),
+        placement,
+        priority,
+        entry: normalizeManifestActionEntry(rawEntry, id),
+      };
+    })
+    .filter(Boolean);
+}
+
 function normalizeManifest(raw = {}, source = {}) {
   const manifestUrl = stringValue(source.manifestUrl);
   const id = stringValue(raw.id || source.id);
@@ -1074,6 +1117,7 @@ function normalizeManifest(raw = {}, source = {}) {
         ? raw.permissions.owner_token_scopes.map(stringValue).filter(Boolean)
         : [],
     },
+    actions: normalizeManifestActions(raw.actions || raw.quick_actions || raw.quickActions),
   };
 }
 

@@ -162,7 +162,7 @@ function currentAppRouteSnapshotParams() {
     appendEmbeddedPluginReturnRouteSnapshotParams(params, embeddedPluginReturnRouteSnapshotForView(view));
     const route = pluginRouteSnapshotForView(view);
     if (route && typeof route === "object") {
-      ["pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"].forEach((key) => {
+      ["pluginActionId", "pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"].forEach((key) => {
         const text = boundedRouteSnapshotValue(route[key] || "");
         if (text) params.set(key, text);
       });
@@ -211,6 +211,7 @@ function routeParamsHaveExplicitLaunchTarget(params) {
     "taskGroupId",
     "taskId",
     "messageId",
+    "pluginActionId",
     "pluginRoute",
     "pluginItemId",
     "pluginThreadId",

@@ -202,7 +202,7 @@ function wardrobePluginEntryOrigin(manifest = currentWardrobePluginManifest()) {
 function normalizeWardrobePluginOpenRoute(route = {}) {
   const value = route && typeof route === "object" ? route : {};
   const out = {};
-  ["pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"].forEach((key) => {
+  ["pluginActionId", "pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"].forEach((key) => {
     const text = String(value[key] || "").trim().slice(0, 180);
     if (text) out[key] = text;
   });

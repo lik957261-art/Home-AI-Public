@@ -1,7 +1,7 @@
 # Plugin Workspace Contract Rollout Status
 
-Last updated: 2026-06-10.
-Home AI platform contract version: `20260609-v2`.
+Last updated: 2026-06-11.
+Home AI platform contract version: `20260611-v3`.
 
 ## Scope
 
@@ -79,6 +79,12 @@ the main composer scenario:
 ```powershell
 npm run ios:pwa:visual -- --scenario embedded-plugin-keyboard-composer --plugin-id <plugin-id> --plugin-thread-id <thread-id> --debug-url http://127.0.0.1:19073/
 ```
+
+The checker now also requires `plugin_manifest_actions_status`. Standard
+plugins should declare whether their manifest `actions` are available for the
+Home AI Dock `常用` menu, plugin long-press/context menus, and search. Codex
+Mobile Web is marked as a Home AI embedded special plugin and must not declare
+ordinary user quick actions.
 
 ```powershell
 npm run ios:pwa:visual -- --scenario embedded-plugin-side-chat-keyboard --plugin-id codex-mobile --plugin-thread-id <thread-id> --debug-url http://127.0.0.1:19073/
