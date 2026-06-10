@@ -182,7 +182,12 @@ Current development status:
 
 - The plugin has a bounded event normalization service for the event names
   above plus `growth.board_snapshot_imported` for migration staging.
-- Event delivery back to Home AI is not yet wired.
+- The plugin now persists events in a local outbox and can deliver them to
+  Home AI's standard `POST /api/hermes-plugins/growth/notifications` endpoint
+  when Home AI API base URL and access key config are present.
+- The event API is `POST /api/v1/growth/events` with the Growth registration
+  bearer. Event payloads are mapped to summary-only plugin notification
+  payloads so Home AI remains responsible for Action Inbox and Web Push.
 
 ### 7. Growth MCP Toolset
 
