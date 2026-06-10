@@ -193,8 +193,13 @@ async function testEnsureLaunchdSyncsHealthBindingAndRendersMcpConfig() {
     fs.mkdirSync(`${root}/data/drive/users/xulu/.hermes-health`, { recursive: true });
     fs.writeFileSync(`${root}/data/drive/users/xulu/.hermes-health/access-key.txt`, "health-key\n", "utf8");
     fs.writeFileSync(`${root}/data/drive/users/xulu/.hermes-health/config.json`, "{\"workspace_id\":\"health:xulu\"}\n", "utf8");
+    fs.mkdirSync(`${root}/data/drive/users/xulu/.hermes-growth`, { recursive: true });
+    fs.writeFileSync(`${root}/data/drive/users/xulu/.hermes-growth/access-key.txt`, "growth-key\n", "utf8");
+    fs.writeFileSync(`${root}/data/drive/users/xulu/.hermes-growth/config.json`, "{\"workspace_id\":\"growth:xulu\"}\n", "utf8");
     fs.mkdirSync(`${root}/gateway-worker/health-mcp/scripts`, { recursive: true });
     fs.writeFileSync(`${root}/gateway-worker/health-mcp/scripts/mcp-health-wrapper.js`, "module.exports = {};\n", "utf8");
+    fs.mkdirSync(`${root}/gateway-worker/growth-mcp/scripts`, { recursive: true });
+    fs.writeFileSync(`${root}/gateway-worker/growth-mcp/scripts/growth-mcp-wrapper.js`, "module.exports = {};\n", "utf8");
     const service = createWorkspaceSystemProvisioningExecutorService({
       forceEnabled: true,
       fs,
@@ -208,13 +213,18 @@ async function testEnsureLaunchdSyncsHealthBindingAndRendersMcpConfig() {
     const result = await service.runStep("ensure_launchd_services", context);
 
     assert.equal(result.ok, true);
-    assert.deepEqual(result.syncedPluginBindings, ["health"]);
+    assert.deepEqual(result.syncedPluginBindings, ["health", "growth"]);
     assert.equal(fs.existsSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-health/access-key.txt`), true);
     assert.equal(fs.existsSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-health/config.json`), true);
+    assert.equal(fs.existsSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-growth/access-key.txt`), true);
+    assert.equal(fs.existsSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-growth/config.json`), true);
     const config = fs.readFileSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/config.yaml`, "utf8");
     assert.match(config, /  - health/);
+    assert.match(config, /  - growth/);
     assert.match(config, /mcp_servers:\n[\s\S]*  health:/);
+    assert.match(config, /mcp_servers:\n[\s\S]*  growth:/);
     assert.match(config, new RegExp(`${root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/gateway-worker\\/health-mcp\\/scripts\\/mcp-health-wrapper\\.js`));
+    assert.match(config, new RegExp(`${root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\/gateway-worker\\/growth-mcp\\/scripts\\/growth-mcp-wrapper\\.js`));
     assert.match(config, /--workspace\n\s+- .*HermesWorkspace/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

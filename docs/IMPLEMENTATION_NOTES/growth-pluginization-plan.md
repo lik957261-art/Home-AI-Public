@@ -214,10 +214,15 @@ Current development status:
 - The plugin exposes `GET /api/v1/growth/mcp/schemas` with read-only schemas
   for `growth.get_status`, `growth.get_board`, `growth.list_cards`, and
   `growth.get_card`.
-- The plugin exposes `POST /api/v1/growth/mcp/execute` with the Growth
-  registration bearer for read-only bounded execution of those tools.
-- Gateway MCP wrapper/callable registration is still pending; final model
-  callables must use a single `mcp_growth_*` prefix.
+- The plugin exposes `POST /api/v1/growth/mcp/execute` with the
+  workspace-local `.hermes-growth/access-key.txt` bearer for read-only bounded
+  execution of those tools.
+- The plugin includes `scripts/growth-mcp-wrapper.js`, a workspace-bound stdio
+  wrapper that reads `.hermes-growth/config.json`, rejects model-provided
+  workspace overrides, strips `workspace_id` from Gateway-facing tool schemas,
+  and injects the bound workspace id into plugin HTTP execute calls.
+- Gateway profile/callable registration is still pending; final model callables
+  must use a single `mcp_growth_*` prefix.
 
 ## Development Visual Harness Notes
 

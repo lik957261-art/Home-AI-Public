@@ -34,6 +34,7 @@ const WORKSPACE_PLUGIN_BINDINGS = Object.freeze([
   { id: "finance", dir: ".hermes-finance", required: ["access-key.txt", "config.json"] },
   { id: "note", dir: ".hermes-note", required: ["access-key.txt", "config.json"] },
   { id: "health", dir: ".hermes-health", required: ["access-key.txt", "config.json"] },
+  { id: "growth", dir: ".hermes-growth", required: ["access-key.txt", "config.json"] },
   { id: "email", dir: ".hermes-email", required: ["access-key.txt", "config.json"] },
 ]);
 const ALLOWED_ACTIONS = new Set([
@@ -561,6 +562,13 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
         health_mcp_path: path.posix.join(fields.root, "gateway-worker", "health-mcp", "scripts", "mcp-health-wrapper.js"),
         health_workspace: workspaceRoot,
         health_mcp_api_base_url: "http://127.0.0.1:4877",
+      });
+      if (binding.id === "growth" && fileExists(path.posix.join(fields.root, "gateway-worker", "growth-mcp", "scripts", "growth-mcp-wrapper.js"))) Object.assign(pluginValues, {
+        growth_enabled: "1",
+        growth_mcp_command: nodeCommand,
+        growth_mcp_path: path.posix.join(fields.root, "gateway-worker", "growth-mcp", "scripts", "growth-mcp-wrapper.js"),
+        growth_workspace: workspaceRoot,
+        growth_mcp_api_base_url: "http://127.0.0.1:4881",
       });
       if (binding.id === "email" && fileExists(path.posix.join(fields.root, "gateway-worker", "email-mcp", "scripts", "email-mcp-wrapper.py"))) Object.assign(pluginValues, {
         email_enabled: "1",

@@ -793,7 +793,7 @@ workspace-local isolation pattern as the default host contract:
   silently reuse Owner's plugin identity for a non-Owner workspace.
 - Hermes Mobile writes a plugin-local directory under the target user's drive,
   for example `.hermes-wardrobe`, `.hermes-finance`, `.hermes-email`,
-  `.hermes-health`, or `.hermes-note`.
+  `.hermes-health`, `.hermes-growth`, or `.hermes-note`.
 - `config.json` in that directory contains only non-secret metadata such as
   API base URL, plugin workspace id, Hermes workspace id, display name, cache
   directories, scopes, and the relative key-file name.
@@ -819,6 +819,10 @@ workspace-local isolation pattern as the default host contract:
   Gateway profiles must launch it with `--gateway-tool-names` so it exposes
   local names such as `records_get_summary` and the final callable remains
   `mcp_health_records_get_summary`.
+- Growth uses the same single-prefix Gateway pattern through
+  `growth-mcp-wrapper.js`: the wrapper exposes local names such as
+  `list_cards` and `get_card`, while model-facing callables become
+  `mcp_growth_list_cards` and `mcp_growth_get_card`.
 - The Gateway profile registers that plugin MCP with `--workspace` or an
   equivalent fixed workspace-root argument pointing to the target Hermes
   workspace. It must also disable runtime workspace override, for example

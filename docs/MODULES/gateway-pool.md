@@ -1245,8 +1245,8 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
 - Workspace-private plugin MCP runtimes must follow the same profile-bound
   isolation model. Each MCP-capable plugin gets a workspace-local config/key
   directory such as `.hermes-wardrobe`, `.hermes-finance`, `.hermes-email`,
-  `.hermes-health`, or `.hermes-note`; the MCP wrapper reads that directory and attaches the
-  plugin workspace key internally.
+  `.hermes-health`, `.hermes-growth`, or `.hermes-note`; the MCP wrapper reads
+  that directory and attaches the plugin workspace key internally.
 - Gateway profile config must expose the plugin toolset in both `toolsets` and
   `platform_toolsets.api_server`, and must add a matching `mcp_servers.<id>`
   block only when the effective Hermes workspace has a valid plugin config/key
@@ -1374,6 +1374,24 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   Gateway exposure; onboarding or a focused provisioning repair must mirror the
   complete binding into `/Users/<hm-user>/HermesWorkspace/.hermes-health`
   before the worker profile is rendered or restarted.
+- Growth MCP follows the same workspace-bound rule with `.hermes-growth`.
+  Gateway profile generation must require both `.hermes-growth/config.json` and
+  `.hermes-growth/access-key.txt` in the effective workspace root before
+  exposing `growth` in `toolsets`, `platform_toolsets.api_server`, or
+  `mcp_servers.growth`. The Growth wrapper is Node-based; launch it with
+  `node`, `growth-mcp-wrapper.js`, `--workspace <target-user-root>`,
+  `--no-workspace-override`, and the deployment-specific `--api-base-url`.
+  The wrapper strips `workspace_id` from Gateway-facing schemas, rejects
+  model-provided workspace overrides, and injects the bound workspace id into
+  the Growth plugin HTTP execute endpoint. Valid schema evidence is a
+  selected-profile callable such as `mcp_growth_list_cards` or
+  `mcp_growth_get_card`; double-prefixed callables or an Owner-bound Growth
+  wrapper in a non-Owner workspace are profile/provisioning failures, not model
+  issues. On macOS, `data/drive/users/<workspaceId>/.hermes-growth` alone is
+  not sufficient for Gateway exposure; onboarding or a focused provisioning
+  repair must mirror the complete binding into
+  `/Users/<hm-user>/HermesWorkspace/.hermes-growth` before the worker profile
+  is rendered or restarted.
 - The generator script in the source repo is the durable source of truth. Do not rely on one-off edits to live `telemetry/profiles/<profile>/config.yaml`: a later Gateway Pool reconfigure/restart rewrites those files from `scripts/configure-low-gateways.sh` and will silently drop Wardrobe MCP registration if the source script no longer contains the wardrobe block.
 - Targeted starts such as `-StartProfiles lowgw13,lowgw14 -ForceConfigure`
   must pass `HERMES_GATEWAY_START_PROFILES` through to

@@ -170,6 +170,11 @@ function testRenderProfileConfigYaml() {
         health_mcp_path: "/mnt/c/ProgramData/HermesMobile/gateway-worker/health-mcp/scripts/mcp-health-wrapper.js",
         health_workspace: "/mnt/c/ProgramData/HermesMobile/data/drive/users/owner",
         health_mcp_api_base_url: "http://172.27.192.1:4877",
+        growth_enabled: "1",
+        growth_mcp_command: "node",
+        growth_mcp_path: "/mnt/c/ProgramData/HermesMobile/gateway-worker/growth-mcp/scripts/growth-mcp-wrapper.js",
+        growth_workspace: "/mnt/c/ProgramData/HermesMobile/data/drive/users/owner",
+        growth_mcp_api_base_url: "http://127.0.0.1:4881",
         email_enabled: "1",
         email_mcp_python: "/opt/hermes-gateway-runtime/venv/bin/python",
         email_mcp_path: "/mnt/c/ProgramData/HermesMobile/gateway-worker/email-mcp/scripts/email-mcp-wrapper.py",
@@ -190,11 +195,12 @@ function testRenderProfileConfigYaml() {
       "hermes-mobile-weather",
       "hermes-mobile-web",
     ]);
-    assert.deepEqual(capabilities.mcpServers, ["email", "finance", "health", "note", "outlook_graph", "wardrobe"]);
+    assert.deepEqual(capabilities.mcpServers, ["email", "finance", "growth", "health", "note", "outlook_graph", "wardrobe"]);
     assert.equal(capabilities.toolsets.includes("wardrobe"), true);
     assert.equal(capabilities.toolsets.includes("finance"), true);
     assert.equal(capabilities.toolsets.includes("note"), true);
     assert.equal(capabilities.toolsets.includes("health"), true);
+    assert.equal(capabilities.toolsets.includes("growth"), true);
     assert.equal(capabilities.toolsets.includes("email"), true);
     assert.equal(capabilities.toolsets.includes("outlook_graph"), true);
     assert.equal(yaml.includes("port: 18760"), true);
@@ -267,6 +273,11 @@ function testRenderMaintenanceConfigYaml() {
         health_mcp_path: "/mnt/c/health.js",
         health_workspace: "/mnt/c/owner",
         health_mcp_api_base_url: "http://172.27.192.1:4877",
+        growth_enabled: "1",
+        growth_mcp_command: "node",
+        growth_mcp_path: "/mnt/c/growth.js",
+        growth_workspace: "/mnt/c/owner",
+        growth_mcp_api_base_url: "http://127.0.0.1:4881",
         email_enabled: "1",
         email_mcp_python: "/opt/hermes-gateway-runtime/venv/bin/python",
         email_mcp_path: "/mnt/c/email.py",
@@ -275,11 +286,11 @@ function testRenderMaintenanceConfigYaml() {
       },
     }));
     assert.equal(official.modelProvider, "openai-codex");
-    for (const toolset of ["web", "file", "skills", "wardrobe", "finance", "note", "health", "email", "weather", "http", "cronjob_mobile", "chatgpt_pro", "hermes-cli"]) {
+    for (const toolset of ["web", "file", "skills", "wardrobe", "finance", "note", "health", "growth", "email", "weather", "http", "cronjob_mobile", "chatgpt_pro", "hermes-cli"]) {
       assert.equal(official.toolsets.includes(toolset), true, `missing maintenance toolset ${toolset}`);
       assert.equal(official.apiServerToolsets.includes(toolset), true, `missing maintenance api toolset ${toolset}`);
     }
-    assert.deepEqual(official.mcpServers, ["email", "finance", "health", "note", "wardrobe"]);
+    assert.deepEqual(official.mcpServers, ["email", "finance", "growth", "health", "note", "wardrobe"]);
     assert.equal(official.plugins.includes("hermes-mobile-chatgpt-pro"), true);
     assert.equal(official.plugins.includes("hermes-mobile-web"), true);
 
