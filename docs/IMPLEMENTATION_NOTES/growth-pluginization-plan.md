@@ -211,9 +211,13 @@ Acceptance:
 
 Current development status:
 
-- The plugin exposes `GET /api/v1/growth/mcp/schemas` with read-only schema
-  scaffolds for status and board reads.
-- Gateway MCP wrapper/callable registration is still pending.
+- The plugin exposes `GET /api/v1/growth/mcp/schemas` with read-only schemas
+  for `growth.get_status`, `growth.get_board`, `growth.list_cards`, and
+  `growth.get_card`.
+- The plugin exposes `POST /api/v1/growth/mcp/execute` with the Growth
+  registration bearer for read-only bounded execution of those tools.
+- Gateway MCP wrapper/callable registration is still pending; final model
+  callables must use a single `mcp_growth_*` prefix.
 
 ## Development Visual Harness Notes
 
