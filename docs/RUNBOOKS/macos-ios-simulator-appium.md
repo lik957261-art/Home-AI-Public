@@ -42,11 +42,14 @@ On the Mac:
 bash "$HOME/.homeai-qa/scripts/macos-ios-appium-start.sh"
 ```
 
-The server binds to `127.0.0.1` and uses `--log-level warn`. Do not run Appium
-with verbose or info logging when a future script might type an Access Key,
-because verbose WebDriver logs can include request bodies.
+The server binds to `127.0.0.1`, uses `--log-level warn`, starts in the
+background, ignores terminal `SIGHUP`/`SIGINT`, and replaces stale Appium
+sessions. Do not run Appium with verbose or info logging when a future script
+might type an Access Key, because verbose WebDriver logs can include request
+bodies.
 
-If the live visual harness reports `appium_timeout`, `/contexts` timeout, or
+If the live visual harness reports `appium_timeout`, `/contexts` timeout,
+`webview_context_missing`, `Unexpected EOF`, `socket hang up`, or
 `fetch failed`, check the stack by layer before rebooting the Simulator:
 
 ```bash
@@ -67,10 +70,12 @@ Recovery order:
 4. Only if Appium reset fails while WDA `8101` is also unhealthy should the
    WDA runner or Simulator lane be restarted.
 
-The Appium start script intentionally starts the background server with SIGINT
-ignored. This prevents Ctrl-C in a live-debug terminal from killing Appium
-while leaving WDA alive, which otherwise causes later harness runs to fail at
-the WebView attach layer.
+The Appium start script intentionally starts the background server with
+terminal `SIGHUP`/`SIGINT` ignored. This prevents terminal close or Ctrl-C in a
+live-debug terminal from killing Appium while leaving WDA alive, which
+otherwise causes later harness runs to fail at the WebView attach layer.
+Plugin teams should not copy the underlying Appium command; call the central
+script so future recovery changes apply to all plugin lanes.
 
 ## Minimal Smoke
 
@@ -179,15 +184,31 @@ npm run ios:pwa:visual -- \
 ```
 
 When validating a development build instead of production, open that build
-through the harness:
+through the harness. For Home AI dev servers, do not assume
+`127.0.0.1:<home-ai-port>` inside the iOS Simulator reaches the Mac host. Bind
+Home AI to a non-loopback interface and use the Mac LAN URL:
+
+```bash
+HERMES_WEB_HOST=0.0.0.0 npm start
+```
 
 ```bash
 npm run ios:pwa:visual -- \
-  --app-url http://127.0.0.1:18797/?source=pwa \
+  --app-url http://<mac-lan-ip>:18797/?source=pwa \
   --scenario embedded-plugin-shell \
   --plugin-id finance \
   --debug-url http://127.0.0.1:19073/
 ```
+
+Plugin services can stay loopback-bound when Home AI reaches them server-side
+through the plugin manifest/proxy. Do not expose plugin service ports to the
+LAN only for Simulator visual checks.
+
+For embedded plugin shell checks, the harness may reuse an already-open shell,
+skip unrelated host bottom-nav pre-sampling, and retry or segment deep
+measurement after recoverable WebKit `Unexpected EOF` errors. The final report
+must still include shell/frame bounds, overflow assertions, client version, and
+screenshot evidence.
 
 Source and contract coverage for this harness is in
 `scripts/ios-pwa-visual-harness.js` and

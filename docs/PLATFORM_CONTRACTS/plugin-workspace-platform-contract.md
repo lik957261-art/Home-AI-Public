@@ -439,8 +439,12 @@ visual evidence. The required level depends on the surface:
 
   Plugin teams must not start foreground `appium server` processes for shared
   lanes. The central Appium start script intentionally keeps the background
-  Appium process alive across terminal Ctrl-C, preventing a half-online lane in
-  which WDA still responds but Appium/WebView operations time out.
+  Appium process alive across terminal Ctrl-C and uses session override
+  behavior, preventing a half-online lane in which WDA still responds but
+  Appium/WebView operations time out. If the central script is updated, plugin
+  teams must consume that script instead of copying an older Appium command.
+  The shared script is responsible for backgrounding, ignoring terminal
+  `SIGHUP`/`SIGINT`, and replacing stale XCUITest sessions.
 
 - Final bounded visual evidence should use the checked visual harness:
 
@@ -485,9 +489,34 @@ visual evidence. The required level depends on the surface:
   `keyboard.simulated=true`; this remains a layout gate, while a real keyboard
   artifact can still be required for final installed-PWA/device acceptance.
 
-  Use `--app-url http://127.0.0.1:18797/?source=pwa` when validating a local
-  Home AI development server instead of production. Host-owned scenarios such
-  as Directory dark loading use
+  When validating a local Home AI development server from the iOS Simulator,
+  do not assume `127.0.0.1:<home-ai-port>` points to the Mac host. Start Home
+  AI with a non-loopback bind, then pass the Mac LAN URL to the harness:
+
+  ```bash
+  HERMES_WEB_HOST=0.0.0.0 npm start
+
+  npm run ios:pwa:visual -- \
+    --app-url http://<mac-lan-ip>:18797/?source=pwa \
+    --scenario embedded-plugin-shell \
+    --plugin-id <plugin-id> \
+    --debug-url http://127.0.0.1:19073/
+  ```
+
+  Plugin services may remain loopback-bound when Home AI reaches them
+  server-side through the plugin manifest/proxy. Do not expose plugin service
+  ports to the LAN only to satisfy Simulator visual checks.
+
+  Harness recovery may treat a navigation-time WebKit `Unexpected EOF` as a
+  recoverable disconnect after the navigation was accepted. In that case the
+  harness should retry or reopen deep state through the live server before
+  failing the plugin. For embedded plugin shell checks, the harness may reuse
+  an already-open shell, skip unrelated bottom-nav pre-sampling, and use a
+  segmented measurement fallback after recoverable WebKit errors; the final
+  artifact must still include shell/frame bounds, overflow checks, client
+  version, and screenshot evidence.
+
+  Host-owned scenarios such as Directory dark loading use
   `--scenario directory-dark-status`. The harness implementation is
   `scripts/ios-pwa-visual-harness.js` and its source contract is
   `tests/ios-pwa-visual-harness.test.js`.

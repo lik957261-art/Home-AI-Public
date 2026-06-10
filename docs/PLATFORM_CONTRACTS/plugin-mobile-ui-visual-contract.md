@@ -413,9 +413,17 @@ insufficient when Appium, WDA, or WebKit remote debugging is partially stuck.
 
 Plugin teams must not start foreground `appium server` processes from their
 own terminal sessions for shared lanes. Use the central Appium start script so
-the background Appium process ignores terminal SIGINT; otherwise Ctrl-C in a
-live-debug terminal can kill Appium while WDA remains alive, leaving the lane
-in a half-online state that times out later.
+the background Appium process ignores terminal `SIGHUP`/`SIGINT` and replaces
+stale XCUITest sessions; otherwise Ctrl-C in a live-debug terminal can kill
+Appium while WDA remains alive, leaving the lane in a half-online state that
+times out later. Plugin workspaces must call the central script instead of
+copying a local Appium command, because toolchain fixes land centrally.
+
+`Unexpected EOF` during a harness navigation or WebView JavaScript action is
+not automatically a plugin rendering failure. It can mean WebKit disconnected
+after accepting the navigation. The harness or operator must retry deep state
+or the bounded scenario after the Appium/WDA/live-debug layer checks above
+before filing a plugin UI regression.
 
 After an issue is reproduced, promote the final check to the reusable visual
 harness instead of leaving it as a manual screenshot loop:
@@ -518,8 +526,25 @@ first-thread fallback, but that fallback is diagnostic only and is not a
 production acceptance substitute.
 
 For development builds, add `--app-url <local-dev-url>` so the same iOS PWA
-Simulator opens the dev port before assertions run. Add
-`--expected-client-version <version>` when static assets changed so the
+Simulator opens the dev port before assertions run. When the target is a local
+Home AI dev server, bind Home AI to a non-loopback interface and use the Mac
+LAN URL from the Simulator:
+
+```bash
+HERMES_WEB_HOST=0.0.0.0 npm start
+
+npm run ios:pwa:visual -- \
+  --app-url http://<mac-lan-ip>:18797/?source=pwa \
+  --scenario embedded-plugin-shell \
+  --plugin-id <plugin-id> \
+  --debug-url http://127.0.0.1:19073/
+```
+
+Do not require plugin services to bind to the LAN for this flow. Plugin
+services can remain on loopback when Home AI reaches them server-side through
+the plugin manifest/proxy.
+
+Add `--expected-client-version <version>` when static assets changed so the
 artifact proves the loaded PWA build. The checked harness lives in
 `scripts/ios-pwa-visual-harness.js` with source coverage in
 `tests/ios-pwa-visual-harness.test.js`. It defaults to a per-`--debug-url` lane

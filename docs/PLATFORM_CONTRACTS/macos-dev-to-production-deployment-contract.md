@@ -174,6 +174,14 @@ Use the smallest sufficient set:
   mutating operations and WebView/Appium deep reads; `debug_lane_locked` means
   the lane is occupied and the plugin thread must allocate a separate
   Simulator/debug server before continuing.
+  Local iOS Simulator validation of a Home AI dev server must not assume
+  `127.0.0.1:<home-ai-port>` maps to the Mac host. Bind the dev server with
+  `HERMES_WEB_HOST=0.0.0.0` and pass
+  `--app-url http://<mac-lan-ip>:18797/?source=pwa` to the harness. Plugin
+  services can remain loopback-bound when the Home AI host reaches them
+  through the plugin manifest/proxy. All plugin teams must use the central
+  Appium start script; it owns backgrounding, terminal `SIGHUP`/`SIGINT`
+  isolation, and stale-session replacement for shared visual lanes.
 
 Validation output recorded in handoff or docs must be bounded metadata only.
 Do not record raw keys, launch tokens, cookies, full logs, private user data,
