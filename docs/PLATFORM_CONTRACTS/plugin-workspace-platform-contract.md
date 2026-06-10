@@ -24,6 +24,7 @@ contracts:
 - `docs/RUNBOOKS/macos-production-access.md`
 - `docs/IMPLEMENTATION_NOTES/reference-memory-graph-v1.md`
 - `docs/IMPLEMENTATION_NOTES/reference-memory-graph-harness-plan.md`
+- `docs/IMPLEMENTATION_NOTES/plugin-topic-directory-claims.md`
 - `docs/RUNBOOKS/mcp-tool-upgrade-closure.md`
 - `docs/RUNBOOKS/macos-ios-simulator-appium.md`
 - `docs/MODULES/ai-operations-control-plane.md`
@@ -61,6 +62,7 @@ Canonical Home AI contract source:
 - <path-to-Home-AI>/docs/MODULES/ai-operations-control-plane.md
 - <path-to-Home-AI>/docs/IMPLEMENTATION_NOTES/ai-operations-control-plane.md
 - <path-to-Home-AI>/docs/IMPLEMENTATION_NOTES/reference-memory-graph-v1.md
+- <path-to-Home-AI>/docs/IMPLEMENTATION_NOTES/plugin-topic-directory-claims.md
 
 Plugin-local facts:
 - plugin id

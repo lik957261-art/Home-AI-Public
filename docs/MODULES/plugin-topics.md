@@ -380,5 +380,44 @@ workspace catalog still points at a Windows/WSL drive prefix; a `500` row with
 `EACCES` usually means the Mac live directory owner/ACL is wrong.
 
 See `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md` for the detailed design.
+
+## Plugin Topic and Directory Claim Convergence
+
+Implemented in `20260610-plugin-topic-claim-v686`.
+
+Topics root now separates three entry layers:
+
+1. Plugin conversation shortcuts. These are labelled as plugin topics and open
+   `plugin:<pluginId>` or a claimed historical topic in plugin topic context.
+2. Ordinary directory-bound topic collections. These exclude directories that
+   are claimed by a plugin.
+3. Plugin app entry. Dock icons and plugin app buttons continue to open the
+   structured plugin app, not a topic.
+
+The claim identity is the effective workspace plus normalized directory route,
+not the directory display name. A Health directory in Stephen's workspace and a
+Health directory in Wuping's workspace are distinct even when the visible label
+is the same.
+
+Claim records live in
+`adapters/plugin-directory-context-binding-service.js` and are exposed through
+`/api/plugin-topic-bindings`:
+
+- `claimed_by_plugin` hides the directory from the ordinary directory topic
+  root and projects its historical topics into the plugin topic switcher.
+- `auxiliary_context` allows the plugin to reference the directory but keeps the
+  ordinary directory topic collection visible.
+
+Plugin topic detail pages use an explicit title switcher for default plugin
+topic, claimed historical directory topics, and the V1 new-topic path. The
+switcher is part of the visible toolbar; it is not hidden under the topic
+three-dot menu.
+
+Plugin delivery directories remain output/file areas. They do not define
+conversation context ownership. Context injection for plugin topics reads only
+indexed eligible sources from
+`adapters/plugin-topic-context-source-service.js`; delivery PDFs, images,
+tables, raw attachments, temporary results, and old report versions are not
+loaded by default.
 See `docs/IMPLEMENTATION_NOTES/embedded-surface-bottom-layout-standard.md` for
 the shared Hermes-owned chat and plugin-owned iframe bottom-tab layout rules.

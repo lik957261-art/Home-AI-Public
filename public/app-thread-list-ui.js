@@ -366,13 +366,27 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
       state.directoryTopicCollectionsReadySignature = directoryTopicSignature;
       state.directoryTopicRenderPendingSignature = "";
     }
-    const directoryTopicCollections = directoryTopicCollectionsReady && typeof directoryTopicCollectionsForGroups === "function"
+    const rawDirectoryTopicCollections = directoryTopicCollectionsReady && typeof directoryTopicCollectionsForGroups === "function"
       ? directoryTopicCollectionsForGroups(groups.filter((group) => !(typeof isPluginTopicTaskGroup === "function" ? isPluginTopicTaskGroup(group) : group.pluginTopic)))
       : [];
+    const claimedDirectoryTopicCollections = typeof pluginTopicClaimedDirectoryTopicCollections === "function"
+      ? pluginTopicClaimedDirectoryTopicCollections(rawDirectoryTopicCollections)
+      : [];
+    const directoryTopicCollections = typeof pluginTopicFilterDirectoryTopicCollectionsForRoot === "function"
+      ? pluginTopicFilterDirectoryTopicCollectionsForRoot(rawDirectoryTopicCollections)
+      : rawDirectoryTopicCollections;
     const directoryTopicGroupIds = typeof directoryTopicCollectionGroupIds === "function"
       ? directoryTopicCollectionGroupIds(directoryTopicCollections)
       : new Set();
+    const allDirectoryTopicGroupIds = typeof directoryTopicCollectionGroupIds === "function"
+      ? directoryTopicCollectionGroupIds(rawDirectoryTopicCollections)
+      : directoryTopicGroupIds;
     const filterBanner = renderTaskDirectoryFilterBanner();
+    const pluginTopicCards = typeof renderPluginTopicCards === "function"
+      ? renderPluginTopicCards({
+        claimedDirectoryTopicCollections,
+      })
+      : "";
     capabilityEntryHub = typeof renderCapabilityEntryHub === "function"
       ? renderCapabilityEntryHub({
         directoryRootCount: Array.isArray(state.projects) ? state.projects.length : 0,
@@ -388,11 +402,11 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
       const hasDirectoryTopicRoute = typeof directoryTopicPrimaryRoute === "function"
         ? Boolean(directoryTopicPrimaryRoute(group))
         : false;
-      return directoryTopicCollectionsReady ? !directoryTopicGroupIds.has(group.id) : !hasDirectoryTopicRoute;
+      return directoryTopicCollectionsReady ? !allDirectoryTopicGroupIds.has(group.id) : !hasDirectoryTopicRoute;
     });
-    conversation.innerHTML = regularGroups.length || capabilityEntryHub || directoryTopicCards
-      ? `${filterBanner}${capabilityEntryHub}${directoryTopicCards}<div class="task-grid">${regularGroups.map(renderTaskCard).join("")}</div>`
-      : `${filterBanner}${capabilityEntryHub}${directoryTopicCards}<div class="empty-state">${state.taskDirectoryFilter ? "No topics in this directory." : "No topics yet. Send a message to create one."}</div>`;
+    conversation.innerHTML = regularGroups.length || pluginTopicCards || capabilityEntryHub || directoryTopicCards
+      ? `${filterBanner}${pluginTopicCards}${capabilityEntryHub}${directoryTopicCards}<div class="task-grid">${regularGroups.map(renderTaskCard).join("")}</div>`
+      : `${filterBanner}${pluginTopicCards}${capabilityEntryHub}${directoryTopicCards}<div class="empty-state">${state.taskDirectoryFilter ? "No topics in this directory." : "No topics yet. Send a message to create one."}</div>`;
     setTopicPluginDock(pluginAppDock);
     conversation.querySelectorAll("[data-open-task]").forEach((button) => {
       button.addEventListener("click", () => {

@@ -89,6 +89,12 @@ Product rules:
   owner/effective workspace identity. A reused directory display name or
   project id, such as two workspaces each exposing `健康`, is not enough to
   merge topic collections.
+- A plugin may claim a directory topic collection without moving files. Since
+  `20260610-plugin-topic-claim-v686`, `claimed_by_plugin` claims with
+  `hideFromDirectoryTopicRoot=true` are filtered out of the ordinary directory
+  topic root and projected into the plugin topic switcher. `auxiliary_context`
+  claims remain visible on the ordinary directory root. Claim filtering is keyed
+  by effective workspace plus normalized route, not by display label.
 - Deleting or unbinding a topic must not delete the directory or other bound
   topics.
 
@@ -148,6 +154,13 @@ ledger rows, private inventories, health record dumps, or raw learner content.
 Context assembly may read bounded summaries and selected report metadata from
 the directory, but authoritative live data should come from the plugin MCP when
 available.
+
+Since `20260610-plugin-topic-claim-v686`, plugin delivery directories do not
+enter plugin topic context by scan. The plugin topic context source index marks
+eligible files with roles such as `cleaned_summary`, `pinned_context`,
+`topic_bound`, `context_source`, or `stage_summary`. Ordinary export PDFs,
+images, tables, raw attachments, temporary results, and old report versions are
+delivery-only unless an explicit eligible context source record exists.
 
 Runtime task-directory attachment explicitly excludes fixed plugin task groups
 such as `plugin:wardrobe`, `plugin:finance`, `plugin:email`, and

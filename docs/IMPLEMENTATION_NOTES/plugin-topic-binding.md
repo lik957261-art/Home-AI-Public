@@ -182,6 +182,11 @@ Implementation should add focused services before route or UI wiring:
   - creates, reads, updates, and lists workspace-scoped plugin topic bindings;
   - validates plugin visibility/provisioning before creating active bindings;
   - resolves Owner-to-non-Owner effective workspace simulation.
+- `adapters/plugin-directory-context-binding-service.js`
+  - creates, reads, and lists workspace-scoped plugin directory claims;
+  - keys claims by effective workspace plus normalized directory route, not
+    display label;
+  - distinguishes `claimed_by_plugin` from `auxiliary_context`.
 - `adapters/plugin-topic-delivery-directory-service.js`
   - creates and resolves the standard delivery directory;
   - delegates path validation to existing directory boundary services;
@@ -191,15 +196,31 @@ Implementation should add focused services before route or UI wiring:
     refs;
   - redacts raw/private data and stores only source ids, summaries, counts, and
     short previews.
+- `adapters/plugin-topic-context-source-service.js`
+  - stores a light context source index for cleaned, pinned, topic-bound, or
+    explicitly marked files;
+  - prevents plugin topic startup from scanning an entire delivery directory.
 - `server-routes/plugin-topic-api-routes.js`
   - provides Owner/admin create/manage routes and user-visible list/open routes;
   - does not implement business logic inline.
+- `server-routes/plugin-topic-context-api-routes.js`
+  - exposes indexed context source eligibility for plugin topic runs;
+  - does not perform directory scans.
 - Existing Gateway/toolset services
   - merge plugin topic toolset policy into run-start routing only after
     workspace authorization and MCP schema evidence pass.
 - Existing embedded plugin services
   - remain the source for manifest, launch, proxy, postMessage navigation, and
     plugin refresh behavior.
+
+Implemented convergence update, 2026-06-10:
+
+- Topics root plugin cards are conversation shortcuts and open plugin topics.
+- Dock/plugin app icons remain app launchers.
+- Claimed legacy directory topics are projected into the plugin topic switcher
+  without moving physical directories.
+- Plugin delivery directories are output surfaces; context eligibility is
+  controlled by the context source index.
 
 ### Frontend Surfaces
 

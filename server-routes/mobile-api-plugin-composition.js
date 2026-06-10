@@ -4,11 +4,16 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { createActionInboxApiRoutes } = require("./action-inbox-api-routes");
 const { createHermesPluginApiRoutes } = require("./hermes-plugin-api-routes");
+const { createPluginTopicApiRoutes } = require("./plugin-topic-api-routes");
+const { createPluginTopicContextApiRoutes } = require("./plugin-topic-context-api-routes");
 const { createPluginTopicUsageApiRoutes } = require("./plugin-topic-usage-api-routes");
 const { createActionInboxService } = require("../adapters/action-inbox-service");
 const { createFinanceLedgerJoinApprovalService } = require("../adapters/finance-ledger-join-approval-service");
 const { createHermesPluginNotificationService } = require("../adapters/hermes-plugin-notification-service");
 const { createHermesPluginService } = require("../adapters/hermes-plugin-service");
+const { createPluginDirectoryContextBindingService } = require("../adapters/plugin-directory-context-binding-service");
+const { createPluginTopicBindingService } = require("../adapters/plugin-topic-binding-service");
+const { createPluginTopicContextSourceService } = require("../adapters/plugin-topic-context-source-service");
 const { createPluginTopicUsageService } = require("../adapters/plugin-topic-usage-service");
 
 function callBootTrace(deps, label) {
@@ -72,6 +77,24 @@ function createMobileApiPluginComposition(deps = {}) {
     readJsonStore: deps.readJsonStore,
     writeJsonStore: deps.writeJsonStore,
   });
+  const pluginTopicBindingService = deps.pluginTopicBindingService || createPluginTopicBindingService({
+    dataDir: deps.dataDir,
+    nowIso: deps.nowIso,
+    readJsonStore: deps.readJsonStore,
+    writeJsonStore: deps.writeJsonStore,
+  });
+  const pluginDirectoryContextBindingService = deps.pluginDirectoryContextBindingService || createPluginDirectoryContextBindingService({
+    dataDir: deps.dataDir,
+    nowIso: deps.nowIso,
+    readJsonStore: deps.readJsonStore,
+    writeJsonStore: deps.writeJsonStore,
+  });
+  const pluginTopicContextSourceService = deps.pluginTopicContextSourceService || createPluginTopicContextSourceService({
+    dataDir: deps.dataDir,
+    nowIso: deps.nowIso,
+    readJsonStore: deps.readJsonStore,
+    writeJsonStore: deps.writeJsonStore,
+  });
 
   const hermesPluginApiRoutes = createHermesPluginApiRoutes({
     authenticateRequest: deps.authenticateRequest,
@@ -95,6 +118,23 @@ function createMobileApiPluginComposition(deps = {}) {
   });
   callBootTrace(deps, "plugin topic usage api routes ready");
 
+  const pluginTopicApiRoutes = createPluginTopicApiRoutes({
+    pluginTopicBindingService,
+    pluginDirectoryContextBindingService,
+    readBody: deps.readBody,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "plugin topic api routes ready");
+
+  const pluginTopicContextApiRoutes = createPluginTopicContextApiRoutes({
+    pluginTopicContextSourceService,
+    readBody: deps.readBody,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "plugin topic context api routes ready");
+
   const actionInboxApiRoutes = createActionInboxApiRoutes({
     actionInboxService,
     broadcast: deps.broadcast,
@@ -109,6 +149,8 @@ function createMobileApiPluginComposition(deps = {}) {
     routes: {
       actionInboxApiRoutes,
       hermesPluginApiRoutes,
+      pluginTopicApiRoutes,
+      pluginTopicContextApiRoutes,
       pluginTopicUsageApiRoutes,
     },
     services: {
@@ -116,6 +158,9 @@ function createMobileApiPluginComposition(deps = {}) {
       financeLedgerJoinApprovalService,
       hermesPluginNotificationService,
       hermesPluginService,
+      pluginDirectoryContextBindingService,
+      pluginTopicBindingService,
+      pluginTopicContextSourceService,
       pluginTopicUsageService,
     },
   };

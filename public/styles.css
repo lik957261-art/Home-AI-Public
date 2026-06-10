@@ -5474,6 +5474,102 @@ button.directory-alias-chip {
   gap: 10px;
 }
 
+.plugin-topic-switcher {
+  min-width: 0;
+  position: relative;
+  display: grid;
+}
+
+.plugin-topic-switch-button {
+  min-width: 0;
+  min-height: 34px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  color: var(--text);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 8px;
+  text-align: left;
+  font-size: calc(13px * var(--app-font-scale));
+  font-weight: 750;
+}
+
+.plugin-topic-switch-button span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-topic-switch-chevron {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.plugin-topic-switch-panel {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 55;
+  width: min(360px, calc(100vw - 28px));
+  max-height: min(420px, calc(100vh - 160px));
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  overflow-y: auto;
+  color: var(--text);
+  background: var(--ui-menu-bg);
+  border: 1px solid var(--ui-hairline-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+.plugin-topic-switch-panel[hidden] {
+  display: none;
+}
+
+.plugin-topic-switch-item {
+  min-width: 0;
+  min-height: 44px;
+  display: grid;
+  gap: 2px;
+  padding: 7px 8px;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.plugin-topic-switch-item.active,
+.plugin-topic-switch-item:active {
+  background: var(--ui-accent-soft);
+}
+
+.plugin-topic-switch-item-title,
+.plugin-topic-switch-item-subtitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-topic-switch-item-title {
+  font-size: calc(13px * var(--app-font-scale));
+  font-weight: 720;
+}
+
+.plugin-topic-switch-item-subtitle {
+  color: var(--muted);
+  font-size: calc(11px * var(--app-font-scale));
+}
+
 .capability-entry-hub {
   width: min(920px, 100%);
   max-width: 100%;
@@ -6103,7 +6199,7 @@ button.directory-alias-chip {
 .plugin-topic-card {
   min-width: 0;
   display: grid;
-  grid-template-rows: minmax(98px, 1fr) auto;
+  grid-template-rows: minmax(86px, 1fr);
   gap: 6px;
   padding: 10px;
   background: var(--ui-card-surface);
@@ -16936,6 +17032,7 @@ body.task-markdown-preview-open {
     padding: 10px 10px 16px;
   }
 
+  .app.task-list-mode .conversation > .plugin-topic-launcher:first-child,
   .app.task-list-mode .conversation > .directory-topic-launcher:first-child,
   .app.task-list-mode .conversation > .capability-entry-hub:first-child,
   .app.task-list-mode .conversation > .task-grid:first-child,

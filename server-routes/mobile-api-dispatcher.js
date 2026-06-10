@@ -19,6 +19,8 @@ const MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE = Object.freeze([
   Object.freeze({ key: "accessKeyApiRoutes", passAuth: true }),
   Object.freeze({ key: "resourceApiRoutes", passAuth: true }),
   Object.freeze({ key: "hermesPluginApiRoutes", passAuth: true }),
+  Object.freeze({ key: "pluginTopicApiRoutes", passAuth: true }),
+  Object.freeze({ key: "pluginTopicContextApiRoutes", passAuth: true }),
   Object.freeze({ key: "pluginTopicUsageApiRoutes", passAuth: true }),
   Object.freeze({ key: "noteReceiptApiRoutes", passAuth: true }),
   Object.freeze({ key: "actionInboxApiRoutes", passAuth: true }),

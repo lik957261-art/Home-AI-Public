@@ -224,6 +224,13 @@ Likely focused checks:
   from existing task directory bindings as compact collapsible folder-tree rows.
 - The task list now shows plugin topic cards, then directory-topic collection
   rows, then unbound regular topics.
+- Static `20260610-plugin-topic-claim-v686` splits raw directory-topic
+  collections into plugin-claimed and ordinary collections. A
+  `claimed_by_plugin` claim with `hideFromDirectoryTopicRoot=true` removes that
+  collection from the ordinary directory-topic root and projects its existing
+  topics into the plugin topic switcher. `auxiliary_context` claims do not hide
+  the collection. Claims do not move files; the Directory module remains the
+  owner of the physical route.
 - Directory-topic parent rows toggle expand/collapse. The default projection
   keeps only the first three most recently updated directory collections
   expanded and renders the rest collapsed. Device-local storage records both

@@ -135,6 +135,7 @@ identifiers until a separate infrastructure migration is planned.
 - Workspace onboarding orchestration:
   `docs/IMPLEMENTATION_NOTES/workspace-onboarding.md`
 - Plugin topic binding: `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md`
+  and `docs/IMPLEMENTATION_NOTES/plugin-topic-directory-claims.md`
 - Plugin capability activation and lazy MCP loading:
   `docs/IMPLEMENTATION_NOTES/plugin-capability-activation.md`
 - Capability Entry Hub design:

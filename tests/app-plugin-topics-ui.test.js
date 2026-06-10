@@ -20,19 +20,27 @@ const recordUsageBody = functionBody(pluginTopicsUi, "recordPluginTopicUsage");
 const quickActionsBody = functionBody(pluginTopicsUi, "capabilityHubQuickActions");
 const quickActionRenderBody = functionBody(pluginTopicsUi, "renderCapabilityQuickAction");
 const entryHubBody = functionBody(pluginTopicsUi, "renderCapabilityEntryHub");
+const topicCardsBody = functionBody(pluginTopicsUi, "renderPluginTopicCards");
 const openAppBody = functionBody(pluginTopicsUi, "openPluginTopicApp");
 const runActionBody = functionBody(pluginTopicsUi, "runPluginTopicAction");
 
 assert.match(pluginTopicsUi, /const CAPABILITY_QUICK_ACTION_LIMIT = 9;/);
 assert.match(pluginTopicsUi, /const CAPABILITY_PLUGIN_APP_ACTION_ID = "__open_app";/);
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_USAGE_API_PATH = "\/api\/plugin-topic-usage";/);
+assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_BINDINGS_API_PATH = "\/api\/plugin-topic-bindings";/);
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_USAGE_LOAD_TTL_MS = 30000;/);
+assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_BINDINGS_LOAD_TTL_MS = 30000;/);
 assert.match(pluginTopicsUi, /function pluginTopicAppQuickAction/);
 assert.match(pluginTopicsUi, /function pluginTopicActionUsageKey/);
 assert.match(pluginTopicsUi, /function pluginTopicUsageRecentlyLoaded/);
 assert.match(pluginTopicsUi, /function loadPluginTopicUsageFromServer/);
 assert.match(pluginTopicsUi, /function schedulePluginTopicUsageSync/);
 assert.match(pluginTopicsUi, /function ensurePluginTopicUsageLoaded/);
+assert.match(pluginTopicsUi, /function ensurePluginTopicBindingsLoaded/);
+assert.match(pluginTopicsUi, /function pluginTopicDirectoryClaimForRoute/);
+assert.match(pluginTopicsUi, /function pluginTopicFilterDirectoryTopicCollectionsForRoot/);
+assert.match(pluginTopicsUi, /function renderPluginTopicSwitcher/);
+assert.match(pluginTopicsUi, /function openPluginClaimedDirectoryTopic/);
 assert.match(pluginTopicsUi, /const pluginTopicUsageMemoryCacheByWorkspace = new Map\(\);/);
 assert.match(pluginTopicsUi, /function pluginTopicUsageStorageKey\(workspaceId = pluginTopicUsageWorkspaceId\(\)\)/);
 assert.match(pluginTopicsUi, /\$\{PLUGIN_TOPIC_USAGE_STORAGE_KEY\}:\$\{id\}/);
@@ -51,6 +59,9 @@ assert.match(openAppBody, /if \(options\.recordUsage !== false\) recordPluginTop
 assert.doesNotMatch(openAppBody, /action\.id/);
 assert.match(runActionBody, /recordPluginTopicUsage\(def\.id, action\.id\);/);
 assert.match(runActionBody, /openPluginTopicApp\(def\.id, \{ recordUsage: false \}\);/);
+assert.match(topicCardsBody, /filter\(\(def\) => !def\.builtinKind\)/);
+assert.match(topicCardsBody, /data-plugin-topic-open-topic/);
+assert.doesNotMatch(topicCardsBody, /data-plugin-topic-open-app/);
 
 assert.doesNotMatch(quickActionsBody, /preferred/);
 assert.match(quickActionsBody, /const pluginEntry = pluginTopicUsageEntry\(usage, def\.id\);/);
@@ -67,6 +78,7 @@ assert.match(quickActionRenderBody, /data-plugin-topic-open-app/);
 assert.doesNotMatch(quickActionRenderBody, /capability-action-source/);
 
 assert.match(directoryTopicsUi, /plugin-topic-app-icon directory directory-topic-folder-icon/);
+assert.match(directoryTopicsUi, /const routeId = String\(route\.projectId \|\| route\.id \|\| ""\)\.trim\(\);/);
 assert.doesNotMatch(directoryTopicsUi, /directory-topic-association-label/);
 assert.doesNotMatch(directoryTopicsUi, /directory-topic-subtitle/);
 assert.doesNotMatch(directoryTopicsUi, /directory-topic-chip-badge/);
@@ -229,6 +241,64 @@ globalThis.__directoryTopicHarness = {
   return sandbox.__directoryTopicHarness;
 }
 
+function createPluginDirectoryClaimHarness() {
+  const storage = new Map();
+  const sandbox = {
+    console,
+    Date,
+    URLSearchParams,
+    state: {
+      selectedWorkspaceId: "owner",
+      auth: { workspaceId: "owner" },
+      key: "test-key",
+      viewMode: "tasks",
+      currentTaskGroupId: "",
+    },
+    localStorage: {
+      getItem(key) {
+        return storage.has(key) ? storage.get(key) : null;
+      },
+      setItem(key, value) {
+        storage.set(key, String(value));
+      },
+    },
+    window: {
+      setTimeout(fn) {
+        return fn();
+      },
+      clearTimeout() {},
+    },
+    $: () => null,
+    renderCurrentThread: () => {},
+    wardrobePluginNavigationAvailable: () => true,
+    EMBEDDED_PLUGIN_DEFS: { finance: {}, email: {}, health: {}, note: {}, growth: {} },
+    embeddedPluginNavigationAvailable: () => true,
+    escapeHtml: (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    }[ch])),
+    formatTime: (value) => String(value || ""),
+    taskShortTitle: (group) => group.title || "",
+    taskTitle: (group) => group.title || "",
+    taskGroupOwnerWorkspaceId: (group) => group.ownerWorkspaceId || group.messages?.[0]?.senderWorkspaceId || "",
+    api: async () => ({ topics: [], directoryClaims: [] }),
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(`${pluginTopicsUi}
+${directoryTopicsUi}
+globalThis.__pluginDirectoryClaimHarness = {
+  collections: directoryTopicCollectionsForGroups,
+  claimed: pluginTopicClaimedDirectoryTopicCollections,
+  visible: pluginTopicFilterDirectoryTopicCollectionsForRoot,
+  writeProjection: writePluginTopicBindingProjection,
+  routeKey: directoryTopicRouteKey,
+};`, sandbox);
+  return sandbox.__pluginDirectoryClaimHarness;
+}
+
 function directoryCollection(key, updatedAt) {
   return {
     key,
@@ -334,6 +404,52 @@ function directoryCardCollapsed(html, key) {
 
   assert.equal(collections.length, 2, "same-label Health directories from different roots must render as separate collections");
   assert.deepEqual(Array.from(collections.map((item) => item.groups[0].id).sort()), ["stephen-health", "wuping-health"]);
+}
+
+{
+  const harness = createPluginDirectoryClaimHarness();
+  const groups = [
+    {
+      id: "health-history",
+      title: "健康历史",
+      ownerWorkspaceId: "owner",
+      updatedAt: "2026-06-09T12:00:00.000Z",
+      directoryRoute: { projectId: "health", path: "/users/owner/health", ownerWorkspaceId: "owner" },
+    },
+    {
+      id: "family-docs",
+      title: "家庭资料",
+      ownerWorkspaceId: "owner",
+      updatedAt: "2026-06-09T11:00:00.000Z",
+      directoryRoute: { projectId: "family", path: "/users/owner/family", ownerWorkspaceId: "owner" },
+    },
+  ];
+  const collections = harness.collections(groups);
+  assert.deepEqual(JSON.parse(JSON.stringify(harness.claimed(collections).flatMap((item) => item.groups.map((group) => group.id)))), ["health-history"]);
+  assert.deepEqual(JSON.parse(JSON.stringify(harness.visible(collections).flatMap((item) => item.groups.map((group) => group.id)))), ["family-docs"]);
+}
+
+{
+  const harness = createPluginDirectoryClaimHarness();
+  const group = {
+    id: "health-reference",
+    title: "健康辅助资料",
+    ownerWorkspaceId: "owner",
+    updatedAt: "2026-06-09T12:00:00.000Z",
+    directoryRoute: { projectId: "health", path: "/users/owner/health-reference", ownerWorkspaceId: "owner" },
+  };
+  const collections = harness.collections([group]);
+  harness.writeProjection("owner", {
+    directoryClaims: [{
+      pluginId: "health",
+      directoryRouteKey: collections[0].key,
+      claimMode: "auxiliary_context",
+      hideFromDirectoryTopicRoot: false,
+    }],
+  });
+
+  assert.equal(harness.claimed(collections).length, 0, "auxiliary context must not hide a directory topic collection");
+  assert.equal(harness.visible(collections).length, 1);
 }
 
 function createPluginContextColdRestoreHarness() {

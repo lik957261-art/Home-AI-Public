@@ -348,8 +348,10 @@ function updateNavigationControls() {
   const skillDetail = isSkillDetailView();
   const taskList = isTaskListView();
   const pluginTopicDetail = taskDetail
-    && typeof pluginTopicDefForGroupId === "function"
-    && Boolean(pluginTopicDefForGroupId(state.currentTaskGroupId));
+    && (
+      (typeof pluginTopicDefForGroupId === "function" && Boolean(pluginTopicDefForGroupId(state.currentTaskGroupId)))
+      || (typeof pluginTopicDefForCurrentTaskGroupId === "function" && Boolean(pluginTopicDefForCurrentTaskGroupId(state.currentTaskGroupId)))
+    );
   const directoryBack = state.viewMode === "projects" && (Boolean(directoryActivePath()) || Boolean(state.directoryReturnRoute));
   const learningGrowthDetail = false;
   const learningGrowthSettings = false;

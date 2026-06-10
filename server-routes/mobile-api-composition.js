@@ -45,6 +45,8 @@ function createMobileApiComposition(deps = {}) {
   const {
     actionInboxApiRoutes,
     hermesPluginApiRoutes,
+    pluginTopicApiRoutes,
+    pluginTopicContextApiRoutes,
     pluginTopicUsageApiRoutes,
   } = pluginComposition.routes;
   const {
@@ -52,6 +54,9 @@ function createMobileApiComposition(deps = {}) {
     financeLedgerJoinApprovalService,
     hermesPluginNotificationService,
     hermesPluginService,
+    pluginDirectoryContextBindingService,
+    pluginTopicBindingService,
+    pluginTopicContextSourceService,
     pluginTopicUsageService,
   } = pluginComposition.services;
   const workspaceOnboardingService = deps.workspaceOnboardingService || createWorkspaceOnboardingService({
@@ -279,6 +284,8 @@ function createMobileApiComposition(deps = {}) {
     familyProfileApiRoutes,
     fileArtifactApiRoutes,
     hermesPluginApiRoutes,
+    pluginTopicApiRoutes,
+    pluginTopicContextApiRoutes,
     pluginTopicUsageApiRoutes,
     platformCurrencyApiRoutes,
     growthPluginFacadeApiRoutes,
@@ -330,6 +337,9 @@ function createMobileApiComposition(deps = {}) {
       hermesPluginService,
       hermesPluginNotificationService,
       noteReceiptSaveService,
+      pluginDirectoryContextBindingService,
+      pluginTopicBindingService,
+      pluginTopicContextSourceService,
       pluginTopicUsageService,
       workspaceOnboardingService,
     },
@@ -343,6 +353,8 @@ function createMobileApiComposition(deps = {}) {
       familyProfileApiRoutes,
       fileArtifactApiRoutes,
       hermesPluginApiRoutes,
+      pluginTopicApiRoutes,
+      pluginTopicContextApiRoutes,
       pluginTopicUsageApiRoutes,
       platformCurrencyApiRoutes,
       growthPluginFacadeApiRoutes,

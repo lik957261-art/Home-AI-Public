@@ -18,7 +18,7 @@ function directoryTopicRouteKey(route, group = null) {
   const root = typeof comparableDirectoryPath === "function"
     ? comparableDirectoryPath(route.root || route.path || "")
     : String(route.root || route.path || "").trim().replaceAll("\\", "/").toLowerCase();
-  const routeId = String(route.projectId || route.id || route.label || "").trim();
+  const routeId = String(route.projectId || route.id || "").trim();
   if (!routeId && !root) return "";
   return [directoryTopicOwnerWorkspaceKey(group, route), routeId, route.subprojectId || "", root].join("|");
 }

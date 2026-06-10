@@ -128,8 +128,10 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
 const PLUGIN_TOPIC_USAGE_STORAGE_KEY = "hermesPluginTopicUsage";
 const PLUGIN_TOPIC_ORDER_STORAGE_KEY = "hermesPluginTopicOrder";
 const PLUGIN_TOPIC_USAGE_API_PATH = "/api/plugin-topic-usage";
+const PLUGIN_TOPIC_BINDINGS_API_PATH = "/api/plugin-topic-bindings";
 const PLUGIN_TOPIC_USAGE_SYNC_DELAY_MS = 450;
 const PLUGIN_TOPIC_USAGE_LOAD_TTL_MS = 30000;
+const PLUGIN_TOPIC_BINDINGS_LOAD_TTL_MS = 30000;
 const PLUGIN_APP_REORDER_HOLD_MS = 450;
 const PLUGIN_APP_REORDER_CANCEL_PX = 10;
 const GLOBAL_PLUGIN_DOCK_STATE_STORAGE_KEY = "hermesGlobalPluginDockExpanded";
@@ -153,6 +155,10 @@ const pluginTopicUsageLoadingWorkspaces = new Map();
 const pluginTopicUsageLoadRetryAt = new Map();
 const pluginTopicUsageMemoryCacheByWorkspace = new Map();
 let pluginTopicUsageMemoryCache = normalizePluginTopicUsage({});
+const pluginTopicBindingsLoadedAtByWorkspace = new Map();
+const pluginTopicBindingsLoadingWorkspaces = new Map();
+const pluginTopicBindingsLoadRetryAt = new Map();
+const pluginTopicBindingProjectionByWorkspace = new Map();
 
 function pluginTopicId(value = "") {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -174,6 +180,35 @@ function pluginTopicDefForGroupId(taskGroupId = "") {
   return pluginTopicDefById(text.slice("plugin:".length));
 }
 
+function pluginTopicSelectedTaskGroup(thread = state.currentThread, taskGroupId = state.currentTaskGroupId) {
+  const id = String(taskGroupId || "").trim();
+  if (!id || !thread) return null;
+  const groups = typeof taskGroupsForThread === "function" ? taskGroupsForThread(thread) : [];
+  return groups.find((group) => String(group?.id || "") === id) || null;
+}
+
+function pluginTopicClaimForTaskGroup(group = null) {
+  if (!group || group.pluginTopic) return null;
+  const route = typeof directoryTopicPrimaryRoute === "function" ? directoryTopicPrimaryRoute(group) : group.directoryRoute;
+  if (!route) return null;
+  return pluginTopicDirectoryClaimForRoute(route, group);
+}
+
+function pluginTopicDefForTaskGroup(group = null) {
+  if (!group) return null;
+  const def = pluginTopicDefForGroupId(group.id || group.taskGroupId || "");
+  if (def && !def.builtinKind) return def;
+  const claim = pluginTopicClaimForTaskGroup(group);
+  if (claim?.pluginId) return pluginTopicDefById(claim.pluginId);
+  return null;
+}
+
+function pluginTopicDefForCurrentTaskGroupId(taskGroupId = state.currentTaskGroupId) {
+  const def = pluginTopicDefForGroupId(taskGroupId);
+  if (def && !def.builtinKind) return def;
+  return pluginTopicDefForTaskGroup(pluginTopicSelectedTaskGroup(state.currentThread, taskGroupId));
+}
+
 function pluginTopicDefForViewMode(viewMode = state.viewMode) {
   const mode = String(viewMode || "").trim();
   if (!mode) return null;
@@ -182,10 +217,17 @@ function pluginTopicDefForViewMode(viewMode = state.viewMode) {
   if (mode === "tasks") {
     const groupDef = pluginTopicDefForGroupId(state.currentTaskGroupId);
     if (groupDef && !groupDef.builtinKind) return groupDef;
+    const selectedDef = pluginTopicDefForCurrentTaskGroupId(state.currentTaskGroupId);
+    if (selectedDef && !selectedDef.builtinKind) return selectedDef;
   }
   const contextDef = pluginTopicDefById(state.pluginContextNavPluginId);
   if (!contextDef || contextDef.builtinKind) return null;
   if (mode === "tasks" && state.currentTaskGroupId === pluginTopicGroupId(contextDef.id)) return contextDef;
+  if (mode === "tasks") {
+    const selected = pluginTopicSelectedTaskGroup();
+    const selectedDef = pluginTopicDefForTaskGroup(selected);
+    if (selectedDef?.id === contextDef.id) return contextDef;
+  }
   if (mode === "projects") return contextDef;
   return null;
 }
@@ -325,6 +367,200 @@ function pluginTopicNavigationAvailable(def) {
 
 function availablePluginTopicDefs() {
   return PLUGIN_TOPIC_DEFS.filter(pluginTopicNavigationAvailable);
+}
+
+function pluginTopicBindingWorkspaceId() {
+  return String(state.selectedWorkspaceId || state.auth?.workspaceId || "owner").trim() || "owner";
+}
+
+function normalizePluginTopicBindingProjection(value = {}) {
+  const source = value && typeof value === "object" ? value : {};
+  const topics = Array.isArray(source.topics) ? source.topics : [];
+  const directoryClaims = Array.isArray(source.directoryClaims || source.directory_claims)
+    ? (source.directoryClaims || source.directory_claims)
+    : [];
+  return {
+    topics: topics.filter((topic) => topic && typeof topic === "object"),
+    directoryClaims: directoryClaims.filter((claim) => claim && typeof claim === "object"),
+  };
+}
+
+function readPluginTopicBindingProjection(workspaceId = pluginTopicBindingWorkspaceId()) {
+  const id = String(workspaceId || "owner").trim() || "owner";
+  return pluginTopicBindingProjectionByWorkspace.get(id) || normalizePluginTopicBindingProjection({});
+}
+
+function writePluginTopicBindingProjection(workspaceId = pluginTopicBindingWorkspaceId(), value = {}) {
+  const id = String(workspaceId || "owner").trim() || "owner";
+  const projection = normalizePluginTopicBindingProjection(value);
+  pluginTopicBindingProjectionByWorkspace.set(id, projection);
+  return projection;
+}
+
+function pluginTopicBindingsRecentlyLoaded(workspaceId = pluginTopicBindingWorkspaceId()) {
+  const loadedAt = pluginTopicBindingsLoadedAtByWorkspace.get(String(workspaceId || "").trim()) || 0;
+  return loadedAt > 0 && Date.now() - loadedAt < PLUGIN_TOPIC_BINDINGS_LOAD_TTL_MS;
+}
+
+function markPluginTopicBindingsLoaded(workspaceId = pluginTopicBindingWorkspaceId()) {
+  const id = String(workspaceId || "").trim();
+  if (id) pluginTopicBindingsLoadedAtByWorkspace.set(id, Date.now());
+}
+
+function refreshPluginTopicBindingsRoot(options = {}) {
+  if (state.viewMode !== "tasks" || state.currentTaskGroupId) return;
+  window.setTimeout(() => {
+    if (state.viewMode === "tasks" && !state.currentTaskGroupId) {
+      renderCurrentThread({
+        stickToBottom: false,
+        restoreScrollTop: options.restoreScrollTop ?? ($("conversation")?.scrollTop || 0),
+        directoryTopicCollectionsReady: true,
+      });
+    }
+  }, 0);
+}
+
+async function loadPluginTopicBindingsFromServer(workspaceId = pluginTopicBindingWorkspaceId()) {
+  if (typeof api !== "function" || !workspaceId) return null;
+  const params = new URLSearchParams({ workspaceId });
+  const result = await api(`${PLUGIN_TOPIC_BINDINGS_API_PATH}?${params.toString()}`, { timeoutMs: 8000 });
+  writePluginTopicBindingProjection(workspaceId, result || {});
+  markPluginTopicBindingsLoaded(workspaceId);
+  refreshPluginTopicBindingsRoot();
+  return result;
+}
+
+function ensurePluginTopicBindingsLoaded() {
+  const workspaceId = pluginTopicBindingWorkspaceId();
+  if (!workspaceId || pluginTopicBindingsRecentlyLoaded(workspaceId)) return;
+  if (pluginTopicBindingsLoadingWorkspaces.has(workspaceId)) return;
+  const now = Date.now();
+  if (now < (pluginTopicBindingsLoadRetryAt.get(workspaceId) || 0)) return;
+  const request = loadPluginTopicBindingsFromServer(workspaceId)
+    .catch(() => {
+      pluginTopicBindingsLoadRetryAt.set(workspaceId, Date.now() + 30000);
+      return null;
+    })
+    .finally(() => {
+      pluginTopicBindingsLoadingWorkspaces.delete(workspaceId);
+    });
+  pluginTopicBindingsLoadingWorkspaces.set(workspaceId, request);
+}
+
+function pluginTopicDirectoryRouteKey(route = null, group = null) {
+  if (typeof directoryTopicRouteKey === "function") return directoryTopicRouteKey(route, group);
+  if (!route) return "";
+  const owner = String(
+    route.workspaceId
+    || route.workspace_id
+    || route.ownerWorkspaceId
+    || route.owner_workspace_id
+    || group?.ownerWorkspaceId
+    || "",
+  ).trim();
+  const cleanPath = (value) => String(value || "").trim().replaceAll("\\", "/").replace(/\/+/g, "/").replace(/\/$/, "").toLowerCase();
+  const root = cleanPath(route.root || route.path || "");
+  const routeId = String(route.projectId || route.id || "").trim();
+  if (!routeId && !root) return "";
+  return [owner, routeId, route.subprojectId || "", root].join("|");
+}
+
+function pluginTopicRouteInferenceText(route = {}) {
+  return [
+    route?.pluginId,
+    route?.plugin_id,
+    route?.contextPluginId,
+    route?.context_plugin_id,
+    route?.projectId,
+    route?.project_id,
+    route?.id,
+    route?.root,
+    route?.path,
+  ].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean).join("\n");
+}
+
+function pluginTopicInferPluginIdFromRoute(route = {}, group = {}) {
+  const explicit = pluginTopicId(
+    route?.pluginId
+    || route?.plugin_id
+    || route?.contextPluginId
+    || route?.context_plugin_id
+    || group?.pluginId
+    || group?.plugin_id
+    || "",
+  );
+  if (explicit && pluginTopicDefById(explicit)) return explicit;
+  const text = pluginTopicRouteInferenceText(route);
+  if (!text) return "";
+  for (const def of availablePluginTopicDefs()) {
+    if (def.builtinKind) continue;
+    const id = pluginTopicId(def.id);
+    if (id && new RegExp(`(^|[/\\\\:_-])${id}($|[/\\\\:_-])`, "i").test(text)) return id;
+    const hints = [def.label, ...(Array.isArray(def.deliveryHints) ? def.deliveryHints : [])]
+      .map((item) => String(item || "").trim().toLowerCase())
+      .filter(Boolean);
+    if (hints.some((hint) => hint && text.includes(hint))) return id;
+  }
+  return "";
+}
+
+function pluginTopicDefaultDirectoryClaimForRoute(route = {}, group = null) {
+  const pluginId = pluginTopicInferPluginIdFromRoute(route, group || {});
+  const key = pluginTopicDirectoryRouteKey(route, group);
+  if (!pluginId || !key) return null;
+  return {
+    workspaceId: pluginTopicBindingWorkspaceId(),
+    pluginId,
+    directoryRouteKey: key,
+    claimMode: "claimed_by_plugin",
+    contextRole: "legacy_context",
+    hideFromDirectoryTopicRoot: true,
+    defaultTopicId: pluginTopicGroupId(pluginId),
+  };
+}
+
+function pluginTopicDirectoryClaimForRoute(route = {}, group = null) {
+  const key = pluginTopicDirectoryRouteKey(route, group);
+  if (!key) return null;
+  const claims = readPluginTopicBindingProjection().directoryClaims || [];
+  const explicit = claims.find((claim) => String(claim?.directoryRouteKey || claim?.directory_route_key || "") === key);
+  if (explicit) {
+    return {
+      workspaceId: String(explicit.workspaceId || explicit.workspace_id || pluginTopicBindingWorkspaceId()).trim() || "owner",
+      pluginId: pluginTopicId(explicit.pluginId || explicit.plugin_id || ""),
+      directoryRouteKey: key,
+      claimMode: String(explicit.claimMode || explicit.claim_mode || "claimed_by_plugin"),
+      contextRole: String(explicit.contextRole || explicit.context_role || "legacy_context"),
+      hideFromDirectoryTopicRoot: explicit.hideFromDirectoryTopicRoot !== false && explicit.hide_from_directory_topic_root !== false,
+      defaultTopicId: String(explicit.defaultTopicId || explicit.default_topic_id || ""),
+    };
+  }
+  return pluginTopicDefaultDirectoryClaimForRoute(route, group);
+}
+
+function pluginTopicDirectoryClaimHidesRoot(claim = null) {
+  return Boolean(claim && claim.claimMode === "claimed_by_plugin" && claim.hideFromDirectoryTopicRoot !== false);
+}
+
+function pluginTopicClaimedDirectoryTopicCollections(collections = []) {
+  return (collections || []).filter((collection) => {
+    const claim = pluginTopicDirectoryClaimForRoute(collection?.route, collection?.defaultGroup);
+    return pluginTopicDirectoryClaimHidesRoot(claim);
+  });
+}
+
+function pluginTopicFilterDirectoryTopicCollectionsForRoot(collections = []) {
+  return (collections || []).filter((collection) => {
+    const claim = pluginTopicDirectoryClaimForRoute(collection?.route, collection?.defaultGroup);
+    return !pluginTopicDirectoryClaimHidesRoot(claim);
+  });
+}
+
+function pluginTopicClaimedCollectionsForPlugin(collections = [], pluginId = "") {
+  const id = pluginTopicId(pluginId);
+  if (!id) return [];
+  return pluginTopicClaimedDirectoryTopicCollections(collections)
+    .filter((collection) => pluginTopicDirectoryClaimForRoute(collection?.route, collection?.defaultGroup)?.pluginId === id);
 }
 
 function globalPluginDockWorkspaceId() {
@@ -1111,52 +1347,159 @@ function pluginTopicGroupsForTaskList(thread) {
   });
 }
 
-function renderPluginTopicActions(def) {
-  if (def?.builtinKind === "directory") return "";
-  return `<div class="plugin-topic-actions" aria-label="${escapeHtml(`${def.label}\u5feb\u6377\u64cd\u4f5c`)}">
-    <button class="plugin-topic-action" type="button" data-plugin-topic-open-topic="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u8bdd\u9898`)}" title="\u8bdd\u9898">
-      <span class="plugin-topic-action-icon chat" aria-hidden="true"></span>
-    </button>
-    <button class="plugin-topic-action" type="button" data-plugin-topic-open-delivery="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u8d44\u6599\u76ee\u5f55`)}" title="\u8d44\u6599\u76ee\u5f55">
-      <span class="plugin-topic-action-icon folder" aria-hidden="true"></span>
-    </button>
-  </div>`;
-}
-
 function renderPluginTopicStats(def, options = {}) {
-  if (def?.builtinKind !== "directory") return "";
-  const rootCount = Number(options.directoryRootCount || 0);
-  const topicCount = Number(options.directoryTopicCount || 0);
+  if (!def || def.builtinKind) return "";
+  const claimedCollections = pluginTopicClaimedCollectionsForPlugin(options.claimedDirectoryTopicCollections || [], def.id);
+  const historyCount = claimedCollections.reduce((total, collection) => total + (collection.groups?.length || 0), 0);
   const stats = [
-    rootCount > 0 ? `${rootCount} \u4e2a\u76ee\u5f55` : "",
-    `${Math.max(0, topicCount)} \u4e2a\u7ed1\u5b9a\u8bdd\u9898`,
+    "\u9ed8\u8ba4\u8bdd\u9898",
+    historyCount > 0 ? `${historyCount} \u4e2a\u5386\u53f2\u4e13\u9898` : "",
   ].filter(Boolean);
   return `<span class="plugin-topic-stats">${stats.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</span>`;
 }
 
 function renderPluginTopicCards(options = {}) {
-  const defs = availablePluginTopicDefs().filter((def) => def.builtinKind === "directory");
+  ensurePluginTopicBindingsLoaded();
+  const defs = orderedPluginAppDefs(availablePluginTopicDefs()).filter((def) => !def.builtinKind);
   if (!defs.length) return "";
-  return `<section class="plugin-topic-launcher" aria-label="\u63d2\u4ef6\u4e3b\u9898">
+  return `<section class="plugin-topic-launcher" aria-label="\u63d2\u4ef6\u8bdd\u9898">
     <div class="plugin-topic-grid">
       ${defs.map((def) => {
-        const specialClass = def.builtinKind === "directory" ? " directory-special-plugin" : "";
         return `
-        <article class="plugin-topic-card${specialClass}" data-plugin-topic-card="${escapeHtml(def.id)}">
-          <button class="plugin-topic-card-main" type="button" data-plugin-topic-open-app="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u63d2\u4ef6`)}">
+        <article class="plugin-topic-card" data-plugin-topic-card="${escapeHtml(def.id)}">
+          <button class="plugin-topic-card-main" type="button" data-plugin-topic-open-topic="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u8bdd\u9898`)}">
             <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
             <span class="plugin-topic-text">
-              <span class="plugin-topic-title">${escapeHtml(def.label)}</span>
+              <span class="plugin-topic-title">${escapeHtml(`${def.label}\u8bdd\u9898`)}</span>
               <span class="plugin-topic-subtitle">${escapeHtml(def.subtitle)}</span>
               ${renderPluginTopicStats(def, options)}
             </span>
           </button>
-          ${renderPluginTopicActions(def)}
         </article>
       `;
       }).join("")}
     </div>
   </section>`;
+}
+
+function pluginTopicSwitcherEntries(def, thread = state.currentThread) {
+  if (!def || def.builtinKind || !thread) return [];
+  const entries = [{
+    kind: "default",
+    pluginId: def.id,
+    taskGroupId: pluginTopicGroupId(def.id),
+    title: `${def.label}\u9ed8\u8ba4\u8bdd\u9898`,
+    subtitle: "\u63d2\u4ef6\u8bdd\u9898",
+  }];
+  const groups = (typeof taskGroupsForThread === "function" ? taskGroupsForThread(thread) : [])
+    .filter((group) => !isPluginTopicTaskGroup(group));
+  const collections = typeof directoryTopicCollectionsForGroups === "function"
+    ? directoryTopicCollectionsForGroups(groups)
+    : [];
+  for (const collection of pluginTopicClaimedCollectionsForPlugin(collections, def.id)) {
+    for (const group of collection.groups || []) {
+      entries.push({
+        kind: "claimed_directory",
+        pluginId: def.id,
+        taskGroupId: group.id,
+        title: typeof directoryTopicDisplayTitle === "function" ? directoryTopicDisplayTitle(group) : (group.title || "\u5386\u53f2\u4e13\u9898"),
+        subtitle: collection.label || "\u5386\u53f2\u76ee\u5f55\u8bdd\u9898",
+      });
+    }
+  }
+  entries.push({
+    kind: "new",
+    pluginId: def.id,
+    taskGroupId: "",
+    title: "\u65b0\u5efa\u4e13\u9898\u8bdd\u9898",
+    subtitle: "\u5148\u4ece\u9ed8\u8ba4\u8bdd\u9898\u53d1\u8d77",
+  });
+  return entries;
+}
+
+function pluginTopicCurrentSwitcherLabel(def, group = null) {
+  if (!def) return "\u8bdd\u9898";
+  if (!group || String(group.id || "") === pluginTopicGroupId(def.id)) return `${def.label} · \u9ed8\u8ba4\u8bdd\u9898`;
+  const title = typeof directoryTopicDisplayTitle === "function" ? directoryTopicDisplayTitle(group) : (group.title || "\u4e13\u9898\u8bdd\u9898");
+  return `${def.label} · ${title}`;
+}
+
+function renderPluginTopicSwitcher(group = null) {
+  const def = pluginTopicDefForTaskGroup(group) || pluginTopicDefForViewMode(state.viewMode);
+  if (!def || def.builtinKind) return "";
+  const entries = pluginTopicSwitcherEntries(def);
+  const currentGroupId = String(group?.id || state.currentTaskGroupId || "");
+  return `<section class="plugin-topic-switcher" data-plugin-topic-switcher="${escapeHtml(def.id)}">
+    <button class="plugin-topic-switch-button" type="button" data-plugin-topic-switch-toggle aria-expanded="false">
+      <span>${escapeHtml(pluginTopicCurrentSwitcherLabel(def, group))}</span>
+      <span class="plugin-topic-switch-chevron" aria-hidden="true"></span>
+    </button>
+    <div class="plugin-topic-switch-panel" data-plugin-topic-switch-panel hidden>
+      ${entries.map((entry) => {
+        const active = entry.taskGroupId && entry.taskGroupId === currentGroupId;
+        const attrs = entry.kind === "new"
+          ? `data-plugin-topic-new-topic="${escapeHtml(entry.pluginId)}"`
+          : entry.kind === "default"
+            ? `data-plugin-topic-open-topic="${escapeHtml(entry.pluginId)}"`
+            : `data-plugin-claimed-topic-open="${escapeHtml(entry.taskGroupId)}" data-plugin-claimed-topic-plugin="${escapeHtml(entry.pluginId)}"`;
+        return `<button class="plugin-topic-switch-item${active ? " active" : ""}" type="button" ${attrs}>
+          <span class="plugin-topic-switch-item-title">${escapeHtml(entry.title)}</span>
+          <span class="plugin-topic-switch-item-subtitle">${escapeHtml(entry.subtitle)}</span>
+        </button>`;
+      }).join("")}
+    </div>
+  </section>`;
+}
+
+function openPluginClaimedDirectoryTopic(pluginId, taskGroupId) {
+  const def = pluginTopicDefById(pluginId);
+  if (!def || def.builtinKind || !taskGroupId) return;
+  state.pluginContextNavPluginId = def.id;
+  if (typeof openTaskGroupFromList === "function") {
+    openTaskGroupFromList(taskGroupId);
+  } else {
+    state.currentTaskGroupId = taskGroupId;
+    renderCurrentThread({ stickToBottom: true });
+  }
+  if (typeof updateNavigationControls === "function") updateNavigationControls();
+}
+
+function wirePluginTopicSwitcher(root) {
+  const switcher = root?.querySelector?.("[data-plugin-topic-switcher]");
+  if (!switcher || switcher.dataset.pluginTopicSwitcherBound === "1") return;
+  switcher.dataset.pluginTopicSwitcherBound = "1";
+  const toggle = switcher.querySelector("[data-plugin-topic-switch-toggle]");
+  const panel = switcher.querySelector("[data-plugin-topic-switch-panel]");
+  toggle?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const open = Boolean(panel?.hidden);
+    if (panel) panel.hidden = !open;
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  panel?.addEventListener("click", (event) => event.stopPropagation());
+  panel?.querySelectorAll?.("[data-plugin-claimed-topic-open]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (panel) panel.hidden = true;
+      toggle?.setAttribute("aria-expanded", "false");
+      openPluginClaimedDirectoryTopic(button.dataset.pluginClaimedTopicPlugin, button.dataset.pluginClaimedTopicOpen);
+    });
+  });
+  panel?.querySelectorAll?.("[data-plugin-topic-open-topic]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (panel) panel.hidden = true;
+      toggle?.setAttribute("aria-expanded", "false");
+      openPluginTopicChat(button.dataset.pluginTopicOpenTopic).catch(showError);
+    });
+  });
+  panel?.querySelectorAll?.("[data-plugin-topic-new-topic]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (panel) panel.hidden = true;
+      toggle?.setAttribute("aria-expanded", "false");
+      openPluginTopicChat(button.dataset.pluginTopicNewTopic).catch(showError);
+      if (typeof showPushToast === "function") showPushToast("\u5df2\u8fdb\u5165\u63d2\u4ef6\u9ed8\u8ba4\u8bdd\u9898\uff0c\u53ef\u76f4\u63a5\u53d1\u8d77\u65b0\u4e13\u9898\u3002", "info");
+    });
+  });
 }
 
 function renderPluginAppDesktop(defs = []) {

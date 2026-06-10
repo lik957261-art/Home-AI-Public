@@ -287,7 +287,9 @@ function renderTaskDetailToolbar(group) {
   const sharedTopic = Boolean(group?.sharedTopic);
   const context = Object.assign({ toolbar: true }, taskDirectoryContext(group));
   const aliasButtons = renderDirectoryAliases(taskDirectoryAliases(group), context);
+  const pluginTopicSwitcher = typeof renderPluginTopicSwitcher === "function" ? renderPluginTopicSwitcher(group) : "";
   toolbar.innerHTML = `
+    ${pluginTopicSwitcher}
     <div class="task-toolbar-meta">
       <div class="task-toolbar-directories">${aliasButtons || ""}</div>
     </div>
@@ -318,5 +320,6 @@ function renderTaskDetailToolbar(group) {
     moreButton?.setAttribute("aria-expanded", "false");
     deleteTaskGroup(group.id).catch(showError);
   });
+  if (typeof wirePluginTopicSwitcher === "function") wirePluginTopicSwitcher(toolbar);
   wireDirectoryProjectLinks(toolbar);
 }
