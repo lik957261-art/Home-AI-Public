@@ -433,6 +433,28 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     privileged("/bin/chmod", [recursive ? "-R" : "", "+a", acl, target].filter(Boolean));
   }
 
+  function grantGatewayWorkerSecretAcls(fields, worker, manifestPath) {
+    const parentPerms = "search,readattr,readextattr,readsecurity";
+    const readPerms = "read,readattr,readextattr,readsecurity";
+    const targets = [
+      manifestPath,
+      worker.apiKeyFile || worker.api_key_file || worker.apiKeyPath || worker.api_key_path,
+      worker.deepseekApiKeyFile || worker.deepseek_api_key_file || worker.providerKeyFile || worker.provider_key_file,
+    ].filter(Boolean);
+    const fallbackProviderKey = path.posix.join(fields.dataRoot, "secrets", "deepseek-api-key.secret");
+    if (fileExists(fallbackProviderKey)) targets.push(fallbackProviderKey);
+    const parentDirs = [
+      path.posix.join(fields.dataRoot, "secrets"),
+      path.posix.join(fields.dataRoot, "secrets", "gateway-workers"),
+    ];
+    for (const dir of parentDirs) {
+      if (fileExists(dir)) chmodAcl(fields.macUser, dir, parentPerms);
+    }
+    for (const target of [...new Set(targets)]) {
+      if (fileExists(target)) chmodAcl(fields.macUser, target, readPerms);
+    }
+  }
+
   function repairWorkspaceAcl(context = {}) {
     const platformFailure = ensureMacPlatform();
     if (platformFailure) return platformFailure;
@@ -495,7 +517,6 @@ PORT=${bashQuote(String(port))}
 MANIFEST=${bashQuote(manifestPath)}
 PROFILE_DIR=${bashQuote(profileRoot)}
 RUNTIME_PYTHON="$ROOT/runtime/hermes-agent-official/venv/bin/python"
-RUNTIME_HERMES="$ROOT/runtime/hermes-agent-official/venv/bin/hermes"
 RUNTIME_SOURCE="$ROOT/runtime/hermes-agent-official/source"
 RUNTIME_OVERRIDES="$ROOT/app/gateway-runtime-overrides"
 FILE_PLUGIN_ALLOWED_ROOTS="$ROOT/data/drive,$ROOT/data/uploads,$ROOT/data/artifacts"
@@ -537,9 +558,6 @@ if [ -s "$deepseek_api_key_file" ]; then
   deepseek_api_key="$(tr -d '\\r\\n' < "$deepseek_api_key_file")"
 fi
 mkdir -p "$PROFILE_DIR/logs"
-if [ -x "$RUNTIME_HERMES" ]; then
-  exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_PROFILE="$PROFILE" HERMES_WORKSPACE_ROOT=${bashQuote(fields.workerWorkspaceRoot)} HERMES_GOOGLE_PROFILE_HOME="$PROFILE_DIR" PYTHONPATH="$RUNTIME_OVERRIDES:$RUNTIME_SOURCE" PATH="$ROOT/runtime/node-current/bin:$ROOT/runtime/hermes-agent-official/venv/bin:/usr/local/bin:/usr/bin:/bin" HERMES_ACCEPT_HOOKS=1 HERMES_KANBAN_DISPATCH_IN_GATEWAY=0 API_SERVER_KEY="$api_server_key" DEEPSEEK_API_KEY="$deepseek_api_key" "$RUNTIME_HERMES" gateway run --replace --accept-hooks
-fi
 exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_PROFILE="$PROFILE" HERMES_WORKSPACE_ROOT=${bashQuote(fields.workerWorkspaceRoot)} HERMES_GOOGLE_PROFILE_HOME="$PROFILE_DIR" PYTHONPATH="$RUNTIME_OVERRIDES:$RUNTIME_SOURCE" PATH="$ROOT/runtime/node-current/bin:$ROOT/runtime/hermes-agent-official/venv/bin:/usr/local/bin:/usr/bin:/bin" HERMES_ACCEPT_HOOKS=1 HERMES_KANBAN_DISPATCH_IN_GATEWAY=0 API_SERVER_KEY="$api_server_key" DEEPSEEK_API_KEY="$deepseek_api_key" "$RUNTIME_PYTHON" -m hermes_cli.main gateway run --replace --accept-hooks
 `;
   }
@@ -716,6 +734,7 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
       const provider = providerFamily(worker);
       providerOrdinals[provider] = (providerOrdinals[provider] || 0) + 1;
       const label = labelFor(fields, worker, providerOrdinals[provider]);
+      grantGatewayWorkerSecretAcls(fields, worker, manifestPath);
       const materialized = ensureProfileMaterialized(fields, worker, manifestPath);
       const dir = materialized.dir;
       const configPath = path.posix.join(dir, "config.yaml");

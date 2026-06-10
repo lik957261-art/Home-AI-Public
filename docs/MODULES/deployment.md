@@ -390,6 +390,19 @@ window for Mac cold-start validation: a cold worker can become healthy after
 the default window, which otherwise creates a user-visible failed task while
 the worker becomes reusable moments later.
 
+Mac workspace Gateway start scripts must execute the official runtime through
+the production venv Python (`$ROOT/runtime/hermes-agent-official/venv/bin/python
+-m hermes_cli.main`) instead of the `venv/bin/hermes` console script. Console
+script shebangs can retain the build user's temporary path after a runtime
+package copy, causing low-permission users such as `hm-stephen` to fail with
+`Permission denied` before `/health` binds.
+
+Workspace worker users must also have read-only ACL access to the live Gateway
+manifest, their own worker API key file, and any provider key file read by the
+start script, plus traverse-only ACL access to the containing secret
+directories. Missing access surfaces as `missing Gateway API key for <profile>`
+in the worker stderr and as a user-facing `AI 执行通道启动后没有通过健康检查`.
+
 Mac Gateway worker LaunchDaemons must stay loaded for every enabled manifest
 worker, but loaded does not mean always running. Only profiles in the required
 warm baseline may use `RunAtLoad=true` and `KeepAlive=true`. Every other

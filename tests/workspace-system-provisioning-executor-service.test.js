@@ -130,6 +130,10 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
         },
       ],
     });
+    fs.mkdirSync(`${root}/data/secrets/gateway-workers`, { recursive: true });
+    fs.writeFileSync(`${root}/data/secrets/lowgw31.secret`, "gateway-key\n", "utf8");
+    fs.writeFileSync(`${root}/data/secrets/deepseekgw31.secret`, "gateway-key\n", "utf8");
+    fs.writeFileSync(`${root}/data/secrets/deepseek-api-key.secret`, "provider-key\n", "utf8");
     const service = createWorkspaceSystemProvisioningExecutorService({
       forceEnabled: true,
       fs,
@@ -163,6 +167,11 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
     assert.match(startScript, /HERMES_MOBILE_VIDEO_OUTPUT_ROOT/);
     assert.match(startScript, /\$\{ROOT\}\/data\/drive|\$ROOT\/data\/drive/);
     assert.match(startScript, /API_SERVER_KEY/);
+    assert.doesNotMatch(startScript, /RUNTIME_HERMES/);
+    assert.match(startScript, /\$RUNTIME_PYTHON" -m hermes_cli\.main gateway run --replace --accept-hooks/);
+    assert.ok(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("+a") && call.args.includes("user:hm-xulu allow read,readattr,readextattr,readsecurity") && call.args.includes(context.gateway.manifestPath)));
+    assert.ok(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("+a") && call.args.includes("user:hm-xulu allow read,readattr,readextattr,readsecurity") && call.args.includes(`${root}/data/secrets/lowgw31.secret`)));
+    assert.ok(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("+a") && call.args.includes("user:hm-xulu allow read,readattr,readextattr,readsecurity") && call.args.includes(`${root}/data/secrets/deepseek-api-key.secret`)));
 
     const config = fs.readFileSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/config.yaml`, "utf8");
     assert.match(config, /provider: openai-codex/);

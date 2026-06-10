@@ -75,6 +75,29 @@ passes. The closure harness includes this ACL check plus status, profile audit,
 native MCP schema, DeepSeek, Weixin, Owner/OpenAI concurrency, and final-status
 checks.
 
+If a user sees `AI 执行通道启动后没有通过健康检查`, check the affected
+workspace Gateway stderr before assuming model/provider failure. On Mac
+production, a low-permission worker can exit before binding `/health` when it
+cannot read the live Gateway manifest, its worker API key file, or a provider
+key file read by the start script. The typical stderr is
+`missing Gateway API key for <profile>` or a `Permission denied` line for a
+secret/runtime path.
+
+Repair only the minimum required access:
+
+```bash
+sudo chmod +a "user:<hm-user> allow search,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/secrets
+sudo chmod +a "user:<hm-user> allow search,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/secrets/gateway-workers
+sudo chmod +a "user:<hm-user> allow read,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json
+sudo chmod +a "user:<hm-user> allow read,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/secrets/gateway-workers/<profile>.key
+```
+
+If the stderr shows `venv/bin/hermes: Permission denied`, inspect the console
+script shebang. Workspace start scripts should execute the runtime as
+`$ROOT/runtime/hermes-agent-official/venv/bin/python -m hermes_cli.main gateway
+run --replace --accept-hooks`; do not fix this by granting workspace users
+access to a developer's home directory.
+
 For required plugin Skills and profile-local file plugins, also run the profile
 audit after any Skill Store copy, worker-side Skill edit, plugin provisioning,
 user migration, or Gateway start-script repair:
