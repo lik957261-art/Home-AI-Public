@@ -48,6 +48,7 @@ const RSYNC_EXCLUDES = [
 
 const PLUGIN_RSYNC_EXCLUDES = [
   "data/",
+  "runtime/",
 ];
 
 const SURFACES = new Set(["full", "static"]);

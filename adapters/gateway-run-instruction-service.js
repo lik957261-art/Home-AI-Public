@@ -2,7 +2,7 @@
 
 const { explicitSearchContext } = require("./gateway-run-search-budget-service");
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260607-email-local-delete-mcp-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260610-email-bulk-local-delete-mcp-v1";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
@@ -91,6 +91,8 @@ function createGatewayRunInstructionService(options = {}) {
         "mcp_email_list_attachments",
         "mcp_email_sync_account",
         "mcp_email_apply_mail_action",
+        "mcp_email_delete_local_by_search",
+        "mcp_email_apply_mail_action_bulk",
       ],
       messaging: ["send_message"],
       tts: ["text_to_speech"],

@@ -51,6 +51,30 @@ function startFakeEmailService() {
         }));
         return;
       }
+      if (req.method === "GET" && req.url.startsWith("/api/messages?")) {
+        const url = new URL(req.url, "http://127.0.0.1");
+        const query = String(url.searchParams.get("query") || "");
+        const messages = [
+          {
+            id: "msg-1",
+            accountId: "acct-1",
+            folderId: "inbox",
+            subject: "Bounded message",
+            sender: "sender@example.com",
+            receivedAt: "2026-06-10T00:00:00.000Z",
+          },
+          {
+            id: "msg-invoice",
+            accountId: "acct-1",
+            folderId: "inbox",
+            subject: "Cathay invoice",
+            sender: "booking@cathaypacific.com",
+            receivedAt: "2026-06-09T00:00:00.000Z",
+          },
+        ].filter((message) => !query || message.subject.toLowerCase().includes(query.toLowerCase()) || message.sender.toLowerCase().includes(query.toLowerCase()));
+        res.end(JSON.stringify({ messages, hasMore: false, nextOffset: messages.length }));
+        return;
+      }
       if (req.method === "GET" && req.url === "/api/messages/msg-1") {
         res.end(JSON.stringify({
           message: {
@@ -135,6 +159,8 @@ async function main() {
       { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "list_accounts", arguments: {} } },
       { jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "get_message", arguments: { messageId: "msg-1" } } },
       { jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "apply_mail_action", arguments: { action: "delete_local", messageId: "msg-1" } } },
+      { jsonrpc: "2.0", id: 6, method: "tools/call", params: { name: "delete_local_by_search", arguments: { query: "Cathay OR invoice", exclude_keywords: ["invoice"] } } },
+      { jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "apply_mail_action_bulk", arguments: { action: "delete_local", messageIds: ["msg-1"], dry_run: false } } },
     ].map((item) => JSON.stringify(item)).join("\n") + "\n";
     const result = await runWrapper({ workspace, apiBaseUrl: fakeEmail.baseUrl, input });
     assert.equal(result.code, 0, result.stderr);
@@ -146,6 +172,8 @@ async function main() {
     const lines = result.stdout.trim().split(/\r?\n/).map((line) => JSON.parse(line));
     assert.equal(lines[0].result.serverInfo.name, "email");
     assert.equal(lines[1].result.tools.some((tool) => tool.name === "search_messages"), true);
+    assert.equal(lines[1].result.tools.some((tool) => tool.name === "delete_local_by_search"), true);
+    assert.equal(lines[1].result.tools.some((tool) => tool.name === "apply_mail_action_bulk"), true);
     const accounts = JSON.parse(lines[2].result.content[0].text);
     assert.deepEqual(accounts.accounts.map((item) => item.id), ["acct-1"]);
     const message = JSON.parse(lines[3].result.content[0].text);
@@ -157,6 +185,15 @@ async function main() {
     assert.equal(action.action, "delete_local");
     assert.equal(action.remoteApplied, false);
     assert.equal(action.localOnly, true);
+    const searchDelete = JSON.parse(lines[5].result.content[0].text);
+    assert.equal(searchDelete.ok, true);
+    assert.equal(searchDelete.dry_run, true);
+    assert.equal(searchDelete.deleted_count, 0);
+    assert.equal(searchDelete.skipped_samples[0].reason, "matched exclude keyword: invoice");
+    const bulkDelete = JSON.parse(lines[6].result.content[0].text);
+    assert.equal(bulkDelete.ok, true);
+    assert.equal(bulkDelete.deleted_count, 1);
+    assert.equal(bulkDelete.remoteApplied, false);
     const deleteRequest = fakeEmail.requests.find((request) => request.method === "DELETE" && request.url === "/api/messages/msg-1");
     assert.deepEqual(deleteRequest.body, { accountId: "acct-1" });
     assert.equal(fakeEmail.requests[0].authorization, "Bearer workspace-secret-key");

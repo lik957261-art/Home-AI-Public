@@ -97,6 +97,38 @@ TOOLS = [
             "required": ["action", "messageId"],
         },
     },
+    {
+        "name": "delete_local_by_search",
+        "description": "Dry-run by default. Search visible local mail, apply include/exclude safeguards, and optionally tombstone matching messages locally.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "folderId": {"type": "string"},
+                "limit": {"type": "number", "minimum": 1, "maximum": 1000, "default": 500},
+                "dry_run": {"type": "boolean", "default": True},
+                "include_sender": {"type": "array", "items": {"type": "string"}},
+                "include_subject": {"type": "array", "items": {"type": "string"}},
+                "exclude_keywords": {"type": "array", "items": {"type": "string"}},
+                "older_than_days": {"type": ["number", "null"], "minimum": 0},
+                "newer_than_days": {"type": ["number", "null"], "minimum": 0},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "apply_mail_action_bulk",
+        "description": "Dry-run by default. Apply delete_local to a bounded list of local message ids.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": ["delete_local"]},
+                "messageIds": {"type": "array", "items": {"type": "string"}, "maxItems": 1000},
+                "dry_run": {"type": "boolean", "default": True},
+            },
+            "required": ["action", "messageIds"],
+        },
+    },
 ]
 
 TOOL_ALIASES = {
@@ -130,6 +162,14 @@ TOOL_ALIASES = {
     "email_apply_mail_action": "apply_mail_action",
     "email.delete_message": "apply_mail_action",
     "email_delete_message": "apply_mail_action",
+    "delete_local_by_search": "delete_local_by_search",
+    "email.delete_local_by_search": "delete_local_by_search",
+    "email_delete_local_by_search": "delete_local_by_search",
+    "mcp_email_delete_local_by_search": "delete_local_by_search",
+    "apply_mail_action_bulk": "apply_mail_action_bulk",
+    "email.apply_mail_action_bulk": "apply_mail_action_bulk",
+    "email_apply_mail_action_bulk": "apply_mail_action_bulk",
+    "mcp_email_apply_mail_action_bulk": "apply_mail_action_bulk",
 }
 
 
@@ -150,6 +190,14 @@ def bounded_limit(value: Any) -> int:
     except Exception:
         parsed = 50
     return min(max(parsed, 1), 100)
+
+
+def bounded_bulk_limit(value: Any) -> int:
+    try:
+        parsed = int(value)
+    except Exception:
+        parsed = 500
+    return min(max(parsed, 1), 1000)
 
 
 def bounded_offset(value: Any) -> int:
@@ -312,6 +360,10 @@ class EmailClient:
             }
         if tool == "apply_mail_action":
             return self.apply_mail_action(args)
+        if tool == "delete_local_by_search":
+            return self.delete_local_by_search(args)
+        if tool == "apply_mail_action_bulk":
+            return self.apply_mail_action_bulk(args)
         return {"ok": False, "error": "unknown_email_mcp_tool", "tool": name}
 
     def list_mailboxes(self, args: dict[str, Any]) -> dict[str, Any]:
@@ -413,6 +465,109 @@ class EmailClient:
             **({"error": payload.get("error")} if payload.get("error") else {}),
         }
 
+    def delete_local_by_search(self, args: dict[str, Any]) -> dict[str, Any]:
+        query = str(args.get("query") or "").strip()
+        if not query:
+            return {"ok": False, "error": "email_query_required"}
+        dry_run = bool(args.get("dry_run", args.get("dryRun", True)))
+        limit = bounded_bulk_limit(args.get("limit"))
+        candidates = self.search_messages_for_bulk(query, str(args.get("folderId") or ""), limit)
+        evaluated = evaluate_bulk_candidates(candidates, args)
+        applied = [] if dry_run else [self.delete_projected_message(message) for message in evaluated["deletable"]]
+        failed = [item for item in applied if not item.get("changed")]
+        return {
+            "ok": True,
+            "matched_count": len(candidates),
+            "would_delete_count": len(evaluated["deletable"]),
+            "deleted_count": 0 if dry_run else sum(1 for item in applied if item.get("changed")),
+            "skipped_count": len(evaluated["skipped"]) + len(failed),
+            "remoteApplied": False,
+            "action": "delete_local",
+            "dry_run": dry_run,
+            "limit": limit,
+            "sample_deleted": sample_messages(evaluated["deletable"]),
+            "skipped_samples": (evaluated["skipped"] + [
+                {**sample_message(item.get("message") or {}), "reason": item.get("error") or "delete_local not applied"}
+                for item in failed
+            ])[:10],
+            "sender_breakdown": sender_breakdown(evaluated["deletable"]),
+        }
+
+    def apply_mail_action_bulk(self, args: dict[str, Any]) -> dict[str, Any]:
+        if str(args.get("action") or "") != "delete_local":
+            return {"ok": False, "error": "email_mcp_action_not_supported", "supportedActions": ["delete_local"]}
+        dry_run = bool(args.get("dry_run", args.get("dryRun", True)))
+        message_ids = unique_strings(args.get("messageIds") if isinstance(args.get("messageIds"), list) else [])[:1000]
+        if not message_ids:
+            return {"ok": False, "error": "email_message_ids_required"}
+        deletable: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        for message_id in message_ids:
+            detail = self.get_message({"messageId": message_id})
+            if not detail.get("ok"):
+                skipped.append({"messageId": message_id, "subject": "", "from": "", "date": "", "reason": "message not found or not allowed"})
+                continue
+            message = detail.get("message") if isinstance(detail.get("message"), dict) else {}
+            deletable.append(message)
+        applied = [] if dry_run else [self.delete_projected_message(message) for message in deletable]
+        failed = [item for item in applied if not item.get("changed")]
+        return {
+            "ok": True,
+            "matched_count": len(message_ids),
+            "would_delete_count": len(deletable),
+            "deleted_count": 0 if dry_run else sum(1 for item in applied if item.get("changed")),
+            "skipped_count": len(skipped) + len(failed),
+            "remoteApplied": False,
+            "action": "delete_local",
+            "dry_run": dry_run,
+            "limit": 1000,
+            "sample_deleted": sample_messages(deletable),
+            "skipped_samples": (skipped + [
+                {**sample_message(item.get("message") or {}), "reason": item.get("error") or "delete_local not applied"}
+                for item in failed
+            ])[:10],
+            "sender_breakdown": sender_breakdown(deletable),
+        }
+
+    def search_messages_for_bulk(self, query: str, folder_id: str, limit: int) -> list[dict[str, Any]]:
+        messages_by_id: dict[str, dict[str, Any]] = {}
+        for term in parse_search_terms(query):
+            offset = 0
+            while len(messages_by_id) < limit:
+                page_limit = min(100, limit - len(messages_by_id))
+                payload = self.http_json("GET", "/api/messages", query={
+                    "query": term,
+                    "folderId": folder_id,
+                    "limit": page_limit,
+                    "offset": offset,
+                })
+                page = payload.get("messages") if isinstance(payload.get("messages"), list) else []
+                if not page:
+                    break
+                for message in page:
+                    if isinstance(message, dict) and message.get("id"):
+                        messages_by_id[str(message.get("id"))] = message
+                if not payload.get("hasMore") or len(page) < page_limit:
+                    break
+                offset = int(payload.get("nextOffset") or (offset + len(page)))
+        return list(messages_by_id.values())[:limit]
+
+    def delete_projected_message(self, message: dict[str, Any]) -> dict[str, Any]:
+        message_id = str(message.get("id") or message.get("messageId") or "").strip()
+        account_id = str(message.get("accountId") or "").strip()
+        if not message_id or not account_id:
+            return {"changed": False, "error": "email_message_projection_incomplete", "message": message}
+        payload = self.http_json(
+            "DELETE",
+            f"/api/messages/{urllib.parse.quote(message_id, safe='')}",
+            body={"accountId": account_id},
+        )
+        return {
+            "changed": bool(payload.get("changed")),
+            "error": payload.get("error"),
+            "message": message,
+        }
+
 
 def project_message(message: dict[str, Any]) -> dict[str, Any]:
     projected = {key: value for key, value in message.items() if key not in ("bodyText", "rawMime", "headers")}
@@ -432,6 +587,96 @@ def project_attachment(attachment: dict[str, Any]) -> dict[str, Any]:
         "sizeBytes": attachment.get("sizeBytes"),
         "availabilityState": attachment.get("availabilityState") or "metadata-only",
     }
+
+
+def parse_search_terms(query: str) -> list[str]:
+    terms: list[str] = []
+    current = ""
+    quote = ""
+    for char in query:
+        if quote:
+            if char == quote:
+                if current.strip():
+                    terms.append(current.strip())
+                current = ""
+                quote = ""
+            else:
+                current += char
+            continue
+        if char in ("'", '"'):
+            if current.strip():
+                terms.extend(part for part in current.strip().split() if part.upper() != "OR")
+            current = ""
+            quote = char
+            continue
+        current += char
+    if current.strip():
+        terms.extend(part for part in current.strip().split() if part.upper() != "OR")
+    return unique_strings(terms) or [query]
+
+
+def evaluate_bulk_candidates(messages: list[dict[str, Any]], args: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    include_sender = normalized_list(args.get("include_sender") or args.get("includeSender") or [])
+    include_subject = normalized_list(args.get("include_subject") or args.get("includeSubject") or [])
+    exclude_keywords = normalized_list(args.get("exclude_keywords") or args.get("excludeKeywords") or [])
+    deletable: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for message in messages:
+        sender_text = normalized_text(f"{message.get('sender') or ''} {message.get('senderAddress') or ''}")
+        subject_text = normalized_text(str(message.get("subject") or ""))
+        combined_text = f"{subject_text} {sender_text}"
+        excluded = next((keyword for keyword in exclude_keywords if keyword in combined_text), "")
+        if excluded:
+            skipped.append({**sample_message(message), "reason": f"matched exclude keyword: {excluded}"})
+            continue
+        if include_sender and not any(keyword in sender_text for keyword in include_sender):
+            skipped.append({**sample_message(message), "reason": "sender did not match include_sender"})
+            continue
+        if include_subject and not any(keyword in subject_text for keyword in include_subject):
+            skipped.append({**sample_message(message), "reason": "subject did not match include_subject"})
+            continue
+        deletable.append(message)
+    return {"deletable": deletable, "skipped": skipped[:10]}
+
+
+def sample_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [sample_message(message) for message in messages[:10]]
+
+
+def sample_message(message: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "messageId": str(message.get("id") or message.get("messageId") or ""),
+        "subject": clamp_text(message.get("subject"), 160),
+        "from": clamp_text(message.get("sender") or message.get("senderAddress"), 160),
+        "date": str(message.get("receivedAt") or message.get("date") or ""),
+    }
+
+
+def sender_breakdown(messages: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for message in messages:
+        sender = clamp_text(message.get("sender") or message.get("senderAddress") or "Unknown sender", 160)
+        counts[sender] = counts.get(sender, 0) + 1
+    return dict(sorted(counts.items(), key=lambda item: item[1], reverse=True)[:25])
+
+
+def normalized_list(values: Any) -> list[str]:
+    return [normalized_text(value) for value in unique_strings(values if isinstance(values, list) else []) if normalized_text(value)]
+
+
+def unique_strings(values: list[Any]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if text and text not in seen:
+            seen.add(text)
+            result.append(text)
+    return result
+
+
+def normalized_text(value: Any) -> str:
+    return str(value or "").lower()
 
 
 def success_response(request_id: Any, result: Any) -> str:

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260609-dark-growth-surfaces-v679";
+const CLIENT_VERSION = "20260610-growth-plugin-shell-v680";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260609-dark-growth-surfaces-v679" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260609-dark-growth-surfaces-v679"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260610-growth-plugin-shell-v680" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260610-growth-plugin-shell-v680"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -842,7 +842,7 @@ assert.match(appRouteSnapshotUiJs, /function embeddedPluginReturnRouteSnapshotFo
 assert.match(appRouteSnapshotUiJs, /appendEmbeddedPluginReturnRouteSnapshotParams\(params, embeddedPluginReturnRouteSnapshotForView\(view\)\)/);
 assert.match(appRouteSnapshotUiJs, /function restoreEmbeddedPluginReturnRouteFromSnapshotParams\(params, routeView = ""\)/);
 assert.match(appRouteSnapshotUiJs, /normalizedView === "codex" \? \{ viewMode: "tasks", singleWindowMode: "chat" \} : null/);
-assert.match(appPlatformUiJs, /\["codex", "finance", "email", "health", "note"\]\.includes\(routeView\)[\s\S]*?restoreEmbeddedPluginReturnRouteFromSnapshotParams\(params, routeView\)/);
+assert.match(appPlatformUiJs, /\["codex", "finance", "email", "health", "note", "growth"\]\.includes\(routeView\)[\s\S]*?restoreEmbeddedPluginReturnRouteFromSnapshotParams\(params, routeView\)/);
 assert.doesNotMatch(appPlatformUiJs, /function persistAppRouteSnapshot\(reason = "state"\)/);
 assert.doesNotMatch(appPlatformUiJs, /function restoreAppRouteSnapshotPosition\(\)/);
 assert.ok(
@@ -1157,8 +1157,8 @@ assert.match(gatewayRunInstructionServiceJs, /`chatgpt_image_edit`, and `chatgpt
 assert.match(gatewayRunInstructionServiceJs, /For existing-image retouching, object removal, background cleanup, P image requests, or erase\/inpainting requests/);
 assert.match(gatewayRunInstructionServiceJs, /prefer `chatgpt_image_edit` or `chatgpt_image_erase`/);
 assert.match(serverJs, /GATEWAY_TOOL_SCHEMA_EPOCH/);
-assert.match(serverJs, /20260607-email-local-delete-mcp-v1/);
-assert.match(gatewayRunInstructionServiceJs, /20260607-email-local-delete-mcp-v1/);
+assert.match(serverJs, /20260610-email-bulk-local-delete-mcp-v1/);
+assert.match(gatewayRunInstructionServiceJs, /20260610-email-bulk-local-delete-mcp-v1/);
 assert.match(mobileRuntimeGatewayEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT[\s\S]*\|\| "0"/);
 assert.match(mobileRuntimeGatewayEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS[\s\S]*\|\| "8000"/);
 assert.match(serverJs, /enabled: GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED \|\| GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED/);
@@ -1930,7 +1930,7 @@ assert.match(appJs, /function applyDefaultLaunchView\(\) \{\s*state\.viewMode = 
 assert.match(appJs, /const saved = localStorage\.getItem\("hermesWebViewMode"\) \|\| "tasks";/);
 assert.doesNotMatch(appJs, /node\.hidden = Boolean\(state\.auth && !state\.auth\.isOwner\)/);
 assert.doesNotMatch(appJs, /node\.disabled = Boolean\(state\.auth && !state\.auth\.isOwner\)/);
-assert.match(appJs, /"chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomLearningMode", "bottomAutomationMode"/);
+assert.match(appJs, /"chatManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomLearningMode", "bottomAutomationMode"/);
 assert.match(appJs, /params\.set\("workspaceId", learningGrowthLearnerWorkspaceId\(\)\)/);
 assert.match(appJs, /workspaceId: learningGrowthLearnerWorkspaceId\(\)/);
 assert.match(appLearningGrowthControllerJs, /function setLearningGrowthLearnerWorkspaceId\(workspaceId\)/);
@@ -2340,7 +2340,7 @@ assert.match(indexHtml, /id="bottomLearningMode"[\s\S]*hidden aria-hidden="true"
 assert.match(indexHtml, /id="bottomInboxMode"[\s\S]*aria-label="&#20449;&#24687;"/);
 assert.match(indexHtml, /id="bottomTasksMode"[\s\S]*aria-label="话题"/);
 assert.match(indexHtml, /id="bottomProjectsMode"[\s\S]*hidden aria-hidden="true"/);
-assert.match(indexHtml, /id="bottomChatMode"[\s\S]*id="bottomInboxMode"[\s\S]*id="bottomTasksMode"[\s\S]*id="bottomProjectsMode"[\s\S]*id="bottomTodosMode"[\s\S]*id="bottomWardrobeMode"[\s\S]*id="bottomCodexMode"[\s\S]*id="bottomFinanceMode"[\s\S]*id="bottomEmailMode"[\s\S]*id="bottomHealthMode"[\s\S]*id="bottomNoteMode"/);
+assert.match(indexHtml, /id="bottomChatMode"[\s\S]*id="bottomInboxMode"[\s\S]*id="bottomTasksMode"[\s\S]*id="bottomProjectsMode"[\s\S]*id="bottomTodosMode"[\s\S]*id="bottomWardrobeMode"[\s\S]*id="bottomCodexMode"[\s\S]*id="bottomFinanceMode"[\s\S]*id="bottomEmailMode"[\s\S]*id="bottomHealthMode"[\s\S]*id="bottomNoteMode"[\s\S]*id="bottomGrowthMode"/);
 assert.doesNotMatch(indexHtml, /id="bottomPluginMode"[\s\S]*aria-label="&#25554;&#20214;"/);
 assert.doesNotMatch(indexHtml, /id="bottomTasksMode"[\s\S]{0,220}aria-controls="bottomPluginMenu"/);
 assert.doesNotMatch(indexHtml, /id="bottomTasksMode"[\s\S]{0,220}aria-expanded=/);
@@ -2360,6 +2360,7 @@ assert.match(indexHtml, /id="bottomFinanceMode"[\s\S]*hidden aria-hidden="true"/
 assert.match(indexHtml, /id="bottomEmailMode"[\s\S]*hidden aria-hidden="true"/);
 assert.match(indexHtml, /id="bottomHealthMode"[\s\S]*hidden aria-hidden="true"/);
 assert.match(indexHtml, /id="bottomNoteMode"[\s\S]*hidden aria-hidden="true"/);
+assert.match(indexHtml, /id="bottomGrowthMode"[\s\S]*hidden aria-hidden="true"/);
 assert.match(appJs, /let hiddenBottomTabs = new Set\(\[[^\]]*"bottomPluginMode"/);
 assert.match(appJs, /const externalPluginContextNav = Boolean\(pluginContextDef && pluginContextButtonId\)/);
 assert.match(appJs, /const directoryContextNav = state\.viewMode === "projects" && Boolean\(state\.directoryPluginContextActive\)/);
@@ -2379,7 +2380,7 @@ assert.match(appJs, /pluginContextNavPluginId: state\.pluginContextNavPluginId \
 assert.match(appJs, /state\.pluginContextNavPluginId = route\.pluginContextNavPluginId \|\| ""/);
 assert.match(appJs, /function routePluginContextId\(params, routeView = "", taskGroupId = ""\)/);
 assert.match(appJs, /pluginContextIdFromTaskGroupId\(taskGroupId\)/);
-assert.match(appJs, /const knownPluginTopics = new Set\(\["wardrobe", "finance", "email", "health", "note"\]\)/);
+assert.match(appJs, /const knownPluginTopics = new Set\(\["wardrobe", "finance", "email", "health", "note", "growth"\]\)/);
 assert.match(appJs, /state\.pluginContextNavPluginId = pluginContextNavPluginId;/);
 assert.match(appJs, /const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"[\s\S]*?pluginTopicBottomButtonId\(pluginTopicDefForViewMode\(state\.viewMode\)\) === "bottomWardrobeMode"/);
 assert.match(appJs, /const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"[\s\S]*?pluginTopicBottomButtonId\(pluginTopicDefForViewMode\(state\.viewMode\)\) === def\.bottomButtonId/);
@@ -2430,7 +2431,7 @@ assert.match(appJs, /const GLOBAL_PLUGIN_DOCK_DRAG_SLOP_PX = 10/);
 assert.match(appJs, /const GLOBAL_PLUGIN_DOCK_TRIGGER_DISTANCE_PX = 28/);
 assert.match(appJs, /function globalPluginDockHostSurfaceEligible\(\)/);
 assert.match(appJs, /app\.classList\.contains\("plugin-context-nav-mode"\) && !pluginAppSurface/);
-assert.match(appJs, /const pluginAppSurface = \["wardrobe", "finance", "email", "health", "note"\]\.includes\(view\)/);
+assert.match(appJs, /const pluginAppSurface = \["wardrobe", "finance", "email", "health", "note", "growth"\]\.includes\(view\)/);
 assert.doesNotMatch(appJs, /const pluginAppSurface = \["wardrobe", "codex", "finance", "email", "health", "note"\]\.includes\(view\)/);
 assert.match(appJs, /app\.classList\.contains\("embedded-plugin-preview-fullscreen-active"\)/);
 assert.match(appJs, /app\.classList\.contains\("main-back-visible"\) && !pluginAppSurface/);
@@ -2456,7 +2457,7 @@ assert.match(appJs, /function updateTopicPluginDockChrome\(taskList\) \{[\s\S]*?
 assert.match(appJs, /function updateTopicPluginDockChrome\(taskList\) \{[\s\S]*?const revealFromHidden = dock\.hidden;[\s\S]*?if \(revealFromHidden\) dock\.style\.visibility = "hidden";[\s\S]*?updateMobileBottomNavReservation\(\);[\s\S]*?dock\.style\.removeProperty\("visibility"\);/);
 assert.match(appJs, /updateBottomNavVisibleCount\(\);[\s\S]*?updateTopicPluginDockChrome\(taskList\);[\s\S]*?updateTopMoreControls\(\);/);
 assert.match(appJs, /function clearBackSwipeSurface\(surface\) \{[\s\S]*?scheduleTopicPluginDockRevealAfterBackSwipe\("surface_clear"\);/);
-assert.match(appJs, /"bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomLearningMode", "bottomAutomationMode"/);
+assert.match(appJs, /"bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomLearningMode", "bottomAutomationMode"/);
 assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bottom\), 8px\)/);
 assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bottom\), 8px\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-content-safe-area: max\(0px, min\(var\(--mobile-bottom-safe-area\), 3px\)\)/);
@@ -2487,7 +2488,7 @@ assert.ok(pluginContextBottomNavBlock, "plugin context bottom nav CSS block shou
 assert.doesNotMatch(pluginContextBottomNavBlock, /transparent/);
 assert.match(stylesCss, /:root\[data-font-size\] \.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?height: var\(--plugin-context-bottom-nav-height\);[\s\S]*?min-height: var\(--plugin-context-bottom-nav-height\);/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-tab \{[\s\S]*?display: none !important;[\s\S]*?gap: 0;[\s\S]*?padding: 0;/);
-assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode,[\s\S]*?\.plugin-context-nav-mode #bottomNoteMode:not\(\[hidden\]\) \{[\s\S]*?display: grid !important;/);
+assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode,[\s\S]*?\.plugin-context-nav-mode #bottomNoteMode:not\(\[hidden\]\),[\s\S]*?\.plugin-context-nav-mode #bottomGrowthMode:not\(\[hidden\]\) \{[\s\S]*?display: grid !important;/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-tab-icon \{[\s\S]*?width: 32px;[\s\S]*?height: 32px;/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-tab-label \{[\s\S]*?display: none;/);
 assert.doesNotMatch(stylesCss, /\.app\.main-back-visible\.plugin-context-nav-mode\.plugin-topic-detail-mode \{[\s\S]*?padding-bottom:/);
@@ -2546,25 +2547,29 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260609-dark-growth-surfaces-v679/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260609-dark-growth-surfaces-v679/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260609-dark-growth-surfaces-v679/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260609-dark-growth-surfaces-v679/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260610-growth-plugin-shell-v680/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260610-growth-plugin-shell-v680/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260610-growth-plugin-shell-v680/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260610-growth-plugin-shell-v680/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
+assert.match(appJs, /growth: Object\.freeze\(\{[\s\S]*?viewMode: "growth"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/growth\/manifest"/);
 assert.match(appJs, /\$\("bottomHealthMode"\)\?\.addEventListener\("click"[\s\S]*?rememberHealthPluginReturnRoute\(\)[\s\S]*?state\.viewMode = "health"/);
 assert.match(appJs, /\$\("bottomNoteMode"\)\?\.addEventListener\("click"[\s\S]*?rememberNotePluginReturnRoute\(\)[\s\S]*?state\.viewMode = "note"/);
+assert.match(appJs, /\$\("bottomGrowthMode"\)\?\.addEventListener\("click"[\s\S]*?rememberGrowthPluginReturnRoute\(\)[\s\S]*?state\.viewMode = "growth"/);
 assert.match(appJs, /if \(state\.viewMode === "health"\) \{[\s\S]*?renderHealthPluginView\(\);[\s\S]*?return;/);
 assert.match(appJs, /if \(state\.viewMode === "note"\) \{[\s\S]*?renderNotePluginView\(\);[\s\S]*?return;/);
+assert.match(appJs, /if \(state\.viewMode === "growth"\) \{[\s\S]*?renderGrowthPluginView\(\);[\s\S]*?return;/);
 assert.match(appJs, /id: "directory"[\s\S]*?builtinKind: "directory"[\s\S]*?viewMode: "projects"/);
-assert.match(appJs, /id: "email"[\s\S]*?id: "health"[\s\S]*?id: "note"[\s\S]*?id: "directory"[\s\S]*?builtinKind: "directory"/);
+assert.match(appJs, /id: "email"[\s\S]*?id: "health"[\s\S]*?id: "note"[\s\S]*?id: "growth"[\s\S]*?id: "directory"[\s\S]*?builtinKind: "directory"/);
 assert.match(appJs, /appIconClass: "directory"/);
 assert.match(appJs, /appIconClass: "outlook"/);
 assert.match(appJs, /appIconClass: "wardrobe"/);
 assert.match(appJs, /appIconClass: "finance"/);
 assert.match(appJs, /appIconClass: "health"/);
 assert.match(appJs, /appIconClass: "note"/);
+assert.match(appJs, /appIconClass: "growth"/);
 assert.match(appJs, /appIconGlyph: "O"/);
 assert.match(appJs, /data-plugin-icon="\$\{escapeHtml\(def\.appIconGlyph \|\| ""\)\}"/);
 assert.match(appJs, /const pluginTopicDetail = taskDetail[\s\S]*?pluginTopicDefForGroupId\(state\.currentTaskGroupId\)/);
