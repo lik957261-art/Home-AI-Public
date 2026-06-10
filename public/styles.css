@@ -5994,13 +5994,20 @@ button.directory-alias-chip {
   border-top: 1px solid var(--ui-hairline);
   backdrop-filter: blur(12px);
   transform: translateY(0);
-  transition: transform 190ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition:
+    transform 190ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    height 190ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    min-height 190ms cubic-bezier(0.2, 0.8, 0.2, 1);
   will-change: transform;
   touch-action: pan-x;
 }
 
 .global-plugin-dock-mode .topic-plugin-dock.global-plugin-dock-collapsed {
-  transform: translateY(calc(var(--topic-plugin-dock-collapsed-offset) - var(--topic-plugin-dock-collapsed-safe-lift)));
+  bottom: calc(var(--topic-plugin-dock-bottom) - var(--topic-plugin-dock-nav-overlap) + var(--topic-plugin-dock-collapsed-safe-lift));
+  height: var(--topic-plugin-dock-collapsed-height);
+  min-height: var(--topic-plugin-dock-collapsed-height);
+  padding-top: 0;
+  transform: translateY(0);
   pointer-events: none;
   background: transparent;
   border-top-color: transparent;
@@ -6008,6 +6015,8 @@ button.directory-alias-chip {
 }
 
 .global-plugin-dock-mode .topic-plugin-dock.global-plugin-dock-dragging {
+  height: var(--topic-plugin-dock-height);
+  min-height: var(--topic-plugin-dock-height);
   transform: translateY(var(--global-plugin-dock-gesture-offset, 0px));
   transition: none;
 }
@@ -6017,6 +6026,8 @@ button.directory-alias-chip {
 }
 
 .global-plugin-dock-mode .topic-plugin-dock.global-plugin-dock-expanded {
+  height: var(--topic-plugin-dock-height);
+  min-height: var(--topic-plugin-dock-height);
   transform: translateY(0);
 }
 

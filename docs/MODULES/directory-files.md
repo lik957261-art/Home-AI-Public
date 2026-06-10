@@ -90,7 +90,7 @@ Product rules:
   project id, such as two workspaces each exposing `健康`, is not enough to
   merge topic collections.
 - A plugin may claim a directory topic collection without moving files. Since
-  `20260610-plugin-topic-claim-v686`, `claimed_by_plugin` claims with
+  `20260610-plugin-topic-dock-box-v687`, `claimed_by_plugin` claims with
   `hideFromDirectoryTopicRoot=true` are filtered out of the ordinary directory
   topic root and projected into the plugin topic switcher. `auxiliary_context`
   claims remain visible on the ordinary directory root. Claim filtering is keyed
@@ -155,7 +155,7 @@ Context assembly may read bounded summaries and selected report metadata from
 the directory, but authoritative live data should come from the plugin MCP when
 available.
 
-Since `20260610-plugin-topic-claim-v686`, plugin delivery directories do not
+Since `20260610-plugin-topic-dock-box-v687`, plugin delivery directories do not
 enter plugin topic context by scan. The plugin topic context source index marks
 eligible files with roles such as `cleaned_summary`, `pinned_context`,
 `topic_bound`, `context_source`, or `stage_summary`. Ordinary export PDFs,

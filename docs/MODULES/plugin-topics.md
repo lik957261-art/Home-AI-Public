@@ -383,7 +383,7 @@ See `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md` for the detailed design.
 
 ## Plugin Topic and Directory Claim Convergence
 
-Implemented in `20260610-plugin-topic-claim-v686`.
+Implemented in `20260610-plugin-topic-dock-box-v687`.
 
 Topics root now separates three entry layers:
 
