@@ -8,6 +8,7 @@ const DEFAULT_GATEWAY_PLUGIN_TOOLSETS = Object.freeze({
   note: "note",
   health: "health",
   email: "email",
+  growth: "growth",
 });
 const DEFAULT_CACHE_TTL_MS = 30 * 1000;
 

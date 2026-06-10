@@ -202,8 +202,9 @@ that plugin's required MCP/toolset and required Skill rules from the effective
 workspace Skill Store, or surface a bounded missing-capability diagnostic. Other
 authorized plugins remain catalog-only until the run explicitly needs
 cross-plugin access. A Wardrobe topic therefore starts with Wardrobe MCP and
-`productivity/wardrobe-style-operations`, while Finance, Note, Health, and
-future plugins are represented by compact catalog hints until activated.
+`productivity/wardrobe-style-operations`, while Finance, Note, Health, Email,
+Growth, and future plugins are represented by compact catalog hints until
+activated.
 
 Ordinary chat is catalog-first. It should include baseline Hermes chat
 capabilities plus the effective workspace's compact plugin capability catalog.

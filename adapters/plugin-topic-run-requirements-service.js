@@ -5,6 +5,7 @@ const PLUGIN_TOPIC_TOOLSETS = Object.freeze({
   finance: "finance",
   email: "email",
   health: "health",
+  growth: "growth",
 });
 const PLUGIN_TOPIC_CONTEXTS = Object.freeze({
   wardrobe: Object.freeze({

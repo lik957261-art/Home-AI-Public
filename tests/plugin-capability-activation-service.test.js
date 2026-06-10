@@ -11,12 +11,12 @@ function createService() {
 
 function basePolicy(overrides = {}) {
   return Object.assign({
-    allowed_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email"],
-    authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email"],
+    allowed_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email", "growth"],
+    authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email", "growth"],
     toolset_routing: {
       mode: "disabled",
       reason: "toolset_pruning_disabled",
-      selected_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email"],
+      selected_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email", "growth"],
       suggested_toolsets: ["web"],
       suggested_mode: "minimal",
       suggested_reason: "plain_chat_light_tools",
@@ -35,16 +35,17 @@ function testOrdinaryChatKeepsAuthorizedPluginCatalogButDoesNotActivatePluginMcp
     userMessage: { content: "test" },
   });
 
-  assert.deepEqual(result.policy.authorized_toolsets, ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email"]);
+  assert.deepEqual(result.policy.authorized_toolsets, ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email", "growth"]);
   assert.deepEqual(result.policy.allowed_toolsets, ["file", "web", "vision", "skills"]);
   assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, []);
-  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "health", "email"]);
+  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "health", "email", "growth"]);
   const catalog = catalogByPlugin(result.context);
   assert.equal(catalog.wardrobe.status, "catalog_only");
   assert.equal(catalog.finance.status, "catalog_only");
   assert.equal(catalog.note.status, "catalog_only");
   assert.equal(catalog.health.status, "catalog_only");
   assert.equal(catalog.email.status, "catalog_only");
+  assert.equal(catalog.growth.status, "catalog_only");
 }
 
 function testPluginTopicForcesCurrentPluginAndLeavesOtherPluginsCatalogOnly() {
@@ -65,13 +66,14 @@ function testPluginTopicForcesCurrentPluginAndLeavesOtherPluginsCatalogOnly() {
   assert.deepEqual(result.policy.required_toolsets, ["wardrobe", "vision", "file", "skills"]);
   assert.deepEqual(result.policy.required_skills, ["productivity/wardrobe-style-operations"]);
   assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, ["wardrobe"]);
-  assert.deepEqual(result.context.omittedPluginToolsets, ["finance", "note", "health", "email"]);
+  assert.deepEqual(result.context.omittedPluginToolsets, ["finance", "note", "health", "email", "growth"]);
   const catalog = catalogByPlugin(result.context);
   assert.equal(catalog.wardrobe.status, "active");
   assert.equal(catalog.finance.status, "catalog_only");
   assert.equal(catalog.note.status, "catalog_only");
   assert.equal(catalog.health.status, "catalog_only");
   assert.equal(catalog.email.status, "catalog_only");
+  assert.equal(catalog.growth.status, "catalog_only");
 }
 
 function testPluginTopicContextCannotAuthorizeMissingWorkspacePlugin() {
@@ -144,7 +146,7 @@ function testLatestTextCanDeterministicallyActivateFinancePlugin() {
   assert.deepEqual(result.policy.allowed_toolsets, ["file", "web", "vision", "skills", "finance"]);
   assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, ["finance"]);
   assert.deepEqual(result.context.probeRequests.map((item) => item.pluginId), ["finance"]);
-  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "note", "health", "email"]);
+  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "note", "health", "email", "growth"]);
   assert.equal(catalogByPlugin(result.context).finance.status, "active");
 }
 
@@ -158,7 +160,7 @@ function testLatestTextCanDeterministicallyActivateHealthPlugin() {
   assert.deepEqual(result.policy.allowed_toolsets, ["file", "web", "vision", "skills", "health"]);
   assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, ["health"]);
   assert.deepEqual(result.context.probeRequests.map((item) => item.pluginId), ["health"]);
-  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "email"]);
+  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "email", "growth"]);
   assert.equal(catalogByPlugin(result.context).health.status, "active");
 }
 
@@ -172,8 +174,22 @@ function testLatestTextCanDeterministicallyActivateEmailPlugin() {
   assert.deepEqual(result.policy.allowed_toolsets, ["file", "web", "vision", "skills", "email"]);
   assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, ["email"]);
   assert.deepEqual(result.context.probeRequests.map((item) => item.pluginId), ["email"]);
-  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "health"]);
+  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "health", "growth"]);
   assert.equal(catalogByPlugin(result.context).email.status, "active");
+}
+
+function testLatestTextCanDeterministicallyActivateGrowthPlugin() {
+  const service = createService();
+  const result = service.buildRunPluginCapabilityContext({
+    policy: basePolicy(),
+    userMessage: { content: "\u67e5\u4e00\u4e0b\u6210\u957f\u5b66\u4e60\u5361\u7684\u8fdb\u5ea6" },
+  });
+
+  assert.deepEqual(result.policy.allowed_toolsets, ["file", "web", "vision", "skills", "growth"]);
+  assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, ["growth"]);
+  assert.deepEqual(result.context.probeRequests.map((item) => item.pluginId), ["growth"]);
+  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "health", "email"]);
+  assert.equal(catalogByPlugin(result.context).growth.status, "active");
 }
 
 function testForcedEscalationRetryActivatesSelectedPluginToolset() {
@@ -181,7 +197,7 @@ function testForcedEscalationRetryActivatesSelectedPluginToolset() {
   const result = service.buildRunPluginCapabilityContext({
     policy: basePolicy({
       allowed_toolsets: ["finance"],
-      authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email"],
+      authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email", "growth"],
     }),
     userMessage: { content: "retry" },
     runOptions: {
@@ -193,7 +209,7 @@ function testForcedEscalationRetryActivatesSelectedPluginToolset() {
 
   assert.deepEqual(result.policy.allowed_toolsets, ["finance"]);
   assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, ["finance"]);
-  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "note", "health", "email"]);
+  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "note", "health", "email", "growth"]);
 }
 
 function testFailedProbeResultRemovesOptionalPluginFromActiveSchema() {
@@ -253,6 +269,7 @@ testUnauthorizedPluginTopicDoesNotLeakRequiredBundleWhenOtherPluginIsAuthorized(
 testLatestTextCanDeterministicallyActivateFinancePlugin();
 testLatestTextCanDeterministicallyActivateHealthPlugin();
 testLatestTextCanDeterministicallyActivateEmailPlugin();
+testLatestTextCanDeterministicallyActivateGrowthPlugin();
 testForcedEscalationRetryActivatesSelectedPluginToolset();
 testFailedProbeResultRemovesOptionalPluginFromActiveSchema();
 testSuccessfulProbeResultKeepsOptionalPluginActiveWithEvidence();

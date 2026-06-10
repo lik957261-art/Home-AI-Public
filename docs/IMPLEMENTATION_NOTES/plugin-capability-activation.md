@@ -89,10 +89,11 @@ The ordinary-chat prompt must not include every plugin MCP schema or every
 plugin Skill. The catalog is only a routing affordance, not evidence. It may
 say that Finance can inspect spending, Wardrobe can inspect clothing/outfits,
 Email can inspect bounded mailbox summaries, Note can inspect notes and links,
-or a relationship plugin can inspect people
-and relationships. It must not include raw ledger rows, wardrobe inventories,
-note bodies, relationship graphs, access keys, launch tokens, plugin cookies,
-or full MCP schema definitions.
+Growth can inspect bounded learning card/status projections, or a relationship
+plugin can inspect people and relationships. It must not include raw ledger
+rows, wardrobe inventories, note bodies, learner answers, transcripts,
+relationship graphs, access keys, launch tokens, plugin cookies, or full MCP
+schema definitions.
 
 When ordinary chat needs a plugin that is not active, runtime must activate the
 plugin through a deterministic Gateway operation rather than by asking the

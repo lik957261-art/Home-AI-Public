@@ -46,6 +46,15 @@ const DEFAULT_PLUGIN_CAPABILITIES = Object.freeze([
     summary: "Inspect mailbox threads, message state, and email follow-up context when the workspace authorizes it.",
     triggers: Object.freeze(["email", "mail", "inbox", "\u90ae\u7bb1", "\u90ae\u4ef6", "\u6536\u4ef6\u7bb1"]),
   }),
+  Object.freeze({
+    pluginId: "growth",
+    label: "Growth",
+    primaryToolset: "growth",
+    requiredToolsets: Object.freeze(["growth"]),
+    requiredSkills: Object.freeze([]),
+    summary: "Inspect bounded Growth learning cards, board status, and learner progress projections.",
+    triggers: Object.freeze(["growth", "learning", "study", "card", "\u6210\u957f", "\u5b66\u4e60", "\u4efb\u52a1\u5361", "\u5b66\u4e60\u5361"]),
+  }),
 ]);
 
 function cleanString(value, fallback = "") {

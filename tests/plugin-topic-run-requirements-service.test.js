@@ -10,6 +10,7 @@ const {
 
 function testKnownPluginTopicContexts() {
   assert.deepEqual(pluginToolsetsForTaskGroup("plugin:health"), ["health"]);
+  assert.deepEqual(pluginToolsetsForTaskGroup("plugin:growth"), ["growth"]);
   assert.deepEqual(pluginToolsetsForTaskGroup("plugin:wardrobe"), ["wardrobe", "vision", "file", "skills"]);
   assert.equal(pluginTopicContextForTaskGroup("general"), null);
 }
@@ -29,14 +30,14 @@ function testAuthorizedPluginTopicPreservesRequirements() {
 }
 
 function testUnauthorizedPluginTopicCannotSelfAuthorizeMcp() {
-  const context = pluginTopicContextForTaskGroup("plugin:health");
+  const context = pluginTopicContextForTaskGroup("plugin:growth");
   const result = resolvePluginTopicRunRequirements({ allowed_toolsets: ["file"] }, context);
 
   assert.equal(policyAuthorizesPluginTopic({ allowed_toolsets: ["file"] }, context), false);
   assert.equal(result.authorized, false);
   assert.deepEqual(result.requiredToolsets, []);
   assert.deepEqual(result.requiredSkills, []);
-  assert.equal(result.context.pluginId, "health");
+  assert.equal(result.context.pluginId, "growth");
   assert.deepEqual(result.context.requiredToolsets, []);
 }
 
