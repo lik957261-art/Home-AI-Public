@@ -23,6 +23,7 @@ const entryHubBody = functionBody(pluginTopicsUi, "renderCapabilityEntryHub");
 const topicCardsBody = functionBody(pluginTopicsUi, "renderPluginTopicCards");
 const openAppBody = functionBody(pluginTopicsUi, "openPluginTopicApp");
 const runActionBody = functionBody(pluginTopicsUi, "runPluginTopicAction");
+const movePluginAppOrderBody = functionBody(pluginTopicsUi, "movePluginAppOrder");
 
 assert.match(pluginTopicsUi, /const CAPABILITY_QUICK_ACTION_LIMIT = 9;/);
 assert.match(pluginTopicsUi, /const CAPABILITY_PLUGIN_APP_ACTION_ID = "__open_app";/);
@@ -52,6 +53,10 @@ assert.match(pluginTopicsUi, /localStorage\.getItem\(storageKey\)/);
 assert.match(pluginTopicsUi, /localStorage\.setItem\(pluginTopicUsageStorageKey\(workspaceId\), JSON\.stringify\(pluginTopicUsageMemoryCache\)\)/);
 assert.match(pluginTopicsUi, /function refreshPluginTopicUsageRoot\(options = \{\}\)/);
 assert.match(pluginTopicsUi, /const restoreScrollTop = options\.revealQuickActions \? 0 : \(\$\("conversation"\)\?\.scrollTop \|\| 0\);/);
+assert.match(pluginTopicsUi, /function refreshPluginAppOrderSurfaces\(\)/);
+assert.match(movePluginAppOrderBody, /refreshPluginAppOrderSurfaces\(\);/);
+assert.doesNotMatch(movePluginAppOrderBody, /renderCurrentThread/);
+assert.match(pluginTopicsUi, /button\.addEventListener\("click", \(event\) => \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?event\.stopPropagation\(\);[\s\S]*?cancelPluginAppSortDrag\(\);[\s\S]*?resetGlobalPluginDockGesture\(\);[\s\S]*?closePluginActionMenus\(document\);[\s\S]*?movePluginAppOrder/);
 assert.match(recordUsageBody, /usage\.actions = actions;/);
 assert.match(recordUsageBody, /usage\.plugins = plugins;/);
 assert.match(recordUsageBody, /refreshPluginTopicUsageRoot\(\{ revealQuickActions: true \}\);/);

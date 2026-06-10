@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260610-plugin-topic-root-level-v698";
+const CLIENT_VERSION = "20260610-plugin-dock-order-stability-v699";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260610-plugin-topic-root-level-v698" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260610-plugin-topic-root-level-v698"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260610-plugin-dock-order-stability-v699" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260610-plugin-dock-order-stability-v699"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2557,10 +2557,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260610-plugin-topic-root-level-v698/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260610-plugin-topic-root-level-v698/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260610-plugin-topic-root-level-v698/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260610-plugin-topic-root-level-v698/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260610-plugin-dock-order-stability-v699/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260610-plugin-dock-order-stability-v699/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260610-plugin-dock-order-stability-v699/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260610-plugin-dock-order-stability-v699/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2670,6 +2670,10 @@ assert.match(stylesCss, /\.plugin-app-card \{[\s\S]*?-webkit-touch-callout: none
 assert.match(appJs, /data-plugin-topic-move-dir="up"/);
 assert.match(appJs, /function movePluginAppOrder\(pluginId = "", direction = "up"\)/);
 assert.match(appJs, /function movePluginAppOrder\(pluginId = "", direction = "up"\) \{[\s\S]*?orderedPluginAppDefs\(availablePluginTopicDefs\(\)\)/);
+assert.match(appJs, /function refreshPluginAppOrderSurfaces\(\)/);
+assert.match(appJs, /function movePluginAppOrder\(pluginId = "", direction = "up"\) \{[\s\S]*?writePluginTopicOrder\(ids\);[\s\S]*?refreshPluginAppOrderSurfaces\(\);[\s\S]*?\n\}/);
+assert.doesNotMatch((appJs.match(/function movePluginAppOrder\(pluginId = "", direction = "up"\) \{[\s\S]*?\n\}\n\nfunction refreshPluginAppOrderSurfaces/) || [""])[0], /renderCurrentThread/);
+assert.match(appJs, /button\.addEventListener\("click", \(event\) => \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?event\.stopPropagation\(\);[\s\S]*?closePluginActionMenus\(document\);[\s\S]*?movePluginAppOrder/);
 assert.match(appJs, /<section class="plugin-app-launcher"/);
 assert.match(appJs, /class="plugin-app-strip" role="list" data-plugin-count="\$\{defs\.length\}" data-plugin-fill-count="\$\{fillCount\}"/);
 assert.match(appJs, /class="plugin-app-card"[\s\S]*?data-plugin-topic-open-app[\s\S]*?data-plugin-topic-sort-id/);
@@ -2793,7 +2797,7 @@ assert.match(stylesCss, /\.app\.task-list-mode,[\s\S]*?\.app\.capability-mode \{
 assert.match(stylesCss, /\.app\.task-list-mode \.conversation,[\s\S]*?\.app\.capability-mode \.conversation \{[\s\S]*?padding-bottom: var\(--topic-plugin-dock-reserved-height\);/);
 assert.match(stylesCss, /\.app\.task-list-mode \.conversation > \.directory-topic-launcher:first-child,[\s\S]*?\.app\.capability-mode \.conversation > \.capability-entry-hub:first-child,[\s\S]*?margin-top: max\(16px, calc\(env\(safe-area-inset-top\) \+ 4px\)\);/);
 assert.match(stylesCss, /\.app\.task-list-mode \.topbar,[\s\S]*?\.app\.capability-mode \.topbar \{[\s\S]*?display: none !important;/);
-assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock \{[\s\S]*?position: fixed;[\s\S]*?bottom: calc\(var\(--topic-plugin-dock-bottom\) - var\(--topic-plugin-dock-nav-overlap\)\);[\s\S]*?height: var\(--topic-plugin-dock-height\);[\s\S]*?min-height: var\(--topic-plugin-dock-height\);[\s\S]*?padding: 5px max\(14px, env\(safe-area-inset-right\)\) 0 max\(14px, env\(safe-area-inset-left\)\);[\s\S]*?background: var\(--ui-chrome\);[\s\S]*?transition:[\s\S]*?transform 190ms cubic-bezier\(0\.2, 0\.8, 0\.2, 1\),[\s\S]*?height 190ms cubic-bezier\(0\.2, 0\.8, 0\.2, 1\),[\s\S]*?min-height 190ms cubic-bezier\(0\.2, 0\.8, 0\.2, 1\);/);
+assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock \{[\s\S]*?position: fixed;[\s\S]*?bottom: calc\(var\(--topic-plugin-dock-bottom\) - var\(--topic-plugin-dock-nav-overlap\)\);[\s\S]*?height: var\(--topic-plugin-dock-height\);[\s\S]*?min-height: var\(--topic-plugin-dock-height\);[\s\S]*?padding: 5px max\(24px, env\(safe-area-inset-right\)\) 0 max\(24px, env\(safe-area-inset-left\)\);[\s\S]*?background: var\(--ui-chrome\);[\s\S]*?transition:[\s\S]*?transform 190ms cubic-bezier\(0\.2, 0\.8, 0\.2, 1\),[\s\S]*?height 190ms cubic-bezier\(0\.2, 0\.8, 0\.2, 1\),[\s\S]*?min-height 190ms cubic-bezier\(0\.2, 0\.8, 0\.2, 1\);/);
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-collapsed \{[\s\S]*?bottom: calc\(var\(--topic-plugin-dock-bottom\) - var\(--topic-plugin-dock-nav-overlap\) \+ var\(--topic-plugin-dock-collapsed-safe-lift\)\);[\s\S]*?height: var\(--topic-plugin-dock-collapsed-height\);[\s\S]*?min-height: var\(--topic-plugin-dock-collapsed-height\);[\s\S]*?transform: translateY\(0\);[\s\S]*?pointer-events: none;/);
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-collapsed \.plugin-app-launcher \{[\s\S]*?opacity: 0;[\s\S]*?pointer-events: none;[\s\S]*?visibility: hidden;/);
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-dragging \.plugin-app-launcher,[\s\S]*?\.global-plugin-dock-mode \.topic-plugin-dock\.global-plugin-dock-expanded \.plugin-app-launcher \{[\s\S]*?visibility: visible;/);

@@ -72,9 +72,19 @@ or raw plugin credentials.
   bounded move controls. A normal horizontal swipe must scroll the Dock, and the
   daily long-press gesture must open the action menu instead of being consumed
   by drag sorting when that menu exists.
+- Dock move controls must be local to the plugin launcher surface. Tapping
+  `前移` or `后移` persists the manual order, closes the action menu, cancels any
+  active drag/Dock gesture state, refreshes only the Dock/sidebar plugin
+  launcher projections, and preserves the current Dock expanded/collapsed
+  state. It must not call the full topic-thread renderer because rebuilding the
+  Topics page during the menu click can leave the Dock/menu in a stuck
+  intermediate state.
 - The Dock action menu must be bound to the touch long-press path as well as
   pointer/context interactions. The frontend CSS must suppress WebKit native
   touch callout on Dock icons so iOS/PWA long-press can reach the Home AI menu.
+- On mobile, the expanded Dock keeps a left/right edge inset large enough to
+  avoid competing with side gestures. The current minimum edge inset is 24px
+  before safe-area expansion.
 - Dock entries are app/capability launch targets on tap. A tap records
   app-level capability usage so the same plugin or built-in Directory entry can
   influence the Capability page. They do not expose permanent topic or

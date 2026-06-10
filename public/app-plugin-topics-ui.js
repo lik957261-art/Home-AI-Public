@@ -1260,7 +1260,22 @@ function movePluginAppOrder(pluginId = "", direction = "up") {
   const [item] = ids.splice(index, 1);
   ids.splice(nextIndex, 0, item);
   writePluginTopicOrder(ids);
-  if (typeof renderCurrentThread === "function") renderCurrentThread({ stickToBottom: false, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+  refreshPluginAppOrderSurfaces();
+}
+
+function refreshPluginAppOrderSurfaces() {
+  const dock = $("topicPluginDock");
+  const dockHadContent = typeof globalPluginDockLauncherPresent === "function"
+    ? globalPluginDockLauncherPresent(dock)
+    : Boolean(dock?.querySelector?.(".plugin-app-card"));
+  const wasExpanded = Boolean(dock?.classList?.contains("global-plugin-dock-expanded"));
+  if (typeof updateSidebarPluginLauncher === "function") updateSidebarPluginLauncher();
+  if (!dockHadContent || typeof renderPluginAppLauncher !== "function" || typeof setTopicPluginDock !== "function") return;
+  setTopicPluginDock(renderPluginAppLauncher());
+  if (typeof applyGlobalPluginDockState === "function") applyGlobalPluginDockState(dock, wasExpanded);
+  if (typeof updateTopicPluginDockChrome === "function") {
+    updateTopicPluginDockChrome(typeof isTaskListView === "function" ? isTaskListView() : false);
+  }
 }
 
 function pluginTopicSearchText(def) {
@@ -2274,8 +2289,12 @@ function wirePluginTopicCards(root) {
     });
   });
   root?.querySelectorAll?.("[data-plugin-topic-move]").forEach((button) => {
-    button.addEventListener("click", () => {
-      closePluginActionMenus(root);
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof cancelPluginAppSortDrag === "function") cancelPluginAppSortDrag();
+      if (typeof resetGlobalPluginDockGesture === "function") resetGlobalPluginDockGesture();
+      closePluginActionMenus(document);
       movePluginAppOrder(button.dataset.pluginTopicMove, button.dataset.pluginTopicMoveDir || "up");
     });
   });
