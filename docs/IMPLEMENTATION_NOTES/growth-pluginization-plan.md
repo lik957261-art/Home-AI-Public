@@ -154,6 +154,13 @@ Current development status:
 - A JSON snapshot store persists bounded board projections after successful
   facade reads and provides a development fallback when the facade is
   unavailable.
+- The Growth plugin also exposes a controlled facade snapshot import path:
+  `POST /api/v1/growth/migrations/facade-snapshot` with the Growth
+  registration bearer. The import fetches bounded Home AI facade board/card
+  projections, writes them to plugin-owned snapshot storage, and returns
+  bounded import/readback metadata.
+- The same import logic is available from the plugin workspace via
+  `npm run import:facade-snapshot -- --workspace-id <workspace-id>`.
 - Full SQLite/domain ownership migration is still pending.
 
 ### 6. Plugin Event Contract
