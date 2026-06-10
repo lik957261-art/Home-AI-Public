@@ -125,6 +125,9 @@ or raw plugin credentials.
   time in the meta line, and the same indented child-topic chip style. The
   plugin icon may still open the default plugin topic, but its position and
   size must not drift from the directory row pattern.
+- Plugin topic rows and directory-bound topic rows render their count/update
+  metadata inline after the title, not as a second line, so the Topics root
+  stays dense and scan-friendly.
 - The Capability Entry Hub described in
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md` is now a separate
   host-level `能力` surface, not the Topics root. Topics root is conversation
@@ -179,9 +182,9 @@ or raw plugin credentials.
   scrollable page body, not as mini buttons attached to the icon.
 - The Topics root also keeps a compact Directory root entry directly above the
   directory-bound topic collections. This entry uses a larger root-folder icon
-  than the directory-bound child rows, opens the Directory application, and
-  shows the current visible directory-bound subdirectory count plus topic
-  count.
+  with a distinct root color, opens the Directory application, and shows the
+  current visible directory-bound subdirectory count plus topic count inline
+  after the title.
   It exists so starting or finding a directory-bound topic remains discoverable
   near the Topics surface even though the Directory app also lives in the
   plugin Dock/drawer.

@@ -6491,8 +6491,10 @@ button.directory-alias-chip {
 
 .plugin-topic-text {
   min-width: 0;
-  display: grid;
-  gap: 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  overflow: hidden;
 }
 
 .plugin-topic-title {
@@ -6505,7 +6507,9 @@ button.directory-alias-chip {
 }
 
 .plugin-topic-subtitle {
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 58%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -6720,7 +6724,9 @@ button.directory-alias-chip {
   --directory-folder-body-width: 32px;
   --directory-folder-body-height: 20px;
   --directory-folder-radius: 6px;
+  background: linear-gradient(135deg, #3f8879 0%, #2d7185 52%, #22435f 100%);
   border-radius: 12px;
+  box-shadow: 0 7px 14px rgba(24, 49, 63, 0.16), inset 0 1px 0 rgba(255,255,255,0.30);
 }
 
 .directory-topic-grid {
@@ -6848,8 +6854,10 @@ button.directory-alias-chip {
 
 .directory-topic-text {
   min-width: 0;
-  display: grid;
-  gap: 3px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  overflow: hidden;
 }
 
 .directory-topic-title,
@@ -6862,6 +6870,7 @@ button.directory-alias-chip {
 }
 
 .directory-topic-title {
+  flex: 0 1 auto;
   font-size: 15px;
   font-weight: 700;
 }
@@ -6872,6 +6881,8 @@ button.directory-alias-chip {
 }
 
 .directory-topic-meta {
+  flex: 0 1 auto;
+  max-width: 62%;
   color: var(--muted);
   font-size: 12px;
 }
