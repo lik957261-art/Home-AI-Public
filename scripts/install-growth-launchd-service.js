@@ -97,9 +97,9 @@ function readPassword(filePath) {
 }
 
 function runSudo(command, args, password, input = "") {
-  const sudoArgs = password ? ["-S", "-p", "", command, ...args] : ["-n", command, ...args];
+  const sudoArgs = ["-n", command, ...args];
   const result = spawnSync("/usr/bin/sudo", sudoArgs, {
-    input: password ? `${password}\n${input}` : input,
+    input,
     encoding: "utf8",
     stdio: ["pipe", "pipe", "pipe"],
   });
@@ -110,6 +110,21 @@ function runSudo(command, args, password, input = "") {
     throw err;
   }
   return result;
+}
+
+function authenticateSudo(password) {
+  if (!password) return;
+  const result = spawnSync("/usr/bin/sudo", ["-S", "-p", "", "-v"], {
+    input: `${password}\n`,
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  if (result.status !== 0) {
+    const err = new Error("sudo_auth_failed");
+    err.status = result.status;
+    err.stderr = String(result.stderr || "").slice(0, 1000);
+    throw err;
+  }
 }
 
 function plan(options = {}) {
@@ -132,6 +147,7 @@ function plan(options = {}) {
 function execute(options = {}) {
   const password = readPassword(options.passwordFile);
   if (options.passwordFile && !password) throw new Error("sudo_password_file_empty");
+  authenticateSudo(password);
   const currentPlan = plan(options);
   const plist = plistFor(options);
   runSudo("/bin/mkdir", ["-p", currentPlan.pluginRoot, currentPlan.dataDir, path.posix.dirname(currentPlan.registrationKeyPath), path.posix.dirname(currentPlan.plistPath), path.posix.dirname(currentPlan.logPaths[0])], password);
