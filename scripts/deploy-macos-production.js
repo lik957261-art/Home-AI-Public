@@ -39,6 +39,7 @@ const RSYNC_EXCLUDES = [
   "AGENTS.md",
   ".deploy-backups/",
   "node_modules/",
+  ".venv/",
   "logs/",
   "tmp/",
   "temp/",

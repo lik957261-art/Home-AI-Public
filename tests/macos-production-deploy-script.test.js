@@ -60,6 +60,7 @@ assert.match(script, /\.agent-context\//);
 assert.match(script, /AGENTS\.md/);
 assert.match(script, /\.codex\//);
 assert.match(script, /node_modules\//);
+assert.match(script, /\.venv\//);
 assert.match(script, /deploy_source_dirty_requires_allow_dirty/);
 assert.match(script, /production-file-hashes/);
 assert.match(script, /--expected-version/);
@@ -189,6 +190,7 @@ assert.equal(pluginPayload.plan.productionPath, "/Users/hermes-host/HermesMobile
 assert.equal(pluginPayload.plan.productionOwner, "hermes-host:staff");
 assert.ok(pluginPayload.plan.rsyncExcludes.includes("data/"));
 assert.ok(pluginPayload.plan.rsyncExcludes.includes(".git"));
+assert.ok(pluginPayload.plan.rsyncExcludes.includes(".venv/"));
 
 const codexPluginRun = spawnSync(process.execPath, [
   scriptPath,

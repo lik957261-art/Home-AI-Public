@@ -100,6 +100,9 @@ tree. They must exclude:
 - `.git`, `.codex`, `.agent-context/archive`, `.agent-context/thread-handoffs`;
 - `node_modules` unless the target project explicitly deploys vendored
   dependencies;
+- `.venv` and other production-owned virtual environments unless the operation
+  is an explicitly reviewed runtime reinstall; source deploys must not delete a
+  plugin LaunchDaemon's interpreter;
 - raw secrets, access tokens, cookies, OAuth state, one-time keys, local caches,
   full logs, and database files unless the operation is an explicitly reviewed
   data migration;
@@ -110,6 +113,7 @@ normal source deploys, do not overwrite:
 
 - `/Users/hermes-host/HermesMobile/data`;
 - plugin runtime data directories;
+- production-owned virtual environments such as plugin `.venv/` directories;
 - workspace-local `.hermes-*` key/config directories;
 - launchd plists unless the deploy plan is explicitly a launchd change.
 
@@ -319,9 +323,11 @@ validation. Listener and health validations retry briefly after restart so a
 normal launchd warm-up does not produce a false failed deployment. Plugin
 projects may wrap this script, but must not bypass it with a plugin-private
 production write path.
-For plugin targets, the script excludes `data/` from source-to-production sync
-and restores `productionOwner` after sync; data migration or repair is a
-separate reviewed operation, not part of an ordinary plugin source deploy.
+For plugin targets, the script excludes `data/` and production-owned runtime
+dependency directories such as `.venv/` from source-to-production sync and
+restores `productionOwner` after sync; data migration, runtime reinstall, or
+repair is a separate reviewed operation, not part of an ordinary plugin source
+deploy.
 
 Plugin `--execute` is intentionally stricter than plan mode. Except for plugins
 with a central default restart label, a plugin production write must provide at

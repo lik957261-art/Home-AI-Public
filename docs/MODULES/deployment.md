@@ -77,6 +77,10 @@ decision, and production validation, and the development user must not be given
 ordinary write access to production app or plugin source roots.
 The shared script is `scripts/deploy-macos-production.js`. It is plan-only by
 default and requires `--execute` before it writes production.
+Normal source deploys must preserve production-owned runtime dependency
+directories. The shared script excludes `.venv/`, `node_modules/`, plugin
+`data/`, and other runtime/local state from source-to-production rsync so a
+Python plugin LaunchDaemon interpreter cannot be deleted by a code deploy.
 
 Key decisions:
 
