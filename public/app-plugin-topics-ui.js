@@ -1680,7 +1680,7 @@ function renderCapabilityView(options = {}) {
 function renderPluginAppLauncher() {
   const defs = orderedPluginAppDefs(availablePluginTopicDefs());
   if (!defs.length) return "";
-  const fillCount = Math.min(Math.max(defs.length, 1), 6);
+  const fillCount = Math.min(Math.max(defs.length, 1), 4);
   return `<section class="plugin-app-launcher" aria-label="\u63d2\u4ef6\u5e94\u7528">
     <div class="plugin-app-strip" role="list" data-plugin-count="${defs.length}" data-plugin-fill-count="${fillCount}">
       ${defs.map((def) => `

@@ -61,9 +61,12 @@ or raw plugin credentials.
   footers, keyboard state, or the sidebar. It is hidden in plugin app/context
   pages, topic/detail secondary pages, keyboard-viewport mode, and back-swipe
   settle states.
-- The Dock remains single-row. When one to six capability entries are visible,
+- The Dock remains single-row. When one to four capability entries are visible,
   the row divides the available width evenly across those entries; when more
-  than six entries are visible, the row may scroll horizontally.
+  than four entries are visible, the row keeps four-slot sizing and scrolls
+  horizontally. Do not squeeze five or more entries into the same viewport,
+  because the touch targets become too narrow for reliable long-press and
+  edge-adjacent taps.
 - The collapsed handle uses a bounded vertical gesture: short vertical
   mistouches and horizontal swipes must not expand the Dock, an upward swipe on
   the handle expands it, and a downward swipe on the handle collapses it. The
