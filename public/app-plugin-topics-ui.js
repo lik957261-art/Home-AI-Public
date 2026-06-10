@@ -1389,6 +1389,22 @@ function renderPluginTopicStats(def, options = {}) {
   return `<span class="plugin-topic-stats">${stats.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</span>`;
 }
 
+function pluginTopicCollectionUpdatedAt(collections = []) {
+  return (collections || [])
+    .map((collection) => Date.parse(collection?.updatedAt || collection?.defaultGroup?.updatedAt || ""))
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => b - a)[0] || 0;
+}
+
+function pluginTopicRowMeta(def, childEntries = [], options = {}) {
+  if (!def || def.builtinKind) return "";
+  if (!childEntries.length) return "\u9ed8\u8ba4\u8bdd\u9898";
+  const claimedCollections = pluginTopicClaimedCollectionsForPlugin(options.claimedDirectoryTopicCollections || [], def.id);
+  const updatedAtValue = pluginTopicCollectionUpdatedAt(claimedCollections);
+  const updated = updatedAtValue ? formatTime(new Date(updatedAtValue).toISOString()) : "";
+  return [ `${childEntries.length} \u4e2a\u4e13\u9898`, updated ].filter(Boolean).join("\u3000");
+}
+
 function pluginTopicExpandedStorageKey(workspaceId = pluginTopicUsageWorkspaceId()) {
   const id = String(workspaceId || "owner").trim() || "owner";
   return `${PLUGIN_TOPIC_EXPANDED_STORAGE_KEY}:${id}`;
@@ -1441,23 +1457,24 @@ function renderPluginTopicCards(options = {}) {
           : `data-plugin-topic-open-topic="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u8bdd\u9898`)}"`;
         return `
         <article class="plugin-topic-card${expanded ? "" : " collapsed"}${hasChildren ? " has-children" : " single-topic"}" data-plugin-topic-card="${escapeHtml(def.id)}">
-          <div class="plugin-topic-card-main">
+          <div class="plugin-topic-card-main-row">
+            <button class="plugin-topic-row-toggle" type="button" ${bodyAttrs}>
+              ${hasChildren ? `<span class="plugin-topic-row-chevron directory-topic-chevron" aria-hidden="true"></span>` : `<span class="plugin-topic-row-chevron-placeholder" aria-hidden="true"></span>`}
+            </button>
             <button class="plugin-topic-icon-entry" type="button" data-plugin-topic-open-topic="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u9ed8\u8ba4\u8bdd\u9898`)}">
-            <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
+              <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
             </button>
             <button class="plugin-topic-row-body" type="button" ${bodyAttrs}>
               <span class="plugin-topic-text">
-              <span class="plugin-topic-title">${escapeHtml(`${def.label}\u8bdd\u9898`)}</span>
-              ${renderPluginTopicStats(def, options)}
+                <span class="plugin-topic-title">${escapeHtml(def.label)}</span>
+                <span class="plugin-topic-subtitle">${escapeHtml(pluginTopicRowMeta(def, childEntries, options))}</span>
               </span>
-              ${hasChildren ? `<span class="plugin-topic-row-chevron" aria-hidden="true"></span>` : ""}
             </button>
           </div>
-          ${hasChildren ? `<div class="plugin-topic-child-list" aria-label="${escapeHtml(`${def.label}\u4e13\u9898\u8bdd\u9898`)}">
-            ${childEntries.map((entry) => `<button class="plugin-topic-child-row" type="button" data-plugin-claimed-topic-open="${escapeHtml(entry.taskGroupId)}" data-plugin-claimed-topic-plugin="${escapeHtml(entry.pluginId)}">
+          ${hasChildren ? `<div class="plugin-topic-child-list directory-topic-bound-list" aria-label="${escapeHtml(`${def.label}\u4e13\u9898\u8bdd\u9898`)}">
+            ${childEntries.map((entry) => `<button class="plugin-topic-child-row directory-topic-chip" type="button" data-plugin-claimed-topic-open="${escapeHtml(entry.taskGroupId)}" data-plugin-claimed-topic-plugin="${escapeHtml(entry.pluginId)}">
               <span class="plugin-topic-action-icon chat" aria-hidden="true"></span>
-              <span class="plugin-topic-child-title">${escapeHtml(entry.title || "\u4e13\u9898\u8bdd\u9898")}</span>
-              <span class="plugin-topic-child-meta">${escapeHtml(entry.subtitle || "")}</span>
+              <span class="plugin-topic-child-title directory-topic-chip-title">${escapeHtml(entry.title || "\u4e13\u9898\u8bdd\u9898")}</span>
             </button>`).join("")}
           </div>` : ""}
         </article>

@@ -116,6 +116,12 @@ or raw plugin credentials.
   the default topic open directly and do not show an expand chevron. Expanded
   child topics use the same compact indented visual language as
   directory-bound topic rows.
+- The compact plugin topic group row must visually match the directory-bound
+  topic collection row below it: left expand chevron column, 32px plugin icon
+  column, title/meta text column, 48px row height, topic count plus last update
+  time in the meta line, and the same indented child-topic chip style. The
+  plugin icon may still open the default plugin topic, but its position and
+  size must not drift from the directory row pattern.
 - The Capability Entry Hub described in
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md` is now a separate
   host-level `能力` surface, not the Topics root. Topics root is conversation

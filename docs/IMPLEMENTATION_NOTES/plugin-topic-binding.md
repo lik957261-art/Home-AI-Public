@@ -1,6 +1,6 @@
 # Plugin Topic Binding Design
 
-Last updated: 2026-06-01.
+Last updated: 2026-06-10.
 
 This document defines the `plugin topic` / `application topic` feature for
 Hermes Mobile. The v440 frontend projection exists; v453 adds Directory as a
@@ -219,6 +219,11 @@ Implemented convergence update, 2026-06-10:
 - Topics root plugin rows are fixed conversation groups. They are collapsed by
   default per workspace; the left icon opens the default plugin topic, while
   the row body expands historical/special child topics when present.
+- The fixed plugin topic group row intentionally mirrors the directory-bound
+  topic collection row: a 16px chevron column, a 34px icon column containing a
+  32px plugin icon, a single title/meta text column, a 48px parent row, and
+  child rows that reuse the directory-topic chip visual. The meta line carries
+  topic count and last update time when historical/special child topics exist.
 - Dock/plugin app icons remain app launchers.
 - Claimed legacy directory topics are projected into the plugin topic switcher
   without moving physical directories.
