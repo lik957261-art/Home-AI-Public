@@ -227,10 +227,8 @@ async function main() {
           pluginDrawerMenuGesture = "click";
           await pluginButton.click({ timeout: 5000 });
         } else {
-          pluginDrawerMenuGesture = "touch-longpress";
-          await pluginButton.dispatchEvent("touchstart", { bubbles: true, cancelable: true });
-          await page.waitForTimeout(550);
-          await pluginButton.dispatchEvent("touchend", { bubbles: true, cancelable: true });
+          pluginDrawerMenuGesture = "contextmenu";
+          await pluginButton.dispatchEvent("contextmenu", { bubbles: true, cancelable: true });
         }
         await page.waitForTimeout(150);
         const targetMenuOpened = openPluginDrawerQuickMenu
