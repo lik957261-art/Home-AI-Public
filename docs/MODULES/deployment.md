@@ -81,6 +81,10 @@ Normal source deploys must preserve production-owned runtime dependency
 directories. The shared script excludes `.venv/`, `node_modules/`, plugin
 `data/`, and other runtime/local state from source-to-production rsync so a
 Python plugin LaunchDaemon interpreter cannot be deleted by a code deploy.
+Backup rsync uses a narrower exclude list for local tooling metadata such as
+`.git`, `.codex`, `.codegraph`, and `.agent-context`; it must not omit
+production-owned plugin `data/`, `runtime/`, or `.venv/` directories from the
+pre-deploy backup.
 
 Key decisions:
 

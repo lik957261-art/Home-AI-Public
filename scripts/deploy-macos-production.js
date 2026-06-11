@@ -72,6 +72,7 @@ const PRODUCTION_OWNER_BY_TARGET = {
 const RSYNC_EXCLUDES = [
   ".git",
   ".git/",
+  ".codegraph/",
   ".codex/",
   ".agent-context/",
   "AGENTS.md",
@@ -85,6 +86,14 @@ const RSYNC_EXCLUDES = [
   ".env",
   ".env.*",
   "*.log",
+];
+
+const BACKUP_RSYNC_EXCLUDES = [
+  ".git",
+  ".git/",
+  ".codegraph/",
+  ".codex/",
+  ".agent-context/",
 ];
 
 const PLUGIN_RSYNC_EXCLUDES = [
@@ -808,12 +817,19 @@ function runFileHashValidation(plan, password) {
   };
 }
 
+function buildRsyncArgs(excludes, source, target) {
+  const args = ["-a", "--delete"];
+  for (const item of excludes || []) args.push("--exclude", item);
+  args.push(source, target);
+  return args;
+}
+
 function executePlan(plan, options) {
   const password = readPassword(options.passwordFile);
   if (options.passwordFile && !password) throw new Error("sudo_password_file_empty");
 
   runSudo("/bin/mkdir", ["-p", plan.backupPath, plan.productionPath], password);
-  runSudo("/usr/bin/rsync", ["-a", "--delete", `${plan.productionPath}/`, `${plan.backupPath}/`], password);
+  runSudo("/usr/bin/rsync", buildRsyncArgs(BACKUP_RSYNC_EXCLUDES, `${plan.productionPath}/`, `${plan.backupPath}/`), password);
 
   if (plan.surface === "static") {
     for (const item of plan.sync) {
@@ -823,10 +839,7 @@ function executePlan(plan, options) {
       runSudo("/usr/bin/rsync", ["-a", "--delete", `${source}/`, `${target}/`], password);
     }
   } else {
-    const rsyncArgs = ["-a", "--delete"];
-    for (const item of plan.rsyncExcludes) rsyncArgs.push("--exclude", item);
-    rsyncArgs.push(`${plan.sourcePath}/`, `${plan.productionPath}/`);
-    runSudo("/usr/bin/rsync", rsyncArgs, password);
+    runSudo("/usr/bin/rsync", buildRsyncArgs(plan.rsyncExcludes, `${plan.sourcePath}/`, `${plan.productionPath}/`), password);
   }
 
   if (plan.productionOwner) {
@@ -902,6 +915,7 @@ if (require.main === module) {
 module.exports = {
   DEFAULT_DEV_ROOT,
   DEFAULT_MAC_ROOT,
+  BACKUP_RSYNC_EXCLUDES,
   PLUGIN_TARGETS,
   PLUGIN_DEPLOY_ORDER,
   RSYNC_EXCLUDES,
@@ -912,6 +926,7 @@ module.exports = {
   runValidation,
   buildHomeAiBridgeHostLaunchdPlist,
   buildHomeAiCronLaunchdPlist,
+  buildRsyncArgs,
   deployDirtyFiles,
   isDeploySurfaceIncluded,
 };

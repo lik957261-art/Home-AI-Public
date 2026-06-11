@@ -98,7 +98,8 @@ deleted by a normal source deploy.
 Deployment packages or sync manifests must be generated from the development
 tree. They must exclude:
 
-- `.git`, `.codex`, `.agent-context/archive`, `.agent-context/thread-handoffs`;
+- `.git`, `.codex`, `.codegraph`, `.agent-context/archive`,
+  `.agent-context/thread-handoffs`;
 - `node_modules` unless the target project explicitly deploys vendored
   dependencies;
 - `.venv` and other production-owned virtual environments unless the operation
@@ -120,6 +121,11 @@ normal source deploys, do not overwrite:
 
 The production sync must create a backup before replacing files. Backup names
 should include UTC timestamp, target, and reason.
+Pre-deploy backup rsync must not reuse the source sync exclude list. It may
+exclude local tooling metadata such as `.git`, `.codex`, `.codegraph`, and
+`.agent-context`, but it must still back up production-owned plugin `data/`,
+`runtime/`, and `.venv/` directories before the source sync excludes those
+paths from replacement.
 After sync, the central deploy script must restore the production target owner.
 The default owner is `hermes-host:staff`; the Codex Mobile plugin uses
 `xuxin:staff` because its production launchd service runs as `xuxin`.

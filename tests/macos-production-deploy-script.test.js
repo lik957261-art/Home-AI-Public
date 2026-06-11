@@ -75,9 +75,12 @@ assert.match(script, /Atomics\.wait/);
 assert.match(script, /attempt/);
 assert.match(script, /backups", "deploy/);
 assert.match(script, /rsyncExcludes/);
+assert.match(script, /BACKUP_RSYNC_EXCLUDES/);
+assert.match(script, /buildRsyncArgs/);
 assert.match(script, /\.agent-context\//);
 assert.match(script, /AGENTS\.md/);
 assert.match(script, /\.codex\//);
+assert.match(script, /\.codegraph\//);
 assert.match(script, /node_modules\//);
 assert.match(script, /\.venv\//);
 assert.match(script, /deploy_source_dirty_requires_allow_dirty/);
@@ -110,12 +113,15 @@ assert.match(contract, /--health-url <url>/);
 assert.match(contract, /--sync-only/);
 assert.match(contract, /selected Gateway callable-schema/);
 assert.match(contract, /must not bypass it with a plugin-private\s+production write path/);
+assert.match(contract, /\.codegraph/);
+assert.match(contract, /must not reuse the source sync exclude list/);
 
 assert.match(pluginWorkspaceContract, /macos-dev-to-production-deployment-contract\.md/);
 assert.match(pluginWorkspaceContract, /Plugin threads must read that file before production deploys/);
 assert.match(pluginWorkspaceContract, /must not replace the central deploy path with a\s+plugin-private sudo\/rsync flow/);
 assert.match(pluginWorkspaceContract, /npm run --silent deploy:macos -- --plugin <plugin-id>/);
 assert.match(deploymentDoc, /--sync-only/);
+assert.match(deploymentDoc, /Backup rsync uses a narrower exclude list/);
 assert.match(productionAccess, /--sync-only/);
 
 assert.match(pluginsDoc, /Plugin Codex threads must read that central contract before production deploys/);
@@ -147,6 +153,7 @@ assert.equal(payload.plan.productionPath, "/Users/hermes-host/HermesMobile/app")
 assert.match(payload.plan.backupPath, /20260608T000000Z-home-ai-harness$/);
 assert.ok(payload.plan.rsyncExcludes.includes("AGENTS.md"));
 assert.ok(payload.plan.rsyncExcludes.includes(".git"));
+assert.ok(payload.plan.rsyncExcludes.includes(".codegraph/"));
 assert.equal(payload.plan.productionOwner, "hermes-host:staff");
 assert.deepEqual(payload.plan.restartLabels, ["com.hermesmobile.bridge-host", "com.hermesmobile.cron", "com.hermesmobile.listener"]);
 assert.ok(payload.plan.expectedClientVersion);
@@ -241,6 +248,14 @@ assert.ok(pluginPayload.plan.validation.some((item) => item.type === "health-url
 assert.ok(pluginPayload.plan.rsyncExcludes.includes("data/"));
 assert.ok(pluginPayload.plan.rsyncExcludes.includes(".git"));
 assert.ok(pluginPayload.plan.rsyncExcludes.includes(".venv/"));
+assert.ok(deployScript.BACKUP_RSYNC_EXCLUDES.includes(".codegraph/"));
+assert.equal(deployScript.BACKUP_RSYNC_EXCLUDES.includes("data/"), false);
+assert.equal(deployScript.BACKUP_RSYNC_EXCLUDES.includes("runtime/"), false);
+assert.equal(deployScript.BACKUP_RSYNC_EXCLUDES.includes(".venv/"), false);
+assert.deepEqual(
+  deployScript.buildRsyncArgs([".codegraph/", ".codex/"], "/prod/plugin/", "/backup/plugin/"),
+  ["-a", "--delete", "--exclude", ".codegraph/", "--exclude", ".codex/", "/prod/plugin/", "/backup/plugin/"],
+);
 
 const healthAliasPluginRun = spawnSync(process.execPath, [
   scriptPath,
