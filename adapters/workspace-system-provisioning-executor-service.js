@@ -9,6 +9,7 @@ const { readCapabilities } = require("../scripts/verify-gateway-profile-template
 const DEFAULT_LIVE_ROOT = "/Users/hermes-host/HermesMobile";
 const DEFAULT_LISTENER_USER = "hermes-host";
 const DEFAULT_OWNER_USER = "hm-owner";
+const DEFAULT_WORKER_GROUP = "hermes-workers";
 const FILE_PLUGIN_ROOT_ENVS = Object.freeze([
   "HERMES_MOBILE_DOCX_ALLOWED_ROOTS",
   "HERMES_MOBILE_AUDIO_ALLOWED_ROOTS",
@@ -86,6 +87,11 @@ function safeWorkspaceId(value) {
 function safeMacUser(value) {
   const candidate = text(value).toLowerCase();
   return /^hm-[a-z0-9][a-z0-9-]{0,62}$/.test(candidate) ? candidate : "";
+}
+
+function safeMacGroup(value) {
+  const candidate = text(value).toLowerCase();
+  return /^[a-z0-9][a-z0-9_.-]{0,62}$/.test(candidate) ? candidate : "";
 }
 
 function safeProfile(value) {
@@ -220,6 +226,7 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
   const allowNonDarwin = Boolean(options.allowNonDarwin);
   const listenerUser = text(options.listenerUser || env.HERMES_MOBILE_LISTENER_USER) || DEFAULT_LISTENER_USER;
   const ownerUser = text(options.ownerUser || env.HERMES_MOBILE_OWNER_WORKER_USER) || DEFAULT_OWNER_USER;
+  const workerGroup = safeMacGroup(options.workerGroup || env.HERMES_MOBILE_WORKER_GROUP) || DEFAULT_WORKER_GROUP;
   const liveRoot = safeAbsoluteMacPath(options.liveRoot || env.HERMES_MOBILE_ROOT || env.HERMES_WEB_ROOT || DEFAULT_LIVE_ROOT) || DEFAULT_LIVE_ROOT;
   const launchDaemonsDir = safeAbsoluteMacPath(options.launchDaemonsDir || "/Library/LaunchDaemons") || "/Library/LaunchDaemons";
   const useSudoWrites = options.useSudoWrites === undefined
@@ -296,12 +303,19 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     return Math.max(501, ...uids) + 1;
   }
 
+  function ensureWorkerGroupMembership(fields) {
+    privileged("/usr/sbin/dseditgroup", ["-o", "edit", "-a", fields.macUser, "-t", "user", workerGroup]);
+    return workerGroup;
+  }
+
   function ensureMacUser(context = {}) {
     const platformFailure = ensureMacPlatform();
     if (platformFailure) return platformFailure;
     const fields = contextFields(context);
     if (fields.error) return { ok: false, error: fields.error };
-    if (userExists(fields.macUser)) return { ok: true, user: fields.macUser, existed: true };
+    if (userExists(fields.macUser)) {
+      return { ok: true, user: fields.macUser, existed: true, workerGroup: ensureWorkerGroupMembership(fields) };
+    }
     const uid = nextUid();
     privileged("/usr/bin/dscl", [".", "-create", `/Users/${fields.macUser}`]);
     privileged("/usr/bin/dscl", [".", "-create", `/Users/${fields.macUser}`, "UserShell", "/bin/zsh"]);
@@ -311,7 +325,7 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     privileged("/usr/bin/dscl", [".", "-create", `/Users/${fields.macUser}`, "NFSHomeDirectory", fields.workerHome]);
     privileged("/usr/bin/dscl", [".", "-create", `/Users/${fields.macUser}`, "IsHidden", "1"]);
     privileged("/usr/sbin/createhomedir", ["-c", "-u", fields.macUser]);
-    return { ok: true, user: fields.macUser, existed: false, uid };
+    return { ok: true, user: fields.macUser, existed: false, uid, workerGroup: ensureWorkerGroupMembership(fields) };
   }
 
   function ensureDirectory(dir, mode = "700", owner = "") {
@@ -903,6 +917,7 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
 module.exports = {
   createWorkspaceSystemProvisioningExecutorService,
   safeLaunchdLabel,
+  safeMacGroup,
   safeMacUser,
   safeProfile,
   safeWorkspaceId,

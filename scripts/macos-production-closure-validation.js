@@ -269,6 +269,44 @@ function compactAcl(acl) {
   };
 }
 
+function compactRuntimePython(options) {
+  const configuredPath = String(options.runtimePython || "").trim();
+  const summary = {
+    ok: false,
+    configuredPath,
+    realPath: "",
+    executable: false,
+    issue: "",
+  };
+  if (!configuredPath) {
+    summary.issue = "runtime_python_path_missing";
+    return summary;
+  }
+  if (/^\/Users\/(xuxin|hermes-dev)\//.test(configuredPath)) {
+    summary.issue = "runtime_python_resolves_to_developer_home";
+    return summary;
+  }
+  try {
+    summary.realPath = fs.realpathSync(configuredPath);
+  } catch (_err) {
+    summary.issue = "runtime_python_unreadable";
+    return summary;
+  }
+  if (/^\/Users\/(xuxin|hermes-dev)\//.test(summary.realPath)) {
+    summary.issue = "runtime_python_resolves_to_developer_home";
+    return summary;
+  }
+  try {
+    fs.accessSync(summary.realPath, fs.constants.X_OK);
+    summary.executable = true;
+  } catch (_err) {
+    summary.issue = "runtime_python_not_executable";
+    return summary;
+  }
+  summary.ok = true;
+  return summary;
+}
+
 function compactSchema(name, data) {
   return {
     name,
@@ -439,6 +477,7 @@ async function runClosure(options) {
     "--root", options.root,
     "--json",
   ]));
+  const runtimePython = compactRuntimePython(options);
   const acl = compactAcl(await runNodeJson("acl", options, "macos-worker-filesystem-access-harness.js", [
     "--root", options.root,
     "--json",
@@ -547,6 +586,7 @@ async function runClosure(options) {
     && profileAudit.ok
     && profileAudit.issueCount === 0
     && profileAudit.blockingWarningCount === 0
+    && runtimePython.ok
     && acl.ok
     && acl.failedCount === 0
     && (!pluginDirectory || (pluginDirectory.ok && pluginDirectory.rows.every((row) => row.ok)))
@@ -579,6 +619,7 @@ async function runClosure(options) {
     oauthAuthProcess: "absent",
     status,
     profileAudit,
+    runtimePython,
     acl,
     pluginDirectory,
     boundDirectory,
@@ -615,6 +656,7 @@ module.exports = {
   compactGatewaySmoke,
   compactBoundDirectory,
   compactProfileAudit,
+  compactRuntimePython,
   compactSchema,
   compactStatus,
   compactWeixin,

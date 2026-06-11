@@ -346,6 +346,14 @@ service. `scripts/macos-production-profile-audit.js` reports this as
 `launchd_service_not_loaded:<profile>` and the aggregate closure gate treats it
 as a production blocker.
 
+Mac workspace provisioning must also repair each workspace worker's manifest
+API-server key binding. The worker row must point at a workspace-owned
+per-worker `apiKeyFile` under `data/secrets/gateway-workers`, for example
+`hm-xjz-openai-1.key` or `hm-xjz-deepseek-1.key`, and must not retain a copied
+template key path or inline `api_key`. A copied path from another workspace can
+make the launch script report `missing Gateway API key for <profile>` or cause
+the worker process and Mobile request signer to disagree about the API key.
+
 Loaded is not the same as always-on. Only the required warm baseline may use
 `RunAtLoad=true` and `KeepAlive=true` in its worker plist. Every on-demand
 worker must keep those values false or absent so `launchctl kill` can actually

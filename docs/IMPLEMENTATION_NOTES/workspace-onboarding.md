@@ -157,6 +157,13 @@ validates workspace ids, `hm-*` users, Gateway profile names, launchd labels,
 and Mac absolute paths before performing any action. External commands are
 invoked with fixed command paths and argument arrays.
 
+`ensure_mac_user` must ensure every workspace worker account is a member of the
+shared runtime group, `hermes-workers` by default or
+`HERMES_MOBILE_WORKER_GROUP` when explicitly configured. Existing `hm-*`
+accounts are repair targets too; creating the user is not enough. The group is
+how isolated workers traverse the shared production runtime without granting
+access to a developer home directory.
+
 The root helper must run from the production app tree and listen on a local
 Unix socket such as:
 
@@ -175,6 +182,12 @@ be granted broad passwordless sudo just to make onboarding work.
 - `launchdLabel`;
 - `telemetryStateDbPath`;
 - `telemetryResponseStoreDbPath`.
+
+Gateway workspace profile provisioning must assign each selected worker a
+workspace-owned per-worker API-server key file under
+`data/secrets/gateway-workers`, such as `hm-xulu-openai-1.key` and
+`hm-xulu-deepseek-1.key`. It must not copy `apiKeyFile`, `api_key_file`, or
+inline `api_key` values from template rows.
 
 It also materializes the worker profile directory under
 `/Users/<hm-user>/HermesWorkspace/.hermes-gateway/profiles/<profile>/`, writes

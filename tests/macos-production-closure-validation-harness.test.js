@@ -28,6 +28,8 @@ assert.match(script, /macos-wardrobe-binding-production-smoke\.js/);
 assert.match(script, /gateway-tool-schema-smoke\.js/);
 assert.match(script, /gateway-pool-production-smoke\.js/);
 assert.match(script, /weixin-ingress-production-smoke\.js/);
+assert.match(script, /compactRuntimePython/);
+assert.match(script, /runtime_python_resolves_to_developer_home/);
 assert.match(script, /hm-wuping-openai-1/);
 assert.match(script, /hm-owner-openai-1/);
 assert.match(script, /hm-test-openai-1/);
@@ -78,6 +80,7 @@ assert.match(runbook, /Owner\/OpenAI concurrent/);
 assert.match(runbook, /expectedVersion/);
 assert.match(runbook, /blockingWarningCount/);
 assert.match(runbook, /telemetry_state_db_missing/);
+assert.match(runbook, /runtime Python/i);
 assert.match(runbook, /plugin delivery directories/);
 assert.match(runbook, /Directory-bound topics/i);
 assert.match(runbook, /Wardrobe binding/);
@@ -102,6 +105,7 @@ const {
   compactBoundDirectory,
   compactGatewaySmoke,
   compactProfileAudit,
+  compactRuntimePython,
   compactPluginDirectory,
   compactWardrobeBinding,
   compactSchema,
@@ -185,6 +189,24 @@ assert.equal(profile.workerCount, 30);
 assert.equal(isAllowedProfileAuditWarning("telemetry_state_db_missing:hm-owner-openai-3"), true);
 assert.equal(isAllowedProfileAuditWarning("telemetry_response_store_missing:hm-owner-openai-3"), true);
 assert.equal(isAllowedProfileAuditWarning("profile_skills_target_unexpected:hm-owner-openai-3"), false);
+
+const runtimePythonPath = path.join(appRoot, "python");
+fs.writeFileSync(runtimePythonPath, "#!/bin/sh\nexit 0\n", "utf8");
+fs.chmodSync(runtimePythonPath, 0o755);
+assert.deepEqual(compactRuntimePython({ runtimePython: runtimePythonPath }), {
+  ok: true,
+  configuredPath: runtimePythonPath,
+  realPath: fs.realpathSync(runtimePythonPath),
+  executable: true,
+  issue: "",
+});
+assert.deepEqual(compactRuntimePython({ runtimePython: "/Users/xuxin/missing-python" }), {
+  ok: false,
+  configuredPath: "/Users/xuxin/missing-python",
+  realPath: "",
+  executable: false,
+  issue: "runtime_python_resolves_to_developer_home",
+});
 
 const acl = compactAcl({
   ok: true,

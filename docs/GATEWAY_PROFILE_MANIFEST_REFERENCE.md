@@ -27,7 +27,7 @@ This reference documents public-safe manifest fields. The example file is `examp
 | `host` | yes | Host used by Hermes Mobile to reach the Gateway API. |
 | `port` | yes | Gateway API port. |
 | `api_key` | deployment-only | Inline worker API key. Never commit real values. Prefer key-file/env injection in stricter deployments. |
-| `apiKeyFile` / `api_key_file` | deployment-only | Path to the worker API key file. The Gateway Pool provider reads and trims this file before calling the worker. This is the preferred Mac production shape. |
+| `apiKeyFile` / `api_key_file` | deployment-only | Path to the worker API key file. The Gateway Pool provider reads and trims this file before calling the worker. This is the preferred Mac production shape. Workspace provisioning must create a unique per-worker key file instead of copying a template worker's key path. |
 | `apiKeyPath` / `api_key_path` | deployment-only | Compatibility alias for a worker API key file path. |
 | `enabled` | yes | Whether the worker is schedulable. |
 | `securityLevel` | yes | `user` or `owner-maintenance`. |
@@ -116,6 +116,15 @@ This reference documents public-safe manifest fields. The example file is `examp
 - Manifest key-file paths are deployment metadata, not key contents. Browser
   status projections must not expose raw key values, and docs/handoffs should
   record only the field names and storage pattern.
+- Mac workspace provisioning must assign each materialized user worker its own
+  key file under the deployment `data/secrets/gateway-workers` directory, using
+  the worker macOS user and provider family in the filename. A newly
+  provisioned `hm-xulu` workspace should therefore receive files such as
+  `hm-xulu-openai-1.key`, `hm-xulu-openai-2.key`, and
+  `hm-xulu-deepseek-1.key`. Copying another workspace's `apiKeyFile` from a
+  template manifest row is invalid because the selected worker process will
+  fail cold start with `missing Gateway API key` or later reject Mobile
+  requests with a mismatched worker key.
 - Keep `replicaId`, `profileAlias`, `profileTemplateKey`, and `poolKey`
   secret-free. These fields are metadata only. Do not place API keys, token
   paths, launch URLs, prompts, model output, or full config bodies in them.

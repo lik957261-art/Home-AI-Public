@@ -7,6 +7,7 @@ const path = require("node:path");
 const {
   createWorkspaceSystemProvisioningExecutorService,
   safeLaunchdLabel,
+  safeMacGroup,
   safeMacUser,
   safeProfile,
   safeWorkspaceId,
@@ -61,6 +62,7 @@ async function testValidationHelpersAndDisabledStates() {
   assert.equal(safeWorkspaceId("xulu"), "xulu");
   assert.equal(safeMacUser("hm-xulu"), "hm-xulu");
   assert.equal(safeMacUser("root"), "");
+  assert.equal(safeMacGroup("hermes-workers"), "hermes-workers");
   assert.equal(safeProfile("lowgw31"), "lowgw31");
   assert.equal(safeLaunchdLabel("com.hermesmobile.gateway.hm-xulu.openai.1"), "com.hermesmobile.gateway.hm-xulu.openai.1");
 
@@ -96,8 +98,10 @@ async function testEnsureMacUserCreatesHiddenAccount() {
   });
   assert.equal(result.ok, true);
   assert.equal(result.uid, 503);
+  assert.equal(result.workerGroup, "hermes-workers");
   assert.ok(calls.some((call) => call.command === "/usr/bin/dscl" && call.args.includes("IsHidden")));
   assert.ok(calls.some((call) => call.command === "/usr/sbin/createhomedir"));
+  assert.ok(calls.some((call) => call.command === "/usr/sbin/dseditgroup" && call.args.includes("hermes-workers") && call.args.includes("hm-xulu")));
 }
 
 async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {

@@ -83,6 +83,28 @@ key file read by the start script. The typical stderr is
 `missing Gateway API key for <profile>` or a `Permission denied` line for a
 secret/runtime path.
 
+Also verify the worker account and runtime Python path:
+
+```bash
+id <hm-user>
+python_path=/Users/hermes-host/HermesMobile/runtime/hermes-agent-official/venv/bin/python
+readlink "$python_path"
+python_realpath="$(/usr/bin/python3 - <<'PY'
+import os
+print(os.path.realpath("/Users/hermes-host/HermesMobile/runtime/hermes-agent-official/venv/bin/python"))
+PY
+)"
+echo "$python_realpath"
+sudo -u <hm-user> "$python_path" -V
+```
+
+The `id` output must include `hermes-workers` unless the deployment explicitly
+configured another `HERMES_MOBILE_WORKER_GROUP`. The runtime Python realpath
+must stay under the production runtime tree or another production-owned runtime
+path; it must not resolve into `/Users/xuxin`, `/Users/hermes-dev`, or any
+developer account home. Fix the production runtime copy/symlink and group
+membership instead of granting workspace workers access to a developer home.
+
 Repair only the minimum required access:
 
 ```bash
@@ -97,6 +119,12 @@ script shebang. Workspace start scripts should execute the runtime as
 `$ROOT/runtime/hermes-agent-official/venv/bin/python -m hermes_cli.main gateway
 run --replace --accept-hooks`; do not fix this by granting workspace users
 access to a developer's home directory.
+
+If stderr shows `missing Gateway API key for <profile>`, compare the affected
+manifest row's `apiKeyFile` to the workspace user. A row for `hm-xjz` must not
+point at a key file for `hm-wuping` or any template account. Re-run workspace
+Gateway provisioning so it writes a workspace-owned key file such as
+`hm-xjz-openai-1.key` and refreshes the LaunchDaemon profile files.
 
 For required plugin Skills and profile-local file plugins, also run the profile
 audit after any Skill Store copy, worker-side Skill edit, plugin provisioning,

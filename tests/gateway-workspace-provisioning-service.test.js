@@ -97,7 +97,13 @@ function testProvisionNewWorkspaceWorkerAppendsAfterStableGrokPort() {
     assert.deepEqual(worker.allowedWorkspaceIds, ["xuyan"]);
     assert.deepEqual(worker.skillWorkspaceIds, ["xuyan"]);
     assert.equal(worker.skillProfile, "workspace:xuyan");
-    assert.equal(worker.api_key, "secret");
+    assert.equal(path.basename(worker.apiKeyFile), "hm-xuyan-openai-1.key");
+    assert.equal(path.basename(secondWorker.apiKeyFile), "hm-xuyan-openai-2.key");
+    assert.equal(path.basename(deepseek.apiKeyFile), "hm-xuyan-deepseek-1.key");
+    assert.equal(fs.existsSync(worker.apiKeyFile), true);
+    assert.equal(fs.existsSync(secondWorker.apiKeyFile), true);
+    assert.equal(fs.existsSync(deepseek.apiKeyFile), true);
+    assert.equal(worker.api_key, undefined);
     assert.equal(worker.telemetryStateDbPath.endsWith("\\lowgw3\\state.db"), true);
     assert.equal(manifest.workers.find((item) => item.profile === "grokgw1").port, 18753);
     assert.deepEqual(secondWorker.allowedWorkspaceIds, ["xuyan"]);
@@ -124,7 +130,7 @@ function testExistingWorkspaceIsIdempotent() {
     const result = createService(manifestPath).ensureWorkspaceGateway({ workspaceId: "weixin_stephen" });
     assert.equal(result.ok, true);
     assert.equal(result.provisioned, true);
-    assert.deepEqual(result.provisionedWorkers, ["lowgw8"]);
+    assert.deepEqual(result.provisionedWorkers, ["lowgw8", "lowgw7", "deepseekgw7"]);
     assert.equal(result.openAiWorkerCount, 2);
     assert.equal(result.deepseekWorkerCount, 1);
     assert.equal(result.replicaMetadataUpdated, true);
@@ -160,13 +166,13 @@ function testRefreshProfileBindingMarksExistingWorkspaceProfiles() {
       refreshProfileBinding: true,
     });
     assert.equal(result.ok, true);
-    assert.equal(result.provisioned, false);
+    assert.equal(result.provisioned, true);
     assert.equal(result.profileBindingRefreshed, true);
     assert.equal(result.replicaMetadataUpdated, true);
     assert.equal(result.restartRequired, true);
     assert.equal(result.macUser, "hm-wuping");
     assert.deepEqual(result.workerOsUsers, ["hm-wuping"]);
-    assert.deepEqual(result.provisionedWorkers, []);
+    assert.deepEqual(result.provisionedWorkers, ["lowgw9", "lowgw10", "deepseekgw9"]);
     const manifest = readManifest(manifestPath);
     assert.equal(manifest.updatedAt, "2026-05-22T12:00:00.000Z");
     assert.equal(manifest.workers.find((item) => item.profile === "lowgw9").pluginBindingUpdatedAt, "2026-05-22T12:00:00.000Z");

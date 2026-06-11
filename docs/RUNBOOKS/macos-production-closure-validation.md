@@ -40,6 +40,9 @@ It validates:
   `telemetry_state_db_missing:<profile>` or
   `telemetry_response_store_missing:<profile>` as allowed warnings after
   manifest telemetry paths and listener ACLs are already in place.
+- The configured Gateway runtime Python is executable and does not resolve into
+  a developer account home such as `/Users/xuxin` or `/Users/hermes-dev`.
+  Production workers must run from a production-owned runtime copy.
 - Mac worker filesystem ACL checks pass, including cross-workspace deny checks.
 - Workspace catalog paths resolve to the Mac live drive, and all active
   workspaces can create and preview the standard plugin delivery directories
@@ -100,6 +103,10 @@ With `--json`, the top-level shape is bounded metadata:
     "blockingWarningCount": 0,
     "allowedWarningCount": 2
   },
+  "runtimePython": {
+    "ok": true,
+    "issue": ""
+  },
   "acl": {
     "failedCount": 0
   },
@@ -127,7 +134,7 @@ With `--json`, the top-level shape is bounded metadata:
 
 Treat any top-level `ok=false`, nonzero profile issue count, nonzero
 `blockingWarningCount`, `launchd_service_not_loaded:<profile>`, failed ACL row,
-failed plugin delivery-directory creation/preview row, missing MCP schema
+failed runtime Python check, failed plugin delivery-directory creation/preview row, missing MCP schema
 callable, missing standard profile-local base tool, failed directory-bound topic
 preview row in either path-only or UI-route mode, Wardrobe binding row with a
 legacy origin, Wardrobe manifest launch failure, zero/negative Wardrobe

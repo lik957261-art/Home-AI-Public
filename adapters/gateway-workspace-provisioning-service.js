@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("node:crypto");
 const {
   annotateGatewayManifestReplicaMetadata,
   annotateGatewayWorkerReplicaMetadata,
@@ -62,12 +63,21 @@ function macUserForWorker(worker = {}) {
   return profileMatch ? profileMatch[1] : "";
 }
 
+function macUserForWorkspace(workspaceId) {
+  const suffix = cleanWorkspaceId(workspaceId).replace(/_/g, "-");
+  return suffix ? `hm-${suffix}` : "";
+}
+
 function gatewayIndexForProvider(worker, provider) {
   return provider === "deepseek" ? deepseekGatewayIndex(worker) : lowGatewayIndex(worker);
 }
 
 function profilePrefixForProvider(provider) {
   return provider === "deepseek" ? "deepseekgw" : "lowgw";
+}
+
+function keyFamilyForProvider(provider) {
+  return provider === "deepseek" ? "deepseek" : "openai";
 }
 
 function profileInUse(workers, profile) {
@@ -141,6 +151,44 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
     fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   }
 
+  function gatewayWorkerSecretsDir(manifestPath) {
+    return path.join(path.dirname(manifestPath), "secrets", "gateway-workers");
+  }
+
+  function ensureGatewayWorkerKeyFile(file) {
+    if (!file) return "";
+    if (!fs.existsSync(file)) {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, `${crypto.randomBytes(48).toString("base64url")}\n`, { mode: 0o600 });
+    }
+    try { fs.chmodSync(file, 0o600); } catch (_) {}
+    return file;
+  }
+
+  function expectedWorkerApiKeyFile(manifestPath, workspaceId, worker, provider, ordinal) {
+    const macUser = macUserForWorker(worker) || macUserForWorkspace(workspaceId);
+    return path.join(gatewayWorkerSecretsDir(manifestPath), `${macUser}-${keyFamilyForProvider(provider)}-${ordinal}.key`);
+  }
+
+  function repairWorkspaceWorkerApiKey(manifestPath, workspaceId, worker, provider, ordinal) {
+    const expected = expectedWorkerApiKeyFile(manifestPath, workspaceId, worker, provider, ordinal);
+    const current = String(worker.apiKeyFile || worker.api_key_file || worker.apiKeyPath || worker.api_key_path || "").trim();
+    ensureGatewayWorkerKeyFile(expected);
+    const changed = current !== expected
+      || worker.api_key_file !== undefined
+      || worker.apiKeyPath !== undefined
+      || worker.api_key_path !== undefined
+      || worker.apiKey !== undefined
+      || worker.api_key !== undefined;
+    worker.apiKeyFile = expected;
+    delete worker.api_key_file;
+    delete worker.apiKeyPath;
+    delete worker.api_key_path;
+    delete worker.apiKey;
+    delete worker.api_key;
+    return changed;
+  }
+
   function ensureWorkspaceSkillStore(manifestPath, workspaceId) {
     const skillStorePath = skillStorePathForWorkspace(path, manifestPath, workspaceId, skillProfilesRoot());
     const existed = fs.existsSync(skillStorePath);
@@ -212,6 +260,11 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
         existing.push(newWorker);
         provisionedWorkers.push(newWorker);
       }
+      existing.forEach((worker, index) => {
+        if (repairWorkspaceWorkerApiKey(manifestPath, workspaceId, worker, provider, index + 1)) {
+          provisionedWorkers.push(worker);
+        }
+      });
       return existing;
     }
     const openAiWorkers = ensureProviderWorkers("openai-codex", workspaceOpenAiWorkerMin);
@@ -255,7 +308,7 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
       workerCount: allWorkspaceWorkers.length,
       openAiWorkerCount: openAiWorkers.length,
       deepseekWorkerCount: deepseekWorkers.length,
-      provisionedWorkers: provisionedWorkers.map((worker) => worker.profile).filter(Boolean),
+      provisionedWorkers: [...new Set(provisionedWorkers.map((worker) => worker.profile).filter(Boolean))],
       replicaMetadataUpdated: annotatedManifest.changed,
       replicaMetadataUpdatedCount: annotatedManifest.updatedWorkerCount,
       lowGatewayCount: lowCount,
