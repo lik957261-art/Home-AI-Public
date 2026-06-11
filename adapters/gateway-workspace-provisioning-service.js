@@ -189,6 +189,31 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
     return changed;
   }
 
+  function repairWorkspaceWorkerReplicaMetadata(workspaceId, worker, provider) {
+    const profile = String(worker.profile || worker.name || "").trim();
+    if (!profile) return false;
+    const templateKey = `${workspaceId}|user|${provider}`;
+    const changed = worker.id !== profile
+      || worker.replicaId !== profile
+      || worker.profileAlias !== profile
+      || worker.profileTemplateKey !== templateKey
+      || worker.poolKey !== templateKey
+      || worker.replica_id !== undefined
+      || worker.profile_alias !== undefined
+      || worker.profile_template_key !== undefined
+      || worker.pool_key !== undefined;
+    worker.id = profile;
+    worker.replicaId = profile;
+    worker.profileAlias = profile;
+    worker.profileTemplateKey = templateKey;
+    worker.poolKey = templateKey;
+    delete worker.replica_id;
+    delete worker.profile_alias;
+    delete worker.profile_template_key;
+    delete worker.pool_key;
+    return changed;
+  }
+
   function ensureWorkspaceSkillStore(manifestPath, workspaceId) {
     const skillStorePath = skillStorePathForWorkspace(path, manifestPath, workspaceId, skillProfilesRoot());
     const existed = fs.existsSync(skillStorePath);
@@ -261,6 +286,9 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
         provisionedWorkers.push(newWorker);
       }
       existing.forEach((worker, index) => {
+        if (repairWorkspaceWorkerReplicaMetadata(workspaceId, worker, provider)) {
+          provisionedWorkers.push(worker);
+        }
         if (repairWorkspaceWorkerApiKey(manifestPath, workspaceId, worker, provider, index + 1)) {
           provisionedWorkers.push(worker);
         }

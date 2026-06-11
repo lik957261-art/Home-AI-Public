@@ -133,11 +133,14 @@ function testExistingWorkspaceIsIdempotent() {
     assert.deepEqual(result.provisionedWorkers, ["lowgw8", "lowgw7", "deepseekgw7"]);
     assert.equal(result.openAiWorkerCount, 2);
     assert.equal(result.deepseekWorkerCount, 1);
-    assert.equal(result.replicaMetadataUpdated, true);
+    assert.equal(result.replicaMetadataUpdated, false);
     assert.equal(result.restartRequired, true);
     assert.equal(result.skillStoreProvisioned, true);
     assert.equal(fs.existsSync(result.skillStorePath), true);
-    assert.equal(readManifest(manifestPath).workers.length, 3);
+    const manifest = readManifest(manifestPath);
+    assert.equal(manifest.workers.length, 3);
+    assert.equal(manifest.workers.find((item) => item.profile === "lowgw7").replicaId, "lowgw7");
+    assert.equal(manifest.workers.find((item) => item.profile === "lowgw8").replicaId, "lowgw8");
 
     const second = createService(manifestPath).ensureWorkspaceGateway({ workspaceId: "weixin_stephen" });
     assert.equal(second.provisioned, false);
@@ -146,6 +149,47 @@ function testExistingWorkspaceIsIdempotent() {
     assert.equal(second.replicaMetadataUpdated, false);
     assert.equal(second.openAiWorkerCount, 2);
     assert.equal(second.deepseekWorkerCount, 1);
+  });
+}
+
+function testExistingWorkspaceRepairsStaleReplicaMetadata() {
+  withManifest({
+    enabled: true,
+    workers: [
+      Object.assign(baseWorker("lowgw21", "xjz", 18851), {
+        id: "hm-wuping-openai-1",
+        replicaId: "hm-wuping-openai-1",
+        profileAlias: "hm-wuping-openai-1",
+      }),
+      Object.assign(baseWorker("lowgw22", "xjz", 18852), {
+        id: "hm-wuping-openai-1",
+        replica_id: "hm-wuping-openai-1",
+        profile_alias: "hm-wuping-openai-1",
+      }),
+      Object.assign(deepseekWorker("deepseekgw21", "xjz", 18853), {
+        id: "deepseekgw5",
+        replicaId: "deepseekgw5",
+        profileAlias: "deepseekgw5",
+      }),
+    ],
+  }, (manifestPath) => {
+    const result = createService(manifestPath).ensureWorkspaceGateway({ workspaceId: "xjz" });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.provisioned, true);
+    assert.deepEqual(result.provisionedWorkers, ["lowgw21", "lowgw22", "deepseekgw21"]);
+    const manifest = readManifest(manifestPath);
+    for (const profile of ["lowgw21", "lowgw22", "deepseekgw21"]) {
+      const worker = manifest.workers.find((item) => item.profile === profile);
+      const provider = profile.startsWith("deepseek") ? "deepseek" : "openai-codex";
+      assert.equal(worker.id, profile);
+      assert.equal(worker.replicaId, profile);
+      assert.equal(worker.profileAlias, profile);
+      assert.equal(worker.profileTemplateKey, `xjz|user|${provider}`);
+      assert.equal(worker.poolKey, `xjz|user|${provider}`);
+      assert.equal(worker.replica_id, undefined);
+      assert.equal(worker.profile_alias, undefined);
+    }
   });
 }
 
@@ -168,7 +212,7 @@ function testRefreshProfileBindingMarksExistingWorkspaceProfiles() {
     assert.equal(result.ok, true);
     assert.equal(result.provisioned, true);
     assert.equal(result.profileBindingRefreshed, true);
-    assert.equal(result.replicaMetadataUpdated, true);
+    assert.equal(result.replicaMetadataUpdated, false);
     assert.equal(result.restartRequired, true);
     assert.equal(result.macUser, "hm-wuping");
     assert.deepEqual(result.workerOsUsers, ["hm-wuping"]);
@@ -192,6 +236,7 @@ function testOwnerWorkspaceSkipped() {
 
 testProvisionNewWorkspaceWorkerAppendsAfterStableGrokPort();
 testExistingWorkspaceIsIdempotent();
+testExistingWorkspaceRepairsStaleReplicaMetadata();
 testRefreshProfileBindingMarksExistingWorkspaceProfiles();
 testOwnerWorkspaceSkipped();
 

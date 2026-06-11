@@ -353,6 +353,13 @@ per-worker `apiKeyFile` under `data/secrets/gateway-workers`, for example
 template key path or inline `api_key`. A copied path from another workspace can
 make the launch script report `missing Gateway API key for <profile>` or cause
 the worker process and Mobile request signer to disagree about the API key.
+Provisioning must also rewrite stale replica metadata copied from a template:
+`id`, `replicaId`, and `profileAlias` must equal the worker `profile`, and
+`profileTemplateKey` / `poolKey` must equal the target workspace/provider
+template. If an `xjz` worker keeps `replicaId=hm-wuping-openai-1`, Gateway
+status can look healthy while the scheduler starts or tracks the wrong
+replica, causing product runs to fail before a Gateway profile is attached to
+the message.
 
 Loaded is not the same as always-on. Only the required warm baseline may use
 `RunAtLoad=true` and `KeepAlive=true` in its worker plist. Every on-demand
