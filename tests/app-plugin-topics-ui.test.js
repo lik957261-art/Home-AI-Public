@@ -124,6 +124,11 @@ assert.doesNotMatch(quickActionRenderBody, /capability-action-source/);
 
 assert.doesNotMatch(directoryTopicsUi, /directory-topic-folder-icon/);
 assert.match(directoryTopicsUi, /data-directory-topic-open-root/);
+assert.match(directoryTopicsUi, /data-directory-topic-root-toggle/);
+assert.match(directoryTopicsUi, /function directoryTopicRootCollapsedStorageKey/);
+assert.match(directoryTopicsUi, /function readDirectoryTopicRootCollapsed/);
+assert.match(directoryTopicsUi, /function setDirectoryTopicRootCollapsed/);
+assert.doesNotMatch(directoryTopicsUi, /<button class="directory-topic-root-entry"[\s\S]*?data-directory-topic-open-root/);
 assert.match(directoryTopicsUi, /directory-topic-root-icon/);
 assert.match(directoryTopicsUi, /visible\.length[\s\S]*?topicCount/);
 assert.match(directoryTopicsUi, /const routeId = String\(route\.projectId \|\| route\.id \|\| ""\)\.trim\(\);/);
@@ -153,6 +158,9 @@ assert.match(stylesCss, /\.plugin-topic-card\.collapsed \.plugin-topic-row-chevr
 assert.match(stylesCss, /\.plugin-topic-child-list \{[\s\S]*?margin-left: 52px;[\s\S]*?padding: 0 0 7px 9px;/);
 assert.match(stylesCss, /@media \(max-width: 760px\) \{[\s\S]*?\.plugin-topic-child-list \{[\s\S]*?margin-left: 24px;[\s\S]*?padding: 0 0 7px 9px;/);
 assert.match(stylesCss, /\.plugin-topic-card\.collapsed \.plugin-topic-child-list \{[\s\S]*?display: none;/);
+assert.match(stylesCss, /\.directory-topic-root-entry \{[\s\S]*?grid-template-columns: 46px minmax\(0, 1fr\) 16px;/);
+assert.match(stylesCss, /\.directory-topic-root-icon-entry,[\s\S]*?\.directory-topic-root-toggle,[\s\S]*?\.directory-topic-root-chevron-button \{[\s\S]*?min-height: 48px;/);
+assert.match(stylesCss, /\.directory-topic-launcher\.root-collapsed \.directory-topic-grid \{[\s\S]*?display: none;/);
 
 function createPluginTopicHarness(options = {}) {
   const storage = new Map();
@@ -322,6 +330,7 @@ globalThis.__directoryTopicHarness = {
   render: renderDirectoryTopicCards,
   collections: directoryTopicCollectionsForGroups,
   setCollapsed: setDirectoryTopicCollapsed,
+  setRootCollapsed: setDirectoryTopicRootCollapsed,
 };`, sandbox);
   return sandbox.__directoryTopicHarness;
 }
@@ -411,10 +420,18 @@ function directoryCardCollapsed(html, key) {
   ];
 
   const initial = harness.render(collections);
+  assert.equal(/directory-topic-launcher root-collapsed/.test(initial), false);
+  assert.match(initial, /class="directory-topic-root-icon-entry"[\s\S]*?data-directory-topic-open-root/);
+  assert.match(initial, /class="directory-topic-root-toggle"[\s\S]*?data-directory-topic-root-toggle/);
   assert.equal(directoryCardCollapsed(initial, "dir-1"), false);
   assert.equal(directoryCardCollapsed(initial, "dir-2"), false);
   assert.equal(directoryCardCollapsed(initial, "dir-3"), false);
   assert.equal(directoryCardCollapsed(initial, "dir-4"), true);
+
+  harness.setRootCollapsed(true);
+  assert.equal(/directory-topic-launcher root-collapsed/.test(harness.render(collections)), true);
+  harness.setRootCollapsed(false);
+  assert.equal(/directory-topic-launcher root-collapsed/.test(harness.render(collections)), false);
 
   harness.setCollapsed("dir-1", true);
   assert.equal(directoryCardCollapsed(harness.render(collections), "dir-1"), true);

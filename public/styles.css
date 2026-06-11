@@ -6771,7 +6771,7 @@ button.directory-alias-chip {
   min-width: 0;
   min-height: 62px;
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
+  grid-template-columns: 46px minmax(0, 1fr) 16px;
   align-items: center;
   gap: 9px;
   width: 100%;
@@ -6786,7 +6786,41 @@ button.directory-alias-chip {
   touch-action: pan-y;
 }
 
-.directory-topic-root-entry:active {
+.directory-topic-root-icon-entry,
+.directory-topic-root-toggle,
+.directory-topic-root-chevron-button {
+  min-width: 0;
+  min-height: 48px;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  text-align: left;
+  touch-action: pan-y;
+}
+
+.directory-topic-root-icon-entry {
+  width: 46px;
+  display: grid;
+  place-items: center;
+}
+
+.directory-topic-root-toggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+}
+
+.directory-topic-root-chevron-button {
+  width: 16px;
+  display: grid;
+  place-items: center;
+}
+
+.directory-topic-root-icon-entry:active,
+.directory-topic-root-toggle:active,
+.directory-topic-root-chevron-button:active {
   transform: translateY(1px);
 }
 
@@ -6811,6 +6845,10 @@ button.directory-alias-chip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 2px;
+}
+
+.directory-topic-launcher.root-collapsed .directory-topic-grid {
+  display: none;
 }
 
 .directory-topic-card {
@@ -17583,7 +17621,7 @@ body.task-markdown-preview-open {
 
   .directory-topic-root-entry {
     min-height: 60px;
-    grid-template-columns: 46px minmax(0, 1fr);
+    grid-template-columns: 46px minmax(0, 1fr) 16px;
     gap: 9px;
     padding: 4px 2px 7px;
   }

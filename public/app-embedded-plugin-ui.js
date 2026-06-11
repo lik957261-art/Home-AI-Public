@@ -14,6 +14,7 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
     backResultEventType: "codex-mobile.plugin.back_result",
     refreshRequiredEventType: "codex-mobile.plugin.refresh_required",
     manifestPath: "/api/hermes-plugins/codex-mobile/manifest",
+    residentFrame: true,
   }),
   finance: Object.freeze({
     id: "finance",
@@ -351,6 +352,22 @@ function embeddedPluginManifestMatchesLaunchContext(record, workspaceId, appeara
     && record?.manifestAppearanceKey === appearanceKey
     && freshEnough
     && embeddedPluginProxyEntryWorkspaceMatches(record?.manifest?.entry?.url, workspaceId)
+  );
+}
+
+function embeddedPluginResidentShellMatchesLaunchContext(def, workspaceId, appearanceKey = embeddedPluginAppearanceKey()) {
+  if (!def?.residentFrame) return false;
+  const record = embeddedPluginRecord(def.id);
+  if (!record.checked || record.loading || !record.shellNode || !record.renderedEntryUrl) return false;
+  const shell = currentEmbeddedPluginShell(def);
+  const frame = shell?.querySelector?.(".embedded-plugin-frame");
+  if (!frame || frame.getAttribute("src") !== record.renderedEntryUrl) return false;
+  const renderedWorkspaceId = String(record.renderedWorkspaceId || record.manifest?.workspaceId || "").trim();
+  const renderedAppearanceKey = String(record.renderedAppearanceKey || record.manifestAppearanceKey || "").trim();
+  return Boolean(
+    renderedWorkspaceId === String(workspaceId || "owner").trim()
+    && renderedAppearanceKey === String(appearanceKey || "").trim()
+    && embeddedPluginProxyEntryWorkspaceMatches(record.renderedEntryUrl, workspaceId)
   );
 }
 
@@ -856,6 +873,8 @@ function discardEmbeddedPluginShell(def) {
     navigationLastAt: 0,
     frameHealthSeq: (record.frameHealthSeq || 0) + 1,
     renderedEntryUrl: "",
+    renderedWorkspaceId: "",
+    renderedAppearanceKey: "",
   });
 }
 
@@ -1065,7 +1084,17 @@ function renderEmbeddedPluginView(def) {
   const conversation = $("conversation");
   if (!conversation) return;
   const record = embeddedPluginRecord(def.id);
+  const workspaceId = state.selectedWorkspaceId || "owner";
+  const appearanceKey = embeddedPluginAppearanceKey();
   const pluginManifest = embeddedPluginCurrentManifest(def);
+  if (!pluginManifest && embeddedPluginResidentShellMatchesLaunchContext(def, workspaceId, appearanceKey)) {
+    record.frameOrigin = record.frameOrigin || embeddedPluginEntryOrigin(def, record.manifest);
+    if (attachEmbeddedPluginShell(def, record.renderedEntryUrl)) {
+      updateNavigationControls();
+      ensureVerticalScrollAffordance();
+      return;
+    }
+  }
   if (embeddedPluginAvailable(pluginManifest) && !embeddedPluginBlockedByPageSecurity(def, pluginManifest)) {
     const entryUrl = embeddedPluginEntryUrlForFrame(def, pluginManifest);
     record.frameOrigin = embeddedPluginEntryOrigin(def, pluginManifest);
@@ -1099,6 +1128,8 @@ function renderEmbeddedPluginView(def) {
     setEmbeddedPluginHostVisible(def, true);
     record.shellNode = embeddedPluginHost(def).querySelector(".embedded-plugin-shell");
     record.renderedEntryUrl = entryUrl;
+    record.renderedWorkspaceId = workspaceId;
+    record.renderedAppearanceKey = appearanceKey;
     record.frameCreatedAt = Date.now();
     bindEmbeddedPluginFrameHealth(def, embeddedPluginHost(def).querySelector(".embedded-plugin-frame"));
     scheduleEmbeddedPluginViewportBroadcast("frame_render", 0);

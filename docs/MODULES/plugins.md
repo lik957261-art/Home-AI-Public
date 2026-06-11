@@ -342,6 +342,14 @@ route exists for Codex, Hermes-owned left-edge swipe and top back must restore
 that host route before sending another iframe-internal back event; this
 prevents a cached/reloaded Codex root from consuming the gesture into a plugin
 default page such as create-thread.
+Codex is also the only resident embedded iframe in the current host. If the
+existing Codex iframe was rendered for the same effective workspace, same host
+appearance key, and same browser-facing entry URL, ordinary tab/menu switches
+must reattach that iframe even after the short-lived launch manifest has
+expired. This keeps active Codex threads resident when the user briefly opens
+Chat, Topics, Directory, or another plugin. The host must still discard Codex
+on workspace changes, appearance changes, a different entry URL, or an
+explicit Codex `refresh_required` event.
 
 Plugin-owned full-screen image or file previews are a temporary chrome-free
 state inside the same embedded iframe. When a plugin opens such a preview, it
@@ -534,7 +542,10 @@ fresh launch entry for that effective workspace.
 
 For launch-token plugins, a cached manifest/launch context is intentionally
 short-lived. The host may preserve an iframe across ordinary tab switches only
-when the current iframe was rendered from the same effective entry URL. If a
+when the current iframe was rendered from the same effective entry URL. Codex
+has an additional resident-frame exception described above: an already-mounted
+Codex iframe can be reattached after manifest expiry as long as its rendered
+workspace, appearance, and entry still match the active host context. If a
 fresh manifest or launch returns a different browser-facing entry, including a
 different plugin version query such as Finance's `v=...`, the host must discard
 the old iframe shell and render the new entry. `preserve_iframe_state`,

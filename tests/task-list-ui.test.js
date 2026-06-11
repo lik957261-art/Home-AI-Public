@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260611-plugin-prefs-recent-v706";
+const CLIENT_VERSION = "20260611-codex-resident-frame-v707";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260611-plugin-prefs-recent-v706" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260611-plugin-prefs-recent-v706"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260611-codex-resident-frame-v707" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260611-codex-resident-frame-v707"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2562,10 +2562,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260611-plugin-prefs-recent-v706/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260611-plugin-prefs-recent-v706/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260611-plugin-prefs-recent-v706/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260611-plugin-prefs-recent-v706/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260611-codex-resident-frame-v707/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260611-codex-resident-frame-v707/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260611-codex-resident-frame-v707/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260611-codex-resident-frame-v707/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2911,7 +2911,10 @@ assert.match(appJs, /function directoryTopicIsCollapsed\(collection, index, coll
 assert.match(appJs, /const collapsed = directoryTopicIsCollapsed\(collection, index, collapsedDirectories, expandedDirectories\)/);
 assert.match(appJs, /function renderDirectoryTopicCards\(collections = \[\], options = \{\}\)/);
 assert.match(appJs, /directory-topic-associated/);
-assert.doesNotMatch(appJs, /\\u76ee\\u5f55\\u7ed1\\u5b9a\\u8bdd\\u9898/);
+assert.match(appJs, /const DIRECTORY_TOPIC_ROOT_COLLAPSED_STORAGE_KEY = "hermesDirectoryTopicRootCollapsed"/);
+assert.match(appJs, /function directoryTopicRootCollapsedStorageKey\(workspaceId = directoryTopicStorageWorkspaceId\(\)\)/);
+assert.match(appJs, /function readDirectoryTopicRootCollapsed\(workspaceId = directoryTopicStorageWorkspaceId\(\)\)/);
+assert.match(appJs, /function setDirectoryTopicRootCollapsed\(collapsed, workspaceId = directoryTopicStorageWorkspaceId\(\)\)/);
 assert.match(appJs, /function directoryTopicRenderSignature\(threadId = "", groups = \[\]\)/);
 assert.match(appJs, /function scheduleDeferredDirectoryTopicRender\(threadId = "", restoreScrollTop = null, signature = ""\)/);
 assert.match(appJs, /requestAnimationFrame\(\(\) => \{\s+requestAnimationFrame/);
@@ -2920,8 +2923,11 @@ assert.match(appJs, /state\.directoryTopicRenderPendingSignature = signature \|\
 assert.match(appJs, /data-directory-topic-open-topic/);
 assert.match(appJs, /data-directory-topic-open-directory/);
 assert.match(appJs, /data-directory-topic-open-root/);
+assert.match(appJs, /data-directory-topic-root-toggle/);
 assert.match(appJs, /data-directory-topic-toggle/);
 assert.match(appJs, /directory-topic-root-entry/);
+assert.match(appJs, /directory-topic-root-icon-entry/);
+assert.match(appJs, /directory-topic-root-toggle/);
 assert.match(appJs, /directory-topic-root-icon/);
 assert.match(appJs, /const topicCount = visible\.reduce/);
 assert.match(appJs, /aria-expanded="\$\{collapsed \? "false" : "true"\}"/);
@@ -2969,7 +2975,9 @@ assert.match(appJs, /openDirectoryProjectRoute\(\s*button\.dataset\.projectId,/)
 assert.match(appJs, /async function ensureDirectoryThread\(\) \{[\s\S]*?const routeThreadId = String\(state\.directoryReturnRoute\?\.currentThreadId \|\| state\.directoryReturnRoute\?\.currentThread\?\.id \|\| ""\)\.trim\(\);[\s\S]*?if \(routeThreadId\) return routeThreadId;/);
 assert.match(stylesCss, /\.directory-topic-launcher \{/);
 assert.match(stylesCss, /\.directory-topic-launcher\.directory-topic-associated \{[\s\S]*?border-top: 1px dashed rgba\(95, 139, 148, 0\.24\);/);
-assert.match(stylesCss, /\.directory-topic-root-entry \{[\s\S]*?min-height: 62px;[\s\S]*?grid-template-columns: 46px minmax\(0, 1fr\);/);
+assert.match(stylesCss, /\.directory-topic-root-entry \{[\s\S]*?min-height: 62px;[\s\S]*?grid-template-columns: 46px minmax\(0, 1fr\) 16px;/);
+assert.match(stylesCss, /\.directory-topic-root-icon-entry,[\s\S]*?\.directory-topic-root-toggle,[\s\S]*?\.directory-topic-root-chevron-button \{[\s\S]*?min-height: 48px;/);
+assert.match(stylesCss, /\.directory-topic-launcher\.root-collapsed \.directory-topic-grid \{[\s\S]*?display: none;/);
 assert.match(stylesCss, /\.directory-topic-root-icon\.plugin-topic-app-icon\.directory \{[\s\S]*?width: 40px;[\s\S]*?height: 40px;[\s\S]*?background: linear-gradient/);
 assert.match(stylesCss, /\.directory-topic-grid \{[\s\S]*?grid-template-columns: repeat\(auto-fit, minmax\(220px, 1fr\)\)/);
 assert.match(stylesCss, /\.directory-topic-grid \{[\s\S]*?gap: 2px;/);

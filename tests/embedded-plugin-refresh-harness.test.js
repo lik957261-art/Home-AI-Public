@@ -158,6 +158,7 @@ function createHarness() {
     globalThis.__pluginRefreshHarness = {
       def: EMBEDDED_PLUGIN_DEFS["codex-mobile"],
       embeddedPluginRecord,
+      embeddedPluginResidentShellMatchesLaunchContext,
       ensureEmbeddedPluginNavigationBridge,
       embeddedPluginRefreshRequiredEventType,
       requestEmbeddedPluginRefresh,
@@ -209,6 +210,26 @@ function testLaunchManifestExpiresForTokenPlugins() {
     harness.sandbox.embeddedPluginManifestMatchesLaunchContext(record, "owner", "light/default"),
     false,
   );
+}
+
+function testCodexResidentFrameSurvivesExpiredLaunchManifest() {
+  const harness = createHarness();
+  const shell = harness.makeShell("https://codex.example.test/?embed=hermes");
+  const { def, record } = harness.setupManifest(shell);
+  harness.sandbox.state.viewMode = "codex";
+  harness.sandbox.Date.now = () => 61000;
+
+  assert.equal(
+    harness.sandbox.__pluginRefreshHarness.embeddedPluginResidentShellMatchesLaunchContext(def, "owner", "light/default"),
+    true,
+  );
+
+  harness.sandbox.__pluginRefreshHarness.renderEmbeddedPluginView(def);
+
+  assert.equal(shell.removed, false);
+  assert.equal(harness.host.hidden, false);
+  assert.deepEqual(harness.calls.api, []);
+  assert.equal(harness.calls.nav > 0, true);
 }
 
 function testFreshManifestEntryRebuildsNavigatedShell() {
@@ -392,6 +413,7 @@ function testLaunchHealthRefreshUsesCooldown() {
 
 testRefreshIgnoresWrongOrigin();
 testLaunchManifestExpiresForTokenPlugins();
+testCodexResidentFrameSurvivesExpiredLaunchManifest();
 testFreshManifestEntryRebuildsNavigatedShell();
 testRefreshRebuildsActivePluginWithBoundedRoute();
 testRefreshInvalidatesInactivePluginWithoutFetching();

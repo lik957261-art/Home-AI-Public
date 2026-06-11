@@ -217,9 +217,11 @@ or raw plugin credentials.
   scrollable page body, not as mini buttons attached to the icon.
 - The Topics root also keeps a compact Directory root entry directly above the
   directory-bound topic collections. This entry uses a larger root-folder icon
-  with a distinct root color, opens the Directory application, and shows the
-  current visible directory-bound subdirectory count plus topic count inline
-  after the title.
+  with a distinct root color and shows the current visible directory-bound
+  subdirectory count plus topic count inline after the title. Only the root
+  icon opens the Directory application. The title/meta text and row-end
+  chevron expand or collapse the directory-bound topic collection tree below,
+  with device-local workspace-scoped persistence.
   It exists so starting or finding a directory-bound topic remains discoverable
   near the Topics surface even though the Directory app also lives in the
   plugin Dock/drawer.

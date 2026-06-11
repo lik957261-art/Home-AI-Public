@@ -238,6 +238,11 @@ Likely focused checks:
   for older rows, so user intent survives later re-renders without making every
   directory expanded by default. Bound topics render as named compact indented
   entries with a chat icon, short title, and default marker when applicable.
+  The Topics-root Directory parent entry above the tree is split by click
+  target: the root folder icon opens the Directory application, while the
+  title/meta text and row-end chevron expand or collapse the whole
+  directory-bound collection area. That root collapsed state is also
+  device-local and workspace-scoped.
   The short title uses a
   deterministic frontend fallback from the first user message unless the topic
   has an explicit/manual title.

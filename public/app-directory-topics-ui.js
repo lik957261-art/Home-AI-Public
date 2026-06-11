@@ -90,6 +90,7 @@ function directoryTopicDisplayTitle(group) {
 
 const DIRECTORY_TOPIC_COLLAPSED_STORAGE_KEY = "hermesDirectoryTopicCollapsed";
 const DIRECTORY_TOPIC_EXPANDED_STORAGE_KEY = "hermesDirectoryTopicExpanded";
+const DIRECTORY_TOPIC_ROOT_COLLAPSED_STORAGE_KEY = "hermesDirectoryTopicRootCollapsed";
 const DIRECTORY_TOPIC_DEFAULT_EXPANDED_LIMIT = 3;
 
 function readDirectoryTopicStorageSet(storageKey) {
@@ -124,6 +125,32 @@ function writeExpandedDirectoryTopics(expanded) {
   writeDirectoryTopicStorageSet(DIRECTORY_TOPIC_EXPANDED_STORAGE_KEY, expanded);
 }
 
+function directoryTopicStorageWorkspaceId() {
+  return String(
+    (typeof state !== "undefined" && (state.selectedWorkspaceId || state.auth?.workspaceId))
+    || "owner",
+  ).trim() || "owner";
+}
+
+function directoryTopicRootCollapsedStorageKey(workspaceId = directoryTopicStorageWorkspaceId()) {
+  const id = String(workspaceId || "owner").trim() || "owner";
+  return `${DIRECTORY_TOPIC_ROOT_COLLAPSED_STORAGE_KEY}:${id}`;
+}
+
+function readDirectoryTopicRootCollapsed(workspaceId = directoryTopicStorageWorkspaceId()) {
+  try {
+    return localStorage.getItem(directoryTopicRootCollapsedStorageKey(workspaceId)) === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function setDirectoryTopicRootCollapsed(collapsed, workspaceId = directoryTopicStorageWorkspaceId()) {
+  try {
+    localStorage.setItem(directoryTopicRootCollapsedStorageKey(workspaceId), collapsed ? "1" : "0");
+  } catch (_) {}
+}
+
 function directoryTopicCollapsedByDefault(index) {
   return index >= DIRECTORY_TOPIC_DEFAULT_EXPANDED_LIMIT;
 }
@@ -156,15 +183,24 @@ function renderDirectoryTopicCards(collections = [], options = {}) {
   const associated = options.associatedWithDirectoryPlugin === true;
   const collapsedDirectories = readCollapsedDirectoryTopics();
   const expandedDirectories = readExpandedDirectoryTopics();
+  const rootCollapsed = readDirectoryTopicRootCollapsed();
   const topicCount = visible.reduce((total, collection) => total + (collection.groups?.length || 0), 0);
-  return `<section class="directory-topic-launcher${associated ? " directory-topic-associated" : ""}" aria-label="\u76ee\u5f55\u8bdd\u9898">
-    <button class="directory-topic-root-entry" type="button" data-directory-topic-open-root aria-label="\u6253\u5f00\u76ee\u5f55">
-      <span class="plugin-topic-app-icon directory directory-topic-root-icon" data-plugin-icon="" aria-hidden="true"></span>
-      <span class="directory-topic-text">
-        <span class="directory-topic-title">\u76ee\u5f55</span>
-        <span class="directory-topic-meta">${escapeHtml(`${visible.length} \u4e2a\u5b50\u76ee\u5f55\u3000${topicCount} \u4e2a\u8bdd\u9898`)}</span>
-      </span>
-    </button>
+  const rootToggleAttrs = `data-directory-topic-root-toggle aria-expanded="${rootCollapsed ? "false" : "true"}" aria-label="${rootCollapsed ? "\u5c55\u5f00\u76ee\u5f55\u7ed1\u5b9a\u8bdd\u9898" : "\u6536\u8d77\u76ee\u5f55\u7ed1\u5b9a\u8bdd\u9898"}"`;
+  return `<section class="directory-topic-launcher${associated ? " directory-topic-associated" : ""}${rootCollapsed ? " root-collapsed" : ""}" aria-label="\u76ee\u5f55\u8bdd\u9898">
+    <div class="directory-topic-root-entry">
+      <button class="directory-topic-root-icon-entry" type="button" data-directory-topic-open-root aria-label="\u6253\u5f00\u76ee\u5f55">
+        <span class="plugin-topic-app-icon directory directory-topic-root-icon" data-plugin-icon="" aria-hidden="true"></span>
+      </button>
+      <button class="directory-topic-root-toggle" type="button" ${rootToggleAttrs}>
+        <span class="directory-topic-text">
+          <span class="directory-topic-title">\u76ee\u5f55</span>
+          <span class="directory-topic-meta">${escapeHtml(`${visible.length} \u4e2a\u5b50\u76ee\u5f55\u3000${topicCount} \u4e2a\u8bdd\u9898`)}</span>
+        </span>
+      </button>
+      <button class="directory-topic-root-chevron-button" type="button" ${rootToggleAttrs}>
+        <span class="directory-topic-root-chevron directory-topic-chevron" aria-hidden="true"></span>
+      </button>
+    </div>
     <div class="directory-topic-grid">
       ${visible.map((collection, index) => {
         const defaultGroup = collection.defaultGroup;
@@ -205,6 +241,22 @@ function wireDirectoryTopicCards(root) {
       event.stopPropagation();
       if (typeof openBuiltInDirectoryPlugin === "function") openBuiltInDirectoryPlugin().catch(showError);
       else if (typeof openPluginTopicApp === "function") openPluginTopicApp("directory").catch(showError);
+    });
+  });
+  root?.querySelectorAll?.("[data-directory-topic-root-toggle]").forEach((button) => {
+    if (button.dataset.boundDirectoryTopicRootToggle) return;
+    button.dataset.boundDirectoryTopicRootToggle = "1";
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const launcher = button.closest?.(".directory-topic-launcher");
+      const nextCollapsed = !launcher?.classList.contains("root-collapsed");
+      setDirectoryTopicRootCollapsed(nextCollapsed);
+      launcher?.classList.toggle("root-collapsed", nextCollapsed);
+      launcher?.querySelectorAll?.("[data-directory-topic-root-toggle]").forEach((toggle) => {
+        toggle.setAttribute("aria-expanded", nextCollapsed ? "false" : "true");
+        toggle.setAttribute("aria-label", nextCollapsed ? "\u5c55\u5f00\u76ee\u5f55\u7ed1\u5b9a\u8bdd\u9898" : "\u6536\u8d77\u76ee\u5f55\u7ed1\u5b9a\u8bdd\u9898");
+      });
     });
   });
   root?.querySelectorAll?.("[data-directory-topic-toggle]").forEach((button) => {
