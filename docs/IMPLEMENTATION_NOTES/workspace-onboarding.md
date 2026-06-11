@@ -65,6 +65,13 @@ their business rules:
 - Gateway candidate profiles: `ensureWorkspaceGateway`;
 - plugin provisioning: `hermesPluginService.grantWorkspace`.
 
+When `HERMES_WEB_OWNER_DEFAULT_WORKSPACE` / `HERMES_MOBILE_OWNER_DEFAULT_WORKSPACE`
+points at the Mac live `data/drive` root, `upsertLocalWorkspace` must default
+new family workspace records to `data/drive/users/<workspaceId>`. It must not
+derive the root from the display label. A previously auto-derived legacy root
+such as `data/drive/<display-name>` should be migrated on the next Owner upsert
+when the Owner did not explicitly set a custom root.
+
 ## Plan Shape
 
 `planOnboarding(input)` is side-effect free and returns:

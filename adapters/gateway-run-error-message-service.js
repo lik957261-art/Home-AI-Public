@@ -1,6 +1,6 @@
 "use strict";
 
-const DEFAULT_RUN_FAILURE_MESSAGE = "Hermes run failed before producing a reply.";
+const DEFAULT_RUN_FAILURE_MESSAGE = "模型通道失败，但没有返回更具体的错误。请稍后重试；如果连续发生，需要检查 Gateway worker 日志和当前 workspace 的 Gateway Profile。";
 const GATEWAY_PROFILE_CHECK_SUFFIX = "请稍后重试；如果连续发生，需要检查 Gateway Profile、密钥或启动权限。";
 
 function cleanString(value) {
@@ -82,11 +82,29 @@ function workerStartFailedMessage(err) {
   return `AI 执行通道启动失败。${GATEWAY_PROFILE_CHECK_SUFFIX}`;
 }
 
+function failureCandidateFromGatewayRunEvent(event = {}) {
+  if (event.error && event.error !== true) return event.error;
+  for (const key of ["response", "data", "payload"]) {
+    const source = objectValue(event[key]);
+    if (source.error && source.error !== true) return source.error;
+    if (source.last_error && source.last_error !== true) return source.last_error;
+  }
+  if (event.last_error && event.last_error !== true) return event.last_error;
+  if (event.message && !/^response\.failed$/i.test(cleanString(event.message))) return event.message;
+  return {
+    code: "gateway_response_failed_without_error",
+    message: "Gateway response failed without a detailed error.",
+  };
+}
+
 function gatewayRunUserFacingError(err) {
   const code = errorCode(err);
   const details = errorDetails(err);
   const message = errorMessage(err);
 
+  if (code === "gateway_response_failed_without_error" || code === "response_failed_without_error") {
+    return DEFAULT_RUN_FAILURE_MESSAGE;
+  }
   if (code === "gateway_elastic_queue_timeout") {
     return queueTimeoutMessage(details.reason || queueReasonFromMessage(message));
   }
@@ -113,14 +131,23 @@ function gatewayRunUserFacingError(err) {
   if (/Gateway worker failed to start/i.test(message)) {
     return workerStartFailedMessage(err);
   }
+  if (/^run failed$/i.test(message)) {
+    return DEFAULT_RUN_FAILURE_MESSAGE;
+  }
   const redacted = redactGatewayRunErrorText(message);
   return redacted || DEFAULT_RUN_FAILURE_MESSAGE;
 }
 
+function gatewayRunUserFacingErrorFromEvent(event = {}) {
+  return gatewayRunUserFacingError(failureCandidateFromGatewayRunEvent(event));
+}
+
 module.exports = {
   DEFAULT_RUN_FAILURE_MESSAGE,
+  failureCandidateFromGatewayRunEvent,
   gatewayRunCapacityReasonLabel,
   gatewayRunFailureCodeLabel,
   gatewayRunUserFacingError,
+  gatewayRunUserFacingErrorFromEvent,
   redactGatewayRunErrorText,
 };

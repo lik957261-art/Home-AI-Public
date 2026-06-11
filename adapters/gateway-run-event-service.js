@@ -17,6 +17,7 @@ const { createGatewayRunTerminalStateService } = require("./gateway-run-terminal
 const { createGatewayRunResponseCreatedService } = require("./gateway-run-response-created-service");
 const { createGatewayRunStreamingSaveService } = require("./gateway-run-streaming-save-service");
 const { createGatewayRunToolsetEscalationRetryService } = require("./gateway-run-toolset-escalation-retry-service");
+const { gatewayRunUserFacingErrorFromEvent } = require("./gateway-run-error-message-service");
 
 function cleanString(value) {
   return String(value || "").trim();
@@ -322,7 +323,7 @@ function createGatewayRunEventService(options = {}) {
 
     if (lifecycleEvent.terminalStatus === "done") return getCompletionService().markRunCompleted(context, event);
     if (lifecycleEvent.terminalStatus === "failed") {
-      return markRunFailed(thread.id, message.id, runId, event.error || "run failed");
+      return markRunFailed(thread.id, message.id, runId, gatewayRunUserFacingErrorFromEvent(event));
     }
     if (lifecycleEvent.terminalStatus === "cancelled") {
       return markRunCancelled(thread.id, message.id, runId);

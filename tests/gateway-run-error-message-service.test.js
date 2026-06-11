@@ -53,9 +53,17 @@ function testDefaultRedaction() {
   assert.match(redacted, /\[redacted/);
 }
 
+function testGenericRunFailedIsActionable() {
+  const message = gatewayRunUserFacingError("run failed");
+  assert.match(message, /模型通道失败/);
+  assert.match(message, /Gateway Profile/);
+  assert.doesNotMatch(message, /^run failed$/i);
+}
+
 testCapacityReasonsBecomeUserFacingMessages();
 testWorkerStartFailureKeepsDiagnosticsOutOfUserMessage();
 testInvalidApiKeyIsSpecific();
 testDefaultRedaction();
+testGenericRunFailedIsActionable();
 
 console.log("gateway-run-error-message-service tests passed");

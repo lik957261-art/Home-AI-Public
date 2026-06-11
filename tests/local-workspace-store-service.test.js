@@ -63,6 +63,38 @@ function testDefaultsAndSlugRules() {
   });
 }
 
+function testDriveRootDefaultsUseCanonicalWorkspaceUsersRoot() {
+  withTempStore((context) => {
+    const driveRoot = path.join(context.root, "drive");
+    const canonicalContext = Object.assign({}, context, { ownerDefaultWorkspace: driveRoot });
+    const { service } = createService(canonicalContext);
+
+    const defaults = service.localWorkspaceDefaults({ workspaceId: "stephen", label: "Stephen Plan" });
+    assert.equal(defaults.defaultWorkspace, path.join(driveRoot, "users", "stephen"));
+    assert.deepEqual(defaults.allowedRoots, [defaults.defaultWorkspace]);
+
+    const explicitRoot = path.join(context.root, "custom", "stephen");
+    const explicit = service.localWorkspaceDefaults({ workspaceId: "stephen", defaultWorkspace: explicitRoot });
+    assert.equal(explicit.defaultWorkspace, explicitRoot);
+
+    const legacyRoot = path.join(driveRoot, "徐建中");
+    const migrated = service.localWorkspaceDefaults(
+      { workspaceId: "xjz", label: "徐建中" },
+      { label: "徐建中", defaultWorkspace: legacyRoot, allowedRoots: [legacyRoot] },
+    );
+    assert.equal(migrated.defaultWorkspace, path.join(driveRoot, "users", "xjz"));
+    assert.deepEqual(migrated.allowedRoots, [migrated.defaultWorkspace]);
+
+    const customRoot = path.join(context.root, "manually-selected-root");
+    const preserved = service.localWorkspaceDefaults(
+      { workspaceId: "xjz", label: "徐建中" },
+      { label: "徐建中", defaultWorkspace: customRoot, allowedRoots: [customRoot] },
+    );
+    assert.equal(preserved.defaultWorkspace, customRoot);
+    assert.deepEqual(preserved.allowedRoots, [customRoot]);
+  });
+}
+
 function testSecurityBoundaryFiltering() {
   withTempStore((context) => {
     const protectedRoot = path.join(context.root, "protected");
@@ -151,6 +183,7 @@ function testUpsertAndDeletePersistAndInvalidate() {
 }
 
 testDefaultsAndSlugRules();
+testDriveRootDefaultsUseCanonicalWorkspaceUsersRoot();
 testSecurityBoundaryFiltering();
 testNormalizeStoreDedupesAndKeepsPolicyData();
 testUpsertAndDeletePersistAndInvalidate();

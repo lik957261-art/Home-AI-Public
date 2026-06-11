@@ -557,6 +557,42 @@ function testFailedRunFormatsGatewayCapacityError() {
   assert.doesNotMatch(harness.message.error, /workspace_capacity/);
 }
 
+function testResponseFailedWithoutDetailsDoesNotShowGenericRunFailed() {
+  const harness = makeHarness();
+
+  const result = harness.service.applyHermesRunEvent({
+    event: "response.failed",
+    run_id: "public_run",
+    response: { id: "public_run" },
+  });
+
+  assert.equal(result.action, "failed");
+  assert.match(harness.message.error, /模型通道失败/);
+  assert.doesNotMatch(harness.message.error, /^run failed$/i);
+  assert.doesNotMatch(harness.message.error, /Hermes run failed/i);
+}
+
+function testResponseFailedUsesNestedGatewayError() {
+  const harness = makeHarness();
+
+  const result = harness.service.applyHermesRunEvent({
+    event: "response.failed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      error: {
+        code: "gateway_elastic_worker_start_failed",
+        message: "Gateway worker failed to start",
+        details: { failureCode: "health_check_failed" },
+      },
+    },
+  });
+
+  assert.equal(result.action, "failed");
+  assert.match(harness.message.error, /AI 执行通道启动后没有通过健康检查/);
+  assert.doesNotMatch(harness.message.error, /health_check_failed/);
+}
+
 function testSyntheticRunStatusDoesNotRefreshGatewayLastEventTime() {
   const { activeStreams, calls, service, thread } = makeHarness();
   const stream = activeStreams.get("public_run");
@@ -971,6 +1007,8 @@ testOutputItemEventsUseAliasedResponseRunId();
 testFinalMessageTelemetryDoesNotStoreResponseText();
 testFailedAndCancelledRunsUseTerminalHelpers();
 testFailedRunFormatsGatewayCapacityError();
+testResponseFailedWithoutDetailsDoesNotShowGenericRunFailed();
+testResponseFailedUsesNestedGatewayError();
 testSyntheticRunStatusDoesNotRefreshGatewayLastEventTime();
 testApprovalMarkersAreHiddenButValidRequestIsStored();
 testToolsetEscalationMarkerIsHiddenAndStored();

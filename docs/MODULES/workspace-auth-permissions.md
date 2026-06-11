@@ -116,6 +116,12 @@ DACL inspection.
   `provisioning_failed` or a plugin-side token mismatch. Do not assume Home AI
   key rotation requires re-binding every plugin; that would couple unrelated
   credential domains and can break migrated plugin data.
+- Local family workspace records created from the Mac `data/drive` root must
+  use `data/drive/users/<workspaceId>` as their default workspace root unless
+  the Owner explicitly configured a custom root. A legacy auto-derived path
+  such as `data/drive/<display-name>` is a repair target, not a valid current
+  default, because directory projection, file APIs, Gateway access policy, and
+  plugin-private config discovery all key off the effective workspace root.
 - Workspace onboarding may create a Home AI workspace Access Key and selected
   plugin workspace bindings in one Owner-confirmed workflow, but those remain
   separate credential domains. The one-time Home AI key is returned only in the
@@ -165,4 +171,4 @@ The permission boundary still matters for non-Owner users and Gateway runs:
 
 ## Debug Pointers
 
-If a user can see too much, check the projection service first. If a user can write too much, check the route-level authorization and the downstream service permission check. If a Gateway run can do too much, check the access policy passed into `gateway-run-start-service` and the selected worker profile.
+If a user can see too much, check the projection service first. If a user can write too much, check the route-level authorization and the downstream service permission check. If a user sees "no permission" across chat, directory, and plugins, first compare the workspace record's `defaultWorkspace` / `allowedRoots` with the canonical `data/drive/users/<workspaceId>` root and then verify plugin authorization records plus workspace-local `.hermes-<plugin>` config/key directories. If a Gateway run can do too much, check the access policy passed into `gateway-run-start-service` and the selected worker profile.

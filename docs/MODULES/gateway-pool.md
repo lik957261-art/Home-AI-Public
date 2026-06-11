@@ -684,6 +684,12 @@ Hermes Mobile also projects stream wait states into the run-progress panel:
   profile affinity, health-check failure, or invalid API key. They must not
   show only a generic `Gateway worker failed to start` string or expose raw
   diagnostic text.
+- A terminal `response.failed` event without a useful `error` payload is still
+  a user-visible Gateway failure and must not be stored as a bare `run failed`
+  string. Route it through `gateway-run-error-message-service.js`; if Gateway
+  did not provide a stable cause, show the bounded "model channel failed
+  without details" message that points operators at the selected worker logs
+  and workspace Gateway Profile.
 - Thread active ids are a targeting fallback, not a general render input.
   A run-progress panel should render only the current message's own run ids and
   any response run id that was explicitly remembered for that message through

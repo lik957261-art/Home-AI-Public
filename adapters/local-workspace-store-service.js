@@ -72,6 +72,52 @@ function safeWorkspaceFolderName(value, fallback = "workspace") {
   return text || fallback;
 }
 
+function cleanPath(value) {
+  return String(value || "").trim();
+}
+
+function pathEquals(a, b) {
+  if (!cleanPath(a) || !cleanPath(b)) return false;
+  return path.resolve(a) === path.resolve(b);
+}
+
+function canonicalWorkspaceUsersRoot(ownerDefaultWorkspace) {
+  const root = cleanPath(ownerDefaultWorkspace);
+  if (!root) return "";
+  const normalized = path.normalize(root);
+  const base = path.basename(normalized);
+  if (base === "drive") return path.join(root, "users");
+  if (base === "users" && path.basename(path.dirname(normalized)) === "drive") return root;
+  return "";
+}
+
+function canonicalWorkspaceDataRoot(ownerDefaultWorkspace, workspaceId) {
+  const usersRoot = canonicalWorkspaceUsersRoot(ownerDefaultWorkspace);
+  const id = workspaceIdSlug(workspaceId);
+  return usersRoot && id ? path.join(usersRoot, id) : "";
+}
+
+function legacyAutoWorkspaceRootCandidates(ownerDefaultWorkspace, labels = [], workspaceId = "") {
+  const root = cleanPath(ownerDefaultWorkspace);
+  if (!root || !canonicalWorkspaceUsersRoot(root)) return [];
+  const values = [];
+  const seen = new Set();
+  for (const label of labels.concat(workspaceId)) {
+    const folder = safeWorkspaceFolderName(label, workspaceId || "workspace");
+    if (!folder || seen.has(folder)) continue;
+    seen.add(folder);
+    values.push(path.join(root, folder));
+  }
+  return values;
+}
+
+function isLegacyAutoWorkspaceRoot(value, ownerDefaultWorkspace, labels = [], workspaceId = "") {
+  const root = cleanPath(value);
+  if (!root) return false;
+  return legacyAutoWorkspaceRootCandidates(ownerDefaultWorkspace, labels, workspaceId)
+    .some((candidate) => pathEquals(candidate, root));
+}
+
 function createLocalWorkspaceStoreService(options = {}) {
   const storagePath = String(options.storagePath || "").trim();
   const ownerDefaultWorkspace = String(options.ownerDefaultWorkspace || "").trim();
@@ -112,15 +158,28 @@ function createLocalWorkspaceStoreService(options = {}) {
       || String(previous.label || "").trim()
       || defaultWorkspaceLabel(username, id);
     const folderName = safeWorkspaceFolderName(label, id || "workspace");
-    const defaultWorkspace = String(input.defaultWorkspace || input.default_workspace || input.root || previous.defaultWorkspace || "").trim()
+    const explicitDefaultWorkspace = String(input.defaultWorkspace || input.default_workspace || input.root || "").trim();
+    const previousDefaultWorkspace = String(previous.defaultWorkspace || "").trim();
+    const canonicalDefaultWorkspace = canonicalWorkspaceDataRoot(ownerDefaultWorkspace, id);
+    const legacyLabels = [label, previous.label, username];
+    const previousWasLegacyAutoRoot = previousDefaultWorkspace
+      && canonicalDefaultWorkspace
+      && isLegacyAutoWorkspaceRoot(previousDefaultWorkspace, ownerDefaultWorkspace, legacyLabels, id);
+    const defaultWorkspace = explicitDefaultWorkspace
+      || (previousWasLegacyAutoRoot ? "" : previousDefaultWorkspace)
+      || canonicalDefaultWorkspace
       || path.join(ownerDefaultWorkspace, folderName);
+    const previousAllowedRoots = normalizeStringList(previous.allowedRoots || []);
+    const previousAllowedRootsWereLegacy = previousWasLegacyAutoRoot
+      && previousAllowedRoots.length > 0
+      && previousAllowedRoots.every((root) => isLegacyAutoWorkspaceRoot(root, ownerDefaultWorkspace, legacyLabels, id));
     const allowedRoots = normalizeStringList(
       input.allowedRoots
         || input.allowed_roots
         || input.root
         || input.defaultWorkspace
         || input.default_workspace
-        || previous.allowedRoots
+        || (previousAllowedRootsWereLegacy ? [] : previous.allowedRoots)
         || defaultWorkspace,
     );
     if (rootConflictsWithProtected(defaultWorkspace)) {
@@ -284,6 +343,8 @@ function createLocalWorkspaceStoreService(options = {}) {
   }
 
   return {
+    canonicalWorkspaceDataRoot,
+    canonicalWorkspaceUsersRoot,
     defaultWorkspaceLabel,
     deleteLocalWorkspace,
     loadLocalWorkspaceStore,
@@ -301,6 +362,8 @@ function createLocalWorkspaceStoreService(options = {}) {
 }
 
 module.exports = {
+  canonicalWorkspaceDataRoot,
+  canonicalWorkspaceUsersRoot,
   createLocalWorkspaceStoreService,
   defaultWorkspaceLabel,
   safeWorkspaceFolderName,
