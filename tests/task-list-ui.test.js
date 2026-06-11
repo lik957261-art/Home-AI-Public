@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260611-codex-resident-frame-v707";
+const CLIENT_VERSION = "20260611-plugin-menu-controls-v708";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260611-codex-resident-frame-v707" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260611-codex-resident-frame-v707"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260611-plugin-menu-controls-v708" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260611-plugin-menu-controls-v708"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2562,10 +2562,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260611-codex-resident-frame-v707/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260611-codex-resident-frame-v707/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260611-codex-resident-frame-v707/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260611-codex-resident-frame-v707/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260611-plugin-menu-controls-v708/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260611-plugin-menu-controls-v708/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260611-plugin-menu-controls-v708/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260611-plugin-menu-controls-v708/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2671,6 +2671,7 @@ assert.doesNotMatch(capabilityHubBody, /<h3>\\u5e38\\u7528<\/h3>|aria-label="\\u
 assert.match(appJs, /function renderCapabilityActionMenu\(def\)/);
 assert.match(appJs, /class="capability-action-menu"/);
 assert.match(appJs, /data-plugin-bottom-tab-toggle/);
+assert.match(appJs, /class="capability-menu-actions"/);
 assert.match(appJs, /function syncPinnedPluginBottomTabs\(pluginContextNav = false\)/);
 assert.match(appJs, /function setPluginBottomTabPinned\(pluginId = "", pinned = true\)/);
 assert.match(appJs, /function runPluginTopicAction\(pluginId, actionId\)/);
@@ -2777,6 +2778,7 @@ assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.capability-act
 assert.match(stylesCss, /\.plugin-app-card\.menu-open \{[\s\S]*?background: color-mix\(in srgb, var\(--ui-accent-soft\) 80%, transparent\);/);
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.global-plugin-dock-mode \.topic-plugin-dock \.capability-action-menu \{[\s\S]*?position: absolute;[\s\S]*?bottom: calc\(100% \+ 10px\);[\s\S]*?z-index: 80;/);
 assert.match(stylesCss, /\.capability-menu-order \{[\s\S]*?grid-template-columns: 1fr 1fr;/);
+assert.match(stylesCss, /\.capability-menu-actions \{[\s\S]*?border-top: 1px solid var\(--ui-hairline\);/);
 assert.match(stylesCss, /\.plugin-topic-launcher \{/);
 assert.match(appJs, /<div class="plugin-topic-list">/);
 assert.doesNotMatch(appJs, /<div class="plugin-topic-grid">/);

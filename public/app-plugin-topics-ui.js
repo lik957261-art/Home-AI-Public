@@ -1608,24 +1608,25 @@ function renderCapabilityActionMenu(def) {
       <span class="capability-menu-text">${escapeHtml(pluginTopicActionLabel(def, action))}</span>
     </button>
   `).join("");
+  const pinButton = pinEligible ? `<button class="capability-menu-item" type="button" data-plugin-bottom-tab-toggle="${escapeHtml(def.id)}" data-plugin-bottom-tab-pinned="${pinned ? "1" : "0"}"${(!pinned && !pinAvailable) ? " disabled" : ""}>
+      <span class="capability-menu-glyph" aria-hidden="true">${pinned ? "\u2605" : "\u2606"}</span>
+      <span class="capability-menu-text">${pinned ? "\u4ece\u5e95\u90e8\u79fb\u9664" : (pinAvailable ? "\u56fa\u5b9a\u5230\u5e95\u90e8" : "\u5e95\u90e8\u5df2\u6ee1")}</span>
+    </button>` : "";
   return `<div class="capability-action-menu" role="menu" aria-label="${escapeHtml(`${def.label}\u5feb\u6377\u64cd\u4f5c`)}" data-plugin-topic-action-menu="${escapeHtml(def.id)}" hidden>
     <div class="capability-menu-head">
       <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
       <span class="capability-menu-title">${escapeHtml(def.label)}</span>
     </div>
-    ${menuActions}
     <button class="capability-menu-item" type="button" data-plugin-topic-open-app="${escapeHtml(def.id)}">
       <span class="capability-menu-glyph" aria-hidden="true">\u2197</span>
       <span class="capability-menu-text">\u6253\u5f00\u63d2\u4ef6</span>
     </button>
-    ${pinEligible ? `<button class="capability-menu-item" type="button" data-plugin-bottom-tab-toggle="${escapeHtml(def.id)}" data-plugin-bottom-tab-pinned="${pinned ? "1" : "0"}"${(!pinned && !pinAvailable) ? " disabled" : ""}>
-      <span class="capability-menu-glyph" aria-hidden="true">${pinned ? "\u2605" : "\u2606"}</span>
-      <span class="capability-menu-text">${pinned ? "\u4ece\u5e95\u90e8\u79fb\u9664" : (pinAvailable ? "\u56fa\u5b9a\u5230\u5e95\u90e8" : "\u5e95\u90e8\u5df2\u6ee1")}</span>
-    </button>` : ""}
+    ${pinButton}
     <div class="capability-menu-order">
       <button class="capability-menu-order-button" type="button" data-plugin-topic-move="${escapeHtml(def.id)}" data-plugin-topic-move-dir="up">\u524d\u79fb</button>
       <button class="capability-menu-order-button" type="button" data-plugin-topic-move="${escapeHtml(def.id)}" data-plugin-topic-move-dir="down">\u540e\u79fb</button>
     </div>
+    ${menuActions ? `<div class="capability-menu-actions">${menuActions}</div>` : ""}
   </div>`;
 }
 

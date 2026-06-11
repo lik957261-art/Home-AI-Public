@@ -293,8 +293,20 @@ globalThis.__pluginTopicHarness = {
   ]);
 
   assert.deepEqual(harness.actionIds("finance"), ["scan_receipt:receipt"]);
-  assert.match(harness.menuHtml("finance"), /data-plugin-topic-action-id="scan_receipt"/, "plugin popup menu must render manifest actions");
-  assert.doesNotMatch(harness.menuHtml("finance"), /data-plugin-topic-action-id="record"/, "manifest actions must replace host fallback actions after load");
+  const menuHtml = harness.menuHtml("finance");
+  assert.match(menuHtml, /data-plugin-topic-action-id="scan_receipt"/, "plugin popup menu must render manifest actions");
+  assert.match(menuHtml, /data-plugin-bottom-tab-toggle="finance"/, "plugin popup menu must keep the bottom-tab pin control");
+  assert.match(menuHtml, /data-plugin-topic-move-dir="up"/, "plugin popup menu must keep the move-up control");
+  assert.match(menuHtml, /data-plugin-topic-move-dir="down"/, "plugin popup menu must keep the move-down control");
+  assert.ok(
+    menuHtml.indexOf('data-plugin-bottom-tab-toggle="finance"') < menuHtml.indexOf('data-plugin-topic-action-id="scan_receipt"'),
+    "pin controls must stay above plugin actions so they remain visible on mobile",
+  );
+  assert.ok(
+    menuHtml.indexOf('data-plugin-topic-move-dir="up"') < menuHtml.indexOf('data-plugin-topic-action-id="scan_receipt"'),
+    "move controls must stay above plugin actions so they remain visible on mobile",
+  );
+  assert.doesNotMatch(menuHtml, /data-plugin-topic-action-id="record"/, "manifest actions must replace host fallback actions after load");
   harness.recordUsage("finance", "scan_receipt");
   harness.flushRootRefreshTimers();
   assert.equal(harness.quickKeys()[0], "finance:scan_receipt", "manifest actions must feed the Dock frequent action menu");

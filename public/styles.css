@@ -5919,6 +5919,13 @@ button.directory-alias-chip {
   font-weight: 700;
 }
 
+.capability-menu-actions {
+  display: grid;
+  gap: 2px;
+  padding-top: 4px;
+  border-top: 1px solid var(--ui-hairline);
+}
+
 .capability-menu-empty {
   padding: 10px 8px;
   color: var(--muted);
