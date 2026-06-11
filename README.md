@@ -303,9 +303,9 @@ work around it by routing Grok requests to ordinary lowgw workers.
 
 Runtime files live under `HERMES_WEB_DATA_DIR`. On fresh installs, the Owner's
 default file root is `drive/` under that data directory. Access Key hashes,
-workspace config, runtime config, local Todo/Automation stores, SQLite
-databases, Web Push state, uploads, and generated artifacts should remain
-outside Git.
+workspace config, runtime config, local Todo state, optional local Automation
+test/migration state, SQLite databases, Web Push state, uploads, and generated
+artifacts should remain outside Git.
 
 For SQLite-backed installs:
 
@@ -314,17 +314,20 @@ HERMES_WEB_SERVICE_STORE=sqlite
 HERMES_WEB_DB_PATH=workspace/hermes-web/hermes-mobile.sqlite3
 ```
 
-SQLite mode stores threads, messages, artifacts, Web Push state, and local
-Todo/Automation service rows in one database while still writing `state.json`
-snapshots for rollback.
+SQLite mode stores threads, messages, artifacts, Web Push state, and local Todo
+service rows in one database while still writing `state.json` snapshots for
+rollback. SQLite Automation rows are for explicit local test/import work only;
+production Automation jobs are owned by official Hermes CRON.
 
 ## Optional Features
 
 - **Todo / Kanban:** defaults to local JSON under `HERMES_WEB_DATA_DIR`;
   `HERMES_WEB_TODO_BACKEND=kanban` maps the mobile Todo tab to official Hermes
   Kanban boards while preserving the `/api/todos` compatibility surface.
-- **Automation:** defaults to local JSON under `HERMES_WEB_DATA_DIR`; native
-  Hermes CRON bridge integration is optional.
+- **Automation:** defaults to official Hermes CRON through the Home AI
+  Automation API. The API is the product/access-control projection layer over
+  the canonical scheduler; local JSON/SQLite Automation is only for focused
+  tests, local experiments, or explicit import/migration work.
 - **Web Push:** configure VAPID key file path and subject from the Owner runtime
   panel or with environment variables.
 - **Weixin/iLink ingress:** optional sidecar boundary. Only one poller should
@@ -346,7 +349,9 @@ Start from `.env.example`. Important groups:
 - `HERMES_WEB_MAX_ACTIVE_RUNS`, `HERMES_WEB_MAX_ACTIVE_RUNS_PER_WORKSPACE`
 - `HERMES_WEB_SERVICE_STORE`, `HERMES_WEB_DB_PATH`
 - `HERMES_WEB_TODO_BACKEND`, `HERMES_WEB_TODO_STORE_PATH`
-- `HERMES_WEB_AUTOMATION_BACKEND`, `HERMES_WEB_AUTOMATION_STORE_PATH`
+- `HERMES_WEB_AUTOMATION_BACKEND` normally stays on `hermes_cron`;
+  `HERMES_WEB_AUTOMATION_STORE_PATH` is for explicit local Automation
+  test/import mode only
 - `HERMES_WEB_VAPID_PATH` or `WEB_PUSH_VAPID_*`
 - `HERMES_MOBILE_SECURITY_PROTECTED_ROOTS`
 - `HERMES_MOBILE_SECURITY_PROTECTED_FILES`

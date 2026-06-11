@@ -28,7 +28,9 @@ The initial schema keeps normalized tables for:
 - Web Push delivery summaries
 - shared directories
 - Todo items
-- Automation jobs
+- Automation jobs for explicit local test/import modes only. Production
+  Automation job definitions remain owned by official Hermes CRON and are
+  projected through the Home AI Automation API.
 - audit events
 - metadata and schema migrations
 
@@ -64,7 +66,11 @@ After creating a SQLite database, run a temporary listener smoke before cutover:
 node scripts/sqlite-runtime-smoke.js --data-dir ".\workspace\hermes-web" --db ".\workspace\hermes-web\hermes-mobile.sqlite3" --port 19041 --report ".\workspace\sqlite-runtime-smoke.json"
 ```
 
-The smoke runs with auth disabled, Web Push disabled, local Todo/Automation, and `HERMES_WEB_SERVICE_STORE=sqlite`. It verifies that threads load from SQLite and that a push receipt persists back into SQLite.
+The smoke runs with auth disabled, Web Push disabled, local Todo, and
+`HERMES_WEB_SERVICE_STORE=sqlite`. It verifies that threads load from SQLite and
+that a push receipt persists back into SQLite. Local Automation can be included
+only in a separate explicit test/import scenario; it is not part of the ordinary
+SQLite runtime smoke.
 
 ## Safety Rules
 
@@ -77,16 +83,20 @@ The smoke runs with auth disabled, Web Push disabled, local Todo/Automation, and
 
 ## Optional Local Runtime
 
-For clean product installs or migration testing, the service store can back runtime state plus local Todo and Automation:
+For clean product installs or migration testing, the service store can back
+runtime state plus local Todo:
 
 ```powershell
 $env:HERMES_WEB_SERVICE_STORE = "sqlite"
 $env:HERMES_WEB_DB_PATH = ".\workspace\hermes-web\hermes-mobile.sqlite3"
 $env:HERMES_WEB_TODO_BACKEND = "local"
-$env:HERMES_WEB_AUTOMATION_BACKEND = "local"
 ```
 
-Existing deployments can continue to set `HERMES_WEB_TODO_BACKEND` and `HERMES_WEB_AUTOMATION_BACKEND` to bridge backends. Those bridge backends remain compatibility adapters, not the default product architecture.
+Automation is intentionally excluded from this default SQLite local-runtime
+example. Ordinary product/runtime installs should use official Hermes CRON
+through the Home AI Automation API. Local/SQLite Automation requires an explicit
+test/import configuration and must not be used as a transparent fallback when
+the canonical scheduler is unavailable.
 
 ## Runtime Rollback
 

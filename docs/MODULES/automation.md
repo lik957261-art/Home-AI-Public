@@ -19,6 +19,14 @@ Automation owns scheduled jobs, detail loading, Web Push/deep-link production, a
 - Official Hermes CRON is the canonical automation job source for production
   automation. Hermes Mobile must not maintain a second durable job-definition
   store that silently diverges from official CRON.
+- Home AI may wrap official Hermes CRON with a product API, access-control
+  projection, UI normalization, Action Inbox, and Web Push metadata. That wrapper
+  must not become a separate scheduler or a parallel job-definition store.
+- Any user-facing, plugin-facing, or agent-facing automation creation path must
+  enter the Home AI Automation API and then mutate the configured canonical
+  scheduler. Direct creation through OS `crontab`, LaunchAgent/LaunchDaemon
+  timers, local JSON automation stores, or SQLite automation rows is not a valid
+  production automation path.
 - Foreground Automation list should preserve the full-detail display format.
 - Product direction: Automation should not remain a permanent primary bottom tab after Action Inbox is active.
 - The mobile entry for Automation management after Action Inbox activation is the Inbox top-right overflow menu, which can open the Automation list or create a new automation.
@@ -69,6 +77,11 @@ canonical scheduler, not a replacement scheduler.
 - Creating, updating, deleting, pausing, resuming, or manually running an
   automation from Hermes Mobile should mutate the canonical backend only. Any
   cache or UI projection must be invalidated after the canonical mutation.
+- Existing jobs that were created outside the Home AI wrapper should be treated
+  as drift or legacy imports. They may be shown to Owner/admin as repair
+  candidates when safely attributable, but they must not be silently copied into
+  local stores or presented as normal workspace automations until ownership,
+  schedule, output root, and visibility have been repaired.
 - Task prompt text, generated reports, runner logs, raw model output, raw mail
   content, tokens, local secret paths, and push endpoints must not be copied
   into Automation docs, handoffs, or long-lived diagnostic records.
@@ -119,6 +132,64 @@ than successful so the Automation list, Web Push, and Action Inbox do not show a
 false success.
 
 Do not patch official Hermes runtime cron source for this behavior unless explicitly approved.
+
+## Implementation Contract
+
+Automation implementation must preserve these layers:
+
+1. **Home AI Automation API**
+   - Owns request authentication, workspace/principal resolution, access-policy
+     context, UI field normalization, Action Inbox/Web Push projection, output
+     file authorization, and bounded diagnostics.
+   - Routes list/create/update/delete/pause/resume/run through
+     `adapters/automation-provider.js`.
+   - Fails closed when the configured canonical backend is unavailable. A create
+     or mutation request must return an error instead of creating a local
+     fallback job.
+
+2. **Automation provider**
+   - Remains the single Node-side bridge boundary. It should call one configured
+     `runBridge` implementation and should not know about multiple live stores.
+   - Clears list caches only after the canonical backend confirms mutation.
+   - Resolves output/deliverable files only through the requested job and
+     authorized roots.
+
+3. **Canonical scheduler bridge**
+   - For the current production design, `cron_bridge.py` is the bridge to
+     official Hermes CRON job definitions.
+   - The bridge may call official Hermes CRON helpers when available, or perform
+     a compatible file mutation of the official CRON jobs document. Both paths
+     still write the same canonical scheduler store.
+   - `owner_principal_id` is required for workspace-scoped operations. Legacy
+     jobs without owner metadata are Owner-only repair candidates unless
+     explicitly migrated.
+
+4. **Local/SQLite automation bridge**
+   - Exists only for focused tests, first-run local experimentation, explicit
+     import/migration work, or a future scheduler backend with its own design.
+   - Must not be selected by ordinary production/default runtime.
+   - Must not be used as a transparent fallback when official Hermes CRON is
+     missing, unreadable, or inconsistent.
+
+5. **Agent/tooling contract**
+   - Agents, plugins, and bridge tools that create automations must call the Home
+     AI automation route or the configured Home AI bridge-host CRON route. They
+     must not write OS-native cron, launchd schedules, local JSON automation
+     stores, or SQLite rows directly.
+   - If the Home AI automation route cannot reach the canonical backend, the
+     correct result is a visible diagnostic and no job creation.
+
+Required implementation updates after this contract:
+
+- Change Automation backend resolution so the default is `hermes_cron`; local
+  Automation requires an explicit development/test configuration.
+- Add a fail-closed guard that prevents local/SQLite automation writes unless
+  the runtime is explicitly configured for local Automation.
+- Add focused tests proving default runtime does not create local Automation
+  jobs, API create fails when the canonical backend is unavailable, and local
+  Automation remains available only in explicit test/development mode.
+- Add a repair/migration path for legacy jobs created outside Home AI, including
+  a backup-first operator procedure and an Owner-only diagnostic projection.
 
 ## Validation
 
