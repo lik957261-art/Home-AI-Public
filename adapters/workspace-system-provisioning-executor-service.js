@@ -353,6 +353,15 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     }
   }
 
+  function pathExists(target) {
+    try {
+      fs.statSync(target);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function copyDirectory(source, target, owner) {
     if (useSudoWrites) {
       privileged("/bin/rm", ["-rf", target]);
@@ -462,7 +471,7 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
       path.posix.join(fields.dataRoot, "secrets", "gateway-workers"),
     ];
     for (const dir of parentDirs) {
-      if (fileExists(dir)) chmodAcl(fields.macUser, dir, parentPerms);
+      if (pathExists(dir)) chmodAcl(fields.macUser, dir, parentPerms);
     }
     for (const target of [...new Set(targets)]) {
       if (fileExists(target)) chmodAcl(fields.macUser, target, readPerms);
@@ -483,10 +492,14 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
       path.posix.join(fields.driveRoot, "users"),
       path.posix.join(fields.dataRoot, "skill-profiles"),
     ];
+    const secretParents = [
+      path.posix.join(fields.dataRoot, "secrets"),
+      path.posix.join(fields.dataRoot, "secrets", "gateway-workers"),
+    ].filter((dir) => pathExists(dir));
     const parentPerms = "list,search,readattr,readextattr,readsecurity";
     for (const user of [fields.macUser, listenerUser, ownerUser]) {
       if (!safeMacUser(user) && user !== listenerUser) continue;
-      for (const dir of [...new Set(parents)]) chmodAcl(user, dir, parentPerms);
+      for (const dir of [...new Set([...parents, ...secretParents])]) chmodAcl(user, dir, parentPerms);
     }
     for (const target of [fields.workspaceDataRoot, skillRoot]) {
       privileged("/bin/chmod", ["-RN", target]);

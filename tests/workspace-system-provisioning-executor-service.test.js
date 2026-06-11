@@ -338,6 +338,31 @@ async function testRepairWorkspaceAclSkipsSystemUsersRoot() {
   assert.equal(calls.some((call) => call.command === "/bin/chmod" && call.args.includes(`${root}/data/skill-profiles`)), true);
 }
 
+async function testRepairWorkspaceAclIncludesGatewaySecretParentsWhenPresent() {
+  const root = posixTempRoot();
+  const calls = [];
+  try {
+    fs.mkdirSync(`${root}/data/secrets/gateway-workers`, { recursive: true });
+    const service = createWorkspaceSystemProvisioningExecutorService({
+      forceEnabled: true,
+      fs,
+      liveRoot: root,
+      path,
+      platform: "darwin",
+      run: fakeRunFactory(calls),
+      useSudoWrites: false,
+    });
+
+    const result = await service.runStep("repair_workspace_acl", baseContext(root));
+
+    assert.equal(result.ok, true);
+    assert.ok(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("+a") && call.args.includes("user:hm-xulu allow list,search,readattr,readextattr,readsecurity") && call.args.includes(`${root}/data/secrets`)));
+    assert.ok(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("+a") && call.args.includes("user:hm-xulu allow list,search,readattr,readextattr,readsecurity") && call.args.includes(`${root}/data/secrets/gateway-workers`)));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 async function testRunSmokesIncludesPluginsAndToolsetGate() {
   const root = "/tmp/hm-workspace-executor-smoke";
   const calls = [];
@@ -455,6 +480,7 @@ async function run() {
   await testEnsureLaunchdSyncsHealthBindingAndRendersMcpConfig();
   await testEnsureLaunchdKickstartsWorkersWhenRequested();
   await testRepairWorkspaceAclSkipsSystemUsersRoot();
+  await testRepairWorkspaceAclIncludesGatewaySecretParentsWhenPresent();
   await testRunSmokesIncludesPluginsAndToolsetGate();
   await testRunSmokesIgnoresUnrelatedProfileAuditIssues();
   await testRunSmokesFailsForTargetProfileAuditIssues();
