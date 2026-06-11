@@ -52,12 +52,14 @@ or raw plugin credentials.
 - When there is no saved launch view, Hermes Mobile opens the topic page first.
   Plugin app launch is provided by the global plugin Dock/drawer unless the
   user has pinned that plugin into one of the available bottom-tab slots.
-- Pinned plugin bottom tabs are a server-backed workspace preference stored
-  through `/api/plugin-topic-usage` as `preferences.pinnedBottomTabs`.
-  `hermesPinnedPluginBottomTabs:<workspaceId>` is only a first-paint/offline
-  cache and a one-time migration source when the server has no preference
-  timestamp yet. When the server returns a preference timestamp, the server
-  value is authoritative even when the pinned list is empty.
+- Pinned plugin bottom tabs and manual Dock/drawer ordering are server-backed
+  workspace preferences stored through `/api/plugin-topic-usage` as
+  `preferences.pinnedBottomTabs` and `preferences.pluginOrder`.
+  `hermesPinnedPluginBottomTabs:<workspaceId>` and
+  `hermesPluginTopicOrder:<workspaceId>` are only first-paint/offline caches
+  and one-time migration sources when the server has no preference timestamp
+  yet. When the server returns a preference timestamp, the server value is
+  authoritative even when either list is empty.
 - A plugin pinned into a bottom-tab slot must not also render its app icon in
   the global plugin Dock/drawer. It remains available through the pinned bottom
   tab, and the user can long-press or context-click that bottom tab to remove
@@ -85,10 +87,11 @@ or raw plugin credentials.
   mistouches and horizontal swipes must not expand the Dock, an upward swipe on
   the handle expands it, and a downward swipe on the handle collapses it. The
   bottom navigation must not move during the gesture.
-- Dock reordering is available through the long-press/context action menu with
-  bounded move controls. A normal horizontal swipe must scroll the Dock, and the
-  daily long-press gesture must open the action menu instead of being consumed
-  by drag sorting when that menu exists.
+- Dock and pinned bottom-tab reordering are explicit menu actions. A normal
+  horizontal swipe must scroll the Dock or leave bottom navigation alone. The
+  daily long-press/context gesture opens the action menu; selecting `换位`
+  enters a bounded drag-reorder mode, and drag sorting is disabled outside that
+  mode.
 - Dock move controls must be local to the plugin launcher surface. Tapping
   `前移` or `后移` persists the manual order, closes the action menu, cancels any
   active drag/Dock gesture state, refreshes only the Dock/sidebar plugin

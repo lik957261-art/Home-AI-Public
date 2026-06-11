@@ -426,9 +426,9 @@ assert.match(stylesCss, /\.wardrobe-plugin-host-active:not\(\.plugin-context-nav
 assert.match(stylesCss, /\.embedded-plugin-host-active \.embedded-plugin-host\s*\{[\s\S]*grid-row: 2;/);
 assert.match(stylesCss, /\.wardrobe-plugin-host-active \.wardrobe-plugin-host\s*\{[\s\S]*grid-row: 2;/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.bottom-nav\s*\{[\s\S]*grid-template-columns: repeat\(3, minmax/);
-assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode\s*\{[\s\S]*order: 1;/);
-assert.match(stylesCss, /\.plugin-context-nav-mode #bottomWardrobeMode,[\s\S]*#bottomFinanceMode,[\s\S]*#bottomEmailMode,[\s\S]*#bottomHealthMode,[\s\S]*#bottomNoteMode,[\s\S]*#bottomGrowthMode,[\s\S]*#bottomMoiraMode\s*\{[\s\S]*order: 2;/);
-assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode\s*\{[\s\S]*order: 3;/);
+assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode\s*\{[\s\S]*order: 1 !important;/);
+assert.match(stylesCss, /\.plugin-context-nav-mode #bottomWardrobeMode,[\s\S]*#bottomFinanceMode,[\s\S]*#bottomEmailMode,[\s\S]*#bottomHealthMode,[\s\S]*#bottomNoteMode,[\s\S]*#bottomGrowthMode,[\s\S]*#bottomMoiraMode\s*\{[\s\S]*order: 2 !important;/);
+assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode\s*\{[\s\S]*order: 3 !important;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav\s*\{[\s\S]*display: grid;/);
 assert.match(stylesCss, /\.embedded-plugin-preview-fullscreen-active \.bottom-nav\s*\{[\s\S]*display: none !important;/);
 assert.match(stylesCss, /\.plugin-context-nav-mode\.embedded-plugin-preview-fullscreen-active\.embedded-plugin-host-active \.main\s*\{[\s\S]*bottom: 0;/);

@@ -99,10 +99,11 @@ as bounded `plugins` and `actions` count/recency maps per workspace. Browser
 not be the only copy of the ordering signal. Account logout, cache reset,
 service-worker update, PWA reinstall, or device switching must not reset the
 server-side usage history. The same endpoint also owns workspace UI
-preferences such as `preferences.pinnedBottomTabs`; pinned plugin bottom tabs
-must survive browser/PWA restart and cross-device reloads through the server
-preference, with localStorage used only as a first-paint cache and migration
-source before the server has a preference timestamp.
+preferences such as `preferences.pinnedBottomTabs` and
+`preferences.pluginOrder`; pinned plugin bottom tabs and manual Dock/drawer
+icon order must survive browser/PWA restart and cross-device reloads through
+the server preference, with localStorage used only as a first-paint cache and
+migration source before the server has a preference timestamp.
 
 Implemented fix, 2026-06-07:
 
@@ -227,9 +228,9 @@ Long-press behavior:
 - the menu should use task labels such as "Style me", "Record", "Inventory",
   or "Budget" rather than generic transport labels as the primary wording;
 - the menu may include "Open app" as the stable primary/fallback action;
-- Dock ordering belongs in the same action menu through bounded move controls;
-  the daily long-press gesture must not be consumed by drag sorting when a menu
-  is available;
+- Dock ordering belongs in the same action menu through an explicit `换位`
+  action plus bounded move controls; the daily long-press gesture must open the
+  menu, and drag sorting must stay disabled until the user enters reorder mode;
 - an open capability action menu must be reversible without choosing an action:
   tapping or clicking any non-menu area closes it, `Escape` closes it, and a
   right-swipe gesture closes it on touch surfaces;

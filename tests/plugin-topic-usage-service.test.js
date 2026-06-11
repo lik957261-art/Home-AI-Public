@@ -54,8 +54,10 @@ function testMergesByMaxToAvoidRetryDoubleCount() {
 function testNormalizesPinnedBottomTabPreferences() {
   assert.deepEqual(normalizePreferences({
     pinnedBottomTabs: ["Finance", "finance", "codex-mobile", "bad value!"],
+    pluginOrder: ["Health", "finance", "health", "bad value!"],
   }), {
     pinnedBottomTabs: ["finance", "codex-mobile", "bad-value"],
+    pluginOrder: ["health", "finance", "bad-value"],
   });
   assert.equal(normalizeUsage({
     preferences: { pinnedBottomTabs: ["finance"] },
@@ -102,12 +104,37 @@ function testPersistsWorkspaceScopedPreferencesWithoutClobberingUsage() {
   });
   const updated = service.mergeWorkspaceUsage("owner", {}, {
     pinnedBottomTabs: ["finance", "wardrobe", "health", "note"],
+    pluginOrder: ["health", "finance", "wardrobe"],
   });
 
   assert.deepEqual(updated.preferences.pinnedBottomTabs, ["finance", "wardrobe", "health"]);
+  assert.deepEqual(updated.preferences.pluginOrder, ["health", "finance", "wardrobe"]);
   assert.equal(updated.preferencesUpdatedAt, "2026-06-07T00:00:12.000Z");
   assert.deepEqual(service.readWorkspaceUsage("owner").usage.plugins.finance, { count: 1, lastUsedAt: 1000 });
   assert.deepEqual(service.readWorkspaceUsage("owner").preferences.pinnedBottomTabs, ["finance", "wardrobe", "health"]);
+  assert.deepEqual(service.readWorkspaceUsage("owner").preferences.pluginOrder, ["health", "finance", "wardrobe"]);
+}
+
+function testPartialPreferencePatchPreservesOtherPreferenceFields() {
+  const store = createMemoryStore();
+  let tick = 0;
+  const service = createPluginTopicUsageService({
+    storePath: "memory://plugin-topic-usage.json",
+    readJsonStore: store.readJsonStore,
+    writeJsonStore: store.writeJsonStore,
+    nowIso: () => `2026-06-07T00:00:2${tick++}.000Z`,
+  });
+
+  service.mergeWorkspaceUsage("owner", {}, {
+    pinnedBottomTabs: ["finance"],
+    pluginOrder: ["health", "finance", "wardrobe"],
+  });
+  const updated = service.mergeWorkspaceUsage("owner", {}, {
+    pinnedBottomTabs: ["wardrobe"],
+  });
+
+  assert.deepEqual(updated.preferences.pinnedBottomTabs, ["wardrobe"]);
+  assert.deepEqual(updated.preferences.pluginOrder, ["health", "finance", "wardrobe"]);
 }
 
 testNormalizesLegacyPluginUsageShape();
@@ -115,4 +142,5 @@ testMergesByMaxToAvoidRetryDoubleCount();
 testNormalizesPinnedBottomTabPreferences();
 testPersistsWorkspaceScopedUsage();
 testPersistsWorkspaceScopedPreferencesWithoutClobberingUsage();
+testPartialPreferencePatchPreservesOtherPreferenceFields();
 console.log("plugin topic usage service tests passed");

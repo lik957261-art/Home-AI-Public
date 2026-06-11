@@ -177,8 +177,12 @@ the change is part of a dedicated infrastructure rename.
     is only the local first-paint/offline cache and old-cache migration source.
     A pinned plugin bottom tab is removed from the mobile Dock/drawer app-icon
     row to avoid duplicate launch entries; long-press or context-click on that
-    bottom tab cancels the pin and makes the plugin icon available in the
-    drawer again.
+    bottom tab opens a compact menu with `取消固定` and `换位`. Bottom-tab order
+    and Dock/drawer icon order are workspace-scoped server preferences through
+    `/api/plugin-topic-usage`; local `hermesPluginTopicOrder:<workspaceId>` and
+    `hermesPinnedPluginBottomTabs:<workspaceId>` values are only first-paint or
+    offline caches. Drag sorting is enabled only after the explicit `换位` menu
+    item, so normal horizontal swipes do not trigger reordering.
     Directory-bound topic rows show the directory display name plus topic count
     and updated time; they hide raw directory paths and default-topic prompt
     badges.

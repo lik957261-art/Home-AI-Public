@@ -66,9 +66,15 @@ assert.match(pluginTopicsUi, /\$\{PLUGIN_TOPIC_USAGE_STORAGE_KEY\}:\$\{id\}/);
 assert.match(pluginTopicsUi, /localStorage\.getItem\(storageKey\)/);
 assert.match(pluginTopicsUi, /localStorage\.setItem\(pluginTopicUsageStorageKey\(workspaceId\), JSON\.stringify\(pluginTopicUsageMemoryCache\)\)/);
 assert.match(pluginTopicsUi, /function normalizePinnedPluginBottomTabIds/);
-assert.match(pluginTopicsUi, /schedulePluginTopicPreferencesSync\(\{ pinnedBottomTabs: normalized \}, workspaceId\);/);
+assert.match(pluginTopicsUi, /pluginOrder: readPluginTopicOrder\(workspaceId\),/);
+assert.match(pluginTopicsUi, /function normalizePluginTopicOrder\(ids = \[\]\)/);
+assert.match(pluginTopicsUi, /function pluginTopicOrderStorageKey\(workspaceId = pluginTopicUsageWorkspaceId\(\)\)/);
 assert.match(pluginTopicsUi, /function wirePinnedPluginBottomTabUnpin\(button, pluginId = ""\)/);
-assert.match(pluginTopicsUi, /button\.addEventListener\("contextmenu", unpin\);/);
+assert.match(pluginTopicsUi, /function openPluginBottomTabMenu\(button, pluginId = "", event = null\)/);
+assert.match(pluginTopicsUi, /data-plugin-bottom-tab-reorder/);
+assert.match(pluginTopicsUi, /function startPluginBottomTabSortMode\(pluginId = ""\)/);
+assert.match(pluginTopicsUi, /function movePinnedPluginBottomTabBefore\(pluginId = "", beforePluginId = "", after = false\)/);
+assert.match(pluginTopicsUi, /button\.addEventListener\("contextmenu", \(event\) => openMenu\(event\)\);/);
 assert.match(pluginTopicsUi, /const drawerDefs = defs\.filter\(\(def\) => !pluginBottomTabPinned\(def\.id\)\);/);
 assert.match(pluginTopicsUi, /data-plugin-count="\$\{drawerDefs\.length\}"/);
 assert.match(pluginTopicsUi, /applyPluginTopicPreferencesFromServer\(serverPreferences, workspaceId\);/);
@@ -302,8 +308,9 @@ globalThis.__pluginTopicHarness = {
   const menuHtml = harness.menuHtml("finance");
   assert.match(menuHtml, /data-plugin-topic-action-id="scan_receipt"/, "plugin popup menu must render manifest actions");
   assert.match(menuHtml, /data-plugin-bottom-tab-toggle="finance"/, "plugin popup menu must keep the bottom-tab pin control");
-  assert.match(menuHtml, /data-plugin-topic-move-dir="up"/, "plugin popup menu must keep the move-up control");
+assert.match(menuHtml, /data-plugin-topic-move-dir="up"/, "plugin popup menu must keep the move-up control");
   assert.match(menuHtml, /data-plugin-topic-move-dir="down"/, "plugin popup menu must keep the move-down control");
+  assert.match(menuHtml, /data-plugin-topic-reorder="finance"/, "plugin popup menu must expose explicit reorder mode");
   assert.ok(
     menuHtml.indexOf('data-plugin-bottom-tab-toggle="finance"') < menuHtml.indexOf('data-plugin-topic-action-id="scan_receipt"'),
     "pin controls must stay above plugin actions so they remain visible on mobile",
@@ -311,6 +318,10 @@ globalThis.__pluginTopicHarness = {
   assert.ok(
     menuHtml.indexOf('data-plugin-topic-move-dir="up"') < menuHtml.indexOf('data-plugin-topic-action-id="scan_receipt"'),
     "move controls must stay above plugin actions so they remain visible on mobile",
+  );
+  assert.ok(
+    menuHtml.indexOf('data-plugin-topic-reorder="finance"') < menuHtml.indexOf('data-plugin-topic-action-id="scan_receipt"'),
+    "reorder controls must stay above plugin actions so they remain visible on mobile",
   );
   assert.doesNotMatch(menuHtml, /data-plugin-topic-action-id="record"/, "manifest actions must replace host fallback actions after load");
   harness.recordUsage("finance", "scan_receipt");

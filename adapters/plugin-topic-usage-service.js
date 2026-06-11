@@ -5,6 +5,7 @@ const path = require("node:path");
 const STORE_SCHEMA_VERSION = 2;
 const DEFAULT_MAX_BUCKET_ENTRIES = 96;
 const DEFAULT_MAX_PINNED_BOTTOM_TABS = 3;
+const DEFAULT_MAX_PLUGIN_ORDER_ENTRIES = 64;
 
 function clampInteger(value, max = Number.MAX_SAFE_INTEGER) {
   const n = Math.floor(Number(value) || 0);
@@ -110,18 +111,57 @@ function normalizePinnedBottomTabs(value, maxEntries = DEFAULT_MAX_PINNED_BOTTOM
   return out;
 }
 
+function normalizePluginOrder(value, maxEntries = DEFAULT_MAX_PLUGIN_ORDER_ENTRIES) {
+  const source = Array.isArray(value) ? value : [];
+  const limit = Math.max(0, Number(maxEntries) || DEFAULT_MAX_PLUGIN_ORDER_ENTRIES);
+  const out = [];
+  for (const raw of source) {
+    const id = cleanPreferencePluginId(raw);
+    if (id && !out.includes(id)) out.push(id);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 function normalizePreferences(value, options = {}) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   const maxPinnedBottomTabs = Math.max(
     0,
     Number(options.maxPinnedBottomTabs || DEFAULT_MAX_PINNED_BOTTOM_TABS) || DEFAULT_MAX_PINNED_BOTTOM_TABS,
   );
+  const maxPluginOrderEntries = Math.max(
+    0,
+    Number(options.maxPluginOrderEntries || DEFAULT_MAX_PLUGIN_ORDER_ENTRIES) || DEFAULT_MAX_PLUGIN_ORDER_ENTRIES,
+  );
   return {
     pinnedBottomTabs: normalizePinnedBottomTabs(
       source.pinnedBottomTabs || source.pinned_bottom_tabs || source.bottomTabs || source.bottom_tabs,
       maxPinnedBottomTabs,
     ),
+    pluginOrder: normalizePluginOrder(
+      source.pluginOrder || source.plugin_order || source.drawerOrder || source.drawer_order,
+      maxPluginOrderEntries,
+    ),
   };
+}
+
+function hasPreferenceField(source, names) {
+  return Boolean(source && names.some((name) => Object.prototype.hasOwnProperty.call(source, name)));
+}
+
+function mergePreferences(existingPreferences, incomingPreferences, options = {}) {
+  const existing = normalizePreferences(existingPreferences, options);
+  const source = incomingPreferences && typeof incomingPreferences === "object" && !Array.isArray(incomingPreferences)
+    ? incomingPreferences
+    : {};
+  const out = { ...existing };
+  if (hasPreferenceField(source, ["pinnedBottomTabs", "pinned_bottom_tabs", "bottomTabs", "bottom_tabs"])) {
+    out.pinnedBottomTabs = normalizePreferences(source, options).pinnedBottomTabs;
+  }
+  if (hasPreferenceField(source, ["pluginOrder", "plugin_order", "drawerOrder", "drawer_order"])) {
+    out.pluginOrder = normalizePreferences(source, options).pluginOrder;
+  }
+  return out;
 }
 
 function emptyState() {
@@ -168,6 +208,7 @@ function createPluginTopicUsageService(options = {}) {
   const storePath = defaultStorePath(options);
   const maxBucketEntries = Math.max(1, Number(options.maxBucketEntries || DEFAULT_MAX_BUCKET_ENTRIES) || DEFAULT_MAX_BUCKET_ENTRIES);
   const maxPinnedBottomTabs = Math.max(0, Number(options.maxPinnedBottomTabs || DEFAULT_MAX_PINNED_BOTTOM_TABS) || DEFAULT_MAX_PINNED_BOTTOM_TABS);
+  const maxPluginOrderEntries = Math.max(0, Number(options.maxPluginOrderEntries || DEFAULT_MAX_PLUGIN_ORDER_ENTRIES) || DEFAULT_MAX_PLUGIN_ORDER_ENTRIES);
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
   const readJsonStore = typeof options.readJsonStore === "function"
     ? options.readJsonStore
@@ -187,11 +228,11 @@ function createPluginTopicUsageService(options = {}) {
     };
 
   function readState() {
-    return normalizeState(readJsonStore(storePath, emptyState()), { maxBucketEntries, maxPinnedBottomTabs });
+    return normalizeState(readJsonStore(storePath, emptyState()), { maxBucketEntries, maxPinnedBottomTabs, maxPluginOrderEntries });
   }
 
   function writeState(state) {
-    const normalized = normalizeState(state, { maxBucketEntries, maxPinnedBottomTabs });
+    const normalized = normalizeState(state, { maxBucketEntries, maxPinnedBottomTabs, maxPluginOrderEntries });
     normalized.schemaVersion = STORE_SCHEMA_VERSION;
     normalized.updatedAt = nowIso();
     writeJsonStore(storePath, normalized);
@@ -207,7 +248,7 @@ function createPluginTopicUsageService(options = {}) {
       workspaceId: id,
       updatedAt: String(record.updatedAt || ""),
       usage: normalizeUsage(record.usage, { maxBucketEntries }),
-      preferences: normalizePreferences(record.preferences, { maxPinnedBottomTabs }),
+      preferences: normalizePreferences(record.preferences, { maxPinnedBottomTabs, maxPluginOrderEntries }),
       preferencesUpdatedAt: String(record.preferencesUpdatedAt || ""),
     };
   }
@@ -220,11 +261,11 @@ function createPluginTopicUsageService(options = {}) {
     const nextRecord = {
       updatedAt,
       usage: mergeUsage(existing.usage, incomingUsage, { maxBucketEntries }),
-      preferences: normalizePreferences(existing.preferences, { maxPinnedBottomTabs }),
+      preferences: normalizePreferences(existing.preferences, { maxPinnedBottomTabs, maxPluginOrderEntries }),
       preferencesUpdatedAt: String(existing.preferencesUpdatedAt || ""),
     };
     if (incomingPreferences !== undefined) {
-      nextRecord.preferences = normalizePreferences(incomingPreferences, { maxPinnedBottomTabs });
+      nextRecord.preferences = mergePreferences(existing.preferences, incomingPreferences, { maxPinnedBottomTabs, maxPluginOrderEntries });
       nextRecord.preferencesUpdatedAt = updatedAt;
     }
     state.workspaces[id] = nextRecord;
@@ -241,7 +282,7 @@ function createPluginTopicUsageService(options = {}) {
 
   return {
     mergeWorkspaceUsage,
-    normalizePreferences: (preferences) => normalizePreferences(preferences, { maxPinnedBottomTabs }),
+    normalizePreferences: (preferences) => normalizePreferences(preferences, { maxPinnedBottomTabs, maxPluginOrderEntries }),
     normalizeUsage: (usage) => normalizeUsage(usage, { maxBucketEntries }),
     readWorkspaceUsage,
     storePath,

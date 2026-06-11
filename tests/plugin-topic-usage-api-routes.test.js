@@ -113,6 +113,7 @@ async function testPatchMergesUsage() {
   assert.deepEqual(body.usage.plugins.finance, { count: 1, lastUsedAt: 100 });
   assert.deepEqual(body.usage.actions["wardrobe:style"], { count: 2, lastUsedAt: 200 });
   assert.deepEqual(body.preferences.pinnedBottomTabs, []);
+  assert.deepEqual(body.preferences.pluginOrder, []);
 }
 
 async function testPatchMergesPreferencesWithoutFakeUsageBucket() {
@@ -122,6 +123,7 @@ async function testPatchMergesPreferencesWithoutFakeUsageBucket() {
     workspaceId: "owner",
     preferences: {
       pinnedBottomTabs: ["finance", "wardrobe", "health", "note"],
+      pluginOrder: ["health", "finance", "wardrobe"],
     },
   });
   const res = makeResponse();
@@ -133,13 +135,37 @@ async function testPatchMergesPreferencesWithoutFakeUsageBucket() {
   assert.deepEqual(body.usage.plugins.finance, { count: 3, lastUsedAt: 300 });
   assert.equal(body.usage.plugins.preferences, undefined);
   assert.deepEqual(body.preferences.pinnedBottomTabs, ["finance", "wardrobe", "health"]);
+  assert.deepEqual(body.preferences.pluginOrder, ["health", "finance", "wardrobe"]);
   assert.equal(body.preferencesUpdatedAt, "2026-06-07T00:00:00.000Z");
+}
+
+async function testPatchPartialPreferencesPreservesExistingOrder() {
+  const { routes, service } = createRoutes();
+  service.mergeWorkspaceUsage("owner", {}, {
+    pinnedBottomTabs: ["finance"],
+    pluginOrder: ["health", "finance", "wardrobe"],
+  });
+  const req = makeRequest("PATCH", "/api/plugin-topic-usage", {
+    workspaceId: "owner",
+    preferences: {
+      pinnedBottomTabs: ["wardrobe"],
+    },
+  });
+  const res = makeResponse();
+
+  await routes.handle(req, res, new URL(req.url, "http://localhost"), { auth: req.auth });
+
+  assert.equal(res.statusCode, 200);
+  const body = JSON.parse(res.body);
+  assert.deepEqual(body.preferences.pinnedBottomTabs, ["wardrobe"]);
+  assert.deepEqual(body.preferences.pluginOrder, ["health", "finance", "wardrobe"]);
 }
 
 async function testGetReadsWorkspaceUsage() {
   const { routes, service } = createRoutes();
   service.mergeWorkspaceUsage("owner", { plugins: { finance: { count: 3, lastUsedAt: 300 } } }, {
     pinnedBottomTabs: ["finance"],
+    pluginOrder: ["finance", "wardrobe"],
   });
   const req = makeRequest("GET", "/api/plugin-topic-usage?workspaceId=owner");
   const res = makeResponse();
@@ -151,6 +177,7 @@ async function testGetReadsWorkspaceUsage() {
   assert.equal(body.workspaceId, "owner");
   assert.deepEqual(body.usage.plugins.finance, { count: 3, lastUsedAt: 300 });
   assert.deepEqual(body.preferences.pinnedBottomTabs, ["finance"]);
+  assert.deepEqual(body.preferences.pluginOrder, ["finance", "wardrobe"]);
   assert.equal(body.preferencesUpdatedAt, "2026-06-07T00:00:00.000Z");
 }
 
@@ -176,6 +203,7 @@ function testRouteInventorySurface() {
 async function run() {
   await testPatchMergesUsage();
   await testPatchMergesPreferencesWithoutFakeUsageBucket();
+  await testPatchPartialPreferencesPreservesExistingOrder();
   await testGetReadsWorkspaceUsage();
   await testWorkspaceSpoofIsRejected();
   testRouteInventorySurface();

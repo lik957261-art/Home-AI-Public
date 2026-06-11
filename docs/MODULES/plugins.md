@@ -423,10 +423,12 @@ bound Hermes topic page.
 The global plugin Dock must keep a stable order during normal use. Opening
 a plugin may record usage for diagnostics, but it must not automatically move
 the plugin icon. Users can manually reorder plugin icons through the
-long-press/context menu's bounded move controls; the order is stored locally in
-`hermesPluginTopicOrder`. Newly
-available plugins that are not in the manual order append by the product's
-definition order.
+long-press/context menu: `换位` enters a bounded drag-reorder mode, while
+`前移`/`后移` remain fallback controls. The order is stored as the
+workspace-scoped server preference `preferences.pluginOrder` through
+`/api/plugin-topic-usage`; `hermesPluginTopicOrder:<workspaceId>` is only a
+first-paint/offline cache and migration source. Newly available plugins that
+are not in the manual order append by the product's definition order.
 
 ## Manifest Contract
 

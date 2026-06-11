@@ -226,6 +226,10 @@ const CAPABILITY_PLUGIN_APP_ACTION_ID = "__open_app";
 const PLUGIN_TOPIC_ACTION_MANIFEST_LOAD_TTL_MS = 60000;
 let pluginAppSortDrag = null;
 let pluginAppSortGlobalBound = false;
+let pluginAppSortMode = false;
+let pluginBottomTabSortDrag = null;
+let pluginBottomTabSortGlobalBound = false;
+let pluginBottomTabSortMode = false;
 let pluginActionMenuCloseBound = false;
 let pluginActionMenuSwipe = null;
 let pluginTopicUsagePendingSync = null;
@@ -699,7 +703,10 @@ function writePinnedPluginBottomTabs(ids = [], workspaceId = globalPluginDockWor
   } catch {
     // The server preference remains authoritative when local cache writes fail.
   }
-  if (options.sync !== false) schedulePluginTopicPreferencesSync({ pinnedBottomTabs: normalized }, workspaceId);
+  if (options.sync !== false) schedulePluginTopicPreferencesSync({
+    pinnedBottomTabs: normalized,
+    pluginOrder: readPluginTopicOrder(workspaceId),
+  }, workspaceId);
   return normalized;
 }
 
@@ -758,10 +765,202 @@ function cancelPinnedPluginBottomTab(pluginId = "", options = {}) {
   return true;
 }
 
+function bottomTabButtonForPlugin(pluginId = "") {
+  const def = pluginTopicDefById(pluginId);
+  const buttonId = def ? pluginTopicBottomButtonId(def) : "";
+  return buttonId ? $(buttonId) : null;
+}
+
+function pluginBottomTabMenuId() {
+  return "pluginBottomTabActionMenu";
+}
+
+function closePluginBottomTabMenu(root = document) {
+  const menu = root?.getElementById?.(pluginBottomTabMenuId()) || document.getElementById(pluginBottomTabMenuId());
+  if (menu) menu.hidden = true;
+  document.querySelectorAll(".bottom-tab.menu-open").forEach((button) => button.classList.remove("menu-open"));
+}
+
+function ensurePluginBottomTabMenu() {
+  let menu = document.getElementById(pluginBottomTabMenuId());
+  if (menu) return menu;
+  menu = document.createElement("div");
+  menu.id = pluginBottomTabMenuId();
+  menu.className = "capability-action-menu plugin-bottom-tab-menu";
+  menu.hidden = true;
+  menu.setAttribute("role", "menu");
+  menu.innerHTML = `
+    <div class="capability-menu-head">
+      <span class="plugin-topic-app-icon" data-plugin-bottom-tab-menu-icon aria-hidden="true"></span>
+      <span class="capability-menu-title" data-plugin-bottom-tab-menu-title></span>
+    </div>
+    <button class="capability-menu-item" type="button" data-plugin-bottom-tab-reorder>
+      <span class="capability-menu-glyph" aria-hidden="true">\u2194</span>
+      <span class="capability-menu-text">\u6362\u4f4d</span>
+    </button>
+    <button class="capability-menu-item" type="button" data-plugin-bottom-tab-menu-unpin>
+      <span class="capability-menu-glyph" aria-hidden="true">\u2606</span>
+      <span class="capability-menu-text">\u53d6\u6d88\u56fa\u5b9a</span>
+    </button>
+  `;
+  document.body.appendChild(menu);
+  menu.querySelector("[data-plugin-bottom-tab-reorder]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const id = pluginTopicId(menu.dataset.pluginBottomTabMenuPlugin || "");
+    closePluginBottomTabMenu(document);
+    startPluginBottomTabSortMode(id);
+  });
+  menu.querySelector("[data-plugin-bottom-tab-menu-unpin]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const id = pluginTopicId(menu.dataset.pluginBottomTabMenuPlugin || "");
+    closePluginBottomTabMenu(document);
+    cancelPinnedPluginBottomTab(id);
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (menu.hidden) return;
+    if (event.target?.closest?.(`#${pluginBottomTabMenuId()}, .bottom-tab.menu-open`)) return;
+    closePluginBottomTabMenu(document);
+  }, { capture: true });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closePluginBottomTabMenu(document);
+  });
+  return menu;
+}
+
+function openPluginBottomTabMenu(button, pluginId = "", event = null) {
+  const id = pluginTopicId(pluginId);
+  const def = pluginTopicDefById(id);
+  if (!button || !def || !pluginBottomTabPinned(id)) return;
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  closePluginBottomTabMenu(document);
+  const menu = ensurePluginBottomTabMenu();
+  menu.dataset.pluginBottomTabMenuPlugin = id;
+  const icon = menu.querySelector("[data-plugin-bottom-tab-menu-icon]");
+  if (icon) {
+    icon.className = `plugin-topic-app-icon ${def.appIconClass || def.id}`;
+    icon.dataset.pluginIcon = def.appIconGlyph || "";
+  }
+  const title = menu.querySelector("[data-plugin-bottom-tab-menu-title]");
+  if (title) title.textContent = def.label || "";
+  menu.hidden = false;
+  button.classList.add("menu-open");
+  button.dataset.pluginBottomTabMenuOpened = "1";
+  window.setTimeout(() => {
+    if (button.dataset.pluginBottomTabMenuOpened === "1") button.dataset.pluginBottomTabMenuOpened = "";
+  }, 1200);
+}
+
+function endPluginBottomTabSortMode() {
+  pluginBottomTabSortMode = false;
+  $("bottomNav")?.classList.remove("bottom-plugin-tabs-reordering");
+}
+
+function startPluginBottomTabSortMode(pluginId = "") {
+  if (!pinnedPluginBottomTabIds().length) return false;
+  pluginBottomTabSortMode = true;
+  $("bottomNav")?.classList.add("bottom-plugin-tabs-reordering");
+  const button = bottomTabButtonForPlugin(pluginId);
+  button?.focus?.({ preventScroll: true });
+  if (typeof showPushToast === "function") showPushToast("\u62d6\u52a8\u5e95\u90e8\u6807\u7b7e\u6362\u4f4d", "info");
+  return true;
+}
+
+function markPluginBottomTabSortMoved(button) {
+  if (!button) return;
+  button.dataset.pluginBottomTabDragMoved = "1";
+  window.setTimeout(() => {
+    if (button.dataset.pluginBottomTabDragMoved === "1") button.dataset.pluginBottomTabDragMoved = "";
+  }, 350);
+}
+
+function movePinnedPluginBottomTabBefore(pluginId = "", beforePluginId = "", after = false) {
+  const id = pluginTopicId(pluginId);
+  const targetId = pluginTopicId(beforePluginId);
+  if (!id || !targetId || id === targetId) return false;
+  const ids = readPinnedPluginBottomTabs();
+  const currentIndex = ids.indexOf(id);
+  const targetIndex = ids.indexOf(targetId);
+  if (currentIndex < 0 || targetIndex < 0) return false;
+  ids.splice(currentIndex, 1);
+  const adjustedTargetIndex = ids.indexOf(targetId);
+  ids.splice(Math.max(0, adjustedTargetIndex + (after ? 1 : 0)), 0, id);
+  writePinnedPluginBottomTabs(ids);
+  if (typeof updateNavigationControls === "function") updateNavigationControls();
+  if (typeof refreshPluginAppOrderSurfaces === "function") refreshPluginAppOrderSurfaces();
+  return true;
+}
+
+function movePluginBottomTabSortButton(drag, clientX, clientY) {
+  const target = document.elementFromPoint(clientX, clientY)?.closest?.("[data-plugin-bottom-tab-sort-id]");
+  if (!target || target === drag.button || target.closest(".bottom-nav") !== drag.nav) return;
+  const rect = target.getBoundingClientRect();
+  const after = clientX > rect.left + rect.width / 2;
+  movePinnedPluginBottomTabBefore(drag.pluginId, target.dataset.pluginBottomTabSortId || "", after);
+}
+
+function startPluginBottomTabSortDrag(button, event) {
+  const id = pluginTopicId(button?.dataset?.pluginBottomTabSortId || "");
+  const nav = button?.closest?.(".bottom-nav");
+  if (!pluginBottomTabSortMode || !id || !nav || !pluginBottomTabPinned(id)) return false;
+  closePluginBottomTabMenu(document);
+  pluginBottomTabSortDrag = {
+    button,
+    nav,
+    pluginId: id,
+    pointerId: event.pointerId,
+    dragging: true,
+  };
+  button.classList.add("plugin-bottom-tab-dragging");
+  nav.classList.add("bottom-plugin-tabs-sorting");
+  try {
+    button.setPointerCapture?.(event.pointerId);
+  } catch (_) {}
+  event.preventDefault?.();
+  event.stopPropagation?.();
+  return true;
+}
+
+function handlePluginBottomTabSortPointerMove(event) {
+  const drag = pluginBottomTabSortDrag;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+  event.preventDefault();
+  event.stopPropagation();
+  movePluginBottomTabSortButton(drag, event.clientX, event.clientY);
+}
+
+function finishPluginBottomTabSortPointer(event) {
+  const drag = pluginBottomTabSortDrag;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+  pluginBottomTabSortDrag = null;
+  try {
+    drag.button.releasePointerCapture?.(event.pointerId);
+  } catch (_) {}
+  drag.button.classList.remove("plugin-bottom-tab-dragging");
+  drag.nav.classList.remove("bottom-plugin-tabs-sorting");
+  endPluginBottomTabSortMode();
+  markPluginBottomTabSortMoved(drag.button);
+  event.preventDefault?.();
+  event.stopPropagation?.();
+}
+
+function wirePluginBottomTabSortDocumentEvents(root = document) {
+  if (pluginBottomTabSortGlobalBound) return;
+  const doc = root?.nodeType === 9 ? root : root?.ownerDocument || document;
+  pluginBottomTabSortGlobalBound = true;
+  doc.addEventListener("pointermove", handlePluginBottomTabSortPointerMove, { passive: false, capture: true });
+  doc.addEventListener("pointerup", finishPluginBottomTabSortPointer, { capture: true });
+  doc.addEventListener("pointercancel", finishPluginBottomTabSortPointer, { capture: true });
+}
+
 function wirePinnedPluginBottomTabUnpin(button, pluginId = "") {
   const id = pluginTopicId(pluginId);
   if (!button || !id || button.dataset.pluginBottomTabUnpinBound === "1") return;
   button.dataset.pluginBottomTabUnpinBound = "1";
+  button.dataset.pluginBottomTabSortId = id;
+  wirePluginBottomTabSortDocumentEvents(button.ownerDocument || document);
   let timer = null;
   let startPoint = null;
   const clearTimer = () => {
@@ -781,18 +980,18 @@ function wirePinnedPluginBottomTabUnpin(button, pluginId = "") {
       if (button.dataset.pluginBottomTabUnpinConsumed === "1") button.dataset.pluginBottomTabUnpinConsumed = "";
     }, 900);
   };
-  const unpin = (event) => {
+  const openMenu = (event) => {
     event?.preventDefault?.();
     event?.stopPropagation?.();
     clearTimer();
-    if (!cancelPinnedPluginBottomTab(id)) return;
+    openPluginBottomTabMenu(button, id, event);
     markConsumed();
   };
   const armLongPress = (event) => {
     if (!pluginBottomTabPinned(id)) return;
     clearTimer();
     startPoint = pointFromEvent(event);
-    timer = window.setTimeout(() => unpin(event), PLUGIN_APP_REORDER_HOLD_MS);
+    timer = window.setTimeout(() => openMenu(event), PLUGIN_APP_REORDER_HOLD_MS);
   };
   const clearOnMove = (event) => {
     if (!timer || !startPoint) return;
@@ -803,13 +1002,15 @@ function wirePinnedPluginBottomTabUnpin(button, pluginId = "") {
     if (Math.abs(dx) >= PLUGIN_APP_REORDER_CANCEL_PX || Math.abs(dy) >= PLUGIN_APP_REORDER_CANCEL_PX) clearTimer();
   };
   button.addEventListener("click", (event) => {
-    if (button.dataset.pluginBottomTabUnpinConsumed !== "1") return;
+    if (button.dataset.pluginBottomTabUnpinConsumed !== "1" && button.dataset.pluginBottomTabDragMoved !== "1") return;
     event.preventDefault();
     event.stopPropagation();
     button.dataset.pluginBottomTabUnpinConsumed = "";
+    button.dataset.pluginBottomTabDragMoved = "";
   }, { capture: true });
   button.addEventListener("pointerdown", (event) => {
     if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (startPluginBottomTabSortDrag(button, event)) return;
     armLongPress(event);
   });
   button.addEventListener("touchstart", (event) => {
@@ -823,14 +1024,24 @@ function wirePinnedPluginBottomTabUnpin(button, pluginId = "") {
   button.addEventListener("pointerleave", clearTimer);
   button.addEventListener("touchend", clearTimer);
   button.addEventListener("touchcancel", clearTimer);
-  button.addEventListener("contextmenu", unpin);
+  button.addEventListener("contextmenu", (event) => openMenu(event));
 }
 
 function syncPinnedPluginBottomTabs(pluginContextNav = false) {
-  if (pluginContextNav) return [];
+  if (pluginContextNav) {
+    PLUGIN_TOPIC_DEFS.forEach((def) => {
+      if (!def || def.builtinKind) return;
+      const button = bottomTabButtonForPlugin(def.id);
+      if (!button) return;
+      button.style.order = "";
+      button.dataset.pluginBottomTabSortId = "";
+    });
+    return [];
+  }
   ensurePluginTopicUsageLoaded();
   const pinnedIds = pinnedPluginBottomTabIds();
   const visible = new Set(pinnedIds);
+  const orderIndex = new Map(pinnedIds.map((id, index) => [id, BOTTOM_NAV_BASE_VISIBLE_TABS + index + 1]));
   PLUGIN_TOPIC_DEFS.forEach((def) => {
     if (!def || def.builtinKind) return;
     const buttonId = pluginTopicBottomButtonId(def);
@@ -838,6 +1049,8 @@ function syncPinnedPluginBottomTabs(pluginContextNav = false) {
     if (!button) return;
     const shouldShow = visible.has(def.id);
     setBottomTabHidden(button, !shouldShow);
+    button.dataset.pluginBottomTabSortId = shouldShow ? def.id : "";
+    button.style.order = shouldShow ? String(orderIndex.get(def.id) || BOTTOM_NAV_BASE_VISIBLE_TABS + 1) : "";
     if (shouldShow) updateBottomNavLabel(buttonId, def.label || "");
   });
   return pinnedIds;
@@ -1168,6 +1381,9 @@ function normalizePluginTopicPreferences(preferences) {
     pinnedBottomTabs: normalizePinnedPluginBottomTabIds(
       source.pinnedBottomTabs || source.pinned_bottom_tabs || source.bottomTabs || source.bottom_tabs || [],
     ),
+    pluginOrder: normalizePluginTopicOrder(
+      source.pluginOrder || source.plugin_order || source.drawerOrder || source.drawer_order || [],
+    ),
   };
 }
 
@@ -1271,8 +1487,12 @@ async function flushPluginTopicUsageSync() {
 
 function applyPluginTopicPreferencesFromServer(preferences, workspaceId = pluginTopicUsageWorkspaceId()) {
   const normalized = normalizePluginTopicPreferences(preferences);
-  const current = normalizePluginTopicPreferences({ pinnedBottomTabs: readPinnedPluginBottomTabs(workspaceId) });
+  const current = normalizePluginTopicPreferences({
+    pinnedBottomTabs: readPinnedPluginBottomTabs(workspaceId),
+    pluginOrder: readPluginTopicOrder(workspaceId),
+  });
   writePinnedPluginBottomTabs(normalized.pinnedBottomTabs, workspaceId, { sync: false });
+  writePluginTopicOrder(normalized.pluginOrder, workspaceId, { sync: false });
   if (workspaceId === pluginTopicUsageWorkspaceId() && !pluginTopicPreferencesEqual(current, normalized)) {
     if (typeof updateNavigationControls === "function") updateNavigationControls();
     if (typeof refreshPluginAppOrderSurfaces === "function") refreshPluginAppOrderSurfaces();
@@ -1299,7 +1519,10 @@ async function flushPluginTopicPreferencesSync() {
   }
 }
 
-function schedulePluginTopicPreferencesSync(preferences = { pinnedBottomTabs: readPinnedPluginBottomTabs() }, workspaceId = pluginTopicUsageWorkspaceId()) {
+function schedulePluginTopicPreferencesSync(preferences = {
+  pinnedBottomTabs: readPinnedPluginBottomTabs(),
+  pluginOrder: readPluginTopicOrder(),
+}, workspaceId = pluginTopicUsageWorkspaceId()) {
   if (!pluginTopicUsageApiReady()) return;
   pluginTopicPreferencesPendingSync = {
     workspaceId: String(workspaceId || "owner").trim() || "owner",
@@ -1339,14 +1562,18 @@ async function loadPluginTopicUsageFromServer(workspaceId = pluginTopicUsageWork
   if (!pluginTopicUsageEqual(serverUsage, merged)) schedulePluginTopicUsageSync(merged);
   const serverPreferences = normalizePluginTopicPreferences(result?.preferences);
   const serverPreferencesUpdatedAt = String(result?.preferencesUpdatedAt || result?.preferences_updated_at || "");
-  const serverHasPreferences = Boolean(serverPreferencesUpdatedAt || serverPreferences.pinnedBottomTabs.length);
+  const serverHasPreferences = Boolean(serverPreferencesUpdatedAt || serverPreferences.pinnedBottomTabs.length || serverPreferences.pluginOrder.length);
   const hasPendingPreferenceSync = pluginTopicPreferencesPendingSync?.workspaceId === workspaceId;
   if (serverHasPreferences && !hasPendingPreferenceSync) {
     applyPluginTopicPreferencesFromServer(serverPreferences, workspaceId);
   } else if (!serverHasPreferences) {
     const localPinnedTabs = readPinnedPluginBottomTabs(workspaceId);
-    if (localPinnedTabs.length) {
-      schedulePluginTopicPreferencesSync({ pinnedBottomTabs: localPinnedTabs }, workspaceId);
+    const localPluginOrder = readPluginTopicOrder(workspaceId);
+    if (localPinnedTabs.length || localPluginOrder.length) {
+      schedulePluginTopicPreferencesSync({
+        pinnedBottomTabs: localPinnedTabs,
+        pluginOrder: localPluginOrder,
+      }, workspaceId);
     }
   }
   markPluginTopicUsageLoaded(workspaceId);
@@ -1435,22 +1662,39 @@ function pluginTopicDefinitionIndex(pluginId) {
   return index >= 0 ? index : Number.MAX_SAFE_INTEGER;
 }
 
-function readPluginTopicOrder() {
+function pluginTopicOrderStorageKey(workspaceId = pluginTopicUsageWorkspaceId()) {
+  const id = String(workspaceId || "owner").trim() || "owner";
+  return `${PLUGIN_TOPIC_ORDER_STORAGE_KEY}:${id}`;
+}
+
+function normalizePluginTopicOrder(ids = []) {
+  const allowed = new Set(availablePluginTopicDefs().map((def) => def.id));
+  return [...new Set((Array.isArray(ids) ? ids : []).map(pluginTopicId).filter((id) => id && allowed.has(id)))];
+}
+
+function readPluginTopicOrder(workspaceId = pluginTopicUsageWorkspaceId()) {
   try {
-    const raw = localStorage.getItem(PLUGIN_TOPIC_ORDER_STORAGE_KEY);
+    const storageKey = pluginTopicOrderStorageKey(workspaceId);
+    const raw = localStorage.getItem(storageKey) || localStorage.getItem(PLUGIN_TOPIC_ORDER_STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.map(pluginTopicId).filter(Boolean) : [];
+    return normalizePluginTopicOrder(parsed);
   } catch {
     return [];
   }
 }
 
-function writePluginTopicOrder(ids = []) {
+function writePluginTopicOrder(ids = [], workspaceId = pluginTopicUsageWorkspaceId(), options = {}) {
+  const normalized = normalizePluginTopicOrder(ids);
   try {
-    localStorage.setItem(PLUGIN_TOPIC_ORDER_STORAGE_KEY, JSON.stringify(ids.map(pluginTopicId).filter(Boolean)));
+    localStorage.setItem(pluginTopicOrderStorageKey(workspaceId), JSON.stringify(normalized));
   } catch {
-    // Manual order is a local preference; navigation must still work without it.
+    // The server preference remains authoritative when local cache writes fail.
   }
+  if (options.sync !== false) schedulePluginTopicPreferencesSync({
+    pinnedBottomTabs: readPinnedPluginBottomTabs(workspaceId),
+    pluginOrder: normalized,
+  }, workspaceId);
+  return normalized;
 }
 
 function orderedPluginAppDefs(defs = []) {
@@ -1710,6 +1954,10 @@ function renderCapabilityActionMenu(def) {
       <span class="capability-menu-glyph" aria-hidden="true">${pinned ? "\u2605" : "\u2606"}</span>
       <span class="capability-menu-text">${pinned ? "\u53d6\u6d88\u5e95\u90e8\u56fa\u5b9a" : (pinAvailable ? "\u56fa\u5b9a\u5230\u5e95\u90e8" : "\u5e95\u90e8\u5df2\u6ee1")}</span>
     </button>` : "";
+  const reorderButton = `<button class="capability-menu-item" type="button" data-plugin-topic-reorder="${escapeHtml(def.id)}">
+      <span class="capability-menu-glyph" aria-hidden="true">\u2194</span>
+      <span class="capability-menu-text">\u6362\u4f4d</span>
+    </button>`;
   return `<div class="capability-action-menu" role="menu" aria-label="${escapeHtml(`${def.label}\u5feb\u6377\u64cd\u4f5c`)}" data-plugin-topic-action-menu="${escapeHtml(def.id)}" hidden>
     <div class="capability-menu-head">
       <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
@@ -1720,6 +1968,7 @@ function renderCapabilityActionMenu(def) {
       <span class="capability-menu-text">\u6253\u5f00\u63d2\u4ef6</span>
     </button>
     ${pinButton}
+    ${reorderButton}
     <div class="capability-menu-order">
       <button class="capability-menu-order-button" type="button" data-plugin-topic-move="${escapeHtml(def.id)}" data-plugin-topic-move-dir="up">\u524d\u79fb</button>
       <button class="capability-menu-order-button" type="button" data-plugin-topic-move="${escapeHtml(def.id)}" data-plugin-topic-move-dir="down">\u540e\u79fb</button>
@@ -1733,6 +1982,21 @@ function persistPluginAppOrderFromStrip(strip) {
     .map((item) => item.dataset.pluginTopicSortId || "")
     .filter(Boolean);
   if (ids.length) writePluginTopicOrder(ids);
+}
+
+function endPluginAppSortMode() {
+  pluginAppSortMode = false;
+  document.querySelectorAll(".plugin-app-strip").forEach((strip) => strip.classList.remove("plugin-app-reorder-mode"));
+}
+
+function startPluginAppSortMode(pluginId = "") {
+  pluginAppSortMode = true;
+  document.querySelectorAll(".plugin-app-strip").forEach((strip) => strip.classList.add("plugin-app-reorder-mode"));
+  const id = pluginTopicId(pluginId);
+  const card = [...document.querySelectorAll("[data-plugin-topic-sort-id]")]
+    .find((item) => pluginTopicId(item.dataset.pluginTopicSortId || "") === id);
+  card?.focus?.({ preventScroll: true });
+  if (typeof showPushToast === "function") showPushToast("\u62d6\u52a8\u63d2\u4ef6\u56fe\u6807\u6362\u4f4d", "info");
 }
 
 function movePluginAppOrder(pluginId = "", direction = "up") {
@@ -2566,6 +2830,7 @@ function finishPluginAppSortPointer(event) {
     persistPluginAppOrderFromStrip(drag.strip);
     markPluginAppSortMoved(drag.card);
   }
+  endPluginAppSortMode();
 }
 
 function wirePluginAppSortDocumentEvents(root) {
@@ -2581,10 +2846,10 @@ function wirePluginAppManualSorting(root) {
   wirePluginAppSortDocumentEvents(root);
   root?.querySelectorAll?.(".plugin-app-strip [data-plugin-topic-sort-id]").forEach((card) => {
     if (card.dataset.pluginAppSortBound) return;
-    if (pluginAppCardHasActionMenu(card)) return;
     card.dataset.pluginAppSortBound = "1";
     card.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
+      if (!pluginAppSortMode) return;
       const strip = card.closest(".plugin-app-strip");
       if (!strip) return;
       cancelPluginAppSortDrag();
@@ -2597,7 +2862,9 @@ function wirePluginAppManualSorting(root) {
         dragging: false,
       };
       const drag = pluginAppSortDrag;
-      drag.holdTimer = window.setTimeout(() => startPluginAppSortDrag(drag), PLUGIN_APP_REORDER_HOLD_MS);
+      startPluginAppSortDrag(drag);
+      event.preventDefault();
+      event.stopPropagation();
     });
     card.addEventListener("contextmenu", (event) => {
       if (pluginAppSortDrag?.card === card || card.dataset.pluginAppDragMoved === "1") event.preventDefault();
@@ -2949,6 +3216,16 @@ function wirePluginTopicCards(root) {
       if (typeof resetGlobalPluginDockGesture === "function") resetGlobalPluginDockGesture();
       closePluginActionMenus(document);
       movePluginAppOrder(button.dataset.pluginTopicMove, button.dataset.pluginTopicMoveDir || "up");
+    });
+  });
+  root?.querySelectorAll?.("[data-plugin-topic-reorder]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof cancelPluginAppSortDrag === "function") cancelPluginAppSortDrag();
+      if (typeof resetGlobalPluginDockGesture === "function") resetGlobalPluginDockGesture();
+      closePluginActionMenus(document);
+      startPluginAppSortMode(button.dataset.pluginTopicReorder || "");
     });
   });
   root?.querySelectorAll?.("[data-plugin-bottom-tab-toggle]").forEach((button) => {

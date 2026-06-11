@@ -973,6 +973,25 @@ button {
   transform: translateY(-1px);
 }
 
+.bottom-nav.bottom-plugin-tabs-reordering .bottom-tab[data-plugin-bottom-tab-sort-id] {
+  cursor: grab;
+}
+
+.bottom-nav.bottom-plugin-tabs-sorting {
+  touch-action: none;
+  cursor: grabbing;
+}
+
+.bottom-nav.bottom-plugin-tabs-sorting .bottom-tab {
+  touch-action: none;
+}
+
+.bottom-tab.plugin-bottom-tab-dragging .bottom-tab-icon {
+  background: var(--ui-accent-active-soft);
+  box-shadow: 0 8px 18px rgba(31, 49, 54, 0.14), inset 0 0 0 1px rgba(95, 139, 148, 0.24);
+  transform: scale(1.06);
+}
+
 .bottom-tab-label {
   font-size: 11px !important;
   font-weight: 560;
@@ -5797,6 +5816,16 @@ button.directory-alias-chip {
   display: none;
 }
 
+.plugin-bottom-tab-menu {
+  position: fixed;
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: calc(var(--mobile-bottom-nav-offset-height) + 10px);
+  z-index: 90;
+  transform: translateX(-50%);
+}
+
 @media (max-width: 1099px) {
   .capability-action-menu {
     position: fixed;
@@ -5962,6 +5991,10 @@ button.directory-alias-chip {
   scroll-snap-type: none;
   touch-action: none;
   cursor: grabbing;
+}
+
+.plugin-app-reorder-mode .plugin-app-card {
+  cursor: grab;
 }
 
 .plugin-app-strip::-webkit-scrollbar {
@@ -6280,11 +6313,15 @@ button.directory-alias-chip {
 .plugin-context-nav-mode #bottomNoteMode,
 .plugin-context-nav-mode #bottomGrowthMode,
 .plugin-context-nav-mode #bottomMoiraMode {
-  order: 2;
+  order: 2 !important;
 }
 
 .plugin-context-nav-mode #bottomProjectsMode {
-  order: 3;
+  order: 3 !important;
+}
+
+.plugin-context-nav-mode #bottomTasksMode {
+  order: 1 !important;
 }
 
 .plugin-topic-card {
