@@ -110,6 +110,31 @@ async function testCronUsesLocalAutomationBeforeHostAndPython() {
   assert.deepEqual(calls, [{ type: "local-cron", payload: { action: "list" } }]);
 }
 
+async function testCronRejectsUnsupportedAutomationBackend() {
+  const calls = [];
+  const service = createLocalBridgeWrapperService({
+    automationBackend: "native_cron",
+    bridgeCommandProvider: makeProvider(calls),
+    bridgeHostEnabled: true,
+    runBridgeHost() {
+      calls.push({ type: "host" });
+      return { ok: true, backend: "host" };
+    },
+    runLocalCronBridge(payload) {
+      calls.push({ type: "local-cron", payload });
+      return { ok: true, backend: "local-cron" };
+    },
+    useLocalAutomationBackend: () => true,
+  });
+
+  const result = await service.runCronBridge({ action: "create" });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 503);
+  assert.equal(result.source.name, "native_cron");
+  assert.match(result.error, /Unsupported Automation backend/);
+  assert.deepEqual(calls, []);
+}
+
 async function testBridgeHostKindsAndTimeouts() {
   const calls = [];
   const service = createLocalBridgeWrapperService({
@@ -221,6 +246,7 @@ async function main() {
   await testTodoPrefersKanbanBeforeLocalHostAndPython();
   await testTodoUsesLocalBeforeHostAndPython();
   await testCronUsesLocalAutomationBeforeHostAndPython();
+  await testCronRejectsUnsupportedAutomationBackend();
   await testBridgeHostKindsAndTimeouts();
   await testPythonTodoBridgeOptions();
   await testPythonCronBridgeOptions();

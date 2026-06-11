@@ -278,6 +278,36 @@ async function testCreateDryRunAndCreateFailure() {
   assert.deepEqual(empty.body, { error: "Automation description is required" });
 }
 
+async function testCreatePassesProviderErrorStatus() {
+  const { routes, calls } = makeRoutes({
+    automationProvider: {
+      createJob(payload) {
+        calls.create.push(payload);
+        return Promise.resolve({
+          ok: false,
+          status: 503,
+          error: "Canonical Automation backend is unavailable",
+          code: "automation_canonical_backend_unavailable",
+          source: { name: "hermes_cron", available: false },
+        });
+      },
+      mutateJob(payload) {
+        calls.mutate.push(payload);
+        return Promise.resolve({ ok: true });
+      },
+    },
+  });
+
+  const got = await request(routes, "POST", "/api/automations", {
+    body: { workspaceId: "child", text: "weekly report" },
+  });
+  assert.equal(got.res.statusCode, 503);
+  assert.equal(got.body.error, "compact:Canonical Automa");
+  assert.equal(got.body.result.code, "automation_canonical_backend_unavailable");
+  assert.equal(calls.cacheClear, 0);
+  assert.equal(calls.create.length, 1);
+}
+
 async function testActionDecodesJobAndClearsCache() {
   const { routes, calls } = makeRoutes();
   const got = await request(routes, "POST", "/api/automations/job%2F42/update?workspaceId=child", {
@@ -399,6 +429,7 @@ function testDependencyValidation() {
   await testListFullDetailKeepsDeliverableSort();
   await testListIncludesRouteAutomationTargetOutsideSearch();
   await testCreateDryRunAndCreateFailure();
+  await testCreatePassesProviderErrorStatus();
   await testActionDecodesJobAndClearsCache();
   await testPushTickOwnerOnly();
   await testAuthorizedFileRoutesUseResolvers();

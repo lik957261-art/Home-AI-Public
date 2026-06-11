@@ -2,6 +2,11 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const {
+  automationBackendStatus,
+  isCanonicalAutomationBackend,
+  isLocalAutomationBackend,
+} = require("./mobile-runtime-backend-policy-service");
 
 const CRON_MEDIA_LINE_PATTERN = /^\s*(?:[-*]\s*)?(?:.*?[:：]\s*)?MEDIA:\s*(.+?)\s*$/gim;
 const CRON_MEDIA_PATH_PATTERN = /(\\\\wsl(?:\.localhost|\$)\\[^\r\n]+?\.(?:pdf|docx|doc|md)|[a-z]:\\[^\r\n]+?\.(?:pdf|docx|doc|md)|\/(?:mnt\/[a-z]|home\/[^/]+)\/[^\r\n]+?\.(?:pdf|docx|doc|md))(?=$|[\s)>"'，,。；;])/gi;
@@ -50,9 +55,54 @@ function createAutomationProvider(options = {}) {
   const jobMatchesOwner = typeof options.jobMatchesOwner === "function"
     ? options.jobMatchesOwner
     : (job, ownerPrincipalId) => String(job?.ownerPrincipalId || "owner") === String(ownerPrincipalId || "owner");
+  const automationBackend = String(options.automationBackend || "hermes_cron").trim().toLowerCase();
+  const allowLocalAutomationWrites = options.allowLocalAutomationWrites !== undefined
+    ? Boolean(options.allowLocalAutomationWrites)
+    : isLocalAutomationBackend(automationBackend);
 
   function clearListCache() {
     listCache.clear();
+  }
+
+  function blockedMutationResult(action) {
+    const backendStatus = automationBackendStatus(automationBackend);
+    if (!backendStatus.ok) {
+      return {
+        ok: false,
+        status: backendStatus.status || 503,
+        error: backendStatus.error,
+        code: "automation_backend_unsupported",
+        source: { name: backendStatus.backend || automationBackend, available: false, action },
+      };
+    }
+    if (isLocalAutomationBackend(automationBackend) && !allowLocalAutomationWrites) {
+      return {
+        ok: false,
+        status: 503,
+        error: "Local Automation writes are disabled. Set HERMES_WEB_AUTOMATION_BACKEND=local only for explicit test/import mode.",
+        code: "automation_local_write_disabled",
+        source: { name: automationBackend, available: false, action },
+      };
+    }
+    if (!isCanonicalAutomationBackend(automationBackend) && !isLocalAutomationBackend(automationBackend)) {
+      return {
+        ok: false,
+        status: 503,
+        error: `Unsupported Automation backend "${automationBackend}".`,
+        code: "automation_backend_unsupported",
+        source: { name: automationBackend, available: false, action },
+      };
+    }
+    return null;
+  }
+
+  async function runMutationBridge(payload) {
+    try {
+      return await runBridge(payload);
+    } catch (err) {
+      err.status = err.status || 503;
+      throw err;
+    }
   }
 
   async function listJobs(args = {}) {
@@ -99,7 +149,9 @@ function createAutomationProvider(options = {}) {
   }
 
   function createJob(args = {}) {
-    return runBridge({
+    const blocked = blockedMutationResult("create");
+    if (blocked) return blocked;
+    return runMutationBridge({
       action: "create",
       dry_run: Boolean(args.dryRun),
       text: args.text || "",
@@ -110,8 +162,11 @@ function createAutomationProvider(options = {}) {
   }
 
   function mutateJob(args = {}) {
-    return runBridge({
-      action: args.action || "",
+    const action = args.action || "";
+    const blocked = blockedMutationResult(action);
+    if (blocked) return blocked;
+    return runMutationBridge({
+      action,
       job_id: args.jobId || args.job_id || "",
       owner_principal_id: args.ownerPrincipalId || args.owner_principal_id || "owner",
       dry_run: Boolean(args.dryRun),

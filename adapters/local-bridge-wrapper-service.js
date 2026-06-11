@@ -1,5 +1,7 @@
 "use strict";
 
+const { automationBackendStatus } = require("./mobile-runtime-backend-policy-service");
+
 const TODO_BRIDGE_ENV_NAMES = Object.freeze([
   "HERMES_WEB_TODO_PLUGIN_NAME",
   "HERMES_WEB_TODO_PLUGIN_PATH",
@@ -50,6 +52,7 @@ function createLocalBridgeWrapperService(options = {}) {
   const runLocalTodoBridge = asFunction(options.runLocalTodoBridge, null);
   const runLocalCronBridge = asFunction(options.runLocalCronBridge, null);
   const kanbanTodoBridge = options.kanbanTodoBridge || null;
+  const automationBackend = String(options.automationBackend || "").trim().toLowerCase();
 
   const todoTimeoutMs = positiveNumber(options.todoTimeoutMs, 15000);
   const cronTimeoutMs = positiveNumber(options.cronTimeoutMs, 15000);
@@ -92,6 +95,17 @@ function createLocalBridgeWrapperService(options = {}) {
   }
 
   function runCronBridge(payload = {}) {
+    if (automationBackend) {
+      const backendStatus = automationBackendStatus(automationBackend);
+      if (!backendStatus.ok) {
+        return {
+          ok: false,
+          status: backendStatus.status,
+          error: backendStatus.error,
+          source: { name: backendStatus.backend || automationBackend, available: false },
+        };
+      }
+    }
     if (useLocalAutomationBackend()) return requireFunction(runLocalCronBridge, "runLocalCronBridge")(payload);
     const hostResult = runHostBridge("cron", payload, cronTimeoutMs);
     if (hostResult) return hostResult;

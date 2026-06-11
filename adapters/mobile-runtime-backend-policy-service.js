@@ -1,8 +1,40 @@
 "use strict";
 
+const CANONICAL_AUTOMATION_BACKENDS = Object.freeze(["bridge", "cron", "hermes", "hermes_cron"]);
+const LOCAL_AUTOMATION_BACKENDS = Object.freeze(["local", "local_json", "sqlite", "local_sqlite"]);
+
+function normalizeBackendName(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
 function backendIsLocal(value, bridgeNames = []) {
-  const backend = String(value || "").trim().toLowerCase();
+  const backend = normalizeBackendName(value);
   return !bridgeNames.includes(backend);
+}
+
+function isCanonicalAutomationBackend(value) {
+  return CANONICAL_AUTOMATION_BACKENDS.includes(normalizeBackendName(value));
+}
+
+function isLocalAutomationBackend(value) {
+  return LOCAL_AUTOMATION_BACKENDS.includes(normalizeBackendName(value));
+}
+
+function automationBackendStatus(value) {
+  const backend = normalizeBackendName(value || "hermes_cron");
+  if (isCanonicalAutomationBackend(backend)) {
+    return { ok: true, backend, kind: "canonical" };
+  }
+  if (isLocalAutomationBackend(backend)) {
+    return { ok: true, backend, kind: "local" };
+  }
+  return {
+    ok: false,
+    backend,
+    kind: "unknown",
+    status: 503,
+    error: `Unsupported Automation backend "${backend}". Use hermes_cron for the canonical scheduler or local only for explicit test/import mode.`,
+  };
 }
 
 function directSettingEnabled(value) {
@@ -28,8 +60,11 @@ function createMobileRuntimeBackendPolicyService(options = {}) {
     directTodoCreateEnabled() {
       return directSettingEnabled(directTodoCreateSetting);
     },
+    automationBackendStatus() {
+      return automationBackendStatus(automationBackend);
+    },
     useLocalAutomationBackend() {
-      return backendIsLocal(automationBackend, ["bridge", "cron", "hermes", "hermes_cron"]);
+      return isLocalAutomationBackend(automationBackend);
     },
     useSqliteServiceStore() {
       return serviceStoreBackend === "sqlite";
@@ -38,7 +73,12 @@ function createMobileRuntimeBackendPolicyService(options = {}) {
 }
 
 module.exports = {
+  CANONICAL_AUTOMATION_BACKENDS,
+  LOCAL_AUTOMATION_BACKENDS,
+  automationBackendStatus,
   backendIsLocal,
   createMobileRuntimeBackendPolicyService,
   directSettingEnabled,
+  isCanonicalAutomationBackend,
+  isLocalAutomationBackend,
 };

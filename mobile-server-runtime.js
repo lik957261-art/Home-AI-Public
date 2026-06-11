@@ -939,6 +939,7 @@ mobileRuntimeLocalBridgeFacadeService = createMobileRuntimeLocalBridgeFacadeServ
   cronBridgeScript: CRON_BRIDGE_SCRIPT,
   cronStdoutLimitBytes: 2_000_000,
   cronTimeoutMs: CRON_BRIDGE_TIMEOUT_MS,
+  automationBackend: AUTOMATION_BACKEND,
   directoryBridgeScript: DIRECTORY_BRIDGE_SCRIPT,
   directoryStdoutLimitBytes: 4_000_000,
   directoryTimeoutMs: DIRECTORY_BRIDGE_TIMEOUT_MS,
@@ -980,6 +981,8 @@ const cronJobMatchesOwner = (...args) => automationJobFilterService.jobMatchesOw
 const cronJobMatchesSearch = (...args) => automationJobFilterService.jobMatchesSearch(...args);
 const automationProvider = createAutomationProvider({
   runBridge: runCronBridge,
+  automationBackend: AUTOMATION_BACKEND,
+  allowLocalAutomationWrites: useLocalAutomationBackend(),
   cacheTtlMs: CRON_LIST_CACHE_TTL_MS,
   cronOutputRoot: CRON_OUTPUT_ROOT,
   runLogRoot: CRON_RUN_LOG_ROOT,

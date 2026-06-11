@@ -27,7 +27,7 @@ function resolveAutomationBackend(env = {}) {
   if (explicit) return explicit.toLowerCase();
   const serviceStore = String(env.HERMES_WEB_SERVICE_STORE || "").trim().toLowerCase();
   if (serviceStore === "sqlite") return "hermes_cron";
-  return "local";
+  return "hermes_cron";
 }
 
 function createMobileRuntimeEnvironment(options = {}) {

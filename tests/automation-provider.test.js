@@ -6,6 +6,73 @@ const os = require("node:os");
 const path = require("node:path");
 const { createAutomationProvider } = require("../adapters/automation-provider");
 
+async function testAutomationBackendMutationGuards() {
+  {
+    let bridgeCalled = false;
+    const provider = createAutomationProvider({
+      automationBackend: "native_cron",
+      runBridge() {
+        bridgeCalled = true;
+        return { ok: true };
+      },
+    });
+    const result = await provider.createJob({ text: "monthly report" });
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 503);
+    assert.equal(result.code, "automation_backend_unsupported");
+    assert.match(result.error, /Unsupported Automation backend/);
+    assert.equal(bridgeCalled, false);
+  }
+
+  {
+    let bridgeCalled = false;
+    const provider = createAutomationProvider({
+      allowLocalAutomationWrites: false,
+      automationBackend: "local",
+      runBridge() {
+        bridgeCalled = true;
+        return { ok: true };
+      },
+    });
+    const result = await provider.mutateJob({ action: "pause", jobId: "job_1" });
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 503);
+    assert.equal(result.code, "automation_local_write_disabled");
+    assert.equal(bridgeCalled, false);
+  }
+
+  {
+    const calls = [];
+    const provider = createAutomationProvider({
+      automationBackend: "local",
+      runBridge(payload) {
+        calls.push(payload);
+        return { ok: true, job: { id: "local-job" }, source: { name: "local_automations" } };
+      },
+    });
+    const result = await provider.createJob({ text: "local test job" });
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls.map((item) => item.action), ["create"]);
+  }
+
+  {
+    const provider = createAutomationProvider({
+      automationBackend: "hermes_cron",
+      runBridge() {
+        throw new Error("cron bridge unavailable");
+      },
+    });
+    await assert.rejects(
+      () => provider.createJob({ text: "canonical job" }),
+      (err) => {
+        assert.equal(err.status, 503);
+        assert.match(err.message, /cron bridge unavailable/);
+        return true;
+      },
+    );
+  }
+}
+
 async function run() {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-automation-provider-"));
   const outputRoot = path.join(tempRoot, "cron-output");
@@ -173,6 +240,8 @@ async function run() {
   });
   assert.equal(bridgeAuthorized.bridgeFile.name, "report.pdf");
   assert.equal(Buffer.from(bridgeAuthorized.bridgeFile.contentBase64, "base64").toString("utf8"), "%PDF-1.7\n%%EOF\n");
+
+  await testAutomationBackendMutationGuards();
 }
 
 run()

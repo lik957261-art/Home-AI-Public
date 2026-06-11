@@ -151,6 +151,26 @@ async function testRuntimePreservesBridgeSelectionOrder() {
   assert.equal(localAutomationWrites.length, 1);
 }
 
+async function testRuntimeRejectsUnsupportedAutomationBackendBeforeLocalFallback() {
+  const writes = [];
+  const { runtime } = makeRuntime({
+    automationBackend: "native_cron",
+    readJsonStore() {
+      return { jobs: [], updatedAt: "" };
+    },
+    useLocalAutomationBackend: () => true,
+    writeJsonStore(filePath, value) {
+      writes.push({ filePath, value });
+    },
+  });
+
+  const result = await runtime.runCronBridge({ action: "create", job: { name: "Bad" } });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 503);
+  assert.equal(result.source.name, "native_cron");
+  assert.deepEqual(writes, []);
+}
+
 async function testDirectoryFallsBackToPythonBridge() {
   const { calls, runtime } = makeRuntime();
   assert.deepEqual(await runtime.runDirectoryBridge({ action: "tree" }), { ok: true, backend: "python" });
@@ -163,6 +183,7 @@ async function run() {
   await testBridgeHostReadsAndCachesKeyFile();
   await testBridgeHostTimeoutMessage();
   await testRuntimePreservesBridgeSelectionOrder();
+  await testRuntimeRejectsUnsupportedAutomationBackendBeforeLocalFallback();
   await testDirectoryFallsBackToPythonBridge();
   console.log("local-bridge-runtime-service tests passed");
 }

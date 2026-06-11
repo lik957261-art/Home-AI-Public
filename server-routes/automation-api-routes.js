@@ -285,7 +285,7 @@ function createAutomationApiRoutes(deps = {}) {
       return;
     }
     if (!result.ok) {
-      deps.sendJson(res, 400, { error: deps.compactText(result.error || "Hermes CRON create failed", 800), draft, result });
+      deps.sendJson(res, result.status || 400, { error: deps.compactText(result.error || "Hermes CRON create failed", 800), draft, result });
       return;
     }
     if (!dryRun) deps.clearCronListCache();

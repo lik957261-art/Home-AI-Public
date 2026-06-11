@@ -115,6 +115,7 @@ function createLocalBridgeRuntimeService(options = {}) {
   };
 
   const localBridgeWrapperService = createLocalBridgeWrapperService({
+    automationBackend: options.automationBackend,
     bridgeCommandProvider: options.bridgeCommandProvider,
     bridgeHostEnabled: () => Boolean(bridgeHostUrl()),
     compactText: options.compactText,

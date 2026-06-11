@@ -7,7 +7,7 @@ const {
 } = require("../adapters/mobile-runtime-environment-service");
 
 function testAutomationBackendDefaults() {
-  assert.equal(resolveAutomationBackend({}), "local");
+  assert.equal(resolveAutomationBackend({}), "hermes_cron");
   assert.equal(resolveAutomationBackend({ HERMES_WEB_AUTOMATION_BACKEND: "local" }), "local");
   assert.equal(resolveAutomationBackend({ HERMES_WEB_AUTOMATION_BACKEND: "hermes_cron" }), "hermes_cron");
   assert.equal(resolveAutomationBackend({ HERMES_MOBILE_AUTOMATION_BACKEND: "hermes_cron" }), "hermes_cron");
@@ -21,6 +21,14 @@ function testAutomationBackendDefaults() {
 }
 
 function testRuntimeEnvironmentProjectsResolvedBackend() {
+  const defaultRuntime = createMobileRuntimeEnvironment({
+    env: {
+      HERMES_WEB_DATA_DIR: "C:\\tmp\\hermes-data",
+    },
+    toolRoot: process.cwd(),
+  });
+  assert.equal(defaultRuntime.AUTOMATION_BACKEND, "hermes_cron");
+
   const sqliteRuntime = createMobileRuntimeEnvironment({
     env: {
       HERMES_WEB_SERVICE_STORE: "sqlite",

@@ -66,8 +66,16 @@ canonical scheduler, not a replacement scheduler.
   production.
 - When `HERMES_WEB_SERVICE_STORE=sqlite` is enabled and no explicit
   `HERMES_MOBILE_AUTOMATION_BACKEND` / `HERMES_WEB_AUTOMATION_BACKEND` is set,
-  Hermes Mobile should default Automation to `hermes_cron`. Local/SQLite
-  automation must be selected explicitly with `HERMES_WEB_AUTOMATION_BACKEND=local`.
+  Hermes Mobile defaults Automation to `hermes_cron`. The same default applies
+  when neither variable is set. Local/SQLite automation must be selected
+  explicitly with `HERMES_WEB_AUTOMATION_BACKEND=local`.
+- Recognized Automation backends are `hermes_cron`/`cron`/`hermes`/`bridge` for
+  the canonical scheduler and `local` for explicit test/import mode. Unknown
+  backend names are configuration errors and must not fall back to local stores.
+- `createAutomationProvider` enforces the write boundary for
+  create/update/delete/pause/resume/run. If the backend is unknown, unavailable,
+  or local without explicit local-write enablement, the API returns a structured
+  503-style error and must not call the bridge mutation path.
 - A production deployment must not return `available=true` with an empty SQLite
   automation store when official CRON contains jobs. That is a configuration
   drift, not a valid "no automations" state.

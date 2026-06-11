@@ -1295,7 +1295,7 @@ assert.match(fileViewerHtml, /\/api\/weixin\/forward-file/);
 assert.match(pdfViewerHtml, /id="weixinButton"/);
 assert.match(pdfViewerHtml, /async function forwardPdfToWeixin\(\)/);
 assert.match(pdfViewerHtml, /\/api\/weixin\/forward-file/);
-assert.match(gatewayRunErrorMessageServiceJs, /DEFAULT_RUN_FAILURE_MESSAGE = "Hermes run failed before producing a reply\."/);
+assert.match(gatewayRunErrorMessageServiceJs, /DEFAULT_RUN_FAILURE_MESSAGE = "模型通道失败，但没有返回更具体的错误。/);
 assert.match(gatewayRunErrorMessageServiceJs, /function gatewayRunUserFacingError\(err\)/);
 assert.doesNotMatch(serverJs, /运行被终止，未生成回复。/);
 assert.match(mobileRuntimeGatewayProviderServiceJs, /createMobileRuntimeGatewayStatusService/);
