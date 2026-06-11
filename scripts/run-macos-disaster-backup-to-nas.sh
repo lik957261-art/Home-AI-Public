@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="${HOMEAI_PRODUCTION_ROOT:-/Users/hermes-host/HermesMobile}"
+NODE_BIN="${HOMEAI_PRODUCTION_NODE:-$ROOT/runtime/node-current/bin/node}"
+APP_SCRIPT="${HOMEAI_DISASTER_BACKUP_SCRIPT:-/Users/hermes-dev/HermesMobileDev/app/scripts/create-macos-disaster-backup.js}"
+STAGING="${HOMEAI_DISASTER_BACKUP_STAGING:-/Users/xuxin/HomeAI-Disaster-Staging/mac-production}"
+DEFAULT_NFS_DESTINATION="${HOMEAI_NAS_BACKUP_MOUNT:-/Users/xuxin/HomeAI-NAS-Backup-NFS}/${HOMEAI_NAS_BACKUP_SUBDIR:-HomeAI-Production-Backups/mac-production}"
+DESTINATION="${HOMEAI_DISASTER_BACKUP_DESTINATION:-$DEFAULT_NFS_DESTINATION}"
+LABEL="${HOMEAI_DISASTER_BACKUP_LABEL:-daily-nfs}"
+SUDO_PASSWORD_FILE="${HOMEAI_MAC_SUDO_PASSWORD_FILE:-/Users/xuxin/.homeai-qa/sudo-password}"
+OPERATOR_USER="${HOMEAI_DISASTER_BACKUP_OPERATOR_USER:-$(id -un)}"
+USE_SUDO="${HOMEAI_DISASTER_BACKUP_USE_SUDO:-1}"
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  eval "$(scripts/mount-macos-nas-backup-destination.sh)"
+  scripts/run-macos-disaster-backup-to-nas.sh
+
+Environment:
+  HOMEAI_DISASTER_BACKUP_DESTINATION  NFS-mounted NAS backup root.
+  HOMEAI_DISASTER_BACKUP_STAGING      Local staging root.
+  HOMEAI_DISASTER_BACKUP_LABEL        Backup label.
+  HOMEAI_MAC_SUDO_PASSWORD_FILE       Restricted sudo password file.
+  HOMEAI_DISASTER_BACKUP_OPERATOR_USER User that writes to the NFS mount.
+  HOMEAI_DISASTER_BACKUP_USE_SUDO      Set to 0 when running as hermes-host.
+
+This wrapper avoids NFS root-squash failures by splitting privileges:
+1. sudo reads Mac production and writes a complete local staging backup.
+2. the normal operator user rsyncs staging/current to the NFS destination.
+When running from Hermes CRON as hermes-host, set
+HOMEAI_DISASTER_BACKUP_USE_SUDO=0 and use a staging path owned by hermes-host.
+USAGE
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+if [[ -z "$DESTINATION" ]]; then
+  echo "homeai_disaster_backup_destination_missing" >&2
+  exit 77
+fi
+
+if [[ ! -x "$NODE_BIN" ]]; then
+  echo "production_node_not_executable:$NODE_BIN" >&2
+  exit 1
+fi
+
+if [[ "$USE_SUDO" != "0" && ! -f "$SUDO_PASSWORD_FILE" ]]; then
+  echo "sudo_password_file_missing:$SUDO_PASSWORD_FILE" >&2
+  exit 77
+fi
+
+sudo_cmd() {
+  if [[ "$USE_SUDO" == "0" ]]; then
+    "$@"
+  else
+    printf '%s\n' "$(cat "$SUDO_PASSWORD_FILE")" | sudo -p '' -S "$@"
+  fi
+}
+
+mkdir -p "$DESTINATION"
+test_file="${DESTINATION%/}/.homeai-nfs-write-test-$$"
+printf 'ok\n' > "$test_file"
+rm -f "$test_file"
+
+sudo_cmd mkdir -p "$STAGING"
+sudo_cmd "$NODE_BIN" "$APP_SCRIPT" \
+  --destination "$STAGING" \
+  --label "$LABEL" \
+  --json
+
+if [[ "$USE_SUDO" != "0" ]]; then
+  sudo_cmd chown -R "$OPERATOR_USER" "${STAGING%/}/current"
+fi
+sudo_cmd chmod -R u+rwX,go-rwx "${STAGING%/}/current"
+
+mkdir -p "${DESTINATION%/}/current"
+/usr/bin/rsync -rlpt --delete --links --safe-links --inplace \
+  "${STAGING%/}/current/" \
+  "${DESTINATION%/}/current/"
+
+"$NODE_BIN" - "${DESTINATION%/}/current/DISASTER-RECOVERY-MANIFEST.json" "$DESTINATION" <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+
+const manifestPath = process.argv[2];
+const destinationRoot = path.resolve(process.argv[3]);
+const currentRoot = path.join(destinationRoot, "current");
+const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+
+manifest.transferMode = "local-staging-to-nfs";
+manifest.stagingDestinationRoot = manifest.destinationRoot;
+manifest.stagingCurrentRoot = manifest.currentRoot;
+manifest.destinationRoot = destinationRoot;
+manifest.currentRoot = currentRoot;
+manifest.publishedAt = new Date().toISOString();
+
+fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+NODE
+
+cat <<EOF
+HOMEAI_DISASTER_BACKUP_STAGING=${STAGING}
+HOMEAI_DISASTER_BACKUP_DESTINATION=${DESTINATION}
+HOMEAI_DISASTER_BACKUP_CURRENT=${DESTINATION%/}/current
+EOF
