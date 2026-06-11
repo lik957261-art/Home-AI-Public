@@ -732,6 +732,7 @@ function createHermesPluginApiRoutes(deps = {}) {
     for (const [name, value] of Object.entries(req.headers || {})) {
       const lower = name.toLowerCase();
       if (["host", "connection", "content-length", "accept-encoding", "origin", "referer"].includes(lower)) continue;
+      if (lower === "authorization") continue;
       if (lower === "cookie") continue;
       headers[name] = value;
     }
@@ -743,6 +744,10 @@ function createHermesPluginApiRoutes(deps = {}) {
     headers["x-hermes-plugin-workspace-id"] = workspaceId;
     headers["x-hermes-plugin-actor-workspace-id"] = String(auth?.workspaceId || "");
     headers["x-hermes-plugin-actor-role"] = ownerAuthorized(auth) ? "owner" : "workspace";
+    if (!["GET", "HEAD"].includes(method.toUpperCase()) && typeof deps.hermesPluginService?.pluginProxyAuthorizationHeader === "function") {
+      const authorization = deps.hermesPluginService.pluginProxyAuthorizationHeader({ pluginId, workspaceId });
+      if (authorization) headers.Authorization = authorization;
+    }
     const publicOrigin = originFromRequest(req);
     if (publicOrigin) {
       headers["x-hermes-public-origin"] = publicOrigin;

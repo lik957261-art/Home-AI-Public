@@ -45,6 +45,7 @@ const DEFAULT_EMAIL_PLUGIN_MANIFEST_URL = "http://127.0.0.1:5175/api/v1/hermes/p
 const DEFAULT_HEALTH_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest";
 const DEFAULT_NOTE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4181/api/v1/hermes/plugin/manifest";
 const DEFAULT_GROWTH_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest";
+const DEFAULT_MOIRA_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest";
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_KEY_SEARCH_DEPTH = 6;
 const PLUGIN_APPEARANCE_THEMES = new Set(["system", "dark", "light"]);
@@ -98,6 +99,12 @@ function configuredGrowthManifestUrl(env = process.env) {
   return stringValue(env.HERMES_MOBILE_GROWTH_PLUGIN_MANIFEST_URL)
     || stringValue(env.HERMES_MOBILE_PLUGIN_GROWTH_MANIFEST_URL)
     || DEFAULT_GROWTH_PLUGIN_MANIFEST_URL;
+}
+
+function configuredMoiraManifestUrl(env = process.env) {
+  return stringValue(env.HERMES_MOBILE_MOIRA_PLUGIN_MANIFEST_URL)
+    || stringValue(env.HERMES_MOBILE_PLUGIN_MOIRA_MANIFEST_URL)
+    || DEFAULT_MOIRA_PLUGIN_MANIFEST_URL;
 }
 
 function envKeyForPlugin(pluginId, suffix) {
@@ -228,6 +235,14 @@ const DEFAULT_PLUGIN_SECURITY = Object.freeze({
     provisioning: { supported: true, mode: "workspace_binding" },
     notifications: { supported: true, routeOwner: "hermes" },
   },
+  moira: {
+    title: "Moira",
+    riskLevel: "workspace-private",
+    defaultVisibility: "owner-only",
+    allowWorkspaceGrant: true,
+    provisioning: { supported: false, mode: "manual_binding" },
+    notifications: { supported: false, routeOwner: "hermes" },
+  },
 });
 
 function pluginSecurityDefaults(pluginId = "") {
@@ -286,6 +301,10 @@ function configuredPlugins(options = {}) {
     {
       id: "growth",
       manifestUrl: configuredGrowthManifestUrl(env),
+    },
+    {
+      id: "moira",
+      manifestUrl: configuredMoiraManifestUrl(env),
     },
   ];
   return plugins
@@ -775,6 +794,51 @@ function findGrowthAccessKeyPath(input = {}, options = {}) {
   return walk(workspaceRoot, 0);
 }
 
+function findMoiraAccessKeyPath(input = {}, options = {}) {
+  const explicit = stringValue(input.moiraAccessKeyPath || options.moiraAccessKeyPath);
+  if (explicit && fs.existsSync(explicit)) return explicit;
+  const env = options.env || process.env;
+  const workspaceId = stringValue(input.workspaceId || "owner");
+  const candidates = [
+    stringValue(env.HERMES_MOBILE_MOIRA_PLUGIN_ACCESS_KEY_PATH),
+    stringValue(env.HERMES_MOBILE_PLUGIN_MOIRA_ACCESS_KEY_PATH),
+    stringValue(env.MOIRA_HERMES_PLUGIN_ACCESS_KEY_PATH),
+    workspaceId === "owner" ? stringValue(env.HERMES_WEB_AUTH_KEY_PATH) : "",
+  ].filter(Boolean);
+  const configured = candidates.find((candidate) => fs.existsSync(candidate));
+  if (configured) return configured;
+  const dataDir = stringValue(options.dataDir) || defaultDataDir(env);
+  const workspaceRoot = path.join(dataDir, "drive", "users", workspaceId);
+  const maxDepth = Number(options.maxKeySearchDepth || DEFAULT_MAX_KEY_SEARCH_DEPTH);
+  const targetSets = [
+    [".hermes-moira", "access-key.txt"],
+    [".hermes-moira", "workspace-key.txt"],
+  ];
+
+  function walk(dir, depth) {
+    if (depth > maxDepth) return "";
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      return "";
+    }
+    for (const parts of targetSets) {
+      const direct = path.join(dir, ...parts);
+      if (fs.existsSync(direct)) return direct;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === ".hermes-cache" || entry.name === "node_modules" || entry.name === ".git") continue;
+      const found = walk(path.join(dir, entry.name), depth + 1);
+      if (found) return found;
+    }
+    return "";
+  }
+
+  return walk(workspaceRoot, 0);
+}
+
 function findPluginAccessKeyPath(pluginId, input = {}, options = {}) {
   if (pluginId === "codex-mobile") return findCodexMobileAccessKeyPath(input, options);
   if (pluginId === "finance") return findFinanceAccessKeyPath(input, options);
@@ -782,6 +846,7 @@ function findPluginAccessKeyPath(pluginId, input = {}, options = {}) {
   if (pluginId === "health") return findHealthAccessKeyPath(input, options);
   if (pluginId === "note") return findNoteAccessKeyPath(input, options);
   if (pluginId === "growth") return findGrowthAccessKeyPath(input, options);
+  if (pluginId === "moira") return findMoiraAccessKeyPath(input, options);
   return findWardrobeAccessKeyPath(input, options);
 }
 
@@ -1042,11 +1107,8 @@ function normalizeManifest(raw = {}, source = {}) {
     ? raw.toolsets.map(stringValue).filter(Boolean)
     : (manifestToolset ? [manifestToolset] : []);
   const topLevelPermissions = Array.isArray(raw.permissions) ? raw.permissions.map(stringValue).filter(Boolean) : [];
-  const embedding = raw.embedding && typeof raw.embedding === "object"
-    ? raw.embedding
-    : raw.navigation && typeof raw.navigation === "object"
-      ? raw.navigation
-      : {};
+  const embedding = raw.embedding && typeof raw.embedding === "object" ? raw.embedding : {};
+  const navigation = raw.navigation && typeof raw.navigation === "object" ? raw.navigation : {};
   const rawAppearanceSync = raw.appearance_sync || raw.appearanceSync;
   const appearanceSync = rawAppearanceSync === true
     || (rawAppearanceSync && typeof rawAppearanceSync === "object" && rawAppearanceSync.supported !== false);
@@ -1093,11 +1155,12 @@ function normalizeManifest(raw = {}, source = {}) {
       syncSchemaVersion: raw.program_api?.sync_schema_version || raw.programApi?.syncSchemaVersion || null,
     },
     embedding: {
-      stateEvent: stringValue(embedding.state_event || embedding.stateEvent),
-      backEvent: stringValue(embedding.back_event || embedding.backEvent),
-      backResultEvent: stringValue(embedding.back_result_event || embedding.backResultEvent),
-      refreshRequiredEvent: stringValue(embedding.refresh_required_event || embedding.refreshRequiredEvent),
-      preserveIframeState: embedding.preserve_iframe_state === true || embedding.preserveIframeState === true,
+      stateEvent: stringValue(embedding.state_event || embedding.stateEvent || navigation.state_event || navigation.stateEvent),
+      backEvent: stringValue(embedding.back_event || embedding.backEvent || navigation.back_event || navigation.backEvent),
+      backResultEvent: stringValue(embedding.back_result_event || embedding.backResultEvent || navigation.back_result_event || navigation.backResultEvent),
+      refreshRequiredEvent: stringValue(embedding.refresh_required_event || embedding.refreshRequiredEvent || navigation.refresh_required_event || navigation.refreshRequiredEvent),
+      preserveIframeState: embedding.preserve_iframe_state === true || embedding.preserveIframeState === true
+        || navigation.preserve_iframe_state === true || navigation.preserveIframeState === true,
       appearanceSync,
     },
     ownerBinding: {
@@ -1106,6 +1169,7 @@ function normalizeManifest(raw = {}, source = {}) {
       cacheDir: pathValue(raw.owner_binding?.cache_dir),
       rawKeyReturned: raw.owner_binding?.raw_key_returned_by_wardrobe === true
         || raw.owner_binding?.raw_key_returned_by_codex_mobile === true
+        || raw.owner_binding?.raw_key_returned_by_moira === true
         || raw.owner_binding?.raw_key_returned === true,
     },
     permissions: {
@@ -1416,6 +1480,7 @@ function createHermesPluginService(options = {}) {
     emailAccessKeyPath: options.emailAccessKeyPath,
     healthAccessKeyPath: options.healthAccessKeyPath,
     growthAccessKeyPath: options.growthAccessKeyPath,
+    moiraAccessKeyPath: options.moiraAccessKeyPath,
     authorizationService,
     fetch: fetchImpl,
   };
@@ -1892,11 +1957,27 @@ function createHermesPluginService(options = {}) {
     }));
   }
 
+  function pluginProxyAuthorizationHeader(input = {}) {
+    const id = stringValue(input.id || input.pluginId);
+    if (!id || id === "finance") return "";
+    const workspaceId = stringValue(input.workspaceId || "owner") || "owner";
+    const keyPath = findPluginAccessKeyPath(id, { workspaceId }, launchOptions);
+    if (!keyPath) return "";
+    let accessKey = "";
+    try {
+      accessKey = fs.readFileSync(keyPath, "utf8").trim();
+    } catch (_) {
+      return "";
+    }
+    return accessKey ? `Bearer ${accessKey}` : "";
+  }
+
   return {
     list,
     listInstalled,
     manifest,
     pluginManifestUrl,
+    pluginProxyAuthorizationHeader,
     ensureOwnerWorkspaceProvisioning,
     grantWorkspace,
     revokeWorkspace,
@@ -1910,6 +1991,7 @@ module.exports = {
   DEFAULT_FINANCE_PLUGIN_MANIFEST_URL,
   DEFAULT_GROWTH_PLUGIN_MANIFEST_URL,
   DEFAULT_HEALTH_PLUGIN_MANIFEST_URL,
+  DEFAULT_MOIRA_PLUGIN_MANIFEST_URL,
   DEFAULT_NOTE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   configuredPlugins,
@@ -1919,6 +2001,7 @@ module.exports = {
   findFinanceAccessKeyPath,
   findGrowthAccessKeyPath,
   findHealthAccessKeyPath,
+  findMoiraAccessKeyPath,
   findNoteAccessKeyPath,
   findPluginAccessKeyPath,
   discoverPluginWorkspaceIdsFromAccessKeys,

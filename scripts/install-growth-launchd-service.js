@@ -23,6 +23,10 @@ function parseArgs(argv) {
     macRoot: argValue(argv, "--mac-root", process.env.HERMES_MOBILE_MAC_ROOT || DEFAULT_MAC_ROOT),
     launchDaemonsDir: argValue(argv, "--launch-daemons-dir", DEFAULT_LAUNCH_DAEMONS_DIR),
     passwordFile: argValue(argv, "--password-file", process.env.HOMEAI_MAC_SUDO_PASSWORD_FILE || ""),
+    gatewayAuthoringEndpoint: argValue(argv, "--gateway-authoring-endpoint", process.env.GROWTH_GATEWAY_AUTHORING_ENDPOINT || ""),
+    gatewayAuthoringAccessTokenPath: argValue(argv, "--gateway-authoring-access-token-path", process.env.GROWTH_GATEWAY_AUTHORING_ACCESS_TOKEN_PATH || ""),
+    gatewayAuthoringProtocol: argValue(argv, "--gateway-authoring-protocol", process.env.GROWTH_GATEWAY_AUTHORING_PROTOCOL || ""),
+    gatewayAuthoringModel: argValue(argv, "--gateway-authoring-model", process.env.GROWTH_GATEWAY_AUTHORING_MODEL || ""),
   };
 }
 
@@ -58,6 +62,10 @@ function plistFor(options = {}) {
     GROWTH_HOME_AI_API_BASE_URL: "http://127.0.0.1:8797",
     GROWTH_HOME_AI_ACCESS_KEY_PATH: ownerAccessKeyPath,
   };
+  if (options.gatewayAuthoringEndpoint) env.GROWTH_GATEWAY_AUTHORING_ENDPOINT = options.gatewayAuthoringEndpoint;
+  if (options.gatewayAuthoringAccessTokenPath) env.GROWTH_GATEWAY_AUTHORING_ACCESS_TOKEN_PATH = options.gatewayAuthoringAccessTokenPath;
+  if (options.gatewayAuthoringProtocol) env.GROWTH_GATEWAY_AUTHORING_PROTOCOL = options.gatewayAuthoringProtocol;
+  if (options.gatewayAuthoringModel) env.GROWTH_GATEWAY_AUTHORING_MODEL = options.gatewayAuthoringModel;
   const envXml = Object.entries(env).map(([key, value]) => [
     "      <key>", xmlEscape(key), "</key>\n",
     "      <string>", xmlEscape(value), "</string>",
@@ -143,6 +151,10 @@ function plan(options = {}) {
     ],
     registrationKeyPath: path.posix.join(macRoot, "data", "plugin-secrets", "growth-registration-key.txt"),
     ownerAccessKeyPath: path.posix.join(macRoot, "data", "secrets", "owner-web-key.secret"),
+    gatewayAuthoringEndpoint: options.gatewayAuthoringEndpoint || "",
+    gatewayAuthoringAccessTokenPath: options.gatewayAuthoringAccessTokenPath || "",
+    gatewayAuthoringProtocol: options.gatewayAuthoringProtocol || "",
+    gatewayAuthoringModel: options.gatewayAuthoringModel || "",
     bootstrap: Boolean(options.bootstrap),
   };
 }

@@ -1,6 +1,6 @@
 # Embedded App Plugins
 
-Last updated: 2026-06-09.
+Last updated: 2026-06-11.
 
 This module describes the Hermes Mobile embedded-app plugin contract. A plugin
 is an external product surface mounted inside Hermes Mobile. Hermes owns the
@@ -14,8 +14,20 @@ Finance/记账 is the third embedded-app plugin. Email/邮箱 is the fourth
 embedded-app plugin and uses the same generic host, launch, proxy, navigation,
 refresh, appearance, and workspace provisioning contracts. Health, Note, and
 Growth are standard workspace-private plugins. These rules are generic and
-apply to future embedded apps such as watches, health, notes, growth, or other
-private workspace tools.
+apply to future embedded apps such as watches, health, notes, growth, Moira, or
+other private workspace tools.
+
+Moira is wired as a development embedded-app plugin with `plugin_id=moira`.
+Hermes Mobile owns the default local manifest registration at
+`http://127.0.0.1:4174/api/v1/hermes/plugin/manifest`, the server-side
+workspace key lookup, same-origin `/api/hermes-plugins/moira/...` launch/proxy,
+bottom navigation entry, plugin-topic quick actions, resident iframe shell, and
+navigation/refresh event normalization. Moira owns its Web/PWA UI, local
+records, calculation code, plugin-side manifest/launch/session service and
+docs under `/Users/xuxin/Documents/moria/MOIRA_chinese_astrology`. Current
+development visual evidence is recorded in the Moira pointer doc and AI Ops
+ledger as `evidence-79a79cc1-019c-4222-9b6f-7c5959a6db05`; production
+launchd/deploy and keyboard/safe-area acceptance remain open.
 
 The embedded UI layout contract is tracked separately in
 `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`. Plugin projects must
@@ -456,6 +468,13 @@ that hint through `requireWorkspaceAccess`. It must also verify that the plugin
 is visible to that effective workspace before fetching from the upstream. Public
 unauthenticated requests to `/api/hermes-plugins/<plugin-id>/proxy/...` must
 not expose plugin HTML or API data.
+
+For proxied non-GET plugin API requests, the browser must not provide a plugin
+workspace key. The proxy drops incoming `Authorization` and, for plugins that
+use the standard workspace-local key pattern, attaches the server-side
+`.hermes-<plugin>/access-key.txt` bearer to the upstream request after Hermes
+workspace access is checked. This keeps long-lived plugin workspace keys out of
+browser state while preserving plugin-owned write-route authorization.
 
 The Hermes web client must keep the same-origin `hermes_web_key` cookie in sync
 with its local access key before opening embedded plugin iframes. Ordinary API

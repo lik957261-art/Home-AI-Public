@@ -14,6 +14,12 @@ const options = parseArgs([
   "/tmp/Hermes Mobile",
   "--launch-daemons-dir",
   "/tmp/LaunchDaemons",
+  "--gateway-authoring-endpoint",
+  "http://127.0.0.1:18751/v1/responses",
+  "--gateway-authoring-access-token-path",
+  "/tmp/Hermes Mobile/data/secrets/gateway-workers/hm-owner-openai-1.key",
+  "--gateway-authoring-protocol",
+  "responses",
   "--bootstrap",
   "--json",
 ]);
@@ -27,6 +33,9 @@ assert.equal(installPlan.plistPath, path.join("/tmp/LaunchDaemons", `${DEFAULT_L
 assert.equal(installPlan.pluginRoot, "/tmp/Hermes Mobile/plugins/growth");
 assert.equal(installPlan.registrationKeyPath, "/tmp/Hermes Mobile/data/plugin-secrets/growth-registration-key.txt");
 assert.equal(installPlan.ownerAccessKeyPath, "/tmp/Hermes Mobile/data/secrets/owner-web-key.secret");
+assert.equal(installPlan.gatewayAuthoringEndpoint, "http://127.0.0.1:18751/v1/responses");
+assert.equal(installPlan.gatewayAuthoringAccessTokenPath, "/tmp/Hermes Mobile/data/secrets/gateway-workers/hm-owner-openai-1.key");
+assert.equal(installPlan.gatewayAuthoringProtocol, "responses");
 
 const plist = plistFor(options);
 assert.match(plist, /<string>com\.hermesmobile\.plugin\.growth<\/string>/);
@@ -40,9 +49,14 @@ assert.match(plist, /<key>GROWTH_LEARNING_DB_PATH<\/key>/);
 assert.match(plist, /growth-learning\.sqlite3/);
 assert.match(plist, /<key>GROWTH_HOME_AI_ACCESS_KEY_PATH<\/key>/);
 assert.match(plist, /owner-web-key\.secret/);
+assert.match(plist, /<key>GROWTH_GATEWAY_AUTHORING_ENDPOINT<\/key>\s*<string>http:\/\/127\.0\.0\.1:18751\/v1\/responses<\/string>/);
+assert.match(plist, /<key>GROWTH_GATEWAY_AUTHORING_ACCESS_TOKEN_PATH<\/key>/);
+assert.match(plist, /gateway-workers\/hm-owner-openai-1\.key/);
+assert.match(plist, /<key>GROWTH_GATEWAY_AUTHORING_PROTOCOL<\/key>\s*<string>responses<\/string>/);
 assert.match(plist, /<key>RunAtLoad<\/key>\s*<true\/>/);
 assert.match(plist, /<key>KeepAlive<\/key>\s*<true\/>/);
 assert.doesNotMatch(plist, /GROWTH_REGISTRATION_KEY<\/key>\s*<string>[^<]+<\/string>/);
 assert.doesNotMatch(plist, /GROWTH_HOME_AI_ACCESS_KEY<\/key>\s*<string>[^<]+<\/string>/);
+assert.doesNotMatch(plist, /GROWTH_GATEWAY_AUTHORING_ACCESS_TOKEN<\/key>\s*<string>[^<]+<\/string>/);
 
 console.log("install growth launchd service tests passed");

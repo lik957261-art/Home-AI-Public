@@ -426,6 +426,59 @@ async function testPluginProxyForwardsOwnerOnlyActorContext() {
   assert.equal(parseBody(res).ok, true);
 }
 
+async function testGrowthProxyAttachesServerSideWorkspaceBearerForWrites() {
+  const authorizationCalls = [];
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "growth", manifestUrl: "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "growth" });
+      },
+      pluginManifestUrl(id) {
+        return id === "growth" ? "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest" : "";
+      },
+      pluginProxyAuthorizationHeader(input) {
+        authorizationCalls.push(input);
+        return "Bearer growth-workspace-secret";
+      },
+    },
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:4881/api/v1/growth/cards/generate?workspaceId=weixin_stephen");
+      assert.equal(options.headers.Authorization, "Bearer growth-workspace-secret");
+      assert.equal(Object.prototype.hasOwnProperty.call(options.headers, "authorization"), false);
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "weixin_stephen");
+      assert.deepEqual(JSON.parse(options.body), {
+        workspace_id: "weixin_stephen",
+        target_node_id: "kg_bridge_academic_english_for_igcse_and_a_level"
+      });
+      return Promise.resolve({
+        ok: true,
+        status: 201,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify({ ok: true, published: { taskCardId: "ltask_generated" } })),
+      });
+    },
+  });
+  const req = makeRequest("POST", [JSON.stringify({
+    workspace_id: "weixin_stephen",
+    target_node_id: "kg_bridge_academic_english_for_igcse_and_a_level"
+  })]);
+  req.headers.authorization = "Bearer browser-supplied-value";
+  req.auth = { ok: true, workspaceId: "owner", isOwner: true, role: "owner" };
+  const res = makeResponse();
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/growth/proxy/api/v1/growth/cards/generate?workspaceId=weixin_stephen"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 201);
+  assert.deepEqual(authorizationCalls, [{ pluginId: "growth", workspaceId: "weixin_stephen" }]);
+  assert.equal(parseBody(res).published.taskCardId, "ltask_generated");
+}
+
 async function testPluginNotificationRoute() {
   const { calls, routes } = makeRoutes();
   const res = makeResponse();
@@ -1441,6 +1494,7 @@ async function run() {
   await testPluginProxyRequiresWorkspaceAccessBeforeFetch();
   await testPluginProxyDeniesUnauthorizedWorkspacePlugin();
   await testPluginProxyForwardsOwnerOnlyActorContext();
+  await testGrowthProxyAttachesServerSideWorkspaceBearerForWrites();
   await testPluginNotificationRoute();
   await testCodexProxyRewritesHtmlAndUsesUpstream();
   await testCodexProxyStreamsEventSource();
