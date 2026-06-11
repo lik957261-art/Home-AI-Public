@@ -11,7 +11,7 @@ const DEFAULT_BASE_URL = "http://127.0.0.1:8797";
 const PINNED_NODE = "runtime/node-current/bin/node";
 const DEFAULT_PRODUCTION_OWNER = "hermes-host:staff";
 
-const PLUGIN_TARGETS = new Set([
+const PLUGIN_DEPLOY_ORDER = Object.freeze([
   "codex-mobile-web",
   "email",
   "finance",
@@ -21,10 +21,37 @@ const PLUGIN_TARGETS = new Set([
   "wardrobe",
 ]);
 
+const PLUGIN_TARGETS = new Set(PLUGIN_DEPLOY_ORDER);
+
+const PLUGIN_ALIASES = Object.freeze({
+  codex: "codex-mobile-web",
+  "codex-mobile": "codex-mobile-web",
+  health: "healthy",
+});
+
+const PLUGIN_RESTART_LABELS = Object.freeze({
+  "codex-mobile-web": "com.hermesmobile.plugin.codex-mobile",
+  email: "com.hermesmobile.plugin.email",
+  finance: "com.hermesmobile.plugin.finance",
+  growth: "com.hermesmobile.plugin.growth",
+  healthy: "com.hermesmobile.plugin.health",
+  note: "com.hermesmobile.plugin.note",
+  wardrobe: "com.hermesmobile.plugin.wardrobe",
+});
+
+const PLUGIN_HEALTH_URLS = Object.freeze({
+  "codex-mobile-web": "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest",
+  email: "http://127.0.0.1:5175/api/v1/hermes/plugin/manifest",
+  finance: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest",
+  growth: "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest",
+  healthy: "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest",
+  note: "http://127.0.0.1:4181/api/v1/hermes/plugin/manifest",
+  wardrobe: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest",
+});
+
 const DEFAULT_RESTART_LABELS = {
   "home-ai": ["com.hermesmobile.listener"],
-  "plugin:codex-mobile-web": ["com.hermesmobile.plugin.codex-mobile"],
-  "plugin:growth": ["com.hermesmobile.plugin.growth"],
+  ...Object.fromEntries(PLUGIN_DEPLOY_ORDER.map((plugin) => [`plugin:${plugin}`, [PLUGIN_RESTART_LABELS[plugin]]])),
 };
 
 const PRODUCTION_OWNER_BY_TARGET = {
@@ -122,7 +149,7 @@ function parseArgs(argv) {
       console.log([
         "Usage:",
         "  node scripts/deploy-macos-production.js --target home-ai [--execute]",
-        "  node scripts/deploy-macos-production.js --plugin <plugin-id> [--execute]",
+        "  node scripts/deploy-macos-production.js --plugin <plugin-id|all> [--execute]",
         "",
         "Default mode is plan-only. Add --execute to write production.",
         "",
@@ -131,7 +158,7 @@ function parseArgs(argv) {
         "  --mac-root <path>           Production root, default /Users/hermes-host/HermesMobile",
         "  --dev-root <path>           Development root, default /Users/hermes-dev/HermesMobileDev",
         "  --password-file <path>      Private sudo password file; contents are never printed",
-        "  --restart auto|none         Auto uses known labels for Home AI and Codex Mobile",
+        "  --restart auto|none         Auto uses known labels for Home AI and known plugins",
         "  --restart-label <label>     Additional system launchd label to kickstart",
         "  --surface full|static       Static Home AI sync copies only public/",
         "  --allow-dirty               Permit deploy-relevant dirty source files",
@@ -149,11 +176,17 @@ function parseArgs(argv) {
     }
   }
   if (out.plugin && out.target) throw new Error("Use either --target or --plugin, not both.");
-  if (out.plugin) out.target = `plugin:${out.plugin}`;
+  if (out.plugin) {
+    out.plugin = normalizePluginTarget(out.plugin);
+    out.target = out.plugin === "all" ? "plugins:all" : `plugin:${out.plugin}`;
+  }
   if (!out.target) out.target = "home-ai";
   if (!SURFACES.has(out.surface)) throw new Error(`unsupported_deploy_surface:${out.surface}`);
   if (out.surface === "static" && out.target !== "home-ai") throw new Error("static_surface_requires_home_ai_target");
-  if (out.syncOnly && !out.target.startsWith("plugin:")) throw new Error("sync_only_requires_plugin_target");
+  if (out.target === "plugins:all" && out.source) throw new Error("all_plugins_source_override_unsupported");
+  if (out.target === "plugins:all" && out.healthUrl) throw new Error("all_plugins_health_url_override_unsupported");
+  if (out.target === "plugins:all" && out.restartLabels.length) throw new Error("all_plugins_restart_label_override_unsupported");
+  if (out.syncOnly && !(out.target.startsWith("plugin:") || out.target === "plugins:all")) throw new Error("sync_only_requires_plugin_target");
   if (out.syncOnly) {
     out.restartMode = "none";
     out.healthUrl = "";
@@ -162,6 +195,12 @@ function parseArgs(argv) {
   if (!Number.isFinite(out.validationRetries) || out.validationRetries < 1) out.validationRetries = 1;
   if (!Number.isFinite(out.validationDelayMs) || out.validationDelayMs < 0) out.validationDelayMs = 0;
   return out;
+}
+
+function normalizePluginTarget(value = "") {
+  const id = String(value || "").trim().toLowerCase();
+  if (id === "all") return id;
+  return PLUGIN_ALIASES[id] || id;
 }
 
 function normalizePath(value) {
@@ -304,6 +343,11 @@ function restartLabels(options) {
   return Array.from(labels).sort();
 }
 
+function defaultHealthUrlForTarget(target = "") {
+  const plugin = String(target || "").replace(/^plugin:/, "");
+  return PLUGIN_HEALTH_URLS[plugin] || "";
+}
+
 function buildPlan(options) {
   const source = normalizePath(options.source || defaultSource(options));
   const target = productionTarget(options);
@@ -317,6 +361,7 @@ function buildPlan(options) {
   const targetSlug = sanitizeSlug(options.target.replace(":", "-"));
   const backupPath = posixJoin(options.macRoot, "backups", "deploy", `${planTimestamp}-${targetSlug}-${reason}`);
   const labels = restartLabels(options);
+  const healthUrl = options.syncOnly ? "" : (options.healthUrl || defaultHealthUrlForTarget(options.target));
   const relevantDirtyFiles = deployDirtyFiles(source, options);
   const ignoredDirty = ignoredDirtyFiles(source, options);
   const expectedVersion = extractClientVersionFromSource(source);
@@ -349,8 +394,8 @@ function buildPlan(options) {
   for (const label of labels) {
     validation.push({ type: "launchd-print", command: ["/bin/launchctl", "print", `system/${label}`] });
   }
-  if (options.healthUrl) {
-    validation.push({ type: "health-url", command: ["/usr/bin/curl", "-fsS", "--max-time", "10", options.healthUrl] });
+  if (healthUrl) {
+    validation.push({ type: "health-url", command: ["/usr/bin/curl", "-fsS", "--max-time", "10", healthUrl] });
   }
   return {
     schemaVersion: 1,
@@ -369,6 +414,7 @@ function buildPlan(options) {
     expectedClientVersion: expectedVersion,
     backupPath,
     restartLabels: labels,
+    healthUrl,
     rsyncExcludes,
     sync: options.surface === "static"
       ? HOME_AI_STATIC_SYNC_ROOTS.map((root) => ({ source: `${root}`, target: `${root}` }))
@@ -383,6 +429,28 @@ function buildPlan(options) {
   };
 }
 
+function buildAllPluginPlan(options) {
+  const plans = PLUGIN_DEPLOY_ORDER.map((plugin) => buildPlan(Object.assign({}, options, {
+    plugin,
+    target: `plugin:${plugin}`,
+    source: "",
+    healthUrl: "",
+    restartLabels: [],
+  })));
+  return {
+    schemaVersion: 1,
+    mode: options.execute ? "execute" : "plan",
+    target: "plugins:all",
+    pluginTargets: PLUGIN_DEPLOY_ORDER,
+    sourceRoot: normalizePath(posixJoin(options.devRoot, "plugins")),
+    productionRoot: normalizePath(posixJoin(options.macRoot, "plugins")),
+    surface: options.surface,
+    allowDirty: Boolean(options.allowDirty),
+    syncOnly: Boolean(options.syncOnly),
+    plans,
+  };
+}
+
 function assertExecutablePlan(plan, options) {
   if (!options.execute) return;
   if (plan.target.startsWith("plugin:") && !plan.restartLabels.length && !options.healthUrl && !options.syncOnly) {
@@ -390,6 +458,13 @@ function assertExecutablePlan(plan, options) {
   }
   if (plan.deployDirtyFiles.length && !options.allowDirty) {
     throw new Error(`deploy_source_dirty_requires_allow_dirty:${plan.deployDirtyFiles.join(",")}`);
+  }
+}
+
+function assertExecutableAllPluginPlan(plan, options) {
+  if (!options.execute) return;
+  for (const child of plan.plans || []) {
+    assertExecutablePlan(child, Object.assign({}, options, { target: child.target }));
   }
 }
 
@@ -514,8 +589,29 @@ function executePlan(plan, options) {
   return validations;
 }
 
+function executeAllPluginPlan(plan, options) {
+  return (plan.plans || []).map((child) => ({
+    target: child.target,
+    validationResults: executePlan(child, Object.assign({}, options, { target: child.target })),
+  }));
+}
+
 function main() {
   const options = parseArgs(process.argv.slice(2));
+  if (options.target === "plugins:all") {
+    const plan = buildAllPluginPlan(options);
+    assertExecutableAllPluginPlan(plan, options);
+    let result = { ok: true, plan };
+    if (options.execute) {
+      result = Object.assign(result, { validationResults: executeAllPluginPlan(plan, options) });
+    }
+    if (options.json || !options.execute) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      console.log(`deployed ${plan.target} count=${plan.plans.length}`);
+    }
+    return;
+  }
   const plan = buildPlan(options);
   assertExecutablePlan(plan, options);
   let result = { ok: true, plan };
@@ -544,9 +640,11 @@ module.exports = {
   DEFAULT_DEV_ROOT,
   DEFAULT_MAC_ROOT,
   PLUGIN_TARGETS,
+  PLUGIN_DEPLOY_ORDER,
   RSYNC_EXCLUDES,
   parseArgs,
   buildPlan,
+  buildAllPluginPlan,
   assertExecutablePlan,
   runValidation,
   deployDirtyFiles,

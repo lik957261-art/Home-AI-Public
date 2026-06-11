@@ -110,6 +110,17 @@ function testPlanNormalizesWorkspaceAndSteps() {
   ]);
 }
 
+function testPlanDefaultsToAllDeployableWorkspacePlugins() {
+  const plan = publicPlan({
+    workspaceId: "Public Setup User",
+  });
+  assert.deepEqual(plan.pluginIds, ["wardrobe", "health", "finance", "email", "note", "growth"]);
+  assert.deepEqual(
+    plan.steps.filter((step) => step.category === "plugin").map((step) => step.id),
+    ["plugin.wardrobe", "plugin.health", "plugin.finance", "plugin.email", "plugin.note", "plugin.growth"],
+  );
+}
+
 async function testApplyBlocksBeforeSideEffectsWithoutSystemExecutor() {
   const { calls, service } = makeService({ systemProvisioningExecutor: null });
   const result = await service.applyOnboarding({
@@ -175,6 +186,7 @@ async function testPluginFailureIsBoundedAndDoesNotStopLaterPlugins() {
 
 async function run() {
   testPlanNormalizesWorkspaceAndSteps();
+  testPlanDefaultsToAllDeployableWorkspacePlugins();
   await testApplyBlocksBeforeSideEffectsWithoutSystemExecutor();
   await testApplyRunsWorkspaceGatewaySystemAndPlugins();
   await testPluginFailureIsBoundedAndDoesNotStopLaterPlugins();

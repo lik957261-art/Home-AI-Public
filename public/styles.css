@@ -6181,6 +6181,16 @@ button.directory-alias-chip {
   width: calc((100% - var(--plugin-app-gap) - var(--plugin-app-gap) - var(--plugin-app-gap)) / 4);
 }
 
+.global-plugin-dock-mode .plugin-app-strip[data-plugin-fill-count="5"] .plugin-app-card {
+  flex-basis: calc((100% - var(--plugin-app-gap) - var(--plugin-app-gap) - var(--plugin-app-gap) - var(--plugin-app-gap)) / 5);
+  width: calc((100% - var(--plugin-app-gap) - var(--plugin-app-gap) - var(--plugin-app-gap) - var(--plugin-app-gap)) / 5);
+}
+
+.global-plugin-dock-mode .plugin-app-strip[data-plugin-fill-count="6"] .plugin-app-card {
+  flex-basis: calc((100% - var(--plugin-app-gap) - var(--plugin-app-gap) - var(--plugin-app-gap) - var(--plugin-app-gap) - var(--plugin-app-gap)) / 6);
+  width: calc((100% - var(--plugin-app-gap) - var(--plugin-app-gap) - var(--plugin-app-gap) - var(--plugin-app-gap) - var(--plugin-app-gap)) / 6);
+}
+
 .global-plugin-dock-mode .plugin-app-card .plugin-topic-app-icon,
 .global-plugin-dock-mode .plugin-app-card .bottom-plugin-menu-icon {
   width: 40px;

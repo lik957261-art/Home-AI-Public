@@ -17,7 +17,7 @@ assert.match(appJs, /workspaceOnboardingDraft: null/);
 assert.match(appJs, /workspaceOnboardingRun: null/);
 
 assert.match(accessKeyManagerUi, /WORKSPACE_ONBOARDING_PLUGIN_OPTIONS/);
-for (const pluginId of ["wardrobe", "health", "finance", "email", "note"]) {
+for (const pluginId of ["wardrobe", "health", "finance", "email", "note", "growth"]) {
   assert.ok(accessKeyManagerUi.includes(`id: "${pluginId}"`), `${pluginId} plugin option must be selectable`);
 }
 

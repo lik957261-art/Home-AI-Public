@@ -6,6 +6,7 @@ const WORKSPACE_ONBOARDING_PLUGIN_OPTIONS = Object.freeze([
   { id: "finance", label: "财务" },
   { id: "email", label: "邮件" },
   { id: "note", label: "笔记" },
+  { id: "growth", label: "成长" },
 ]);
 
 function renderAccessKeyManagerLegacy() {

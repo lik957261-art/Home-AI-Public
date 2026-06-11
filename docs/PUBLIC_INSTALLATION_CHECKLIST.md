@@ -1,6 +1,6 @@
 # Public Installation Checklist
 
-Last updated: 2026-05-25.
+Last updated: 2026-06-11.
 
 Use this checklist when making README or deployment doc changes for an external Windows install driven by Codex/Agent.
 
@@ -79,6 +79,21 @@ the secret path and permission boundary, never the raw key.
 A fresh public install starts with empty Hermes and plugin databases unless the
 operator intentionally imports data. Empty plugin data is valid; incomplete
 plugin provisioning is not.
+
+Fresh setup/account creation must expose every deployable workspace-private
+business plugin in one place and default them on for the ordinary family
+workspace path: Wardrobe, Health, Finance, Email, Note, and Growth. Directory is
+built in and is not deployed as an external plugin. Codex plugin edition is a
+special Owner-oriented plugin and must not be silently granted as an ordinary
+family workspace plugin.
+
+The Mac deploy entrypoint must support both individual plugin deployment and an
+all-plugin deployment plan. `npm run --silent deploy:macos -- --plugin all
+--json` must expand to every known plugin service root, including Codex Mobile
+Web, Email, Finance, Growth, Healthy/Health, Note, and Wardrobe, with restart
+labels and loopback manifest smokes in the plan. The `health` plugin name may
+be accepted as an operator-facing alias, but the production source/target
+directory remains `healthy`.
 
 For every workspace-private plugin that is enabled for Owner or another
 workspace, verify:

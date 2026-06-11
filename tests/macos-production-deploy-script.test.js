@@ -31,6 +31,11 @@ assert.match(script, /HOMEAI_MAC_SUDO_PASSWORD_FILE/);
 assert.match(script, /\/Users\/hermes-dev\/HermesMobileDev/);
 assert.match(script, /\/Users\/hermes-host\/HermesMobile/);
 assert.match(script, /unsupported_plugin_target/);
+assert.match(script, /PLUGIN_DEPLOY_ORDER/);
+assert.match(script, /PLUGIN_ALIASES/);
+assert.match(script, /health: "healthy"/);
+assert.match(script, /PLUGIN_HEALTH_URLS/);
+assert.match(script, /buildAllPluginPlan/);
 assert.match(script, /\$\{label\}_outside_allowed_root/);
 assert.match(script, /assertInside\(source, options\.devRoot, "source"\)/);
 assert.match(script, /assertInside\(target, options\.macRoot, "production_target"\)/);
@@ -188,9 +193,33 @@ assert.equal(pluginPayload.plan.target, "plugin:finance");
 assert.equal(pluginPayload.plan.sourcePath, "/Users/hermes-dev/HermesMobileDev/plugins/finance");
 assert.equal(pluginPayload.plan.productionPath, "/Users/hermes-host/HermesMobile/plugins/finance");
 assert.equal(pluginPayload.plan.productionOwner, "hermes-host:staff");
+assert.deepEqual(pluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.finance"]);
+assert.equal(pluginPayload.plan.healthUrl, "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest");
+assert.ok(pluginPayload.plan.validation.some((item) => item.type === "health-url"));
 assert.ok(pluginPayload.plan.rsyncExcludes.includes("data/"));
 assert.ok(pluginPayload.plan.rsyncExcludes.includes(".git"));
 assert.ok(pluginPayload.plan.rsyncExcludes.includes(".venv/"));
+
+const healthAliasPluginRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--plugin",
+  "health",
+  "--timestamp",
+  "20260608T000000Z",
+  "--reason",
+  "harness",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.equal(healthAliasPluginRun.status, 0, healthAliasPluginRun.stderr);
+const healthAliasPayload = JSON.parse(healthAliasPluginRun.stdout);
+assert.equal(healthAliasPayload.plan.target, "plugin:healthy");
+assert.equal(healthAliasPayload.plan.sourcePath, "/Users/hermes-dev/HermesMobileDev/plugins/healthy");
+assert.equal(healthAliasPayload.plan.productionPath, "/Users/hermes-host/HermesMobile/plugins/healthy");
+assert.deepEqual(healthAliasPayload.plan.restartLabels, ["com.hermesmobile.plugin.health"]);
+assert.equal(healthAliasPayload.plan.healthUrl, "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest");
 
 const codexPluginRun = spawnSync(process.execPath, [
   scriptPath,
@@ -228,6 +257,58 @@ assert.equal(growthPluginPayload.plan.target, "plugin:growth");
 assert.equal(growthPluginPayload.plan.sourcePath, "/Users/hermes-dev/HermesMobileDev/plugins/growth");
 assert.equal(growthPluginPayload.plan.productionPath, "/Users/hermes-host/HermesMobile/plugins/growth");
 assert.deepEqual(growthPluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.growth"]);
+assert.equal(growthPluginPayload.plan.healthUrl, "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest");
+
+const allPluginRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--plugin",
+  "all",
+  "--timestamp",
+  "20260608T000000Z",
+  "--reason",
+  "public-release",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.equal(allPluginRun.status, 0, allPluginRun.stderr);
+const allPluginPayload = JSON.parse(allPluginRun.stdout);
+assert.equal(allPluginPayload.plan.target, "plugins:all");
+assert.deepEqual(allPluginPayload.plan.pluginTargets, [
+  "codex-mobile-web",
+  "email",
+  "finance",
+  "growth",
+  "healthy",
+  "note",
+  "wardrobe",
+]);
+assert.deepEqual(allPluginPayload.plan.plans.map((item) => item.target), [
+  "plugin:codex-mobile-web",
+  "plugin:email",
+  "plugin:finance",
+  "plugin:growth",
+  "plugin:healthy",
+  "plugin:note",
+  "plugin:wardrobe",
+]);
+assert.ok(allPluginPayload.plan.plans.every((item) => item.restartLabels.length === 1));
+assert.ok(allPluginPayload.plan.plans.every((item) => item.healthUrl.includes("/api/v1/hermes/plugin/manifest")));
+
+const allPluginSourceOverrideRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--plugin",
+  "all",
+  "--source",
+  "/tmp/one-plugin",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.notEqual(allPluginSourceOverrideRun.status, 0);
+assert.match(allPluginSourceOverrideRun.stderr, /all_plugins_source_override_unsupported/);
 
 const growthSyncOnlyRun = spawnSync(process.execPath, [
   scriptPath,
@@ -270,6 +351,8 @@ const unsafePluginExecute = spawnSync(process.execPath, [
   "--plugin",
   "finance",
   "--execute",
+  "--restart",
+  "none",
   "--timestamp",
   "20260608T000000Z",
   "--reason",

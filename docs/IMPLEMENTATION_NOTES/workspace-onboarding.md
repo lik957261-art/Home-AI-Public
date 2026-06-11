@@ -10,6 +10,10 @@ Creating a family workspace must become an Owner-controlled Home AI workflow,
 not a Codex-operated manual runbook. The target flow is:
 
 1. Owner enters a workspace id, display name, and selected plugin set.
+   The default set for a fresh public setup is the full workspace-private
+   business plugin set: Wardrobe, Health, Finance, Email, Note, and Growth.
+   Codex plugin edition is special/Owner-oriented and is not part of this
+   ordinary workspace onboarding default.
 2. Home AI returns a dry-run provisioning plan.
 3. Owner confirms apply.
 4. Home AI creates the workspace record and one-time browser Access Key.
@@ -84,7 +88,10 @@ Planned steps:
 8. `mac.launchd`
 9. `validation.smokes`
 
-Selected plugin steps are required by default. `allowPluginFailures=true`
+Selected plugin steps are required by default. When the request does not supply
+an explicit plugin list, the service plans
+`wardrobe`, `health`, `finance`, `email`, `note`, and `growth`. The Owner UI
+must render the same six options, checked by default. `allowPluginFailures=true`
 keeps plugin failures as diagnostics without failing the whole onboarding.
 
 ## Apply Semantics

@@ -310,6 +310,7 @@ node scripts/deploy-macos-production.js --target home-ai --json
 node scripts/deploy-macos-production.js --plugin finance --json
 npm run --silent deploy:macos -- --target home-ai --json
 npm run --silent deploy:macos -- --plugin finance --source /Users/hermes-dev/HermesMobileDev/plugins/finance --json
+npm run --silent deploy:macos -- --plugin all --json
 ```
 
 The script is plan-only unless `--execute` is present. For execution, pass the
@@ -322,6 +323,11 @@ plugin source deploys must not overwrite or delete production plugin `data/`
 directories. The central script restores the production target owner after
 sync: `hermes-host:staff` by default, with `xuxin:staff` for the Codex Mobile
 plugin because that launchd service runs as `xuxin`.
+The `--plugin all` target expands to the bounded known plugin services and uses
+per-plugin default restart labels plus loopback manifest smokes. It does not
+accept a single `--source`, `--restart-label`, or `--health-url` override.
+The operator-facing `health` alias resolves to the historical `healthy` source
+and production directory.
 
 Growth first production install also needs a source-only sync followed by the
 shared launchd installer:

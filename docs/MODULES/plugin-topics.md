@@ -47,7 +47,7 @@ or raw plugin credentials.
   `聊天`, `信息`, and `话题`. The standalone `能力` bottom tab is retired.
   Growth, Codex plugin edition, Wardrobe, Finance, Email, Health, Note, and
   Directory app launch are plugin/Dock entries by default. The bottom
-  navigation may expose up to five visible tabs total: the three host tabs plus
+  navigation may expose up to six visible tabs total: the three host tabs plus
   workspace-scoped user-pinned plugin tabs.
 - When there is no saved launch view, Hermes Mobile opens the topic page first.
   Plugin app launch is provided by the global plugin Dock/drawer unless the
@@ -67,12 +67,10 @@ or raw plugin credentials.
   ordinary quick-action/drawer affordances.
 - The Dock remains single-row. Its first visible card is `常用`, a compact menu
   of up to six usage-ranked plugin quick actions. The remaining cards are
-  app/plugin launch entries. When one to four entries are visible,
+  app/plugin launch entries. When one to six entries are visible,
   the row divides the available width evenly across those entries; when more
-  than four entries are visible, the row keeps four-slot sizing and scrolls
-  horizontally. Do not squeeze five or more entries into the same viewport,
-  because the touch targets become too narrow for reliable long-press and
-  edge-adjacent taps.
+  than six entries are visible, the row keeps six-slot sizing and scrolls
+  horizontally.
 - The collapsed handle uses a bounded vertical gesture: short vertical
   mistouches and horizontal swipes must not expand the Dock, an upward swipe on
   the handle expands it, and a downward swipe on the handle collapses it. The

@@ -299,6 +299,13 @@ The current isolated production deployment runs these launchd labels:
 - `com.hermesmobile.plugin.growth`
 - `com.hermesmobile.plugin.codex-mobile`
 
+The central deploy script can plan or execute all known plugin service roots
+with `npm run --silent deploy:macos -- --plugin all --json`. The all-plugin
+target expands to Codex Mobile Web, Email, Finance, Growth, Healthy/Health,
+Note, and Wardrobe, with one restart label and one loopback manifest smoke per
+plugin. The user-facing `health` alias resolves to the historical `healthy`
+source and production directory.
+
 Growth first install uses `scripts/install-growth-launchd-service.js` from the
 Home AI app workspace. The script generates the
 `com.hermesmobile.plugin.growth` LaunchDaemon, creates the Growth registration

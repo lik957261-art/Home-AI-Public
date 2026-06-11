@@ -246,7 +246,7 @@ AI deploy script. The shared access shape is:
 --password-file <private-local-password-file>
 --mac-root /Users/hermes-host/HermesMobile
 --source <development-source-path>
---plugin <plugin-id>
+--plugin <plugin-id|all>
 --restart-label <plugin-launchd-label>
 --health-url <plugin-loopback-health-url>
 ```
@@ -256,7 +256,16 @@ The current local command shape from the Home AI app workspace is:
 ```bash
 npm run --silent deploy:macos -- --plugin <plugin-id> --json
 npm run --silent deploy:macos -- --plugin <plugin-id> --restart-label <label> --health-url <url> --execute --password-file <private-local-password-file> --json
+npm run --silent deploy:macos -- --plugin all --json
 ```
+
+The `all` plugin target expands to the bounded known plugin service roots:
+Codex Mobile Web, Email, Finance, Growth, Healthy/Health, Note, and Wardrobe.
+It uses the central script's default launchd labels and loopback manifest
+smokes. It does not accept a single `--source`, `--restart-label`, or
+`--health-url` override because those values are per plugin. Operators may use
+`--plugin health` as a readable alias; the actual source and production
+directory remain `plugins/healthy`.
 
 Growth first production install has one extra launchd bootstrap step because
 `com.hermesmobile.plugin.growth` does not exist until the service is installed.

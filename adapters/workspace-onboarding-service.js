@@ -1,6 +1,6 @@
 "use strict";
 
-const DEFAULT_PLUGIN_IDS = Object.freeze([]);
+const DEFAULT_PLUGIN_IDS = Object.freeze(["wardrobe", "health", "finance", "email", "note", "growth"]);
 
 function stringValue(value) {
   return String(value || "").trim();

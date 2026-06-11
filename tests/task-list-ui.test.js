@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260611-plugin-action-route-v703";
+const CLIENT_VERSION = "20260611-public-release-setup-v704";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260611-plugin-action-route-v703" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260611-plugin-action-route-v703"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260611-public-release-setup-v704" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260611-public-release-setup-v704"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2485,6 +2485,7 @@ assert.doesNotMatch(stylesCss, /\.bottom-nav::after \{/);
 assert.match(stylesCss, /\.bottom-nav::-webkit-scrollbar \{[\s\S]*?display: none;/);
 assert.match(stylesCss, /\.bottom-nav\.bottom-nav-count-4 \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(var\(--bottom-nav-column-min\), 1fr\)\);/);
 assert.match(stylesCss, /\.bottom-nav\.bottom-nav-count-5 \{[\s\S]*?grid-template-columns: repeat\(5, minmax\(var\(--bottom-nav-column-min\), 1fr\)\);/);
+assert.match(stylesCss, /\.bottom-nav\.bottom-nav-count-6 \{[\s\S]*?grid-template-columns: repeat\(6, minmax\(var\(--bottom-nav-column-min\), 1fr\)\);/);
 assert.doesNotMatch(stylesCss, /\.bottom-nav\.(?:codex-visible|plugins-visible|wardrobe-visible)[\s\S]*?grid-template-columns:/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-topic-detail-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.main-back-visible \.bottom-nav \{[\s\S]*?display: none;/);
@@ -2557,10 +2558,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260611-plugin-action-route-v703/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260611-plugin-action-route-v703/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260611-plugin-action-route-v703/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260611-plugin-action-route-v703/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260611-public-release-setup-v704/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260611-public-release-setup-v704/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260611-public-release-setup-v704/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260611-public-release-setup-v704/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2603,7 +2604,7 @@ assert.match(appJs, /function recordPluginTopicUsage\(pluginId, actionId = ""\)/
 assert.match(appJs, /function orderedPluginAppDefs\(defs = \[\]\)/);
 assert.match(appJs, /orderedPluginAppDefs\(availablePluginTopicDefs\(\)\)/);
 assert.match(appJs, /const cardsCount = defs\.length \+ 1;/);
-assert.match(appJs, /const fillCount = Math\.min\(Math\.max\(cardsCount, 1\), 4\);/);
+assert.match(appJs, /const fillCount = Math\.min\(Math\.max\(cardsCount, 1\), 6\);/);
 assert.match(appJs, /const PLUGIN_APP_REORDER_HOLD_MS = 450;/);
 assert.match(appJs, /const PLUGIN_APP_REORDER_CANCEL_PX = 10;/);
 assert.match(appJs, /const GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO = 1\.45;/);
@@ -2622,6 +2623,8 @@ assert.match(appJs, /const CAPABILITY_QUICK_ACTION_LIMIT = 9;/);
 assert.match(appJs, /const PLUGIN_DRAWER_QUICK_ACTION_LIMIT = 6;/);
 assert.match(appJs, /const PLUGIN_TOPIC_ACTION_MANIFEST_LOAD_TTL_MS = 60000;/);
 assert.match(appJs, /const PLUGIN_BOTTOM_TABS_STORAGE_KEY = "hermesPinnedPluginBottomTabs";/);
+assert.match(appJs, /const BOTTOM_NAV_MAX_VISIBLE_TABS = 6;/);
+assert.match(appJs, /const BOTTOM_NAV_BASE_VISIBLE_TABS = 3;/);
 assert.match(appJs, /sourceBadge: "\\u8863"/);
 assert.match(appJs, /actions: Object\.freeze\(\[/);
 assert.match(appJs, /pluginRouteAction\("style", "\\u914d\\u8863\\u670d", "style"/);
@@ -2800,8 +2803,8 @@ assert.match(stylesCss, /\.sidebar-plugin-launcher \.capability-plugin-grid \{[\
 assert.match(stylesCss, /@media \(max-width: 1099px\) \{[\s\S]*?\.sidebar-plugin-launcher \{[\s\S]*?display: none !important;/);
 assert.match(stylesCss, /@media \(min-width: 1100px\) and \(pointer: fine\) \{[\s\S]*?\.plugin-context-nav-mode\.embedded-plugin-host-active \.main \{[\s\S]*?position: relative;[\s\S]*?left: auto;/);
 assert.match(stylesCss, /\.global-plugin-dock-mode \.plugin-app-strip\[data-plugin-fill-count="4"\] \.plugin-app-card \{[\s\S]*?flex-basis: calc\(\(100% - var\(--plugin-app-gap\) - var\(--plugin-app-gap\) - var\(--plugin-app-gap\)\) \/ 4\);[\s\S]*?width: calc\(\(100% - var\(--plugin-app-gap\) - var\(--plugin-app-gap\) - var\(--plugin-app-gap\)\) \/ 4\);/);
-assert.doesNotMatch(stylesCss, /data-plugin-fill-count="5"/);
-assert.doesNotMatch(stylesCss, /data-plugin-fill-count="6"/);
+assert.match(stylesCss, /\.global-plugin-dock-mode \.plugin-app-strip\[data-plugin-fill-count="5"\] \.plugin-app-card \{[\s\S]*?flex-basis: calc\(\(100% - var\(--plugin-app-gap\) - var\(--plugin-app-gap\) - var\(--plugin-app-gap\) - var\(--plugin-app-gap\)\) \/ 5\);[\s\S]*?width: calc\(\(100% - var\(--plugin-app-gap\) - var\(--plugin-app-gap\) - var\(--plugin-app-gap\) - var\(--plugin-app-gap\)\) \/ 5\);/);
+assert.match(stylesCss, /\.global-plugin-dock-mode \.plugin-app-strip\[data-plugin-fill-count="6"\] \.plugin-app-card \{[\s\S]*?flex-basis: calc\(\(100% - var\(--plugin-app-gap\) - var\(--plugin-app-gap\) - var\(--plugin-app-gap\) - var\(--plugin-app-gap\) - var\(--plugin-app-gap\)\) \/ 6\);[\s\S]*?width: calc\(\(100% - var\(--plugin-app-gap\) - var\(--plugin-app-gap\) - var\(--plugin-app-gap\) - var\(--plugin-app-gap\) - var\(--plugin-app-gap\)\) \/ 6\);/);
 assert.match(stylesCss, /\.global-plugin-dock-mode \.topic-plugin-dock:not\(\[hidden\]\) \{[\s\S]*?display: block;/);
 assert.match(stylesCss, /:root\.keyboard-viewport-active \.topic-plugin-dock \{[\s\S]*?display: none !important;/);
 assert.match(stylesCss, /--mobile-bottom-nav-visual-drop: 10px/);

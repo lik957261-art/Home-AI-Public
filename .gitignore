@@ -4,6 +4,7 @@ __pycache__/
 
 .agent-context/
 AGENTS.md
+.codegraph/
 
 .env
 .env.*

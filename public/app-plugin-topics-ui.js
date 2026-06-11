@@ -196,7 +196,7 @@ const PLUGIN_APP_REORDER_HOLD_MS = 450;
 const PLUGIN_APP_REORDER_CANCEL_PX = 10;
 const GLOBAL_PLUGIN_DOCK_STATE_STORAGE_KEY = "hermesGlobalPluginDockExpanded";
 const PLUGIN_BOTTOM_TABS_STORAGE_KEY = "hermesPinnedPluginBottomTabs";
-const BOTTOM_NAV_MAX_VISIBLE_TABS = 5;
+const BOTTOM_NAV_MAX_VISIBLE_TABS = 6;
 const BOTTOM_NAV_BASE_VISIBLE_TABS = 3;
 const GLOBAL_PLUGIN_DOCK_DRAG_SLOP_PX = 10;
 const GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO = 1.45;
@@ -2006,7 +2006,7 @@ function renderPluginAppLauncher() {
   ensurePluginTopicActionManifestsLoaded(defs);
   const quickActions = pluginDrawerFrequentActions(defs, { includeDefaults: true });
   const cardsCount = defs.length + 1;
-  const fillCount = Math.min(Math.max(cardsCount, 1), 4);
+  const fillCount = Math.min(Math.max(cardsCount, 1), 6);
   return `<section class="plugin-app-launcher" aria-label="\u63d2\u4ef6\u5e94\u7528">
     <div class="plugin-app-strip" role="list" data-plugin-count="${defs.length}" data-plugin-fill-count="${fillCount}" data-plugin-drawer-card-count="${cardsCount}">
       <button class="plugin-app-card plugin-drawer-quick-card" type="button" role="listitem" data-plugin-drawer-quick-actions aria-label="\u6253\u5f00\u5e38\u7528\u5feb\u6377\u80fd\u529b">

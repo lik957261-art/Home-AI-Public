@@ -33,9 +33,9 @@ Plugin Codex threads must read that central contract before production deploys
 and should call the Home AI shared deploy script from
 `/Users/hermes-dev/HermesMobileDev/app`, passing plugin-local facts such as
 `--plugin`, `--source`, `--restart-label`, `--health-url`, MCP schema checks,
-and data readback checks. A plugin-local deployment script may wrap the central
-script, but must not introduce a separate sudo, rsync, SSH, or production
-write-access path.
+and data readback checks. The shared script also accepts `--plugin all` for a
+bounded all-plugin deployment plan over the known service roots. A plugin-local
+deployment script may wrap the central script, but must not introduce a separate sudo, rsync, SSH, or production write-access path.
 
 Health/健康 is now an embedded-app plugin in the same workspace-private class as
 Wardrobe, Finance, and Email. Hermes Mobile owns its host registration, manifest
@@ -766,6 +766,10 @@ Workspace onboarding may batch selected plugin grants through
 source. Each selected plugin still flows through
 `hermesPluginService.grantWorkspace`, writes the same authorization record, and
 must satisfy the same `active` / `provisioning_failed` contract above.
+For a fresh public setup, the default selected business-plugin set is
+`wardrobe`, `health`, `finance`, `email`, `note`, and `growth`; the Owner UI
+must expose those six options together. Codex plugin edition remains special and
+is not part of the ordinary family workspace onboarding default.
 
 On macOS production, the canonical plugin binding is first written under the
 Home AI data drive, for example

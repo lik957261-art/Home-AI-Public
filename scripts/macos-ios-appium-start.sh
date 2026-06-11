@@ -24,7 +24,7 @@ if [ -f "${PID_FILE}" ]; then
 fi
 
 (
-  trap "" HUP INT
+  trap "" INT HUP
   exec appium server \
     --address "${ADDRESS}" \
     --port "${PORT}" \
