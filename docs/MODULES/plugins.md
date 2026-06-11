@@ -28,15 +28,34 @@ docs. The Home AI development source path is
 `/Users/hermes-dev/HermesMobileDev/plugins/moira`; the Mac production target is
 `/Users/hermes-host/HermesMobile/plugins/moira`; the production launchd label is
 `com.hermesmobile.plugin.moira`; the loopback service URL is
-`http://127.0.0.1:4174`. First production install must use the central
-`--plugin moira --sync-only` deploy followed by
-`scripts/install-moira-launchd-service.js`. Initial production access is
-Owner-only unless an explicit `.hermes-moira` workspace binding and
-`MOIRA_HERMES_ALLOWED_WORKSPACES` expansion are added. Current development
-visual evidence is recorded in the Moira pointer doc and AI Ops ledger as
+`http://127.0.0.1:4174`. Production updates use the central deploy script:
+`npm run --silent deploy:macos -- --plugin moira --reason <reason> --execute
+--password-file <sudo-password-file> --json`.
+
+Moira is a controlled exception to normal workspace-private plugin
+provisioning. Its current Web app is local-first: saved chart records live in
+browser `localStorage` under the fixed key `moira.chartRecords.v1`, and the
+plugin-side server only issues short launch/session tokens. It does not yet
+have a server-side per-workspace record store. Therefore Home AI may expose
+Moira only to Owner and the explicit shared-owner allowlist, currently
+`weixin_wuping`, and must not present it as generally grantable to all
+workspaces. When an allowlisted workspace has no `.hermes-moira` workspace key,
+Home AI launches Moira through the Owner plugin key and Owner plugin
+workspace. If a real `.hermes-moira/access-key.txt` or
+`.hermes-moira/workspace-key.txt` later exists for that workspace, Home AI must
+use that workspace id/key instead. This exception is Moira-specific and must
+not be copied to Finance, Wardrobe, Email, Health, Note, or Growth, which must
+continue to use real workspace provisioning and effective-workspace data
+isolation.
+
+Current development visual evidence is recorded in the Moira pointer doc and
+AI Ops ledger as
 `evidence-79a79cc1-019c-4222-9b6f-7c5959a6db05` and
-`evidence-eec3aa0d-5d18-412e-9c86-c2ad4f5c9c81`; installed-PWA/real-device
-safe-area evidence remains a separate acceptance gate when Moira UI changes.
+`evidence-eec3aa0d-5d18-412e-9c86-c2ad4f5c9c81`; the latest production deploy
+evidence is `evidence-799e0143-0258-42a3-b71b-929456bc7ed5` for Moira
+`0.2.43`; installed-PWA/
+real-device safe-area evidence remains a separate acceptance gate when Moira UI
+changes.
 
 The embedded UI layout contract is tracked separately in
 `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`. Plugin projects must
@@ -467,6 +486,19 @@ framing the Hermes proxy URL rather than the upstream plugin origin. Upstream
 `frame-ancestors` diagnostics must not make the normalized manifest unavailable
 for that proxied entry; direct HTTPS/non-proxied entries still require the
 normal frame-ancestor allow check.
+
+Same-origin proxy HTML responses must carry a proxy-owned document CSP rather
+than inheriting only the global Home AI shell CSP. The baseline proxy document
+CSP keeps `default-src 'self'`, `object-src 'none'`, same-origin
+`frame-ancestors`, inline styles/scripts needed by legacy plugin shells, and
+same-origin/HTTPS/WSS network scopes. Plugins that compile WebAssembly in the
+browser must declare that runtime need in the central plugin service
+configuration; only those plugin HTML responses may add
+`'wasm-unsafe-eval'` plus the WebKit compatibility fallback `'unsafe-eval'` to
+`script-src`. Moira is the first such plugin because its Swiss Ephemeris
+provider loads `sweph-wasm`. Do not relax the global Home AI app CSP to fix a
+single plugin; scope the exception to `/api/hermes-plugins/<plugin-id>/proxy/...`
+HTML and cover it with proxy route tests.
 
 The same-origin proxy is still inside the Hermes Mobile access boundary. It
 must require Hermes workspace access before forwarding any request to a plugin
@@ -1022,6 +1054,15 @@ non-Owner Codex grants or list non-Owner workspace rows for Codex. Codex
 contains code execution, file access, long-lived thread context, and task-agent
 surfaces, so it remains Owner-only unless a separate restricted Codex product
 mode is designed and reviewed.
+
+Moira is a narrower exception: it is not Owner-critical like Codex, but its
+current records are local-first rather than workspace-backed. Home AI therefore
+uses a fixed shared-owner allowlist (`owner` plus `weixin_wuping` by default)
+instead of the general grant/provisioning flow. An allowlisted non-Owner
+workspace without its own `.hermes-moira` key launches against the Owner Moira
+workspace; a workspace with its own `.hermes-moira` key launches with that
+workspace. No other plugin may use this fallback without a documented product
+decision and focused route/service tests.
 
 The side navigation plugin manager is the canonical admin surface for installed
 plugin authorization:

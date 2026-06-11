@@ -155,6 +155,46 @@ endpoints that correctly require a workspace id/key are reported as
 `authRequired=true`; tool-specific schema closure still belongs to
 `docs/RUNBOOKS/mcp-tool-upgrade-closure.md`.
 
+## Moira Shared-Owner Exception
+
+Moira is a documented exception to the normal workspace-private plugin
+provisioning contract. The exception exists because current Moira records are
+local-first browser records (`localStorage` key `moira.chartRecords.v1`), while
+the Moira server only provides manifest, launch, session and static hosting. It
+does not yet provide a server-side per-workspace record store.
+
+Home AI may expose Moira only to Owner and an explicit shared-owner allowlist,
+currently `weixin_wuping`. For an allowlisted workspace that has no local
+`.hermes-moira/access-key.txt` or `.hermes-moira/workspace-key.txt`, the host
+may launch Moira with the Owner plugin workspace/key. If the workspace later has
+its own `.hermes-moira` key, the host must pass that workspace id/key to Moira
+instead.
+
+This is not a generic plugin authorization pattern. Finance, Wardrobe, Email,
+Health, Note, Growth, and future workspace-backed plugins must not use Owner
+plugin keys for non-Owner launches; they must provision or discover real
+workspace bindings and resolve all data through the effective workspace.
+
+## Same-Origin Proxy CSP Contract
+
+Home AI owns the browser-facing CSP for same-origin plugin proxy HTML. A plugin
+served through `/api/hermes-plugins/<plugin-id>/proxy/...` must not depend on
+its upstream loopback CSP being visible to the browser after proxying.
+
+The default proxy document CSP remains narrow: `default-src 'self'`,
+`object-src 'none'`, same-origin `frame-ancestors`, same-origin/HTTPS frame and
+network scopes, and inline styles/scripts only for existing embedded plugin
+shell compatibility.
+
+If a plugin needs browser WebAssembly compilation, the need must be declared in
+the central plugin service runtime security configuration rather than patched
+into the global Home AI app CSP. The proxy may then add
+`'wasm-unsafe-eval'` and the WebKit compatibility fallback `'unsafe-eval'` to
+that plugin's HTML `script-src` only. Moira declares this because its Web core
+uses the vendored Swiss Ephemeris `sweph-wasm` runtime. New WASM plugins must
+add the same declaration, route tests, plugin-local pointer note, and production
+smoke/readback evidence before deployment.
+
 ## AI Operations Control Plane Contract
 
 Every plugin Codex thread must use the Home AI AI Operations Control Plane as

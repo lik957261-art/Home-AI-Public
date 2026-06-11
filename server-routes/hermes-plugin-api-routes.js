@@ -125,6 +125,21 @@ function manifestAuditAppearance(input = {}) {
   };
 }
 
+const PLUGIN_PROXY_DOCUMENT_CSP_BASE = Object.freeze([
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'self'",
+  "frame-src 'self' https:",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  "style-src 'self' 'unsafe-inline'",
+  "connect-src 'self' https: wss:",
+  "manifest-src 'self'",
+  "form-action 'self'",
+  "worker-src 'self' blob:",
+]);
+
 function createHermesPluginApiRoutes(deps = {}) {
   for (const name of ["requireWorkspaceAccess", "sendJson"]) requireFunction(deps, name);
   if (!deps.hermesPluginService || typeof deps.hermesPluginService.manifest !== "function") {
@@ -355,6 +370,29 @@ function createHermesPluginApiRoutes(deps = {}) {
 
   function responseHeader(response, name) {
     return response?.headers?.get?.(name) || response?.headers?.get?.(name.toLowerCase()) || "";
+  }
+
+  function pluginProxyDocumentContentSecurityPolicy(pluginId = "") {
+    const runtimeSecurity = typeof deps.hermesPluginService?.pluginProxyRuntimeSecurity === "function"
+      ? deps.hermesPluginService.pluginProxyRuntimeSecurity({ pluginId })
+      : {};
+    const scriptSrc = ["script-src 'self' 'unsafe-inline'"];
+    if (runtimeSecurity?.wasmEval === true) {
+      // WebKit can still gate WebAssembly behind unsafe-eval; scope it to plugins that declare wasmEval.
+      scriptSrc[0] += " 'wasm-unsafe-eval' 'unsafe-eval'";
+    }
+    return [
+      ...PLUGIN_PROXY_DOCUMENT_CSP_BASE.slice(0, 8),
+      scriptSrc[0],
+      ...PLUGIN_PROXY_DOCUMENT_CSP_BASE.slice(8),
+    ].join("; ");
+  }
+
+  function addPluginProxyDocumentSecurityHeaders(headers = {}, pluginId = "", contentType = "") {
+    if (!/text\/html/i.test(String(contentType || ""))) return headers;
+    return Object.assign({}, headers, {
+      "Content-Security-Policy": pluginProxyDocumentContentSecurityPolicy(pluginId),
+    });
   }
 
   function writePluginProxyStreamChunk(res, chunk) {
@@ -764,7 +802,8 @@ function createHermesPluginApiRoutes(deps = {}) {
     const body = ["GET", "HEAD"].includes(method.toUpperCase()) ? undefined : await readRequestBody(req);
     const upstream = await fetchImpl(targetUrl, { method, headers, body, redirect: "manual" });
     const contentType = responseHeader(upstream, "content-type");
-    const outHeaders = { "Content-Type": contentType || "application/octet-stream" };
+    let outHeaders = { "Content-Type": contentType || "application/octet-stream" };
+    outHeaders = addPluginProxyDocumentSecurityHeaders(outHeaders, pluginId, contentType);
     const setCookies = [
       ...pluginProxyCookieCleanupHeaders(pluginId, workspaceId, req.headers?.cookie, { resetKnown: hasLaunchToken }),
       ...responseSetCookies(upstream)

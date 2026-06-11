@@ -16,8 +16,8 @@ function pluginAdminWorkspaceRows(plugin) {
       const authorization = authorizations.get(workspaceId) || {};
       const provisioningStatus = authorization.provisioningStatus || (enabled ? "active" : "");
       const provisioningError = authorization.provisioningError || "";
-      const retryProvisioning = enabled && provisioningStatus && provisioningStatus !== "active";
-      const statusText = enabled && provisioningStatus === "active"
+      const retryProvisioning = enabled && ["pending", "provisioning_failed", "manual_required"].includes(provisioningStatus);
+      const statusText = enabled && !retryProvisioning
         ? "已开通"
         : enabled && provisioningStatus
           ? `authorized / ${provisioningStatus}`

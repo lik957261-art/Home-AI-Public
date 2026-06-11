@@ -538,6 +538,52 @@ async function testCodexProxyRewritesHtmlAndUsesUpstream() {
   assert.equal(fetchCalls[0].options.headers["x-hermes-plugin-workspace-id"], "owner");
 }
 
+async function testMoiraProxyHtmlAllowsDeclaredWasmEvalCsp() {
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "moira", manifestUrl: "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "moira" });
+      },
+      pluginManifestUrl(id) {
+        assert.equal(id, "moira");
+        return "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest";
+      },
+      pluginProxyRuntimeSecurity(input) {
+        assert.equal(input.pluginId, "moira");
+        return { wasmEval: true };
+      },
+    },
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:4174/?embed=hermes&workspaceId=owner");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/html; charset=utf-8" : "" },
+        text: () => Promise.resolve('<script src="/app.js"></script>'),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/moira/proxy/?embed=hermes&workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body, /src="\/api\/hermes-plugins\/moira\/proxy\/app\.js\?workspaceId=owner"/);
+  assert.match(res.headers["Content-Security-Policy"], /default-src 'self'/);
+  assert.match(res.headers["Content-Security-Policy"], /object-src 'none'/);
+  assert.match(
+    res.headers["Content-Security-Policy"],
+    /script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval'/,
+  );
+}
+
 async function testCodexProxyStreamsEventSource() {
   let textCalled = false;
   let arrayBufferCalled = false;
@@ -1497,6 +1543,7 @@ async function run() {
   await testGrowthProxyAttachesServerSideWorkspaceBearerForWrites();
   await testPluginNotificationRoute();
   await testCodexProxyRewritesHtmlAndUsesUpstream();
+  await testMoiraProxyHtmlAllowsDeclaredWasmEvalCsp();
   await testCodexProxyStreamsEventSource();
   await testCodexProxyPreservesLaunchCookieAndRedirect();
   await testFinanceProxyUsesConfiguredLocalUpstreamAndForwardsOrigin();

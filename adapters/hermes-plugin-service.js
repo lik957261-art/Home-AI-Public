@@ -48,6 +48,7 @@ const DEFAULT_GROWTH_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4881/api/v1/hermes/
 const DEFAULT_MOIRA_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest";
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_KEY_SEARCH_DEPTH = 6;
+const DEFAULT_MOIRA_SHARED_OWNER_WORKSPACES = Object.freeze(["weixin_wuping"]);
 const PLUGIN_APPEARANCE_THEMES = new Set(["system", "dark", "light"]);
 const PLUGIN_APPEARANCE_FONT_SIZES = new Set(["small", "default", "large", "xlarge", "xxlarge"]);
 
@@ -119,7 +120,25 @@ function parseWorkspaceList(value) {
 }
 
 function configuredAuthorizedWorkspaceIds(pluginId, env = process.env) {
-  return parseWorkspaceList(env[envKeyForPlugin(pluginId, "WORKSPACES")]);
+  return [...new Set([
+    ...configuredMoiraSharedOwnerWorkspaceIds(pluginId, env),
+    ...parseWorkspaceList(env[envKeyForPlugin(pluginId, "WORKSPACES")]),
+  ])];
+}
+
+function configuredMoiraSharedOwnerWorkspaceIds(pluginId, env = process.env) {
+  if (stringValue(pluginId) !== "moira") return [];
+  const configured = parseWorkspaceList(
+    env.HERMES_MOBILE_MOIRA_SHARED_OWNER_WORKSPACES
+    || env.HERMES_MOBILE_PLUGIN_MOIRA_SHARED_OWNER_WORKSPACES,
+  );
+  return configured.length ? configured : [...DEFAULT_MOIRA_SHARED_OWNER_WORKSPACES];
+}
+
+function moiraSharedOwnerWorkspaceAllowed(workspaceId, options = {}) {
+  const id = stringValue(workspaceId);
+  if (!id || id === "owner") return false;
+  return configuredMoiraSharedOwnerWorkspaceIds("moira", options.env || process.env).includes(id);
 }
 
 function configuredLiveRoot(options = {}) {
@@ -242,6 +261,7 @@ const DEFAULT_PLUGIN_SECURITY = Object.freeze({
     allowWorkspaceGrant: true,
     provisioning: { supported: false, mode: "manual_binding" },
     notifications: { supported: false, routeOwner: "hermes" },
+    runtimeSecurity: { wasmEval: true },
   },
 });
 
@@ -260,6 +280,12 @@ function normalizePluginSecurity(plugin = {}) {
   const defaults = pluginSecurityDefaults(plugin.id);
   const provisioning = plugin.provisioning && typeof plugin.provisioning === "object" ? plugin.provisioning : {};
   const notifications = plugin.notifications && typeof plugin.notifications === "object" ? plugin.notifications : {};
+  const runtimeSecurity = plugin.runtimeSecurity && typeof plugin.runtimeSecurity === "object"
+    ? plugin.runtimeSecurity
+    : (plugin.runtime_security && typeof plugin.runtime_security === "object" ? plugin.runtime_security : {});
+  const defaultRuntimeSecurity = defaults.runtimeSecurity && typeof defaults.runtimeSecurity === "object"
+    ? defaults.runtimeSecurity
+    : {};
   return {
     title: stringValue(plugin.title || defaults.title),
     riskLevel: stringValue(plugin.riskLevel || defaults.riskLevel),
@@ -267,6 +293,12 @@ function normalizePluginSecurity(plugin = {}) {
     allowWorkspaceGrant: plugin.allowWorkspaceGrant === false ? false : defaults.allowWorkspaceGrant !== false,
     provisioning: Object.assign({}, defaults.provisioning, provisioning),
     notifications: Object.assign({}, defaults.notifications, notifications),
+    runtimeSecurity: {
+      wasmEval: runtimeSecurity.wasmEval === false || runtimeSecurity.wasm_eval === false
+        ? false
+        : runtimeSecurity.wasmEval === true || runtimeSecurity.wasm_eval === true
+          || defaultRuntimeSecurity.wasmEval === true || defaultRuntimeSecurity.wasm_eval === true,
+    },
   };
 }
 
@@ -836,6 +868,45 @@ function findMoiraAccessKeyPath(input = {}, options = {}) {
     return "";
   }
 
+  const workspaceKey = walk(workspaceRoot, 0);
+  if (workspaceKey) return workspaceKey;
+  if (moiraSharedOwnerWorkspaceAllowed(workspaceId, options)) {
+    return findMoiraAccessKeyPath(Object.assign({}, input, { workspaceId: "owner" }), options);
+  }
+  return "";
+}
+
+function findMoiraWorkspaceLocalAccessKeyPath(input = {}, options = {}) {
+  const workspaceId = stringValue(input.workspaceId || "owner");
+  const dataDir = stringValue(options.dataDir) || defaultDataDir(options.env);
+  const workspaceRoot = path.join(dataDir, "drive", "users", workspaceId);
+  const maxDepth = Number(options.maxKeySearchDepth || DEFAULT_MAX_KEY_SEARCH_DEPTH);
+  const targetSets = [
+    [".hermes-moira", "access-key.txt"],
+    [".hermes-moira", "workspace-key.txt"],
+  ];
+
+  function walk(dir, depth) {
+    if (depth > maxDepth) return "";
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      return "";
+    }
+    for (const parts of targetSets) {
+      const direct = path.join(dir, ...parts);
+      if (fs.existsSync(direct)) return direct;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === ".hermes-cache" || entry.name === "node_modules" || entry.name === ".git") continue;
+      const found = walk(path.join(dir, entry.name), depth + 1);
+      if (found) return found;
+    }
+    return "";
+  }
+
   return walk(workspaceRoot, 0);
 }
 
@@ -926,6 +997,7 @@ function discoverPluginWorkspaceIdsFromAccessKeys(pluginId, options = {}) {
       if (id === "health") return healthWorkspaceLocalConfigReady({ workspaceId }, options);
       if (id === "note") return noteWorkspaceLocalConfigReady({ workspaceId }, options);
       if (id === "growth") return growthWorkspaceLocalConfigReady({ workspaceId }, options);
+      if (id === "moira") return Boolean(findMoiraWorkspaceLocalAccessKeyPath({ workspaceId }, options));
       return Boolean(findPluginAccessKeyPath(id, { workspaceId }, options));
     });
 }
@@ -951,10 +1023,19 @@ function pluginWorkspaceAuthorized(plugin, input = {}, options = {}) {
     && options.authorizationService.isWorkspaceAuthorized(pluginId, workspaceId)) {
     return true;
   }
+  if (pluginId === "moira" && moiraSharedOwnerWorkspaceAllowed(workspaceId, options)) return true;
   if (pluginId !== "codex-mobile") {
     return Boolean(findPluginAccessKeyPath(pluginId, { workspaceId }, options));
   }
   return false;
+}
+
+function pluginLaunchWorkspaceId(pluginId, workspaceId, options = {}) {
+  const id = stringValue(pluginId);
+  const requested = stringValue(workspaceId || "owner") || "owner";
+  if (id !== "moira" || requested === "owner") return requested;
+  if (findMoiraWorkspaceLocalAccessKeyPath({ workspaceId: requested }, options)) return requested;
+  return moiraSharedOwnerWorkspaceAllowed(requested, options) ? "owner" : requested;
 }
 
 function pluginWorkspaceProvisioningBlock(plugin, input = {}, options = {}) {
@@ -1190,7 +1271,8 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
   if (!manifest?.available || !manifest?.programApi?.pluginLaunchPath || typeof fetchImpl !== "function") return manifest;
   const workspaceId = stringValue(input.workspaceId || "owner");
   const pluginId = stringValue(manifest.id || input.id || "wardrobe");
-  const keyPath = findPluginAccessKeyPath(pluginId, input, options);
+  const launchWorkspaceId = pluginLaunchWorkspaceId(pluginId, workspaceId, options);
+  const keyPath = findPluginAccessKeyPath(pluginId, Object.assign({}, input, { workspaceId: launchWorkspaceId }), options);
   if (!keyPath) {
     return Object.assign({}, manifest, {
       available: false,
@@ -1252,7 +1334,7 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
         workspace_id: wardrobeWorkspaceId,
         hermes_workspace_id: workspaceId,
       }, appearancePayload)
-    : Object.assign({ workspace_id: workspaceId }, appearancePayload);
+    : Object.assign({ workspace_id: launchWorkspaceId }, appearancePayload);
   try {
     const headers = {
       Accept: "application/json",
@@ -1972,12 +2054,21 @@ function createHermesPluginService(options = {}) {
     return accessKey ? `Bearer ${accessKey}` : "";
   }
 
+  function pluginProxyRuntimeSecurity(input = {}) {
+    const id = stringValue(input.id || input.pluginId);
+    const plugin = plugins.find((item) => item.id === id);
+    return {
+      wasmEval: plugin?.runtimeSecurity?.wasmEval === true,
+    };
+  }
+
   return {
     list,
     listInstalled,
     manifest,
     pluginManifestUrl,
     pluginProxyAuthorizationHeader,
+    pluginProxyRuntimeSecurity,
     ensureOwnerWorkspaceProvisioning,
     grantWorkspace,
     revokeWorkspace,
