@@ -140,9 +140,19 @@
 
       function preserveClientState() {
         var preserved = {};
-        ["hermesWebKey", "hermesWebTheme", "hermesWebFontSize", "hermesWebFontFamily", "hermesPluginTopicUsage", "hermesPluginTopicOrder"].forEach(function (key) {
+        var exactPreserveKeys = ["hermesWebKey", "hermesWebTheme", "hermesWebFontSize", "hermesWebFontFamily", "hermesPluginTopicUsage", "hermesPluginTopicOrder", "hermesPinnedPluginBottomTabs"];
+        var prefixPreserveKeys = ["hermesPluginTopicUsage:", "hermesPluginTopicOrder:", "hermesPinnedPluginBottomTabs:"];
+        exactPreserveKeys.forEach(function (key) {
           try { preserved[key] = localStorage.getItem(key) || ""; } catch (_) {}
         });
+        try {
+          for (var i = 0; i < localStorage.length; i += 1) {
+            var dynamicKey = localStorage.key(i);
+            if (prefixPreserveKeys.some(function (prefix) { return dynamicKey && dynamicKey.indexOf(prefix) === 0; })) {
+              preserved[dynamicKey] = localStorage.getItem(dynamicKey) || "";
+            }
+          }
+        } catch (_) {}
         if (!preserved.hermesWebKey) preserved.hermesWebKey = readCookie("hermes_web_key");
         return preserved;
       }

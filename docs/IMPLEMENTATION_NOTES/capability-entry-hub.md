@@ -79,10 +79,12 @@ The current host shell has three related but separate entry surfaces:
 The `话题` tab must not reuse large plugin app cards. Plugin topics are fixed
 conversation groups rendered as compact rows: the plugin icon enters the
 default plugin topic, the row body expands/collapses historical or special
-child topics when present, and the expanded children follow the same compact
-indented language as directory-bound topic rows. This keeps the Dock `常用`
-menu as the task-first surface, `话题` as the conversation-first surface, and
-the Dock app row as the app-first surface.
+child topics or recent default-topic message previews when present, and the
+expanded children follow the same compact indented language as directory-bound
+topic rows. Rows must not degrade to a lone `默认话题` label; if there is no
+recent content yet, the compact row should say that there is no recent content.
+This keeps the Dock `常用` menu as the task-first surface, `话题` as the
+conversation-first surface, and the Dock app row as the app-first surface.
 
 The current quick-action area is the Dock `常用` menu. It is capped at six
 actions. The host stores per-action usage counts and per-plugin app-launch
@@ -96,7 +98,11 @@ as bounded `plugins` and `actions` count/recency maps per workspace. Browser
 `localStorage.hermesPluginTopicUsage` is only a startup/offline cache and must
 not be the only copy of the ordering signal. Account logout, cache reset,
 service-worker update, PWA reinstall, or device switching must not reset the
-server-side usage history.
+server-side usage history. The same endpoint also owns workspace UI
+preferences such as `preferences.pinnedBottomTabs`; pinned plugin bottom tabs
+must survive browser/PWA restart and cross-device reloads through the server
+preference, with localStorage used only as a first-paint cache and migration
+source before the server has a preference timestamp.
 
 Implemented fix, 2026-06-07:
 

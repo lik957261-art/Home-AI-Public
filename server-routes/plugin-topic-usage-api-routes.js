@@ -59,6 +59,38 @@ function workspaceFromRequest(url, body, auth) {
   ).trim() || "owner";
 }
 
+function hasOwn(value, key) {
+  return Boolean(value && Object.prototype.hasOwnProperty.call(value, key));
+}
+
+function usagePayloadFromBody(body) {
+  const source = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  if (source.usage && typeof source.usage === "object" && !Array.isArray(source.usage)) return source.usage;
+  if (
+    (source.plugins && typeof source.plugins === "object" && !Array.isArray(source.plugins))
+    || (source.actions && typeof source.actions === "object" && !Array.isArray(source.actions))
+  ) {
+    return {
+      plugins: source.plugins || {},
+      actions: source.actions || {},
+    };
+  }
+  const reserved = new Set(["workspaceId", "workspace_id", "usage", "preferences", "prefs"]);
+  const usage = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (reserved.has(key)) continue;
+    if (value && typeof value === "object" && !Array.isArray(value)) usage[key] = value;
+  }
+  return usage;
+}
+
+function preferencesPayloadFromBody(body) {
+  const source = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  if (hasOwn(source, "preferences")) return source.preferences;
+  if (hasOwn(source, "prefs")) return source.prefs;
+  return undefined;
+}
+
 function createPluginTopicUsageApiRoutes(deps = {}) {
   requireFunctions(deps, [
     "readBody",
@@ -90,8 +122,9 @@ function createPluginTopicUsageApiRoutes(deps = {}) {
     }
     const workspaceId = deps.requireWorkspaceAccess(req, res, workspaceFromRequest(url, body, context.auth));
     if (!workspaceId) return;
-    const usage = body?.usage && typeof body.usage === "object" ? body.usage : body;
-    deps.sendJson(res, 200, deps.pluginTopicUsageService.mergeWorkspaceUsage(workspaceId, usage || {}));
+    const usage = usagePayloadFromBody(body);
+    const preferences = preferencesPayloadFromBody(body);
+    deps.sendJson(res, 200, deps.pluginTopicUsageService.mergeWorkspaceUsage(workspaceId, usage || {}, preferences));
   }
 
   async function handle(req, res, url, context = {}) {

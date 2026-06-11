@@ -52,6 +52,12 @@ or raw plugin credentials.
 - When there is no saved launch view, Hermes Mobile opens the topic page first.
   Plugin app launch is provided by the global plugin Dock/drawer unless the
   user has pinned that plugin into one of the available bottom-tab slots.
+- Pinned plugin bottom tabs are a server-backed workspace preference stored
+  through `/api/plugin-topic-usage` as `preferences.pinnedBottomTabs`.
+  `hermesPinnedPluginBottomTabs:<workspaceId>` is only a first-paint/offline
+  cache and a one-time migration source when the server has no preference
+  timestamp yet. When the server returns a preference timestamp, the server
+  value is authoritative even when the pinned list is empty.
 - The current frontend projection renders Growth, Codex plugin edition,
   Wardrobe, Finance, Email, Health, Note, and the built-in Directory app in a
   host-owned global plugin Dock anchored directly above the mobile bottom
@@ -141,11 +147,13 @@ or raw plugin credentials.
 - Topics root plugin conversation shortcuts render as compact fixed root-topic
   groups. They are collapsed by default per workspace. The left plugin icon
   opens the default plugin topic; the row body expands or collapses the plugin
-  topic group when there are historical/special child topics; expandable plugin
-  rows use a small row-end chevron instead of a left-leading tree chevron.
-  Plugins with only the default topic open directly and do not show an expand
-  chevron. Expanded child topics use the same compact indented visual language
-  as directory-bound topic rows.
+  topic group when there are historical/special child topics or recent default
+  topic messages; expandable plugin rows use a small row-end chevron instead
+  of a left-leading tree chevron. Plugins with only an empty default topic open
+  directly and show `暂无最近内容` instead of a fake `默认话题` child. Expanded
+  child topics use the same compact indented visual language as
+  directory-bound topic rows, with recent default-topic messages rendered as
+  short preview entries that open the default plugin topic.
 - The compact plugin topic group row is a root-level entry like the Directory
   root entry: 32px plugin icon column, title/meta text column, optional row-end
   chevron, and a 48px row height. The left edge is reserved for root icons, not
@@ -402,8 +410,10 @@ promotion into persisted usage,
 collapsible folder-tree rows excluding plugin topics and hiding raw directory
 paths/default badges, root topic-list header/composer suppression, bottom
 navigation with Topics centered unless workspace-scoped plugin tabs are pinned,
+server-backed pinned plugin bottom-tab preferences with local-cache migration,
 default launch to Topics when no saved view exists, fixed `plugin:<pluginId>`
-topic entry,
+topic entry, compact plugin-topic recent-message previews instead of default
+topic-only rows,
 non-blocking topic entry before directory refresh, creation of `插件/<plugin title>`, file-directory attachment on
 plugin-topic sends, return from plugin file directory to the topic list, plugin
 topic detail hiding bottom navigation while keeping the composer available,

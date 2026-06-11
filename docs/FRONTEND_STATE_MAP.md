@@ -172,6 +172,9 @@ the change is part of a dedicated infrastructure rename.
     `hermesPluginTopicUsage` only as a local first-paint/offline cache. Used
     entries sort by count/recency, and available default actions may fill the
     remaining `常用` menu entries so first-time users do not see an empty menu.
+    Pinned plugin bottom tabs use the same server preference endpoint via
+    `preferences.pinnedBottomTabs`; `hermesPinnedPluginBottomTabs:<workspaceId>`
+    is only the local first-paint/offline cache and old-cache migration source.
     Directory-bound topic rows show the directory display name plus topic count
     and updated time; they hide raw directory paths and default-topic prompt
     badges.

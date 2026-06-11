@@ -112,11 +112,35 @@ async function testPatchMergesUsage() {
   assert.equal(body.ok, true);
   assert.deepEqual(body.usage.plugins.finance, { count: 1, lastUsedAt: 100 });
   assert.deepEqual(body.usage.actions["wardrobe:style"], { count: 2, lastUsedAt: 200 });
+  assert.deepEqual(body.preferences.pinnedBottomTabs, []);
+}
+
+async function testPatchMergesPreferencesWithoutFakeUsageBucket() {
+  const { routes, service } = createRoutes();
+  service.mergeWorkspaceUsage("owner", { plugins: { finance: { count: 3, lastUsedAt: 300 } } });
+  const req = makeRequest("PATCH", "/api/plugin-topic-usage", {
+    workspaceId: "owner",
+    preferences: {
+      pinnedBottomTabs: ["finance", "wardrobe", "health", "note"],
+    },
+  });
+  const res = makeResponse();
+
+  await routes.handle(req, res, new URL(req.url, "http://localhost"), { auth: req.auth });
+
+  assert.equal(res.statusCode, 200);
+  const body = JSON.parse(res.body);
+  assert.deepEqual(body.usage.plugins.finance, { count: 3, lastUsedAt: 300 });
+  assert.equal(body.usage.plugins.preferences, undefined);
+  assert.deepEqual(body.preferences.pinnedBottomTabs, ["finance", "wardrobe", "health"]);
+  assert.equal(body.preferencesUpdatedAt, "2026-06-07T00:00:00.000Z");
 }
 
 async function testGetReadsWorkspaceUsage() {
   const { routes, service } = createRoutes();
-  service.mergeWorkspaceUsage("owner", { plugins: { finance: { count: 3, lastUsedAt: 300 } } });
+  service.mergeWorkspaceUsage("owner", { plugins: { finance: { count: 3, lastUsedAt: 300 } } }, {
+    pinnedBottomTabs: ["finance"],
+  });
   const req = makeRequest("GET", "/api/plugin-topic-usage?workspaceId=owner");
   const res = makeResponse();
 
@@ -126,6 +150,8 @@ async function testGetReadsWorkspaceUsage() {
   const body = JSON.parse(res.body);
   assert.equal(body.workspaceId, "owner");
   assert.deepEqual(body.usage.plugins.finance, { count: 3, lastUsedAt: 300 });
+  assert.deepEqual(body.preferences.pinnedBottomTabs, ["finance"]);
+  assert.equal(body.preferencesUpdatedAt, "2026-06-07T00:00:00.000Z");
 }
 
 async function testWorkspaceSpoofIsRejected() {
@@ -149,6 +175,7 @@ function testRouteInventorySurface() {
 
 async function run() {
   await testPatchMergesUsage();
+  await testPatchMergesPreferencesWithoutFakeUsageBucket();
   await testGetReadsWorkspaceUsage();
   await testWorkspaceSpoofIsRejected();
   testRouteInventorySurface();

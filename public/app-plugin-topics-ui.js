@@ -213,6 +213,8 @@ let pluginActionMenuCloseBound = false;
 let pluginActionMenuSwipe = null;
 let pluginTopicUsagePendingSync = null;
 let pluginTopicUsageSyncTimer = 0;
+let pluginTopicPreferencesPendingSync = null;
+let pluginTopicPreferencesSyncTimer = 0;
 let pluginTopicActionManifestRefreshTimer = 0;
 let globalPluginDockGesture = null;
 let globalPluginDockGestureBound = false;
@@ -649,28 +651,37 @@ function pluginBottomTabCapacity() {
   return Math.max(0, BOTTOM_NAV_MAX_VISIBLE_TABS - BOTTOM_NAV_BASE_VISIBLE_TABS);
 }
 
+function pluginBottomTabAllowedIds() {
+  return new Set(orderedPluginAppDefs(availablePluginTopicDefs())
+    .filter((def) => !def.builtinKind)
+    .map((def) => def.id));
+}
+
+function normalizePinnedPluginBottomTabIds(ids = []) {
+  const allowed = pluginBottomTabAllowedIds();
+  return [...new Set((Array.isArray(ids) ? ids : []).map(pluginTopicId).filter((id) => id && allowed.has(id)))]
+    .slice(0, pluginBottomTabCapacity());
+}
+
 function readPinnedPluginBottomTabs(workspaceId = globalPluginDockWorkspaceId()) {
   try {
     const raw = localStorage.getItem(pluginBottomTabsStorageKey(workspaceId));
     const values = JSON.parse(raw || "[]");
     if (!Array.isArray(values)) return [];
-    return [...new Set(values.map(pluginTopicId).filter(Boolean))];
+    return normalizePinnedPluginBottomTabIds(values);
   } catch {
     return [];
   }
 }
 
-function writePinnedPluginBottomTabs(ids = [], workspaceId = globalPluginDockWorkspaceId()) {
-  const allowed = new Set(orderedPluginAppDefs(availablePluginTopicDefs())
-    .filter((def) => !def.builtinKind)
-    .map((def) => def.id));
-  const normalized = [...new Set((ids || []).map(pluginTopicId).filter((id) => id && allowed.has(id)))]
-    .slice(0, pluginBottomTabCapacity());
+function writePinnedPluginBottomTabs(ids = [], workspaceId = globalPluginDockWorkspaceId(), options = {}) {
+  const normalized = normalizePinnedPluginBottomTabIds(ids);
   try {
     localStorage.setItem(pluginBottomTabsStorageKey(workspaceId), JSON.stringify(normalized));
   } catch {
-    // Bottom-tab pinning is a local UI preference; failure only disables persistence.
+    // The server preference remains authoritative when local cache writes fail.
   }
+  if (options.sync !== false) schedulePluginTopicPreferencesSync({ pinnedBottomTabs: normalized }, workspaceId);
   return normalized;
 }
 
@@ -719,6 +730,7 @@ function setPluginBottomTabPinned(pluginId = "", pinned = true) {
 
 function syncPinnedPluginBottomTabs(pluginContextNav = false) {
   if (pluginContextNav) return [];
+  ensurePluginTopicUsageLoaded();
   const pinnedIds = pinnedPluginBottomTabIds();
   const visible = new Set(pinnedIds);
   PLUGIN_TOPIC_DEFS.forEach((def) => {
@@ -1052,6 +1064,19 @@ function normalizePluginTopicUsage(usage) {
   };
 }
 
+function normalizePluginTopicPreferences(preferences) {
+  const source = preferences && typeof preferences === "object" && !Array.isArray(preferences) ? preferences : {};
+  return {
+    pinnedBottomTabs: normalizePinnedPluginBottomTabIds(
+      source.pinnedBottomTabs || source.pinned_bottom_tabs || source.bottomTabs || source.bottom_tabs || [],
+    ),
+  };
+}
+
+function pluginTopicPreferencesEqual(a, b) {
+  return JSON.stringify(normalizePluginTopicPreferences(a)) === JSON.stringify(normalizePluginTopicPreferences(b));
+}
+
 function mergePluginTopicUsage(baseUsage, incomingUsage) {
   const base = normalizePluginTopicUsage(baseUsage);
   const incoming = normalizePluginTopicUsage(incomingUsage);
@@ -1146,6 +1171,49 @@ async function flushPluginTopicUsageSync() {
   }
 }
 
+function applyPluginTopicPreferencesFromServer(preferences, workspaceId = pluginTopicUsageWorkspaceId()) {
+  const normalized = normalizePluginTopicPreferences(preferences);
+  const current = normalizePluginTopicPreferences({ pinnedBottomTabs: readPinnedPluginBottomTabs(workspaceId) });
+  writePinnedPluginBottomTabs(normalized.pinnedBottomTabs, workspaceId, { sync: false });
+  if (workspaceId === pluginTopicUsageWorkspaceId() && !pluginTopicPreferencesEqual(current, normalized)) {
+    if (typeof updateNavigationControls === "function") updateNavigationControls();
+    if (typeof refreshPluginAppOrderSurfaces === "function") refreshPluginAppOrderSurfaces();
+  }
+  return normalized;
+}
+
+async function flushPluginTopicPreferencesSync() {
+  if (!pluginTopicPreferencesPendingSync || !pluginTopicUsageApiReady()) return;
+  const pending = pluginTopicPreferencesPendingSync;
+  pluginTopicPreferencesPendingSync = null;
+  try {
+    const result = await api(PLUGIN_TOPIC_USAGE_API_PATH, {
+      method: "PATCH",
+      body: JSON.stringify({ workspaceId: pending.workspaceId, preferences: pending.preferences }),
+      timeoutMs: 8000,
+    });
+    if (result && Object.prototype.hasOwnProperty.call(result, "preferences")) {
+      applyPluginTopicPreferencesFromServer(result.preferences, pending.workspaceId);
+    }
+    markPluginTopicUsageLoaded(pending.workspaceId);
+  } catch (_) {
+    pluginTopicPreferencesPendingSync = pending;
+  }
+}
+
+function schedulePluginTopicPreferencesSync(preferences = { pinnedBottomTabs: readPinnedPluginBottomTabs() }, workspaceId = pluginTopicUsageWorkspaceId()) {
+  if (!pluginTopicUsageApiReady()) return;
+  pluginTopicPreferencesPendingSync = {
+    workspaceId: String(workspaceId || "owner").trim() || "owner",
+    preferences: normalizePluginTopicPreferences(preferences),
+  };
+  if (pluginTopicPreferencesSyncTimer) window.clearTimeout(pluginTopicPreferencesSyncTimer);
+  pluginTopicPreferencesSyncTimer = window.setTimeout(() => {
+    pluginTopicPreferencesSyncTimer = 0;
+    flushPluginTopicPreferencesSync().catch(() => {});
+  }, PLUGIN_TOPIC_USAGE_SYNC_DELAY_MS);
+}
+
 function schedulePluginTopicUsageSync(usage = readPluginTopicUsage()) {
   if (!pluginTopicUsageApiReady()) return;
   pluginTopicUsagePendingSync = {
@@ -1171,6 +1239,18 @@ async function loadPluginTopicUsageFromServer(workspaceId = pluginTopicUsageWork
     refreshPluginTopicUsageRoot();
   }
   if (!pluginTopicUsageEqual(serverUsage, merged)) schedulePluginTopicUsageSync(merged);
+  const serverPreferences = normalizePluginTopicPreferences(result?.preferences);
+  const serverPreferencesUpdatedAt = String(result?.preferencesUpdatedAt || result?.preferences_updated_at || "");
+  const serverHasPreferences = Boolean(serverPreferencesUpdatedAt || serverPreferences.pinnedBottomTabs.length);
+  const hasPendingPreferenceSync = pluginTopicPreferencesPendingSync?.workspaceId === workspaceId;
+  if (serverHasPreferences && !hasPendingPreferenceSync) {
+    applyPluginTopicPreferencesFromServer(serverPreferences, workspaceId);
+  } else if (!serverHasPreferences) {
+    const localPinnedTabs = readPinnedPluginBottomTabs(workspaceId);
+    if (localPinnedTabs.length) {
+      schedulePluginTopicPreferencesSync({ pinnedBottomTabs: localPinnedTabs }, workspaceId);
+    }
+  }
   markPluginTopicUsageLoaded(workspaceId);
   return merged;
 }
@@ -1681,6 +1761,49 @@ function pluginTopicMessages(thread, taskGroupId) {
   return (thread?.messages || []).filter((message) => String(message?.taskGroupId || "") === taskGroupId);
 }
 
+function pluginTopicMessageTimestamp(message = {}) {
+  return String(message?.updatedAt || message?.createdAt || "");
+}
+
+function pluginTopicMessagePreviewText(message = {}, max = 48) {
+  const value = message?.content || message?.text || message?.summary || message?.title || "";
+  let raw = "";
+  if (Array.isArray(value)) {
+    raw = value.map((item) => (typeof item === "string" ? item : (item?.text || item?.content || ""))).filter(Boolean).join(" ");
+  } else if (value && typeof value === "object") {
+    raw = value.text || value.content || value.summary || "";
+    if (!raw) {
+      try {
+        raw = JSON.stringify(value);
+      } catch (_) {
+        raw = "";
+      }
+    }
+  } else {
+    raw = String(value || "");
+  }
+  if (typeof cleanDisplayText === "function") raw = cleanDisplayText(raw);
+  if (typeof compactDisplayText === "function") return compactDisplayText(raw, max);
+  return raw.replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function pluginTopicRecentMessageEntries(def, thread = state.currentThread, limit = 2) {
+  if (!def || def.builtinKind) return [];
+  return pluginTopicMessages(thread, pluginTopicGroupId(def.id))
+    .filter((message) => String(message?.role || "") !== "system")
+    .map((message) => ({
+      kind: "recent_message",
+      pluginId: def.id,
+      taskGroupId: pluginTopicGroupId(def.id),
+      title: pluginTopicMessagePreviewText(message, 52),
+      subtitle: pluginTopicMessageTimestamp(message) ? formatTime(pluginTopicMessageTimestamp(message)) : "",
+      updatedAt: pluginTopicMessageTimestamp(message),
+    }))
+    .filter((entry) => entry.title)
+    .sort((a, b) => (Date.parse(b.updatedAt || "") || 0) - (Date.parse(a.updatedAt || "") || 0))
+    .slice(0, limit);
+}
+
 function pluginTopicGroupsForTaskList(thread) {
   return availablePluginTopicDefs().filter((def) => !def.builtinKind).map((def) => {
     const id = pluginTopicGroupId(def.id);
@@ -1720,11 +1843,16 @@ function pluginTopicCollectionUpdatedAt(collections = []) {
 
 function pluginTopicRowMeta(def, childEntries = [], options = {}) {
   if (!def || def.builtinKind) return "";
-  if (!childEntries.length) return "\u9ed8\u8ba4\u8bdd\u9898";
+  const recentEntry = childEntries.find((entry) => entry.kind === "recent_message");
+  const claimedCount = childEntries.filter((entry) => entry.kind === "claimed_directory").length;
+  if (recentEntry) {
+    return [claimedCount > 0 ? `${claimedCount} \u4e2a\u4e13\u9898` : "\u6700\u8fd1", recentEntry.title].filter(Boolean).join("\u3000");
+  }
+  if (!claimedCount) return "\u6682\u65e0\u6700\u8fd1\u5185\u5bb9";
   const claimedCollections = pluginTopicClaimedCollectionsForPlugin(options.claimedDirectoryTopicCollections || [], def.id);
   const updatedAtValue = pluginTopicCollectionUpdatedAt(claimedCollections);
   const updated = updatedAtValue ? formatTime(new Date(updatedAtValue).toISOString()) : "";
-  return [ `${childEntries.length} \u4e2a\u4e13\u9898`, updated ].filter(Boolean).join("\u3000");
+  return [ `${claimedCount} \u4e2a\u4e13\u9898`, updated ].filter(Boolean).join("\u3000");
 }
 
 function pluginTopicExpandedStorageKey(workspaceId = pluginTopicUsageWorkspaceId()) {
@@ -1759,8 +1887,10 @@ function setPluginTopicExpanded(pluginId, expanded) {
 
 function pluginTopicChildEntries(def, options = {}) {
   if (!def || def.builtinKind) return [];
-  return pluginTopicSwitcherEntries(def)
+  const recentEntries = pluginTopicRecentMessageEntries(def, options.thread || state.currentThread, 2);
+  const claimedEntries = pluginTopicSwitcherEntries(def)
     .filter((entry) => entry.kind === "claimed_directory" && entry.taskGroupId);
+  return [...recentEntries, ...claimedEntries].slice(0, 5);
 }
 
 function renderPluginTopicCards(options = {}) {
@@ -1795,10 +1925,19 @@ function renderPluginTopicCards(options = {}) {
             </button>` : `<span class="plugin-topic-row-chevron-placeholder" aria-hidden="true"></span>`}
           </div>
           ${hasChildren ? `<div class="plugin-topic-child-list directory-topic-bound-list" aria-label="${escapeHtml(`${def.label}\u4e13\u9898\u8bdd\u9898`)}">
-            ${childEntries.map((entry) => `<button class="plugin-topic-child-row directory-topic-chip" type="button" data-plugin-claimed-topic-open="${escapeHtml(entry.taskGroupId)}" data-plugin-claimed-topic-plugin="${escapeHtml(entry.pluginId)}">
-              <span class="plugin-topic-action-icon chat" aria-hidden="true"></span>
-              <span class="plugin-topic-child-title directory-topic-chip-title">${escapeHtml(entry.title || "\u4e13\u9898\u8bdd\u9898")}</span>
-            </button>`).join("")}
+            ${childEntries.map((entry) => {
+              const attrs = entry.kind === "recent_message"
+                ? `data-plugin-topic-open-topic="${escapeHtml(entry.pluginId)}"`
+                : `data-plugin-claimed-topic-open="${escapeHtml(entry.taskGroupId)}" data-plugin-claimed-topic-plugin="${escapeHtml(entry.pluginId)}"`;
+              const title = entry.title || (entry.kind === "recent_message" ? "\u6700\u8fd1\u5185\u5bb9" : "\u4e13\u9898\u8bdd\u9898");
+              return `<button class="plugin-topic-child-row directory-topic-chip" type="button" ${attrs}>
+                <span class="plugin-topic-action-icon chat" aria-hidden="true"></span>
+                <span class="plugin-topic-child-text">
+                  <span class="plugin-topic-child-title directory-topic-chip-title">${escapeHtml(title)}</span>
+                  ${entry.subtitle ? `<span class="plugin-topic-child-meta">${escapeHtml(entry.subtitle)}</span>` : ""}
+                </span>
+              </button>`;
+            }).join("")}
           </div>` : ""}
         </article>
       `;

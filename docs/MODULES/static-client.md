@@ -236,7 +236,9 @@ Gateway plugin/schema/profile changes:
   `targetVersion=<server-version>`; the inline app-shell reset clears bounded
   static caches, unregisters Service Workers for explicit hard refresh,
   preserves the stored Access Key/theme/font preferences plus the
-  `hermesPluginTopicUsage` and `hermesPluginTopicOrder` local caches, and
+  `hermesPluginTopicUsage`, `hermesPluginTopicOrder`, and
+  `hermesPinnedPluginBottomTabs` local caches, including their
+  workspace-suffixed variants, and
   returns to the app with a cache-busting query. Manual update recovery must not navigate to
   `/client-reset.html`, because mobile PWA clients can open that page in a
   browser wrapper.

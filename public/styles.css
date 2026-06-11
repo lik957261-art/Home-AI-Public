@@ -6619,8 +6619,17 @@ button.directory-alias-chip {
   color: var(--muted);
 }
 
+.plugin-topic-child-text {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  overflow: hidden;
+}
+
 .plugin-topic-child-title {
   min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -6628,6 +6637,18 @@ button.directory-alias-chip {
 
 .plugin-topic-child-title {
   font-weight: 650;
+}
+
+.plugin-topic-child-meta {
+  flex: 0 0 auto;
+  max-width: 42%;
+  color: var(--muted);
+  font-size: calc(10px * var(--app-font-scale));
+  font-weight: 600;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .plugin-topic-actions {

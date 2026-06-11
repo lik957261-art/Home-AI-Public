@@ -2,8 +2,9 @@
 
 const path = require("node:path");
 
-const STORE_SCHEMA_VERSION = 1;
+const STORE_SCHEMA_VERSION = 2;
 const DEFAULT_MAX_BUCKET_ENTRIES = 96;
+const DEFAULT_MAX_PINNED_BOTTOM_TABS = 3;
 
 function clampInteger(value, max = Number.MAX_SAFE_INTEGER) {
   const n = Math.floor(Number(value) || 0);
@@ -22,6 +23,15 @@ function cleanUsageKey(value = "") {
 
 function cleanWorkspaceId(value = "") {
   return String(value || "").trim().slice(0, 160) || "owner";
+}
+
+function cleanPreferencePluginId(value = "") {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 96);
 }
 
 function normalizeUsageEntry(value) {
@@ -58,7 +68,7 @@ function normalizeUsage(value, options = {}) {
   const maxEntries = Math.max(1, Number(options.maxBucketEntries || DEFAULT_MAX_BUCKET_ENTRIES) || DEFAULT_MAX_BUCKET_ENTRIES);
   const pluginBucket = Object.assign({}, source.plugins && typeof source.plugins === "object" ? source.plugins : {});
   for (const [key, entry] of Object.entries(source)) {
-    if (key === "plugins" || key === "actions") continue;
+    if (["plugins", "actions", "preferences", "prefs", "updatedAt", "updated_at", "preferencesUpdatedAt", "preferences_updated_at"].includes(key)) continue;
     if (entry && typeof entry === "object" && !Array.isArray(entry)) pluginBucket[key] = entry;
   }
   return {
@@ -88,6 +98,32 @@ function mergeUsage(baseUsage, incomingUsage, options = {}) {
   return merged;
 }
 
+function normalizePinnedBottomTabs(value, maxEntries = DEFAULT_MAX_PINNED_BOTTOM_TABS) {
+  const source = Array.isArray(value) ? value : [];
+  const limit = Math.max(0, Number(maxEntries) || DEFAULT_MAX_PINNED_BOTTOM_TABS);
+  const out = [];
+  for (const raw of source) {
+    const id = cleanPreferencePluginId(raw);
+    if (id && !out.includes(id)) out.push(id);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function normalizePreferences(value, options = {}) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const maxPinnedBottomTabs = Math.max(
+    0,
+    Number(options.maxPinnedBottomTabs || DEFAULT_MAX_PINNED_BOTTOM_TABS) || DEFAULT_MAX_PINNED_BOTTOM_TABS,
+  );
+  return {
+    pinnedBottomTabs: normalizePinnedBottomTabs(
+      source.pinnedBottomTabs || source.pinned_bottom_tabs || source.bottomTabs || source.bottom_tabs,
+      maxPinnedBottomTabs,
+    ),
+  };
+}
+
 function emptyState() {
   return {
     schemaVersion: STORE_SCHEMA_VERSION,
@@ -109,6 +145,8 @@ function normalizeState(value, options = {}) {
     out.workspaces[workspaceId] = {
       updatedAt: String(record.updatedAt || record.updated_at || ""),
       usage: normalizeUsage(record.usage || record, options),
+      preferences: normalizePreferences(record.preferences, options),
+      preferencesUpdatedAt: String(record.preferencesUpdatedAt || record.preferences_updated_at || ""),
     };
   }
   return out;
@@ -129,6 +167,7 @@ function createPluginTopicUsageService(options = {}) {
   const fs = options.fs || require("node:fs");
   const storePath = defaultStorePath(options);
   const maxBucketEntries = Math.max(1, Number(options.maxBucketEntries || DEFAULT_MAX_BUCKET_ENTRIES) || DEFAULT_MAX_BUCKET_ENTRIES);
+  const maxPinnedBottomTabs = Math.max(0, Number(options.maxPinnedBottomTabs || DEFAULT_MAX_PINNED_BOTTOM_TABS) || DEFAULT_MAX_PINNED_BOTTOM_TABS);
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
   const readJsonStore = typeof options.readJsonStore === "function"
     ? options.readJsonStore
@@ -148,11 +187,11 @@ function createPluginTopicUsageService(options = {}) {
     };
 
   function readState() {
-    return normalizeState(readJsonStore(storePath, emptyState()), { maxBucketEntries });
+    return normalizeState(readJsonStore(storePath, emptyState()), { maxBucketEntries, maxPinnedBottomTabs });
   }
 
   function writeState(state) {
-    const normalized = normalizeState(state, { maxBucketEntries });
+    const normalized = normalizeState(state, { maxBucketEntries, maxPinnedBottomTabs });
     normalized.schemaVersion = STORE_SCHEMA_VERSION;
     normalized.updatedAt = nowIso();
     writeJsonStore(storePath, normalized);
@@ -168,29 +207,41 @@ function createPluginTopicUsageService(options = {}) {
       workspaceId: id,
       updatedAt: String(record.updatedAt || ""),
       usage: normalizeUsage(record.usage, { maxBucketEntries }),
+      preferences: normalizePreferences(record.preferences, { maxPinnedBottomTabs }),
+      preferencesUpdatedAt: String(record.preferencesUpdatedAt || ""),
     };
   }
 
-  function mergeWorkspaceUsage(workspaceId = "owner", incomingUsage = {}) {
+  function mergeWorkspaceUsage(workspaceId = "owner", incomingUsage = {}, incomingPreferences = undefined) {
     const id = cleanWorkspaceId(workspaceId);
     const state = readState();
     const existing = state.workspaces[id] || {};
     const updatedAt = nowIso();
-    state.workspaces[id] = {
+    const nextRecord = {
       updatedAt,
       usage: mergeUsage(existing.usage, incomingUsage, { maxBucketEntries }),
+      preferences: normalizePreferences(existing.preferences, { maxPinnedBottomTabs }),
+      preferencesUpdatedAt: String(existing.preferencesUpdatedAt || ""),
     };
+    if (incomingPreferences !== undefined) {
+      nextRecord.preferences = normalizePreferences(incomingPreferences, { maxPinnedBottomTabs });
+      nextRecord.preferencesUpdatedAt = updatedAt;
+    }
+    state.workspaces[id] = nextRecord;
     writeState(state);
     return {
       ok: true,
       workspaceId: id,
       updatedAt,
       usage: state.workspaces[id].usage,
+      preferences: state.workspaces[id].preferences,
+      preferencesUpdatedAt: state.workspaces[id].preferencesUpdatedAt,
     };
   }
 
   return {
     mergeWorkspaceUsage,
+    normalizePreferences: (preferences) => normalizePreferences(preferences, { maxPinnedBottomTabs }),
     normalizeUsage: (usage) => normalizeUsage(usage, { maxBucketEntries }),
     readWorkspaceUsage,
     storePath,
@@ -201,5 +252,6 @@ module.exports = {
   STORE_SCHEMA_VERSION,
   createPluginTopicUsageService,
   mergeUsage,
+  normalizePreferences,
   normalizeUsage,
 };
