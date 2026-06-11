@@ -193,6 +193,14 @@ Automation implementation must preserve these layers:
      stores, or SQLite rows directly.
    - If the Home AI automation route cannot reach the canonical backend, the
      correct result is a visible diagnostic and no job creation.
+   - Mac Gateway workers that expose `cronjob_mobile` through
+     `hermes-mobile-http` must receive
+     `HERMES_MOBILE_BRIDGE_HOST_URL=http://127.0.0.1:8797` and
+     `HERMES_MOBILE_BRIDGE_HOST_KEY_PATH=$ROOT/data/secrets/bridge-host.secret`
+     with the `HERMES_WEB_*` aliases. Workspace provisioning must grant the
+     worker user read ACLs on that host-key file. Without those values, the
+     tool returns `Hermes Mobile bridge host key is not configured` and must not
+     fall back to profile-local cron.
 
 Required implementation updates after this contract:
 

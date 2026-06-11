@@ -22,6 +22,8 @@ const FILE_PLUGIN_SINGLE_ROOT_ENVS = Object.freeze({
   HERMES_MOBILE_HTTP_SAVE_ROOT: "${ROOT}/data/artifacts/http-request",
   HERMES_MOBILE_VIDEO_OUTPUT_ROOT: "${ROOT}/data/artifacts/grok-videos",
 });
+const DEFAULT_MOBILE_BRIDGE_HOST_URL = "http://127.0.0.1:8797";
+const MOBILE_BRIDGE_HOST_KEY_RELATIVE_PATH = "data/secrets/bridge-host.secret";
 const STANDARD_PROFILE_PLUGINS = Object.freeze([
   "weather",
   "web",
@@ -463,6 +465,7 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
       manifestPath,
       worker.apiKeyFile || worker.api_key_file || worker.apiKeyPath || worker.api_key_path,
       worker.deepseekApiKeyFile || worker.deepseek_api_key_file || worker.providerKeyFile || worker.provider_key_file,
+      path.posix.join(fields.root, MOBILE_BRIDGE_HOST_KEY_RELATIVE_PATH),
     ].filter(Boolean);
     const fallbackProviderKey = path.posix.join(fields.dataRoot, "secrets", "deepseek-api-key.secret");
     if (fileExists(fallbackProviderKey)) targets.push(fallbackProviderKey);
@@ -606,6 +609,8 @@ RUNTIME_PYTHON="$ROOT/runtime/hermes-agent-official/venv/bin/python"
 RUNTIME_SOURCE="$ROOT/runtime/hermes-agent-official/source"
 RUNTIME_OVERRIDES="$ROOT/app/gateway-runtime-overrides"
 FILE_PLUGIN_ALLOWED_ROOTS="$ROOT/data/drive,$ROOT/data/uploads,$ROOT/data/artifacts"
+MOBILE_BRIDGE_HOST_URL="\${HERMES_MOBILE_BRIDGE_HOST_URL:-\${HERMES_WEB_BRIDGE_HOST_URL:-${DEFAULT_MOBILE_BRIDGE_HOST_URL}}}"
+MOBILE_BRIDGE_HOST_KEY_PATH="\${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-\${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-$ROOT/${MOBILE_BRIDGE_HOST_KEY_RELATIVE_PATH}}}"
 ${envLines}
 read_worker_field() {
   "$RUNTIME_PYTHON" - "$MANIFEST" "$PROFILE" "$1" <<'PY'
@@ -644,7 +649,7 @@ if [ -s "$deepseek_api_key_file" ]; then
   deepseek_api_key="$(tr -d '\\r\\n' < "$deepseek_api_key_file")"
 fi
 mkdir -p "$PROFILE_DIR/logs"
-exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_PROFILE="$PROFILE" HERMES_WORKSPACE_ROOT=${bashQuote(fields.workerWorkspaceRoot)} HERMES_GOOGLE_PROFILE_HOME="$PROFILE_DIR" PYTHONPATH="$RUNTIME_OVERRIDES:$RUNTIME_SOURCE" PATH="$ROOT/runtime/node-current/bin:$ROOT/runtime/hermes-agent-official/venv/bin:/usr/local/bin:/usr/bin:/bin" HERMES_ACCEPT_HOOKS=1 HERMES_KANBAN_DISPATCH_IN_GATEWAY=0 API_SERVER_KEY="$api_server_key" DEEPSEEK_API_KEY="$deepseek_api_key" "$RUNTIME_PYTHON" -m hermes_cli.main gateway run --replace --accept-hooks
+exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_PROFILE="$PROFILE" HERMES_WORKSPACE_ROOT=${bashQuote(fields.workerWorkspaceRoot)} HERMES_GOOGLE_PROFILE_HOME="$PROFILE_DIR" HERMES_MOBILE_BRIDGE_HOST_URL="$MOBILE_BRIDGE_HOST_URL" HERMES_WEB_BRIDGE_HOST_URL="$MOBILE_BRIDGE_HOST_URL" HERMES_MOBILE_BRIDGE_HOST_KEY_PATH="$MOBILE_BRIDGE_HOST_KEY_PATH" HERMES_WEB_BRIDGE_HOST_KEY_PATH="$MOBILE_BRIDGE_HOST_KEY_PATH" PYTHONPATH="$RUNTIME_OVERRIDES:$RUNTIME_SOURCE" PATH="$ROOT/runtime/node-current/bin:$ROOT/runtime/hermes-agent-official/venv/bin:/usr/local/bin:/usr/bin:/bin" HERMES_ACCEPT_HOOKS=1 HERMES_KANBAN_DISPATCH_IN_GATEWAY=0 API_SERVER_KEY="$api_server_key" DEEPSEEK_API_KEY="$deepseek_api_key" "$RUNTIME_PYTHON" -m hermes_cli.main gateway run --replace --accept-hooks
 `;
   }
 

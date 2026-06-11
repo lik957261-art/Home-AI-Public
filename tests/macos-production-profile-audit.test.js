@@ -27,6 +27,10 @@ assert.match(script, /launchd_required_warm_keepalive_missing/);
 assert.match(script, /file_plugin_root_env_missing/);
 assert.match(script, /file_plugin_root_missing/);
 assert.match(script, /file_plugin_root_list_delimiter_unsupported/);
+assert.match(script, /mobile_bridge_env_missing/);
+assert.match(script, /mobile_bridge_key_path_missing/);
+assert.match(script, /HERMES_MOBILE_BRIDGE_HOST_URL/);
+assert.match(script, /HERMES_MOBILE_BRIDGE_HOST_KEY_PATH/);
 assert.match(script, /HERMES_MOBILE_DOCX_ALLOWED_ROOTS/);
 assert.match(script, /HERMES_MOBILE_HTTP_FILE_ROOTS/);
 assert.match(script, /launchdProbe/);
@@ -138,6 +142,8 @@ try {
   assert.ok(audit.issues.includes("file_plugin_root_env_missing:hm-wuping-openai-1:HERMES_MOBILE_DOCX_ALLOWED_ROOTS"));
   assert.ok(audit.issues.includes("shared_skill_missing:shared/response-grounding-baseline"));
   assert.ok(audit.issues.some((item) => item.startsWith("profile_config_missing:")));
+  assert.ok(audit.issues.includes("mobile_bridge_env_missing:hm-wuping-openai-1:HERMES_MOBILE_BRIDGE_HOST_URL"));
+  assert.ok(audit.issues.includes("mobile_bridge_key_path_missing:hm-wuping-openai-1:data/secrets/bridge-host.secret"));
   const fileRootReadyAudit = buildAudit({
     root: tempRoot,
     expectedWorkspaces: [],
@@ -157,12 +163,19 @@ try {
         'HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS="$ROOT/data/drive/users"',
         'HERMES_MOBILE_HTTP_SAVE_ROOT="$ROOT/data/artifacts/http-request"',
         'HERMES_MOBILE_VIDEO_OUTPUT_ROOT="$ROOT/data/artifacts/grok-videos"',
+        'MOBILE_BRIDGE_HOST_URL="${HERMES_MOBILE_BRIDGE_HOST_URL:-${HERMES_WEB_BRIDGE_HOST_URL:-http://127.0.0.1:8797}}"',
+        'MOBILE_BRIDGE_HOST_KEY_PATH="${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-$ROOT/data/secrets/bridge-host.secret}}"',
+        'HERMES_MOBILE_BRIDGE_HOST_URL="$MOBILE_BRIDGE_HOST_URL"',
+        'HERMES_WEB_BRIDGE_HOST_URL="$MOBILE_BRIDGE_HOST_URL"',
+        'HERMES_MOBILE_BRIDGE_HOST_KEY_PATH="$MOBILE_BRIDGE_HOST_KEY_PATH"',
+        'HERMES_WEB_BRIDGE_HOST_KEY_PATH="$MOBILE_BRIDGE_HOST_KEY_PATH"',
       ].join("\n"),
     }),
   });
   assert.ok(!fileRootReadyAudit.issues.some((item) => item.startsWith("file_plugin_root_env_missing:")));
   assert.ok(!fileRootReadyAudit.issues.some((item) => item.startsWith("file_plugin_root_missing:")));
   assert.ok(!fileRootReadyAudit.issues.some((item) => item.startsWith("file_plugin_root_list_delimiter_unsupported:")));
+  assert.ok(!fileRootReadyAudit.issues.some((item) => item.startsWith("mobile_bridge_")));
   const colonDelimitedRootAudit = buildAudit({
     root: tempRoot,
     expectedWorkspaces: [],
@@ -182,6 +195,12 @@ try {
         'HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS="$ROOT/data/drive/users"',
         'HERMES_MOBILE_HTTP_SAVE_ROOT="$ROOT/data/artifacts/http-request"',
         'HERMES_MOBILE_VIDEO_OUTPUT_ROOT="$ROOT/data/artifacts/grok-videos"',
+        'MOBILE_BRIDGE_HOST_URL="${HERMES_MOBILE_BRIDGE_HOST_URL:-${HERMES_WEB_BRIDGE_HOST_URL:-http://127.0.0.1:8797}}"',
+        'MOBILE_BRIDGE_HOST_KEY_PATH="${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-$ROOT/data/secrets/bridge-host.secret}}"',
+        'HERMES_MOBILE_BRIDGE_HOST_URL="$MOBILE_BRIDGE_HOST_URL"',
+        'HERMES_WEB_BRIDGE_HOST_URL="$MOBILE_BRIDGE_HOST_URL"',
+        'HERMES_MOBILE_BRIDGE_HOST_KEY_PATH="$MOBILE_BRIDGE_HOST_KEY_PATH"',
+        'HERMES_WEB_BRIDGE_HOST_KEY_PATH="$MOBILE_BRIDGE_HOST_KEY_PATH"',
       ].join("\n"),
     }),
   });

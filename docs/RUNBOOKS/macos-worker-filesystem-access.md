@@ -163,6 +163,12 @@ semicolon, or newline separators; `file_plugin_root_list_delimiter_unsupported`
 means a PATH-style colon-separated list was used and must be repaired. In that
 state a run can read Markdown or analyze uploaded images but fail Word/DOCX
 extraction with `file_path_outside_allowed_roots`.
+It must also include no `mobile_bridge_env_missing:<profile>:<env>`,
+`mobile_bridge_host_url_default_missing:<profile>`, or
+`mobile_bridge_key_path_missing:<profile>:data/secrets/bridge-host.secret`
+issue. These issues mean profile-local automation tools such as
+`cronjob_mobile` cannot reach the Home AI bridge-host CRON route and may report
+`Hermes Mobile bridge host key is not configured`.
 
 Then run an actual DOCX extraction smoke against at least the affected profile:
 

@@ -319,6 +319,13 @@ Required harness dimensions:
   `file_plugin_root_env_missing:<profile>:<env>` or
   `file_plugin_root_missing:<profile>:<env>:<root>` so DOCX/audio/image/video
   and scoped HTTP file helpers cannot silently fall back to Windows/WSL roots.
+- Profile-local automation tools must receive the Home AI bridge-host CRON URL
+  and host-key path in every Gateway start script. The profile audit must fail
+  on `mobile_bridge_env_missing:<profile>:<env>`,
+  `mobile_bridge_host_url_default_missing:<profile>`, or
+  `mobile_bridge_key_path_missing:<profile>:data/secrets/bridge-host.secret` so
+  `cronjob_mobile` cannot silently fall back to an empty profile-local cron
+  namespace.
 - Mac uploaded Word/DOCX incidents with `file_path_outside_allowed_roots` need
   an actual extraction smoke in addition to the static start-script audit:
   `scripts/macos-file-plugin-docx-root-smoke.js`. The local contract test is

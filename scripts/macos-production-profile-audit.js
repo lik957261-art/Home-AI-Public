@@ -53,6 +53,14 @@ const FILE_PLUGIN_ROOT_ENV = Object.freeze([
     roots: ["data/artifacts/grok-videos"],
   },
 ]);
+const MOBILE_BRIDGE_REQUIRED_ENVS = Object.freeze([
+  "HERMES_MOBILE_BRIDGE_HOST_URL",
+  "HERMES_WEB_BRIDGE_HOST_URL",
+  "HERMES_MOBILE_BRIDGE_HOST_KEY_PATH",
+  "HERMES_WEB_BRIDGE_HOST_KEY_PATH",
+]);
+const MOBILE_BRIDGE_HOST_URL_DEFAULT = "127.0.0.1:8797";
+const MOBILE_BRIDGE_HOST_KEY_ROOT = "data/secrets/bridge-host.secret";
 
 function parseArgs(argv) {
   const out = {
@@ -302,6 +310,21 @@ function filePluginRootStatus(worker = {}, profile = "", osUser = "", root = "",
       String(script.text || "").replaceAll("\\", "/"),
     ),
     env,
+  };
+}
+
+function mobileBridgeStatus(worker = {}, profile = "", osUser = "", root = "", options = {}) {
+  const script = readStartScriptText(worker, profile, osUser, options);
+  const text = String(script.text || "").replaceAll("\\", "/");
+  return {
+    startScriptPath: compactPath(script.path, root),
+    startScriptExists: script.exists,
+    env: MOBILE_BRIDGE_REQUIRED_ENVS.map((name) => ({
+      name,
+      present: text.includes(name),
+    })),
+    defaultHostUrlPresent: text.includes(MOBILE_BRIDGE_HOST_URL_DEFAULT),
+    keyPathPresent: hasRootToken(text, root, MOBILE_BRIDGE_HOST_KEY_ROOT),
   };
 }
 
@@ -644,6 +667,7 @@ function buildAudit(options) {
     const launchd = launchdServiceStatus(worker, options);
     const telemetry = options.checkTelemetry === false ? null : telemetryStatus(worker, root, options);
     const filePluginRoots = filePluginRootStatus(worker, profile, osUser, root, options);
+    const mobileBridge = mobileBridgeStatus(worker, profile, osUser, root, options);
     const requiredWarm = requiredWarmProfiles.has(profile);
     const check = {
       profile,
@@ -659,6 +683,7 @@ function buildAudit(options) {
       launchd,
       telemetry,
       filePluginRoots,
+      mobileBridge,
     };
     profileChecks.push(check);
     if (!configExists) issue(`profile_config_missing:${profile}`);
@@ -696,6 +721,11 @@ function buildAudit(options) {
         if (!rootCheck.present) issue(`file_plugin_root_missing:${profile}:${item.name}:${rootCheck.root}`);
       }
     }
+    for (const item of mobileBridge.env) {
+      if (!item.present) issue(`mobile_bridge_env_missing:${profile}:${item.name}`);
+    }
+    if (!mobileBridge.defaultHostUrlPresent) issue(`mobile_bridge_host_url_default_missing:${profile}`);
+    if (!mobileBridge.keyPathPresent) issue(`mobile_bridge_key_path_missing:${profile}:${MOBILE_BRIDGE_HOST_KEY_ROOT}`);
     if (skills.exists && !skills.isSymbolicLink) issue(`profile_skills_not_linked:${profile}`);
     if (memories.exists && !memories.isSymbolicLink) issue(`profile_memories_not_linked:${profile}`);
     if (skills.isSymbolicLink && !skills.targetMatchesExpected) {
@@ -769,6 +799,7 @@ module.exports = {
   buildAudit,
   filePluginRootStatus,
   launchdServiceStatus,
+  mobileBridgeStatus,
   parseArgs,
   telemetryStatus,
 };

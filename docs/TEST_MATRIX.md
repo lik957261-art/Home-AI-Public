@@ -230,6 +230,12 @@ and return `file_path_outside_allowed_roots` for uploaded Word/DOCX files.
 `file_plugin_root_list_delimiter_unsupported:<profile>` is also blocking:
 these plugin env lists support comma, semicolon, or newline separators, not
 PATH-style colon separators.
+Any `mobile_bridge_env_missing:<profile>:<env>`,
+`mobile_bridge_host_url_default_missing:<profile>`, or
+`mobile_bridge_key_path_missing:<profile>:data/secrets/bridge-host.secret`
+issue is also blocking. Those values are required for Gateway-exposed
+automation tools such as `cronjob_mobile` to reach the Home AI bridge-host CRON
+route instead of failing with a missing host key or writing profile-local cron.
 Local coverage must include
 `node tests\macos-file-plugin-docx-root-smoke.test.js`. After any Mac
 file-plugin root repair or user/profile migration, production must also run

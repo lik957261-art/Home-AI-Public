@@ -457,6 +457,18 @@ DOCX plugin has fallen back to the Windows/WSL default roots. The profile audit
 reports this as `file_plugin_root_env_missing:<profile>:<env>` or
 `file_plugin_root_missing:<profile>:<env>:<root>`. Colon-separated live roots
 are reported as `file_plugin_root_list_delimiter_unsupported:<profile>`.
+The same start-script audit also checks the Home AI bridge-host CRON endpoint
+used by `cronjob_mobile` and `hermes-mobile-http`: every enabled worker script
+must include `HERMES_MOBILE_BRIDGE_HOST_URL`,
+`HERMES_WEB_BRIDGE_HOST_URL`, `HERMES_MOBILE_BRIDGE_HOST_KEY_PATH`, and
+`HERMES_WEB_BRIDGE_HOST_KEY_PATH`, with the default Mac listener URL
+`http://127.0.0.1:8797` and `$ROOT/data/secrets/bridge-host.secret`. Missing
+values are reported as `mobile_bridge_env_missing:<profile>:<env>`,
+`mobile_bridge_host_url_default_missing:<profile>`, or
+`mobile_bridge_key_path_missing:<profile>:data/secrets/bridge-host.secret` and
+block production closure. A loaded worker without these values can return
+`Hermes Mobile bridge host key is not configured` and must not create fallback
+profile-local cron jobs.
 After repairing those env roots, run the live DOCX smoke as a second gate:
 `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-file-plugin-docx-root-smoke.js --root /Users/hermes-host/HermesMobile --profiles hm-wuping-openai-1 --json`.
 The smoke generates a temporary DOCX under the live uploads root and imports the

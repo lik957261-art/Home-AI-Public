@@ -346,6 +346,21 @@ service. `scripts/macos-production-profile-audit.js` reports this as
 `launchd_service_not_loaded:<profile>` and the aggregate closure gate treats it
 as a production blocker.
 
+Mac Gateway start scripts must expose the Home AI bridge-host CRON endpoint to
+profile-local automation tools. Each enabled worker start script must export
+both `HERMES_MOBILE_BRIDGE_HOST_URL` / `HERMES_WEB_BRIDGE_HOST_URL` with the
+live listener bridge URL `http://127.0.0.1:8797`, and
+`HERMES_MOBILE_BRIDGE_HOST_KEY_PATH` /
+`HERMES_WEB_BRIDGE_HOST_KEY_PATH` pointing at
+`$ROOT/data/secrets/bridge-host.secret`. Workspace provisioning must grant the
+worker user read access to that secret plus traverse access to its parent
+directory. The profile audit reports missing values as
+`mobile_bridge_env_missing:<profile>:<env>`,
+`mobile_bridge_host_url_default_missing:<profile>`, or
+`mobile_bridge_key_path_missing:<profile>:data/secrets/bridge-host.secret`.
+These are production blockers because `cronjob_mobile` otherwise falls back to
+the Windows default key path or an empty profile-local cron namespace.
+
 Mac workspace provisioning must also repair each workspace worker's manifest
 API-server key binding. The worker row must point at a workspace-owned
 per-worker `apiKeyFile` under `data/secrets/gateway-workers`, for example
