@@ -3,6 +3,7 @@
 const { spawnSync } = require("node:child_process");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 
 const DEFAULT_DEV_ROOT = "/Users/hermes-dev/HermesMobileDev";
@@ -583,6 +584,20 @@ function runSudo(command, args, password, input) {
   return result;
 }
 
+function installRootOwnedTextFile(targetPath, text, password, mode = "644", owner = "root:wheel") {
+  const tempPath = path.join(os.tmpdir(), `home-ai-deploy-${process.pid}-${crypto.randomUUID()}.tmp`);
+  fs.writeFileSync(tempPath, text, { encoding: "utf8", mode: 0o600 });
+  try {
+    runSudo("/usr/bin/install", ["-m", mode, "-o", owner.split(":")[0], "-g", owner.split(":")[1] || "wheel", tempPath, targetPath], password);
+  } finally {
+    try {
+      fs.unlinkSync(tempPath);
+    } catch (_err) {
+      // Best effort cleanup only.
+    }
+  }
+}
+
 function installHomeAiCronLaunchd(plan, password) {
   if (plan.target !== "home-ai") return null;
   const paths = homeAiCronPaths(plan.macRoot);
@@ -597,9 +612,7 @@ function installHomeAiCronLaunchd(plan, password) {
   runSudo("/usr/bin/touch", [paths.stdoutLog, paths.stderrLog], password);
   runSudo("/usr/sbin/chown", [owner, paths.stdoutLog, paths.stderrLog], password);
   runSudo("/bin/chmod", ["640", paths.stdoutLog, paths.stderrLog], password);
-  runSudo("/usr/bin/tee", [paths.plistPath], password, plist);
-  runSudo("/usr/sbin/chown", ["root:wheel", paths.plistPath], password);
-  runSudo("/bin/chmod", ["644", paths.plistPath], password);
+  installRootOwnedTextFile(paths.plistPath, plist, password, "644", "root:wheel");
   runSudo("/usr/bin/plutil", ["-lint", paths.plistPath], password);
   runSudo("/bin/sh", ["-c", `/bin/launchctl bootout system ${shQuote(paths.plistPath)} >/dev/null 2>&1 || true`], password);
   runSudo("/bin/launchctl", ["bootstrap", "system", paths.plistPath], password);

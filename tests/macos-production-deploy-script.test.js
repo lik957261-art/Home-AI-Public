@@ -52,6 +52,8 @@ assert.match(script, /kickstart/);
 assert.match(script, /HOME_AI_CRON_LABEL/);
 assert.match(script, /buildHomeAiCronLaunchdPlist/);
 assert.match(script, /home-ai-cron-launchd-install/);
+assert.match(script, /installRootOwnedTextFile/);
+assert.match(script, /\/usr\/bin\/install/);
 assert.match(script, /HERMES_WEB_CRON_JOBS_PATH/);
 assert.match(script, /StartInterval/);
 assert.match(script, /hermes-mobile-cron-dispatcher\.py/);
@@ -79,6 +81,7 @@ assert.match(script, /--expected-version/);
 assert.match(script, /HOME_AI_STATIC_SYNC_ROOTS/);
 assert.doesNotMatch(script, /console\.log\(.*password/i);
 assert.doesNotMatch(script, /console\.error\(.*password/i);
+assert.doesNotMatch(script, /\/usr\/bin\/tee/);
 
 for (const plugin of ["codex-mobile-web", "email", "finance", "growth", "healthy", "note", "wardrobe"]) {
   assert.match(script, new RegExp(`"${plugin}"`));
