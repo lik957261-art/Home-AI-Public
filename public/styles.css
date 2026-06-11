@@ -948,6 +948,9 @@ button {
   font-size: 8.75px;
   font-weight: 500;
   line-height: 1.08;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .bottom-tab.active,
