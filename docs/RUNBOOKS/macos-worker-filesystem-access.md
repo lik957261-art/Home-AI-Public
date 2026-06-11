@@ -135,9 +135,11 @@ If a real run reaches the provider and then fails with `No Codex credentials
 stored`, check the affected `openai-codex` profile directory under the workspace
 worker home. `auth.json` and `auth.lock` must be symlinks to
 `/Users/hermes-host/HermesMobile/gateway-worker/telemetry/profiles/shared-auth`.
-This is separate from the manifest API-server key. Re-run workspace Gateway
-provisioning after fixing the shared-auth source so the profile links and ACLs
-are refreshed.
+This is separate from the manifest API-server key. If the run instead reports
+`Permission denied: .../auth.lock`, the symlink exists but the shared auth
+directory or lock/auth files are missing write ACLs for the worker. Re-run
+workspace Gateway provisioning after fixing the shared-auth source so the
+profile links and ACLs are refreshed.
 
 For required plugin Skills and profile-local file plugins, also run the profile
 audit after any Skill Store copy, worker-side Skill edit, plugin provisioning,

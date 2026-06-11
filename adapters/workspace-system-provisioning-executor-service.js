@@ -486,20 +486,22 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
 
   function grantSharedCodexAuthAcls(fields, authRoot) {
     const parentPerms = "search,readattr,readextattr,readsecurity";
-    const readPerms = "read,readattr,readextattr,readsecurity";
+    const authDirPerms = "list,add_file,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit";
+    const authFilePerms = "read,write,append,readattr,writeattr,readextattr,writeextattr,readsecurity";
     const parents = [
       path.posix.join(fields.root, "gateway-worker"),
       path.posix.join(fields.root, "gateway-worker", "telemetry"),
       path.posix.join(fields.root, "gateway-worker", "telemetry", "profiles"),
-      authRoot,
     ].filter((dir) => pathExists(dir));
+    const authDirs = [authRoot].filter((dir) => pathExists(dir));
     const files = [
       path.posix.join(authRoot, "auth.json"),
       path.posix.join(authRoot, "auth.lock"),
     ].filter((file) => fileExists(file));
     for (const user of [...new Set([fields.macUser, listenerUser])]) {
       for (const dir of parents) chmodAcl(user, dir, parentPerms);
-      for (const file of files) chmodAcl(user, file, readPerms);
+      for (const dir of authDirs) chmodAcl(user, dir, authDirPerms);
+      for (const file of files) chmodAcl(user, file, authFilePerms);
     }
   }
 

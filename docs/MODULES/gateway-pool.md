@@ -356,9 +356,13 @@ the worker process and Mobile request signer to disagree about the API key.
 That API-server key is not the model/provider credential. For `openai-codex`
 workspace workers, provisioning must also materialize profile-local
 `auth.json` and `auth.lock` symlinks to the production shared Codex auth store
-under `gateway-worker/telemetry/profiles/shared-auth`. A workspace worker with
-a valid API-server key but no Codex auth link can pass launch/listener key
-checks and then fail the actual run with `No Codex credentials stored`.
+under `gateway-worker/telemetry/profiles/shared-auth`, and grant that worker
+write ACLs on the shared auth directory plus `auth.json` / `auth.lock`. Codex
+uses the lock and may refresh credentials through the symlink target; read-only
+ACLs can fail real runs with `Permission denied: .../auth.lock`. A workspace
+worker with a valid API-server key but no Codex auth link can pass
+launch/listener key checks and then fail the actual run with
+`No Codex credentials stored`.
 Provisioning must also rewrite stale replica metadata copied from a template:
 `id`, `replicaId`, and `profileAlias` must equal the worker `profile`, and
 `profileTemplateKey` / `poolKey` must equal the target workspace/provider

@@ -193,7 +193,9 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
     assert.equal(fs.existsSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/deepseekgw31/auth.json`), false);
     assert.ok(result.codexAuth.some((entry) => entry.profile === "lowgw31" && entry.linked === true));
     assert.ok(result.codexAuth.some((entry) => entry.profile === "deepseekgw31" && entry.linked === false));
-    assert.ok(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("+a") && call.args.includes("user:hm-xulu allow read,readattr,readextattr,readsecurity") && call.args.includes(`${root}/gateway-worker/telemetry/profiles/shared-auth/auth.json`)));
+    assert.ok(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("+a") && call.args.includes("user:hm-xulu allow list,add_file,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit") && call.args.includes(`${root}/gateway-worker/telemetry/profiles/shared-auth`)));
+    assert.ok(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("+a") && call.args.includes("user:hm-xulu allow read,write,append,readattr,writeattr,readextattr,writeextattr,readsecurity") && call.args.includes(`${root}/gateway-worker/telemetry/profiles/shared-auth/auth.json`)));
+    assert.ok(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("+a") && call.args.includes("user:hm-xulu allow read,write,append,readattr,writeattr,readextattr,writeextattr,readsecurity") && call.args.includes(`${root}/gateway-worker/telemetry/profiles/shared-auth/auth.lock`)));
     assert.ok(calls.some((call) => call.command === "/bin/launchctl" && call.args[0] === "bootstrap"));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
