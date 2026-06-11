@@ -21,6 +21,16 @@ The embedded UI layout contract is tracked separately in
 `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`. Plugin projects must
 follow that contract for iframe-root sizing, plugin-owned bottom navigation,
 floating action buttons, local action bars, and device visual harnesses.
+Standard embedded plugin apps must keep their iframe element resident after a
+successful launch. Switching to another Home AI tab, opening the global plugin
+Dock, or backgrounding and foregrounding the installed PWA must hide/show the
+existing host shell instead of recreating the iframe. The host may discard a
+resident iframe only when the effective workspace changes, appearance launch
+context changes, the resolved entry URL changes, page security blocks the
+embed, or the plugin explicitly emits its bounded `*.plugin.refresh_required`
+event. This host-level persistence protects plugin SPA routes, scroll position,
+and in-progress UI state during ordinary navigation; plugin projects still own
+durable draft persistence for OS process kills or full PWA reloads.
 The Mac development-to-production deployment contract is tracked in
 `docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md`. All
 embedded plugin projects must use the shared production access and deploy

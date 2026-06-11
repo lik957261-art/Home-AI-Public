@@ -29,6 +29,7 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
     backResultEventType: "finance.plugin.back_result",
     refreshRequiredEventType: "finance.plugin.refresh_required",
     manifestPath: "/api/hermes-plugins/finance/manifest",
+    residentFrame: true,
   }),
   email: Object.freeze({
     id: "email",
@@ -43,6 +44,7 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
     backResultEventType: "email.plugin.back_result",
     refreshRequiredEventType: "email.plugin.refresh_required",
     manifestPath: "/api/hermes-plugins/email/manifest",
+    residentFrame: true,
   }),
   health: Object.freeze({
     id: "health",
@@ -57,6 +59,7 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
     backResultEventType: "health.plugin.back_result",
     refreshRequiredEventType: "health.plugin.refresh_required",
     manifestPath: "/api/hermes-plugins/health/manifest",
+    residentFrame: true,
   }),
   note: Object.freeze({
     id: "note",
@@ -71,6 +74,7 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
     backResultEventType: "note.plugin.back_result",
     refreshRequiredEventType: "note.plugin.refresh_required",
     manifestPath: "/api/hermes-plugins/note/manifest",
+    residentFrame: true,
   }),
   growth: Object.freeze({
     id: "growth",
@@ -85,6 +89,7 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
     backResultEventType: "growth.plugin.back_result",
     refreshRequiredEventType: "growth.plugin.refresh_required",
     manifestPath: "/api/hermes-plugins/growth/manifest",
+    residentFrame: true,
   }),
 });
 

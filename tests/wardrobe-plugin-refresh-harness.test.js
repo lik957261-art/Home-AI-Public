@@ -15,6 +15,12 @@ function createClassList() {
       if (enabled) values.add(name);
       else values.delete(name);
     },
+    add(name) {
+      values.add(name);
+    },
+    remove(name) {
+      values.delete(name);
+    },
     contains(name) {
       return values.has(name);
     },
@@ -61,6 +67,9 @@ function createHarness() {
           return "";
         },
         addEventListener() {},
+        closest() {
+          return shell;
+        },
       };
     },
   };
@@ -130,17 +139,23 @@ function createHarness() {
       calls.affordance += 1;
     },
     clearKeyboardViewportMetrics() {},
+    configureComposer() {},
+    escapeHtml(value) {
+      return String(value || "");
+    },
   };
 
   vm.createContext(sandbox);
   vm.runInContext(`${source}
     globalThis.__wardrobeRefreshHarness = {
-      ensureWardrobePluginNavigationBridge
+      ensureWardrobePluginNavigationBridge,
+      renderWardrobeView
     };
   `, sandbox);
 
   return {
     calls,
+    host,
     listeners,
     shell,
     sandbox,
@@ -179,7 +194,20 @@ function testWardrobeRefreshRejectsWrongOrigin() {
   assert.equal(harness.calls.api.length, 0);
 }
 
+function testWardrobeResidentFrameSurvivesExpiredLaunchManifest() {
+  const harness = createHarness();
+
+  harness.sandbox.state.wardrobePluginManifestFreshForFrame = false;
+  harness.sandbox.__wardrobeRefreshHarness.renderWardrobeView();
+
+  assert.equal(harness.shell.removed, false);
+  assert.equal(harness.host.hidden, false);
+  assert.deepEqual(harness.calls.api, []);
+  assert.equal(harness.calls.nav > 0, true);
+}
+
 testWardrobeRefreshRequiredRebuildsIframe();
 testWardrobeRefreshRejectsWrongOrigin();
+testWardrobeResidentFrameSurvivesExpiredLaunchManifest();
 
 console.log("wardrobe plugin refresh harness tests passed");

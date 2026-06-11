@@ -549,9 +549,12 @@ function renderWardrobeView() {
       const entryUrl = wardrobePluginEntryUrlForFrame(String(pluginManifest.entry?.url || ""));
       const entryOrigin = wardrobePluginEntryOrigin(pluginManifest);
       state.wardrobePluginFrameOrigin = entryOrigin;
+      const currentFrame = currentWardrobePluginShell()?.querySelector(".wardrobe-plugin-frame");
+      const currentFrameUsesEntry = Boolean(currentFrame && currentFrame.getAttribute("src") === entryUrl);
       const launchFrameCanBePreserved = !wardrobePluginUsesLaunchToken(pluginManifest)
         || wardrobeLaunchTokenIsFreshForFrame()
-        || Number(state.wardrobePluginNavigationLastAt || 0) > 0;
+        || Number(state.wardrobePluginNavigationLastAt || 0) > 0
+        || currentFrameUsesEntry;
       if (!launchFrameCanBePreserved) {
         refreshWardrobePluginFrameFromFreshManifest();
         return;

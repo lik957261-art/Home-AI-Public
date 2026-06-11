@@ -21,7 +21,7 @@ function createClassList() {
   };
 }
 
-function createHarness() {
+function createHarness(pluginId = "codex-mobile", origin = "https://codex.example.test") {
   const calls = { api: [], health: 0, nav: 0, affordance: 0, errors: [], timers: [] };
   const listeners = {};
   const main = { insertBefore() {} };
@@ -90,6 +90,15 @@ function createHarness() {
     };
   }
 
+  const viewModeByPlugin = {
+    "codex-mobile": "codex",
+    finance: "finance",
+    email: "email",
+    health: "health",
+    note: "note",
+    growth: "growth",
+  };
+
   const sandbox = {
     assert,
     URL,
@@ -97,7 +106,7 @@ function createHarness() {
     Date,
     Promise,
     state: {
-      viewMode: "codex",
+      viewMode: viewModeByPlugin[pluginId] || "codex",
       selectedWorkspaceId: "owner",
       embeddedPlugins: {},
     },
@@ -152,11 +161,12 @@ function createHarness() {
     },
   };
 
-  hosts.codexPluginHost = makeHost("codexPluginHost");
+  ["codexPluginHost", "financePluginHost", "emailPluginHost", "healthPluginHost", "notePluginHost", "growthPluginHost"]
+    .forEach((id) => { hosts[id] = makeHost(id); });
   vm.createContext(sandbox);
   vm.runInContext(`${source}
     globalThis.__pluginRefreshHarness = {
-      def: EMBEDDED_PLUGIN_DEFS["codex-mobile"],
+      def: EMBEDDED_PLUGIN_DEFS[${JSON.stringify(pluginId)}],
       embeddedPluginRecord,
       embeddedPluginResidentShellMatchesLaunchContext,
       ensureEmbeddedPluginNavigationBridge,
@@ -166,17 +176,19 @@ function createHarness() {
       scheduleEmbeddedPluginLaunchHealthCheck
     };
   `, sandbox);
+  const def = sandbox.__pluginRefreshHarness.def;
+  const activeHost = hosts[def.hostId];
 
   return {
     calls,
     conversation,
     listeners,
-    host: hosts.codexPluginHost,
+    host: activeHost,
     makeShell,
     sandbox,
-    emit(data, origin = "https://codex.example.test") {
+    emit(data, eventOrigin = origin) {
       assert.ok(listeners.message?.length, "message bridge should be registered");
-      listeners.message[0]({ data, origin });
+      listeners.message[0]({ data, origin: eventOrigin });
     },
     setupManifest(shell = makeShell()) {
       const { def, embeddedPluginRecord } = sandbox.__pluginRefreshHarness;
@@ -186,7 +198,7 @@ function createHarness() {
         available: true,
         kind: "embedded_app",
         workspaceId: "owner",
-        entry: { url: "https://codex.example.test/?embed=hermes", origin: "https://codex.example.test" },
+        entry: { url: `${origin}/?embed=hermes`, origin },
         embed: { tokenStatus: "launch_token_issued" },
       };
       record.manifestAppearanceKey = "light/default";
@@ -194,11 +206,31 @@ function createHarness() {
       record.checked = true;
       record.manifestFreshForFrame = true;
       record.shellNode = shell;
-      record.renderedEntryUrl = "https://codex.example.test/?embed=hermes";
-      this.host.setShell(shell);
+      record.renderedEntryUrl = `${origin}/?embed=hermes`;
+      hosts[def.hostId].setShell(shell);
       return { def, record, shell };
     },
   };
+}
+
+function testStandardResidentFrameSurvivesExpiredLaunchManifest() {
+  const harness = createHarness("finance", "https://finance.example.test");
+  const shell = harness.makeShell("https://finance.example.test/?embed=hermes");
+  const { def } = harness.setupManifest(shell);
+  harness.sandbox.state.viewMode = "finance";
+  harness.sandbox.Date.now = () => 61000;
+
+  assert.equal(
+    harness.sandbox.__pluginRefreshHarness.embeddedPluginResidentShellMatchesLaunchContext(def, "owner", "light/default"),
+    true,
+  );
+
+  harness.sandbox.__pluginRefreshHarness.renderEmbeddedPluginView(def);
+
+  assert.equal(shell.removed, false);
+  assert.equal(harness.host.hidden, false);
+  assert.deepEqual(harness.calls.api, []);
+  assert.equal(harness.calls.nav > 0, true);
 }
 
 function testLaunchManifestExpiresForTokenPlugins() {
@@ -414,6 +446,7 @@ function testLaunchHealthRefreshUsesCooldown() {
 testRefreshIgnoresWrongOrigin();
 testLaunchManifestExpiresForTokenPlugins();
 testCodexResidentFrameSurvivesExpiredLaunchManifest();
+testStandardResidentFrameSurvivesExpiredLaunchManifest();
 testFreshManifestEntryRebuildsNavigatedShell();
 testRefreshRebuildsActivePluginWithBoundedRoute();
 testRefreshInvalidatesInactivePluginWithoutFetching();
