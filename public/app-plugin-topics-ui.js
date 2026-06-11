@@ -206,18 +206,22 @@ const GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_PX_MS = 0.45;
 const CAPABILITY_QUICK_ACTION_LIMIT = 9;
 const PLUGIN_DRAWER_QUICK_ACTION_LIMIT = 6;
 const CAPABILITY_PLUGIN_APP_ACTION_ID = "__open_app";
+const PLUGIN_TOPIC_ACTION_MANIFEST_LOAD_TTL_MS = 60000;
 let pluginAppSortDrag = null;
 let pluginAppSortGlobalBound = false;
 let pluginActionMenuCloseBound = false;
 let pluginActionMenuSwipe = null;
 let pluginTopicUsagePendingSync = null;
 let pluginTopicUsageSyncTimer = 0;
+let pluginTopicActionManifestRefreshTimer = 0;
 let globalPluginDockGesture = null;
 let globalPluginDockGestureBound = false;
 const pluginTopicUsageLoadedAtByWorkspace = new Map();
 const pluginTopicUsageLoadingWorkspaces = new Map();
 const pluginTopicUsageLoadRetryAt = new Map();
 const pluginTopicUsageMemoryCacheByWorkspace = new Map();
+const pluginTopicActionManifestLoadedAt = new Map();
+const pluginTopicActionManifestLoading = new Map();
 let pluginTopicUsageMemoryCache = normalizePluginTopicUsage({});
 const pluginTopicBindingsLoadedAtByWorkspace = new Map();
 const pluginTopicBindingsLoadingWorkspaces = new Map();
@@ -1286,6 +1290,106 @@ function pluginTopicCapabilityActionsEnabled(def) {
   return Boolean(def?.id && def.id !== "codex-mobile");
 }
 
+function pluginTopicActionManifestKey(def) {
+  const workspaceId = pluginTopicUsageWorkspaceId();
+  return `${workspaceId}:${pluginTopicId(def?.id || "")}`;
+}
+
+function pluginTopicCurrentManifest(def) {
+  if (!def || def.builtinKind) return null;
+  const workspaceId = pluginTopicUsageWorkspaceId();
+  if (def.id === "wardrobe") {
+    if (typeof currentWardrobePluginManifest === "function") return currentWardrobePluginManifest();
+    const wardrobeManifest = state.wardrobePluginManifest || null;
+    if (wardrobeManifest && (!wardrobeManifest.workspaceId || wardrobeManifest.workspaceId === workspaceId)) return wardrobeManifest;
+    return null;
+  }
+  const embeddedDef = typeof EMBEDDED_PLUGIN_DEFS !== "undefined" ? EMBEDDED_PLUGIN_DEFS[def.id] : null;
+  if (embeddedDef && typeof embeddedPluginCurrentManifest === "function") return embeddedPluginCurrentManifest(embeddedDef);
+  const record = state.embeddedPlugins?.[def.id] || null;
+  const manifest = record?.manifest || null;
+  if (manifest && (!manifest.workspaceId || manifest.workspaceId === workspaceId)) return manifest;
+  return null;
+}
+
+function pluginTopicManifestActions(def) {
+  const manifest = pluginTopicCurrentManifest(def);
+  if (!manifest || manifest.available === false || !Array.isArray(manifest.actions)) return [];
+  return manifest.actions;
+}
+
+function pluginTopicActionSource(def) {
+  const manifestActions = pluginTopicManifestActions(def);
+  if (manifestActions.length) return manifestActions;
+  return Array.isArray(def?.actions)
+    ? def.actions
+    : Array.isArray(def?.quickActions)
+      ? def.quickActions
+      : [];
+}
+
+function pluginTopicActionManifestRecentlyLoaded(def) {
+  const key = pluginTopicActionManifestKey(def);
+  const loadedAt = pluginTopicActionManifestLoadedAt.get(key) || 0;
+  return loadedAt > 0 && Date.now() - loadedAt < PLUGIN_TOPIC_ACTION_MANIFEST_LOAD_TTL_MS;
+}
+
+function markPluginTopicActionManifestLoaded(def) {
+  const key = pluginTopicActionManifestKey(def);
+  if (key) pluginTopicActionManifestLoadedAt.set(key, Date.now());
+}
+
+async function refreshPluginTopicActionManifest(def, options = {}) {
+  if (!def || def.builtinKind || def.id === "codex-mobile" || !pluginTopicNavigationAvailable(def)) return false;
+  if (!options.force && pluginTopicActionManifestRecentlyLoaded(def)) return false;
+  const key = pluginTopicActionManifestKey(def);
+  if (pluginTopicActionManifestLoading.has(key)) return false;
+  const loader = (async () => {
+    if (def.id === "wardrobe" && typeof loadWardrobePluginManifest === "function") {
+      await loadWardrobePluginManifest({ force: true });
+      return true;
+    }
+    const embeddedDef = typeof EMBEDDED_PLUGIN_DEFS !== "undefined" ? EMBEDDED_PLUGIN_DEFS[def.id] : null;
+    if (embeddedDef && typeof loadEmbeddedPluginManifest === "function") {
+      await loadEmbeddedPluginManifest(embeddedDef, { force: true });
+      return true;
+    }
+    return false;
+  })();
+  pluginTopicActionManifestLoading.set(key, loader);
+  try {
+    const loaded = await loader;
+    markPluginTopicActionManifestLoaded(def);
+    return loaded;
+  } catch (_) {
+    markPluginTopicActionManifestLoaded(def);
+    return false;
+  } finally {
+    pluginTopicActionManifestLoading.delete(key);
+  }
+}
+
+function schedulePluginTopicActionProjectionRefresh() {
+  if (pluginTopicActionManifestRefreshTimer) return;
+  pluginTopicActionManifestRefreshTimer = window.setTimeout(() => {
+    pluginTopicActionManifestRefreshTimer = 0;
+    if (typeof refreshPluginAppOrderSurfaces === "function") refreshPluginAppOrderSurfaces();
+  }, 0);
+}
+
+function ensurePluginTopicActionManifestsLoaded(defs = []) {
+  if (!Array.isArray(defs) || !defs.length) return;
+  defs.forEach((def) => {
+    if (!def || def.builtinKind || def.id === "codex-mobile") return;
+    if (pluginTopicManifestActions(def).length || pluginTopicActionManifestRecentlyLoaded(def)) return;
+    refreshPluginTopicActionManifest(def)
+      .then((loaded) => {
+        if (loaded) schedulePluginTopicActionProjectionRefresh();
+      })
+      .catch(() => {});
+  });
+}
+
 function pluginTopicNormalizeAction(def, action, index = 0) {
   if (!def || !action || typeof action !== "object") return null;
   const id = pluginTopicId(action.id);
@@ -1319,11 +1423,7 @@ function pluginTopicNormalizeAction(def, action, index = 0) {
 function pluginTopicQuickActions(def, options = {}) {
   if (!pluginTopicCapabilityActionsEnabled(def)) return [];
   const placement = String(options.placement || "").trim();
-  const source = Array.isArray(def?.actions)
-    ? def.actions
-    : Array.isArray(def?.quickActions)
-      ? def.quickActions
-    : [];
+  const source = pluginTopicActionSource(def);
   return source
     .map((action, index) => pluginTopicNormalizeAction(def, action, index))
     .filter(Boolean)
@@ -1903,6 +2003,7 @@ function renderPluginDrawerQuickActionMenu(quickActions = []) {
 function renderPluginAppLauncher() {
   const defs = orderedPluginAppDefs(availablePluginTopicDefs());
   if (!defs.length) return "";
+  ensurePluginTopicActionManifestsLoaded(defs);
   const quickActions = pluginDrawerFrequentActions(defs, { includeDefaults: true });
   const cardsCount = defs.length + 1;
   const fillCount = Math.min(Math.max(cardsCount, 1), 4);
@@ -2424,6 +2525,25 @@ function pluginAppCardHasActionMenu(card) {
   return Boolean(pluginActionMenuForButton(card).menu);
 }
 
+function pluginActionMenuPluginIdForButton(button) {
+  return pluginTopicId(button?.dataset?.pluginTopicOpenApp || button?.dataset?.pluginTopicSortId || "");
+}
+
+function refreshPluginActionMenuManifestForButton(button) {
+  if (button?.dataset?.pluginDrawerQuickActions !== undefined) {
+    ensurePluginTopicActionManifestsLoaded(orderedPluginAppDefs(availablePluginTopicDefs()));
+    return;
+  }
+  const pluginId = pluginActionMenuPluginIdForButton(button);
+  const def = pluginTopicDefById(pluginId);
+  if (!def || def.builtinKind || def.id === "codex-mobile") return;
+  refreshPluginTopicActionManifest(def)
+    .then((loaded) => {
+      if (loaded && !pluginActionMenuIsOpen(document)) schedulePluginTopicActionProjectionRefresh();
+    })
+    .catch(() => {});
+}
+
 function openPluginActionMenu(button, event = null) {
   const { host, scope, menu } = pluginActionMenuForButton(button);
   if (!host || !menu) return;
@@ -2434,6 +2554,7 @@ function openPluginActionMenu(button, event = null) {
   wirePluginActionMenuSwipeDismiss(menu);
   host.classList.add("menu-open");
   scope?.classList?.add("capability-menu-open");
+  refreshPluginActionMenuManifestForButton(button);
   if (button) {
     button.dataset.pluginActionMenuOpened = "1";
     window.setTimeout(() => {

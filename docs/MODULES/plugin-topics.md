@@ -119,6 +119,15 @@ or raw plugin credentials.
   there is no usage history, default ordering should prefer the first
   high-value action from each plugin before filling secondary actions, so one
   plugin cannot monopolize the first-run menu.
+- The Dock `常用` menu and each plugin long-press/context popup use the same
+  normalized action projection. When the current workspace's plugin manifest
+  has loaded and exposes `actions`, those manifest actions are authoritative
+  for menu rendering and launch routing. Host static actions are only a
+  first-paint fallback while the manifest is unavailable or still loading.
+  Opening the Dock starts a bounded manifest refresh for action projection, and
+  selecting an action still follows the same host rule: validate the plugin,
+  record `pluginId:actionId` usage, open the plugin app, and pass
+  `pluginActionId` plus `pluginRoute`.
 - Topic-root plugin conversation rows and directory-bound topic rows must honor the
   shared Home AI font-size preference instead of hard-coding a smaller local
   text size. Topics and the information/root surface should stay visually

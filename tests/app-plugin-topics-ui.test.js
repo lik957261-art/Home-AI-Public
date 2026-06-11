@@ -30,9 +30,15 @@ assert.match(pluginTopicsUi, /const CAPABILITY_PLUGIN_APP_ACTION_ID = "__open_ap
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_USAGE_API_PATH = "\/api\/plugin-topic-usage";/);
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_BINDINGS_API_PATH = "\/api\/plugin-topic-bindings";/);
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_USAGE_LOAD_TTL_MS = 30000;/);
+assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_ACTION_MANIFEST_LOAD_TTL_MS = 60000;/);
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_BINDINGS_LOAD_TTL_MS = 30000;/);
 assert.match(pluginTopicsUi, /const GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO = 1\.45;/);
 assert.match(pluginTopicsUi, /function pluginTopicAppQuickAction/);
+assert.match(pluginTopicsUi, /function pluginTopicCurrentManifest/);
+assert.match(pluginTopicsUi, /function pluginTopicManifestActions/);
+assert.match(pluginTopicsUi, /function pluginTopicActionSource/);
+assert.match(pluginTopicsUi, /function refreshPluginTopicActionManifest/);
+assert.match(pluginTopicsUi, /function ensurePluginTopicActionManifestsLoaded/);
 assert.match(pluginTopicsUi, /function pluginTopicActionUsageKey/);
 assert.match(pluginTopicsUi, /function pluginTopicUsageRecentlyLoaded/);
 assert.match(pluginTopicsUi, /function loadPluginTopicUsageFromServer/);
@@ -84,6 +90,8 @@ assert.doesNotMatch(topicCardsBody, /data-plugin-topic-open-app/);
 
 assert.doesNotMatch(quickActionsBody, /preferred/);
 assert.match(quickActionsBody, /const pluginEntry = pluginTopicUsageEntry\(usage, def\.id\);/);
+assert.match(pluginTopicsUi, /const source = pluginTopicActionSource\(def\);/);
+assert.match(pluginTopicsUi, /ensurePluginTopicActionManifestsLoaded\(defs\);/);
 assert.match(quickActionsBody, /action: pluginTopicAppQuickAction\(def\),/);
 assert.match(quickActionsBody, /const count = Math\.max\(0, Number\(entry\.count\) \|\| 0\);/);
 assert.match(quickActionsBody, /const includeDefaults = options\.includeDefaults === true;/);
@@ -144,6 +152,7 @@ function createPluginTopicHarness(options = {}) {
       key: "test-key",
       viewMode: "tasks",
       currentTaskGroupId: "",
+      embeddedPlugins: {},
     },
     localStorage: {
       getItem(key) {
@@ -185,6 +194,12 @@ globalThis.__pluginTopicHarness = {
   writeUsage: writePluginTopicUsage,
   recordUsage: recordPluginTopicUsage,
   quickKeys: () => capabilityHubQuickActions(availablePluginTopicDefs()).map(({ def, action }) => def.id + ":" + action.id),
+  actionIds: (pluginId) => pluginTopicQuickActions(pluginTopicDefById(pluginId)).map((action) => action.id + ":" + action.entry.pluginRoute),
+  menuHtml: (pluginId) => renderCapabilityActionMenu(pluginTopicDefById(pluginId)),
+  setManifestActions: (pluginId, actions, workspaceId = state.selectedWorkspaceId || "owner") => {
+    state.embeddedPlugins[pluginId] = state.embeddedPlugins[pluginId] || {};
+    state.embeddedPlugins[pluginId].manifest = { ok: true, available: true, workspaceId, actions };
+  },
 };`, sandbox);
   return {
     ...sandbox.__pluginTopicHarness,
@@ -238,6 +253,26 @@ globalThis.__pluginTopicHarness = {
   assert.equal(harness.readUsage().actions["wardrobe:style"].count, 3);
   assert.ok(harness.renderCalls.length >= 1, "memory usage projection must refresh even when localStorage writes fail");
   assert.equal(harness.renderCalls.at(-1).restoreScrollTop, 0, "memory projection refresh must reveal the top quick-action row");
+}
+
+{
+  const harness = createPluginTopicHarness();
+  harness.setManifestActions("finance", [
+    {
+      id: "scan_receipt",
+      label: "扫票据",
+      placement: ["plugin_drawer_frequent", "dock_long_press", "search"],
+      priority: 1,
+      entry: { type: "plugin_route", pluginRoute: "receipt" },
+    },
+  ]);
+
+  assert.deepEqual(harness.actionIds("finance"), ["scan_receipt:receipt"]);
+  assert.match(harness.menuHtml("finance"), /data-plugin-topic-action-id="scan_receipt"/, "plugin popup menu must render manifest actions");
+  assert.doesNotMatch(harness.menuHtml("finance"), /data-plugin-topic-action-id="record"/, "manifest actions must replace host fallback actions after load");
+  harness.recordUsage("finance", "scan_receipt");
+  harness.flushRootRefreshTimers();
+  assert.equal(harness.quickKeys()[0], "finance:scan_receipt", "manifest actions must feed the Dock frequent action menu");
 }
 
 function createDirectoryTopicHarness() {

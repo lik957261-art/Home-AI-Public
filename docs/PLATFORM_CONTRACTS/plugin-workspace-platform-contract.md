@@ -357,6 +357,10 @@ Required rules:
   `plugin_drawer_frequent`, `dock_long_press`, and `search` are current
   production placements. `capability_hub` is accepted only as a compatibility
   alias for older clients and should not be used in new plugin docs.
+- Home AI renders the Dock `常用` popup and plugin long-press/context popups
+  from the same normalized action projection. Loaded plugin manifest actions
+  override host fallback actions for the current workspace; fallback actions
+  exist only so first paint remains usable before manifest refresh completes.
 - Ordinary quick actions must not be represented as MCP schemas. MCP remains
   for Home AI / Gateway tool execution inside AI runs; quick actions are direct
   app navigation shortcuts.

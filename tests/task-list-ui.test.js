@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260611-plugin-drawer-actions-v701";
+const CLIENT_VERSION = "20260611-plugin-action-menus-v702";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260611-plugin-drawer-actions-v701" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260611-plugin-drawer-actions-v701"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260611-plugin-action-menus-v702" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260611-plugin-action-menus-v702"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2557,10 +2557,10 @@ assert.match(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s\S]*?or
 assert.match(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3;/);
 assert.match(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260611-plugin-drawer-actions-v701/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260611-plugin-drawer-actions-v701/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260611-plugin-drawer-actions-v701/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260611-plugin-drawer-actions-v701/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260611-plugin-action-menus-v702/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260611-plugin-action-menus-v702/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260611-plugin-action-menus-v702/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260611-plugin-action-menus-v702/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
@@ -2620,6 +2620,7 @@ assert.doesNotMatch(appJs, /function sortPluginAppDefsByUsage\(defs = \[\]\)/);
 assert.doesNotMatch(appJs, /const aLast = Number\(aUsage\.lastUsedAt\)/);
 assert.match(appJs, /const CAPABILITY_QUICK_ACTION_LIMIT = 9;/);
 assert.match(appJs, /const PLUGIN_DRAWER_QUICK_ACTION_LIMIT = 6;/);
+assert.match(appJs, /const PLUGIN_TOPIC_ACTION_MANIFEST_LOAD_TTL_MS = 60000;/);
 assert.match(appJs, /const PLUGIN_BOTTOM_TABS_STORAGE_KEY = "hermesPinnedPluginBottomTabs";/);
 assert.match(appJs, /sourceBadge: "\\u8863"/);
 assert.match(appJs, /actions: Object\.freeze\(\[/);
@@ -2627,6 +2628,12 @@ assert.match(appJs, /pluginRouteAction\("style", "\\u914d\\u8863\\u670d", "style
 assert.match(appJs, /pluginRouteAction\("record", "\\u8bb0\\u4e00\\u7b14", "record"/);
 assert.match(appJs, /function capabilityHubQuickActions\(defs = \[\], options = \{\}\)/);
 assert.match(appJs, /function pluginDrawerFrequentActions\(defs = \[\], options = \{\}\)/);
+assert.match(appJs, /function pluginTopicCurrentManifest\(def\)/);
+assert.match(appJs, /function pluginTopicManifestActions\(def\)/);
+assert.match(appJs, /function pluginTopicActionSource\(def\)/);
+assert.match(appJs, /function refreshPluginTopicActionManifest\(def, options = \{\}\)/);
+assert.match(appJs, /function ensurePluginTopicActionManifestsLoaded\(defs = \[\]\)/);
+assert.match(appJs, /const source = pluginTopicActionSource\(def\);/);
 assert.match(appJs, /function pluginTopicActionUsageKey\(pluginId = "", actionId = ""\)/);
 assert.match(appJs, /function pluginTopicActionUsageEntry\(usage, pluginId = "", actionId = ""\)/);
 assert.match(appJs, /recordPluginTopicUsage\(def\.id, action\.id\)/);
@@ -2655,6 +2662,8 @@ assert.match(appJs, /function setPluginBottomTabPinned\(pluginId = "", pinned = 
 assert.match(appJs, /function runPluginTopicAction\(pluginId, actionId\)/);
 assert.match(appJs, /type === "plugin_topic" \|\| type === "open_topic" \|\| type === "start_chat_with_context"/);
 assert.match(appJs, /function openPluginActionMenu\(button, event = null\)/);
+assert.match(appJs, /function refreshPluginActionMenuManifestForButton\(button\)/);
+assert.match(appJs, /refreshPluginActionMenuManifestForButton\(button\);/);
 assert.match(appJs, /function wireCapabilityPluginMenus\(root\)/);
 assert.match(appJs, /function pluginActionMenuForButton\(button\)/);
 assert.match(appJs, /function pluginAppCardHasActionMenu\(card\)/);
@@ -2690,6 +2699,7 @@ assert.match(appJs, /function renderPluginDrawerQuickActionMenu\(quickActions = 
 assert.match(appJs, /class="plugin-app-card"[\s\S]*?data-plugin-topic-open-app[\s\S]*?data-plugin-topic-sort-id/);
 const pluginAppLauncherBody = (appJs.match(/function renderPluginAppLauncher\(\)[\s\S]*?async function openBuiltInDirectoryPlugin\(\)/) || [""])[0];
 assert.match(pluginAppLauncherBody, /orderedPluginAppDefs\(availablePluginTopicDefs\(\)\)/);
+assert.match(pluginAppLauncherBody, /ensurePluginTopicActionManifestsLoaded\(defs\);/);
 assert.match(pluginAppLauncherBody, /renderCapabilityActionMenu\(def\)/);
 assert.doesNotMatch(pluginAppLauncherBody, /filter\(\(def\) => !def\.builtinKind\)/);
 assert.doesNotMatch(pluginAppLauncherBody, /data-plugin-topic-open-topic|data-plugin-topic-open-delivery/);
