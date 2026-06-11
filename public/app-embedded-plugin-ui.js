@@ -94,8 +94,8 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
   moira: Object.freeze({
     id: "moira",
     viewMode: "moira",
-    title: "Moira",
-    label: "Moira",
+    title: "星盘",
+    label: "星盘",
     bottomButtonId: "bottomMoiraMode",
     appClass: "moira-mode",
     hostId: "moiraPluginHost",

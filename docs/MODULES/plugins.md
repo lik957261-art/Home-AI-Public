@@ -17,7 +17,8 @@ Growth are standard workspace-private plugins. These rules are generic and
 apply to future embedded apps such as watches, health, notes, growth, Moira, or
 other private workspace tools.
 
-Moira is a standard local embedded-app plugin with `plugin_id=moira`. Hermes
+Moira is a standard local embedded-app plugin with `plugin_id=moira` and the
+current user-facing display title `星盘`. Hermes
 Mobile owns the default local manifest registration at
 `http://127.0.0.1:4174/api/v1/hermes/plugin/manifest`, the server-side
 workspace key lookup, same-origin `/api/hermes-plugins/moira/...` launch/proxy,

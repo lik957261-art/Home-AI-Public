@@ -255,7 +255,7 @@ const DEFAULT_PLUGIN_SECURITY = Object.freeze({
     notifications: { supported: true, routeOwner: "hermes" },
   },
   moira: {
-    title: "Moira",
+    title: "星盘",
     riskLevel: "workspace-private",
     defaultVisibility: "owner-only",
     allowWorkspaceGrant: true,

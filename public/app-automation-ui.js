@@ -94,7 +94,7 @@ function applyViewMode() {
   $("newThread").classList.toggle("hidden", single || tasks || automation || inbox || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth || moira);
   $("newThread").disabled = single || tasks || automation || inbox || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth || moira;
   $("newThread").textContent = todos ? "新建看板卡片" : "新建话题";
-  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : learning || growth ? "Search growth" : wardrobe ? "Search wardrobe" : email ? "Search email" : health ? "Search health" : note ? "Search notes" : moira ? "Search Moira" : "Search directories";
+  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : learning || growth ? "Search growth" : wardrobe ? "Search wardrobe" : email ? "Search email" : health ? "Search health" : note ? "Search notes" : moira ? "Search 星盘" : "Search directories";
   updateSearchButton();
 }
 

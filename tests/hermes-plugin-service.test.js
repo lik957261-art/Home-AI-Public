@@ -319,7 +319,7 @@ function sampleMoiraManifest() {
   return {
     schema_version: 1,
     id: "moira",
-    title: "Moira",
+    title: "星盘",
     description: "Local-first Chinese astrology charting Web App for Home AI.",
     kind: "embedded_app",
     entry: {
@@ -708,7 +708,7 @@ async function testDefaultLocalManifestUrls() {
   assert.equal(service.listInstalled()[3].title, "邮箱");
   assert.equal(service.listInstalled()[4].manifestUrl, DEFAULT_HEALTH_PLUGIN_MANIFEST_URL);
   assert.equal(service.listInstalled()[6].title, "成长");
-  assert.equal(service.listInstalled()[7].title, "Moira");
+  assert.equal(service.listInstalled()[7].title, "星盘");
 }
 
 function testInstalledPluginListReflectsWorkspaceKeyBindings() {

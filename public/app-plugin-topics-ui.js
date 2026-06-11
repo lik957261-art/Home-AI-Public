@@ -166,12 +166,12 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
   Object.freeze({
     id: "moira",
     viewMode: "moira",
-    label: "Moira",
+    label: "星盘",
     subtitle: "\u4e03\u653f\u56db\u4f59\u3001\u661f\u76d8\u548c\u672c\u5730\u8bb0\u5f55",
     iconClass: "nav-plugins-icon",
     appIconClass: "moira",
-    appIconGlyph: "M",
-    sourceBadge: "M",
+    appIconGlyph: "星",
+    sourceBadge: "星",
     toolset: "moira",
     deliveryHints: ["moira", "\u661f\u76d8", "\u5360\u661f", "\u4e03\u653f\u56db\u4f59"],
     actions: Object.freeze([
