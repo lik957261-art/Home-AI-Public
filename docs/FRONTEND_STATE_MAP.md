@@ -175,6 +175,10 @@ the change is part of a dedicated infrastructure rename.
     Pinned plugin bottom tabs use the same server preference endpoint via
     `preferences.pinnedBottomTabs`; `hermesPinnedPluginBottomTabs:<workspaceId>`
     is only the local first-paint/offline cache and old-cache migration source.
+    A pinned plugin bottom tab is removed from the mobile Dock/drawer app-icon
+    row to avoid duplicate launch entries; long-press or context-click on that
+    bottom tab cancels the pin and makes the plugin icon available in the
+    drawer again.
     Directory-bound topic rows show the directory display name plus topic count
     and updated time; they hide raw directory paths and default-topic prompt
     badges.

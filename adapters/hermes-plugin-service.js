@@ -1153,6 +1153,7 @@ function normalizeManifestActions(value = []) {
 function normalizeManifest(raw = {}, source = {}) {
   const manifestUrl = stringValue(source.manifestUrl);
   const id = stringValue(raw.id || source.id);
+  const title = stringValue(source.title) || stringValue(raw.title) || id;
   const rawEntry = typeof raw.entry === "string" ? raw.entry : raw.entry?.url;
   const entryUrl = normalizeLocalManifestUrlTarget(manifestUrl, rawEntry || raw.entryUrl || raw.entry_url || raw.url);
   if (!id) throw new Error("plugin_manifest_id_required");
@@ -1199,7 +1200,7 @@ function normalizeManifest(raw = {}, source = {}) {
     ok: true,
     available: true,
     id,
-    title: stringValue(raw.title) || id,
+    title,
     description: stringValue(raw.description),
     kind,
     version: stringValue(raw.version),
@@ -1875,8 +1876,10 @@ function createHermesPluginService(options = {}) {
         };
       }
       const raw = await response.json();
+      const hostTitle = plugin.title && plugin.title !== plugin.id ? plugin.title : "";
       const manifest = normalizeManifest(raw, {
         id,
+        title: hostTitle,
         manifestUrl: plugin.manifestUrl,
         fetchedAt: nowIso(),
       });

@@ -67,6 +67,10 @@ assert.match(pluginTopicsUi, /localStorage\.getItem\(storageKey\)/);
 assert.match(pluginTopicsUi, /localStorage\.setItem\(pluginTopicUsageStorageKey\(workspaceId\), JSON\.stringify\(pluginTopicUsageMemoryCache\)\)/);
 assert.match(pluginTopicsUi, /function normalizePinnedPluginBottomTabIds/);
 assert.match(pluginTopicsUi, /schedulePluginTopicPreferencesSync\(\{ pinnedBottomTabs: normalized \}, workspaceId\);/);
+assert.match(pluginTopicsUi, /function wirePinnedPluginBottomTabUnpin\(button, pluginId = ""\)/);
+assert.match(pluginTopicsUi, /button\.addEventListener\("contextmenu", unpin\);/);
+assert.match(pluginTopicsUi, /const drawerDefs = defs\.filter\(\(def\) => !pluginBottomTabPinned\(def\.id\)\);/);
+assert.match(pluginTopicsUi, /data-plugin-count="\$\{drawerDefs\.length\}"/);
 assert.match(pluginTopicsUi, /applyPluginTopicPreferencesFromServer\(serverPreferences, workspaceId\);/);
 assert.match(pluginTopicsUi, /function refreshPluginTopicUsageRoot\(options = \{\}\)/);
 assert.match(pluginTopicsUi, /const restoreScrollTop = options\.revealQuickActions \? 0 : \(\$\("conversation"\)\?\.scrollTop \|\| 0\);/);
@@ -221,6 +225,8 @@ globalThis.__pluginTopicHarness = {
   quickKeys: () => capabilityHubQuickActions(availablePluginTopicDefs()).map(({ def, action }) => def.id + ":" + action.id),
   actionIds: (pluginId) => pluginTopicQuickActions(pluginTopicDefById(pluginId)).map((action) => action.id + ":" + action.entry.pluginRoute),
   menuHtml: (pluginId) => renderCapabilityActionMenu(pluginTopicDefById(pluginId)),
+  launcherHtml: () => renderPluginAppLauncher(),
+  pinBottomTabs: (ids) => writePinnedPluginBottomTabs(ids, state.selectedWorkspaceId || "owner", { sync: false }),
   setManifestActions: (pluginId, actions, workspaceId = state.selectedWorkspaceId || "owner") => {
     state.embeddedPlugins[pluginId] = state.embeddedPlugins[pluginId] || {};
     state.embeddedPlugins[pluginId].manifest = { ok: true, available: true, workspaceId, actions };
@@ -310,6 +316,15 @@ globalThis.__pluginTopicHarness = {
   harness.recordUsage("finance", "scan_receipt");
   harness.flushRootRefreshTimers();
   assert.equal(harness.quickKeys()[0], "finance:scan_receipt", "manifest actions must feed the Dock frequent action menu");
+}
+
+{
+  const harness = createPluginTopicHarness();
+  assert.match(harness.launcherHtml(), /data-plugin-topic-open-app="finance"/, "unpinned finance app icon must be visible in the drawer");
+  harness.pinBottomTabs(["finance"]);
+  const launcherHtml = harness.launcherHtml();
+  assert.doesNotMatch(launcherHtml, /data-plugin-topic-open-app="finance"/, "pinned finance app icon must be hidden from the drawer");
+  assert.match(launcherHtml, /data-plugin-topic-open-app="wardrobe"/, "unfixed plugin app icons must remain in the drawer");
 }
 
 function createDirectoryTopicHarness() {

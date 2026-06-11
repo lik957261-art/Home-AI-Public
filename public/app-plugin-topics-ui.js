@@ -746,6 +746,86 @@ function setPluginBottomTabPinned(pluginId = "", pinned = true) {
   return true;
 }
 
+function cancelPinnedPluginBottomTab(pluginId = "", options = {}) {
+  const id = pluginTopicId(pluginId);
+  if (!id || !pluginBottomTabPinned(id)) return false;
+  const ok = setPluginBottomTabPinned(id, false);
+  if (!ok) return false;
+  if (options.openDrawer !== false && typeof setGlobalPluginDockExpanded === "function") {
+    setGlobalPluginDockExpanded(true, { persist: false });
+  }
+  if (typeof showPushToast === "function") showPushToast("已取消底部固定", "success");
+  return true;
+}
+
+function wirePinnedPluginBottomTabUnpin(button, pluginId = "") {
+  const id = pluginTopicId(pluginId);
+  if (!button || !id || button.dataset.pluginBottomTabUnpinBound === "1") return;
+  button.dataset.pluginBottomTabUnpinBound = "1";
+  let timer = null;
+  let startPoint = null;
+  const clearTimer = () => {
+    if (!timer) return;
+    window.clearTimeout(timer);
+    timer = null;
+  };
+  const pointFromEvent = (event) => {
+    const touch = event?.touches?.[0] || event?.changedTouches?.[0];
+    if (touch) return { x: touch.clientX, y: touch.clientY };
+    if (typeof event?.clientX === "number" && typeof event?.clientY === "number") return { x: event.clientX, y: event.clientY };
+    return null;
+  };
+  const markConsumed = () => {
+    button.dataset.pluginBottomTabUnpinConsumed = "1";
+    window.setTimeout(() => {
+      if (button.dataset.pluginBottomTabUnpinConsumed === "1") button.dataset.pluginBottomTabUnpinConsumed = "";
+    }, 900);
+  };
+  const unpin = (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    clearTimer();
+    if (!cancelPinnedPluginBottomTab(id)) return;
+    markConsumed();
+  };
+  const armLongPress = (event) => {
+    if (!pluginBottomTabPinned(id)) return;
+    clearTimer();
+    startPoint = pointFromEvent(event);
+    timer = window.setTimeout(() => unpin(event), PLUGIN_APP_REORDER_HOLD_MS);
+  };
+  const clearOnMove = (event) => {
+    if (!timer || !startPoint) return;
+    const point = pointFromEvent(event);
+    if (!point) return;
+    const dx = point.x - startPoint.x;
+    const dy = point.y - startPoint.y;
+    if (Math.abs(dx) >= PLUGIN_APP_REORDER_CANCEL_PX || Math.abs(dy) >= PLUGIN_APP_REORDER_CANCEL_PX) clearTimer();
+  };
+  button.addEventListener("click", (event) => {
+    if (button.dataset.pluginBottomTabUnpinConsumed !== "1") return;
+    event.preventDefault();
+    event.stopPropagation();
+    button.dataset.pluginBottomTabUnpinConsumed = "";
+  }, { capture: true });
+  button.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    armLongPress(event);
+  });
+  button.addEventListener("touchstart", (event) => {
+    if (event.touches && event.touches.length > 1) return;
+    armLongPress(event);
+  }, { passive: true });
+  button.addEventListener("pointermove", clearOnMove);
+  button.addEventListener("touchmove", clearOnMove, { passive: true });
+  button.addEventListener("pointerup", clearTimer);
+  button.addEventListener("pointercancel", clearTimer);
+  button.addEventListener("pointerleave", clearTimer);
+  button.addEventListener("touchend", clearTimer);
+  button.addEventListener("touchcancel", clearTimer);
+  button.addEventListener("contextmenu", unpin);
+}
+
 function syncPinnedPluginBottomTabs(pluginContextNav = false) {
   if (pluginContextNav) return [];
   ensurePluginTopicUsageLoaded();
@@ -1628,7 +1708,7 @@ function renderCapabilityActionMenu(def) {
   `).join("");
   const pinButton = pinEligible ? `<button class="capability-menu-item" type="button" data-plugin-bottom-tab-toggle="${escapeHtml(def.id)}" data-plugin-bottom-tab-pinned="${pinned ? "1" : "0"}"${(!pinned && !pinAvailable) ? " disabled" : ""}>
       <span class="capability-menu-glyph" aria-hidden="true">${pinned ? "\u2605" : "\u2606"}</span>
-      <span class="capability-menu-text">${pinned ? "\u4ece\u5e95\u90e8\u79fb\u9664" : (pinAvailable ? "\u56fa\u5b9a\u5230\u5e95\u90e8" : "\u5e95\u90e8\u5df2\u6ee1")}</span>
+      <span class="capability-menu-text">${pinned ? "\u53d6\u6d88\u5e95\u90e8\u56fa\u5b9a" : (pinAvailable ? "\u56fa\u5b9a\u5230\u5e95\u90e8" : "\u5e95\u90e8\u5df2\u6ee1")}</span>
     </button>` : "";
   return `<div class="capability-action-menu" role="menu" aria-label="${escapeHtml(`${def.label}\u5feb\u6377\u64cd\u4f5c`)}" data-plugin-topic-action-menu="${escapeHtml(def.id)}" hidden>
     <div class="capability-menu-head">
@@ -2160,19 +2240,20 @@ function renderPluginDrawerQuickActionMenu(quickActions = []) {
 
 function renderPluginAppLauncher() {
   const defs = orderedPluginAppDefs(availablePluginTopicDefs());
+  const drawerDefs = defs.filter((def) => !pluginBottomTabPinned(def.id));
   if (!defs.length) return "";
   ensurePluginTopicActionManifestsLoaded(defs);
   const quickActions = pluginDrawerFrequentActions(defs, { includeDefaults: true });
-  const cardsCount = defs.length + 1;
+  const cardsCount = drawerDefs.length + 1;
   const fillCount = Math.min(Math.max(cardsCount, 1), 6);
   return `<section class="plugin-app-launcher" aria-label="\u63d2\u4ef6\u5e94\u7528">
-    <div class="plugin-app-strip" role="list" data-plugin-count="${defs.length}" data-plugin-fill-count="${fillCount}" data-plugin-drawer-card-count="${cardsCount}">
+    <div class="plugin-app-strip" role="list" data-plugin-count="${drawerDefs.length}" data-plugin-fill-count="${fillCount}" data-plugin-drawer-card-count="${cardsCount}">
       <button class="plugin-app-card plugin-drawer-quick-card" type="button" role="listitem" data-plugin-drawer-quick-actions aria-label="\u6253\u5f00\u5e38\u7528\u5feb\u6377\u80fd\u529b">
         <span class="plugin-drawer-quick-icon" aria-hidden="true">\u5feb</span>
         <span class="plugin-app-label">\u5e38\u7528</span>
       </button>
       ${renderPluginDrawerQuickActionMenu(quickActions)}
-      ${defs.map((def) => `
+      ${drawerDefs.map((def) => `
         <button class="plugin-app-card" type="button" role="listitem" data-plugin-topic-open-app="${escapeHtml(def.id)}" data-plugin-topic-sort-id="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u63d2\u4ef6`)}">
           <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
           <span class="plugin-app-label">${escapeHtml(def.label)}</span>

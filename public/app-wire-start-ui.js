@@ -431,6 +431,17 @@ function wireUi() {
     state.currentThreadId = "";
     await loadSelectedView();
   });
+  if (typeof wirePinnedPluginBottomTabUnpin === "function") {
+    [
+      ["bottomWardrobeMode", "wardrobe"],
+      ["bottomFinanceMode", "finance"],
+      ["bottomEmailMode", "email"],
+      ["bottomHealthMode", "health"],
+      ["bottomNoteMode", "note"],
+      ["bottomGrowthMode", "growth"],
+      ["bottomMoiraMode", "moira"],
+    ].forEach(([buttonId, pluginId]) => wirePinnedPluginBottomTabUnpin($(buttonId), pluginId));
+  }
   $("threadSearch").addEventListener("input", () => {
     updateSearchButton();
     clearTimeout(state.searchTimer);

@@ -544,10 +544,17 @@ function testNormalizeGrowthManifest() {
 function testNormalizeMoiraManifest() {
   const manifest = normalizeManifest(sampleMoiraManifest(), {
     id: "moira",
+    title: "星盘",
     manifestUrl: "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest",
     fetchedAt: "2026-06-11T00:00:00.000Z",
   });
   assert.equal(manifest.id, "moira");
+  assert.equal(manifest.title, "星盘");
+  assert.equal(normalizeManifest(Object.assign({}, sampleMoiraManifest(), { title: "Moira" }), {
+    id: "moira",
+    title: "星盘",
+    manifestUrl: "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest",
+  }).title, "星盘");
   assert.equal(manifest.kind, "embedded_app");
   assert.equal(manifest.entry.url, "http://127.0.0.1:4174/?embed=hermes&v=0.2.33");
   assert.equal(manifest.programApi.baseUrl, "http://127.0.0.1:4174/");
@@ -2032,7 +2039,7 @@ async function testMoiraLaunchEntryUsesBearerAndSameOriginProxy() {
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: () => Promise.resolve(sampleMoiraManifest()),
+          json: () => Promise.resolve(Object.assign({}, sampleMoiraManifest(), { title: "Moira" })),
         });
       }
       if (url === "http://127.0.0.1:4174/api/v1/hermes/plugin/launch") {
@@ -2056,6 +2063,7 @@ async function testMoiraLaunchEntryUsesBearerAndSameOriginProxy() {
     launchPlugin: true,
   });
   assert.equal(manifest.available, true);
+  assert.equal(manifest.title, "星盘");
   assert.equal(
     manifest.entry.url,
     "/api/hermes-plugins/moira/proxy/api/v1/hermes/plugin/launch/moira_once?pluginTheme=light&pluginFontSize=xlarge&workspaceId=owner",

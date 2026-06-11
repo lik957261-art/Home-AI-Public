@@ -58,6 +58,10 @@ or raw plugin credentials.
   cache and a one-time migration source when the server has no preference
   timestamp yet. When the server returns a preference timestamp, the server
   value is authoritative even when the pinned list is empty.
+- A plugin pinned into a bottom-tab slot must not also render its app icon in
+  the global plugin Dock/drawer. It remains available through the pinned bottom
+  tab, and the user can long-press or context-click that bottom tab to remove
+  the pin and return the plugin to the drawer.
 - The current frontend projection renders Growth, Codex plugin edition,
   Wardrobe, Finance, Email, Health, Note, and the built-in Directory app in a
   host-owned global plugin Dock anchored directly above the mobile bottom
