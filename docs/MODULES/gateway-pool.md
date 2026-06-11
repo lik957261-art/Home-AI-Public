@@ -361,6 +361,13 @@ directory. The profile audit reports missing values as
 These are production blockers because `cronjob_mobile` otherwise falls back to
 the Windows default key path or an empty profile-local cron namespace.
 
+The profile audit must also scan every installed
+`/Library/LaunchDaemons/com.hermesmobile.gateway.*.plist`, not only workers
+currently present in `gateway-pool-manifest-mac.json`. Historical workspace
+LaunchDaemons can survive manifest rewrites; if one points at a development
+root or lacks the bridge env, it is still a production blocker because an
+on-demand worker can start from that stale script.
+
 Mac workspace provisioning must also repair each workspace worker's manifest
 API-server key binding. The worker row must point at a workspace-owned
 per-worker `apiKeyFile` under `data/secrets/gateway-workers`, for example

@@ -470,6 +470,17 @@ block production closure. The default Mac bridge-host URL is
 `http://127.0.0.1:8798`. A loaded worker without these values can return
 `Hermes Mobile bridge host key is not configured` and must not create fallback
 profile-local cron jobs.
+The audit also scans installed gateway LaunchDaemons outside the current
+manifest and reports `installed_gateway_launchd_untracked:<label>`,
+`installed_gateway_start_script_root_mismatch:<label>`, and
+`installed_gateway_mobile_bridge_env_missing:<label>:<env>` when stale
+workspace services still point at a development root or lack bridge env.
+Full Home AI Mac deploys run
+`scripts/macos-gateway-start-script-bridge-env-repair.js --execute` after the
+app sync and before service restart. That repair is idempotent and patches
+installed gateway start scripts that compute the bridge URL/key path but forgot
+to pass `HERMES_MOBILE_BRIDGE_HOST_*` and `HERMES_WEB_BRIDGE_HOST_*` through the
+final `exec env`.
 After repairing those env roots, run the live DOCX smoke as a second gate:
 `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-file-plugin-docx-root-smoke.js --root /Users/hermes-host/HermesMobile --profiles hm-wuping-openai-1 --json`.
 The smoke generates a temporary DOCX under the live uploads root and imports the

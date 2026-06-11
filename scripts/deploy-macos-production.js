@@ -102,6 +102,7 @@ const HOME_AI_PROOF_FILES = [
   "public/directory-viewer.html",
   "scripts/deploy-macos-production.js",
   "scripts/production-status-smoke.js",
+  "scripts/macos-gateway-start-script-bridge-env-repair.js",
 ];
 
 const HOME_AI_STATIC_PROOF_FILES = [
@@ -731,6 +732,18 @@ function installHomeAiBridgeHostLaunchd(plan, password) {
   };
 }
 
+function repairGatewayStartScriptBridgeEnv(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface !== "full") return null;
+  const node = path.join(plan.macRoot, PINNED_NODE);
+  const script = path.join(plan.productionPath, "scripts", "macos-gateway-start-script-bridge-env-repair.js");
+  const result = runSudo(node, [script, "--root", plan.macRoot, "--execute", "--json"], password);
+  return {
+    type: "home-ai-gateway-start-script-bridge-env-repair",
+    status: result.status,
+    stdout: String(result.stdout || "").slice(0, 1600),
+  };
+}
+
 function sleepMs(ms) {
   if (!ms) return;
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -819,6 +832,7 @@ function executePlan(plan, options) {
 
   const bridgeHostInstall = installHomeAiBridgeHostLaunchd(plan, password);
   const cronInstall = installHomeAiCronLaunchd(plan, password);
+  const gatewayStartScriptBridgeEnvRepair = repairGatewayStartScriptBridgeEnv(plan, password);
 
   for (const label of plan.restartLabels) {
     runSudo("/bin/launchctl", ["kickstart", "-k", `system/${label}`], password);
@@ -827,6 +841,7 @@ function executePlan(plan, options) {
   const validations = [];
   if (bridgeHostInstall) validations.push(Object.assign({ status: 0 }, bridgeHostInstall));
   if (cronInstall) validations.push(Object.assign({ status: 0 }, cronInstall));
+  if (gatewayStartScriptBridgeEnvRepair) validations.push(gatewayStartScriptBridgeEnvRepair);
   for (const check of plan.validation) {
     if (check.type === "production-file-hashes") validations.push(runFileHashValidation(plan, password));
     else validations.push(runValidation(check, password, options));

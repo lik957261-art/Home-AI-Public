@@ -62,6 +62,10 @@ const MOBILE_BRIDGE_REQUIRED_ENVS = Object.freeze([
 const MOBILE_BRIDGE_HOST_URL_DEFAULT = "127.0.0.1:8798";
 const MOBILE_BRIDGE_HOST_KEY_ROOT = "data/secrets/bridge-host.secret";
 
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function parseArgs(argv) {
   const out = {
     root: process.env.HERMES_MOBILE_ROOT || "/Users/hermes-host/HermesMobile",
@@ -71,6 +75,7 @@ function parseArgs(argv) {
     requiredWorkspaceSkillPlugins: DEFAULT_REQUIRED_WORKSPACE_SKILL_PLUGINS,
     requiredSharedSkills: DEFAULT_REQUIRED_SHARED_SKILLS,
     listenerUser: process.env.HERMES_MOBILE_LISTENER_USER || "hermes-host",
+    launchDaemonsDir: process.env.HERMES_MOBILE_LAUNCH_DAEMONS_DIR || "/Library/LaunchDaemons",
     checkTelemetry: true,
     json: false,
     strict: true,
@@ -90,6 +95,8 @@ function parseArgs(argv) {
       out.requiredSharedSkills = splitCsv(argv[++index] || "");
     } else if (arg === "--listener-user") {
       out.listenerUser = argv[++index] || out.listenerUser;
+    } else if (arg === "--launch-daemons-dir") {
+      out.launchDaemonsDir = argv[++index] || out.launchDaemonsDir;
     } else if (arg === "--no-telemetry-check") {
       out.checkTelemetry = false;
     } else if (arg === "--json") out.json = true;
@@ -106,6 +113,7 @@ function parseArgs(argv) {
         "  --required-shared-skills <ids>",
         "                               Comma-separated shared Skill paths relative to shared-global/skills",
         "  --listener-user <user>       User that must read Gateway telemetry DBs",
+        "  --launch-daemons-dir <dir>   LaunchDaemon plist directory",
         "  --no-telemetry-check         Skip Gateway telemetry path/readability checks",
         "  --no-strict                  Report issues without failing",
         "  --json                       Print bounded JSON metadata",
@@ -216,7 +224,7 @@ function launchdServiceStatus(worker = {}, options = {}) {
     status.keepAlive = probe.keepAlive == null ? null : Boolean(probe.keepAlive);
   } else if (process.platform === "darwin") {
     status.plistChecked = true;
-    const plistFile = path.join("/Library/LaunchDaemons", `${label}.plist`);
+    const plistFile = path.join(options.launchDaemonsDir || "/Library/LaunchDaemons", `${label}.plist`);
     status.plistExists = exists(plistFile);
     if (status.plistExists) {
       status.runAtLoad = readLaunchdPlistBoolean(plistFile, "RunAtLoad");
@@ -284,6 +292,28 @@ function readStartScriptText(worker = {}, profile = "", osUser = "", options = {
   }
 }
 
+function readArbitraryStartScriptText(scriptPath, root = "", options = {}) {
+  const value = String(scriptPath || "").trim();
+  if (!value) return { path: "", exists: false, text: "" };
+  if (typeof options.installedGatewayStartScriptProbe === "function") {
+    const probe = options.installedGatewayStartScriptProbe(value) || {};
+    return {
+      path: compactPath(value, root),
+      exists: Boolean(probe.exists ?? probe.text),
+      text: String(probe.text || ""),
+    };
+  }
+  try {
+    return {
+      path: compactPath(value, root),
+      exists: true,
+      text: fs.readFileSync(value, "utf8"),
+    };
+  } catch (_) {
+    return { path: compactPath(value, root), exists: false, text: "" };
+  }
+}
+
 function hasRootToken(scriptText, root, rootSpec) {
   const rel = String(rootSpec || "").replaceAll("\\", "/").replace(/^\/+/, "");
   const absolute = path.join(root, ...rel.split("/")).replaceAll("\\", "/");
@@ -315,17 +345,75 @@ function filePluginRootStatus(worker = {}, profile = "", osUser = "", root = "",
 
 function mobileBridgeStatus(worker = {}, profile = "", osUser = "", root = "", options = {}) {
   const script = readStartScriptText(worker, profile, osUser, options);
+  return mobileBridgeStatusFromScript(script, root);
+}
+
+function mobileBridgeStatusFromScript(script = {}, root = "") {
   const text = String(script.text || "").replaceAll("\\", "/");
   return {
     startScriptPath: compactPath(script.path, root),
     startScriptExists: script.exists,
     env: MOBILE_BRIDGE_REQUIRED_ENVS.map((name) => ({
       name,
-      present: text.includes(name),
+      present: new RegExp(`(^|[\\s\\\\])${escapeRegExp(name)}=`, "m").test(text),
     })),
     defaultHostUrlPresent: text.includes(MOBILE_BRIDGE_HOST_URL_DEFAULT),
     keyPathPresent: hasRootToken(text, root, MOBILE_BRIDGE_HOST_KEY_ROOT),
   };
+}
+
+function readPlistStringValues(plistFile, key) {
+  let text = "";
+  try {
+    text = fs.readFileSync(plistFile, "utf8");
+  } catch (_) {
+    return [];
+  }
+  const escapedKey = escapeRegExp(key);
+  const match = text.match(new RegExp(`<key>\\s*${escapedKey}\\s*</key>\\s*<array>([\\s\\S]*?)</array>`, "i"));
+  if (!match) return [];
+  const values = [];
+  const pattern = /<string>([\s\S]*?)<\/string>/gi;
+  let item;
+  while ((item = pattern.exec(match[1]))) {
+    values.push(
+      item[1]
+        .replaceAll("&quot;", "\"")
+        .replaceAll("&apos;", "'")
+        .replaceAll("&lt;", "<")
+        .replaceAll("&gt;", ">")
+        .replaceAll("&amp;", "&")
+        .trim(),
+    );
+  }
+  return values;
+}
+
+function installedGatewayLaunchdScripts(root = "", options = {}) {
+  if (typeof options.installedGatewayLaunchdProbe === "function") {
+    return (options.installedGatewayLaunchdProbe() || []).map((item) => Object.assign({}, item));
+  }
+  const dir = options.launchDaemonsDir || "/Library/LaunchDaemons";
+  let names = [];
+  try {
+    names = fs.readdirSync(dir);
+  } catch (_) {
+    return [];
+  }
+  return names
+    .filter((name) => /^com\.hermesmobile\.gateway\..+\.plist$/i.test(name))
+    .sort()
+    .map((name) => {
+      const plistPath = path.join(dir, name);
+      const args = readPlistStringValues(plistPath, "ProgramArguments");
+      const startScriptPath = args.find((arg) => String(arg || "").endsWith(".sh")) || "";
+      const label = name.replace(/\.plist$/i, "");
+      return {
+        label,
+        plistPath: compactPath(plistPath, root),
+        startScriptPath,
+      };
+    });
 }
 
 function telemetryPathConfigured(worker = {}, field) {
@@ -530,6 +618,7 @@ function buildAudit(options) {
     requiredWorkspacePlugins: DEFAULT_REQUIRED_WORKSPACE_PLUGINS,
     requiredWorkspaceSkillPlugins: DEFAULT_REQUIRED_WORKSPACE_SKILL_PLUGINS,
     requiredSharedSkills: DEFAULT_REQUIRED_SHARED_SKILLS,
+    launchDaemonsDir: "/Library/LaunchDaemons",
   }, options || {});
   if (!Array.isArray(options.expectedWorkspaces)) options.expectedWorkspaces = [];
   if (!Array.isArray(options.expectedPlugins)) options.expectedPlugins = [];
@@ -555,6 +644,7 @@ function buildAudit(options) {
   const issueSet = new Set();
   const warnings = [];
   const requiredWarmProfiles = ownerRequiredWarmProfiles(workers, options);
+  const manifestLaunchdLabels = new Set(workers.map((worker) => String(worker.launchdLabel || "").trim()).filter(Boolean));
 
   function issue(code) {
     issueSet.add(code);
@@ -736,6 +826,35 @@ function buildAudit(options) {
     }
   }
 
+  const installedGatewayLaunchd = installedGatewayLaunchdScripts(root, options);
+  const installedGatewayChecks = [];
+  for (const item of installedGatewayLaunchd) {
+    const script = readArbitraryStartScriptText(item.startScriptPath, root, options);
+    const mobileBridge = mobileBridgeStatusFromScript(script, root);
+    const scriptText = String(script.text || "").replaceAll("\\", "/");
+    const check = {
+      label: item.label,
+      plistPath: item.plistPath,
+      startScriptPath: compactPath(item.startScriptPath, root),
+      startScriptExists: script.exists,
+      trackedByManifest: manifestLaunchdLabels.has(item.label),
+      mobileBridge,
+      rootMatchesProduction: scriptText.includes(root.replaceAll("\\", "/")),
+      devRootPresent: /\/Users\/hermes-dev\/HermesMobileDev/.test(scriptText),
+    };
+    installedGatewayChecks.push(check);
+    if (!check.trackedByManifest) issue(`installed_gateway_launchd_untracked:${item.label}`);
+    if (!script.exists) issue(`installed_gateway_start_script_missing:${item.label}`);
+    if (check.devRootPresent || (script.exists && !check.rootMatchesProduction)) {
+      issue(`installed_gateway_start_script_root_mismatch:${item.label}`);
+    }
+    for (const env of mobileBridge.env) {
+      if (!env.present) issue(`installed_gateway_mobile_bridge_env_missing:${item.label}:${env.name}`);
+    }
+    if (!mobileBridge.defaultHostUrlPresent) issue(`installed_gateway_mobile_bridge_host_url_default_missing:${item.label}`);
+    if (!mobileBridge.keyPathPresent) issue(`installed_gateway_mobile_bridge_key_path_missing:${item.label}:${MOBILE_BRIDGE_HOST_KEY_ROOT}`);
+  }
+
   const sharedSkillRoot = path.join(skillProfilesRoot, "shared-global", "skills");
   const sharedSkillChecks = options.requiredSharedSkills.map((skillId) => skillBundleStatus(sharedSkillRoot, skillId));
   for (const check of sharedSkillChecks) {
@@ -775,6 +894,7 @@ function buildAudit(options) {
     pluginAuthorizations: plugins,
     byWorkspace,
     profileChecks,
+    installedGatewayChecks,
     sharedSkillChecks,
     staleSkillProfiles,
     issues: [...issueSet].sort(),
@@ -798,6 +918,7 @@ if (require.main === module) {
 module.exports = {
   buildAudit,
   filePluginRootStatus,
+  installedGatewayLaunchdScripts,
   launchdServiceStatus,
   mobileBridgeStatus,
   parseArgs,

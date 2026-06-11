@@ -29,6 +29,9 @@ assert.match(script, /file_plugin_root_missing/);
 assert.match(script, /file_plugin_root_list_delimiter_unsupported/);
 assert.match(script, /mobile_bridge_env_missing/);
 assert.match(script, /mobile_bridge_key_path_missing/);
+assert.match(script, /installed_gateway_launchd_untracked/);
+assert.match(script, /installed_gateway_start_script_root_mismatch/);
+assert.match(script, /installed_gateway_mobile_bridge_env_missing/);
 assert.match(script, /HERMES_MOBILE_BRIDGE_HOST_URL/);
 assert.match(script, /HERMES_MOBILE_BRIDGE_HOST_KEY_PATH/);
 assert.match(script, /HERMES_MOBILE_DOCX_ALLOWED_ROOTS/);
@@ -176,6 +179,24 @@ try {
   assert.ok(!fileRootReadyAudit.issues.some((item) => item.startsWith("file_plugin_root_missing:")));
   assert.ok(!fileRootReadyAudit.issues.some((item) => item.startsWith("file_plugin_root_list_delimiter_unsupported:")));
   assert.ok(!fileRootReadyAudit.issues.some((item) => item.startsWith("mobile_bridge_")));
+  const bridgeComputedButNotInjectedAudit = buildAudit({
+    root: tempRoot,
+    expectedWorkspaces: [],
+    expectedPlugins: [],
+    requiredWorkspacePlugins: {},
+    requiredSharedSkills: [],
+    checkTelemetry: false,
+    startScriptProbe: () => ({
+      exists: true,
+      text: [
+        'MOBILE_BRIDGE_HOST_URL="${HERMES_MOBILE_BRIDGE_HOST_URL:-${HERMES_WEB_BRIDGE_HOST_URL:-http://127.0.0.1:8798}}"',
+        'MOBILE_BRIDGE_HOST_KEY_PATH="${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-$ROOT/data/secrets/bridge-host.secret}}"',
+        'exec env HOME="/Users/hm-owner" "$ROOT/runtime/hermes-agent-official/venv/bin/python" -m hermes_cli.main gateway run --replace --accept-hooks',
+      ].join("\n"),
+    }),
+  });
+  assert.ok(bridgeComputedButNotInjectedAudit.issues.includes("mobile_bridge_env_missing:hm-owner-openai-1:HERMES_MOBILE_BRIDGE_HOST_URL"));
+  assert.ok(bridgeComputedButNotInjectedAudit.issues.includes("mobile_bridge_env_missing:hm-owner-openai-1:HERMES_MOBILE_BRIDGE_HOST_KEY_PATH"));
   const colonDelimitedRootAudit = buildAudit({
     root: tempRoot,
     expectedWorkspaces: [],
@@ -227,6 +248,59 @@ try {
   assert.ok(launchdAudit.issues.includes("launchd_run_at_load_unexpected:hm-wuping-openai-1"));
   assert.equal(launchdServiceStatus({ launchdLabel: "com.hermesmobile.fixture.1" }, { launchdProbe: () => true }).loaded, true);
   assert.equal(launchdServiceStatus({ launchdLabel: "com.hermesmobile.fixture.2" }, { checkLaunchd: false }).checked, false);
+  const installedLaunchdAudit = buildAudit({
+    root: tempRoot,
+    expectedWorkspaces: [],
+    expectedPlugins: [],
+    requiredWorkspacePlugins: {},
+    requiredSharedSkills: [],
+    checkTelemetry: false,
+    startScriptProbe: () => ({
+      exists: true,
+      text: [
+        `ROOT="${tempRoot}"`,
+        'MOBILE_BRIDGE_HOST_URL="${HERMES_MOBILE_BRIDGE_HOST_URL:-${HERMES_WEB_BRIDGE_HOST_URL:-http://127.0.0.1:8798}}"',
+        'MOBILE_BRIDGE_HOST_KEY_PATH="${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-$ROOT/data/secrets/bridge-host.secret}}"',
+        'HERMES_MOBILE_BRIDGE_HOST_URL="$MOBILE_BRIDGE_HOST_URL"',
+        'HERMES_WEB_BRIDGE_HOST_URL="$MOBILE_BRIDGE_HOST_URL"',
+        'HERMES_MOBILE_BRIDGE_HOST_KEY_PATH="$MOBILE_BRIDGE_HOST_KEY_PATH"',
+        'HERMES_WEB_BRIDGE_HOST_KEY_PATH="$MOBILE_BRIDGE_HOST_KEY_PATH"',
+      ].join("\n"),
+    }),
+    installedGatewayLaunchdProbe: () => [
+      {
+        label: "com.hermesmobile.gateway.hm-fixture-owner.openai.1",
+        plistPath: "/LaunchDaemons/com.hermesmobile.gateway.hm-fixture-owner.openai.1.plist",
+        startScriptPath: "/tmp/tracked.sh",
+      },
+      {
+        label: "com.hermesmobile.gateway.hm-weixin-stephen.openai.1",
+        plistPath: "/LaunchDaemons/com.hermesmobile.gateway.hm-weixin-stephen.openai.1.plist",
+        startScriptPath: "/tmp/legacy.sh",
+      },
+    ],
+    installedGatewayStartScriptProbe: (file) => ({
+      exists: true,
+      text: file.includes("legacy")
+        ? [
+          "ROOT='/Users/hermes-dev/HermesMobileDev'",
+          "exec env HOME='/Users/hm-weixin-stephen' PYTHONPATH=\"$RUNTIME_OVERRIDES:$RUNTIME_SOURCE\" \"$RUNTIME_PYTHON\" -m hermes_cli.main gateway run --replace --accept-hooks",
+        ].join("\n")
+        : [
+          `ROOT="${tempRoot}"`,
+          'MOBILE_BRIDGE_HOST_URL="${HERMES_MOBILE_BRIDGE_HOST_URL:-${HERMES_WEB_BRIDGE_HOST_URL:-http://127.0.0.1:8798}}"',
+          'MOBILE_BRIDGE_HOST_KEY_PATH="${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-$ROOT/data/secrets/bridge-host.secret}}"',
+          'HERMES_MOBILE_BRIDGE_HOST_URL="$MOBILE_BRIDGE_HOST_URL"',
+          'HERMES_WEB_BRIDGE_HOST_URL="$MOBILE_BRIDGE_HOST_URL"',
+          'HERMES_MOBILE_BRIDGE_HOST_KEY_PATH="$MOBILE_BRIDGE_HOST_KEY_PATH"',
+          'HERMES_WEB_BRIDGE_HOST_KEY_PATH="$MOBILE_BRIDGE_HOST_KEY_PATH"',
+        ].join("\n"),
+    }),
+  });
+  assert.ok(installedLaunchdAudit.issues.includes("installed_gateway_launchd_untracked:com.hermesmobile.gateway.hm-weixin-stephen.openai.1"));
+  assert.ok(installedLaunchdAudit.issues.includes("installed_gateway_start_script_root_mismatch:com.hermesmobile.gateway.hm-weixin-stephen.openai.1"));
+  assert.ok(installedLaunchdAudit.issues.includes("installed_gateway_mobile_bridge_env_missing:com.hermesmobile.gateway.hm-weixin-stephen.openai.1:HERMES_MOBILE_BRIDGE_HOST_URL"));
+  assert.ok(!installedLaunchdAudit.issues.includes("installed_gateway_launchd_untracked:com.hermesmobile.gateway.hm-fixture-owner.openai.1"));
   const wardrobeSkillDir = path.join(
     data,
     "skill-profiles",

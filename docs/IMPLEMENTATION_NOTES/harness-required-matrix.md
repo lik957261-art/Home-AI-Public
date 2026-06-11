@@ -644,6 +644,13 @@ Required harness dimensions:
   class-wide shared key. It must also assert source app scripts and
   `C:\ProgramData\HermesMobile\gateway-worker` runtime scripts are synced before
   a Gateway Pool restart.
+- Mac Gateway start-script bridge-env changes must run both
+  `node tests\macos-production-profile-audit.test.js` and
+  `node tests\macos-gateway-start-script-bridge-env-repair.test.js`. The audit
+  must reject scripts that only compute `MOBILE_BRIDGE_HOST_URL` /
+  `MOBILE_BRIDGE_HOST_KEY_PATH` but do not pass the corresponding
+  `HERMES_MOBILE_BRIDGE_HOST_*` and `HERMES_WEB_BRIDGE_HOST_*` variables through
+  the final `exec env`.
 - Owner-maintenance routing must fail closed. A maintenance/high-permission
   request that cannot find a matching owner-maintenance worker must return a
   bounded unavailable diagnostic and must not select the `default` fallback
