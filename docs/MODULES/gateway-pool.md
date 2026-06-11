@@ -349,7 +349,7 @@ as a production blocker.
 Mac Gateway start scripts must expose the Home AI bridge-host CRON endpoint to
 profile-local automation tools. Each enabled worker start script must export
 both `HERMES_MOBILE_BRIDGE_HOST_URL` / `HERMES_WEB_BRIDGE_HOST_URL` with the
-live listener bridge URL `http://127.0.0.1:8797`, and
+live bridge-host URL `http://127.0.0.1:8798`, and
 `HERMES_MOBILE_BRIDGE_HOST_KEY_PATH` /
 `HERMES_WEB_BRIDGE_HOST_KEY_PATH` pointing at
 `$ROOT/data/secrets/bridge-host.secret`. Workspace provisioning must grant the

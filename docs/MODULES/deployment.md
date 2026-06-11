@@ -461,12 +461,13 @@ The same start-script audit also checks the Home AI bridge-host CRON endpoint
 used by `cronjob_mobile` and `hermes-mobile-http`: every enabled worker script
 must include `HERMES_MOBILE_BRIDGE_HOST_URL`,
 `HERMES_WEB_BRIDGE_HOST_URL`, `HERMES_MOBILE_BRIDGE_HOST_KEY_PATH`, and
-`HERMES_WEB_BRIDGE_HOST_KEY_PATH`, with the default Mac listener URL
-`http://127.0.0.1:8797` and `$ROOT/data/secrets/bridge-host.secret`. Missing
+`HERMES_WEB_BRIDGE_HOST_KEY_PATH`, with the default Mac bridge-host URL
+`http://127.0.0.1:8798` and `$ROOT/data/secrets/bridge-host.secret`. Missing
 values are reported as `mobile_bridge_env_missing:<profile>:<env>`,
 `mobile_bridge_host_url_default_missing:<profile>`, or
 `mobile_bridge_key_path_missing:<profile>:data/secrets/bridge-host.secret` and
-block production closure. A loaded worker without these values can return
+block production closure. The default Mac bridge-host URL is
+`http://127.0.0.1:8798`. A loaded worker without these values can return
 `Hermes Mobile bridge host key is not configured` and must not create fallback
 profile-local cron jobs.
 After repairing those env roots, run the live DOCX smoke as a second gate:

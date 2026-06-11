@@ -59,7 +59,7 @@ const MOBILE_BRIDGE_REQUIRED_ENVS = Object.freeze([
   "HERMES_MOBILE_BRIDGE_HOST_KEY_PATH",
   "HERMES_WEB_BRIDGE_HOST_KEY_PATH",
 ]);
-const MOBILE_BRIDGE_HOST_URL_DEFAULT = "127.0.0.1:8797";
+const MOBILE_BRIDGE_HOST_URL_DEFAULT = "127.0.0.1:8798";
 const MOBILE_BRIDGE_HOST_KEY_ROOT = "data/secrets/bridge-host.secret";
 
 function parseArgs(argv) {

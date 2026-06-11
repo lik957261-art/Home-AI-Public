@@ -22,7 +22,7 @@ const FILE_PLUGIN_SINGLE_ROOT_ENVS = Object.freeze({
   HERMES_MOBILE_HTTP_SAVE_ROOT: "${ROOT}/data/artifacts/http-request",
   HERMES_MOBILE_VIDEO_OUTPUT_ROOT: "${ROOT}/data/artifacts/grok-videos",
 });
-const DEFAULT_MOBILE_BRIDGE_HOST_URL = "http://127.0.0.1:8797";
+const DEFAULT_MOBILE_BRIDGE_HOST_URL = "http://127.0.0.1:8798";
 const MOBILE_BRIDGE_HOST_KEY_RELATIVE_PATH = "data/secrets/bridge-host.secret";
 const STANDARD_PROFILE_PLUGINS = Object.freeze([
   "weather",
