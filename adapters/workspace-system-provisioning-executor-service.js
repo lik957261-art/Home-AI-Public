@@ -470,11 +470,13 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
       path.posix.join(fields.dataRoot, "secrets"),
       path.posix.join(fields.dataRoot, "secrets", "gateway-workers"),
     ];
-    for (const dir of parentDirs) {
-      if (pathExists(dir)) chmodAcl(fields.macUser, dir, parentPerms);
-    }
-    for (const target of [...new Set(targets)]) {
-      if (fileExists(target)) chmodAcl(fields.macUser, target, readPerms);
+    for (const user of [...new Set([fields.macUser, listenerUser])]) {
+      for (const dir of parentDirs) {
+        if (pathExists(dir)) chmodAcl(user, dir, parentPerms);
+      }
+      for (const target of [...new Set(targets)]) {
+        if (fileExists(target)) chmodAcl(user, target, readPerms);
+      }
     }
   }
 

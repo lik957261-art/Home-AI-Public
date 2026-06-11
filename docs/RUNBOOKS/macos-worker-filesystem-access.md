@@ -104,6 +104,10 @@ must stay under the production runtime tree or another production-owned runtime
 path; it must not resolve into `/Users/xuxin`, `/Users/hermes-dev`, or any
 developer account home. Fix the production runtime copy/symlink and group
 membership instead of granting workspace workers access to a developer home.
+Gateway worker API key files must be readable by both the target worker user
+and the Home AI listener user. If the worker can start and `/health` is green
+but product runs fail with an invalid Gateway API key, check whether the key
+file was created by root with mode `600` and no listener ACL.
 
 Repair only the minimum required access:
 
@@ -112,6 +116,7 @@ sudo chmod +a "user:<hm-user> allow search,readattr,readextattr,readsecurity" /U
 sudo chmod +a "user:<hm-user> allow search,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/secrets/gateway-workers
 sudo chmod +a "user:<hm-user> allow read,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json
 sudo chmod +a "user:<hm-user> allow read,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/secrets/gateway-workers/<profile>.key
+sudo chmod +a "user:hermes-host allow read,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/secrets/gateway-workers/<profile>.key
 ```
 
 If the stderr shows `venv/bin/hermes: Permission denied`, inspect the console
