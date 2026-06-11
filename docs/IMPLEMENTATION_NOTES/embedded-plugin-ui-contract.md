@@ -9,12 +9,12 @@ It applies to Wardrobe, Finance, Email, Health, Note, and future iframe plugins.
 
 An embedded plugin should feel like a native mobile app inside Hermes Mobile.
 The plugin may have its own bottom navigation, floating buttons, sheets, and
-secondary pages, but Hermes owns the outer browser shell and the three-entry
-plugin-context footer.
+secondary pages, but Hermes owns the outer browser shell and the ordinary
+system bottom navigation.
 
 The visible result should match a direct mobile browser view as closely as
 possible: plugin content reaches the bottom of its iframe viewport, and Hermes
-navigation sits outside that viewport.
+system navigation sits outside that viewport.
 
 ## Host Responsibilities
 
@@ -23,14 +23,14 @@ Hermes Mobile owns these behaviors:
 - create the iframe through the normalized plugin manifest;
 - keep the iframe in the same window;
 - hide the normal Hermes topbar/header while an embedded plugin iframe is open;
-- keep the three-entry plugin-context footer outside the iframe viewport;
+- keep the ordinary system bottom navigation outside the iframe viewport;
 - let the iframe start at the top of the available host viewport;
-- ensure the iframe bottom edge stops at the Hermes footer top edge;
-- derive the iframe bottom reservation from the measured host footer height and
+- ensure the iframe bottom edge stops above the measured Home AI bottom stack;
+- derive the iframe bottom reservation from the measured host bottom stack and
   the layout viewport (`window.innerHeight` / `documentElement.clientHeight`),
   not from a shortened iOS PWA `visualViewport.height`;
-- hide the plugin-context footer and reserve zero bottom space while the plugin
-  reports a full-screen image/file preview state;
+- hide the system bottom navigation and reserve zero bottom space while the
+  plugin reports a full-screen image/file preview state;
 - recompute the iframe viewport when mobile browser chrome, PWA viewport,
   orientation, keyboard, or bottom navigation metrics change;
 - reset Home AI's own page scroll back to the viewport origin while an embedded
@@ -46,9 +46,9 @@ Hermes Mobile owns these behaviors:
   iframe as layout metadata.
 
 Hermes must not use host-owned bottom padding as the only separation between the
-iframe and the plugin-context footer. Padding can leave the iframe under the
-Hermes footer, while the plugin app also reserves its own bottom bar, producing a
-visible blank band.
+iframe and the system bottom navigation. Padding can leave the iframe under the
+Home AI bottom stack, while the plugin app also reserves its own bottom bar,
+producing a visible blank band.
 
 ## Plugin Responsibilities
 
@@ -95,7 +95,7 @@ scroll containers.
 
 Hermes Mobile sends a bounded `postMessage` to the active embedded plugin iframe
 whenever the host iframe is attached, rendered, loaded, made visible, or the
-host keyboard/viewport/plugin-context footer metrics change. Host
+host keyboard/viewport/bottom-navigation metrics change. Host
 `visualViewport` resize, scroll, and orientation changes must also schedule a
 short settled broadcast sequence, because mobile iframe focus can open the
 native keyboard without going through the Home AI composer focus path:
@@ -174,8 +174,8 @@ Required behavior:
 - If there is no plugin bottom nav, a FAB may sit near the iframe bottom safe
   area.
 - The FAB/action bar must not be placed in the empty space between the plugin
-  iframe and Hermes footer.
-- The FAB/action bar must not overlap Hermes' three-entry plugin-context footer.
+  iframe and Home AI's system bottom navigation.
+- The FAB/action bar must not overlap Home AI's system bottom navigation.
 - Local action bars should be compact and browser-toolbar-like on mobile:
   icon-first, single row, no oversized text buttons, and no stacked framed cards.
 

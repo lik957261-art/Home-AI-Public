@@ -180,11 +180,6 @@ function wireUi() {
       if (typeof closeDirectoryTopicDraft === "function") closeDirectoryTopicDraft();
       return;
     }
-    const pluginContextDef = typeof pluginTopicDefForViewMode === "function" ? pluginTopicDefForViewMode(state.viewMode) : null;
-    if (pluginContextDef) {
-      await openPluginTopicChat(pluginContextDef.id, { deferViewModeApplyUntilLoaded: true });
-      return;
-    }
     preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
@@ -258,11 +253,6 @@ function wireUi() {
   $("bottomProjectsMode")?.addEventListener("click", async () => {
     if (typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive()) {
       if (typeof closeDirectoryTopicDraft === "function") closeDirectoryTopicDraft();
-      return;
-    }
-    const pluginContextDef = typeof pluginTopicDefForViewMode === "function" ? pluginTopicDefForViewMode(state.viewMode) : null;
-    if (pluginContextDef) {
-      await openPluginTopicDelivery(pluginContextDef.id);
       return;
     }
     if (state.directoryPluginContextActive && state.viewMode === "projects") {

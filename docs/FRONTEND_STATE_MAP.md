@@ -305,7 +305,9 @@ the change is part of a dedicated infrastructure rename.
 
 - Inbox tab/list/detail: `public/app-action-inbox-ui.js`
 - Route target: `view=inbox&inboxItemId=<id>`
-- Primary bottom navigation direction: `聊天 / 信息 / 话题 / 目录 / 成长`
+- Primary bottom navigation direction: `聊天 / 信息 / 话题` plus
+  workspace-scoped pinned plugin tabs. Directory and Growth are plugin/Dock
+  entries unless pinned.
 - Inbox should render source tags and action states compactly, one list/detail surface, without relying on official Kanban UI modules.
 - Inbox list rows should combine processing actions into the inline status
   badge after source/type. Tapping `待处理` or another non-terminal status opens

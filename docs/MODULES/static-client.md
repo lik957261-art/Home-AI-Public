@@ -188,15 +188,13 @@ Gateway plugin/schema/profile changes:
   first frame before app modules can run viewport-settle JavaScript.
 - Embedded plugin host pages hide the normal Home AI topbar, so the iframe host
   `.main` must use the mobile status-bar safe-area top inset instead of raw
-  `top: 0`. The iframe bottom reservation must be derived from the visible top
-  of the measured plugin-context footer, not only from the fixed footer height.
-  This applies both to `plugin-context-nav-mode` plugin hosts and to direct
-  embedded hosts such as Codex/Note/Wardrobe that do not expose the plugin
-  context footer; direct embedded hosts should reserve the top safe-area through
-  `.main` padding rather than a device-specific bottom offset. Codex is the
-  direct-host exception for bottom comfort: the host still hides Home AI bottom
-  chrome, but publishes the shared bottom comfort inset through
-  `hermes.plugin.viewport.footer.safeAreaBottom` so the Codex iframe can pad
+  `top: 0`. The iframe bottom reservation must be derived from the visible Home
+  AI bottom stack, not a fixed plugin-context footer height. Embedded hosts such
+  as Codex, Note, and Wardrobe should reserve the top safe-area through `.main`
+  padding rather than a device-specific bottom offset. If a temporary
+  chrome-free preview hides Home AI bottom chrome, the host publishes the shared
+  bottom comfort inset through
+  `hermes.plugin.viewport.footer.safeAreaBottom` so the plugin iframe can pad
   its own composer without a visible host footer.
 - `POST /api/client-layout-diagnostics` is the bounded real-device layout
   diagnostic channel for temporary PWA debugging. It stores sanitized viewport,

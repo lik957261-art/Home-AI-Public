@@ -286,14 +286,15 @@ Detailed design:
 
 ## Host Navigation
 
-The mobile bottom navigation should keep only high-frequency app destinations at
-the first level. Codex remains a first-level bottom tab because it is a frequent
-Owner workflow. Lower-frequency embedded apps such as Wardrobe, Finance, and
-Email are collected under the bottom `应用` entry. That entry opens a compact
-host-owned app list, but each item must still be shown only when the same
-manifest/workspace authorization rules would have made the corresponding plugin
-tab available. Moving an app into the drawer must not bypass plugin visibility,
-workspace clamping, launch-token freshness, iframe hosting, or proxy rules.
+The mobile bottom navigation keeps host-level destinations first: `聊天`,
+`信息`, and `话题`, plus workspace-scoped user-pinned plugin tabs. Codex is
+Owner-only, but it is not permanently fixed at the first level; it follows the
+same optional pin/unpin rule as other plugins. Embedded apps such as Codex,
+Wardrobe, Finance, and Email are collected in the host-owned plugin Dock/drawer,
+but each item must still be shown only when the same manifest/workspace
+authorization rules would have made the corresponding plugin tab available.
+Moving an app into the drawer must not bypass plugin visibility, workspace
+clamping, launch-token freshness, iframe hosting, or proxy rules.
 
 Plugin-bound application topics are a separate launcher/context layer. A plugin
 may appear in the `应用` drawer, in the embedded plugin host, and as a pinned
@@ -324,28 +325,19 @@ equivalent of the mobile Dock: short click opens the plugin app/capability and
 context-click/long-press opens the same quick-action menu. Desktop must not
 fall back to scattered per-plugin buttons across the page body.
 
-When a plugin is opened from a plugin-bound topic, Hermes shows a three-entry
-plugin context browser-style footer: Topic, the current plugin, and Directory.
-This context navigation keeps only three columns and stays outside the embedded
-browser viewport. Hermes must hide its normal topbar/header whenever an
-embedded plugin iframe is open; the plugin owns its own header or in-app title
-inside the iframe. The footer should be visually closer to a mobile browser
-toolbar than to the ordinary five-entry app navigation: icon-first, compact,
-fixed, with a clear top divider and minimal wasted vertical space. The plugin
-iframe must start at the top of the available host viewport and end at the
-footer's top edge, not continue behind the Hermes buttons. In plugin context
-mode the iframe/shell must also drop any standalone `100dvh` min-height so it
-obeys the host viewport slice. The host must subtract the plugin-context footer
-height from the embedded app viewport instead of using only `padding-bottom`;
-otherwise the iframe can extend behind the Hermes footer while the plugin app
-also reserves its own bottom navigation area, creating a visible blank band
-between the plugin's native bottom bar and the Hermes footer.
-The plugin-context iframe bottom reservation is derived from the measured host
-footer height and the same layout-viewport bottom-boundary rule as the primary
-mobile bottom stack. `visualViewport.height` is diagnostic and keyboard input,
-not the primary boundary for this reservation; iOS standalone PWA can report a
-shorter visual viewport and would otherwise shrink the iframe, making plugin
-top chrome appear clipped above the screen.
+When a plugin is opened from a plugin-bound topic or the global Dock, Hermes no
+longer shows a dedicated three-entry plugin context footer. Embedded plugin
+pages keep the ordinary Home AI system bottom navigation projection: `聊天`,
+`信息`, `话题`, plus any workspace-pinned plugin tabs. Hermes must hide its
+normal topbar/header whenever an embedded plugin iframe is open; the plugin
+owns its own header or in-app title inside the iframe. The plugin iframe must
+start at the top of the available host viewport and end above the measured
+system bottom navigation stack. The host reservation is derived from the same
+layout-viewport bottom-boundary rule as the primary mobile bottom stack.
+`visualViewport.height` is diagnostic and keyboard input, not the primary
+boundary for this reservation; iOS standalone PWA can report a shorter visual
+viewport and would otherwise shrink the iframe, making plugin top chrome appear
+clipped above the screen.
 
 The built-in Directory plugin is different from embedded iframe plugins. When a
 user opens a folder and chooses to start a topic, Hermes must keep the directory
@@ -360,36 +352,27 @@ restore the directory route. This route must not be cleared by generic
 active, and discarding the empty draft must also clear the directory topic
 filter so the ordinary topic list does not remain in a phantom directory-create
 state. Switching to a plugin app must also discard the empty draft before
-opening the plugin so the plugin context footer does not lock up.
+opening the plugin so stale directory-draft state does not affect the system
+bottom navigation.
 Embedded plugin-bound topics can also carry a `pendingTaskDirectory` attachment
 for model/tool delivery, for example Finance topic messages. That attachment is
 not a Directory-plugin draft unless Hermes also has a `directoryReturnRoute`.
 Topic-list rendering, send duplicate guards, and right-swipe/back selection must
 therefore use the explicit directory-draft predicate instead of treating any
 pending directory attachment as a new-topic page.
-Inside the plugin-context footer, tapping `Topic` returns from the embedded
-plugin surface to that plugin's bound Hermes topic conversation, for example
-`plugin:finance`, not to the ordinary topic list. It may defer host view-mode
-application until after `loadSingleWindow()` has loaded the bound conversation,
-so the user does not see a transient wrong page before the correct topic surface
-appears.
-The three-entry plugin-context footer must be derived from the active
-`plugin:<id>` task group as well as the explicit `pluginContextNavPluginId`.
-The task-group fallback is required because a loaded plugin-bound topic
-conversation is itself enough evidence that the host is in plugin-context mode;
-the footer must not fall back to the ordinary bottom navigation if the explicit
-context id is cleared during a re-entry or refresh.
-Codex Mobile is the exception to plugin-context bottom navigation. It is an
-Owner-critical workbench plugin and should run as a full-screen embedded
-surface. When the Codex iframe is active, Hermes must not show the ordinary
-bottom navigation or the three-entry plugin-context bar. Hermes still owns the
-host bottom comfort inset and must send it through `hermes.plugin.viewport`
-`footer.safeAreaBottom` / `footer.hostBottomSafeArea` when the Codex footer is
-hidden, so Codex can keep its composer off the physical PWA bottom without
-duplicating a visible Home AI footer reservation. Codex-owned navigation remains
-inside the Codex iframe; leaving the surface belongs to Hermes back/right-swipe
-or the host menu, not to a visible bottom-tab row. When a saved host return
-route exists for Codex, Hermes-owned left-edge swipe and top back must restore
+The plugin-context identity is still derived from the active `plugin:<id>` task
+group as well as the explicit `pluginContextNavPluginId`, but that state is
+for route restoration and back/right-swipe behavior only. The system `话题`
+bottom tab always opens the ordinary Topics root; plugin-bound topics and
+delivery directories are reached from the Topics root, Dock `常用` actions, and
+plugin long-press/context menus.
+Codex Mobile is Owner-only, but it follows the same host bottom-navigation
+rules as other embedded plugins: it may appear in the drawer when not pinned,
+may be pinned into the system bottom bar, and may be removed from that bar by
+long-press/context menu. Codex-owned navigation remains inside the Codex iframe;
+leaving the surface belongs to Hermes back/right-swipe, system bottom
+navigation, or the host menu. When a saved host return route exists for Codex,
+Hermes-owned left-edge swipe and top back must restore
 that host route before sending another iframe-internal back event; this
 prevents a cached/reloaded Codex root from consuming the gesture into a plugin
 default page such as create-thread.
@@ -407,8 +390,8 @@ state inside the same embedded iframe. When a plugin opens such a preview, it
 must notify Hermes through its navigation postMessage payload
 (`previewFullscreen`, `fullscreenPreview`, or `imagePreviewFullscreen`) or the
 generic `hermes.plugin.preview` / `hermes.plugin.fullscreen` message. While that
-state is active Hermes hides its plugin-context footer and reserves zero bottom
-space so the iframe can inspect the image to the viewport edge. Closing the
+state is active Hermes hides the system bottom navigation and reserves zero
+bottom space so the iframe can inspect the image to the viewport edge. Closing the
 preview, iframe refresh, back fallback, or leaving the plugin must clear the
 state. These payloads are state-only signals and must not contain raw keys,
 launch tokens, note bodies, attachment content, or private file URLs.

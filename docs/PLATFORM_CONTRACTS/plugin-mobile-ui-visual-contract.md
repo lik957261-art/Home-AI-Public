@@ -81,7 +81,7 @@ Hermes owns:
 
 - outer mobile shell;
 - primary bottom navigation;
-- plugin-context footer;
+- plugin-context route/back identity;
 - chat composer;
 - global plugin Dock;
 - iframe viewport geometry;
@@ -145,12 +145,10 @@ Non-negotiable:
   plugin Dock and clear Dock-specific embedded iframe reservation. A hidden Dock
   must never leave expanded-state padding behind while the user is typing in a
   host composer or plugin iframe input.
-- When a top-level plugin App hides the primary Home AI bottom navigation and
-  has no Home AI-owned plugin-context footer, the global plugin Dock must anchor
-  to the host comfort inset instead of the absent nav height. When the plugin
-  App is using the Home AI plugin-context footer, the Dock must anchor to that
-  visible footer's measured top offset. Otherwise the handle either floats too
-  high or overlaps the context navigation.
+- Top-level plugin App pages keep the primary Home AI bottom navigation
+  projection. If a temporary chrome-free state hides that navigation, the
+  global plugin Dock must also be suppressed or anchored to the host comfort
+  inset instead of an absent nav height.
 - The visual harness allows only the controlled Dock/bottom-nav bridge declared
   by `--topic-plugin-dock-nav-overlap`; any Dock overlap beyond that tolerance,
   and all composer/menu/nav overlaps, remain layout failures.
@@ -196,10 +194,10 @@ Non-negotiable:
   falsely lift the whole Dock/nav stack. Large runtime bottom overflow should
   remain diagnostic-only unless a bounded clamp is intentionally raised from the
   current `--mobile-bottom-nav-overflow-clamp: 0px` default.
-- Home AI-owned bottom navigation, including plugin-context bottom navigation,
-  must render an opaque host chrome background. Do not use a `transparent`
-  color mix for this band; long message content can otherwise show through the
-  iOS PWA safe-area/footer region.
+- Home AI-owned bottom navigation, including the system bar visible on plugin
+  pages, must render an opaque host chrome background. Do not use a
+  `transparent` color mix for this band; long message content can otherwise
+  show through the iOS PWA safe-area/footer region.
 - fixed or sticky bottom controls must have an explicit matching reservation in
   the scroll container they cover;
 - the reservation belongs to the covered scroll container, not a random outer
@@ -212,7 +210,7 @@ Non-negotiable:
 - Hermes-owned composer/nav reserves only in Hermes-owned chat scroll
   containers;
 - full-screen plugin previews must report fullscreen state so Home AI can hide
-  plugin-context footer reservations.
+  system bottom-navigation reservations.
 
 Failing visual states:
 
@@ -247,11 +245,12 @@ Rules:
   event is not raw system input-method state; plugin-owned sheets, remark
   layers, floating buttons, and fixed form actions may use plugin-local keyboard
   calculations as long as they do not add Home AI footer space twice;
-- Owner-critical direct embedded plugins such as Codex may hide Home AI bottom
-  chrome. They still must consume `footer.safeAreaBottom` /
-  `footer.hostBottomSafeArea` from `hermes.plugin.viewport` and apply it inside
-  their iframe when the keyboard is closed, so plugin controls do not become
-  physically flush with the PWA bottom.
+- Owner-only embedded plugins such as Codex follow the same host bottom
+  navigation projection as other plugins. They still must consume
+  `footer.safeAreaBottom` / `footer.hostBottomSafeArea` from
+  `hermes.plugin.viewport` when the footer is hidden for a temporary
+  chrome-free preview state, so plugin controls do not become physically flush
+  with the PWA bottom.
 - the Home AI host must rebroadcast bounded plugin viewport metrics through a
   short settled sequence after host visual viewport resize, scroll, or
   orientation events, and must reset host page scroll while an embedded iframe

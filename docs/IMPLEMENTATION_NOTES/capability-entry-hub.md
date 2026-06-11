@@ -459,7 +459,7 @@ Minimum validation:
 - authenticated navigation flow harness covering plugin app launch, quick
   topic entry, quick directory entry, and return behavior;
 - evidence that quick action rows and Directory-bound topic rows do not overlap
-  the fixed plugin Dock, bottom navigation, composer, or plugin-context footer;
+  the fixed plugin Dock, ordinary bottom navigation, or composer;
 - evidence that the measured Dock rect and primary bottom-nav rect are adjacent
   without overlap or clipping on both Windows local production and Mac
   production when the same viewport is used;

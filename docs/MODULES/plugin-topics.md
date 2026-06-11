@@ -35,11 +35,10 @@ or raw plugin credentials.
   navigation and use the standard top back/right-swipe route to return, while
   keeping the normal message composer visible for the topic chat.
 - Plugin topic detail is a Hermes-owned chat surface, not a plugin iframe
-  layout surface. It must match the ordinary Hermes chat composer layout; the
-  only bottom difference is replacing the normal host mobile navigation
-  with the three-entry plugin-context navigation. Composer/footer overlap must
-  be solved by the shared bottom-layout standard, not by adding visible padding
-  to the outer app or main shell.
+  layout surface. It must match the ordinary Hermes chat composer layout and
+  must not introduce a plugin-specific bottom navigation bar. Composer/footer
+  overlap must be solved by the shared bottom-layout standard, not by adding
+  visible padding to the outer app or main shell.
 - Returning from topic detail to the topic list must restore the topic-list
   scroll position captured before entering the detail. Right-swipe/back should
   not jump away from the plugin and Directory card area.
@@ -187,16 +186,18 @@ or raw plugin credentials.
   bottom navigation. Runtime measurement must reserve only the collapsed handle
   height while collapsed and the full Dock height while expanded.
 - Opening an external plugin from the Dock directly enters the plugin app. The
-  plugin app keeps the Hermes top navigation button visible and replaces the
-  normal mobile bottom tabs with a three-item plugin-context bar:
-  `话题` opens the fixed plugin topic, `插件` stays on the plugin app, and `目录`
-  opens the plugin file directory.
-- In plugin-context navigation, right-swipe or browser-back from any of the
-  three context tabs exits the plugin context and returns to the ordinary topic
-  list root (`viewMode=tasks`, empty `currentTaskGroupId`). The exit path must
-  clear `pluginContextNavPluginId`, hide active plugin iframes, close plugin
-  Dock/menu chrome, and restore the normal bottom navigation. It must not leave
-  the topic list in a mixed plugin-context bottom-tab state.
+  plugin app keeps the ordinary Home AI system bottom navigation projection:
+  `聊天`, `信息`, `话题`, plus any workspace-pinned plugin tabs. Home AI no longer
+  replaces that system bar with a plugin-context `话题` / `插件` / `目录` footer.
+  Plugin-bound topics and delivery directories remain reachable from the
+  Topics root, Dock `常用` actions, and plugin long-press/context menus instead
+  of a dedicated plugin footer.
+- In plugin-context state, right-swipe or browser-back exits the plugin context
+  and returns to the ordinary topic list root (`viewMode=tasks`, empty
+  `currentTaskGroupId`). The exit path must clear `pluginContextNavPluginId`,
+  hide active plugin iframes, close plugin Dock/menu chrome, and restore the
+  ordinary system bottom navigation. It must not leave the topic list in a
+  mixed plugin-context bottom-tab state.
 - The plugin-context exit path is a dedicated state transition, not the normal
   task-detail return route. It must render the ordinary topic root directly
   from the remembered task-list thread and must not call `openTaskList()`,
@@ -206,8 +207,8 @@ or raw plugin credentials.
 - Plugin iframe inner back, plugin iframe outer return, plugin topic chat back,
   and plugin directory back must not compete. While `pluginContextNavPluginId`
   is set, right-swipe/browser-back resolves first to plugin-context home. After
-  that transition, ordinary five-tab navigation and topic-root scroll state are
-  restored; the three-item plugin-context bar is removed.
+  that transition, ordinary system navigation and topic-root scroll state are
+  restored.
 - Restored route snapshots for plugin apps, plugin topics, and plugin
   directories must also restore `pluginContextNavPluginId`. A restored plugin
   secondary route should initialize plugin `canGoBack` so the first
@@ -427,14 +428,14 @@ topic-only rows,
 non-blocking topic entry before directory refresh, creation of `插件/<plugin title>`, file-directory attachment on
 plugin-topic sends, return from plugin file directory to the topic list, plugin
 topic detail hiding bottom navigation while keeping the composer available,
-embedded plugin host pages preserving bottom plugin-context navigation,
+embedded plugin host pages preserving the ordinary system bottom navigation,
 restoring topic-list scroll position after topic-detail back/right-swipe,
 plugin-context exit using the dedicated direct topic-root renderer instead of
 the generic task-list reload path,
 single-surface compact plugin cards,
 cache-sensitive static version recovery after missed script sync, plugin app
-pages preserving the top navigation button while showing the three-item
-`话题` / `插件` / `目录` bottom context bar, hiding the global plugin Dock
+pages preserving the normal system bottom tab projection instead of showing a
+three-item `话题` / `插件` / `目录` bottom context bar, hiding the global plugin Dock
 when the sidebar/menu, secondary page, keyboard state, back-swipe settle, or
 plugin app is active, positioning the Dock against the real bottom navigation
 height rather than the page-content reserved height, reserving only the

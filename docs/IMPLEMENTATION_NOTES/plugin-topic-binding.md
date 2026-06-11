@@ -287,15 +287,16 @@ Right-swipe/browser-back from any plugin-context state exits the plugin context
 and returns directly to **Topic root**. This transition is not the same as
 ordinary task-detail back. It must call the dedicated plugin-context exit
 renderer, restore the remembered topic-list thread, clear plugin-context state,
-hide plugin iframes, remove the three-tab plugin-context bar, and restore the
-ordinary five-tab navigation. It must not call `openTaskList()`,
+hide plugin iframes, and restore the ordinary system bottom navigation. It must
+not call `openTaskList()`,
 `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`, because those
 generic routes can reload a shared topic thread and fall into the empty ordinary
 chat page.
 
-Codex remains a first-level bottom tab by current product rule. Wardrobe,
-Finance, Email, and future business plugins are launched from the global plugin
-Dock above the mobile bottom navigation when visible in the effective workspace.
+Codex is Owner-only but follows the same optional pinned bottom-tab rule as
+other plugins. Wardrobe, Finance, Email, Codex, and future business plugins are
+launched from the global plugin Dock/drawer or optional pinned bottom tabs when
+visible in the effective workspace.
 Directory is no longer a permanent bottom tab in the mobile primary
 navigation; it is a built-in plugin card on the topic surface, with old
 directory routes/deep links remaining compatible.

@@ -1027,17 +1027,7 @@ function wirePinnedPluginBottomTabUnpin(button, pluginId = "") {
   button.addEventListener("contextmenu", (event) => openMenu(event));
 }
 
-function syncPinnedPluginBottomTabs(pluginContextNav = false) {
-  if (pluginContextNav) {
-    PLUGIN_TOPIC_DEFS.forEach((def) => {
-      if (!def || def.builtinKind) return;
-      const button = bottomTabButtonForPlugin(def.id);
-      if (!button) return;
-      button.style.order = "";
-      button.dataset.pluginBottomTabSortId = "";
-    });
-    return [];
-  }
+function syncPinnedPluginBottomTabs() {
   ensurePluginTopicUsageLoaded();
   const pinnedIds = pinnedPluginBottomTabIds();
   const visible = new Set(pinnedIds);
