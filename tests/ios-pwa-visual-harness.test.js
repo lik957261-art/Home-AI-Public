@@ -102,6 +102,7 @@ assert.match(script, /bottom_nav_rect_stable_during_dock_gestures/);
 assert.match(script, /quick_card_native_tap_opens_menu/);
 assert.match(script, /plugin_icon_native_long_press_opens_menu/);
 assert.match(script, /strip_horizontal_swipe_keeps_drawer_surface/);
+assert.match(script, /pluginId === "wardrobe" \? appState\?\.wardrobePluginOpenRoute : null/);
 assert.match(script, /action_route_carries_plugin_action_id/);
 assert.match(script, /calibrate-web-native-coordinates/);
 assert.match(script, /type: "calibrateCoordinates"/);

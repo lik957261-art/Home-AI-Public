@@ -1061,6 +1061,7 @@ const PLUGIN_DRAWER_ACTION_GESTURES_MEASURE_SCRIPT = `
     ? state
     : (window.state && typeof window.state === "object" ? window.state : null);
   const record = appState?.embeddedPlugins?.[pluginId] || null;
+  const pluginRoute = record?.openRoute || (pluginId === "wardrobe" ? appState?.wardrobePluginOpenRoute : null) || null;
   const stripBox = rect(strip);
   const swipeY = stripBox ? Math.round(stripBox.top + stripBox.height / 2) : 0;
   const swipeStartX = stripBox ? Math.round(Math.min(stripBox.right - 20, stripBox.left + Math.max(56, stripBox.width * 0.72))) : 0;
@@ -1080,7 +1081,7 @@ const PLUGIN_DRAWER_ACTION_GESTURES_MEASURE_SCRIPT = `
       currentThreadId: appState?.currentThreadId || "",
       pluginContextNavPluginId: appState?.pluginContextNavPluginId || "",
     },
-    route: record?.openRoute || null,
+    route: pluginRoute,
     dock: {
       exists: Boolean(dock),
       hidden: dock ? Boolean(dock.hidden) : null,
