@@ -480,6 +480,61 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     }
   }
 
+  function sharedCodexAuthRoot(fields) {
+    return path.posix.join(fields.root, "gateway-worker", "telemetry", "profiles", "shared-auth");
+  }
+
+  function grantSharedCodexAuthAcls(fields, authRoot) {
+    const parentPerms = "search,readattr,readextattr,readsecurity";
+    const readPerms = "read,readattr,readextattr,readsecurity";
+    const parents = [
+      path.posix.join(fields.root, "gateway-worker"),
+      path.posix.join(fields.root, "gateway-worker", "telemetry"),
+      path.posix.join(fields.root, "gateway-worker", "telemetry", "profiles"),
+      authRoot,
+    ].filter((dir) => pathExists(dir));
+    const files = [
+      path.posix.join(authRoot, "auth.json"),
+      path.posix.join(authRoot, "auth.lock"),
+    ].filter((file) => fileExists(file));
+    for (const user of [...new Set([fields.macUser, listenerUser])]) {
+      for (const dir of parents) chmodAcl(user, dir, parentPerms);
+      for (const file of files) chmodAcl(user, file, readPerms);
+    }
+  }
+
+  function linkFile(source, target) {
+    if (useSudoWrites) {
+      sudo("/bin/rm", ["-rf", target]);
+      sudo("/bin/ln", ["-sfn", source, target]);
+      return;
+    }
+    try { fs.rmSync(target, { recursive: true, force: true }); } catch (_) {}
+    fs.symlinkSync(source, target);
+  }
+
+  function chownSymlinkIfPossible(file, owner) {
+    if (!owner) return;
+    try {
+      privileged("/usr/sbin/chown", ["-h", owner, file]);
+    } catch (_) {}
+  }
+
+  function ensureOpenAiCodexAuthLinks(fields, worker, dir) {
+    if (providerFamily(worker) !== "openai") return { linked: false };
+    const authRoot = sharedCodexAuthRoot(fields);
+    const authFile = path.posix.join(authRoot, "auth.json");
+    const lockFile = path.posix.join(authRoot, "auth.lock");
+    if (!fileExists(authFile)) return { linked: false, missing: compactPath(authFile, fields.root) };
+    if (!pathExists(lockFile)) {
+      writeTextFile(lockFile, "", "644", `${listenerUser}:staff`);
+    }
+    grantSharedCodexAuthAcls(fields, authRoot);
+    linkFile(authFile, path.posix.join(dir, "auth.json"));
+    linkFile(lockFile, path.posix.join(dir, "auth.lock"));
+    return { linked: true };
+  }
+
   function repairWorkspaceAcl(context = {}) {
     const platformFailure = ensureMacPlatform();
     if (platformFailure) return platformFailure;
@@ -721,7 +776,12 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
     writeTextFile(configFile, configYaml, "600", `${fields.macUser}:staff`);
     writeTextFile(startScriptPath(fields, profile), renderStartScript(fields, worker, manifestPath), "700", `${fields.macUser}:staff`);
     privileged("/usr/sbin/chown", ["-R", `${fields.macUser}:staff`, path.posix.join(fields.workerWorkspaceRoot, ".hermes-gateway")]);
-    return { dir, capabilities: readCapabilities(configFile) };
+    const codexAuth = ensureOpenAiCodexAuthLinks(fields, worker, dir);
+    if (codexAuth.linked) {
+      chownSymlinkIfPossible(path.posix.join(dir, "auth.json"), `${fields.macUser}:staff`);
+      chownSymlinkIfPossible(path.posix.join(dir, "auth.lock"), `${fields.macUser}:staff`);
+    }
+    return { dir, capabilities: readCapabilities(configFile), codexAuth };
   }
 
   function writeManifestBackup(manifestPath) {
@@ -756,6 +816,7 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
     const providerOrdinals = {};
     const touched = [];
     const kickstarted = [];
+    const codexAuth = [];
     let changed = false;
     for (const worker of workers) {
       const profile = safeProfile(worker.profile || worker.name);
@@ -765,6 +826,7 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
       const label = labelFor(fields, worker, providerOrdinals[provider]);
       grantGatewayWorkerSecretAcls(fields, worker, manifestPath);
       const materialized = ensureProfileMaterialized(fields, worker, manifestPath);
+      codexAuth.push({ profile, linked: Boolean(materialized.codexAuth?.linked), missing: materialized.codexAuth?.missing || "" });
       const dir = materialized.dir;
       const configPath = path.posix.join(dir, "config.yaml");
       const statePath = path.posix.join(dir, "state.db");
@@ -812,6 +874,7 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
       backup: backup ? path.basename(backup) : "",
       syncedGatewayMcpAssets,
       syncedPluginBindings,
+      codexAuth,
       kickstarted,
     };
   }

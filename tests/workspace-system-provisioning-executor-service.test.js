@@ -135,6 +135,9 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
       ],
     });
     fs.mkdirSync(`${root}/data/secrets/gateway-workers`, { recursive: true });
+    fs.mkdirSync(`${root}/gateway-worker/telemetry/profiles/shared-auth`, { recursive: true });
+    fs.writeFileSync(`${root}/gateway-worker/telemetry/profiles/shared-auth/auth.json`, "{\"credential_pool\":{}}\n", "utf8");
+    fs.writeFileSync(`${root}/gateway-worker/telemetry/profiles/shared-auth/auth.lock`, "", "utf8");
     fs.writeFileSync(`${root}/data/secrets/lowgw31.secret`, "gateway-key\n", "utf8");
     fs.writeFileSync(`${root}/data/secrets/deepseekgw31.secret`, "gateway-key\n", "utf8");
     fs.writeFileSync(`${root}/data/secrets/deepseek-api-key.secret`, "provider-key\n", "utf8");
@@ -181,6 +184,16 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
     const config = fs.readFileSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/config.yaml`, "utf8");
     assert.match(config, /provider: openai-codex/);
     assert.match(config, /port: 18781/);
+    const authLink = `${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/auth.json`;
+    const authLockLink = `${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/auth.lock`;
+    assert.equal(fs.lstatSync(authLink).isSymbolicLink(), true);
+    assert.equal(fs.readlinkSync(authLink), `${root}/gateway-worker/telemetry/profiles/shared-auth/auth.json`);
+    assert.equal(fs.lstatSync(authLockLink).isSymbolicLink(), true);
+    assert.equal(fs.readlinkSync(authLockLink), `${root}/gateway-worker/telemetry/profiles/shared-auth/auth.lock`);
+    assert.equal(fs.existsSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/deepseekgw31/auth.json`), false);
+    assert.ok(result.codexAuth.some((entry) => entry.profile === "lowgw31" && entry.linked === true));
+    assert.ok(result.codexAuth.some((entry) => entry.profile === "deepseekgw31" && entry.linked === false));
+    assert.ok(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("+a") && call.args.includes("user:hm-xulu allow read,readattr,readextattr,readsecurity") && call.args.includes(`${root}/gateway-worker/telemetry/profiles/shared-auth/auth.json`)));
     assert.ok(calls.some((call) => call.command === "/bin/launchctl" && call.args[0] === "bootstrap"));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

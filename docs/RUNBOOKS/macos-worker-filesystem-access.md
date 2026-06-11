@@ -131,6 +131,14 @@ point at a key file for `hm-wuping` or any template account. Re-run workspace
 Gateway provisioning so it writes a workspace-owned key file such as
 `hm-xjz-openai-1.key` and refreshes the LaunchDaemon profile files.
 
+If a real run reaches the provider and then fails with `No Codex credentials
+stored`, check the affected `openai-codex` profile directory under the workspace
+worker home. `auth.json` and `auth.lock` must be symlinks to
+`/Users/hermes-host/HermesMobile/gateway-worker/telemetry/profiles/shared-auth`.
+This is separate from the manifest API-server key. Re-run workspace Gateway
+provisioning after fixing the shared-auth source so the profile links and ACLs
+are refreshed.
+
 For required plugin Skills and profile-local file plugins, also run the profile
 audit after any Skill Store copy, worker-side Skill edit, plugin provisioning,
 user migration, or Gateway start-script repair:
