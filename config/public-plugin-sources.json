@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "owner": "pentiumxp",
+  "homeAi": {
+    "id": "home-ai",
+    "sourceDir": "app",
+    "repositoryUrl": "https://github.com/pentiumxp/Home-AI-Public.git",
+    "ref": "main"
+  },
+  "plugins": [
+    {
+      "id": "codex-mobile-web",
+      "sourceDir": "codex-mobile-web",
+      "repositoryUrl": "https://github.com/pentiumxp/codex-mobile-web-public.git",
+      "ref": "main",
+      "publicDefault": false,
+      "special": true,
+      "launchdLabel": "com.hermesmobile.plugin.codex-mobile",
+      "manifestUrl": "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest"
+    },
+    {
+      "id": "email",
+      "sourceDir": "email",
+      "repositoryUrl": "https://github.com/pentiumxp/email-public.git",
+      "ref": "main",
+      "publicDefault": true,
+      "launchdLabel": "com.hermesmobile.plugin.email",
+      "manifestUrl": "http://127.0.0.1:5175/api/v1/hermes/plugin/manifest"
+    },
+    {
+      "id": "finance",
+      "sourceDir": "finance",
+      "repositoryUrl": "https://github.com/pentiumxp/finance-mcp-public.git",
+      "ref": "main",
+      "publicDefault": true,
+      "launchdLabel": "com.hermesmobile.plugin.finance",
+      "manifestUrl": "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest"
+    },
+    {
+      "id": "growth",
+      "sourceDir": "growth",
+      "repositoryUrl": "https://github.com/pentiumxp/Education-Public.git",
+      "ref": "main",
+      "publicDefault": true,
+      "launchdLabel": "com.hermesmobile.plugin.growth",
+      "manifestUrl": "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest"
+    },
+    {
+      "id": "health",
+      "sourceDir": "healthy",
+      "repositoryUrl": "https://github.com/pentiumxp/healthy-public.git",
+      "ref": "main",
+      "publicDefault": true,
+      "launchdLabel": "com.hermesmobile.plugin.health",
+      "manifestUrl": "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest"
+    },
+    {
+      "id": "note",
+      "sourceDir": "note",
+      "repositoryUrl": "https://github.com/pentiumxp/Note-Public.git",
+      "ref": "main",
+      "publicDefault": true,
+      "launchdLabel": "com.hermesmobile.plugin.note",
+      "manifestUrl": "http://127.0.0.1:4181/api/v1/hermes/plugin/manifest"
+    },
+    {
+      "id": "wardrobe",
+      "sourceDir": "wardrobe",
+      "repositoryUrl": "https://github.com/pentiumxp/wardrobe-public.git",
+      "ref": "main",
+      "publicDefault": true,
+      "launchdLabel": "com.hermesmobile.plugin.wardrobe",
+      "manifestUrl": "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest"
+    }
+  ]
+}

@@ -95,6 +95,11 @@ labels and loopback manifest smokes in the plan. The `health` plugin name may
 be accepted as an operator-facing alias, but the production source/target
 directory remains `healthy`.
 
+Public installers must read `config/public-plugin-sources.json` for clone
+sources. That manifest must use HTTPS GitHub public repository URLs only. The
+Mac production deploy script still deploys from local source directories; it
+does not clone or authenticate to GitHub on behalf of the operator.
+
 For every workspace-private plugin that is enabled for Owner or another
 workspace, verify:
 

@@ -771,6 +771,11 @@ For a fresh public setup, the default selected business-plugin set is
 must expose those six options together. Codex plugin edition remains special and
 is not part of the ordinary family workspace onboarding default.
 
+Public source repositories for Home AI and plugins are declared in
+`config/public-plugin-sources.json`. The manifest is installer-facing and must
+contain HTTPS public GitHub URLs, not private SSH remotes. The Mac deployment
+script consumes local source directories after the installer has cloned them.
+
 On macOS production, the canonical plugin binding is first written under the
 Home AI data drive, for example
 `data/drive/users/<workspaceId>/.hermes-health`. Gateway workers do not read

@@ -306,6 +306,13 @@ Note, and Wardrobe, with one restart label and one loopback manifest smoke per
 plugin. The user-facing `health` alias resolves to the historical `healthy`
 source and production directory.
 
+Public setup source locations are declared in
+`config/public-plugin-sources.json`. The manifest maps the public Home AI repo
+and each public plugin repo to the local source directory, deployment label,
+and loopback manifest smoke URL. Public installers must use those HTTPS GitHub
+URLs to clone or update source before invoking `scripts/deploy-macos-production.js`.
+The deploy script itself continues to require local source directories.
+
 Growth first install uses `scripts/install-growth-launchd-service.js` from the
 Home AI app workspace. The script generates the
 `com.hermesmobile.plugin.growth` LaunchDaemon, creates the Growth registration
