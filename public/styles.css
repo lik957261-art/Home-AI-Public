@@ -874,6 +874,21 @@ button {
   border-radius: 11px;
 }
 
+.sidebar-plugin-launcher .plugin-topic-app-icon.directory {
+  width: 36px;
+  height: 36px;
+  --directory-folder-tab-left: 5px;
+  --directory-folder-tab-top: 8px;
+  --directory-folder-tab-width: 16px;
+  --directory-folder-tab-height: 6px;
+  --directory-folder-body-left: 4px;
+  --directory-folder-body-top: 13px;
+  --directory-folder-body-width: 28px;
+  --directory-folder-body-height: 18px;
+  --directory-folder-radius: 6px;
+  border-radius: 11px;
+}
+
 .sidebar-plugin-launcher .plugin-topic-app-icon::after {
   font-size: 18px;
 }

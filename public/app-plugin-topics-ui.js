@@ -2040,8 +2040,9 @@ async function openBuiltInDirectoryPlugin() {
   if (typeof applyViewMode === "function") applyViewMode();
   if (typeof updateNavigationControls === "function") updateNavigationControls();
   if (typeof resetDirectoryPath === "function") resetDirectoryPath();
-  await loadProjects();
-  await loadDirectoryView({ resetPath: true });
+  if (typeof loadProjects === "function") await loadProjects();
+  if (typeof loadSelectedView === "function") await loadSelectedView();
+  else await loadDirectoryView({ resetPath: true });
 }
 
 async function openBuiltInDirectoryTopicList() {
@@ -2673,16 +2674,17 @@ function wirePluginTopicCards(root) {
   });
   root?.querySelectorAll?.("[data-plugin-topic-open-app]").forEach((button) => {
     button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       if (button.dataset.pluginActionMenuOpened === "1") {
-        event.preventDefault();
         button.dataset.pluginActionMenuOpened = "";
         return;
       }
       if (button.dataset.pluginAppDragMoved === "1") {
-        event.preventDefault();
         button.dataset.pluginAppDragMoved = "";
         return;
       }
+      closePluginActionMenus(document);
       if (button.closest?.(".topic-plugin-dock") && typeof setGlobalPluginDockExpanded === "function") {
         setGlobalPluginDockExpanded(false, { persist: false });
       }
