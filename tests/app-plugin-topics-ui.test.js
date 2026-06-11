@@ -327,6 +327,12 @@ assert.match(menuHtml, /data-plugin-topic-move-dir="up"/, "plugin popup menu mus
   harness.recordUsage("finance", "scan_receipt");
   harness.flushRootRefreshTimers();
   assert.equal(harness.quickKeys()[0], "finance:scan_receipt", "manifest actions must feed the Dock frequent action menu");
+
+  const codexMenuHtml = harness.menuHtml("codex-mobile");
+  assert.match(codexMenuHtml, /data-plugin-topic-open-app="codex-mobile"/, "Codex drawer menu must keep the open action");
+  assert.match(codexMenuHtml, /data-plugin-topic-reorder="codex-mobile"/, "Codex drawer menu must support explicit reorder mode");
+  assert.match(codexMenuHtml, /data-plugin-topic-move="codex-mobile"/, "Codex drawer menu must support bounded move controls");
+  assert.match(codexMenuHtml, /data-plugin-bottom-tab-toggle="codex-mobile"/, "Codex must support the same bottom-tab pin menu as other plugins");
 }
 
 {
@@ -336,6 +342,11 @@ assert.match(menuHtml, /data-plugin-topic-move-dir="up"/, "plugin popup menu mus
   const launcherHtml = harness.launcherHtml();
   assert.doesNotMatch(launcherHtml, /data-plugin-topic-open-app="finance"/, "pinned finance app icon must be hidden from the drawer");
   assert.match(launcherHtml, /data-plugin-topic-open-app="wardrobe"/, "unfixed plugin app icons must remain in the drawer");
+
+  harness.pinBottomTabs(["codex-mobile", "finance"]);
+  const codexLauncherHtml = harness.launcherHtml();
+  assert.doesNotMatch(codexLauncherHtml, /data-plugin-topic-open-app="codex-mobile"/, "pinned Codex must be hidden from the drawer like other pinned plugins");
+  assert.doesNotMatch(codexLauncherHtml, /data-plugin-topic-open-app="finance"/, "eligible pinned plugin app icons must still be hidden from the drawer");
 }
 
 function createDirectoryTopicHarness() {

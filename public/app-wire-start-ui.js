@@ -434,6 +434,7 @@ function wireUi() {
   if (typeof wirePinnedPluginBottomTabUnpin === "function") {
     [
       ["bottomWardrobeMode", "wardrobe"],
+      ["bottomCodexMode", "codex-mobile"],
       ["bottomFinanceMode", "finance"],
       ["bottomEmailMode", "email"],
       ["bottomHealthMode", "health"],
