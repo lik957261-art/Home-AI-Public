@@ -128,7 +128,9 @@ The default owner is `hermes-host:staff`; the Codex Mobile plugin uses
 Restart only what changed:
 
 - Home AI Node service/provider/route changes: restart
-  `system/com.hermesmobile.listener`.
+  `system/com.hermesmobile.listener`; if the deployment touches Automation,
+  scheduler configuration, or the central deploy script, the shared deploy path
+  also installs/validates `system/com.hermesmobile.cron`.
 - Home AI static-only changes: restart only if the static serving path or
   Service Worker rollout requires it; otherwise validate the served version.
 - Codex Mobile Web plugin service changes: restart

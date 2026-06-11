@@ -10,6 +10,11 @@ const DEFAULT_MAC_ROOT = "/Users/hermes-host/HermesMobile";
 const DEFAULT_BASE_URL = "http://127.0.0.1:8797";
 const PINNED_NODE = "runtime/node-current/bin/node";
 const DEFAULT_PRODUCTION_OWNER = "hermes-host:staff";
+const HOME_AI_LISTENER_LABEL = "com.hermesmobile.listener";
+const HOME_AI_CRON_LABEL = "com.hermesmobile.cron";
+const PRODUCTION_SERVICE_USER = "hermes-host";
+const PRODUCTION_SERVICE_GROUP = "staff";
+const HOME_AI_CRON_START_INTERVAL_SECONDS = 60;
 
 const PLUGIN_DEPLOY_ORDER = Object.freeze([
   "codex-mobile-web",
@@ -50,7 +55,7 @@ const PLUGIN_HEALTH_URLS = Object.freeze({
 });
 
 const DEFAULT_RESTART_LABELS = {
-  "home-ai": ["com.hermesmobile.listener"],
+  "home-ai": [HOME_AI_LISTENER_LABEL, HOME_AI_CRON_LABEL],
   ...Object.fromEntries(PLUGIN_DEPLOY_ORDER.map((plugin) => [`plugin:${plugin}`, [PLUGIN_RESTART_LABELS[plugin]]])),
 };
 
@@ -473,6 +478,93 @@ function readPassword(passwordFile) {
   return fs.readFileSync(passwordFile, "utf8").split(/\r?\n/).find((line) => line.trim()) || "";
 }
 
+function shQuote(value) {
+  return `'${String(value || "").replace(/'/g, "'\\''")}'`;
+}
+
+function xmlEscape(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function homeAiCronPaths(macRoot) {
+  const root = normalizePath(macRoot || DEFAULT_MAC_ROOT);
+  const appRoot = posixJoin(root, "app");
+  const hermesHome = posixJoin(root, "data", "hermes-home");
+  const cronRoot = posixJoin(hermesHome, "cron");
+  const logsRoot = posixJoin(root, "logs");
+  return {
+    root,
+    appRoot,
+    hermesHome,
+    cronRoot,
+    jobsPath: posixJoin(cronRoot, "jobs.json"),
+    outputRoot: posixJoin(cronRoot, "output"),
+    runLogRoot: posixJoin(hermesHome, "run-logs"),
+    runtimePython: posixJoin(root, "runtime", "hermes-agent-official", "venv", "bin", "python"),
+    runtimeSource: posixJoin(root, "runtime", "hermes-agent-official", "source"),
+    runtimeOverrides: posixJoin(appRoot, "gateway-runtime-overrides"),
+    dispatcherScript: posixJoin(appRoot, "scripts", "hermes-mobile-cron-dispatcher.py"),
+    stdoutLog: posixJoin(logsRoot, "cron.out.log"),
+    stderrLog: posixJoin(logsRoot, "cron.err.log"),
+    plistPath: `/Library/LaunchDaemons/${HOME_AI_CRON_LABEL}.plist`,
+  };
+}
+
+function buildHomeAiCronLaunchdPlist(macRoot) {
+  const paths = homeAiCronPaths(macRoot);
+  const env = {
+    HERMES_HOME: paths.hermesHome,
+    HERMES_WEB_HERMES_HOME: paths.hermesHome,
+    HERMES_WEB_DATA_DIR: posixJoin(paths.root, "data"),
+    HERMES_WEB_CRON_JOBS_PATH: paths.jobsPath,
+    HERMES_WEB_CRON_OUTPUT_ROOT: paths.outputRoot,
+    HERMES_WEB_RUN_LOG_ROOT: paths.runLogRoot,
+    HERMES_MOBILE_ROOT: paths.root,
+    HERMES_MOBILE_NETWORK_MODE: "direct",
+    HERMES_MOBILE_CRON_TICK_SIDE: "macos",
+    HERMES_ACCEPT_HOOKS: "1",
+    PYTHONPATH: `${paths.runtimeOverrides}:${paths.runtimeSource}`,
+  };
+  const envRows = Object.entries(env)
+    .map(([key, value]) => `    <key>${xmlEscape(key)}</key>\n    <string>${xmlEscape(value)}</string>`)
+    .join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${xmlEscape(HOME_AI_CRON_LABEL)}</string>
+  <key>UserName</key>
+  <string>${xmlEscape(PRODUCTION_SERVICE_USER)}</string>
+  <key>WorkingDirectory</key>
+  <string>${xmlEscape(paths.appRoot)}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${xmlEscape(paths.runtimePython)}</string>
+    <string>${xmlEscape(paths.dispatcherScript)}</string>
+    <string>--dispatch</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+${envRows}
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>${HOME_AI_CRON_START_INTERVAL_SECONDS}</integer>
+  <key>StandardOutPath</key>
+  <string>${xmlEscape(paths.stdoutLog)}</string>
+  <key>StandardErrorPath</key>
+  <string>${xmlEscape(paths.stderrLog)}</string>
+</dict>
+</plist>
+`;
+}
+
 function runSudo(command, args, password, input) {
   const sudoArgs = password
     ? ["-S", "-p", "", command, ...args]
@@ -489,6 +581,35 @@ function runSudo(command, args, password, input) {
     throw err;
   }
   return result;
+}
+
+function installHomeAiCronLaunchd(plan, password) {
+  if (plan.target !== "home-ai") return null;
+  const paths = homeAiCronPaths(plan.macRoot);
+  const owner = `${PRODUCTION_SERVICE_USER}:${PRODUCTION_SERVICE_GROUP}`;
+  const plist = buildHomeAiCronLaunchdPlist(plan.macRoot);
+
+  runSudo("/bin/mkdir", ["-p", paths.cronRoot, paths.outputRoot, paths.runLogRoot, path.posix.dirname(paths.stdoutLog)], password);
+  runSudo("/bin/sh", ["-c", `test -f ${shQuote(paths.jobsPath)} || printf '%s\\n' '{"jobs":[]}' > ${shQuote(paths.jobsPath)}`], password);
+  runSudo("/usr/sbin/chown", ["-R", owner, paths.hermesHome], password);
+  runSudo("/bin/chmod", ["700", paths.hermesHome, paths.cronRoot, paths.outputRoot, paths.runLogRoot], password);
+  runSudo("/bin/chmod", ["600", paths.jobsPath], password);
+  runSudo("/usr/bin/touch", [paths.stdoutLog, paths.stderrLog], password);
+  runSudo("/usr/sbin/chown", [owner, paths.stdoutLog, paths.stderrLog], password);
+  runSudo("/bin/chmod", ["640", paths.stdoutLog, paths.stderrLog], password);
+  runSudo("/usr/bin/tee", [paths.plistPath], password, plist);
+  runSudo("/usr/sbin/chown", ["root:wheel", paths.plistPath], password);
+  runSudo("/bin/chmod", ["644", paths.plistPath], password);
+  runSudo("/usr/bin/plutil", ["-lint", paths.plistPath], password);
+  runSudo("/bin/sh", ["-c", `/bin/launchctl bootout system ${shQuote(paths.plistPath)} >/dev/null 2>&1 || true`], password);
+  runSudo("/bin/launchctl", ["bootstrap", "system", paths.plistPath], password);
+  return {
+    type: "home-ai-cron-launchd-install",
+    label: HOME_AI_CRON_LABEL,
+    plistPath: paths.plistPath,
+    jobsPath: paths.jobsPath,
+    startIntervalSeconds: HOME_AI_CRON_START_INTERVAL_SECONDS,
+  };
 }
 
 function sleepMs(ms) {
@@ -577,11 +698,14 @@ function executePlan(plan, options) {
     runSudo("/usr/sbin/chown", ["-R", plan.productionOwner, plan.productionPath], password);
   }
 
+  const cronInstall = installHomeAiCronLaunchd(plan, password);
+
   for (const label of plan.restartLabels) {
     runSudo("/bin/launchctl", ["kickstart", "-k", `system/${label}`], password);
   }
 
   const validations = [];
+  if (cronInstall) validations.push(Object.assign({ status: 0 }, cronInstall));
   for (const check of plan.validation) {
     if (check.type === "production-file-hashes") validations.push(runFileHashValidation(plan, password));
     else validations.push(runValidation(check, password, options));
@@ -647,6 +771,7 @@ module.exports = {
   buildAllPluginPlan,
   assertExecutablePlan,
   runValidation,
+  buildHomeAiCronLaunchdPlist,
   deployDirtyFiles,
   isDeploySurfaceIncluded,
 };

@@ -119,6 +119,13 @@ canonical scheduler, not a replacement scheduler.
 
 Hermes Mobile uses `scripts/hermes-mobile-cron-dispatcher.py` as a product-layer wrapper. It dispatches due jobs into detached runners and returns quickly.
 
+On Mac production, the central deployment script installs this wrapper as the
+`com.hermesmobile.cron` LaunchDaemon with `StartInterval=60`. The job store is
+the canonical Hermes home file
+`/Users/hermes-host/HermesMobile/data/hermes-home/cron/jobs.json`; operators and
+agents must not create native OS cron/launchd jobs for individual Home AI
+Automation tasks.
+
 For model-backed jobs, the dispatcher is also the boundary that turns official
 CRON into a proxied execution path without modifying official Hermes source.
 The accepted proxy sources are `HERMES_MOBILE_CRON_MODEL_PROXY_URL`,

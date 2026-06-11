@@ -31,6 +31,7 @@ Production data: /Users/hermes-host/HermesMobile/data
 Production plugins: /Users/hermes-host/HermesMobile/plugins
 Listener URL on Mac loopback: http://127.0.0.1:8797
 Listener launchd label: com.hermesmobile.listener
+Automation cron tick launchd label: com.hermesmobile.cron
 ```
 
 Treat `http://192.168.10.110:8797/` and the configured
@@ -155,7 +156,15 @@ sudo launchctl print system/com.hermesmobile.listener
 ```
 
 ```bash
+sudo launchctl print system/com.hermesmobile.cron
+```
+
+```bash
 sudo launchctl kickstart -k system/com.hermesmobile.listener
+```
+
+```bash
+sudo launchctl kickstart -k system/com.hermesmobile.cron
 ```
 
 Rules:

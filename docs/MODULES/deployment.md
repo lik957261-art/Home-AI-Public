@@ -133,6 +133,7 @@ service root.
 - Logs: `/Users/hermes-host/HermesMobile/logs`
 - launchd scope: system LaunchDaemons
 - Listener launchd label: `com.hermesmobile.listener`
+- Automation cron tick launchd label: `com.hermesmobile.cron`
 - Node runtime: `/Users/hermes-host/HermesMobile/runtime/node-current`
 - Official Hermes release runtime:
   `/Users/hermes-host/HermesMobile/runtime/hermes-agent-official`
@@ -290,6 +291,7 @@ service root.
 The current isolated production deployment runs these launchd labels:
 
 - `com.hermesmobile.listener`
+- `com.hermesmobile.cron`
 - `com.hermesmobile.gateway.hm-*.openai.1` for the six warm workspace workers
 - `com.hermesmobile.plugin.wardrobe`
 - `com.hermesmobile.plugin.finance`
@@ -298,6 +300,14 @@ The current isolated production deployment runs these launchd labels:
 - `com.hermesmobile.plugin.note`
 - `com.hermesmobile.plugin.growth`
 - `com.hermesmobile.plugin.codex-mobile`
+
+For the Home AI target, the central deploy script manages both the web listener
+and the Automation cron tick service. A full Home AI deploy installs or refreshes
+`/Library/LaunchDaemons/com.hermesmobile.cron.plist`, ensures
+`/Users/hermes-host/HermesMobile/data/hermes-home/cron/jobs.json` exists as the
+canonical Hermes CRON store, starts the dispatcher every 60 seconds with
+`scripts/hermes-mobile-cron-dispatcher.py --dispatch`, and validates both
+`system/com.hermesmobile.listener` and `system/com.hermesmobile.cron`.
 
 The central deploy script can plan or execute all known plugin service roots
 with `npm run --silent deploy:macos -- --plugin all --json`. The all-plugin

@@ -9,6 +9,7 @@ const { spawnSync } = require("node:child_process");
 const repoRoot = path.resolve(__dirname, "..");
 const scriptPath = path.join(repoRoot, "scripts", "deploy-macos-production.js");
 const script = fs.readFileSync(scriptPath, "utf8");
+const deployScript = require(scriptPath);
 const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
 const contract = fs.readFileSync(
   path.join(repoRoot, "docs", "PLATFORM_CONTRACTS", "macos-dev-to-production-deployment-contract.md"),
@@ -48,6 +49,12 @@ assert.match(script, /"-S", "-p", "", command/);
 assert.match(script, /"-n", command/);
 assert.match(script, /\/bin\/launchctl/);
 assert.match(script, /kickstart/);
+assert.match(script, /HOME_AI_CRON_LABEL/);
+assert.match(script, /buildHomeAiCronLaunchdPlist/);
+assert.match(script, /home-ai-cron-launchd-install/);
+assert.match(script, /HERMES_WEB_CRON_JOBS_PATH/);
+assert.match(script, /StartInterval/);
+assert.match(script, /hermes-mobile-cron-dispatcher\.py/);
 assert.match(script, /production-status-smoke\.js/);
 assert.match(script, /owner-web-key\.secret/);
 assert.match(script, /plugin_execute_requires_restart_label_or_health_url/);
@@ -132,12 +139,24 @@ assert.match(payload.plan.backupPath, /20260608T000000Z-home-ai-harness$/);
 assert.ok(payload.plan.rsyncExcludes.includes("AGENTS.md"));
 assert.ok(payload.plan.rsyncExcludes.includes(".git"));
 assert.equal(payload.plan.productionOwner, "hermes-host:staff");
+assert.deepEqual(payload.plan.restartLabels, ["com.hermesmobile.cron", "com.hermesmobile.listener"]);
 assert.ok(payload.plan.expectedClientVersion);
 assert.ok(payload.plan.proofFiles.includes("scripts/deploy-macos-production.js"));
 assert.ok(payload.plan.validation.some((item) => item.type === "production-file-hashes"));
 const statusSmoke = payload.plan.validation.find((item) => item.type === "home-ai-status-smoke");
 assert.ok(statusSmoke.command.includes("--expected-version"));
 assert.ok(payload.plan.validation.some((item) => item.type === "home-ai-status-smoke"));
+assert.ok(payload.plan.validation.some((item) => item.type === "launchd-print" && item.command.includes("system/com.hermesmobile.cron")));
+assert.ok(payload.plan.validation.some((item) => item.type === "launchd-print" && item.command.includes("system/com.hermesmobile.listener")));
+
+const cronPlist = deployScript.buildHomeAiCronLaunchdPlist("/Users/hermes-host/HermesMobile");
+assert.match(cronPlist, /<string>com\.hermesmobile\.cron<\/string>/);
+assert.match(cronPlist, /<integer>60<\/integer>/);
+assert.match(cronPlist, /<string>hermes-host<\/string>/);
+assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/runtime\/hermes-agent-official\/venv\/bin\/python/);
+assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/app\/scripts\/hermes-mobile-cron-dispatcher\.py/);
+assert.match(cronPlist, /HERMES_WEB_CRON_JOBS_PATH/);
+assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/data\/hermes-home\/cron\/jobs\.json/);
 
 const staticRun = spawnSync(process.execPath, [
   scriptPath,
