@@ -10,6 +10,7 @@ const {
   DEFAULT_FINANCE_PLUGIN_MANIFEST_URL,
   DEFAULT_GROWTH_PLUGIN_MANIFEST_URL,
   DEFAULT_HEALTH_PLUGIN_MANIFEST_URL,
+  DEFAULT_MOIRA_PLUGIN_MANIFEST_URL,
   DEFAULT_NOTE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   configuredPlugins,
@@ -20,6 +21,7 @@ const {
   findFinanceAccessKeyPath,
   findGrowthAccessKeyPath,
   findHealthAccessKeyPath,
+  findMoiraAccessKeyPath,
   findNoteAccessKeyPath,
   findWardrobeAccessKeyPath,
   frameAncestorsAllows,
@@ -313,6 +315,67 @@ function sampleGrowthManifest() {
   };
 }
 
+function sampleMoiraManifest() {
+  return {
+    schema_version: 1,
+    id: "moira",
+    title: "Moira",
+    description: "Local-first Chinese astrology charting Web App for Home AI.",
+    kind: "embedded_app",
+    entry: {
+      type: "web",
+      url: "http://127.0.0.1:4174/?embed=hermes&v=0.2.33",
+      frame_policy: "allow_configured_hermes_origins",
+    },
+    launch: {
+      endpoint: "/api/v1/hermes/plugin/launch",
+      method: "POST",
+      entry_path_only: true,
+      token_ttl_seconds: 300,
+    },
+    navigation: {
+      state_event: "moira.plugin.navigation",
+      back_event: "hermes.plugin.back",
+      back_result_event: "moira.plugin.back_result",
+      refresh_required_event: "moira.plugin.refresh_required",
+      preserve_iframe_state: true,
+    },
+    appearance_sync: {
+      theme_values: ["system", "dark", "light"],
+      font_size_values: ["small", "default", "large", "xlarge", "xxlarge"],
+    },
+    embedding: {
+      sameOriginProxy: true,
+      postMessage: true,
+      themeInheritance: true,
+      frame_ancestors: ["'self'", "http://127.0.0.1:*", "http://localhost:*"],
+    },
+    program_api: {
+      base_url: "http://127.0.0.1:4174",
+      plugin_manifest: "/api/v1/hermes/plugin/manifest",
+      plugin_launch: "/api/v1/hermes/plugin/launch",
+      client_version: "/api/moira/client-version",
+      sync_schema_version: 1,
+    },
+    owner_binding: {
+      strategy: "workspace_bound_local_plugin_key",
+      access_key_file: ".hermes-moira/access-key.txt",
+      raw_key_returned_by_moira: false,
+    },
+    toolsets: ["moira"],
+    permissions: ["moira:read", "moira:write"],
+    actions: [
+      {
+        id: "new_chart",
+        label: "新建星盘",
+        placement: ["plugin_drawer_frequent", "dock_long_press", "search"],
+        priority: 10,
+        entry: { type: "plugin_route", pluginRoute: "new_chart" },
+      },
+    ],
+  };
+}
+
 function testNormalizeManifest() {
   const manifest = normalizeManifest(sampleManifest(), {
     id: "wardrobe",
@@ -478,6 +541,28 @@ function testNormalizeGrowthManifest() {
   assert.equal(Object.hasOwn(manifest.ownerBinding, "access_key_file"), false);
 }
 
+function testNormalizeMoiraManifest() {
+  const manifest = normalizeManifest(sampleMoiraManifest(), {
+    id: "moira",
+    manifestUrl: "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest",
+    fetchedAt: "2026-06-11T00:00:00.000Z",
+  });
+  assert.equal(manifest.id, "moira");
+  assert.equal(manifest.kind, "embedded_app");
+  assert.equal(manifest.entry.url, "http://127.0.0.1:4174/?embed=hermes&v=0.2.33");
+  assert.equal(manifest.programApi.baseUrl, "http://127.0.0.1:4174/");
+  assert.equal(manifest.programApi.pluginLaunchPath, "http://127.0.0.1:4174/api/v1/hermes/plugin/launch");
+  assert.equal(manifest.mcp.toolset, "moira");
+  assert.deepEqual(manifest.mcp.toolsets, ["moira"]);
+  assert.equal(manifest.embedding.stateEvent, "moira.plugin.navigation");
+  assert.equal(manifest.embedding.backResultEvent, "moira.plugin.back_result");
+  assert.equal(manifest.embedding.refreshRequiredEvent, "moira.plugin.refresh_required");
+  assert.equal(manifest.ownerBinding.rawKeyReturned, false);
+  assert.deepEqual(manifest.permissions.plugin, ["moira:read", "moira:write"]);
+  assert.deepEqual(manifest.actions.map((action) => action.id), ["new_chart"]);
+  assert.equal(Object.hasOwn(manifest.ownerBinding, "access_key_file"), false);
+}
+
 function testNormalizePluginAppearance() {
   assert.deepEqual(normalizePluginAppearance({ theme: "dark", fontSize: "standard" }), {
     theme: "dark",
@@ -616,12 +701,14 @@ async function testDefaultLocalManifestUrls() {
   assert.equal(service.list()[1].manifestUrl, DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL);
   assert.equal(service.list()[2].manifestUrl, DEFAULT_FINANCE_PLUGIN_MANIFEST_URL);
   assert.equal(service.list()[3].manifestUrl, DEFAULT_EMAIL_PLUGIN_MANIFEST_URL);
+  assert.equal(service.list().find((item) => item.id === "moira").manifestUrl, DEFAULT_MOIRA_PLUGIN_MANIFEST_URL);
   assert.equal(service.listInstalled()[0].title, "衣橱");
   assert.equal(service.listInstalled()[1].title, "Codex");
   assert.equal(service.listInstalled()[2].title, "记账");
   assert.equal(service.listInstalled()[3].title, "邮箱");
   assert.equal(service.listInstalled()[4].manifestUrl, DEFAULT_HEALTH_PLUGIN_MANIFEST_URL);
   assert.equal(service.listInstalled()[6].title, "成长");
+  assert.equal(service.listInstalled()[7].title, "Moira");
 }
 
 function testInstalledPluginListReflectsWorkspaceKeyBindings() {
@@ -634,6 +721,7 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   const ownerHealthConfig = path.join(dir, "drive", "users", "owner", ".hermes-health", "config.json");
   const ownerGrowthKey = path.join(dir, "drive", "users", "owner", ".hermes-growth", "access-key.txt");
   const ownerGrowthConfig = path.join(dir, "drive", "users", "owner", ".hermes-growth", "config.json");
+  const ownerMoiraKey = path.join(dir, "drive", "users", "owner", ".hermes-moira", "access-key.txt");
   const wardrobeKey = path.join(dir, "drive", "users", "weixin_wuping", "Hermes-吴萍", "衣橱", ".hermes-wardrobe", "access-key.txt");
   const financeKey = path.join(dir, "drive", "users", "child_workspace", ".hermes-finance", "access-key.txt");
   const financeConfig = path.join(dir, "drive", "users", "child_workspace", ".hermes-finance", "config.json");
@@ -642,16 +730,19 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   const healthConfig = path.join(dir, "drive", "users", "health_workspace", ".hermes-health", "config.json");
   const growthKey = path.join(dir, "drive", "users", "growth_workspace", ".hermes-growth", "access-key.txt");
   const growthConfig = path.join(dir, "drive", "users", "growth_workspace", ".hermes-growth", "config.json");
+  const moiraKey = path.join(dir, "drive", "users", "moira_workspace", "Moira", ".hermes-moira", "workspace-key.txt");
   fs.mkdirSync(path.dirname(ownerWardrobeKey), { recursive: true });
   fs.mkdirSync(path.dirname(ownerFinanceKey), { recursive: true });
   fs.mkdirSync(path.dirname(ownerEmailKey), { recursive: true });
   fs.mkdirSync(path.dirname(ownerHealthKey), { recursive: true });
   fs.mkdirSync(path.dirname(ownerGrowthKey), { recursive: true });
+  fs.mkdirSync(path.dirname(ownerMoiraKey), { recursive: true });
   fs.mkdirSync(path.dirname(wardrobeKey), { recursive: true });
   fs.mkdirSync(path.dirname(financeKey), { recursive: true });
   fs.mkdirSync(path.dirname(emailKey), { recursive: true });
   fs.mkdirSync(path.dirname(healthKey), { recursive: true });
   fs.mkdirSync(path.dirname(growthKey), { recursive: true });
+  fs.mkdirSync(path.dirname(moiraKey), { recursive: true });
   fs.writeFileSync(ownerWardrobeKey, "owner-wardrobe-key\n", "utf8");
   fs.writeFileSync(ownerFinanceKey, "owner-finance-key\n", "utf8");
   fs.writeFileSync(ownerFinanceConfig, JSON.stringify({
@@ -667,6 +758,7 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
     access_key_file: "access-key.txt",
   }), "utf8");
   fs.writeFileSync(ownerGrowthKey, "owner-growth-key\n", "utf8");
+  fs.writeFileSync(ownerMoiraKey, "owner-moira-key\n", "utf8");
   fs.writeFileSync(ownerGrowthConfig, JSON.stringify({
     workspace_id: "growth:owner",
     hermes_workspace_id: "owner",
@@ -693,12 +785,14 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
     hermes_workspace_id: "growth_workspace",
     access_key_file: "access-key.txt",
   }), "utf8");
+  fs.writeFileSync(moiraKey, "moira-key\n", "utf8");
 
   assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("wardrobe", { dataDir: dir }).sort(), ["owner", "weixin_wuping"].sort());
   assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("finance", { dataDir: dir }).sort(), ["owner", "child_workspace"].sort());
   assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("email", { dataDir: dir }).sort(), ["owner", "mail_workspace"].sort());
   assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("health", { dataDir: dir }).sort(), ["owner", "health_workspace"].sort());
   assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("growth", { dataDir: dir }).sort(), ["owner", "growth_workspace"].sort());
+  assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("moira", { dataDir: dir }).sort(), ["owner", "moira_workspace"].sort());
 
   const service = createHermesPluginService({
     dataDir: dir,
@@ -713,6 +807,7 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   assert.deepEqual(installed.find((item) => item.id === "email").authorizedWorkspaceIds.sort(), ["owner", "mail_workspace"].sort());
   assert.deepEqual(installed.find((item) => item.id === "health").authorizedWorkspaceIds.sort(), ["owner", "health_workspace"].sort());
   assert.deepEqual(installed.find((item) => item.id === "growth").authorizedWorkspaceIds.sort(), ["owner", "growth_workspace"].sort());
+  assert.deepEqual(installed.find((item) => item.id === "moira").authorizedWorkspaceIds.sort(), ["owner", "moira_workspace"].sort());
   assert.deepEqual(installed.find((item) => item.id === "finance").workspaceAuthorizations.sort((left, right) => left.workspaceId.localeCompare(right.workspaceId)), [{
     workspaceId: "child_workspace",
     status: "authorized",
@@ -1926,6 +2021,57 @@ async function testFinanceLaunchEntryUsesWorkspaceKeyBody() {
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"workspace_key"|"user_key"/);
 }
 
+async function testMoiraLaunchEntryUsesBearerAndSameOriginProxy() {
+  const calls = [];
+  const service = createHermesPluginService({
+    plugins: [{ id: "moira", manifestUrl: "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest" }],
+    moiraAccessKeyPath: __filename,
+    fetch(url, options = {}) {
+      calls.push({ url, options });
+      if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(sampleMoiraManifest()),
+        });
+      }
+      if (url === "http://127.0.0.1:4174/api/v1/hermes/plugin/launch") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({
+            entry_path: "/api/v1/hermes/plugin/launch/moira_once",
+            expires_in: 300,
+          }),
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+  const manifest = await service.manifest({
+    id: "moira",
+    workspaceId: "owner",
+    appOrigin: "http://127.0.0.1:19073",
+    appearance: { theme: "light", fontSize: "xlarge" },
+    launchPlugin: true,
+  });
+  assert.equal(manifest.available, true);
+  assert.equal(
+    manifest.entry.url,
+    "/api/hermes-plugins/moira/proxy/api/v1/hermes/plugin/launch/moira_once?pluginTheme=light&pluginFontSize=xlarge&workspaceId=owner",
+  );
+  assert.equal(manifest.embed.sameOriginProxy, true);
+  assert.equal(manifest.embed.tokenStatus, "launch_token_issued");
+  const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
+  assert.ok(launchCall);
+  assert.deepEqual(JSON.parse(launchCall.options.body), {
+    workspace_id: "owner",
+    appearance: { theme: "light", fontSize: "xlarge" },
+  });
+  assert.match(launchCall.options.headers.Authorization, /^Bearer /);
+  assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"workspace_key"|"user_key"/);
+}
+
 async function testFinanceLaunchEntryUsesSeparateWorkspaceUserKeyWhenProvided() {
   const calls = [];
   const service = createHermesPluginService({
@@ -2278,6 +2424,12 @@ function testFindGrowthAccessKeyPath() {
   assert.equal(findGrowthAccessKeyPath({ workspaceId: "owner" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
 }
 
+function testFindMoiraAccessKeyPath() {
+  assert.equal(findMoiraAccessKeyPath({ moiraAccessKeyPath: __filename }), __filename);
+  assert.equal(findMoiraAccessKeyPath({ workspaceId: "owner" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), __filename);
+  assert.equal(findMoiraAccessKeyPath({ workspaceId: "weixin_wuping" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
+}
+
 function testFindNoteAccessKeyPath() {
   assert.equal(findNoteAccessKeyPath({ noteAccessKeyPath: __filename }), __filename);
   assert.equal(findNoteAccessKeyPath({ workspaceId: "owner" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
@@ -2325,6 +2477,7 @@ async function run() {
   testNormalizeHealthManifest();
   testNormalizeNoteManifest();
   testNormalizeGrowthManifest();
+  testNormalizeMoiraManifest();
   testNormalizePluginAppearance();
   testFrameAncestorsAllowsCurrentOrigin();
   await testFetchesConfiguredWardrobeManifest();
@@ -2360,6 +2513,7 @@ async function run() {
   await testLaunchEntryUsesServerSideWorkspaceKey();
   await testCodexLaunchEntryUsesServerSideKey();
   await testFinanceLaunchEntryUsesWorkspaceKeyBody();
+  await testMoiraLaunchEntryUsesBearerAndSameOriginProxy();
   await testFinanceLaunchEntryUsesSeparateWorkspaceUserKeyWhenProvided();
   await testHttpsHermesUsesSameOriginProxyForLocalCodexEntryAfterLaunch();
   await testLocalCodexManifestStripsStaleAbsoluteDomainBeforeProxy();
@@ -2373,6 +2527,7 @@ async function run() {
   testFindEmailAccessKeyPath();
   testFindHealthAccessKeyPath();
   testFindGrowthAccessKeyPath();
+  testFindMoiraAccessKeyPath();
   testFindNoteAccessKeyPath();
   await testReviewFinanceLedgerJoinRequestUsesDedicatedFinanceEndpoint();
 }

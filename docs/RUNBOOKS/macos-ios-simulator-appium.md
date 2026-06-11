@@ -72,7 +72,11 @@ Recovery order:
 3. If Appium is up but `/contexts` still times out, reset the live debug
    Appium session once through `/api/action` with `type=connect` and
    `resetSession=true`, then retry the harness.
-4. Only if Appium reset fails while WDA `8101` is also unhealthy should the
+4. If the target is a development URL and no WebView context exists yet, use
+   the central harness `--app-url` path. The shared live-debug `open` action
+   includes Safari/WebApp contexts and falls back to `xcrun simctl openurl`;
+   do not add plugin-local pre-open scripts.
+5. Only if Appium reset fails while WDA `8101` is also unhealthy should the
    WDA runner or Simulator lane be restarted.
 
 The Appium start script intentionally starts the background server with

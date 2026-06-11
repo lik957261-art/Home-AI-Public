@@ -326,6 +326,8 @@ async function connectSession(options = {}) {
             "appium:mjpegServerPort": args.mjpegServerPort,
             "appium:newCommandTimeout": 600,
             "appium:noReset": true,
+            "appium:includeSafariInWebviews": true,
+            "appium:webviewConnectTimeout": Math.max(12000, Number(args.appiumTimeoutMs || 15000)),
           },
         },
       });
@@ -979,6 +981,10 @@ async function performAction(body = {}) {
     } catch (err) {
       if (!recoverableAppiumError(err)) throw err;
       clearAppiumSessionState();
+      childProcess.execFileSync("xcrun", ["simctl", "openurl", args.udid || "booted", targetUrl], {
+        stdio: "ignore",
+        timeout: 5000,
+      });
       return { navigating: true, url: targetUrl, recoveredFrom: String(err?.message || err).slice(0, 160) };
     }
   }

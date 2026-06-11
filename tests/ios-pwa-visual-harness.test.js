@@ -129,6 +129,8 @@ assert.match(script, /typeof win\.loadThread === "function"/);
 assert.match(script, /openedBy: canLoadThread \? "loadThread" : "openExternalThreadSelection"/);
 assert.match(script, /handleHermesPluginViewportMessage/);
 assert.match(script, /reason: "keyboard_visual_harness"/);
+assert.match(script, /pluginId,\s*\n\s*reason: "keyboard_visual_harness"/);
+assert.doesNotMatch(script, /if \(input && pluginId === "codex-mobile"\)/);
 assert.match(script, /simulated: keyboardSimulated/);
 assert.match(script, /\.directory-status/);
 assert.match(script, /\.directory-shell/);

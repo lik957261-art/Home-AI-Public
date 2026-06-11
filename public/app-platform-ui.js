@@ -280,6 +280,7 @@ function normalizedRouteView(value, fallback = "") {
   if (view === "health") return "health";
   if (view === "note" || view === "notes") return "note";
   if (view === "growth" || view === "education") return "growth";
+  if (view === "moira") return "moira";
   if (view === "todo" || view === "todos") return "tasks";
   if (view === "directory" || view === "directories" || view === "projects") return "projects";
   if (view === "task" || view === "tasks") return "tasks";
@@ -306,7 +307,7 @@ function routePluginContextId(params, routeView = "", taskGroupId = "") {
     params.get("pluginId") || "",
     routeView,
   ].map((value) => String(value || "").trim()).filter(Boolean);
-  const knownPluginTopics = new Set(["wardrobe", "finance", "email", "health", "note", "growth"]);
+  const knownPluginTopics = new Set(["wardrobe", "finance", "email", "health", "note", "growth", "moira"]);
   for (const candidate of candidates) {
     const id = candidate === "codex-mobile" || candidate === "codex" ? "" : candidate;
     if (!id) continue;
@@ -727,7 +728,17 @@ function applyRouteParams(params) {
       sourceTurnId: params.get("sourceTurnId") || params.get("turnId") || "",
     });
   }
-  if (["codex", "finance", "email", "health", "note", "growth"].includes(routeView) && typeof restoreEmbeddedPluginReturnRouteFromSnapshotParams === "function") {
+  if (routeView === "moira" && typeof setMoiraPluginOpenRoute === "function") {
+    setMoiraPluginOpenRoute({
+      pluginActionId: params.get("pluginActionId") || params.get("actionId") || "",
+      pluginRoute: params.get("pluginRoute") || params.get("route") || "",
+      pluginItemId: params.get("pluginItemId") || params.get("itemId") || "",
+      pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",
+      pluginTaskId: params.get("pluginTaskId") || params.get("taskId") || "",
+      sourceTurnId: params.get("sourceTurnId") || params.get("turnId") || "",
+    });
+  }
+  if (["codex", "finance", "email", "health", "note", "growth", "moira"].includes(routeView) && typeof restoreEmbeddedPluginReturnRouteFromSnapshotParams === "function") {
     restoreEmbeddedPluginReturnRouteFromSnapshotParams(params, routeView);
   }
   if (routeView === "automation" && automationId) {

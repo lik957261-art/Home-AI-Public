@@ -375,7 +375,9 @@ function updateNavigationControls() {
   const notePluginOuterBack = typeof notePluginOuterBackActive === "function" && notePluginOuterBackActive();
   const growthPluginBack = typeof growthPluginBackActive === "function" && growthPluginBackActive();
   const growthPluginOuterBack = typeof growthPluginOuterBackActive === "function" && growthPluginOuterBackActive();
-  const pluginBack = wardrobePluginBack || wardrobePluginOuterBack || codexPluginBack || codexPluginOuterBack || financePluginBack || financePluginOuterBack || emailPluginBack || emailPluginOuterBack || healthPluginBack || healthPluginOuterBack || notePluginBack || notePluginOuterBack || growthPluginBack || growthPluginOuterBack;
+  const moiraPluginBack = typeof moiraPluginBackActive === "function" && moiraPluginBackActive();
+  const moiraPluginOuterBack = typeof moiraPluginOuterBackActive === "function" && moiraPluginOuterBackActive();
+  const pluginBack = wardrobePluginBack || wardrobePluginOuterBack || codexPluginBack || codexPluginOuterBack || financePluginBack || financePluginOuterBack || emailPluginBack || emailPluginOuterBack || healthPluginBack || healthPluginOuterBack || notePluginBack || notePluginOuterBack || growthPluginBack || growthPluginOuterBack || moiraPluginBack || moiraPluginOuterBack;
   const mainBack = taskDetail || directoryTopicDraft || todoDetail || todoCreate || automationDetail || automationSecondary || actionInboxDetail || actionInboxCreate || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings || (!pluginContextNav && pluginBack);
   const minimalWindow = isMinimalWindowView();
   const centeredTopTitle = (
@@ -392,6 +394,7 @@ function updateNavigationControls() {
     || state.viewMode === "health"
     || state.viewMode === "note"
     || state.viewMode === "growth"
+    || state.viewMode === "moira"
   );
   app?.classList.toggle("minimal-window-mode", minimalWindow);
   app?.classList.toggle("task-detail-mode", taskDetail);
@@ -425,16 +428,16 @@ function updateNavigationControls() {
   }
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
-  let hiddenBottomTabs = new Set(["todosMode", "automationMode", "bottomPluginMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomLearningMode", "bottomAutomationMode"]);
+  let hiddenBottomTabs = new Set(["todosMode", "automationMode", "bottomPluginMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomLearningMode", "bottomAutomationMode"]);
   if (externalPluginContextNav) {
     hiddenBottomTabs = new Set(["todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode", "bottomPluginMode", "bottomLearningMode", "bottomAutomationMode"]);
-    ["bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode"].forEach((id) => {
+    ["bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode"].forEach((id) => {
       if (id !== pluginContextButtonId) hiddenBottomTabs.add(id);
     });
   } else if (directoryContextNav) {
-    hiddenBottomTabs = new Set(["todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode", "bottomPluginMode", "bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomLearningMode", "bottomAutomationMode"]);
+    hiddenBottomTabs = new Set(["todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTodosMode", "bottomCodexMode", "bottomPluginMode", "bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomLearningMode", "bottomAutomationMode"]);
   }
-  ["chatManagementMode", "inboxManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
+  ["chatManagementMode", "inboxManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
     const node = $(id);
     if (node) {
       setBottomTabHidden(node, hiddenBottomTabs.has(id));
@@ -443,7 +446,7 @@ function updateNavigationControls() {
   });
   updateBottomNavLabel("bottomTasksMode", pluginContextNav ? "话题" : "");
   updateBottomNavLabel("bottomProjectsMode", pluginContextNav ? "目录" : "");
-  ["bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode"].forEach((id) => {
+  ["bottomWardrobeMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode"].forEach((id) => {
     updateBottomNavLabel(id, pluginContextNav && id === pluginContextButtonId ? "插件" : "");
   });
   if (typeof updateWardrobeNavigationAvailability === "function") updateWardrobeNavigationAvailability();
@@ -453,6 +456,7 @@ function updateNavigationControls() {
   if (typeof updateHealthPluginNavigationAvailability === "function") updateHealthPluginNavigationAvailability();
   if (typeof updateNotePluginNavigationAvailability === "function") updateNotePluginNavigationAvailability();
   if (typeof updateGrowthPluginNavigationAvailability === "function") updateGrowthPluginNavigationAvailability();
+  if (typeof updateMoiraPluginNavigationAvailability === "function") updateMoiraPluginNavigationAvailability();
   if (typeof updateSidebarPluginLauncher === "function") updateSidebarPluginLauncher();
   if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
   if (!pluginContextNav && typeof syncPinnedPluginBottomTabs === "function") syncPinnedPluginBottomTabs(false);
@@ -505,7 +509,8 @@ function updateTopMoreControls() {
   const healthView = state.viewMode === "health";
   const noteView = state.viewMode === "note";
   const growthView = state.viewMode === "growth";
-  const showTopMenu = chatView || isTaskListView() || capabilityView || taskDetail || taskStream || directory || todoDetail || todoList || inboxView || actionInboxDetail || learningView || automationList || automationDetail || wardrobeView || codexView || financeView || emailView || healthView || noteView || growthView;
+  const moiraView = state.viewMode === "moira";
+  const showTopMenu = chatView || isTaskListView() || capabilityView || taskDetail || taskStream || directory || todoDetail || todoList || inboxView || actionInboxDetail || learningView || automationList || automationDetail || wardrobeView || codexView || financeView || emailView || healthView || noteView || growthView || moiraView;
   wrap.classList.toggle("hidden", !showTopMenu);
   interrupt.classList.toggle("hidden", showTopMenu || chatView);
   if (!showTopMenu) {

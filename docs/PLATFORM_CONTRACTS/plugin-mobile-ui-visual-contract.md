@@ -386,6 +386,14 @@ still prove the reported layout or gesture issue. For final acceptance
 evidence, record bounded artifact paths and metrics from the relevant harness
 level.
 
+The shared live-debug XCUITest session must include Safari/WebApp webviews
+(`includeSafariInWebviews`) and a bounded WebView connect timeout. When a
+checked harness opens a development URL before any WebView context exists, the
+central `open` action must fall back to `xcrun simctl openurl` and then retry
+WebView reads through the same lane. This behavior belongs only in
+`scripts/ios-pwa-live-debug-server.js`; plugin repositories must not copy their
+own pre-open or Safari attach scripts.
+
 When a checked harness derives a target from WebView DOM bounds, it must send
 the action as `coordinateSpace: "web"` through the live debug server. The server
 then runs its temporary full-screen coordinate probe and converts Web CSS
@@ -411,13 +419,15 @@ or WebView attach logic. When this toolchain is fixed, the central Home AI
 scripts and this contract are the propagation path for all plugins.
 
 Current shared correction id: `20260610-visual-toolchain-shared-lane`.
+Additional correction id: `20260611-moira-safari-webview-openurl`.
 All Home AI-hosted plugin workspaces consume this correction through the
 central Home AI command surface. The correction covers lane ownership,
 same-lane serialization, Appium startup, WebView attach recovery,
+Safari/WebApp context inclusion, native `simctl openurl` fallback for dev URLs,
 `fetch failed` classification, and bounded evidence recording. It applies to
 Host UI work and to embedded plugin work for Finance, Wardrobe, Health, Note,
-Email, Growth, Directory-bound plugin surfaces, and future Home AI-hosted
-plugins.
+Email, Growth, Moira, Directory-bound plugin surfaces, and future Home
+AI-hosted plugins.
 
 Fix propagation rule:
 
@@ -561,7 +571,7 @@ cd <Home-AI>
 npm run ios:pwa:visual -- \
   --scenario embedded-plugin-keyboard-composer \
   --plugin-id <plugin-id> \
-  --plugin-thread-id <thread-id> \
+  [--plugin-thread-id <thread-or-route-id>] \
   --debug-url http://127.0.0.1:19073/
 ```
 
@@ -619,19 +629,21 @@ as long as the action is an ordinary `plugin_route` entry. Codex must not be
 used for this ordinary quick-action scenario because Codex does not expose
 normal user quick actions in the Home AI plugin edition.
 
-For Codex Mobile, pass a real thread id so the harness opens the thread-detail
-composer instead of the plugin's primary thread list. The scenario uses native
-tap coordinates to focus the iframe input when Appium can deliver them, asserts
-host keyboard metrics are visible, verifies the plugin received a keyboard
-viewport state, and checks the composer/input bounding boxes stay above the
-keyboard top. If the local Appium/Safari lane cannot show the iOS software
-keyboard for iframe `contenteditable` controls, the scenario injects the same
-`hermes.plugin.viewport` keyboard payload that the host sends in production and
-marks the report as `keyboard.simulated=true`; this is valid for layout
-regression gating, while final installed-PWA/device acceptance may still use a
-real keyboard artifact. If no thread id is provided, the scenario may attempt a
-first-thread fallback, but that fallback is diagnostic only and is not a
-production acceptance substitute.
+Pass `--plugin-thread-id` only when the target input exists on a plugin detail
+route rather than the plugin's initial route. Codex Mobile must pass a real
+thread id so the harness opens the thread-detail composer instead of the primary
+thread list. The scenario uses native tap coordinates to focus the iframe input
+when Appium can deliver them, asserts host keyboard metrics are visible,
+verifies the plugin received a keyboard viewport state, and checks the
+composer/input bounding boxes stay above the keyboard top. If the local
+Appium/Safari lane cannot show the iOS software keyboard for iframe controls,
+the scenario injects the same `hermes.plugin.viewport` keyboard payload that
+the host sends in production for any plugin that implements
+`handleHermesPluginViewportMessage`, and marks the report as
+`keyboard.simulated=true`; this is valid for layout regression gating, while
+final installed-PWA/device acceptance may still use a real keyboard artifact.
+Codex Mobile without a thread id may attempt a first-thread fallback, but that
+fallback is diagnostic only and is not a production acceptance substitute.
 
 For development builds, add `--app-url <local-dev-url>` so the same iOS PWA
 Simulator opens the dev port before assertions run. When the target is a local

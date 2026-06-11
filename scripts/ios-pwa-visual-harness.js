@@ -1184,9 +1184,9 @@ const EMBEDDED_PLUGIN_KEYBOARD_FOCUS_TARGET_SCRIPT = `
   const inputSelector = keyboardTarget === "side-chat"
     ? "[data-side-chat-draft]"
     : "#messageInput, [role='textbox'][contenteditable='true'], textarea:not([disabled]), input[type='text']:not([disabled]), input:not([type]):not([disabled])";
-  const composerSelector = keyboardTarget === "side-chat"
+  const composerPrimarySelector = keyboardTarget === "side-chat"
     ? "[data-side-chat-form]"
-    : "#composer, .composer, form";
+    : "#composer, .composer";
   let frame = null;
   if (pluginId === "codex-mobile") {
     frame = document.querySelector("#codexPluginHost .embedded-plugin-frame");
@@ -1258,7 +1258,7 @@ const EMBEDDED_PLUGIN_KEYBOARD_FOCUS_TARGET_SCRIPT = `
   const candidateBox = candidateInput ? candidateInput.getBoundingClientRect() : null;
   const candidateInputVisible = Boolean(candidateBox && candidateBox.width >= 20 && candidateBox.height >= 20);
   const input = candidateInput;
-  const composer = doc.querySelector(composerSelector);
+  const composer = doc.querySelector(composerPrimarySelector) || doc.querySelector("form");
   if (!input) return {
     ok: false,
     error: "plugin_keyboard_input_missing",
@@ -1325,9 +1325,9 @@ const EMBEDDED_PLUGIN_KEYBOARD_MEASURE_SCRIPT = `
   const inputSelector = keyboardTarget === "side-chat"
     ? "[data-side-chat-draft]"
     : "#messageInput, [role='textbox'][contenteditable='true'], textarea:not([disabled]), input[type='text']:not([disabled]), input:not([type]):not([disabled])";
-  const composerSelector = keyboardTarget === "side-chat"
+  const composerPrimarySelector = keyboardTarget === "side-chat"
     ? "[data-side-chat-form]"
-    : "#composer, .composer, form";
+    : "#composer, .composer";
   let shell = null;
   let frame = null;
   if (pluginId === "codex-mobile") {
@@ -1366,8 +1366,8 @@ const EMBEDDED_PLUGIN_KEYBOARD_MEASURE_SCRIPT = `
         if (typeof win.updateSubagentPanelUi === "function") win.updateSubagentPanelUi({ force: true });
       }
       const input = doc.querySelector(inputSelector);
-      const composer = doc.querySelector(composerSelector);
-      if (input && pluginId === "codex-mobile") {
+      const composer = doc.querySelector(composerPrimarySelector) || doc.querySelector("form");
+      if (input) {
         try { input.focus({ preventScroll: false }); } catch (_) {}
         if (keyboardText && keyboardTarget === "side-chat" && "value" in input && !String(input.value || "").trim()) {
           input.value = keyboardText;
@@ -1378,7 +1378,7 @@ const EMBEDDED_PLUGIN_KEYBOARD_MEASURE_SCRIPT = `
           win.handleHermesPluginViewportMessage({
             type: "hermes.plugin.viewport",
             version: 1,
-            pluginId: "codex-mobile",
+            pluginId,
             reason: "keyboard_visual_harness",
             viewport: {
               width: window.innerWidth,
@@ -1394,6 +1394,7 @@ const EMBEDDED_PLUGIN_KEYBOARD_MEASURE_SCRIPT = `
               height: simulatedInset,
               offsetTop: 0,
             },
+            iframe: frameRect,
             footer: { safeAreaBottom: 0 },
           });
           if (visualHarness && typeof visualHarness.ensureSideChatDraftVisible === "function") {

@@ -91,6 +91,21 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
     manifestPath: "/api/hermes-plugins/growth/manifest",
     residentFrame: true,
   }),
+  moira: Object.freeze({
+    id: "moira",
+    viewMode: "moira",
+    title: "Moira",
+    label: "Moira",
+    bottomButtonId: "bottomMoiraMode",
+    appClass: "moira-mode",
+    hostId: "moiraPluginHost",
+    navVisibleClass: "moira-visible",
+    navigationEventType: "moira.plugin.navigation",
+    backResultEventType: "moira.plugin.back_result",
+    refreshRequiredEventType: "moira.plugin.refresh_required",
+    manifestPath: "/api/hermes-plugins/moira/manifest",
+    residentFrame: true,
+  }),
 });
 
 function embeddedPluginRecord(pluginId) {
@@ -281,19 +296,20 @@ function setEmbeddedPluginOpenRoute(def, route = {}) {
 }
 
 function embeddedPluginOpenRouteFromCurrentUrl(def) {
-  if (def?.id !== "growth") return null;
+  if (!def) return null;
   try {
     const params = new URLSearchParams(window.location.search || "");
     const routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), "");
     const taskCardId = String(params.get("taskCardId") || "").trim();
+    const pluginActionId = String(params.get("pluginActionId") || params.get("actionId") || "").trim();
     const pluginRoute = String(params.get("pluginRoute") || params.get("route") || "").trim();
     const pluginItemId = String(params.get("pluginItemId") || params.get("itemId") || "").trim();
-    if (routeView === "learning" && taskCardId) {
+    if (def.id === "growth" && routeView === "learning" && taskCardId) {
       return { pluginRoute: "card", pluginItemId: taskCardId };
     }
-    if (routeView === "growth" && (pluginRoute || pluginItemId)) {
+    if (routeView === def.viewMode && (pluginActionId || pluginRoute || pluginItemId)) {
       return normalizeEmbeddedPluginOpenRoute({
-        pluginActionId: params.get("pluginActionId") || params.get("actionId") || "",
+        pluginActionId,
         pluginRoute,
         pluginItemId,
         pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",
@@ -1509,4 +1525,61 @@ function parkGrowthPluginShell() {
 function renderGrowthPluginView() {
   updateGrowthPluginNavigationAvailability();
   renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS.growth);
+}
+
+function updateMoiraPluginNavigationAvailability() {
+  const def = EMBEDDED_PLUGIN_DEFS.moira;
+  const button = $(def.bottomButtonId);
+  const nav = $("bottomNav");
+  const available = embeddedPluginNavigationAvailable(def);
+  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
+    && typeof pluginTopicBottomButtonId === "function"
+    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === def.bottomButtonId;
+  if (button) {
+    button.hidden = !keepPluginContextButton;
+    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
+  }
+  nav?.classList.remove(def.navVisibleClass);
+  if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("moira", available);
+  if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
+  return available;
+}
+
+function moiraPluginBackActive() {
+  return embeddedPluginBackActive(EMBEDDED_PLUGIN_DEFS.moira);
+}
+
+function moiraPluginOuterBackActive() {
+  return embeddedPluginOuterBackActive(EMBEDDED_PLUGIN_DEFS.moira);
+}
+
+function rememberMoiraPluginReturnRoute() {
+  return rememberEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS.moira);
+}
+
+function setMoiraPluginOpenRoute(route = {}) {
+  return setEmbeddedPluginOpenRoute(EMBEDDED_PLUGIN_DEFS.moira, route);
+}
+
+function restoreMoiraPluginReturnRoute() {
+  return restoreEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS.moira);
+}
+
+function sendMoiraPluginBack() {
+  return sendEmbeddedPluginBack(EMBEDDED_PLUGIN_DEFS.moira);
+}
+
+function sendMoiraPluginBackOrReturn() {
+  if (sendMoiraPluginBack()) return true;
+  if (typeof pluginContextBackNavigationActive === "function" && pluginContextBackNavigationActive()) return false;
+  return restoreMoiraPluginReturnRoute();
+}
+
+function parkMoiraPluginShell() {
+  return parkEmbeddedPluginShell(EMBEDDED_PLUGIN_DEFS.moira);
+}
+
+function renderMoiraPluginView() {
+  updateMoiraPluginNavigationAvailability();
+  renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS.moira);
 }

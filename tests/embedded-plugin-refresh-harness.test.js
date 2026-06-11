@@ -97,6 +97,7 @@ function createHarness(pluginId = "codex-mobile", origin = "https://codex.exampl
     health: "health",
     note: "note",
     growth: "growth",
+    moira: "moira",
   };
 
   const sandbox = {
@@ -161,7 +162,7 @@ function createHarness(pluginId = "codex-mobile", origin = "https://codex.exampl
     },
   };
 
-  ["codexPluginHost", "financePluginHost", "emailPluginHost", "healthPluginHost", "notePluginHost", "growthPluginHost"]
+  ["codexPluginHost", "financePluginHost", "emailPluginHost", "healthPluginHost", "notePluginHost", "growthPluginHost", "moiraPluginHost"]
     .forEach((id) => { hosts[id] = makeHost(id); });
   vm.createContext(sandbox);
   vm.runInContext(`${source}

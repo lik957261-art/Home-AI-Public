@@ -1483,7 +1483,8 @@ button {
 .email-mode .conversation,
 .health-mode .conversation,
 .note-mode .conversation,
-.growth-plugin-mode .conversation {
+.growth-plugin-mode .conversation,
+.moira-mode .conversation {
   padding: 0;
   overflow: hidden;
   background: var(--ui-page);
@@ -6254,7 +6255,8 @@ button.directory-alias-chip {
 .plugin-context-nav-mode #bottomEmailMode:not([hidden]),
 .plugin-context-nav-mode #bottomHealthMode:not([hidden]),
 .plugin-context-nav-mode #bottomNoteMode:not([hidden]),
-.plugin-context-nav-mode #bottomGrowthMode:not([hidden]) {
+.plugin-context-nav-mode #bottomGrowthMode:not([hidden]),
+.plugin-context-nav-mode #bottomMoiraMode:not([hidden]) {
   display: grid !important;
 }
 
@@ -6276,7 +6278,8 @@ button.directory-alias-chip {
 .plugin-context-nav-mode #bottomEmailMode,
 .plugin-context-nav-mode #bottomHealthMode,
 .plugin-context-nav-mode #bottomNoteMode,
-.plugin-context-nav-mode #bottomGrowthMode {
+.plugin-context-nav-mode #bottomGrowthMode,
+.plugin-context-nav-mode #bottomMoiraMode {
   order: 2;
 }
 
@@ -6474,6 +6477,10 @@ button.directory-alias-chip {
 
 .plugin-topic-app-icon.growth {
   background: linear-gradient(135deg, #5e74ff 0%, #35b58f 50%, #f0c75e 100%);
+}
+
+.plugin-topic-app-icon.moira {
+  background: linear-gradient(135deg, #28313f 0%, #6d5dfc 46%, #f2c94c 100%);
 }
 
 .plugin-topic-app-icon.directory {

@@ -164,6 +164,23 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     ]),
   }),
   Object.freeze({
+    id: "moira",
+    viewMode: "moira",
+    label: "Moira",
+    subtitle: "\u4e03\u653f\u56db\u4f59\u3001\u661f\u76d8\u548c\u672c\u5730\u8bb0\u5f55",
+    iconClass: "nav-plugins-icon",
+    appIconClass: "moira",
+    appIconGlyph: "M",
+    sourceBadge: "M",
+    toolset: "moira",
+    deliveryHints: ["moira", "\u661f\u76d8", "\u5360\u661f", "\u4e03\u653f\u56db\u4f59"],
+    actions: Object.freeze([
+      pluginRouteAction("new_chart", "\u65b0\u5efa\u661f\u76d8", "new_chart", "+", 10),
+      pluginRouteAction("saved_records", "\u672c\u5730\u8bb0\u5f55", "saved_records", "\u8bb0", 20),
+      pluginRouteAction("import_records", "\u5bfc\u5165\u8bb0\u5f55", "import_records", "\u5bfc", 30),
+    ]),
+  }),
+  Object.freeze({
     id: "directory",
     builtinKind: "directory",
     viewMode: "projects",
@@ -311,6 +328,7 @@ function pluginTopicBottomButtonId(def) {
   if (id === "health") return "bottomHealthMode";
   if (id === "note") return "bottomNoteMode";
   if (id === "growth") return "bottomGrowthMode";
+  if (id === "moira") return "bottomMoiraMode";
   return "";
 }
 
@@ -321,7 +339,7 @@ function hideActivePluginHostsForPluginTopicNavigation() {
   }
   const app = $("app");
   app?.classList.remove("wardrobe-plugin-host-active", "embedded-plugin-host-active");
-  ["codex", "finance", "email", "health", "note"].forEach((id) => {
+  ["codex", "finance", "email", "health", "note", "moira"].forEach((id) => {
     app?.classList.remove(`${id}-plugin-host-active`);
   });
 }
@@ -830,7 +848,7 @@ function globalPluginDockHostSurfaceEligible() {
   if (!app || app.classList.contains("hidden")) return false;
   if (!isMobileLayout()) return false;
   const view = String(state.viewMode || "");
-  const pluginAppSurface = ["wardrobe", "finance", "email", "health", "note", "growth"].includes(view);
+  const pluginAppSurface = ["wardrobe", "finance", "email", "health", "note", "growth", "moira"].includes(view);
   if (state.keyboardViewportActive || document.documentElement.classList.contains("keyboard-viewport-active")) return false;
   if (state.mobileBrowserShellBlocked || app.classList.contains("mobile-browser-shell-blocked")) return false;
   if (app.classList.contains("embedded-plugin-preview-fullscreen-active")) return false;
@@ -2218,6 +2236,7 @@ function setPluginTopicAppOpenRoute(def, route = {}) {
   if (def.id === "health" && typeof setHealthPluginOpenRoute === "function") return setHealthPluginOpenRoute(route);
   if (def.id === "note" && typeof setNotePluginOpenRoute === "function") return setNotePluginOpenRoute(route);
   if (def.id === "growth" && typeof setGrowthPluginOpenRoute === "function") return setGrowthPluginOpenRoute(route);
+  if (def.id === "moira" && typeof setMoiraPluginOpenRoute === "function") return setMoiraPluginOpenRoute(route);
   const embeddedDef = typeof EMBEDDED_PLUGIN_DEFS !== "undefined" ? EMBEDDED_PLUGIN_DEFS[def.id] : null;
   return Boolean(embeddedDef && typeof setEmbeddedPluginOpenRoute === "function" && setEmbeddedPluginOpenRoute(embeddedDef, route));
 }
@@ -2240,6 +2259,7 @@ async function openPluginTopicApp(pluginId, options = {}) {
   if (def.id === "health" && typeof rememberHealthPluginReturnRoute === "function") rememberHealthPluginReturnRoute();
   if (def.id === "note" && typeof rememberNotePluginReturnRoute === "function") rememberNotePluginReturnRoute();
   if (def.id === "growth" && typeof rememberGrowthPluginReturnRoute === "function") rememberGrowthPluginReturnRoute();
+  if (def.id === "moira" && typeof rememberMoiraPluginReturnRoute === "function") rememberMoiraPluginReturnRoute();
   setPluginTopicAppOpenRoute(def, options.action ? pluginTopicActionOpenRoute(options.action) : (options.route || {}));
   state.viewMode = def.viewMode;
   localStorage.setItem("hermesWebViewMode", state.viewMode);

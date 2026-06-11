@@ -420,6 +420,17 @@ function wireUi() {
     state.currentThreadId = "";
     await loadSelectedView();
   });
+  $("bottomMoiraMode")?.addEventListener("click", async () => {
+    clearQuotedReply({ render: false });
+    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
+    if (typeof rememberMoiraPluginReturnRoute === "function") rememberMoiraPluginReturnRoute();
+    state.viewMode = "moira";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    state.currentThread = null;
+    state.currentThreadId = "";
+    await loadSelectedView();
+  });
   $("threadSearch").addEventListener("input", () => {
     updateSearchButton();
     clearTimeout(state.searchTimer);

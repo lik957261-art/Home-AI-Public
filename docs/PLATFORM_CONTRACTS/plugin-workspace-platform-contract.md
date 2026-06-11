@@ -620,7 +620,7 @@ visual evidence. The required level depends on the surface:
   npm run ios:pwa:visual -- \
     --scenario embedded-plugin-keyboard-composer \
     --plugin-id <plugin-id> \
-    --plugin-thread-id <thread-id> \
+    [--plugin-thread-id <thread-or-route-id>] \
     --debug-url http://127.0.0.1:19073/
   ```
 
@@ -649,6 +649,7 @@ visual evidence. The required level depends on the surface:
     --debug-url http://127.0.0.1:19073/
   ```
 
+  Use `--plugin-thread-id` only when the target input exists on a detail route.
   For Codex Mobile, `<thread-id>` must be a real Codex thread so the harness
   validates the thread-detail composer rather than the primary thread list. The
   side-chat scenario uses the same thread requirement and validates the
@@ -656,10 +657,11 @@ visual evidence. The required level depends on the surface:
   keyboard metrics, iframe bounds, plugin keyboard viewport receipt, and
   input/composer clearance above the keyboard top. If the local Appium/Safari
   lane cannot display the iOS software keyboard for iframe controls, the
-  harness injects the same
-  `hermes.plugin.viewport` keyboard payload used by the host and marks
-  `keyboard.simulated=true`; this remains a layout gate, while a real keyboard
-  artifact can still be required for final installed-PWA/device acceptance.
+  harness injects the same `hermes.plugin.viewport` keyboard payload used by
+  the host for any plugin that implements `handleHermesPluginViewportMessage`
+  and marks `keyboard.simulated=true`; this remains a layout gate, while a real
+  keyboard artifact can still be required for final installed-PWA/device
+  acceptance.
 
   When validating a local Home AI development server from the iOS Simulator,
   do not assume `127.0.0.1:<home-ai-port>` points to the Mac host. Start Home
