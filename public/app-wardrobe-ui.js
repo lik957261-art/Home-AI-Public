@@ -469,13 +469,13 @@ function renderWardrobePluginUnavailable(manifest = currentWardrobePluginManifes
     </section>`;
 }
 
-function renderWardrobePluginFrame(manifest) {
+function renderWardrobePluginFrame(manifest, entryUrl = String(manifest?.entry?.url || "")) {
   return `
     <div class="wardrobe-plugin-shell is-loading">
       <iframe
         class="wardrobe-plugin-frame"
         title="${escapeHtml(manifest.title || "\u8863\u6a71")}"
-        src="${escapeHtml(manifest.entry.url)}"
+        src="${escapeHtml(entryUrl)}"
         loading="eager"
         referrerpolicy="no-referrer"
         sandbox="allow-same-origin allow-scripts allow-forms allow-downloads allow-modals"
@@ -571,7 +571,7 @@ function renderWardrobeView() {
       }
       discardWardrobePluginShell();
       conversation.innerHTML = "";
-      wardrobePluginHost().innerHTML = renderWardrobePluginFrame(pluginManifest);
+      wardrobePluginHost().innerHTML = renderWardrobePluginFrame(pluginManifest, entryUrl);
       setWardrobePluginHostVisible(true);
       state.wardrobePluginFrameUrl = entryUrl;
       state.wardrobePluginShellNode = wardrobePluginHost().querySelector(".wardrobe-plugin-shell");

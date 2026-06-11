@@ -1499,6 +1499,9 @@ Required coverage for host-only changes:
   cannot trap the user inside an iframe;
 - parent-owned left-edge swipe handling above plugin iframes, covering plugin
   internal back and host outer return without relying on iframe touch bubbling;
+- route-aware plugin iframe source rendering, including any plugin-specific host
+  wrapper, so manifest-declared actions arrive as `pluginActionId` and
+  `pluginRoute` in the plugin app;
 - static client-version bump and service-worker cache update;
 - installed-PWA smoke for the target browser class when behavior depends on
   mobile WebKit/Chromium iframe/session behavior.

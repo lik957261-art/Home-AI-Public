@@ -351,6 +351,9 @@ Required rules:
 - `entry.type=plugin_route` means the host opens the plugin iframe and passes
   `pluginActionId=<id>` plus `pluginRoute=<pluginRoute>` through launch route
   state. The plugin owns the final in-app screen, form, or conversation.
+- Every host wrapper must apply the normalized route state to the final iframe
+  entry URL. This includes plugin-specific wrappers such as Wardrobe; computing a
+  route-aware URL and then rendering the raw manifest URL is a contract failure.
 - The host validates effective-workspace plugin authorization before launch and
   records `pluginId:actionId` usage through `/api/plugin-topic-usage`.
 - `placement` controls where the host may show the action:
