@@ -25,6 +25,7 @@ const PLUGIN_DEPLOY_ORDER = Object.freeze([
   "finance",
   "growth",
   "healthy",
+  "moira",
   "note",
   "wardrobe",
 ]);
@@ -43,6 +44,7 @@ const PLUGIN_RESTART_LABELS = Object.freeze({
   finance: "com.hermesmobile.plugin.finance",
   growth: "com.hermesmobile.plugin.growth",
   healthy: "com.hermesmobile.plugin.health",
+  moira: "com.hermesmobile.plugin.moira",
   note: "com.hermesmobile.plugin.note",
   wardrobe: "com.hermesmobile.plugin.wardrobe",
 });
@@ -53,6 +55,7 @@ const PLUGIN_HEALTH_URLS = Object.freeze({
   finance: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest",
   growth: "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest",
   healthy: "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest",
+  moira: "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest",
   note: "http://127.0.0.1:4181/api/v1/hermes/plugin/manifest",
   wardrobe: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest",
 });

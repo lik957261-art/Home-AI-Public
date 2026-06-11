@@ -43,6 +43,7 @@ email -> /Users/hermes-host/HermesMobile/plugins/email
 finance -> /Users/hermes-host/HermesMobile/plugins/finance
 growth -> /Users/hermes-host/HermesMobile/plugins/growth
 healthy -> /Users/hermes-host/HermesMobile/plugins/healthy
+moira -> /Users/hermes-host/HermesMobile/plugins/moira
 note -> /Users/hermes-host/HermesMobile/plugins/note
 wardrobe -> /Users/hermes-host/HermesMobile/plugins/wardrobe
 ```
@@ -262,7 +263,8 @@ npm run --silent deploy:macos -- --plugin all --json
 ```
 
 The `all` plugin target expands to the bounded known plugin service roots:
-Codex Mobile Web, Email, Finance, Growth, Healthy/Health, Note, and Wardrobe.
+Codex Mobile Web, Email, Finance, Growth, Healthy/Health, Moira, Note, and
+Wardrobe.
 It uses the central script's default launchd labels and loopback manifest
 smokes. It does not accept a single `--source`, `--restart-label`, or
 `--health-url` override because those values are per plugin. Operators may use
@@ -298,6 +300,21 @@ plugin production data directory, so first install must include plugin-owned
 SQLite import/readback or rollback evidence. After this first bootstrap, normal
 Growth plugin deploys can use the central deploy script with the default
 `com.hermesmobile.plugin.growth` restart label.
+
+Moira first production install follows the same source-sync-first pattern, but
+it does not create a plugin registration key because the initial production
+scope is Owner-only and the Home AI host uses its server-side Owner web key for
+the Owner launch exchange:
+
+```bash
+npm run --silent deploy:macos -- --plugin moira --source /Users/hermes-dev/HermesMobileDev/plugins/moira --restart none --sync-only --execute --password-file <private-local-password-file> --json
+node scripts/install-moira-launchd-service.js --json
+node scripts/install-moira-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
+```
+
+Later Moira source deploys use `npm run --silent deploy:macos -- --plugin
+moira ...` with the default `com.hermesmobile.plugin.moira` restart label and
+`http://127.0.0.1:4174/api/v1/hermes/plugin/manifest` health smoke.
 
 Growth plugin-manager grants also require the Home AI listener LaunchDaemon to
 set:

@@ -299,6 +299,7 @@ The current isolated production deployment runs these launchd labels:
 - `com.hermesmobile.plugin.health`
 - `com.hermesmobile.plugin.note`
 - `com.hermesmobile.plugin.growth`
+- `com.hermesmobile.plugin.moira`
 - `com.hermesmobile.plugin.codex-mobile`
 
 For the Home AI target, the central deploy script manages both the web listener
@@ -312,9 +313,9 @@ canonical Hermes CRON store, starts the dispatcher every 60 seconds with
 The central deploy script can plan or execute all known plugin service roots
 with `npm run --silent deploy:macos -- --plugin all --json`. The all-plugin
 target expands to Codex Mobile Web, Email, Finance, Growth, Healthy/Health,
-Note, and Wardrobe, with one restart label and one loopback manifest smoke per
-plugin. The user-facing `health` alias resolves to the historical `healthy`
-source and production directory.
+Moira, Note, and Wardrobe, with one restart label and one loopback manifest
+smoke per plugin. The user-facing `health` alias resolves to the historical
+`healthy` source and production directory.
 
 Public setup source locations are declared in
 `config/public-plugin-sources.json`. The manifest maps the public Home AI repo
@@ -368,6 +369,16 @@ install is not complete until the Growth LaunchDaemon is bootstrapped,
 plugin-owned SQLite readback passes, the Home AI listener has the Growth
 manifest/key-path environment above, and loopback health, embedded launch/proxy,
 and selected Gateway `mcp_growth_*` schema smoke pass.
+
+Moira first install uses `scripts/install-moira-launchd-service.js` from the
+Home AI app workspace after a central `--plugin moira --sync-only` source copy.
+The script generates `com.hermesmobile.plugin.moira`, runs the plugin service
+from `/Users/hermes-host/HermesMobile/plugins/moira`, binds to
+`127.0.0.1:4174`, and sets only bounded values such as
+`MOIRA_PLUGIN_BASE_URL`, `MOIRA_HERMES_OWNER_WORKSPACE_ID`, and
+`MOIRA_HERMES_ALLOWED_WORKSPACES`. It does not create or print raw plugin keys.
+The initial production scope is Owner-only; additional workspace access requires
+an explicit Moira workspace key/binding.
 
 The Hermes Mobile launchd environment uses
 `HERMES_WEB_HOST=0.0.0.0`, `HERMES_WEB_PORT=8797`,

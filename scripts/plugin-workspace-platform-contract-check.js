@@ -132,6 +132,19 @@ const PLUGINS = [
     ],
   },
   {
+    id: "moira",
+    title: "Moira",
+    dirName: "moira",
+    port: 4174,
+    macSourcePaths: ["/Users/hermes-host/HermesMobile/plugins/moira"],
+    launchdLabel: "com.hermesmobile.plugin.moira",
+    manifestPath: "/api/v1/hermes/plugin/manifest",
+    devRuntimeKeywords: ["node", "npm"],
+    optionalHttpProbes: [
+      { name: "client_version", path: "/api/moira/client-version", requireText: ["moira"] },
+    ],
+  },
+  {
     id: "codex-mobile",
     title: "Codex Mobile Web",
     dirName: "codex-mobile-web",

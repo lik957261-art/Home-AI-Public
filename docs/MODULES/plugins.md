@@ -17,17 +17,26 @@ Growth are standard workspace-private plugins. These rules are generic and
 apply to future embedded apps such as watches, health, notes, growth, Moira, or
 other private workspace tools.
 
-Moira is wired as a development embedded-app plugin with `plugin_id=moira`.
-Hermes Mobile owns the default local manifest registration at
+Moira is a standard local embedded-app plugin with `plugin_id=moira`. Hermes
+Mobile owns the default local manifest registration at
 `http://127.0.0.1:4174/api/v1/hermes/plugin/manifest`, the server-side
 workspace key lookup, same-origin `/api/hermes-plugins/moira/...` launch/proxy,
 bottom navigation entry, plugin-topic quick actions, resident iframe shell, and
 navigation/refresh event normalization. Moira owns its Web/PWA UI, local
-records, calculation code, plugin-side manifest/launch/session service and
-docs under `/Users/xuxin/Documents/moria/MOIRA_chinese_astrology`. Current
-development visual evidence is recorded in the Moira pointer doc and AI Ops
-ledger as `evidence-79a79cc1-019c-4222-9b6f-7c5959a6db05`; production
-launchd/deploy and keyboard/safe-area acceptance remain open.
+records, calculation code, plugin-side manifest/launch/session service, and
+docs. The Home AI development source path is
+`/Users/hermes-dev/HermesMobileDev/plugins/moira`; the Mac production target is
+`/Users/hermes-host/HermesMobile/plugins/moira`; the production launchd label is
+`com.hermesmobile.plugin.moira`; the loopback service URL is
+`http://127.0.0.1:4174`. First production install must use the central
+`--plugin moira --sync-only` deploy followed by
+`scripts/install-moira-launchd-service.js`. Initial production access is
+Owner-only unless an explicit `.hermes-moira` workspace binding and
+`MOIRA_HERMES_ALLOWED_WORKSPACES` expansion are added. Current development
+visual evidence is recorded in the Moira pointer doc and AI Ops ledger as
+`evidence-79a79cc1-019c-4222-9b6f-7c5959a6db05` and
+`evidence-eec3aa0d-5d18-412e-9c86-c2ad4f5c9c81`; installed-PWA/real-device
+safe-area evidence remains a separate acceptance gate when Moira UI changes.
 
 The embedded UI layout contract is tracked separately in
 `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`. Plugin projects must

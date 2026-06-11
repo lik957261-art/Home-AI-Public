@@ -363,6 +363,21 @@ The `--sync-only` step is first-install-only and is not a deployment closure;
 run plugin-owned SQLite import/readback, Growth health, embedded launch/proxy,
 and selected Gateway `mcp_growth_*` smokes after bootstrap.
 
+Moira first production install also uses source-only sync before its LaunchDaemon
+exists:
+
+```bash
+npm run --silent deploy:macos -- --plugin moira --source /Users/hermes-dev/HermesMobileDev/plugins/moira --restart none --sync-only --execute --password-file <private-local-password-file> --json
+node scripts/install-moira-launchd-service.js --json
+node scripts/install-moira-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
+```
+
+The Moira installer starts `com.hermesmobile.plugin.moira` on
+`127.0.0.1:4174` as `hermes-host`, with only bounded environment values in the
+plist. It does not write raw plugin access keys. Initial access is Owner-only
+unless `MOIRA_HERMES_ALLOWED_WORKSPACES` is explicitly expanded and the target
+workspace has a server-side `.hermes-moira` key path.
+
 Plugin workspaces should read the central deployment contract before deploys:
 
 ```text
@@ -410,6 +425,7 @@ email -> /Users/hermes-host/HermesMobile/plugins/email
 finance -> /Users/hermes-host/HermesMobile/plugins/finance
 growth -> /Users/hermes-host/HermesMobile/plugins/growth
 healthy -> /Users/hermes-host/HermesMobile/plugins/healthy
+moira -> /Users/hermes-host/HermesMobile/plugins/moira
 note -> /Users/hermes-host/HermesMobile/plugins/note
 wardrobe -> /Users/hermes-host/HermesMobile/plugins/wardrobe
 ```
