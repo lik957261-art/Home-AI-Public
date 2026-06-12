@@ -268,7 +268,12 @@ def _proxy_endpoint_available(proxy_url: str) -> bool:
 
 
 def _job_requires_model_proxy(job: dict[str, Any]) -> bool:
-    return not bool(job.get("no_agent"))
+    if bool(job.get("no_agent")):
+        return False
+    network_mode = str(os.environ.get("HERMES_MOBILE_NETWORK_MODE") or "").strip().lower()
+    if network_mode == "direct":
+        return False
+    return True
 
 
 def _ensure_model_proxy_for_job(job: dict[str, Any]) -> str:
@@ -278,7 +283,8 @@ def _ensure_model_proxy_for_job(job: dict[str, Any]) -> str:
     if not proxy_url:
         return (
             "cron_model_proxy_required: official CRON model jobs must run through "
-            "Hermes Mobile's configured outbound proxy; no HTTPS_PROXY/HTTP_PROXY/"
+            "Hermes Mobile's configured outbound proxy unless "
+            "HERMES_MOBILE_NETWORK_MODE=direct; no HTTPS_PROXY/HTTP_PROXY/"
             "ALL_PROXY or HERMES_MOBILE_CRON_MODEL_PROXY_URL was available"
         )
     if _env_flag_enabled("HERMES_MOBILE_CRON_REQUIRE_PROXY_HEALTH", True) and not _proxy_endpoint_available(proxy_url):

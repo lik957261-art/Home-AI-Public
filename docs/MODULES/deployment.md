@@ -804,6 +804,11 @@ only after all of these preflight checks pass:
   must fail before official `run_job()` starts with a bounded
   `cron_model_proxy_*` diagnostic. A plain official `hermes cron` model run
   that bypasses this wrapper is not production parity.
+- Mac production in `HERMES_MOBILE_NETWORK_MODE=direct` is different: the
+  dispatcher may enter official CRON without proxy injection because provider
+  egress is owned by the Mac network path. CRON jobs that analyze mailbox
+  content must still fetch that content through the Email app MCP/tool surface,
+  not by reading Email plugin storage directly.
 - Runtime model selection is two-level in the Owner settings UI: first choose
   the provider/family such as `ChatGPT`, then choose the concrete family model
   version such as `gpt-5.4` or `gpt-5.5`. The persisted value remains the final

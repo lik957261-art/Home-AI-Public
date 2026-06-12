@@ -129,6 +129,23 @@ function runJob(fixture, jobId, extraEnv = {}) {
   try {
     writeJobs(fixture.hermesHome, [{ id: "model_job", name: "Model job", no_agent: false }]);
     const result = runJob(fixture, "model_job", {
+      HERMES_MOBILE_NETWORK_MODE: "direct",
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const called = JSON.parse(fs.readFileSync(path.join(fixture.hermesHome, "scheduler-called.json"), "utf8"));
+    assert.equal(called.https_proxy, "");
+    assert.equal(called.http_proxy, "");
+    assert.equal(called.all_proxy, "");
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+}
+
+{
+  const fixture = makeFixture();
+  try {
+    writeJobs(fixture.hermesHome, [{ id: "model_job", name: "Model job", no_agent: false }]);
+    const result = runJob(fixture, "model_job", {
       HERMES_MOBILE_CRON_MODEL_PROXY_URL: "http://127.0.0.1:7890",
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
