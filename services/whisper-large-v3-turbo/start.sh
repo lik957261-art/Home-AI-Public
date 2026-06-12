@@ -11,6 +11,7 @@ export WHISPER_COMPUTE_TYPE="${WHISPER_COMPUTE_TYPE:-int8}"
 export WHISPER_BATCH_SIZE="${WHISPER_BATCH_SIZE:-4}"
 export WHISPER_BEAM_SIZE="${WHISPER_BEAM_SIZE:-5}"
 export HF_HOME="${HF_HOME:-$PWD/models/huggingface}"
+export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
 export WHISPER_TMP_DIR="${WHISPER_TMP_DIR:-$PWD/tmp}"
 
 mkdir -p "$HF_HOME" "$WHISPER_TMP_DIR"

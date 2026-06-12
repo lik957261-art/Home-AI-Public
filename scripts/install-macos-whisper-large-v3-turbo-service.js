@@ -81,10 +81,13 @@ function installRootOwnedTextFile(targetPath, text, password) {
 }
 
 function paths(root) {
+  const sourceRoot = path.posix.join(root, "app", SERVICE_REL);
   const serviceRoot = path.posix.join(root, SERVICE_REL);
   return {
     root,
+    sourceRoot,
     serviceRoot,
+    sourceAppPy: path.posix.join(sourceRoot, "app.py"),
     appPy: path.posix.join(serviceRoot, "app.py"),
     requirements: path.posix.join(serviceRoot, "requirements.txt"),
     start: path.posix.join(serviceRoot, "start.sh"),
@@ -108,6 +111,7 @@ function plistFor(root) {
     WHISPER_BATCH_SIZE: "4",
     WHISPER_BEAM_SIZE: "5",
     HF_HOME: path.posix.join(p.serviceRoot, "models", "huggingface"),
+    HF_ENDPOINT: "https://hf-mirror.com",
     WHISPER_TMP_DIR: path.posix.join(p.serviceRoot, "tmp"),
   };
   const envRows = Object.entries(env)
@@ -169,6 +173,7 @@ function main() {
   const plan = {
     label: LABEL,
     root,
+    sourceRoot: p.sourceRoot,
     serviceRoot: p.serviceRoot,
     plistPath: p.plistPath,
     healthUrl: "http://127.0.0.1:8001/health",
@@ -179,9 +184,11 @@ function main() {
     return;
   }
 
-  sudo("/bin/test", ["-f", p.appPy], password);
+  sudo("/bin/test", ["-f", p.sourceAppPy], password);
+  sudo("/bin/mkdir", ["-p", p.serviceRoot, p.logsRoot], password);
+  sudo("/usr/bin/rsync", ["-a", "--delete", "--exclude", ".venv/", "--exclude", "models/", "--exclude", "tmp/", `${p.sourceRoot}/`, `${p.serviceRoot}/`], password);
   sudo("/bin/chmod", ["755", p.start], password);
-  sudo("/bin/mkdir", ["-p", p.logsRoot, path.posix.join(p.serviceRoot, "models", "huggingface"), path.posix.join(p.serviceRoot, "tmp")], password);
+  sudo("/bin/mkdir", ["-p", path.posix.join(p.serviceRoot, "models", "huggingface"), path.posix.join(p.serviceRoot, "tmp")], password);
   sudo("/usr/sbin/chown", ["-R", "hermes-host:staff", p.serviceRoot, p.logsRoot], password);
   sudo("/bin/chmod", ["755", p.serviceRoot, path.posix.join(p.serviceRoot, "models"), path.posix.join(p.serviceRoot, "models", "huggingface"), path.posix.join(p.serviceRoot, "tmp")], password);
   if (!fs.existsSync(p.venvPython)) {
