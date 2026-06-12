@@ -213,7 +213,7 @@ function testToolsetEscalationWithoutRetryCompletesWithDiagnostic() {
   assert.equal(calls.broadcasts.at(-1).type, "run.completed");
 }
 
-function testWardrobeCompletionGateFailureDelegatesTerminalFailure() {
+function testWardrobeCompletionGateAdvisoryCompletesIncompleteResult() {
   const { calls, message, service, thread } = makeHarness();
   message.loadedSkills = [{ path: "productivity/wardrobe-style-operations" }];
   message.runOptions = {
@@ -239,14 +239,13 @@ function testWardrobeCompletionGateFailureDelegatesTerminalFailure() {
     },
   });
 
-  assert.equal(result.action, "failed");
-  assert.equal(message.content, "");
-  assert.equal(thread.events.at(-1).event, "run.wardrobe_outfit_completion_gate_failed");
-  assert.equal(thread.events.at(-1).error, true);
-  assert.equal(calls.failed.length, 1);
-  assert.equal(calls.failed[0].err.code, "wardrobe_completion_gate_failed");
-  assert.deepEqual(calls.failed[0].err.details.missing, ["weather_call", "markdown_receipt", "watch_item"]);
-  assert.equal(calls.broadcasts.some((payload) => payload.type === "run.completed"), false);
+  assert.equal(result.action, "completed");
+  assert.equal(message.status, "done");
+  assert.equal(message.content, "A plain outfit answer.");
+  assert.equal(thread.events.some((item) => item.event === "run.wardrobe_outfit_completion_gate_failed"), false);
+  assert.equal(calls.failed.length, 0);
+  assert.equal(calls.broadcasts.some((payload) => payload.type === "run.completed"), true);
+  assert.deepEqual(calls.enqueued, [{ threadId: "thread_1", messageId: "assistant_1", status: "done" }]);
 }
 
 function testPermissionApprovalProjectionStripsMarkerAndSetsElevation() {
@@ -274,5 +273,5 @@ testPureCompletionHelpers();
 testCompletedRunProjectsDoneState();
 testToolsetEscalationRetryShortCircuitsTerminalCompletion();
 testToolsetEscalationWithoutRetryCompletesWithDiagnostic();
-testWardrobeCompletionGateFailureDelegatesTerminalFailure();
+testWardrobeCompletionGateAdvisoryCompletesIncompleteResult();
 testPermissionApprovalProjectionStripsMarkerAndSetsElevation();

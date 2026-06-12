@@ -81,7 +81,23 @@ function pluginIdForRequest(request = {}, userMessage = {}) {
 }
 
 function textLooksWardrobeOutfitWorkflow(text = "") {
-  return /(?:\boutfit\b|\bwhat\s+to\s+wear\b|\brecommend(?:ation|ed)?\b|\bstyle\b|\bformal\b|\bevent\b|\u914d\u4e00?\u5957|\u518d\u914d|\u91cd\u65b0\u914d|\u6362\u4e00?\u5957|\u7a7f\u4ec0\u4e48|\u7a7f\u642d\u5efa\u8bae|\u642d\u914d\u5efa\u8bae|\u51fa\u95e8|\u4eca\u5929\u7a7f|\u660e\u5929\u7a7f|\u8863\u670d\u63a8\u8350|\u6b63\u5f0f|\u5546\u52a1|\u9762\u8bd5|\u5bb4\u4f1a)/i.test(cleanString(text));
+  const cleaned = cleanString(text);
+  if (textLooksWardrobeOutfitDiagnostic(cleaned) && !textLooksExplicitOutfitDeliveryRequest(cleaned)) {
+    return false;
+  }
+  return /(?:\boutfit\b|\bwhat\s+to\s+wear\b|\brecommend(?:ation|ed)?\b|\bstyle\b|\bformal\b|\bevent\b|\u914d\u4e00?\u5957|\u518d\u914d|\u91cd\u65b0\u914d|\u6362\u4e00?\u5957|\u7a7f\u4ec0\u4e48|\u7a7f\u642d\u5efa\u8bae|\u642d\u914d\u5efa\u8bae|\u51fa\u95e8|\u4eca\u5929\u7a7f|\u660e\u5929\u7a7f|\u8863\u670d\u63a8\u8350|\u6b63\u5f0f|\u5546\u52a1|\u9762\u8bd5|\u5bb4\u4f1a)/i.test(cleaned);
+}
+
+function textLooksWardrobeOutfitDiagnostic(text = "") {
+  const cleaned = cleanString(text);
+  if (!cleaned) return false;
+  const hasPreviousRunSignal = /(?:\bprevious\b|\blast\b|\bfirst\b|\bsecond\b|\bretry\b|\bsucceeded\b|\bfailed\b|\bslow\b|\bminutes?\b|\blatency\b|\bwhy\b|\bwhat happened\b|\u524d\u9762|\u4e0a\u6b21|\u521a\u624d|\u7b2c\u4e00\u6b21|\u7b2c\u4e8c\u6b21|\u91cd\u8bd5|\u6210\u529f|\u5931\u8d25|\u8017\u65f6|\u82b1\u4e86|\u5206\u949f|\u592a\u6162|\u4e3a\u4ec0\u4e48|\u539f\u56e0|\u95ee\u9898\u5728\u54ea|\u600e\u4e48\u56de\u4e8b|\u6ca1\u6709|\u6ca1\u770b|\u672a\u901a\u8fc7|\u95e8\u7981)/i.test(cleaned);
+  const asksForDiagnosis = /(?:\?|\uff1f|\bwhy\b|\bwhat happened\b|\bdiagnos(?:e|is)\b|\bexplain\b|\u4e3a\u4ec0\u4e48|\u770b\u4e00\u4e0b|\u67e5\u4e00\u4e0b|\u5206\u6790|\u539f\u56e0|\u95ee\u9898\u5728\u54ea|\u600e\u4e48\u56de\u4e8b)/i.test(cleaned);
+  return hasPreviousRunSignal && asksForDiagnosis;
+}
+
+function textLooksExplicitOutfitDeliveryRequest(text = "") {
+  return /(?:^|[\n\u3002\uff1b;,.，])\s*(?:\u8bf7|\u5e2e\u6211|\u7ed9\u6211|\u76f4\u63a5|\u73b0\u5728|\u518d|\u91cd\u65b0|\u6362|\u751f\u6210|\u8f93\u51fa|\u6765)\s*(?:[^。？！\n]{0,24})?(?:\u914d\u4e00?\u5957|\u518d\u914d|\u91cd\u65b0\u914d|\u6362\u4e00?\u5957|\u7a7f\u642d|\u642d\u914d|\u7a7f\u4ec0\u4e48|\u8863\u670d\u63a8\u8350|\boutfit\b|\bwhat\s+to\s+wear\b|\bstyle\b)/i.test(cleanString(text));
 }
 
 function routingSuggestsWeather(request = {}) {
@@ -96,7 +112,11 @@ function isWardrobeWorkflow(request = {}, userMessage = {}) {
 
 function isWardrobeOutfitWorkflow(request = {}, userMessage = {}) {
   if (!isWardrobeWorkflow(request, userMessage)) return false;
-  return textLooksWardrobeOutfitWorkflow(userMessage?.content || request.body?.input || "") || routingSuggestsWeather(request);
+  const text = userMessage?.content || request.body?.input || "";
+  if (textLooksWardrobeOutfitDiagnostic(text) && !textLooksExplicitOutfitDeliveryRequest(text)) {
+    return false;
+  }
+  return textLooksWardrobeOutfitWorkflow(text) || routingSuggestsWeather(request);
 }
 
 function missingFrom(required = [], actual = []) {
@@ -136,12 +156,12 @@ function gateRunOptionsMetadata(gate = {}) {
 function instructionBlockForGate(gate = {}) {
   if (!gate.active || !gate.ok) return "";
   return [
-    "Wardrobe outfit workflow gate:",
+    "Wardrobe outfit workflow guidance:",
     `- Server preflight verified required Skill path: ${WARDROBE_SKILL_PATH}.`,
     `- Required toolsets for this workflow: ${gate.requiredToolsets.join(", ")}.`,
-    "- Before final answer, use current weather, Wardrobe MCP lookup/readback, and file output for a Markdown receipt.",
-    "- The final visible result must include a MEDIA:<path>.md receipt and a short verification line covering Skill, weather, Wardrobe MCP/readback, Markdown, and watch.",
-    "- Treat watch as a first-class outfit item. If no suitable watch exists, say that explicitly instead of omitting it.",
+    "- For concrete outfit delivery, prefer current weather, Wardrobe MCP lookup/readback, and file output for a Markdown receipt.",
+    "- The final visible result should include a MEDIA:<path>.md receipt and a short verification line covering Skill, weather, Wardrobe MCP/readback, Markdown, and watch when available.",
+    "- Treat watch as a first-class outfit item. If no suitable watch exists or any evidence is unavailable, still answer and state the missing evidence explicitly.",
   ].join("\n");
 }
 
@@ -176,11 +196,16 @@ function evaluateWardrobeOutfitWorkflowGate(input = {}) {
     missingSkills,
     requiredSkillPath: WARDROBE_SKILL_PATH,
     completionGate: {
-      enabled: outfitWorkflow,
-      requireWeatherCall: outfitWorkflow,
-      requireWardrobeMcpCall: outfitWorkflow,
-      requireMarkdownReceipt: outfitWorkflow,
-      requireWatchItem: outfitWorkflow,
+      enabled: false,
+      advisory: outfitWorkflow,
+      requireWeatherCall: false,
+      requireWardrobeMcpCall: false,
+      requireMarkdownReceipt: false,
+      requireWatchItem: false,
+      recommendedWeatherCall: outfitWorkflow,
+      recommendedWardrobeMcpCall: outfitWorkflow,
+      recommendedMarkdownReceipt: outfitWorkflow,
+      recommendedWatchItem: outfitWorkflow,
     },
   };
   gate.message = reason ? errorMessageForGate(reason, gate) : "";
@@ -227,29 +252,29 @@ function validateWardrobeOutfitWorkflowCompletion(input = {}) {
     {},
   );
   const completionGate = objectValue(gate.completionGate || gate.completion_gate, {});
-  if (!gate.active || !completionGate.enabled) return { active: false, ok: true };
+  const active = Boolean(gate.active && (completionGate.enabled || completionGate.advisory));
+  if (!active) return { active: false, ok: true };
   const output = cleanString(input.output || message.content || "");
   const loadedTools = toolNamesFromEntries(input.loadedTools || message.loadedTools || []);
   const loadedSkills = input.loadedSkills || message.loadedSkills || [];
   const missing = [];
   if (!hasLoadedSkill(loadedSkills, gate.requiredSkillPath || WARDROBE_SKILL_PATH)) missing.push("required_skill");
-  if (completionGate.requireWeatherCall && !loadedTools.includes("weather")) missing.push("weather_call");
-  if (completionGate.requireWardrobeMcpCall && !loadedTools.some((name) => name.startsWith("mcp_wardrobe_"))) missing.push("wardrobe_mcp_call");
-  if (completionGate.requireMarkdownReceipt && !hasMarkdownReceipt(output)) missing.push("markdown_receipt");
-  if (completionGate.requireWatchItem && !hasWatchItem(output)) missing.push("watch_item");
-  if (!missing.length) return { active: true, ok: true, missing: [] };
+  if ((completionGate.requireWeatherCall || completionGate.recommendedWeatherCall) && !loadedTools.includes("weather")) missing.push("weather_call");
+  if ((completionGate.requireWardrobeMcpCall || completionGate.recommendedWardrobeMcpCall) && !loadedTools.some((name) => name.startsWith("mcp_wardrobe_"))) missing.push("wardrobe_mcp_call");
+  if ((completionGate.requireMarkdownReceipt || completionGate.recommendedMarkdownReceipt) && !hasMarkdownReceipt(output)) missing.push("markdown_receipt");
+  if ((completionGate.requireWatchItem || completionGate.recommendedWatchItem) && !hasWatchItem(output)) missing.push("watch_item");
   const result = {
     active: true,
-    ok: false,
-    reason: "completion_gate_failed",
+    ok: true,
+    advisory: true,
+    hardGateDisabled: true,
     missing,
-    errorCode: "wardrobe_completion_gate_failed",
-    message: `\u8863\u6a71\u642d\u914d\u7ed3\u679c\u672a\u901a\u8fc7\u4ea4\u4ed8\u95e8\u7981\uff1a${missing.join(", ")}\u3002\u5df2\u963b\u6b62\u672c\u8f6e\u4ee5\u5b8c\u6210\u72b6\u6001\u6536\u5c3e\uff0c\u8bf7\u91cd\u8bd5\u3002`,
   };
   result.eventPreview = JSON.stringify({
     workflow: "wardrobe_outfit",
-    reason: result.reason,
+    reason: "completion_gate_advisory",
     missing,
+    hard_gate_disabled: true,
   });
   return result;
 }

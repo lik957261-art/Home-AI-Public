@@ -914,7 +914,7 @@ function wardrobeOutfitGateRunOptions() {
   };
 }
 
-function testWardrobeOutfitCompletionGateFailsBadFinalResult() {
+function testWardrobeOutfitCompletionGateKeepsIncompleteFinalResult() {
   const harness = makeHarness({ maxMessageChars: 800 });
   harness.message.taskGroupId = "plugin:wardrobe";
   harness.message.runOptions = wardrobeOutfitGateRunOptions();
@@ -933,17 +933,15 @@ function testWardrobeOutfitCompletionGateFailsBadFinalResult() {
     },
   });
 
-  assert.equal(result.action, "failed");
-  assert.equal(harness.message.status, "failed");
-  assert.equal(harness.message.content, "");
+  assert.equal(result.action, "completed");
+  assert.equal(harness.message.status, "done");
+  assert.match(harness.message.content, /\u767d\u886c\u886b/);
   assert.equal(harness.message.usage.supplemented, true);
-  assert.equal(harness.thread.events.at(-1).event, "run.wardrobe_outfit_completion_gate_failed");
-  assert.equal(harness.thread.events.at(-1).error, true);
-  assert.deepEqual(JSON.parse(harness.thread.events.at(-1).preview).missing, ["weather_call", "markdown_receipt", "watch_item"]);
-  assert.equal(harness.calls.broadcasts.some((payload) => payload.type === "run.completed"), false);
-  assert.equal(harness.calls.broadcasts.some((payload) => payload.type === "run.failed"), true);
-  assert.deepEqual(harness.calls.enqueued, [{ threadId: "thread_1", messageId: "assistant_1", status: "failed" }]);
-  assert.deepEqual(harness.calls.notified, [{ threadId: "thread_1", messageId: "assistant_1", status: "failed" }]);
+  assert.equal(harness.thread.events.some((item) => item.event === "run.wardrobe_outfit_completion_gate_failed"), false);
+  assert.equal(harness.calls.broadcasts.some((payload) => payload.type === "run.completed"), true);
+  assert.equal(harness.calls.broadcasts.some((payload) => payload.type === "run.failed"), false);
+  assert.deepEqual(harness.calls.enqueued, [{ threadId: "thread_1", messageId: "assistant_1", status: "done" }]);
+  assert.deepEqual(harness.calls.notified, [{ threadId: "thread_1", messageId: "assistant_1", status: "done" }]);
 }
 
 function testWardrobeOutfitCompletionGatePassesGoodFinalResult() {
@@ -1017,7 +1015,7 @@ testToolsetEscalationAutoRetriesWithExpandedAuthorizedToolsets();
 testOutputItemFinalMessageCanTriggerToolsetEscalationRetryWithoutDeltas();
 testToolsetEscalationRetryCapStopsAfterOneInternalRetry();
 testAlreadySelectedToolsetEscalationIsSanitizedWithoutRetry();
-testWardrobeOutfitCompletionGateFailsBadFinalResult();
+testWardrobeOutfitCompletionGateKeepsIncompleteFinalResult();
 testWardrobeOutfitCompletionGatePassesGoodFinalResult();
 testReconcileDetachedActiveRunsFailsMissingStreamsAndSchedulesQueued();
 

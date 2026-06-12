@@ -25,7 +25,7 @@ function createGatewayRunStartWardrobeGateService(options = {}) {
   function appendWardrobeWorkflowGateInstructions(request = {}, gate = {}) {
     if (!gate?.active || !gate.ok || !gate.instructionBlock) return request;
     request.body = request.body || {};
-    if (String(request.body.instructions || "").includes("Wardrobe outfit workflow gate:")) return request;
+    if (/Wardrobe outfit workflow (?:gate|guidance):/.test(String(request.body.instructions || ""))) return request;
     request.body.instructions = [
       request.body.instructions || "",
       gate.instructionBlock,

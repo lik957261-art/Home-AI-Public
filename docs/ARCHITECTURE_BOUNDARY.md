@@ -570,7 +570,7 @@ Gateway `run.completed` or `response.completed` event has already been routed:
 completed output extraction, model/provider/reasoning usage metadata backfill,
 loaded Skill/tool evidence backfill from run events and completed responses,
 toolset-escalation-required event projection before retry, permission approval
-marker projection, Wardrobe outfit completion gate failure handoff, successful
+marker projection, Wardrobe outfit completion advisory handoff, successful
 terminal `done` mutation, artifact registration handoff, terminal delivery,
 topic compaction, completed broadcast, terminal notification, and queued
 follow-up scheduling. It must receive side effects through dependencies and

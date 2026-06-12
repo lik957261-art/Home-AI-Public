@@ -32,6 +32,8 @@ function testOutfitTextDetection() {
   assert.equal(textLooksWardrobeOutfitWorkflow("\u4eca\u5929\u7a7f\u4ec0\u4e48"), true);
   assert.equal(textLooksWardrobeOutfitWorkflow("Style these items"), true);
   assert.equal(textLooksWardrobeOutfitWorkflow("list wardrobe inventory"), false);
+  assert.equal(textLooksWardrobeOutfitWorkflow("\u7b2c\u4e00\u6b21\u914d\u8863\u670d\u5931\u8d25\u4e86\uff0c\u4e3a\u4ec0\u4e48\u82b1\u4e86 9 \u5206\u949f\uff1f"), false);
+  assert.equal(textLooksWardrobeOutfitWorkflow("\u521a\u624d\u90a3\u5957\u5931\u8d25\u4e86\uff0c\u8bf7\u91cd\u65b0\u914d\u4e00\u5957"), true);
 }
 
 function testGatePassesWhenSkillAndToolsetsAreReady() {
@@ -45,8 +47,10 @@ function testGatePassesWhenSkillAndToolsetsAreReady() {
   assert.equal(gate.ok, true);
   assert.equal(gate.workflow, "wardrobe_outfit");
   assert.deepEqual(gate.requiredToolsets, ["wardrobe", "vision", "file", "skills", "weather"]);
-  assert.equal(gate.runOptionsMetadata.completionGate.enabled, true);
-  assert.match(gate.instructionBlock, /Wardrobe outfit workflow gate/);
+  assert.equal(gate.runOptionsMetadata.completionGate.enabled, false);
+  assert.equal(gate.runOptionsMetadata.completionGate.advisory, true);
+  assert.match(gate.instructionBlock, /Wardrobe outfit workflow guidance/);
+  assert.match(gate.instructionBlock, /still answer/);
 }
 
 function testGateFailsWhenRequiredSkillPreloadFailed() {
@@ -95,7 +99,7 @@ function testNonOutfitWardrobePluginDoesNotRequireWeather() {
   assert.equal(gate.completionGate.enabled, false);
 }
 
-function testCompletionGateFailsMissingEvidence() {
+function testCompletionGateIsAdvisoryForMissingEvidence() {
   const result = validateWardrobeOutfitWorkflowCompletion({
     message: {
       runOptions: {
@@ -117,7 +121,9 @@ function testCompletionGateFailsMissingEvidence() {
     loadedTools: [{ name: "mcp_wardrobe_wardrobe_search_items" }],
   });
 
-  assert.equal(result.ok, false);
+  assert.equal(result.ok, true);
+  assert.equal(result.advisory, true);
+  assert.equal(result.hardGateDisabled, true);
   assert.deepEqual(result.missing, ["weather_call", "markdown_receipt", "watch_item"]);
 }
 
@@ -148,6 +154,7 @@ function testCompletionGatePassesWithWeatherMcpMarkdownAndWatch() {
   });
 
   assert.equal(result.ok, true);
+  assert.deepEqual(result.missing, []);
 }
 
 testOutfitTextDetection();
@@ -155,7 +162,7 @@ testGatePassesWhenSkillAndToolsetsAreReady();
 testGateFailsWhenRequiredSkillPreloadFailed();
 testGateFailsWhenWeatherIsMissingForOutfit();
 testNonOutfitWardrobePluginDoesNotRequireWeather();
-testCompletionGateFailsMissingEvidence();
+testCompletionGateIsAdvisoryForMissingEvidence();
 testCompletionGatePassesWithWeatherMcpMarkdownAndWatch();
 
 console.log("wardrobe outfit workflow gate service tests passed");

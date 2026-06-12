@@ -802,9 +802,10 @@ async function testWardrobeOutfitGatePassesWithWeatherAndAddsCompletionMetadata(
   );
 
   assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["file", "web", "weather", "wardrobe", "vision", "skills"]);
-  assert.match(calls.streams[0].body.instructions, /Wardrobe outfit workflow gate/);
+  assert.match(calls.streams[0].body.instructions, /Wardrobe outfit workflow guidance/);
   assert.equal(assistant.runOptions.wardrobeOutfitWorkflowGate.workflow, "wardrobe_outfit");
-  assert.equal(assistant.runOptions.wardrobeOutfitWorkflowGate.completionGate.enabled, true);
+  assert.equal(assistant.runOptions.wardrobeOutfitWorkflowGate.completionGate.enabled, false);
+  assert.equal(assistant.runOptions.wardrobeOutfitWorkflowGate.completionGate.advisory, true);
   assert.deepEqual(assistant.runOptions.wardrobeOutfitWorkflowGate.requiredToolsets, ["wardrobe", "vision", "file", "skills", "weather"]);
 }
 

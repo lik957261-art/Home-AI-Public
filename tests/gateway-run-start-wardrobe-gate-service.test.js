@@ -31,7 +31,7 @@ function testEvaluateWardrobeGateStoresGateAndAppendsInstructions() {
   const { calls, service } = makeGateService({
     active: true,
     ok: true,
-    instructionBlock: "Wardrobe outfit workflow gate:\nCheck weather.",
+    instructionBlock: "Wardrobe outfit workflow guidance:\nCheck weather.",
   });
   const request = { body: { instructions: "Base instructions." } };
   const gatewayTarget = { name: "owner-low-1" };
@@ -49,27 +49,27 @@ function testEvaluateWardrobeGateStoresGateAndAppendsInstructions() {
     gatewayTarget,
   });
   assert.match(request.body.instructions, /Base instructions\./);
-  assert.match(request.body.instructions, /Wardrobe outfit workflow gate:/);
+  assert.match(request.body.instructions, /Wardrobe outfit workflow guidance:/);
 }
 
 function testEvaluateWardrobeGateDoesNotDuplicateInstructions() {
   const { service } = makeGateService({
     active: true,
     ok: true,
-    instructionBlock: "Wardrobe outfit workflow gate:\nCheck weather.",
+    instructionBlock: "Wardrobe outfit workflow guidance:\nCheck weather.",
   });
-  const request = { body: { instructions: "Wardrobe outfit workflow gate:\nExisting." } };
+  const request = { body: { instructions: "Wardrobe outfit workflow guidance:\nExisting." } };
 
   service.evaluateWardrobeGate(request, {}, "pre_stream", null, { appendInstructions: true });
 
-  assert.equal(request.body.instructions, "Wardrobe outfit workflow gate:\nExisting.");
+  assert.equal(request.body.instructions, "Wardrobe outfit workflow guidance:\nExisting.");
 }
 
 function testEvaluateWardrobeGateSkipsInactiveOrFailedInstructionAppend() {
   const inactive = makeGateService({
     active: false,
     ok: true,
-    instructionBlock: "Wardrobe outfit workflow gate:\nIgnored.",
+    instructionBlock: "Wardrobe outfit workflow guidance:\nIgnored.",
   }).service;
   const inactiveRequest = { body: { instructions: "Base" } };
   inactive.evaluateWardrobeGate(inactiveRequest, {}, "pre_stream", null, { appendInstructions: true });
@@ -78,7 +78,7 @@ function testEvaluateWardrobeGateSkipsInactiveOrFailedInstructionAppend() {
   const failed = makeGateService({
     active: true,
     ok: false,
-    instructionBlock: "Wardrobe outfit workflow gate:\nIgnored.",
+    instructionBlock: "Wardrobe outfit workflow guidance:\nIgnored.",
   }).service;
   const failedRequest = { body: { instructions: "Base" } };
   failed.evaluateWardrobeGate(failedRequest, {}, "pre_stream", null, { appendInstructions: true });

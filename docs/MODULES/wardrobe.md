@@ -331,13 +331,15 @@ as a successful embedded plugin load.
   MCP toolset, `vision`, `file`, or `skills` are missing before streaming,
   Hermes Mobile must fail the run before selecting/streaming a Gateway response
   instead of letting the model produce a generic fashion answer.
-- Wardrobe outfit completion is also gated. A run must not be marked completed
-  unless the final evidence includes the loaded
+- Wardrobe outfit completion evidence is advisory, not a terminal hard gate.
+  A concrete outfit answer should include the loaded
   `productivity/wardrobe-style-operations` Skill, a weather tool call, at least
   one `mcp_wardrobe_*` call, a Markdown receipt `MEDIA:<path>.md`, and an
-  explicit watch/watch-unavailable decision. Missing evidence must turn the run
-  into a failed run with a bounded diagnostic so stale or incomplete results do
-  not look successful.
+  explicit watch/watch-unavailable decision when available. If any final
+  evidence is missing, Hermes Mobile must preserve the visible answer instead
+  of clearing the content or converting the run to failed. The model guidance
+  should state missing evidence explicitly so the user can ask for follow-up
+  completion or improve the Wardrobe Skill.
 - Wardrobe topic delivery directories are output/receipt locations only. They
   must not be treated as the Wardrobe database and must not trigger the ordinary
   directory-topic `productivity/directory-context-cleaning` workflow for routine

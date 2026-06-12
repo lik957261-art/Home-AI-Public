@@ -1669,9 +1669,12 @@ the Wardrobe companion `suggested_toolsets`. With the selector disabled or
 after selector fallback, the same test must prove execution still receives the
 full active Wardrobe required bundle rather than the suggested subset.
 Wardrobe outfit workflow gates must be tested as H1 completion behavior, not as
-prompt-only guidance. The focused tests must prove missing Skill, missing
-weather, missing Wardrobe MCP/readback, missing Markdown receipt, or missing
-watch decision cannot end as a successful outfit recommendation.
+prompt-only guidance. The focused tests must prove pre-stream missing Skill,
+missing weather, missing Wardrobe MCP/readback, missing Markdown receipt
+capability, or missing required companion toolsets fail before streaming, while
+final-answer evidence gaps such as no weather call, no Markdown receipt, or no
+watch decision remain advisory and must not clear the visible answer or convert
+the terminal state to failed.
 Long-reply jump control harnesses must cover terminal DOM replacement and
 historical scrolling: arrow visibility recalculation must resolve the current
 conversation/message node when the queued callback executes, fall back from a
