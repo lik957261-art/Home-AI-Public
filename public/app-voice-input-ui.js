@@ -2,6 +2,7 @@
 
 const VOICE_INPUT_LONG_PRESS_MS = 560;
 const VOICE_INPUT_MIN_CLIENT_DURATION_MS = 300;
+const VOICE_INPUT_PRESS_EVENTS_BOUND = "__homeAiVoiceInputPressEventsBound";
 
 function ensureVoiceInputState() {
   if (!state.voiceInput || typeof state.voiceInput !== "object") {
@@ -222,6 +223,35 @@ function voiceInputClearSelection() {
   try {
     document.getSelection?.()?.removeAllRanges?.();
   } catch (_) {}
+}
+
+function voiceInputPressSelectionSuppressed() {
+  const voice = ensureVoiceInputState();
+  return Boolean(voice.pressTimer || ["pending", "checking", "requesting", "recording", "finalizing", "transcribing"].includes(voice.status));
+}
+
+function suppressVoiceInputSelectionEvent(event) {
+  if (event?.target?.closest?.("[data-voice-transcript]")) return;
+  if (!voiceInputPressSelectionSuppressed()) return;
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  event?.stopImmediatePropagation?.();
+  voiceInputClearSelection();
+}
+
+function suppressVoiceInputSelectionChange() {
+  if (!voiceInputPressSelectionSuppressed()) return;
+  voiceInputClearSelection();
+}
+
+function bindVoiceInputPressSelectionGuards() {
+  if (document[VOICE_INPUT_PRESS_EVENTS_BOUND]) return;
+  document[VOICE_INPUT_PRESS_EVENTS_BOUND] = true;
+  document.addEventListener("selectstart", suppressVoiceInputSelectionEvent, true);
+  document.addEventListener("selectionchange", suppressVoiceInputSelectionChange, true);
+  document.addEventListener("contextmenu", suppressVoiceInputSelectionEvent, true);
+  document.addEventListener("dragstart", suppressVoiceInputSelectionEvent, true);
+  document.addEventListener("touchmove", suppressVoiceInputSelectionEvent, { capture: true, passive: false });
 }
 
 function scheduleVoiceInputClickSuppressionClear() {
@@ -518,6 +548,9 @@ function handleVoiceInputPointerDown(event) {
   const voice = ensureVoiceInputState();
   if (event.pointerType === "mouse" && event.button !== 0) return;
   if (!voiceInputNativeComposerAvailable()) return;
+  event.preventDefault?.();
+  event.stopPropagation?.();
+  event.stopImmediatePropagation?.();
   voiceInputClearPressTimer();
   voice.pointerId = event.pointerId;
   voice.suppressNextClick = false;
@@ -589,6 +622,7 @@ function initializeVoiceInputUi() {
   const button = $("sendMessage");
   if (!button || button.dataset.voiceInputBound === "1") return;
   button.dataset.voiceInputBound = "1";
+  bindVoiceInputPressSelectionGuards();
   button.addEventListener("pointerdown", handleVoiceInputPointerDown);
   button.addEventListener("pointerup", handleVoiceInputPointerUp);
   button.addEventListener("pointercancel", handleVoiceInputPointerCancel);

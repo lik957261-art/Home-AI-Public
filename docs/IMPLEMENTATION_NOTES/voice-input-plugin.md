@@ -103,7 +103,9 @@ The host overlay is a Home AI shell surface:
   clip and starts ASR transcription;
 - active recording: the send button becomes a pressed recording affordance with
   a compact timer/status. It must suppress native text selection, callouts, and
-  context menus for the gesture target;
+  context menus for the gesture target. On iOS/PWA this suppression must be
+  enforced at document capture level while recording or while the long-press
+  timer is active, not only through button-level CSS;
 - cancellation: an explicit cancel affordance or drag-away threshold may
   discard the clip before release. A plain release without cancellation starts
   transcription;

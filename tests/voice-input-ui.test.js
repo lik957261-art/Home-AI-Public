@@ -19,8 +19,8 @@ const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-input-asr-v723[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-input-asr-v723[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-input-asr-v723/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-input-asr-v723/);
+  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-input-gesture-v724[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-input-gesture-v724[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-input-gesture-v724/);
+  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-input-gesture-v724/);
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
 }
 
@@ -66,6 +66,14 @@ function testNoTextSelectionOnSendButtonLongPress() {
   assert.match(styles, /#sendMessage\.voice-input-gesture[\s\S]*user-select: none/);
   assert.match(styles, /#sendMessage\.voice-input-gesture[\s\S]*-webkit-user-select: none/);
   assert.match(styles, /#sendMessage\.voice-input-gesture[\s\S]*-webkit-touch-callout: none/);
+  assert.match(styles, /#sendMessage\.voice-input-gesture[\s\S]*-webkit-user-drag: none/);
+  assert.match(styles, /body\.voice-input-press-active[\s\S]*-webkit-user-drag: none !important/);
+  assert.match(styles, /body\.voice-input-press-active #sendMessage[\s\S]*touch-action: none/);
+  assert.match(voiceUi, /document\.addEventListener\("selectionchange", suppressVoiceInputSelectionChange, true\)/);
+  assert.match(voiceUi, /document\.addEventListener\("contextmenu", suppressVoiceInputSelectionEvent, true\)/);
+  assert.match(voiceUi, /document\.addEventListener\("touchmove", suppressVoiceInputSelectionEvent, \{ capture: true, passive: false \}\)/);
+  assert.match(voiceUi, /event\.preventDefault\?\.\(\)/);
+  assert.match(voiceUi, /event\.stopImmediatePropagation\?\.\(\)/);
   assert.match(styles, /\.voice-input-overlay/);
   assert.match(styles, /\.voice-input-transcript/);
 }

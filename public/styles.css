@@ -16639,6 +16639,7 @@ body.task-markdown-preview-open {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  -webkit-user-drag: none;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
@@ -16648,6 +16649,13 @@ body.voice-input-press-active *:not(.voice-input-transcript) {
   user-select: none !important;
   -webkit-user-select: none !important;
   -webkit-touch-callout: none !important;
+  -webkit-user-drag: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+body.voice-input-press-active #sendMessage,
+body.voice-input-press-active .voice-input-overlay button {
+  touch-action: none;
 }
 
 #sendMessage.voice-input-pending,
