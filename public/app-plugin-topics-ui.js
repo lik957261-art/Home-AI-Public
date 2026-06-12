@@ -685,9 +685,13 @@ function pluginBottomTabCapacity() {
 }
 
 function pluginBottomTabAllowedIds() {
-  return new Set(orderedPluginAppDefs(availablePluginTopicDefs())
+  return new Set(PLUGIN_TOPIC_DEFS
     .filter((def) => !def.builtinKind)
     .map((def) => def.id));
+}
+
+function pluginTopicOrderAllowedIds() {
+  return new Set(PLUGIN_TOPIC_DEFS.map((def) => def.id));
 }
 
 function normalizePinnedPluginBottomTabIds(ids = []) {
@@ -1669,7 +1673,7 @@ function pluginTopicOrderStorageKey(workspaceId = pluginTopicUsageWorkspaceId())
 }
 
 function normalizePluginTopicOrder(ids = []) {
-  const allowed = new Set(availablePluginTopicDefs().map((def) => def.id));
+  const allowed = pluginTopicOrderAllowedIds();
   return [...new Set((Array.isArray(ids) ? ids : []).map(pluginTopicId).filter((id) => id && allowed.has(id)))];
 }
 

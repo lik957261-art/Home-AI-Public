@@ -59,6 +59,14 @@ or raw plugin credentials.
   and one-time migration sources when the server has no preference timestamp
   yet. When the server returns a preference timestamp, the server value is
   authoritative even when either list is empty.
+- Server-backed plugin bottom-tab and Dock order preferences must preserve
+  known plugin ids even when that plugin's manifest or workspace authorization
+  projection has not finished loading during a cold PWA restart. Availability
+  is a display-time filter only. The client must not rewrite the local
+  first-paint cache or server sync payload by dropping temporarily unavailable
+  ids such as `codex-mobile`, because a reload that restores directly into a
+  plugin app can otherwise make pinned tabs disappear and reappear after a
+  delayed manifest refresh.
 - A plugin pinned into a bottom-tab slot must not also render its app icon in
   the global plugin Dock/drawer. It remains available through the pinned bottom
   tab, and the user can long-press or context-click that bottom tab to remove

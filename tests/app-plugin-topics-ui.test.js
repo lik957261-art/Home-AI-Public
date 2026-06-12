@@ -182,6 +182,7 @@ function createPluginTopicHarness(options = {}) {
   const timers = [];
   const renderCalls = [];
   const failLocalStorageWrites = options.failLocalStorageWrites === true;
+  const unavailableEmbeddedIds = new Set(options.unavailableEmbeddedIds || []);
   const sandbox = {
     console,
     URLSearchParams,
@@ -216,8 +217,16 @@ function createPluginTopicHarness(options = {}) {
     $: (id) => (id === "conversation" ? { scrollTop: 72 } : null),
     renderCurrentThread: (options) => renderCalls.push(options || {}),
     wardrobePluginNavigationAvailable: () => true,
-    EMBEDDED_PLUGIN_DEFS: { finance: {}, email: {}, health: {}, note: {} },
-    embeddedPluginNavigationAvailable: () => true,
+    EMBEDDED_PLUGIN_DEFS: {
+      "codex-mobile": { id: "codex-mobile" },
+      finance: { id: "finance" },
+      email: { id: "email" },
+      health: { id: "health" },
+      note: { id: "note" },
+      growth: { id: "growth" },
+      moira: { id: "moira" },
+    },
+    embeddedPluginNavigationAvailable: (def) => !unavailableEmbeddedIds.has(String(def?.id || "")),
     currentWorkspace: () => ({ defaultWorkspace: "/workspace/owner" }),
     matchingDirectoryProject: () => ({ id: "owner-root", root: "/workspace/owner", label: "Owner" }),
     directoryAttachmentFromRoute: (projectId, subprojectId, pathText, label) => ({
@@ -242,6 +251,9 @@ globalThis.__pluginTopicHarness = {
   readUsage: readPluginTopicUsage,
   writeUsage: writePluginTopicUsage,
   recordUsage: recordPluginTopicUsage,
+  applyServerPreferences: applyPluginTopicPreferencesFromServer,
+  readPinnedTabs: readPinnedPluginBottomTabs,
+  readPluginOrder: readPluginTopicOrder,
   quickKeys: () => capabilityHubQuickActions(availablePluginTopicDefs()).map(({ def, action }) => def.id + ":" + action.id),
   actionIds: (pluginId) => pluginTopicQuickActions(pluginTopicDefById(pluginId)).map((action) => action.id + ":" + action.entry.pluginRoute),
   menuHtml: (pluginId) => renderCapabilityActionMenu(pluginTopicDefById(pluginId)),
@@ -259,6 +271,12 @@ globalThis.__pluginTopicHarness = {
     setWorkspace(workspaceId) {
       sandbox.state.selectedWorkspaceId = workspaceId;
       sandbox.state.auth.workspaceId = workspaceId;
+    },
+    setEmbeddedAvailable(pluginId, available = true) {
+      const id = String(pluginId || "").trim();
+      if (!id) return;
+      if (available) unavailableEmbeddedIds.delete(id);
+      else unavailableEmbeddedIds.add(id);
     },
     renderCalls,
     flushRootRefreshTimers() {
@@ -363,6 +381,49 @@ assert.match(menuHtml, /data-plugin-topic-move-dir="up"/, "plugin popup menu mus
   const codexLauncherHtml = harness.launcherHtml();
   assert.doesNotMatch(codexLauncherHtml, /data-plugin-topic-open-app="codex-mobile"/, "pinned Codex must be hidden from the drawer like other pinned plugins");
   assert.doesNotMatch(codexLauncherHtml, /data-plugin-topic-open-app="finance"/, "eligible pinned plugin app icons must still be hidden from the drawer");
+}
+
+{
+  const harness = createPluginTopicHarness({ unavailableEmbeddedIds: ["codex-mobile"] });
+  harness.applyServerPreferences({
+    pinnedBottomTabs: ["codex-mobile", "finance"],
+    pluginOrder: ["codex-mobile", "finance", "wardrobe"],
+  }, "owner");
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(harness.readPinnedTabs("owner"))),
+    ["codex-mobile", "finance"],
+    "server-pinned tabs must survive a cold start before Codex manifest availability is known",
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(harness.readPluginOrder("owner").slice(0, 3))),
+    ["codex-mobile", "finance", "wardrobe"],
+    "server drawer order must preserve temporarily unavailable plugin ids",
+  );
+  harness.setEmbeddedAvailable("codex-mobile", true);
+  const launcherHtml = harness.launcherHtml();
+  assert.doesNotMatch(
+    launcherHtml,
+    /data-plugin-topic-open-app="codex-mobile"/,
+    "pinned Codex must not reappear in the drawer after delayed manifest availability returns",
+  );
+  assert.doesNotMatch(
+    launcherHtml,
+    /data-plugin-topic-open-app="finance"/,
+    "pinned Finance must remain hidden from the drawer after delayed manifest availability returns",
+  );
+}
+
+{
+  const harness = createPluginTopicHarness({ unavailableEmbeddedIds: ["codex-mobile"] });
+  harness.applyServerPreferences({
+    pluginOrder: ["codex-mobile", "finance", "wardrobe"],
+  }, "owner");
+  harness.setEmbeddedAvailable("codex-mobile", true);
+  const launcherHtml = harness.launcherHtml();
+  assert.ok(
+    launcherHtml.indexOf('data-plugin-topic-open-app="codex-mobile"') < launcherHtml.indexOf('data-plugin-topic-open-app="finance"'),
+    "delayed Codex manifest availability must restore its server-saved drawer order without another server round trip",
+  );
 }
 
 {
