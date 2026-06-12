@@ -8,6 +8,11 @@ This file records durable product rules that implementation must preserve.
 - Hermes Mobile is a multi-user, multi-workspace, multi-task product layer on top of official Hermes Gateway workers, not a single-user personal Agent session and not a product-policy fork of official Hermes.
 - Owner controls production configuration, high-permission operations, workspace keys, Gateway maintenance, and Growth configuration.
 - Non-Owner accounts must retain normal workspace tools according to their workspace policy; Growth-specific restrictions must not globally lock a workspace out of chat, directory, Growth execution, Inbox, or configured background capabilities.
+- Product and architecture changes must be public-deployable. A fresh public
+  deployment from the repository must run through documented installer/runtime
+  configuration and must not depend on private machine paths, copied production
+  state, local-only secrets, hidden approvals, or manual repairs performed only
+  in the maintainer's environment.
 
 ## Multi-User And Multi-Task Platform
 

@@ -15,6 +15,19 @@ identifiers until a separate infrastructure migration is planned.
 - `docs/RUNBOOKS/` - incident diagnosis and repair procedures.
 - `.agent-context/HANDOFF.md` - latest rollout status only.
 
+## Productization Constraint
+
+All architecture decisions, fixes, scripts, deployment flows, and module
+changes must be productized. A fresh public deployment from this repository
+must remain runnable without private machine paths, hand-copied runtime state,
+local-only secrets, hidden approvals, or one-off production mutations.
+
+Environment-specific values must be discovered, parameterized, documented in
+installer/runtime configuration, or rejected by bounded preflight diagnostics.
+Production hotfixes may restore the current service first, but closure requires
+converting the repair into public-safe install/runtime behavior or recording the
+remaining gap as an explicit follow-up.
+
 ## Cross-Cutting Reference Docs
 
 - API route/auth reference: `docs/API_ROUTE_REFERENCE.md`

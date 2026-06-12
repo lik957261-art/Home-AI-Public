@@ -25,6 +25,12 @@ harnesses should move together.
 - Use the AI Operations Control Plane to generate a bounded context pack,
   required-check plan, visual lane allocation, evidence ledger records, and
   incident cassette before broad exploratory work on H1/H2 changes.
+- Keep architecture and runtime changes productized for public deployment. Do
+  not make a feature depend on private home directories, hand-copied auth
+  stores, local-only secrets, hidden approvals, or one-off production mutations.
+  Discover or parameterize environment-specific values, document required
+  configuration, and add preflight/harness coverage when missing setup can
+  break a fresh public install.
 - Do not store raw secrets, access keys, cookies, launch tokens, push endpoints,
   private plugin data, full model prompts, or long logs in docs or tests.
 - Runtime-config model catalog and selection changes move with

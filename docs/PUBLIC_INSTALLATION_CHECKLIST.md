@@ -14,6 +14,18 @@ Use this checklist when making README or deployment doc changes for an external 
 - Gateway manifest reference: `docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md`
 - Public export checklist: `docs/PUBLIC_EXPORT_CHECKLIST.md`
 
+## Productized Change Gate
+
+Before a fix, architecture change, or deployment script change is treated as
+complete, confirm that a fresh public install can reach the same supported
+behavior through documented setup. Do not require private Mac/Windows user
+paths, copied `auth.json` or plugin keys, maintainer-only environment variables,
+manual database edits, or hidden one-time approvals.
+
+Environment-specific configuration is acceptable only when the installer,
+runtime UI, manifest, or preflight tells the operator exactly what to provide
+and fails closed with a bounded diagnostic when it is missing.
+
 ## Minimum Install
 
 The minimal path requires:
